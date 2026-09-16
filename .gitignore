@@ -1,0 +1,12 @@
+target/
+node_modules/
+.next/
+dist/
+*.log
+.env
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+crash.log
+.DS_Store

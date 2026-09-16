@@ -1,0 +1,88 @@
+name: Release images
+# Su ogni tag vX.Y.Z: un'immagine per servizio su GHCR, firmata con cosign, con SBOM e scansione (RP-02, RP-06).
+on:
+  push:
+    tags: ["v*.*.*"]
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  security-events: write
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
+jobs:
+  jars:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21", cache: maven }
+      - run: mvn -B -f services/pom.xml -Drevision=${GITHUB_REF_NAME#v} -DskipTests package
+      - uses: actions/upload-artifact@v4
+        with: { name: jars, path: services/*/target/*.jar }
+  images:
+    needs: jars
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: ingress-adapters, context: services/ingress-adapters }
+          - { name: rules-engine,     context: services/rules-engine }
+          - { name: ledger,           context: services/ledger }
+          - { name: tier-service,     context: services/tier-service }
+          - { name: catalog-redemption, context: services/catalog-redemption }
+          - { name: contest-service,  context: services/contest-service }
+          - { name: identity-mapping, context: services/identity-mapping }
+          - { name: read-model,       context: services/read-model }
+          - { name: notifier,         context: services/notifier }
+          - { name: bff,              context: web/bff }
+          - { name: site,             context: web/site }
+          - { name: cms,              context: cms }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: jars, path: services }
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/${{ matrix.name }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=sha
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: true
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - uses: sigstore/cosign-installer@v3
+      - run: cosign sign --yes ${{ env.IMAGE_PREFIX }}/${{ matrix.name }}@${{ steps.build.outputs.digest }}
+      - uses: aquasecurity/trivy-action@0.32.0
+        with:
+          image-ref: ${{ env.IMAGE_PREFIX }}/${{ matrix.name }}@${{ steps.build.outputs.digest }}
+          format: sarif
+          output: trivy.sarif
+          severity: HIGH,CRITICAL
+      - uses: github/codeql-action/upload-sarif@v3
+        with: { sarif_file: trivy.sarif }
+  chart:
+    needs: images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: |
+          V=${GITHUB_REF_NAME#v}
+          helm package deploy/helm/loyalty-hub --version $V --app-version $V -d dist
+          echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+          helm push dist/loyalty-hub-$V.tgz oci://ghcr.io/${{ github.repository_owner }}/charts

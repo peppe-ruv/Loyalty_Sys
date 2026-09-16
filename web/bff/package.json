@@ -1,0 +1,12 @@
+{
+  "name": "@loyalty-hub/bff",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Backend for frontend: aggrega read-model, tier, CMS e concorsi per sito e widget (RF-50, RF-51, RF-54)",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=22" }
+}

@@ -1,0 +1,8 @@
+global:
+  environment: prod
+  secretsStore:
+    prefix: loyalty-hub-prod
+  ingress:
+    host: loyalty.gruppoiren.it
+serviceMonitor:
+  enabled: true

@@ -1,0 +1,9 @@
+environment         = "dev"
+node_instance_types = ["m7i.large"]
+node_min            = 2
+node_max            = 4
+db_instance_class   = "db.t4g.large"
+db_multi_az         = false
+kafka_broker_type   = "kafka.t3.small"
+redis_node_type     = "cache.t4g.medium"
+dr_region           = ""

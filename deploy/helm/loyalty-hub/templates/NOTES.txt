@@ -1,0 +1,8 @@
+Loyalty Hub {{ .Chart.AppVersion }} installato nel namespace {{ .Release.Namespace }}.
+
+Sito:        https://{{ .Values.global.ingress.host }}/
+Backoffice:  https://{{ .Values.global.ingress.host }}/admin
+Ingresso API: https://{{ .Values.global.ingress.host }}/v1/actions
+
+Stato dei pod:  kubectl -n {{ .Release.Namespace }} get pods
+Seed di esempio: make seed NAMESPACE={{ .Release.Namespace }}

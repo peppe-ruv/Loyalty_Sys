@@ -1,0 +1,88 @@
+asyncapi: 3.0.0
+info:
+  title: Loyalty Hub - Eventi di dominio
+  version: 1.0.0
+  description: Topic Kafka e tipi CloudEvents (RI-05, RI-06). Formato CloudEvents 1.0 JSON; chiave di partizione = memberId.
+channels:
+  actions:
+    address: loyalty.actions.v1
+    messages:
+      action: { $ref: '#/components/messages/Action' }
+  actionsDlq:
+    address: loyalty.actions.dlq.v1
+    messages:
+      rejected: { $ref: '#/components/messages/ActionRejected' }
+  movements:
+    address: loyalty.movements.v1
+    messages:
+      movement: { $ref: '#/components/messages/Movement' }
+  tiers:
+    address: loyalty.tiers.v1
+  redemptions:
+    address: loyalty.redemptions.v1
+  contests:
+    address: loyalty.contests.v1
+operations:
+  publishAction:
+    action: send
+    channel: { $ref: '#/channels/actions' }
+    summary: Adattatori di ingresso e servizi interni (concorsi, programma) pubblicano azioni premianti
+  consumeAction:
+    action: receive
+    channel: { $ref: '#/channels/actions' }
+    summary: rules-engine valuta le regole e accredita sul ledger
+  publishMovement:
+    action: send
+    channel: { $ref: '#/channels/movements' }
+    summary: ledger pubblica ogni movimento tramite outbox
+components:
+  messages:
+    Action:
+      name: it.iren.loyalty.action.v1
+      contentType: application/cloudevents+json
+      payload:
+        type: object
+        properties:
+          specversion: { const: '1.0' }
+          type: { const: it.iren.loyalty.action.v1 }
+          source: { type: string, example: urn:iren:loyalty:source:sap-billing }
+          id: { type: string, description: uguale a data.idempotencyKey }
+          subject: { type: string, example: 'member:iam-sub-abc' }
+          time: { type: string, format: date-time }
+          data:
+            type: object
+            required: [actionType, idempotencyKey, occurredAt]
+            properties:
+              actionType: { type: string }
+              idempotencyKey: { type: string }
+              externalRef: { type: string }
+              occurredAt: { type: string, format: date-time }
+              reversalOf: { type: string }
+              attributes: { type: object }
+    ActionRejected:
+      name: it.iren.loyalty.action.v1.rejected
+      contentType: application/cloudevents+json
+      payload:
+        type: object
+        properties:
+          data:
+            type: object
+            properties:
+              reason: { type: string, enum: [INVALID_IDEMPOTENCY_KEY, FUTURE_TIMESTAMP, UNKNOWN_MEMBER, SCHEMA_INVALID] }
+              action: { type: object }
+    Movement:
+      name: it.iren.loyalty.movement.v1
+      contentType: application/cloudevents+json
+      payload:
+        type: object
+        properties:
+          data:
+            type: object
+            properties:
+              movementId: { type: string }
+              currency: { type: string, enum: [PREMIO, STATUS] }
+              amount: { type: integer }
+              reason: { type: string }
+              actionKey: { type: string }
+              balance: { type: integer }
+              debt: { type: boolean }

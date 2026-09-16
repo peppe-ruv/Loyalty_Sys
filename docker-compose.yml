@@ -1,0 +1,78 @@
+# Ambiente locale (RP-05): stessa topologia della produzione, senza AWS.
+# docker compose up -d && make seed-local
+name: loyalty-hub
+x-java: &java
+  restart: unless-stopped
+  environment: &java-env
+    DB_URL: jdbc:postgresql://postgres:5432/loyalty
+    DB_USER: loyalty
+    DB_PASSWORD: loyalty
+    KAFKA_BOOTSTRAP: kafka:9092
+    LEDGER_URL: http://ledger:8083
+    TIER_URL: http://tier-service:8084
+  depends_on:
+    postgres: { condition: service_healthy }
+    kafka: { condition: service_healthy }
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment: { POSTGRES_DB: loyalty, POSTGRES_USER: loyalty, POSTGRES_PASSWORD: loyalty }
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U loyalty"], interval: 5s, retries: 10 }
+
+  kafka:
+    image: apache/kafka:3.8.1
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: loyalty-hub-local-000000
+    ports: ["9092:9092"]
+    healthcheck: { test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"], interval: 10s, retries: 12 }
+
+  redis:
+    image: valkey/valkey:8-alpine
+    ports: ["6379:6379"]
+
+  ingress-adapters: { <<: *java, build: services/ingress-adapters, ports: ["8081:8081"] }
+  rules-engine:     { <<: *java, build: services/rules-engine, ports: ["8082:8082"] }
+  ledger:           { <<: *java, build: services/ledger, ports: ["8083:8083"] }
+  tier-service:     { <<: *java, build: services/tier-service, ports: ["8084:8084"] }
+  catalog-redemption: { <<: *java, build: services/catalog-redemption, ports: ["8085:8085"] }
+  contest-service:  { <<: *java, build: services/contest-service, ports: ["8086:8086"] }
+  identity-mapping: { <<: *java, build: services/identity-mapping, ports: ["8087:8087"] }
+  read-model:
+    <<: *java
+    build: services/read-model
+    ports: ["8088:8088"]
+    environment: { <<: *java-env, SPRING_DATA_REDIS_HOST: redis }
+  notifier:         { <<: *java, build: services/notifier }
+
+  cms:
+    build: cms
+    environment: { DATABASE_URI: postgresql://loyalty:loyalty@postgres:5432/loyalty, PAYLOAD_SECRET: local-dev-secret, CMS_URL: http://localhost:3002 }
+    ports: ["3002:3000"]
+    depends_on: { postgres: { condition: service_healthy } }
+
+  bff:
+    build: web/bff
+    environment: { READ_MODEL_URL: http://read-model:8088, TIER_URL: http://tier-service:8084, CONTEST_URL: http://contest-service:8086, CMS_URL: http://cms:3000 }
+    ports: ["3001:3001"]
+
+  site:
+    build: web/site
+    environment: { BFF_URL: http://bff:3001 }
+    ports: ["3000:3000"]
+    depends_on: [bff]
+
+volumes:
+  pgdata: {}
