@@ -2,7 +2,7 @@
 
 Piattaforma loyalty **vendor neutral** per Iren: riceve azioni premianti da qualunque sistema (CRM, billing, portali, partner), le trasforma in punti e tier, sblocca fasce di premi e genera azioni premianti dal programma annuale e dagli instant win. Un solo backoffice/CMS configura card, pop-up, catalogo, regole e concorsi.
 
-Riferimenti: [Specifica](docs/SPECIFICA.md) · [Parità con Open Loyalty](docs/PARITA-OPEN-LOYALTY.md) · [Catalogo funzionale (edizione attuale)](docs/CATALOGO-FUNZIONALE.md) · [Osservabilità e BI](docs/OSSERVABILITA-BI.md) · [Decisioni (ADR)](docs/adr/) · [Contratti API](docs/contracts/) · [Runbook](docs/runbooks/)
+Riferimenti: [Specifica](docs/SPECIFICA.md) · [Parità con Open Loyalty](docs/PARITA-OPEN-LOYALTY.md) · [Catalogo funzionale (edizione attuale)](docs/CATALOGO-FUNZIONALE.md) · [Osservabilità e BI](docs/OSSERVABILITA-BI.md) · [Copertura Loyalty 4.0](docs/COPERTURA-LOYALTY-4.0.md) · [Decisioni (ADR)](docs/adr/) · [Contratti API](docs/contracts/) · [Runbook](docs/runbooks/)
 
 Copertura funzionale: **almeno quella di Open Loyalty**, edizione open source (ADR-017) ed edizione attuale (ADR-018): campagne con
 trigger, effetti, limiti, espressioni e automazioni; referral multilivello; wallet configurabili con blocchi e trasferimenti; achievement,
