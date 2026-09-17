@@ -1,6 +1,6 @@
 {
   "name": "@loyalty-hub/cms",
-  "version": "0.1.0",
+  "version": "0.6.2",
   "private": true,
   "type": "module",
   "description": "Backoffice/CMS su Payload (D13): card concorso, card vincita, pop-up, catalogo, regole, tier, concorsi, con workflow per tipo di oggetto (D14)",

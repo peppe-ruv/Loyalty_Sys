@@ -10,7 +10,7 @@
   </parent>
   <groupId>it.iren.loyalty</groupId>
   <artifactId>loyalty-hub-services</artifactId>
-  <version>0.5.0-SNAPSHOT</version>
+  <version>0.6.2-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>Loyalty Hub services</name>
   <description>Servizi di dominio del Loyalty Hub vendor neutral</description>
@@ -43,7 +43,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <otel.instrumentation.version>2.18.1-alpha</otel.instrumentation.version>
     <resilience4j.version>2.3.0</resilience4j.version>
-    <revision>0.5.0-SNAPSHOT</revision>
+    <revision>0.6.2-SNAPSHOT</revision>
     <cloudevents.version>4.0.1</cloudevents.version>
   </properties>
   <dependencyManagement>
@@ -51,7 +51,7 @@
       <dependency>
         <groupId>it.iren.loyalty</groupId>
         <artifactId>common</artifactId>
-        <version>0.5.0-SNAPSHOT</version>
+        <version>0.6.2-SNAPSHOT</version>
       </dependency>
       <dependency>
         <groupId>io.cloudevents</groupId>

@@ -20,7 +20,7 @@
   <properties>
     <!-- Target di rilascio: Java 25 LTS (D03). Il valore qui è la baseline minima usata in CI; alzare a 25 quando l'immagine base è disponibile. -->
     <java.version>21</java.version>
-    <revision>0.5.0-SNAPSHOT</revision>
+    <revision>0.6.2-SNAPSHOT</revision>
     <otel.instrumentation.version>2.18.1-alpha</otel.instrumentation.version>
     <maven.compiler.release>${java.version}</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

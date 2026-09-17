@@ -4,6 +4,10 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
 
 ## [0.6.2] — 2026-09-17
 
+### Modificato
+- Una sola versione per tutto il repository: `services/pom.xml`, `Chart.yaml`, `Makefile` e i cinque `package.json`
+  passano da 0.5.0/0.6.1/0.1.0 a 0.6.2. Le immagini continuano a prendere la versione dal tag git
+
 Il monorepo 0.5.0 (servizi Java, CMS, web, deploy, analytics) e il bundle UX 0.6.0 vivono nello stesso
 repository; da qui tutto si costruisce e si verifica con `make check`.
 

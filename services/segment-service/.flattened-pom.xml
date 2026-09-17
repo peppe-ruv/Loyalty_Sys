@@ -5,10 +5,10 @@
   <parent>
     <groupId>it.iren.loyalty</groupId>
     <artifactId>loyalty-hub-services</artifactId>
-    <version>0.5.0-SNAPSHOT</version>
+    <version>0.6.2-SNAPSHOT</version>
   </parent>
   <artifactId>segment-service</artifactId>
-  <version>0.5.0-SNAPSHOT</version>
+  <version>0.6.2-SNAPSHOT</version>
   <name>segment-service</name>
   <description>Segmenti dinamici e statici dei membri, ricalcolo pianificato, export (RF-65, RF-71)</description>
   <licenses>

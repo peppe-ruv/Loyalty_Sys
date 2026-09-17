@@ -11,7 +11,8 @@ sistema (Salesforce, SAP via middleware, IrenYou/app, partner, file), le trasfor
 premi, gestisce concorsi instant win conformi al DPR 430/2001 e, dalla 0.5.0, decide *cosa proporre a chi* con un
 motore decisionale configurabile dal backoffice (Loyalty 4.0). Il perimetro funzionale è "almeno Open Loyalty"
 (edizione open source e attuale: RF-60..RF-116) più osservabilità e BI enterprise (RF-117..RF-124) e il livello
-decisionale (RF-125..RF-136). Versione corrente: **0.5.0**.
+decisionale (RF-125..RF-136). Versione corrente: **0.6.2** (il codice 0.5.0 e il bundle UX 0.6.0 sono confluiti in
+un'unica numerazione).
 
 Lingua: codice in inglese (identificatori), **commenti, javadoc, documenti, messaggi di commit in italiano**. Ogni
 requisito ha un codice `RF-nn` (funzionale), `RI-nn` (integrazione), `RC`/`RT`, e ogni scelta un `ADR-nnn` in
@@ -174,8 +175,11 @@ esempio sono `DecisionPolicy.example()`, `RiskPolicy.example()`, `DeliveryRoutin
   degrado controllato (cache ultimo saldo, NBA → `NO_ACTION` se il motore non risponde).
 - Test: JUnit 5 + AssertJ nel modulo (`src/test/java`, stessa struttura del package); i domini puri hanno test di
   logica con valori "parlanti" (es. Torino→Roma per il viaggio impossibile). Un fix di bug porta il test che lo riproduce.
-- Commit: titolo in italiano, corpo puntato per componente, trailer `Co-Authored-By` se generato con Claude. Versioni
-  allineate in `deploy/helm/loyalty-hub/Chart.yaml`, `services/pom.xml` (`revision`), `Makefile`.
+- Commit: titolo in italiano, corpo puntato per componente, trailer `Co-Authored-By` se generato con Claude. Il
+  repository ha **una sola versione** (oggi 0.6.2): `services/pom.xml` (`revision`, con `-SNAPSHOT` in sviluppo),
+  `deploy/helm/loyalty-hub/Chart.yaml` (`version` e `appVersion`), `Makefile` (ripiego quando non c'è un tag) e i
+  `package.json` di radice, design system, `cms/`, `web/site`, `web/bff`. Le immagini prendono comunque la versione
+  dal tag git (`release.yml`).
 
 ## 8. Come estendere (ricette)
 

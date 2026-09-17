@@ -5,10 +5,10 @@
   <parent>
     <groupId>it.iren.loyalty</groupId>
     <artifactId>loyalty-hub-services</artifactId>
-    <version>0.5.0-SNAPSHOT</version>
+    <version>0.6.2-SNAPSHOT</version>
   </parent>
   <artifactId>contest-service</artifactId>
-  <version>0.5.0-SNAPSHOT</version>
+  <version>0.6.2-SNAPSHOT</version>
   <name>contest-service</name>
   <description>Programma annuale, missioni, instant win periziabile, registro giocate append-only (RF-20..RF-39)</description>
   <licenses>
