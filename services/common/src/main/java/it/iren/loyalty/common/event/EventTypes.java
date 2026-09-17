@@ -45,7 +45,7 @@ public final class EventTypes {
     public static final String ACTION_TRANSACTION = "TRANSACTION";
     public static final String ACTION_TRANSACTION_RETURNED = "TRANSACTION_RETURNED";
 
-    /** Attributi canonici riconosciuti dalle regole (RF-63): importo, canale, posizione, righe, codice. */
+    /** Attributi canonici riconosciuti dalle regole (RF-61, RF-63): canale, importo, posizione, righe, codice, etichette. */
     public static final String ATTR_AMOUNT_EUR = "amountEur";
     public static final String ATTR_CHANNEL = "channel";
     public static final String ATTR_LAT = "lat";
