@@ -35,8 +35,14 @@ public record TierPolicy(List<Tier> tiers) {
         return tiers.stream().filter(t -> t.order() == floor).findFirst().orElse(tiers.get(0));
     }
 
+    /** Tier con questo codice, se esiste: da usare quando il codice arriva da fuori (assegnazione manuale). */
+    public java.util.Optional<Tier> find(String code) {
+        return tiers.stream().filter(t -> t.code().equals(code)).findFirst();
+    }
+
+    /** Tier con questo codice, con ripiego sul livello base: per i percorsi di lettura, che non devono fallire. */
     public Tier byCode(String code) {
-        return tiers.stream().filter(t -> t.code().equals(code)).findFirst().orElse(tiers.get(0));
+        return find(code).orElse(tiers.get(0));
     }
 
     /** Soglie di esempio, da tarare sui dati reali (punto aperto). */

@@ -79,7 +79,7 @@ public class DeliveryService {
             if (adapter == null) { last = new ChannelAdapter.Result("SKIPPED", "no adapter: " + ch, null); continue; }
             int cap = r.maxPerDayByChannel() == null ? 0 : r.maxPerDayByChannel().getOrDefault(ch, 0);
             if (cap > 0 && deliveriesToday(memberId, ch) >= cap) { last = new ChannelAdapter.Result("SKIPPED", "daily cap " + ch, null); continue; }
-            var rendered = render(r, action, reference, memberId, params);
+            var rendered = render(r, action, reference, memberId, ch, params);
             String deliveryId = UUID.randomUUID().toString();
             var delivery = new ChannelAdapter.Delivery(deliveryId, memberId, decisionId, action, reference, ch, rendered.subject(), rendered.body(), params, expiresAt, correlationId);
             ChannelAdapter.Result res;
@@ -98,19 +98,41 @@ public class DeliveryService {
         return last;
     }
 
-    private MessageTemplate.Rendered render(DeliveryRouting r, String action, String reference, String memberId, Map<String, Object> params) {
+    private MessageTemplate.Rendered render(DeliveryRouting r, String action, String reference, String memberId, String channel, Map<String, Object> params) {
         String templateId = params.get("templateId") != null ? params.get("templateId").toString() : r.templateFor(action, reference);
         Map<String, Object> data = new HashMap<>(params);
         data.put("memberId", memberId);
         data.put("reference", reference);
         data.put("action", action);
-        for (MessageTemplate.Channel ch : MessageTemplate.Channel.values()) {
-            var t = templates.find(templateId, ch, String.valueOf(params.getOrDefault("locale", "it")));
-            if (t.isPresent()) return t.get().render(data);
-        }
+        return render(templates, templateId, channel, action, reference, params, data);
+    }
+
+    /**
+     * Canale del modello corrispondente al canale di consegna: {@code app}, {@code web}, {@code webhook} e
+     * {@code operator} ricevono il testo in-app.
+     */
+    static MessageTemplate.Channel templateChannel(String channel) {
+        return switch (channel == null ? "" : channel) {
+            case "email" -> MessageTemplate.Channel.EMAIL;
+            case "sms" -> MessageTemplate.Channel.SMS;
+            case "push" -> MessageTemplate.Channel.PUSH;
+            default -> MessageTemplate.Channel.IN_APP;
+        };
+    }
+
+    /**
+     * Testo da consegnare sul canale scelto: si usa il modello di <em>quel</em> canale e, se non esiste, il testo
+     * generico nei parametri della decisione. Mai il modello di un altro canale: il corpo di una email finirebbe
+     * in un SMS (RF-77, RF-132).
+     */
+    static MessageTemplate.Rendered render(TemplateSource templates, String templateId, String channel, String action,
+                                           String reference, Map<String, Object> params, Map<String, Object> data) {
+        MessageTemplate.Channel wanted = templateChannel(channel);
+        var template = templates.find(templateId, wanted, String.valueOf(params.getOrDefault("locale", "it")));
+        if (template.isPresent()) return template.get().render(data);
         String subject = Objects.toString(params.get("title"), reference == null ? action : reference);
         String body = Objects.toString(params.get("body"), Objects.toString(params.get("text"), ""));
-        return new MessageTemplate.Rendered(MessageTemplate.Channel.IN_APP, subject, body);
+        return new MessageTemplate.Rendered(wanted, subject, body);
     }
 
     private boolean alreadyDelivered(String decisionId, String action, String reference) {

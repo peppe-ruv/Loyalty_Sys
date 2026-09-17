@@ -74,8 +74,10 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/content/cards") return json(200, await fetchJson(`${CMS}/api/contest-cards?where[status][equals]=published`));
 
     // --- Area membro (RF-72, RF-68, RF-69, RF-67, RF-16/17, RF-73) — "client cockpit" ---
+    // Nelle rotte che inoltrano il corpo, i campi presi dal percorso (memberId, canale) si scrivono
+    // DOPO lo spread: un corpo con "memberId" non deve poter parlare a nome di un altro membro.
     if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/enroll$/)) && req.method === "POST")
-      return json(201, await proxy(`${MEMBERS}/v1/members`, "POST", JSON.stringify({ memberId: m[1], ...JSON.parse((await readBody(req)) || "{}") })));
+      return json(201, await proxy(`${MEMBERS}/v1/members`, "POST", JSON.stringify({ ...JSON.parse((await readBody(req)) || "{}"), memberId: m[1] })));
     if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/profile$/)) && req.method === "PATCH")
       return json(200, await proxy(`${MEMBERS}/v1/members/${m[1]}`, "PATCH", await readBody(req)));
     if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/referral$/))) return json(200, await fetchJson(`${MEMBERS}/v1/members/${m[1]}/referral`));
@@ -88,7 +90,7 @@ const server = http.createServer(async (req, res) => {
       return json(r.status, await r.json());
     }
     if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/check-ins$/)) && req.method === "POST")
-      return json(202, await proxy(`${INGRESS}/v1/check-ins`, "POST", JSON.stringify({ memberId: m[1], ...JSON.parse((await readBody(req)) || "{}"), channel: "app" })));
+      return json(202, await proxy(`${INGRESS}/v1/check-ins`, "POST", JSON.stringify({ ...JSON.parse((await readBody(req)) || "{}"), memberId: m[1], channel: "app" })));
     if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/redemptions$/)) && req.method === "POST") {
       const { rewardId } = JSON.parse((await readBody(req)) || "{}");
       const [tier, segs, bal] = await Promise.all([fetchJson(`${TIER}/v1/tiers/members/${m[1]}`), fetchJson(`${SEGMENTS}/v1/segments/members/${m[1]}`).catch(() => []), fetchJson(`${LEDGER}/v1/ledger/members/${m[1]}/balances`)]);
@@ -118,7 +120,7 @@ const server = http.createServer(async (req, res) => {
       return json(r.status, await r.json());
     }
     if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/pay-with-points$/)) && req.method === "POST")
-      return json(200, await proxy(`${CATALOG}/v1/pay-with-points`, "POST", JSON.stringify({ memberId: m[1], ...JSON.parse((await readBody(req)) || "{}") })));
+      return json(200, await proxy(`${CATALOG}/v1/pay-with-points`, "POST", JSON.stringify({ ...JSON.parse((await readBody(req)) || "{}"), memberId: m[1] })));
     if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/custom-fields$/))) return json(200, await fetchJson(`${MEMBERS}/v1/members/${m[1]}/custom-fields`));
     if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/custom-fields\/([^/]+)$/)) && req.method === "PUT") return json(200, await proxy(`${MEMBERS}/v1/members/${m[1]}/custom-fields/${m[2]}`, "PUT", await readBody(req)));
     if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/tier-progress$/))) return json(200, await fetchJson(`${TIER}/v1/tiers/members/${m[1]}/progress`));

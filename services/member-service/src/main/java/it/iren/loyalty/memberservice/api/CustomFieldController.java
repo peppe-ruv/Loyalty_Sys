@@ -28,6 +28,13 @@ public class CustomFieldController {
         this.segments = b.baseUrl(System.getenv().getOrDefault("SEGMENT_URL", "http://segment-service:8090")).build();
     }
 
+    /** Il corpo della richiesta è JSON libero validato dallo schema del backoffice: qui resta un documento. */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> asDocument(Object value) {
+        if (!(value instanceof Map<?, ?> map)) throw new IllegalArgumentException("atteso un oggetto JSON");
+        return (Map<String, Object>) map;
+    }
+
     @GetMapping("/custom-fields/schemas")
     public List<CustomFieldSchema> schemas() { return source.schemasFor(CustomFieldSchema.Entity.MEMBER); }
 
@@ -35,11 +42,19 @@ public class CustomFieldController {
     public Map<String, Object> get(@PathVariable String id) {
         var rows = jdbc.queryForList("SELECT group_name, row_index, values::text FROM memberservice.custom_field WHERE member_id = ? ORDER BY group_name, row_index", id);
         Map<String, Object> out = new java.util.LinkedHashMap<>();
+        // I gruppi ripetibili (row_index >= 0) si accumulano in liste tenute a parte: così non serve
+        // rileggere dal risultato un valore di tipo Object per aggiungerci un elemento.
+        Map<String, List<Object>> repeatable = new java.util.LinkedHashMap<>();
         for (var r : rows) {
             try {
                 Object v = json.readValue((String) r.get("values"), Map.class);
-                if (((Number) r.get("row_index")).intValue() >= 0) ((List<Object>) out.computeIfAbsent((String) r.get("group_name"), k -> new java.util.ArrayList<>())).add(v);
-                else out.put((String) r.get("group_name"), v);
+                String group = (String) r.get("group_name");
+                if (((Number) r.get("row_index")).intValue() >= 0) {
+                    repeatable.computeIfAbsent(group, k -> new java.util.ArrayList<>()).add(v);
+                    out.put(group, repeatable.get(group));
+                } else {
+                    out.put(group, v);
+                }
             } catch (Exception e) {
                 // Riga illeggibile: si salta, ma senza traccia un campo sparito sarebbe impossibile da spiegare.
                 // Nessun id membro nel log (D12): basta il gruppo per trovare la riga.
@@ -49,10 +64,15 @@ public class CustomFieldController {
         return out;
     }
 
+    // Sostituzione del gruppo: cancellazione e reinserimento devono stare nella stessa transazione,
+    // altrimenti un errore a metà lascia il membro senza i valori che aveva.
+    @org.springframework.transaction.annotation.Transactional
     @PutMapping("/{id}/custom-fields/{group}")
     public Map<String, Object> put(@PathVariable String id, @PathVariable String group, @RequestBody Object body) {
         CustomFieldSchema schema = source.schemasFor(CustomFieldSchema.Entity.MEMBER).stream().filter(s -> s.group().equals(group)).findFirst().orElseThrow(() -> new IllegalArgumentException("unknown group " + group));
-        List<Map<String, Object>> rows = schema.repeatable() && body instanceof List<?> l ? l.stream().map(o -> (Map<String, Object>) o).toList() : List.of((Map<String, Object>) body);
+        List<Map<String, Object>> rows = schema.repeatable() && body instanceof List<?> l
+                ? l.stream().map(CustomFieldController::asDocument).toList()
+                : List.of(asDocument(body));
         java.util.function.BiPredicate<String, String> inCollection = (c, v) -> { try { return Boolean.TRUE.equals(segments.get().uri("/v1/collections/{c}/contains?value={v}", c, v).retrieve().body(Boolean.class)); } catch (Exception e) { return false; } };
         List<String> errors = new java.util.ArrayList<>();
         for (var r : rows) errors.addAll(schema.validate(r, inCollection));

@@ -59,13 +59,25 @@ public class TierController {
     /** Assegnazione manuale (RF-70): chiude l'eventuale override precedente e registra il nuovo con causale. */
     @PutMapping("/members/{memberId}/override")
     public Map<String, Object> override(@PathVariable String memberId, @RequestBody OverrideRequest o) {
-        policy.byCode(o.tierCode());
+        // `byCode` ripiega sul livello base: qui serve il rifiuto, altrimenti un codice sbagliato
+        // diventa un override verso un tier inesistente e il membro risulta retrocesso (RF-70).
+        policy.find(o.tierCode()).orElseThrow(() -> new UnknownTier(o.tierCode()));
         Instant now = Instant.now();
         jdbc.update("UPDATE tierservice.tier_override SET until_at = ? WHERE member_id = ? AND (until_at IS NULL OR until_at > ?)", Timestamp.from(now), memberId, Timestamp.from(now));
         jdbc.update("INSERT INTO tierservice.tier_override(member_id, tier, reason, actor, from_at, until_at) VALUES (?,?,?,?,?,?)",
                 memberId, o.tierCode(), o.reason(), o.actor(), Timestamp.from(now), o.until() == null ? null : Timestamp.from(o.until()));
         jdbc.update("INSERT INTO tierservice.tier_history(member_id, from_tier, to_tier, reason) VALUES (?,?,?,'MANUAL')", memberId, null, o.tierCode());
         return current(memberId);
+    }
+
+    /** Codice tier non presente nel programma. */
+    public static class UnknownTier extends RuntimeException {
+        public UnknownTier(String code) { super("tier sconosciuto: " + code); }
+    }
+
+    @ExceptionHandler(UnknownTier.class)
+    public org.springframework.http.ResponseEntity<Map<String, String>> unknownTier(UnknownTier e) {
+        return org.springframework.http.ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
     }
 
     @DeleteMapping("/members/{memberId}/override")
