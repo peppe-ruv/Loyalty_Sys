@@ -19,6 +19,10 @@ CREATE TABLE catalogredemption.redemption (
     code         VARCHAR(128),
     requested_at TIMESTAMPTZ NOT NULL,
     delivered_at TIMESTAMPTZ,
-    expires_at   TIMESTAMPTZ GENERATED ALWAYS AS (requested_at + INTERVAL '180 days') STORED  -- RC-07
+    -- RC-07: validità del riscatto, 180 giorni dalla richiesta. L'aritmetica su timestamptz dipende dal
+    -- fuso della sessione, quindi Postgres la considera non immutabile e rifiuta la colonna generata:
+    -- il calcolo passa per UTC, che è immutabile ed è anche la durata fissa che serve qui.
+    expires_at   TIMESTAMPTZ GENERATED ALWAYS AS
+                 (((requested_at AT TIME ZONE 'UTC') + INTERVAL '180 days') AT TIME ZONE 'UTC') STORED
 );
 CREATE INDEX redemption_member_idx ON catalogredemption.redemption (member_id, requested_at DESC);

@@ -1,11 +1,13 @@
 package it.iren.loyalty.ledger;
 
 import it.iren.loyalty.common.event.Currency;
+import it.iren.loyalty.common.test.PostgresIntegrationTest;
 import it.iren.loyalty.ledger.domain.LedgerService;
 import it.iren.loyalty.ledger.domain.Movement;
 import it.iren.loyalty.ledger.domain.Repositories;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
@@ -19,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * saldo che non scende sotto zero, registro append-only, outbox scritta nella stessa transazione
  * (RF-04, RF-15, RF-87, RI-08).
  */
+@SpringBootTest(properties = "ledger.outbox.relay-ms=3600000")
 class LedgerServiceIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired LedgerService ledger;
