@@ -1,6 +1,6 @@
 global:
   registry: ghcr.io/loyalty-hub
-  tag: "0.6.2"
+  tag: "0.7.0"
   imagePullPolicy: IfNotPresent
   environment: dev
   # Segreti letti da AWS Secrets Manager tramite External Secrets (RP-04)

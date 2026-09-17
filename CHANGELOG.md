@@ -2,7 +2,7 @@
 
 Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il versionamento semantico.
 
-## [Non rilasciato]
+## [0.7.0] — 2026-09-17
 
 ### Licenza e nome
 - licenza Apache-2.0 (testo ufficiale in `LICENSE`, campo `license` nei manifest e blocco `licenses` nel pom)

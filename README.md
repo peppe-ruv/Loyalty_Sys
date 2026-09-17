@@ -13,7 +13,7 @@ and decides what to offer each customer. A single back office configures content
 
 | | |
 | --- | --- |
-| Versione · Version | `0.6.2` |
+| Versione · Version | `0.7.0` |
 | Licenza · License | Apache-2.0 — vedi [`LICENSE`](LICENSE) · see [`LICENSE`](LICENSE) |
 | Runtime | Java 21 (target 25 LTS) · Spring Boot 3.5 · Node 20 · Next.js · PostgreSQL · Kafka · Redis |
 | Esercizio · Operations | Kubernetes (AWS EKS, `eu-south-1`) · Terraform · Helm |
@@ -230,12 +230,12 @@ while a contest is running.
 
 ## 9. Stato e roadmap · Status and roadmap
 
-Versione 0.6.2: struttura del monorepo, contratti, dominio completo dei 14 servizi, catalogo funzionale
+Versione 0.7.0: struttura del monorepo, contratti, dominio completo dei 14 servizi, catalogo funzionale
 (RF-01..RF-116), osservabilità e BI enterprise (RF-117..RF-124), livello decisionale configurabile (RF-125..RF-136),
 installazione locale e su Kubernetes. Punti aperti e criteri di accettazione in
 [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md); backlog tecnico in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-**EN** — Version 0.6.2: monorepo layout, contracts, complete domain of the 14 services, functional catalogue
+**EN** — Version 0.7.0: monorepo layout, contracts, complete domain of the 14 services, functional catalogue
 (RF-01..RF-116), enterprise observability and BI (RF-117..RF-124), configurable decision layer (RF-125..RF-136), local
 and Kubernetes installation. Open points and acceptance criteria in [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md); technical
 backlog in [`docs/ROADMAP.md`](docs/ROADMAP.md).

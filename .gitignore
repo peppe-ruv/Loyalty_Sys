@@ -38,3 +38,7 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Generato da flatten-maven-plugin
+.flattened-pom.xml
+**/.flattened-pom.xml

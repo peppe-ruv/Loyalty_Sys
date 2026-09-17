@@ -22,12 +22,12 @@ Documentazione estesa · Extended documentation: [`README.md`](README.md) ·
 Loyalty Hub è una piattaforma loyalty vendor neutral ed event-driven: riceve azioni premianti da qualunque
 sistema, le trasforma in unità e livelli, sblocca premi, gestisce concorsi e gamification e decide cosa proporre a chi
 su quale canale, con motivazione registrata. Tutto ciò che il business deve poter cambiare vive nel backoffice.
-Versione corrente **0.6.2**.
+Versione corrente **0.7.0**.
 
 **EN** — Loyalty Hub is a vendor-neutral, event-driven loyalty platform: it ingests rewarding actions from any system,
 turns them into units and tiers, unlocks rewards, runs contests and gamification, and decides what to offer to whom on
 which channel, with a recorded rationale. Everything the business must be able to change lives in the back office.
-Current version **0.6.2**.
+Current version **0.7.0**.
 
 Lingua · Language: identificatori in inglese; documenti pubblici bilingui (IT/EN); ogni requisito ha un codice
 (`RF-nn`, `RI-nn`, `RC-nn`, `RT-nn`) e ogni scelta strutturale un `ADR-nnn` in `docs/adr/`. I commenti citano il
