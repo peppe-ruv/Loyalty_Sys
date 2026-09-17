@@ -17,7 +17,8 @@ import java.util.Map;
 public class IdentityController {
     public record ResolveRequest(List<Identifier> identifiers, String source, String createAs, String channel) {}
     public record LinkRequest(Identifier identifier, String source, Integer confidence) {}
-    public record MergeRequest(String fromMemberId, String intoMemberId, String reason, String actor) {}
+    /** {@code mergeId} è la chiave di idempotenza: senza, se ne deriva una stabile dalla coppia di membri. */
+    public record MergeRequest(String mergeId, String fromMemberId, String intoMemberId, String reason, String actor) {}
 
     private final IdentityService identities;
     public IdentityController(IdentityService identities) { this.identities = identities; }
@@ -41,7 +42,13 @@ public class IdentityController {
     }
 
     @PostMapping("/merges")
-    public IdentityGraph.Merge merge(@RequestBody MergeRequest r) { return identities.merge(r.fromMemberId(), r.intoMemberId(), r.reason(), r.actor()); }
+    public IdentityGraph.Merge merge(@RequestBody MergeRequest r) {
+        return identities.merge(r.mergeId(), r.fromMemberId(), r.intoMemberId(), r.reason(), r.actor());
+    }
+
+    /** Riprende un merge rimasto a metà (lo fa anche da solo lo scheduler; qui è per la console operatore). */
+    @PostMapping("/merges/{mergeId}/advance")
+    public IdentityGraph.Merge advance(@PathVariable String mergeId) { return identities.advance(mergeId); }
 
     @PostMapping("/merges/{mergeId}/unmerge")
     public IdentityGraph.Merge unmerge(@PathVariable String mergeId, @RequestBody(required = false) Map<String, String> body) {

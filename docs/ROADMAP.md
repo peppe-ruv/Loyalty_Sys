@@ -24,13 +24,13 @@ Legenda · Legend: **✅ completo · complete** · **🟡 parziale · partial** 
 | Previsioni · Predictions | 🟡 | Porta, provider a regole, routing per chiave, ripiego | Modelli addestrati; feature store; misura della qualità delle previsioni |
 | Antifrode · Fraud | 🟡 | 9 segnali configurabili, punteggio e livelli, blocco automatico, rivalutazione | Grafo dei dispositivi; liste di blocco dal backoffice; revisione manuale che rialimenta le soglie |
 | Consegna · Delivery | 🟡 | Inbox, webhook, coda operatore, instradamento con ripiego, modelli | Adattatori reali per push, email e SMS; reinvio manuale dalla console; localizzazione dei modelli per canale |
-| Identità · Identity | 🟡 | Grafo, risoluzione deterministica, merge con trasferimento, unmerge da snapshot, alias | Unmerge che ripristina anche i saldi; collegamenti probabilistici proposti in coda operatore |
+| Identità · Identity | ✅ | Grafo, risoluzione deterministica, merge ripartibile con chiave di idempotenza, unmerge che ripristina identificatori e saldi, alias, ripresa automatica dei merge interrotti | Collegamenti probabilistici proposti in coda operatore · probabilistic links proposed in the operator queue |
 | Consensi · Consent | ✅ | Finalità con base giuridica, storico, scadenza, revoca propagata, prova | — |
 | Backoffice · Back office | ✅ | Collezioni, workflow di approvazione, versioni, ruoli, simulazioni, vista andamenti | Export di configurazione verso storage a oggetti |
 | Area membro · Member area | 🟡 | Saldo, storico, catalogo, riscatti, inbox, gamification, widget, degrado | Area riservata completa con autenticazione reale (oggi membro dimostrativo) |
 | Osservabilità · Observability | ✅ | Metriche di business e tecniche, SLO e alert con runbook, log e tracce correlati, cruscotti versionati | — |
 | Warehouse e BI | ✅ | Ingestione dai topic, schema a stella, cruscotti incorporati, retention | Analytics di programma esposte anche via API di lettura |
-| Test | 🟡 | Test unitari di dominio su tutte le logiche critiche | Test di integrazione con container effimeri (database + Kafka) per outbox, ciclo decisionale, merge, consegna |
+| Test | 🟡 | Test unitari di dominio e test di integrazione su database reale (container effimero) per riscatti, merge di identità, ingresso azioni | Banco Kafka per outbox e ciclo decisionale end-to-end · Kafka bench for the outbox and the end-to-end decision cycle |
 | Sicurezza · Security | 🟡 | Nessun segreto nel repository, immagini firmate, SBOM, ruoli e SSO | Autenticazione servizio-a-servizio sulle API interne; scansione dipendenze bloccante in CI; quote per fonte nel gateway |
 
 ---

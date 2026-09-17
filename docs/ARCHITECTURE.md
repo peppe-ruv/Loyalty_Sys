@@ -263,7 +263,7 @@ L'interfaccia mostra sempre l'istante di aggiornamento delle letture eventualmen
 | Assegnazione instant win · Instant win award | Lock riga sull'istante vincente + registro con hash concatenato · row lock on the winning moment + hash-chained log |
 | Riscatto · Redemption | Transazione singola: debito nel registro + creazione riscatto · single transaction: ledger debit + redemption creation |
 | Doppio invio dalla fonte · Duplicate source delivery | Tabella `seen_keys` sulla chiave di idempotenza · `seen_keys` table on the idempotency key |
-| Merge di identità · Identity merge | Trasferimento di unità tracciato + snapshot per l'unmerge · tracked units transfer + snapshot for unmerge |
+| Merge di identità · Identity merge | Macchina a stati registrata (`merge_history.status`): ogni passo è idempotente, la chiave di merge è di idempotenza, uno scheduler riprende i merge interrotti · recorded state machine: every step idempotent, the merge key is the idempotency key, a scheduler resumes interrupted merges |
 
 ---
 

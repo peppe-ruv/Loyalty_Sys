@@ -2,6 +2,26 @@
 
 Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il versionamento semantico.
 
+## [Non rilasciato]
+
+### Licenza e nome
+- licenza Apache-2.0 (testo ufficiale in `LICENSE`, campo `license` nei manifest e blocco `licenses` nel pom)
+- rinomina vendor neutral: `it.iren.loyalty` → `io.loyaltyhub`, tipi evento `io.loyaltyhub.*.v1`, URN `urn:loyaltyhub:*`;
+  nessun riferimento a marchi o prodotti di terze parti nel repository
+- documentazione bilingue italiano/inglese: README, CLAUDE, CONTRIBUTING, SECURITY, `docs/` e ADR 001-026
+
+### Aggiunto
+- `identity-mapping`: il merge è una macchina a stati registrata (`merge_history.status`), ripartibile passo per passo,
+  con chiave di idempotenza esplicita (`mergeId`) e ripresa automatica dei merge interrotti (`POST
+  /v1/identities/merges/{id}/advance` e uno scheduler ogni minuto)
+- `identity-mapping`: l'unmerge ripristina anche i saldi, ritrasferendo le unità che il merge aveva spostato; se il
+  membro sopravvissuto le ha spese torna indietro solo ciò che c'è e la differenza è un ammanco dichiarato
+  (`shortfall`), mai un accredito creato dal nulla
+
+### Corretto
+- `identity-mapping`: un errore fra il trasferimento delle unità e la chiusura del membro assorbito lasciava uno stato
+  incoerente che nessuno recuperava, e il riprovo generava una chiave nuova trasferendo una seconda volta
+
 ## [0.6.2] — 2026-09-17
 
 ### Corretto (guasti di avvio, trovati dai test di integrazione)

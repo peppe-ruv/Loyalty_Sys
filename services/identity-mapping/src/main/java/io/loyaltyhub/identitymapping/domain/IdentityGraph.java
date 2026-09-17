@@ -25,7 +25,29 @@ public final class IdentityGraph {
         public boolean ambiguous() { return memberId == null && !conflicts.isEmpty(); }
     }
 
-    public record Merge(String mergeId, String fromMemberId, String intoMemberId, String reason, String actor, List<Link> movedLinks, Map<String, Long> unitsMoved, Instant mergedAt, Instant unmergedAt) {}
+    /**
+     * Merge registrato: {@code status} dice a che punto è arrivato (PENDING, LINKS_MOVED, UNITS_MOVED, ALIASED,
+     * COMPLETED, UNMERGING, UNMERGED), perché il merge attraversa tre domini e non è una transazione sola.
+     * {@code unitsRestored} è quanto l'unmerge è riuscito davvero a ritrasferire: può essere meno di
+     * {@code unitsMoved} se il membro sopravvissuto ha speso le unità nel frattempo.
+     */
+    public record Merge(String mergeId, String fromMemberId, String intoMemberId, String reason, String actor,
+                        List<Link> movedLinks, Map<String, Long> unitsMoved, Map<String, Long> unitsRestored,
+                        String status, Instant mergedAt, Instant unmergedAt) {
+
+        /** Il merge è arrivato in fondo: identificatori spostati, unità trasferite, alias creato, membro chiuso. */
+        public boolean completed() { return "COMPLETED".equals(status) || "UNMERGED".equals(status); }
+
+        /** Unità che l'unmerge non ha potuto restituire perché nel frattempo erano state spese. */
+        public Map<String, Long> shortfall() {
+            Map<String, Long> out = new java.util.LinkedHashMap<>();
+            unitsMoved.forEach((wallet, moved) -> {
+                long back = unitsRestored.getOrDefault(wallet, 0L);
+                if (moved - back > 0) out.put(wallet, moved - back);
+            });
+            return out;
+        }
+    }
 
     /** Tipi con cui un identificatore da solo identifica il cliente (deterministici). */
     public static final List<String> DETERMINISTIC = List.of("oidc_sub", "crm_id", "sap_bp_id", "pos_card", "ecommerce_id", "email_hash", "phone_hash", "app_id");
