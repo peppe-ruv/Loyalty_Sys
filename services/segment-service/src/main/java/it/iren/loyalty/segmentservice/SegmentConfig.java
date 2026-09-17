@@ -5,6 +5,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.client.RestClient;
 
 import java.time.Instant;
@@ -16,6 +17,13 @@ import java.util.stream.Stream;
 /** Adattatori di default: segmenti di esempio in memoria (in produzione: CMS) e snapshot dal read-model via REST. */
 @Configuration
 public class SegmentConfig {
+
+    /** Pagina di snapshot come la restituisce il read-model. */
+    private static final ParameterizedTypeReference<List<Object>> JSON_ARRAY = new ParameterizedTypeReference<>() { };
+
+    /** Un solo mapper per l'intera scansione: costruirne uno per pagina costa più della conversione. */
+    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
 
     @Bean
     @ConditionalOnMissingBean
@@ -47,13 +55,11 @@ public class SegmentConfig {
         };
     }
 
-    @SuppressWarnings("unchecked")
     private static List<MemberSnapshot> page(RestClient rm, String after) {
         try {
-            var body = rm.get().uri(u -> u.path("/v1/read/members/snapshots").queryParam("after", after).queryParam("size", 1000).build()).retrieve().body(List.class);
+            List<Object> body = rm.get().uri(u -> u.path("/v1/read/members/snapshots").queryParam("after", after).queryParam("size", 1000).build()).retrieve().body(JSON_ARRAY);
             if (body == null) return List.of();
-            var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
-            return ((List<Object>) body).stream().map(o -> mapper.convertValue(o, MemberSnapshot.class)).toList();
+            return body.stream().map(o -> MAPPER.convertValue(o, MemberSnapshot.class)).toList();
         } catch (Exception e) { return List.of(); }
     }
 }

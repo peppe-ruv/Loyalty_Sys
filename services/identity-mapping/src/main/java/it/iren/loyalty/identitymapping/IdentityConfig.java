@@ -4,6 +4,7 @@ import it.iren.loyalty.identitymapping.app.IdentityService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.client.RestClient;
 
 import java.util.HashMap;
@@ -12,8 +13,10 @@ import java.util.Map;
 /** Effetti del merge sugli altri domini: trasferimento unità sul ledger (RF-88) e chiusura del membro assorbito. */
 @Configuration
 public class IdentityConfig {
+
+    /** Saldi per wallet come li restituisce il ledger: {@code {wallet: {active, earned, …}}}. */
+    private static final ParameterizedTypeReference<Map<String, Map<String, Number>>> WALLETS = new ParameterizedTypeReference<>() { };
     @Bean @ConditionalOnMissingBean
-    @SuppressWarnings("unchecked")
     IdentityService.MergeEffects mergeEffects(RestClient.Builder builder) {
         RestClient ledger = builder.baseUrl(System.getenv().getOrDefault("LEDGER_URL", "http://ledger:8083")).build();
         RestClient members = builder.baseUrl(System.getenv().getOrDefault("MEMBER_URL", "http://member-service:8091")).build();
@@ -22,7 +25,7 @@ public class IdentityConfig {
             @Override public Map<String, Long> transferUnits(String from, String into, String mergeId) {
                 Map<String, Long> moved = new HashMap<>();
                 if (!transfer) return moved;
-                Map<String, Map<String, Number>> wallets = ledger.get().uri("/v1/ledger/members/{id}/wallets", from).retrieve().body(Map.class);
+                Map<String, Map<String, Number>> wallets = ledger.get().uri("/v1/ledger/members/{id}/wallets", from).retrieve().body(WALLETS);
                 if (wallets == null) return moved;
                 wallets.forEach((wallet, v) -> {
                     long active = v.get("active").longValue();

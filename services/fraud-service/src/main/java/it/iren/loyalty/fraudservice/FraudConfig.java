@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.client.RestClient;
 
 import java.util.EnumMap;
@@ -16,6 +17,12 @@ import java.util.function.Supplier;
 /** Cablaggio: policy dal backoffice (collezione {@code fraud-rules}, con cache e fallback al seed) e blocco sul ledger. */
 @Configuration
 public class FraudConfig {
+
+    /** Forma della risposta del CMS: un oggetto JSON con `docs`, `totalDocs`, … */
+    private static final ParameterizedTypeReference<Map<String, Object>> JSON_OBJECT = new ParameterizedTypeReference<>() { };
+
+    /** Saldi per wallet come li restituisce il ledger: {@code {wallet: {active, blocked, …}}}. */
+    private static final ParameterizedTypeReference<Map<String, Map<String, Number>>> WALLETS = new ParameterizedTypeReference<>() { };
     private static String env(String k, String def) { return System.getenv().getOrDefault(k, def); }
 
     @Bean @ConditionalOnMissingBean
@@ -30,7 +37,8 @@ public class FraudConfig {
                 long now = System.currentTimeMillis();
                 if (now - at < ttl) return last;
                 try {
-                    Map<String, Object> body = cms.get().uri("/api/fraud-rules?where[status][equals]=published&limit=1&depth=0").retrieve().body(Map.class);
+                    Map<String, Object> body = cms.get().uri("/api/fraud-rules?where[status][equals]=published&limit=1&depth=0").retrieve().body(JSON_OBJECT);
+                    // `docs` è una lista di documenti JSON: il contenuto non è tipizzabile a compile time.
                     List<Map<String, Object>> docs = body == null ? List.of() : (List<Map<String, Object>>) body.getOrDefault("docs", List.of());
                     if (!docs.isEmpty()) last = toPolicy(docs.get(0));
                 } catch (Exception e) { log.warn("cms fraud-rules unavailable ({}), keeping {}", e.toString(), last.id()); }
@@ -61,13 +69,12 @@ public class FraudConfig {
 
     /** Blocco automatico: congela l'intero saldo attivo di ogni wallet (o lo sblocca); il ledger resta la sola fonte di verità. */
     @Bean @ConditionalOnMissingBean
-    @SuppressWarnings("unchecked")
     RiskService.LedgerBlocker ledgerBlocker(RestClient.Builder builder) {
         RestClient ledger = builder.baseUrl(env("LEDGER_URL", "http://ledger:8083")).build();
         boolean enabled = Boolean.parseBoolean(env("FRAUD_AUTO_BLOCK", "true"));
         return (memberId, reason, unblock) -> {
             if (!enabled) return;
-            Map<String, Map<String, Number>> wallets = ledger.get().uri("/v1/ledger/members/{id}/wallets", memberId).retrieve().body(Map.class);
+            Map<String, Map<String, Number>> wallets = ledger.get().uri("/v1/ledger/members/{id}/wallets", memberId).retrieve().body(WALLETS);
             if (wallets == null) return;
             wallets.forEach((wallet, v) -> {
                 long amount = v.get(unblock ? "blocked" : "active").longValue();

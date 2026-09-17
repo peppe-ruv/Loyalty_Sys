@@ -4,6 +4,7 @@ import it.iren.loyalty.decisionservice.domain.DecisionContext;
 import it.iren.loyalty.decisionservice.domain.PredictionProvider;
 import it.iren.loyalty.decisionservice.domain.PredictionRouting;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
@@ -18,6 +19,9 @@ import java.util.Set;
  * esposto come servizio (es. un container con un modello scikit-learn/ONNX).
  */
 public final class HttpPredictionProvider implements PredictionProvider {
+    /** Risposta del provider: {@code {"predictions": {chiave: valore}}}. */
+    private static final ParameterizedTypeReference<Map<String, Object>> JSON_OBJECT = new ParameterizedTypeReference<>() { };
+
     private final PredictionRouting.Provider cfg;
     private final RestClient client;
 
@@ -35,7 +39,6 @@ public final class HttpPredictionProvider implements PredictionProvider {
     @Override public String name() { return cfg.name(); }
 
     @Override
-    @SuppressWarnings("unchecked")
     public Map<String, Double> predict(DecisionContext ctx, Set<String> keys) {
         Map<String, Object> body = new HashMap<>();
         body.put("memberId", ctx.memberId());
@@ -46,7 +49,7 @@ public final class HttpPredictionProvider implements PredictionProvider {
         body.put("monetary365d", ctx.monetary365d());
         body.put("activity", ctx.activityOrNone());
         body.put("keys", keys);
-        Map<String, Object> res = client.post().uri("").body(body).retrieve().body(Map.class);
+        Map<String, Object> res = client.post().uri("").body(body).retrieve().body(JSON_OBJECT);
         Map<String, Double> out = new HashMap<>();
         Object p = res == null ? null : res.getOrDefault("predictions", res);
         if (p instanceof Map<?, ?> m) m.forEach((k, v) -> { if (v instanceof Number n) out.put(k.toString(), PredictionProvider.clamp(n.doubleValue())); });

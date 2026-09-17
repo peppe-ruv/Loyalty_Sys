@@ -10,6 +10,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.client.RestClient;
 
 import java.time.Instant;
@@ -21,6 +22,10 @@ import java.util.*;
  */
 @Configuration
 public class DecisionConfig {
+
+    /** Forma delle risposte JSON dei servizi interni (Customer 360, valutazioni delle campagne). */
+    private static final ParameterizedTypeReference<Map<String, Object>> JSON_OBJECT = new ParameterizedTypeReference<>() { };
+
     private static String env(String k, String def) { return System.getenv().getOrDefault(k, def); }
 
     @Bean @ConditionalOnMissingBean SpelSupport spel() { return new SpelSupport(); }
@@ -49,12 +54,11 @@ public class DecisionConfig {
 
     /** Customer 360 dal context-service (read-model): una sola chiamata per decisione (RF-126). */
     @Bean @ConditionalOnMissingBean
-    @SuppressWarnings("unchecked")
     Ports.ContextSource contextSource(RestClient.Builder builder) {
         RestClient rm = builder.baseUrl(env("READ_MODEL_URL", "http://read-model:8088")).build();
         return memberId -> {
             Map<String, Object> c;
-            try { c = rm.get().uri("/v1/context/{id}", memberId).retrieve().body(Map.class); }
+            try { c = rm.get().uri("/v1/context/{id}", memberId).retrieve().body(JSON_OBJECT); }
             catch (Exception e) { c = null; }
             if (c == null) return DecisionContext.minimal(memberId, "BASE");
             Map<String, Object> loyalty = CmsSources.map(c.get("loyalty")), behaviour = CmsSources.map(c.get("behaviour")), engagement = CmsSources.map(c.get("engagement")), risk = CmsSources.map(c.get("risk")), identity = CmsSources.map(c.get("identity"));
@@ -84,11 +88,10 @@ public class DecisionConfig {
 
     /** Valutazione delle campagne senza effetti (rules-engine {@code POST /v1/evaluations}). */
     @Bean @ConditionalOnMissingBean
-    @SuppressWarnings("unchecked")
     Ports.CampaignEvaluations campaignEvaluations(RestClient.Builder builder) {
         RestClient rules = builder.baseUrl(env("RULES_URL", "http://rules-engine:8082")).build();
         return (memberId, action) -> {
-            Map<String, Object> body = rules.post().uri("/v1/evaluations").body(Map.of("memberId", memberId, "action", action)).retrieve().body(Map.class);
+            Map<String, Object> body = rules.post().uri("/v1/evaluations").body(Map.of("memberId", memberId, "action", action)).retrieve().body(JSON_OBJECT);
             if (body == null) return new Ports.CampaignEvaluations.Result(List.of(), List.of());
             List<Ports.CampaignEvaluations.Outcome> outcomes = new ArrayList<>();
             for (Map<String, Object> o : CmsSources.rows(body.get("outcomes"))) {

@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.ParameterizedTypeReference;
 
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,9 @@ import java.util.Set;
 /** Adattatori di default: modelli e webhook di esempio in memoria (in produzione dal CMS), invio su log. */
 @Configuration
 public class NotifierConfig {
+
+    /** Forma della risposta del CMS: un oggetto JSON con `docs`, `totalDocs`, … */
+    private static final ParameterizedTypeReference<Map<String, Object>> JSON_OBJECT = new ParameterizedTypeReference<>() { };
     @Bean @ConditionalOnMissingBean
     TemplateSource seedTemplates() {
         List<MessageTemplate> seed = List.of(
@@ -49,7 +53,8 @@ public class NotifierConfig {
                 long now = System.currentTimeMillis();
                 if (now - at < ttl) return last;
                 try {
-                    Map<String, Object> body = cms.get().uri("/api/delivery-routing?where[status][equals]=published&limit=1&depth=0").retrieve().body(Map.class);
+                    Map<String, Object> body = cms.get().uri("/api/delivery-routing?where[status][equals]=published&limit=1&depth=0").retrieve().body(JSON_OBJECT);
+                    // `docs` è una lista di documenti JSON: il contenuto non è tipizzabile a compile time.
                     List<Map<String, Object>> docs = body == null ? List.of() : (List<Map<String, Object>>) body.getOrDefault("docs", List.of());
                     if (!docs.isEmpty()) last = toRouting(docs.get(0));
                 } catch (Exception e) { log.warn("cms delivery-routing unavailable ({}), keeping {}", e.toString(), last.id()); }

@@ -110,6 +110,17 @@
 
   <build>
     <plugins>
+      <!-- I raw type e le conversioni unchecked qui sono costati due errori di compilazione:
+           tenerli visibili in ogni build è il modo più economico per non ripeterli. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <compilerArgs>
+            <arg>-Xlint:unchecked,rawtypes,deprecation</arg>
+          </compilerArgs>
+        </configuration>
+      </plugin>
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>flatten-maven-plugin</artifactId>

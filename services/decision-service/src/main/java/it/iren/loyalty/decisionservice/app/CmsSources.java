@@ -7,6 +7,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import it.iren.loyalty.decisionservice.domain.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.client.RestClient;
 
 import java.time.Instant;
@@ -23,6 +24,9 @@ import java.util.function.Supplier;
  * {@code experiments}, {@code prediction-providers}.
  */
 public final class CmsSources implements Ports.PolicySource, Ports.OfferSource, Ports.ExperimentSource, Ports.PredictionConfigSource {
+    /** Forma della risposta del CMS: un oggetto JSON con `docs`, `totalDocs`, … */
+    private static final ParameterizedTypeReference<Map<String, Object>> JSON_OBJECT = new ParameterizedTypeReference<>() { };
+
     private static final Logger log = LoggerFactory.getLogger(CmsSources.class);
     private static final ObjectMapper MAPPER = JsonMapper.builder().addModule(new JavaTimeModule())
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).enable(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL).build();
@@ -51,9 +55,9 @@ public final class CmsSources implements Ports.PolicySource, Ports.OfferSource, 
         }
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings("unchecked") // Payload restituisce `docs` come lista di documenti JSON: il contenuto non è tipizzabile qui.
     private List<Map<String, Object>> docs(String collection, String where) {
-        Map<String, Object> body = cms.get().uri("/api/{c}?where[status][equals]=published&limit=200&depth=0" + (where == null ? "" : "&" + where), collection).retrieve().body(Map.class);
+        Map<String, Object> body = cms.get().uri("/api/{c}?where[status][equals]=published&limit=200&depth=0" + (where == null ? "" : "&" + where), collection).retrieve().body(JSON_OBJECT);
         Object docs = body == null ? null : body.get("docs");
         return docs instanceof List<?> l ? (List<Map<String, Object>>) l : List.of();
     }
