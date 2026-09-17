@@ -1,0 +1,25 @@
+{
+  "name": "@loyalty-hub/playground",
+  "version": "0.7.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "Playground di Loyalty Hub: i pattern del design system e il motore decisionale su dati finti, senza backend.",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 3010",
+    "build": "next build",
+    "start": "next start -p 3010"
+  },
+  "dependencies": {
+    "@loyalty-hub/backoffice-design-system": "*",
+    "next": "15.5.25",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.17.0",
+    "@types/react": "19.1.9",
+    "@types/react-dom": "19.1.9",
+    "typescript": "5.9.2"
+  }
+}

@@ -51,11 +51,14 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: "22" }
       - name: BFF
-        run: node --check web/bff/src/server.js
+        run: node --check web/bff/src/server.js && cd web/bff && npm test
       - name: Sito Next.js
         run: cd web/site && npm ci --no-audit --no-fund && npm run build
       - name: Backoffice Payload
         run: cd cms && npm ci --no-audit --no-fund && npm run typecheck && npm run generate:importmap && npm run build
+      - name: Playground
+        # Il playground usa il design system compilato: va costruito prima, come fa il Makefile.
+        run: npm ci --no-audit --no-fund && npm run build --workspace @loyalty-hub/backoffice-design-system && npm run build --workspace @loyalty-hub/playground
   deploy:
     name: Helm and Terraform
     runs-on: ubuntu-latest

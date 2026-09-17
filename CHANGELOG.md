@@ -2,6 +2,20 @@
 
 Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il versionamento semantico.
 
+## [Non rilasciato]
+
+### Aggiunto
+- design system: i 15 pattern non sono più solo contratti di tipo, hanno la loro **implementazione React**
+  (`DataTable`, `SectionForm`, `RuleCard`/`RuleList`, `KpiTabsChart`, `EntityProfile`/`Timeline`, `EmptyState`,
+  chip e bottoni), con gli stili fatti solo di token `--lh-*` e 14 test che provano le regole del catalogo —
+  contatore della lista, operatori sempre scritti, sezioni in ordine fisso, nessun id tecnico a schermo
+- `web/playground`: sito statico (export Next.js, nessun backend) che mostra i pattern con dati finti e un
+  simulatore del motore decisionale dove si vede *perché* un'azione viene scartata, con il suo codice motivo
+- `make playground` e passo dedicato in CI
+
+### Sicurezza
+- Next.js aggiornato da 15.5.0 a 15.5.25 (CVE-2025-66478) nel sito e nel playground
+
 ## [0.7.0] — 2026-09-17
 
 ### Licenza e nome

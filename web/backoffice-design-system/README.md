@@ -21,9 +21,25 @@ dei 15 pattern, token di tema e le regole che i moduli non devono reimplementare
 | `src/imports.ts` | ImportFlow (LG-44, LG-45) |
 | `src/feedback.ts` | EmptyState, toast, modale delle operazioni lunghe (LG-09, LG-45) |
 | `src/format.ts` | Formattazione italiana di valori, contatori e variazioni (LG-04, LG-29, LG-40) |
+| `src/components/` | **I componenti React** che implementano i pattern: `DataTable`, `SectionForm`, `RuleCard`/`RuleList`, `KpiTabsChart`, `EntityProfile`/`Timeline`, `EmptyState`, chip e bottoni |
+| `src/components/components.css` | Stili dei componenti: nessun valore letterale, solo token `--lh-*` |
 | `tokens.css` | Token di colore, tipografia, spaziature e tema chiaro/scuro, tutti con prefisso `--lh-` |
 
 ## Uso
+
+I componenti si importano dal sottopercorso `components`, gli stili una volta sola
+dall'applicazione:
+
+```tsx
+import { DataTable, SectionForm } from '@loyalty-hub/backoffice-design-system/components';
+import '@loyalty-hub/backoffice-design-system/tokens.css';
+import '@loyalty-hub/backoffice-design-system/components.css';
+```
+
+Un modulo che costruisce una lista, un form o un costruttore di condizioni fuori da questi
+componenti sta creando un secondo design system (ADR-026). Il playground in
+[`web/playground`](../playground/README.md) è la vetrina: mostra ogni pattern con dati finti ed
+è il posto dove si verifica a occhio una modifica.
 
 ```ts
 import {

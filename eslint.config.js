@@ -14,6 +14,7 @@ export default tseslint.config(
       // il BFF da `node --check`, il CMS da `tsc --noEmit`. Qui si linta solo il design system,
       // altrimenti questa configurazione verrebbe applicata anche a loro dai rispettivi strumenti.
       'web/site/**',
+      'web/playground/**',
       'web/bff/**',
       'cms/**',
       'services/**',
@@ -23,7 +24,7 @@ export default tseslint.config(
   tseslint.configs.strictTypeChecked,
   tseslint.configs.stylisticTypeChecked,
   {
-    files: ['web/backoffice-design-system/**/*.ts', 'eslint.config.js'],
+    files: ['web/backoffice-design-system/**/*.ts', 'web/backoffice-design-system/**/*.tsx', 'eslint.config.js'],
     languageOptions: {
       parserOptions: {
         // projectService usa i tsconfig.json dei workspace senza elencarli qui.

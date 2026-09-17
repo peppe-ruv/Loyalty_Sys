@@ -6,7 +6,7 @@ TF_DIR      = deploy/terraform
 CHART       = deploy/helm/loyalty-hub
 VERSION    ?= $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo 0.7.0)
 
-.PHONY: help build test check check-ds check-web images up down seed-local infra install seed uninstall destroy lint observability bi up-observability up-bi
+.PHONY: help build test check check-ds check-web playground images up down seed-local infra install seed uninstall destroy lint observability bi up-observability up-bi
 
 help: ## Elenca i comandi
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -24,10 +24,17 @@ check-ds: ## Design system del backoffice: lint, tipi, test, build
 	@[ -d node_modules ] || npm ci --no-audit --no-fund
 	npm run check
 
-check-web: ## Sito Next.js, BFF e backoffice Payload
+check-web: ## Sito Next.js, BFF, backoffice Payload e playground
 	node --check web/bff/src/server.js
+	cd web/bff && npm test
 	cd web/site && { [ -d node_modules ] || npm ci --no-audit --no-fund; } && npm run build
 	cd cms && { [ -d node_modules ] || npm ci --no-audit --no-fund; } && npm run typecheck && npm run generate:importmap && npm run build
+	$(MAKE) playground
+
+playground: ## Playground statico (design system + motore decisionale su dati finti)
+	@[ -d node_modules ] || npm ci --no-audit --no-fund
+	npm run build --workspace @loyalty-hub/backoffice-design-system
+	npm run build --workspace @loyalty-hub/playground
 
 images: build ## Immagini locali di tutti i servizi
 	docker compose build

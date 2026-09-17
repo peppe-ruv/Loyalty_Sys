@@ -44,6 +44,8 @@ structural choice an ADR; comments cite the requirement they implement.
 | `cms/` | Backoffice Payload CMS (TypeScript): collezioni di contenuto e configurazione, endpoint di simulazione e BI, viste |
 | `web/bff/` | Backend-for-frontend Node: area membro, console operatore, prossima azione, inbox, consensi, identità |
 | `web/site/` | Sito Next.js e widget incorporabili |
+| `web/backoffice-design-system/` | Design system del backoffice: contratti dei pattern, componenti React, token `--lh-*`, regole eseguibili |
+| `web/playground/` | Playground statico (export Next.js) che mostra pattern e motore decisionale su dati finti |
 | `deploy/terraform/` | Infrastruttura: rete, cluster, database, Kafka, cache, storage, segreti, osservabilità |
 | `deploy/helm/loyalty-hub/` | Umbrella chart: un template generico genera Deployment/Service/HPA/PDB per ogni voce di `values.yaml → services` |
 | `deploy/observability/`, `deploy/bi/` | Values, regole di alert, cruscotti; warehouse e BI |
@@ -157,7 +159,8 @@ make up-bi            # warehouse e BI · warehouse and BI
 make lint             # chart e infrastruttura · chart and infrastructure
 make check            # tutto: Java, design system, sito, BFF, backoffice · everything
 make check-ds         # design system: eslint, tsc, vitest, build del pacchetto
-make check-web        # BFF, sito e backoffice Payload · BFF, site and Payload back office
+make check-web        # BFF, sito, backoffice Payload e playground · BFF, site, Payload back office and playground
+make playground       # solo il playground statico · the static playground alone
 ```
 
 Verifica minima prima di un commit · Minimum pre-commit check:

@@ -2,7 +2,7 @@
   "name": "@loyalty-hub/backoffice-design-system",
   "version": "0.7.0",
   "private": true,
-  "description": "Contratti dei 15 pattern UI del backoffice Loyalty Hub, token di tema e regole eseguibili (workflow ADR-014, formati KPI, frasi senza ID tecnici).",
+  "description": "Design system del backoffice Loyalty Hub: contratti dei 15 pattern UI, componenti React che li implementano, token di tema e regole eseguibili (workflow ADR-014, formati KPI, frasi senza ID tecnici).",
   "license": "Apache-2.0",
   "type": "module",
   "sideEffects": [
@@ -19,11 +19,17 @@
       "types": "./dist/patterns.d.ts",
       "default": "./dist/patterns.js"
     },
-    "./tokens.css": "./tokens.css"
+    "./tokens.css": "./tokens.css",
+    "./components": {
+      "types": "./dist/components/index.d.ts",
+      "default": "./dist/components/index.js"
+    },
+    "./components.css": "./src/components/components.css"
   },
   "files": [
     "dist",
-    "tokens.css"
+    "tokens.css",
+    "src/components/components.css"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -33,9 +39,19 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "peerDependencies": {
-    "@types/react": ">=18"
+    "@types/react": ">=18",
+    "react": ">=18",
+    "react-dom": ">=18"
   },
   "devDependencies": {
-    "@types/react": "^19.3.0"
+    "@types/react": "19.1.9",
+    "@types/react-dom": "19.1.9",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@types/react": {
+      "optional": true
+    }
   }
 }
