@@ -21,7 +21,17 @@ repository; da qui tutto si costruisce e si verifica con `make check`.
 - Sito: `outputFileTracingRoot` fissato, altrimenti `.next/standalone` finisce annidato e il Dockerfile non trova
   `server.js`
 
+### Corretto (revisione del codice, `docs/REVISIONE-CODICE-0.5.0.md`)
+- `notifier`: il testo consegnato non teneva conto del canale — il corpo di una email poteva partire come SMS o push
+- `tier-service`: l'assegnazione manuale accettava un codice tier inesistente e il membro finiva retrocesso a BASE
+- `catalog-redemption`: l'annullo dall'area membro non verificava che il riscatto fosse del richiedente
+- `web/bff`: il corpo della richiesta poteva sovrascrivere il `memberId` preso dal percorso
+- `member-service`: sostituzione dei campi custom fuori transazione
+- `engagement-service`: nome tabella concatenato nel SQL senza elenco chiuso di valori ammessi
+
 ### Aggiunto
+- `docs/REVISIONE-CODICE-0.5.0.md`: otto punti aperti che cambiano semantica di saldi, transazioni o consegne, con
+  l'analisi di ciascuno e le alternative
 - Guscio Next del backoffice Payload 3 (`(payload)/admin`, `(payload)/api` REST/GraphQL, mappa import dei componenti
   custom) e `tsconfig.json`: `npm run typecheck` e `npm run build` fanno davvero il loro lavoro
 - `make check`, `make check-ds`, `make check-web`

@@ -111,6 +111,9 @@ public class RedemptionService {
         var row = jdbc.queryForMap("SELECT member_id, status, points, reward_id, requested_at FROM catalogredemption.redemption WHERE id = ? FOR UPDATE", redemptionId);
         RedemptionState from = RedemptionState.valueOf((String) row.get("status"));
         if (byMember && to == RedemptionState.CANCELLED) {
+            // L'annullo da area membro vale solo sui propri riscatti: senza questo controllo l'id di un
+            // riscatto altrui basterebbe per annullarlo (RF-16).
+            if (!String.valueOf(row.get("member_id")).equals(actor)) throw new RedemptionRejected("NOT_OWNER");
             if (!from.cancellableByMember()) throw new RedemptionRejected("NOT_CANCELLABLE");
             int graceHours = Integer.parseInt(System.getenv().getOrDefault("REDEMPTION_CANCEL_HOURS", "48"));
             if (((Timestamp) row.get("requested_at")).toInstant().plus(Duration.ofHours(graceHours)).isBefore(Instant.now())) throw new RedemptionRejected("CANCEL_WINDOW_ELAPSED");
