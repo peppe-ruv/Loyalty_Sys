@@ -42,6 +42,7 @@
     <java.version>21</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <otel.instrumentation.version>2.18.1-alpha</otel.instrumentation.version>
+    <docker.api.version>1.44</docker.api.version>
     <resilience4j.version>2.3.0</resilience4j.version>
     <revision>0.6.2-SNAPSHOT</revision>
     <cloudevents.version>4.0.1</cloudevents.version>
@@ -102,6 +103,16 @@
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
   <build>
     <plugins>
@@ -111,6 +122,14 @@
           <compilerArgs>
             <arg>-Xlint:unchecked,rawtypes,deprecation</arg>
           </compilerArgs>
+        </configuration>
+      </plugin>
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <api.version>${docker.api.version}</api.version>
+          </systemPropertyVariables>
         </configuration>
       </plugin>
       <plugin>

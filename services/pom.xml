@@ -26,6 +26,9 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <cloudevents.version>4.0.1</cloudevents.version>
     <resilience4j.version>2.3.0</resilience4j.version>
+    <!-- Il client Docker di Testcontainers 1.21 parla l'API 1.32, che i motori recenti rifiutano.
+         1.44 esiste da Docker 25; per un motore più vecchio: -Ddocker.api.version=<versione>. -->
+    <docker.api.version>1.44</docker.api.version>
   </properties>
 
   <modules>
@@ -106,6 +109,18 @@
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- Test di integrazione su Postgres vero: le migrazioni Flyway, i vincoli e il trigger di
+         immutabilità del ledger sono metà della logica e con un database in memoria non si provano. -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -119,6 +134,15 @@
           <compilerArgs>
             <arg>-Xlint:unchecked,rawtypes,deprecation</arg>
           </compilerArgs>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <api.version>${docker.api.version}</api.version>
+          </systemPropertyVariables>
         </configuration>
       </plugin>
       <plugin>
