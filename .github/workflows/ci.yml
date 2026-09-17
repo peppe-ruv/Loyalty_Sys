@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+# Una sola esecuzione per branch: i push successivi annullano quella in corso.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  node:
+    name: Lint, tipi, test e build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Installazione delle dipendenze
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Controllo dei tipi
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  shell:
+    name: Script di shell
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # shellcheck è preinstallato sui runner ubuntu-latest.
+      - name: ShellCheck
+        run: shellcheck --severity=style scripts/*.sh

@@ -1,0 +1,24 @@
+# dipendenze
+node_modules/
+
+# output di build TypeScript
+dist/
+*.tsbuildinfo
+
+# cache degli strumenti
+.eslintcache
+coverage/
+.vitest/
+
+# ambiente locale
+.env
+.env.*
+!.env.example
+
+# sistema operativo ed editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json

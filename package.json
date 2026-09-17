@@ -1,0 +1,32 @@
+{
+  "name": "loyalty-hub",
+  "version": "0.6.1",
+  "private": true,
+  "description": "Loyalty Hub — monorepo della piattaforma loyalty vendor neutral (documentazione di prodotto e design system del backoffice).",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "workspaces": [
+    "web/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "clean": "npm run clean --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.0",
+    "@types/react": "^19.3.0",
+    "eslint": "^10.10.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^5.0.1"
+  }
+}
