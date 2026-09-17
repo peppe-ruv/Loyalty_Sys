@@ -5,10 +5,10 @@
   <parent>
     <groupId>it.iren.loyalty</groupId>
     <artifactId>loyalty-hub-services</artifactId>
-    <version>0.6.2-SNAPSHOT</version>
+    <version>0.7.0-SNAPSHOT</version>
   </parent>
   <artifactId>engagement-service</artifactId>
-  <version>0.6.2-SNAPSHOT</version>
+  <version>0.7.0-SNAPSHOT</version>
   <name>engagement-service</name>
   <description>Achievement, challenge, badge e classifiche (RF-90..RF-97)</description>
   <licenses>

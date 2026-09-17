@@ -35,7 +35,7 @@ Fonti (Salesforce, SAP via middleware, IrenYou/app, partner, SFTP)
 | --- | --- |
 | `services/` | Maven multi-modulo: `common`, `ingress-adapters`, `rules-engine`, `ledger`, `tier-service`, `segment-service`, `member-service`, `engagement-service`, `catalog-redemption`, `contest-service`, `identity-mapping` (grafo identità), `read-model` (Customer 360), `notifier` (modelli, webhook, delivery omnicanale), `decision-service`, `fraud-service` |
 | `web/bff`, `web/site` | Backend for frontend (Node) e sito Next.js |
-| `web/backoffice-design-system` | Pacchetto `@loyalty-hub/backoffice-design-system`: contratti dei 15 pattern UI, regole eseguibili (workflow D14, frasi senza id tecnici, formati KPI) e token (ADR-026) |
+| `web/backoffice-design-system` | Pacchetto `@loyalty-hub/backoffice-design-system`: contratti dei 15 pattern UI, regole eseguibili (workflow D14, frasi senza id tecnici, formati KPI, contrasto WCAG) e token sulle fondamenta Design Tokens Italia (ADR-026, ADR-027) |
 | `cms/` | Backoffice su Payload: collezioni e workflow per tipo di oggetto |
 | `deploy/terraform` | VPC, EKS, RDS Postgres, MSK Kafka, ElastiCache, S3, Secrets Manager, backup/DR |
 | `deploy/helm/loyalty-hub` | Umbrella chart: un template generico genera Deployment, Service, HPA, PDB per ogni servizio |
@@ -112,7 +112,7 @@ Nessuna credenziale nel repository. In cluster i segreti arrivano da AWS Secrets
 
 ## Stato
 
-Build verificata: `mvn -f services/pom.xml package` verde su 15 moduli (41 test), design system con 61 test,
+Build verificata: `mvn -f services/pom.xml package` verde su 15 moduli (41 test), design system con 66 test,
 `next build` verde per sito e backoffice Payload. Dettagli in [CHANGELOG.md](CHANGELOG.md).
 
-Versione 0.6.2 (scaffold 0.5.0 più il bundle UX 0.6.0): struttura, contratti, dominio principale, parità funzionale con Open Loyalty (RF-60..RF-116), osservabilità enterprise e BI nel backoffice (RF-117..RF-124), livello decisionale Loyalty 4.0 con motore configurabile dal backoffice, previsioni, frodi, consegne omnicanale, esperimenti, consensi e identità (RF-125..RF-136, `docs/LOYALTY-4.0.md`), installazione. Punti aperti in `docs/SPECIFICA.md` → "Rischi, punti aperti e criteri di accettazione".
+Versione 0.7.0 (scaffold 0.5.0, bundle UX 0.6.0, fondamenta Design Tokens Italia 0.7.0): struttura, contratti, dominio principale, parità funzionale con Open Loyalty (RF-60..RF-116), osservabilità enterprise e BI nel backoffice (RF-117..RF-124), livello decisionale Loyalty 4.0 con motore configurabile dal backoffice, previsioni, frodi, consegne omnicanale, esperimenti, consensi e identità (RF-125..RF-136, `docs/LOYALTY-4.0.md`), installazione. Punti aperti in `docs/SPECIFICA.md` → "Rischi, punti aperti e criteri di accettazione".

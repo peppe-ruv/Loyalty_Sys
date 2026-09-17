@@ -5,10 +5,10 @@
   <parent>
     <groupId>it.iren.loyalty</groupId>
     <artifactId>loyalty-hub-services</artifactId>
-    <version>0.6.2-SNAPSHOT</version>
+    <version>0.7.0-SNAPSHOT</version>
   </parent>
   <artifactId>common</artifactId>
-  <version>0.6.2-SNAPSHOT</version>
+  <version>0.7.0-SNAPSHOT</version>
   <name>common</name>
   <description>Evento canonico, chiavi di idempotenza e tipi condivisi</description>
   <licenses>

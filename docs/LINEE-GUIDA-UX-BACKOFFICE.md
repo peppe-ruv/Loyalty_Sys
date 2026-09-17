@@ -206,7 +206,7 @@ Quindici componenti coprono tutte le schermate viste: costruirli per primi nel d
 | ImportFlow | Membri, segmenti, unità, collection, configurazioni | Dropzone con formato e peso, guida, file di esempio; esito asincrono in modale; storico; pagina di revisione dipendenze |
 | EmptyState | Ogni sezione vuota | Icona, titolo d'azione («Aggiungi la prima condizione»), una frase su cosa succede dopo, CTA primaria ed eventuale guida |
 
-Uno stile coerente rende leggibili anche gli stati: toast scuri per le conferme, badge verde/rosso/grigio per Attivo/Inattivo/Bozza, avvisi gialli per conseguenze di navigazione, avvisi rossi per perdita di dati. I token di colore, tipografia e spaziatura sono quelli del mockup «Backoffice Loyalty Hub» (`web/backoffice-design-system/tokens.css`).
+Uno stile coerente rende leggibili anche gli stati: toast scuri per le conferme, badge verde/rosso/grigio per Attivo/Inattivo/Bozza, avvisi gialli per conseguenze di navigazione, avvisi rossi per perdita di dati. I token di colore, tipografia e spaziatura vengono dai Design Tokens Italia (ADR-027): le primitive `--it-*` sono copiate alla lettera, i token semantici `--lh-*` sono alias verso di esse (`web/backoffice-design-system/tokens.css`).
 
 ## Dove Loyalty Hub fa diversamente
 
