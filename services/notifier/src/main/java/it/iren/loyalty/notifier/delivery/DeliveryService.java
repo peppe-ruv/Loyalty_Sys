@@ -1,0 +1,159 @@
+package it.iren.loyalty.notifier.delivery;
+
+import it.iren.loyalty.common.event.CanonicalEvents;
+import it.iren.loyalty.common.event.EventTypes;
+import it.iren.loyalty.common.event.RewardingAction;
+import it.iren.loyalty.common.metrics.LoyaltyMetrics;
+import it.iren.loyalty.notifier.templates.MessageTemplate;
+import it.iren.loyalty.notifier.templates.TemplateSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.stereotype.Component;
+
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.*;
+import java.util.function.Supplier;
+
+/**
+ * Delivery (RF-132): consuma DECISION_V1 e consegna le azioni di contatto (SEND_MESSAGE, SHOW_OFFER, ASK_FOR_FEEDBACK)
+ * sul canale deciso, con fallback secondo il routing del backoffice, limiti giornalieri e ore di silenzio.
+ * Ogni consegna produce DELIVERY_V1 (per Customer 360, BI e pressione commerciale) e, se abilitato, l'azione canonica
+ * OFFER_PRESENTED / MESSAGE_SENT / FEEDBACK_REQUESTED, così le campagne possono reagire (RF-133). Idempotente per
+ * decisione+azione+riferimento.
+ */
+@Component
+public class DeliveryService {
+    private static final Logger log = LoggerFactory.getLogger(DeliveryService.class);
+    private static final String SOURCE = "urn:iren:loyalty:delivery";
+    private static final Set<String> CONTACT_ACTIONS = Set.of("SEND_MESSAGE", "SHOW_OFFER", "ASK_FOR_FEEDBACK");
+
+    private final Map<String, ChannelAdapter> adapters = new HashMap<>();
+    private final Supplier<DeliveryRouting> routing;
+    private final TemplateSource templates;
+    private final JdbcTemplate jdbc;
+    private final KafkaTemplate<String, byte[]> kafka;
+    private final LoyaltyMetrics metrics;
+
+    public DeliveryService(List<ChannelAdapter> adapters, Supplier<DeliveryRouting> routing, TemplateSource templates, JdbcTemplate jdbc, KafkaTemplate<String, byte[]> kafka, LoyaltyMetrics metrics) {
+        adapters.forEach(a -> this.adapters.put(a.channel(), a));
+        this.routing = routing; this.templates = templates; this.jdbc = jdbc; this.kafka = kafka; this.metrics = metrics;
+    }
+
+    @KafkaListener(topics = EventTypes.TOPIC_DECISIONS, groupId = "notifier-delivery")
+    @SuppressWarnings("unchecked")
+    public void onDecision(byte[] payload) {
+        var e = CanonicalEvents.deserialize(payload);
+        if (!EventTypes.DECISION_V1.equals(e.getType())) return;
+        Map<String, Object> d = CanonicalEvents.data(e, Map.class);
+        String memberId = CanonicalEvents.memberId(e), decisionId = String.valueOf(d.get("decisionId")), correlation = CanonicalEvents.correlationId(e);
+        Instant expires = d.get("expiresAt") == null ? null : Instant.parse(d.get("expiresAt").toString());
+        for (Map<String, Object> a : (List<Map<String, Object>>) d.getOrDefault("actions", List.of())) {
+            String action = String.valueOf(a.get("action"));
+            if (!CONTACT_ACTIONS.contains(action)) continue;
+            Map<String, Object> params = a.get("params") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
+            deliver(memberId, decisionId, action, str(a.get("reference")), str(a.get("channel")), params, expires, correlation, Instant.now());
+        }
+    }
+
+    /** Consegna con fallback; ritorna l'esito finale. Usabile anche a richiesta (operatore, campagne). */
+    public ChannelAdapter.Result deliver(String memberId, String decisionId, String action, String reference, String preferredChannel, Map<String, Object> params, Instant expiresAt, String correlationId, Instant now) {
+        if (decisionId != null && alreadyDelivered(decisionId, action, reference)) return new ChannelAdapter.Result("SKIPPED", "already delivered", null);
+        DeliveryRouting r = routing.get();
+        List<String> order = new ArrayList<>();
+        if (preferredChannel != null) order.add(preferredChannel);
+        for (String c : r.orderFor(action)) if (!order.contains(c)) order.add(c);
+        boolean quiet = r.inQuietHours(now);
+        ChannelAdapter.Result last = ChannelAdapter.Result.failed("no channel");
+        for (String channel : order) {
+            String ch = channel;
+            if (quiet && DeliveryRouting.interruptive(ch)) {
+                if (r.quietHoursFallback() == null) { last = new ChannelAdapter.Result("SKIPPED", "quiet hours", null); continue; }
+                ch = r.quietHoursFallback(); // es. push → inbox in app durante le ore di silenzio
+            }
+            if (!r.enabled(ch)) { last = new ChannelAdapter.Result("SKIPPED", "channel disabled: " + ch, null); continue; }
+            ChannelAdapter adapter = adapters.get(ch);
+            if (adapter == null) { last = new ChannelAdapter.Result("SKIPPED", "no adapter: " + ch, null); continue; }
+            int cap = r.maxPerDayByChannel() == null ? 0 : r.maxPerDayByChannel().getOrDefault(ch, 0);
+            if (cap > 0 && deliveriesToday(memberId, ch) >= cap) { last = new ChannelAdapter.Result("SKIPPED", "daily cap " + ch, null); continue; }
+            var rendered = render(r, action, reference, memberId, params);
+            String deliveryId = UUID.randomUUID().toString();
+            var delivery = new ChannelAdapter.Delivery(deliveryId, memberId, decisionId, action, reference, ch, rendered.subject(), rendered.body(), params, expiresAt, correlationId);
+            ChannelAdapter.Result res;
+            try { res = adapter.deliver(delivery); } catch (Exception ex) { res = ChannelAdapter.Result.failed(ex.toString()); }
+            record(delivery, res);
+            metrics.delivery(ch, res.status());
+            if (res.ok()) {
+                publish(delivery, res);
+                if (r.emitActions()) emitAction(delivery, res, correlationId);
+                return res;
+            }
+            last = res;
+        }
+        if (decisionId != null) record(new ChannelAdapter.Delivery(UUID.randomUUID().toString(), memberId, decisionId, action, reference, order.isEmpty() ? "-" : order.get(0), null, null, params, expiresAt, correlationId), last);
+        log.info("delivery of {} for member {} not performed: {} {}", action, memberId, last.status(), last.detail());
+        return last;
+    }
+
+    private MessageTemplate.Rendered render(DeliveryRouting r, String action, String reference, String memberId, Map<String, Object> params) {
+        String templateId = params.get("templateId") != null ? params.get("templateId").toString() : r.templateFor(action, reference);
+        Map<String, Object> data = new HashMap<>(params);
+        data.put("memberId", memberId);
+        data.put("reference", reference);
+        data.put("action", action);
+        for (MessageTemplate.Channel ch : MessageTemplate.Channel.values()) {
+            var t = templates.find(templateId, ch, String.valueOf(params.getOrDefault("locale", "it")));
+            if (t.isPresent()) return t.get().render(data);
+        }
+        String subject = Objects.toString(params.get("title"), reference == null ? action : reference);
+        String body = Objects.toString(params.get("body"), Objects.toString(params.get("text"), ""));
+        return new MessageTemplate.Rendered(MessageTemplate.Channel.IN_APP, subject, body);
+    }
+
+    private boolean alreadyDelivered(String decisionId, String action, String reference) {
+        Integer n = jdbc.queryForObject("SELECT count(*) FROM notifier.delivery_log WHERE decision_id = ? AND action = ? AND coalesce(reference,'') = coalesce(?,'') AND status IN ('SENT','PRESENTED','QUEUED')", Integer.class, decisionId, action, reference);
+        return n != null && n > 0;
+    }
+
+    private int deliveriesToday(String memberId, String channel) {
+        Integer n = jdbc.queryForObject("SELECT count(*) FROM notifier.delivery_log WHERE member_id = ? AND channel = ? AND status IN ('SENT','PRESENTED') AND created_at >= date_trunc('day', now() AT TIME ZONE 'Europe/Rome') AT TIME ZONE 'Europe/Rome'", Integer.class, memberId, channel);
+        return n == null ? 0 : n;
+    }
+
+    private void record(ChannelAdapter.Delivery d, ChannelAdapter.Result r) {
+        jdbc.update("INSERT INTO notifier.delivery_log(delivery_id, member_id, decision_id, action, reference, channel, status, detail, provider_ref, created_at) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT (delivery_id) DO NOTHING",
+                d.deliveryId(), d.memberId(), d.decisionId(), d.action(), d.reference(), d.channel(), r.status(), r.detail() == null ? null : r.detail().substring(0, Math.min(500, r.detail().length())), r.providerRef(), Timestamp.from(Instant.now()));
+    }
+
+    private void publish(ChannelAdapter.Delivery d, ChannelAdapter.Result r) {
+        Map<String, Object> p = new LinkedHashMap<>();
+        p.put("deliveryId", d.deliveryId()); p.put("memberId", d.memberId()); p.put("decisionId", d.decisionId()); p.put("action", d.action());
+        p.put("reference", d.reference()); p.put("channel", d.channel()); p.put("status", r.status()); p.put("providerRef", r.providerRef());
+        p.put("expiresAt", d.expiresAt() == null ? null : d.expiresAt().toString());
+        CanonicalEvents.withCorrelation(d.correlationId(), () -> {
+            var ce = CanonicalEvents.of(EventTypes.DELIVERY_V1, SOURCE, "member:" + d.memberId(), p);
+            kafka.send(EventTypes.TOPIC_DELIVERIES, d.memberId(), CanonicalEvents.serialize(ce));
+        });
+    }
+
+    private void emitAction(ChannelAdapter.Delivery d, ChannelAdapter.Result r, String correlationId) {
+        String type = switch (d.action()) { case "SHOW_OFFER" -> EventTypes.ACTION_OFFER_PRESENTED; case "ASK_FOR_FEEDBACK" -> EventTypes.ACTION_FEEDBACK_REQUESTED; default -> EventTypes.ACTION_MESSAGE_SENT; };
+        Map<String, Object> attrs = new HashMap<>();
+        attrs.put(EventTypes.ATTR_CHANNEL, d.channel()); attrs.put("reference", d.reference()); attrs.put("decisionId", d.decisionId()); attrs.put("deliveryId", d.deliveryId());
+        var action = new RewardingAction(type, "delivery:" + d.deliveryId(), d.decisionId(), Instant.now(), null, attrs);
+        CanonicalEvents.withCorrelation(correlationId, () -> kafka.send(EventTypes.TOPIC_ACTIONS, d.memberId(), CanonicalEvents.serialize(CanonicalEvents.action(SOURCE, d.memberId(), action))));
+    }
+
+    /** Accettazione di un'offerta dall'inbox: azione OFFER_ACCEPTED, che campagne e previsioni usano (offerPropensity). */
+    public void accepted(String memberId, String decisionId, String reference, String channel) {
+        Map<String, Object> attrs = new HashMap<>();
+        attrs.put(EventTypes.ATTR_CHANNEL, channel); attrs.put("reference", reference); attrs.put("decisionId", decisionId);
+        var action = new RewardingAction(EventTypes.ACTION_OFFER_ACCEPTED, "offer-accepted:" + decisionId + ":" + reference, decisionId, Instant.now(), null, attrs);
+        kafka.send(EventTypes.TOPIC_ACTIONS, memberId, CanonicalEvents.serialize(CanonicalEvents.action(SOURCE, memberId, action)));
+    }
+
+    private static String str(Object o) { return o == null ? null : o.toString(); }
+}

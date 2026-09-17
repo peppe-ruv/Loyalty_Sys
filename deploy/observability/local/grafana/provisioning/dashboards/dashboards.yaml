@@ -1,0 +1,3 @@
+apiVersion: 1
+providers:
+  - { name: loyalty, folder: Loyalty Hub, type: file, options: { path: /var/lib/grafana/dashboards } }

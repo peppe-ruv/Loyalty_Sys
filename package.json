@@ -2,14 +2,14 @@
   "name": "loyalty-hub",
   "version": "0.6.1",
   "private": true,
-  "description": "Loyalty Hub — monorepo della piattaforma loyalty vendor neutral (documentazione di prodotto e design system del backoffice).",
+  "description": "Loyalty Hub — strumenti npm del monorepo e design system del backoffice.",
   "license": "UNLICENSED",
   "type": "module",
   "engines": {
     "node": ">=22.13"
   },
   "workspaces": [
-    "web/*"
+    "web/backoffice-design-system"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",

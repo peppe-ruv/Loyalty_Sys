@@ -1,0 +1,17 @@
+slice_name: Punti emessi, spesi, scaduti
+description: null
+viz_type: echarts_timeseries_bar
+params:
+  viz_type: echarts_timeseries_bar
+  datasource: v_kpi_daily__table
+  time_range: No filter
+  metrics:
+  - sum_units_earned
+  - sum_units_spent
+  - sum_units_expired
+  x_axis: day
+  time_grain_sqla: P1D
+cache_timeout: null
+uuid: eaec8fa1-df16-578d-9eac-4d961a0d19e5
+version: 1.0.0
+dataset_uuid: c6e9f17d-0235-5487-8130-d8381efca0d2

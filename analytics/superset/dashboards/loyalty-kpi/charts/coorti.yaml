@@ -1,0 +1,20 @@
+slice_name: Retention coorti (attivi a 30/90 giorni)
+description: null
+viz_type: table
+params:
+  viz_type: table
+  datasource: v_cohorts__table
+  time_range: No filter
+  query_mode: raw
+  all_columns:
+  - cohort
+  - channel
+  - members
+  - active_30d
+  - active_90d
+  order_by_cols:
+  - '["cohort", false]'
+cache_timeout: null
+uuid: 2874725e-74c5-5c4f-aa45-b7b3b301f006
+version: 1.0.0
+dataset_uuid: c2aee1fd-dd53-56d8-829a-bbf2a072d90b

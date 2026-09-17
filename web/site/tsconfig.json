@@ -1,0 +1,5 @@
+{
+  "compilerOptions": { "target": "ES2022", "lib": ["dom", "es2022"], "jsx": "preserve", "module": "esnext", "moduleResolution": "bundler", "strict": true, "skipLibCheck": true, "esModuleInterop": true, "incremental": true, "plugins": [{ "name": "next" }] },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules"]
+}

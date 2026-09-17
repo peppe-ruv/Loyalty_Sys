@@ -1,0 +1,60 @@
+# ClickHouse (Altinity clickhouse-operator, CRD ClickHouseInstallation) — 1 shard × 3 repliche con ClickHouse Keeper: nessuna perdita a un nodo giù.
+# kubectl apply -f https://raw.githubusercontent.com/Altinity/clickhouse-operator/master/deploy/operator/clickhouse-operator-install-bundle.yaml
+apiVersion: clickhouse.altinity.com/v1
+kind: ClickHouseInstallation
+metadata: { name: loyalty, namespace: analytics }
+spec:
+  configuration:
+    zookeeper: { nodes: [{ host: keeper-loyalty-0.keeper-loyalty.analytics }, { host: keeper-loyalty-1.keeper-loyalty.analytics }, { host: keeper-loyalty-2.keeper-loyalty.analytics }], port: 2181 }
+    clusters:
+      - name: loyalty
+        layout: { shardsCount: 1, replicasCount: 3 }
+    users:
+      superset/networks/ip: ["::/0"]
+      superset/password_sha256_hex: "${CLICKHOUSE_SUPERSET_PASSWORD_SHA256}"
+      superset/profile: readonly
+      superset/quota: default
+      grafana/networks/ip: ["::/0"]
+      grafana/password_sha256_hex: "${CLICKHOUSE_GRAFANA_PASSWORD_SHA256}"
+      grafana/profile: readonly
+    profiles:
+      readonly/readonly: 1
+      readonly/max_execution_time: 120
+      readonly/max_memory_usage: 4000000000
+      default/max_memory_usage: 8000000000
+    settings:
+      max_concurrent_queries: 100
+      keep_alive_timeout: 30
+    files:
+      config.d/kafka.xml: |
+        <clickhouse><kafka><security_protocol>SASL_SSL</security_protocol><sasl_mechanisms>OAUTHBEARER</sasl_mechanisms><sasl_oauthbearer_method>oidc</sasl_oauthbearer_method></kafka></clickhouse>
+  defaults:
+    templates: { podTemplate: clickhouse, dataVolumeClaimTemplate: data }
+  templates:
+    podTemplates:
+      - name: clickhouse
+        spec:
+          affinity: { podAntiAffinity: { requiredDuringSchedulingIgnoredDuringExecution: [{ labelSelector: { matchLabels: { "clickhouse.altinity.com/chi": loyalty } }, topologyKey: topology.kubernetes.io/zone }] } }
+          containers:
+            - name: clickhouse
+              image: clickhouse/clickhouse-server:25.8
+              resources: { requests: { cpu: "2", memory: 8Gi }, limits: { memory: 12Gi } }
+            - name: clickhouse-backup                      # backup notturno su S3 (bucket clickhouse-backup, IRSA)
+              image: altinity/clickhouse-backup:2.6.13
+              args: ["server"]
+              env:
+                - { name: REMOTE_STORAGE, value: s3 }
+                - { name: S3_BUCKET, value: "${CLICKHOUSE_BACKUP_BUCKET}" }
+                - { name: S3_REGION, value: eu-south-1 }
+                - { name: BACKUPS_TO_KEEP_REMOTE, value: "30" }
+    volumeClaimTemplates:
+      - name: data
+        spec: { storageClassName: gp3, accessModes: [ReadWriteOnce], resources: { requests: { storage: 200Gi } } }
+---
+apiVersion: clickhouse-keeper.altinity.com/v1
+kind: ClickHouseKeeperInstallation
+metadata: { name: loyalty, namespace: analytics }
+spec:
+  configuration: { clusters: [{ name: keeper, layout: { replicasCount: 3 } }] }
+  templates:
+    volumeClaimTemplates: [{ name: default, spec: { accessModes: [ReadWriteOnce], resources: { requests: { storage: 10Gi } } } }]

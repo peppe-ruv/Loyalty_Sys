@@ -1,7 +1,9 @@
-# dipendenze
-node_modules/
+# build Java
+target/
 
-# output di build TypeScript
+# dipendenze e build JavaScript
+node_modules/
+.next/
 dist/
 *.tsbuildinfo
 
@@ -10,10 +12,18 @@ dist/
 coverage/
 .vitest/
 
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+crash.log
+
 # ambiente locale
 .env
 .env.*
 !.env.example
+*.log
 
 # sistema operativo ed editor
 .DS_Store

@@ -1,0 +1,18 @@
+slice_name: Passività punti (unità in circolazione)
+description: null
+viz_type: big_number_total
+params:
+  viz_type: big_number_total
+  datasource: v_points_liability__table
+  time_range: No filter
+  metric: sum_outstanding_units
+  adhoc_filters:
+  - clause: WHERE
+    expressionType: SIMPLE
+    subject: wallet
+    operator: ==
+    comparator: PREMIO
+cache_timeout: null
+uuid: 58508ba4-6b70-5bda-bdae-ac5475f2783f
+version: 1.0.0
+dataset_uuid: b796d276-e864-5063-a9fb-f605a4ee6d5a

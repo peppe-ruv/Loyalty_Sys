@@ -1,0 +1,17 @@
+# Prometheus locale (docker compose --profile observability): scrape diretto dei servizi.
+global: { scrape_interval: 15s, evaluation_interval: 30s, external_labels: { cluster: local } }
+rule_files: [/etc/prometheus/rules/*.yaml]
+alerting: { alertmanagers: [{ static_configs: [{ targets: [alertmanager:9093] }] }] }
+scrape_configs:
+  - job_name: loyalty-java
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [ingress-adapters:8081, rules-engine:8082, ledger:8083, tier-service:8084, catalog-redemption:8085, contest-service:8086, identity-mapping:8087, read-model:8088, segment-service:8090, member-service:8091, engagement-service:8092, notifier:8089]
+    relabel_configs:
+      - { source_labels: [__address__], regex: "([^:]+):.*", target_label: application, replacement: "$1" }
+  - job_name: bff
+    static_configs: [{ targets: [bff:3001] }]
+  - job_name: otel-collector
+    static_configs: [{ targets: [otel-collector:8888] }]
+  - job_name: kafka
+    static_configs: [{ targets: [kafka-exporter:9308] }]
