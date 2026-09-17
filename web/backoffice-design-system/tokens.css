@@ -1,18 +1,146 @@
-/* Loyalty Hub — token del design system del backoffice.
-   Origine: mockup «Backoffice Loyalty Hub» (17 set 2026). Tema chiaro/scuro con override data-theme.
-   Uso: importare in web/backoffice e nei custom components Payload; i 15 pattern in patterns.ts usano solo questi token. */
-:root{
-  --ground:#EEF2F1; --surface:#FFFFFF; --sunk:#E3E9E7; --ink:#14201C; --muted:#56675F; --line:#D2DBD8;
-  --accent:#0A6B5E; --accent-ink:#FFFFFF; --accent-soft:#D6ECE7; --side:#14201C; --side-ink:#E4EDE9; --side-muted:#95A69F; --side-line:#2A3833;
-  --ok:#17803D; --ok-soft:#DDF1E3; --warn:#A8560A; --warn-soft:#F8E9D6; --bad:#B42323; --bad-soft:#F7DEDE; --volt:#D9F24A; --volt-ink:#14201C;
-  --display:"Archivo","Arial Narrow",system-ui,sans-serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
-  color-scheme:light;
+/*
+ * Loyalty Hub — token del design system del backoffice.
+ *
+ * Origine dei colori: mockup «Backoffice Loyalty Hub» (17 settembre 2026).
+ * Uso: importare in `web/backoffice` e nei custom components Payload; i 15 pattern di
+ * `src/patterns.ts` usano solo questi token, mai valori letterali.
+ *
+ * Convenzioni
+ * - Tutti i token hanno prefisso `--lh-`: lo stesso foglio convive con le variabili
+ *   dell'admin di Payload e con quelle di Next.js senza collisioni.
+ * - Il tema segue le preferenze di sistema; `data-theme="light|dark"` sulla radice le
+ *   forza (LG-03). I due blocchi scuri definiscono lo stesso insieme di token: la parità
+ *   è verificata dal test `src/tokens.test.ts`.
+ * - I token che non compaiono nei blocchi scuri sono identici nei due temi e restano
+ *   ereditati da `:root` (tipografia, sidebar già scura, spaziature, raggi).
+ */
+
+:root {
+  /* Superfici ------------------------------------------------------------ */
+  --lh-ground: #eef2f1;
+  --lh-surface: #ffffff;
+  --lh-sunk: #e3e9e7;
+
+  /* Testo e bordi -------------------------------------------------------- */
+  --lh-ink: #14201c;
+  --lh-muted: #56675f;
+  --lh-line: #d2dbd8;
+
+  /* Accento -------------------------------------------------------------- */
+  --lh-accent: #0a6b5e;
+  --lh-accent-ink: #ffffff;
+  --lh-accent-soft: #d6ece7;
+
+  /* Sidebar (scura in entrambi i temi) ----------------------------------- */
+  --lh-side: #14201c;
+  --lh-side-ink: #e4ede9;
+  --lh-side-muted: #95a69f;
+  --lh-side-line: #2a3833;
+
+  /* Stati ---------------------------------------------------------------- */
+  --lh-ok: #17803d;
+  --lh-ok-soft: #ddf1e3;
+  --lh-warn: #a8560a;
+  --lh-warn-soft: #f8e9d6;
+  --lh-bad: #b42323;
+  --lh-bad-soft: #f7dede;
+
+  /* Evidenza (badge, instant win) ---------------------------------------- */
+  --lh-volt: #d9f24a;
+  --lh-volt-ink: #14201c;
+
+  /* Tipografia ----------------------------------------------------------- */
+  --lh-font-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --lh-font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --lh-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Spaziature: scala a passo 4px usata da tabelle, form e card ----------- */
+  --lh-space-1: 0.25rem;
+  --lh-space-2: 0.5rem;
+  --lh-space-3: 0.75rem;
+  --lh-space-4: 1rem;
+  --lh-space-5: 1.5rem;
+  --lh-space-6: 2rem;
+  --lh-space-7: 3rem;
+
+  /* Raggi, bordi ed elevazione ------------------------------------------- */
+  --lh-radius-sm: 4px;
+  --lh-radius-md: 8px;
+  --lh-radius-lg: 12px;
+  --lh-radius-pill: 999px;
+  --lh-border-width: 1px;
+  --lh-shadow-card: 0 1px 2px rgb(20 32 28 / 8%), 0 8px 24px rgb(20 32 28 / 6%);
+  --lh-shadow-overlay: 0 12px 32px rgb(20 32 28 / 18%);
+
+  /* Focus: visibile su qualunque superficie (LG-03, accessibilità) -------- */
+  --lh-focus-ring: 2px solid var(--lh-accent);
+  --lh-focus-offset: 2px;
+
+  color-scheme: light;
 }
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --ground:#0D1412; --surface:#151F1C; --sunk:#1C2824; --ink:#E4EDE9; --muted:#95A69F; --line:#2A3833;
-  --accent:#3CCFB6; --accent-ink:#06201B; --accent-soft:#16352F; --side:#0A100E; --side-line:#1C2824;
-  --ok:#5BD483; --ok-soft:#173222; --warn:#F0A858; --warn-soft:#3A2915; --bad:#F08080; --bad-soft:#3B1C1C; --volt:#C9E43A; color-scheme:dark;}}
-:root[data-theme="dark"]{
-  --ground:#0D1412; --surface:#151F1C; --sunk:#1C2824; --ink:#E4EDE9; --muted:#95A69F; --line:#2A3833;
-  --accent:#3CCFB6; --accent-ink:#06201B; --accent-soft:#16352F; --side:#0A100E; --side-line:#1C2824;
-  --ok:#5BD483; --ok-soft:#173222; --warn:#F0A858; --warn-soft:#3A2915; --bad:#F08080; --bad-soft:#3B1C1C; --volt:#C9E43A; color-scheme:dark;}
+
+/* Tema scuro seguendo le preferenze di sistema, salvo forzatura a chiaro. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --lh-ground: #0d1412;
+    --lh-surface: #151f1c;
+    --lh-sunk: #1c2824;
+
+    --lh-ink: #e4ede9;
+    --lh-muted: #95a69f;
+    --lh-line: #2a3833;
+
+    --lh-accent: #3ccfb6;
+    --lh-accent-ink: #06201b;
+    --lh-accent-soft: #16352f;
+
+    --lh-side: #0a100e;
+    --lh-side-line: #1c2824;
+
+    --lh-ok: #5bd483;
+    --lh-ok-soft: #173222;
+    --lh-warn: #f0a858;
+    --lh-warn-soft: #3a2915;
+    --lh-bad: #f08080;
+    --lh-bad-soft: #3b1c1c;
+
+    --lh-volt: #c9e43a;
+
+    --lh-shadow-card: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 32%);
+    --lh-shadow-overlay: 0 12px 32px rgb(0 0 0 / 52%);
+
+    color-scheme: dark;
+  }
+}
+
+/* Tema scuro forzato dall'utente: stessi valori del blocco precedente. */
+:root[data-theme="dark"] {
+  --lh-ground: #0d1412;
+  --lh-surface: #151f1c;
+  --lh-sunk: #1c2824;
+
+  --lh-ink: #e4ede9;
+  --lh-muted: #95a69f;
+  --lh-line: #2a3833;
+
+  --lh-accent: #3ccfb6;
+  --lh-accent-ink: #06201b;
+  --lh-accent-soft: #16352f;
+
+  --lh-side: #0a100e;
+  --lh-side-line: #1c2824;
+
+  --lh-ok: #5bd483;
+  --lh-ok-soft: #173222;
+  --lh-warn: #f0a858;
+  --lh-warn-soft: #3a2915;
+  --lh-bad: #f08080;
+  --lh-bad-soft: #3b1c1c;
+
+  --lh-volt: #c9e43a;
+
+  --lh-shadow-card: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 32%);
+  --lh-shadow-overlay: 0 12px 32px rgb(0 0 0 / 52%);
+
+  color-scheme: dark;
+}

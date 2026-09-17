@@ -1,0 +1,137 @@
+groups:
+- name: loyalty.slo.recording
+  interval: 30s
+  rules:
+  - record: slo:ingress_error_ratio:rate5m
+    expr: sum(rate(http_server_requests_seconds_count{application="ingress-adapters",uri=~"/v1/actions.*",status=~"5.."}[5m]))
+      / clamp_min(sum(rate(http_server_requests_seconds_count{application="ingress-adapters",uri=~"/v1/actions.*"}[5m])),
+      1)
+  - record: slo:ingress_error_ratio:rate1h
+    expr: sum(rate(http_server_requests_seconds_count{application="ingress-adapters",uri=~"/v1/actions.*",status=~"5.."}[1h]))
+      / clamp_min(sum(rate(http_server_requests_seconds_count{application="ingress-adapters",uri=~"/v1/actions.*"}[1h])),
+      1)
+  - record: slo:ingress_latency_p95:5m
+    expr: histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{application="ingress-adapters",uri=~"/v1/actions.*"}[5m])))
+  - record: slo:play_latency_p95:5m
+    expr: histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{application="contest-service",uri=~"/v1/contests/.*/plays|/v1/wheels/.*/spins"}[5m])))
+  - record: slo:redeem_latency_p95:5m
+    expr: histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{application="catalog-redemption",uri=~"/v1/redemptions.*"}[5m])))
+  - record: kafka:consumer_lag:max
+    expr: max by (consumer_group, topic) (kafka_consumergroup_lag)
+- name: loyalty.slo.alerts
+  rules:
+  - alert: LoyaltyIngressErrorBudgetBurn
+    expr: slo:ingress_error_ratio:rate5m > (14.4 * 0.0005) and slo:ingress_error_ratio:rate1h
+      > (14.4 * 0.0005)
+    for: 2m
+    labels:
+      severity: page
+      service: ingress-adapters
+    annotations:
+      summary: 'Ingresso azioni: consumo rapido del budget di errore (SLO 99,95%)'
+      runbook: docs/runbooks/osservabilita.md#ingresso
+  - alert: LoyaltyIngressLatency
+    expr: slo:ingress_latency_p95:5m > 0.2
+    for: 10m
+    labels:
+      severity: page
+      service: ingress-adapters
+    annotations:
+      summary: p95 ingresso sopra 200 ms per 10 minuti (RI-04)
+  - alert: LoyaltyPlayLatency
+    expr: slo:play_latency_p95:5m > 0.5
+    for: 5m
+    labels:
+      severity: page
+      service: contest-service
+      team: legal-contest
+    annotations:
+      summary: 'Giocata instant win / ruota sopra 500 ms al p95: rischio esperienza
+        e contestazioni'
+  - alert: LoyaltyConsumerLag
+    expr: kafka:consumer_lag:max{consumer_group=~"rules-engine|ledger|tier-service|engagement-service|segment-service|member-service|notifier"}
+      > 10000
+    for: 10m
+    labels:
+      severity: page
+    annotations:
+      summary: 'Lag consumer {{ $labels.consumer_group }} su {{ $labels.topic }} oltre
+        10.000 messaggi: i saldi si aggiornano in ritardo (RF-50)'
+  - alert: LoyaltyOutboxStuck
+    expr: loyalty_outbox_pending > 1000
+    for: 5m
+    labels:
+      severity: page
+      service: ledger
+    annotations:
+      summary: 'Outbox del ledger non drena: eventi movimento non pubblicati'
+  - alert: LoyaltyDlqRate
+    expr: sum(rate(loyalty_actions_received_total{status="REJECTED"}[15m])) / clamp_min(sum(rate(loyalty_actions_received_total[15m])),
+      1) > 0.05
+    for: 15m
+    labels:
+      severity: ticket
+      service: ingress-adapters
+    annotations:
+      summary: 'Oltre il 5% delle azioni in coda di scarto: schema o fonte da verificare
+        (RF-45)'
+  - alert: LoyaltyActionsWithoutCampaign
+    expr: sum by (action_type) (increase(loyalty_actions_without_campaign_total[1h]))
+      > 100
+    labels:
+      severity: ticket
+      service: rules-engine
+    annotations:
+      summary: 'Tipo azione {{ $labels.action_type }} senza campagna attiva da un''ora
+        (RF-03: da rielaborare)'
+  - alert: LoyaltyContestPrizesLow
+    expr: loyalty_contest_prizes_remaining < 5 and on (contest) (increase(loyalty_contest_plays_total[1h])
+      > 0)
+    labels:
+      severity: ticket
+      team: legal-contest
+    annotations:
+      summary: 'Concorso {{ $labels.contest }}: meno di 5 istanti vincenti residui'
+  - alert: LoyaltyContestNoPlaysDuringRunning
+    expr: sum by (contest) (increase(loyalty_contest_plays_total[30m])) == 0 and on
+      (contest) loyalty_contest_prizes_remaining > 0
+    for: 30m
+    labels:
+      severity: ticket
+      team: legal-contest
+    annotations:
+      summary: 'Nessuna giocata in 30 minuti su un concorso con premi residui: sito,
+        login o landing?'
+  - alert: LoyaltyCouponPoolLow
+    expr: loyalty_coupon_pool_remaining < 100
+    labels:
+      severity: ticket
+      service: catalog-redemption
+    annotations:
+      summary: Lotto codici {{ $labels.pool }} sotto 100 codici (RF-74)
+  - alert: LoyaltyWebhookFailures
+    expr: sum by (subscription) (increase(loyalty_webhook_deliveries_total{delivered="false"}[30m]))
+      > 10
+    labels:
+      severity: ticket
+      service: notifier
+    annotations:
+      summary: 'Webhook {{ $labels.subscription }}: oltre 10 consegne fallite in 30
+        minuti (RF-78)'
+  - alert: LoyaltyPodNotReady
+    expr: kube_deployment_status_replicas_available{namespace="loyalty"} < kube_deployment_spec_replicas{namespace="loyalty"}
+      * 0.5
+    for: 5m
+    labels:
+      severity: page
+    annotations:
+      summary: Meno della metà delle repliche disponibili per {{ $labels.deployment
+        }}
+  - alert: LoyaltyJvmMemoryHigh
+    expr: sum by (application, pod) (jvm_memory_used_bytes{area="heap"}) / sum by
+      (application, pod) (jvm_memory_max_bytes{area="heap"}) > 0.9
+    for: 10m
+    labels:
+      severity: ticket
+    annotations:
+      summary: Heap JVM oltre il 90% su {{ $labels.pod }}

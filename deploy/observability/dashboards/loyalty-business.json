@@ -1,0 +1,418 @@
+{
+ "uid": "loyalty-business",
+ "title": "Loyalty Hub · Programma (RF-46)",
+ "tags": [
+  "loyalty",
+  "business"
+ ],
+ "timezone": "Europe/Rome",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "30s",
+ "time": {
+  "from": "now-6h",
+  "to": "now"
+ },
+ "templating": {
+  "list": [
+   {
+    "name": "ds",
+    "type": "datasource",
+    "query": "prometheus",
+    "current": {
+     "text": "Thanos",
+     "value": "Thanos"
+    }
+   },
+   {
+    "name": "env",
+    "type": "query",
+    "datasource": {
+     "type": "prometheus",
+     "uid": "${ds}"
+    },
+    "query": "label_values(loyalty_actions_received_total, environment)",
+    "refresh": 2,
+    "includeAll": true
+   }
+  ]
+ },
+ "panels": [
+  {
+   "id": 1,
+   "type": "timeseries",
+   "title": "Azioni ricevute / min per fonte",
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (source) (rate(loyalty_actions_received_total{status=\"ACCEPTED\"}[5m])) * 60",
+     "legendFormat": "{{source}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 2,
+   "type": "barchart",
+   "title": "Azioni per tipo (ultima ora)",
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (action_type) (increase(loyalty_actions_received_total{status=\"ACCEPTED\"}[1h]))",
+     "legendFormat": "{{action_type}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 3,
+   "type": "timeseries",
+   "title": "Scarti (DLQ) e duplicati / min",
+   "gridPos": {
+    "x": 0,
+    "y": 8,
+    "w": 8,
+    "h": 7
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(rate(loyalty_actions_received_total{status=\"REJECTED\"}[5m]))*60",
+     "legendFormat": "scartate"
+    },
+    {
+     "refId": "B",
+     "expr": "sum(rate(loyalty_actions_received_total{status=\"DUPLICATE\"}[5m]))*60",
+     "legendFormat": "duplicate"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 4,
+   "type": "stat",
+   "title": "Unità emesse per wallet (ultima ora)",
+   "gridPos": {
+    "x": 8,
+    "y": 8,
+    "w": 8,
+    "h": 7
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (wallet) (increase(loyalty_units_total{kind=\"EARN\"}[1h]))",
+     "legendFormat": "{{wallet}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 5,
+   "type": "stat",
+   "title": "Unità spese / scadute (ultima ora)",
+   "gridPos": {
+    "x": 16,
+    "y": 8,
+    "w": 8,
+    "h": 7
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(increase(loyalty_units_total{kind=\"SPEND\"}[1h]))",
+     "legendFormat": "spese"
+    },
+    {
+     "refId": "B",
+     "expr": "sum(increase(loyalty_units_total{kind=\"EXPIRY\"}[1h]))",
+     "legendFormat": "scadute"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 6,
+   "type": "timeseries",
+   "title": "Effetti di campagna / min",
+   "gridPos": {
+    "x": 0,
+    "y": 15,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (campaign) (rate(loyalty_campaign_effects_total[5m]))*60",
+     "legendFormat": "{{campaign}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 7,
+   "type": "timeseries",
+   "title": "Azioni senza campagna (RF-03)",
+   "gridPos": {
+    "x": 12,
+    "y": 15,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (action_type) (increase(loyalty_actions_without_campaign_total[1h]))",
+     "legendFormat": "{{action_type}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 8,
+   "type": "barchart",
+   "title": "Riscatti per esito (ultima ora)",
+   "gridPos": {
+    "x": 0,
+    "y": 23,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (status) (increase(loyalty_redemptions_total[1h]))",
+     "legendFormat": "{{status}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 9,
+   "type": "stat",
+   "title": "Gamification (ultima ora)",
+   "gridPos": {
+    "x": 12,
+    "y": 23,
+    "w": 6,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(increase(loyalty_achievements_completed_total[1h]))",
+     "legendFormat": "achievement"
+    },
+    {
+     "refId": "B",
+     "expr": "sum(increase(loyalty_challenges_completed_total[1h]))",
+     "legendFormat": "challenge"
+    },
+    {
+     "refId": "C",
+     "expr": "sum(increase(loyalty_badges_granted_total[1h]))",
+     "legendFormat": "badge"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 10,
+   "type": "stat",
+   "title": "Adesioni e anonimizzazioni (oggi)",
+   "gridPos": {
+    "x": 18,
+    "y": 23,
+    "w": 6,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(increase(loyalty_member_events_total{event=\"ENROLLED\"}[24h]))",
+     "legendFormat": "adesioni"
+    },
+    {
+     "refId": "B",
+     "expr": "sum(increase(loyalty_member_events_total{event=\"ANONYMIZED\"}[24h]))",
+     "legendFormat": "oblio"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 11,
+   "type": "timeseries",
+   "title": "Consegne webhook / min",
+   "gridPos": {
+    "x": 0,
+    "y": 31,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (subscription, delivered) (rate(loyalty_webhook_deliveries_total[5m]))*60",
+     "legendFormat": "{{subscription}} ok={{delivered}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  }
+ ]
+}

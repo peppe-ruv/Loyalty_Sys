@@ -1,0 +1,134 @@
+openapi: 3.1.0
+info:
+  title: Loyalty Hub - Ingresso azioni premianti
+  version: 1.0.0
+  description: Contratto REST per le fonti esterne (RI-04, RI-05). Risponde 202 in ogni caso; gli esiti per elemento sono nel corpo.
+servers:
+  - url: https://loyalty.example.it
+security:
+  - oauth2: [loyalty.ingest]
+  - hmac: []
+paths:
+  /v1/actions:
+    post:
+      summary: Invia un batch di azioni premianti (max 500)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngressBatch' }
+      responses:
+        '202':
+          description: Batch accettato; esito per elemento
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BatchResult' }
+        '400': { description: Corpo non valido }
+        '401': { description: Autenticazione fallita }
+        '429': { description: Rate limit per fonte superato }
+  /v1/codes/redeem:
+    post:
+      summary: Usa un codice promozionale o QR (RF-69); se valido pubblica l'azione CODE_REDEEMED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [memberId, code]
+              properties:
+                memberId: { type: string }
+                code: { type: string, example: WELCOME-2027 }
+                channel: { type: string, enum: [web, app, sportello, negozio, call-center, partner] }
+      responses:
+        '202': { description: Codice valido e consumato, campo verdict = OK }
+        '422': { description: Codice non valido; verdict in UNKNOWN, INACTIVE, NOT_YET_VALID, EXPIRED, EXHAUSTED, MEMBER_LIMIT }
+  /v1/check-ins:
+    post:
+      summary: Check-in geolocalizzato (RF-67); pubblica l'azione CHECK_IN con lat/lon, una al giorno per membro e luogo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [memberId, placeId, lat, lon]
+              properties:
+                memberId: { type: string }
+                placeId: { type: string, example: negozio-torino-centro }
+                lat: { type: number, example: 45.0703 }
+                lon: { type: number, example: 7.6869 }
+      responses:
+        '202': { description: Accettato }
+        '200': { description: Già registrato oggi (DUPLICATE) }
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://iam.example.it/oauth2/token
+          scopes: { loyalty.ingest: Invio azioni premianti }
+    hmac:
+      type: apiKey
+      in: header
+      name: X-Signature
+      description: HMAC-SHA256 su corpo + timestamp (header X-Timestamp), chiave per partner
+  schemas:
+    RewardingAction:
+      type: object
+      required: [actionType, idempotencyKey, occurredAt]
+      properties:
+        actionType: { type: string, example: BILL_PAID_ON_TIME }
+        idempotencyKey: { type: string, pattern: '^[a-z0-9-]{2,32}:[A-Za-z0-9._-]{1,128}:[A-Z0-9_]{1,64}$', example: 'sap:INV-2026-000123:PAID' }
+        externalRef: { type: string }
+        occurredAt: { type: string, format: date-time }
+        reversalOf: { type: string, description: Chiave dell'azione da stornare (RI-08) }
+        attributes:
+          type: object
+          additionalProperties: true
+          description: >-
+            Attributi liberi; canonici riconosciuti dalle regole (RF-63): amountEur, channel, lat, lon, code, labels[] e
+            lines[] (righe della transazione, RF-62).
+          properties:
+            amountEur: { type: number }
+            channel: { type: string }
+            lines:
+              type: array
+              items: { $ref: '#/components/schemas/TransactionLine' }
+    TransactionLine:
+      type: object
+      description: Riga di transazione (RF-62), equivalente degli items di Open Loyalty
+      properties:
+        sku: { type: string, example: MANUT-CALDAIA-STD }
+        name: { type: string }
+        category: { type: string, example: servizi }
+        brand: { type: string, example: IrenPlus }
+        quantity: { type: number, default: 1 }
+        amountEur: { type: number }
+        labels: { type: array, items: { type: string }, example: [green, delivery] }
+    IngressItem:
+      type: object
+      required: [memberId, action]
+      properties:
+        memberId: { type: string, description: sub OIDC del membro (RI-02) }
+        action: { $ref: '#/components/schemas/RewardingAction' }
+    IngressBatch:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, minItems: 1, maxItems: 500, items: { $ref: '#/components/schemas/IngressItem' } }
+    BatchResult:
+      type: object
+      properties:
+        accepted: { type: integer }
+        duplicates: { type: integer }
+        rejected: { type: integer }
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              idempotencyKey: { type: string }
+              status: { type: string, enum: [ACCEPTED, DUPLICATE, REJECTED] }
+              reason: { type: string, nullable: true }

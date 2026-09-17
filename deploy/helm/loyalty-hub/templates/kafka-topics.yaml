@@ -1,0 +1,35 @@
+{{- if .Values.kafkaTopics.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-topics-{{ .Release.Revision }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: hook-succeeded
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: topics
+          image: apache/kafka:3.8.1
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              {{- if .Values.global.kafka.saslIam }}
+              cat > /tmp/client.properties <<EOP
+              security.protocol=SASL_SSL
+              sasl.mechanism=AWS_MSK_IAM
+              sasl.jaas.config=software.amazon.msk.auth.iam.IAMLoginModule required;
+              sasl.client.callback.handler.class=software.amazon.msk.auth.iam.IAMClientCallbackHandler
+              EOP
+              CFG="--command-config /tmp/client.properties"
+              {{- else }}
+              CFG=""
+              {{- end }}
+              {{- range .Values.kafkaTopics.topics }}
+              /opt/kafka/bin/kafka-topics.sh --bootstrap-server {{ $.Values.global.kafka.bootstrap }} $CFG --create --if-not-exists --topic {{ . }} --partitions {{ $.Values.kafkaTopics.partitions }} --replication-factor {{ $.Values.kafkaTopics.replication }}
+              {{- end }}
+{{- end }}

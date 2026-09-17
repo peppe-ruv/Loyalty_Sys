@@ -1,0 +1,17 @@
+# Thanos (bitnami/thanos): query deduplicata sulle due repliche Prometheus, store gateway su S3, compattazione e downsampling per 13 mesi.
+existingObjstoreSecret: thanos-objstore
+query:
+  enabled: true
+  replicaCount: 2
+  replicaLabel: [prometheus_replica]
+  dnsDiscovery: { sidecarsService: monitoring-thanos-discovery, sidecarsNamespace: observability }
+queryFrontend: { enabled: true, replicaCount: 2 }
+storegateway: { enabled: true, replicaCount: 2, persistence: { size: 20Gi } }
+compactor:
+  enabled: true
+  retentionResolutionRaw: 30d
+  retentionResolution5m: 120d
+  retentionResolution1h: 400d
+  persistence: { size: 50Gi }
+ruler: { enabled: false }
+metrics: { enabled: true, serviceMonitor: { enabled: true } }

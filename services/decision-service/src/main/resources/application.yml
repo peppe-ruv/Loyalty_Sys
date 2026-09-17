@@ -1,0 +1,75 @@
+spring:
+  application:
+    name: decision-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/loyalty}
+    username: ${DB_USER:loyalty}
+    password: ${DB_PASSWORD:loyalty}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    schemas: decisionservice
+    default-schema: decisionservice
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    consumer:
+      group-id: decision-service
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+    listener:
+      ack-mode: record
+
+server:
+  port: 8093
+  shutdown: graceful
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  observations:
+    key-values:
+      service: decision-service
+  # RF-118: tracing distribuito e metriche con etichette comuni; l'endpoint OTLP arriva dall'ambiente (OTEL_EXPORTER_OTLP_ENDPOINT)
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING:0.2}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318}/v1/traces
+  metrics:
+    tags:
+      application: decision-service
+      environment: ${ENVIRONMENT:local}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        spring.kafka.listener: true
+    export:
+      prometheus:
+        enabled: true
+logging:
+  structured:
+    format:
+      console: ecs
+decisions:
+  # false = servizio passivo (solo API di simulazione e NBA), il rules-engine applica gli effetti da solo
+  enabled: ${DECISIONS_ENABLED:true}
+springdoc:
+  api-docs:
+    path: /v3/api-docs

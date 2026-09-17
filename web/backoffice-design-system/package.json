@@ -1,0 +1,39 @@
+{
+  "name": "@loyalty-hub/backoffice-design-system",
+  "version": "0.6.1",
+  "private": true,
+  "description": "Contratti dei 15 pattern UI del backoffice Loyalty Hub, token di tema e regole eseguibili (workflow D14, formati KPI, frasi senza ID tecnici).",
+  "license": "UNLICENSED",
+  "type": "module",
+  "sideEffects": ["*.css"],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./patterns": {
+      "types": "./dist/patterns.d.ts",
+      "default": "./dist/patterns.js"
+    },
+    "./tokens.css": "./tokens.css"
+  },
+  "files": [
+    "dist",
+    "tokens.css"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "peerDependencies": {
+    "@types/react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0"
+  }
+}

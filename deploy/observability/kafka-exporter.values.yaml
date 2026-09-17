@@ -1,0 +1,5 @@
+# prometheus-community/prometheus-kafka-exporter: lag dei consumer group (metrica kafka_consumergroup_lag usata dagli alert).
+kafkaServer: ["${KAFKA_BOOTSTRAP}"]
+sasl: { enabled: true, mechanism: aws-msk-iam }
+prometheus: { serviceMonitor: { enabled: true, namespace: observability, additionalLabels: { release: monitoring } } }
+replicaCount: 2

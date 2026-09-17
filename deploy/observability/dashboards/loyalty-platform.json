@@ -1,0 +1,398 @@
+{
+ "uid": "loyalty-platform",
+ "title": "Loyalty Hub · Piattaforma (SLO)",
+ "tags": [
+  "loyalty",
+  "slo"
+ ],
+ "timezone": "Europe/Rome",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "30s",
+ "time": {
+  "from": "now-6h",
+  "to": "now"
+ },
+ "templating": {
+  "list": [
+   {
+    "name": "ds",
+    "type": "datasource",
+    "query": "prometheus",
+    "current": {
+     "text": "Thanos",
+     "value": "Thanos"
+    }
+   },
+   {
+    "name": "env",
+    "type": "query",
+    "datasource": {
+     "type": "prometheus",
+     "uid": "${ds}"
+    },
+    "query": "label_values(loyalty_actions_received_total, environment)",
+    "refresh": 2,
+    "includeAll": true
+   }
+  ]
+ },
+ "panels": [
+  {
+   "id": 1,
+   "type": "stat",
+   "title": "Disponibilità ingresso (SLO 99,95%)",
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 6,
+    "h": 5
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "1 - slo:ingress_error_ratio:rate1h",
+     "legendFormat": "__auto"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 2,
+   "type": "stat",
+   "title": "p95 ingresso (RI-04: 200 ms)",
+   "gridPos": {
+    "x": 6,
+    "y": 0,
+    "w": 6,
+    "h": 5
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "slo:ingress_latency_p95:5m",
+     "legendFormat": "__auto"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 3,
+   "type": "stat",
+   "title": "p95 giocata / ruota",
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 6,
+    "h": 5
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "slo:play_latency_p95:5m",
+     "legendFormat": "__auto"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 4,
+   "type": "stat",
+   "title": "p95 riscatto",
+   "gridPos": {
+    "x": 18,
+    "y": 0,
+    "w": 6,
+    "h": 5
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "slo:redeem_latency_p95:5m",
+     "legendFormat": "__auto"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 5,
+   "type": "timeseries",
+   "title": "Richieste al secondo per servizio",
+   "gridPos": {
+    "x": 0,
+    "y": 5,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (application) (rate(http_server_requests_seconds_count{namespace=\"loyalty\"}[5m]))",
+     "legendFormat": "{{application}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "reqps"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 6,
+   "type": "timeseries",
+   "title": "Errori 5xx per servizio",
+   "gridPos": {
+    "x": 12,
+    "y": 5,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (application) (rate(http_server_requests_seconds_count{namespace=\"loyalty\",status=~\"5..\"}[5m]))",
+     "legendFormat": "{{application}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "reqps"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 7,
+   "type": "timeseries",
+   "title": "Lag consumer Kafka",
+   "gridPos": {
+    "x": 0,
+    "y": 13,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "kafka:consumer_lag:max",
+     "legendFormat": "{{consumer_group}} · {{topic}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 8,
+   "type": "timeseries",
+   "title": "Outbox ledger in attesa",
+   "gridPos": {
+    "x": 12,
+    "y": 13,
+    "w": 6,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "loyalty_outbox_pending",
+     "legendFormat": "__auto"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 9,
+   "type": "timeseries",
+   "title": "Heap JVM %",
+   "gridPos": {
+    "x": 18,
+    "y": 13,
+    "w": 6,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (application) (jvm_memory_used_bytes{area=\"heap\"}) / sum by (application) (jvm_memory_max_bytes{area=\"heap\"})",
+     "legendFormat": "{{application}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 10,
+   "type": "timeseries",
+   "title": "Repliche disponibili / desiderate",
+   "gridPos": {
+    "x": 0,
+    "y": 21,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "kube_deployment_status_replicas_available{namespace=\"loyalty\"}",
+     "legendFormat": "{{deployment}} disponibili"
+    },
+    {
+     "refId": "B",
+     "expr": "kube_deployment_spec_replicas{namespace=\"loyalty\"}",
+     "legendFormat": "{{deployment}} desiderate"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 11,
+   "type": "timeseries",
+   "title": "Connessioni pool DB in uso",
+   "gridPos": {
+    "x": 12,
+    "y": 21,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (application) (hikaricp_connections_active)",
+     "legendFormat": "{{application}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  }
+ ]
+}

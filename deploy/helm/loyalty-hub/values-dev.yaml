@@ -1,0 +1,23 @@
+global:
+  environment: dev
+  tag: "0.1.0"
+  secretsStore:
+    prefix: loyalty-hub-dev
+  ingress:
+    host: loyalty-dev.example.it
+services:
+  ingress-adapters: { replicas: 1, hpa: { min: 1, max: 3 } }
+  rules-engine: { replicas: 1, hpa: { min: 1, max: 3 } }
+  ledger: { replicas: 1, hpa: { min: 1, max: 3 } }
+  tier-service: { replicas: 1, hpa: { min: 1, max: 2 } }
+  catalog-redemption: { replicas: 1, hpa: { min: 1, max: 2 } }
+  contest-service: { replicas: 1, hpa: { min: 1, max: 3 } }
+  identity-mapping: { replicas: 1 }
+  read-model: { replicas: 1, hpa: { min: 1, max: 3 } }
+  notifier: { replicas: 1 }
+  bff: { replicas: 1, hpa: { min: 1, max: 3 } }
+  site: { replicas: 1, hpa: { min: 1, max: 3 } }
+  cms: { replicas: 1 }
+kafkaTopics:
+  partitions: 3
+  replication: 3

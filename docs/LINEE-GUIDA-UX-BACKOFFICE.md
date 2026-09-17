@@ -186,7 +186,7 @@ La campagna è il cuore del prodotto e il suo editor è lo schermo da progettare
 
 ## Catalogo dei pattern UI
 
-Quindici componenti coprono tutte le schermate viste: costruirli per primi nel design system del backoffice rende le aree successive quasi solo configurazione. I contratti TypeScript sono in `web/backoffice-design-system/patterns.ts`.
+Quindici componenti coprono tutte le schermate viste: costruirli per primi nel design system del backoffice rende le aree successive quasi solo configurazione. I contratti TypeScript sono in `web/backoffice-design-system/src/patterns.ts`.
 
 | Componente | Dove compare | Regole di comportamento |
 | --- | --- | --- |

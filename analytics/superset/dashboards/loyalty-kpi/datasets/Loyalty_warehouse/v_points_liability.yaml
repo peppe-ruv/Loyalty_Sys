@@ -1,0 +1,34 @@
+table_name: v_points_liability
+main_dttm_col: null
+description: Passività punti
+schema: loyalty
+sql: null
+params: null
+cache_timeout: null
+is_sqllab_view: false
+metrics:
+- metric_name: count
+  verbose_name: Conteggio
+  expression: COUNT(*)
+- metric_name: sum_outstanding_units
+  verbose_name: Somma outstanding_units
+  expression: SUM(outstanding_units)
+- metric_name: sum_pending_units
+  verbose_name: Somma pending_units
+  expression: SUM(pending_units)
+columns:
+- column_name: wallet
+  is_dttm: false
+  groupby: true
+  filterable: true
+- column_name: outstanding_units
+  is_dttm: false
+  groupby: true
+  filterable: true
+- column_name: pending_units
+  is_dttm: false
+  groupby: true
+  filterable: true
+uuid: b796d276-e864-5063-a9fb-f605a4ee6d5a
+version: 1.0.0
+database_uuid: 6f1c0f0e-4f7a-4d5b-9b7c-1d2e3f4a5b6c
