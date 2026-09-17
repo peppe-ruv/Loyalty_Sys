@@ -43,12 +43,17 @@ jobs:
   web:
     name: Web and CMS
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: "22" }
-      - run: node --check web/bff/src/server.js
-      - run: cd web/site && npm install --no-audit --no-fund && npm run build
+      - name: BFF
+        run: node --check web/bff/src/server.js
+      - name: Sito Next.js
+        run: cd web/site && npm ci --no-audit --no-fund && npm run build
+      - name: Backoffice Payload
+        run: cd cms && npm ci --no-audit --no-fund && npm run typecheck && npm run generate:importmap && npm run build
   deploy:
     name: Helm and Terraform
     runs-on: ubuntu-latest

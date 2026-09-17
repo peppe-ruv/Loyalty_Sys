@@ -5,12 +5,25 @@ import tseslint from 'typescript-eslint';
 export default tseslint.config(
   {
     // Cartelle generate o non sorgente: mai passate al linter.
-    ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**'],
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '**/coverage/**',
+      '**/.next/**',
+      // Ogni parte del monorepo ha il suo controllo (CLAUDE.md §5): il sito passa da `next build`,
+      // il BFF da `node --check`, il CMS da `tsc --noEmit`. Qui si linta solo il design system,
+      // altrimenti questa configurazione verrebbe applicata anche a loro dai rispettivi strumenti.
+      'web/site/**',
+      'web/bff/**',
+      'cms/**',
+      'services/**',
+    ],
   },
   eslint.configs.recommended,
   tseslint.configs.strictTypeChecked,
   tseslint.configs.stylisticTypeChecked,
   {
+    files: ['web/backoffice-design-system/**/*.ts', 'eslint.config.js'],
     languageOptions: {
       parserOptions: {
         // projectService usa i tsconfig.json dei workspace senza elencarli qui.

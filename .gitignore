@@ -6,11 +6,17 @@ node_modules/
 .next/
 dist/
 *.tsbuildinfo
+# generato da Next a ogni build
+next-env.d.ts
 
 # cache degli strumenti
 .eslintcache
 coverage/
 .vitest/
+
+# Python
+__pycache__/
+*.pyc
 
 # Terraform
 .terraform/
