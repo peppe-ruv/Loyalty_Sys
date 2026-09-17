@@ -54,7 +54,12 @@ public class RedemptionController {
     public Map<String, Object> payWithPoints(@RequestBody PayWithPoints p) {
         var conv = new it.iren.loyalty.catalogredemption.domain.UnitsConversion(new java.math.BigDecimal(System.getenv().getOrDefault("EUR_PER_UNIT", "0.01")), 100, 0, 100);
         long units = p.units() != null ? p.units() : conv.unitsFor(p.amountEur());
+        // Sotto il taglio minimo non si paga con i punti: meglio dirlo che scalare un importo sbagliato.
+        if (units <= 0) throw new RedemptionService.RedemptionRejected("AMOUNT_BELOW_MINIMUM");
         var value = conv.valueOf(units);
+        // Unità chieste esplicitamente dal chiamante: se valgono più del carrello, il membro
+        // ci rimetterebbe la differenza. Si rifiuta invece di consumarle in silenzio.
+        if (value.compareTo(p.amountEur()) > 0) throw new RedemptionService.RedemptionRejected("UNITS_EXCEED_AMOUNT");
         try {
             ledger.post().uri("/v1/ledger/debits").body(Map.of("memberId", p.memberId(), "actionKey", "pay:" + p.orderRef() + ":DEBIT", "points", units, "reason", "PAY_WITH_POINTS")).retrieve().toBodilessEntity();
         } catch (org.springframework.web.client.HttpClientErrorException.Conflict e) { throw new RedemptionService.RedemptionRejected("INSUFFICIENT_BALANCE"); }

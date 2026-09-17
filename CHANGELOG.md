@@ -11,6 +11,12 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
 - `catalog-redemption`: la colonna generata `redemption.expires_at` sommava un intervallo a un `timestamptz`,
   espressione che Postgres rifiuta come non immutabile: lo schema non si creava affatto
 
+### Corretto (paga con i punti)
+- `catalog-redemption`: le unità da scalare si arrotondavano per eccesso al passo e lo sconto superava l'importo del
+  carrello (5,55 € → 600 punti = 6,00 €). Ora si arrotonda per difetto e il resto si paga normalmente; sotto il
+  taglio minimo la richiesta è rifiutata (`AMOUNT_BELOW_MINIMUM`) e unità esplicite che valgono più del carrello
+  danno `UNITS_EXCEED_AMOUNT` invece di essere consumate in silenzio
+
 ### Corretto (tier)
 - `tier-service` sommava i punti STATUS di ogni movimento letto dal topic senza memoria di quelli già applicati: un
   replay dell'outbox (at-least-once) gonfiava punti e tier. Ogni movimento applicato è ora registrato (migrazione

@@ -99,14 +99,19 @@ riferimento vale per qualunque achievement.
 
 Coperti da due test di integrazione sul `engagement-service`.
 
-## 6. «Paga con i punti» può scontare più del carrello
+## 6. ~~«Paga con i punti» può scontare più del carrello~~ — risolto
 
-`UnitsConversion.unitsFor` arrotonda per eccesso al passo: con passo 100 e 0,01 €/punto, un carrello
-da 5,55 € scala 600 punti e restituisce `discountEur = 6,00`. Lo sconto supera l'importo.
+`UnitsConversion.unitsFor` arrotondava per eccesso al passo: con passo 100 e 0,01 €/punto un carrello
+da 5,55 € scalava 600 punti e restituiva `discountEur = 6,00`, cioè più dell'importo.
 
-Le due uscite ragionevoli — arrotondare per difetto (il resto si paga normalmente) o limitare lo
-sconto all'importo del carrello, lasciando al membro i punti in eccesso — hanno effetti diversi sul
-conto economico: è una scelta di prodotto, non una correzione tecnica.
+**Decisione presa**: si arrotonda **per difetto** e il resto del carrello si paga normalmente. È
+l'uscita che non fa mai perdere valore al membro: 5,55 € diventano 500 punti e 5,00 € di sconto, i
+restanti 0,55 € si pagano. Quando l'importo non copre nemmeno il taglio minimo la richiesta viene
+rifiutata con `AMOUNT_BELOW_MINIMUM` invece di scalare un importo sbagliato, e se il chiamante chiede
+esplicitamente più unità di quante ne valga il carrello si risponde `UNITS_EXCEED_AMOUNT`: consumarle
+in silenzio significherebbe regalare la differenza.
+
+Cinque test sul dominio, compresi il taglio minimo esatto e il massimo configurato.
 
 ## 7. ~~Chiavi di idempotenza generate dall'orologio~~ — risolto, e c'era di peggio
 

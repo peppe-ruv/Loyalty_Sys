@@ -13,10 +13,18 @@ public record UnitsConversion(BigDecimal eurPerUnit, long minUnits, long maxUnit
         if (units < minUnits || (maxUnits > 0 && units > maxUnits) || (stepUnits > 0 && (units - minUnits) % stepUnits != 0)) throw new IllegalArgumentException("units out of range/step");
         return eurPerUnit.multiply(BigDecimal.valueOf(units)).setScale(2, RoundingMode.DOWN);
     }
-    /** Unità necessarie per coprire un importo (arrotondate per eccesso al passo). */
+    /**
+     * Unità da scalare per coprire un importo, <b>senza mai superarlo</b>: si arrotonda per difetto al
+     * passo e il resto del carrello si paga normalmente. Arrotondare per eccesso faceva scontare più
+     * dell'importo — 5,55 € diventavano 600 punti, cioè 6,00 € di sconto (RF-104).
+     *
+     * @return 0 se l'importo non copre nemmeno il taglio minimo: in quel caso non si paga con i punti.
+     */
     public long unitsFor(BigDecimal eur) {
-        long raw = eur.divide(eurPerUnit, 0, RoundingMode.CEILING).longValue();
-        if (stepUnits > 0) raw = minUnits + (long) Math.ceil(Math.max(0, raw - minUnits) / (double) stepUnits) * stepUnits;
-        return Math.max(minUnits, raw);
+        long raw = eur.divide(eurPerUnit, 0, RoundingMode.FLOOR).longValue();
+        if (raw < minUnits) return 0;
+        if (stepUnits > 0) raw = minUnits + (long) Math.floor((raw - minUnits) / (double) stepUnits) * stepUnits;
+        long capped = Math.min(raw, maxUnits > 0 ? maxUnits : raw);
+        return Math.max(0, capped);
     }
 }
