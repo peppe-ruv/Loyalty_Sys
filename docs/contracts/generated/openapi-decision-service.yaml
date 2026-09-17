@@ -1,0 +1,680 @@
+# Contratto REST di decision-service — generato da OpenApiContractTest, non modificare a mano.
+# Rigenerare con: mvn -pl decision-service test -Dopenapi.write=true
+---
+openapi: "3.1.0"
+info:
+  title: "Loyalty Hub — decision-service"
+  description: "API del servizio decision-service. Scritture con chiave di idempotenza,\
+    \ liste con paginazione keyset (after, size), errori con codice motivo UPPER_SNAKE."
+  license:
+    name: "Apache-2.0"
+    url: "https://www.apache.org/licenses/LICENSE-2.0"
+  version: "v1"
+paths:
+  /v1/decisions/simulate:
+    post:
+      tags:
+      - "decision-controller"
+      operationId: "simulate"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulationRequest"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Decision"
+  /v1/decisions/predictions/{memberId}:
+    post:
+      tags:
+      - "decision-controller"
+      operationId: "predictions"
+      parameters:
+      - name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "number"
+                  format: "double"
+  /v1/decisions/next-best-action/{memberId}:
+    post:
+      tags:
+      - "decision-controller"
+      operationId: "nextBestAction"
+      parameters:
+      - name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NbaRequest"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NbaResponse"
+  /v1/decisions/{decisionId}:
+    get:
+      tags:
+      - "decision-controller"
+      operationId: "get"
+      parameters:
+      - name: "decisionId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Decision"
+  /v1/decisions/stats:
+    get:
+      tags:
+      - "decision-controller"
+      operationId: "stats"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+  /v1/decisions/policy:
+    get:
+      tags:
+      - "decision-controller"
+      operationId: "policy"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/DecisionPolicy"
+  /v1/decisions/members/{memberId}:
+    get:
+      tags:
+      - "decision-controller"
+      operationId: "byMember"
+      parameters:
+      - name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      - name: "limit"
+        in: "query"
+        required: false
+        schema:
+          type: "integer"
+          format: "int32"
+          default: 20
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/Decision"
+  /v1/decisions/experiments/{experimentId}/effect:
+    get:
+      tags:
+      - "decision-controller"
+      operationId: "experimentEffect"
+      parameters:
+      - name: "experimentId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties: {}
+components:
+  schemas:
+    ActionSpec:
+      type: "object"
+      properties:
+        enabled:
+          type: "boolean"
+        priority:
+          type: "integer"
+          format: "int32"
+        baseValue:
+          type: "number"
+          format: "double"
+        cost:
+          type: "number"
+          format: "double"
+        requiredConsents:
+          type: "array"
+          items:
+            type: "string"
+          uniqueItems: true
+        maxRiskLevel:
+          type: "string"
+        maxPerMemberPerPeriod:
+          type: "integer"
+          format: "int32"
+        period:
+          type: "string"
+          enum:
+          - "HOUR"
+          - "DAY"
+          - "WEEK"
+          - "MONTH"
+        cooldownHours:
+          type: "integer"
+          format: "int32"
+        channels:
+          type: "array"
+          items:
+            type: "string"
+          uniqueItems: true
+    Activity:
+      type: "object"
+      properties:
+        redemptions90d:
+          type: "integer"
+          format: "int32"
+        offersPresented90d:
+          type: "integer"
+          format: "int32"
+        offersAccepted90d:
+          type: "integer"
+          format: "int32"
+        actionCounts30d:
+          type: "object"
+          additionalProperties:
+            type: "integer"
+            format: "int32"
+        categorySpend365d:
+          type: "object"
+          additionalProperties:
+            type: "number"
+            format: "double"
+        enrolledAt:
+          type: "string"
+          format: "date-time"
+        badges:
+          type: "integer"
+          format: "int32"
+    Candidate:
+      type: "object"
+      properties:
+        type:
+          type: "string"
+          enum:
+          - "NO_ACTION"
+          - "AWARD_POINTS"
+          - "ISSUE_REWARD"
+          - "ISSUE_COUPON"
+          - "UPGRADE_TIER"
+          - "GRANT_BADGE"
+          - "SET_ATTRIBUTE"
+          - "EMIT_EVENT"
+          - "SEND_MESSAGE"
+          - "SHOW_OFFER"
+          - "TRIGGER_CAMPAIGN"
+          - "ASK_FOR_FEEDBACK"
+        source:
+          type: "string"
+        sourceId:
+          type: "string"
+        reference:
+          type: "string"
+        wallet:
+          type: "string"
+        units:
+          type: "integer"
+          format: "int64"
+        value:
+          type: "number"
+          format: "double"
+        cost:
+          type: "number"
+          format: "double"
+        preferredChannel:
+          type: "string"
+        params:
+          type: "object"
+          additionalProperties: {}
+    Constraints:
+      type: "object"
+      properties:
+        contactCap7dByChannel:
+          type: "object"
+          additionalProperties:
+            type: "integer"
+            format: "int32"
+        quietHoursFrom:
+          type: "integer"
+          format: "int32"
+        quietHoursTo:
+          type: "integer"
+          format: "int32"
+        dailyUnitsBudget:
+          type: "integer"
+          format: "int64"
+        suppressionSegments:
+          type: "array"
+          items:
+            type: "string"
+          uniqueItems: true
+        blockRiskLevel:
+          type: "string"
+        minHoursBetweenOffers:
+          type: "integer"
+          format: "int32"
+    DecisionContext:
+      type: "object"
+      properties:
+        memberId:
+          type: "string"
+        tier:
+          type: "string"
+        segments:
+          type: "array"
+          items:
+            type: "string"
+        walletActive:
+          type: "object"
+          additionalProperties:
+            type: "integer"
+            format: "int64"
+        consents:
+          type: "object"
+          additionalProperties:
+            type: "boolean"
+        riskLevel:
+          type: "string"
+        recencyDays:
+          type: "integer"
+          format: "int32"
+        frequency90d:
+          type: "integer"
+          format: "int32"
+        monetary365d:
+          type: "number"
+          format: "double"
+        preferredChannel:
+          type: "string"
+        contacts7dByChannel:
+          type: "object"
+          additionalProperties:
+            type: "integer"
+            format: "int32"
+        priorActions:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/PriorAction"
+        activity:
+          $ref: "#/components/schemas/Activity"
+        predictions:
+          type: "object"
+          additionalProperties:
+            type: "number"
+            format: "double"
+    DecisionPolicy:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+        version:
+          type: "string"
+        active:
+          type: "boolean"
+        actions:
+          type: "object"
+          additionalProperties:
+            $ref: "#/components/schemas/ActionSpec"
+        constraints:
+          $ref: "#/components/schemas/Constraints"
+        scoring:
+          $ref: "#/components/schemas/Scoring"
+        alwaysApply:
+          type: "array"
+          items:
+            type: "string"
+            enum:
+            - "NO_ACTION"
+            - "AWARD_POINTS"
+            - "ISSUE_REWARD"
+            - "ISSUE_COUPON"
+            - "UPGRADE_TIER"
+            - "GRANT_BADGE"
+            - "SET_ATTRIBUTE"
+            - "EMIT_EVENT"
+            - "SEND_MESSAGE"
+            - "SHOW_OFFER"
+            - "TRIGGER_CAMPAIGN"
+            - "ASK_FOR_FEEDBACK"
+          uniqueItems: true
+        maxArbitratedPerEvent:
+          type: "integer"
+          format: "int32"
+        channelPreferenceOrder:
+          type: "array"
+          items:
+            type: "string"
+    Offer:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+        name:
+          type: "string"
+        active:
+          type: "boolean"
+        action:
+          type: "string"
+          enum:
+          - "NO_ACTION"
+          - "AWARD_POINTS"
+          - "ISSUE_REWARD"
+          - "ISSUE_COUPON"
+          - "UPGRADE_TIER"
+          - "GRANT_BADGE"
+          - "SET_ATTRIBUTE"
+          - "EMIT_EVENT"
+          - "SEND_MESSAGE"
+          - "SHOW_OFFER"
+          - "TRIGGER_CAMPAIGN"
+          - "ASK_FOR_FEEDBACK"
+        reference:
+          type: "string"
+        wallet:
+          type: "string"
+        units:
+          type: "integer"
+          format: "int64"
+        conditionExpression:
+          type: "string"
+        value:
+          type: "number"
+          format: "double"
+        cost:
+          type: "number"
+          format: "double"
+        channels:
+          type: "array"
+          items:
+            type: "string"
+          uniqueItems: true
+        validFrom:
+          type: "string"
+          format: "date-time"
+        validTo:
+          type: "string"
+          format: "date-time"
+        params:
+          type: "object"
+          additionalProperties: {}
+    PriorAction:
+      type: "object"
+      properties:
+        action:
+          type: "string"
+          enum:
+          - "NO_ACTION"
+          - "AWARD_POINTS"
+          - "ISSUE_REWARD"
+          - "ISSUE_COUPON"
+          - "UPGRADE_TIER"
+          - "GRANT_BADGE"
+          - "SET_ATTRIBUTE"
+          - "EMIT_EVENT"
+          - "SEND_MESSAGE"
+          - "SHOW_OFFER"
+          - "TRIGGER_CAMPAIGN"
+          - "ASK_FOR_FEEDBACK"
+        reference:
+          type: "string"
+        at:
+          type: "string"
+          format: "date-time"
+    RewardingAction:
+      type: "object"
+      properties:
+        actionType:
+          type: "string"
+          minLength: 1
+        idempotencyKey:
+          type: "string"
+          minLength: 1
+        externalRef:
+          type: "string"
+        occurredAt:
+          type: "string"
+          format: "date-time"
+        reversalOf:
+          type: "string"
+        attributes:
+          type: "object"
+          additionalProperties: {}
+        reversal:
+          type: "boolean"
+      required:
+      - "actionType"
+      - "idempotencyKey"
+      - "occurredAt"
+    Scoring:
+      type: "object"
+      properties:
+        strategy:
+          type: "string"
+          enum:
+          - "PRIORITY"
+          - "WEIGHTED"
+          - "EXPRESSION"
+        valueWeight:
+          type: "number"
+          format: "double"
+        costWeight:
+          type: "number"
+          format: "double"
+        propensityWeight:
+          type: "number"
+          format: "double"
+        churnWeight:
+          type: "number"
+          format: "double"
+        recencyWeight:
+          type: "number"
+          format: "double"
+        tierBoost:
+          type: "object"
+          additionalProperties:
+            type: "number"
+            format: "double"
+        channelPreferenceBonus:
+          type: "number"
+          format: "double"
+        expression:
+          type: "string"
+    SimulationRequest:
+      type: "object"
+      properties:
+        memberId:
+          type: "string"
+        context:
+          $ref: "#/components/schemas/DecisionContext"
+        action:
+          $ref: "#/components/schemas/RewardingAction"
+        policy:
+          $ref: "#/components/schemas/DecisionPolicy"
+        offers:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Offer"
+        candidates:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Candidate"
+    Chosen:
+      type: "object"
+      properties:
+        action:
+          type: "string"
+          enum:
+          - "NO_ACTION"
+          - "AWARD_POINTS"
+          - "ISSUE_REWARD"
+          - "ISSUE_COUPON"
+          - "UPGRADE_TIER"
+          - "GRANT_BADGE"
+          - "SET_ATTRIBUTE"
+          - "EMIT_EVENT"
+          - "SEND_MESSAGE"
+          - "SHOW_OFFER"
+          - "TRIGGER_CAMPAIGN"
+          - "ASK_FOR_FEEDBACK"
+        reference:
+          type: "string"
+        wallet:
+          type: "string"
+        units:
+          type: "integer"
+          format: "int64"
+        channel:
+          type: "string"
+        score:
+          type: "number"
+          format: "double"
+        reasons:
+          type: "array"
+          items:
+            type: "string"
+        source:
+          type: "string"
+        sourceId:
+          type: "string"
+        params:
+          type: "object"
+          additionalProperties: {}
+    Decision:
+      type: "object"
+      properties:
+        decisionId:
+          type: "string"
+        memberId:
+          type: "string"
+        eventId:
+          type: "string"
+        eventType:
+          type: "string"
+        correlationId:
+          type: "string"
+        policyVersion:
+          type: "string"
+        experimentId:
+          type: "string"
+        variant:
+          type: "string"
+        actions:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Chosen"
+        rejected:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Rejected"
+        predictions:
+          type: "object"
+          additionalProperties:
+            type: "number"
+            format: "double"
+        riskLevel:
+          type: "string"
+        decidedAt:
+          type: "string"
+          format: "date-time"
+        expiresAt:
+          type: "string"
+          format: "date-time"
+        noAction:
+          type: "boolean"
+    Rejected:
+      type: "object"
+      properties:
+        action:
+          type: "string"
+          enum:
+          - "NO_ACTION"
+          - "AWARD_POINTS"
+          - "ISSUE_REWARD"
+          - "ISSUE_COUPON"
+          - "UPGRADE_TIER"
+          - "GRANT_BADGE"
+          - "SET_ATTRIBUTE"
+          - "EMIT_EVENT"
+          - "SEND_MESSAGE"
+          - "SHOW_OFFER"
+          - "TRIGGER_CAMPAIGN"
+          - "ASK_FOR_FEEDBACK"
+        reference:
+          type: "string"
+        reasonCode:
+          type: "string"
+        detail:
+          type: "string"
+    NbaRequest:
+      type: "object"
+      properties:
+        context:
+          type: "object"
+          additionalProperties: {}
+        persist:
+          type: "boolean"
+    NbaResponse:
+      type: "object"
+      properties:
+        customerId:
+          type: "string"
+        action:
+          type: "string"
+        offerId:
+          type: "string"
+        channel:
+          type: "string"
+        reason:
+          type: "string"
+        expiresAt:
+          type: "string"
+        metadata:
+          type: "object"
+          additionalProperties: {}

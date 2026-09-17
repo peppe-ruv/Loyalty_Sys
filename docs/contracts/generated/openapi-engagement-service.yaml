@@ -1,0 +1,587 @@
+# Contratto REST di engagement-service — generato da OpenApiContractTest, non modificare a mano.
+# Rigenerare con: mvn -pl engagement-service test -Dopenapi.write=true
+---
+openapi: "3.1.0"
+info:
+  title: "Loyalty Hub — engagement-service"
+  description: "API del servizio engagement-service. Scritture con chiave di idempotenza,\
+    \ liste con paginazione keyset (after, size), errori con codice motivo UPPER_SNAKE."
+  license:
+    name: "Apache-2.0"
+    url: "https://www.apache.org/licenses/LICENSE-2.0"
+  version: "v1"
+paths:
+  /v1/progress:
+    post:
+      tags:
+      - "engagement-controller"
+      operationId: "manualProgress"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManualProgress"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "string"
+  /v1/badges/{code}/grants:
+    post:
+      tags:
+      - "engagement-controller"
+      operationId: "grant"
+      parameters:
+      - name: "code"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GrantBadge"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Grant"
+  /v1/leaderboards:
+    get:
+      tags:
+      - "engagement-controller"
+      operationId: "leaderboards"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/Leaderboard"
+  /v1/leaderboards/{id}:
+    get:
+      tags:
+      - "engagement-controller"
+      operationId: "ranking"
+      parameters:
+      - name: "id"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      - name: "group"
+        in: "query"
+        required: false
+        schema:
+          type: "string"
+      - name: "limit"
+        in: "query"
+        required: false
+        schema:
+          type: "integer"
+          format: "int32"
+          default: 100
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+  /v1/leaderboards/{id}/members/{memberId}:
+    get:
+      tags:
+      - "engagement-controller"
+      operationId: "myRank"
+      parameters:
+      - name: "id"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      - name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties: {}
+  /v1/challenges:
+    get:
+      tags:
+      - "engagement-controller"
+      operationId: "challenges"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/Challenge"
+  /v1/challenges/members/{memberId}:
+    get:
+      tags:
+      - "engagement-controller"
+      operationId: "challengeStatus"
+      parameters:
+      - name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+  /v1/badges:
+    get:
+      tags:
+      - "engagement-controller"
+      operationId: "badges"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/Badge"
+  /v1/badges/members/{memberId}:
+    get:
+      tags:
+      - "engagement-controller"
+      operationId: "memberBadges"
+      parameters:
+      - name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  type: "string"
+  /v1/badges/members/{memberId}/details:
+    get:
+      tags:
+      - "engagement-controller"
+      operationId: "memberBadgeDetails"
+      parameters:
+      - name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+  /v1/achievements:
+    get:
+      tags:
+      - "engagement-controller"
+      operationId: "achievements"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/Achievement"
+  /v1/achievements/members/{memberId}:
+    get:
+      tags:
+      - "engagement-controller"
+      operationId: "achievementStatus"
+      parameters:
+      - name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+components:
+  schemas:
+    ManualProgress:
+      type: "object"
+      properties:
+        memberId:
+          type: "string"
+          minLength: 1
+        actionType:
+          type: "string"
+          minLength: 1
+        attributes:
+          type: "object"
+          additionalProperties: {}
+        reason:
+          type: "string"
+          minLength: 1
+      required:
+      - "actionType"
+      - "memberId"
+      - "reason"
+    GrantBadge:
+      type: "object"
+      properties:
+        memberId:
+          type: "string"
+          minLength: 1
+        grantKey:
+          type: "string"
+          minLength: 1
+      required:
+      - "grantKey"
+      - "memberId"
+    Grant:
+      type: "object"
+      properties:
+        memberId:
+          type: "string"
+        badgeCode:
+          type: "string"
+        completedCount:
+          type: "integer"
+          format: "int32"
+        firstGrantedAt:
+          type: "string"
+          format: "date-time"
+        lastGrantedAt:
+          type: "string"
+          format: "date-time"
+        source:
+          type: "string"
+    Leaderboard:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+        name:
+          type: "string"
+        active:
+          type: "boolean"
+        metric:
+          type: "string"
+          enum:
+          - "UNITS_EARNED"
+          - "TRANSACTIONS_COUNT"
+          - "TRANSACTIONS_VALUE"
+          - "CUSTOM_EVENTS_COUNT"
+          - "ACHIEVEMENT_PROGRESS"
+        reference:
+          type: "string"
+        startsAt:
+          type: "string"
+          format: "date-time"
+        endsAt:
+          type: "string"
+          format: "date-time"
+        groupBy:
+          type: "string"
+        topN:
+          type: "integer"
+          format: "int32"
+        rewardingCycle:
+          $ref: "#/components/schemas/RewardingCycle"
+        visibility:
+          type: "string"
+    RankReward:
+      type: "object"
+      properties:
+        fromRank:
+          type: "integer"
+          format: "int32"
+        toRank:
+          type: "integer"
+          format: "int32"
+        rewardId:
+          type: "string"
+        wallet:
+          type: "string"
+        units:
+          type: "integer"
+          format: "int64"
+        badgeCode:
+          type: "string"
+    RewardingCycle:
+      type: "object"
+      properties:
+        period:
+          type: "string"
+          enum:
+          - "HOUR"
+          - "DAY"
+          - "WEEK"
+          - "MONTH"
+          - "YEAR"
+          - "TOTAL"
+        rewards:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/RankReward"
+    Achievement:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+        version:
+          type: "string"
+        name:
+          type: "string"
+        active:
+          type: "boolean"
+        actionType:
+          type: "string"
+        conditions:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Condition"
+        metric:
+          type: "string"
+          enum:
+          - "OCCURRENCES"
+          - "ATTRIBUTE_SUM"
+          - "UNIQUE_ATTRIBUTE_VALUES"
+        attribute:
+          type: "string"
+        goal:
+          $ref: "#/components/schemas/Goal"
+        eventLimit:
+          $ref: "#/components/schemas/Limit"
+        completionLimit:
+          $ref: "#/components/schemas/Limit"
+    Availability:
+      type: "object"
+      properties:
+        daysOfWeek:
+          type: "array"
+          items:
+            type: "integer"
+            format: "int32"
+          uniqueItems: true
+        hourFrom:
+          type: "integer"
+          format: "int32"
+        hourTo:
+          type: "integer"
+          format: "int32"
+        dates:
+          type: "array"
+          items:
+            type: "string"
+          uniqueItems: true
+    Challenge:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+        version:
+          type: "string"
+        name:
+          type: "string"
+        active:
+          type: "boolean"
+        startsAt:
+          type: "string"
+          format: "date-time"
+        endsAt:
+          type: "string"
+          format: "date-time"
+        availability:
+          $ref: "#/components/schemas/Availability"
+        visibility:
+          $ref: "#/components/schemas/Visibility"
+        milestones:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Milestone"
+        rules:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Rule"
+        completionLimit:
+          $ref: "#/components/schemas/Limit"
+        programYear:
+          type: "integer"
+          format: "int32"
+        badgeCode:
+          type: "string"
+    Condition:
+      type: "object"
+      properties:
+        attribute:
+          type: "string"
+        op:
+          type: "string"
+        value:
+          type: "string"
+    Effect:
+      type: "object"
+      properties:
+        type:
+          type: "string"
+        wallet:
+          type: "string"
+        units:
+          type: "integer"
+          format: "int64"
+        reference:
+          type: "string"
+        params:
+          type: "object"
+          additionalProperties:
+            type: "string"
+    Goal:
+      type: "object"
+      properties:
+        type:
+          type: "string"
+          enum:
+          - "OVERALL"
+          - "LAST_DAYS"
+          - "CONSECUTIVE"
+        target:
+          type: "number"
+          format: "double"
+        windowDays:
+          type: "integer"
+          format: "int32"
+        period:
+          type: "string"
+          enum:
+          - "HOUR"
+          - "DAY"
+          - "WEEK"
+          - "MONTH"
+          - "YEAR"
+          - "TOTAL"
+        consecutivePeriods:
+          type: "integer"
+          format: "int32"
+    Limit:
+      type: "object"
+      properties:
+        max:
+          type: "integer"
+          format: "int32"
+        period:
+          type: "string"
+          enum:
+          - "HOUR"
+          - "DAY"
+          - "WEEK"
+          - "MONTH"
+          - "YEAR"
+          - "TOTAL"
+    Milestone:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+        name:
+          type: "string"
+        kind:
+          type: "string"
+          enum:
+          - "DIRECT"
+          - "REFERRAL"
+        definition:
+          $ref: "#/components/schemas/Achievement"
+    Rule:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+        trigger:
+          type: "string"
+          enum:
+          - "MILESTONE_PROGRESSED"
+          - "CHALLENGE_COMPLETED"
+        maxCompletionCount:
+          type: "integer"
+          format: "int32"
+        effects:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Effect"
+    Visibility:
+      type: "object"
+      properties:
+        mode:
+          type: "string"
+        segments:
+          type: "array"
+          items:
+            type: "string"
+          uniqueItems: true
+        tiers:
+          type: "array"
+          items:
+            type: "string"
+          uniqueItems: true
+    Badge:
+      type: "object"
+      properties:
+        code:
+          type: "string"
+        name:
+          type: "string"
+        description:
+          type: "string"
+        imageUrl:
+          type: "string"
+        active:
+          type: "boolean"
+        stackable:
+          type: "boolean"

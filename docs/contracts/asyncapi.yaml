@@ -28,6 +28,31 @@ channels:
   segments:
     address: loyalty.segments.v1
     description: Ingresso/uscita da un segmento — tipo io.loyaltyhub.segment-membership.v1 (RF-65, RF-71)
+  decisions:
+    address: loyalty.decisions.v1
+    description: Decisione del motore con azioni scelte, scarti motivati e previsioni — tipo io.loyaltyhub.decision.v1 (RF-127, RF-129)
+    messages:
+      decision: { $ref: '#/components/messages/Decision' }
+  risk:
+    address: loyalty.risk.v1
+    description: Valutazione di rischio del membro — tipo io.loyaltyhub.risk.v1 (RF-131)
+    messages:
+      risk: { $ref: '#/components/messages/Risk' }
+  deliveries:
+    address: loyalty.deliveries.v1
+    description: Esito di una consegna su un canale — tipo io.loyaltyhub.delivery.v1 (RF-132)
+    messages:
+      delivery: { $ref: '#/components/messages/Delivery' }
+  consents:
+    address: loyalty.consents.v1
+    description: Consenso concesso o revocato, con base giuridica — tipo io.loyaltyhub.consent.v1 (RF-135)
+    messages:
+      consent: { $ref: '#/components/messages/Consent' }
+  identities:
+    address: loyalty.identities.v1
+    description: Merge e unmerge di identità, con identificatori spostati e unità trasferite — tipo io.loyaltyhub.identity.v1 (RF-136)
+    messages:
+      identity: { $ref: '#/components/messages/Identity' }
 operations:
   publishMember:
     action: send
@@ -49,6 +74,30 @@ operations:
     action: send
     channel: { $ref: '#/channels/movements' }
     summary: ledger pubblica ogni movimento tramite outbox
+  publishDecision:
+    action: send
+    channel: { $ref: '#/channels/decisions' }
+    summary: decision-service pubblica ogni decisione; notifier la consegna, il warehouse la misura
+  consumeDecision:
+    action: receive
+    channel: { $ref: '#/channels/decisions' }
+    summary: notifier consegna le azioni di contatto sul canale deciso, con ripiego e limiti
+  publishRisk:
+    action: send
+    channel: { $ref: '#/channels/risk' }
+    summary: fraud-service pubblica il livello di rischio; read-model lo porta nel Customer 360 e il motore lo usa come vincolo
+  publishDelivery:
+    action: send
+    channel: { $ref: '#/channels/deliveries' }
+    summary: notifier pubblica ogni consegna; alimenta la pressione commerciale (contatti a 7 giorni) e la BI
+  publishConsent:
+    action: send
+    channel: { $ref: '#/channels/consents' }
+    summary: member-service pubblica ogni consenso; una revoca si propaga a decisioni e consegne
+  publishIdentity:
+    action: send
+    channel: { $ref: '#/channels/identities' }
+    summary: identity-mapping pubblica merge e unmerge completati (mai quelli a metà)
 components:
   messages:
     Action:
@@ -100,3 +149,99 @@ components:
               actionKey: { type: string }
               balance: { type: integer }
               debt: { type: boolean }
+    Decision:
+      name: io.loyaltyhub.decision.v1
+      contentType: application/cloudevents+json
+      payload:
+        type: object
+        properties:
+          data:
+            type: object
+            properties:
+              decisionId: { type: string }
+              memberId: { type: string }
+              policyVersion: { type: string, description: "id:versione della policy applicata" }
+              experimentId: { type: string, nullable: true }
+              variant: { type: string, nullable: true }
+              action: { type: string, description: azione primaria, NO_ACTION se nessuna }
+              reference: { type: string, nullable: true }
+              channel: { type: string, nullable: true }
+              reason: { type: string, description: motivazioni della scelta, in chiaro }
+              actions: { type: array, items: { type: object }, description: azioni scelte con punteggio e motivazioni }
+              rejected: { type: array, items: { type: object }, description: scarti con codice motivo (UNITS_BUDGET, COOLDOWN, ...) }
+              predictions: { type: object, additionalProperties: { type: number } }
+              riskLevel: { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL] }
+              decidedAt: { type: string, format: date-time }
+              expiresAt: { type: string, format: date-time }
+    Risk:
+      name: io.loyaltyhub.risk.v1
+      contentType: application/cloudevents+json
+      payload:
+        type: object
+        properties:
+          data:
+            type: object
+            properties:
+              memberId: { type: string }
+              score: { type: integer, minimum: 0, maximum: 100 }
+              level: { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL] }
+              previousLevel: { type: string, nullable: true }
+              reasonCodes: { type: array, items: { type: string } }
+              reasons: { type: array, items: { type: object } }
+              policyVersion: { type: string }
+              assessedAt: { type: string, format: date-time }
+    Delivery:
+      name: io.loyaltyhub.delivery.v1
+      contentType: application/cloudevents+json
+      payload:
+        type: object
+        properties:
+          data:
+            type: object
+            properties:
+              deliveryId: { type: string }
+              memberId: { type: string }
+              decisionId: { type: string, nullable: true }
+              action: { type: string, enum: [SEND_MESSAGE, SHOW_OFFER, ASK_FOR_FEEDBACK] }
+              reference: { type: string, nullable: true }
+              channel: { type: string, example: push }
+              status: { type: string, enum: [SENT, PRESENTED, QUEUED, FAILED, SKIPPED] }
+              providerRef: { type: string, nullable: true, description: identificativo del fornitore, per la riconciliazione }
+              expiresAt: { type: string, format: date-time, nullable: true }
+    Consent:
+      name: io.loyaltyhub.consent.v1
+      contentType: application/cloudevents+json
+      payload:
+        type: object
+        properties:
+          data:
+            type: object
+            properties:
+              memberId: { type: string }
+              purpose: { type: string, example: marketing }
+              granted: { type: boolean }
+              previous: { type: boolean, nullable: true }
+              source: { type: string, example: call-center }
+              legalBasis: { type: string, example: CONSENT }
+              version: { type: string }
+              grantedAt: { type: string, format: date-time }
+              expiresAt: { type: string, format: date-time, nullable: true }
+    Identity:
+      name: io.loyaltyhub.identity.v1
+      contentType: application/cloudevents+json
+      payload:
+        type: object
+        properties:
+          data:
+            type: object
+            properties:
+              type: { type: string, enum: [MERGED, UNMERGED] }
+              mergeId: { type: string, description: chiave di idempotenza del merge }
+              fromMemberId: { type: string, description: membro assorbito }
+              intoMemberId: { type: string, description: membro sopravvissuto }
+              reason: { type: string, nullable: true }
+              movedLinks: { type: array, items: { type: object, properties: { kind: { type: string }, value: { type: string } } } }
+              unitsMoved: { type: object, additionalProperties: { type: integer }, description: unità trasferite per wallet }
+              unitsRestored: { type: object, additionalProperties: { type: integer }, description: unità ritrasferite dall'unmerge }
+              shortfall: { type: object, additionalProperties: { type: integer }, description: unità non restituite perché già spese }
+              at: { type: string, format: date-time }

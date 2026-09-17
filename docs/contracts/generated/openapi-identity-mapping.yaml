@@ -1,0 +1,300 @@
+# Contratto REST di identity-mapping — generato da OpenApiContractTest, non modificare a mano.
+# Rigenerare con: mvn -pl identity-mapping test -Dopenapi.write=true
+---
+openapi: "3.1.0"
+info:
+  title: "Loyalty Hub — identity-mapping"
+  description: "API del servizio identity-mapping. Scritture con chiave di idempotenza,\
+    \ liste con paginazione keyset (after, size), errori con codice motivo UPPER_SNAKE."
+  license:
+    name: "Apache-2.0"
+    url: "https://www.apache.org/licenses/LICENSE-2.0"
+  version: "v1"
+paths:
+  /v1/identities/resolve:
+    post:
+      tags:
+      - "identity-controller"
+      operationId: "resolve"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveRequest"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Resolution"
+  /v1/identities/merges:
+    post:
+      tags:
+      - "identity-controller"
+      operationId: "merge"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MergeRequest"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Merge"
+  /v1/identities/merges/{mergeId}/unmerge:
+    post:
+      tags:
+      - "identity-controller"
+      operationId: "unmerge"
+      parameters:
+      - name: "mergeId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: "object"
+              additionalProperties:
+                type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Merge"
+  /v1/identities/merges/{mergeId}/advance:
+    post:
+      tags:
+      - "identity-controller"
+      operationId: "advance"
+      parameters:
+      - name: "mergeId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Merge"
+  /v1/identities/members/{memberId}/links:
+    post:
+      tags:
+      - "identity-controller"
+      operationId: "link"
+      parameters:
+      - name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkRequest"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Link"
+  /v1/identities/members/{memberId}:
+    get:
+      tags:
+      - "identity-controller"
+      operationId: "links"
+      parameters:
+      - name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties: {}
+  /v1/identities/canonical/{memberId}:
+    get:
+      tags:
+      - "identity-controller"
+      operationId: "canonical"
+      parameters:
+      - name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "string"
+  /v1/identities/members/{memberId}/links/{kind}/{value}:
+    delete:
+      tags:
+      - "identity-controller"
+      operationId: "unlink"
+      parameters:
+      - name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      - name: "kind"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      - name: "value"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "boolean"
+components:
+  schemas:
+    Identifier:
+      type: "object"
+      properties:
+        kind:
+          type: "string"
+        value:
+          type: "string"
+    ResolveRequest:
+      type: "object"
+      properties:
+        identifiers:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Identifier"
+        source:
+          type: "string"
+        createAs:
+          type: "string"
+        channel:
+          type: "string"
+    Resolution:
+      type: "object"
+      properties:
+        memberId:
+          type: "string"
+        created:
+          type: "boolean"
+        newlyLinked:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Identifier"
+        conflicts:
+          type: "object"
+          additionalProperties:
+            type: "string"
+    MergeRequest:
+      type: "object"
+      properties:
+        mergeId:
+          type: "string"
+        fromMemberId:
+          type: "string"
+        intoMemberId:
+          type: "string"
+        reason:
+          type: "string"
+        actor:
+          type: "string"
+    Link:
+      type: "object"
+      properties:
+        kind:
+          type: "string"
+        value:
+          type: "string"
+        memberId:
+          type: "string"
+        source:
+          type: "string"
+        confidence:
+          type: "integer"
+          format: "int32"
+        linkedAt:
+          type: "string"
+          format: "date-time"
+        lastSeen:
+          type: "string"
+          format: "date-time"
+    Merge:
+      type: "object"
+      properties:
+        mergeId:
+          type: "string"
+        fromMemberId:
+          type: "string"
+        intoMemberId:
+          type: "string"
+        reason:
+          type: "string"
+        actor:
+          type: "string"
+        movedLinks:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Link"
+        unitsMoved:
+          type: "object"
+          additionalProperties:
+            type: "integer"
+            format: "int64"
+        unitsRestored:
+          type: "object"
+          additionalProperties:
+            type: "integer"
+            format: "int64"
+        status:
+          type: "string"
+        mergedAt:
+          type: "string"
+          format: "date-time"
+        unmergedAt:
+          type: "string"
+          format: "date-time"
+    LinkRequest:
+      type: "object"
+      properties:
+        identifier:
+          $ref: "#/components/schemas/Identifier"
+        source:
+          type: "string"
+        confidence:
+          type: "integer"
+          format: "int32"

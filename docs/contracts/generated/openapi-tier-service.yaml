@@ -1,0 +1,246 @@
+# Contratto REST di tier-service — generato da OpenApiContractTest, non modificare a mano.
+# Rigenerare con: mvn -pl tier-service test -Dopenapi.write=true
+---
+openapi: "3.1.0"
+info:
+  title: "Loyalty Hub — tier-service"
+  description: "API del servizio tier-service. Scritture con chiave di idempotenza,\
+    \ liste con paginazione keyset (after, size), errori con codice motivo UPPER_SNAKE."
+  license:
+    name: "Apache-2.0"
+    url: "https://www.apache.org/licenses/LICENSE-2.0"
+  version: "v1"
+paths:
+  /v1/tiers/members/{memberId}/override:
+    put:
+      tags:
+      - "tier-controller"
+      operationId: "override"
+      parameters:
+      - name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OverrideRequest"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties: {}
+    delete:
+      tags:
+      - "tier-controller"
+      operationId: "clearOverride"
+      parameters:
+      - name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties: {}
+  /v1/tiers/members/{memberId}/assign:
+    post:
+      tags:
+      - "tier-controller"
+      operationId: "assign"
+      parameters:
+      - name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: "object"
+              additionalProperties:
+                type: "string"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties: {}
+  /v1/tiers/sets/active:
+    get:
+      tags:
+      - "tier-controller"
+      operationId: "activeSet"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TierSet"
+  /v1/tiers/members/{memberId}:
+    get:
+      tags:
+      - "tier-controller"
+      operationId: "current"
+      parameters:
+      - name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties: {}
+  /v1/tiers/members/{memberId}/progress:
+    get:
+      tags:
+      - "tier-controller"
+      operationId: "progress"
+      parameters:
+      - name: "memberId"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "object"
+                additionalProperties: {}
+components:
+  schemas:
+    OverrideRequest:
+      type: "object"
+      properties:
+        tierCode:
+          type: "string"
+          minLength: 1
+        reason:
+          type: "string"
+          minLength: 1
+        actor:
+          type: "string"
+          minLength: 1
+        until:
+          type: "string"
+          format: "date-time"
+      required:
+      - "actor"
+      - "reason"
+      - "tierCode"
+    Benefits:
+      type: "object"
+      properties:
+        discountPercent:
+          type: "number"
+          format: "double"
+        multiplier:
+          type: "number"
+          format: "double"
+        welcomeRewardIds:
+          type: "array"
+          items:
+            type: "string"
+        description:
+          type: "string"
+    Condition:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+        metric:
+          type: "string"
+          enum:
+          - "ACTIVE_UNITS"
+          - "TOTAL_EARNED_UNITS"
+          - "TOTAL_SPENDING"
+          - "MONTHS_SINCE_JOINING"
+          - "EARNED_UNITS_IN_PERIOD"
+          - "CUSTOM_FIELD"
+        reference:
+          type: "string"
+        periodMonths:
+          type: "integer"
+          format: "int32"
+    Downgrade:
+      type: "object"
+      properties:
+        mode:
+          type: "string"
+          enum:
+          - "NONE"
+          - "AUTOMATIC"
+          - "ANNIVERSARY"
+          - "CUSTOM_DATES"
+          - "INTERVAL_MONTHS"
+          - "ANNUAL_ONE_LEVEL"
+        customDates:
+          type: "array"
+          items:
+            type: "string"
+        intervalMonths:
+          type: "integer"
+          format: "int32"
+    Tier:
+      type: "object"
+      properties:
+        code:
+          type: "string"
+        order:
+          type: "integer"
+          format: "int32"
+        thresholds:
+          type: "object"
+          additionalProperties:
+            type: "number"
+            format: "double"
+        benefits:
+          $ref: "#/components/schemas/Benefits"
+    TierSet:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+        name:
+          type: "string"
+        active:
+          type: "boolean"
+        conditions:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Condition"
+        match:
+          type: "string"
+          enum:
+          - "ALL"
+          - "ANY"
+        tiers:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Tier"
+        downgrade:
+          $ref: "#/components/schemas/Downgrade"

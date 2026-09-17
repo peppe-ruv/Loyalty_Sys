@@ -13,7 +13,7 @@ Legenda · Legend: **✅ completo · complete** · **🟡 parziale · partial** 
 
 | Area | Stato | Cosa c'è · What exists | Cosa manca · What is missing |
 | --- | --- | --- | --- |
-| Ingestione e contratti · Ingestion and contracts | ✅ | REST, batch, Kafka, file; evento canonico; idempotenza; schemi; coda di scarto; quote | Specifiche pubblicate per tutti i servizi (oggi solo l'ingresso) · published specs for every service |
+| Ingestione e contratti · Ingestion and contracts | ✅ | REST, batch, Kafka, file; evento canonico; idempotenza; schemi; coda di scarto; quote; specifiche OpenAPI di tutti i servizi generate dal codice e verificate dai test; AsyncAPI di tutti i topic | — |
 | Campagne e regole · Campaigns and rules | ✅ | Trigger, regole e condizioni, effetti, limiti e budget, espressioni, automazioni, referral multilivello, simulatore | — |
 | Registro e wallet · Ledger and wallets | ✅ | Movimenti immutabili, wallet configurabili, sospensioni, blocchi, trasferimenti, outbox | Movimento di estensione della scadenza · expiry-extension movement |
 | Livelli · Tiers | ✅ | Tier set, upgrade, modalità di discesa, benefici, progresso, override | — |
@@ -40,7 +40,6 @@ Legenda · Legend: **✅ completo · complete** · **🟡 parziale · partial** 
 | Priorità · Priority | Intervento · Work item | Perché ora · Why now |
 | --- | --- | --- |
 | 1 | Test di integrazione con container effimeri sui percorsi critici (outbox, ciclo decisionale, merge con trasferimento, consegna con ripiego) | Sono i punti dove un errore non si vede nei test unitari · these are the paths unit tests cannot cover |
-| 2 | Specifiche API pubblicate per tutti i servizi e specifica asincrona per i topic nuovi | Integrazioni esterne e generazione di client · external integrations and client generation |
 | 4 | Quote per fonte nel gateway e scansione dipendenze bloccante in CI | Irrigidire il perimetro · harden the perimeter |
 | 5 | Area riservata completa con autenticazione reale | È la faccia della piattaforma verso il membro · it is the platform's face to the member |
 | 8 | Export di configurazione e dati verso storage a oggetti | Duplicazione di ambienti e analisi esterne · environment duplication and external analysis |

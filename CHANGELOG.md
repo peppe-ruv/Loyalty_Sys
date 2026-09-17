@@ -41,6 +41,11 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
   lo stesso vale per il BFF. Spenta per difetto, si accende per ambiente (`INTERNAL_AUTH_ENABLED`, `OIDC_*`, valori
   Helm in `global.internalAuth`): l'ambiente locale resta senza attriti
 
+- contratti pubblicati (RF-133): la specifica OpenAPI di tutti e 14 i servizi vive in `docs/contracts/generated/`,
+  generata dal codice e verificata a ogni esecuzione dei test — se un'API cambia senza aggiornare il contratto, il
+  test fallisce; l'AsyncAPI copre anche decisioni, rischio, consegne, consensi e identità
+- ogni specifica si presenta con il nome del servizio e la versione dell'API (`v1`) invece di «OpenAPI definition v0»
+
 ### Corretto
 - con una catena di sicurezza attiva un 404 inoltrato a `/error` tornava come 401, cioè un errore di percorso che si
   presentava come un problema di credenziali; `/error` è fra i percorsi aperti
