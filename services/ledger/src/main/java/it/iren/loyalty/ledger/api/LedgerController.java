@@ -19,7 +19,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/v1/ledger")
 public class LedgerController {
-    public record ManualPosting(@NotBlank String memberId, @NotBlank String actionKey, Currency currency, long amount, @NotBlank String reason) {}
+    public record ManualPosting(@NotBlank String memberId, @NotBlank String actionKey, Currency currency, long amount, @NotBlank String reason, Integer lockDays) {}
     public record Debit(@NotBlank String memberId, @NotBlank String actionKey, @Positive long points, @NotBlank String reason) {}
 
     private final LedgerService ledger;
@@ -38,7 +38,7 @@ public class LedgerController {
 
     @PostMapping("/postings")
     public List<Movement> post(@RequestBody @Valid ManualPosting p) {
-        return ledger.post(p.memberId(), p.actionKey(), List.of(new LedgerService.Posting(p.currency(), p.amount(), p.reason(), "manual", null)));
+        return ledger.post(p.memberId(), p.actionKey(), List.of(new LedgerService.Posting(p.currency(), p.amount(), p.reason(), "manual", null, p.lockDays() == null ? 0 : p.lockDays())));
     }
 
     @PostMapping("/debits")

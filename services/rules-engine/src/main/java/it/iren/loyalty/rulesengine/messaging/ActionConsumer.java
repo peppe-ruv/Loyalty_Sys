@@ -4,6 +4,8 @@ import it.iren.loyalty.common.event.CanonicalEvents;
 import it.iren.loyalty.common.event.EventTypes;
 import it.iren.loyalty.common.event.RewardingAction;
 import it.iren.loyalty.rulesengine.client.LedgerClient;
+import it.iren.loyalty.rulesengine.client.RewardClient;
+import it.iren.loyalty.rulesengine.client.SegmentClient;
 import it.iren.loyalty.rulesengine.client.TierClient;
 import it.iren.loyalty.rulesengine.domain.RuleEvaluator;
 import it.iren.loyalty.rulesengine.domain.RuleSource;
@@ -26,9 +28,11 @@ public class ActionConsumer {
     private final RuleEvaluator evaluator = new RuleEvaluator();
     private final LedgerClient ledger;
     private final TierClient tiers;
+    private final SegmentClient segments;
+    private final RewardClient rewards;
 
-    public ActionConsumer(RuleSource rules, LedgerClient ledger, TierClient tiers) {
-        this.rules = rules; this.ledger = ledger; this.tiers = tiers;
+    public ActionConsumer(RuleSource rules, LedgerClient ledger, TierClient tiers, SegmentClient segments, RewardClient rewards) {
+        this.rules = rules; this.ledger = ledger; this.tiers = tiers; this.segments = segments; this.rewards = rewards;
     }
 
     @KafkaListener(topics = EventTypes.TOPIC_ACTIONS, concurrency = "${rules.consumer.concurrency:6}")
@@ -43,11 +47,13 @@ public class ActionConsumer {
             return;
         }
         List<RuleEvaluator.Posting> postings = evaluator.evaluate(action, rules.publishedRulesFor(action.actionType()),
-                new RuleEvaluator.Context(tiers.currentTier(memberId), 0));
+                new RuleEvaluator.Context(tiers.currentTier(memberId), 0, segments.segmentsOf(memberId), java.util.Map.of()));
         if (postings.isEmpty()) {
             log.info("no active rule for actionType={} key={} (kept for replay)", action.actionType(), action.idempotencyKey());
             return;
         }
-        ledger.post(memberId, action.idempotencyKey(), postings);
+        ledger.post(memberId, action.idempotencyKey(), postings.stream().filter(p -> p.amount() != 0).toList());
+        // premi automatici (RF-76): idempotenti per azione+regola
+        for (var p : postings) if (p.autoRewardId() != null) rewards.grant(memberId, p.autoRewardId(), action.idempotencyKey() + ":" + p.ruleId());
     }
 }

@@ -26,6 +26,41 @@ paths:
         '400': { description: Corpo non valido }
         '401': { description: Autenticazione fallita }
         '429': { description: Rate limit per fonte superato }
+  /v1/codes/redeem:
+    post:
+      summary: Usa un codice promozionale o QR (RF-69); se valido pubblica l'azione CODE_REDEEMED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [memberId, code]
+              properties:
+                memberId: { type: string }
+                code: { type: string, example: WELCOME-2027 }
+                channel: { type: string, enum: [web, app, sportello, negozio, call-center, partner] }
+      responses:
+        '202': { description: Codice valido e consumato, campo verdict = OK }
+        '422': { description: Codice non valido; verdict in UNKNOWN, INACTIVE, NOT_YET_VALID, EXPIRED, EXHAUSTED, MEMBER_LIMIT }
+  /v1/check-ins:
+    post:
+      summary: Check-in geolocalizzato (RF-67); pubblica l'azione CHECK_IN con lat/lon, una al giorno per membro e luogo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [memberId, placeId, lat, lon]
+              properties:
+                memberId: { type: string }
+                placeId: { type: string, example: negozio-torino-centro }
+                lat: { type: number, example: 45.0703 }
+                lon: { type: number, example: 7.6869 }
+      responses:
+        '202': { description: Accettato }
+        '200': { description: Già registrato oggi (DUPLICATE) }
 components:
   securitySchemes:
     oauth2:
@@ -49,7 +84,29 @@ components:
         externalRef: { type: string }
         occurredAt: { type: string, format: date-time }
         reversalOf: { type: string, description: Chiave dell'azione da stornare (RI-08) }
-        attributes: { type: object, additionalProperties: true }
+        attributes:
+          type: object
+          additionalProperties: true
+          description: >-
+            Attributi liberi; canonici riconosciuti dalle regole (RF-63): amountEur, channel, lat, lon, code, labels[] e
+            lines[] (righe della transazione, RF-62).
+          properties:
+            amountEur: { type: number }
+            channel: { type: string }
+            lines:
+              type: array
+              items: { $ref: '#/components/schemas/TransactionLine' }
+    TransactionLine:
+      type: object
+      description: Riga di transazione (RF-62), equivalente degli items di Open Loyalty
+      properties:
+        sku: { type: string, example: MANUT-CALDAIA-STD }
+        name: { type: string }
+        category: { type: string, example: servizi }
+        brand: { type: string, example: IrenPlus }
+        quantity: { type: number, default: 1 }
+        amountEur: { type: number }
+        labels: { type: array, items: { type: string }, example: [green, delivery] }
     IngressItem:
       type: object
       required: [memberId, action]

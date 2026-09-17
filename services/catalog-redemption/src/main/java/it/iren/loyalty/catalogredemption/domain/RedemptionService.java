@@ -6,46 +6,122 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 
+import java.math.BigDecimal;
+import java.sql.Timestamp;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
- * Riscatto atomico (RF-15): verifica fascia, riserva stock con lock, scala i punti sul ledger, registra il riscatto.
- * Se il ledger rifiuta (saldo insufficiente) la transazione locale fa rollback e lo stock torna disponibile.
- * La consegna (buono digitale, fornitore) è una saga separata avviata dall'evento di riscatto (D10).
+ * Riscatto atomico (RF-15): controlli di ammissibilità ({@link RedemptionPolicy}), riserva stock con lock, addebito
+ * sul ledger, eventuale prelievo del codice dal lotto, registrazione. Se il ledger rifiuta (saldo insufficiente) la
+ * transazione locale fa rollback e stock e codice tornano disponibili. La consegna (buono dal fornitore, cashback in
+ * bolletta via SAP, spedizione) è una saga separata avviata dall'evento di riscatto (D10, RewardFulfiller).
+ * {@link #grant} assegna un premio senza costo in punti: "instant reward" di una regola o benefit di tier (RF-76).
  */
 @Service
 public class RedemptionService {
-    public record Result(UUID redemptionId, String status, String code) {}
+    public record Result(UUID redemptionId, String status, String code, Instant codeExpiresAt) {}
     public static class RedemptionRejected extends RuntimeException { public RedemptionRejected(String m) { super(m); } }
 
     private final JdbcTemplate jdbc;
     private final RestClient ledger;
+    private final CouponPool coupons;
 
-    public RedemptionService(JdbcTemplate jdbc, RestClient.Builder builder) {
+    public RedemptionService(JdbcTemplate jdbc, RestClient.Builder builder, CouponPool coupons) {
         this.jdbc = jdbc;
+        this.coupons = coupons;
         this.ledger = builder.baseUrl(System.getenv().getOrDefault("LEDGER_URL", "http://ledger:8083")).build();
     }
 
     @Transactional
     @CircuitBreaker(name = "ledger")
-    public Result redeem(String memberId, String memberTierOrder, UUID rewardId) {
-        var reward = jdbc.queryForMap("SELECT points_cost, min_tier_order, stock, type FROM catalogredemption.reward WHERE id = ? AND status = 'ACTIVE' FOR UPDATE", rewardId);
-        int minTier = ((Number) reward.get("min_tier_order")).intValue();
-        if (Integer.parseInt(memberTierOrder) < minTier) throw new RedemptionRejected("TIER_TOO_LOW");
-        long stock = ((Number) reward.get("stock")).longValue();
-        if (stock <= 0) throw new RedemptionRejected("OUT_OF_STOCK");
-        long cost = ((Number) reward.get("points_cost")).longValue();
+    public Result redeem(String memberId, int memberTierOrder, Set<String> memberSegments, long premioAvailable, UUID rewardId) {
+        RewardDefinition r = lockReward(rewardId);
+        Instant now = Instant.now();
+        long mine = jdbc.queryForObject("SELECT count(*) FROM catalogredemption.redemption WHERE member_id = ? AND reward_id = ? AND status <> 'CANCELLED'", Long.class, memberId, rewardId);
+        long today = jdbc.queryForObject("SELECT count(*) FROM catalogredemption.redemption WHERE member_id = ? AND reward_id = ? AND status <> 'CANCELLED' AND requested_at >= ?", Long.class, memberId, rewardId,
+                Timestamp.from(now.atZone(ZoneId.of("Europe/Rome")).toLocalDate().atStartOfDay(ZoneId.of("Europe/Rome")).toInstant()));
+        var verdict = RedemptionPolicy.check(r, new RedemptionPolicy.MemberState(memberTierOrder, memberSegments, premioAvailable, mine, today), now);
+        if (verdict != RedemptionPolicy.Reason.OK) throw new RedemptionRejected(verdict.name());
 
         UUID id = UUID.randomUUID();
-        String actionKey = "redemption:" + id + ":DEBIT";
-        try {
-            ledger.post().uri("/v1/ledger/debits").body(Map.of("memberId", memberId, "actionKey", actionKey, "points", cost, "reason", "REDEMPTION")).retrieve().toBodilessEntity();
-        } catch (org.springframework.web.client.HttpClientErrorException.Conflict e) {
-            throw new RedemptionRejected("INSUFFICIENT_BALANCE");
+        if (r.pointsCost() > 0) {
+            try {
+                ledger.post().uri("/v1/ledger/debits").body(Map.of("memberId", memberId, "actionKey", "redemption:" + id + ":DEBIT", "points", r.pointsCost(), "reason", "REDEMPTION")).retrieve().toBodilessEntity();
+            } catch (org.springframework.web.client.HttpClientErrorException.Conflict e) {
+                throw new RedemptionRejected("INSUFFICIENT_BALANCE");
+            }
         }
-        jdbc.update("UPDATE catalogredemption.reward SET stock = stock - 1 WHERE id = ?", rewardId);
-        jdbc.update("INSERT INTO catalogredemption.redemption(id, member_id, reward_id, points, status, requested_at) VALUES (?,?,?,?,'CONFIRMED', now())", id, memberId, rewardId, cost);
-        return new Result(id, "CONFIRMED", null);
+        return record(id, memberId, r, now);
     }
+
+    /** Assegnazione senza punti (RF-76): regola "instant reward", benefit di tier, gesto del customer care. Idempotente per chiave. */
+    @Transactional
+    public Result grant(String memberId, UUID rewardId, String grantKey) {
+        var existing = jdbc.queryForList("SELECT id, status, code FROM catalogredemption.redemption WHERE grant_key = ?", grantKey);
+        if (!existing.isEmpty()) {
+            var e = existing.get(0);
+            return new Result((UUID) e.get("id"), (String) e.get("status"), (String) e.get("code"), null);
+        }
+        RewardDefinition r = lockReward(rewardId);
+        if (!r.unlimitedStock() && r.stock() <= 0) throw new RedemptionRejected("OUT_OF_STOCK");
+        UUID id = UUID.randomUUID();
+        Result out = record(id, memberId, r, Instant.now());
+        jdbc.update("UPDATE catalogredemption.redemption SET grant_key = ? WHERE id = ?", grantKey, id);
+        return out;
+    }
+
+    private Result record(UUID id, String memberId, RewardDefinition r, Instant now) {
+        if (!r.unlimitedStock()) jdbc.update("UPDATE catalogredemption.reward SET stock = stock - 1 WHERE id = ?", UUID.fromString(r.id()));
+        String code = null;
+        if (r.deliversCode() && r.couponPoolId() != null) {
+            code = coupons.take(r.couponPoolId(), id).orElseThrow(() -> new RedemptionRejected("COUPON_POOL_EMPTY"));
+        }
+        Instant codeExpiry = r.codeValidityDays() > 0 ? now.plus(Duration.ofDays(r.codeValidityDays())) : null;
+        String status = r.type() == RewardDefinition.Type.PHYSICAL ? RedemptionState.CONFIRMED.name()
+                : code != null ? RedemptionState.DELIVERED.name() : RedemptionState.CONFIRMED.name();
+        jdbc.update("INSERT INTO catalogredemption.redemption(id, member_id, reward_id, points, status, code, code_expires_at, requested_at, delivered_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                id, memberId, UUID.fromString(r.id()), r.pointsCost(), status, code, codeExpiry == null ? null : Timestamp.from(codeExpiry), Timestamp.from(now),
+                code != null ? Timestamp.from(now) : null);
+        return new Result(id, status, code, codeExpiry);
+    }
+
+    /** Transizioni di stato (RF-16, RF-17, RF-76): annullo del cliente con storno punti; consegna; "usato" dall'operatore. */
+    @Transactional
+    public String transition(UUID redemptionId, RedemptionState to, String actor, boolean byMember) {
+        var row = jdbc.queryForMap("SELECT member_id, status, points, reward_id, requested_at FROM catalogredemption.redemption WHERE id = ? FOR UPDATE", redemptionId);
+        RedemptionState from = RedemptionState.valueOf((String) row.get("status"));
+        if (byMember && to == RedemptionState.CANCELLED) {
+            if (!from.cancellableByMember()) throw new RedemptionRejected("NOT_CANCELLABLE");
+            int graceHours = Integer.parseInt(System.getenv().getOrDefault("REDEMPTION_CANCEL_HOURS", "48"));
+            if (((Timestamp) row.get("requested_at")).toInstant().plus(Duration.ofHours(graceHours)).isBefore(Instant.now())) throw new RedemptionRejected("CANCEL_WINDOW_ELAPSED");
+        }
+        if (!from.canGo(to)) throw new RedemptionRejected("ILLEGAL_TRANSITION_" + from + "_" + to);
+        if (to == RedemptionState.CANCELLED) {
+            long points = ((Number) row.get("points")).longValue();
+            if (points > 0) ledger.post().uri("/v1/ledger/reversals/{k}", "redemption:" + redemptionId + ":DEBIT").retrieve().toBodilessEntity();
+            jdbc.update("UPDATE catalogredemption.reward SET stock = stock + 1 WHERE id = ? AND stock >= 0", row.get("reward_id"));
+            jdbc.update("UPDATE catalogredemption.coupon SET redemption_id = NULL, assigned_at = NULL WHERE redemption_id = ?", redemptionId);
+        }
+        jdbc.update("UPDATE catalogredemption.redemption SET status = ?, delivered_at = CASE WHEN ? = 'DELIVERED' THEN now() ELSE delivered_at END, used_at = CASE WHEN ? = 'USED' THEN now() ELSE used_at END, last_actor = ? WHERE id = ?",
+                to.name(), to.name(), to.name(), actor, redemptionId);
+        return to.name();
+    }
+
+    private RewardDefinition lockReward(UUID rewardId) {
+        var m = jdbc.queryForMap("SELECT id, name, type, value_eur, points_cost, min_tier_order, stock, limit_per_member, limit_per_member_per_day, visible_from, visible_to, active_from, active_to, target_segments, category, coupon_pool_id, code_validity_days, status FROM catalogredemption.reward WHERE id = ? FOR UPDATE", rewardId);
+        String segs = (String) m.get("target_segments");
+        return new RewardDefinition(m.get("id").toString(), (String) m.get("name"), RewardDefinition.Type.valueOf((String) m.get("type")), (BigDecimal) m.get("value_eur"),
+                ((Number) m.get("points_cost")).longValue(), ((Number) m.get("min_tier_order")).intValue(), ((Number) m.get("stock")).longValue(),
+                ((Number) m.get("limit_per_member")).intValue(), ((Number) m.get("limit_per_member_per_day")).intValue(),
+                ts(m.get("visible_from")), ts(m.get("visible_to")), ts(m.get("active_from")), ts(m.get("active_to")),
+                segs == null || segs.isBlank() ? Set.of() : Set.of(segs.split(",")), (String) m.get("category"), (String) m.get("coupon_pool_id"),
+                ((Number) m.get("code_validity_days")).intValue(), "ACTIVE".equals(m.get("status")));
+    }
+
+    private static Instant ts(Object o) { return o == null ? null : ((Timestamp) o).toInstant(); }
 }

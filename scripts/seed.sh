@@ -6,9 +6,10 @@ NAMESPACE=${NAMESPACE:-loyalty}
 if [ -z "$SEED_INGRESS" ]; then
   kubectl -n "$NAMESPACE" port-forward svc/ingress-adapters 18081:8081 >/dev/null 2>&1 & PF1=$!
   kubectl -n "$NAMESPACE" port-forward svc/ledger 18083:8083 >/dev/null 2>&1 & PF2=$!
+  kubectl -n "$NAMESPACE" port-forward svc/member-service 18091:8091 >/dev/null 2>&1 & PF3=$!
   sleep 3
-  SEED_INGRESS=http://localhost:18081; SEED_LEDGER=http://localhost:18083
-  trap 'kill $PF1 $PF2 2>/dev/null' EXIT
+  SEED_INGRESS=http://localhost:18081; SEED_LEDGER=http://localhost:18083; SEED_MEMBERS=http://localhost:18091
+  trap 'kill $PF1 $PF2 $PF3 2>/dev/null' EXIT
 fi
 NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 echo "-> azioni premianti di esempio"
@@ -21,6 +22,21 @@ curl -sS -X POST "$SEED_INGRESS/v1/actions" -H 'content-type: application/json' 
 JSON
 echo; echo "-> ripetizione della stessa chiave (atteso DUPLICATE)"
 curl -sS -X POST "$SEED_INGRESS/v1/actions" -H 'content-type: application/json' -d "{\"items\":[{\"memberId\":\"demo-member\",\"action\":{\"actionType\":\"SELF_READING_SENT\",\"idempotencyKey\":\"irenyou:demo-1:SELF_READING_SENT\",\"occurredAt\":\"$NOW\"}}]}"
-echo; sleep 3
+echo; echo "-> adesione con consenso newsletter (RF-72) e codice referral (RF-68)"
+MEMBERS=${SEED_MEMBERS:-http://localhost:8091}
+curl -sS -X POST "$MEMBERS/v1/members" -H 'content-type: application/json' -d '{"memberId":"demo-member","channel":"web","consents":{"newsletter":true}}'; echo
+REF=$(curl -sS "$MEMBERS/v1/members/demo-member/referral" | sed 's/.*"code":"\([A-Z0-9]*\)".*/\1/')
+curl -sS -X POST "$MEMBERS/v1/members" -H 'content-type: application/json' -d "{\"memberId\":\"demo-friend\",\"channel\":\"app\",\"referralCode\":\"$REF\"}"; echo
+echo "-> transazione con righe (RF-62/63): 1 punto per euro, consegna esclusa, in sospeso 14 giorni"
+curl -sS -X POST "$SEED_INGRESS/v1/actions" -H 'content-type: application/json' -d @- <<JSON
+{"items":[{"memberId":"demo-member","action":{"actionType":"TRANSACTION","idempotencyKey":"shop:ORD-DEMO-1:PAID","occurredAt":"$NOW","attributes":{"amountEur":129.0,"channel":"negozio",
+ "lines":[{"sku":"MANUT-CALDAIA-STD","name":"Manutenzione caldaia","category":"servizi","brand":"IrenPlus","quantity":1,"amountEur":119.0,"labels":["green"]},
+          {"sku":"DELIVERY","name":"Uscita tecnico","category":"servizi","quantity":1,"amountEur":10.0,"labels":["delivery"]}]}}}]}
+JSON
+echo; echo "-> check-in geolocalizzato (RF-67) e codice promozionale (RF-69)"
+curl -sS -X POST "$SEED_INGRESS/v1/check-ins" -H 'content-type: application/json' -d '{"memberId":"demo-member","placeId":"negozio-torino-centro","lat":45.0704,"lon":7.6870}'; echo
+curl -sS -X PUT "$SEED_INGRESS/v1/codes" -H 'content-type: application/json' -d '{"code":"WELCOME-2027","campaign":"WELCOME2027","kind":"PROMO","maxUses":0,"maxUsesPerMember":1,"active":true}'; echo
+curl -sS -X POST "$SEED_INGRESS/v1/codes/redeem" -H 'content-type: application/json' -d '{"memberId":"demo-member","code":"WELCOME-2027","channel":"web"}'; echo
+sleep 3
 echo "-> saldi"
 curl -sS "$SEED_LEDGER/v1/ledger/members/demo-member/balances"; echo

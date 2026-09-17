@@ -10,6 +10,9 @@ x-java: &java
     KAFKA_BOOTSTRAP: kafka:9092
     LEDGER_URL: http://ledger:8083
     TIER_URL: http://tier-service:8084
+    SEGMENT_URL: http://segment-service:8090
+    CATALOG_URL: http://catalog-redemption:8085
+    READ_MODEL_URL: http://read-model:8088
   depends_on:
     postgres: { condition: service_healthy }
     kafka: { condition: service_healthy }
@@ -50,6 +53,8 @@ services:
   catalog-redemption: { <<: *java, build: services/catalog-redemption, ports: ["8085:8085"] }
   contest-service:  { <<: *java, build: services/contest-service, ports: ["8086:8086"] }
   identity-mapping: { <<: *java, build: services/identity-mapping, ports: ["8087:8087"] }
+  segment-service:  { <<: *java, build: services/segment-service, ports: ["8090:8090"] }
+  member-service:   { <<: *java, build: services/member-service, ports: ["8091:8091"] }
   read-model:
     <<: *java
     build: services/read-model

@@ -16,7 +16,9 @@ import java.util.Map;
  */
 @Service
 public class LedgerService {
-    public record Posting(Currency currency, long amount, String reason, String ruleVersion, Instant expiresAt) {}
+    public record Posting(Currency currency, long amount, String reason, String ruleVersion, Instant expiresAt, int lockDays) {
+        public Posting(Currency currency, long amount, String reason, String ruleVersion, Instant expiresAt) { this(currency, amount, reason, ruleVersion, expiresAt, 0); }
+    }
     public static class InsufficientBalanceException extends RuntimeException {
         public InsufficientBalanceException(String m) { super(m); }
     }
@@ -36,8 +38,38 @@ public class LedgerService {
     public List<Movement> post(String memberId, String actionKey, List<Posting> postings) {
         return postings.stream()
                 .filter(p -> !movements.existsByActionKeyAndCurrency(actionKey, p.currency()))
-                .map(p -> apply(Movement.of(memberId, p.currency(), p.amount(), p.reason(), actionKey, p.ruleVersion(), p.expiresAt()), false))
+                .map(p -> apply(Movement.of(memberId, p.currency(), p.amount(), p.reason(), actionKey, p.ruleVersion(), p.expiresAt(),
+                        p.lockDays() > 0 && p.amount() > 0 ? Instant.now().plus(java.time.Duration.ofDays(p.lockDays())) : null), false))
                 .toList();
+    }
+
+    /** Rilascio dei punti in sospeso la cui finestra è scaduta (RF-66); invocato dallo scheduler. */
+    @Transactional
+    public int releasePending(Instant now) {
+        int n = 0;
+        for (Movement m : movements.findByAvailableAtLessThanEqual(now)) {
+            Balance b = balances.findByMemberIdAndCurrency(m.getMemberId(), m.getCurrency()).orElseThrow();
+            b.release(m.getAmount());
+            m.release();
+            movements.save(m);
+            n++;
+        }
+        return n;
+    }
+
+    /** Scadenza punti PREMIO (RF-09): per ogni movimento scaduto e non ancora consumato genera il movimento opposto con causale EXPIRY. */
+    @Transactional
+    public int expire(Instant now) {
+        int n = 0;
+        for (Movement m : movements.findExpiredNotYetReversed(now)) {
+            Balance b = balances.findByMemberIdAndCurrency(m.getMemberId(), m.getCurrency()).orElseThrow();
+            long expirable = Math.min(m.getAmount(), Math.max(0, b.getAvailable()));
+            if (expirable <= 0) continue;
+            Movement r = Movement.of(m.getMemberId(), m.getCurrency(), -expirable, "EXPIRY", m.getActionKey() + ":EXPIRY", m.getRuleVersion(), null);
+            apply(r, false);
+            n++;
+        }
+        return n;
     }
 
     /** Riscatto: scala punti PREMIO solo se disponibili; la verifica e la scrittura sono nella stessa transazione (RF-15). */
@@ -59,16 +91,17 @@ public class LedgerService {
     private Movement apply(Movement m, boolean strict) {
         Balance b = balances.findByMemberIdAndCurrency(m.getMemberId(), m.getCurrency())
                 .orElseGet(() -> balances.save(new Balance(m.getMemberId(), m.getCurrency())));
-        long next = b.getAvailable() + m.getAmount();
+        boolean pending = m.isPendingAt(Instant.now());
+        long next = pending ? b.getAvailable() : b.getAvailable() + m.getAmount();
         if (strict && next < 0) {
             throw new InsufficientBalanceException("member " + m.getMemberId() + " has " + b.getAvailable() + " " + m.getCurrency());
         }
-        b.apply(m.getAmount());
+        if (pending) b.hold(m.getAmount()); else b.apply(m.getAmount());
         movements.save(m);
         var event = CanonicalEvents.of(EventTypes.MOVEMENT_V1, "urn:iren:loyalty:ledger", "member:" + m.getMemberId(), Map.of(
                 "movementId", m.getId().toString(), "currency", m.getCurrency().name(), "amount", m.getAmount(),
                 "reason", m.getReason(), "actionKey", m.getActionKey(), "balance", next,
-                "debt", next < 0));
+                "pending", b.getPending(), "debt", next < 0));
         outbox.save(new Outbox(EventTypes.TOPIC_MOVEMENTS, m.getMemberId(), CanonicalEvents.serialize(event)));
         return m;
     }

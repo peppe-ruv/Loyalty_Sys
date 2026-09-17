@@ -32,13 +32,21 @@ public class Movement {
     private UUID reversalOf;
     @Column(name = "expires_at")
     private Instant expiresAt;
+    /** Punti in sospeso fino a questo istante (RF-66, finestra di reso/ripensamento); null = subito disponibili. */
+    @Column(name = "available_at")
+    private Instant availableAt;
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
     protected Movement() {}
 
     public static Movement of(String memberId, Currency currency, long amount, String reason, String actionKey, String ruleVersion, Instant expiresAt) {
+        return of(memberId, currency, amount, reason, actionKey, ruleVersion, expiresAt, null);
+    }
+
+    public static Movement of(String memberId, Currency currency, long amount, String reason, String actionKey, String ruleVersion, Instant expiresAt, Instant availableAt) {
         Movement m = new Movement();
+        m.availableAt = availableAt;
         m.id = UUID.randomUUID();
         m.memberId = memberId;
         m.currency = currency;
@@ -66,5 +74,9 @@ public class Movement {
     public String getRuleVersion() { return ruleVersion; }
     public UUID getReversalOf() { return reversalOf; }
     public Instant getExpiresAt() { return expiresAt; }
+    public Instant getAvailableAt() { return availableAt; }
+    public boolean isPendingAt(Instant now) { return availableAt != null && now.isBefore(availableAt); }
+    /** Rilascio dei punti in sospeso: da quel momento il movimento conta nel disponibile. */
+    public void release() { this.availableAt = null; }
     public Instant getCreatedAt() { return createdAt; }
 }

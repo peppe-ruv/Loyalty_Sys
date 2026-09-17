@@ -2,7 +2,11 @@
 
 Piattaforma loyalty **vendor neutral** per Iren: riceve azioni premianti da qualunque sistema (CRM, billing, portali, partner), le trasforma in punti e tier, sblocca fasce di premi e genera azioni premianti dal programma annuale e dagli instant win. Un solo backoffice/CMS configura card, pop-up, catalogo, regole e concorsi.
 
-Riferimenti: [Specifica](docs/SPECIFICA.md) · [Decisioni (ADR)](docs/adr/) · [Contratti API](docs/contracts/) · [Runbook](docs/runbooks/)
+Riferimenti: [Specifica](docs/SPECIFICA.md) · [Parità con Open Loyalty](docs/PARITA-OPEN-LOYALTY.md) · [Decisioni (ADR)](docs/adr/) · [Contratti API](docs/contracts/) · [Runbook](docs/runbooks/)
+
+Copertura funzionale: **almeno quella di Open Loyalty** (ADR-017) — membri con etichette e consensi, referral, transazioni con righe,
+regole proporzionali e moltiplicatori, geolocalizzazione, codici QR/promo, segmenti, dieci tipi di premio con lotti di codici,
+postazione operatore, modelli di messaggio, webhook, impostazioni — più doppia valuta, tier annuali e instant win conforme al DPR 430.
 
 ## Architettura in breve
 
@@ -10,9 +14,9 @@ Riferimenti: [Specifica](docs/SPECIFICA.md) · [Decisioni (ADR)](docs/adr/) · [
 Fonti (Salesforce, SAP via middleware, IrenYou/app, partner, SFTP)
   → ingress-adapters (REST/Kafka/file → evento CloudEvents, idempotenza)
   → Kafka
-  → rules-engine → ledger (doppia valuta: PREMIO / STATUS) → tier-service
-  → catalog-redemption · contest-service (instant win periziabile)
-  → read-model → bff → site (Next.js) e widget · cms (Payload)
+  → rules-engine (regole, segmenti target, premi automatici) → ledger (PREMIO / STATUS, punti in sospeso) → tier-service
+  → catalog-redemption · contest-service (instant win periziabile) · member-service (adesione, referral, GDPR) · segment-service
+  → read-model → bff (area membro, postazione operatore) → site (Next.js) e widget · cms (Payload) · notifier (modelli, webhook)
 ```
 
 - Servizi di dominio in **Java 21/25 + Spring Boot**, eventi **CloudEvents 1.0** su Kafka, Postgres per servizio.
@@ -23,7 +27,7 @@ Fonti (Salesforce, SAP via middleware, IrenYou/app, partner, SFTP)
 
 | Cartella | Contenuto |
 | --- | --- |
-| `services/` | Maven multi-modulo: `common`, `ingress-adapters`, `rules-engine`, `ledger`, `tier-service`, `catalog-redemption`, `contest-service`, `identity-mapping`, `read-model`, `notifier` |
+| `services/` | Maven multi-modulo: `common`, `ingress-adapters`, `rules-engine`, `ledger`, `tier-service`, `segment-service`, `member-service`, `catalog-redemption`, `contest-service`, `identity-mapping`, `read-model`, `notifier` |
 | `web/bff`, `web/site` | Backend for frontend (Node) e sito Next.js |
 | `cms/` | Backoffice su Payload: collezioni e workflow per tipo di oggetto |
 | `deploy/terraform` | VPC, EKS, RDS Postgres, MSK Kafka, ElastiCache, S3, Secrets Manager, backup/DR |
@@ -52,13 +56,13 @@ make up          # docker compose: Postgres, Kafka, Redis, tutti i servizi, CMS,
 make seed-local  # azioni di esempio → saldi
 ```
 
-Sito http://localhost:3000 · Backoffice http://localhost:3002/admin · Ingresso API http://localhost:8081/v1/actions
+Sito http://localhost:3000 · Backoffice http://localhost:3002/admin · Ingresso API http://localhost:8081/v1/actions · Membri http://localhost:8091/v1/members · Segmenti http://localhost:8090/v1/segments
 
 ## Sviluppo
 
 ```sh
 make build   # mvn package
-make test    # test unitari (regole, tier, generatore istanti vincenti, hash del registro giocate)
+make test    # test unitari (regole, tier, segmenti, referral, politica di riscatto, generatore istanti vincenti, hash del registro giocate)
 make lint    # helm lint + terraform fmt
 ```
 
@@ -74,4 +78,4 @@ Nessuna credenziale nel repository. In cluster i segreti arrivano da AWS Secrets
 
 ## Stato
 
-Scaffold iniziale (0.1.0): struttura, contratti, dominio principale e installazione. Punti aperti in `docs/SPECIFICA.md` → "Rischi, punti aperti e criteri di accettazione".
+Scaffold 0.2.0: struttura, contratti, dominio principale, parità funzionale con Open Loyalty (RF-60..RF-79) e installazione. Punti aperti in `docs/SPECIFICA.md` → "Rischi, punti aperti e criteri di accettazione".

@@ -22,7 +22,21 @@ channels:
     address: loyalty.redemptions.v1
   contests:
     address: loyalty.contests.v1
+  members:
+    address: loyalty.members.v1
+    description: Stato del membro (adesione, consensi, etichette, sospensione, anonimizzazione) — tipo it.iren.loyalty.member.v1 (RF-72, RF-73)
+  segments:
+    address: loyalty.segments.v1
+    description: Ingresso/uscita da un segmento — tipo it.iren.loyalty.segment-membership.v1 (RF-65, RF-71)
 operations:
+  publishMember:
+    action: send
+    channel: { $ref: '#/channels/members' }
+    summary: member-service pubblica ogni cambiamento del membro; il CRM la usa anche per la cancellazione GDPR
+  publishSegmentMembership:
+    action: send
+    channel: { $ref: '#/channels/segments' }
+    summary: segment-service pubblica ingressi e uscite; l'ingresso genera anche l'azione interna SEGMENT_ENTERED sul topic delle azioni
   publishAction:
     action: send
     channel: { $ref: '#/channels/actions' }

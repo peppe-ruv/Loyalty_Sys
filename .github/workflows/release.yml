@@ -32,6 +32,8 @@ jobs:
           - { name: rules-engine,     context: services/rules-engine }
           - { name: ledger,           context: services/ledger }
           - { name: tier-service,     context: services/tier-service }
+          - { name: segment-service,  context: services/segment-service }
+          - { name: member-service,   context: services/member-service }
           - { name: catalog-redemption, context: services/catalog-redemption }
           - { name: contest-service,  context: services/contest-service }
           - { name: identity-mapping, context: services/identity-mapping }

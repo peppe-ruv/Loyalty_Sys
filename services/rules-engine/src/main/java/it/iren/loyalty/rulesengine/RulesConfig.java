@@ -10,8 +10,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
 
+import it.iren.loyalty.common.event.EventTypes;
+import it.iren.loyalty.rulesengine.client.RewardClient;
+import it.iren.loyalty.rulesengine.client.SegmentClient;
+
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Adattatori di default. RuleSource in memoria = regole di esempio del seed; in produzione è sostituito
@@ -26,7 +31,20 @@ public class RulesConfig {
         List<Rule> seed = List.of(
                 new Rule("self-reading", "1", "SELF_READING_SENT", List.of(), 50, 50, Map.of(), 0, null, null, true),
                 new Rule("direct-debit", "1", "DIRECT_DEBIT_ACTIVATED", List.of(), 300, 300, Map.of(), 0, null, null, true),
-                new Rule("bill-paid", "1", "BILL_PAID_ON_TIME", List.of(new Rule.Condition("amountEur", Rule.Operator.GT, "0")), 20, 20, Map.of(), 0, null, null, true)
+                new Rule("bill-paid", "1", "BILL_PAID_ON_TIME", List.of(new Rule.Condition("amountEur", Rule.Operator.GT, "0")), 20, 20, Map.of(), 0, null, null, true),
+                // RF-63 "general spending": 1 punto ogni euro sulle righe non di consegna, in sospeso 14 giorni (finestra di reso)
+                new Rule("shop-spending", "1", "TRANSACTION", List.of(), 0, 0, Map.of("TOP", new java.math.BigDecimal("1.5")), 0, null, null, true,
+                        new Rule.Earning(java.math.BigDecimal.ONE, "amountEur", java.math.BigDecimal.ONE,
+                                new Rule.LineFilter(Set.of(), Set.of(), Set.of(), Set.of("delivery"), Set.of()), null),
+                        Rule.Target.ALL, new Rule.Limits(0, 14, false)),
+                // RF-68 referral: chi presenta riceve 500 punti al primo evento del presentato, max 10 volte l'anno
+                new Rule("referral", "1", EventTypes.ACTION_REFERRAL_COMPLETED, List.of(), 500, 100, Map.of(), 0, null, null, true,
+                        Rule.Earning.NONE, Rule.Target.ALL, new Rule.Limits(10, 0, false)),
+                // RF-67 check-in entro 150 m dal negozio Iren di Torino (coordinate di esempio), una volta al giorno
+                new Rule("store-checkin", "1", EventTypes.ACTION_CHECK_IN, List.of(new Rule.Condition("lat", Rule.Operator.GEO_WITHIN, "45.0703,7.6869,150")), 30, 0, Map.of(), 0, null, null, true,
+                        Rule.Earning.NONE, Rule.Target.ALL, new Rule.Limits(1, 0, false)),
+                // RF-69 codice promozionale: i codici validi sono verificati da ingress-adapters; qui solo i punti
+                new Rule("promo-code", "1", EventTypes.ACTION_CODE_REDEEMED, List.of(new Rule.Condition("campaign", Rule.Operator.EQ, "WELCOME2027")), 100, 0, Map.of(), 0, null, null, true)
         );
         return actionType -> seed.stream().filter(r -> r.actionType().equals(actionType)).toList();
     }
@@ -40,12 +58,32 @@ public class RulesConfig {
                 for (var p : postings) {
                     client.post().uri("/v1/ledger/postings").body(Map.of(
                             "memberId", memberId, "actionKey", actionKey, "currency", p.currency().name(),
-                            "amount", p.amount(), "reason", "RULE:" + p.ruleId() + "@" + p.ruleVersion())).retrieve().toBodilessEntity();
+                            "amount", p.amount(), "reason", "RULE:" + p.ruleId() + "@" + p.ruleVersion(), "lockDays", p.lockDays())).retrieve().toBodilessEntity();
                 }
             }
             @Override public void reverse(String originalActionKey) {
                 client.post().uri("/v1/ledger/reversals/{k}", originalActionKey).retrieve().toBodilessEntity();
             }
+        };
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    RewardClient rewardClient(RestClient.Builder builder) {
+        RestClient client = builder.baseUrl(System.getenv().getOrDefault("CATALOG_URL", "http://catalog-redemption:8085")).build();
+        return (memberId, rewardId, grantKey) -> client.post().uri("/v1/grants")
+                .body(Map.of("memberId", memberId, "rewardId", rewardId, "grantKey", grantKey)).retrieve().toBodilessEntity();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    SegmentClient segmentClient(RestClient.Builder builder) {
+        RestClient client = builder.baseUrl(System.getenv().getOrDefault("SEGMENT_URL", "http://segment-service:8090")).build();
+        return memberId -> {
+            try {
+                var body = client.get().uri("/v1/segments/members/{id}", memberId).retrieve().body(List.class);
+                return body == null ? Set.of() : body.stream().map(String::valueOf).collect(java.util.stream.Collectors.toSet());
+            } catch (Exception e) { return Set.of(); }
         };
     }
 

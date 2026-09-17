@@ -20,6 +20,9 @@ public class Balance {
     public Balance(String memberId, Currency currency) { this.memberId = memberId; this.currency = currency; }
 
     public void apply(long delta) { this.available += delta; }
+    public void hold(long delta) { this.pending += delta; }
+    /** Sposta punti dal sospeso al disponibile (RF-66). */
+    public void release(long amount) { this.pending -= amount; this.available += amount; }
     public long getAvailable() { return available; }
     public long getPending() { return pending; }
     public String getMemberId() { return memberId; }
