@@ -115,7 +115,7 @@ esegue lint, controllo dei tipi, test e build.
 - Workspace npm alla radice (`package.json`, `tsconfig.base.json`, `eslint.config.js`, `.nvmrc`, `.editorconfig`, `.gitignore`)
 - Pacchetto `@loyalty-hub/backoffice-design-system` con build TypeScript (`dist/` con `.d.ts` e source map) ed export pubblici (`.`, `./patterns`, `./tokens.css`)
 - Regole eseguibili accanto ai contratti, con 61 test (Vitest):
-  - macchina a stati del workflow D14 (`availableTransitions`, `canTransition`, `buildWorkflowInfo`) con filtro per ruolo e verifica Legal — RF-137, RF-43
+  - macchina a stati del workflow ADR-014 (`availableTransitions`, `canTransition`, `buildWorkflowInfo`) con filtro per ruolo e verifica Legal — RF-137, RF-43
   - composizione delle frasi di condizioni e chip senza identificativi tecnici (`describeCondition`, `buildFilterChip`) — RF-138, RF-139
   - formattazione italiana di valori, contatore ad anello e confronto con il periodo precedente (`formatValue`, `formatCount`, `formatDelta`) — LG-04, LG-29, LG-40, LG-41
   - ordine fisso delle sezioni del form e blocco dell'eliminazione per dipendenze (`sortSections`, `isDeletionBlocked`) — LG-06, RF-141
@@ -137,7 +137,7 @@ esegue lint, controllo dei tipi, test e build.
 
 ### Aggiunto
 - `docs/LINEE-GUIDA-UX-BACKOFFICE.md`: 48 linee guida UX con mappa video → LG → RF
-- `docs/adr/ADR-026-linee-guida-ux-backoffice.md`
+- `docs/adr/ADR-026.md`
 - `web/backoffice-design-system/`: contratti dei 15 pattern, token, README con ordine di costruzione
 - Requisiti RF-137..RF-142 (`docs/SPECIFICA-ADDENDUM-UX.md`)
 

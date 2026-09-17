@@ -107,12 +107,12 @@ components:
               items: { $ref: '#/components/schemas/TransactionLine' }
     TransactionLine:
       type: object
-      description: Riga di transazione (RF-62), equivalente degli items di Open Loyalty
+      description: Riga di transazione (RF-62) — servizio, prodotto o articolo acquistato
       properties:
         sku: { type: string, example: MANUT-CALDAIA-STD }
         name: { type: string }
         category: { type: string, example: servizi }
-        brand: { type: string, example: IrenPlus }
+        brand: { type: string, example: ServiziPlus }
         quantity: { type: number, default: 1 }
         amountEur: { type: number }
         labels: { type: array, items: { type: string }, example: [green, delivery] }

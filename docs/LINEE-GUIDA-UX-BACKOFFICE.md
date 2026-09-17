@@ -1,8 +1,8 @@
 # Linee guida UX del backoffice Loyalty Hub
 
-Stato: **approvate** (ADR-026, 17 settembre 2026) · Fonte: playlist ufficiale [Open Loyalty Feature Showcase](https://www.youtube.com/playlist?list=PLy63lpwi0sbk-9EeR0ZFFX5PN35kLhdNk) (37 video, aprile–dicembre 2024) · Requisiti collegati: RF-137..RF-142 (vedi `docs/SPECIFICA-LOYALTY-HUB.md`, sezione «Backoffice e CMS»)
+Stato: **approvate** (ADR-026, 17 settembre 2026) · Fonte: analisi delle demo pubbliche delle piattaforme loyalty di riferimento (37 registrazioni, aprile–dicembre 2024) · Requisiti collegati: RF-137..RF-142 (vedi [`SPECIFICATION.md`](SPECIFICATION.md), sezione «Backoffice e CMS»)
 
-Il backoffice di Loyalty Hub deve rendere configurabili da un marketer, senza sviluppatori, le stesse leve di Open Loyalty. Questo documento traduce i 37 video della playlist in linee guida UX numerate (LG-xx) da applicare al backoffice Next.js/Payload e le collega ai requisiti funzionali di parità (RF-60..RF-116) e Loyalty 4.0 (RF-125..RF-136).
+Il backoffice di Loyalty Hub deve rendere configurabili da un marketer, senza sviluppatori, le stesse leve della baseline di mercato. Questo documento traduce le 37 registrazioni analizzate in linee guida UX numerate (LG-xx) da applicare al backoffice Next.js/Payload e le collega ai requisiti funzionali di parità (RF-60..RF-116) e Loyalty 4.0 (RF-125..RF-136).
 
 ## Scopo, fonte e metodo
 
@@ -16,7 +16,7 @@ Limiti:
 
 ## Modello mentale del prodotto
 
-Open Loyalty funziona perché pochi oggetti riusabili si citano a vicenda: un segmento diventa condizione di una campagna, una campagna completata diventa condizione di un segmento, un achievement diventa trigger. Il backoffice di Loyalty Hub deve esporre questi stessi mattoni, non schermate verticali per singolo caso d'uso.
+Le piattaforme di riferimento funzionano perché pochi oggetti riusabili si citano a vicenda: un segmento diventa condizione di una campagna, una campagna completata diventa condizione di un segmento, un achievement diventa trigger. Il backoffice di Loyalty Hub deve esporre questi stessi mattoni, non schermate verticali per singolo caso d'uso.
 
 ```mermaid
 flowchart LR
@@ -76,7 +76,7 @@ Sette comportamenti tornano in quasi tutti i video e fanno la qualità percepita
 
 **LG-05 — Filtri come chip.** Un filtro si costruisce con tre controlli [attributo][operatore][valore] e resta visibile come chip rimovibile («Wallet: uguale a default ✕»). Il contatore si aggiorna subito, così l'utente vede quanta parte della base sta guardando. *RF-44, RF-71.*
 
-**LG-06 — Form lunghi a sezioni fisse.** Ogni oggetto si crea in una pagina unica con sezioni sempre nello stesso ordine: tipo (card) → impostazioni base → logica (condizioni/regole) → attributi custom → limiti → stato → CTA in basso a destra. Lo stato è sempre l'ultima scelta e ha un testo che ne spiega l'effetto («La campagna partirà solo se attiva»). In Loyalty Hub lo stato è il workflow di D14 (vedi «Dove Loyalty Hub fa diversamente»). *RF-40..42, D14.*
+**LG-06 — Form lunghi a sezioni fisse.** Ogni oggetto si crea in una pagina unica con sezioni sempre nello stesso ordine: tipo (card) → impostazioni base → logica (condizioni/regole) → attributi custom → limiti → stato → CTA in basso a destra. Lo stato è sempre l'ultima scelta e ha un testo che ne spiega l'effetto («La campagna partirà solo se attiva»). In Loyalty Hub lo stato è il workflow di ADR-014 (vedi «Dove Loyalty Hub fa diversamente»). *RF-40..42, ADR-014.*
 
 **LG-07 — Scelte strutturali come card.** Le decisioni che cambiano il resto del form (tipo campagna, trigger, tipo segmento, tipo achievement) sono card con titolo, descrizione di una riga e checkbox, mai dropdown. Le card degli achievement mostrano anche esempi concreti. *RF-80, RF-90.*
 
@@ -114,7 +114,7 @@ La campagna è il cuore del prodotto e il suo editor è lo schermo da progettare
 
 ### Wallet e unità (RF-87..RF-89)
 
-**LG-21 — Il wallet è una valuta configurata una volta.** Form: nome, codice tecnico, nome singolare/plurale dell'unità («Punto/Punti»), metodo di scadenza (nessuna, dopo X giorni, ogni anno in una data scelta), metodo di attivazione differita, tetto globale e tetto per membro, possibilità di saldo negativo. In Loyalty Hub i due wallet di partenza sono punti premio (`PREMIO`) e punti status (`STATUS`); lo status non è spendibile e la UI nasconde i campi che non si applicano. *RF-87, D05.*
+**LG-21 — Il wallet è una valuta configurata una volta.** Form: nome, codice tecnico, nome singolare/plurale dell'unità («Punto/Punti»), metodo di scadenza (nessuna, dopo X giorni, ogni anno in una data scelta), metodo di attivazione differita, tetto globale e tetto per membro, possibilità di saldo negativo. In Loyalty Hub i due wallet di partenza sono punti premio (`PREMIO`) e punti status (`STATUS`); lo status non è spendibile e la UI nasconde i campi che non si applicano. *RF-87, ADR-005.*
 
 **LG-22 — Dettaglio in linguaggio umano.** La scheda del wallet è in sola lettura a due colonne etichetta/valore e traduce la configurazione in frasi («Scade ogni anno: 30 dicembre»), non in codici. *RF-87.*
 
@@ -132,7 +132,7 @@ La campagna è il cuore del prodotto e il suo editor è lo schermo da progettare
 
 **LG-27 — Dinamico o statico dichiarato subito.** Card iniziali: dinamico («si ricalcola dalle condizioni») o statico («da un CSV di membri»). Lo statico, una volta creato, apre uno stato vuoto con Guida import, Importa CSV e CSV di esempio; l'identificativo del CSV è selezionabile (ID, numero carta, email, telefono). *RF-71, RF-100.*
 
-**LG-28 — Un solo modello logico, operatore sempre scritto.** In Open Loyalty le condizioni dentro una «Regola» di segmento sono in OR e le regole tra loro in AND, mentre la campagna usa AND dentro la regola. Loyalty Hub adotta **una semantica unica per tutti i costruttori** (AND dentro la regola, OR tra regole) e mostra sempre l'operatore tra ogni coppia di righe. *RF-71, RF-81.*
+**LG-28 — Un solo modello logico, operatore sempre scritto.** Nelle piattaforme di riferimento le condizioni dentro una «Regola» di segmento sono in OR e le regole tra loro in AND, mentre la campagna usa AND dentro la regola. Loyalty Hub adotta **una semantica unica per tutti i costruttori** (AND dentro la regola, OR tra regole) e mostra sempre l'operatore tra ogni coppia di righe. *RF-71, RF-81.*
 
 **LG-29 — Condizioni di segmento osservate.** Data di iscrizione (esattamente / entro / tra N giorni fa), tier, spesa media in un range, numero di transazioni in un periodo con date, ultima transazione tra X e Y giorni fa, progresso o completamento di un achievement (N volte), completamento di campagna, città, età, canale d'acquisto, brand, SKU. Ogni valore numerico porta l'unità come suffisso nel campo («giorni», «volte», «EUR»). *RF-71, RF-108.*
 
@@ -166,7 +166,7 @@ La campagna è il cuore del prodotto e il suo editor è lo schermo da progettare
 
 **LG-41 — Sempre il periodo precedente.** Ogni grafico disegna il periodo scelto a linea piena e il precedente tratteggiato; il tooltip mostra le due date e i due valori. Filtri sotto il grafico (periodo, wallet) e icona download. Completano la pagina una tabella metriche × ultimo giorno/settimana/mese/anno e una ciambella membri per tier con il totale al centro. *RF-111.*
 
-**LG-42 — Vista «Andamenti» separata.** Le analitiche approfondite stanno nella voce Andamenti del gruppo Amministrazione, che incorpora Apache Superset (token ospite, row-level security per ruolo) e deve ereditare LG-40 e LG-41 per coerenza visiva: stessi nomi KPI, stesso confronto con il periodo precedente. *RF-120..RF-124, D20.*
+**LG-42 — Vista «Andamenti» separata.** Le analitiche approfondite stanno nella voce Andamenti del gruppo Amministrazione, che incorpora Apache Superset (token ospite, row-level security per ruolo) e deve ereditare LG-40 e LG-41 per coerenza visiva: stessi nomi KPI, stesso confronto con il periodo precedente. *RF-120..RF-124, ADR-020.*
 
 ### Import ed export (RF-100, RF-113, RF-114)
 
@@ -212,16 +212,16 @@ Uno stile coerente rende leggibili anche gli stati: toast scuri per le conferme,
 
 Emulare non vuol dire copiare: sei punti dei video sono deboli o non coprono vincoli già decisi per Loyalty Hub.
 
-| Tema | Cosa si vede in Open Loyalty | Indicazione per Loyalty Hub | Requisito |
+| Tema | Cosa si vede nella baseline di mercato | Indicazione per Loyalty Hub | Requisito |
 | --- | --- | --- | --- |
-| Stato degli oggetti | Solo toggle Attivo/Inattivo | Ciclo Bozza → In revisione → Approvato → Verifica Legal → Programmato → Pubblicato → Bloccato (D14), con approvazione Legal per tipo di oggetto; il toggle diventa l'ultimo passo, abilitato solo dopo l'approvazione | RF-137 |
+| Stato degli oggetti | Solo toggle Attivo/Inattivo | Ciclo Bozza → In revisione → Approvato → Verifica Legal → Programmato → Pubblicato → Bloccato (ADR-014), con approvazione Legal per tipo di oggetto; il toggle diventa l'ultimo passo, abilitato solo dopo l'approvazione | RF-137 |
 | Logica AND/OR | Semantica diversa tra segmenti e campagne | Un solo modello per tutti i costruttori, operatore sempre scritto tra le righe (LG-28) | RF-138 |
 | Riferimenti | UUID mostrato al posto del nome tier | Mai ID tecnici in frasi e chip; ID solo in scheda con icona copia | RF-139 |
 | Correzioni manuali | Nessuna traccia del motivo a video | Commento obbligatorio e registro di audit consultabile dal profilo membro | RF-140, RF-18, RF-41 |
 | Dipendenze | Catene di campagne ricostruibili solo a mente | Riquadro «Usato da / Usa» su segmenti, campagne, achievement, collection, premi; blocco dell'eliminazione se referenziato | RF-141 |
 | Concorsi e instant win | Non presenti nella playlist | Nuovo modulo con lo stesso scheletro (LG-06): regolamento, periodo, istanti vincenti pre-generati (solo conteggio residuo, RF-31), premi, card CMS collegate, stesso cruscotto KPI (LG-40) | RF-142, RF-30..RF-39 |
 
-Per il resto conviene restare vicini all'originale: chi valuta il prodotto confronterà le schermate con Open Loyalty, e i pattern di LG-04, LG-13, LG-17 e LG-44 sono già maturi.
+Per il resto conviene restare vicini alla baseline: chi valuta il prodotto confronterà le schermate con le piattaforme già affermate, e i pattern di LG-04, LG-13, LG-17 e LG-44 sono già maturi.
 
 ## Mappa video → linee guida → requisiti
 
@@ -270,7 +270,7 @@ Ogni video della playlist è coperto da almeno una linea guida; la tabella segue
 ## Punti aperti
 
 - [ ] Simulatore di campagne: mai mostrato; definire input (membro reale o fittizio, evento di prova) e output (regole scattate, unità calcolate) prima di progettarlo. Proposta: riusare `POST /v1/evaluations` del rules-engine (RF-125) e `POST /api/simulate/decision` del CMS, mostrando l'esito con lo stesso RuleCard in sola lettura.
-- [ ] Modelli di campagna: Open Loyalty li ha solo per gli achievement; decidere se estendere la galleria (LG-31) anche alle campagne tipiche Iren (autolettura, bolletta digitale, domiciliazione).
+- [ ] Modelli di campagna: la galleria (LG-31) oggi copre gli achievement; decidere se estenderla alle campagne tipiche di una utility (autolettura, bolletta digitale, domiciliazione).
 - [ ] Doppia valuta punti premio/status: stabilire se un effetto può muovere entrambi i wallet in un'unica riga o servono due effetti. Proposta: due effetti, per tenere una riga = un movimento di ledger.
 - [ ] Metriche predittive del profilo (spesa prevista, probabilità di acquisto): hanno senso per clienti utility o vanno sostituite con indicatori di consumo e pagamento? Dipende dai provider configurati in `prediction-providers` (RF-129).
 - [ ] Lingua del backoffice: solo italiano o italiano + inglese, dato che LG-10 impone traduzioni per campo. Lo scaffold prevede it/en (RF-79).

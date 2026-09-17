@@ -24,10 +24,10 @@ channels:
     address: loyalty.contests.v1
   members:
     address: loyalty.members.v1
-    description: Stato del membro (adesione, consensi, etichette, sospensione, anonimizzazione) — tipo it.iren.loyalty.member.v1 (RF-72, RF-73)
+    description: Stato del membro (adesione, consensi, etichette, sospensione, anonimizzazione) — tipo io.loyaltyhub.member.v1 (RF-72, RF-73)
   segments:
     address: loyalty.segments.v1
-    description: Ingresso/uscita da un segmento — tipo it.iren.loyalty.segment-membership.v1 (RF-65, RF-71)
+    description: Ingresso/uscita da un segmento — tipo io.loyaltyhub.segment-membership.v1 (RF-65, RF-71)
 operations:
   publishMember:
     action: send
@@ -52,14 +52,14 @@ operations:
 components:
   messages:
     Action:
-      name: it.iren.loyalty.action.v1
+      name: io.loyaltyhub.action.v1
       contentType: application/cloudevents+json
       payload:
         type: object
         properties:
           specversion: { const: '1.0' }
-          type: { const: it.iren.loyalty.action.v1 }
-          source: { type: string, example: urn:iren:loyalty:source:sap-billing }
+          type: { const: io.loyaltyhub.action.v1 }
+          source: { type: string, example: urn:loyaltyhub:source:sap-billing }
           id: { type: string, description: uguale a data.idempotencyKey }
           subject: { type: string, example: 'member:iam-sub-abc' }
           time: { type: string, format: date-time }
@@ -74,7 +74,7 @@ components:
               reversalOf: { type: string }
               attributes: { type: object }
     ActionRejected:
-      name: it.iren.loyalty.action.v1.rejected
+      name: io.loyaltyhub.action.v1.rejected
       contentType: application/cloudevents+json
       payload:
         type: object
@@ -85,7 +85,7 @@ components:
               reason: { type: string, enum: [INVALID_IDEMPOTENCY_KEY, FUTURE_TIMESTAMP, UNKNOWN_MEMBER, SCHEMA_INVALID] }
               action: { type: object }
     Movement:
-      name: it.iren.loyalty.movement.v1
+      name: io.loyaltyhub.movement.v1
       contentType: application/cloudevents+json
       payload:
         type: object
