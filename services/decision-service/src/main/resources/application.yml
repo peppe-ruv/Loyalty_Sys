@@ -1,4 +1,9 @@
 spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI:}
   application:
     name: decision-service
   datasource:
@@ -73,3 +78,14 @@ decisions:
 springdoc:
   api-docs:
     path: /v3/api-docs
+
+# Sicurezza delle API interne (RF-43): spenta in locale, accesa per ambiente dalle variabili.
+loyalty:
+  security:
+    enabled: ${INTERNAL_AUTH_ENABLED:false}
+    required-scope: ${INTERNAL_AUTH_SCOPE:loyalty.internal}
+    token-uri: ${OIDC_TOKEN_URI:}
+    client-id: ${OIDC_CLIENT_ID:}
+    client-secret: ${OIDC_CLIENT_SECRET:}
+    client:
+      enabled: ${INTERNAL_AUTH_ENABLED:false}

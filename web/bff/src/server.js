@@ -2,6 +2,7 @@ import http from "node:http";
 import client from "prom-client";
 
 import { idempotencyKey } from "./keys.js";
+import { authHeaders } from "./tokens.js";
 
 // RF-117: metriche del BFF (richieste per rotta e latenza) su /metrics, raccolte dal ServiceMonitor
 const registry = new client.Registry();
@@ -39,7 +40,9 @@ async function fetchJson(url, init, timeoutMs = 1500) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const r = await fetch(url, { ...init, signal: ctrl.signal });
+    // Token di servizio quando le API interne lo pretendono (RF-43); in locale non c'è e non si aggiunge nulla.
+    const auth = await authHeaders();
+    const r = await fetch(url, { ...init, headers: { ...(init?.headers || {}), ...auth }, signal: ctrl.signal });
     if (!r.ok) throw new Error(`${url} -> ${r.status}`);
     return await r.json();
   } finally { clearTimeout(t); }

@@ -82,6 +82,20 @@ spec:
             - name: DATABASE_URI
               valueFrom: { secretKeyRef: { name: db-credentials, key: uri } }
             {{- end }}
+            {{- if $root.Values.global.internalAuth.enabled }}
+            - name: INTERNAL_AUTH_ENABLED
+              value: "true"
+            - name: INTERNAL_AUTH_SCOPE
+              value: {{ $root.Values.global.internalAuth.scope | quote }}
+            - name: OIDC_ISSUER_URI
+              value: {{ $root.Values.global.internalAuth.issuerUri | quote }}
+            - name: OIDC_TOKEN_URI
+              value: {{ $root.Values.global.internalAuth.tokenUri | quote }}
+            - name: OIDC_CLIENT_ID
+              valueFrom: { secretKeyRef: { name: {{ $root.Values.global.internalAuth.secretName }}, key: client-id } }
+            - name: OIDC_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: {{ $root.Values.global.internalAuth.secretName }}, key: client-secret } }
+            {{- end }}
             {{- range $extra := $svc.secretsExtra }}
             - name: {{ $extra | upper | replace "-" "_" }}_KEY
               valueFrom: { secretKeyRef: { name: {{ $extra }}, key: key } }

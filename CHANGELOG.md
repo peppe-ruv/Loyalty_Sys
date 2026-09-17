@@ -36,7 +36,14 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
   `POST /v1/deliveries/{id}/resend`, rotte operatore nel BFF); il testo si ri-renderizza dal modello corrente e
   l'operatore può imporre un canale diverso da quello che aveva fallito
 
+- sicurezza delle API interne (RF-43): ogni servizio è un resource server OAuth2/OIDC che pretende un token con lo
+  scope del programma, e ogni chiamata fra servizi porta un token client credentials rinnovato prima della scadenza;
+  lo stesso vale per il BFF. Spenta per difetto, si accende per ambiente (`INTERNAL_AUTH_ENABLED`, `OIDC_*`, valori
+  Helm in `global.internalAuth`): l'ambiente locale resta senza attriti
+
 ### Corretto
+- con una catena di sicurezza attiva un 404 inoltrato a `/error` tornava come 401, cioè un errore di percorso che si
+  presentava come un problema di credenziali; `/error` è fra i percorsi aperti
 - `read-model`: i contatti a 7 giorni per canale potevano solo crescere — il contesto teneva i contatori, non le
   consegne — e un membro molto contattato restava sopra il tetto per sempre, senza più un canale disponibile. Ora il
   contesto conserva le ultime 50 consegne e la finestra si ricalcola

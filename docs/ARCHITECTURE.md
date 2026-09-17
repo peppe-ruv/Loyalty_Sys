@@ -202,7 +202,7 @@ Ogni servizio espone `/v1/...` con OpenAPI su `/v3/api-docs`. Regole trasversali
 | Paginazione · Pagination | Keyset (`after`, `size`) su tutte le liste che crescono · keyset on every growing list |
 | Errori · Errors | Problem Details (RFC 9457) con codice motivo `UPPER_SNAKE` · Problem Details with an `UPPER_SNAKE` reason code |
 | Versioni · Versioning | Prefisso di percorso `/v1`; deprecazione annunciata nell'header `Sunset` · `/v1` path prefix; deprecation announced via `Sunset` header |
-| Autorizzazione · Authorisation | JWT OIDC; ambiti separati per membro, operatore, fonte di integrazione · OIDC JWT; separate scopes for member, operator, integration source |
+| Autorizzazione · Authorisation | JWT OIDC; ambiti separati per membro, operatore, fonte di integrazione; fra servizi un token client credentials con lo scope interno, verificato da ogni servizio come resource server · OIDC JWT; separate scopes for member, operator and integration source; between services a client-credentials token with the internal scope, verified by every service as a resource server |
 
 ---
 

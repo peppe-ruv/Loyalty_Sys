@@ -19,6 +19,7 @@ impact. Initial response within 5 business days; disclosure is coordinated with 
 | --- | --- |
 | API di ingestione · Ingestion API | Autenticazione per fonte, quote, validazione di schema, chiave di idempotenza obbligatoria · per-source authentication, quotas, schema validation, mandatory idempotency key |
 | API di membro · Member API | Token del provider di identità; un membro accede solo ai propri dati · identity provider token; a member accesses only their own data |
+| API fra servizi · Service-to-service APIs | Resource server OAuth2/OIDC su ogni servizio, token client credentials con scope dedicato, attivabile per ambiente (`INTERNAL_AUTH_ENABLED`); sonde e metriche restano aperte al cluster · OAuth2/OIDC resource server on every service, client-credentials tokens with a dedicated scope, enabled per environment; probes and metrics stay open to the cluster |
 | Rotte operatore · Operator routes | Prefisso dedicato e controllo di ruolo su ogni rotta · dedicated prefix and role check on every route |
 | Backoffice · Back office | SSO aziendale, permessi per collezione e campo, workflow di approvazione, versioni · corporate SSO, per-collection and per-field permissions, approval workflow, versioning |
 | Espressioni scritte dagli utenti · User-authored expressions | Contesto di sola lettura, nessuna riflessione, nessuna I/O · read-only context, no reflection, no I/O |

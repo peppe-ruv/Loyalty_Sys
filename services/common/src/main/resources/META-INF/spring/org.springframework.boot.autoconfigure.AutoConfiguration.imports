@@ -1,2 +1,3 @@
 io.loyaltyhub.common.metrics.MetricsAutoConfiguration
 io.loyaltyhub.common.metrics.OtelLogsBridge
+io.loyaltyhub.common.security.ServiceSecurityAutoConfiguration

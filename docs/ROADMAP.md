@@ -31,7 +31,7 @@ Legenda · Legend: **✅ completo · complete** · **🟡 parziale · partial** 
 | Osservabilità · Observability | ✅ | Metriche di business e tecniche, SLO e alert con runbook, log e tracce correlati, cruscotti versionati | — |
 | Warehouse e BI | ✅ | Ingestione dai topic, schema a stella, cruscotti incorporati, retention | Analytics di programma esposte anche via API di lettura |
 | Test | 🟡 | Test unitari di dominio e test di integrazione su database reale (container effimero) per riscatti, merge di identità, ingresso azioni | Banco Kafka per outbox e ciclo decisionale end-to-end · Kafka bench for the outbox and the end-to-end decision cycle |
-| Sicurezza · Security | 🟡 | Nessun segreto nel repository, immagini firmate, SBOM, ruoli e SSO | Autenticazione servizio-a-servizio sulle API interne; scansione dipendenze bloccante in CI; quote per fonte nel gateway |
+| Sicurezza · Security | 🟡 | Nessun segreto nel repository, immagini firmate, SBOM, ruoli e SSO, resource server OAuth2 su tutte le API interne con token di servizio (attivabile per ambiente) | Scansione dipendenze bloccante in CI; quote per fonte nel gateway · blocking dependency scan in CI; per-source quotas in the gateway |
 
 ---
 
@@ -41,7 +41,7 @@ Legenda · Legend: **✅ completo · complete** · **🟡 parziale · partial** 
 | --- | --- | --- |
 | 1 | Test di integrazione con container effimeri sui percorsi critici (outbox, ciclo decisionale, merge con trasferimento, consegna con ripiego) | Sono i punti dove un errore non si vede nei test unitari · these are the paths unit tests cannot cover |
 | 2 | Specifiche API pubblicate per tutti i servizi e specifica asincrona per i topic nuovi | Integrazioni esterne e generazione di client · external integrations and client generation |
-| 4 | Autenticazione servizio-a-servizio e quote per fonte nel gateway | Irrigidire il perimetro interno · harden the internal perimeter |
+| 4 | Quote per fonte nel gateway e scansione dipendenze bloccante in CI | Irrigidire il perimetro · harden the perimeter |
 | 5 | Area riservata completa con autenticazione reale | È la faccia della piattaforma verso il membro · it is the platform's face to the member |
 | 8 | Export di configurazione e dati verso storage a oggetti | Duplicazione di ambienti e analisi esterne · environment duplication and external analysis |
 
