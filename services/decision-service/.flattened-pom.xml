@@ -5,10 +5,10 @@
   <parent>
     <groupId>it.iren.loyalty</groupId>
     <artifactId>loyalty-hub-services</artifactId>
-    <version>0.6.2-SNAPSHOT</version>
+    <version>0.7.0-SNAPSHOT</version>
   </parent>
   <artifactId>decision-service</artifactId>
-  <version>0.6.2-SNAPSHOT</version>
+  <version>0.7.0-SNAPSHOT</version>
   <name>decision-service</name>
   <description>Motore decisionale configurabile, Next Best Action, decision log, previsioni ed esperimenti (RF-127..RF-130)</description>
   <licenses>

@@ -2,6 +2,53 @@
 
 Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il versionamento semantico.
 
+## [0.7.0] — 2026-09-17
+
+### Cambiato (fondamenta del design system, ADR-027)
+- Il design system del backoffice poggia sui [Design Tokens Italia](https://github.com/italia/design-tokens-italia)
+  1.3.3 (`italia/design-tokens-italia@b59fe73`) invece che sui valori del mockup «Backoffice Loyalty Hub».
+  `tokens.css` dichiara 54 primitive `--it-*` copiate alla lettera da `dist/css/variables.css` e definisce
+  ogni token semantico `--lh-*` come alias verso una di esse: aggiornare la base è cambiare una riga, non
+  ridipingere i componenti
+- Accento del prodotto sulla rampa **teal** di Italia (`#0a6b5e` → `#05615e`); fondo pagina `#eef2f1` →
+  `#f5f5f5`; sidebar `#14201c` → `#17324d`. Il blu istituzionale resta ai link (`--lh-link`), così il
+  backoffice non si traveste da portale della PA
+- Tipografia: **Titillium Web** e **Roboto Mono** al posto di Archivo e IBM Plex, con la scala, le
+  interlinee e i pesi di Italia. I font si caricano da Google Fonts: il repository non ne ridistribuisce
+  i file
+- Spaziature, raggi, spessori, dimensioni icona ed elevazioni presi da `--it-spacing-*`, `--it-radius-*`,
+  `--it-border-*`, `--it-icon-size-*`, `--it-elevation-*`. Il vecchio passo a 4px coincideva già: la
+  mappatura delle spaziature è uno a uno
+- Il tema scuro **ripunta gli alias** anziché ridefinire le primitive: Italia 1.3.3 pubblica un solo set
+  semantico, costruito su fondo chiaro, e i gradini scuri vengono dalle stesse rampe ufficiali
+
+### Aggiunto
+- `--lh-line-strong`: il bordo di un controllo (campo, select, checkbox, dropzone) è ora distinto dal
+  separatore decorativo `--lh-line`, che restava sotto 3:1
+- Le quattro coppie `--lh-on-accent-soft`, `--lh-on-ok-soft`, `--lh-on-warn-soft`, `--lh-on-danger-soft`:
+  la vecchia tavolozza non diceva quale inchiostro va sopra una chip colorata e a occhio si finiva sotto
+  soglia nel tema scuro
+- `--lh-link`, `--lh-icon-xs|s|m|l`, `--lh-elevation-low`
+- Tre regole eseguibili in `src/tokens.test.ts` (66 test, prima 61): ogni colore `--lh-*` risolve a una
+  primitiva `--it-color-*` salvo `--lh-volt`; il tema scuro non ridefinisce primitive; ogni coppia
+  testo/fondo dichiarata sta sopra la soglia WCAG 2.1 AA (4,5:1 per il testo, 3:1 per bordi di controllo
+  e anello di focus) **in entrambi i temi**
+- `docs/adr/ADR-027-design-tokens-italia.md` con le tre deviazioni ammesse e le alternative scartate
+
+### Rinominato (token pubblici del pacchetto)
+- `--lh-accent-ink` → `--lh-on-accent`, `--lh-volt-ink` → `--lh-on-volt`
+- `--lh-bad` → `--lh-danger`, `--lh-bad-soft` → `--lh-danger-soft`
+- `--lh-shadow-card` → `--lh-elevation-medium`, `--lh-shadow-overlay` → `--lh-elevation-high`
+- `--lh-border-width` → `--lh-border-base`, affiancato da `--lh-border-double` e `--lh-border-thick`
+- `--lh-focus-ring` → `--lh-focus`: l'anello si compone con `--lh-border-double`, non è un token composito
+- `--lh-font-display` e `--lh-font-body` → `--lh-font-sans`; `--lh-font-mono` invariato di nome
+- Nessuna schermata consuma ancora i token: il cambio di nome non rompe nulla oggi e sarebbe costato caro
+  dopo il primo modulo
+
+### Rimosso
+- `--lh-volt` resta l'unico colore letterale del sistema (il giallo-verde dei concorsi): ogni altro valore
+  esadecimale fuori dalle primitive Italia fa fallire i test
+
 ## [0.6.2] — 2026-09-17
 
 ### Corretto (guasti di avvio, trovati dai test di integrazione)
