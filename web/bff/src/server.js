@@ -19,6 +19,10 @@ const INGRESS = process.env.INGRESS_URL || "http://ingress-adapters:8081";
 const LEDGER = process.env.LEDGER_URL || "http://ledger:8083";
 const ENGAGEMENT = process.env.ENGAGEMENT_URL || "http://engagement-service:8092";
 const RULES = process.env.RULES_URL || "http://rules-engine:8082";
+const DECISION = process.env.DECISION_URL || "http://decision-service:8093";
+const FRAUD = process.env.FRAUD_URL || "http://fraud-service:8094";
+const NOTIFIER = process.env.NOTIFIER_URL || "http://notifier:8089";
+const IDENTITY = process.env.IDENTITY_URL || "http://identity-mapping:8087";
 
 // Ruoli (RF-43): il gateway OIDC mette in x-roles i ruoli dell'utente; l'area operatore richiede customer_care o sportello.
 const OPERATOR_ROLES = ["customer_care", "sportello", "platform_admin"];
@@ -121,6 +125,35 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/content/campaigns") return json(200, await fetchJson(`${CMS}/api/campaigns?where[status][equals]=published&where[visibility.mode][not_equals]=HIDDEN`));
     if (url.pathname === "/api/content/challenges") return json(200, await fetchJson(`${CMS}/api/challenges?where[status][equals]=published`));
 
+    // --- Loyalty 4.0 (RF-125..RF-136): Next Best Action, inbox/offerte, consensi, identità del canale ---
+    // NBA per il sito/app: contesto del canale (pagina, carrello, dispositivo) → una sola azione con motivo; degrado a NO_ACTION se il motore non risponde
+    if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/next-best-action$/)) && req.method === "POST") {
+      const ctx = JSON.parse((await readBody(req)) || "{}");
+      try { return json(200, await proxy(`${DECISION}/v1/decisions/next-best-action/${m[1]}`, "POST", JSON.stringify({ context: { channel: "web", ...ctx }, persist: true }))); }
+      catch (e) { return json(200, { customerId: m[1], action: "NO_ACTION", reason: "decision engine unavailable", metadata: { degraded: true } }); }
+    }
+    if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/inbox$/))) return json(200, await fetchJson(`${NOTIFIER}/v1/inbox/${m[1]}`));
+    if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/inbox\/([^/]+)\/(read|accept|dismiss)$/)) && req.method === "POST") return json(200, await proxy(`${NOTIFIER}/v1/inbox/${m[1]}/${m[2]}/${m[3]}`, "POST", "{}"));
+    if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/consents$/)) && req.method === "GET") return json(200, await fetchJson(`${MEMBERS}/v1/members/${m[1]}/consents`));
+    if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/consents$/)) && req.method === "POST") {
+      const c = JSON.parse((await readBody(req)) || "{}");
+      return json(200, await proxy(`${MEMBERS}/v1/members/${m[1]}/consents`, "POST", JSON.stringify({ source: "web", evidence: `session:${req.headers["x-session-id"] || "-"}`, ...c })));
+    }
+    if (url.pathname === "/api/consent-purposes") return json(200, await fetchJson(`${MEMBERS}/v1/members/consent-purposes`));
+    // Identità: al login il canale dichiara i propri identificatori (sub OIDC, dispositivo, app) e riceve l'id canonico
+    if (url.pathname === "/api/identity/resolve" && req.method === "POST") {
+      const b = JSON.parse((await readBody(req)) || "{}");
+      return json(200, await proxy(`${IDENTITY}/v1/identities/resolve`, "POST", JSON.stringify({ source: "web", channel: "web", ...b })));
+    }
+    // Eventi comportamentali dal sito (RF-133): pagina prodotto, carrello → azioni canoniche (nessun dato personale)
+    if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/events$/)) && req.method === "POST") {
+      const ev = JSON.parse((await readBody(req)) || "{}");
+      const allowed = ["PRODUCT_VIEWED", "PRODUCT_ADDED_TO_CART", "OFFER_ACCEPTED"];
+      if (!allowed.includes(ev.actionType)) return json(400, { error: "ACTION_NOT_ALLOWED", allowed });
+      const key = `web:${m[1]}:${ev.actionType}:${ev.ref || ""}:${Math.floor(Date.now() / 60000)}`;
+      return json(202, await proxy(`${INGRESS}/v1/actions`, "POST", JSON.stringify({ items: [{ memberId: m[1], action: { actionType: ev.actionType, idempotencyKey: key, externalRef: ev.ref, occurredAt: new Date().toISOString(), attributes: { channel: "web", deviceId: req.headers["x-device-id"] || "", ...(ev.attributes || {}) } } }] })));
+    }
+
     // --- Postazione operatore (RF-75): sportello/negozio/call center — "merchant panel" ---
     if (url.pathname.startsWith("/api/operator/")) {
       if (!isOperator(req)) return json(403, { error: "FORBIDDEN" });
@@ -146,6 +179,18 @@ const server = http.createServer(async (req, res) => {
       if ((m = url.pathname.match(/^\/api\/operator\/members\/([^/]+)\/blocks$/)) && req.method === "POST")
         return json(202, await proxy(`${LEDGER}/v1/ledger/blocks?unblock=${url.searchParams.get("unblock") || "false"}`, "POST", JSON.stringify({ memberId: m[1], actionKey: `block:${actor}:${m[1]}:${Date.now()}`, ...JSON.parse((await readBody(req)) || "{}") })));
       if (url.pathname === "/api/operator/simulations" && req.method === "POST") return json(200, await proxy(`${RULES}/v1/simulations`, "POST", await readBody(req)));
+      // Loyalty 4.0: decisioni spiegabili, rischio, coda contatti, consensi e identità del membro nella console
+      if ((m = url.pathname.match(/^\/api\/operator\/members\/([^/]+)\/decisions$/))) return json(200, await fetchJson(`${DECISION}/v1/decisions/members/${m[1]}`));
+      if ((m = url.pathname.match(/^\/api\/operator\/members\/([^/]+)\/risk$/))) return json(200, await fetchJson(`${FRAUD}/v1/risk/members/${m[1]}`));
+      if ((m = url.pathname.match(/^\/api\/operator\/members\/([^/]+)\/risk\/assess$/)) && req.method === "POST") return json(200, await proxy(`${FRAUD}/v1/risk/members/${m[1]}/assess`, "POST", "{}"));
+      if ((m = url.pathname.match(/^\/api\/operator\/members\/([^/]+)\/identities$/))) return json(200, await fetchJson(`${IDENTITY}/v1/identities/members/${m[1]}`));
+      if (url.pathname === "/api/operator/identities/merges" && req.method === "POST") return json(200, await proxy(`${IDENTITY}/v1/identities/merges`, "POST", JSON.stringify({ ...JSON.parse((await readBody(req)) || "{}"), actor })));
+      if ((m = url.pathname.match(/^\/api\/operator\/identities\/merges\/([^/]+)\/unmerge$/)) && req.method === "POST") return json(200, await proxy(`${IDENTITY}/v1/identities/merges/${m[1]}/unmerge`, "POST", await readBody(req)));
+      if (url.pathname === "/api/operator/queue") return json(200, await fetchJson(`${NOTIFIER}/v1/operator-queue`));
+      if ((m = url.pathname.match(/^\/api\/operator\/queue\/([^/]+)\/handle$/)) && req.method === "POST") return json(200, await proxy(`${NOTIFIER}/v1/operator-queue/${m[1]}/handle`, "POST", JSON.stringify({ operator: actor, ...JSON.parse((await readBody(req)) || "{}") })));
+      if ((m = url.pathname.match(/^\/api\/operator\/members\/([^/]+)\/consents$/)) && req.method === "POST")
+        return json(200, await proxy(`${MEMBERS}/v1/members/${m[1]}/consents`, "POST", JSON.stringify({ source: "call-center", evidence: `operator:${actor}`, ...JSON.parse((await readBody(req)) || "{}") })));
+      if (url.pathname === "/api/operator/risk/top") return json(200, await fetchJson(`${FRAUD}/v1/risk/top`));
       if ((m = url.pathname.match(/^\/api\/operator\/redemptions\/transitions$/)) && req.method === "POST")
         return json(200, await proxy(`${CATALOG}/v1/redemptions/transitions`, "POST", JSON.stringify({ ...JSON.parse((await readBody(req)) || "{}"), actor })));
       if ((m = url.pathname.match(/^\/api\/operator\/members\/([^/]+)\/tier$/)) && req.method === "PUT")

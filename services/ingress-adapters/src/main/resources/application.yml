@@ -67,3 +67,12 @@ logging:
   structured:
     format:
       console: ecs
+
+# RF-133 rate limiting dell'ingresso (per pod; il gateway applica quote per fonte)
+resilience4j:
+  ratelimiter:
+    instances:
+      ingress:
+        limit-for-period: ${INGRESS_RATE_LIMIT:2000}
+        limit-refresh-period: 1s
+        timeout-duration: 0

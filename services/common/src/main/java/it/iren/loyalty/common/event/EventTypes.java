@@ -11,6 +11,15 @@ public final class EventTypes {
     public static final String CONTEST_RESULT_V1 = "it.iren.loyalty.contest-result.v1";
     public static final String MEMBER_V1 = "it.iren.loyalty.member.v1";
     public static final String SEGMENT_MEMBERSHIP_V1 = "it.iren.loyalty.segment-membership.v1";
+    /** Decisione del motore decisionale (RF-127): azione scelta, motivi, alternative scartate. */
+    public static final String DECISION_V1 = "it.iren.loyalty.decision.v1";
+    /** Valutazione del rischio frode (RF-131): punteggio, livello, codici motivo. */
+    public static final String RISK_V1 = "it.iren.loyalty.risk.v1";
+    /** Consegna di un messaggio/offerta su un canale (RF-132): inviato, esposto, cliccato. */
+    public static final String DELIVERY_V1 = "it.iren.loyalty.delivery.v1";
+    /** Consenso cambiato (RF-135) e identità risolta/unita (RF-136). */
+    public static final String CONSENT_V1 = "it.iren.loyalty.consent.v1";
+    public static final String IDENTITY_V1 = "it.iren.loyalty.identity.v1";
 
     public static final String TOPIC_ACTIONS = "loyalty.actions.v1";
     public static final String TOPIC_MOVEMENTS = "loyalty.movements.v1";
@@ -19,6 +28,11 @@ public final class EventTypes {
     public static final String TOPIC_CONTESTS = "loyalty.contests.v1";
     public static final String TOPIC_MEMBERS = "loyalty.members.v1";
     public static final String TOPIC_SEGMENTS = "loyalty.segments.v1";
+    public static final String TOPIC_DECISIONS = "loyalty.decisions.v1";
+    public static final String TOPIC_RISK = "loyalty.risk.v1";
+    public static final String TOPIC_DELIVERIES = "loyalty.deliveries.v1";
+    public static final String TOPIC_CONSENTS = "loyalty.consents.v1";
+    public static final String TOPIC_IDENTITIES = "loyalty.identities.v1";
     public static final String TOPIC_DLQ = "loyalty.actions.dlq.v1";
 
     /** Azioni premianti interne (D08): stesso circuito delle esterne. */
@@ -44,6 +58,20 @@ public final class EventTypes {
     /** Transazione con righe (RF-62): l'attributo {@code lines} è una lista di {@link TransactionLine}. */
     public static final String ACTION_TRANSACTION = "TRANSACTION";
     public static final String ACTION_TRANSACTION_RETURNED = "TRANSACTION_RETURNED";
+    /** Eventi del ciclo decisionale e comportamentali (scenario Loyalty 4.0, RF-125). */
+    public static final String ACTION_CAMPAIGN_ENTERED = "CAMPAIGN_ENTERED";
+    public static final String ACTION_CAMPAIGN_COMPLETED = "CAMPAIGN_COMPLETED";
+    public static final String ACTION_CUSTOMER_IDENTIFIED = "CUSTOMER_IDENTIFIED";
+    public static final String ACTION_CHURN_RISK_CHANGED = "CHURN_RISK_CHANGED";
+    public static final String ACTION_PRODUCT_VIEWED = "PRODUCT_VIEWED";
+    public static final String ACTION_PRODUCT_ADDED_TO_CART = "PRODUCT_ADDED_TO_CART";
+    public static final String ACTION_OFFER_PRESENTED = "OFFER_PRESENTED";
+    public static final String ACTION_OFFER_ACCEPTED = "OFFER_ACCEPTED";
+    public static final String ACTION_MESSAGE_SENT = "MESSAGE_SENT";
+    public static final String ACTION_FEEDBACK_REQUESTED = "FEEDBACK_REQUESTED";
+    public static final String ACTION_EXPERIMENT_EXPOSED = "EXPERIMENT_EXPOSED";
+    public static final String ACTION_CONSENT_CHANGED = "CONSENT_CHANGED";
+    public static final String ACTION_IDENTITY_MERGED = "IDENTITY_MERGED";
 
     /** Attributi canonici riconosciuti dalle regole (RF-61, RF-63): canale, importo, posizione, righe, codice, etichette. */
     public static final String ATTR_AMOUNT_EUR = "amountEur";

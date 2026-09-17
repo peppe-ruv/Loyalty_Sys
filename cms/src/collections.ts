@@ -446,7 +446,7 @@ export const TierSets: CollectionConfig = {
 export const Roles: CollectionConfig = {
   slug: "roles",
   fields: [ { name: "code", type: "text", required: true, unique: true }, { name: "name", type: "text", required: true },
-    { name: "permissions", type: "select", hasMany: true, options: ["members.read", "members.write", "members.anonymize", "ledger.manual_posting", "ledger.block", "campaigns.edit", "campaigns.publish", "rewards.edit", "rewards.fulfill", "contests.edit", "contests.legal", "content.edit", "content.publish", "segments.edit", "settings.edit", "roles.edit", "api_keys.edit", "exports.run", "audit.read", "operator.console"] } ],
+    { name: "permissions", type: "select", hasMany: true, options: ["members.read", "members.write", "members.anonymize", "ledger.manual_posting", "ledger.block", "campaigns.edit", "campaigns.publish", "rewards.edit", "rewards.fulfill", "contests.edit", "contests.legal", "content.edit", "content.publish", "segments.edit", "settings.edit", "roles.edit", "api_keys.edit", "exports.run", "audit.read", "operator.console", "decisions.edit", "decisions.publish", "decisions.simulate", "fraud.edit", "fraud.review", "consents.edit"] } ],
 };
 
 export const Media: CollectionConfig = { slug: "media", upload: true, fields: [{ name: "alt", type: "text" }] };

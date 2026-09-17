@@ -94,3 +94,25 @@ Ordine consigliato, coerente con il punto 20 dello scenario: context-service →
 PredictionProvider rule-based → fraud-service → delivery-service → experimentation → consenso/identità. Nessun
 componente esistente va riscritto: il decision-service si inserisce tra `rules-engine` e gli effetti, e il
 `CampaignEvaluator` diventa il passo "eligibility + rules" della catena.
+
+## Stato dopo l'implementazione (17 settembre 2026, 0.5.0)
+
+Tutte le righe della tabella precedente sono entrate nel codice, nell'ordine suggerito: context-service (`read-model`),
+`decision-service` con motore a regole e Next Best Action, `PredictionProvider` a regole con routing verso modelli,
+`fraud-service`, delivery con adattatori di canale nel `notifier`, esperimenti, consensi e grafo identità, event layer
+(`correlationid`, nuovi eventi), API (OpenAPI, paginazione keyset, rate limiting). Ogni modulo che valuta o decide ha la
+sua configurazione nel backoffice (gruppo "Decisioni": `decision-policies`, `offers`, `experiments`,
+`prediction-providers`, `fraud-rules`, `delivery-routing`, `consent-purposes`) con simulazione prima della
+pubblicazione. Dettaglio, requisiti RF-125..RF-136 e verifica in `docs/LOYALTY-4.0.md`; decisioni ADR-021..ADR-025.
+
+| Punto dello scenario | Prima | Ora |
+| --- | --- | --- |
+| 4, 11 Customer 360 / Context service | parziale | coperto (`GET /v1/context/{id}`) |
+| 7, 8, 10 decision engine, NBA, decision log | assente | coperto e configurabile |
+| 9 AI/ML layer | assente | coperto (regole → ML via routing) |
+| 12 channel adapter | parziale | coperto (7 adattatori, routing) |
+| 15 fraud detection | assente | coperto (9 segnali configurabili) |
+| 17 experimentation | assente | coperto (assegnazione deterministica, uplift in BI) |
+| 5, 19 identità e consenso | parziale | coperto (grafo, merge/unmerge; consensi con base giuridica) |
+| 2, 13 event layer, API | parziale | coperto (`correlationid`, eventi nuovi, OpenAPI, keyset, rate limit) |
+| 21 backward compatibility | — | garantita (`RULES_APPLY_EFFECTS`, `DECISIONS_ENABLED`) |

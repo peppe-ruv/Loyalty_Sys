@@ -18,6 +18,14 @@ x-java: &java
     ENVIRONMENT: local
     MEMBER_URL: http://member-service:8091
     INGRESS_URL: http://ingress-adapters:8081
+    RULES_URL: http://rules-engine:8082
+    CMS_URL: http://cms:3000
+    DECISION_URL: http://decision-service:8093
+    FRAUD_URL: http://fraud-service:8094
+    NOTIFIER_URL: http://notifier:8089
+    IDENTITY_URL: http://identity-mapping:8087
+    # RF-136: gli effetti delle campagne sono applicati dal decision-service (RULES_APPLY_EFFECTS=true per la modalità storica)
+    RULES_APPLY_EFFECTS: "false"
   depends_on:
     postgres: { condition: service_healthy }
     kafka: { condition: service_healthy }
@@ -61,22 +69,24 @@ services:
   segment-service:  { <<: *java, build: services/segment-service, ports: ["8090:8090"] }
   member-service:   { <<: *java, build: services/member-service, ports: ["8091:8091"] }
   engagement-service: { <<: *java, build: services/engagement-service, ports: ["8092:8092"] }
+  decision-service: { <<: *java, build: services/decision-service, ports: ["8093:8093"] }
+  fraud-service:    { <<: *java, build: services/fraud-service, ports: ["8094:8094"] }
   read-model:
     <<: *java
     build: services/read-model
     ports: ["8088:8088"]
     environment: { <<: *java-env, SPRING_DATA_REDIS_HOST: redis }
-  notifier:         { <<: *java, build: services/notifier }
+  notifier:         { <<: *java, build: services/notifier, ports: ["8089:8089"] }
 
   cms:
     build: cms
-    environment: { DATABASE_URI: postgresql://loyalty:loyalty@postgres:5432/loyalty, PAYLOAD_SECRET: local-dev-secret, CMS_URL: http://localhost:3002, SUPERSET_URL: http://superset:8088, SUPERSET_PUBLIC_URL: http://localhost:8088, NEXT_PUBLIC_GRAFANA_URL: http://localhost:3005/dashboards }
+    environment: { DATABASE_URI: postgresql://loyalty:loyalty@postgres:5432/loyalty, PAYLOAD_SECRET: local-dev-secret, CMS_URL: http://localhost:3002, SUPERSET_URL: http://superset:8088, SUPERSET_PUBLIC_URL: http://localhost:8088, NEXT_PUBLIC_GRAFANA_URL: http://localhost:3005/dashboards, DECISION_URL: http://decision-service:8093, FRAUD_URL: http://fraud-service:8094 }
     ports: ["3002:3000"]
     depends_on: { postgres: { condition: service_healthy } }
 
   bff:
     build: web/bff
-    environment: { READ_MODEL_URL: http://read-model:8088, TIER_URL: http://tier-service:8084, CONTEST_URL: http://contest-service:8086, CMS_URL: http://cms:3000 }
+    environment: { READ_MODEL_URL: http://read-model:8088, TIER_URL: http://tier-service:8084, CONTEST_URL: http://contest-service:8086, CMS_URL: http://cms:3000, DECISION_URL: http://decision-service:8093, FRAUD_URL: http://fraud-service:8094, NOTIFIER_URL: http://notifier:8089, IDENTITY_URL: http://identity-mapping:8087 }
     ports: ["3001:3001"]
 
   site:

@@ -34,9 +34,21 @@ public class ActionConsumer {
     private final RewardClient rewards;
     private final EngagementClient engagement;
     private final it.iren.loyalty.common.metrics.LoyaltyMetrics metrics;
+    /**
+     * RF-136 (retro-compatibilità): {@code true} = il rules-engine applica gli effetti da solo (modalità storica);
+     * {@code false} = valuta soltanto e lascia l'applicazione al decision-service, che arbitra le azioni discrezionali.
+     */
+    private final boolean applyEffects;
 
-    public ActionConsumer(CampaignSource campaigns, CampaignEvaluator evaluator, LedgerClient ledger, TierClient tiers, SegmentClient segments, RewardClient rewards, EngagementClient engagement, it.iren.loyalty.common.metrics.LoyaltyMetrics metrics) {
-        this.campaigns = campaigns; this.evaluator = evaluator; this.ledger = ledger; this.tiers = tiers; this.segments = segments; this.rewards = rewards; this.engagement = engagement; this.metrics = metrics;
+    public ActionConsumer(CampaignSource campaigns, CampaignEvaluator evaluator, LedgerClient ledger, TierClient tiers, SegmentClient segments, RewardClient rewards, EngagementClient engagement,
+                          it.iren.loyalty.common.metrics.LoyaltyMetrics metrics, @org.springframework.beans.factory.annotation.Value("${rules.apply-effects:true}") boolean applyEffects) {
+        this.campaigns = campaigns; this.evaluator = evaluator; this.ledger = ledger; this.tiers = tiers; this.segments = segments; this.rewards = rewards; this.engagement = engagement; this.metrics = metrics; this.applyEffects = applyEffects;
+    }
+
+    /** Valutazione pura (nessun effetto), usata dal decision-service ({@code POST /v1/evaluations}) e dal simulatore. */
+    public CampaignEvaluator.Result evaluate(String memberId, RewardingAction action) {
+        var member = new CampaignEvaluator.MemberContext(memberId, tiers.currentTier(memberId), segments.segmentsOf(memberId), ledger.wallets(memberId), Map.of(), engagement.badgesOf(memberId), null, null);
+        return evaluator.evaluate(action, campaigns.publishedCampaignsFor(action.actionType()), member, ledger.usage(memberId, action.actionType()), Instant.now());
     }
 
     @KafkaListener(topics = EventTypes.TOPIC_ACTIONS, concurrency = "${rules.consumer.concurrency:6}")
@@ -50,8 +62,8 @@ public class ActionConsumer {
             ledger.reverse(action.reversalOf());
             return;
         }
-        var member = new CampaignEvaluator.MemberContext(memberId, tiers.currentTier(memberId), segments.segmentsOf(memberId), ledger.wallets(memberId), Map.of(), engagement.badgesOf(memberId), null, null);
-        var result = evaluator.evaluate(action, campaigns.publishedCampaignsFor(action.actionType()), member, ledger.usage(memberId, action.actionType()), Instant.now());
+        if (!applyEffects) return; // il decision-service chiede la valutazione via API e applica gli effetti (RF-127)
+        var result = evaluate(memberId, action);
         if (result.outcomes().isEmpty()) {
             log.info("no campaign fired for actionType={} key={} skipped={} (kept for replay)", action.actionType(), action.idempotencyKey(), result.skipped());
             metrics.noCampaign(action.actionType());

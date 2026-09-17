@@ -16,7 +16,10 @@ postazione operatore, modelli di messaggio, webhook — più doppia valuta, tier
 Fonti (Salesforce, SAP via middleware, IrenYou/app, partner, SFTP)
   → ingress-adapters (REST/Kafka/file → evento CloudEvents, idempotenza)
   → Kafka
-  → rules-engine (campagne: trigger, condizioni ed effetti con espressioni) → ledger (wallet configurabili) → tier-service (tier set)
+  → rules-engine (campagne: trigger, condizioni ed effetti con espressioni; valutazione senza effetti per il decision-service)
+  → decision-service (Customer 360 + candidati + previsioni + policy del backoffice → decisione spiegabile, NBA, decision log, esperimenti)
+     → effetti contrattuali: ledger (wallet configurabili) → tier-service (tier set) · effetti di contatto: notifier/delivery (app, push, email, SMS, CRM, operatore)
+  → fraud-service (segnali configurabili → riskScore/riskLevel → Customer 360, blocco ledger) · identity-mapping (grafo identità, merge/unmerge)
   → engagement-service (achievement, challenge, badge, classifiche) · catalog-redemption · contest-service (instant win, ruota)
   · member-service (adesione, referral, campi custom, GDPR) · segment-service (segmenti, collezioni)
   → read-model → bff (area membro, postazione operatore) → site (Next.js) e widget · cms (Payload) · notifier (modelli, webhook)
@@ -30,7 +33,7 @@ Fonti (Salesforce, SAP via middleware, IrenYou/app, partner, SFTP)
 
 | Cartella | Contenuto |
 | --- | --- |
-| `services/` | Maven multi-modulo: `common`, `ingress-adapters`, `rules-engine`, `ledger`, `tier-service`, `segment-service`, `member-service`, `engagement-service`, `catalog-redemption`, `contest-service`, `identity-mapping`, `read-model`, `notifier` |
+| `services/` | Maven multi-modulo: `common`, `ingress-adapters`, `rules-engine`, `ledger`, `tier-service`, `segment-service`, `member-service`, `engagement-service`, `catalog-redemption`, `contest-service`, `identity-mapping` (grafo identità), `read-model` (Customer 360), `notifier` (modelli, webhook, delivery omnicanale), `decision-service`, `fraud-service` |
 | `web/bff`, `web/site` | Backend for frontend (Node) e sito Next.js |
 | `cms/` | Backoffice su Payload: collezioni e workflow per tipo di oggetto |
 | `deploy/terraform` | VPC, EKS, RDS Postgres, MSK Kafka, ElastiCache, S3, Secrets Manager, backup/DR |
@@ -95,4 +98,4 @@ Nessuna credenziale nel repository. In cluster i segreti arrivano da AWS Secrets
 
 ## Stato
 
-Scaffold 0.4.0: struttura, contratti, dominio principale, parità funzionale con Open Loyalty (RF-60..RF-116), osservabilità enterprise e BI nel backoffice (RF-117..RF-124), installazione. Punti aperti in `docs/SPECIFICA.md` → "Rischi, punti aperti e criteri di accettazione".
+Scaffold 0.5.0: struttura, contratti, dominio principale, parità funzionale con Open Loyalty (RF-60..RF-116), osservabilità enterprise e BI nel backoffice (RF-117..RF-124), livello decisionale Loyalty 4.0 con motore configurabile dal backoffice, previsioni, frodi, consegne omnicanale, esperimenti, consensi e identità (RF-125..RF-136, `docs/LOYALTY-4.0.md`), installazione. Punti aperti in `docs/SPECIFICA.md` → "Rischi, punti aperti e criteri di accettazione".

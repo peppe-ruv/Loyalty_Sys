@@ -38,6 +38,21 @@
 ### LoyaltyCouponPoolLow / LoyaltyWebhookFailures
 Caricare un nuovo lotto (RF-74); verificare l'endpoint del partner e il segreto HMAC (RF-78); i tentativi riprendono da soli.
 
+### Decisioni: LoyaltyDecisionEffectFailures / LoyaltyDecisionsStalled / LoyaltyRejectionsSpike (decision-service)
+1. Effetti falliti: `loyalty_decision_effects_total{ok="false"}` per azione → il servizio di destinazione è nel nome (ledger, catalogo, engagement, tier). La decisione è nel decision log (`GET /v1/decisions/{id}`), ripetibile con l'operatore; gli effetti sono idempotenti per chiave.
+2. Decisioni ferme: consumer `decision-service` (lag Kafka) o rules-engine `/v1/evaluations` lento (tracce con `correlationid`). Ripiego: `RULES_APPLY_EFFECTS=true` sul rules-engine e `DECISIONS_ENABLED=false` → modalità storica senza arbitrato, nessuna perdita (RF-136).
+3. Scarti in massa per canale/consenso: non è un guasto ma una policy troppo stretta; marketing rivede cap di contatto, ore di silenzio e consensi richiesti nel backoffice (decision-policies), effetto in 30 s senza rilascio.
+
+### LoyaltyPredictionProviderFailing
+Il provider esterno risponde in errore o oltre il timeout: il composito usa le regole (nessuna decisione bloccata). Verificare URL, chiave (`apiKeyEnv`) e latenza; disattivare il provider nel backoffice (prediction-providers) se l'errore persiste.
+
+### LoyaltyRiskCriticalSurge (fraud, con team frodi)
+1. `GET /v1/risk/top` e console operatore: quali segnali (reasonCodes) dominano. Attacco reale (es. MULTI_ACCOUNT_DEVICE, CODE_ABUSE): tenere il blocco automatico, aprire l'incidente.
+2. Falsi positivi (es. IMPOSSIBLE_TRAVEL da coordinate errate di una fonte): alzare soglie o disattivare il segnale nel backoffice (fraud-rules); i membri vengono rivalutati e sbloccati alla rivalutazione periodica o con `POST /v1/risk/members/{id}/assess`.
+
+### LoyaltyDeliveryFailures
+Canale in errore (fornitore email/sms/push, webhook CRM): il routing (delivery-routing) permette di spostare le consegne su un altro canale (es. inbox in app) senza rilascio; le consegne fallite sono nel `delivery_log` e non vengono ripetute da sole (evitare doppi contatti).
+
 ## Manutenzione
 
 - Retention: Prometheus 15 giorni locali, Thanos 13 mesi; Loki 30 giorni; Tempo 14 giorni; ClickHouse 5 anni (TTL). Modifiche in `deploy/observability/*.values.yaml` e `deploy/terraform/observability.tf`.

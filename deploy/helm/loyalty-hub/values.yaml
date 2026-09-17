@@ -43,9 +43,28 @@ services:
     java: true
     db: true
     kafka: true
-    env: { LEDGER_URL: http://ledger:8083, TIER_URL: http://tier-service:8084, SEGMENT_URL: http://segment-service:8090, CATALOG_URL: http://catalog-redemption:8085, ENGAGEMENT_URL: http://engagement-service:8092, MEMBER_URL: http://member-service:8091, INGRESS_URL: http://ingress-adapters:8081, READ_MODEL_URL: http://read-model:8088 }
+    # RF-136: RULES_APPLY_EFFECTS=false → il decision-service applica gli effetti (true = modalità storica senza decision-service)
+    env: { LEDGER_URL: http://ledger:8083, TIER_URL: http://tier-service:8084, SEGMENT_URL: http://segment-service:8090, CATALOG_URL: http://catalog-redemption:8085, ENGAGEMENT_URL: http://engagement-service:8092, MEMBER_URL: http://member-service:8091, INGRESS_URL: http://ingress-adapters:8081, READ_MODEL_URL: http://read-model:8088, RULES_APPLY_EFFECTS: "false" }
     resources: { requests: { cpu: 500m, memory: 768Mi }, limits: { memory: 1536Mi } }
     hpa: { min: 3, max: 24, cpu: 65 }
+  decision-service:
+    port: 8093
+    replicas: 3
+    java: true
+    db: true
+    kafka: true
+    env: { CMS_URL: http://cms:3000, READ_MODEL_URL: http://read-model:8088, RULES_URL: http://rules-engine:8082, LEDGER_URL: http://ledger:8083, CATALOG_URL: http://catalog-redemption:8085, ENGAGEMENT_URL: http://engagement-service:8092, MEMBER_URL: http://member-service:8091, TIER_URL: http://tier-service:8084 }
+    resources: { requests: { cpu: 500m, memory: 768Mi }, limits: { memory: 1536Mi } }
+    hpa: { min: 3, max: 24, cpu: 65 }
+  fraud-service:
+    port: 8094
+    replicas: 2
+    java: true
+    db: true
+    kafka: true
+    env: { CMS_URL: http://cms:3000, LEDGER_URL: http://ledger:8083, FRAUD_AUTO_BLOCK: "true" }
+    resources: { requests: { cpu: 250m, memory: 512Mi }, limits: { memory: 1Gi } }
+    hpa: { min: 2, max: 8, cpu: 65 }
   ledger:
     port: 8083
     replicas: 3
@@ -113,6 +132,8 @@ services:
     replicas: 2
     java: true
     db: true
+    kafka: true
+    env: { LEDGER_URL: http://ledger:8083, MEMBER_URL: http://member-service:8091, IDENTITY_MERGE_TRANSFER_UNITS: "true" }
     resources: { requests: { cpu: 100m, memory: 384Mi }, limits: { memory: 768Mi } }
   read-model:
     port: 8088
@@ -127,12 +148,14 @@ services:
     port: 8089
     replicas: 2
     java: true
+    db: true
     kafka: true
+    env: { CMS_URL: http://cms:3000 }
     resources: { requests: { cpu: 100m, memory: 384Mi }, limits: { memory: 768Mi } }
   bff:
     port: 3001
     replicas: 3
-    env: { READ_MODEL_URL: http://read-model:8088, TIER_URL: http://tier-service:8084, CONTEST_URL: http://contest-service:8086, CMS_URL: http://cms:3000, MEMBER_URL: http://member-service:8091, SEGMENT_URL: http://segment-service:8090, CATALOG_URL: http://catalog-redemption:8085, INGRESS_URL: http://ingress-adapters:8081, LEDGER_URL: http://ledger:8083, ENGAGEMENT_URL: http://engagement-service:8092, RULES_URL: http://rules-engine:8082 }
+    env: { READ_MODEL_URL: http://read-model:8088, TIER_URL: http://tier-service:8084, CONTEST_URL: http://contest-service:8086, CMS_URL: http://cms:3000, MEMBER_URL: http://member-service:8091, SEGMENT_URL: http://segment-service:8090, CATALOG_URL: http://catalog-redemption:8085, INGRESS_URL: http://ingress-adapters:8081, LEDGER_URL: http://ledger:8083, ENGAGEMENT_URL: http://engagement-service:8092, RULES_URL: http://rules-engine:8082, DECISION_URL: http://decision-service:8093, FRAUD_URL: http://fraud-service:8094, NOTIFIER_URL: http://notifier:8089, IDENTITY_URL: http://identity-mapping:8087 }
     healthPath: /healthz
     resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { memory: 256Mi } }
     hpa: { min: 3, max: 20, cpu: 60 }
@@ -149,7 +172,7 @@ services:
     port: 3000
     replicas: 2
     db: true
-    env: { CMS_URL: https://loyalty.example.it/admin, SUPERSET_URL: http://superset.analytics:8088, SUPERSET_PUBLIC_URL: https://bi.loyalty.example.it, NEXT_PUBLIC_GRAFANA_URL: https://monitoring.loyalty.example.it/dashboards }
+    env: { CMS_URL: https://loyalty.example.it/admin, SUPERSET_URL: http://superset.analytics:8088, SUPERSET_PUBLIC_URL: https://bi.loyalty.example.it, NEXT_PUBLIC_GRAFANA_URL: https://monitoring.loyalty.example.it/dashboards, DECISION_URL: http://decision-service:8093, FRAUD_URL: http://fraud-service:8094 }
     metricsPath: /api/metrics
     healthPath: /admin
     resources: { requests: { cpu: 250m, memory: 512Mi }, limits: { memory: 1Gi } }

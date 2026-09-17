@@ -1,6 +1,13 @@
 spring:
   application:
     name: notifier
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/loyalty}
+    username: ${DB_USER:loyalty}
+    password: ${DB_PASSWORD:loyalty}
+  flyway:
+    schemas: notifier
+    default-schema: notifier
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
     consumer:

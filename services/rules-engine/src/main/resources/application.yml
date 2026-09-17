@@ -67,3 +67,6 @@ logging:
   structured:
     format:
       console: ecs
+rules:
+  # RF-136: true = modalità storica (il rules-engine applica gli effetti); false = valuta soltanto, applica il decision-service
+  apply-effects: ${RULES_APPLY_EFFECTS:true}

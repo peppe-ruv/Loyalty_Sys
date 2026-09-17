@@ -49,6 +49,7 @@ public class ActionIngressController {
     }
 
     @PostMapping
+    @io.github.resilience4j.ratelimiter.annotation.RateLimiter(name = "ingress")   // RF-133: quota per fonte (configurata in application.yml; per fonte nel gateway)
     public ResponseEntity<BatchResult> ingest(@RequestBody @Valid IngressBatch batch) {
         String source = "rest"; // in produzione: dal client OAuth2/HMAC autenticato (gateway → header X-Source)
         List<ItemResult> results = new ArrayList<>(batch.items().size());

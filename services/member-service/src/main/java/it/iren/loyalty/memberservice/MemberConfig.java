@@ -12,6 +12,31 @@ public class MemberConfig {
     @ConditionalOnMissingBean
     ReferralPolicy referralPolicy() { return ReferralPolicy.example(); }
 
+    /** Finalità di consenso dal backoffice (collezione {@code consent-purposes}), con cache e fallback al catalogo di default. */
+    @Bean
+    @ConditionalOnMissingBean
+    @SuppressWarnings("unchecked")
+    it.iren.loyalty.memberservice.domain.Consent.PurposeSource purposeSource(org.springframework.web.client.RestClient.Builder builder) {
+        var cms = builder.baseUrl(System.getenv().getOrDefault("CMS_URL", "http://cms:3000")).build();
+        long ttl = Long.parseLong(System.getenv().getOrDefault("CMS_CACHE_MS", "60000"));
+        return new it.iren.loyalty.memberservice.domain.Consent.PurposeSource() {
+            private volatile java.util.List<it.iren.loyalty.memberservice.domain.Consent.Purpose> last = it.iren.loyalty.memberservice.domain.Consent.defaultPurposes();
+            private volatile long at = 0;
+            @Override public java.util.List<it.iren.loyalty.memberservice.domain.Consent.Purpose> purposes() {
+                long now = System.currentTimeMillis();
+                if (now - at < ttl) return last;
+                try {
+                    java.util.Map<String, Object> body = cms.get().uri("/api/consent-purposes?limit=100&depth=0").retrieve().body(java.util.Map.class);
+                    var docs = body == null ? java.util.List.<java.util.Map<String, Object>>of() : (java.util.List<java.util.Map<String, Object>>) body.getOrDefault("docs", java.util.List.of());
+                    if (!docs.isEmpty()) last = docs.stream().map(d -> new it.iren.loyalty.memberservice.domain.Consent.Purpose(String.valueOf(d.get("code")), String.valueOf(d.get("name")),
+                            String.valueOf(d.getOrDefault("legalBasis", "consent")), d.get("validityMonths") instanceof Number n ? n.intValue() : null, Boolean.TRUE.equals(d.get("required")), String.valueOf(d.getOrDefault("version", "1")))).toList();
+                } catch (Exception ignored) { /* backoffice non raggiungibile: si tiene l'ultimo catalogo */ }
+                at = now;
+                return last;
+            }
+        };
+    }
+
     /** Schemi campi custom di esempio (RF-99) e identificatori (RF-108); in produzione dal CMS. */
     @Bean
     @ConditionalOnMissingBean
