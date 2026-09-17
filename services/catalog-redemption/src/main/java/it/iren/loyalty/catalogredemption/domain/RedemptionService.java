@@ -31,10 +31,14 @@ public class RedemptionService {
     private final JdbcTemplate jdbc;
     private final RestClient ledger;
     private final CouponPool coupons;
+    private final it.iren.loyalty.common.metrics.LoyaltyMetrics metrics;
+    private final org.springframework.kafka.core.KafkaTemplate<String, byte[]> kafka;
 
-    public RedemptionService(JdbcTemplate jdbc, RestClient.Builder builder, CouponPool coupons) {
+    public RedemptionService(JdbcTemplate jdbc, RestClient.Builder builder, CouponPool coupons, it.iren.loyalty.common.metrics.LoyaltyMetrics metrics, org.springframework.kafka.core.KafkaTemplate<String, byte[]> kafka) {
         this.jdbc = jdbc;
         this.coupons = coupons;
+        this.metrics = metrics;
+        this.kafka = kafka;
         this.ledger = builder.baseUrl(System.getenv().getOrDefault("LEDGER_URL", "http://ledger:8083")).build();
     }
 
@@ -47,7 +51,7 @@ public class RedemptionService {
         long today = jdbc.queryForObject("SELECT count(*) FROM catalogredemption.redemption WHERE member_id = ? AND reward_id = ? AND status <> 'CANCELLED' AND requested_at >= ?", Long.class, memberId, rewardId,
                 Timestamp.from(now.atZone(ZoneId.of("Europe/Rome")).toLocalDate().atStartOfDay(ZoneId.of("Europe/Rome")).toInstant()));
         var verdict = RedemptionPolicy.check(r, new RedemptionPolicy.MemberState(memberTierOrder, memberSegments, premioAvailable, mine, today), now);
-        if (verdict != RedemptionPolicy.Reason.OK) throw new RedemptionRejected(verdict.name());
+        if (verdict != RedemptionPolicy.Reason.OK) { metrics.redemption(verdict.name(), r.type().name()); throw new RedemptionRejected(verdict.name()); }
 
         UUID id = UUID.randomUUID();
         if (r.pointsCost() > 0) {
@@ -88,6 +92,8 @@ public class RedemptionService {
         jdbc.update("INSERT INTO catalogredemption.redemption(id, member_id, reward_id, points, status, code, code_expires_at, requested_at, delivered_at) VALUES (?,?,?,?,?,?,?,?,?)",
                 id, memberId, UUID.fromString(r.id()), r.pointsCost(), status, code, codeExpiry == null ? null : Timestamp.from(codeExpiry), Timestamp.from(now),
                 code != null ? Timestamp.from(now) : null);
+        metrics.redemption(status, r.type().name());
+        publish(memberId, id, r.id(), r.type().name(), r.name(), status, r.pointsCost(), code);
         return new Result(id, status, code, codeExpiry);
     }
 
@@ -119,7 +125,18 @@ public class RedemptionService {
         jdbc.update("UPDATE catalogredemption.redemption SET status = ?, delivered_at = CASE WHEN ? = 'DELIVERED' THEN now() ELSE delivered_at END, used_at = CASE WHEN ? = 'USED' THEN now() ELSE used_at END, last_actor = ? WHERE id = ?",
                 to.name(), to.name(), to.name(), actor, redemptionId);
         jdbc.update("INSERT INTO catalogredemption.redemption_status_history(redemption_id, from_status, to_status, actor) VALUES (?,?,?,?)", redemptionId, from.name(), to.name(), actor);
+        var rw = jdbc.queryForMap("SELECT type, name FROM catalogredemption.reward WHERE id = ?", row.get("reward_id"));
+        publish((String) row.get("member_id"), redemptionId, row.get("reward_id").toString(), (String) rw.get("type"), (String) rw.get("name"), to.name(), ((Number) row.get("points")).longValue(), null);
+        metrics.redemption(to.name(), (String) rw.get("type"));
         return to.name();
+    }
+
+    /** Evento REDEMPTION (RI-06): stato di riscatti e vincite per CRM, BI e notifiche (RF-77); dopo il commit, in produzione via outbox. */
+    private void publish(String memberId, UUID redemptionId, String rewardId, String rewardType, String rewardName, String status, long points, String code) {
+        Map<String, Object> data = new java.util.HashMap<>(Map.of("redemptionId", redemptionId.toString(), "rewardId", rewardId, "rewardType", rewardType, "rewardName", rewardName == null ? "" : rewardName, "status", status, "points", points));
+        if (code != null) data.put("code", code);
+        kafka.send(it.iren.loyalty.common.event.EventTypes.TOPIC_REDEMPTIONS, memberId, it.iren.loyalty.common.event.CanonicalEvents.serialize(
+                it.iren.loyalty.common.event.CanonicalEvents.of(it.iren.loyalty.common.event.EventTypes.REDEMPTION_V1, "urn:iren:loyalty:catalog", "member:" + memberId, data)));
     }
 
     private RewardDefinition lockReward(UUID rewardId) {

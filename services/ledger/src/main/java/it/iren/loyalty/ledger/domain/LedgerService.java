@@ -31,12 +31,14 @@ public class LedgerService {
     private final Repositories.BalanceRepository balances;
     private final Repositories.OutboxRepository outbox;
     private final WalletTypeSource wallets;
+    private final it.iren.loyalty.common.metrics.LoyaltyMetrics metrics;
 
-    public LedgerService(Repositories.MovementRepository movements, Repositories.BalanceRepository balances, Repositories.OutboxRepository outbox, WalletTypeSource wallets) {
+    public LedgerService(Repositories.MovementRepository movements, Repositories.BalanceRepository balances, Repositories.OutboxRepository outbox, WalletTypeSource wallets, it.iren.loyalty.common.metrics.LoyaltyMetrics metrics) {
         this.movements = movements;
         this.balances = balances;
         this.outbox = outbox;
         this.wallets = wallets;
+        this.metrics = metrics;
     }
 
     /** Accredito da campagna: idempotente per (actionKey, wallet). */
@@ -149,6 +151,7 @@ public class LedgerService {
     }
 
     private void emit(Movement m, Balance b) {
+        metrics.movement(m.getWallet(), m.getKind(), m.getAmount());
         var event = CanonicalEvents.of(EventTypes.MOVEMENT_V1, "urn:iren:loyalty:ledger", "member:" + m.getMemberId(), Map.of(
                 "movementId", m.getId().toString(), "currency", m.getWallet(), "kind", m.getKind(), "amount", m.getAmount(),
                 "reason", m.getReason(), "actionKey", m.getActionKey(), "balance", b.getAvailable(),

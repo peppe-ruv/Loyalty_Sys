@@ -1,4 +1,11 @@
 import http from "node:http";
+import client from "prom-client";
+
+// RF-117: metriche del BFF (richieste per rotta e latenza) su /metrics, raccolte dal ServiceMonitor
+const registry = new client.Registry();
+client.collectDefaultMetrics({ register: registry, prefix: "bff_" });
+const httpRequests = new client.Histogram({ name: "bff_http_request_duration_seconds", help: "Durata richieste BFF", labelNames: ["route", "method", "status"], buckets: [0.01, 0.05, 0.1, 0.2, 0.5, 1, 2, 5], registers: [registry] });
+const routeOf = (p) => p.replace(/\/[0-9a-f-]{8,}(?=\/|$)/gi, "/{id}").replace(/\/members\/[^/]+/, "/members/{id}");
 
 const PORT = process.env.PORT || 3001;
 const READ_MODEL = process.env.READ_MODEL_URL || "http://read-model:8088";
@@ -47,9 +54,12 @@ async function summary(memberId) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
-  const json = (code, body) => { res.writeHead(code, { "content-type": "application/json" }); res.end(JSON.stringify(body)); };
+  const started = process.hrtime.bigint();
+  const observe = (code) => httpRequests.labels(routeOf(url.pathname), req.method, String(code)).observe(Number(process.hrtime.bigint() - started) / 1e9);
+  const json = (code, body) => { observe(code); res.writeHead(code, { "content-type": "application/json" }); res.end(JSON.stringify(body)); };
   try {
     if (url.pathname === "/healthz") return json(200, { status: "UP" });
+    if (url.pathname === "/metrics") { res.writeHead(200, { "content-type": registry.contentType }); return res.end(await registry.metrics()); }
     let m;
     if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/summary$/))) return json(200, await summary(m[1]));
     if ((m = url.pathname.match(/^\/api\/contests\/([^/]+)\/plays$/)) && req.method === "POST") {

@@ -8,5 +8,10 @@
     "start": "node src/server.js",
     "test": "node --test"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "prom-client": "^15.1.3"
+  }
 }

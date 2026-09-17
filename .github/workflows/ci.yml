@@ -37,3 +37,23 @@ jobs:
         with: { terraform_version: "1.13.3" }
       - run: terraform -chdir=deploy/terraform fmt -check -recursive
       - run: terraform -chdir=deploy/terraform init -backend=false && terraform -chdir=deploy/terraform validate
+  observability:
+    name: Osservabilità e BI (RF-119, RF-120)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: promtool check rules
+        run: |
+          curl -sL https://github.com/prometheus/prometheus/releases/download/v3.5.0/prometheus-3.5.0.linux-amd64.tar.gz | tar xz --strip-components=1 --wildcards '*/promtool'
+          ./promtool check rules deploy/observability/local/rules.yaml
+          ./promtool check config deploy/observability/local/prometheus.yml
+      - name: Dashboard e values validi
+        run: |
+          for f in deploy/observability/dashboards/*.json; do python3 -c "import json; json.load(open('$f'))"; done
+          python3 -c "import yaml,glob; [yaml.safe_load(open(f)) for f in glob.glob('deploy/observability/*.yaml')+glob.glob('deploy/bi/superset.values.yaml')]; list(yaml.safe_load_all(open('deploy/bi/clickhouse.values.yaml')))"
+          python3 -m py_compile analytics/superset/superset_config.py
+      - name: Schema ClickHouse (nodo singolo)
+        run: |
+          docker run -d --name ch -e CLICKHOUSE_DB=loyalty clickhouse/clickhouse-server:25.8
+          sleep 15
+          sed 's/kafka:9092/localhost:9092/' analytics/clickhouse/local/init.sql | docker exec -i ch clickhouse-client --multiquery

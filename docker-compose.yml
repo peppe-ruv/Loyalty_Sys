@@ -14,6 +14,8 @@ x-java: &java
     CATALOG_URL: http://catalog-redemption:8085
     READ_MODEL_URL: http://read-model:8088
     ENGAGEMENT_URL: http://engagement-service:8092
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ENVIRONMENT: local
     MEMBER_URL: http://member-service:8091
     INGRESS_URL: http://ingress-adapters:8081
   depends_on:
@@ -25,7 +27,7 @@ services:
     image: postgres:17-alpine
     environment: { POSTGRES_DB: loyalty, POSTGRES_USER: loyalty, POSTGRES_PASSWORD: loyalty }
     ports: ["5432:5432"]
-    volumes: ["pgdata:/var/lib/postgresql/data"]
+    volumes: ["pgdata:/var/lib/postgresql/data", "./scripts/local-databases.sql:/docker-entrypoint-initdb.d/10-databases.sql:ro"]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U loyalty"], interval: 5s, retries: 10 }
 
   kafka:
@@ -68,7 +70,7 @@ services:
 
   cms:
     build: cms
-    environment: { DATABASE_URI: postgresql://loyalty:loyalty@postgres:5432/loyalty, PAYLOAD_SECRET: local-dev-secret, CMS_URL: http://localhost:3002 }
+    environment: { DATABASE_URI: postgresql://loyalty:loyalty@postgres:5432/loyalty, PAYLOAD_SECRET: local-dev-secret, CMS_URL: http://localhost:3002, SUPERSET_URL: http://superset:8088, SUPERSET_PUBLIC_URL: http://localhost:8088, NEXT_PUBLIC_GRAFANA_URL: http://localhost:3005/dashboards }
     ports: ["3002:3000"]
     depends_on: { postgres: { condition: service_healthy } }
 
@@ -83,5 +85,88 @@ services:
     ports: ["3000:3000"]
     depends_on: [bff]
 
+  # ---- profilo observability (RF-117..RF-120): docker compose --profile observability up -d ----
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: [observability]
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--web.enable-remote-write-receiver", "--storage.tsdb.retention.time=7d"]
+    volumes: ["./deploy/observability/local/prometheus.yml:/etc/prometheus/prometheus.yml:ro", "./deploy/observability/local/rules.yaml:/etc/prometheus/rules/loyalty.yaml:ro", "promdata:/prometheus"]
+    ports: ["9090:9090"]
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    profiles: [observability]
+    volumes: ["./deploy/observability/local/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro"]
+    ports: ["9093:9093"]
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.9.0
+    profiles: [observability]
+    command: ["--kafka.server=kafka:9092"]
+    depends_on: { kafka: { condition: service_healthy } }
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.135.0
+    profiles: [observability]
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes: ["./deploy/observability/local/otel-collector.yaml:/etc/otel/config.yaml:ro"]
+    ports: ["4317:4317", "4318:4318"]
+  loki:
+    image: grafana/loki:3.5.3
+    profiles: [observability]
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes: ["./deploy/observability/local/loki.yaml:/etc/loki/config.yaml:ro", "lokidata:/loki"]
+  tempo:
+    image: grafana/tempo:2.8.2
+    profiles: [observability]
+    command: ["-config.file=/etc/tempo/config.yaml"]
+    volumes: ["./deploy/observability/local/tempo.yaml:/etc/tempo/config.yaml:ro", "tempodata:/var/tempo"]
+  grafana:
+    image: grafana/grafana:12.1.1
+    profiles: [observability]
+    environment: { GF_SECURITY_ADMIN_PASSWORD: admin, GF_INSTALL_PLUGINS: grafana-clickhouse-datasource, GF_FEATURE_TOGGLES_ENABLE: traceqlEditor }
+    volumes: ["./deploy/observability/local/grafana/provisioning:/etc/grafana/provisioning:ro", "./deploy/observability/dashboards:/var/lib/grafana/dashboards:ro"]
+    ports: ["3005:3000"]
+    depends_on: [prometheus, loki, tempo]
+
+  # ---- profilo bi (RF-121..RF-123): docker compose --profile bi up -d ----
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.8
+    profiles: [bi]
+    environment: { CLICKHOUSE_DB: loyalty, CLICKHOUSE_USER: superset, CLICKHOUSE_PASSWORD: superset, CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1 }
+    volumes: ["./analytics/clickhouse/local/init.sql:/docker-entrypoint-initdb.d/init.sql:ro", "chdata:/var/lib/clickhouse"]
+    ports: ["8123:8123", "9000:9000"]
+    depends_on: { kafka: { condition: service_healthy } }
+    ulimits: { nofile: { soft: 262144, hard: 262144 } }
+  superset:
+    image: apache/superset:5.0.0
+    profiles: [bi]
+    environment: &superset-env
+      SUPERSET_SECRET_KEY: local-dev-secret-change-me
+      SUPERSET_DB_URI: postgresql+psycopg2://loyalty:loyalty@postgres:5432/superset
+      REDIS_HOST: redis
+      BACKOFFICE_ORIGIN: http://localhost:3002
+      CLICKHOUSE_HOST: clickhouse
+      SUPERSET_CONFIG_PATH: /app/pythonpath/superset_config.py
+    command: ["/bin/sh", "-c", "pip install -q clickhouse-connect psycopg2-binary && /usr/bin/run-server.sh"]
+    volumes: ["./analytics/superset/superset_config.py:/app/pythonpath/superset_config.py:ro", "./analytics/superset:/app/dashboards:ro"]
+    ports: ["8088:8088"]
+    depends_on: [postgres, redis, clickhouse]
+  superset-init:
+    image: apache/superset:5.0.0
+    profiles: [bi]
+    environment: *superset-env
+    command: ["/bin/sh", "-c", "pip install -q clickhouse-connect psycopg2-binary && sh /app/dashboards/init.sh"]
+    volumes: ["./analytics/superset/superset_config.py:/app/pythonpath/superset_config.py:ro", "./analytics/superset:/app/dashboards:ro"]
+    depends_on: [superset]
+  superset-worker:
+    image: apache/superset:5.0.0
+    profiles: [bi]
+    environment: *superset-env
+    command: ["/bin/sh", "-c", "pip install -q clickhouse-connect psycopg2-binary && celery --app=superset.tasks.celery_app:app worker --pool=prefork -O fair -c 2"]
+    volumes: ["./analytics/superset/superset_config.py:/app/pythonpath/superset_config.py:ro"]
+    depends_on: [superset]
+
 volumes:
+  chdata:
+  promdata:
+  lokidata:
+  tempodata:
   pgdata: {}

@@ -2,7 +2,7 @@
 
 Piattaforma loyalty **vendor neutral** per Iren: riceve azioni premianti da qualunque sistema (CRM, billing, portali, partner), le trasforma in punti e tier, sblocca fasce di premi e genera azioni premianti dal programma annuale e dagli instant win. Un solo backoffice/CMS configura card, pop-up, catalogo, regole e concorsi.
 
-Riferimenti: [Specifica](docs/SPECIFICA.md) · [Parità con Open Loyalty](docs/PARITA-OPEN-LOYALTY.md) · [Catalogo funzionale (edizione attuale)](docs/CATALOGO-FUNZIONALE.md) · [Decisioni (ADR)](docs/adr/) · [Contratti API](docs/contracts/) · [Runbook](docs/runbooks/)
+Riferimenti: [Specifica](docs/SPECIFICA.md) · [Parità con Open Loyalty](docs/PARITA-OPEN-LOYALTY.md) · [Catalogo funzionale (edizione attuale)](docs/CATALOGO-FUNZIONALE.md) · [Osservabilità e BI](docs/OSSERVABILITA-BI.md) · [Decisioni (ADR)](docs/adr/) · [Contratti API](docs/contracts/) · [Runbook](docs/runbooks/)
 
 Copertura funzionale: **almeno quella di Open Loyalty**, edizione open source (ADR-017) ed edizione attuale (ADR-018): campagne con
 trigger, effetti, limiti, espressioni e automazioni; referral multilivello; wallet configurabili con blocchi e trasferimenti; achievement,
@@ -38,6 +38,18 @@ Fonti (Salesforce, SAP via middleware, IrenYou/app, partner, SFTP)
 | `docs/` | Specifica, ADR, OpenAPI/AsyncAPI, runbook |
 | `scripts/seed.sh` | Dati di esempio |
 
+## Osservabilità e BI (enterprise, tutto open source)
+
+Metriche di business e tecniche da ogni servizio (Micrometer), tracce e log via OpenTelemetry; **Prometheus** in HA con
+**Thanos** su S3, **Alertmanager**, **Grafana** (SSO) con tre cruscotti e alert SLO, **Loki** per i log, **Tempo** per le tracce.
+Andamenti del programma nel backoffice: **ClickHouse** alimentato in tempo reale dai topic Kafka e **Apache Superset**
+incorporato nella vista «Andamenti» con token ospite e row-level security. Dettagli: `docs/OSSERVABILITA-BI.md`, ADR-019/020.
+
+```sh
+make observability   # stack di monitoraggio in HA nel namespace observability (dopo make infra e make install)
+make bi              # ClickHouse a 3 repliche + Superset in HA nel namespace analytics, cruscotti importati
+```
+
 ## Installazione su AWS EKS in tre comandi
 
 Prerequisiti: account AWS con permessi amministrativi sulla region `eu-south-1`, `aws` CLI autenticata, `terraform ≥ 1.9`, `kubectl`, `helm ≥ 3.14`, `make`. Tempo stimato: 30–40 minuti, di cui ~25 per l'infrastruttura.
@@ -57,6 +69,8 @@ Disinstallazione: `make uninstall` poi `make destroy` (irreversibile).
 ```sh
 make up          # docker compose: Postgres, Kafka, Redis, tutti i servizi, CMS, BFF, sito
 make seed-local  # azioni di esempio → saldi
+make up-observability   # Grafana http://localhost:3005 (admin/admin), Prometheus :9090, Loki, Tempo, OTel Collector
+make up-bi              # ClickHouse :8123, Superset http://localhost:8088 (admin/admin) e vista Andamenti nel backoffice
 ```
 
 Sito http://localhost:3000 · Backoffice http://localhost:3002/admin · Ingresso API http://localhost:8081/v1/actions · Membri http://localhost:8091/v1/members · Segmenti http://localhost:8090/v1/segments
@@ -81,4 +95,4 @@ Nessuna credenziale nel repository. In cluster i segreti arrivano da AWS Secrets
 
 ## Stato
 
-Scaffold 0.3.0: struttura, contratti, dominio principale, parità funzionale con Open Loyalty open source (RF-60..RF-79) ed edizione attuale (RF-80..RF-116), installazione. Punti aperti in `docs/SPECIFICA.md` → "Rischi, punti aperti e criteri di accettazione".
+Scaffold 0.4.0: struttura, contratti, dominio principale, parità funzionale con Open Loyalty (RF-60..RF-116), osservabilità enterprise e BI nel backoffice (RF-117..RF-124), installazione. Punti aperti in `docs/SPECIFICA.md` → "Rischi, punti aperti e criteri di accettazione".

@@ -161,4 +161,25 @@ spec:
     matchLabels:
       app.kubernetes.io/name: {{ $name }}
 {{- end }}
+{{- if $root.Values.serviceMonitor.enabled }}
+---
+# RF-117: raccolta metriche Prometheus (actuator per i servizi Java, /metrics per BFF/CMS quando esposto)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $name }}
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+    {{- toYaml (default (dict) $root.Values.serviceMonitor.labels) | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}
+  endpoints:
+    - port: http
+      path: {{ if $svc.java }}/actuator/prometheus{{ else }}{{ default "/metrics" $svc.metricsPath }}{{ end }}
+      interval: 30s
+      relabelings:
+        - { sourceLabels: [__meta_kubernetes_pod_name], targetLabel: pod }
+{{- end }}
 {{- end }}

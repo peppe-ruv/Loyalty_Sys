@@ -38,12 +38,14 @@ public class ActionIngressController {
     private final ActionPublisher publisher;
     private final it.iren.loyalty.ingressadapters.schema.SchemaRegistry schemas;
     private final it.iren.loyalty.ingressadapters.catalog.ProductCatalog catalog;
+    private final it.iren.loyalty.common.metrics.LoyaltyMetrics metrics;
 
-    public ActionIngressController(DedupService dedup, ActionPublisher publisher, it.iren.loyalty.ingressadapters.schema.SchemaRegistry schemas, it.iren.loyalty.ingressadapters.catalog.ProductCatalog catalog) {
+    public ActionIngressController(DedupService dedup, ActionPublisher publisher, it.iren.loyalty.ingressadapters.schema.SchemaRegistry schemas, it.iren.loyalty.ingressadapters.catalog.ProductCatalog catalog, it.iren.loyalty.common.metrics.LoyaltyMetrics metrics) {
         this.dedup = dedup;
         this.publisher = publisher;
         this.schemas = schemas;
         this.catalog = catalog;
+        this.metrics = metrics;
     }
 
     @PostMapping
@@ -100,6 +102,7 @@ public class ActionIngressController {
             results.add(new ItemResult(a.idempotencyKey(), "ACCEPTED", null));
             accepted++;
         }
+        for (int i = 0; i < results.size(); i++) metrics.actionReceived(source, batch.items().get(i).action().actionType(), results.get(i).status()); // RF-117
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(new BatchResult(accepted, duplicates, rejected, results));
     }
 }

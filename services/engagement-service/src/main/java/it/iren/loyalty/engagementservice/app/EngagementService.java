@@ -30,8 +30,9 @@ public class EngagementService {
     private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
     private final AchievementEngine achievements = new AchievementEngine();
     private final ChallengeEngine challenges = new ChallengeEngine();
+    private final it.iren.loyalty.common.metrics.LoyaltyMetrics metrics;
 
-    public EngagementService(JdbcTemplate jdbc, KafkaTemplate<String, byte[]> kafka, Definitions defs) { this.jdbc = jdbc; this.kafka = kafka; this.defs = defs; }
+    public EngagementService(JdbcTemplate jdbc, KafkaTemplate<String, byte[]> kafka, Definitions defs, it.iren.loyalty.common.metrics.LoyaltyMetrics metrics) { this.jdbc = jdbc; this.kafka = kafka; this.defs = defs; this.metrics = metrics; }
 
     @KafkaListener(topics = EventTypes.TOPIC_ACTIONS, groupId = "engagement-service", concurrency = "${engagement.consumer.concurrency:4}")
     public void onAction(byte[] payload) {
@@ -55,6 +56,7 @@ public class EngagementService {
             save("achievement_progress", memberId, a.id(), o.progress(), o.progress().completedCount());
             emit(memberId, "ACHIEVEMENT_PROGRESSED", "achievement:" + a.id() + ":" + memberId + ":" + action.idempotencyKey(), a.id(), at,
                     Map.of("achievementId", a.id(), "currentPeriodValue", o.currentPeriodValue(), "consecutivePeriods", o.consecutivePeriods(), "completedCount", o.progress().completedCount()));
+            if (o.completed()) metrics.achievementCompleted(a.id());
             if (o.completed()) emit(memberId, "ACHIEVEMENT_COMPLETED", "achievement:" + a.id() + ":" + memberId + ":done:" + o.progress().completedCount(), a.id(), at,
                     Map.of("achievementId", a.id(), "completedCount", o.progress().completedCount()));
         }
@@ -87,6 +89,7 @@ public class EngagementService {
         if (!o.effects().isEmpty()) data.put("effects", o.effects());
         emit(memberId, "CHALLENGE_PROGRESSED", base, c.id(), at, data);
         if (o.completed()) {
+            metrics.challengeCompleted(c.id());
             emit(memberId, c.programYear() != null ? EventTypes.ACTION_MISSION_COMPLETED : "CHALLENGE_COMPLETED", base + ":done", c.id(), at, data);
             if (c.badgeCode() != null) grantBadge(memberId, c.badgeCode(), "challenge:" + c.id() + ":" + o.state().completedCount());
         }
@@ -113,6 +116,7 @@ public class EngagementService {
         Badge.Grant g = existing.map(e -> e.grantAgain(now, grantKey, b.stackable())).orElse(new Badge.Grant(memberId, badgeCode, 1, now, now, grantKey));
         jdbc.update("INSERT INTO engagementservice.member_badge(member_id, badge_code, completed_count, first_granted_at, last_granted_at, source) VALUES (?,?,?,?,?,?) ON CONFLICT (member_id, badge_code) DO UPDATE SET completed_count = EXCLUDED.completed_count, last_granted_at = EXCLUDED.last_granted_at, source = EXCLUDED.source",
                 memberId, badgeCode, g.completedCount(), Timestamp.from(g.firstGrantedAt()), Timestamp.from(g.lastGrantedAt()), grantKey);
+        metrics.badgeGranted(badgeCode);
         emit(memberId, "BADGE_GRANTED", "badge:" + grantKey, badgeCode, now, Map.of("badgeCode", badgeCode, "completedCount", g.completedCount()));
         return g;
     }

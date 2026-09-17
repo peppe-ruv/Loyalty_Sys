@@ -16,12 +16,15 @@ public class PlayController {
     public record PlayRequest(@NotBlank String memberId, String deviceFingerprint) {}
 
     private final InstantWinService service;
-    public PlayController(InstantWinService service) { this.service = service; }
+    private final it.iren.loyalty.contestservice.ContestEvents events;
+    public PlayController(InstantWinService service, it.iren.loyalty.contestservice.ContestEvents events) { this.service = service; this.events = events; }
 
     @PostMapping("/{contestId}/plays")
     public InstantWinService.Outcome play(@PathVariable UUID contestId, @RequestBody PlayRequest req,
                                           @RequestHeader(value = "X-Forwarded-For", required = false) String ip) {
-        return service.play(contestId, req.memberId(), req.deviceFingerprint(), ip);
+        var out = service.play(contestId, req.memberId(), req.deviceFingerprint(), ip);
+        events.played(contestId.toString(), req.memberId(), out.playId().toString(), out.won(), out.prizeCode(), out.playedAt());
+        return out;
     }
 
     @ExceptionHandler({InstantWinService.PlayLimitExceeded.class, InstantWinService.ContestNotOpen.class})

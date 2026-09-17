@@ -34,5 +34,6 @@ public interface Repositories {
     }
     interface OutboxRepository extends JpaRepository<Outbox, UUID> {
         List<Outbox> findTop500ByPublishedAtIsNullOrderByCreatedAt();
+        long countByPublishedAtIsNull();
     }
 }

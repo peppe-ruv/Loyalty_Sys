@@ -1,0 +1,17 @@
+slice_name: Transazioni e valore
+description: null
+viz_type: mixed_timeseries
+params:
+  viz_type: mixed_timeseries
+  datasource: v_kpi_daily__table
+  time_range: No filter
+  metrics:
+  - sum_transactions
+  metrics_b:
+  - sum_transaction_value_eur
+  x_axis: day
+  time_grain_sqla: P1D
+cache_timeout: null
+uuid: d10456e6-4884-5693-8414-ca80a73b353a
+version: 1.0.0
+dataset_uuid: c6e9f17d-0235-5487-8130-d8381efca0d2

@@ -29,6 +29,24 @@ management:
   observations:
     key-values:
       service: identity-mapping
+  # RF-118: tracing distribuito e metriche con etichette comuni; l'endpoint OTLP arriva dall'ambiente (OTEL_EXPORTER_OTLP_ENDPOINT)
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING:0.2}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318}/v1/traces
+  metrics:
+    tags:
+      application: identity-mapping
+      environment: ${ENVIRONMENT:local}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        spring.kafka.listener: true
+    export:
+      prometheus:
+        enabled: true
 logging:
   structured:
     format:

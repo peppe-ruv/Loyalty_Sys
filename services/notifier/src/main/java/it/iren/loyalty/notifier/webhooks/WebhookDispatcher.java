@@ -17,10 +17,12 @@ public class WebhookDispatcher {
     private static final Logger log = LoggerFactory.getLogger(WebhookDispatcher.class);
     private final WebhookSource subscriptions;
     private final RestClient http;
+    private final it.iren.loyalty.common.metrics.LoyaltyMetrics metrics;
 
-    public WebhookDispatcher(WebhookSource subscriptions, RestClient.Builder builder) {
+    public WebhookDispatcher(WebhookSource subscriptions, RestClient.Builder builder, it.iren.loyalty.common.metrics.LoyaltyMetrics metrics) {
         this.subscriptions = subscriptions;
         this.http = builder.build();
+        this.metrics = metrics;
     }
 
     public void dispatch(String eventType, String eventId, byte[] payload) {
@@ -33,9 +35,10 @@ public class WebhookDispatcher {
                             .header("X-Loyalty-Event", eventType).header("X-Loyalty-Delivery", eventId).header("X-Loyalty-Signature", s.sign(payload));
                     if (s.headers() != null) s.headers().forEach(req::header);
                     req.body(payload).retrieve().toBodilessEntity();
+                    metrics.webhook(s.id(), true);
                     break;
                 } catch (Exception e) {
-                    if (++attempt > s.maxRetries()) { log.warn("webhook {} failed for event {} after {} attempts: {}", s.id(), eventId, attempt, e.getMessage()); break; }
+                    if (++attempt > s.maxRetries()) { log.warn("webhook {} failed for event {} after {} attempts: {}", s.id(), eventId, attempt, e.getMessage()); metrics.webhook(s.id(), false); break; }
                     try { Thread.sleep(Math.min(30_000L, 500L * (1L << attempt))); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); return; }
                 }
             }

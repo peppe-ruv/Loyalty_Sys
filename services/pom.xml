@@ -20,7 +20,8 @@
   <properties>
     <!-- Target di rilascio: Java 25 LTS (D03). Il valore qui è la baseline minima usata in CI; alzare a 25 quando l'immagine base è disponibile. -->
     <java.version>21</java.version>
-    <revision>0.3.0-SNAPSHOT</revision>
+    <revision>0.4.0-SNAPSHOT</revision>
+    <otel.instrumentation.version>2.18.1-alpha</otel.instrumentation.version>
     <maven.compiler.release>${java.version}</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <cloudevents.version>4.0.1</cloudevents.version>
@@ -76,6 +77,21 @@
     <dependency>
       <groupId>io.micrometer</groupId>
       <artifactId>micrometer-registry-prometheus</artifactId>
+    </dependency>
+    <!-- RF-118 tracing distribuito: Micrometer Tracing → OpenTelemetry → OTLP verso il collector -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-tracing-bridge-otel</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-exporter-otlp</artifactId>
+    </dependency>
+    <!-- RF-118 log strutturati con trace id (ECS) e spedizione OTLP opzionale -->
+    <dependency>
+      <groupId>io.opentelemetry.instrumentation</groupId>
+      <artifactId>opentelemetry-logback-appender-1.0</artifactId>
+      <version>${otel.instrumentation.version}</version>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>

@@ -1,0 +1,45 @@
+table_name: v_contests
+main_dttm_col: null
+description: Concorsi
+schema: loyalty
+sql: null
+params: null
+cache_timeout: null
+is_sqllab_view: false
+metrics:
+- metric_name: count
+  verbose_name: Conteggio
+  expression: COUNT(*)
+- metric_name: sum_plays
+  verbose_name: Somma plays
+  expression: SUM(plays)
+- metric_name: sum_wins
+  verbose_name: Somma wins
+  expression: SUM(wins)
+- metric_name: sum_players
+  verbose_name: Somma players
+  expression: SUM(players)
+columns:
+- column_name: contest_id
+  is_dttm: false
+  groupby: true
+  filterable: true
+- column_name: plays
+  is_dttm: false
+  groupby: true
+  filterable: true
+- column_name: wins
+  is_dttm: false
+  groupby: true
+  filterable: true
+- column_name: players
+  is_dttm: false
+  groupby: true
+  filterable: true
+- column_name: win_rate
+  is_dttm: false
+  groupby: true
+  filterable: true
+uuid: 53a5ba01-8475-5a73-85a2-8c70e8a9cc3c
+version: 1.0.0
+database_uuid: 6f1c0f0e-4f7a-4d5b-9b7c-1d2e3f4a5b6c

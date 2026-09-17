@@ -14,12 +14,14 @@ import java.util.UUID;
 @Component
 public class CouponPool {
     private final JdbcTemplate jdbc;
-    public CouponPool(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    private final it.iren.loyalty.common.metrics.LoyaltyMetrics metrics;
+    public CouponPool(JdbcTemplate jdbc, it.iren.loyalty.common.metrics.LoyaltyMetrics metrics) { this.jdbc = jdbc; this.metrics = metrics; }
 
     public Optional<String> take(String poolId, UUID redemptionId) {
         List<String> codes = jdbc.queryForList("SELECT code FROM catalogredemption.coupon WHERE pool_id = ? AND redemption_id IS NULL ORDER BY code LIMIT 1 FOR UPDATE SKIP LOCKED", String.class, poolId);
         if (codes.isEmpty()) return Optional.empty();
         jdbc.update("UPDATE catalogredemption.coupon SET redemption_id = ?, assigned_at = now() WHERE pool_id = ? AND code = ?", redemptionId, poolId, codes.get(0));
+        metrics.gauge("loyalty_coupon_pool_remaining", remaining(poolId), "pool", poolId); // RF-46/RF-120 scorta lotti
         return Optional.of(codes.get(0));
     }
 

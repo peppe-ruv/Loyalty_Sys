@@ -26,10 +26,11 @@ public class MemberService {
     private final JdbcTemplate jdbc;
     private final KafkaTemplate<String, byte[]> kafka;
     private final ReferralPolicy referral;
+    private final it.iren.loyalty.common.metrics.LoyaltyMetrics metrics;
     private final com.fasterxml.jackson.databind.ObjectMapper json = new com.fasterxml.jackson.databind.ObjectMapper();
 
-    public MemberService(JdbcTemplate jdbc, KafkaTemplate<String, byte[]> kafka, ReferralPolicy referral) {
-        this.jdbc = jdbc; this.kafka = kafka; this.referral = referral;
+    public MemberService(JdbcTemplate jdbc, KafkaTemplate<String, byte[]> kafka, ReferralPolicy referral, it.iren.loyalty.common.metrics.LoyaltyMetrics metrics) {
+        this.jdbc = jdbc; this.kafka = kafka; this.referral = referral; this.metrics = metrics;
     }
 
     @Transactional
@@ -44,6 +45,7 @@ public class MemberService {
         jdbc.update("INSERT INTO memberservice.member(id, status, enrolled_at, channel, labels, consents, referral_code, referred_by) VALUES (?,?,?,?,?::jsonb,?::jsonb,?,?)",
                 m.id(), m.status().name(), Timestamp.from(now), channel, write(m.labels()), write(m.consents()), m.referralCode(), referredBy);
         publishMember(m);
+        metrics.memberEvent("ENROLLED");
         publishAction(memberId, new RewardingAction(EventTypes.ACTION_MEMBER_ENROLLED, "member:" + memberId + ":ENROLLED", null, now, null, Map.of(EventTypes.ATTR_CHANNEL, channel == null ? "" : channel)));
         if (Boolean.TRUE.equals(m.consents().get("newsletter")))
             publishAction(memberId, new RewardingAction(EventTypes.ACTION_NEWSLETTER_SUBSCRIBED, "member:" + memberId + ":NEWSLETTER", null, now, null, Map.of()));
@@ -98,6 +100,7 @@ public class MemberService {
                 : new Member(m.id(), status, m.enrolledAt(), m.enrollmentChannel(), m.labels(), m.consents(), m.referralCode(), m.referredBy(), m.profileCompletedAt());
         jdbc.update("UPDATE memberservice.member SET status = ?, channel = ?, labels = ?::jsonb, consents = ?::jsonb, referral_code = ?, referred_by = ?, updated_at = now() WHERE id = ?",
                 out.status().name(), out.enrollmentChannel(), write(out.labels()), write(out.consents()), out.referralCode(), out.referredBy(), memberId);
+        metrics.memberEvent(status.name());
         publishMember(out);
         return out;
     }

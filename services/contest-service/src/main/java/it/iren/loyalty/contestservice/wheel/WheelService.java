@@ -29,9 +29,11 @@ public class WheelService {
     private final InstantWinService instantWin;
     private final RestClient ledger, catalog;
     private final SecureRandom rnd = new SecureRandom();
+    private final it.iren.loyalty.common.metrics.LoyaltyMetrics metrics;
+    private final it.iren.loyalty.contestservice.ContestEvents events;
 
-    public WheelService(JdbcTemplate jdbc, WheelSource wheels, InstantWinService instantWin, RestClient.Builder b) {
-        this.jdbc = jdbc; this.wheels = wheels; this.instantWin = instantWin;
+    public WheelService(JdbcTemplate jdbc, WheelSource wheels, InstantWinService instantWin, RestClient.Builder b, it.iren.loyalty.common.metrics.LoyaltyMetrics metrics, it.iren.loyalty.contestservice.ContestEvents events) {
+        this.jdbc = jdbc; this.wheels = wheels; this.instantWin = instantWin; this.metrics = metrics; this.events = events;
         this.ledger = b.baseUrl(System.getenv().getOrDefault("LEDGER_URL", "http://ledger:8083")).build();
         this.catalog = b.baseUrl(System.getenv().getOrDefault("CATALOG_URL", "http://catalog-redemption:8085")).build();
     }
@@ -66,6 +68,8 @@ public class WheelService {
                 spinId, wheelId, memberId, slot.id(), won, won ? slot.rewardId() : null, won ? slot.wallet() : null, won ? slot.units() : 0, Timestamp.from(now), deviceFingerprint, ip);
         if (won && slot.rewardId() != null) catalog.post().uri("/v1/grants").body(Map.of("memberId", memberId, "rewardId", slot.rewardId(), "grantKey", "wheel:" + spinId)).retrieve().toBodilessEntity();
         if (won && slot.units() > 0) ledger.post().uri("/v1/ledger/postings").body(Map.of("memberId", memberId, "actionKey", "wheel:" + spinId + ":WIN", "currency", slot.wallet() == null ? "PREMIO" : slot.wallet(), "amount", slot.units(), "reason", "WHEEL:" + wheelId)).retrieve().toBodilessEntity();
+        metrics.spin(wheelId, won);
+        events.spun(wheelId, memberId, spinId.toString(), won, slot.id(), now);
         return new Result(spinId, slot.id(), slot.label(), won, won ? slot.rewardId() : null, won ? slot.wallet() : null, won ? slot.units() : 0, w.spinsPerMember() > 0 ? (int) (w.spinsPerMember() - spins - 1) : -1);
     }
 

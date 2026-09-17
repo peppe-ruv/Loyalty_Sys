@@ -1,0 +1,224 @@
+{
+ "uid": "loyalty-contests",
+ "title": "Loyalty Hub · Concorsi e instant win",
+ "tags": [
+  "loyalty",
+  "concorsi"
+ ],
+ "timezone": "Europe/Rome",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "30s",
+ "time": {
+  "from": "now-6h",
+  "to": "now"
+ },
+ "templating": {
+  "list": [
+   {
+    "name": "ds",
+    "type": "datasource",
+    "query": "prometheus",
+    "current": {
+     "text": "Thanos",
+     "value": "Thanos"
+    }
+   },
+   {
+    "name": "env",
+    "type": "query",
+    "datasource": {
+     "type": "prometheus",
+     "uid": "${ds}"
+    },
+    "query": "label_values(loyalty_actions_received_total, environment)",
+    "refresh": 2,
+    "includeAll": true
+   }
+  ]
+ },
+ "panels": [
+  {
+   "id": 1,
+   "type": "timeseries",
+   "title": "Giocate / min per concorso",
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (contest) (rate(loyalty_contest_plays_total[5m]))*60",
+     "legendFormat": "{{contest}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 2,
+   "type": "timeseries",
+   "title": "Vincite / min",
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (contest) (rate(loyalty_contest_plays_total{won=\"true\"}[5m]))*60",
+     "legendFormat": "{{contest}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 3,
+   "type": "stat",
+   "title": "Istanti vincenti residui (montepremi)",
+   "gridPos": {
+    "x": 0,
+    "y": 8,
+    "w": 12,
+    "h": 7
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "loyalty_contest_prizes_remaining",
+     "legendFormat": "{{contest}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 4,
+   "type": "timeseries",
+   "title": "Giri ruota per esito / min",
+   "gridPos": {
+    "x": 12,
+    "y": 8,
+    "w": 12,
+    "h": 7
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (wheel, won) (rate(loyalty_wheel_spins_total[5m]))*60",
+     "legendFormat": "{{wheel}} won={{won}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 5,
+   "type": "timeseries",
+   "title": "p95 giocata e ruota",
+   "gridPos": {
+    "x": 0,
+    "y": 15,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "slo:play_latency_p95:5m",
+     "legendFormat": "__auto"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 6,
+   "type": "timeseries",
+   "title": "Errori giocata (409 limiti, 5xx)",
+   "gridPos": {
+    "x": 12,
+    "y": 15,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${ds}"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (status) (rate(http_server_requests_seconds_count{application=\"contest-service\",status=~\"409|5..\"}[5m]))",
+     "legendFormat": "{{status}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "options": {}
+  }
+ ]
+}

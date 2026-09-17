@@ -13,9 +13,11 @@ public class OutboxRelay {
     private final Repositories.OutboxRepository outbox;
     private final KafkaTemplate<String, byte[]> kafka;
 
-    public OutboxRelay(Repositories.OutboxRepository outbox, KafkaTemplate<String, byte[]> kafka) {
+    public OutboxRelay(Repositories.OutboxRepository outbox, KafkaTemplate<String, byte[]> kafka, it.iren.loyalty.common.metrics.LoyaltyMetrics metrics) {
         this.outbox = outbox;
         this.kafka = kafka;
+        // RF-117: righe outbox non ancora pubblicate (alert se cresce: Kafka o relay fermi)
+        metrics.gauge("loyalty_outbox_pending", () -> outbox.countByPublishedAtIsNull(), "service", "ledger");
     }
 
     @Scheduled(fixedDelayString = "${ledger.outbox.relay-ms:500}")

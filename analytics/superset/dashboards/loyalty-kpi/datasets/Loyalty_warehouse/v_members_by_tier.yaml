@@ -1,0 +1,27 @@
+table_name: v_members_by_tier
+main_dttm_col: null
+description: Membri per tier
+schema: loyalty
+sql: null
+params: null
+cache_timeout: null
+is_sqllab_view: false
+metrics:
+- metric_name: count
+  verbose_name: Conteggio
+  expression: COUNT(*)
+- metric_name: sum_members
+  verbose_name: Somma members
+  expression: SUM(members)
+columns:
+- column_name: tier
+  is_dttm: false
+  groupby: true
+  filterable: true
+- column_name: members
+  is_dttm: false
+  groupby: true
+  filterable: true
+uuid: c8b6e1c2-463f-52a2-a65f-29f28e4c0123
+version: 1.0.0
+database_uuid: 6f1c0f0e-4f7a-4d5b-9b7c-1d2e3f4a5b6c

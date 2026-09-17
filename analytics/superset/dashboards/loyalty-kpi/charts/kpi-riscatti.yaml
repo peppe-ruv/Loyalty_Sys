@@ -1,0 +1,15 @@
+slice_name: Riscatti per giorno
+description: null
+viz_type: echarts_timeseries_line
+params:
+  viz_type: echarts_timeseries_line
+  datasource: v_kpi_daily__table
+  time_range: No filter
+  metrics:
+  - sum_redemptions
+  x_axis: day
+  time_grain_sqla: P1D
+cache_timeout: null
+uuid: 72a1c18a-ca0f-5f2f-a345-f08c6136d91d
+version: 1.0.0
+dataset_uuid: c6e9f17d-0235-5487-8130-d8381efca0d2

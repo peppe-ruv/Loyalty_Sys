@@ -22,8 +22,9 @@ public class InstantWinService {
     public static class ContestNotOpen extends RuntimeException { public ContestNotOpen() { super("CONTEST_NOT_OPEN"); } }
 
     private final JdbcTemplate jdbc;
+    private final it.iren.loyalty.common.metrics.LoyaltyMetrics metrics;
 
-    public InstantWinService(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    public InstantWinService(JdbcTemplate jdbc, it.iren.loyalty.common.metrics.LoyaltyMetrics metrics) { this.jdbc = jdbc; this.metrics = metrics; }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public Outcome play(UUID contestId, String memberId, String deviceFingerprint, String ip) {
@@ -56,6 +57,9 @@ public class InstantWinService {
             jdbc.update("UPDATE contestservice.winning_instant SET assigned_play_id = ?, assigned_at = ? WHERE id = ?",
                     playId, java.sql.Timestamp.from(now), won.get(0).get("id"));
         }
+        metrics.play(contestId.toString(), !won.isEmpty());
+        Long remaining = jdbc.queryForObject("SELECT count(*) FROM contestservice.winning_instant WHERE contest_id = ? AND assigned_play_id IS NULL", Long.class, contestId);
+        metrics.gauge("loyalty_contest_prizes_remaining", remaining == null ? 0 : remaining, "contest", contestId.toString()); // RF-46 montepremi residuo
         return new Outcome(playId, !won.isEmpty(), won.isEmpty() ? null : (String) won.get(0).get("prize_code"), now);
     }
 }

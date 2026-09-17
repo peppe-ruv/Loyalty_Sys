@@ -1,6 +1,6 @@
 global:
   registry: ghcr.io/iren-loyalty
-  tag: "0.3.0"
+  tag: "0.4.0"
   imagePullPolicy: IfNotPresent
   environment: dev
   # Segreti letti da AWS Secrets Manager tramite External Secrets (RP-04)
@@ -149,7 +149,8 @@ services:
     port: 3000
     replicas: 2
     db: true
-    env: { CMS_URL: https://loyalty.example.it/admin }
+    env: { CMS_URL: https://loyalty.example.it/admin, SUPERSET_URL: http://superset.analytics:8088, SUPERSET_PUBLIC_URL: https://bi.loyalty.example.it, NEXT_PUBLIC_GRAFANA_URL: https://monitoring.loyalty.example.it/dashboards }
+    metricsPath: /api/metrics
     healthPath: /admin
     resources: { requests: { cpu: 250m, memory: 512Mi }, limits: { memory: 1Gi } }
     expose: { path: /admin }
@@ -168,5 +169,7 @@ kafkaTopics:
     - loyalty.members.v1
     - loyalty.segments.v1
 
+# RF-117: ServiceMonitor per ogni servizio quando lo stack di monitoraggio (deploy/observability) è installato
 serviceMonitor:
-  enabled: false
+  enabled: true
+  labels: { release: monitoring }

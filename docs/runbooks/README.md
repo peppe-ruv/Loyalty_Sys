@@ -8,3 +8,5 @@
 | Ripristino in seconda region (DR) | perdita della region primaria | 1. Ripristinare RDS dal backup continuo (RPO 15 min). 2. `make infra ENV=prod REGION=<dr>` con `dr_region` valorizzata. 3. `make install`. 4. Aggiornare il DNS. Obiettivo RTO 4 h; prova trimestrale. |
 | Chiusura concorso e export per il notaio | fine periodo del concorso | 1. Stato `CLOSED` dal backoffice. 2. Export registro giocate + istanti vincenti + premi non assegnati (RF-37). 3. Verifica degli hash con lo script di controllo. 4. Estrazione di recupero alla presenza del funzionario (RF-36). |
 | Batch di fine anno programma | 31 dicembre | 1. Prova in staging almeno 30 giorni prima (RF-23). 2. Eseguire verifica tier, scadenza punti, chiusura missioni. 3. Report per Legal. |
+
+- [Osservabilità e BI](osservabilita.md): alert SLO, cosa fare, manutenzione dei cruscotti, escalation.

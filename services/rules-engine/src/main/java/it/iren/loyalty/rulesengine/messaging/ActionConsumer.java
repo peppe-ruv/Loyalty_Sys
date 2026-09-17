@@ -33,9 +33,10 @@ public class ActionConsumer {
     private final SegmentClient segments;
     private final RewardClient rewards;
     private final EngagementClient engagement;
+    private final it.iren.loyalty.common.metrics.LoyaltyMetrics metrics;
 
-    public ActionConsumer(CampaignSource campaigns, CampaignEvaluator evaluator, LedgerClient ledger, TierClient tiers, SegmentClient segments, RewardClient rewards, EngagementClient engagement) {
-        this.campaigns = campaigns; this.evaluator = evaluator; this.ledger = ledger; this.tiers = tiers; this.segments = segments; this.rewards = rewards; this.engagement = engagement;
+    public ActionConsumer(CampaignSource campaigns, CampaignEvaluator evaluator, LedgerClient ledger, TierClient tiers, SegmentClient segments, RewardClient rewards, EngagementClient engagement, it.iren.loyalty.common.metrics.LoyaltyMetrics metrics) {
+        this.campaigns = campaigns; this.evaluator = evaluator; this.ledger = ledger; this.tiers = tiers; this.segments = segments; this.rewards = rewards; this.engagement = engagement; this.metrics = metrics;
     }
 
     @KafkaListener(topics = EventTypes.TOPIC_ACTIONS, concurrency = "${rules.consumer.concurrency:6}")
@@ -53,12 +54,14 @@ public class ActionConsumer {
         var result = evaluator.evaluate(action, campaigns.publishedCampaignsFor(action.actionType()), member, ledger.usage(memberId, action.actionType()), Instant.now());
         if (result.outcomes().isEmpty()) {
             log.info("no campaign fired for actionType={} key={} skipped={} (kept for replay)", action.actionType(), action.idempotencyKey(), result.skipped());
+            metrics.noCampaign(action.actionType());
             return;
         }
         List<RuleEvaluator.Posting> postings = result.outcomes().stream().filter(CampaignEvaluator.Outcome::isUnits)
                 .map(o -> new RuleEvaluator.Posting(o.campaignId(), o.version(), Currency.of(o.wallet()), o.signedUnits(), 0, null, o.expiresAt(), o.pendingUntil())).toList();
         if (!postings.isEmpty()) ledger.post(memberId, action.idempotencyKey(), postings);
         for (var o : result.outcomes()) {
+            metrics.campaignEffect(o.campaignId(), o.type().name());
             String key = action.idempotencyKey() + ":" + o.campaignId() + ":" + o.ruleId();
             switch (o.type()) {
                 case GIVE_REWARD -> rewards.grant(memberId, o.reference(), key);
