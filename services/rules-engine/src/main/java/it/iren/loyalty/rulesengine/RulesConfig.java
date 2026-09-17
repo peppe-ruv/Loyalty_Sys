@@ -61,9 +61,14 @@ public class RulesConfig {
         RestClient client = builder.baseUrl(System.getenv().getOrDefault("LEDGER_URL", "http://ledger:8083")).build();
         return new LedgerClient() {
             @Override public void post(String memberId, String actionKey, List<RuleEvaluator.Posting> postings) {
-                for (var p : postings) {
+                // Il ledger è idempotente per (chiave, wallet): con la sola chiave dell'azione, due
+                // campagne che premiano lo stesso wallet si scontrerebbero — una verrebbe persa e
+                // l'inserimento dell'altra violerebbe il vincolo di unicità. Ogni campagna ha quindi
+                // la sua chiave derivata, e gli effetti della stessa campagna sullo stesso wallet si
+                // sommano in un movimento solo. Lo storno dell'azione li ritrova tutti, per prefisso.
+                for (var p : merge(postings)) {
                     client.post().uri("/v1/ledger/postings").body(Map.of(
-                            "memberId", memberId, "actionKey", actionKey, "currency", p.currency().code(),
+                            "memberId", memberId, "actionKey", postingKey(actionKey, p), "currency", p.currency().code(),
                             "amount", p.amount(), "reason", "RULE:" + p.ruleId() + "@" + p.ruleVersion(), "lockDays", p.lockDays(),
                             "expiresAt", p.expiresAt() == null ? "" : p.expiresAt().toString(), "pendingUntil", p.pendingUntil() == null ? "" : p.pendingUntil().toString())).retrieve().toBodilessEntity();
                 }
@@ -125,6 +130,30 @@ public class RulesConfig {
             }
             @Override public List<it.iren.loyalty.rulesengine.campaign.Campaign> scheduled() { return List.of(); }
         };
+    }
+
+    /**
+     * Chiave di idempotenza dell'accredito di una campagna: comincia con la chiave dell'azione —
+     * così lo storno dell'azione la ritrova per prefisso (RI-08) — e la distingue dalle altre
+     * campagne premiate dallo stesso evento.
+     */
+    static String postingKey(String actionKey, RuleEvaluator.Posting posting) {
+        return actionKey + ":" + posting.ruleId();
+    }
+
+    /**
+     * Unisce gli accrediti della stessa campagna sullo stesso wallet in un movimento solo, sommando
+     * le unità: la chiave del ledger è (azione:campagna, wallet) e due movimenti non ci starebbero.
+     * Tiene la scadenza e la sospensione del primo effetto e l'ordine di arrivo.
+     */
+    static List<RuleEvaluator.Posting> merge(List<RuleEvaluator.Posting> postings) {
+        var merged = new java.util.LinkedHashMap<String, RuleEvaluator.Posting>();
+        for (var p : postings) {
+            merged.merge(p.ruleId() + "|" + p.currency().code(), p,
+                    (a, b) -> new RuleEvaluator.Posting(a.ruleId(), a.ruleVersion(), a.currency(), a.amount() + b.amount(),
+                            a.lockDays(), a.autoRewardId(), a.expiresAt(), a.pendingUntil()));
+        }
+        return List.copyOf(merged.values());
     }
 
     @Bean

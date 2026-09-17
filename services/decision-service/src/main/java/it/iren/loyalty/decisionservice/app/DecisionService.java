@@ -131,12 +131,26 @@ public class DecisionService {
         return new Assigned(base, null, null, false);
     }
 
+    /**
+     * Chiave di idempotenza di un effetto: azione di origine, decisione, tipo di azione scelta.
+     * Comincia sempre con la chiave dell'azione, così lo storno dell'azione ritrova gli effetti
+     * per prefisso (RI-08), e distingue due effetti della stessa decisione — compresi due accrediti
+     * sullo stesso wallet, che con la sola chiave dell'azione si sarebbero sovrascritti.
+     */
+    static String effectKey(String actionKey, String decisionId, Object action) {
+        String shortId = decisionId.length() <= 8 ? decisionId : decisionId.substring(0, 8);
+        return actionKey + ":" + shortId + ":" + action;
+    }
+
     private void execute(String memberId, String actionKey, Decision d) {
         for (var c : d.actions()) {
-            String key = actionKey + ":" + d.decisionId().substring(0, 8) + ":" + c.action();
+            String key = effectKey(actionKey, d.decisionId(), c.action());
             try {
                 switch (c.action()) {
-                    case AWARD_POINTS -> effects.awardUnits(memberId, actionKey, c);
+                    // `key` e non `actionKey`: due campagne che premiano lo stesso wallet per lo stesso
+                    // evento devono produrre due movimenti, non uno solo (il ledger è idempotente per
+                    // chiave+wallet). Lo storno li ritrova comunque, per prefisso.
+                    case AWARD_POINTS -> effects.awardUnits(memberId, key, c);
                     case ISSUE_REWARD -> effects.grantReward(memberId, c.reference(), key);
                     case ISSUE_COUPON -> effects.issueCoupon(memberId, c.reference(), key);
                     case GRANT_BADGE -> effects.grantBadge(memberId, c.reference(), key);

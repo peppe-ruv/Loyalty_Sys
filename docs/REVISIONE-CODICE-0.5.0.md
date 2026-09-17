@@ -5,101 +5,162 @@ Ogni voce è stata verificata leggendo il codice, non dedotta: dove la segnalazi
 sbagliata è scritto perché.
 
 Le correzioni già applicate sono nei commit di questo ramo e riassunte in `CHANGELOG.md`.
-Quelle elencate sotto **non** sono state applicate: cambiano la semantica di saldi, transazioni o
-garanzie di consegna, cioè scelte di prodotto che spettano a chi governa la specifica (CLAUDE.md §6).
+Le voci ancora aperte cambiano la semantica di saldi, transazioni o garanzie di consegna: si
+affrontano una alla volta, con il banco di prova di integrazione a fare da rete (CLAUDE.md §6).
+Quelle chiuse restano qui con la decisione presa, perché il motivo conta quanto la correzione.
 
-## 1. Un evento che premia due volte lo stesso wallet accredita una volta sola
+## 1. ~~Un evento che premia due volte lo stesso wallet accredita una volta sola~~ — risolto
 
-`decision-service/app/DecisionService.execute` costruisce per ogni azione scelta una chiave
-`actionKey:decisionId:azione`, e la usa per premi, coupon, badge, eventi. Per `AWARD_POINTS`, però,
-passa la sola `actionKey` dell'evento di origine:
+**Decisione presa**: la chiave di idempotenza del ledger è l'**effetto**, non l'azione; lo storno
+dell'azione ritrova gli effetti per prefisso.
 
-```java
-case AWARD_POINTS -> effects.awardUnits(memberId, actionKey, c);   // non `key`
-```
+Il problema era che `LedgerService.post` è idempotente per `(actionKey, wallet)` mentre entrambi i
+percorsi usavano la chiave della sola azione, con due sintomi diversi per la stessa causa: nel
+`decision-service` il secondo accredito veniva scartato in silenzio (membro sotto-premiato), nel
+`rules-engine` — che posta tutti gli esiti in un colpo — i due inserimenti si scontravano sul vincolo
+di unicità e l'intero consumo dell'azione falliva, all'infinito.
 
-`LedgerService.post` è idempotente per `(actionKey, wallet)`: se due campagne premiano lo stesso
-evento sullo stesso wallet — caso previsto, le azioni contrattuali sono sempre applicate — la
-seconda viene scartata in silenzio. Il membro riceve meno punti del dovuto e non resta traccia.
+Non si poteva semplicemente cambiare chiave: lo storno (`POST /v1/ledger/reversals/{chiave}`) cercava
+i movimenti per chiave esatta e non li avrebbe più trovati. Quindi:
 
-Non è una svista isolata: la chiave dell'accredito **deve** restare quella dell'azione di origine
-perché lo storno (`POST /v1/ledger/reversals/{actionKey}`, `RulesConfig.reverse`) ritrova i movimenti
-per chiave esatta. Cambiare la chiave dell'accredito rompe lo storno; tenerla rompe il doppio premio.
+- ogni effetto ha la sua chiave derivata, che comincia sempre con quella dell'azione:
+  `azione:campagna` (rules-engine, `RulesConfig.postingKey`) e `azione:decisione:tipo`
+  (decision-service, `DecisionService.effectKey`);
+- gli effetti della stessa campagna sullo stesso wallet si sommano in un movimento solo
+  (`RulesConfig.merge`), perché la chiave del ledger resta unica per wallet;
+- `LedgerService.reverse` cerca la chiave **e le sue derivate**, limitandosi ai movimenti di valore
+  (EARN/SPEND) e saltando quelli già stornati: scadenze e storni precedenti non vengono toccati, e un
+  secondo storno non rompe più il vincolo di unicità — restituisce una lista vuota.
 
-Serve una decisione fra:
-- accredito con chiave `actionKey:campagna` e storno che ritrova i movimenti **per prefisso**
-  (`action_key LIKE 'chiave:%'`), oppure
-- un solo effetto per wallet per evento, dichiarato nella policy e con uno scarto esplicito
-  (`OUTRANKED`) invece del silenzio.
+Coperto da nove test di integrazione sul ledger e da otto unitari sulle due derivazioni di chiave.
 
-## 2. Le azioni premianti possono perdersi all'ingresso
+## 2. ~~Le azioni premianti possono perdersi all'ingresso~~ — risolto
 
-`ActionIngressController` registra la chiave di idempotenza **prima** di pubblicare:
+**Decisione presa**: meglio un duplicato che una perdita. La piattaforma è dichiaratamente
+at-least-once con consumer idempotenti (CLAUDE.md §4), quindi l'ingresso ora attende la conferma del
+broker e consuma la chiave di idempotenza solo dopo.
 
-```java
-if (!dedup.firstSeen(a.idempotencyKey())) { ...DUPLICATE... }
-publisher.publish(...);   // ActionPublisher: kafka.send(...) senza attendere l'esito
-```
+Prima: `dedup.firstSeen(chiave)` registrava la chiave, poi `kafka.send(...)` partiva senza che
+nessuno ne guardasse l'esito. Con il broker fermo la fonte riceveva `202 ACCEPTED`, l'azione non
+entrava in piattaforma e ogni rinvio veniva respinto come `DUPLICATE`: persa per sempre, senza traccia.
 
-`ActionPublisher.publish` ignora il future di `KafkaTemplate.send`: se il broker rifiuta, nessuno se
-ne accorge, la risposta resta `202 ACCEPTED` e ogni tentativo successivo con la stessa chiave è
-respinto come `DUPLICATE`. L'azione è persa senza traccia.
+Ora:
 
-La piattaforma è dichiaratamente at-least-once con consumer idempotenti (CLAUDE.md §4), quindi la
-correzione coerente è attendere l'ack e registrare la chiave **dopo** la pubblicazione riuscita:
-duplicati tollerati, perdite no. Costa latenza su ogni lotto: va misurata sui volumi reali prima di
-adottarla.
+- `ActionPublisher` attende l'ack del broker (`ingress.publish.ack-timeout-ms`, 5 s di default) e
+  solleva `PublishFailed`; vale anche per la DLQ, perché anche uno scarto che sparisce è una perdita;
+- il controller, se la pubblicazione fallisce, **rilascia la chiave** (`DedupService.forget`) e marca
+  l'elemento `FAILED`; il lotto risponde `503` invece di `202`, così anche una fonte che non legge
+  l'esito per elemento si accorge e rinvia. Le azioni già accettate restano deduplicate al rinvio;
+- stesso trattamento per il check-in (`CheckInController`).
 
-## 3. Chiamate HTTP dentro transazioni, senza compensazione
+Il contratto `docs/contracts/openapi-ingress.yaml` dichiara il nuovo stato `FAILED`, il contatore
+`failed` e la risposta `503` (aggiunta compatibile: nessun campo rimosso o cambiato).
 
-`RedemptionService.create` addebita il ledger via REST e poi continua in transazione locale; se il
-seguito fallisce (`COUPON_POOL_EMPTY`, stock esaurito) la transazione locale torna indietro ma
-**l'addebito remoto è già committato**: il membro resta senza punti e senza premio. Stessa forma in
-`WheelService.spin` e nel merge di `identity-mapping`.
+Coperto da tre test di integrazione: broker fermo → 503 e nessuna accettazione; broker che torna →
+la stessa chiave viene presa in carico; azione pubblicata davvero → il secondo invio resta duplicato.
 
-Serve una compensazione esplicita (storno nel `catch`) o lo spostamento dell'addebito dopo l'esito
-locale. È il punto in cui la piattaforma ha più bisogno dei test di integrazione con Testcontainers
-già in backlog: una correzione senza quel banco di prova è un salto nel buio.
+## 3. ~~Chiamate HTTP dentro transazioni, senza compensazione~~ — risolto (con un guasto scoperto sotto)
 
-## 4. Cicli delle classifiche chiusi prima di premiare
+`RedemptionService.redeem` addebitava il ledger via REST e poi continuava in transazione locale: se
+il seguito falliva (`COUPON_POOL_EMPTY`, stock esaurito) la transazione locale tornava indietro ma
+**l'addebito remoto era già committato**, e il membro restava senza punti e senza premio. Stessa
+forma in `WheelService.spin`.
 
-`LeaderboardJobs.closeCycles` inserisce la riga di ciclo chiuso (`ON CONFLICT DO NOTHING`, che è la
-guardia contro la doppia premiazione) e **poi** assegna i premi, senza transazione comune. Un errore
-a metà elenco lascia i vincitori successivi senza premio e il ciclo risulta chiuso per sempre.
+**Decisione presa**: compensazione esplicita. Dopo l'addebito, tutto ciò che segue sta in un
+`try/catch`; al primo errore si storna la chiave dell'addebito e si rilancia. Lo storno del ledger è
+idempotente (punto 1), quindi un tentativo perso si può ripetere a mano senza doppi accrediti; se
+anche la compensazione fallisce resta un log esplicito con la causa originale.
 
-## 5. Metrica di classifica irraggiungibile
+Per rendere la cosa verificabile, `catalog-redemption` ha ora la porta `LedgerPort` con
+l'implementazione REST nella configurazione, come vuole la convenzione (CLAUDE.md §7): prima il
+servizio si costruiva il `RestClient` da sé e la compensazione non era provabile.
 
-`EngagementService.onAction` scarta ogni azione il cui tipo inizia per `ACHIEVEMENT_` o
-`CHALLENGE_` — filtro anti-anello. Ma la metrica `ACHIEVEMENT_PROGRESS` delle classifiche si alimenta
-proprio da `ACHIEVEMENT_PROGRESSED`: quel ramo non può mai scattare e una classifica configurata così
-resta vuota senza errori. Nello stesso `switch`, il ramo `ACHIEVEMENT_PROGRESS` chiama
-`lb.reference().equals(...)` senza la guardia sul null che ha il ramo precedente.
+**Il test ha fatto emergere un guasto più grave nello stesso metodo**: `record` prendeva il codice dal
+lotto *prima* di inserire la riga del riscatto, ma `coupon.redemption_id` ha una chiave esterna verso
+`redemption(id)` non differita — quindi **nessun buono da lotto si sarebbe mai potuto riscattare**.
+Ora la riga del riscatto si scrive per prima e il codice si aggancia dopo.
 
-Va deciso quali azioni interne devono rientrare (probabilmente `ACHIEVEMENT_PROGRESSED` sì,
-`ACHIEVEMENT_COMPLETED` no) e ristretto il filtro di conseguenza.
+Resta fuori `identity-mapping`: il merge trasferisce le unità e poi chiude il membro assorbito; un
+errore in mezzo lascia le unità spostate e il membro aperto. Le unità non si perdono (il
+`transferKey` è idempotente e il merge si ripete), quindi è una incoerenza di stato, non un ammanco:
+va comunque chiusa quando si affronterà l'unmerge dei saldi, già in backlog.
 
-## 6. «Paga con i punti» può scontare più del carrello
+## 4. ~~Cicli delle classifiche chiusi prima di premiare~~ — risolto
 
-`UnitsConversion.unitsFor` arrotonda per eccesso al passo: con passo 100 e 0,01 €/punto, un carrello
-da 5,55 € scala 600 punti e restituisce `discountEur = 6,00`. Lo sconto supera l'importo.
+**Decisione presa**: la riga del ciclo è una *prenotazione*, non una chiusura; la premiazione si
+conferma a parte e i cicli prenotati e non confermati vengono ripresi.
 
-Le due uscite ragionevoli — arrotondare per difetto (il resto si paga normalmente) o limitare lo
-sconto all'importo del carrello, lasciando al membro i punti in eccesso — hanno effetti diversi sul
-conto economico: è una scelta di prodotto, non una correzione tecnica.
+`closeCycles` inseriva la riga del ciclo — la guardia contro la doppia premiazione — e solo dopo
+assegnava i premi, con chiamate a catalogo, ledger ed engagement fuori da qualunque transazione
+comune: un errore a metà elenco lasciava i vincitori successivi senza premio e il ciclo chiuso per
+sempre.
 
-## 7. Chiavi di idempotenza generate dall'orologio
+Ora `leaderboard_cycle` ha `rewarded_at` (migrazione `V2`): l'inserimento prenota, la premiazione si
+conferma in fondo, e al giro successivo un ciclo prenotato ma non confermato viene ripreso. Il
+secondo tentativo è innocuo perché ogni premio ha già la sua chiave di idempotenza
+(`leaderboard:<classifica>:<ciclo>:<membro>`). I punteggi si azzerano solo dopo la conferma.
 
-`web/bff/src/server.js` costruisce alcune chiavi con `Date.now()` (trasferimenti P2P, eventi
-comportamentali, azioni da sportello). Un ritentativo del client genera una chiave diversa e la
-deduplica a valle non scatta: l'operazione si ripete. Le chiavi devono venire dal client
-(`clientRef`) o da un identificativo stabile dell'operazione.
+## 5. ~~Metrica di classifica irraggiungibile~~ — risolto
 
-## 8. Accumulo STATUS non idempotente
+`EngagementService.onAction` scartava ogni azione il cui tipo inizia per `ACHIEVEMENT_` o
+`CHALLENGE_` — filtro anti-anello — ma la metrica `ACHIEVEMENT_PROGRESS` si nutre proprio di
+`ACHIEVEMENT_PROGRESSED`: quel ramo non poteva mai scattare e una classifica configurata così
+restava vuota, senza errori.
 
-`TierUpdater` somma i punti STATUS a ogni movimento consumato dal topic. L'outbox del ledger è
-at-least-once: un replay del topic gonfia i punti status dell'anno. Serve la stessa difesa usata
-altrove (chiave del movimento già vista, o `ON CONFLICT DO NOTHING` su una tabella di movimenti
-applicati).
+Le azioni interne del servizio ora saltano il motore (l'anello resta escluso) ma **alimentano le
+classifiche**: `applyToLeaderboards` è un passaggio a sé, chiamato da entrambi i percorsi. Nello
+stesso ramo mancava la guardia sul riferimento nullo che gli altri hanno: una classifica senza
+riferimento vale per qualunque achievement.
+
+Coperti da due test di integrazione sul `engagement-service`.
+
+## 6. ~~«Paga con i punti» può scontare più del carrello~~ — risolto
+
+`UnitsConversion.unitsFor` arrotondava per eccesso al passo: con passo 100 e 0,01 €/punto un carrello
+da 5,55 € scalava 600 punti e restituiva `discountEur = 6,00`, cioè più dell'importo.
+
+**Decisione presa**: si arrotonda **per difetto** e il resto del carrello si paga normalmente. È
+l'uscita che non fa mai perdere valore al membro: 5,55 € diventano 500 punti e 5,00 € di sconto, i
+restanti 0,55 € si pagano. Quando l'importo non copre nemmeno il taglio minimo la richiesta viene
+rifiutata con `AMOUNT_BELOW_MINIMUM` invece di scalare un importo sbagliato, e se il chiamante chiede
+esplicitamente più unità di quante ne valga il carrello si risponde `UNITS_EXCEED_AMOUNT`: consumarle
+in silenzio significherebbe regalare la differenza.
+
+Cinque test sul dominio, compresi il taglio minimo esatto e il massimo configurato.
+
+## 7. ~~Chiavi di idempotenza generate dall'orologio~~ — risolto, e c'era di peggio
+
+Il BFF costruiva alcune chiavi con `Date.now()`: un ritentativo del client ne generava una nuova e
+la deduplica a valle non scattava, quindi l'operazione si ripeteva — trasferimento di unità compreso.
+
+Scrivendo la correzione è emerso un difetto più grave nello stesso punto: **quelle chiavi non erano
+nemmeno valide**. La convenzione RI-01 vuole tre segmenti (`<fonte>:<riferimento>:<evento>`) e il BFF
+ne produceva cinque, così l'ingresso le respingeva tutte con `INVALID_IDEMPOTENCY_KEY`: nessun evento
+comportamentale del sito e nessuna azione da sportello entrava davvero in piattaforma.
+
+Ora le chiavi si costruiscono in un unico punto (`web/bff/src/keys.js`), che compone i tre segmenti,
+ripulisce il riferimento e **rifiuta** una chiave storta invece di spedirla. Dove l'operazione muove
+valore — trasferimenti P2P, azioni da sportello, badge, blocchi — il riferimento deve arrivare dal
+client (`clientRef`), altrimenti la richiesta è respinta con 400: un doppio clic non può accreditare
+due volte. Per gli eventi comportamentali il riferimento resta facoltativo, con la finestra del
+minuto come ripiego.
+
+Sei test (`node --test`) sul modulo delle chiavi.
+
+## 8. ~~Accumulo STATUS non idempotente~~ — risolto
+
+`TierUpdater` sommava i punti STATUS di ogni movimento letto dal topic senza tenere memoria di quali
+avesse già applicato. L'outbox del ledger è at-least-once (RI-08): un replay gonfiava i punti
+dell'anno e, con essi, il tier del membro.
+
+Ora ogni movimento applicato è registrato (`tierservice.applied_movement`, migrazione `V3`) e il
+secondo passaggio non conta nulla. Nello stesso punto l'azione interna `TIER_CHANGED` aveva una
+chiave presa dall'orologio: è diventata stabile e nella forma di RI-01
+(`tiers:<membro>.<anno>.<tier>.<motivo>:TIER_CHANGED`), così un replay è riconoscibile come lo stesso
+cambio invece di generarne uno nuovo.
+
+Due test di integrazione: lo stesso movimento due volte non raddoppia i punti; movimenti diversi si
+sommano e l'upgrade di tier scatta.
 
 ## Segnalazioni verificate e respinte
 

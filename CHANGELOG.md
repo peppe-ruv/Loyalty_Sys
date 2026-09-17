@@ -4,6 +4,68 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
 
 ## [0.6.2] — 2026-09-17
 
+### Corretto (guasti di avvio, trovati dai test di integrazione)
+- `ledger`: i repository JPA annidati in `Repositories` non venivano registrati — nessun bean, servizio che non parte
+- `common`: `MetricsAutoConfiguration` valutava `@ConditionalOnBean(MeterRegistry)` prima che Micrometer registrasse
+  il registro; senza `LoyaltyMetrics` nessun servizio si avvia
+- `catalog-redemption`: la colonna generata `redemption.expires_at` sommava un intervallo a un `timestamptz`,
+  espressione che Postgres rifiuta come non immutabile: lo schema non si creava affatto
+
+### Corretto (addebiti senza compensazione)
+- `catalog-redemption` e `contest-service`: l'addebito sul ledger è una chiamata a un altro servizio e restava
+  committato anche quando il riscatto o la giocata fallivano subito dopo (lotto di codici esaurito, stock, budget).
+  Ora ogni fallimento successivo all'addebito lo storna, e lo storno è idempotente
+- `catalog-redemption`: `record` legava il codice del lotto al riscatto prima di inserirne la riga, violando la
+  chiave esterna — nessun buono da lotto era riscattabile. La riga si scrive per prima
+- `catalog-redemption` espone la porta `LedgerPort` (implementazione REST nella configurazione) come vuole la
+  convenzione: prima il servizio costruiva il proprio client e la compensazione non era verificabile
+
+### Corretto (paga con i punti)
+- `catalog-redemption`: le unità da scalare si arrotondavano per eccesso al passo e lo sconto superava l'importo del
+  carrello (5,55 € → 600 punti = 6,00 €). Ora si arrotonda per difetto e il resto si paga normalmente; sotto il
+  taglio minimo la richiesta è rifiutata (`AMOUNT_BELOW_MINIMUM`) e unità esplicite che valgono più del carrello
+  danno `UNITS_EXCEED_AMOUNT` invece di essere consumate in silenzio
+
+### Corretto (tier)
+- `tier-service` sommava i punti STATUS di ogni movimento letto dal topic senza memoria di quelli già applicati: un
+  replay dell'outbox (at-least-once) gonfiava punti e tier. Ogni movimento applicato è ora registrato (migrazione
+  V3) e l'azione interna `TIER_CHANGED` ha una chiave stabile invece che presa dall'orologio
+
+### Corretto (chiavi di idempotenza del BFF)
+- Le chiavi costruite dal BFF avevano cinque segmenti invece dei tre della convenzione RI-01: l'ingresso le
+  respingeva tutte, quindi nessun evento comportamentale del sito né azione da sportello entrava in piattaforma.
+  Ora si compongono in `web/bff/src/keys.js`, che rifiuta una chiave storta invece di spedirla
+- Le chiavi non nascono più da `Date.now()`: dove l'operazione muove valore (trasferimenti, azioni da sportello,
+  badge, blocchi) il `clientRef` del chiamante è obbligatorio, altrimenti 400
+
+### Corretto (premi e classifiche)
+- `engagement-service`: la chiusura di un ciclo premiante marcava il ciclo come chiuso prima di assegnare i premi;
+  un errore a metà elenco lasciava i vincitori successivi senza nulla. La riga del ciclo è ora una prenotazione
+  (`rewarded_at`, migrazione V2) e un ciclo non confermato viene ripreso al giro successivo
+- `engagement-service`: le classifiche con metrica `ACHIEVEMENT_PROGRESS` non potevano mai segnare punti, perché il
+  filtro anti-anello scartava anche `ACHIEVEMENT_PROGRESSED`. Le azioni interne ora alimentano le classifiche pur
+  restando fuori dal motore; aggiunta la guardia sul riferimento nullo
+
+### Corretto (azioni perse all'ingresso)
+- `ingress-adapters` registrava la chiave di idempotenza prima di pubblicare e non attendeva l'esito dell'invio a
+  Kafka: con il broker fermo la fonte riceveva 202, l'azione non entrava e ogni rinvio era respinto come duplicato.
+  Ora la pubblicazione attende l'ack, la chiave viene rilasciata se il broker non conferma e il lotto risponde 503
+  con gli elementi marcati `FAILED`; stesso trattamento per i check-in. Contratto OpenAPI aggiornato
+
+### Corretto (accrediti persi)
+- La chiave di idempotenza del ledger identificava l'azione e non l'effetto: due campagne che premiavano lo stesso
+  wallet per lo stesso evento producevano un solo accredito (decision-service) o un conflitto sul vincolo di unicità
+  che bloccava il consumo (rules-engine). Ora ogni effetto ha la sua chiave derivata e lo storno dell'azione le
+  ritrova per prefisso, senza toccare scadenze e storni già emessi; un secondo storno non rompe più nulla
+
+### Aggiunto
+- Banco di prova di integrazione: `PostgresIntegrationTest` in `common` (test-jar, Postgres 16 con migrazioni vere) e
+  un `ContextLoadsTest` per ciascuno dei 14 servizi — la prova che il contesto Spring si alza davvero
+
+### Modificato
+- Una sola versione per tutto il repository: `services/pom.xml`, `Chart.yaml`, `Makefile` e i cinque `package.json`
+  passano da 0.5.0/0.6.1/0.1.0 a 0.6.2. Le immagini continuano a prendere la versione dal tag git
+
 Il monorepo 0.5.0 (servizi Java, CMS, web, deploy, analytics) e il bundle UX 0.6.0 vivono nello stesso
 repository; da qui tutto si costruisce e si verifica con `make check`.
 

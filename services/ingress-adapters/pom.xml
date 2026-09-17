@@ -12,6 +12,7 @@
   <description>Adattatori per fonte: validazione, idempotenza, pubblicazione evento canonico (RI-01..RI-04)</description>
   <dependencies>
     <dependency><groupId>it.iren.loyalty</groupId><artifactId>common</artifactId></dependency>
+    <dependency><groupId>it.iren.loyalty</groupId><artifactId>common</artifactId><type>test-jar</type><scope>test</scope></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
     <dependency><groupId>org.springframework.kafka</groupId><artifactId>spring-kafka</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-jpa</artifactId></dependency>

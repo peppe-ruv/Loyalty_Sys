@@ -5,10 +5,10 @@
   <parent>
     <groupId>it.iren.loyalty</groupId>
     <artifactId>loyalty-hub-services</artifactId>
-    <version>0.5.0-SNAPSHOT</version>
+    <version>0.6.2-SNAPSHOT</version>
   </parent>
   <artifactId>tier-service</artifactId>
-  <version>0.5.0-SNAPSHOT</version>
+  <version>0.6.2-SNAPSHOT</version>
   <name>tier-service</name>
   <description>Soglie, upgrade immediato, verifica annuale con discesa di un livello (RF-10..RF-13)</description>
   <licenses>
@@ -21,6 +21,12 @@
     <dependency>
       <groupId>it.iren.loyalty</groupId>
       <artifactId>common</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>it.iren.loyalty</groupId>
+      <artifactId>common</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>

@@ -12,6 +12,7 @@
   <description>Rilevazione frodi e abusi: segnali configurabili, riskScore/riskLevel/reasonCodes, blocco automatico (RF-131)</description>
   <dependencies>
     <dependency><groupId>it.iren.loyalty</groupId><artifactId>common</artifactId></dependency>
+    <dependency><groupId>it.iren.loyalty</groupId><artifactId>common</artifactId><type>test-jar</type><scope>test</scope></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
     <dependency><groupId>org.springframework.kafka</groupId><artifactId>spring-kafka</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-jpa</artifactId></dependency>

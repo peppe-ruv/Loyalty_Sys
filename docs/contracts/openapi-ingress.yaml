@@ -26,6 +26,14 @@ paths:
         '400': { description: Corpo non valido }
         '401': { description: Autenticazione fallita }
         '429': { description: Rate limit per fonte superato }
+        '503':
+          description: >-
+            Almeno un'azione non è stata pubblicata perché il broker non ha confermato (RI-01).
+            Il corpo ha la stessa forma: `failed` le conta e `results` dice quali. Le azioni già
+            accettate sono deduplicate, quindi la fonte può rinviare il lotto intero.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BatchResult' }
   /v1/codes/redeem:
     post:
       summary: Usa un codice promozionale o QR (RF-69); se valido pubblica l'azione CODE_REDEEMED
@@ -61,6 +69,7 @@ paths:
       responses:
         '202': { description: Accettato }
         '200': { description: Già registrato oggi (DUPLICATE) }
+        '503': { description: Broker non disponibile; il check-in non è entrato e l'app deve riprovare }
 components:
   securitySchemes:
     oauth2:
@@ -124,11 +133,14 @@ components:
         accepted: { type: integer }
         duplicates: { type: integer }
         rejected: { type: integer }
+        failed:
+          type: integer
+          description: Ricevute ma non pubblicate (broker non disponibile); da rinviare.
         results:
           type: array
           items:
             type: object
             properties:
               idempotencyKey: { type: string }
-              status: { type: string, enum: [ACCEPTED, DUPLICATE, REJECTED] }
+              status: { type: string, enum: [ACCEPTED, DUPLICATE, REJECTED, FAILED] }
               reason: { type: string, nullable: true }

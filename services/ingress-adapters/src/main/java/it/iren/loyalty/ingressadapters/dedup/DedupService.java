@@ -27,4 +27,13 @@ public class DedupService {
             return false;
         }
     }
+
+    /**
+     * Rilascia la chiave quando l'azione non è entrata davvero (il broker non ha confermato):
+     * altrimenti il rinvio della fonte troverebbe un duplicato e l'azione resterebbe persa per sempre.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void forget(String idempotencyKey) {
+        jdbc.update("DELETE FROM ingressadapters.seen_keys WHERE idempotency_key = ?", idempotencyKey);
+    }
 }

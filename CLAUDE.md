@@ -11,7 +11,8 @@ sistema (Salesforce, SAP via middleware, IrenYou/app, partner, file), le trasfor
 premi, gestisce concorsi instant win conformi al DPR 430/2001 e, dalla 0.5.0, decide *cosa proporre a chi* con un
 motore decisionale configurabile dal backoffice (Loyalty 4.0). Il perimetro funzionale è "almeno Open Loyalty"
 (edizione open source e attuale: RF-60..RF-116) più osservabilità e BI enterprise (RF-117..RF-124) e il livello
-decisionale (RF-125..RF-136). Versione corrente: **0.5.0**.
+decisionale (RF-125..RF-136). Versione corrente: **0.6.2** (il codice 0.5.0 e il bundle UX 0.6.0 sono confluiti in
+un'unica numerazione).
 
 Lingua: codice in inglese (identificatori), **commenti, javadoc, documenti, messaggi di commit in italiano**. Ogni
 requisito ha un codice `RF-nn` (funzionale), `RI-nn` (integrazione), `RC`/`RT`, e ogni scelta un `ADR-nnn` in
@@ -135,7 +136,10 @@ esempio sono `DecisionPolicy.example()`, `RiskPolicy.example()`, `DeliveryRoutin
 3. **Nessun dato personale nella piattaforma** (D12): identità = sub OIDC; anagrafica e recapiti restano nel CRM.
    Niente email/telefono in chiaro (solo hash come identificatori), niente PII in log, metriche, tracce, eventi,
    warehouse. L'OTel collector pseudonimizza l'id membro.
-4. **Idempotenza ovunque**: ogni scrittura ha una chiave; ogni consumer tollera il replay.
+4. **Idempotenza ovunque**: ogni scrittura ha una chiave; ogni consumer tollera il replay. La chiave si considera
+   consumata **solo dopo** che la scrittura è andata a buon fine: all'ingresso la pubblicazione attende l'ack del
+   broker e, se manca, la chiave viene rilasciata e la fonte riceve un errore. Un duplicato è tollerato dal disegno,
+   un'azione persa no.
 5. **Concorsi (DPR 430)**: configurazione bloccata a concorso avviato (RF-35), istanti vincenti da CSPRNG, registro
    giocate a prova di manomissione, server in Italia. Non toccare `contest-service` senza leggere ADR-007 e RF-30..36.
 6. **Configurazione dal backoffice, non da codice.** Tutto ciò che il marketing/Legal/frodi deve poter cambiare vive
@@ -164,6 +168,10 @@ esempio sono `DecisionPolicy.example()`, `RiskPolicy.example()`, `DeliveryRoutin
   Una metrica nuova = metodo in `LoyaltyMetrics` + riga in `docs/OSSERVABILITA-BI.md` + eventuale alert in
   `deploy/observability/alerts/loyalty-rules.yaml` con runbook in `docs/runbooks/osservabilita.md`.
 - Migrazioni Flyway numerate per servizio (`V<n>__<nome>.sql`), mai modificate dopo il merge; schema = nome servizio.
+- **Chiavi del ledger**: la chiave di idempotenza di un movimento identifica l'*effetto*, non l'azione, e comincia
+  sempre con la chiave dell'azione (`azione:campagna`, `azione:decisione:tipo`) — il ledger è idempotente per
+  (chiave, wallet) e lo storno dell'azione cerca per prefisso. Chi aggiunge un effetto che scrive sul ledger deriva
+  la chiave con `RulesConfig.postingKey` o `DecisionService.effectKey`, mai a mano.
 - Tempo: `Instant` in UTC nel dominio, `Europe/Rome` solo per calendario (ore di silenzio, anno programma, cron).
 - SpEL: usato per condizioni/effetti delle campagne (`SpelExpressionEngine`, funzioni `#fn.*`), condizioni offerte e
   formule di punteggio (`SpelSupport`, contesto `SimpleEvaluationContext` in sola lettura). Non esporre mai un
@@ -171,11 +179,16 @@ esempio sono `DecisionPolicy.example()`, `RiskPolicy.example()`, `DeliveryRoutin
 - CMS (`cms/src/*.ts`): collezioni con `versions: { drafts: true }`, campo `status` con i livelli `twoLevel`/`threeLevel`,
   hook `bumpVersion` quando i servizi riportano la versione; descrizioni dei campi in italiano, per l'operatore.
 - BFF: un router a `if`/regex in `server.js`; ogni rotta operatore sotto `/api/operator/` e protetta da `isOperator`;
-  degrado controllato (cache ultimo saldo, NBA → `NO_ACTION` se il motore non risponde).
+  degrado controllato (cache ultimo saldo, NBA → `NO_ACTION` se il motore non risponde). Le chiavi di idempotenza si
+  compongono solo con `src/keys.js` (convenzione RI-01 a tre segmenti, mai `Date.now()`): dove l'operazione muove
+  valore il `clientRef` è obbligatorio e in sua assenza si risponde 400.
 - Test: JUnit 5 + AssertJ nel modulo (`src/test/java`, stessa struttura del package); i domini puri hanno test di
   logica con valori "parlanti" (es. Torino→Roma per il viaggio impossibile). Un fix di bug porta il test che lo riproduce.
-- Commit: titolo in italiano, corpo puntato per componente, trailer `Co-Authored-By` se generato con Claude. Versioni
-  allineate in `deploy/helm/loyalty-hub/Chart.yaml`, `services/pom.xml` (`revision`), `Makefile`.
+- Commit: titolo in italiano, corpo puntato per componente, trailer `Co-Authored-By` se generato con Claude. Il
+  repository ha **una sola versione** (oggi 0.6.2): `services/pom.xml` (`revision`, con `-SNAPSHOT` in sviluppo),
+  `deploy/helm/loyalty-hub/Chart.yaml` (`version` e `appVersion`), `Makefile` (ripiego quando non c'è un tag) e i
+  `package.json` di radice, design system, `cms/`, `web/site`, `web/bff`. Le immagini prendono comunque la versione
+  dal tag git (`release.yml`).
 
 ## 8. Come estendere (ricette)
 
@@ -241,14 +254,14 @@ mantenuti in Claude: chi modifica il codice segnala cosa va riportato lì.
   `RestClient.body(List.class)` in un ternario (rules-engine) e `AchievementEngine.periodKey` package-private usata
   da `app` (engagement-service). Il compilatore ora gira con `-Xlint:unchecked,rawtypes,deprecation` senza warning:
   tenerlo così.
-- **Otto punti aperti dalla revisione del codice** (`docs/REVISIONE-CODICE-0.5.0.md`): accredito che si perde quando
-  due campagne premiano lo stesso wallet, azioni che si perdono all'ingresso se Kafka rifiuta, addebiti remoti dentro
-  transazioni locali senza compensazione, cicli di classifica chiusi prima di premiare, metrica `ACHIEVEMENT_PROGRESS`
-  irraggiungibile, «paga con i punti» che sconta più del carrello, chiavi di idempotenza da `Date.now()`, accumulo
-  STATUS non idempotente. Tutti cambiano semantica di saldi o consegne: vanno decisi, non corretti d'ufficio.
-- Test di integrazione con Testcontainers (Postgres + Kafka) per: outbox del ledger, ciclo decisionale end-to-end,
-  merge identità con trasferimento unità, consegna con fallback. Sono anche il banco di prova che manca per
-  affrontare i punti sopra.
+- ~~Punti aperti dalla revisione del codice~~ **chiusi tutti e otto** (`docs/REVISIONE-CODICE-0.5.0.md`, che tiene
+  la decisione presa per ciascuno). Resta da chiudere il merge di `identity-mapping`, dove un errore fra il
+  trasferimento delle unità e la chiusura del membro assorbito lascia uno stato incoerente (nessun ammanco: il
+  `transferKey` è idempotente e il merge si ripete); va affrontato insieme all'unmerge dei saldi. Cambiano semantica di saldi o consegne: si affrontano uno
+  alla volta, con i test di integrazione a fare da rete.
+- ~~Test di integrazione con Testcontainers~~ **c'è il banco**: `PostgresIntegrationTest` in `common` (test-jar,
+  Postgres 16 condiviso, migrazioni Flyway vere) e un `ContextLoadsTest` per servizio. Da estendere a Kafka per il
+  ciclo decisionale end-to-end, il merge identità con trasferimento unità e la consegna con fallback.
 - OpenAPI: generare e pubblicare in `docs/contracts/` gli spec di tutti i servizi (oggi solo ingresso) e AsyncAPI per
   i topic nuovi (decisions, risk, deliveries, consents, identities).
 - `read-model`: cache Redis del contesto e ricalcolo notturno delle finestre (RFM, contatti a 7 giorni); oggi il
