@@ -38,6 +38,9 @@ public class TierUpdater {
         if (!"STATUS".equals(m.get("currency"))) return;
         long amount = ((Number) m.get("amount")).longValue();
         String memberId = CanonicalEvents.memberId(event);
+        // L'outbox del ledger è at-least-once: senza memoria dei movimenti già applicati un replay
+        // gonfierebbe i punti status dell'anno, e con essi il tier (RI-08).
+        if (!firstTime(String.valueOf(m.get("movementId")), memberId)) return;
         int year = LocalDate.now(ZoneId.of("Europe/Rome")).getYear();
         jdbc.update("INSERT INTO tierservice.member_tier(member_id, tier, status_points_year, program_year) VALUES (?, 'BASE', 0, ?) ON CONFLICT (member_id) DO NOTHING", memberId, year);
         var row = jdbc.queryForMap("SELECT tier, status_points_year FROM tierservice.member_tier WHERE member_id = ? FOR UPDATE", memberId);
@@ -46,6 +49,12 @@ public class TierUpdater {
         TierPolicy.Tier next = policy.duringYear(current, points);
         jdbc.update("UPDATE tierservice.member_tier SET status_points_year = ?, tier = ?, updated_at = now() WHERE member_id = ?", points, next.code(), memberId);
         if (!next.equals(current)) changed(memberId, current.code(), next.code(), "UPGRADE");
+    }
+
+    /** Registra il movimento come applicato; false se c'era già (replay del topic). */
+    private boolean firstTime(String movementId, String memberId) {
+        return jdbc.update("INSERT INTO tierservice.applied_movement(movement_id, member_id) VALUES (CAST(? AS uuid), ?) ON CONFLICT DO NOTHING",
+                movementId, memberId) == 1;
     }
 
     @Scheduled(cron = "${tiers.year-end-cron:0 30 0 1 1 *}", zone = "Europe/Rome")
@@ -66,7 +75,10 @@ public class TierUpdater {
         Instant now = Instant.now();
         var e = CanonicalEvents.of(EventTypes.TIER_CHANGED_V1, "urn:iren:loyalty:tiers", "member:" + memberId, Map.of("fromTier", from, "toTier", to, "reason", reason, "at", now.toString()));
         kafka.send(EventTypes.TOPIC_TIERS, memberId, CanonicalEvents.serialize(e));
-        var a = new RewardingAction(EventTypes.ACTION_TIER_CHANGED, "tier:" + memberId + ":" + to + ":" + now.toEpochMilli(), to, now, null, Map.of("fromTier", from, "toTier", to, "reason", reason));
+        // Chiave stabile (fonte:riferimento:evento, RI-01): con l'orologio, un replay avrebbe emesso
+        // un'azione nuova a ogni passaggio invece di essere riconosciuta come la stessa.
+        String key = "tiers:" + memberId + "." + LocalDate.now(ZoneId.of("Europe/Rome")).getYear() + "." + to + "." + reason + ":" + EventTypes.ACTION_TIER_CHANGED;
+        var a = new RewardingAction(EventTypes.ACTION_TIER_CHANGED, key, to, now, null, Map.of("fromTier", from, "toTier", to, "reason", reason));
         kafka.send(EventTypes.TOPIC_ACTIONS, memberId, CanonicalEvents.serialize(CanonicalEvents.of(EventTypes.ACTION_V1, "urn:iren:loyalty:tiers", "member:" + memberId, a)));
         metrics.memberEvent("TIER_" + reason);
     }

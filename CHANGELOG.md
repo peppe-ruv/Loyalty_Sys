@@ -11,6 +11,11 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
 - `catalog-redemption`: la colonna generata `redemption.expires_at` sommava un intervallo a un `timestamptz`,
   espressione che Postgres rifiuta come non immutabile: lo schema non si creava affatto
 
+### Corretto (tier)
+- `tier-service` sommava i punti STATUS di ogni movimento letto dal topic senza memoria di quelli già applicati: un
+  replay dell'outbox (at-least-once) gonfiava punti e tier. Ogni movimento applicato è ora registrato (migrazione
+  V3) e l'azione interna `TIER_CHANGED` ha una chiave stabile invece che presa dall'orologio
+
 ### Corretto (chiavi di idempotenza del BFF)
 - Le chiavi costruite dal BFF avevano cinque segmenti invece dei tre della convenzione RI-01: l'ingresso le
   respingeva tutte, quindi nessun evento comportamentale del sito né azione da sportello entrava in piattaforma.

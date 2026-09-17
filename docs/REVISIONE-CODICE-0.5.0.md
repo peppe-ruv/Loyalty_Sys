@@ -127,12 +127,20 @@ minuto come ripiego.
 
 Sei test (`node --test`) sul modulo delle chiavi.
 
-## 8. Accumulo STATUS non idempotente
+## 8. ~~Accumulo STATUS non idempotente~~ — risolto
 
-`TierUpdater` somma i punti STATUS a ogni movimento consumato dal topic. L'outbox del ledger è
-at-least-once: un replay del topic gonfia i punti status dell'anno. Serve la stessa difesa usata
-altrove (chiave del movimento già vista, o `ON CONFLICT DO NOTHING` su una tabella di movimenti
-applicati).
+`TierUpdater` sommava i punti STATUS di ogni movimento letto dal topic senza tenere memoria di quali
+avesse già applicato. L'outbox del ledger è at-least-once (RI-08): un replay gonfiava i punti
+dell'anno e, con essi, il tier del membro.
+
+Ora ogni movimento applicato è registrato (`tierservice.applied_movement`, migrazione `V3`) e il
+secondo passaggio non conta nulla. Nello stesso punto l'azione interna `TIER_CHANGED` aveva una
+chiave presa dall'orologio: è diventata stabile e nella forma di RI-01
+(`tiers:<membro>.<anno>.<tier>.<motivo>:TIER_CHANGED`), così un replay è riconoscibile come lo stesso
+cambio invece di generarne uno nuovo.
+
+Due test di integrazione: lo stesso movimento due volte non raddoppia i punti; movimenti diversi si
+sommano e l'upgrade di tier scatta.
 
 ## Segnalazioni verificate e respinte
 

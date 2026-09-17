@@ -254,9 +254,9 @@ mantenuti in Claude: chi modifica il codice segnala cosa va riportato lì.
   `RestClient.body(List.class)` in un ternario (rules-engine) e `AchievementEngine.periodKey` package-private usata
   da `app` (engagement-service). Il compilatore ora gira con `-Xlint:unchecked,rawtypes,deprecation` senza warning:
   tenerlo così.
-- **Tre punti aperti dalla revisione del codice** (`docs/REVISIONE-CODICE-0.5.0.md`): addebiti remoti dentro
-  transazioni locali senza compensazione, «paga con i punti» che sconta più del carrello, accumulo STATUS non
-  idempotente. Cambiano semantica di saldi o consegne: si affrontano uno
+- **Due punti aperti dalla revisione del codice** (`docs/REVISIONE-CODICE-0.5.0.md`): addebiti remoti dentro
+  transazioni locali senza compensazione e «paga con i punti» che sconta più del carrello (quest'ultimo è una scelta
+  di prodotto, non una correzione tecnica). Cambiano semantica di saldi o consegne: si affrontano uno
   alla volta, con i test di integrazione a fare da rete.
 - ~~Test di integrazione con Testcontainers~~ **c'è il banco**: `PostgresIntegrationTest` in `common` (test-jar,
   Postgres 16 condiviso, migrazioni Flyway vere) e un `ContextLoadsTest` per servizio. Da estendere a Kafka per il
