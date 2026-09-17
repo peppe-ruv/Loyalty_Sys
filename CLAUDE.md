@@ -165,6 +165,10 @@ esempio sono `DecisionPolicy.example()`, `RiskPolicy.example()`, `DeliveryRoutin
   Una metrica nuova = metodo in `LoyaltyMetrics` + riga in `docs/OSSERVABILITA-BI.md` + eventuale alert in
   `deploy/observability/alerts/loyalty-rules.yaml` con runbook in `docs/runbooks/osservabilita.md`.
 - Migrazioni Flyway numerate per servizio (`V<n>__<nome>.sql`), mai modificate dopo il merge; schema = nome servizio.
+- **Chiavi del ledger**: la chiave di idempotenza di un movimento identifica l'*effetto*, non l'azione, e comincia
+  sempre con la chiave dell'azione (`azione:campagna`, `azione:decisione:tipo`) — il ledger è idempotente per
+  (chiave, wallet) e lo storno dell'azione cerca per prefisso. Chi aggiunge un effetto che scrive sul ledger deriva
+  la chiave con `RulesConfig.postingKey` o `DecisionService.effectKey`, mai a mano.
 - Tempo: `Instant` in UTC nel dominio, `Europe/Rome` solo per calendario (ore di silenzio, anno programma, cron).
 - SpEL: usato per condizioni/effetti delle campagne (`SpelExpressionEngine`, funzioni `#fn.*`), condizioni offerte e
   formule di punteggio (`SpelSupport`, contesto `SimpleEvaluationContext` in sola lettura). Non esporre mai un
@@ -245,14 +249,14 @@ mantenuti in Claude: chi modifica il codice segnala cosa va riportato lì.
   `RestClient.body(List.class)` in un ternario (rules-engine) e `AchievementEngine.periodKey` package-private usata
   da `app` (engagement-service). Il compilatore ora gira con `-Xlint:unchecked,rawtypes,deprecation` senza warning:
   tenerlo così.
-- **Otto punti aperti dalla revisione del codice** (`docs/REVISIONE-CODICE-0.5.0.md`): accredito che si perde quando
-  due campagne premiano lo stesso wallet, azioni che si perdono all'ingresso se Kafka rifiuta, addebiti remoti dentro
-  transazioni locali senza compensazione, cicli di classifica chiusi prima di premiare, metrica `ACHIEVEMENT_PROGRESS`
-  irraggiungibile, «paga con i punti» che sconta più del carrello, chiavi di idempotenza da `Date.now()`, accumulo
-  STATUS non idempotente. Tutti cambiano semantica di saldi o consegne: vanno decisi, non corretti d'ufficio.
-- Test di integrazione con Testcontainers (Postgres + Kafka) per: outbox del ledger, ciclo decisionale end-to-end,
-  merge identità con trasferimento unità, consegna con fallback. Sono anche il banco di prova che manca per
-  affrontare i punti sopra.
+- **Sette punti aperti dalla revisione del codice** (`docs/REVISIONE-CODICE-0.5.0.md`): azioni che si perdono
+  all'ingresso se Kafka rifiuta, addebiti remoti dentro transazioni locali senza compensazione, cicli di classifica
+  chiusi prima di premiare, metrica `ACHIEVEMENT_PROGRESS` irraggiungibile, «paga con i punti» che sconta più del
+  carrello, chiavi di idempotenza da `Date.now()`, accumulo STATUS non idempotente. Cambiano semantica di saldi o
+  consegne: si affrontano uno alla volta, con i test di integrazione a fare da rete.
+- ~~Test di integrazione con Testcontainers~~ **c'è il banco**: `PostgresIntegrationTest` in `common` (test-jar,
+  Postgres 16 condiviso, migrazioni Flyway vere) e un `ContextLoadsTest` per servizio. Da estendere a Kafka per il
+  ciclo decisionale end-to-end, il merge identità con trasferimento unità e la consegna con fallback.
 - OpenAPI: generare e pubblicare in `docs/contracts/` gli spec di tutti i servizi (oggi solo ingresso) e AsyncAPI per
   i topic nuovi (decisions, risk, deliveries, consents, identities).
 - `read-model`: cache Redis del contesto e ricalcolo notturno delle finestre (RFM, contatti a 7 giorni); oggi il

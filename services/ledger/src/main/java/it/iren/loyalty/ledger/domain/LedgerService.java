@@ -120,11 +120,14 @@ public class LedgerService {
         return n;
     }
 
-    /** Storno di tutti i movimenti di un'azione (RI-08). */
+    /**
+     * Storno di tutti i movimenti di un'azione (RI-08), comprese le chiavi derivate dei singoli
+     * effetti. Ripetibile: i movimenti già stornati non vengono ripresi, quindi un secondo storno
+     * non restituisce nulla invece di rompersi sul vincolo di unicità.
+     */
     @Transactional
     public List<Movement> reverse(String originalActionKey, String reason) {
-        return movements.findByActionKey(originalActionKey).stream()
-                .filter(m -> m.getReversalOf() == null)
+        return movements.findReversible(originalActionKey).stream()
                 .map(m -> apply(m.reverse(reason), false))
                 .toList();
     }

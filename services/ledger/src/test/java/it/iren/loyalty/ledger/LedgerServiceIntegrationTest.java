@@ -89,6 +89,57 @@ class LedgerServiceIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void dueCampagnePremianoLoStessoWalletEIlSecondoAccreditoNonSiPerde() {
+        String memberId = member();
+        // Ogni campagna ha la sua chiave derivata dall'azione: prima erano la stessa e il secondo
+        // accredito veniva scartato in silenzio (decision-service) o violava il vincolo (rules-engine).
+        ledger.post(memberId, "azione-6:campagna-A", List.of(new LedgerService.Posting(Currency.PREMIO, 200, "RULE:A", null, null)));
+        ledger.post(memberId, "azione-6:campagna-B", List.of(new LedgerService.Posting(Currency.PREMIO, 50, "RULE:B", null, null)));
+
+        assertThat(available(memberId)).isEqualTo(250);
+    }
+
+    @Test
+    void loStornoDellAzioneRitrovaGliAccreditiDiTutteLeCampagne() {
+        String memberId = member();
+        ledger.post(memberId, "azione-7:campagna-A", List.of(new LedgerService.Posting(Currency.PREMIO, 200, "RULE:A", null, null)));
+        ledger.post(memberId, "azione-7:campagna-B", List.of(new LedgerService.Posting(Currency.PREMIO, 50, "RULE:B", null, null)));
+
+        List<Movement> reversed = ledger.reverse("azione-7", "RESO");
+
+        assertThat(reversed).hasSize(2);
+        assertThat(available(memberId)).isZero();
+    }
+
+    @Test
+    void loStornoRipetutoNonRistorna() {
+        String memberId = member();
+        ledger.post(memberId, "azione-8:campagna-A", List.of(new LedgerService.Posting(Currency.PREMIO, 120, "RULE:A", null, null)));
+        ledger.reverse("azione-8", "RESO");
+
+        List<Movement> again = ledger.reverse("azione-8", "RESO");
+
+        assertThat(again).isEmpty();
+        assertThat(available(memberId)).isZero();
+    }
+
+    @Test
+    void loStornoNonTocaIMovimentiDiScadenza() {
+        String memberId = member();
+        // Accredito già scaduto: il job di scadenza emette un movimento EXPIRY con chiave derivata.
+        ledger.post(memberId, "azione-9", List.of(new LedgerService.Posting(
+                Currency.PREMIO, 70, "TEST", null, java.time.Instant.now().minusSeconds(60))));
+        ledger.expire(java.time.Instant.now());
+        assertThat(available(memberId)).isZero();
+
+        List<Movement> reversed = ledger.reverse("azione-9", "RESO");
+
+        // Un solo storno, quello dell'accredito: la scadenza non è un movimento da stornare.
+        assertThat(reversed).hasSize(1);
+        assertThat(movements.findByActionKey("azione-9:EXPIRY")).hasSize(1);
+    }
+
+    @Test
     void ilRegistroEAppendOnlyAnchePerChiScriveSql() {
         String memberId = member();
         ledger.post(memberId, "azione-5", List.of(new LedgerService.Posting(Currency.PREMIO, 10, "TEST", null, null)));

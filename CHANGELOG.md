@@ -4,6 +4,23 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
 
 ## [0.6.2] — 2026-09-17
 
+### Corretto (guasti di avvio, trovati dai test di integrazione)
+- `ledger`: i repository JPA annidati in `Repositories` non venivano registrati — nessun bean, servizio che non parte
+- `common`: `MetricsAutoConfiguration` valutava `@ConditionalOnBean(MeterRegistry)` prima che Micrometer registrasse
+  il registro; senza `LoyaltyMetrics` nessun servizio si avvia
+- `catalog-redemption`: la colonna generata `redemption.expires_at` sommava un intervallo a un `timestamptz`,
+  espressione che Postgres rifiuta come non immutabile: lo schema non si creava affatto
+
+### Corretto (accrediti persi)
+- La chiave di idempotenza del ledger identificava l'azione e non l'effetto: due campagne che premiavano lo stesso
+  wallet per lo stesso evento producevano un solo accredito (decision-service) o un conflitto sul vincolo di unicità
+  che bloccava il consumo (rules-engine). Ora ogni effetto ha la sua chiave derivata e lo storno dell'azione le
+  ritrova per prefisso, senza toccare scadenze e storni già emessi; un secondo storno non rompe più nulla
+
+### Aggiunto
+- Banco di prova di integrazione: `PostgresIntegrationTest` in `common` (test-jar, Postgres 16 con migrazioni vere) e
+  un `ContextLoadsTest` per ciascuno dei 14 servizi — la prova che il contesto Spring si alza davvero
+
 ### Modificato
 - Una sola versione per tutto il repository: `services/pom.xml`, `Chart.yaml`, `Makefile` e i cinque `package.json`
   passano da 0.5.0/0.6.1/0.1.0 a 0.6.2. Le immagini continuano a prendere la versione dal tag git

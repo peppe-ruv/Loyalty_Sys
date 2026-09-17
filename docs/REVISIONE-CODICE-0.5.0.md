@@ -5,32 +5,34 @@ Ogni voce è stata verificata leggendo il codice, non dedotta: dove la segnalazi
 sbagliata è scritto perché.
 
 Le correzioni già applicate sono nei commit di questo ramo e riassunte in `CHANGELOG.md`.
-Quelle elencate sotto **non** sono state applicate: cambiano la semantica di saldi, transazioni o
-garanzie di consegna, cioè scelte di prodotto che spettano a chi governa la specifica (CLAUDE.md §6).
+Le voci ancora aperte cambiano la semantica di saldi, transazioni o garanzie di consegna: si
+affrontano una alla volta, con il banco di prova di integrazione a fare da rete (CLAUDE.md §6).
+Quelle chiuse restano qui con la decisione presa, perché il motivo conta quanto la correzione.
 
-## 1. Un evento che premia due volte lo stesso wallet accredita una volta sola
+## 1. ~~Un evento che premia due volte lo stesso wallet accredita una volta sola~~ — risolto
 
-`decision-service/app/DecisionService.execute` costruisce per ogni azione scelta una chiave
-`actionKey:decisionId:azione`, e la usa per premi, coupon, badge, eventi. Per `AWARD_POINTS`, però,
-passa la sola `actionKey` dell'evento di origine:
+**Decisione presa**: la chiave di idempotenza del ledger è l'**effetto**, non l'azione; lo storno
+dell'azione ritrova gli effetti per prefisso.
 
-```java
-case AWARD_POINTS -> effects.awardUnits(memberId, actionKey, c);   // non `key`
-```
+Il problema era che `LedgerService.post` è idempotente per `(actionKey, wallet)` mentre entrambi i
+percorsi usavano la chiave della sola azione, con due sintomi diversi per la stessa causa: nel
+`decision-service` il secondo accredito veniva scartato in silenzio (membro sotto-premiato), nel
+`rules-engine` — che posta tutti gli esiti in un colpo — i due inserimenti si scontravano sul vincolo
+di unicità e l'intero consumo dell'azione falliva, all'infinito.
 
-`LedgerService.post` è idempotente per `(actionKey, wallet)`: se due campagne premiano lo stesso
-evento sullo stesso wallet — caso previsto, le azioni contrattuali sono sempre applicate — la
-seconda viene scartata in silenzio. Il membro riceve meno punti del dovuto e non resta traccia.
+Non si poteva semplicemente cambiare chiave: lo storno (`POST /v1/ledger/reversals/{chiave}`) cercava
+i movimenti per chiave esatta e non li avrebbe più trovati. Quindi:
 
-Non è una svista isolata: la chiave dell'accredito **deve** restare quella dell'azione di origine
-perché lo storno (`POST /v1/ledger/reversals/{actionKey}`, `RulesConfig.reverse`) ritrova i movimenti
-per chiave esatta. Cambiare la chiave dell'accredito rompe lo storno; tenerla rompe il doppio premio.
+- ogni effetto ha la sua chiave derivata, che comincia sempre con quella dell'azione:
+  `azione:campagna` (rules-engine, `RulesConfig.postingKey`) e `azione:decisione:tipo`
+  (decision-service, `DecisionService.effectKey`);
+- gli effetti della stessa campagna sullo stesso wallet si sommano in un movimento solo
+  (`RulesConfig.merge`), perché la chiave del ledger resta unica per wallet;
+- `LedgerService.reverse` cerca la chiave **e le sue derivate**, limitandosi ai movimenti di valore
+  (EARN/SPEND) e saltando quelli già stornati: scadenze e storni precedenti non vengono toccati, e un
+  secondo storno non rompe più il vincolo di unicità — restituisce una lista vuota.
 
-Serve una decisione fra:
-- accredito con chiave `actionKey:campagna` e storno che ritrova i movimenti **per prefisso**
-  (`action_key LIKE 'chiave:%'`), oppure
-- un solo effetto per wallet per evento, dichiarato nella policy e con uno scarto esplicito
-  (`OUTRANKED`) invece del silenzio.
+Coperto da nove test di integrazione sul ledger e da otto unitari sulle due derivazioni di chiave.
 
 ## 2. Le azioni premianti possono perdersi all'ingresso
 
