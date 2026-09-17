@@ -11,6 +11,12 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
 - `catalog-redemption`: la colonna generata `redemption.expires_at` sommava un intervallo a un `timestamptz`,
   espressione che Postgres rifiuta come non immutabile: lo schema non si creava affatto
 
+### Corretto (azioni perse all'ingresso)
+- `ingress-adapters` registrava la chiave di idempotenza prima di pubblicare e non attendeva l'esito dell'invio a
+  Kafka: con il broker fermo la fonte riceveva 202, l'azione non entrava e ogni rinvio era respinto come duplicato.
+  Ora la pubblicazione attende l'ack, la chiave viene rilasciata se il broker non conferma e il lotto risponde 503
+  con gli elementi marcati `FAILED`; stesso trattamento per i check-in. Contratto OpenAPI aggiornato
+
 ### Corretto (accrediti persi)
 - La chiave di idempotenza del ledger identificava l'azione e non l'effetto: due campagne che premiavano lo stesso
   wallet per lo stesso evento producevano un solo accredito (decision-service) o un conflitto sul vincolo di unicità

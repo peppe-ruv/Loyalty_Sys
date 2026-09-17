@@ -34,23 +34,30 @@ i movimenti per chiave esatta e non li avrebbe più trovati. Quindi:
 
 Coperto da nove test di integrazione sul ledger e da otto unitari sulle due derivazioni di chiave.
 
-## 2. Le azioni premianti possono perdersi all'ingresso
+## 2. ~~Le azioni premianti possono perdersi all'ingresso~~ — risolto
 
-`ActionIngressController` registra la chiave di idempotenza **prima** di pubblicare:
+**Decisione presa**: meglio un duplicato che una perdita. La piattaforma è dichiaratamente
+at-least-once con consumer idempotenti (CLAUDE.md §4), quindi l'ingresso ora attende la conferma del
+broker e consuma la chiave di idempotenza solo dopo.
 
-```java
-if (!dedup.firstSeen(a.idempotencyKey())) { ...DUPLICATE... }
-publisher.publish(...);   // ActionPublisher: kafka.send(...) senza attendere l'esito
-```
+Prima: `dedup.firstSeen(chiave)` registrava la chiave, poi `kafka.send(...)` partiva senza che
+nessuno ne guardasse l'esito. Con il broker fermo la fonte riceveva `202 ACCEPTED`, l'azione non
+entrava in piattaforma e ogni rinvio veniva respinto come `DUPLICATE`: persa per sempre, senza traccia.
 
-`ActionPublisher.publish` ignora il future di `KafkaTemplate.send`: se il broker rifiuta, nessuno se
-ne accorge, la risposta resta `202 ACCEPTED` e ogni tentativo successivo con la stessa chiave è
-respinto come `DUPLICATE`. L'azione è persa senza traccia.
+Ora:
 
-La piattaforma è dichiaratamente at-least-once con consumer idempotenti (CLAUDE.md §4), quindi la
-correzione coerente è attendere l'ack e registrare la chiave **dopo** la pubblicazione riuscita:
-duplicati tollerati, perdite no. Costa latenza su ogni lotto: va misurata sui volumi reali prima di
-adottarla.
+- `ActionPublisher` attende l'ack del broker (`ingress.publish.ack-timeout-ms`, 5 s di default) e
+  solleva `PublishFailed`; vale anche per la DLQ, perché anche uno scarto che sparisce è una perdita;
+- il controller, se la pubblicazione fallisce, **rilascia la chiave** (`DedupService.forget`) e marca
+  l'elemento `FAILED`; il lotto risponde `503` invece di `202`, così anche una fonte che non legge
+  l'esito per elemento si accorge e rinvia. Le azioni già accettate restano deduplicate al rinvio;
+- stesso trattamento per il check-in (`CheckInController`).
+
+Il contratto `docs/contracts/openapi-ingress.yaml` dichiara il nuovo stato `FAILED`, il contatore
+`failed` e la risposta `503` (aggiunta compatibile: nessun campo rimosso o cambiato).
+
+Coperto da tre test di integrazione: broker fermo → 503 e nessuna accettazione; broker che torna →
+la stessa chiave viene presa in carico; azione pubblicata davvero → il secondo invio resta duplicato.
 
 ## 3. Chiamate HTTP dentro transazioni, senza compensazione
 

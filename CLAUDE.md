@@ -136,7 +136,10 @@ esempio sono `DecisionPolicy.example()`, `RiskPolicy.example()`, `DeliveryRoutin
 3. **Nessun dato personale nella piattaforma** (D12): identità = sub OIDC; anagrafica e recapiti restano nel CRM.
    Niente email/telefono in chiaro (solo hash come identificatori), niente PII in log, metriche, tracce, eventi,
    warehouse. L'OTel collector pseudonimizza l'id membro.
-4. **Idempotenza ovunque**: ogni scrittura ha una chiave; ogni consumer tollera il replay.
+4. **Idempotenza ovunque**: ogni scrittura ha una chiave; ogni consumer tollera il replay. La chiave si considera
+   consumata **solo dopo** che la scrittura è andata a buon fine: all'ingresso la pubblicazione attende l'ack del
+   broker e, se manca, la chiave viene rilasciata e la fonte riceve un errore. Un duplicato è tollerato dal disegno,
+   un'azione persa no.
 5. **Concorsi (DPR 430)**: configurazione bloccata a concorso avviato (RF-35), istanti vincenti da CSPRNG, registro
    giocate a prova di manomissione, server in Italia. Non toccare `contest-service` senza leggere ADR-007 e RF-30..36.
 6. **Configurazione dal backoffice, non da codice.** Tutto ciò che il marketing/Legal/frodi deve poter cambiare vive
@@ -249,11 +252,11 @@ mantenuti in Claude: chi modifica il codice segnala cosa va riportato lì.
   `RestClient.body(List.class)` in un ternario (rules-engine) e `AchievementEngine.periodKey` package-private usata
   da `app` (engagement-service). Il compilatore ora gira con `-Xlint:unchecked,rawtypes,deprecation` senza warning:
   tenerlo così.
-- **Sette punti aperti dalla revisione del codice** (`docs/REVISIONE-CODICE-0.5.0.md`): azioni che si perdono
-  all'ingresso se Kafka rifiuta, addebiti remoti dentro transazioni locali senza compensazione, cicli di classifica
-  chiusi prima di premiare, metrica `ACHIEVEMENT_PROGRESS` irraggiungibile, «paga con i punti» che sconta più del
-  carrello, chiavi di idempotenza da `Date.now()`, accumulo STATUS non idempotente. Cambiano semantica di saldi o
-  consegne: si affrontano uno alla volta, con i test di integrazione a fare da rete.
+- **Sei punti aperti dalla revisione del codice** (`docs/REVISIONE-CODICE-0.5.0.md`): addebiti remoti dentro
+  transazioni locali senza compensazione, cicli di classifica chiusi prima di premiare, metrica
+  `ACHIEVEMENT_PROGRESS` irraggiungibile, «paga con i punti» che sconta più del carrello, chiavi di idempotenza da
+  `Date.now()`, accumulo STATUS non idempotente. Cambiano semantica di saldi o consegne: si affrontano uno alla
+  volta, con i test di integrazione a fare da rete.
 - ~~Test di integrazione con Testcontainers~~ **c'è il banco**: `PostgresIntegrationTest` in `common` (test-jar,
   Postgres 16 condiviso, migrazioni Flyway vere) e un `ContextLoadsTest` per servizio. Da estendere a Kafka per il
   ciclo decisionale end-to-end, il merge identità con trasferimento unità e la consegna con fallback.

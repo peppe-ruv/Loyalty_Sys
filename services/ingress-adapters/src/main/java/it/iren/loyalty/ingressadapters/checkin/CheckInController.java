@@ -35,7 +35,13 @@ public class CheckInController {
         if (!dedup.firstSeen(key)) return ResponseEntity.ok(Map.of("status", "DUPLICATE"));
         var action = new RewardingAction(EventTypes.ACTION_CHECK_IN, key, c.placeId(), now, null,
                 Map.of(EventTypes.ATTR_LAT, c.lat(), EventTypes.ATTR_LON, c.lon(), "placeId", c.placeId(), EventTypes.ATTR_CHANNEL, c.channel() == null ? "app" : c.channel()));
-        publisher.publish(CanonicalEvents.action("urn:iren:loyalty:source:app", c.memberId(), action));
+        try {
+            publisher.publish(CanonicalEvents.action("urn:iren:loyalty:source:app", c.memberId(), action));
+        } catch (ActionPublisher.PublishFailed e) {
+            // Chiave rilasciata: il check-in non è entrato e l'app deve poter riprovare (RI-01).
+            dedup.forget(key);
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("status", "FAILED", "reason", "BROKER_UNAVAILABLE"));
+        }
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(Map.of("status", "ACCEPTED"));
     }
 }
