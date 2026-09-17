@@ -13,6 +13,9 @@ x-java: &java
     SEGMENT_URL: http://segment-service:8090
     CATALOG_URL: http://catalog-redemption:8085
     READ_MODEL_URL: http://read-model:8088
+    ENGAGEMENT_URL: http://engagement-service:8092
+    MEMBER_URL: http://member-service:8091
+    INGRESS_URL: http://ingress-adapters:8081
   depends_on:
     postgres: { condition: service_healthy }
     kafka: { condition: service_healthy }
@@ -55,6 +58,7 @@ services:
   identity-mapping: { <<: *java, build: services/identity-mapping, ports: ["8087:8087"] }
   segment-service:  { <<: *java, build: services/segment-service, ports: ["8090:8090"] }
   member-service:   { <<: *java, build: services/member-service, ports: ["8091:8091"] }
+  engagement-service: { <<: *java, build: services/engagement-service, ports: ["8092:8092"] }
   read-model:
     <<: *java
     build: services/read-model

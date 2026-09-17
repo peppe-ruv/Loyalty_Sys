@@ -2,11 +2,13 @@
 
 Piattaforma loyalty **vendor neutral** per Iren: riceve azioni premianti da qualunque sistema (CRM, billing, portali, partner), le trasforma in punti e tier, sblocca fasce di premi e genera azioni premianti dal programma annuale e dagli instant win. Un solo backoffice/CMS configura card, pop-up, catalogo, regole e concorsi.
 
-Riferimenti: [Specifica](docs/SPECIFICA.md) · [Parità con Open Loyalty](docs/PARITA-OPEN-LOYALTY.md) · [Decisioni (ADR)](docs/adr/) · [Contratti API](docs/contracts/) · [Runbook](docs/runbooks/)
+Riferimenti: [Specifica](docs/SPECIFICA.md) · [Parità con Open Loyalty](docs/PARITA-OPEN-LOYALTY.md) · [Catalogo funzionale (edizione attuale)](docs/CATALOGO-FUNZIONALE.md) · [Decisioni (ADR)](docs/adr/) · [Contratti API](docs/contracts/) · [Runbook](docs/runbooks/)
 
-Copertura funzionale: **almeno quella di Open Loyalty** (ADR-017) — membri con etichette e consensi, referral, transazioni con righe,
-regole proporzionali e moltiplicatori, geolocalizzazione, codici QR/promo, segmenti, dieci tipi di premio con lotti di codici,
-postazione operatore, modelli di messaggio, webhook, impostazioni — più doppia valuta, tier annuali e instant win conforme al DPR 430.
+Copertura funzionale: **almeno quella di Open Loyalty**, edizione open source (ADR-017) ed edizione attuale (ADR-018): campagne con
+trigger, effetti, limiti, espressioni e automazioni; referral multilivello; wallet configurabili con blocchi e trasferimenti; achievement,
+challenge, badge, classifiche con cicli premianti, ruota della fortuna; tier set a condizioni multiple; eventi con schema, campi custom,
+collezioni, catalogo prodotti; segmenti a 30 criteri; premi con stati di evasione completi, buoni a conversione, paga con i punti;
+postazione operatore, modelli di messaggio, webhook — più doppia valuta, tier annuali e instant win conforme al DPR 430.
 
 ## Architettura in breve
 
@@ -14,8 +16,9 @@ postazione operatore, modelli di messaggio, webhook, impostazioni — più doppi
 Fonti (Salesforce, SAP via middleware, IrenYou/app, partner, SFTP)
   → ingress-adapters (REST/Kafka/file → evento CloudEvents, idempotenza)
   → Kafka
-  → rules-engine (regole, segmenti target, premi automatici) → ledger (PREMIO / STATUS, punti in sospeso) → tier-service
-  → catalog-redemption · contest-service (instant win periziabile) · member-service (adesione, referral, GDPR) · segment-service
+  → rules-engine (campagne: trigger, condizioni ed effetti con espressioni) → ledger (wallet configurabili) → tier-service (tier set)
+  → engagement-service (achievement, challenge, badge, classifiche) · catalog-redemption · contest-service (instant win, ruota)
+  · member-service (adesione, referral, campi custom, GDPR) · segment-service (segmenti, collezioni)
   → read-model → bff (area membro, postazione operatore) → site (Next.js) e widget · cms (Payload) · notifier (modelli, webhook)
 ```
 
@@ -27,7 +30,7 @@ Fonti (Salesforce, SAP via middleware, IrenYou/app, partner, SFTP)
 
 | Cartella | Contenuto |
 | --- | --- |
-| `services/` | Maven multi-modulo: `common`, `ingress-adapters`, `rules-engine`, `ledger`, `tier-service`, `segment-service`, `member-service`, `catalog-redemption`, `contest-service`, `identity-mapping`, `read-model`, `notifier` |
+| `services/` | Maven multi-modulo: `common`, `ingress-adapters`, `rules-engine`, `ledger`, `tier-service`, `segment-service`, `member-service`, `engagement-service`, `catalog-redemption`, `contest-service`, `identity-mapping`, `read-model`, `notifier` |
 | `web/bff`, `web/site` | Backend for frontend (Node) e sito Next.js |
 | `cms/` | Backoffice su Payload: collezioni e workflow per tipo di oggetto |
 | `deploy/terraform` | VPC, EKS, RDS Postgres, MSK Kafka, ElastiCache, S3, Secrets Manager, backup/DR |
@@ -62,7 +65,7 @@ Sito http://localhost:3000 · Backoffice http://localhost:3002/admin · Ingresso
 
 ```sh
 make build   # mvn package
-make test    # test unitari (regole, tier, segmenti, referral, politica di riscatto, generatore istanti vincenti, hash del registro giocate)
+make test    # test unitari (campagne con SpEL, regole, tier set, segmenti, achievement/challenge/classifiche, ruota, schemi, referral, riscatti, istanti vincenti)
 make lint    # helm lint + terraform fmt
 ```
 
@@ -78,4 +81,4 @@ Nessuna credenziale nel repository. In cluster i segreti arrivano da AWS Secrets
 
 ## Stato
 
-Scaffold 0.2.0: struttura, contratti, dominio principale, parità funzionale con Open Loyalty (RF-60..RF-79) e installazione. Punti aperti in `docs/SPECIFICA.md` → "Rischi, punti aperti e criteri di accettazione".
+Scaffold 0.3.0: struttura, contratti, dominio principale, parità funzionale con Open Loyalty open source (RF-60..RF-79) ed edizione attuale (RF-80..RF-116), installazione. Punti aperti in `docs/SPECIFICA.md` → "Rischi, punti aperti e criteri di accettazione".

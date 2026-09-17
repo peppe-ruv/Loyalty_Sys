@@ -4,7 +4,7 @@ REGION     ?= eu-south-1
 NAMESPACE  ?= loyalty
 TF_DIR      = deploy/terraform
 CHART       = deploy/helm/loyalty-hub
-VERSION    ?= $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo 0.2.0)
+VERSION    ?= $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo 0.3.0)
 
 .PHONY: help build test images up down seed-local infra install seed uninstall destroy lint
 

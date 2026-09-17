@@ -79,19 +79,23 @@ Stato: **coperto** = già nella specifica e nello scaffold prima del 17/9; **nuo
 | Customer panel | Profilo, punti, storico, catalogo, riscatto, i miei premi, referral, livello | coperto | RF-50..RF-55, RF-72 | `web/site` + BFF `/api/members/*` |
 | API | JWT admin/cliente/merchant, Swagger, event API | coperto | RI-05 | OpenAPI 3.1 + AsyncAPI 3 |
 
-## Edizione attuale di Open Loyalty (oltre il minimo)
+## Edizione attuale di Open Loyalty
+
+Dal 17 settembre 2026 (ADR-018) anche l'edizione attuale è un requisito: il dettaglio capacità per capacità è in
+`CATALOGO-FUNZIONALE.md` (RF-80..RF-116). Riepilogo:
 
 | Funzionalità | Stato | Nota |
 | --- | --- | --- |
-| Challenges (sequenze di azioni con premio) | coperto | Missioni RF-20/RF-21, collezione `programs` |
-| Campaign simulation | coperto | Simulatore RF-08 e `/v1/segments/simulate` |
-| Wallets multipli | coperto | Doppia valuta D05; un terzo wallet è una `Currency` in più |
-| Automation campaigns | coperto | Regole + webhook + modelli messaggio |
-| Fortune wheel | coperto | Instant win RF-30..RF-39: in Italia è un concorso a premi, non un gioco libero |
-| Custom events schema, expressions | parziale | Attributi liberi validati da JSON Schema per tipo azione (punto aperto) |
-| Achievements / badges | COULD | Missioni con `badge` (immagine); vetrina badge nell'area membro da progettare |
-| Leaderboards | COULD | Da valutare con Legal/Privacy (classifiche nominative) |
-| Data exports verso S3/GCS/Azure | coperto | CDC verso data platform (RI-06) |
+| Campagne (trigger, 6 regole × 30 condizioni, effetti, limiti, espressioni, follow-up, automazioni, simulazione) | coperto | RF-80..RF-86, `rules-engine/campaign` |
+| Referral multilivello | coperto | RF-85 |
+| Wallet configurabili, blocchi, trasferimenti tra membri | coperto | RF-87..RF-89, `ledger` |
+| Achievement, challenge, badge, leaderboard con ciclo premiante | coperto | RF-90..RF-94, `engagement-service` |
+| Fortune wheel | coperto | RF-95: con premi agganciata agli istanti vincenti (DPR 430) |
+| Tier set a condizioni multiple, modalità di discesa, benefici | coperto | RF-105..RF-107 |
+| Custom event schemas, custom fields, collections, product catalog | coperto | RF-98..RF-101 |
+| Reward flow completo, units conversion coupon, pay with points | coperto | RF-102..RF-104 |
+| Segment conditions edizione attuale | coperto | RF-109 (età/località via campi custom) |
+| Analytics, export S3, rotazione segreti webhook, notifiche scadenza | parziale | RF-111, RF-113, RF-114 nel backlog |
 | SSO admin (Okta, Entra ID) | coperto | OIDC aziendale (RF-43) |
 | Multi-tenant | fuori ambito | Un solo programma Iren (RF-20) |
 | MCP server | COULD | Esposizione delle API a un assistente aziendale |

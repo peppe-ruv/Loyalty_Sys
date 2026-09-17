@@ -1,6 +1,6 @@
 global:
   registry: ghcr.io/iren-loyalty
-  tag: "0.2.0"
+  tag: "0.3.0"
   imagePullPolicy: IfNotPresent
   environment: dev
   # Segreti letti da AWS Secrets Manager tramite External Secrets (RP-04)
@@ -43,7 +43,7 @@ services:
     java: true
     db: true
     kafka: true
-    env: { LEDGER_URL: http://ledger:8083, TIER_URL: http://tier-service:8084, SEGMENT_URL: http://segment-service:8090, CATALOG_URL: http://catalog-redemption:8085 }
+    env: { LEDGER_URL: http://ledger:8083, TIER_URL: http://tier-service:8084, SEGMENT_URL: http://segment-service:8090, CATALOG_URL: http://catalog-redemption:8085, ENGAGEMENT_URL: http://engagement-service:8092, MEMBER_URL: http://member-service:8091, INGRESS_URL: http://ingress-adapters:8081, READ_MODEL_URL: http://read-model:8088 }
     resources: { requests: { cpu: 500m, memory: 768Mi }, limits: { memory: 1536Mi } }
     hpa: { min: 3, max: 24, cpu: 65 }
   ledger:
@@ -99,6 +99,15 @@ services:
     env: { LEDGER_URL: http://ledger:8083, READ_MODEL_URL: http://read-model:8088 }
     resources: { requests: { cpu: 250m, memory: 512Mi }, limits: { memory: 1Gi } }
     hpa: { min: 2, max: 8, cpu: 65 }
+  engagement-service:
+    port: 8092
+    replicas: 2
+    java: true
+    db: true
+    kafka: true
+    env: { LEDGER_URL: http://ledger:8083, CATALOG_URL: http://catalog-redemption:8085 }
+    resources: { requests: { cpu: 250m, memory: 512Mi }, limits: { memory: 1Gi } }
+    hpa: { min: 2, max: 8, cpu: 65 }
   identity-mapping:
     port: 8087
     replicas: 2
@@ -123,7 +132,7 @@ services:
   bff:
     port: 3001
     replicas: 3
-    env: { READ_MODEL_URL: http://read-model:8088, TIER_URL: http://tier-service:8084, CONTEST_URL: http://contest-service:8086, CMS_URL: http://cms:3000, MEMBER_URL: http://member-service:8091, SEGMENT_URL: http://segment-service:8090, CATALOG_URL: http://catalog-redemption:8085, INGRESS_URL: http://ingress-adapters:8081, LEDGER_URL: http://ledger:8083 }
+    env: { READ_MODEL_URL: http://read-model:8088, TIER_URL: http://tier-service:8084, CONTEST_URL: http://contest-service:8086, CMS_URL: http://cms:3000, MEMBER_URL: http://member-service:8091, SEGMENT_URL: http://segment-service:8090, CATALOG_URL: http://catalog-redemption:8085, INGRESS_URL: http://ingress-adapters:8081, LEDGER_URL: http://ledger:8083, ENGAGEMENT_URL: http://engagement-service:8092, RULES_URL: http://rules-engine:8082 }
     healthPath: /healthz
     resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { memory: 256Mi } }
     hpa: { min: 3, max: 20, cpu: 60 }

@@ -5,3 +5,4 @@ La specifica completa (16 decisioni approvate, requisiti RF/RI/RC/RT, NFR, compl
 Riassunto delle decisioni: vedi `docs/adr/`.
 
 Parità funzionale con Open Loyalty (vincolo del 17 settembre 2026, RF-60..RF-79): `docs/PARITA-OPEN-LOYALTY.md` e ADR-017.
+Parità con l'edizione attuale di Open Loyalty (Feature Showcase, 17 settembre 2026, RF-80..RF-116): `docs/CATALOGO-FUNZIONALE.md` e ADR-018.

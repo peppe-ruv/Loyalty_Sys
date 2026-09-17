@@ -10,6 +10,8 @@ const SEGMENTS = process.env.SEGMENT_URL || "http://segment-service:8090";
 const CATALOG = process.env.CATALOG_URL || "http://catalog-redemption:8085";
 const INGRESS = process.env.INGRESS_URL || "http://ingress-adapters:8081";
 const LEDGER = process.env.LEDGER_URL || "http://ledger:8083";
+const ENGAGEMENT = process.env.ENGAGEMENT_URL || "http://engagement-service:8092";
+const RULES = process.env.RULES_URL || "http://rules-engine:8082";
 
 // Ruoli (RF-43): il gateway OIDC mette in x-roles i ruoli dell'utente; l'area operatore richiede customer_care o sportello.
 const OPERATOR_ROLES = ["customer_care", "sportello", "platform_admin"];
@@ -85,6 +87,30 @@ const server = http.createServer(async (req, res) => {
     if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/export$/))) return json(200, await fetchJson(`${MEMBERS}/v1/members/${m[1]}/export`, {}, 5000));
     if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/anonymize$/)) && req.method === "POST") return json(200, await proxy(`${MEMBERS}/v1/members/${m[1]}/anonymize`, "POST"));
 
+    // --- Gamification e wallet (RF-87..RF-97, RF-104) ---
+    if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/wallets$/))) return json(200, await fetchJson(`${LEDGER}/v1/ledger/members/${m[1]}/wallets`));
+    if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/transfers$/)) && req.method === "POST") {
+      const b = JSON.parse((await readBody(req)) || "{}");
+      return json(201, await proxy(`${LEDGER}/v1/ledger/transfers`, "POST", JSON.stringify({ fromMemberId: m[1], toMemberId: b.toMemberId, currency: b.wallet || "PREMIO", amount: b.amount, transferKey: `p2p:${m[1]}:${b.toMemberId}:${b.clientRef || Date.now()}`, comment: b.comment || "" })));
+    }
+    if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/badges$/))) return json(200, await fetchJson(`${ENGAGEMENT}/v1/badges/members/${m[1]}/details`));
+    if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/achievements$/))) return json(200, await fetchJson(`${ENGAGEMENT}/v1/achievements/members/${m[1]}`));
+    if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/challenges$/))) return json(200, await fetchJson(`${ENGAGEMENT}/v1/challenges/members/${m[1]}`));
+    if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/leaderboards\/([^/]+)$/))) return json(200, await fetchJson(`${ENGAGEMENT}/v1/leaderboards/${m[2]}/members/${m[1]}`));
+    if ((m = url.pathname.match(/^\/api\/leaderboards\/([^/]+)$/))) return json(200, await fetchJson(`${ENGAGEMENT}/v1/leaderboards/${m[1]}?${url.searchParams}`));
+    if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/wheels\/([^/]+)\/spins$/)) && req.method === "POST") {
+      const b = JSON.parse((await readBody(req)) || "{}");
+      const r = await fetch(`${CONTEST}/v1/wheels/${m[2]}/spins`, { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": req.socket.remoteAddress }, body: JSON.stringify({ memberId: m[1], deviceFingerprint: b.deviceFingerprint }) });
+      return json(r.status, await r.json());
+    }
+    if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/pay-with-points$/)) && req.method === "POST")
+      return json(200, await proxy(`${CATALOG}/v1/pay-with-points`, "POST", JSON.stringify({ memberId: m[1], ...JSON.parse((await readBody(req)) || "{}") })));
+    if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/custom-fields$/))) return json(200, await fetchJson(`${MEMBERS}/v1/members/${m[1]}/custom-fields`));
+    if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/custom-fields\/([^/]+)$/)) && req.method === "PUT") return json(200, await proxy(`${MEMBERS}/v1/members/${m[1]}/custom-fields/${m[2]}`, "PUT", await readBody(req)));
+    if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/tier-progress$/))) return json(200, await fetchJson(`${TIER}/v1/tiers/members/${m[1]}/progress`));
+    if (url.pathname === "/api/content/campaigns") return json(200, await fetchJson(`${CMS}/api/campaigns?where[status][equals]=published&where[visibility.mode][not_equals]=HIDDEN`));
+    if (url.pathname === "/api/content/challenges") return json(200, await fetchJson(`${CMS}/api/challenges?where[status][equals]=published`));
+
     // --- Postazione operatore (RF-75): sportello/negozio/call center — "merchant panel" ---
     if (url.pathname.startsWith("/api/operator/")) {
       if (!isOperator(req)) return json(403, { error: "FORBIDDEN" });
@@ -105,6 +131,13 @@ const server = http.createServer(async (req, res) => {
       }
       if ((m = url.pathname.match(/^\/api\/operator\/redemptions\/([^/]+)\/(use|deliver)$/)) && req.method === "POST")
         return json(200, await proxy(`${CATALOG}/v1/redemptions/${m[1]}/transitions`, "POST", JSON.stringify({ to: m[2] === "use" ? "USED" : "DELIVERED", actor, byMember: false })));
+      if ((m = url.pathname.match(/^\/api\/operator\/members\/([^/]+)\/badges\/([^/]+)$/)) && req.method === "POST")
+        return json(201, await proxy(`${ENGAGEMENT}/v1/badges/${m[2]}/grants`, "POST", JSON.stringify({ memberId: m[1], grantKey: `operator:${actor}:${m[1]}:${m[2]}:${Date.now()}` })));
+      if ((m = url.pathname.match(/^\/api\/operator\/members\/([^/]+)\/blocks$/)) && req.method === "POST")
+        return json(202, await proxy(`${LEDGER}/v1/ledger/blocks?unblock=${url.searchParams.get("unblock") || "false"}`, "POST", JSON.stringify({ memberId: m[1], actionKey: `block:${actor}:${m[1]}:${Date.now()}`, ...JSON.parse((await readBody(req)) || "{}") })));
+      if (url.pathname === "/api/operator/simulations" && req.method === "POST") return json(200, await proxy(`${RULES}/v1/simulations`, "POST", await readBody(req)));
+      if ((m = url.pathname.match(/^\/api\/operator\/redemptions\/transitions$/)) && req.method === "POST")
+        return json(200, await proxy(`${CATALOG}/v1/redemptions/transitions`, "POST", JSON.stringify({ ...JSON.parse((await readBody(req)) || "{}"), actor })));
       if ((m = url.pathname.match(/^\/api\/operator\/members\/([^/]+)\/tier$/)) && req.method === "PUT")
         return json(200, await proxy(`${TIER}/v1/tiers/members/${m[1]}/override`, "PUT", JSON.stringify({ ...JSON.parse((await readBody(req)) || "{}"), actor })));
     }

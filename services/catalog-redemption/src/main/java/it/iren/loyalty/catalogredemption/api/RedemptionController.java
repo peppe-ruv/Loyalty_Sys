@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -23,7 +24,11 @@ public class RedemptionController {
 
     private final RedemptionService service;
     private final CouponPool coupons;
-    public RedemptionController(RedemptionService service, CouponPool coupons) { this.service = service; this.coupons = coupons; }
+    private final org.springframework.web.client.RestClient ledger;
+    public RedemptionController(RedemptionService service, CouponPool coupons, org.springframework.web.client.RestClient.Builder b) {
+        this.service = service; this.coupons = coupons;
+        this.ledger = b.baseUrl(System.getenv().getOrDefault("LEDGER_URL", "http://ledger:8083")).build();
+    }
 
     @PostMapping("/redemptions")
     public RedemptionService.Result redeem(@RequestBody RedeemRequest r) {
@@ -37,6 +42,23 @@ public class RedemptionController {
     @PostMapping("/redemptions/{id}/transitions")
     public Map<String, String> transition(@PathVariable UUID id, @RequestBody Transition t) {
         return Map.of("status", service.transition(id, RedemptionState.valueOf(t.to()), t.actor(), t.byMember()));
+    }
+
+    public record BulkTransition(List<UUID> ids, @NotBlank String to, @NotBlank String actor) {}
+    @PostMapping("/redemptions/transitions")
+    public Map<UUID, String> bulk(@RequestBody BulkTransition t) { return service.transitionAll(t.ids(), RedemptionState.valueOf(t.to()), t.actor()); }
+
+    /** Paga con i punti (RF-104): scala le unità necessarie a coprire l'importo e restituisce lo sconto da applicare al carrello. */
+    public record PayWithPoints(@NotBlank String memberId, @NotBlank String orderRef, java.math.BigDecimal amountEur, Long units) {}
+    @PostMapping("/pay-with-points")
+    public Map<String, Object> payWithPoints(@RequestBody PayWithPoints p) {
+        var conv = new it.iren.loyalty.catalogredemption.domain.UnitsConversion(new java.math.BigDecimal(System.getenv().getOrDefault("EUR_PER_UNIT", "0.01")), 100, 0, 100);
+        long units = p.units() != null ? p.units() : conv.unitsFor(p.amountEur());
+        var value = conv.valueOf(units);
+        try {
+            ledger.post().uri("/v1/ledger/debits").body(Map.of("memberId", p.memberId(), "actionKey", "pay:" + p.orderRef() + ":DEBIT", "points", units, "reason", "PAY_WITH_POINTS")).retrieve().toBodilessEntity();
+        } catch (org.springframework.web.client.HttpClientErrorException.Conflict e) { throw new RedemptionService.RedemptionRejected("INSUFFICIENT_BALANCE"); }
+        return Map.of("orderRef", p.orderRef(), "units", units, "discountEur", value, "reversalKey", "pay:" + p.orderRef() + ":DEBIT");
     }
 
     @PostMapping(value = "/coupon-pools/{poolId}/codes", consumes = "text/plain")

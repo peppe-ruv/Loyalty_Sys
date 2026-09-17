@@ -17,8 +17,28 @@ import java.util.Map;
 public class TierController {
     private final JdbcTemplate jdbc;
     private final TierPolicy policy = TierPolicy.example();
+    private final it.iren.loyalty.tierservice.domain.TierSet tierSet;
 
-    public TierController(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    public TierController(JdbcTemplate jdbc, it.iren.loyalty.tierservice.domain.TierSet tierSet) { this.jdbc = jdbc; this.tierSet = tierSet; }
+
+    /** Tier set attivo con condizioni, soglie, benefici e modalità di discesa (RF-105..RF-107). */
+    @GetMapping("/sets/active")
+    public it.iren.loyalty.tierservice.domain.TierSet activeSet() { return tierSet; }
+
+    /** Benefici del tier corrente e progresso verso il successivo (RF-107). */
+    @GetMapping("/members/{memberId}/progress")
+    public Map<String, Object> progress(@PathVariable String memberId) {
+        var cur = current(memberId);
+        var t = tierSet.byCode((String) cur.get("tier"));
+        var metrics = new it.iren.loyalty.tierservice.domain.TierSet.MemberMetrics(Map.of("status", ((Number) cur.get("statusPointsYear")).doubleValue()), null, null);
+        return Map.of("tier", t.code(), "benefits", t.benefits(), "missingToNext", tierSet.missingToNext(t, metrics), "downgrade", tierSet.downgrade().mode().name());
+    }
+
+    /** Assegnazione da effetto di campagna (RF-81): come l'override manuale, con causale della campagna. */
+    @PostMapping("/members/{memberId}/assign")
+    public Map<String, Object> assign(@PathVariable String memberId, @RequestBody Map<String, String> body) {
+        return override(memberId, new OverrideRequest(body.get("tierCode"), body.getOrDefault("reason", "campaign"), body.getOrDefault("actor", "rules-engine"), null));
+    }
 
     @GetMapping("/members/{memberId}")
     public Map<String, Object> current(@PathVariable String memberId) {

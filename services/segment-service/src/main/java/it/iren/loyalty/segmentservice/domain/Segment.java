@@ -50,7 +50,29 @@ public record Segment(String id, String name, boolean active, Match match, List<
         /** saldo PREMIO disponibile tra min e max */
         POINTS_BALANCE,
         /** consenso (key) con valore true */
-        CONSENT
+        CONSENT,
+        /** adesione avvenuta negli ultimi N giorni (days) — RF-109 */
+        REGISTERED_IN_LAST_DAYS,
+        /** campo custom data (key) ricorre entro N giorni (days): compleanno, scadenza contratto — RF-99 */
+        DATE_FIELD_IN_DAYS,
+        /** campo custom (key) con valore (value) o tra min e max — RF-99 */
+        CUSTOM_FIELD,
+        /** valore giornaliero massimo (min) negli ultimi giorni (days) */
+        DAILY_VALUE,
+        /** evento custom di tipo (actionType) negli ultimi (days) giorni almeno (min) volte */
+        CUSTOM_EVENT_IN_LAST_DAYS,
+        /** achievement (key) completato almeno (min) volte */
+        ACHIEVEMENT_COMPLETED,
+        /** achievement (key) con progresso corrente tra min e max, opzionale negli ultimi (days) */
+        ACHIEVEMENT_PROGRESS,
+        /** challenge (key) completata */
+        CHALLENGE_COMPLETED,
+        /** campagna (key) completata almeno (min) volte negli ultimi (days) giorni — base delle campagne a catena RF-86 */
+        CAMPAIGN_COMPLETED,
+        /** possiede il badge (values) */
+        BADGE,
+        /** valore nella collezione (key = nome collezione) per il campo del membro (value = nome campo) — RF-100 */
+        IN_COLLECTION
     }
 
     /** Criterio con parametri liberi; le chiavi riconosciute sono documentate su {@link Type}. */

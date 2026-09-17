@@ -11,6 +11,7 @@ import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -90,7 +91,15 @@ public class RedemptionService {
         return new Result(id, status, code, codeExpiry);
     }
 
-    /** Transizioni di stato (RF-16, RF-17, RF-76): annullo del cliente con storno punti; consegna; "usato" dall'operatore. */
+    /** Cambio di stato massivo (RF-103): stessi controlli, un esito per riga. */
+    @Transactional
+    public Map<UUID, String> transitionAll(List<UUID> ids, RedemptionState to, String actor) {
+        Map<UUID, String> out = new java.util.LinkedHashMap<>();
+        for (UUID id : ids) { try { out.put(id, transition(id, to, actor, false)); } catch (RuntimeException e) { out.put(id, "ERROR:" + e.getMessage()); } }
+        return out;
+    }
+
+    /** Transizioni di stato (RF-16, RF-17, RF-76, RF-103): annullo/rifiuto/reso con storno punti; lavorazione, consegna, "usato". */
     @Transactional
     public String transition(UUID redemptionId, RedemptionState to, String actor, boolean byMember) {
         var row = jdbc.queryForMap("SELECT member_id, status, points, reward_id, requested_at FROM catalogredemption.redemption WHERE id = ? FOR UPDATE", redemptionId);
@@ -101,7 +110,7 @@ public class RedemptionService {
             if (((Timestamp) row.get("requested_at")).toInstant().plus(Duration.ofHours(graceHours)).isBefore(Instant.now())) throw new RedemptionRejected("CANCEL_WINDOW_ELAPSED");
         }
         if (!from.canGo(to)) throw new RedemptionRejected("ILLEGAL_TRANSITION_" + from + "_" + to);
-        if (to == RedemptionState.CANCELLED) {
+        if (to.refunds()) {
             long points = ((Number) row.get("points")).longValue();
             if (points > 0) ledger.post().uri("/v1/ledger/reversals/{k}", "redemption:" + redemptionId + ":DEBIT").retrieve().toBodilessEntity();
             jdbc.update("UPDATE catalogredemption.reward SET stock = stock + 1 WHERE id = ? AND stock >= 0", row.get("reward_id"));
@@ -109,6 +118,7 @@ public class RedemptionService {
         }
         jdbc.update("UPDATE catalogredemption.redemption SET status = ?, delivered_at = CASE WHEN ? = 'DELIVERED' THEN now() ELSE delivered_at END, used_at = CASE WHEN ? = 'USED' THEN now() ELSE used_at END, last_actor = ? WHERE id = ?",
                 to.name(), to.name(), to.name(), actor, redemptionId);
+        jdbc.update("INSERT INTO catalogredemption.redemption_status_history(redemption_id, from_status, to_status, actor) VALUES (?,?,?,?)", redemptionId, from.name(), to.name(), actor);
         return to.name();
     }
 

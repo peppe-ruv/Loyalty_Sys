@@ -22,8 +22,9 @@ import java.util.regex.PatternSyntaxException;
  */
 public class RuleEvaluator {
     /** Posta prodotta da una regola; {@code lockDays} > 0 = punti in sospeso fino alla scadenza della finestra (RF-66). */
-    public record Posting(String ruleId, String ruleVersion, Currency currency, long amount, int lockDays, String autoRewardId) {
-        public Posting(String ruleId, String ruleVersion, Currency currency, long amount) { this(ruleId, ruleVersion, currency, amount, 0, null); }
+    public record Posting(String ruleId, String ruleVersion, Currency currency, long amount, int lockDays, String autoRewardId, java.time.Instant expiresAt, java.time.Instant pendingUntil) {
+        public Posting(String ruleId, String ruleVersion, Currency currency, long amount) { this(ruleId, ruleVersion, currency, amount, 0, null, null, null); }
+        public Posting(String ruleId, String ruleVersion, Currency currency, long amount, int lockDays, String autoRewardId) { this(ruleId, ruleVersion, currency, amount, lockDays, autoRewardId, null, null); }
         @Override public String toString() {
             return "Posting[ruleId=" + ruleId + ", ruleVersion=" + ruleVersion + ", currency=" + currency + ", amount=" + amount
                     + (lockDays > 0 ? ", lockDays=" + lockDays : "") + (autoRewardId != null ? ", autoReward=" + autoRewardId : "") + "]";

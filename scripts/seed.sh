@@ -37,6 +37,10 @@ echo; echo "-> check-in geolocalizzato (RF-67) e codice promozionale (RF-69)"
 curl -sS -X POST "$SEED_INGRESS/v1/check-ins" -H 'content-type: application/json' -d '{"memberId":"demo-member","placeId":"negozio-torino-centro","lat":45.0704,"lon":7.6870}'; echo
 curl -sS -X PUT "$SEED_INGRESS/v1/codes" -H 'content-type: application/json' -d '{"code":"WELCOME-2027","campaign":"WELCOME2027","kind":"PROMO","maxUses":0,"maxUsesPerMember":1,"active":true}'; echo
 curl -sS -X POST "$SEED_INGRESS/v1/codes/redeem" -H 'content-type: application/json' -d '{"memberId":"demo-member","code":"WELCOME-2027","channel":"web"}'; echo
+echo "-> giro della ruota dei punti (RF-95) e simulazione della campagna cashback a scaglioni (RF-82/RF-86)"
+CONTESTS=${SEED_CONTESTS:-http://localhost:8086}; RULES=${SEED_RULES:-http://localhost:8082}
+curl -sS -X POST "$CONTESTS/v1/wheels/ruota-punti/spins" -H 'content-type: application/json' -d '{"memberId":"demo-member","deviceFingerprint":"seed"}'; echo
+curl -sS -X POST "$RULES/v1/simulations" -H 'content-type: application/json' -d "{\"action\":{\"actionType\":\"TRANSACTION\",\"idempotencyKey\":\"sim:1:TRANSACTION\",\"occurredAt\":\"$NOW\",\"attributes\":{\"amountEur\":6000}},\"member\":{\"memberId\":\"demo-member\",\"tier\":\"TOP\",\"segments\":[],\"wallets\":{\"PREMIO\":{\"active\":0,\"earned\":0,\"spent\":0,\"pending\":0,\"blocked\":0,\"expired\":0}},\"attributes\":{},\"badges\":[]}}"; echo
 sleep 3
 echo "-> saldi"
 curl -sS "$SEED_LEDGER/v1/ledger/members/demo-member/balances"; echo

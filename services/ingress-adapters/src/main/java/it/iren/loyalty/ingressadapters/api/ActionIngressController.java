@@ -36,10 +36,14 @@ public class ActionIngressController {
 
     private final DedupService dedup;
     private final ActionPublisher publisher;
+    private final it.iren.loyalty.ingressadapters.schema.SchemaRegistry schemas;
+    private final it.iren.loyalty.ingressadapters.catalog.ProductCatalog catalog;
 
-    public ActionIngressController(DedupService dedup, ActionPublisher publisher) {
+    public ActionIngressController(DedupService dedup, ActionPublisher publisher, it.iren.loyalty.ingressadapters.schema.SchemaRegistry schemas, it.iren.loyalty.ingressadapters.catalog.ProductCatalog catalog) {
         this.dedup = dedup;
         this.publisher = publisher;
+        this.schemas = schemas;
+        this.catalog = catalog;
     }
 
     @PostMapping
@@ -60,6 +64,32 @@ public class ActionIngressController {
                 results.add(new ItemResult(a.idempotencyKey(), "REJECTED", "FUTURE_TIMESTAMP"));
                 rejected++;
                 continue;
+            }
+            // RF-98: schema del tipo azione; RF-101: arricchimento righe dal catalogo
+            var schema = schemas.byActionType(a.actionType());
+            if (schema.isEmpty() && schemas.rejectUnknownTypes()) {
+                publisher.reject(source, item.memberId(), a, "UNKNOWN_ACTION_TYPE");
+                results.add(new ItemResult(a.idempotencyKey(), "REJECTED", "UNKNOWN_ACTION_TYPE"));
+                rejected++;
+                continue;
+            }
+            if (schema.isPresent()) {
+                var errors = schema.get().validate(a.attributes());
+                if (!errors.isEmpty()) {
+                    publisher.reject(source, item.memberId(), a, "SCHEMA:" + String.join("; ", errors));
+                    results.add(new ItemResult(a.idempotencyKey(), "REJECTED", "SCHEMA_INVALID"));
+                    rejected++;
+                    continue;
+                }
+            }
+            if (a.attributes() != null && a.attributes().get("lines") != null) {
+                var enriched = catalog.enrich(it.iren.loyalty.common.event.TransactionLine.fromAttribute(a.attributes().get("lines")));
+                var attrs = new java.util.HashMap<String, Object>(a.attributes());
+                attrs.put("lines", enriched.stream().map(l -> {
+                    var m = new java.util.HashMap<String, Object>();
+                    m.put("sku", l.sku()); m.put("name", l.name()); m.put("category", l.category()); m.put("brand", l.brand()); m.put("quantity", l.quantity()); m.put("amountEur", l.amountEur()); m.put("labels", l.labels());
+                    return m; }).toList());
+                a = new RewardingAction(a.actionType(), a.idempotencyKey(), a.externalRef(), a.occurredAt(), a.reversalOf(), attrs);
             }
             if (!dedup.firstSeen(a.idempotencyKey())) {
                 results.add(new ItemResult(a.idempotencyKey(), "DUPLICATE", null));
