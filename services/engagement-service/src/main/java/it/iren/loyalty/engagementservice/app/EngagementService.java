@@ -136,14 +136,25 @@ public class EngagementService {
         catch (Exception e) { return null; }
     }
 
+    /**
+     * Tabelle di stato ammesse: il nome finisce concatenato nel SQL, quindi resta un elenco chiuso
+     * e non può mai arrivare da una richiesta.
+     */
+    private static final java.util.Set<String> STATE_TABLES = java.util.Set.of("achievement_progress", "challenge_state");
+
+    private static String stateTable(String table) {
+        if (!STATE_TABLES.contains(table)) throw new IllegalArgumentException("tabella di stato non ammessa: " + table);
+        return table;
+    }
+
     <T> T load(String table, String memberId, String defId, Class<T> type, T empty) {
-        String s = jdbc.query("SELECT state FROM engagementservice." + table + " WHERE member_id = ? AND definition_id = ? FOR UPDATE", rs -> rs.next() ? rs.getString(1) : null, memberId, defId);
+        String s = jdbc.query("SELECT state FROM engagementservice." + stateTable(table) + " WHERE member_id = ? AND definition_id = ? FOR UPDATE", rs -> rs.next() ? rs.getString(1) : null, memberId, defId);
         try { return s == null ? empty : json.readValue(s, type); } catch (Exception e) { return empty; }
     }
 
     void save(String table, String memberId, String defId, Object state, int completedCount) {
         try {
-            jdbc.update("INSERT INTO engagementservice." + table + "(member_id, definition_id, state, completed_count, updated_at) VALUES (?,?,?::jsonb,?,now()) ON CONFLICT (member_id, definition_id) DO UPDATE SET state = EXCLUDED.state, completed_count = EXCLUDED.completed_count, updated_at = now()",
+            jdbc.update("INSERT INTO engagementservice." + stateTable(table) + "(member_id, definition_id, state, completed_count, updated_at) VALUES (?,?,?::jsonb,?,now()) ON CONFLICT (member_id, definition_id) DO UPDATE SET state = EXCLUDED.state, completed_count = EXCLUDED.completed_count, updated_at = now()",
                     memberId, defId, json.writeValueAsString(state), completedCount);
         } catch (Exception e) { throw new IllegalStateException(e); }
     }

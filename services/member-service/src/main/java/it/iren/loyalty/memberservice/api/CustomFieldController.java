@@ -15,6 +15,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/v1/members")
 public class CustomFieldController {
+
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(CustomFieldController.class);
     private final JdbcTemplate jdbc;
     private final CustomFieldSource source;
     private final RestClient segments;
@@ -38,7 +40,11 @@ public class CustomFieldController {
                 Object v = json.readValue((String) r.get("values"), Map.class);
                 if (((Number) r.get("row_index")).intValue() >= 0) ((List<Object>) out.computeIfAbsent((String) r.get("group_name"), k -> new java.util.ArrayList<>())).add(v);
                 else out.put((String) r.get("group_name"), v);
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                // Riga illeggibile: si salta, ma senza traccia un campo sparito sarebbe impossibile da spiegare.
+                // Nessun id membro nel log (D12): basta il gruppo per trovare la riga.
+                LOG.warn("campo custom non leggibile nel gruppo {}: {}", r.get("group_name"), e.toString());
+            }
         }
         return out;
     }

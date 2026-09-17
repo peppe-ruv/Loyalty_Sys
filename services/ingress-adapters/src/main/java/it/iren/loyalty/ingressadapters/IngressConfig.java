@@ -16,6 +16,13 @@ import java.util.Optional;
 /** Adattatori di default: schemi di esempio (in produzione dal CMS, collezione event-schemas) e catalogo su Postgres. */
 @Configuration
 public class IngressConfig {
+
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(IngressConfig.class);
+
+    /** Il catalogo è letto a ogni riga di transazione: un solo mapper, non uno per lettura. */
+    private static final com.fasterxml.jackson.databind.ObjectMapper PRODUCT_MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
+    private static final com.fasterxml.jackson.core.type.TypeReference<java.util.Map<String, String>> PRODUCT_ATTRIBUTES =
+            new com.fasterxml.jackson.core.type.TypeReference<>() { };
     @Bean @ConditionalOnMissingBean
     SchemaRegistry seedSchemas() {
         List<EventSchema> seed = List.of(
@@ -39,7 +46,8 @@ public class IngressConfig {
         return sku -> jdbc.query("SELECT sku, name, category, brand, price, labels, attributes::text FROM ingressadapters.product WHERE sku = ? AND active", rs -> {
             if (!rs.next()) return Optional.<Product>empty();
             java.util.Map<String, String> attrs = new java.util.HashMap<>();
-            try { attrs = new com.fasterxml.jackson.databind.ObjectMapper().readValue(rs.getString(7), new com.fasterxml.jackson.core.type.TypeReference<java.util.Map<String, String>>() {}); } catch (Exception ignored) {}
+            try { attrs = PRODUCT_MAPPER.readValue(rs.getString(7), PRODUCT_ATTRIBUTES); }
+            catch (Exception e) { LOG.warn("attributi non leggibili per lo sku {}: {}", rs.getString(1), e.toString()); }
             String labels = rs.getString(6);
             return Optional.of(new Product(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getBigDecimal(5), labels == null || labels.isBlank() ? List.of() : List.of(labels.split(";")), attrs, true));
         }, sku);
