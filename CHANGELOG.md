@@ -11,6 +11,15 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
 - `catalog-redemption`: la colonna generata `redemption.expires_at` sommava un intervallo a un `timestamptz`,
   espressione che Postgres rifiuta come non immutabile: lo schema non si creava affatto
 
+### Corretto (addebiti senza compensazione)
+- `catalog-redemption` e `contest-service`: l'addebito sul ledger è una chiamata a un altro servizio e restava
+  committato anche quando il riscatto o la giocata fallivano subito dopo (lotto di codici esaurito, stock, budget).
+  Ora ogni fallimento successivo all'addebito lo storna, e lo storno è idempotente
+- `catalog-redemption`: `record` legava il codice del lotto al riscatto prima di inserirne la riga, violando la
+  chiave esterna — nessun buono da lotto era riscattabile. La riga si scrive per prima
+- `catalog-redemption` espone la porta `LedgerPort` (implementazione REST nella configurazione) come vuole la
+  convenzione: prima il servizio costruiva il proprio client e la compensazione non era verificabile
+
 ### Corretto (paga con i punti)
 - `catalog-redemption`: le unità da scalare si arrotondavano per eccesso al passo e lo sconto superava l'importo del
   carrello (5,55 € → 600 punti = 6,00 €). Ora si arrotonda per difetto e il resto si paga normalmente; sotto il

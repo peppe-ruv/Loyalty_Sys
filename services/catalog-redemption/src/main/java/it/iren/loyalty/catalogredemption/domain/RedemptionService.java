@@ -4,7 +4,6 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
@@ -28,18 +27,20 @@ public class RedemptionService {
     public record Result(UUID redemptionId, String status, String code, Instant codeExpiresAt) {}
     public static class RedemptionRejected extends RuntimeException { public RedemptionRejected(String m) { super(m); } }
 
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(RedemptionService.class);
+
     private final JdbcTemplate jdbc;
-    private final RestClient ledger;
+    private final LedgerPort ledger;
     private final CouponPool coupons;
     private final it.iren.loyalty.common.metrics.LoyaltyMetrics metrics;
     private final org.springframework.kafka.core.KafkaTemplate<String, byte[]> kafka;
 
-    public RedemptionService(JdbcTemplate jdbc, RestClient.Builder builder, CouponPool coupons, it.iren.loyalty.common.metrics.LoyaltyMetrics metrics, org.springframework.kafka.core.KafkaTemplate<String, byte[]> kafka) {
+    public RedemptionService(JdbcTemplate jdbc, LedgerPort ledger, CouponPool coupons, it.iren.loyalty.common.metrics.LoyaltyMetrics metrics, org.springframework.kafka.core.KafkaTemplate<String, byte[]> kafka) {
         this.jdbc = jdbc;
+        this.ledger = ledger;
         this.coupons = coupons;
         this.metrics = metrics;
         this.kafka = kafka;
-        this.ledger = builder.baseUrl(System.getenv().getOrDefault("LEDGER_URL", "http://ledger:8083")).build();
     }
 
     @Transactional
@@ -54,14 +55,32 @@ public class RedemptionService {
         if (verdict != RedemptionPolicy.Reason.OK) { metrics.redemption(verdict.name(), r.type().name()); throw new RedemptionRejected(verdict.name()); }
 
         UUID id = UUID.randomUUID();
+        String debitKey = "redemption:" + id + ":DEBIT";
         if (r.pointsCost() > 0) {
             try {
-                ledger.post().uri("/v1/ledger/debits").body(Map.of("memberId", memberId, "actionKey", "redemption:" + id + ":DEBIT", "points", r.pointsCost(), "reason", "REDEMPTION")).retrieve().toBodilessEntity();
-            } catch (org.springframework.web.client.HttpClientErrorException.Conflict e) {
+                ledger.debit(memberId, debitKey, r.pointsCost(), "REDEMPTION");
+            } catch (LedgerPort.InsufficientBalance e) {
                 throw new RedemptionRejected("INSUFFICIENT_BALANCE");
             }
         }
-        return record(id, memberId, r, now);
+        try {
+            return record(id, memberId, r, now);
+        } catch (RuntimeException e) {
+            // L'addebito è già committato sul ledger, che è un altro servizio: il rollback della
+            // transazione locale non lo tocca. Senza questa compensazione il membro resterebbe
+            // senza punti e senza premio (per esempio con COUPON_POOL_EMPTY).
+            if (r.pointsCost() > 0) compensate(debitKey, e);
+            throw e;
+        }
+    }
+
+    /** Storno di compensazione; se fallisce resta a log, ma lo storno è idempotente e si può ripetere. */
+    private void compensate(String debitKey, RuntimeException cause) {
+        try {
+            ledger.reverse(debitKey);
+        } catch (RuntimeException failed) {
+            LOG.error("storno di compensazione non riuscito per {}: {} (causa originale: {})", debitKey, failed, cause.toString());
+        }
     }
 
     /** Assegnazione senza punti (RF-76): regola "instant reward", benefit di tier, gesto del customer care. Idempotente per chiave. */
@@ -82,16 +101,23 @@ public class RedemptionService {
 
     private Result record(UUID id, String memberId, RewardDefinition r, Instant now) {
         if (!r.unlimitedStock()) jdbc.update("UPDATE catalogredemption.reward SET stock = stock - 1 WHERE id = ?", UUID.fromString(r.id()));
+        // La riga del riscatto si scrive *prima* di prendere il codice: il lotto ha una chiave esterna
+        // verso il riscatto e legare un codice a un id inesistente la violerebbe — con la conseguenza
+        // che nessun buono da lotto si sarebbe mai potuto riscattare.
+        jdbc.update("INSERT INTO catalogredemption.redemption(id, member_id, reward_id, points, status, requested_at) VALUES (?,?,?,?,?,?)",
+                id, memberId, UUID.fromString(r.id()), r.pointsCost(), RedemptionState.CONFIRMED.name(), Timestamp.from(now));
+
         String code = null;
         if (r.deliversCode() && r.couponPoolId() != null) {
             code = coupons.take(r.couponPoolId(), id).orElseThrow(() -> new RedemptionRejected("COUPON_POOL_EMPTY"));
         }
-        Instant codeExpiry = r.codeValidityDays() > 0 ? now.plus(Duration.ofDays(r.codeValidityDays())) : null;
-        String status = r.type() == RewardDefinition.Type.PHYSICAL ? RedemptionState.CONFIRMED.name()
-                : code != null ? RedemptionState.DELIVERED.name() : RedemptionState.CONFIRMED.name();
-        jdbc.update("INSERT INTO catalogredemption.redemption(id, member_id, reward_id, points, status, code, code_expires_at, requested_at, delivered_at) VALUES (?,?,?,?,?,?,?,?,?)",
-                id, memberId, UUID.fromString(r.id()), r.pointsCost(), status, code, codeExpiry == null ? null : Timestamp.from(codeExpiry), Timestamp.from(now),
-                code != null ? Timestamp.from(now) : null);
+        Instant codeExpiry = code != null && r.codeValidityDays() > 0 ? now.plus(Duration.ofDays(r.codeValidityDays())) : null;
+        String status = r.type() != RewardDefinition.Type.PHYSICAL && code != null
+                ? RedemptionState.DELIVERED.name() : RedemptionState.CONFIRMED.name();
+        if (code != null) {
+            jdbc.update("UPDATE catalogredemption.redemption SET code = ?, code_expires_at = ?, status = ?, delivered_at = ? WHERE id = ?",
+                    code, codeExpiry == null ? null : Timestamp.from(codeExpiry), status, Timestamp.from(now), id);
+        }
         metrics.redemption(status, r.type().name());
         publish(memberId, id, r.id(), r.type().name(), r.name(), status, r.pointsCost(), code);
         return new Result(id, status, code, codeExpiry);
@@ -121,7 +147,7 @@ public class RedemptionService {
         if (!from.canGo(to)) throw new RedemptionRejected("ILLEGAL_TRANSITION_" + from + "_" + to);
         if (to.refunds()) {
             long points = ((Number) row.get("points")).longValue();
-            if (points > 0) ledger.post().uri("/v1/ledger/reversals/{k}", "redemption:" + redemptionId + ":DEBIT").retrieve().toBodilessEntity();
+            if (points > 0) ledger.reverse("redemption:" + redemptionId + ":DEBIT");
             jdbc.update("UPDATE catalogredemption.reward SET stock = stock + 1 WHERE id = ? AND stock >= 0", row.get("reward_id"));
             jdbc.update("UPDATE catalogredemption.coupon SET redemption_id = NULL, assigned_at = NULL WHERE redemption_id = ?", redemptionId);
         }

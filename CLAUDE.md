@@ -254,10 +254,10 @@ mantenuti in Claude: chi modifica il codice segnala cosa va riportato lì.
   `RestClient.body(List.class)` in un ternario (rules-engine) e `AchievementEngine.periodKey` package-private usata
   da `app` (engagement-service). Il compilatore ora gira con `-Xlint:unchecked,rawtypes,deprecation` senza warning:
   tenerlo così.
-- **Un punto aperto dalla revisione del codice** (`docs/REVISIONE-CODICE-0.5.0.md`): addebiti remoti eseguiti dentro
-  transazioni locali senza compensazione (`RedemptionService.create`, `WheelService.spin`, merge di
-  `identity-mapping`). È il più delicato: serve una compensazione esplicita o lo spostamento dell'addebito dopo
-  l'esito locale, con test di integrazione che simulino il fallimento a metà. Cambiano semantica di saldi o consegne: si affrontano uno
+- ~~Punti aperti dalla revisione del codice~~ **chiusi tutti e otto** (`docs/REVISIONE-CODICE-0.5.0.md`, che tiene
+  la decisione presa per ciascuno). Resta da chiudere il merge di `identity-mapping`, dove un errore fra il
+  trasferimento delle unità e la chiusura del membro assorbito lascia uno stato incoerente (nessun ammanco: il
+  `transferKey` è idempotente e il merge si ripete); va affrontato insieme all'unmerge dei saldi. Cambiano semantica di saldi o consegne: si affrontano uno
   alla volta, con i test di integrazione a fare da rete.
 - ~~Test di integrazione con Testcontainers~~ **c'è il banco**: `PostgresIntegrationTest` in `common` (test-jar,
   Postgres 16 condiviso, migrazioni Flyway vere) e un `ContextLoadsTest` per servizio. Da estendere a Kafka per il

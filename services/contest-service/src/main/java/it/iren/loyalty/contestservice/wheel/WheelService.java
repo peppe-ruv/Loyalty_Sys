@@ -21,6 +21,8 @@ import java.util.UUID;
  */
 @Service
 public class WheelService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(WheelService.class);
+
     public record Result(UUID spinId, String slotId, String label, boolean won, String rewardId, String wallet, long units, int spinsLeft) {}
     public static class SpinRejected extends RuntimeException { public SpinRejected(String m) { super(m); } }
 
@@ -46,10 +48,32 @@ public class WheelService {
         long spins = jdbc.queryForObject("SELECT count(*) FROM contestservice.wheel_spin WHERE wheel_id = ? AND member_id = ? AND spun_at >= ?", Long.class, wheelId, memberId, Timestamp.from(periodStart(now, w.spinsPeriod())));
         if (w.spinsPerMember() > 0 && spins >= w.spinsPerMember()) throw new SpinRejected("NO_SPINS_LEFT");
         UUID spinId = UUID.randomUUID();
+        String costKey = "wheel:" + spinId + ":COST";
         if (w.costUnits() > 0) {
-            try { ledger.post().uri("/v1/ledger/debits").body(Map.of("memberId", memberId, "actionKey", "wheel:" + spinId + ":COST", "points", w.costUnits(), "reason", "WHEEL_SPIN", "currency", w.costWallet() == null ? "PREMIO" : w.costWallet())).retrieve().toBodilessEntity(); }
+            try { ledger.post().uri("/v1/ledger/debits").body(Map.of("memberId", memberId, "actionKey", costKey, "points", w.costUnits(), "reason", "WHEEL_SPIN", "currency", w.costWallet() == null ? "PREMIO" : w.costWallet())).retrieve().toBodilessEntity(); }
             catch (org.springframework.web.client.HttpClientErrorException.Conflict e) { throw new SpinRejected("INSUFFICIENT_BALANCE"); }
         }
+        try {
+            return play(w, wheelId, memberId, deviceFingerprint, ip, now, spinId, spins);
+        } catch (RuntimeException e) {
+            // Il costo della giocata è già addebitato su un altro servizio: il rollback locale non lo
+            // annulla. Senza compensazione il membro pagherebbe una giocata mai avvenuta (RF-97).
+            if (w.costUnits() > 0) compensate(costKey, e);
+            throw e;
+        }
+    }
+
+    /** Storno di compensazione; è idempotente, quindi un tentativo perso si può ripetere a mano (RI-08). */
+    private void compensate(String costKey, RuntimeException cause) {
+        try {
+            ledger.post().uri("/v1/ledger/reversals/{k}", costKey).retrieve().toBodilessEntity();
+        } catch (RuntimeException failed) {
+            log.error("storno di compensazione non riuscito per {}: {} (causa originale: {})", costKey, failed, cause.toString());
+        }
+    }
+
+    private Result play(FortuneWheel w, String wheelId, String memberId, String deviceFingerprint, String ip,
+                        Instant now, UUID spinId, long spins) {
         boolean instantWon = w.mode() == FortuneWheel.Mode.INSTANT_WIN_BACKED && instantWin.play(UUID.fromString(w.contestId()), memberId, deviceFingerprint, ip).won();
         List<FortuneWheel.Slot> eligible = w.eligible(instantWon).stream().filter(s -> s.stock() < 0 || remainingStock(wheelId, s) > 0).toList();
         FortuneWheel.Slot slot = w.draw(rnd, eligible);

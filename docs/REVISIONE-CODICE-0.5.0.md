@@ -59,16 +59,31 @@ Il contratto `docs/contracts/openapi-ingress.yaml` dichiara il nuovo stato `FAIL
 Coperto da tre test di integrazione: broker fermo → 503 e nessuna accettazione; broker che torna →
 la stessa chiave viene presa in carico; azione pubblicata davvero → il secondo invio resta duplicato.
 
-## 3. Chiamate HTTP dentro transazioni, senza compensazione
+## 3. ~~Chiamate HTTP dentro transazioni, senza compensazione~~ — risolto (con un guasto scoperto sotto)
 
-`RedemptionService.create` addebita il ledger via REST e poi continua in transazione locale; se il
-seguito fallisce (`COUPON_POOL_EMPTY`, stock esaurito) la transazione locale torna indietro ma
-**l'addebito remoto è già committato**: il membro resta senza punti e senza premio. Stessa forma in
-`WheelService.spin` e nel merge di `identity-mapping`.
+`RedemptionService.redeem` addebitava il ledger via REST e poi continuava in transazione locale: se
+il seguito falliva (`COUPON_POOL_EMPTY`, stock esaurito) la transazione locale tornava indietro ma
+**l'addebito remoto era già committato**, e il membro restava senza punti e senza premio. Stessa
+forma in `WheelService.spin`.
 
-Serve una compensazione esplicita (storno nel `catch`) o lo spostamento dell'addebito dopo l'esito
-locale. È il punto in cui la piattaforma ha più bisogno dei test di integrazione con Testcontainers
-già in backlog: una correzione senza quel banco di prova è un salto nel buio.
+**Decisione presa**: compensazione esplicita. Dopo l'addebito, tutto ciò che segue sta in un
+`try/catch`; al primo errore si storna la chiave dell'addebito e si rilancia. Lo storno del ledger è
+idempotente (punto 1), quindi un tentativo perso si può ripetere a mano senza doppi accrediti; se
+anche la compensazione fallisce resta un log esplicito con la causa originale.
+
+Per rendere la cosa verificabile, `catalog-redemption` ha ora la porta `LedgerPort` con
+l'implementazione REST nella configurazione, come vuole la convenzione (CLAUDE.md §7): prima il
+servizio si costruiva il `RestClient` da sé e la compensazione non era provabile.
+
+**Il test ha fatto emergere un guasto più grave nello stesso metodo**: `record` prendeva il codice dal
+lotto *prima* di inserire la riga del riscatto, ma `coupon.redemption_id` ha una chiave esterna verso
+`redemption(id)` non differita — quindi **nessun buono da lotto si sarebbe mai potuto riscattare**.
+Ora la riga del riscatto si scrive per prima e il codice si aggancia dopo.
+
+Resta fuori `identity-mapping`: il merge trasferisce le unità e poi chiude il membro assorbito; un
+errore in mezzo lascia le unità spostate e il membro aperto. Le unità non si perdono (il
+`transferKey` è idempotente e il merge si ripete), quindi è una incoerenza di stato, non un ammanco:
+va comunque chiusa quando si affronterà l'unmerge dei saldi, già in backlog.
 
 ## 4. ~~Cicli delle classifiche chiusi prima di premiare~~ — risolto
 
