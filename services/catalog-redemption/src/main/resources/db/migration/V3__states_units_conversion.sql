@@ -1,4 +1,4 @@
--- RF-102/RF-103: stati a parità con Open Loyalty e buoni a conversione di unità.
+-- RF-102/RF-103: stati del ciclo di riscatto e buoni a conversione di unità.
 ALTER TABLE catalogredemption.redemption DROP CONSTRAINT IF EXISTS redemption_status_check;
 ALTER TABLE catalogredemption.redemption ADD CONSTRAINT redemption_status_check CHECK (status IN ('REQUESTED','CONFIRMED','PACKING','WAITING_FOR_SHIPPING','IN_DELIVERY','DELIVERED','USED','RETURNED','REJECTED','CANCELLED','EXPIRED','DONATED'));
 ALTER TABLE catalogredemption.reward

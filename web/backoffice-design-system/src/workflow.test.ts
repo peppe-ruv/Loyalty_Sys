@@ -83,7 +83,7 @@ describe('filtro per ruolo (RF-43)', () => {
   });
 });
 
-describe('verifica Legal (D14, RF-137)', () => {
+describe('verifica Legal (ADR-014, RF-137)', () => {
   const publisher = asRoles('publisher');
 
   it('gli oggetti che non la richiedono vanno da Approvato a Pubblicato', () => {

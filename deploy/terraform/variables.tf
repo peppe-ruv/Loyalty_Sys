@@ -53,13 +53,13 @@ variable "redis_node_type" {
   default = "cache.r7g.large"
 }
 variable "dr_region" {
-  description = "Region per backup e replica DR (D11). Se Legal vieta copie fuori Italia lasciare vuoto (RC-01)."
+  description = "Region per backup e replica DR (ADR-011). Se Legal vieta copie fuori Italia lasciare vuoto (RC-01)."
   type        = string
   default     = ""
 }
 variable "image_registry" {
   type    = string
-  default = "ghcr.io/iren-loyalty"
+  default = "ghcr.io/loyalty-hub"
 }
 variable "image_tag" {
   type    = string

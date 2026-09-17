@@ -1,7 +1,7 @@
 /**
- * Stato di workflow degli oggetti configurabili (D14, RF-137).
+ * Stato di workflow degli oggetti configurabili (ADR-014, RF-137).
  *
- * Sostituisce il toggle Attivo/Inattivo di Open Loyalty: il ciclo è
+ * Sostituisce il semplice toggle Attivo/Inattivo della baseline di mercato: il ciclo è
  * Bozza → In revisione → Approvato → (Verifica Legal) → Programmato → Pubblicato → Bloccato,
  * con la verifica Legal richiesta solo per alcuni tipi di oggetto (regole, tier, concorsi,
  * programma, decisioni). La tabella delle transizioni è qui e non nei singoli moduli: è ciò

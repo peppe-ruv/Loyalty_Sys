@@ -24,7 +24,7 @@ async function getInbox(memberId: string) {
 }
 
 export default async function Home() {
-  // In produzione il memberId arriva dal token OIDC (D12); qui un membro di esempio del seed.
+  // In produzione il memberId arriva dal token OIDC (ADR-012); qui un membro di esempio del seed.
   const memberId = "demo-member";
   const [s, nba, inbox] = await Promise.all([getSummary(memberId), getNextBestAction(memberId), getInbox(memberId)]);
   return (

@@ -60,7 +60,7 @@ if os.environ.get("OIDC_CLIENT_ID"):
     AUTH_USER_REGISTRATION_ROLE = "Gamma"
     AUTH_ROLES_MAPPING = {"loyalty-platform-admin": ["Admin"], "loyalty-marketing": ["Alpha"], "loyalty-ops": ["Gamma"]}
     AUTH_ROLES_SYNC_AT_LOGIN = True
-    OAUTH_PROVIDERS = [{"name": "iren", "icon": "fa-key", "token_key": "access_token", "remote_app": {
+    OAUTH_PROVIDERS = [{"name": "sso", "icon": "fa-key", "token_key": "access_token", "remote_app": {
         "client_id": os.environ["OIDC_CLIENT_ID"], "client_secret": os.environ["OIDC_CLIENT_SECRET"],
         "server_metadata_url": os.environ["OIDC_DISCOVERY_URL"], "client_kwargs": {"scope": "openid email profile groups"}}}]
 else:

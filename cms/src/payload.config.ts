@@ -33,5 +33,5 @@ export default buildConfig({
   // RF-79/RF-115: multilingua dei contenuti (it di default, en); le traduzioni dell'interfaccia sono nel pannello.
   localization: { locales: ["it", "en"], defaultLocale: "it", fallback: true },
   secret: process.env.PAYLOAD_SECRET || "change-me",
-  // SSO aziendale via OIDC (RF-43): strategia di autenticazione da collegare allo IAM Iren.
+  // SSO aziendale via OIDC (RF-43): strategia di autenticazione da collegare allo IAM aziendale.
 });

@@ -8,7 +8,7 @@
     <version>3.5.5</version>
     <relativePath></relativePath>
   </parent>
-  <groupId>it.iren.loyalty</groupId>
+  <groupId>io.loyaltyhub</groupId>
   <artifactId>loyalty-hub-services</artifactId>
   <version>0.6.2-SNAPSHOT</version>
   <packaging>pom</packaging>
@@ -17,7 +17,8 @@
   <licenses>
     <license>
       <name>Apache License, Version 2.0</name>
-      <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
     </license>
   </licenses>
   <modules>
@@ -50,12 +51,12 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>it.iren.loyalty</groupId>
+        <groupId>io.loyaltyhub</groupId>
         <artifactId>common</artifactId>
         <version>0.6.2-SNAPSHOT</version>
       </dependency>
       <dependency>
-        <groupId>it.iren.loyalty</groupId>
+        <groupId>io.loyaltyhub</groupId>
         <artifactId>common</artifactId>
         <version>0.6.2-SNAPSHOT</version>
         <type>test-jar</type>

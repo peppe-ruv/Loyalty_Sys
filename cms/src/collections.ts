@@ -1,5 +1,5 @@
 /**
- * Collezioni del backoffice (RF-40..RF-46). Il workflow (D14) è un campo `status` con transizioni
+ * Collezioni del backoffice (RF-40..RF-46). Il workflow (ADR-014) è un campo `status` con transizioni
  * controllate da hook: card e pop-up = due livelli; regole, tier, concorsi e programma = tre livelli con Legal.
  * Le versioni sono attive su ogni collezione (RF-41); `publishAt` gestisce la programmazione (RF-42).
  */
@@ -60,7 +60,7 @@ export const Rewards: CollectionConfig = {
   slug: "rewards", versions: { drafts: true },
   fields: [
     { name: "name", type: "text", required: true },
-    { name: "type", type: "select", required: true, admin: { description: "RF-74: tipi a parità con Open Loyalty" },
+    { name: "type", type: "select", required: true, admin: { description: "RF-74: tipo di premio" },
       options: ["VOUCHER", "PHYSICAL", "SERVICE", "CASHBACK", "DISCOUNT_PERCENT", "DISCOUNT_VALUE", "FREE_SERVICE", "EVENT_INVITATION", "GIFT", "DONATION"] },
     { name: "valueEur", type: "number", required: true },
     { name: "pointsCost", type: "number", required: true, admin: { description: "0 = premio senza costo (benefit di tier, instant reward)" } },
@@ -73,7 +73,7 @@ export const Rewards: CollectionConfig = {
     { name: "couponPool", type: "relationship", relationTo: "coupon-pools" },
     { name: "codeValidityDays", type: "number", defaultValue: 0 },
     { name: "discountPercent", type: "number", admin: { condition: (d) => d.type === "DISCOUNT_PERCENT" } },
-    { name: "cashbackEur", type: "number", admin: { condition: (d) => d.type === "CASHBACK", description: "accredito in bolletta via SAP (RewardFulfiller)" } },
+    { name: "cashbackEur", type: "number", admin: { condition: (d) => d.type === "CASHBACK", description: "accredito in fattura tramite il sistema di fatturazione (RewardFulfiller)" } },
     { name: "photo", type: "upload", relationTo: "media" },
     { name: "featured", type: "checkbox", defaultValue: false },
     status(twoLevel),
@@ -252,7 +252,7 @@ export const Webhooks: CollectionConfig = {
 export const Settings: CollectionConfig = {
   slug: "settings",
   fields: [
-    { name: "programName", type: "text", defaultValue: "Loyalty Iren" },
+    { name: "programName", type: "text", defaultValue: "Loyalty Hub" },
     { name: "pointsName", type: "group", fields: [{ name: "singular", type: "text", defaultValue: "punto" }, { name: "plural", type: "text", defaultValue: "punti" }] },
     { name: "timezone", type: "text", defaultValue: "Europe/Rome" },
     { name: "locales", type: "select", hasMany: true, options: ["it", "en"], defaultValue: ["it"] },
@@ -267,7 +267,7 @@ export const Settings: CollectionConfig = {
     { name: "identificationPriority", type: "select", hasMany: true, options: ["oidcSub", "crmId", "sapBusinessPartner", "email", "phone", "loyaltyCard"], defaultValue: ["oidcSub", "crmId", "sapBusinessPartner"], admin: { description: "ordine di risoluzione in identity-mapping (RI-02)" } },
     { name: "channels", type: "text", hasMany: true, defaultValue: ["web", "app", "sportello", "negozio", "call-center", "partner"] },
     { name: "rejectUnknownActionTypes", type: "checkbox", defaultValue: false, admin: { description: "RF-98: rifiuta azioni senza schema" } },
-    { name: "loyaltyCard", type: "group", fields: [ { name: "enabled", type: "checkbox", defaultValue: true }, { name: "format", type: "select", options: ["ALPHANUMERIC", "LETTERS", "DIGITS"], defaultValue: "ALPHANUMERIC" }, { name: "length", type: "number", defaultValue: 8 }, { name: "prefix", type: "text", defaultValue: "IREN" } ] },
+    { name: "loyaltyCard", type: "group", fields: [ { name: "enabled", type: "checkbox", defaultValue: true }, { name: "format", type: "select", options: ["ALPHANUMERIC", "LETTERS", "DIGITS"], defaultValue: "ALPHANUMERIC" }, { name: "length", type: "number", defaultValue: 8 }, { name: "prefix", type: "text", defaultValue: "LH" } ] },
     { name: "activeMember", type: "group", fields: [ { name: "days", type: "number", defaultValue: 365 }, { name: "actionTypes", type: "relationship", relationTo: "event-schemas", hasMany: true } ] },
     { name: "eurPerUnit", type: "number", defaultValue: 0.01, admin: { description: "RF-104 paga con i punti e buoni a conversione" } },
     { name: "limits", type: "group", admin: { description: "RF-116" }, fields: [ { name: "activeLeaderboards", type: "number", defaultValue: 3 }, { name: "automationCampaigns", type: "number", defaultValue: 4 }, { name: "automationAudience", type: "number", defaultValue: 200000 } ] },

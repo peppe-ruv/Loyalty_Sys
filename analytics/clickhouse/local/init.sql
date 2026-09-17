@@ -1,5 +1,5 @@
 -- Warehouse analitico del programma (RF-121): ClickHouse alimentato direttamente dai topic Kafka (CloudEvents JSON).
--- Nessun dato anagrafico: solo id loyalty (D12); l'id membro è mantenuto per i conteggi distinti, mai esposto nei cruscotti.
+-- Nessun dato anagrafico: solo id loyalty (ADR-012); l'id membro è mantenuto per i conteggi distinti, mai esposto nei cruscotti.
 CREATE DATABASE IF NOT EXISTS loyalty;
 
 -- Tabelle sorgente sul motore Kafka: una per topic, formato JSONAsString (l'evento CloudEvents intero in una colonna).
@@ -61,14 +61,14 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS loyalty.mv_actions TO loyalty.fact_action
 SELECT JSONExtractString(raw, 'id') AS event_id,
        replaceOne(JSONExtractString(raw, 'subject'), 'member:', '') AS member_id,
        JSONExtractString(raw, 'data', 'actionType') AS action_type,
-       replaceOne(JSONExtractString(raw, 'source'), 'urn:iren:loyalty:source:', '') AS source,
+       replaceOne(JSONExtractString(raw, 'source'), 'urn:loyaltyhub:source:', '') AS source,
        JSONExtractString(raw, 'data', 'attributes', 'channel') AS channel,
        parseDateTime64BestEffort(JSONExtractString(raw, 'data', 'occurredAt'), 3, 'Europe/Rome') AS occurred_at,
        toDecimal64OrZero(JSONExtractRaw(raw, 'data', 'attributes', 'amountEur'), 2) AS amount_eur,
        JSONExtractString(raw, 'data', 'reversalOf') != '' AS is_reversal,
        JSONExtractString(raw, 'data', 'idempotencyKey') AS idempotency_key,
        JSONExtractRaw(raw, 'data', 'attributes') AS attributes
-FROM loyalty.kafka_actions WHERE JSONExtractString(raw, 'type') = 'it.iren.loyalty.action.v1';
+FROM loyalty.kafka_actions WHERE JSONExtractString(raw, 'type') = 'io.loyaltyhub.action.v1';
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS loyalty.mv_movements TO loyalty.fact_movement AS
 SELECT JSONExtractString(raw, 'data', 'movementId') AS movement_id,
@@ -112,7 +112,7 @@ SELECT replaceOne(JSONExtractString(raw, 'subject'), 'member:', '') AS member_id
        JSONExtractBool(raw, 'data', 'entered') AS entered, parseDateTime64BestEffort(JSONExtractString(raw, 'data', 'at'), 3, 'Europe/Rome') AS at
 FROM loyalty.kafka_segments;
 
--- KPI pronti per Superset (RF-111): le stesse metriche dell'edizione attuale di Open Loyalty più quelle del programma.
+-- KPI pronti per Superset (RF-111): metriche standard del programma loyalty.
 CREATE VIEW IF NOT EXISTS loyalty.v_kpi_daily AS
 SELECT day,
        sumIf(n, metric = 'registered') AS registered_members,

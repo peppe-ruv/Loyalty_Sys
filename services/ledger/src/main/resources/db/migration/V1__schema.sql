@@ -1,6 +1,6 @@
 CREATE SCHEMA IF NOT EXISTS ledger;
 
--- Registro movimenti immutabile: nessun UPDATE/DELETE applicativo (D10). Partizionare per member_id hash oltre i 100M righe.
+-- Registro movimenti immutabile: nessun UPDATE/DELETE applicativo (ADR-010). Partizionare per member_id hash oltre i 100M righe.
 CREATE TABLE ledger.movement (
     id           UUID PRIMARY KEY,
     member_id    VARCHAR(128) NOT NULL,

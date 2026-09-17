@@ -1,4 +1,4 @@
--- RF-74..RF-76: tipi di premio a parità con Open Loyalty, limiti per membro, finestre, target, lotti di codici, stato USED.
+-- RF-74..RF-76: tipi di premio, limiti per membro, finestre, target, lotti di codici, stato USED.
 ALTER TABLE catalogredemption.reward DROP CONSTRAINT IF EXISTS reward_type_check;
 ALTER TABLE catalogredemption.reward ADD CONSTRAINT reward_type_check CHECK (type IN ('VOUCHER','PHYSICAL','SERVICE','CASHBACK','DISCOUNT_PERCENT','DISCOUNT_VALUE','FREE_SERVICE','EVENT_INVITATION','GIFT','DONATION'));
 ALTER TABLE catalogredemption.reward

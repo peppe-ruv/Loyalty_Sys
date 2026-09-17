@@ -1,4 +1,4 @@
-# Disaster recovery (D11, opzione A): backup continui e replica asincrona in seconda region.
+# Disaster recovery (ADR-011, opzione A): backup continui e replica asincrona in seconda region.
 # Attivo solo se dr_region è valorizzata: per l'instant win il mirroring fuori Italia non è ammesso (RC-01),
 # quindi in attesa del parere Legal la copia resta nella stessa region (RDS Multi-AZ + snapshot).
 provider "aws" {

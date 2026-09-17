@@ -11,7 +11,7 @@ dei 15 pattern, token di tema e le regole che i moduli non devono reimplementare
 | `src/patterns.ts` | Punto d'ingresso dei **soli tipi**: i contratti dei 15 pattern e i tipi comuni (`EntityRef`, `WorkflowInfo`, `Formula`) |
 | `src/index.ts` | Punto d'ingresso pubblico: i tipi più le funzioni elencate sotto |
 | `src/common.ts` | `EntityRef`, unità, testi localizzati, guardie |
-| `src/workflow.ts` | Stati D14, transizioni per ruolo, `buildWorkflowInfo` (RF-137, RF-43) |
+| `src/workflow.ts` | Stati ADR-014, transizioni per ruolo, `buildWorkflowInfo` (RF-137, RF-43) |
 | `src/filters.ts` | FilterBuilder, vocabolario degli operatori, frasi delle chip (LG-05) |
 | `src/data-table.ts` | DataTable (LG-04) |
 | `src/forms.ts` | SectionForm, ChoiceCards, InheritedSetting, ordine delle sezioni (LG-06, LG-07, LG-17) |
@@ -54,7 +54,7 @@ Chi consuma il pacchetto deve avere `@types/react` (peer dependency): le prop `r
 1. I moduli del backoffice (custom components Payload in `cms/loyalty-plugin/ui/`) importano i contratti da qui e non definiscono liste, form o costruttori di condizioni propri.
 2. Ogni componente cita nel JSDoc le LG che implementa; una PR che tocca una schermata elenca le LG applicate.
 3. Le entità referenziate viaggiano sempre come `EntityRef` e la UI mostra solo `label` (RF-139): le frasi si costruiscono con `describeCondition`/`buildFilterChip`, mai concatenando stringhe a mano.
-4. Lo stato degli oggetti è `WorkflowInfo` (D14, RF-137): nessun toggle Attivo/Inattivo isolato, nessuna transizione decisa dal singolo modulo.
+4. Lo stato degli oggetti è `WorkflowInfo` (ADR-014, RF-137): nessun toggle Attivo/Inattivo isolato, nessuna transizione decisa dal singolo modulo.
 5. Le condizioni sono in AND dentro una regola e in OR tra regole, e l'operatore è sempre scritto tra le righe (RF-138): usare le costanti `CONDITION_JOIN` e `RULE_JOIN`.
 6. I componenti usano solo i token `--lh-*` di `tokens.css`, mai colori o spaziature letterali.
 

@@ -31,7 +31,7 @@ spec:
           expr: slo:ingress_error_ratio:rate5m > (14.4 * 0.0005) and slo:ingress_error_ratio:rate1h > (14.4 * 0.0005)
           for: 2m
           labels: { severity: page, service: ingress-adapters }
-          annotations: { summary: "Ingresso azioni: consumo rapido del budget di errore (SLO 99,95%)", runbook: "docs/runbooks/osservabilita.md#ingresso" }
+          annotations: { summary: "Ingresso azioni: consumo rapido del budget di errore (SLO 99,95%)", runbook: "docs/runbooks/observability.md#ingestione-consumo-del-budget-di-errore-o-latenza-alta--ingestion-error-budget-burn-or-high-latency" }
         - alert: LoyaltyIngressLatency
           expr: slo:ingress_latency_p95:5m > 0.2
           for: 10m
@@ -93,7 +93,7 @@ spec:
           expr: sum(increase(loyalty_decision_effects_total{ok="false"}[15m])) / clamp_min(sum(increase(loyalty_decision_effects_total[15m])), 1) > 0.05
           for: 10m
           labels: { severity: page, service: decision-service }
-          annotations: { summary: "Oltre il 5% degli effetti decisi non è stato applicato negli ultimi 15 minuti", runbook: "docs/runbooks/osservabilita.md#decisioni" }
+          annotations: { summary: "Oltre il 5% degli effetti decisi non è stato applicato negli ultimi 15 minuti", runbook: "docs/runbooks/observability.md#decisioni-effetti-falliti-decisioni-ferme-scarti-in-massa--decisions-failed-effects-stalled-decisions-mass-rejections" }
         - alert: LoyaltyDecisionsStalled
           expr: sum(increase(loyalty_decisions_total[15m])) == 0 and sum(increase(loyalty_actions_received_total{status="ACCEPTED"}[15m])) > 50
           for: 15m

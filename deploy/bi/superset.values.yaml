@@ -33,7 +33,7 @@ supersetCeleryFlower: { enabled: false }
 init:
   enabled: true
   createAdmin: true
-  adminUser: { username: admin, email: loyalty-admin@iren.example }
+  adminUser: { username: admin, email: loyalty-admin@example.com }
   initscript: |
     #!/bin/sh
     sh /app/dashboards/init.sh

@@ -1,2 +1,2 @@
-it.iren.loyalty.common.metrics.MetricsAutoConfiguration
-it.iren.loyalty.common.metrics.OtelLogsBridge
+io.loyaltyhub.common.metrics.MetricsAutoConfiguration
+io.loyaltyhub.common.metrics.OtelLogsBridge

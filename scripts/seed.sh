@@ -15,13 +15,13 @@ NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 echo "-> azioni premianti di esempio"
 curl -sS -X POST "$SEED_INGRESS/v1/actions" -H 'content-type: application/json' -d @- <<JSON
 {"items":[
- {"memberId":"demo-member","action":{"actionType":"SELF_READING_SENT","idempotencyKey":"irenyou:demo-1:SELF_READING_SENT","occurredAt":"$NOW","attributes":{"meter":"GAS"}}},
- {"memberId":"demo-member","action":{"actionType":"DIRECT_DEBIT_ACTIVATED","idempotencyKey":"salesforce:demo-1:DIRECT_DEBIT_ACTIVATED","occurredAt":"$NOW","attributes":{}}},
+ {"memberId":"demo-member","action":{"actionType":"SELF_READING_SENT","idempotencyKey":"app:demo-1:SELF_READING_SENT","occurredAt":"$NOW","attributes":{"meter":"GAS"}}},
+ {"memberId":"demo-member","action":{"actionType":"DIRECT_DEBIT_ACTIVATED","idempotencyKey":"crm:demo-1:DIRECT_DEBIT_ACTIVATED","occurredAt":"$NOW","attributes":{}}},
  {"memberId":"demo-member","action":{"actionType":"BILL_PAID_ON_TIME","idempotencyKey":"sap:INV-DEMO-1:PAID","occurredAt":"$NOW","attributes":{"amountEur":84.30,"contractType":"GAS"}}}
 ]}
 JSON
 echo; echo "-> ripetizione della stessa chiave (atteso DUPLICATE)"
-curl -sS -X POST "$SEED_INGRESS/v1/actions" -H 'content-type: application/json' -d "{\"items\":[{\"memberId\":\"demo-member\",\"action\":{\"actionType\":\"SELF_READING_SENT\",\"idempotencyKey\":\"irenyou:demo-1:SELF_READING_SENT\",\"occurredAt\":\"$NOW\"}}]}"
+curl -sS -X POST "$SEED_INGRESS/v1/actions" -H 'content-type: application/json' -d "{\"items\":[{\"memberId\":\"demo-member\",\"action\":{\"actionType\":\"SELF_READING_SENT\",\"idempotencyKey\":\"app:demo-1:SELF_READING_SENT\",\"occurredAt\":\"$NOW\"}}]}"
 echo; echo "-> adesione con consenso newsletter (RF-72) e codice referral (RF-68)"
 MEMBERS=${SEED_MEMBERS:-http://localhost:8091}
 curl -sS -X POST "$MEMBERS/v1/members" -H 'content-type: application/json' -d '{"memberId":"demo-member","channel":"web","consents":{"newsletter":true}}'; echo
@@ -30,7 +30,7 @@ curl -sS -X POST "$MEMBERS/v1/members" -H 'content-type: application/json' -d "{
 echo "-> transazione con righe (RF-62/63): 1 punto per euro, consegna esclusa, in sospeso 14 giorni"
 curl -sS -X POST "$SEED_INGRESS/v1/actions" -H 'content-type: application/json' -d @- <<JSON
 {"items":[{"memberId":"demo-member","action":{"actionType":"TRANSACTION","idempotencyKey":"shop:ORD-DEMO-1:PAID","occurredAt":"$NOW","attributes":{"amountEur":129.0,"channel":"negozio",
- "lines":[{"sku":"MANUT-CALDAIA-STD","name":"Manutenzione caldaia","category":"servizi","brand":"IrenPlus","quantity":1,"amountEur":119.0,"labels":["green"]},
+ "lines":[{"sku":"MANUT-CALDAIA-STD","name":"Manutenzione caldaia","category":"servizi","brand":"ServiziPlus","quantity":1,"amountEur":119.0,"labels":["green"]},
           {"sku":"DELIVERY","name":"Uscita tecnico","category":"servizi","quantity":1,"amountEur":10.0,"labels":["delivery"]}]}}}]}
 JSON
 echo; echo "-> check-in geolocalizzato (RF-67) e codice promozionale (RF-69)"

@@ -3,7 +3,7 @@
   "version": "0.6.2",
   "private": true,
   "description": "Loyalty Hub — strumenti npm del monorepo e design system del backoffice.",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "type": "module",
   "engines": {
     "node": ">=22.13"

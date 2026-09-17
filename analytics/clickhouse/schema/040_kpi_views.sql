@@ -1,4 +1,4 @@
--- KPI pronti per Superset (RF-111): le stesse metriche dell'edizione attuale di Open Loyalty più quelle del programma.
+-- KPI pronti per Superset (RF-111): metriche standard del programma loyalty.
 CREATE VIEW IF NOT EXISTS loyalty.v_kpi_daily ON CLUSTER '{cluster}' AS
 SELECT day,
        sumIf(n, metric = 'registered') AS registered_members,

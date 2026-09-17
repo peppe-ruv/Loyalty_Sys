@@ -2,8 +2,9 @@
   "name": "@loyalty-hub/cms",
   "version": "0.6.2",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
-  "description": "Backoffice/CMS su Payload (D13): card concorso, card vincita, pop-up, catalogo, regole, tier, concorsi, con workflow per tipo di oggetto (D14)",
+  "description": "Backoffice/CMS su Payload (ADR-013): card concorso, card vincita, pop-up, catalogo, regole, tier, concorsi, con workflow per tipo di oggetto (ADR-014)",
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",

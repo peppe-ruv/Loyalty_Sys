@@ -2,7 +2,8 @@
   "name": "@loyalty-hub/site",
   "version": "0.6.2",
   "private": true,
-  "description": "Sito loyalty Next.js: home, catalogo, concorsi, movimenti; componenti esportati come web component per IrenYou e app (D04)",
+  "license": "Apache-2.0",
+  "description": "Sito loyalty Next.js: home, catalogo, concorsi, movimenti; componenti esportati come web component per il portale clienti e le app (ADR-004)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

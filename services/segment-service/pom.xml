@@ -3,7 +3,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>it.iren.loyalty</groupId>
+    <groupId>io.loyaltyhub</groupId>
     <artifactId>loyalty-hub-services</artifactId>
     <version>${revision}</version>
   </parent>
@@ -11,8 +11,8 @@
   <name>segment-service</name>
   <description>Segmenti dinamici e statici dei membri, ricalcolo pianificato, export (RF-65, RF-71)</description>
   <dependencies>
-    <dependency><groupId>it.iren.loyalty</groupId><artifactId>common</artifactId></dependency>
-    <dependency><groupId>it.iren.loyalty</groupId><artifactId>common</artifactId><type>test-jar</type><scope>test</scope></dependency>
+    <dependency><groupId>io.loyaltyhub</groupId><artifactId>common</artifactId></dependency>
+    <dependency><groupId>io.loyaltyhub</groupId><artifactId>common</artifactId><type>test-jar</type><scope>test</scope></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
     <dependency><groupId>org.springframework.kafka</groupId><artifactId>spring-kafka</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-jpa</artifactId></dependency>

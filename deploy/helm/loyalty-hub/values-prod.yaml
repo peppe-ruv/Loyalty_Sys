@@ -3,6 +3,6 @@ global:
   secretsStore:
     prefix: loyalty-hub-prod
   ingress:
-    host: loyalty.gruppoiren.it
+    host: loyalty.example.com
 serviceMonitor:
   enabled: true

@@ -1,5 +1,5 @@
 global:
-  registry: ghcr.io/iren-loyalty
+  registry: ghcr.io/loyalty-hub
   tag: "0.4.0"
   imagePullPolicy: IfNotPresent
   environment: dev

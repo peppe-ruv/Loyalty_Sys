@@ -54,7 +54,7 @@ alertmanager:
       - name: oncall
         webhook_configs: [{ url: "http://oncall-bridge.observability/alert", send_resolved: true }]   # Opsgenie/PagerDuty/Teams tramite bridge
       - name: contest-legal
-        email_configs: [{ to: "legal-concorsi@iren.example", send_resolved: true }]
+        email_configs: [{ to: "legal-contests@example.com", send_resolved: true }]
       - name: ticket
         webhook_configs: [{ url: "http://itsm-bridge.observability/ticket" }]
 grafana:
@@ -66,7 +66,7 @@ grafana:
     database: { type: postgres, host: "$__env{GF_DATABASE_HOST}", name: grafana, user: "$__env{GF_DATABASE_USER}", password: "$__env{GF_DATABASE_PASSWORD}", ssl_mode: require }
     auth.generic_oauth:                      # SSO aziendale (RF-43)
       enabled: true
-      name: Iren SSO
+      name: SSO aziendale
       auth_url: https://iam.example.it/oauth2/authorize
       token_url: https://iam.example.it/oauth2/token
       api_url: https://iam.example.it/oauth2/userinfo

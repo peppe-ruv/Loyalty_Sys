@@ -29,7 +29,7 @@ groups:
       service: ingress-adapters
     annotations:
       summary: 'Ingresso azioni: consumo rapido del budget di errore (SLO 99,95%)'
-      runbook: docs/runbooks/osservabilita.md#ingresso
+      runbook: docs/runbooks/observability.md#ingestione-consumo-del-budget-di-errore-o-latenza-alta--ingestion-error-budget-burn-or-high-latency
   - alert: LoyaltyIngressLatency
     expr: slo:ingress_latency_p95:5m > 0.2
     for: 10m

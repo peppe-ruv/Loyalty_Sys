@@ -2,7 +2,7 @@
  * Punto di ingresso del design system del backoffice Loyalty Hub.
  *
  * Esporta i contratti dei 15 pattern (vedi `patterns.ts`) e le poche regole eseguibili che
- * i moduli non devono reimplementare: workflow D14 (RF-137), ordine delle sezioni del form
+ * i moduli non devono reimplementare: workflow ADR-014 (RF-137), ordine delle sezioni del form
  * (LG-06), frasi di condizioni e chip senza identificativi tecnici (RF-138, RF-139) e
  * formattazione dei valori mostrati in liste e KPI (LG-04, LG-40).
  *

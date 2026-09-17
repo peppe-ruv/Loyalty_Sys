@@ -1,6 +1,6 @@
 CREATE SCHEMA IF NOT EXISTS memberservice;
 CREATE TABLE memberservice.member (
-    id                    VARCHAR(128) PRIMARY KEY,          -- sub OIDC (D12)
+    id                    VARCHAR(128) PRIMARY KEY,          -- sub OIDC (ADR-012)
     status                VARCHAR(16)  NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','SUSPENDED','CLOSED','ANONYMIZED')),
     enrolled_at           TIMESTAMPTZ  NOT NULL DEFAULT now(),
     channel               VARCHAR(32),

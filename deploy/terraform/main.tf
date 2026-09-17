@@ -16,7 +16,7 @@ data "aws_availability_zones" "available" {
   }
 }
 
-# ---------------- Rete: tre zone (D11) ----------------
+# ---------------- Rete: tre zone (ADR-011) ----------------
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 6.0"

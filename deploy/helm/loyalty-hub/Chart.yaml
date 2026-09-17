@@ -4,4 +4,4 @@ description: Loyalty Hub vendor neutral - umbrella chart per tutti i servizi (RP
 type: application
 version: 0.6.2
 appVersion: "0.6.2"
-keywords: [loyalty, iren, kafka, eks]
+keywords: [loyalty, kafka, eks]
