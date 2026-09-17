@@ -56,6 +56,24 @@ public class InboxController {
         return Map.of("status", body.getOrDefault("status", "DONE"));
     }
 
+    /** Coda del reinvio (RF-132): le consegne fallite che nessuno ha ancora rispedito. */
+    @GetMapping("/deliveries/failed")
+    public List<Map<String, Object>> failed(@RequestParam(defaultValue = "100") int limit) { return delivery.failed(limit); }
+
+    /**
+     * Reinvio manuale dalla console. L'operatore può imporre un canale diverso da quello che aveva fallito; il testo
+     * viene ri-renderizzato dal modello corrente, non ripescato.
+     */
+    @PostMapping("/deliveries/{deliveryId}/resend")
+    public Map<String, Object> resend(@PathVariable String deliveryId, @RequestBody(required = false) Map<String, String> body) {
+        var res = delivery.resend(deliveryId, body == null ? null : body.get("channel"), body == null ? null : body.get("operator"));
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("status", res.status());
+        out.put("detail", res.detail());
+        out.put("providerRef", res.providerRef());
+        return out;
+    }
+
     @GetMapping("/deliveries/{memberId}")
     public List<Map<String, Object>> deliveries(@PathVariable String memberId) {
         return jdbc.queryForList("SELECT delivery_id, decision_id, action, reference, channel, status, detail, created_at FROM notifier.delivery_log WHERE member_id = ? ORDER BY created_at DESC LIMIT 100", memberId);

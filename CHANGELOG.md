@@ -29,6 +29,13 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
 - `read-model`: ricalcolo notturno delle finestre mobili (RFM, conteggi a 30 giorni, contatti a 7 giorni), in keyset,
   che riscrive solo i contesti davvero cambiati
 
+- `notifier`: adattatori verso i fornitori reali di push, email e SMS (`PUSH_PROVIDER_URL`, `EMAIL_PROVIDER_URL`,
+  `SMS_PROVIDER_URL` con le rispettive chiavi); dove non sono configurati resta l'invio su log. Nessun recapito passa
+  dalla piattaforma: il fornitore risolve il destinatario dall'id membro
+- `notifier`: coda delle consegne fallite e reinvio manuale (`GET /v1/deliveries/failed`,
+  `POST /v1/deliveries/{id}/resend`, rotte operatore nel BFF); il testo si ri-renderizza dal modello corrente e
+  l'operatore può imporre un canale diverso da quello che aveva fallito
+
 ### Corretto
 - `read-model`: i contatti a 7 giorni per canale potevano solo crescere — il contesto teneva i contatori, non le
   consegne — e un membro molto contattato restava sopra il tetto per sempre, senza più un canale disponibile. Ora il

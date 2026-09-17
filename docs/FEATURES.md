@@ -180,12 +180,13 @@ Legenda stato · Status legend: **✅ disponibile · available** · **🟡 parzi
 
 | Capacità · Capability | IT | EN | RF | Owner | Stato |
 | --- | --- | --- | --- | --- | --- |
-| Adattatori di canale | App, sito (inbox), push, email, SMS, webhook (CRM), coda operatore | App, site (inbox), push, email, SMS, webhook (CRM), operator queue | RF-132 | `notifier` | 🟡 (inbox, webhook e operatore completi; push/email/SMS via fornitore da collegare · inbox, webhook and operator complete; push/email/SMS provider wiring pending) |
+| Adattatori di canale | App, sito (inbox), push, email, SMS, webhook (CRM), coda operatore; push/email/SMS parlano con il fornitore configurato e ripiegano sull'invio su log quando non c'è | App, site (inbox), push, email, SMS, webhook (CRM), operator queue; push/email/SMS call the configured provider and fall back to log delivery when none is set | RF-132 | `notifier` | ✅ |
 | Instradamento | Ordine dei canali per azione, canali abilitati, limiti giornalieri, ore di silenzio con canale di ripiego | Channel order per action, enabled channels, daily caps, quiet hours with fallback channel | RF-132 | CMS `delivery-routing` | ✅ |
 | Modelli di messaggio | Per tipo evento, canale e lingua, con segnaposto sul payload | Per event type, channel and language, with payload placeholders | RF-77 | `notifier` | ✅ |
 | Webhook | Sottoscrizioni per tipo evento, firma HMAC-SHA256, intestazioni statiche, tentativi con backoff, rotazione del segreto | Per-event-type subscriptions, HMAC-SHA256 signature, static headers, backoff retries, secret rotation | RF-78, RF-113 | `notifier` | 🟡 |
 | Tracciamento | Ogni consegna è un evento (esposizione, invio, accettazione) e alimenta pressione commerciale e BI | Every delivery is an event (impression, send, acceptance) feeding contact pressure and BI | RF-132 | `notifier` | ✅ |
 | Nessun doppio contatto | Le consegne fallite non sono ripetute automaticamente: restano nel registro per un reinvio deciso | Failed deliveries are not auto-retried: they stay in the log for a deliberate resend | RF-132 | `notifier` | ✅ |
+| Reinvio manuale | Coda delle consegne fallite in console; il reinvio ri-renderizza dal modello corrente, può cambiare canale e non si ripete due volte | Failed-delivery queue in the console; a resend re-renders from the current template, may switch channel and cannot run twice | RF-132 | `notifier` | ✅ |
 
 ---
 

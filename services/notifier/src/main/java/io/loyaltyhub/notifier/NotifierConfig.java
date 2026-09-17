@@ -82,17 +82,33 @@ public class NotifierConfig {
                 templates.isEmpty() ? seed.templateByAction() : templates, !(d.get("emitActions") instanceof Boolean b) || b);
     }
 
-    /** Adattatori di canale: inbox app/web, fornitori email/sms/push, webhook CRM, coda operatore. */
+    /**
+     * Adattatori di canale: inbox app/web, fornitori email/sms/push, webhook CRM, coda operatore.
+     *
+     * <p>Per email, SMS e push si usa il fornitore configurato ({@code EMAIL_PROVIDER_URL}, {@code SMS_PROVIDER_URL},
+     * {@code PUSH_PROVIDER_URL} con la rispettiva chiave); dove non è configurato resta l'invio su log, che serve in
+     * locale e nei collaudi. Nessun recapito passa da qui: il fornitore risolve il destinatario dall'id membro
+     * (ADR-012), la piattaforma non conserva email né numeri in chiaro.
+     */
     @Bean List<io.loyaltyhub.notifier.delivery.ChannelAdapter> channelAdapters(org.springframework.jdbc.core.JdbcTemplate jdbc, MessageSender sender, org.springframework.web.client.RestClient.Builder builder) {
         String crm = System.getenv("CRM_DELIVERY_URL");
         return List.of(
                 io.loyaltyhub.notifier.delivery.Adapters.appInbox(jdbc, "app"),
                 io.loyaltyhub.notifier.delivery.Adapters.appInbox(jdbc, "web"),
-                io.loyaltyhub.notifier.delivery.Adapters.sender(sender, "email", MessageTemplate.Channel.EMAIL),
-                io.loyaltyhub.notifier.delivery.Adapters.sender(sender, "sms", MessageTemplate.Channel.SMS),
-                io.loyaltyhub.notifier.delivery.Adapters.sender(sender, "push", MessageTemplate.Channel.PUSH),
+                canale(builder, sender, "email", "EMAIL_PROVIDER_URL", "EMAIL_PROVIDER_KEY", MessageTemplate.Channel.EMAIL),
+                canale(builder, sender, "sms", "SMS_PROVIDER_URL", "SMS_PROVIDER_KEY", MessageTemplate.Channel.SMS),
+                canale(builder, sender, "push", "PUSH_PROVIDER_URL", "PUSH_PROVIDER_KEY", MessageTemplate.Channel.PUSH),
                 io.loyaltyhub.notifier.delivery.Adapters.webhook(crm == null ? null : builder.baseUrl(crm).build(), System.getenv().getOrDefault("CRM_DELIVERY_SECRET", "dev-only")),
                 io.loyaltyhub.notifier.delivery.Adapters.operatorQueue(jdbc));
+    }
+
+    /** Fornitore reale se l'URL c'è, invio su log altrimenti: lo stesso servizio funziona in locale e in esercizio. */
+    private static io.loyaltyhub.notifier.delivery.ChannelAdapter canale(org.springframework.web.client.RestClient.Builder builder, MessageSender sender,
+                                                                        String channel, String urlEnv, String keyEnv, MessageTemplate.Channel templateChannel) {
+        String url = System.getenv(urlEnv);
+        if (url == null || url.isBlank()) return io.loyaltyhub.notifier.delivery.Adapters.sender(sender, channel, templateChannel);
+        var client = builder.baseUrl(url).build();
+        return io.loyaltyhub.notifier.delivery.Adapters.provider(client, channel, System.getenv(keyEnv));
     }
 
     @Bean @ConditionalOnMissingBean

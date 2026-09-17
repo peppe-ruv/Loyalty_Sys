@@ -1,5 +1,6 @@
 package io.loyaltyhub.notifier.delivery;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.loyaltyhub.common.event.CanonicalEvents;
 import io.loyaltyhub.common.event.EventTypes;
 import io.loyaltyhub.common.event.RewardingAction;
@@ -28,6 +29,7 @@ import java.util.function.Supplier;
 @Component
 public class DeliveryService {
     private static final Logger log = LoggerFactory.getLogger(DeliveryService.class);
+    private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String SOURCE = "urn:loyaltyhub:delivery";
     private static final Set<String> CONTACT_ACTIONS = Set.of("SEND_MESSAGE", "SHOW_OFFER", "ASK_FOR_FEEDBACK");
 
@@ -61,7 +63,16 @@ public class DeliveryService {
 
     /** Consegna con fallback; ritorna l'esito finale. Usabile anche a richiesta (operatore, campagne). */
     public ChannelAdapter.Result deliver(String memberId, String decisionId, String action, String reference, String preferredChannel, Map<String, Object> params, Instant expiresAt, String correlationId, Instant now) {
-        if (decisionId != null && alreadyDelivered(decisionId, action, reference)) return new ChannelAdapter.Result("SKIPPED", "already delivered", null);
+        return deliver(memberId, decisionId, action, reference, preferredChannel, params, expiresAt, correlationId, now, false);
+    }
+
+    /**
+     * @param forzata reinvio deciso da un operatore: salta il controllo di già consegnato (è proprio ciò che si vuole
+     *                rifare) e i limiti giornalieri di canale, che valgono per le consegne automatiche
+     */
+    public ChannelAdapter.Result deliver(String memberId, String decisionId, String action, String reference, String preferredChannel,
+                                         Map<String, Object> params, Instant expiresAt, String correlationId, Instant now, boolean forzata) {
+        if (!forzata && decisionId != null && alreadyDelivered(decisionId, action, reference)) return new ChannelAdapter.Result("SKIPPED", "already delivered", null);
         DeliveryRouting r = routing.get();
         List<String> order = new ArrayList<>();
         if (preferredChannel != null) order.add(preferredChannel);
@@ -78,7 +89,7 @@ public class DeliveryService {
             ChannelAdapter adapter = adapters.get(ch);
             if (adapter == null) { last = new ChannelAdapter.Result("SKIPPED", "no adapter: " + ch, null); continue; }
             int cap = r.maxPerDayByChannel() == null ? 0 : r.maxPerDayByChannel().getOrDefault(ch, 0);
-            if (cap > 0 && deliveriesToday(memberId, ch) >= cap) { last = new ChannelAdapter.Result("SKIPPED", "daily cap " + ch, null); continue; }
+            if (!forzata && cap > 0 && deliveriesToday(memberId, ch) >= cap) { last = new ChannelAdapter.Result("SKIPPED", "daily cap " + ch, null); continue; }
             var rendered = render(r, action, reference, memberId, ch, params);
             String deliveryId = UUID.randomUUID().toString();
             var delivery = new ChannelAdapter.Delivery(deliveryId, memberId, decisionId, action, reference, ch, rendered.subject(), rendered.body(), params, expiresAt, correlationId);
@@ -146,8 +157,60 @@ public class DeliveryService {
     }
 
     private void record(ChannelAdapter.Delivery d, ChannelAdapter.Result r) {
-        jdbc.update("INSERT INTO notifier.delivery_log(delivery_id, member_id, decision_id, action, reference, channel, status, detail, provider_ref, created_at) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT (delivery_id) DO NOTHING",
-                d.deliveryId(), d.memberId(), d.decisionId(), d.action(), d.reference(), d.channel(), r.status(), r.detail() == null ? null : r.detail().substring(0, Math.min(500, r.detail().length())), r.providerRef(), Timestamp.from(Instant.now()));
+        String params;
+        try { params = MAPPER.writeValueAsString(d.params() == null ? Map.of() : d.params()); }
+        catch (Exception e) { params = "{}"; }
+        jdbc.update("""
+                INSERT INTO notifier.delivery_log(delivery_id, member_id, decision_id, action, reference, channel, status, detail,
+                                                  provider_ref, params, expires_at, correlation_id, created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?::jsonb,?,?,?) ON CONFLICT (delivery_id) DO NOTHING""",
+                d.deliveryId(), d.memberId(), d.decisionId(), d.action(), d.reference(), d.channel(), r.status(),
+                r.detail() == null ? null : r.detail().substring(0, Math.min(500, r.detail().length())), r.providerRef(),
+                params, d.expiresAt() == null ? null : Timestamp.from(d.expiresAt()), d.correlationId(), Timestamp.from(Instant.now()));
+    }
+
+    // ---- reinvio manuale (RF-132) --------------------------------------------------------------------------------
+
+    /** Consegne fallite e non ancora rispedite: è la coda che l'operatore vede in console. */
+    public List<Map<String, Object>> failed(int limit) {
+        return jdbc.queryForList("""
+                SELECT delivery_id, member_id, decision_id, action, reference, channel, detail, created_at
+                FROM notifier.delivery_log WHERE status = 'FAILED' AND resent_at IS NULL
+                ORDER BY created_at DESC LIMIT ?""", Math.min(Math.max(limit, 1), 500));
+    }
+
+    /**
+     * Rispedisce una consegna fallita. Il testo non è conservato: si ri-renderizza dal modello con i parametri
+     * registrati, così il reinvio usa la versione corrente del messaggio invece di ripetere quella vecchia.
+     * L'operatore può imporre un canale diverso da quello che aveva fallito.
+     *
+     * @return esito della nuova consegna
+     */
+    @SuppressWarnings("unchecked")
+    public ChannelAdapter.Result resend(String deliveryId, String channel, String operator) {
+        var rows = jdbc.queryForList("""
+                SELECT member_id, decision_id, action, reference, channel, status, params::text AS params, expires_at, correlation_id, resent_at
+                FROM notifier.delivery_log WHERE delivery_id = ?""", deliveryId);
+        if (rows.isEmpty()) throw new IllegalArgumentException("consegna sconosciuta: " + deliveryId);
+        Map<String, Object> row = rows.get(0);
+        if (row.get("resent_at") != null) throw new IllegalStateException("consegna già rispedita");
+
+        Map<String, Object> params;
+        try { params = row.get("params") == null ? Map.of() : MAPPER.readValue(String.valueOf(row.get("params")), Map.class); }
+        catch (Exception e) { params = Map.of(); }
+        Instant expires = row.get("expires_at") instanceof Timestamp ts ? ts.toInstant() : null;
+        if (expires != null && expires.isBefore(Instant.now())) throw new IllegalStateException("consegna scaduta: non ha più senso rispedirla");
+
+        String preferito = channel == null || channel.isBlank() ? String.valueOf(row.get("channel")) : channel;
+        var res = deliver(String.valueOf(row.get("member_id")), str(row.get("decision_id")), String.valueOf(row.get("action")),
+                str(row.get("reference")), preferito, params, expires, str(row.get("correlation_id")), Instant.now(), true);
+
+        jdbc.update("UPDATE notifier.delivery_log SET resent_at = now(), detail = coalesce(detail, '') || ' | rispedita da ' || ? WHERE delivery_id = ?",
+                operator == null ? "console" : operator, deliveryId);
+        jdbc.update("UPDATE notifier.delivery_log SET resent_from = ? WHERE delivery_id <> ? AND resent_from IS NULL AND member_id = ? AND action = ? AND created_at >= now() - interval '1 minute'",
+                deliveryId, deliveryId, String.valueOf(row.get("member_id")), String.valueOf(row.get("action")));
+        metrics.delivery(preferito, "RESENT:" + res.status());
+        return res;
     }
 
     private void publish(ChannelAdapter.Delivery d, ChannelAdapter.Result r) {

@@ -23,7 +23,7 @@ Legenda · Legend: **✅ completo · complete** · **🟡 parziale · partial** 
 | Decisioni · Decisioning | ✅ | Customer 360, motore, vincoli, punteggio, offerte, Next Best Action, decision log, esperimenti, budget giornaliero di unità applicato, interruttore automatico sul provider di previsioni, effetto per variante nel decision log | — |
 | Previsioni · Predictions | 🟡 | Porta, provider a regole, routing per chiave, ripiego | Modelli addestrati; feature store; misura della qualità delle previsioni |
 | Antifrode · Fraud | 🟡 | 9 segnali configurabili, punteggio e livelli, blocco automatico, rivalutazione | Grafo dei dispositivi; liste di blocco dal backoffice; revisione manuale che rialimenta le soglie |
-| Consegna · Delivery | 🟡 | Inbox, webhook, coda operatore, instradamento con ripiego, modelli | Adattatori reali per push, email e SMS; reinvio manuale dalla console; localizzazione dei modelli per canale |
+| Consegna · Delivery | ✅ | Inbox, webhook, coda operatore, instradamento con ripiego, modelli, adattatori verso i fornitori di push/email/SMS, coda e reinvio manuale delle consegne fallite | Localizzazione dei modelli per canale · per-channel template localisation |
 | Identità · Identity | ✅ | Grafo, risoluzione deterministica, merge ripartibile con chiave di idempotenza, unmerge che ripristina identificatori e saldi, alias, ripresa automatica dei merge interrotti | Collegamenti probabilistici proposti in coda operatore · probabilistic links proposed in the operator queue |
 | Consensi · Consent | ✅ | Finalità con base giuridica, storico, scadenza, revoca propagata, prova | — |
 | Backoffice · Back office | ✅ | Collezioni, workflow di approvazione, versioni, ruoli, simulazioni, vista andamenti | Export di configurazione verso storage a oggetti |
@@ -41,7 +41,6 @@ Legenda · Legend: **✅ completo · complete** · **🟡 parziale · partial** 
 | --- | --- | --- |
 | 1 | Test di integrazione con container effimeri sui percorsi critici (outbox, ciclo decisionale, merge con trasferimento, consegna con ripiego) | Sono i punti dove un errore non si vede nei test unitari · these are the paths unit tests cannot cover |
 | 2 | Specifiche API pubblicate per tutti i servizi e specifica asincrona per i topic nuovi | Integrazioni esterne e generazione di client · external integrations and client generation |
-| 3 | Adattatori reali di consegna (push, email, SMS) e reinvio manuale dalla console | Senza di essi le azioni di contatto restano in inbox · without them contact actions stay in the inbox |
 | 4 | Autenticazione servizio-a-servizio e quote per fonte nel gateway | Irrigidire il perimetro interno · harden the internal perimeter |
 | 5 | Area riservata completa con autenticazione reale | È la faccia della piattaforma verso il membro · it is the platform's face to the member |
 | 8 | Export di configurazione e dati verso storage a oggetti | Duplicazione di ambienti e analisi esterne · environment duplication and external analysis |

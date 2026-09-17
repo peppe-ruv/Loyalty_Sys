@@ -59,6 +59,52 @@ public final class Adapters {
         };
     }
 
+    /**
+     * Fornitore reale di un canale di contatto (push, email, SMS): {@code POST url} con il messaggio già reso e
+     * l'identificativo del membro. <b>Nessun recapito viaggia da qui</b>: indirizzo e numero restano nel CRM
+     * (ADR-012), il fornitore li risolve dal {@code memberId} o dal proprio registro dispositivi. La risposta può
+     * portare un identificativo di tracciamento ({@code id}, {@code messageId} o {@code providerRef}), che finisce nel
+     * log consegne e permette di riconciliare con il fornitore.
+     *
+     * <p>Un errore non è un'eccezione che si propaga: è un {@code FAILED} con il motivo, così la consegna prova il
+     * canale successivo del routing e l'operatore ritrova la riga nella coda del reinvio.
+     */
+    public static ChannelAdapter provider(RestClient client, String channel, String apiKey) {
+        return new ChannelAdapter() {
+            @Override public String channel() { return channel; }
+            @Override public Result deliver(Delivery d) {
+                if (client == null) return Result.failed("fornitore non configurato per il canale " + channel);
+                Map<String, Object> body = new java.util.LinkedHashMap<>();
+                body.put("deliveryId", d.deliveryId());
+                body.put("memberId", d.memberId());
+                body.put("channel", channel);
+                body.put("subject", d.subject() == null ? "" : d.subject());
+                body.put("body", d.body() == null ? "" : d.body());
+                body.put("params", d.params() == null ? Map.of() : d.params());
+                try {
+                    var req = client.post().uri("").header("Content-Type", "application/json");
+                    if (apiKey != null && !apiKey.isBlank()) req = req.header("Authorization", "Bearer " + apiKey);
+                    var res = req.body(MAPPER.writeValueAsString(body)).retrieve().toEntity(String.class);
+                    if (!res.getStatusCode().is2xxSuccessful()) return Result.failed("HTTP " + res.getStatusCode());
+                    return Result.sent(providerRef(res.getBody(), d.deliveryId()));
+                } catch (Exception e) { return Result.failed(e.toString()); }
+            }
+        };
+    }
+
+    /** Identificativo del fornitore, se la risposta ne porta uno; altrimenti resta quello della consegna. */
+    static String providerRef(String body, String fallback) {
+        if (body == null || body.isBlank()) return fallback;
+        try {
+            var node = MAPPER.readTree(body);
+            for (String campo : new String[] {"providerRef", "messageId", "id"}) {
+                var v = node.get(campo);
+                if (v != null && !v.isNull()) return v.asText();
+            }
+        } catch (Exception ignored) { /* risposta non JSON: va bene lo stesso, il fornitore ha accettato */ }
+        return fallback;
+    }
+
     public static ChannelAdapter operatorQueue(JdbcTemplate jdbc) {
         return new ChannelAdapter() {
             @Override public String channel() { return "operator"; }

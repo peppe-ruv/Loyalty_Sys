@@ -211,6 +211,10 @@ const server = http.createServer(async (req, res) => {
       if ((m = url.pathname.match(/^\/api\/operator\/members\/([^/]+)\/consents$/)) && req.method === "POST")
         return json(200, await proxy(`${MEMBERS}/v1/members/${m[1]}/consents`, "POST", JSON.stringify({ source: "call-center", evidence: `operator:${actor}`, ...JSON.parse((await readBody(req)) || "{}") })));
       if (url.pathname === "/api/operator/risk/top") return json(200, await fetchJson(`${FRAUD}/v1/risk/top`));
+      // Consegne fallite e reinvio manuale (RF-132): senza questa coda un messaggio non consegnato resta perso.
+      if (url.pathname === "/api/operator/deliveries/failed") return json(200, await fetchJson(`${NOTIFIER}/v1/deliveries/failed`));
+      if ((m = url.pathname.match(/^\/api\/operator\/deliveries\/([^/]+)\/resend$/)) && req.method === "POST")
+        return json(200, await proxy(`${NOTIFIER}/v1/deliveries/${m[1]}/resend`, "POST", JSON.stringify({ ...JSON.parse((await readBody(req)) || "{}"), operator: actor })));
       if ((m = url.pathname.match(/^\/api\/operator\/redemptions\/transitions$/)) && req.method === "POST")
         return json(200, await proxy(`${CATALOG}/v1/redemptions/transitions`, "POST", JSON.stringify({ ...JSON.parse((await readBody(req)) || "{}"), actor })));
       if ((m = url.pathname.match(/^\/api\/operator\/members\/([^/]+)\/tier$/)) && req.method === "PUT")
