@@ -94,6 +94,53 @@ class DecisionEngineTest {
         assertThat(comp.predict(active, Set.of())).containsKeys("churnRisk", "purchasePropensity", "customerValue");
     }
 
+    /**
+     * Budget giornaliero di unità (RF-128): è il tetto economico del programma, non del membro. Finché c'era solo il
+     * campo in configurazione, il motore non lo leggeva e una campagna sbagliata poteva svuotare la cassa in un giorno.
+     */
+    @Test void ilBudgetGiornalieroScartaLeAzioniCheNonCiStannoPiu() {
+        var conBudget = conBudgetDi(1000);
+        var premio = new Candidate(ActionType.ISSUE_REWARD, "campaign", "c1@1", "reward-300", "PREMIO", 300, null, null, null, Map.of());
+        var contesto = ctx("BASE", "LOW", Map.of("marketing", true), List.of(), Map.of(), List.of(), preds);
+
+        var dentro = engine.decide("b1", "TRANSACTION", null, contesto, List.of(premio), conBudget, 700, null, null, NOON);
+        assertThat(dentro.actions()).extracting(Decision.Chosen::action).containsExactly(ActionType.ISSUE_REWARD);
+
+        var fuori = engine.decide("b2", "TRANSACTION", null, contesto, List.of(premio), conBudget, 701, null, null, NOON);
+        assertThat(fuori.actions()).isEmpty();
+        assertThat(fuori.rejected()).extracting(Decision.Rejected::reasonCode).containsExactly("UNITS_BUDGET");
+        assertThat(fuori.rejected().get(0).detail()).contains("701 già concesse");
+    }
+
+    /** Il tetto non spegne la giornata: un'azione più piccola che ci sta ancora passa, e quelle senza unità sempre. */
+    @Test void ilBudgetEsauritoNonBloccaLeAzioniSenzaUnita() {
+        var conBudget = conBudgetDi(100);
+        var grande = new Candidate(ActionType.ISSUE_REWARD, "campaign", "c1@1", "reward-90", "PREMIO", 90, 100.0, null, null, Map.of());
+        var messaggio = Candidate.of(ActionType.SEND_MESSAGE, "offer", "o2", "msg-1");
+        var contesto = ctx("BASE", "LOW", Map.of("marketing", true), List.of(), Map.of(), List.of(), preds);
+
+        var d = engine.decide("b3", "TRANSACTION", null, contesto, List.of(grande, messaggio), conBudget, 50, null, null, NOON);
+
+        assertThat(d.actions()).extracting(Decision.Chosen::action).containsExactly(ActionType.SEND_MESSAGE);
+        assertThat(d.rejected()).extracting(Decision.Rejected::reasonCode).containsExactly("UNITS_BUDGET");
+    }
+
+    /** Le azioni contrattuali sono effetti dovuti del programma: il budget non le tocca mai (RF-130). */
+    @Test void ilBudgetNonToccaLeAzioniContrattuali() {
+        var conBudget = conBudgetDi(10);
+        var punti = new Candidate(ActionType.AWARD_POINTS, "campaign", "c1@1", null, "PREMIO", 5000, null, null, null, Map.of());
+        var d = engine.decide("b4", "TRANSACTION", null, ctx("BASE", "LOW", Map.of(), List.of(), Map.of(), List.of(), preds),
+                List.of(punti), conBudget, 999_999, null, null, NOON);
+        assertThat(d.actions()).extracting(Decision.Chosen::action).containsExactly(ActionType.AWARD_POINTS);
+    }
+
+    private DecisionPolicy conBudgetDi(long budget) {
+        var k = policy.constraints();
+        return new DecisionPolicy(policy.id(), policy.version(), policy.active(), policy.actions(),
+                new DecisionPolicy.Constraints(k.contactCap7dByChannel(), null, null, budget, k.suppressionSegments(), k.blockRiskLevel(), 0),
+                policy.scoring(), policy.alwaysApply(), 2, policy.channelPreferenceOrder());
+    }
+
     @Test void experimentsAreDeterministicAndOverrideOnlyScoring() {
         var exp = new Experiment("exp1", "x", true, null, null, 100, Set.of("TRANSACTION"), Set.of(),
                 List.of(new Experiment.Variant("control", 50, true, null, Map.of()), new Experiment.Variant("v", 50, false, null, Map.of("scoring.propensityWeight", 5, "maxArbitratedPerEvent", "2"))), "conversion");

@@ -116,6 +116,19 @@ decision: any later analysis can reconstruct which policy produced it.
 Codici di scarto · Rejection codes: `ACTION_DISABLED`, `RISK_LEVEL`, `RISK_BLOCK`, `CONSENT_MISSING`, `SUPPRESSED`,
 `QUIET_HOURS`, `COOLDOWN`, `PERIOD_LIMIT`, `OFFER_SPACING`, `NO_CHANNEL`, `OUTRANKED`, `UNITS_BUDGET`, `NO_CONTEXT`.
 
+`UNITS_BUDGET` merita una riga a parte: il budget di unità è **del programma, non del membro**, e vale solo per le
+azioni discrezionali. Il motore riceve le unità già concesse nella giornata di programma (mezzanotte di `Europe/Rome`),
+somma quelle delle azioni che sta scegliendo e scarta chi non ci sta più — ma un'azione più piccola che ci sta ancora
+passa, così il tetto non spegne il resto della giornata. Le azioni contrattuali non lo consumano e non ne sono
+limitate: sono effetti dovuti, non discrezionalità del motore. Due metriche (`loyalty_decision_units_granted_today`,
+`loyalty_decision_units_budget`) e un alert al 90% dicono al marketing che il tetto sta per chiudere.
+
+**EN** — `UNITS_BUDGET` deserves its own note: the units budget belongs to the **programme, not the member**, and only
+applies to discretionary actions. The engine receives the units already granted during the programme day (midnight
+`Europe/Rome`), adds those of the actions it is choosing and rejects whatever no longer fits — while a smaller action
+that still fits goes through, so the cap does not shut down the rest of the day. Contractual actions neither consume
+nor are limited by it.
+
 Sono esposti come metrica per codice: un picco di `CONSENT_MISSING` o `QUIET_HOURS` non è un guasto, è una policy troppo
 stretta, e il marketing la corregge dal backoffice con effetto in trenta secondi.
 

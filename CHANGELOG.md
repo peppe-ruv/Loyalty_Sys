@@ -18,6 +18,12 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
   membro sopravvissuto le ha spese torna indietro solo ciò che c'è e la differenza è un ammanco dichiarato
   (`shortfall`), mai un accredito creato dal nulla
 
+- `decision-service`: il budget giornaliero di unità della policy è finalmente applicato (`UNITS_BUDGET` fra i codici
+  di scarto, giornata di programma su `Europe/Rome`, azioni contrattuali escluse), con due metriche e un alert al 90%
+- `decision-service`: interruttore automatico (Resilience4j) davanti al provider di previsioni esterno; quando è aperto
+  si decide con le regole invece di pagare il timeout a ogni decisione
+- `decision-service`: `GET /v1/decisions/experiments/{id}/effect` — decisioni, membri, azioni e unità per variante
+
 ### Corretto
 - `identity-mapping`: un errore fra il trasferimento delle unità e la chiusura del membro assorbito lasciava uno stato
   incoerente che nessuno recuperava, e il riprovo generava una chiave nuova trasferendo una seconda volta

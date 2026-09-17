@@ -77,4 +77,14 @@ public class DecisionController {
 
     @GetMapping("/stats")
     public List<Map<String, Object>> stats() { return log.stats24h(); }
+
+    /**
+     * Effetto per variante di un esperimento (RF-134): decisioni, membri distinti, azioni e unità concesse. È il
+     * confronto onesto fra varianti che si può fare dal decision log; l'uplift sul comportamento (riscatti, spesa)
+     * si misura nel warehouse, che quei dati li ha.
+     */
+    @GetMapping("/experiments/{experimentId}/effect")
+    public Map<String, Object> experimentEffect(@PathVariable String experimentId) {
+        return Map.of("experimentId", experimentId, "variants", log.experimentEffect(experimentId));
+    }
 }

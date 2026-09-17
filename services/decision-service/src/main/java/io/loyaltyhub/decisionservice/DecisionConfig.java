@@ -13,8 +13,10 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Cablaggio del decision-service: motore puro, SpEL, adattatori verso backoffice (CMS) e servizi (context, rules,
@@ -44,11 +46,22 @@ public class DecisionConfig {
     @Bean @ConditionalOnMissingBean Ports.ExperimentSource experimentSource(CmsSources c) { return c; }
     @Bean @ConditionalOnMissingBean Ports.PredictionConfigSource predictionConfigSource(CmsSources c) { return c; }
 
+    /**
+     * Provider di previsioni con instradamento per chiave e ripiego sulle regole (RF-130). I provider remoti sono
+     * costruiti una volta sola e tenuti in cache: l'interruttore automatico ha memoria solo se l'istanza sopravvive
+     * alle chiamate, e un provider lento o rotto smette presto di far pagare il timeout a ogni decisione. La chiave
+     * della cache comprende l'URL, così un cambio di configurazione dal backoffice crea un provider nuovo.
+     */
     @Bean @ConditionalOnMissingBean
     PredictionProvider predictionProvider(Ports.PredictionConfigSource cfg, LoyaltyMetrics metrics) {
+        Map<String, PredictionProvider> remoti = new ConcurrentHashMap<>();
+        int soglia = Integer.parseInt(env("PREDICTION_BREAKER_FAILURE_RATE", "50"));
+        int minime = Integer.parseInt(env("PREDICTION_BREAKER_MIN_CALLS", "10"));
+        Duration attesa = Duration.ofMillis(Long.parseLong(env("PREDICTION_BREAKER_OPEN_MS", "30000")));
         return new CompositePredictionProvider(cfg::routing, p -> switch (p.kind()) {
             case RULE_BASED -> new RuleBasedPredictionProvider(p.thresholds());
-            case LOCAL_ML, EXTERNAL -> new HttpPredictionProvider(p);
+            case LOCAL_ML, EXTERNAL -> remoti.computeIfAbsent(p.name() + "@" + p.url(),
+                    k -> new BreakerPredictionProvider(new HttpPredictionProvider(p), soglia, minime, attesa, metrics::circuitBreaker));
         }, metrics::prediction);
     }
 

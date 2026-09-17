@@ -103,6 +103,16 @@ spec:
           expr: sum by (provider) (increase(loyalty_predictions_total{ok="false"}[30m])) > 20
           labels: { severity: ticket, service: decision-service }
           annotations: { summary: "Provider di previsione {{ $labels.provider }} in errore (fallback a regole attivo)" }
+        - alert: LoyaltyDecisionBudgetNearlyExhausted
+          expr: loyalty_decision_units_budget > 0 and loyalty_decision_units_granted_today / loyalty_decision_units_budget > 0.9
+          for: 5m
+          labels: { severity: ticket, team: marketing, service: decision-service }
+          annotations: { summary: "Budget giornaliero di unità della policy {{ $labels.policy }} oltre il 90%: le offerte con unità verranno scartate", runbook: "docs/runbooks/observability.md#decisioni-effetti-falliti-decisioni-ferme-scarti-in-massa--decisions-failed-effects-stalled-decisions-mass-rejections" }
+        - alert: LoyaltyCircuitBreakerOpen
+          expr: loyalty_circuit_breaker_state > 0
+          for: 10m
+          labels: { severity: ticket, service: decision-service }
+          annotations: { summary: "Interruttore automatico {{ $labels.name }} aperto da 10 minuti: si decide senza le sue previsioni (ripiego sulle regole)" }
         - alert: LoyaltyRejectionsSpike
           expr: sum(increase(loyalty_decision_rejections_total{reason=~"NO_CHANNEL|CONSENT_MISSING"}[1h])) / clamp_min(sum(increase(loyalty_decisions_total[1h])), 1) > 0.8
           for: 1h

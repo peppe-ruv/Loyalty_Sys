@@ -63,6 +63,20 @@ public final class LoyaltyMetrics {
     public void consent(String purpose, boolean granted) { count("loyalty_consents_total", "purpose", purpose, "granted", String.valueOf(granted)); }
     public void identity(String event) { count("loyalty_identity_events_total", "event", event); }
 
+    /**
+     * Consumo del budget giornaliero di unità della policy decisionale (RF-128): quanto è stato concesso e qual è il
+     * tetto. Due gauge, così il cruscotto mostra la percentuale e l'alert scatta prima che il budget finisca.
+     */
+    public void decisionBudget(String policyId, long granted, long budget) {
+        gauge("loyalty_decision_units_granted_today", granted, "policy", policyId);
+        gauge("loyalty_decision_units_budget", budget, "policy", policyId);
+    }
+
+    /** Stato dell'interruttore automatico verso un servizio esterno: 0 chiuso (tutto bene), 1 aperto, 2 in prova. */
+    public void circuitBreaker(String name, String state) {
+        gauge("loyalty_circuit_breaker_state", switch (state) { case "OPEN" -> 1; case "HALF_OPEN" -> 2; default -> 0; }, "name", name);
+    }
+
     /** Gauge impostabili: istanti vincenti residui per concorso, righe outbox non pubblicate, scorta lotti coupon, lag segmenti. */
     public void gauge(String name, long value, String... tags) {
         String key = name + Tags.of(tags);

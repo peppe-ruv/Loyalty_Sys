@@ -20,7 +20,7 @@ Legenda · Legend: **✅ completo · complete** · **🟡 parziale · partial** 
 | Premi e riscatti · Rewards and redemption | ✅ | 10 tipi, lotti di codici, conversione unità, paga con i punti, stati con rimborso | — |
 | Gamification | ✅ | Achievement, challenge, badge, classifiche, cicli premianti | — |
 | Concorsi · Contests | ✅ | Istanti vincenti, montepremi, registro verificabile, ruota agganciata agli istanti | — |
-| Decisioni · Decisioning | ✅ | Customer 360, motore, vincoli, punteggio, offerte, Next Best Action, decision log, esperimenti | Budget giornaliero di unità applicato; interruttore automatico sul provider esterno; metriche di effetto nel decision log |
+| Decisioni · Decisioning | ✅ | Customer 360, motore, vincoli, punteggio, offerte, Next Best Action, decision log, esperimenti, budget giornaliero di unità applicato, interruttore automatico sul provider di previsioni, effetto per variante nel decision log | — |
 | Previsioni · Predictions | 🟡 | Porta, provider a regole, routing per chiave, ripiego | Modelli addestrati; feature store; misura della qualità delle previsioni |
 | Antifrode · Fraud | 🟡 | 9 segnali configurabili, punteggio e livelli, blocco automatico, rivalutazione | Grafo dei dispositivi; liste di blocco dal backoffice; revisione manuale che rialimenta le soglie |
 | Consegna · Delivery | 🟡 | Inbox, webhook, coda operatore, instradamento con ripiego, modelli | Adattatori reali per push, email e SMS; reinvio manuale dalla console; localizzazione dei modelli per canale |
@@ -45,7 +45,6 @@ Legenda · Legend: **✅ completo · complete** · **🟡 parziale · partial** 
 | 4 | Autenticazione servizio-a-servizio e quote per fonte nel gateway | Irrigidire il perimetro interno · harden the internal perimeter |
 | 5 | Area riservata completa con autenticazione reale | È la faccia della piattaforma verso il membro · it is the platform's face to the member |
 | 6 | Cache distribuita del Customer 360 e ricalcolo notturno delle finestre | Prepara il carico di regime · prepares steady-state load |
-| 7 | Budget giornaliero di unità e interruttore automatico sul provider esterno | Protezione economica e di latenza · economic and latency protection |
 | 8 | Export di configurazione e dati verso storage a oggetti | Duplicazione di ambienti e analisi esterne · environment duplication and external analysis |
 
 ---

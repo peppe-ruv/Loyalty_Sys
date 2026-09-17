@@ -57,7 +57,8 @@ public class DecisionService {
         candidates.addAll(Candidates.fromOffers(offers.activeOffers(now), ctx, event, offerCondition, now));
 
         Assigned a = assign(ctx, action.actionType(), now);
-        Decision d = engine.decide(eventId, action.actionType(), correlationId, ctx, candidates, a.policy(), a.experimentId(), a.variant(), now);
+        Decision d = engine.decide(eventId, action.actionType(), correlationId, ctx, candidates, a.policy(),
+                unitsGrantedToday(a.policy(), now), a.experimentId(), a.variant(), now);
         decisionLog.save(d, true);
         metrics.decision(d.primaryAction(), a.experimentId() == null ? "-" : a.experimentId(), a.variant() == null ? "-" : a.variant());
         d.rejected().forEach(r -> metrics.decisionRejected(r.action().name(), r.reasonCode()));
@@ -72,6 +73,19 @@ public class DecisionService {
         return d;
     }
 
+    /**
+     * Unità già concesse oggi dalle azioni arbitrate: consumo del budget giornaliero della policy (RF-128). Si legge
+     * solo quando un budget c'è davvero, e la giornata è quella del programma (mezzanotte di Europe/Rome), non UTC.
+     */
+    private long unitsGrantedToday(DecisionPolicy policy, Instant now) {
+        long budget = policy == null || policy.constraints() == null ? 0 : policy.constraints().dailyUnitsBudget();
+        if (budget <= 0) return 0L;
+        Instant startOfDay = now.atZone(DecisionEngine.ZONE).toLocalDate().atStartOfDay(DecisionEngine.ZONE).toInstant();
+        long granted = decisionLog.unitsGrantedSince(startOfDay);
+        metrics.decisionBudget(policy.id(), granted, budget);
+        return granted;
+    }
+
     /** Next Best Action (RF-129): {@code getNextBestAction(customerId, context)} — una sola azione, offerte del catalogo + contesto passato dal canale. */
     public Decision nextBestAction(String memberId, Map<String, Object> requestContext, boolean persist) {
         Instant now = Instant.now();
@@ -79,7 +93,7 @@ public class DecisionService {
         Map<String, Object> event = new HashMap<>(requestContext == null ? Map.of() : requestContext);
         List<Candidate> candidates = Candidates.fromOffers(offers.activeOffers(now), ctx, event, offerCondition, now);
         Assigned a = assign(ctx, "next-best-action", now);
-        Decision d = engine.nextBestAction(ctx, candidates, a.policy(), a.experimentId(), a.variant(), now);
+        Decision d = engine.nextBestAction(ctx, candidates, a.policy(), unitsGrantedToday(a.policy(), now), a.experimentId(), a.variant(), now);
         if (persist) {
             decisionLog.save(d, false);
             metrics.decision("NBA:" + d.primaryAction(), a.experimentId() == null ? "-" : a.experimentId(), a.variant() == null ? "-" : a.variant());

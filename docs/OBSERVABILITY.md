@@ -68,6 +68,8 @@ internal schemas, no load on operational databases.
 | `loyalty_webhook_deliveries_total` | sottoscrizione, consegnato · subscription, delivered | Consegne webhook · webhook deliveries |
 | `loyalty_decisions_total`, `loyalty_decision_rejections_total`, `loyalty_decision_effects_total` | azione, motivo, esito · action, reason, outcome | Livello decisionale · decision layer |
 | `loyalty_predictions_total` | provider, chiave · provider, key | Previsioni e ripieghi · predictions and fallbacks |
+| `loyalty_decision_units_granted_today`, `loyalty_decision_units_budget` | policy | Consumo del budget giornaliero di unità · daily units budget consumption |
+| `loyalty_circuit_breaker_state` | nome · name | Interruttore automatico verso un servizio esterno: 0 chiuso, 1 aperto, 2 in prova · external-service circuit breaker: 0 closed, 1 open, 2 half-open |
 | `loyalty_experiment_exposures_total` | esperimento, variante · experiment, variant | Esposizioni · exposures |
 | `loyalty_risk_assessments_total` | livello · level | Valutazioni di rischio · risk assessments |
 | `loyalty_deliveries_total` | canale, esito · channel, outcome | Consegne · deliveries |

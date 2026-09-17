@@ -40,9 +40,21 @@ public final class DecisionEngine {
 
     public DecisionEngine(ScoreExpression expressions) { this.expressions = expressions; }
 
-    /** Decisione per un evento: azioni contrattuali + arbitrato delle discrezionali. */
+    /** Decisione per un evento, senza budget già consumato (simulazioni e valutazioni senza effetti). */
     public Decision decide(String eventId, String eventType, String correlationId, DecisionContext ctx, List<Candidate> candidates,
                            DecisionPolicy policy, String experimentId, String variant, Instant now) {
+        return decide(eventId, eventType, correlationId, ctx, candidates, policy, 0L, experimentId, variant, now);
+    }
+
+    /**
+     * Decisione per un evento: azioni contrattuali + arbitrato delle discrezionali.
+     *
+     * @param unitsGrantedToday unità già concesse oggi dalle azioni arbitrate del programma; serve per applicare
+     *                          {@code dailyUnitsBudget}, il tetto economico giornaliero della policy. Le azioni
+     *                          contrattuali non lo consumano e non ne sono limitate (RF-130).
+     */
+    public Decision decide(String eventId, String eventType, String correlationId, DecisionContext ctx, List<Candidate> candidates,
+                           DecisionPolicy policy, long unitsGrantedToday, String experimentId, String variant, Instant now) {
         List<Decision.Chosen> chosen = new ArrayList<>();
         List<Decision.Rejected> rejected = new ArrayList<>();
         List<Scored> arbitrable = new ArrayList<>();
@@ -69,13 +81,21 @@ public final class DecisionEngine {
 
         arbitrable.sort(Comparator.comparingDouble(Scored::score).reversed().thenComparingInt(s -> -s.spec().priority()));
         int k = Math.max(0, policy.maxArbitratedPerEvent());
-        for (int i = 0; i < arbitrable.size(); i++) {
-            Scored s = arbitrable.get(i);
-            if (i < k) {
-                chosen.add(new Decision.Chosen(s.c().type(), s.c().reference(), s.c().wallet(), s.c().units(), s.channel(), round(s.score()), s.reasons(), s.c().source(), s.c().sourceId(), s.c().params()));
-            } else {
-                rejected.add(reject(s.c(), "OUTRANKED", "punteggio " + round(s.score()) + " inferiore alle azioni scelte"));
+        long budget = policy.constraints() == null ? 0 : policy.constraints().dailyUnitsBudget();
+        long spent = Math.max(0, unitsGrantedToday);
+        int taken = 0;
+        for (Scored s : arbitrable) {
+            long units = Math.max(0L, s.c().units());
+            if (taken >= k) { rejected.add(reject(s.c(), "OUTRANKED", "punteggio " + round(s.score()) + " inferiore alle azioni scelte")); continue; }
+            // Il budget è del programma, non del membro: chi arriva quando è esaurito viene scartato con il suo motivo,
+            // ma un'azione più piccola che ci sta ancora passa (il tetto non spegne tutto il resto della giornata).
+            if (budget > 0 && units > 0 && spent + units > budget) {
+                rejected.add(reject(s.c(), "UNITS_BUDGET", "budget giornaliero " + budget + " unità: " + spent + " già concesse, ne servono " + units));
+                continue;
             }
+            spent += units;
+            taken++;
+            chosen.add(new Decision.Chosen(s.c().type(), s.c().reference(), s.c().wallet(), s.c().units(), s.channel(), round(s.score()), s.reasons(), s.c().source(), s.c().sourceId(), s.c().params()));
         }
         return new Decision(UUID.randomUUID().toString(), ctx.memberId(), eventId, eventType, correlationId, policy.id() + ":" + policy.version(),
                 experimentId, variant, List.copyOf(chosen), List.copyOf(rejected), ctx.predictions() == null ? Map.of() : ctx.predictions(),
@@ -84,10 +104,16 @@ public final class DecisionEngine {
 
     /** Next Best Action (RF-129): una sola azione arbitrata, nessun effetto contrattuale. */
     public Decision nextBestAction(DecisionContext ctx, List<Candidate> candidates, DecisionPolicy policy, String experimentId, String variant, Instant now) {
+        return nextBestAction(ctx, candidates, policy, 0L, experimentId, variant, now);
+    }
+
+    /** Next Best Action con il budget giornaliero già consumato (RF-129). */
+    public Decision nextBestAction(DecisionContext ctx, List<Candidate> candidates, DecisionPolicy policy, long unitsGrantedToday,
+                                   String experimentId, String variant, Instant now) {
         DecisionPolicy nba = new DecisionPolicy(policy.id(), policy.version(), policy.active(), policy.actions(), policy.constraints(), policy.scoring(),
                 Set.of(), 1, policy.channelPreferenceOrder());
         List<Candidate> discretionary = candidates.stream().filter(c -> !DecisionPolicy.defaultAlwaysApply().contains(c.type())).toList();
-        return decide("nba:" + UUID.randomUUID(), "next-best-action", null, ctx, discretionary, nba, experimentId, variant, now);
+        return decide("nba:" + UUID.randomUUID(), "next-best-action", null, ctx, discretionary, nba, unitsGrantedToday, experimentId, variant, now);
     }
 
     // ---- vincoli --------------------------------------------------------------------------------------------------
