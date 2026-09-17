@@ -2,6 +2,38 @@
 
 Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il versionamento semantico.
 
+## [0.6.2] — 2026-09-17
+
+Il monorepo 0.5.0 (servizi Java, CMS, web, deploy, analytics) e il bundle UX 0.6.0 vivono nello stesso
+repository; da qui tutto si costruisce e si verifica con `make check`.
+
+### Corretto
+- `rules-engine` non compilava: `RestClient.body(List.class)` restituisce un raw type e in `badgesOf`/`segmentClient`
+  finiva in un ternario con `Set.of()`, risolto a `Object`. Le risposte JSON dei servizi interni hanno ora un tipo
+  dichiarato (`ParameterizedTypeReference`) in tutti i client REST dei servizi
+- `engagement-service` non compilava: `AchievementEngine.periodKey`, package-private, è usata dalla chiusura dei
+  cicli delle classifiche; resa pubblica perché la chiave del ciclo deve essere la stessa delle achievement
+- CMS: `npm install` falliva (`@payloadcms/next@3.89` richiede `payload` esatto ed esclude Next 15.5); Payload
+  pinnato a 3.89.0 con Next 15.4.11 e `graphql` esplicito
+- CMS: i campi `richText` senza `editor` impedivano il caricamento della configurazione (`MissingEditorProp`);
+  aggiunto `lexicalEditor()`
+- CMS: senza `"type": "module"` il config non risolveva i propri import
+- Sito: `outputFileTracingRoot` fissato, altrimenti `.next/standalone` finisce annidato e il Dockerfile non trova
+  `server.js`
+
+### Aggiunto
+- Guscio Next del backoffice Payload 3 (`(payload)/admin`, `(payload)/api` REST/GraphQL, mappa import dei componenti
+  custom) e `tsconfig.json`: `npm run typecheck` e `npm run build` fanno davvero il loro lavoro
+- `make check`, `make check-ds`, `make check-web`
+- `-Xlint:unchecked,rawtypes,deprecation` su tutti i moduli Java (build senza warning)
+- CI: un solo workflow con Java, design system, web e CMS, Helm/Terraform, osservabilità, ShellCheck
+- `CLAUDE.md`
+
+### Modificato
+- La configurazione ESLint della radice si applica al solo design system: applicata al sito faceva fallire
+  `next build`
+- Dockerfile del CMS: `npm ci` dal lockfile, generazione della mappa import, `next start`
+
 ## [0.6.1] — 2026-09-17
 
 Il repository passa da raccolta di file a progetto verificabile: `npm ci && npm run check`

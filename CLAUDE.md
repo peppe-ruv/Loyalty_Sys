@@ -25,12 +25,13 @@ requisito ha un codice `RF-nn` (funzionale), `RI-nn` (integrazione), `RC`/`RT`, 
 | `cms/` | Backoffice Payload CMS (TypeScript): `src/collections.ts` (contenuti e configurazione del programma), `src/collections-decisions.ts` (Loyalty 4.0), `src/endpoints/` (guest token BI, simulazioni), `src/views/` (Andamenti) |
 | `web/bff/` | Backend for frontend Node (un solo file, `src/server.js`): area membro, console operatore, NBA, inbox, consensi, identità |
 | `web/site/` | Sito Next.js (app router) — oggi una pagina di esempio con saldo, NBA e inbox |
+| `web/backoffice-design-system/` | Pacchetto `@loyalty-hub/backoffice-design-system` (ADR-026): contratti dei 15 pattern UI, regole eseguibili (workflow D14, frasi senza id tecnici, formati KPI) e token `--lh-*` |
 | `deploy/terraform/` | AWS eu-south-1: VPC, EKS, RDS, MSK, ElastiCache, S3, Secrets Manager, osservabilità |
 | `deploy/helm/loyalty-hub/` | Umbrella chart: un template generico genera Deployment/Service/HPA/PDB per ogni voce di `values.yaml → services` |
 | `deploy/observability/`, `deploy/bi/` | kube-prometheus-stack/Thanos/Loki/Tempo/OTel values, regole di alert, dashboard Grafana; ClickHouse operator e Superset |
 | `analytics/clickhouse/schema/` | Kafka engine → fatti → viste KPI (file numerati, applicati in ordine) |
 | `analytics/superset/` | Config, init idempotente, export del cruscotto |
-| `docs/` | `SPECIFICA.md` (puntatore al documento vivo), `PARITA-OPEN-LOYALTY.md`, `CATALOGO-FUNZIONALE.md`, `OSSERVABILITA-BI.md`, `COPERTURA-LOYALTY-4.0.md`, `LOYALTY-4.0.md`, `adr/ADR-001..025`, `contracts/` (OpenAPI ingresso, AsyncAPI), `runbooks/` |
+| `docs/` | `SPECIFICA.md` (puntatore al documento vivo), `PARITA-OPEN-LOYALTY.md`, `CATALOGO-FUNZIONALE.md`, `OSSERVABILITA-BI.md`, `COPERTURA-LOYALTY-4.0.md`, `LOYALTY-4.0.md`, `LINEE-GUIDA-UX-BACKOFFICE.md` (LG-01..LG-48) e `SPECIFICA-ADDENDUM-UX.md` (RF-137..RF-142), `adr/ADR-001..026`, `contracts/` (OpenAPI ingresso, AsyncAPI), `runbooks/` |
 | `docker-compose.yml`, `Makefile`, `scripts/seed.sh` | Ambiente locale con la stessa topologia della produzione, comandi, dati di esempio |
 | `.github/workflows/` | `ci.yml` (Java, web/CMS, Helm/Terraform lint, osservabilità), `release.yml` (immagini per servizio) |
 
@@ -95,6 +96,9 @@ Con `RULES_APPLY_EFFECTS=true` e `DECISIONS_ENABLED=false` il rules-engine appli
 ```
 make build            # mvn -f services/pom.xml package (tutti i moduli)
 make test             # test JUnit 5 + AssertJ (src/test/java di ogni modulo)
+make check            # tutto: Java + design system + sito + BFF + backoffice
+make check-ds         # design system: eslint, tsc, vitest, build del pacchetto
+make check-web        # node --check del BFF, next build del sito e del backoffice Payload
 make up               # docker compose: Postgres, Kafka, Redis, tutti i servizi, CMS (:3002), sito (:3000), BFF (:3001)
 make seed-local       # membro demo, azioni, transazione, adesione con referral
 make up-observability # Grafana :3005, Prometheus, Loki, Tempo, OTel
@@ -102,10 +106,12 @@ make up-bi            # ClickHouse :8123, Superset :8088 (incorporato in /admin/
 make lint             # helm lint + terraform validate
 ```
 
-Verifica minima prima di un commit: `make build && make test`; per il CMS `cd cms && npx tsc --noEmit` (gli errori
-"Cannot find module 'payload'" fuori da un'installazione Payload sono attesi); per il BFF `node --check web/bff/src/server.js`.
+Verifica minima prima di un commit: `make build && make test`; se la modifica tocca il web, `make check-web`; se
+tocca il design system, `make check-ds`. Il CMS si installa (`cd cms && npm ci`) e si controlla con
+`npm run typecheck`: da quando il pannello è un'app Next (Payload 3) `npm run build` costruisce davvero `/admin` e
+`/api`, e la mappa degli import dei componenti custom si rigenera con `npm run generate:importmap`.
 La CI (`ci.yml`) fa la stessa cosa più `promtool check rules`, lint YAML/JSON dei values e dashboard, schema
-ClickHouse su nodo singolo.
+ClickHouse su nodo singolo e ShellCheck sugli script.
 
 Se Maven Central non è raggiungibile (è successo nel sandbox in cui è nato il codice), i domini puri si compilano con
 `javac` e si verificano con test standalone: i domini di `decision-service`, `fraud-service`, `rules-engine/campaign`,
@@ -230,9 +236,11 @@ mantenuti in Claude: chi modifica il codice segnala cosa va riportato lì.
 
 ## 10. Dove migliorare (backlog noto)
 
-- Build completa con Maven in CI: il codice 0.5.0 è stato verificato con `javac` + stub e test standalone (Smoke1–5)
-  per l'assenza di Maven Central nel sandbox; la prima esecuzione di `make build` va fatta con attenzione a import e
-  firme (in particolare `read-model/ContextStore`, `notifier/NotifierConfig`, `identity-mapping`).
+- ~~Build completa con Maven~~ **fatta**: `mvn -f services/pom.xml package` è verde su tutti e 15 i moduli (41 test).
+  La prima esecuzione ha trovato due errori veri, entrambi invisibili a `javac` con gli stub: raw type di
+  `RestClient.body(List.class)` in un ternario (rules-engine) e `AchievementEngine.periodKey` package-private usata
+  da `app` (engagement-service). Il compilatore ora gira con `-Xlint:unchecked,rawtypes,deprecation` senza warning:
+  tenerlo così.
 - Test di integrazione con Testcontainers (Postgres + Kafka) per: outbox del ledger, ciclo decisionale end-to-end,
   merge identità con trasferimento unità, consegna con fallback.
 - OpenAPI: generare e pubblicare in `docs/contracts/` gli spec di tutti i servizi (oggi solo ingresso) e AsyncAPI per

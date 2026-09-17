@@ -85,7 +85,7 @@ Sito http://localhost:3000 · Backoffice http://localhost:3002/admin · Ingresso
 make build   # mvn package
 make test    # test unitari Java (campagne con SpEL, regole, tier set, segmenti, achievement/challenge/classifiche, ruota, schemi, referral, riscatti, istanti vincenti)
 make lint    # helm lint + terraform fmt
-make check   # tutto: Java, design system, lint dell'infrastruttura
+make check   # tutto: Java, design system, sito, BFF e backoffice
 ```
 
 Design system del backoffice (Node 22.13+, workspace npm alla radice):
@@ -111,5 +111,8 @@ Nessuna credenziale nel repository. In cluster i segreti arrivano da AWS Secrets
 `services/contest-service` contiene il codice oggetto della perizia tecnica: `WinningInstantGenerator` (istanti pre-generati con `SecureRandom`, opzionalmente pesati per fascia oraria), `PlayLedger` (registro giocate con hash concatenato) e `InstantWinService` (assegnazione con `FOR UPDATE SKIP LOCKED`: nessun premio assegnato due volte). Nessun rilascio del modulo a concorso avviato.
 
 ## Stato
+
+Build verificata: `mvn -f services/pom.xml package` verde su 15 moduli (41 test), design system con 61 test,
+`next build` verde per sito e backoffice Payload. Dettagli in [CHANGELOG.md](CHANGELOG.md).
 
 Scaffold 0.5.0: struttura, contratti, dominio principale, parità funzionale con Open Loyalty (RF-60..RF-116), osservabilità enterprise e BI nel backoffice (RF-117..RF-124), livello decisionale Loyalty 4.0 con motore configurabile dal backoffice, previsioni, frodi, consegne omnicanale, esperimenti, consensi e identità (RF-125..RF-136, `docs/LOYALTY-4.0.md`), installazione. Punti aperti in `docs/SPECIFICA.md` → "Rischi, punti aperti e criteri di accettazione".
