@@ -179,7 +179,9 @@ esempio sono `DecisionPolicy.example()`, `RiskPolicy.example()`, `DeliveryRoutin
 - CMS (`cms/src/*.ts`): collezioni con `versions: { drafts: true }`, campo `status` con i livelli `twoLevel`/`threeLevel`,
   hook `bumpVersion` quando i servizi riportano la versione; descrizioni dei campi in italiano, per l'operatore.
 - BFF: un router a `if`/regex in `server.js`; ogni rotta operatore sotto `/api/operator/` e protetta da `isOperator`;
-  degrado controllato (cache ultimo saldo, NBA → `NO_ACTION` se il motore non risponde).
+  degrado controllato (cache ultimo saldo, NBA → `NO_ACTION` se il motore non risponde). Le chiavi di idempotenza si
+  compongono solo con `src/keys.js` (convenzione RI-01 a tre segmenti, mai `Date.now()`): dove l'operazione muove
+  valore il `clientRef` è obbligatorio e in sua assenza si risponde 400.
 - Test: JUnit 5 + AssertJ nel modulo (`src/test/java`, stessa struttura del package); i domini puri hanno test di
   logica con valori "parlanti" (es. Torino→Roma per il viaggio impossibile). Un fix di bug porta il test che lo riproduce.
 - Commit: titolo in italiano, corpo puntato per componente, trailer `Co-Authored-By` se generato con Claude. Il
@@ -252,9 +254,9 @@ mantenuti in Claude: chi modifica il codice segnala cosa va riportato lì.
   `RestClient.body(List.class)` in un ternario (rules-engine) e `AchievementEngine.periodKey` package-private usata
   da `app` (engagement-service). Il compilatore ora gira con `-Xlint:unchecked,rawtypes,deprecation` senza warning:
   tenerlo così.
-- **Quattro punti aperti dalla revisione del codice** (`docs/REVISIONE-CODICE-0.5.0.md`): addebiti remoti dentro
-  transazioni locali senza compensazione, «paga con i punti» che sconta più del carrello, chiavi di idempotenza da
-  `Date.now()` nel BFF, accumulo STATUS non idempotente. Cambiano semantica di saldi o consegne: si affrontano uno
+- **Tre punti aperti dalla revisione del codice** (`docs/REVISIONE-CODICE-0.5.0.md`): addebiti remoti dentro
+  transazioni locali senza compensazione, «paga con i punti» che sconta più del carrello, accumulo STATUS non
+  idempotente. Cambiano semantica di saldi o consegne: si affrontano uno
   alla volta, con i test di integrazione a fare da rete.
 - ~~Test di integrazione con Testcontainers~~ **c'è il banco**: `PostgresIntegrationTest` in `common` (test-jar,
   Postgres 16 condiviso, migrazioni Flyway vere) e un `ContextLoadsTest` per servizio. Da estendere a Kafka per il

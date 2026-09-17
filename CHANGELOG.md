@@ -11,6 +11,13 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
 - `catalog-redemption`: la colonna generata `redemption.expires_at` sommava un intervallo a un `timestamptz`,
   espressione che Postgres rifiuta come non immutabile: lo schema non si creava affatto
 
+### Corretto (chiavi di idempotenza del BFF)
+- Le chiavi costruite dal BFF avevano cinque segmenti invece dei tre della convenzione RI-01: l'ingresso le
+  respingeva tutte, quindi nessun evento comportamentale del sito né azione da sportello entrava in piattaforma.
+  Ora si compongono in `web/bff/src/keys.js`, che rifiuta una chiave storta invece di spedirla
+- Le chiavi non nascono più da `Date.now()`: dove l'operazione muove valore (trasferimenti, azioni da sportello,
+  badge, blocchi) il `clientRef` del chiamante è obbligatorio, altrimenti 400
+
 ### Corretto (premi e classifiche)
 - `engagement-service`: la chiusura di un ciclo premiante marcava il ciclo come chiuso prima di assegnare i premi;
   un errore a metà elenco lasciava i vincitori successivi senza nulla. La riga del ciclo è ora una prenotazione

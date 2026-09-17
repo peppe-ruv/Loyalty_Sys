@@ -108,12 +108,24 @@ Le due uscite ragionevoli — arrotondare per difetto (il resto si paga normalme
 sconto all'importo del carrello, lasciando al membro i punti in eccesso — hanno effetti diversi sul
 conto economico: è una scelta di prodotto, non una correzione tecnica.
 
-## 7. Chiavi di idempotenza generate dall'orologio
+## 7. ~~Chiavi di idempotenza generate dall'orologio~~ — risolto, e c'era di peggio
 
-`web/bff/src/server.js` costruisce alcune chiavi con `Date.now()` (trasferimenti P2P, eventi
-comportamentali, azioni da sportello). Un ritentativo del client genera una chiave diversa e la
-deduplica a valle non scatta: l'operazione si ripete. Le chiavi devono venire dal client
-(`clientRef`) o da un identificativo stabile dell'operazione.
+Il BFF costruiva alcune chiavi con `Date.now()`: un ritentativo del client ne generava una nuova e
+la deduplica a valle non scattava, quindi l'operazione si ripeteva — trasferimento di unità compreso.
+
+Scrivendo la correzione è emerso un difetto più grave nello stesso punto: **quelle chiavi non erano
+nemmeno valide**. La convenzione RI-01 vuole tre segmenti (`<fonte>:<riferimento>:<evento>`) e il BFF
+ne produceva cinque, così l'ingresso le respingeva tutte con `INVALID_IDEMPOTENCY_KEY`: nessun evento
+comportamentale del sito e nessuna azione da sportello entrava davvero in piattaforma.
+
+Ora le chiavi si costruiscono in un unico punto (`web/bff/src/keys.js`), che compone i tre segmenti,
+ripulisce il riferimento e **rifiuta** una chiave storta invece di spedirla. Dove l'operazione muove
+valore — trasferimenti P2P, azioni da sportello, badge, blocchi — il riferimento deve arrivare dal
+client (`clientRef`), altrimenti la richiesta è respinta con 400: un doppio clic non può accreditare
+due volte. Per gli eventi comportamentali il riferimento resta facoltativo, con la finestra del
+minuto come ripiego.
+
+Sei test (`node --test`) sul modulo delle chiavi.
 
 ## 8. Accumulo STATUS non idempotente
 

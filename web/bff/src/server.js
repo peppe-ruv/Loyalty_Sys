@@ -1,6 +1,8 @@
 import http from "node:http";
 import client from "prom-client";
 
+import { idempotencyKey } from "./keys.js";
+
 // RF-117: metriche del BFF (richieste per rotta e latenza) su /metrics, raccolte dal ServiceMonitor
 const registry = new client.Registry();
 client.collectDefaultMetrics({ register: registry, prefix: "bff_" });
@@ -107,7 +109,11 @@ const server = http.createServer(async (req, res) => {
     if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/wallets$/))) return json(200, await fetchJson(`${LEDGER}/v1/ledger/members/${m[1]}/wallets`));
     if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/transfers$/)) && req.method === "POST") {
       const b = JSON.parse((await readBody(req)) || "{}");
-      return json(201, await proxy(`${LEDGER}/v1/ledger/transfers`, "POST", JSON.stringify({ fromMemberId: m[1], toMemberId: b.toMemberId, currency: b.wallet || "PREMIO", amount: b.amount, transferKey: `p2p:${m[1]}:${b.toMemberId}:${b.clientRef || Date.now()}`, comment: b.comment || "" })));
+      // Il riferimento lo porta il client: con una chiave presa dall'orologio, un ritentativo
+      // trasferirebbe le unità una seconda volta.
+      if (!b.clientRef) return json(400, { error: "CLIENT_REF_REQUIRED" });
+      const transferKey = idempotencyKey("p2p", [m[1], b.toMemberId, b.clientRef], "TRANSFER");
+      return json(201, await proxy(`${LEDGER}/v1/ledger/transfers`, "POST", JSON.stringify({ fromMemberId: m[1], toMemberId: b.toMemberId, currency: b.wallet || "PREMIO", amount: b.amount, transferKey, comment: b.comment || "" })));
     }
     if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/badges$/))) return json(200, await fetchJson(`${ENGAGEMENT}/v1/badges/members/${m[1]}/details`));
     if ((m = url.pathname.match(/^\/api\/members\/([^/]+)\/achievements$/))) return json(200, await fetchJson(`${ENGAGEMENT}/v1/achievements/members/${m[1]}`));
@@ -152,8 +158,11 @@ const server = http.createServer(async (req, res) => {
       const ev = JSON.parse((await readBody(req)) || "{}");
       const allowed = ["PRODUCT_VIEWED", "PRODUCT_ADDED_TO_CART", "OFFER_ACCEPTED"];
       if (!allowed.includes(ev.actionType)) return json(400, { error: "ACTION_NOT_ALLOWED", allowed });
-      const key = `web:${m[1]}:${ev.actionType}:${ev.ref || ""}:${Math.floor(Date.now() / 60000)}`;
-      return json(202, await proxy(`${INGRESS}/v1/actions`, "POST", JSON.stringify({ items: [{ memberId: m[1], action: { actionType: ev.actionType, idempotencyKey: key, externalRef: ev.ref, occurredAt: new Date().toISOString(), attributes: { channel: "web", deviceId: req.headers["x-device-id"] || "", ...(ev.attributes || {}) } } }] })));
+      // `clientRef` rende il ritentativo innocuo; senza, resta la finestra del minuto (un evento
+      // di navigazione ripetuto non fa danno, ma è il client a dover portare il riferimento).
+      const occurredAt = ev.occurredAt || new Date().toISOString();
+      const key = idempotencyKey("web", [m[1], ev.ref, ev.clientRef || Math.floor(Date.parse(occurredAt) / 60000)], ev.actionType);
+      return json(202, await proxy(`${INGRESS}/v1/actions`, "POST", JSON.stringify({ items: [{ memberId: m[1], action: { actionType: ev.actionType, idempotencyKey: key, externalRef: ev.ref, occurredAt, attributes: { channel: "web", deviceId: req.headers["x-device-id"] || "", ...(ev.attributes || {}) } } }] })));
     }
 
     // --- Postazione operatore (RF-75): sportello/negozio/call center — "merchant panel" ---
@@ -166,7 +175,10 @@ const server = http.createServer(async (req, res) => {
       }
       if ((m = url.pathname.match(/^\/api\/operator\/members\/([^/]+)\/actions$/)) && req.method === "POST") {
         const a = JSON.parse((await readBody(req)) || "{}");
-        const key = a.idempotencyKey || `operator:${actor}:${m[1]}:${a.actionType}:${Date.now()}`;
+        // Un'azione da sportello accredita punti: senza riferimento del client un doppio clic
+        // la applicherebbe due volte.
+        if (!a.idempotencyKey && !a.clientRef) return json(400, { error: "CLIENT_REF_REQUIRED" });
+        const key = a.idempotencyKey || idempotencyKey("operator", [actor, m[1], a.clientRef], a.actionType);
         return json(202, await proxy(`${INGRESS}/v1/actions`, "POST", JSON.stringify({ items: [{ memberId: m[1], action: { ...a, idempotencyKey: key, occurredAt: new Date().toISOString(), attributes: { channel: "sportello", operator: actor, ...(a.attributes || {}) } } }] })));
       }
       if ((m = url.pathname.match(/^\/api\/operator\/members\/([^/]+)\/codes$/)) && req.method === "POST") {
@@ -176,10 +188,16 @@ const server = http.createServer(async (req, res) => {
       }
       if ((m = url.pathname.match(/^\/api\/operator\/redemptions\/([^/]+)\/(use|deliver)$/)) && req.method === "POST")
         return json(200, await proxy(`${CATALOG}/v1/redemptions/${m[1]}/transitions`, "POST", JSON.stringify({ to: m[2] === "use" ? "USED" : "DELIVERED", actor, byMember: false })));
-      if ((m = url.pathname.match(/^\/api\/operator\/members\/([^/]+)\/badges\/([^/]+)$/)) && req.method === "POST")
-        return json(201, await proxy(`${ENGAGEMENT}/v1/badges/${m[2]}/grants`, "POST", JSON.stringify({ memberId: m[1], grantKey: `operator:${actor}:${m[1]}:${m[2]}:${Date.now()}` })));
-      if ((m = url.pathname.match(/^\/api\/operator\/members\/([^/]+)\/blocks$/)) && req.method === "POST")
-        return json(202, await proxy(`${LEDGER}/v1/ledger/blocks?unblock=${url.searchParams.get("unblock") || "false"}`, "POST", JSON.stringify({ memberId: m[1], actionKey: `block:${actor}:${m[1]}:${Date.now()}`, ...JSON.parse((await readBody(req)) || "{}") })));
+      if ((m = url.pathname.match(/^\/api\/operator\/members\/([^/]+)\/badges\/([^/]+)$/)) && req.method === "POST") {
+        const b = JSON.parse((await readBody(req)) || "{}");
+        if (!b.clientRef) return json(400, { error: "CLIENT_REF_REQUIRED" });
+        return json(201, await proxy(`${ENGAGEMENT}/v1/badges/${m[2]}/grants`, "POST", JSON.stringify({ memberId: m[1], grantKey: idempotencyKey("operator", [actor, m[1], m[2], b.clientRef], "GRANT_BADGE") })));
+      }
+      if ((m = url.pathname.match(/^\/api\/operator\/members\/([^/]+)\/blocks$/)) && req.method === "POST") {
+        const b = JSON.parse((await readBody(req)) || "{}");
+        if (!b.clientRef) return json(400, { error: "CLIENT_REF_REQUIRED" });
+        return json(202, await proxy(`${LEDGER}/v1/ledger/blocks?unblock=${url.searchParams.get("unblock") || "false"}`, "POST", JSON.stringify({ memberId: m[1], actionKey: idempotencyKey("block", [actor, m[1], b.clientRef], "BLOCK"), ...b })));
+      }
       if (url.pathname === "/api/operator/simulations" && req.method === "POST") return json(200, await proxy(`${RULES}/v1/simulations`, "POST", await readBody(req)));
       // Loyalty 4.0: decisioni spiegabili, rischio, coda contatti, consensi e identità del membro nella console
       if ((m = url.pathname.match(/^\/api\/operator\/members\/([^/]+)\/decisions$/))) return json(200, await fetchJson(`${DECISION}/v1/decisions/members/${m[1]}`));
