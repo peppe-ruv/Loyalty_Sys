@@ -1,9 +1,9 @@
 locals {
   name = "${var.name}-${var.environment}"
   tags = {
-    Project     = var.name
-    Environment = var.environment
-    ManagedBy   = "terraform"
+    Project       = var.name
+    Environment   = var.environment
+    ManagedBy     = "terraform"
     DataResidency = "IT"
   }
   azs = slice(data.aws_availability_zones.available.names, 0, 3)
@@ -30,9 +30,9 @@ module "vpc" {
   database_subnets = [for k, v in local.azs : cidrsubnet(var.vpc_cidr, 8, k + 52)]
   intra_subnets    = [for k, v in local.azs : cidrsubnet(var.vpc_cidr, 8, k + 56)]
 
-  enable_nat_gateway     = true
-  single_nat_gateway     = var.environment != "prod"
-  enable_dns_hostnames   = true
+  enable_nat_gateway           = true
+  single_nat_gateway           = var.environment != "prod"
+  enable_dns_hostnames         = true
   create_database_subnet_group = true
 
   public_subnet_tags  = { "kubernetes.io/role/elb" = 1 }
@@ -84,29 +84,29 @@ module "rds" {
   source  = "terraform-aws-modules/rds/aws"
   version = "~> 6.12"
 
-  identifier = local.name
-  engine               = "postgres"
-  engine_version       = "17"
-  family               = "postgres17"
-  major_engine_version = "17"
-  instance_class       = var.db_instance_class
-  allocated_storage    = 100
+  identifier            = local.name
+  engine                = "postgres"
+  engine_version        = "17"
+  family                = "postgres17"
+  major_engine_version  = "17"
+  instance_class        = var.db_instance_class
+  allocated_storage     = 100
   max_allocated_storage = 1000
-  storage_encrypted    = true
+  storage_encrypted     = true
 
-  db_name  = "loyalty"
-  username = "loyalty"
-  password = random_password.db.result
+  db_name                     = "loyalty"
+  username                    = "loyalty"
+  password                    = random_password.db.result
   manage_master_user_password = false
-  port     = 5432
+  port                        = 5432
 
   multi_az               = var.db_multi_az
   db_subnet_group_name   = module.vpc.database_subnet_group
   vpc_security_group_ids = [aws_security_group.data.id]
 
-  backup_retention_period = 14
-  deletion_protection     = var.environment == "prod"
-  skip_final_snapshot     = var.environment != "prod"
+  backup_retention_period      = 14
+  deletion_protection          = var.environment == "prod"
+  skip_final_snapshot          = var.environment != "prod"
   performance_insights_enabled = true
 }
 
@@ -171,18 +171,18 @@ resource "aws_elasticache_subnet_group" "this" {
 }
 
 resource "aws_elasticache_replication_group" "this" {
-  replication_group_id = local.name
-  description          = "Loyalty Hub read cache"
-  engine               = "valkey"
-  engine_version       = "8.0"
-  node_type            = var.redis_node_type
-  num_cache_clusters   = 2
+  replication_group_id       = local.name
+  description                = "Loyalty Hub read cache"
+  engine                     = "valkey"
+  engine_version             = "8.0"
+  node_type                  = var.redis_node_type
+  num_cache_clusters         = 2
   automatic_failover_enabled = true
-  multi_az_enabled     = true
+  multi_az_enabled           = true
   at_rest_encryption_enabled = true
   transit_encryption_enabled = true
-  subnet_group_name    = aws_elasticache_subnet_group.this.name
-  security_group_ids   = [aws_security_group.data.id]
+  subnet_group_name          = aws_elasticache_subnet_group.this.name
+  security_group_ids         = [aws_security_group.data.id]
 }
 
 # ---------------- Object storage: media CMS, export verbalizzazione, regolamenti ----------------

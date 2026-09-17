@@ -149,6 +149,8 @@ push_branch() {
   local owner="$1" repo="$2" branch="$3"
   local url="https://github.com/${owner}/${repo}.git"
   # Il credential helper legge il token dall'ambiente: non finisce né in .git/config né in argv.
+  # Le virgolette singole sono volute: l'espansione deve avvenire quando git esegue l'helper.
+  # shellcheck disable=SC2016
   local helper='!f() { echo username=x-access-token; echo "password=${GITHUB_TOKEN}"; }; f'
   local args=(-c "credential.helper=${helper}" push "$url" "${branch}:${branch}")
   [[ "${PUSH_TAGS:-0}" == "1" ]] && args+=(--follow-tags)

@@ -8,4 +8,4 @@ kafka_broker_type   = "kafka.m7g.large"
 kafka_brokers       = 3
 redis_node_type     = "cache.r7g.large"
 # Seconda region per DR (D11): eu-central-1 solo se Legal ammette copie dei dati concorso fuori Italia (RC-01).
-dr_region           = ""
+dr_region = ""

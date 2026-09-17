@@ -13,9 +13,9 @@ resource "aws_backup_vault" "primary" {
 resource "aws_backup_plan" "this" {
   name = "${local.name}-plan"
   rule {
-    rule_name         = "continuous"
-    target_vault_name = aws_backup_vault.primary.name
-    schedule          = "cron(0 */1 * * ? *)"
+    rule_name                = "continuous"
+    target_vault_name        = aws_backup_vault.primary.name
+    schedule                 = "cron(0 */1 * * ? *)"
     enable_continuous_backup = true
     lifecycle { delete_after = 35 }
     dynamic "copy_action" {
@@ -44,7 +44,7 @@ resource "aws_backup_selection" "rds" {
 resource "aws_iam_role" "backup" {
   name = "${local.name}-backup"
   assume_role_policy = jsonencode({
-    Version = "2012-10-17"
+    Version   = "2012-10-17"
     Statement = [{ Effect = "Allow", Principal = { Service = "backup.amazonaws.com" }, Action = "sts:AssumeRole" }]
   })
 }

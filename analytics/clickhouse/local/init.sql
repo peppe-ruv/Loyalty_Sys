@@ -122,16 +122,16 @@ SELECT day,
        sumIf(n, metric = 'earned') AS units_earned, sumIf(n, metric = 'spent') AS units_spent, sumIf(n, metric = 'expired') AS units_expired,
        sumIf(n, metric = 'redemptions') AS redemptions, sumIf(n, metric = 'plays') AS contest_plays, sumIf(n, metric = 'wins') AS contest_wins
 FROM (
-    SELECT toDate(enrolled_at) AS day, 'registered' AS metric, count() AS n, 0 AS v FROM loyalty.dim_member FINAL WHERE status != 'ANONYMIZED' GROUP BY day
-    UNION ALL SELECT toDate(occurred_at), 'actions', count(), 0 FROM loyalty.fact_action WHERE NOT is_reversal GROUP BY 1
-    UNION ALL SELECT toDate(occurred_at), 'transactions', count(), toFloat64(sum(amount_eur)) FROM loyalty.fact_action WHERE action_type = 'TRANSACTION' AND NOT is_reversal GROUP BY 1
-    UNION ALL SELECT toDate(occurred_at), 'transaction_value', 0, toFloat64(sum(amount_eur)) FROM loyalty.fact_action WHERE action_type = 'TRANSACTION' AND NOT is_reversal GROUP BY 1
-    UNION ALL SELECT toDate(occurred_at), 'earned', sum(amount), 0 FROM loyalty.fact_movement WHERE kind = 'EARN' AND wallet = 'PREMIO' GROUP BY 1
-    UNION ALL SELECT toDate(occurred_at), 'spent', -sum(amount), 0 FROM loyalty.fact_movement WHERE kind = 'SPEND' AND wallet = 'PREMIO' GROUP BY 1
-    UNION ALL SELECT toDate(occurred_at), 'expired', -sum(amount), 0 FROM loyalty.fact_movement WHERE kind = 'EXPIRY' AND wallet = 'PREMIO' GROUP BY 1
-    UNION ALL SELECT toDate(occurred_at), 'redemptions', count(), 0 FROM loyalty.fact_redemption WHERE status IN ('CONFIRMED', 'DELIVERED') GROUP BY 1
-    UNION ALL SELECT toDate(played_at), 'plays', count(), 0 FROM loyalty.fact_contest_play GROUP BY 1
-    UNION ALL SELECT toDate(played_at), 'wins', countIf(won), 0 FROM loyalty.fact_contest_play GROUP BY 1
+    SELECT toDate(enrolled_at) AS day, 'registered' AS metric, toInt64(count()) AS n, toFloat64(0) AS v FROM loyalty.dim_member FINAL WHERE status != 'ANONYMIZED' GROUP BY day
+    UNION ALL SELECT toDate(occurred_at), 'actions', toInt64(count()), toFloat64(0) FROM loyalty.fact_action WHERE NOT is_reversal GROUP BY 1
+    UNION ALL SELECT toDate(occurred_at), 'transactions', toInt64(count()), toFloat64(sum(amount_eur)) FROM loyalty.fact_action WHERE action_type = 'TRANSACTION' AND NOT is_reversal GROUP BY 1
+    UNION ALL SELECT toDate(occurred_at), 'transaction_value', toInt64(0), toFloat64(sum(amount_eur)) FROM loyalty.fact_action WHERE action_type = 'TRANSACTION' AND NOT is_reversal GROUP BY 1
+    UNION ALL SELECT toDate(occurred_at), 'earned', toInt64(sum(amount)), toFloat64(0) FROM loyalty.fact_movement WHERE kind = 'EARN' AND wallet = 'PREMIO' GROUP BY 1
+    UNION ALL SELECT toDate(occurred_at), 'spent', toInt64(-sum(amount)), toFloat64(0) FROM loyalty.fact_movement WHERE kind = 'SPEND' AND wallet = 'PREMIO' GROUP BY 1
+    UNION ALL SELECT toDate(occurred_at), 'expired', toInt64(-sum(amount)), toFloat64(0) FROM loyalty.fact_movement WHERE kind = 'EXPIRY' AND wallet = 'PREMIO' GROUP BY 1
+    UNION ALL SELECT toDate(occurred_at), 'redemptions', toInt64(count()), toFloat64(0) FROM loyalty.fact_redemption WHERE status IN ('CONFIRMED', 'DELIVERED') GROUP BY 1
+    UNION ALL SELECT toDate(played_at), 'plays', toInt64(count()), toFloat64(0) FROM loyalty.fact_contest_play GROUP BY 1
+    UNION ALL SELECT toDate(played_at), 'wins', toInt64(countIf(won)), toFloat64(0) FROM loyalty.fact_contest_play GROUP BY 1
 ) GROUP BY day;
 
 -- Membri attivi: almeno un'azione negli ultimi N giorni (default 365, RF-108)
