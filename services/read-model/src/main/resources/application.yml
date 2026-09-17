@@ -1,6 +1,13 @@
 spring:
   application:
     name: read-model
+  data:
+    # In compose e su Kubernetes l'host arriva da SPRING_DATA_REDIS_HOST; REDIS_HOST resta come alias locale.
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 200ms
+      connect-timeout: 200ms
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/loyalty}
     username: ${DB_USER:loyalty}
@@ -67,3 +74,12 @@ logging:
   structured:
     format:
       console: ecs
+
+# Cache del Customer 360 e ricalcolo delle finestre mobili (RF-125)
+readmodel:
+  cache:
+    ttl-seconds: ${CONTEXT_CACHE_TTL:300}
+  recompute:
+    enabled: ${CONTEXT_RECOMPUTE_ENABLED:true}
+    cron: ${CONTEXT_RECOMPUTE_CRON:0 20 3 * * *}
+    page-size: ${CONTEXT_RECOMPUTE_PAGE:1000}

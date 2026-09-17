@@ -29,7 +29,20 @@ public record CustomerContext(
     public record Rfm(Integer recencyDays, int frequency90d, int frequency365d, double monetary365d, Instant firstTransactionAt, Instant lastTransactionAt) {}
     public record Behaviour(List<ActionSummary> recentActions, Rfm rfm, Map<String, Integer> actionCounts30d, String preferredChannel) {}
     public record Offer(String decisionId, String action, String reference, String channel, Instant at, String outcome) {}
-    public record Engagement(List<String> badges, Map<String, Integer> achievementsCompleted, Map<String, Integer> challengesCompleted, List<String> campaignsCompleted30d, List<Offer> recentOffers, int redemptions90d, int contestPlays30d, Instant lastContactAt, Map<String, Integer> contacts7dByChannel) {}
+    /**
+     * @param recentContacts consegne recenti con canale e istante: senza di esse i contatti a 7 giorni potevano solo
+     *                       crescere, e un membro molto contattato restava sopra il tetto per sempre
+     */
+    public record Engagement(List<String> badges, Map<String, Integer> achievementsCompleted, Map<String, Integer> challengesCompleted,
+                             List<String> campaignsCompleted30d, List<Offer> recentOffers, int redemptions90d, int contestPlays30d,
+                             Instant lastContactAt, Map<String, Integer> contacts7dByChannel, List<Contact> recentContacts) {
+
+        /** Contesti scritti prima di questo campo non lo hanno: si legge come lista vuota. */
+        public List<Contact> recentContactsOrEmpty() { return recentContacts == null ? List.of() : recentContacts; }
+    }
+
+    /** Una consegna ricevuta dal membro: serve per far decadere i contatti a 7 giorni (RF-132). */
+    public record Contact(String channel, Instant at) {}
     public record Risk(int score, String level, List<String> reasonCodes, Instant assessedAt) {
         public static final Risk NONE = new Risk(0, "LOW", List.of(), null);
     }

@@ -44,7 +44,6 @@ Legenda · Legend: **✅ completo · complete** · **🟡 parziale · partial** 
 | 3 | Adattatori reali di consegna (push, email, SMS) e reinvio manuale dalla console | Senza di essi le azioni di contatto restano in inbox · without them contact actions stay in the inbox |
 | 4 | Autenticazione servizio-a-servizio e quote per fonte nel gateway | Irrigidire il perimetro interno · harden the internal perimeter |
 | 5 | Area riservata completa con autenticazione reale | È la faccia della piattaforma verso il membro · it is the platform's face to the member |
-| 6 | Cache distribuita del Customer 360 e ricalcolo notturno delle finestre | Prepara il carico di regime · prepares steady-state load |
 | 8 | Export di configurazione e dati verso storage a oggetti | Duplicazione di ambienti e analisi esterne · environment duplication and external analysis |
 
 ---

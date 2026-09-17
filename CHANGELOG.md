@@ -24,7 +24,15 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
   si decide con le regole invece di pagare il timeout a ogni decisione
 - `decision-service`: `GET /v1/decisions/experiments/{id}/effect` — decisioni, membri, azioni e unità per variante
 
+- `read-model`: cache del Customer 360 su Redis, condivisa fra le repliche e con TTL, al posto di una mappa per
+  processo che non scadeva mai e non vedeva le scritture altrui; se Redis non risponde si legge dal database
+- `read-model`: ricalcolo notturno delle finestre mobili (RFM, conteggi a 30 giorni, contatti a 7 giorni), in keyset,
+  che riscrive solo i contesti davvero cambiati
+
 ### Corretto
+- `read-model`: i contatti a 7 giorni per canale potevano solo crescere — il contesto teneva i contatori, non le
+  consegne — e un membro molto contattato restava sopra il tetto per sempre, senza più un canale disponibile. Ora il
+  contesto conserva le ultime 50 consegne e la finestra si ricalcola
 - `identity-mapping`: un errore fra il trasferimento delle unità e la chiusura del membro assorbito lasciava uno stato
   incoerente che nessuno recuperava, e il riprovo generava una chiave nuova trasferendo una seconda volta
 
