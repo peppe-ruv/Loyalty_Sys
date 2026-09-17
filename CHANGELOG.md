@@ -11,6 +11,14 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
 - `catalog-redemption`: la colonna generata `redemption.expires_at` sommava un intervallo a un `timestamptz`,
   espressione che Postgres rifiuta come non immutabile: lo schema non si creava affatto
 
+### Corretto (premi e classifiche)
+- `engagement-service`: la chiusura di un ciclo premiante marcava il ciclo come chiuso prima di assegnare i premi;
+  un errore a metà elenco lasciava i vincitori successivi senza nulla. La riga del ciclo è ora una prenotazione
+  (`rewarded_at`, migrazione V2) e un ciclo non confermato viene ripreso al giro successivo
+- `engagement-service`: le classifiche con metrica `ACHIEVEMENT_PROGRESS` non potevano mai segnare punti, perché il
+  filtro anti-anello scartava anche `ACHIEVEMENT_PROGRESSED`. Le azioni interne ora alimentano le classifiche pur
+  restando fuori dal motore; aggiunta la guardia sul riferimento nullo
+
 ### Corretto (azioni perse all'ingresso)
 - `ingress-adapters` registrava la chiave di idempotenza prima di pubblicare e non attendeva l'esito dell'invio a
   Kafka: con il broker fermo la fonte riceveva 202, l'azione non entrava e ogni rinvio era respinto come duplicato.

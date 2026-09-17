@@ -39,8 +39,21 @@ public class EngagementService {
         var event = CanonicalEvents.deserialize(payload);
         if (!EventTypes.ACTION_V1.equals(event.getType())) return;
         var action = CanonicalEvents.data(event, RewardingAction.class);
-        if (action.isReversal() || action.actionType().startsWith("ACHIEVEMENT_") || action.actionType().startsWith("CHALLENGE_")) return;
-        apply(CanonicalEvents.memberId(event), action);
+        if (action.isReversal()) return;
+        String memberId = CanonicalEvents.memberId(event);
+        if (isOwnAction(action.actionType())) {
+            // Le azioni emesse da questo servizio non rientrano nel motore — sarebbe un anello — ma
+            // alimentano le classifiche con metrica ACHIEVEMENT_PROGRESS, che si nutre proprio di
+            // ACHIEVEMENT_PROGRESSED: con il filtro secco quel ramo non poteva mai scattare (RF-93).
+            applyToLeaderboards(memberId, action);
+            return;
+        }
+        apply(memberId, action);
+    }
+
+    /** Azioni interne emesse da engagement-service: rientrano solo nelle classifiche. */
+    private static boolean isOwnAction(String actionType) {
+        return actionType.startsWith("ACHIEVEMENT_") || actionType.startsWith("CHALLENGE_");
     }
 
     @Transactional
@@ -66,13 +79,23 @@ public class EngagementService {
             applyChallenge(c, memberId, Challenge.Milestone.Kind.DIRECT, action, attrs, at);
             if (referrerId != null) applyChallenge(c, referrerId, Challenge.Milestone.Kind.REFERRAL, action, attrs, at);
         }
+        applyToLeaderboards(memberId, action);
+    }
+
+    /** Punteggi delle classifiche attive per questa azione (RF-93). */
+    @Transactional
+    public void applyToLeaderboards(String memberId, RewardingAction action) {
+        Instant at = action.occurredAt() == null ? Instant.now() : action.occurredAt();
+        Map<String, Object> attrs = action.attributes() == null ? Map.of() : action.attributes();
         for (Leaderboard lb : defs.leaderboards()) {
             if (!lb.active() || (lb.startsAt() != null && at.isBefore(lb.startsAt())) || (lb.endsAt() != null && !at.isBefore(lb.endsAt()))) continue;
             double delta = switch (lb.metric()) {
                 case TRANSACTIONS_COUNT -> EventTypes.ACTION_TRANSACTION.equals(action.actionType()) ? 1 : 0;
                 case TRANSACTIONS_VALUE -> EventTypes.ACTION_TRANSACTION.equals(action.actionType()) ? num(attrs.get(EventTypes.ATTR_AMOUNT_EUR)) : 0;
                 case CUSTOM_EVENTS_COUNT -> lb.reference() == null || lb.reference().equals(action.actionType()) ? 1 : 0;
-                case ACHIEVEMENT_PROGRESS -> "ACHIEVEMENT_PROGRESSED".equals(action.actionType()) && lb.reference().equals(action.externalRef()) ? 1 : 0;
+                // Come sopra: senza riferimento la classifica vale per qualunque achievement.
+                case ACHIEVEMENT_PROGRESS -> "ACHIEVEMENT_PROGRESSED".equals(action.actionType())
+                        && (lb.reference() == null || lb.reference().equals(action.externalRef())) ? 1 : 0;
                 case UNITS_EARNED -> 0; // alimentata dal consumer dei movimenti (onMovement)
             };
             if (delta != 0) addScore(lb, memberId, delta);

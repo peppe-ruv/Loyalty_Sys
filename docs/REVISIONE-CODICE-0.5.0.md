@@ -70,22 +70,34 @@ Serve una compensazione esplicita (storno nel `catch`) o lo spostamento dell'add
 locale. È il punto in cui la piattaforma ha più bisogno dei test di integrazione con Testcontainers
 già in backlog: una correzione senza quel banco di prova è un salto nel buio.
 
-## 4. Cicli delle classifiche chiusi prima di premiare
+## 4. ~~Cicli delle classifiche chiusi prima di premiare~~ — risolto
 
-`LeaderboardJobs.closeCycles` inserisce la riga di ciclo chiuso (`ON CONFLICT DO NOTHING`, che è la
-guardia contro la doppia premiazione) e **poi** assegna i premi, senza transazione comune. Un errore
-a metà elenco lascia i vincitori successivi senza premio e il ciclo risulta chiuso per sempre.
+**Decisione presa**: la riga del ciclo è una *prenotazione*, non una chiusura; la premiazione si
+conferma a parte e i cicli prenotati e non confermati vengono ripresi.
 
-## 5. Metrica di classifica irraggiungibile
+`closeCycles` inseriva la riga del ciclo — la guardia contro la doppia premiazione — e solo dopo
+assegnava i premi, con chiamate a catalogo, ledger ed engagement fuori da qualunque transazione
+comune: un errore a metà elenco lasciava i vincitori successivi senza premio e il ciclo chiuso per
+sempre.
 
-`EngagementService.onAction` scarta ogni azione il cui tipo inizia per `ACHIEVEMENT_` o
-`CHALLENGE_` — filtro anti-anello. Ma la metrica `ACHIEVEMENT_PROGRESS` delle classifiche si alimenta
-proprio da `ACHIEVEMENT_PROGRESSED`: quel ramo non può mai scattare e una classifica configurata così
-resta vuota senza errori. Nello stesso `switch`, il ramo `ACHIEVEMENT_PROGRESS` chiama
-`lb.reference().equals(...)` senza la guardia sul null che ha il ramo precedente.
+Ora `leaderboard_cycle` ha `rewarded_at` (migrazione `V2`): l'inserimento prenota, la premiazione si
+conferma in fondo, e al giro successivo un ciclo prenotato ma non confermato viene ripreso. Il
+secondo tentativo è innocuo perché ogni premio ha già la sua chiave di idempotenza
+(`leaderboard:<classifica>:<ciclo>:<membro>`). I punteggi si azzerano solo dopo la conferma.
 
-Va deciso quali azioni interne devono rientrare (probabilmente `ACHIEVEMENT_PROGRESSED` sì,
-`ACHIEVEMENT_COMPLETED` no) e ristretto il filtro di conseguenza.
+## 5. ~~Metrica di classifica irraggiungibile~~ — risolto
+
+`EngagementService.onAction` scartava ogni azione il cui tipo inizia per `ACHIEVEMENT_` o
+`CHALLENGE_` — filtro anti-anello — ma la metrica `ACHIEVEMENT_PROGRESS` si nutre proprio di
+`ACHIEVEMENT_PROGRESSED`: quel ramo non poteva mai scattare e una classifica configurata così
+restava vuota, senza errori.
+
+Le azioni interne del servizio ora saltano il motore (l'anello resta escluso) ma **alimentano le
+classifiche**: `applyToLeaderboards` è un passaggio a sé, chiamato da entrambi i percorsi. Nello
+stesso ramo mancava la guardia sul riferimento nullo che gli altri hanno: una classifica senza
+riferimento vale per qualunque achievement.
+
+Coperti da due test di integrazione sul `engagement-service`.
 
 ## 6. «Paga con i punti» può scontare più del carrello
 

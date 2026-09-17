@@ -43,13 +43,20 @@ public class LeaderboardJobs {
         }
     }
 
+    /**
+     * Chiusura dei cicli premianti (RF-94). La riga del ciclo è una prenotazione: finché la
+     * premiazione non è confermata (`rewarded_at`), il giro successivo la riprende. Serve perché i
+     * premi si assegnano con chiamate a catalogo, ledger ed engagement, e un errore a metà elenco
+     * lasciava i vincitori successivi senza nulla, con il ciclo già segnato come chiuso.
+     * Il secondo tentativo è innocuo: ogni premio ha la sua chiave di idempotenza.
+     */
     @Scheduled(cron = "${leaderboards.cycle-cron:0 30 0 * * *}", zone = "Europe/Rome")
     public void closeCycles() {
         Instant now = Instant.now();
         for (Leaderboard lb : defs.leaderboards()) {
             if (!lb.active() || lb.rewardingCycle() == null) continue;
             String cycleKey = AchievementEngine.periodKey(now.minusSeconds(3600), lb.rewardingCycle().period());
-            if (jdbc.update("INSERT INTO engagementservice.leaderboard_cycle(leaderboard_id, cycle_key, closed_at) VALUES (?,?,?) ON CONFLICT DO NOTHING", lb.id(), cycleKey, java.sql.Timestamp.from(now)) == 0) continue;
+            if (!claimCycle(lb.id(), cycleKey, now) && !pendingReward(lb.id(), cycleKey)) continue;
             rank();
             var entries = jdbc.query("SELECT rank, member_id, group_value, value FROM engagementservice.leaderboard_rank WHERE leaderboard_id = ?",
                     (rs, i) -> new Leaderboard.Entry(rs.getInt(1), rs.getString(2), rs.getString(3), rs.getDouble(4)), lb.id());
@@ -60,7 +67,24 @@ public class LeaderboardJobs {
                 if (r.units() > 0) ledger.post().uri("/v1/ledger/postings").body(Map.of("memberId", e.memberId(), "actionKey", key, "currency", r.wallet() == null ? "PREMIO" : r.wallet(), "amount", r.units(), "reason", "LEADERBOARD:" + lb.id())).retrieve().toBodilessEntity();
                 if (r.badgeCode() != null) engagement.grantBadge(e.memberId(), r.badgeCode(), key);
             }
+            // Solo ora il ciclo è davvero chiuso: da qui i punteggi si possono azzerare.
+            jdbc.update("UPDATE engagementservice.leaderboard_cycle SET rewarded_at = ? WHERE leaderboard_id = ? AND cycle_key = ?",
+                    java.sql.Timestamp.from(Instant.now()), lb.id(), cycleKey);
             jdbc.update("DELETE FROM engagementservice.leaderboard_score WHERE leaderboard_id = ?", lb.id());
         }
+    }
+
+    /** Prenota il ciclo; false se qualcuno l'aveva già prenotato (anche un'esecuzione precedente). */
+    private boolean claimCycle(String leaderboardId, String cycleKey, Instant now) {
+        return jdbc.update("INSERT INTO engagementservice.leaderboard_cycle(leaderboard_id, cycle_key, closed_at) VALUES (?,?,?) ON CONFLICT DO NOTHING",
+                leaderboardId, cycleKey, java.sql.Timestamp.from(now)) == 1;
+    }
+
+    /** Ciclo prenotato ma con la premiazione mai confermata: va ripreso. */
+    private boolean pendingReward(String leaderboardId, String cycleKey) {
+        Integer pending = jdbc.queryForObject(
+                "SELECT count(*) FROM engagementservice.leaderboard_cycle WHERE leaderboard_id = ? AND cycle_key = ? AND rewarded_at IS NULL",
+                Integer.class, leaderboardId, cycleKey);
+        return pending != null && pending > 0;
     }
 }
