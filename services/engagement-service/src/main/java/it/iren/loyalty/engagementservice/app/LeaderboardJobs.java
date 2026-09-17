@@ -1,5 +1,6 @@
 package it.iren.loyalty.engagementservice.app;
 
+import it.iren.loyalty.engagementservice.domain.AchievementEngine;
 import it.iren.loyalty.engagementservice.domain.Definitions;
 import it.iren.loyalty.engagementservice.domain.Leaderboard;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -47,7 +48,7 @@ public class LeaderboardJobs {
         Instant now = Instant.now();
         for (Leaderboard lb : defs.leaderboards()) {
             if (!lb.active() || lb.rewardingCycle() == null) continue;
-            String cycleKey = it.iren.loyalty.engagementservice.domain.AchievementEngine.periodKey(now.minusSeconds(3600), lb.rewardingCycle().period());
+            String cycleKey = AchievementEngine.periodKey(now.minusSeconds(3600), lb.rewardingCycle().period());
             if (jdbc.update("INSERT INTO engagementservice.leaderboard_cycle(leaderboard_id, cycle_key, closed_at) VALUES (?,?,?) ON CONFLICT DO NOTHING", lb.id(), cycleKey, java.sql.Timestamp.from(now)) == 0) continue;
             rank();
             var entries = jdbc.query("SELECT rank, member_id, group_value, value FROM engagementservice.leaderboard_rank WHERE leaderboard_id = ?",

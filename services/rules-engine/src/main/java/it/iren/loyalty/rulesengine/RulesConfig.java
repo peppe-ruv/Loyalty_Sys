@@ -8,6 +8,7 @@ import it.iren.loyalty.rulesengine.domain.RuleSource;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.client.RestClient;
 
 import it.iren.loyalty.common.event.EventTypes;
@@ -24,6 +25,11 @@ import java.util.Set;
  */
 @Configuration
 public class RulesConfig {
+
+    /** Forme delle risposte JSON dei servizi interni: dichiararle evita i raw type di `List.class`/`Map.class`. */
+    private static final ParameterizedTypeReference<List<String>> STRING_LIST = new ParameterizedTypeReference<>() { };
+    private static final ParameterizedTypeReference<Map<String, Object>> JSON_OBJECT = new ParameterizedTypeReference<>() { };
+    private static final ParameterizedTypeReference<Map<String, Map<String, Number>>> WALLETS = new ParameterizedTypeReference<>() { };
 
     @Bean
     @ConditionalOnMissingBean
@@ -65,9 +71,9 @@ public class RulesConfig {
             @Override public void reverse(String originalActionKey) {
                 client.post().uri("/v1/ledger/reversals/{k}", originalActionKey).retrieve().toBodilessEntity();
             }
-            @Override @SuppressWarnings("unchecked") public Map<String, it.iren.loyalty.rulesengine.campaign.CampaignEvaluator.WalletView> wallets(String memberId) {
+            @Override public Map<String, it.iren.loyalty.rulesengine.campaign.CampaignEvaluator.WalletView> wallets(String memberId) {
                 try {
-                    Map<String, Map<String, Number>> body = client.get().uri("/v1/ledger/members/{id}/wallets", memberId).retrieve().body(Map.class);
+                    Map<String, Map<String, Number>> body = client.get().uri("/v1/ledger/members/{id}/wallets", memberId).retrieve().body(WALLETS);
                     Map<String, it.iren.loyalty.rulesengine.campaign.CampaignEvaluator.WalletView> out = new java.util.HashMap<>();
                     if (body != null) body.forEach((k, v) -> out.put(k, new it.iren.loyalty.rulesengine.campaign.CampaignEvaluator.WalletView(
                             v.get("active").longValue(), v.get("earned").longValue(), v.get("spent").longValue(), v.get("pending").longValue(), v.get("blocked").longValue(), v.get("expired").longValue())));
@@ -127,8 +133,8 @@ public class RulesConfig {
         RestClient rm = builder.baseUrl(System.getenv().getOrDefault("READ_MODEL_URL", "http://read-model:8088")).build();
         return c -> {
             try {
-                var body = rm.post().uri("/v1/read/audiences").body(Map.of("campaignId", c.id(), "visibility", c.visibility(), "schedule", c.customAttributes().getOrDefault("schedule", "DAILY"))).retrieve().body(List.class);
-                return body == null ? java.util.stream.Stream.<String>empty() : body.stream().map(String::valueOf);
+                List<String> body = rm.post().uri("/v1/read/audiences").body(Map.of("campaignId", c.id(), "visibility", c.visibility(), "schedule", c.customAttributes().getOrDefault("schedule", "DAILY"))).retrieve().body(STRING_LIST);
+                return body == null ? java.util.stream.Stream.empty() : body.stream();
             } catch (Exception e) { return java.util.stream.Stream.empty(); }
         };
     }
@@ -141,8 +147,10 @@ public class RulesConfig {
         RestClient ingress = builder.baseUrl(System.getenv().getOrDefault("INGRESS_URL", "http://ingress-adapters:8081")).build();
         return new it.iren.loyalty.rulesengine.client.EngagementClient() {
             @Override public Set<String> badgesOf(String memberId) {
-                try { var b = eng.get().uri("/v1/badges/members/{id}", memberId).retrieve().body(List.class); return b == null ? Set.of() : b.stream().map(String::valueOf).collect(java.util.stream.Collectors.toSet()); }
-                catch (Exception e) { return Set.of(); }
+                try {
+                    List<String> badges = eng.get().uri("/v1/badges/members/{id}", memberId).retrieve().body(STRING_LIST);
+                    return badges == null ? Set.of() : Set.copyOf(badges);
+                } catch (Exception e) { return Set.of(); }
             }
             @Override public void grantBadge(String memberId, String badgeCode, String grantKey) {
                 eng.post().uri("/v1/badges/{code}/grants", badgeCode).body(Map.of("memberId", memberId, "grantKey", grantKey)).retrieve().toBodilessEntity();
@@ -170,8 +178,8 @@ public class RulesConfig {
         RestClient client = builder.baseUrl(System.getenv().getOrDefault("SEGMENT_URL", "http://segment-service:8090")).build();
         return memberId -> {
             try {
-                var body = client.get().uri("/v1/segments/members/{id}", memberId).retrieve().body(List.class);
-                return body == null ? Set.of() : body.stream().map(String::valueOf).collect(java.util.stream.Collectors.toSet());
+                List<String> body = client.get().uri("/v1/segments/members/{id}", memberId).retrieve().body(STRING_LIST);
+                return body == null ? Set.of() : Set.copyOf(body);
             } catch (Exception e) { return Set.of(); }
         };
     }
@@ -183,7 +191,7 @@ public class RulesConfig {
         return new TierClient() {
             @Override public String currentTier(String memberId) {
                 try {
-                    var body = client.get().uri("/v1/tiers/members/{id}", memberId).retrieve().body(Map.class);
+                    Map<String, Object> body = client.get().uri("/v1/tiers/members/{id}", memberId).retrieve().body(JSON_OBJECT);
                     return body == null ? "BASE" : String.valueOf(body.getOrDefault("tier", "BASE"));
                 } catch (Exception e) { return "BASE"; }
             }

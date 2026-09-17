@@ -69,7 +69,13 @@ public class AchievementEngine {
         };
     }
 
-    static String periodKey(Instant at, Achievement.Period period) {
+    /**
+     * Chiave del periodo in ora di Roma: identifica il ciclo premiante di un achievement e,
+     * con la stessa semantica, quello di una classifica (RF-100). Pubblica perché la usa anche
+     * la chiusura dei cicli in {@code app.LeaderboardJobs}: le due devono coincidere, altrimenti
+     * lo stesso ciclo verrebbe premiato due volte.
+     */
+    public static String periodKey(Instant at, Achievement.Period period) {
         ZonedDateTime z = at.atZone(ROME);
         return switch (period) {
             case HOUR -> z.truncatedTo(ChronoUnit.HOURS).toString();
