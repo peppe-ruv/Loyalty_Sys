@@ -48,7 +48,9 @@ or go: a copy that lies is worse than no copy.
 
 Il playground è pensato per Vercel come sito statico. Il progetto esiste già:
 `loyalty-hub-playground` (`prj_LGKp9uCKS1rebq7INC8qMFVEWVQN`), con root directory `web/playground`, file esterni alla
-root abilitati (il playground usa il design system del monorepo) e output `out/`.
+root abilitati (il playground usa il design system del monorepo). La cartella di output non si dichiara: con
+`output: 'export'` il builder Next di Vercel riconosce da sé l'esportazione statica, e forzarla fa fallire il deploy
+alla fine del build (`NEXT_NO_ROUTES_MANIFEST`).
 
 **Per pubblicare serve un passo che solo il proprietario dell'account può fare**, perché tocca le credenziali:
 
