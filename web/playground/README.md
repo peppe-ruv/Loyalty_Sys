@@ -46,9 +46,20 @@ or go: a copy that lies is worse than no copy.
 
 ## Pubblicazione · Publishing
 
-Il playground è pensato per Vercel come sito statico. Due modi:
+Il playground è pensato per Vercel come sito statico. Il progetto esiste già:
+`loyalty-hub-playground` (`prj_LGKp9uCKS1rebq7INC8qMFVEWVQN`), con root directory `web/playground`, file esterni alla
+root abilitati (il playground usa il design system del monorepo) e output `out/`.
 
-1. **Collegato al repository** — progetto Vercel con root directory `web/playground`, «Include source files outside of
-   the Root Directory» attivo (il playground usa il design system del monorepo) e comando di build
-   `npm run build --workspace @loyalty-hub/backoffice-design-system && next build`.
-2. **Caricando `out/`** — `make playground` e poi la cartella `web/playground/out` su qualunque hosting statico.
+**Per pubblicare serve un passo che solo il proprietario dell'account può fare**, perché tocca le credenziali:
+
+| Strada · Path | Che cosa fare · What to do |
+| --- | --- |
+| **Consigliata** — pubblicazione dalla CI | Creare un token in Vercel (*Account Settings → Tokens*) e aggiungerlo al repository come segreto `VERCEL_TOKEN`. Da quel momento `.github/workflows/playground.yml` costruisce e pubblica a ogni push su `main` che tocca il playground o il design system |
+| Alternativa — integrazione Git di Vercel | Collegare l'account GitHub a Vercel (*Account Settings → Login Connections*) e importare il repository: Vercel costruisce da sé a ogni push |
+| Manuale | `make playground` e poi `npx vercel deploy --prebuilt --prod` da `web/playground`, oppure caricare `out/` su qualunque hosting statico |
+
+Senza il token il workflow si salta da solo: chi lavora sul repository non vede rosso per una credenziale che non ha.
+
+**EN** — The Vercel project already exists; publishing needs one step only the account owner can take: add a
+`VERCEL_TOKEN` repository secret (recommended — CI then builds and publishes on every relevant push to `main`), or
+connect GitHub to Vercel and import the repository. Without the token the workflow skips itself instead of failing.
