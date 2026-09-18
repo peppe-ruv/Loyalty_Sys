@@ -43,7 +43,13 @@ export default buildConfig({
   editor: lexicalEditor(),
   endpoints: [biGuestToken, simulateDecision, simulateRisk, decisionLog],
   collections: [Campaigns, DecisionPolicies, Offers, Experiments, PredictionProviders, FraudRules, DeliveryRouting, ConsentPurposes, PointRules, Achievements, Challenges, Badges, Leaderboards, FortuneWheels, Contests, ContestCards, WinCards, Popups, Rewards, RewardCategories, CouponPools, PromoCodes, Wallets, TierSets, Tiers, Segments, Collections, EventSchemas, CustomFieldSchemas, Channels, Programs, MessageTemplates, Webhooks, Roles, Settings, Media],
-  db: postgresAdapter({ pool: { connectionString: process.env.DATABASE_URI } }),
+  // `DATABASE_URI` è il nome nostro; `POSTGRES_URL` e `DATABASE_URL` sono quelli che i database
+  // gestiti (Neon, Supabase, Vercel Postgres) iniettano da soli quando li si collega a un progetto.
+  // Accettarli tutti e tre evita di dover ricopiare a mano una stringa di connessione che la
+  // piattaforma ha già messo lì — e una stringa ricopiata è una stringa che prima o poi diverge.
+  db: postgresAdapter({
+    pool: { connectionString: process.env.DATABASE_URI || process.env.POSTGRES_URL || process.env.DATABASE_URL },
+  }),
   plugins: storage,
   // RF-79/RF-115: multilingua dei contenuti (it di default, en); le traduzioni dell'interfaccia sono nel pannello.
   localization: { locales: ["it", "en"], defaultLocale: "it", fallback: true },

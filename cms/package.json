@@ -13,7 +13,7 @@
     "generate:importmap": "payload generate:importmap",
     "generate:types": "payload generate:types",
     "migrate": "payload migrate",
-    "build:vercel": "payload migrate && next build"
+    "build:vercel": "timeout 600 payload migrate && payload run scripts/primo-operatore.ts && next build"
   },
   "dependencies": {
     "@payloadcms/db-postgres": "3.89.0",

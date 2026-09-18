@@ -26,19 +26,51 @@ Vercel is the tip of that backend; without it, it shows the showcase.
 
 ## Backoffice
 
-Radice del progetto `cms`, comando di build da `cms/vercel.json`. La build fa due cose in
-quest'ordine: genera la mappa degli import del pannello ed **esegue le migrazioni**, poi costruisce.
-Le migrazioni non stanno in `npm run build` di proposito: la CI costruisce il backoffice senza
-database, e deve continuare a poterlo fare.
+Radice del progetto `cms`, comando di build da `cms/vercel.json`. La build fa tre cose in
+quest'ordine: genera la mappa degli import del pannello, **esegue le migrazioni**, crea il primo
+operatore se manca, poi costruisce. Le migrazioni non stanno in `npm run build` di proposito: la CI
+costruisce il backoffice senza database, e deve continuare a poterlo fare.
+
+La migrazione gira sotto `timeout`. Non è pignoleria: quando Payload trova in `payload_migrations`
+la traccia di un push di sviluppo (una riga con `batch = -1`) **fa una domanda interattiva** prima di
+procedere, e il flag `--force-accept-warning` non la disattiva perché il prompt sta nell'adattatore,
+non nella riga di comando. In una build senza terminale quella domanda non riceve mai risposta: la
+build resterebbe appesa fino al limite della piattaforma, bruciando minuti senza dire perché. Con il
+`timeout` fallisce, e un fallimento si legge. Su un database toccato solo dalle migrazioni — il caso
+di un ambiente gestito — quella riga non esiste e la domanda non arriva.
 
 | Variabile · Variable | Obbligatoria | A che serve · What for |
 | --- | --- | --- |
-| `DATABASE_URI` | sì | Postgres del backoffice. Le migrazioni girano a ogni build e sono idempotenti |
+| `DATABASE_URI` | sì | Postgres del backoffice. Valgono anche `POSTGRES_URL` e `DATABASE_URL`, i nomi che i database gestiti iniettano da soli: collegarne uno al progetto basta, non c'è niente da ricopiare |
 | `PAYLOAD_SECRET` | sì | Firma le sessioni del pannello. Cambiarla invalida i cookie di tutti |
 | `CMS_URL` | sì | URL pubblico del pannello, usato negli URL assoluti che Payload genera |
 | `BLOB_READ_WRITE_TOKEN` | per gli upload | Manda i file della collezione `media` su Vercel Blob. **Senza, Payload scrive su disco**, che su Vercel è di sola lettura: gli upload falliscono |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | se il pannello è pubblico | Creano il primo operatore durante la build. Vedi sotto: senza, il pannello ha una finestra aperta |
 | `SUPERSET_*` | no | Cruscotti BI incorporati. Senza, la vista «Andamenti» risponde `SUPERSET_UNAVAILABLE` |
 | `DECISION_URL`, `FRAUD_URL` | no | Simulatore di decisioni e di rischio. Senza, quei pulsanti non rispondono |
+
+### Il primo operatore, e perché non è un dettaglio
+
+Il backoffice non dichiara una collezione di autenticazione: Payload ne crea una per conto suo. La
+conseguenza è che **finché non esiste nessun operatore, chiunque raggiunga il pannello può
+registrarsi come amministratore** — `POST /api/users/first-register` risponde 200 a un estraneo, e
+chi arriva primo si porta a casa campagne, policy del motore decisionale, premi e concorsi. Su una
+macchina in ufficio è una comodità; su un indirizzo pubblico è una consegna delle chiavi.
+
+Due modi di chiudere quella finestra, e conviene averli entrambi:
+
+1. **Il primo operatore nasce con la build.** `scripts/primo-operatore.ts` gira dopo le migrazioni:
+   se non c'è nessun operatore e ci sono `ADMIN_EMAIL` e `ADMIN_PASSWORD`, lo crea; se ci sono già
+   operatori non fa nulla; se mancano le variabili lo scrive nel log della build invece di far finta
+   di niente. È idempotente: si può rieseguire a ogni rilascio.
+2. **Il pannello nasce protetto.** La Vercel Authentication del progetto resta accesa, così prima
+   del primo operatore l'indirizzo è raggiungibile solo da chi è nel team. Si spegne dopo aver
+   creato l'operatore, non prima.
+
+**EN** — The back office declares no auth collection, so Payload creates one. Until the first
+operator exists, anyone reaching the panel can register as its administrator. Close that window
+both ways: create the first operator during the build from `ADMIN_EMAIL`/`ADMIN_PASSWORD`, and
+leave Vercel Authentication on until that operator exists.
 
 Le migrazioni vivono in `cms/src/migrations/` e sono generate, non scritte a mano. Dopo aver
 cambiato una collezione:
