@@ -35,6 +35,7 @@
 | [ADR-024](ADR-024.md) | Consegna omnicanale tramite adattatori di canale · Omnichannel delivery through channel adapters | approvata · accepted |
 | [ADR-025](ADR-025.md) | Consensi con base giuridica e grafo delle identità · Consents with legal basis and an identity graph | approvata · accepted |
 | [ADR-026](ADR-026.md) | Linee guida UX del backoffice e design system · Back-office UX guidelines and design system | approvata · accepted |
+| [ADR-027](ADR-027.md) | Design Tokens Italia come fondamenta del design system · Design Tokens Italia as the design system's foundation | approvata · accepted |
 
 Aggiungere un ADR · Adding an ADR: copiare il file più recente, usare il numero successivo, mantenere le quattro sezioni
 e citare i requisiti coinvolti; se supera un ADR precedente, dirlo nella prima riga di entrambi.

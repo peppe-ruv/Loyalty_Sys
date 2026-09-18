@@ -6,18 +6,25 @@ const GRUPPI: Array<{ titolo: string; testo: string; token: string[] }> = [
   },
   {
     titolo: 'Testo e bordi',
-    testo: 'Un inchiostro, un grigio per ciò che è secondario, una linea. Niente sfumature di grigio inventate caso per caso.',
-    token: ['--lh-ink', '--lh-muted', '--lh-line'],
+    testo:
+      'Un inchiostro, un grigio per ciò che è secondario, due linee — quella decorativa e quella che delimita un campo, che deve reggere il contrasto — e il blu dei collegamenti.',
+    token: ['--lh-ink', '--lh-muted', '--lh-line', '--lh-line-strong', '--lh-link'],
   },
   {
     titolo: 'Accento',
     testo: 'L’accento segnala ciò che è attivo o primario; la versione morbida fa da sfondo alle chip.',
-    token: ['--lh-accent', '--lh-accent-soft', '--lh-accent-ink'],
+    token: ['--lh-accent', '--lh-accent-soft', '--lh-on-accent'],
   },
   {
     titolo: 'Esiti',
     testo: 'Verde, ambra, rosso hanno un significato fisso: riuscito, da guardare, rotto. Mai usati per decorare.',
-    token: ['--lh-ok', '--lh-ok-soft', '--lh-warn', '--lh-warn-soft', '--lh-bad', '--lh-bad-soft'],
+    token: ['--lh-ok', '--lh-ok-soft', '--lh-warn', '--lh-warn-soft', '--lh-danger', '--lh-danger-soft'],
+  },
+  {
+    titolo: 'Inchiostri sopra il colore',
+    testo:
+      'Per ogni fondo colorato c’è l’inchiostro che ci va sopra: senza, il testo di una chip finisce sotto la soglia di contrasto appena si cambia tema.',
+    token: ['--lh-on-accent-soft', '--lh-on-ok-soft', '--lh-on-warn-soft', '--lh-on-danger-soft'],
   },
   {
     titolo: 'Barra laterale',
@@ -34,9 +41,14 @@ export default function Token() {
       <section className="pg-hero">
         <h1>Token del tema</h1>
         <p className="pg-lead">
-          Ogni colore, spaziatura e raggio del backoffice è un token con prefisso <code>--lh-</code>. I componenti non
-          usano mai un valore letterale: è così che il tema scuro, e un domani il tema di un cliente, si applicano
-          senza toccare una riga di componente. Cambia il tema in alto a destra e guarda cosa succede.
+          Ogni colore, spaziatura e raggio del backoffice è un token con prefisso <code>--lh-</code>, e ognuno è un
+          alias verso una primitiva dei{' '}
+          <a href="https://github.com/italia/design-tokens-italia" rel="noreferrer noopener" target="_blank">
+            Design Tokens Italia
+          </a>{' '}
+          (ADR-027). I componenti non usano mai un valore letterale: è così che il tema scuro, e un domani il tema di
+          un cliente, si applicano senza toccare una riga di componente. Cambia il tema in alto a destra e guarda cosa
+          succede.
         </p>
       </section>
 

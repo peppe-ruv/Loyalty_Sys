@@ -44,7 +44,7 @@ structural choice an ADR; comments cite the requirement they implement.
 | `cms/` | Backoffice Payload CMS (TypeScript): collezioni di contenuto e configurazione, endpoint di simulazione e BI, viste |
 | `web/bff/` | Backend-for-frontend Node: area membro, console operatore, prossima azione, inbox, consensi, identità |
 | `web/site/` | Sito Next.js e widget incorporabili |
-| `web/backoffice-design-system/` | Design system del backoffice: contratti dei pattern, componenti React, token `--lh-*`, regole eseguibili |
+| `web/backoffice-design-system/` | Design system del backoffice: contratti dei pattern, componenti React, token `--lh-*` sulle primitive [Design Tokens Italia](https://github.com/italia/design-tokens-italia) (ADR-026, ADR-027), regole eseguibili |
 | `web/playground/` | Playground statico (export Next.js) che mostra pattern e motore decisionale su dati finti |
 | `deploy/terraform/` | Infrastruttura: rete, cluster, database, Kafka, cache, storage, segreti, osservabilità |
 | `deploy/helm/loyalty-hub/` | Umbrella chart: un template generico genera Deployment/Service/HPA/PDB per ogni voce di `values.yaml → services` |

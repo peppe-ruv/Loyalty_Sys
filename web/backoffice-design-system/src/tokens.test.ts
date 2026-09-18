@@ -2,6 +2,11 @@
  * I due blocchi del tema scuro di `tokens.css` sono per forza duplicati (CSS puro non
  * permette di riusare un blocco di dichiarazioni): questi test impediscono che divergano,
  * che nascano token scuri senza controparte chiara o che qualcuno torni ai nomi senza prefisso.
+ *
+ * Dalla 0.7.0 le fondamenta sono i Design Tokens Italia (ADR-027), e i test coprono anche le due
+ * regole che rendono la scelta verificabile invece che documentale: ogni colore `--lh-*` risolve a
+ * una primitiva `--it-color-*`, e le coppie testo/fondo dichiarate stanno sopra la soglia WCAG in
+ * entrambi i temi.
  */
 
 import { readFileSync } from 'node:fs';
@@ -40,11 +45,73 @@ const light = declarations(':root {');
 const darkAuto = declarations(':root:not([data-theme="light"])');
 const darkForced = declarations(':root[data-theme="dark"]');
 
+/** Unico colore del sistema senza una primitiva Italia: il giallo-verde dei concorsi. */
+const SENZA_PRIMITIVA_ITALIA = new Set(['--lh-volt']);
+
+/** Risolve la catena `var(--x)` fino al valore letterale, nel tema richiesto. */
+function resolve(name: string, theme: Map<string, string>): string {
+  let value = theme.get(name) ?? light.get(name);
+  expect(value, `token non dichiarato: ${name}`).toBeDefined();
+  for (let hop = 0; hop < 8; hop += 1) {
+    const alias = /^var\((--[\w-]+)\)$/.exec(value ?? '');
+    if (alias?.[1] === undefined) return (value ?? '').trim();
+    value = light.get(alias[1]);
+    expect(value, `alias verso un token inesistente: ${alias[1]}`).toBeDefined();
+  }
+  throw new Error(`catena di alias troppo lunga a partire da ${name}`);
+}
+
+function luminance(hex: string): number {
+  const canale = (indice: number): number => {
+    const c = Number.parseInt(hex.slice(1 + indice * 2, 3 + indice * 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * canale(0) + 0.7152 * canale(1) + 0.0722 * canale(2);
+}
+
+/** Rapporto di contrasto WCAG 2.1 fra due colori esadecimali. */
+function contrast(primo: string, secondo: string): number {
+  const [alta, bassa] = [luminance(primo), luminance(secondo)].sort((a, b) => b - a) as [number, number];
+  return (alta + 0.05) / (bassa + 0.05);
+}
+
+/**
+ * Coppie che il design system dichiara leggibili: 4,5:1 per il testo, 3:1 per ciò che porta
+ * significato senza essere testo (bordo di un controllo, anello di focus). `--lh-line` non è in
+ * elenco: è un separatore decorativo e resta sotto soglia per scelta.
+ */
+const COPPIE: ReadonlyArray<readonly [string, string, number]> = [
+  ['--lh-ink', '--lh-ground', 4.5],
+  ['--lh-ink', '--lh-surface', 4.5],
+  ['--lh-ink', '--lh-sunk', 4.5],
+  ['--lh-muted', '--lh-ground', 4.5],
+  ['--lh-muted', '--lh-surface', 4.5],
+  ['--lh-accent', '--lh-surface', 4.5],
+  ['--lh-on-accent', '--lh-accent', 4.5],
+  ['--lh-on-accent-soft', '--lh-accent-soft', 4.5],
+  ['--lh-link', '--lh-surface', 4.5],
+  ['--lh-ok', '--lh-surface', 4.5],
+  ['--lh-on-ok-soft', '--lh-ok-soft', 4.5],
+  ['--lh-warn', '--lh-surface', 4.5],
+  ['--lh-on-warn-soft', '--lh-warn-soft', 4.5],
+  ['--lh-danger', '--lh-surface', 4.5],
+  ['--lh-on-danger-soft', '--lh-danger-soft', 4.5],
+  ['--lh-on-volt', '--lh-volt', 4.5],
+  ['--lh-side-ink', '--lh-side', 4.5],
+  ['--lh-side-muted', '--lh-side', 4.5],
+  ['--lh-line-strong', '--lh-surface', 3],
+  ['--lh-focus', '--lh-ground', 3],
+  ['--lh-focus', '--lh-surface', 3],
+];
+
 describe('token del design system', () => {
-  it('il tema chiaro definisce i token e il prefisso --lh- è sempre presente', () => {
+  it('il tema chiaro definisce i token e ogni nome ha un prefisso noto', () => {
     expect(light.size).toBeGreaterThan(30);
     for (const name of light.keys()) {
-      expect(name.startsWith('--lh-'), `token senza prefisso: ${name}`).toBe(true);
+      expect(
+        name.startsWith('--lh-') || name.startsWith('--it-'),
+        `token senza prefisso --lh- o --it-: ${name}`,
+      ).toBe(true);
     }
   });
 
@@ -69,4 +136,61 @@ describe('token del design system', () => {
     const declared = css.match(/(?<!prefers-)color-scheme:\s*(light|dark)/g) ?? [];
     expect(declared).toEqual(['color-scheme: light', 'color-scheme: dark', 'color-scheme: dark']);
   });
+});
+
+describe('fondamenta Design Tokens Italia (ADR-027)', () => {
+  it('ogni colore --lh- risolve a una primitiva --it-color-, tranne quelli dichiarati', () => {
+    for (const [name, value] of light) {
+      if (!name.startsWith('--lh-') || !value.startsWith('#')) continue;
+      expect(
+        SENZA_PRIMITIVA_ITALIA.has(name),
+        `colore letterale fuori dalla tavolozza Italia: ${name}: ${value}`,
+      ).toBe(true);
+    }
+    for (const [name, value] of light) {
+      if (!name.startsWith('--lh-')) continue;
+      const alias = /^var\((--[\w-]+)\)$/.exec(value);
+      if (!alias?.[1]?.startsWith('--it-color-')) continue;
+      expect(light.has(alias[1]), `alias verso una primitiva inesistente: ${name} → ${alias[1]}`).toBe(true);
+    }
+  });
+
+  it('il tema scuro ripunta gli alias e non ridefinisce le primitive', () => {
+    for (const name of darkAuto.keys()) {
+      expect(name.startsWith('--it-'), `primitiva Italia ridefinita nel tema scuro: ${name}`).toBe(false);
+    }
+  });
+
+  it('le primitive dichiarate sono tutte usate da almeno un token --lh-', () => {
+    const usate = new Set<string>();
+    for (const blocco of [light, darkAuto]) {
+      for (const [name, value] of blocco) {
+        if (!name.startsWith('--lh-')) continue;
+        for (const [, riferita] of value.matchAll(/var\((--it-[\w-]+)\)/g)) {
+          if (riferita !== undefined) usate.add(riferita);
+        }
+      }
+    }
+    const inutilizzate = [...light.keys()].filter(
+      (name) => name.startsWith('--it-color-') && !usate.has(name),
+    );
+    expect(inutilizzate, 'primitive di colore dichiarate ma non usate').toEqual([]);
+  });
+});
+
+describe('contrasto delle coppie dichiarate (WCAG 2.1 AA)', () => {
+  for (const [tema, blocco] of [
+    ['chiaro', light],
+    ['scuro', darkAuto],
+  ] as const) {
+    it(`tema ${tema}: ogni coppia sta sopra la propria soglia`, () => {
+      for (const [testo, fondo, soglia] of COPPIE) {
+        const rapporto = contrast(resolve(testo, blocco), resolve(fondo, blocco));
+        expect(
+          Number(rapporto.toFixed(2)),
+          `${testo} su ${fondo} nel tema ${tema}: ${rapporto.toFixed(2)}:1, soglia ${soglia.toFixed(1)}:1`,
+        ).toBeGreaterThanOrEqual(soglia);
+      }
+    });
+  }
 });

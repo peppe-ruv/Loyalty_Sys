@@ -4,6 +4,10 @@ Pacchetto `@loyalty-hub/backoffice-design-system`. Implementa il «Catalogo dei 
 [`docs/LINEE-GUIDA-UX-BACKOFFICE.md`](../../docs/LINEE-GUIDA-UX-BACKOFFICE.md) (ADR-026): contratti
 dei 15 pattern, token di tema e le regole che i moduli non devono reimplementare.
 
+Le fondamenta sono i [Design Tokens Italia](https://github.com/italia/design-tokens-italia) 1.3.3
+(ADR-027): `tokens.css` dichiara le primitive `--it-*` copiate alla lettera e definisce ogni token
+semantico `--lh-*` come alias verso una di esse. Un componente usa **solo** i `--lh-*`.
+
 ## Contenuto
 
 | File | Contenuto |
@@ -23,7 +27,7 @@ dei 15 pattern, token di tema e le regole che i moduli non devono reimplementare
 | `src/format.ts` | Formattazione italiana di valori, contatori e variazioni (LG-04, LG-29, LG-40) |
 | `src/components/` | **I componenti React** che implementano i pattern: `DataTable`, `SectionForm`, `RuleCard`/`RuleList`, `KpiTabsChart`, `EntityProfile`/`Timeline`, `EmptyState`, chip e bottoni |
 | `src/components/components.css` | Stili dei componenti: nessun valore letterale, solo token `--lh-*` |
-| `tokens.css` | Token di colore, tipografia, spaziature e tema chiaro/scuro, tutti con prefisso `--lh-` |
+| `tokens.css` | Primitive Italia `--it-*`, token semantici `--lh-*`, tema chiaro/scuro (ADR-027) |
 
 ## Uso
 
@@ -72,7 +76,11 @@ Chi consuma il pacchetto deve avere `@types/react` (peer dependency): le prop `r
 3. Le entità referenziate viaggiano sempre come `EntityRef` e la UI mostra solo `label` (RF-139): le frasi si costruiscono con `describeCondition`/`buildFilterChip`, mai concatenando stringhe a mano.
 4. Lo stato degli oggetti è `WorkflowInfo` (ADR-014, RF-137): nessun toggle Attivo/Inattivo isolato, nessuna transizione decisa dal singolo modulo.
 5. Le condizioni sono in AND dentro una regola e in OR tra regole, e l'operatore è sempre scritto tra le righe (RF-138): usare le costanti `CONDITION_JOIN` e `RULE_JOIN`.
-6. I componenti usano solo i token `--lh-*` di `tokens.css`, mai colori o spaziature letterali.
+6. I componenti usano solo i token `--lh-*` di `tokens.css`, mai colori o spaziature letterali e mai le
+   primitive `--it-*` direttamente.
+7. Il testo si dichiara leggibile sul fondo che lo ospita: la coppia va nell'elenco `COPPIE` di
+   `src/tokens.test.ts`, che ne verifica il contrasto in entrambi i temi. `--lh-line` è un separatore
+   decorativo e resta fuori: per un bordo che porta significato si usa `--lh-line-strong`.
 
 ## Sviluppo
 
@@ -85,7 +93,29 @@ npm run test:watch
 
 I test coprono ciò che le linee guida rendono verificabile: raggiungibilità e filtro per ruolo
 degli stati di workflow, assenza di identificativi tecnici nelle frasi, formati italiani dei KPI,
-ordine delle sezioni del form e parità dei token fra tema chiaro e scuro.
+ordine delle sezioni del form, parità dei token fra tema chiaro e scuro, risoluzione di ogni colore
+`--lh-*` verso una primitiva Italia e contrasto WCAG delle coppie dichiarate nei due temi.
+
+## Token: cosa è cambiato con ADR-027
+
+I nomi cambiati rispetto alla 0.6.2:
+
+| Prima | Adesso |
+| --- | --- |
+| `--lh-accent-ink` | `--lh-on-accent` |
+| `--lh-bad`, `--lh-bad-soft` | `--lh-danger`, `--lh-danger-soft` |
+| `--lh-volt-ink` | `--lh-on-volt` |
+| `--lh-shadow-card`, `--lh-shadow-overlay` | `--lh-elevation-medium`, `--lh-elevation-high` |
+| `--lh-border-width` | `--lh-border-base` (più `--lh-border-double`, `--lh-border-thick`) |
+| `--lh-focus-ring` | `--lh-focus` + `--lh-border-double` (l'anello si compone) |
+| `--lh-font-display`, `--lh-font-body` | `--lh-font-sans` |
+
+Sono nuovi `--lh-line-strong`, `--lh-link`, le quattro coppie `--lh-on-*-soft`, `--lh-icon-*` e
+`--lh-elevation-low`. I **valori** cambiano quasi tutti: vengono da Italia, non più dal mockup.
+
+La scala tipografica resta nelle primitive `--it-font-size-*`, `--it-font-leading-*` e
+`--it-font-weight-*`: i 17 stili nominati (`h1`…`h6`, `body`, `caption`, `label`, `data`, `code`)
+nascono con l'implementazione React dei pattern, non prima.
 
 ## Ordine di costruzione consigliato
 

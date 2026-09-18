@@ -17,7 +17,7 @@ body {
   padding: 0;
   background: var(--lh-ground);
   color: var(--lh-ink);
-  font-family: var(--lh-font-body);
+  font-family: var(--lh-font-sans);
   line-height: 1.55;
 }
 
@@ -38,12 +38,12 @@ a {
   gap: var(--lh-space-4);
   flex-wrap: wrap;
   padding: var(--lh-space-4) 0;
-  border-bottom: var(--lh-border-width) solid var(--lh-line);
+  border-bottom: var(--lh-border-base) solid var(--lh-line);
   margin-bottom: var(--lh-space-5);
 }
 
 .pg-brand {
-  font-family: var(--lh-font-display);
+  font-family: var(--lh-font-sans);
   font-size: 1.25rem;
   color: var(--lh-ink);
   text-decoration: none;
@@ -68,11 +68,11 @@ a {
 
 .pg-nav a[aria-current='page'] {
   background: var(--lh-accent-soft);
-  color: var(--lh-accent-ink);
+  color: var(--lh-on-accent);
 }
 
 .pg-hero h1 {
-  font-family: var(--lh-font-display);
+  font-family: var(--lh-font-sans);
   font-size: clamp(1.8rem, 4vw, 2.6rem);
   margin: 0 0 var(--lh-space-3);
 }
@@ -95,14 +95,14 @@ a {
 }
 
 .pg-section > h2 {
-  font-family: var(--lh-font-display);
+  font-family: var(--lh-font-sans);
   margin: 0 0 var(--lh-space-2);
 }
 
 .pg-note {
   border-inline-start: 3px solid var(--lh-accent);
   background: var(--lh-accent-soft);
-  color: var(--lh-accent-ink);
+  color: var(--lh-on-accent);
   padding: var(--lh-space-3) var(--lh-space-4);
   border-radius: var(--lh-radius-md);
 }
@@ -130,14 +130,14 @@ a {
   font: inherit;
   color: var(--lh-ink);
   background: var(--lh-surface);
-  border: var(--lh-border-width) solid var(--lh-line);
+  border: var(--lh-border-base) solid var(--lh-line);
   border-radius: var(--lh-radius-md);
   padding: var(--lh-space-2) var(--lh-space-3);
 }
 
 .pg-field select:focus-visible,
 .pg-field input:focus-visible {
-  outline: var(--lh-focus-ring);
+  outline: var(--lh-border-double) solid var(--lh-focus);
   outline-offset: var(--lh-focus-offset);
 }
 
@@ -163,7 +163,7 @@ a {
   align-items: center;
   gap: var(--lh-space-3);
   padding: var(--lh-space-2) var(--lh-space-3);
-  border: var(--lh-border-width) solid var(--lh-line);
+  border: var(--lh-border-base) solid var(--lh-line);
   border-radius: var(--lh-radius-md);
   background: var(--lh-surface);
 }
@@ -172,13 +172,13 @@ a {
   width: 2.5rem;
   height: 2.5rem;
   border-radius: var(--lh-radius-sm);
-  border: var(--lh-border-width) solid var(--lh-line);
+  border: var(--lh-border-base) solid var(--lh-line);
 }
 
 .pg-footer {
   margin-top: var(--lh-space-7);
   padding-top: var(--lh-space-4);
-  border-top: var(--lh-border-width) solid var(--lh-line);
+  border-top: var(--lh-border-base) solid var(--lh-line);
   color: var(--lh-muted);
   font-size: 0.875rem;
 }

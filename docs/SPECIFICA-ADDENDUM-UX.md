@@ -28,8 +28,8 @@ Dal 17 settembre 2026 il backoffice segue le 48 linee guida derivate dall'analis
 
 ### Aggiunto
 - `docs/LINEE-GUIDA-UX-BACKOFFICE.md`: 48 linee guida UX con mappa video → LG → RF
-- `docs/adr/ADR-026.md`
-- `web/backoffice-design-system/`: contratti dei 15 pattern (`patterns.ts`), token (`tokens.css`), README con ordine di costruzione
+- `docs/adr/ADR-026.md`, `docs/adr/ADR-027.md`
+- `web/backoffice-design-system/`: contratti dei 15 pattern (`patterns.ts`), token sulle fondamenta Design Tokens Italia (`tokens.css`, ADR-027), componenti React (`src/components/`), README con ordine di costruzione
 - Requisiti RF-137..RF-142 (addendum alla specifica)
 
 ### Modificato
