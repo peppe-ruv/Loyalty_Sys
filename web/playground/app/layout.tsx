@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import './globals.css';
+import { Nav } from './nav';
 import { ThemeToggle } from './theme-toggle';
 
 export const metadata: Metadata = {
@@ -25,13 +26,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <a className="pg-brand" href="/">
               Loyalty <span>Hub</span> — playground
             </a>
-            <nav className="pg-nav" aria-label="Sezioni">
-              {SEZIONI.map((sezione) => (
-                <a key={sezione.href} href={sezione.href}>
-                  {sezione.label}
-                </a>
-              ))}
-            </nav>
+            <Nav sezioni={SEZIONI} />
             <ThemeToggle />
           </header>
           <main>{children}</main>

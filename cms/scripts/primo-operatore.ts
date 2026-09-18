@@ -24,10 +24,18 @@ const { totalDocs } = await payload.count({ collection: "users" });
 if (totalDocs > 0) {
   payload.logger.info(`Operatori già presenti (${totalDocs}): niente da fare.`);
 } else if (!email || !password) {
-  payload.logger.warn(
-    "Nessun operatore e nessun ADMIN_EMAIL/ADMIN_PASSWORD: il pannello resterà aperto al primo che " +
-      "lo raggiunge e potrà registrarsi come amministratore. In un ambiente pubblico impostale.",
-  );
+  // In locale la finestra aperta è una comodità: si apre il pannello e ci si registra. In un rilascio
+  // è una porta aperta su un indirizzo pubblico, e un avviso nel log della build non la chiude —
+  // nessuno legge i log di una build verde. Quindi qui la build fallisce.
+  const rilascio = Boolean(process.env.VERCEL || process.env.CI);
+  const messaggio =
+    "Nessun operatore e nessun ADMIN_EMAIL/ADMIN_PASSWORD: il pannello resterebbe aperto al primo che " +
+    "lo raggiunge, che potrebbe registrarsi come amministratore.";
+  if (rilascio) {
+    payload.logger.error(messaggio + " Impostale prima di pubblicare.");
+    process.exit(1);
+  }
+  payload.logger.warn(messaggio + " In locale si può, in un ambiente pubblico no.");
 } else {
   await payload.create({ collection: "users", data: { email, password } });
   payload.logger.info(`Primo operatore creato: ${email}`);

@@ -216,7 +216,10 @@ export const CANDIDATES: Candidate[] = [
     cost: 0.5,
     channels: ['app', 'web'],
     requiredConsent: 'marketing',
-    maxRiskLevel: 'HIGH',
+    // Unica azione discrezionale ammessa anche a rischio critico: serve a far vedere la differenza fra i
+    // due codici. Senza, ogni candidato cade prima su RISK_LEVEL e RISK_BLOCK non si vede mai — cioè la
+    // pagina prometterebbe un codice motivo irraggiungibile.
+    maxRiskLevel: 'CRITICAL',
     enabled: true,
     priority: 60,
     source: 'offerte',

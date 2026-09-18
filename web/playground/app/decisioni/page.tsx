@@ -178,7 +178,9 @@ export default function Decisioni() {
             <code>UNITS_BUDGET</code>, ma i punti della campagna restano — sono contrattuali.
           </li>
           <li>
-            Scegli il cliente sotto verifica antifrode: <code>RISK_BLOCK</code> ferma tutto il discrezionale.
+            Scegli il cliente sotto verifica antifrode: ciò che il suo livello di rischio supera cade con{' '}
+            <code>RISK_LEVEL</code>, e quel che resterebbe ammesso lo ferma comunque <code>RISK_BLOCK</code>, la
+            soglia di blocco della policy. Le due cose sono diverse e qui si vedono insieme.
           </li>
         </ul>
         <p className="lh-muted">

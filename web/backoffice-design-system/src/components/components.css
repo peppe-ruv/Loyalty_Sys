@@ -60,7 +60,7 @@
 .lh-chip--accent {
   background: var(--lh-accent-soft);
   border-color: var(--lh-accent);
-  color: var(--lh-on-accent);
+  color: var(--lh-on-accent-soft);
 }
 
 .lh-chip--ok { background: var(--lh-ok-soft); border-color: var(--lh-ok); }
@@ -101,7 +101,7 @@
 .lh-button--primary {
   background: var(--lh-accent);
   border-color: var(--lh-accent);
-  color: var(--lh-on-volt, #fff);
+  color: var(--lh-on-accent);
 }
 
 .lh-button--destructive { color: var(--lh-danger); border-color: var(--lh-danger); }
@@ -178,7 +178,7 @@
   padding: var(--lh-space-2) var(--lh-space-3);
   border-radius: var(--lh-radius-md);
   background: var(--lh-accent-soft);
-  color: var(--lh-on-accent);
+  color: var(--lh-on-accent-soft);
   margin-bottom: var(--lh-space-3);
 }
 
@@ -251,7 +251,7 @@
   border-inline-start: 3px solid var(--lh-accent);
   background: var(--lh-accent-soft);
   border-radius: var(--lh-radius-sm);
-  color: var(--lh-on-accent);
+  color: var(--lh-on-accent-soft);
 }
 
 /* KPI --------------------------------------------------------------------- */
@@ -306,7 +306,7 @@
   height: 3rem;
   border-radius: var(--lh-radius-pill);
   background: var(--lh-accent);
-  color: var(--lh-on-volt, #fff);
+  color: var(--lh-on-accent);
   display: inline-flex;
   align-items: center;
   justify-content: center;

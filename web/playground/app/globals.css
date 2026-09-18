@@ -68,7 +68,7 @@ a {
 
 .pg-nav a[aria-current='page'] {
   background: var(--lh-accent-soft);
-  color: var(--lh-on-accent);
+  color: var(--lh-on-accent-soft);
 }
 
 .pg-hero h1 {
@@ -102,7 +102,7 @@ a {
 .pg-note {
   border-inline-start: 3px solid var(--lh-accent);
   background: var(--lh-accent-soft);
-  color: var(--lh-on-accent);
+  color: var(--lh-on-accent-soft);
   padding: var(--lh-space-3) var(--lh-space-4);
   border-radius: var(--lh-radius-md);
 }

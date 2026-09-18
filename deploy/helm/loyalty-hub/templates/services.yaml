@@ -82,6 +82,12 @@ spec:
             - name: DATABASE_URI
               valueFrom: { secretKeyRef: { name: db-credentials, key: uri } }
             {{- end }}
+            {{- if $svc.payloadSecret }}
+            # Firma le sessioni del pannello: un valore in chiaro nei values sarebbe un segreto
+            # pubblicato nel repository, e chiunque lo legga può fabbricarsi una sessione.
+            - name: PAYLOAD_SECRET
+              valueFrom: { secretKeyRef: { name: {{ $svc.payloadSecret }}, key: payload-secret } }
+            {{- end }}
             {{- if $root.Values.global.internalAuth.enabled }}
             - name: INTERNAL_AUTH_ENABLED
               value: "true"

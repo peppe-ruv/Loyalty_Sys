@@ -181,6 +181,7 @@ services:
     replicas: 2
     db: true
     env: { CMS_URL: https://loyalty.example.it/admin, SUPERSET_URL: http://superset.analytics:8088, SUPERSET_PUBLIC_URL: https://bi.loyalty.example.it, NEXT_PUBLIC_GRAFANA_URL: https://monitoring.loyalty.example.it/dashboards, DECISION_URL: http://decision-service:8093, FRAUD_URL: http://fraud-service:8094 }
+    payloadSecret: cms-credentials
     metricsPath: /api/metrics
     healthPath: /admin
     resources: { requests: { cpu: 250m, memory: 512Mi }, limits: { memory: 1Gi } }

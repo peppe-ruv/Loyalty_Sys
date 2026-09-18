@@ -194,3 +194,52 @@ describe('contrasto delle coppie dichiarate (WCAG 2.1 AA)', () => {
     });
   }
 });
+
+/**
+ * Le coppie qui sopra sono quelle *dichiarate*. Non bastano: il guasto che questa sezione impedisce è
+ * che una regola dei componenti usi una coppia diversa da quelle dichiarate e nessuno se ne accorga.
+ * È successo davvero — le chip accento scrivevano con `--lh-on-accent` su `--lh-accent-soft`, cioè
+ * bianco su verde chiarissimo, 1,09:1, mentre i test passavano perché controllavano la coppia giusta
+ * invece di quella usata. Perciò qui si legge il CSS dei componenti e si verifica ciò che fa.
+ */
+describe('contrasto delle coppie che i componenti usano davvero', () => {
+  const componenti = readFileSync(
+    fileURLToPath(new URL('./components/components.css', import.meta.url)),
+    'utf8',
+  );
+
+  /** Ogni blocco `selettore { ... }` con sia un `background` sia un `color` presi da token. */
+  const regole = [...componenti.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .map(([, selettore, corpo]) => {
+      const fondo = /(?:background|background-color):\s*var\((--lh-[\w-]+)\)/.exec(corpo ?? '');
+      const testo = /(?:^|[;\s])color:\s*var\((--lh-[\w-]+)/.exec(corpo ?? '');
+      return fondo && testo
+        ? { selettore: (selettore ?? '').trim(), fondo: fondo[1]!, testo: testo[1]! }
+        : null;
+    })
+    .filter((r): r is { selettore: string; fondo: string; testo: string } => r !== null);
+
+  it('ci sono regole da controllare (se no la lettura del CSS si è rotta)', () => {
+    expect(regole.length).toBeGreaterThan(3);
+  });
+
+  for (const [tema, blocco] of [
+    ['chiaro', light],
+    ['scuro', darkAuto],
+  ] as const) {
+    it(`tema ${tema}: testo su fondo sopra 4,5:1 in ogni regola`, () => {
+      const sotto = regole
+        .map((r) => ({ ...r, rapporto: contrast(resolve(r.testo, blocco), resolve(r.fondo, blocco)) }))
+        .filter((r) => r.rapporto < 4.5)
+        .map((r) => `${r.selettore}: ${r.testo} su ${r.fondo} = ${r.rapporto.toFixed(2)}:1`);
+      expect(sotto, 'regole sotto la soglia AA').toEqual([]);
+    });
+  }
+
+  it('nessun valore letterale come ripiego di un token', () => {
+    // `var(--lh-x, #fff)` nasconde esattamente questa classe di errori: se il token esiste ma è quello
+    // sbagliato il ripiego non entra mai in gioco, e sembra che ci sia una rete di sicurezza.
+    const ripieghi = [...componenti.matchAll(/var\(\s*--lh-[\w-]+\s*,\s*([^)]+)\)/g)].map((m) => m[0]);
+    expect(ripieghi, 'var(--lh-…, letterale) nei componenti').toEqual([]);
+  });
+});

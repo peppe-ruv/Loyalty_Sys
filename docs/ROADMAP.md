@@ -1,9 +1,9 @@
 # Stato e roadmap · Status and roadmap
 
 > 🇮🇹 Dove siamo, per area, e cosa manca. Onesto: ciò che è parziale è segnato come parziale, con la ragione e la
-> conseguenza pratica. Versione corrente **0.5.0**.
+> conseguenza pratica. Versione corrente **0.7.0**.
 > 🇬🇧 Where we are, area by area, and what is missing. Honest: whatever is partial is marked partial, with the
-> reason and the practical consequence. Current version **0.5.0**.
+> reason and the practical consequence. Current version **0.7.0**.
 
 Legenda · Legend: **✅ completo · complete** · **🟡 parziale · partial** · **⬜ pianificato · planned**
 
@@ -26,7 +26,7 @@ Legenda · Legend: **✅ completo · complete** · **🟡 parziale · partial** 
 | Consegna · Delivery | ✅ | Inbox, webhook, coda operatore, instradamento con ripiego, modelli, adattatori verso i fornitori di push/email/SMS, coda e reinvio manuale delle consegne fallite | Localizzazione dei modelli per canale · per-channel template localisation |
 | Identità · Identity | ✅ | Grafo, risoluzione deterministica, merge ripartibile con chiave di idempotenza, unmerge che ripristina identificatori e saldi, alias, ripresa automatica dei merge interrotti | Collegamenti probabilistici proposti in coda operatore · probabilistic links proposed in the operator queue |
 | Consensi · Consent | ✅ | Finalità con base giuridica, storico, scadenza, revoca propagata, prova | — |
-| Backoffice · Back office | ✅ | Collezioni, workflow di approvazione, versioni, ruoli, simulazioni, vista andamenti | Export di configurazione verso storage a oggetti |
+| Backoffice · Back office | 🟡 | Collezioni, workflow di approvazione, versioni, simulazioni, vista andamenti | **Controllo di accesso per ruolo**: la collezione `roles` c'è ma nessuna collezione la applica, quindi ogni operatore può tutto · **role-based access control**: the `roles` collection exists but nothing enforces it. Export di configurazione verso storage a oggetti |
 | Area membro · Member area | 🟡 | Saldo, storico, catalogo, riscatti, inbox, gamification, widget, degrado | Area riservata completa con autenticazione reale (oggi membro dimostrativo) |
 | Osservabilità · Observability | ✅ | Metriche di business e tecniche, SLO e alert con runbook, log e tracce correlati, cruscotti versionati | — |
 | Warehouse e BI | ✅ | Ingestione dai topic, schema a stella, cruscotti incorporati, retention | Analytics di programma esposte anche via API di lettura |

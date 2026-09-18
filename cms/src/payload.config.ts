@@ -5,6 +5,8 @@ import { buildConfig } from "payload";
 import { postgresAdapter } from "@payloadcms/db-postgres";
 import { lexicalEditor } from "@payloadcms/richtext-lexical";
 import { vercelBlobStorage } from "@payloadcms/storage-vercel-blob";
+
+import { migrations } from "./migrations/index";
 import { ContestCards, WinCards, Popups, Rewards, PointRules, Tiers, Contests, Segments, PromoCodes, CouponPools, RewardCategories, Programs, MessageTemplates, Webhooks, Settings, Campaigns, Wallets, EventSchemas, CustomFieldSchemas, Collections, Channels, Achievements, Challenges, Badges, Leaderboards, FortuneWheels, TierSets, Roles, Media } from "./collections";
 
 import { DecisionPolicies, Offers, Experiments, PredictionProviders, FraudRules, DeliveryRouting, ConsentPurposes } from "./collections-decisions";
@@ -65,6 +67,10 @@ export default buildConfig({
     // domanda non riceve risposta: basta un avvio con push per rendere impubblicabile ogni rilascio
     // successivo. Con `push: false` quella riga non nasce mai.
     push: false,
+    // Le migrazioni non girano solo nella build di Vercel: fuori di lì (immagine Docker, chart Helm)
+    // nessun passo le eseguirebbe e il pannello partirebbe su uno schema che non esiste. Dichiarandole
+    // qui, l'avvio in produzione applica quelle mancanti da sé, ovunque giri.
+    prodMigrations: migrations,
   }),
   plugins: storage,
   // RF-79/RF-115: multilingua dei contenuti (it di default, en); le traduzioni dell'interfaccia sono nel pannello.

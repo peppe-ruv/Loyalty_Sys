@@ -16,7 +16,7 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
   push di sviluppo
 - portale: modalità vetrina quando `BFF_URL` non è configurato — saldo, offerta e messaggi finti da
   `lib/demo.mjs`, senza dati personali e con l'avviso «Dati dimostrativi» in pagina
-- portale: primi test (`node --test`, 7 casi), eseguiti da CI e da `make check-web`
+- portale: primi test (`node --test`), eseguiti da CI e da `make check-web`
 - design system: i 15 pattern non sono più solo contratti di tipo, hanno la loro **implementazione React**
   (`DataTable`, `SectionForm`, `RuleCard`/`RuleList`, `KpiTabsChart`, `EntityProfile`/`Timeline`, `EmptyState`,
   chip e bottoni), con gli stili fatti solo di token `--lh-*` e 14 test che provano le regole del catalogo —
@@ -34,6 +34,9 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
   `SUPERSET_SERVICE_USER`/`SUPERSET_SERVICE_PASSWORD` risponde `SUPERSET_NOT_CONFIGURED` invece di tentare
 - backoffice: alla BI non passa più l'email dell'operatore ma un identificatore opaco: l'invariante §3 vale
   anche per chi lavora al pannello, non solo per i membri
+- backoffice: la build **fallisce** se non c'è nessun operatore e mancano `ADMIN_EMAIL`/`ADMIN_PASSWORD`,
+  invece di pubblicare un pannello dove il primo estraneo che lo raggiunge si registra come amministratore.
+  Prima era solo un avviso nel log di una build verde, e nessuno legge i log di una build verde
 - backoffice: `build:vercel` si rifiuta di partire senza `PAYLOAD_SECRET`, invece di firmare le sessioni con
   una costante del repository
 - backoffice: i file caricati prendono un suffisso casuale — il blob store è pubblico e senza suffisso l'URL
@@ -46,6 +49,26 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
   da un altro sistema
 
 ### Corretto
+- design system: **le chip accento erano illeggibili** — scrivevano con `--lh-on-accent` su fondo
+  `--lh-accent-soft`, cioè 1,09:1 nel tema chiaro e 2,39:1 nello scuro, molto sotto la soglia AA. I quattro
+  token `--lh-on-*-soft` che ADR-027 aveva aggiunto proprio per questo erano dichiarati e mai usati. I test
+  passavano perché controllavano le coppie *dichiarate*, non quelle che i componenti usano: ora leggono
+  `components.css` e verificano ogni regola che accosta un fondo e un inchiostro, e vietano i ripieghi
+  letterali `var(--lh-…, #fff)` che nascondono proprio questa classe di errori
+- backoffice: **fuori da Vercel nessuno eseguiva le migrazioni** — nel percorso Docker/Helm il pannello
+  sarebbe partito su uno schema inesistente. Ora le migrazioni sono dichiarate nell'adattatore e l'avvio in
+  produzione applica quelle mancanti, ovunque giri
+- backoffice su Kubernetes: `PAYLOAD_SECRET` arriva da un segreto del cluster (`cms-credentials`); prima il
+  pod non lo riceveva affatto e ricadeva sulla costante del repository
+- playground: la pagina «Decisioni» prometteva `RISK_BLOCK` ma quel codice non era raggiungibile — ogni
+  candidato cadeva prima su `RISK_LEVEL`. Ora un'azione discrezionale è ammessa anche a rischio critico e i
+  due codici si vedono, diversi, insieme
+- playground: la voce di menu della sezione corrente non veniva annunciata (nessuna pagina emetteva
+  `aria-current`, e la regola di stile era morta)
+- `make lock-sync` non guardava il lockfile della radice, cioè proprio quello dei due workspace
+- documenti: `docs/FEATURES.md` dichiarava «Ruoli e permessi ✅» e `docs/ROADMAP.md` «Backoffice ✅» mentre
+  nel backoffice non esiste alcun controllo di accesso per ruolo; la ROADMAP dichiarava ancora la versione
+  0.5.0
 - backoffice: **lo script del primo operatore rendeva impubblicabile ogni rilascio successivo**. Faceva
   partire il push automatico di Payload, che lascia in `payload_migrations` una riga `dev` con `batch = -1`;
   alla migrazione dopo, Payload apre un prompt interattivo che in una build senza terminale non riceve mai

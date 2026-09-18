@@ -31,11 +31,12 @@ check-web: lock-sync ## Sito Next.js, BFF, backoffice Payload e playground
 	cd cms && { [ -d node_modules ] || npm ci --no-audit --no-fund; } && npm run typecheck && npm run generate:importmap && npm run build
 	$(MAKE) playground
 
-# web/site, cms e web/bff hanno un lockfile proprio, e la CI li installa con `npm ci`, che rifiuta
+# La radice (workspace npm), web/site, cms e web/bff hanno ciascuno un lockfile, e la CI li installa
+# con `npm ci`, che rifiuta
 # un lockfile non allineato al package.json. In locale `npm ci` si salta se node_modules c'è già:
 # senza questo controllo una dipendenza aggiornata a mano passa qui e si scopre solo in CI.
 lock-sync: ## I lockfile annidati sono allineati ai rispettivi package.json
-	@for d in web/site cms web/bff; do \
+	@for d in . web/site cms web/bff; do \
 		(cd $$d && npm ci --no-audit --no-fund --dry-run >/dev/null 2>&1) \
 			|| { echo "$$d: package-lock.json non allineato a package.json — esegui 'cd $$d && npm install --package-lock-only'"; exit 1; }; \
 		echo "$$d: lockfile allineato"; \
