@@ -13,7 +13,9 @@
     "generate:importmap": "payload generate:importmap",
     "generate:types": "payload generate:types",
     "migrate": "payload migrate",
-    "build:vercel": "timeout 600 payload migrate && payload run scripts/primo-operatore.ts && next build"
+    "build:vercel": "npm run migrate:deploy && npm run bootstrap:admin && next build",
+    "migrate:deploy": "DATABASE_URI=\"${POSTGRES_URL_NON_POOLING:-${DATABASE_URL_UNPOOLED:-$DATABASE_URI}}\" timeout 600 payload migrate",
+    "bootstrap:admin": "DATABASE_URI=\"${POSTGRES_URL_NON_POOLING:-${DATABASE_URL_UNPOOLED:-$DATABASE_URI}}\" payload run scripts/primo-operatore.ts"
   },
   "dependencies": {
     "@payloadcms/db-postgres": "3.89.0",

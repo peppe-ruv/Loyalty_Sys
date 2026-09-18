@@ -31,6 +31,18 @@ quest'ordine: genera la mappa degli import del pannello, **esegue le migrazioni*
 operatore se manca, poi costruisce. Le migrazioni non stanno in `npm run build` di proposito: la CI
 costruisce il backoffice senza database, e deve continuare a poterlo fare.
 
+Migrazioni e primo operatore girano sulla connessione **diretta**, non su quella in pool. Non è un
+dettaglio di gusto: un pool in modalità transazione (PgBouncer, l'endpoint «pooled» di Neon) riusa la
+stessa connessione server fra client diversi, e il DDL di una migrazione vuole una sessione sua. A
+runtime vale l'opposto — su una piattaforma serverless le connessioni sono tante e brevi, e il pool
+serve. Perciò `migrate:deploy` e `bootstrap:admin` risolvono `DATABASE_URI` da
+`POSTGRES_URL_NON_POOLING` (o `DATABASE_URL_UNPOOLED`, o quello che è già impostato), mentre
+l'applicazione resta su `POSTGRES_URL`.
+
+**EN** — Migrations and the first-operator bootstrap run on the **direct** connection, not the pooled
+one: a transaction-mode pool reuses one server connection across clients, and migration DDL wants a
+session of its own. At runtime the opposite holds, so the app stays on the pooled URL.
+
 La migrazione gira sotto `timeout`. Non è pignoleria: quando Payload trova in `payload_migrations`
 la traccia di un push di sviluppo (una riga con `batch = -1`) **fa una domanda interattiva** prima di
 procedere, e il flag `--force-accept-warning` non la disattiva perché il prompt sta nell'adattatore,
@@ -41,7 +53,7 @@ di un ambiente gestito — quella riga non esiste e la domanda non arriva.
 
 | Variabile · Variable | Obbligatoria | A che serve · What for |
 | --- | --- | --- |
-| `DATABASE_URI` | sì | Postgres del backoffice. Valgono anche `POSTGRES_URL` e `DATABASE_URL`, i nomi che i database gestiti iniettano da soli: collegarne uno al progetto basta, non c'è niente da ricopiare |
+| `DATABASE_URI` | sì | Postgres del backoffice. Valgono anche `POSTGRES_URL` e `DATABASE_URL`, i nomi che i database gestiti iniettano da soli: collegarne uno al progetto basta, non c'è niente da ricopiare. **Le migrazioni usano invece la connessione diretta** (`POSTGRES_URL_NON_POOLING`, `DATABASE_URL_UNPOOLED`) — vedi sotto |
 | `PAYLOAD_SECRET` | sì | Firma le sessioni del pannello. Cambiarla invalida i cookie di tutti |
 | `CMS_URL` | sì | URL pubblico del pannello, usato negli URL assoluti che Payload genera |
 | `BLOB_READ_WRITE_TOKEN` | per gli upload | Manda i file della collezione `media` su Vercel Blob. **Senza, Payload scrive su disco**, che su Vercel è di sola lettura: gli upload falliscono |
