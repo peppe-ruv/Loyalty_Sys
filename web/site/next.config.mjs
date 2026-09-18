@@ -1,10 +1,15 @@
 /** @type {import('next').NextConfig} */
+
+/**
+ * `standalone` serve al Dockerfile, che copia `.next/standalone` per farne un'immagine minima.
+ * Su Vercel non serve e non va messo: là il builder Next produce da sé la funzione serverless, e
+ * un output riscritto per l'autogestione — per giunta con la radice di tracciamento spostata su
+ * questa cartella, che qui serve per via del lockfile proprio — gli mette fra i piedi un albero di
+ * file diverso da quello che si aspetta. Perciò la scelta dipende da dove si costruisce.
+ */
+const autogestito = !process.env.VERCEL;
+
 export default {
-  // Immagine di runtime minima: il Dockerfile copia .next/standalone.
-  output: "standalone",
+  ...(autogestito ? { output: 'standalone', outputFileTracingRoot: import.meta.dirname } : {}),
   reactStrictMode: true,
-  // Il sito ha un lockfile proprio (non fa parte del workspace npm della radice): senza questo
-  // Next userebbe la radice del monorepo come base e `standalone` finirebbe annidato in web/site/,
-  // mentre il Dockerfile si aspetta server.js in cima.
-  outputFileTracingRoot: import.meta.dirname,
 };
