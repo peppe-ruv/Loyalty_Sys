@@ -46,11 +46,16 @@ or go: a copy that lies is worse than no copy.
 
 ## Pubblicazione · Publishing
 
+Pubblicato su **https://loyalty-hub-playground.vercel.app**.
+
 Il playground è pensato per Vercel come sito statico. Il progetto esiste già:
 `loyalty-hub-playground` (`prj_LGKp9uCKS1rebq7INC8qMFVEWVQN`), con root directory `web/playground`, file esterni alla
-root abilitati (il playground usa il design system del monorepo). La cartella di output non si dichiara: con
-`output: 'export'` il builder Next di Vercel riconosce da sé l'esportazione statica, e forzarla fa fallire il deploy
-alla fine del build (`NEXT_NO_ROUTES_MANIFEST`).
+root abilitati (il playground usa il design system del monorepo).
+
+La **cartella di output non si dichiara**, né qui né fra le impostazioni del progetto: con `output: 'export'` il
+builder Next di Vercel riconosce da sé l'esportazione statica e cerca `routes-manifest.json` in `.next`. Dichiarare
+`out` lo manda a cercarlo lì dentro e il deploy fallisce a build già riuscito (`NEXT_NO_ROUTES_MANIFEST`). Se il
+progetto ha una «Output Directory» impostata a mano, va svuotata: `vercel.json` non la sovrascrive.
 
 **Per pubblicare serve un passo che solo il proprietario dell'account può fare**, perché tocca le credenziali:
 
@@ -62,6 +67,7 @@ alla fine del build (`NEXT_NO_ROUTES_MANIFEST`).
 
 Senza il token il workflow si salta da solo: chi lavora sul repository non vede rosso per una credenziale che non ha.
 
-**EN** — The Vercel project already exists; publishing needs one step only the account owner can take: add a
-`VERCEL_TOKEN` repository secret (recommended — CI then builds and publishes on every relevant push to `main`), or
-connect GitHub to Vercel and import the repository. Without the token the workflow skips itself instead of failing.
+**EN** — Live at https://loyalty-hub-playground.vercel.app. The Vercel project already exists; publishing from CI
+needs one step only the account owner can take: add a `VERCEL_TOKEN` repository secret (recommended — CI then builds
+and publishes on every relevant push to `main`). Without the token the workflow skips itself instead of failing. Leave
+the project's Output Directory empty: with `output: 'export'` Vercel detects the static export by itself.
