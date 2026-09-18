@@ -13,9 +13,10 @@
     "generate:importmap": "payload generate:importmap",
     "generate:types": "payload generate:types",
     "migrate": "payload migrate",
-    "build:vercel": "npm run migrate:deploy && npm run bootstrap:admin && next build",
-    "migrate:deploy": "DATABASE_URI=\"${POSTGRES_URL_NON_POOLING:-${DATABASE_URL_UNPOOLED:-$DATABASE_URI}}\" timeout 600 payload migrate",
-    "bootstrap:admin": "DATABASE_URI=\"${POSTGRES_URL_NON_POOLING:-${DATABASE_URL_UNPOOLED:-$DATABASE_URI}}\" payload run scripts/primo-operatore.ts"
+    "build:vercel": "npm run check:secret && npm run migrate:deploy && npm run bootstrap:admin && next build",
+    "migrate:deploy": "DATABASE_URI=\"${POSTGRES_URL_NON_POOLING:-${DATABASE_URL_UNPOOLED:-$DATABASE_URI}}\" timeout 180 payload migrate",
+    "bootstrap:admin": "DATABASE_URI=\"${POSTGRES_URL_NON_POOLING:-${DATABASE_URL_UNPOOLED:-$DATABASE_URI}}\" payload run scripts/primo-operatore.ts",
+    "check:secret": "node -e \"if(!process.env.PAYLOAD_SECRET){console.error('PAYLOAD_SECRET non impostata: il pannello firmerebbe le sessioni con una costante pubblica del repository.');process.exit(1)}\""
   },
   "dependencies": {
     "@payloadcms/db-postgres": "3.89.0",

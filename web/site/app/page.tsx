@@ -1,4 +1,4 @@
-import { getInbox, getNextBestAction, getSummary, vetrina } from "../lib/bff.mjs";
+import { getInbox, getNextBestAction, getSummary, membroCorrente, vetrina } from "../lib/bff.mjs";
 
 /** La home si costruisce a ogni richiesta: saldo, offerta e messaggi sono per definizione freschi. */
 export const dynamic = "force-dynamic";
@@ -8,8 +8,21 @@ interface NextBestAction { action: string; offerId?: string; reason?: string; me
 interface InboxItem { id: string; subject: string; body: string; expires_at?: string | null }
 
 export default async function Home() {
-  // In produzione il memberId arriva dal token OIDC (ADR-012); qui un membro di esempio del seed.
-  const memberId = "demo-member";
+  // In produzione il memberId arriva dal token OIDC (ADR-012). Finché quel pezzo non c'è, con un BFF vero
+  // non si inventa un membro: si mostra la pagina di chi non ha ancora fatto accesso.
+  const memberId = membroCorrente() as string | null;
+  if (memberId === null) {
+    return (
+      <main style={{ fontFamily: "system-ui", padding: 24, maxWidth: 720 }}>
+        <h1>Il tuo programma</h1>
+        <p>Accedi per vedere il tuo saldo, le tue offerte e i tuoi messaggi.</p>
+        <p style={{ color: "#666", fontSize: 13 }}>
+          Questo portale è collegato a un sistema reale: l&apos;identificativo del membro arriva
+          dall&apos;autenticazione, non dalla configurazione.
+        </p>
+      </main>
+    );
+  }
   const [s, nba, inbox] = await Promise.all([
     getSummary(memberId) as Promise<Summary | null>,
     getNextBestAction(memberId) as Promise<NextBestAction | null>,

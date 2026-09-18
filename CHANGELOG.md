@@ -28,7 +28,31 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
 ### Sicurezza
 - Next.js aggiornato da 15.5.0 a 15.5.25 (CVE-2025-66478) nel sito e nel playground
 
+### Sicurezza
+- backoffice: l'endpoint del token BI non ha più credenziali di ripiego `admin/admin` — cioè le credenziali
+  di default dell'immagine Superset, che un'istanza mal configurata accetta davvero; senza
+  `SUPERSET_SERVICE_USER`/`SUPERSET_SERVICE_PASSWORD` risponde `SUPERSET_NOT_CONFIGURED` invece di tentare
+- backoffice: alla BI non passa più l'email dell'operatore ma un identificatore opaco: l'invariante §3 vale
+  anche per chi lavora al pannello, non solo per i membri
+- backoffice: `build:vercel` si rifiuta di partire senza `PAYLOAD_SECRET`, invece di firmare le sessioni con
+  una costante del repository
+- backoffice: i file caricati prendono un suffisso casuale — il blob store è pubblico e senza suffisso l'URL
+  di `coupon-natale.csv` si indovina
+- portale: con un BFF vero il portale non inventa più un membro. Un identificativo fisso nel codice voleva
+  dire che chiunque aprisse l'indirizzo pubblico vedeva il saldo di quel membro e gli faceva registrare una
+  decisione a ogni visita; ora serve `DEMO_MEMBER_ID` dichiarato apposta, altrimenti si mostra la pagina di
+  chi non ha fatto accesso
+- portale: Content-Security-Policy anche qui — è l'unico dei tre siti che rende in pagina testo proveniente
+  da un altro sistema
+
 ### Corretto
+- backoffice: **lo script del primo operatore rendeva impubblicabile ogni rilascio successivo**. Faceva
+  partire il push automatico di Payload, che lascia in `payload_migrations` una riga `dev` con `batch = -1`;
+  alla migrazione dopo, Payload apre un prompt interattivo che in una build senza terminale non riceve mai
+  risposta. Con `push: false` lo schema nasce solo dalle migrazioni e la riga non compare più
+- backoffice: la row-level security del token BI leggeva un campo inesistente sull'utente, quindi non si
+  attivava mai mentre il commento prometteva il contrario. Ora l'assenza è dichiarata invece che simulata
+- portale: un elemento non valido dentro l'inbox faceva cadere l'intera home; ora viene scartato
 - backoffice: due nomi di identificatore superavano i 63 caratteri ammessi da Postgres — l'enum
   `enum_decision_policies_constraints_contact_cap7d_by_channel_channel` impediva perfino di
   costruire lo schema, e l'indice `_delivery_routing_v_version_max_per_day_by_channel_parent_id_idx`

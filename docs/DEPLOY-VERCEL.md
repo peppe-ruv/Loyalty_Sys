@@ -58,7 +58,7 @@ di un ambiente gestito — quella riga non esiste e la domanda non arriva.
 | `CMS_URL` | sì | URL pubblico del pannello, usato negli URL assoluti che Payload genera |
 | `BLOB_READ_WRITE_TOKEN` | per gli upload | Manda i file della collezione `media` su Vercel Blob. **Senza, Payload scrive su disco**, che su Vercel è di sola lettura: gli upload falliscono |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | se il pannello è pubblico | Creano il primo operatore durante la build. Vedi sotto: senza, il pannello ha una finestra aperta |
-| `SUPERSET_*` | no | Cruscotti BI incorporati. Senza, la vista «Andamenti» risponde `SUPERSET_UNAVAILABLE` |
+| `SUPERSET_*` | no | Cruscotti BI incorporati. Senza `SUPERSET_SERVICE_USER`/`SUPERSET_SERVICE_PASSWORD` la vista «Andamenti» risponde `SUPERSET_NOT_CONFIGURED` e **non tenta alcun accesso**: nessuna credenziale di ripiego |
 | `DECISION_URL`, `FRAUD_URL` | no | Simulatore di decisioni e di rischio. Senza, quei pulsanti non rispondono |
 
 ### Il primo operatore, e perché non è un dettaglio
@@ -103,6 +103,22 @@ the Payload schema. Shorten with `dbName`/`enumName` on the field, never the ope
 
 ---
 
+## Punti aperti che il rilascio non risolve
+
+Due cose restano vere anche con tutto configurato, e vanno sapute prima di dare l'indirizzo a qualcuno:
+
+- **Nel backoffice non c'è controllo di accesso per ruolo.** La collezione `roles` esiste con i suoi permessi,
+  ma nessuna collezione la usa: ogni operatore autenticato può modificare qualunque cosa e crearne altri con
+  gli stessi poteri. Finché è così, «dare un accesso al backoffice» significa dare tutto il backoffice.
+- **Il token BI non è ristretto per utente.** Discende dal punto sopra: senza un campo che dica quale fetta
+  di dati un operatore può vedere, il token ospite è senza clausole.
+
+**EN** — Two things remain true even with everything configured: the back office has no role-based access
+control (any authenticated operator can change anything and mint more operators), and the BI guest token is
+therefore unscoped.
+
+---
+
 ## Portale · Portal
 
 Radice `web/site`. Una sola variabile decide tutto:
@@ -110,7 +126,10 @@ Radice `web/site`. Una sola variabile decide tutto:
 - **`BFF_URL` non impostata** → vetrina. Saldo, offerta e messaggi vengono da `lib/demo.mjs`: dati
   inventati, nessun dato personale, membro come identificatore opaco, e un avviso in pagina che lo
   dice a chi guarda.
-- **`BFF_URL` impostata** → il portale chiama il BFF vero. Ogni chiamata degrada per conto proprio
+- **`BFF_URL` impostata** → il portale chiama il BFF vero, ma **non inventa un membro**: l'identificativo deve
+  venire dal token OIDC (ADR-012) e quel pezzo non c'è ancora, quindi la pagina mostra lo stato di chi non ha
+  fatto accesso. Per una dimostrazione su dati veri si dichiara `DEMO_MEMBER_ID`, sapendo che quel saldo
+  diventa visibile a chiunque apra l'indirizzo. Ogni chiamata degrada per conto proprio
   (niente saldo, niente offerta, inbox vuota) e ha una scadenza di due secondi: una pagina che non
   esce è peggio di una pagina senza saldo.
 

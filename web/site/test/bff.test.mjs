@@ -39,6 +39,13 @@ test('una risposta di errore del BFF vale come assenza, non come dato', async ()
   assert.deepEqual(await getInbox('m', CON_BFF, risponde({ error: 'BOOM' }, false)), []);
 });
 
+test('gli elementi non validi dell’inbox non arrivano al map della pagina', async () => {
+  // Basta un `null` in mezzo — una riga vuota, un errore inoltrato, un contratto cambiato a monte — e la
+  // pagina, che legge `m.subject`, cadrebbe tutta invece di mostrare i messaggi buoni.
+  const misto = [{ id: 'ok', subject: 's', body: 'b' }, null, 'stringa', { subject: 'senza id' }];
+  assert.deepEqual(await getInbox('m', CON_BFF, risponde(misto)), [{ id: 'ok', subject: 's', body: 'b' }]);
+});
+
 test('una inbox che non è una lista non arriva in pagina', async () => {
   // Il BFF inoltra ciò che riceve: se a monte esce un oggetto d'errore con 200, `.map` esploderebbe.
   assert.deepEqual(await getInbox('m', CON_BFF, risponde({ error: 'BOOM' })), []);
@@ -48,4 +55,13 @@ test('l’identificatore del membro finisce nel percorso codificato', async () =
   let visto = '';
   await getSummary('a/b?c', CON_BFF, (url) => { visto = url; return Promise.resolve({ ok: true, json: async () => ({}) }); });
   assert.equal(visto, 'http://bff:3001/api/members/a%2Fb%3Fc/summary');
+});
+
+test('con un BFF vero il portale non inventa un membro', async () => {
+  // Il guasto che questo test evita: un id fisso nel codice significa che chiunque apra l'indirizzo
+  // pubblico vede il saldo di quel membro e gli fa registrare una decisione a ogni visita.
+  const { membroCorrente } = await import('../lib/bff.mjs');
+  assert.equal(membroCorrente(VETRINA), 'demo-member');
+  assert.equal(membroCorrente(CON_BFF), null);
+  assert.equal(membroCorrente({ ...CON_BFF, DEMO_MEMBER_ID: 'sub-1' }), 'sub-1');
 });

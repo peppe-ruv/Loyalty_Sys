@@ -23,7 +23,16 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
  * flag da ricordare di impostare.
  */
 const storage = process.env.BLOB_READ_WRITE_TOKEN
-  ? [vercelBlobStorage({ enabled: true, collections: { media: true }, token: process.env.BLOB_READ_WRITE_TOKEN })]
+  ? [
+      vercelBlobStorage({
+        enabled: true,
+        // Il blob store è pubblico: chi ha l'URL scarica. Senza suffisso casuale l'URL è il nome del file, e
+        // `.../coupon-natale.csv` si indovina. Il suffisso non è autenticazione, ma toglie l'indovinello.
+        addRandomSuffix: true,
+        collections: { media: true },
+        token: process.env.BLOB_READ_WRITE_TOKEN,
+      }),
+    ]
   : [];
 
 export default buildConfig({
@@ -49,10 +58,21 @@ export default buildConfig({
   // piattaforma ha già messo lì — e una stringa ricopiata è una stringa che prima o poi diverge.
   db: postgresAdapter({
     pool: { connectionString: process.env.DATABASE_URI || process.env.POSTGRES_URL || process.env.DATABASE_URL },
+    // Lo schema nasce dalle migrazioni in `src/migrations/`, mai dal push automatico — nemmeno in
+    // sviluppo. Il push non è solo una comodità: lascia in `payload_migrations` una riga `dev` con
+    // `batch = -1`, e alla migrazione successiva Payload apre un **prompt interattivo** («hai girato
+    // in dev mode, procedo con possibile perdita di dati?»). In una build senza terminale quella
+    // domanda non riceve risposta: basta un avvio con push per rendere impubblicabile ogni rilascio
+    // successivo. Con `push: false` quella riga non nasce mai.
+    push: false,
   }),
   plugins: storage,
   // RF-79/RF-115: multilingua dei contenuti (it di default, en); le traduzioni dell'interfaccia sono nel pannello.
   localization: { locales: ["it", "en"], defaultLocale: "it", fallback: true },
-  secret: process.env.PAYLOAD_SECRET || "change-me",
+  // Il ripiego serve solo a far costruire il pacchetto dove un segreto non c'è (la CI costruisce il backoffice
+  // senza variabili): dice da sé che non è una password. Il rilascio lo pretende davvero — `build:vercel` si
+  // rifiuta di partire se `PAYLOAD_SECRET` manca, perché un pannello che firma le sessioni con una costante
+  // pubblica del repository è un pannello senza sessioni.
+  secret: process.env.PAYLOAD_SECRET || "solo-per-la-build-non-e-un-segreto",
   // SSO aziendale via OIDC (RF-43): strategia di autenticazione da collegare allo IAM aziendale.
 });

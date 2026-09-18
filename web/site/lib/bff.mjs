@@ -21,6 +21,20 @@ export function vetrina(env = process.env) {
   return !env.BFF_URL;
 }
 
+/**
+ * Di chi è la pagina.
+ *
+ * In vetrina è un membro inventato, e va bene. Con un BFF vero **non si inventa**: l'identificativo deve
+ * arrivare dal token OIDC (ADR-012), e finché quel pezzo non c'è un id fisso nel codice vorrebbe dire che
+ * chiunque apra l'indirizzo pubblico — un motore di ricerca compreso — vede il saldo di quel membro e fa
+ * registrare una decisione a suo nome a ogni visita. Meglio nessun dato che il dato di qualcun altro.
+ * `DEMO_MEMBER_ID` resta per chi vuole una dimostrazione su dati veri e lo dichiara apposta.
+ */
+export function membroCorrente(env = process.env) {
+  if (vetrina(env)) return 'demo-member';
+  return env.DEMO_MEMBER_ID || null;
+}
+
 function base(env) {
   return env.BFF_URL ?? '';
 }
@@ -68,5 +82,8 @@ export async function getInbox(memberId, env = process.env, fetchImpl = fetch) {
     () => fetchImpl(`${base(env)}/api/members/${encodeURIComponent(memberId)}/inbox`, { cache: 'no-store', signal: AbortSignal.timeout(SCADENZA) }),
     [],
   );
-  return Array.isArray(out) ? out : [];
+  if (!Array.isArray(out)) return [];
+  // Non basta che sia una lista: la pagina legge `subject` e `body` da ogni elemento, e un `null` in mezzo —
+  // una riga vuota, un errore inoltrato, un contratto cambiato a monte — farebbe cadere tutta la home.
+  return out.filter((m) => m !== null && typeof m === 'object' && typeof m.id === 'string');
 }
