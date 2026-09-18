@@ -44,3 +44,6 @@ Thumbs.db
 # Generato da flatten-maven-plugin
 .flattened-pom.xml
 **/.flattened-pom.xml
+
+# Tipi generati da `payload generate:types` a ogni migrazione: nascono dal build.
+cms/payload-types.ts

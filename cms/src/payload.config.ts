@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { buildConfig } from "payload";
 import { postgresAdapter } from "@payloadcms/db-postgres";
 import { lexicalEditor } from "@payloadcms/richtext-lexical";
+import { vercelBlobStorage } from "@payloadcms/storage-vercel-blob";
 import { ContestCards, WinCards, Popups, Rewards, PointRules, Tiers, Contests, Segments, PromoCodes, CouponPools, RewardCategories, Programs, MessageTemplates, Webhooks, Settings, Campaigns, Wallets, EventSchemas, CustomFieldSchemas, Collections, Channels, Achievements, Challenges, Badges, Leaderboards, FortuneWheels, TierSets, Roles, Media } from "./collections";
 
 import { DecisionPolicies, Offers, Experiments, PredictionProviders, FraudRules, DeliveryRouting, ConsentPurposes } from "./collections-decisions";
@@ -11,6 +12,19 @@ import { biGuestToken } from "./endpoints/biGuestToken";
 import { simulateDecision, simulateRisk, decisionLog } from "./endpoints/simulate";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Dove finiscono i file caricati (collezione `media`).
+ *
+ * Per difetto Payload scrive su disco accanto al codice: va bene su una macchina o in un
+ * contenitore con un volume, non su una piattaforma serverless, dove il filesystem è di sola
+ * lettura e comunque sparisce a ogni invocazione. Quando c'è un token di Vercel Blob gli upload
+ * ci vanno, altrimenti resta il disco: è la presenza della configurazione a decidere, non un
+ * flag da ricordare di impostare.
+ */
+const storage = process.env.BLOB_READ_WRITE_TOKEN
+  ? [vercelBlobStorage({ enabled: true, collections: { media: true }, token: process.env.BLOB_READ_WRITE_TOKEN })]
+  : [];
 
 export default buildConfig({
   serverURL: process.env.CMS_URL || "http://localhost:3000",
@@ -30,6 +44,7 @@ export default buildConfig({
   endpoints: [biGuestToken, simulateDecision, simulateRisk, decisionLog],
   collections: [Campaigns, DecisionPolicies, Offers, Experiments, PredictionProviders, FraudRules, DeliveryRouting, ConsentPurposes, PointRules, Achievements, Challenges, Badges, Leaderboards, FortuneWheels, Contests, ContestCards, WinCards, Popups, Rewards, RewardCategories, CouponPools, PromoCodes, Wallets, TierSets, Tiers, Segments, Collections, EventSchemas, CustomFieldSchemas, Channels, Programs, MessageTemplates, Webhooks, Roles, Settings, Media],
   db: postgresAdapter({ pool: { connectionString: process.env.DATABASE_URI } }),
+  plugins: storage,
   // RF-79/RF-115: multilingua dei contenuti (it di default, en); le traduzioni dell'interfaccia sono nel pannello.
   localization: { locales: ["it", "en"], defaultLocale: "it", fallback: true },
   secret: process.env.PAYLOAD_SECRET || "change-me",

@@ -53,7 +53,7 @@ jobs:
       - name: BFF
         run: node --check web/bff/src/server.js && cd web/bff && npm test
       - name: Sito Next.js
-        run: cd web/site && npm ci --no-audit --no-fund && npm run build
+        run: cd web/site && npm ci --no-audit --no-fund && npm test && npm run build
       - name: Backoffice Payload
         run: cd cms && npm ci --no-audit --no-fund && npm run typecheck && npm run generate:importmap && npm run build
       - name: Playground

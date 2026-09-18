@@ -27,7 +27,7 @@ check-ds: ## Design system del backoffice: lint, tipi, test, build
 check-web: lock-sync ## Sito Next.js, BFF, backoffice Payload e playground
 	node --check web/bff/src/server.js
 	cd web/bff && npm test
-	cd web/site && { [ -d node_modules ] || npm ci --no-audit --no-fund; } && npm run build
+	cd web/site && { [ -d node_modules ] || npm ci --no-audit --no-fund; } && npm test && npm run build
 	cd cms && { [ -d node_modules ] || npm ci --no-audit --no-fund; } && npm run typecheck && npm run generate:importmap && npm run build
 	$(MAKE) playground
 

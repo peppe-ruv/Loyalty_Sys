@@ -50,7 +50,7 @@ structural choice an ADR; comments cite the requirement they implement.
 | `deploy/helm/loyalty-hub/` | Umbrella chart: un template generico genera Deployment/Service/HPA/PDB per ogni voce di `values.yaml → services` |
 | `deploy/observability/`, `deploy/bi/` | Values, regole di alert, cruscotti; warehouse e BI |
 | `analytics/` | Schema del warehouse (consumo dai topic → fatti → viste KPI) ed export dei cruscotti |
-| `docs/` | Documentazione, ADR, contratti (OpenAPI/AsyncAPI), runbook |
+| `docs/` | Documentazione, ADR, contratti (OpenAPI/AsyncAPI), runbook, [pubblicazione su Vercel](docs/DEPLOY-VERCEL.md) |
 | `docker-compose.yml`, `Makefile`, `scripts/` | Ambiente locale con la stessa topologia della produzione, comandi, dati di esempio |
 | `.github/workflows/` | `ci.yml` (build, test, lint), `release.yml` (immagini firmate per servizio, SBOM, scansione) |
 

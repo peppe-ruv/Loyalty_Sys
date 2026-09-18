@@ -5,6 +5,18 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
 ## [Non rilasciato]
 
 ### Aggiunto
+- backoffice e portale pubblicabili su Vercel: `cms/vercel.json` e `web/site/vercel.json`, con le
+  migrazioni eseguite dal comando di build del backoffice (`build:vercel`) e non da `build`, che in
+  CI gira senza database
+- backoffice: gli upload vanno su Vercel Blob quando `BLOB_READ_WRITE_TOKEN` è configurato; senza
+  token resta il disco locale. Prima la collezione `media` scriveva sempre su disco, che su una
+  piattaforma serverless è di sola lettura
+- backoffice: **migrazioni Payload versionate** in `cms/src/migrations/`, generate dallo schema e
+  provate su un Postgres vuoto (206 tabelle, 225 enum): lo schema di produzione non nasce più dal
+  push di sviluppo
+- portale: modalità vetrina quando `BFF_URL` non è configurato — saldo, offerta e messaggi finti da
+  `lib/demo.mjs`, senza dati personali e con l'avviso «Dati dimostrativi» in pagina
+- portale: primi test (`node --test`, 7 casi), eseguiti da CI e da `make check-web`
 - design system: i 15 pattern non sono più solo contratti di tipo, hanno la loro **implementazione React**
   (`DataTable`, `SectionForm`, `RuleCard`/`RuleList`, `KpiTabsChart`, `EntityProfile`/`Timeline`, `EmptyState`,
   chip e bottoni), con gli stili fatti solo di token `--lh-*` e 14 test che provano le regole del catalogo —
@@ -17,6 +29,16 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
 - Next.js aggiornato da 15.5.0 a 15.5.25 (CVE-2025-66478) nel sito e nel playground
 
 ### Corretto
+- backoffice: due nomi di identificatore superavano i 63 caratteri ammessi da Postgres — l'enum
+  `enum_decision_policies_constraints_contact_cap7d_by_channel_channel` impediva perfino di
+  costruire lo schema, e l'indice `_delivery_routing_v_version_max_per_day_by_channel_parent_id_idx`
+  sarebbe stato troncato in silenzio, lasciando database e schema Payload disallineati. Ora i due
+  campi dichiarano `dbName`/`enumName` brevi
+- portale: `getSummary` era l'unica delle tre chiamate senza `try`, e con il BFF irraggiungibile la
+  home tornava 500 invece del messaggio «il saldo non è disponibile» che il codice prometteva; le
+  tre chiamate hanno anche una scadenza, perché un BFF che non chiude la connessione bloccherebbe
+  la pagina
+- portale: una inbox che non è una lista non arriva più al `map` della pagina
 - il `package-lock.json` di `web/site` era rimasto a Next 15.5.0 mentre il `package.json` chiedeva
   15.5.25: la CI installa con `npm ci`, che rifiuta un lockfile non allineato, e il passo del sito
   falliva. `make check-web` non lo vedeva perché in locale `npm ci` si salta quando `node_modules`

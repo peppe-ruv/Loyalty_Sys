@@ -54,7 +54,10 @@ export const DecisionPolicies: CollectionConfig = {
       { name: "channels", type: "select", hasMany: true, options: channels, admin: { description: "canali ammessi (vuoto = qualsiasi)" } },
     ] },
     { name: "constraints", type: "group", fields: [
-      { name: "contactCap7dByChannel", type: "array", fields: [ { name: "channel", type: "select", options: channels, required: true }, { name: "max", type: "number", required: true } ], admin: { description: "pressione commerciale: contatti massimi in 7 giorni per canale" } },
+      // `enumName` esplicito: il nome che Postgres riceverebbe per difetto
+      // (enum_decision_policies_constraints_contact_cap7d_by_channel_channel) supera i 63 caratteri
+      // consentiti a un identificatore, e lo schema non si lascia nemmeno costruire.
+      { name: "contactCap7dByChannel", type: "array", dbName: "contact_cap_7d", fields: [ { name: "channel", type: "select", options: channels, required: true, enumName: "enum_policy_contact_cap_channel" }, { name: "max", type: "number", required: true } ], admin: { description: "pressione commerciale: contatti massimi in 7 giorni per canale" } },
       { name: "quietHoursFrom", type: "number", min: 0, max: 23, defaultValue: 21 }, { name: "quietHoursTo", type: "number", min: 0, max: 23, defaultValue: 8 },
       { name: "minHoursBetweenOffers", type: "number", defaultValue: 6 },
       { name: "dailyUnitsBudget", type: "number", defaultValue: 0 },
@@ -70,7 +73,7 @@ export const DecisionPolicies: CollectionConfig = {
     ] },
     { name: "alwaysApply", type: "select", hasMany: true, options: actionTypes, defaultValue: ["AWARD_POINTS", "UPGRADE_TIER", "GRANT_BADGE", "SET_ATTRIBUTE", "EMIT_EVENT"], admin: { description: "azioni contrattuali applicate sempre, senza arbitrato (mai toccate da AI o esperimenti)" } },
     { name: "maxArbitratedPerEvent", type: "number", defaultValue: 1, admin: { description: "quante azioni discrezionali al massimo per evento" } },
-    { name: "channelPreferenceOrder", type: "array", fields: [ { name: "channel", type: "select", options: channels, required: true } ] },
+    { name: "channelPreferenceOrder", type: "array", dbName: "channel_pref", fields: [ { name: "channel", type: "select", options: channels, required: true, enumName: "enum_policy_channel_pref" } ] },
     status(threeLevel),
   ],
 };
@@ -162,7 +165,10 @@ export const DeliveryRouting: CollectionConfig = {
     { name: "code", type: "text", required: true, unique: true }, { name: "name", type: "text", required: true },
     { name: "routes", type: "array", fields: [ { name: "action", type: "select", required: true, options: ["SEND_MESSAGE", "SHOW_OFFER", "ASK_FOR_FEEDBACK"] }, { name: "channels", type: "array", fields: [ { name: "channel", type: "select", required: true, options: channels } ] } ] },
     { name: "enabledChannels", type: "select", hasMany: true, options: channels },
-    { name: "maxPerDayByChannel", type: "array", fields: [ { name: "channel", type: "select", required: true, options: channels }, { name: "max", type: "number", required: true } ] },
+    // Come sopra: senza `dbName` l'indice della tabella delle versioni
+    // (_delivery_routing_v_version_max_per_day_by_channel_parent_id_idx) sfora i 63 caratteri e
+    // Postgres lo tronca in silenzio, lasciando database e schema Payload disallineati.
+    { name: "maxPerDayByChannel", type: "array", dbName: "max_per_day", fields: [ { name: "channel", type: "select", required: true, options: channels, enumName: "enum_routing_max_per_day_channel" }, { name: "max", type: "number", required: true } ] },
     { name: "quietHoursFrom", type: "number", min: 0, max: 23 }, { name: "quietHoursTo", type: "number", min: 0, max: 23 },
     { name: "quietHoursFallback", type: "select", options: ["app", "web", "operator"], admin: { description: "canale usato al posto di push/sms/email nelle ore di silenzio (vuoto = rinvia)" } },
     { name: "templates", type: "array", fields: [ { name: "action", type: "select", required: true, options: ["SEND_MESSAGE", "SHOW_OFFER", "ASK_FOR_FEEDBACK"] }, { name: "reference", type: "text", admin: { description: "vuoto = per tutte le offerte di quell'azione" } }, { name: "templateId", type: "text", required: true, admin: { description: "eventType del message-template (es. decision.offer)" } } ] },

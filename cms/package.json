@@ -12,12 +12,14 @@
     "typecheck": "tsc --noEmit",
     "generate:importmap": "payload generate:importmap",
     "generate:types": "payload generate:types",
-    "migrate": "payload migrate"
+    "migrate": "payload migrate",
+    "build:vercel": "payload migrate && next build"
   },
   "dependencies": {
     "@payloadcms/db-postgres": "3.89.0",
     "@payloadcms/next": "3.89.0",
     "@payloadcms/richtext-lexical": "^3.89.0",
+    "@payloadcms/storage-vercel-blob": "^3.89.0",
     "@superset-ui/embedded-sdk": "^0.1.3",
     "graphql": "^16.8.1",
     "next": "15.4.11",
