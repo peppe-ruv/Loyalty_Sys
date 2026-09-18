@@ -16,6 +16,13 @@ Il progetto segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il 
 ### Sicurezza
 - Next.js aggiornato da 15.5.0 a 15.5.25 (CVE-2025-66478) nel sito e nel playground
 
+### Corretto
+- il `package-lock.json` di `web/site` era rimasto a Next 15.5.0 mentre il `package.json` chiedeva
+  15.5.25: la CI installa con `npm ci`, che rifiuta un lockfile non allineato, e il passo del sito
+  falliva. `make check-web` non lo vedeva perché in locale `npm ci` si salta quando `node_modules`
+  esiste già; ora `make lock-sync` verifica i tre lockfile annidati (`web/site`, `cms`, `web/bff`)
+  prima di costruire
+
 ## [0.7.0] — 2026-09-17
 
 ### Licenza e nome
