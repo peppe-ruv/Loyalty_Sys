@@ -41,7 +41,6 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `M0.5` — servizio archetipo `ingestion-service`: `POST /v1/events` → dedup `(source,id)` → arricchimento `lh*` → outbox su `lh.actions.v1` (`202 ACCEPTED`/`DUPLICATE`), consumer di prova, Flyway (`V0`+`V1 inbound_event`), Actuator, Dockerfile multi-stage. IT su Spring Boot + EmbeddedKafka + Zonky (accettato/duplicato/400). **Migrazione a Jackson 3** (default di Boot 4) in lh-common + servizio; aggiunte le auto-config Boot 4 mancanti (`spring-boot-flyway`, `@EnableKafka`, `KafkaAdmin`). Q-43 (`ebb8dcb`)
 - [x] `M0.6` — `web/` Next.js: token e font (`next/font`), shell delle tre aree (HUB-01, backoffice, portale), proxy `/api/lh/[service]/[...path]` (aggiunge `X-LH-Actor` + `X-Correlation-Id`), cookie persona, `/api/demo/status` e `/api/demo/wake`, keep-alive gentile; HUB-01 con pannello stato (10 tessere, wake, barra "pronti N/10", ingressi, percorso). `pnpm lint typecheck test build` verdi (9 test). (`ffba0df`)
 - [ ] `M0.7`
-- [ ] `M0.7`
 
 **Feature** (`docs/02`)
 
