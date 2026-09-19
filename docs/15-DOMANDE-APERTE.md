@@ -38,4 +38,5 @@ _(vuoto: l'agente aggiunge qui le voci `Q-40+` con file, riga, scelta fatta e mo
 
 | ID | Dove | Dubbio | Scelta conservativa adottata | Stato |
 |---|---|---|---|---|
-| | | | | |
+| Q-40 | `libs/lh-common` test (`docs/06 §9`) | La specifica indica Testcontainers (Kafka + Postgres), ma nell'ambiente di sviluppo il pull delle immagini Docker è negato dalla policy del proxy (docker.io/ECR/GHCR/Quay → 403). | Test d'integrazione con **Kafka in-JVM** (`EmbeddedKafka` KRaft, `spring-kafka-test`) e **Postgres reale in-process** (Zonky `embedded-postgres`), entrambi da Maven Central. Stesso comportamento verificato (outbox, idempotenza, DLQ, migrazioni Flyway). Se in CI il registry Docker è raggiungibile si può tornare a Testcontainers senza cambiare il codice di produzione. | APERTA |
+| Q-41 | ambiente / `pom.xml` | JDK locale predefinito 21, ma la spec richiede Java 25 (ADR-005). | JDK 25 (Microsoft OpenJDK 25.0.4.1 LTS) provvisto in ambiente; `pom.xml` compila con `release=25`. In CI (M0.7) va fissato `temurin`/`msopenjdk` **25**. | APERTA |

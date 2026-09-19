@@ -13,7 +13,100 @@
 
   <artifactId>lh-common</artifactId>
   <packaging>jar</packaging>
-
-  <!-- Modulo vuoto in M0.1: prende corpo nelle fette successive (docs/12). -->
   <description>Starter condiviso: envelope CloudEvents, outbox/inbox, idempotenza, Kafka, errori RFC 9457, actor, seed loader (docs/06 §1).</description>
+
+  <properties>
+    <networknt-json-schema.version>1.5.4</networknt-json-schema.version>
+    <zonky-embedded-postgres.version>2.0.7</zonky-embedded-postgres.version>
+  </properties>
+
+  <dependencies>
+    <!-- Core Spring Boot + JDBC (Spring Data JDBC / JdbcClient, DataSource, tx) -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-jdbc</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-jdbc</artifactId>
+    </dependency>
+    <!-- Web: ProblemDetail (RFC 9457), filtri CORS/MDC, ActorContext -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <!-- Kafka (docs/06 §5) -->
+    <dependency>
+      <groupId>org.springframework.kafka</groupId>
+      <artifactId>spring-kafka</artifactId>
+    </dependency>
+    <!-- Migrazioni comuni (outbox, processed_event, approval_history) -->
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-database-postgresql</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+    </dependency>
+    <!-- Actuator + Micrometer (health db/kafka, metriche lh_*) -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+    <!-- Jackson JSR-310 (date RFC 3339) -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.datatype</groupId>
+      <artifactId>jackson-datatype-jsr310</artifactId>
+    </dependency>
+    <!-- Validatore JSON Schema 2020-12 (docs/05 §9, Q-27) -->
+    <dependency>
+      <groupId>com.networknt</groupId>
+      <artifactId>json-schema-validator</artifactId>
+      <version>${networknt-json-schema.version}</version>
+    </dependency>
+
+    <!-- ==================== TEST ==================== -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Kafka in-JVM (EmbeddedKafkaBroker): niente Docker (SPEC-GAP Q-40) -->
+    <dependency>
+      <groupId>org.springframework.kafka</groupId>
+      <artifactId>spring-kafka-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Postgres reale in-process (Zonky), binari da Maven Central: niente Docker (SPEC-GAP Q-40) -->
+    <dependency>
+      <groupId>io.zonky.test</groupId>
+      <artifactId>embedded-postgres</artifactId>
+      <version>${zonky-embedded-postgres.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- Zonky/EmbeddedKafka avviano processi/broker: un fork, no parallelismo aggressivo -->
+          <reuseForks>true</reuseForks>
+          <forkCount>1</forkCount>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
 </project>

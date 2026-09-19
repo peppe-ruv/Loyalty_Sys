@@ -17,7 +17,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M6 — Contenuti | da iniziare | | | ☐ | |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** `M0.2`
+**Prossima fetta da lavorare:** `M0.3`
 
 **Ambiente demo**
 
@@ -34,7 +34,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 **Fette** (`docs/12 §3`)
 
 - [x] `M0.1` — parent POM (Java 25, Boot 4.1.0), wrapper, `.editorconfig`/`.gitignore`/`.dockerignore`, struttura cartelle `CLAUDE.md §3`; `./mvnw verify` verde (`86c6666`)
-- [ ] `M0.2`
+- [x] `M0.2` — `libs/lh-common`: envelope CloudEvents + factory, outbox (writer/relay/cleanup), inbox (idempotenza + router), Kafka (PLAINTEXT/SSL_PEM/SASL_SSL, error handler → DLQ), errori RFC 9457, actor `X-LH-Actor` + `@RequiresRole`, approvazioni, audit, SeedLoader + SeedDates, ids/time, `V0__lh_common.sql`, auto-config; test verdi (24 unit + 5 IT con EmbeddedKafka+Zonky). SPEC-GAP Q-40 (`abb2a47`)
 - [ ] `M0.3`
 - [ ] `M0.4`
 - [ ] `M0.5`
@@ -315,3 +315,4 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | Data | Fetta | Esito | Commit | Domande aperte create | Note per la prossima sessione |
 |---|---|---|---|---|---|
 | 2026-09-19 | M0.1 | ✅ `./mvnw verify` verde (9 moduli) | `86c6666` | Q-01→Apache-2.0, Q-02→loyalty-hub (confermate dall'owner) | M0.2 `libs/lh-common`: test prima (Testcontainers Kafka+Postgres) per outbox/idempotenza/DLQ, poi implementazione. Nota ambiente: JDK locale 21; `verify` di M0.1 è verde perché i moduli sono vuoti, ma da M0.2 (codice reale) serve JDK 25 in CI/deploy. |
+| 2026-09-19 | M0.2 | ✅ `./mvnw verify` verde (24 unit + 5 IT) | `abb2a47` | Q-40 (Testcontainers→EmbeddedKafka+Zonky, pull immagini Docker negato dal proxy), Q-41 (JDK 25 provvisto in ambiente; fissare 25 in CI) | M0.3 `contracts/events/`: envelope + schemi ed esempi degli eventi di M1 (docs/05) + test di contratto. Ambiente: JDK 25 in `/opt/jdk-25` (estratto da `mcr.microsoft.com/openjdk/jdk:25-ubuntu`); export in `~/.bashrc`. I test d'integrazione usano EmbeddedKafka + Zonky (niente Docker). |

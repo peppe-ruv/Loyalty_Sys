@@ -52,6 +52,22 @@
   </dependencyManagement>
 
   <build>
+    <plugins>
+      <!-- I test d'integrazione (*IT) girano in fase verify, con failsafe (docs/06 §9). -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <version>3.2.5</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
     <pluginManagement>
       <plugins>
         <plugin>
@@ -61,9 +77,16 @@
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>3.2.5</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-compiler-plugin</artifactId>
           <configuration>
             <release>${maven.compiler.release}</release>
+            <!-- Nomi dei parametri a runtime: deserializzazione dei record Jackson e binding Spring -->
+            <parameters>true</parameters>
           </configuration>
         </plugin>
       </plugins>
