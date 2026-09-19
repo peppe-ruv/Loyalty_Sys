@@ -39,7 +39,6 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `M0.3` — `contracts/events/`: `envelope.schema.json` + 10 schemi `data` degli eventi di M1 (action/effect/fact/audit, JSON Schema 2020-12) + un esempio valido per type; test di contratto `ContractsTest` (envelope + data + coerenza `dataschema` + audit con `lhactor`). SPEC-GAP Q-42 (`10db769`)
 - [x] `M0.4` — `deploy/docker-compose.yml`: Kafka KRaft + Postgres 17 + Kafka UI (infra di default) e 8 servizi + web sotto `--profile all`; limiti mem/cpu. I 5 topic li crea il profilo `local` (bean `NewTopic`, 2 partizioni), verificato da `LocalTopicsIT` (Kafka in-JVM). Compose validato con `docker compose config`. (`8d4b60d`)
 - [ ] `M0.5`
-- [ ] `M0.5`
 - [ ] `M0.6`
 - [ ] `M0.7`
 
