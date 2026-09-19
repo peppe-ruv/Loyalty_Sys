@@ -33,7 +33,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 **Fette** (`docs/12 §3`)
 
-- [x] `M0.1` — parent POM (Java 25, Boot 4.1.0), wrapper, `.editorconfig`/`.gitignore`/`.dockerignore`, struttura cartelle `CLAUDE.md §3`; `./mvnw verify` verde (`3cbac4b`)
+- [x] `M0.1` — parent POM (Java 25, Boot 4.1.0), wrapper, `.editorconfig`/`.gitignore`/`.dockerignore`, struttura cartelle `CLAUDE.md §3`; `./mvnw verify` verde (`86c6666`)
 - [ ] `M0.2`
 - [ ] `M0.3`
 - [ ] `M0.4`
@@ -314,4 +314,4 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 | Data | Fetta | Esito | Commit | Domande aperte create | Note per la prossima sessione |
 |---|---|---|---|---|---|
-| 2026-09-19 | M0.1 | ✅ `./mvnw verify` verde (9 moduli) | `3cbac4b` | Q-01→Apache-2.0, Q-02→loyalty-hub (confermate dall'owner) | M0.2 `libs/lh-common`: test prima (Testcontainers Kafka+Postgres) per outbox/idempotenza/DLQ, poi implementazione. Nota ambiente: JDK locale 21; `verify` di M0.1 è verde perché i moduli sono vuoti, ma da M0.2 (codice reale) serve JDK 25 in CI/deploy. |
+| 2026-09-19 | M0.1 | ✅ `./mvnw verify` verde (9 moduli) | `86c6666` | Q-01→Apache-2.0, Q-02→loyalty-hub (confermate dall'owner) | M0.2 `libs/lh-common`: test prima (Testcontainers Kafka+Postgres) per outbox/idempotenza/DLQ, poi implementazione. Nota ambiente: JDK locale 21; `verify` di M0.1 è verde perché i moduli sono vuoti, ma da M0.2 (codice reale) serve JDK 25 in CI/deploy. |
