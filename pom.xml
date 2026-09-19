@@ -37,6 +37,7 @@
     <module>services/gamification-service</module>
     <module>services/engagement-service</module>
     <module>services/insight-service</module>
+    <module>deploy/hub</module>
   </modules>
 
   <dependencyManagement>

@@ -5,6 +5,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.inbox.EventRouter;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
@@ -20,12 +21,13 @@ public class EffectsListener {
     private final EventRouter router;
     private final ObjectMapper mapper;
 
-    public EffectsListener(EventRouter router, ObjectMapper mapper) {
+    public EffectsListener(@Qualifier("walletEventRouter") EventRouter router, ObjectMapper mapper) {
         this.router = router;
         this.mapper = mapper;
     }
 
     @KafkaListener(
+            groupId = "lh-wallet",
             topics = "${loyaltyhub.topics.effects:lh.effects.v1}",
             containerFactory = "lhKafkaListenerContainerFactory")
     public void onEffect(ConsumerRecord<String, String> record, Acknowledgment ack) {

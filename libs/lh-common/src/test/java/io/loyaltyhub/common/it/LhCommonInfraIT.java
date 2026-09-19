@@ -90,7 +90,7 @@ class LhCommonInfraIT {
         props.setService("test");
         pg = EmbeddedPostgres.builder().start();
         ds = pg.getPostgresDatabase();
-        Flyway.configure().dataSource(ds).locations("classpath:db/migration").load().migrate();
+        Flyway.configure().dataSource(ds).locations("classpath:db/migration/common").load().migrate();
         jdbc = JdbcClient.create(ds);
 
         broker = new EmbeddedKafkaKraftBroker(1, 1, ACTIONS, EFFECTS, "lh.facts.v1", "lh.audit.v1", DLQ, DLQ_INPUT);

@@ -26,6 +26,7 @@ Formato compatto: **Contesto → Decisione → Conseguenze → Alternative scart
 | 020 | Tempo reale via SSE diretto da insight | ACCETTATA |
 | 021 | Approvazioni: macchina a stati comune, disattivabile | ACCETTATA |
 | 022 | Licenza Apache-2.0 | PROPOSTA (`Q-01`) |
+| 023 | Demo ospitata consolidata: un deployable `hub` + Redpanda single-node su Render | ACCETTATA |
 
 ---
 
@@ -134,3 +135,10 @@ Se il piano gratuito gestito viene meno: broker Kafka singolo in KRaft su una VM
 
 ### ADR-022 — Licenza Apache-2.0 (PROPOSTA)
 Permissiva, con concessione esplicita di brevetti, comune nell'ecosistema Spring/Kafka. Alternativa: AGPL-3.0 se si vuole impedire l'offerta come servizio chiuso. Decisione del proprietario del progetto (`Q-01`).
+
+### ADR-023 — Demo ospitata consolidata: un deployable `hub` + Redpanda single-node su Render
+**Contesto.** ADR-001 vuole otto servizi come deployable distinti; ADR-004/014 davano per scontato un **Kafka gratuito gestito** (Aiven) e più servizi sui piani free. Nel 2026 quell'ipotesi non regge: Aiven ha tolto il piano free di Kafka, Upstash Kafka è dismesso, e otto servizi always-on non stanno nei free tier. Serve una demo **ospitata a costo (quasi) zero** senza riscrivere il modello a eventi. Le connessioni realmente disponibili all'agente sono Neon, Render, Vercel (non Koyeb né Aiven).
+**Decisione.** *Solo per la demo ospitata* si impacchettano i **4 servizi del core loop** (ingestion, member, campaign, wallet) in un unico deployable `deploy/hub` che li avvia in un solo JVM, e si usa un **Redpanda single-node** (API Kafka) come servizio su Render. Il DB è **Neon** (un database, uno schema per servizio via `search_path` multiplo), il frontend è su **Vercel**. **Fuori dalla demo, ogni servizio resta un deployable a sé** (Dockerfile e `application.yml` invariati): la consolidazione è una *composizione*, non una fusione.
+**Come resta corretto il modello.** I confini del codice non cambiano (moduli separati, ADR-001/007 rispettate a livello di schema). Per far convivere i servizi in un JVM: (a) **un gruppo consumer per servizio** (`groupId` esplicito sui `@KafkaListener`) così il fan-out sui topic condivisi resta corretto; (b) **un `EventRouter` per servizio** con i soli handler del servizio (niente più "un handler per type" globale che colliderebbe); (c) **migrazioni per schema** (`HubDatabase`, un Flyway per schema: comune `V0` + migrazioni del servizio, spostate in `db/migration/<servizio>/`); (d) **nomi bean pienamente qualificati** (classi omonime tra servizi); (e) `outbox`/`processed_event` risolti nel primo schema del `search_path` → un solo relay, idempotenza per (consumer, eventId). Verificato da `HubEndToEndIT`: un acquisto attraversa ingestion→campaign→wallet e accredita i punti col moltiplicatore di tier, tutto in un JVM.
+**Conseguenze.** + demo ospitabile a costo quasi zero; niente Kafka gestito a pagamento; i 4 non-core (reward/gamification/engagement/insight) restano `DOWN` nella demo finché non vengono realizzati. − un solo `service` name (`hub`) sulle sorgenti URN in demo; un solo relay/idempotenza condivisi; Redpanda single-node non è HA (accettabile per una demo). Supera **ADR-016** (piano B Kafka su VM) e adegua **ADR-014** (l'hosting è Render+Neon+Vercel+Redpanda, non Aiven).
+**Scartate.** Aiven/Upstash Kafka gestito free (non esistono più); 8+1 servizi su Render Starter (~7 $/servizio, non a costo zero); solo-locale senza hosting (perde la dimostrazione online); Koyeb (nessuna connessione pilotabile dall'agente in questa sessione).
