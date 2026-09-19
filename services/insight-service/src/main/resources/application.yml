@@ -1,0 +1,52 @@
+# insight-service (docs/servizi/insight-service.md). server.port = ${PORT:8088}. Sola lettura: consuma tutti
+# i topic e conserva gli eventi recenti (event store). Non produce fatti su Kafka.
+spring:
+  application:
+    name: insight-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/loyaltyhub?currentSchema=insight}
+    username: ${DB_USERNAME:loyaltyhub}
+    password: ${DB_PASSWORD:loyaltyhub}
+    hikari:
+      maximum-pool-size: 4
+      minimum-idle: 0
+      idle-timeout: 60000
+      connection-timeout: 20000
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/common,classpath:db/migration/insight
+    schemas: insight
+    default-schema: insight
+    create-schemas: true
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  jackson:
+    default-property-inclusion: non_null
+    deserialization:
+      fail-on-unknown-properties: false
+
+server:
+  port: ${PORT:8088}
+
+loyaltyhub:
+  service: insight
+  kafka:
+    security: ${KAFKA_SECURITY:PLAINTEXT}
+  # Event store (docs/servizi/insight-service.md §5): finestra e retention.
+  insight:
+    retention:
+      max-age-days: 14
+      max-rows: 200000
+      payload-max-bytes: 8192
+      cron: "0 20 * * * *"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always

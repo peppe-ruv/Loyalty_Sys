@@ -10,14 +10,14 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 |---|---|---|---|---|---|
 | M0 — Fondamenta | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M0.1→M0.7 chiuse; CI in piedi |
 | M1 — Core loop e primo deploy | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M1.1→M1.8 chiuse; demo ospitata online |
-| M2 — Visibilità | da iniziare | | | ☐ | |
+| M2 — Visibilità | in corso | M2.1 | | ☐ | |
 | M3 — Punti adulti | da iniziare | | | ☐ | |
 | M4 — Premi | da iniziare | | | ☐ | |
 | M5 — Gioco | da iniziare | | | ☐ | |
 | M6 — Contenuti | da iniziare | | | ☐ | |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** `M2.1` (visibilità)
+**Prossima fetta da lavorare:** `M2.2` (SSE + rail eventi)
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -103,7 +103,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 **Fette** (`docs/12 §3`)
 
-- [ ] `M2.1`
+- [x] `M2.1` — insight-service: **event store** + ingest di tutti e 5 i topic (gruppo `lh-insight`) + retention. `event_store` (idempotente su `event_id`, `ON CONFLICT DO NOTHING`; indici per `correlation_id`, `member_id`, `topic`) e `topic_stat` (conteggio + ultimi offset, non gonfiati dai duplicati). 5 `@KafkaListener` (actions/effects/facts/audit/dlq) → `EventIngestService` (estrae gli attributi CloudEvents, famiglia dal topic, short type senza prefisso, `error_code` dall'header per la DLQ). `RetentionJob` orario (14 giorni o 200k righe). API di lettura `GET /v1/events` (filtri topic/family/type/member/correlation/source/from/to/q) + `GET /v1/events/{id}` (payload) + `GET /v1/pipeline/status`. Reset demo (`DemoResettable`) svuota lo store. IT su EmbeddedKafka(5 topic)+Zonky: 3 topic → 3 righe, duplicato → 1 riga, stat non raddoppiata. SSE/tracciati/KPI/audit/DLQ/sintetico → M2.2–M2.8
 - [ ] `M2.2`
 - [ ] `M2.3`
 - [ ] `M2.4`
@@ -120,7 +120,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [ ] `F-INS-02` Tracciato (P0)
 - [ ] `F-INS-03` KPI e serie storiche (P0)
 - [ ] `F-INS-04` Storico sintetico (P0)
-- [ ] `F-INS-06` Stato pipeline (P1)
+- [x] `F-INS-06` Stato pipeline (P1) — _M2.1: `GET /v1/pipeline/status` da `topic_stat` (ultimo evento, conteggio, offset per partizione); ritardo stimato/ultimo fatto per servizio → M2.4_
 - [ ] `F-DEMO-04` Scenari guidati (P0)
 
 **Accettazione M2** (`docs/12`)
@@ -315,6 +315,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 | Data | Fetta | Esito | Commit | Domande aperte create | Note per la prossima sessione |
 |---|---|---|---|---|---|
+| 2026-09-19 | M2.1 | ✅ `./mvnw verify` (reattore intero) verde: 1 IT insight + tutti gli IT M1 | | — | **Inizio M2 (Visibilità) — insight-service: event store.** Modulo prima vuoto, ora prende corpo: consuma **tutti e 5** i topic (gruppo `lh-insight`), registra ogni evento in `event_store` idempotente su `event_id`, aggiorna `topic_stat`, retention oraria (14g/200k). API `GET /v1/events` (+ filtri), `GET /v1/events/{id}`, `GET /v1/pipeline/status`. Reset demo svuota lo store. Le tabelle `metric_daily`/`audit_entry`/`dlq_entry` NON sono ancora create: arrivano come migrazioni additive (V2/V3) nelle fette che le usano (M2.4/M2.5/M7). Prossima **M2.2**: SSE (`GET /v1/stream/events`) + `lib/realtime` FE + rail eventi BO-24 + CORS (ADR-020); poi il passaggio del "in elaborazione" da polling a SSE (M2.3). Nota deploy: quando l'SSE sarà pronto, insight va aggiunto all'hub consolidato (o deployato a sé, M2.8) e serve CORS da `LH_CORS_ALLOWED_ORIGINS`. |
 | 2026-09-19 | M1.6 fix | ✅ diagnosi su Neon (`inbound_event=0`) + fix | `401bdc7` | — | **Bug demo online: le azioni del tray portale non accreditavano punti.** Causa: il tray (PT-14) chiamava `/v1/demo/simulator/fire` (`@RequiresRole ADMIN/MARKETING/LEGAL/CARE`) ma il portale ha attore MEMBER → `actorHeader`=`ANALYST:anonymous` → **403** prima di ingestion (confermato: `inbound_event=0`, tutti gli outbox/ledger a 0). Fix: il tray ora inietta da `POST /v1/events` (pubblico, senza ruolo) con la fonte reale per tipo (ecommerce/app/billing/partner) ed envelope CloudEvents completo — come una vera azione esterna. BO-28 (attore ADMIN) invariato. **Nota cold-start**: su Render free il primo colpo a hub addormentato (~100 s di boot) può superare il timeout proxy (25 s): svegliare l'hub prima (aprire `/actuator/health` o attendere il caricamento saldo), poi le azioni accreditano. |
 | 2026-09-19 | M1.8 | ✅ reattore verde (hub IT broker + inproc); demo online **live** su Render+Neon (avviata, seminata: 12 membri/20 campagne/24 wallet) | `bfe295c`·`4ae3e51`·`a5120f5` | — | **Primo deploy — demo ospitata a costo zero.** ADR-023 (deployable consolidato `deploy/hub`: 4 servizi core in un JVM; gruppo consumer + `EventRouter` per servizio; migrazioni per schema; nomi bean qualificati) + **ADR-024** (bus a eventi **in-process** `HubInProcessBus`, profilo `inproc`: niente broker Kafka a pagamento — su Render un private service costa ~7$/mese e non esiste più Kafka gestito gratuito; deroga circoscritta a CLAUDE.md §1.3 dentro il solo hub; fuori resta Redpanda/Kafka vero). Nuovo IT `HubInProcessEndToEndIT` prova il loop senza broker (130€→+162 PTS). **Online**: hub `srv-daneakoae00c73eg7j20` (https://loyalty-hub-6dc3.onrender.com, Render free/Docker/Frankfurt, profilo `demo,inproc`) su **Neon** `odd-pine-62283646`. Fix deploy: search_path via `connection-init-sql` (Neon non inoltra `currentSchema`). **In sospeso**: (a) frontend Vercel `loyalty-hub-playground` da collegare — scope token `poc-22b1` 403 in sessione, env `LH_SVC_{INGESTION,MEMBER,CAMPAIGN,WALLET}_URL=<hub url>`; (b) smoke E2E sulla URL pubblica da lanciare da Giuseppe/browser (egress sessione blocca `*.onrender.com`). Prossima **M2.1** (visibilità). |
 | 2026-09-19 | M0.1 | ✅ `./mvnw verify` verde (9 moduli) | `86c6666` | Q-01→Apache-2.0, Q-02→loyalty-hub (confermate dall'owner) | M0.2 `libs/lh-common`: test prima (Testcontainers Kafka+Postgres) per outbox/idempotenza/DLQ, poi implementazione. Nota ambiente: JDK locale 21; `verify` di M0.1 è verde perché i moduli sono vuoti, ma da M0.2 (codice reale) serve JDK 25 in CI/deploy. |
