@@ -1,0 +1,218 @@
+# Ambiente locale con la stessa topologia della demo (docs/11 §9).
+#
+#   docker compose -f deploy/docker-compose.yml up -d kafka postgres kafka-ui   # solo infrastruttura
+#   docker compose -f deploy/docker-compose.yml --profile all up --build        # stack completo
+#
+# I 5 topic NON sono creati qui (auto.create.topics.enable=false): li crea il profilo Spring `local`
+# tramite i bean NewTopic di lh-common (2 partizioni), quando un servizio si avvia (docs/05 §1, docs/11 §9).
+name: loyalty-hub
+
+# Default comuni ai servizi backend (profilo `all`): limiti di memoria/CPU per scoprire presto
+# i problemi del piano gratuito, connessione a Kafka e Postgres interni alla rete compose.
+x-lh-service: &lh-service
+  build:
+    context: ..
+  profiles: ["all"]
+  restart: unless-stopped
+  mem_limit: 512m
+  cpus: 0.5
+  depends_on:
+    kafka:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+  environment: &lh-service-env
+    SPRING_PROFILES_ACTIVE: "demo,local"
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+    LOYALTYHUB_KAFKA_SECURITY: "PLAINTEXT"
+    DB_USERNAME: "loyaltyhub"
+    DB_PASSWORD: "loyaltyhub"
+    DB_URL_DIRECT: "jdbc:postgresql://postgres:5432/loyaltyhub"
+
+services:
+  # ---------- Infrastruttura (sempre disponibile) ----------
+  kafka:
+    image: apache/kafka:3.9.1
+    container_name: lh-kafka
+    ports:
+      - "9092:9092"   # accesso dall'host (es. servizi avviati con ./mvnw)
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      CLUSTER_ID: "5L6g3nShT-eMCtK--X86sw"
+      # Due listener: PLAINTEXT interno (kafka:29092) per i container, EXTERNAL (localhost:9092) per l'host.
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9092"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:29092,EXTERNAL://localhost:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 20s
+
+  postgres:
+    image: postgres:17
+    container_name: lh-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: "loyaltyhub"
+      POSTGRES_USER: "loyaltyhub"
+      POSTGRES_PASSWORD: "loyaltyhub"
+    volumes:
+      - lh-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loyaltyhub -d loyaltyhub"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: lh-kafka-ui
+    ports:
+      - "8090:8080"   # ispezione dei topic su http://localhost:8090
+    environment:
+      KAFKA_CLUSTERS_0_NAME: "loyalty-hub-local"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:29092"
+      DYNAMIC_CONFIG_ENABLED: "true"
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # ---------- Servizi backend (solo con --profile all; Dockerfile da M0.5) ----------
+  ingestion-service:
+    <<: *lh-service
+    container_name: lh-ingestion
+    build:
+      context: ..
+      dockerfile: services/ingestion-service/Dockerfile
+    ports: ["8081:8081"]
+    environment:
+      <<: *lh-service-env
+      PORT: "8081"
+      DB_URL: "jdbc:postgresql://postgres:5432/loyaltyhub?currentSchema=ingestion"
+
+  member-service:
+    <<: *lh-service
+    container_name: lh-member
+    build:
+      context: ..
+      dockerfile: services/member-service/Dockerfile
+    ports: ["8082:8082"]
+    environment:
+      <<: *lh-service-env
+      PORT: "8082"
+      DB_URL: "jdbc:postgresql://postgres:5432/loyaltyhub?currentSchema=member"
+
+  campaign-service:
+    <<: *lh-service
+    container_name: lh-campaign
+    build:
+      context: ..
+      dockerfile: services/campaign-service/Dockerfile
+    ports: ["8083:8083"]
+    environment:
+      <<: *lh-service-env
+      PORT: "8083"
+      DB_URL: "jdbc:postgresql://postgres:5432/loyaltyhub?currentSchema=campaign"
+
+  wallet-service:
+    <<: *lh-service
+    container_name: lh-wallet
+    build:
+      context: ..
+      dockerfile: services/wallet-service/Dockerfile
+    ports: ["8084:8084"]
+    environment:
+      <<: *lh-service-env
+      PORT: "8084"
+      DB_URL: "jdbc:postgresql://postgres:5432/loyaltyhub?currentSchema=wallet"
+
+  reward-service:
+    <<: *lh-service
+    container_name: lh-reward
+    build:
+      context: ..
+      dockerfile: services/reward-service/Dockerfile
+    ports: ["8085:8085"]
+    environment:
+      <<: *lh-service-env
+      PORT: "8085"
+      DB_URL: "jdbc:postgresql://postgres:5432/loyaltyhub?currentSchema=reward"
+
+  gamification-service:
+    <<: *lh-service
+    container_name: lh-gamification
+    build:
+      context: ..
+      dockerfile: services/gamification-service/Dockerfile
+    ports: ["8086:8086"]
+    environment:
+      <<: *lh-service-env
+      PORT: "8086"
+      DB_URL: "jdbc:postgresql://postgres:5432/loyaltyhub?currentSchema=gamification"
+
+  engagement-service:
+    <<: *lh-service
+    container_name: lh-engagement
+    build:
+      context: ..
+      dockerfile: services/engagement-service/Dockerfile
+    ports: ["8087:8087"]
+    environment:
+      <<: *lh-service-env
+      PORT: "8087"
+      DB_URL: "jdbc:postgresql://postgres:5432/loyaltyhub?currentSchema=engagement"
+
+  insight-service:
+    <<: *lh-service
+    container_name: lh-insight
+    build:
+      context: ..
+      dockerfile: services/insight-service/Dockerfile
+    ports: ["8088:8088"]
+    environment:
+      <<: *lh-service-env
+      PORT: "8088"
+      DB_URL: "jdbc:postgresql://postgres:5432/loyaltyhub?currentSchema=insight"
+
+  web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    container_name: lh-web
+    profiles: ["all"]
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    ports: ["3000:3000"]
+    environment:
+      NODE_ENV: "production"
+      # Il proxy /api/lh del web raggiunge i servizi sulla rete compose (docs/07).
+      LH_INGESTION_URL: "http://ingestion-service:8081"
+      LH_MEMBER_URL: "http://member-service:8082"
+      LH_CAMPAIGN_URL: "http://campaign-service:8083"
+      LH_WALLET_URL: "http://wallet-service:8084"
+      LH_REWARD_URL: "http://reward-service:8085"
+      LH_GAMIFICATION_URL: "http://gamification-service:8086"
+      LH_ENGAGEMENT_URL: "http://engagement-service:8087"
+      LH_INSIGHT_URL: "http://insight-service:8088"
+    depends_on:
+      - ingestion-service
+      - member-service
+      - campaign-service
+      - wallet-service
+
+volumes:
+  lh-postgres-data:

@@ -17,13 +17,14 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M6 — Contenuti | da iniziare | | | ☐ | |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** `M0.4`
+**Prossima fetta da lavorare:** `M0.5`
 
 **Ambiente demo**
 
 | Risorsa | Stato | Riferimento (URL/ID, mai segreti) |
 |---|---|---|
 | Repository GitHub | ✅ | branch `claude/istruzioni-dwhe86` |
+| Kafka locale (compose) | ✅ | `deploy/docker-compose.yml` (KRaft); topic dal profilo `local` |
 | Kafka Aiven (5 topic) | ☐ | |
 | Progetto Neon | ☐ | |
 | Blueprint Render | ☐ | |
@@ -36,7 +37,8 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `M0.1` — parent POM (Java 25, Boot 4.1.0), wrapper, `.editorconfig`/`.gitignore`/`.dockerignore`, struttura cartelle `CLAUDE.md §3`; `./mvnw verify` verde (`86c6666`)
 - [x] `M0.2` — `libs/lh-common`: envelope CloudEvents + factory, outbox (writer/relay/cleanup), inbox (idempotenza + router), Kafka (PLAINTEXT/SSL_PEM/SASL_SSL, error handler → DLQ), errori RFC 9457, actor `X-LH-Actor` + `@RequiresRole`, approvazioni, audit, SeedLoader + SeedDates, ids/time, `V0__lh_common.sql`, auto-config; test verdi (24 unit + 5 IT con EmbeddedKafka+Zonky). SPEC-GAP Q-40 (`4f9ddaa`)
 - [x] `M0.3` — `contracts/events/`: `envelope.schema.json` + 10 schemi `data` degli eventi di M1 (action/effect/fact/audit, JSON Schema 2020-12) + un esempio valido per type; test di contratto `ContractsTest` (envelope + data + coerenza `dataschema` + audit con `lhactor`). SPEC-GAP Q-42 (`10db769`)
-- [ ] `M0.4`
+- [x] `M0.4` — `deploy/docker-compose.yml`: Kafka KRaft + Postgres 17 + Kafka UI (infra di default) e 8 servizi + web sotto `--profile all`; limiti mem/cpu. I 5 topic li crea il profilo `local` (bean `NewTopic`, 2 partizioni), verificato da `LocalTopicsIT` (Kafka in-JVM). Compose validato con `docker compose config`. (`M0_4_HASH`)
+- [ ] `M0.5`
 - [ ] `M0.5`
 - [ ] `M0.6`
 - [ ] `M0.7`
@@ -317,3 +319,4 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | 2026-09-19 | M0.1 | ✅ `./mvnw verify` verde (9 moduli) | `86c6666` | Q-01→Apache-2.0, Q-02→loyalty-hub (confermate dall'owner) | M0.2 `libs/lh-common`: test prima (Testcontainers Kafka+Postgres) per outbox/idempotenza/DLQ, poi implementazione. Nota ambiente: JDK locale 21; `verify` di M0.1 è verde perché i moduli sono vuoti, ma da M0.2 (codice reale) serve JDK 25 in CI/deploy. |
 | 2026-09-19 | M0.2 | ✅ `./mvnw verify` verde (24 unit + 5 IT) | `4f9ddaa` | Q-40 (Testcontainers→EmbeddedKafka+Zonky, pull immagini Docker negato dal proxy), Q-41 (JDK 25 provvisto in ambiente; fissare 25 in CI) | M0.3 `contracts/events/`: envelope + schemi ed esempi degli eventi di M1 (docs/05) + test di contratto. Ambiente: JDK 25 in `/opt/jdk-25` (estratto da `mcr.microsoft.com/openjdk/jdk:25-ubuntu`); export in `~/.bashrc`. I test d'integrazione usano EmbeddedKafka + Zonky (niente Docker). |
 | 2026-09-19 | M0.3 | ✅ `./mvnw verify` verde (26 unit + 5 IT) | `10db769` | Q-42 (esempi in `contracts/events/examples/` per `CLAUDE.md §3`, non `contracts/examples/` di docs/05 §9) | M0.4 `deploy/docker-compose.yml` + profilo `local` che crea i 5 topic (docs/11 §9). Nota: i contratti sono sul classpath di test di `lh-common` via `<testResource>`; da M1 ogni produttore aggiunge un test che valida l'evento realmente prodotto (docs/05 §9). |
+| 2026-09-19 | M0.4 | ✅ `./mvnw verify` verde (26 unit + 6 IT); `docker compose config` OK | `M0_4_HASH` | — | M0.5 servizio **archetipo** = `ingestion-service` ridotto: `POST /v1/events` → outbox → `lh.actions.v1`, un consumer di prova, Flyway, Actuator, Dockerfile (docs/servizi/ingestion-service.md). Il compose ha già i riferimenti al Dockerfile dei servizi (profilo `all`). Immagini Docker non pull-abili qui: il boot dell'archetipo si verifica con Spring in-JVM (EmbeddedKafka+Zonky). |
