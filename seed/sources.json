@@ -1,0 +1,58 @@
+[
+  {
+    "code": "crm",
+    "name": "CRM",
+    "kind": "HTTP",
+    "enabled": true,
+    "allowedTypes": ["newsletter.subscribed"],
+    "description": "Anagrafica e iscrizioni newsletter"
+  },
+  {
+    "code": "app",
+    "name": "App mobile",
+    "kind": "HTTP",
+    "enabled": true,
+    "allowedTypes": ["purchase.completed", "selfreading.submitted", "app.login.daily"],
+    "description": "App membri: accessi, autoletture, acquisti in-app"
+  },
+  {
+    "code": "ecommerce",
+    "name": "E-commerce",
+    "kind": "HTTP",
+    "enabled": true,
+    "allowedTypes": ["purchase.completed", "purchase.returned", "review.submitted"],
+    "description": "Negozio online: acquisti, resi, recensioni"
+  },
+  {
+    "code": "billing",
+    "name": "Fatturazione",
+    "kind": "HTTP",
+    "enabled": true,
+    "allowedTypes": ["ebill.activated", "directdebit.activated"],
+    "description": "Bolletta digitale e domiciliazione"
+  },
+  {
+    "code": "partner",
+    "name": "Partner",
+    "kind": "HTTP",
+    "enabled": true,
+    "allowedTypes": ["survey.completed", "quiz.completed"],
+    "description": "Survey e quiz dei partner"
+  },
+  {
+    "code": "internal",
+    "name": "Ponte interno",
+    "kind": "INTERNAL",
+    "enabled": true,
+    "allowedTypes": [],
+    "description": "Azioni generate dal ponte fatti → azioni"
+  },
+  {
+    "code": "simulator",
+    "name": "Simulatore demo",
+    "kind": "INTERNAL",
+    "enabled": true,
+    "allowedTypes": [],
+    "description": "Sorgente degli eventi generati dalla demo"
+  }
+]

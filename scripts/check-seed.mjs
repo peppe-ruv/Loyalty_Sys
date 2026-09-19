@@ -12,7 +12,8 @@ const seedDir = resolve(here, "..", "seed");
 // Grammatica delle date relative (docs/10 §1.2).
 const DATE_EXPR = /^@(?:now|today|som|eom|soy|eoy|last[A-Za-z]+)(?:[+-]\d+[dhMy])*(?:T\d{2}:\d{2})?$/;
 // Domini ammessi nei seed (niente aziende reali, domini diversi da example.org — §11.9).
-const ALLOWED_HOSTS = [/(^|\.)example\.org$/, /^localhost$/, /^127\.0\.0\.1$/];
+// json-schema.org è l'URI della meta-schema JSON Schema 2020-12 (docs/05 §9, docs/06 §1): standard, non un'azienda.
+const ALLOWED_HOSTS = [/(^|\.)example\.org$/, /^localhost$/, /^127\.0\.0\.1$/, /(^|\.)json-schema\.org$/];
 
 const errors = [];
 const warnings = [];

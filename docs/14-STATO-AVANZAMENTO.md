@@ -9,7 +9,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | Milestone | Stato | Inizio | Fine | Demo online aggiornata | Note |
 |---|---|---|---|---|---|
 | M0 — Fondamenta | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M0.1→M0.7 chiuse; CI in piedi |
-| M1 — Core loop e primo deploy | da iniziare | | | ☐ | |
+| M1 — Core loop e primo deploy | in corso | M1.1 | | ☐ | |
 | M2 — Visibilità | da iniziare | | | ☐ | |
 | M3 — Punti adulti | da iniziare | | | ☐ | |
 | M4 — Premi | da iniziare | | | ☐ | |
@@ -17,7 +17,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M6 — Contenuti | da iniziare | | | ☐ | |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** `M1.1`
+**Prossima fetta da lavorare:** `M1.2`
 
 **Ambiente demo**
 
@@ -57,7 +57,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 **Fette** (`docs/12 §3`)
 
-- [ ] `M1.1`
+- [x] `M1.1` — ingestion completo per M1: registri (`source`, `event_type` con JSON Schema 2020-12, `member_index`, `internal_mapping`), pipeline di accettazione a 8 passi (docs §5) con tutti gli esiti (`ACCEPTED/DUPLICATE/REJECTED/UNMATCHED` + `SOURCE_DISABLED/UNKNOWN_TYPE/TYPE_NOT_ALLOWED/INVALID_DATA/INVALID_TIME/MEMBER_NOT_ACTIVE`), seed canonici (`sources.json`, `event-types.json` 19 tipi, `members.json` 12 membri, `internal-mappings.json` 9), `DemoSeeder` (`DemoResettable`); IT a 11 casi su EmbeddedKafka + Zonky
 - [ ] `M1.2`
 - [ ] `M1.3`
 - [ ] `M1.4`
@@ -68,12 +68,12 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 **Feature** (`docs/02`)
 
-- [ ] `F-ING-01` Ricezione CloudEvents (P0)
-- [ ] `F-ING-02` Deduplica (P0)
-- [ ] `F-ING-03` Risoluzione membro (P0)
-- [ ] `F-ING-05` Registro fonti (P0)
-- [ ] `F-ING-06` Tipi azione e schemi (P0) — _M1 (custom: M6)_
-- [ ] `F-ING-09` Monitor ingressi (P0)
+- [x] `F-ING-01` Ricezione CloudEvents (P0)
+- [x] `F-ING-02` Deduplica (P0)
+- [x] `F-ING-03` Risoluzione membro (P0)
+- [x] `F-ING-05` Registro fonti (P0) — _motore: allow-list per fonte; CRUD backoffice in M1.6+_
+- [x] `F-ING-06` Tipi azione e schemi (P0) — _M1 (custom: M6)_
+- [ ] `F-ING-09` Monitor ingressi (P0) — _API `/v1/inbound-events` + BO-03 in M1.6+_
 - [ ] `F-MBR-01` Anagrafica membro (P0)
 - [ ] `F-MBR-02` Scheda 360° (P0) — _M1→M6_
 - [ ] `F-MBR-04` Stati del membro (P0)
@@ -322,3 +322,4 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | 2026-09-19 | M0.5 | ✅ `./mvnw verify` verde (reattore intero: 26 unit lh-common + 6 IT + 3 IT ingestion) | `ebb8dcb` | Q-43 (Jackson 3 come default runtime, Jackson 2 confinato ai test di contratto) | M0.6 `web/`: Next.js, token, shell delle tre aree, proxy `/api/lh`, cookie persona, `/api/demo/status|wake`, HUB-01 con pannello stato (docs/07). **Lezioni Boot 4**: auto-config modularizzate (serve `spring-boot-<tech>`); `@KafkaListener` via `@EnableKafka`; `TestRestTemplate` rimosso (usare `RestClient`); `@EmbeddedKafka` senza `kraft`; fat jar con classifier `boot` (i test trovano la @SpringBootConfiguration); Flyway usa il DataSource dell'app. Fix Vercel: placeholder statico `web/playground/` per sbloccare il progetto `loyalty-hub-playground` (il mio token è 403 sul team `poc-22b1`). |
 | 2026-09-19 | M0.6 | ✅ `pnpm lint typecheck test build` verdi (9 test) | `ffba0df` | — | M0.7 CI (`.github/workflows/ci.yml`: backend, web, seed, contracts) + `scripts/check-seed.mjs` (scheletro) + `seed/_schemas/` (docs/11 §10). Nota web: Node 22 + pnpm 10; `next/font` scarica i font Google in build (raggiungibile); `formatPoints` usa `useGrouping:"always"` (l'italiano non raggruppa i 4 cifre di default). Rimosso `package-lock.json` spurio dell'hook di sessione (il PoC usa pnpm). |
 | 2026-09-19 | M0.7 | ✅ script verdi in locale (`check-seed`, `check-contracts`); YAML CI valido | `80dad2f` | Q-41 → DECISA | **M0 completata.** M1.1 (docs/12): ingestion completo per M1 — fonti, tipi azione con JSON Schema, validazione, risoluzione membro da `member_index`, esiti, seed. La CI è ora l'arbitro: alla prima esecuzione su GitHub va verificato che i job (soprattutto `backend` su Temurin 25 e `web`) siano verdi. |
+| 2026-09-19 | M1.1 | ✅ `./mvnw -pl services/ingestion-service -am verify` verde (11 IT pipeline); `check-seed` verde (4 file) | | — | **Pipeline di accettazione completa** (docs/servizi/ingestion-service.md §5): registri `source`/`event_type`/`member_index`/`internal_mapping` (V2), validazione JSON Schema 2020-12 (`JsonSchemaValidator`, networknt su stringhe → runtime resta Jackson 3), 8 esiti, `DemoSeeder` col profilo `demo` che carica i 4 seed. Seed ingestion sul classpath via `<resource>` del pom. `F-ING-09` (monitor `/v1/inbound-events` + BO-03) e le CRUD di `sources`/`event-types` restano ai backoffice (M1.6+). **Deploy**: l'owner ha collegato **Koyeb** a GitHub → candidato per i microservizi JVM in M1.8 (free tier con Docker/JVM, a differenza di Vercel che ospita solo il frontend). Prossima fetta **M1.2** (member-service). |

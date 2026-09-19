@@ -134,6 +134,12 @@ public class LhCommonAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public io.loyaltyhub.common.event.JsonSchemaValidator jsonSchemaValidator() {
+        return new io.loyaltyhub.common.event.JsonSchemaValidator();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public GlobalExceptionHandler globalExceptionHandler() {
         return new GlobalExceptionHandler();
     }

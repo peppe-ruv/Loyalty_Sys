@@ -1,0 +1,11 @@
+[
+  { "factType": "fact.member.registered", "actionType": "member.registered", "enabled": true },
+  { "factType": "fact.member.profile.completed", "actionType": "member.profile.completed", "enabled": true },
+  { "factType": "fact.member.birthday", "actionType": "member.birthday", "enabled": true },
+  { "factType": "fact.tier.upgraded", "actionType": "tier.upgraded", "enabled": true },
+  { "factType": "fact.contest.won", "actionType": "instantwin.won", "enabled": true },
+  { "factType": "fact.achievement.completed", "actionType": "achievement.completed", "enabled": true },
+  { "factType": "fact.badge.awarded", "actionType": "badge.awarded", "enabled": true },
+  { "factType": "fact.referral.completed", "actionType": "referral.completed", "enabled": true },
+  { "factType": "fact.reward.redemption.confirmed", "actionType": "reward.redeemed", "enabled": true }
+]
