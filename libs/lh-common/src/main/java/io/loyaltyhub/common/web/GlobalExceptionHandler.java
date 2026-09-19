@@ -45,6 +45,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity.unprocessableEntity().body(pd);
     }
 
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ProblemDetail> onNoResource(
+            org.springframework.web.servlet.resource.NoResourceFoundException ex, HttpServletRequest request) {
+        // Percorso non mappato (es. la radice `/`): è un 404, non un errore interno.
+        ProblemDetail pd = base(HttpStatus.NOT_FOUND, "not-found", title(HttpStatus.NOT_FOUND),
+                "Nessuna risorsa per questo percorso", request);
+        pd.setProperty("code", "NOT_FOUND");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(pd);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> onUnexpected(Exception ex, HttpServletRequest request) {
         log.error("Errore imprevisto su {}", request != null ? request.getRequestURI() : "?", ex);
