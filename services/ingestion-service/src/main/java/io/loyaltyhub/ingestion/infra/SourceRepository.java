@@ -16,6 +16,14 @@ public class SourceRepository {
         this.jdbc = jdbc;
     }
 
+    public List<Source> findAll() {
+        return jdbc.sql("SELECT code, name, kind, enabled, allowed_types, description FROM source ORDER BY code")
+                .query((rs, n) -> new Source(
+                        rs.getString("code"), rs.getString("name"), rs.getString("kind"),
+                        rs.getBoolean("enabled"), toList(rs.getArray("allowed_types")), rs.getString("description")))
+                .list();
+    }
+
     public Optional<Source> findByCode(String code) {
         return jdbc.sql("SELECT code, name, kind, enabled, allowed_types, description FROM source WHERE code = ?")
                 .param(code)

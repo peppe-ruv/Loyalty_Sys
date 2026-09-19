@@ -15,6 +15,24 @@ public class EventTypeRepository {
         this.jdbc = jdbc;
     }
 
+    public java.util.List<EventType> findAll() {
+        return jdbc.sql("""
+                        SELECT code, name, origin, category, data_schema::text AS data_schema, enabled, icon
+                        FROM event_type ORDER BY category, code
+                        """)
+                .query((rs, n) -> new EventType(
+                        rs.getString("code"), rs.getString("name"), rs.getString("origin"),
+                        rs.getString("category"), rs.getString("data_schema"),
+                        rs.getBoolean("enabled"), rs.getString("icon")))
+                .list();
+    }
+
+    /** {@code sample_data} del tipo (per il simulatore quando {@code data} non è fornito). */
+    public Optional<String> sampleData(String code) {
+        return jdbc.sql("SELECT sample_data::text FROM event_type WHERE code = ?").param(code)
+                .query(String.class).optional();
+    }
+
     public Optional<EventType> findByCode(String code) {
         return jdbc.sql("""
                         SELECT code, name, origin, category, data_schema::text AS data_schema, enabled, icon
