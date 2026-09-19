@@ -1,18 +1,26 @@
-import Link from "next/link";
+import { cookies } from "next/headers";
 import { KeepAlive } from "@/components/shared/KeepAlive";
+import { MemberProvider } from "@/components/portal/MemberContext";
+import { PortalShell } from "@/components/portal/PortalShell";
+import { PERSONA_COOKIE, parsePersona } from "@/lib/persona/cookie";
+import { DEFAULT_MEMBER_ID } from "@/lib/persona/personas";
 
-// Shell del portale (docs/07 §2, §5.3): mobile-first. Tema Aurora e tessera arrivano con M1 (docs/09).
-export default function PortalLayout({ children }: { children: React.ReactNode }) {
+// Shell del portale (docs/09 §1): mobile-first, tema "Aurora". Il membro attivo viene dal cookie lh_persona.
+export default async function PortalLayout({ children }: { children: React.ReactNode }) {
+  const parsed = parsePersona((await cookies()).get(PERSONA_COOKIE)?.value);
+  const memberId = parsed?.kind === "MEMBER" ? parsed.memberId : DEFAULT_MEMBER_ID;
+
   return (
-    <div className="mx-auto min-h-dvh max-w-md bg-[var(--color-pt-bg)]">
-      <header className="flex items-center justify-between px-4 py-3">
-        <span className="font-semibold text-[var(--color-pt-night)]">Loyalty Hub</span>
-        <Link href="/" className="text-sm text-[var(--color-pt-night)]/60">
-          Demo Hub
-        </Link>
-      </header>
-      <main className="px-4 pb-20">{children}</main>
-      <KeepAlive />
-    </div>
+    <MemberProvider memberId={memberId}>
+      <div className="mx-auto min-h-dvh max-w-md bg-[var(--color-pt-bg)]">
+        <header className="flex items-center justify-between px-4 py-3">
+          <span className="font-semibold text-[var(--color-pt-night)]">Club Aurora</span>
+        </header>
+        <main className="px-4">
+          <PortalShell>{children}</PortalShell>
+        </main>
+        <KeepAlive />
+      </div>
+    </MemberProvider>
   );
 }
