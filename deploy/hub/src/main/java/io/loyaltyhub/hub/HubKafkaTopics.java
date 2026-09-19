@@ -5,15 +5,18 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.common.config.TopicConfig;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.KafkaAdmin;
 
 /**
- * Crea i 5 topic sul broker della demo (Redpanda single-node, docs/13 ADR-023). Fuori dal profilo {@code local}
+ * Crea i 5 topic su un broker Kafka/Redpanda reale (docs/13 ADR-023). Fuori dal profilo {@code local}
  * i topic non esistono a priori: qui li dichiara la {@code KafkaAdmin}. Una sola partizione (broker singolo),
  * retention 3 giorni (docs/05 §1). I nomi sono quelli di {@link LoyaltyHubProperties} (ADR-004, i 5 topic fissi).
+ * Spento nel profilo {@code inproc} (bus in-process, docs/13 ADR-024): senza broker non c'è nulla da creare.
  */
 @Configuration
+@Profile("!inproc")
 public class HubKafkaTopics {
 
     @Bean
