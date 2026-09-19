@@ -1,2 +1,0 @@
-route: { receiver: log, group_by: [alertname] }
-receivers: [{ name: log, webhook_configs: [{ url: http://otel-collector:4318/v1/logs }] }]

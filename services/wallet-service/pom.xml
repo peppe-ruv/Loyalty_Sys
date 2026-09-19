@@ -11,9 +11,9 @@
     <relativePath>../../pom.xml</relativePath>
   </parent>
 
-  <artifactId>member-service</artifactId>
+  <artifactId>wallet-service</artifactId>
   <packaging>jar</packaging>
 
   <!-- Modulo vuoto in M0.1: prende corpo nelle fette successive (docs/12). -->
-  <description>Membri, attributi, etichette, segmenti, referral, statistiche di attività (porta 8082, schema member).</description>
+  <description>Valute, wallet, lotti, movimenti, tier, edizioni (porta 8084, schema wallet).</description>
 </project>

@@ -1,3 +1,4 @@
+# EditorConfig — https://editorconfig.org
 root = true
 
 [*]
@@ -8,8 +9,14 @@ trim_trailing_whitespace = true
 indent_style = space
 indent_size = 2
 
-[*.md]
+[*.{java,kt}]
+indent_size = 4
+
+[*.{md,markdown}]
 trim_trailing_whitespace = false
 
-[*.sh]
-indent_size = 2
+[Makefile]
+indent_style = tab
+
+[*.{bat,cmd}]
+end_of_line = crlf

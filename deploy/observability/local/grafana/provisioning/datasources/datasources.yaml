@@ -1,6 +1,0 @@
-apiVersion: 1
-datasources:
-  - { name: Thanos, uid: thanos, type: prometheus, url: http://prometheus:9090, isDefault: true }
-  - { name: Loki, uid: loki, type: loki, url: http://loki:3100 }
-  - { name: Tempo, uid: tempo, type: tempo, url: http://tempo:3200 }
-  - { name: ClickHouse, uid: clickhouse, type: grafana-clickhouse-datasource, url: http://clickhouse:8123, jsonData: { defaultDatabase: loyalty, protocol: http, port: 8123, host: clickhouse } }

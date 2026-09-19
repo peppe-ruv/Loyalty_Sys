@@ -1,49 +1,25 @@
-# build Java
+# --- Java / Maven ---
 target/
+!.mvn/wrapper/maven-wrapper.jar
+*.class
+*.log
+dependency-reduced-pom.xml
 
-# dipendenze e build JavaScript
+# --- Node / Next.js (web/, da M0.6) ---
 node_modules/
 .next/
-dist/
-# esportazione statica del playground: si rigenera con `make playground`
 out/
+.pnpm-store/
 *.tsbuildinfo
-# generato da Next a ogni build
-next-env.d.ts
 
-# cache degli strumenti
-.eslintcache
-coverage/
-.vitest/
-
-# Python
-__pycache__/
-*.pyc
-
-# Terraform
-.terraform/
-.terraform.lock.hcl
-*.tfstate
-*.tfstate.backup
-crash.log
-
-# ambiente locale
+# --- Ambiente e segreti (mai committati) ---
 .env
 .env.*
 !.env.example
-*.log
 
-# sistema operativo ed editor
+# --- IDE / OS ---
+.idea/
+*.iml
+.vscode/
 .DS_Store
 Thumbs.db
-*.swp
-.idea/
-.vscode/*
-!.vscode/extensions.json
-
-# Generato da flatten-maven-plugin
-.flattened-pom.xml
-**/.flattened-pom.xml
-
-# Tipi generati da `payload generate:types` a ogni migrazione: nascono dal build.
-cms/payload-types.ts

@@ -1,0 +1,16 @@
+# Contesto build = radice repo (docs/04 §6, docs/11 §5): tieni fuori tutto ciò che non serve all'immagine.
+.git/
+.github/
+docs/
+web/
+node_modules/
+**/target/
+**/node_modules/
+**/.next/
+**/out/
+.env
+.env.*
+*.md
+.idea/
+.vscode/
+.DS_Store

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- Loyalty Hub — parent POM del monorepo (M0.1). Java 25, Spring Boot 4.1.x (docs/04 §6, ADR-005, ADR-006). -->
+  <groupId>io.loyaltyhub</groupId>
+  <artifactId>loyalty-hub-parent</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+
+  <name>Loyalty Hub</name>
+  <description>Piattaforma loyalty open source ed event-driven — parent del monorepo</description>
+
+  <!--
+    Parent autonomo (non eredita da spring-boot-starter-parent): la gestione delle versioni
+    passa dall'import del BOM spring-boot-dependencies, così il parent controlla direttamente
+    plugin ed enforcer. I moduli sono vuoti in M0.1: prendono corpo da M0.2 in poi (docs/12).
+  -->
+  <properties>
+    <java.version>25</java.version>
+    <maven.compiler.release>${java.version}</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+    <spring-boot.version>4.1.0</spring-boot.version>
+  </properties>
+
+  <modules>
+    <module>libs/lh-common</module>
+    <module>services/ingestion-service</module>
+    <module>services/member-service</module>
+    <module>services/campaign-service</module>
+    <module>services/wallet-service</module>
+    <module>services/reward-service</module>
+    <module>services/gamification-service</module>
+    <module>services/engagement-service</module>
+    <module>services/insight-service</module>
+  </modules>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring-boot.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-maven-plugin</artifactId>
+          <version>${spring-boot.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <configuration>
+            <release>${maven.compiler.release}</release>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+
+</project>

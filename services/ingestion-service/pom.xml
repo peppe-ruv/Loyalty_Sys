@@ -11,9 +11,9 @@
     <relativePath>../../pom.xml</relativePath>
   </parent>
 
-  <artifactId>member-service</artifactId>
+  <artifactId>ingestion-service</artifactId>
   <packaging>jar</packaging>
 
   <!-- Modulo vuoto in M0.1: prende corpo nelle fette successive (docs/12). -->
-  <description>Membri, attributi, etichette, segmenti, referral, statistiche di attività (porta 8082, schema member).</description>
+  <description>Unico ingresso delle azioni: fonti, tipi azione e schemi, dedup, ponte interno, simulatore (porta 8081, schema ingestion).</description>
 </project>
