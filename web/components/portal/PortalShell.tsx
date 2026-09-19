@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { lhFetch, useLhQuery } from "@/lib/api/client";
+import { ulid } from "@/lib/ids";
 import { cn } from "@/lib/cn";
 import { PendingProvider, usePending } from "./PendingContext";
 import { useActiveMember, switchMember } from "./MemberContext";
@@ -52,13 +53,15 @@ interface PersonaView {
   story: string | null;
 }
 
-const ACTIONS: { label: string; type: string; data: (amount: number) => Record<string, unknown> }[] = [
-  { label: "Acquisto", type: "purchase.completed", data: (a) => ({ orderId: "ORD-" + Date.now(), amount: a, currency: "EUR", channel: "ONLINE" }) },
-  { label: "Accesso all'app", type: "app.login.daily", data: () => ({ platform: "IOS" }) },
-  { label: "Attiva bolletta digitale", type: "ebill.activated", data: () => ({ contractId: "CTR-" + Date.now() }) },
-  { label: "Attiva domiciliazione", type: "directdebit.activated", data: () => ({ contractId: "CTR-" + Date.now() }) },
-  { label: "Invia autolettura", type: "selfreading.submitted", data: () => ({ meterId: "MTR-1", reading: 14820 }) },
-  { label: "Completa sondaggio", type: "survey.completed", data: () => ({ surveyId: "SRV-1", score: 80 }) },
+// Ogni azione entra dalla sua fonte reale (docs seed/sources.json): l'evento passa da /v1/events come una
+// qualsiasi azione esterna, non dal simulatore admin (che il portale — attore membro — non può chiamare).
+const ACTIONS: { label: string; type: string; source: string; data: (amount: number) => Record<string, unknown> }[] = [
+  { label: "Acquisto", type: "purchase.completed", source: "ecommerce", data: (a) => ({ orderId: "ORD-" + Date.now(), amount: a, currency: "EUR", channel: "ONLINE" }) },
+  { label: "Accesso all'app", type: "app.login.daily", source: "app", data: () => ({ platform: "IOS" }) },
+  { label: "Attiva bolletta digitale", type: "ebill.activated", source: "billing", data: () => ({ contractId: "CTR-" + Date.now() }) },
+  { label: "Attiva domiciliazione", type: "directdebit.activated", source: "billing", data: () => ({ contractId: "CTR-" + Date.now() }) },
+  { label: "Invia autolettura", type: "selfreading.submitted", source: "app", data: () => ({ meterId: "MTR-1", reading: 14820 }) },
+  { label: "Completa sondaggio", type: "survey.completed", source: "partner", data: () => ({ surveyId: "SRV-1", score: 80 }) },
 ];
 
 function DemoTray() {
@@ -69,12 +72,21 @@ function DemoTray() {
   const { markPending } = usePending();
   const personas = useLhQuery<PersonaView[]>("member", "/v1/demo/personas", undefined, { enabled: open });
 
-  async function fire(type: string, data: Record<string, unknown>) {
+  async function fire(type: string, source: string, data: Record<string, unknown>) {
     setBusy(true);
     try {
-      await lhFetch("ingestion", "/v1/demo/simulator/fire", {
+      // Azione reale del membro dalla fonte esterna: /v1/events (pubblico), non il simulatore admin.
+      await lhFetch("ingestion", "/v1/events", {
         method: "POST",
-        body: JSON.stringify({ memberId, type, data }),
+        body: JSON.stringify({
+          specversion: "1.0",
+          id: ulid(),
+          source,
+          type,
+          subject: "member:" + memberId,
+          time: new Date().toISOString(),
+          data,
+        }),
       });
       markPending(["Punti in arrivo…"]);
       setOpen(false);
@@ -129,7 +141,7 @@ function DemoTray() {
                 <button
                   key={a.label}
                   disabled={busy}
-                  onClick={() => fire(a.type, a.data(amount))}
+                  onClick={() => fire(a.type, a.source, a.data(amount))}
                   className="rounded border border-slate-200 px-2 py-1 text-xs hover:bg-slate-50 disabled:opacity-50"
                 >
                   {a.label}
