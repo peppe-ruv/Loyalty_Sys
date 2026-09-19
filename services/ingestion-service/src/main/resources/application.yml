@@ -1,0 +1,45 @@
+# ingestion-service (docs/06 §4, §6, §8). server.port = ${PORT:8081}.
+spring:
+  application:
+    name: ingestion-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/loyaltyhub?currentSchema=ingestion}
+    username: ${DB_USERNAME:loyaltyhub}
+    password: ${DB_PASSWORD:loyaltyhub}
+    hikari:
+      maximum-pool-size: 4
+      minimum-idle: 0
+      idle-timeout: 60000
+      connection-timeout: 20000
+  flyway:
+    enabled: true
+    schemas: ingestion
+    default-schema: ingestion
+    create-schemas: true
+    # Flyway usa il DataSource dell'applicazione (currentSchema=ingestion). La connessione diretta
+    # dedicata per il pooler serverless (DB_URL_DIRECT, docs/06 §4) si aggiunge al deploy (M1.8).
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  jackson:
+    default-property-inclusion: non_null
+    deserialization:
+      fail-on-unknown-properties: false
+
+server:
+  port: ${PORT:8081}
+
+loyaltyhub:
+  service: ingestion
+  kafka:
+    security: ${KAFKA_SECURITY:PLAINTEXT}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:audit.entry:1",
+  "title": "audit.entry — data (docs/05 §6)",
+  "description": "Voce di audit; l'attore (lhactor) è obbligatorio a livello di envelope per gli audit.",
+  "type": "object",
+  "required": ["service", "entityType", "entityId", "action", "summary"],
+  "properties": {
+    "service": { "type": "string", "minLength": 1 },
+    "entityType": { "type": "string", "minLength": 1 },
+    "entityId": { "type": "string", "minLength": 1 },
+    "action": { "enum": ["CREATE", "UPDATE", "DELETE", "TRANSITION", "ADJUST", "JOB", "RESET"] },
+    "summary": { "type": "string" },
+    "before": { "type": ["object", "null"] },
+    "after": { "type": ["object", "null"] }
+  },
+  "additionalProperties": true
+}

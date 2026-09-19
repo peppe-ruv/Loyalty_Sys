@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:action.app.login.daily:1",
+  "title": "action.app.login.daily — data (EVT-ACT-06, docs/05 §3)",
+  "type": "object",
+  "properties": {
+    "platform": { "enum": ["IOS", "ANDROID", "WEB"] }
+  },
+  "additionalProperties": true
+}

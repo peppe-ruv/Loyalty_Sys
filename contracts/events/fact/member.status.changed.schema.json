@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.member.status.changed:1",
+  "title": "fact.member.status.changed — data (EVT-FACT-03, docs/05 §5)",
+  "type": "object",
+  "required": ["previousStatus", "newStatus"],
+  "properties": {
+    "previousStatus": { "enum": ["ACTIVE", "SUSPENDED", "BLOCKED", "CLOSED", "ANONYMIZED"] },
+    "newStatus": { "enum": ["ACTIVE", "SUSPENDED", "BLOCKED", "CLOSED", "ANONYMIZED"] },
+    "reason": { "type": "string" }
+  },
+  "additionalProperties": true
+}

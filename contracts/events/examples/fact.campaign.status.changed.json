@@ -1,0 +1,20 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZK5C0Q2M9T4B6N8R0XWYCN",
+  "source": "urn:loyaltyhub:service:campaign",
+  "type": "io.loyaltyhub.fact.campaign.status.changed",
+  "subject": "campaign:CMP-WEEKEND-X2",
+  "time": "2026-09-10T08:00:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.campaign.status.changed:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZK5C0Q2M9T4B6N8R0XWYCN",
+  "lhhop": 0,
+  "lhactor": "MARKETING:luca.marketing",
+  "data": {
+    "campaignCode": "CMP-WEEKEND-X2",
+    "name": "Weekend x2 punti",
+    "previousStatus": "DRAFT",
+    "newStatus": "LIVE"
+  }
+}

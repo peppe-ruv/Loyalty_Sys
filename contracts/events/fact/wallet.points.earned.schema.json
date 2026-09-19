@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.wallet.points.earned:1",
+  "title": "fact.wallet.points.earned — data (EVT-FACT-20, docs/05 §2, §5)",
+  "type": "object",
+  "required": ["ledgerEntryId", "currency", "amount", "balanceAfter"],
+  "properties": {
+    "ledgerEntryId": { "type": "string", "minLength": 1 },
+    "effectId": { "type": "string" },
+    "campaignCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$" },
+    "currency": { "enum": ["PTS", "STS"] },
+    "baseAmount": { "type": "integer" },
+    "tierCode": { "type": "string" },
+    "tierMultiplier": { "type": "number", "minimum": 0 },
+    "amount": { "type": "integer" },
+    "balanceAfter": { "type": "integer" },
+    "lotId": { "type": "string" },
+    "expiresAt": { "type": ["string", "null"] },
+    "pending": { "type": "boolean" }
+  },
+  "additionalProperties": true
+}

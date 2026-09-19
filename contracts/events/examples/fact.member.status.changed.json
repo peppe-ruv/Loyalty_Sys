@@ -1,0 +1,18 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZK2M2Q2M9T4B6N8R0XWYCM",
+  "source": "urn:loyaltyhub:service:member",
+  "type": "io.loyaltyhub.fact.member.status.changed",
+  "subject": "member:MBR-000012",
+  "time": "2026-09-16T11:00:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.member.status.changed:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZK2M2Q2M9T4B6N8R0XWYCM",
+  "lhhop": 0,
+  "data": {
+    "previousStatus": "ACTIVE",
+    "newStatus": "BLOCKED",
+    "reason": "Sospetto abuso rilevato dall'antifrode"
+  }
+}

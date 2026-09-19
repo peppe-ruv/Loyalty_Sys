@@ -1,8 +1,0 @@
-global:
-  environment: prod
-  secretsStore:
-    prefix: loyalty-hub-prod
-  ingress:
-    host: loyalty.example.com
-serviceMonitor:
-  enabled: true

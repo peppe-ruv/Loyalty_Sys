@@ -1,0 +1,22 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZK3V7Q2M9T4B6N8R0XWYCD",
+  "source": "urn:loyaltyhub:source:ecommerce",
+  "type": "io.loyaltyhub.action.purchase.completed",
+  "subject": "member:MBR-000003",
+  "time": "2026-09-18T10:15:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:action.purchase.completed:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZK3V7Q2M9T4B6N8R0XWYCD",
+  "lhhop": 0,
+  "data": {
+    "orderId": "ORD-88213",
+    "amount": 130.00,
+    "currency": "EUR",
+    "channel": "ONLINE",
+    "items": [
+      { "sku": "SKU-1001", "category": "casa", "quantity": 1, "unitPrice": 130.00 }
+    ]
+  }
+}

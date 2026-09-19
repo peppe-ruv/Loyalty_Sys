@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:effect.points.grant:1",
+  "title": "effect.points.grant — data (EVT-EFF-01, docs/05 §4)",
+  "type": "object",
+  "required": [
+    "effectId", "campaignCode", "actionId", "actionType",
+    "currency", "baseAmount", "campaignMultiplier", "amount", "tierMultiplierApplies", "pendingDays"
+  ],
+  "properties": {
+    "effectId": { "type": "string", "minLength": 1 },
+    "campaignCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$" },
+    "actionId": { "type": "string", "minLength": 1 },
+    "actionType": { "type": "string", "minLength": 1 },
+    "currency": { "enum": ["PTS", "STS"] },
+    "baseAmount": { "type": "integer" },
+    "campaignMultiplier": { "type": "number", "minimum": 0 },
+    "amount": { "type": "integer" },
+    "tierMultiplierApplies": { "type": "boolean" },
+    "pendingDays": { "type": "integer", "minimum": 0 },
+    "description": { "type": "string" }
+  },
+  "additionalProperties": true
+}

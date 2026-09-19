@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:action.purchase.completed:1",
+  "title": "action.purchase.completed — data (EVT-ACT-01, docs/05 §3)",
+  "type": "object",
+  "required": ["orderId", "amount", "currency"],
+  "properties": {
+    "orderId": { "type": "string", "minLength": 1 },
+    "amount": { "type": "number", "minimum": 0 },
+    "currency": { "type": "string", "minLength": 1 },
+    "channel": { "enum": ["ONLINE", "STORE", "APP"] },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sku": { "type": "string" },
+          "category": { "type": "string" },
+          "quantity": { "type": "integer", "minimum": 0 },
+          "unitPrice": { "type": "number", "minimum": 0 }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}
