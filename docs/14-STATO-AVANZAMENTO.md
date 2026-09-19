@@ -9,7 +9,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | Milestone | Stato | Inizio | Fine | Demo online aggiornata | Note |
 |---|---|---|---|---|---|
 | M0 — Fondamenta | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M0.1→M0.7 chiuse; CI in piedi |
-| M1 — Core loop e primo deploy | in corso | M1.1 | | ☐ | |
+| M1 — Core loop e primo deploy | in corso | M1.2 | | ☐ | |
 | M2 — Visibilità | da iniziare | | | ☐ | |
 | M3 — Punti adulti | da iniziare | | | ☐ | |
 | M4 — Premi | da iniziare | | | ☐ | |
@@ -17,7 +17,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M6 — Contenuti | da iniziare | | | ☐ | |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** `M1.2`
+**Prossima fetta da lavorare:** `M1.3`
 
 **Ambiente demo**
 
@@ -58,7 +58,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 **Fette** (`docs/12 §3`)
 
 - [x] `M1.1` — ingestion completo per M1: registri (`source`, `event_type` con JSON Schema 2020-12, `member_index`, `internal_mapping`), pipeline di accettazione a 8 passi (docs §5) con tutti gli esiti (`ACCEPTED/DUPLICATE/REJECTED/UNMATCHED` + `SOURCE_DISABLED/UNKNOWN_TYPE/TYPE_NOT_ALLOWED/INVALID_DATA/INVALID_TIME/MEMBER_NOT_ACTIVE`), seed canonici (`sources.json`, `event-types.json` 19 tipi, `members.json` 12 membri, `internal-mappings.json` 9), `DemoSeeder` (`DemoResettable`); IT a 11 casi su EmbeddedKafka + Zonky
-- [ ] `M1.2`
+- [x] `M1.2` — member-service: anagrafica (`member`), ricerca con filtri (`q`/`status`/`tier`), stati, proiezione saldi/tier (`member_projection`) e statistiche di attività (`member_stats`); produce i tre fatti `member.registered/updated/status.changed` (snapshot completo, lock ottimistico via `version`), consuma `lh.actions.v1` → stats e `lh.facts.v1` (`wallet.points.earned`→saldo, `tier.upgraded`→tier) → proiezione; `GET /v1/demo/personas`; `MemberSeeder` (12 membri dai seed). IT a 7 casi su EmbeddedKafka + Zonky
 - [ ] `M1.3`
 - [ ] `M1.4`
 - [ ] `M1.5`
@@ -74,9 +74,9 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `F-ING-05` Registro fonti (P0) — _motore: allow-list per fonte; CRUD backoffice in M1.6+_
 - [x] `F-ING-06` Tipi azione e schemi (P0) — _M1 (custom: M6)_
 - [ ] `F-ING-09` Monitor ingressi (P0) — _API `/v1/inbound-events` + BO-03 in M1.6+_
-- [ ] `F-MBR-01` Anagrafica membro (P0)
-- [ ] `F-MBR-02` Scheda 360° (P0) — _M1→M6_
-- [ ] `F-MBR-04` Stati del membro (P0)
+- [x] `F-MBR-01` Anagrafica membro (P0)
+- [ ] `F-MBR-02` Scheda 360° (P0) — _M1→M6 (proiezione+stats già alimentate; scheda UI in M1.6+)_
+- [x] `F-MBR-04` Stati del membro (P0)
 - [ ] `F-CMP-01` CRUD campagne (P0)
 - [ ] `F-CMP-02` Ciclo di vita (P0)
 - [ ] `F-CMP-03` Costruttore condizioni (P0)
@@ -323,3 +323,4 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | 2026-09-19 | M0.6 | ✅ `pnpm lint typecheck test build` verdi (9 test) | `ffba0df` | — | M0.7 CI (`.github/workflows/ci.yml`: backend, web, seed, contracts) + `scripts/check-seed.mjs` (scheletro) + `seed/_schemas/` (docs/11 §10). Nota web: Node 22 + pnpm 10; `next/font` scarica i font Google in build (raggiungibile); `formatPoints` usa `useGrouping:"always"` (l'italiano non raggruppa i 4 cifre di default). Rimosso `package-lock.json` spurio dell'hook di sessione (il PoC usa pnpm). |
 | 2026-09-19 | M0.7 | ✅ script verdi in locale (`check-seed`, `check-contracts`); YAML CI valido | `80dad2f` | Q-41 → DECISA | **M0 completata.** M1.1 (docs/12): ingestion completo per M1 — fonti, tipi azione con JSON Schema, validazione, risoluzione membro da `member_index`, esiti, seed. La CI è ora l'arbitro: alla prima esecuzione su GitHub va verificato che i job (soprattutto `backend` su Temurin 25 e `web`) siano verdi. |
 | 2026-09-19 | M1.1 | ✅ `./mvnw -pl services/ingestion-service -am verify` verde (11 IT pipeline); `check-seed` verde (4 file) | | — | **Pipeline di accettazione completa** (docs/servizi/ingestion-service.md §5): registri `source`/`event_type`/`member_index`/`internal_mapping` (V2), validazione JSON Schema 2020-12 (`JsonSchemaValidator`, networknt su stringhe → runtime resta Jackson 3), 8 esiti, `DemoSeeder` col profilo `demo` che carica i 4 seed. Seed ingestion sul classpath via `<resource>` del pom. `F-ING-09` (monitor `/v1/inbound-events` + BO-03) e le CRUD di `sources`/`event-types` restano ai backoffice (M1.6+). **Deploy**: l'owner ha collegato **Koyeb** a GitHub → candidato per i microservizi JVM in M1.8 (free tier con Docker/JVM, a differenza di Vercel che ospita solo il frontend). Prossima fetta **M1.2** (member-service). |
+| 2026-09-19 | M1.2 | ✅ `./mvnw verify` (reattore intero) verde: 7 IT member + 11 IT ingestion + IT/unit lh-common; `check-seed` verde | | — | **member-service** (docs/servizi/member-service.md): anagrafica `member` + `member_projection` + `member_stats` (V1), CRUD (create con `referralCode` 8, PATCH con lock ottimistico `version`, cambio stato), ricerca `q`/`status`/`tier`, `GET /v1/demo/personas`. Produce i 3 fatti su `lh.facts.v1` con snapshot completo; consuma `lh.actions.v1`→`member_stats` (azioni interne escluse da ultima attività/acquisti) e `lh.facts.v1` `wallet.points.earned`/`tier.upgraded`→`member_projection` (nessun loop: i `member.*` non hanno handler). `MemberSeeder` (profilo demo, codici invito riproducibili) dai 12 membri di `seed/members.json` (arricchito con `story`/`avatarSeed`/`referredBy`). **Fix M1.1**: aggiunto `COPY seed/` al Dockerfile ingestion (la `<resource>` seed non era nel contesto di build). Referral/segmenti/attributi/anonimizzazione → M5/M6/M7. Prossima fetta **M1.3** (campaign-service). |

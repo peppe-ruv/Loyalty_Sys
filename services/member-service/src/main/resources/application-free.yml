@@ -1,0 +1,9 @@
+# Profilo `free` (docs/06 §6): tuning per 512 MB / 0.1 CPU.
+spring:
+  threads:
+    virtual:
+      enabled: true   # virtual thread (Java 25, ADR-005)
+server:
+  tomcat:
+    threads:
+      max: 20

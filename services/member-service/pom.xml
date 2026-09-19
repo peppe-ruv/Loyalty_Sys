@@ -13,7 +13,65 @@
 
   <artifactId>member-service</artifactId>
   <packaging>jar</packaging>
-
-  <!-- Modulo vuoto in M0.1: prende corpo nelle fette successive (docs/12). -->
   <description>Membri, attributi, etichette, segmenti, referral, statistiche di attività (porta 8082, schema member).</description>
+
+  <properties>
+    <zonky-embedded-postgres.version>2.0.7</zonky-embedded-postgres.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.loyaltyhub</groupId>
+      <artifactId>lh-common</artifactId>
+      <version>0.1.0-SNAPSHOT</version>
+    </dependency>
+
+    <!-- ==================== TEST ==================== -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.kafka</groupId>
+      <artifactId>spring-kafka-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.zonky.test</groupId>
+      <artifactId>embedded-postgres</artifactId>
+      <version>${zonky-embedded-postgres.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <resources>
+      <!-- Risorse del modulo + i dati demo canonici (docs/10 §1): un'unica cartella seed/ sul classpath. -->
+      <resource>
+        <directory>src/main/resources</directory>
+      </resource>
+      <resource>
+        <directory>${maven.multiModuleProjectDirectory}/seed</directory>
+        <targetPath>seed</targetPath>
+      </resource>
+    </resources>
+    <plugins>
+      <!-- Fat jar eseguibile per il Dockerfile; il jar principale resta "sottile" per i test. -->
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
+            <configuration>
+              <classifier>boot</classifier>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>
