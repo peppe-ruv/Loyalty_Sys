@@ -1,7 +1,7 @@
 package io.loyaltyhub.common.outbox;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhFamily;
 import io.loyaltyhub.common.kafka.LoyaltyHubProperties;
@@ -51,7 +51,7 @@ public class OutboxWriter {
     private String serialize(LhEvent<?> event) {
         try {
             return mapper.writeValueAsString(event);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalArgumentException("evento non serializzabile: " + event.type(), e);
         }
     }

@@ -1,7 +1,7 @@
 package io.loyaltyhub.common.outbox;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.common.event.LhHeaders;
 import io.loyaltyhub.common.metrics.LhMetrics;
 import org.apache.kafka.clients.producer.ProducerRecord;

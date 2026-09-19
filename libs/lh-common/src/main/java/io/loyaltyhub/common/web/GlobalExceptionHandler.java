@@ -19,6 +19,8 @@ import java.util.List;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     public static final String PROBLEM_TYPE_PREFIX = "urn:loyaltyhub:problem:";
 
     @ExceptionHandler(LhException.class)
@@ -45,6 +47,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> onUnexpected(Exception ex, HttpServletRequest request) {
+        log.error("Errore imprevisto su {}", request != null ? request.getRequestURI() : "?", ex);
         ProblemDetail pd = base(HttpStatus.INTERNAL_SERVER_ERROR, "internal", "Errore interno",
                 "Si è verificato un errore imprevisto", request);
         pd.setProperty("code", "INTERNAL_ERROR");

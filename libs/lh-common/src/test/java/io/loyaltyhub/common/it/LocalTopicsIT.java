@@ -83,14 +83,6 @@ class LocalTopicsIT {
         LhMetrics lhMetrics() {
             return new LhMetrics(new SimpleMeterRegistry());
         }
-
-        @Bean
-        KafkaAdmin kafkaAdmin(org.springframework.core.env.Environment env) {
-            KafkaAdmin admin = new KafkaAdmin(Map.of(
-                    AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG,
-                    env.getProperty("spring.kafka.bootstrap-servers")));
-            admin.setAutoCreate(true);
-            return admin;
-        }
+        // KafkaAdmin lo fornisce ora LhKafkaConfiguration (bootstrap dalle proprietà).
     }
 }

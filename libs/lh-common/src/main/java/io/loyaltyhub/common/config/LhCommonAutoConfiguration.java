@@ -1,7 +1,6 @@
 package io.loyaltyhub.common.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.loyaltyhub.common.event.LhJson;
+import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.common.audit.AuditPublisher;
 import io.loyaltyhub.common.demo.SeedLoader;
 import io.loyaltyhub.common.event.LhEventFactory;
@@ -26,7 +25,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -77,13 +75,9 @@ public class LhCommonAutoConfiguration {
         return new LhMetrics(registry);
     }
 
-    /** Mapper condiviso: date ISO-8601, omissione dei null, tolleranza ai campi sconosciuti (docs/05, docs/06 §2). */
-    @Bean
-    @Primary
-    @ConditionalOnMissingBean(name = "lhObjectMapper")
-    public ObjectMapper lhObjectMapper() {
-        return LhJson.create();
-    }
+    // L'ObjectMapper è quello di Spring Boot (Jackson 3): l'envelope LhEvent porta già le annotazioni
+    // @JsonInclude(NON_NULL)/@JsonIgnoreProperties. La configurazione fine (inclusion, unknown) si imposta
+    // via spring.jackson.* nei servizi (docs/06 §2). LhJson resta per gli usi non-Spring (test).
 
     @Bean
     @ConditionalOnMissingBean

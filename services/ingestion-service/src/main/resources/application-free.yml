@@ -1,0 +1,11 @@
+# Profilo `free` (docs/06 §6): tuning per 512 MB / 0.1 CPU.
+# NB: spring.main.lazy-initialization richiede @Lazy(false) su @KafkaListener e @Scheduled (docs/06 §5):
+# si attiva insieme a quell'irrobustimento al deploy (M1.8, Q-20). Qui restano i tuning sicuri.
+spring:
+  threads:
+    virtual:
+      enabled: true   # virtual thread (Java 25, ADR-005)
+server:
+  tomcat:
+    threads:
+      max: 20

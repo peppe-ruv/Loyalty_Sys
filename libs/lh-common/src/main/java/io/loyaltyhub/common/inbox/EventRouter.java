@@ -1,6 +1,6 @@
 package io.loyaltyhub.common.inbox;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.metrics.LhMetrics;
 import org.slf4j.Logger;

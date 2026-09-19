@@ -35,6 +35,7 @@ import java.util.Map;
  * error handler con 3 tentativi → DLQ {@code lh.dlq.v1}, e i 5 topic creati solo col profilo {@code local}.
  */
 @Configuration(proxyBeanMethods = false)
+@org.springframework.kafka.annotation.EnableKafka
 public class LhKafkaConfiguration {
 
     private final LoyaltyHubProperties props;
@@ -62,6 +63,15 @@ public class LhKafkaConfiguration {
     @ConditionalOnMissingBean
     public KafkaTemplate<String, String> kafkaTemplate(ProducerFactory<String, String> pf) {
         return new KafkaTemplate<>(pf);
+    }
+
+    /** Admin per creare i topic dai bean NewTopic (profilo local) con la sicurezza configurata. */
+    @Bean
+    @ConditionalOnMissingBean
+    public KafkaAdmin kafkaAdmin() {
+        Map<String, Object> cfg = new HashMap<>(LhKafkaSecurity.properties(props.getKafka()));
+        cfg.put(org.apache.kafka.clients.admin.AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        return new KafkaAdmin(cfg);
     }
 
     @Bean

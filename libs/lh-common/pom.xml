@@ -34,7 +34,7 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-data-jdbc</artifactId>
     </dependency>
-    <!-- Web: ProblemDetail (RFC 9457), filtri CORS/MDC, ActorContext -->
+    <!-- Web: ProblemDetail (RFC 9457), filtri CORS/MDC, ActorContext (usa Jackson 3, default di Boot 4). -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>
@@ -49,6 +49,11 @@
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-core</artifactId>
     </dependency>
+    <!-- Auto-configurazione Flyway di Spring Boot 4 (modulo separato dalla 4.x). -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-flyway</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-database-postgresql</artifactId>
@@ -62,12 +67,8 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
-    <!-- Jackson JSR-310 (date RFC 3339) -->
-    <dependency>
-      <groupId>com.fasterxml.jackson.datatype</groupId>
-      <artifactId>jackson-datatype-jsr310</artifactId>
-    </dependency>
-    <!-- Validatore JSON Schema 2020-12 (docs/05 §9, Q-27) -->
+    <!-- Validatore JSON Schema 2020-12 (docs/05 §9, Q-27). Usa Jackson 2 internamente: resta confinato
+         ai test di contratto; il runtime del sistema usa Jackson 3. -->
     <dependency>
       <groupId>com.networknt</groupId>
       <artifactId>json-schema-validator</artifactId>

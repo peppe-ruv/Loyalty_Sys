@@ -1,11 +1,15 @@
 package io.loyaltyhub.common.event;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
 
-/** {@link ObjectMapper} canonico del sistema: date RFC 3339 (ISO-8601), niente timestamp numerici. */
+/**
+ * {@link ObjectMapper} canonico del sistema (Jackson 3): date RFC 3339 (ISO-8601, java.time integrato),
+ * omissione dei null, tolleranza ai campi sconosciuti (docs/05, docs/06 §2).
+ */
 public final class LhJson {
 
     private static final ObjectMapper MAPPER = create();
@@ -19,12 +23,10 @@ public final class LhJson {
 
     /** Costruisce un mapper con la configurazione condivisa (usato anche dal bean Spring). */
     public static ObjectMapper create() {
-        ObjectMapper mapper = new ObjectMapper();
-        // Carica i moduli sul classpath: JavaTime (date RFC 3339), ParameterNames (record), Jdk8.
-        mapper.findAndRegisterModules();
-        return mapper
-                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+        return JsonMapper.builder()
+                .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                .setSerializationInclusion(JsonInclude.Include.NON_NULL);
+                .changeDefaultPropertyInclusion(value -> value.withValueInclusion(JsonInclude.Include.NON_NULL))
+                .build();
     }
 }

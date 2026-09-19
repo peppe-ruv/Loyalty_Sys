@@ -13,7 +13,57 @@
 
   <artifactId>ingestion-service</artifactId>
   <packaging>jar</packaging>
+  <description>Unico ingresso delle azioni e unico produttore di lh.actions.v1 (porta 8081, schema ingestion). Archetipo in M0.5.</description>
 
-  <!-- Modulo vuoto in M0.1: prende corpo nelle fette successive (docs/12). -->
-  <description>Unico ingresso delle azioni: fonti, tipi azione e schemi, dedup, ponte interno, simulatore (porta 8081, schema ingestion).</description>
+  <properties>
+    <zonky-embedded-postgres.version>2.0.7</zonky-embedded-postgres.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.loyaltyhub</groupId>
+      <artifactId>lh-common</artifactId>
+      <version>0.1.0-SNAPSHOT</version>
+    </dependency>
+
+    <!-- ==================== TEST ==================== -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.kafka</groupId>
+      <artifactId>spring-kafka-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.zonky.test</groupId>
+      <artifactId>embedded-postgres</artifactId>
+      <version>${zonky-embedded-postgres.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- Fat jar eseguibile per il Dockerfile. -->
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
+            <configuration>
+              <!-- Fat jar classificato: il jar principale resta "sottile" (classi in radice), così
+                   i test d'integrazione trovano la @SpringBootConfiguration; il Docker usa *-boot.jar. -->
+              <classifier>boot</classifier>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>

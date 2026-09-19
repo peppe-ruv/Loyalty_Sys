@@ -1,6 +1,6 @@
 package io.loyaltyhub.common.it;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhEventFactory;
 import io.loyaltyhub.common.event.LhEventTypes;
@@ -170,7 +170,7 @@ class LhCommonInfraIT {
     @Test
     void idempotentConsumerRunsLogicOnce() {
         String eventId = "01J8ZK3V7Q2M9T4B6N8R0IDEMP";
-        LhEvent<com.fasterxml.jackson.databind.JsonNode> event = asJsonNode(events.newRoot(
+        LhEvent<tools.jackson.databind.JsonNode> event = asJsonNode(events.newRoot(
                 LhEventTypes.Action.PURCHASE_COMPLETED, "member:MBR-000004",
                 Map.of("orderId", "ORD-IDEMP"), LhSource.source("ecommerce"), null), eventId);
 
@@ -294,11 +294,11 @@ class LhCommonInfraIT {
         return h == null ? null : new String(h.value(), java.nio.charset.StandardCharsets.UTF_8);
     }
 
-    private LhEvent<com.fasterxml.jackson.databind.JsonNode> asJsonNode(LhEvent<?> event, String forcedId) {
+    private LhEvent<tools.jackson.databind.JsonNode> asJsonNode(LhEvent<?> event, String forcedId) {
         LhEvent<?> withId = new LhEvent<>(event.specversion(), forcedId, event.source(), event.type(),
                 event.subject(), event.time(), event.datacontenttype(), event.dataschema(), event.lhtenant(),
                 forcedId, event.lhcausationid(), event.lhhop(), event.lhactor(), event.data());
-        com.fasterxml.jackson.databind.JsonNode data = mapper.valueToTree(withId.data());
+        tools.jackson.databind.JsonNode data = mapper.valueToTree(withId.data());
         return new LhEvent<>(withId.specversion(), withId.id(), withId.source(), withId.type(), withId.subject(),
                 withId.time(), withId.datacontenttype(), withId.dataschema(), withId.lhtenant(),
                 withId.lhcorrelationid(), withId.lhcausationid(), withId.lhhop(), withId.lhactor(), data);

@@ -79,5 +79,11 @@ class LhCommonAutoConfigurationIT {
         JdbcClient jdbcClient(DataSource dataSource) {
             return JdbcClient.create(dataSource);
         }
+
+        // Fuori da un contesto Boot completo non c'è l'ObjectMapper di Jackson: lo forniamo noi.
+        @Bean
+        tools.jackson.databind.ObjectMapper objectMapper() {
+            return io.loyaltyhub.common.event.LhJson.create();
+        }
     }
 }
