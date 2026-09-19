@@ -18,6 +18,11 @@ spring:
       minimum-idle: 0
       idle-timeout: 60000
       connection-timeout: 20000
+      # search_path per ogni connessione: i 4 schemi del consolidato (ADR-023). Impostato via SET e non via
+      # `currentSchema` nell'URL perché il proxy di Neon non inoltra il parametro di startup `options` (le
+      # tabelle non qualificate risulterebbero inesistenti). Le migrazioni non ne dipendono: HubDatabase fissa
+      # lo schema esplicitamente per ogni run Flyway.
+      connection-init-sql: SET search_path TO ingestion, member, campaign, wallet
   flyway:
     enabled: false   # le migrazioni per schema le esegue HubDatabase (una per schema)
   kafka:
