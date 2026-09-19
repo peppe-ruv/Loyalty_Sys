@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Loyalty Hub — PoC in costruzione</title>
+  <meta name="description" content="Loyalty Hub: piattaforma loyalty open source ed event-driven. Proof of concept in costruzione." />
+  <style>
+    :root {
+      --bg: #0b1020; --fg: #e7ecf5; --muted: #97a3b6; --card: #131a2e; --accent: #6ea8fe; --line: #24304b;
+    }
+    @media (prefers-color-scheme: light) {
+      :root { --bg: #f6f8fc; --fg: #14203a; --muted: #5b6b86; --card: #ffffff; --accent: #2b6cff; --line: #e2e8f4; }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      background: var(--bg); color: var(--fg);
+      font: 16px/1.6 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      display: grid; place-items: center; padding: 24px;
+    }
+    .card {
+      max-width: 640px; width: 100%; background: var(--card); border: 1px solid var(--line);
+      border-radius: 16px; padding: 40px 32px; box-shadow: 0 10px 40px rgba(0,0,0,.15);
+    }
+    .badge {
+      display: inline-block; font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+      color: var(--accent); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; margin-bottom: 20px;
+    }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    p { color: var(--muted); margin: 0 0 16px; }
+    ul { color: var(--muted); padding-left: 20px; margin: 0 0 8px; }
+    .en { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 16px; font-size: 14px; }
+    code { color: var(--fg); background: rgba(110,168,254,.12); padding: 1px 6px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <span class="badge">Proof of concept · in costruzione</span>
+    <h1>Loyalty Hub</h1>
+    <p>Piattaforma loyalty <strong>open source ed event-driven</strong>. Questa area web è in fase di realizzazione:
+       comparirà quando la sua milestone sarà chiusa (nessuna schermata "vuota in attesa del backend").</p>
+    <ul>
+      <li>Fondamenta del monorepo, libreria condivisa e contratti eventi: completate.</li>
+      <li>Interfaccia web (hub, backoffice, portale): in arrivo con la milestone <code>M0.6</code>.</li>
+      <li>Prima demo online pubblica: milestone <code>M1.8</code>.</li>
+    </ul>
+    <div class="en">
+      <strong>Loyalty Hub</strong> — a vendor-neutral, event-driven loyalty platform. The web experience is under
+      construction and will appear once its milestone ships. Come back soon.
+    </div>
+  </main>
+</body>
+</html>
