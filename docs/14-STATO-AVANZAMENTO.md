@@ -40,7 +40,6 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `M0.4` — `deploy/docker-compose.yml`: Kafka KRaft + Postgres 17 + Kafka UI (infra di default) e 8 servizi + web sotto `--profile all`; limiti mem/cpu. I 5 topic li crea il profilo `local` (bean `NewTopic`, 2 partizioni), verificato da `LocalTopicsIT` (Kafka in-JVM). Compose validato con `docker compose config`. (`8d4b60d`)
 - [x] `M0.5` — servizio archetipo `ingestion-service`: `POST /v1/events` → dedup `(source,id)` → arricchimento `lh*` → outbox su `lh.actions.v1` (`202 ACCEPTED`/`DUPLICATE`), consumer di prova, Flyway (`V0`+`V1 inbound_event`), Actuator, Dockerfile multi-stage. IT su Spring Boot + EmbeddedKafka + Zonky (accettato/duplicato/400). **Migrazione a Jackson 3** (default di Boot 4) in lh-common + servizio; aggiunte le auto-config Boot 4 mancanti (`spring-boot-flyway`, `@EnableKafka`, `KafkaAdmin`). Q-43 (`ebb8dcb`)
 - [ ] `M0.6`
-- [ ] `M0.6`
 - [ ] `M0.7`
 
 **Feature** (`docs/02`)
