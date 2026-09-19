@@ -1,0 +1,10 @@
+[
+  {
+    "code": "PTS", "name": "Punti", "spendable": true,
+    "expiryPolicy": { "type": "ROLLING_MONTHS", "months": 12 }
+  },
+  {
+    "code": "STS", "name": "Punti status", "spendable": false,
+    "expiryPolicy": { "type": "EDITION" }
+  }
+]

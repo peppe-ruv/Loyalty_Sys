@@ -91,8 +91,9 @@ public class EvaluationService {
                 actionEvent.lhcorrelationid(), ev.outcome().name(), mapper.writeValueAsString(ev.results()));
 
         // Outbox: effetti + fatto di spiegabilità (stessa transazione, propagando la correlazione).
+        // Gli accrediti rappresentano la stessa data di business dell'azione → childSameBusinessTime (docs/05 §2).
         for (GrantedEffect g : ev.effects()) {
-            outbox.write(events.childOf(actionEvent, LhEventTypes.Effect.POINTS_GRANT, effectData(action, g)));
+            outbox.write(events.childSameBusinessTime(actionEvent, LhEventTypes.Effect.POINTS_GRANT, effectData(action, g)));
         }
         outbox.write(events.childOf(actionEvent, LhEventTypes.Fact.CAMPAIGN_EVALUATED, evaluatedData(action, ev)));
     }
