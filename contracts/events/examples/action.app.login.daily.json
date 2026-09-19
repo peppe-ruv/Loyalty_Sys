@@ -1,0 +1,16 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZK4A0Q2M9T4B6N8R0XWYCH",
+  "source": "urn:loyaltyhub:source:app",
+  "type": "io.loyaltyhub.action.app.login.daily",
+  "subject": "member:MBR-000001",
+  "time": "2026-09-19T07:05:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:action.app.login.daily:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZK4A0Q2M9T4B6N8R0XWYCH",
+  "lhhop": 0,
+  "data": {
+    "platform": "WEB"
+  }
+}

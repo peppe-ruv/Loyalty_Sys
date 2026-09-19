@@ -1,0 +1,30 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZK3W9Q2M9T4B6N8R0XWYCG",
+  "source": "urn:loyaltyhub:service:campaign",
+  "type": "io.loyaltyhub.fact.campaign.evaluated",
+  "subject": "member:MBR-000003",
+  "time": "2026-09-18T10:15:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.campaign.evaluated:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZK3V7Q2M9T4B6N8R0XWYCD",
+  "lhcausationid": "01J8ZK3V7Q2M9T4B6N8R0XWYCD",
+  "lhhop": 0,
+  "data": {
+    "actionId": "01J8ZK3V7Q2M9T4B6N8R0XWYCD",
+    "actionType": "purchase.completed",
+    "matched": [
+      {
+        "campaignCode": "CMP-PURCHASE-BASE",
+        "effects": [
+          { "type": "GRANT_POINTS", "currency": "PTS", "amount": 162 },
+          { "type": "GRANT_POINTS", "currency": "STS", "amount": 130 }
+        ]
+      }
+    ],
+    "skipped": [
+      { "campaignCode": "CMP-WEEKEND-X2", "reason": "CALENDAR_NO_MATCH" }
+    ]
+  }
+}

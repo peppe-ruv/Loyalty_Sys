@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.campaign.evaluated:1",
+  "title": "fact.campaign.evaluated — data (EVT-FACT-10, docs/05 §5)",
+  "description": "Registro di valutazione di un'azione: campagne applicate ed effetti, campagne saltate con motivo.",
+  "type": "object",
+  "required": ["actionId", "actionType", "matched", "skipped"],
+  "properties": {
+    "actionId": { "type": "string", "minLength": 1 },
+    "actionType": { "type": "string", "minLength": 1 },
+    "matched": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["campaignCode", "effects"],
+        "properties": {
+          "campaignCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$" },
+          "effects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["type"],
+              "properties": {
+                "type": { "type": "string" },
+                "currency": { "enum": ["PTS", "STS"] },
+                "amount": { "type": "integer" }
+              },
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "skipped": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["campaignCode", "reason"],
+        "properties": {
+          "campaignCode": { "type": "string" },
+          "reason": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

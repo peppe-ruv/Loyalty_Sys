@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.member.updated:1",
+  "title": "fact.member.updated — data (EVT-FACT-02, docs/05 §5)",
+  "description": "Snapshot completo del membro, come member.registered.",
+  "type": "object",
+  "required": ["memberId", "status"],
+  "properties": {
+    "memberId": { "type": "string", "pattern": "^MBR-[0-9]{6}$" },
+    "firstName": { "type": "string" },
+    "lastName": { "type": "string" },
+    "nickname": { "type": "string" },
+    "email": { "type": "string" },
+    "externalId": { "type": "string" },
+    "status": { "enum": ["ACTIVE", "SUSPENDED", "BLOCKED", "CLOSED", "ANONYMIZED"] },
+    "channel": { "type": "string" },
+    "registeredAt": { "type": "string", "format": "date-time" },
+    "birthDate": { "type": "string" },
+    "city": { "type": "string" },
+    "referralCode": { "type": "string" },
+    "referredBy": { "type": ["string", "null"] },
+    "attributes": { "type": "object" },
+    "labels": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": true
+}

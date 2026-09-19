@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:envelope",
+  "title": "LhEvent — envelope CloudEvents 1.0 (docs/05 §2)",
+  "description": "Forma canonica interna di un evento, dopo l'arricchimento lh* fatto da ingestion. I consumatori tollerano campi sconosciuti.",
+  "type": "object",
+  "required": [
+    "specversion", "id", "source", "type", "subject", "time",
+    "datacontenttype", "dataschema", "lhtenant", "lhcorrelationid", "lhhop", "data"
+  ],
+  "properties": {
+    "specversion": { "const": "1.0" },
+    "id": { "type": "string", "minLength": 1 },
+    "source": { "type": "string", "pattern": "^urn:loyaltyhub:(source|service):.+$" },
+    "type": { "type": "string", "pattern": "^io\\.loyaltyhub\\.(action|effect|fact|audit)\\..+$" },
+    "subject": { "type": "string", "minLength": 1 },
+    "time": { "type": "string", "format": "date-time" },
+    "datacontenttype": { "const": "application/json" },
+    "dataschema": { "type": "string", "pattern": "^urn:loyaltyhub:schema:.+:[0-9]+$" },
+    "lhtenant": { "type": "string", "minLength": 1 },
+    "lhcorrelationid": { "type": "string", "minLength": 1 },
+    "lhcausationid": { "type": "string", "minLength": 1 },
+    "lhhop": { "type": "integer", "minimum": 0 },
+    "lhactor": { "type": "string" },
+    "data": { "type": "object" }
+  },
+  "additionalProperties": true
+}

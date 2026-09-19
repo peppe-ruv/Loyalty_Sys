@@ -1,0 +1,27 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZK3W1Q2M9T4B6N8R0XWYCE",
+  "source": "urn:loyaltyhub:service:campaign",
+  "type": "io.loyaltyhub.effect.points.grant",
+  "subject": "member:MBR-000003",
+  "time": "2026-09-18T10:15:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:effect.points.grant:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZK3V7Q2M9T4B6N8R0XWYCD",
+  "lhcausationid": "01J8ZK3V7Q2M9T4B6N8R0XWYCD",
+  "lhhop": 0,
+  "data": {
+    "effectId": "9F2C7A51B3D84E6FA0C1D2E3F4",
+    "campaignCode": "CMP-PURCHASE-BASE",
+    "actionId": "01J8ZK3V7Q2M9T4B6N8R0XWYCD",
+    "actionType": "purchase.completed",
+    "currency": "PTS",
+    "baseAmount": 130,
+    "campaignMultiplier": 1.0,
+    "amount": 130,
+    "tierMultiplierApplies": true,
+    "pendingDays": 0,
+    "description": "Punti per acquisto ORD-88213"
+  }
+}

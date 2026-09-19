@@ -1,0 +1,23 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZK6D0Q2M9T4B6N8R0XWYCP",
+  "source": "urn:loyaltyhub:service:wallet",
+  "type": "io.loyaltyhub.audit.entry",
+  "subject": "WALLET:MBR-000004",
+  "time": "2026-09-17T14:42:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:audit.entry:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZK6D0Q2M9T4B6N8R0XWYCP",
+  "lhhop": 0,
+  "lhactor": "CARE:anna.care",
+  "data": {
+    "service": "wallet",
+    "entityType": "WALLET",
+    "entityId": "MBR-000004",
+    "action": "ADJUST",
+    "summary": "Accredito manuale di 200 PTS (GOODWILL)",
+    "before": { "balance": 12300 },
+    "after": { "balance": 12500 }
+  }
+}
