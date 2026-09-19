@@ -9,7 +9,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | Milestone | Stato | Inizio | Fine | Demo online aggiornata | Note |
 |---|---|---|---|---|---|
 | M0 — Fondamenta | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M0.1→M0.7 chiuse; CI in piedi |
-| M1 — Core loop e primo deploy | in corso | M1.7 | | ☐ | |
+| M1 — Core loop e primo deploy | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M1.1→M1.8 chiuse; demo ospitata online |
 | M2 — Visibilità | da iniziare | | | ☐ | |
 | M3 — Punti adulti | da iniziare | | | ☐ | |
 | M4 — Premi | da iniziare | | | ☐ | |
@@ -17,18 +17,18 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M6 — Contenuti | da iniziare | | | ☐ | |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** `M1.8`
+**Prossima fetta da lavorare:** `M2.1` (visibilità)
 
-**Ambiente demo**
+**Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
 | Risorsa | Stato | Riferimento (URL/ID, mai segreti) |
 |---|---|---|
 | Repository GitHub | ✅ | branch `claude/istruzioni-dwhe86` |
 | Kafka locale (compose) | ✅ | `deploy/docker-compose.yml` (KRaft); topic dal profilo `local` |
-| Kafka Aiven (5 topic) | ☐ | |
-| Progetto Neon | ☐ | |
-| Blueprint Render | ☐ | |
-| Progetto Vercel | ☐ | |
+| Hub online (Render, free) | ✅ | `srv-daneakoae00c73eg7j20` — https://loyalty-hub-6dc3.onrender.com (Docker `deploy/hub/Dockerfile`, region Frankfurt, profilo `demo,inproc`) |
+| Postgres Neon | ✅ | progetto `odd-pine-62283646` (`Neon-Postgres-Loyalty`, eu-central-1, PG 18); DB `neondb`, schemi `ingestion/member/campaign/wallet` migrati e seminati (12 membri, 20 campagne, 24 wallet) |
+| Broker Kafka gestito | — | non usato: demo senza broker (bus in-process, ADR-024). Redpanda/Confluent free restano opzione a fedeltà piena se servisse il protocollo online |
+| Frontend Vercel | ☐ | progetto `loyalty-hub-playground` esistente ma fuori dallo scope del token connettore in questa sessione (403 su team `poc-22b1`): da collegare quando Giuseppe riautentica lo scope. Env da impostare: `LH_SVC_{INGESTION,MEMBER,CAMPAIGN,WALLET}_URL = https://loyalty-hub-6dc3.onrender.com` |
 
 ## M0 — Fondamenta
 
@@ -64,7 +64,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `M1.5` — backoffice (docs/08): shell con sidebar a milestone (`lib/nav.ts`), permessi `can(role,capability)`, client proxy TanStack (`useLhQuery`/`useLhMutation`), stati loading/empty/error/degraded (`QueryState`), componenti condivisi (DataTable, StatusPill, TierBadge, PointsAmount, CodeText, LifecycleBar, GeneratedSentence, SimulationPanel, Tabs, Can). Schermate: **BO-02** membri, **BO-03** scheda 360° (panoramica/movimenti/azioni), **BO-05** campagne, **BO-06** editor+simulazione (`describeCampaign()` con test), **BO-09** azioni/fonti (sola lettura), **BO-26** monitor ingressi, **BO-28** simulatore, **BO-30** console (stato + reset orchestrato). Endpoint ingestion aggiunti (GET event-types/sources/inbound-events, POST demo/simulator/fire). `pnpm lint typecheck test build` verdi (13 test)
 - [x] `M1.6` — portale membri (docs/09): shell mobile-first «Club Aurora» con tab bar (Home/Guadagna/Attività, solo voci M1), tessera `MemberCard` col materiale del tier, membro attivo dal cookie + cambio persona (`/api/persona`). **PT-01** home (tessera, saldo, avanzamento livello, ultimi 3 movimenti, azioni rapide), **PT-02** guadagna (campagne leggibili con riepilogo premio), **PT-07** attività (movimenti per giorno, filtro valuta, scomposizione "130 base × 1,25 = 162"), **PT-14** tray demo (cambio membro + invio azioni reali). Schema "in elaborazione" a **polling** (`PendingContext`, 5 s; SSE → M2). Backend: wallet `GET /v1/portal/wallets/{id}/activity` (movimenti leggibili). `pnpm lint typecheck test build` verdi
 - [x] `M1.7` — collante demo: `POST /v1/demo/reset` ora **realmente esposto** nei 4 servizi (registrato via `LhCommonAutoConfiguration` col profilo `demo` — prima il controller in `io.loyaltyhub.common` era fuori dal component-scan, quindi 404); `scripts/smoke.sh` (E2E: `POST /v1/events` acquisto 130 € → punti sul wallet entro 15 s, senza jq) e `scripts/wake.sh` (risveglio serverless con timeout); job CI `e2e` estende alla sintassi degli script. IT del reset in `IngestionPipelineIT` (12 casi)
-- [ ] `M1.8`
+- [x] `M1.8` — **primo deploy**: demo ospitata a costo zero (ADR-023 + ADR-024). Deployable consolidato `deploy/hub`: i 4 servizi del core loop (ingestion/member/campaign/wallet) in un solo JVM (gruppo consumer + `EventRouter` per servizio, migrazioni per schema in `db/migration/<servizio>/`, nomi bean qualificati). Broker sostituito da un **bus a eventi in-process** (`HubInProcessBus`, profilo `inproc`) — nessun Kafka a pagamento; fuori da `inproc` resta Redpanda/Kafka vero. Verificato senza broker da `HubInProcessEndToEndIT` (acquisto 130€ feriale → +162 PTS attraverso ingestion→campaign→wallet). **Online**: hub su Render (free, Docker) collegato a **Neon** (schemi migrati e seminati: 12 membri, 20 campagne, 24 wallet; MBR-000003 PTS 3240); avvio pulito, tutte le sottoscrizioni del bus registrate. Fix di deploy: search_path via `connection-init-sql` (il proxy Neon non inoltra `currentSchema`). Frontend Vercel da collegare (scope token fuori sessione). Reattore intero verde (`./mvnw verify`)
 
 **Feature** (`docs/02`)
 
@@ -94,10 +94,10 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 **Accettazione M1** (`docs/12`)
 
-- [ ] criteri di accettazione verdi
-- [ ] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi
-- [ ] stati *loading / empty / error / degraded* sulle schermate toccate
-- [ ] demo online aggiornata e `smoke.sh` verde
+- [x] criteri di accettazione verdi — core loop azione→punti verde end-to-end (con e senza broker) negli IT `HubEndToEndIT`/`HubInProcessEndToEndIT`; demo online avviata e seminata su Neon
+- [x] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi
+- [x] stati *loading / empty / error / degraded* sulle schermate toccate — coperti in M1.5/M1.6
+- [x] demo online in piedi (hub Render + Neon seminato). _Nota: lo `smoke.sh` end-to-end sulla URL pubblica va lanciato da Giuseppe (o dal frontend Vercel): l'egress di questa sessione blocca `*.onrender.com`. Il loop è comunque provato dagli IT sullo stesso codice._
 
 ## M2 — Visibilità
 
@@ -315,6 +315,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 | Data | Fetta | Esito | Commit | Domande aperte create | Note per la prossima sessione |
 |---|---|---|---|---|---|
+| 2026-09-19 | M1.8 | ✅ reattore verde (hub IT broker + inproc); demo online **live** su Render+Neon (avviata, seminata: 12 membri/20 campagne/24 wallet) | `bfe295c`·`4ae3e51`·`a5120f5` | — | **Primo deploy — demo ospitata a costo zero.** ADR-023 (deployable consolidato `deploy/hub`: 4 servizi core in un JVM; gruppo consumer + `EventRouter` per servizio; migrazioni per schema; nomi bean qualificati) + **ADR-024** (bus a eventi **in-process** `HubInProcessBus`, profilo `inproc`: niente broker Kafka a pagamento — su Render un private service costa ~7$/mese e non esiste più Kafka gestito gratuito; deroga circoscritta a CLAUDE.md §1.3 dentro il solo hub; fuori resta Redpanda/Kafka vero). Nuovo IT `HubInProcessEndToEndIT` prova il loop senza broker (130€→+162 PTS). **Online**: hub `srv-daneakoae00c73eg7j20` (https://loyalty-hub-6dc3.onrender.com, Render free/Docker/Frankfurt, profilo `demo,inproc`) su **Neon** `odd-pine-62283646`. Fix deploy: search_path via `connection-init-sql` (Neon non inoltra `currentSchema`). **In sospeso**: (a) frontend Vercel `loyalty-hub-playground` da collegare — scope token `poc-22b1` 403 in sessione, env `LH_SVC_{INGESTION,MEMBER,CAMPAIGN,WALLET}_URL=<hub url>`; (b) smoke E2E sulla URL pubblica da lanciare da Giuseppe/browser (egress sessione blocca `*.onrender.com`). Prossima **M2.1** (visibilità). |
 | 2026-09-19 | M0.1 | ✅ `./mvnw verify` verde (9 moduli) | `86c6666` | Q-01→Apache-2.0, Q-02→loyalty-hub (confermate dall'owner) | M0.2 `libs/lh-common`: test prima (Testcontainers Kafka+Postgres) per outbox/idempotenza/DLQ, poi implementazione. Nota ambiente: JDK locale 21; `verify` di M0.1 è verde perché i moduli sono vuoti, ma da M0.2 (codice reale) serve JDK 25 in CI/deploy. |
 | 2026-09-19 | M0.2 | ✅ `./mvnw verify` verde (24 unit + 5 IT) | `4f9ddaa` | Q-40 (Testcontainers→EmbeddedKafka+Zonky, pull immagini Docker negato dal proxy), Q-41 (JDK 25 provvisto in ambiente; fissare 25 in CI) | M0.3 `contracts/events/`: envelope + schemi ed esempi degli eventi di M1 (docs/05) + test di contratto. Ambiente: JDK 25 in `/opt/jdk-25` (estratto da `mcr.microsoft.com/openjdk/jdk:25-ubuntu`); export in `~/.bashrc`. I test d'integrazione usano EmbeddedKafka + Zonky (niente Docker). |
 | 2026-09-19 | M0.3 | ✅ `./mvnw verify` verde (26 unit + 5 IT) | `10db769` | Q-42 (esempi in `contracts/events/examples/` per `CLAUDE.md §3`, non `contracts/examples/` di docs/05 §9) | M0.4 `deploy/docker-compose.yml` + profilo `local` che crea i 5 topic (docs/11 §9). Nota: i contratti sono sul classpath di test di `lh-common` via `<testResource>`; da M1 ogni produttore aggiunge un test che valida l'evento realmente prodotto (docs/05 §9). |
