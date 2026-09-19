@@ -195,6 +195,23 @@ class IngestionPipelineIT {
         assertThat(body.path("memberId").asString()).isEqualTo("MBR-000008");
     }
 
+    // ---------- reset demo (M1.7) ----------
+
+    @Test
+    void demoResetIsExposedAndReloadsSeed() {
+        JsonNode body = client().post().uri("/v1/demo/reset")
+                .header("X-LH-Actor", "ADMIN:test")
+                .retrieve().body(JsonNode.class);
+        assertThat(body.path("status").asString()).isEqualTo("OK");
+        boolean hasIngestion = false;
+        for (JsonNode n : body.path("reset")) {
+            if (n.asString().equals("ingestion")) {
+                hasIngestion = true;
+            }
+        }
+        assertThat(hasIngestion).as("il seeder di ingestion è tra i componenti resettati").isTrue();
+    }
+
     // ---------- forma non valida (400) ----------
 
     @Test

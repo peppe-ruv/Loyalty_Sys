@@ -132,6 +132,17 @@ public class LhCommonAutoConfiguration {
         return new SeedLoader(mapper);
     }
 
+    /**
+     * Endpoint {@code POST /v1/demo/reset} (docs/06 §1, docs/12 M1.7): registrato solo col profilo {@code demo}.
+     * Vive in {@code io.loyaltyhub.common}, fuori dal component-scan dei servizi, quindi va esposto qui.
+     */
+    @Bean
+    @org.springframework.context.annotation.Profile("demo")
+    @ConditionalOnMissingBean
+    public io.loyaltyhub.common.demo.DemoResetController demoResetController(List<io.loyaltyhub.common.demo.DemoResettable> resettables) {
+        return new io.loyaltyhub.common.demo.DemoResetController(resettables);
+    }
+
     @Bean
     @ConditionalOnMissingBean
     public io.loyaltyhub.common.event.JsonSchemaValidator jsonSchemaValidator() {

@@ -92,7 +92,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # M0.7: validazione del compose. Il run completo (compose --profile all up + Playwright + smoke.sh)
-      # si aggiunge quando gli scenari e i percorsi E2E esistono (M1+).
       - name: Valida compose
         run: docker compose -f deploy/docker-compose.yml --profile all config >/dev/null
+      - name: Sintassi degli script E2E
+        run: bash -n scripts/smoke.sh && bash -n scripts/wake.sh
+      # Il run completo (compose --profile all up + wake + smoke) richiede un ambiente con accesso a
+      # Docker Hub; si aggiunge al deploy (M1.8) su un runner con i registri raggiungibili.
+      # Localmente: docker compose -f deploy/docker-compose.yml --profile all up --build
+      #             scripts/wake.sh && scripts/smoke.sh
