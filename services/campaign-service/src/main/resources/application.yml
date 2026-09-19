@@ -1,0 +1,49 @@
+# campaign-service (docs/06 §4, §6, §8). server.port = ${PORT:8083}.
+spring:
+  application:
+    name: campaign-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/loyaltyhub?currentSchema=campaign}
+    username: ${DB_USERNAME:loyaltyhub}
+    password: ${DB_PASSWORD:loyaltyhub}
+    hikari:
+      maximum-pool-size: 4
+      minimum-idle: 0
+      idle-timeout: 60000
+      connection-timeout: 20000
+  flyway:
+    enabled: true
+    schemas: campaign
+    default-schema: campaign
+    create-schemas: true
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  jackson:
+    default-property-inclusion: non_null
+    deserialization:
+      fail-on-unknown-properties: false
+
+server:
+  port: ${PORT:8083}
+
+loyaltyhub:
+  service: campaign
+  kafka:
+    security: ${KAFKA_SECURITY:PLAINTEXT}
+  # Approvazione disabilitata fino a M7: DRAFT → LIVE diretto (docs/06 §7).
+  approval:
+    enabled: false
+  # Motore regole (docs/03 §3.5): tetto del moltiplicatore complessivo.
+  engine:
+    max-multiplier: 5
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always

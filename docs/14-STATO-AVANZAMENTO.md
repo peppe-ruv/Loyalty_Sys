@@ -9,7 +9,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | Milestone | Stato | Inizio | Fine | Demo online aggiornata | Note |
 |---|---|---|---|---|---|
 | M0 — Fondamenta | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M0.1→M0.7 chiuse; CI in piedi |
-| M1 — Core loop e primo deploy | in corso | M1.2 | | ☐ | |
+| M1 — Core loop e primo deploy | in corso | M1.3 | | ☐ | |
 | M2 — Visibilità | da iniziare | | | ☐ | |
 | M3 — Punti adulti | da iniziare | | | ☐ | |
 | M4 — Premi | da iniziare | | | ☐ | |
@@ -17,7 +17,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M6 — Contenuti | da iniziare | | | ☐ | |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** `M1.3`
+**Prossima fetta da lavorare:** `M1.4`
 
 **Ambiente demo**
 
@@ -59,7 +59,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 - [x] `M1.1` — ingestion completo per M1: registri (`source`, `event_type` con JSON Schema 2020-12, `member_index`, `internal_mapping`), pipeline di accettazione a 8 passi (docs §5) con tutti gli esiti (`ACCEPTED/DUPLICATE/REJECTED/UNMATCHED` + `SOURCE_DISABLED/UNKNOWN_TYPE/TYPE_NOT_ALLOWED/INVALID_DATA/INVALID_TIME/MEMBER_NOT_ACTIVE`), seed canonici (`sources.json`, `event-types.json` 19 tipi, `members.json` 12 membri, `internal-mappings.json` 9), `DemoSeeder` (`DemoResettable`); IT a 11 casi su EmbeddedKafka + Zonky
 - [x] `M1.2` — member-service: anagrafica (`member`), ricerca con filtri (`q`/`status`/`tier`), stati, proiezione saldi/tier (`member_projection`) e statistiche di attività (`member_stats`); produce i tre fatti `member.registered/updated/status.changed` (snapshot completo, lock ottimistico via `version`), consuma `lh.actions.v1` → stats e `lh.facts.v1` (`wallet.points.earned`→saldo, `tier.upgraded`→tier) → proiezione; `GET /v1/demo/personas`; `MemberSeeder` (12 membri dai seed). IT a 7 casi su EmbeddedKafka + Zonky
-- [ ] `M1.3`
+- [x] `M1.3` — campaign-service: **motore regole** (`CampaignEngine`, classe pura, algoritmo docs/03 §3.5) con condizioni `data`/`member`/`context`/`history`, effetti `GRANT_POINTS` (`FIXED`/`PER_AMOUNT`) e `MULTIPLIER`, limiti per membro/budget, calendario, pubblico per tier, `exclusiveGroup`; `evaluation_log` (spiegabilità) + fatto `campaign.evaluated`; effetti `points.grant` su `lh.effects.v1`; simulazione `POST /v1/campaigns/simulate` (senza scrivere, include bozze con `campaignIds`); portale "come guadagnare"; CRUD + transizioni (`DRAFT→LIVE` diretto, approvazione off fino a M7); consumo `lh.facts.v1`→`member_snapshot`; seed 20 campagne (quelle con effetti non supportati caricate ma scartate con `EFFECT_NOT_SUPPORTED_YET`). 5 unit motore + 8 IT su EmbeddedKafka+Zonky
 - [ ] `M1.4`
 - [ ] `M1.5`
 - [ ] `M1.6`
@@ -77,15 +77,15 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `F-MBR-01` Anagrafica membro (P0)
 - [ ] `F-MBR-02` Scheda 360° (P0) — _M1→M6 (proiezione+stats già alimentate; scheda UI in M1.6+)_
 - [x] `F-MBR-04` Stati del membro (P0)
-- [ ] `F-CMP-01` CRUD campagne (P0)
-- [ ] `F-CMP-02` Ciclo di vita (P0)
-- [ ] `F-CMP-03` Costruttore condizioni (P0)
-- [ ] `F-CMP-04` Effetti (P0) — _M1 (punti) → M5_
-- [ ] `F-CMP-05` Limiti (P0)
-- [ ] `F-CMP-06` Pubblico (P0 tier · P1 segmenti) — _M1 / M6_
-- [ ] `F-CMP-08` Simulazione (P0)
-- [ ] `F-CMP-09` Registro valutazioni (P0)
-- [ ] `F-CMP-11` "Come guadagnare" (P0)
+- [x] `F-CMP-01` CRUD campagne (P0)
+- [x] `F-CMP-02` Ciclo di vita (P0) — _senza approvazione (M7)_
+- [x] `F-CMP-03` Costruttore condizioni (P0) — _valutazione `data`/`member`/`context`/`history`; meta campi UI in M1.5+_
+- [x] `F-CMP-04` Effetti (P0) — _M1: `GRANT_POINTS` FIXED/PER_AMOUNT + `MULTIPLIER`; altri effetti → M5_
+- [x] `F-CMP-05` Limiti (P0)
+- [x] `F-CMP-06` Pubblico (P0 tier · P1 segmenti) — _M1 tier / M6 segmenti_
+- [x] `F-CMP-08` Simulazione (P0)
+- [x] `F-CMP-09` Registro valutazioni (P0)
+- [x] `F-CMP-11` "Come guadagnare" (P0)
 - [ ] `F-WAL-01` Doppia valuta (P0)
 - [ ] `F-WAL-02` Libro mastro (P0)
 - [ ] `F-DEMO-03` Simulatore eventi (P0)
@@ -324,3 +324,4 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | 2026-09-19 | M0.7 | ✅ script verdi in locale (`check-seed`, `check-contracts`); YAML CI valido | `80dad2f` | Q-41 → DECISA | **M0 completata.** M1.1 (docs/12): ingestion completo per M1 — fonti, tipi azione con JSON Schema, validazione, risoluzione membro da `member_index`, esiti, seed. La CI è ora l'arbitro: alla prima esecuzione su GitHub va verificato che i job (soprattutto `backend` su Temurin 25 e `web`) siano verdi. |
 | 2026-09-19 | M1.1 | ✅ `./mvnw -pl services/ingestion-service -am verify` verde (11 IT pipeline); `check-seed` verde (4 file) | | — | **Pipeline di accettazione completa** (docs/servizi/ingestion-service.md §5): registri `source`/`event_type`/`member_index`/`internal_mapping` (V2), validazione JSON Schema 2020-12 (`JsonSchemaValidator`, networknt su stringhe → runtime resta Jackson 3), 8 esiti, `DemoSeeder` col profilo `demo` che carica i 4 seed. Seed ingestion sul classpath via `<resource>` del pom. `F-ING-09` (monitor `/v1/inbound-events` + BO-03) e le CRUD di `sources`/`event-types` restano ai backoffice (M1.6+). **Deploy**: l'owner ha collegato **Koyeb** a GitHub → candidato per i microservizi JVM in M1.8 (free tier con Docker/JVM, a differenza di Vercel che ospita solo il frontend). Prossima fetta **M1.2** (member-service). |
 | 2026-09-19 | M1.2 | ✅ `./mvnw verify` (reattore intero) verde: 7 IT member + 11 IT ingestion + IT/unit lh-common; `check-seed` verde | | — | **member-service** (docs/servizi/member-service.md): anagrafica `member` + `member_projection` + `member_stats` (V1), CRUD (create con `referralCode` 8, PATCH con lock ottimistico `version`, cambio stato), ricerca `q`/`status`/`tier`, `GET /v1/demo/personas`. Produce i 3 fatti su `lh.facts.v1` con snapshot completo; consuma `lh.actions.v1`→`member_stats` (azioni interne escluse da ultima attività/acquisti) e `lh.facts.v1` `wallet.points.earned`/`tier.upgraded`→`member_projection` (nessun loop: i `member.*` non hanno handler). `MemberSeeder` (profilo demo, codici invito riproducibili) dai 12 membri di `seed/members.json` (arricchito con `story`/`avatarSeed`/`referredBy`). **Fix M1.1**: aggiunto `COPY seed/` al Dockerfile ingestion (la `<resource>` seed non era nel contesto di build). Referral/segmenti/attributi/anonimizzazione → M5/M6/M7. Prossima fetta **M1.3** (campaign-service). |
+| 2026-09-19 | M1.3 | ✅ `./mvnw verify` (reattore intero) verde: 5 unit motore + 8 IT campaign + 7 IT member + 11 IT ingestion + lh-common; `check-seed` verde (5 file) | | — | **campaign-service** = motore regole (docs/03 §3.5): `CampaignEngine` puro testabile senza Spring; condizioni `data`/`member`/`context`(Europe/Rome)/`history`; effetti `GRANT_POINTS` (FIXED/PER_AMOUNT) + `MULTIPLIER` (il tier NON è applicato qui: `amount=floor(base×campaignMult)`, il wallet applica il moltiplicatore di livello a valle); limiti per membro (`campaign_counter` per periodo) + budget; `effectId=sha256(actionId+code+i)[:26]`; `evaluation_log` + fatto `campaign.evaluated`; effetti su `lh.effects.v1`. `member_snapshot` da `lh.facts.v1` (member.*/tier.*), totali da `wallet.points.earned`. API: elenco+totali, CRUD, transizioni (approvazione off→`DRAFT→LIVE`), `validate`, `simulate` (no scritture, `campaignIds` include bozze), portale. Seed 20 campagne; quelle con effetti non ancora supportati (GRANT_PLAYS/ISSUE_COUPON/SEND_MESSAGE/LOOKUP/FROM_FIELD) restano caricate ma scartate con `EFFECT_NOT_SUPPORTED_YET`. Calcolo canonico verificato: feriale 130 PTS + 130 STS, weekend 260 PTS (×2). Statistiche giornaliere→M2, esclusività→M3, segmenti→M6, approvazione→M7. Prossima **M1.4** (wallet-service). |

@@ -1,0 +1,81 @@
+package io.loyaltyhub.campaign.infra;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import io.loyaltyhub.campaign.engine.MemberSnapshot;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.stereotype.Repository;
+
+import java.time.LocalDate;
+import java.util.Optional;
+
+/** Snapshot locale dei membri (docs/servizi/campaign-service.md §2, §4): alimentato dai fatti member e tier. */
+@Repository
+public class MemberSnapshotRepository {
+
+    private final JdbcClient jdbc;
+    private final ObjectMapper mapper;
+
+    public MemberSnapshotRepository(JdbcClient jdbc, ObjectMapper mapper) {
+        this.jdbc = jdbc;
+        this.mapper = mapper;
+    }
+
+    public Optional<MemberSnapshot> findById(String memberId) {
+        return jdbc.sql("""
+                        SELECT member_id, status, tier_code, segments, labels, attributes::text AS attributes,
+                               registered_at, birth_date
+                        FROM member_snapshot WHERE member_id = ?
+                        """)
+                .param(memberId)
+                .query((rs, n) -> new MemberSnapshot(
+                        rs.getString("member_id"), rs.getString("status"), rs.getString("tier_code"),
+                        TextArrays.toList(rs.getArray("segments")), TextArrays.toList(rs.getArray("labels")),
+                        json(rs.getString("attributes")),
+                        rs.getTimestamp("registered_at") == null ? null : rs.getTimestamp("registered_at").toInstant(),
+                        rs.getObject("birth_date", LocalDate.class)))
+                .optional();
+    }
+
+    public void upsertIdentity(String memberId, String status, String tier, java.time.Instant registeredAt,
+                               LocalDate birthDate, String attributesJson) {
+        jdbc.sql("""
+                        INSERT INTO member_snapshot (member_id, status, tier_code, registered_at, birth_date, attributes)
+                        VALUES (?, ?, coalesce(?, 'BASE'), ?, ?, cast(coalesce(?, '{}') AS jsonb))
+                        ON CONFLICT (member_id) DO UPDATE SET
+                          status = excluded.status,
+                          tier_code = coalesce(excluded.tier_code, member_snapshot.tier_code),
+                          registered_at = coalesce(excluded.registered_at, member_snapshot.registered_at),
+                          birth_date = coalesce(excluded.birth_date, member_snapshot.birth_date),
+                          attributes = excluded.attributes
+                        """)
+                .params(memberId, status, tier,
+                        registeredAt == null ? null : java.sql.Timestamp.from(registeredAt),
+                        birthDate, attributesJson)
+                .update();
+    }
+
+    public void updateStatus(String memberId, String status) {
+        jdbc.sql("""
+                        INSERT INTO member_snapshot (member_id, status) VALUES (?, ?)
+                        ON CONFLICT (member_id) DO UPDATE SET status = excluded.status
+                        """)
+                .params(memberId, status).update();
+    }
+
+    public void updateTier(String memberId, String tier) {
+        jdbc.sql("""
+                        INSERT INTO member_snapshot (member_id, status, tier_code) VALUES (?, 'ACTIVE', ?)
+                        ON CONFLICT (member_id) DO UPDATE SET tier_code = excluded.tier_code
+                        """)
+                .params(memberId, tier).update();
+    }
+
+    public void deleteAll() {
+        jdbc.sql("DELETE FROM member_snapshot").update();
+    }
+
+    private JsonNode json(String text) {
+        return text == null ? mapper.createObjectNode() : mapper.readTree(text);
+    }
+}

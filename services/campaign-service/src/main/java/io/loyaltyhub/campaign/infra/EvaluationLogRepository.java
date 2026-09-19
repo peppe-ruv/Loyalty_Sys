@@ -1,0 +1,66 @@
+package io.loyaltyhub.campaign.infra;
+
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.stereotype.Repository;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+
+/** Registro delle valutazioni per la spiegabilità (docs/servizi/campaign-service.md §2). Pulizia > 30 giorni. */
+@Repository
+public class EvaluationLogRepository {
+
+    private final JdbcClient jdbc;
+
+    public EvaluationLogRepository(JdbcClient jdbc) {
+        this.jdbc = jdbc;
+    }
+
+    /** Inserisce la valutazione; idempotente su {@code action_id} (i replay non duplicano). */
+    public void save(String actionId, String memberId, String actionType, Instant actionTime,
+                     String correlationId, String outcome, String resultsJson) {
+        jdbc.sql("""
+                        INSERT INTO evaluation_log
+                          (action_id, member_id, action_type, action_time, correlation_id, outcome, results)
+                        VALUES (?, ?, ?, ?, ?, ?, cast(? AS jsonb))
+                        ON CONFLICT (action_id) DO NOTHING
+                        """)
+                .params(actionId, memberId, actionType, java.sql.Timestamp.from(actionTime),
+                        correlationId, outcome, resultsJson)
+                .update();
+    }
+
+    public Optional<String> findResults(String actionId) {
+        return jdbc.sql("SELECT results::text FROM evaluation_log WHERE action_id = ?")
+                .param(actionId).query(String.class).optional();
+    }
+
+    public List<EvaluationRow> search(String memberId, String outcome, int limit) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT action_id, member_id, action_type, action_time, evaluated_at, outcome, results::text AS results
+                FROM evaluation_log WHERE 1 = 1
+                """);
+        List<Object> args = new java.util.ArrayList<>();
+        if (memberId != null && !memberId.isBlank()) {
+            sql.append(" AND member_id = ?");
+            args.add(memberId);
+        }
+        if (outcome != null && !outcome.isBlank()) {
+            sql.append(" AND outcome = ?");
+            args.add(outcome.trim().toUpperCase());
+        }
+        sql.append(" ORDER BY evaluated_at DESC LIMIT ?");
+        args.add(limit);
+        return jdbc.sql(sql.toString()).params(args)
+                .query((rs, n) -> new EvaluationRow(
+                        rs.getString("action_id"), rs.getString("member_id"), rs.getString("action_type"),
+                        rs.getTimestamp("action_time").toInstant(), rs.getTimestamp("evaluated_at").toInstant(),
+                        rs.getString("outcome"), rs.getString("results")))
+                .list();
+    }
+
+    public record EvaluationRow(String actionId, String memberId, String actionType, Instant actionTime,
+                                Instant evaluatedAt, String outcome, String resultsJson) {
+    }
+}
