@@ -28,7 +28,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | Hub online (Render, free) | ✅ | `srv-daneakoae00c73eg7j20` — https://loyalty-hub-6dc3.onrender.com (Docker `deploy/hub/Dockerfile`, region Frankfurt, profilo `demo,inproc`) |
 | Postgres Neon | ✅ | progetto `odd-pine-62283646` (`Neon-Postgres-Loyalty`, eu-central-1, PG 18); DB `neondb`, schemi `ingestion/member/campaign/wallet` migrati e seminati (12 membri, 20 campagne, 24 wallet) |
 | Broker Kafka gestito | — | non usato: demo senza broker (bus in-process, ADR-024). Redpanda/Confluent free restano opzione a fedeltà piena se servisse il protocollo online |
-| Frontend Vercel | ☐ | progetto `loyalty-hub-playground` esistente ma fuori dallo scope del token connettore in questa sessione (403 su team `poc-22b1`): da collegare quando Giuseppe riautentica lo scope. Env da impostare: `LH_SVC_{INGESTION,MEMBER,CAMPAIGN,WALLET}_URL = https://loyalty-hub-6dc3.onrender.com` |
+| Frontend Vercel | ✅ | progetto `loyalty-hub-web` (`prj_pO7cj7Q6iMKbcSXFPakB8WhilUUb`, team `poc-22b1`, Next.js, root `web/`, branch `claude/istruzioni-dwhe86`) — **https://loyalty-hub-web.vercel.app**. I 4 env `LH_SVC_{INGESTION,MEMBER,CAMPAIGN,WALLET}_URL` puntano all'hub Render; deployment protection disattivata (demo pubblica). NB: `loyalty-hub-playground` è un'altra app (Payload CMS), lasciata intatta |
 
 ## M0 — Fondamenta
 
@@ -97,7 +97,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] criteri di accettazione verdi — core loop azione→punti verde end-to-end (con e senza broker) negli IT `HubEndToEndIT`/`HubInProcessEndToEndIT`; demo online avviata e seminata su Neon
 - [x] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi
 - [x] stati *loading / empty / error / degraded* sulle schermate toccate — coperti in M1.5/M1.6
-- [x] demo online in piedi (hub Render + Neon seminato). _Nota: lo `smoke.sh` end-to-end sulla URL pubblica va lanciato da Giuseppe (o dal frontend Vercel): l'egress di questa sessione blocca `*.onrender.com`. Il loop è comunque provato dagli IT sullo stesso codice._
+- [x] demo online in piedi: **frontend** https://loyalty-hub-web.vercel.app (Vercel) → **hub** https://loyalty-hub-6dc3.onrender.com (Render) → **Neon** (seminato). _Nota: lo `smoke.sh` E2E sulla URL pubblica va lanciato da Giuseppe/browser (l'egress di questa sessione blocca `*.onrender.com`/`*.vercel.app`); il loop è provato dagli IT sullo stesso codice._
 
 ## M2 — Visibilità
 
