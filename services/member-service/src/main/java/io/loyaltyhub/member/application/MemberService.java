@@ -1,5 +1,7 @@
 package io.loyaltyhub.member.application;
 
+import io.loyaltyhub.common.audit.AuditEntry;
+import io.loyaltyhub.common.audit.AuditPublisher;
 import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhEventFactory;
 import io.loyaltyhub.common.event.LhEventTypes;
@@ -23,8 +25,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Anagrafica dei membri (docs/servizi/member-service.md §3, §5): creazione, ricerca, modifica, stati.
@@ -41,14 +45,16 @@ public class MemberService {
     private final MemberProjectionRepository projections;
     private final LhEventFactory events;
     private final OutboxWriter outbox;
+    private final AuditPublisher audit;
     private final Clock clock;
 
     public MemberService(MemberRepository members, MemberProjectionRepository projections,
-                         LhEventFactory events, OutboxWriter outbox, Clock clock) {
+                         LhEventFactory events, OutboxWriter outbox, AuditPublisher audit, Clock clock) {
         this.members = members;
         this.projections = projections;
         this.events = events;
         this.outbox = outbox;
+        this.audit = audit;
         this.clock = clock;
     }
 
@@ -95,6 +101,10 @@ public class MemberService {
         projections.upsert(id, "BASE", 0, 0, 0, 0);
 
         publish(LhEventTypes.Fact.MEMBER_REGISTERED, m, "BASE");
+        audit.record("MEMBER", id, AuditEntry.Action.CREATE,
+                "Creato membro " + m.displayName() + " (" + orEmpty(m.email()) + ")",
+                null, Map.of("firstName", orEmpty(m.firstName()), "lastName", orEmpty(m.lastName()),
+                        "email", orEmpty(m.email()), "status", m.status().name(), "channel", orEmpty(m.channel())));
         return MemberView.of(m, MemberProjection.base(id));
     }
 
@@ -132,6 +142,21 @@ public class MemberService {
         Member updated = members.findById(id).orElseThrow();
         String tier = tierOf(id);
         publish(LhEventTypes.Fact.MEMBER_UPDATED, updated, tier);
+
+        Map<String, Object> before = new LinkedHashMap<>();
+        Map<String, Object> after = new LinkedHashMap<>();
+        diff(before, after, "firstName", m.firstName(), updated.firstName());
+        diff(before, after, "lastName", m.lastName(), updated.lastName());
+        diff(before, after, "nickname", m.nickname(), updated.nickname());
+        diff(before, after, "email", m.email(), updated.email());
+        diff(before, after, "phone", m.phone(), updated.phone());
+        diff(before, after, "birthDate", m.birthDate(), updated.birthDate());
+        diff(before, after, "gender", m.gender(), updated.gender());
+        diff(before, after, "city", m.city(), updated.city());
+        if (!after.isEmpty()) {
+            audit.record("MEMBER", id, AuditEntry.Action.UPDATE,
+                    "Modificato profilo di " + updated.displayName() + " (" + after.size() + " campi)", before, after);
+        }
         return MemberView.of(updated, projections.findByMemberId(id).orElse(null));
     }
 
@@ -150,6 +175,11 @@ public class MemberService {
                 Map.of("memberId", id, "previousStatus", previous.name(), "newStatus", target.name(),
                         "reason", r.reason() != null ? r.reason() : ""));
         outbox.write(fact);
+
+        String reason = r.reason() != null && !r.reason().isBlank() ? " · " + r.reason() : "";
+        audit.record("MEMBER", id, AuditEntry.Action.TRANSITION,
+                "Stato " + previous.name() + " → " + target.name() + reason,
+                Map.of("status", previous.name()), Map.of("status", target.name()));
 
         Member updated = members.findById(id).orElseThrow();
         return MemberView.of(updated, projections.findByMemberId(id).orElse(null));
@@ -234,6 +264,15 @@ public class MemberService {
 
     private static String pick(String incoming, String current) {
         return incoming != null ? incoming : current;
+    }
+
+    /** Registra il campo in {@code before}/{@code after} solo se è davvero cambiato (docs/05 §6: solo i campi cambiati). */
+    private static void diff(Map<String, Object> before, Map<String, Object> after,
+                             String field, Object oldValue, Object newValue) {
+        if (!Objects.equals(oldValue, newValue)) {
+            before.put(field, oldValue == null ? null : oldValue.toString());
+            after.put(field, newValue == null ? null : newValue.toString());
+        }
     }
 
     private static String orEmpty(String v) {

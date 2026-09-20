@@ -237,7 +237,68 @@ class InsightServiceIT {
         assertThat(hasEcommerce).as("la ripartizione per fonte include ecommerce").isTrue();
     }
 
+    @Test
+    void recordsAuditEntryFromAuditTopic() {
+        // Voce di audit su lh.audit.v1: attore obbligatorio, before/after coi soli campi cambiati (docs/05 §6).
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("service", "member");
+        data.put("entityType", "MEMBER");
+        data.put("entityId", "MBR-000007");
+        data.put("action", "UPDATE");
+        data.put("summary", "Modificato profilo (1 campo)");
+        data.put("before", Map.of("city", "Roma"));
+        data.put("after", Map.of("city", "Milano"));
+        publish("lh.audit.v1", auditEnvelope("EVT-AUD-1", "MEMBER:MBR-000007", "ADMIN:giuseppe", "COR-AUD", data));
+        // Duplicato dello stesso evento: una sola voce.
+        publish("lh.audit.v1", auditEnvelope("EVT-AUD-1", "MEMBER:MBR-000007", "ADMIN:giuseppe", "COR-AUD", data));
+
+        JsonNode page = awaitAudit("MBR-000007", 1);
+        assertThat(page.path("items").size()).isEqualTo(1); // idempotente su event_id
+        JsonNode item = page.path("items").get(0);
+        assertThat(item.path("action").asString()).isEqualTo("UPDATE");
+        assertThat(item.path("service").asString()).isEqualTo("member");
+        assertThat(item.path("actorRole").asString()).isEqualTo("ADMIN");
+        assertThat(item.path("actorName").asString()).isEqualTo("giuseppe");
+        assertThat(item.path("after").path("city").asString()).isEqualTo("Milano");
+        assertThat(item.path("before").path("city").asString()).isEqualTo("Roma");
+
+        // Dettaglio per id con il diff completo.
+        String id = item.path("id").asString();
+        JsonNode detail = client().get().uri("/v1/audit/" + id).retrieve().body(JsonNode.class);
+        assertThat(detail.path("entityId").asString()).isEqualTo("MBR-000007");
+        assertThat(detail.path("correlationId").asString()).isEqualTo("COR-AUD");
+    }
+
     // ---------- helper ----------
+
+    private JsonNode awaitAudit(String entityId, int expected) {
+        long deadline = System.currentTimeMillis() + 20_000;
+        JsonNode page = null;
+        while (System.currentTimeMillis() < deadline) {
+            page = client().get().uri("/v1/audit?entityId=" + entityId).retrieve().body(JsonNode.class);
+            if (page != null && page.path("items").size() >= expected) {
+                return page;
+            }
+            sleep();
+        }
+        return page;
+    }
+
+    private String auditEnvelope(String id, String subject, String actor, String correlationId,
+                                 Map<String, Object> data) {
+        Map<String, Object> env = new LinkedHashMap<>();
+        env.put("specversion", "1.0");
+        env.put("id", id);
+        env.put("source", "urn:loyaltyhub:service:member");
+        env.put("type", "io.loyaltyhub.audit.entry");
+        env.put("subject", subject);
+        env.put("time", "2026-09-15T10:00:00Z");
+        env.put("lhcorrelationid", correlationId);
+        env.put("lhhop", 0);
+        env.put("lhactor", actor);
+        env.put("data", data);
+        return mapper.writeValueAsString(env);
+    }
 
     private JsonNode awaitCount(String correlationId, int expected) {
         long deadline = System.currentTimeMillis() + 20_000;

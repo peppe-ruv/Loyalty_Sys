@@ -1,6 +1,7 @@
 package io.loyaltyhub.insight.demo;
 
 import io.loyaltyhub.common.demo.DemoResettable;
+import io.loyaltyhub.insight.infra.AuditRepository;
 import io.loyaltyhub.insight.infra.EventStoreRepository;
 import io.loyaltyhub.insight.infra.TopicStatRepository;
 import org.slf4j.Logger;
@@ -22,10 +23,12 @@ public class InsightReset implements DemoResettable {
 
     private final EventStoreRepository events;
     private final TopicStatRepository topicStats;
+    private final AuditRepository audits;
 
-    public InsightReset(EventStoreRepository events, TopicStatRepository topicStats) {
+    public InsightReset(EventStoreRepository events, TopicStatRepository topicStats, AuditRepository audits) {
         this.events = events;
         this.topicStats = topicStats;
+        this.audits = audits;
     }
 
     @Override
@@ -38,6 +41,7 @@ public class InsightReset implements DemoResettable {
     public void resetToSeed() {
         events.deleteAll();
         topicStats.deleteAll();
-        log.info("Seed insight ripristinato (profilo demo): event store e statistiche svuotati");
+        audits.deleteAll();
+        log.info("Seed insight ripristinato (profilo demo): event store, statistiche e audit svuotati");
     }
 }

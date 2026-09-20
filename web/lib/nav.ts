@@ -38,6 +38,12 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
+    label: "Governance",
+    items: [
+      { id: "BO-22", label: "Audit", href: "/backoffice/governance/audit", milestone: 2 },
+    ],
+  },
+  {
     label: "Osservabilità",
     items: [
       { id: "BO-24", label: "Flusso eventi live", href: "/backoffice/observe/live", milestone: 2 },

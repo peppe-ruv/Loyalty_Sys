@@ -16,6 +16,8 @@ import io.loyaltyhub.campaign.engine.MemberSnapshot;
 import io.loyaltyhub.campaign.infra.CampaignRepository;
 import io.loyaltyhub.campaign.infra.CounterRepository;
 import io.loyaltyhub.campaign.infra.MemberSnapshotRepository;
+import io.loyaltyhub.common.audit.AuditEntry;
+import io.loyaltyhub.common.audit.AuditPublisher;
 import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhEventFactory;
 import io.loyaltyhub.common.event.LhEventTypes;
@@ -44,6 +46,7 @@ public class CampaignAdminService {
     private final EvaluationService evaluation;
     private final LhEventFactory events;
     private final OutboxWriter outbox;
+    private final AuditPublisher audit;
     private final ObjectMapper mapper;
     private final Clock clock;
     private final boolean approvalEnabled;
@@ -51,7 +54,7 @@ public class CampaignAdminService {
     public CampaignAdminService(CampaignRepository campaigns, CounterRepository counters,
                                 MemberSnapshotRepository snapshots, CampaignCache cache, CampaignEngine engine,
                                 EvaluationService evaluation, LhEventFactory events, OutboxWriter outbox,
-                                ObjectMapper mapper, Clock clock,
+                                AuditPublisher audit, ObjectMapper mapper, Clock clock,
                                 @Value("${loyaltyhub.approval.enabled:false}") boolean approvalEnabled) {
         this.campaigns = campaigns;
         this.counters = counters;
@@ -61,6 +64,7 @@ public class CampaignAdminService {
         this.evaluation = evaluation;
         this.events = events;
         this.outbox = outbox;
+        this.audit = audit;
         this.mapper = mapper;
         this.clock = clock;
         this.approvalEnabled = approvalEnabled;
@@ -101,6 +105,9 @@ public class CampaignAdminService {
                 r.labels() == null ? List.of() : r.labels(), CampaignStatus.DRAFT, 0, null, null);
         campaigns.insert(c);
         cache.reload();
+        audit.record("CAMPAIGN", c.code(), AuditEntry.Action.CREATE,
+                "Creata campagna " + c.name() + " (" + c.code() + ")",
+                null, Map.of("code", c.code(), "name", c.name(), "status", c.status().name()));
         return c;
     }
 
@@ -119,6 +126,9 @@ public class CampaignAdminService {
                         "previousStatus", from.name(), "newStatus", to.name()));
         outbox.write(fact); // fatto campaign.status.changed → lh.facts.v1 (chiave = memberId assente → subject)
         cache.reload();
+        audit.record("CAMPAIGN", c.code(), AuditEntry.Action.TRANSITION,
+                c.name() + ": " + from.name() + " → " + to.name() + " (" + req.action().trim().toUpperCase() + ")",
+                Map.of("status", from.name()), Map.of("status", to.name()));
         return campaigns.findById(id).orElseThrow();
     }
 

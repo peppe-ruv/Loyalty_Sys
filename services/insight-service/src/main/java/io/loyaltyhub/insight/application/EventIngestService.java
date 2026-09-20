@@ -6,7 +6,10 @@ import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhFamily;
 import io.loyaltyhub.common.event.LhHeaders;
+import io.loyaltyhub.common.ids.Ulid;
+import io.loyaltyhub.insight.domain.AuditRecord;
 import io.loyaltyhub.insight.domain.StoredEvent;
+import io.loyaltyhub.insight.infra.AuditRepository;
 import io.loyaltyhub.insight.infra.EventStoreRepository;
 import io.loyaltyhub.insight.infra.MetricRepository;
 import io.loyaltyhub.insight.infra.TopicStatRepository;
@@ -39,14 +42,17 @@ public class EventIngestService {
     private final EventStoreRepository events;
     private final TopicStatRepository topicStats;
     private final MetricRepository metrics;
+    private final AuditRepository audits;
     private final LiveEventHub liveHub;
     private final ObjectMapper mapper;
 
     public EventIngestService(EventStoreRepository events, TopicStatRepository topicStats,
-                              MetricRepository metrics, LiveEventHub liveHub, ObjectMapper mapper) {
+                              MetricRepository metrics, AuditRepository audits, LiveEventHub liveHub,
+                              ObjectMapper mapper) {
         this.events = events;
         this.topicStats = topicStats;
         this.metrics = metrics;
+        this.audits = audits;
         this.liveHub = liveHub;
         this.mapper = mapper;
     }
@@ -66,6 +72,9 @@ public class EventIngestService {
         if (isNew) {
             topicStats.record(topic, event.time(), record.partition(), record.offset());
             updateMetrics(family, shortType, event, stored);
+            if ("AUDIT".equals(family)) {
+                recordAudit(event);
+            }
             liveHub.publish(new LiveEvent(event.id(), topic, family, shortType, event.memberId(),
                     event.lhcorrelationid(), event.time(), EventSummaries.of(shortType, event.data())));
         } else {
@@ -102,6 +111,29 @@ public class EventIngestService {
                 // altri tipi: nessuna metrica in M2
             }
         }
+    }
+
+    /** Estrae la voce di audit dall'evento {@code io.loyaltyhub.audit.entry} e la registra (docs/05 §6). */
+    private void recordAudit(LhEvent<JsonNode> event) {
+        JsonNode data = event.data();
+        if (data == null || data.isNull()) {
+            log.warn("Evento audit senza data, ignorato: {}", event.id());
+            return;
+        }
+        String actor = event.lhactor() == null ? "" : event.lhactor();
+        int colon = actor.indexOf(':');
+        String role = colon > 0 ? actor.substring(0, colon) : (actor.isBlank() ? null : actor);
+        String name = colon >= 0 && colon < actor.length() - 1 ? actor.substring(colon + 1) : null;
+        audits.insert(new AuditRecord(
+                Ulid.next(), event.id(), event.time(), role, name,
+                data.path("service").asString(""), data.path("entityType").asString(""),
+                data.path("entityId").asString(""), data.path("action").asString(""),
+                data.path("summary").asString(""), nodeOrNull(data.get("before")), nodeOrNull(data.get("after")),
+                event.lhcorrelationid()));
+    }
+
+    private static JsonNode nodeOrNull(JsonNode node) {
+        return node == null || node.isNull() ? null : node;
     }
 
     private static String sourceCode(String source) {

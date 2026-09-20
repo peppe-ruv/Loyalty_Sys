@@ -58,3 +58,28 @@ export interface KpiBreakdown {
 /** Periodi ammessi per BO-01 (docs/08 §BO-01): 7 / 30 / 90 giorni. */
 export const PERIODS = [7, 30, 90] as const;
 export type Period = (typeof PERIODS)[number];
+
+// Audit (BO-22, docs/servizi/insight-service.md §3). `before`/`after` sono oggetti coi soli campi cambiati.
+export type AuditAction = "CREATE" | "UPDATE" | "DELETE" | "TRANSITION" | "ADJUST" | "JOB" | "RESET";
+
+export interface AuditRecord {
+  id: string;
+  eventId: string;
+  at: string;
+  actorRole: string | null;
+  actorName: string | null;
+  service: string;
+  entityType: string;
+  entityId: string;
+  action: AuditAction | string;
+  summary: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  correlationId: string | null;
+}
+
+export interface AuditPage {
+  items: AuditRecord[];
+  count: number;
+  total: number;
+}

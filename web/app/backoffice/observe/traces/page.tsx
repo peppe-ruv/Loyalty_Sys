@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLhQuery } from "@/lib/api/client";
 import { QueryState } from "@/components/bo/QueryState";
 import { PageHeader, CodeText } from "@/components/bo/primitives";
@@ -26,6 +26,12 @@ const STATUS_CLASS: Record<string, string> = {
 
 export default function TracesPage() {
   const [selected, setSelected] = useState<string | null>(null);
+
+  // Deep-link da BO-22 (audit): /observe/traces?c=<correlationId> preseleziona il tracciato.
+  useEffect(() => {
+    const c = new URLSearchParams(window.location.search).get("c");
+    if (c) setSelected(c);
+  }, []);
   const list = useLhQuery<{ items: TraceSummary[] }>("insight", "/v1/traces", { limit: 50 }, {
     refetchInterval: 5000,
   });
