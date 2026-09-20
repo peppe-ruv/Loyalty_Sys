@@ -17,9 +17,19 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.RestClient;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -77,7 +87,8 @@ class InsightServiceIT {
         assertThat(detail.path("memberId").asString()).isEqualTo("MBR-000003");
         assertThat(detail.path("payload").path("data").path("amount").asInt()).isEqualTo(130);
 
-        // La statistica del topic azioni conta una sola volta l'evento duplicato.
+        // L'idempotenza (duplicato non raddoppiato) è già provata sopra: la pagina per COR-INS-1 ha 3 righe,
+        // non 4. La statistica del topic azioni esiste ed è positiva (il valore globale dipende dagli altri test).
         JsonNode pipeline = client().get().uri("/v1/pipeline/status").retrieve().body(JsonNode.class);
         long actionCount = 0;
         for (JsonNode t : pipeline.path("topics")) {
@@ -85,7 +96,67 @@ class InsightServiceIT {
                 actionCount = t.path("countTotal").asLong();
             }
         }
-        assertThat(actionCount).isEqualTo(1);
+        assertThat(actionCount).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    void demoResetClearsTheStore() {
+        publish("lh.facts.v1", envelope("EVT-R1", "io.loyaltyhub.fact.wallet.points.earned",
+                "urn:loyaltyhub:service:wallet", "member:MBR-000009", "COR-RST"));
+        awaitCount("COR-RST", 1);
+
+        JsonNode body = client().post().uri("/v1/demo/reset").header("X-LH-Actor", "ADMIN:test")
+                .retrieve().body(JsonNode.class);
+        assertThat(body.path("status").asString()).isEqualTo("OK");
+
+        JsonNode page = client().get().uri("/v1/events?correlationId=COR-RST").retrieve().body(JsonNode.class);
+        assertThat(page.path("count").asInt()).isEqualTo(0);
+    }
+
+    @Test
+    void streamDeliversLiveEventOverSse() throws Exception {
+        HttpClient http = HttpClient.newHttpClient();
+        HttpRequest req = HttpRequest.newBuilder(
+                        URI.create("http://localhost:" + port + "/v1/stream/events?topics=lh.actions.v1"))
+                .header("Accept", "text/event-stream").GET().build();
+
+        // send() torna appena arrivano gli header: da qui l'emitter è registrato sul LiveEventHub.
+        HttpResponse<java.io.InputStream> resp = http.send(req, HttpResponse.BodyHandlers.ofInputStream());
+        assertThat(resp.statusCode()).isEqualTo(200);
+        assertThat(resp.headers().firstValue("content-type").orElse("")).contains("text/event-stream");
+
+        BlockingQueue<String> lines = new LinkedBlockingQueue<>();
+        Thread reader = new Thread(() -> {
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(resp.body(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    lines.offer(line);
+                }
+            } catch (Exception ignored) {
+                // stream chiuso a fine test
+            }
+        });
+        reader.setDaemon(true);
+        reader.start();
+
+        publish("lh.actions.v1", envelope("EVT-SSE-1", "io.loyaltyhub.action.purchase.completed",
+                "urn:loyaltyhub:source:ecommerce", "member:MBR-000003", "COR-SSE"));
+
+        StringBuilder acc = new StringBuilder();
+        boolean seen = false;
+        long deadline = System.currentTimeMillis() + 20_000;
+        while (System.currentTimeMillis() < deadline) {
+            String line = lines.poll(500, TimeUnit.MILLISECONDS);
+            if (line != null) {
+                acc.append(line).append('\n');
+                if (acc.indexOf("lh-event") >= 0 && acc.indexOf("EVT-SSE-1") >= 0) {
+                    seen = true;
+                    break;
+                }
+            }
+        }
+        reader.interrupt();
+        assertThat(seen).as("l'evento arriva sul canale SSE con nome lh-event").isTrue();
     }
 
     // ---------- helper ----------

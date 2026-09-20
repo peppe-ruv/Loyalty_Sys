@@ -13,8 +13,9 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-// Milestone realizzate finora: fino a M1 (fette M1.5). Alza la soglia man mano che le fette avanzano.
-export const REALIZED_MILESTONE = 1;
+// Milestone realizzate finora: M1 completa + fette di M2 già realizzate (BO-24 in M2.2). Le voci M2 non
+// ancora costruite semplicemente non sono ancora in NAV, quindi non compaiono (mai pagine "in arrivo").
+export const REALIZED_MILESTONE = 2;
 
 export const NAV: NavGroup[] = [
   {
@@ -33,6 +34,7 @@ export const NAV: NavGroup[] = [
   {
     label: "Osservabilità",
     items: [
+      { id: "BO-24", label: "Flusso eventi live", href: "/backoffice/observe/live", milestone: 2 },
       { id: "BO-26", label: "Monitor ingressi", href: "/backoffice/observe/inbound", milestone: 1 },
     ],
   },

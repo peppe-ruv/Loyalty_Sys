@@ -9,6 +9,9 @@ import io.loyaltyhub.common.event.LhHeaders;
 import io.loyaltyhub.insight.domain.StoredEvent;
 import io.loyaltyhub.insight.infra.EventStoreRepository;
 import io.loyaltyhub.insight.infra.TopicStatRepository;
+import io.loyaltyhub.insight.live.EventSummaries;
+import io.loyaltyhub.insight.live.LiveEvent;
+import io.loyaltyhub.insight.live.LiveEventHub;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
 import org.slf4j.Logger;
@@ -31,11 +34,14 @@ public class EventIngestService {
 
     private final EventStoreRepository events;
     private final TopicStatRepository topicStats;
+    private final LiveEventHub liveHub;
     private final ObjectMapper mapper;
 
-    public EventIngestService(EventStoreRepository events, TopicStatRepository topicStats, ObjectMapper mapper) {
+    public EventIngestService(EventStoreRepository events, TopicStatRepository topicStats,
+                              LiveEventHub liveHub, ObjectMapper mapper) {
         this.events = events;
         this.topicStats = topicStats;
+        this.liveHub = liveHub;
         this.mapper = mapper;
     }
 
@@ -43,8 +49,9 @@ public class EventIngestService {
     public void ingest(String topic, String family, ConsumerRecord<String, String> record) {
         LhEvent<JsonNode> event = mapper.readValue(record.value(), EVENT_TYPE);
         String type = event.type() == null ? "" : event.type();
+        String shortType = shortType(type);
         StoredEvent stored = new StoredEvent(
-                event.id(), topic, family, type, shortType(type), event.source(), event.memberId(),
+                event.id(), topic, family, type, shortType, event.source(), event.memberId(),
                 event.lhcorrelationid(), event.lhcausationid(), event.lhhop(), event.lhactor(),
                 header(record, LhHeaders.ERROR_CODE), event.time(), null,
                 record.partition(), record.offset(), record.value());
@@ -52,6 +59,8 @@ public class EventIngestService {
         boolean isNew = events.insert(stored);
         if (isNew) {
             topicStats.record(topic, event.time(), record.partition(), record.offset());
+            liveHub.publish(new LiveEvent(event.id(), topic, family, shortType, event.memberId(),
+                    event.lhcorrelationid(), event.time(), EventSummaries.of(shortType, event.data())));
         } else {
             log.debug("Evento già in store (duplicato), ignorato: {} su {}", event.id(), topic);
         }
