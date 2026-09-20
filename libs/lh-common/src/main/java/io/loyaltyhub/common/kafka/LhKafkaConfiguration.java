@@ -107,13 +107,18 @@ public class LhKafkaConfiguration {
     @Bean
     @ConditionalOnMissingBean(name = "lhKafkaListenerContainerFactory")
     public KafkaListenerContainerFactory<?> lhKafkaListenerContainerFactory(
-            ConsumerFactory<String, String> cf, DefaultErrorHandler errorHandler) {
+            ConsumerFactory<String, String> cf, DefaultErrorHandler errorHandler,
+            @Value("${spring.kafka.listener.auto-startup:true}") boolean autoStartup) {
         ConcurrentKafkaListenerContainerFactory<String, String> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(cf);
         factory.setConcurrency(2);
         factory.setCommonErrorHandler(errorHandler);
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
+        // Il fattore custom non eredita spring.kafka.listener.auto-startup (vale solo per quello di Boot):
+        // qui lo onoriamo, così nell'hub in profilo inproc (senza broker) i container reali non partono
+        // e non martellano localhost:9092 — al loro posto c'è il bus in-process (ADR-024).
+        factory.setAutoStartup(autoStartup);
         return factory;
     }
 
