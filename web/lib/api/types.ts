@@ -138,3 +138,48 @@ export interface Evaluation {
   }[];
   effects: { effectId: string; campaignCode: string; currency: string; amount: number }[];
 }
+
+// Scenari demo (BO-29, docs/servizi/ingestion-service.md §3, F-DEMO-04).
+export interface ScenarioStep {
+  delayMs: number;
+  memberId: string;
+  type: string;
+  data?: unknown;
+  source: string;
+  note?: string;
+  expect?: "REJECTED" | "DUPLICATE" | "UNMATCHED";
+}
+
+export interface Scenario {
+  code: string;
+  name: string;
+  description: string | null;
+  protagonist: string | null;
+  watch: string | null;
+  steps: ScenarioStep[];
+}
+
+export interface ScenarioStepResult {
+  index: number;
+  note: string;
+  memberId: string;
+  type: string;
+  status: "ACCEPTED" | "DUPLICATE" | "REJECTED" | "UNMATCHED";
+  eventId: string | null;
+  correlationId: string | null;
+  rejectCode?: string;
+  expected?: string;
+  ok: boolean;
+}
+
+export interface ScenarioRun {
+  id: string;
+  scenarioCode: string;
+  startedAt: string;
+  finishedAt: string | null;
+  status: "RUNNING" | "DONE" | "FAILED";
+  stepsTotal: number;
+  stepsDone: number;
+  actor: string | null;
+  results: ScenarioStepResult[];
+}

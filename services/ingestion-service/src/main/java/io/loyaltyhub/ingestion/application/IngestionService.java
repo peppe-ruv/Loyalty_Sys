@@ -51,6 +51,7 @@ public class IngestionService {
     private static final Duration MAX_FUTURE = Duration.ofMinutes(5);
     private static final Duration MAX_PAST = Duration.ofDays(30);
     private static final String ORIGIN_EXTERNAL = "EXTERNAL";
+    public static final String ORIGIN_SIMULATOR = "SIMULATOR";
 
     private final InboundEventRepository inbound;
     private final SourceRepository sources;
@@ -75,8 +76,14 @@ public class IngestionService {
         this.clock = clock;
     }
 
-    @Transactional
+    /** Ingest di un'azione esterna (origine {@code EXTERNAL}). */
     public IngestResult ingest(InboundEventRequest request) {
+        return ingest(request, ORIGIN_EXTERNAL);
+    }
+
+    /** Ingest attraverso la pipeline con un'origine esplicita (es. {@code SIMULATOR} per scenari e simulatore). */
+    @Transactional
+    public IngestResult ingest(InboundEventRequest request, String origin) {
         // 1. forma envelope → 400 (nulla salvato).
         validateForm(request);
         Instant time = parseTime(request.time());
@@ -92,18 +99,18 @@ public class IngestionService {
         Optional<Source> source = sources.findByCode(sourceCode);
         if (source.isEmpty() || !source.get().enabled()) {
             return reject(request, time, sourceCode, shortType, subject, null,
-                    RejectCode.SOURCE_DISABLED, "Fonte sconosciuta o disabilitata: " + sourceCode);
+                    RejectCode.SOURCE_DISABLED, "Fonte sconosciuta o disabilitata: " + sourceCode, origin);
         }
 
         // 3. tipo noto, abilitato e ammesso per la fonte.
         Optional<EventType> type = eventTypes.findByCode(shortType);
         if (type.isEmpty() || !type.get().enabled()) {
             return reject(request, time, sourceCode, shortType, subject, null,
-                    RejectCode.UNKNOWN_TYPE, "Tipo azione sconosciuto o disabilitato: " + shortType);
+                    RejectCode.UNKNOWN_TYPE, "Tipo azione sconosciuto o disabilitato: " + shortType, origin);
         }
         if (!source.get().allows(shortType)) {
             return reject(request, time, sourceCode, shortType, subject, null,
-                    RejectCode.TYPE_NOT_ALLOWED, "Tipo non ammesso per la fonte " + sourceCode + ": " + shortType);
+                    RejectCode.TYPE_NOT_ALLOWED, "Tipo non ammesso per la fonte " + sourceCode + ": " + shortType, origin);
         }
 
         // 4. data valido contro lo schema del tipo.
@@ -111,7 +118,7 @@ public class IngestionService {
             List<String> errors = schemaValidator.validate(shortType, type.get().dataSchema(), request.data().toString());
             if (!errors.isEmpty()) {
                 return reject(request, time, sourceCode, shortType, subject, null,
-                        RejectCode.INVALID_DATA, String.join("; ", errors));
+                        RejectCode.INVALID_DATA, String.join("; ", errors), origin);
             }
         }
 
@@ -119,7 +126,7 @@ public class IngestionService {
         Instant now = clock.instant();
         if (time.isAfter(now.plus(MAX_FUTURE)) || time.isBefore(now.minus(MAX_PAST))) {
             return reject(request, time, sourceCode, shortType, subject, null,
-                    RejectCode.INVALID_TIME, "time fuori finestra (max +5 min, -30 giorni): " + request.time());
+                    RejectCode.INVALID_TIME, "time fuori finestra (max +5 min, -30 giorni): " + request.time(), origin);
         }
 
         // 6. dedup (source, id).
@@ -130,11 +137,11 @@ public class IngestionService {
         // 7. risoluzione membro.
         Optional<MemberRef> member = resolveMember(subject);
         if (member.isEmpty()) {
-            return saveUnmatched(request, time, sourceCode, shortType, subject);
+            return saveUnmatched(request, time, sourceCode, shortType, subject, origin);
         }
         if (!member.get().isActive()) {
             return reject(request, time, sourceCode, shortType, subject, member.get().memberId(),
-                    RejectCode.MEMBER_NOT_ACTIVE, "Membro non attivo (" + member.get().status() + ")");
+                    RejectCode.MEMBER_NOT_ACTIVE, "Membro non attivo (" + member.get().status() + ")", origin);
         }
 
         // 8. arricchimento → outbox → ACCEPTED.
@@ -144,7 +151,7 @@ public class IngestionService {
                 correlationId, request.data());
 
         boolean inserted = inbound.insertAccepted(Ulid.next(clock), eventId, sourceCode, shortType,
-                normalizedSubject, memberId, time, serialize(event), correlationId, ORIGIN_EXTERNAL);
+                normalizedSubject, memberId, time, serialize(event), correlationId, origin);
         if (!inserted) {
             // Gara concorrente sullo stesso (fonte, id): trattata come duplicato, nessuna doppia pubblicazione.
             return IngestResult.duplicate(eventId, memberId, correlationId);
@@ -200,19 +207,19 @@ public class IngestionService {
     }
 
     private IngestResult reject(InboundEventRequest r, Instant time, String sourceCode, String shortType,
-                                String subject, String memberId, RejectCode code, String detail) {
+                                String subject, String memberId, RejectCode code, String detail, String origin) {
         LhEvent<JsonNode> event = enrich(r.id(), r.source(), normalizeType(r.type()), subject, time, r.id(), r.data());
         inbound.saveOutcome(Ulid.next(clock), r.id(), sourceCode, shortType, subject, memberId, time,
-                InboundStatus.REJECTED, code, detail, serialize(event), r.id(), ORIGIN_EXTERNAL);
+                InboundStatus.REJECTED, code, detail, serialize(event), r.id(), origin);
         return IngestResult.rejected(r.id(), memberId, r.id(), code, detail);
     }
 
     private IngestResult saveUnmatched(InboundEventRequest r, Instant time, String sourceCode,
-                                       String shortType, String subject) {
+                                       String shortType, String subject, String origin) {
         LhEvent<JsonNode> event = enrich(r.id(), r.source(), normalizeType(r.type()), subject, time, r.id(), r.data());
         inbound.saveOutcome(Ulid.next(clock), r.id(), sourceCode, shortType, subject, null, time,
                 InboundStatus.UNMATCHED, null, "Membro non trovato per subject " + subject,
-                serialize(event), r.id(), ORIGIN_EXTERNAL);
+                serialize(event), r.id(), origin);
         return IngestResult.unmatched(r.id(), r.id());
     }
 

@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { KeepAlive } from "@/components/shared/KeepAlive";
 import { Sidebar } from "@/components/bo/Sidebar";
+import { MobileNav } from "@/components/bo/MobileNav";
 import { PersonaProvider } from "@/components/bo/PersonaContext";
 import { PERSONA_COOKIE, parsePersona } from "@/lib/persona/cookie";
 import {
@@ -25,8 +26,11 @@ export default async function BackofficeLayout({ children }: { children: React.R
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex items-center justify-between border-b border-[var(--color-bo-border)] bg-[var(--color-bo-surface)] px-4 py-3">
-            <span className="font-semibold md:hidden">Loyalty Hub</span>
-            <span className="hidden text-sm text-[var(--color-bo-ink-2)] md:inline">Backoffice</span>
+            <div className="flex items-center gap-2">
+              <MobileNav />
+              <span className="font-semibold md:hidden">Loyalty Hub</span>
+              <span className="hidden text-sm text-[var(--color-bo-ink-2)] md:inline">Backoffice</span>
+            </div>
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-bo-accent)] text-xs font-bold text-white">
                 {initials}

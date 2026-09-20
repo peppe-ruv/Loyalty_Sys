@@ -1,0 +1,49 @@
+[
+  {
+    "code": "SCN-WEEKEND-ANNA",
+    "name": "Il weekend di Anna",
+    "description": "Anna fa un acquisto online nel weekend, apre l'app e lascia una recensione: tre azioni che le fanno guadagnare punti.",
+    "protagonist": "Anna (MBR-000001)",
+    "watch": "Guarda i punti salire nel wallet di Anna e i tre giri nel flusso live.",
+    "steps": [
+      { "delayMs": 0, "memberId": "MBR-000001", "type": "purchase.completed", "source": "ecommerce",
+        "data": { "orderId": "ORD-SCN-1", "amount": 80, "currency": "EUR", "channel": "ONLINE" },
+        "note": "Acquisto online da 80 €" },
+      { "delayMs": 1500, "memberId": "MBR-000001", "type": "app.login.daily", "source": "app",
+        "data": { "platform": "IOS" }, "note": "Accesso all'app" },
+      { "delayMs": 1500, "memberId": "MBR-000001", "type": "review.submitted", "source": "ecommerce",
+        "data": { "productId": "SKU-100", "rating": 5 }, "note": "Recensione a 5 stelle" }
+    ]
+  },
+  {
+    "code": "SCN-MIXED-DAY",
+    "name": "Una giornata mista",
+    "description": "Un'attivazione bolletta, un sondaggio e un acquisto da un cliente che non esiste in anagrafica: due esiti positivi e un ingresso non abbinato.",
+    "protagonist": "Marco, Chiara e un ospite",
+    "watch": "Osserva l'ingresso UNMATCHED nel monitor ingressi, mentre gli altri due diventano punti.",
+    "steps": [
+      { "delayMs": 0, "memberId": "MBR-000002", "type": "ebill.activated", "source": "billing",
+        "data": { "contractId": "CTR-SCN-9" }, "note": "Marco attiva la bolletta elettronica" },
+      { "delayMs": 1500, "memberId": "MBR-000007", "type": "survey.completed", "source": "partner",
+        "data": { "surveyId": "SRV-SCN", "score": 90 }, "note": "Chiara completa il sondaggio" },
+      { "delayMs": 1500, "memberId": "MBR-000404", "type": "purchase.completed", "source": "ecommerce",
+        "data": { "orderId": "ORD-SCN-X", "amount": 30, "currency": "EUR" },
+        "note": "Acquisto da un membro inesistente", "expect": "UNMATCHED" }
+    ]
+  },
+  {
+    "code": "SCN-REJECTS",
+    "name": "Ingressi rifiutati",
+    "description": "Uno scenario negativo: un cliente bloccato e un tipo non ammesso per la fonte. Serve a mostrare gli esiti REJECTED.",
+    "protagonist": "Roberto (bloccato)",
+    "watch": "Nel monitor ingressi vedrai due esiti REJECTED con il motivo.",
+    "steps": [
+      { "delayMs": 0, "memberId": "MBR-000008", "type": "purchase.completed", "source": "ecommerce",
+        "data": { "orderId": "ORD-SCN-B", "amount": 50, "currency": "EUR" },
+        "note": "Acquisto da un membro BLOCKED", "expect": "REJECTED" },
+      { "delayMs": 1200, "memberId": "MBR-000003", "type": "survey.completed", "source": "ecommerce",
+        "data": { "surveyId": "SRV-SCN-2", "score": 70 },
+        "note": "Sondaggio inviato da una fonte che non lo ammette", "expect": "REJECTED" }
+    ]
+  }
+]

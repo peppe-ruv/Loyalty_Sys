@@ -4,10 +4,13 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.common.demo.DemoResettable;
 import io.loyaltyhub.common.demo.SeedLoader;
+import io.loyaltyhub.ingestion.domain.Scenario;
 import io.loyaltyhub.ingestion.domain.Source;
 import io.loyaltyhub.ingestion.infra.EventTypeRepository;
 import io.loyaltyhub.ingestion.infra.InternalMappingRepository;
 import io.loyaltyhub.ingestion.infra.MemberIndexRepository;
+import io.loyaltyhub.ingestion.infra.ScenarioRepository;
+import io.loyaltyhub.ingestion.infra.ScenarioRunRepository;
 import io.loyaltyhub.ingestion.infra.SourceRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,16 +39,21 @@ public class DemoSeeder implements ApplicationRunner, DemoResettable {
     private final EventTypeRepository types;
     private final MemberIndexRepository members;
     private final InternalMappingRepository mappings;
+    private final ScenarioRepository scenarios;
+    private final ScenarioRunRepository scenarioRuns;
 
     public DemoSeeder(SeedLoader seed, ObjectMapper mapper, SourceRepository sources,
                       EventTypeRepository types, MemberIndexRepository members,
-                      InternalMappingRepository mappings) {
+                      InternalMappingRepository mappings, ScenarioRepository scenarios,
+                      ScenarioRunRepository scenarioRuns) {
         this.seed = seed;
         this.mapper = mapper;
         this.sources = sources;
         this.types = types;
         this.members = members;
         this.mappings = mappings;
+        this.scenarios = scenarios;
+        this.scenarioRuns = scenarioRuns;
     }
 
     @Override
@@ -65,7 +73,21 @@ public class DemoSeeder implements ApplicationRunner, DemoResettable {
         seedEventTypes();
         seedMembers();
         seedMappings();
-        log.info("Seed ingestion caricato (profilo demo): fonti, tipi azione, membri, ponte interno");
+        seedScenarios();
+        log.info("Seed ingestion caricato (profilo demo): fonti, tipi azione, membri, ponte interno, scenari");
+    }
+
+    private void seedScenarios() {
+        scenarioRuns.deleteAll();
+        for (JsonNode s : seed.readTree("scenarios.json")) {
+            scenarios.upsert(new Scenario(
+                    s.path("code").asString(),
+                    s.path("name").asString(),
+                    textOrNull(s.get("description")),
+                    textOrNull(s.get("protagonist")),
+                    textOrNull(s.get("watch")),
+                    s.get("steps")));
+        }
     }
 
     private void seedSources() {

@@ -212,6 +212,51 @@ class IngestionPipelineIT {
         assertThat(hasIngestion).as("il seeder di ingestion è tra i componenti resettati").isTrue();
     }
 
+    // ---------- scenari (M2.7) ----------
+
+    @Test
+    void scenarioRunsThroughPipelineWithExpectedOutcomes() {
+        JsonNode list = client().get().uri("/v1/demo/scenarios").retrieve().body(JsonNode.class);
+        assertThat(list.size()).isGreaterThanOrEqualTo(3);
+
+        JsonNode started = client().post().uri("/v1/demo/scenarios/SCN-MIXED-DAY/run")
+                .header("X-LH-Actor", "ADMIN:test").retrieve().body(JsonNode.class);
+        String runId = started.path("runId").asString();
+        assertThat(runId).isNotBlank();
+
+        JsonNode run = awaitScenarioDone(runId);
+        assertThat(run.path("status").asString()).isEqualTo("DONE");
+        assertThat(run.path("stepsDone").asInt()).isEqualTo(3);
+
+        JsonNode results = run.path("results");
+        assertThat(results.size()).isEqualTo(3);
+        // I primi due passi sono ACCEPTED e portano un correlationId; il terzo (membro inesistente) è UNMATCHED come atteso.
+        assertThat(results.get(0).path("status").asString()).isEqualTo("ACCEPTED");
+        assertThat(results.get(0).path("correlationId").asString()).isNotBlank();
+        assertThat(results.get(0).path("ok").asBoolean()).isTrue();
+        JsonNode last = results.get(2);
+        assertThat(last.path("status").asString()).isEqualTo("UNMATCHED");
+        assertThat(last.path("expected").asString()).isEqualTo("UNMATCHED");
+        assertThat(last.path("ok").asBoolean()).isTrue();
+    }
+
+    private JsonNode awaitScenarioDone(String runId) {
+        long deadline = System.currentTimeMillis() + 25_000;
+        JsonNode run = null;
+        while (System.currentTimeMillis() < deadline) {
+            run = client().get().uri("/v1/demo/scenario-runs/" + runId).retrieve().body(JsonNode.class);
+            if (run != null && !run.path("status").asString().equals("RUNNING")) {
+                return run;
+            }
+            try {
+                Thread.sleep(400);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        return run;
+    }
+
     // ---------- forma non valida (400) ----------
 
     @Test
