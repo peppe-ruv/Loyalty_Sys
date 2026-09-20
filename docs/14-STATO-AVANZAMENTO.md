@@ -25,10 +25,10 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 |---|---|---|
 | Repository GitHub | ✅ | branch `claude/istruzioni-dwhe86` |
 | Kafka locale (compose) | ✅ | `deploy/docker-compose.yml` (KRaft); topic dal profilo `local` |
-| Hub online (Render, free) | ✅ | `srv-daneakoae00c73eg7j20` — https://loyalty-hub-6dc3.onrender.com (Docker `deploy/hub/Dockerfile`, region Frankfurt, profilo `demo,inproc`) |
+| Hub online (Render, free) | ✅ | `srv-daneakoae00c73eg7j20` — https://loyalty-hub-6dc3.onrender.com (Docker `deploy/hub/Dockerfile`, Frankfurt, profilo `demo,inproc`). Include **insight** (event store + SSE) da M2.2: BO-24 live online |
 | Postgres Neon | ✅ | progetto `odd-pine-62283646` (`Neon-Postgres-Loyalty`, eu-central-1, PG 18); DB `neondb`, schemi `ingestion/member/campaign/wallet` migrati e seminati (12 membri, 20 campagne, 24 wallet) |
 | Broker Kafka gestito | — | non usato: demo senza broker (bus in-process, ADR-024). Redpanda/Confluent free restano opzione a fedeltà piena se servisse il protocollo online |
-| Frontend Vercel | ✅ | progetto `loyalty-hub-web` (`prj_pO7cj7Q6iMKbcSXFPakB8WhilUUb`, team `poc-22b1`, Next.js, root `web/`, branch `claude/istruzioni-dwhe86`) — **https://loyalty-hub-web.vercel.app**. I 4 env `LH_SVC_{INGESTION,MEMBER,CAMPAIGN,WALLET}_URL` puntano all'hub Render; deployment protection disattivata (demo pubblica). NB: `loyalty-hub-playground` è un'altra app (Payload CMS), lasciata intatta |
+| Frontend Vercel | ✅ | progetto `loyalty-hub-web` (`prj_pO7cj7Q6iMKbcSXFPakB8WhilUUb`, team `poc-22b1`, Next.js, root `web/`, branch `claude/istruzioni-dwhe86`) — **https://loyalty-hub-web.vercel.app**. Env: `LH_SVC_{INGESTION,MEMBER,CAMPAIGN,WALLET,INSIGHT}_URL` + `NEXT_PUBLIC_LH_INSIGHT_URL` all'hub Render (SSE diretto per BO-24); deployment protection off (demo pubblica). NB: `loyalty-hub-playground` è un'altra app (Payload CMS), lasciata intatta |
 
 ## M0 — Fondamenta
 
