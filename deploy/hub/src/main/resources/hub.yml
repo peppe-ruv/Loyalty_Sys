@@ -41,7 +41,17 @@ server:
 loyaltyhub:
   service: hub
   kafka:
+    # PLAINTEXT in locale; SSL_PEM (Aiven, certificato client) o SASL_SSL in demo. I PEM sono passati in
+    # base64 via env (nessun file su disco): CA + cert + chiave. Vuoti se non usati.
     security: ${KAFKA_SECURITY:PLAINTEXT}
+    ssl:
+      ca-b64: ${KAFKA_SSL_CA_B64:}
+      cert-b64: ${KAFKA_SSL_CERT_B64:}
+      key-b64: ${KAFKA_SSL_KEY_B64:}
+    sasl:
+      username: ${KAFKA_SASL_USERNAME:}
+      password: ${KAFKA_SASL_PASSWORD:}
+      mechanism: ${KAFKA_SASL_MECHANISM:SCRAM-SHA-256}
   approval:
     enabled: false
   engine:
