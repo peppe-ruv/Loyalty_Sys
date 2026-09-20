@@ -83,6 +83,34 @@ public class EventStoreRepository {
         }
     }
 
+    /** Tutti gli eventi di un tracciato, in ordine di osservazione (per costruire l'albero). */
+    public List<StoredEvent> byCorrelation(String correlationId) {
+        return jdbc.sql("SELECT * FROM event_store WHERE correlation_id = ? ORDER BY received_at ASC")
+                .param(correlationId).query(EventStoreRepository::map).list();
+    }
+
+    /** Gli ultimi correlationId osservati (uno per tracciato), opzionalmente per membro e intervallo. */
+    public List<String> recentCorrelationIds(String memberId, Instant from, Instant to, int limit) {
+        StringBuilder sql = new StringBuilder(
+                "SELECT correlation_id FROM event_store WHERE correlation_id IS NOT NULL");
+        List<Object> args = new ArrayList<>();
+        if (memberId != null && !memberId.isBlank()) {
+            sql.append(" AND member_id = ?");
+            args.add(memberId.trim());
+        }
+        if (from != null) {
+            sql.append(" AND received_at >= ?");
+            args.add(Timestamp.from(from));
+        }
+        if (to != null) {
+            sql.append(" AND received_at <= ?");
+            args.add(Timestamp.from(to));
+        }
+        sql.append(" GROUP BY correlation_id ORDER BY max(received_at) DESC LIMIT ?");
+        args.add(limit);
+        return jdbc.sql(sql.toString()).params(args).query(String.class).list();
+    }
+
     /** Retention per età (docs §5): elimina gli eventi più vecchi di N giorni. */
     public int deleteOlderThan(int days) {
         return jdbc.sql("DELETE FROM event_store WHERE received_at < now() - make_interval(days => ?)")

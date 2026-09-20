@@ -114,6 +114,43 @@ class InsightServiceIT {
     }
 
     @Test
+    void buildsTraceTreeWithOutcome() {
+        // Catena azione → effetto → fatto con lo stesso correlationId e causazione a cascata.
+        publish("lh.actions.v1", env("EVT-TA", "io.loyaltyhub.action.purchase.completed",
+                "urn:loyaltyhub:source:ecommerce", "member:MBR-000003", "COR-TR", null,
+                Map.of("orderId", "ORD-9", "amount", 130)));
+        publish("lh.effects.v1", env("EVT-TE", "io.loyaltyhub.effect.points.grant",
+                "urn:loyaltyhub:service:campaign", "member:MBR-000003", "COR-TR", "EVT-TA",
+                Map.of("amount", 130, "currency", "PTS")));
+        publish("lh.facts.v1", env("EVT-TF", "io.loyaltyhub.fact.wallet.points.earned",
+                "urn:loyaltyhub:service:wallet", "member:MBR-000003", "COR-TR", "EVT-TE",
+                Map.of("amount", 162, "currency", "PTS")));
+
+        JsonNode trace = awaitTrace("COR-TR", 3);
+        assertThat(trace.path("memberId").asString()).isEqualTo("MBR-000003");
+        assertThat(trace.path("nodes").size()).isEqualTo(3);
+
+        // La radice è l'azione (parentEventId assente), il fatto ha come genitore l'effetto.
+        JsonNode root = null;
+        JsonNode fact = null;
+        for (JsonNode n : trace.path("nodes")) {
+            if (n.path("eventId").asString().equals("EVT-TA")) root = n;
+            if (n.path("eventId").asString().equals("EVT-TF")) fact = n;
+        }
+        assertThat(root).isNotNull();
+        assertThat(root.path("parentEventId").isMissingNode() || root.path("parentEventId").isNull()).isTrue();
+        assertThat(root.path("shortType").asString()).isEqualTo("purchase.completed");
+        assertThat(fact.path("parentEventId").asString()).isEqualTo("EVT-TE");
+        assertThat(fact.path("service").asString()).isEqualTo("wallet");
+
+        // Esito: +162 PTS accreditati.
+        JsonNode points = trace.path("outcome").path("points");
+        assertThat(points.size()).isEqualTo(1);
+        assertThat(points.get(0).path("currency").asString()).isEqualTo("PTS");
+        assertThat(points.get(0).path("amount").asLong()).isEqualTo(162);
+    }
+
+    @Test
     void streamDeliversLiveEventOverSse() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
         HttpRequest req = HttpRequest.newBuilder(
@@ -172,6 +209,38 @@ class InsightServiceIT {
             sleep();
         }
         return page;
+    }
+
+    private JsonNode awaitTrace(String correlationId, int expectedNodes) {
+        long deadline = System.currentTimeMillis() + 20_000;
+        JsonNode trace = null;
+        while (System.currentTimeMillis() < deadline) {
+            trace = client().get().uri("/v1/traces/" + correlationId).retrieve().body(JsonNode.class);
+            if (trace != null && trace.path("nodes").size() >= expectedNodes) {
+                return trace;
+            }
+            sleep();
+        }
+        return trace;
+    }
+
+    private String env(String id, String type, String source, String subject, String correlationId,
+                       String causationId, Map<String, Object> data) {
+        Map<String, Object> e = new LinkedHashMap<>();
+        e.put("specversion", "1.0");
+        e.put("id", id);
+        e.put("source", source);
+        e.put("type", type);
+        e.put("subject", subject);
+        e.put("time", "2026-09-15T10:00:00Z");
+        e.put("lhcorrelationid", correlationId);
+        if (causationId != null) {
+            e.put("lhcausationid", causationId);
+        }
+        e.put("lhhop", 0);
+        e.put("lhactor", "system");
+        e.put("data", data);
+        return mapper.writeValueAsString(e);
     }
 
     private String envelope(String id, String type, String source, String subject, String correlationId) {

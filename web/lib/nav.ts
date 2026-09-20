@@ -35,6 +35,7 @@ export const NAV: NavGroup[] = [
     label: "Osservabilità",
     items: [
       { id: "BO-24", label: "Flusso eventi live", href: "/backoffice/observe/live", milestone: 2 },
+      { id: "BO-25", label: "Tracciati", href: "/backoffice/observe/traces", milestone: 2 },
       { id: "BO-26", label: "Monitor ingressi", href: "/backoffice/observe/inbound", milestone: 1 },
     ],
   },

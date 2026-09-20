@@ -76,7 +76,7 @@ function DemoTray() {
     setBusy(true);
     try {
       // Azione reale del membro dalla fonte esterna: /v1/events (pubblico), non il simulatore admin.
-      await lhFetch("ingestion", "/v1/events", {
+      const res = await lhFetch<{ correlationId?: string }>("ingestion", "/v1/events", {
         method: "POST",
         body: JSON.stringify({
           specversion: "1.0",
@@ -88,7 +88,8 @@ function DemoTray() {
           data,
         }),
       });
-      markPending(["Punti in arrivo…"]);
+      // Il correlationId dell'azione: l'attesa si chiude via SSE al fatto del wallet (usePendingTrace, M2.3).
+      markPending(["Punti in arrivo…"], res?.correlationId);
       setOpen(false);
     } finally {
       setBusy(false);
