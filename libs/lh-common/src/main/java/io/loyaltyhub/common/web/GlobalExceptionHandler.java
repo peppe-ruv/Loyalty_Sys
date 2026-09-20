@@ -55,6 +55,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(pd);
     }
 
+    @ExceptionHandler(org.springframework.web.context.request.async.AsyncRequestNotUsableException.class)
+    public void onAsyncNotUsable(Exception ex) {
+        // Cliente SSE disconnesso (es. il rail eventi che chiude l'EventSource): la risposta non è più
+        // scrivibile. Non è un 500 e non va reso come problem+json (il content-type è text/event-stream):
+        // ritorno void = nessun corpo. Solo un log a DEBUG.
+        log.debug("Stream chiuso dal client: {}", ex.getMessage());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> onUnexpected(Exception ex, HttpServletRequest request) {
         log.error("Errore imprevisto su {}", request != null ? request.getRequestURI() : "?", ex);
