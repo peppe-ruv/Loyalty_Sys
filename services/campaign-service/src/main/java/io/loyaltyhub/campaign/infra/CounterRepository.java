@@ -123,6 +123,12 @@ public class CounterRepository implements Counters {
     public record Totals(long matches, long uniqueMembers, long pointsDecided, long pointsGranted) {
     }
 
+    /** Membri unici che hanno attivato la campagna (da {@code campaign_counter}). */
+    public long uniqueMembers(String campaignId) {
+        return jdbc.sql("SELECT count(DISTINCT member_id) FROM campaign_counter WHERE campaign_id = ?")
+                .param(campaignId).query(Long.class).single();
+    }
+
     public void deleteAll() {
         jdbc.sql("DELETE FROM campaign_counter").update();
         jdbc.sql("DELETE FROM campaign_totals").update();

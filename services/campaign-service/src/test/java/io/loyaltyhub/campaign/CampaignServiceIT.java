@@ -186,7 +186,53 @@ class CampaignServiceIT {
         assertThat(all.size()).isEqualTo(20);
     }
 
+    @Test
+    void statsReflectMatchesAndDailySeries() {
+        // Un acquisto feriale attiva CMP-PURCHASE-BASE; le statistiche devono rifletterlo (F-CMP-10).
+        publishAction("01STAT01", "purchase.completed", "MBR-000006", TUESDAY,
+                Map.of("orderId", "ORD-ST", "amount", 100, "currency", "EUR"));
+        pollEvaluations("MBR-000006", 1);
+
+        String id = campaignIdByCode("CMP-PURCHASE-BASE");
+        JsonNode stats = awaitStats(id, 1);
+        assertThat(stats.path("matches").asLong()).isGreaterThanOrEqualTo(1);
+        assertThat(stats.path("uniqueMembers").asLong()).isGreaterThanOrEqualTo(1);
+        assertThat(stats.path("pointsDecided").asLong()).isGreaterThan(0);
+
+        // Serie giornaliera 30 giorni non vuota, con almeno un giorno con attivazioni.
+        JsonNode daily = stats.path("daily");
+        assertThat(daily.size()).isGreaterThanOrEqualTo(1);
+        long dayMatches = 0;
+        for (JsonNode d : daily) {
+            dayMatches += d.path("matches").asLong();
+        }
+        assertThat(dayMatches).isGreaterThanOrEqualTo(1);
+    }
+
     // ---------- helper ----------
+
+    private String campaignIdByCode(String code) {
+        JsonNode all = client().get().uri("/v1/campaigns").retrieve().body(JsonNode.class);
+        for (JsonNode c : all) {
+            if (c.path("code").asString().equals(code)) {
+                return c.path("id").asString();
+            }
+        }
+        throw new AssertionError("Campagna non trovata per codice " + code);
+    }
+
+    private JsonNode awaitStats(String id, int minMatches) {
+        long deadline = System.currentTimeMillis() + 15_000;
+        JsonNode stats = null;
+        while (System.currentTimeMillis() < deadline) {
+            stats = client().get().uri("/v1/campaigns/" + id + "/stats").retrieve().body(JsonNode.class);
+            if (stats != null && stats.path("matches").asLong() >= minMatches) {
+                return stats;
+            }
+            sleep();
+        }
+        return stats;
+    }
 
     private JsonNode effect(KafkaConsumer<String, String> consumer, String actionId, String currency) {
         ConsumerRecord<String, String> rec = poll(consumer, r -> {

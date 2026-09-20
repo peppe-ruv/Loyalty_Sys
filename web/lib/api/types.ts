@@ -15,6 +15,13 @@ export interface MemberView {
   registeredAt: string | null;
 }
 
+export interface CampaignBudget {
+  maxPoints: number | null;
+  remainingPoints: number | null;
+  maxMatches: number | null;
+  remainingMatches: number | null;
+}
+
 export interface CampaignSummary {
   id: string;
   code: string;
@@ -24,7 +31,28 @@ export interface CampaignSummary {
   triggerActionTypes: string[];
   visibleInPortal: boolean;
   system: boolean;
-  totals: { matches: number; pointsDecided: number; pointsGranted: number };
+  totals: { matches: number; uniqueMembers: number; pointsDecided: number; pointsGranted: number };
+  budget: CampaignBudget | null;
+}
+
+// F-CMP-10 (docs/08 §BO-05/06): statistiche campagna con serie giornaliera 30 giorni.
+export interface CampaignDailyStat {
+  day: string;
+  matches: number;
+  points: number;
+}
+
+export interface CampaignStats {
+  id: string;
+  code: string;
+  name: string;
+  status: string;
+  matches: number;
+  uniqueMembers: number;
+  pointsDecided: number;
+  pointsGranted: number;
+  budget: CampaignBudget | null;
+  daily: CampaignDailyStat[];
 }
 
 export interface Campaign {

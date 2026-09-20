@@ -15,6 +15,8 @@ import io.loyaltyhub.campaign.engine.Evaluation;
 import io.loyaltyhub.campaign.engine.MemberSnapshot;
 import io.loyaltyhub.campaign.infra.CampaignRepository;
 import io.loyaltyhub.campaign.infra.CounterRepository;
+import io.loyaltyhub.campaign.infra.EvaluationLogRepository;
+import io.loyaltyhub.campaign.infra.EvaluationLogRepository.DailyStat;
 import io.loyaltyhub.campaign.infra.MemberSnapshotRepository;
 import io.loyaltyhub.common.audit.AuditEntry;
 import io.loyaltyhub.common.audit.AuditPublisher;
@@ -29,6 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +43,7 @@ public class CampaignAdminService {
 
     private final CampaignRepository campaigns;
     private final CounterRepository counters;
+    private final EvaluationLogRepository evaluations;
     private final MemberSnapshotRepository snapshots;
     private final CampaignCache cache;
     private final CampaignEngine engine;
@@ -52,12 +56,14 @@ public class CampaignAdminService {
     private final boolean approvalEnabled;
 
     public CampaignAdminService(CampaignRepository campaigns, CounterRepository counters,
-                                MemberSnapshotRepository snapshots, CampaignCache cache, CampaignEngine engine,
+                                EvaluationLogRepository evaluations, MemberSnapshotRepository snapshots,
+                                CampaignCache cache, CampaignEngine engine,
                                 EvaluationService evaluation, LhEventFactory events, OutboxWriter outbox,
                                 AuditPublisher audit, ObjectMapper mapper, Clock clock,
                                 @Value("${loyaltyhub.approval.enabled:false}") boolean approvalEnabled) {
         this.campaigns = campaigns;
         this.counters = counters;
+        this.evaluations = evaluations;
         this.snapshots = snapshots;
         this.cache = cache;
         this.engine = engine;
@@ -74,11 +80,50 @@ public class CampaignAdminService {
 
     public List<CampaignSummary> list(String status, String actionType, String q) {
         return campaigns.search(status, actionType, q).stream()
-                .map(c -> CampaignSummary.of(c, counters.totals(c.id()))).toList();
+                .map(c -> {
+                    CounterRepository.Totals t = counters.totals(c.id());
+                    return CampaignSummary.of(c, t, budgetOf(c.limits(), t.matches(), t.pointsDecided()));
+                }).toList();
     }
 
     public Campaign get(String id) {
         return campaigns.findById(id).orElseThrow(() -> LhException.notFound("Campagna non trovata: " + id));
+    }
+
+    /** Statistiche della campagna (F-CMP-10, docs §3): totali, budget residuo e serie giornaliera 30 giorni. */
+    public CampaignStats stats(String id) {
+        Campaign c = get(id);
+        CounterRepository.Totals t = counters.totals(id);
+        long uniqueMembers = counters.uniqueMembers(id);
+        Budget budget = budgetOf(c.limits(), t.matches(), t.pointsDecided());
+        Instant from = clock.instant().minus(Duration.ofDays(30));
+        List<DailyStat> daily = evaluations.dailyForCampaign(c.code(), from);
+        return new CampaignStats(c.id(), c.code(), c.name(), c.status().name(),
+                t.matches(), uniqueMembers, t.pointsDecided(), t.pointsGranted(), budget, daily);
+    }
+
+    /** Budget dai limiti globali ({@code limits.global.maxPoints/maxMatches}); residuo = max − consumato. */
+    static Budget budgetOf(JsonNode limits, long matches, long pointsDecided) {
+        JsonNode global = limits == null ? null : limits.get("global");
+        if (global == null || global.isNull()) {
+            return null;
+        }
+        Long maxPoints = global.hasNonNull("maxPoints") ? global.get("maxPoints").asLong() : null;
+        Long maxMatches = global.hasNonNull("maxMatches") ? global.get("maxMatches").asLong() : null;
+        if (maxPoints == null && maxMatches == null) {
+            return null;
+        }
+        Long remainingPoints = maxPoints == null ? null : Math.max(0, maxPoints - pointsDecided);
+        Long remainingMatches = maxMatches == null ? null : Math.max(0, maxMatches - matches);
+        return new Budget(maxPoints, remainingPoints, maxMatches, remainingMatches);
+    }
+
+    public record Budget(Long maxPoints, Long remainingPoints, Long maxMatches, Long remainingMatches) {
+    }
+
+    public record CampaignStats(String id, String code, String name, String status,
+                                long matches, long uniqueMembers, long pointsDecided, long pointsGranted,
+                                Budget budget, List<DailyStat> daily) {
     }
 
     // ---------- scritture ----------

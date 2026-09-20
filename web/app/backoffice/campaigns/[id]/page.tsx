@@ -10,6 +10,7 @@ import { PageHeader, CodeText } from "@/components/bo/primitives";
 import { LifecycleBar } from "@/components/bo/LifecycleBar";
 import { GeneratedSentence } from "@/components/bo/GeneratedSentence";
 import { SimulationPanel } from "@/components/bo/SimulationPanel";
+import { CampaignStatsPanel } from "@/components/bo/campaigns/CampaignStatsPanel";
 
 // BO-06 Editor campagna (docs/08 §BO-06) — vista di un oggetto esistente: regole in sola lettura (per cambiarle
 // si duplica, docs/03 §3.6), barra ciclo di vita, frase generata e simulazione.
@@ -51,6 +52,11 @@ export default function CampaignEditorPage() {
                   <SimulationPanel campaignId={c.id} />
                 </CardBody>
               </Card>
+            </div>
+
+            <div className="mt-6">
+              <h2 className="mb-3 text-sm font-semibold text-[var(--color-bo-ink)]">Statistiche</h2>
+              <CampaignStatsPanel campaignId={c.id} />
             </div>
           </div>
         );

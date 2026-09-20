@@ -31,7 +31,9 @@ export default function CampaignsPage() {
     { key: "status", header: "Stato", render: (c) => <StatusPill status={c.status} /> },
     { key: "trigger", header: "Trigger", render: (c) => <span className="text-xs">{c.triggerActionTypes.join(", ")}</span> },
     { key: "matches", header: "Attivazioni", className: "text-right", render: (c) => <span className="tabular-nums">{c.totals.matches}</span> },
+    { key: "members", header: "Membri unici", className: "text-right", render: (c) => <span className="tabular-nums">{c.totals.uniqueMembers}</span> },
     { key: "points", header: "Punti erogati", className: "text-right", render: (c) => <PointsAmount value={c.totals.pointsDecided} /> },
+    { key: "budget", header: "Budget", render: (c) => <BudgetCell campaign={c} /> },
     { key: "prio", header: "Priorità", className: "text-right", render: (c) => <span className="tabular-nums">{c.priority}</span> },
     { key: "portal", header: "Portale", render: (c) => (c.visibleInPortal ? "✓" : "—") },
   ];
@@ -62,6 +64,24 @@ export default function CampaignsPage() {
           <DataTable columns={columns} rows={d} rowKey={(c) => c.id} onRowClick={(c) => router.push(`/backoffice/campaigns/${c.id}`)} />
         )}
       </QueryState>
+    </div>
+  );
+}
+
+// Barra budget in elenco (F-CMP-10): quota di punti decisi sul tetto globale, se presente.
+function BudgetCell({ campaign }: { campaign: CampaignSummary }) {
+  const b = campaign.budget;
+  if (!b || b.maxPoints == null) {
+    return <span className="text-xs text-[var(--color-bo-ink-2)]">—</span>;
+  }
+  const pct = b.maxPoints > 0 ? Math.min(100, (campaign.totals.pointsDecided / b.maxPoints) * 100) : 0;
+  const tone = pct >= 90 ? "var(--color-expire)" : pct >= 70 ? "var(--color-spend)" : "var(--color-bo-accent)";
+  return (
+    <div className="w-28">
+      <div className="mb-0.5 text-[10px] tabular-nums text-[var(--color-bo-ink-2)]">{pct.toFixed(0)}%</div>
+      <div className="h-1.5 w-full overflow-hidden rounded-sm bg-[var(--color-bo-bg)]">
+        <div className="h-full rounded-sm" style={{ width: `${Math.max(2, pct)}%`, background: tone }} />
+      </div>
     </div>
   );
 }

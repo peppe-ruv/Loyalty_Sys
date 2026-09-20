@@ -60,7 +60,37 @@ public class EvaluationLogRepository {
                 .list();
     }
 
+    /**
+     * Serie giornaliera per una campagna (docs §3, {@code GET /{id}/stats}): per ogni giorno, il numero di
+     * attivazioni (result con {@code matched=true} per quel {@code campaignCode}) e i punti decisi
+     * (somma degli {@code amount} degli effetti). Da {@code action_time}, negli ultimi {@code from..}.
+     */
+    public List<DailyStat> dailyForCampaign(String campaignCode, Instant from) {
+        return jdbc.sql("""
+                        SELECT date(action_time) AS day,
+                               count(*) AS matches,
+                               coalesce(sum((
+                                   SELECT coalesce(sum((e->>'amount')::bigint), 0)
+                                   FROM jsonb_array_elements(elem->'effects') e
+                                   WHERE e->>'amount' IS NOT NULL
+                               )), 0) AS points
+                        FROM evaluation_log, jsonb_array_elements(results) elem
+                        WHERE elem->>'campaignCode' = ?
+                          AND (elem->>'matched')::boolean = true
+                          AND action_time >= ?
+                        GROUP BY day
+                        ORDER BY day
+                        """)
+                .params(campaignCode, java.sql.Timestamp.from(from))
+                .query((rs, n) -> new DailyStat(
+                        rs.getObject("day", java.time.LocalDate.class), rs.getLong("matches"), rs.getLong("points")))
+                .list();
+    }
+
     public record EvaluationRow(String actionId, String memberId, String actionType, Instant actionTime,
                                 Instant evaluatedAt, String outcome, String resultsJson) {
+    }
+
+    public record DailyStat(java.time.LocalDate day, long matches, long points) {
     }
 }

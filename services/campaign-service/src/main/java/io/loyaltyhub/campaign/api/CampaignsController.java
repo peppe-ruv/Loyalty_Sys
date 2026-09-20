@@ -40,6 +40,11 @@ public class CampaignsController {
         return service.get(id);
     }
 
+    @GetMapping("/{id}/stats")
+    public CampaignAdminService.CampaignStats stats(@PathVariable String id) {
+        return service.stats(id);
+    }
+
     @PostMapping
     public ResponseEntity<Campaign> create(@RequestBody CreateCampaignRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(request));
