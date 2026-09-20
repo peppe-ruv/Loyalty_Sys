@@ -19,6 +19,12 @@ export const REALIZED_MILESTONE = 2;
 
 export const NAV: NavGroup[] = [
   {
+    label: "Panoramica",
+    items: [
+      { id: "BO-01", label: "Dashboard", href: "/backoffice", milestone: 2 },
+    ],
+  },
+  {
     label: "Clienti",
     items: [
       { id: "BO-02", label: "Membri", href: "/backoffice/members", milestone: 1 },

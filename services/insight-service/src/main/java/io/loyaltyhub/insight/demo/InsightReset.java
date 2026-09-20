@@ -11,8 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Reset demo di insight (docs/servizi/insight-service.md §6): svuota l'event store e le statistiche per topic;
- * si ripopolano da soli con i primi eventi. Nessun evento pre-caricato in M2.1. Lo storico sintetico
- * ({@code metric_daily}), l'audit e la DLQ arrivano con le fette M2.4/M2.5.
+ * si ripopolano da soli con i primi eventi. Nessun evento pre-caricato. Lo storico sintetico di
+ * {@code metric_daily} è ricreato da {@link InsightSyntheticSeeder} (M2.4); l'audit e la DLQ arrivano con M2.5/M7.
  */
 @Component
 @Profile("demo")

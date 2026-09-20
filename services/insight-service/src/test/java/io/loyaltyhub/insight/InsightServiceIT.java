@@ -196,6 +196,47 @@ class InsightServiceIT {
         assertThat(seen).as("l'evento arriva sul canale SSE con nome lh-event").isTrue();
     }
 
+    @Test
+    void syntheticHistoryFillsNinetyDaysOfKpis() {
+        // F-INS-04 (docs §5, §7): al seed lo storico sintetico riempie 90 giorni di metric_daily.
+        JsonNode series = client().get().uri("/v1/kpi/timeseries?metric=points_earned&days=90")
+                .retrieve().body(JsonNode.class);
+        JsonNode points = series.path("points");
+        assertThat(points.size()).isGreaterThanOrEqualTo(85);
+        // Nessun grafico vuoto e ogni giorno storico è marcato synthetic (docs/08 §BO-01).
+        boolean allSynthetic = true;
+        double sum = 0;
+        for (JsonNode p : points) {
+            allSynthetic &= p.path("synthetic").asBoolean(false);
+            sum += p.path("value").asDouble(0);
+        }
+        assertThat(allSynthetic).as("i giorni dello storico sono synthetic").isTrue();
+        assertThat(sum).isGreaterThan(0);
+    }
+
+    @Test
+    void kpiOverviewHasBaselineAndDeltas() {
+        JsonNode o = client().get().uri("/v1/kpi/overview?days=90").retrieve().body(JsonNode.class);
+        assertThat(o.path("pointsEarned").asLong()).isGreaterThan(0);
+        assertThat(o.path("actions").asLong()).isGreaterThan(0);
+        assertThat(o.path("membersActive").asLong()).isGreaterThan(0);
+        assertThat(o.path("membersTotal").asLong()).isGreaterThanOrEqualTo(12);
+        // Il delta vs periodo precedente esiste (può essere positivo o negativo).
+        assertThat(o.path("deltas").path("pointsEarned").has("abs")).isTrue();
+    }
+
+    @Test
+    void kpiBreakdownSplitsActionsBySource() {
+        JsonNode b = client().get().uri("/v1/kpi/breakdown?metric=actions&dimension=source&days=90&limit=5")
+                .retrieve().body(JsonNode.class);
+        assertThat(b.path("total").asLong()).isGreaterThan(0);
+        boolean hasEcommerce = false;
+        for (JsonNode s : b.path("slices")) {
+            if (s.path("dimValue").asString().equals("ecommerce")) hasEcommerce = true;
+        }
+        assertThat(hasEcommerce).as("la ripartizione per fonte include ecommerce").isTrue();
+    }
+
     // ---------- helper ----------
 
     private JsonNode awaitCount(String correlationId, int expected) {

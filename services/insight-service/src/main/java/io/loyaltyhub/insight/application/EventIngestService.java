@@ -8,6 +8,7 @@ import io.loyaltyhub.common.event.LhFamily;
 import io.loyaltyhub.common.event.LhHeaders;
 import io.loyaltyhub.insight.domain.StoredEvent;
 import io.loyaltyhub.insight.infra.EventStoreRepository;
+import io.loyaltyhub.insight.infra.MetricRepository;
 import io.loyaltyhub.insight.infra.TopicStatRepository;
 import io.loyaltyhub.insight.live.EventSummaries;
 import io.loyaltyhub.insight.live.LiveEvent;
@@ -20,6 +21,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 
 /**
  * Registra nell'event store gli eventi osservati sui topic (docs/servizi/insight-service.md §5).
@@ -34,13 +38,15 @@ public class EventIngestService {
 
     private final EventStoreRepository events;
     private final TopicStatRepository topicStats;
+    private final MetricRepository metrics;
     private final LiveEventHub liveHub;
     private final ObjectMapper mapper;
 
     public EventIngestService(EventStoreRepository events, TopicStatRepository topicStats,
-                              LiveEventHub liveHub, ObjectMapper mapper) {
+                              MetricRepository metrics, LiveEventHub liveHub, ObjectMapper mapper) {
         this.events = events;
         this.topicStats = topicStats;
+        this.metrics = metrics;
         this.liveHub = liveHub;
         this.mapper = mapper;
     }
@@ -59,11 +65,51 @@ public class EventIngestService {
         boolean isNew = events.insert(stored);
         if (isNew) {
             topicStats.record(topic, event.time(), record.partition(), record.offset());
+            updateMetrics(family, shortType, event, stored);
             liveHub.publish(new LiveEvent(event.id(), topic, family, shortType, event.memberId(),
                     event.lhcorrelationid(), event.time(), EventSummaries.of(shortType, event.data())));
         } else {
             log.debug("Evento già in store (duplicato), ignorato: {} su {}", event.id(), topic);
         }
+    }
+
+    /** Aggiorna gli aggregati giornalieri (docs §5). Solo le metriche con eventi in M1/M2. */
+    private void updateMetrics(String family, String shortType, LhEvent<JsonNode> event, StoredEvent stored) {
+        LocalDate day = (event.time() != null ? event.time() : Instant.now()).atZone(ZoneOffset.UTC).toLocalDate();
+        JsonNode data = event.data() == null ? mapper.createObjectNode() : event.data();
+        switch (family) {
+            case "ACTION" -> {
+                metrics.increment(day, "actions", MetricRepository.TOTAL, MetricRepository.TOTAL, 1);
+                metrics.increment(day, "actions", "source", sourceCode(stored.source()), 1);
+            }
+            case "DLQ" -> metrics.increment(day, "dlq", MetricRepository.TOTAL, MetricRepository.TOTAL, 1);
+            default -> {
+                // fatti e effetti sotto
+            }
+        }
+        switch (shortType) {
+            case "wallet.points.earned" -> {
+                long amount = data.path("amount").asLong(0);
+                String currency = data.path("currency").asString("PTS");
+                metrics.increment(day, "points_earned", MetricRepository.TOTAL, MetricRepository.TOTAL, amount);
+                metrics.increment(day, "points_earned", "currency", currency, amount);
+            }
+            case "member.registered" ->
+                    metrics.increment(day, "members_new", MetricRepository.TOTAL, MetricRepository.TOTAL, 1);
+            case "tier.upgraded", "tier.changed" ->
+                    metrics.increment(day, "tier_changes", MetricRepository.TOTAL, MetricRepository.TOTAL, 1);
+            default -> {
+                // altri tipi: nessuna metrica in M2
+            }
+        }
+    }
+
+    private static String sourceCode(String source) {
+        if (source == null) {
+            return "unknown";
+        }
+        int i = source.lastIndexOf(':');
+        return i >= 0 ? source.substring(i + 1) : source;
     }
 
     private static String shortType(String type) {

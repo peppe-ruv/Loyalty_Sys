@@ -134,6 +134,15 @@ public class EventStoreRepository {
         return jdbc.sql("SELECT count(*) FROM event_store").query(Long.class).single();
     }
 
+    /** Membri distinti che compaiono con un dato tipo evento (es. {@code member.registered}). */
+    public long distinctMembers(String shortType) {
+        return jdbc.sql("""
+                        SELECT count(DISTINCT member_id) FROM event_store
+                        WHERE short_type = ? AND member_id IS NOT NULL
+                        """)
+                .param(shortType).query(Long.class).single();
+    }
+
     public void deleteAll() {
         jdbc.sql("DELETE FROM event_store").update();
     }
