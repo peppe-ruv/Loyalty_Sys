@@ -42,7 +42,7 @@ class HubEndToEndIT {
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
         // Un solo database, search_path con i 4 schemi (ADR-023).
-        registry.add("spring.datasource.url", () -> base + "&currentSchema=ingestion,member,campaign,wallet");
+        registry.add("spring.datasource.url", () -> base + "&currentSchema=ingestion,member,campaign,wallet,insight");
         registry.add("spring.datasource.username", () -> "postgres");
         registry.add("spring.datasource.password", () -> "");
         registry.add("spring.kafka.bootstrap-servers", () -> System.getProperty("spring.embedded.kafka.brokers"));

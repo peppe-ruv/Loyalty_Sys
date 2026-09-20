@@ -39,7 +39,7 @@ class HubInProcessEndToEndIT {
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
-        registry.add("spring.datasource.url", () -> base + "&currentSchema=ingestion,member,campaign,wallet");
+        registry.add("spring.datasource.url", () -> base + "&currentSchema=ingestion,member,campaign,wallet,insight");
         registry.add("spring.datasource.username", () -> "postgres");
         registry.add("spring.datasource.password", () -> "");
         // Nessun spring.kafka.bootstrap-servers: nel profilo inproc non c'è broker.
@@ -76,6 +76,19 @@ class HubInProcessEndToEndIT {
         }
         assertThat(after).as("acquisto 130€ SILVER → +162 PTS via bus in-process (senza Kafka)")
                 .isEqualTo(before + 162);
+
+        // insight è nell'hub (M2.8 anticipato): l'event store ha registrato il giro (azione→effetto→fatto).
+        long insightDeadline = System.currentTimeMillis() + 10_000;
+        int stored = 0;
+        while (System.currentTimeMillis() < insightDeadline) {
+            JsonNode page = client().get().uri("/v1/events?memberId=MBR-000003").retrieve().body(JsonNode.class);
+            stored = page.path("count").asInt();
+            if (stored >= 3) {
+                break;
+            }
+            sleep();
+        }
+        assertThat(stored).as("insight ha osservato azione, effetto e fatto del giro").isGreaterThanOrEqualTo(3);
     }
 
     // ---------- helper ----------
