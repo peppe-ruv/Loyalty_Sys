@@ -9,6 +9,7 @@ import io.loyaltyhub.common.inbox.EventRouter;
 import io.loyaltyhub.common.inbox.IdempotentHandler;
 import io.loyaltyhub.common.inbox.ProcessedEvents;
 import io.loyaltyhub.common.kafka.LhKafkaConfiguration;
+import io.loyaltyhub.common.kafka.LhKafkaHealthIndicator;
 import io.loyaltyhub.common.kafka.LoyaltyHubProperties;
 import io.loyaltyhub.common.metrics.LhMetrics;
 import io.loyaltyhub.common.outbox.OutboxCleanup;
@@ -153,6 +154,21 @@ public class LhCommonAutoConfiguration {
     @ConditionalOnMissingBean
     public GlobalExceptionHandler globalExceptionHandler() {
         return new GlobalExceptionHandler();
+    }
+
+    /**
+     * Componente {@code kafka} in {@code /actuator/health} (nome bean → {@code kafka}). Il broker reale
+     * (Aiven, ADR-025) risulta {@code UP} quando il cluster risponde; in {@code inproc} (ADR-024) il bus
+     * in-process è sempre {@code UP}. Serve allo stato demo (docs/07 §8) che mappa questo componente.
+     */
+    @Bean(name = "kafkaHealthIndicator", destroyMethod = "close")
+    @ConditionalOnMissingBean(name = "kafkaHealthIndicator")
+    public LhKafkaHealthIndicator kafkaHealthIndicator(
+            org.springframework.kafka.core.KafkaAdmin kafkaAdmin,
+            org.springframework.core.env.Environment env) {
+        boolean inProcess = env.acceptsProfiles(org.springframework.core.env.Profiles.of("inproc"));
+        return new LhKafkaHealthIndicator(inProcess,
+                new java.util.HashMap<>(kafkaAdmin.getConfigurationProperties()));
     }
 
     @Bean
