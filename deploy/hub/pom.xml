@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.loyaltyhub</groupId>
+    <artifactId>loyalty-hub-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>hub</artifactId>
+  <packaging>jar</packaging>
+  <description>Deployable consolidato per la demo ospitata (ADR-023): i 4 servizi del core loop in un solo JVM, schema per servizio.</description>
+
+  <properties>
+    <zonky-embedded-postgres.version>2.0.7</zonky-embedded-postgres.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.loyaltyhub</groupId>
+      <artifactId>ingestion-service</artifactId>
+      <version>0.1.0-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+      <groupId>io.loyaltyhub</groupId>
+      <artifactId>member-service</artifactId>
+      <version>0.1.0-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+      <groupId>io.loyaltyhub</groupId>
+      <artifactId>campaign-service</artifactId>
+      <version>0.1.0-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+      <groupId>io.loyaltyhub</groupId>
+      <artifactId>wallet-service</artifactId>
+      <version>0.1.0-SNAPSHOT</version>
+    </dependency>
+    <!-- insight nell'hub per la demo (M2.8 anticipato): event store + stream SSE del rail live. -->
+    <dependency>
+      <groupId>io.loyaltyhub</groupId>
+      <artifactId>insight-service</artifactId>
+      <version>0.1.0-SNAPSHOT</version>
+    </dependency>
+
+    <!-- ==================== TEST ==================== -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.kafka</groupId>
+      <artifactId>spring-kafka-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.zonky.test</groupId>
+      <artifactId>embedded-postgres</artifactId>
+      <version>${zonky-embedded-postgres.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
+            <configuration>
+              <classifier>boot</classifier>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

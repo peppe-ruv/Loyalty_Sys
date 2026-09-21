@@ -1,0 +1,20 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZQ7Q2M9T4B6N8R0XWYEXPI",
+  "source": "urn:loyaltyhub:service:wallet",
+  "type": "io.loyaltyhub.fact.wallet.points.expired",
+  "subject": "member:MBR-000003",
+  "time": "2026-10-22T02:00:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.wallet.points.expired:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZQ7Q2M9T4B6N8R0XWYEXPI",
+  "lhhop": 0,
+  "data": {
+    "ledgerEntryId": "01J8ZQ7Q3Z2M9T4B6N8R0XWYEX",
+    "lotId": "01J8ZQ7Q3Y2M9T4B6N8R0XWYEX",
+    "currency": "PTS",
+    "amount": 1900,
+    "balanceAfter": 1340
+  }
+}

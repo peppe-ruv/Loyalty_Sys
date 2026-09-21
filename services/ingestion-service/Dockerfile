@@ -7,6 +7,7 @@ WORKDIR /src
 COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
 COPY libs/ libs/
+COPY seed/ seed/
 COPY services/ services/
 RUN ./mvnw -q -pl services/ingestion-service -am -DskipTests package
 

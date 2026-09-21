@@ -1,0 +1,26 @@
+{
+  "_note": "Parametri del generatore dello storico sintetico di insight (F-INS-04, docs/servizi/insight-service.md §5). 90 giorni di metric_daily con synthetic=true: stagionalità settimanale (+35% sab/dom su points_earned), rumore ±12%, trend +0,4%/giorno, picco 'campagna estiva' al giorno -30. Seme fisso => reset deterministico (docs/10 §1.3). I dati reali del giorno si sommano a questi.",
+  "seed": 20240701,
+  "days": 90,
+  "trendPerDay": 0.004,
+  "noise": 0.12,
+  "weekendUpliftPointsEarned": 0.35,
+  "peak": { "dayOffset": -30, "width": 6.0, "uplift": 0.6 },
+  "metrics": {
+    "actions": {
+      "baseline": 320,
+      "peakSensitive": true,
+      "bySource": { "ecommerce": 0.5, "app": 0.28, "billing": 0.15, "partner": 0.07 }
+    },
+    "points_earned": {
+      "baseline": 5200,
+      "peakSensitive": true,
+      "byCurrency": { "PTS": 0.8, "STS": 0.2 }
+    },
+    "points_spent": { "baseline": 1550 },
+    "points_expired": { "baseline": 170 },
+    "members_new": { "baseline": 6 },
+    "members_active": { "baseline": 9, "gauge": true },
+    "tier_changes": { "baseline": 3 }
+  }
+}

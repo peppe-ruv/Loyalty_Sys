@@ -1,0 +1,22 @@
+[
+  {
+    "code": "BASE", "name": "Base", "rank": 0, "thresholdSts": 0, "multiplier": 1.00,
+    "color": "#94a3b8", "icon": "circle",
+    "benefits": ["Accumulo punti su ogni acquisto", "Accesso al catalogo premi"]
+  },
+  {
+    "code": "SILVER", "name": "Silver", "rank": 1, "thresholdSts": 1000, "multiplier": 1.25,
+    "color": "#9ca3af", "icon": "medal",
+    "benefits": ["Punti ×1,25 sugli acquisti", "Anteprima delle promozioni"]
+  },
+  {
+    "code": "GOLD", "name": "Gold", "rank": 2, "thresholdSts": 3000, "multiplier": 1.50,
+    "color": "#f59e0b", "icon": "award",
+    "benefits": ["Punti ×1,50 sugli acquisti", "Premi riservati", "1 giocata bonus sugli acquisti ≥ 50 €", "Assistenza prioritaria"]
+  },
+  {
+    "code": "PLATINUM", "name": "Platinum", "rank": 3, "thresholdSts": 7000, "multiplier": 2.00,
+    "color": "#6366f1", "icon": "crown",
+    "benefits": ["Punti ×2 sugli acquisti", "Premi ed eventi esclusivi", "Assistenza dedicata"]
+  }
+]

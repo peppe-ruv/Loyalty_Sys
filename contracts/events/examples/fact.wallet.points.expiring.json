@@ -1,0 +1,19 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZR7Q2M9T4B6N8R0XWYEXPG",
+  "source": "urn:loyaltyhub:service:wallet",
+  "type": "io.loyaltyhub.fact.wallet.points.expiring",
+  "subject": "member:MBR-000003",
+  "time": "2026-09-30T09:00:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.wallet.points.expiring:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZR7Q2M9T4B6N8R0XWYEXPG",
+  "lhhop": 0,
+  "data": {
+    "lotId": "01J8ZR7Q3Y2M9T4B6N8R0XWYEX",
+    "currency": "PTS",
+    "amount": 1900,
+    "expiresAt": "2026-10-31T22:59:59Z"
+  }
+}

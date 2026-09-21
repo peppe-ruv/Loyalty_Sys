@@ -1,0 +1,14 @@
+[
+  { "memberId": "MBR-000001", "tier": "BASE", "periodSts": 0, "balances": { "PTS": 100, "STS": 0 } },
+  { "memberId": "MBR-000002", "tier": "SILVER", "periodSts": 1420, "balances": { "PTS": 1850, "STS": 1420 } },
+  { "memberId": "MBR-000003", "tier": "SILVER", "periodSts": 2880, "balances": { "PTS": 3240, "STS": 2880 } },
+  { "memberId": "MBR-000004", "tier": "GOLD", "periodSts": 4100, "balances": { "PTS": 12300, "STS": 4100 } },
+  { "memberId": "MBR-000005", "tier": "PLATINUM", "periodSts": 9600, "balances": { "PTS": 28750, "STS": 9600 } },
+  { "memberId": "MBR-000006", "tier": "GOLD", "periodSts": 650, "balances": { "PTS": 5400, "STS": 650 } },
+  { "memberId": "MBR-000007", "tier": "SILVER", "periodSts": 1150, "balances": { "PTS": 2400, "STS": 1150 } },
+  { "memberId": "MBR-000008", "tier": "BASE", "periodSts": 40, "balances": { "PTS": 320, "STS": 40 } },
+  { "memberId": "MBR-000009", "tier": "BASE", "periodSts": 0, "balances": { "PTS": 300, "STS": 0 } },
+  { "memberId": "MBR-000010", "tier": "SILVER", "periodSts": 1060, "balances": { "PTS": 1120, "STS": 1060 } },
+  { "memberId": "MBR-000011", "tier": "GOLD", "periodSts": 3350, "balances": { "PTS": 6900, "STS": 3350 } },
+  { "memberId": "MBR-000012", "tier": "BASE", "periodSts": 0, "balances": { "PTS": 0, "STS": 0 } }
+]

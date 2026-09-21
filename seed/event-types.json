@@ -1,0 +1,366 @@
+[
+  {
+    "code": "purchase.completed",
+    "name": "Acquisto completato",
+    "description": "Un membro ha concluso un acquisto",
+    "origin": "SYSTEM",
+    "category": "TRANSACTION",
+    "icon": "shopping-cart",
+    "enabled": true,
+    "dataSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": ["orderId", "amount", "currency"],
+      "properties": {
+        "orderId": { "type": "string", "minLength": 1 },
+        "amount": { "type": "number", "exclusiveMinimum": 0 },
+        "currency": { "type": "string", "minLength": 3, "maxLength": 3 },
+        "channel": { "type": "string", "enum": ["ONLINE", "STORE", "APP"] },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sku": { "type": "string" },
+              "category": { "type": "string" },
+              "quantity": { "type": "integer", "minimum": 1 },
+              "unitPrice": { "type": "number", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "sampleData": {
+      "orderId": "ORD-48213",
+      "amount": 64.90,
+      "currency": "EUR",
+      "channel": "ONLINE",
+      "items": [
+        { "sku": "SKU-100", "category": "casa", "quantity": 1, "unitPrice": 39.90 },
+        { "sku": "SKU-220", "category": "energia", "quantity": 1, "unitPrice": 25.00 }
+      ]
+    }
+  },
+  {
+    "code": "purchase.returned",
+    "name": "Reso di un acquisto",
+    "description": "Un membro ha restituito un acquisto",
+    "origin": "SYSTEM",
+    "category": "TRANSACTION",
+    "icon": "rotate-ccw",
+    "enabled": true,
+    "dataSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": ["orderId", "amount"],
+      "properties": {
+        "orderId": { "type": "string", "minLength": 1 },
+        "amount": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "sampleData": { "orderId": "ORD-48120", "amount": 24.90 }
+  },
+  {
+    "code": "ebill.activated",
+    "name": "Bolletta digitale attivata",
+    "description": "Attivazione della bolletta elettronica",
+    "origin": "SYSTEM",
+    "category": "SERVICE",
+    "icon": "file-text",
+    "enabled": true,
+    "dataSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": ["contractId"],
+      "properties": { "contractId": { "type": "string", "minLength": 1 } }
+    },
+    "sampleData": { "contractId": "CTR-77120" }
+  },
+  {
+    "code": "directdebit.activated",
+    "name": "Domiciliazione attivata",
+    "description": "Attivazione dell'addebito diretto",
+    "origin": "SYSTEM",
+    "category": "SERVICE",
+    "icon": "credit-card",
+    "enabled": true,
+    "dataSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": ["contractId"],
+      "properties": { "contractId": { "type": "string", "minLength": 1 } }
+    },
+    "sampleData": { "contractId": "CTR-77120" }
+  },
+  {
+    "code": "selfreading.submitted",
+    "name": "Autolettura inviata",
+    "description": "Un membro ha inviato l'autolettura del contatore",
+    "origin": "SYSTEM",
+    "category": "SERVICE",
+    "icon": "gauge",
+    "enabled": true,
+    "dataSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": ["meterId", "reading"],
+      "properties": {
+        "meterId": { "type": "string", "minLength": 1 },
+        "reading": { "type": "number", "minimum": 0 }
+      }
+    },
+    "sampleData": { "meterId": "MTR-9931", "reading": 14820 }
+  },
+  {
+    "code": "app.login.daily",
+    "name": "Accesso giornaliero all'app",
+    "description": "Primo accesso della giornata all'app",
+    "origin": "SYSTEM",
+    "category": "ENGAGEMENT",
+    "icon": "smartphone",
+    "enabled": true,
+    "dataSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "platform": { "type": "string", "enum": ["IOS", "ANDROID", "WEB"] }
+      }
+    },
+    "sampleData": { "platform": "IOS" }
+  },
+  {
+    "code": "survey.completed",
+    "name": "Survey completata",
+    "description": "Un membro ha completato una survey di un partner",
+    "origin": "SYSTEM",
+    "category": "ENGAGEMENT",
+    "icon": "clipboard-list",
+    "enabled": true,
+    "dataSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": ["surveyId"],
+      "properties": {
+        "surveyId": { "type": "string", "minLength": 1 },
+        "score": { "type": "integer", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "sampleData": { "surveyId": "SRV-2025-09", "score": 80 }
+  },
+  {
+    "code": "quiz.completed",
+    "name": "Quiz completato",
+    "description": "Un membro ha completato un quiz di un partner",
+    "origin": "SYSTEM",
+    "category": "ENGAGEMENT",
+    "icon": "help-circle",
+    "enabled": true,
+    "dataSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": ["quizId", "correctAnswers", "totalQuestions"],
+      "properties": {
+        "quizId": { "type": "string", "minLength": 1 },
+        "correctAnswers": { "type": "integer", "minimum": 0 },
+        "totalQuestions": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "sampleData": { "quizId": "QZ-AUTUNNO", "correctAnswers": 8, "totalQuestions": 10 }
+  },
+  {
+    "code": "review.submitted",
+    "name": "Recensione inviata",
+    "description": "Un membro ha recensito un prodotto",
+    "origin": "SYSTEM",
+    "category": "ENGAGEMENT",
+    "icon": "star",
+    "enabled": true,
+    "dataSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": ["productId", "rating"],
+      "properties": {
+        "productId": { "type": "string", "minLength": 1 },
+        "rating": { "type": "integer", "minimum": 1, "maximum": 5 }
+      }
+    },
+    "sampleData": { "productId": "SKU-100", "rating": 5 }
+  },
+  {
+    "code": "newsletter.subscribed",
+    "name": "Iscrizione newsletter",
+    "description": "Un membro si è iscritto alla newsletter",
+    "origin": "SYSTEM",
+    "category": "ENGAGEMENT",
+    "icon": "mail",
+    "enabled": true,
+    "dataSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {}
+    },
+    "sampleData": {}
+  },
+  {
+    "code": "member.registered",
+    "name": "Registrazione membro",
+    "description": "Azione interna: un nuovo membro si è registrato",
+    "origin": "SYSTEM",
+    "category": "INTERNAL",
+    "icon": "user-plus",
+    "enabled": true,
+    "dataSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channel": { "type": "string" },
+        "referred": { "type": "boolean" }
+      }
+    },
+    "sampleData": { "channel": "WEB", "referred": false }
+  },
+  {
+    "code": "member.profile.completed",
+    "name": "Profilo completato",
+    "description": "Azione interna: il membro ha completato il profilo",
+    "origin": "SYSTEM",
+    "category": "INTERNAL",
+    "icon": "user-check",
+    "enabled": true,
+    "dataSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {}
+    },
+    "sampleData": {}
+  },
+  {
+    "code": "member.birthday",
+    "name": "Compleanno membro",
+    "description": "Azione interna: ricorrenza di compleanno",
+    "origin": "SYSTEM",
+    "category": "INTERNAL",
+    "icon": "cake",
+    "enabled": true,
+    "dataSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": { "age": { "type": "integer", "minimum": 0 } }
+    },
+    "sampleData": { "age": 34 }
+  },
+  {
+    "code": "tier.upgraded",
+    "name": "Passaggio di livello",
+    "description": "Azione interna: il membro è salito di livello",
+    "origin": "SYSTEM",
+    "category": "INTERNAL",
+    "icon": "trending-up",
+    "enabled": true,
+    "dataSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": ["newTier"],
+      "properties": {
+        "previousTier": { "type": "string" },
+        "newTier": { "type": "string" }
+      }
+    },
+    "sampleData": { "previousTier": "SILVER", "newTier": "GOLD" }
+  },
+  {
+    "code": "instantwin.won",
+    "name": "Vincita instant win",
+    "description": "Azione interna: vincita a un concorso instant win",
+    "origin": "SYSTEM",
+    "category": "INTERNAL",
+    "icon": "gift",
+    "enabled": true,
+    "dataSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": ["contestCode", "prizeCode", "prizeType"],
+      "properties": {
+        "contestCode": { "type": "string" },
+        "prizeCode": { "type": "string" },
+        "prizeType": { "type": "string", "enum": ["POINTS", "COUPON", "PHYSICAL"] },
+        "points": { "type": "integer", "minimum": 0 },
+        "rewardCode": { "type": "string" }
+      }
+    },
+    "sampleData": { "contestCode": "IW-AUTUNNO", "prizeCode": "PZ-500", "prizeType": "POINTS", "points": 500 }
+  },
+  {
+    "code": "achievement.completed",
+    "name": "Obiettivo completato",
+    "description": "Azione interna: obiettivo di gamification raggiunto",
+    "origin": "SYSTEM",
+    "category": "INTERNAL",
+    "icon": "target",
+    "enabled": true,
+    "dataSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": ["achievementCode", "periodKey"],
+      "properties": {
+        "achievementCode": { "type": "string" },
+        "periodKey": { "type": "string" }
+      }
+    },
+    "sampleData": { "achievementCode": "ACH-3-PURCHASES", "periodKey": "2026-Q3" }
+  },
+  {
+    "code": "badge.awarded",
+    "name": "Badge assegnato",
+    "description": "Azione interna: assegnato un badge",
+    "origin": "SYSTEM",
+    "category": "INTERNAL",
+    "icon": "award",
+    "enabled": true,
+    "dataSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": ["badgeCode"],
+      "properties": { "badgeCode": { "type": "string" } }
+    },
+    "sampleData": { "badgeCode": "BDG-EXPLORER" }
+  },
+  {
+    "code": "referral.completed",
+    "name": "Referral completato",
+    "description": "Azione interna: referral andato a buon fine",
+    "origin": "SYSTEM",
+    "category": "INTERNAL",
+    "icon": "users",
+    "enabled": true,
+    "dataSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": ["role"],
+      "properties": {
+        "role": { "type": "string", "enum": ["REFERRER", "REFEREE"] },
+        "counterpartMemberId": { "type": "string" }
+      }
+    },
+    "sampleData": { "role": "REFERRER", "counterpartMemberId": "MBR-000009" }
+  },
+  {
+    "code": "reward.redeemed",
+    "name": "Premio riscattato",
+    "description": "Azione interna: conferma del riscatto di un premio",
+    "origin": "SYSTEM",
+    "category": "INTERNAL",
+    "icon": "package-check",
+    "enabled": true,
+    "dataSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": ["rewardCode", "pointsCost"],
+      "properties": {
+        "rewardCode": { "type": "string" },
+        "pointsCost": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "sampleData": { "rewardCode": "RWD-COFFEE-5", "pointsCost": 500 }
+  }
+]

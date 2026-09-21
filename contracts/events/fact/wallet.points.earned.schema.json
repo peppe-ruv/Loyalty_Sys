@@ -15,6 +15,7 @@
     "amount": { "type": "integer" },
     "balanceAfter": { "type": "integer" },
     "lotId": { "type": "string" },
+    "availableAt": { "type": ["string", "null"] },
     "expiresAt": { "type": ["string", "null"] },
     "pending": { "type": "boolean" }
   },

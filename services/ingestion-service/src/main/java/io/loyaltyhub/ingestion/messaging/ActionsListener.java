@@ -5,6 +5,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.inbox.EventRouter;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
@@ -24,12 +25,13 @@ public class ActionsListener {
     private final EventRouter router;
     private final ObjectMapper mapper;
 
-    public ActionsListener(EventRouter router, ObjectMapper mapper) {
+    public ActionsListener(@Qualifier("ingestionEventRouter") EventRouter router, ObjectMapper mapper) {
         this.router = router;
         this.mapper = mapper;
     }
 
     @KafkaListener(
+            groupId = "lh-ingestion",
             topics = "${loyaltyhub.topics.actions:lh.actions.v1}",
             containerFactory = "lhKafkaListenerContainerFactory")
     public void onAction(ConsumerRecord<String, String> record, Acknowledgment ack) throws Exception {

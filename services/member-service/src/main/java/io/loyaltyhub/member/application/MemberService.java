@@ -1,0 +1,281 @@
+package io.loyaltyhub.member.application;
+
+import io.loyaltyhub.common.audit.AuditEntry;
+import io.loyaltyhub.common.audit.AuditPublisher;
+import io.loyaltyhub.common.event.LhEvent;
+import io.loyaltyhub.common.event.LhEventFactory;
+import io.loyaltyhub.common.event.LhEventTypes;
+import io.loyaltyhub.common.ids.Codes;
+import io.loyaltyhub.common.outbox.OutboxWriter;
+import io.loyaltyhub.common.web.LhException;
+import io.loyaltyhub.common.web.PageResponse;
+import io.loyaltyhub.member.api.CreateMemberRequest;
+import io.loyaltyhub.member.api.MemberView;
+import io.loyaltyhub.member.api.StatusChangeRequest;
+import io.loyaltyhub.member.api.UpdateMemberRequest;
+import io.loyaltyhub.member.domain.Member;
+import io.loyaltyhub.member.domain.MemberProjection;
+import io.loyaltyhub.member.domain.MemberSnapshot;
+import io.loyaltyhub.member.domain.MemberStatus;
+import io.loyaltyhub.member.infra.MemberProjectionRepository;
+import io.loyaltyhub.member.infra.MemberRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+/**
+ * Anagrafica dei membri (docs/servizi/member-service.md §3, §5): creazione, ricerca, modifica, stati.
+ * Ogni scrittura emette il fatto corrispondente su {@code lh.facts.v1} via outbox, nella stessa transazione
+ * (registrazione/modifica portano lo <em>snapshot completo</em>, docs §5). Referral e profilo avanzato: M5.
+ */
+@Service
+public class MemberService {
+
+    /** Campi richiesti per considerare il profilo completo (docs/03 §2). */
+    private static final int REFERRAL_CODE_LEN = 8;
+
+    private final MemberRepository members;
+    private final MemberProjectionRepository projections;
+    private final LhEventFactory events;
+    private final OutboxWriter outbox;
+    private final AuditPublisher audit;
+    private final Clock clock;
+
+    public MemberService(MemberRepository members, MemberProjectionRepository projections,
+                         LhEventFactory events, OutboxWriter outbox, AuditPublisher audit, Clock clock) {
+        this.members = members;
+        this.projections = projections;
+        this.events = events;
+        this.outbox = outbox;
+        this.audit = audit;
+        this.clock = clock;
+    }
+
+    // ---------- letture ----------
+
+    public MemberView get(String id) {
+        Member m = members.findById(id).orElseThrow(() -> LhException.notFound("Membro non trovato: " + id));
+        return MemberView.of(m, projections.findByMemberId(id).orElse(null));
+    }
+
+    public PageResponse<MemberView> search(String q, String status, String tier, int page, int size) {
+        MemberStatus st = parseStatusFilter(status);
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        long total = members.count(q, st, tier);
+        List<MemberView> items = members.search(q, st, tier, s, p * s).stream()
+                .map(m -> MemberView.of(m, projections.findByMemberId(m.id()).orElse(null)))
+                .toList();
+        return PageResponse.of(items, p, s, total);
+    }
+
+    // ---------- scritture ----------
+
+    @Transactional
+    public MemberView create(CreateMemberRequest r) {
+        if (r.email() == null || r.email().isBlank()) {
+            throw LhException.badRequest("email è obbligatoria");
+        }
+        if (members.existsByEmail(r.email())) {
+            throw LhException.conflict("EMAIL_TAKEN", "E-mail già registrata: " + r.email());
+        }
+        String referredBy = resolveReferral(r.referralCode());
+
+        String id = members.nextId();
+        Instant now = clock.instant();
+        String nickname = r.nickname() != null && !r.nickname().isBlank()
+                ? r.nickname() : defaultNickname(r.firstName(), r.lastName());
+        Member m = new Member(
+                id, null, r.firstName(), r.lastName(), nickname, r.email(), r.phone(),
+                null, r.gender(), r.city(), MemberStatus.ACTIVE,
+                r.channel() != null ? r.channel() : "PORTAL", now,
+                uniqueReferralCode(), referredBy, null, "{}", "{}", List.of(), nickname, null, 0);
+        members.insert(m);
+        projections.upsert(id, "BASE", 0, 0, 0, 0);
+
+        publish(LhEventTypes.Fact.MEMBER_REGISTERED, m, "BASE");
+        audit.record("MEMBER", id, AuditEntry.Action.CREATE,
+                "Creato membro " + m.displayName() + " (" + orEmpty(m.email()) + ")",
+                null, Map.of("firstName", orEmpty(m.firstName()), "lastName", orEmpty(m.lastName()),
+                        "email", orEmpty(m.email()), "status", m.status().name(), "channel", orEmpty(m.channel())));
+        return MemberView.of(m, MemberProjection.base(id));
+    }
+
+    @Transactional
+    public MemberView update(String id, UpdateMemberRequest r) {
+        Member m = members.findById(id).orElseThrow(() -> LhException.notFound("Membro non trovato: " + id));
+        if (r.version() != null && r.version() != m.version()) {
+            throw LhException.conflict("VERSION_CONFLICT",
+                    "Versione non aggiornata: attesa " + m.version() + ", ricevuta " + r.version());
+        }
+        if (r.email() != null && !r.email().equalsIgnoreCase(orEmpty(m.email())) && members.existsByEmail(r.email())) {
+            throw LhException.conflict("EMAIL_TAKEN", "E-mail già registrata: " + r.email());
+        }
+
+        String firstName = pick(r.firstName(), m.firstName());
+        String lastName = pick(r.lastName(), m.lastName());
+        String nickname = pick(r.nickname(), m.nickname());
+        String email = pick(r.email(), m.email());
+        String phone = pick(r.phone(), m.phone());
+        LocalDate birthDate = r.birthDate() != null ? r.birthDate() : m.birthDate();
+        String gender = pick(r.gender(), m.gender());
+        String city = pick(r.city(), m.city());
+
+        Instant profileCompletedAt = m.profileCompletedAt();
+        if (profileCompletedAt == null && isProfileComplete(firstName, lastName, email, birthDate, city)) {
+            profileCompletedAt = clock.instant();
+        }
+
+        boolean ok = members.updateFields(id, m.version(), firstName, lastName, nickname, email, phone,
+                birthDate, gender, city, m.consentsJson(), m.attributesJson(), profileCompletedAt);
+        if (!ok) {
+            throw LhException.conflict("VERSION_CONFLICT", "Modifica concorrente sul membro " + id);
+        }
+
+        Member updated = members.findById(id).orElseThrow();
+        String tier = tierOf(id);
+        publish(LhEventTypes.Fact.MEMBER_UPDATED, updated, tier);
+
+        Map<String, Object> before = new LinkedHashMap<>();
+        Map<String, Object> after = new LinkedHashMap<>();
+        diff(before, after, "firstName", m.firstName(), updated.firstName());
+        diff(before, after, "lastName", m.lastName(), updated.lastName());
+        diff(before, after, "nickname", m.nickname(), updated.nickname());
+        diff(before, after, "email", m.email(), updated.email());
+        diff(before, after, "phone", m.phone(), updated.phone());
+        diff(before, after, "birthDate", m.birthDate(), updated.birthDate());
+        diff(before, after, "gender", m.gender(), updated.gender());
+        diff(before, after, "city", m.city(), updated.city());
+        if (!after.isEmpty()) {
+            audit.record("MEMBER", id, AuditEntry.Action.UPDATE,
+                    "Modificato profilo di " + updated.displayName() + " (" + after.size() + " campi)", before, after);
+        }
+        return MemberView.of(updated, projections.findByMemberId(id).orElse(null));
+    }
+
+    @Transactional
+    public MemberView changeStatus(String id, StatusChangeRequest r) {
+        Member m = members.findById(id).orElseThrow(() -> LhException.notFound("Membro non trovato: " + id));
+        MemberStatus target = parseTargetStatus(r.status());
+        MemberStatus previous = m.status();
+        if (target == previous) {
+            return MemberView.of(m, projections.findByMemberId(id).orElse(null));
+        }
+        members.updateStatus(id, target);
+
+        LhEvent<Map<String, Object>> fact = events.newRoot(
+                LhEventTypes.Fact.MEMBER_STATUS_CHANGED, "member:" + id,
+                Map.of("memberId", id, "previousStatus", previous.name(), "newStatus", target.name(),
+                        "reason", r.reason() != null ? r.reason() : ""));
+        outbox.write(fact);
+
+        String reason = r.reason() != null && !r.reason().isBlank() ? " · " + r.reason() : "";
+        audit.record("MEMBER", id, AuditEntry.Action.TRANSITION,
+                "Stato " + previous.name() + " → " + target.name() + reason,
+                Map.of("status", previous.name()), Map.of("status", target.name()));
+
+        Member updated = members.findById(id).orElseThrow();
+        return MemberView.of(updated, projections.findByMemberId(id).orElse(null));
+    }
+
+    // ---------- interni ----------
+
+    private void publish(String factType, Member m, String tier) {
+        LhEvent<MemberSnapshot> fact = events.newRoot(factType, "member:" + m.id(), MemberSnapshot.of(m, tier));
+        outbox.write(fact);
+    }
+
+    private String tierOf(String id) {
+        return projections.findByMemberId(id).map(MemberProjection::tierCode).orElse("BASE");
+    }
+
+    private String resolveReferral(String code) {
+        if (code == null || code.isBlank()) {
+            return null;
+        }
+        Member referrer = members.findByReferralCode(code.trim())
+                .orElseThrow(() -> LhException.validation("REFERRAL_CODE_INVALID", "Codice invito inesistente: " + code));
+        return referrer.id();
+    }
+
+    private String uniqueReferralCode() {
+        for (int attempt = 0; attempt < 10; attempt++) {
+            String code = Codes.random(REFERRAL_CODE_LEN);
+            if (!members.existsByReferralCode(code)) {
+                return code;
+            }
+        }
+        throw LhException.conflict("REFERRAL_CODE_EXHAUSTED", "Impossibile generare un codice invito univoco");
+    }
+
+    private static String defaultNickname(String firstName, String lastName) {
+        String first = firstName != null ? firstName.trim() : "";
+        if (lastName != null && !lastName.isBlank()) {
+            return (first + " " + lastName.trim().charAt(0) + ".").trim();
+        }
+        return first.isBlank() ? "Membro" : first;
+    }
+
+    private static boolean isProfileComplete(String firstName, String lastName, String email,
+                                             LocalDate birthDate, String city) {
+        return present(firstName) && present(lastName) && present(email) && birthDate != null && present(city);
+    }
+
+    private MemberStatus parseTargetStatus(String status) {
+        MemberStatus s = parse(status);
+        if (s == null || !(s == MemberStatus.ACTIVE || s == MemberStatus.INACTIVE || s == MemberStatus.BLOCKED)) {
+            throw LhException.badRequest("status deve essere ACTIVE, INACTIVE o BLOCKED");
+        }
+        return s;
+    }
+
+    private MemberStatus parseStatusFilter(String status) {
+        if (status == null || status.isBlank()) {
+            return null;
+        }
+        MemberStatus s = parse(status);
+        if (s == null) {
+            throw LhException.badRequest("status filtro non valido: " + status);
+        }
+        return s;
+    }
+
+    private static MemberStatus parse(String status) {
+        if (status == null) {
+            return null;
+        }
+        try {
+            return MemberStatus.valueOf(status.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private static boolean present(String v) {
+        return v != null && !v.isBlank();
+    }
+
+    private static String pick(String incoming, String current) {
+        return incoming != null ? incoming : current;
+    }
+
+    /** Registra il campo in {@code before}/{@code after} solo se è davvero cambiato (docs/05 §6: solo i campi cambiati). */
+    private static void diff(Map<String, Object> before, Map<String, Object> after,
+                             String field, Object oldValue, Object newValue) {
+        if (!Objects.equals(oldValue, newValue)) {
+            before.put(field, oldValue == null ? null : oldValue.toString());
+            after.put(field, newValue == null ? null : newValue.toString());
+        }
+    }
+
+    private static String orEmpty(String v) {
+        return v != null ? v : "";
+    }
+}

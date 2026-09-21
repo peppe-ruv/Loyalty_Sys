@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.tier.upgraded:1",
+  "title": "fact.tier.upgraded — data (EVT-FACT-28, docs/05 §5)",
+  "type": "object",
+  "required": ["previousTier", "newTier", "periodSts"],
+  "properties": {
+    "previousTier": { "type": "string" },
+    "newTier": { "type": "string" },
+    "periodSts": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": true
+}

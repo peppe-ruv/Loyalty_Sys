@@ -46,6 +46,16 @@
   </dependencies>
 
   <build>
+    <resources>
+      <!-- Risorse del modulo + i dati demo canonici (docs/10 §1): un'unica cartella seed/ sul classpath. -->
+      <resource>
+        <directory>src/main/resources</directory>
+      </resource>
+      <resource>
+        <directory>${maven.multiModuleProjectDirectory}/seed</directory>
+        <targetPath>seed</targetPath>
+      </resource>
+    </resources>
     <plugins>
       <!-- Fat jar eseguibile per il Dockerfile. -->
       <plugin>

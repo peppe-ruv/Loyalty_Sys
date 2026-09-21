@@ -1,0 +1,102 @@
+name: ci
+
+# Integrazione continua (docs/11 §10): l'arbitro del progetto.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend (Java 25)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      # I test usano Kafka in-JVM (EmbeddedKafka) e Postgres in-process (Zonky): niente Docker (Q-40).
+      - name: Build e test
+        run: ./mvnw -B -ntp verify
+
+  web:
+    name: web (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  seed:
+    name: seed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node scripts/check-seed.mjs
+
+  contracts:
+    name: contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # Gate strutturale veloce; la validazione JSON Schema completa è in ContractsTest (job backend).
+      - run: node scripts/check-contracts.mjs
+
+  docker:
+    name: docker (solo main)
+    if: github.ref == 'refs/heads/main'
+    needs: backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      # Piano A: build senza push (docs/11 §10). Path-filter per servizio: da affinare quando ci sono più immagini.
+      - name: Build immagine ingestion (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/ingestion-service/Dockerfile
+          push: false
+          tags: lh-ingestion:ci
+
+  e2e:
+    name: e2e (manuale)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Valida compose
+        run: docker compose -f deploy/docker-compose.yml --profile all config >/dev/null
+      - name: Sintassi degli script E2E
+        run: bash -n scripts/smoke.sh && bash -n scripts/wake.sh
+      # Il run completo (compose --profile all up + wake + smoke) richiede un ambiente con accesso a
+      # Docker Hub; si aggiunge al deploy (M1.8) su un runner con i registri raggiungibili.
+      # Localmente: docker compose -f deploy/docker-compose.yml --profile all up --build
+      #             scripts/wake.sh && scripts/smoke.sh

@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+/*
+ * Token del sistema (docs/07 §5). Tailwind v4: i token vivono in @theme e diventano utility.
+ * Backoffice = "sala controllo" (chiaro, denso, bordi). Portale = tema Aurora (sostituibile a runtime).
+ */
+@theme {
+  --font-ui: var(--font-ui-loaded), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display-loaded), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-loaded), ui-monospace, "SFMono-Regular", monospace;
+
+  /* Backoffice */
+  --color-bo-bg: #f4f6f8;
+  --color-bo-surface: #ffffff;
+  --color-bo-border: #dce1e7;
+  --color-bo-ink: #0f1b2d;
+  --color-bo-ink-2: #51607a;
+  --color-bo-accent: #0b7a75;
+
+  /* Colori dei topic (rail eventi) */
+  --color-topic-actions: #1d4ed8;
+  --color-topic-effects: #6d28d9;
+  --color-topic-facts: #0b7a75;
+  --color-topic-audit: #64748b;
+  --color-topic-dlq: #be123c;
+
+  /* Semantica punti */
+  --color-earn: #15803d;
+  --color-spend: #b45309;
+  --color-expire: #b91c1c;
+  --color-sts: #6d28d9;
+
+  /* Stato servizi (Demo Hub) */
+  --color-state-up: #15803d;
+  --color-state-waking: #b45309;
+  --color-state-down: #be123c;
+  --color-state-sleeping: #94a3b8;
+
+  /* Portale — tema Aurora (default; sovrascritto a runtime da GET /portal/theme) */
+  --color-pt-night: #0e1b2c;
+  --color-pt-primary: #1fb98f;
+  --color-pt-secondary: #7a5cfa;
+  --color-pt-coin: #ffb547;
+  --color-pt-bg: #f3f7f9;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-ui);
+  background: var(--color-bo-bg);
+  color: var(--color-bo-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Numeri sempre tabellari dove ci sono importi (docs/07 §5.1). */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Focus visibile (accessibilità, docs/07 §9). */
+:focus-visible {
+  outline: 2px solid var(--color-bo-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

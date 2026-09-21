@@ -1,0 +1,223 @@
+[
+  {
+    "code": "CMP-WELCOME", "name": "Bonus di benvenuto", "memberDescription": "100 punti appena ti iscrivi",
+    "icon": "gift", "status": "LIVE", "priority": 100, "visibleInPortal": true,
+    "triggerActionTypes": ["member.registered"],
+    "audience": { "all": true, "tiers": [], "segments": [] },
+    "conditions": { "op": "all", "rules": [] },
+    "effects": [ { "type": "GRANT_POINTS", "currency": "PTS", "mode": "FIXED", "value": 100, "tierMultiplierApplies": false } ],
+    "limits": { "perMember": [ { "max": 1, "period": "ALWAYS" } ] },
+    "schedule": { "startAt": "2026-01-01T00:00:00Z", "endAt": null }
+  },
+  {
+    "code": "CMP-PURCHASE-BASE", "name": "Punti sugli acquisti", "memberDescription": "1 punto ogni euro speso",
+    "icon": "shopping-cart", "status": "LIVE", "priority": 100, "visibleInPortal": true,
+    "triggerActionTypes": ["purchase.completed"],
+    "audience": { "all": true, "tiers": [], "segments": [] },
+    "conditions": { "op": "all", "rules": [ { "field": "data.amount", "cmp": "gte", "value": 1 } ] },
+    "effects": [
+      { "type": "GRANT_POINTS", "currency": "PTS", "mode": "PER_AMOUNT", "amountField": "data.amount", "value": 1, "unitStep": 1, "rounding": "FLOOR", "tierMultiplierApplies": true },
+      { "type": "GRANT_POINTS", "currency": "STS", "mode": "PER_AMOUNT", "amountField": "data.amount", "value": 1, "unitStep": 1, "rounding": "FLOOR", "tierMultiplierApplies": false }
+    ],
+    "limits": { "perMember": [ { "max": 3, "period": "DAY" } ], "global": { "maxPoints": 500000, "maxMatches": null } },
+    "schedule": { "startAt": "2026-01-01T00:00:00Z", "endAt": null }
+  },
+  {
+    "code": "CMP-WEEKEND-X2", "name": "Weekend a punti doppi", "memberDescription": "Nel weekend i punti acquisto valgono doppio",
+    "icon": "sparkles", "status": "LIVE", "priority": 200, "visibleInPortal": true,
+    "triggerActionTypes": ["purchase.completed"],
+    "audience": { "all": true, "tiers": [], "segments": [] },
+    "conditions": { "op": "all", "rules": [ { "field": "context.dayOfWeek", "cmp": "in", "value": ["SAT", "SUN"] } ] },
+    "effects": [ { "type": "MULTIPLIER", "currency": "PTS", "factor": 2, "scope": "ALL_GRANTS" } ],
+    "limits": {},
+    "schedule": { "startAt": "2026-01-01T00:00:00Z", "endAt": null }
+  },
+  {
+    "code": "CMP-EBILL", "name": "Bolletta digitale", "memberDescription": "300 punti attivando la bolletta digitale",
+    "icon": "file-text", "status": "LIVE", "priority": 100, "visibleInPortal": true,
+    "triggerActionTypes": ["ebill.activated"],
+    "audience": { "all": true, "tiers": [], "segments": [] },
+    "conditions": { "op": "all", "rules": [] },
+    "effects": [
+      { "type": "GRANT_POINTS", "currency": "PTS", "mode": "FIXED", "value": 300, "tierMultiplierApplies": true },
+      { "type": "GRANT_POINTS", "currency": "STS", "mode": "FIXED", "value": 150, "tierMultiplierApplies": false }
+    ],
+    "limits": { "perMember": [ { "max": 1, "period": "ALWAYS" } ] },
+    "schedule": { "startAt": "2026-01-01T00:00:00Z", "endAt": null }
+  },
+  {
+    "code": "CMP-DIRECT-DEBIT", "name": "Domiciliazione bancaria", "memberDescription": "400 punti con l'addebito diretto",
+    "icon": "credit-card", "status": "LIVE", "priority": 100, "visibleInPortal": true,
+    "triggerActionTypes": ["directdebit.activated"],
+    "audience": { "all": true, "tiers": [], "segments": [] },
+    "conditions": { "op": "all", "rules": [] },
+    "effects": [
+      { "type": "GRANT_POINTS", "currency": "PTS", "mode": "FIXED", "value": 400, "tierMultiplierApplies": true },
+      { "type": "GRANT_POINTS", "currency": "STS", "mode": "FIXED", "value": 200, "tierMultiplierApplies": false }
+    ],
+    "limits": { "perMember": [ { "max": 1, "period": "ALWAYS" } ] },
+    "schedule": { "startAt": "2026-01-01T00:00:00Z", "endAt": null }
+  },
+  {
+    "code": "CMP-SELF-READING", "name": "Autolettura", "memberDescription": "50 punti per l'autolettura del contatore",
+    "icon": "gauge", "status": "LIVE", "priority": 100, "visibleInPortal": true,
+    "triggerActionTypes": ["selfreading.submitted"],
+    "audience": { "all": true, "tiers": [], "segments": [] },
+    "conditions": { "op": "all", "rules": [] },
+    "effects": [
+      { "type": "GRANT_POINTS", "currency": "PTS", "mode": "FIXED", "value": 50, "tierMultiplierApplies": true },
+      { "type": "GRANT_POINTS", "currency": "STS", "mode": "FIXED", "value": 25, "tierMultiplierApplies": false }
+    ],
+    "limits": { "perMember": [ { "max": 1, "period": "MONTH" } ] },
+    "schedule": { "startAt": "2026-01-01T00:00:00Z", "endAt": null }
+  },
+  {
+    "code": "CMP-APP-DAILY", "name": "Accesso giornaliero", "memberDescription": "5 punti al primo accesso del giorno",
+    "icon": "smartphone", "status": "LIVE", "priority": 100, "visibleInPortal": true,
+    "triggerActionTypes": ["app.login.daily"],
+    "audience": { "all": true, "tiers": [], "segments": [] },
+    "conditions": { "op": "all", "rules": [] },
+    "effects": [ { "type": "GRANT_POINTS", "currency": "PTS", "mode": "FIXED", "value": 5, "tierMultiplierApplies": false } ],
+    "limits": { "perMember": [ { "max": 1, "period": "DAY" } ] },
+    "schedule": { "startAt": "2026-01-01T00:00:00Z", "endAt": null }
+  },
+  {
+    "code": "CMP-PROFILE", "name": "Profilo completo", "memberDescription": "150 punti completando il profilo",
+    "icon": "user-check", "status": "LIVE", "priority": 100, "visibleInPortal": true,
+    "triggerActionTypes": ["member.profile.completed"],
+    "audience": { "all": true, "tiers": [], "segments": [] },
+    "conditions": { "op": "all", "rules": [] },
+    "effects": [ { "type": "GRANT_POINTS", "currency": "PTS", "mode": "FIXED", "value": 150, "tierMultiplierApplies": true } ],
+    "limits": { "perMember": [ { "max": 1, "period": "ALWAYS" } ] },
+    "schedule": { "startAt": "2026-01-01T00:00:00Z", "endAt": null }
+  },
+  {
+    "code": "CMP-SURVEY", "name": "Survey completata", "memberDescription": "80 punti e una giocata per ogni survey",
+    "icon": "clipboard-list", "status": "LIVE", "priority": 100, "visibleInPortal": true,
+    "triggerActionTypes": ["survey.completed"],
+    "audience": { "all": true, "tiers": [], "segments": [] },
+    "conditions": { "op": "all", "rules": [] },
+    "effects": [
+      { "type": "GRANT_POINTS", "currency": "PTS", "mode": "FIXED", "value": 80, "tierMultiplierApplies": true },
+      { "type": "GRANT_PLAYS", "contestCode": "IW-AUTUNNO", "count": 1 }
+    ],
+    "limits": { "perMember": [ { "max": 2, "period": "MONTH" } ] },
+    "schedule": { "startAt": "2026-01-01T00:00:00Z", "endAt": null }
+  },
+  {
+    "code": "CMP-REFERRAL-REFERRER", "name": "Hai invitato un amico", "memberDescription": "500 punti per ogni amico che completa l'invito",
+    "icon": "users", "status": "LIVE", "priority": 120, "visibleInPortal": true,
+    "triggerActionTypes": ["referral.completed"],
+    "audience": { "all": true, "tiers": [], "segments": [] },
+    "conditions": { "op": "all", "rules": [ { "field": "data.role", "cmp": "eq", "value": "REFERRER" } ] },
+    "effects": [
+      { "type": "GRANT_POINTS", "currency": "PTS", "mode": "FIXED", "value": 500, "tierMultiplierApplies": true },
+      { "type": "GRANT_POINTS", "currency": "STS", "mode": "FIXED", "value": 250, "tierMultiplierApplies": false }
+    ],
+    "limits": { "perMember": [ { "max": 10, "period": "EDITION" } ] },
+    "schedule": { "startAt": "2026-01-01T00:00:00Z", "endAt": null }
+  },
+  {
+    "code": "CMP-REFERRAL-REFEREE", "name": "Ti ha invitato un amico", "memberDescription": "200 punti di benvenuto da invito",
+    "icon": "user-plus", "status": "LIVE", "priority": 120, "visibleInPortal": false,
+    "triggerActionTypes": ["referral.completed"],
+    "audience": { "all": true, "tiers": [], "segments": [] },
+    "conditions": { "op": "all", "rules": [ { "field": "data.role", "cmp": "eq", "value": "REFEREE" } ] },
+    "effects": [ { "type": "GRANT_POINTS", "currency": "PTS", "mode": "FIXED", "value": 200, "tierMultiplierApplies": true } ],
+    "limits": { "perMember": [ { "max": 1, "period": "ALWAYS" } ] },
+    "schedule": { "startAt": "2026-01-01T00:00:00Z", "endAt": null }
+  },
+  {
+    "code": "CMP-TIER-UP-BONUS", "name": "Bonus di livello", "memberDescription": "Punti bonus quando sali di livello",
+    "icon": "trending-up", "status": "LIVE", "priority": 100, "visibleInPortal": false,
+    "triggerActionTypes": ["tier.upgraded"],
+    "audience": { "all": true, "tiers": [], "segments": [] },
+    "conditions": { "op": "all", "rules": [] },
+    "effects": [ { "type": "GRANT_POINTS", "currency": "PTS", "mode": "LOOKUP", "amountField": "data.newTier", "lookup": { "SILVER": 200, "GOLD": 500, "PLATINUM": 1000 }, "tierMultiplierApplies": false } ],
+    "limits": {},
+    "schedule": { "startAt": "2026-01-01T00:00:00Z", "endAt": null }
+  },
+  {
+    "code": "CMP-IW-PRIZE-POINTS", "name": "Vincita in punti", "memberDescription": "I punti vinti ai concorsi",
+    "icon": "gift", "status": "LIVE", "priority": 100, "visibleInPortal": false, "system": true,
+    "triggerActionTypes": ["instantwin.won"],
+    "audience": { "all": true, "tiers": [], "segments": [] },
+    "conditions": { "op": "all", "rules": [ { "field": "data.prizeType", "cmp": "eq", "value": "POINTS" } ] },
+    "effects": [ { "type": "GRANT_POINTS", "currency": "PTS", "mode": "FROM_FIELD", "amountField": "data.points", "tierMultiplierApplies": false } ],
+    "limits": {},
+    "schedule": { "startAt": "2026-01-01T00:00:00Z", "endAt": null }
+  },
+  {
+    "code": "CMP-IW-PRIZE-COUPON", "name": "Vincita in coupon", "memberDescription": "I coupon vinti ai concorsi",
+    "icon": "ticket", "status": "LIVE", "priority": 100, "visibleInPortal": false, "system": true,
+    "triggerActionTypes": ["instantwin.won"],
+    "audience": { "all": true, "tiers": [], "segments": [] },
+    "conditions": { "op": "all", "rules": [ { "field": "data.prizeType", "cmp": "eq", "value": "COUPON" } ] },
+    "effects": [ { "type": "ISSUE_COUPON", "rewardCodeField": "data.rewardCode" } ],
+    "limits": {},
+    "schedule": { "startAt": "2026-01-01T00:00:00Z", "endAt": null }
+  },
+  {
+    "code": "CMP-BADGE-BONUS", "name": "Bonus badge", "memberDescription": "100 punti per ogni badge ottenuto",
+    "icon": "award", "status": "LIVE", "priority": 100, "visibleInPortal": false,
+    "triggerActionTypes": ["badge.awarded"],
+    "audience": { "all": true, "tiers": [], "segments": [] },
+    "conditions": { "op": "all", "rules": [] },
+    "effects": [ { "type": "GRANT_POINTS", "currency": "PTS", "mode": "FIXED", "value": 100, "tierMultiplierApplies": false } ],
+    "limits": {},
+    "schedule": { "startAt": "2026-01-01T00:00:00Z", "endAt": null }
+  },
+  {
+    "code": "CMP-BIRTHDAY", "name": "Buon compleanno", "memberDescription": "250 punti e gli auguri nel giorno del compleanno",
+    "icon": "cake", "status": "LIVE", "priority": 100, "visibleInPortal": true,
+    "triggerActionTypes": ["member.birthday"],
+    "audience": { "all": true, "tiers": [], "segments": [] },
+    "conditions": { "op": "all", "rules": [] },
+    "effects": [
+      { "type": "GRANT_POINTS", "currency": "PTS", "mode": "FIXED", "value": 250, "tierMultiplierApplies": true },
+      { "type": "SEND_MESSAGE", "templateCode": "MSG-BIRTHDAY" }
+    ],
+    "limits": { "perMember": [ { "max": 1, "period": "EDITION" } ] },
+    "schedule": { "startAt": "2026-01-01T00:00:00Z", "endAt": null }
+  },
+  {
+    "code": "CMP-GOLD-PURCHASE-PLAY", "name": "Giocata GOLD", "memberDescription": "Una giocata sugli acquisti sopra i 50 €",
+    "icon": "dice-5", "status": "LIVE", "priority": 110, "visibleInPortal": true,
+    "triggerActionTypes": ["purchase.completed"],
+    "audience": { "all": false, "tiers": ["GOLD", "PLATINUM"], "segments": [] },
+    "conditions": { "op": "all", "rules": [ { "field": "data.amount", "cmp": "gte", "value": 50 } ] },
+    "effects": [ { "type": "GRANT_PLAYS", "contestCode": "IW-AUTUNNO", "count": 1 } ],
+    "limits": { "perMember": [ { "max": 1, "period": "DAY" } ] },
+    "schedule": { "startAt": "2026-01-01T00:00:00Z", "endAt": null }
+  },
+  {
+    "code": "CMP-BLACK-FRIDAY", "name": "Black Friday ×3", "memberDescription": "Punti tripli sugli acquisti del Black Friday",
+    "icon": "sparkles", "status": "IN_REVIEW", "priority": 300, "visibleInPortal": true, "requiresLegal": true,
+    "triggerActionTypes": ["purchase.completed"],
+    "audience": { "all": true, "tiers": [], "segments": [] },
+    "conditions": { "op": "all", "rules": [] },
+    "effects": [ { "type": "MULTIPLIER", "currency": "PTS", "factor": 3, "scope": "ALL_GRANTS" } ],
+    "limits": { "global": { "maxPoints": 250000, "maxMatches": null } },
+    "schedule": { "startAt": "2026-11-27T00:00:00Z", "endAt": "2026-11-30T23:59:59Z" }
+  },
+  {
+    "code": "CMP-SUMMER-QUIZ", "name": "Quiz dell'estate", "memberDescription": "120 punti superando il quiz",
+    "icon": "help-circle", "status": "ENDED", "priority": 100, "visibleInPortal": false,
+    "triggerActionTypes": ["quiz.completed"],
+    "audience": { "all": true, "tiers": [], "segments": [] },
+    "conditions": { "op": "all", "rules": [ { "field": "data.correctAnswers", "cmp": "gte", "value": 7 } ] },
+    "effects": [ { "type": "GRANT_POINTS", "currency": "PTS", "mode": "FIXED", "value": 120, "tierMultiplierApplies": true } ],
+    "limits": { "perMember": [ { "max": 1, "period": "ALWAYS" } ] },
+    "schedule": { "startAt": "2026-06-01T00:00:00Z", "endAt": "2026-09-01T00:00:00Z" }
+  },
+  {
+    "code": "CMP-REVIEW", "name": "Lascia una recensione", "memberDescription": "30 punti per ogni recensione",
+    "icon": "star", "status": "PAUSED", "priority": 100, "visibleInPortal": true,
+    "triggerActionTypes": ["review.submitted"],
+    "audience": { "all": false, "tiers": [], "segments": ["SEG-AT-RISK"] },
+    "conditions": { "op": "all", "rules": [ { "field": "data.rating", "cmp": "gte", "value": 1 } ] },
+    "effects": [ { "type": "GRANT_POINTS", "currency": "PTS", "mode": "FIXED", "value": 30, "tierMultiplierApplies": true } ],
+    "limits": { "perMember": [ { "max": 5, "period": "MONTH" } ] },
+    "schedule": { "startAt": "2026-01-01T00:00:00Z", "endAt": null }
+  }
+]

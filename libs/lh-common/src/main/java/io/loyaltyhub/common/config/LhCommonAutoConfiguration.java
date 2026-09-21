@@ -9,6 +9,7 @@ import io.loyaltyhub.common.inbox.EventRouter;
 import io.loyaltyhub.common.inbox.IdempotentHandler;
 import io.loyaltyhub.common.inbox.ProcessedEvents;
 import io.loyaltyhub.common.kafka.LhKafkaConfiguration;
+import io.loyaltyhub.common.kafka.LhKafkaHealthIndicator;
 import io.loyaltyhub.common.kafka.LoyaltyHubProperties;
 import io.loyaltyhub.common.metrics.LhMetrics;
 import io.loyaltyhub.common.outbox.OutboxCleanup;
@@ -132,10 +133,42 @@ public class LhCommonAutoConfiguration {
         return new SeedLoader(mapper);
     }
 
+    /**
+     * Endpoint {@code POST /v1/demo/reset} (docs/06 §1, docs/12 M1.7): registrato solo col profilo {@code demo}.
+     * Vive in {@code io.loyaltyhub.common}, fuori dal component-scan dei servizi, quindi va esposto qui.
+     */
+    @Bean
+    @org.springframework.context.annotation.Profile("demo")
+    @ConditionalOnMissingBean
+    public io.loyaltyhub.common.demo.DemoResetController demoResetController(List<io.loyaltyhub.common.demo.DemoResettable> resettables) {
+        return new io.loyaltyhub.common.demo.DemoResetController(resettables);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public io.loyaltyhub.common.event.JsonSchemaValidator jsonSchemaValidator() {
+        return new io.loyaltyhub.common.event.JsonSchemaValidator();
+    }
+
     @Bean
     @ConditionalOnMissingBean
     public GlobalExceptionHandler globalExceptionHandler() {
         return new GlobalExceptionHandler();
+    }
+
+    /**
+     * Componente {@code kafka} in {@code /actuator/health} (nome bean → {@code kafka}). Il broker reale
+     * (Aiven, ADR-025) risulta {@code UP} quando il cluster risponde; in {@code inproc} (ADR-024) il bus
+     * in-process è sempre {@code UP}. Serve allo stato demo (docs/07 §8) che mappa questo componente.
+     */
+    @Bean(name = "kafkaHealthIndicator", destroyMethod = "close")
+    @ConditionalOnMissingBean(name = "kafkaHealthIndicator")
+    public LhKafkaHealthIndicator kafkaHealthIndicator(
+            org.springframework.kafka.core.KafkaAdmin kafkaAdmin,
+            org.springframework.core.env.Environment env) {
+        boolean inProcess = env.acceptsProfiles(org.springframework.core.env.Profiles.of("inproc"));
+        return new LhKafkaHealthIndicator(inProcess,
+                new java.util.HashMap<>(kafkaAdmin.getConfigurationProperties()));
     }
 
     @Bean

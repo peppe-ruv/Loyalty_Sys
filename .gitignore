@@ -23,3 +23,6 @@ out/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Lockfile npm spurio dell'hook di sessione (il PoC usa pnpm in web/)
+/package-lock.json
