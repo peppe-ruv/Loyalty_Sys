@@ -11,13 +11,13 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M0 — Fondamenta | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M0.1→M0.7 chiuse; CI in piedi |
 | M1 — Core loop e primo deploy | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M1.1→M1.8 chiuse; demo ospitata online |
 | M2 — Visibilità | completata | M2.8 | | ☑ | |
-| M3 — Punti adulti | da iniziare | | | ☐ | |
+| M3 — Punti adulti | in corso | 2026-09-21 | | ☐ | M3.1 chiusa (lotti, scadenza rolling, pending+rilascio) |
 | M4 — Premi | da iniziare | | | ☐ | |
 | M5 — Gioco | da iniziare | | | ☐ | |
 | M6 — Contenuti | da iniziare | | | ☐ | |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** `M3.1` (livelli/tier: motore di qualifica, storico, BO-07) — inizio di M3 (valute, punti status, edizioni)
+**Prossima fetta da lavorare:** `M3.2` (job scadenze/preavvisi/rilascio con `asOf` + sezione *Job* di BO-30)
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -134,7 +134,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 **Fette** (`docs/12 §3`)
 
-- [ ] `M3.1`
+- [x] `M3.1` — _2026-09-21: lotti su ogni accredito, scadenza `ROLLING_MONTHS` (fine mese +n, Europe/Rome), `pendingDays` → lotto `PENDING` e rilascio (`RELEASE` + `wallet.points.released`), `GET /v1/wallets/{id}/lots`, `expiringSoon` nella vista wallet, seed lotti (Σ attivi = saldo). Job schedulato/endpoint demo `asOf` e BO-30 → M3.2_
 - [ ] `M3.2`
 - [ ] `M3.3`
 - [ ] `M3.4`
@@ -149,9 +149,9 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [ ] `F-ING-07` Transazioni d'acquisto (P1)
 - [ ] `F-ING-08` Ponte azioni interne (P0)
 - [ ] `F-CMP-07` Cumulabilità (P0)
-- [ ] `F-WAL-03` Lotti e scadenza (P0)
-- [ ] `F-WAL-05` Punti in attesa (P1)
-- [ ] `F-WAL-06` Scadenza (P0)
+- [x] `F-WAL-03` Lotti e scadenza (P0) — _M3.1: lotto per ogni `EARN` con `expires_at` da policy `ROLLING_MONTHS`; consumo FIFO → M4_
+- [x] `F-WAL-05` Punti in attesa (P1) — _M3.1: `pendingDays` → lotto `PENDING`, `balance_pending`, rilascio ad `available_at`; job schedulato → M3.2_
+- [ ] `F-WAL-06` Scadenza (P0) — _M3.1: `expires_at` calcolato sui lotti; sweep/job scadenza + `wallet.points.expired` → M3.2_
 - [ ] `F-WAL-07` Rettifiche manuali (P0)
 - [ ] `F-WAL-09` Passività (P1)
 - [ ] `F-TIER-01` Definizione livelli (P0)

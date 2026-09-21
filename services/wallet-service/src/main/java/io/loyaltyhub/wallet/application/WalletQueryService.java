@@ -6,11 +6,15 @@ import io.loyaltyhub.wallet.domain.MemberTier;
 import io.loyaltyhub.wallet.domain.Tier;
 import io.loyaltyhub.wallet.domain.WalletBalance;
 import io.loyaltyhub.wallet.infra.MemberTierRepository;
+import io.loyaltyhub.wallet.infra.PointsLotRepository;
 import io.loyaltyhub.wallet.infra.TierRepository;
 import io.loyaltyhub.wallet.infra.WalletRepository;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,14 +23,23 @@ import java.util.Map;
 @Service
 public class WalletQueryService {
 
+    /** Valuta spendibile con scadenza rolling: le scadenze imminenti riguardano i punti (docs §3). */
+    private static final String SPENDABLE = "PTS";
+    private static final int SOON_DAYS = 30;
+
     private final WalletRepository wallets;
     private final MemberTierRepository memberTiers;
     private final TierRepository tiers;
+    private final PointsLotRepository lots;
+    private final Clock clock;
 
-    public WalletQueryService(WalletRepository wallets, MemberTierRepository memberTiers, TierRepository tiers) {
+    public WalletQueryService(WalletRepository wallets, MemberTierRepository memberTiers, TierRepository tiers,
+                              PointsLotRepository lots, Clock clock) {
         this.wallets = wallets;
         this.memberTiers = memberTiers;
         this.tiers = tiers;
+        this.lots = lots;
+        this.clock = clock;
     }
 
     public WalletView wallet(String memberId) {
@@ -39,7 +52,14 @@ public class WalletQueryService {
             byCurrency.put(b.currency(), new WalletView.Balance(
                     b.balanceActive(), b.balancePending(), b.lifetimeEarned(), b.lifetimeSpent()));
         }
-        return new WalletView(memberId, byCurrency, tierView(memberId));
+        return new WalletView(memberId, byCurrency, expiringSoon(memberId), tierView(memberId));
+    }
+
+    private WalletView.ExpiringSoon expiringSoon(String memberId) {
+        Instant now = clock.instant();
+        return lots.expiringSoon(memberId, SPENDABLE, now, now.plus(SOON_DAYS, ChronoUnit.DAYS))
+                .map(e -> new WalletView.ExpiringSoon(e.amount(), e.amount() > 0, e.nextExpiryAt()))
+                .orElse(new WalletView.ExpiringSoon(0, false, null));
     }
 
     public WalletView.TierView tierView(String memberId) {

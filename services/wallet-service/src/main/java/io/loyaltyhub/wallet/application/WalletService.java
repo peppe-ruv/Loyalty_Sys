@@ -8,10 +8,14 @@ import io.loyaltyhub.common.event.LhEventFactory;
 import io.loyaltyhub.common.event.LhEventTypes;
 import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.common.outbox.OutboxWriter;
+import io.loyaltyhub.wallet.domain.ExpiryPolicy;
 import io.loyaltyhub.wallet.domain.LedgerEntry;
+import io.loyaltyhub.wallet.domain.PointsLot;
 import io.loyaltyhub.wallet.domain.Tier;
+import io.loyaltyhub.wallet.infra.CurrencyRepository;
 import io.loyaltyhub.wallet.infra.LedgerRepository;
 import io.loyaltyhub.wallet.infra.MemberTierRepository;
+import io.loyaltyhub.wallet.infra.PointsLotRepository;
 import io.loyaltyhub.wallet.infra.TierRepository;
 import io.loyaltyhub.wallet.infra.WalletRepository;
 import org.slf4j.Logger;
@@ -23,6 +27,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
@@ -41,18 +46,22 @@ public class WalletService {
     private final LedgerRepository ledger;
     private final TierRepository tiers;
     private final MemberTierRepository memberTiers;
+    private final CurrencyRepository currencies;
+    private final PointsLotRepository lots;
     private final LhEventFactory events;
     private final OutboxWriter outbox;
     private final ObjectMapper mapper;
     private final Clock clock;
 
     public WalletService(WalletRepository wallets, LedgerRepository ledger, TierRepository tiers,
-                         MemberTierRepository memberTiers, LhEventFactory events, OutboxWriter outbox,
-                         ObjectMapper mapper, Clock clock) {
+                         MemberTierRepository memberTiers, CurrencyRepository currencies, PointsLotRepository lots,
+                         LhEventFactory events, OutboxWriter outbox, ObjectMapper mapper, Clock clock) {
         this.wallets = wallets;
         this.ledger = ledger;
         this.tiers = tiers;
         this.memberTiers = memberTiers;
+        this.currencies = currencies;
+        this.lots = lots;
         this.events = events;
         this.outbox = outbox;
         this.mapper = mapper;
@@ -110,20 +119,81 @@ public class WalletService {
             return; // niente da accreditare
         }
 
-        long balanceAfter = wallets.credit(memberId, currency, finalAmount);
-        if (currency.equals("STS")) {
-            memberTiers.addPeriodSts(memberId, finalAmount); // la salita di livello è M3
+        // Lotto (docs/03 §4.2): pendingDays > 0 ⇒ PENDING fino ad availableAt, poi rilasciato ad ACTIVE.
+        // Il consumo FIFO (lot_consumption) arriva con la spesa in M4.
+        Instant occurredAt = effectEvent.time() != null ? effectEvent.time() : clock.instant();
+        int pendingDays = d.path("pendingDays").asInt(0);
+        boolean pending = pendingDays > 0;
+        Instant availableAt = pending ? occurredAt.plus(pendingDays, ChronoUnit.DAYS) : null;
+        Instant expiresAt = ExpiryPolicy.expiresAt(expiryPolicy(currency), occurredAt);
+
+        long balanceAfter;
+        if (pending) {
+            wallets.creditPending(memberId, currency, finalAmount);
+            balanceAfter = wallets.find(memberId, currency).map(w -> w.balanceActive()).orElse(0L);
+        } else {
+            balanceAfter = wallets.credit(memberId, currency, finalAmount);
+            if (currency.equals("STS")) {
+                memberTiers.addPeriodSts(memberId, finalAmount); // la salita di livello è M3.3
+            }
         }
 
         String ledgerId = Ulid.next(clock);
-        Instant occurredAt = effectEvent.time() != null ? effectEvent.time() : clock.instant();
         LedgerEntry entry = new LedgerEntry(ledgerId, memberId, currency, "EARN", finalAmount, "+",
                 balanceAfter, occurredAt, "CAMPAIGN", text(d, "campaignCode"), text(d, "description"),
                 metadata(d, tierCode, multiplier));
         ledger.insert(entry, effectId, text(d, "actionId"), effectEvent.lhcorrelationid(), effectEvent.lhactor());
 
+        lots.insert(new PointsLot(Ulid.next(clock), memberId, currency, finalAmount, finalAmount,
+                pending ? PointsLot.PENDING : PointsLot.ACTIVE, occurredAt, availableAt, expiresAt, ledgerId));
+
         outbox.write(events.childSameBusinessTime(effectEvent, LhEventTypes.Fact.WALLET_POINTS_EARNED,
-                earnedData(ledgerId, effectId, d, currency, tierCode, multiplier, finalAmount, balanceAfter)));
+                earnedData(ledgerId, effectId, d, currency, tierCode, multiplier, finalAmount, balanceAfter,
+                        pending, availableAt, expiresAt)));
+    }
+
+    /**
+     * Rilascia i lotti {@code PENDING} il cui {@code available_at} è arrivato (docs §5, F-WAL-05). Sposta il
+     * saldo da {@code pending} ad {@code active}, scrive un movimento {@code RELEASE} e produce
+     * {@code wallet.points.released}. Idempotente: un lotto già {@code ACTIVE} non viene rilasciato due volte.
+     * Il job schedulato e l'endpoint demo con {@code asOf} arrivano in M3.2.
+     */
+    @Transactional
+    public int releasePending(Instant asOf) {
+        List<PointsLot> due = lots.findDuePending(asOf);
+        for (PointsLot lot : due) {
+            wallets.lock(lot.memberId(), lot.currency());
+            lots.markActive(lot.id());
+            long balanceAfter = wallets.release(lot.memberId(), lot.currency(), lot.remaining());
+            if (lot.currency().equals("STS")) {
+                memberTiers.addPeriodSts(lot.memberId(), lot.remaining());
+            }
+            String ledgerId = Ulid.next(clock);
+            LedgerEntry entry = new LedgerEntry(ledgerId, lot.memberId(), lot.currency(), "RELEASE",
+                    lot.remaining(), "+", balanceAfter, asOf, "SYSTEM", null,
+                    "Rilascio punti in attesa", null);
+            ledger.insert(entry, null, null, null, "system:jobs");
+
+            ObjectNode data = mapper.createObjectNode();
+            data.put("ledgerEntryId", ledgerId);
+            data.put("lotId", lot.id());
+            data.put("currency", lot.currency());
+            data.put("amount", lot.remaining());
+            data.put("balanceAfter", balanceAfter);
+            outbox.write(events.newRoot(LhEventTypes.Fact.WALLET_POINTS_RELEASED, "member:" + lot.memberId(), data));
+        }
+        if (!due.isEmpty()) {
+            log.info("Rilasciati {} lotti in attesa (asOf={})", due.size(), asOf);
+        }
+        return due.size();
+    }
+
+    private JsonNode expiryPolicy(String currency) {
+        return currencies.findByCode(currency)
+                .map(c -> c.expiryPolicyJson())
+                .filter(j -> j != null && !j.isBlank())
+                .map(mapper::readTree)
+                .orElse(null);
     }
 
     // ---------- interni ----------
@@ -138,7 +208,8 @@ public class WalletService {
     }
 
     private ObjectNode earnedData(String ledgerId, String effectId, JsonNode d, String currency,
-                                  String tierCode, BigDecimal multiplier, long amount, long balanceAfter) {
+                                  String tierCode, BigDecimal multiplier, long amount, long balanceAfter,
+                                  boolean pending, Instant availableAt, Instant expiresAt) {
         ObjectNode data = mapper.createObjectNode();
         data.put("ledgerEntryId", ledgerId);
         data.put("effectId", effectId);
@@ -151,7 +222,13 @@ public class WalletService {
         data.put("tierMultiplier", multiplier);
         data.put("amount", amount);
         data.put("balanceAfter", balanceAfter);
-        data.put("pending", false);
+        data.put("pending", pending);
+        if (availableAt != null) {
+            data.put("availableAt", availableAt.toString());
+        }
+        if (expiresAt != null) {
+            data.put("expiresAt", expiresAt.toString());
+        }
         return data;
     }
 

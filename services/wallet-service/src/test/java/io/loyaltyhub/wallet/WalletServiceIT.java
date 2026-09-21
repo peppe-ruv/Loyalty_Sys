@@ -10,9 +10,11 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import io.loyaltyhub.wallet.application.WalletService;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.kafka.test.context.EmbeddedKafka;
@@ -22,6 +24,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -46,6 +49,9 @@ class WalletServiceIT {
 
     @Value("${local.server.port}")
     private int port;
+
+    @Autowired
+    private WalletService walletService;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -109,6 +115,59 @@ class WalletServiceIT {
     }
 
     @Test
+    void ptsGrantCreatesLotWithRollingExpiry() {
+        // Effetto PTS con tempo 2026-09-15 e policy ROLLING_MONTHS(12) → scadenza fine mese +12 = 2027-09-30.
+        publishGrant("EFF-LOT-01", "MBR-000007", "PTS", 200, false, "CMP-PURCHASE-BASE");
+        awaitEarned("EFF-LOT-01");
+
+        JsonNode lots = client().get().uri("/v1/wallets/MBR-000007/lots").retrieve().body(JsonNode.class);
+        JsonNode granted = null;
+        for (JsonNode lot : lots) {
+            if (lot.path("amount").asLong() == 200 && lot.path("status").asString().equals("ACTIVE")
+                    && lot.path("expiresAt").asString("").startsWith("2027-09-30")) {
+                granted = lot;
+            }
+        }
+        assertThat(granted).as("lotto PTS con scadenza rolling +12 mesi").isNotNull();
+        assertThat(granted.path("remaining").asLong()).isEqualTo(200);
+    }
+
+    @Test
+    void pendingGrantIsHeldThenReleased() {
+        String member = "MBR-009100";
+        // pendingDays > 0 → lotto PENDING: il saldo attivo resta 0, i punti sono in attesa.
+        publishGrant("EFF-PEND-01", member, "PTS", 300, false, "CMP-WELCOME", 5);
+        JsonNode earned = awaitEarned("EFF-PEND-01");
+        assertThat(earned.path("pending").asBoolean()).isTrue();
+
+        JsonNode before = wallet(member);
+        assertThat(before.path("balances").path("PTS").path("active").asLong()).isZero();
+        assertThat(before.path("balances").path("PTS").path("pending").asLong()).isEqualTo(300);
+
+        // Rilascio con asOf oltre availableAt (2026-09-15 + 5g): il lotto passa ad ACTIVE.
+        walletService.releasePending(Instant.parse("2027-01-01T00:00:00Z"));
+
+        JsonNode released = awaitFact("io.loyaltyhub.fact.wallet.points.released",
+                d -> d.path("currency").asString().equals("PTS") && d.path("amount").asLong() == 300
+                        && d.path("balanceAfter").asLong() == 300);
+        assertThat(released).isNotNull();
+
+        JsonNode after = wallet(member);
+        assertThat(after.path("balances").path("PTS").path("active").asLong()).isEqualTo(300);
+        assertThat(after.path("balances").path("PTS").path("pending").asLong()).isZero();
+    }
+
+    @Test
+    void walletViewExposesExpiringSoon() {
+        // Il seeder crea per ogni membro con PTS ≥ 100 una quota (30%) in scadenza entro 12 giorni.
+        JsonNode wallet = wallet("MBR-000004");
+        JsonNode soon = wallet.path("expiringSoon");
+        assertThat(soon.path("within30d").asBoolean()).isTrue();
+        assertThat(soon.path("amount").asLong()).isEqualTo(12300 * 30 / 100);
+        assertThat(soon.path("nextExpiryAt").isNull()).isFalse();
+    }
+
+    @Test
     void tiersAndWalletViewAreExposed() {
         JsonNode tiers = client().get().uri("/v1/tiers").retrieve().body(JsonNode.class);
         assertThat(tiers.size()).isEqualTo(4);
@@ -146,12 +205,29 @@ class WalletServiceIT {
         }
     }
 
+    private JsonNode awaitFact(String type, Predicate<JsonNode> dataMatch) {
+        try (KafkaConsumer<String, String> consumer = consumer("fact-" + type + "-" + System.nanoTime())) {
+            consumer.subscribe(List.of(FACTS));
+            ConsumerRecord<String, String> rec = poll(consumer, r -> {
+                JsonNode e = readJson(r.value());
+                return e.path("type").asString().equals(type) && dataMatch.test(e.path("data"));
+            });
+            return rec == null ? null : readJson(rec.value()).path("data");
+        }
+    }
+
     private void publishGrant(String effectId, String memberId, String currency, long amount,
                              boolean tierApplies, String campaignCode) {
+        publishGrant(effectId, memberId, currency, amount, tierApplies, campaignCode, 0);
+    }
+
+    private void publishGrant(String effectId, String memberId, String currency, long amount,
+                             boolean tierApplies, String campaignCode, int pendingDays) {
         Map<String, Object> data = Map.of(
                 "effectId", effectId, "campaignCode", campaignCode, "actionId", "ACT-" + effectId,
                 "actionType", "purchase.completed", "currency", currency, "baseAmount", amount,
-                "campaignMultiplier", 1.0, "amount", amount, "tierMultiplierApplies", tierApplies, "pendingDays", 0);
+                "campaignMultiplier", 1.0, "amount", amount, "tierMultiplierApplies", tierApplies,
+                "pendingDays", pendingDays);
         Map<String, Object> event = Map.of(
                 "specversion", "1.0", "id", "EV-" + effectId, "source", "urn:loyaltyhub:service:campaign",
                 "type", "io.loyaltyhub.effect.points.grant", "subject", "member:" + memberId,

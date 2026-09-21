@@ -32,6 +32,14 @@ public class CurrencyRepository {
                 .list();
     }
 
+    public java.util.Optional<CurrencyRow> findByCode(String code) {
+        return jdbc.sql("SELECT code, name, spendable, expiry_policy::text AS expiry_policy FROM currency WHERE code = ?")
+                .param(code)
+                .query((rs, n) -> new CurrencyRow(rs.getString("code"), rs.getString("name"),
+                        rs.getBoolean("spendable"), rs.getString("expiry_policy")))
+                .optional();
+    }
+
     public record CurrencyRow(String code, String name, boolean spendable, String expiryPolicyJson) {
     }
 }

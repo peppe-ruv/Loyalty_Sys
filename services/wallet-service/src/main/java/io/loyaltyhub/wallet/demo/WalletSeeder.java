@@ -1,14 +1,19 @@
 package io.loyaltyhub.wallet.demo;
 
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.common.demo.DemoResettable;
 import io.loyaltyhub.common.demo.SeedLoader;
+import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.wallet.infra.CurrencyRepository;
 import io.loyaltyhub.wallet.infra.EditionRepository;
 import io.loyaltyhub.wallet.infra.LedgerRepository;
 import io.loyaltyhub.wallet.infra.MemberTierRepository;
+import io.loyaltyhub.wallet.infra.PointsLotRepository;
 import io.loyaltyhub.wallet.infra.TierRepository;
 import io.loyaltyhub.wallet.infra.WalletRepository;
+import io.loyaltyhub.wallet.domain.ExpiryPolicy;
+import io.loyaltyhub.wallet.domain.PointsLot;
 import io.loyaltyhub.wallet.domain.Tier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,7 +24,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,10 +49,13 @@ public class WalletSeeder implements ApplicationRunner, DemoResettable {
     private final WalletRepository wallets;
     private final MemberTierRepository memberTiers;
     private final LedgerRepository ledger;
+    private final PointsLotRepository lots;
+    private final ObjectMapper mapper;
+    private final Clock clock;
 
     public WalletSeeder(SeedLoader seed, CurrencyRepository currencies, TierRepository tiers,
                         EditionRepository editions, WalletRepository wallets, MemberTierRepository memberTiers,
-                        LedgerRepository ledger) {
+                        LedgerRepository ledger, PointsLotRepository lots, ObjectMapper mapper, Clock clock) {
         this.seed = seed;
         this.currencies = currencies;
         this.tiers = tiers;
@@ -52,6 +63,9 @@ public class WalletSeeder implements ApplicationRunner, DemoResettable {
         this.wallets = wallets;
         this.memberTiers = memberTiers;
         this.ledger = ledger;
+        this.lots = lots;
+        this.mapper = mapper;
+        this.clock = clock;
     }
 
     @Override
@@ -67,6 +81,7 @@ public class WalletSeeder implements ApplicationRunner, DemoResettable {
     @Override
     @Transactional
     public void resetToSeed() {
+        lots.deleteAll();
         ledger.deleteAll();
         wallets.deleteAll();
         memberTiers.deleteAll();
@@ -90,6 +105,8 @@ public class WalletSeeder implements ApplicationRunner, DemoResettable {
                     e.hasNonNull("redemptionGraceUntil") ? LocalDate.parse(e.get("redemptionGraceUntil").asString()) : null,
                     e.path("status").asString("PLANNED"));
         }
+        JsonNode ptsPolicy = currencies.findByCode("PTS")
+                .map(c -> parse(c.expiryPolicyJson())).orElse(null);
         for (JsonNode w : seed.readTree("wallets.json")) {
             String memberId = w.path("memberId").asString();
             JsonNode balances = w.path("balances");
@@ -98,8 +115,41 @@ public class WalletSeeder implements ApplicationRunner, DemoResettable {
             wallets.setBalance(memberId, "PTS", pts, pts);
             wallets.setBalance(memberId, "STS", sts, sts);
             memberTiers.set(memberId, w.path("tier").asString("BASE"), w.path("periodSts").asLong(0));
+            seedLots(memberId, "PTS", pts, ptsPolicy);
+            seedLots(memberId, "STS", sts, null); // STS: policy EDITION, senza scadenza in M3.1
         }
-        log.info("Seed wallet caricato (profilo demo): valute, livelli, edizioni, saldi");
+        log.info("Seed wallet caricato (profilo demo): valute, livelli, edizioni, saldi, lotti");
+    }
+
+    /**
+     * Crea lotti {@code ACTIVE} la cui somma dei {@code remaining} è il saldo (invariante docs §6). Per i punti
+     * spendibili li scaglia su date diverse così alcuni scadono entro 30 giorni: le schede scadenze (PT-07,
+     * BO-30) hanno dati appena accesa la demo. Le date sono relative a oggi (docs §6).
+     */
+    private void seedLots(String memberId, String currency, long balance, JsonNode policy) {
+        if (balance <= 0) {
+            return;
+        }
+        Instant now = clock.instant();
+        // Punti spendibili di taglio ≥ 100: una quota "in scadenza entro 12 giorni" perché le schede scadenze
+        // (PT-07, BO-30) non siano mai vuote, il resto guadagnato di recente (scadenza ~12 mesi dalla policy).
+        if (currency.equals("PTS") && balance >= 100) {
+            long soon = balance * 30 / 100;
+            lots.insert(new PointsLot(Ulid.next(clock), memberId, currency, soon, soon, PointsLot.ACTIVE,
+                    now.minus(353, ChronoUnit.DAYS), null, now.plus(12, ChronoUnit.DAYS), null));
+            long rest = balance - soon;
+            Instant earnedAt = now.minus(60, ChronoUnit.DAYS);
+            lots.insert(new PointsLot(Ulid.next(clock), memberId, currency, rest, rest, PointsLot.ACTIVE,
+                    earnedAt, null, ExpiryPolicy.expiresAt(policy, earnedAt), null));
+        } else {
+            Instant earnedAt = now.minus(60, ChronoUnit.DAYS);
+            lots.insert(new PointsLot(Ulid.next(clock), memberId, currency, balance, balance, PointsLot.ACTIVE,
+                    earnedAt, null, ExpiryPolicy.expiresAt(policy, earnedAt), null));
+        }
+    }
+
+    private JsonNode parse(String json) {
+        return json == null || json.isBlank() ? null : mapper.readTree(json);
     }
 
     private static String text(JsonNode n, String field) {
