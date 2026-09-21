@@ -9,6 +9,7 @@ COPY mvnw pom.xml ./
 COPY libs/ libs/
 COPY seed/ seed/
 COPY services/ services/
+COPY deploy/ deploy/
 RUN ./mvnw -q -pl services/wallet-service -am -DskipTests package
 
 # ---- run ----
