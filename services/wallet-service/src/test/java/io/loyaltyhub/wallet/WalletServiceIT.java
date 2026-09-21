@@ -10,6 +10,8 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import io.loyaltyhub.common.web.LhException;
+import io.loyaltyhub.wallet.application.TierAdminService;
 import io.loyaltyhub.wallet.application.WalletService;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -30,6 +32,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * wallet-service M1.4 (docs/servizi/wallet-service.md §7): applica gli effetti punti con il moltiplicatore
@@ -53,6 +56,9 @@ class WalletServiceIT {
     @Autowired
     private WalletService walletService;
 
+    @Autowired
+    private TierAdminService tierAdmin;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -70,26 +76,39 @@ class WalletServiceIT {
     @Test
     void ptsGrantForSilverAppliesTierMultiplier() {
         // Effetto PTS 130 con tierMultiplierApplies per un membro SILVER (×1,25) → EARN 162.
-        long before = balance("MBR-000003", "PTS");
-        publishGrant("EFF-WD-01", "MBR-000003", "PTS", 130, true, "CMP-PURCHASE-BASE");
+        // MBR-000002 resta SILVER (nessun test lo fa salire), a differenza di 003 usato per la salita.
+        long before = balance("MBR-000002", "PTS");
+        publishGrant("EFF-WD-01", "MBR-000002", "PTS", 130, true, "CMP-PURCHASE-BASE");
 
         JsonNode earned = awaitEarned("EFF-WD-01");
         assertThat(earned.path("amount").asLong()).isEqualTo(162);
         assertThat(earned.path("tierCode").asString()).isEqualTo("SILVER");
         assertThat(earned.path("balanceAfter").asLong()).isEqualTo(before + 162);
 
-        JsonNode wallet = wallet("MBR-000003");
+        JsonNode wallet = wallet("MBR-000002");
         assertThat(wallet.path("balances").path("PTS").path("active").asLong()).isEqualTo(before + 162);
     }
 
     @Test
-    void stsGrantIsNotMultipliedByTier() {
+    void stsAccrualNotMultipliedAndCrossingThresholdUpgradesTier() {
+        // Giulia (MBR-000003, SILVER, 2 880 STS) + 130 STS = 3 010 ≥ 3 000 → GOLD nello stesso commit
+        // (docs/servizi/wallet-service.md §7). Lo STS non è mai moltiplicato dal tier.
         long before = balance("MBR-000003", "STS");
         publishGrant("EFF-STS-01", "MBR-000003", "STS", 130, false, "CMP-PURCHASE-BASE");
 
         JsonNode earned = awaitEarned("EFF-STS-01");
         assertThat(earned.path("amount").asLong()).isEqualTo(130);
         assertThat(balance("MBR-000003", "STS")).isEqualTo(before + 130);
+
+        JsonNode upgraded = awaitFact("io.loyaltyhub.fact.tier.upgraded",
+                d -> d.path("previousTier").asString().equals("SILVER")
+                        && d.path("newTier").asString().equals("GOLD"));
+        assertThat(upgraded).isNotNull();
+        assertThat(upgraded.path("periodSts").asLong()).isEqualTo(3010);
+
+        JsonNode wallet = wallet("MBR-000003");
+        assertThat(wallet.path("tier").path("code").asString()).isEqualTo("GOLD");
+        assertThat(wallet.path("tier").path("multiplier").asDouble()).isEqualTo(1.5);
     }
 
     @Test
@@ -199,6 +218,35 @@ class WalletServiceIT {
                 d -> d.path("currency").asString().equals("PTS") && d.path("amount").asLong() == 333);
         assertThat(expiring).isNotNull();
         assertThat(expiring.path("expiresAt").asString("")).isNotBlank();
+    }
+
+    @Test
+    void tierDistributionAndHistoryAreExposed() {
+        JsonNode dist = client().get().uri("/v1/tiers/distribution").retrieve().body(JsonNode.class);
+        assertThat(dist.size()).isEqualTo(4);
+        long total = 0;
+        for (JsonNode t : dist) {
+            total += t.path("members").asLong();
+        }
+        assertThat(total).isGreaterThanOrEqualTo(12); // i 12 membri seed
+
+        JsonNode history = client().get().uri("/v1/members/MBR-000004/tier-history").retrieve().body(JsonNode.class);
+        assertThat(history.size()).isGreaterThanOrEqualTo(1);
+        assertThat(history.get(history.size() - 1).path("toTier").asString()).isEqualTo("GOLD"); // INITIAL seed
+    }
+
+    @Test
+    void tierUpdateRejectsNonMonotonicThresholds() {
+        // SILVER a 5 000 supererebbe GOLD (3 000) → violazione della monotonìa.
+        assertThatThrownBy(() -> tierAdmin.update("SILVER",
+                new TierAdminService.TierUpdate(null, 5000L, null, null, null, null)))
+                .isInstanceOf(LhException.class)
+                .satisfies(e -> assertThat(((LhException) e).code()).isEqualTo("TIER_THRESHOLDS_NOT_MONOTONIC"));
+
+        // BASE deve restare a 0.
+        assertThatThrownBy(() -> tierAdmin.update("BASE",
+                new TierAdminService.TierUpdate(null, 100L, null, null, null, null)))
+                .isInstanceOf(LhException.class);
     }
 
     @Test

@@ -1,0 +1,19 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZT7Q2M9T4B6N8R0XWYTIER",
+  "source": "urn:loyaltyhub:service:wallet",
+  "type": "io.loyaltyhub.fact.tier.upgraded",
+  "subject": "member:MBR-000003",
+  "time": "2026-09-15T10:15:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.tier.upgraded:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "ACT-EFF-WD-01",
+  "lhcausationid": "01J8ZT7Q1M9T4B6N8R0XWYTIEA",
+  "lhhop": 0,
+  "data": {
+    "previousTier": "SILVER",
+    "newTier": "GOLD",
+    "periodSts": 3010
+  }
+}

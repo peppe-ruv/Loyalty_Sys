@@ -117,14 +117,46 @@ export interface LedgerEntry {
 export interface WalletView {
   memberId: string;
   balances: Record<string, { active: number; pending: number; lifetimeEarned: number; lifetimeSpent: number }>;
+  expiringSoon?: { amount: number; within30d: boolean; nextExpiryAt: string | null };
   tier: {
     code: string;
     name: string;
+    since: string | null;
     periodSts: number;
     multiplier: number;
     progressPct: number;
     next: { code: string; threshold: number; missing: number } | null;
   };
+}
+
+// Livelli (BO-07, PT-08). `GET /v1/tiers` e `/v1/portal/tiers` restituiscono la scala.
+export interface Tier {
+  code: string;
+  name: string;
+  rank: number;
+  thresholdSts: number;
+  multiplier: number;
+  benefits: string[];
+  color: string | null;
+  icon: string | null;
+}
+
+export interface TierCount {
+  code: string;
+  name: string;
+  rank: number;
+  threshold: number;
+  multiplier: number;
+  members: number;
+}
+
+export interface TierHistoryEntry {
+  id: string;
+  fromTier: string | null;
+  toTier: string;
+  kind: string;
+  editionCode: string | null;
+  at: string;
 }
 
 export interface Evaluation {

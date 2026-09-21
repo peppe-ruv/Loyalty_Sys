@@ -10,11 +10,14 @@ import io.loyaltyhub.wallet.infra.EditionRepository;
 import io.loyaltyhub.wallet.infra.LedgerRepository;
 import io.loyaltyhub.wallet.infra.MemberTierRepository;
 import io.loyaltyhub.wallet.infra.PointsLotRepository;
+import io.loyaltyhub.wallet.infra.TierHistoryRepository;
 import io.loyaltyhub.wallet.infra.TierRepository;
 import io.loyaltyhub.wallet.infra.WalletRepository;
 import io.loyaltyhub.wallet.domain.ExpiryPolicy;
 import io.loyaltyhub.wallet.domain.PointsLot;
 import io.loyaltyhub.wallet.domain.Tier;
+import io.loyaltyhub.wallet.domain.TierHistory;
+import io.loyaltyhub.common.ids.Ulid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -50,12 +53,14 @@ public class WalletSeeder implements ApplicationRunner, DemoResettable {
     private final MemberTierRepository memberTiers;
     private final LedgerRepository ledger;
     private final PointsLotRepository lots;
+    private final TierHistoryRepository tierHistory;
     private final ObjectMapper mapper;
     private final Clock clock;
 
     public WalletSeeder(SeedLoader seed, CurrencyRepository currencies, TierRepository tiers,
                         EditionRepository editions, WalletRepository wallets, MemberTierRepository memberTiers,
-                        LedgerRepository ledger, PointsLotRepository lots, ObjectMapper mapper, Clock clock) {
+                        LedgerRepository ledger, PointsLotRepository lots, TierHistoryRepository tierHistory,
+                        ObjectMapper mapper, Clock clock) {
         this.seed = seed;
         this.currencies = currencies;
         this.tiers = tiers;
@@ -64,6 +69,7 @@ public class WalletSeeder implements ApplicationRunner, DemoResettable {
         this.memberTiers = memberTiers;
         this.ledger = ledger;
         this.lots = lots;
+        this.tierHistory = tierHistory;
         this.mapper = mapper;
         this.clock = clock;
     }
@@ -81,6 +87,7 @@ public class WalletSeeder implements ApplicationRunner, DemoResettable {
     @Override
     @Transactional
     public void resetToSeed() {
+        tierHistory.deleteAll();
         lots.deleteAll();
         ledger.deleteAll();
         wallets.deleteAll();
@@ -114,7 +121,11 @@ public class WalletSeeder implements ApplicationRunner, DemoResettable {
             long sts = balances.path("STS").asLong(0);
             wallets.setBalance(memberId, "PTS", pts, pts);
             wallets.setBalance(memberId, "STS", sts, sts);
-            memberTiers.set(memberId, w.path("tier").asString("BASE"), w.path("periodSts").asLong(0));
+            String tier = w.path("tier").asString("BASE");
+            memberTiers.set(memberId, tier, w.path("periodSts").asLong(0));
+            // Storico livelli minimo: la qualifica iniziale, così BO-07/tier-history non è vuota (docs §6).
+            tierHistory.insert(new TierHistory(Ulid.next(clock), memberId, null, tier,
+                    TierHistory.INITIAL, null, clock.instant().minus(90, ChronoUnit.DAYS)));
             seedLots(memberId, "PTS", pts, ptsPolicy);
             seedLots(memberId, "STS", sts, null); // STS: policy EDITION, senza scadenza in M3.1
         }

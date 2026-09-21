@@ -14,6 +14,7 @@ const TABS = [
   { href: "/portal", label: "Home" },
   { href: "/portal/earn", label: "Guadagna" },
   { href: "/portal/activity", label: "Attività" },
+  { href: "/portal/profile", label: "Io" },
 ];
 
 export function PortalShell({ children }: { children: React.ReactNode }) {

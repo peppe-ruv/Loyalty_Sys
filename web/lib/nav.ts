@@ -15,7 +15,7 @@ export interface NavGroup {
 
 // Milestone realizzate finora: M1 completa + fette di M2 già realizzate (BO-24 in M2.2). Le voci M2 non
 // ancora costruite semplicemente non sono ancora in NAV, quindi non compaiono (mai pagine "in arrivo").
-export const REALIZED_MILESTONE = 2;
+export const REALIZED_MILESTONE = 3;
 
 export const NAV: NavGroup[] = [
   {
@@ -34,6 +34,7 @@ export const NAV: NavGroup[] = [
     label: "Programma",
     items: [
       { id: "BO-05", label: "Campagne", href: "/backoffice/campaigns", milestone: 1 },
+      { id: "BO-07", label: "Livelli", href: "/backoffice/program/tiers", milestone: 3 },
       { id: "BO-09", label: "Azioni e fonti", href: "/backoffice/program/actions", milestone: 1 },
     ],
   },

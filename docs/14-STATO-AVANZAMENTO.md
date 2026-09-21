@@ -11,13 +11,13 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M0 — Fondamenta | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M0.1→M0.7 chiuse; CI in piedi |
 | M1 — Core loop e primo deploy | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M1.1→M1.8 chiuse; demo ospitata online |
 | M2 — Visibilità | completata | M2.8 | | ☑ | |
-| M3 — Punti adulti | in corso | 2026-09-21 | | ☑ | M3.1 (lotti/scadenza/pending) · M3.2 (job scadenza/preavviso/rilascio + BO-30) chiuse |
+| M3 — Punti adulti | in corso | 2026-09-21 | | ☑ | M3.1 (lotti) · M3.2 (job + BO-30) · M3.3 (tier: salita immediata, BO-07, PT-08) chiuse |
 | M4 — Premi | da iniziare | | | ☐ | |
 | M5 — Gioco | da iniziare | | | ☐ | |
 | M6 — Contenuti | da iniziare | | | ☐ | |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** `M3.3` (tier: salita immediata, `tier.upgraded`, moltiplicatore da tabella, BO-07, PT-08)
+**Prossima fetta da lavorare:** `M3.4` (edizioni e chiusura con discesa morbida `dryRun`, BO-08)
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -135,6 +135,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 **Fette** (`docs/12 §3`)
 
 - [x] `M3.1` — _2026-09-21: lotti su ogni accredito, scadenza `ROLLING_MONTHS` (fine mese +n, Europe/Rome), `pendingDays` → lotto `PENDING` e rilascio (`RELEASE` + `wallet.points.released`), `GET /v1/wallets/{id}/lots`, `expiringSoon` nella vista wallet, seed lotti (Σ attivi = saldo). Job schedulato/endpoint demo `asOf` e BO-30 → M3.2_
+- [x] `M3.3` — _2026-09-21: salita immediata di livello dopo accredito/rilascio STS (member_tier + tier_history UPGRADE + fatto `tier.upgraded` EVT-FACT-28, nello stesso commit), moltiplicatore da tabella; `GET /v1/tiers/distribution`, `PUT /v1/tiers/{code}` (monotonìa `TIER_THRESHOLDS_NOT_MONOTONIC` + BASE=0 + audit, ADMIN), `GET /v1/members/{id}/tier-history`; BO-07 Livelli (scala+modifica+discesa morbida), PT-08 carta livello + tab "Io"_
 - [x] `M3.2` — _2026-09-21: job wallet scadenze/preavvisi/rilascio con `asOf` (`EXPIRE`+`wallet.points.expired`, `wallet.points.expiring` una volta per lotto via flag `warned`, rilascio pending), `WalletJobs` schedulati gated da `loyaltyhub.jobs.enabled`, endpoint demo `POST /v1/demo/jobs/{expire-points,expiry-warnings,release-pending}?asOf=` (ADMIN), BO-30 "Macchina del tempo"_
 - [ ] `M3.3`
 - [ ] `M3.4`
@@ -154,12 +155,12 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `F-WAL-06` Scadenza (P0) — _M3.2: job scadenza (`asOf`) azzera i lotti scaduti, movimento `EXPIRE` + `wallet.points.expired`; preavvisi `wallet.points.expiring` una volta per lotto_
 - [ ] `F-WAL-07` Rettifiche manuali (P0)
 - [ ] `F-WAL-09` Passività (P1)
-- [ ] `F-TIER-01` Definizione livelli (P0)
-- [ ] `F-TIER-02` Salita immediata (P0)
+- [x] `F-TIER-01` Definizione livelli (P0) — _M3.3: `PUT /v1/tiers/{code}` (nome, soglia, moltiplicatore, vantaggi, colore) con monotonìa e BASE=0; BO-07_
+- [x] `F-TIER-02` Salita immediata (P0) — _M3.3: dopo ogni accredito/rilascio STS, al più alto livello raggiunto, `tier.upgraded` nello stesso commit_
 - [x] `F-TIER-03` Moltiplicatore di livello (P0) — _M1.4 forma minima: letto da `tier`/`member_tier` da seed; definizione/salita/edizioni → M3_
 - [ ] `F-TIER-04` Chiusura edizione con discesa morbida (P0)
 - [ ] `F-TIER-05` Anteprima chiusura (P0)
-- [ ] `F-TIER-06` Storico livelli (P1)
+- [x] `F-TIER-06` Storico livelli (P1) — _M3.3: tabella `tier_history` (INITIAL/UPGRADE) + `GET /v1/members/{id}/tier-history`_
 - [x] `F-DEMO-06` Job su richiesta (P0) — _M3.2: endpoint demo `POST /v1/demo/jobs/*?asOf=` (ADMIN) e BO-30 "Macchina del tempo" per lanciare i job del wallet; altri servizi nelle rispettive fette_
 
 **Accettazione M3** (`docs/12`)

@@ -12,10 +12,12 @@ import io.loyaltyhub.wallet.domain.ExpiryPolicy;
 import io.loyaltyhub.wallet.domain.LedgerEntry;
 import io.loyaltyhub.wallet.domain.PointsLot;
 import io.loyaltyhub.wallet.domain.Tier;
+import io.loyaltyhub.wallet.domain.TierHistory;
 import io.loyaltyhub.wallet.infra.CurrencyRepository;
 import io.loyaltyhub.wallet.infra.LedgerRepository;
 import io.loyaltyhub.wallet.infra.MemberTierRepository;
 import io.loyaltyhub.wallet.infra.PointsLotRepository;
+import io.loyaltyhub.wallet.infra.TierHistoryRepository;
 import io.loyaltyhub.wallet.infra.TierRepository;
 import io.loyaltyhub.wallet.infra.WalletRepository;
 import org.slf4j.Logger;
@@ -48,6 +50,7 @@ public class WalletService {
     private final MemberTierRepository memberTiers;
     private final CurrencyRepository currencies;
     private final PointsLotRepository lots;
+    private final TierHistoryRepository tierHistory;
     private final LhEventFactory events;
     private final OutboxWriter outbox;
     private final ObjectMapper mapper;
@@ -55,13 +58,15 @@ public class WalletService {
 
     public WalletService(WalletRepository wallets, LedgerRepository ledger, TierRepository tiers,
                          MemberTierRepository memberTiers, CurrencyRepository currencies, PointsLotRepository lots,
-                         LhEventFactory events, OutboxWriter outbox, ObjectMapper mapper, Clock clock) {
+                         TierHistoryRepository tierHistory, LhEventFactory events, OutboxWriter outbox,
+                         ObjectMapper mapper, Clock clock) {
         this.wallets = wallets;
         this.ledger = ledger;
         this.tiers = tiers;
         this.memberTiers = memberTiers;
         this.currencies = currencies;
         this.lots = lots;
+        this.tierHistory = tierHistory;
         this.events = events;
         this.outbox = outbox;
         this.mapper = mapper;
@@ -134,7 +139,8 @@ public class WalletService {
         } else {
             balanceAfter = wallets.credit(memberId, currency, finalAmount);
             if (currency.equals("STS")) {
-                memberTiers.addPeriodSts(memberId, finalAmount); // la salita di livello è M3.3
+                memberTiers.addPeriodSts(memberId, finalAmount);
+                applyTierUpgrade(memberId, effectEvent); // salita immediata nello stesso commit (docs §4.3)
             }
         }
 
@@ -175,6 +181,7 @@ public class WalletService {
             long balanceAfter = wallets.release(lot.memberId(), lot.currency(), lot.remaining());
             if (lot.currency().equals("STS")) {
                 memberTiers.addPeriodSts(lot.memberId(), lot.remaining());
+                applyTierUpgrade(lot.memberId(), null);
             }
             String ledgerId = Ulid.next(clock);
             LedgerEntry entry = new LedgerEntry(ledgerId, lot.memberId(), lot.currency(), "RELEASE",
@@ -262,6 +269,40 @@ public class WalletService {
                     warnable.size(), total, members.size(), asOf);
         }
         return new JobOutcome(warnable.size(), members.size(), total);
+    }
+
+    /**
+     * Salita immediata di livello (docs/03 §4.3, F-TIER-02): dopo un accredito {@code STS}, se {@code periodSts}
+     * raggiunge la soglia di un livello di rank superiore, porta il membro al <em>più alto</em> livello raggiunto,
+     * scrive lo storico ({@code UPGRADE}) e produce {@code tier.upgraded}. Nessuna discesa qui (è a chiusura
+     * edizione, M3.4). {@code parent} presente ⇒ il fatto resta nell'albero dell'azione che l'ha generato.
+     */
+    private void applyTierUpgrade(String memberId, LhEvent<JsonNode> parent) {
+        var mt = memberTiers.find(memberId).orElse(null);
+        if (mt == null) {
+            return;
+        }
+        List<Tier> scale = tiers.findAllByRank();
+        Tier current = scale.stream().filter(t -> t.code().equals(mt.tierCode())).findFirst().orElse(null);
+        Tier earned = scale.stream()
+                .filter(t -> t.thresholdSts() <= mt.periodSts())
+                .max(java.util.Comparator.comparingInt(Tier::rank)).orElse(null);
+        if (current == null || earned == null || earned.rank() <= current.rank()) {
+            return;
+        }
+        memberTiers.upgrade(memberId, earned.code(), current.code());
+        tierHistory.insert(new TierHistory(Ulid.next(clock), memberId, current.code(), earned.code(),
+                TierHistory.UPGRADE, null, clock.instant()));
+
+        ObjectNode data = mapper.createObjectNode();
+        data.put("previousTier", current.code());
+        data.put("newTier", earned.code());
+        data.put("periodSts", mt.periodSts());
+        LhEvent<ObjectNode> fact = parent != null
+                ? events.childSameBusinessTime(parent, LhEventTypes.Fact.TIER_UPGRADED, data)
+                : events.newRoot(LhEventTypes.Fact.TIER_UPGRADED, "member:" + memberId, data);
+        outbox.write(fact);
+        log.info("Salita livello {} → {} per {} (periodSts={})", current.code(), earned.code(), memberId, mt.periodSts());
     }
 
     private JsonNode expiryPolicy(String currency) {

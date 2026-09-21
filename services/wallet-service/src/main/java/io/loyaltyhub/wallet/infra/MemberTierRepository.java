@@ -47,6 +47,23 @@ public class MemberTierRepository {
                 .params(delta, memberId).update();
     }
 
+    /** Salita immediata: nuovo livello, {@code previous_tier} e {@code since} aggiornati (docs §4.3). */
+    public void upgrade(String memberId, String newTier, String previousTier) {
+        jdbc.sql("""
+                        UPDATE member_tier SET tier_code = ?, previous_tier = ?, since = now()
+                        WHERE member_id = ?
+                        """)
+                .params(newTier, previousTier, memberId).update();
+    }
+
+    /** Conteggio dei membri per livello (BO-07, {@code GET /v1/tiers/distribution}). */
+    public java.util.Map<String, Long> distribution() {
+        java.util.Map<String, Long> counts = new java.util.HashMap<>();
+        jdbc.sql("SELECT tier_code, count(*) AS n FROM member_tier GROUP BY tier_code")
+                .query((rs, i) -> counts.put(rs.getString("tier_code"), rs.getLong("n"))).list();
+        return counts;
+    }
+
     public void updateStatus(String memberId, String status) {
         jdbc.sql("INSERT INTO member_tier (member_id, member_status) VALUES (?, ?) "
                         + "ON CONFLICT (member_id) DO UPDATE SET member_status = excluded.member_status")
