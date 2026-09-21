@@ -10,8 +10,16 @@ import { PageHeader, StatusPill } from "@/components/bo/primitives";
 import { Can } from "@/components/bo/Can";
 import { it } from "@/lib/i18n/it";
 
-// BO-30 Console demo (docs/08 §BO-30): stato dei servizi + reset orchestrato. La macchina del tempo (job) è M3.
+// BO-30 Console demo (docs/08 §BO-30): stato dei servizi + reset orchestrato + macchina del tempo (job M3.2).
 const RESETTABLE = ["ingestion", "member", "campaign", "wallet"];
+
+// Job "macchina del tempo" del wallet (docs/servizi/wallet-service.md §3, M3.2): scadenze/preavvisi/rilascio con asOf.
+type JobOutcome = { lots: number; members: number; amount: number };
+const WALLET_JOBS: { path: string; label: string; verb: string }[] = [
+  { path: "expire-points", label: "Scadenza punti", verb: "scaduti" },
+  { path: "expiry-warnings", label: "Preavviso scadenze", verb: "in preavviso" },
+  { path: "release-pending", label: "Rilascio pending", verb: "rilasciati" },
+];
 
 export default function ConsolePage() {
   const status = useQuery<DemoStatus>({
@@ -24,6 +32,29 @@ export default function ConsolePage() {
   });
   const [log, setLog] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [asOf, setAsOf] = useState("");
+  const [jobLog, setJobLog] = useState<string[]>([]);
+  const [jobBusy, setJobBusy] = useState(false);
+
+  async function runJob(path: string, label: string, verb: string) {
+    setJobBusy(true);
+    try {
+      const out = await lhFetch<JobOutcome>("wallet", `/v1/demo/jobs/${path}`, {
+        method: "POST",
+        query: { asOf: asOf || undefined },
+      });
+      const when = asOf ? ` (al ${asOf})` : "";
+      const detail =
+        out.lots === 0
+          ? "nessun lotto interessato"
+          : `${out.amount.toLocaleString("it-IT")} PTS ${verb} · ${out.lots} lotti · ${out.members} membri`;
+      setJobLog((l) => [`✓ ${label}${when}: ${detail}`, ...l]);
+    } catch (e) {
+      setJobLog((l) => [`✗ ${label}: ${(e as Error).message}`, ...l]);
+    } finally {
+      setJobBusy(false);
+    }
+  }
 
   async function resetOne(service: string) {
     setBusy(true);
@@ -103,7 +134,61 @@ export default function ConsolePage() {
             ) : null}
             <p className="text-xs text-[var(--color-bo-ink-2)]">
               Il reset riporta ogni servizio ai dati di <code>seed/</code>. Durante l&apos;operazione possono
-              esserci brevi incoerenze tra i servizi. La macchina del tempo (job con data di riferimento) arriva con M3.
+              esserci brevi incoerenze tra i servizi.
+            </p>
+          </CardBody>
+        </Card>
+      </Can>
+
+      <Can capability="demo.admin" mode="disable">
+        <Card>
+          <CardBody className="space-y-3 pt-4">
+            <div>
+              <h3 className="text-sm font-semibold">Macchina del tempo</h3>
+              <p className="mt-0.5 text-xs text-[var(--color-bo-ink-2)]">
+                Esegue i job del wallet con una <strong>data di riferimento</strong>: senza data si usa adesso.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-xs text-[var(--color-bo-ink-2)]" htmlFor="asOf">
+                Data di riferimento
+              </label>
+              <input
+                id="asOf"
+                type="date"
+                value={asOf}
+                onChange={(e) => setAsOf(e.target.value)}
+                className="rounded border border-[var(--color-bo-border)] px-2 py-1 text-xs"
+              />
+              {asOf ? (
+                <button onClick={() => setAsOf("")} className="text-xs text-[var(--color-bo-accent)] underline">
+                  adesso
+                </button>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {WALLET_JOBS.map((j) => (
+                <button
+                  key={j.path}
+                  onClick={() => runJob(j.path, j.label, j.verb)}
+                  disabled={jobBusy}
+                  className="rounded border border-[var(--color-bo-border)] px-2.5 py-1 text-xs hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {j.label}
+                </button>
+              ))}
+            </div>
+            {jobLog.length > 0 ? (
+              <ul className="space-y-0.5 rounded bg-slate-50 p-2 font-mono text-xs">
+                {jobLog.map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </ul>
+            ) : null}
+            <p className="text-xs text-[var(--color-bo-ink-2)]">
+              Scadenza: azzera i lotti scaduti (movimento <code>EXPIRE</code>). Preavviso: notifica i lotti in
+              scadenza entro 30 giorni, una volta per lotto. Rilascio: sblocca i punti in attesa arrivati a
+              maturazione.
             </p>
           </CardBody>
         </Card>

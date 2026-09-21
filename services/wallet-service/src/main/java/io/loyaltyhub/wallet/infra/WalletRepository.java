@@ -74,6 +74,17 @@ public class WalletRepository {
                 .params(amount, amount, memberId, currency).query(Long.class).single();
     }
 
+    /** Scadenza: {@code balance_active -= amount}, {@code lifetime_expired += amount}. */
+    public long expire(String memberId, String currency, long amount) {
+        return jdbc.sql("""
+                        UPDATE wallet SET balance_active = balance_active - ?,
+                          lifetime_expired = lifetime_expired + ?, updated_at = now()
+                        WHERE member_id = ? AND currency = ?
+                        RETURNING balance_active
+                        """)
+                .params(amount, amount, memberId, currency).query(Long.class).single();
+    }
+
     /** Imposta i saldi (seed): {@code balance_active} e {@code lifetime_earned}. */
     public void setBalance(String memberId, String currency, long active, long lifetimeEarned) {
         jdbc.sql("""

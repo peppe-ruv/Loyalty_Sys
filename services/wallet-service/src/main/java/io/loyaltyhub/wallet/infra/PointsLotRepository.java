@@ -61,6 +61,39 @@ public class PointsLotRepository {
                 .param(lotId).update();
     }
 
+    /** Lotti {@code ACTIVE} con {@code remaining > 0} scaduti a {@code asOf} (job scadenze, docs §5). */
+    public List<PointsLot> findActiveExpired(Instant asOf) {
+        return jdbc.sql("""
+                        SELECT * FROM points_lot
+                        WHERE status = 'ACTIVE' AND remaining > 0
+                          AND expires_at IS NOT NULL AND expires_at <= ?
+                        ORDER BY member_id, currency, expires_at
+                        """)
+                .param(ts(asOf)).query(PointsLotRepository::map).list();
+    }
+
+    /** Segna un lotto {@code EXPIRED} azzerando il {@code remaining} (job scadenze). */
+    public void markExpired(String lotId) {
+        jdbc.sql("UPDATE points_lot SET status = 'EXPIRED', remaining = 0 WHERE id = ? AND status = 'ACTIVE'")
+                .param(lotId).update();
+    }
+
+    /** Lotti {@code ACTIVE} non ancora preavvisati in scadenza tra {@code asOf} e {@code until} (job preavvisi). */
+    public List<PointsLot> findWarnable(Instant asOf, Instant until) {
+        return jdbc.sql("""
+                        SELECT * FROM points_lot
+                        WHERE status = 'ACTIVE' AND remaining > 0 AND warned = false
+                          AND expires_at IS NOT NULL AND expires_at > ? AND expires_at <= ?
+                        ORDER BY member_id, currency, expires_at
+                        """)
+                .params(ts(asOf), ts(until)).query(PointsLotRepository::map).list();
+    }
+
+    /** Segna un lotto come già preavvisato (una volta per lotto, docs §5). */
+    public void markWarned(String lotId) {
+        jdbc.sql("UPDATE points_lot SET warned = true WHERE id = ?").param(lotId).update();
+    }
+
     /**
      * Somma dei {@code remaining} dei lotti {@code ACTIVE} in scadenza entro {@code until} e prima scadenza
      * (docs §3, campo {@code expiringSoon}). {@code from} esclude i già scaduti non ancora spazzati.

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.wallet.points.expired:1",
+  "title": "fact.wallet.points.expired — data (EVT-FACT-24, docs/05 §5)",
+  "type": "object",
+  "required": ["currency", "amount", "balanceAfter"],
+  "properties": {
+    "ledgerEntryId": { "type": "string", "minLength": 1 },
+    "lotId": { "type": "string" },
+    "currency": { "enum": ["PTS", "STS"] },
+    "amount": { "type": "integer", "minimum": 1 },
+    "balanceAfter": { "type": "integer" }
+  },
+  "additionalProperties": true
+}

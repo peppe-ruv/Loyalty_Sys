@@ -168,6 +168,40 @@ class WalletServiceIT {
     }
 
     @Test
+    void expiredLotIsRemovedFromBalance() {
+        // Accredito con business-time nel passato → scadenza rolling +12 = fine 09/2026 (isolato dagli altri lotti).
+        String member = "MBR-009200";
+        publishGrant("EFF-EXP-01", member, "PTS", 400, false, "CMP-PURCHASE-BASE", 0, "2025-09-10T10:00:00Z");
+        awaitEarned("EFF-EXP-01");
+        assertThat(wallet(member).path("balances").path("PTS").path("active").asLong()).isEqualTo(400);
+
+        // Job scadenze con asOf oltre la scadenza del lotto (ma prima delle scadenze dei lotti seed).
+        walletService.expirePoints(java.time.Instant.parse("2026-09-30T23:00:00Z"));
+
+        JsonNode expired = awaitFact("io.loyaltyhub.fact.wallet.points.expired",
+                d -> d.path("currency").asString().equals("PTS") && d.path("amount").asLong() == 400
+                        && d.path("balanceAfter").asLong() == 0);
+        assertThat(expired).isNotNull();
+        assertThat(wallet(member).path("balances").path("PTS").path("active").asLong()).isZero();
+    }
+
+    @Test
+    void expiringLotIsWarnedOncePerLot() {
+        // Lotto in scadenza a fine 10/2026: dentro la finestra di preavviso (asOf → +30 giorni).
+        String member = "MBR-009300";
+        publishGrant("EFF-WARN-01", member, "PTS", 333, false, "CMP-PURCHASE-BASE", 0, "2025-10-10T10:00:00Z");
+        awaitEarned("EFF-WARN-01");
+
+        WalletService.JobOutcome outcome = walletService.expiryWarnings(java.time.Instant.parse("2026-10-05T00:00:00Z"));
+        assertThat(outcome.lots()).isGreaterThanOrEqualTo(1);
+
+        JsonNode expiring = awaitFact("io.loyaltyhub.fact.wallet.points.expiring",
+                d -> d.path("currency").asString().equals("PTS") && d.path("amount").asLong() == 333);
+        assertThat(expiring).isNotNull();
+        assertThat(expiring.path("expiresAt").asString("")).isNotBlank();
+    }
+
+    @Test
     void tiersAndWalletViewAreExposed() {
         JsonNode tiers = client().get().uri("/v1/tiers").retrieve().body(JsonNode.class);
         assertThat(tiers.size()).isEqualTo(4);
@@ -223,6 +257,12 @@ class WalletServiceIT {
 
     private void publishGrant(String effectId, String memberId, String currency, long amount,
                              boolean tierApplies, String campaignCode, int pendingDays) {
+        publishGrant(effectId, memberId, currency, amount, tierApplies, campaignCode, pendingDays,
+                "2026-09-15T10:15:00Z");
+    }
+
+    private void publishGrant(String effectId, String memberId, String currency, long amount,
+                             boolean tierApplies, String campaignCode, int pendingDays, String time) {
         Map<String, Object> data = Map.of(
                 "effectId", effectId, "campaignCode", campaignCode, "actionId", "ACT-" + effectId,
                 "actionType", "purchase.completed", "currency", currency, "baseAmount", amount,
@@ -231,7 +271,7 @@ class WalletServiceIT {
         Map<String, Object> event = Map.of(
                 "specversion", "1.0", "id", "EV-" + effectId, "source", "urn:loyaltyhub:service:campaign",
                 "type", "io.loyaltyhub.effect.points.grant", "subject", "member:" + memberId,
-                "time", "2026-09-15T10:15:00Z", "lhcorrelationid", "ACT-" + effectId, "lhhop", 0, "data", data);
+                "time", time, "lhcorrelationid", "ACT-" + effectId, "lhhop", 0, "data", data);
         try (KafkaProducer<String, String> producer = new KafkaProducer<>(Map.of(
                 "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
                 "key.serializer", StringSerializer.class, "value.serializer", StringSerializer.class))) {

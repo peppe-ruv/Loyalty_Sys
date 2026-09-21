@@ -152,15 +152,23 @@ public class WalletService {
                         pending, availableAt, expiresAt)));
     }
 
+    /** Giorni entro cui un lotto in scadenza viene preavvisato (docs §5, EVT-FACT-25). */
+    private static final int WARN_WINDOW_DAYS = 30;
+
+    /** Esito di un job demo: lotti toccati, membri distinti, punti coinvolti. */
+    public record JobOutcome(int lots, int members, long amount) {
+    }
+
     /**
      * Rilascia i lotti {@code PENDING} il cui {@code available_at} è arrivato (docs §5, F-WAL-05). Sposta il
      * saldo da {@code pending} ad {@code active}, scrive un movimento {@code RELEASE} e produce
      * {@code wallet.points.released}. Idempotente: un lotto già {@code ACTIVE} non viene rilasciato due volte.
-     * Il job schedulato e l'endpoint demo con {@code asOf} arrivano in M3.2.
      */
     @Transactional
-    public int releasePending(Instant asOf) {
+    public JobOutcome releasePending(Instant asOf) {
         List<PointsLot> due = lots.findDuePending(asOf);
+        java.util.Set<String> members = new java.util.HashSet<>();
+        long total = 0;
         for (PointsLot lot : due) {
             wallets.lock(lot.memberId(), lot.currency());
             lots.markActive(lot.id());
@@ -181,11 +189,79 @@ public class WalletService {
             data.put("amount", lot.remaining());
             data.put("balanceAfter", balanceAfter);
             outbox.write(events.newRoot(LhEventTypes.Fact.WALLET_POINTS_RELEASED, "member:" + lot.memberId(), data));
+            members.add(lot.memberId());
+            total += lot.remaining();
         }
         if (!due.isEmpty()) {
-            log.info("Rilasciati {} lotti in attesa (asOf={})", due.size(), asOf);
+            log.info("Rilasciati {} lotti ({} punti) in attesa (asOf={})", due.size(), total, asOf);
         }
-        return due.size();
+        return new JobOutcome(due.size(), members.size(), total);
+    }
+
+    /**
+     * Scade i lotti {@code ACTIVE} con {@code expires_at ≤ asOf} (docs §5, F-WAL-06). Riduce il saldo attivo,
+     * incrementa {@code lifetime_expired}, scrive un movimento {@code EXPIRE} e produce
+     * {@code wallet.points.expired}. Idempotente: un lotto già {@code EXPIRED} non viene scaduto due volte.
+     */
+    @Transactional
+    public JobOutcome expirePoints(Instant asOf) {
+        List<PointsLot> expired = lots.findActiveExpired(asOf);
+        java.util.Set<String> members = new java.util.HashSet<>();
+        long total = 0;
+        for (PointsLot lot : expired) {
+            wallets.lock(lot.memberId(), lot.currency());
+            long amount = lot.remaining();
+            lots.markExpired(lot.id());
+            long balanceAfter = wallets.expire(lot.memberId(), lot.currency(), amount);
+            String ledgerId = Ulid.next(clock);
+            LedgerEntry entry = new LedgerEntry(ledgerId, lot.memberId(), lot.currency(), "EXPIRE",
+                    amount, "-", balanceAfter, asOf, "SYSTEM", null, "Scadenza punti", null);
+            ledger.insert(entry, null, null, null, "system:jobs");
+
+            ObjectNode data = mapper.createObjectNode();
+            data.put("ledgerEntryId", ledgerId);
+            data.put("lotId", lot.id());
+            data.put("currency", lot.currency());
+            data.put("amount", amount);
+            data.put("balanceAfter", balanceAfter);
+            outbox.write(events.newRoot(LhEventTypes.Fact.WALLET_POINTS_EXPIRED, "member:" + lot.memberId(), data));
+            members.add(lot.memberId());
+            total += amount;
+        }
+        if (!expired.isEmpty()) {
+            log.info("Scaduti {} lotti ({} punti) per {} membri (asOf={})", expired.size(), total, members.size(), asOf);
+        }
+        return new JobOutcome(expired.size(), members.size(), total);
+    }
+
+    /**
+     * Preavvisa i lotti {@code ACTIVE} in scadenza entro {@value #WARN_WINDOW_DAYS} giorni da {@code asOf}
+     * (docs §5, EVT-FACT-25). Una volta per lotto (flag {@code warned}); produce {@code wallet.points.expiring}.
+     */
+    @Transactional
+    public JobOutcome expiryWarnings(Instant asOf) {
+        Instant until = asOf.plus(WARN_WINDOW_DAYS, ChronoUnit.DAYS);
+        List<PointsLot> warnable = lots.findWarnable(asOf, until);
+        java.util.Set<String> members = new java.util.HashSet<>();
+        long total = 0;
+        for (PointsLot lot : warnable) {
+            lots.markWarned(lot.id());
+            ObjectNode data = mapper.createObjectNode();
+            data.put("lotId", lot.id());
+            data.put("currency", lot.currency());
+            data.put("amount", lot.remaining());
+            if (lot.expiresAt() != null) {
+                data.put("expiresAt", lot.expiresAt().toString());
+            }
+            outbox.write(events.newRoot(LhEventTypes.Fact.WALLET_POINTS_EXPIRING, "member:" + lot.memberId(), data));
+            members.add(lot.memberId());
+            total += lot.remaining();
+        }
+        if (!warnable.isEmpty()) {
+            log.info("Preavvisati {} lotti ({} punti) in scadenza per {} membri (asOf={})",
+                    warnable.size(), total, members.size(), asOf);
+        }
+        return new JobOutcome(warnable.size(), members.size(), total);
     }
 
     private JsonNode expiryPolicy(String currency) {
