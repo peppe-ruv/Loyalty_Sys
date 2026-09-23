@@ -15,7 +15,7 @@ Non conosce i saldi: il controllo del saldo è del wallet. Il campo `reachable` 
 | `coupon_pool` | `id`, `code` UQ, `name`, `prefix`, `validity_days`, `total`, `available` |
 | `coupon` | `code` PK, `pool_id`, `status` (`AVAILABLE, ISSUED, USED, EXPIRED, VOID`), `member_id`, `reward_code`, `origin` (`REDEMPTION, CAMPAIGN`), `redemption_id`, `effect_id` UQ null, `issued_at`, `expires_at`, `used_at` |
 | `redemption` | `id` (ULID), `member_id`, `reward_code`, `reward_name`, `points_cost`, `status` (`PENDING, CONFIRMED, FULFILLED, REJECTED, CANCELLED`), `reject_reason`, `needs_attention bool`, `coupon_code`, `fulfilment_note`, `shipping jsonb`, `correlation_id`, `requested_at`, `confirmed_at`, `closed_at`, `actor` |
-| `member_snapshot` | `member_id` PK, `status`, `tier_code`, `segments text[]`, `first_name`, `last_name`, `updated_at` (da fatti) |
+| `reward_member_snapshot` | `member_id` PK, `status`, `tier_code`, `segments text[]`, `first_name`, `last_name`, `updated_at` (da fatti). Prefisso `reward_` per non collidere con `campaign.member_snapshot` nel search_path dell'hub (ADR-023) |
 
 ## 3. API
 ### Gestione

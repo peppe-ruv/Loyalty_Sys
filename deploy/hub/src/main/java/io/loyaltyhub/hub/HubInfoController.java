@@ -25,8 +25,9 @@ public class HubInfoController {
                         "health", "/actuator/health",
                         "portalWallet", "/v1/portal/wallets/MBR-000003",
                         "portalCampaigns", "/v1/portal/campaigns",
+                        "portalCatalog", "/v1/portal/catalog?memberId=MBR-000003",
                         "members", "/v1/members",
                         "sendDemoEvent", "POST /v1/events"),
-                "services", List.of("ingestion", "member", "campaign", "wallet"));
+                "services", List.of("ingestion", "member", "campaign", "wallet", "insight", "reward"));
     }
 }

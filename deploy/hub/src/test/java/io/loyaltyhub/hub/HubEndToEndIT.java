@@ -47,7 +47,7 @@ class HubEndToEndIT {
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
         // Un solo database, search_path con i 4 schemi (ADR-023).
-        registry.add("spring.datasource.url", () -> base + "&currentSchema=ingestion,member,campaign,wallet,insight");
+        registry.add("spring.datasource.url", () -> base + "&currentSchema=ingestion,member,campaign,wallet,insight,reward");
         registry.add("spring.datasource.username", () -> "postgres");
         registry.add("spring.datasource.password", () -> "");
         registry.add("spring.kafka.bootstrap-servers", () -> System.getProperty("spring.embedded.kafka.brokers"));
@@ -131,6 +131,15 @@ class HubEndToEndIT {
                 .retrieve().body(JsonNode.class);
         assertThat(body.path("status").asString()).isEqualTo("OK");
         assertThat(body.path("reset").size()).as("tutti i seeder dei 4 servizi").isGreaterThanOrEqualTo(4);
+    }
+
+    @Test
+    void rewardCatalogIsServedByTheHubWithItsOwnSnapshot() {
+        // Schema reward nel search_path condiviso: lo snapshot dei membri è reward_member_snapshot, non quello di
+        // campaign. Marco (SILVER) vede il weekend (F5) bloccato per tier.
+        JsonNode catalog = client().get().uri("/v1/portal/catalog?memberId=MBR-000002").retrieve().body(JsonNode.class);
+        assertThat(catalog.path("bands").size()).isEqualTo(5);
+        assertThat(catalog.toString()).contains("RWD-WEEKEND").contains("lockedByTier");
     }
 
     // ---------- helper ----------

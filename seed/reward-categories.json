@@ -1,0 +1,7 @@
+[
+  { "code": "CASA", "name": "Casa & energia", "icon": "home", "sortOrder": 1 },
+  { "code": "TEMPO", "name": "Tempo libero", "icon": "sparkles", "sortOrder": 2 },
+  { "code": "MOBILITA", "name": "Mobilità", "icon": "bike", "sortOrder": 3 },
+  { "code": "SOLIDALE", "name": "Solidarietà", "icon": "heart-handshake", "sortOrder": 4 },
+  { "code": "ESPERIENZE", "name": "Esperienze", "icon": "ticket", "sortOrder": 5 }
+]

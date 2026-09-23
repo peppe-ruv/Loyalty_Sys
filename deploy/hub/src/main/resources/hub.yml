@@ -10,7 +10,7 @@ spring:
   datasource:
     # Un solo database, search_path con i 4 schemi: le tabelle hanno nomi unici tra i servizi, quindi
     # ogni servizio risolve le proprie senza qualificarle; outbox/processed_event vivono nel primo schema.
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/loyaltyhub?currentSchema=ingestion,member,campaign,wallet,insight}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/loyaltyhub?currentSchema=ingestion,member,campaign,wallet,insight,reward}
     username: ${DB_USERNAME:loyaltyhub}
     password: ${DB_PASSWORD:loyaltyhub}
     hikari:
@@ -22,7 +22,7 @@ spring:
       # `currentSchema` nell'URL perché il proxy di Neon non inoltra il parametro di startup `options` (le
       # tabelle non qualificate risulterebbero inesistenti). Le migrazioni non ne dipendono: HubDatabase fissa
       # lo schema esplicitamente per ogni run Flyway.
-      connection-init-sql: SET search_path TO ingestion, member, campaign, wallet, insight
+      connection-init-sql: SET search_path TO ingestion, member, campaign, wallet, insight, reward
   flyway:
     enabled: false   # le migrazioni per schema le esegue HubDatabase (una per schema)
   kafka:

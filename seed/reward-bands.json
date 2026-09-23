@@ -1,0 +1,7 @@
+[
+  { "code": "F1", "name": "Fascia 1", "pointsThreshold": 500, "color": "#94a3b8", "sortOrder": 1 },
+  { "code": "F2", "name": "Fascia 2", "pointsThreshold": 1500, "color": "#0d9488", "sortOrder": 2 },
+  { "code": "F3", "name": "Fascia 3", "pointsThreshold": 3000, "color": "#2563eb", "sortOrder": 3 },
+  { "code": "F4", "name": "Fascia 4", "pointsThreshold": 6000, "color": "#7c3aed", "sortOrder": 4 },
+  { "code": "F5", "name": "Fascia 5", "pointsThreshold": 12000, "color": "#b45309", "sortOrder": 5 }
+]
