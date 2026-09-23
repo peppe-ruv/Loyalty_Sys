@@ -156,6 +156,93 @@ public class CampaignAdminService {
         return c;
     }
 
+    /**
+     * Modifica ({@code PUT /v1/campaigns/{id}}, F-CMP-01; docs/03 §3.6). I campi assenti ({@code null}) restano
+     * invariati; {@code code} non cambia mai. {@code DRAFT}/{@code IN_REVIEW}/{@code APPROVED}: tutto modificabile.
+     * {@code LIVE} (e {@code PAUSED}, SPEC-GAP Q-51): solo i campi sicuri — nome, descrizioni, icona, priorità,
+     * {@code schedule.endAt} — altrimenti {@code 409 CAMPAIGN_LIVE_LOCKED} (per il resto si duplica).
+     * {@code ENDED}/{@code ARCHIVED}: {@code 409 CAMPAIGN_NOT_EDITABLE}.
+     */
+    @Transactional
+    public Campaign update(String id, CreateCampaignRequest r) {
+        Campaign c = get(id);
+        if (r.code() != null && !r.code().equals(c.code())) {
+            throw LhException.conflict("CODE_IMMUTABLE", "Il codice di una campagna non si modifica: " + c.code());
+        }
+        if (c.status() == CampaignStatus.ENDED || c.status() == CampaignStatus.ARCHIVED) {
+            throw LhException.conflict("CAMPAIGN_NOT_EDITABLE", "Una campagna " + c.status() + " non si modifica.");
+        }
+        Campaign m = merge(c, r);
+        if (c.status() == CampaignStatus.LIVE || c.status() == CampaignStatus.PAUSED) {
+            List<String> locked = lockedChanges(c, m);
+            if (!locked.isEmpty()) {
+                throw LhException.conflict("CAMPAIGN_LIVE_LOCKED", "Su una campagna " + c.status()
+                        + " si modificano solo nome, descrizioni, icona, priorità e fine calendario; campi bloccati: "
+                        + String.join(", ", locked) + ". Per cambiarli duplica la campagna.");
+            }
+        }
+        List<String> errors = validate(new CreateCampaignRequest(m.code(), m.name(), m.description(), m.memberDescription(),
+                m.icon(), m.triggerActionTypes(), m.audience(), m.conditions(), m.effects(), m.limits(), m.schedule(),
+                m.priority(), m.exclusiveGroup(), m.visibleInPortal(), m.labels()));
+        if (!errors.isEmpty()) {
+            throw LhException.validation("CAMPAIGN_INVALID", String.join("; ", errors));
+        }
+        campaigns.update(m);
+        cache.reload();
+        audit.record("CAMPAIGN", c.code(), AuditEntry.Action.UPDATE, "Modificata campagna " + m.name() + " (" + c.code() + ")",
+                Map.of("name", c.name(), "priority", c.priority(), "schedule", c.schedule().toString()),
+                Map.of("name", m.name(), "priority", m.priority(), "schedule", m.schedule().toString()));
+        return campaigns.findById(id).orElseThrow();
+    }
+
+    private Campaign merge(Campaign c, CreateCampaignRequest r) {
+        return new Campaign(c.id(), c.code(),
+                r.name() != null ? r.name() : c.name(),
+                r.description() != null ? r.description() : c.description(),
+                r.memberDescription() != null ? r.memberDescription() : c.memberDescription(),
+                r.icon() != null ? r.icon() : c.icon(),
+                r.triggerActionTypes() != null ? r.triggerActionTypes() : c.triggerActionTypes(),
+                present(r.audience()) ? r.audience() : c.audience(),
+                present(r.conditions()) ? r.conditions() : c.conditions(),
+                present(r.effects()) ? r.effects() : c.effects(),
+                present(r.limits()) ? r.limits() : c.limits(),
+                present(r.schedule()) ? r.schedule() : c.schedule(),
+                r.priority() != null ? r.priority() : c.priority(),
+                r.exclusiveGroup() != null ? r.exclusiveGroup() : c.exclusiveGroup(),
+                r.visibleInPortal() != null ? r.visibleInPortal() : c.visibleInPortal(),
+                c.system(), c.requiresLegal(),
+                r.labels() != null ? r.labels() : c.labels(),
+                c.status(), c.version(), c.createdAt(), c.updatedAt());
+    }
+
+    /** Campi non "sicuri" (docs/03 §3.6) che la modifica cambierebbe. */
+    private List<String> lockedChanges(Campaign before, Campaign after) {
+        List<String> changed = new ArrayList<>();
+        if (!before.triggerActionTypes().equals(after.triggerActionTypes())) changed.add("triggerActionTypes");
+        if (!before.audience().equals(after.audience())) changed.add("audience");
+        if (!before.conditions().equals(after.conditions())) changed.add("conditions");
+        if (!before.effects().equals(after.effects())) changed.add("effects");
+        if (!before.limits().equals(after.limits())) changed.add("limits");
+        if (!withoutEndAt(before.schedule()).equals(withoutEndAt(after.schedule()))) changed.add("schedule.startAt");
+        if (!java.util.Objects.equals(before.exclusiveGroup(), after.exclusiveGroup())) changed.add("exclusiveGroup");
+        if (before.visibleInPortal() != after.visibleInPortal()) changed.add("visibleInPortal");
+        if (!before.labels().equals(after.labels())) changed.add("labels");
+        return changed;
+    }
+
+    private static JsonNode withoutEndAt(JsonNode schedule) {
+        if (schedule == null || !schedule.isObject()) {
+            return schedule;
+        }
+        tools.jackson.databind.node.ObjectNode copy = ((tools.jackson.databind.node.ObjectNode) schedule).deepCopy();
+        copy.remove("endAt");
+        return copy;
+    }
+
+    private static boolean present(JsonNode n) {
+        return n != null && !n.isNull();
+    }
+
     @Transactional
     public Campaign transition(String id, TransitionRequest req) {
         Campaign c = get(id);

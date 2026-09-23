@@ -87,15 +87,21 @@ public class CampaignRepository {
                 .params(status.name(), id).update();
     }
 
-    /** Aggiorna i soli campi "sicuri" (docs/03 §3.6): nome, descrizioni, icona, priorità, {@code endAt}. */
-    public void updateSafeFields(String id, String name, String description, String memberDescription,
-                                 String icon, int priority) {
+    /** Riscrive i campi modificabili (i controlli su cosa è modificabile per stato sono nel servizio). */
+    public void update(Campaign c) {
         jdbc.sql("""
                         UPDATE campaign SET name = ?, description = ?, member_description = ?, icon = ?,
-                          priority = ?, version = version + 1, updated_at = now()
+                          trigger_action_types = ?::text[], audience = cast(? AS jsonb), conditions = cast(? AS jsonb),
+                          effects = cast(? AS jsonb), limits = cast(? AS jsonb), schedule = cast(? AS jsonb),
+                          priority = ?, exclusive_group = ?, visible_in_portal = ?, labels = ?::text[],
+                          version = version + 1, updated_at = now()
                         WHERE id = ?
                         """)
-                .params(name, description, memberDescription, icon, priority, id).update();
+                .params(c.name(), c.description(), c.memberDescription(), c.icon(),
+                        TextArrays.literal(c.triggerActionTypes()), c.audience().toString(), c.conditions().toString(),
+                        c.effects().toString(), c.limits().toString(), c.schedule().toString(),
+                        c.priority(), c.exclusiveGroup(), c.visibleInPortal(), TextArrays.literal(c.labels()), c.id())
+                .update();
     }
 
     public void deleteAll() {

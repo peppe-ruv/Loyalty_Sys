@@ -207,7 +207,7 @@ class CampaignServiceIT {
     @Test
     void listReturnsSeededCampaigns() {
         JsonNode all = client().get().uri("/v1/campaigns").retrieve().body(JsonNode.class);
-        assertThat(all.size()).isEqualTo(20);
+        assertThat(all.size()).isGreaterThanOrEqualTo(20); // 20 seed (+ quelle create dai test)
     }
 
     @Test
@@ -231,6 +231,54 @@ class CampaignServiceIT {
             dayMatches += d.path("matches").asLong();
         }
         assertThat(dayMatches).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    void liveCampaignAcceptsOnlySafeFieldsOtherwise409() {
+        // Campagna propria (trigger non usato dagli altri test): DRAFT modificabile per intero, LIVE solo campi sicuri.
+        Map<String, Object> body = new java.util.HashMap<>(Map.of(
+                "code", "CMP-IT-EDIT", "name", "Prova modifica", "triggerActionTypes", List.of("quiz.completed"),
+                "effects", List.of(Map.of("type", "GRANT_POINTS", "currency", "PTS", "mode", "FIXED", "value", 10)),
+                "schedule", Map.of("startAt", "2026-01-01T00:00:00Z")));
+        JsonNode created = client().post().uri("/v1/campaigns").contentType(MediaType.APPLICATION_JSON)
+                .body(body).retrieve().body(JsonNode.class);
+        String id = created.path("id").asString();
+
+        JsonNode draftEdit = put(id, Map.of("effects",
+                List.of(Map.of("type", "GRANT_POINTS", "currency", "PTS", "mode", "FIXED", "value", 20))), 200);
+        assertThat(draftEdit.path("effects").get(0).path("value").asInt()).isEqualTo(20);
+
+        client().post().uri("/v1/campaigns/" + id + "/transitions").contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("action", "PUBLISH")).retrieve().body(JsonNode.class);
+
+        JsonNode safe = put(id, Map.of("name", "Prova modifica (v2)", "priority", 150,
+                "schedule", Map.of("startAt", "2026-01-01T00:00:00Z", "endAt", "2027-12-31T23:59:59Z")), 200);
+        assertThat(safe.path("name").asString()).isEqualTo("Prova modifica (v2)");
+        assertThat(safe.path("priority").asInt()).isEqualTo(150);
+        assertThat(safe.path("status").asString()).isEqualTo("LIVE");
+
+        JsonNode locked = put(id, Map.of("effects",
+                List.of(Map.of("type", "GRANT_POINTS", "currency", "PTS", "mode", "FIXED", "value", 999))), 409);
+        assertThat(locked.path("code").asString()).isEqualTo("CAMPAIGN_LIVE_LOCKED");
+        assertThat(locked.path("detail").asString()).contains("effects");
+
+        assertThat(put(id, Map.of("schedule", Map.of("startAt", "2026-02-01T00:00:00Z")), 409)
+                .path("code").asString()).isEqualTo("CAMPAIGN_LIVE_LOCKED");
+        assertThat(put(id, Map.of("code", "CMP-ALTRO"), 409).path("code").asString()).isEqualTo("CODE_IMMUTABLE");
+
+        int analyst = client().put().uri("/v1/campaigns/" + id).header("X-LH-Actor", "ANALYST:luca")
+                .contentType(MediaType.APPLICATION_JSON).body(Map.of("name", "x"))
+                .exchange((req, res) -> res.getStatusCode().value());
+        assertThat(analyst).isEqualTo(403);
+    }
+
+    private JsonNode put(String id, Map<String, Object> body, int expected) {
+        return client().put().uri("/v1/campaigns/" + id).header("X-LH-Actor", "MARKETING:giulia")
+                .contentType(MediaType.APPLICATION_JSON).body(body)
+                .exchange((req, res) -> {
+                    assertThat(res.getStatusCode().value()).isEqualTo(expected);
+                    return new ObjectMapper().readTree(res.getBody());
+                });
     }
 
     // ---------- helper ----------

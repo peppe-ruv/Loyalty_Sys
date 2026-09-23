@@ -8,6 +8,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -48,6 +51,13 @@ public class CampaignsController {
     @PostMapping
     public ResponseEntity<Campaign> create(@RequestBody CreateCampaignRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(request));
+    }
+
+    /** Modifica (F-CMP-01): su {@code LIVE} solo i campi sicuri, altrimenti {@code 409 CAMPAIGN_LIVE_LOCKED}. */
+    @PutMapping("/{id}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING})
+    public Campaign update(@PathVariable String id, @RequestBody CreateCampaignRequest request) {
+        return service.update(id, request);
     }
 
     @PostMapping("/{id}/transitions")
