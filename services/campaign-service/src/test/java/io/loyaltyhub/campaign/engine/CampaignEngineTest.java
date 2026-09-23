@@ -302,6 +302,39 @@ class CampaignEngineTest {
     }
 
     @Test
+    void exclusiveGroupWithLookupsAndMultipliers_HigherPriorityWins() {
+        Campaign cmpHighLookup = campaign("CMP-HIGH-LOOKUP", "High Priority Lookup", 200, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"LOOKUP\",\"amountField\":\"data.tierCode\",\"lookup\":{\"SILVER\": 200, \"GOLD\": 500},\"tierMultiplierApplies\":false}]",
+                "{}");
+        cmpHighLookup = new Campaign("id-CMP-HIGH-LOOKUP", cmpHighLookup.code(), cmpHighLookup.name(), null, null, null, List.of("purchase.completed"),
+                cmpHighLookup.audience(), cmpHighLookup.conditions(), cmpHighLookup.effects(), cmpHighLookup.limits(),
+                JSON.createObjectNode(), 200, "EXCLUSIVE_GRP", true, false, false, List.of(),
+                CampaignStatus.LIVE, 0, null, null);
+
+        Campaign cmpLowFixed = campaign("CMP-LOW-FIXED", "Low Priority Fixed", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FIXED\",\"value\":100,\"tierMultiplierApplies\":false}]",
+                "{}");
+        cmpLowFixed = new Campaign("id-CMP-LOW-FIXED", cmpLowFixed.code(), cmpLowFixed.name(), null, null, null, List.of("purchase.completed"),
+                cmpLowFixed.audience(), cmpLowFixed.conditions(), cmpLowFixed.effects(), cmpLowFixed.limits(),
+                JSON.createObjectNode(), 100, "EXCLUSIVE_GRP", true, false, false, List.of(),
+                CampaignStatus.LIVE, 0, null, null);
+
+        Evaluation ev = engine.evaluate(action("purchase.completed", TUESDAY, JSON.createObjectNode().put("tierCode", "SILVER")), silver(), List.of(cmpHighLookup, cmpLowFixed), zero);
+
+        assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+        assertThat(ev.results()).hasSize(2);
+
+        Evaluation.CampaignResult lowRes = ev.results().stream().filter(r -> r.campaignCode().equals("CMP-LOW-FIXED")).findFirst().get();
+        assertThat(lowRes.matched()).isFalse();
+        assertThat(lowRes.reason()).isEqualTo(Evaluation.SkipReason.EXCLUSIVE);
+
+        assertThat(ev.effects()).hasSize(1);
+        assertThat(grant(ev, "PTS").amount()).isEqualTo(200); // Only high priority lookup grant applied
+    }
+
+    @Test
     void grantPointsPerAmountWithUnitStepAndRounding() {
         Campaign floorCmp = campaign("CMP-FLOOR", "Floor", 100, List.of("purchase.completed"),
                 "{\"op\":\"all\",\"rules\":[]}",
@@ -364,6 +397,142 @@ class CampaignEngineTest {
 
         assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
         assertThat(grant(ev, "PTS").tierMultiplierApplies()).isTrue();
+    }
+
+    @Test
+    void grantPointsFromField() {
+        Campaign cmp = campaign("CMP-FROM-FIELD", "From Field", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FROM_FIELD\",\"amountField\":\"data.amount\",\"tierMultiplierApplies\":false}]",
+                "{}");
+
+        Evaluation evHit = engine.evaluate(action("purchase.completed", TUESDAY, JSON.createObjectNode().put("amount", 100)), silver(), List.of(cmp), zero);
+        assertThat(grant(evHit, "PTS").amount()).isEqualTo(100);
+
+        // Missing field (data.missing)
+        Campaign cmpMissing = campaign("CMP-FROM-FIELD-MISS", "From Field Missing", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FROM_FIELD\",\"amountField\":\"data.missing\",\"tierMultiplierApplies\":false}]",
+                "{}");
+        Evaluation evMissing = engine.evaluate(purchase(TUESDAY, 100.0), silver(), List.of(cmpMissing), zero);
+        assertThat(evMissing.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+        assertThat(evMissing.effects()).isEmpty();
+
+        // Decimal field (amount is 6.5) -> discarded
+        Evaluation evDecimal = engine.evaluate(purchase(TUESDAY, 6.5), silver(), List.of(cmp), zero);
+        assertThat(evDecimal.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+        assertThat(evDecimal.effects()).isEmpty();
+
+        // String field -> discarded
+        Evaluation evString = engine.evaluate(action("purchase.completed", TUESDAY, JSON.createObjectNode().put("amount", "100")), silver(), List.of(cmp), zero);
+        assertThat(evString.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+        assertThat(evString.effects()).isEmpty();
+    }
+
+    @Test
+    void grantPointsLookup() {
+        Campaign cmp = campaign("CMP-LOOKUP", "Lookup", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"LOOKUP\",\"amountField\":\"data.tierCode\",\"lookup\":{\"SILVER\": 200, \"GOLD\": 500},\"tierMultiplierApplies\":false}]",
+                "{}");
+
+        // Hit (GOLD -> 500)
+        Evaluation evHit = engine.evaluate(action("purchase.completed", TUESDAY, JSON.createObjectNode().put("tierCode", "GOLD")), silver(), List.of(cmp), zero);
+        assertThat(grant(evHit, "PTS").amount()).isEqualTo(500);
+
+        // Miss (BASE -> discarded)
+        Evaluation evMiss = engine.evaluate(action("purchase.completed", TUESDAY, JSON.createObjectNode().put("tierCode", "BASE")), silver(), List.of(cmp), zero);
+        assertThat(evMiss.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+        assertThat(evMiss.effects()).isEmpty();
+
+        // Numeric key lookup
+        Campaign cmpNum = campaign("CMP-LOOKUP-NUM", "Lookup Num", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"LOOKUP\",\"amountField\":\"data.level\",\"lookup\":{\"2\": 100, \"3\": 300},\"tierMultiplierApplies\":false}]",
+                "{}");
+        Evaluation evNum = engine.evaluate(action("purchase.completed", TUESDAY, JSON.createObjectNode().put("level", 2)), silver(), List.of(cmpNum), zero);
+        assertThat(grant(evNum, "PTS").amount()).isEqualTo(100);
+    }
+
+    @Test
+    void grantPointsLimitsAppliedToFromFieldAndLookup() {
+        Campaign cmpFromField = campaign("CMP-FF-LIMITS", "From Field Limits", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FROM_FIELD\",\"amountField\":\"data.amount\",\"min\":10,\"max\":50,\"tierMultiplierApplies\":false}]",
+                "{}");
+        // Low -> min
+        Evaluation evLowFF = engine.evaluate(action("purchase.completed", TUESDAY, JSON.createObjectNode().put("amount", 5)), silver(), List.of(cmpFromField), zero);
+        assertThat(grant(evLowFF, "PTS").amount()).isEqualTo(10);
+        // High -> max
+        Evaluation evHighFF = engine.evaluate(action("purchase.completed", TUESDAY, JSON.createObjectNode().put("amount", 100)), silver(), List.of(cmpFromField), zero);
+        assertThat(grant(evHighFF, "PTS").amount()).isEqualTo(50);
+
+        Campaign cmpLookup = campaign("CMP-LK-LIMITS", "Lookup Limits", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"LOOKUP\",\"amountField\":\"data.tierCode\",\"lookup\":{\"SILVER\": 5, \"GOLD\": 100},\"min\":10,\"max\":50,\"tierMultiplierApplies\":false}]",
+                "{}");
+        // Low -> min
+        Evaluation evLowLK = engine.evaluate(action("purchase.completed", TUESDAY, JSON.createObjectNode().put("tierCode", "SILVER")), silver(), List.of(cmpLookup), zero);
+        assertThat(grant(evLowLK, "PTS").amount()).isEqualTo(10);
+        // High -> max
+        Evaluation evHighLK = engine.evaluate(action("purchase.completed", TUESDAY, JSON.createObjectNode().put("tierCode", "GOLD")), silver(), List.of(cmpLookup), zero);
+        assertThat(grant(evHighLK, "PTS").amount()).isEqualTo(50);
+    }
+
+    @Test
+    void lookupGrantCombinedWithMultiplier() {
+        Campaign cmpLookup = campaign("CMP-LOOKUP-MULT", "Lookup Mult", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"LOOKUP\",\"amountField\":\"data.tierCode\",\"lookup\":{\"GOLD\": 500},\"tierMultiplierApplies\":false}]",
+                "{}");
+
+        Evaluation ev = engine.evaluate(action("purchase.completed", TUESDAY, JSON.createObjectNode().put("tierCode", "GOLD")), silver(), List.of(cmpLookup, weekendX2()), zero);
+        // TUESDAY doesn't apply weekendX2 multiplier, let's test SATURDAY
+        Evaluation evSat = engine.evaluate(action("purchase.completed", SATURDAY, JSON.createObjectNode().put("tierCode", "GOLD")), silver(), List.of(cmpLookup, weekendX2()), zero);
+
+        assertThat(grant(evSat, "PTS").amount()).isEqualTo(1000); // 500 * 2
+    }
+
+    @Test
+    void historyActionCountAndDaysSinceLastActionConditions() {
+        Counters testCounters = new Counters() {
+            public int memberMatches(String c, String m, String p, String k) { return 0; }
+            public long globalPointsDecided(String c) { return 0; }
+            public long globalMatches(String c) { return 0; }
+            public long historyActionCount(String m, String t) { return 10; }
+            public long historyDaysSinceLastAction(String m, String t) { return 15; }
+        };
+
+        Campaign cmpHist = campaign("CMP-HIST", "History Test", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[{\"field\":\"history.actionCount\",\"cmp\":\"gte\",\"value\":10}, {\"field\":\"history.daysSinceLastAction\",\"cmp\":\"eq\",\"value\":15}]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FIXED\",\"value\":50,\"tierMultiplierApplies\":false}]",
+                "{}");
+
+        Evaluation evHit = engine.evaluate(purchase(TUESDAY, 100.0), silver(), List.of(cmpHist), testCounters);
+        assertThat(evHit.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+        assertThat(grant(evHit, "PTS").amount()).isEqualTo(50);
+
+        Campaign cmpHistFail = campaign("CMP-HIST-FAIL", "History Fail Test", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[{\"field\":\"history.actionCount\",\"cmp\":\"gte\",\"value\":15}]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FIXED\",\"value\":50,\"tierMultiplierApplies\":false}]",
+                "{}");
+        Evaluation evMiss = engine.evaluate(purchase(TUESDAY, 100.0), silver(), List.of(cmpHistFail), testCounters);
+        assertThat(evMiss.outcome()).isEqualTo(Evaluation.Outcome.NO_MATCH);
+    }
+
+    @Test
+    void engineEvaluatesSeedCampaignTierUpgraded() {
+        Campaign cmpTierUpBonus = campaign("CMP-TIER-UP-BONUS", "Bonus di livello", 100, List.of("tier.upgraded"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"LOOKUP\",\"amountField\":\"data.newTier\",\"lookup\":{\"SILVER\":200,\"GOLD\":500,\"PLATINUM\":1000},\"tierMultiplierApplies\":false}]",
+                "{}");
+
+        Evaluation ev = engine.evaluate(action("tier.upgraded", TUESDAY, JSON.createObjectNode().put("newTier", "GOLD")), silver(), List.of(cmpTierUpBonus), zero);
+
+        assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+        GrantedEffect effect = grant(ev, "PTS");
+        assertThat(effect.amount()).isEqualTo(500);
+        assertThat(effect.tierMultiplierApplies()).isFalse();
     }
 
     @Test
