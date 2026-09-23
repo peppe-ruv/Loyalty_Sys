@@ -14,6 +14,7 @@ import io.loyaltyhub.wallet.domain.PointsLot;
 import io.loyaltyhub.wallet.domain.Tier;
 import io.loyaltyhub.wallet.domain.TierHistory;
 import io.loyaltyhub.wallet.infra.CurrencyRepository;
+import io.loyaltyhub.wallet.infra.EditionRepository;
 import io.loyaltyhub.wallet.infra.LedgerRepository;
 import io.loyaltyhub.wallet.infra.MemberTierRepository;
 import io.loyaltyhub.wallet.infra.PointsLotRepository;
@@ -51,6 +52,7 @@ public class WalletService {
     private final CurrencyRepository currencies;
     private final PointsLotRepository lots;
     private final TierHistoryRepository tierHistory;
+    private final EditionRepository editions;
     private final LhEventFactory events;
     private final OutboxWriter outbox;
     private final ObjectMapper mapper;
@@ -58,8 +60,8 @@ public class WalletService {
 
     public WalletService(WalletRepository wallets, LedgerRepository ledger, TierRepository tiers,
                          MemberTierRepository memberTiers, CurrencyRepository currencies, PointsLotRepository lots,
-                         TierHistoryRepository tierHistory, LhEventFactory events, OutboxWriter outbox,
-                         ObjectMapper mapper, Clock clock) {
+                         TierHistoryRepository tierHistory, EditionRepository editions, LhEventFactory events,
+                         OutboxWriter outbox, ObjectMapper mapper, Clock clock) {
         this.wallets = wallets;
         this.ledger = ledger;
         this.tiers = tiers;
@@ -67,6 +69,7 @@ public class WalletService {
         this.currencies = currencies;
         this.lots = lots;
         this.tierHistory = tierHistory;
+        this.editions = editions;
         this.events = events;
         this.outbox = outbox;
         this.mapper = mapper;
@@ -130,7 +133,7 @@ public class WalletService {
         int pendingDays = d.path("pendingDays").asInt(0);
         boolean pending = pendingDays > 0;
         Instant availableAt = pending ? occurredAt.plus(pendingDays, ChronoUnit.DAYS) : null;
-        Instant expiresAt = ExpiryPolicy.expiresAt(expiryPolicy(currency), occurredAt);
+        Instant expiresAt = ExpiryPolicy.expiresAt(expiryPolicy(currency), occurredAt, editions::findContaining);
 
         long balanceAfter;
         if (pending) {

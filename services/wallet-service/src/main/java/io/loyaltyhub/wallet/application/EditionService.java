@@ -1,11 +1,9 @@
 package io.loyaltyhub.wallet.application;
 
 import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.node.ObjectNode;
 import io.loyaltyhub.common.audit.AuditEntry;
 import io.loyaltyhub.common.audit.AuditPublisher;
 import io.loyaltyhub.common.event.LhEventFactory;
-import io.loyaltyhub.common.event.LhEventTypes;
 import io.loyaltyhub.common.outbox.OutboxWriter;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.wallet.domain.Edition;
@@ -21,8 +19,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -126,45 +122,15 @@ public class EditionService {
     public record ClosePreviewSummary(int retained, int downgraded) {}
     public record ClosePreviewResult(ClosePreviewSummary summary, List<ClosePreviewMember> members) {}
 
+    /**
+     * Anteprima ({@code dryRun}, sola lettura) o applicazione della chiusura. L'applicazione è atomica e serializzata
+     * sulla riga dell'edizione: vedi {@link EditionCloseBatchService}.
+     */
     public ClosePreviewResult closeEdition(String code, boolean dryRun) {
-        Edition editionToClose = editions.findByCode(code)
-                .orElseThrow(() -> LhException.notFound("Edizione non trovata: " + code));
-
-        if (Edition.CLOSED.equals(editionToClose.status())) {
-            throw LhException.validation("EDITION_ALREADY_CLOSED", "L'edizione " + code + " è già chiusa.");
-        }
-        if (!Edition.ACTIVE.equals(editionToClose.status())) {
-             throw LhException.validation("EDITION_NOT_ACTIVE", "Si può chiudere solo un'edizione attiva.");
-        }
-
         List<Tier> scale = tiers.findAllByRank();
-
-        int offset = 0;
-        int batchSize = 200;
-        int totalRetained = 0;
-        int totalDowngraded = 0;
-
-        List<ClosePreviewMember> membersPreview = new ArrayList<>();
-
-        while (true) {
-            List<MemberTier> batch = memberTiers.findActiveMembers(batchSize, offset);
-            if (batch.isEmpty()) {
-                break;
-            }
-
-            EditionCloseBatchService.BatchResult batchResult = batchService.processBatch(batch, scale, code, dryRun);
-
-            membersPreview.addAll(batchResult.previewMembers());
-            totalRetained += batchResult.retained();
-            totalDowngraded += batchResult.downgraded();
-
-            offset += batchSize;
-        }
-
-        if (!dryRun) {
-            batchService.finalizeClose(code, totalRetained, totalDowngraded);
-        }
-
-        return new ClosePreviewResult(new ClosePreviewSummary(totalRetained, totalDowngraded), membersPreview);
+        EditionCloseBatchService.BatchResult r = dryRun
+                ? batchService.preview(code, scale)
+                : batchService.apply(code, scale);
+        return new ClosePreviewResult(new ClosePreviewSummary(r.retained(), r.downgraded()), r.previewMembers());
     }
 }
