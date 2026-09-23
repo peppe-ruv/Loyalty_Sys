@@ -1,0 +1,19 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZT7Q2M9T4B6N8R0XWYTICL",
+  "source": "urn:loyaltyhub:service:wallet",
+  "type": "io.loyaltyhub.fact.edition.closed",
+  "subject": "edition:ED-2026",
+  "time": "2026-12-31T23:59:59Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.edition.closed:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZT7Q2M9T4B6N8R0XWYTIEA",
+  "lhcausationid": "01J8ZT7Q1M9T4B6N8R0XWYTIEA",
+  "lhhop": 0,
+  "data": {
+    "editionCode": "ED-2026",
+    "retained": 12,
+    "downgraded": 4
+  }
+}

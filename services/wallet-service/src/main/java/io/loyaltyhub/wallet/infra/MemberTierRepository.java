@@ -4,6 +4,7 @@ import io.loyaltyhub.wallet.domain.MemberTier;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 /** Livello corrente dei membri (docs/servizi/wallet-service.md §2). */
@@ -72,5 +73,24 @@ public class MemberTierRepository {
 
     public void deleteAll() {
         jdbc.sql("DELETE FROM member_tier").update();
+    }
+
+    public List<MemberTier> findActiveMembers(int limit, int offset) {
+        return jdbc.sql("SELECT member_id, tier_code, since, period_sts, previous_tier, member_status "
+                        + "FROM member_tier WHERE member_status = 'ACTIVE' ORDER BY member_id LIMIT ? OFFSET ?")
+                .params(limit, offset)
+                .query((rs, n) -> new MemberTier(
+                        rs.getString("member_id"), rs.getString("tier_code"),
+                        rs.getTimestamp("since") == null ? null : rs.getTimestamp("since").toInstant(),
+                        rs.getLong("period_sts"), rs.getString("previous_tier"), rs.getString("member_status")))
+                .list();
+    }
+
+    public void updateTierAndResetSts(String memberId, String newTier, String previousTier) {
+        jdbc.sql("""
+                        UPDATE member_tier SET tier_code = ?, previous_tier = ?, since = now(), period_sts = 0
+                        WHERE member_id = ?
+                        """)
+                .params(newTier, previousTier, memberId).update();
     }
 }

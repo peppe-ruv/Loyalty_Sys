@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.tier.downgraded:1",
+  "title": "fact.tier.downgraded — data (EVT-FACT-29, docs/05 §5)",
+  "type": "object",
+  "required": ["previousTier", "newTier", "editionCode"],
+  "properties": {
+    "previousTier": { "type": "string" },
+    "newTier": { "type": "string" },
+    "editionCode": { "type": "string" }
+  },
+  "additionalProperties": true
+}

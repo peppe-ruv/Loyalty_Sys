@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.edition.closed:1",
+  "title": "fact.edition.closed — data (EVT-FACT-31, docs/05 §5)",
+  "type": "object",
+  "required": ["editionCode", "retained", "downgraded"],
+  "properties": {
+    "editionCode": { "type": "string" },
+    "retained": { "type": "integer", "minimum": 0 },
+    "downgraded": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": true
+}
