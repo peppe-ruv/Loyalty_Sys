@@ -99,6 +99,47 @@ class IngestionPipelineIT {
         assertThat(body.path("memberId").asString()).isEqualTo("MBR-000003");
     }
 
+    // ---------- POST /v1/transactions (F-ING-07) ----------
+
+    @Test
+    void transactionBecomesPurchaseCompletedWithTxnIdAndIsDeduplicated() {
+        Map<String, Object> txn = Map.of("source", "ecommerce", "orderId", "ORD-77001", "memberRef", "member:MBR-000007",
+                "amount", 130, "currency", "EUR", "channel", "ONLINE",
+                "items", List.of(Map.of("sku", "SKU-1", "category", "casa", "quantity", 1, "unitPrice", 130)));
+
+        JsonNode first = postTransaction(txn, 202);
+        assertThat(first.path("status").asString()).isEqualTo("ACCEPTED");
+        assertThat(first.path("eventId").asString()).isEqualTo("txn-ORD-77001");
+        assertThat(first.path("memberId").asString()).isEqualTo("MBR-000007");
+        assertThat(postTransaction(txn, 202).path("status").asString()).isEqualTo("DUPLICATE");
+
+        try (KafkaConsumer<String, String> consumer = consumer("txn-check")) {
+            consumer.subscribe(List.of(ACTIONS));
+            ConsumerRecord<String, String> rec = poll(consumer, r -> r.value().contains("txn-ORD-77001"));
+            assertThat(rec).as("azione della transazione").isNotNull();
+            JsonNode published = readJson(rec.value());
+            assertThat(published.path("type").asString()).isEqualTo("io.loyaltyhub.action.purchase.completed");
+            assertThat(published.path("data").path("amount").asInt()).isEqualTo(130);
+            assertThat(published.path("data").path("items").size()).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void transactionReturnBecomesPurchaseReturned() {
+        JsonNode body = postTransaction(Map.of("source", "ecommerce", "orderId", "ORD-77002", "memberRef", "member:MBR-000007",
+                "amount", 24.9, "kind", "RETURN"), 202);
+        assertThat(body.path("status").asString()).isEqualTo("ACCEPTED");
+        assertThat(body.path("eventId").asString()).isEqualTo("txn-return-ORD-77002");
+    }
+
+    @Test
+    void transactionWithMissingFieldsIs400AndUnknownMemberIsUnmatched() {
+        postTransaction(Map.of("source", "ecommerce", "memberRef", "member:MBR-000007", "amount", 10), 400);
+        JsonNode unmatched = postTransaction(Map.of("source", "ecommerce", "orderId", "ORD-77003",
+                "memberRef", "external:NOPE-1", "amount", 10, "currency", "EUR"), 202);
+        assertThat(unmatched.path("status").asString()).isEqualTo("UNMATCHED");
+    }
+
     @Test
     void sameSourceAndIdTwiceIsDuplicateWithSingleRecord() {
         Map<String, Object> event = purchase("01K0BBBBBBBBBBBBBBBBBBBB02", "member:MBR-000005");
@@ -281,6 +322,14 @@ class IngestionPipelineIT {
     private void assertReject(JsonNode body, String rejectCode) {
         assertThat(body.path("status").asString()).isEqualTo("REJECTED");
         assertThat(body.path("rejectCode").asString()).isEqualTo(rejectCode);
+    }
+
+    private JsonNode postTransaction(Map<String, Object> txn, int expectedStatus) {
+        return client().post().uri("/v1/transactions").contentType(MediaType.APPLICATION_JSON).body(txn)
+                .exchange((req, res) -> {
+                    assertThat(res.getStatusCode().value()).isEqualTo(expectedStatus);
+                    return mapper.readTree(res.getBody());
+                });
     }
 
     private JsonNode post(Map<String, Object> event, int expectedStatus) {
