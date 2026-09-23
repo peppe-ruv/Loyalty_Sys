@@ -60,7 +60,7 @@ export default function TiersPage() {
             A chiusura di un&apos;edizione un membro può scendere <strong>al massimo di un livello</strong>. Esempio:
             Stefano Galli chiude l&apos;anno <strong>GOLD</strong> con 650 punti status: la soglia guadagnata è
             <strong> BASE</strong>, ma il pavimento della discesa morbida è <strong>SILVER</strong> → resta
-            <strong> SILVER</strong>. La chiusura si gestisce in <em>Valute, scadenze, edizioni</em> (BO-08).
+            <strong> SILVER</strong>. La chiusura si gestisce in <a href="/backoffice/program/currencies?tab=editions" className="text-[var(--color-bo-accent)] hover:underline">Valute, scadenze, edizioni (BO-08)</a>.
           </p>
         </CardBody>
       </Card>

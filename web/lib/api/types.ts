@@ -215,3 +215,45 @@ export interface ScenarioRun {
   actor: string | null;
   results: ScenarioStepResult[];
 }
+
+// Valute ed edizioni (BO-08)
+export interface ExpiryPolicy {
+  type: "ROLLING_MONTHS" | "END_OF_EDITION_PLUS_GRACE" | "EDITION" | "NEVER";
+  months?: number;
+  graceDays?: number;
+}
+
+export interface Currency {
+  code: string;
+  name: string;
+  spendable: boolean;
+  expiryPolicy: ExpiryPolicy | null;
+}
+
+export interface Edition {
+  code: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  redemptionGraceUntil: string | null;
+  status: "PLANNED" | "ACTIVE" | "CLOSED";
+}
+
+export interface ClosePreviewMember {
+  memberId: string;
+  currentTier: string;
+  periodSts: number;
+  earnedTier: string;
+  newTier: string;
+  outcome: "RETAINED" | "DOWNGRADED";
+}
+
+export interface ClosePreviewSummary {
+  retained: number;
+  downgraded: number;
+}
+
+export interface EditionClosePreviewResult {
+  summary: ClosePreviewSummary;
+  members: ClosePreviewMember[];
+}
