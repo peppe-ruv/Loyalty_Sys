@@ -75,10 +75,16 @@ public class MemberTierRepository {
         jdbc.sql("DELETE FROM member_tier").update();
     }
 
-    public List<MemberTier> findActiveMembers(int limit, int offset) {
+    /**
+     * Pagina di membri {@code ACTIVE} dopo {@code afterMemberId} (keyset, ordine per {@code member_id}). Con
+     * {@code forUpdate} le righe restano bloccate fino al commit: la chiusura di edizione le legge così, e un
+     * accredito STS concorrente ({@link #addPeriodSts}) aspetta invece di essere azzerato sotto i suoi piedi.
+     */
+    public List<MemberTier> findActiveMembersAfter(String afterMemberId, int limit, boolean forUpdate) {
         return jdbc.sql("SELECT member_id, tier_code, since, period_sts, previous_tier, member_status "
-                        + "FROM member_tier WHERE member_status = 'ACTIVE' ORDER BY member_id LIMIT ? OFFSET ?")
-                .params(limit, offset)
+                        + "FROM member_tier WHERE member_status = 'ACTIVE' AND member_id > ? "
+                        + "ORDER BY member_id LIMIT ?" + (forUpdate ? " FOR UPDATE" : ""))
+                .params(afterMemberId == null ? "" : afterMemberId, limit)
                 .query((rs, n) -> new MemberTier(
                         rs.getString("member_id"), rs.getString("tier_code"),
                         rs.getTimestamp("since") == null ? null : rs.getTimestamp("since").toInstant(),
