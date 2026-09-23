@@ -8,7 +8,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import io.loyaltyhub.wallet.api.WalletsController.AdjustmentRequest;
-import io.loyaltyhub.wallet.api.WalletsController.AdjustmentResponse;
+import io.loyaltyhub.wallet.application.WalletService.AdjustmentResult;
 import io.loyaltyhub.wallet.application.WalletService;
 import io.loyaltyhub.wallet.domain.LedgerEntry;
 import io.loyaltyhub.wallet.domain.PointsLot;
@@ -143,7 +143,7 @@ class WalletAdjustmentsIT {
         String memberId = "MBR-000002";
         long balanceBefore = wallets.find(memberId, "PTS").map(w -> w.balanceActive()).orElse(0L);
 
-        AdjustmentResponse resp = walletService.adjustBalance(memberId, "PTS", "CREDIT", 200, "GOODWILL", "Ottimo cliente");
+        AdjustmentResult resp = walletService.adjustBalance(memberId, "PTS", "CREDIT", 200, "GOODWILL", "Ottimo cliente");
 
         assertThat(resp).isNotNull();
         assertThat(resp.balanceAfter()).isEqualTo(balanceBefore + 200);
@@ -222,7 +222,7 @@ class WalletAdjustmentsIT {
         long balanceBefore = wallets.find(memberId, "PTS").map(w -> w.balanceActive()).orElse(0L);
         assertThat(balanceBefore).isGreaterThanOrEqualTo(150);
 
-        AdjustmentResponse resp = walletService.adjustBalance(memberId, "PTS", "DEBIT", 150, "CORRECTION", "Rimozione 150 pt");
+        AdjustmentResult resp = walletService.adjustBalance(memberId, "PTS", "DEBIT", 150, "CORRECTION", "Rimozione 150 pt");
 
         long balanceAfter = wallets.find(memberId, "PTS").map(w -> w.balanceActive()).orElse(0L);
         assertThat(balanceAfter).isEqualTo(balanceBefore - 150);
@@ -257,6 +257,17 @@ class WalletAdjustmentsIT {
     }
 
     @Test
+    void missingReasonOrDirectionIsValidationErrorNot500() {
+        ActorHolder.set(new ActorContext(Role.ADMIN, "admin"));
+        assertThatThrownBy(() -> walletService.adjustBalance("MBR-000004", "PTS", "CREDIT", 100, null, "A note of 10 chars"))
+                .isInstanceOf(LhException.class)
+                .satisfies(e -> assertThat(((LhException) e).code()).isEqualTo("INVALID_REASON"));
+        assertThatThrownBy(() -> walletService.adjustBalance("MBR-000004", "PTS", null, 100, "GOODWILL", "A note of 10 chars"))
+                .isInstanceOf(LhException.class)
+                .satisfies(e -> assertThat(((LhException) e).code()).isEqualTo("INVALID_DIRECTION"));
+    }
+
+    @Test
     void nonAdjustableCurrencyThrowsError() {
         ActorHolder.set(new ActorContext(Role.ADMIN, "admin"));
         assertThatThrownBy(() -> walletService.adjustBalance("MBR-000004", "STS", "CREDIT", 100, "GOODWILL", "A note of 10"))
@@ -280,14 +291,14 @@ class WalletAdjustmentsIT {
 
     @Test
     void controllerAllowsCare() {
-        ResponseEntity<AdjustmentResponse> resp = rest.post()
+        ResponseEntity<AdjustmentResult> resp = rest.post()
             .uri("/v1/wallets/MBR-000004/adjustments")
             .header("X-LH-Actor", "CARE:mario")
             .contentType(MediaType.APPLICATION_JSON)
             .body(new AdjustmentRequest("PTS", "CREDIT", 100, "GOODWILL", "A very long note for this"))
             .retrieve()
             .onStatus(s -> true, (req, res) -> {})
-            .toEntity(AdjustmentResponse.class);
+            .toEntity(AdjustmentResult.class);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
     }

@@ -68,12 +68,9 @@ public class WalletsController {
     public record AdjustmentRequest(String currency, String direction, long amount, String reason, String note) {
     }
 
-    public record AdjustmentResponse(String ledgerEntryId, long balanceAfter) {
-    }
-
     @PostMapping("/wallets/{memberId}/adjustments")
     @RequiresRole({Role.CARE, Role.ADMIN})
-    public AdjustmentResponse adjust(
+    public WalletService.AdjustmentResult adjust(
             @PathVariable String memberId,
             @RequestBody AdjustmentRequest request) {
         return walletService.adjustBalance(memberId, request.currency(), request.direction(), request.amount(), request.reason(), request.note());

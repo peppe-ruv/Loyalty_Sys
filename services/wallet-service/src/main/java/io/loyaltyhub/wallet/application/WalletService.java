@@ -30,11 +30,13 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
+import io.loyaltyhub.common.audit.AuditEntry;
+import io.loyaltyhub.common.audit.AuditPublisher;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.common.web.ActorHolder;
-import io.loyaltyhub.wallet.api.WalletsController.AdjustmentResponse;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -59,13 +61,14 @@ public class WalletService {
     private final EditionRepository editions;
     private final LhEventFactory events;
     private final OutboxWriter outbox;
+    private final AuditPublisher audit;
     private final ObjectMapper mapper;
     private final Clock clock;
 
     public WalletService(WalletRepository wallets, LedgerRepository ledger, TierRepository tiers,
                          MemberTierRepository memberTiers, CurrencyRepository currencies, PointsLotRepository lots,
                          TierHistoryRepository tierHistory, EditionRepository editions, LhEventFactory events,
-                         OutboxWriter outbox, ObjectMapper mapper, Clock clock) {
+                         OutboxWriter outbox, AuditPublisher audit, ObjectMapper mapper, Clock clock) {
         this.wallets = wallets;
         this.ledger = ledger;
         this.tiers = tiers;
@@ -76,6 +79,7 @@ public class WalletService {
         this.editions = editions;
         this.events = events;
         this.outbox = outbox;
+        this.audit = audit;
         this.mapper = mapper;
         this.clock = clock;
     }
@@ -94,9 +98,13 @@ public class WalletService {
         memberTiers.updateStatus(memberId, status);
     }
 
+    /** Esito di una rettifica manuale: movimento creato e saldo attivo risultante. */
+    public record AdjustmentResult(String ledgerEntryId, long balanceAfter) {
+    }
+
     /** Gestisce le rettifiche manuali del wallet (docs/servizi/wallet-service.md §3). */
     @Transactional
-    public AdjustmentResponse adjustBalance(String memberId, String currency, String direction, long amount, String reason, String note) {
+    public AdjustmentResult adjustBalance(String memberId, String currency, String direction, long amount, String reason, String note) {
         if (!"PTS".equals(currency)) {
             // SPEC-GAP: Q-46 - STS and other currencies not currently adjustable
             throw LhException.validation("CURRENCY_NOT_ADJUSTABLE", "La valuta specificata non è modificabile manualmente.");
@@ -107,11 +115,11 @@ public class WalletService {
         if (note == null || note.trim().length() < 10) {
             throw LhException.validation("NOTE_TOO_SHORT", "La nota deve contenere almeno 10 caratteri.");
         }
-        if (!Set.of("GOODWILL", "CORRECTION", "COMPLAINT", "TEST").contains(reason)) {
+        if (reason == null || !Set.of("GOODWILL", "CORRECTION", "COMPLAINT", "TEST").contains(reason)) {
             // SPEC-GAP: Q-45 - docs/03 §5 vs wallet-service.md list of reasons. Choosing wallet-service.md.
             throw LhException.validation("INVALID_REASON", "Motivo della rettifica non valido.");
         }
-        if (!"CREDIT".equals(direction) && !"DEBIT".equals(direction)) {
+        if (direction == null || (!"CREDIT".equals(direction) && !"DEBIT".equals(direction))) {
             throw LhException.validation("INVALID_DIRECTION", "La direzione deve essere CREDIT o DEBIT.");
         }
 
@@ -171,24 +179,13 @@ public class WalletService {
         factData.put("balanceAfter", balanceAfter);
         outbox.write(events.newRoot(LhEventTypes.Fact.WALLET_POINTS_ADJUSTED, "member:" + memberId, factData));
 
-        // Audit
-        ObjectNode auditBefore = mapper.createObjectNode();
-        auditBefore.put("balance", balanceAfter + ("CREDIT".equals(direction) ? -amount : amount));
-        ObjectNode auditAfter = mapper.createObjectNode();
-        auditAfter.put("balance", balanceAfter);
+        // Audit (docs/05 §6): stesso canale delle altre scritture del wallet.
+        long balanceBefore = balanceAfter + ("CREDIT".equals(direction) ? -amount : amount);
+        audit.record("wallet", memberId + ":" + currency, AuditEntry.Action.ADJUST,
+                ("CREDIT".equals(direction) ? "Accredito" : "Addebito") + " manuale di " + amount + " " + currency + " (" + reason + ")",
+                Map.of("balance", balanceBefore), Map.of("balance", balanceAfter));
 
-        ObjectNode auditEntry = mapper.createObjectNode();
-        auditEntry.put("service", "wallet");
-        auditEntry.put("entityType", "WALLET");
-        auditEntry.put("entityId", memberId);
-        auditEntry.put("action", "ADJUST");
-        auditEntry.put("summary", ("CREDIT".equals(direction) ? "Accredito" : "Addebito") + " manuale di " + amount + " " + currency + " (" + reason + ")");
-        auditEntry.set("before", auditBefore);
-        auditEntry.set("after", auditAfter);
-
-        outbox.write(events.newRoot("io.loyaltyhub.audit.entry", "member:" + memberId, auditEntry, "urn:loyaltyhub:service:wallet", actorStr));
-
-        return new AdjustmentResponse(ledgerId, balanceAfter);
+        return new AdjustmentResult(ledgerId, balanceAfter);
     }
 
     /** Applica un effetto {@code points.grant} (docs §5, EVT-EFF-01). */
