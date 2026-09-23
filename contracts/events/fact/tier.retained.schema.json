@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.tier.retained:1",
+  "title": "fact.tier.retained — data (EVT-FACT-30, docs/05 §5)",
+  "type": "object",
+  "required": ["tier", "editionCode"],
+  "properties": {
+    "tier": { "type": "string" },
+    "editionCode": { "type": "string" }
+  },
+  "additionalProperties": true
+}
