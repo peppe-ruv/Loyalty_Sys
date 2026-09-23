@@ -5,6 +5,8 @@ import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.campaign.domain.Campaign;
 import io.loyaltyhub.campaign.domain.CampaignStatus;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.time.Instant;
 import java.util.List;
@@ -108,44 +110,106 @@ class CampaignEngineTest {
         assertThat(ev.results().get(0).reason()).isEqualTo(Evaluation.SkipReason.EFFECT_NOT_SUPPORTED_YET);
     }
 
-    @Test
-    void testConditionOperators() {
-        JsonNode rules = JSON.readTree("[ " +
-                "{\"field\":\"data.amount\",\"cmp\":\"gt\",\"value\":10}, " +
-                "{\"field\":\"data.amount\",\"cmp\":\"gte\",\"value\":100}, " +
-                "{\"field\":\"data.amount\",\"cmp\":\"lt\",\"value\":1000}, " +
-                "{\"field\":\"data.amount\",\"cmp\":\"lte\",\"value\":150}, " +
-                "{\"field\":\"data.amount\",\"cmp\":\"neq\",\"value\":50}, " +
-                "{\"field\":\"data.currency\",\"cmp\":\"eq\",\"value\":\"EUR\"}, " +
-                "{\"field\":\"data.currency\",\"cmp\":\"in\",\"value\":[\"EUR\", \"USD\"]}, " +
-                "{\"field\":\"data.currency\",\"cmp\":\"nin\",\"value\":[\"GBP\"]}, " +
-                "{\"field\":\"data.category\",\"cmp\":\"contains\",\"value\":\"elec\"}, " +
-                "{\"field\":\"data.category\",\"cmp\":\"ncontains\",\"value\":\"food\"}, " +
-                "{\"field\":\"data.amount\",\"cmp\":\"between\",\"value\":[50, 200]}, " +
-                "{\"field\":\"data.code\",\"cmp\":\"startsWith\",\"value\":\"ABC\"}, " +
-                "{\"field\":\"data.extra\",\"cmp\":\"exists\"}, " +
-                "{\"field\":\"data.missing\",\"cmp\":\"nexists\"} " +
-                "]");
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+        "eq         | 100  | 100  | true",
+        "eq         | 100  | 50   | false",
+        "neq        | 100  | 50   | true",
+        "neq        | 100  | 100  | false",
+        "gt         | 100  | 50   | true",
+        "gt         | 100  | 100  | false",
+        "gte        | 100  | 100  | true",
+        "gte        | 100  | 150  | false",
+        "lt         | 100  | 150  | true",
+        "lt         | 100  | 50   | false",
+        "lte        | 100  | 100  | true",
+        "lte        | 100  | 50   | false",
+        "in         | EUR  | [\"EUR\", \"USD\"] | true",
+        "in         | GBP  | [\"EUR\", \"USD\"] | false",
+        "nin        | GBP  | [\"EUR\", \"USD\"] | true",
+        "nin        | EUR  | [\"EUR\", \"USD\"] | false",
+        "contains   | elec | elec | true",
+        "contains   | food | elec | false",
+        "ncontains  | food | elec | true",
+        "ncontains  | elec | elec | false",
+        "between    | 100  | [50, 200] | true",
+        "between    | 10   | [50, 200] | false",
+        "startsWith | ABC  | ABC  | true",
+        "startsWith | DEF  | ABC  | false",
+    })
+    void conditionOperatorsMatchAndReject(String cmpOp, String dataValue, String ruleValue, boolean expectedMatch) {
+        String dataJson = dataValue.equals("100") || dataValue.equals("50") || dataValue.equals("10") || dataValue.equals("150")
+            ? dataValue : "\"" + dataValue + "\"";
+
+        String valueJson = ruleValue.startsWith("[") ? ruleValue :
+            (ruleValue.equals("100") || ruleValue.equals("50") || ruleValue.equals("10") || ruleValue.equals("150") ? ruleValue : "\"" + ruleValue + "\"");
+
+        JsonNode rules = node("[{\"field\":\"data.val\",\"cmp\":\"" + cmpOp + "\",\"value\":" + valueJson + "}]");
 
         Campaign cmp = campaign("OP-TEST", "Operators", 100, List.of("purchase.completed"),
                 "{\"op\":\"all\",\"rules\":" + rules.toString() + "}",
                 "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FIXED\",\"value\":10,\"tierMultiplierApplies\":false}]",
                 "{}");
 
-        JsonNode data = JSON.createObjectNode()
-                .put("amount", 100)
-                .put("currency", "EUR")
-                .put("category", "electronics")
-                .put("code", "ABC-123")
-                .put("extra", true);
+        JsonNode data = node("{\"val\":" + dataJson + "}");
 
         EvalAction act = action("purchase.completed", TUESDAY, data);
         Evaluation ev = engine.evaluate(act, silver(), List.of(cmp), zero);
-        assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+
+        if (expectedMatch) {
+            assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+        } else {
+            assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.NO_MATCH);
+            assertThat(ev.results().get(0).reason()).isEqualTo(Evaluation.SkipReason.CONDITION);
+        }
     }
 
     @Test
-    void testFieldLookups() {
+    void conditionOperatorsExistsAndNexists() {
+        Campaign cmpExists = campaign("EXISTS", "Exists", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[{\"field\":\"data.val\",\"cmp\":\"exists\"}]}", "[]", "{}");
+        Campaign cmpNexists = campaign("NEXISTS", "Nexists", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[{\"field\":\"data.val\",\"cmp\":\"nexists\"}]}", "[]", "{}");
+
+        EvalAction actWithVal = action("purchase.completed", TUESDAY, node("{\"val\":\"present\"}"));
+        EvalAction actWithoutVal = action("purchase.completed", TUESDAY, node("{}"));
+
+        // Exists true
+        assertThat(engine.evaluate(actWithVal, silver(), List.of(cmpExists), zero).outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+        // Exists false
+        assertThat(engine.evaluate(actWithoutVal, silver(), List.of(cmpExists), zero).outcome()).isEqualTo(Evaluation.Outcome.NO_MATCH);
+
+        // Nexists true
+        assertThat(engine.evaluate(actWithoutVal, silver(), List.of(cmpNexists), zero).outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+        // Nexists false
+        assertThat(engine.evaluate(actWithVal, silver(), List.of(cmpNexists), zero).outcome()).isEqualTo(Evaluation.Outcome.NO_MATCH);
+    }
+
+    @Test
+    void conditionOperatorsGroupAnyAndNot() {
+        Campaign cmpAny = campaign("ANY", "Any", 100, List.of("purchase.completed"),
+                "{\"op\":\"any\",\"rules\":[{\"field\":\"data.v\",\"cmp\":\"eq\",\"value\":1},{\"field\":\"data.v\",\"cmp\":\"eq\",\"value\":2}]}", "[]", "{}");
+        Campaign cmpNot = campaign("NOT", "Not", 100, List.of("purchase.completed"),
+                "{\"op\":\"not\",\"rules\":[{\"field\":\"data.v\",\"cmp\":\"eq\",\"value\":1}]}", "[]", "{}");
+
+        EvalAction act1 = action("purchase.completed", TUESDAY, node("{\"v\":1}"));
+        EvalAction act2 = action("purchase.completed", TUESDAY, node("{\"v\":2}"));
+        EvalAction act3 = action("purchase.completed", TUESDAY, node("{\"v\":3}"));
+
+        // Any true (matches first, matches second)
+        assertThat(engine.evaluate(act1, silver(), List.of(cmpAny), zero).outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+        assertThat(engine.evaluate(act2, silver(), List.of(cmpAny), zero).outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+        // Any false
+        assertThat(engine.evaluate(act3, silver(), List.of(cmpAny), zero).outcome()).isEqualTo(Evaluation.Outcome.NO_MATCH);
+
+        // Not true (not equal to 1)
+        assertThat(engine.evaluate(act2, silver(), List.of(cmpNot), zero).outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+        // Not false (is equal to 1)
+        assertThat(engine.evaluate(act1, silver(), List.of(cmpNot), zero).outcome()).isEqualTo(Evaluation.Outcome.NO_MATCH);
+    }
+
+    @Test
+    void fieldLookupsResolveMemberContextHistory() {
         JsonNode rules = JSON.readTree("[ " +
                 "{\"field\":\"member.tier\",\"cmp\":\"eq\",\"value\":\"SILVER\"}, " +
                 "{\"field\":\"member.status\",\"cmp\":\"eq\",\"value\":\"ACTIVE\"}, " +
@@ -184,6 +248,19 @@ class CampaignEngineTest {
 
         Evaluation ev = engine.evaluate(act, m, List.of(cmp), c);
         assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+
+        // Negative cases for each namespace
+        Campaign cmpNegMember = campaign("NEG-MEMBER", "Neg Member", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[{\"field\":\"member.tier\",\"cmp\":\"eq\",\"value\":\"GOLD\"}]}", "[]", "{}");
+        assertThat(engine.evaluate(act, m, List.of(cmpNegMember), c).outcome()).isEqualTo(Evaluation.Outcome.NO_MATCH);
+
+        Campaign cmpNegContext = campaign("NEG-CONTEXT", "Neg Context", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[{\"field\":\"context.dayOfWeek\",\"cmp\":\"eq\",\"value\":\"SUN\"}]}", "[]", "{}");
+        assertThat(engine.evaluate(act, m, List.of(cmpNegContext), c).outcome()).isEqualTo(Evaluation.Outcome.NO_MATCH);
+
+        Campaign cmpNegHistory = campaign("NEG-HISTORY", "Neg History", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[{\"field\":\"history.actionCount\",\"cmp\":\"gt\",\"value\":10}]}", "[]", "{}");
+        assertThat(engine.evaluate(act, m, List.of(cmpNegHistory), c).outcome()).isEqualTo(Evaluation.Outcome.NO_MATCH);
     }
 
     @Test
@@ -213,8 +290,6 @@ class CampaignEngineTest {
         assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
         assertThat(ev.results()).hasSize(2);
 
-        // Results are sorted by evaluation order which is sorted by priority DESC (so HIGH evaluated first), but the input list order matters if Engine doesn't sort them.
-        // Let's actually check how they are ordered in the results list.
         Evaluation.CampaignResult highRes = ev.results().stream().filter(r -> r.campaignCode().equals("CMP-HIGH")).findFirst().get();
         Evaluation.CampaignResult lowRes = ev.results().stream().filter(r -> r.campaignCode().equals("CMP-LOW")).findFirst().get();
 
@@ -233,26 +308,30 @@ class CampaignEngineTest {
                 "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"PER_AMOUNT\",\"amountField\":\"data.amount\",\"value\":5,\"unitStep\":2.5,\"rounding\":\"FLOOR\",\"tierMultiplierApplies\":false}]",
                 "{}");
 
-        Campaign ceilCmp = campaign("CMP-CEIL", "Ceil", 90, List.of("purchase.completed"),
+        Campaign ceilCmp = campaign("CMP-CEIL", "Ceil", 100, List.of("purchase.completed"),
                 "{\"op\":\"all\",\"rules\":[]}",
-                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"STS\",\"mode\":\"PER_AMOUNT\",\"amountField\":\"data.amount\",\"value\":5,\"unitStep\":2.5,\"rounding\":\"CEIL\",\"tierMultiplierApplies\":false}]",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"PER_AMOUNT\",\"amountField\":\"data.amount\",\"value\":5,\"unitStep\":2.5,\"rounding\":\"CEIL\",\"tierMultiplierApplies\":false}]",
                 "{}");
 
-        Campaign roundCmp = campaign("CMP-ROUND", "Round", 80, List.of("purchase.completed"),
+        Campaign roundCmp = campaign("CMP-ROUND", "Round", 100, List.of("purchase.completed"),
                 "{\"op\":\"all\",\"rules\":[]}",
-                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"GTS\",\"mode\":\"PER_AMOUNT\",\"amountField\":\"data.amount\",\"value\":5,\"unitStep\":2.5,\"rounding\":\"ROUND\",\"tierMultiplierApplies\":false}]",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"PER_AMOUNT\",\"amountField\":\"data.amount\",\"value\":5,\"unitStep\":2.5,\"rounding\":\"ROUND\",\"tierMultiplierApplies\":false}]",
                 "{}");
 
-        // Amount: 6.0
-        // Units: 6.0 / 2.5 = 2.4
+        // Amount: 6.5
+        // Units: 6.5 / 2.5 = 2.6
         // FLOOR: 2 * 5 = 10
         // CEIL: 3 * 5 = 15
-        // ROUND: 2 * 5 = 10
-        Evaluation ev = engine.evaluate(purchase(TUESDAY, 6.0), silver(), List.of(floorCmp, ceilCmp, roundCmp), zero);
+        // ROUND: 3 * 5 = 15
 
-        assertThat(grant(ev, "PTS").amount()).isEqualTo(10);
-        assertThat(grant(ev, "STS").amount()).isEqualTo(15);
-        assertThat(grant(ev, "GTS").amount()).isEqualTo(10);
+        Evaluation evFloor = engine.evaluate(purchase(TUESDAY, 6.5), silver(), List.of(floorCmp), zero);
+        assertThat(grant(evFloor, "PTS").amount()).isEqualTo(10);
+
+        Evaluation evCeil = engine.evaluate(purchase(TUESDAY, 6.5), silver(), List.of(ceilCmp), zero);
+        assertThat(grant(evCeil, "PTS").amount()).isEqualTo(15);
+
+        Evaluation evRound = engine.evaluate(purchase(TUESDAY, 6.5), silver(), List.of(roundCmp), zero);
+        assertThat(grant(evRound, "PTS").amount()).isEqualTo(15);
     }
 
     @Test
