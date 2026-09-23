@@ -44,6 +44,29 @@ public class EditionRepository {
                 .optional();
     }
 
+    /**
+     * Legge l'edizione bloccandone la riga fino al commit ({@code FOR UPDATE}): serializza le chiusure concorrenti
+     * della stessa edizione — la seconda aspetta e poi trova {@code CLOSED}.
+     */
+    public Optional<Edition> lockByCode(String code) {
+        return jdbc.sql("SELECT code, name, start_date, end_date, redemption_grace_until, status FROM edition WHERE code = ? FOR UPDATE")
+                .param(code)
+                .query(EditionRepository::map)
+                .optional();
+    }
+
+    /** Edizione il cui periodo contiene {@code day} (estremi inclusi); vuoto se nessuna lo copre. */
+    public Optional<Edition> findContaining(LocalDate day) {
+        return jdbc.sql("""
+                        SELECT code, name, start_date, end_date, redemption_grace_until, status FROM edition
+                        WHERE start_date <= ? AND (end_date IS NULL OR end_date >= ?)
+                        ORDER BY start_date DESC LIMIT 1
+                        """)
+                .params(day, day)
+                .query(EditionRepository::map)
+                .optional();
+    }
+
     public void updateStatus(String code, String status) {
         jdbc.sql("UPDATE edition SET status = ? WHERE code = ?")
                 .params(status, code).update();

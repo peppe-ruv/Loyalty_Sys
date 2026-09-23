@@ -2,22 +2,22 @@ package io.loyaltyhub.wallet.application;
 
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
+import io.loyaltyhub.common.audit.AuditEntry;
+import io.loyaltyhub.common.audit.AuditPublisher;
 import io.loyaltyhub.common.event.LhEventFactory;
 import io.loyaltyhub.common.event.LhEventTypes;
 import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.common.outbox.OutboxWriter;
+import io.loyaltyhub.common.web.LhException;
+import io.loyaltyhub.wallet.domain.Edition;
 import io.loyaltyhub.wallet.domain.EditionCloseRule;
 import io.loyaltyhub.wallet.domain.MemberTier;
 import io.loyaltyhub.wallet.domain.Tier;
 import io.loyaltyhub.wallet.domain.TierHistory;
+import io.loyaltyhub.wallet.infra.EditionRepository;
 import io.loyaltyhub.wallet.infra.MemberTierRepository;
 import io.loyaltyhub.wallet.infra.TierHistoryRepository;
-import io.loyaltyhub.common.audit.AuditEntry;
-import io.loyaltyhub.common.audit.AuditPublisher;
-import io.loyaltyhub.wallet.domain.Edition;
-import io.loyaltyhub.wallet.infra.EditionRepository;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -26,8 +26,22 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Esecuzione della chiusura di edizione (F-TIER-04/05). L'applicazione è <b>un'unica transazione</b>:
+ * <ul>
+ *   <li>la riga {@code edition} è bloccata ({@code FOR UPDATE}) e il suo stato ricontrollato sotto lock, così due
+ *       chiusure concorrenti si serializzano e la seconda riceve {@code EDITION_ALREADY_CLOSED};</li>
+ *   <li>i {@code member_tier} sono letti a pagine di {@value #PAGE_SIZE} con {@code FOR UPDATE}: un accredito STS
+ *       concorrente aspetta il commit e si somma poi al {@code period_sts} azzerato, invece di essere perso;</li>
+ *   <li>un errore a metà annulla tutto (livelli, storico, fatti in outbox, stato edizione): ripetere la chiusura
+ *       riparte da dati integri, senza discese doppie.</li>
+ * </ul>
+ * L'anteprima ({@code dryRun}) è in sola lettura e non prende lock.
+ */
 @Service
 public class EditionCloseBatchService {
+
+    static final int PAGE_SIZE = 200;
 
     private final EditionRepository editions;
     private final MemberTierRepository memberTiers;
@@ -55,8 +69,53 @@ public class EditionCloseBatchService {
 
     public record BatchResult(int retained, int downgraded, List<EditionService.ClosePreviewMember> previewMembers) {}
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public BatchResult processBatch(List<MemberTier> batch, List<Tier> scale, String editionCode, boolean dryRun) {
+    /** Anteprima: calcola gli esiti senza scrivere né bloccare. */
+    @Transactional(readOnly = true)
+    public BatchResult preview(String code, List<Tier> scale) {
+        requireActive(editions.findByCode(code), code);
+        return processAll(scale, code, false);
+    }
+
+    /** Applicazione atomica e serializzata della chiusura (vedi Javadoc di classe). */
+    @Transactional
+    public BatchResult apply(String code, List<Tier> scale) {
+        requireActive(editions.lockByCode(code), code);
+        BatchResult result = processAll(scale, code, true);
+        finalizeClose(code, result.retained(), result.downgraded());
+        return result;
+    }
+
+    private static void requireActive(java.util.Optional<Edition> edition, String code) {
+        Edition e = edition.orElseThrow(() -> LhException.notFound("Edizione non trovata: " + code));
+        if (Edition.CLOSED.equals(e.status())) {
+            throw LhException.validation("EDITION_ALREADY_CLOSED", "L'edizione " + code + " è già chiusa.");
+        }
+        if (!Edition.ACTIVE.equals(e.status())) {
+            throw LhException.validation("EDITION_NOT_ACTIVE", "Si può chiudere solo un'edizione attiva.");
+        }
+    }
+
+    private BatchResult processAll(List<Tier> scale, String code, boolean apply) {
+        int retained = 0;
+        int downgraded = 0;
+        List<EditionService.ClosePreviewMember> members = new ArrayList<>();
+        String after = null;
+        while (true) {
+            List<MemberTier> page = memberTiers.findActiveMembersAfter(after, PAGE_SIZE, apply);
+            if (page.isEmpty()) {
+                break;
+            }
+            BatchResult r = processBatch(page, scale, code, !apply);
+            retained += r.retained();
+            downgraded += r.downgraded();
+            members.addAll(r.previewMembers());
+            after = page.getLast().memberId();
+        }
+        return new BatchResult(retained, downgraded, members);
+    }
+
+    /** Calcola (e, se non {@code dryRun}, applica) la discesa morbida per una pagina; gira nella transazione del chiamante. */
+    BatchResult processBatch(List<MemberTier> batch, List<Tier> scale, String editionCode, boolean dryRun) {
         int retained = 0;
         int downgraded = 0;
         List<EditionService.ClosePreviewMember> membersPreview = new ArrayList<>();
@@ -98,8 +157,7 @@ public class EditionCloseBatchService {
         return new BatchResult(retained, downgraded, membersPreview);
     }
 
-    @Transactional
-    public void finalizeClose(String code, int totalRetained, int totalDowngraded) {
+    private void finalizeClose(String code, int totalRetained, int totalDowngraded) {
         editions.updateStatus(code, Edition.CLOSED);
 
         Edition nextEdition = editions.findAll().stream()

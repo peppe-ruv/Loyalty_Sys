@@ -45,6 +45,26 @@ public class PointsLotRepository {
                 .param(memberId).query(PointsLotRepository::map).list();
     }
 
+    /** Lotti attivi di un membro per l'addebito, ordinati per scadenza crescente (null ultimi) poi earned_at. */
+    public List<PointsLot> findActiveForDebit(String memberId, String currency) {
+        return jdbc.sql("""
+                        SELECT * FROM points_lot
+                        WHERE member_id = ? AND currency = ? AND status = 'ACTIVE' AND remaining > 0
+                        ORDER BY expires_at ASC NULLS LAST, earned_at ASC
+                        """)
+                .params(memberId, currency).query(PointsLotRepository::map).list();
+    }
+
+    public void consumeLot(String lotId, long amount, String status) {
+        jdbc.sql("UPDATE points_lot SET remaining = remaining - ?, status = ? WHERE id = ?")
+                .params(amount, status, lotId).update();
+    }
+
+    public void insertConsumption(String ledgerEntryId, String lotId, long amount) {
+        jdbc.sql("INSERT INTO lot_consumption (ledger_entry_id, lot_id, amount) VALUES (?, ?, ?)")
+                .params(ledgerEntryId, lotId, amount).update();
+    }
+
     /** Lotti {@code PENDING} il cui {@code available_at} è arrivato (rilascio, docs §5). */
     public List<PointsLot> findDuePending(Instant asOf) {
         return jdbc.sql("""
