@@ -125,10 +125,10 @@ class RedemptionIT {
         assertThat(request("MBR-000004", "RWD-POWERBANK", ADDRESS, 422).path("code").asString()).isEqualTo("REWARD_SOLD_OUT");
         assertThat(request("MBR-000004", "RWD-BORRACCIA", null, 422).path("code").asString()).isEqualTo("SHIPPING_REQUIRED");
         assertThat(request("MBR-000008", "RWD-COFFEE-5", null, 422).path("code").asString()).isEqualTo("MEMBER_NOT_ACTIVE");
-        // RWD-BILL-20: al massimo 2 per membro.
-        request("MBR-000006", "RWD-BILL-20", null, 202);
-        request("MBR-000006", "RWD-BILL-20", null, 202);
-        assertThat(request("MBR-000006", "RWD-BILL-20", null, 422).path("code").asString()).isEqualTo("MEMBER_LIMIT_REACHED");
+        // RWD-BILL-20: al massimo 2 per membro (Elisa non ne ha nello storico seminato).
+        request("MBR-000009", "RWD-BILL-20", null, 202);
+        request("MBR-000009", "RWD-BILL-20", null, 202);
+        assertThat(request("MBR-000009", "RWD-BILL-20", null, 422).path("code").asString()).isEqualTo("MEMBER_LIMIT_REACHED");
     }
 
     @Test
@@ -192,6 +192,93 @@ class RedemptionIT {
         assertThat(confirmed.path("shipping").path("city").asString()).isEqualTo("Torino");
         assertThat(get("/v1/portal/redemptions?memberId=MBR-000011").size()).isGreaterThanOrEqualTo(3);
         assertThat(get("/v1/redemptions?status=CONFIRMED").path("items").toString()).contains(manual);
+    }
+
+    // ---------- M4.4: operatore (BO-13) e storico seminato ----------
+
+    @Test
+    void seededHistoryHasTheDemoStories() {
+        // Solo fatti che gli altri test non cambiano (l'ordine dei test non è fissato): Sofia e RDM-000006 li
+        // evadono i test dell'operatore, che ne verificano lo stato di partenza.
+        JsonNode sofia = get("/v1/redemptions/RDM-000003");
+        assertThat(sofia.path("shipping").path("city").asString()).isEqualTo("Bologna");
+        assertThat(sofia.path("history").toString()).contains("PENDING", "CONFIRMED");
+        assertThat(get("/v1/redemptions?status=REJECTED,CANCELLED&size=50").path("items").toString())
+                .contains("RDM-000004", "RDM-000005", "RDM-000018").doesNotContain("RDM-000001");
+        JsonNode francesca = get("/v1/redemptions/RDM-000004");
+        assertThat(francesca.path("status").asString()).isEqualTo("CANCELLED");
+        assertThat(francesca.path("history").toString()).contains("rimborso");
+
+        long issued = 0;
+        for (JsonNode c : get("/v1/portal/coupons?memberId=MBR-000004")) {
+            if (c.path("status").asString().equals("ISSUED")) {
+                issued++;
+            }
+        }
+        assertThat(issued).as("i 2 coupon di Davide").isGreaterThanOrEqualTo(2);
+    }
+
+    @Test
+    void careFulfilsAManualRequestWithNoteAndTracking() {
+        assertThat(get("/v1/redemptions?status=CONFIRMED&fulfilment=MANUAL").path("items").toString())
+                .as("scheda «Da evadere» di BO-13").contains("RDM-000003").doesNotContain("RDM-000006");
+        assertThat(get("/v1/redemptions/RDM-000003").path("status").asString()).as("Sofia, in attesa di spedizione").isEqualTo("CONFIRMED");
+        assertThat(send("POST", "/v1/redemptions/RDM-000003/fulfil", "MARKETING:luca.marketing",
+                Map.of("note", "Spedito"), 403).path("code").asString()).isEqualTo("FORBIDDEN_ROLE");
+        assertThat(send("POST", "/v1/redemptions/RDM-000003/fulfil", "CARE:anna.care", Map.of("note", " "), 422)
+                .path("code").asString()).isEqualTo("NOTE_REQUIRED");
+        JsonNode done = send("POST", "/v1/redemptions/RDM-000003/fulfil", "CARE:anna.care",
+                Map.of("note", "Spedito con corriere", "tracking", "AUR-77120"), 200);
+        assertThat(done.path("status").asString()).isEqualTo("FULFILLED");
+        assertThat(done.path("fulfilmentNote").asString()).contains("AUR-77120");
+        assertThat(done.path("history").toString()).contains("CARE:anna.care");
+        assertThat(send("POST", "/v1/redemptions/RDM-000003/fulfil", "CARE:anna.care", Map.of("note", "ancora"), 409)
+                .path("code").asString()).isEqualTo("REDEMPTION_NOT_FULFILLABLE");
+        // Un premio a evasione automatica non si evade a mano.
+        assertThat(send("POST", "/v1/redemptions/RDM-000006/fulfil", "CARE:anna.care", Map.of("note", "x"), 409)
+                .path("code").asString()).isEqualTo("REDEMPTION_NOT_FULFILLABLE");
+    }
+
+    @Test
+    void cancelWithRefundRestoresStockAndAsksTheWalletToRefund() throws Exception {
+        int stock = reward("RWD-SMART-PLUG").path("stockRemaining").asInt();
+        String id = request("MBR-000005", "RWD-SMART-PLUG", ADDRESS, 202).path("redemptionId").asString();
+        publishWalletFact(awaitFact("io.loyaltyhub.fact.reward.redemption.requested", id), "io.loyaltyhub.fact.wallet.points.spent",
+                Map.of("ledgerEntryId", "LE-" + id, "currency", "PTS", "amount", 6000, "balanceAfter", 22750, "redemptionId", id));
+        awaitStatus(id, "CONFIRMED");
+
+        assertThat(send("POST", "/v1/redemptions/" + id + "/cancel", "CARE:anna.care", Map.of("reason", ""), 422)
+                .path("code").asString()).isEqualTo("REASON_REQUIRED");
+        JsonNode cancelled = send("POST", "/v1/redemptions/" + id + "/cancel", "CARE:anna.care",
+                Map.of("reason", "Il membro ha cambiato idea"), 200);
+        assertThat(cancelled.path("status").asString()).isEqualTo("CANCELLED");
+        assertThat(reward("RWD-SMART-PLUG").path("stockRemaining").asInt()).isEqualTo(stock);
+
+        JsonNode fact = null;
+        long deadline = System.currentTimeMillis() + 10_000;
+        while (fact == null && System.currentTimeMillis() < deadline) {
+            JsonNode f = awaitFact("io.loyaltyhub.fact.reward.redemption.cancelled", id);
+            if (f.path("data").path("refund").asBoolean()) {
+                fact = f;
+            }
+        }
+        assertThat(fact).isNotNull();
+        assertThat(fact.path("lhactor").asString()).isEqualTo("CARE:anna.care");
+        assertThat(send("POST", "/v1/redemptions/" + id + "/cancel", "CARE:anna.care", Map.of("reason", "di nuovo"), 409)
+                .path("code").asString()).isEqualTo("REDEMPTION_NOT_CANCELLABLE");
+        assertThat(send("POST", "/v1/redemptions/RDM-000001/cancel", "ADMIN:test", Map.of("reason", "evasa"), 409)
+                .path("code").asString()).as("una richiesta evasa non si annulla").isEqualTo("REDEMPTION_NOT_CANCELLABLE");
+    }
+
+    @Test
+    void retryFulfilmentIssuesTheCouponOfARequestNeedingAttention() {
+        assertThat(get("/v1/redemptions?needsAttention=true").path("items").toString()).contains("RDM-000006");
+        JsonNode done = send("POST", "/v1/redemptions/RDM-000006/retry-fulfilment", "ADMIN:test", null, 200);
+        assertThat(done.path("status").asString()).isEqualTo("FULFILLED");
+        assertThat(done.path("couponCode").asString()).startsWith("SHP25-");
+        assertThat(done.path("needsAttention").asBoolean()).isFalse();
+        assertThat(send("POST", "/v1/redemptions/RDM-000006/retry-fulfilment", "ADMIN:test", null, 409)
+                .path("code").asString()).isEqualTo("REDEMPTION_NOT_RETRYABLE");
     }
 
     // ---------- helper ----------

@@ -20,6 +20,11 @@ const STATUS_TONE: Record<string, string> = {
   ENDED: "bg-slate-200 text-slate-600",
   ARCHIVED: "bg-slate-200 text-slate-600",
   ANONYMIZED: "bg-slate-100 italic text-slate-500",
+  // richieste premio (BO-13)
+  PENDING: "bg-amber-100 text-amber-800",
+  CONFIRMED: "bg-sky-100 text-sky-800",
+  FULFILLED: "bg-emerald-100 text-emerald-800",
+  CANCELLED: "bg-slate-200 text-slate-600",
   // coupon (BO-12)
   AVAILABLE: "bg-slate-100 text-slate-700",
   ISSUED: "bg-sky-100 text-sky-800",

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { activeHref, visibleNav } from "@/lib/nav";
+import { activeHref, visibleNav, type NavItem } from "@/lib/nav";
+import { useLhQuery, type Page } from "@/lib/api/client";
 import { cn } from "@/lib/cn";
 
 // Elenco dei gruppi/voci della sidebar (docs/08 §1), condiviso tra la sidebar fissa (desktop) e il
@@ -32,7 +33,8 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
                         : "border-transparent text-[#8b98ad] hover:text-white",
                     )}
                   >
-                    {item.label}
+                    <span className="flex-1">{item.label}</span>
+                    {item.counter ? <NavCounter kind={item.counter} /> : null}
                   </Link>
                 </li>
               );
@@ -41,5 +43,20 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       ))}
     </nav>
+  );
+}
+
+/** Richieste premio da gestire: confermate a evasione manuale + da verificare (insiemi disgiunti). */
+function NavCounter({ kind }: { kind: NonNullable<NavItem["counter"]> }) {
+  const opts = { refetchInterval: 30_000 };
+  const todo = useLhQuery<Page<unknown>>("reward", "/v1/redemptions", { status: "CONFIRMED", fulfilment: "MANUAL", size: 1 }, opts);
+  const attention = useLhQuery<Page<unknown>>("reward", "/v1/redemptions", { needsAttention: "true", size: 1 }, opts);
+  if (kind !== "redemptions" || todo.data == null || attention.data == null) return null;
+  const n = todo.data.page.totalItems + attention.data.page.totalItems;
+  if (n === 0) return null;
+  return (
+    <span className="rounded-full bg-[var(--color-bo-accent)] px-1.5 text-xs font-medium tabular-nums text-white" aria-label={`${n} da gestire`}>
+      {n}
+    </span>
   );
 }

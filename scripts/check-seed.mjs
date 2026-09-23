@@ -97,12 +97,37 @@ if (Array.isArray(rewards)) {
         errors.push(`rewards.json: ${r.code} è AUTO_COUPON ma il pool "${r.couponPool}" non esiste in coupon-pools.json`);
         continue;
       }
-      const available = (pool.size ?? 0) - (pool.consumed ?? 0);
+      // Le richieste d'esempio evase con coupon consumano codici dello stesso pool.
+      const issuedBySeed = (readSeed("redemptions.json") ?? []).filter((x) => x.rewardCode === r.code && x.coupon).length;
+      const available = (pool.size ?? 0) - (pool.consumed ?? 0) - issuedBySeed;
       const declared = r.stockRemaining ?? r.stockTotal ?? 0;
       if (available < declared) {
         errors.push(`coupon-pools.json: ${pool.code} ha ${available} codici disponibili, meno dello stock di ${r.code} (${declared})`);
       }
     }
+  }
+}
+
+// Richieste d'esempio (docs/10 §5): membro e premio esistenti, costo = soglia della fascia, niente PENDING (il
+// timeout le respingerebbe dopo 10 minuti), coupon solo per premi a evasione automatica.
+const redemptions = readSeed("redemptions.json");
+if (Array.isArray(redemptions) && Array.isArray(rewards)) {
+  const members = new Set((readSeed("members.json") ?? []).map((m) => m.id));
+  const thresholds = new Map((readSeed("reward-bands.json") ?? []).map((b) => [b.code, b.pointsThreshold]));
+  const byCode = new Map(rewards.map((r) => [r.code, r]));
+  const ids = new Set();
+  for (const x of redemptions) {
+    if (ids.has(x.id)) errors.push(`redemptions.json: id duplicato ${x.id}`);
+    ids.add(x.id);
+    const r = byCode.get(x.rewardCode);
+    if (!members.has(x.memberId)) errors.push(`redemptions.json: ${x.id} usa il membro inesistente ${x.memberId}`);
+    if (!r) {
+      errors.push(`redemptions.json: ${x.id} usa il premio inesistente ${x.rewardCode}`);
+      continue;
+    }
+    if (thresholds.get(r.band) !== x.pointsCost) errors.push(`redemptions.json: ${x.id} costa ${x.pointsCost}, la fascia ${r.band} ${thresholds.get(r.band)}`);
+    if (x.status === "PENDING") errors.push(`redemptions.json: ${x.id} è PENDING (verrebbe respinta dal timeout)`);
+    if (x.coupon && r.fulfilment !== "AUTO_COUPON") errors.push(`redemptions.json: ${x.id} ha un coupon ma ${r.code} non è AUTO_COUPON`);
   }
 }
 

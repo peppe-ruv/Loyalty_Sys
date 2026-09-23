@@ -364,3 +364,32 @@ export interface CouponImportResult {
   skipped: string[];
   available: number;
 }
+
+// Richieste premio (reward GET /v1/redemptions*, /v1/portal/redemptions*; BO-13, PT-04)
+export type RedemptionStatus = "PENDING" | "CONFIRMED" | "FULFILLED" | "REJECTED" | "CANCELLED";
+
+export interface RedemptionHistoryItem {
+  status: RedemptionStatus;
+  note: string | null;
+  actor: string | null;
+  at: string;
+}
+
+export interface Redemption {
+  id: string;
+  memberId: string;
+  rewardCode: string;
+  rewardName: string;
+  pointsCost: number;
+  status: RedemptionStatus;
+  rejectReason: string | null;
+  needsAttention: boolean;
+  couponCode: string | null;
+  fulfilmentNote: string | null;
+  shipping: Record<string, string> | null;
+  correlationId: string;
+  requestedAt: string;
+  confirmedAt: string | null;
+  closedAt: string | null;
+  history: RedemptionHistoryItem[] | null;
+}

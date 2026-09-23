@@ -1,15 +1,19 @@
 package io.loyaltyhub.reward.application;
 
+import io.loyaltyhub.common.audit.AuditEntry;
+import io.loyaltyhub.common.audit.AuditPublisher;
 import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhEventFactory;
 import io.loyaltyhub.common.event.LhEventTypes;
 import io.loyaltyhub.common.event.LhSource;
 import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.common.outbox.OutboxWriter;
+import io.loyaltyhub.common.web.ActorHolder;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.common.web.PageResponse;
 import io.loyaltyhub.reward.domain.Band;
 import io.loyaltyhub.reward.domain.Coupon;
+import io.loyaltyhub.reward.domain.CouponStatus;
 import io.loyaltyhub.reward.domain.MemberSnapshot;
 import io.loyaltyhub.reward.domain.Redemption;
 import io.loyaltyhub.reward.domain.RedemptionStatus;
@@ -70,13 +74,14 @@ public class RedemptionService {
     private final CouponRepository couponRepository;
     private final LhEventFactory events;
     private final OutboxWriter outbox;
+    private final AuditPublisher audit;
     private final ObjectMapper mapper;
     private final Clock clock;
     private final Duration timeout;
 
     public RedemptionService(RedemptionRepository redemptions, RewardRepository rewards, CatalogRepository catalog,
                              MemberSnapshotRepository members, CouponService coupons, CouponRepository couponRepository,
-                             LhEventFactory events, OutboxWriter outbox, ObjectMapper mapper, Clock clock,
+                             LhEventFactory events, OutboxWriter outbox, AuditPublisher audit, ObjectMapper mapper, Clock clock,
                              @Value("${loyaltyhub.reward.redemption-timeout-minutes:10}") long timeoutMinutes) {
         this.redemptions = redemptions;
         this.rewards = rewards;
@@ -86,6 +91,7 @@ public class RedemptionService {
         this.couponRepository = couponRepository;
         this.events = events;
         this.outbox = outbox;
+        this.audit = audit;
         this.mapper = mapper;
         this.clock = clock;
         this.timeout = Duration.ofMinutes(timeoutMinutes);
@@ -239,6 +245,79 @@ public class RedemptionService {
         return view(r.id());
     }
 
+    // ---------- operatore (BO-13) ----------
+
+    /**
+     * Evasione manuale ({@code F-RWD-06}): solo una richiesta {@code CONFIRMED} di un premio {@code MANUAL}; nota
+     * obbligatoria, tracking facoltativo.
+     */
+    @Transactional
+    public RedemptionView fulfilManually(String id, String note, String tracking) {
+        Redemption r = redemptions.lock(id).orElseThrow(() -> LhException.notFound("Richiesta non trovata: " + id));
+        String fulfilment = rewards.findByCode(r.rewardCode()).map(Reward::fulfilment).orElse("MANUAL");
+        if (r.status() != RedemptionStatus.CONFIRMED || !"MANUAL".equals(fulfilment)) {
+            throw LhException.conflict("REDEMPTION_NOT_FULFILLABLE",
+                    "Si evade a mano solo una richiesta CONFIRMED di un premio a evasione manuale (questa è " + r.status() + ").");
+        }
+        if (note == null || note.isBlank()) {
+            throw LhException.validation("NOTE_REQUIRED", "Serve una nota di evasione (es. corriere, data di spedizione).");
+        }
+        String fullNote = tracking == null || tracking.isBlank() ? note.trim() : note.trim() + " · tracking " + tracking.trim();
+        String actor = ActorHolder.get().asActorString();
+        completeFulfilment(r, null, fullNote, requestedRef(r, actor), clock.instant(), actor);
+        audit.record("REDEMPTION", r.id(), AuditEntry.Action.UPDATE, "Evasa a mano la richiesta " + r.id() + " (" + r.rewardName() + ")",
+                Map.of("status", r.status().name()), Map.of("status", "FULFILLED", "note", fullNote));
+        return view(r.id());
+    }
+
+    /**
+     * Annullo con rimborso ({@code F-RWD-07}) da {@code CONFIRMED}: stock ripristinato, coupon eventualmente emesso
+     * {@code VOID}, fatto {@code cancelled} con {@code refund=true} → il wallet restituisce i punti.
+     */
+    @Transactional
+    public RedemptionView cancelWithRefund(String id, String reason) {
+        Redemption r = redemptions.lock(id).orElseThrow(() -> LhException.notFound("Richiesta non trovata: " + id));
+        if (r.status() != RedemptionStatus.CONFIRMED) {
+            throw LhException.conflict("REDEMPTION_NOT_CANCELLABLE",
+                    "Si annulla con rimborso solo una richiesta CONFIRMED, prima dell'evasione (questa è " + r.status() + ").");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw LhException.validation("REASON_REQUIRED", "Serve il motivo dell'annullo.");
+        }
+        Instant now = clock.instant();
+        String actor = ActorHolder.get().asActorString();
+        redemptions.close(r.id(), RedemptionStatus.CANCELLED, reason.trim(), now);
+        rewards.releaseStock(r.rewardCode());
+        couponRepository.findByRedemption(r.id())
+                .filter(c -> c.status() == CouponStatus.ISSUED || c.status() == CouponStatus.AVAILABLE)
+                .ifPresent(c -> couponRepository.markVoid(c.code(), now));
+        redemptions.flagAttention(r.id(), false);
+        redemptions.addHistory(Ulid.next(clock), r.id(), RedemptionStatus.CANCELLED, "Annullata con rimborso: " + reason.trim(), actor, now);
+        outbox.write(events.childOf(requestedRef(r, actor), LhEventTypes.Fact.REWARD_REDEMPTION_CANCELLED,
+                cancelledData(r, reason.trim(), true)));
+        audit.record("REDEMPTION", r.id(), AuditEntry.Action.UPDATE, "Annullata con rimborso la richiesta " + r.id() + " (" + reason.trim() + ")",
+                Map.of("status", r.status().name()), Map.of("status", "CANCELLED", "refund", true));
+        return view(r.id());
+    }
+
+    /** Nuovo tentativo di evasione automatica dopo una nuova generazione di codici (pool era vuoto, {@code needsAttention}). */
+    @Transactional
+    public RedemptionView retryFulfilment(String id) {
+        Redemption r = redemptions.lock(id).orElseThrow(() -> LhException.notFound("Richiesta non trovata: " + id));
+        if (r.status() != RedemptionStatus.CONFIRMED || !r.needsAttention()) {
+            throw LhException.conflict("REDEMPTION_NOT_RETRYABLE", "Si ritenta solo una richiesta CONFIRMED da verificare.");
+        }
+        String actor = ActorHolder.get().asActorString();
+        fulfil(r, requestedRef(r, actor));
+        Redemption after = redemptions.find(r.id()).orElseThrow();
+        if (after.status() != RedemptionStatus.FULFILLED) {
+            throw LhException.conflict("COUPON_POOL_EMPTY", "Il pool coupon del premio è ancora vuoto: genera nuovi codici in «Coupon».");
+        }
+        audit.record("REDEMPTION", r.id(), AuditEntry.Action.UPDATE, "Nuovo tentativo di evasione riuscito per " + r.id(),
+                Map.of("needsAttention", true), Map.of("status", "FULFILLED"));
+        return view(r.id());
+    }
+
     // ---------- evasione ----------
 
     /**
@@ -262,17 +341,17 @@ public class RedemptionService {
                     log.warn("Richiesta {}: pool coupon del premio {} esaurito, needsAttention", r.id(), r.rewardCode());
                     return;
                 }
-                completeFulfilment(r, coupon.get().code(), null, cause, now);
+                completeFulfilment(r, coupon.get().code(), null, cause, now, "SYSTEM");
             }
-            case "INSTANT" -> completeFulfilment(r, null, null, cause, now);
-            default -> { } // MANUAL: evasione da BO-13 (M4.4)
+            case "INSTANT" -> completeFulfilment(r, null, null, cause, now, "SYSTEM");
+            default -> { } // MANUAL: evasione da BO-13 (fulfilManually)
         }
     }
 
-    private void completeFulfilment(Redemption r, String couponCode, String note, LhEvent<?> cause, Instant now) {
+    private void completeFulfilment(Redemption r, String couponCode, String note, LhEvent<?> cause, Instant now, String actor) {
         redemptions.fulfil(r.id(), couponCode, note, now);
         redemptions.addHistory(Ulid.next(clock), r.id(), RedemptionStatus.FULFILLED,
-                couponCode != null ? "Coupon emesso: " + couponCode : "Evasa", "SYSTEM", now);
+                couponCode != null ? "Coupon emesso: " + couponCode : note != null ? "Evasa: " + note : "Evasa", actor, now);
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("redemptionId", r.id());
         data.put("rewardCode", r.rewardCode());
@@ -299,13 +378,14 @@ public class RedemptionService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<RedemptionView> search(String status, String memberId, String rewardCode, Boolean needsAttention,
-                                               Instant from, Instant to, int page, int size) {
+    public PageResponse<RedemptionView> search(String status, String fulfilment, String memberId, String rewardCode,
+                                               Boolean needsAttention, Instant from, Instant to, int page, int size) {
         int s = Math.max(1, Math.min(size, 200));
         int p = Math.max(0, page);
-        List<RedemptionView> items = redemptions.search(status, memberId, rewardCode, needsAttention, from, to, p, s)
+        List<RedemptionView> items = redemptions.search(status, fulfilment, memberId, rewardCode, needsAttention, from, to, p, s)
                 .stream().map(r -> toView(r, null)).toList();
-        return PageResponse.of(items, p, s, redemptions.count(status, memberId, rewardCode, needsAttention, from, to));
+        return PageResponse.of(items, p, s,
+                redemptions.count(status, fulfilment, memberId, rewardCode, needsAttention, from, to));
     }
 
     // ---------- interni ----------
@@ -335,9 +415,14 @@ public class RedemptionService {
      * tracciato gli esiti che non nascono da un evento ricevuto (timeout, annullo del membro).
      */
     private static LhEvent<Void> requestedRef(Redemption r) {
+        return requestedRef(r, r.actor());
+    }
+
+    /** Come {@link #requestedRef(Redemption)} ma con l'attore dell'azione in corso (es. l'operatore di BO-13). */
+    private static LhEvent<Void> requestedRef(Redemption r, String actor) {
         return new LhEvent<>(LhEvent.SPEC_VERSION, r.correlationId(), LhSource.service("reward"),
                 LhEventTypes.Fact.REWARD_REDEMPTION_REQUESTED, "member:" + r.memberId(), r.requestedAt(),
-                LhEvent.DATA_CONTENT_TYPE, null, LhEvent.TENANT, r.correlationId(), null, 0, r.actor(), null);
+                LhEvent.DATA_CONTENT_TYPE, null, LhEvent.TENANT, r.correlationId(), null, 0, actor, null);
     }
 
     private static String redemptionIdOf(LhEvent<JsonNode> e) {

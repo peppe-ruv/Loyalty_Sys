@@ -3,6 +3,7 @@ package io.loyaltyhub.wallet.demo;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.common.demo.DemoResettable;
+import io.loyaltyhub.common.demo.SeedDates;
 import io.loyaltyhub.common.demo.SeedLoader;
 import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.wallet.infra.CurrencyRepository;
@@ -14,6 +15,7 @@ import io.loyaltyhub.wallet.infra.TierHistoryRepository;
 import io.loyaltyhub.wallet.infra.TierRepository;
 import io.loyaltyhub.wallet.infra.WalletRepository;
 import io.loyaltyhub.wallet.domain.ExpiryPolicy;
+import io.loyaltyhub.wallet.domain.LedgerEntry;
 import io.loyaltyhub.wallet.domain.PointsLot;
 import io.loyaltyhub.wallet.domain.Tier;
 import io.loyaltyhub.wallet.domain.TierHistory;
@@ -32,7 +34,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Carica valute, livelli, edizioni e i saldi iniziali dei wallet dai seed (docs/servizi/wallet-service.md §6).
@@ -139,7 +144,45 @@ public class WalletSeeder implements ApplicationRunner, DemoResettable {
                 memberTiers.updateStatus(m.path("id").asString(), status);
             }
         }
-        log.info("Seed wallet caricato (profilo demo): valute, livelli, edizioni, saldi, lotti, stato membri");
+        seedRedemptionHistory();
+        log.info("Seed wallet caricato (profilo demo): valute, livelli, edizioni, saldi, lotti, stato membri, spese premi");
+    }
+
+    /**
+     * Movimenti delle richieste premio d'esempio ({@code redemptions.json}, docs/10 §5): {@code SPEND} per le richieste
+     * che hanno speso punti e {@code REFUND} per quelle annullate con rimborso, legati a {@code redemption_id} così un
+     * annullo da BO-13 trova la spesa da rimborsare. Il saldo seminato è già al netto: il saldo dopo ogni movimento
+     * si ricostruisce all'indietro dal saldo attuale (nello storico seminato non ci sono altri movimenti).
+     */
+    private void seedRedemptionHistory() {
+        record Movement(String memberId, String redemptionId, String type, long amount, Instant at) {
+        }
+        List<Movement> moves = new ArrayList<>();
+        for (JsonNode x : seed.readTree("redemptions.json")) {
+            String status = x.path("status").asString();
+            boolean refunded = "CANCELLED".equals(status) && x.path("refund").asBoolean(false);
+            if (!"CONFIRMED".equals(status) && !"FULFILLED".equals(status) && !refunded) {
+                continue;
+            }
+            Instant requested = SeedDates.resolve(x.path("requestedAt").asString(), clock);
+            long cost = x.path("pointsCost").asLong();
+            moves.add(new Movement(x.path("memberId").asString(), x.path("id").asString(), "SPEND", cost, requested.plusSeconds(1)));
+            if (refunded) {
+                Instant closed = x.hasNonNull("closedAt") ? SeedDates.resolve(x.get("closedAt").asString(), clock) : requested.plusSeconds(3);
+                moves.add(new Movement(x.path("memberId").asString(), x.path("id").asString(), "REFUND", cost, closed));
+            }
+        }
+        moves.sort(Comparator.comparing(Movement::at).reversed());
+        Map<String, Long> running = new HashMap<>();
+        for (Movement m : moves) {
+            long after = running.computeIfAbsent(m.memberId(),
+                    id -> wallets.find(id, "PTS").map(w -> w.balanceActive()).orElse(0L));
+            boolean spend = "SPEND".equals(m.type());
+            ledger.insert(new LedgerEntry(Ulid.next(clock), m.memberId(), "PTS", m.type(), m.amount(), spend ? "-" : "+", after,
+                            m.at(), "REDEMPTION", null, spend ? "Premio (storico demo)" : "Rimborso richiesta premio", "{}"),
+                    null, null, "SEED-" + m.redemptionId(), "SEED", m.redemptionId());
+            running.put(m.memberId(), spend ? after + m.amount() : after - m.amount());
+        }
     }
 
     /**

@@ -11,14 +11,19 @@ import { Can } from "@/components/bo/Can";
 import { it } from "@/lib/i18n/it";
 
 // BO-30 Console demo (docs/08 §BO-30): stato dei servizi + reset orchestrato + macchina del tempo (job M3.2).
-const RESETTABLE = ["ingestion", "member", "campaign", "wallet"];
+const RESETTABLE = ["ingestion", "member", "campaign", "wallet", "reward"];
 
-// Job "macchina del tempo" del wallet (docs/servizi/wallet-service.md §3, M3.2): scadenze/preavvisi/rilascio con asOf.
-type JobOutcome = { lots: number; members: number; amount: number };
-const WALLET_JOBS: { path: string; label: string; verb: string }[] = [
-  { path: "expire-points", label: "Scadenza punti", verb: "scaduti" },
-  { path: "expiry-warnings", label: "Preavviso scadenze", verb: "in preavviso" },
-  { path: "release-pending", label: "Rilascio pending", verb: "rilasciati" },
+// Job "macchina del tempo" (M3.2 wallet, M4 reward) con asOf: scadenze/preavvisi/rilascio punti, scadenza coupon,
+// timeout delle richieste premio (docs/servizi/wallet-service.md §3, reward-service.md §3).
+type JobOutcome = { lots?: number; members?: number; amount?: number; coupons?: number; redemptions?: number };
+const walletDetail = (verb: string) => (out: JobOutcome) =>
+  !out.lots ? "nessun lotto interessato" : `${(out.amount ?? 0).toLocaleString("it-IT")} PTS ${verb} · ${out.lots} lotti · ${out.members} membri`;
+const JOBS: { service: ServiceCode; path: string; label: string; detail: (out: JobOutcome) => string }[] = [
+  { service: "wallet", path: "expire-points", label: "Scadenza punti", detail: walletDetail("scaduti") },
+  { service: "wallet", path: "expiry-warnings", label: "Preavviso scadenze", detail: walletDetail("in preavviso") },
+  { service: "wallet", path: "release-pending", label: "Rilascio pending", detail: walletDetail("rilasciati") },
+  { service: "reward", path: "expire-coupons", label: "Scadenza coupon", detail: (o) => `${o.coupons ?? 0} coupon scaduti` },
+  { service: "reward", path: "timeout-redemptions", label: "Timeout richieste", detail: (o) => `${o.redemptions ?? 0} richieste respinte per timeout` },
 ];
 
 export default function ConsolePage() {
@@ -36,19 +41,16 @@ export default function ConsolePage() {
   const [jobLog, setJobLog] = useState<string[]>([]);
   const [jobBusy, setJobBusy] = useState(false);
 
-  async function runJob(path: string, label: string, verb: string) {
+  async function runJob(job: (typeof JOBS)[number]) {
+    const { service, path, label } = job;
     setJobBusy(true);
     try {
-      const out = await lhFetch<JobOutcome>("wallet", `/v1/demo/jobs/${path}`, {
+      const out = await lhFetch<JobOutcome>(service, `/v1/demo/jobs/${path}`, {
         method: "POST",
         query: { asOf: asOf || undefined },
       });
       const when = asOf ? ` (al ${asOf})` : "";
-      const detail =
-        out.lots === 0
-          ? "nessun lotto interessato"
-          : `${out.amount.toLocaleString("it-IT")} PTS ${verb} · ${out.lots} lotti · ${out.members} membri`;
-      setJobLog((l) => [`✓ ${label}${when}: ${detail}`, ...l]);
+      setJobLog((l) => [`✓ ${label}${when}: ${job.detail(out)}`, ...l]);
     } catch (e) {
       setJobLog((l) => [`✗ ${label}: ${(e as Error).message}`, ...l]);
     } finally {
@@ -167,10 +169,10 @@ export default function ConsolePage() {
               ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
-              {WALLET_JOBS.map((j) => (
+              {JOBS.map((j) => (
                 <button
                   key={j.path}
-                  onClick={() => runJob(j.path, j.label, j.verb)}
+                  onClick={() => runJob(j)}
                   disabled={jobBusy}
                   className="rounded border border-[var(--color-bo-border)] px-2.5 py-1 text-xs hover:bg-slate-50 disabled:opacity-50"
                 >
@@ -188,7 +190,8 @@ export default function ConsolePage() {
             <p className="text-xs text-[var(--color-bo-ink-2)]">
               Scadenza: azzera i lotti scaduti (movimento <code>EXPIRE</code>). Preavviso: notifica i lotti in
               scadenza entro 30 giorni, una volta per lotto. Rilascio: sblocca i punti in attesa arrivati a
-              maturazione.
+              maturazione. Scadenza coupon: i coupon emessi oltre la scadenza diventano <code>EXPIRED</code>. Timeout
+              richieste: le richieste premio in attesa da oltre 10 minuti vengono respinte e lo stock torna disponibile.
             </p>
           </CardBody>
         </Card>

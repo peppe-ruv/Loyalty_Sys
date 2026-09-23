@@ -10,6 +10,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +47,20 @@ public class RedemptionRepository {
                         """)
                 .params(r.id(), r.memberId(), r.rewardCode(), r.rewardName(), r.pointsCost(), r.status().name(),
                         r.shippingJson(), r.correlationId(), ts(r.requestedAt()), r.actor())
+                .update();
+    }
+
+    /** Solo per il seed: una richiesta storica con tutti i suoi campi. */
+    public void seed(Redemption r) {
+        jdbc.sql("""
+                        INSERT INTO redemption (id, member_id, reward_code, reward_name, points_cost, status, reject_reason,
+                          needs_attention, coupon_code, fulfilment_note, shipping, correlation_id, requested_at, confirmed_at,
+                          closed_at, actor)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, cast(? AS jsonb), ?, ?, ?, ?, ?)
+                        """)
+                .params(r.id(), r.memberId(), r.rewardCode(), r.rewardName(), r.pointsCost(), r.status().name(),
+                        r.rejectReason(), r.needsAttention(), r.couponCode(), r.fulfilmentNote(), r.shippingJson(),
+                        r.correlationId(), ts(r.requestedAt()), ts(r.confirmedAt()), ts(r.closedAt()), r.actor())
                 .update();
     }
 
@@ -103,19 +118,20 @@ public class RedemptionRepository {
                 .param(memberId).query(RedemptionRepository::map).list();
     }
 
-    public List<Redemption> search(String status, String memberId, String rewardCode, Boolean needsAttention,
-                                   Instant from, Instant to, int page, int size) {
+    public List<Redemption> search(String status, String fulfilment, String memberId, String rewardCode,
+                                   Boolean needsAttention, Instant from, Instant to, int page, int size) {
         StringBuilder sql = new StringBuilder("SELECT " + COLUMNS + " FROM redemption WHERE 1=1");
-        List<Object> params = filters(sql, status, memberId, rewardCode, needsAttention, from, to);
+        List<Object> params = filters(sql, status, fulfilment, memberId, rewardCode, needsAttention, from, to);
         sql.append(" ORDER BY requested_at DESC, id LIMIT ? OFFSET ?");
         params.add(size);
         params.add(page * size);
         return jdbc.sql(sql.toString()).params(params).query(RedemptionRepository::map).list();
     }
 
-    public long count(String status, String memberId, String rewardCode, Boolean needsAttention, Instant from, Instant to) {
+    public long count(String status, String fulfilment, String memberId, String rewardCode, Boolean needsAttention,
+                      Instant from, Instant to) {
         StringBuilder sql = new StringBuilder("SELECT count(*) FROM redemption WHERE 1=1");
-        List<Object> params = filters(sql, status, memberId, rewardCode, needsAttention, from, to);
+        List<Object> params = filters(sql, status, fulfilment, memberId, rewardCode, needsAttention, from, to);
         return jdbc.sql(sql.toString()).params(params).query(Long.class).single();
     }
 
@@ -154,12 +170,26 @@ public class RedemptionRepository {
         jdbc.sql("DELETE FROM redemption").update();
     }
 
-    private static List<Object> filters(StringBuilder sql, String status, String memberId, String rewardCode,
-                                        Boolean needsAttention, Instant from, Instant to) {
+    /**
+     * Filtri comuni: {@code status} accetta più stati separati da virgola (schede di BO-13, es.
+     * {@code REJECTED,CANCELLED}); {@code fulfilment} filtra per modalità di evasione del premio.
+     */
+    private static List<Object> filters(StringBuilder sql, String status, String fulfilment, String memberId,
+                                        String rewardCode, Boolean needsAttention, Instant from, Instant to) {
         List<Object> params = new ArrayList<>();
         if (status != null && !status.isBlank()) {
-            sql.append(" AND status = ?");
-            params.add(status.toUpperCase());
+            List<String> statuses = new ArrayList<>();
+            for (String st : status.split(",")) {
+                if (!st.isBlank()) {
+                    statuses.add(st.trim().toUpperCase());
+                }
+            }
+            sql.append(" AND status IN (").append(String.join(", ", Collections.nCopies(statuses.size(), "?"))).append(")");
+            params.addAll(statuses);
+        }
+        if (fulfilment != null && !fulfilment.isBlank()) {
+            sql.append(" AND reward_code IN (SELECT code FROM reward WHERE fulfilment = ?)");
+            params.add(fulfilment.toUpperCase());
         }
         if (memberId != null && !memberId.isBlank()) {
             sql.append(" AND member_id = ?");

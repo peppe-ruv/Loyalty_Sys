@@ -9,6 +9,8 @@ import io.loyaltyhub.reward.application.CouponService;
 import io.loyaltyhub.reward.domain.Band;
 import io.loyaltyhub.reward.domain.Category;
 import io.loyaltyhub.reward.domain.CouponPool;
+import io.loyaltyhub.reward.domain.Redemption;
+import io.loyaltyhub.reward.domain.RedemptionStatus;
 import io.loyaltyhub.reward.domain.Reward;
 import io.loyaltyhub.reward.domain.RewardStatus;
 import io.loyaltyhub.reward.infra.CatalogRepository;
@@ -32,7 +34,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Carica categorie, fasce, pool coupon e premi dai seed (docs/servizi/reward-service.md §6, docs/10 §5) e lo snapshot dei membri
+ * Carica categorie, fasce, pool coupon, premi e richieste d'esempio dai seed (docs/servizi/reward-service.md §6, docs/10 §5) e lo snapshot dei membri
  * da {@code members.json} + {@code wallets.json} (livello). Profilo {@code demo}, ripetibile via {@code /v1/demo/reset}.
  */
 @Component
@@ -127,7 +129,71 @@ public class RewardSeeder implements ApplicationRunner, DemoResettable {
             members.seed(id, m.path("status").asString("ACTIVE"), tiers.getOrDefault(id, "BASE"),
                     text(m, "firstName"), text(m, "lastName"));
         }
-        log.info("Seed reward caricato (profilo demo): categorie, fasce, pool coupon, premi, snapshot membri");
+        seedRedemptions();
+        log.info("Seed reward caricato (profilo demo): categorie, fasce, pool coupon, premi, snapshot membri, richieste");
+    }
+
+    /**
+     * Storico delle richieste (docs/10 §5, {@code redemptions.json}): stato, cronologia coerente con lo stato e, per le
+     * evase con coupon, un codice del pool nello stato indicato. Lo stock dei premi è già al netto (rewards.json).
+     */
+    private void seedRedemptions() {
+        Map<String, Reward> byCode = new HashMap<>();
+        rewards.findAll().forEach(r -> byCode.put(r.code(), r));
+        Map<String, Integer> validity = new HashMap<>();
+        coupons.pools().forEach(p -> validity.put(p.id(), p.validityDays()));
+        for (JsonNode x : seed.readTree("redemptions.json")) {
+            String id = x.path("id").asString();
+            String memberId = x.path("memberId").asString();
+            Reward reward = byCode.get(x.path("rewardCode").asString());
+            RedemptionStatus status = RedemptionStatus.valueOf(x.path("status").asString());
+            Instant requested = date(x, "requestedAt");
+            boolean spent = status == RedemptionStatus.CONFIRMED || status == RedemptionStatus.FULFILLED
+                    || (status == RedemptionStatus.CANCELLED && x.path("refund").asBoolean(false));
+            Instant confirmed = spent ? requested.plusSeconds(2) : null;
+            Instant closed = status == RedemptionStatus.CONFIRMED ? null
+                    : x.hasNonNull("closedAt") ? date(x, "closedAt") : requested.plusSeconds(3);
+            String couponCode = null;
+            JsonNode c = x.path("coupon");
+            if (!c.isMissingNode() && reward.couponPoolId() != null) {
+                couponCode = coupons.takeAvailable(reward.couponPoolId()).orElse(null);
+                if (couponCode != null) {
+                    Instant expires = c.hasNonNull("expiresAt") ? date(c, "expiresAt")
+                            : closed.plus(java.time.Duration.ofDays(validity.getOrDefault(reward.couponPoolId(), 90)));
+                    coupons.markIssued(couponCode, memberId, reward.code(), "REDEMPTION", id, null, closed, expires);
+                    switch (c.path("status").asString("ISSUED")) {
+                        case "USED" -> coupons.markUsed(couponCode, closed.plus(java.time.Duration.ofDays(2)));
+                        case "EXPIRED" -> coupons.markExpired(couponCode);
+                        default -> { }
+                    }
+                }
+            }
+            String reason = status == RedemptionStatus.REJECTED || status == RedemptionStatus.CANCELLED ? text(x, "reason") : null;
+            redemptions.seed(new Redemption(id, memberId, reward.code(), reward.name(), x.path("pointsCost").asLong(),
+                    status, reason, x.path("needsAttention").asBoolean(false), couponCode, text(x, "note"),
+                    x.hasNonNull("shipping") ? x.get("shipping").toString() : null, "SEED-" + id, requested,
+                    confirmed, closed, "MEMBER:" + memberId));
+            redemptions.addHistory(Ulid.next(clock), id, RedemptionStatus.PENDING,
+                    "Richiesta di " + x.path("pointsCost").asLong() + " PTS", "MEMBER:" + memberId, requested);
+            if (confirmed != null) {
+                redemptions.addHistory(Ulid.next(clock), id, RedemptionStatus.CONFIRMED,
+                        "Punti spesi: " + x.path("pointsCost").asLong() + " PTS", "SYSTEM", confirmed);
+            }
+            if (x.path("needsAttention").asBoolean(false)) {
+                redemptions.addHistory(Ulid.next(clock), id, RedemptionStatus.CONFIRMED,
+                        "Pool coupon esaurito: da evadere dopo una nuova generazione", "SYSTEM", confirmed.plusSeconds(1));
+            }
+            switch (status) {
+                case FULFILLED -> redemptions.addHistory(Ulid.next(clock), id, status,
+                        couponCode != null ? "Coupon emesso: " + couponCode : x.hasNonNull("note") ? "Evasa: " + text(x, "note") : "Evasa",
+                        couponCode != null || !x.hasNonNull("note") ? "SYSTEM" : "CARE:anna.care", closed);
+                case REJECTED -> redemptions.addHistory(Ulid.next(clock), id, status, "Respinta: " + reason, "SYSTEM", closed);
+                case CANCELLED -> redemptions.addHistory(Ulid.next(clock), id, status,
+                        x.path("refund").asBoolean(false) ? "Annullata con rimborso: " + reason : "Annullata dal membro",
+                        x.path("refund").asBoolean(false) ? "CARE:anna.care" : "MEMBER:" + memberId, closed);
+                default -> { }
+            }
+        }
     }
 
     private Instant date(JsonNode n, String field) {

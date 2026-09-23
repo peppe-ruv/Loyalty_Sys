@@ -185,6 +185,26 @@ class HubEndToEndIT {
         assertThat(walletPts("MBR-000001")).isEqualTo(100);
     }
 
+    @Test
+    void cancellingSofiasSeededRequestRefundsHerPoints() {
+        // RDM-000003: Sofia (MBR-000011), RWD-BORRACCIA CONFIRMED in attesa di spedizione, spesa seminata nel wallet.
+        long before = walletPts("MBR-000011");
+        JsonNode cancelled = client().post().uri("/v1/redemptions/RDM-000003/cancel")
+                .header("X-LH-Actor", "CARE:anna.care").contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("reason", "Articolo danneggiato in magazzino")).retrieve().body(JsonNode.class);
+        assertThat(cancelled.path("status").asString()).isEqualTo("CANCELLED");
+        assertThat(awaitPts("MBR-000011", before + 1500)).as("rimborso dal wallet").isEqualTo(before + 1500);
+
+        JsonNode lots = client().get().uri("/v1/wallets/MBR-000011/lots").retrieve().body(JsonNode.class);
+        long sum = 0;
+        for (JsonNode l : lots) {
+            if (l.path("currency").asString().equals("PTS") && l.path("status").asString().equals("ACTIVE")) {
+                sum += l.path("remaining").asLong();
+            }
+        }
+        assertThat(sum).as("Σ lotti attivi = saldo").isEqualTo(before + 1500);
+    }
+
     // ---------- helper ----------
 
     private JsonNode awaitRedemption(String id, String status, long timeoutMs) {

@@ -113,17 +113,18 @@ class CouponIT {
     @Test
     void couponIssueEffectIsIdempotentAndTheTillUsesItOnce() throws Exception {
         String effectId = "EFF-IT-" + System.nanoTime();
-        publishEffect("MBR-000004", effectId, "RWD-COFFEE-5");
-        JsonNode coupon = awaitCoupon("MBR-000004", "RWD-COFFEE-5");
+        // Giulia (MBR-000003) non ha coupon colazione nello storico seminato.
+        publishEffect("MBR-000003", effectId, "RWD-COFFEE-5");
+        JsonNode coupon = awaitCoupon("MBR-000003", "RWD-COFFEE-5");
         String code = coupon.path("code").asString();
         assertThat(coupon.path("status").asString()).isEqualTo("ISSUED");
         assertThat(coupon.path("origin").asString()).isEqualTo("CAMPAIGN");
         assertThat(coupon.path("rewardName").asString()).isEqualTo("Buono colazione 5 €");
 
         // Stesso effectId in un nuovo messaggio (id diverso): nessun secondo coupon.
-        publishEffect("MBR-000004", effectId, "RWD-COFFEE-5");
+        publishEffect("MBR-000003", effectId, "RWD-COFFEE-5");
         Thread.sleep(1500);
-        assertThat(countFor("MBR-000004", "RWD-COFFEE-5")).isEqualTo(1);
+        assertThat(countFor("MBR-000003", "RWD-COFFEE-5")).isEqualTo(1);
 
         assertThat(send("POST", "/v1/coupons/" + code + "/use", "CARE:paolo", null, 200).path("status").asString()).isEqualTo("USED");
         assertThat(send("POST", "/v1/coupons/" + code + "/use", "CARE:paolo", null, 409).path("code").asString())

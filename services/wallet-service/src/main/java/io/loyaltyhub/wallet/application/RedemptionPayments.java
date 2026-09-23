@@ -139,15 +139,17 @@ public class RedemptionPayments {
         long amount = spend.get().amount();
         Instant now = clock.instant();
         String ledgerId = Ulid.next(clock);
-        long expiredBack = 0;
+        long restored = 0;
         for (PointsLotRepository.Consumption c : lots.consumptions(spend.get().id())) {
             boolean expired = PointsLot.EXPIRED.equals(c.status()) || (c.expiresAt() != null && !now.isBefore(c.expiresAt()));
-            if (expired) {
-                expiredBack += c.amount();
-            } else {
+            if (!expired) {
                 lots.restore(c.lotId(), c.amount());
+                restored += c.amount();
             }
         }
+        // Quanto non torna in un lotto d'origine: presi da lotti ormai scaduti, oppure spesa senza consumi registrati
+        // (storico del seed demo). Va in un lotto nuovo, così Σ lotti attivi = saldo resta vero.
+        long expiredBack = amount - restored;
         if (expiredBack > 0) {
             // SPEC-GAP: Q-54 — i punti presi da lotti già scaduti non tornano scaduti: nuovo lotto da oggi.
             Instant expiresAt = ExpiryPolicy.expiresAt(expiryPolicy(), now, editions::findContaining);
