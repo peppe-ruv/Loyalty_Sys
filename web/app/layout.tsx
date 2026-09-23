@@ -1,23 +1,25 @@
 import type { Metadata } from "next";
-import { Hanken_Grotesk, Bricolage_Grotesque, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "./providers";
 
-// Font caricati con next/font (docs/07 §5.1); esposti come variabili CSS usate dai token.
-const ui = Hanken_Grotesk({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+// Font (docs/07 §5.1) serviti dal repository con next/font/local: la build non dipende più da Google Fonts
+// (download fallito due volte in CI). File woff2 latin variabili, licenza SIL OFL 1.1 (vedi app/fonts/README.md).
+const ui = localFont({
+  src: "./fonts/HankenGrotesk-latin.woff2",
+  weight: "400 700",
   variable: "--font-ui-loaded",
   display: "swap",
 });
-const display = Bricolage_Grotesque({
-  subsets: ["latin"],
-  weight: ["600", "800"],
+const display = localFont({
+  src: "./fonts/BricolageGrotesque-latin.woff2",
+  weight: "600 800",
   variable: "--font-display-loaded",
   display: "swap",
 });
-const mono = JetBrains_Mono({
-  subsets: ["latin"],
+const mono = localFont({
+  src: "./fonts/JetBrainsMono-latin.woff2",
+  weight: "100 800",
   variable: "--font-mono-loaded",
   display: "swap",
 });
