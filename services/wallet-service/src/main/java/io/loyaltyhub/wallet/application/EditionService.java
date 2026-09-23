@@ -63,6 +63,18 @@ public class EditionService {
 
     @Transactional
     public Edition create(EditionUpdate req) {
+        if (req.code() == null || req.code().isBlank()) {
+            throw LhException.validation("EDITION_FIELD_REQUIRED", "Il campo code è obbligatorio.");
+        }
+        if (req.name() == null || req.name().isBlank()) {
+            throw LhException.validation("EDITION_FIELD_REQUIRED", "Il campo name è obbligatorio.");
+        }
+        if (req.startDate() == null) {
+            throw LhException.validation("EDITION_FIELD_REQUIRED", "Il campo startDate è obbligatorio.");
+        }
+        if (req.endDate() == null) {
+            throw LhException.validation("EDITION_FIELD_REQUIRED", "Il campo endDate è obbligatorio.");
+        }
         if (editions.findByCode(req.code()).isPresent()) {
             throw LhException.conflict("EDITION_EXISTS", "L'edizione " + req.code() + " esiste già.");
         }
@@ -150,32 +162,9 @@ public class EditionService {
         }
 
         if (!dryRun) {
-            finalizeClose(code, totalRetained, totalDowngraded);
+            batchService.finalizeClose(code, totalRetained, totalDowngraded);
         }
 
         return new ClosePreviewResult(new ClosePreviewSummary(totalRetained, totalDowngraded), membersPreview);
-    }
-
-    @Transactional
-    protected void finalizeClose(String code, int totalRetained, int totalDowngraded) {
-        editions.updateStatus(code, Edition.CLOSED);
-
-        Edition nextEdition = editions.findAll().stream()
-                .filter(e -> Edition.PLANNED.equals(e.status()))
-                .min(Comparator.comparing(Edition::startDate))
-                .orElse(null);
-
-        if (nextEdition != null) {
-            editions.updateStatus(nextEdition.code(), Edition.ACTIVE);
-        }
-
-        ObjectNode data = mapper.createObjectNode();
-        data.put("editionCode", code);
-        data.put("retained", totalRetained);
-        data.put("downgraded", totalDowngraded);
-        outbox.write(events.newRoot(LhEventTypes.Fact.EDITION_CLOSED, "edition:" + code, data));
-
-        audit.record("edition", code, AuditEntry.Action.TRANSITION, "Chiusa edizione " + code,
-                Map.of("status", Edition.ACTIVE), Map.of("status", Edition.CLOSED));
     }
 }

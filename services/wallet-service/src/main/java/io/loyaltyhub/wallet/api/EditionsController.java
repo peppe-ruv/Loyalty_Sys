@@ -33,11 +33,13 @@ public class EditionsController {
     }
 
     @PostMapping("/editions")
+    @RequiresRole({Role.ADMIN})
     public Edition create(@RequestBody EditionService.EditionUpdate body) {
         return editionService.create(body);
     }
 
     @PutMapping("/editions/{code}")
+    @RequiresRole({Role.ADMIN})
     public Edition update(@PathVariable String code, @RequestBody EditionService.EditionUpdate body) {
         return editionService.update(code.toUpperCase(), body);
     }

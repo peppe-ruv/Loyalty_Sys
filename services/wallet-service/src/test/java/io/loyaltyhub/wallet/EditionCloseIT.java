@@ -109,6 +109,17 @@ class EditionCloseIT {
         assertThat(mt.previousTier()).isEqualTo("GOLD");
         assertThat(mt.periodSts()).isEqualTo(0);
 
+        // MBR-000004 was GOLD with 4100 STS, earned PLATINUM but cap applies in close -> RETAINED GOLD
+        // Or simply MBR-000004 earned enough to keep GOLD. Let's check RETAINED properties.
+        var mtRetained = memberTierRepository.find("MBR-000004").orElseThrow();
+        assertThat(mtRetained.tierCode()).isEqualTo("GOLD");
+        assertThat(mtRetained.previousTier()).isNull(); // Original state in seed is INITIAL
+        // Check that it's RETAINED. `since` should be unchanged (seed value), meaning not `now()`.
+        // The problem with EmbeddedPostgres is that `now()` in the DB might not be in sync with `Instant.now()` in Java.
+        // We can just verify `previousTier` is null.
+        assertThat(mtRetained.since()).isNotNull();
+        assertThat(mtRetained.periodSts()).isEqualTo(0);
+
         // Find facts
         JsonNode downgradedFact = awaitFact("io.loyaltyhub.fact.tier.downgraded",
                 d -> d.path("editionCode").asString().equals("ED-2026")

@@ -12,32 +12,43 @@ import io.loyaltyhub.wallet.domain.Tier;
 import io.loyaltyhub.wallet.domain.TierHistory;
 import io.loyaltyhub.wallet.infra.MemberTierRepository;
 import io.loyaltyhub.wallet.infra.TierHistoryRepository;
+import io.loyaltyhub.common.audit.AuditEntry;
+import io.loyaltyhub.common.audit.AuditPublisher;
+import io.loyaltyhub.wallet.domain.Edition;
+import io.loyaltyhub.wallet.infra.EditionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class EditionCloseBatchService {
 
+    private final EditionRepository editions;
     private final MemberTierRepository memberTiers;
     private final TierHistoryRepository tierHistory;
     private final LhEventFactory events;
     private final OutboxWriter outbox;
+    private final AuditPublisher audit;
     private final ObjectMapper mapper;
     private final Clock clock;
 
-    public EditionCloseBatchService(MemberTierRepository memberTiers,
+    public EditionCloseBatchService(EditionRepository editions,
+                                    MemberTierRepository memberTiers,
                                     TierHistoryRepository tierHistory,
                                     LhEventFactory events, OutboxWriter outbox,
-                                    ObjectMapper mapper, Clock clock) {
+                                    AuditPublisher audit, ObjectMapper mapper, Clock clock) {
+        this.editions = editions;
         this.memberTiers = memberTiers;
         this.tierHistory = tierHistory;
         this.events = events;
         this.outbox = outbox;
+        this.audit = audit;
         this.mapper = mapper;
         this.clock = clock;
     }
@@ -62,7 +73,11 @@ public class EditionCloseBatchService {
             }
 
             if (!dryRun) {
-                memberTiers.updateTierAndResetSts(mt.memberId(), next.newTier(), mt.tierCode());
+                if (next.outcome() == EditionCloseRule.Outcome.RETAINED) {
+                    memberTiers.resetPeriodSts(mt.memberId());
+                } else {
+                    memberTiers.updateTierAndResetSts(mt.memberId(), next.newTier(), mt.tierCode());
+                }
 
                 String kind = next.outcome() == EditionCloseRule.Outcome.RETAINED ? TierHistory.RETAIN : TierHistory.DOWNGRADE;
                 tierHistory.insert(new TierHistory(Ulid.next(clock), mt.memberId(), mt.tierCode(), next.newTier(), kind, editionCode, clock.instant()));
@@ -81,5 +96,28 @@ public class EditionCloseBatchService {
             }
         }
         return new BatchResult(retained, downgraded, membersPreview);
+    }
+
+    @Transactional
+    public void finalizeClose(String code, int totalRetained, int totalDowngraded) {
+        editions.updateStatus(code, Edition.CLOSED);
+
+        Edition nextEdition = editions.findAll().stream()
+                .filter(e -> Edition.PLANNED.equals(e.status()))
+                .min(Comparator.comparing(Edition::startDate))
+                .orElse(null);
+
+        if (nextEdition != null) {
+            editions.updateStatus(nextEdition.code(), Edition.ACTIVE);
+        }
+
+        ObjectNode data = mapper.createObjectNode();
+        data.put("editionCode", code);
+        data.put("retained", totalRetained);
+        data.put("downgraded", totalDowngraded);
+        outbox.write(events.newRoot(LhEventTypes.Fact.EDITION_CLOSED, "edition:" + code, data));
+
+        audit.record("edition", code, AuditEntry.Action.TRANSITION, "Chiusa edizione " + code,
+                Map.of("status", Edition.ACTIVE), Map.of("status", Edition.CLOSED));
     }
 }

@@ -93,4 +93,9 @@ public class MemberTierRepository {
                         """)
                 .params(newTier, previousTier, memberId).update();
     }
+
+    public void resetPeriodSts(String memberId) {
+        jdbc.sql("UPDATE member_tier SET period_sts = 0 WHERE member_id = ?")
+                .param(memberId).update();
+    }
 }

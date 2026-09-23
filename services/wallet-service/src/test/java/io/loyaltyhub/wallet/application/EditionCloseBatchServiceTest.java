@@ -25,10 +25,12 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 class EditionCloseBatchServiceTest {
 
+    @Mock private io.loyaltyhub.wallet.infra.EditionRepository editions;
     @Mock private MemberTierRepository memberTiers;
     @Mock private TierHistoryRepository tierHistory;
     @Mock private LhEventFactory events;
     @Mock private OutboxWriter outbox;
+    @Mock private io.loyaltyhub.common.audit.AuditPublisher audit;
 
     private EditionCloseBatchService service;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -37,7 +39,7 @@ class EditionCloseBatchServiceTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        service = new EditionCloseBatchService(memberTiers, tierHistory, events, outbox, mapper, clock);
+        service = new EditionCloseBatchService(editions, memberTiers, tierHistory, events, outbox, audit, mapper, clock);
     }
 
     @Test
