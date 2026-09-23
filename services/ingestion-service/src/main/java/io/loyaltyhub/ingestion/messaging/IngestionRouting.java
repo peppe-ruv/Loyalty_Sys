@@ -18,7 +18,8 @@ import java.util.List;
 public class IngestionRouting {
 
     @Bean("ingestionEventRouter")
-    public EventRouter ingestionEventRouter(ArchetypeProbeHandler probe, IdempotentHandler idempotent, LhMetrics metrics) {
-        return new EventRouter("lh-ingestion", List.<EventHandler>of(probe), idempotent, metrics);
+    public EventRouter ingestionEventRouter(ArchetypeProbeHandler probe, FactsHandler facts, IdempotentHandler idempotent,
+                                           LhMetrics metrics) {
+        return new EventRouter("lh-ingestion", List.<EventHandler>of(probe, facts), idempotent, metrics);
     }
 }

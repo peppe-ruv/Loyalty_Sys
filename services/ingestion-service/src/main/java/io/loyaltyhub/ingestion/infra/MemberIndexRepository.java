@@ -45,6 +45,16 @@ public class MemberIndexRepository {
                 .update();
     }
 
+    /** Aggiorna solo lo stato (fatto {@code member.status.changed}); crea la riga se il membro non era indicizzato. */
+    public void updateStatus(String memberId, String status) {
+        jdbc.sql("""
+                        INSERT INTO member_index (member_id, status) VALUES (?, ?)
+                        ON CONFLICT (member_id) DO UPDATE SET status = excluded.status
+                        """)
+                .params(memberId, status)
+                .update();
+    }
+
     public void deleteAll() {
         jdbc.sql("DELETE FROM member_index").update();
     }
