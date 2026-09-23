@@ -11,13 +11,13 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M0 — Fondamenta | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M0.1→M0.7 chiuse; CI in piedi |
 | M1 — Core loop e primo deploy | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M1.1→M1.8 chiuse; demo ospitata online |
 | M2 — Visibilità | completata | M2.8 | | ☑ | |
-| M3 — Punti adulti | in corso | 2026-09-21 | | ☑ | M3.1 (lotti) · M3.2 (job + BO-30) · M3.3 (tier: salita immediata, BO-07, PT-08) · M3.7 (LOOKUP/FROM_FIELD) chiuse; M3.4 backend chiuso, BO-08 in corso; M3.5 in corso |
+| M3 — Punti adulti | in corso | 2026-09-21 | | ☑ | M3.1 · M3.2 · M3.3 · M3.4 · M3.7 · M3.8 chiuse; M3.5 e M3.6 backend chiusi (restano BO-09 *Ponte* e BO-03 *Rettifica*); M3.9 da fare |
 | M4 — Premi | da iniziare | | | ☐ | |
 | M5 — Gioco | da iniziare | | | ☐ | |
 | M6 — Contenuti | da iniziare | | | ☐ | |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** completare `M3.4` (BO-08) e `M3.5` (ponte interno), poi `M3.6` (rettifiche), `M3.8` (transazioni), `M3.9` (passività)
+**Prossima fetta da lavorare:** BO-03 *Rettifica punti* (M3.6 FE) e BO-09 *Ponte* (M3.5 FE), verifica live di `SCN-TIER-UP`, poi `M3.9` (passività e `/v1/liability`, scheda `liability` di BO-08)
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -137,28 +137,28 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `M3.1` — _2026-09-21: lotti su ogni accredito, scadenza `ROLLING_MONTHS` (fine mese +n, Europe/Rome), `pendingDays` → lotto `PENDING` e rilascio (`RELEASE` + `wallet.points.released`), `GET /v1/wallets/{id}/lots`, `expiringSoon` nella vista wallet, seed lotti (Σ attivi = saldo). Job schedulato/endpoint demo `asOf` e BO-30 → M3.2_
 - [x] `M3.3` — _2026-09-21: salita immediata di livello dopo accredito/rilascio STS (member_tier + tier_history UPGRADE + fatto `tier.upgraded` EVT-FACT-28, nello stesso commit), moltiplicatore da tabella; `GET /v1/tiers/distribution`, `PUT /v1/tiers/{code}` (monotonìa `TIER_THRESHOLDS_NOT_MONOTONIC` + BASE=0 + audit, ADMIN), `GET /v1/members/{id}/tier-history`; BO-07 Livelli (scala+modifica+discesa morbida), PT-08 carta livello + tab "Io"_
 - [x] `M3.2` — _2026-09-21: job wallet scadenze/preavvisi/rilascio con `asOf` (`EXPIRE`+`wallet.points.expired`, `wallet.points.expiring` una volta per lotto via flag `warned`, rilascio pending), `WalletJobs` schedulati gated da `loyaltyhub.jobs.enabled`, endpoint demo `POST /v1/demo/jobs/{expire-points,expiry-warnings,release-pending}?asOf=` (ADMIN), BO-30 "Macchina del tempo"_
-- [ ] `M3.4` — _2026-09-23: backend su main (PR #7): `EditionCloseRule` (discesa morbida: guadagnato = livello più alto con soglia ≤ STS del periodo, pavimento = rango −1, mai salita in chiusura), `GET/POST/PUT /v1/editions` (no sovrapposizioni, ADMIN per le scritture), `POST /v1/editions/{code}/close?dryRun=` (anteprima senza scritture; applicazione ADMIN a blocchi di 200: `member_tier`, `tier_history` RETAIN/DOWNGRADE, `period_sts`=0, fatti `tier.retained`/`tier.downgraded` + `edition.closed` in un'unica transazione finale con attivazione della PLANNED successiva), `GET/PUT /v1/currencies` (policy di scadenza validata, solo nuovi lotti), contratti EVT-FACT-29/30/31. Resta BO-08 (frontend)_
-- [ ] `M3.5`
-- [ ] `M3.6`
+- [x] `M3.4` — _2026-09-23: backend (PR #7 + fix review f899b7f: chiusura in un'unica transazione con lock sulla riga edizione e `FOR UPDATE` sui `member_tier`, policy `END_OF_EDITION_PLUS_GRACE` attiva sui nuovi lotti, Q-47/Q-48) e BO-08 (PR #9): schede Valute (policy + esempio di scadenza) ed Edizioni (linea del tempo, anteprima chiusura con filtro per esito, applicazione ADMIN con digitazione del codice). Scheda `liability` → M3.9_
+- [ ] `M3.5` — _2026-09-23: backend su main: `FactsListener` su `lh.facts.v1` → `FactsHandler` (indice membri da `member.*`; ponte per i 9 fatti di docs/05 §7 con mappatura abilitata → azione `source=internal`, stessa correlazione, `lhhop+1`; oltre 3 → DLQ `LOOP_GUARD`), `GET/PUT /v1/internal-mappings` (ADMIN, audit, famiglie vietate → 422). `InternalBridgeIT` 7 casi. Restano BO-09 scheda *Ponte* e la verifica live di `SCN-TIER-UP`_
+- [ ] `M3.6` — _2026-09-23 (PR #10): `POST /v1/wallets/{id}/adjustments` (CARE/ADMIN; motivi della scheda servizio, Q-45; solo PTS, Q-46; accredito = nuovo lotto, addebito tutto-o-niente con consumo FIFO + `lot_consumption`), fatto `wallet.points.adjusted` (EVT-FACT-26) e audit `ADJUST`. Resta il dialogo *Rettifica punti* di BO-03_
 - [x] `M3.7` — _2026-09-23 (PR #8): modi `GRANT_POINTS` `FROM_FIELD` (intero dal campo; decimali scartati, Q-44) e `LOOKUP` (tabella per valore del campo; chiave assente → scartato); priorità, gruppo esclusivo, `MULTIPLIER` e `history.*` coperti da test; `CMP-TIER-UP-BONUS` GOLD → 500 PTS_
-- [ ] `M3.8`
+- [x] `M3.8` — _2026-09-23: `POST /v1/transactions` → `purchase.completed` con `id = txn-<orderId>` attraverso la stessa pipeline di `/v1/events` (fonte, tipo, schema, finestra, dedup, membro); reso con `kind=RETURN` → `purchase.returned` (Q-49)_
 - [ ] `M3.9`
 
 **Feature** (`docs/02`)
 
-- [ ] `F-ING-07` Transazioni d'acquisto (P1)
-- [ ] `F-ING-08` Ponte azioni interne (P0)
+- [x] `F-ING-07` Transazioni d'acquisto (P1) — _M3.8: `POST /v1/transactions`; reso via `kind=RETURN` (Q-49)_
+- [ ] `F-ING-08` Ponte azioni interne (P0) — _M3.5: backend completo con anti-loop e API mappature; manca la scheda BO-09_
 - [x] `F-CMP-07` Cumulabilità (P0) — _M3.7: priorità + `exclusiveGroup` (vince la prima) + `MULTIPLIER` sulle altre campagne; modi `LOOKUP`/`FROM_FIELD`_
 - [x] `F-WAL-03` Lotti e scadenza (P0) — _M3.1: lotto per ogni `EARN` con `expires_at` da policy `ROLLING_MONTHS`; consumo FIFO → M4_
 - [x] `F-WAL-05` Punti in attesa (P1) — _M3.1: `pendingDays` → lotto `PENDING`, `balance_pending`, rilascio ad `available_at`; job schedulato → M3.2_
 - [x] `F-WAL-06` Scadenza (P0) — _M3.2: job scadenza (`asOf`) azzera i lotti scaduti, movimento `EXPIRE` + `wallet.points.expired`; preavvisi `wallet.points.expiring` una volta per lotto_
-- [ ] `F-WAL-07` Rettifiche manuali (P0)
+- [ ] `F-WAL-07` Rettifiche manuali (P0) — _M3.6: API + fatto + audit; manca il dialogo BO-03_
 - [ ] `F-WAL-09` Passività (P1)
 - [x] `F-TIER-01` Definizione livelli (P0) — _M3.3: `PUT /v1/tiers/{code}` (nome, soglia, moltiplicatore, vantaggi, colore) con monotonìa e BASE=0; BO-07_
 - [x] `F-TIER-02` Salita immediata (P0) — _M3.3: dopo ogni accredito/rilascio STS, al più alto livello raggiunto, `tier.upgraded` nello stesso commit_
 - [x] `F-TIER-03` Moltiplicatore di livello (P0) — _M1.4 forma minima: letto da `tier`/`member_tier` da seed; definizione/salita/edizioni → M3_
-- [ ] `F-TIER-04` Chiusura edizione con discesa morbida (P0) — _M3.4: backend completo (API + fatti); manca BO-08_
-- [ ] `F-TIER-05` Anteprima chiusura (P0) — _M3.4: `dryRun=true` completo; manca BO-08_
+- [x] `F-TIER-04` Chiusura edizione con discesa morbida (P0) — _M3.4: API atomica e serializzata + BO-08_
+- [x] `F-TIER-05` Anteprima chiusura (P0) — _M3.4: `dryRun=true` + tabella con filtro in BO-08_
 - [x] `F-TIER-06` Storico livelli (P1) — _M3.3: tabella `tier_history` (INITIAL/UPGRADE) + `GET /v1/members/{id}/tier-history`_
 - [x] `F-DEMO-06` Job su richiesta (P0) — _M3.2: endpoint demo `POST /v1/demo/jobs/*?asOf=` (ADMIN) e BO-30 "Macchina del tempo" per lanciare i job del wallet; altri servizi nelle rispettive fette_
 
@@ -315,6 +315,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 | Data | Fetta | Esito | Commit | Domande aperte create | Note per la prossima sessione |
 |---|---|---|---|---|---|
+| 2026-09-23 | M3.4 · M3.5-BE · M3.6-BE · M3.8 | ✅ `./mvnw verify` verde (locale + CI su PR #9/#10), `pnpm lint typecheck test build` verdi, `check-contracts` 18, `check-seed` 11 | f899b7f, c8acbd2, 4b8c8e6, 15e59d0 (#9), 7334607 (#10), 5fee9a0 | Q-45…Q-49 | Fix review Codex su PR #7 (chiusura atomica/serializzata, lock STS, scadenza di edizione). M3.5 ripresa da Claude dal lavoro di Jules: tipi gestiti fissi (il router li registra prima del seed), nomi brevi/lunghi normalizzati, un solo handler per `member.registered`, controller mancante. Font self-hosted (`next/font/local`): la build non dipende più da Google Fonts. Da qui in poi niente Jules. |
 | 2026-09-23 | M3.4-BE · M3.7 | ✅ `./mvnw verify` verde in locale e CI (PR #7, #8); `check-contracts` 17 esempi; `check-seed` 11 file | 52dd9c0, 91c0d3e | Q-44 | Orchestrazione Claude → Jules (skill): M3.4-A, M3.5, M3.7 in parallelo su servizi diversi. PR #7 corretta in un ciclo (finalizzazione chiusura transazionale, RETAINED azzera solo `period_sts`, ADMIN su POST/PUT edizioni, 422 campi obbligatori). M3.7: `GET /v1/meta/condition-fields` non esiste ancora (costruttore condizioni, milestone successiva). In corso: BO-08 (Jules), M3.5 ponte (Jules). |
 | 2026-09-20 | M2.8 | ✅ `./mvnw verify` (reattore) verde | | — | **Chiusura M2.** insight nell'hub consolidato (deploy unico Render, CORS `/v1/stream/**` default `*` con `allowCredentials=false`, ADR-020). Verificato live: Vercel `NEXT_PUBLIC_LH_INSIGHT_URL`/`LH_SVC_*_URL` → hub; migrazioni insight V1–V3 su Neon; seed sintetico rigenerato. **Fix SSE**: disconnessione client → `AsyncRequestNotUsableException` non è più un 500 né tenta un `problem+json` su `text/event-stream` (handler dedicato, log DEBUG). **M2 completa** (BO-01/22/24/25/29 + rail). Prossima **M3.1** (livelli/tier). |
 | 2026-09-20 | M2.7 | ✅ `./mvnw verify` (reattore) verde: 13 IT ingestion (incl. scenario) + resto; `pnpm lint typecheck test build` verdi; `check-seed` 11 file | | — | **Scenari demo (F-DEMO-04) + BO-29.** ingestion: `V3` `scenario`/`scenario_run` (results jsonb passo-passo con correlationId); `seed/scenarios.json` (3 storie: positiva, mista con UNMATCHED, REJECTED); `IngestionService.ingest` con origine esplicita (overload SIMULATOR); `ScenarioService` esecutore async (thread dedicato, ritardi max 10 s/passo, `expect`, `eventId` opzionale); API `/v1/demo/scenarios`, `POST …/{code}/run` (202 runId, demo.simulate), `/scenario-runs/{id}`; DemoSeeder carica scenari, reset svuota le run. FE: **BO-29** `/backoffice/demo/scenarios` (schede + esecuzione passo-passo con TraceLink e suggerimento portale). IT: SCN-MIXED-DAY → 2 ACCEPTED + 1 UNMATCHED atteso. **Da distribuire**: redeploy hub (migrazione scenari + endpoint) + frontend (BO-29). Prossima **M2.8**: verifica finale deploy insight/CORS (già nell'hub). |
