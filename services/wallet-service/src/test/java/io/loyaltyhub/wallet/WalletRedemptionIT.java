@@ -133,9 +133,11 @@ class WalletRedemptionIT {
         return out;
     }
 
+    /** Saldo PTS attivo; 0 se il wallet non esiste ancora (il primo accredito lo crea in modo asincrono). */
     private long balance(String memberId) {
-        JsonNode w = client().get().uri("/v1/portal/wallets/" + memberId).retrieve().body(JsonNode.class);
-        return w.path("balances").path("PTS").path("active").asLong();
+        return client().get().uri("/v1/portal/wallets/" + memberId).exchange((req, res) ->
+                res.getStatusCode().value() == 404 ? 0L
+                        : mapper.readTree(res.getBody()).path("balances").path("PTS").path("active").asLong());
     }
 
     private void awaitBalance(String memberId, long expected) throws InterruptedException {
