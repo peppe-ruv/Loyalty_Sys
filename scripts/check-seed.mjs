@@ -74,6 +74,38 @@ for (const file of files) {
   }
 }
 
+// Coerenza del catalogo premi (docs/10 §8 regole 5): fascia e categoria esistenti; premio con evasione automatica
+// ⇒ pool esistente con codici disponibili (generati − consumati) ≥ stock residuo dichiarato.
+function readSeed(file) {
+  try {
+    return JSON.parse(readFileSync(join(seedDir, file), "utf8"));
+  } catch {
+    return null;
+  }
+}
+const rewards = readSeed("rewards.json");
+if (Array.isArray(rewards)) {
+  const bands = new Set((readSeed("reward-bands.json") ?? []).map((b) => b.code));
+  const categories = new Set((readSeed("reward-categories.json") ?? []).map((c) => c.code));
+  const pools = new Map((readSeed("coupon-pools.json") ?? []).map((p) => [p.code, p]));
+  for (const r of rewards) {
+    if (!bands.has(r.band)) errors.push(`rewards.json: ${r.code} usa la fascia inesistente "${r.band}"`);
+    if (r.category && !categories.has(r.category)) errors.push(`rewards.json: ${r.code} usa la categoria inesistente "${r.category}"`);
+    if (r.fulfilment === "AUTO_COUPON") {
+      const pool = pools.get(r.couponPool);
+      if (!pool) {
+        errors.push(`rewards.json: ${r.code} è AUTO_COUPON ma il pool "${r.couponPool}" non esiste in coupon-pools.json`);
+        continue;
+      }
+      const available = (pool.size ?? 0) - (pool.consumed ?? 0);
+      const declared = r.stockRemaining ?? r.stockTotal ?? 0;
+      if (available < declared) {
+        errors.push(`coupon-pools.json: ${pool.code} ha ${available} codici disponibili, meno dello stock di ${r.code} (${declared})`);
+      }
+    }
+  }
+}
+
 for (const w of warnings) console.warn(`⚠ ${w}`);
 if (errors.length > 0) {
   for (const e of errors) console.error(`✗ ${e}`);

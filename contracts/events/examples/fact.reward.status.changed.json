@@ -1,0 +1,20 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZM5Y7V9J1Q3P5A7S9D1F3G",
+  "source": "urn:loyaltyhub:service:reward",
+  "type": "io.loyaltyhub.fact.reward.status.changed",
+  "subject": "reward:RWD-SHOP-10",
+  "time": "2026-09-12T10:15:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.reward.status.changed:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZM5Y7V9J1Q3P5A7S9D1F3G",
+  "lhhop": 0,
+  "lhactor": "MARKETING:giulia.marketing",
+  "data": {
+    "rewardCode": "RWD-SHOP-10",
+    "name": "Buono shopping 10 €",
+    "previousStatus": "DRAFT",
+    "newStatus": "LIVE"
+  }
+}

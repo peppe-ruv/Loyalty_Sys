@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:effect.coupon.issue:1",
+  "title": "effect.coupon.issue — data (EVT-EFF-03, docs/05 §4)",
+  "type": "object",
+  "required": [
+    "effectId",
+    "campaignCode",
+    "actionId",
+    "actionType",
+    "rewardCode"
+  ],
+  "properties": {
+    "effectId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "campaignCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{2,39}$"
+    },
+    "actionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actionType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rewardCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{2,39}$"
+    }
+  },
+  "additionalProperties": true
+}

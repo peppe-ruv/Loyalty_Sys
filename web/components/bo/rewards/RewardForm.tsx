@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { LhError } from "@/lib/api/client";
-import type { Reward, RewardBand, RewardCategory, Tier } from "@/lib/api/types";
+import type { CouponPool, Reward, RewardBand, RewardCategory, Tier } from "@/lib/api/types";
 import { Card, CardBody } from "@/components/ui/card";
 import { useCan } from "@/components/bo/Can";
 import { FULFILMENT_LABEL, TYPE_LABEL } from "./RewardBits";
@@ -135,6 +135,7 @@ export function RewardForm({
   bands,
   categories,
   tiers,
+  pools,
   saving,
   error,
   onSubmit,
@@ -143,6 +144,7 @@ export function RewardForm({
   bands: RewardBand[];
   categories: RewardCategory[];
   tiers: Tier[];
+  pools: CouponPool[];
   saving: boolean;
   error: LhError | null;
   onSubmit: (input: RewardInput, changed: RewardInput) => void;
@@ -297,8 +299,15 @@ export function RewardForm({
             </select>
           </Field>
           {f.fulfilment === "AUTO_COUPON" ? (
-            <Field label="Pool coupon" hint="Obbligatorio per l'evasione automatica.">
-              <input value={f.couponPoolId} disabled={!editable("couponPoolId")} onChange={(e) => set("couponPoolId", e.target.value)} className={`${INPUT} font-mono`} />
+            <Field label="Pool coupon" hint="Obbligatorio per l'evasione automatica; i codici si gestiscono in «Coupon».">
+              <select value={f.couponPoolId} disabled={!editable("couponPoolId")} onChange={(e) => set("couponPoolId", e.target.value)} className={INPUT}>
+                <option value="">—</option>
+                {pools.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} · {p.prefix} · {p.counts.AVAILABLE} disponibili
+                  </option>
+                ))}
+              </select>
             </Field>
           ) : null}
         </div>

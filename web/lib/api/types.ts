@@ -322,3 +322,45 @@ export interface RewardStats {
   topRewards: { rewardCode: string; rewardName: string; redemptions: number }[];
   lowStock: { id: string; code: string; name: string; stockRemaining: number; stockTotal: number }[];
 }
+
+// Coupon (reward /v1/coupon-pools*, /v1/coupons/*; docs/servizi/reward-service.md §3)
+export type CouponStatus = "AVAILABLE" | "ISSUED" | "USED" | "EXPIRED" | "VOID";
+
+export interface CouponPool {
+  id: string;
+  code: string;
+  name: string;
+  prefix: string;
+  validityDays: number;
+  counts: Record<CouponStatus, number>;
+  total: number;
+  rewards: { id: string; code: string; name: string; status: string }[];
+}
+
+export interface Coupon {
+  code: string;
+  poolId: string;
+  poolCode: string | null;
+  poolName: string | null;
+  status: CouponStatus;
+  memberId: string | null;
+  rewardCode: string | null;
+  origin: string | null;
+  redemptionId: string | null;
+  issuedAt: string | null;
+  expiresAt: string | null;
+  usedAt: string | null;
+  voidedAt: string | null;
+}
+
+export interface CouponGenerateResult {
+  generated: number;
+  seed: number;
+  available: number;
+}
+
+export interface CouponImportResult {
+  imported: number;
+  skipped: string[];
+  available: number;
+}

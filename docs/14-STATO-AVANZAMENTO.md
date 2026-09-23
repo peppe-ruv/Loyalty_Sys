@@ -12,12 +12,12 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M1 — Core loop e primo deploy | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M1.1→M1.8 chiuse; demo ospitata online |
 | M2 — Visibilità | completata | M2.8 | | ☑ | |
 | M3 — Punti adulti | chiusa (codice) | 2026-09-21 | 2026-09-23 | ☑ | M3.1–M3.9 implementate; criteri di accettazione verdi con test automatici; resta `smoke.sh` sulla demo online |
-| M4 — Premi | in corso | 2026-09-23 | | ☐ | M4.1 chiusa (reward nell'hub, BO-10/BO-11) |
+| M4 — Premi | in corso | 2026-09-23 | | ☐ | M4.1–M4.2 chiuse (catalogo, fasce, pool coupon; BO-10/11/12) |
 | M5 — Gioco | da iniziare | | | ☐ | |
 | M6 — Contenuti | da iniziare | | | ☐ | |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** `M4.2` pool coupon (generazione con seme, import, uso/annullo, BO-12); resta `smoke.sh` di M3 sulla demo online
+**Prossima fetta da lavorare:** `M4.3` saga richiesta premio (reward ↔ wallet, spesa FIFO, timeout, compensazione); resta `smoke.sh` di M3 sulla demo online
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -180,7 +180,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 **Fette** (`docs/12 §3`)
 
 - [x] `M4.1` — _reward-service nell'hub (schema `reward`, catalogo/fasce/categorie, ciclo di vita, catalogo portale, `/v1/rewards/stats`) + BO-10 e BO-11_
-- [ ] `M4.2`
+- [x] `M4.2` — _pool coupon con seme stabile, generazione ≤ 5 000 e import, cassa simulata (uso/annullo/scadenza), effetto `coupon.issue` idempotente, BO-12_
 - [ ] `M4.3`
 - [ ] `M4.4`
 - [ ] `M4.5`
@@ -198,9 +198,9 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [ ] `F-RWD-06` Evasione (P0)
 - [ ] `F-RWD-07` Annullamento con rimborso (P1)
 - [x] `F-RWD-08` Ciclo di vita premio (P0) — _M4.1: macchina a stati comune, blocco campi LIVE (`REWARD_LIVE_LOCKED`), duplica; approvazione in M7_
-- [ ] `F-CPN-01` Pool di coupon (P0)
-- [ ] `F-CPN-02` Emissione (P0) — _M4 / M5_
-- [ ] `F-CPN-03` Utilizzo (P1)
+- [x] `F-CPN-01` Pool di coupon (P0) — _M4.2: `prefix-XXXX-XXXX` da seme (stessi codici a ogni reset), import con scartati, stato per codice, BO-12_
+- [ ] `F-CPN-02` Emissione (P0) — _M4 / M5; M4.2: da effetto `coupon.issue` (idempotente su `effectId`, pool vuoto → DLQ `COUPON_POOL_EMPTY` senza ritentare); da richiesta premio in M4.3_
+- [x] `F-CPN-03` Utilizzo (P1) — _M4.2: `POST /v1/coupons/{code}/use` (409 già usato / 410 scaduto), fatto `coupon.used`, cassa simulata di BO-12_
 
 **Accettazione M4** (`docs/12`)
 
@@ -321,6 +321,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 | Data | Fetta | Esito | Commit | Domande aperte create | Note per la prossima sessione |
 |---|---|---|---|---|---|
+| 2026-09-23 | M4.2 | ✅ `./mvnw verify` verde (`CouponIT` 5, `RewardServiceIT` 5, hub), `pnpm lint typecheck test build` verdi (32 test), `check-contracts` 22, `check-seed` 15 (nuovo controllo premi ↔ fasce/categorie/pool); BO-12 renderizzata e controllata (Playwright), palette della barra per stato validata con dataviz | (questo commit) | Q-52, Q-53 | `seed/coupon-pools.json` (5 pool, SHP25 con 141 codici già usati → 9 disponibili come lo stock). V2: via i contatori `total/available` (si contano da `coupon`), `seed` per pool. lh-common: `NonRetryableEventException` (DLQ immediata con codice) e `LhException.gone` (410). Contratti nuovi: `effect.coupon.issue`, `fact.coupon.issued`, `fact.coupon.used`, `fact.reward.status.changed`. Editor premio: pool scelto da elenco. |
 | 2026-09-23 | M4.1 | ✅ `./mvnw verify` verde (`RewardServiceIT` 5, `HubEndToEndIT` 5), `pnpm lint typecheck test build` verdi (29 test), `check-contracts` 18, `check-seed` 14; BO-10/BO-11 renderizzate e controllate (Playwright, dati del seed) | 3613556, (questo commit) | — | reward-service nell'hub: tabella snapshot rinominata `reward_member_snapshot` (collideva con `campaign.member_snapshot` nel search_path condiviso). Fasce modificabili da ADMIN e MARKETING (`object.edit`, docs/08 §2). `LifecycleBar` ora generica (servizio + percorso). Fix sidebar: evidenziata solo la voce più specifica. **Da fare fuori sessione**: env Vercel `LH_SVC_REWARD_URL` → hub Render, senza la quale BO-10/11 mostrano lo stato *degraded*. |
 | 2026-09-23 | Accettazione M3 | ✅ `./mvnw verify` verde (HubEndToEndIT 4, CampaignServiceIT 11, InsightServiceIT 9, …), `check-contracts` 18, `check-seed` 11 | b3a44fe, (questo commit) | Q-50, Q-51 | Verifica dei criteri M3 con test sull'hub consolidato. Trovati e corretti: `PUT /v1/campaigns/{id}` mancante (F-CMP-01, blocco campi `LIVE`); `SCN-TIER-UP` assente dal seed (aggiunto, con segnaposto `at: @lastWeekdayT10:30` ora supportato dall'esecutore scenari); lotto in scadenza di Chiara 720 invece dei 1 900 di docs/10 (`expiringSoon` nel seed); esito del tracciato che leggeva `from/to` invece di `previousTier/newTier` (EVT-FACT-28) → cambio livello mai mostrato in BO-25; test E2E dell'hub su Giulia diventato instabile con il ponte attivo e con data fissa destinata a uscire dalla finestra dei 30 giorni. |
 | 2026-09-23 | M3.5-FE · M3.6-FE · M3.9 | ✅ `./mvnw verify` verde (13 IT `WalletServiceIT` con passività), `pnpm lint typecheck test build` verdi (22 test), `check-contracts` 18, `check-seed` 11; grafico passività renderizzato e controllato (Playwright, dati fittizi) | 2c99326, (questo commit) | — | BO-03 *Rettifica punti* e BO-09 *Ponte interno*. M3.9: `/v1/liability` + colonne per mese di scadenza (dataviz: accento `#0b7a75` sotto la soglia di croma → teal `#0d9488` validato); per gli STS, che non scadono a lotto, frase al posto di un grafico vuoto. Deploy Render di M3.5/M3.8 `live`. |

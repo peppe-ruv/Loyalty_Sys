@@ -14,7 +14,8 @@ import java.util.List;
 public class RewardRouting {
 
     @Bean("rewardEventRouter")
-    public EventRouter rewardEventRouter(MemberSnapshotHandler members, IdempotentHandler idempotent, LhMetrics metrics) {
-        return new EventRouter("lh-reward", List.<EventHandler>of(members), idempotent, metrics);
+    public EventRouter rewardEventRouter(MemberSnapshotHandler members, CouponIssueHandler couponIssue,
+                                         IdempotentHandler idempotent, LhMetrics metrics) {
+        return new EventRouter("lh-reward", List.<EventHandler>of(members, couponIssue), idempotent, metrics);
     }
 }

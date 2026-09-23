@@ -1,0 +1,21 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZM2Q4W6E8R0T2Y4V6J8Q0P",
+  "source": "urn:loyaltyhub:service:campaign",
+  "type": "io.loyaltyhub.effect.coupon.issue",
+  "subject": "member:MBR-000004",
+  "time": "2026-09-12T10:15:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:effect.coupon.issue:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZM0X1C2V3B4N5M6Q7W8E9R",
+  "lhcausationid": "01J8ZM1A2S3D4F5G6H7J8K9M0Z",
+  "lhhop": 1,
+  "data": {
+    "effectId": "01J8ZM2Q4W6E8R0T2Y4V6J8Q0P",
+    "campaignCode": "CMP-IW-PRIZE-COUPON",
+    "actionId": "01J8ZM1A2S3D4F5G6H7J8K9M0Z",
+    "actionType": "instantwin.won",
+    "rewardCode": "RWD-COFFEE-5"
+  }
+}

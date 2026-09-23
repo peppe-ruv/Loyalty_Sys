@@ -15,6 +15,18 @@ const TIME = new Intl.DateTimeFormat("it-IT", {
   timeZone: "Europe/Rome",
 });
 
+const DATE = new Intl.DateTimeFormat("it-IT", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: "Europe/Rome",
+});
+
+/** "18 set 2026"; trattino per un valore assente. */
+export function formatDate(value: Date | string | number | null | undefined): string {
+  return value == null ? "—" : DATE.format(new Date(value));
+}
+
 export function formatDateTime(value: Date | string | number): string {
   return DATE_TIME.format(new Date(value));
 }

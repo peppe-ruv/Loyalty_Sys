@@ -1,0 +1,20 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZM3E5R7T9Y1V3J5Q7P9A1S",
+  "source": "urn:loyaltyhub:service:reward",
+  "type": "io.loyaltyhub.fact.coupon.issued",
+  "subject": "member:MBR-000004",
+  "time": "2026-09-12T10:15:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.coupon.issued:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZM0X1C2V3B4N5M6Q7W8E9R",
+  "lhcausationid": "01J8ZM2Q4W6E8R0T2Y4V6J8Q0P",
+  "lhhop": 1,
+  "data": {
+    "couponCode": "CAF-7KQM-X3PD",
+    "rewardCode": "RWD-COFFEE-5",
+    "expiresAt": "2026-12-11T10:15:00Z",
+    "origin": "CAMPAIGN"
+  }
+}

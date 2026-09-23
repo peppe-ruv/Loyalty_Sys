@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useLhMutation, useLhQuery, type LhError } from "@/lib/api/client";
-import type { Reward, RewardBand, RewardCategory, Tier } from "@/lib/api/types";
+import type { CouponPool, Reward, RewardBand, RewardCategory, Tier } from "@/lib/api/types";
 import { QueryState } from "@/components/bo/QueryState";
 import { PageHeader, CodeText } from "@/components/bo/primitives";
 import { LifecycleBar } from "@/components/bo/LifecycleBar";
@@ -21,6 +21,7 @@ export default function RewardEditorPage() {
   const bands = useLhQuery<RewardBand[]>("reward", "/v1/reward-bands");
   const categories = useLhQuery<RewardCategory[]>("reward", "/v1/reward-categories");
   const tiers = useLhQuery<Tier[]>("wallet", "/v1/tiers");
+  const pools = useLhQuery<CouponPool[]>("reward", "/v1/coupon-pools");
 
   return (
     <div>
@@ -30,7 +31,7 @@ export default function RewardEditorPage() {
       <QueryState query={bands} service="reward">
         {(bs) =>
           creating ? (
-            <CreateReward bands={bs} categories={categories.data ?? []} tiers={tiers.data ?? []} />
+            <CreateReward bands={bs} categories={categories.data ?? []} tiers={tiers.data ?? []} pools={pools.data ?? []} />
           ) : (
             <QueryState query={reward} service="reward">
               {(r) => (
@@ -40,6 +41,7 @@ export default function RewardEditorPage() {
                   bands={bs}
                   categories={categories.data ?? []}
                   tiers={tiers.data ?? []}
+                  pools={pools.data ?? []}
                   onChanged={() => reward.refetch()}
                 />
               )}
@@ -51,7 +53,17 @@ export default function RewardEditorPage() {
   );
 }
 
-function CreateReward({ bands, categories, tiers }: { bands: RewardBand[]; categories: RewardCategory[]; tiers: Tier[] }) {
+function CreateReward({
+  bands,
+  categories,
+  tiers,
+  pools,
+}: {
+  bands: RewardBand[];
+  categories: RewardCategory[];
+  tiers: Tier[];
+  pools: CouponPool[];
+}) {
   const router = useRouter();
   const [error, setError] = useState<LhError | null>(null);
   const create = useLhMutation<Reward, RewardInput>("reward", "POST", () => "/v1/rewards", {
@@ -65,6 +77,7 @@ function CreateReward({ bands, categories, tiers }: { bands: RewardBand[]; categ
         bands={bands}
         categories={categories}
         tiers={tiers}
+        pools={pools}
         saving={create.isPending}
         error={error}
         onSubmit={(input) => {
@@ -81,12 +94,14 @@ function EditReward({
   bands,
   categories,
   tiers,
+  pools,
   onChanged,
 }: {
   reward: Reward;
   bands: RewardBand[];
   categories: RewardCategory[];
   tiers: Tier[];
+  pools: CouponPool[];
   onChanged: () => void;
 }) {
   const router = useRouter();
@@ -133,6 +148,7 @@ function EditReward({
         bands={bands}
         categories={categories}
         tiers={tiers}
+        pools={pools}
         saving={update.isPending}
         error={error}
         onSubmit={(_, changed) => {

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.reward.status.changed:1",
+  "title": "fact.reward.status.changed — data (docs/servizi/reward-service.md §4, ciclo di vita premio)",
+  "type": "object",
+  "required": [
+    "rewardCode",
+    "newStatus"
+  ],
+  "properties": {
+    "rewardCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{2,39}$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "previousStatus": {
+      "type": "string"
+    },
+    "newStatus": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

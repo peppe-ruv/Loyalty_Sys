@@ -44,6 +44,7 @@ export const NAV: NavGroup[] = [
     items: [
       { id: "BO-10", label: "Catalogo", href: "/backoffice/rewards", milestone: 4 },
       { id: "BO-11", label: "Fasce", href: "/backoffice/rewards/bands", milestone: 4 },
+      { id: "BO-12", label: "Coupon", href: "/backoffice/rewards/coupons", milestone: 4 },
     ],
   },
   {

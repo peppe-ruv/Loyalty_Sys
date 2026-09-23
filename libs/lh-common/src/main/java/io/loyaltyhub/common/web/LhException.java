@@ -61,6 +61,11 @@ public class LhException extends RuntimeException {
         return new LhException(HttpStatus.CONFLICT, "conflict", code, detail, null);
     }
 
+    /** 410: la risorsa esisteva ma non è più utilizzabile (es. {@code COUPON_EXPIRED}). */
+    public static LhException gone(String code, String detail) {
+        return new LhException(HttpStatus.GONE, "gone", code, detail, null);
+    }
+
     /** 422: regola di business violata; {@code code} specifico elencato nelle schede servizio. */
     public static LhException validation(String code, String detail) {
         return new LhException(HttpStatus.UNPROCESSABLE_ENTITY, "validation", code, detail, null);

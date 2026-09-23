@@ -56,6 +56,12 @@ public class RewardRepository {
         return jdbc.sql("SELECT " + COLUMNS + " FROM reward WHERE code = ?").param(code).query(RewardRepository::map).optional();
     }
 
+    /** Premi che attingono al pool (colonna «premio collegato» di BO-12). */
+    public List<Reward> findByPool(String poolId) {
+        return jdbc.sql("SELECT " + COLUMNS + " FROM reward WHERE coupon_pool_id = ? ORDER BY code")
+                .param(poolId).query(RewardRepository::map).list();
+    }
+
     public void insert(Reward r) {
         jdbc.sql("""
                         INSERT INTO reward (id, code, name, description, terms, image_url, type, category_code, band_code,

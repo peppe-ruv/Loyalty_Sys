@@ -100,8 +100,10 @@ public class LhKafkaConfiguration {
             metrics.eventDlq(headerType(record), code);
             return record.headers();
         });
-        // maxRetries = 2 ⇒ 3 tentativi totali (docs/12 accettazione M0).
-        return new DefaultErrorHandler(recoverer, new FixedBackOff(200L, 2));
+        // maxRetries = 2 ⇒ 3 tentativi totali (docs/12 accettazione M0); gli eventi non ritentabili vanno subito in DLQ.
+        DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(200L, 2));
+        handler.addNotRetryableExceptions(NonRetryableEventException.class);
+        return handler;
     }
 
     @Bean
@@ -156,6 +158,9 @@ public class LhKafkaConfiguration {
         Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
         if (cause instanceof LoopGuardException) {
             return "LOOP_GUARD";
+        }
+        if (cause instanceof NonRetryableEventException nre) {
+            return nre.code();
         }
         return cause.getClass().getSimpleName();
     }

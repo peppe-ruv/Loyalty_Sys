@@ -20,6 +20,12 @@ const STATUS_TONE: Record<string, string> = {
   ENDED: "bg-slate-200 text-slate-600",
   ARCHIVED: "bg-slate-200 text-slate-600",
   ANONYMIZED: "bg-slate-100 italic text-slate-500",
+  // coupon (BO-12)
+  AVAILABLE: "bg-slate-100 text-slate-700",
+  ISSUED: "bg-sky-100 text-sky-800",
+  USED: "bg-emerald-100 text-emerald-800",
+  EXPIRED: "bg-amber-100 text-amber-800",
+  VOID: "bg-red-100 text-red-800",
 };
 
 export function StatusPill({ status }: { status: string }) {
