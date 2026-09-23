@@ -4,10 +4,15 @@ import io.loyaltyhub.wallet.application.WalletQueryService;
 import io.loyaltyhub.wallet.domain.LedgerEntry;
 import io.loyaltyhub.wallet.domain.PointsLot;
 import io.loyaltyhub.wallet.domain.Tier;
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
+import io.loyaltyhub.wallet.application.WalletService;
 import io.loyaltyhub.wallet.infra.LedgerRepository;
 import io.loyaltyhub.wallet.infra.PointsLotRepository;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -21,11 +26,13 @@ import java.util.List;
 public class WalletsController {
 
     private final WalletQueryService query;
+    private final WalletService walletService;
     private final LedgerRepository ledger;
     private final PointsLotRepository lots;
 
-    public WalletsController(WalletQueryService query, LedgerRepository ledger, PointsLotRepository lots) {
+    public WalletsController(WalletQueryService query, WalletService walletService, LedgerRepository ledger, PointsLotRepository lots) {
         this.query = query;
+        this.walletService = walletService;
         this.ledger = ledger;
         this.lots = lots;
     }
@@ -56,6 +63,17 @@ public class WalletsController {
     @GetMapping("/tiers")
     public List<Tier> tiers() {
         return query.tierScale();
+    }
+
+    public record AdjustmentRequest(String currency, String direction, long amount, String reason, String note) {
+    }
+
+    @PostMapping("/wallets/{memberId}/adjustments")
+    @RequiresRole({Role.CARE, Role.ADMIN})
+    public WalletService.AdjustmentResult adjust(
+            @PathVariable String memberId,
+            @RequestBody AdjustmentRequest request) {
+        return walletService.adjustBalance(memberId, request.currency(), request.direction(), request.amount(), request.reason(), request.note());
     }
 
     private static LotView toView(PointsLot l) {

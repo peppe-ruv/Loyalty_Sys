@@ -53,6 +53,17 @@ public class WalletRepository {
                 .params(amount, amount, memberId, currency).query(Long.class).single();
     }
 
+    /** Addebita punti attivi: {@code balance_active -= amount}, {@code lifetime_spent += amount}. */
+    public long debit(String memberId, String currency, long amount) {
+        return jdbc.sql("""
+                        UPDATE wallet SET balance_active = balance_active - ?,
+                          lifetime_spent = lifetime_spent + ?, updated_at = now()
+                        WHERE member_id = ? AND currency = ?
+                        RETURNING balance_active
+                        """)
+                .params(amount, amount, memberId, currency).query(Long.class).single();
+    }
+
     /** Accredita punti in attesa: {@code balance_pending += amount}, {@code lifetime_earned += amount}. */
     public void creditPending(String memberId, String currency, long amount) {
         jdbc.sql("""

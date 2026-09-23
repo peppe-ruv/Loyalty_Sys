@@ -1,0 +1,22 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZK3X5Q2M9T4B6N8R0XWYCF",
+  "source": "urn:loyaltyhub:service:wallet",
+  "type": "io.loyaltyhub.fact.wallet.points.adjusted",
+  "subject": "member:MBR-000003",
+  "time": "2026-09-18T10:15:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.wallet.points.adjusted:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZK3V7Q2M9T4B6N8R0XWYCD",
+  "lhcausationid": "01J8ZK3W1Q2M9T4B6N8R0XWYCE",
+  "lhhop": 0,
+  "data": {
+    "direction": "CREDIT",
+    "currency": "PTS",
+    "amount": 200,
+    "reason": "GOODWILL",
+    "note": "A note length of ten",
+    "balanceAfter": 1200
+  }
+}
