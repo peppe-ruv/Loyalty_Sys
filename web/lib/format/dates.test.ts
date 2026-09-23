@@ -21,4 +21,11 @@ describe("computeRollingExpiry", () => {
     expect(expiry.getUTCMonth()).toBe(1); // Febbraio
     expect(expiry.getUTCDate()).toBe(29);
   });
+
+  it("dal 31 del mese non sfora nel mese successivo", () => {
+    const expiry = computeRollingExpiry(12, new Date(2024, 0, 31, 12));
+    expect(expiry.getFullYear()).toBe(2025);
+    expect(expiry.getMonth()).toBe(0);
+    expect(expiry.getDate()).toBe(31);
+  });
 });

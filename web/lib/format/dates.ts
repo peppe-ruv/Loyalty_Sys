@@ -41,8 +41,8 @@ export function formatRelative(value: Date | string | number, now: Date = new Da
  * @param from data di partenza (default = oggi)
  */
 export function computeRollingExpiry(months: number, from: Date = new Date()): Date {
-  const d = new Date(from.getTime());
-  d.setMonth(d.getMonth() + months + 1);
-  d.setDate(0); // L'ultimo giorno del mese precedente
+  // Prima al giorno 1, così lo spostamento di mese non "sfora" (31 gen + 1 mese ≠ 3 mar).
+  const d = new Date(from.getFullYear(), from.getMonth() + months + 1, 1, 12); // mezzogiorno: stessa data in UTC
+  d.setDate(0); // ultimo giorno del mese precedente = fine del mese di (from + months)
   return d;
 }

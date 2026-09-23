@@ -140,7 +140,8 @@ function CurrencyCard({ currency }: { currency: Currency }) {
       <div className="mt-4 border-t border-[var(--color-bo-border)] pt-3">
         <p className="text-sm font-medium text-[var(--color-bo-ink)]">Scadenza: END_OF_EDITION_PLUS_GRACE</p>
         <p className="mt-1 text-xs text-[var(--color-bo-ink-2)]">
-          I punti scadono alla fine dell&apos;edizione corrente, con {policy.graceDays ?? 0} giorni di tolleranza.
+          I punti scadono alla data di tolleranza dell&apos;edizione in cui sono guadagnati (se non è impostata: fine
+          edizione + {policy.graceDays ?? 0} giorni).
         </p>
       </div>
      );
@@ -149,7 +150,7 @@ function CurrencyCard({ currency }: { currency: Currency }) {
       <div className="mt-4 border-t border-[var(--color-bo-border)] pt-3">
         <p className="text-sm font-medium text-[var(--color-bo-ink)]">Scadenza: EDITION</p>
         <p className="mt-1 text-xs text-[var(--color-bo-ink-2)]">
-          I punti scadono esattamente alla fine dell&apos;edizione in cui sono stati guadagnati.
+          Non scadono a lotto: il saldo del periodo si azzera con la chiusura dell&apos;edizione (discesa morbida).
         </p>
       </div>
      );
@@ -186,6 +187,8 @@ function CurrencyCard({ currency }: { currency: Currency }) {
 
 function EditionsTab() {
   const query = useLhQuery<Edition[]>("wallet", "/v1/editions");
+  // Tenuto qui: dopo la chiusura l'edizione non è più ACTIVE e il pannello si smonta.
+  const [closed, setClosed] = useState<{ code: string; retained: number; downgraded: number } | null>(null);
 
   return (
     <QueryState query={query} service="wallet" isEmpty={(d) => d.length === 0}>
@@ -193,13 +196,21 @@ function EditionsTab() {
         const sorted = [...editions].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
         return (
           <div className="space-y-6">
+            {closed && (
+              <div className="rounded bg-emerald-50 p-4 text-emerald-800">
+                <p className="font-semibold">Edizione {closed.code} chiusa con successo.</p>
+                <p className="text-sm">Membri che mantengono il livello: {closed.retained}. Membri scesi di livello: {closed.downgraded}.</p>
+              </div>
+            )}
             <div className="flex gap-4 overflow-x-auto pb-4">
               {sorted.map((ed) => (
                 <EditionCard key={ed.code} edition={ed} />
               ))}
             </div>
             {sorted.map(
-              (ed) => ed.status === "ACTIVE" && <EditionClosePanel key={ed.code} edition={ed} />
+              (ed) => ed.status === "ACTIVE" && (
+                <EditionClosePanel key={ed.code} edition={ed} onClosed={(r) => setClosed({ code: ed.code, ...r })} />
+              )
             )}
           </div>
         );
@@ -225,7 +236,13 @@ function EditionCard({ edition }: { edition: Edition }) {
   );
 }
 
-function EditionClosePanel({ edition }: { edition: Edition }) {
+function EditionClosePanel({
+  edition,
+  onClosed,
+}: {
+  edition: Edition;
+  onClosed: (summary: { retained: number; downgraded: number }) => void;
+}) {
   const qc = useQueryClient();
   const [preview, setPreview] = useState<EditionClosePreviewResult | null>(null);
   const [filter, setFilter] = useState<"ALL" | "RETAINED" | "DOWNGRADED">("ALL");
@@ -234,7 +251,6 @@ function EditionClosePanel({ edition }: { edition: Edition }) {
 
   const [confirmCode, setConfirmCode] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
-  const [applyResult, setApplyResult] = useState<{ retained: number; downgraded: number } | null>(null);
 
   async function loadPreview() {
     setBusy(true);
@@ -256,8 +272,8 @@ function EditionClosePanel({ edition }: { edition: Edition }) {
     setError(null);
     try {
       const res = await lhFetch<EditionClosePreviewResult>("wallet", `/v1/editions/${edition.code}/close?dryRun=false`, { method: "POST" });
-      setApplyResult(res.summary);
       setShowConfirm(false);
+      onClosed(res.summary);
       qc.invalidateQueries({ queryKey: ["wallet"] });
     } catch (e) {
       const err = e as LhError;
@@ -276,13 +292,6 @@ function EditionClosePanel({ edition }: { edition: Edition }) {
         <p className="mt-1 text-sm text-[var(--color-bo-ink-2)]">
           L&apos;edizione è attiva. Puoi simulare la chiusura (dry-run) per vedere l&apos;effetto della discesa morbida sui livelli dei membri.
         </p>
-
-        {applyResult && (
-          <div className="mt-4 rounded bg-emerald-50 p-4 text-emerald-800">
-            <p className="font-semibold">Edizione chiusa con successo.</p>
-            <p className="text-sm">Membri che mantengono il livello: {applyResult.retained}. Membri scesi di livello: {applyResult.downgraded}.</p>
-          </div>
-        )}
 
         {error && (
           <div className="mt-4 rounded bg-red-50 p-4 text-sm text-red-800">
@@ -345,7 +354,7 @@ function EditionClosePanel({ edition }: { edition: Edition }) {
               </p>
               <select
                 value={filter}
-                onChange={(e) => setFilter(e.target.value as any)}
+                onChange={(e) => setFilter(e.target.value as "ALL" | "RETAINED" | "DOWNGRADED")}
                 className="rounded border border-[var(--color-bo-border)] px-2 py-1 text-sm"
               >
                 <option value="ALL">Tutti</option>
