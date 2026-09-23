@@ -74,6 +74,16 @@ public class TraceService {
 
     // ---------- esito ----------
 
+    private static String firstText(JsonNode data, String... fields) {
+        for (String f : fields) {
+            String v = data.path(f).asString(null);
+            if (v != null && !v.isBlank()) {
+                return v;
+            }
+        }
+        return null;
+    }
+
     private Outcome outcomeOf(List<StoredEvent> rows) {
         Map<String, Long> points = new LinkedHashMap<>();
         TierChange tierChange = null;
@@ -86,9 +96,9 @@ public class TraceService {
                     long amount = data.path("amount").asLong(0);
                     points.merge(currency, amount, Long::sum);
                 }
-                case "tier.upgraded", "tier.changed" ->
-                        tierChange = new TierChange(data.path("from").asString(null), data.path("tier").asString(
-                                data.path("to").asString(null)));
+                // Contratto EVT-FACT-28/29 (docs/05): previousTier → newTier; from/to/tier restano come ripiego.
+                case "tier.upgraded", "tier.downgraded", "tier.changed" -> tierChange = new TierChange(
+                        firstText(data, "previousTier", "from"), firstText(data, "newTier", "to", "tier"));
                 default -> {
                     // altri tipi: nessun contributo all'esito in M2
                 }

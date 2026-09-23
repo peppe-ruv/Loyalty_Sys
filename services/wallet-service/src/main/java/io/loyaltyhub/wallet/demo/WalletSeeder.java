@@ -126,8 +126,10 @@ public class WalletSeeder implements ApplicationRunner, DemoResettable {
             // Storico livelli minimo: la qualifica iniziale, così BO-07/tier-history non è vuota (docs §6).
             tierHistory.insert(new TierHistory(Ulid.next(clock), memberId, null, tier,
                     TierHistory.INITIAL, null, clock.instant().minus(90, ChronoUnit.DAYS)));
-            seedLots(memberId, "PTS", pts, ptsPolicy);
-            seedLots(memberId, "STS", sts, null); // STS: policy EDITION, senza scadenza in M3.1
+            // expiringSoon (opzionale, docs/10 §3): PTS in scadenza a breve per il personaggio (Chiara: 1 900).
+            Long soon = w.hasNonNull("expiringSoon") ? w.get("expiringSoon").asLong() : null;
+            seedLots(memberId, "PTS", pts, ptsPolicy, soon);
+            seedLots(memberId, "STS", sts, null, null); // STS: policy EDITION, senza scadenza in M3.1
         }
         log.info("Seed wallet caricato (profilo demo): valute, livelli, edizioni, saldi, lotti");
     }
@@ -137,7 +139,7 @@ public class WalletSeeder implements ApplicationRunner, DemoResettable {
      * spendibili li scaglia su date diverse così alcuni scadono entro 30 giorni: le schede scadenze (PT-07,
      * BO-30) hanno dati appena accesa la demo. Le date sono relative a oggi (docs §6).
      */
-    private void seedLots(String memberId, String currency, long balance, JsonNode policy) {
+    private void seedLots(String memberId, String currency, long balance, JsonNode policy, Long expiringSoon) {
         if (balance <= 0) {
             return;
         }
@@ -145,7 +147,7 @@ public class WalletSeeder implements ApplicationRunner, DemoResettable {
         // Punti spendibili di taglio ≥ 100: una quota "in scadenza entro 12 giorni" perché le schede scadenze
         // (PT-07, BO-30) non siano mai vuote, il resto guadagnato di recente (scadenza ~12 mesi dalla policy).
         if (currency.equals("PTS") && balance >= 100) {
-            long soon = balance * 30 / 100;
+            long soon = expiringSoon != null ? Math.min(expiringSoon, balance) : balance * 30 / 100;
             lots.insert(new PointsLot(Ulid.next(clock), memberId, currency, soon, soon, PointsLot.ACTIVE,
                     now.minus(353, ChronoUnit.DAYS), null, now.plus(12, ChronoUnit.DAYS), null));
             long rest = balance - soon;

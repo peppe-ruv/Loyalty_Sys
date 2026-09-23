@@ -11,13 +11,13 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M0 — Fondamenta | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M0.1→M0.7 chiuse; CI in piedi |
 | M1 — Core loop e primo deploy | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M1.1→M1.8 chiuse; demo ospitata online |
 | M2 — Visibilità | completata | M2.8 | | ☑ | |
-| M3 — Punti adulti | in corso | 2026-09-21 | | ☑ | tutte le fette M3.1–M3.9 implementate; resta la verifica live di accettazione (`SCN-TIER-UP` sulla demo online) |
+| M3 — Punti adulti | chiusa (codice) | 2026-09-21 | 2026-09-23 | ☑ | M3.1–M3.9 implementate; criteri di accettazione verdi con test automatici; resta `smoke.sh` sulla demo online |
 | M4 — Premi | da iniziare | | | ☐ | |
 | M5 — Gioco | da iniziare | | | ☐ | |
 | M6 — Contenuti | da iniziare | | | ☐ | |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** verifica live dei criteri di accettazione M3 (`docs/12`: `SCN-TIER-UP`, job scadenze +31 giorni su Chiara, chiusura `dryRun`, gruppo esclusivo, campi bloccati di una campagna `LIVE` → 409), poi M4
+**Prossima fetta da lavorare:** `smoke.sh` sulla demo online (da una macchina con accesso), poi M4 (spesa FIFO, premi e riscatti)
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -164,10 +164,16 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 **Accettazione M3** (`docs/12`)
 
-- [ ] criteri di accettazione verdi
-- [ ] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi
-- [ ] stati *loading / empty / error / degraded* sulle schermate toccate
-- [ ] demo online aggiornata e `smoke.sh` verde
+- [x] criteri di accettazione verdi — _2026-09-23, verificati con test automatici (la sandbox non raggiunge la demo online):_
+  - _`SCN-TIER-UP` → `HubEndToEndIT` sull'hub consolidato: Giulia +162 +500 PTS, GOLD, azione `tier.upgraded` interna nello stesso tracciato (una sola radice), esito SILVER → GOLD_
+  - _catena con `lhhop` > 3 → DLQ `LOOP_GUARD` → `InternalBridgeIT`_
+  - _job scadenze `asOf` +31 giorni → Chiara −1 900 PTS con movimento `EXPIRE` → `HubEndToEndIT` (seed allineato a docs/10: `expiringSoon` 1 900)_
+  - _chiusura edizione `dryRun` (Stefano → SILVER) → `EditionCloseDryRunIT`, `EditionCloseRuleTest`_
+  - _gruppo esclusivo → `CampaignEngineTest` (motivo `EXCLUSIVE`, non `EXCLUSIVE_GROUP`: Q-50)_
+  - _campagna `LIVE`, campi bloccati → `409 CAMPAIGN_LIVE_LOCKED` → `CampaignServiceIT` (API `PUT` aggiunta ora; lato UI la modifica di BO-06 è in M6)_
+- [x] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi
+- [x] stati *loading / empty / error / degraded* sulle schermate toccate (BO-03, BO-07, BO-08, BO-09, BO-01 passività, PT-08 via `QueryState`)
+- [ ] demo online aggiornata e `smoke.sh` verde — _deploy Render/Vercel automatici da `main` e `live`; `smoke.sh` da lanciare da una macchina che raggiunge la demo_
 
 ## M4 — Premi
 
@@ -315,6 +321,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 | Data | Fetta | Esito | Commit | Domande aperte create | Note per la prossima sessione |
 |---|---|---|---|---|---|
+| 2026-09-23 | Accettazione M3 | ✅ `./mvnw verify` verde (HubEndToEndIT 4, CampaignServiceIT 11, InsightServiceIT 9, …), `check-contracts` 18, `check-seed` 11 | b3a44fe, (questo commit) | Q-50, Q-51 | Verifica dei criteri M3 con test sull'hub consolidato. Trovati e corretti: `PUT /v1/campaigns/{id}` mancante (F-CMP-01, blocco campi `LIVE`); `SCN-TIER-UP` assente dal seed (aggiunto, con segnaposto `at: @lastWeekdayT10:30` ora supportato dall'esecutore scenari); lotto in scadenza di Chiara 720 invece dei 1 900 di docs/10 (`expiringSoon` nel seed); esito del tracciato che leggeva `from/to` invece di `previousTier/newTier` (EVT-FACT-28) → cambio livello mai mostrato in BO-25; test E2E dell'hub su Giulia diventato instabile con il ponte attivo e con data fissa destinata a uscire dalla finestra dei 30 giorni. |
 | 2026-09-23 | M3.5-FE · M3.6-FE · M3.9 | ✅ `./mvnw verify` verde (13 IT `WalletServiceIT` con passività), `pnpm lint typecheck test build` verdi (22 test), `check-contracts` 18, `check-seed` 11; grafico passività renderizzato e controllato (Playwright, dati fittizi) | 2c99326, (questo commit) | — | BO-03 *Rettifica punti* e BO-09 *Ponte interno*. M3.9: `/v1/liability` + colonne per mese di scadenza (dataviz: accento `#0b7a75` sotto la soglia di croma → teal `#0d9488` validato); per gli STS, che non scadono a lotto, frase al posto di un grafico vuoto. Deploy Render di M3.5/M3.8 `live`. |
 | 2026-09-23 | M3.4 · M3.5-BE · M3.6-BE · M3.8 | ✅ `./mvnw verify` verde (locale + CI su PR #9/#10), `pnpm lint typecheck test build` verdi, `check-contracts` 18, `check-seed` 11 | f899b7f, c8acbd2, 4b8c8e6, 15e59d0 (#9), 7334607 (#10), 5fee9a0 | Q-45…Q-49 | Fix review Codex su PR #7 (chiusura atomica/serializzata, lock STS, scadenza di edizione). M3.5 ripresa da Claude dal lavoro di Jules: tipi gestiti fissi (il router li registra prima del seed), nomi brevi/lunghi normalizzati, un solo handler per `member.registered`, controller mancante. Font self-hosted (`next/font/local`): la build non dipende più da Google Fonts. Da qui in poi niente Jules. |
 | 2026-09-23 | M3.4-BE · M3.7 | ✅ `./mvnw verify` verde in locale e CI (PR #7, #8); `check-contracts` 17 esempi; `check-seed` 11 file | 52dd9c0, 91c0d3e | Q-44 | Orchestrazione Claude → Jules (skill): M3.4-A, M3.5, M3.7 in parallelo su servizi diversi. PR #7 corretta in un ciclo (finalizzazione chiusura transazionale, RETAINED azzera solo `period_sts`, ADMIN su POST/PUT edizioni, 422 campi obbligatori). M3.7: `GET /v1/meta/condition-fields` non esiste ancora (costruttore condizioni, milestone successiva). In corso: BO-08 (Jules), M3.5 ponte (Jules). |

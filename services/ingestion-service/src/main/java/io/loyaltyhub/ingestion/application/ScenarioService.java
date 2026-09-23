@@ -101,7 +101,8 @@ public class ScenarioService {
         JsonNode data = step.hasNonNull("data") ? step.get("data") : mapper.createObjectNode();
 
         InboundEventRequest request = new InboundEventRequest(
-                "1.0", eventId, source, type, "member:" + memberId, clock.instant().toString(), data);
+                "1.0", eventId, source, type, "member:" + memberId,
+                io.loyaltyhub.ingestion.domain.ScenarioTime.resolve(step.path("at").asString(null), clock.instant()).toString(), data);
         IngestResult result = ingestion.ingest(request, IngestionService.ORIGIN_SIMULATOR);
 
         String status = result.status().name();

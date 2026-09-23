@@ -45,5 +45,28 @@
         "data": { "surveyId": "SRV-SCN-2", "score": 70 },
         "note": "Sondaggio inviato da una fonte che non lo ammette", "expect": "REJECTED" }
     ]
+  },
+  {
+    "code": "SCN-TIER-UP",
+    "name": "Giulia sale a GOLD",
+    "description": "Giulia è a 120 punti status da GOLD: un acquisto da 130 € la fa salire di livello e il ponte interno trasforma la salita in un'azione che vale un bonus di 500 punti.",
+    "protagonist": "Giulia (MBR-000003)",
+    "watch": "Guarda il tracciato: acquisto → punti → salita a GOLD → azione interna (lhhop 1) → bonus 500 PTS, tutto in un solo albero.",
+    "steps": [
+      {
+        "delayMs": 0,
+        "memberId": "MBR-000003",
+        "type": "purchase.completed",
+        "source": "ecommerce",
+        "at": "@lastWeekdayT10:30",
+        "data": {
+          "orderId": "ORD-SCN-TIERUP",
+          "amount": 130,
+          "currency": "EUR",
+          "channel": "ONLINE"
+        },
+        "note": "Acquisto online da 130 € in un giorno feriale"
+      }
+    ]
   }
 ]

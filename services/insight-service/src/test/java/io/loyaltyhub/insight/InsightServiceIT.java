@@ -114,6 +114,17 @@ class InsightServiceIT {
     }
 
     @Test
+    void traceOutcomeReadsTierChangeFromTheFactContract() {
+        // EVT-FACT-28 (docs/05): {previousTier, newTier, periodSts}.
+        publish("lh.facts.v1", env("EVT-TU", "io.loyaltyhub.fact.tier.upgraded",
+                "urn:loyaltyhub:service:wallet", "member:MBR-000003", "COR-TU", null,
+                Map.of("previousTier", "SILVER", "newTier", "GOLD", "periodSts", 3010)));
+        JsonNode trace = awaitTrace("COR-TU", 1);
+        assertThat(trace.path("outcome").path("tierChange").path("from").asString()).isEqualTo("SILVER");
+        assertThat(trace.path("outcome").path("tierChange").path("to").asString()).isEqualTo("GOLD");
+    }
+
+    @Test
     void buildsTraceTreeWithOutcome() {
         // Catena azione → effetto → fatto con lo stesso correlationId e causazione a cascata.
         publish("lh.actions.v1", env("EVT-TA", "io.loyaltyhub.action.purchase.completed",
