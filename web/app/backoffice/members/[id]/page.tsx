@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useLhQuery } from "@/lib/api/client";
 import type { MemberView, WalletView, LedgerEntry, EvaluationRow } from "@/lib/api/types";
@@ -10,8 +11,11 @@ import { Card, CardBody } from "@/components/ui/card";
 import { PageHeader, StatusPill, TierBadge, CodeText, PointsAmount } from "@/components/bo/primitives";
 import { formatDateTime } from "@/lib/format/dates";
 import { formatPoints } from "@/lib/format/points";
+import { Can } from "@/components/bo/Can";
+import { AdjustPointsDialog } from "@/components/bo/AdjustPointsDialog";
 
 // BO-03 Scheda 360° (docs/08 §BO-03). M1: schede overview / ledger / actions; ogni pannello degrada da solo.
+// M3.6: azione rapida "Rettifica punti" (CARE/ADMIN).
 const TABS = [
   { key: "overview", label: "Panoramica" },
   { key: "ledger", label: "Movimenti" },
@@ -22,6 +26,8 @@ export default function MemberDetailPage() {
   const id = String(useParams().id);
   const tab = useSearchParams().get("tab") ?? "overview";
   const member = useLhQuery<MemberView>("member", `/v1/members/${id}`);
+  const wallet = useLhQuery<WalletView>("wallet", `/v1/wallets/${id}`);
+  const [adjusting, setAdjusting] = useState(false);
 
   return (
     <div>
@@ -35,6 +41,15 @@ export default function MemberDetailPage() {
                 <StatusPill status={m.status} />
                 <TierBadge tier={m.tier} />
                 <CodeText>{m.id}</CodeText>
+                <Can capability="points.adjust" mode="disable">
+                  <button
+                    onClick={() => setAdjusting(true)}
+                    disabled={!wallet.data}
+                    className="rounded border border-[var(--color-bo-border)] px-2.5 py-1 text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Rettifica punti ●
+                  </button>
+                </Can>
               </div>
             }
           />
@@ -46,6 +61,10 @@ export default function MemberDetailPage() {
       {tab === "overview" && <OverviewTab id={id} />}
       {tab === "ledger" && <LedgerTab id={id} />}
       {tab === "actions" && <ActionsTab id={id} />}
+
+      {adjusting && wallet.data ? (
+        <AdjustPointsDialog memberId={id} balance={wallet.data.balances.PTS?.active ?? 0} onClose={() => setAdjusting(false)} />
+      ) : null}
     </div>
   );
 }
