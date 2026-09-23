@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useLhQuery } from "@/lib/api/client";
 import type { WalletView, MemberView, Tier } from "@/lib/api/types";
 import { useActiveMember } from "@/components/portal/MemberContext";
@@ -82,6 +83,15 @@ export default function PortalProfile() {
                 <Row label="Soprannome" value={member.data?.nickname ?? "—"} />
                 <Row label="Stato" value={member.data?.status ?? "—"} />
               </dl>
+            </section>
+
+            <section>
+              <Link
+                href="/portal/my-rewards"
+                className="flex items-center justify-between rounded-xl border border-[var(--color-bo-border)] bg-white p-3 text-sm font-medium text-[var(--color-pt-night)]"
+              >
+                I miei premi e coupon <span aria-hidden>→</span>
+              </Link>
             </section>
           </div>
         )}

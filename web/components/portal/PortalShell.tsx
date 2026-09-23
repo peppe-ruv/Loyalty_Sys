@@ -9,10 +9,11 @@ import { cn } from "@/lib/cn";
 import { PendingProvider, usePending } from "./PendingContext";
 import { useActiveMember, switchMember } from "./MemberContext";
 
-// Shell del portale (docs/09 §1): tab bar (solo voci M1) + pulsante flottante del tray demo PT-14.
+// Shell del portale (docs/09 §1): tab bar (voci delle milestone realizzate; Gioca arriva con M5) + tray demo PT-14.
 const TABS = [
   { href: "/portal", label: "Home" },
   { href: "/portal/earn", label: "Guadagna" },
+  { href: "/portal/rewards", label: "Premi", also: ["/portal/my-rewards"] },
   { href: "/portal/activity", label: "Attività" },
   { href: "/portal/profile", label: "Io" },
 ];
@@ -32,7 +33,8 @@ function TabBar() {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-md justify-around border-t border-[var(--color-bo-border)] bg-white/95 py-2 backdrop-blur">
       {TABS.map((t) => {
-        const active = pathname === t.href;
+        const under = (h: string) => pathname === h || pathname.startsWith(h + "/");
+        const active = t.href === "/portal" ? pathname === t.href : under(t.href) || ("also" in t && (t.also ?? []).some(under));
         return (
           <Link
             key={t.href}

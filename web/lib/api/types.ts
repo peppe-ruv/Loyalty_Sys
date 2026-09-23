@@ -393,3 +393,54 @@ export interface Redemption {
   closedAt: string | null;
   history: RedemptionHistoryItem[] | null;
 }
+
+// Portale premi (reward GET /v1/portal/catalog, /v1/portal/rewards/{code}, /v1/portal/coupons; PT-03/04/13)
+export type StockStateCode = "AVAILABLE" | "LOW" | "SOLD_OUT";
+
+export interface PortalReward {
+  code: string;
+  name: string;
+  type: string;
+  imageUrl: string | null;
+  category: string | null;
+  pointsCost: number;
+  stockState: StockStateCode;
+  lockedByTier?: { requiredTiers: string[] } | null;
+  perMemberLimitReached: boolean;
+}
+
+export interface PortalBand {
+  code: string;
+  name: string;
+  pointsThreshold: number;
+  color: string | null;
+  rewards: PortalReward[];
+}
+
+export interface PortalCatalog {
+  bands: PortalBand[];
+}
+
+export interface PortalRewardDetail extends PortalReward {
+  description: string | null;
+  terms: string | null;
+  band: string;
+  stockRemaining: number | null;
+  perMemberLimit: number | null;
+}
+
+export interface PortalCoupon {
+  code: string;
+  rewardCode: string | null;
+  rewardName: string | null;
+  status: "AVAILABLE" | "ISSUED" | "USED" | "EXPIRED" | "VOID";
+  issuedAt: string | null;
+  expiresAt: string | null;
+  origin: string | null;
+}
+
+export interface RedemptionAccepted {
+  redemptionId: string;
+  status: RedemptionStatus;
+  correlationId: string;
+}

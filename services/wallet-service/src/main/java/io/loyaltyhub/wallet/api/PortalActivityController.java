@@ -53,7 +53,7 @@ public class PortalActivityController {
         return switch (e.type()) {
             case "EARN" -> e.currency().equals("STS") ? "Punti status guadagnati" : "Punti guadagnati";
             case "SPEND" -> "Premio richiesto";
-            case "ADJUST" -> "Rettifica punti";
+            case "ADJUST", "ADJUST_CREDIT", "ADJUST_DEBIT" -> "Rettifica punti";
             case "EXPIRE" -> "Punti scaduti";
             case "REFUND" -> "Punti restituiti";
             case "RELEASE" -> "Punti sbloccati";

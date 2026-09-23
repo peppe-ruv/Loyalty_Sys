@@ -12,12 +12,12 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M1 — Core loop e primo deploy | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M1.1→M1.8 chiuse; demo ospitata online |
 | M2 — Visibilità | completata | M2.8 | | ☑ | |
 | M3 — Punti adulti | chiusa (codice) | 2026-09-21 | 2026-09-23 | ☑ | M3.1–M3.9 implementate; criteri di accettazione verdi con test automatici; resta `smoke.sh` sulla demo online |
-| M4 — Premi | in corso | 2026-09-23 | | ☐ | M4.1–M4.4 chiuse (catalogo, fasce, coupon, saga, evasione e annulli; BO-10/11/12/13) |
+| M4 — Premi | in corso | 2026-09-23 | | ☐ | M4.1–M4.5 chiuse (backend premi completo; BO-10/11/12/13; PT-03/04/13) |
 | M5 — Gioco | da iniziare | | | ☐ | |
 | M6 — Contenuti | da iniziare | | | ☐ | |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** `M4.5` portale PT-03 (catalogo a fasce), PT-04 (richiesta), PT-13 (coupon); resta `smoke.sh` sulla demo online
+**Prossima fetta da lavorare:** `M4.6` ponte `reward.redemption.confirmed` → azione `reward.redeemed`, accettazione M4 end-to-end; resta `smoke.sh` sulla demo online
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -183,7 +183,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `M4.2` — _pool coupon con seme stabile, generazione ≤ 5 000 e import, cassa simulata (uso/annullo/scadenza), effetto `coupon.issue` idempotente, BO-12_
 - [x] `M4.3` — _saga reward ↔ wallet: richiesta 202 con stock atomico e validazioni 422, spesa FIFO, conferma ed evasione (coupon/immediata/manuale), rifiuto, timeout 10 min, compensazione della spesa tardiva, rimborso_
 - [x] `M4.4` — _evasione manuale, annullo con rimborso (coupon `VOID`, stock +1), `retry-fulfilment`, filtri per schede, seed `redemptions.json` (+ spese storiche nel wallet), BO-13 con contatore in sidebar, job reward in BO-30_
-- [ ] `M4.5`
+- [x] `M4.5` — _PT-03 catalogo a fasce (raggiunta / ti mancano, filtri), PT-04 richiesta con saldo prima → dopo, spedizione, attesa ed esito (codice grande), PT-13 richieste e coupon; tab «Premi»; avviso scadenza in home_
 - [ ] `M4.6`
 
 **Feature** (`docs/02`)
@@ -194,7 +194,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `F-RWD-02` Fasce premi (P0) — _M4.1: soglie uniche e crescenti, `BAND_IN_USE`, BO-11 con impatto sui premi LIVE_
 - [x] `F-RWD-03` Disponibilità (P0) — _M4.1 stock/limite/`stockState`; M4.3 prenotazione atomica (`UPDATE … WHERE stock_remaining > 0`), limite per membro sotto lock, ripristino su rifiuto/timeout/annullo_
 - [x] `F-RWD-04` Visibilità (P0 tier · P1 segmenti) — _M4.1: tier (lucchetto) e segmenti (esclusione) sul catalogo portale da snapshot dei fatti; `AudiencePicker` in M6_
-- [ ] `F-RWD-05` Richiesta premio (P0) — _M4.3: backend completo (API portale, saga, timeout, compensazione); PT-04 in M4.5, BO-13 in M4.4_
+- [x] `F-RWD-05` Richiesta premio (P0) — _M4.3 backend (saga, timeout, compensazione); M4.4 BO-13; M4.5 PT-04 (conferma, attesa, esito, timeout 20 s → «I miei premi») e PT-13 (annullo in conferma)_
 - [x] `F-RWD-06` Evasione (P0) — _M4.3 automatica (coupon, pool vuoto → `needsAttention`) e immediata; M4.4 manuale da BO-13 (nota + tracking, CARE/ADMIN) e nuovo tentativo dopo una generazione di codici_
 - [x] `F-RWD-07` Annullamento con rimborso (P1) — _M4.4: da `CONFIRMED`, motivo obbligatorio, stock ripristinato, coupon `VOID`, rimborso nei lotti d'origine (Q-54); BO-13 mostra "in elaborazione" finché il wallet non rimborsa_
 - [x] `F-RWD-08` Ciclo di vita premio (P0) — _M4.1: macchina a stati comune, blocco campi LIVE (`REWARD_LIVE_LOCKED`), duplica; approvazione in M7_
@@ -321,6 +321,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 | Data | Fetta | Esito | Commit | Domande aperte create | Note per la prossima sessione |
 |---|---|---|---|---|---|
+| 2026-09-23 | M4.5 | ✅ `pnpm lint typecheck test build` verdi (42 test, nuovi su `lib/reward/portal`), `./mvnw verify` wallet verde, `check-seed` 16; percorso E2E n. 2 di docs/09 §4 eseguito con Playwright su API simulate a stato (Davide: PT-03 → PT-04 `RWD-COFFEE-5` → codice → PT-13 → saldo −500): 7/7 passi | (questo commit) | — | Portale: PT-03, PT-04, PT-13, tab «Premi» (attiva anche su «I miei premi»), collegamenti da home e profilo, avviso «N punti scadono il … — usali» in PT-01 ora che PT-03 esiste. Icone di categoria in `lib/reward/icons` (condivise, backoffice e portale non si importano). Wallet: titolo «Rettifica punti» anche per `ADJUST_CREDIT/DEBIT` nell'attività del portale. Banner `CATALOG_TOP` rinviato a M6 (engagement). Script E2E fuori dal repo (la CI non esegue ancora Playwright). |
 | 2026-09-23 | M4.4 | ✅ `./mvnw verify` verde (`RedemptionIT` 10, `CouponIT` 5, `HubEndToEndIT` 8 con il rimborso di Sofia e Σ lotti = saldo), `pnpm lint typecheck test build` verdi (36 test), `check-seed` 16 (nuovi controlli su `redemptions.json`), `check-contracts` 30; BO-13 renderizzata e controllata (Playwright) | 7061712, (questo commit) | — | CI rossa su M4.3 per un test mio (`WalletRedemptionIT` leggeva il saldo prima che il wallet del membro nuovo esistesse): corretto in 7061712. Storico demo: 24 richieste (niente `PENDING`, che il timeout respingerebbe), coupon presi dai pool con seme, spese/rimborsi storici nel ledger del wallet legati a `redemption_id` così gli annulli da BO-13 rimborsano davvero; rimborso di spese senza consumi registrati → lotto nuovo. BO-30: aggiunti reward al reset orchestrato (mancava) e i job scadenza coupon / timeout richieste. |
 | 2026-09-23 | M4.3 | ✅ `./mvnw verify` verde (`RedemptionIT` 6, `WalletRedemptionIT` 3, `HubEndToEndIT` 7 con Davide → coupon e Anna → rifiuto sul hub consolidato, tracciato della saga a radice unica), `check-contracts` 30, `check-seed` 15 | (questo commit) | Q-54, Q-55 | Env Vercel `LH_SVC_REWARD_URL` impostata (conferma dell'owner) e redeploy di produzione. Contratti degli 8 fatti della saga. Trovato e corretto: il seed del wallet non riportava lo stato dei membri (Roberto `BLOCKED` avrebbe potuto spendere). insight ora alimenta `points_spent` (netto dei rimborsi), `redemptions` e `points_expired` per BO-01. |
 | 2026-09-23 | M4.2 | ✅ `./mvnw verify` verde (`CouponIT` 5, `RewardServiceIT` 5, hub), `pnpm lint typecheck test build` verdi (32 test), `check-contracts` 22, `check-seed` 15 (nuovo controllo premi ↔ fasce/categorie/pool); BO-12 renderizzata e controllata (Playwright), palette della barra per stato validata con dataviz | (questo commit) | Q-52, Q-53 | `seed/coupon-pools.json` (5 pool, SHP25 con 141 codici già usati → 9 disponibili come lo stock). V2: via i contatori `total/available` (si contano da `coupon`), `seed` per pool. lh-common: `NonRetryableEventException` (DLQ immediata con codice) e `LhException.gone` (410). Contratti nuovi: `effect.coupon.issue`, `fact.coupon.issued`, `fact.coupon.used`, `fact.reward.status.changed`. Editor premio: pool scelto da elenco. |

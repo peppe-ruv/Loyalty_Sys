@@ -9,6 +9,7 @@ import { MemberCard } from "@/components/portal/MemberCard";
 import { PendingBanner, ActivityRow, type ActivityItem } from "@/components/portal/parts";
 import { QueryState } from "@/components/bo/QueryState";
 import { formatPoints } from "@/lib/format/points";
+import { formatDate } from "@/lib/format/dates";
 
 // PT-01 Home (docs/09 §PT-01): tessera, saldo, avanzamento livello, ultimi movimenti, azioni rapide.
 export default function PortalHome() {
@@ -51,12 +52,26 @@ export default function PortalHome() {
                 <div className="h-full bg-[var(--color-pt-primary)]" style={{ width: `${w.tier.progressPct}%` }} />
               </div>
             </div>
+            {w.expiringSoon && w.expiringSoon.amount > 0 && w.expiringSoon.nextExpiryAt ? (
+              <Link
+                href="/portal/rewards"
+                className="flex items-center justify-between gap-3 rounded-xl bg-[var(--color-pt-coin)]/20 px-3 py-2.5 text-sm text-[var(--color-pt-night)]"
+              >
+                <span>
+                  <strong className="tabular-nums">{formatPoints(w.expiringSoon.amount)}</strong> punti scadono il{" "}
+                  {formatDate(w.expiringSoon.nextExpiryAt)} — usali
+                </span>
+                <span aria-hidden>→</span>
+              </Link>
+            ) : null}
           </div>
         )}
       </QueryState>
 
       <div className="grid grid-cols-2 gap-2">
         <QuickLink href="/portal/earn" label="Come guadagnare" />
+        <QuickLink href="/portal/rewards" label="Premi" />
+        <QuickLink href="/portal/my-rewards" label="I miei premi" />
         <QuickLink href="/portal/activity" label="La mia attività" />
       </div>
 

@@ -1,23 +1,12 @@
 "use client";
 
-import { Bike, Gift, HeartHandshake, Home, Lock, Sparkles, Ticket, type LucideIcon } from "lucide-react";
+import { Lock } from "lucide-react";
 import type { Reward, RewardBand } from "@/lib/api/types";
 import { formatPoints } from "@/lib/format/points";
 import { stockPercent, stockState } from "@/lib/reward/stock";
+import { categoryIcon } from "@/lib/reward/icons";
 
 // Pezzi condivisi di BO-10 (docs/08 §BO-10): barra stock con pill ambra/rossa, lucchetto tier, segnaposto immagine.
-
-const CATEGORY_ICON: Record<string, LucideIcon> = {
-  home: Home,
-  sparkles: Sparkles,
-  bike: Bike,
-  "heart-handshake": HeartHandshake,
-  ticket: Ticket,
-};
-
-export function categoryIcon(icon: string | null | undefined): LucideIcon {
-  return (icon && CATEGORY_ICON[icon]) || Gift;
-}
 
 export function StockPill({ reward }: { reward: Pick<Reward, "stockTotal" | "stockRemaining"> }) {
   const state = stockState(reward.stockTotal, reward.stockRemaining);
