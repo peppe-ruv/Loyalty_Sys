@@ -67,19 +67,19 @@ public class CatalogController {
     }
 
     @PostMapping("/reward-bands")
-    @RequiresRole({Role.ADMIN})
+    @RequiresRole({Role.ADMIN, Role.MARKETING})
     public ResponseEntity<Band> createBand(@RequestBody Band b) {
         return ResponseEntity.status(HttpStatus.CREATED).body(admin.saveBand(b));
     }
 
     @PutMapping("/reward-bands/{code}")
-    @RequiresRole({Role.ADMIN})
+    @RequiresRole({Role.ADMIN, Role.MARKETING})
     public Band updateBand(@PathVariable String code, @RequestBody Band b) {
         return admin.saveBand(new Band(code, b.name(), b.pointsThreshold(), b.color(), b.sortOrder()));
     }
 
     @DeleteMapping("/reward-bands/{code}")
-    @RequiresRole({Role.ADMIN})
+    @RequiresRole({Role.ADMIN, Role.MARKETING})
     public ResponseEntity<Void> deleteBand(@PathVariable String code) {
         admin.deleteBand(code);
         return ResponseEntity.noContent().build();

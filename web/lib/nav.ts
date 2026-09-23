@@ -15,7 +15,7 @@ export interface NavGroup {
 
 // Milestone realizzate finora: M1 completa + fette di M2 già realizzate (BO-24 in M2.2). Le voci M2 non
 // ancora costruite semplicemente non sono ancora in NAV, quindi non compaiono (mai pagine "in arrivo").
-export const REALIZED_MILESTONE = 3;
+export const REALIZED_MILESTONE = 4;
 
 export const NAV: NavGroup[] = [
   {
@@ -37,6 +37,13 @@ export const NAV: NavGroup[] = [
       { id: "BO-07", label: "Livelli", href: "/backoffice/program/tiers", milestone: 3 },
       { id: "BO-08", label: "Valute ed edizioni", href: "/backoffice/program/currencies", milestone: 3 },
       { id: "BO-09", label: "Azioni e fonti", href: "/backoffice/program/actions", milestone: 1 },
+    ],
+  },
+  {
+    label: "Premi",
+    items: [
+      { id: "BO-10", label: "Catalogo", href: "/backoffice/rewards", milestone: 4 },
+      { id: "BO-11", label: "Fasce", href: "/backoffice/rewards/bands", milestone: 4 },
     ],
   },
   {
@@ -68,4 +75,17 @@ export function visibleNav(realized: number = REALIZED_MILESTONE): NavGroup[] {
   return NAV.map((g) => ({ ...g, items: g.items.filter((i) => i.milestone <= realized) })).filter(
     (g) => g.items.length > 0,
   );
+}
+
+/**
+ * Voce attiva: quella con l'href più lungo che contiene il percorso. Così `/backoffice/rewards/bands` accende
+ * solo *Fasce* (non anche *Catalogo*) e nessuna sottopagina accende la *Dashboard* (`/backoffice`).
+ */
+export function activeHref(pathname: string, groups: NavGroup[] = visibleNav()): string | null {
+  let best: string | null = null;
+  for (const item of groups.flatMap((g) => g.items)) {
+    const match = pathname === item.href || pathname.startsWith(item.href + "/");
+    if (match && (best === null || item.href.length > best.length)) best = item.href;
+  }
+  return best;
 }

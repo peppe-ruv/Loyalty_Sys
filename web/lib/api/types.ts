@@ -271,3 +271,54 @@ export interface Liability {
   byExpiryMonth: LiabilityMonth[];
   asOf: string;
 }
+
+// Premi (reward /v1/rewards*, /v1/reward-bands, /v1/reward-categories; docs/servizi/reward-service.md §3)
+export type RewardType = "PHYSICAL" | "COUPON" | "DIGITAL" | "DONATION" | "EXPERIENCE";
+export type RewardFulfilment = "AUTO_COUPON" | "MANUAL" | "INSTANT";
+
+export interface Reward {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  terms: string | null;
+  imageUrl: string | null;
+  type: RewardType;
+  categoryCode: string | null;
+  bandCode: string;
+  fulfilment: RewardFulfilment;
+  couponPoolId: string | null;
+  stockTotal: number | null; // null = illimitato
+  stockRemaining: number | null;
+  perMemberLimit: number | null;
+  eligibleTiers: string[];
+  eligibleSegments: string[];
+  validFrom: string | null;
+  validTo: string | null;
+  status: string;
+  version: number;
+  createdBy: string | null;
+  updatedAt: string;
+}
+
+export interface RewardBand {
+  code: string;
+  name: string;
+  pointsThreshold: number;
+  color: string | null;
+  sortOrder: number;
+}
+
+export interface RewardCategory {
+  code: string;
+  name: string;
+  icon: string | null;
+  sortOrder: number;
+}
+
+export interface RewardStats {
+  rewardsByStatus: Record<string, number>;
+  redemptionsByStatus: Record<string, number>;
+  topRewards: { rewardCode: string; rewardName: string; redemptions: number }[];
+  lowStock: { id: string; code: string; name: string; stockRemaining: number; stockTotal: number }[];
+}

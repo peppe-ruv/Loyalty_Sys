@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { useLhMutation } from "@/lib/api/client";
+import type { ServiceCode } from "@/lib/api/services";
 import { StatusPill } from "./primitives";
 import { Can } from "./Can";
 
 // Barra del ciclo di vita (docs/08 §3.3): solo le transizioni valide per lo stato. Approvazione off → DRAFT: Pubblica.
+// Macchina a stati comune (docs/06 §7): la stessa barra serve campagne, premi e gli altri oggetti configurabili.
 const TRANSITIONS: Record<string, { action: string; label: string }[]> = {
   DRAFT: [{ action: "PUBLISH", label: "Pubblica" }, { action: "ARCHIVE", label: "Archivia" }],
   IN_REVIEW: [{ action: "PUBLISH", label: "Pubblica" }],
@@ -15,21 +17,24 @@ const TRANSITIONS: Record<string, { action: string; label: string }[]> = {
 };
 
 export function LifecycleBar({
-  campaignId,
+  service,
+  transitionsPath,
   status,
-  system,
+  system = false,
   onChanged,
 }: {
-  campaignId: string;
+  service: ServiceCode;
+  /** Es. `/v1/campaigns/{id}/transitions`. */
+  transitionsPath: string;
   status: string;
-  system: boolean;
+  system?: boolean;
   onChanged: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const mutation = useLhMutation<unknown, { action: string }>(
-    "campaign",
+    service,
     "POST",
-    () => `/v1/campaigns/${campaignId}/transitions`,
+    () => transitionsPath,
     { onSuccess: () => onChanged() },
   );
 

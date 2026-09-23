@@ -63,6 +63,10 @@ class RewardServiceIT {
         assertThat(get("/v1/rewards").size()).isGreaterThanOrEqualTo(14);
         assertThat(get("/v1/reward-categories").size()).isEqualTo(5);
         assertThat(get("/v1/rewards?status=LIVE&band=F5").size()).isEqualTo(2);
+
+        JsonNode stats = get("/v1/rewards/stats");
+        assertThat(stats.path("rewardsByStatus").path("LIVE").asLong()).isGreaterThanOrEqualTo(10);
+        assertThat(stats.path("lowStock").toString()).contains("RWD-SHOP-25", "RWD-POWERBANK").doesNotContain("RWD-DONATION-TREE");
     }
 
     @Test
@@ -112,7 +116,7 @@ class RewardServiceIT {
         assertThat(status("POST", "/v1/reward-bands", "ADMIN:test",
                 Map.of("code", "F6", "name", "Fuori ordine", "pointsThreshold", 700, "sortOrder", 6))).isEqualTo(422);
         assertThat(status("DELETE", "/v1/reward-bands/F1", "ADMIN:test", null)).isEqualTo(409);
-        assertThat(status("POST", "/v1/reward-bands", "MARKETING:giulia",
+        assertThat(status("POST", "/v1/reward-bands", "CARE:paolo",
                 Map.of("code", "F6", "name", "Fascia 6", "pointsThreshold", 20000, "sortOrder", 6))).isEqualTo(403);
     }
 

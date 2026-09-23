@@ -30,7 +30,13 @@ export default function CampaignEditorPage() {
               actions={<CodeText>{c.code}</CodeText>}
             />
             <div className="mb-4">
-              <LifecycleBar campaignId={c.id} status={c.status} system={c.system} onChanged={() => query.refetch()} />
+              <LifecycleBar
+                service="campaign"
+                transitionsPath={`/v1/campaigns/${c.id}/transitions`}
+                status={c.status}
+                system={c.system}
+                onChanged={() => query.refetch()}
+              />
             </div>
             <div className="mb-4">
               <GeneratedSentence draft={draft} />

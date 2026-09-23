@@ -12,12 +12,12 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M1 — Core loop e primo deploy | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M1.1→M1.8 chiuse; demo ospitata online |
 | M2 — Visibilità | completata | M2.8 | | ☑ | |
 | M3 — Punti adulti | chiusa (codice) | 2026-09-21 | 2026-09-23 | ☑ | M3.1–M3.9 implementate; criteri di accettazione verdi con test automatici; resta `smoke.sh` sulla demo online |
-| M4 — Premi | da iniziare | | | ☐ | |
+| M4 — Premi | in corso | 2026-09-23 | | ☐ | M4.1 chiusa (reward nell'hub, BO-10/BO-11) |
 | M5 — Gioco | da iniziare | | | ☐ | |
 | M6 — Contenuti | da iniziare | | | ☐ | |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** `smoke.sh` sulla demo online (da una macchina con accesso), poi M4 (spesa FIFO, premi e riscatti)
+**Prossima fetta da lavorare:** `M4.2` pool coupon (generazione con seme, import, uso/annullo, BO-12); resta `smoke.sh` di M3 sulla demo online
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -26,7 +26,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | Repository GitHub | ✅ | branch `claude/istruzioni-dwhe86` |
 | Kafka locale (compose) | ✅ | `deploy/docker-compose.yml` (KRaft); topic dal profilo `local` |
 | Hub online (Render, free) | ✅ | `srv-daneakoae00c73eg7j20` — https://loyalty-hub-6dc3.onrender.com (Docker `deploy/hub/Dockerfile`, Frankfurt). Include **insight** (event store + SSE) da M2.2. **Profilo `demo` (broker reale, ADR-025)**: consuma i 5 topic da **Aiven Kafka** (SSL client cert). Fallback a costo zero `demo,inproc` (bus in-process) sempre disponibile cambiando `SPRING_PROFILES_ACTIVE` |
-| Postgres Neon | ✅ | progetto `damp-leaf-89930909` (`loyalty-hub`, eu-central-1, PG 18); DB `neondb`, schemi `ingestion/member/campaign/wallet/insight` migrati e seminati all'avvio. **Nota**: il progetto Neon precedente (`odd-pine-62283646`) è stato ricreato il 2026-09-20; le credenziali dell'hub su Render (`DB_URL/DB_USERNAME/DB_PASSWORD`) puntano al nuovo endpoint pooler `ep-late-smoke-b11gfp2h-pooler`. Il DB nuovo nasce vuoto: hub esegue migrazioni + seed al boot (profilo `demo`) |
+| Postgres Neon | ✅ | progetto `damp-leaf-89930909` (`loyalty-hub`, eu-central-1, PG 18); DB `neondb`, schemi `ingestion/member/campaign/wallet/insight/reward` migrati e seminati all'avvio. **Nota**: il progetto Neon precedente (`odd-pine-62283646`) è stato ricreato il 2026-09-20; le credenziali dell'hub su Render (`DB_URL/DB_USERNAME/DB_PASSWORD`) puntano al nuovo endpoint pooler `ep-late-smoke-b11gfp2h-pooler`. Il DB nuovo nasce vuoto: hub esegue migrazioni + seed al boot (profilo `demo`) |
 | Broker Kafka gestito | ✅ | **Aiven Kafka** `kafka-3df3ed2e-…aivencloud.com:19612` (cluster multi-broker, rack ams3), 5 topic pre-creati, auth **SSL client cert** (ADR-025). L'hub in profilo `demo` consuma/produce sul broker reale; verificato live (consumer group per servizio, tutti i topic assegnati). Non è free tier: deroga consapevole a "costo zero", reversibile col profilo `demo,inproc` |
 | Frontend Vercel | ✅ | progetto `loyalty-hub-web` (`prj_pO7cj7Q6iMKbcSXFPakB8WhilUUb`, team `poc-22b1`, Next.js, root `web/`, branch `claude/istruzioni-dwhe86`) — **https://loyalty-hub-web.vercel.app**. Env: `LH_SVC_{INGESTION,MEMBER,CAMPAIGN,WALLET,INSIGHT}_URL` + `NEXT_PUBLIC_LH_INSIGHT_URL` all'hub Render (SSE diretto per BO-24); deployment protection off (demo pubblica). NB: `loyalty-hub-playground` è un'altra app (Payload CMS), lasciata intatta |
 
@@ -179,7 +179,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 **Fette** (`docs/12 §3`)
 
-- [ ] `M4.1`
+- [x] `M4.1` — _reward-service nell'hub (schema `reward`, catalogo/fasce/categorie, ciclo di vita, catalogo portale, `/v1/rewards/stats`) + BO-10 e BO-11_
 - [ ] `M4.2`
 - [ ] `M4.3`
 - [ ] `M4.4`
@@ -190,14 +190,14 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 - [ ] `F-WAL-04` Spesa FIFO (P0)
 - [ ] `F-WAL-08` Saga di spesa (P0)
-- [ ] `F-RWD-01` Catalogo premi (P0)
-- [ ] `F-RWD-02` Fasce premi (P0)
-- [ ] `F-RWD-03` Disponibilità (P0)
-- [ ] `F-RWD-04` Visibilità (P0 tier · P1 segmenti) — _M4 / M6_
+- [x] `F-RWD-01` Catalogo premi (P0) — _M4.1: API + BO-10 (griglia/tabella, editor); PT-03 in M4.5_
+- [x] `F-RWD-02` Fasce premi (P0) — _M4.1: soglie uniche e crescenti, `BAND_IN_USE`, BO-11 con impatto sui premi LIVE_
+- [ ] `F-RWD-03` Disponibilità (P0) — _M4.1: stock/limite per membro/`stockState`; prenotazione atomica con la saga in M4.3_
+- [x] `F-RWD-04` Visibilità (P0 tier · P1 segmenti) — _M4.1: tier (lucchetto) e segmenti (esclusione) sul catalogo portale da snapshot dei fatti; `AudiencePicker` in M6_
 - [ ] `F-RWD-05` Richiesta premio (P0)
 - [ ] `F-RWD-06` Evasione (P0)
 - [ ] `F-RWD-07` Annullamento con rimborso (P1)
-- [ ] `F-RWD-08` Ciclo di vita premio (P0) — _M4 (M7 approv.)_
+- [x] `F-RWD-08` Ciclo di vita premio (P0) — _M4.1: macchina a stati comune, blocco campi LIVE (`REWARD_LIVE_LOCKED`), duplica; approvazione in M7_
 - [ ] `F-CPN-01` Pool di coupon (P0)
 - [ ] `F-CPN-02` Emissione (P0) — _M4 / M5_
 - [ ] `F-CPN-03` Utilizzo (P1)
@@ -321,6 +321,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 | Data | Fetta | Esito | Commit | Domande aperte create | Note per la prossima sessione |
 |---|---|---|---|---|---|
+| 2026-09-23 | M4.1 | ✅ `./mvnw verify` verde (`RewardServiceIT` 5, `HubEndToEndIT` 5), `pnpm lint typecheck test build` verdi (29 test), `check-contracts` 18, `check-seed` 14; BO-10/BO-11 renderizzate e controllate (Playwright, dati del seed) | 3613556, (questo commit) | — | reward-service nell'hub: tabella snapshot rinominata `reward_member_snapshot` (collideva con `campaign.member_snapshot` nel search_path condiviso). Fasce modificabili da ADMIN e MARKETING (`object.edit`, docs/08 §2). `LifecycleBar` ora generica (servizio + percorso). Fix sidebar: evidenziata solo la voce più specifica. **Da fare fuori sessione**: env Vercel `LH_SVC_REWARD_URL` → hub Render, senza la quale BO-10/11 mostrano lo stato *degraded*. |
 | 2026-09-23 | Accettazione M3 | ✅ `./mvnw verify` verde (HubEndToEndIT 4, CampaignServiceIT 11, InsightServiceIT 9, …), `check-contracts` 18, `check-seed` 11 | b3a44fe, (questo commit) | Q-50, Q-51 | Verifica dei criteri M3 con test sull'hub consolidato. Trovati e corretti: `PUT /v1/campaigns/{id}` mancante (F-CMP-01, blocco campi `LIVE`); `SCN-TIER-UP` assente dal seed (aggiunto, con segnaposto `at: @lastWeekdayT10:30` ora supportato dall'esecutore scenari); lotto in scadenza di Chiara 720 invece dei 1 900 di docs/10 (`expiringSoon` nel seed); esito del tracciato che leggeva `from/to` invece di `previousTier/newTier` (EVT-FACT-28) → cambio livello mai mostrato in BO-25; test E2E dell'hub su Giulia diventato instabile con il ponte attivo e con data fissa destinata a uscire dalla finestra dei 30 giorni. |
 | 2026-09-23 | M3.5-FE · M3.6-FE · M3.9 | ✅ `./mvnw verify` verde (13 IT `WalletServiceIT` con passività), `pnpm lint typecheck test build` verdi (22 test), `check-contracts` 18, `check-seed` 11; grafico passività renderizzato e controllato (Playwright, dati fittizi) | 2c99326, (questo commit) | — | BO-03 *Rettifica punti* e BO-09 *Ponte interno*. M3.9: `/v1/liability` + colonne per mese di scadenza (dataviz: accento `#0b7a75` sotto la soglia di croma → teal `#0d9488` validato); per gli STS, che non scadono a lotto, frase al posto di un grafico vuoto. Deploy Render di M3.5/M3.8 `live`. |
 | 2026-09-23 | M3.4 · M3.5-BE · M3.6-BE · M3.8 | ✅ `./mvnw verify` verde (locale + CI su PR #9/#10), `pnpm lint typecheck test build` verdi, `check-contracts` 18, `check-seed` 11 | f899b7f, c8acbd2, 4b8c8e6, 15e59d0 (#9), 7334607 (#10), 5fee9a0 | Q-45…Q-49 | Fix review Codex su PR #7 (chiusura atomica/serializzata, lock STS, scadenza di edizione). M3.5 ripresa da Claude dal lavoro di Jules: tipi gestiti fissi (il router li registra prima del seed), nomi brevi/lunghi normalizzati, un solo handler per `member.registered`, controller mancante. Font self-hosted (`next/font/local`): la build non dipende più da Google Fonts. Da qui in poi niente Jules. |

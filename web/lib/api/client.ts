@@ -79,17 +79,20 @@ export function useLhQuery<T>(
   });
 }
 
-/** Mutazione POST/PATCH/PUT; invalida le query del servizio al successo. */
+/** Mutazione POST/PATCH/PUT/DELETE; invalida le query del servizio al successo. */
 export function useLhMutation<TResult, TBody>(
   service: ServiceCode,
-  method: "POST" | "PATCH" | "PUT",
+  method: "POST" | "PATCH" | "PUT" | "DELETE",
   pathFor: (body: TBody) => string,
   options?: { onSuccess?: (result: TResult) => void; invalidate?: boolean },
 ) {
   const qc = useQueryClient();
   return useMutation<TResult, LhError, TBody>({
     mutationFn: (body: TBody) =>
-      lhFetch<TResult>(service, pathFor(body), { method, body: JSON.stringify(body) }),
+      lhFetch<TResult>(service, pathFor(body), {
+        method,
+        body: body === undefined ? undefined : JSON.stringify(body),
+      }),
     onSuccess: (result) => {
       if (options?.invalidate !== false) qc.invalidateQueries({ queryKey: [service] });
       options?.onSuccess?.(result);

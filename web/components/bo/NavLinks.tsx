@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { visibleNav } from "@/lib/nav";
+import { activeHref, visibleNav } from "@/lib/nav";
 import { cn } from "@/lib/cn";
 
 // Elenco dei gruppi/voci della sidebar (docs/08 §1), condiviso tra la sidebar fissa (desktop) e il
@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const groups = visibleNav();
+  const current = activeHref(pathname, groups);
 
   return (
     <nav className="flex-1 space-y-5 text-sm">
@@ -18,7 +19,7 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           <p className="px-2 pb-1 text-xs uppercase tracking-wide text-[#6b7890]">{g.label}</p>
           <ul>
             {g.items.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(item.href + "/");
+              const active = item.href === current;
               return (
                 <li key={item.id}>
                   <Link
