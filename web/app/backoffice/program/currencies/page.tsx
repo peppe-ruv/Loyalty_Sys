@@ -4,7 +4,9 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { lhFetch, useLhQuery, LhError } from "@/lib/api/client";
-import type { Currency, Edition, EditionClosePreviewResult } from "@/lib/api/types";
+import type { Currency, Edition, EditionClosePreviewResult, Liability } from "@/lib/api/types";
+import { LiabilityColumns } from "@/components/bo/LiabilityColumns";
+import { formatPoints } from "@/lib/format/points";
 import { Tabs } from "@/components/bo/Tabs";
 import { PageHeader, StatusPill, TierBadge } from "@/components/bo/primitives";
 import { QueryState } from "@/components/bo/QueryState";
@@ -21,7 +23,8 @@ const DATE_FORMAT = new Intl.DateTimeFormat("it-IT", {
 
 export default function CurrenciesPage() {
   const search = useSearchParams();
-  const currentTab = search.get("tab") === "editions" ? "editions" : "currencies";
+  const requested = search.get("tab");
+  const currentTab = requested === "editions" || requested === "liability" ? requested : "currencies";
 
   return (
     <div>
@@ -31,15 +34,12 @@ export default function CurrenciesPage() {
         tabs={[
           { key: "currencies", label: "Valute" },
           { key: "editions", label: "Edizioni" },
+          { key: "liability", label: "Passività" },
         ]}
         current={currentTab}
       />
 
-      {currentTab === "currencies" ? (
-        <CurrenciesTab />
-      ) : (
-        <EditionsTab />
-      )}
+      {currentTab === "currencies" ? <CurrenciesTab /> : currentTab === "editions" ? <EditionsTab /> : <LiabilityTab />}
     </div>
   );
 }
@@ -396,6 +396,49 @@ function EditionClosePanel({
             </div>
           </div>
         )}
+      </CardBody>
+    </Card>
+  );
+}
+
+// Scheda liability (F-WAL-09): punti in circolazione per valuta e per mese di scadenza.
+function LiabilityTab() {
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <LiabilityCard currency="PTS" title="Punti (PTS)" />
+      <LiabilityCard
+        currency="STS"
+        title="Punti status (STS)"
+        neverNote="Il saldo del periodo si azzera con la chiusura dell'edizione (discesa morbida)."
+      />
+    </div>
+  );
+}
+
+function LiabilityCard({ currency, title, neverNote }: { currency: string; title: string; neverNote?: string }) {
+  const query = useLhQuery<Liability>("wallet", `/v1/liability?currency=${currency}`);
+  return (
+    <Card>
+      <CardBody className="pt-4">
+        <h3 className="font-semibold text-[var(--color-bo-ink)]">{title}</h3>
+        <QueryState query={query} service="wallet">
+          {(l) => (
+            <div className="mt-2 space-y-3">
+              <div className="flex gap-6">
+                <div>
+                  <p className="text-xs text-[var(--color-bo-ink-2)]">In circolazione</p>
+                  <p className="text-2xl font-semibold tabular-nums text-[var(--color-bo-ink)]">{formatPoints(l.outstanding)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-[var(--color-bo-ink-2)]">In attesa</p>
+                  <p className="text-2xl font-semibold tabular-nums text-[var(--color-bo-ink-2)]">{formatPoints(l.pending)}</p>
+                </div>
+              </div>
+              <p className="text-xs text-[var(--color-bo-ink-2)]">Per mese di scadenza (prossimi 12 mesi)</p>
+              <LiabilityColumns rows={l.byExpiryMonth} unit={currency} neverNote={neverNote} />
+            </div>
+          )}
+        </QueryState>
       </CardBody>
     </Card>
   );

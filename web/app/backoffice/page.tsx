@@ -8,6 +8,8 @@ import { KpiTile } from "@/components/bo/dashboard/KpiTile";
 import { PeriodSelector } from "@/components/bo/dashboard/PeriodSelector";
 import { PointsAreaChart, type AreaRow } from "@/components/bo/dashboard/PointsAreaChart";
 import { SourceBars } from "@/components/bo/dashboard/SourceBars";
+import { LiabilityColumns } from "@/components/bo/LiabilityColumns";
+import type { Liability } from "@/lib/api/types";
 import type { KpiBreakdown, KpiOverview, KpiTimeSeries, Period } from "@/lib/api/insight";
 
 // BO-01 — Dashboard (docs/08 §BO-01, F-INS-03/04). Salute del programma in un colpo d'occhio: KpiTile con
@@ -22,6 +24,7 @@ export default function DashboardPage() {
   const earned = useLhQuery<KpiTimeSeries>("insight", "/v1/kpi/timeseries", { metric: "points_earned", ...q });
   const spent = useLhQuery<KpiTimeSeries>("insight", "/v1/kpi/timeseries", { metric: "points_spent", ...q });
   const expired = useLhQuery<KpiTimeSeries>("insight", "/v1/kpi/timeseries", { metric: "points_expired", ...q });
+  const liability = useLhQuery<Liability>("wallet", "/v1/liability", { currency: "PTS" });
   const actionsTs = useLhQuery<KpiTimeSeries>("insight", "/v1/kpi/timeseries", { metric: "actions", ...q });
   const activeTs = useLhQuery<KpiTimeSeries>("insight", "/v1/kpi/timeseries", { metric: "members_active", ...q });
   const bySource = useLhQuery<KpiBreakdown>("insight", "/v1/kpi/breakdown", { metric: "actions", dimension: "source", ...q, limit: 5 });
@@ -68,7 +71,16 @@ export default function DashboardPage() {
         </Section>
       </div>
 
-      {/* Riga 3 — "Da guardare" (le fonti mancanti arrivano con M3/M4/M7). */}
+      {/* Riga 3 — passività per mese di scadenza (F-WAL-09). Distribuzione tier e top campagne/premi: M4. */}
+      <div className="mt-4">
+        <Section title="Passività per mese di scadenza" hint="PTS in circolazione, prossimi 12 mesi">
+          <QueryState query={liability} service="wallet">
+            {(l) => <LiabilityColumns rows={l.byExpiryMonth} unit="PTS" />}
+          </QueryState>
+        </Section>
+      </div>
+
+      {/* Riga 4 — "Da guardare" (le fonti mancanti arrivano con M4/M7). */}
       <div className="mt-4">
         <Section title="Da guardare" hint="Segnali operativi">
           <QueryState query={overview} service="insight">

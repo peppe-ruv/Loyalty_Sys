@@ -221,6 +221,33 @@ class WalletServiceIT {
     }
 
     @Test
+    void liabilityMatchesWalletsAndSplitsActiveLotsByExpiryMonth() {
+        JsonNode pts = client().get().uri("/v1/liability?currency=PTS").retrieve().body(JsonNode.class);
+        assertThat(pts.path("currency").asString()).isEqualTo("PTS");
+        long outstanding = pts.path("outstanding").asLong();
+        assertThat(outstanding).isPositive();
+
+        long byMonth = 0;
+        String previous = "";
+        for (JsonNode m : pts.path("byExpiryMonth")) {
+            byMonth += m.path("amount").asLong();
+            if (!m.path("month").isNull()) {
+                assertThat(m.path("month").asString()).matches("\\d{4}-\\d{2}").isGreaterThan(previous);
+                previous = m.path("month").asString();
+            }
+        }
+        // Invariante dei lotti (docs/03 §4.2): i lotti attivi coprono esattamente i saldi attivi (stesso snapshot).
+        assertThat(byMonth).isEqualTo(outstanding);
+        // Il lotto seed "in scadenza a breve" (now + 12 giorni) cade nel mese corrente o nel successivo.
+        String soon = java.time.LocalDate.now(java.time.ZoneId.of("Europe/Rome")).plusDays(12).toString().substring(0, 7);
+        assertThat(pts.path("byExpiryMonth").findValuesAsString("month")).contains(soon);
+
+        int unknown = client().get().uri("/v1/liability?currency=XYZ")
+                .exchange((req, res) -> res.getStatusCode().value());
+        assertThat(unknown).isEqualTo(404);
+    }
+
+    @Test
     void tierDistributionAndHistoryAreExposed() {
         JsonNode dist = client().get().uri("/v1/tiers/distribution").retrieve().body(JsonNode.class);
         assertThat(dist.size()).isEqualTo(4);

@@ -257,3 +257,17 @@ export interface EditionClosePreviewResult {
   summary: ClosePreviewSummary;
   members: ClosePreviewMember[];
 }
+
+// Passività (F-WAL-09, wallet GET /v1/liability)
+export interface LiabilityMonth {
+  month: string | null; // YYYY-MM (Europe/Rome); null = lotti senza scadenza
+  amount: number;
+}
+
+export interface Liability {
+  currency: string;
+  outstanding: number;
+  pending: number;
+  byExpiryMonth: LiabilityMonth[];
+  asOf: string;
+}
