@@ -34,3 +34,15 @@ export function formatRelative(value: Date | string | number, now: Date = new Da
   if (diffH < 24) return `${diffH} h fa`;
   return formatDateTime(value);
 }
+
+/**
+ * Aggiunge i mesi alla data di partenza e imposta il giorno alla fine del mese risultante.
+ * @param months numero di mesi da aggiungere
+ * @param from data di partenza (default = oggi)
+ */
+export function computeRollingExpiry(months: number, from: Date = new Date()): Date {
+  const d = new Date(from.getTime());
+  d.setMonth(d.getMonth() + months + 1);
+  d.setDate(0); // L'ultimo giorno del mese precedente
+  return d;
+}
