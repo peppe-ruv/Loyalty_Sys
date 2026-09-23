@@ -167,6 +167,30 @@ class CampaignServiceIT {
     }
 
     @Test
+    void simulateTierUpgradedWithLookupCampaign() {
+        Map<String, Object> body = Map.of(
+                "action", Map.of("type", "tier.upgraded", "time", TUESDAY,
+                        "data", Map.of("newTier", "GOLD")),
+                "memberId", "MBR-000003"); // active member
+
+        JsonNode res = client().post().uri("/v1/campaigns/simulate")
+                .contentType(MediaType.APPLICATION_JSON).body(body).retrieve().body(JsonNode.class);
+
+        assertThat(res.path("outcome").asString()).isEqualTo("MATCHED");
+
+        boolean foundPts = false;
+        for (JsonNode e : res.path("effects")) {
+            if (e.path("currency").asString().equals("PTS")) {
+                assertThat(e.path("amount").asLong()).isEqualTo(500);
+                assertThat(e.path("tierMultiplierApplies").asBoolean()).isFalse();
+                assertThat(e.path("campaignCode").asString()).isEqualTo("CMP-TIER-UP-BONUS");
+                foundPts = true;
+            }
+        }
+        assertThat(foundPts).isTrue();
+    }
+
+    @Test
     void portalListsEarnRulesForMember() {
         JsonNode portal = client().get().uri("/v1/portal/campaigns?memberId=MBR-000003")
                 .retrieve().body(JsonNode.class);

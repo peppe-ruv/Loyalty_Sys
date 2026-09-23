@@ -17,9 +17,9 @@ import java.util.Map;
 /**
  * Motore regole deterministico (docs/03 §3.5) — classe pura, testabile senza Spring. Valuta un'azione
  * contro le campagne {@code LIVE}, raccoglie i {@code GRANT_POINTS}, applica i {@code MULTIPLIER} e produce
- * gli effetti {@code points.grant} con {@code effectId} idempotente. In M1.3 sono supportati solo
- * {@code GRANT_POINTS} ({@code FIXED}/{@code PER_AMOUNT}) e {@code MULTIPLIER}; le campagne con altri effetti
- * (o modi {@code LOOKUP}/{@code FROM_FIELD}) restano caricate ma scartate con {@code EFFECT_NOT_SUPPORTED_YET}.
+ * gli effetti {@code points.grant} con {@code effectId} idempotente. Sono supportati
+ * {@code GRANT_POINTS} ({@code FIXED}/{@code PER_AMOUNT}/{@code LOOKUP}/{@code FROM_FIELD}) e {@code MULTIPLIER}; le campagne con altri effetti
+ * restano caricate ma scartate con {@code EFFECT_NOT_SUPPORTED_YET}.
  */
 public final class CampaignEngine {
 
@@ -235,11 +235,11 @@ public final class CampaignEngine {
             }
             if (type.equals("GRANT_POINTS")) {
                 String mode = e.path("mode").asString("FIXED");
-                if (mode.equals("FIXED") || mode.equals("PER_AMOUNT")) {
+                if (mode.equals("FIXED") || mode.equals("PER_AMOUNT") || mode.equals("FROM_FIELD") || mode.equals("LOOKUP")) {
                     continue;
                 }
             }
-            return false; // GRANT_PLAYS / ISSUE_COUPON / AWARD_BADGE / SEND_MESSAGE / LOOKUP / FROM_FIELD
+            return false; // GRANT_PLAYS / ISSUE_COUPON / AWARD_BADGE / SEND_MESSAGE
         }
         return true;
     }
@@ -283,8 +283,32 @@ public final class CampaignEngine {
                 default -> (long) Math.floor(units);
             };
             value = rounded * effect.path("value").asLong(0);
+        } else if (mode.equals("FROM_FIELD")) {
+            JsonNode fieldNode = navigate(action.data(), effect.path("amountField").asString(""));
+            if (fieldNode == null || !fieldNode.isNumber() || fieldNode.isFloatingPointNumber() || !fieldNode.isIntegralNumber()) {
+                return null;
+            }
+            value = fieldNode.asLong();
+        } else if (mode.equals("LOOKUP")) {
+            JsonNode fieldNode = navigate(action.data(), effect.path("amountField").asString(""));
+            if (fieldNode == null || fieldNode.isMissingNode() || fieldNode.isNull()) {
+                return null;
+            }
+            String key;
+            if (fieldNode.isIntegralNumber()) {
+                key = String.valueOf(fieldNode.asLong());
+            } else if (fieldNode.isNumber()) {
+                key = fieldNode.asText();
+            } else {
+                key = fieldNode.asText();
+            }
+            JsonNode lookupNode = effect.get("lookup");
+            if (lookupNode == null || !lookupNode.has(key)) {
+                return null;
+            }
+            value = lookupNode.get(key).asLong(0);
         } else {
-            return null; // LOOKUP/FROM_FIELD non supportati in M1.3
+            return null; // Effetti non supportati in M1.3
         }
         if (effect.has("min")) {
             value = Math.max(value, effect.path("min").asLong());
