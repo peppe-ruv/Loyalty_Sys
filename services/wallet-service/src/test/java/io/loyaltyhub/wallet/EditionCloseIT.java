@@ -136,20 +136,27 @@ class EditionCloseIT {
                 .satisfies(e -> assertThat(((LhException) e).code()).isEqualTo("EDITION_ALREADY_CLOSED"));
     }
 
+    /** Fatti già letti dal consumer: la chiusura li pubblica insieme, un solo poll può contenerne più d'uno. */
+    private final List<JsonNode> seen = new java.util.ArrayList<>();
+
     private JsonNode awaitFact(String type, Predicate<JsonNode> dataMatch) {
         long deadline = System.currentTimeMillis() + 15_000;
-        while (System.currentTimeMillis() < deadline) {
+        while (true) {
+            for (JsonNode e : seen) {
+                if (e.path("type").asString().equals(type) && dataMatch.test(e.path("data"))) {
+                    return e.path("data");
+                }
+            }
+            if (System.currentTimeMillis() >= deadline) {
+                return null;
+            }
             for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
                 try {
-                    JsonNode e = mapper.readTree(r.value());
-                    if (e.path("type").asString().equals(type) && dataMatch.test(e.path("data"))) {
-                        return e.path("data");
-                    }
+                    seen.add(mapper.readTree(r.value()));
                 } catch (Exception ex) {
-                    // Ignore
+                    // record non JSON: ignorato
                 }
             }
         }
-        return null;
     }
 }
