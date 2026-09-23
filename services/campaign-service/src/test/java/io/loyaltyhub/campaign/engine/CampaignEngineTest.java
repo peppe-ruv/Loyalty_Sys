@@ -109,11 +109,296 @@ class CampaignEngineTest {
     }
 
     @Test
+    void testConditionOperators() {
+        JsonNode rules = JSON.readTree("[ " +
+                "{\"field\":\"data.amount\",\"cmp\":\"gt\",\"value\":10}, " +
+                "{\"field\":\"data.amount\",\"cmp\":\"gte\",\"value\":100}, " +
+                "{\"field\":\"data.amount\",\"cmp\":\"lt\",\"value\":1000}, " +
+                "{\"field\":\"data.amount\",\"cmp\":\"lte\",\"value\":150}, " +
+                "{\"field\":\"data.amount\",\"cmp\":\"neq\",\"value\":50}, " +
+                "{\"field\":\"data.currency\",\"cmp\":\"eq\",\"value\":\"EUR\"}, " +
+                "{\"field\":\"data.currency\",\"cmp\":\"in\",\"value\":[\"EUR\", \"USD\"]}, " +
+                "{\"field\":\"data.currency\",\"cmp\":\"nin\",\"value\":[\"GBP\"]}, " +
+                "{\"field\":\"data.category\",\"cmp\":\"contains\",\"value\":\"elec\"}, " +
+                "{\"field\":\"data.category\",\"cmp\":\"ncontains\",\"value\":\"food\"}, " +
+                "{\"field\":\"data.amount\",\"cmp\":\"between\",\"value\":[50, 200]}, " +
+                "{\"field\":\"data.code\",\"cmp\":\"startsWith\",\"value\":\"ABC\"}, " +
+                "{\"field\":\"data.extra\",\"cmp\":\"exists\"}, " +
+                "{\"field\":\"data.missing\",\"cmp\":\"nexists\"} " +
+                "]");
+
+        Campaign cmp = campaign("OP-TEST", "Operators", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":" + rules.toString() + "}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FIXED\",\"value\":10,\"tierMultiplierApplies\":false}]",
+                "{}");
+
+        JsonNode data = JSON.createObjectNode()
+                .put("amount", 100)
+                .put("currency", "EUR")
+                .put("category", "electronics")
+                .put("code", "ABC-123")
+                .put("extra", true);
+
+        EvalAction act = action("purchase.completed", TUESDAY, data);
+        Evaluation ev = engine.evaluate(act, silver(), List.of(cmp), zero);
+        assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+    }
+
+    @Test
+    void testFieldLookups() {
+        JsonNode rules = JSON.readTree("[ " +
+                "{\"field\":\"member.tier\",\"cmp\":\"eq\",\"value\":\"SILVER\"}, " +
+                "{\"field\":\"member.status\",\"cmp\":\"eq\",\"value\":\"ACTIVE\"}, " +
+                "{\"field\":\"member.segments\",\"cmp\":\"contains\",\"value\":\"VIP\"}, " +
+                "{\"field\":\"member.labels\",\"cmp\":\"contains\",\"value\":\"early-adopter\"}, " +
+                "{\"field\":\"member.age\",\"cmp\":\"gte\",\"value\":18}, " +
+                "{\"field\":\"member.registeredDaysAgo\",\"cmp\":\"gt\",\"value\":0}, " +
+                "{\"field\":\"member.attributes.preferredStore\",\"cmp\":\"eq\",\"value\":\"Milan\"}, " +
+                "{\"field\":\"context.source\",\"cmp\":\"eq\",\"value\":\"urn:loyaltyhub:source:ecommerce\"}, " +
+                "{\"field\":\"context.dayOfWeek\",\"cmp\":\"eq\",\"value\":\"TUE\"}, " +
+                "{\"field\":\"context.hour\",\"cmp\":\"eq\",\"value\":12}, " +
+                "{\"field\":\"context.date\",\"cmp\":\"eq\",\"value\":\"2026-09-15\"}, " +
+                "{\"field\":\"history.actionCount\",\"cmp\":\"eq\",\"value\":5}, " +
+                "{\"field\":\"history.daysSinceLastAction\",\"cmp\":\"eq\",\"value\":2} " +
+                "]");
+        Campaign cmp = campaign("FIELD-TEST", "Fields", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":" + rules.toString() + "}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FIXED\",\"value\":10,\"tierMultiplierApplies\":false}]",
+                "{}");
+
+        Counters c = new Counters() {
+            public int memberMatches(String c, String m, String p, String k) { return 0; }
+            public long globalPointsDecided(String c) { return 0; }
+            public long globalMatches(String c) { return 0; }
+            public long historyActionCount(String m, String t) { return 5; }
+            public long historyDaysSinceLastAction(String m, String t) { return 2; }
+        };
+
+        EvalAction act = action("purchase.completed", TUESDAY, JSON.createObjectNode());
+
+        MemberSnapshot m = new MemberSnapshot("MBR-000003", "ACTIVE", "SILVER",
+                List.of("VIP"), List.of("early-adopter"),
+                JSON.createObjectNode().put("preferredStore", "Milan"),
+                Instant.parse("2026-01-01T00:00:00Z"),
+                java.time.LocalDate.parse("2000-01-01"));
+
+        Evaluation ev = engine.evaluate(act, m, List.of(cmp), c);
+        assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+    }
+
+    @Test
     void inactiveMemberIsNoMember() {
         MemberSnapshot blocked = new MemberSnapshot("MBR-000008", "BLOCKED", "BASE",
                 List.of(), List.of(), JSON.createObjectNode(), Instant.parse("2020-01-01T00:00:00Z"), null);
         Evaluation ev = engine.evaluate(purchase(TUESDAY, 130), blocked, List.of(purchaseBase()), zero);
         assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.NO_MEMBER);
+    }
+
+    @Test
+    void exclusiveGroupHighestPriorityWinsOthersSkipped() {
+        Campaign cmpLow = new Campaign("id-CMP-LOW", "CMP-LOW", "Low Priority", null, null, null, List.of("purchase.completed"),
+                JSON.createObjectNode().put("all", true), node("{\"op\":\"all\",\"rules\":[]}"),
+                node("[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FIXED\",\"value\":10,\"tierMultiplierApplies\":false}]"),
+                node("{}"), JSON.createObjectNode(), 10, "GROUP1", true, false, false, List.of(),
+                CampaignStatus.LIVE, 0, null, null);
+
+        Campaign cmpHigh = new Campaign("id-CMP-HIGH", "CMP-HIGH", "High Priority", null, null, null, List.of("purchase.completed"),
+                JSON.createObjectNode().put("all", true), node("{\"op\":\"all\",\"rules\":[]}"),
+                node("[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FIXED\",\"value\":20,\"tierMultiplierApplies\":false}]"),
+                node("{}"), JSON.createObjectNode(), 100, "GROUP1", true, false, false, List.of(),
+                CampaignStatus.LIVE, 0, null, null);
+
+        Evaluation ev = engine.evaluate(purchase(TUESDAY, 50), silver(), List.of(cmpLow, cmpHigh), zero);
+
+        assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+        assertThat(ev.results()).hasSize(2);
+
+        // Results are sorted by evaluation order which is sorted by priority DESC (so HIGH evaluated first), but the input list order matters if Engine doesn't sort them.
+        // Let's actually check how they are ordered in the results list.
+        Evaluation.CampaignResult highRes = ev.results().stream().filter(r -> r.campaignCode().equals("CMP-HIGH")).findFirst().get();
+        Evaluation.CampaignResult lowRes = ev.results().stream().filter(r -> r.campaignCode().equals("CMP-LOW")).findFirst().get();
+
+        assertThat(highRes.matched()).isTrue();
+        assertThat(lowRes.matched()).isFalse();
+        assertThat(lowRes.reason()).isEqualTo(Evaluation.SkipReason.EXCLUSIVE);
+
+        assertThat(ev.effects()).hasSize(1);
+        assertThat(grant(ev, "PTS").amount()).isEqualTo(20);
+    }
+
+    @Test
+    void grantPointsPerAmountWithUnitStepAndRounding() {
+        Campaign floorCmp = campaign("CMP-FLOOR", "Floor", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"PER_AMOUNT\",\"amountField\":\"data.amount\",\"value\":5,\"unitStep\":2.5,\"rounding\":\"FLOOR\",\"tierMultiplierApplies\":false}]",
+                "{}");
+
+        Campaign ceilCmp = campaign("CMP-CEIL", "Ceil", 90, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"STS\",\"mode\":\"PER_AMOUNT\",\"amountField\":\"data.amount\",\"value\":5,\"unitStep\":2.5,\"rounding\":\"CEIL\",\"tierMultiplierApplies\":false}]",
+                "{}");
+
+        Campaign roundCmp = campaign("CMP-ROUND", "Round", 80, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"GTS\",\"mode\":\"PER_AMOUNT\",\"amountField\":\"data.amount\",\"value\":5,\"unitStep\":2.5,\"rounding\":\"ROUND\",\"tierMultiplierApplies\":false}]",
+                "{}");
+
+        // Amount: 6.0
+        // Units: 6.0 / 2.5 = 2.4
+        // FLOOR: 2 * 5 = 10
+        // CEIL: 3 * 5 = 15
+        // ROUND: 2 * 5 = 10
+        Evaluation ev = engine.evaluate(purchase(TUESDAY, 6.0), silver(), List.of(floorCmp, ceilCmp, roundCmp), zero);
+
+        assertThat(grant(ev, "PTS").amount()).isEqualTo(10);
+        assertThat(grant(ev, "STS").amount()).isEqualTo(15);
+        assertThat(grant(ev, "GTS").amount()).isEqualTo(10);
+    }
+
+    @Test
+    void grantPointsPerAmountWithMinMax() {
+        Campaign cmp = campaign("CMP-MINMAX", "MinMax", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"PER_AMOUNT\",\"amountField\":\"data.amount\",\"value\":1,\"unitStep\":1,\"rounding\":\"FLOOR\",\"min\":10,\"max\":50,\"tierMultiplierApplies\":false}]",
+                "{}");
+
+        Evaluation evLow = engine.evaluate(purchase(TUESDAY, 5.0), silver(), List.of(cmp), zero);
+        assertThat(grant(evLow, "PTS").amount()).isEqualTo(10); // min kicks in
+
+        Evaluation evMid = engine.evaluate(purchase(TUESDAY, 25.0), silver(), List.of(cmp), zero);
+        assertThat(grant(evMid, "PTS").amount()).isEqualTo(25); // normal
+
+        Evaluation evHigh = engine.evaluate(purchase(TUESDAY, 100.0), silver(), List.of(cmp), zero);
+        assertThat(grant(evHigh, "PTS").amount()).isEqualTo(50); // max kicks in
+    }
+
+    @Test
+    void grantPointsAppliesTierMultiplierWhenFlagIsTrue() {
+        Campaign cmp = campaign("CMP-TIER", "Tier Multiplier", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FIXED\",\"value\":10,\"tierMultiplierApplies\":true}]",
+                "{}");
+
+        // The tier multiplier factor logic happens in the wallet, but the Engine creates a GrantedEffect
+        // with tierMultiplierApplies = true so the downstream component can know.
+        Evaluation ev = engine.evaluate(purchase(TUESDAY, 50.0), silver(), List.of(cmp), zero);
+
+        assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+        assertThat(grant(ev, "PTS").tierMultiplierApplies()).isTrue();
+    }
+
+    @Test
+    void emptyOrMalformedInputs() {
+        Campaign cmp = campaign("CMP-EMPTY", "Empty", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"PER_AMOUNT\",\"amountField\":\"data.missing\",\"value\":1,\"tierMultiplierApplies\":false}]",
+                "{}");
+
+        // missing field will result in computeBase returning null -> no grant
+        Evaluation ev = engine.evaluate(purchase(TUESDAY, 100.0), silver(), List.of(cmp), zero);
+        assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+        assertThat(ev.effects()).isEmpty();
+    }
+
+    @Test
+    void limitsReachedGlobalBudget() {
+        Counters reachedGlobal = new Counters() {
+            public int memberMatches(String c, String m, String p, String k) { return 0; }
+            public long globalPointsDecided(String c) { return 5000; } // maxPoints = 5000
+            public long globalMatches(String c) { return 10; }
+            public long historyActionCount(String m, String t) { return 0; }
+            public long historyDaysSinceLastAction(String m, String t) { return -1; }
+        };
+
+        Campaign cmp = campaign("CMP-BUDGET", "Budget", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FIXED\",\"value\":10,\"tierMultiplierApplies\":false}]",
+                "{\"global\":{\"maxPoints\":5000}}");
+
+        Evaluation ev = engine.evaluate(purchase(TUESDAY, 100.0), silver(), List.of(cmp), reachedGlobal);
+        assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.NO_MATCH);
+        assertThat(ev.results().get(0).reason()).isEqualTo(Evaluation.SkipReason.BUDGET);
+
+        Counters reachedMatches = new Counters() {
+            public int memberMatches(String c, String m, String p, String k) { return 0; }
+            public long globalPointsDecided(String c) { return 0; }
+            public long globalMatches(String c) { return 100; } // maxMatches = 100
+            public long historyActionCount(String m, String t) { return 0; }
+            public long historyDaysSinceLastAction(String m, String t) { return -1; }
+        };
+
+        Campaign cmp2 = campaign("CMP-BUDGET2", "Budget2", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FIXED\",\"value\":10,\"tierMultiplierApplies\":false}]",
+                "{\"global\":{\"maxMatches\":100}}");
+
+        Evaluation ev2 = engine.evaluate(purchase(TUESDAY, 100.0), silver(), List.of(cmp2), reachedMatches);
+        assertThat(ev2.outcome()).isEqualTo(Evaluation.Outcome.NO_MATCH);
+        assertThat(ev2.results().get(0).reason()).isEqualTo(Evaluation.SkipReason.BUDGET);
+    }
+
+    @Test
+    void limitsPeriodKeys() {
+        Campaign cmp = campaign("CMP-PERIOD", "Period", 100, List.of("purchase.completed"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FIXED\",\"value\":10,\"tierMultiplierApplies\":false}]",
+                "{\"perMember\":[{\"max\":1,\"period\":\"MONTH\"}]}");
+
+        Counters monthLimit = new Counters() {
+            public int memberMatches(String c, String m, String p, String k) {
+                if ("MONTH".equals(p) && "2026-09".equals(k)) {
+                    return 1;
+                }
+                return 0;
+            }
+            public long globalPointsDecided(String c) { return 0; }
+            public long globalMatches(String c) { return 0; }
+            public long historyActionCount(String m, String t) { return 0; }
+            public long historyDaysSinceLastAction(String m, String t) { return -1; }
+        };
+
+        Evaluation ev = engine.evaluate(purchase(TUESDAY, 100.0), silver(), List.of(cmp), monthLimit);
+        assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.NO_MATCH);
+        assertThat(ev.results().get(0).reason()).isEqualTo(Evaluation.SkipReason.LIMIT);
+    }
+
+    @Test
+    void checkScheduleRules() {
+        Campaign cmpOutTime = new Campaign("id-CMP-SCHED", "CMP-SCHED", "Schedule", null, null, null, List.of("purchase.completed"),
+                JSON.createObjectNode().put("all", true), node("{\"op\":\"all\",\"rules\":[]}"),
+                node("[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FIXED\",\"value\":10,\"tierMultiplierApplies\":false}]"),
+                node("{}"), node("{\"hours\":[14, 18]}"), 100, null, true, false, false, List.of(),
+                CampaignStatus.LIVE, 0, null, null);
+
+        // TUESDAY is at 10:00:00Z -> 12:00:00 CEST. Hours allowed are 14-18, so it will fail schedule check.
+        Evaluation evOutTime = engine.evaluate(purchase(TUESDAY, 100.0), silver(), List.of(cmpOutTime), zero);
+        assertThat(evOutTime.outcome()).isEqualTo(Evaluation.Outcome.NO_MATCH);
+        assertThat(evOutTime.results().get(0).reason()).isEqualTo(Evaluation.SkipReason.NOT_IN_SCHEDULE);
+
+        Campaign cmpOutDay = new Campaign("id-CMP-SCHED2", "CMP-SCHED2", "Schedule2", null, null, null, List.of("purchase.completed"),
+                JSON.createObjectNode().put("all", true), node("{\"op\":\"all\",\"rules\":[]}"),
+                node("[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FIXED\",\"value\":10,\"tierMultiplierApplies\":false}]"),
+                node("{}"), node("{\"daysOfWeek\":[\"SAT\", \"SUN\"]}"), 100, null, true, false, false, List.of(),
+                CampaignStatus.LIVE, 0, null, null);
+
+        // TUESDAY is not SAT or SUN.
+        Evaluation evOutDay = engine.evaluate(purchase(TUESDAY, 100.0), silver(), List.of(cmpOutDay), zero);
+        assertThat(evOutDay.outcome()).isEqualTo(Evaluation.Outcome.NO_MATCH);
+        assertThat(evOutDay.results().get(0).reason()).isEqualTo(Evaluation.SkipReason.NOT_IN_SCHEDULE);
+    }
+
+    @Test
+    void checkAudienceRules() {
+        Campaign cmpAudience = new Campaign("id-CMP-AUD", "CMP-AUD", "Audience", null, null, null, List.of("purchase.completed"),
+                node("{\"tiers\":[\"GOLD\"]}"), node("{\"op\":\"all\",\"rules\":[]}"),
+                node("[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FIXED\",\"value\":10,\"tierMultiplierApplies\":false}]"),
+                node("{}"), JSON.createObjectNode(), 100, null, true, false, false, List.of(),
+                CampaignStatus.LIVE, 0, null, null);
+
+        // Silver is not Gold.
+        Evaluation ev = engine.evaluate(purchase(TUESDAY, 100.0), silver(), List.of(cmpAudience), zero);
+        assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.NO_MATCH);
+        assertThat(ev.results().get(0).reason()).isEqualTo(Evaluation.SkipReason.AUDIENCE);
     }
 
     // ---------- fixture ----------
