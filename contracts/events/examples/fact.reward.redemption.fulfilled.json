@@ -1,0 +1,20 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZP7F8M9F0D1E2G3H4J5K6M",
+  "source": "urn:loyaltyhub:service:reward",
+  "type": "io.loyaltyhub.fact.reward.redemption.fulfilled",
+  "subject": "member:MBR-000004",
+  "time": "2026-09-15T09:30:02Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.reward.redemption.fulfilled:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZP0A1B2C3D4E5F6G7H8J9K",
+  "lhcausationid": "01J8ZP3C4F5M6D7Q8R9S0T1V2W",
+  "lhhop": 0,
+  "lhactor": "MEMBER:MBR-000004",
+  "data": {
+    "redemptionId": "01J8ZP1R2E3D4M5P6T7N8V9W0X",
+    "rewardCode": "RWD-SHOP-10",
+    "couponCode": "SHP10-7KQM-X3PD"
+  }
+}

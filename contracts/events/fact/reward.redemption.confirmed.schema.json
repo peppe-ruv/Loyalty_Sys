@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.reward.redemption.confirmed:1",
+  "title": "fact.reward.redemption.confirmed — data (EVT-FACT-41, docs/05 §5)",
+  "type": "object",
+  "required": [
+    "redemptionId",
+    "rewardCode",
+    "rewardName",
+    "pointsCost"
+  ],
+  "properties": {
+    "redemptionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rewardCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{2,39}$"
+    },
+    "rewardName": {
+      "type": "string"
+    },
+    "pointsCost": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "additionalProperties": true
+}

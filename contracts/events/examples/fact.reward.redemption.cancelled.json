@@ -1,0 +1,20 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZP6C7N8C9D0E1F2G3H4J5K",
+  "source": "urn:loyaltyhub:service:reward",
+  "type": "io.loyaltyhub.fact.reward.redemption.cancelled",
+  "subject": "member:MBR-000004",
+  "time": "2026-09-15T09:30:02Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.reward.redemption.cancelled:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZP0A1B2C3D4E5F6G7H8J9K",
+  "lhhop": 0,
+  "lhactor": "CARE:paolo.care",
+  "data": {
+    "redemptionId": "01J8ZP1R2E3D4M5P6T7N8V9W0X",
+    "reason": "CUSTOMER_REQUEST",
+    "refund": true,
+    "pointsCost": 1500
+  }
+}

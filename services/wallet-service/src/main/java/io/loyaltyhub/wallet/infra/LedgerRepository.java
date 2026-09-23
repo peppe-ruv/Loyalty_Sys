@@ -25,17 +25,39 @@ public class LedgerRepository {
     }
 
     public void insert(LedgerEntry e, String effectId, String actionId, String correlationId, String actor) {
+        insert(e, effectId, actionId, correlationId, actor, null);
+    }
+
+    /** Come {@link #insert(LedgerEntry, String, String, String, String)} con il riferimento alla richiesta premio. */
+    public void insert(LedgerEntry e, String effectId, String actionId, String correlationId, String actor,
+                       String redemptionId) {
         jdbc.sql("""
                         INSERT INTO ledger_entry
                           (id, member_id, currency, type, amount, direction, balance_after, occurred_at,
-                           source_type, effect_id, campaign_code, action_id, correlation_id, description, actor, metadata)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, cast(? AS jsonb))
+                           source_type, effect_id, redemption_id, campaign_code, action_id, correlation_id, description,
+                           actor, metadata)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, cast(? AS jsonb))
                         """)
                 .params(e.id(), e.memberId(), e.currency(), e.type(), e.amount(), e.direction(), e.balanceAfter(),
-                        java.sql.Timestamp.from(e.occurredAt()), e.sourceType(), effectId, e.campaignCode(),
-                        actionId, correlationId, e.description(), actor,
+                        java.sql.Timestamp.from(e.occurredAt()), e.sourceType(), effectId, redemptionId,
+                        e.campaignCode(), actionId, correlationId, e.description(), actor,
                         e.metadataJson() == null ? "{}" : e.metadataJson())
                 .update();
+    }
+
+    /** Movimento di una richiesta premio per tipo ({@code SPEND}/{@code REFUND}): idempotenza su {@code redemption_id}. */
+    public java.util.Optional<RedemptionEntry> findByRedemption(String redemptionId, String type) {
+        return jdbc.sql("""
+                        SELECT id, member_id, currency, amount FROM ledger_entry
+                        WHERE redemption_id = ? AND type = ? ORDER BY created_at LIMIT 1
+                        """)
+                .params(redemptionId, type)
+                .query((rs, n) -> new RedemptionEntry(rs.getString("id"), rs.getString("member_id"),
+                        rs.getString("currency"), rs.getLong("amount")))
+                .optional();
+    }
+
+    public record RedemptionEntry(String id, String memberId, String currency, long amount) {
     }
 
     public List<LedgerEntry> listByMember(String memberId, String currency, int limit) {

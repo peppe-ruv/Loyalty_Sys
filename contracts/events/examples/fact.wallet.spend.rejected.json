@@ -1,0 +1,21 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZP4J5K6M7N8P9Q0R1S2T3V",
+  "source": "urn:loyaltyhub:service:wallet",
+  "type": "io.loyaltyhub.fact.wallet.spend.rejected",
+  "subject": "member:MBR-000004",
+  "time": "2026-09-15T09:30:02Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.wallet.spend.rejected:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZP0A1B2C3D4E5F6G7H8J9K",
+  "lhcausationid": "01J8ZP0A1B2C3D4E5F6G7H8J9K",
+  "lhhop": 0,
+  "lhactor": "MEMBER:MBR-000004",
+  "data": {
+    "redemptionId": "01J8ZP1R2E3D4M5P6T7N8V9W0X",
+    "reason": "INSUFFICIENT_BALANCE",
+    "requested": 1500,
+    "available": 100
+  }
+}

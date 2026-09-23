@@ -155,18 +155,7 @@ public class WalletService {
                     balanceAfter, asOf, "MANUAL", null, reason, metadataAdjust(reason, note));
             ledger.insert(entry, null, null, null, actorStr);
 
-            List<PointsLot> activeLots = lots.findActiveForDebit(memberId, currency);
-            long remainingToConsume = amount;
-
-            for (PointsLot lot : activeLots) {
-                if (remainingToConsume <= 0) break;
-                long consumeAmount = Math.min(lot.remaining(), remainingToConsume);
-                remainingToConsume -= consumeAmount;
-
-                String nextStatus = (lot.remaining() - consumeAmount == 0) ? PointsLot.EXHAUSTED : PointsLot.ACTIVE;
-                lots.consumeLot(lot.id(), consumeAmount, nextStatus);
-                lots.insertConsumption(ledgerId, lot.id(), consumeAmount);
-            }
+            lots.consumeFifo(memberId, currency, amount, ledgerId);
         }
 
         // Outbox Fact

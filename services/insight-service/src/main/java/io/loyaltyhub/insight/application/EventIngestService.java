@@ -82,7 +82,7 @@ public class EventIngestService {
         }
     }
 
-    /** Aggiorna gli aggregati giornalieri (docs §5). Solo le metriche con eventi in M1/M2. */
+    /** Aggiorna gli aggregati giornalieri (docs §5): le metriche i cui eventi esistono già (M1–M4). */
     private void updateMetrics(String family, String shortType, LhEvent<JsonNode> event, StoredEvent stored) {
         LocalDate day = (event.time() != null ? event.time() : Instant.now()).atZone(ZoneOffset.UTC).toLocalDate();
         JsonNode data = event.data() == null ? mapper.createObjectNode() : event.data();
@@ -103,6 +103,15 @@ public class EventIngestService {
                 metrics.increment(day, "points_earned", MetricRepository.TOTAL, MetricRepository.TOTAL, amount);
                 metrics.increment(day, "points_earned", "currency", currency, amount);
             }
+            // Spesa netta dei rimborsi e richieste confermate (M4, KPI di BO-01).
+            case "wallet.points.spent" ->
+                    metrics.increment(day, "points_spent", MetricRepository.TOTAL, MetricRepository.TOTAL, data.path("amount").asLong(0));
+            case "wallet.points.refunded" ->
+                    metrics.increment(day, "points_spent", MetricRepository.TOTAL, MetricRepository.TOTAL, -data.path("amount").asLong(0));
+            case "reward.redemption.confirmed" ->
+                    metrics.increment(day, "redemptions", MetricRepository.TOTAL, MetricRepository.TOTAL, 1);
+            case "wallet.points.expired" ->
+                    metrics.increment(day, "points_expired", MetricRepository.TOTAL, MetricRepository.TOTAL, data.path("amount").asLong(0));
             case "member.registered" ->
                     metrics.increment(day, "members_new", MetricRepository.TOTAL, MetricRepository.TOTAL, 1);
             case "tier.upgraded", "tier.changed" ->

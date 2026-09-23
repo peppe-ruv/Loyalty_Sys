@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.reward.redemption.cancelled:1",
+  "title": "fact.reward.redemption.cancelled — data (EVT-FACT-44, docs/05 §5)",
+  "type": "object",
+  "required": [
+    "redemptionId",
+    "reason",
+    "refund",
+    "pointsCost"
+  ],
+  "properties": {
+    "redemptionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "refund": {
+      "type": "boolean"
+    },
+    "pointsCost": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "additionalProperties": true
+}

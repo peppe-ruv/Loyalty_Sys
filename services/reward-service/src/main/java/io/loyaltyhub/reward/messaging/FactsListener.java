@@ -12,7 +12,7 @@ import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 /**
- * Consuma {@code lh.facts.v1} → snapshot dei membri ed esiti della spesa (docs/servizi/reward-service.md §4). I fatti
+ * Consuma {@code lh.facts.v1} → snapshot dei membri ed esiti della spesa ({@link RedemptionSagaHandler}) (docs/servizi/reward-service.md §4). I fatti
  * {@code reward.*} prodotti dal servizio stesso non hanno handler: vengono ignorati (nessun loop).
  */
 @Component

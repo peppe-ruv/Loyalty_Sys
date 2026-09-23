@@ -15,7 +15,7 @@ public class WalletRouting {
 
     @Bean("walletEventRouter")
     public EventRouter walletEventRouter(PointsGrantHandler grant, MemberLifecycleHandler lifecycle,
-                                         IdempotentHandler idempotent, LhMetrics metrics) {
-        return new EventRouter("lh-wallet", List.<EventHandler>of(grant, lifecycle), idempotent, metrics);
+                                         RedemptionHandler redemptions, IdempotentHandler idempotent, LhMetrics metrics) {
+        return new EventRouter("lh-wallet", List.<EventHandler>of(grant, lifecycle, redemptions), idempotent, metrics);
     }
 }

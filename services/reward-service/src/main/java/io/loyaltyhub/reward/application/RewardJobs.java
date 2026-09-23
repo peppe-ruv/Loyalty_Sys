@@ -8,7 +8,8 @@ import java.time.Clock;
 
 /**
  * Job schedulati di reward (docs/servizi/reward-service.md §5): scadenza giornaliera dei coupon. Attivi solo con
- * {@code loyaltyhub.jobs.enabled=true}; in demo si lanciano da BO-30 ({@code /v1/demo/jobs/expire-coupons}).
+ * {@code loyaltyhub.jobs.enabled=true}; in demo si lanciano da BO-30 ({@code /v1/demo/jobs/expire-coupons}). Il timeout
+ * delle richieste è a parte ({@link RedemptionTimeoutJob}): fa parte della saga e gira anche in demo.
  */
 @Component
 @ConditionalOnProperty(name = "loyaltyhub.jobs.enabled", havingValue = "true")

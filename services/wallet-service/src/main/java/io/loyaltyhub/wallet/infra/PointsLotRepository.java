@@ -65,6 +65,45 @@ public class PointsLotRepository {
                 .params(ledgerEntryId, lotId, amount).update();
     }
 
+    /**
+     * Consuma {@code amount} dai lotti attivi in ordine FIFO — prima scadenza, poi anzianità (docs/03 §4, F-WAL-04) —
+     * e registra in {@code lot_consumption} quanto preso da ciascun lotto per il movimento {@code ledgerEntryId}.
+     * Il chiamante ha già verificato il saldo sotto lock del wallet.
+     */
+    public void consumeFifo(String memberId, String currency, long amount, String ledgerEntryId) {
+        long left = amount;
+        for (PointsLot lot : findActiveForDebit(memberId, currency)) {
+            if (left <= 0) {
+                break;
+            }
+            long take = Math.min(lot.remaining(), left);
+            left -= take;
+            consumeLot(lot.id(), take, lot.remaining() - take == 0 ? PointsLot.EXHAUSTED : PointsLot.ACTIVE);
+            insertConsumption(ledgerEntryId, lot.id(), take);
+        }
+    }
+
+    /** Quanto un movimento ha preso da ciascun lotto (per il rimborso). */
+    public List<Consumption> consumptions(String ledgerEntryId) {
+        return jdbc.sql("""
+                        SELECT c.lot_id, c.amount, l.status, l.expires_at FROM lot_consumption c
+                        JOIN points_lot l ON l.id = c.lot_id WHERE c.ledger_entry_id = ?
+                        """)
+                .param(ledgerEntryId)
+                .query((rs, n) -> new Consumption(rs.getString("lot_id"), rs.getLong("amount"), rs.getString("status"),
+                        rs.getTimestamp("expires_at") == null ? null : rs.getTimestamp("expires_at").toInstant()))
+                .list();
+    }
+
+    /** Restituisce punti a un lotto non scaduto: torna {@code ACTIVE}. */
+    public void restore(String lotId, long amount) {
+        jdbc.sql("UPDATE points_lot SET remaining = remaining + ?, status = 'ACTIVE' WHERE id = ?")
+                .params(amount, lotId).update();
+    }
+
+    public record Consumption(String lotId, long amount, String status, Instant expiresAt) {
+    }
+
     /** Lotti {@code PENDING} il cui {@code available_at} è arrivato (rilascio, docs §5). */
     public List<PointsLot> findDuePending(Instant asOf) {
         return jdbc.sql("""

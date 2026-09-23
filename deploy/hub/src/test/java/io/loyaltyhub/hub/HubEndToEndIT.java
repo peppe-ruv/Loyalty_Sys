@@ -142,7 +142,72 @@ class HubEndToEndIT {
         assertThat(catalog.toString()).contains("RWD-WEEKEND").contains("lockedByTier");
     }
 
+    // ---------- saga di richiesta premio (M4.3, reward-service.md §7) ----------
+
+    @Test
+    void davideRedeemsShop10AndTheSagaIsOneTrace() {
+        // Davide (MBR-000004, 12 300 PTS) richiede RWD-SHOP-10 (1 500 PTS) → 202; entro 10 s FULFILLED con coupon,
+        // saldo −1 500, stock −1. Richiesta → spesa → conferma → coupon → evasione nello stesso tracciato.
+        long before = walletPts("MBR-000004");
+        int stock = stockOf("RWD-SHOP-10");
+        JsonNode accepted = client().post().uri("/v1/portal/redemptions").contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("memberId", "MBR-000004", "rewardCode", "RWD-SHOP-10")).retrieve().body(JsonNode.class);
+        String id = accepted.path("redemptionId").asString();
+
+        JsonNode done = awaitRedemption(id, "FULFILLED", 10_000);
+        assertThat(done.path("couponCode").asString()).startsWith("SHP10-");
+        assertThat(walletPts("MBR-000004")).isEqualTo(before - 1500);
+        assertThat(stockOf("RWD-SHOP-10")).isEqualTo(stock - 1);
+
+        JsonNode trace = awaitTrace(accepted.path("correlationId").asString(),
+                t -> t.toString().contains("reward.redemption.fulfilled"));
+        String nodes = trace.path("nodes").toString();
+        assertThat(nodes).contains("reward.redemption.requested", "wallet.points.spent", "reward.redemption.confirmed",
+                "coupon.issued", "reward.redemption.fulfilled");
+        long roots = 0;
+        for (JsonNode n : trace.path("nodes")) {
+            if (n.path("parentEventId").isNull() || n.path("parentEventId").isMissingNode()) {
+                roots++;
+            }
+        }
+        assertThat(roots).as("un solo albero").isEqualTo(1);
+    }
+
+    @Test
+    void annaWithoutPointsIsRejectedAndStockIsUnchanged() {
+        // Anna (MBR-000001, 100 PTS) richiede RWD-COFFEE-5 (500 PTS) → 202, poi REJECTED (INSUFFICIENT_BALANCE).
+        int stock = stockOf("RWD-COFFEE-5");
+        JsonNode accepted = client().post().uri("/v1/portal/redemptions").contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("memberId", "MBR-000001", "rewardCode", "RWD-COFFEE-5")).retrieve().body(JsonNode.class);
+        JsonNode r = awaitRedemption(accepted.path("redemptionId").asString(), "REJECTED", 10_000);
+        assertThat(r.path("rejectReason").asString()).isEqualTo("INSUFFICIENT_BALANCE");
+        assertThat(stockOf("RWD-COFFEE-5")).isEqualTo(stock);
+        assertThat(walletPts("MBR-000001")).isEqualTo(100);
+    }
+
     // ---------- helper ----------
+
+    private JsonNode awaitRedemption(String id, String status, long timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        JsonNode r = null;
+        while (System.currentTimeMillis() < deadline) {
+            r = client().get().uri("/v1/portal/redemptions/" + id).retrieve().body(JsonNode.class);
+            if (r.path("status").asString().equals(status)) {
+                return r;
+            }
+            sleep();
+        }
+        throw new AssertionError("richiesta " + id + " non " + status + " entro " + timeoutMs + " ms: " + r);
+    }
+
+    private int stockOf(String rewardCode) {
+        for (JsonNode r : client().get().uri("/v1/rewards?q=" + rewardCode).retrieve().body(JsonNode.class)) {
+            if (r.path("code").asString().equals(rewardCode)) {
+                return r.path("stockRemaining").asInt();
+            }
+        }
+        throw new AssertionError("premio assente: " + rewardCode);
+    }
 
     private long awaitPts(String memberId, long expected) {
         long deadline = System.currentTimeMillis() + 30_000;

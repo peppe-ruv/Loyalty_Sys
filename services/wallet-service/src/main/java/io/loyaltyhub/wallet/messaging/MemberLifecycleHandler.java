@@ -11,7 +11,7 @@ import java.util.Set;
 
 /**
  * Crea i due wallet + livello BASE al fatto {@code member.registered}, riflette {@code member.status.changed}
- * (docs/servizi/wallet-service.md §4). Le richieste premio (saga di spesa) arrivano con M4.
+ * (docs/servizi/wallet-service.md §4). Le richieste premio sono in {@link RedemptionHandler}.
  */
 @Component
 public class MemberLifecycleHandler implements EventHandler {

@@ -12,12 +12,12 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M1 — Core loop e primo deploy | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M1.1→M1.8 chiuse; demo ospitata online |
 | M2 — Visibilità | completata | M2.8 | | ☑ | |
 | M3 — Punti adulti | chiusa (codice) | 2026-09-21 | 2026-09-23 | ☑ | M3.1–M3.9 implementate; criteri di accettazione verdi con test automatici; resta `smoke.sh` sulla demo online |
-| M4 — Premi | in corso | 2026-09-23 | | ☐ | M4.1–M4.2 chiuse (catalogo, fasce, pool coupon; BO-10/11/12) |
+| M4 — Premi | in corso | 2026-09-23 | | ☐ | M4.1–M4.3 chiuse (catalogo, fasce, pool coupon, saga di richiesta; BO-10/11/12) |
 | M5 — Gioco | da iniziare | | | ☐ | |
 | M6 — Contenuti | da iniziare | | | ☐ | |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** `M4.3` saga richiesta premio (reward ↔ wallet, spesa FIFO, timeout, compensazione); resta `smoke.sh` di M3 sulla demo online
+**Prossima fetta da lavorare:** `M4.4` evasione manuale, annullo con rimborso, `retry-fulfilment`, seed `redemptions.json` e BO-13; resta `smoke.sh` sulla demo online
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -28,7 +28,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | Hub online (Render, free) | ✅ | `srv-daneakoae00c73eg7j20` — https://loyalty-hub-6dc3.onrender.com (Docker `deploy/hub/Dockerfile`, Frankfurt). Include **insight** (event store + SSE) da M2.2. **Profilo `demo` (broker reale, ADR-025)**: consuma i 5 topic da **Aiven Kafka** (SSL client cert). Fallback a costo zero `demo,inproc` (bus in-process) sempre disponibile cambiando `SPRING_PROFILES_ACTIVE` |
 | Postgres Neon | ✅ | progetto `damp-leaf-89930909` (`loyalty-hub`, eu-central-1, PG 18); DB `neondb`, schemi `ingestion/member/campaign/wallet/insight/reward` migrati e seminati all'avvio. **Nota**: il progetto Neon precedente (`odd-pine-62283646`) è stato ricreato il 2026-09-20; le credenziali dell'hub su Render (`DB_URL/DB_USERNAME/DB_PASSWORD`) puntano al nuovo endpoint pooler `ep-late-smoke-b11gfp2h-pooler`. Il DB nuovo nasce vuoto: hub esegue migrazioni + seed al boot (profilo `demo`) |
 | Broker Kafka gestito | ✅ | **Aiven Kafka** `kafka-3df3ed2e-…aivencloud.com:19612` (cluster multi-broker, rack ams3), 5 topic pre-creati, auth **SSL client cert** (ADR-025). L'hub in profilo `demo` consuma/produce sul broker reale; verificato live (consumer group per servizio, tutti i topic assegnati). Non è free tier: deroga consapevole a "costo zero", reversibile col profilo `demo,inproc` |
-| Frontend Vercel | ✅ | progetto `loyalty-hub-web` (`prj_pO7cj7Q6iMKbcSXFPakB8WhilUUb`, team `poc-22b1`, Next.js, root `web/`, branch `claude/istruzioni-dwhe86`) — **https://loyalty-hub-web.vercel.app**. Env: `LH_SVC_{INGESTION,MEMBER,CAMPAIGN,WALLET,INSIGHT}_URL` + `NEXT_PUBLIC_LH_INSIGHT_URL` all'hub Render (SSE diretto per BO-24); deployment protection off (demo pubblica). NB: `loyalty-hub-playground` è un'altra app (Payload CMS), lasciata intatta |
+| Frontend Vercel | ✅ | progetto `loyalty-hub-web` (`prj_pO7cj7Q6iMKbcSXFPakB8WhilUUb`, team `poc-22b1`, Next.js, root `web/`, branch `claude/istruzioni-dwhe86`) — **https://loyalty-hub-web.vercel.app**. Env: `LH_SVC_{INGESTION,MEMBER,CAMPAIGN,WALLET,INSIGHT,REWARD}_URL` + `NEXT_PUBLIC_LH_INSIGHT_URL` all'hub Render (SSE diretto per BO-24); deployment protection off (demo pubblica). NB: `loyalty-hub-playground` è un'altra app (Payload CMS), lasciata intatta |
 
 ## M0 — Fondamenta
 
@@ -181,25 +181,25 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 - [x] `M4.1` — _reward-service nell'hub (schema `reward`, catalogo/fasce/categorie, ciclo di vita, catalogo portale, `/v1/rewards/stats`) + BO-10 e BO-11_
 - [x] `M4.2` — _pool coupon con seme stabile, generazione ≤ 5 000 e import, cassa simulata (uso/annullo/scadenza), effetto `coupon.issue` idempotente, BO-12_
-- [ ] `M4.3`
+- [x] `M4.3` — _saga reward ↔ wallet: richiesta 202 con stock atomico e validazioni 422, spesa FIFO, conferma ed evasione (coupon/immediata/manuale), rifiuto, timeout 10 min, compensazione della spesa tardiva, rimborso_
 - [ ] `M4.4`
 - [ ] `M4.5`
 - [ ] `M4.6`
 
 **Feature** (`docs/02`)
 
-- [ ] `F-WAL-04` Spesa FIFO (P0)
-- [ ] `F-WAL-08` Saga di spesa (P0)
+- [x] `F-WAL-04` Spesa FIFO (P0) — _M4.3: lotti per scadenza poi anzianità, `lot_consumption`; la rettifica in addebito usa lo stesso consumo_
+- [x] `F-WAL-08` Saga di spesa (P0) — _M4.3: `wallet.points.spent` / `wallet.spend.rejected` idempotenti su `redemption_id`, rimborso con `wallet.points.refunded` (Q-54)_
 - [x] `F-RWD-01` Catalogo premi (P0) — _M4.1: API + BO-10 (griglia/tabella, editor); PT-03 in M4.5_
 - [x] `F-RWD-02` Fasce premi (P0) — _M4.1: soglie uniche e crescenti, `BAND_IN_USE`, BO-11 con impatto sui premi LIVE_
-- [ ] `F-RWD-03` Disponibilità (P0) — _M4.1: stock/limite per membro/`stockState`; prenotazione atomica con la saga in M4.3_
+- [x] `F-RWD-03` Disponibilità (P0) — _M4.1 stock/limite/`stockState`; M4.3 prenotazione atomica (`UPDATE … WHERE stock_remaining > 0`), limite per membro sotto lock, ripristino su rifiuto/timeout/annullo_
 - [x] `F-RWD-04` Visibilità (P0 tier · P1 segmenti) — _M4.1: tier (lucchetto) e segmenti (esclusione) sul catalogo portale da snapshot dei fatti; `AudiencePicker` in M6_
-- [ ] `F-RWD-05` Richiesta premio (P0)
-- [ ] `F-RWD-06` Evasione (P0)
+- [ ] `F-RWD-05` Richiesta premio (P0) — _M4.3: backend completo (API portale, saga, timeout, compensazione); PT-04 in M4.5, BO-13 in M4.4_
+- [ ] `F-RWD-06` Evasione (P0) — _M4.3: automatica (coupon, pool vuoto → `needsAttention`) e immediata; manuale da BO-13 in M4.4_
 - [ ] `F-RWD-07` Annullamento con rimborso (P1)
 - [x] `F-RWD-08` Ciclo di vita premio (P0) — _M4.1: macchina a stati comune, blocco campi LIVE (`REWARD_LIVE_LOCKED`), duplica; approvazione in M7_
 - [x] `F-CPN-01` Pool di coupon (P0) — _M4.2: `prefix-XXXX-XXXX` da seme (stessi codici a ogni reset), import con scartati, stato per codice, BO-12_
-- [ ] `F-CPN-02` Emissione (P0) — _M4 / M5; M4.2: da effetto `coupon.issue` (idempotente su `effectId`, pool vuoto → DLQ `COUPON_POOL_EMPTY` senza ritentare); da richiesta premio in M4.3_
+- [x] `F-CPN-02` Emissione (P0) — _M4.2 da effetto `coupon.issue` (idempotente su `effectId`, pool vuoto → DLQ `COUPON_POOL_EMPTY`); M4.3 da richiesta premio (un solo coupon per richiesta anche se la spesa è rielaborata). Emissione da concorso in M5_
 - [x] `F-CPN-03` Utilizzo (P1) — _M4.2: `POST /v1/coupons/{code}/use` (409 già usato / 410 scaduto), fatto `coupon.used`, cassa simulata di BO-12_
 
 **Accettazione M4** (`docs/12`)
@@ -321,6 +321,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 | Data | Fetta | Esito | Commit | Domande aperte create | Note per la prossima sessione |
 |---|---|---|---|---|---|
+| 2026-09-23 | M4.3 | ✅ `./mvnw verify` verde (`RedemptionIT` 6, `WalletRedemptionIT` 3, `HubEndToEndIT` 7 con Davide → coupon e Anna → rifiuto sul hub consolidato, tracciato della saga a radice unica), `check-contracts` 30, `check-seed` 15 | (questo commit) | Q-54, Q-55 | Env Vercel `LH_SVC_REWARD_URL` impostata (conferma dell'owner) e redeploy di produzione. Contratti degli 8 fatti della saga. Trovato e corretto: il seed del wallet non riportava lo stato dei membri (Roberto `BLOCKED` avrebbe potuto spendere). insight ora alimenta `points_spent` (netto dei rimborsi), `redemptions` e `points_expired` per BO-01. |
 | 2026-09-23 | M4.2 | ✅ `./mvnw verify` verde (`CouponIT` 5, `RewardServiceIT` 5, hub), `pnpm lint typecheck test build` verdi (32 test), `check-contracts` 22, `check-seed` 15 (nuovo controllo premi ↔ fasce/categorie/pool); BO-12 renderizzata e controllata (Playwright), palette della barra per stato validata con dataviz | (questo commit) | Q-52, Q-53 | `seed/coupon-pools.json` (5 pool, SHP25 con 141 codici già usati → 9 disponibili come lo stock). V2: via i contatori `total/available` (si contano da `coupon`), `seed` per pool. lh-common: `NonRetryableEventException` (DLQ immediata con codice) e `LhException.gone` (410). Contratti nuovi: `effect.coupon.issue`, `fact.coupon.issued`, `fact.coupon.used`, `fact.reward.status.changed`. Editor premio: pool scelto da elenco. |
 | 2026-09-23 | M4.1 | ✅ `./mvnw verify` verde (`RewardServiceIT` 5, `HubEndToEndIT` 5), `pnpm lint typecheck test build` verdi (29 test), `check-contracts` 18, `check-seed` 14; BO-10/BO-11 renderizzate e controllate (Playwright, dati del seed) | 3613556, (questo commit) | — | reward-service nell'hub: tabella snapshot rinominata `reward_member_snapshot` (collideva con `campaign.member_snapshot` nel search_path condiviso). Fasce modificabili da ADMIN e MARKETING (`object.edit`, docs/08 §2). `LifecycleBar` ora generica (servizio + percorso). Fix sidebar: evidenziata solo la voce più specifica. **Da fare fuori sessione**: env Vercel `LH_SVC_REWARD_URL` → hub Render, senza la quale BO-10/11 mostrano lo stato *degraded*. |
 | 2026-09-23 | Accettazione M3 | ✅ `./mvnw verify` verde (HubEndToEndIT 4, CampaignServiceIT 11, InsightServiceIT 9, …), `check-contracts` 18, `check-seed` 11 | b3a44fe, (questo commit) | Q-50, Q-51 | Verifica dei criteri M3 con test sull'hub consolidato. Trovati e corretti: `PUT /v1/campaigns/{id}` mancante (F-CMP-01, blocco campi `LIVE`); `SCN-TIER-UP` assente dal seed (aggiunto, con segnaposto `at: @lastWeekdayT10:30` ora supportato dall'esecutore scenari); lotto in scadenza di Chiara 720 invece dei 1 900 di docs/10 (`expiringSoon` nel seed); esito del tracciato che leggeva `from/to` invece di `previousTier/newTier` (EVT-FACT-28) → cambio livello mai mostrato in BO-25; test E2E dell'hub su Giulia diventato instabile con il ponte attivo e con data fissa destinata a uscire dalla finestra dei 30 giorni. |

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.wallet.points.refunded:1",
+  "title": "fact.wallet.points.refunded — data (EVT-FACT-23, docs/05 §5)",
+  "type": "object",
+  "required": [
+    "redemptionId",
+    "amount",
+    "balanceAfter"
+  ],
+  "properties": {
+    "redemptionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "amount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "balanceAfter": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": true
+}

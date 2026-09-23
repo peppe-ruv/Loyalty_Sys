@@ -26,6 +26,12 @@ public class MemberSnapshotRepository {
     }
 
     /** Anagrafica e stato (member.registered / member.updated); il tier resta quello già noto. */
+    /** Riga del membro bloccata: le richieste dello stesso membro si serializzano (limite per membro). */
+    public Optional<MemberSnapshot> lock(String memberId) {
+        return jdbc.sql("SELECT member_id FROM reward_member_snapshot WHERE member_id = ? FOR UPDATE")
+                .param(memberId).query(String.class).optional().flatMap(this::find);
+    }
+
     public void upsertProfile(String memberId, String status, String firstName, String lastName) {
         jdbc.sql("""
                         INSERT INTO reward_member_snapshot (member_id, status, first_name, last_name) VALUES (?, ?, ?, ?)

@@ -131,7 +131,15 @@ public class WalletSeeder implements ApplicationRunner, DemoResettable {
             seedLots(memberId, "PTS", pts, ptsPolicy, soon);
             seedLots(memberId, "STS", sts, null, null); // STS: policy EDITION, senza scadenza in M3.1
         }
-        log.info("Seed wallet caricato (profilo demo): valute, livelli, edizioni, saldi, lotti");
+        // Stato del membro dal seed dell'anagrafica (in esercizio arriva da member.status.changed): un membro
+        // BLOCKED non spende punti nella saga di richiesta premio (docs/03 §5).
+        for (JsonNode m : seed.readTree("members.json")) {
+            String status = m.path("status").asString("ACTIVE");
+            if (!"ACTIVE".equals(status)) {
+                memberTiers.updateStatus(m.path("id").asString(), status);
+            }
+        }
+        log.info("Seed wallet caricato (profilo demo): valute, livelli, edizioni, saldi, lotti, stato membri");
     }
 
     /**

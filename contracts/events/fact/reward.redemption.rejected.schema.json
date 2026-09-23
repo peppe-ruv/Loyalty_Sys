@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.reward.redemption.rejected:1",
+  "title": "fact.reward.redemption.rejected — data (EVT-FACT-43, docs/05 §5)",
+  "type": "object",
+  "required": [
+    "redemptionId",
+    "reason"
+  ],
+  "properties": {
+    "redemptionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": true
+}

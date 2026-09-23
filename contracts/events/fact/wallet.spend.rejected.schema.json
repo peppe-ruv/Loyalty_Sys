@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.wallet.spend.rejected:1",
+  "title": "fact.wallet.spend.rejected — data (EVT-FACT-22, docs/05 §5)",
+  "type": "object",
+  "required": [
+    "redemptionId",
+    "reason",
+    "requested",
+    "available"
+  ],
+  "properties": {
+    "redemptionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reason": {
+      "enum": [
+        "INSUFFICIENT_BALANCE",
+        "MEMBER_NOT_ACTIVE"
+      ]
+    },
+    "requested": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "available": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": true
+}
