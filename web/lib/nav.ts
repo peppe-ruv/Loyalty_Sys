@@ -35,6 +35,7 @@ export const NAV: NavGroup[] = [
     items: [
       { id: "BO-05", label: "Campagne", href: "/backoffice/campaigns", milestone: 1 },
       { id: "BO-07", label: "Livelli", href: "/backoffice/program/tiers", milestone: 3 },
+      { id: "BO-08", label: "Valute ed edizioni", href: "/backoffice/program/currencies", milestone: 3 },
       { id: "BO-09", label: "Azioni e fonti", href: "/backoffice/program/actions", milestone: 1 },
     ],
   },

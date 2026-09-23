@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.wallet.points.adjusted:1",
+  "title": "fact.wallet.points.adjusted — data (EVT-FACT-26)",
+  "type": "object",
+  "required": ["direction", "currency", "amount", "reason", "note", "balanceAfter"],
+  "properties": {
+    "direction": { "enum": ["CREDIT", "DEBIT"] },
+    "currency": { "type": "string" },
+    "amount": { "type": "integer", "minimum": 1 },
+    "reason": { "type": "string" },
+    "note": { "type": "string" },
+    "balanceAfter": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": true
+}
