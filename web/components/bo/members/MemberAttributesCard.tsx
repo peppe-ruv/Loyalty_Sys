@@ -29,6 +29,8 @@ type MemberWithAttributes = MemberView & { labels: string[]; attributes?: Attrib
 export function MemberAttributesCard({ id }: { id: string }) {
   const member = useLhQuery<MemberWithAttributes>("member", `/v1/members/${id}`);
   const defs = useLhQuery<AttributeDefinition[]>("member", "/v1/attribute-definitions");
+  // L'esito resta visibile anche quando il form si ricrea sulla nuova versione del membro.
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   return (
     <Card>
       <CardBody className="space-y-3 pt-4">
@@ -36,7 +38,7 @@ export function MemberAttributesCard({ id }: { id: string }) {
         <QueryState query={member} service="member">
           {(m) => (
             <QueryState query={defs} service="member">
-              {(d) => <AttributesForm key={`${m.id}-${m.version}`} member={m} defs={d} />}
+              {(d) => <AttributesForm key={`${m.id}-${m.version}`} member={m} defs={d} message={message} setMessage={setMessage} />}
             </QueryState>
           )}
         </QueryState>
@@ -45,7 +47,19 @@ export function MemberAttributesCard({ id }: { id: string }) {
   );
 }
 
-function AttributesForm({ member, defs }: { member: MemberWithAttributes; defs: AttributeDefinition[] }) {
+type Message = { ok: boolean; text: string } | null;
+
+function AttributesForm({
+  member,
+  defs,
+  message,
+  setMessage,
+}: {
+  member: MemberWithAttributes;
+  defs: AttributeDefinition[];
+  message: Message;
+  setMessage: (m: Message) => void;
+}) {
   const qc = useQueryClient();
   const canWrite = useCan("member.write");
   const current = member.attributes ?? {};
@@ -55,7 +69,6 @@ function AttributesForm({ member, defs }: { member: MemberWithAttributes; defs: 
   const [labels, setLabels] = useState<string[]>(member.labels);
   const [draftLabel, setDraftLabel] = useState("");
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   const { attributes, errors } = attributePatch(defs, current, form);
   const dirty = Object.keys(attributes).length > 0 || !sameLabels(labels, member.labels);

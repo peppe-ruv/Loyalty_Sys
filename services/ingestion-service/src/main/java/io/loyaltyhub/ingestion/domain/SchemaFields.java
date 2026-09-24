@@ -30,6 +30,8 @@ public final class SchemaFields {
         if (schema != null && schema.isObject()) {
             walk(schema, "data", true, out);
         }
+        // jsonb non conserva l'ordine delle chiavi: ordine alfabetico per il costruttore di condizioni.
+        out.sort(java.util.Comparator.comparing(Field::path));
         return out;
     }
 
