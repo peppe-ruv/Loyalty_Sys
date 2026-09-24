@@ -64,6 +64,9 @@ class ContentIT {
     @Autowired
     private io.loyaltyhub.engagement.application.ContentService contents;
 
+    @Autowired
+    private JdbcClient jdbc;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -91,7 +94,8 @@ class ContentIT {
         JsonNode card = get("/v1/portal/content?memberId=MBR-000002&placement=HOME_GRID").get(0);
         assertThat(card.path("ctaTarget").asString()).isEqualTo("/portal/invite");
         assertThat(card.has("audience")).as("il portale non vede pubblico né stato").isFalse();
-        assertThat(get("/v1/contents?kind=POPUP").size()).isEqualTo(3);
+        // Gli altri test possono creare contenuti *-IT-*: si contano solo quelli del seed.
+        assertThat(codes(get("/v1/contents?kind=POPUP")).stream().filter(c -> !c.contains("-IT-")).count()).isEqualTo(3);
     }
 
     /** docs/servizi/engagement-service.md §7: pubblico GOLD/PLATINUM → assente per Anna, presente per Davide; preview lo spiega. */
@@ -195,6 +199,68 @@ class ContentIT {
                 e -> e.path("code").asString().equals("CNT-IT-OLD")).path("reason").asString()).isEqualTo("OUT_OF_SCHEDULE");
         assertThat(contents.endExpired(Instant.now())).isGreaterThanOrEqualTo(1);
         assertThat(get("/v1/contents/CNT-IT-OLD").path("status").asString()).isEqualTo("ENDED");
+    }
+
+    // ---------- pop-up (M6.2) ----------
+
+    /** docs/10 §7: Anna, iscritta ieri, vede POP-WELCOME; chiuso (ONCE) non ricompare. Davide è iscritto da anni. */
+    @Test
+    void welcomePopupShowsOnceToNewMembers() {
+        JsonNode first = get("/v1/portal/popups/next?memberId=MBR-000001");
+        assertThat(first.path("code").asString()).isEqualTo("POP-WELCOME");
+        assertThat(first.path("dismissible").asBoolean()).isTrue();
+        assertThat(first.path("id").asString()).isNotBlank();
+        // Leggere non consuma il pop-up: la vista si registra con seen.
+        assertThat(get("/v1/portal/popups/next?memberId=MBR-000001").path("code").asString()).isEqualTo("POP-WELCOME");
+
+        JsonNode davide = get("/v1/contents/preview?memberId=MBR-000004&placement=POPUP");
+        assertThat(find(davide.path("excluded"), e -> e.path("code").asString().equals("POP-WELCOME")).path("reason").asString())
+                .isEqualTo("NOT_IN_AUDIENCE");
+        assertThat(find(davide.path("excluded"), e -> e.path("code").asString().equals("POP-COMEBACK")).path("reason").asString())
+                .isEqualTo("NOT_LIVE");
+
+        send("POST", "/v1/portal/popups/" + first.path("id").asString() + "/seen", null,
+                Map.of("memberId", "MBR-000001", "dismissed", true), 204);
+        assertThat(status("GET", "/v1/portal/popups/next?memberId=MBR-000001", null, null) == 204
+                || !get("/v1/portal/popups/next?memberId=MBR-000001").path("code").asString().equals("POP-WELCOME"))
+                .as("POP-WELCOME non ricompare").isTrue();
+        JsonNode anna = get("/v1/contents/preview?memberId=MBR-000001&placement=POPUP");
+        assertThat(find(anna.path("excluded"), e -> e.path("code").asString().equals("POP-WELCOME")).path("reason").asString())
+                .isEqualTo("FREQUENCY");
+        assertThat(count("SELECT count(*) FROM popup_view WHERE member_id = 'MBR-000001' AND dismissed_at IS NOT NULL")).isEqualTo(1);
+    }
+
+    /** docs/servizi/engagement-service.md §7: ONCE_PER_DAY visto oggi → sparisce; il giorno dopo ricompare. */
+    @Test
+    void dailyPopupComesBackTheNextDay() {
+        JsonNode created = send("POST", "/v1/contents", MARKETING, Map.of("code", "POP-IT-DAILY", "kind", "POPUP",
+                "title", "Una volta al giorno", "frequency", "ONCE_PER_DAY", "priority", 999, "dismissible", false,
+                "audience", Map.of("tiers", List.of("SILVER"))), 201);
+        send("POST", "/v1/contents/POP-IT-DAILY/transitions", MARKETING, Map.of("action", "PUBLISH"), 200);
+        JsonNode next = get("/v1/portal/popups/next?memberId=MBR-000010");
+        assertThat(next.path("code").asString()).isEqualTo("POP-IT-DAILY");
+        assertThat(next.path("dismissible").asBoolean()).isFalse();
+
+        send("POST", "/v1/portal/popups/POP-IT-DAILY/seen", null, Map.of("memberId", "MBR-000010", "dismissed", false), 204);
+        send("POST", "/v1/portal/popups/POP-IT-DAILY/seen", null, Map.of("memberId", "MBR-000010", "dismissed", true), 204);
+        assertThat(count("SELECT count(*) FROM popup_view WHERE member_id = 'MBR-000010'")).as("una riga per giorno").isEqualTo(1);
+        assertThat(status("GET", "/v1/portal/popups/next?memberId=MBR-000010", null, null)).isEqualTo(204);
+
+        // Il giorno dopo: la vista registrata è di ieri.
+        jdbc.sql("UPDATE popup_view SET view_date = view_date - 1 WHERE content_id = ? AND member_id = 'MBR-000010'")
+                .param(created.path("id").asString()).update();
+        assertThat(get("/v1/portal/popups/next?memberId=MBR-000010").path("code").asString()).isEqualTo("POP-IT-DAILY");
+    }
+
+    @Test
+    void popupEndpointsValidateTheirInput() {
+        assertThat(status("GET", "/v1/portal/popups/next", null, null)).isEqualTo(400);
+        assertThat(status("POST", "/v1/portal/popups/CNT-FRIEND/seen", null, Map.of("memberId", "MBR-000002"))).isEqualTo(404);
+        assertThat(status("POST", "/v1/portal/popups/POP-WEEKEND/seen", null, Map.of())).isEqualTo(400);
+    }
+
+    private long count(String sql) {
+        return jdbc.sql(sql).query(Long.class).single();
     }
 
     // ---------- helper ----------

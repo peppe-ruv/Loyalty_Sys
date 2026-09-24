@@ -13,6 +13,7 @@ import io.loyaltyhub.engagement.domain.TemplateEngine;
 import io.loyaltyhub.engagement.infra.ContentRepository;
 import io.loyaltyhub.engagement.infra.InboxRepository;
 import io.loyaltyhub.engagement.infra.MemberSnapshotRepository;
+import io.loyaltyhub.engagement.infra.PopupViewRepository;
 import io.loyaltyhub.engagement.infra.RuleRepository;
 import io.loyaltyhub.engagement.infra.TemplateRepository;
 import org.slf4j.Logger;
@@ -57,11 +58,12 @@ public class EngagementSeeder implements ApplicationRunner, DemoResettable {
     private final MemberSnapshotRepository members;
     private final MessageContexts contexts;
     private final ContentRepository contents;
+    private final PopupViewRepository popups;
     private final Clock clock;
 
     public EngagementSeeder(SeedLoader seed, TemplateRepository templates, RuleRepository rules, InboxRepository inbox,
                             MemberSnapshotRepository members, MessageContexts contexts, ContentRepository contents,
-                            Clock clock) {
+                            PopupViewRepository popups, Clock clock) {
         this.seed = seed;
         this.templates = templates;
         this.rules = rules;
@@ -69,6 +71,7 @@ public class EngagementSeeder implements ApplicationRunner, DemoResettable {
         this.members = members;
         this.contexts = contexts;
         this.contents = contents;
+        this.popups = popups;
         this.clock = clock;
     }
 
@@ -86,6 +89,7 @@ public class EngagementSeeder implements ApplicationRunner, DemoResettable {
     @Transactional
     public void resetToSeed() {
         inbox.deleteAll();
+        popups.deleteAll();
         contents.deleteAll();
         rules.deleteAll();
         templates.deleteAll();
@@ -93,7 +97,7 @@ public class EngagementSeeder implements ApplicationRunner, DemoResettable {
 
         for (JsonNode m : seed.readTree("members.json")) {
             members.upsertSeed(m.path("id").asString(), text(m, "firstName"), m.path("status").asString("ACTIVE"),
-                    text(m, "tier"));
+                    text(m, "tier"), date(m, "registeredAt"));
         }
         Map<String, MessageTemplate> byCode = new HashMap<>();
         for (JsonNode t : seed.readTree("message-templates.json")) {

@@ -2,6 +2,7 @@ package io.loyaltyhub.member.demo;
 
 import tools.jackson.databind.JsonNode;
 import io.loyaltyhub.common.demo.DemoResettable;
+import io.loyaltyhub.common.demo.SeedDates;
 import io.loyaltyhub.common.demo.SeedLoader;
 import io.loyaltyhub.common.ids.Codes;
 import io.loyaltyhub.member.domain.Member;
@@ -80,15 +81,16 @@ public class MemberSeeder implements ApplicationRunner, DemoResettable {
             String birth = text(m.get("birthDate"));
             LocalDate birthDate = birth != null ? LocalDate.parse(birth) : null;
             String consents = m.has("consents") ? m.get("consents").toString() : "{}";
-            Instant now = clock.instant();
+            // Data d'iscrizione dal seed (docs/10 §2: Anna "iscritta ieri"); senza, adesso.
+            Instant registeredAt = m.hasNonNull("registeredAt") ? SeedDates.resolve(m.get("registeredAt").asString(), clock) : clock.instant();
             Member member = new Member(
                     id, text(m.get("externalId")), text(m.get("firstName")), text(m.get("lastName")),
                     text(m.get("nickname")), text(m.get("email")), text(m.get("phone")), birthDate, null,
-                    text(m.get("city")), status, "IMPORT", now, Codes.random(8, rnd), text(m.get("referredBy")),
+                    text(m.get("city")), status, "IMPORT", registeredAt, Codes.random(8, rnd), text(m.get("referredBy")),
                     null, consents, attributes, List.of(), avatarSeed, null, 0);
             // Profilo già completo nei seed (docs/10 §2: incompleti solo Anna ed Elisa): nessun fatto da riemettere.
             if (ProfileRules.missingFields(member).isEmpty()) {
-                member = ProfileRules.withCompletedAt(member, now);
+                member = ProfileRules.withCompletedAt(member, registeredAt);
             }
             members.insert(member);
 

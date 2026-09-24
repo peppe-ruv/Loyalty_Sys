@@ -63,6 +63,12 @@ public class ContentRepository {
                 .param(placement).query(this::map).list();
     }
 
+    /** Pop-up candidati, qualunque stato (esclusi gli archiviati): la selezione decide e spiega le esclusioni. */
+    public List<ContentItem> findPopups() {
+        return jdbc.sql("SELECT " + COLUMNS + " FROM content_item WHERE kind = 'POPUP' AND status <> 'ARCHIVED'")
+                .query(this::map).list();
+    }
+
     public Optional<ContentItem> find(String idOrCode) {
         if (idOrCode == null) {
             return Optional.empty();

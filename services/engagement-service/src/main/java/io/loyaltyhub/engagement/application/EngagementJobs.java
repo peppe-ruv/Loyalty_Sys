@@ -1,6 +1,7 @@
 package io.loyaltyhub.engagement.application;
 
 import io.loyaltyhub.engagement.infra.InboxRepository;
+import io.loyaltyhub.engagement.infra.PopupViewRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -13,7 +14,7 @@ import java.time.Duration;
 
 /**
  * Job schedulati di engagement (docs/servizi/engagement-service.md §5): pulizia dei messaggi dell'inbox più vecchi di
- * 180 giorni, ogni notte; fine automatica dei contenuti col calendario scaduto, ogni 10 minuti. Attivo solo con {@code loyaltyhub.jobs.enabled=true} (spento in demo, come negli altri servizi).
+ * 180 giorni e delle viste dei pop-up oltre 90, ogni notte; fine automatica dei contenuti col calendario scaduto, ogni 10 minuti. Attivo solo con {@code loyaltyhub.jobs.enabled=true} (spento in demo, come negli altri servizi).
  */
 @Component
 @Lazy(false)
@@ -23,12 +24,16 @@ public class EngagementJobs {
     private static final Logger log = LoggerFactory.getLogger(EngagementJobs.class);
     static final Duration INBOX_RETENTION = Duration.ofDays(180);
 
+    static final int POPUP_VIEW_RETENTION_DAYS = 90;
+
     private final InboxRepository inbox;
+    private final PopupViewRepository popupViews;
     private final ContentService contents;
     private final Clock clock;
 
-    public EngagementJobs(InboxRepository inbox, ContentService contents, Clock clock) {
+    public EngagementJobs(InboxRepository inbox, PopupViewRepository popupViews, ContentService contents, Clock clock) {
         this.inbox = inbox;
+        this.popupViews = popupViews;
         this.contents = contents;
         this.clock = clock;
     }
@@ -46,6 +51,10 @@ public class EngagementJobs {
         int removed = inbox.deleteOlderThan(clock.instant().minus(INBOX_RETENTION));
         if (removed > 0) {
             log.info("Pulizia inbox: rimossi {} messaggi oltre {} giorni", removed, INBOX_RETENTION.toDays());
+        }
+        int views = popupViews.deleteOlderThan(java.time.LocalDate.now(clock).minusDays(POPUP_VIEW_RETENTION_DAYS));
+        if (views > 0) {
+            log.info("Pulizia viste pop-up: rimosse {} oltre {} giorni", views, POPUP_VIEW_RETENTION_DAYS);
         }
     }
 }

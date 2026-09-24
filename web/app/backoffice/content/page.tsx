@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useLhQuery, type Page } from "@/lib/api/client";
 import type { MemberView } from "@/lib/api/types";
-import type { ContentItem, ContentPlacement, ContentPreview, ContentStatus } from "@/lib/content/types";
+import type { ContentItem, ContentPlacement, ContentPreview, ContentStatus, PreviewPlacement } from "@/lib/content/types";
 import { EXCLUSION_LABEL, PLACEMENT_LABEL, PLACEMENT_LIMIT } from "@/lib/content/links";
 import { KIND_LABEL, PLACEMENTS, audienceLabel, effectiveOrder, scheduleLabel } from "@/lib/content/manage";
 import { QueryState } from "@/components/bo/QueryState";
@@ -12,6 +12,7 @@ import { DataTable, type Column } from "@/components/bo/DataTable";
 import { Can } from "@/components/bo/Can";
 import { PhoneFrame } from "@/components/bo/PhoneFrame";
 import { ContentCard, toneOf } from "@/components/shared/content/ContentCard";
+import { PopupModal } from "@/components/shared/content/PopupModal";
 import { Card, CardBody } from "@/components/ui/card";
 import { CodeText, PageHeader, StatusPill } from "@/components/bo/primitives";
 import { INPUT } from "@/components/bo/FormBits";
@@ -158,9 +159,10 @@ function PlacementColumn({ placement, items }: { placement: ContentPlacement; it
 function MemberPreview() {
   const members = useLhQuery<Page<MemberView>>("member", "/v1/members", { size: 100 });
   const [memberId, setMemberId] = useState("MBR-000001");
-  const [placement, setPlacement] = useState<ContentPlacement>("HOME_GRID");
+  const [placement, setPlacement] = useState<PreviewPlacement>("HOME_GRID");
   const preview = useLhQuery<ContentPreview>("engagement", "/v1/contents/preview", { memberId, placement });
   const variant = placement === "HOME_HERO" ? "hero" : placement === "HOME_GRID" ? "grid" : placement === "CATALOG_TOP" ? "banner" : "inline";
+  const placementLabel = placement === "POPUP" ? "Pop-up all'ingresso" : PLACEMENT_LABEL[placement];
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
       <div className="space-y-3">
@@ -170,8 +172,9 @@ function MemberPreview() {
               <option key={m.id} value={m.id}>{m.firstName ? `${m.firstName} ${m.lastName ?? ""} · ${m.tier}` : m.id}</option>
             ))}
           </select>
-          <select aria-label="Posizionamento" value={placement} onChange={(e) => setPlacement(e.target.value as ContentPlacement)} className={cn(FILTER, "w-52")}>
+          <select aria-label="Posizionamento" value={placement} onChange={(e) => setPlacement(e.target.value as PreviewPlacement)} className={cn(FILTER, "w-52")}>
             {PLACEMENTS.map((p) => <option key={p} value={p}>{PLACEMENT_LABEL[p]}</option>)}
+            <option value="POPUP">Pop-up all&apos;ingresso</option>
           </select>
         </div>
         <QueryState query={preview} service="engagement">
@@ -196,9 +199,13 @@ function MemberPreview() {
           )}
         </QueryState>
       </div>
-      <PhoneFrame label={`Cosa vede adesso in «${PLACEMENT_LABEL[placement]}»`}>
+      <PhoneFrame label={`Cosa vede adesso in «${placementLabel}»`}>
         {preview.data ? (
-          preview.data.shown.length === 0 ? (
+          placement === "POPUP" && preview.data.shown[0] ? (
+            <div className="relative min-h-[380px]">
+              <PopupModal content={preview.data.shown[0]} dismissible preview />
+            </div>
+          ) : preview.data.shown.length === 0 ? (
             <p className="py-10 text-center text-xs text-[var(--color-pt-night)]/60">Niente da mostrare qui.</p>
           ) : (
             <div className={variant === "grid" ? "grid grid-cols-2 gap-2" : "space-y-2"}>

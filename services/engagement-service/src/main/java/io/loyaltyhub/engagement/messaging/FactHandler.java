@@ -48,7 +48,8 @@ public class FactHandler implements EventHandler {
         }
         switch (event.type()) {
             case LhEventTypes.Fact.MEMBER_REGISTERED, LhEventTypes.Fact.MEMBER_UPDATED ->
-                    members.upsertProfile(memberId, text(d, "firstName"), d.path("status").asString("ACTIVE"));
+                    members.upsertProfile(memberId, text(d, "firstName"), d.path("status").asString("ACTIVE"),
+                            registeredAt(d));
             case LhEventTypes.Fact.MEMBER_STATUS_CHANGED -> {
                 if (d.hasNonNull("newStatus")) {
                     members.updateStatus(memberId, d.get("newStatus").asString());
@@ -77,6 +78,15 @@ public class FactHandler implements EventHandler {
             default -> {
                 // nessun effetto sullo snapshot
             }
+        }
+    }
+
+    private static java.time.Instant registeredAt(JsonNode d) {
+        String v = text(d, "registeredAt");
+        try {
+            return v == null ? null : java.time.Instant.parse(v);
+        } catch (java.time.format.DateTimeParseException e) {
+            return null;
         }
     }
 

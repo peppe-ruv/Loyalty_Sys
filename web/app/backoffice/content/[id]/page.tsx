@@ -12,13 +12,14 @@ import { QueryState } from "@/components/bo/QueryState";
 import { Can, useCan } from "@/components/bo/Can";
 import { PhoneFrame } from "@/components/bo/PhoneFrame";
 import { ContentCard, type ContentVariant } from "@/components/shared/content/ContentCard";
+import { PopupModal } from "@/components/shared/content/PopupModal";
 import { Field, INPUT, Section } from "@/components/bo/FormBits";
 import { CodeText, PageHeader, StatusPill } from "@/components/bo/primitives";
 import { cn } from "@/lib/cn";
 
 // BO-18 editor (docs/08 §BO-18): form a sinistra, anteprima fedele a destra in PhoneFrame con i componenti del portale
 // (components/shared/content), aggiornata mentre si scrive. Destinazione della CTA scelta da elenco: concorso, premio,
-// campagna, pagina del portale, URL. Pop-up: frequenza e chiudibile (il portale li mostra da M6.2).
+// campagna, pagina del portale, URL. Pop-up: frequenza e chiudibile, anteprima con lo stesso PopupModal del portale.
 type Draft = {
   code: string;
   kind: ContentKind;
@@ -281,10 +282,10 @@ function Editor({ initial }: { initial: ContentItem | null }) {
         </form>
 
         <div className="lg:sticky lg:top-4 lg:self-start">
-          <PhoneFrame label={d.kind === "POPUP" ? "Anteprima del pop-up (nel portale da M6.2)" : `Anteprima in «${d.placement ? PLACEMENT_LABEL[d.placement] : "—"}»`}>
+          <PhoneFrame label={d.kind === "POPUP" ? "Anteprima del pop-up all'ingresso della Home" : `Anteprima in «${d.placement ? PLACEMENT_LABEL[d.placement] : "—"}»`}>
             {d.kind === "POPUP" ? (
-              <div className="flex min-h-[380px] items-center justify-center rounded-2xl bg-black/30 p-3">
-                <div className="w-full"><ContentCard content={preview} variant="inline" preview /></div>
+              <div className="relative min-h-[380px]">
+                <PopupModal content={preview} dismissible={d.dismissible} preview />
               </div>
             ) : variant === "grid" ? (
               <div className="grid grid-cols-2 gap-2">

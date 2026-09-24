@@ -14,6 +14,7 @@ import io.loyaltyhub.engagement.domain.ContentSelection;
 import io.loyaltyhub.engagement.domain.ContentSelection.Viewer;
 import io.loyaltyhub.engagement.infra.ContentRepository;
 import io.loyaltyhub.engagement.infra.MemberSnapshotRepository;
+import io.loyaltyhub.engagement.infra.PopupViewRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
@@ -23,11 +24,13 @@ import tools.jackson.databind.node.ObjectNode;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
@@ -60,6 +63,19 @@ public class ContentService {
     public record ExcludedView(String code, String title, String reason) {
     }
 
+    /** Pop-up per il portale: come un contenuto, più l'id per registrare la vista e se si può chiudere. */
+    public record PopupView(String id, String code, String kind, String title, String body, String imageUrl, String ctaLabel,
+                            String ctaTarget, String linkType, String linkCode, JsonNode style, String frequency,
+                            boolean dismissible) {
+        static PopupView of(ContentItem c) {
+            return new PopupView(c.id(), c.code(), c.kind(), c.title(), c.body(), c.imageUrl(), c.ctaLabel(), c.ctaTarget(),
+                    c.linkType(), c.linkCode(), c.style(), c.frequency(), c.dismissible());
+        }
+    }
+
+    /** Pseudo-posizionamento dell'anteprima di BO-18 per i pop-up (non hanno un placement). */
+    public static final String POPUP = "POPUP";
+
     public record Preview(String memberId, String placement, List<ContentDisplay> shown, List<ExcludedView> excluded) {
     }
 
@@ -72,6 +88,7 @@ public class ContentService {
             "ARCHIVE", Map.of("DRAFT", "ARCHIVED", "ENDED", "ARCHIVED"));
 
     private final ContentRepository contents;
+    private final PopupViewRepository popupViews;
     private final MemberSnapshotRepository members;
     private final LhEventFactory events;
     private final OutboxWriter outbox;
@@ -79,9 +96,10 @@ public class ContentService {
     private final ObjectMapper mapper;
     private final Clock clock;
 
-    public ContentService(ContentRepository contents, MemberSnapshotRepository members, LhEventFactory events,
-                          OutboxWriter outbox, AuditPublisher audit, ObjectMapper mapper, Clock clock) {
+    public ContentService(ContentRepository contents, PopupViewRepository popupViews, MemberSnapshotRepository members,
+                          LhEventFactory events, OutboxWriter outbox, AuditPublisher audit, ObjectMapper mapper, Clock clock) {
         this.contents = contents;
+        this.popupViews = popupViews;
         this.members = members;
         this.events = events;
         this.outbox = outbox;
@@ -114,10 +132,48 @@ public class ContentService {
                 .shown().stream().map(ContentDisplay::of).toList();
     }
 
-    /** BO-18 anteprima per membro (F-CNT-04): cosa vede adesso e perché gli altri contenuti sono esclusi. */
+    /**
+     * Portale (F-CNT-02): il prossimo pop-up per il membro, o vuoto. Leggere non consuma il pop-up: la vista si registra
+     * con {@link #seen} (docs §5), così un errore di disegno non lo brucia.
+     */
+    public Optional<PopupView> nextPopup(String memberId) {
+        if (memberId == null || memberId.isBlank()) {
+            throw LhException.badRequest("memberId è obbligatorio");
+        }
+        return popupResult(memberId.trim()).shown().stream().findFirst().map(PopupView::of);
+    }
+
+    /** Registra la vista (e la chiusura) del pop-up per il membro, nel giorno corrente (Europe/Rome). */
+    @Transactional
+    public void seen(String idOrCode, String memberId, boolean dismissed) {
+        if (memberId == null || memberId.isBlank()) {
+            throw LhException.badRequest("memberId è obbligatorio");
+        }
+        ContentItem c = get(idOrCode);
+        if (!"POPUP".equals(c.kind())) {
+            throw LhException.notFound("Pop-up non trovato: " + idOrCode);
+        }
+        Instant now = clock.instant();
+        popupViews.recordSeen(c.id(), memberId.trim(), LocalDate.ofInstant(now, ContentSelection.ZONE), now, dismissed);
+    }
+
+    private ContentSelection.Result popupResult(String memberId) {
+        return ContentSelection.selectPopup(contents.findPopups(), viewer(memberId), clock.instant(),
+                popupViews.lastSeenByContent(memberId));
+    }
+
+    /**
+     * BO-18 anteprima per membro (F-CNT-04): cosa vede adesso e perché gli altri contenuti sono esclusi. Con
+     * {@code placement=POPUP} vale per i pop-up, compresa la frequenza.
+     */
     public Preview preview(String memberId, String placement) {
         if (memberId == null || memberId.isBlank()) {
             throw LhException.badRequest("memberId è obbligatorio");
+        }
+        if (POPUP.equalsIgnoreCase(placement == null ? "" : placement.trim())) {
+            ContentSelection.Result r = popupResult(memberId.trim());
+            return new Preview(memberId, POPUP, r.shown().stream().map(ContentDisplay::of).toList(),
+                    r.excluded().stream().map(e -> new ExcludedView(e.item().code(), e.item().title(), e.reason())).toList());
         }
         String p = placementOrThrow(placement);
         ContentSelection.Result r = ContentSelection.select(contents.findByPlacement(p), viewer(memberId), clock.instant(),
@@ -234,7 +290,7 @@ public class ContentService {
             return Viewer.UNKNOWN;
         }
         return members.find(memberId.trim())
-                .map(s -> new Viewer(s.tierCode(), s.segments(), s.status()))
+                .map(s -> new Viewer(s.tierCode(), s.segments(), s.status(), s.registeredAt()))
                 .orElse(Viewer.UNKNOWN);
     }
 

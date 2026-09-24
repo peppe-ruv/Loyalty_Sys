@@ -44,10 +44,20 @@ export interface ContentItem extends ContentDisplay {
   updatedAt: string | null;
 }
 
+/** {@code GET /v1/portal/popups/next}: il pop-up da mostrare, con id per registrare la vista. */
+export interface PopupView extends ContentDisplay {
+  id: string;
+  frequency: ContentFrequency;
+  dismissible: boolean;
+}
+
+/** Posizionamenti dell'anteprima per membro: quelli dei contenuti più i pop-up. */
+export type PreviewPlacement = ContentPlacement | "POPUP";
+
 /** {@code GET /v1/contents/preview}: cosa vede un membro adesso in un posizionamento, e perché gli altri no. */
 export interface ContentPreview {
   memberId: string;
-  placement: ContentPlacement;
+  placement: PreviewPlacement;
   shown: ContentDisplay[];
   excluded: { code: string; title: string; reason: ExclusionReason }[];
 }

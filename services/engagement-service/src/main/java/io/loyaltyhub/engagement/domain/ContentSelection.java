@@ -2,7 +2,10 @@ package io.loyaltyhub.engagement.domain;
 
 import tools.jackson.databind.JsonNode;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -20,10 +23,12 @@ public final class ContentSelection {
     public static final Map<String, Integer> LIMITS = Map.of(
             "HOME_HERO", 1, "HOME_GRID", 6, "CATALOG_TOP", 1, "CONTEST", 3, "WIN", 1);
 
-    /** Chi guarda: livello, segmenti e stato dallo snapshot (null = membro sconosciuto). */
-    public record Viewer(String tier, List<String> segments, String status) {
-        public static final Viewer UNKNOWN = new Viewer(null, List.of(), null);
+    /** Chi guarda: livello, segmenti, stato e iscrizione dallo snapshot (null = membro sconosciuto). */
+    public record Viewer(String tier, List<String> segments, String status, Instant registeredAt) {
+        public static final Viewer UNKNOWN = new Viewer(null, List.of(), null, null);
     }
+
+    public static final ZoneId ZONE = ZoneId.of("Europe/Rome");
 
     public record Excluded(ContentItem item, String reason) {
     }
@@ -57,18 +62,53 @@ public final class ContentSelection {
         if (!inSchedule(c, now)) {
             return "OUT_OF_SCHEDULE";
         }
-        if (!inAudience(c.audience(), viewer)) {
+        if (!inAudience(c.audience(), viewer, now)) {
             return "NOT_IN_AUDIENCE";
         }
         return null;
+    }
+
+    /**
+     * Pop-up (docs/03 §9): al più uno per visita, il primo per priorità che passa stato, calendario, pubblico e
+     * frequenza ({@code ONCE}: mai visto; {@code ONCE_PER_DAY}: non visto oggi; {@code ALWAYS}: sempre).
+     * {@code lastSeen} = ultimo giorno di vista per id del pop-up.
+     */
+    public static Result selectPopup(List<ContentItem> popups, Viewer viewer, Instant now, Map<String, LocalDate> lastSeen) {
+        LocalDate today = LocalDate.ofInstant(now, ZONE);
+        List<ContentItem> eligible = new ArrayList<>();
+        List<Excluded> excluded = new ArrayList<>();
+        for (ContentItem c : popups) {
+            String reason = exclusion(c, viewer, now);
+            if (reason == null && !frequencyAllows(c.frequency(), lastSeen.get(c.id()), today)) {
+                reason = "FREQUENCY";
+            }
+            if (reason == null) {
+                eligible.add(c);
+            } else {
+                excluded.add(new Excluded(c, reason));
+            }
+        }
+        eligible.sort(Comparator.comparingInt(ContentItem::priority).reversed().thenComparing(ContentItem::code));
+        return new Result(eligible.subList(0, Math.min(1, eligible.size())), excluded);
+    }
+
+    public static boolean frequencyAllows(String frequency, LocalDate lastSeen, LocalDate today) {
+        if (lastSeen == null || "ALWAYS".equals(frequency)) {
+            return true;
+        }
+        return "ONCE_PER_DAY".equals(frequency) && lastSeen.isBefore(today);
     }
 
     public static boolean inSchedule(ContentItem c, Instant now) {
         return (c.startAt() == null || !c.startAt().isAfter(now)) && (c.endAt() == null || c.endAt().isAfter(now));
     }
 
-    /** Ogni dimensione non vuota deve essere soddisfatta (livelli, segmenti: almeno uno in comune, stati). */
-    public static boolean inAudience(JsonNode audience, Viewer viewer) {
+    /**
+     * Ogni dimensione non vuota deve essere soddisfatta (livelli, segmenti: almeno uno in comune, stati). Estensioni dei
+     * pop-up del seed (SPEC-GAP Q-71): {@code registeredWithinDays} (iscrizione nota e recente) e {@code daysOfWeek}
+     * ({@code MON…SUN}, giorno di oggi in Europe/Rome).
+     */
+    public static boolean inAudience(JsonNode audience, Viewer viewer, Instant now) {
         if (audience == null || audience.isNull() || audience.isEmpty()) {
             return true;
         }
@@ -81,7 +121,17 @@ public final class ContentSelection {
         if (!segments.isEmpty() && viewer.segments().stream().noneMatch(segments::contains)) {
             return false;
         }
-        return statuses.isEmpty() || (viewer.status() != null && statuses.contains(viewer.status()));
+        if (!statuses.isEmpty() && (viewer.status() == null || !statuses.contains(viewer.status()))) {
+            return false;
+        }
+        JsonNode within = audience.get("registeredWithinDays");
+        if (within != null && within.isNumber()
+                && (viewer.registeredAt() == null || viewer.registeredAt().isBefore(now.minus(Duration.ofDays(within.asInt()))))) {
+            return false;
+        }
+        List<String> days = strings(audience.get("daysOfWeek"));
+        String today = LocalDate.ofInstant(now, ZONE).getDayOfWeek().name().substring(0, 3);
+        return days.isEmpty() || days.contains(today);
     }
 
     private static List<String> strings(JsonNode node) {

@@ -15,7 +15,8 @@ import java.util.Optional;
 @Repository
 public class MemberSnapshotRepository {
 
-    public record Snapshot(String memberId, String firstName, String status, String tierCode, List<String> segments) {
+    public record Snapshot(String memberId, String firstName, String status, String tierCode, List<String> segments,
+                           java.time.Instant registeredAt) {
     }
 
     private final JdbcClient jdbc;
@@ -25,32 +26,38 @@ public class MemberSnapshotRepository {
     }
 
     public Optional<Snapshot> find(String memberId) {
-        return jdbc.sql("SELECT member_id, first_name, status, tier_code, segments FROM engagement_member_snapshot WHERE member_id = ?")
+        return jdbc.sql("SELECT member_id, first_name, status, tier_code, segments, registered_at FROM engagement_member_snapshot WHERE member_id = ?")
                 .param(memberId)
                 .query((rs, n) -> new Snapshot(rs.getString("member_id"), rs.getString("first_name"), rs.getString("status"),
-                        rs.getString("tier_code"), toList(rs.getArray("segments"))))
+                        rs.getString("tier_code"), toList(rs.getArray("segments")),
+                        rs.getTimestamp("registered_at") == null ? null : rs.getTimestamp("registered_at").toInstant()))
                 .optional();
     }
 
-    /** Anagrafica da {@code member.registered/updated}: nome e stato; il livello resta quello noto. */
-    public void upsertProfile(String memberId, String firstName, String status) {
+    /** Anagrafica da {@code member.registered/updated}: nome, stato, iscrizione; il livello resta quello noto. */
+    public void upsertProfile(String memberId, String firstName, String status, java.time.Instant registeredAt) {
         jdbc.sql("""
-                        INSERT INTO engagement_member_snapshot (member_id, first_name, status) VALUES (?, ?, ?)
+                        INSERT INTO engagement_member_snapshot (member_id, first_name, status, registered_at) VALUES (?, ?, ?, ?)
                         ON CONFLICT (member_id) DO UPDATE SET first_name = COALESCE(excluded.first_name, engagement_member_snapshot.first_name),
-                          status = excluded.status, updated_at = now()
+                          status = excluded.status,
+                          registered_at = COALESCE(excluded.registered_at, engagement_member_snapshot.registered_at),
+                          updated_at = now()
                         """)
-                .params(memberId, firstName, status == null ? "ACTIVE" : status)
+                .params(memberId, firstName, status == null ? "ACTIVE" : status,
+                        registeredAt == null ? null : java.sql.Timestamp.from(registeredAt))
                 .update();
     }
 
     /** Seed: riga completa. */
-    public void upsertSeed(String memberId, String firstName, String status, String tierCode) {
+    public void upsertSeed(String memberId, String firstName, String status, String tierCode, java.time.Instant registeredAt) {
         jdbc.sql("""
-                        INSERT INTO engagement_member_snapshot (member_id, first_name, status, tier_code) VALUES (?, ?, ?, ?)
+                        INSERT INTO engagement_member_snapshot (member_id, first_name, status, tier_code, registered_at)
+                        VALUES (?, ?, ?, ?, ?)
                         ON CONFLICT (member_id) DO UPDATE SET first_name = excluded.first_name, status = excluded.status,
-                          tier_code = excluded.tier_code, updated_at = now()
+                          tier_code = excluded.tier_code, registered_at = excluded.registered_at, updated_at = now()
                         """)
-                .params(memberId, firstName, status == null ? "ACTIVE" : status, tierCode)
+                .params(memberId, firstName, status == null ? "ACTIVE" : status, tierCode,
+                        registeredAt == null ? null : java.sql.Timestamp.from(registeredAt))
                 .update();
     }
 

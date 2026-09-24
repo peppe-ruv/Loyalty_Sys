@@ -360,6 +360,14 @@ if (Array.isArray(templatesSeed)) {
     if (c.linkType === "REWARD" && !rewards.has(c.linkCode)) errors.push(`${where} premio inesistente ${c.linkCode}`);
     if (c.placement === "WIN" && (c.linkType !== "PRIZE" || !prizeCodes.has(c.linkCode))) errors.push(`${where} card WIN senza premio in palio esistente`);
     if (c.ctaTarget && !c.ctaTarget.startsWith("/portal") && !c.ctaTarget.startsWith("https://")) errors.push(`${where} destinazione non sicura ${c.ctaTarget}`);
+    // Estensioni del pubblico dei pop-up (SPEC-GAP Q-71): iscrizione recente e giorni della settimana.
+    const aud = c.audience ?? {};
+    if (aud.registeredWithinDays != null && !(Number.isInteger(aud.registeredWithinDays) && aud.registeredWithinDays > 0)) {
+      errors.push(`${where} registeredWithinDays deve essere un intero positivo`);
+    }
+    for (const d of aud.daysOfWeek ?? []) {
+      if (!["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"].includes(d)) errors.push(`${where} giorno non valido ${d}`);
+    }
   }
   // Ogni premio in palio dei concorsi LIVE ha la sua card WIN (§11.7).
   const winFor = new Set(contents.filter((c) => c.placement === "WIN").map((c) => c.linkCode));
