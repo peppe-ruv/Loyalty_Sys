@@ -61,6 +61,12 @@ public class CampaignsController {
         return service.update(id, request);
     }
 
+    @PostMapping("/{id}/duplicate")
+    @RequiresRole({Role.ADMIN, Role.MARKETING})
+    public ResponseEntity<Campaign> duplicate(@PathVariable String id) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.duplicate(id));
+    }
+
     @PostMapping("/{id}/transitions")
     public Campaign transition(@PathVariable String id, @RequestBody TransitionRequest request) {
         return service.transition(id, request);

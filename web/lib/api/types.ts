@@ -74,6 +74,8 @@ export interface Campaign {
   visibleInPortal: boolean;
   system: boolean;
   requiresLegal?: boolean;
+  /** Optimistic locking (M7.6): si rimanda nel PUT, 409 VERSION_CONFLICT se superata. */
+  version: number;
 }
 
 /** Tipo azione (`ingestion GET /v1/event-types`). Da M6.7 `dataSchema` è un oggetto JSON Schema, non più un testo. */

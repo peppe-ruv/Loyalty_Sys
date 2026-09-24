@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { Plus, Trash2 } from "lucide-react";
 import { useLhMutation, useLhQuery, type LhError } from "@/lib/api/client";
+import { isVersionConflict, withVersion } from "@/lib/api/version";
+import { VersionConflict } from "@/components/bo/VersionConflict";
 import type { Contest, ContestPrize, PrizeType, Reward } from "@/lib/api/types";
 import { useCan } from "@/components/bo/Can";
 import { INPUT } from "@/components/bo/FormBits";
@@ -112,7 +114,8 @@ function EditablePrizes({ contest, onChanged }: { contest: Contest; onChanged: (
   const [error, setError] = useState<LhError | null>(null);
   const [saved, setSaved] = useState(false);
   const coupons = useLhQuery<Reward[]>("reward", "/v1/rewards", { type: "COUPON" });
-  const save = useLhMutation<Contest, { prizes: unknown[] }>("gamification", "PUT", () => `/v1/contests/${contest.id}`, {
+  const [pending, setPending] = useState<{ prizes: unknown[] } | null>(null);
+  const save = useLhMutation<Contest, { prizes: unknown[]; version?: number }>("gamification", "PUT", () => `/v1/contests/${contest.id}`, {
     onSuccess: () => {
       setSaved(true);
       onChanged();
@@ -211,28 +214,37 @@ function EditablePrizes({ contest, onChanged }: { contest: Contest; onChanged: (
           disabled={save.isPending}
           onClick={() => {
             setError(null);
-            save.mutate(
-              {
-                prizes: rows.map((r, i) => ({
-                  code: r.code,
-                  name: r.name,
-                  type: r.type,
-                  points: r.type === "POINTS" && r.points !== "" ? Number(r.points) : null,
-                  rewardCode: r.type === "COUPON" ? r.rewardCode || null : null,
-                  quantity: Number(r.quantity) || 0,
-                  wheelColor: r.wheelColor,
-                  sortOrder: i + 1,
-                })),
-              },
-              { onError: setError },
-            );
+            const body = {
+              prizes: rows.map((r, i) => ({
+                code: r.code,
+                name: r.name,
+                type: r.type,
+                points: r.type === "POINTS" && r.points !== "" ? Number(r.points) : null,
+                rewardCode: r.type === "COUPON" ? r.rewardCode || null : null,
+                quantity: Number(r.quantity) || 0,
+                wheelColor: r.wheelColor,
+                sortOrder: i + 1,
+              })),
+            };
+            setPending(body);
+            save.mutate(withVersion(body, contest.version), { onError: setError });
           }}
           className="rounded bg-[var(--color-bo-accent)] px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
         >
           Salva montepremi
         </button>
         {saved ? <span className="text-xs text-emerald-700">Montepremi salvato.</span> : null}
-        {error ? (
+        {isVersionConflict(error) && pending ? (
+          <VersionConflict
+            what="il concorso"
+            busy={save.isPending}
+            onReload={onChanged}
+            onOverwrite={() => {
+              setError(null);
+              save.mutate(pending, { onError: setError });
+            }}
+          />
+        ) : error ? (
           <span className="text-xs text-red-700" role="alert">
             {error.detail || error.code}
           </span>

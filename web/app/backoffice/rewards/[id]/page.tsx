@@ -10,7 +10,9 @@ import { PageHeader, CodeText } from "@/components/bo/primitives";
 import { LifecycleBar } from "@/components/bo/LifecycleBar";
 import { useApprovalPolicy } from "@/lib/approvals/usePolicy";
 import { requiresApproval } from "@/lib/approvals/queue";
-import { Can } from "@/components/bo/Can";
+import { DuplicateButton } from "@/components/bo/DuplicateButton";
+import { VersionConflict } from "@/components/bo/VersionConflict";
+import { isVersionConflict, withVersion } from "@/lib/api/version";
 import { RewardForm, type RewardInput } from "@/components/bo/rewards/RewardForm";
 import { StockBar } from "@/components/bo/rewards/RewardBits";
 
@@ -107,14 +109,12 @@ function EditReward({
   onChanged: () => void;
 }) {
   const policy = useApprovalPolicy();
-  const router = useRouter();
   const [error, setError] = useState<LhError | null>(null);
-  const update = useLhMutation<Reward, RewardInput>("reward", "PUT", () => `/v1/rewards/${reward.id}`, {
+  const [pending, setPending] = useState<RewardInput | null>(null);
+  const update = useLhMutation<Reward, RewardInput & { version?: number }>("reward", "PUT", () => `/v1/rewards/${reward.id}`, {
     onSuccess: () => onChanged(),
   });
-  const duplicate = useLhMutation<Reward, undefined>("reward", "POST", () => `/v1/rewards/${reward.id}/duplicate`, {
-    onSuccess: (copy) => router.push(`/backoffice/rewards/${copy.id}`),
-  });
+  const conflict = isVersionConflict(error);
 
   return (
     <>
@@ -123,15 +123,12 @@ function EditReward({
         actions={
           <>
             <CodeText>{reward.code}</CodeText>
-            <Can capability="object.edit" mode="disable">
-              <button
-                onClick={() => duplicate.mutate(undefined, { onError: setError })}
-                disabled={duplicate.isPending}
-                className="rounded border border-[var(--color-bo-border)] px-2.5 py-1 text-sm hover:bg-slate-50 disabled:opacity-50"
-              >
-                Duplica
-              </button>
-            </Can>
+            <span className="text-xs text-[var(--color-bo-ink-2)]">v{reward.version}</span>
+            <DuplicateButton
+              service="reward"
+              path={`/v1/rewards/${reward.id}/duplicate`}
+              hrefFor={(copy) => `/backoffice/rewards/${copy.id}`}
+            />
           </>
         }
       />
@@ -147,6 +144,19 @@ function EditReward({
           <StockBar reward={reward} />
         </div>
       </div>
+      {conflict && pending && (
+        <div className="mb-3">
+          <VersionConflict
+            what="il premio"
+            busy={update.isPending}
+            onReload={onChanged}
+            onOverwrite={() => {
+              setError(null);
+              update.mutate(pending, { onError: setError });
+            }}
+          />
+        </div>
+      )}
       <RewardForm
         reward={reward}
         bands={bands}
@@ -154,10 +164,11 @@ function EditReward({
         tiers={tiers}
         pools={pools}
         saving={update.isPending}
-        error={error}
+        error={conflict ? null : error}
         onSubmit={(_, changed) => {
           setError(null);
-          update.mutate(changed, { onError: setError });
+          setPending(changed);
+          update.mutate(withVersion(changed, reward.version), { onError: setError });
         }}
       />
     </>

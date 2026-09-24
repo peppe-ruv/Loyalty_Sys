@@ -251,6 +251,30 @@ class ContestIT {
 
     // ---------- helper ----------
 
+    /** M7.6: versione letta dall'editor (409 se superata) e *Duplica* in bozza con premi pieni e istanti da generare. */
+    @Test
+    void staleVersionIs409AndDuplicateStartsAsDraftWithoutInstants() {
+        JsonNode created = create("IW-IT-DUP", null);
+        String id = created.path("id").asString();
+        long v0 = created.path("version").asLong();
+        send("PUT", "/v1/contests/" + id, "MARKETING:luca", Map.of("name", "Ruota rinominata", "version", v0), 200);
+        assertThat(send("PUT", "/v1/contests/" + id, "MARKETING:giulia", Map.of("name", "Altro nome", "version", v0), 409)
+                .path("code").asString()).isEqualTo("VERSION_CONFLICT");
+        send("POST", "/v1/contests/" + id + "/instants/generate", "MARKETING:luca", null, 200);
+
+        assertThat(status("POST", "/v1/contests/" + id + "/duplicate", "ANALYST:sara", null)).isEqualTo(403);
+        JsonNode copy = send("POST", "/v1/contests/" + id + "/duplicate", "MARKETING:luca", null, 201);
+        assertThat(copy.path("code").asString()).isEqualTo("IW-IT-DUP-COPY-1");
+        assertThat(copy.path("status").asString()).isEqualTo("DRAFT");
+        assertThat(copy.path("name").asString()).isEqualTo("Ruota rinominata (copia)");
+        assertThat(copy.path("instantsGeneratedAt").isNull() || copy.path("instantsGeneratedAt").isMissingNode()).isTrue();
+        assertThat(copy.path("prizes")).hasSize(2);
+        assertThat(copy.path("seed").asLong()).isNotEqualTo(send("GET", "/v1/contests/" + id, "ANALYST:sara", null, 200)
+                .path("seed").asLong());
+        assertThat(send("POST", "/v1/contests/" + id + "/duplicate", "MARKETING:luca", null, 201).path("code").asString())
+                .isEqualTo("IW-IT-DUP-COPY-2");
+    }
+
     private JsonNode create(String code, Long seed) {
         Instant start = Instant.now().minus(Duration.ofDays(1));
         Map<String, Object> body = new HashMap<>(Map.of("code", code, "name", "Ruota di prova", "mechanic", "WHEEL",

@@ -411,6 +411,35 @@ class CampaignServiceIT {
                 .path("status").asString()).isEqualTo("LIVE");
     }
 
+    @Test
+    void duplicateCopiesIntoDraftAndStaleVersionIs409() {
+        Map<String, Object> body = new java.util.HashMap<>(Map.of(
+                "code", "CMP-IT-DUP", "name", "Da duplicare", "triggerActionTypes", List.of("review.submitted"),
+                "effects", List.of(Map.of("type", "GRANT_POINTS", "currency", "PTS", "mode", "FIXED", "value", 7)),
+                "schedule", Map.of("startAt", "2026-01-01T00:00:00Z")));
+        JsonNode created = send("POST", "/v1/campaigns", "MARKETING:giulia", body, 201);
+        String id = created.path("id").asString();
+        long v0 = created.path("version").asLong();
+
+        // Versioni (M7.6): chi salva con la versione letta vince, chi arriva dopo con quella vecchia riceve 409.
+        JsonNode saved = send("PUT", "/v1/campaigns/" + id, "MARKETING:giulia", Map.of("name", "Prima", "version", v0), 200);
+        assertThat(saved.path("version").asLong()).isEqualTo(v0 + 1);
+        assertThat(send("PUT", "/v1/campaigns/" + id, "MARKETING:luca", Map.of("name", "Seconda", "version", v0), 409)
+                .path("code").asString()).isEqualTo("VERSION_CONFLICT");
+        assertThat(send("GET", "/v1/campaigns/" + id, "ANALYST:sara", null, 200).path("name").asString()).isEqualTo("Prima");
+
+        // Duplica (F-CMP-13): DRAFT, codice -COPY-n progressivo, regole copiate; ANALYST non può.
+        send("POST", "/v1/campaigns/" + id + "/duplicate", "ANALYST:sara", null, 403);
+        JsonNode copy = send("POST", "/v1/campaigns/" + id + "/duplicate", "MARKETING:giulia", null, 201);
+        assertThat(copy.path("code").asString()).isEqualTo("CMP-IT-DUP-COPY-1");
+        assertThat(copy.path("status").asString()).isEqualTo("DRAFT");
+        assertThat(copy.path("name").asString()).isEqualTo("Prima (copia)");
+        assertThat(copy.path("effects").toString()).isEqualTo(saved.path("effects").toString());
+        assertThat(copy.path("id").asString()).isNotEqualTo(id);
+        assertThat(send("POST", "/v1/campaigns/" + id + "/duplicate", "MARKETING:giulia", null, 201).path("code").asString())
+                .isEqualTo("CMP-IT-DUP-COPY-2");
+    }
+
     private JsonNode send(String method, String path, String actor, Object body, int expected) {
         var spec = client().method(org.springframework.http.HttpMethod.valueOf(method)).uri(path).header("X-LH-Actor", actor);
         if (body != null) {

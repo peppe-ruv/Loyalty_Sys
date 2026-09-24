@@ -24,6 +24,9 @@ import { requiresApproval } from "@/lib/approvals/queue";
 import { Card, CardBody } from "@/components/ui/card";
 import { CodeText, PageHeader, StatusPill } from "@/components/bo/primitives";
 import { INPUT } from "@/components/bo/FormBits";
+import { DuplicateButton } from "@/components/bo/DuplicateButton";
+import { VersionConflict } from "@/components/bo/VersionConflict";
+import { isVersionConflict, withVersion } from "@/lib/api/version";
 import { ContestSetupForm, type ContestInput } from "@/components/bo/game/ContestSetupForm";
 import { PrizeEditor } from "@/components/bo/game/PrizeEditor";
 import { InstantHistogram } from "@/components/bo/game/InstantHistogram";
@@ -92,7 +95,17 @@ function ContestDetail({ id }: { id: string }) {
             <PageHeader
               title={c.name}
               subtitle={`${MECHANIC_LABEL[c.mechanic]} · ${formatDate(c.startAt)} → ${formatDate(c.endAt)} · ${prizePoolSummary(c.prizes)}`}
-              actions={<CodeText>{c.code}</CodeText>}
+              actions={
+                <>
+                  <CodeText>{c.code}</CodeText>
+                  <span className="text-xs text-[var(--color-bo-ink-2)]">v{c.version}</span>
+                  <DuplicateButton
+                    service="gamification"
+                    path={`/v1/contests/${c.id}/duplicate`}
+                    hrefFor={(copy) => `/backoffice/game/contests/${copy.id}`}
+                  />
+                </>
+              }
             />
             <div className="mb-4">
               <LifecycleBar
@@ -130,19 +143,37 @@ function ContestDetail({ id }: { id: string }) {
 
 function SetupTab({ contest, onChanged }: { contest: Contest; onChanged: () => void }) {
   const [error, setError] = useState<LhError | null>(null);
-  const update = useLhMutation<Contest, ContestInput>("gamification", "PUT", () => `/v1/contests/${contest.id}`, {
+  const [pending, setPending] = useState<ContestInput | null>(null);
+  const update = useLhMutation<Contest, ContestInput & { version?: number }>("gamification", "PUT", () => `/v1/contests/${contest.id}`, {
     onSuccess: () => onChanged(),
   });
+  const conflict = isVersionConflict(error);
   return (
-    <ContestSetupForm
-      contest={contest}
-      saving={update.isPending}
-      error={error}
-      onSubmit={(input) => {
-        setError(null);
-        update.mutate(input, { onError: setError });
-      }}
-    />
+    <>
+      {conflict && pending && (
+        <div className="mb-3">
+          <VersionConflict
+            what="il concorso"
+            busy={update.isPending}
+            onReload={onChanged}
+            onOverwrite={() => {
+              setError(null);
+              update.mutate(pending, { onError: setError });
+            }}
+          />
+        </div>
+      )}
+      <ContestSetupForm
+        contest={contest}
+        saving={update.isPending}
+        error={conflict ? null : error}
+        onSubmit={(input) => {
+          setError(null);
+          setPending(input);
+          update.mutate(withVersion(input, contest.version), { onError: setError });
+        }}
+      />
+    </>
   );
 }
 

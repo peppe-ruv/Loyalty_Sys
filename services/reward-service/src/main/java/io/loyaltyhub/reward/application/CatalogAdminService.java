@@ -47,7 +47,7 @@ public class CatalogAdminService implements ApprovalSource {
     public record RewardRequest(String code, String name, String description, String terms, String imageUrl,
                                 String type, String category, String band, String fulfilment, String couponPoolId,
                                 Integer stockTotal, Integer perMemberLimit, List<String> eligibleTiers,
-                                List<String> eligibleSegments, Instant validFrom, Instant validTo) {
+                                List<String> eligibleSegments, Instant validFrom, Instant validTo, Long version) {
     }
 
     private final CatalogRepository catalog;
@@ -175,7 +175,10 @@ public class CatalogAdminService implements ApprovalSource {
             default -> throw LhException.conflict("REWARD_NOT_EDITABLE", "Un premio " + c.status() + " non si modifica.");
         }
         validate(m);
-        rewards.update(m);
+        long expected = r.version() != null ? r.version() : c.version();
+        if (!rewards.update(m, expected)) {
+            throw LhException.conflict("VERSION_CONFLICT", "Il premio è stato modificato nel frattempo: ricarica e riprova.");
+        }
         audit.record("REWARD", c.code(), AuditEntry.Action.UPDATE, "Modificato premio " + m.name(),
                 Map.of("stockTotal", String.valueOf(c.stockTotal()), "band", c.bandCode()),
                 Map.of("stockTotal", String.valueOf(m.stockTotal()), "band", m.bandCode()));

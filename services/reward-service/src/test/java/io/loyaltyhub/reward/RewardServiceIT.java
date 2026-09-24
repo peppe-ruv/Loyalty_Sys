@@ -169,6 +169,13 @@ class RewardServiceIT {
         JsonNode restocked = send("PUT", "/v1/rewards/" + id, "MARKETING:giulia", Map.of("stockTotal", 15), 200);
         assertThat(restocked.path("stockTotal").asInt()).isEqualTo(15);
         assertThat(restocked.path("stockRemaining").asInt()).isEqualTo(15);
+        // Versioni (M7.6): un salvataggio con la versione letta prima dell'ultima modifica è rifiutato.
+        long stale = live.path("version").asLong();
+        assertThat(send("PUT", "/v1/rewards/" + id, "MARKETING:luca", Map.of("stockTotal", 20, "version", stale), 409)
+                .path("code").asString()).isEqualTo("VERSION_CONFLICT");
+        assertThat(send("PUT", "/v1/rewards/" + id, "MARKETING:luca",
+                Map.of("stockTotal", 16, "version", restocked.path("version").asLong()), 200).path("stockRemaining").asInt())
+                .isEqualTo(16);
 
         JsonNode locked = send("PUT", "/v1/rewards/" + id, "MARKETING:giulia", Map.of("band", "F2"), 409);
         assertThat(locked.path("code").asString()).isEqualTo("REWARD_LIVE_LOCKED");

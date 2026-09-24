@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useLhQuery } from "@/lib/api/client";
 import type { CampaignSummary } from "@/lib/api/types";
 import { QueryState } from "@/components/bo/QueryState";
+import { DuplicateButton } from "@/components/bo/DuplicateButton";
 import { DataTable, type Column } from "@/components/bo/DataTable";
 import { PageHeader, StatusPill, CodeText, PointsAmount } from "@/components/bo/primitives";
 
@@ -36,6 +37,20 @@ export default function CampaignsPage() {
     { key: "budget", header: "Budget", render: (c) => <BudgetCell campaign={c} /> },
     { key: "prio", header: "Priorità", className: "text-right", render: (c) => <span className="tabular-nums">{c.priority}</span> },
     { key: "portal", header: "Portale", render: (c) => (c.visibleInPortal ? "✓" : "—") },
+    {
+      key: "actions",
+      header: "",
+      render: (c) => (
+        // Azione di riga (docs/08 §BO-05): non apre il dettaglio, apre la copia.
+        <span onClick={(e) => e.stopPropagation()}>
+          <DuplicateButton
+            service="campaign"
+            path={`/v1/campaigns/${c.id}/duplicate`}
+            hrefFor={(copy) => `/backoffice/campaigns/${copy.id}`}
+          />
+        </span>
+      ),
+    },
   ];
 
   return (
