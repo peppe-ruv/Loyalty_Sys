@@ -13,6 +13,7 @@ import { Can } from "@/components/bo/Can";
 import { PhoneFrame } from "@/components/bo/PhoneFrame";
 import { ContentCard, toneOf } from "@/components/shared/content/ContentCard";
 import { PopupModal } from "@/components/shared/content/PopupModal";
+import { WinCard } from "@/components/shared/content/WinCard";
 import { Card, CardBody } from "@/components/ui/card";
 import { CodeText, PageHeader, StatusPill } from "@/components/bo/primitives";
 import { INPUT } from "@/components/bo/FormBits";
@@ -204,6 +205,12 @@ function MemberPreview() {
           placement === "POPUP" && preview.data.shown[0] ? (
             <div className="relative min-h-[380px]">
               <PopupModal content={preview.data.shown[0]} dismissible preview />
+            </div>
+          ) : placement === "WIN" && preview.data.shown.length > 0 ? (
+            <div className="space-y-2">
+              {preview.data.shown.map((c) => (
+                <WinCard key={c.code} content={c} prizeLabel={c.linkCode ?? "Premio"} followUp="" preview />
+              ))}
             </div>
           ) : preview.data.shown.length === 0 ? (
             <p className="py-10 text-center text-xs text-[var(--color-pt-night)]/60">Niente da mostrare qui.</p>

@@ -13,12 +13,15 @@ import { Wheel } from "@/components/portal/game/Wheel";
 import { ScratchCard } from "@/components/portal/game/ScratchCard";
 import { GiftBoxes } from "@/components/portal/game/GiftBoxes";
 import { Confetti } from "@/components/portal/game/Confetti";
+import { WinCard } from "@/components/shared/content/WinCard";
+import type { ContentDisplay } from "@/lib/content/types";
 import { PLAY_ERRORS, freePlayLine, shortPrize, targetRotation, wheelSegments, winFollowUp } from "@/lib/gamification/play";
 import { formatDateTime } from "@/lib/format/dates";
 import { cn } from "@/lib/cn";
 
 // PT-06 Giocata instant win (docs/09 §PT-06): l'esito lo decide il server (risposta sincrona), l'animazione lo rivela.
 // Sempre presente un pulsante equivalente per tastiera, lettori di schermo e movimento ridotto (rivelazione diretta).
+// All'esito WIN la card vincita del premio configurata in BO-18 (M6.3).
 type Phase = "idle" | "requesting" | "revealing" | "done";
 
 export default function PlayContestPage() {
@@ -257,17 +260,33 @@ function Outcome({ result, compact = false }: { result: PlayResult; compact?: bo
     );
   }
   const p = result.prize;
+  if (compact) {
+    return (
+      <div>
+        <p className="text-sm text-[var(--color-pt-night)]/70">Hai vinto!</p>
+        <p className="text-2xl font-bold text-[var(--color-pt-night)]">{p ? shortPrize(p) : "Un premio"}</p>
+      </div>
+    );
+  }
+  return <WinOutcome prize={p} />;
+}
+
+/**
+ * Esito WIN (docs/09 PT-06, F-CNT-03): la card vincita configurata in BO-18 per quel premio (`placement=WIN`), con
+ * ripiego sul riquadro generico se non c'è o se engagement dorme; sotto, la consegna (punti in arrivo, codice del
+ * coupon, premio fisico).
+ */
+function WinOutcome({ prize }: { prize: PlayResult["prize"] }) {
+  const memberId = useActiveMember();
+  const card = useLhQuery<ContentDisplay[]>("engagement", "/v1/portal/content",
+    { memberId, placement: "WIN", prizeCode: prize?.code }, { enabled: Boolean(prize?.code) });
+  if (card.isLoading) {
+    return <div className="h-40 animate-pulse rounded-2xl bg-[var(--color-pt-primary)]/40" aria-hidden />;
+  }
   return (
-    <div className={cn(!compact && "rounded-2xl bg-[var(--color-pt-primary)] p-5 text-center text-white shadow-md")}>
-      <p className={cn("text-sm", compact ? "text-[var(--color-pt-night)]/70" : "text-white/80")}>Hai vinto!</p>
-      <p className={cn("text-2xl font-bold", compact && "text-[var(--color-pt-night)]")}>{p ? shortPrize(p) : "Un premio"}</p>
-      {!compact ? (
-        <>
-          <p className="mt-1 text-sm text-white/90">{winFollowUp(p?.type)}</p>
-          {p?.type === "COUPON" && p.rewardCode ? <CouponArrival rewardCode={p.rewardCode} /> : null}
-        </>
-      ) : null}
-    </div>
+    <WinCard content={card.data?.[0] ?? null} prizeLabel={prize ? shortPrize(prize) : "Un premio"} followUp={winFollowUp(prize?.type)}>
+      {prize?.type === "COUPON" && prize.rewardCode ? <CouponArrival rewardCode={prize.rewardCode} /> : null}
+    </WinCard>
   );
 }
 
@@ -288,7 +307,7 @@ function CouponArrival({ rewardCode }: { rewardCode: string }) {
     <div className="mt-3 rounded-xl bg-white/15 px-3 py-2 text-sm">
       {arrived ? (
         <>
-          <p className="text-white/80">Il tuo codice</p>
+          <p className="opacity-80">Il tuo codice</p>
           <p className="font-mono text-lg font-semibold tracking-wider">{arrived.code}</p>
         </>
       ) : (

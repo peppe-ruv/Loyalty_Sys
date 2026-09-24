@@ -176,8 +176,9 @@ public class ContentService {
                     r.excluded().stream().map(e -> new ExcludedView(e.item().code(), e.item().title(), e.reason())).toList());
         }
         String p = placementOrThrow(placement);
-        ContentSelection.Result r = ContentSelection.select(contents.findByPlacement(p), viewer(memberId), clock.instant(),
-                ContentSelection.LIMITS.get(p));
+        // Per WIN il portale ne mostra una (quella del premio vinto); l'anteprima le mostra tutte, una per premio.
+        int limit = "WIN".equals(p) ? Integer.MAX_VALUE : ContentSelection.LIMITS.get(p);
+        ContentSelection.Result r = ContentSelection.select(contents.findByPlacement(p), viewer(memberId), clock.instant(), limit);
         return new Preview(memberId, p, r.shown().stream().map(ContentDisplay::of).toList(),
                 r.excluded().stream().map(e -> new ExcludedView(e.item().code(), e.item().title(), e.reason())).toList());
     }

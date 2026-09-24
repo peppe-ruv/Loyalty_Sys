@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Plus, Trash2 } from "lucide-react";
 import { useLhMutation, useLhQuery, type LhError } from "@/lib/api/client";
 import type { Contest, ContestPrize, PrizeType, Reward } from "@/lib/api/types";
 import { useCan } from "@/components/bo/Can";
 import { INPUT } from "@/components/bo/FormBits";
+import { StatusPill } from "@/components/bo/primitives";
+import type { ContentItem } from "@/lib/content/types";
 import { isLocked, prizeLabel } from "@/lib/gamification/contests";
 
 // Scheda `prizes` di BO-14 (docs/08 §BO-14): premio, tipo (POINTS n / COUPON premio / PHYSICAL), quantità
@@ -44,6 +47,9 @@ export function PrizeEditor({ contest, onChanged }: { contest: Contest; onChange
 }
 
 function PrizeTable({ contest }: { contest: Contest }) {
+  // Card vincita collegata a ogni premio (docs/08 BO-14 → BO-18): contenuti WIN col premio come collegamento.
+  const winContents = useLhQuery<ContentItem[]>("engagement", "/v1/contents", { placement: "WIN" });
+  const winCards = new Map((winContents.data ?? []).filter((c) => c.status !== "ARCHIVED").map((c) => [c.linkCode ?? "", c]));
   if (contest.prizes.length === 0) {
     return <p className="text-sm text-[var(--color-bo-ink-2)]">Nessun premio nel montepremi.</p>;
   }
@@ -56,6 +62,7 @@ function PrizeTable({ contest }: { contest: Contest }) {
             <th className="px-3 py-2 font-medium">Tipo</th>
             <th className="px-3 py-2 text-right font-medium">Totale</th>
             <th className="px-3 py-2 font-medium">Residui</th>
+            <th className="px-3 py-2 font-medium">Card vincita</th>
           </tr>
         </thead>
         <tbody>
@@ -79,6 +86,17 @@ function PrizeTable({ contest }: { contest: Contest }) {
                     </div>
                     <span className="text-xs tabular-nums text-[var(--color-bo-ink-2)]">{p.quantityRemaining}</span>
                   </div>
+                </td>
+                <td className="px-3 py-2 text-xs">
+                  {winCards.get(p.code) ? (
+                    <Link href={`/backoffice/content/${winCards.get(p.code)!.id}`} className="hover:underline">
+                      {winCards.get(p.code)!.title} <StatusPill status={winCards.get(p.code)!.status} />
+                    </Link>
+                  ) : winContents.isError ? (
+                    <span className="text-[var(--color-bo-ink-2)]">—</span>
+                  ) : (
+                    <Link href="/backoffice/content/new" className="text-amber-700 hover:underline">nessuna: creala in BO-18</Link>
+                  )}
                 </td>
               </tr>
             );

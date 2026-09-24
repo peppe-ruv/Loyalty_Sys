@@ -13,6 +13,7 @@ import { Can, useCan } from "@/components/bo/Can";
 import { PhoneFrame } from "@/components/bo/PhoneFrame";
 import { ContentCard, type ContentVariant } from "@/components/shared/content/ContentCard";
 import { PopupModal } from "@/components/shared/content/PopupModal";
+import { WinCard } from "@/components/shared/content/WinCard";
 import { Field, INPUT, Section } from "@/components/bo/FormBits";
 import { CodeText, PageHeader, StatusPill } from "@/components/bo/primitives";
 import { cn } from "@/lib/cn";
@@ -287,6 +288,8 @@ function Editor({ initial }: { initial: ContentItem | null }) {
               <div className="relative min-h-[380px]">
                 <PopupModal content={preview} dismissible={d.dismissible} preview />
               </div>
+            ) : d.placement === "WIN" ? (
+              <WinCard content={preview} prizeLabel={d.linkCode || "Premio in palio"} followUp="" preview />
             ) : variant === "grid" ? (
               <div className="grid grid-cols-2 gap-2">
                 <ContentCard content={preview} variant="grid" preview />

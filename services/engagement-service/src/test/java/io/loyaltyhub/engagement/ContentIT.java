@@ -91,6 +91,9 @@ class ContentIT {
         assertThat(codes(get("/v1/portal/content?memberId=MBR-000002&placement=CATALOG_TOP"))).containsExactly("BNR-CATALOG");
         assertThat(codes(get("/v1/portal/content?memberId=MBR-000010&placement=CONTEST"))).containsExactly("CNT-CONTEST-RULES");
         assertThat(codes(get("/v1/portal/content?memberId=MBR-000010&placement=WIN&prizeCode=COFFEE"))).containsExactly("WIN-COFFEE");
+        // In anteprima (BO-18) le card vincita si vedono tutte, una per premio; nel portale solo quella del premio vinto.
+        assertThat(codes(get("/v1/contents/preview?memberId=MBR-000010&placement=WIN").path("shown")))
+                .containsExactlyInAnyOrder("WIN-POINTS-50", "WIN-POINTS-100", "WIN-COFFEE", "WIN-POWERBANK");
         JsonNode card = get("/v1/portal/content?memberId=MBR-000002&placement=HOME_GRID").get(0);
         assertThat(card.path("ctaTarget").asString()).isEqualTo("/portal/invite");
         assertThat(card.has("audience")).as("il portale non vede pubblico né stato").isFalse();
