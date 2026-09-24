@@ -84,7 +84,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.points.grant".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", eventId.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8))
                 )));
 
         long deadline = System.currentTimeMillis() + 10_000;
@@ -103,7 +103,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.points.grant".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", eventId.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8))
                 )));
 
         long steadyDeadline = System.currentTimeMillis() + 3000;
@@ -131,7 +131,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.fact.member.registered".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", eventId.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8))
                 )));
 
         // The first publish shouldn't change the fact that the wallet belongs to MBR-000006
@@ -147,7 +147,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.fact.member.registered".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", eventId.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8))
                 )));
 
         steadyDeadline = System.currentTimeMillis() + 3000;
@@ -178,7 +178,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.action.purchase.completed".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", eventId.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8))
                 )));
 
         long deadline = System.currentTimeMillis() + 10_000;
@@ -197,7 +197,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.action.purchase.completed".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", eventId.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8))
                 )));
 
         long steadyDeadline = System.currentTimeMillis() + 3000;
@@ -227,7 +227,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.message.send".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", id.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8))
                 )));
 
         long deadline = System.currentTimeMillis() + 10_000;
@@ -245,7 +245,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.message.send".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", id.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8))
                 )));
 
         long steadyDeadline = System.currentTimeMillis() + 3000;
@@ -271,7 +271,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.fact.action.completed".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", id.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8))
                 )));
 
         long deadline = System.currentTimeMillis() + 10_000;
@@ -284,7 +284,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.fact.action.completed".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", id.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8))
                 )));
 
         long steadyDeadline = System.currentTimeMillis() + 3000;
@@ -313,7 +313,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.points.spend".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", eventId.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8))
                 )));
 
         long deadline = System.currentTimeMillis() + 10_000;
@@ -327,7 +327,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.points.spend".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", eventId.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8))
                 )));
 
         long steadyDeadline = System.currentTimeMillis() + 3000;
@@ -353,7 +353,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.plays.grant".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", id.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8))
                 )));
 
         long deadline = System.currentTimeMillis() + 10_000;
@@ -366,7 +366,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.plays.grant".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", id.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8))
                 )));
 
         long steadyDeadline = System.currentTimeMillis() + 3000;
@@ -392,7 +392,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.coupon.issue".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", id.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8))
                 )));
 
         long deadline = System.currentTimeMillis() + 10_000;
@@ -405,7 +405,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.coupon.issue".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", id.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8))
                 )));
 
         long steadyDeadline = System.currentTimeMillis() + 3000;
@@ -431,7 +431,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.badge.award".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", id.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8))
                 )));
 
         long deadline = System.currentTimeMillis() + 10_000;
@@ -444,7 +444,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.badge.award".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", id.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8))
                 )));
 
         long steadyDeadline = System.currentTimeMillis() + 3000;
@@ -472,7 +472,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.fact.member.updated".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", eventId.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8))
                 )));
 
         long steadyDeadline = System.currentTimeMillis() + 3000;
@@ -486,7 +486,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.fact.member.updated".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", eventId.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8))
                 )));
 
         steadyDeadline = System.currentTimeMillis() + 3000;
@@ -515,7 +515,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.audit.entry".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", eventId.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8))
                 )));
 
         long deadline = System.currentTimeMillis() + 10_000;
@@ -528,7 +528,7 @@ public class HubRedeliveryIT {
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.audit.entry".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
-                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", eventId.getBytes(StandardCharsets.UTF_8))
+                    new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8))
                 )));
 
         long steadyDeadline = System.currentTimeMillis() + 3000;
