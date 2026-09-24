@@ -1,0 +1,11 @@
+id,descrizione,earnedRome,asOfRome,expired
+TB-WAL-EXP-001,scadenza fine ottobre (CET) - job alle 23:59:59 dell'ultimo giorno: non scade,2025-10-15T10:00:00,2026-10-31T23:59:59,false
+TB-WAL-EXP-002,scadenza fine ottobre (CET) - job alle 00:00 del 1 novembre: scade,2025-10-15T10:00:00,2026-11-01T00:00:00,true
+TB-WAL-EXP-003,scadenza fine marzo (CEST) - job alle 23:59:59 dell'ultimo giorno: non scade,2026-03-10T10:00:00,2027-03-31T23:59:59,false
+TB-WAL-EXP-004,scadenza fine marzo (CEST) - job alle 00:00 del 1 aprile: scade,2026-03-10T10:00:00,2027-04-01T00:00:00,true
+TB-WAL-EXP-005,scadenza 29 febbraio 2028 - job alle 00:00 del 29: non scade (non è il 28),2027-02-10T10:00:00,2028-02-29T00:00:00,false
+TB-WAL-EXP-006,scadenza 29 febbraio 2028 - job alle 23:59:59 del 29: non scade,2027-02-10T10:00:00,2028-02-29T23:59:59,false
+TB-WAL-EXP-007,scadenza 29 febbraio 2028 - job alle 00:00 del 1 marzo: scade,2027-02-10T10:00:00,2028-03-01T00:00:00,true
+TB-WAL-EXP-008,guadagnato 00:30 del 1 set a Roma (31 ago UTC) - job al 1 set dell'anno dopo: non scade,2026-09-01T00:30:00,2027-09-01T00:00:00,false
+TB-WAL-EXP-009,guadagnato 00:30 del 1 set a Roma - job al 1 ottobre dell'anno dopo: scade,2026-09-01T00:30:00,2027-10-01T00:00:00,true
+TB-WAL-EXP-010,job ben prima della scadenza: non scade,2026-09-18T12:00:00,2026-12-31T12:00:00,false

@@ -1,0 +1,4 @@
+id,descrizione,offsetSeconds,released
+TB-WAL-REL-001,job con asOf = availableAt - 1 s: resta PENDING,-1,false
+TB-WAL-REL-002,job con asOf = availableAt: rilasciato,0,true
+TB-WAL-REL-003,job con asOf = availableAt + 1 s: rilasciato,1,true

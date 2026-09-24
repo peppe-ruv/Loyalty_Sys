@@ -37,7 +37,9 @@ for (const f of files) {
     const name = decode((attrs.match(/\bname="([^"]*)"/) || [])[1] ?? "");
     const cls = decode((attrs.match(/\bclassname="([^"]*)"/) || [])[1] ?? "");
     const time = Number((attrs.match(/\btime="([^"]*)"/) || [])[1] ?? 0);
-    const head = name.match(/^\[?(TB-[A-Z]{3}(?:-[A-Z]{2,5})?-\d{3,4})\]?/);
+    // Surefire/failsafe coi nomi visualizzati (usePhrasedTestCaseMethodName) antepongono al caso di un
+    // @ParameterizedTest la firma del metodo: "grants(String, …)[TB-WAL-GRT-001] …".
+    const head = name.match(/^(?:[\w$]+\([^)]*\))?\[?(TB-[A-Z]{3}(?:-[A-Z]{2,5})?-\d{3,4})\]?/);
     if (!head) continue;
     const id = head[1];
     let status = "OK";

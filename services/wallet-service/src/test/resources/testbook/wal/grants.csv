@@ -1,0 +1,59 @@
+id,descrizione,currency,pendingDays,applies,tier,status,amount,expected
+TB-WAL-GRT-001,"PTS pendingDays 0 moltiplicatore sì BASE",PTS,0,true,BASE,ACTIVE,130,TIER
+TB-WAL-GRT-002,"PTS pendingDays 0 moltiplicatore sì SILVER",PTS,0,true,SILVER,ACTIVE,130,TIER
+TB-WAL-GRT-003,"PTS pendingDays 0 moltiplicatore sì GOLD",PTS,0,true,GOLD,ACTIVE,130,TIER
+TB-WAL-GRT-004,"PTS pendingDays 0 moltiplicatore sì PLATINUM",PTS,0,true,PLATINUM,ACTIVE,130,TIER
+TB-WAL-GRT-005,"PTS pendingDays 0 moltiplicatore no BASE",PTS,0,false,BASE,ACTIVE,130,SAME
+TB-WAL-GRT-006,"PTS pendingDays 0 moltiplicatore no SILVER",PTS,0,false,SILVER,ACTIVE,130,SAME
+TB-WAL-GRT-007,"PTS pendingDays 0 moltiplicatore no GOLD",PTS,0,false,GOLD,ACTIVE,130,SAME
+TB-WAL-GRT-008,"PTS pendingDays 0 moltiplicatore no PLATINUM",PTS,0,false,PLATINUM,ACTIVE,130,SAME
+TB-WAL-GRT-009,"PTS pendingDays 1 moltiplicatore sì BASE",PTS,1,true,BASE,ACTIVE,130,TIER
+TB-WAL-GRT-010,"PTS pendingDays 1 moltiplicatore sì SILVER",PTS,1,true,SILVER,ACTIVE,130,TIER
+TB-WAL-GRT-011,"PTS pendingDays 1 moltiplicatore sì GOLD",PTS,1,true,GOLD,ACTIVE,130,TIER
+TB-WAL-GRT-012,"PTS pendingDays 1 moltiplicatore sì PLATINUM",PTS,1,true,PLATINUM,ACTIVE,130,TIER
+TB-WAL-GRT-013,"PTS pendingDays 1 moltiplicatore no BASE",PTS,1,false,BASE,ACTIVE,130,SAME
+TB-WAL-GRT-014,"PTS pendingDays 1 moltiplicatore no SILVER",PTS,1,false,SILVER,ACTIVE,130,SAME
+TB-WAL-GRT-015,"PTS pendingDays 1 moltiplicatore no GOLD",PTS,1,false,GOLD,ACTIVE,130,SAME
+TB-WAL-GRT-016,"PTS pendingDays 1 moltiplicatore no PLATINUM",PTS,1,false,PLATINUM,ACTIVE,130,SAME
+TB-WAL-GRT-017,"PTS pendingDays 7 moltiplicatore sì BASE",PTS,7,true,BASE,ACTIVE,130,TIER
+TB-WAL-GRT-018,"PTS pendingDays 7 moltiplicatore sì SILVER",PTS,7,true,SILVER,ACTIVE,130,TIER
+TB-WAL-GRT-019,"PTS pendingDays 7 moltiplicatore sì GOLD",PTS,7,true,GOLD,ACTIVE,130,TIER
+TB-WAL-GRT-020,"PTS pendingDays 7 moltiplicatore sì PLATINUM",PTS,7,true,PLATINUM,ACTIVE,130,TIER
+TB-WAL-GRT-021,"PTS pendingDays 7 moltiplicatore no BASE",PTS,7,false,BASE,ACTIVE,130,SAME
+TB-WAL-GRT-022,"PTS pendingDays 7 moltiplicatore no SILVER",PTS,7,false,SILVER,ACTIVE,130,SAME
+TB-WAL-GRT-023,"PTS pendingDays 7 moltiplicatore no GOLD",PTS,7,false,GOLD,ACTIVE,130,SAME
+TB-WAL-GRT-024,"PTS pendingDays 7 moltiplicatore no PLATINUM",PTS,7,false,PLATINUM,ACTIVE,130,SAME
+TB-WAL-GRT-025,"STS pendingDays 0 moltiplicatore sì BASE",STS,0,true,BASE,ACTIVE,130,SAME
+TB-WAL-GRT-026,"STS pendingDays 0 moltiplicatore sì SILVER",STS,0,true,SILVER,ACTIVE,130,SAME
+TB-WAL-GRT-027,"STS pendingDays 0 moltiplicatore sì GOLD",STS,0,true,GOLD,ACTIVE,130,SAME
+TB-WAL-GRT-028,"STS pendingDays 0 moltiplicatore sì PLATINUM",STS,0,true,PLATINUM,ACTIVE,130,SAME
+TB-WAL-GRT-029,"STS pendingDays 0 moltiplicatore no BASE",STS,0,false,BASE,ACTIVE,130,SAME
+TB-WAL-GRT-030,"STS pendingDays 0 moltiplicatore no SILVER",STS,0,false,SILVER,ACTIVE,130,SAME
+TB-WAL-GRT-031,"STS pendingDays 0 moltiplicatore no GOLD",STS,0,false,GOLD,ACTIVE,130,SAME
+TB-WAL-GRT-032,"STS pendingDays 0 moltiplicatore no PLATINUM",STS,0,false,PLATINUM,ACTIVE,130,SAME
+TB-WAL-GRT-033,"STS pendingDays 1 moltiplicatore sì BASE",STS,1,true,BASE,ACTIVE,130,SAME
+TB-WAL-GRT-034,"STS pendingDays 1 moltiplicatore sì SILVER",STS,1,true,SILVER,ACTIVE,130,SAME
+TB-WAL-GRT-035,"STS pendingDays 1 moltiplicatore sì GOLD",STS,1,true,GOLD,ACTIVE,130,SAME
+TB-WAL-GRT-036,"STS pendingDays 1 moltiplicatore sì PLATINUM",STS,1,true,PLATINUM,ACTIVE,130,SAME
+TB-WAL-GRT-037,"STS pendingDays 1 moltiplicatore no BASE",STS,1,false,BASE,ACTIVE,130,SAME
+TB-WAL-GRT-038,"STS pendingDays 1 moltiplicatore no SILVER",STS,1,false,SILVER,ACTIVE,130,SAME
+TB-WAL-GRT-039,"STS pendingDays 1 moltiplicatore no GOLD",STS,1,false,GOLD,ACTIVE,130,SAME
+TB-WAL-GRT-040,"STS pendingDays 1 moltiplicatore no PLATINUM",STS,1,false,PLATINUM,ACTIVE,130,SAME
+TB-WAL-GRT-041,"STS pendingDays 7 moltiplicatore sì BASE",STS,7,true,BASE,ACTIVE,130,SAME
+TB-WAL-GRT-042,"STS pendingDays 7 moltiplicatore sì SILVER",STS,7,true,SILVER,ACTIVE,130,SAME
+TB-WAL-GRT-043,"STS pendingDays 7 moltiplicatore sì GOLD",STS,7,true,GOLD,ACTIVE,130,SAME
+TB-WAL-GRT-044,"STS pendingDays 7 moltiplicatore sì PLATINUM",STS,7,true,PLATINUM,ACTIVE,130,SAME
+TB-WAL-GRT-045,"STS pendingDays 7 moltiplicatore no BASE",STS,7,false,BASE,ACTIVE,130,SAME
+TB-WAL-GRT-046,"STS pendingDays 7 moltiplicatore no SILVER",STS,7,false,SILVER,ACTIVE,130,SAME
+TB-WAL-GRT-047,"STS pendingDays 7 moltiplicatore no GOLD",STS,7,false,GOLD,ACTIVE,130,SAME
+TB-WAL-GRT-048,"STS pendingDays 7 moltiplicatore no PLATINUM",STS,7,false,PLATINUM,ACTIVE,130,SAME
+TB-WAL-GRT-049,"membro BLOCKED (AMBIGUO: accreditato)",PTS,0,true,SILVER,BLOCKED,130,TIER
+TB-WAL-GRT-050,"membro INACTIVE (AMBIGUO: accreditato)",PTS,0,true,SILVER,INACTIVE,130,TIER
+TB-WAL-GRT-051,"membro ANONYMIZED (AMBIGUO: accreditato)",PTS,0,true,SILVER,ANONYMIZED,130,TIER
+TB-WAL-GRT-052,"arrotondamento: 1 × 1,25 = 1,25 → 1",PTS,0,true,SILVER,ACTIVE,1,TIER
+TB-WAL-GRT-053,"arrotondamento: 3 × 1,25 = 3,75 → 3",PTS,0,true,SILVER,ACTIVE,3,TIER
+TB-WAL-GRT-054,"arrotondamento: 4 × 1,25 = 5 esatto",PTS,0,true,SILVER,ACTIVE,4,TIER
+TB-WAL-GRT-055,"arrotondamento: 1 × 1,5 = 1,5 → 1",PTS,0,true,GOLD,ACTIVE,1,TIER
+TB-WAL-GRT-056,"importo 0: nessun movimento",PTS,0,true,SILVER,ACTIVE,0,NONE
+TB-WAL-GRT-057,"importo negativo: nessun movimento",PTS,0,false,BASE,ACTIVE,-10,NONE
+TB-WAL-GRT-058,"importo molto grande (1 000 000 000 × 2)",PTS,0,true,PLATINUM,ACTIVE,1000000000,TIER

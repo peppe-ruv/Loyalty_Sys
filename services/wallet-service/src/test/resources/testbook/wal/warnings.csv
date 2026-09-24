@@ -1,0 +1,8 @@
+id,descrizione,offsetSeconds,status,currency,warned
+TB-WAL-WRN-001,scadenza esattamente a asOf + 30 giorni: preavvisato,2592000,ACTIVE,PTS,true
+TB-WAL-WRN-002,scadenza a asOf + 30 giorni + 1 s: fuori finestra,2592001,ACTIVE,PTS,false
+TB-WAL-WRN-003,scadenza a asOf + 1 s: preavvisato,1,ACTIVE,PTS,true
+TB-WAL-WRN-004,scadenza = asOf (già dovuto): non preavvisato,0,ACTIVE,PTS,false
+TB-WAL-WRN-005,scadenza ieri non ancora spazzata: non preavvisato,-86400,ACTIVE,PTS,false
+TB-WAL-WRN-006,lotto PENDING in finestra: non preavvisato,864000,PENDING,PTS,false
+TB-WAL-WRN-007,lotto STS senza scadenza: non preavvisato,NONE,ACTIVE,STS,false
