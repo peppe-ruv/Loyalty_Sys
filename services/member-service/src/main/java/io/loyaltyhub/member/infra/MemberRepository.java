@@ -199,7 +199,8 @@ public class MemberRepository {
         return jdbc.sql("""
                         SELECT m.id, m.first_name, m.last_name, m.nickname, m.avatar_seed,
                                m.attributes ->> 'story' AS story,
-                               coalesce(p.tier_code, 'BASE') AS tier_code
+                               coalesce(p.tier_code, 'BASE') AS tier_code,
+                               coalesce(p.balance_pts, 0) AS balance_pts
                         FROM member m LEFT JOIN member_projection p ON p.member_id = m.id
                         WHERE m.status <> 'ANONYMIZED' AND jsonb_exists(m.attributes, 'story')
                         ORDER BY m.id
@@ -209,7 +210,8 @@ public class MemberRepository {
                         displayName(rs.getString("first_name"), rs.getString("last_name"), rs.getString("nickname"), rs.getString("id")),
                         rs.getString("tier_code"),
                         rs.getString("story"),
-                        rs.getString("avatar_seed")))
+                        rs.getString("avatar_seed"),
+                        rs.getLong("balance_pts")))
                 .list();
     }
 
