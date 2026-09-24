@@ -15,7 +15,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Motore regole puro (docs/03 §3.5, docs/servizi/campaign-service.md §7). Verifica il calcolo canonico
- * (feriale vs weekend), il limite per membro e lo scarto {@code EFFECT_NOT_SUPPORTED_YET}, senza Spring.
+ * (feriale vs weekend), il limite per membro, gli effetti non monetari (anche {@code SEND_MESSAGE}) e lo scarto
+ * {@code EFFECT_NOT_SUPPORTED_YET} degli effetti incompleti, senza Spring.
  */
 class CampaignEngineTest {
 
@@ -102,11 +103,54 @@ class CampaignEngineTest {
     }
 
     @Test
-    void unsupportedEffectIsLoadedButNotEvaluated() {
+    void sendMessageBecomesAnActionEffectNextToThePoints() {
         Evaluation ev = engine.evaluate(action("member.birthday", TUESDAY, JSON.createObjectNode()), silver(),
                 List.of(birthday()), zero);
 
+        assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+        assertThat(ev.effects()).singleElement().satisfies(g -> {
+            assertThat(g.amount()).isEqualTo(250);
+            assertThat(g.tierMultiplierApplies()).isTrue();
+        });
+        assertThat(ev.actionEffects()).singleElement().satisfies(m -> {
+            assertThat(m.type()).isEqualTo("SEND_MESSAGE");
+            assertThat(m.campaignCode()).isEqualTo("CMP-BIRTHDAY");
+            assertThat(m.params().path("templateCode").asString()).isEqualTo("MSG-BIRTHDAY");
+            // stesso effectId degli altri effetti: sha256(actionId + campaignCode + indice) → indice 1
+            assertThat(m.effectId()).isEqualTo(CampaignEngine.effectId("01ACTmember.birthday" + TUESDAY.toEpochMilli(), "CMP-BIRTHDAY", 1));
+            assertThat(m.effectId()).hasSize(26).isNotEqualTo(ev.effects().get(0).effectId());
+        });
+        assertThat(ev.results().get(0).effects()).extracting(Evaluation.EffectResult::type)
+                .containsExactly("GRANT_POINTS", "SEND_MESSAGE");
+        assertThat(ev.results().get(0).effects().get(1).amount()).as("un messaggio non ha quantità").isNull();
+    }
+
+    @Test
+    void sendMessageKeepsStaticParams() {
+        Campaign c = campaign("CMP-MSG-PARAMS", "Messaggio", 100, List.of("quiz.completed"), "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"SEND_MESSAGE\",\"templateCode\":\"MSG-WELCOME\",\"params\":{\"bonus\":50}}]", "{}");
+        Evaluation ev = engine.evaluate(action("quiz.completed", TUESDAY, JSON.createObjectNode()), silver(), List.of(c), zero);
+
+        assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
         assertThat(ev.effects()).isEmpty();
+        assertThat(ev.actionEffects()).singleElement()
+                .satisfies(m -> assertThat(m.params().path("params").path("bonus").asInt()).isEqualTo(50));
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+        "{\"type\":\"SEND_MESSAGE\"}",
+        "{\"type\":\"SEND_MESSAGE\",\"templateCode\":\"\"}",
+        "{\"type\":\"SEND_MESSAGE\",\"templateCode\":\"MSG-WELCOME\",\"params\":[1]}",
+        "{\"type\":\"TELEPORT\"}",
+    })
+    void incompleteOrUnknownEffectIsLoadedButNotEvaluated(String effect) {
+        Campaign c = campaign("CMP-BROKEN", "Rotta", 100, List.of("member.birthday"), "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FIXED\",\"value\":10}," + effect + "]", "{}");
+        Evaluation ev = engine.evaluate(action("member.birthday", TUESDAY, JSON.createObjectNode()), silver(), List.of(c), zero);
+
+        assertThat(ev.effects()).isEmpty();
+        assertThat(ev.actionEffects()).isEmpty();
         assertThat(ev.results().get(0).reason()).isEqualTo(Evaluation.SkipReason.EFFECT_NOT_SUPPORTED_YET);
     }
 

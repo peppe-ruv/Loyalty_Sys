@@ -97,6 +97,12 @@ export default function PortalProfile() {
               >
                 Porta un amico <span aria-hidden>→</span>
               </Link>
+              <Link
+                href="/portal/inbox"
+                className="mt-2 flex items-center justify-between rounded-xl border border-[var(--color-bo-border)] bg-white p-3 text-sm font-medium text-[var(--color-pt-night)]"
+              >
+                Notifiche <span aria-hidden>→</span>
+              </Link>
             </section>
           </div>
         )}

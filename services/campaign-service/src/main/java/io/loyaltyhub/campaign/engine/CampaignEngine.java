@@ -18,8 +18,9 @@ import java.util.Map;
  * Motore regole deterministico (docs/03 §3.5) — classe pura, testabile senza Spring. Valuta un'azione
  * contro le campagne {@code LIVE}, raccoglie i {@code GRANT_POINTS}, applica i {@code MULTIPLIER} e produce
  * gli effetti {@code points.grant} con {@code effectId} idempotente. Sono supportati
- * {@code GRANT_POINTS} ({@code FIXED}/{@code PER_AMOUNT}/{@code LOOKUP}/{@code FROM_FIELD}), {@code MULTIPLIER}, {@code GRANT_PLAYS}, {@code ISSUE_COUPON} e {@code AWARD_BADGE}; le campagne con altri effetti
- * restano caricate ma scartate con {@code EFFECT_NOT_SUPPORTED_YET}.
+ * {@code GRANT_POINTS} ({@code FIXED}/{@code PER_AMOUNT}/{@code LOOKUP}/{@code FROM_FIELD}), {@code MULTIPLIER}, {@code GRANT_PLAYS}, {@code ISSUE_COUPON},
+ * {@code AWARD_BADGE} e {@code SEND_MESSAGE} (M6.4); le campagne con effetti sconosciuti o incompleti (es. {@code SEND_MESSAGE}
+ * senza {@code templateCode}) restano caricate ma scartate con {@code EFFECT_NOT_SUPPORTED_YET}.
  */
 public final class CampaignEngine {
 
@@ -110,8 +111,10 @@ public final class CampaignEngine {
                     .add(new Evaluation.EffectResult("GRANT_POINTS", g.currency, amount));
         }
         for (Evaluation.ActionEffect a : actionEffects) {
+            // Un messaggio non ha una quantità: nella spiegabilità compare senza amount.
+            Long amount = a.type().equals("SEND_MESSAGE") ? null : a.params().path("count").asLong(1);
             effectsByCampaign.computeIfAbsent(a.campaignCode(), k -> new ArrayList<>())
-                    .add(new Evaluation.EffectResult(a.type(), null, a.params().path("count").asLong(1)));
+                    .add(new Evaluation.EffectResult(a.type(), null, amount));
         }
         // I MULTIPLIER matchati compaiono nella spiegabilità con il loro fattore (nessun grant proprio).
         for (Mult m : multipliers) {
@@ -250,13 +253,20 @@ public final class CampaignEngine {
             if (type.equals("AWARD_BADGE") && !e.path("badgeCode").asString("").isBlank()) {
                 continue;
             }
+            // SPEC-GAP: Q-80 — SEND_MESSAGE senza templateCode (o con params non oggetto) scarta l'intera campagna col
+            // motivo esistente EFFECT_NOT_SUPPORTED_YET (scelta conservativa: niente punti a metà; la validazione di
+            // gestione lo impedisce già a monte). Il template inesistente non si può verificare qui (è di engagement).
+            if (type.equals("SEND_MESSAGE") && !e.path("templateCode").asString("").isBlank()
+                    && (!e.has("params") || e.get("params").isNull() || e.get("params").isObject())) {
+                continue;
+            }
             if (type.equals("GRANT_POINTS")) {
                 String mode = e.path("mode").asString("FIXED");
                 if (mode.equals("FIXED") || mode.equals("PER_AMOUNT") || mode.equals("FROM_FIELD") || mode.equals("LOOKUP")) {
                     continue;
                 }
             }
-            return false; // SEND_MESSAGE (M6)
+            return false; // tipo sconosciuto o parametri mancanti
         }
         return true;
     }
@@ -264,14 +274,16 @@ public final class CampaignEngine {
     /**
      * Effetti non monetari, stesso {@code effectId} idempotente degli accrediti: {@code GRANT_PLAYS} → {@code plays.grant}
      * (M5.2), {@code ISSUE_COUPON} → {@code coupon.issue} (M5.3; {@code rewardCode} fisso o letto da
-     * {@code rewardCodeField}, docs/03 §3.3). Un premio non risolvibile dall'azione non produce effetto.
+     * {@code rewardCodeField}, docs/03 §3.3), {@code AWARD_BADGE} → {@code badge.award}, {@code SEND_MESSAGE} →
+     * {@code message.send} (M6.4; {@code templateCode} + {@code params} opzionali, docs/03 §3.4). Un premio non
+     * risolvibile dall'azione non produce effetto.
      */
     private void collectActionEffects(Campaign c, EvalAction action, List<Evaluation.ActionEffect> out) {
         JsonNode effects = c.effects();
         for (int i = 0; i < effects.size(); i++) {
             JsonNode e = effects.get(i);
             String type = e.path("type").asString("");
-            if (type.equals("GRANT_PLAYS") || type.equals("AWARD_BADGE")) {
+            if (type.equals("GRANT_PLAYS") || type.equals("AWARD_BADGE") || type.equals("SEND_MESSAGE")) {
                 out.add(new Evaluation.ActionEffect(effectId(action.actionId(), c.code(), i), c.code(), type, e));
             } else if (type.equals("ISSUE_COUPON")) {
                 String rewardCode = e.path("rewardCode").asString("");

@@ -316,6 +316,17 @@ public class CampaignAdminService {
                         && e.path("contestCode").asString("").isBlank()) {
                     errors.add("GRANT_PLAYS.contestCode obbligatorio");
                 }
+                if (e.path("type").asString("").equals("SEND_MESSAGE")) {
+                    String templateCode = e.path("templateCode").asString("");
+                    if (templateCode.isBlank()) {
+                        errors.add("SEND_MESSAGE.templateCode obbligatorio");
+                    } else if (!templateCode.matches("^[A-Z][A-Z0-9-]{2,39}$")) {
+                        errors.add("SEND_MESSAGE.templateCode non valido");
+                    }
+                    if (e.has("params") && !e.get("params").isNull() && !e.get("params").isObject()) {
+                        errors.add("SEND_MESSAGE.params deve essere un oggetto");
+                    }
+                }
             }
         }
         JsonNode schedule = r.schedule();

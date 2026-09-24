@@ -22,6 +22,8 @@ export interface EffectSpec {
   factor?: number;
   count?: number;
   contestCode?: string;
+  /** SEND_MESSAGE (docs/03 §3.4): template del messaggio in inbox. */
+  templateCode?: string;
 }
 
 const ACTION_LABEL: Record<string, string> = {
@@ -165,7 +167,7 @@ function effectLabel(e: EffectSpec): string {
     case "AWARD_BADGE":
       return bold("un badge");
     case "SEND_MESSAGE":
-      return bold("un messaggio");
+      return bold(e.templateCode ? `il messaggio ${e.templateCode}` : "un messaggio");
     default:
       return bold(e.type);
   }

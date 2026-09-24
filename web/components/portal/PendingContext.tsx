@@ -6,7 +6,8 @@ import { streamUrl, type LiveEvent } from "@/lib/realtime/sse";
 
 // "Il saldo non mente" (docs/09 §2): dopo un'azione demo il portale mostra "in arrivo…" e si chiude appena
 // arriva il fatto del wallet. Da M2.3 ascolta l'SSE di insight filtrato per correlationId (usePendingTrace);
-// il polling del wallet resta come fallback se l'SSE non è disponibile.
+// il polling del wallet resta come fallback se l'SSE non è disponibile. Ogni fatto del giro aggiorna anche campanella
+// e inbox (docs/09 §1: "a ogni fatto ricevuto"), perché i messaggi nascono dagli stessi fatti.
 
 interface PendingState {
   pending: boolean;
@@ -31,11 +32,19 @@ export function PendingProvider({ children }: { children: React.ReactNode }) {
 
   const pending = until > Date.now();
 
+  const refreshInbox = useCallback(() => {
+    qc.invalidateQueries({ queryKey: ["engagement", "/v1/portal/inbox/unread-count"] });
+    qc.invalidateQueries({ queryKey: ["engagement", "/v1/portal/inbox"] });
+  }, [qc]);
+
   useEffect(() => {
     if (!pending) return;
 
     const resolve = () => {
       qc.invalidateQueries({ queryKey: ["wallet"] });
+      refreshInbox();
+      // Il messaggio dei punti è figlio del fatto del wallet: arriva poco dopo, quando l'SSE è già chiuso.
+      setTimeout(refreshInbox, 2_000);
       setLabels([]);
       setUntil(0);
     };
@@ -50,6 +59,7 @@ export function PendingProvider({ children }: { children: React.ReactNode }) {
             const ev = JSON.parse(e.data) as LiveEvent;
             // Ogni fatto del giro aggiorna il saldo; il "earned" chiude l'attesa.
             qc.invalidateQueries({ queryKey: ["wallet"] });
+            refreshInbox();
             if (ev.shortType === "wallet.points.earned") resolve();
           } catch {
             // riga malformata ignorata
@@ -72,7 +82,7 @@ export function PendingProvider({ children }: { children: React.ReactNode }) {
       clearInterval(timer);
       clearTimeout(stop);
     };
-  }, [pending, until, qc]);
+  }, [pending, until, qc, refreshInbox]);
 
   return <Ctx.Provider value={{ pending, markPending, labels }}>{children}</Ctx.Provider>;
 }

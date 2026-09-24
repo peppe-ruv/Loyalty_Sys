@@ -46,6 +46,13 @@
   </dependencies>
 
   <build>
+    <testResources>
+      <!-- Contratti eventi (docs/05 §9) sul classpath di test: l'effetto prodotto si valida contro lo schema. -->
+      <testResource>
+        <directory>${maven.multiModuleProjectDirectory}/contracts</directory>
+        <targetPath>contracts</targetPath>
+      </testResource>
+    </testResources>
     <resources>
       <resource>
         <directory>src/main/resources</directory>
