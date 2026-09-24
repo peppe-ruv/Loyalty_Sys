@@ -133,7 +133,7 @@ class LeaderboardIT {
             if (done.test(last)) {
                 return last;
             }
-            Thread.sleep(300);
+            Thread.sleep(100);
         }
         throw new AssertionError("condizione non raggiunta su " + path + ": " + last);
     }

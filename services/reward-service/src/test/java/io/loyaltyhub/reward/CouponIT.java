@@ -123,7 +123,11 @@ class CouponIT {
 
         // Stesso effectId in un nuovo messaggio (id diverso): nessun secondo coupon.
         publishEffect("MBR-000003", effectId, "RWD-COFFEE-5");
-        Thread.sleep(1500);
+        long deadline = System.currentTimeMillis() + 1500;
+        while (System.currentTimeMillis() < deadline) {
+            if (countFor("MBR-000003", "RWD-COFFEE-5") != 1) break;
+            Thread.sleep(100);
+        }
         assertThat(countFor("MBR-000003", "RWD-COFFEE-5")).isEqualTo(1);
 
         assertThat(send("POST", "/v1/coupons/" + code + "/use", "CARE:paolo", null, 200).path("status").asString()).isEqualTo("USED");
@@ -211,7 +215,7 @@ class CouponIT {
                     return c;
                 }
             }
-            Thread.sleep(300);
+            Thread.sleep(100);
         }
         throw new AssertionError("nessun coupon " + rewardCode + " per " + memberId);
     }
