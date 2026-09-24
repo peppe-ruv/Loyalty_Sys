@@ -81,7 +81,7 @@ describe("Testbook: Condition Builder", () => {
     const warnings = fieldWarnings(tree, {
       triggers: ["action1"],
       fieldsByTrigger: {
-        action1: [{ path: "data.amount", type: "number", space: "data", required: false }]
+        action1: [{ path: "data.amount", type: "number", required: false }]
       },
       catalog: []
     });
@@ -98,8 +98,8 @@ describe("Testbook: Condition Builder", () => {
     const warnings = fieldWarnings(tree, {
       triggers: ["action1", "action2"],
       fieldsByTrigger: {
-        action1: [{ path: "data.partial", type: "string", space: "data", required: false }],
-        action2: [{ path: "data.other", type: "string", space: "data", required: false }]
+        action1: [{ path: "data.partial", type: "string", required: false }],
+        action2: [{ path: "data.other", type: "string", required: false }]
       },
       catalog: []
     });

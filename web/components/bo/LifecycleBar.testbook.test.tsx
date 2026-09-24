@@ -9,9 +9,15 @@ vi.mock("@/lib/api/client", () => ({
 
 import React from "react";
 
+declare global {
+  interface Window {
+    __MOCK_ROLE?: string;
+  }
+}
+
 // Mock esplicito di Can per verificare il ruolo (per default disabilita ma mostra, o nasconde se non match)
 vi.mock("./Can", () => ({
-  Can: ({ capability, children, mode }: { capability: string, children: React.ReactElement, mode: string }) => {
+  Can: ({ capability, children, mode }: { capability: string, children: React.ReactElement<any>, mode: string }) => {
     // Simuliamo che LEGAL abbia "object.approve", MARKETING non lo abbia.
     // Lo testiamo passando data-capability o forzando disattivazione
     const isLegal = capability === "object.approve" && window.__MOCK_ROLE === "LEGAL";
