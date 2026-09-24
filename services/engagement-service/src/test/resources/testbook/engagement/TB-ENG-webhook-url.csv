@@ -1,0 +1,5 @@
+id,url,expected
+TB-ENG-WBH-005a,http://192.168.1.1/hook,false
+TB-ENG-WBH-005b,http://localhost/hook,false
+TB-ENG-WBH-005c,http://127.0.0.1/hook,false
+TB-ENG-WBH-005d,https://example.com/hook,true

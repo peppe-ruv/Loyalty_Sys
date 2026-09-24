@@ -1,0 +1,3 @@
+id,bg,night,expected
+TB-ENG-THM-001,#FFFFFF,#000000,true
+TB-ENG-THM-002,#555555,#555555,false

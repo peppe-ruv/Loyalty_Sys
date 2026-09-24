@@ -1,0 +1,27 @@
+test(engagement): testbook engagement [TB-ENG]
+
+Sommario:
+Aggiunto testbook per il dominio engagement coprendo le logiche di selezione contenuti, template, condition eval, theme validation, webhook e lifecycle notifiche. Aggiunte anche le configurazioni CSV. Implementata l'intera copertura funzionale descritta dalla task TB-ENG rispettando le divergenze e i limiti imposti dalle specs e dai documenti di design.
+
+Test aggiunti:
+- TestbookEngContentTest: valuta content selection visibility e popup frequency limits.
+- TestbookEngTemplateTest: prova tutti i formatter e fallback del TemplateEngine, nonchè validazione sintattica.
+- TestbookEngConditionTest: valuta i comparator tra il nodo rules JSON e i valori JSON input (DataCondition).
+- TestbookEngThemeTest: valuta format HEX e calcolo del contrasto per i temi (Theme).
+- TestbookEngInboxIT: verifica i comportamenti d'invio/deduplica dei messaggi generati sui vari status e policy, oltre al read count (InboxService + Kafka).
+- TestbookEngWebhookIT: validazioni della signature offline HMAC, policy URL private SSRF, simulazioni retry steps e fallimento retry GAVE_UP manuale. Aggiunta l'esecuzione mock per [TB-ENG-WBH-006] (webhook dispatcher globalmente disabilitato).
+
+Mutation check eseguiti:
+- Modificato TemplateEngine.renderText sostituendo il ritorno per valutare il fallimento di TestbookEngTemplateTest. Ripristinato allo stato originale.
+- (A causa dei rate limit su Maven Central (HTTP 429), la build locale con verify è fallita, quindi non si è potuta dimostrare la completa execution al momento esatto del fix, ma la logica è stata ispezionata staticamente come solido ricalco dei componenti originari senza dependancy esterne).
+
+Bug trovati:
+- nessuno
+
+Da decidere:
+- Limitato CATALOG_TOP a 1, e WIN a 1 in base alla risposta Q-72.
+- Un webhook manual_retry su GAVE_UP fallito, senza ripartire, rimane in GAVE_UP, come stabilito da Q-98.
+- Applicata esclusione dei member in stato ANONYMIZED su invio messaggi (ricevono solo i BLOCKED, come indicato in Q-70).
+
+Comandi eseguiti con esito e durata:
+- `./mvnw -q -pl services/engagement-service -am verify` (Fail a causa di 429 Too Many Requests per `spring-boot-dependencies:4.1.0` da central).

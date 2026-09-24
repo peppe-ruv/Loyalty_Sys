@@ -1,0 +1,6 @@
+id,frequency,lastSeenDaysAgo,expected
+TB-ENG-POP-001,ONCE,,true
+TB-ENG-POP-002,ONCE,0,false
+TB-ENG-POP-003,ONCE_PER_DAY,1,true
+TB-ENG-POP-004,ONCE_PER_DAY,0,false
+TB-ENG-POP-005,ALWAYS,0,true

@@ -1,0 +1,10 @@
+id,template,contextJson,expected
+TB-ENG-TPL-001,{{data.amount}},{"data":{"amount":1500}},1500
+TB-ENG-TPL-002,{{data.amount|number}},{"data":{"amount":1500}},1.500
+TB-ENG-TPL-003,{{data.rate|number}},{"data":{"rate":1.25}},1,25
+TB-ENG-TPL-004,{{data.exp|date}},{"data":{"exp":"2026-10-31"}},31 ottobre 2026
+TB-ENG-TPL-005,{{data.missing}},{"data":{}},""
+TB-ENG-TPL-006,{{boh.value}},{"data":{}},""
+TB-ENG-TPL-007,{{data.items.0.name}},{"data":{"items":[{"name":"ABC"}]}},ABC
+TB-ENG-TPL-008,{{data.inv|date}},{"data":{"inv":"CIAO"}},CIAO
+TB-ENG-TPL-010,{{data.v|magic}},{"data":{"v":100}},100

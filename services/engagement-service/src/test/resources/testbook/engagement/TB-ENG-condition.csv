@@ -1,0 +1,8 @@
+id,cmp,field,valueJson,actualJson,expected
+TB-ENG-CND-001,eq,data.x,10,{"x":10},true
+TB-ENG-CND-002,gt,data.x,5,{"x":10},true
+TB-ENG-CND-003,in,data.x,["A","B"],{"x":"A"},true
+TB-ENG-CND-004,contains,data.x,"B",{"x":["A","B"]},true
+TB-ENG-CND-005,exists,data.x,null,{"x":"A"},true
+TB-ENG-CND-006,nexists,data.x,null,{"y":"A"},true
+TB-ENG-CND-008,eq,data.x.y,10,{"x":{"z":10}},false
