@@ -13,11 +13,11 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M2 — Visibilità | completata | M2.8 | | ☑ | |
 | M3 — Punti adulti | chiusa (codice) | 2026-09-21 | 2026-09-23 | ☑ | M3.1–M3.9 implementate; criteri di accettazione verdi con test automatici; resta `smoke.sh` sulla demo online |
 | M4 — Premi | chiusa (codice) | 2026-09-23 | 2026-09-24 | ☐ | M4.1–M4.6 implementate; criteri di accettazione verdi con test automatici (E2E portale su API simulate); resta `smoke.sh` sulla demo online |
-| M5 — Gioco | in corso | 2026-09-24 | | ☐ | M5.1–M5.6 chiuse (concorsi e BO-14; giocata e PT-05/PT-06; consegna vincite; obiettivi e badge BO-15/PT-09; classifiche BO-16/PT-10; referral, registrazione e profilo, BO-17/PT-11); M5.7: *pianta un istante* e fine concorsi fatti, resta l'accettazione |
+| M5 — Gioco | chiusa (codice) | 2026-09-24 | 2026-09-24 | ☐ | M5.1–M5.7 implementate; criteri di accettazione verdi con test automatici + E2E n. 3 con Playwright su servizio locale; resta `smoke.sh` sulla demo online |
 | M6 — Contenuti | da iniziare | | | ☐ | |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** M5.7 — accettazione M5 (`SCN-ONBOARDING`, E2E n. 3 di `docs/09 §4`, i 7 punti di `gamification-service.md §7`); resta `smoke.sh` sulla demo online per M3–M4
+**Prossima fetta da lavorare:** M6.0 (engagement: regole di notifica, template, inbox, effetto `message.send`) — in corso in parallelo; poi M6.1; resta `smoke.sh` sulla demo online per M3–M5
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -230,7 +230,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `M5.4` — _obiettivi COUNT/SUM/DISTINCT_TYPES/STREAK su tutte le azioni (`EventRouter` per famiglia `action.*`), periodi EVER/MONTH/EDITION, ripetibilità, badge da obiettivo e da effetto `badge.award` (`AWARD_BADGE` nel motore), fatti `achievement.progressed/completed`, `badge.awarded` → ponte → `CMP-BADGE-BONUS`; seed `achievements.json`, `badges.json` e progressi notevoli; BO-15 e PT-09_
 - [x] `M5.5` — _classifiche PTS/STS da `wallet.points.earned` (importo effettivo) e `ACTION_COUNT` dalle azioni, periodi MONTH/EDITION/ALL_TIME, parimerito a chi arriva prima, membri non attivi fuori dal ranking; seed `leaderboards.json` (STS dell'edizione = saldi del wallet); BO-16 con nome reale accanto al nickname, PT-10 con podio e riga del membro_
 - [x] `M5.6` — _referral nel member-service (legame alla registrazione, completamento atomico alla prima azione qualificante con due `referral.completed` nello stesso tracciato, panoramica/invitati/portale), registrazione `/portal/join`, profilo del portale con completezza e `member.profile.completed` una sola volta, consensi; `SCN-REFERRAL`; BO-17, PT-11, PT-08 "I tuoi dati"_
-- [~] `M5.7` — _2026-09-24: *pianta un istante* (BO-14 "Aiuto demo") e fine concorsi (job ogni 5 min + BO-30) fatti (6b87e4d); resta l'accettazione M5 (`SCN-ONBOARDING`, E2E n. 3)_
+- [x] `M5.7` — _*pianta un istante* (BO-14 "Aiuto demo") e fine concorsi (job ogni 5 min + BO-30) (6b87e4d); l'istante piantato precede quelli già maturati del seed (Q-62); scenario `SCN-ONBOARDING`; accettazione M5_
 
 **Feature** (`docs/02`)
 
@@ -243,7 +243,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `F-IW-04` Giocata (P0) — _M5.2: risposta sincrona; 50 giocate concorrenti su un istante → 1 vincita (test)_
 - [x] `F-IW-05` Crediti di gioco (P0) — _M5.2: gratuita giornaliera + crediti da `plays.grant` idempotenti, tetto giornaliero_
 - [x] `F-IW-06` Vincita come azione interna (P0) — _M5.3: ponte `contest.won` → `instantwin.won`, un solo tracciato fino a `wallet.points.earned` (test hub)_
-- [~] `F-IW-07` Vincitori e report (P0) — _2026-09-24 M5.1: API vincitori/CSV/consegna/statistiche e schede BO-14; vincite reali da M5.2_
+- [x] `F-IW-07` Vincitori e report (P0) — _M5.1: API vincitori/CSV/consegna/statistiche e schede BO-14; vincite reali da M5.2_
 - [x] `F-IW-08` Aiuto demo (P0) — _M5.7 (6b87e4d): `POST /v1/demo/contests/{id}/plant-instant` anticipa l'ultimo istante aperto del premio a adesso − 1 s (`planted`), solo ADMIN e profilo demo; card "Aiuto demo" in BO-14_
 - [x] `F-ACH-01` Obiettivi (P0) — _M5.4: 4 metriche, filtro sui dati, periodi e ripetibilità; editor BO-15 con frase generata_
 - [x] `F-ACH-02` Progresso (P0) — _M5.4: `achievement.progressed` solo al cambio di valore; barra e pallini della serie in PT-09_
@@ -254,10 +254,20 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 **Accettazione M5** (`docs/12`)
 
-- [ ] criteri di accettazione verdi
-- [ ] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi
-- [ ] stati *loading / empty / error / degraded* sulle schermate toccate
-- [ ] demo online aggiornata e `smoke.sh` verde
+- [x] criteri di accettazione verdi — _2026-09-24, verificati con test automatici (la sandbox non raggiunge la demo online):_
+  - _gamification-service §7.1 seme 42 due volte → stessi istanti, 355 per `IW-AUTUNNO` → `ContestIT`_
+  - _§7.2 *pianta un istante* + giocata → `WIN` del premio piantato (senza preparare gli istanti del seed) e tracciato `contest.won → instantwin.won → campaign.evaluated → points.grant → wallet.points.earned` entro 10 s → `HubEndToEndIT` (Matteo, +100); `DemoToolsIT`_
+  - _§7.3 seconda gratuita nello stesso giorno → `422 NO_PLAYS_AVAILABLE` → `PlayIT`_
+  - _§7.4 50 giocate concorrenti con 1 istante scaduto → esattamente 1 `WIN` → `PlayIT`_
+  - _§7.5 `GET /instants` da `MARKETING` → `403` → `ContestIT`_
+  - _§7.6 3 acquisti nel mese → `ACH-3-PURCHASES-MONTH` una volta, il 4° non riemette → `AchievementIT`_
+  - _§7.7 `ACH-DIGITAL` → badge → `badge.awarded` dal ponte → `CMP-BADGE-BONUS` +100 → `HubEndToEndIT`_
+  - _`SCN-REFERRAL` → Elisa +200, Marco +625 e +250 STS nello stesso tracciato → `HubEndToEndIT`; `ReferralIT`_
+  - _`SCN-ONBOARDING` (Anna) → +5, +150, +24, +100 (= +279) e, nel tracciato dell'acquisto, obiettivo → badge → bonus con una sola radice → `HubEndToEndIT`_
+  - _E2E n. 3 di `docs/09 §4`: BO-14 *Pianta un istante adesso* (100 punti) come `marta.admin` → PT-06 come Matteo *Gira* → "Hai vinto! 100 punti · I punti stanno arrivando…" → Playwright su gamification-service locale, 3/3 passi (script fuori dal repo); la card vincita arriva con M6.3_
+- [x] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi
+- [x] stati *loading / empty / error / degraded* sulle schermate toccate (BO-14/15/16/17, PT-05/06/09/10/11, `/portal/join` via `QueryState` e stati di form)
+- [ ] demo online aggiornata e `smoke.sh` verde — _deploy Render/Vercel automatici da `main`; `smoke.sh` da lanciare da una macchina che raggiunge la demo_
 
 ## M6 — Contenuti
 
@@ -332,6 +342,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 | Data | Fetta | Esito | Commit | Domande aperte create | Note per la prossima sessione |
 |---|---|---|---|---|---|
+| 2026-09-24 | M5.7 (accettazione) | ✅ `./mvnw verify` verde (`HubEndToEndIT` 13: `SCN-ONBOARDING` +279 con obiettivo → badge → bonus in un albero; *pianta un istante* via API senza toccare gli istanti del seed → Matteo vince il premio piantato, catena entro 10 s; il test di Anna respinta non dipende più dall'ordine), `check-seed` 21; E2E n. 3 con Playwright (BO-14 → PT-06) su gamification-service locale | (questo commit) | Q-62, Q-63 | M5 chiusa lato codice. Il claim prende l'istante aperto più vecchio: l'istante piantato va a `min(adesso − 1 s, più vecchio aperto − 1 s)` (Q-62). In `SCN-ONBOARDING` il profilo completo è un'azione simulata (Q-63). |
 | 2026-09-24 | M5.6 | ✅ `./mvnw verify` verde (`ReferralIT` 4: primo acquisto di Elisa → due `referral.completed` con ruoli opposti, stessa correlazione e causa = l'acquisto, nessuno al secondo acquisto; registrazione con codice in minuscolo e spazi → legame `PENDING`, consensi salvati, codice inesistente o di Roberto (BLOCKED) → 422; panoramica; Anna completa il profilo con la città → un solo `member.profile.completed`; `CampaignServiceIT` 13 con `codes=` e `memberLimit`; `HubEndToEndIT` 11 con SCN-REFERRAL: Elisa +200, Marco +625 PTS e +250 STS nello stesso tracciato), `pnpm lint typecheck test build` verdi (65 test), `check-contracts` e `check-seed` 21; `/portal/join` (errore sul campo), PT-11, PT-08 (modifica → profilo completo) e BO-17 controllate con Playwright su servizi locali | (questo commit) | Q-61 | lh-common: `LhEventFactory.childForSubject` (figlio con un altro `subject`: il fatto dell'invitante nasce dall'acquisto dell'invitata). Contratti `fact/action.referral.completed` e `fact/action.member.profile.completed`. `seed/members.json` con telefono, data di nascita, città e consensi (nessun ID cambiato). Portale campagne: `?codes=` restituisce campagne LIVE anche non elencate in "Guadagna" + `memberLimit`; il riepilogo distingue "punti status". Tab "Io" col pallino se il profilo è incompleto. **Attenzione in parallelo**: gli `install` di più worktree sovrascrivono lo stesso `~/.m2` (un jar `lh-common` vecchio ha dato un falso rosso): rifare `install` prima dei test isolati. |
 | 2026-09-24 | M5.7 (parte 1) | ✅ `./mvnw verify` di gamification verde (`DemoToolsIT` 3: istante piantato → la giocata successiva vince quel premio, 409 su concorso non LIVE, 422 premio/istante mancante, fine concorsi con `asOf` → `ENDED` + istanti `VOID`, seconda esecuzione senza effetti), `pnpm lint typecheck test build` verdi | 6b87e4d | — | Fetta svolta da un agente in parallelo e integrata in `main` dopo revisione. Pianta = sposta l'ultimo istante aperto del premio (montepremi invariato). Fine concorsi: job `@Scheduled` ogni 5 minuti solo con `loyaltyhub.jobs.enabled=true`, in demo da BO-30. |
 | 2026-09-24 | fix outbox (ADR-008; il commit 00132f3 cita per errore ADR-005) | ✅ `./mvnw verify` verde (`LhCommonInfraIT` 5 con 20 eventi di una transazione pubblicati nell'ordine di scrittura; `HubEndToEndIT`: SCN-TIER-UP di nuovo esatto a +762) | (questo commit) | — | **Bug trovato dalla CI della M5.4** (Giulia +795 invece di +762): le righe outbox di una transazione avevano lo stesso `created_at` (`now()` = inizio transazione) e il relay le pubblicava in ordine casuale; se l'accredito STS dell'acquisto passava prima di quello PTS, Giulia saliva a GOLD e i PTS prendevano ×1,5 (195 invece di 162). `OutboxWriter` scrive `created_at = clock_timestamp()`: nessuna migrazione, vale per tutti i servizi. |

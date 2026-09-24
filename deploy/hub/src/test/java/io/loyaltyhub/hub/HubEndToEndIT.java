@@ -219,14 +219,16 @@ class HubEndToEndIT {
 
     @Test
     void annaWithoutPointsIsRejectedAndStockIsUnchanged() {
-        // Anna (MBR-000001, 100 PTS) richiede RWD-COFFEE-5 (500 PTS) → 202, poi REJECTED (INSUFFICIENT_BALANCE).
+        // Anna (MBR-000001, 100 PTS; 379 se SCN-ONBOARDING è già passato) richiede RWD-COFFEE-5 (500 PTS) → 202, poi
+        // REJECTED (INSUFFICIENT_BALANCE), saldo invariato.
         int stock = stockOf("RWD-COFFEE-5");
+        long balance = walletPts("MBR-000001");
         JsonNode accepted = client().post().uri("/v1/portal/redemptions").contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("memberId", "MBR-000001", "rewardCode", "RWD-COFFEE-5")).retrieve().body(JsonNode.class);
         JsonNode r = awaitRedemption(accepted.path("redemptionId").asString(), "REJECTED", 10_000);
         assertThat(r.path("rejectReason").asString()).isEqualTo("INSUFFICIENT_BALANCE");
         assertThat(stockOf("RWD-COFFEE-5")).isEqualTo(stock);
-        assertThat(walletPts("MBR-000001")).isEqualTo(100);
+        assertThat(walletPts("MBR-000001")).isEqualTo(balance);
     }
 
     @Test
@@ -319,6 +321,67 @@ class HubEndToEndIT {
             }
             sleep();
         }
+    }
+
+    // ---------- accettazione M5 (docs/12) ----------
+
+    @Test
+    void scnOnboardingChainsPurchaseAchievementBadgeAndBonusInOneTrace() {
+        // docs/10 §8 SCN-ONBOARDING (Anna, BASE ×1): accesso +5 (CMP-APP-DAILY), profilo completo +150 (CMP-PROFILE),
+        // primo acquisto 24,90 € → +24 (CMP-PURCHASE-BASE) → ACH-FIRST-PURCHASE → BDG-FIRST → ponte → CMP-BADGE-BONUS +100.
+        long before = walletPts("MBR-000001");
+        JsonNode started = client().post().uri("/v1/demo/scenarios/SCN-ONBOARDING/run")
+                .header("X-LH-Actor", "ADMIN:test").retrieve().body(JsonNode.class);
+        JsonNode run = awaitRunDone(started.path("runId").asString());
+        for (JsonNode step : run.path("results")) {
+            assertThat(step.path("status").asString()).as(step.path("type").asString()).isEqualTo("ACCEPTED");
+        }
+        assertThat(awaitPts("MBR-000001", before + 279)).as("5 + 150 + 24 + 100").isEqualTo(before + 279);
+
+        String purchase = run.path("results").get(2).path("correlationId").asString();
+        JsonNode trace = awaitTrace(purchase, t -> t.path("nodes").toString().contains("+100 PTS"));
+        assertThat(trace.path("nodes").toString())
+                .contains("purchase.completed", "achievement.completed", "badge.awarded", "+24 PTS", "+100 PTS");
+        long roots = 0;
+        for (JsonNode n : trace.path("nodes")) {
+            if (n.path("parentEventId").isNull() || n.path("parentEventId").isMissingNode()) {
+                roots++;
+            }
+        }
+        assertThat(roots).as("acquisto → obiettivo → badge → bonus in un solo albero").isEqualTo(1);
+        assertThat(client().get().uri("/v1/portal/badges?memberId=MBR-000001").retrieve().body(JsonNode.class).toString())
+                .contains("BDG-FIRST");
+    }
+
+    @Test
+    void plantedInstantMakesMatteosNextPlayWinWithinTenSeconds() {
+        // gamification-service.md §7 e E2E n. 3 di docs/09 §4 (lato servizi): da BO-14 "Pianta un istante" su IW-AUTUNNO,
+        // senza preparare altro (nel seed ci sono istanti già maturati e aperti), poi la giocata di Matteo vince quel
+        // premio e il tracciato arriva a wallet.points.earned entro 10 s.
+        long before = walletPts("MBR-000010");
+        JsonNode planted = client().post().uri("/v1/demo/contests/IW-AUTUNNO/plant-instant")
+                .header("X-LH-Actor", "ADMIN:test").contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("prizeCode", "PTS-100")).retrieve().body(JsonNode.class);
+        assertThat(planted.path("prizeCode").asString()).isEqualTo("PTS-100");
+
+        JsonNode win = play("MBR-000010");
+        assertThat(win.path("outcome").asString()).isEqualTo("WIN");
+        assertThat(win.path("prize").path("code").asString()).as("vince proprio il premio piantato").isEqualTo("PTS-100");
+
+        long deadline = System.currentTimeMillis() + 10_000;
+        JsonNode trace = null;
+        while (System.currentTimeMillis() < deadline) {
+            trace = client().get().uri("/v1/traces/" + win.path("correlationId").asString())
+                    .exchange((req, res) -> res.getStatusCode().value() == 200 ? new tools.jackson.databind.ObjectMapper().readTree(res.getBody()) : null);
+            if (trace != null && trace.path("nodes").toString().contains("wallet.points.earned")) {
+                break;
+            }
+            sleep();
+        }
+        assertThat(trace).isNotNull();
+        assertThat(trace.path("nodes").toString()).as("catena entro 10 s")
+                .contains("contest.won", "instantwin.won", "campaign.evaluated", "points.grant", "wallet.points.earned");
+        assertThat(walletPts("MBR-000010")).isEqualTo(before + 100);
     }
 
     @Test

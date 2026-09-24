@@ -91,5 +91,39 @@
         "note": "Primo acquisto di Elisa: 45 € online"
       }
     ]
+  },
+  {
+    "code": "SCN-ONBOARDING",
+    "name": "Anna muove i primi passi",
+    "description": "Anna si è iscritta ieri e ha solo il bonus di benvenuto: accede all'app, completa il profilo e fa il primo acquisto, che le vale anche il primo badge.",
+    "protagonist": "Anna (MBR-000001)",
+    "watch": "Guarda il tracciato del terzo passo: acquisto → obiettivo «Primo acquisto» completato → badge Rompighiaccio → azione interna badge.awarded → bonus badge +100, tutto in un solo albero. In totale +5, +150, +24 e +100 punti.",
+    "steps": [
+      {
+        "delayMs": 0,
+        "memberId": "MBR-000001",
+        "type": "app.login.daily",
+        "source": "app",
+        "data": { "platform": "IOS" },
+        "note": "Primo accesso della giornata all'app (+5)"
+      },
+      {
+        "delayMs": 1500,
+        "memberId": "MBR-000001",
+        "type": "member.profile.completed",
+        "source": "simulator",
+        "data": { "memberId": "MBR-000001" },
+        "note": "Profilo completato (+150). Simulato: dal portale lo si fa salvando l'ultimo campo in PT-08"
+      },
+      {
+        "delayMs": 1500,
+        "memberId": "MBR-000001",
+        "type": "purchase.completed",
+        "source": "ecommerce",
+        "at": "@lastWeekdayT11:30",
+        "data": { "orderId": "ORD-SCN-ONBOARDING", "amount": 24.90, "currency": "EUR", "channel": "ONLINE" },
+        "note": "Primo acquisto: 24,90 € online (+24) → badge Rompighiaccio (+100)"
+      }
+    ]
   }
 ]

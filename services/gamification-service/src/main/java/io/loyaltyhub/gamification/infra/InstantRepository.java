@@ -168,16 +168,22 @@ public class InstantRepository {
     /**
      * Aiuto demo (F-IW-08): l'ultimo istante {@code OPEN} del premio (preferendo quelli non ancora piantati) viene
      * anticipato ad {@code at} e marcato {@code planted}. Nessun istante nuovo: il montepremi resta invariato.
+     * Il claim prende l'istante aperto più vecchio (docs/03 §6): se ce ne sono di già maturati e non riscossi (il seed
+     * ne ha), l'istante piantato va 1 s prima del più vecchio, così la prossima giocata vince davvero quel premio.
+     * SPEC-GAP: Q-62 — "now − 1 s" della spec del servizio anticipato quando serve a mantenere la promessa di BO-14.
      */
     public java.util.Optional<PlantedInstant> plantLast(String contestId, String prizeId, Instant at) {
         return jdbc.sql("""
-                        UPDATE winning_instant SET instant_at = ?, planted = true
+                        UPDATE winning_instant
+                        SET instant_at = LEAST(?, (SELECT min(o.instant_at) - interval '1 second' FROM winning_instant o
+                                                    WHERE o.contest_id = ? AND o.status = 'OPEN')),
+                            planted = true
                         WHERE id = (SELECT id FROM winning_instant
                                     WHERE contest_id = ? AND prize_id = ? AND status = 'OPEN'
                                     ORDER BY planted, instant_at DESC, id DESC LIMIT 1 FOR UPDATE)
                         RETURNING id, instant_at
                         """)
-                .params(ts(at), contestId, prizeId)
+                .params(ts(at), contestId, contestId, prizeId)
                 .query((rs, n) -> new PlantedInstant(rs.getString("id"), ContestRepository.inst(rs, "instant_at")))
                 .optional();
     }
