@@ -11,6 +11,7 @@ import io.loyaltyhub.common.outbox.OutboxWriter;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.ingestion.api.InboundEventRequest;
 import io.loyaltyhub.ingestion.domain.EventType;
+import io.loyaltyhub.ingestion.domain.Evaluation;
 import io.loyaltyhub.ingestion.domain.IngestResult;
 import io.loyaltyhub.ingestion.domain.InboundStatus;
 import io.loyaltyhub.ingestion.domain.MemberRef;
@@ -84,6 +85,39 @@ public class IngestionService {
     /** Ingest attraverso la pipeline con un'origine esplicita (es. {@code SIMULATOR} per scenari e simulatore). */
     @Transactional
     public IngestResult ingest(InboundEventRequest request, String origin) {
+        Evaluation ev = evaluate(request, null);
+        switch (ev.status()) {
+            case DUPLICATE -> {
+                return ev.toResult();
+            }
+            case REJECTED, UNMATCHED -> {
+                inbound.saveOutcome(Ulid.next(clock), ev.eventId(), ev.sourceCode(), ev.typeCode(), ev.subject(),
+                        ev.memberId(), ev.time(), ev.status(), ev.rejectCode(), ev.detail(), serialize(ev.event()),
+                        ev.correlationId(), origin);
+                return ev.toResult();
+            }
+            default -> {
+                // 8. arricchimento → outbox → ACCEPTED.
+                boolean inserted = inbound.insertAccepted(Ulid.next(clock), ev.eventId(), ev.sourceCode(), ev.typeCode(),
+                        ev.event().subject(), ev.memberId(), ev.time(), serialize(ev.event()), ev.correlationId(), origin);
+                if (!inserted) {
+                    // Gara concorrente sullo stesso (fonte, id): trattata come duplicato, nessuna doppia pubblicazione.
+                    return IngestResult.duplicate(ev.eventId(), ev.memberId(), ev.correlationId());
+                }
+                outbox.write(ev.event());
+                return ev.toResult();
+            }
+        }
+    }
+
+    /**
+     * Passi 1–8 della pipeline <em>senza</em> scrivere nulla: l'esito con l'envelope da salvare o pubblicare.
+     * Lo usano {@link #ingest} e la rivalutazione di una riga già registrata ({@link InboundResolutionService}).
+     *
+     * @param explicitMemberId membro scelto dall'operatore (<em>Abbina</em>, F-ING-04): sostituisce la risoluzione del
+     *                         {@code subject} al passo 7; {@code null} = risoluzione normale.
+     */
+    public Evaluation evaluate(InboundEventRequest request, String explicitMemberId) {
         // 1. forma envelope → 400 (nulla salvato).
         validateForm(request);
         Instant time = parseTime(request.time());
@@ -94,70 +128,94 @@ public class IngestionService {
         String fullType = normalizeType(request.type());
         String shortType = shortType(fullType);
         String sourceCode = sourceCodeOf(normalizeSource(request.source()));
+        Outcome o = new Outcome(request, time, sourceCode, shortType);
 
         // 2. fonte esistente e abilitata.
         Optional<Source> source = sources.findByCode(sourceCode);
         if (source.isEmpty() || !source.get().enabled()) {
-            return reject(request, time, sourceCode, shortType, subject, null,
-                    RejectCode.SOURCE_DISABLED, "Fonte sconosciuta o disabilitata: " + sourceCode, origin);
+            return o.rejected(null, RejectCode.SOURCE_DISABLED, "Fonte sconosciuta o disabilitata: " + sourceCode);
         }
 
         // 3. tipo noto, abilitato e ammesso per la fonte.
         Optional<EventType> type = eventTypes.findByCode(shortType);
         if (type.isEmpty() || !type.get().enabled()) {
-            return reject(request, time, sourceCode, shortType, subject, null,
-                    RejectCode.UNKNOWN_TYPE, "Tipo azione sconosciuto o disabilitato: " + shortType, origin);
+            return o.rejected(null, RejectCode.UNKNOWN_TYPE, "Tipo azione sconosciuto o disabilitato: " + shortType);
         }
         if (!source.get().allows(shortType)) {
-            return reject(request, time, sourceCode, shortType, subject, null,
-                    RejectCode.TYPE_NOT_ALLOWED, "Tipo non ammesso per la fonte " + sourceCode + ": " + shortType, origin);
+            return o.rejected(null, RejectCode.TYPE_NOT_ALLOWED, "Tipo non ammesso per la fonte " + sourceCode + ": " + shortType);
         }
 
         // 4. data valido contro lo schema del tipo.
         if (type.get().hasSchema()) {
             List<String> errors = schemaValidator.validate(type.get().schemaCacheKey(), type.get().dataSchema(), request.data().toString());
             if (!errors.isEmpty()) {
-                return reject(request, time, sourceCode, shortType, subject, null,
-                        RejectCode.INVALID_DATA, String.join("; ", errors), origin);
+                return o.rejected(null, RejectCode.INVALID_DATA, String.join("; ", errors));
             }
         }
 
         // 5. time nella finestra ammessa.
         Instant now = clock.instant();
         if (time.isAfter(now.plus(MAX_FUTURE)) || time.isBefore(now.minus(MAX_PAST))) {
-            return reject(request, time, sourceCode, shortType, subject, null,
-                    RejectCode.INVALID_TIME, "time fuori finestra (max +5 min, -30 giorni): " + request.time(), origin);
+            return o.rejected(null, RejectCode.INVALID_TIME, "time fuori finestra (max +5 min, -30 giorni): " + request.time());
         }
 
-        // 6. dedup (source, id).
+        // 6. dedup (source, id): conta solo un ACCEPTED, così una riga REJECTED/UNMATCHED rivalutata non collide con sé stessa.
         if (inbound.acceptedExists(sourceCode, eventId)) {
-            return IngestResult.duplicate(eventId, memberIdOf(subject), correlationId);
+            return new Evaluation(InboundStatus.DUPLICATE, null, null, memberIdOf(subject), eventId, sourceCode, shortType,
+                    subject, time, correlationId, null);
         }
 
-        // 7. risoluzione membro.
-        Optional<MemberRef> member = resolveMember(subject);
+        // 7. risoluzione membro (o membro esplicito dell'abbinamento manuale).
+        Optional<MemberRef> member = explicitMemberId != null
+                ? memberIndex.findByMemberId(explicitMemberId)
+                : resolveMember(subject);
         if (member.isEmpty()) {
-            return saveUnmatched(request, time, sourceCode, shortType, subject, origin);
+            return new Evaluation(InboundStatus.UNMATCHED, null, "Membro non trovato per subject " + subject, null,
+                    eventId, sourceCode, shortType, subject, time, correlationId, o.envelope(subject));
         }
         if (!member.get().isActive()) {
-            return reject(request, time, sourceCode, shortType, subject, member.get().memberId(),
-                    RejectCode.MEMBER_NOT_ACTIVE, "Membro non attivo (" + member.get().status() + ")", origin);
+            return o.rejected(member.get().memberId(), RejectCode.MEMBER_NOT_ACTIVE,
+                    "Membro non attivo (" + member.get().status() + ")");
         }
 
-        // 8. arricchimento → outbox → ACCEPTED.
+        // 8. arricchimento: subject normalizzato a member:<id>.
         String memberId = member.get().memberId();
-        String normalizedSubject = "member:" + memberId;
-        LhEvent<JsonNode> event = enrich(eventId, request.source(), fullType, normalizedSubject, time,
-                correlationId, request.data());
+        return new Evaluation(InboundStatus.ACCEPTED, null, null, memberId, eventId, sourceCode, shortType, subject, time,
+                correlationId, o.envelope("member:" + memberId));
+    }
 
-        boolean inserted = inbound.insertAccepted(Ulid.next(clock), eventId, sourceCode, shortType,
-                normalizedSubject, memberId, time, serialize(event), correlationId, origin);
-        if (!inserted) {
-            // Gara concorrente sullo stesso (fonte, id): trattata come duplicato, nessuna doppia pubblicazione.
-            return IngestResult.duplicate(eventId, memberId, correlationId);
+    /** Contesto di una valutazione, per costruire gli esiti senza ripetere i parametri. */
+    private final class Outcome {
+        private final InboundEventRequest request;
+        private final Instant time;
+        private final String sourceCode;
+        private final String shortType;
+
+        Outcome(InboundEventRequest request, Instant time, String sourceCode, String shortType) {
+            this.request = request;
+            this.time = time;
+            this.sourceCode = sourceCode;
+            this.shortType = shortType;
         }
-        outbox.write(event);
-        return IngestResult.accepted(eventId, memberId, correlationId);
+
+        Evaluation rejected(String memberId, RejectCode code, String detail) {
+            return new Evaluation(InboundStatus.REJECTED, code, detail, memberId, request.id(), sourceCode, shortType,
+                    request.subject(), time, request.id(), envelope(request.subject()));
+        }
+
+        LhEvent<JsonNode> envelope(String eventSubject) {
+            return enrich(request.id(), request.source(), normalizeType(request.type()), eventSubject, time, request.id(),
+                    request.data());
+        }
+    }
+
+    /** Serializza l'envelope per la colonna {@code payload}. */
+    public String serialize(LhEvent<JsonNode> event) {
+        try {
+            return mapper.writeValueAsString(event);
+        } catch (Exception e) {
+            throw LhException.badRequest("payload non serializzabile");
+        }
     }
 
     // ---------- passi ----------
@@ -206,23 +264,6 @@ public class IngestionService {
         return memberIndex.findByMemberId(subject);
     }
 
-    private IngestResult reject(InboundEventRequest r, Instant time, String sourceCode, String shortType,
-                                String subject, String memberId, RejectCode code, String detail, String origin) {
-        LhEvent<JsonNode> event = enrich(r.id(), r.source(), normalizeType(r.type()), subject, time, r.id(), r.data());
-        inbound.saveOutcome(Ulid.next(clock), r.id(), sourceCode, shortType, subject, memberId, time,
-                InboundStatus.REJECTED, code, detail, serialize(event), r.id(), origin);
-        return IngestResult.rejected(r.id(), memberId, r.id(), code, detail);
-    }
-
-    private IngestResult saveUnmatched(InboundEventRequest r, Instant time, String sourceCode,
-                                       String shortType, String subject, String origin) {
-        LhEvent<JsonNode> event = enrich(r.id(), r.source(), normalizeType(r.type()), subject, time, r.id(), r.data());
-        inbound.saveOutcome(Ulid.next(clock), r.id(), sourceCode, shortType, subject, null, time,
-                InboundStatus.UNMATCHED, null, "Membro non trovato per subject " + subject,
-                serialize(event), r.id(), origin);
-        return IngestResult.unmatched(r.id(), r.id());
-    }
-
     /** Envelope CloudEvent canonico: id/correlation dalla fonte, hop 0, source come URN, actor nullo. */
     private LhEvent<JsonNode> enrich(String eventId, String source, String fullType, String subject,
                                      Instant time, String correlationId, JsonNode data) {
@@ -256,13 +297,5 @@ public class IngestionService {
 
     private String memberIdOf(String subject) {
         return subject.startsWith("member:") ? subject.substring("member:".length()) : null;
-    }
-
-    private String serialize(LhEvent<JsonNode> event) {
-        try {
-            return mapper.writeValueAsString(event);
-        } catch (Exception e) {
-            throw LhException.badRequest("payload non serializzabile");
-        }
     }
 }
