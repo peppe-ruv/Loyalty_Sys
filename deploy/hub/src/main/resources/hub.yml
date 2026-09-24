@@ -58,6 +58,10 @@ loyaltyhub:
     max-multiplier: 5
   jobs:
     enabled: false
+  # Riprocessa DLQ (insight → ingestion POST /v1/events, ADR-002 eccezione 1): nell'hub ingestion è nello stesso
+  # processo, quindi il default è la porta locale del server web (nota solo dopo l'avvio; letta a ogni chiamata).
+  insight:
+    ingestion-url: ${LH_INGESTION_URL:http://localhost:${local.server.port:${server.port:8080}}}
 
 management:
   endpoints:

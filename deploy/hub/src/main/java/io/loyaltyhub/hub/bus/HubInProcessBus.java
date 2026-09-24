@@ -1,6 +1,9 @@
 package io.loyaltyhub.hub.bus;
 
+import io.loyaltyhub.common.kafka.DlqRecords;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.header.Header;
+import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,16 +31,19 @@ import java.util.concurrent.atomic.AtomicLong;
  *       relay dell'outbox — ogni consumatore gira nella propria transazione, come col broker.</li>
  *   <li><strong>Ordine</strong>: un solo thread di consegna → FIFO globale (più forte del per-partizione di
  *       Kafka; sufficiente e semplice per una demo).</li>
- *   <li><strong>Ritentativi</strong>: 3 tentativi con backoff 200 ms come l'error handler di lh-common; poi
- *       il messaggio è scartato con log di errore (la demo non ha un consumatore di DLQ).</li>
+ *   <li><strong>Ritentativi</strong>: 3 tentativi con backoff 200 ms come l'error handler di lh-common (1 solo per
+ *       gli errori non ritentabili); poi il messaggio va sul topic DLQ con gli stessi header {@code lh-*} del
+ *       recoverer Kafka ({@link DlqRecords}), così insight lo registra e BO-27 lo mostra anche nella demo ospitata.</li>
+ *   <li><strong>Header</strong>: gli header del record prodotto arrivano ai consumatori (es. {@code lh-type}).</li>
  * </ul>
  */
 public class HubInProcessBus implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(HubInProcessBus.class);
-    private static final int MAX_ATTEMPTS = 3;
+    private static final int MAX_ATTEMPTS = DlqRecords.MAX_ATTEMPTS;
     private static final long BACKOFF_MS = 200L;
 
+    private final String dlqTopic;
     private final Map<String, List<Subscription>> byTopic = new ConcurrentHashMap<>();
     private final AtomicLong offset = new AtomicLong();
     private final ExecutorService delivery =
@@ -46,6 +52,15 @@ public class HubInProcessBus implements AutoCloseable {
                 t.setDaemon(true);
                 return t;
             });
+
+    public HubInProcessBus() {
+        this("lh.dlq.v1");
+    }
+
+    /** @param dlqTopic topic su cui finiscono i messaggi non elaborabili ({@code loyaltyhub.topics.dlq}). */
+    public HubInProcessBus(String dlqTopic) {
+        this.dlqTopic = dlqTopic;
+    }
 
     /** Registra un consumatore su un topic (chiamata a startup, un {@code @KafkaListener} per volta). */
     public void subscribe(String topic, String groupId, Delivery consumer) {
@@ -63,6 +78,11 @@ public class HubInProcessBus implements AutoCloseable {
         for (Subscription sub : subs) {
             ConsumerRecord<String, String> consumerRecord =
                     new ConsumerRecord<>(record.topic(), 0, offset.getAndIncrement(), record.key(), record.value());
+            if (record.headers() != null) {
+                for (Header h : record.headers()) {
+                    consumerRecord.headers().add(h.key(), h.value());
+                }
+            }
             delivery.execute(() -> deliver(sub, consumerRecord));
         }
     }
@@ -73,9 +93,9 @@ public class HubInProcessBus implements AutoCloseable {
                 sub.consumer().accept(record);
                 return;
             } catch (Exception e) {
-                if (attempt == MAX_ATTEMPTS) {
-                    log.error("Bus in-process: consegna a {} su {} fallita dopo {} tentativi (scartato): {}",
-                            sub.groupId(), record.topic(), MAX_ATTEMPTS, e.toString());
+                boolean retryable = DlqRecords.retryable(e);
+                if (attempt == MAX_ATTEMPTS || !retryable) {
+                    deadLetter(sub, record, e, attempt);
                     return;
                 }
                 log.warn("Bus in-process: tentativo {}/{} fallito per {} su {}: {}",
@@ -83,6 +103,26 @@ public class HubInProcessBus implements AutoCloseable {
                 sleep();
             }
         }
+    }
+
+    /** Record in DLQ come il recoverer di lh-common: stessa chiave e valore, header originali + {@code lh-*}. */
+    private void deadLetter(Subscription sub, ConsumerRecord<String, String> record, Exception e, int attempts) {
+        if (dlqTopic.equals(record.topic())) {
+            // Un consumatore della DLQ che fallisce non rimanda in DLQ (eviterebbe un ciclo infinito).
+            log.error("Bus in-process: consegna a {} su {} fallita dopo {} tentativi (scartato): {}",
+                    sub.groupId(), record.topic(), attempts, e.toString());
+            return;
+        }
+        log.error("Bus in-process: consegna a {} su {} fallita dopo {} tentativi → {}: {}",
+                sub.groupId(), record.topic(), attempts, dlqTopic, e.toString());
+        RecordHeaders headers = new RecordHeaders();
+        for (Header h : record.headers()) {
+            headers.add(h.key(), h.value());
+        }
+        for (Header h : DlqRecords.headers(record.topic(), sub.groupId(), e, attempts)) {
+            headers.add(h.key(), h.value());
+        }
+        publish(new ProducerRecord<>(dlqTopic, null, record.key(), record.value(), headers));
     }
 
     private static void sleep() {

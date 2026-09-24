@@ -19,6 +19,7 @@ export type Capability =
   | "coupon.use"
   | "coupon.void"
   | "inbound.handle"
+  | "dlq.handle"
   | "demo.simulate"
   | "demo.admin";
 
@@ -40,6 +41,8 @@ const MATRIX: Record<Capability, Role[]> = {
   "coupon.use": ["ADMIN", "MARKETING", "LEGAL", "CARE"],
   "coupon.void": ["ADMIN", "CARE"],
   "inbound.handle": ["ADMIN", "CARE"],
+  // BO-27 riprocessa / scarta (docs/08 §2, insight §3: ruolo ADMIN).
+  "dlq.handle": ["ADMIN"],
   "demo.simulate": ["ADMIN", "MARKETING", "LEGAL", "CARE"],
   "demo.admin": ["ADMIN"],
 };

@@ -39,6 +39,8 @@ loyaltyhub:
       max-rows: 200000
       payload-max-bytes: 8192
       cron: "0 20 * * * *"
+    # Riprocessa DLQ di un'azione → ingestion POST /v1/events (ADR-002 eccezione 1, docs/11 §8).
+    ingestion-url: ${LH_INGESTION_URL:http://localhost:8081}
 
 management:
   endpoints:

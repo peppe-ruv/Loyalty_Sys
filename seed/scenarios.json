@@ -150,5 +150,22 @@
         "note": "Marco attiva la domiciliazione (+400 PTS col moltiplicatore, +200 STS) → badge «Zero carta» (+100)"
       }
     ]
+    },
+  {
+    "code": "SCN-POISON",
+    "name": "Un messaggio avvelenato",
+    "description": "Marco apre l'app, ma l'azione porta il flag demo _poison: il motore campagne non riesce a elaborarla e il messaggio finisce nella DLQ. Serve a mostrare cosa succede quando un consumer si blocca su un evento.",
+    "protagonist": "Marco (MBR-000002)",
+    "watch": "Apri «DLQ» (BO-27): c'è una voce aperta del consumer lh-campaign con codice DEMO_POISON. Il tracciato dell'azione è FAILED. Da lì un ADMIN può riprocessarla o scartarla.",
+    "steps": [
+      {
+        "delayMs": 0,
+        "memberId": "MBR-000002",
+        "type": "app.login.daily",
+        "source": "app",
+        "data": { "platform": "ANDROID", "_poison": true },
+        "note": "Accesso all'app con il flag demo _poison: il motore campagne fallisce → DLQ"
+      }
+    ]
   }
 ]

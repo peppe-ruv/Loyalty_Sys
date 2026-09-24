@@ -22,6 +22,7 @@ import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.listener.ListenerExecutionFailedException;
 import org.apache.kafka.common.config.TopicConfig;
 import org.springframework.kafka.config.KafkaListenerContainerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
@@ -88,21 +89,28 @@ public class LhKafkaConfiguration {
         return new DefaultKafkaConsumerFactory<>(cfg);
     }
 
-    /** Error handler: 3 tentativi (1 + 2), poi recoverer verso {@code lh.dlq.v1} con header {@code lh-error-code}. */
+    /**
+     * Error handler: 3 tentativi (1 + 2), poi recoverer verso {@code lh.dlq.v1} con gli header {@code lh-*} di docs/04 §5
+     * ({@code lh-original-topic}, {@code lh-consumer}, {@code lh-error-class}, {@code lh-error-message},
+     * {@code lh-attempts}) più {@code lh-error-code} ({@link DlqRecords}).
+     */
     @Bean
     public DefaultErrorHandler lhErrorHandler(KafkaTemplate<String, String> template, LhMetrics metrics) {
         String dlq = props.getTopics().getDlq();
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(template,
                 (record, ex) -> new TopicPartition(dlq, -1));
         recoverer.setHeadersFunction((record, ex) -> {
-            String code = errorCode(ex);
-            record.headers().add(LhHeaders.ERROR_CODE, code.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            metrics.eventDlq(headerType(record), code);
-            return record.headers();
+            Throwable cause = DlqRecords.unwrap(ex);
+            String group = ex instanceof ListenerExecutionFailedException lefe && lefe.getGroupId() != null
+                    ? lefe.getGroupId() : consumerGroup();
+            metrics.eventDlq(headerType(record), DlqRecords.errorCode(cause));
+            return DlqRecords.headers(record.topic(), group, cause, DlqRecords.attemptsFor(cause));
         });
         // maxRetries = 2 ⇒ 3 tentativi totali (docs/12 accettazione M0); gli eventi non ritentabili vanno subito in DLQ.
-        DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(200L, 2));
-        handler.addNotRetryableExceptions(NonRetryableEventException.class);
+        DefaultErrorHandler handler = new DefaultErrorHandler(recoverer,
+                new FixedBackOff(200L, DlqRecords.MAX_ATTEMPTS - 1L));
+        // LOOP_GUARD è deterministico come un errore di validazione (docs/04 §5): nessun ritentativo lo risolverebbe.
+        handler.addNotRetryableExceptions(NonRetryableEventException.class, LoopGuardException.class);
         return handler;
     }
 
@@ -152,17 +160,6 @@ public class LhKafkaConfiguration {
     private String consumerGroup() {
         String s = props.getService();
         return s.startsWith("lh-") ? s : "lh-" + s;
-    }
-
-    private static String errorCode(Exception ex) {
-        Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-        if (cause instanceof LoopGuardException) {
-            return "LOOP_GUARD";
-        }
-        if (cause instanceof NonRetryableEventException nre) {
-            return nre.code();
-        }
-        return cause.getClass().getSimpleName();
     }
 
     private static String headerType(org.apache.kafka.clients.consumer.ConsumerRecord<?, ?> record) {

@@ -246,6 +246,14 @@ class LhCommonInfraIT {
                 ConsumerRecord<String, String> dead = poll(consumer, r -> r.key().equals("MBR-000007"));
                 assertThat(dead).as("messaggio finito in DLQ").isNotNull();
                 assertThat(header(dead, LhHeaders.ERROR_CODE)).isEqualTo("IllegalStateException");
+                // Header DLQ di docs/04 §5 (letti da insight per BO-27).
+                assertThat(header(dead, LhHeaders.ORIGINAL_TOPIC)).isEqualTo(DLQ_INPUT);
+                assertThat(header(dead, LhHeaders.CONSUMER)).isEqualTo("dlq-test");
+                assertThat(header(dead, LhHeaders.ERROR_CLASS)).isEqualTo("java.lang.IllegalStateException");
+                assertThat(header(dead, LhHeaders.ERROR_MESSAGE)).isEqualTo("boom");
+                assertThat(header(dead, LhHeaders.ATTEMPTS)).isEqualTo("3");
+                assertThat(header(dead, LhHeaders.ERROR_RETRYABLE)).isEqualTo("true");
+                assertThat(header(dead, LhHeaders.ERROR_STACK)).startsWith("java.lang.IllegalStateException: boom");
             }
             // 3 tentativi (1 + 2 ritenti) prima della DLQ.
             assertThat(attempts[0]).isEqualTo(3);

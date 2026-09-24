@@ -18,6 +18,12 @@ describe("activeHref", () => {
     expect(activeHref("/backoffice/segments/SEG-DIGITAL")).toBe("/backoffice/segments");
     expect(visibleNav().find((g) => g.label === "Clienti")?.items.map((i) => i.id)).toEqual(["BO-02", "BO-04"]);
   });
+  it("BO-27 DLQ è in Osservabilità da M7 (M7.3)", () => {
+    const observe = (m: number) => visibleNav(m).find((g) => g.label === "Osservabilità")?.items.map((i) => i.id);
+    expect(observe(6)).not.toContain("BO-27");
+    expect(observe(7)).toContain("BO-27");
+    expect(activeHref("/backoffice/observe/dlq", visibleNav(7))).toBe("/backoffice/observe/dlq");
+  });
   it("nessuna voce fuori dal backoffice", () => {
     expect(activeHref("/portal")).toBeNull();
   });

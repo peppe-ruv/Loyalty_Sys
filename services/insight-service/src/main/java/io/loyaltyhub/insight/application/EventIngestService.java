@@ -8,8 +8,10 @@ import io.loyaltyhub.common.event.LhFamily;
 import io.loyaltyhub.common.event.LhHeaders;
 import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.insight.domain.AuditRecord;
+import io.loyaltyhub.insight.domain.DlqEntry;
 import io.loyaltyhub.insight.domain.StoredEvent;
 import io.loyaltyhub.insight.infra.AuditRepository;
+import io.loyaltyhub.insight.infra.DlqRepository;
 import io.loyaltyhub.insight.infra.EventStoreRepository;
 import io.loyaltyhub.insight.infra.MetricRepository;
 import io.loyaltyhub.insight.infra.TopicStatRepository;
@@ -43,18 +45,78 @@ public class EventIngestService {
     private final TopicStatRepository topicStats;
     private final MetricRepository metrics;
     private final AuditRepository audits;
+    private final DlqRepository dlq;
     private final LiveEventHub liveHub;
     private final ObjectMapper mapper;
 
     public EventIngestService(EventStoreRepository events, TopicStatRepository topicStats,
-                              MetricRepository metrics, AuditRepository audits, LiveEventHub liveHub,
-                              ObjectMapper mapper) {
+                              MetricRepository metrics, AuditRepository audits, DlqRepository dlq,
+                              LiveEventHub liveHub, ObjectMapper mapper) {
         this.events = events;
         this.topicStats = topicStats;
         this.metrics = metrics;
         this.audits = audits;
+        this.dlq = dlq;
         this.liveHub = liveHub;
         this.mapper = mapper;
+    }
+
+    /**
+     * Record su {@code lh.dlq.v1} → voce DLQ (docs/servizi/insight-service.md §2, §5; BO-27) con i dati degli header
+     * {@code lh-*} di docs/04 §5 (in mancanza, quelli standard {@code kafka_dlt-*} del recoverer). Il valore è
+     * l'evento originale, che l'event store ha già (stesso {@code event_id}): per questo il record DLQ non entra in
+     * {@code event_store} (lo oscurerebbe) ma in {@code dlq_entry}. Il parsing è tollerante: un valore non JSON
+     * diventa {@code {"raw": …}} — un errore qui rimanderebbe il record in DLQ, in ciclo.
+     *
+     * @return {@code true} se la voce è nuova (un record DLQ riletto non ne crea una seconda)
+     */
+    // SPEC-GAP: Q-B8 — §2 elenca la famiglia DLQ in event_store, ma col medesimo event_id dell'originale la riga non
+    // potrebbe coesistere: il record DLQ vive in dlq_entry (e nel flusso live), l'event store tiene l'originale.
+    @Transactional
+    public boolean ingestDlq(ConsumerRecord<String, String> record) {
+        JsonNode payload = lenientJson(record.value());
+        String type = textOrNull(payload, "type");
+        String eventId = textOrNull(payload, "id");
+        if (eventId == null) {
+            eventId = "dlq-" + record.topic() + "-" + record.partition() + "-" + record.offset();
+        }
+        String originalTopic = firstHeader(record, LhHeaders.ORIGINAL_TOPIC, "kafka_dlt-original-topic");
+        LhFamily family = LhFamily.of(type);
+        String familyCode = family != null ? family.name() : familyOfTopic(originalTopic);
+        String subject = textOrNull(payload, "subject");
+        String memberId = subject != null && subject.startsWith("member:") ? subject.substring("member:".length()) : null;
+        String consumer = firstHeader(record, LhHeaders.CONSUMER, "kafka_dlt-original-consumer-group");
+        String errorClass = firstHeader(record, LhHeaders.ERROR_CLASS, "kafka_dlt-exception-cause-fqcn",
+                "kafka_dlt-exception-fqcn");
+        String errorCode = header(record, LhHeaders.ERROR_CODE);
+        if (errorCode == null && errorClass != null) {
+            errorCode = errorClass.substring(errorClass.lastIndexOf('.') + 1);
+        }
+        String retryable = header(record, LhHeaders.ERROR_RETRYABLE);
+        Instant seenAt = record.timestamp() > 0 ? Instant.ofEpochMilli(record.timestamp()) : Instant.now();
+        DlqEntry entry = new DlqEntry(
+                Ulid.next(), eventId, originalTopic, type, familyCode, consumer == null ? "unknown" : consumer,
+                errorCode, errorClass,
+                firstHeader(record, LhHeaders.ERROR_MESSAGE, "kafka_dlt-exception-message"),
+                shortStack(firstHeader(record, LhHeaders.ERROR_STACK, "kafka_dlt-exception-stacktrace")),
+                retryable == null ? null : Boolean.valueOf(retryable), intOrNull(header(record, LhHeaders.ATTEMPTS)),
+                memberId, textOrNull(payload, "lhcorrelationid"), payload, seenAt,
+                DlqEntry.OPEN, null, null, null);
+
+        boolean isNew = dlq.insert(entry, record.partition(), record.offset());
+        if (isNew) {
+            topicStats.record(record.topic(), seenAt, record.partition(), record.offset());
+            LocalDate day = seenAt.atZone(ZoneOffset.UTC).toLocalDate();
+            metrics.increment(day, "dlq", MetricRepository.TOTAL, MetricRepository.TOTAL, 1);
+            // Evento live con l'id della voce (non quello dell'originale, già usato dal suo topic).
+            String shortType = entry.shortType() == null ? "dlq" : entry.shortType();
+            liveHub.publish(new LiveEvent(entry.id(), record.topic(), "DLQ", shortType, memberId,
+                    entry.correlationId(), seenAt,
+                    "DLQ · " + entry.consumer() + " · " + (errorCode == null ? "errore" : errorCode)));
+        } else {
+            log.debug("Voce DLQ già aperta per {} / {}: record riletto, ignorato", eventId, entry.consumer());
+        }
+        return isNew;
     }
 
     @Transactional
@@ -159,6 +221,66 @@ public class EventIngestService {
             return type.substring(f.typePrefix().length());
         }
         return type;
+    }
+
+    private JsonNode lenientJson(String value) {
+        if (value == null || value.isBlank()) {
+            return mapper.createObjectNode().put("raw", "");
+        }
+        try {
+            JsonNode node = mapper.readTree(value);
+            return node != null && node.isObject() ? node : mapper.createObjectNode().put("raw", value);
+        } catch (RuntimeException e) {
+            return mapper.createObjectNode().put("raw", value);
+        }
+    }
+
+    private static String textOrNull(JsonNode node, String field) {
+        JsonNode v = node.get(field);
+        return v == null || !v.isString() || v.asString().isBlank() ? null : v.asString();
+    }
+
+    private static Integer intOrNull(String value) {
+        try {
+            return value == null ? null : Integer.valueOf(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** Famiglia dedotta dal topic d'origine quando il {@code type} manca o non è riconoscibile. */
+    private static String familyOfTopic(String topic) {
+        if (topic != null) {
+            for (LhFamily f : LhFamily.values()) {
+                if (topic.startsWith("lh." + f.code())) {
+                    return f.name();
+                }
+            }
+        }
+        return "UNKNOWN";
+    }
+
+    /** Stack abbreviato (le prime 16 righe): il recoverer standard mette lo stack completo nell'header. */
+    private static String shortStack(String stack) {
+        if (stack == null) {
+            return null;
+        }
+        String[] lines = stack.split("\n");
+        if (lines.length <= 16 && stack.length() <= 4000) {
+            return stack;
+        }
+        String head = String.join("\n", java.util.Arrays.copyOf(lines, Math.min(lines.length, 16)));
+        return (head.length() > 4000 ? head.substring(0, 4000) : head) + "\n\t…";
+    }
+
+    private static String firstHeader(ConsumerRecord<String, String> record, String... names) {
+        for (String name : names) {
+            String v = header(record, name);
+            if (v != null && !v.isBlank()) {
+                return v;
+            }
+        }
+        return null;
     }
 
     private static String header(ConsumerRecord<String, String> record, String name) {

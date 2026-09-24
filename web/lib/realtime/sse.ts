@@ -42,12 +42,14 @@ export function streamUrl(filters: LiveFilters): string {
 
 /** Colore CSS del topic in base alla famiglia (token in globals.css). */
 export function familyColorVar(family: LiveFamily): string {
-  const key: Record<LiveFamily, string> = {
-    ACTION: "actions",
-    EFFECT: "effects",
-    FACT: "facts",
-    AUDIT: "audit",
-    DLQ: "dlq",
+  // Nomi scritti per intero: Tailwind v4 emette solo le variabili di @theme che trova nel sorgente, e un nome
+  // composto a runtime (`--color-topic-${…}`) non lo vede (i pallini di fatti/effetti/audit restavano trasparenti).
+  const color: Record<LiveFamily, string> = {
+    ACTION: "var(--color-topic-actions)",
+    EFFECT: "var(--color-topic-effects)",
+    FACT: "var(--color-topic-facts)",
+    AUDIT: "var(--color-topic-audit)",
+    DLQ: "var(--color-topic-dlq)",
   };
-  return `var(--color-topic-${key[family]})`;
+  return color[family];
 }

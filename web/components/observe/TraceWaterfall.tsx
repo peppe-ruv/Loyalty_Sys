@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { familyColorVar, type LiveFamily } from "@/lib/realtime/sse";
 import { TopicDot } from "./TopicDot";
 
 // Cascata del tracciato (docs/08 §BO-25): una corsia per servizio, nodi posizionati per offsetMs, colorati
 // per famiglia; sotto, il pannello esito. Versione M2.3: nodi e tempi; il payload per nodo arriva più avanti.
+// M7.3: i nodi DLQ (voci di insight dlq_entry) sono elencati sotto l'esito con il collegamento a BO-27.
 export interface TraceNode {
   eventId: string;
   family: LiveFamily;
@@ -44,6 +46,8 @@ const STATUS_CLASS: Record<string, string> = {
 export function TraceWaterfall({ trace }: { trace: Trace }) {
   const lanes = Array.from(new Set(trace.nodes.map((n) => n.service)));
   const maxOffset = Math.max(1, ...trace.nodes.map((n) => n.offsetMs));
+  // Nodi DLQ (M7.3): una voce per consumer che non ha elaborato un evento del giro → link a BO-27.
+  const dlqNodes = trace.nodes.filter((n) => n.family === "DLQ");
 
   return (
     <div className="rounded-md border border-[var(--color-bo-border)] bg-white p-4">
@@ -104,6 +108,22 @@ export function TraceWaterfall({ trace }: { trace: Trace }) {
             </>
           )}
         </div>
+        {dlqNodes.length > 0 ? (
+          <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-900" role="note">
+            <p className="font-semibold">
+              {trace.status === "FAILED" ? "Il giro si è fermato in DLQ" : "Il giro è passato dalla DLQ"}
+            </p>
+            <ul className="mt-1 space-y-0.5">
+              {dlqNodes.map((n) => (
+                <li key={n.eventId}>
+                  <Link href={`/backoffice/observe/dlq?status=ALL&e=${n.eventId}`} className="hover:underline">
+                    {n.service} · {n.summary} →
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
     </div>
   );
