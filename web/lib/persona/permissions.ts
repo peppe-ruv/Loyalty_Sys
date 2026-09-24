@@ -11,6 +11,7 @@ export type Capability =
   | "object.edit"
   | "object.approve"
   | "content.write"
+  | "webhook.write"
   | "program.config"
   | "actiontype.custom"
   | "redemption.handle"
@@ -30,6 +31,8 @@ const MATRIX: Record<Capability, Role[]> = {
   "object.edit": ["ADMIN", "MARKETING"],
   "object.approve": ["ADMIN", "LEGAL"],
   "content.write": ["ADMIN", "MARKETING"],
+  // BO-23 webhook in uscita (M7.2): creazione, modifica, prova e Riprova solo ADMIN.
+  "webhook.write": ["ADMIN"],
   "program.config": ["ADMIN"],
   "actiontype.custom": ["ADMIN", "MARKETING"],
   "redemption.handle": ["ADMIN", "CARE"],

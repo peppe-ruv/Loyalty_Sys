@@ -14,7 +14,7 @@ import java.time.Duration;
 
 /**
  * Job schedulati di engagement (docs/servizi/engagement-service.md §5): pulizia dei messaggi dell'inbox più vecchi di
- * 180 giorni e delle viste dei pop-up oltre 90, ogni notte; fine automatica dei contenuti col calendario scaduto, ogni 10 minuti. Attivo solo con {@code loyaltyhub.jobs.enabled=true} (spento in demo, come negli altri servizi).
+ * 180 giorni, delle viste dei pop-up oltre 90 e delle consegne dei webhook oltre 14, ogni notte; fine automatica dei contenuti col calendario scaduto, ogni 10 minuti. Attivo solo con {@code loyaltyhub.jobs.enabled=true} (spento in demo, come negli altri servizi).
  */
 @Component
 @Lazy(false)
@@ -25,16 +25,20 @@ public class EngagementJobs {
     static final Duration INBOX_RETENTION = Duration.ofDays(180);
 
     static final int POPUP_VIEW_RETENTION_DAYS = 90;
+    static final Duration WEBHOOK_DELIVERY_RETENTION = Duration.ofDays(14);
 
     private final InboxRepository inbox;
     private final PopupViewRepository popupViews;
     private final ContentService contents;
+    private final WebhookService webhooks;
     private final Clock clock;
 
-    public EngagementJobs(InboxRepository inbox, PopupViewRepository popupViews, ContentService contents, Clock clock) {
+    public EngagementJobs(InboxRepository inbox, PopupViewRepository popupViews, ContentService contents,
+                          WebhookService webhooks, Clock clock) {
         this.inbox = inbox;
         this.popupViews = popupViews;
         this.contents = contents;
+        this.webhooks = webhooks;
         this.clock = clock;
     }
 
@@ -55,6 +59,10 @@ public class EngagementJobs {
         int views = popupViews.deleteOlderThan(java.time.LocalDate.now(clock).minusDays(POPUP_VIEW_RETENTION_DAYS));
         if (views > 0) {
             log.info("Pulizia viste pop-up: rimosse {} oltre {} giorni", views, POPUP_VIEW_RETENTION_DAYS);
+        }
+        int deliveries = webhooks.purgeDeliveries(clock.instant().minus(WEBHOOK_DELIVERY_RETENTION));
+        if (deliveries > 0) {
+            log.info("Pulizia consegne webhook: rimosse {} oltre {} giorni", deliveries, WEBHOOK_DELIVERY_RETENTION.toDays());
         }
     }
 }

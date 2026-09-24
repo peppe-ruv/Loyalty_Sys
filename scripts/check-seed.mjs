@@ -584,6 +584,62 @@ if (Array.isArray(templatesSeed)) {
   }
 }
 
+// Webhook (docs/10 §7, docs/servizi/engagement-service.md §2, §5–§6; F-WBH-01, M7.2): uno solo, disabilitato, verso
+// https://example.org; tipi di fatto del catalogo dei contratti (contracts/events/fact) e mai message.delivered;
+// segreto whsec_… presente. Registro storico (SPEC-GAP: Q-A6): solo consegne chiuse (OK/GAVE_UP: nessuna partirebbe
+// davvero), dei tipi sottoscritti, per membri esistenti, dentro la pulizia dei 14 giorni, tentativi coerenti coi ritenti.
+{
+  const hooks = readSeed("webhooks.json");
+  if (hooks) {
+    const factDir = resolve(here, "..", "contracts", "events", "fact");
+    const factTypes = new Set(
+      existsSync(factDir) ? readdirSync(factDir).filter((f) => f.endsWith(".schema.json")).map((f) => f.replace(/\.schema\.json$/, "")) : [],
+    );
+    const memberIds = new Set((readSeed("members.json") ?? []).map((m) => m.id));
+    if (!Array.isArray(hooks) || hooks.length !== 1) errors.push("webhooks.json: atteso esattamente un webhook (docs/10 §7)");
+    const codes = new Set();
+    const eventIds = new Set();
+    for (const w of Array.isArray(hooks) ? hooks : []) {
+      const where = `webhooks.json: ${w.code}`;
+      if (!/^[A-Z][A-Z0-9-]{2,39}$/.test(w.code ?? "")) errors.push(`${where} codice non valido`);
+      if (codes.has(w.code)) errors.push(`${where} codice duplicato`);
+      codes.add(w.code);
+      if (!w.name) errors.push(`${where} nome mancante`);
+      if (w.enabled !== false) errors.push(`${where} deve essere disabilitato (docs/10 §7)`);
+      let url = null;
+      try {
+        url = new URL(w.url);
+      } catch {
+        errors.push(`${where} URL non valido`);
+      }
+      if (url && (url.protocol !== "https:" || !/(^|\.)example\.org$/.test(url.hostname))) {
+        errors.push(`${where} URL solo https:// verso example.org`);
+      }
+      if (!/^whsec_\S{8,}$/.test(w.secret ?? "")) errors.push(`${where} segreto whsec_… mancante`);
+      const types = w.factTypes ?? [];
+      if (types.length === 0) errors.push(`${where} nessun tipo di fatto`);
+      for (const t of types) {
+        if (t === "message.delivered") errors.push(`${where} message.delivered non si consegna (ciclo)`);
+        else if (factTypes.size > 0 && !factTypes.has(t)) errors.push(`${where} tipo di fatto sconosciuto ${t}`);
+      }
+      for (const d of w.deliveries ?? []) {
+        const dw = `${where} consegna ${d.eventId}`;
+        if (!d.eventId || eventIds.has(d.eventId)) errors.push(`${dw} eventId mancante o duplicato`);
+        eventIds.add(d.eventId);
+        if (!types.includes(d.factType)) errors.push(`${dw} tipo ${d.factType} non sottoscritto`);
+        if (d.memberId && !memberIds.has(d.memberId)) errors.push(`${dw} membro inesistente ${d.memberId}`);
+        if (!["OK", "GAVE_UP"].includes(d.status)) errors.push(`${dw} stato ${d.status}: nel seed solo OK o GAVE_UP`);
+        const attempts = d.attempts ?? 1;
+        if (!Number.isInteger(attempts) || attempts < 1 || attempts > 4) errors.push(`${dw} tentativi fuori da 1…4`);
+        if (d.status === "GAVE_UP" && attempts !== 4) errors.push(`${dw} GAVE_UP richiede 4 tentativi`);
+        if (d.status === "OK" && !(d.httpStatus >= 200 && d.httpStatus < 300)) errors.push(`${dw} OK richiede un 2xx`);
+        const age = /^@(?:now|today)-(\d+)d/.exec(d.at ?? "");
+        if (!age || Number(age[1]) > 13) errors.push(`${dw} data "${d.at}" oltre la pulizia dei 14 giorni`);
+      }
+    }
+  }
+}
+
 for (const w of warnings) console.warn(`⚠ ${w}`);
 if (errors.length > 0) {
   for (const e of errors) console.error(`✗ ${e}`);

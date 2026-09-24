@@ -1,0 +1,6 @@
+{
+  "descrizione": "Vettore di prova condiviso: lo verificano sia verify.test.mjs sia WebhookSignatureTest (engagement-service). Il corpo è una stringa: i byte firmati sono esattamente questi, in UTF-8.",
+  "secret": "whsec_esempio",
+  "body": "{\"specversion\":\"1.0\",\"id\":\"01J8ZK3X5Q2M9T4B6N8R0XWYCF\",\"type\":\"io.loyaltyhub.fact.wallet.points.earned\",\"data\":{\"amount\":162,\"note\":\"caffè\"}}",
+  "signature": "sha256=d7575e6a0c00a101ca64049aa6e3835fc442ca0efce50b51805a5189712558ea"
+}

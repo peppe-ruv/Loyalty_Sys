@@ -61,6 +61,14 @@
         <directory>${maven.multiModuleProjectDirectory}/seed</directory>
         <targetPath>seed</targetPath>
       </resource>
+      <!-- Esempi dei fatti (contracts/events/examples): corpo dell'"evento di prova" dei webhook (BO-23, F-WBH-01). -->
+      <resource>
+        <directory>${maven.multiModuleProjectDirectory}/contracts/events/examples</directory>
+        <targetPath>webhook-samples</targetPath>
+        <includes>
+          <include>fact.*.json</include>
+        </includes>
+      </resource>
     </resources>
     <plugins>
       <plugin>

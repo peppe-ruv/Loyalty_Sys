@@ -13,9 +13,9 @@ import { it } from "@/lib/i18n/it";
 // BO-30 Console demo (docs/08 §BO-30): stato dei servizi + reset orchestrato + macchina del tempo (job M3.2).
 const RESETTABLE = ["ingestion", "member", "campaign", "wallet", "reward", "gamification"];
 
-// Job "macchina del tempo" (M3.2 wallet, M4 reward, M5.7 gamification) con asOf: scadenze/preavvisi/rilascio punti,
-// scadenza coupon, timeout delle richieste premio, chiusura concorsi (docs/servizi/wallet-service.md §3,
-// reward-service.md §3, gamification-service.md §3).
+// Job "macchina del tempo" (M3.2 wallet, M4 reward, M5.7 gamification, M7.2 engagement) con asOf: scadenze/preavvisi/
+// rilascio punti, scadenza coupon, timeout delle richieste premio, chiusura concorsi, invio dei webhook
+// (docs/servizi/wallet-service.md §3, reward-service.md §3, gamification-service.md §3, engagement-service.md §5).
 type JobOutcome = {
   lots?: number;
   members?: number;
@@ -27,6 +27,10 @@ type JobOutcome = {
   segments?: number;
   entered?: number;
   left?: number;
+  attempted?: number;
+  ok?: number;
+  failed?: number;
+  gaveUp?: number;
 };
 const walletDetail = (verb: string) => (out: JobOutcome) =>
   !out.lots ? "nessun lotto interessato" : `${(out.amount ?? 0).toLocaleString("it-IT")} PTS ${verb} · ${out.lots} lotti · ${out.members} membri`;
@@ -48,6 +52,16 @@ const JOBS: { service: ServiceCode; path: string; label: string; detail: (out: J
     path: "close-contests",
     label: "Chiusura concorsi",
     detail: (o) => (!o.contests ? "nessun concorso da chiudere" : `${o.contests} concorsi chiusi · ${o.voided ?? 0} istanti annullati`),
+  },
+  // M7.2 (docs/servizi/engagement-service.md §5): consegne dei webhook dovute alla data (ritenti a 1, 5, 15 minuti).
+  {
+    service: "engagement",
+    path: "deliver-webhooks",
+    label: "Invio webhook",
+    detail: (o) =>
+      !o.attempted
+        ? "nessuna consegna dovuta"
+        : `${o.attempted} consegne tentate · ${o.ok ?? 0} ok · ${o.failed ?? 0} da ritentare · ${o.gaveUp ?? 0} abbandonate`,
   },
 ];
 
