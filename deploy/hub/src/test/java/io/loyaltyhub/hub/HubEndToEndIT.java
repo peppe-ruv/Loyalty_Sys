@@ -124,10 +124,10 @@ class HubEndToEndIT {
         assertThat(step.path("status").asString()).isEqualTo("ACCEPTED");
         String correlationId = step.path("correlationId").asString();
 
-        // Il saldo può ricevere anche accrediti di altri test dello stesso contesto (es. rilascio di punti in attesa
-        // dal job): l'importo esatto dello scenario si verifica sul suo tracciato, qui sotto.
-        assertThat(awaitPtsAtLeast("MBR-000003", before + 162 + 500 + 100)).as("acquisto + bonus di livello + bonus badge")
-                .isGreaterThanOrEqualTo(before + 762);
+        // Esatto: i 162 PTS usano il moltiplicatore SILVER anche se l'accredito STS dello stesso acquisto fa salire a
+        // GOLD (l'outbox pubblica nell'ordine di scrittura; con l'ordine casuale arrivavano 195 PTS).
+        assertThat(awaitPts("MBR-000003", before + 162 + 500 + 100)).as("acquisto + bonus di livello + bonus badge")
+                .isEqualTo(before + 762);
         JsonNode wallet = client().get().uri("/v1/portal/wallets/MBR-000003").retrieve().body(JsonNode.class);
         assertThat(wallet.path("tier").path("code").asString()).isEqualTo("GOLD");
 
@@ -364,16 +364,6 @@ class HubEndToEndIT {
             }
         }
         throw new AssertionError("premio assente: " + rewardCode);
-    }
-
-    private long awaitPtsAtLeast(String memberId, long min) {
-        long deadline = System.currentTimeMillis() + 30_000;
-        long value = walletPts(memberId);
-        while (value < min && System.currentTimeMillis() < deadline) {
-            sleep();
-            value = walletPts(memberId);
-        }
-        return value;
     }
 
     private long awaitPts(String memberId, long expected) {

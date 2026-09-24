@@ -35,13 +35,19 @@ public class OutboxWriter {
         return write(props.topicFor(family), event.partitionKey(), event);
     }
 
-    /** Accoda l'evento su un topic e con una chiave espliciti (audit: {@code entityType:entityId}). */
+    /**
+     * Accoda l'evento su un topic e con una chiave espliciti (audit: {@code entityType:entityId}).
+     * {@code created_at = clock_timestamp()} e non {@code now()}: {@code now()} è l'inizio della transazione, uguale
+     * per tutte le righe scritte insieme, e il relay (che ordina per {@code created_at}) le pubblicherebbe in ordine
+     * casuale. Serve l'ordine di scrittura: es. l'accredito PTS di un acquisto deve precedere quello STS che può far
+     * salire di livello, altrimenti i PTS prendono il moltiplicatore del livello nuovo.
+     */
     public UUID write(String topic, String key, LhEvent<?> event) {
         UUID id = UUID.randomUUID();
         String payload = serialize(event);
         jdbc.sql("""
-                        INSERT INTO outbox (id, topic, msg_key, type, payload)
-                        VALUES (?, ?, ?, ?, cast(? AS jsonb))
+                        INSERT INTO outbox (id, topic, msg_key, type, payload, created_at)
+                        VALUES (?, ?, ?, ?, cast(? AS jsonb), clock_timestamp())
                         """)
                 .params(id, topic, key, event.type(), payload)
                 .update();

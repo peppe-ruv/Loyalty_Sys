@@ -145,6 +145,32 @@ class LhCommonInfraIT {
     }
 
     @Test
+    void eventsWrittenInOneTransactionArePublishedInWriteOrder() {
+        // Stesso membro, stessa transazione: il relay deve rispettare l'ordine di scrittura (un accredito STS che fa
+        // salire di livello non deve superare l'accredito PTS dello stesso acquisto).
+        tx.executeWithoutResult(s -> {
+            for (int i = 0; i < 20; i++) {
+                outboxWriter.write(events.newRoot(LhEventTypes.Effect.POINTS_GRANT, "member:MBR-ORDER",
+                        Map.of("seq", i), LhSource.service("campaign"), null));
+            }
+        });
+        tx.executeWithoutResult(s -> relay.publishBatch());
+        List<Integer> seen = new java.util.ArrayList<>();
+        try (KafkaConsumer<String, String> consumer = consumer("order-test")) {
+            consumer.subscribe(List.of(EFFECTS));
+            long deadline = System.currentTimeMillis() + 10_000;
+            while (seen.size() < 20 && System.currentTimeMillis() < deadline) {
+                for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(300))) {
+                    if ("MBR-ORDER".equals(r.key())) {
+                        seen.add(mapper.readTree(r.value()).path("data").path("seq").asInt());
+                    }
+                }
+            }
+        }
+        assertThat(seen).containsExactlyElementsOf(java.util.stream.IntStream.range(0, 20).boxed().toList());
+    }
+
+    @Test
     void noLossWhenBrokerUnreachable() {
         LhEvent<Map<String, Object>> action = events.newRoot(
                 LhEventTypes.Action.APP_LOGIN_DAILY, "member:MBR-000009",
