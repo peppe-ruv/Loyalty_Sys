@@ -9,11 +9,16 @@ public class LoyaltyHubProperties {
 
     private final Topics topics = new Topics();
     private final Kafka kafka = new Kafka();
+    private final Consumer consumer = new Consumer();
     /** Nome del servizio (usato come {@code source} degli eventi e nei log). */
     private String service = "lh-service";
 
     public Topics getTopics() {
         return topics;
+    }
+
+    public Consumer getConsumer() {
+        return consumer;
     }
 
     public Kafka getKafka() {
@@ -175,6 +180,18 @@ public class LoyaltyHubProperties {
 
         public void setMechanism(String mechanism) {
             this.mechanism = mechanism;
+        }
+    }
+
+    public static class Consumer {
+        private long[] retryBackoffMs = new long[]{1000L, 5000L, 15000L};
+
+        public long[] getRetryBackoffMs() {
+            return retryBackoffMs;
+        }
+
+        public void setRetryBackoffMs(long[] retryBackoffMs) {
+            this.retryBackoffMs = retryBackoffMs;
         }
     }
 }

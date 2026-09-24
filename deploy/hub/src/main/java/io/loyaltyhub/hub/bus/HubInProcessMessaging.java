@@ -45,8 +45,9 @@ public class HubInProcessMessaging {
 
     @Bean
     public HubInProcessBus hubInProcessBus(
-            @org.springframework.beans.factory.annotation.Value("${loyaltyhub.topics.dlq:lh.dlq.v1}") String dlqTopic) {
-        return new HubInProcessBus(dlqTopic);
+            @org.springframework.beans.factory.annotation.Value("${loyaltyhub.topics.dlq:lh.dlq.v1}") String dlqTopic,
+            @org.springframework.beans.factory.annotation.Value("${loyaltyhub.consumer.retry-backoff-ms:1000,5000,15000}") long[] backoffs) {
+        return new HubInProcessBus(dlqTopic, backoffs);
     }
 
     /**

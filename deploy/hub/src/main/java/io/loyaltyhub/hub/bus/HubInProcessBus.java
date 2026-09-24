@@ -40,10 +40,11 @@ import java.util.concurrent.atomic.AtomicLong;
 public class HubInProcessBus implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(HubInProcessBus.class);
-    private static final int MAX_ATTEMPTS = DlqRecords.MAX_ATTEMPTS;
-    private static final long BACKOFF_MS = 200L;
+
+
 
     private final String dlqTopic;
+    private final long[] backoffs;
     private final Map<String, List<Subscription>> byTopic = new ConcurrentHashMap<>();
     private final AtomicLong offset = new AtomicLong();
     private final ExecutorService delivery =
@@ -54,12 +55,20 @@ public class HubInProcessBus implements AutoCloseable {
             });
 
     public HubInProcessBus() {
-        this("lh.dlq.v1");
+        this("lh.dlq.v1", new long[]{1000L, 5000L, 15000L});
     }
 
-    /** @param dlqTopic topic su cui finiscono i messaggi non elaborabili ({@code loyaltyhub.topics.dlq}). */
     public HubInProcessBus(String dlqTopic) {
+        this(dlqTopic, new long[]{1000L, 5000L, 15000L});
+    }
+
+    /**
+     * @param dlqTopic topic su cui finiscono i messaggi non elaborabili ({@code loyaltyhub.topics.dlq}).
+     * @param backoffs sequenza di ritardi per i ritentativi.
+     */
+    public HubInProcessBus(String dlqTopic, long[] backoffs) {
         this.dlqTopic = dlqTopic;
+        this.backoffs = backoffs != null ? backoffs : new long[0];
     }
 
     /** Registra un consumatore su un topic (chiamata a startup, un {@code @KafkaListener} per volta). */
@@ -88,19 +97,20 @@ public class HubInProcessBus implements AutoCloseable {
     }
 
     private void deliver(Subscription sub, ConsumerRecord<String, String> record) {
-        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        int maxAttempts = backoffs.length + 1;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
                 sub.consumer().accept(record);
                 return;
             } catch (Exception e) {
                 boolean retryable = DlqRecords.retryable(e);
-                if (attempt == MAX_ATTEMPTS || !retryable) {
+                if (attempt == maxAttempts || !retryable) {
                     deadLetter(sub, record, e, attempt);
                     return;
                 }
                 log.warn("Bus in-process: tentativo {}/{} fallito per {} su {}: {}",
-                        attempt, MAX_ATTEMPTS, sub.groupId(), record.topic(), e.toString());
-                sleep();
+                        attempt, maxAttempts, sub.groupId(), record.topic(), e.toString());
+                sleep(backoffs[attempt - 1]);
             }
         }
     }
@@ -125,9 +135,9 @@ public class HubInProcessBus implements AutoCloseable {
         publish(new ProducerRecord<>(dlqTopic, null, record.key(), record.value(), headers));
     }
 
-    private static void sleep() {
+    private static void sleep(long ms) {
         try {
-            Thread.sleep(BACKOFF_MS);
+            Thread.sleep(ms);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

@@ -19,7 +19,7 @@ class HubInProcessBusTest {
 
     @Test
     void failingConsumerEndsOnTheDlqTopicWithLhHeadersAfterThreeAttempts() throws Exception {
-        try (HubInProcessBus bus = new HubInProcessBus("lh.dlq.v1")) {
+        try (HubInProcessBus bus = new HubInProcessBus("lh.dlq.v1", new long[]{50L, 50L, 50L})) {
             AtomicInteger attempts = new AtomicInteger();
             BlockingQueue<ConsumerRecord<String, String>> dead = new LinkedBlockingQueue<>();
             bus.subscribe("lh.actions.v1", "lh-campaign", r -> {
@@ -34,20 +34,20 @@ class HubInProcessBusTest {
 
             ConsumerRecord<String, String> dlq = dead.poll(5, TimeUnit.SECONDS);
             assertThat(dlq).isNotNull();
-            assertThat(attempts.get()).isEqualTo(3);
+            assertThat(attempts.get()).isEqualTo(4);
             assertThat(dlq.key()).isEqualTo("MBR-000002");
             assertThat(dlq.value()).isEqualTo("{\"id\":\"E1\"}");
             assertThat(header(dlq, LhHeaders.TYPE)).isEqualTo("io.loyaltyhub.action.app.login.daily");
             assertThat(header(dlq, LhHeaders.ORIGINAL_TOPIC)).isEqualTo("lh.actions.v1");
             assertThat(header(dlq, LhHeaders.CONSUMER)).isEqualTo("lh-campaign");
             assertThat(header(dlq, LhHeaders.ERROR_CODE)).isEqualTo("IllegalStateException");
-            assertThat(header(dlq, LhHeaders.ATTEMPTS)).isEqualTo("3");
+            assertThat(header(dlq, LhHeaders.ATTEMPTS)).isEqualTo("4");
         }
     }
 
     @Test
     void nonRetryableErrorGoesStraightToDlqAndDlqFailuresDoNotLoop() throws Exception {
-        try (HubInProcessBus bus = new HubInProcessBus("lh.dlq.v1")) {
+        try (HubInProcessBus bus = new HubInProcessBus("lh.dlq.v1", new long[]{50L, 50L, 50L})) {
             AtomicInteger attempts = new AtomicInteger();
             AtomicInteger dlqDeliveries = new AtomicInteger();
             bus.subscribe("lh.actions.v1", "lh-campaign", r -> {
@@ -62,12 +62,12 @@ class HubInProcessBusTest {
             bus.publish(new ProducerRecord<>("lh.actions.v1", "MBR-000002", "{}"));
 
             long deadline = System.currentTimeMillis() + 5_000;
-            while (dlqDeliveries.get() < 3 && System.currentTimeMillis() < deadline) {
+            while (dlqDeliveries.get() < 4 && System.currentTimeMillis() < deadline) {
                 Thread.sleep(50);
             }
             Thread.sleep(700);
             assertThat(attempts.get()).as("non ritentabile: un solo tentativo").isEqualTo(1);
-            assertThat(dlqDeliveries.get()).as("3 tentativi sul record DLQ, poi scartato").isEqualTo(3);
+            assertThat(dlqDeliveries.get()).as("4 tentativi sul record DLQ, poi scartato").isEqualTo(4);
         }
     }
 
