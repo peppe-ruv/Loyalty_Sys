@@ -165,6 +165,44 @@ class IngestionPipelineIT {
         }
     }
 
+    // ---------- riprocessa DLQ (M7.3, ADR-002 eccezione 1) ----------
+
+    @Test
+    void reprocessHeaderRepublishesTheAcceptedActionWithTheSameIdOnlyForAdmin() {
+        String id = "01K0RRRRRRRRRRRRRRRRRRRR01";
+        Map<String, Object> event = purchase(id, "member:MBR-000004");
+        assertThat(post(event, 202).path("status").asString()).isEqualTo("ACCEPTED");
+
+        // Solo su comando di un ADMIN.
+        postReprocess(event, "MARKETING:luca.mkt", 403);
+        // Stesso id: la dedup normale direbbe DUPLICATE, il riprocessa ripubblica l'envelope accettato.
+        JsonNode replayed = postReprocess(event, "ADMIN:marta.admin", 202);
+        assertThat(replayed.path("status").asString()).isEqualTo("ACCEPTED");
+        assertThat(replayed.path("eventId").asString()).isEqualTo(id);
+        assertThat(replayed.path("correlationId").asString()).isEqualTo(id);
+        assertThat(replayed.path("memberId").asString()).isEqualTo("MBR-000004");
+        // Senza l'header resta la dedup.
+        assertThat(post(event, 202).path("status").asString()).isEqualTo("DUPLICATE");
+
+        try (KafkaConsumer<String, String> consumer = consumer("reprocess-check")) {
+            consumer.subscribe(List.of(ACTIONS));
+            List<JsonNode> copies = new java.util.ArrayList<>();
+            long deadline = System.currentTimeMillis() + 10_000;
+            while (System.currentTimeMillis() < deadline && copies.size() < 2) {
+                for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
+                    if (r.value().contains(id)) {
+                        copies.add(readJson(r.value()));
+                    }
+                }
+            }
+            assertThat(copies).as("l'originale e la ripubblicazione").hasSize(2);
+            assertThat(copies.get(1).path("id").asString()).isEqualTo(id);
+            assertThat(copies.get(1).path("lhcorrelationid").asString()).isEqualTo(id);
+            assertThat(copies.get(1).path("lhhop").asInt()).isZero();
+            assertThat(copies.get(1).path("subject").asString()).isEqualTo("member:MBR-000004");
+        }
+    }
+
     // ---------- rifiuti di business (202 + status) ----------
 
     @Test
@@ -337,6 +375,15 @@ class IngestionPipelineIT {
                 .contentType(MediaType.APPLICATION_JSON).body(event).retrieve().toEntity(JsonNode.class);
         assertThat(response.getStatusCode().value()).isEqualTo(expectedStatus);
         return response.getBody();
+    }
+
+    private JsonNode postReprocess(Map<String, Object> event, String actor, int expectedStatus) {
+        return client().post().uri("/v1/events").contentType(MediaType.APPLICATION_JSON)
+                .header("X-LH-Actor", actor).header("X-LH-Reprocess", "DLQ-TEST").body(event)
+                .exchange((req, res) -> {
+                    assertThat(res.getStatusCode().value()).isEqualTo(expectedStatus);
+                    return mapper.readTree(res.getBody());
+                });
     }
 
     private RestClient client() {

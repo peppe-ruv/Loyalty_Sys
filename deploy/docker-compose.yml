@@ -186,6 +186,8 @@ services:
       <<: *lh-service-env
       PORT: "8088"
       DB_URL: "jdbc:postgresql://postgres:5432/loyaltyhub?currentSchema=insight"
+      # Riprocessa DLQ di un'azione (M7.3, ADR-002 eccezione 1).
+      LH_INGESTION_URL: "http://ingestion-service:8081"
 
   web:
     build:

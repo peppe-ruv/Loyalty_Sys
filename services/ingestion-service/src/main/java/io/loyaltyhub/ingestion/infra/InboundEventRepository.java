@@ -110,4 +110,17 @@ public class InboundEventRepository {
                         payloadJson, correlationId, origin)
                 .update();
     }
+
+    /**
+     * Envelope canonico (già arricchito: {@code lhcorrelationid}, {@code lhhop}, subject normalizzato) dell'azione
+     * accettata con questa (fonte, id): serve a <em>riprocessa</em> DLQ (docs/servizi/insight-service.md §5).
+     */
+    public java.util.Optional<String> findAcceptedPayload(String sourceCode, String eventId) {
+        return jdbc.sql("""
+                        SELECT payload::text FROM inbound_event
+                        WHERE source_code = ? AND event_id = ? AND status = 'ACCEPTED'
+                        ORDER BY received_at DESC LIMIT 1
+                        """)
+                .params(sourceCode, eventId).query(String.class).optional();
+    }
 }

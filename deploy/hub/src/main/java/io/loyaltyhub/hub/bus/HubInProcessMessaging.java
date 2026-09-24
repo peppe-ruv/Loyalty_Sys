@@ -44,8 +44,9 @@ public class HubInProcessMessaging {
     };
 
     @Bean
-    public HubInProcessBus hubInProcessBus() {
-        return new HubInProcessBus();
+    public HubInProcessBus hubInProcessBus(
+            @org.springframework.beans.factory.annotation.Value("${loyaltyhub.topics.dlq:lh.dlq.v1}") String dlqTopic) {
+        return new HubInProcessBus(dlqTopic);
     }
 
     /**

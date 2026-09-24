@@ -2,6 +2,7 @@ package io.loyaltyhub.campaign.messaging;
 
 import tools.jackson.databind.JsonNode;
 import io.loyaltyhub.campaign.application.EvaluationService;
+import io.loyaltyhub.campaign.demo.DemoPoison;
 import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhEventTypes;
 import io.loyaltyhub.common.inbox.EventHandler;
@@ -17,9 +18,11 @@ import java.util.Set;
 public class CampaignEvaluationHandler implements EventHandler {
 
     private final EvaluationService evaluation;
+    private final DemoPoison poison;
 
-    public CampaignEvaluationHandler(EvaluationService evaluation) {
+    public CampaignEvaluationHandler(EvaluationService evaluation, DemoPoison poison) {
         this.evaluation = evaluation;
+        this.poison = poison;
     }
 
     @Override
@@ -29,6 +32,7 @@ public class CampaignEvaluationHandler implements EventHandler {
 
     @Override
     public void handle(LhEvent<JsonNode> event) {
+        poison.check(event); // SCN-POISON, solo profilo demo (docs/10 §8)
         evaluation.evaluate(event);
     }
 }

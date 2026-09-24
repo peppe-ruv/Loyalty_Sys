@@ -34,7 +34,7 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
                     )}
                   >
                     <span className="flex-1">{item.label}</span>
-                    {item.counter ? <NavCounter kind={item.counter} /> : null}
+                    {item.counter === "dlq" ? <DlqCounter /> : item.counter ? <NavCounter kind={item.counter} /> : null}
                   </Link>
                 </li>
               );
@@ -43,6 +43,18 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       ))}
     </nav>
+  );
+}
+
+/** Voci DLQ nuove (docs/08 §1: contatore *DLQ* sulle `NEW`, che l'API chiama `OPEN`). */
+function DlqCounter() {
+  const open = useLhQuery<Page<unknown>>("insight", "/v1/dlq", { status: "OPEN", size: 1 }, { refetchInterval: 30_000 });
+  const n = open.data?.page.totalItems ?? 0;
+  if (n === 0) return null;
+  return (
+    <span className="rounded-full bg-[var(--color-topic-dlq)] px-1.5 text-xs font-medium tabular-nums text-white" aria-label={`${n} nuove in DLQ`}>
+      {n}
+    </span>
   );
 }
 
