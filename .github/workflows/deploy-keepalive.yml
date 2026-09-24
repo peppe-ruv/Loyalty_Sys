@@ -1,0 +1,37 @@
+name: deploy-keepalive
+
+# Render free (docs/11 §2) sospende il servizio dopo 15 minuti senza traffico HTTP in ingresso. Se la sospensione
+# arriva mentre Render avvia la nuova versione (2–3 minuti su 0,1 CPU), cadono entrambe le istanze e il deploy
+# finisce in "update_failed" per port scan scaduto. Dopo ogni push su main che cambia l'hub teniamo sveglio il
+# servizio per la durata del deploy (build + avvio, 20 minuti al massimo). Costo zero: solo minuti di Actions.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "libs/**"
+      - "services/**"
+      - "deploy/hub/**"
+      - "seed/**"
+      - "contracts/**"
+      - "pom.xml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-keepalive
+  cancel-in-progress: true
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    env:
+      HUB_URL: ${{ vars.LH_HUB_URL || 'https://loyalty-hub-6dc3.onrender.com' }}
+    steps:
+      - name: Tieni sveglio l'hub durante il deploy
+        run: |
+          end=$(( $(date +%s) + 20 * 60 ))
+          while [ "$(date +%s)" -lt "$end" ]; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$HUB_URL/actuator/health/liveness" || echo 000)
+            echo "$(date -u +%H:%M:%S) liveness $code"
+            sleep 45
+          done

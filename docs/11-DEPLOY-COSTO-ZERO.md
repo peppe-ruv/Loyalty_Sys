@@ -85,6 +85,8 @@ JAVA_OPTS=-XX:+UseSerialGC -XX:MaxRAMPercentage=65 -Xss512k -XX:TieredStopAtLeve
           -XX:+ExitOnOutOfMemoryError -XX:MaxMetaspaceSize=128m -Dfile.encoding=UTF-8
 ```
 Profilo `free` (`docs/06 §6`): inizializzazione lazy (con `@Lazy(false)` su listener e scheduler), virtual thread, Tomcat `threads.max=20`, JMX off, springdoc attivo ma UI Swagger disattivata (`springdoc.swagger-ui.enabled=false`; resta `/v3/api-docs`), log a livello `INFO` in JSON.
+**Deploy e sospensione.** Se la sospensione per inattività arriva mentre Render avvia la nuova versione, cadono entrambe le istanze e il deploy finisce in `update_failed` ("Port scan timeout"), lasciando in linea la versione precedente. Il workflow `.github/workflows/deploy-keepalive.yml` interroga la liveness dell'hub ogni 45 s per 20 minuti dopo ogni push su `main` che cambia il backend (URL nella variabile di repository `LH_HUB_URL`, con ripiego sull'hub attuale).
+
 Attese oneste: **avvio a freddo 60–150 s** per servizio su 0,1 CPU; il Demo Hub lo dichiara. Liveness: `/actuator/health/liveness` **senza** dipendenze esterne (un DB addormentato non deve far riavviare il servizio); Kafka e DB stanno solo nella readiness e nel dettaglio di `/actuator/health`.
 
 **Conseguenza della sospensione** (RNF-06): un servizio addormentato non consuma. Al risveglio recupera dal proprio offset (retention 3 giorni). Per questo "Accendi la demo" sveglia **tutti** i servizi, e l'UI mostra "in elaborazione" finché il fatto non arriva.
