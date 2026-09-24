@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.badge.awarded:1",
+  "title": "fact.badge.awarded — data (EVT-FACT-55, F-ACH-03)",
+  "type": "object",
+  "required": [
+    "badgeCode",
+    "badgeName",
+    "origin"
+  ],
+  "properties": {
+    "badgeCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{2,39}$"
+    },
+    "badgeName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "origin": {
+      "enum": [
+        "ACHIEVEMENT",
+        "CAMPAIGN"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

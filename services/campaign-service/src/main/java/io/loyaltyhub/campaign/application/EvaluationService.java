@@ -100,6 +100,8 @@ public class EvaluationService {
                 outbox.write(events.childOf(actionEvent, LhEventTypes.Effect.PLAYS_GRANT, playsData(action, a)));
             } else if (a.type().equals("ISSUE_COUPON")) {
                 outbox.write(events.childOf(actionEvent, LhEventTypes.Effect.COUPON_ISSUE, couponData(action, a)));
+            } else if (a.type().equals("AWARD_BADGE")) {
+                outbox.write(events.childOf(actionEvent, LhEventTypes.Effect.BADGE_AWARD, badgeData(action, a)));
             }
         }
         outbox.write(events.childOf(actionEvent, LhEventTypes.Fact.CAMPAIGN_EVALUATED, evaluatedData(action, ev)));
@@ -155,6 +157,17 @@ public class EvaluationService {
         d.put("actionType", action.type());
         d.put("contestCode", a.params().path("contestCode").asString());
         d.put("count", Math.max(1, a.params().path("count").asInt(1)));
+        return d;
+    }
+
+    /** {@code badge.award} (EVT-EFF-04): il badge da assegnare. */
+    private ObjectNode badgeData(EvalAction action, Evaluation.ActionEffect a) {
+        ObjectNode d = mapper.createObjectNode();
+        d.put("effectId", a.effectId());
+        d.put("campaignCode", a.campaignCode());
+        d.put("actionId", action.actionId());
+        d.put("actionType", action.type());
+        d.put("badgeCode", a.params().path("badgeCode").asString());
         return d;
     }
 

@@ -88,7 +88,9 @@ class HubEndToEndIT {
     @Test
     void scnTierUpBridgesTheUpgradeIntoTheBonusInOneTrace() {
         // Giulia (MBR-000003) SILVER con 2 880 STS: 130 € → +162 PTS e +130 STS → GOLD → tier.upgraded rientra come
-        // azione interna (lhhop 1) → CMP-TIER-UP-BONUS +500 PTS. Tutto nello stesso tracciato.
+        // azione interna (lhhop 1) → CMP-TIER-UP-BONUS +500 PTS. Dalla M5.4 lo stesso acquisto è il terzo del mese
+        // (seed 2/3): ACH-3-PURCHASES-MONTH → badge BDG-TRIS → badge.awarded dal ponte → CMP-BADGE-BONUS +100 PTS
+        // ("doppia soddisfazione", docs/10 §6). Tutto nello stesso tracciato.
         long before = walletPts("MBR-000003");
         JsonNode started = client().post().uri("/v1/demo/scenarios/SCN-TIER-UP/run")
                 .header("X-LH-Actor", "ADMIN:test").retrieve().body(JsonNode.class);
@@ -97,11 +99,15 @@ class HubEndToEndIT {
         assertThat(step.path("status").asString()).isEqualTo("ACCEPTED");
         String correlationId = step.path("correlationId").asString();
 
-        assertThat(awaitPts("MBR-000003", before + 162 + 500)).as("acquisto + bonus di livello").isEqualTo(before + 662);
+        assertThat(awaitPts("MBR-000003", before + 162 + 500 + 100)).as("acquisto + bonus di livello + bonus badge")
+                .isEqualTo(before + 762);
         JsonNode wallet = client().get().uri("/v1/portal/wallets/MBR-000003").retrieve().body(JsonNode.class);
         assertThat(wallet.path("tier").path("code").asString()).isEqualTo("GOLD");
 
-        JsonNode trace = awaitTrace(correlationId, t -> t.path("outcome").path("points").toString().contains("662"));
+        JsonNode trace = awaitTrace(correlationId, t -> t.path("outcome").path("points").toString().contains("762"));
+        assertThat(trace.path("nodes").toString()).contains("achievement.completed", "badge.awarded");
+        assertThat(client().get().uri("/v1/portal/badges?memberId=MBR-000003").retrieve().body(JsonNode.class).toString())
+                .contains("BDG-TRIS");
         long roots = 0;
         boolean bridgedAction = false;
         for (JsonNode n : trace.path("nodes")) {
@@ -219,6 +225,34 @@ class HubEndToEndIT {
     }
 
     // ---------- helper ----------
+
+    @Test
+    void digitalAchievementAwardsABadgeThatTheBonusCampaignRewards() {
+        // M5.4 (docs/servizi/gamification-service.md §7): ebill.activated + directdebit.activated → ACH-DIGITAL completato,
+        // badge BDG-DIGITAL, badge.awarded rientra come azione e CMP-BADGE-BONUS accredita 100 PTS.
+        String weekday = ScenarioTime.resolve("@lastWeekdayT11:00", Instant.now()).toString();
+        for (String type : new String[]{"ebill.activated", "directdebit.activated"}) {
+            Map<String, Object> event = Map.of("specversion", "1.0", "id", "hub-digital-" + type, "source", "urn:loyaltyhub:source:billing",
+                    "type", type, "subject", "member:MBR-000002", "time", weekday, "data", Map.of("contractId", "CTR-HUB-1"));
+            client().post().uri("/v1/events").contentType(MediaType.APPLICATION_JSON).body(event).retrieve().body(JsonNode.class);
+        }
+        long deadline = System.currentTimeMillis() + 30_000;
+        boolean bonus = false;
+        while (!bonus && System.currentTimeMillis() < deadline) {
+            JsonNode ledger = client().get().uri("/v1/wallets/MBR-000002/ledger").retrieve().body(JsonNode.class);
+            for (JsonNode e : ledger.path("items").isMissingNode() ? ledger : ledger.path("items")) {
+                if ("CMP-BADGE-BONUS".equals(e.path("campaignCode").asString()) && e.path("amount").asLong() == 100) {
+                    bonus = true;
+                }
+            }
+            if (!bonus) {
+                sleep();
+            }
+        }
+        assertThat(bonus).as("CMP-BADGE-BONUS +100 PTS dal badge.awarded").isTrue();
+        assertThat(client().get().uri("/v1/portal/badges?memberId=MBR-000002").retrieve().body(JsonNode.class).toString())
+                .contains("BDG-DIGITAL");
+    }
 
     @Test
     void instantWinPrizesAreDeliveredThroughTheBridge() {

@@ -1,0 +1,8 @@
+[
+  { "code": "BDG-FIRST", "name": "Rompighiaccio", "description": "Il primo acquisto con Club Aurora.", "icon": "sparkles", "color": "#2a78d6" },
+  { "code": "BDG-TRIS", "name": "Tris", "description": "Tre acquisti nello stesso mese.", "icon": "shopping-bag", "color": "#eb6834" },
+  { "code": "BDG-STREAK", "name": "Costanza", "description": "Sette giorni di fila nell'app.", "icon": "flame", "color": "#e87ba4" },
+  { "code": "BDG-DIGITAL", "name": "Zero carta", "description": "Bolletta digitale e domiciliazione attive.", "icon": "leaf", "color": "#1baf7a" },
+  { "code": "BDG-READER", "name": "Occhio al contatore", "description": "Sei autoletture in un'edizione.", "icon": "gauge", "color": "#7a5cfa" },
+  { "code": "BDG-SPENDER", "name": "Grande spesa", "description": "1.000 € di acquisti in un'edizione.", "icon": "gem", "color": "#eda100" }
+]

@@ -177,6 +177,30 @@ if (gHistory && Array.isArray(contests)) {
   }
 }
 
+// Obiettivi e badge (docs/10 §6): badge collegati esistenti, metriche coerenti, progressi di membri e obiettivi
+// esistenti e sotto il traguardo se non completati.
+const achievementsSeed = readSeed("achievements.json");
+if (Array.isArray(achievementsSeed)) {
+  const badgeCodes = new Set((readSeed("badges.json") ?? []).map((b) => b.code));
+  const byCode = new Map(achievementsSeed.map((a) => [a.code, a]));
+  for (const a of achievementsSeed) {
+    if (a.badgeCode && !badgeCodes.has(a.badgeCode)) errors.push(`achievements.json: ${a.code} usa il badge inesistente ${a.badgeCode}`);
+    if (!["COUNT", "SUM", "DISTINCT_TYPES", "STREAK"].includes(a.metric)) errors.push(`achievements.json: ${a.code} metrica "${a.metric}"`);
+    if (!["EVER", "MONTH", "EDITION"].includes(a.period)) errors.push(`achievements.json: ${a.code} periodo "${a.period}"`);
+    if (a.metric === "SUM" && !a.sumField) errors.push(`achievements.json: ${a.code} SUM senza sumField`);
+    if (a.metric === "STREAK" && !["DAY", "WEEK"].includes(a.streakUnit)) errors.push(`achievements.json: ${a.code} STREAK senza unità`);
+    if (!(a.target >= 1)) errors.push(`achievements.json: ${a.code} traguardo ${a.target}`);
+  }
+  const memberIds = new Set((readSeed("members.json") ?? []).map((m) => m.id));
+  for (const p of readSeed("gamification-history.json")?.achievementProgress ?? []) {
+    const a = byCode.get(p.achievementCode);
+    if (!a) errors.push(`gamification-history.json: obiettivo inesistente ${p.achievementCode}`);
+    if (!memberIds.has(p.memberId)) errors.push(`gamification-history.json: membro inesistente ${p.memberId}`);
+    if (a && !p.completedAt && p.value >= a.target) errors.push(`gamification-history.json: ${p.memberId}/${a.code} al traguardo ma non completato`);
+    if (a && p.completedAt && p.value < a.target) errors.push(`gamification-history.json: ${p.memberId}/${a.code} completato sotto il traguardo`);
+  }
+}
+
 // Richieste d'esempio (docs/10 §5): membro e premio esistenti, costo = soglia della fascia, niente PENDING (il
 // timeout le respingerebbe dopo 10 minuti), coupon solo per premi a evasione automatica.
 const redemptions = readSeed("redemptions.json");

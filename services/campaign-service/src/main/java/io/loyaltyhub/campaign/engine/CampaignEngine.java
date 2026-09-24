@@ -18,7 +18,7 @@ import java.util.Map;
  * Motore regole deterministico (docs/03 §3.5) — classe pura, testabile senza Spring. Valuta un'azione
  * contro le campagne {@code LIVE}, raccoglie i {@code GRANT_POINTS}, applica i {@code MULTIPLIER} e produce
  * gli effetti {@code points.grant} con {@code effectId} idempotente. Sono supportati
- * {@code GRANT_POINTS} ({@code FIXED}/{@code PER_AMOUNT}/{@code LOOKUP}/{@code FROM_FIELD}), {@code MULTIPLIER}, {@code GRANT_PLAYS} e {@code ISSUE_COUPON}; le campagne con altri effetti
+ * {@code GRANT_POINTS} ({@code FIXED}/{@code PER_AMOUNT}/{@code LOOKUP}/{@code FROM_FIELD}), {@code MULTIPLIER}, {@code GRANT_PLAYS}, {@code ISSUE_COUPON} e {@code AWARD_BADGE}; le campagne con altri effetti
  * restano caricate ma scartate con {@code EFFECT_NOT_SUPPORTED_YET}.
  */
 public final class CampaignEngine {
@@ -247,13 +247,16 @@ public final class CampaignEngine {
                     || !e.path("rewardCodeField").asString("").isBlank())) {
                 continue;
             }
+            if (type.equals("AWARD_BADGE") && !e.path("badgeCode").asString("").isBlank()) {
+                continue;
+            }
             if (type.equals("GRANT_POINTS")) {
                 String mode = e.path("mode").asString("FIXED");
                 if (mode.equals("FIXED") || mode.equals("PER_AMOUNT") || mode.equals("FROM_FIELD") || mode.equals("LOOKUP")) {
                     continue;
                 }
             }
-            return false; // AWARD_BADGE / SEND_MESSAGE
+            return false; // SEND_MESSAGE (M6)
         }
         return true;
     }
@@ -268,8 +271,8 @@ public final class CampaignEngine {
         for (int i = 0; i < effects.size(); i++) {
             JsonNode e = effects.get(i);
             String type = e.path("type").asString("");
-            if (type.equals("GRANT_PLAYS")) {
-                out.add(new Evaluation.ActionEffect(effectId(action.actionId(), c.code(), i), c.code(), "GRANT_PLAYS", e));
+            if (type.equals("GRANT_PLAYS") || type.equals("AWARD_BADGE")) {
+                out.add(new Evaluation.ActionEffect(effectId(action.actionId(), c.code(), i), c.code(), type, e));
             } else if (type.equals("ISSUE_COUPON")) {
                 String rewardCode = e.path("rewardCode").asString("");
                 if (rewardCode.isBlank()) {

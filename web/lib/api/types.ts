@@ -596,3 +596,67 @@ export interface MemberPlay {
   prizeType: PrizeType | null;
   deliveryStatus: string;
 }
+
+// ---------- gamification — obiettivi e badge (BO-15, PT-09) ----------
+
+export type AchievementMetric = "COUNT" | "SUM" | "DISTINCT_TYPES" | "STREAK";
+export type AchievementPeriod = "EVER" | "MONTH" | "EDITION";
+
+export interface Achievement {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  actionTypes: string[];
+  filter: unknown;
+  metric: AchievementMetric;
+  sumField: string | null;
+  streakUnit: "DAY" | "WEEK" | null;
+  target: number;
+  period: AchievementPeriod;
+  repeatable: boolean;
+  badgeCode: string | null;
+  status: "ACTIVE" | "INACTIVE";
+  completions: number;
+  inProgress: number;
+}
+
+export interface BadgeView {
+  code: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  color: string | null;
+  holders: number;
+  unlockedBy: string[];
+}
+
+export interface PortalAchievement {
+  code: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  metric: AchievementMetric;
+  streakUnit: "DAY" | "WEEK" | null;
+  value: number;
+  target: number;
+  pct: number;
+  period: AchievementPeriod;
+  periodKey: string;
+  repeatable: boolean;
+  completedAt: string | null;
+  lastUnitKey: string | null;
+  badge: { code: string; name: string; icon: string | null; color: string | null } | null;
+}
+
+export interface PortalBadge {
+  code: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  color: string | null;
+  awardedAt: string | null;
+  origin: string | null;
+  unlockHint: string;
+}

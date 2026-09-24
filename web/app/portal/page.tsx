@@ -73,6 +73,7 @@ export default function PortalHome() {
         <QuickLink href="/portal/rewards" label="Premi" />
         <QuickLink href="/portal/my-rewards" label="I miei premi" />
         <QuickLink href="/portal/activity" label="La mia attività" />
+        <QuickLink href="/portal/achievements" label="Obiettivi e badge" />
       </div>
 
       <section>

@@ -92,6 +92,12 @@ export default function PortalProfile() {
               >
                 I miei premi e coupon <span aria-hidden>→</span>
               </Link>
+              <Link
+                href="/portal/achievements"
+                className="mt-2 flex items-center justify-between rounded-xl border border-[var(--color-bo-border)] bg-white p-3 text-sm font-medium text-[var(--color-pt-night)]"
+              >
+                Obiettivi e badge <span aria-hidden>→</span>
+              </Link>
             </section>
           </div>
         )}

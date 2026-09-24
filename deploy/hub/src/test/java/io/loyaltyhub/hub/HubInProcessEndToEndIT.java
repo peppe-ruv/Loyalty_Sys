@@ -52,13 +52,13 @@ class HubInProcessEndToEndIT {
 
     @Test
     void purchaseTravelsThroughAllServicesWithoutABroker() {
-        long before = walletPts("MBR-000003");
+        long before = walletPts("MBR-000002");
         assertThat(before).as("il wallet è seminato dal profilo demo").isGreaterThan(0);
 
         // Istante feriale fisso: risultato deterministico, niente moltiplicatore weekend.
         Map<String, Object> event = Map.of(
                 "specversion", "1.0", "id", "hub-inproc-01", "source", "urn:loyaltyhub:source:ecommerce",
-                "type", "purchase.completed", "subject", "member:MBR-000003",
+                "type", "purchase.completed", "subject", "member:MBR-000002",
                 "time", "2026-09-15T10:00:00Z",
                 "data", Map.of("orderId", "ORD-INPROC-1", "amount", 130, "currency", "EUR", "channel", "ONLINE"));
         JsonNode accepted = client().post().uri("/v1/events")
@@ -68,7 +68,7 @@ class HubInProcessEndToEndIT {
         long deadline = System.currentTimeMillis() + 25_000;
         long after = before;
         while (System.currentTimeMillis() < deadline) {
-            after = walletPts("MBR-000003");
+            after = walletPts("MBR-000002");
             if (after == before + 162) {
                 break;
             }
@@ -81,7 +81,7 @@ class HubInProcessEndToEndIT {
         long insightDeadline = System.currentTimeMillis() + 10_000;
         int stored = 0;
         while (System.currentTimeMillis() < insightDeadline) {
-            JsonNode page = client().get().uri("/v1/events?memberId=MBR-000003").retrieve().body(JsonNode.class);
+            JsonNode page = client().get().uri("/v1/events?memberId=MBR-000002").retrieve().body(JsonNode.class);
             stored = page.path("count").asInt();
             if (stored >= 3) {
                 break;

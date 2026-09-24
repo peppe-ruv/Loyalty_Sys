@@ -1,0 +1,20 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZQ2A3B4C5D6E7F8G9H0J1K",
+  "source": "urn:loyaltyhub:service:gamification",
+  "type": "io.loyaltyhub.fact.achievement.progressed",
+  "subject": "member:MBR-000002",
+  "time": "2026-09-24T10:15:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.achievement.progressed:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZQ0A1B2C3D4E5F6G7H8J9K",
+  "lhcausationid": "01J8ZQ0A1B2C3D4E5F6G7H8J9K",
+  "lhhop": 1,
+  "data": {
+    "achievementCode": "ACH-DIGITAL",
+    "periodKey": "EVER",
+    "value": 2,
+    "target": 2
+  }
+}

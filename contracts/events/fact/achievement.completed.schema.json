@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.achievement.completed:1",
+  "title": "fact.achievement.completed — data (EVT-FACT-54, docs/03 §8)",
+  "type": "object",
+  "required": [
+    "achievementCode",
+    "achievementName",
+    "periodKey"
+  ],
+  "properties": {
+    "achievementCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{2,39}$"
+    },
+    "achievementName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "periodKey": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": true
+}

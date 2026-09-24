@@ -11,7 +11,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Instrada un evento all'{@link EventHandler} registrato per il suo {@code type} (docs/06 §5).
+ * Instrada un evento all'{@link EventHandler} registrato per il suo {@code type} (docs/06 §5). Un type che termina
+ * con {@code .*} (es. {@code io.loyaltyhub.action.*}) registra l'handler per tutta la famiglia: vale quando nessun
+ * handler è registrato per il type esatto (servono, per esempio, gli obiettivi che osservano qualunque azione).
  * Un {@code type} non registrato viene <em>ignorato senza errore</em> e senza scrivere {@code processed_event}
  * (docs/05 §1). Il consumo passa dall'{@link IdempotentHandler}: doppio invio ⇒ stesso stato.
  */
@@ -21,6 +23,7 @@ public class EventRouter {
 
     private final String consumer;
     private final Map<String, EventHandler> byType = new HashMap<>();
+    private final Map<String, EventHandler> byPrefix = new java.util.LinkedHashMap<>();
     private final IdempotentHandler idempotent;
     private final LhMetrics metrics;
 
@@ -30,6 +33,12 @@ public class EventRouter {
         this.metrics = metrics;
         for (EventHandler handler : handlers) {
             for (String type : handler.handledTypes()) {
+                if (type.endsWith(".*")) {
+                    if (byPrefix.put(type.substring(0, type.length() - 1), handler) != null) {
+                        throw new IllegalStateException("Due handler per la stessa famiglia: " + type);
+                    }
+                    continue;
+                }
                 EventHandler previous = byType.put(type, handler);
                 if (previous != null) {
                     throw new IllegalStateException("Due handler per lo stesso type: " + type);
@@ -43,7 +52,7 @@ public class EventRouter {
      * ignorato (type non registrato) o duplicato.
      */
     public boolean route(LhEvent<JsonNode> event) {
-        EventHandler handler = byType.get(event.type());
+        EventHandler handler = handlerFor(event.type());
         if (handler == null) {
             log.trace("Type non gestito da {}, ignorato: {}", consumer, event.type());
             return false;
@@ -58,6 +67,19 @@ public class EventRouter {
     }
 
     public boolean handles(String type) {
-        return byType.containsKey(type);
+        return handlerFor(type) != null;
+    }
+
+    private EventHandler handlerFor(String type) {
+        EventHandler exact = type == null ? null : byType.get(type);
+        if (exact != null || type == null) {
+            return exact;
+        }
+        for (Map.Entry<String, EventHandler> e : byPrefix.entrySet()) {
+            if (type.startsWith(e.getKey())) {
+                return e.getValue();
+            }
+        }
+        return null;
     }
 }

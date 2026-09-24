@@ -1,0 +1,14 @@
+[
+  { "code": "ACH-FIRST-PURCHASE", "name": "Primo acquisto", "description": "Fai il tuo primo acquisto.", "icon": "shopping-cart",
+    "actionTypes": ["purchase.completed"], "metric": "COUNT", "target": 1, "period": "EVER", "repeatable": false, "badgeCode": "BDG-FIRST" },
+  { "code": "ACH-3-PURCHASES-MONTH", "name": "Tris del mese", "description": "Completa 3 acquisti nello stesso mese.", "icon": "shopping-bag",
+    "actionTypes": ["purchase.completed"], "metric": "COUNT", "target": 3, "period": "MONTH", "repeatable": true, "badgeCode": "BDG-TRIS" },
+  { "code": "ACH-STREAK-7", "name": "Sette giorni di fila", "description": "Apri l'app sette giorni consecutivi.", "icon": "flame",
+    "actionTypes": ["app.login.daily"], "metric": "STREAK", "streakUnit": "DAY", "target": 7, "period": "EVER", "repeatable": false, "badgeCode": "BDG-STREAK" },
+  { "code": "ACH-DIGITAL", "name": "Tutto digitale", "description": "Attiva bolletta digitale e domiciliazione.", "icon": "leaf",
+    "actionTypes": ["ebill.activated", "directdebit.activated"], "metric": "DISTINCT_TYPES", "target": 2, "period": "EVER", "repeatable": false, "badgeCode": "BDG-DIGITAL" },
+  { "code": "ACH-SELF-READER", "name": "Letturista", "description": "Invia sei autoletture nell'edizione.", "icon": "gauge",
+    "actionTypes": ["selfreading.submitted"], "metric": "COUNT", "target": 6, "period": "EDITION", "repeatable": false, "badgeCode": "BDG-READER" },
+  { "code": "ACH-BIG-SPENDER", "name": "Grande spesa", "description": "Raggiungi 1.000 € di acquisti nell'edizione.", "icon": "gem",
+    "actionTypes": ["purchase.completed"], "metric": "SUM", "sumField": "data.amount", "target": 1000, "period": "EDITION", "repeatable": false, "badgeCode": "BDG-SPENDER" }
+]

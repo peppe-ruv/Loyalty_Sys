@@ -1,0 +1,19 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZQ5A6B7C8D9E0F1G2H3J4K",
+  "source": "urn:loyaltyhub:source:internal",
+  "type": "io.loyaltyhub.action.achievement.completed",
+  "subject": "member:MBR-000002",
+  "time": "2026-09-24T10:15:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:action.achievement.completed:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZQ0A1B2C3D4E5F6G7H8J9K",
+  "lhcausationid": "01J8ZQ3A4B5C6D7E8F9G0H1J2K",
+  "lhhop": 2,
+  "data": {
+    "achievementCode": "ACH-DIGITAL",
+    "achievementName": "Tutto digitale",
+    "periodKey": "EVER"
+  }
+}

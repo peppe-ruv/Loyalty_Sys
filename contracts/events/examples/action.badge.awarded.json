@@ -1,0 +1,19 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZQ6A7B8C9D0E1F2G3H4J5K",
+  "source": "urn:loyaltyhub:source:internal",
+  "type": "io.loyaltyhub.action.badge.awarded",
+  "subject": "member:MBR-000002",
+  "time": "2026-09-24T10:15:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:action.badge.awarded:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZQ0A1B2C3D4E5F6G7H8J9K",
+  "lhcausationid": "01J8ZQ4A5B6C7D8E9F0G1H2J3K",
+  "lhhop": 2,
+  "data": {
+    "badgeCode": "BDG-DIGITAL",
+    "badgeName": "Zero carta",
+    "origin": "ACHIEVEMENT"
+  }
+}

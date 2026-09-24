@@ -10,6 +10,10 @@ import io.loyaltyhub.gamification.domain.Contest;
 import io.loyaltyhub.gamification.domain.Prize;
 import io.loyaltyhub.gamification.infra.ContestRepository;
 import io.loyaltyhub.common.time.BusinessCalendar;
+import io.loyaltyhub.gamification.domain.Achievement;
+import io.loyaltyhub.gamification.domain.AchievementRules;
+import io.loyaltyhub.gamification.infra.AchievementRepository;
+import io.loyaltyhub.gamification.infra.BadgeRepository;
 import io.loyaltyhub.gamification.infra.InstantRepository;
 import io.loyaltyhub.gamification.infra.MemberSnapshotRepository;
 import io.loyaltyhub.gamification.infra.PlayRepository;
@@ -53,16 +57,21 @@ public class GamificationSeeder implements ApplicationRunner, DemoResettable {
     private final PlayRepository plays;
     private final MemberSnapshotRepository members;
     private final ContestAdminService admin;
+    private final AchievementRepository achievements;
+    private final BadgeRepository badges;
     private final Clock clock;
 
     public GamificationSeeder(SeedLoader seed, ContestRepository contests, InstantRepository instants, PlayRepository plays,
-                              MemberSnapshotRepository members, ContestAdminService admin, Clock clock) {
+                              MemberSnapshotRepository members, ContestAdminService admin,
+                              AchievementRepository achievements, BadgeRepository badges, Clock clock) {
         this.seed = seed;
         this.contests = contests;
         this.instants = instants;
         this.plays = plays;
         this.members = members;
         this.admin = admin;
+        this.achievements = achievements;
+        this.badges = badges;
         this.clock = clock;
     }
 
@@ -82,6 +91,9 @@ public class GamificationSeeder implements ApplicationRunner, DemoResettable {
         plays.deleteAll();
         contests.deleteAll();
         members.deleteAll();
+        achievements.deleteAll();
+        badges.deleteAll();
+        seedAchievements();
         for (JsonNode m : seed.readTree("members.json")) {
             members.upsert(m.path("id").asString(), text(m, "nickname"), m.path("status").asString("ACTIVE"));
         }
@@ -123,6 +135,46 @@ public class GamificationSeeder implements ApplicationRunner, DemoResettable {
             contests.recomputeRemaining(c.id());
         }
         log.info("Seed gamification caricato: {} concorsi, {} giocate storiche", count, history);
+    }
+
+    /**
+     * Badge, obiettivi e progressi notevoli (docs/10 §6): il periodo è quello di {@code periodAt}/{@code completedAt}
+     * (o di oggi); un obiettivo completato col badge collegato assegna il badge alla stessa data.
+     */
+    private void seedAchievements() {
+        for (JsonNode b : seed.readTree("badges.json")) {
+            badges.upsert(new BadgeRepository.Badge(b.path("code").asString(), b.path("name").asString(), text(b, "description"),
+                    text(b, "icon"), text(b, "color")));
+        }
+        Map<String, Achievement> byCode = new HashMap<>();
+        for (JsonNode a : seed.readTree("achievements.json")) {
+            List<String> types = new ArrayList<>();
+            a.path("actionTypes").forEach(t -> types.add(t.asString()));
+            Achievement ach = new Achievement(Ulid.next(clock), a.path("code").asString(), a.path("name").asString(),
+                    text(a, "description"), text(a, "icon"), types, a.hasNonNull("filter") ? a.get("filter") : null,
+                    a.path("metric").asString(), text(a, "sumField"), text(a, "streakUnit"), a.path("target").asLong(),
+                    a.path("period").asString("EVER"), a.path("repeatable").asBoolean(false), text(a, "badgeCode"),
+                    a.path("status").asString("ACTIVE"));
+            achievements.insert(ach);
+            byCode.put(ach.code(), ach);
+        }
+        for (JsonNode p : seed.readTree("gamification-history.json").path("achievementProgress")) {
+            Achievement a = byCode.get(p.path("achievementCode").asString());
+            String memberId = p.path("memberId").asString();
+            Instant completedAt = p.hasNonNull("completedAt") ? SeedDates.resolve(p.get("completedAt").asString(), clock) : null;
+            Instant periodAt = p.hasNonNull("periodAt") ? SeedDates.resolve(p.get("periodAt").asString(), clock)
+                    : completedAt != null ? completedAt : clock.instant();
+            String lastUnit = p.hasNonNull("lastUnitAt")
+                    ? AchievementRules.unitKey(a.streakUnit() == null ? "DAY" : a.streakUnit(), SeedDates.resolve(p.get("lastUnitAt").asString(), clock))
+                    : null;
+            List<String> distinct = new ArrayList<>();
+            p.path("distinctSeen").forEach(t -> distinct.add(t.asString()));
+            achievements.seedProgress(a.id(), memberId, AchievementRules.periodKey(a.period(), periodAt), p.path("value").asLong(),
+                    distinct, lastUnit, completedAt);
+            if (completedAt != null && a.badgeCode() != null) {
+                badges.award(memberId, a.badgeCode(), "ACHIEVEMENT", null, completedAt);
+            }
+        }
     }
 
     /** Crediti, giocate esplicite e storico dei concorsi chiusi; restituisce le giocate inserite. */

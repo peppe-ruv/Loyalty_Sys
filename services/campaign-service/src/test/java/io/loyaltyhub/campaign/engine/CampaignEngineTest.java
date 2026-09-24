@@ -131,6 +131,12 @@ class CampaignEngineTest {
             assertThat(e.params().path("rewardCode").asString()).isEqualTo("RWD-COFFEE-5");
         });
 
+        Campaign badge = campaign("CMP-IT-BADGE", "Badge", 100, List.of("quiz.completed"), "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"AWARD_BADGE\",\"badgeCode\":\"BDG-QUIZ\"}]", "{}");
+        Evaluation awarded = engine.evaluate(action("quiz.completed", TUESDAY, JSON.createObjectNode()), silver(), List.of(badge), zero);
+        assertThat(awarded.actionEffects()).singleElement()
+                .satisfies(e -> assertThat(e.params().path("badgeCode").asString()).isEqualTo("BDG-QUIZ"));
+
         Evaluation noReward = engine.evaluate(action("instantwin.won", TUESDAY, JSON.createObjectNode()
                 .put("prizeType", "COUPON")), silver(), List.of(iwCoupon()), zero);
         assertThat(noReward.actionEffects()).as("premio non risolvibile → nessun effetto").isEmpty();

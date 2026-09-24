@@ -45,6 +45,11 @@ const ACTION_LABEL: Record<string, string> = {
   "reward.redeemed": "Premio riscattato",
 };
 
+/** Nome leggibile di un tipo di azione (fallback: il codice). */
+export function actionLabel(type: string): string {
+  return ACTION_LABEL[type] ?? type;
+}
+
 const PERIOD_LABEL: Record<string, string> = {
   DAY: "al giorno",
   WEEK: "alla settimana",
