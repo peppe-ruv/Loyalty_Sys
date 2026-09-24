@@ -253,7 +253,7 @@ public final class CampaignEngine {
             if (type.equals("AWARD_BADGE") && !e.path("badgeCode").asString("").isBlank()) {
                 continue;
             }
-            // SPEC-GAP: Q-80 — SEND_MESSAGE senza templateCode (o con params non oggetto) scarta l'intera campagna col
+            // SPEC-GAP: Q-73 — SEND_MESSAGE senza templateCode (o con params non oggetto) scarta l'intera campagna col
             // motivo esistente EFFECT_NOT_SUPPORTED_YET (scelta conservativa: niente punti a metà; la validazione di
             // gestione lo impedisce già a monte). Il template inesistente non si può verificare qui (è di engagement).
             if (type.equals("SEND_MESSAGE") && !e.path("templateCode").asString("").isBlank()

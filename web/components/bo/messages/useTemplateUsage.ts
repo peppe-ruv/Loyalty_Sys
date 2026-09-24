@@ -10,7 +10,7 @@ import type { NotificationRule } from "@/lib/messages/types";
  * Chi usa i template (BO-19): le regole di notifica di engagement e le campagne con effetto SEND_MESSAGE. L'elenco delle
  * campagne non porta gli effetti: si leggono i dettagli (stessa chiave di cache di BO-06), esclusi gli archivi.
  * Campaign che dorme → nessuna campagna (la UI lo dice), le regole restano.
- * SPEC-GAP: Q-85 — `GET /v1/campaigns` non espone gli effetti né un filtro per template: una lettura di dettaglio per
+ * SPEC-GAP: Q-78 — `GET /v1/campaigns` non espone gli effetti né un filtro per template: una lettura di dettaglio per
  * campagna (~20 nel seed, in cache 60 s). Un filtro `?templateCode=` lato campaign renderebbe superfluo il giro.
  */
 export function useTemplateUsageSources() {

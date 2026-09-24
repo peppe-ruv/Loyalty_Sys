@@ -12,7 +12,7 @@ import { useActiveMember } from "./MemberContext";
 // Campanella della shell (docs/09 §1): contatore dei non letti da engagement, ogni 30 s e a ogni fatto ricevuto
 // (PendingContext invalida la query all'arrivo dei fatti del giro). Tocco → PT-12. Engagement che dorme o risponde
 // male → la campanella resta, senza contatore (nessun errore mostrato al membro).
-// SPEC-GAP: Q-83 — il portale ascolta l'SSE solo durante l'attesa di un'azione (PendingContext): i messaggi nati fuori
+// SPEC-GAP: Q-76 — il portale ascolta l'SSE solo durante l'attesa di un'azione (PendingContext): i messaggi nati fuori
 // da un'azione del membro (es. scadenze, azioni da BO-28) arrivano col polling dei 30 s.
 export const UNREAD_PATH = "/v1/portal/inbox/unread-count";
 

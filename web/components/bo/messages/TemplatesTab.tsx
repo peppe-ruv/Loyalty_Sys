@@ -419,7 +419,7 @@ function TemplatePreview({
           ))}
         </select>
       </div>
-      {/* SPEC-GAP: Q-82 — POST …/{code}/render richiede un template esistente: per una bozza mai salvata si mostra il testo grezzo. */}
+      {/* SPEC-GAP: Q-75 — POST …/{code}/render richiede un template esistente: per una bozza mai salvata si mostra il testo grezzo. */}
       {t == null ? (
         <>
           <p className="text-xs text-[var(--color-bo-ink-2)]">L&apos;anteprima con i segnaposto risolti è disponibile dopo il primo salvataggio; qui sotto il testo così com&apos;è.</p>

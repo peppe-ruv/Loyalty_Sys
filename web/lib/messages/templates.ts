@@ -116,7 +116,7 @@ export function validateTemplateForm(f: TemplateForm, isNew: boolean): Record<st
   if (!f.bodyTpl.trim()) add("bodyTpl", "obbligatorio");
   templateProblems(f.titleTpl).forEach((p) => add("titleTpl", p));
   templateProblems(f.bodyTpl).forEach((p) => add("bodyTpl", p));
-  // SPEC-GAP: Q-81 — il servizio accetta qualsiasi link_target; PT-12 segue solo percorsi del portale (inboxHref), quindi
+  // SPEC-GAP: Q-74 — il servizio accetta qualsiasi link_target; PT-12 segue solo percorsi del portale (inboxHref), quindi
   // l'editor li chiede già così invece di salvare link che il membro non potrebbe aprire.
   if (f.linkTarget.trim() && !f.linkTarget.trim().startsWith("/portal")) add("linkTarget", "un percorso del portale, es. /portal/activity");
   return out;

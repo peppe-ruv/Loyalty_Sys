@@ -14,10 +14,10 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M3 — Punti adulti | chiusa (codice) | 2026-09-21 | 2026-09-23 | ☑ | M3.1–M3.9 implementate; criteri di accettazione verdi con test automatici; resta `smoke.sh` sulla demo online |
 | M4 — Premi | chiusa (codice) | 2026-09-23 | 2026-09-24 | ☐ | M4.1–M4.6 implementate; criteri di accettazione verdi con test automatici (E2E portale su API simulate); resta `smoke.sh` sulla demo online |
 | M5 — Gioco | chiusa (codice) | 2026-09-24 | 2026-09-24 | ☐ | M5.1–M5.7 implementate; criteri di accettazione verdi con test automatici + E2E n. 3 con Playwright su servizio locale; resta `smoke.sh` sulla demo online |
-| M6 — Contenuti | in corso | 2026-09-24 | | ☐ | M6.0–M6.3 chiuse (engagement: template, regole, inbox, `message.send`; contenuti per posizionamento, BO-18; pop-up e frequenze; card vincita) |
+| M6 — Contenuti | in corso | 2026-09-24 | | ☐ | M6.0–M6.4 chiuse (engagement: template, regole, inbox, `message.send`; contenuti per posizionamento, BO-18; pop-up e frequenze; card vincita; PT-12, BO-19, `SEND_MESSAGE`) |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** M6.4 (PT-12, BO-19, effetto `SEND_MESSAGE`) — in corso in parallelo; poi M6.5; resta `smoke.sh` sulla demo online per M3–M5
+**Prossima fetta da lavorare:** M6.5 (tema del portale a runtime, BO-20); resta `smoke.sh` sulla demo online per M3–M5
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -80,7 +80,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `F-CMP-01` CRUD campagne (P0)
 - [x] `F-CMP-02` Ciclo di vita (P0) — _senza approvazione (M7)_
 - [x] `F-CMP-03` Costruttore condizioni (P0) — _valutazione `data`/`member`/`context`/`history`; meta campi UI in M1.5+_
-- [x] `F-CMP-04` Effetti (P0) — _M1: `GRANT_POINTS` FIXED/PER_AMOUNT + `MULTIPLIER`; M5.2 `GRANT_PLAYS`; M5.3 `ISSUE_COUPON` (fisso o da campo); `AWARD_BADGE` → M5.4, `SEND_MESSAGE` → M6_
+- [x] `F-CMP-04` Effetti (P0) — _M1: `GRANT_POINTS` FIXED/PER_AMOUNT + `MULTIPLIER`; M5.2 `GRANT_PLAYS`; M5.3 `ISSUE_COUPON` (fisso o da campo); M5.4 `AWARD_BADGE`; M6.4 `SEND_MESSAGE`: tutti gli effetti supportati_
 - [x] `F-CMP-05` Limiti (P0)
 - [x] `F-CMP-06` Pubblico (P0 tier · P1 segmenti) — _M1 tier / M6 segmenti_
 - [x] `F-CMP-08` Simulazione (P0)
@@ -277,7 +277,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `M6.1` — _contenuti del CMS (`content_item`, V2): gestione con lock ottimistico, audit, transizioni senza approvazione e fatto `content.status.changed`, duplicazione, fine automatica ogni 10 min; selezione per posizionamento (LIVE ∧ calendario ∧ pubblico, priorità, limiti HERO 1 · GRID 6) e anteprima per membro coi motivi di esclusione; seed `contents.json` (15); portale PT-01 (hero, griglia), PT-03 (banner), PT-05 (card concorsi) con `components/shared/content`; BO-18 elenco, "Per posizione", anteprima per membro, editor con `PhoneFrame`_
 - [x] `M6.2` — _pop-up: `popup_view` per membro e giorno (V3), frequenze `ONCE`/`ONCE_PER_DAY`/`ALWAYS`, pubblico esteso con iscrizione recente e giorni della settimana (Q-71), `GET /v1/portal/popups/next` (204 se nessuno) e `POST …/seen {memberId, dismissed}` (la lettura non consuma); anteprima per membro con `FREQUENCY`; pulizia delle viste oltre 90 giorni; `PopupModal` condiviso, al più un pop-up per visita all'ingresso di PT-01 (sostituisce la card di benvenuto della M5.6); data d'iscrizione nei seed dei membri (Anna ieri, Elisa 20 giorni fa)_
 - [x] `M6.3` — _`WinCard` condivisa (`components/shared/content`): in PT-06 all'esito WIN la card configurata in BO-18 per il premio (`placement=WIN&prizeCode=`) con tono, testo e pulsante, ripiego generico se manca o se engagement dorme, sotto la consegna (punti in arrivo, codice del coupon, premio fisico); anteprima WIN in BO-18 (editor e per membro, tutte le card vincita); colonna "Card vincita" nei premi di BO-14 col collegamento a BO-18_
-- [ ] `M6.4`
+- [x] `M6.4` — _effetto `SEND_MESSAGE` nel motore campagne → `message.send` (tutti gli effetti di docs/03 §3.3 ora supportati); PT-12 Notifiche (`/portal/inbox`: elenco per giorno, non letti, tocco → letto + collegamento, *Segna tutte come lette*) con campanella e conteggio nella testata del portale; BO-19 Messaggi (template con anteprima renderizzata e "dove si vede", regole con condizione su `data.*`, registro con filtri); link "Notifiche" da PT-08 (8354f94)_
 - [ ] `M6.5`
 - [ ] `M6.6`
 - [ ] `M6.7`
@@ -292,8 +292,8 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `F-CNT-02` Pop-up (P0) — _M6.1 gestione e anteprima in BO-18; M6.2 nel portale con frequenze, chiudibile, al più uno per visita_
 - [x] `F-CNT-03` Card vincita (P0) — _M6.1 seed e API per premio; M6.3 in PT-06 con ripiego generico, anteprima in BO-18, collegamento da BO-14_
 - [x] `F-CNT-04` Anteprima (P1) — _M6.1: anteprima fedele nell'editor (stessi componenti del portale) e per membro con `NOT_IN_AUDIENCE`/`OUT_OF_SCHEDULE`/`NOT_LIVE`; M6.2 anche per i pop-up con `FREQUENCY`_
-- [~] `F-MSG-01` Inbox in-app (P0) — _2026-09-24 M6.0: messaggi dai fatti tramite regole, inbox del portale via API (non letti, letto, tutti letti); PT-12 e BO-19 con M6.4_
-- [~] `F-MSG-02` Template (P0) — _2026-09-24 M6.0: segnaposto, icona, link, canali `INAPP` e `EMAIL_FAKE` (solo registro), anteprima `render`; editor BO-19 con M6.4_
+- [x] `F-MSG-01` Inbox in-app (P0) — _M6.0 messaggi dai fatti tramite regole e API dell'inbox; M6.4 PT-12 con campanella e registro in BO-19_
+- [x] `F-MSG-02` Template (P0) — _M6.0 segnaposto, icona, link, canali `INAPP` e `EMAIL_FAKE` (solo registro), anteprima `render`; M6.4 editor in BO-19 e messaggi da campagna (`SEND_MESSAGE`)_
 - [ ] `F-THM-01` Tema del portale (P1)
 
 **Accettazione M6** (`docs/12`)
@@ -342,6 +342,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 | Data | Fetta | Esito | Commit | Domande aperte create | Note per la prossima sessione |
 |---|---|---|---|---|---|
+| 2026-09-24 | M6.4 | ✅ `./mvnw verify` verde (`CampaignEngineTest` 55 con `SEND_MESSAGE` e `CMP-BIRTHDAY` = 250 PTS + messaggio; `CampaignServiceIT` 14 con `message.send` su Kafka valido per envelope e contratto; nuovo `HubSendMessageIT`: compleanno di Anna dal simulatore → +250 PTS e "Buon compleanno, Anna!" nello stesso tracciato, senza doppioni), `pnpm lint typecheck test build` verdi (106 test, 34 nuovi in `lib/messages`), `check-seed` 25; Playwright su hub locale (compleanno di Marco → 2 notifiche nuove, tocco → letto e `/portal/activity`, *Segna tutte come lette* → campanella senza badge, anteprime dei template, errore di campo sulla condizione, ANALYST in sola lettura) | 8354f94 | Q-73…Q-78 | Fetta svolta da un agente in parallelo e integrata in `main` dopo revisione (SPEC-GAP rinumerati da Q-80…85). PT-12 su `/portal/inbox` (docs/09 §1). Campanella: aggiornamento ogni 30 s più gli eventi dell'attesa di un'azione. `LhError` porta ora gli `errors[]` di campo del problema RFC 9457. |
 | 2026-09-24 | M6.3 | ✅ `./mvnw verify` verde (`ContentIT` 9 con l'anteprima WIN che elenca le 4 card di `IW-AUTUNNO`), `pnpm lint typecheck test build` verdi (71 test, `WinCard` configurata e generica); E2E n. 3 di `docs/09 §4` completo con Playwright su servizi locali: BO-14 *Pianta un istante* (100 punti) → Matteo *Gira* → "Hai vinto! 100 punti per te!" dalla card `WIN-POINTS-100` con "La mia attività →"; BO-14 Montepremi con la card vincita di ogni premio | (questo commit) | — | La M6.4 (PT-12, BO-19, `SEND_MESSAGE`) è in corso con un agente in parallelo. |
 | 2026-09-24 | M6.2 | ✅ `./mvnw verify` verde (`ContentIT` 9: Anna (iscritta ieri) → `POP-WELCOME`, la lettura non lo consuma, chiuso → escluso per `FREQUENCY` e non ricompare; Davide → `NOT_IN_AUDIENCE`, `POP-COMEBACK` → `NOT_LIVE`; `ONCE_PER_DAY` visto oggi → 204, vista spostata a ieri → ricompare, una riga per giorno; 400/404 sugli input; `ContentSelectionTest` 5 con frequenze su giorni espliciti e pubblico per iscrizione/weekend), `pnpm lint typecheck test build` verdi, `check-seed` 25; Playwright su servizi locali 6/6 (pop-up all'ingresso, chiusura, stessa visita, nuova visita, anteprima BO-18) | (questo commit) | — | Variabile Vercel `LH_SVC_ENGAGEMENT_URL` impostata (production, preview) → hub Render. Il pop-up di benvenuto dei nuovi iscritti arriva dal fatto `member.registered` (data d'iscrizione nello snapshot di engagement). |
 | 2026-09-24 | M6.1 | ✅ `./mvnw verify` verde (`ContentIT` 6: seed → HOME_HERO 1, HOME_GRID `CNT-FRIEND`, `CNT-SELF-READING` per Marco (le card per segmento restano fuori fino a M6.6), banner, card concorsi, card WIN per premio; pubblico GOLD/PLATINUM → assente per Anna, presente per Davide, anteprima `NOT_IN_AUDIENCE`; ciclo DRAFT → LIVE → PAUSED → LIVE → ENDED → ARCHIVED con 5 fatti validi per il contratto e attore, transizioni non ammesse 409, archiviato non modificabile, duplicazione in bozza; PUT sostitutivo con 409 su versione e tipo; validazioni 422 (WIN senza premio, `javascript:`, banner fuori posto, frequenza, codice), ruoli (ANALYST/CARE/nessuno 403); fine automatica; `ContentSelectionTest` 3), `pnpm lint typecheck test build` verdi (69 test), `check-seed` 25 (nuove regole sui contenuti), `check-contracts` 50; portale e BO-18 controllati con Playwright su servizi locali (crea → pubblica da `luca.marketing`) | (questo commit) | Q-71, Q-72 | Web: tipi dei contenuti in `lib/content/` (condivisi portale/backoffice, non in `lib/api/types.ts`); `ContentCard` in `components/shared/content`, `PhoneFrame` in `components/bo`. Nav: `REALIZED_MILESTONE = 6` con la sola voce BO-18 nel gruppo "Contenuti". Lo slot del portale sparisce in silenzio se engagement dorme. |

@@ -23,7 +23,7 @@ const SIZE = 20;
 // BO-19 `log` (docs/08 §BO-19): registro dei messaggi consegnati (GET /v1/messages), tutti i canali, dal più recente.
 // Filtri membro / categoria / canale (+ template, dal link dell'editor) nell'URL; paginazione `page/size`. Tocco sulla
 // riga → anteprima: la riga dell'inbox per INAPP, la finta e-mail per EMAIL_FAKE (nessun invio reale).
-// SPEC-GAP: Q-84 — i seed (docs/10 §7) hanno solo template INAPP: le anteprime e-mail compaiono dopo aver creato un
+// SPEC-GAP: Q-77 — i seed (docs/10 §7) hanno solo template INAPP: le anteprime e-mail compaiono dopo aver creato un
 // template EMAIL_FAKE e una regola che lo usa.
 export function MessageLogTab() {
   const search = useSearchParams();
