@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.referral.completed:1",
+  "title": "fact.referral.completed — data (EVT-FACT-08, F-REF-02)",
+  "type": "object",
+  "required": [
+    "role",
+    "counterpartMemberId",
+    "qualifyingActionId"
+  ],
+  "properties": {
+    "role": {
+      "enum": [
+        "REFERRER",
+        "REFEREE"
+      ]
+    },
+    "counterpartMemberId": {
+      "type": "string",
+      "pattern": "^MBR-[0-9]{6}$"
+    },
+    "qualifyingActionId": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": true
+}

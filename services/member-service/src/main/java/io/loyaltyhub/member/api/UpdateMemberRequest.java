@@ -15,6 +15,7 @@ public record UpdateMemberRequest(
         String phone,
         LocalDate birthDate,
         String gender,
-        String city
+        String city,
+        Consents consents
 ) {
 }

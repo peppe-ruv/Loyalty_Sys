@@ -19,8 +19,13 @@ public class PortalCampaignsController {
         this.service = service;
     }
 
+    /**
+     * Senza {@code codes}: le campagne visibili nel portale. Con {@code codes}: quelle campagne LIVE anche se non
+     * elencate in "Guadagna", per spiegare un meccanismo coi valori reali (PT-11 referral).
+     */
     @GetMapping
-    public List<PortalCampaignView> list(@RequestParam(required = false) String memberId) {
-        return service.portal(memberId);
+    public List<PortalCampaignView> list(@RequestParam(required = false) String memberId,
+                                         @RequestParam(required = false) List<String> codes) {
+        return service.portal(memberId, codes);
     }
 }

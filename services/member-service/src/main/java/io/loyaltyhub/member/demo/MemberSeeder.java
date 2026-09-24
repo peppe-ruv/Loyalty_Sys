@@ -6,6 +6,7 @@ import io.loyaltyhub.common.demo.SeedLoader;
 import io.loyaltyhub.common.ids.Codes;
 import io.loyaltyhub.member.domain.Member;
 import io.loyaltyhub.member.domain.MemberStatus;
+import io.loyaltyhub.member.domain.ProfileRules;
 import io.loyaltyhub.member.infra.MemberProjectionRepository;
 import io.loyaltyhub.member.infra.MemberRepository;
 import io.loyaltyhub.member.infra.MemberStatsRepository;
@@ -18,6 +19,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Random;
 
@@ -74,11 +77,19 @@ public class MemberSeeder implements ApplicationRunner, DemoResettable {
             String avatarSeed = text(m.get("avatarSeed"));
             String attributes = story != null ? "{\"story\":" + jsonString(story) + "}" : "{}";
 
+            String birth = text(m.get("birthDate"));
+            LocalDate birthDate = birth != null ? LocalDate.parse(birth) : null;
+            String consents = m.has("consents") ? m.get("consents").toString() : "{}";
+            Instant now = clock.instant();
             Member member = new Member(
                     id, text(m.get("externalId")), text(m.get("firstName")), text(m.get("lastName")),
-                    text(m.get("nickname")), text(m.get("email")), null, null, null, null,
-                    status, "IMPORT", clock.instant(), Codes.random(8, rnd), text(m.get("referredBy")),
-                    null, "{}", attributes, List.of(), avatarSeed, null, 0);
+                    text(m.get("nickname")), text(m.get("email")), text(m.get("phone")), birthDate, null,
+                    text(m.get("city")), status, "IMPORT", now, Codes.random(8, rnd), text(m.get("referredBy")),
+                    null, consents, attributes, List.of(), avatarSeed, null, 0);
+            // Profilo già completo nei seed (docs/10 §2: incompleti solo Anna ed Elisa): nessun fatto da riemettere.
+            if (ProfileRules.missingFields(member).isEmpty()) {
+                member = ProfileRules.withCompletedAt(member, now);
+            }
             members.insert(member);
 
             projections.upsert(id, m.path("tier").asString("BASE"),

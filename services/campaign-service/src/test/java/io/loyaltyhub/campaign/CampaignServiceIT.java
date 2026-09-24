@@ -227,6 +227,24 @@ class CampaignServiceIT {
         assertThat(hasPurchase).isTrue();
     }
 
+    /** PT-11: le due campagne referral per codice, anche quella non elencata in "Guadagna", coi valori reali. */
+    @Test
+    void portalByCodesIncludesHiddenReferralCampaigns() {
+        JsonNode portal = client().get()
+                .uri("/v1/portal/campaigns?memberId=MBR-000002&codes=CMP-REFERRAL-REFERRER,CMP-REFERRAL-REFEREE")
+                .retrieve().body(JsonNode.class);
+        assertThat(portal.size()).isEqualTo(2);
+        for (JsonNode v : portal) {
+            if (v.path("code").asString().equals("CMP-REFERRAL-REFERRER")) {
+                assertThat(v.path("rewardSummary").asString()).isEqualTo("+500 punti · +250 punti status");
+                assertThat(v.path("memberLimit").path("max").asInt()).isEqualTo(10);
+                assertThat(v.path("memberLimit").path("period").asString()).isEqualTo("EDITION");
+            } else {
+                assertThat(v.path("rewardSummary").asString()).isEqualTo("+200 punti");
+            }
+        }
+    }
+
     @Test
     void listReturnsSeededCampaigns() {
         JsonNode all = client().get().uri("/v1/campaigns").retrieve().body(JsonNode.class);

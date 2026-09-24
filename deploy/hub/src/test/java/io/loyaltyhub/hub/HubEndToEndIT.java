@@ -282,6 +282,46 @@ class HubEndToEndIT {
     }
 
     @Test
+    void scnReferralRewardsBothMembersInOneTrace() {
+        // M5.6 (docs/10 §8 SCN-REFERRAL): primo acquisto di Elisa (invitata da Marco) → referral.completed ×2 → ponte →
+        // CMP-REFERRAL-REFEREE +200 PTS a Elisa (BASE) e CMP-REFERRAL-REFERRER +500 PTS ×1,25 SILVER = 625 e +250 STS a
+        // Marco. Tutto nello stesso tracciato dell'acquisto.
+        JsonNode started = client().post().uri("/v1/demo/scenarios/SCN-REFERRAL/run")
+                .header("X-LH-Actor", "ADMIN:test").retrieve().body(JsonNode.class);
+        JsonNode step = awaitRunDone(started.path("runId").asString()).path("results").get(0);
+        assertThat(step.path("status").asString()).isEqualTo("ACCEPTED");
+
+        assertThat(awaitLedger("MBR-000009", "CMP-REFERRAL-REFEREE", "PTS")).as("premio all'invitata").isEqualTo(200);
+        assertThat(awaitLedger("MBR-000002", "CMP-REFERRAL-REFERRER", "PTS")).as("premio all'invitante SILVER").isEqualTo(625);
+        assertThat(awaitLedger("MBR-000002", "CMP-REFERRAL-REFERRER", "STS")).as("punti status all'invitante").isEqualTo(250);
+
+        JsonNode trace = awaitTrace(step.path("correlationId").asString(),
+                t -> t.path("nodes").toString().split("referral.completed", -1).length - 1 >= 4);
+        // 2 fatti + 2 azioni dal ponte, e gli effetti dei due premi nello stesso albero dell'acquisto.
+        assertThat(trace.path("nodes").toString()).contains("+200 PTS", "+250 STS");
+        JsonNode referral = client().get().uri("/v1/portal/members/MBR-000002/referral").retrieve().body(JsonNode.class);
+        assertThat(referral.path("completedCount").asInt()).isEqualTo(1);
+    }
+
+    /** Somma degli accrediti di una campagna nel libro mastro del membro, attesa finché compare (0 se mai). */
+    private long awaitLedger(String memberId, String campaignCode, String currency) {
+        long deadline = System.currentTimeMillis() + 30_000;
+        while (true) {
+            long sum = 0;
+            JsonNode ledger = client().get().uri("/v1/wallets/" + memberId + "/ledger?size=100").retrieve().body(JsonNode.class);
+            for (JsonNode e : ledger.path("items").isMissingNode() ? ledger : ledger.path("items")) {
+                if (campaignCode.equals(e.path("campaignCode").asString()) && currency.equals(e.path("currency").asString())) {
+                    sum += e.path("amount").asLong();
+                }
+            }
+            if (sum > 0 || System.currentTimeMillis() > deadline) {
+                return sum;
+            }
+            sleep();
+        }
+    }
+
+    @Test
     void instantWinPrizesAreDeliveredThroughTheBridge() {
         // M5.3 (docs/03 §6, docs/servizi/gamification-service.md §7): giocata → contest.won → ponte → action.instantwin.won
         // → campaign.evaluated → points.grant → wallet.points.earned, un solo tracciato. Istanti preparati dal test

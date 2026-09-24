@@ -1,0 +1,16 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZR3A4B5C6D7E8F9G0H1J2K",
+  "source": "urn:loyaltyhub:service:member",
+  "type": "io.loyaltyhub.fact.member.profile.completed",
+  "subject": "member:MBR-000001",
+  "time": "2026-09-24T09:40:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.member.profile.completed:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZR3A4B5C6D7E8F9G0H1J2K",
+  "lhhop": 0,
+  "data": {
+    "memberId": "MBR-000001"
+  }
+}

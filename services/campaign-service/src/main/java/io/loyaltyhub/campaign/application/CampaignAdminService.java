@@ -335,19 +335,30 @@ public class CampaignAdminService {
 
     // ---------- portale ----------
 
-    public List<PortalCampaignView> portal(String memberId) {
+    public List<PortalCampaignView> portal(String memberId, List<String> codes) {
         MemberSnapshot snapshot = memberId == null ? null : snapshots.findById(memberId).orElse(null);
+        boolean byCode = codes != null && !codes.isEmpty();
         List<PortalCampaignView> out = new ArrayList<>();
         for (Campaign c : cache.live()) {
-            if (!c.visibleInPortal() || !audienceOk(c.audience(), snapshot)) {
+            boolean listed = byCode ? codes.contains(c.code()) : c.visibleInPortal();
+            if (!listed || !audienceOk(c.audience(), snapshot)) {
                 continue;
             }
             String endsAt = c.schedule() != null && c.schedule().hasNonNull("endAt")
                     ? c.schedule().get("endAt").asString() : null;
             out.add(new PortalCampaignView(c.code(), c.name(), c.memberDescription(), c.icon(),
-                    rewardSummary(c.effects()), endsAt));
+                    rewardSummary(c.effects()), endsAt, memberLimit(c.limits())));
         }
         return out;
+    }
+
+    private static PortalCampaignView.MemberLimit memberLimit(JsonNode limits) {
+        JsonNode perMember = limits == null ? null : limits.get("perMember");
+        if (perMember == null || !perMember.isArray() || perMember.isEmpty()) {
+            return null;
+        }
+        JsonNode first = perMember.get(0);
+        return new PortalCampaignView.MemberLimit(first.path("max").asInt(0), first.path("period").asString(null));
     }
 
     private boolean audienceOk(JsonNode audience, MemberSnapshot member) {
@@ -390,8 +401,9 @@ public class CampaignAdminService {
             switch (e.path("type").asString("")) {
                 case "GRANT_POINTS" -> {
                     String mode = e.path("mode").asString("FIXED");
+                    String unit = "STS".equals(e.path("currency").asString("PTS")) ? " punti status" : " punti";
                     if (mode.equals("FIXED")) {
-                        parts.add("+" + e.path("value").asLong(0) + " punti");
+                        parts.add("+" + e.path("value").asLong(0) + unit);
                     } else if (mode.equals("PER_AMOUNT")) {
                         parts.add(e.path("value").asLong(1) + " punto/i ogni " + e.path("unitStep").asLong(1) + " €");
                     }

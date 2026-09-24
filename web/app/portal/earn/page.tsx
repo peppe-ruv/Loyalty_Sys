@@ -2,17 +2,11 @@
 
 import { useLhQuery } from "@/lib/api/client";
 import { useActiveMember } from "@/components/portal/MemberContext";
+import Link from "next/link";
+import type { PortalCampaign } from "@/lib/api/types";
 import { QueryState } from "@/components/bo/QueryState";
 
-// PT-02 Guadagna (docs/09 §PT-02): campagne attive in forma leggibile, con riepilogo premio.
-interface PortalCampaign {
-  code: string;
-  name: string;
-  memberDescription: string | null;
-  icon: string | null;
-  rewardSummary: string;
-  endsAt: string | null;
-}
+// PT-02 Guadagna (docs/09 §PT-02): campagne attive in forma leggibile, con riepilogo premio; collegamento a PT-11.
 
 export default function EarnPage() {
   const memberId = useActiveMember();
@@ -46,6 +40,12 @@ export default function EarnPage() {
           </ul>
         )}
       </QueryState>
+      <Link
+        href="/portal/invite"
+        className="flex items-center justify-between rounded-xl border border-[var(--color-bo-border)] bg-white p-3 text-sm font-medium text-[var(--color-pt-night)]"
+      >
+        Porta un amico nel Club <span aria-hidden>→</span>
+      </Link>
       <p className="text-center text-xs text-[var(--color-pt-night)]/50">
         Per provare un&apos;azione usa il pannello «Demo».
       </p>

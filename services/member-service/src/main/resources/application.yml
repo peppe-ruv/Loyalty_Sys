@@ -29,6 +29,9 @@ server:
 
 loyaltyhub:
   service: member
+  referral:
+    # Tipo azione (forma breve) che completa il referral dell'invitato (docs/03 §8).
+    qualifying-action-type: ${LH_REFERRAL_QUALIFYING_ACTION:purchase.completed}
   kafka:
     security: ${KAFKA_SECURITY:PLAINTEXT}
 

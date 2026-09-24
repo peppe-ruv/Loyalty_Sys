@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLhQuery } from "@/lib/api/client";
 import type { WalletView, MemberView } from "@/lib/api/types";
@@ -11,10 +12,11 @@ import { QueryState } from "@/components/bo/QueryState";
 import { formatPoints } from "@/lib/format/points";
 import { formatDate } from "@/lib/format/dates";
 
-// PT-01 Home (docs/09 §PT-01): tessera, saldo, avanzamento livello, ultimi movimenti, azioni rapide.
+// PT-01 Home (docs/09 §PT-01): tessera, saldo, avanzamento livello, ultimi movimenti, azioni rapide. Dopo l'iscrizione
+// (/portal/join → ?welcome=1) mostra il benvenuto e, se i punti non sono ancora sul saldo, "in arrivo…".
 export default function PortalHome() {
   const memberId = useActiveMember();
-  const { pending } = usePending();
+  const { pending, markPending } = usePending();
   const wallet = useLhQuery<WalletView>("wallet", `/v1/portal/wallets/${memberId}`, undefined, {
     refetchInterval: pending ? 5000 : undefined,
   });
@@ -24,11 +26,23 @@ export default function PortalHome() {
   });
 
   const name = member.data?.firstName ?? "";
+  const [welcome, setWelcome] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("welcome") === "1") {
+      setWelcome(true);
+      window.history.replaceState(null, "", "/portal");
+    }
+  }, []);
+  const welcomePtsMissing = welcome && wallet.isFetched && (wallet.data?.balances.PTS?.active ?? 0) === 0;
+  useEffect(() => {
+    if (welcomePtsMissing) markPending(["+100 punti di benvenuto in arrivo…"]);
+  }, [welcomePtsMissing, markPending]);
 
   return (
     <div className="space-y-4">
       <h1 className="text-lg font-semibold text-[var(--color-pt-night)]">Ciao{name ? ` ${name}` : ""} 👋</h1>
       <PendingBanner />
+      {welcome ? <WelcomeCard name={name} referred={Boolean(member.data?.referredBy)} onClose={() => setWelcome(false)} /> : null}
 
       <QueryState query={wallet} service="wallet">
         {(w) => (
@@ -74,6 +88,7 @@ export default function PortalHome() {
         <QuickLink href="/portal/my-rewards" label="I miei premi" />
         <QuickLink href="/portal/activity" label="La mia attività" />
         <QuickLink href="/portal/achievements" label="Obiettivi e badge" />
+        <QuickLink href="/portal/invite" label="Porta un amico" />
       </div>
 
       <section>
@@ -109,5 +124,21 @@ function QuickLink({ href, label }: { href: string; label: string }) {
     >
       {label}
     </Link>
+  );
+}
+
+function WelcomeCard({ name, referred, onClose }: { name: string; referred: boolean; onClose: () => void }) {
+  return (
+    <div role="dialog" aria-label="Benvenuto" className="relative rounded-2xl bg-[var(--color-pt-primary)] p-4 text-white shadow-lg">
+      <button onClick={onClose} className="absolute right-3 top-2 text-lg leading-none text-white/80" aria-label="Chiudi">×</button>
+      <p className="text-lg font-semibold">Benvenuto nel Club Aurora{name ? `, ${name}` : ""}!</p>
+      <p className="mt-1 text-sm text-white/90">Ti abbiamo regalato 100 punti di benvenuto: ogni gesto conta.</p>
+      {referred ? (
+        <p className="mt-1 text-sm text-white/90">Ti ha invitato un amico: al tuo primo acquisto ricevete un premio entrambi.</p>
+      ) : null}
+      <Link href="/portal/profile" className="mt-3 inline-block rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-[var(--color-pt-primary)]">
+        Completa il profilo
+      </Link>
+    </div>
   );
 }

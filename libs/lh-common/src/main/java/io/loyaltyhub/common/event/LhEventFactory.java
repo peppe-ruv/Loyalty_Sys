@@ -50,6 +50,18 @@ public class LhEventFactory {
         return child(parent, type, data, parent.time());
     }
 
+    /**
+     * Come {@link #childOf} ma su un altro {@code subject}: un'azione di un membro che produce un fatto per un
+     * secondo membro nello stesso tracciato (referral: il fatto dell'invitante nasce dall'acquisto dell'invitato).
+     */
+    public <T> LhEvent<T> childForSubject(LhEvent<?> parent, String type, String subject, T data) {
+        String id = Ulid.next(clock);
+        return new LhEvent<>(
+                LhEvent.SPEC_VERSION, id, LhSource.service(serviceName), type, subject, clock.instant(),
+                LhEvent.DATA_CONTENT_TYPE, LhSource.schemaForType(type, 1), LhEvent.TENANT,
+                correlationOf(parent), parent.id(), parent.hopOrZero(), parent.lhactor(), data);
+    }
+
     private <T> LhEvent<T> child(LhEvent<?> parent, String type, T data, Instant time) {
         String id = Ulid.next(clock);
         return new LhEvent<>(

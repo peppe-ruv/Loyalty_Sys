@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:action.member.profile.completed:1",
+  "title": "action.member.profile.completed — data (EVT-ACT-21, interna dal ponte su fact.member.profile.completed)",
+  "type": "object",
+  "properties": {
+    "memberId": {
+      "type": "string",
+      "pattern": "^MBR-[0-9]{6}$"
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:action.referral.completed:1",
+  "title": "action.referral.completed — data (EVT-ACT-27, interna dal ponte su fact.referral.completed)",
+  "type": "object",
+  "required": [
+    "role",
+    "counterpartMemberId"
+  ],
+  "properties": {
+    "role": {
+      "enum": [
+        "REFERRER",
+        "REFEREE"
+      ]
+    },
+    "counterpartMemberId": {
+      "type": "string",
+      "pattern": "^MBR-[0-9]{6}$"
+    },
+    "qualifyingActionId": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": true
+}

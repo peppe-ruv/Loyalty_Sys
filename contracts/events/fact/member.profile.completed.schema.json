@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.member.profile.completed:1",
+  "title": "fact.member.profile.completed — data (EVT-FACT-04, F-MBR-07): nessun campo essenziale",
+  "type": "object",
+  "properties": {
+    "memberId": {
+      "type": "string",
+      "pattern": "^MBR-[0-9]{6}$"
+    }
+  },
+  "additionalProperties": true
+}

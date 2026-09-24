@@ -5,6 +5,7 @@ import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhEventTypes.Action;
 import io.loyaltyhub.common.event.LhSource;
 import io.loyaltyhub.common.inbox.EventHandler;
+import io.loyaltyhub.member.application.ReferralService;
 import io.loyaltyhub.member.infra.MemberStatsRepository;
 import org.springframework.stereotype.Component;
 
@@ -15,6 +16,7 @@ import java.util.Set;
 /**
  * Aggiorna {@code member_stats} da ogni azione su {@code lh.actions.v1} (docs/servizi/member-service.md §5).
  * Le azioni interne ({@code source=…:internal}) non aggiornano l'ultima attività né i conteggi acquisti.
+ * Nella stessa transazione verifica la qualifica del referral (docs §4: "tutte → member_stats; verifica qualifica").
  */
 @Component
 public class MemberStatsHandler implements EventHandler {
@@ -28,9 +30,11 @@ public class MemberStatsHandler implements EventHandler {
             Action.REWARD_REDEEMED);
 
     private final MemberStatsRepository stats;
+    private final ReferralService referrals;
 
-    public MemberStatsHandler(MemberStatsRepository stats) {
+    public MemberStatsHandler(MemberStatsRepository stats, ReferralService referrals) {
         this.stats = stats;
+        this.referrals = referrals;
     }
 
     @Override
@@ -58,6 +62,7 @@ public class MemberStatsHandler implements EventHandler {
             }
         }
         stats.recordAction(memberId, shortType, lastActivity, purchasesDelta, amount);
+        referrals.onAction(event);
     }
 
     private static String shortType(String type) {

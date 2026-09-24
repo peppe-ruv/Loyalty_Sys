@@ -68,5 +68,28 @@
         "note": "Acquisto online da 130 € in un giorno feriale"
       }
     ]
+  },
+  {
+    "code": "SCN-REFERRAL",
+    "name": "Elisa completa l'invito di Marco",
+    "description": "Elisa si è iscritta col codice amico di Marco e non ha ancora comprato: il suo primo acquisto completa il referral e premia entrambi.",
+    "protagonist": "Elisa (MBR-000009) + Marco (MBR-000002)",
+    "watch": "Guarda il tracciato: acquisto di Elisa → due fatti referral.completed (REFEREE a Elisa, REFERRER a Marco) → ponte → CMP-REFERRAL-REFEREE +200 a Elisa e CMP-REFERRAL-REFERRER +500 (×1,25 SILVER) e +250 STS a Marco.",
+    "steps": [
+      {
+        "delayMs": 0,
+        "memberId": "MBR-000009",
+        "type": "purchase.completed",
+        "source": "ecommerce",
+        "at": "@lastWeekdayT12:00",
+        "data": {
+          "orderId": "ORD-SCN-REFERRAL",
+          "amount": 45,
+          "currency": "EUR",
+          "channel": "ONLINE"
+        },
+        "note": "Primo acquisto di Elisa: 45 € online"
+      }
+    ]
   }
 ]

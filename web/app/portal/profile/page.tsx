@@ -7,9 +7,10 @@ import { useActiveMember } from "@/components/portal/MemberContext";
 import { MemberCard } from "@/components/portal/MemberCard";
 import { QueryState } from "@/components/bo/QueryState";
 import { formatPoints } from "@/lib/format/points";
+import { ProfileSection } from "@/components/portal/profile/ProfileForm";
 
 // PT-08 Profilo e livello (docs/09 §PT-08): carta, "Il tuo livello" (scala, vantaggi, moltiplicatore,
-// punti status, regola di permanenza), "I tuoi dati". La registrazione (/join) e le modifiche sono M5.
+// punti status, regola di permanenza), "I tuoi dati" modificabili con completezza (M5.6), collegamenti a PT-09/11/13.
 export default function PortalProfile() {
   const memberId = useActiveMember();
   const wallet = useLhQuery<WalletView>("wallet", `/v1/portal/wallets/${memberId}`);
@@ -75,15 +76,7 @@ export default function PortalProfile() {
               </p>
             </section>
 
-            <section>
-              <h2 className="mb-2 text-sm font-semibold text-[var(--color-pt-night)]">I tuoi dati</h2>
-              <dl className="rounded-xl border border-[var(--color-bo-border)] bg-white p-3 text-sm">
-                <Row label="Nome" value={fullName} />
-                <Row label="E-mail" value={member.data?.email ?? "—"} />
-                <Row label="Soprannome" value={member.data?.nickname ?? "—"} />
-                <Row label="Stato" value={member.data?.status ?? "—"} />
-              </dl>
-            </section>
+            <ProfileSection memberId={memberId} />
 
             <section>
               <Link
@@ -98,19 +91,16 @@ export default function PortalProfile() {
               >
                 Obiettivi e badge <span aria-hidden>→</span>
               </Link>
+              <Link
+                href="/portal/invite"
+                className="mt-2 flex items-center justify-between rounded-xl border border-[var(--color-bo-border)] bg-white p-3 text-sm font-medium text-[var(--color-pt-night)]"
+              >
+                Porta un amico <span aria-hidden>→</span>
+              </Link>
             </section>
           </div>
         )}
       </QueryState>
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between border-b border-slate-100 py-1.5 last:border-0">
-      <dt className="text-[var(--color-pt-night)]/60">{label}</dt>
-      <dd className="text-[var(--color-pt-night)]">{value}</dd>
     </div>
   );
 }

@@ -9,17 +9,22 @@ import io.loyaltyhub.common.ids.Codes;
 import io.loyaltyhub.common.outbox.OutboxWriter;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.common.web.PageResponse;
+import io.loyaltyhub.member.api.Consents;
 import io.loyaltyhub.member.api.CreateMemberRequest;
 import io.loyaltyhub.member.api.MemberView;
+import io.loyaltyhub.member.api.PortalProfileView;
 import io.loyaltyhub.member.api.StatusChangeRequest;
 import io.loyaltyhub.member.api.UpdateMemberRequest;
 import io.loyaltyhub.member.domain.Member;
 import io.loyaltyhub.member.domain.MemberProjection;
 import io.loyaltyhub.member.domain.MemberSnapshot;
 import io.loyaltyhub.member.domain.MemberStatus;
+import io.loyaltyhub.member.domain.ProfileRules;
 import io.loyaltyhub.member.infra.MemberProjectionRepository;
 import io.loyaltyhub.member.infra.MemberRepository;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -33,12 +38,14 @@ import java.util.Objects;
 /**
  * Anagrafica dei membri (docs/servizi/member-service.md §3, §5): creazione, ricerca, modifica, stati.
  * Ogni scrittura emette il fatto corrispondente su {@code lh.facts.v1} via outbox, nella stessa transazione
- * (registrazione/modifica portano lo <em>snapshot completo</em>, docs §5). Referral e profilo avanzato: M5.
+ * (registrazione/modifica portano lo <em>snapshot completo</em>, docs §5). Registrazione dal portale con codice
+ * amico (F-MBR-06, F-REF-01) e completamento profilo una sola volta con il fatto {@code member.profile.completed}
+ * (F-MBR-07).
  */
 @Service
 public class MemberService {
 
-    /** Campi richiesti per considerare il profilo completo (docs/03 §2). */
+    /** Codice amico: 8 caratteri {@code A-Z2-9} (docs/03 §2). */
     private static final int REFERRAL_CODE_LEN = 8;
 
     private final MemberRepository members;
@@ -47,15 +54,18 @@ public class MemberService {
     private final OutboxWriter outbox;
     private final AuditPublisher audit;
     private final Clock clock;
+    private final ObjectMapper mapper;
 
     public MemberService(MemberRepository members, MemberProjectionRepository projections,
-                         LhEventFactory events, OutboxWriter outbox, AuditPublisher audit, Clock clock) {
+                         LhEventFactory events, OutboxWriter outbox, AuditPublisher audit, Clock clock,
+                         ObjectMapper mapper) {
         this.members = members;
         this.projections = projections;
         this.events = events;
         this.outbox = outbox;
         this.audit = audit;
         this.clock = clock;
+        this.mapper = mapper;
     }
 
     // ---------- letture ----------
@@ -63,6 +73,15 @@ public class MemberService {
     public MemberView get(String id) {
         Member m = members.findById(id).orElseThrow(() -> LhException.notFound("Membro non trovato: " + id));
         return MemberView.of(m, projections.findByMemberId(id).orElse(null));
+    }
+
+    /** Profilo per il portale (PT-08) con la completezza calcolata sui campi di docs/03 §2. */
+    public PortalProfileView portalProfile(String id) {
+        Member m = members.findById(id).orElseThrow(() -> LhException.notFound("Membro non trovato: " + id));
+        List<String> missing = ProfileRules.missingFields(m);
+        return new PortalProfileView(m.id(), m.firstName(), m.lastName(), m.nickname(), m.email(), m.phone(),
+                m.birthDate(), m.city(), consentsOf(m), m.referralCode(), m.version(),
+                new PortalProfileView.Completeness(missing.isEmpty(), missing));
     }
 
     public PageResponse<MemberView> search(String q, String status, String tier, int page, int size) {
@@ -96,7 +115,9 @@ public class MemberService {
                 id, null, r.firstName(), r.lastName(), nickname, r.email(), r.phone(),
                 null, r.gender(), r.city(), MemberStatus.ACTIVE,
                 r.channel() != null ? r.channel() : "PORTAL", now,
-                uniqueReferralCode(), referredBy, null, "{}", "{}", List.of(), nickname, null, 0);
+                uniqueReferralCode(), referredBy, null,
+                (r.consents() != null ? r.consents().over(Consents.NONE) : Consents.NONE).toJson(),
+                "{}", List.of(), nickname, null, 0);
         members.insert(m);
         projections.upsert(id, "BASE", 0, 0, 0, 0);
 
@@ -129,12 +150,16 @@ public class MemberService {
         String city = pick(r.city(), m.city());
 
         Instant profileCompletedAt = m.profileCompletedAt();
-        if (profileCompletedAt == null && isProfileComplete(firstName, lastName, email, birthDate, city)) {
+        boolean completesProfile = profileCompletedAt == null
+                && ProfileRules.missingFields(firstName, lastName, email, phone, birthDate != null, city).isEmpty();
+        if (completesProfile) {
             profileCompletedAt = clock.instant();
         }
+        Consents oldConsents = consentsOf(m);
+        Consents newConsents = r.consents() != null ? r.consents().over(oldConsents) : oldConsents;
 
         boolean ok = members.updateFields(id, m.version(), firstName, lastName, nickname, email, phone,
-                birthDate, gender, city, m.consentsJson(), m.attributesJson(), profileCompletedAt);
+                birthDate, gender, city, newConsents.toJson(), m.attributesJson(), profileCompletedAt);
         if (!ok) {
             throw LhException.conflict("VERSION_CONFLICT", "Modifica concorrente sul membro " + id);
         }
@@ -142,6 +167,11 @@ public class MemberService {
         Member updated = members.findById(id).orElseThrow();
         String tier = tierOf(id);
         publish(LhEventTypes.Fact.MEMBER_UPDATED, updated, tier);
+        if (completesProfile) {
+            // Una sola volta (docs §5): il ponte lo trasforma nell'azione member.profile.completed (CMP-PROFILE).
+            outbox.write(events.newRoot(LhEventTypes.Fact.MEMBER_PROFILE_COMPLETED, "member:" + id,
+                    Map.of("memberId", id)));
+        }
 
         Map<String, Object> before = new LinkedHashMap<>();
         Map<String, Object> after = new LinkedHashMap<>();
@@ -153,6 +183,7 @@ public class MemberService {
         diff(before, after, "birthDate", m.birthDate(), updated.birthDate());
         diff(before, after, "gender", m.gender(), updated.gender());
         diff(before, after, "city", m.city(), updated.city());
+        diff(before, after, "consents", oldConsents, newConsents);
         if (!after.isEmpty()) {
             audit.record("MEMBER", id, AuditEntry.Action.UPDATE,
                     "Modificato profilo di " + updated.displayName() + " (" + after.size() + " campi)", before, after);
@@ -196,13 +227,30 @@ public class MemberService {
         return projections.findByMemberId(id).map(MemberProjection::tierCode).orElse("BASE");
     }
 
+    /**
+     * Codice amico → invitante (docs/03 §8), normalizzato in maiuscolo. Il legame si crea solo alla registrazione e
+     * non è modificabile; {@code REFERRAL_SELF} non può verificarsi qui perché il codice nasce insieme al membro.
+     */
     private String resolveReferral(String code) {
         if (code == null || code.isBlank()) {
             return null;
         }
-        Member referrer = members.findByReferralCode(code.trim())
+        String normalized = code.trim().toUpperCase(java.util.Locale.ROOT);
+        Member referrer = members.findByReferralCode(normalized)
                 .orElseThrow(() -> LhException.validation("REFERRAL_CODE_INVALID", "Codice invito inesistente: " + code));
+        // SPEC-GAP: Q-61 — il codice di un membro non ACTIVE (bloccato, anonimizzato) è trattato come non valido.
+        if (referrer.status() != MemberStatus.ACTIVE) {
+            throw LhException.validation("REFERRAL_CODE_INVALID", "Codice invito non più attivo: " + code);
+        }
         return referrer.id();
+    }
+
+    private Consents consentsOf(Member m) {
+        if (m.consentsJson() == null || m.consentsJson().isBlank()) {
+            return Consents.NONE;
+        }
+        JsonNode node = mapper.readTree(m.consentsJson());
+        return new Consents(node.path("marketing").asBoolean(false), node.path("profiling").asBoolean(false));
     }
 
     private String uniqueReferralCode() {
@@ -221,11 +269,6 @@ public class MemberService {
             return (first + " " + lastName.trim().charAt(0) + ".").trim();
         }
         return first.isBlank() ? "Membro" : first;
-    }
-
-    private static boolean isProfileComplete(String firstName, String lastName, String email,
-                                             LocalDate birthDate, String city) {
-        return present(firstName) && present(lastName) && present(email) && birthDate != null && present(city);
     }
 
     private MemberStatus parseTargetStatus(String status) {
@@ -256,10 +299,6 @@ public class MemberService {
         } catch (IllegalArgumentException e) {
             return null;
         }
-    }
-
-    private static boolean present(String v) {
-        return v != null && !v.isBlank();
     }
 
     private static String pick(String incoming, String current) {

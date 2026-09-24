@@ -13,6 +13,8 @@ export interface MemberView {
   periodSts: number;
   version: number;
   registeredAt: string | null;
+  referralCode?: string | null;
+  referredBy?: string | null;
 }
 
 export interface CampaignBudget {
@@ -707,4 +709,77 @@ export interface PlantedInstant {
   prizeCode: string;
   prizeName: string;
   instantAt: string;
+}
+
+// Referral e profilo del portale (docs/servizi/member-service.md §3; F-REF-01/02, F-MBR-06/07; BO-17, PT-08, PT-11).
+export type ReferralStatus = "PENDING" | "COMPLETED";
+
+export interface ReferralLink {
+  referrerId: string;
+  referrerName: string;
+  refereeId: string;
+  refereeName: string;
+  refereeNickname: string | null;
+  refereeStatus: string;
+  status: ReferralStatus;
+  registeredAt: string | null;
+  completedAt: string | null;
+}
+
+export interface ReferralOverview {
+  invited: number;
+  completed: number;
+  pending: number;
+  rate: number;
+  qualifyingActionType: string;
+  topReferrers: { memberId: string; name: string; invited: number; completed: number }[];
+  links: ReferralLink[];
+}
+
+export interface PortalInvitee {
+  nickname: string;
+  status: ReferralStatus;
+  registeredAt: string | null;
+  completedAt: string | null;
+}
+
+export interface PortalReferral {
+  code: string;
+  shareUrl: string;
+  qualifyingActionType: string;
+  invited: PortalInvitee[];
+  completedCount: number;
+}
+
+export interface Consents {
+  marketing: boolean;
+  profiling: boolean;
+}
+
+export type ProfileField = "firstName" | "lastName" | "email" | "phone" | "birthDate" | "city";
+
+export interface PortalProfile {
+  memberId: string;
+  firstName: string | null;
+  lastName: string | null;
+  nickname: string | null;
+  email: string | null;
+  phone: string | null;
+  birthDate: string | null;
+  city: string | null;
+  consents: Consents;
+  referralCode: string | null;
+  version: number;
+  completeness: { completed: boolean; missingFields: ProfileField[] };
+}
+
+/** Voce di {@code GET /v1/portal/campaigns} (PT-02, PT-11 con {@code codes}). */
+export interface PortalCampaign {
+  code: string;
+  name: string;
+  memberDescription: string | null;
+  icon: string | null;
+  rewardSummary: string;
+  endsAt: string | null;
+  memberLimit?: { max: number; period: string } | null;
 }
