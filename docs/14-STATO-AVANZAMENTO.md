@@ -14,10 +14,10 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M3 — Punti adulti | chiusa (codice) | 2026-09-21 | 2026-09-23 | ☑ | M3.1–M3.9 implementate; criteri di accettazione verdi con test automatici; resta `smoke.sh` sulla demo online |
 | M4 — Premi | chiusa (codice) | 2026-09-23 | 2026-09-24 | ☐ | M4.1–M4.6 implementate; criteri di accettazione verdi con test automatici (E2E portale su API simulate); resta `smoke.sh` sulla demo online |
 | M5 — Gioco | chiusa (codice) | 2026-09-24 | 2026-09-24 | ☐ | M5.1–M5.7 implementate; criteri di accettazione verdi con test automatici + E2E n. 3 con Playwright su servizio locale; resta `smoke.sh` sulla demo online |
-| M6 — Contenuti | da iniziare | | | ☐ | |
+| M6 — Contenuti | in corso | 2026-09-24 | | ☐ | M6.0 chiusa (engagement: template, regole di notifica, inbox, `message.send`) |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** M6.0 (engagement: regole di notifica, template, inbox, effetto `message.send`) — in corso in parallelo; poi M6.1; resta `smoke.sh` sulla demo online per M3–M5
+**Prossima fetta da lavorare:** M6.1 (contenuti, selezione per posizionamento, BO-18) — in corso; resta `smoke.sh` sulla demo online per M3–M5
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -273,7 +273,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 **Fette** (`docs/12 §3`)
 
-- [ ] `M6.0`
+- [x] `M6.0` — _engagement-service nell'hub (schema `engagement`): template con segnaposto `{{data…}}`/`{{member…}}` e formattatori, regole fatto → template con condizione su `data.*`, inbox deduplicata per (membro, evento, template), effetto `message.send`, fatto `message.delivered` mai soggetto a regole; seed `message-templates.json` (13), `notification-rules.json` (12), `inbox.json` (53, non letti Marco 3 · Chiara 1 · Sofia 1); API di gestione e inbox del portale. Schermate PT-12 e BO-19 con M6.4_
 - [ ] `M6.1`
 - [ ] `M6.2`
 - [ ] `M6.3`
@@ -292,8 +292,8 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [ ] `F-CNT-02` Pop-up (P0)
 - [ ] `F-CNT-03` Card vincita (P0)
 - [ ] `F-CNT-04` Anteprima (P1)
-- [ ] `F-MSG-01` Inbox in-app (P0)
-- [ ] `F-MSG-02` Template (P0)
+- [~] `F-MSG-01` Inbox in-app (P0) — _2026-09-24 M6.0: messaggi dai fatti tramite regole, inbox del portale via API (non letti, letto, tutti letti); PT-12 e BO-19 con M6.4_
+- [~] `F-MSG-02` Template (P0) — _2026-09-24 M6.0: segnaposto, icona, link, canali `INAPP` e `EMAIL_FAKE` (solo registro), anteprima `render`; editor BO-19 con M6.4_
 - [ ] `F-THM-01` Tema del portale (P1)
 
 **Accettazione M6** (`docs/12`)
@@ -342,6 +342,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 | Data | Fetta | Esito | Commit | Domande aperte create | Note per la prossima sessione |
 |---|---|---|---|---|---|
+| 2026-09-24 | M6.0 | ✅ `./mvnw verify` verde (`EngagementIT` 8: 162 PTS → "Hai guadagnato 162 punti", stesso evento rielaborato → nessun doppione, STS senza messaggio, `message.send` → inbox + `message.delivered` valido per il contratto, `message.delivered` ignorato e vietato nelle regole, `referral.completed` solo REFERRER, non letti/letto/tutti letti, ruoli (MARKETING/ADMIN sì, ANALYST/CARE/LEGAL 403), 409/422, audit, regola creata a caldo, `render`; `TemplateEngineTest` 6, `DataConditionTest` 6; `HubEngagementIT` 2 in-process: acquisto di Marco → un solo messaggio "162 punti", SCN-TIER-UP → messaggi di livello e badge), `check-seed` e `check-contracts` verdi | 0d8463f | Q-64…Q-70 | Fetta svolta da un agente in parallelo e integrata in `main` dopo revisione (SPEC-GAP rinumerati da Q-70…76). `engagement_member_snapshot` prefissata come negli altri servizi dell'hub. Web invariato: `engagement` era già nel registro dei servizi. |
 | 2026-09-24 | M5.7 (accettazione) | ✅ `./mvnw verify` verde (`HubEndToEndIT` 13: `SCN-ONBOARDING` +279 con obiettivo → badge → bonus in un albero; *pianta un istante* via API senza toccare gli istanti del seed → Matteo vince il premio piantato, catena entro 10 s; il test di Anna respinta non dipende più dall'ordine), `check-seed` 21; E2E n. 3 con Playwright (BO-14 → PT-06) su gamification-service locale | (questo commit) | Q-62, Q-63 | M5 chiusa lato codice. Il claim prende l'istante aperto più vecchio: l'istante piantato va a `min(adesso − 1 s, più vecchio aperto − 1 s)` (Q-62). In `SCN-ONBOARDING` il profilo completo è un'azione simulata (Q-63). |
 | 2026-09-24 | M5.6 | ✅ `./mvnw verify` verde (`ReferralIT` 4: primo acquisto di Elisa → due `referral.completed` con ruoli opposti, stessa correlazione e causa = l'acquisto, nessuno al secondo acquisto; registrazione con codice in minuscolo e spazi → legame `PENDING`, consensi salvati, codice inesistente o di Roberto (BLOCKED) → 422; panoramica; Anna completa il profilo con la città → un solo `member.profile.completed`; `CampaignServiceIT` 13 con `codes=` e `memberLimit`; `HubEndToEndIT` 11 con SCN-REFERRAL: Elisa +200, Marco +625 PTS e +250 STS nello stesso tracciato), `pnpm lint typecheck test build` verdi (65 test), `check-contracts` e `check-seed` 21; `/portal/join` (errore sul campo), PT-11, PT-08 (modifica → profilo completo) e BO-17 controllate con Playwright su servizi locali | (questo commit) | Q-61 | lh-common: `LhEventFactory.childForSubject` (figlio con un altro `subject`: il fatto dell'invitante nasce dall'acquisto dell'invitata). Contratti `fact/action.referral.completed` e `fact/action.member.profile.completed`. `seed/members.json` con telefono, data di nascita, città e consensi (nessun ID cambiato). Portale campagne: `?codes=` restituisce campagne LIVE anche non elencate in "Guadagna" + `memberLimit`; il riepilogo distingue "punti status". Tab "Io" col pallino se il profilo è incompleto. **Attenzione in parallelo**: gli `install` di più worktree sovrascrivono lo stesso `~/.m2` (un jar `lh-common` vecchio ha dato un falso rosso): rifare `install` prima dei test isolati. |
 | 2026-09-24 | M5.7 (parte 1) | ✅ `./mvnw verify` di gamification verde (`DemoToolsIT` 3: istante piantato → la giocata successiva vince quel premio, 409 su concorso non LIVE, 422 premio/istante mancante, fine concorsi con `asOf` → `ENDED` + istanti `VOID`, seconda esecuzione senza effetti), `pnpm lint typecheck test build` verdi | 6b87e4d | — | Fetta svolta da un agente in parallelo e integrata in `main` dopo revisione. Pianta = sposta l'ultimo istante aperto del premio (montepremi invariato). Fine concorsi: job `@Scheduled` ogni 5 minuti solo con `loyaltyhub.jobs.enabled=true`, in demo da BO-30. |

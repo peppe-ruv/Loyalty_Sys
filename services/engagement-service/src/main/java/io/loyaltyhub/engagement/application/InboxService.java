@@ -78,7 +78,7 @@ public class InboxService {
      */
     public Optional<InboxMessage> deliver(String memberId, MessageTemplate template, JsonNode data, LhEvent<?> source,
                                           String sourceEventId) {
-        // SPEC-GAP: Q-76 — scelta conservativa: un membro anonimizzato non riceve messaggi (gli altri stati sì).
+        // SPEC-GAP: Q-70 — scelta conservativa: un membro anonimizzato non riceve messaggi (gli altri stati sì).
         if (members.find(memberId).map(s -> "ANONYMIZED".equals(s.status())).orElse(false)) {
             log.info("Membro {} anonimizzato: nessun messaggio {}", memberId, template.code());
             return Optional.empty();
@@ -114,7 +114,7 @@ public class InboxService {
     }
 
     /** Inbox del portale: solo canale {@code INAPP}, dal più recente. */
-    // SPEC-GAP: Q-73 — EMAIL_FAKE "produce solo un'anteprima consultabile da BO-19": resta nel registro /v1/messages ma
+    // SPEC-GAP: Q-67 — EMAIL_FAKE "produce solo un'anteprima consultabile da BO-19": resta nel registro /v1/messages ma
     // non entra nell'inbox del portale né nel contatore dei non letti.
     @Transactional(readOnly = true)
     public PageResponse<PortalMessage> portalInbox(String memberId, int page, int size) {

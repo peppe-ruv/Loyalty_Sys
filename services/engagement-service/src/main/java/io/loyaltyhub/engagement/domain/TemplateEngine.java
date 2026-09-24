@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
  * formattatori {@code |number} (raggruppamento italiano, {@code 1.500}; decimali con la virgola) e {@code |date}
  * (giorno in {@code Europe/Rome}, {@code 31 ottobre 2026}). Puro e senza stato: si usa anche dall'anteprima di BO-19.
  */
-// SPEC-GAP: Q-72 — docs/10 §7 cita segnaposto senza radice ({{amount}}, {{campaignName}}); vale la scheda servizio
+// SPEC-GAP: Q-66 — docs/10 §7 cita segnaposto senza radice ({{amount}}, {{campaignName}}); vale la scheda servizio
 // (§5, fonte di rango più alto): percorsi su {data, member, event}, quindi {{data.amount}}. campaignName non esiste in
 // wallet.points.earned: i template del seed non lo usano.
 public final class TemplateEngine {

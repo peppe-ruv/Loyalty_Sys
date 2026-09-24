@@ -326,7 +326,7 @@ if (Array.isArray(templatesSeed)) {
       const n = perMember.get(m.id)?.total ?? 0;
       if (n < 3 || n > 8) errors.push(`inbox.json: ${m.id} ha ${n} messaggi (attesi 3–8)`);
     }
-    // SPEC-GAP: Q-70 — la "richiesta confermata" di Sofia usa MSG-REWARD-CONFIRMED (fuori dagli 11 template + MSG-BIRTHDAY).
+    // SPEC-GAP: Q-64 — la "richiesta confermata" di Sofia usa MSG-REWARD-CONFIRMED (fuori dagli 11 template + MSG-BIRTHDAY).
     const expectedUnread = { "MBR-000002": null, "MBR-000007": ["MSG-POINTS-EXPIRING"], "MBR-000011": ["MSG-REWARD-CONFIRMED"] };
     for (const [id, agg] of perMember) {
       const want = id in expectedUnread ? expectedUnread[id] : [];

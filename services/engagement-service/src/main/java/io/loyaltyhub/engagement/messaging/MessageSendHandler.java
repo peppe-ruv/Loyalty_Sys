@@ -54,7 +54,7 @@ public class MessageSendHandler implements EventHandler {
                 data.set(e.getKey(), e.getValue());
             }
         }
-        // SPEC-GAP: Q-74 — per l'effetto la chiave di deduplica è l'effectId (stabile anche se l'effetto venisse
+        // SPEC-GAP: Q-68 — per l'effetto la chiave di deduplica è l'effectId (stabile anche se l'effetto venisse
         // riemesso con un altro id d'evento) e data.* = campi dell'effetto + params.
         String sourceId = d.hasNonNull("effectId") && !d.get("effectId").asString().isBlank() ? d.get("effectId").asString() : event.id();
         inbox.deliver(memberId, template, data, event, sourceId);

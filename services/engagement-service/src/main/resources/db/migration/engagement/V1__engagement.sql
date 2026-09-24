@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS message_template (
 );
 
 -- Regola fatto → template. `code` leggibile oltre all'id (docs/06 §2: le entità di configurazione hanno id e code).
--- SPEC-GAP: Q-75 — la scheda servizio elenca solo `id`; `code` serve ai seed stabili e ai path per codice.
+-- SPEC-GAP: Q-69 — la scheda servizio elenca solo `id`; `code` serve ai seed stabili e ai path per codice.
 CREATE TABLE IF NOT EXISTS notification_rule (
   id            text PRIMARY KEY,
   code          text NOT NULL UNIQUE,

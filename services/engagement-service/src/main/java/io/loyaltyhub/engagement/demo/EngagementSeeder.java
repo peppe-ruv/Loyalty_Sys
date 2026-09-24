@@ -36,10 +36,10 @@ import java.util.Map;
  * è {@code SEED-<id>}. Un messaggio letto ha {@code read_at} un'ora dopo la consegna (mai nel futuro). Profilo
  * {@code demo}, ripetibile via {@code /v1/demo/reset}.
  */
-// SPEC-GAP: Q-70 — docs/10 §7 vuole un messaggio non letto "richiesta confermata" per Sofia, ma tra gli 11 template
+// SPEC-GAP: Q-64 — docs/10 §7 vuole un messaggio non letto "richiesta confermata" per Sofia, ma tra gli 11 template
 // + MSG-BIRTHDAY non ce n'è uno: il seed aggiunge MSG-REWARD-CONFIRMED e la regola NR-REWARD-CONFIRMED
 // (reward.redemption.confirmed), oltre alle 11 regole minime.
-// SPEC-GAP: Q-71 — NR-POINTS-EARNED ha la condizione data.currency = PTS: wallet.points.earned arriva anche per gli STS
+// SPEC-GAP: Q-65 — NR-POINTS-EARNED ha la condizione data.currency = PTS: wallet.points.earned arriva anche per gli STS
 // e senza filtro un acquisto produrrebbe due messaggi ("162 punti" e "130 punti").
 @Component
 @Profile("demo")
