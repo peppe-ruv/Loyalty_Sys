@@ -3,6 +3,8 @@
 
 export interface CampaignDraft {
   triggerActionTypes?: string[];
+  /** Nomi dei tipi azione noti al chiamante (es. i tipi custom da ingestion), prioritari sulla mappa interna. */
+  actionLabels?: Record<string, string>;
   audience?: { all?: boolean; tiers?: string[]; segments?: string[] };
   conditions?: ConditionNode;
   effects?: EffectSpec[];
@@ -78,7 +80,7 @@ const CMP_LABEL: Record<string, string> = {
 };
 
 export function describeCampaign(c: CampaignDraft): string {
-  const trigger = triggerPhrase(c.triggerActionTypes);
+  const trigger = triggerPhrase(c.triggerActionTypes, c.actionLabels);
   const audience = audiencePhrase(c.audience);
   const conditions = conditionsPhrase(c.conditions);
   const effects = effectsPhrase(c.effects);
@@ -94,9 +96,9 @@ export function describeCampaign(c: CampaignDraft): string {
   return sentence + ".";
 }
 
-function triggerPhrase(types?: string[]): string {
+function triggerPhrase(types?: string[], labels?: Record<string, string>): string {
   if (!types || types.length === 0) return "un'azione";
-  return bold(types.map((t) => ACTION_LABEL[t] ?? t).join(" o "));
+  return bold(types.map((t) => labels?.[t] ?? ACTION_LABEL[t] ?? t).join(" o "));
 }
 
 function audiencePhrase(a?: CampaignDraft["audience"]): string | null {

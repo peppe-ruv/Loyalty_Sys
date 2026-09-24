@@ -75,12 +75,15 @@ export interface Campaign {
   system: boolean;
 }
 
+/** Tipo azione (`ingestion GET /v1/event-types`). Da M6.7 `dataSchema` è un oggetto JSON Schema, non più un testo. */
 export interface EventType {
   code: string;
   name: string;
-  origin: string;
+  description?: string | null;
+  origin: "SYSTEM" | "CUSTOM";
   category: string | null;
-  dataSchema: string | null;
+  dataSchema: Record<string, unknown> | null;
+  sampleData?: Record<string, unknown> | null;
   enabled: boolean;
   icon: string | null;
 }
