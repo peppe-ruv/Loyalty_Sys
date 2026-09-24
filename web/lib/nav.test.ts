@@ -28,3 +28,16 @@ describe("activeHref", () => {
     expect(activeHref("/portal")).toBeNull();
   });
 });
+
+describe("visibleNav", () => {
+  it("filtra i gruppi in base alla milestone realizzata e rimuove quelli vuoti", () => {
+    // Supponendo che la Dashboard sia in milestone 2 e i Membri in milestone 1
+    const navM1 = visibleNav(1);
+    const hasM2 = navM1.some(g => g.items.some(i => i.milestone > 1));
+    expect(hasM2).toBe(false);
+    expect(navM1.find(g => g.label === "Panoramica")).toBeUndefined(); // Dashboard is M2, should be hidden
+
+    const navM0 = visibleNav(0);
+    expect(navM0.length).toBe(0);
+  });
+});
