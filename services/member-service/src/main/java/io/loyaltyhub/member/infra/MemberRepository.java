@@ -102,23 +102,58 @@ public class MemberRepository {
     }
 
     /** Elenco filtrato con proiezione (docs §3): {@code q, status, tier}. Ordinato per id. */
+    /** Etichette aggiornate da un'azione (SPEC-GAP Q-80): incrementa la versione come ogni modifica anagrafica. */
+    public void updateLabels(String id, List<String> labels) {
+        jdbc.sql("UPDATE member SET labels = ?::text[], version = version + 1 WHERE id = ?")
+                .params(TextArrays.literal(labels), id).update();
+    }
+
+    /** Id esistenti tra quelli dati (validazione dei segmenti statici). */
+    public List<String> existingIds(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return jdbc.sql("SELECT id FROM member WHERE id = ANY(?::text[]) AND status <> 'ANONYMIZED'")
+                .param(TextArrays.literal(ids)).query(String.class).list();
+    }
+
     public List<Member> search(String q, MemberStatus status, String tier, int limit, int offset) {
+        return search(q, status, tier, null, limit, offset);
+    }
+
+    public long count(String q, MemberStatus status, String tier) {
+        return count(q, status, tier, null);
+    }
+
+    /** Elenco filtrato anche per segmento (codice o id, docs §3 "filtri … segment"). */
+    public List<Member> search(String q, MemberStatus status, String tier, String segment, int limit, int offset) {
         StringBuilder sql = new StringBuilder(
                 "SELECT m.* FROM member m LEFT JOIN member_projection p ON p.member_id = m.id WHERE 1 = 1");
         List<Object> args = new ArrayList<>();
         appendFilters(sql, args, q, status, tier);
+        appendSegment(sql, args, segment);
         sql.append(" ORDER BY m.id LIMIT ? OFFSET ?");
         args.add(limit);
         args.add(offset);
         return jdbc.sql(sql.toString()).params(args).query(MemberRepository::map).list();
     }
 
-    public long count(String q, MemberStatus status, String tier) {
+    public long count(String q, MemberStatus status, String tier, String segment) {
         StringBuilder sql = new StringBuilder(
                 "SELECT count(*) FROM member m LEFT JOIN member_projection p ON p.member_id = m.id WHERE 1 = 1");
         List<Object> args = new ArrayList<>();
         appendFilters(sql, args, q, status, tier);
+        appendSegment(sql, args, segment);
         return jdbc.sql(sql.toString()).params(args).query(Long.class).single();
+    }
+
+    private void appendSegment(StringBuilder sql, List<Object> args, String segment) {
+        if (segment != null && !segment.isBlank()) {
+            sql.append(" AND EXISTS (SELECT 1 FROM segment_member sm JOIN segment s ON s.id = sm.segment_id"
+                    + " WHERE sm.member_id = m.id AND (s.code = ? OR s.id = ?))");
+            args.add(segment.trim());
+            args.add(segment.trim());
+        }
     }
 
     private void appendFilters(StringBuilder sql, List<Object> args, String q, MemberStatus status, String tier) {

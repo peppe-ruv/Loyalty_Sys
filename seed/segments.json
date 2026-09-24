@@ -1,0 +1,53 @@
+[
+  {
+    "code": "SEG-DIGITAL",
+    "name": "Clienti digitali",
+    "description": "Bolletta digitale e domiciliazione attive: ricevono il contenuto «Grazie per essere digitale».",
+    "type": "DYNAMIC",
+    "criteria": { "op": "all", "rules": [
+      { "field": "member.labels", "cmp": "contains", "value": "ebill" },
+      { "field": "member.labels", "cmp": "contains", "value": "directdebit" }
+    ] },
+    "expectedMembers": ["MBR-000004", "MBR-000005", "MBR-000011"]
+  },
+  {
+    "code": "SEG-NOT-EBILL",
+    "name": "Senza bolletta digitale",
+    "description": "Membri attivi che non hanno ancora la bolletta digitale: vedono la card «Passa alla bolletta digitale».",
+    "type": "DYNAMIC",
+    "criteria": { "op": "all", "rules": [
+      { "field": "member.status", "cmp": "eq", "value": "ACTIVE" },
+      { "field": "member.labels", "cmp": "ncontains", "value": "ebill" }
+    ] },
+    "expectedMembers": ["MBR-000001", "MBR-000002", "MBR-000003", "MBR-000006", "MBR-000007", "MBR-000009", "MBR-000010"]
+  },
+  {
+    "code": "SEG-AT-RISK",
+    "name": "A rischio abbandono",
+    "description": "Membri attivi senza attività da oltre 45 giorni: pubblico della campagna recensioni e del pop-up di riattivazione.",
+    "type": "DYNAMIC",
+    "criteria": { "op": "all", "rules": [
+      { "field": "member.status", "cmp": "eq", "value": "ACTIVE" },
+      { "field": "member.lastActivityDaysAgo", "cmp": "gt", "value": 45 }
+    ] },
+    "expectedMembers": ["MBR-000006"]
+  },
+  {
+    "code": "SEG-TORINO",
+    "name": "Clienti di Torino",
+    "description": "Membri con città Torino: vedono il premio «Weekend in e-bike».",
+    "type": "DYNAMIC",
+    "criteria": { "op": "all", "rules": [
+      { "field": "member.city", "cmp": "eq", "value": "Torino" }
+    ] },
+    "expectedMembers": ["MBR-000004"]
+  },
+  {
+    "code": "SEG-VIP-EVENT",
+    "name": "Invitati all'evento riservato",
+    "description": "Elenco manuale degli invitati all'anteprima dell'evento riservato.",
+    "type": "STATIC",
+    "memberIds": ["MBR-000005", "MBR-000004"],
+    "expectedMembers": ["MBR-000004", "MBR-000005"]
+  }
+]

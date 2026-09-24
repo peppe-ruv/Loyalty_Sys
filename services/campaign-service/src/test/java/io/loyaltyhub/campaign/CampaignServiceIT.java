@@ -434,6 +434,64 @@ class CampaignServiceIT {
         throw new AssertionError("Attese " + atLeast + " valutazioni per " + memberId);
     }
 
+    /**
+     * M6.6 (F-CMP-06 P1, docs/servizi/campaign-service.md §4): il pubblico per segmento legge i segmenti dello snapshot,
+     * alimentato dai fatti {@code member.segment.entered/left}. CMP-REVIEW ha pubblico {@code SEG-AT-RISK} (docs/10 §4).
+     */
+    @Test
+    void segmentFactsDriveTheSegmentAudience() {
+        String reviewId = null;
+        for (JsonNode c : client().get().uri("/v1/campaigns").retrieve().body(JsonNode.class)) {
+            if ("CMP-REVIEW".equals(c.path("code").asString())) {
+                reviewId = c.path("id").asString();
+            }
+        }
+        assertThat(reviewId).isNotNull();
+        assertThat(reviewReason(reviewId, "MBR-000001")).isEqualTo("AUDIENCE");
+
+        publishFact("io.loyaltyhub.fact.member.segment.entered", "MBR-000001", Map.of("segmentCode", "SEG-AT-RISK"));
+        assertThat(awaitReason(reviewId, "MBR-000001", r -> !"AUDIENCE".equals(r))).isNotEqualTo("AUDIENCE");
+
+        publishFact("io.loyaltyhub.fact.member.segment.left", "MBR-000001", Map.of("segmentCode", "SEG-AT-RISK"));
+        assertThat(awaitReason(reviewId, "MBR-000001", "AUDIENCE"::equals)).isEqualTo("AUDIENCE");
+    }
+
+    private String awaitReason(String campaignId, String memberId, Predicate<String> done) {
+        long deadline = System.currentTimeMillis() + 15_000;
+        String reason = reviewReason(campaignId, memberId);
+        while (!done.test(reason) && System.currentTimeMillis() < deadline) {
+            sleep();
+            reason = reviewReason(campaignId, memberId);
+        }
+        return reason;
+    }
+
+    /** Motivo di scarto di una campagna in simulazione ({@code MATCHED} se scatta). */
+    private String reviewReason(String campaignId, String memberId) {
+        Map<String, Object> body = Map.of(
+                "action", Map.of("type", "review.submitted", "time", TUESDAY, "data", Map.of("productId", "SKU-1", "rating", 5)),
+                "memberId", memberId, "campaignIds", List.of(campaignId));
+        JsonNode res = client().post().uri("/v1/campaigns/simulate")
+                .contentType(MediaType.APPLICATION_JSON).body(body).retrieve().body(JsonNode.class);
+        JsonNode r = res.path("results").get(0);
+        return r.path("matched").asBoolean() ? "MATCHED" : r.path("reason").asString();
+    }
+
+    private void publishFact(String type, String memberId, Map<String, Object> data) {
+        String id = "fact-" + System.nanoTime();
+        Map<String, Object> event = Map.of(
+                "specversion", "1.0", "id", id, "source", "urn:loyaltyhub:service:member",
+                "type", type, "subject", "member:" + memberId,
+                "time", java.time.Instant.now().toString(), "lhcorrelationid", id, "lhhop", 0, "data", data);
+        try (KafkaProducer<String, String> producer = new KafkaProducer<>(Map.of(
+                "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
+                "key.serializer", StringSerializer.class, "value.serializer", StringSerializer.class))) {
+            producer.send(new ProducerRecord<>("lh.facts.v1", memberId, mapper.writeValueAsString(event))).get();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private void publishAction(String id, String shortType, String memberId, String time, Map<String, Object> data) {
         Map<String, Object> event = Map.of(
                 "specversion", "1.0", "id", id, "source", "urn:loyaltyhub:source:ecommerce",

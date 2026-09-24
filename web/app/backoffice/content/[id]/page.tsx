@@ -242,7 +242,7 @@ function Editor({ initial }: { initial: ContentItem | null }) {
                   ))}
                 </div>
               </Field>
-              <Field label="Segmenti (codici separati da virgola)" hint="I segmenti dinamici arrivano con M6.6: finché non esistono, nessun membro ne fa parte.">
+              <Field label="Segmenti (codici separati da virgola)" hint="Codici di BO-04 (es. SEG-DIGITAL); un codice inesistente non include nessuno.">
                 <input value={d.segments} onChange={(e) => set("segments", e.target.value)} className={INPUT} placeholder="SEG-DIGITAL" />
               </Field>
               <div className="grid gap-3 sm:grid-cols-3">

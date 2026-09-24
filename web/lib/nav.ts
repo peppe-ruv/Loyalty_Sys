@@ -30,6 +30,7 @@ export const NAV: NavGroup[] = [
     label: "Clienti",
     items: [
       { id: "BO-02", label: "Membri", href: "/backoffice/members", milestone: 1 },
+      { id: "BO-04", label: "Segmenti", href: "/backoffice/segments", milestone: 6 },
     ],
   },
   {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useLhQuery } from "@/lib/api/client";
 import type { MemberView, WalletView, LedgerEntry, EvaluationRow } from "@/lib/api/types";
@@ -13,13 +14,16 @@ import { formatDateTime } from "@/lib/format/dates";
 import { formatPoints } from "@/lib/format/points";
 import { Can } from "@/components/bo/Can";
 import { AdjustPointsDialog } from "@/components/bo/AdjustPointsDialog";
+import { TypePill } from "@/components/bo/segments/TypePill";
+import type { MemberLabels, MemberSegment } from "@/lib/segments/types";
 
 // BO-03 Scheda 360° (docs/08 §BO-03). M1: schede overview / ledger / actions; ogni pannello degrada da solo.
-// M3.6: azione rapida "Rettifica punti" (CARE/ADMIN).
+// M3.6: azione rapida "Rettifica punti" (CARE/ADMIN). M6.6: scheda segments (segmenti di appartenenza ed etichette).
 const TABS = [
   { key: "overview", label: "Panoramica" },
   { key: "ledger", label: "Movimenti" },
   { key: "actions", label: "Azioni" },
+  { key: "segments", label: "Segmenti" },
 ];
 
 export default function MemberDetailPage() {
@@ -61,6 +65,7 @@ export default function MemberDetailPage() {
       {tab === "overview" && <OverviewTab id={id} />}
       {tab === "ledger" && <LedgerTab id={id} />}
       {tab === "actions" && <ActionsTab id={id} />}
+      {tab === "segments" && <SegmentsTab id={id} />}
 
       {adjusting && wallet.data ? (
         <AdjustPointsDialog memberId={id} balance={wallet.data.balances.PTS?.active ?? 0} onClose={() => setAdjusting(false)} />
@@ -162,6 +167,68 @@ function ActionsTab({ id }: { id: string }) {
     <QueryState query={query} service="campaign" isEmpty={(d) => d.length === 0} emptyTitle="Nessuna azione valutata">
       {(d) => <DataTable columns={columns} rows={d} rowKey={(e) => e.actionId} />}
     </QueryState>
+  );
+}
+
+/**
+ * Scheda `segments` (docs/08 §BO-03, M6.6): segmenti di appartenenza come chip (→ BO-04) ed etichette del profilo.
+ * Gli attributi personalizzati modificabili arrivano con M6.7.
+ */
+function SegmentsTab({ id }: { id: string }) {
+  const segments = useLhQuery<MemberSegment[]>("member", `/v1/members/${id}/segments`);
+  const member = useLhQuery<MemberView & MemberLabels>("member", `/v1/members/${id}`);
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <Card>
+        <CardBody className="pt-4">
+          <h2 className="mb-2 text-sm font-semibold">Segmenti di appartenenza</h2>
+          <QueryState
+            query={segments}
+            service="member"
+            isEmpty={(d) => d.length === 0}
+            emptyTitle="In nessun segmento"
+            emptyHint="I segmenti dinamici si aggiornano al ricalcolo (BO-04 «Ricalcola ora» o il job della console demo)."
+          >
+            {(d) => (
+              <ul className="flex flex-wrap gap-2">
+                {d.map((s) => (
+                  <li key={s.id}>
+                    <Link
+                      href={`/backoffice/segments/${s.code}`}
+                      title={`${s.name} · dentro da ${formatDateTime(s.enteredAt)}`}
+                      className={
+                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs hover:bg-slate-50 " +
+                        (s.status === "ARCHIVED" ? "border-dashed text-slate-400" : "border-[var(--color-bo-border)]")
+                      }
+                    >
+                      <span className="font-medium">{s.name}</span>
+                      <span className="font-mono text-[10px] text-[var(--color-bo-ink-2)]">{s.code}</span>
+                      <TypePill type={s.type} />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </QueryState>
+        </CardBody>
+      </Card>
+      <Card>
+        <CardBody className="pt-4">
+          <h2 className="mb-2 text-sm font-semibold">Etichette</h2>
+          <QueryState query={member} service="member" isEmpty={(m) => m.labels.length === 0} emptyTitle="Nessuna etichetta">
+            {(m) => (
+              <ul className="flex flex-wrap gap-1.5">
+                {m.labels.map((l) => (
+                  <li key={l}>
+                    <CodeText>{l}</CodeText>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </QueryState>
+        </CardBody>
+      </Card>
+    </div>
   );
 }
 

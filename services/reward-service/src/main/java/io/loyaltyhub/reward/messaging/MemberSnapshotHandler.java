@@ -11,7 +11,7 @@ import java.util.Set;
 
 /**
  * Snapshot del membro per la visibilità dei premi (docs/servizi/reward-service.md §4): stato e nome dai fatti di
- * member, livello da {@code tier.upgraded}/{@code tier.downgraded}. I segmenti arrivano con M6.
+ * member, livello da {@code tier.upgraded}/{@code tier.downgraded}, segmenti da {@code member.segment.entered/left} (M6.6).
  */
 @Component
 public class MemberSnapshotHandler implements EventHandler {
@@ -25,7 +25,8 @@ public class MemberSnapshotHandler implements EventHandler {
     @Override
     public Set<String> handledTypes() {
         return Set.of(LhEventTypes.Fact.MEMBER_REGISTERED, LhEventTypes.Fact.MEMBER_UPDATED,
-                LhEventTypes.Fact.MEMBER_STATUS_CHANGED, LhEventTypes.Fact.TIER_UPGRADED, LhEventTypes.Fact.TIER_DOWNGRADED);
+                LhEventTypes.Fact.MEMBER_STATUS_CHANGED, LhEventTypes.Fact.TIER_UPGRADED, LhEventTypes.Fact.TIER_DOWNGRADED,
+                LhEventTypes.Fact.MEMBER_SEGMENT_ENTERED, LhEventTypes.Fact.MEMBER_SEGMENT_LEFT);
     }
 
     @Override
@@ -45,6 +46,17 @@ public class MemberSnapshotHandler implements EventHandler {
             case LhEventTypes.Fact.TIER_UPGRADED, LhEventTypes.Fact.TIER_DOWNGRADED -> {
                 if (d.hasNonNull("newTier")) {
                     members.updateTier(memberId, d.get("newTier").asString());
+                }
+            }
+            // Visibilità per segmento (F-RWD-04 P1, M6.6): i segmenti arrivano solo dai fatti di member.
+            case LhEventTypes.Fact.MEMBER_SEGMENT_ENTERED -> {
+                if (d.hasNonNull("segmentCode")) {
+                    members.addSegment(memberId, d.get("segmentCode").asString());
+                }
+            }
+            case LhEventTypes.Fact.MEMBER_SEGMENT_LEFT -> {
+                if (d.hasNonNull("segmentCode")) {
+                    members.removeSegment(memberId, d.get("segmentCode").asString());
                 }
             }
             default -> members.upsertProfile(memberId, d.path("status").asString("ACTIVE"),

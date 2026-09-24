@@ -61,6 +61,17 @@ public class MemberProjectionRepository {
                 .update();
     }
 
+    /** Riflette il saldo STS dell'edizione (fatti {@code wallet.points.*} in valuta STS): {@code period_sts = balanceAfter}. */
+    public void applyStatusBalance(String memberId, long balanceAfter) {
+        jdbc.sql("""
+                        INSERT INTO member_projection (member_id, period_sts, updated_at)
+                        VALUES (?, ?, now())
+                        ON CONFLICT (member_id) DO UPDATE SET period_sts = excluded.period_sts, updated_at = now()
+                        """)
+                .params(memberId, balanceAfter)
+                .update();
+    }
+
     /** Riflette un passaggio di livello dal wallet/motore (docs §5): {@code tier_code = newTier}. */
     public void applyTier(String memberId, String tierCode) {
         jdbc.sql("""

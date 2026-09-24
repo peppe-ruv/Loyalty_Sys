@@ -1,0 +1,18 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZS4B5C6D7E8F9G0H1J2K3M",
+  "source": "urn:loyaltyhub:service:member",
+  "type": "io.loyaltyhub.fact.member.segment.entered",
+  "subject": "member:MBR-000002",
+  "time": "2026-09-24T10:15:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.member.segment.entered:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZS4B5C6D7E8F9G0H1J2K3M",
+  "lhhop": 0,
+  "lhactor": "MARKETING:luca.marketing",
+  "data": {
+    "segmentCode": "SEG-DIGITAL",
+    "segmentName": "Clienti digitali"
+  }
+}

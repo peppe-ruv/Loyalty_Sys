@@ -4,11 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLhQuery, type Page } from "@/lib/api/client";
 import type { MemberView } from "@/lib/api/types";
+import type { Segment } from "@/lib/segments/types";
 import { QueryState } from "@/components/bo/QueryState";
 import { DataTable, type Column } from "@/components/bo/DataTable";
 import { PageHeader, StatusPill, TierBadge, CodeText, PointsAmount } from "@/components/bo/primitives";
 
-// BO-02 Membri (docs/08 §BO-02): elenco con filtri testo/stato/tier. Riga → scheda 360°.
+// BO-02 Membri (docs/08 §BO-02): elenco con filtri testo/stato/tier/segmento (M6.6). Riga → scheda 360°.
 const STATUSES = ["", "ACTIVE", "BLOCKED", "INACTIVE", "ANONYMIZED"];
 const TIERS = ["", "BASE", "SILVER", "GOLD", "PLATINUM"];
 
@@ -17,8 +18,11 @@ export default function MembersPage() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [tier, setTier] = useState("");
+  const [segment, setSegment] = useState("");
 
-  const query = useLhQuery<Page<MemberView>>("member", "/v1/members", { q, status, tier, size: 50 });
+  const query = useLhQuery<Page<MemberView>>("member", "/v1/members", { q, status, tier, segment, size: 50 });
+  // Filtro per segmento (docs/08 §BO-02, M6.6): i segmenti attivi di member.
+  const segments = useLhQuery<Page<Segment>>("member", "/v1/segments", { status: "ACTIVE", size: 100 });
 
   const columns: Column<MemberView>[] = [
     {
@@ -61,6 +65,14 @@ export default function MembersPage() {
             <option key={t} value={t}>{t === "" ? "Tutti i tier" : t}</option>
           ))}
         </select>
+        {segments.data && segments.data.items.length > 0 ? (
+          <select aria-label="Segmento" value={segment} onChange={(e) => setSegment(e.target.value)} className="rounded border border-[var(--color-bo-border)] px-2 py-1.5 text-sm">
+            <option value="">Tutti i segmenti</option>
+            {segments.data.items.map((s) => (
+              <option key={s.code} value={s.code}>{s.name}</option>
+            ))}
+          </select>
+        ) : null}
       </div>
       <QueryState query={query} service="member" isEmpty={(d) => d.items.length === 0} emptyTitle="Nessun membro">
         {(d) => (

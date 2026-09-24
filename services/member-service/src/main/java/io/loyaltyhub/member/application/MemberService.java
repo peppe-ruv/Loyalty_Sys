@@ -15,6 +15,7 @@ import io.loyaltyhub.member.api.MemberView;
 import io.loyaltyhub.member.api.PortalProfileView;
 import io.loyaltyhub.member.api.StatusChangeRequest;
 import io.loyaltyhub.member.api.UpdateMemberRequest;
+import io.loyaltyhub.member.domain.ActionLabels;
 import io.loyaltyhub.member.domain.Member;
 import io.loyaltyhub.member.domain.MemberProjection;
 import io.loyaltyhub.member.domain.MemberSnapshot;
@@ -55,10 +56,11 @@ public class MemberService {
     private final AuditPublisher audit;
     private final Clock clock;
     private final ObjectMapper mapper;
+    private final SegmentChangeTracker segmentChanges;
 
     public MemberService(MemberRepository members, MemberProjectionRepository projections,
                          LhEventFactory events, OutboxWriter outbox, AuditPublisher audit, Clock clock,
-                         ObjectMapper mapper) {
+                         ObjectMapper mapper, SegmentChangeTracker segmentChanges) {
         this.members = members;
         this.projections = projections;
         this.events = events;
@@ -66,6 +68,31 @@ public class MemberService {
         this.audit = audit;
         this.clock = clock;
         this.mapper = mapper;
+        this.segmentChanges = segmentChanges;
+    }
+
+    /**
+     * Etichette attribuite da un'azione esterna ({@link ActionLabels}, SPEC-GAP Q-80): se l'azione ne aggiunge una
+     * nuova, aggiorna il membro ed emette {@code member.updated} (snapshot completo) nello stesso tracciato dell'azione.
+     * Da chiamare nella transazione del consumo dell'azione.
+     */
+    public void applyActionLabels(LhEvent<?> action, String shortType) {
+        String id = action.memberId();
+        if (id == null || !ActionLabels.BY_ACTION.containsKey(shortType)) {
+            return;
+        }
+        Member m = members.findById(id).orElse(null);
+        if (m == null || m.status() == MemberStatus.ANONYMIZED) {
+            return;
+        }
+        List<String> labels = ActionLabels.after(m.labels(), shortType);
+        if (labels == null) {
+            return;
+        }
+        members.updateLabels(id, labels);
+        Member updated = members.findById(id).orElseThrow();
+        outbox.write(events.childOf(action, LhEventTypes.Fact.MEMBER_UPDATED, MemberSnapshot.of(updated, tierOf(id))));
+        segmentChanges.markChanged();
     }
 
     // ---------- letture ----------
@@ -84,12 +111,12 @@ public class MemberService {
                 new PortalProfileView.Completeness(missing.isEmpty(), missing));
     }
 
-    public PageResponse<MemberView> search(String q, String status, String tier, int page, int size) {
+    public PageResponse<MemberView> search(String q, String status, String tier, String segment, int page, int size) {
         MemberStatus st = parseStatusFilter(status);
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
-        long total = members.count(q, st, tier);
-        List<MemberView> items = members.search(q, st, tier, s, p * s).stream()
+        long total = members.count(q, st, tier, segment);
+        List<MemberView> items = members.search(q, st, tier, segment, s, p * s).stream()
                 .map(m -> MemberView.of(m, projections.findByMemberId(m.id()).orElse(null)))
                 .toList();
         return PageResponse.of(items, p, s, total);
@@ -166,6 +193,7 @@ public class MemberService {
 
         Member updated = members.findById(id).orElseThrow();
         String tier = tierOf(id);
+        segmentChanges.markChanged(); // città ecc. entrano nei criteri dei segmenti
         publish(LhEventTypes.Fact.MEMBER_UPDATED, updated, tier);
         if (completesProfile) {
             // Una sola volta (docs §5): il ponte lo trasforma nell'azione member.profile.completed (CMP-PROFILE).
@@ -200,6 +228,7 @@ public class MemberService {
             return MemberView.of(m, projections.findByMemberId(id).orElse(null));
         }
         members.updateStatus(id, target);
+        segmentChanges.markChanged();
 
         LhEvent<Map<String, Object>> fact = events.newRoot(
                 LhEventTypes.Fact.MEMBER_STATUS_CHANGED, "member:" + id,

@@ -2,6 +2,7 @@ package io.loyaltyhub.member.api;
 
 import io.loyaltyhub.common.web.PageResponse;
 import io.loyaltyhub.member.application.MemberService;
+import io.loyaltyhub.member.application.SegmentService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * Anagrafica dei membri (docs/servizi/member-service.md §3). Ricerca con filtri, creazione, dettaglio,
  * modifica parziale con lock ottimistico, cambio stato. Ogni scrittura emette il fatto corrispondente.
@@ -22,9 +25,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class MembersController {
 
     private final MemberService service;
+    private final SegmentService segments;
 
-    public MembersController(MemberService service) {
+    public MembersController(MemberService service, SegmentService segments) {
         this.service = service;
+        this.segments = segments;
     }
 
     @GetMapping
@@ -32,9 +37,16 @@ public class MembersController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String tier,
+            @RequestParam(required = false) String segment,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return service.search(q, status, tier, page, size);
+        return service.search(q, status, tier, segment, page, size);
+    }
+
+    /** Segmenti di appartenenza (scheda {@code segments} di BO-03, docs/08). */
+    @GetMapping("/{id}/segments")
+    public List<SegmentViews.MemberSegmentView> segments(@PathVariable String id) {
+        return segments.segmentsOf(id);
     }
 
     @PostMapping

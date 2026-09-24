@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.member.segment.left:1",
+  "title": "fact.member.segment.left — data (EVT-FACT-07, docs/05 §5): il membro (subject) esce dal segmento",
+  "type": "object",
+  "required": ["segmentCode"],
+  "properties": {
+    "segmentCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$" },
+    "segmentName": { "type": "string" }
+  },
+  "additionalProperties": true
+}

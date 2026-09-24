@@ -46,6 +46,16 @@
   </dependencies>
 
   <build>
+    <testResources>
+      <testResource>
+        <directory>src/test/resources</directory>
+      </testResource>
+      <!-- Contratti eventi (docs/05 §9) sul classpath di test: i fatti member.segment.* si validano contro lo schema. -->
+      <testResource>
+        <directory>${maven.multiModuleProjectDirectory}/contracts</directory>
+        <targetPath>contracts</targetPath>
+      </testResource>
+    </testResources>
     <resources>
       <!-- Risorse del modulo + i dati demo canonici (docs/10 §1): un'unica cartella seed/ sul classpath. -->
       <resource>
