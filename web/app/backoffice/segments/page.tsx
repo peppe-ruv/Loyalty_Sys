@@ -15,6 +15,7 @@ import { Can } from "@/components/bo/Can";
 import { INPUT } from "@/components/bo/FormBits";
 import { CodeText, PageHeader, StatusPill } from "@/components/bo/primitives";
 import { TypePill } from "@/components/bo/segments/TypePill";
+import { AttributeDefinitionsCard } from "@/components/bo/segments/AttributeDefinitionsCard";
 import { formatRelative } from "@/lib/format/dates";
 import { cn } from "@/lib/cn";
 
@@ -22,6 +23,7 @@ const FILTER = INPUT.replace("w-full ", "");
 
 // BO-04 Segmenti (docs/08 §BO-04, F-SEG-01/02/03): elenco con tipo, membri, ultimo ricalcolo e "usato da" (campagne,
 // premi, contenuti che citano il codice). "Usato da" legge tre servizi: se uno dorme, quella parte resta vuota.
+// M6.7: sotto l'elenco, gli attributi personalizzati (F-MBR-03).
 export default function SegmentsPage() {
   const router = useRouter();
   const [q, setQ] = useState("");
@@ -121,6 +123,9 @@ export default function SegmentsPage() {
           <DataTable columns={columns} rows={d.items} rowKey={(s) => s.id} onRowClick={(s) => router.push(`/backoffice/segments/${s.code}`)} />
         )}
       </QueryState>
+      <div id="attributi" className="mt-6">
+        <AttributeDefinitionsCard />
+      </div>
     </div>
   );
 }

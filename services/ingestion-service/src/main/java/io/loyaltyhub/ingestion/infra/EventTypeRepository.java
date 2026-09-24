@@ -17,13 +17,11 @@ public class EventTypeRepository {
 
     public java.util.List<EventType> findAll() {
         return jdbc.sql("""
-                        SELECT code, name, origin, category, data_schema::text AS data_schema, enabled, icon
+                        SELECT code, name, description, origin, category, data_schema::text AS data_schema,
+                               sample_data::text AS sample_data, enabled, icon
                         FROM event_type ORDER BY category, code
                         """)
-                .query((rs, n) -> new EventType(
-                        rs.getString("code"), rs.getString("name"), rs.getString("origin"),
-                        rs.getString("category"), rs.getString("data_schema"),
-                        rs.getBoolean("enabled"), rs.getString("icon")))
+                .query(EventTypeRepository::row)
                 .list();
     }
 
@@ -35,29 +33,35 @@ public class EventTypeRepository {
 
     public Optional<EventType> findByCode(String code) {
         return jdbc.sql("""
-                        SELECT code, name, origin, category, data_schema::text AS data_schema, enabled, icon
+                        SELECT code, name, description, origin, category, data_schema::text AS data_schema,
+                               sample_data::text AS sample_data, enabled, icon
                         FROM event_type WHERE code = ?
                         """)
                 .param(code)
-                .query((rs, n) -> new EventType(
-                        rs.getString("code"), rs.getString("name"), rs.getString("origin"),
-                        rs.getString("category"), rs.getString("data_schema"),
-                        rs.getBoolean("enabled"), rs.getString("icon")))
+                .query(EventTypeRepository::row)
                 .optional();
     }
 
-    public void upsert(String code, String name, String origin, String category,
-                       String dataSchemaJson, String sampleDataJson, boolean enabled, String icon) {
+    /** Crea o sostituisce un tipo (gestione da BO-09): tutti i campi tranne {@code code}. */
+    public void save(EventType t) {
         jdbc.sql("""
-                        INSERT INTO event_type (code, name, origin, category, data_schema, sample_data, enabled, icon)
-                        VALUES (?, ?, ?, ?, cast(? AS jsonb), cast(? AS jsonb), ?, ?)
+                        INSERT INTO event_type (code, name, description, origin, category, data_schema, sample_data, enabled, icon)
+                        VALUES (?, ?, ?, ?, ?, cast(? AS jsonb), cast(? AS jsonb), ?, ?)
                         ON CONFLICT (code) DO UPDATE SET
-                          name = excluded.name, origin = excluded.origin, category = excluded.category,
-                          data_schema = excluded.data_schema, sample_data = excluded.sample_data,
-                          enabled = excluded.enabled, icon = excluded.icon
+                          name = excluded.name, description = excluded.description, origin = excluded.origin,
+                          category = excluded.category, data_schema = excluded.data_schema,
+                          sample_data = excluded.sample_data, enabled = excluded.enabled, icon = excluded.icon
                         """)
-                .params(code, name, origin, category, dataSchemaJson, sampleDataJson, enabled, icon)
+                .params(t.code(), t.name(), t.description(), t.origin(), t.category(), t.dataSchema(), t.sampleData(),
+                        t.enabled(), t.icon())
                 .update();
+    }
+
+    private static EventType row(java.sql.ResultSet rs, int n) throws java.sql.SQLException {
+        return new EventType(
+                rs.getString("code"), rs.getString("name"), rs.getString("description"), rs.getString("origin"),
+                rs.getString("category"), rs.getString("data_schema"), rs.getString("sample_data"),
+                rs.getBoolean("enabled"), rs.getString("icon"));
     }
 
     public void deleteAll() {

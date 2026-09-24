@@ -29,13 +29,8 @@ public class MemberStatsHandler implements EventHandler {
 
     private static final ZoneId ROME = ZoneId.of("Europe/Rome");
 
-    private static final Set<String> ACTION_TYPES = Set.of(
-            Action.PURCHASE_COMPLETED, Action.PURCHASE_RETURNED, Action.EBILL_ACTIVATED,
-            Action.DIRECTDEBIT_ACTIVATED, Action.SELFREADING_SUBMITTED, Action.APP_LOGIN_DAILY,
-            Action.SURVEY_COMPLETED, Action.QUIZ_COMPLETED, Action.REVIEW_SUBMITTED, Action.NEWSLETTER_SUBSCRIBED,
-            Action.MEMBER_REGISTERED, Action.MEMBER_PROFILE_COMPLETED, Action.MEMBER_BIRTHDAY, Action.TIER_UPGRADED,
-            Action.INSTANTWIN_WON, Action.ACHIEVEMENT_COMPLETED, Action.BADGE_AWARDED, Action.REFERRAL_COMPLETED,
-            Action.REWARD_REDEEMED);
+    /** Tutta la famiglia delle azioni, compresi i tipi custom (F-ING-06, M6.7): contano nei criteri dei segmenti. */
+    private static final Set<String> ACTION_TYPES = Set.of(Action.PREFIX + "*");
 
     private final MemberStatsRepository stats;
     private final ReferralService referrals;

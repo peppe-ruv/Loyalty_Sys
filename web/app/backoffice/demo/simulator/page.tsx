@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { lhFetch, LhError, useLhQuery } from "@/lib/api/client";
-import type { EventType } from "@/lib/api/types";
+import type { ActionType } from "@/lib/actiontypes/types";
 import { Card, CardBody } from "@/components/ui/card";
 import { PageHeader, StatusPill, CodeText } from "@/components/bo/primitives";
 import { Can } from "@/components/bo/Can";
 
-// BO-28 Simulatore eventi (docs/08 §BO-28, F-DEMO-03): invia un'azione vera nella pipeline.
+// BO-28 Simulatore eventi (docs/08 §BO-28, F-DEMO-03): invia un'azione vera nella pipeline. M6.7: `?type=` (da *Prova*
+// in BO-09) sceglie il tipo e precompila i dati col suo `sampleData`; i tipi custom sono inviabili come gli altri.
 interface FireResult {
   eventId: string;
   correlationId: string;
@@ -23,10 +25,26 @@ const SHORTCUTS: { label: string; type: string; data: string }[] = [
 ];
 
 export default function SimulatorPage() {
-  const types = useLhQuery<EventType[]>("ingestion", "/v1/event-types");
+  const types = useLhQuery<ActionType[]>("ingestion", "/v1/event-types");
+  const requested = useSearchParams().get("type");
   const [memberId, setMemberId] = useState("MBR-000003");
-  const [type, setType] = useState("purchase.completed");
-  const [dataText, setDataText] = useState(SHORTCUTS[0].data);
+  const [type, setType] = useState(requested ?? "purchase.completed");
+  const [dataText, setDataText] = useState(requested ? "{}" : SHORTCUTS[0].data);
+  const prefilled = useRef(false);
+
+  // Tipo arrivato da BO-09: dati d'esempio appena i tipi sono caricati (una volta sola).
+  useEffect(() => {
+    if (prefilled.current || !requested || !types.data) return;
+    const t = types.data.find((x) => x.code === requested);
+    if (t) setDataText(JSON.stringify(t.sampleData ?? {}, null, 2));
+    prefilled.current = true;
+  }, [requested, types.data]);
+
+  function chooseType(code: string) {
+    setType(code);
+    const t = types.data?.find((x) => x.code === code);
+    if (t) setDataText(JSON.stringify(t.sampleData ?? {}, null, 2));
+  }
   const [count, setCount] = useState(1);
   const [results, setResults] = useState<FireResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -76,15 +94,18 @@ export default function SimulatorPage() {
             </label>
             <label className="block text-xs">
               Tipo azione
-              <select value={type} onChange={(e) => setType(e.target.value)} className={input}>
-                {(types.data ?? []).map((t) => (
-                  <option key={t.code} value={t.code}>{t.code}</option>
+              <select value={type} onChange={(e) => chooseType(e.target.value)} className={input}>
+                {(types.data ?? []).filter((t) => t.enabled || t.code === type).map((t) => (
+                  <option key={t.code} value={t.code}>
+                    {t.code}
+                    {t.origin === "CUSTOM" ? " (custom)" : ""}
+                  </option>
                 ))}
               </select>
             </label>
             <label className="block text-xs">
               Dati (JSON)
-              <textarea value={dataText} onChange={(e) => setDataText(e.target.value)} rows={4} className={input + " font-mono"} />
+              <textarea value={dataText} onChange={(e) => setDataText(e.target.value)} rows={6} className={input + " font-mono"} />
             </label>
             <label className="block text-xs">
               Ripetizioni

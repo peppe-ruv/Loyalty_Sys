@@ -556,6 +556,34 @@ if (Array.isArray(templatesSeed)) {
   }
 }
 
+// Attributi personalizzati (docs/10 §3, F-MBR-03): definizioni valide e valori dei membri coerenti col tipo.
+{
+  const defs = readSeed("attribute-definitions.json") ?? [];
+  const byKey = new Map();
+  for (const d of defs) {
+    const where = `attribute-definitions.json: ${d.key}`;
+    if (!/^[a-z][a-zA-Z0-9]{1,39}$/.test(d.key ?? "") || d.key === "story") errors.push(`${where} chiave non valida`);
+    if (byKey.has(d.key)) errors.push(`${where} chiave duplicata`);
+    if (!["STRING", "NUMBER", "BOOLEAN", "DATE"].includes(d.type)) errors.push(`${where} tipo non valido ${d.type}`);
+    if ((d.options ?? []).length > 0 && d.type !== "STRING") errors.push(`${where} opzioni solo per STRING`);
+    if (!d.label) errors.push(`${where} etichetta mancante`);
+    byKey.set(d.key, d);
+  }
+  for (const m of readSeed("members.json") ?? []) {
+    for (const [k, v] of Object.entries(m.attributes ?? {})) {
+      const d = byKey.get(k);
+      const where = `members.json: ${m.id} attributo ${k}`;
+      if (!d) { errors.push(`${where} non definito`); continue; }
+      const ok =
+        d.type === "NUMBER" ? typeof v === "number" :
+        d.type === "BOOLEAN" ? typeof v === "boolean" :
+        d.type === "DATE" ? typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) :
+        typeof v === "string" && ((d.options ?? []).length === 0 || d.options.includes(v));
+      if (!ok) errors.push(`${where} valore non coerente col tipo ${d.type}`);
+    }
+  }
+}
+
 for (const w of warnings) console.warn(`⚠ ${w}`);
 if (errors.length > 0) {
   for (const e of errors) console.error(`✗ ${e}`);

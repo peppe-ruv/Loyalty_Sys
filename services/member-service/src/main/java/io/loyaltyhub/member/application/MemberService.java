@@ -17,20 +17,24 @@ import io.loyaltyhub.member.api.StatusChangeRequest;
 import io.loyaltyhub.member.api.UpdateMemberRequest;
 import io.loyaltyhub.member.domain.ActionLabels;
 import io.loyaltyhub.member.domain.Member;
+import io.loyaltyhub.member.domain.MemberAttributes;
 import io.loyaltyhub.member.domain.MemberProjection;
 import io.loyaltyhub.member.domain.MemberSnapshot;
 import io.loyaltyhub.member.domain.MemberStatus;
 import io.loyaltyhub.member.domain.ProfileRules;
+import io.loyaltyhub.member.infra.AttributeDefinitionRepository;
 import io.loyaltyhub.member.infra.MemberProjectionRepository;
 import io.loyaltyhub.member.infra.MemberRepository;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,10 +61,12 @@ public class MemberService {
     private final Clock clock;
     private final ObjectMapper mapper;
     private final SegmentChangeTracker segmentChanges;
+    private final AttributeDefinitionRepository attributeDefinitions;
 
     public MemberService(MemberRepository members, MemberProjectionRepository projections,
                          LhEventFactory events, OutboxWriter outbox, AuditPublisher audit, Clock clock,
-                         ObjectMapper mapper, SegmentChangeTracker segmentChanges) {
+                         ObjectMapper mapper, SegmentChangeTracker segmentChanges,
+                         AttributeDefinitionRepository attributeDefinitions) {
         this.members = members;
         this.projections = projections;
         this.events = events;
@@ -69,6 +75,7 @@ public class MemberService {
         this.clock = clock;
         this.mapper = mapper;
         this.segmentChanges = segmentChanges;
+        this.attributeDefinitions = attributeDefinitions;
     }
 
     /**
@@ -185,12 +192,26 @@ public class MemberService {
         Consents oldConsents = consentsOf(m);
         Consents newConsents = r.consents() != null ? r.consents().over(oldConsents) : oldConsents;
 
+        // Attributi personalizzati ed etichette (F-MBR-03, M6.7): validati sulle definizioni, chiavi interne intatte.
+        List<MemberAttributes.Problem> problems = new ArrayList<>();
+        JsonNode oldAttributes = mapper.readTree(m.attributesJson() == null ? "{}" : m.attributesJson());
+        ObjectNode newAttributes = MemberAttributes.merge(oldAttributes, r.attributes(), attributeDefinitions.byKey(),
+                problems);
+        List<String> newLabels = r.labels() == null ? m.labels() : MemberAttributes.labels(r.labels(), problems);
+        if (!problems.isEmpty()) {
+            throw LhException.validation("MEMBER_INVALID", "Attributi o etichette non validi.",
+                    problems.stream().map(p -> new LhException.FieldError(p.field(), p.message())).toList());
+        }
+
         boolean ok = members.updateFields(id, m.version(), firstName, lastName, nickname, email, phone,
-                birthDate, gender, city, newConsents.toJson(), m.attributesJson(), profileCompletedAt);
+                birthDate, gender, city, newConsents.toJson(), newAttributes.toString(), profileCompletedAt);
         if (!ok) {
             throw LhException.conflict("VERSION_CONFLICT", "Modifica concorrente sul membro " + id);
         }
 
+        if (!newLabels.equals(m.labels())) {
+            members.updateLabels(id, newLabels);
+        }
         Member updated = members.findById(id).orElseThrow();
         String tier = tierOf(id);
         segmentChanges.markChanged(); // città ecc. entrano nei criteri dei segmenti
@@ -212,6 +233,8 @@ public class MemberService {
         diff(before, after, "gender", m.gender(), updated.gender());
         diff(before, after, "city", m.city(), updated.city());
         diff(before, after, "consents", oldConsents, newConsents);
+        diff(before, after, "attributes", MemberAttributes.visible(oldAttributes), MemberAttributes.visible(newAttributes));
+        diff(before, after, "labels", m.labels(), updated.labels());
         if (!after.isEmpty()) {
             audit.record("MEMBER", id, AuditEntry.Action.UPDATE,
                     "Modificato profilo di " + updated.displayName() + " (" + after.size() + " campi)", before, after);

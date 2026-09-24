@@ -1,11 +1,15 @@
 package io.loyaltyhub.member.domain;
 
+import tools.jackson.databind.JsonNode;
+
 import java.time.Instant;
 import java.util.List;
 
 /**
  * Snapshot completo del membro trasportato dai fatti {@code member.registered}/{@code member.updated}
  * (docs/servizi/member-service.md §5): gli altri servizi sovrascrivono il proprio snapshot, nessun merge.
+ * {@code birthDate} e {@code attributes} (campi già previsti dal contratto EVT-FACT-01/02) servono a {@code member.age}
+ * e {@code member.attributes.<k>} nelle condizioni delle campagne (M6.7).
  */
 public record MemberSnapshot(
         String memberId,
@@ -24,12 +28,16 @@ public record MemberSnapshot(
         String referralCode,
         String referredBy,
         List<String> labels,
-        boolean profileCompleted
+        boolean profileCompleted,
+        String birthDate,
+        JsonNode attributes
 ) {
     public static MemberSnapshot of(Member m, String tier) {
         return new MemberSnapshot(
                 m.id(), m.externalId(), m.firstName(), m.lastName(), m.nickname(), m.email(), m.phone(),
                 m.city(), m.gender(), m.status().name(), m.channel(), tier, m.registeredAt(),
-                m.referralCode(), m.referredBy(), m.labels(), m.profileCompletedAt() != null);
+                m.referralCode(), m.referredBy(), m.labels(), m.profileCompletedAt() != null,
+                m.birthDate() == null ? null : m.birthDate().toString(),
+                MemberAttributes.visible(MemberAttributes.parse(m.attributesJson())));
     }
 }

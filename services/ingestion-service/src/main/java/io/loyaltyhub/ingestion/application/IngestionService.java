@@ -115,7 +115,7 @@ public class IngestionService {
 
         // 4. data valido contro lo schema del tipo.
         if (type.get().hasSchema()) {
-            List<String> errors = schemaValidator.validate(shortType, type.get().dataSchema(), request.data().toString());
+            List<String> errors = schemaValidator.validate(type.get().schemaCacheKey(), type.get().dataSchema(), request.data().toString());
             if (!errors.isEmpty()) {
                 return reject(request, time, sourceCode, shortType, subject, null,
                         RejectCode.INVALID_DATA, String.join("; ", errors), origin);

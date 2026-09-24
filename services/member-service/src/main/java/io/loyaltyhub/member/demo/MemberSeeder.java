@@ -1,16 +1,20 @@
 package io.loyaltyhub.member.demo;
 
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 import io.loyaltyhub.common.demo.DemoResettable;
 import io.loyaltyhub.common.demo.SeedDates;
 import io.loyaltyhub.common.demo.SeedLoader;
 import io.loyaltyhub.common.ids.Codes;
 import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.member.application.SegmentRefresher;
+import io.loyaltyhub.member.domain.AttributeDefinition;
 import io.loyaltyhub.member.domain.Member;
 import io.loyaltyhub.member.domain.MemberStatus;
 import io.loyaltyhub.member.domain.ProfileRules;
 import io.loyaltyhub.member.domain.Segment;
+import io.loyaltyhub.member.infra.AttributeDefinitionRepository;
 import io.loyaltyhub.member.infra.MemberProjectionRepository;
 import io.loyaltyhub.member.infra.MemberRepository;
 import io.loyaltyhub.member.infra.MemberStatsRepository;
@@ -57,11 +61,13 @@ public class MemberSeeder implements ApplicationRunner, DemoResettable {
     private final MemberStatsRepository stats;
     private final SegmentRepository segments;
     private final SegmentRefresher refresher;
+    private final AttributeDefinitionRepository attributeDefinitions;
     private final Clock clock;
     private final Duration reannounceDelay;
 
     public MemberSeeder(SeedLoader seed, MemberRepository members, MemberProjectionRepository projections,
-                        MemberStatsRepository stats, SegmentRepository segments, SegmentRefresher refresher, Clock clock,
+                        MemberStatsRepository stats, SegmentRepository segments, SegmentRefresher refresher,
+                        AttributeDefinitionRepository attributeDefinitions, Clock clock,
                         @Value("${loyaltyhub.member.segments.reannounce-delay-ms:15000}") long reannounceDelayMs) {
         this.seed = seed;
         this.members = members;
@@ -69,6 +75,7 @@ public class MemberSeeder implements ApplicationRunner, DemoResettable {
         this.stats = stats;
         this.segments = segments;
         this.refresher = refresher;
+        this.attributeDefinitions = attributeDefinitions;
         this.clock = clock;
         this.reannounceDelay = Duration.ofMillis(Math.max(reannounceDelayMs, 0));
     }
@@ -91,6 +98,7 @@ public class MemberSeeder implements ApplicationRunner, DemoResettable {
 
         // Ripristino pulito e idempotente (docs/10 §1.3): prima i figli (FK), poi l'anagrafica.
         segments.deleteAll();
+        attributeDefinitions.replaceAll(readDefinitions());
         stats.deleteAll();
         projections.deleteAll();
         members.deleteAll();
@@ -101,7 +109,13 @@ public class MemberSeeder implements ApplicationRunner, DemoResettable {
             MemberStatus status = MemberStatus.valueOf(m.path("status").asString("ACTIVE"));
             String story = text(m.get("story"));
             String avatarSeed = text(m.get("avatarSeed"));
-            String attributes = story != null ? "{\"story\":" + jsonString(story) + "}" : "{}";
+            // Attributi personalizzati del seed (F-MBR-03) più la storia della persona (chiave interna, non un attributo).
+            ObjectNode attributeValues = m.path("attributes").isObject()
+                    ? ((ObjectNode) m.get("attributes")).deepCopy() : JsonNodeFactory.instance.objectNode();
+            if (story != null) {
+                attributeValues.put("story", story);
+            }
+            String attributes = attributeValues.toString();
 
             String birth = text(m.get("birthDate"));
             LocalDate birthDate = birth != null ? LocalDate.parse(birth) : null;
@@ -132,6 +146,16 @@ public class MemberSeeder implements ApplicationRunner, DemoResettable {
         refresher.reannounceLater(reannounceDelay);
         log.info("Seed member caricato (profilo demo): {} membri, {} azioni storiche, {} segmenti ({} appartenenze)",
                 count(), actions, seeded, outcomes.stream().mapToInt(SegmentRefresher.Outcome::total).sum());
+    }
+
+    /** Definizioni degli attributi personalizzati (docs/10 §3, {@code seed/attribute-definitions.json}). */
+    private List<AttributeDefinition> readDefinitions() {
+        List<AttributeDefinition> defs = new ArrayList<>();
+        for (JsonNode d : seed.readTree("attribute-definitions.json")) {
+            defs.add(new AttributeDefinition(d.path("key").asString(), d.path("label").asString(),
+                    d.path("type").asString("STRING"), strings(d.get("options"))));
+        }
+        return defs;
     }
 
     /**
@@ -191,9 +215,5 @@ public class MemberSeeder implements ApplicationRunner, DemoResettable {
 
     private static String text(JsonNode node) {
         return node == null || node.isNull() ? null : node.asString();
-    }
-
-    private static String jsonString(String value) {
-        return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 }

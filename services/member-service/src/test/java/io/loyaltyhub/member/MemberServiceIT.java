@@ -171,6 +171,79 @@ class MemberServiceIT {
 
     // ---------- helper ----------
 
+    @Test
+    void attributesAndLabelsAreValidatedAndTravelInTheSnapshot() {
+        JsonNode defs = get("/v1/attribute-definitions");
+        assertThat(defs).hasSize(4);
+        assertThat(defs.toString()).contains("preferredChannel", "householdSize", "\"APP\"");
+        JsonNode matteo = get("/v1/members/MBR-000010");
+        assertThat(matteo.path("attributes").path("preferredChannel").asString()).isEqualTo("APP");
+        assertThat(matteo.path("attributes").has("story")).as("la storia della persona non è un attributo").isFalse();
+
+        assertThat(fieldsOf(send("PATCH", "/v1/members/MBR-000010", "CARE:paolo.care",
+                Map.of("attributes", Map.of("householdSize", "tre")), 422))).containsExactly("attributes.householdSize");
+        assertThat(fieldsOf(send("PATCH", "/v1/members/MBR-000010", "CARE:paolo.care",
+                Map.of("attributes", Map.of("shoeSize", 42)), 422))).containsExactly("attributes.shoeSize");
+        assertThat(fieldsOf(send("PATCH", "/v1/members/MBR-000010", "CARE:paolo.care",
+                Map.of("attributes", Map.of("preferredChannel", "FAX")), 422))).containsExactly("attributes.preferredChannel");
+        assertThat(fieldsOf(send("PATCH", "/v1/members/MBR-000010", "CARE:paolo.care",
+                Map.of("labels", List.of("ok", "non valida!")), 422))).containsExactly("labels");
+
+        Map<String, Object> attrs = new java.util.HashMap<>();
+        attrs.put("householdSize", 4);
+        attrs.put("hasGasContract", null);
+        try (KafkaConsumer<String, String> consumer = consumer("attr-check")) {
+            consumer.subscribe(List.of(FACTS));
+            JsonNode updated = send("PATCH", "/v1/members/MBR-000010", "CARE:paolo.care",
+                    Map.of("attributes", attrs, "labels", List.of("VIP ", "vip", "newsletter")), 200);
+            assertThat(updated.path("attributes").path("householdSize").asInt()).isEqualTo(4);
+            assertThat(updated.path("attributes").has("hasGasContract")).isFalse();
+            assertThat(updated.path("attributes").path("preferredChannel").asString()).isEqualTo("APP");
+            assertThat(updated.path("labels").toString()).isEqualTo("[\"vip\",\"newsletter\"]");
+
+            ConsumerRecord<String, String> rec = poll(consumer,
+                    r -> r.key().equals("MBR-000010") && readJson(r.value()).path("type").asString()
+                            .equals("io.loyaltyhub.fact.member.updated")
+                            && readJson(r.value()).path("data").path("attributes").path("householdSize").asInt() == 4);
+            assertThat(rec).as("member.updated con gli attributi").isNotNull();
+            JsonNode data = readJson(rec.value()).path("data");
+            assertThat(data.path("attributes").has("story")).isFalse();
+            assertThat(data.path("birthDate").asString()).isEqualTo("2000-07-19");
+            assertThat(data.path("labels").toString()).contains("vip", "newsletter");
+        }
+        // La storia della persona resta (chiave interna).
+        assertThat(get("/v1/demo/personas").toString()).contains("Ha 3 giocate da usare");
+    }
+
+    @Test
+    void attributeDefinitionsAreReplacedWithRolesAndInUseGuard() {
+        List<Map<String, Object>> current = new java.util.ArrayList<>();
+        get("/v1/attribute-definitions").forEach(d -> current.add(mapper.convertValue(d, Map.class)));
+
+        send("PUT", "/v1/attribute-definitions", "ANALYST:sara.analyst", current, 403);
+        send("PUT", "/v1/attribute-definitions", "CARE:paolo.care", current, 403);
+
+        List<Map<String, Object>> withoutUsed = current.stream()
+                .filter(d -> !"preferredChannel".equals(d.get("key"))).toList();
+        assertThat(send("PUT", "/v1/attribute-definitions", "MARKETING:luca.marketing", withoutUsed, 409)
+                .path("code").asString()).isEqualTo("ATTRIBUTE_IN_USE");
+
+        List<Map<String, Object>> invalid = new java.util.ArrayList<>(current);
+        invalid.add(Map.of("key", "Bad Key", "label", "", "type", "COLOR", "options", List.of()));
+        assertThat(fieldsOf(send("PUT", "/v1/attribute-definitions", "MARKETING:luca.marketing", invalid, 422)))
+                .contains("[4].key", "[4].label", "[4].type");
+
+        List<Map<String, Object>> extended = new java.util.ArrayList<>(current);
+        extended.add(Map.of("key", "contractType", "label", "Tipo di contratto", "type", "STRING",
+                "options", List.of("LUCE", "GAS", "DUAL")));
+        JsonNode saved = send("PUT", "/v1/attribute-definitions", "MARKETING:luca.marketing", extended, 200);
+        assertThat(saved).hasSize(5);
+        assertThat(saved.get(4).path("key").asString()).isEqualTo("contractType");
+        JsonNode patched = send("PATCH", "/v1/members/MBR-000007", "ADMIN:marta.admin",
+                Map.of("attributes", Map.of("contractType", "DUAL")), 200);
+        assertThat(patched.path("attributes").path("contractType").asString()).isEqualTo("DUAL");
+    }
+
     private JsonNode get(String path) {
         return client().get().uri(path).retrieve().body(JsonNode.class);
     }
@@ -185,6 +258,25 @@ class MemberServiceIT {
     private JsonNode patch(String path, Object body) {
         return client().patch().uri(path).contentType(MediaType.APPLICATION_JSON)
                 .body(body).retrieve().body(JsonNode.class);
+    }
+
+    private JsonNode send(String method, String path, String actor, Object body, int expected) {
+        var spec = client().method(org.springframework.http.HttpMethod.valueOf(method)).uri(path)
+                .header("X-LH-Actor", actor);
+        if (body != null) {
+            spec = spec.contentType(MediaType.APPLICATION_JSON).body(body);
+        }
+        return spec.exchange((req, res) -> {
+            String text = new String(res.getBody().readAllBytes());
+            assertThat(res.getStatusCode().value()).as(method + " " + path + " → " + text).isEqualTo(expected);
+            return text.isBlank() ? mapper.createObjectNode() : mapper.readTree(text);
+        });
+    }
+
+    private static List<String> fieldsOf(JsonNode problem) {
+        List<String> out = new java.util.ArrayList<>();
+        problem.path("errors").forEach(e -> out.add(e.path("field").asString()));
+        return out;
     }
 
     private RestClient client() {

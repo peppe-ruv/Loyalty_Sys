@@ -15,10 +15,11 @@ import { formatPoints } from "@/lib/format/points";
 import { Can } from "@/components/bo/Can";
 import { AdjustPointsDialog } from "@/components/bo/AdjustPointsDialog";
 import { TypePill } from "@/components/bo/segments/TypePill";
-import type { MemberLabels, MemberSegment } from "@/lib/segments/types";
+import type { MemberSegment } from "@/lib/segments/types";
+import { MemberAttributesCard } from "@/components/bo/members/MemberAttributesCard";
 
 // BO-03 Scheda 360° (docs/08 §BO-03). M1: schede overview / ledger / actions; ogni pannello degrada da solo.
-// M3.6: azione rapida "Rettifica punti" (CARE/ADMIN). M6.6: scheda segments (segmenti di appartenenza ed etichette).
+// M3.6: azione rapida "Rettifica punti" (CARE/ADMIN). M6.6: scheda segments (segmenti di appartenenza); M6.7 attributi ed etichette.
 const TABS = [
   { key: "overview", label: "Panoramica" },
   { key: "ledger", label: "Movimenti" },
@@ -171,12 +172,11 @@ function ActionsTab({ id }: { id: string }) {
 }
 
 /**
- * Scheda `segments` (docs/08 §BO-03, M6.6): segmenti di appartenenza come chip (→ BO-04) ed etichette del profilo.
- * Gli attributi personalizzati modificabili arrivano con M6.7.
+ * Scheda `segments` (docs/08 §BO-03, M6.6): segmenti di appartenenza come chip (→ BO-04); M6.7: attributi
+ * personalizzati ed etichette modificabili.
  */
 function SegmentsTab({ id }: { id: string }) {
   const segments = useLhQuery<MemberSegment[]>("member", `/v1/members/${id}/segments`);
-  const member = useLhQuery<MemberView & MemberLabels>("member", `/v1/members/${id}`);
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <Card>
@@ -212,22 +212,7 @@ function SegmentsTab({ id }: { id: string }) {
           </QueryState>
         </CardBody>
       </Card>
-      <Card>
-        <CardBody className="pt-4">
-          <h2 className="mb-2 text-sm font-semibold">Etichette</h2>
-          <QueryState query={member} service="member" isEmpty={(m) => m.labels.length === 0} emptyTitle="Nessuna etichetta">
-            {(m) => (
-              <ul className="flex flex-wrap gap-1.5">
-                {m.labels.map((l) => (
-                  <li key={l}>
-                    <CodeText>{l}</CodeText>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </QueryState>
-        </CardBody>
-      </Card>
+      <MemberAttributesCard id={id} />
     </div>
   );
 }

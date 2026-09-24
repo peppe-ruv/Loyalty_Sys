@@ -74,8 +74,12 @@ public class CampaignSeeder implements ApplicationRunner, DemoResettable {
             campaigns.insert(toCampaign(c));
         }
         for (JsonNode m : seed.readTree("members.json")) {
+            // Data di nascita e attributi personalizzati come nello snapshot dei fatti member.* (member.age,
+            // member.attributes.<k>: M6.7).
             snapshots.upsertIdentity(m.path("id").asString(), m.path("status").asString("ACTIVE"),
-                    m.path("tier").asString("BASE"), null, null, "{}");
+                    m.path("tier").asString("BASE"), null,
+                    m.hasNonNull("birthDate") ? java.time.LocalDate.parse(m.get("birthDate").asString()) : null,
+                    m.path("attributes").isObject() ? m.get("attributes").toString() : "{}");
             // Etichette del seed (docs/10 §3: SEG-DIGITAL); i segmenti arrivano dai fatti member.segment.* (M6.6).
             if (m.path("labels").isArray() && !m.path("labels").isEmpty()) {
                 java.util.List<String> labels = new java.util.ArrayList<>();

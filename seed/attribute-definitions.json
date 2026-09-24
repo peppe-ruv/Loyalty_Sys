@@ -1,0 +1,6 @@
+[
+  { "key": "city", "label": "Città di fornitura", "type": "STRING", "options": [] },
+  { "key": "hasGasContract", "label": "Ha il contratto gas", "type": "BOOLEAN", "options": [] },
+  { "key": "preferredChannel", "label": "Canale preferito", "type": "STRING", "options": ["APP", "WEB", "STORE"] },
+  { "key": "householdSize", "label": "Componenti del nucleo", "type": "NUMBER", "options": [] }
+]

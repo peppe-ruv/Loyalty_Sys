@@ -4,6 +4,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.common.demo.DemoResettable;
 import io.loyaltyhub.common.demo.SeedLoader;
+import io.loyaltyhub.ingestion.domain.EventType;
 import io.loyaltyhub.ingestion.domain.Scenario;
 import io.loyaltyhub.ingestion.domain.Source;
 import io.loyaltyhub.ingestion.infra.EventTypeRepository;
@@ -99,15 +100,16 @@ public class DemoSeeder implements ApplicationRunner, DemoResettable {
 
     private void seedEventTypes() {
         for (JsonNode t : seed.readTree("event-types.json")) {
-            types.upsert(
+            types.save(new EventType(
                     t.path("code").asString(),
                     t.path("name").asString(),
-                    t.path("origin").asString("SYSTEM"),
+                    t.path("description").asString(null),
+                    t.path("origin").asString(EventType.SYSTEM),
                     t.path("category").asString(null),
                     jsonOrNull(t.get("dataSchema")),
                     jsonOrNull(t.get("sampleData")),
                     t.path("enabled").asBoolean(true),
-                    t.path("icon").asString(null));
+                    t.path("icon").asString(null)));
         }
     }
 

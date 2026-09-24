@@ -18,6 +18,6 @@ public record PortalProfileRequest(
         Consents consents
 ) {
     public UpdateMemberRequest toUpdate() {
-        return new UpdateMemberRequest(version, firstName, lastName, nickname, email, phone, birthDate, null, city, consents);
+        return new UpdateMemberRequest(version, firstName, lastName, nickname, email, phone, birthDate, null, city, consents, null, null);
     }
 }

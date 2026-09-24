@@ -1,5 +1,7 @@
 package io.loyaltyhub.member.api;
 
+import io.loyaltyhub.member.domain.MemberAttributes;
+import tools.jackson.databind.JsonNode;
 import io.loyaltyhub.member.domain.Member;
 import io.loyaltyhub.member.domain.MemberProjection;
 
@@ -25,6 +27,7 @@ public record MemberView(
         String referralCode,
         String referredBy,
         List<String> labels,
+        JsonNode attributes,
         boolean profileCompleted,
         long version,
         String tier,
@@ -38,7 +41,8 @@ public record MemberView(
         return new MemberView(
                 m.id(), m.externalId(), m.firstName(), m.lastName(), m.nickname(), m.email(), m.phone(),
                 m.birthDate(), m.gender(), m.city(), m.status().name(), m.channel(), m.registeredAt(),
-                m.referralCode(), m.referredBy(), m.labels(), m.profileCompletedAt() != null, m.version(),
+                m.referralCode(), m.referredBy(), m.labels(), MemberAttributes.visible(MemberAttributes.parse(m.attributesJson())),
+                m.profileCompletedAt() != null, m.version(),
                 proj.tierCode(), proj.balancePts(), proj.pendingPts(), proj.periodSts(), proj.lifetimeEarnedPts());
     }
 }
