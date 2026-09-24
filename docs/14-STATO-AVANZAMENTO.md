@@ -335,9 +335,13 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 **Accettazione M7** (`docs/12`)
 
-- [ ] criteri di accettazione verdi
-- [ ] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi
-- [ ] stati *loading / empty / error / degraded* sulle schermate toccate
+- [x] criteri di accettazione verdi — _2026-09-24, tutti con test automatici:_
+  - _luca.marketing non pubblica un concorso (solo *Invia in revisione*), elena.legal approva con commento, storico e audit → `ContestIT.marketingSubmitsLegalDecidesAndHistoryIsVisible`_
+  - _rifiuto senza commento → 422 `REJECT_COMMENT_REQUIRED` → `ContestIT`_
+  - _webhook verso endpoint che fallisce → ritenti, `GAVE_UP`, *Riprova*, firma verificata da `deploy/webhook-receiver/verify.mjs` → `WebhookIT`, `verify.test.mjs`_
+  - _anonimizzazione di un membro di prova: nessuna API di gestione espone nome/e-mail, movimenti conservati → `HubAnonymizationIT`_
+- [x] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi — _2026-09-24 sul codice integrato M7.4–M7.6 (385 test backend, 223 web)_
+- [x] stati *loading / empty / error / degraded* sulle schermate toccate (BO-21, BO-23, BO-26, BO-27, BO-03, editor con conflitto di versione, via `QueryState`)
 - [x] demo online aggiornata e `smoke.sh` verde — _2026-09-24: workflow `smoke-demo` (run 36050650694) sull'hub online con M7 (6570c38): Marco 1 850 → 1 875 PTS (+25, 20 € × 1,25 SILVER) in circa 4 s_
 
 ## Fuori PoC (P2, solo predisposizione)
