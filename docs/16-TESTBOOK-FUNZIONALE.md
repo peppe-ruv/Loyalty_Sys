@@ -6,7 +6,7 @@ Catalogo dei casi di prova **funzionali end-to-end** del PoC: per ogni regola de
 - **Ogni riga è eseguita** da un test automatico che ne riporta l'ID (`TB-<DOM>-NNN`) nel nome o nel file CSV: un test rosso indica la riga di testbook violata.
 - **Divergenza** = il codice non rispetta la specifica: il test resta com'è (asserisce la specifica) finché la divergenza non è risolta correggendo il codice o con una decisione registrata in `docs/15`; il registro è in fondo a questo documento.
 
-Stato: in costruzione — le tabelle di dettaglio arrivano per dominio (bozze prodotte in parallelo, revisionate prima dell'inserimento).
+Stato: in costruzione — le tabelle di dettaglio arrivano per dominio (bozze prodotte in parallelo, revisionate prima dell'inserimento). La completezza si misura contro `docs/17-EPIC-E-STORIE.md`: ogni storia deve avere almeno una riga, ogni esito della foresta delle decisioni almeno un caso.
 
 ## 1. Metodo
 
@@ -41,6 +41,9 @@ Il testbook è eseguibile per intero con un comando e produce un rapporto riga p
 | Governance e membri | [§8](#8-tb-gov--governance-e-membri) | tutti · member | docs/03 §3.6 · docs/06 §7 · docs/08 §2 · F-APR-*, F-MBR-*, F-SEG-* | in preparazione |
 | Engagement | [§9](#9-tb-eng--engagement) | engagement | docs/servizi/engagement-service.md · F-CNT-*, F-MSG-*, F-WBH-01 | in preparazione |
 | Interfaccia | [§10](#10-tb-web--interfaccia) | web | docs/07 · docs/08 · docs/09 | in preparazione |
+| Percorsi end-to-end | [§10bis](#10bis-tb-e2e--percorsi-end-to-end) | hub (tutti) | docs/17 E10 e percorsi tra servizi · docs/10 §8 | in preparazione |
+| Osservabilità e audit | [§10ter](#10ter-tb-ins--osservabilità-e-audit) | insight | docs/servizi/insight-service.md · F-INS-*, F-AUD-01 | in preparazione |
+| Piattaforma | [§10quater](#10quater-tb-plt--piattaforma) | lh-common, hub | docs/04 · docs/05 · docs/06 · contracts/ | in preparazione |
 
 ## 3. TB-ING — Ingresso eventi
 _In revisione._
@@ -65,6 +68,15 @@ _In revisione._
 
 ## 10. TB-WEB — Interfaccia
 _In revisione._
+
+## 10bis. TB-E2E — Percorsi end-to-end
+_Da scrivere: una riga per percorso reale (docs/17 E10, E11), con la catena di eventi attesa nello stesso tracciato e lo stato finale in ogni servizio; varianti con servizio addormentato a metà saga, riconsegna, reset tra esecuzioni, mezzanotte e cambio dell'ora a Roma, due azioni ravvicinate dello stesso membro._
+
+## 10ter. TB-INS — Osservabilità e audit
+_Da scrivere: DLQ riprocessa/scarta, regole di stato dei tracciati, ripresa SSE con `Last-Event-ID`, KPI senza doppi conteggi, conservazione, audit (F-AUD-01)._
+
+## 10quater. TB-PLT — Piattaforma
+_Da scrivere: outbox con Kafka giù, ritentativi e DLQ per tipo d'errore, conformità dei contratti evento, errori RFC 9457, reset idempotente, requisiti non funzionali._
 
 ## 11. Copertura
 
