@@ -11,11 +11,20 @@ import { Can } from "@/components/bo/Can";
 import { it } from "@/lib/i18n/it";
 
 // BO-30 Console demo (docs/08 §BO-30): stato dei servizi + reset orchestrato + macchina del tempo (job M3.2).
-const RESETTABLE = ["ingestion", "member", "campaign", "wallet", "reward"];
+const RESETTABLE = ["ingestion", "member", "campaign", "wallet", "reward", "gamification"];
 
-// Job "macchina del tempo" (M3.2 wallet, M4 reward) con asOf: scadenze/preavvisi/rilascio punti, scadenza coupon,
-// timeout delle richieste premio (docs/servizi/wallet-service.md §3, reward-service.md §3).
-type JobOutcome = { lots?: number; members?: number; amount?: number; coupons?: number; redemptions?: number };
+// Job "macchina del tempo" (M3.2 wallet, M4 reward, M5.7 gamification) con asOf: scadenze/preavvisi/rilascio punti,
+// scadenza coupon, timeout delle richieste premio, chiusura concorsi (docs/servizi/wallet-service.md §3,
+// reward-service.md §3, gamification-service.md §3).
+type JobOutcome = {
+  lots?: number;
+  members?: number;
+  amount?: number;
+  coupons?: number;
+  redemptions?: number;
+  contests?: number;
+  voided?: number;
+};
 const walletDetail = (verb: string) => (out: JobOutcome) =>
   !out.lots ? "nessun lotto interessato" : `${(out.amount ?? 0).toLocaleString("it-IT")} PTS ${verb} · ${out.lots} lotti · ${out.members} membri`;
 const JOBS: { service: ServiceCode; path: string; label: string; detail: (out: JobOutcome) => string }[] = [
@@ -24,6 +33,12 @@ const JOBS: { service: ServiceCode; path: string; label: string; detail: (out: J
   { service: "wallet", path: "release-pending", label: "Rilascio pending", detail: walletDetail("rilasciati") },
   { service: "reward", path: "expire-coupons", label: "Scadenza coupon", detail: (o) => `${o.coupons ?? 0} coupon scaduti` },
   { service: "reward", path: "timeout-redemptions", label: "Timeout richieste", detail: (o) => `${o.redemptions ?? 0} richieste respinte per timeout` },
+  {
+    service: "gamification",
+    path: "close-contests",
+    label: "Chiusura concorsi",
+    detail: (o) => (!o.contests ? "nessun concorso da chiudere" : `${o.contests} concorsi chiusi · ${o.voided ?? 0} istanti annullati`),
+  },
 ];
 
 export default function ConsolePage() {
@@ -148,7 +163,7 @@ export default function ConsolePage() {
             <div>
               <h3 className="text-sm font-semibold">Macchina del tempo</h3>
               <p className="mt-0.5 text-xs text-[var(--color-bo-ink-2)]">
-                Esegue i job del wallet con una <strong>data di riferimento</strong>: senza data si usa adesso.
+                Esegue i job dei servizi con una <strong>data di riferimento</strong>: senza data si usa adesso.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -192,6 +207,8 @@ export default function ConsolePage() {
               scadenza entro 30 giorni, una volta per lotto. Rilascio: sblocca i punti in attesa arrivati a
               maturazione. Scadenza coupon: i coupon emessi oltre la scadenza diventano <code>EXPIRED</code>. Timeout
               richieste: le richieste premio in attesa da oltre 10 minuti vengono respinte e lo stock torna disponibile.
+              Chiusura concorsi: i concorsi <code>LIVE</code> terminati entro la data passano a <code>ENDED</code> e i loro
+              istanti ancora aperti vengono annullati (<code>VOID</code>).
             </p>
           </CardBody>
         </Card>

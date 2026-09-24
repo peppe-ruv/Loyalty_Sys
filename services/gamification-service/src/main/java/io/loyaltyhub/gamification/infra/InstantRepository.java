@@ -162,6 +162,26 @@ public class InstantRepository {
                 .param(contestId).update();
     }
 
+    public record PlantedInstant(String id, Instant instantAt) {
+    }
+
+    /**
+     * Aiuto demo (F-IW-08): l'ultimo istante {@code OPEN} del premio (preferendo quelli non ancora piantati) viene
+     * anticipato ad {@code at} e marcato {@code planted}. Nessun istante nuovo: il montepremi resta invariato.
+     */
+    public java.util.Optional<PlantedInstant> plantLast(String contestId, String prizeId, Instant at) {
+        return jdbc.sql("""
+                        UPDATE winning_instant SET instant_at = ?, planted = true
+                        WHERE id = (SELECT id FROM winning_instant
+                                    WHERE contest_id = ? AND prize_id = ? AND status = 'OPEN'
+                                    ORDER BY planted, instant_at DESC, id DESC LIMIT 1 FOR UPDATE)
+                        RETURNING id, instant_at
+                        """)
+                .params(ts(at), contestId, prizeId)
+                .query((rs, n) -> new PlantedInstant(rs.getString("id"), ContestRepository.inst(rs, "instant_at")))
+                .optional();
+    }
+
     private static List<Object> filters(StringBuilder sql, String contestId, String status, String prizeId) {
         List<Object> params = new ArrayList<>();
         params.add(contestId);

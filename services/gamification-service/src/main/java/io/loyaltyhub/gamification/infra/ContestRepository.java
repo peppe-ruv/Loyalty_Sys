@@ -40,6 +40,12 @@ public class ContestRepository {
                 .param(status.name()).query(ContestRepository::map).list();
     }
 
+    /** Concorsi {@code LIVE} con {@code end_at <= asOf}: i candidati del job di fine concorso. */
+    public List<String> liveEndedBy(Instant asOf) {
+        return jdbc.sql("SELECT id FROM contest WHERE status = 'LIVE' AND end_at <= ? ORDER BY end_at, code")
+                .param(ts(asOf)).query(String.class).list();
+    }
+
     public Optional<Contest> find(String idOrCode) {
         return jdbc.sql("SELECT " + COLUMNS + " FROM contest WHERE id = ? OR code = ?").params(idOrCode, idOrCode)
                 .query(ContestRepository::map).optional();

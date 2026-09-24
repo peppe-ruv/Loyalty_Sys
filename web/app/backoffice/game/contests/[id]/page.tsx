@@ -3,9 +3,17 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Copy, Download, ShieldAlert } from "lucide-react";
+import { Copy, Download, ShieldAlert, Sparkles } from "lucide-react";
 import { useLhMutation, useLhQuery, type LhError, type Page } from "@/lib/api/client";
-import type { Contest, ContestStats, ContestWinner, InstantHistogram as Histogram, InstantRow, InstantsGenerated } from "@/lib/api/types";
+import type {
+  Contest,
+  ContestStats,
+  ContestWinner,
+  InstantHistogram as Histogram,
+  InstantRow,
+  InstantsGenerated,
+  PlantedInstant,
+} from "@/lib/api/types";
 import { QueryState } from "@/components/bo/QueryState";
 import { DataTable, type Column } from "@/components/bo/DataTable";
 import { Tabs } from "@/components/bo/Tabs";
@@ -142,6 +150,11 @@ function InstantsTab({ contest, onChanged }: { contest: Contest; onChanged: () =
   return (
     <div className="space-y-4">
       <GeneratePanel contest={contest} onGenerated={() => { onChanged(); histogram.refetch(); }} />
+      {contest.status === "LIVE" ? (
+        <Can capability="demo.admin">
+          <PlantPanel contest={contest} onPlanted={() => { onChanged(); histogram.refetch(); }} />
+        </Can>
+      ) : null}
       {contest.status === "LIVE" && contest.instants.open > 0 ? (
         <p className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
           Un istante già passato e non ancora assegnato resta aperto: la prossima giocata di chiunque lo vince. Per questo,
@@ -271,6 +284,89 @@ function GeneratePanel({ contest, onGenerated }: { contest: Contest; onGenerated
     </Card>
   );
 }
+
+// Aiuto demo (docs/08 §BO-14, F-IW-08; solo ADMIN, solo LIVE): l'ultimo istante aperto del premio scelto viene anticipato
+// a "adesso − 1 s" e marcato `planted` → la prossima giocata di chiunque vince quel premio. Il montepremi non cambia.
+function PlantPanel({ contest, onPlanted }: { contest: Contest; onPlanted: () => void }) {
+  const [prizeCode, setPrizeCode] = useState(contest.prizes[0]?.code ?? "");
+  const [error, setError] = useState<LhError | null>(null);
+  const [result, setResult] = useState<PlantedInstant | null>(null);
+  const plant = useLhMutation<PlantedInstant, { prizeCode: string }>(
+    "gamification",
+    "POST",
+    () => `/v1/demo/contests/${contest.id}/plant-instant`,
+    {
+      onSuccess: (r) => {
+        setResult(r);
+        onPlanted();
+      },
+    },
+  );
+  return (
+    <Card>
+      <CardBody className="space-y-3 pt-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="inline-flex items-center gap-1.5 text-sm font-semibold">
+            <Sparkles className="size-4 text-violet-600" aria-hidden /> Aiuto demo
+          </h3>
+          <span className="text-xs text-[var(--color-bo-ink-2)]">Solo profilo demo · ruolo ADMIN</span>
+        </div>
+        <p className="text-xs text-[var(--color-bo-ink-2)]">
+          Anticipa ad adesso l&apos;ultimo istante aperto del premio scelto: la prossima giocata vince. Il montepremi resta
+          invariato e l&apos;istante compare nella tabella come «piantato».
+        </p>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="text-sm">
+            <span className="mb-1 block text-xs font-medium text-[var(--color-bo-ink-2)]">Premio</span>
+            <select
+              aria-label="Premio da far vincere"
+              value={prizeCode}
+              onChange={(e) => {
+                setPrizeCode(e.target.value);
+                setResult(null);
+              }}
+              className={`${INPUT} w-56`}
+            >
+              {contest.prizes.map((p) => (
+                <option key={p.id} value={p.code}>
+                  {p.name} ({p.quantityRemaining} residui)
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            disabled={plant.isPending || !prizeCode}
+            onClick={() => {
+              setError(null);
+              setResult(null);
+              plant.mutate({ prizeCode }, { onError: setError });
+            }}
+            className="rounded bg-violet-700 px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {plant.isPending ? "Pianto l'istante…" : "Pianta un istante adesso"}
+          </button>
+        </div>
+        {result ? (
+          <p className="text-xs text-emerald-700" role="status">
+            La prossima giocata vince: <strong>{result.prizeName}</strong> (istante {formatDateTime(result.instantAt)}).
+          </p>
+        ) : null}
+        {error ? (
+          <p className="text-xs text-red-700" role="alert">
+            {PLANT_ERRORS[error.code] ?? (error.detail || error.code)}
+          </p>
+        ) : null}
+      </CardBody>
+    </Card>
+  );
+}
+
+const PLANT_ERRORS: Record<string, string> = {
+  NO_OPEN_INSTANT: "Nessun istante aperto rimasto per questo premio: scegline un altro.",
+  CONTEST_NOT_LIVE: "Il concorso non è più in corso: si pianta un istante solo in un concorso LIVE.",
+  PRIZE_NOT_FOUND: "Premio non presente nel concorso.",
+};
 
 const INSTANT_STATUSES = ["", "OPEN", "CLAIMED", "VOID"];
 

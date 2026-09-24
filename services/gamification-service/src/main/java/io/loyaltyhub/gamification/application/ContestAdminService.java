@@ -9,6 +9,7 @@ import io.loyaltyhub.common.event.LhEventFactory;
 import io.loyaltyhub.common.event.LhSource;
 import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.common.outbox.OutboxWriter;
+import io.loyaltyhub.common.web.ActorContext;
 import io.loyaltyhub.common.web.ActorHolder;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.common.web.Role;
@@ -54,6 +55,12 @@ public class ContestAdminService {
     }
 
     public record GenerateResult(int instants, long seed, Instant generatedAt) {
+    }
+
+    public record CloseResult(int contests, int voided) {
+    }
+
+    public record PlantResult(String instantId, String prizeCode, String prizeName, Instant instantAt) {
     }
 
     private final ContestRepository contests;
@@ -172,20 +179,72 @@ public class ContestAdminService {
         if (to == ApprovalStatus.LIVE && c.instantsGeneratedAt() == null) {
             throw LhException.validation("INSTANTS_NOT_GENERATED", "Genera gli istanti vincenti prima di pubblicare il concorso.");
         }
-        contests.updateStatus(c.id(), to);
-        int voided = to == ApprovalStatus.ENDED ? instants.voidOpen(c.id()) : 0;
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("contestCode", c.code());
-        data.put("name", c.name());
-        data.put("previousStatus", c.status().name());
-        data.put("newStatus", to.name());
-        outbox.write(events.newRoot(STATUS_CHANGED, "contest:" + c.code(), data, LhSource.service("gamification"),
-                ActorHolder.get().asActorString()));
+        int voided = changeStatus(c, to, ActorHolder.get().asActorString());
         audit.record("CONTEST", c.code(), AuditEntry.Action.TRANSITION,
                 c.name() + ": " + c.status() + " → " + to + " (" + a + ")" + (voided > 0 ? ", " + voided + " istanti annullati" : "")
                         + (comment == null || comment.isBlank() ? "" : " — " + comment),
                 Map.of("status", c.status().name()), Map.of("status", to.name()));
         return get(c.id());
+    }
+
+    /**
+     * Fine concorso (docs/servizi/gamification-service.md §5; job ogni 5 minuti e BO-30): ogni concorso {@code LIVE}
+     * con {@code end_at <= asOf} passa a {@code ENDED} e i suoi istanti {@code OPEN} diventano {@code VOID}, con lo
+     * stesso fatto {@code contest.status.changed} della transizione manuale. Da schedulato l'attore è {@code system}.
+     */
+    @Transactional
+    public CloseResult closeEnded(Instant asOf) {
+        boolean scheduled = ActorHolder.get() == ActorContext.ANONYMOUS;
+        String actor = scheduled ? "system" : ActorHolder.get().asActorString();
+        int closed = 0;
+        int voidedTotal = 0;
+        for (String id : contests.liveEndedBy(asOf)) {
+            Contest c = contests.lock(id).orElse(null);
+            if (c == null || c.status() != ApprovalStatus.LIVE || c.endAt().isAfter(asOf)) {
+                continue; // cambiato nel frattempo
+            }
+            int voided = changeStatus(c, ApprovalStatus.ENDED, actor);
+            String summary = c.name() + ": LIVE → ENDED (fine concorso, riferimento " + asOf + ")"
+                    + (voided > 0 ? ", " + voided + " istanti annullati" : "");
+            Map<String, Object> before = Map.of("status", ApprovalStatus.LIVE.name());
+            Map<String, Object> after = Map.of("status", ApprovalStatus.ENDED.name(), "voided", voided);
+            if (scheduled) {
+                audit.recordJob("CONTEST", c.code(), summary, before, after);
+            } else {
+                audit.record("CONTEST", c.code(), AuditEntry.Action.JOB, summary, before, after);
+            }
+            closed++;
+            voidedTotal += voided;
+        }
+        return new CloseResult(closed, voidedTotal);
+    }
+
+    /**
+     * Aiuto demo (F-IW-08, BO-14): l'ultimo istante {@code OPEN} del premio viene anticipato a {@code now − 1 s} e marcato
+     * {@code planted}, così la prossima giocata vince quel premio. Il montepremi resta invariato (nessun istante nuovo).
+     * Solo concorsi {@code LIVE} ({@code 409 CONTEST_NOT_LIVE}); premio del concorso ({@code 422 PRIZE_NOT_FOUND}) con
+     * almeno un istante aperto ({@code 422 NO_OPEN_INSTANT}).
+     */
+    @Transactional
+    public PlantResult plantInstant(String id, String prizeCode) {
+        Contest c = contests.lock(get(id).id()).orElseThrow();
+        if (c.status() != ApprovalStatus.LIVE) {
+            throw LhException.conflict("CONTEST_NOT_LIVE",
+                    "Si pianta un istante solo in un concorso LIVE (" + c.code() + " è " + c.status() + ").");
+        }
+        String code = upper(prizeCode);
+        Prize prize = contests.prizes(c.id()).stream().filter(p -> p.code().equals(code)).findFirst()
+                .orElseThrow(() -> LhException.validation("PRIZE_NOT_FOUND",
+                        "Premio non presente nel concorso " + c.code() + ": " + prizeCode));
+        Instant at = clock.instant().minusSeconds(1);
+        InstantRepository.PlantedInstant planted = instants.plantLast(c.id(), prize.id(), at)
+                .orElseThrow(() -> LhException.validation("NO_OPEN_INSTANT",
+                        "Nessun istante aperto rimasto per il premio " + prize.code() + "."));
+        audit.record("CONTEST", c.code(), AuditEntry.Action.UPDATE,
+                "Istante piantato per " + prize.name() + " (" + prize.code() + "): la prossima giocata vince",
+                null, Map.of("instantId", planted.id(), "prizeCode", prize.code(),
+                        "instantAt", planted.instantAt().toString(), "planted", true));
+        return new PlantResult(planted.id(), prize.code(), prize.name(), planted.instantAt());
     }
 
     /**
@@ -250,6 +309,19 @@ public class ContestAdminService {
     }
 
     // ---------- interni ----------
+
+    /** Cambio di stato comune a transizione manuale e job: stato, istanti aperti → {@code VOID} se {@code ENDED}, fatto. */
+    private int changeStatus(Contest c, ApprovalStatus to, String actor) {
+        contests.updateStatus(c.id(), to);
+        int voided = to == ApprovalStatus.ENDED ? instants.voidOpen(c.id()) : 0;
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("contestCode", c.code());
+        data.put("name", c.name());
+        data.put("previousStatus", c.status().name());
+        data.put("newStatus", to.name());
+        outbox.write(events.newRoot(STATUS_CHANGED, "contest:" + c.code(), data, LhSource.service("gamification"), actor));
+        return voided;
+    }
 
     private List<Prize> prizes(String contestId, List<PrizeRequest> requests) {
         List<Prize> out = new ArrayList<>();

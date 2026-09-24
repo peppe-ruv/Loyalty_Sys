@@ -700,3 +700,11 @@ export interface PortalLeaderboard {
   me: { rank: number; score: number } | null;
   participants: number;
 }
+
+// BO-14 aiuto demo (docs/servizi/gamification-service.md §3 "Demo"; F-IW-08): istante piantato.
+export interface PlantedInstant {
+  instantId: string;
+  prizeCode: string;
+  prizeName: string;
+  instantAt: string;
+}
