@@ -197,15 +197,9 @@ public class InboundResolutionService {
             }
             outbox.write(ev.event());
         } else {
-            inbound.updateOutcome(id, ev.status(), ev.rejectCode(),
-                    ev.detail() != null ? ev.detail() : duplicateDetail(ev), ev.memberId());
+            inbound.updateOutcome(id, ev.status(), ev.rejectCode(), ev.detail(), ev.memberId());
         }
         auditResolution(before, ev, kind, actor);
-    }
-
-    private static String duplicateDetail(Evaluation ev) {
-        return ev.status() == InboundStatus.DUPLICATE
-                ? "Un evento con la stessa fonte e lo stesso id è già stato accettato." : null;
     }
 
     /**

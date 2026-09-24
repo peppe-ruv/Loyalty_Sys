@@ -14,6 +14,7 @@ import io.loyaltyhub.insight.trace.Trace.TraceNode;
 import io.loyaltyhub.insight.trace.Trace.TraceSummary;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -37,8 +38,10 @@ public class TraceService {
     private final EventStoreRepository events;
     private final DlqRepository dlqEntries;
     private final ObjectMapper mapper;
+    private final Clock clock;
 
-    public TraceService(EventStoreRepository events, DlqRepository dlqEntries, ObjectMapper mapper) {
+    public TraceService(EventStoreRepository events, DlqRepository dlqEntries, ObjectMapper mapper, Clock clock) {
+        this.clock = clock;
         this.events = events;
         this.dlqEntries = dlqEntries;
         this.mapper = mapper;
@@ -78,7 +81,7 @@ public class TraceService {
         boolean hasDlq = rows.stream().anyMatch(e -> "DLQ".equals(e.family()))
                 || dlqs.stream().anyMatch(d -> !DlqEntry.REPROCESSED.equals(d.status()));
         String status = hasDlq ? "FAILED"
-                : (Duration.between(last, Instant.now()).toMillis() >= QUIET_MS ? "COMPLETE" : "IN_PROGRESS");
+                : (Duration.between(last, clock.instant()).toMillis() >= QUIET_MS ? "COMPLETE" : "IN_PROGRESS");
 
         Outcome outcome = outcomeOf(rows);
         outcome = new Outcome(outcome.points(), outcome.tierChange(), outcome.messages(), outcome.coupons(),

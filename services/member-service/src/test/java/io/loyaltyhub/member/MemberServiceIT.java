@@ -74,6 +74,12 @@ class MemberServiceIT {
         JsonNode personas = get("/v1/demo/personas");
         assertThat(personas.size()).isEqualTo(11); // l'anonimizzato non è selezionabile
         assertThat(personas.get(0).path("story").asString()).isNotBlank();
+        // Saldo dalla proiezione, per le schede membro del Demo Hub (docs/07 §8, HUB-01).
+        JsonNode first = personas.get(0);
+        JsonNode member = get("/v1/members/" + first.path("memberId").asString());
+        assertThat(first.path("balancePts").isNumber()).isTrue();
+        assertThat(first.path("balancePts").asLong()).isPositive();
+        assertThat(first.path("balancePts").asLong()).isEqualTo(member.path("balancePts").asLong());
     }
 
     @Test
@@ -137,7 +143,12 @@ class MemberServiceIT {
 
     @Test
     void statusChangeEmitsStatusChangedFact() {
-        JsonNode changed = post("/v1/members/MBR-000010/status", Map.of("status", "BLOCKED", "reason", "test"), 200);
+        // docs/08 §2: member.write solo ADMIN e CARE; ANALYST e MARKETING → 403, senza effetti.
+        assertThat(postAs("/v1/members/MBR-000010/status", "ANALYST:sara", Map.of("status", "BLOCKED"))).isEqualTo(403);
+        assertThat(postAs("/v1/members/MBR-000010/status", "MARKETING:luca", Map.of("status", "BLOCKED"))).isEqualTo(403);
+        JsonNode changed = client().post().uri("/v1/members/MBR-000010/status").header("X-LH-Actor", "CARE:anna")
+                .contentType(MediaType.APPLICATION_JSON).body(Map.of("status", "BLOCKED", "reason", "test"))
+                .retrieve().body(JsonNode.class);
         assertThat(changed.path("status").asString()).isEqualTo("BLOCKED");
 
         try (KafkaConsumer<String, String> consumer = consumer("status-check")) {
@@ -253,6 +264,11 @@ class MemberServiceIT {
                 .contentType(MediaType.APPLICATION_JSON).body(body).retrieve().toEntity(JsonNode.class);
         assertThat(res.getStatusCode().value()).isEqualTo(expected);
         return res.getBody();
+    }
+
+    private int postAs(String path, String actor, Object body) {
+        return client().post().uri(path).header("X-LH-Actor", actor).contentType(MediaType.APPLICATION_JSON).body(body)
+                .exchange((req, res) -> res.getStatusCode().value());
     }
 
     private JsonNode patch(String path, Object body) {

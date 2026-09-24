@@ -9,6 +9,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,8 +25,10 @@ public class DlqRepository {
 
     private final JdbcClient jdbc;
     private final ObjectMapper mapper;
+    private final Clock clock;
 
-    public DlqRepository(JdbcClient jdbc, ObjectMapper mapper) {
+    public DlqRepository(JdbcClient jdbc, ObjectMapper mapper, Clock clock) {
+        this.clock = clock;
         this.jdbc = jdbc;
         this.mapper = mapper;
     }
@@ -43,7 +46,7 @@ public class DlqRepository {
                 .params(e.id(), e.eventId(), e.originalTopic(), e.originalType(), e.family(), e.consumer(),
                         e.errorCode(), e.errorClass(), e.errorMessage(), e.errorStack(), e.retryable(), e.attempts(),
                         e.memberId(), e.correlationId(), json(e.payload()), dlqPartition, dlqOffset,
-                        Timestamp.from(e.firstSeenAt() == null ? Instant.now() : e.firstSeenAt()))
+                        Timestamp.from(e.firstSeenAt() == null ? clock.instant() : e.firstSeenAt()))
                 .update();
         return rows > 0;
     }

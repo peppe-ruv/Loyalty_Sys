@@ -61,7 +61,7 @@ public class CouponService {
                              Instant issuedAt, Instant expiresAt, Instant usedAt, Instant voidedAt) {
     }
 
-    private static final int MAX_PAGE_SIZE = 200;
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final CouponRepository coupons;
     private final RewardRepository rewards;

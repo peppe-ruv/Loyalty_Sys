@@ -40,6 +40,37 @@ public class InboundEventRepository {
             sql.append(" AND status = ?");
             args.add(status.trim().toUpperCase());
         }
+        appendFilters(sql, args, source, type, memberId);
+        sql.append(" ORDER BY received_at DESC LIMIT ?");
+        args.add(limit);
+        return jdbc.sql(sql.toString()).params(args).query(InboundEventRepository::mapRow).list();
+    }
+
+    /**
+     * Conteggi per esito (schede di BO-26, F-ING-09) con gli stessi filtri dell'elenco, esito escluso: le quattro
+     * chiavi di {@link InboundStatus} ci sono sempre, in quell'ordine, anche a zero.
+     */
+    public java.util.Map<String, Long> countByStatus(String source, String type, String memberId) {
+        StringBuilder sql = new StringBuilder("SELECT status, count(*) AS n FROM inbound_event WHERE 1 = 1\n");
+        java.util.List<Object> args = new java.util.ArrayList<>();
+        appendFilters(sql, args, source, type, memberId);
+        sql.append(" GROUP BY status");
+        java.util.Map<String, Long> counts = new java.util.LinkedHashMap<>();
+        for (InboundStatus s : InboundStatus.values()) {
+            counts.put(s.name(), 0L);
+        }
+        jdbc.sql(sql.toString()).params(args).query((rs, n) -> {
+            String status = rs.getString("status");
+            if (counts.containsKey(status)) {
+                counts.put(status, rs.getLong("n"));
+            }
+            return status;
+        }).list();
+        return counts;
+    }
+
+    private static void appendFilters(StringBuilder sql, java.util.List<Object> args,
+                                      String source, String type, String memberId) {
         if (source != null && !source.isBlank()) {
             sql.append(" AND source_code = ?");
             args.add(source.trim());
@@ -52,9 +83,6 @@ public class InboundEventRepository {
             sql.append(" AND member_id = ?");
             args.add(memberId.trim());
         }
-        sql.append(" ORDER BY received_at DESC LIMIT ?");
-        args.add(limit);
-        return jdbc.sql(sql.toString()).params(args).query(InboundEventRepository::mapRow).list();
     }
 
     public java.util.Optional<InboundRow> findById(String id) {

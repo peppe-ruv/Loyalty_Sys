@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -51,11 +52,14 @@ public class EventIngestService {
     private final LiveEventHub liveHub;
     private final ObjectMapper mapper;
     private final MemberRedactionRepository redaction;
+    private final Clock clock;
 
     public EventIngestService(EventStoreRepository events, TopicStatRepository topicStats,
                               MetricRepository metrics, AuditRepository audits, DlqRepository dlq,
-                              LiveEventHub liveHub, ObjectMapper mapper, MemberRedactionRepository redaction) {
+                              LiveEventHub liveHub, ObjectMapper mapper, MemberRedactionRepository redaction,
+                              Clock clock) {
         this.redaction = redaction;
+        this.clock = clock;
         this.events = events;
         this.topicStats = topicStats;
         this.metrics = metrics;
@@ -97,9 +101,9 @@ public class EventIngestService {
             errorCode = errorClass.substring(errorClass.lastIndexOf('.') + 1);
         }
         String retryable = header(record, LhHeaders.ERROR_RETRYABLE);
-        Instant seenAt = record.timestamp() > 0 ? Instant.ofEpochMilli(record.timestamp()) : Instant.now();
+        Instant seenAt = record.timestamp() > 0 ? Instant.ofEpochMilli(record.timestamp()) : clock.instant();
         DlqEntry entry = new DlqEntry(
-                Ulid.next(), eventId, originalTopic, type, familyCode, consumer == null ? "unknown" : consumer,
+                Ulid.next(clock), eventId, originalTopic, type, familyCode, consumer == null ? "unknown" : consumer,
                 errorCode, errorClass,
                 firstHeader(record, LhHeaders.ERROR_MESSAGE, "kafka_dlt-exception-message"),
                 shortStack(firstHeader(record, LhHeaders.ERROR_STACK, "kafka_dlt-exception-stacktrace")),
@@ -155,7 +159,7 @@ public class EventIngestService {
 
     /** Aggiorna gli aggregati giornalieri (docs §5): le metriche i cui eventi esistono già (M1–M4). */
     private void updateMetrics(String family, String shortType, LhEvent<JsonNode> event, StoredEvent stored) {
-        LocalDate day = (event.time() != null ? event.time() : Instant.now()).atZone(ZoneOffset.UTC).toLocalDate();
+        LocalDate day = (event.time() != null ? event.time() : clock.instant()).atZone(ZoneOffset.UTC).toLocalDate();
         JsonNode data = event.data() == null ? mapper.createObjectNode() : event.data();
         switch (family) {
             case "ACTION" -> {
@@ -205,7 +209,7 @@ public class EventIngestService {
         String role = colon > 0 ? actor.substring(0, colon) : (actor.isBlank() ? null : actor);
         String name = colon >= 0 && colon < actor.length() - 1 ? actor.substring(colon + 1) : null;
         audits.insert(new AuditRecord(
-                Ulid.next(), event.id(), event.time(), role, name,
+                Ulid.next(clock), event.id(), event.time(), role, name,
                 data.path("service").asString(""), data.path("entityType").asString(""),
                 data.path("entityId").asString(""), data.path("action").asString(""),
                 data.path("summary").asString(""), nodeOrNull(data.get("before")), nodeOrNull(data.get("after")),

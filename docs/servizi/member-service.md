@@ -41,7 +41,7 @@ Non possiede saldi né tier (sono del wallet): li riflette.
 | GET | `/v1/portal/members/{id}/referral` | `{code, shareUrl, invited[], completedCount}` |
 
 ### Demo
-| GET | `/v1/demo/personas` | i membri in evidenza per il selettore: `{memberId, name, tier, story, avatarSeed}` |
+| GET | `/v1/demo/personas` | i membri in evidenza per il selettore: `{memberId, name, tier, story, avatarSeed, balancePts}` (saldo dalla proiezione, per le schede del Demo Hub, docs/07 §8) |
 | POST | `/v1/demo/jobs/refresh-segments` · `/v1/demo/jobs/birthdays?asOf=` | |
 
 ## 4. Eventi

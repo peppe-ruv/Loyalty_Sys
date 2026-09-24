@@ -67,7 +67,9 @@ public class MembersController {
         return service.update(id, request);
     }
 
+    /** Cambio stato (F-MBR-04, BO-03): capacità {@code member.write} di docs/08 §2 → ADMIN e CARE. */
     @PostMapping("/{id}/status")
+    @RequiresRole({Role.ADMIN, Role.CARE})
     public MemberView changeStatus(@PathVariable String id, @RequestBody StatusChangeRequest request) {
         return service.changeStatus(id, request);
     }
