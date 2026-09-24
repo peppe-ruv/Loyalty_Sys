@@ -1,12 +1,23 @@
 // Cornice telefono per le anteprime fedeli del portale (docs/08 BO-18, BO-20): larghezza 390 px, fondo e colori del
 // tema del portale; dentro si usano gli stessi componenti di components/shared/content.
-export function PhoneFrame({ children, label }: { children: React.ReactNode; label?: string }) {
+export function PhoneFrame({
+  children,
+  label,
+  programName = "Club Aurora",
+  style,
+}: {
+  children: React.ReactNode;
+  label?: string;
+  programName?: string;
+  /** Variabili CSS del tema da provare (BO-20); di norma quelle di globals.css. */
+  style?: React.CSSProperties;
+}) {
   return (
-    <figure className="mx-auto w-[300px] sm:w-[340px]">
+    <figure className="mx-auto w-[300px] sm:w-[340px]" style={style}>
       <div className="rounded-[2.2rem] border-[10px] border-[var(--color-pt-night)] bg-[var(--color-pt-bg)] shadow-xl">
         <div className="mx-auto mt-1.5 h-1.5 w-16 rounded-full bg-[var(--color-pt-night)]/20" aria-hidden />
         <div className="max-h-[560px] min-h-[420px] overflow-y-auto px-3 pb-4 pt-3">
-          <p className="mb-2 text-xs font-semibold text-[var(--color-pt-night)]">Club Aurora</p>
+          <p className="mb-2 text-xs font-semibold text-[var(--color-pt-night)]">{programName}</p>
           {children}
         </div>
       </div>

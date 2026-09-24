@@ -7,6 +7,7 @@ import { lhFetch, LhError } from "@/lib/api/client";
 import type { MemberView } from "@/lib/api/types";
 import { joinErrorFromApi, normalizeCode, validateJoin, type JoinErrors, type JoinForm } from "@/lib/member/profile";
 import { cn } from "@/lib/cn";
+import { usePortalTheme } from "@/components/shared/ThemeContext";
 
 // PT-08 Registrazione (docs/09 §PT-08, F-MBR-06, F-REF-01): nome, cognome, e-mail, codice amico opzionale (da ?ref=),
 // consenso. Invio → member POST /v1/members → il nuovo membro diventa la persona attiva → PT-01 col benvenuto.
@@ -23,6 +24,7 @@ const WALLET_WAIT_MS = 20_000;
 
 function JoinForm() {
   const params = useSearchParams();
+  const theme = usePortalTheme();
   const [form, setForm] = useState<JoinForm>({
     firstName: "",
     lastName: "",
@@ -94,7 +96,7 @@ function JoinForm() {
   return (
     <form onSubmit={submit} className="space-y-4" noValidate>
       <div>
-        <h1 className="text-lg font-semibold text-[var(--color-pt-night)]">Entra nel Club Aurora</h1>
+        <h1 className="text-lg font-semibold text-[var(--color-pt-night)]">Entra nel {theme.programName}</h1>
         <p className="text-sm text-[var(--color-pt-night)]/70">Iscriversi è gratis: ricevi subito 100 punti di benvenuto.</p>
       </div>
 

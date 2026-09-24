@@ -64,6 +64,7 @@ export const NAV: NavGroup[] = [
     items: [
       { id: "BO-18", label: "Card e pop-up", href: "/backoffice/content", milestone: 6 },
       { id: "BO-19", label: "Messaggi", href: "/backoffice/content/messages", milestone: 6 },
+      { id: "BO-20", label: "Tema e brand", href: "/backoffice/content/theme", milestone: 6 },
     ],
   },
   {

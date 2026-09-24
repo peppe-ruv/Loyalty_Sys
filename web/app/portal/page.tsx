@@ -6,11 +6,12 @@ import { useLhQuery } from "@/lib/api/client";
 import type { WalletView, MemberView } from "@/lib/api/types";
 import { useActiveMember } from "@/components/portal/MemberContext";
 import { usePending } from "@/components/portal/PendingContext";
-import { MemberCard } from "@/components/portal/MemberCard";
+import { MemberCard } from "@/components/shared/content/MemberCard";
 import { PendingBanner, ActivityRow, type ActivityItem } from "@/components/portal/parts";
 import { QueryState } from "@/components/bo/QueryState";
 import { ContentSlot } from "@/components/portal/ContentSlot";
 import { PopupHost } from "@/components/portal/PopupHost";
+import { usePortalTheme } from "@/components/shared/ThemeContext";
 import { formatPoints } from "@/lib/format/points";
 import { formatDate } from "@/lib/format/dates";
 
@@ -19,6 +20,7 @@ import { formatDate } from "@/lib/format/dates";
 // (/portal/join → ?welcome=1), se i punti di benvenuto non sono ancora sul saldo, "in arrivo…".
 export default function PortalHome() {
   const memberId = useActiveMember();
+  const theme = usePortalTheme();
   const { pending, markPending } = usePending();
   const wallet = useLhQuery<WalletView>("wallet", `/v1/portal/wallets/${memberId}`, undefined, {
     refetchInterval: pending ? 5000 : undefined,
@@ -43,7 +45,10 @@ export default function PortalHome() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-semibold text-[var(--color-pt-night)]">Ciao{name ? ` ${name}` : ""} 👋</h1>
+      <div>
+        <h1 className="text-lg font-semibold text-[var(--color-pt-night)]">Ciao{name ? ` ${name}` : ""} 👋</h1>
+        {theme.heroTitle ? <p className="text-sm text-[var(--color-pt-night)]/70">{theme.heroTitle}</p> : null}
+      </div>
       <PendingBanner />
       <PopupHost />
 
@@ -51,7 +56,6 @@ export default function PortalHome() {
         {(w) => (
           <div className="space-y-3">
             <MemberCard
-              programName="Club Aurora"
               memberName={member.data?.firstName ? `${member.data.firstName} ${member.data.lastName ?? ""}` : memberId}
               memberId={memberId}
               pts={w.balances.PTS?.active ?? 0}

@@ -378,6 +378,30 @@ if (Array.isArray(templatesSeed)) {
   }
 }
 
+// Tema (docs/servizi/engagement-service.md §3, F-THM-01): 5 colori esadecimali e contrasto AA come al salvataggio (Q-79).
+{
+  const theme = readSeed("theme.json");
+  if (theme) {
+    const HEX = /^#[0-9A-Fa-f]{6}$/;
+    const colors = theme.colors ?? {};
+    for (const k of ["primary", "secondary", "coin", "night", "bg"]) {
+      if (!HEX.test(colors[k] ?? "")) errors.push(`theme.json: colore ${k} non esadecimale`);
+    }
+    const lum = (hex) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+    for (const k of ["primary", "bg"]) {
+      if (HEX.test(colors.night ?? "") && HEX.test(colors[k] ?? "") && contrast(colors.night, colors[k]) < 4.5) {
+        errors.push(`theme.json: contrasto night/${k} sotto 4,5:1`);
+      }
+    }
+    if (!theme.programName) errors.push("theme.json: programName mancante");
+  }
+}
+
 for (const w of warnings) console.warn(`⚠ ${w}`);
 if (errors.length > 0) {
   for (const e of errors) console.error(`✗ ${e}`);

@@ -262,6 +262,46 @@ class ContentIT {
         assertThat(status("POST", "/v1/portal/popups/POP-WEEKEND/seen", null, Map.of())).isEqualTo(400);
     }
 
+    // ---------- tema (M6.5) ----------
+
+    /** docs/servizi/engagement-service.md §7: PUT /v1/theme con nuovo primary → GET /v1/portal/theme lo restituisce. */
+    @Test
+    void themeChangesAtRuntimeWithContrastCheck() {
+        JsonNode aurora = RestClient.create("http://localhost:" + port).get().uri("/v1/portal/theme")
+                .exchange((req, res) -> {
+                    assertThat(res.getHeaders().getCacheControl()).contains("max-age=60");
+                    return mapper.readTree(res.getBody());
+                });
+        assertThat(aurora.path("programName").asString()).isEqualTo("Club Aurora");
+        assertThat(aurora.path("colors").path("primary").asString()).isEqualTo("#1FB98F");
+        assertThat(aurora.path("heroTitle").asString()).isEqualTo("Ogni gesto conta");
+        long version = get("/v1/theme").path("version").asLong();
+
+        Map<String, Object> colors = new HashMap<>(Map.of("primary", "#2BC4A0", "secondary", "#7A5CFA", "coin", "#FFB547",
+                "night", "#0E1B2C", "bg", "#F3F7F9"));
+        Map<String, Object> body = new HashMap<>(Map.of("programName", "Club Aurora", "colors", colors,
+                "heroTitle", "Ogni gesto conta", "version", version));
+        assertThat(status("PUT", "/v1/theme", "ANALYST:sara.analyst", body)).isEqualTo(403);
+        JsonNode saved = send("PUT", "/v1/theme", MARKETING, body, 200);
+        assertThat(saved.path("version").asLong()).isEqualTo(version + 1);
+        assertThat(get("/v1/portal/theme").path("colors").path("primary").asString()).isEqualTo("#2BC4A0");
+        assertThat(send("PUT", "/v1/theme", MARKETING, body, 409).path("code").asString()).isEqualTo("VERSION_CONFLICT");
+
+        colors.put("primary", "#2A3A55");
+        body.put("version", version + 1);
+        JsonNode low = send("PUT", "/v1/theme", MARKETING, body, 422);
+        assertThat(low.path("code").asString()).isEqualTo("THEME_CONTRAST_TOO_LOW");
+        assertThat(fields(low)).containsExactly("colors.primary");
+        colors.put("primary", "verde");
+        assertThat(send("PUT", "/v1/theme", MARKETING, body, 422).path("code").asString()).isEqualTo("THEME_INVALID");
+        assertThat(get("/v1/portal/theme").path("colors").path("primary").asString()).as("invariato dopo i rifiuti")
+                .isEqualTo("#2BC4A0");
+
+        colors.put("primary", "#1FB98F");
+        send("PUT", "/v1/theme", "ADMIN:marta.admin", body, 200);
+        assertThat(count("SELECT count(*) FROM theme")).isEqualTo(1);
+    }
+
     private long count(String sql) {
         return jdbc.sql(sql).query(Long.class).single();
     }

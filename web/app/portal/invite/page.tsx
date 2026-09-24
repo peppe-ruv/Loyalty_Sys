@@ -10,6 +10,7 @@ import { actionLabel } from "@/lib/campaign/describe";
 import { completedThisEdition, inviteLink, inviteeStatusLabel } from "@/lib/member/referral";
 import { formatDate } from "@/lib/format/dates";
 import { cn } from "@/lib/cn";
+import { usePortalTheme } from "@/components/shared/ThemeContext";
 
 // PT-11 Porta un amico (docs/09 §PT-11, F-REF-01/02): 3 passi coi valori reali delle campagne CMP-REFERRAL-*, codice
 // amico grande con Copia/Condividi (Web Share API, altrimenti copia del link /portal/join?ref=), invitati con stato e
@@ -108,6 +109,7 @@ function Step({ n, title, text }: { n: number; title: string; text: string }) {
 }
 
 function CodeCard({ code, shareUrl }: { code: string; shareUrl: string }) {
+  const { programName } = usePortalTheme();
   const [done, setDone] = useState<string | null>(null);
   const link = () => inviteLink(window.location.origin, shareUrl);
 
@@ -124,7 +126,7 @@ function CodeCard({ code, shareUrl }: { code: string; shareUrl: string }) {
     const url = link();
     if (typeof navigator.share === "function") {
       try {
-        await navigator.share({ title: "Club Aurora", text: `Iscriviti al Club Aurora col mio codice amico ${code}`, url });
+        await navigator.share({ title: programName, text: `Iscriviti a ${programName} col mio codice amico ${code}`, url });
         return;
       } catch {
         // condivisione annullata o non disponibile: si ripiega sulla copia del link

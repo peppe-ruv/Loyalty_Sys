@@ -1,0 +1,10 @@
+{
+  "programName": "Club Aurora",
+  "tagline": "Il programma fedeltà che premia ogni gesto",
+  "logoUrl": null,
+  "colors": { "primary": "#1FB98F", "secondary": "#7A5CFA", "coin": "#FFB547", "night": "#0E1B2C", "bg": "#F3F7F9" },
+  "heroTitle": "Ogni gesto conta",
+  "heroSubtitle": "Accumula punti, sali di livello, scegli il tuo premio.",
+  "fontDisplay": null,
+  "currencyNames": { "PTS": "punti", "STS": "punti status" }
+}

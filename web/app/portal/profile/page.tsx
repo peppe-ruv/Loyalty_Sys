@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useLhQuery } from "@/lib/api/client";
 import type { WalletView, MemberView, Tier } from "@/lib/api/types";
 import { useActiveMember } from "@/components/portal/MemberContext";
-import { MemberCard } from "@/components/portal/MemberCard";
+import { MemberCard } from "@/components/shared/content/MemberCard";
 import { QueryState } from "@/components/bo/QueryState";
 import { formatPoints } from "@/lib/format/points";
 import { ProfileSection } from "@/components/portal/profile/ProfileForm";
@@ -29,7 +29,6 @@ export default function PortalProfile() {
         {(w) => (
           <div className="space-y-4">
             <MemberCard
-              programName="Club Aurora"
               memberName={fullName}
               memberId={memberId}
               pts={w.balances.PTS?.active ?? 0}

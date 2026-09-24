@@ -10,12 +10,14 @@ import io.loyaltyhub.engagement.domain.InboxMessage;
 import io.loyaltyhub.engagement.domain.MessageTemplate;
 import io.loyaltyhub.engagement.domain.NotificationRule;
 import io.loyaltyhub.engagement.domain.TemplateEngine;
+import io.loyaltyhub.engagement.domain.Theme;
 import io.loyaltyhub.engagement.infra.ContentRepository;
 import io.loyaltyhub.engagement.infra.InboxRepository;
 import io.loyaltyhub.engagement.infra.MemberSnapshotRepository;
 import io.loyaltyhub.engagement.infra.PopupViewRepository;
 import io.loyaltyhub.engagement.infra.RuleRepository;
 import io.loyaltyhub.engagement.infra.TemplateRepository;
+import io.loyaltyhub.engagement.infra.ThemeRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -59,11 +61,12 @@ public class EngagementSeeder implements ApplicationRunner, DemoResettable {
     private final MessageContexts contexts;
     private final ContentRepository contents;
     private final PopupViewRepository popups;
+    private final ThemeRepository themes;
     private final Clock clock;
 
     public EngagementSeeder(SeedLoader seed, TemplateRepository templates, RuleRepository rules, InboxRepository inbox,
                             MemberSnapshotRepository members, MessageContexts contexts, ContentRepository contents,
-                            PopupViewRepository popups, Clock clock) {
+                            PopupViewRepository popups, ThemeRepository themes, Clock clock) {
         this.seed = seed;
         this.templates = templates;
         this.rules = rules;
@@ -72,6 +75,7 @@ public class EngagementSeeder implements ApplicationRunner, DemoResettable {
         this.contexts = contexts;
         this.contents = contents;
         this.popups = popups;
+        this.themes = themes;
         this.clock = clock;
     }
 
@@ -90,6 +94,7 @@ public class EngagementSeeder implements ApplicationRunner, DemoResettable {
     public void resetToSeed() {
         inbox.deleteAll();
         popups.deleteAll();
+        themes.deleteAll();
         contents.deleteAll();
         rules.deleteAll();
         templates.deleteAll();
@@ -147,8 +152,15 @@ public class EngagementSeeder implements ApplicationRunner, DemoResettable {
                     SEED_ACTOR);
             contentCount++;
         }
-        log.info("Seed engagement caricato: {} template, {} regole, {} messaggi, {} contenuti", byCode.size(), ruleCount,
-                messages, contentCount);
+        JsonNode t = seed.readTree("theme.json");
+        Map<String, String> colors = new java.util.LinkedHashMap<>();
+        t.path("colors").properties().forEach(e -> colors.put(e.getKey(), e.getValue().asString()));
+        Map<String, String> currencies = new java.util.LinkedHashMap<>();
+        t.path("currencyNames").properties().forEach(e -> currencies.put(e.getKey(), e.getValue().asString()));
+        themes.save(new Theme(t.path("programName").asString(), text(t, "tagline"), text(t, "logoUrl"), colors,
+                text(t, "heroTitle"), text(t, "heroSubtitle"), text(t, "fontDisplay"), currencies, 0, null), null, SEED_ACTOR);
+        log.info("Seed engagement caricato: {} template, {} regole, {} messaggi, {} contenuti, tema {}", byCode.size(), ruleCount,
+                messages, contentCount, t.path("programName").asString());
     }
 
     /** Copia di {@code data} con le espressioni di data ({@code @today+12d}, docs/10 §1) risolte in istanti ISO. */
