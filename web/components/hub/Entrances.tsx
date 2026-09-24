@@ -18,7 +18,7 @@ import { useDemoStatus } from "./useDemoStatus";
 
 /**
  * Membro in evidenza da member `GET /v1/demo/personas` (docs/servizi/member-service.md §3).
- * SPEC-GAP: Q-C5 — docs/07 §8 dice "12 schede", ma l'endpoint esclude i membri anonimizzati (MBR-000012 nel seed):
+ * SPEC-GAP: Q-136 — docs/07 §8 dice "12 schede", ma l'endpoint esclude i membri anonimizzati (MBR-000012 nel seed):
  * si mostrano quelli che restituisce (11 a demo appena accesa), senza filtri o aggiunte lato web.
  */
 interface HubMember {
@@ -191,7 +191,7 @@ function PortalEntrance({ ready }: { ready: boolean }) {
 
 export function Entrances() {
   const status = useDemoStatus();
-  // SPEC-GAP: Q-C2 — stato ignoto (caricamento o errore di /api/demo/status) ⇒ ingressi spenti, come con i
+  // SPEC-GAP: Q-133 — stato ignoto (caricamento o errore di /api/demo/status) ⇒ ingressi spenti, come con i
   // servizi core non UP; nessun ingresso "alla cieca".
   const ready = entrancesReady(status.data);
   return (

@@ -43,7 +43,7 @@ export const STATUS_POLL_WAKING_MS = 3000;
 export const STATUS_POLL_STEADY_MS = 8000;
 
 export function statusPollInterval(opts: { waking: boolean; idle: boolean }): number | false {
-  // SPEC-GAP: Q-C3 — la spec fissa solo i 3 s dopo "Accendi la demo"; scelta prudente: 8 s a regime e nessun
+  // SPEC-GAP: Q-134 — la spec fissa solo i 3 s dopo "Accendi la demo"; scelta prudente: 8 s a regime e nessun
   // polling quando il keep-alive si è fermato per inattività (le sonde di stato terrebbero svegli i servizi).
   if (opts.idle) return false;
   return opts.waking ? STATUS_POLL_WAKING_MS : STATUS_POLL_STEADY_MS;
@@ -54,7 +54,7 @@ export const KAFKA_DOWN_ALERT_MS = 2 * 60_000;
 
 /**
  * Aggiorna l'istante da cui Kafka risulta DOWN, sulla linea temporale di `checkedAt`.
- * SPEC-GAP: Q-C4 — conta solo `DOWN`: `SLEEPING` significa che ingestion non risponde e lo stato di Kafka è ignoto.
+ * SPEC-GAP: Q-135 — conta solo `DOWN`: `SLEEPING` significa che ingestion non risponde e lo stato di Kafka è ignoto.
  */
 export function trackKafkaDown(since: number | null, status: DemoStatus): number | null {
   if (status.kafka.state !== "DOWN") return null;

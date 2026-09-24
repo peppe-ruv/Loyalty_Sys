@@ -44,7 +44,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 **Feature** (`docs/02`)
 
-- [ ] `F-DEMO-01` Demo Hub (P0) — _M0/M1_
+- [x] `F-DEMO-01` Demo Hub (P0) — _FIN-1: 10 riquadri con stato e tempi, «Accendi la demo» con tempo trascorso, avviso Kafka giù oltre 2 min, ingressi attivi solo coi servizi core UP, scelta della persona di backoffice e del membro del portale, percorso consigliato; stati caricamento/vuoto/errore/degradato (Q-133…Q-136)_
 - [x] `F-DEMO-02` Cambio persona (P0) — _cookie `lh_persona` via `/api/persona`; tray PT-14 + selettore backoffice_
 
 **Accettazione M0** (`docs/12`)
@@ -90,7 +90,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `F-WAL-02` Libro mastro (P0)
 - [x] `F-DEMO-03` Simulatore eventi (P0) — _BO-28 + ingestion `POST /v1/demo/simulator/fire`_
 - [x] `F-DEMO-05` Reset dati (P0) — _`POST /v1/demo/reset` (profilo demo) + Console demo BO-30_
-- [ ] `F-DEMO-07` Keep-alive gentile (P0)
+- [x] `F-DEMO-07` Keep-alive gentile (P0) — _FIN-1: `useKeepAlive` in hub, backoffice e portale, sveglia ogni 4 min solo a scheda visibile, stop dopo 45 min senza interazione (Q-132); nessun pinger esterno_
 
 **Accettazione M1** (`docs/12`)
 

@@ -63,7 +63,7 @@ export function createKeepAlive(env: KeepAliveEnv): KeepAlive {
       if (disposed) return;
       lastInteraction = env.now();
       if (idle) {
-        // SPEC-GAP: Q-C1 — la spec dice solo "si ferma dopo 45 min senza interazione"; scelta: una nuova
+        // SPEC-GAP: Q-132 — la spec dice solo "si ferma dopo 45 min senza interazione"; scelta: una nuova
         // interazione lo fa ripartire con cadenza da capo (nessun risveglio immediato).
         idle = false;
         env.onIdleChange?.(false);
