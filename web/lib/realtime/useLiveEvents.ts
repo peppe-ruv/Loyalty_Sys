@@ -23,7 +23,7 @@ interface UseLiveEvents {
  */
 export function useLiveEvents(filters: LiveFilters, enabled = true): UseLiveEvents {
   const [events, setEvents] = useState<LiveEvent[]>([]);
-  const [state, setState] = useState<ConnectionState>("disconnected");
+  const [state, setState] = useState<ConnectionState>("connecting");
   const [paused, setPaused] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
@@ -74,6 +74,7 @@ export function useLiveEvents(filters: LiveFilters, enabled = true): UseLiveEven
     let pollTimer: ReturnType<typeof setInterval> | null = null;
     let errorCount = 0;
     let closed = false;
+    setState("connecting");
 
     const startPolling = () => {
       if (pollTimer) return;

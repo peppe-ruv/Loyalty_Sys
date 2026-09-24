@@ -14,7 +14,21 @@ export interface LiveEvent {
   summary: string;
 }
 
-export type ConnectionState = "live" | "reduced" | "disconnected";
+/** `connecting` = primo collegamento in corso (nessun esito ancora): è lo stato *loading* del flusso (docs/07 §6). */
+export type ConnectionState = "connecting" | "live" | "reduced" | "disconnected";
+
+export type LiveFeedView = "loading" | "degraded" | "empty" | "rows";
+
+/**
+ * Cosa mostra il flusso di BO-24 (docs/07 §6): con righe già arrivate le si tiene (l'indicatore dice lo stato); senza
+ * righe, scheletro mentre ci si collega, riquadro ambra se insight non risponde, frase di attesa se collegati.
+ */
+export function liveFeedView(state: ConnectionState, eventCount: number): LiveFeedView {
+  if (eventCount > 0) return "rows";
+  if (state === "connecting") return "loading";
+  if (state === "disconnected") return "degraded";
+  return "empty";
+}
 
 export interface LiveFilters {
   topics?: string[];

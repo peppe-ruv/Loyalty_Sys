@@ -41,6 +41,21 @@ export function outcomeOf(value: string | null): InboundStatus | "" {
   return OUTCOMES.some((o) => o.key === value) ? (value as InboundStatus | "") : "";
 }
 
+/** Risposta di `GET /v1/inbound-events/counts`: righe per esito con gli stessi filtri dell'elenco (esito escluso). */
+export type OutcomeCounts = Partial<Record<InboundStatus, number>>;
+
+/**
+ * Conteggio mostrato su una scheda d'esito (docs/08 §BO-26 "schede per esito … con conteggi"): *Tutti* è la somma dei
+ * quattro esiti; `null` se i conteggi non sono (ancora) disponibili, così la scheda resta senza numero.
+ */
+export function outcomeCount(key: InboundStatus | "", counts: OutcomeCounts | null | undefined): number | null {
+  if (!counts) return null;
+  if (key === "") {
+    return OUTCOMES.reduce((sum, o) => (o.key === "" ? sum : sum + (counts[o.key] ?? 0)), 0);
+  }
+  return counts[key] ?? 0;
+}
+
 export type InboundActionBlock = "READ_ONLY_ROLE" | "NOT_RETRYABLE" | "NOT_UNMATCHED" | null;
 
 /** Riprova: capacità `inbound.handle` (ADMIN, CARE) e solo esiti REJECTED / UNMATCHED (gli altri → 409). */
