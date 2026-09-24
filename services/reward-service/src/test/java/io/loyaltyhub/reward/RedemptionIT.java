@@ -77,6 +77,9 @@ class RedemptionIT {
 
         JsonNode requested = awaitFact("io.loyaltyhub.fact.reward.redemption.requested", id);
         assertThat(requested.path("data").path("pointsCost").asLong()).isEqualTo(1500);
+        // Accettazione M4: qui il wallet non c'è ("fermo") → la richiesta resta PENDING finché non risponde.
+        Thread.sleep(1500);
+        assertThat(get("/v1/portal/redemptions/" + id).path("status").asString()).isEqualTo("PENDING");
         assertThat(requested.path("id").asString()).isEqualTo(accepted.path("correlationId").asString());
 
         String spentId = publishWalletFact(requested, "io.loyaltyhub.fact.wallet.points.spent",

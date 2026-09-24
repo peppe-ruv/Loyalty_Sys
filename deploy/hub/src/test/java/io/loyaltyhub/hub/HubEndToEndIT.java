@@ -159,18 +159,24 @@ class HubEndToEndIT {
         assertThat(walletPts("MBR-000004")).isEqualTo(before - 1500);
         assertThat(stockOf("RWD-SHOP-10")).isEqualTo(stock - 1);
 
+        // M4.6: la conferma rientra dal ponte interno come azione reward.redeemed (lhhop 1), nello stesso albero.
         JsonNode trace = awaitTrace(accepted.path("correlationId").asString(),
-                t -> t.toString().contains("reward.redemption.fulfilled"));
+                t -> t.toString().contains("reward.redemption.fulfilled") && t.toString().contains("\"reward.redeemed\""));
         String nodes = trace.path("nodes").toString();
         assertThat(nodes).contains("reward.redemption.requested", "wallet.points.spent", "reward.redemption.confirmed",
                 "coupon.issued", "reward.redemption.fulfilled");
         long roots = 0;
+        boolean bridged = false;
         for (JsonNode n : trace.path("nodes")) {
             if (n.path("parentEventId").isNull() || n.path("parentEventId").isMissingNode()) {
                 roots++;
             }
+            if (n.path("family").asString().equalsIgnoreCase("action") && n.path("shortType").asString().equals("reward.redeemed")) {
+                bridged = true;
+            }
         }
         assertThat(roots).as("un solo albero").isEqualTo(1);
+        assertThat(bridged).as("azione interna reward.redeemed dal ponte (M4.6)").isTrue();
     }
 
     @Test
@@ -189,11 +195,13 @@ class HubEndToEndIT {
     void cancellingSofiasSeededRequestRefundsHerPoints() {
         // RDM-000003: Sofia (MBR-000011), RWD-BORRACCIA CONFIRMED in attesa di spedizione, spesa seminata nel wallet.
         long before = walletPts("MBR-000011");
+        int stock = stockOf("RWD-BORRACCIA");
         JsonNode cancelled = client().post().uri("/v1/redemptions/RDM-000003/cancel")
                 .header("X-LH-Actor", "CARE:anna.care").contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("reason", "Articolo danneggiato in magazzino")).retrieve().body(JsonNode.class);
         assertThat(cancelled.path("status").asString()).isEqualTo("CANCELLED");
         assertThat(awaitPts("MBR-000011", before + 1500)).as("rimborso dal wallet").isEqualTo(before + 1500);
+        assertThat(stockOf("RWD-BORRACCIA")).as("stock ripristinato").isEqualTo(stock + 1);
 
         JsonNode lots = client().get().uri("/v1/wallets/MBR-000011/lots").retrieve().body(JsonNode.class);
         long sum = 0;

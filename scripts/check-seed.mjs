@@ -129,6 +129,14 @@ if (Array.isArray(redemptions) && Array.isArray(rewards)) {
     if (x.status === "PENDING") errors.push(`redemptions.json: ${x.id} è PENDING (verrebbe respinta dal timeout)`);
     if (x.coupon && r.fulfilment !== "AUTO_COUPON") errors.push(`redemptions.json: ${x.id} ha un coupon ma ${r.code} non è AUTO_COUPON`);
   }
+  // Le richieste attive dello storico hanno già preso stock: residuo ≤ totale − attive (un annullo lo restituisce).
+  for (const r of rewards) {
+    if (r.stockTotal == null) continue;
+    const taken = redemptions.filter((x) => x.rewardCode === r.code && (x.status === "CONFIRMED" || x.status === "FULFILLED")).length;
+    if ((r.stockRemaining ?? r.stockTotal) > r.stockTotal - taken) {
+      errors.push(`rewards.json: ${r.code} ha residuo ${r.stockRemaining ?? r.stockTotal} ma lo storico ne ha già ${taken} su ${r.stockTotal}`);
+    }
+  }
 }
 
 for (const w of warnings) console.warn(`⚠ ${w}`);
