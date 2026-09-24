@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { KeepAlive } from "@/components/shared/KeepAlive";
 import { MemberProvider } from "@/components/portal/MemberContext";
 import { PortalShell } from "@/components/portal/PortalShell";
+import { InboxBell } from "@/components/portal/InboxBell";
 import { PERSONA_COOKIE, parsePersona } from "@/lib/persona/cookie";
 import { DEFAULT_MEMBER_ID } from "@/lib/persona/personas";
 
@@ -13,8 +14,9 @@ export default async function PortalLayout({ children }: { children: React.React
   return (
     <MemberProvider memberId={memberId}>
       <div className="mx-auto min-h-dvh max-w-md bg-[var(--color-pt-bg)]">
-        <header className="flex items-center justify-between px-4 py-3">
+        <header className="flex items-center justify-between px-4 py-1.5">
           <span className="font-semibold text-[var(--color-pt-night)]">Club Aurora</span>
+          <InboxBell />
         </header>
         <main className="px-4">
           <PortalShell>{children}</PortalShell>

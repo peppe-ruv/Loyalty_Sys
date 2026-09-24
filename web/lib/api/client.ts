@@ -6,12 +6,19 @@ import type { ServiceCode } from "./services";
 // Client del proxy (docs/07 §3): il browser chiama sempre /api/lh/<service>/v1/...
 // Distingue l'errore "servizio addormentato" (503 SERVICE_ASLEEP) dagli errori applicativi (RFC 9457).
 
+/** Errore su un campo (chiave `errors[]` del problem RFC 9457, docs/06 §2). */
+export interface LhFieldError {
+  field: string;
+  message: string;
+}
+
 export class LhError extends Error {
   constructor(
     readonly status: number,
     readonly code: string,
     readonly detail: string,
     readonly asleep: boolean,
+    readonly errors: LhFieldError[] = [],
   ) {
     super(detail || code);
   }
@@ -51,9 +58,17 @@ export async function lhFetch<T>(
       body?.code ?? body?.type ?? `HTTP_${res.status}`,
       body?.detail ?? body?.title ?? text,
       asleep,
+      fieldErrors(body?.errors),
     );
   }
   return body as T;
+}
+
+function fieldErrors(raw: unknown): LhFieldError[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((e): e is { field: unknown; message: unknown } => typeof e === "object" && e !== null && "field" in e)
+    .map((e) => ({ field: String(e.field), message: String(e.message ?? "") }));
 }
 
 function safeJson(text: string): { [key: string]: unknown } & Record<string, string> {

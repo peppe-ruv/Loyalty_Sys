@@ -50,4 +50,18 @@ describe("describeCampaign", () => {
     });
     expect(s).toContain("oppure");
   });
+
+  it("nomina il template dell'effetto SEND_MESSAGE (M6.4)", () => {
+    const s = describeCampaign({
+      triggerActionTypes: ["member.birthday"],
+      audience: { all: true },
+      conditions: { op: "all", rules: [] },
+      effects: [
+        { type: "GRANT_POINTS", currency: "PTS", mode: "FIXED", value: 250 },
+        { type: "SEND_MESSAGE", templateCode: "MSG-BIRTHDAY" },
+      ],
+    });
+    expect(s).toContain("250 PTS");
+    expect(s).toContain("il messaggio MSG-BIRTHDAY");
+  });
 });

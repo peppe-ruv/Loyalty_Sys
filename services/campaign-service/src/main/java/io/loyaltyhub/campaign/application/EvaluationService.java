@@ -102,6 +102,8 @@ public class EvaluationService {
                 outbox.write(events.childOf(actionEvent, LhEventTypes.Effect.COUPON_ISSUE, couponData(action, a)));
             } else if (a.type().equals("AWARD_BADGE")) {
                 outbox.write(events.childOf(actionEvent, LhEventTypes.Effect.BADGE_AWARD, badgeData(action, a)));
+            } else if (a.type().equals("SEND_MESSAGE")) {
+                outbox.write(events.childOf(actionEvent, LhEventTypes.Effect.MESSAGE_SEND, messageData(action, a)));
             }
         }
         outbox.write(events.childOf(actionEvent, LhEventTypes.Fact.CAMPAIGN_EVALUATED, evaluatedData(action, ev)));
@@ -168,6 +170,24 @@ public class EvaluationService {
         d.put("actionId", action.actionId());
         d.put("actionType", action.type());
         d.put("badgeCode", a.params().path("badgeCode").asString());
+        return d;
+    }
+
+    /**
+     * {@code message.send} (EVT-EFF-05, F-MSG-02): il template da consegnare e gli eventuali {@code params} statici
+     * della campagna, che engagement unisce allo spazio {@code data.*} del template.
+     */
+    private ObjectNode messageData(EvalAction action, Evaluation.ActionEffect a) {
+        ObjectNode d = mapper.createObjectNode();
+        d.put("effectId", a.effectId());
+        d.put("campaignCode", a.campaignCode());
+        d.put("actionId", action.actionId());
+        d.put("actionType", action.type());
+        d.put("templateCode", a.params().path("templateCode").asString());
+        JsonNode params = a.params().get("params");
+        if (params != null && params.isObject()) {
+            d.set("params", params.deepCopy());
+        }
         return d;
     }
 

@@ -13,8 +13,11 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import io.loyaltyhub.common.event.JsonSchemaValidator;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
@@ -22,6 +25,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.RestClient;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * campaign-service M1.3 (docs/servizi/campaign-service.md §7): il motore end-to-end via Kafka. Col profilo
  * {@code demo} le 20 campagne e lo snapshot dei 12 membri sono caricati dai seed. Verifica: calcolo canonico
- * (feriale/weekend), limite per membro, effetto non supportato, duplicato, simulazione e portale.
+ * (feriale/weekend), limite per membro, effetto {@code message.send} (M6.4), duplicato, simulazione e portale.
  * Senza Docker: EmbeddedKafka + Zonky.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -48,6 +52,9 @@ class CampaignServiceIT {
 
     @Value("${local.server.port}")
     private int port;
+
+    @Autowired
+    private JsonSchemaValidator validator;
 
     // Martedì e sabato di settembre 2026 (Europe/Rome).
     private static final String TUESDAY = "2026-09-15T09:00:00Z";
@@ -115,10 +122,66 @@ class CampaignServiceIT {
     }
 
     @Test
-    void unsupportedEffectIsLoggedNotSupportedYet() {
-        publishAction("01BDAY01", "member.birthday", "MBR-000004", TUESDAY, Map.of());
+    void birthdayGrantsPointsAndSendsMessageEffect() throws Exception {
+        String id = "01BDAY01";
+        publishAction(id, "member.birthday", "MBR-000004", TUESDAY, Map.of());
+
+        try (KafkaConsumer<String, String> consumer = consumer("bday")) {
+            consumer.subscribe(List.of(EFFECTS));
+            ConsumerRecord<String, String> rec = poll(consumer, r -> {
+                JsonNode e = readJson(r.value());
+                return e.path("type").asString().equals("io.loyaltyhub.effect.message.send")
+                        && e.path("data").path("actionId").asString().equals(id);
+            });
+            assertThat(rec).as("effetto message.send da CMP-BIRTHDAY").isNotNull();
+            assertThat(rec.key()).isEqualTo("MBR-000004");
+            JsonNode event = readJson(rec.value());
+            assertThat(event.path("subject").asString()).isEqualTo("member:MBR-000004");
+            assertThat(event.path("source").asString()).isEqualTo("urn:loyaltyhub:service:campaign");
+            assertThat(event.path("dataschema").asString()).isEqualTo("urn:loyaltyhub:schema:effect.message.send:1");
+            assertThat(event.path("lhcausationid").asString()).as("figlio dell'azione").isEqualTo(id);
+            assertThat(event.path("lhcorrelationid").asString()).isEqualTo(id);
+            JsonNode data = event.path("data");
+            assertThat(data.path("templateCode").asString()).isEqualTo("MSG-BIRTHDAY");
+            assertThat(data.path("campaignCode").asString()).isEqualTo("CMP-BIRTHDAY");
+            assertThat(data.path("actionType").asString()).isEqualTo("member.birthday");
+            assertThat(data.path("effectId").asString()).hasSize(26);
+            assertThat(data.has("params")).as("nessun params nel seed").isFalse();
+
+            String envelope = new ClassPathResource("contracts/events/envelope.schema.json").getContentAsString(StandardCharsets.UTF_8);
+            String schema = new ClassPathResource("contracts/events/effect/message.send.schema.json").getContentAsString(StandardCharsets.UTF_8);
+            assertThat(validator.validate("it-envelope", envelope, event.toString())).isEmpty();
+            assertThat(validator.validate("it-message-send", schema, data.toString())).isEmpty();
+        }
+        try (KafkaConsumer<String, String> consumer = consumer("bday-pts")) {
+            consumer.subscribe(List.of(EFFECTS));
+            JsonNode pts = effect(consumer, id, "PTS");
+            assertThat(pts.path("amount").asLong()).isEqualTo(250);
+            assertThat(pts.path("campaignCode").asString()).isEqualTo("CMP-BIRTHDAY");
+        }
         List<JsonNode> rows = pollEvaluations("MBR-000004", 1);
-        assertThat(rows.get(0).path("resultsJson").asString()).contains("EFFECT_NOT_SUPPORTED_YET");
+        assertThat(rows.get(0).path("outcome").asString()).isEqualTo("MATCHED");
+        assertThat(rows.get(0).path("resultsJson").asString()).contains("SEND_MESSAGE").doesNotContain("EFFECT_NOT_SUPPORTED_YET");
+    }
+
+    @Test
+    void validateRequiresTemplateCodeForSendMessage() {
+        JsonNode res = client().post().uri("/v1/campaigns/validate").contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("triggerActionTypes", List.of("member.birthday"),
+                        "effects", List.of(Map.of("type", "SEND_MESSAGE"),
+                                Map.of("type", "SEND_MESSAGE", "templateCode", "msg-lower"),
+                                Map.of("type", "SEND_MESSAGE", "templateCode", "MSG-BIRTHDAY", "params", List.of(1)))))
+                .retrieve().body(JsonNode.class);
+        assertThat(res.path("valid").asBoolean()).isFalse();
+        assertThat(res.path("errors").toString()).contains("SEND_MESSAGE.templateCode obbligatorio",
+                "SEND_MESSAGE.templateCode non valido", "SEND_MESSAGE.params deve essere un oggetto");
+
+        JsonNode ok = client().post().uri("/v1/campaigns/validate").contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("triggerActionTypes", List.of("member.birthday"),
+                        "effects", List.of(Map.of("type", "SEND_MESSAGE", "templateCode", "MSG-BIRTHDAY",
+                                "params", Map.of("age", 39)))))
+                .retrieve().body(JsonNode.class);
+        assertThat(ok.path("valid").asBoolean()).isTrue();
     }
 
     @Test
