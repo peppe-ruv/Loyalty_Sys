@@ -11,7 +11,9 @@ import io.loyaltyhub.common.outbox.OutboxWriter;
 import io.loyaltyhub.ingestion.domain.InternalMapping;
 import io.loyaltyhub.ingestion.infra.InboundEventRepository;
 import io.loyaltyhub.ingestion.infra.InternalMappingRepository;
+import io.loyaltyhub.ingestion.infra.MemberErasureRepository;
 import io.loyaltyhub.ingestion.infra.MemberIndexRepository;
+import io.loyaltyhub.common.privacy.PersonalData;
 import org.springframework.stereotype.Component;
 
 import java.util.HashSet;
@@ -44,9 +46,12 @@ public class FactsHandler implements EventHandler {
     private final LhEventFactory events;
     private final OutboxWriter outbox;
     private final ObjectMapper mapper;
+    private final MemberErasureRepository erasure;
 
     public FactsHandler(InternalMappingRepository mappings, MemberIndexRepository memberIndex,
-                        InboundEventRepository inbound, LhEventFactory events, OutboxWriter outbox, ObjectMapper mapper) {
+                        InboundEventRepository inbound, LhEventFactory events, OutboxWriter outbox, ObjectMapper mapper,
+                        MemberErasureRepository erasure) {
+        this.erasure = erasure;
         this.mappings = mappings;
         this.memberIndex = memberIndex;
         this.inbound = inbound;
@@ -76,6 +81,12 @@ public class FactsHandler implements EventHandler {
         String memberId = memberIdOf(fact);
         JsonNode d = fact.data();
         if (memberId == null || d == null) {
+            return;
+        }
+        // Anonimizzazione (F-MBR-05, M7.5): prima che lo snapshot ripulito sovrascriva l'indice, così le righe in
+        // ingresso con subject email:/external: del membro si ritrovano e si ripuliscono.
+        if (PersonalData.isAnonymization(fact)) {
+            erasure.erase(memberId);
             return;
         }
         if (LhEventTypes.Fact.MEMBER_STATUS_CHANGED.equals(fact.type())) {

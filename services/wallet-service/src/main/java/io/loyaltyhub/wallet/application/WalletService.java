@@ -122,6 +122,11 @@ public class WalletService {
         if (direction == null || (!"CREDIT".equals(direction) && !"DEBIT".equals(direction))) {
             throw LhException.validation("INVALID_DIRECTION", "La direzione deve essere CREDIT o DEBIT.");
         }
+        // SPEC-GAP: Q-B8 — F-MBR-05/docs/08 BO-03: dopo l'anonimizzazione "le azioni sono disabilitate"; il wallet
+        // rifiuta anche le rettifiche (i movimenti esistenti restano). Gli altri stati non ACTIVE restano rettificabili.
+        if (memberTiers.find(memberId).map(t -> "ANONYMIZED".equals(t.memberStatus())).orElse(false)) {
+            throw LhException.conflict("MEMBER_ANONYMIZED", "Il membro " + memberId + " è anonimizzato: niente rettifiche.");
+        }
 
         wallets.ensureExists(memberId, currency);
         memberTiers.ensureBase(memberId);

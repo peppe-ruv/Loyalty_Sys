@@ -5,6 +5,7 @@ import io.loyaltyhub.campaign.infra.MemberSnapshotRepository;
 import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhEventTypes.Fact;
 import io.loyaltyhub.common.inbox.EventHandler;
+import io.loyaltyhub.common.privacy.PersonalData;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -72,6 +73,10 @@ public class MemberSnapshotHandler implements EventHandler {
             }
             default -> {
             }
+        }
+        // Anonimizzazione (F-MBR-05, M7.5): lo snapshot perde data di nascita e attributi, qualunque fatto arrivi prima.
+        if (PersonalData.isAnonymization(event)) {
+            snapshots.erasePersonal(memberId);
         }
     }
 

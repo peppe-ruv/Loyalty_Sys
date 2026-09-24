@@ -101,7 +101,26 @@ public class MemberRepository {
                 .params(status.name(), id).update();
     }
 
-    /** Elenco filtrato con proiezione (docs §3): {@code q, status, tier}. Ordinato per id. */
+    /**
+     * Anonimizzazione (F-MBR-05): sovrascrive anagrafica, recapiti, consensi e attributi con i valori già anonimizzati
+     * ({@link io.loyaltyhub.member.domain.Anonymization#apply}) e porta lo stato ad {@code ANONYMIZED}, con lock
+     * ottimistico. {@code true} se ha aggiornato la riga.
+     */
+    public boolean anonymize(Member a, long expectedVersion) {
+        int n = jdbc.sql("""
+                        UPDATE member SET
+                          external_id = ?, first_name = ?, last_name = ?, nickname = ?, email = ?, phone = ?,
+                          birth_date = ?, gender = ?, city = ?, status = ?, consents = cast(? AS jsonb),
+                          attributes = cast(? AS jsonb), avatar_seed = ?, version = version + 1
+                        WHERE id = ? AND version = ?
+                        """)
+                .params(a.externalId(), a.firstName(), a.lastName(), a.nickname(), a.email(), a.phone(),
+                        a.birthDate(), a.gender(), a.city(), a.status().name(), a.consentsJson(), a.attributesJson(),
+                        a.avatarSeed(), a.id(), expectedVersion)
+                .update();
+        return n == 1;
+    }
+
     /** Etichette aggiornate da un'azione (SPEC-GAP Q-80): incrementa la versione come ogni modifica anagrafica. */
     public void updateLabels(String id, List<String> labels) {
         jdbc.sql("UPDATE member SET labels = ?::text[], version = version + 1 WHERE id = ?")

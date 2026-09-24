@@ -1,6 +1,8 @@
 package io.loyaltyhub.member.api;
 
 import io.loyaltyhub.common.web.PageResponse;
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.member.application.MemberService;
 import io.loyaltyhub.member.application.SegmentService;
 import org.springframework.http.HttpStatus;
@@ -68,5 +70,15 @@ public class MembersController {
     @PostMapping("/{id}/status")
     public MemberView changeStatus(@PathVariable String id, @RequestBody StatusChangeRequest request) {
         return service.changeStatus(id, request);
+    }
+
+    /**
+     * Anonimizzazione irreversibile (F-MBR-05, BO-03): conferma con l'id digitato. Solo ADMIN (capacità
+     * {@code member.anonymize} di docs/08 §2).
+     */
+    @PostMapping("/{id}/anonymize")
+    @RequiresRole({Role.ADMIN})
+    public MemberView anonymize(@PathVariable String id, @RequestBody(required = false) AnonymizeRequest request) {
+        return service.anonymize(id, request == null ? null : request.confirm());
     }
 }

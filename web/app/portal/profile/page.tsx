@@ -8,6 +8,7 @@ import { MemberCard } from "@/components/shared/content/MemberCard";
 import { QueryState } from "@/components/bo/QueryState";
 import { formatPoints } from "@/lib/format/points";
 import { ProfileSection } from "@/components/portal/profile/ProfileForm";
+import { isAnonymized, memberDisplayName } from "@/lib/member/anonymized";
 
 // PT-08 Profilo e livello (docs/09 §PT-08): carta, "Il tuo livello" (scala, vantaggi, moltiplicatore,
 // punti status, regola di permanenza), "I tuoi dati" modificabili con completezza (M5.6), collegamenti a PT-09/11/13.
@@ -17,9 +18,7 @@ export default function PortalProfile() {
   const tiers = useLhQuery<Tier[]>("wallet", "/v1/portal/tiers");
   const member = useLhQuery<MemberView>("member", `/v1/members/${memberId}`);
 
-  const fullName = member.data?.firstName
-    ? `${member.data.firstName} ${member.data.lastName ?? ""}`.trim()
-    : memberId;
+  const fullName = member.data ? memberDisplayName(member.data, memberId) : memberId;
 
   return (
     <div className="space-y-4">
@@ -75,7 +74,15 @@ export default function PortalProfile() {
               </p>
             </section>
 
-            <ProfileSection memberId={memberId} />
+            {isAnonymized(member.data?.status) ? (
+              // F-MBR-05: niente dati personali da mostrare né da modificare (member-service risponderebbe 409).
+              <section className="rounded-xl bg-slate-100 p-3 text-sm text-slate-600">
+                <h2 className="mb-1 font-semibold">I tuoi dati</h2>
+                Profilo anonimizzato: i dati personali sono stati rimossi e non sono più modificabili.
+              </section>
+            ) : (
+              <ProfileSection memberId={memberId} />
+            )}
 
             <section>
               <Link
