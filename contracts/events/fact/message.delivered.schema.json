@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.message.delivered:1",
+  "title": "fact.message.delivered — data (EVT-FACT-60, F-MSG-01). Mai oggetto di regole di notifica né di webhook.",
+  "type": "object",
+  "required": [
+    "templateCode",
+    "channel",
+    "inboxMessageId"
+  ],
+  "properties": {
+    "templateCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{2,39}$"
+    },
+    "channel": {
+      "enum": [
+        "INAPP",
+        "EMAIL_FAKE"
+      ]
+    },
+    "inboxMessageId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "category": {
+      "enum": [
+        "POINTS",
+        "TIER",
+        "REWARD",
+        "GAME",
+        "PROGRAM"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

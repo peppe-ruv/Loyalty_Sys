@@ -1,0 +1,24 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZS1A2B3C4D5E6F7G8H9J0K",
+  "source": "urn:loyaltyhub:service:campaign",
+  "type": "io.loyaltyhub.effect.message.send",
+  "subject": "member:MBR-000002",
+  "time": "2026-06-02T07:00:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:effect.message.send:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZS0A1B2C3D4E5F6G7H8J9K",
+  "lhcausationid": "01J8ZS0A1B2C3D4E5F6G7H8J9K",
+  "lhhop": 1,
+  "data": {
+    "effectId": "4D7E1A9C0B2F3E5D6C8A7B9E1F",
+    "campaignCode": "CMP-BIRTHDAY",
+    "actionId": "01J8ZS0A1B2C3D4E5F6G7H8J9K",
+    "actionType": "member.birthday",
+    "templateCode": "MSG-BIRTHDAY",
+    "params": {
+      "age": 39
+    }
+  }
+}

@@ -1,1 +1,1 @@
-# engagement-service — porta 8087, schema `engagement` (docs/04 §3, docs/servizi/engagement-service.md). Vuoto in M0.1.
+# engagement-service — porta 8087, schema `engagement` (docs/04 §3, docs/servizi/engagement-service.md): template, regole di notifica e inbox in-app (M6.0); contenuti, pop-up, tema e webhook nelle fette successive.

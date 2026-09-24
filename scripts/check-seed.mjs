@@ -249,6 +249,94 @@ if (Array.isArray(redemptions) && Array.isArray(rewards)) {
   }
 }
 
+// Messaggi (docs/10 §7, docs/servizi/engagement-service.md §2, §5–§6): template con canale/categoria ammessi e
+// segnaposto su data/member/event con i soli formattatori number/date; regole su template esistenti, mai su
+// message.delivered, condizioni solo su data.*; inbox di membri esistenti e non anonimizzati, 3–8 messaggi per membro
+// attivo, ogni segnaposto data.* valorizzato, riferimenti a richieste/campagne esistenti e coerenti; non letti della
+// storia (Marco 3, Chiara 1 scadenza, Sofia 1 richiesta confermata, gli altri 0). Anche le campagne SEND_MESSAGE
+// puntano a template esistenti (§11.4).
+const templatesSeed = readSeed("message-templates.json");
+if (Array.isArray(templatesSeed)) {
+  const PLACEHOLDER = /\{\{\s*([^{}|]*?)\s*(?:\|\s*([^{}|]*?)\s*)?\}\}/g;
+  const placeholders = (tpl) => [...String(tpl ?? "").matchAll(PLACEHOLDER)].map((m) => ({ path: m[1], fmt: m[2] }));
+  const byCode = new Map();
+  for (const t of templatesSeed) {
+    if (byCode.has(t.code)) errors.push(`message-templates.json: codice duplicato ${t.code}`);
+    byCode.set(t.code, t);
+    if (!/^[A-Z][A-Z0-9-]{2,39}$/.test(t.code ?? "")) errors.push(`message-templates.json: codice non valido "${t.code}"`);
+    if (!["INAPP", "EMAIL_FAKE"].includes(t.channel)) errors.push(`message-templates.json: ${t.code} canale "${t.channel}"`);
+    if (!["POINTS", "TIER", "REWARD", "GAME", "PROGRAM"].includes(t.category)) errors.push(`message-templates.json: ${t.code} categoria "${t.category}"`);
+    if (!t.name || !t.titleTpl || !t.bodyTpl) errors.push(`message-templates.json: ${t.code} senza nome, titolo o testo`);
+    for (const p of [...placeholders(t.titleTpl), ...placeholders(t.bodyTpl)]) {
+      if (!/^(data|member|event)\.[A-Za-z0-9_.]+$/.test(p.path)) errors.push(`message-templates.json: ${t.code} segnaposto {{${p.path}}} fuori da data/member/event`);
+      if (p.fmt && !["number", "date"].includes(p.fmt)) errors.push(`message-templates.json: ${t.code} formattatore |${p.fmt}`);
+    }
+  }
+  for (const c of readSeed("campaigns.json") ?? []) {
+    for (const e of c.effects ?? []) {
+      if (e.type === "SEND_MESSAGE" && !byCode.has(e.templateCode)) errors.push(`campaigns.json: ${c.code} usa il template inesistente ${e.templateCode}`);
+    }
+  }
+  const ruleCodes = new Set();
+  for (const r of readSeed("notification-rules.json") ?? []) {
+    if (ruleCodes.has(r.code)) errors.push(`notification-rules.json: codice duplicato ${r.code}`);
+    ruleCodes.add(r.code);
+    if (!byCode.has(r.templateCode)) errors.push(`notification-rules.json: ${r.code} usa il template inesistente ${r.templateCode}`);
+    if (!/^[a-z]+(\.[a-z]+)+$/.test(r.factType ?? "")) errors.push(`notification-rules.json: ${r.code} tipo di fatto "${r.factType}"`);
+    if (r.factType === "message.delivered") errors.push(`notification-rules.json: ${r.code} su message.delivered (ciclo)`);
+    const leaves = [];
+    const walkCond = (n) => (n?.rules ? n.rules.forEach(walkCond) : n?.field && leaves.push(n.field));
+    walkCond(r.condition);
+    for (const f of leaves) if (!f.startsWith("data.")) errors.push(`notification-rules.json: ${r.code} condizione su "${f}" (solo data.*)`);
+  }
+  const inboxSeed = readSeed("inbox.json");
+  if (Array.isArray(inboxSeed)) {
+    const members = new Map((readSeed("members.json") ?? []).map((m) => [m.id, m]));
+    const redemptionById = new Map((readSeed("redemptions.json") ?? []).map((x) => [x.id, x]));
+    const campaignCodes = new Set((readSeed("campaigns.json") ?? []).map((c) => c.code));
+    const ids = new Set();
+    const perMember = new Map();
+    for (const x of inboxSeed) {
+      if (ids.has(x.id)) errors.push(`inbox.json: id duplicato ${x.id}`);
+      ids.add(x.id);
+      const m = members.get(x.memberId);
+      if (!m) errors.push(`inbox.json: ${x.id} usa il membro inesistente ${x.memberId}`);
+      else if (m.status === "ANONYMIZED") errors.push(`inbox.json: ${x.id} per un membro anonimizzato`);
+      const t = byCode.get(x.templateCode);
+      if (!t) {
+        errors.push(`inbox.json: ${x.id} usa il template inesistente ${x.templateCode}`);
+        continue;
+      }
+      if (!x.at || typeof x.read !== "boolean") errors.push(`inbox.json: ${x.id} senza data o stato di lettura`);
+      for (const p of [...placeholders(t.titleTpl), ...placeholders(t.bodyTpl)]) {
+        if (p.path.startsWith("data.") && x.data?.[p.path.slice(5)] === undefined) errors.push(`inbox.json: ${x.id} non valorizza {{${p.path}}}`);
+      }
+      const rdm = x.data?.redemptionId && redemptionById.get(x.data.redemptionId);
+      if (x.data?.redemptionId && !rdm) errors.push(`inbox.json: ${x.id} cita la richiesta inesistente ${x.data.redemptionId}`);
+      if (rdm && rdm.memberId !== x.memberId) errors.push(`inbox.json: ${x.id} cita ${rdm.id} di un altro membro`);
+      if (rdm && x.data.rewardCode && rdm.rewardCode !== x.data.rewardCode) errors.push(`inbox.json: ${x.id} premio diverso da ${rdm.id}`);
+      if (x.data?.campaignCode && !campaignCodes.has(x.data.campaignCode)) errors.push(`inbox.json: ${x.id} cita la campagna inesistente ${x.data.campaignCode}`);
+      const agg = perMember.get(x.memberId) ?? { total: 0, unread: [] };
+      agg.total++;
+      if (!x.read) agg.unread.push(x.templateCode);
+      perMember.set(x.memberId, agg);
+    }
+    for (const m of members.values()) {
+      if (m.status !== "ACTIVE") continue;
+      const n = perMember.get(m.id)?.total ?? 0;
+      if (n < 3 || n > 8) errors.push(`inbox.json: ${m.id} ha ${n} messaggi (attesi 3–8)`);
+    }
+    // SPEC-GAP: Q-70 — la "richiesta confermata" di Sofia usa MSG-REWARD-CONFIRMED (fuori dagli 11 template + MSG-BIRTHDAY).
+    const expectedUnread = { "MBR-000002": null, "MBR-000007": ["MSG-POINTS-EXPIRING"], "MBR-000011": ["MSG-REWARD-CONFIRMED"] };
+    for (const [id, agg] of perMember) {
+      const want = id in expectedUnread ? expectedUnread[id] : [];
+      if (want === null ? agg.unread.length !== 3 : JSON.stringify(agg.unread) !== JSON.stringify(want)) {
+        errors.push(`inbox.json: ${id} ha non letti ${JSON.stringify(agg.unread)} (docs/10 §7)`);
+      }
+    }
+  }
+}
+
 for (const w of warnings) console.warn(`⚠ ${w}`);
 if (errors.length > 0) {
   for (const e of errors) console.error(`✗ ${e}`);

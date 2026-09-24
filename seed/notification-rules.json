@@ -1,0 +1,17 @@
+[
+  { "code": "NR-POINTS-EARNED", "factType": "wallet.points.earned", "templateCode": "MSG-POINTS-EARNED", "enabled": true,
+    "condition": { "field": "data.currency", "cmp": "eq", "value": "PTS" } },
+  { "code": "NR-POINTS-EXPIRING", "factType": "wallet.points.expiring", "templateCode": "MSG-POINTS-EXPIRING", "enabled": true },
+  { "code": "NR-TIER-UP", "factType": "tier.upgraded", "templateCode": "MSG-TIER-UP", "enabled": true },
+  { "code": "NR-TIER-DOWN", "factType": "tier.downgraded", "templateCode": "MSG-TIER-DOWN", "enabled": true },
+  { "code": "NR-REWARD-CONFIRMED", "factType": "reward.redemption.confirmed", "templateCode": "MSG-REWARD-CONFIRMED", "enabled": true },
+  { "code": "NR-REWARD-READY", "factType": "reward.redemption.fulfilled", "templateCode": "MSG-REWARD-READY", "enabled": true },
+  { "code": "NR-REWARD-REJECTED", "factType": "reward.redemption.rejected", "templateCode": "MSG-REWARD-REJECTED", "enabled": true },
+  { "code": "NR-COUPON-GIFT", "factType": "coupon.issued", "templateCode": "MSG-COUPON-GIFT", "enabled": true,
+    "condition": { "field": "data.origin", "cmp": "eq", "value": "CAMPAIGN" } },
+  { "code": "NR-CONTEST-WON", "factType": "contest.won", "templateCode": "MSG-CONTEST-WON", "enabled": true },
+  { "code": "NR-BADGE", "factType": "badge.awarded", "templateCode": "MSG-BADGE", "enabled": true },
+  { "code": "NR-REFERRAL-DONE", "factType": "referral.completed", "templateCode": "MSG-REFERRAL-DONE", "enabled": true,
+    "condition": { "field": "data.role", "cmp": "eq", "value": "REFERRER" } },
+  { "code": "NR-WELCOME", "factType": "member.registered", "templateCode": "MSG-WELCOME", "enabled": true }
+]

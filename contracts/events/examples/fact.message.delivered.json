@@ -1,0 +1,20 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZK3Y6D2M9T4B6N8R0XWYCH",
+  "source": "urn:loyaltyhub:service:engagement",
+  "type": "io.loyaltyhub.fact.message.delivered",
+  "subject": "member:MBR-000003",
+  "time": "2026-09-18T10:15:01Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.message.delivered:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZK3V7Q2M9T4B6N8R0XWYCD",
+  "lhcausationid": "01J8ZK3X5C2M9T4B6N8R0XWYCE",
+  "lhhop": 0,
+  "data": {
+    "templateCode": "MSG-POINTS-EARNED",
+    "channel": "INAPP",
+    "inboxMessageId": "01J8ZK3Y6C2M9T4B6N8R0XWYCG",
+    "category": "POINTS"
+  }
+}
