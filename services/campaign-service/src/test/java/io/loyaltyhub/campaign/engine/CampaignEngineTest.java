@@ -111,6 +111,32 @@ class CampaignEngineTest {
     }
 
     @Test
+    void instantWinPrizesAreDeliveredBySystemCampaigns() {
+        List<Campaign> system = List.of(iwPoints(), iwCoupon());
+        Evaluation points = engine.evaluate(action("instantwin.won", TUESDAY, JSON.createObjectNode()
+                .put("contestCode", "IW-AUTUNNO").put("prizeCode", "PTS-50").put("prizeType", "POINTS").put("points", 50)),
+                silver(), system, zero);
+        assertThat(points.effects()).hasSize(1);
+        assertThat(points.effects().get(0).amount()).as("punti del premio, senza moltiplicatore di livello").isEqualTo(50);
+        assertThat(points.effects().get(0).tierMultiplierApplies()).isFalse();
+        assertThat(points.actionEffects()).isEmpty();
+
+        Evaluation coupon = engine.evaluate(action("instantwin.won", TUESDAY, JSON.createObjectNode()
+                .put("contestCode", "IW-AUTUNNO").put("prizeCode", "COFFEE").put("prizeType", "COUPON").put("rewardCode", "RWD-COFFEE-5")),
+                silver(), system, zero);
+        assertThat(coupon.effects()).isEmpty();
+        assertThat(coupon.actionEffects()).singleElement().satisfies(e -> {
+            assertThat(e.type()).isEqualTo("ISSUE_COUPON");
+            assertThat(e.campaignCode()).isEqualTo("CMP-IW-PRIZE-COUPON");
+            assertThat(e.params().path("rewardCode").asString()).isEqualTo("RWD-COFFEE-5");
+        });
+
+        Evaluation noReward = engine.evaluate(action("instantwin.won", TUESDAY, JSON.createObjectNode()
+                .put("prizeType", "COUPON")), silver(), List.of(iwCoupon()), zero);
+        assertThat(noReward.actionEffects()).as("premio non risolvibile → nessun effetto").isEmpty();
+    }
+
+    @Test
     void grantPlaysBecomesAnActionEffectNextToThePoints() {
         Evaluation ev = engine.evaluate(action("survey.completed", TUESDAY,
                 JSON.createObjectNode().put("surveyId", "SRV-1")), silver(), List.of(survey()), zero);
@@ -713,6 +739,20 @@ class CampaignEngineTest {
                 "{\"op\":\"all\",\"rules\":[]}",
                 "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FIXED\",\"value\":80,\"tierMultiplierApplies\":true},"
                         + "{\"type\":\"GRANT_PLAYS\",\"contestCode\":\"IW-AUTUNNO\",\"count\":1}]",
+                "{}");
+    }
+
+    private Campaign iwPoints() {
+        return campaign("CMP-IW-PRIZE-POINTS", "Vincita in punti", 100, List.of("instantwin.won"),
+                "{\"op\":\"all\",\"rules\":[{\"field\":\"data.prizeType\",\"cmp\":\"eq\",\"value\":\"POINTS\"}]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FROM_FIELD\",\"amountField\":\"data.points\",\"tierMultiplierApplies\":false}]",
+                "{}");
+    }
+
+    private Campaign iwCoupon() {
+        return campaign("CMP-IW-PRIZE-COUPON", "Vincita in coupon", 100, List.of("instantwin.won"),
+                "{\"op\":\"all\",\"rules\":[{\"field\":\"data.prizeType\",\"cmp\":\"eq\",\"value\":\"COUPON\"}]}",
+                "[{\"type\":\"ISSUE_COUPON\",\"rewardCodeField\":\"data.rewardCode\"}]",
                 "{}");
     }
 

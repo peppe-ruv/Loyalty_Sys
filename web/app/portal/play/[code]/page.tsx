@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLhMutation, useLhQuery, type LhError } from "@/lib/api/client";
-import type { MemberPlay, PlayResult, PortalContest } from "@/lib/api/types";
+import type { MemberPlay, PlayResult, PortalContest, PortalCoupon } from "@/lib/api/types";
 import { useActiveMember } from "@/components/portal/MemberContext";
 import { usePending } from "@/components/portal/PendingContext";
 import { QueryState } from "@/components/bo/QueryState";
@@ -85,14 +85,15 @@ function Game({ contest, memberId }: { contest: PortalContest; memberId: string 
       {
         onSuccess: (r) => {
           setResult(r);
+          // La ruota si posiziona comunque sull'esito; senza animazione il salto è istantaneo (niente transizione).
+          if (contest.mechanic === "WHEEL") {
+            setRotation((cur) => targetRotation(segments, r.prize?.code ?? null, cur, r.playId));
+          }
           if (direct || reduced) {
             finish(r);
             return;
           }
           setPhase("revealing");
-          if (contest.mechanic === "WHEEL") {
-            setRotation((cur) => targetRotation(segments, r.prize?.code ?? null, cur, r.playId));
-          }
         },
         onError: (e) => {
           setError(e);
@@ -263,13 +264,39 @@ function Outcome({ result, compact = false }: { result: PlayResult; compact?: bo
       {!compact ? (
         <>
           <p className="mt-1 text-sm text-white/90">{winFollowUp(p?.type)}</p>
-          {p?.type === "COUPON" ? (
-            <Link href="/portal/my-rewards" className="mt-2 inline-block text-sm font-semibold underline">
-              I miei coupon →
-            </Link>
-          ) : null}
+          {p?.type === "COUPON" && p.rewardCode ? <CouponArrival rewardCode={p.rewardCode} /> : null}
         </>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Il coupon vinto arriva in modo asincrono (ponte → CMP-IW-PRIZE-COUPON → reward): si interroga PT-13 finché compare
+ * un codice nuovo di quel premio, poi si mostra con il collegamento ai coupon.
+ */
+function CouponArrival({ rewardCode }: { rewardCode: string }) {
+  const memberId = useActiveMember();
+  const [since] = useState(() => Date.now() - 5_000);
+  const [stopAt] = useState(() => Date.now() + 30_000);
+  const coupons = useLhQuery<PortalCoupon[]>("reward", "/v1/portal/coupons", { memberId }, { refetchInterval: 2_000 });
+  const arrived = (coupons.data ?? []).find(
+    (c) => c.rewardCode === rewardCode && c.issuedAt != null && new Date(c.issuedAt).getTime() >= since,
+  );
+  const waiting = !arrived && Date.now() < stopAt;
+  return (
+    <div className="mt-3 rounded-xl bg-white/15 px-3 py-2 text-sm">
+      {arrived ? (
+        <>
+          <p className="text-white/80">Il tuo codice</p>
+          <p className="font-mono text-lg font-semibold tracking-wider">{arrived.code}</p>
+        </>
+      ) : (
+        <p>{waiting ? "Sto preparando il tuo codice…" : "Il codice arriva tra poco nei tuoi coupon."}</p>
+      )}
+      <Link href="/portal/my-rewards" className="mt-1 inline-block font-semibold underline">
+        I miei coupon →
+      </Link>
     </div>
   );
 }

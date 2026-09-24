@@ -98,6 +98,8 @@ public class EvaluationService {
         for (Evaluation.ActionEffect a : ev.actionEffects()) {
             if (a.type().equals("GRANT_PLAYS")) {
                 outbox.write(events.childOf(actionEvent, LhEventTypes.Effect.PLAYS_GRANT, playsData(action, a)));
+            } else if (a.type().equals("ISSUE_COUPON")) {
+                outbox.write(events.childOf(actionEvent, LhEventTypes.Effect.COUPON_ISSUE, couponData(action, a)));
             }
         }
         outbox.write(events.childOf(actionEvent, LhEventTypes.Fact.CAMPAIGN_EVALUATED, evaluatedData(action, ev)));
@@ -153,6 +155,17 @@ public class EvaluationService {
         d.put("actionType", action.type());
         d.put("contestCode", a.params().path("contestCode").asString());
         d.put("count", Math.max(1, a.params().path("count").asInt(1)));
+        return d;
+    }
+
+    /** {@code coupon.issue} (EVT-EFF-03): il premio coupon risolto dal motore. */
+    private ObjectNode couponData(EvalAction action, Evaluation.ActionEffect a) {
+        ObjectNode d = mapper.createObjectNode();
+        d.put("effectId", a.effectId());
+        d.put("campaignCode", a.campaignCode());
+        d.put("actionId", action.actionId());
+        d.put("actionType", action.type());
+        d.put("rewardCode", a.params().path("rewardCode").asString());
         return d;
     }
 

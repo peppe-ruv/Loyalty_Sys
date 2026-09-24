@@ -10,7 +10,9 @@ import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.kafka.test.context.EmbeddedKafka;
@@ -42,6 +44,9 @@ class HubEndToEndIT {
 
     @Value("${local.server.port}")
     private int port;
+
+    @Autowired
+    private JdbcClient jdbc;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -214,6 +219,69 @@ class HubEndToEndIT {
     }
 
     // ---------- helper ----------
+
+    @Test
+    void instantWinPrizesAreDeliveredThroughTheBridge() {
+        // M5.3 (docs/03 §6, docs/servizi/gamification-service.md §7): giocata → contest.won → ponte → action.instantwin.won
+        // → campaign.evaluated → points.grant → wallet.points.earned, un solo tracciato. Istanti preparati dal test
+        // (M5.7 aggiunge "pianta un istante"): tutti nel futuro tranne uno, già passato, del premio voluto.
+        long before = walletPts("MBR-000009");
+        onlyOpenInstant("PTS-50");
+        JsonNode win = play("MBR-000009");
+        assertThat(win.path("outcome").asString()).isEqualTo("WIN");
+        assertThat(win.path("prize").path("code").asString()).isEqualTo("PTS-50");
+        assertThat(awaitPts("MBR-000009", before + 50)).as("50 punti vinti, senza moltiplicatore di livello").isEqualTo(before + 50);
+
+        JsonNode trace = awaitTrace(win.path("correlationId").asString(), t -> t.toString().contains("wallet.points.earned"));
+        String nodes = trace.path("nodes").toString();
+        assertThat(nodes).contains("contest.played", "contest.won", "instantwin.won", "campaign.evaluated", "points.grant",
+                "wallet.points.earned");
+        long roots = 0;
+        for (JsonNode n : trace.path("nodes")) {
+            if (n.path("parentEventId").isNull() || n.path("parentEventId").isMissingNode()) {
+                roots++;
+            }
+        }
+        assertThat(roots).as("un solo albero").isEqualTo(1);
+
+        // Premio coupon: CMP-IW-PRIZE-COUPON → effetto coupon.issue → reward emette un codice del pool del premio.
+        onlyOpenInstant("COFFEE");
+        JsonNode coupon = play("MBR-000006");
+        assertThat(coupon.path("prize").path("rewardCode").asString()).isEqualTo("RWD-COFFEE-5");
+        long deadline = System.currentTimeMillis() + 30_000;
+        JsonNode issued = null;
+        while (issued == null && System.currentTimeMillis() < deadline) {
+            for (JsonNode c : client().get().uri("/v1/portal/coupons?memberId=MBR-000006").retrieve().body(JsonNode.class)) {
+                if ("RWD-COFFEE-5".equals(c.path("rewardCode").asString()) && "CAMPAIGN".equals(c.path("origin").asString())) {
+                    issued = c;
+                }
+            }
+            if (issued == null) {
+                sleep();
+            }
+        }
+        assertThat(issued).as("coupon della vincita emesso a Stefano").isNotNull();
+        assertThat(issued.path("code").asString()).startsWith("CAF-");
+        assertThat(issued.path("status").asString()).isEqualTo("ISSUED");
+    }
+
+    private void onlyOpenInstant(String prizeCode) {
+        String contestId = jdbc.sql("SELECT id FROM contest WHERE code = 'IW-AUTUNNO'").query(String.class).single();
+        jdbc.sql("UPDATE winning_instant SET instant_at = now() + interval '30 days' WHERE contest_id = ? AND status = 'OPEN'")
+                .param(contestId).update();
+        int moved = jdbc.sql("""
+                        UPDATE winning_instant SET instant_at = now() - interval '1 second'
+                        WHERE id = (SELECT w.id FROM winning_instant w JOIN prize p ON p.id = w.prize_id
+                                    WHERE w.contest_id = ? AND w.status = 'OPEN' AND p.code = ? ORDER BY w.id LIMIT 1)
+                        """)
+                .params(contestId, prizeCode).update();
+        assertThat(moved).isEqualTo(1);
+    }
+
+    private JsonNode play(String memberId) {
+        return client().post().uri("/v1/portal/contests/IW-AUTUNNO/play").contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("memberId", memberId)).retrieve().body(JsonNode.class);
+    }
 
     private JsonNode awaitRedemption(String id, String status, long timeoutMs) {
         long deadline = System.currentTimeMillis() + timeoutMs;

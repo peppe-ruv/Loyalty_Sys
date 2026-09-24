@@ -1,0 +1,23 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZP5A6B7C8D9E0F1G2H3J4K",
+  "source": "urn:loyaltyhub:source:internal",
+  "type": "io.loyaltyhub.action.instantwin.won",
+  "subject": "member:MBR-000011",
+  "time": "2026-09-15T09:30:02Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:action.instantwin.won:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZP3A4B5C6D7E8F9G0H1J2K",
+  "lhcausationid": "01J8ZP4A5B6C7D8E9F0G1H2J3K",
+  "lhhop": 2,
+  "lhactor": "MEMBER:MBR-000011",
+  "data": {
+    "contestCode": "IW-AUTUNNO",
+    "playId": "01J8ZP3A4B5C6D7E8F9G0H1J2K",
+    "prizeCode": "PTS-50",
+    "prizeName": "50 punti",
+    "prizeType": "POINTS",
+    "points": 50
+  }
+}

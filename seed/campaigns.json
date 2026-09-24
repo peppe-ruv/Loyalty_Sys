@@ -143,7 +143,7 @@
     "triggerActionTypes": ["instantwin.won"],
     "audience": { "all": true, "tiers": [], "segments": [] },
     "conditions": { "op": "all", "rules": [ { "field": "data.prizeType", "cmp": "eq", "value": "POINTS" } ] },
-    "effects": [ { "type": "GRANT_POINTS", "currency": "PTS", "mode": "FROM_FIELD", "amountField": "data.points", "tierMultiplierApplies": false } ],
+    "effects": [ { "type": "GRANT_POINTS", "currency": "PTS", "mode": "FROM_FIELD", "amountField": "data.points", "tierMultiplierApplies": false, "description": "Vincita a un concorso" } ],
     "limits": {},
     "schedule": { "startAt": "2026-01-01T00:00:00Z", "endAt": null }
   },

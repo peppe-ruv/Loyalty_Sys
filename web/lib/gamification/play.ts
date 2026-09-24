@@ -87,7 +87,7 @@ export const PLAY_ERRORS: Record<string, string> = {
 /** Cosa succede dopo una vincita, in parole (docs/09 §PT-06). */
 export function winFollowUp(type: string | undefined): string {
   if (type === "POINTS") return "I punti stanno arrivando…";
-  if (type === "COUPON") return "Il buono arriva tra i tuoi coupon.";
+  if (type === "COUPON") return "Lo ritrovi anche tra i tuoi coupon.";
   if (type === "PHYSICAL") return "Ti contatteremo per la consegna.";
   return "";
 }

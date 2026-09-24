@@ -18,7 +18,7 @@ import java.util.Map;
  * Motore regole deterministico (docs/03 §3.5) — classe pura, testabile senza Spring. Valuta un'azione
  * contro le campagne {@code LIVE}, raccoglie i {@code GRANT_POINTS}, applica i {@code MULTIPLIER} e produce
  * gli effetti {@code points.grant} con {@code effectId} idempotente. Sono supportati
- * {@code GRANT_POINTS} ({@code FIXED}/{@code PER_AMOUNT}/{@code LOOKUP}/{@code FROM_FIELD}) e {@code MULTIPLIER}; le campagne con altri effetti
+ * {@code GRANT_POINTS} ({@code FIXED}/{@code PER_AMOUNT}/{@code LOOKUP}/{@code FROM_FIELD}), {@code MULTIPLIER}, {@code GRANT_PLAYS} e {@code ISSUE_COUPON}; le campagne con altri effetti
  * restano caricate ma scartate con {@code EFFECT_NOT_SUPPORTED_YET}.
  */
 public final class CampaignEngine {
@@ -243,24 +243,44 @@ public final class CampaignEngine {
                     && e.path("count").asInt(1) > 0) {
                 continue;
             }
+            if (type.equals("ISSUE_COUPON") && (!e.path("rewardCode").asString("").isBlank()
+                    || !e.path("rewardCodeField").asString("").isBlank())) {
+                continue;
+            }
             if (type.equals("GRANT_POINTS")) {
                 String mode = e.path("mode").asString("FIXED");
                 if (mode.equals("FIXED") || mode.equals("PER_AMOUNT") || mode.equals("FROM_FIELD") || mode.equals("LOOKUP")) {
                     continue;
                 }
             }
-            return false; // ISSUE_COUPON / AWARD_BADGE / SEND_MESSAGE
+            return false; // AWARD_BADGE / SEND_MESSAGE
         }
         return true;
     }
 
-    /** Effetti non monetari (M5.2: {@code GRANT_PLAYS} → {@code plays.grant}); stesso {@code effectId} idempotente. */
+    /**
+     * Effetti non monetari, stesso {@code effectId} idempotente degli accrediti: {@code GRANT_PLAYS} → {@code plays.grant}
+     * (M5.2), {@code ISSUE_COUPON} → {@code coupon.issue} (M5.3; {@code rewardCode} fisso o letto da
+     * {@code rewardCodeField}, docs/03 §3.3). Un premio non risolvibile dall'azione non produce effetto.
+     */
     private void collectActionEffects(Campaign c, EvalAction action, List<Evaluation.ActionEffect> out) {
         JsonNode effects = c.effects();
         for (int i = 0; i < effects.size(); i++) {
             JsonNode e = effects.get(i);
-            if (e.path("type").asString("").equals("GRANT_PLAYS")) {
+            String type = e.path("type").asString("");
+            if (type.equals("GRANT_PLAYS")) {
                 out.add(new Evaluation.ActionEffect(effectId(action.actionId(), c.code(), i), c.code(), "GRANT_PLAYS", e));
+            } else if (type.equals("ISSUE_COUPON")) {
+                String rewardCode = e.path("rewardCode").asString("");
+                if (rewardCode.isBlank()) {
+                    JsonNode v = navigate(action.data(), e.path("rewardCodeField").asString(""));
+                    rewardCode = v == null || v.isNull() ? "" : v.asString("");
+                }
+                if (!rewardCode.isBlank()) {
+                    tools.jackson.databind.node.ObjectNode params = tools.jackson.databind.node.JsonNodeFactory.instance.objectNode();
+                    params.put("rewardCode", rewardCode);
+                    out.add(new Evaluation.ActionEffect(effectId(action.actionId(), c.code(), i), c.code(), "ISSUE_COUPON", params));
+                }
             }
         }
     }
