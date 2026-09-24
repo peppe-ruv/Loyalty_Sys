@@ -584,6 +584,198 @@ if (Array.isArray(templatesSeed)) {
   }
 }
 
+
+// Scenari guidati (docs/10 §8): i passi citano membri, tipi, fonti, segmenti esistenti e `expect` ammessi.
+{
+  const scenarios = readSeed("scenarios.json");
+  if (Array.isArray(scenarios)) {
+    const members = new Set((readSeed("members.json") ?? []).map((m) => m.id));
+    const actionTypes = new Set((readSeed("event-types.json") ?? []).map((t) => t.code));
+    const sources = new Set((readSeed("sources.json") ?? []).map((s) => s.code));
+    const EXPECTED_STATUSES = new Set(["PROCESSED", "UNMATCHED", "REJECTED", "DUPLICATE", "FAILED", "IGNORED"]);
+
+    const codes = new Set();
+    for (const s of scenarios) {
+      const where = `scenarios.json: ${s.code}`;
+      if (codes.has(s.code)) errors.push(`${where} codice duplicato`);
+      codes.add(s.code);
+
+      for (let i = 0; i < (s.steps ?? []).length; i++) {
+        const step = s.steps[i];
+        const stepWhere = `${where} passo ${i}`;
+        if (step.memberId && !members.has(step.memberId) && step.expect !== "UNMATCHED") {
+          errors.push(`${stepWhere} cita membro inesistente ${step.memberId}`);
+        }
+        if (step.type && !actionTypes.has(step.type)) {
+          errors.push(`${stepWhere} cita tipo azione inesistente ${step.type}`);
+        }
+        if (step.source && !sources.has(step.source)) {
+          errors.push(`${stepWhere} cita fonte inesistente ${step.source}`);
+        }
+        if (step.expect && !EXPECTED_STATUSES.has(step.expect)) {
+          errors.push(`${stepWhere} ha expect non valido ${step.expect}`);
+        }
+      }
+    }
+  }
+}
+
+// Extra checks for member references and other missing cross-references
+// Note: relative date tokens (@today-1d, @lastWeekday...) are all parseable by the same grammar the services use.
+// This is already handled by the DATE_EXPR regex and the walk() function that checks all strings starting with "@".
+{
+  const memberIds = new Set((readSeed("members.json") ?? []).map(m => m.id));
+
+  // wallets.json
+  for (const w of readSeed("wallets.json") ?? []) {
+    if (!memberIds.has(w.memberId)) errors.push(`wallets.json: cita membro inesistente ${w.memberId}`);
+  }
+
+  // redemptions.json
+  for (const r of readSeed("redemptions.json") ?? []) {
+    if (!memberIds.has(r.memberId)) errors.push(`redemptions.json: ${r.id} cita membro inesistente ${r.memberId}`);
+  }
+
+  // referral referredBy
+  for (const m of readSeed("members.json") ?? []) {
+    if (m.referredBy && !memberIds.has(m.referredBy)) {
+      errors.push(`members.json: ${m.id} cita referredBy inesistente ${m.referredBy}`);
+    }
+  }
+
+  // reward eligibleTiers check
+  const tiers = new Set((readSeed("tiers.json") ?? []).map(t => t.code));
+  for (const r of readSeed("rewards.json") ?? []) {
+    for (const t of r.eligibleTiers ?? []) {
+      if (!tiers.has(t)) errors.push(`rewards.json: ${r.code} cita tier inesistente ${t}`);
+    }
+  }
+
+  // rewardCode, couponPool, band, category everywhere
+  const rewardCodes = new Set((readSeed("rewards.json") ?? []).map(r => r.code));
+
+  // campaign triggers / effects
+  const actionTypes = new Set((readSeed("event-types.json") ?? []).map(t => t.code));
+  const templates = new Set((readSeed("message-templates.json") ?? []).map(t => t.code));
+  const contests = new Set((readSeed("contests.json") ?? []).map(c => c.code));
+  const badges = new Set((readSeed("badges.json") ?? []).map(b => b.code));
+  const segments = new Set((readSeed("segments.json") ?? []).map(s => s.code));
+  const sources = readSeed("sources.json") ?? [];
+
+  for (const c of readSeed("campaigns.json") ?? []) {
+    for (const t of c.triggers ?? []) {
+      if (t.type === "EVENT") {
+        if (!actionTypes.has(t.event)) errors.push(`campaigns.json: ${c.code} trigger cita tipo azione inesistente ${t.event}`);
+        // Check if event is allowed by some enabled source
+        let allowed = false;
+        for (const s of sources) {
+          if (s.enabled !== false && (s.allowedTypes ?? []).includes(t.event)) allowed = true;
+        }
+        if (!allowed && sources.length > 0) {
+           errors.push(`campaigns.json: ${c.code} trigger ${t.event} non permesso da alcuna fonte abilitata`);
+        }
+      }
+    }
+    for (const e of c.effects ?? []) {
+      if (e.type === "SEND_MESSAGE" && e.templateCode && !templates.has(e.templateCode)) {
+        errors.push(`campaigns.json: ${c.code} effect cita template inesistente ${e.templateCode}`);
+      }
+      if (e.type === "GRANT_PLAYS" && e.contestCode && !contests.has(e.contestCode)) {
+        errors.push(`campaigns.json: ${c.code} effect cita contest inesistente ${e.contestCode}`);
+      }
+      if (e.type === "GRANT_BADGE" && e.badgeCode && !badges.has(e.badgeCode)) {
+        errors.push(`campaigns.json: ${c.code} effect cita badge inesistente ${e.badgeCode}`);
+      }
+      if (e.type === "ASSIGN_SEGMENT" && e.segmentCode && !segments.has(e.segmentCode)) {
+        errors.push(`campaigns.json: ${c.code} effect cita segmento inesistente ${e.segmentCode}`);
+      }
+      if (e.type === "ISSUE_COUPON" && e.rewardCode && !rewardCodes.has(e.rewardCode)) {
+        errors.push(`campaigns.json: ${c.code} cita rewardCode inesistente ${e.rewardCode}`);
+      }
+    }
+  }
+
+  // Tiers referenced by members/wallets
+  for (const m of readSeed("members.json") ?? []) {
+    if (m.tier && !tiers.has(m.tier)) errors.push(`members.json: ${m.id} cita tier inesistente ${m.tier}`);
+  }
+  for (const w of readSeed("wallets.json") ?? []) {
+    if (w.tier && !tiers.has(w.tier)) errors.push(`wallets.json: ${w.memberId} cita tier inesistente ${w.tier}`);
+  }
+
+  for (const entry of readSeed("activity-history.json")?.memberActivity ?? []) {
+    if (!memberIds.has(entry.memberId)) errors.push(`activity-history.json: cita membro inesistente ${entry.memberId}`);
+  }
+
+  const gHistory = readSeed("gamification-history.json");
+  if (gHistory) {
+    for (const g of gHistory.grants ?? []) {
+      if (!memberIds.has(g.memberId)) errors.push(`gamification-history.json: grants cita membro inesistente ${g.memberId}`);
+    }
+    for (const p of gHistory.plays ?? []) {
+      if (!memberIds.has(p.memberId)) errors.push(`gamification-history.json: plays cita membro inesistente ${p.memberId}`);
+    }
+    for (const cc of gHistory.closedContests ?? []) {
+      for (const w of cc.winners ?? []) {
+        if (!memberIds.has(w.memberId)) errors.push(`gamification-history.json: closedContests cita membro inesistente ${w.memberId}`);
+      }
+    }
+    for (const p of gHistory.achievementProgress ?? []) {
+      if (!memberIds.has(p.memberId)) errors.push(`gamification-history.json: achievementProgress cita membro inesistente ${p.memberId}`);
+    }
+    for (const s of gHistory.leaderboardScores ?? []) {
+      if (!memberIds.has(s.memberId)) errors.push(`gamification-history.json: leaderboardScores cita membro inesistente ${s.memberId}`);
+    }
+  }
+
+  for (const i of readSeed("inbox.json") ?? []) {
+    if (!memberIds.has(i.memberId)) errors.push(`inbox.json: ${i.id} cita membro inesistente ${i.memberId}`);
+  }
+
+  for (const s of readSeed("segments.json") ?? []) {
+    for (const mid of s.memberIds ?? []) {
+      if (!memberIds.has(mid)) errors.push(`segments.json: ${s.code} cita membro inesistente ${mid}`);
+    }
+    for (const mid of s.expectedMembers ?? []) {
+      if (!memberIds.has(mid)) errors.push(`segments.json: ${s.code} (expectedMembers) cita membro inesistente ${mid}`);
+    }
+  }
+
+  const couponPools = new Set((readSeed("coupon-pools.json") ?? []).map(c => c.code));
+  const bands = new Set((readSeed("reward-bands.json") ?? []).map(b => b.code));
+  const categories = new Set((readSeed("reward-categories.json") ?? []).map(c => c.code));
+
+  // rewards referencing pools, bands, categories
+  for (const r of readSeed("rewards.json") ?? []) {
+    if (r.band && !bands.has(r.band)) errors.push(`rewards.json: ${r.code} cita band inesistente ${r.band}`);
+    if (r.category && !categories.has(r.category)) errors.push(`rewards.json: ${r.code} cita category inesistente ${r.category}`);
+    if (r.couponPool && !couponPools.has(r.couponPool)) errors.push(`rewards.json: ${r.code} cita couponPool inesistente ${r.couponPool}`);
+  }
+
+
+  // strengthen stock check: it must match exactly
+  for (const r of readSeed("rewards.json") ?? []) {
+    if (r.stockTotal != null && r.stockRemaining != null) {
+      const taken = (readSeed("redemptions.json") ?? []).filter((x) => x.rewardCode === r.code && (x.status === "CONFIRMED" || x.status === "FULFILLED")).length;
+      if (r.stockRemaining !== r.stockTotal - taken) {
+        warnings.push(`rewards.json: ${r.code} ha stockRemaining ${r.stockRemaining} ma i consumi effettivi sono ${taken} su ${r.stockTotal}`);
+      }
+    }
+  }
+
+  // redemptions referencing rewardCodes
+  for (const r of readSeed("redemptions.json") ?? []) {
+    if (r.rewardCode && !rewardCodes.has(r.rewardCode)) errors.push(`redemptions.json: ${r.id} cita rewardCode inesistente ${r.rewardCode}`);
+  }
+
+  // contests prizes referencing rewardCodes
+  for (const c of readSeed("contests.json") ?? []) {
+    for (const p of c.prizes ?? []) {
+      if (p.rewardCode && !rewardCodes.has(p.rewardCode)) errors.push(`contests.json: ${c.code} cita rewardCode inesistente ${p.rewardCode}`);
+    }
+  }
+}
+
 // Webhook (docs/10 §7, docs/servizi/engagement-service.md §2, §5–§6; F-WBH-01, M7.2): uno solo, disabilitato, verso
 // https://example.org; tipi di fatto del catalogo dei contratti (contracts/events/fact) e mai message.delivered;
 // segreto whsec_… presente. Registro storico (SPEC-GAP: Q-102): solo consegne chiuse (OK/GAVE_UP: nessuna partirebbe
