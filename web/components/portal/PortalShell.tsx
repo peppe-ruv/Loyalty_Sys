@@ -16,7 +16,7 @@ const TABS = [
   { href: "/portal", label: "Home" },
   { href: "/portal/earn", label: "Guadagna" },
   { href: "/portal/rewards", label: "Premi", also: ["/portal/my-rewards"] },
-  { href: "/portal/play", label: "Gioca", dot: true },
+  { href: "/portal/play", label: "Gioca", dot: true, also: ["/portal/leaderboard"] },
   { href: "/portal/profile", label: "Io", also: ["/portal/activity", "/portal/achievements"] },
 ];
 

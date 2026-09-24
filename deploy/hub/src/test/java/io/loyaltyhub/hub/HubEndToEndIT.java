@@ -71,6 +71,7 @@ class HubEndToEndIT {
 
         // Ultimo giorno feriale alle 10:00: niente moltiplicatore weekend e sempre dentro la finestra dei 30 giorni.
         String weekday = ScenarioTime.resolve("@lastWeekdayT10:00", Instant.now()).toString();
+        long scoreBefore = monthScore("MBR-000002", weekday);
         Map<String, Object> event = Map.of(
                 "specversion", "1.0", "id", "hub-e2e-01", "source", "urn:loyaltyhub:source:ecommerce",
                 "type", "purchase.completed", "subject", "member:MBR-000002", "time", weekday,
@@ -81,6 +82,30 @@ class HubEndToEndIT {
 
         assertThat(awaitPts("MBR-000002", before + 162))
                 .as("acquisto 130€ SILVER → +162 PTS attraverso ingestion→campaign→wallet").isEqualTo(before + 162);
+
+        // M5.5: wallet.points.earned alimenta la classifica del mese dell'accredito (+162 rispetto a prima dell'acquisto).
+        long expected = scoreBefore + 162;
+        long deadline = System.currentTimeMillis() + 15_000;
+        long score = monthScore("MBR-000002", weekday);
+        while (score != expected && System.currentTimeMillis() < deadline) {
+            sleep();
+            score = monthScore("MBR-000002", weekday);
+        }
+        assertThat(score).as("classifica PTS del mese").isEqualTo(expected);
+    }
+
+    /** Punteggio del membro in LDB-MONTH-PTS nel mese (Europe/Rome) dell'istante indicato; 0 se assente. */
+    private long monthScore(String memberId, String at) {
+        LocalDate day = LocalDate.ofInstant(Instant.parse(at), ZoneId.of("Europe/Rome"));
+        String periodKey = String.format("%d-%02d", day.getYear(), day.getMonthValue());
+        JsonNode ranking = client().get().uri("/v1/leaderboards/LDB-MONTH-PTS/ranking?limit=100&periodKey=" + periodKey)
+                .retrieve().body(JsonNode.class);
+        for (JsonNode i : ranking.path("items")) {
+            if (memberId.equals(i.path("memberId").asString())) {
+                return i.path("score").asLong();
+            }
+        }
+        return 0;
     }
 
     // ---------- accettazione M3 (docs/12) ----------
@@ -99,8 +124,10 @@ class HubEndToEndIT {
         assertThat(step.path("status").asString()).isEqualTo("ACCEPTED");
         String correlationId = step.path("correlationId").asString();
 
-        assertThat(awaitPts("MBR-000003", before + 162 + 500 + 100)).as("acquisto + bonus di livello + bonus badge")
-                .isEqualTo(before + 762);
+        // Il saldo può ricevere anche accrediti di altri test dello stesso contesto (es. rilascio di punti in attesa
+        // dal job): l'importo esatto dello scenario si verifica sul suo tracciato, qui sotto.
+        assertThat(awaitPtsAtLeast("MBR-000003", before + 162 + 500 + 100)).as("acquisto + bonus di livello + bonus badge")
+                .isGreaterThanOrEqualTo(before + 762);
         JsonNode wallet = client().get().uri("/v1/portal/wallets/MBR-000003").retrieve().body(JsonNode.class);
         assertThat(wallet.path("tier").path("code").asString()).isEqualTo("GOLD");
 
@@ -337,6 +364,16 @@ class HubEndToEndIT {
             }
         }
         throw new AssertionError("premio assente: " + rewardCode);
+    }
+
+    private long awaitPtsAtLeast(String memberId, long min) {
+        long deadline = System.currentTimeMillis() + 30_000;
+        long value = walletPts(memberId);
+        while (value < min && System.currentTimeMillis() < deadline) {
+            sleep();
+            value = walletPts(memberId);
+        }
+        return value;
     }
 
     private long awaitPts(String memberId, long expected) {

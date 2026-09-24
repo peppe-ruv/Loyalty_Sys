@@ -201,6 +201,23 @@ if (Array.isArray(achievementsSeed)) {
   }
 }
 
+// Classifiche (docs/10 §6): metrica e periodo ammessi, punteggi di membri e classifiche esistenti.
+const leaderboardsSeed = readSeed("leaderboards.json");
+if (Array.isArray(leaderboardsSeed)) {
+  const codes = new Set(leaderboardsSeed.map((l) => l.code));
+  const memberIds = new Set((readSeed("members.json") ?? []).map((m) => m.id));
+  for (const l of leaderboardsSeed) {
+    if (!["PTS_EARNED", "STS_EARNED", "ACTION_COUNT"].includes(l.metric)) errors.push(`leaderboards.json: ${l.code} metrica "${l.metric}"`);
+    if (!["MONTH", "EDITION", "ALL_TIME"].includes(l.period)) errors.push(`leaderboards.json: ${l.code} periodo "${l.period}"`);
+    if (l.metric === "ACTION_COUNT" && !(l.actionTypes ?? []).length) errors.push(`leaderboards.json: ${l.code} senza tipi di azione`);
+  }
+  for (const s of readSeed("gamification-history.json")?.leaderboardScores ?? []) {
+    if (!codes.has(s.leaderboardCode)) errors.push(`gamification-history.json: classifica inesistente ${s.leaderboardCode}`);
+    if (!memberIds.has(s.memberId)) errors.push(`gamification-history.json: membro inesistente ${s.memberId}`);
+    if (!(s.score > 0)) errors.push(`gamification-history.json: punteggio non positivo per ${s.memberId}`);
+  }
+}
+
 // Richieste d'esempio (docs/10 §5): membro e premio esistenti, costo = soglia della fascia, niente PENDING (il
 // timeout le respingerebbe dopo 10 minuti), coupon solo per premi a evasione automatica.
 const redemptions = readSeed("redemptions.json");

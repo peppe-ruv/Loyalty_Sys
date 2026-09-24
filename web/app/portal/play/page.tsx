@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Gift, Sparkles, Ticket } from "lucide-react";
+import { Gift, Sparkles, Ticket, Trophy } from "lucide-react";
 import { useLhQuery } from "@/lib/api/client";
 import type { PortalContest } from "@/lib/api/types";
 import { useActiveMember } from "@/components/portal/MemberContext";
@@ -42,6 +42,19 @@ export default function PlayPage() {
           <span>
             <span className="block font-medium text-[var(--color-pt-night)]">Come ottenere altre giocate</span>
             <span className="text-xs text-[var(--color-pt-night)]/60">Sondaggi e acquisti delle promozioni ti regalano giocate extra.</span>
+          </span>
+        </span>
+        <span aria-hidden>→</span>
+      </Link>
+      <Link
+        href="/portal/leaderboard"
+        className="flex items-center justify-between gap-3 rounded-2xl bg-white p-4 text-sm shadow-sm ring-1 ring-black/5"
+      >
+        <span className="flex items-center gap-3">
+          <Trophy className="size-5 text-[var(--color-pt-coin)]" aria-hidden />
+          <span>
+            <span className="block font-medium text-[var(--color-pt-night)]">Classifica</span>
+            <span className="text-xs text-[var(--color-pt-night)]/60">Chi ha guadagnato più punti questo mese.</span>
           </span>
         </span>
         <span aria-hidden>→</span>

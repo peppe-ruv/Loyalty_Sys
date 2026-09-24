@@ -15,9 +15,9 @@ public class GamificationRouting {
 
     @Bean("gamificationEventRouter")
     public EventRouter gamificationEventRouter(MemberSnapshotHandler members, PlaysGrantHandler playsGrant,
-                                               AchievementActionHandler achievements, BadgeAwardHandler badges,
-                                               IdempotentHandler idempotent, LhMetrics metrics) {
-        return new EventRouter("lh-gamification", List.<EventHandler>of(members, playsGrant, achievements, badges),
+                                               GameActionHandler actions, BadgeAwardHandler badges,
+                                               PointsEarnedHandler pointsEarned, IdempotentHandler idempotent, LhMetrics metrics) {
+        return new EventRouter("lh-gamification", List.<EventHandler>of(members, playsGrant, actions, badges, pointsEarned),
                 idempotent, metrics);
     }
 }

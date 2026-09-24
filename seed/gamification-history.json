@@ -222,5 +222,67 @@
       "value": 1000,
       "completedAt": "@today-12d"
     }
+  ],
+  "leaderboardScores": [
+    {
+      "leaderboardCode": "LDB-MONTH-PTS",
+      "memberId": "MBR-000005",
+      "score": 1840,
+      "reachedAt": "@today-1dT18:10"
+    },
+    {
+      "leaderboardCode": "LDB-MONTH-PTS",
+      "memberId": "MBR-000004",
+      "score": 1260,
+      "reachedAt": "@today-2dT12:40"
+    },
+    {
+      "leaderboardCode": "LDB-MONTH-PTS",
+      "memberId": "MBR-000011",
+      "score": 980,
+      "reachedAt": "@today-1dT09:05"
+    },
+    {
+      "leaderboardCode": "LDB-MONTH-PTS",
+      "memberId": "MBR-000006",
+      "score": 720,
+      "reachedAt": "@today-3dT17:30"
+    },
+    {
+      "leaderboardCode": "LDB-MONTH-PTS",
+      "memberId": "MBR-000003",
+      "score": 610,
+      "reachedAt": "@today-4dT19:15"
+    },
+    {
+      "leaderboardCode": "LDB-MONTH-PTS",
+      "memberId": "MBR-000002",
+      "score": 430,
+      "reachedAt": "@today-2dT08:50"
+    },
+    {
+      "leaderboardCode": "LDB-MONTH-PTS",
+      "memberId": "MBR-000007",
+      "score": 350,
+      "reachedAt": "@today-5dT13:20"
+    },
+    {
+      "leaderboardCode": "LDB-MONTH-PTS",
+      "memberId": "MBR-000010",
+      "score": 290,
+      "reachedAt": "@today-2dT21:00"
+    },
+    {
+      "leaderboardCode": "LDB-MONTH-PTS",
+      "memberId": "MBR-000001",
+      "score": 100,
+      "reachedAt": "@today-1dT10:00"
+    },
+    {
+      "leaderboardCode": "LDB-MONTH-PTS",
+      "memberId": "MBR-000008",
+      "score": 260,
+      "reachedAt": "@today-6dT11:00"
+    }
   ]
 }

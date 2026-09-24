@@ -660,3 +660,43 @@ export interface PortalBadge {
   origin: string | null;
   unlockHint: string;
 }
+
+// ---------- gamification — classifiche (BO-16, PT-10) ----------
+
+export type LeaderboardMetric = "PTS_EARNED" | "STS_EARNED" | "ACTION_COUNT";
+export type LeaderboardPeriod = "MONTH" | "EDITION" | "ALL_TIME";
+
+export interface Leaderboard {
+  id: string;
+  code: string;
+  name: string;
+  metric: LeaderboardMetric;
+  actionTypes: string[];
+  period: LeaderboardPeriod;
+  topN: number;
+  status: "ACTIVE" | "INACTIVE";
+}
+
+export interface LeaderboardRanking {
+  code: string;
+  name: string;
+  metric: LeaderboardMetric;
+  period: LeaderboardPeriod;
+  periodKey: string;
+  currentPeriodKey: string;
+  periods: string[];
+  topN: number;
+  items: { rank: number; memberId: string; nickname: string | null; score: number; reachedAt: string }[];
+}
+
+export interface PortalLeaderboard {
+  code: string;
+  name: string;
+  metric: LeaderboardMetric;
+  period: LeaderboardPeriod;
+  periodKey: string;
+  topN: number;
+  top: { rank: number; nickname: string; score: number; isMe: boolean }[];
+  me: { rank: number; score: number } | null;
+  participants: number;
+}

@@ -1,0 +1,5 @@
+[
+  { "code": "LDB-MONTH-PTS", "name": "Punti del mese", "metric": "PTS_EARNED", "period": "MONTH", "topN": 10, "status": "ACTIVE" },
+  { "code": "LDB-EDITION-STS", "name": "Punti status dell'edizione", "metric": "STS_EARNED", "period": "EDITION", "topN": 10, "status": "ACTIVE",
+    "scoresFrom": "wallets.json periodSts" }
+]

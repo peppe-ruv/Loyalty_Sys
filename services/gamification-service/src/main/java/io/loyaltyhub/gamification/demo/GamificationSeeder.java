@@ -14,7 +14,9 @@ import io.loyaltyhub.gamification.domain.Achievement;
 import io.loyaltyhub.gamification.domain.AchievementRules;
 import io.loyaltyhub.gamification.infra.AchievementRepository;
 import io.loyaltyhub.gamification.infra.BadgeRepository;
+import io.loyaltyhub.gamification.domain.Leaderboard;
 import io.loyaltyhub.gamification.infra.InstantRepository;
+import io.loyaltyhub.gamification.infra.LeaderboardRepository;
 import io.loyaltyhub.gamification.infra.MemberSnapshotRepository;
 import io.loyaltyhub.gamification.infra.PlayRepository;
 import org.slf4j.Logger;
@@ -59,11 +61,13 @@ public class GamificationSeeder implements ApplicationRunner, DemoResettable {
     private final ContestAdminService admin;
     private final AchievementRepository achievements;
     private final BadgeRepository badges;
+    private final LeaderboardRepository leaderboards;
     private final Clock clock;
 
     public GamificationSeeder(SeedLoader seed, ContestRepository contests, InstantRepository instants, PlayRepository plays,
                               MemberSnapshotRepository members, ContestAdminService admin,
-                              AchievementRepository achievements, BadgeRepository badges, Clock clock) {
+                              AchievementRepository achievements, BadgeRepository badges,
+                              LeaderboardRepository leaderboards, Clock clock) {
         this.seed = seed;
         this.contests = contests;
         this.instants = instants;
@@ -72,6 +76,7 @@ public class GamificationSeeder implements ApplicationRunner, DemoResettable {
         this.admin = admin;
         this.achievements = achievements;
         this.badges = badges;
+        this.leaderboards = leaderboards;
         this.clock = clock;
     }
 
@@ -94,6 +99,8 @@ public class GamificationSeeder implements ApplicationRunner, DemoResettable {
         achievements.deleteAll();
         badges.deleteAll();
         seedAchievements();
+        leaderboards.deleteAll();
+        seedLeaderboards();
         for (JsonNode m : seed.readTree("members.json")) {
             members.upsert(m.path("id").asString(), text(m, "nickname"), m.path("status").asString("ACTIVE"));
         }
@@ -173,6 +180,40 @@ public class GamificationSeeder implements ApplicationRunner, DemoResettable {
                     distinct, lastUnit, completedAt);
             if (completedAt != null && a.badgeCode() != null) {
                 badges.award(memberId, a.badgeCode(), "ACHIEVEMENT", null, completedAt);
+            }
+        }
+    }
+
+    /**
+     * Classifiche (docs/10 §6): i punti del mese dal file di storico, i punti status dell'edizione dai saldi di
+     * {@code wallets.json} (stessi numeri del wallet). Solo membri esistenti: i non attivi restano fuori dal ranking.
+     */
+    private void seedLeaderboards() {
+        Map<String, Leaderboard> byCode = new HashMap<>();
+        for (JsonNode l : seed.readTree("leaderboards.json")) {
+            List<String> types = new ArrayList<>();
+            l.path("actionTypes").forEach(t -> types.add(t.asString()));
+            Leaderboard lb = new Leaderboard(Ulid.next(clock), l.path("code").asString(), l.path("name").asString(),
+                    l.path("metric").asString(), types, l.path("period").asString("MONTH"), l.path("topN").asInt(10),
+                    l.path("status").asString("ACTIVE"));
+            leaderboards.insert(lb);
+            byCode.put(lb.code(), lb);
+        }
+        for (JsonNode s : seed.readTree("gamification-history.json").path("leaderboardScores")) {
+            Leaderboard lb = byCode.get(s.path("leaderboardCode").asString());
+            Instant at = SeedDates.resolve(s.path("reachedAt").asString(), clock);
+            leaderboards.add(lb.id(), Leaderboard.periodKey(lb.period(), clock.instant()), s.path("memberId").asString(),
+                    s.path("score").asLong(), at);
+        }
+        Leaderboard sts = byCode.get("LDB-EDITION-STS");
+        if (sts != null) {
+            int i = 0;
+            for (JsonNode w : seed.readTree("wallets.json")) {
+                long periodSts = w.path("periodSts").asLong(0);
+                if (periodSts > 0) {
+                    leaderboards.add(sts.id(), Leaderboard.periodKey(sts.period(), clock.instant()), w.path("memberId").asString(),
+                            periodSts, clock.instant().minus(Duration.ofDays(2 + (i++ % 20))));
+                }
             }
         }
     }

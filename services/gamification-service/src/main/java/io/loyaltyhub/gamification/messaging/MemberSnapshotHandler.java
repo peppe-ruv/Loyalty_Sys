@@ -37,6 +37,19 @@ public class MemberSnapshotHandler implements EventHandler {
             }
             return;
         }
-        members.upsert(memberId, d.hasNonNull("nickname") ? d.get("nickname").asString() : null, d.path("status").asString("ACTIVE"));
+        members.upsert(memberId, nickname(d), d.path("status").asString("ACTIVE"));
+    }
+
+    /** Nickname del membro; se manca, nome + iniziale del cognome (docs/03 §8). */
+    static String nickname(JsonNode d) {
+        if (d.hasNonNull("nickname") && !d.get("nickname").asString().isBlank()) {
+            return d.get("nickname").asString();
+        }
+        String first = d.path("firstName").asString("");
+        String last = d.path("lastName").asString("");
+        if (first.isBlank()) {
+            return null;
+        }
+        return last.isBlank() ? first : first + " " + last.charAt(0) + ".";
     }
 }

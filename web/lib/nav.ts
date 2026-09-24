@@ -55,6 +55,7 @@ export const NAV: NavGroup[] = [
     items: [
       { id: "BO-14", label: "Concorsi", href: "/backoffice/game/contests", milestone: 5 },
       { id: "BO-15", label: "Obiettivi e badge", href: "/backoffice/game/achievements", milestone: 5 },
+      { id: "BO-16", label: "Classifiche", href: "/backoffice/game/leaderboards", milestone: 5 },
     ],
   },
   {
