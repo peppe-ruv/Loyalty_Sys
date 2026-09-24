@@ -3,7 +3,7 @@
 // (docs/servizi/member-service.md §3). Capacità `member.write` (ADMIN, CARE; docs/08 §2). Azioni reversibili →
 // conferma semplice (docs/08 §3.5). Puro: usato dalla scheda e dai test.
 //
-// SPEC-GAP: Q-D3 — contracts/events/fact/member.status.changed.schema.json elenca ACTIVE/SUSPENDED/BLOCKED/CLOSED/
+// SPEC-GAP: Q-139 — contracts/events/fact/member.status.changed.schema.json elenca ACTIVE/SUSPENDED/BLOCKED/CLOSED/
 // ANONYMIZED, mentre docs/02 F-MBR-04, docs/03 §2 e member-service usano INACTIVE: *Disattiva* emette newStatus=INACTIVE
 // come fa già il servizio (nessun contratto cambiato qui).
 
@@ -52,7 +52,7 @@ export function memberStatusActions(status: string | null | undefined): MemberSt
         key: "block",
         label: "Blocca",
         target: "BLOCKED",
-        // SPEC-GAP: Q-D1 — il menu di docs/08 non prevede *Riattiva*: per un membro INACTIVE nessun cambio di stato dal
+        // SPEC-GAP: Q-137 — il menu di docs/08 non prevede *Riattiva*: per un membro INACTIVE nessun cambio di stato dal
         // backoffice (Blocca → Sblocca lo riattiverebbe di fatto). Scelta conservativa: voce disabilitata.
         disabledReason: anonymized ? ANONYMIZED_REASON : inactive ? "Membro disattivato: nessun cambio di stato dal menu" : null,
         confirmTitle: "Bloccare il membro?",
@@ -78,7 +78,7 @@ export function memberStatusActions(status: string | null | undefined): MemberSt
 /**
  * Corpo di `POST /v1/members/{id}/status`. Il motivo è facoltativo e finisce nell'audit e nel fatto
  * `member.status.changed`.
- * SPEC-GAP: Q-D2 — nessuna fonte dice se il motivo sia obbligatorio (l'API lo accetta assente; docs/08 §3.5 chiede una
+ * SPEC-GAP: Q-138 — nessuna fonte dice se il motivo sia obbligatorio (l'API lo accetta assente; docs/08 §3.5 chiede una
  * conferma semplice): facoltativo, mandato solo se non vuoto.
  */
 export function statusChangeBody(target: MemberStatusTarget, reason: string): { status: MemberStatusTarget; reason?: string } {

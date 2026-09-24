@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { RESET_CONFIRM_WORD, isResetConfirmed } from "@/lib/demo/reset";
 import { useQuery } from "@tanstack/react-query";
 import type { DemoStatus } from "@/lib/api/status";
 import type { ServiceCode } from "@/lib/api/services";
@@ -80,6 +81,8 @@ export default function ConsolePage() {
   });
   const [log, setLog] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [typed, setTyped] = useState("");
   const [asOf, setAsOf] = useState("");
   const [jobLog, setJobLog] = useState<string[]>([]);
   const [jobBusy, setJobBusy] = useState(false);
@@ -172,13 +175,46 @@ export default function ConsolePage() {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">Reset dati</h3>
               <button
-                onClick={resetAll}
-                disabled={busy}
+                onClick={() => {
+                  setTyped("");
+                  setConfirming(true);
+                }}
+                disabled={busy || confirming}
                 className="rounded bg-[var(--color-bo-accent)] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
               >
                 {busy ? "In corso…" : "Ripristina tutto"}
               </button>
             </div>
+            {confirming ? (
+              <div role="alertdialog" aria-label="Conferma reset" className="space-y-2 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                <p>
+                  Tutti i servizi tornano ai dati di <code>seed/</code>: richieste, giocate, movimenti e modifiche fatte durante la
+                  demo si perdono. Digita <strong>{RESET_CONFIRM_WORD}</strong> per confermare.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    aria-label="Digita RESET per confermare"
+                    value={typed}
+                    onChange={(e) => setTyped(e.target.value)}
+                    className="w-32 rounded border border-amber-300 bg-white px-2 py-1 font-mono text-sm"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => {
+                      setConfirming(false);
+                      void resetAll();
+                    }}
+                    disabled={!isResetConfirmed(typed) || busy}
+                    className="rounded bg-red-600 px-3 py-1 text-sm font-medium text-white disabled:opacity-50"
+                  >
+                    Ripristina tutto
+                  </button>
+                  <button onClick={() => setConfirming(false)} className="rounded border border-amber-300 px-3 py-1 text-sm hover:bg-amber-100">
+                    Annulla
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               {RESETTABLE.map((s) => (
                 <button key={s} onClick={() => resetOne(s)} disabled={busy} className="rounded border border-[var(--color-bo-border)] px-2.5 py-1 text-xs hover:bg-slate-50 disabled:opacity-50">
