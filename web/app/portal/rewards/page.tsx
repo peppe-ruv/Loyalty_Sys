@@ -8,13 +8,14 @@ import type { PortalCatalog, PortalReward, RewardCategory, WalletView } from "@/
 import { useActiveMember } from "@/components/portal/MemberContext";
 import { QueryState } from "@/components/bo/QueryState";
 import { RewardArt } from "@/components/portal/RewardArt";
+import { ContentSlot } from "@/components/portal/ContentSlot";
 import { bandProgress, blockReason, rewardBadge } from "@/lib/reward/portal";
 import { formatPoints } from "@/lib/format/points";
 import { cn } from "@/lib/cn";
 
 // PT-03 Catalogo premi (docs/09 §PT-03; F-RWD-01…04): fasce come sezioni in ordine di soglia, con lo stato rispetto
 // al saldo (raggiunta ✓ oppure "ti mancano N punti"); griglia 2 colonne; filtro per categoria; "solo richiedibili".
-// Il banner CATALOG_TOP (engagement) arriva con M6.
+// In testa il banner CATALOG_TOP (engagement, M6.1).
 export default function PortalRewardsPage() {
   const memberId = useActiveMember();
   const catalog = useLhQuery<PortalCatalog>("reward", "/v1/portal/catalog", { memberId });
@@ -41,6 +42,8 @@ export default function PortalRewardsPage() {
           I miei premi
         </Link>
       </div>
+
+      <ContentSlot placement="CATALOG_TOP" />
 
       <div className="flex flex-wrap items-center gap-2">
         <Chip active={category === ""} onClick={() => setCategory("")}>

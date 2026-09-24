@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.content.status.changed:1",
+  "title": "fact.content.status.changed — data (EVT-FACT-61, F-CNT-01)",
+  "type": "object",
+  "required": ["contentId", "kind", "newStatus"],
+  "properties": {
+    "contentId": { "type": "string", "minLength": 1 },
+    "contentCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$" },
+    "kind": { "enum": ["CARD", "POPUP", "BANNER"] },
+    "previousStatus": { "enum": ["DRAFT", "LIVE", "PAUSED", "ENDED", "ARCHIVED"] },
+    "newStatus": { "enum": ["DRAFT", "LIVE", "PAUSED", "ENDED", "ARCHIVED"] }
+  },
+  "additionalProperties": true
+}

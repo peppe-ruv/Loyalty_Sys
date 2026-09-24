@@ -337,6 +337,39 @@ if (Array.isArray(templatesSeed)) {
   }
 }
 
+// Contenuti (docs/10 §7, §11.2, §11.7): riferimenti esistenti, card WIN ↔ premi in palio, destinazioni sicure.
+{
+  const contents = readSeed("contents.json") ?? [];
+  const contests = readSeed("contests.json") ?? [];
+  const campaigns = new Set((readSeed("campaigns.json") ?? []).map((c) => c.code));
+  const rewards = new Set((readSeed("rewards.json") ?? []).map((r) => r.code));
+  const contestCodes = new Set(contests.map((c) => c.code));
+  const prizeCodes = new Set(contests.flatMap((c) => (c.prizes ?? []).map((p) => p.code)));
+  const KINDS = ["CARD", "POPUP", "BANNER"];
+  const PLACEMENTS = ["HOME_HERO", "HOME_GRID", "CATALOG_TOP", "CONTEST", "WIN"];
+  const seen = new Set();
+  for (const c of contents) {
+    const where = `contents.json: ${c.code}`;
+    if (seen.has(c.code)) errors.push(`${where} codice duplicato`);
+    seen.add(c.code);
+    if (!KINDS.includes(c.kind)) errors.push(`${where} tipo non valido ${c.kind}`);
+    if (c.kind === "POPUP" ? c.placement != null : !PLACEMENTS.includes(c.placement)) errors.push(`${where} posizionamento non valido`);
+    if (c.kind === "POPUP" && !["ONCE", "ONCE_PER_DAY", "ALWAYS"].includes(c.frequency)) errors.push(`${where} pop-up senza frequenza valida`);
+    if (c.linkType === "CONTEST" && !contestCodes.has(c.linkCode)) errors.push(`${where} concorso inesistente ${c.linkCode}`);
+    if (c.linkType === "CAMPAIGN" && !campaigns.has(c.linkCode)) errors.push(`${where} campagna inesistente ${c.linkCode}`);
+    if (c.linkType === "REWARD" && !rewards.has(c.linkCode)) errors.push(`${where} premio inesistente ${c.linkCode}`);
+    if (c.placement === "WIN" && (c.linkType !== "PRIZE" || !prizeCodes.has(c.linkCode))) errors.push(`${where} card WIN senza premio in palio esistente`);
+    if (c.ctaTarget && !c.ctaTarget.startsWith("/portal") && !c.ctaTarget.startsWith("https://")) errors.push(`${where} destinazione non sicura ${c.ctaTarget}`);
+  }
+  // Ogni premio in palio dei concorsi LIVE ha la sua card WIN (§11.7).
+  const winFor = new Set(contents.filter((c) => c.placement === "WIN").map((c) => c.linkCode));
+  for (const contest of contests.filter((c) => c.status === "LIVE")) {
+    for (const p of contest.prizes ?? []) {
+      if (!winFor.has(p.code)) errors.push(`contents.json: manca la card WIN del premio ${p.code} di ${contest.code}`);
+    }
+  }
+}
+
 for (const w of warnings) console.warn(`⚠ ${w}`);
 if (errors.length > 0) {
   for (const e of errors) console.error(`✗ ${e}`);

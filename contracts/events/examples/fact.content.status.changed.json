@@ -1,0 +1,21 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZS1A2B3C4D5E6F7G8H9J0K",
+  "source": "urn:loyaltyhub:service:engagement",
+  "type": "io.loyaltyhub.fact.content.status.changed",
+  "subject": "content:CNT-HERO-AUTUNNO",
+  "time": "2026-09-24T10:15:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.content.status.changed:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZS1A2B3C4D5E6F7G8H9J0K",
+  "lhhop": 0,
+  "lhactor": "MARKETING:luca.marketing",
+  "data": {
+    "contentId": "01J8ZS0A1B2C3D4E5F6G7H8J9K",
+    "contentCode": "CNT-HERO-AUTUNNO",
+    "kind": "CARD",
+    "previousStatus": "DRAFT",
+    "newStatus": "LIVE"
+  }
+}

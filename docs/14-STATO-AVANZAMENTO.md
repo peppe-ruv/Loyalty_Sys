@@ -14,10 +14,10 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M3 — Punti adulti | chiusa (codice) | 2026-09-21 | 2026-09-23 | ☑ | M3.1–M3.9 implementate; criteri di accettazione verdi con test automatici; resta `smoke.sh` sulla demo online |
 | M4 — Premi | chiusa (codice) | 2026-09-23 | 2026-09-24 | ☐ | M4.1–M4.6 implementate; criteri di accettazione verdi con test automatici (E2E portale su API simulate); resta `smoke.sh` sulla demo online |
 | M5 — Gioco | chiusa (codice) | 2026-09-24 | 2026-09-24 | ☐ | M5.1–M5.7 implementate; criteri di accettazione verdi con test automatici + E2E n. 3 con Playwright su servizio locale; resta `smoke.sh` sulla demo online |
-| M6 — Contenuti | in corso | 2026-09-24 | | ☐ | M6.0 chiusa (engagement: template, regole di notifica, inbox, `message.send`) |
+| M6 — Contenuti | in corso | 2026-09-24 | | ☐ | M6.0–M6.1 chiuse (engagement: template, regole, inbox, `message.send`; contenuti per posizionamento, BO-18) |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** M6.1 (contenuti, selezione per posizionamento, BO-18) — in corso; resta `smoke.sh` sulla demo online per M3–M5
+**Prossima fetta da lavorare:** M6.2 (pop-up e frequenze nel portale); resta `smoke.sh` sulla demo online per M3–M5
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -274,7 +274,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 **Fette** (`docs/12 §3`)
 
 - [x] `M6.0` — _engagement-service nell'hub (schema `engagement`): template con segnaposto `{{data…}}`/`{{member…}}` e formattatori, regole fatto → template con condizione su `data.*`, inbox deduplicata per (membro, evento, template), effetto `message.send`, fatto `message.delivered` mai soggetto a regole; seed `message-templates.json` (13), `notification-rules.json` (12), `inbox.json` (53, non letti Marco 3 · Chiara 1 · Sofia 1); API di gestione e inbox del portale. Schermate PT-12 e BO-19 con M6.4_
-- [ ] `M6.1`
+- [x] `M6.1` — _contenuti del CMS (`content_item`, V2): gestione con lock ottimistico, audit, transizioni senza approvazione e fatto `content.status.changed`, duplicazione, fine automatica ogni 10 min; selezione per posizionamento (LIVE ∧ calendario ∧ pubblico, priorità, limiti HERO 1 · GRID 6) e anteprima per membro coi motivi di esclusione; seed `contents.json` (15); portale PT-01 (hero, griglia), PT-03 (banner), PT-05 (card concorsi) con `components/shared/content`; BO-18 elenco, "Per posizione", anteprima per membro, editor con `PhoneFrame`_
 - [ ] `M6.2`
 - [ ] `M6.3`
 - [ ] `M6.4`
@@ -288,10 +288,10 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [ ] `F-SEG-01` Segmenti statici (P1)
 - [ ] `F-SEG-02` Segmenti dinamici (P1)
 - [ ] `F-SEG-03` Ricalcolo e fatti (P1)
-- [ ] `F-CNT-01` Card (P0)
-- [ ] `F-CNT-02` Pop-up (P0)
-- [ ] `F-CNT-03` Card vincita (P0)
-- [ ] `F-CNT-04` Anteprima (P1)
+- [x] `F-CNT-01` Card (P0) — _M6.1: card e banner per posizionamento, collegamenti a concorso/premio/campagna/pagina/URL https, pubblico, calendario, priorità; BO-18 e portale_
+- [~] `F-CNT-02` Pop-up (P0) — _2026-09-24 M6.1: gestione e anteprima in BO-18; nel portale con frequenze da M6.2_
+- [~] `F-CNT-03` Card vincita (P0) — _2026-09-24 M6.1: card `WIN` per premio in seed e API `placement=WIN&prizeCode=`; in PT-06 con M6.3_
+- [x] `F-CNT-04` Anteprima (P1) — _M6.1: anteprima fedele nell'editor (stessi componenti del portale) e per membro con `NOT_IN_AUDIENCE`/`OUT_OF_SCHEDULE`/`NOT_LIVE` (`FREQUENCY` con i pop-up, M6.2)_
 - [~] `F-MSG-01` Inbox in-app (P0) — _2026-09-24 M6.0: messaggi dai fatti tramite regole, inbox del portale via API (non letti, letto, tutti letti); PT-12 e BO-19 con M6.4_
 - [~] `F-MSG-02` Template (P0) — _2026-09-24 M6.0: segnaposto, icona, link, canali `INAPP` e `EMAIL_FAKE` (solo registro), anteprima `render`; editor BO-19 con M6.4_
 - [ ] `F-THM-01` Tema del portale (P1)
@@ -342,6 +342,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 | Data | Fetta | Esito | Commit | Domande aperte create | Note per la prossima sessione |
 |---|---|---|---|---|---|
+| 2026-09-24 | M6.1 | ✅ `./mvnw verify` verde (`ContentIT` 6: seed → HOME_HERO 1, HOME_GRID `CNT-FRIEND`, `CNT-SELF-READING` per Marco (le card per segmento restano fuori fino a M6.6), banner, card concorsi, card WIN per premio; pubblico GOLD/PLATINUM → assente per Anna, presente per Davide, anteprima `NOT_IN_AUDIENCE`; ciclo DRAFT → LIVE → PAUSED → LIVE → ENDED → ARCHIVED con 5 fatti validi per il contratto e attore, transizioni non ammesse 409, archiviato non modificabile, duplicazione in bozza; PUT sostitutivo con 409 su versione e tipo; validazioni 422 (WIN senza premio, `javascript:`, banner fuori posto, frequenza, codice), ruoli (ANALYST/CARE/nessuno 403); fine automatica; `ContentSelectionTest` 3), `pnpm lint typecheck test build` verdi (69 test), `check-seed` 25 (nuove regole sui contenuti), `check-contracts` 50; portale e BO-18 controllati con Playwright su servizi locali (crea → pubblica da `luca.marketing`) | (questo commit) | Q-71, Q-72 | Web: tipi dei contenuti in `lib/content/` (condivisi portale/backoffice, non in `lib/api/types.ts`); `ContentCard` in `components/shared/content`, `PhoneFrame` in `components/bo`. Nav: `REALIZED_MILESTONE = 6` con la sola voce BO-18 nel gruppo "Contenuti". Lo slot del portale sparisce in silenzio se engagement dorme. |
 | 2026-09-24 | M6.0 | ✅ `./mvnw verify` verde (`EngagementIT` 8: 162 PTS → "Hai guadagnato 162 punti", stesso evento rielaborato → nessun doppione, STS senza messaggio, `message.send` → inbox + `message.delivered` valido per il contratto, `message.delivered` ignorato e vietato nelle regole, `referral.completed` solo REFERRER, non letti/letto/tutti letti, ruoli (MARKETING/ADMIN sì, ANALYST/CARE/LEGAL 403), 409/422, audit, regola creata a caldo, `render`; `TemplateEngineTest` 6, `DataConditionTest` 6; `HubEngagementIT` 2 in-process: acquisto di Marco → un solo messaggio "162 punti", SCN-TIER-UP → messaggi di livello e badge), `check-seed` e `check-contracts` verdi | 0d8463f | Q-64…Q-70 | Fetta svolta da un agente in parallelo e integrata in `main` dopo revisione (SPEC-GAP rinumerati da Q-70…76). `engagement_member_snapshot` prefissata come negli altri servizi dell'hub. Web invariato: `engagement` era già nel registro dei servizi. |
 | 2026-09-24 | M5.7 (accettazione) | ✅ `./mvnw verify` verde (`HubEndToEndIT` 13: `SCN-ONBOARDING` +279 con obiettivo → badge → bonus in un albero; *pianta un istante* via API senza toccare gli istanti del seed → Matteo vince il premio piantato, catena entro 10 s; il test di Anna respinta non dipende più dall'ordine), `check-seed` 21; E2E n. 3 con Playwright (BO-14 → PT-06) su gamification-service locale | (questo commit) | Q-62, Q-63 | M5 chiusa lato codice. Il claim prende l'istante aperto più vecchio: l'istante piantato va a `min(adesso − 1 s, più vecchio aperto − 1 s)` (Q-62). In `SCN-ONBOARDING` il profilo completo è un'azione simulata (Q-63). |
 | 2026-09-24 | M5.6 | ✅ `./mvnw verify` verde (`ReferralIT` 4: primo acquisto di Elisa → due `referral.completed` con ruoli opposti, stessa correlazione e causa = l'acquisto, nessuno al secondo acquisto; registrazione con codice in minuscolo e spazi → legame `PENDING`, consensi salvati, codice inesistente o di Roberto (BLOCKED) → 422; panoramica; Anna completa il profilo con la città → un solo `member.profile.completed`; `CampaignServiceIT` 13 con `codes=` e `memberLimit`; `HubEndToEndIT` 11 con SCN-REFERRAL: Elisa +200, Marco +625 PTS e +250 STS nello stesso tracciato), `pnpm lint typecheck test build` verdi (65 test), `check-contracts` e `check-seed` 21; `/portal/join` (errore sul campo), PT-11, PT-08 (modifica → profilo completo) e BO-17 controllate con Playwright su servizi locali | (questo commit) | Q-61 | lh-common: `LhEventFactory.childForSubject` (figlio con un altro `subject`: il fatto dell'invitante nasce dall'acquisto dell'invitata). Contratti `fact/action.referral.completed` e `fact/action.member.profile.completed`. `seed/members.json` con telefono, data di nascita, città e consensi (nessun ID cambiato). Portale campagne: `?codes=` restituisce campagne LIVE anche non elencate in "Guadagna" + `memberLimit`; il riepilogo distingue "punti status". Tab "Io" col pallino se il profilo è incompleto. **Attenzione in parallelo**: gli `install` di più worktree sovrascrivono lo stesso `~/.m2` (un jar `lh-common` vecchio ha dato un falso rosso): rifare `install` prima dei test isolati. |

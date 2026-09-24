@@ -6,6 +6,7 @@ import { useLhQuery } from "@/lib/api/client";
 import type { PortalContest } from "@/lib/api/types";
 import { useActiveMember } from "@/components/portal/MemberContext";
 import { QueryState } from "@/components/bo/QueryState";
+import { ContentSlot } from "@/components/portal/ContentSlot";
 import { endsIn, freePlayLine, shortPrize } from "@/lib/gamification/play";
 
 // PT-05 Gioca (docs/09 §PT-05): una scheda per concorso in corso con giocate disponibili in evidenza, stato della
@@ -18,6 +19,7 @@ export default function PlayPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-lg font-semibold text-[var(--color-pt-night)]">Gioca</h1>
+      <ContentSlot placement="CONTEST" />
       <QueryState
         query={contests}
         service="gamification"

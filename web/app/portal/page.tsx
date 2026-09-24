@@ -9,10 +9,12 @@ import { usePending } from "@/components/portal/PendingContext";
 import { MemberCard } from "@/components/portal/MemberCard";
 import { PendingBanner, ActivityRow, type ActivityItem } from "@/components/portal/parts";
 import { QueryState } from "@/components/bo/QueryState";
+import { ContentSlot } from "@/components/portal/ContentSlot";
 import { formatPoints } from "@/lib/format/points";
 import { formatDate } from "@/lib/format/dates";
 
-// PT-01 Home (docs/09 §PT-01): tessera, saldo, avanzamento livello, ultimi movimenti, azioni rapide. Dopo l'iscrizione
+// PT-01 Home (docs/09 §PT-01): tessera, saldo, avanzamento livello, card hero (HOME_HERO), azioni rapide, griglia di
+// card (HOME_GRID), ultimi movimenti. Dopo l'iscrizione
 // (/portal/join → ?welcome=1) mostra il benvenuto e, se i punti non sono ancora sul saldo, "in arrivo…".
 export default function PortalHome() {
   const memberId = useActiveMember();
@@ -82,6 +84,8 @@ export default function PortalHome() {
         )}
       </QueryState>
 
+      <ContentSlot placement="HOME_HERO" />
+
       <div className="grid grid-cols-2 gap-2">
         <QuickLink href="/portal/earn" label="Come guadagnare" />
         <QuickLink href="/portal/rewards" label="Premi" />
@@ -90,6 +94,8 @@ export default function PortalHome() {
         <QuickLink href="/portal/achievements" label="Obiettivi e badge" />
         <QuickLink href="/portal/invite" label="Porta un amico" />
       </div>
+
+      <ContentSlot placement="HOME_GRID" />
 
       <section>
         <div className="mb-1 flex items-center justify-between">

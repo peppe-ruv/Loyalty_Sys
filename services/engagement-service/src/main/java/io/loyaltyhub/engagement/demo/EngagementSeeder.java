@@ -5,10 +5,12 @@ import io.loyaltyhub.common.demo.SeedDates;
 import io.loyaltyhub.common.demo.SeedLoader;
 import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.engagement.application.MessageContexts;
+import io.loyaltyhub.engagement.domain.ContentItem;
 import io.loyaltyhub.engagement.domain.InboxMessage;
 import io.loyaltyhub.engagement.domain.MessageTemplate;
 import io.loyaltyhub.engagement.domain.NotificationRule;
 import io.loyaltyhub.engagement.domain.TemplateEngine;
+import io.loyaltyhub.engagement.infra.ContentRepository;
 import io.loyaltyhub.engagement.infra.InboxRepository;
 import io.loyaltyhub.engagement.infra.MemberSnapshotRepository;
 import io.loyaltyhub.engagement.infra.RuleRepository;
@@ -30,7 +32,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Carica template, regole di notifica, snapshot dei membri e inbox storica (docs/servizi/engagement-service.md §6,
+ * Carica template, regole di notifica, snapshot dei membri, inbox storica e contenuti del CMS (M6.1) (docs/servizi/engagement-service.md §6,
  * docs/10 §7). I messaggi dell'inbox sono resi dai template del seed sul loro {@code data} (le date {@code @…} dentro
  * {@code data} sono risolte come le altre), così testi e segnaposto restano coerenti per costruzione; l'evento sorgente
  * è {@code SEED-<id>}. Un messaggio letto ha {@code read_at} un'ora dopo la consegna (mai nel futuro). Profilo
@@ -54,16 +56,19 @@ public class EngagementSeeder implements ApplicationRunner, DemoResettable {
     private final InboxRepository inbox;
     private final MemberSnapshotRepository members;
     private final MessageContexts contexts;
+    private final ContentRepository contents;
     private final Clock clock;
 
     public EngagementSeeder(SeedLoader seed, TemplateRepository templates, RuleRepository rules, InboxRepository inbox,
-                            MemberSnapshotRepository members, MessageContexts contexts, Clock clock) {
+                            MemberSnapshotRepository members, MessageContexts contexts, ContentRepository contents,
+                            Clock clock) {
         this.seed = seed;
         this.templates = templates;
         this.rules = rules;
         this.inbox = inbox;
         this.members = members;
         this.contexts = contexts;
+        this.contents = contents;
         this.clock = clock;
     }
 
@@ -81,6 +86,7 @@ public class EngagementSeeder implements ApplicationRunner, DemoResettable {
     @Transactional
     public void resetToSeed() {
         inbox.deleteAll();
+        contents.deleteAll();
         rules.deleteAll();
         templates.deleteAll();
         members.deleteAll();
@@ -127,7 +133,18 @@ public class EngagementSeeder implements ApplicationRunner, DemoResettable {
                     t.linkTarget(), t.category(), sourceId, factTypeByTemplate.get(t.code()), null, at, readAt));
             messages++;
         }
-        log.info("Seed engagement caricato: {} template, {} regole, {} messaggi", byCode.size(), ruleCount, messages);
+        int contentCount = 0;
+        for (JsonNode c : seed.readTree("contents.json")) {
+            contents.insert(new ContentItem(Ulid.next(clock), c.path("code").asString(), c.path("kind").asString(),
+                    text(c, "placement"), c.path("title").asString(), text(c, "body"), text(c, "imageUrl"), text(c, "ctaLabel"),
+                    text(c, "ctaTarget"), c.path("linkType").asString("NONE"), text(c, "linkCode"), c.path("audience"),
+                    date(c, "startAt"), date(c, "endAt"), c.path("priority").asInt(50), text(c, "frequency"),
+                    c.path("dismissible").asBoolean(true), c.path("style"), c.path("status").asString("DRAFT"), 0, null),
+                    SEED_ACTOR);
+            contentCount++;
+        }
+        log.info("Seed engagement caricato: {} template, {} regole, {} messaggi, {} contenuti", byCode.size(), ruleCount,
+                messages, contentCount);
     }
 
     /** Copia di {@code data} con le espressioni di data ({@code @today+12d}, docs/10 §1) risolte in istanti ISO. */
@@ -143,6 +160,11 @@ public class EngagementSeeder implements ApplicationRunner, DemoResettable {
             }
         }
         return copy;
+    }
+
+    private Instant date(JsonNode n, String field) {
+        String v = text(n, field);
+        return v == null ? null : SeedDates.resolve(v, clock);
     }
 
     private static Instant min(Instant a, Instant b) {
