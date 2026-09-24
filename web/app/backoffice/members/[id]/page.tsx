@@ -18,11 +18,14 @@ import { TypePill } from "@/components/bo/segments/TypePill";
 import type { MemberSegment } from "@/lib/segments/types";
 import { MemberAttributesCard } from "@/components/bo/members/MemberAttributesCard";
 import { AnonymizeDialog } from "@/components/bo/members/AnonymizeDialog";
+import { StatusChangeDialog } from "@/components/bo/members/StatusChangeDialog";
+import { memberStatusActions, type MemberStatusAction } from "@/lib/member/status";
 import { isAnonymized, memberDisplayName, personalValue } from "@/lib/member/anonymized";
 
 // BO-03 Scheda 360° (docs/08 §BO-03). M1: schede overview / ledger / actions; ogni pannello degrada da solo.
 // M3.6: azione rapida "Rettifica punti" (CARE/ADMIN). M6.6: scheda segments (segmenti di appartenenza); M6.7 attributi ed etichette.
 // M7.5: menu *Anonimizza* (ADMIN, conferma con l'ID digitato); dopo, campi personali "Membro anonimo" e azioni disabilitate.
+// FIN-2: menu *Blocca/Sblocca* e *Disattiva* (F-MBR-04, capacità member.write: ADMIN, CARE) con conferma semplice.
 const TABS = [
   { key: "overview", label: "Panoramica" },
   { key: "ledger", label: "Movimenti" },
@@ -37,6 +40,7 @@ export default function MemberDetailPage() {
   const wallet = useLhQuery<WalletView>("wallet", `/v1/wallets/${id}`);
   const [adjusting, setAdjusting] = useState(false);
   const [anonymizing, setAnonymizing] = useState(false);
+  const [statusAction, setStatusAction] = useState<MemberStatusAction | null>(null);
   const [done, setDone] = useState<string | null>(null);
 
   return (
@@ -64,7 +68,15 @@ export default function MemberDetailPage() {
                         Rettifica punti ●
                       </button>
                     </Can>
-                    <MemberMenu anonymized={anonymized} onAnonymize={() => setAnonymizing(true)} />
+                    <MemberMenu
+                      status={m.status}
+                      anonymized={anonymized}
+                      onStatus={(a) => {
+                        setDone(null);
+                        setStatusAction(a);
+                      }}
+                      onAnonymize={() => setAnonymizing(true)}
+                    />
                   </div>
                 }
               />
@@ -76,6 +88,17 @@ export default function MemberDetailPage() {
                 <p className="mb-3 rounded bg-slate-100 px-3 py-2 text-sm italic text-slate-600">
                   Membro anonimizzato: i dati personali sono stati rimossi, movimenti e statistiche restano. Le azioni sono disabilitate.
                 </p>
+              ) : null}
+              {statusAction ? (
+                <StatusChangeDialog
+                  member={m}
+                  action={statusAction}
+                  onClose={() => setStatusAction(null)}
+                  onDone={(updated) => {
+                    setDone(`${statusAction.doneMessage} Stato attuale: ${updated.status}.`);
+                    setStatusAction(null);
+                  }}
+                />
               ) : null}
               {anonymizing ? (
                 <AnonymizeDialog
@@ -108,8 +131,21 @@ export default function MemberDetailPage() {
   );
 }
 
-/** Menu della scheda (docs/08 §BO-03): per ora *Anonimizza* ● (solo ADMIN, capacità member.anonymize). */
-function MemberMenu({ anonymized, onAnonymize }: { anonymized: boolean; onAnonymize: () => void }) {
+/**
+ * Menu della scheda (docs/08 §BO-03): *Blocca/Sblocca* e *Disattiva* (capacità member.write, conferma semplice) e
+ * *Anonimizza* ● (solo ADMIN, capacità member.anonymize). Con un membro anonimizzato tutto è disabilitato.
+ */
+function MemberMenu({
+  status,
+  anonymized,
+  onStatus,
+  onAnonymize,
+}: {
+  status: string;
+  anonymized: boolean;
+  onStatus: (action: MemberStatusAction) => void;
+  onAnonymize: () => void;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
@@ -124,6 +160,23 @@ function MemberMenu({ anonymized, onAnonymize }: { anonymized: boolean; onAnonym
       </button>
       {open ? (
         <div role="menu" className="absolute right-0 z-30 mt-1 w-48 rounded border border-[var(--color-bo-border)] bg-white py-1 text-sm shadow-md">
+          {memberStatusActions(status).map((a) => (
+            <Can key={a.key} capability="member.write" mode="disable">
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  onStatus(a);
+                }}
+                disabled={a.disabledReason !== null}
+                title={a.disabledReason ?? undefined}
+                className="block w-full px-3 py-1.5 text-left hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {a.label}
+              </button>
+            </Can>
+          ))}
+          <div className="my-1 border-t border-[var(--color-bo-border)]" />
           <Can capability="member.anonymize" mode="disable">
             <button
               role="menuitem"
