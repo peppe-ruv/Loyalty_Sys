@@ -8,6 +8,7 @@ COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
 COPY libs/ libs/
 COPY seed/ seed/
+COPY contracts/ contracts/
 COPY services/ services/
 COPY deploy/ deploy/
 RUN ./mvnw -q -pl services/engagement-service -am -DskipTests package

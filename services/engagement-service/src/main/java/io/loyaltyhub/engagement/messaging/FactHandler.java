@@ -4,6 +4,7 @@ import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhEventTypes;
 import io.loyaltyhub.common.inbox.EventHandler;
 import io.loyaltyhub.engagement.application.NotificationService;
+import io.loyaltyhub.engagement.application.WebhookService;
 import io.loyaltyhub.engagement.infra.MemberSnapshotRepository;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
@@ -12,18 +13,21 @@ import java.util.Set;
 
 /**
  * Tutti i fatti ({@code io.loyaltyhub.fact.*}, docs/05 §8): prima lo snapshot del membro ({@code member.*},
- * {@code tier.*}, {@code member.segment.*}), poi le regole di notifica (F-MSG-01). L'ordine conta: il messaggio di
- * benvenuto di {@code member.registered} trova già il nome per {@code {{member.firstName}}}.
+ * {@code tier.*}, {@code member.segment.*}), poi le regole di notifica (F-MSG-01), infine l'abbinamento ai webhook
+ * (F-WBH-01: solo righe {@code webhook_delivery} nella stessa transazione; l'HTTP parte dallo scheduler). L'ordine
+ * conta: il messaggio di benvenuto di {@code member.registered} trova già il nome per {@code {{member.firstName}}}.
  */
 @Component
 public class FactHandler implements EventHandler {
 
     private final MemberSnapshotRepository members;
     private final NotificationService notifications;
+    private final WebhookService webhooks;
 
-    public FactHandler(MemberSnapshotRepository members, NotificationService notifications) {
+    public FactHandler(MemberSnapshotRepository members, NotificationService notifications, WebhookService webhooks) {
         this.members = members;
         this.notifications = notifications;
+        this.webhooks = webhooks;
     }
 
     @Override
@@ -34,10 +38,11 @@ public class FactHandler implements EventHandler {
     @Override
     public void handle(LhEvent<JsonNode> event) {
         if (LhEventTypes.Fact.MESSAGE_DELIVERED.equals(event.type())) {
-            return; // mai oggetto di regole (docs/servizi/engagement-service.md §5)
+            return; // mai oggetto di regole né di webhook (docs/servizi/engagement-service.md §5)
         }
         updateSnapshot(event);
         notifications.apply(event);
+        webhooks.enqueue(event);
     }
 
     private void updateSnapshot(LhEvent<JsonNode> event) {

@@ -1,0 +1,43 @@
+[
+  {
+    "code": "WH-CRM-DEMO",
+    "name": "CRM di esempio",
+    "url": "https://example.org/hook",
+    "secret": "whsec_demo-club-aurora-solo-per-prove",
+    "factTypes": ["member.registered", "reward.redemption.fulfilled", "tier.upgraded", "wallet.points.earned"],
+    "enabled": false,
+    "note": "Spento dopo due consegne abbandonate: l'endpoint di esempio non risponde più. Le consegne storiche restano nel registro (14 giorni).",
+    "deliveries": [
+      {
+        "eventId": "SEED-WHD-01", "test": true, "factType": "wallet.points.earned", "memberId": "MBR-000002",
+        "source": "urn:loyaltyhub:service:wallet", "at": "@today-12dT09:30",
+        "status": "OK", "attempts": 1, "httpStatus": 200, "durationMs": 184, "responseExcerpt": "{\"received\":true}",
+        "data": { "ledgerEntryId": "SEED-LED-WHD-01", "currency": "PTS", "amount": 162, "balanceAfter": 1688, "campaignCode": "CMP-PURCHASE-BASE", "baseAmount": 130, "tierCode": "SILVER", "tierMultiplier": 1.25, "pending": false }
+      },
+      {
+        "eventId": "SEED-WHD-02", "factType": "wallet.points.earned", "memberId": "MBR-000003",
+        "source": "urn:loyaltyhub:service:wallet", "at": "@today-10dT18:42",
+        "status": "OK", "attempts": 1, "httpStatus": 200, "durationMs": 231, "responseExcerpt": "{\"received\":true}",
+        "data": { "ledgerEntryId": "SEED-LED-WHD-02", "currency": "PTS", "amount": 75, "balanceAfter": 3165, "campaignCode": "CMP-PURCHASE-BASE", "baseAmount": 60, "tierCode": "SILVER", "tierMultiplier": 1.25, "pending": false }
+      },
+      {
+        "eventId": "SEED-WHD-03", "factType": "wallet.points.earned", "memberId": "MBR-000004",
+        "source": "urn:loyaltyhub:service:wallet", "at": "@today-8dT12:05",
+        "status": "OK", "attempts": 2, "httpStatus": 204, "durationMs": 312,
+        "data": { "ledgerEntryId": "SEED-LED-WHD-03", "currency": "PTS", "amount": 240, "balanceAfter": 12060, "campaignCode": "CMP-PURCHASE-BASE", "baseAmount": 160, "tierCode": "GOLD", "tierMultiplier": 1.5, "pending": false }
+      },
+      {
+        "eventId": "SEED-WHD-04", "factType": "wallet.points.earned", "memberId": "MBR-000007",
+        "source": "urn:loyaltyhub:service:wallet", "at": "@today-6dT16:20",
+        "status": "GAVE_UP", "attempts": 4, "httpStatus": 503, "durationMs": 95, "responseExcerpt": "Servizio temporaneamente non disponibile",
+        "data": { "ledgerEntryId": "SEED-LED-WHD-04", "currency": "PTS", "amount": 50, "balanceAfter": 2400, "campaignCode": "CMP-SELF-READING", "pending": false }
+      },
+      {
+        "eventId": "SEED-WHD-05", "factType": "wallet.points.earned", "memberId": "MBR-000010",
+        "source": "urn:loyaltyhub:service:wallet", "at": "@today-5dT10:10",
+        "status": "GAVE_UP", "attempts": 4, "error": "TIMEOUT", "durationMs": 5003, "responseExcerpt": "Nessuna risposta entro 5 s",
+        "data": { "ledgerEntryId": "SEED-LED-WHD-05", "currency": "PTS", "amount": 5, "balanceAfter": 910, "campaignCode": "CMP-APP-DAILY", "pending": false }
+      }
+    ]
+  }
+]
