@@ -70,7 +70,7 @@ public class EventIngestService {
      *
      * @return {@code true} se la voce è nuova (un record DLQ riletto non ne crea una seconda)
      */
-    // SPEC-GAP: Q-B8 — §2 elenca la famiglia DLQ in event_store, ma col medesimo event_id dell'originale la riga non
+    // SPEC-GAP: Q-111 — §2 elenca la famiglia DLQ in event_store, ma col medesimo event_id dell'originale la riga non
     // potrebbe coesistere: il record DLQ vive in dlq_entry (e nel flusso live), l'event store tiene l'originale.
     @Transactional
     public boolean ingestDlq(ConsumerRecord<String, String> record) {

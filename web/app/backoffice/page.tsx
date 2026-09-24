@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useLhQuery } from "@/lib/api/client";
 import { QueryState } from "@/components/bo/QueryState";
@@ -80,7 +81,7 @@ export default function DashboardPage() {
         </Section>
       </div>
 
-      {/* Riga 4 — "Da guardare" (le fonti mancanti arrivano con M4/M7). */}
+      {/* Riga 4 — "Da guardare": segnali dell'overview e scorciatoie alle code operative (BO-13, BO-21, BO-27). */}
       <div className="mt-4">
         <Section title="Da guardare" hint="Segnali operativi">
           <QueryState query={overview} service="insight">
@@ -93,8 +94,10 @@ export default function DashboardPage() {
               </div>
             )}
           </QueryState>
-          <p className="mt-3 text-xs text-[var(--color-bo-ink-2)]">
-            Richieste da evadere, oggetti in revisione, stock e DLQ aperte compaiono con le milestone M4 e M7.
+          <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--color-bo-ink-2)]">
+            <Link href="/backoffice/rewards/redemptions" className="underline">Richieste da evadere</Link>
+            <Link href="/backoffice/governance/approvals" className="underline">Oggetti in revisione</Link>
+            <Link href="/backoffice/observe/dlq" className="underline">DLQ aperte</Link>
           </p>
         </Section>
       </div>

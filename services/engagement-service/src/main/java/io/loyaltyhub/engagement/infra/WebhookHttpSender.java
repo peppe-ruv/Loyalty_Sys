@@ -26,7 +26,7 @@ import java.util.Optional;
  * risolto e, se la politica lo chiede, un indirizzo privato/loopback blocca l'invio ({@code BLOCKED_ADDRESS}).
  * Non lancia mai: ogni problema diventa un {@link Result} senza stato HTTP.
  */
-// SPEC-GAP: Q-A3 — la scheda blocca gli indirizzi privati "nel profilo free", ma l'hub ospitato gira con
+// SPEC-GAP: Q-99 — la scheda blocca gli indirizzi privati "nel profilo free", ma l'hub ospitato gira con
 // `demo,inproc` (senza free): per prudenza il blocco è attivo in ogni profilo tranne `local`
 // (`loyaltyhub.webhooks.block-private-addresses` per forzarlo); `http://localhost` è ammesso solo in `local`
 // (`loyaltyhub.webhooks.allow-http-localhost`).

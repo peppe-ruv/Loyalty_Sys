@@ -17,7 +17,7 @@ export interface NavGroup {
 
 // Milestone realizzate finora: M1 completa + fette di M2 già realizzate (BO-24 in M2.2). Le voci M2 non
 // ancora costruite semplicemente non sono ancora in NAV, quindi non compaiono (mai pagine "in arrivo").
-export const REALIZED_MILESTONE = 6;
+export const REALIZED_MILESTONE = 7;
 
 export const NAV: NavGroup[] = [
   {

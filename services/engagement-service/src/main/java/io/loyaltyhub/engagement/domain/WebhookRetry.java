@@ -11,7 +11,7 @@ import java.util.List;
  * Il conteggio è sui tentativi eseguiti ({@code attempt}): un *Riprova* manuale è un tentativo in più e, se fallisce,
  * segue la stessa tabella (oltre il quarto → di nuovo {@code GAVE_UP}).
  */
-// SPEC-GAP: Q-A2 — la scheda dice "ritenti a 1, 5, 15 min poi GAVE_UP" senza dire cosa fa il Riprova manuale: qui è un
+// SPEC-GAP: Q-98 — la scheda dice "ritenti a 1, 5, 15 min poi GAVE_UP" senza dire cosa fa il Riprova manuale: qui è un
 // solo tentativo immediato che rientra nella stessa tabella (nessun nuovo ciclo di ritenti dopo GAVE_UP).
 public final class WebhookRetry {
 

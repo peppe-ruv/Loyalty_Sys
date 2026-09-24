@@ -52,7 +52,7 @@ import java.util.Map;
  * il cui corpo è il CloudEvent ricostruito e firmato col segreto del seed. Profilo {@code demo}, ripetibile via
  * {@code /v1/demo/reset}.
  */
-// SPEC-GAP: Q-A6 — docs/10 §7 chiede solo "un webhook, disabilitato": per non lasciare vuoto il registro consegne di
+// SPEC-GAP: Q-102 — docs/10 §7 chiede solo "un webhook, disabilitato": per non lasciare vuoto il registro consegne di
 // BO-23 il seed aggiunge 5 consegne storiche (ultimi 12 giorni, dentro la pulizia dei 14) di cui 2 abbandonate.
 // SPEC-GAP: Q-64 — docs/10 §7 vuole un messaggio non letto "richiesta confermata" per Sofia, ma tra gli 11 template
 // + MSG-BIRTHDAY non ce n'è uno: il seed aggiunge MSG-REWARD-CONFIRMED e la regola NR-REWARD-CONFIRMED

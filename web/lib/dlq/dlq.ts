@@ -29,7 +29,7 @@ export interface DlqEntry {
   reprocessable: boolean;
 }
 
-// SPEC-GAP: Q-B2 — docs/08 chiama "NEW" lo stato che la scheda di insight (fonte più autorevole) chiama "OPEN":
+// SPEC-GAP: Q-105 — docs/08 chiama "NEW" lo stato che la scheda di insight (fonte più autorevole) chiama "OPEN":
 // l'API usa OPEN, la UI lo mostra come «Nuova».
 export const DLQ_STATUS_LABEL: Record<DlqStatus, string> = {
   OPEN: "Nuova",

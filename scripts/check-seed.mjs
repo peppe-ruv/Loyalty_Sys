@@ -586,7 +586,7 @@ if (Array.isArray(templatesSeed)) {
 
 // Webhook (docs/10 §7, docs/servizi/engagement-service.md §2, §5–§6; F-WBH-01, M7.2): uno solo, disabilitato, verso
 // https://example.org; tipi di fatto del catalogo dei contratti (contracts/events/fact) e mai message.delivered;
-// segreto whsec_… presente. Registro storico (SPEC-GAP: Q-A6): solo consegne chiuse (OK/GAVE_UP: nessuna partirebbe
+// segreto whsec_… presente. Registro storico (SPEC-GAP: Q-102): solo consegne chiuse (OK/GAVE_UP: nessuna partirebbe
 // davvero), dei tipi sottoscritti, per membri esistenti, dentro la pulizia dei 14 giorni, tentativi coerenti coi ritenti.
 {
   const hooks = readSeed("webhooks.json");

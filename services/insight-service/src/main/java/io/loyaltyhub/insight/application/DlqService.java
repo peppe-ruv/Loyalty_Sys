@@ -27,7 +27,7 @@ import java.util.Map;
  *   <li><strong>scarta</strong>: qualunque voce aperta, con una nota obbligatoria (§5 "solo discard con nota").</li>
  * </ul>
  */
-// SPEC-GAP: Q-B6 — insight §4 dice "nessun evento su Kafka", ma le scritture da backoffice vanno auditate (F-AUD-01,
+// SPEC-GAP: Q-109 — insight §4 dice "nessun evento su Kafka", ma le scritture da backoffice vanno auditate (F-AUD-01,
 // docs/05 §6): riprocessa/scarta pubblicano la sola voce di audit su lh.audit.v1 (via outbox), nessun fatto di dominio.
 @Service
 public class DlqService {
@@ -72,7 +72,7 @@ public class DlqService {
     }
 
     public DlqEntry discard(String id, String note) {
-        // SPEC-GAP: Q-B7 — §5 chiede la nota per scartare effetti e fatti; la si chiede per ogni voce (più prudente).
+        // SPEC-GAP: Q-110 — §5 chiede la nota per scartare effetti e fatti; la si chiede per ogni voce (più prudente).
         if (note == null || note.isBlank()) {
             throw LhException.validation("NOTE_REQUIRED", "Per scartare una voce DLQ serve una nota");
         }
@@ -105,7 +105,7 @@ public class DlqService {
         return entry;
     }
 
-    // SPEC-GAP: Q-B4 — la scheda non dice cosa risponde una seconda chiusura: 409 DLQ_NOT_OPEN, voce invariata.
+    // SPEC-GAP: Q-107 — la scheda non dice cosa risponde una seconda chiusura: 409 DLQ_NOT_OPEN, voce invariata.
     private static LhException notOpen(DlqEntry entry) {
         return LhException.conflict("DLQ_NOT_OPEN", "La voce DLQ è già chiusa (" + entry.status() + ")");
     }

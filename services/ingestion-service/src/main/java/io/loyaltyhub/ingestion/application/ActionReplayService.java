@@ -26,7 +26,7 @@ import java.util.Optional;
  * la ignorano per idempotenza ({@code processed_event}); quello fallito (la sua transazione non era stata
  * confermata) la rielabora. Nessuna nuova riga in {@code inbound_event}: l'ingresso è uno solo.
  */
-// SPEC-GAP: Q-B1 — la scheda non dice come conciliare "stesso id" con la dedup: ripubblicazione dell'envelope accettato.
+// SPEC-GAP: Q-104 — la scheda non dice come conciliare "stesso id" con la dedup: ripubblicazione dell'envelope accettato.
 @Service
 public class ActionReplayService {
 

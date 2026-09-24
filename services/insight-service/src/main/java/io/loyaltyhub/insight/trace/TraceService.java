@@ -73,7 +73,7 @@ public class TraceService {
                     d.eventId(), "DLQ · " + (d.errorCode() == null ? "errore" : d.errorCode()) + " · " + d.status()));
         }
 
-        // SPEC-GAP: Q-B3 — "FAILED se esiste DLQ": una voce riprocessata (ingestion l'ha ripubblicata) non fa più fallire
+        // SPEC-GAP: Q-106 — "FAILED se esiste DLQ": una voce riprocessata (ingestion l'ha ripubblicata) non fa più fallire
         // il tracciato; aperta o scartata sì. Un nuovo fallimento dopo il riprocessa apre una nuova voce.
         boolean hasDlq = rows.stream().anyMatch(e -> "DLQ".equals(e.family()))
                 || dlqs.stream().anyMatch(d -> !DlqEntry.REPROCESSED.equals(d.status()));

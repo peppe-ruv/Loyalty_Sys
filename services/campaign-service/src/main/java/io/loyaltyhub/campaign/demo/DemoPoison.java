@@ -11,7 +11,7 @@ import tools.jackson.databind.JsonNode;
  * {@code demo} il motore rifiuta l'azione con un'eccezione non ritentabile, così il messaggio finisce in DLQ
  * (BO-27) e il tracciato è {@code FAILED}. Fuori dal profilo demo il flag è ignorato.
  */
-// SPEC-GAP: Q-B5 — docs/10 §8 dice sia "il consumer fallisce 3 volte" sia "eccezione non ritentabile": vale la
+// SPEC-GAP: Q-108 — docs/10 §8 dice sia "il consumer fallisce 3 volte" sia "eccezione non ritentabile": vale la
 // seconda (più specifica), quindi un solo tentativo e poi DLQ con lh-attempts=1.
 @Component
 public class DemoPoison {

@@ -14,10 +14,10 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M3 — Punti adulti | chiusa (codice) | 2026-09-21 | 2026-09-23 | ☑ | M3.1–M3.9 implementate; criteri di accettazione verdi con test automatici; resta `smoke.sh` sulla demo online |
 | M4 — Premi | chiusa (codice) | 2026-09-23 | 2026-09-24 | ☐ | M4.1–M4.6 implementate; criteri di accettazione verdi con test automatici (E2E portale su API simulate); resta `smoke.sh` sulla demo online |
 | M5 — Gioco | chiusa (codice) | 2026-09-24 | 2026-09-24 | ☐ | M5.1–M5.7 implementate; criteri di accettazione verdi con test automatici + E2E n. 3 con Playwright su servizio locale; resta `smoke.sh` sulla demo online |
-| M6 — Contenuti | in corso | 2026-09-24 | | ☐ | M6.0–M6.7 chiuse (engagement: template, regole, inbox, `message.send`; contenuti per posizionamento, BO-18; pop-up e frequenze; card vincita; PT-12, BO-19, `SEND_MESSAGE`; tema a runtime, BO-20; segmenti statici e dinamici, BO-04; tipi azione custom, attributi personalizzati, costruttore di condizioni) — accettazione aperta solo per il webhook (M7) e la demo online |
-| M7 — Governance | da iniziare | | | ☐ | |
+| M6 — Contenuti | in corso | 2026-09-24 | | ☐ | M6.0–M6.7 chiuse (engagement: template, regole, inbox, `message.send`; contenuti per posizionamento, BO-18; pop-up e frequenze; card vincita; PT-12, BO-19, `SEND_MESSAGE`; tema a runtime, BO-20; segmenti statici e dinamici, BO-04; tipi azione custom, attributi personalizzati, costruttore di condizioni) — accettazione verde (il webhook è arrivato con M7.2); resta la demo online |
+| M7 — Governance | in corso | 2026-09-24 | | ☐ | M7.1–M7.3 chiuse (approvazioni per ruolo con policy e storico, BO-21; webhook firmati con ritenti, BO-23; DLQ con riprocessa/scarta, BO-27) |
 
-**Prossima fetta da lavorare:** M7.1 (approvazioni: `LH_APPROVAL_ENABLED=true`, policy, BO-21); per chiudere M6 restano il webhook di engagement (M7.2, Q-95) e la demo online aggiornata; resta `smoke.sh` sulla demo online per M3–M5
+**Prossima fetta da lavorare:** M7.4 (eventi non abbinati: abbina e reinvia, BO-26), poi M7.5 anonimizzazione e M7.6 versioni/duplica; resta `smoke.sh` sulla demo online per M3–M7
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -298,12 +298,12 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 **Accettazione M6** (`docs/12`)
 
-- [ ] criteri di accettazione verdi — _2026-09-24, tutti verificati con test automatici tranne il webhook (§7.5), che la scheda di engagement assegna a M7 (Q-95):_
+- [x] criteri di accettazione verdi — _2026-09-24, tutti verificati con test automatici (il webhook §7.5 con M7.2, Q-95):_
   - _engagement-service §7.1 `wallet.points.earned` di 162 PTS → "Hai guadagnato 162 punti", rielaborato → nessun doppione → `EngagementIT`, `HubEngagementIT`_
   - _§7.2 pop-up `ONCE` non ricompare, `ONCE_PER_DAY` il giorno dopo → `ContentIT`, `ContentSelectionTest`_
   - _§7.3 pubblico GOLD/PLATINUM: Anna no, Davide sì, con il motivo in anteprima → `ContentIT`_
   - _§7.4 `PUT /v1/theme` → il portale cambia colore senza rilascio → `ContentIT` + Playwright (M6.5)_
-  - _§7.5 webhook con ritenti e `GAVE_UP` → **M7.2**_
+  - _§7.5 webhook con ritenti e `GAVE_UP` → `WebhookIT` (M7.2)_
   - _E2E n. 1 (tier-up di Giulia → notifica in PT-12) → `HubEngagementIT` ("Sei salito di livello: ora sei GOLD")_
   - _tipo azione custom da BO-09, inviabile da BO-28, selezionabile in BO-06, punti senza rilascio → `HubCustomActionIT` (con condizione su `member.attributes.hasGasContract` cambiata a caldo da BO-03) + Playwright_
   - _contenuto riservato a SEG-DIGITAL per Marco dopo SCN-DIGITAL e ricalcolo → `HubSegmentsIT`_
@@ -315,9 +315,9 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 **Fette** (`docs/12 §3`)
 
-- [ ] `M7.1`
-- [ ] `M7.2`
-- [ ] `M7.3`
+- [x] `M7.1` — _approvazioni (F-APR-01/02/03): `LH_APPROVAL_ENABLED` acceso di default; policy in lh-common (concorsi e premi sempre LEGAL, campagne con `requiresLegal` o budget oltre 100 000 punti, contenuti mai) e transizioni per ruolo sopra la macchina a stati comune: MARKETING invia in revisione e pubblica dopo l'approvazione (`PUBLISH` da DRAFT → 409 `APPROVAL_REQUIRED`), LEGAL o ADMIN (override marcato in audit) approva o rifiuta (commento obbligatorio, 422); storico `approval_history` per ogni transizione con `GET /v1/<risorsa>/{id}/approval-history`; `GET /v1/approvals` comune (aggrega le fonti del processo, anche «inviate da me») e `/v1/approvals/policy` (Q-96); reward senza lo stato REJECTED (torna in DRAFT), campagne con APPROVED; seed in revisione nello storico (IW-NATALE, RWD-GIFT-50, CMP-BLACK-FRIDAY). Web: BO-21 (Da approvare per ruolo, Inviate da me con esito e commento, Policy), foglio con riepilogo (frase generata per le campagne), storico e Approva/Rifiuta; barra del ciclo di vita con *Invia in revisione* e *Rifiuta…* (4d2e5a4)_
+- [x] `M7.2` — _webhook in uscita (F-WBH-01): firma `X-LH-Signature: sha256=HMAC`, consegne scritte nel consumer e inviate da uno scheduler ogni 30 s su thread virtuale, ritenti a 1/5/15 min poi `GAVE_UP`, *Riprova* manuale, evento di prova dagli esempi dei contratti, blocco degli indirizzi privati (Q-99), pulizia a 14 giorni; `deploy/webhook-receiver/` con ricevitore e verifica della firma (`node --test`); BO-23 e job «Invio webhook» in BO-30 (a1156b8)_
+- [x] `M7.3` — _DLQ (F-INS-05): intestazioni di docs/04 dall'error handler comune e dal bus in-process dell'hub (prima i messaggi falliti nella demo online andavano persi), `dlq_entry` in insight, riprocessa delle azioni via ingestion con `X-LH-Reprocess` (ADMIN, Q-104), scarta con nota, tracciato FAILED con il nodo DLQ; `SCN-POISON`; BO-27 con spiegazione di `LOOP_GUARD` e contatore nella sidebar, voci DLQ nel tracciato di BO-25 (762a6b1)_
 - [ ] `M7.4`
 - [ ] `M7.5`
 - [ ] `M7.6`
@@ -327,11 +327,11 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [ ] `F-ING-04` Eventi non abbinati (P1)
 - [ ] `F-MBR-05` Anonimizzazione (P1)
 - [ ] `F-CMP-13` Duplica campagna (P1)
-- [ ] `F-WBH-01` Webhook in uscita (P1)
-- [ ] `F-APR-01` Workflow di approvazione (P0)
-- [ ] `F-APR-02` Policy (P1)
-- [ ] `F-APR-03` Casella approvazioni (P0)
-- [ ] `F-INS-05` DLQ (P1)
+- [x] `F-WBH-01` Webhook in uscita (P1) — _M7.2 firma, ritenti, GAVE_UP, Riprova, BO-23_
+- [x] `F-APR-01` Workflow di approvazione (P0) — _M7.1 invio, approvazione/rifiuto con commento, storico_
+- [x] `F-APR-02` Policy (P1) — _M7.1 policy configurabile, scheda in BO-21_
+- [x] `F-APR-03` Casella approvazioni (P0) — _M7.1 coda aggregata lato web dalle tre fonti, degradata per fonte_
+- [x] `F-INS-05` DLQ (P1) — _M7.3 voci DLQ, riprocessa e scarta, BO-27_
 
 **Accettazione M7** (`docs/12`)
 
@@ -350,6 +350,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 | Data | Fetta | Esito | Commit | Domande aperte create | Note per la prossima sessione |
 |---|---|---|---|---|---|
+| 2026-09-24 | M7.1 · M7.2 · M7.3 | ✅ `./mvnw verify` verde (nuovi `GovernedTransitionsTest`; `ContestIT` con l'**accettazione M7**: luca.marketing → `PUBLISH` 409 `APPROVAL_REQUIRED`, solo *Invia in revisione*; elena.legal rifiuta senza commento → 422, con commento → DRAFT, poi approva con commento; storico di 5 transizioni con attori e commenti; coda comune e «inviate da me»; `RewardServiceIT`, `CampaignServiceIT` sopra soglia di budget; `WebhookIT` 5: endpoint 500 → ritenti +1/+5/+15 min → `GAVE_UP`, *Riprova* → OK, firma verificata anche da `verify.mjs`; `DlqIT` 7 e `HubDlqIT`: `SCN-POISON` → voce `DEMO_POISON`, tracciato FAILED, riprocessa via HTTP, scarta con nota), `pnpm lint typecheck test build` verdi (37 file, 205 test), `check-seed` 30, `check-contracts` 52, `node --test deploy/webhook-receiver/verify.test.mjs` 3 | 4d2e5a4 · a1156b8 · 762a6b1 | Q-96…Q-111 | M7.2 e M7.3 svolte da due agenti in parallelo e integrate dopo revisione (SPEC-GAP rinumerati da Q-A1…A7 e Q-B1…B8). `/v1/approvals` è un controller comune che aggrega le fonti del processo: nell'hub i tre servizi condividono il server web e un endpoint per servizio sarebbe andato in conflitto. Sidebar a milestone 7. Ritenti Kafka ancora a 200 ms × 3 invece di 1/5/15 s di docs/04 (preesistente). |
 | 2026-09-24 | M6.7 | ✅ `./mvnw verify` verde (nuovi `EventTypesIT` 4: campi dallo schema, custom creato da MARKETING e accettato subito, schema aggiornato valido dall'azione successiva, disabilitato → `UNKNOWN_TYPE`, sistema modificabile solo da ADMIN e solo nelle etichette; `MemberServiceIT` 9 con attributi validati, `member.updated` con attributi e data di nascita, definizioni con ruoli e `ATTRIBUTE_IN_USE`; `HubCustomActionIT`: **accettazione M6** — tipo custom → campagna LIVE con `data.reading` e `member.attributes.hasGasContract` → +75 PTS a Marco, niente a Giulia finché BO-03 non le cambia l'attributo), `pnpm lint typecheck test build` verdi (34 file, 177 test), `check-seed` 29; Playwright su servizi locali: BO-09 nuovo tipo a righe → dettaglio coi campi → *Prova* apre BO-28 con tipo e dati d'esempio; BO-06 lo mostra tra i trigger con i suoi campi e gli attributi nel costruttore; BO-03 etichetta salvata; BO-04 definizioni | 1c710e2 · d22affe | Q-89…Q-95 | Trovato e corretto: campaign e member instradavano solo i 19 tipi di sistema, un tipo custom sarebbe stato scartato in silenzio; lo snapshot di `member.*` non portava attributi e data di nascita (il contratto li prevedeva). Costruttore di condizioni di BO-06 svolto da un agente in parallelo e integrato dopo revisione. |
 | 2026-09-24 | M6.6 | ✅ `./mvnw verify` verde (`SegmentCriteriaTest` 7, `SegmentIT` 8: appartenenze dei seed, anteprima `member.tier in [GOLD, PLATINUM]` = 4, ruoli, fatti solo per le differenze validati sui contratti, statici, `SCN-DIGITAL` → ricalcolo → Marco entra in SEG-DIGITAL ed esce da SEG-NOT-EBILL; `CampaignServiceIT` 15 e `RewardServiceIT` 6 col pubblico per segmento; nuovo `HubSegmentsIT` 2: **accettazione M6 sui segmenti** — dopo `SCN-DIGITAL` e ricalcolo la griglia Home di Marco mostra `CNT-DIGITAL-THANKS` al posto di `CNT-EBILL`; Stefano nel pubblico SEG-AT-RISK di `CMP-REVIEW`, `RWD-EBIKE-RENT` visibile a Davide), `pnpm lint typecheck test build` verdi (119 test), `check-seed` 28 con la rivalutazione dei criteri sui seed, `check-contracts` 52; Playwright su BO-04, BO-03, BO-02, BO-30 anche come ANALYST | 768319b | Q-80…Q-88 | Fetta svolta da un agente in parallelo e integrata in `main` dopo revisione (SPEC-GAP rinumerati da Q-90…98). `actions_by_type` di `member_stats` portato alla forma della scheda servizio `{count30d, total, lastAt}`. |
 | 2026-09-24 | M6.5 | ✅ `./mvnw verify` verde (`ThemeTest` 2: contrasto WCAG e Aurora conforme; `ContentIT` 10 con `themeChangesAtRuntimeWithContrastCheck`: PUT primario → portale lo restituisce, primario scuro → 422 `THEME_CONTRAST_TOO_LOW` su `colors.primary`, ANALYST 403), `pnpm lint typecheck test build` verdi, `check-seed` con la regola del tema; Playwright su servizi locali: BO-20 come MARKETING, primario `#1A3D5C` → 1,54:1 e *Salva* disabilitato, `#FF8A5C` → 7,46:1 e salvataggio (versione 1), portale di Marco con `--color-pt-primary:#FF8A5C` dopo la cache di 60 s | (questo commit) | Q-79 | `MemberCard` spostata in `components/shared/content` (la usano portale e anteprima di BO-20). Variabili CSS `--color-pt-*` come già nel CSS (docs/07 §5.3 le chiama `--pt-*`). M6.6 in corso con un agente in parallelo. |

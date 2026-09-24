@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * interroga già il DB ogni 500 ms). Le chiamate HTTP (fino a 5 s l'una) girano su un thread virtuale dedicato, un giro
  * alla volta: il thread dello scheduler, condiviso con il relay dell'outbox, non resta mai bloccato.
  */
-// SPEC-GAP: Q-A5 — "scheduler ogni 30 s" con i job spenti in demo (ADR-024): senza questo interruttore dedicato le
+// SPEC-GAP: Q-101 — "scheduler ogni 30 s" con i job spenti in demo (ADR-024): senza questo interruttore dedicato le
 // consegne resterebbero PENDING nella demo ospitata. In più `POST /v1/demo/jobs/deliver-webhooks?asOf=` (BO-30).
 @Component
 @Lazy(false)

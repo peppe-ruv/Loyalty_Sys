@@ -1,6 +1,6 @@
 -- V5 — webhook in uscita (docs/servizi/engagement-service.md §2, §5; F-WBH-01, BO-23, M7.2).
 -- Nomi unici nel search_path condiviso dell'hub consolidato (ADR-023): nessun altro schema ha `webhook*`.
--- SPEC-GAP: Q-A1 — rispetto alla scheda servizio: `code` (docs/06 §2, come notification_rule per Q-69), colonne
+-- SPEC-GAP: Q-97 — rispetto alla scheda servizio: `code` (docs/06 §2, come notification_rule per Q-69), colonne
 -- standard di configurazione (`version`, `updated_*`) e, sulla consegna, i dati che BO-23 mostra nel dettaglio
 -- ("stato HTTP, tentativi, durata, payload, firma", docs/08) più quelli che servono allo scheduler: `payload` (il corpo
 -- firmato: la consegna parte dallo scheduler, non dal consumer), `signature`, `member_id`, `test`, `duration_ms`,

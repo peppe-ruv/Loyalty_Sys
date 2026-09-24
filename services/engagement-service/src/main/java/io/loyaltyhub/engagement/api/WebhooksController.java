@@ -26,7 +26,7 @@ import java.util.List;
  * (prova, *Riprova*) solo {@code ADMIN} (capacità {@code webhook.write}, docs/08 §2). Il {@code secret} è nel corpo
  * della sola risposta di creazione. Nei path si accetta {@code id} o {@code code} (docs/06 §2).
  */
-// SPEC-GAP: Q-A7 — oltre alla tabella API della scheda: GET /v1/webhook-deliveries/{id} (dettaglio aggiornato di una
+// SPEC-GAP: Q-103 — oltre alla tabella API della scheda: GET /v1/webhook-deliveries/{id} (dettaglio aggiornato di una
 // consegna per BO-23) e, in demo, POST /v1/demo/jobs/deliver-webhooks?asOf= (BO-30); l'evento di prova risponde 201
 // con la consegna creata e il suo primo esito. L'elenco dei webhook è un array semplice come le altre configurazioni
 // di engagement (regole, template); il registro consegne è paginato {items, page}.

@@ -197,7 +197,7 @@ public class WebhookService {
      * tipo sottoscritto (id e ora nuovi), tentata subito; se fallisce segue i ritenti come le altre. Vale anche per un
      * webhook disattivato: è un'azione esplicita di chi lo configura.
      */
-    // SPEC-GAP: Q-A4 — docs/08 non dice che cosa contiene l'evento di prova: qui è l'esempio del contratto
+    // SPEC-GAP: Q-100 — docs/08 non dice che cosa contiene l'evento di prova: qui è l'esempio del contratto
     // (contracts/events/examples/fact.<tipo>.json) del primo tipo sottoscritto, con id/ora/correlazione nuovi e
     // `lhactor` di chi lo invia; il registro lo marca `test` (nessun fatto reale viene pubblicato su Kafka).
     public WebhookDelivery test(String idOrCode) {
