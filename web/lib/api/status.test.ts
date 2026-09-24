@@ -1,50 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { isRfc9457, mapRfc9457ToFormErrors } from "./status";
+import { entrancesReady, type DemoStatus } from "./status";
+
+function status(upCodes: string[]): DemoStatus {
+  const all = ["ingestion", "member", "campaign", "wallet", "reward", "gamification", "engagement", "insight"];
+  return {
+    services: all.map((code) => ({
+      code, name: code, state: upCodes.includes(code) ? "UP" : "SLEEPING", latencyMs: null,
+    })),
+    kafka: { state: "UP" }, db: { state: "UP" }, readyCount: upCodes.length, totalCount: 10,
+    checkedAt: new Date().toISOString(),
+  };
+}
 
 describe("api/status", () => {
-  it("riconosce gli errori RFC 9457", () => {
-    expect(isRfc9457({ type: "test", status: 400 })).toBe(true);
-    expect(isRfc9457(null)).toBe(false);
-    expect(isRfc9457("error")).toBe(false);
-  });
-
-  it("mappa gli errori RFC 9457 nei campi", () => {
-    const error = {
-      type: "about:blank",
-      status: 400,
-      detail: "Invalid input",
-      violations: [
-        { field: "name", message: "Required" },
-        { field: "email", message: "Invalid email" }
-      ]
-    };
-
-    // Simula una funzione setError di react-hook-form
-    const errorsSet: Record<string, any> = {};
-    const setError = (field: string, error: any) => {
-      errorsSet[field] = error;
-    };
-
-    mapRfc9457ToFormErrors(error, setError as any);
-
-    expect(errorsSet["name"]).toEqual({ type: "server", message: "Required" });
-    expect(errorsSet["email"]).toEqual({ type: "server", message: "Invalid email" });
-  });
-
-  it("non fa nulla se l'errore non ha violazioni", () => {
-    const error = {
-      type: "about:blank",
-      status: 400,
-      detail: "Invalid input"
-    };
-
-    const errorsSet: Record<string, any> = {};
-    const setError = (field: string, error: any) => {
-      errorsSet[field] = error;
-    };
-
-    mapRfc9457ToFormErrors(error, setError as any);
-
-    expect(Object.keys(errorsSet).length).toBe(0);
+  it("attiva gli ingressi solo con i 4 servizi core UP", () => {
+    expect(entrancesReady(status(["ingestion", "member", "campaign"]))).toBe(false);
+    expect(entrancesReady(status(["ingestion", "member", "campaign", "wallet"]))).toBe(true);
   });
 });

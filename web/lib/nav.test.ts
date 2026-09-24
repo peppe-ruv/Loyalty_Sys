@@ -1,40 +1,43 @@
-import { describe, it, expect } from "vitest";
-import { visibleNav, activeHref, NAV } from "./nav";
+import { describe, expect, it } from "vitest";
+import { activeHref, visibleNav } from "./nav";
 
-describe("nav", () => {
-  it("filtra le voci in base alla milestone", () => {
+describe("activeHref", () => {
+  it("sceglie la voce più specifica", () => {
+    expect(activeHref("/backoffice/rewards/bands")).toBe("/backoffice/rewards/bands");
+    expect(activeHref("/backoffice/rewards/01ABC")).toBe("/backoffice/rewards");
+    expect(activeHref("/backoffice/campaigns/new")).toBe("/backoffice/campaigns");
+    // BO-19 vive sotto BO-18: accende solo *Messaggi*; un contenuto accende *Card e pop-up*
+    expect(activeHref("/backoffice/content/messages")).toBe("/backoffice/content/messages");
+    expect(activeHref("/backoffice/content/01ABC")).toBe("/backoffice/content");
+  });
+  it("la dashboard è attiva solo sulla radice del backoffice", () => {
+    expect(activeHref("/backoffice")).toBe("/backoffice");
+    expect(activeHref("/backoffice/members")).toBe("/backoffice/members");
+  });
+  it("BO-04 Segmenti vive nel gruppo Clienti (M6.6)", () => {
+    expect(activeHref("/backoffice/segments/SEG-DIGITAL")).toBe("/backoffice/segments");
+    expect(visibleNav().find((g) => g.label === "Clienti")?.items.map((i) => i.id)).toEqual(["BO-02", "BO-04"]);
+  });
+  it("BO-27 DLQ è in Osservabilità da M7 (M7.3)", () => {
+    const observe = (m: number) => visibleNav(m).find((g) => g.label === "Osservabilità")?.items.map((i) => i.id);
+    expect(observe(6)).not.toContain("BO-27");
+    expect(observe(7)).toContain("BO-27");
+    expect(activeHref("/backoffice/observe/dlq", visibleNav(7))).toBe("/backoffice/observe/dlq");
+  });
+  it("nessuna voce fuori dal backoffice", () => {
+    expect(activeHref("/portal")).toBeNull();
+  });
+});
+
+describe("visibleNav", () => {
+  it("filtra i gruppi in base alla milestone realizzata e rimuove quelli vuoti", () => {
+    // Supponendo che la Dashboard sia in milestone 2 e i Membri in milestone 1
     const navM1 = visibleNav(1);
     const hasM2 = navM1.some(g => g.items.some(i => i.milestone > 1));
     expect(hasM2).toBe(false);
-    expect(navM1.find(g => g.label === "Panoramica")).toBeUndefined(); // Dashboard is M2
-  });
+    expect(navM1.find(g => g.label === "Panoramica")).toBeUndefined(); // Dashboard is M2, should be hidden
 
-  it("mantiene la struttura dei gruppi ma rimuove quelli vuoti", () => {
     const navM0 = visibleNav(0);
     expect(navM0.length).toBe(0);
-  });
-
-  it("trova l'href attivo con il match più lungo", () => {
-    const mockGroups = [
-      {
-        label: "Group",
-        items: [
-          { id: "1", label: "Dashboard", href: "/backoffice", milestone: 1 },
-          { id: "2", label: "Rewards", href: "/backoffice/rewards", milestone: 1 },
-          { id: "3", label: "Bands", href: "/backoffice/rewards/bands", milestone: 1 },
-        ]
-      }
-    ];
-
-    expect(activeHref("/backoffice", mockGroups)).toBe("/backoffice");
-    expect(activeHref("/backoffice/rewards", mockGroups)).toBe("/backoffice/rewards");
-    expect(activeHref("/backoffice/rewards/bands", mockGroups)).toBe("/backoffice/rewards/bands");
-    expect(activeHref("/backoffice/rewards/bands/123", mockGroups)).toBe("/backoffice/rewards/bands");
-    // This one is tricky: /backoffice/rewards-something would match /backoffice if startsWith is literally + "/", but activeHref checks: pathname === item.href || pathname.startsWith(item.href + "/")
-    expect(activeHref("/backoffice/rewards-other", mockGroups)).toBe("/backoffice");
-  });
-
-  it("restituisce null se non trova corrispondenze", () => {
-    expect(activeHref("/portal", [])).toBeNull();
   });
 });

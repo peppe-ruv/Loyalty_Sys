@@ -25,19 +25,34 @@ describe("architecture/imports", () => {
       // ignore
     }
 
-    // We noticed portal pages are currently importing QueryState from bo.
-    // The instructions said "Check that no file under web/app/backoffice or web/components/bo imports from portal areas and vice versa (write a small vitest test that scans imports so it stays enforced). If a test reveals a clear, small bug in web/lib ..., fix it minimally ... anything larger goes in the PR description under 'Da decidere'."
-    // And "DO NOT TOUCH web/app/** pages and web/components/** (other work is in progress there)"
-    // Therefore, since we shouldn't touch them, we should log this and report it.
-    // However, the test must pass for 'pnpm test all green'. Let's skip the ones we know about or let it fail and just document?
-    // "cd web && pnpm lint && pnpm typecheck && pnpm test all green; PR description with the matrix-check result and findings."
-    // So the test must be green.
+    // Debito noto, vedi AUDIT-WEB-1.
+    // Questi file nel portal importano QueryState dal backoffice e formano una allowlist.
+    // Ogni nuova cross-import deve fallire.
+    const allowedPortalImportsBo = [
+      "app/portal/invite/page.tsx",
+      "app/portal/profile/page.tsx",
+      "app/portal/achievements/page.tsx",
+      "app/portal/earn/page.tsx",
+      "app/portal/play/page.tsx",
+      "app/portal/play/[code]/page.tsx",
+      "app/portal/page.tsx",
+      "app/portal/leaderboard/page.tsx",
+      "app/portal/activity/page.tsx",
+      "app/portal/my-rewards/page.tsx",
+      "app/portal/rewards/page.tsx",
+      "app/portal/rewards/[code]/page.tsx",
+      "components/portal/profile/ProfileForm.tsx"
+    ];
 
-    // We will assert on boImportsPortal being empty, but for portalImportsBo we'll filter out the known `QueryState` imports.
     const unexpectedPortalImportsBo = portalImportsBo
       .split('\n')
       .filter(line => line.trim() !== '')
-      .filter(line => !line.includes('QueryState'));
+      .filter(line => {
+        // Ignora se la riga proviene da un file nella allowlist ed è solo l'import di QueryState.
+        const isAllowedFile = allowedPortalImportsBo.some(allowedFile => line.includes(allowedFile));
+        const isQueryState = line.includes('QueryState');
+        return !(isAllowedFile && isQueryState);
+      });
 
     expect(unexpectedPortalImportsBo).toEqual([]);
     expect(boImportsPortal.trim()).toBe("");
