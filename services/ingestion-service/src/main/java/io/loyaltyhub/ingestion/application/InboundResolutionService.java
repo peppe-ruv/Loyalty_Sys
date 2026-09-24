@@ -47,7 +47,7 @@ import java.util.Objects;
  * La riga è bloccata ({@code FOR UPDATE}) per tutta la transazione e l'indice unico parziale sugli ACCEPTED fa da
  * rete: un secondo tentativo trova la riga già {@code ACCEPTED} → {@code 409}, mai una doppia pubblicazione.
  */
-// SPEC-GAP: Q-A5 — la scheda non dice se riprova/abbina creino una nuova riga o aggiornino quella esistente, né cosa
+// SPEC-GAP: Q-118 — la scheda non dice se riprova/abbina creino una nuova riga o aggiornino quella esistente, né cosa
 // resti se la rivalutazione fallisce: si aggiorna la riga (l'ingresso è uno solo; il subject originale resta, il payload
 // diventa l'azione pubblicata) e un esito ancora negativo sostituisce il precedente (anche per Abbina, se nel frattempo
 // fallisce un passo diverso dal membro, es. fonte disabilitata). Chi/come/quando in resolution/resolved_by/resolved_at.
@@ -62,7 +62,7 @@ public class InboundResolutionService {
 
     /**
      * Finestra dell'abbinamento automatico: la conservazione di {@code inbound_event} (7 giorni, §2).
-     * SPEC-GAP: Q-A2 — la scheda non fissa limiti: al massimo {@link #AUTO_MATCH_LIMIT} righe per registrazione.
+     * SPEC-GAP: Q-115 — la scheda non fissa limiti: al massimo {@link #AUTO_MATCH_LIMIT} righe per registrazione.
      */
     static final Duration AUTO_MATCH_WINDOW = Duration.ofDays(7);
     static final int AUTO_MATCH_LIMIT = 100;
@@ -133,7 +133,7 @@ public class InboundResolutionService {
      * pipeline. Gira dentro la transazione del consumer idempotente del fatto: una riconsegna non rifà nulla
      * ({@code processed_event}) e comunque le righe già accettate non sono più {@code UNMATCHED}.
      * Solo l'esito {@code ACCEPTED} tocca la riga: gli altri (fonte nel frattempo disabilitata, membro non attivo…)
-     * la lasciano parcheggiata per l'operatore. SPEC-GAP: Q-A3.
+     * la lasciano parcheggiata per l'operatore. SPEC-GAP: Q-116.
      *
      * @return quante righe sono state accettate
      */
@@ -184,7 +184,7 @@ public class InboundResolutionService {
     /**
      * Applica l'esito alla riga. {@code ACCEPTED} → riga accettata + outbox; altro esito → la riga resta non accettata
      * con il nuovo esito ({@code DUPLICATE} se nel frattempo un ingresso con la stessa fonte+id è stato accettato:
-     * SPEC-GAP: Q-A1 — la riga esce dalla coda senza ripubblicare). Ogni azione manuale è auditata.
+     * SPEC-GAP: Q-114 — la riga esce dalla coda senza ripubblicare). Ogni azione manuale è auditata.
      */
     private void apply(StoredInbound stored, Evaluation ev, Kind kind, String actor) {
         InboundRow before = stored.row();
@@ -210,7 +210,7 @@ public class InboundResolutionService {
 
     /**
      * Voce di audit su {@code lh.audit.v1} (docs/05 §6), come le altre modifiche di gestione del servizio (fonti, tipi,
-     * mapping). SPEC-GAP: Q-A4 — la scheda (§4) elenca l'audit solo per fonti/tipi/mapping: riprova e abbina sono
+     * mapping). SPEC-GAP: Q-117 — la scheda (§4) elenca l'audit solo per fonti/tipi/mapping: riprova e abbina sono
      * scritture da backoffice, quindi auditate anche loro (F-AUD-01); l'abbinamento automatico come job di sistema.
      */
     private void auditResolution(InboundRow before, Evaluation ev, Kind kind, String actor) {

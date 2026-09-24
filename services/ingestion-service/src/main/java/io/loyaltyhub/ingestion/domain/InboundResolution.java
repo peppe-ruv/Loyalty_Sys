@@ -53,7 +53,7 @@ public final class InboundResolution {
      * non si abbinano automaticamente: l'id lo assegna member-service, un evento parcheggiato con un id inesistente
      * non appartiene a chi lo riceverà in seguito.
      */
-    // SPEC-GAP: Q-A6 — docs/02 F-ING-04 dice "alla registrazione del membro": solo member.registered (non member.updated
+    // SPEC-GAP: Q-119 — docs/02 F-ING-04 dice "alla registrazione del membro": solo member.registered (non member.updated
     // che cambia e-mail o externalId) e solo subject external:/email:, mai member:<id>.
     public static AutoMatchKeys autoMatchKeys(String externalId, String email) {
         String external = externalId == null || externalId.isBlank() ? null : "external:" + externalId;
