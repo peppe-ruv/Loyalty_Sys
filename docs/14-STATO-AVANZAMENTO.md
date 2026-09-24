@@ -11,13 +11,13 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M0 — Fondamenta | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M0.1→M0.7 chiuse; CI in piedi |
 | M1 — Core loop e primo deploy | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M1.1→M1.8 chiuse; demo ospitata online |
 | M2 — Visibilità | completata | M2.8 | | ☑ | |
-| M3 — Punti adulti | chiusa (codice) | 2026-09-21 | 2026-09-23 | ☑ | M3.1–M3.9 implementate; criteri di accettazione verdi con test automatici; resta `smoke.sh` sulla demo online |
-| M4 — Premi | chiusa (codice) | 2026-09-23 | 2026-09-24 | ☐ | M4.1–M4.6 implementate; criteri di accettazione verdi con test automatici (E2E portale su API simulate); resta `smoke.sh` sulla demo online |
-| M5 — Gioco | chiusa (codice) | 2026-09-24 | 2026-09-24 | ☐ | M5.1–M5.7 implementate; criteri di accettazione verdi con test automatici + E2E n. 3 con Playwright su servizio locale; resta `smoke.sh` sulla demo online |
-| M6 — Contenuti | in corso | 2026-09-24 | | ☐ | M6.0–M6.7 chiuse (engagement: template, regole, inbox, `message.send`; contenuti per posizionamento, BO-18; pop-up e frequenze; card vincita; PT-12, BO-19, `SEND_MESSAGE`; tema a runtime, BO-20; segmenti statici e dinamici, BO-04; tipi azione custom, attributi personalizzati, costruttore di condizioni) — accettazione verde (il webhook è arrivato con M7.2); resta la demo online |
-| M7 — Governance | in corso | 2026-09-24 | | ☐ | M7.1–M7.6 chiuse (approvazioni per ruolo con policy e storico, BO-21; webhook firmati con ritenti, BO-23; DLQ con riprocessa/scarta, BO-27; eventi non abbinati con abbina e riprova, BO-26; anonimizzazione propagata, BO-03; versioni e duplica) — accettazione anonimizzazione verde (`HubAnonymizationIT`); resta la demo online |
+| M3 — Punti adulti | ✅ completata | 2026-09-21 | 2026-09-24 | ☑ | M3.1–M3.9 implementate; criteri di accettazione verdi con test automatici; `smoke.sh` verde sulla demo online |
+| M4 — Premi | ✅ completata | 2026-09-23 | 2026-09-24 | ☑ | M4.1–M4.6 implementate; criteri di accettazione verdi con test automatici (E2E portale su API simulate); `smoke.sh` verde sulla demo online |
+| M5 — Gioco | ✅ completata | 2026-09-24 | 2026-09-24 | ☑ | M5.1–M5.7 implementate; criteri di accettazione verdi con test automatici + E2E n. 3 con Playwright su servizio locale; `smoke.sh` verde sulla demo online |
+| M6 — Contenuti | ✅ completata | 2026-09-24 | 2026-09-24 | ☑ | M6.0–M6.7 chiuse (engagement: template, regole, inbox, `message.send`; contenuti per posizionamento, BO-18; pop-up e frequenze; card vincita; PT-12, BO-19, `SEND_MESSAGE`; tema a runtime, BO-20; segmenti statici e dinamici, BO-04; tipi azione custom, attributi personalizzati, costruttore di condizioni) — accettazione verde (il webhook è arrivato con M7.2); demo online verde |
+| M7 — Governance | ✅ completata | 2026-09-24 | 2026-09-24 | ☑ | M7.1–M7.6 chiuse (approvazioni per ruolo con policy e storico, BO-21; webhook firmati con ritenti, BO-23; DLQ con riprocessa/scarta, BO-27; eventi non abbinati con abbina e riprova, BO-26; anonimizzazione propagata, BO-03; versioni e duplica) — accettazione anonimizzazione verde (`HubAnonymizationIT`); smoke online verde |
 
-**Prossima fetta da lavorare:** revisione delle PR di verifica (Jules) e correzioni dai rapporti di audit; resta `smoke.sh` sulla demo online per M3–M7
+**Prossima fetta da lavorare:** FIN-1 (Demo Hub e keep-alive, F-DEMO-01/07), FIN-2 (lacune del backoffice), accettazione M2 con `HubScenariosIT`, PR di verifica (Jules)
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -128,7 +128,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [ ] criteri di accettazione verdi
 - [ ] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi
 - [ ] stati *loading / empty / error / degraded* sulle schermate toccate
-- [ ] demo online aggiornata e `smoke.sh` verde
+- [x] demo online aggiornata e `smoke.sh` verde — _2026-09-24: workflow `smoke-demo` (run 36050650694) sull'hub online con M7 (6570c38): Marco 1 850 → 1 875 PTS (+25, 20 € × 1,25 SILVER) in circa 4 s_
 
 ## M3 — Punti adulti
 
@@ -173,7 +173,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
   - _campagna `LIVE`, campi bloccati → `409 CAMPAIGN_LIVE_LOCKED` → `CampaignServiceIT` (API `PUT` aggiunta ora; lato UI la modifica di BO-06 è in M6)_
 - [x] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi
 - [x] stati *loading / empty / error / degraded* sulle schermate toccate (BO-03, BO-07, BO-08, BO-09, BO-01 passività, PT-08 via `QueryState`)
-- [ ] demo online aggiornata e `smoke.sh` verde — _deploy Render/Vercel automatici da `main` e `live`; `smoke.sh` da lanciare da una macchina che raggiunge la demo_
+- [x] demo online aggiornata e `smoke.sh` verde — _2026-09-24: workflow `smoke-demo` (run 36050650694) sull'hub online con M7 (6570c38): Marco 1 850 → 1 875 PTS (+25, 20 € × 1,25 SILVER) in circa 4 s_
 
 ## M4 — Premi
 
@@ -218,7 +218,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
   - _wallet fermo → `PENDING`, poi `CONFIRMED` al suo ritorno → `RedemptionIT`; oltre 10 min → `REJECTED (TIMEOUT)` con stock ripristinato, e la spesa tardiva è compensata con rimborso → `RedemptionIT`_
 - [x] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi
 - [x] stati *loading / empty / error / degraded* sulle schermate toccate (BO-10/11/12/13, PT-03/04/13 via `QueryState`)
-- [ ] demo online aggiornata e `smoke.sh` verde — _deploy Render/Vercel automatici da `main` (env `LH_SVC_REWARD_URL` impostata); `smoke.sh` da lanciare da una macchina che raggiunge la demo_
+- [x] demo online aggiornata e `smoke.sh` verde — _2026-09-24: workflow `smoke-demo` (run 36050650694) sull'hub online con M7 (6570c38): Marco 1 850 → 1 875 PTS (+25, 20 € × 1,25 SILVER) in circa 4 s_
 
 ## M5 — Gioco
 
@@ -267,7 +267,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
   - _E2E n. 3 di `docs/09 §4`: BO-14 *Pianta un istante adesso* (100 punti) come `marta.admin` → PT-06 come Matteo *Gira* → "Hai vinto! 100 punti · I punti stanno arrivando…" → Playwright su gamification-service locale, 3/3 passi (script fuori dal repo); la card vincita arriva con M6.3_
 - [x] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi
 - [x] stati *loading / empty / error / degraded* sulle schermate toccate (BO-14/15/16/17, PT-05/06/09/10/11, `/portal/join` via `QueryState` e stati di form)
-- [ ] demo online aggiornata e `smoke.sh` verde — _deploy Render/Vercel automatici da `main`; `smoke.sh` da lanciare da una macchina che raggiunge la demo_
+- [x] demo online aggiornata e `smoke.sh` verde — _2026-09-24: workflow `smoke-demo` (run 36050650694) sull'hub online con M7 (6570c38): Marco 1 850 → 1 875 PTS (+25, 20 € × 1,25 SILVER) in circa 4 s_
 
 ## M6 — Contenuti
 
@@ -309,7 +309,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
   - _contenuto riservato a SEG-DIGITAL per Marco dopo SCN-DIGITAL e ricalcolo → `HubSegmentsIT`_
 - [x] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi — _2026-09-24 (M6.7)_
 - [x] stati *loading / empty / error / degraded* sulle schermate toccate — _BO-04, BO-09, BO-06, BO-18…20, PT-12 con `QueryState`; BO-06 ripiega sul testo se ingestion dorme_
-- [ ] demo online aggiornata e `smoke.sh` verde
+- [x] demo online aggiornata e `smoke.sh` verde — _2026-09-24: workflow `smoke-demo` (run 36050650694) sull'hub online con M7 (6570c38): Marco 1 850 → 1 875 PTS (+25, 20 € × 1,25 SILVER) in circa 4 s_
 
 ## M7 — Governance
 
@@ -338,7 +338,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [ ] criteri di accettazione verdi
 - [ ] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi
 - [ ] stati *loading / empty / error / degraded* sulle schermate toccate
-- [ ] demo online aggiornata e `smoke.sh` verde
+- [x] demo online aggiornata e `smoke.sh` verde — _2026-09-24: workflow `smoke-demo` (run 36050650694) sull'hub online con M7 (6570c38): Marco 1 850 → 1 875 PTS (+25, 20 € × 1,25 SILVER) in circa 4 s_
 
 ## Fuori PoC (P2, solo predisposizione)
 
