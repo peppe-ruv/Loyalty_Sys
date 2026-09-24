@@ -3,6 +3,7 @@ import {
   actionErrorMessage,
   matchBlock,
   memberSearchHint,
+  outcomeCount,
   outcomeOf,
   prettyEvent,
   resolutionLabel,
@@ -86,5 +87,21 @@ describe("esito e testi", () => {
   it("indenta il CloudEvent", () => {
     expect(prettyEvent({ a: 1 })).toBe('{\n  "a": 1\n}');
     expect(prettyEvent(null)).toBe("—");
+  });
+});
+
+describe("conteggi per esito (BO-26, F-ING-09)", () => {
+  const counts = { ACCEPTED: 31, DUPLICATE: 2, REJECTED: 5, UNMATCHED: 3 };
+  it("ogni scheda mostra il proprio conteggio e Tutti la somma", () => {
+    expect(outcomeCount("ACCEPTED", counts)).toBe(31);
+    expect(outcomeCount("DUPLICATE", counts)).toBe(2);
+    expect(outcomeCount("UNMATCHED", counts)).toBe(3);
+    expect(outcomeCount("", counts)).toBe(41);
+  });
+  it("un esito assente conta zero; senza conteggi nessun numero", () => {
+    expect(outcomeCount("REJECTED", { ACCEPTED: 1 })).toBe(0);
+    expect(outcomeCount("", { ACCEPTED: 1 })).toBe(1);
+    expect(outcomeCount("ACCEPTED", undefined)).toBeNull();
+    expect(outcomeCount("", null)).toBeNull();
   });
 });
