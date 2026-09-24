@@ -39,7 +39,7 @@ public class PortalActivityController {
             @PathVariable String memberId,
             @RequestParam(required = false) String currency,
             @RequestParam(defaultValue = "30") int size) {
-        return ledger.listByMember(memberId, currency, Math.min(Math.max(size, 1), 200)).stream()
+        return ledger.listByMember(memberId, currency, Math.min(Math.max(size, 1), 100)).stream()
                 .map(this::toItem).toList();
     }
 

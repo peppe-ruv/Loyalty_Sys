@@ -266,7 +266,9 @@ public final class ConditionEvaluator {
             case "segments" -> new ArrayList<Object>(member.segments());
             case "labels" -> new ArrayList<Object>(member.labels());
             case "age" -> member.birthDate() == null ? ABSENT
-                    : (double) member.birthDate().until(LocalDate.now(ROME)).getYears();
+                    // Età al giorno di business dell'azione (Europe/Rome): stessa base di simulazione e macchina del
+                    // tempo, mai l'orologio di sistema (AUD-BE-02).
+                    : (double) member.birthDate().until(action.time().atZone(ROME).toLocalDate()).getYears();
             case "registeredDaysAgo" -> member.registeredAt() == null ? ABSENT
                     : (double) ChronoUnit.DAYS.between(member.registeredAt(), action.time());
             default -> {
