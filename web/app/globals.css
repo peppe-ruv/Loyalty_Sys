@@ -74,3 +74,31 @@ body {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Coriandoli della vincita (PT-06): cadono e ruotano; con movimento ridotto la regola sopra li azzera. */
+@keyframes lh-confetti-fall {
+  0% {
+    transform: translate3d(0, -20px, 0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--lh-drift, 0px), 420px, 0) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+/* Pacco scelto che si apre (PT-06, meccanica BOX). */
+@keyframes lh-box-pop {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+  40% {
+    transform: scale(1.12) rotate(-6deg);
+  }
+  70% {
+    transform: scale(1.08) rotate(5deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}

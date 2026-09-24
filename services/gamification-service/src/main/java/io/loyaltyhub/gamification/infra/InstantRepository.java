@@ -103,6 +103,59 @@ public class InstantRepository {
         return out;
     }
 
+    /**
+     * Claim atomico (docs/03 §6): il primo istante {@code OPEN} già passato, saltando quelli bloccati da giocate
+     * concorrenti. Con {@code prizeId} valorizzato restituisce il premio vinto; vuoto → giocata perdente.
+     */
+    public java.util.Optional<String> claim(String contestId, String memberId, String playId, Instant now) {
+        return jdbc.sql("""
+                        UPDATE winning_instant SET status = 'CLAIMED', claimed_by = ?, claimed_at = ?, play_id = ?
+                        WHERE id = (SELECT id FROM winning_instant
+                                    WHERE contest_id = ? AND status = 'OPEN' AND instant_at <= ?
+                                    ORDER BY instant_at, id LIMIT 1 FOR UPDATE SKIP LOCKED)
+                        RETURNING prize_id
+                        """)
+                .params(memberId, ts(now), playId, contestId, ts(now))
+                .query(String.class)
+                .optional();
+    }
+
+    public record HistoryClaim(String instantId, String memberId, String playId, Instant claimedAt) {
+    }
+
+    /** Istanti aperti già passati, in ordine: servono al seed per ricostruire lo storico coerente. */
+    public List<InstantRow> openBefore(String contestId, Instant before) {
+        return jdbc.sql("""
+                        SELECT w.id, w.prize_id, p.code AS prize_code, p.name AS prize_name, w.instant_at, w.status,
+                          w.claimed_by, w.claimed_at, w.play_id, w.planted
+                        FROM winning_instant w JOIN prize p ON p.id = w.prize_id
+                        WHERE w.contest_id = ? AND w.status = 'OPEN' AND w.instant_at <= ?
+                        ORDER BY w.instant_at, w.id
+                        """)
+                .params(contestId, ts(before))
+                .query((rs, n) -> new InstantRow(rs.getString("id"), rs.getString("prize_id"), rs.getString("prize_code"),
+                        rs.getString("prize_name"), ContestRepository.inst(rs, "instant_at"), rs.getString("status"),
+                        rs.getString("claimed_by"), ContestRepository.inst(rs, "claimed_at"), rs.getString("play_id"),
+                        rs.getBoolean("planted")))
+                .list();
+    }
+
+    public void claimAll(List<HistoryClaim> claims) {
+        if (claims.isEmpty()) {
+            return;
+        }
+        jdbc.sql("""
+                        UPDATE winning_instant w SET status = 'CLAIMED', claimed_by = x.m, claimed_at = x.t, play_id = x.p
+                        FROM unnest(?::text[], ?::text[], ?::text[], ?::timestamptz[]) AS x(i, m, p, t)
+                        WHERE w.id = x.i
+                        """)
+                .params(TextArrays.literal(claims.stream().map(HistoryClaim::instantId).toList()),
+                        TextArrays.literal(claims.stream().map(HistoryClaim::memberId).toList()),
+                        TextArrays.literal(claims.stream().map(HistoryClaim::playId).toList()),
+                        TextArrays.literal(claims.stream().map(c -> c.claimedAt().toString()).toList()))
+                .update();
+    }
+
     /** Istanti ancora aperti → {@code VOID} (fine concorso); restituisce quanti. */
     public int voidOpen(String contestId) {
         return jdbc.sql("UPDATE winning_instant SET status = 'VOID' WHERE contest_id = ? AND status = 'OPEN'")

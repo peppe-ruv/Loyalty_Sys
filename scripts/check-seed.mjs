@@ -144,6 +144,39 @@ if (Array.isArray(contests)) {
   }
 }
 
+// Storico di gioco (docs/10 §6): membri e concorsi esistenti, vincite non oltre il montepremi dei concorsi chiusi.
+const gHistory = readSeed("gamification-history.json");
+if (gHistory && Array.isArray(contests)) {
+  const memberIds = new Set((readSeed("members.json") ?? []).map((m) => m.id));
+  const contestByCode = new Map(contests.map((c) => [c.code, c]));
+  const refs = [...(gHistory.grants ?? []), ...(gHistory.plays ?? [])];
+  for (const r of refs) {
+    if (!memberIds.has(r.memberId)) errors.push(`gamification-history.json: membro inesistente ${r.memberId}`);
+    if (!contestByCode.has(r.contestCode)) errors.push(`gamification-history.json: concorso inesistente ${r.contestCode}`);
+  }
+  for (const p of gHistory.plays ?? []) {
+    const c = contestByCode.get(p.contestCode);
+    if (p.outcome === "WIN" && c && !(c.prizes ?? []).some((x) => x.code === p.prizeCode)) {
+      errors.push(`gamification-history.json: premio ${p.prizeCode} assente in ${p.contestCode}`);
+    }
+  }
+  for (const cc of gHistory.closedContests ?? []) {
+    const c = contestByCode.get(cc.contestCode);
+    if (!c) {
+      errors.push(`gamification-history.json: concorso inesistente ${cc.contestCode}`);
+      continue;
+    }
+    if (c.status !== "ENDED" && c.status !== "ARCHIVED") errors.push(`gamification-history.json: ${c.code} non è chiuso`);
+    const units = (c.prizes ?? []).reduce((s, p) => s + (p.quantity ?? 0), 0);
+    const wins = (cc.winners ?? []).reduce((s, w) => s + (w.wins ?? 0), 0);
+    if (wins !== cc.claimed) errors.push(`gamification-history.json: ${c.code} somma vincite ${wins} ≠ claimed ${cc.claimed}`);
+    if (cc.claimed > units) errors.push(`gamification-history.json: ${c.code} ${cc.claimed} vincite oltre il montepremi (${units})`);
+    for (const w of cc.winners ?? []) {
+      if (!memberIds.has(w.memberId)) errors.push(`gamification-history.json: vincitore inesistente ${w.memberId}`);
+    }
+  }
+}
+
 // Richieste d'esempio (docs/10 §5): membro e premio esistenti, costo = soglia della fascia, niente PENDING (il
 // timeout le respingerebbe dopo 10 minuti), coupon solo per premi a evasione automatica.
 const redemptions = readSeed("redemptions.json");

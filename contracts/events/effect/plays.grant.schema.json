@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:effect.plays.grant:1",
+  "title": "effect.plays.grant — data (EVT-EFF-02, docs/05 §4)",
+  "type": "object",
+  "required": [
+    "effectId",
+    "campaignCode",
+    "actionId",
+    "actionType",
+    "contestCode",
+    "count"
+  ],
+  "properties": {
+    "effectId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "campaignCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{2,39}$"
+    },
+    "actionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actionType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "contestCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{2,39}$"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "additionalProperties": true
+}

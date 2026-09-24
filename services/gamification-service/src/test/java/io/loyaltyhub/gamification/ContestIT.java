@@ -81,7 +81,8 @@ class ContestIT {
         assertThat(estate.path("status").asString()).isEqualTo("ENDED");
         assertThat(estate.path("mechanic").asString()).isEqualTo("BOX");
         assertThat(estate.path("instants").path("open").asLong()).isZero();
-        assertThat(estate.path("instants").path("voided").asLong()).isEqualTo(152);
+        assertThat(estate.path("instants").path("claimed").asLong()).as("storico: 142 vincite").isEqualTo(142);
+        assertThat(estate.path("instants").path("voided").asLong()).isEqualTo(10);
 
         // Istogramma per giorno: visibile anche a chi configura il concorso; somma = istanti totali.
         JsonNode histogram = send("GET", "/v1/contests/IW-AUTUNNO/instants/histogram", "MARKETING:luca", null, 200);

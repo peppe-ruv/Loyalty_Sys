@@ -4,10 +4,20 @@ import java.util.List;
 
 /**
  * Esito completo della valutazione di un'azione (docs/03 §3.5, docs/servizi/campaign-service.md §2).
- * {@code results} è la spiegabilità per campagna (registro/simulazione); {@code effects} sono gli effetti
- * da pubblicare su {@code lh.effects.v1}.
+ * {@code results} è la spiegabilità per campagna (registro/simulazione); {@code effects} sono gli accrediti
+ * {@code points.grant} e {@code actionEffects} gli altri effetti (es. {@code plays.grant}), tutti da pubblicare su
+ * {@code lh.effects.v1}.
  */
-public record Evaluation(Outcome outcome, List<CampaignResult> results, List<GrantedEffect> effects) {
+public record Evaluation(Outcome outcome, List<CampaignResult> results, List<GrantedEffect> effects,
+                         List<ActionEffect> actionEffects) {
+
+    public Evaluation(Outcome outcome, List<CampaignResult> results, List<GrantedEffect> effects) {
+        this(outcome, results, effects, List.of());
+    }
+
+    /** Effetto non monetario deciso dal motore: {@code type} è quello della campagna, {@code params} i suoi campi. */
+    public record ActionEffect(String effectId, String campaignCode, String type, tools.jackson.databind.JsonNode params) {
+    }
 
     public enum Outcome {
         MATCHED, NO_MATCH, NO_MEMBER

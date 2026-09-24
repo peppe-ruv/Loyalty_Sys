@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.contest.plays.granted:1",
+  "title": "fact.contest.plays.granted — data (EVT-FACT-50, docs/servizi/gamification-service.md §4)",
+  "type": "object",
+  "required": [
+    "contestCode",
+    "count",
+    "effectId"
+  ],
+  "properties": {
+    "contestCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{2,39}$"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "effectId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "campaignCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{2,39}$"
+    }
+  },
+  "additionalProperties": true
+}

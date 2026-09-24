@@ -1,0 +1,20 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZP2A3B4C5D6E7F8G9H0J1K",
+  "source": "urn:loyaltyhub:service:gamification",
+  "type": "io.loyaltyhub.fact.contest.plays.granted",
+  "subject": "member:MBR-000011",
+  "time": "2026-09-24T10:15:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.contest.plays.granted:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZP0A1B2C3D4E5F6G7H8J9K",
+  "lhcausationid": "01J8ZP1M2N3P4Q5R6S7T8V9W0X",
+  "lhhop": 2,
+  "data": {
+    "contestCode": "IW-AUTUNNO",
+    "count": 1,
+    "effectId": "4f1c2a9e0b7d3e5f6a8c9d0e1f",
+    "campaignCode": "CMP-SURVEY"
+  }
+}

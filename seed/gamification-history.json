@@ -1,0 +1,35 @@
+{
+  "grants": [
+    { "memberId": "MBR-000010", "contestCode": "IW-AUTUNNO", "count": 1, "campaignCode": "CMP-SURVEY", "effectId": "SEED-GRANT-MBR10-1", "grantedAt": "@today-9dT18:20" },
+    { "memberId": "MBR-000010", "contestCode": "IW-AUTUNNO", "count": 1, "campaignCode": "CMP-SURVEY", "effectId": "SEED-GRANT-MBR10-2", "grantedAt": "@today-3dT12:05" }
+  ],
+  "plays": [
+    { "memberId": "MBR-000010", "contestCode": "IW-AUTUNNO", "at": "@today-12dT19:40", "outcome": "LOSE" },
+    { "memberId": "MBR-000010", "contestCode": "IW-AUTUNNO", "at": "@today-10dT08:55", "outcome": "LOSE" },
+    { "memberId": "MBR-000010", "contestCode": "IW-AUTUNNO", "at": "@today-8dT13:10", "outcome": "WIN", "prizeCode": "PTS-50" },
+    { "memberId": "MBR-000010", "contestCode": "IW-AUTUNNO", "at": "@today-6dT21:15", "outcome": "LOSE" },
+    { "memberId": "MBR-000010", "contestCode": "IW-AUTUNNO", "at": "@today-4dT18:30", "outcome": "LOSE" },
+    { "memberId": "MBR-000010", "contestCode": "IW-AUTUNNO", "at": "@today-2dT09:45", "outcome": "LOSE" }
+  ],
+  "closedContests": [
+    {
+      "contestCode": "IW-ESTATE",
+      "claimed": 142,
+      "losingPlaysPerWin": 3,
+      "seed": 20260831,
+      "winners": [
+        { "memberId": "MBR-000005", "wins": 22 },
+        { "memberId": "MBR-000004", "wins": 20 },
+        { "memberId": "MBR-000006", "wins": 18 },
+        { "memberId": "MBR-000011", "wins": 15 },
+        { "memberId": "MBR-000002", "wins": 14 },
+        { "memberId": "MBR-000003", "wins": 13 },
+        { "memberId": "MBR-000007", "wins": 12 },
+        { "memberId": "MBR-000010", "wins": 11 },
+        { "memberId": "MBR-000009", "wins": 9 },
+        { "memberId": "MBR-000008", "wins": 8 }
+      ],
+      "physicalDelivery": ["DELIVERED", "PENDING"]
+    }
+  ]
+}

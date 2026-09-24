@@ -9,7 +9,9 @@ import io.loyaltyhub.gamification.application.ContestAdminService;
 import io.loyaltyhub.gamification.domain.Contest;
 import io.loyaltyhub.gamification.domain.Prize;
 import io.loyaltyhub.gamification.infra.ContestRepository;
+import io.loyaltyhub.common.time.BusinessCalendar;
 import io.loyaltyhub.gamification.infra.InstantRepository;
+import io.loyaltyhub.gamification.infra.MemberSnapshotRepository;
 import io.loyaltyhub.gamification.infra.PlayRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,12 +23,23 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.SplittableRandom;
 
 /**
  * Carica i concorsi con i montepremi da {@code contests.json} (docs/servizi/gamification-service.md §6, docs/10 §6) e
  * rigenera gli istanti col seme fisso sulla finestra relativa a oggi. Ogni concorso nasce {@code DRAFT}, riceve gli
- * istanti e poi prende lo stato del seed; gli {@code ENDED} hanno gli istanti aperti annullati. Profilo {@code demo},
- * ripetibile via {@code /v1/demo/reset}.
+ * istanti e poi prende lo stato del seed. Poi lo storico da {@code gamification-history.json}: snapshot dei membri,
+ * crediti e giocate di Matteo, vincite di {@code IW-ESTATE} (ogni vincita reclama un istante reale già passato, così
+ * istanti, premi residui e vincitori restano coerenti); infine gli {@code ENDED} hanno gli istanti aperti annullati.
+ * Profilo {@code demo}, ripetibile via {@code /v1/demo/reset}.
  */
 @Component
 @Profile("demo")
@@ -38,15 +51,17 @@ public class GamificationSeeder implements ApplicationRunner, DemoResettable {
     private final ContestRepository contests;
     private final InstantRepository instants;
     private final PlayRepository plays;
+    private final MemberSnapshotRepository members;
     private final ContestAdminService admin;
     private final Clock clock;
 
     public GamificationSeeder(SeedLoader seed, ContestRepository contests, InstantRepository instants, PlayRepository plays,
-                              ContestAdminService admin, Clock clock) {
+                              MemberSnapshotRepository members, ContestAdminService admin, Clock clock) {
         this.seed = seed;
         this.contests = contests;
         this.instants = instants;
         this.plays = plays;
+        this.members = members;
         this.admin = admin;
         this.clock = clock;
     }
@@ -66,6 +81,12 @@ public class GamificationSeeder implements ApplicationRunner, DemoResettable {
     public void resetToSeed() {
         plays.deleteAll();
         contests.deleteAll();
+        members.deleteAll();
+        for (JsonNode m : seed.readTree("members.json")) {
+            members.upsert(m.path("id").asString(), text(m, "nickname"), m.path("status").asString("ACTIVE"));
+        }
+        Map<String, Contest> byCode = new HashMap<>();
+        Map<String, ApprovalStatus> targetStatus = new HashMap<>();
         int count = 0;
         for (JsonNode c : seed.readTree("contests.json")) {
             String code = c.path("code").asString();
@@ -89,12 +110,114 @@ public class GamificationSeeder implements ApplicationRunner, DemoResettable {
             if (status != ApprovalStatus.DRAFT) {
                 contests.updateStatus(contest.id(), status);
             }
-            if (status == ApprovalStatus.ENDED || status == ApprovalStatus.ARCHIVED) {
-                instants.voidOpen(contest.id());
-            }
+            byCode.put(code, contest);
+            targetStatus.put(code, status);
             count++;
         }
-        log.info("Seed gamification caricato: {} concorsi", count);
+        int history = seedHistory(byCode);
+        for (Map.Entry<String, ApprovalStatus> e : targetStatus.entrySet()) {
+            Contest c = byCode.get(e.getKey());
+            if (e.getValue() == ApprovalStatus.ENDED || e.getValue() == ApprovalStatus.ARCHIVED) {
+                instants.voidOpen(c.id());
+            }
+            contests.recomputeRemaining(c.id());
+        }
+        log.info("Seed gamification caricato: {} concorsi, {} giocate storiche", count, history);
+    }
+
+    /** Crediti, giocate esplicite e storico dei concorsi chiusi; restituisce le giocate inserite. */
+    private int seedHistory(Map<String, Contest> byCode) {
+        JsonNode h = seed.readTree("gamification-history.json");
+        for (JsonNode g : h.path("grants")) {
+            Contest c = byCode.get(g.path("contestCode").asString());
+            plays.insertGrant(Ulid.next(clock), g.path("memberId").asString(), c.id(), g.path("count").asInt(1),
+                    g.path("effectId").asString(), text(g, "campaignCode"), SeedDates.resolve(g.path("grantedAt").asString(), clock));
+        }
+        List<PlayRepository.NewPlay> rows = new ArrayList<>();
+        List<InstantRepository.HistoryClaim> claims = new ArrayList<>();
+        for (JsonNode p : h.path("plays")) {
+            Contest c = byCode.get(p.path("contestCode").asString());
+            String memberId = p.path("memberId").asString();
+            Instant at = SeedDates.resolve(p.path("at").asString(), clock);
+            String playId = Ulid.next(clock);
+            String prizeId = null;
+            if ("WIN".equals(p.path("outcome").asString())) {
+                String prizeCode = p.path("prizeCode").asString();
+                var instant = instants.openBefore(c.id(), at).stream()
+                        .filter(i -> i.prizeCode().equals(prizeCode) && claims.stream().noneMatch(x -> x.instantId().equals(i.id())))
+                        .findFirst();
+                if (instant.isPresent()) {
+                    prizeId = instant.get().prizeId();
+                    claims.add(new InstantRepository.HistoryClaim(instant.get().id(), memberId, playId, at));
+                } else {
+                    log.warn("Seed: nessun istante {} aperto prima di {} per {}", prizeCode, at, c.code());
+                }
+            }
+            rows.add(play(playId, c, memberId, prizeId == null ? "LOSE" : "WIN", prizeId, at, "NA"));
+        }
+        for (JsonNode cc : h.path("closedContests")) {
+            closedContest(byCode.get(cc.path("contestCode").asString()), cc, rows, claims);
+        }
+        instants.claimAll(claims);
+        plays.insertAll(rows);
+        return rows.size();
+    }
+
+    /**
+     * Storico di un concorso chiuso: i primi {@code claimed} istanti in ordine di tempo vanno ai vincitori (mescolati col
+     * seme del file), ogni vincita ha {@code losingPlaysPerWin} giocate perdenti dello stesso membro in orario 8–22.
+     */
+    private void closedContest(Contest c, JsonNode cc, List<PlayRepository.NewPlay> rows, List<InstantRepository.HistoryClaim> claims) {
+        SplittableRandom rnd = new SplittableRandom(cc.path("seed").asLong(1));
+        List<String> winners = new ArrayList<>();
+        for (JsonNode w : cc.path("winners")) {
+            for (int i = 0; i < w.path("wins").asInt(); i++) {
+                winners.add(w.path("memberId").asString());
+            }
+        }
+        for (int i = winners.size() - 1; i > 0; i--) {
+            int j = rnd.nextInt(i + 1);
+            String t = winners.get(i);
+            winners.set(i, winners.get(j));
+            winners.set(j, t);
+        }
+        List<InstantRepository.InstantRow> open = instants.openBefore(c.id(), c.endAt());
+        int claimed = Math.min(cc.path("claimed").asInt(winners.size()), Math.min(open.size(), winners.size()));
+        List<String> deliveries = new ArrayList<>();
+        cc.path("physicalDelivery").forEach(d -> deliveries.add(d.asString()));
+        int physical = 0;
+        for (int k = 0; k < claimed; k++) {
+            InstantRepository.InstantRow i = open.get(k);
+            String memberId = winners.get(k);
+            String playId = Ulid.next(clock);
+            Instant at = i.instantAt().plus(Duration.ofMinutes(1 + rnd.nextInt(120)));
+            if (!at.isBefore(c.endAt())) {
+                at = c.endAt().minusSeconds(60);
+            }
+            claims.add(new InstantRepository.HistoryClaim(i.id(), memberId, playId, at));
+            String delivery = "NA";
+            if (contests.prize(i.prizeId()).filter(p -> "PHYSICAL".equals(p.type())).isPresent()) {
+                delivery = physical < deliveries.size() ? deliveries.get(physical) : "DELIVERED";
+                physical++;
+            }
+            rows.add(play(playId, c, memberId, "WIN", i.prizeId(), at, delivery));
+            for (int l = 0; l < cc.path("losingPlaysPerWin").asInt(0); l++) {
+                rows.add(play(Ulid.next(clock), c, memberId, "LOSE", null, randomBusinessTime(c, rnd), "NA"));
+            }
+        }
+    }
+
+    private static Instant randomBusinessTime(Contest c, SplittableRandom rnd) {
+        long days = Math.max(1, Duration.between(c.startAt(), c.endAt()).toDays());
+        ZonedDateTime day = c.startAt().atZone(BusinessCalendar.ZONE).plusDays(rnd.nextLong(days));
+        Instant t = day.withHour(8 + rnd.nextInt(14)).withMinute(rnd.nextInt(60)).withSecond(rnd.nextInt(60)).toInstant();
+        return t.isBefore(c.startAt()) ? c.startAt().plusSeconds(60) : (t.isBefore(c.endAt()) ? t : c.endAt().minusSeconds(120));
+    }
+
+    private static PlayRepository.NewPlay play(String id, Contest c, String memberId, String outcome, String prizeId, Instant at,
+                                               String delivery) {
+        return new PlayRepository.NewPlay(id, c.id(), memberId, "FREE_DAILY", outcome, prizeId, at,
+                LocalDate.ofInstant(at, BusinessCalendar.ZONE), null, delivery);
     }
 
     private static String text(JsonNode n, String field) {

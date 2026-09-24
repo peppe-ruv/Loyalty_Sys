@@ -5,17 +5,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { lhFetch, useLhQuery } from "@/lib/api/client";
 import { ulid } from "@/lib/ids";
+import type { PortalContest } from "@/lib/api/types";
 import { cn } from "@/lib/cn";
 import { PendingProvider, usePending } from "./PendingContext";
 import { useActiveMember, switchMember } from "./MemberContext";
 
-// Shell del portale (docs/09 §1): tab bar (voci delle milestone realizzate; Gioca arriva con M5) + tray demo PT-14.
+// Shell del portale (docs/09 §1): tab bar Home · Guadagna · Premi · Gioca · Io (pallino su Gioca se c'è una giocata
+// disponibile) + tray demo PT-14. L'attività resta raggiungibile dalla Home.
 const TABS = [
   { href: "/portal", label: "Home" },
   { href: "/portal/earn", label: "Guadagna" },
   { href: "/portal/rewards", label: "Premi", also: ["/portal/my-rewards"] },
-  { href: "/portal/activity", label: "Attività" },
-  { href: "/portal/profile", label: "Io" },
+  { href: "/portal/play", label: "Gioca", dot: true },
+  { href: "/portal/profile", label: "Io", also: ["/portal/activity"] },
 ];
 
 export function PortalShell({ children }: { children: React.ReactNode }) {
@@ -30,6 +32,9 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
 
 function TabBar() {
   const pathname = usePathname();
+  const memberId = useActiveMember();
+  const contests = useLhQuery<PortalContest[]>("gamification", "/v1/portal/contests", { memberId }, { refetchInterval: 60_000 });
+  const canPlay = (contests.data ?? []).some((c) => c.playsAvailable > 0);
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-md justify-around border-t border-[var(--color-bo-border)] bg-white/95 py-2 backdrop-blur">
       {TABS.map((t) => {
@@ -39,9 +44,12 @@ function TabBar() {
           <Link
             key={t.href}
             href={t.href}
-            className={cn("min-w-16 text-center text-xs", active ? "font-semibold text-[var(--color-pt-primary)]" : "text-[var(--color-pt-night)]/60")}
+            className={cn("relative min-w-16 text-center text-xs", active ? "font-semibold text-[var(--color-pt-primary)]" : "text-[var(--color-pt-night)]/60")}
           >
             {t.label}
+            {"dot" in t && t.dot && canPlay ? (
+              <span className="absolute -top-0.5 right-3 size-2 rounded-full bg-[var(--color-pt-coin)]" aria-label="giocata disponibile" />
+            ) : null}
           </Link>
         );
       })}

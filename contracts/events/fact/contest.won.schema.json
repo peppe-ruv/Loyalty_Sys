@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.contest.won:1",
+  "title": "fact.contest.won — data (EVT-FACT-52, docs/03 §6)",
+  "type": "object",
+  "required": [
+    "contestCode",
+    "playId",
+    "prizeCode",
+    "prizeName",
+    "prizeType"
+  ],
+  "properties": {
+    "contestCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{2,39}$"
+    },
+    "playId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "prizeCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{2,39}$"
+    },
+    "prizeName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "prizeType": {
+      "enum": [
+        "POINTS",
+        "COUPON",
+        "PHYSICAL"
+      ]
+    },
+    "points": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "rewardCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{2,39}$"
+    }
+  },
+  "additionalProperties": true
+}

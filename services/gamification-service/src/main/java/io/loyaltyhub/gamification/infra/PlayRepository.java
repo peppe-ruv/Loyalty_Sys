@@ -97,6 +97,112 @@ public class PlayRepository {
                 .optional();
     }
 
+    // ---------- giocate e crediti (docs/03 §6) ----------
+
+    public record NewPlay(String id, String contestId, String memberId, String kind, String outcome, String prizeId,
+                          Instant playedAt, LocalDate playDate, String correlationId, String deliveryStatus) {
+    }
+
+    public record MemberPlay(String playId, Instant playedAt, String outcome, String kind, String prizeCode, String prizeName,
+                             String prizeType, String deliveryStatus) {
+    }
+
+    public void insert(NewPlay p) {
+        jdbc.sql("""
+                        INSERT INTO play (id, contest_id, member_id, kind, outcome, prize_id, played_at, play_date,
+                          correlation_id, delivery_status)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """)
+                .params(p.id(), p.contestId(), p.memberId(), p.kind(), p.outcome(), p.prizeId(),
+                        java.sql.Timestamp.from(p.playedAt()), p.playDate(), p.correlationId(), p.deliveryStatus())
+                .update();
+    }
+
+    /** Storico in blocco (seed): una sola istruzione per centinaia di giocate. */
+    public void insertAll(List<NewPlay> plays) {
+        if (plays.isEmpty()) {
+            return;
+        }
+        jdbc.sql("""
+                        INSERT INTO play (id, contest_id, member_id, kind, outcome, prize_id, played_at, play_date,
+                          correlation_id, delivery_status)
+                        SELECT i, c, m, k, o, NULLIF(p, ''), t, d, NULL, s
+                        FROM unnest(?::text[], ?::text[], ?::text[], ?::text[], ?::text[], ?::text[], ?::timestamptz[],
+                          ?::date[], ?::text[]) AS x(i, c, m, k, o, p, t, d, s)
+                        """)
+                .params(TextArrays.literal(plays.stream().map(NewPlay::id).toList()),
+                        TextArrays.literal(plays.stream().map(NewPlay::contestId).toList()),
+                        TextArrays.literal(plays.stream().map(NewPlay::memberId).toList()),
+                        TextArrays.literal(plays.stream().map(NewPlay::kind).toList()),
+                        TextArrays.literal(plays.stream().map(NewPlay::outcome).toList()),
+                        TextArrays.literal(plays.stream().map(p -> p.prizeId() == null ? "" : p.prizeId()).toList()),
+                        TextArrays.literal(plays.stream().map(p -> p.playedAt().toString()).toList()),
+                        TextArrays.literal(plays.stream().map(p -> p.playDate().toString()).toList()),
+                        TextArrays.literal(plays.stream().map(NewPlay::deliveryStatus).toList()))
+                .update();
+    }
+
+    public int countOnDate(String memberId, String contestId, LocalDate day) {
+        return jdbc.sql("SELECT count(*) FROM play WHERE member_id = ? AND contest_id = ? AND play_date = ?")
+                .params(memberId, contestId, day).query(Integer.class).single();
+    }
+
+    public boolean freeUsedOn(String memberId, String contestId, LocalDate day) {
+        return jdbc.sql("""
+                        SELECT count(*) FROM play WHERE member_id = ? AND contest_id = ? AND play_date = ? AND kind = 'FREE_DAILY'
+                        """)
+                .params(memberId, contestId, day).query(Integer.class).single() > 0;
+    }
+
+    public int countCreditPlays(String memberId, String contestId) {
+        return jdbc.sql("SELECT count(*) FROM play WHERE member_id = ? AND contest_id = ? AND kind = 'CREDIT'")
+                .params(memberId, contestId).query(Integer.class).single();
+    }
+
+    public int countWins(String memberId, String contestId) {
+        return jdbc.sql("SELECT count(*) FROM play WHERE member_id = ? AND contest_id = ? AND outcome = 'WIN'")
+                .params(memberId, contestId).query(Integer.class).single();
+    }
+
+    public List<MemberPlay> history(String memberId, String contestId, int limit) {
+        return jdbc.sql("""
+                        SELECT pl.id, pl.played_at, pl.outcome, pl.kind, pr.code AS prize_code, pr.name AS prize_name,
+                          pr.type AS prize_type, pl.delivery_status
+                        FROM play pl LEFT JOIN prize pr ON pr.id = pl.prize_id
+                        WHERE pl.member_id = ? AND pl.contest_id = ?
+                        ORDER BY pl.played_at DESC, pl.id DESC LIMIT ?
+                        """)
+                .params(memberId, contestId, limit)
+                .query((rs, n) -> new MemberPlay(rs.getString("id"), ContestRepository.inst(rs, "played_at"),
+                        rs.getString("outcome"), rs.getString("kind"), rs.getString("prize_code"), rs.getString("prize_name"),
+                        rs.getString("prize_type"), rs.getString("delivery_status")))
+                .list();
+    }
+
+    // ---------- crediti di gioco (play_grant) ----------
+
+    /** Idempotente su {@code effectId}: {@code true} se il credito è nuovo. */
+    public boolean insertGrant(String id, String memberId, String contestId, int count, String effectId, String campaignCode,
+                               Instant grantedAt) {
+        return jdbc.sql("""
+                        INSERT INTO play_grant (id, member_id, contest_id, count, effect_id, campaign_code, granted_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (effect_id) DO NOTHING
+                        """)
+                .params(id, memberId, contestId, count, effectId, campaignCode, java.sql.Timestamp.from(grantedAt))
+                .update() == 1;
+    }
+
+    public int sumGrants(String memberId, String contestId) {
+        return jdbc.sql("SELECT COALESCE(sum(count), 0) FROM play_grant WHERE member_id = ? AND contest_id = ?")
+                .params(memberId, contestId).query(Integer.class).single();
+    }
+
+    /** Lock di transazione per (membro, concorso): le giocate dello stesso membro si serializzano (docs/servizi §5). */
+    public void lockMemberContest(String memberId, String contestId) {
+        long key = ((long) memberId.hashCode() << 32) ^ (contestId.hashCode() & 0xffffffffL);
+        jdbc.sql("SELECT pg_advisory_xact_lock(?)").param(key).query((rs, n) -> 1).list();
+    }
+
     public void updateDelivery(String playId, String status, String note) {
         jdbc.sql("UPDATE play SET delivery_status = ?, delivery_note = ? WHERE id = ?").params(status, note, playId).update();
     }

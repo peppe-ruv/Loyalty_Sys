@@ -114,6 +114,27 @@ public class ContestRepository {
         jdbc.sql("UPDATE prize SET quantity_remaining = quantity_total WHERE contest_id = ?").param(contestId).update();
     }
 
+    /** Un'unità in meno del premio vinto (nella stessa transazione del claim). */
+    public void decrementRemaining(String prizeId) {
+        jdbc.sql("UPDATE prize SET quantity_remaining = quantity_remaining - 1 WHERE id = ? AND quantity_remaining > 0")
+                .param(prizeId).update();
+    }
+
+    /** Residui = totale − istanti assegnati (seed dello storico). */
+    public void recomputeRemaining(String contestId) {
+        jdbc.sql("""
+                        UPDATE prize p SET quantity_remaining = p.quantity_total - (SELECT count(*) FROM winning_instant w
+                          WHERE w.prize_id = p.id AND w.status = 'CLAIMED')
+                        WHERE p.contest_id = ?
+                        """)
+                .param(contestId).update();
+    }
+
+    public Optional<Prize> prize(String prizeId) {
+        return jdbc.sql("SELECT " + PRIZE_COLUMNS + " FROM prize WHERE id = ?").param(prizeId)
+                .query(ContestRepository::mapPrize).optional();
+    }
+
     public void deleteAll() {
         jdbc.sql("DELETE FROM contest").update();
     }

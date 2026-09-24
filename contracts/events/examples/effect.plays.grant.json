@@ -1,0 +1,22 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZP1M2N3P4Q5R6S7T8V9W0X",
+  "source": "urn:loyaltyhub:service:campaign",
+  "type": "io.loyaltyhub.effect.plays.grant",
+  "subject": "member:MBR-000011",
+  "time": "2026-09-24T10:15:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:effect.plays.grant:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZP0A1B2C3D4E5F6G7H8J9K",
+  "lhcausationid": "01J8ZP0A1B2C3D4E5F6G7H8J9K",
+  "lhhop": 1,
+  "data": {
+    "effectId": "4f1c2a9e0b7d3e5f6a8c9d0e1f",
+    "campaignCode": "CMP-SURVEY",
+    "actionId": "01J8ZP0A1B2C3D4E5F6G7H8J9K",
+    "actionType": "survey.completed",
+    "contestCode": "IW-AUTUNNO",
+    "count": 1
+  }
+}

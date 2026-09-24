@@ -103,11 +103,28 @@ class CampaignEngineTest {
 
     @Test
     void unsupportedEffectIsLoadedButNotEvaluated() {
-        Evaluation ev = engine.evaluate(action("survey.completed", TUESDAY,
-                JSON.createObjectNode().put("surveyId", "SRV-1")), silver(), List.of(survey()), zero);
+        Evaluation ev = engine.evaluate(action("member.birthday", TUESDAY, JSON.createObjectNode()), silver(),
+                List.of(birthday()), zero);
 
         assertThat(ev.effects()).isEmpty();
         assertThat(ev.results().get(0).reason()).isEqualTo(Evaluation.SkipReason.EFFECT_NOT_SUPPORTED_YET);
+    }
+
+    @Test
+    void grantPlaysBecomesAnActionEffectNextToThePoints() {
+        Evaluation ev = engine.evaluate(action("survey.completed", TUESDAY,
+                JSON.createObjectNode().put("surveyId", "SRV-1")), silver(), List.of(survey()), zero);
+
+        assertThat(ev.outcome()).isEqualTo(Evaluation.Outcome.MATCHED);
+        assertThat(ev.effects()).hasSize(1);
+        assertThat(ev.effects().get(0).amount()).isEqualTo(80);
+        assertThat(ev.actionEffects()).hasSize(1);
+        Evaluation.ActionEffect plays = ev.actionEffects().get(0);
+        assertThat(plays.type()).isEqualTo("GRANT_PLAYS");
+        assertThat(plays.params().path("contestCode").asString()).isEqualTo("IW-AUTUNNO");
+        assertThat(plays.effectId()).isNotEqualTo(ev.effects().get(0).effectId());
+        assertThat(ev.results().get(0).effects()).extracting(Evaluation.EffectResult::type)
+                .containsExactly("GRANT_POINTS", "GRANT_PLAYS");
     }
 
     @ParameterizedTest
@@ -696,6 +713,14 @@ class CampaignEngineTest {
                 "{\"op\":\"all\",\"rules\":[]}",
                 "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FIXED\",\"value\":80,\"tierMultiplierApplies\":true},"
                         + "{\"type\":\"GRANT_PLAYS\",\"contestCode\":\"IW-AUTUNNO\",\"count\":1}]",
+                "{}");
+    }
+
+    private Campaign birthday() {
+        return campaign("CMP-BIRTHDAY", "Compleanno", 100, List.of("member.birthday"),
+                "{\"op\":\"all\",\"rules\":[]}",
+                "[{\"type\":\"GRANT_POINTS\",\"currency\":\"PTS\",\"mode\":\"FIXED\",\"value\":250,\"tierMultiplierApplies\":true},"
+                        + "{\"type\":\"SEND_MESSAGE\",\"templateCode\":\"MSG-BIRTHDAY\"}]",
                 "{}");
     }
 

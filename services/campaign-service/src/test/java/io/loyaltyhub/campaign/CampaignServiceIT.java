@@ -116,9 +116,32 @@ class CampaignServiceIT {
 
     @Test
     void unsupportedEffectIsLoggedNotSupportedYet() {
-        publishAction("01SURVEY01", "survey.completed", "MBR-000004", TUESDAY, Map.of("surveyId", "SRV-1"));
+        publishAction("01BDAY01", "member.birthday", "MBR-000004", TUESDAY, Map.of());
         List<JsonNode> rows = pollEvaluations("MBR-000004", 1);
         assertThat(rows.get(0).path("resultsJson").asString()).contains("EFFECT_NOT_SUPPORTED_YET");
+    }
+
+    @Test
+    void surveyGrantsPointsAndAPlay() {
+        publishAction("01SURVEY01", "survey.completed", "MBR-000003", TUESDAY, Map.of("surveyId", "SRV-1"));
+        try (KafkaConsumer<String, String> consumer = consumer("plays")) {
+            consumer.subscribe(List.of(EFFECTS));
+            JsonNode plays = null;
+            long deadline = System.currentTimeMillis() + 15_000;
+            while (plays == null && System.currentTimeMillis() < deadline) {
+                for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
+                    JsonNode e = readJson(r.value());
+                    if (r.key().equals("MBR-000003") && e.path("type").asString().equals("io.loyaltyhub.effect.plays.grant")) {
+                        plays = e.path("data");
+                    }
+                }
+            }
+            assertThat(plays).as("effetto plays.grant da CMP-SURVEY").isNotNull();
+            assertThat(plays.path("contestCode").asString()).isEqualTo("IW-AUTUNNO");
+            assertThat(plays.path("count").asInt()).isEqualTo(1);
+            assertThat(plays.path("campaignCode").asString()).isEqualTo("CMP-SURVEY");
+            assertThat(plays.path("effectId").asString()).hasSize(26);
+        }
     }
 
     @Test

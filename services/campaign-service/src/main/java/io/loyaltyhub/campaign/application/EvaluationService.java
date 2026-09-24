@@ -95,6 +95,11 @@ public class EvaluationService {
         for (GrantedEffect g : ev.effects()) {
             outbox.write(events.childSameBusinessTime(actionEvent, LhEventTypes.Effect.POINTS_GRANT, effectData(action, g)));
         }
+        for (Evaluation.ActionEffect a : ev.actionEffects()) {
+            if (a.type().equals("GRANT_PLAYS")) {
+                outbox.write(events.childOf(actionEvent, LhEventTypes.Effect.PLAYS_GRANT, playsData(action, a)));
+            }
+        }
         outbox.write(events.childOf(actionEvent, LhEventTypes.Fact.CAMPAIGN_EVALUATED, evaluatedData(action, ev)));
     }
 
@@ -137,6 +142,18 @@ public class EvaluationService {
         String shortType = type.startsWith(LhEventTypes.Action.PREFIX)
                 ? type.substring(LhEventTypes.Action.PREFIX.length()) : type;
         return new EvalAction(e.id(), shortType, e.memberId(), e.source(), e.time(), e.data());
+    }
+
+    /** {@code plays.grant} (EVT-EFF-02): {@code contestCode}, {@code count} + riferimenti per l'idempotenza. */
+    private ObjectNode playsData(EvalAction action, Evaluation.ActionEffect a) {
+        ObjectNode d = mapper.createObjectNode();
+        d.put("effectId", a.effectId());
+        d.put("campaignCode", a.campaignCode());
+        d.put("actionId", action.actionId());
+        d.put("actionType", action.type());
+        d.put("contestCode", a.params().path("contestCode").asString());
+        d.put("count", Math.max(1, a.params().path("count").asInt(1)));
+        return d;
     }
 
     private ObjectNode effectData(EvalAction action, GrantedEffect g) {

@@ -549,3 +549,50 @@ export interface ContestStats {
   prizes: { code: string; name: string; type: PrizeType; total: number; remaining: number; won: number }[];
   daily: { day: string; plays: number; wins: number }[];
 }
+
+// ---------- gamification — portale (PT-05, PT-06) ----------
+
+export interface PortalContestPrize {
+  code: string;
+  name: string;
+  type: PrizeType;
+  points: number | null;
+  imageUrl: string | null;
+  wheelColor: string | null;
+}
+
+export interface PortalContest {
+  code: string;
+  name: string;
+  description: string | null;
+  rulesText: string | null;
+  mechanic: ContestMechanic;
+  startAt: string;
+  endAt: string;
+  playsAvailable: number;
+  freePlayDaily: boolean;
+  freePlayAvailable: boolean;
+  credits: number;
+  playsToday: number;
+  dailyLimit: number | null;
+  prizes: PortalContestPrize[];
+}
+
+export interface PlayResult {
+  playId: string;
+  outcome: "WIN" | "LOSE";
+  prize: { code: string; name: string; type: PrizeType; points: number | null; rewardCode: string | null; wheelColor: string | null } | null;
+  playsAvailable: number;
+  correlationId: string;
+}
+
+export interface MemberPlay {
+  playId: string;
+  playedAt: string;
+  outcome: "WIN" | "LOSE";
+  kind: "FREE_DAILY" | "CREDIT";
+  prizeCode: string | null;
+  prizeName: string | null;
+  prizeType: PrizeType | null;
+  deliveryStatus: string;
+}

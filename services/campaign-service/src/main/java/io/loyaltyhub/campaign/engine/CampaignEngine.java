@@ -49,6 +49,7 @@ public final class CampaignEngine {
 
         List<Evaluation.CampaignResult> results = new ArrayList<>();
         List<Grant> grants = new ArrayList<>();
+        List<Evaluation.ActionEffect> actionEffects = new ArrayList<>();
         List<Mult> multipliers = new ArrayList<>();
         List<String> exclusiveTaken = new ArrayList<>();
         ConditionEvaluator conditions = new ConditionEvaluator(action, member, counters);
@@ -85,6 +86,7 @@ public final class CampaignEngine {
             }
             // raccogli effetti
             collectGrants(c, action, grants);
+            collectActionEffects(c, action, actionEffects);
             collectMultipliers(c, multipliers);
             if (c.exclusiveGroup() != null) {
                 exclusiveTaken.add(c.exclusiveGroup());
@@ -107,6 +109,10 @@ public final class CampaignEngine {
             effectsByCampaign.computeIfAbsent(g.campaignCode, k -> new ArrayList<>())
                     .add(new Evaluation.EffectResult("GRANT_POINTS", g.currency, amount));
         }
+        for (Evaluation.ActionEffect a : actionEffects) {
+            effectsByCampaign.computeIfAbsent(a.campaignCode(), k -> new ArrayList<>())
+                    .add(new Evaluation.EffectResult(a.type(), null, a.params().path("count").asLong(1)));
+        }
         // I MULTIPLIER matchati compaiono nella spiegabilità con il loro fattore (nessun grant proprio).
         for (Mult m : multipliers) {
             effectsByCampaign.computeIfAbsent(m.campaignCode, k -> new ArrayList<>())
@@ -120,7 +126,7 @@ public final class CampaignEngine {
 
         Evaluation.Outcome outcome = matchedNames.isEmpty()
                 ? Evaluation.Outcome.NO_MATCH : Evaluation.Outcome.MATCHED;
-        return new Evaluation(outcome, results, effects);
+        return new Evaluation(outcome, results, effects, actionEffects);
     }
 
     // ---------- passi ----------
@@ -233,15 +239,30 @@ public final class CampaignEngine {
             if (type.equals("MULTIPLIER")) {
                 continue;
             }
+            if (type.equals("GRANT_PLAYS") && !e.path("contestCode").asString("").isBlank()
+                    && e.path("count").asInt(1) > 0) {
+                continue;
+            }
             if (type.equals("GRANT_POINTS")) {
                 String mode = e.path("mode").asString("FIXED");
                 if (mode.equals("FIXED") || mode.equals("PER_AMOUNT") || mode.equals("FROM_FIELD") || mode.equals("LOOKUP")) {
                     continue;
                 }
             }
-            return false; // GRANT_PLAYS / ISSUE_COUPON / AWARD_BADGE / SEND_MESSAGE
+            return false; // ISSUE_COUPON / AWARD_BADGE / SEND_MESSAGE
         }
         return true;
+    }
+
+    /** Effetti non monetari (M5.2: {@code GRANT_PLAYS} → {@code plays.grant}); stesso {@code effectId} idempotente. */
+    private void collectActionEffects(Campaign c, EvalAction action, List<Evaluation.ActionEffect> out) {
+        JsonNode effects = c.effects();
+        for (int i = 0; i < effects.size(); i++) {
+            JsonNode e = effects.get(i);
+            if (e.path("type").asString("").equals("GRANT_PLAYS")) {
+                out.add(new Evaluation.ActionEffect(effectId(action.actionId(), c.code(), i), c.code(), "GRANT_PLAYS", e));
+            }
+        }
     }
 
     private void collectGrants(Campaign c, EvalAction action, List<Grant> grants) {
