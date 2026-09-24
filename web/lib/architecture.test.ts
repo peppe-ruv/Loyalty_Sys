@@ -25,34 +25,8 @@ describe("architecture/imports", () => {
       // ignore
     }
 
-    // Debito noto, vedi AUDIT-WEB-1.
-    // Questi file nel portal importano QueryState dal backoffice e formano una allowlist.
-    // Ogni nuova cross-import deve fallire.
-    const allowedPortalImportsBo = [
-      "app/portal/invite/page.tsx",
-      "app/portal/profile/page.tsx",
-      "app/portal/achievements/page.tsx",
-      "app/portal/earn/page.tsx",
-      "app/portal/play/page.tsx",
-      "app/portal/play/[code]/page.tsx",
-      "app/portal/page.tsx",
-      "app/portal/leaderboard/page.tsx",
-      "app/portal/activity/page.tsx",
-      "app/portal/my-rewards/page.tsx",
-      "app/portal/rewards/page.tsx",
-      "app/portal/rewards/[code]/page.tsx",
-      "components/portal/profile/ProfileForm.tsx"
-    ];
-
-    const unexpectedPortalImportsBo = portalImportsBo
-      .split('\n')
-      .filter(line => line.trim() !== '')
-      .filter(line => {
-        // Ignora se la riga proviene da un file nella allowlist ed è solo l'import di QueryState.
-        const isAllowedFile = allowedPortalImportsBo.some(allowedFile => line.includes(allowedFile));
-        const isQueryState = line.includes('QueryState');
-        return !(isAllowedFile && isQueryState);
-      });
+    // QueryState vive in components/shared (debito AUDIT-WEB-1 risolto): nessuna eccezione ammessa.
+    const unexpectedPortalImportsBo = portalImportsBo.split("\n").filter((line) => line.trim() !== "");
 
     expect(unexpectedPortalImportsBo).toEqual([]);
     expect(boImportsPortal.trim()).toBe("");

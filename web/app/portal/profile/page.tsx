@@ -5,7 +5,7 @@ import { useLhQuery } from "@/lib/api/client";
 import type { WalletView, MemberView, Tier } from "@/lib/api/types";
 import { useActiveMember } from "@/components/portal/MemberContext";
 import { MemberCard } from "@/components/shared/content/MemberCard";
-import { QueryState } from "@/components/bo/QueryState";
+import { QueryState } from "@/components/shared/QueryState";
 import { formatPoints } from "@/lib/format/points";
 import { ProfileSection } from "@/components/portal/profile/ProfileForm";
 import { isAnonymized, memberDisplayName } from "@/lib/member/anonymized";

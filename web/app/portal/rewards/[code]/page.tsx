@@ -8,7 +8,7 @@ import { Check, Copy, Lock } from "lucide-react";
 import { lhFetch, useLhQuery, type LhError } from "@/lib/api/client";
 import type { PortalCoupon, PortalRewardDetail, Redemption, RedemptionAccepted, RewardCategory, WalletView } from "@/lib/api/types";
 import { useActiveMember } from "@/components/portal/MemberContext";
-import { QueryState } from "@/components/bo/QueryState";
+import { QueryState } from "@/components/shared/QueryState";
 import { RewardArt } from "@/components/portal/RewardArt";
 import { CountUp } from "@/components/portal/CountUp";
 import { blockReason, isSettled } from "@/lib/reward/portal";

@@ -8,7 +8,7 @@ import { useLhMutation, useLhQuery, type LhError } from "@/lib/api/client";
 import type { MemberPlay, PlayResult, PortalContest, PortalCoupon } from "@/lib/api/types";
 import { useActiveMember } from "@/components/portal/MemberContext";
 import { usePending } from "@/components/portal/PendingContext";
-import { QueryState } from "@/components/bo/QueryState";
+import { QueryState } from "@/components/shared/QueryState";
 import { Wheel } from "@/components/portal/game/Wheel";
 import { ScratchCard } from "@/components/portal/game/ScratchCard";
 import { GiftBoxes } from "@/components/portal/game/GiftBoxes";

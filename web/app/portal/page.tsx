@@ -8,7 +8,7 @@ import { useActiveMember } from "@/components/portal/MemberContext";
 import { usePending } from "@/components/portal/PendingContext";
 import { MemberCard } from "@/components/shared/content/MemberCard";
 import { PendingBanner, ActivityRow, type ActivityItem } from "@/components/portal/parts";
-import { QueryState } from "@/components/bo/QueryState";
+import { QueryState } from "@/components/shared/QueryState";
 import { ContentSlot } from "@/components/portal/ContentSlot";
 import { PopupHost } from "@/components/portal/PopupHost";
 import { usePortalTheme } from "@/components/shared/ThemeContext";

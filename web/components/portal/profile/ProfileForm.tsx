@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useLhMutation, useLhQuery } from "@/lib/api/client";
 import type { PortalCampaign, PortalProfile, ProfileField } from "@/lib/api/types";
 import { usePending } from "@/components/portal/PendingContext";
-import { QueryState } from "@/components/bo/QueryState";
+import { QueryState } from "@/components/shared/QueryState";
 import { completenessPct, missingFieldsSentence } from "@/lib/member/profile";
 import { cn } from "@/lib/cn";
 
