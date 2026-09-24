@@ -17,7 +17,7 @@ status=0
 
 if [ "${TESTBOOK_JAVA:-1}" = "1" ]; then
   echo "▶ testbook backend (Testbook*Test, Testbook*IT)…"
-  ./mvnw -q verify -Dtest='Testbook*' -Dit.test='Testbook*' \
+  ./mvnw -q verify -Dtest='Testbook*Test' -Dit.test='Testbook*IT' \
     -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false \
     -Dmaven.test.failure.ignore=true -Dfailsafe.testFailureIgnore=true > "$OUT/maven.log" 2>&1 || status=1
   find . -path ./web/node_modules -prune -o \( -path '*/target/surefire-reports/TEST-*Testbook*.xml' -o \
