@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.contest.status.changed:1",
+  "title": "fact.contest.status.changed — data (docs/servizi/gamification-service.md §4, ciclo di vita concorso)",
+  "type": "object",
+  "required": [
+    "contestCode",
+    "newStatus"
+  ],
+  "properties": {
+    "contestCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{2,39}$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "previousStatus": {
+      "type": "string"
+    },
+    "newStatus": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

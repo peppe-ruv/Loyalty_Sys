@@ -14,6 +14,8 @@ export type Capability =
   | "program.config"
   | "actiontype.custom"
   | "redemption.handle"
+  | "instants.view"
+  | "delivery.handle"
   | "coupon.use"
   | "coupon.void"
   | "inbound.handle"
@@ -31,6 +33,9 @@ const MATRIX: Record<Capability, Role[]> = {
   "program.config": ["ADMIN"],
   "actiontype.custom": ["ADMIN", "MARKETING"],
   "redemption.handle": ["ADMIN", "CARE"],
+  // Tabella degli istanti vincenti: l'unica lettura riservata (MARKETING vede solo l'istogramma).
+  "instants.view": ["ADMIN", "LEGAL"],
+  "delivery.handle": ["ADMIN", "CARE"],
   // Cassa simulata di BO-12: ogni ruolo operativo. `coupon.void` come redemption.handle (SPEC-GAP: Q-52).
   "coupon.use": ["ADMIN", "MARKETING", "LEGAL", "CARE"],
   "coupon.void": ["ADMIN", "CARE"],

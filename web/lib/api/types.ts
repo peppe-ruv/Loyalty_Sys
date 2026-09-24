@@ -444,3 +444,108 @@ export interface RedemptionAccepted {
   status: RedemptionStatus;
   correlationId: string;
 }
+
+// ---------- gamification (M5): concorsi instant win (docs/servizi/gamification-service.md §3; BO-14) ----------
+
+export type ContestMechanic = "WHEEL" | "SCRATCH" | "BOX";
+export type ContestDistribution = "UNIFORM" | "BUSINESS_HOURS";
+export type PrizeType = "POINTS" | "COUPON" | "PHYSICAL";
+
+export interface ContestPrize {
+  id: string;
+  code: string;
+  name: string;
+  type: PrizeType;
+  points: number | null;
+  rewardCode: string | null;
+  quantityTotal: number;
+  quantityRemaining: number;
+  imageUrl: string | null;
+  wheelColor: string | null;
+  sortOrder: number;
+}
+
+export interface Contest {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  rulesText: string | null;
+  mechanic: ContestMechanic;
+  startAt: string;
+  endAt: string;
+  freePlayDaily: boolean;
+  maxPlaysPerMemberPerDay: number | null;
+  maxWinsPerMember: number | null;
+  distribution: ContestDistribution;
+  seed: number;
+  instantsGeneratedAt: string | null;
+  status: string;
+  version: number;
+  createdBy: string | null;
+  updatedAt: string | null;
+  prizes: ContestPrize[];
+  instants: { total: number; open: number; claimed: number; voided: number };
+  plays: number;
+  wins: number;
+  prizesTotal: number;
+  prizesRemaining: number;
+}
+
+export interface InstantRow {
+  id: string;
+  prizeId: string;
+  prizeCode: string;
+  prizeName: string;
+  instantAt: string;
+  status: "OPEN" | "CLAIMED" | "VOID";
+  claimedBy: string | null;
+  claimedAt: string | null;
+  playId: string | null;
+  planted: boolean;
+}
+
+export interface InstantDay {
+  day: string;
+  total: number;
+  open: number;
+  claimed: number;
+  voided: number;
+}
+
+export interface InstantHistogram {
+  code: string;
+  distribution: ContestDistribution;
+  days: InstantDay[];
+}
+
+export interface InstantsGenerated {
+  instants: number;
+  seed: number;
+  generatedAt: string;
+}
+
+export interface ContestWinner {
+  playId: string;
+  memberId: string;
+  nickname: string | null;
+  prizeCode: string;
+  prizeName: string;
+  prizeType: PrizeType;
+  playedAt: string;
+  deliveryStatus: "NA" | "PENDING" | "DELIVERED";
+  deliveryNote: string | null;
+}
+
+export interface ContestStats {
+  code: string;
+  plays: number;
+  wins: number;
+  winRate: number;
+  players: number;
+  winners: number;
+  prizesTotal: number;
+  prizesRemaining: number;
+  prizes: { code: string; name: string; type: PrizeType; total: number; remaining: number; won: number }[];
+  daily: { day: string; plays: number; wins: number }[];
+}

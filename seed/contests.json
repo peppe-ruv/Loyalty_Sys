@@ -1,0 +1,66 @@
+[
+  {
+    "code": "IW-AUTUNNO",
+    "name": "Ruota d'Autunno",
+    "description": "Gira la ruota ogni giorno: punti, colazioni e powerbank solari in palio fino a fine stagione.",
+    "rulesText": "Concorso a premi instant win promosso da Club Aurora (programma dimostrativo). Partecipano i soci con iscrizione attiva. Una giocata gratuita al giorno, più le giocate extra guadagnate con le promozioni; massimo 5 giocate al giorno. I premi sono assegnati da istanti vincenti estratti prima dell'inizio: la prima giocata dopo un istante vincente non ancora assegnato vince il premio collegato. Gli istanti non assegnati alla chiusura sono devoluti secondo il regolamento.",
+    "mechanic": "WHEEL",
+    "status": "LIVE",
+    "startAt": "@today-20d",
+    "endAt": "@today+40dT23:59",
+    "freePlayDaily": true,
+    "maxPlaysPerMemberPerDay": 5,
+    "maxWinsPerMember": null,
+    "distribution": "BUSINESS_HOURS",
+    "seed": 20260901,
+    "createdBy": "MARKETING:luca.marketing",
+    "prizes": [
+      { "code": "PTS-50", "name": "50 punti", "type": "POINTS", "points": 50, "quantity": 200, "wheelColor": "#2a78d6" },
+      { "code": "PTS-100", "name": "100 punti", "type": "POINTS", "points": 100, "quantity": 100, "wheelColor": "#1baf7a" },
+      { "code": "COFFEE", "name": "Buono colazione 5 €", "type": "COUPON", "rewardCode": "RWD-COFFEE-5", "quantity": 50, "wheelColor": "#eb6834" },
+      { "code": "POWERBANK", "name": "Powerbank solare", "type": "PHYSICAL", "quantity": 5, "wheelColor": "#eda100" }
+    ]
+  },
+  {
+    "code": "IW-NATALE",
+    "name": "Gratta e vinci di Natale",
+    "description": "Dal primo dicembre un biglietto da grattare ogni giorno fino alla Vigilia.",
+    "rulesText": "Concorso a premi instant win promosso da Club Aurora (programma dimostrativo), dal 1 al 24 dicembre. Una giocata gratuita al giorno per i soci con iscrizione attiva. Premi assegnati da istanti vincenti estratti prima dell'inizio.",
+    "mechanic": "SCRATCH",
+    "status": "IN_REVIEW",
+    "startAt": "@soy+11M",
+    "endAt": "@soy+11M+23dT23:59",
+    "freePlayDaily": true,
+    "maxPlaysPerMemberPerDay": null,
+    "maxWinsPerMember": null,
+    "distribution": "UNIFORM",
+    "seed": 20261201,
+    "createdBy": "MARKETING:luca.marketing",
+    "prizes": [
+      { "code": "PTS-100", "name": "100 punti", "type": "POINTS", "points": 100, "quantity": 300, "wheelColor": "#2a78d6" },
+      { "code": "SHOP-10", "name": "Buono shopping 10 €", "type": "COUPON", "rewardCode": "RWD-SHOP-10", "quantity": 60, "wheelColor": "#eb6834" },
+      { "code": "WELLNESS", "name": "Weekend benessere", "type": "PHYSICAL", "quantity": 3, "wheelColor": "#1baf7a" }
+    ]
+  },
+  {
+    "code": "IW-ESTATE",
+    "name": "Pacchi d'Estate",
+    "description": "Apri un pacco al giorno: l'edizione estiva si è chiusa con 142 vincite.",
+    "rulesText": "Concorso a premi instant win promosso da Club Aurora (programma dimostrativo). Concluso: gli istanti non assegnati sono stati annullati alla chiusura.",
+    "mechanic": "BOX",
+    "status": "ENDED",
+    "startAt": "@today-85d",
+    "endAt": "@today-24dT23:59",
+    "freePlayDaily": true,
+    "maxPlaysPerMemberPerDay": 3,
+    "maxWinsPerMember": null,
+    "distribution": "BUSINESS_HOURS",
+    "seed": 20260701,
+    "createdBy": "MARKETING:luca.marketing",
+    "prizes": [
+      { "code": "PTS-50", "name": "50 punti", "type": "POINTS", "points": 50, "quantity": 110, "wheelColor": "#2a78d6" },
+      { "code": "PTS-100", "name": "100 punti", "type": "POINTS", "points": 100, "quantity": 40, "wheelColor": "#1baf7a" },
+      { "code": "COOLBAG", "name": "Borsa frigo", "type": "PHYSICAL", "quantity": 2, "wheelColor": "#eda100" }
+    ]
+  }
+]

@@ -39,7 +39,7 @@ class HubInProcessEndToEndIT {
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
-        registry.add("spring.datasource.url", () -> base + "&currentSchema=ingestion,member,campaign,wallet,insight,reward");
+        registry.add("spring.datasource.url", () -> base + "&currentSchema=ingestion,member,campaign,wallet,insight,reward,gamification");
         registry.add("spring.datasource.username", () -> "postgres");
         registry.add("spring.datasource.password", () -> "");
         // Nessun spring.kafka.bootstrap-servers: nel profilo inproc non c'è broker.

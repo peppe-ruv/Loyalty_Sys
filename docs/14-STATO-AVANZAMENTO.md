@@ -13,11 +13,11 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M2 — Visibilità | completata | M2.8 | | ☑ | |
 | M3 — Punti adulti | chiusa (codice) | 2026-09-21 | 2026-09-23 | ☑ | M3.1–M3.9 implementate; criteri di accettazione verdi con test automatici; resta `smoke.sh` sulla demo online |
 | M4 — Premi | chiusa (codice) | 2026-09-23 | 2026-09-24 | ☐ | M4.1–M4.6 implementate; criteri di accettazione verdi con test automatici (E2E portale su API simulate); resta `smoke.sh` sulla demo online |
-| M5 — Gioco | da iniziare | | | ☐ | |
+| M5 — Gioco | in corso | 2026-09-24 | | ☐ | M5.1 chiusa (concorsi, istanti con seme, BO-14) |
 | M6 — Contenuti | da iniziare | | | ☐ | |
 | M7 — Governance | da iniziare | | | ☐ | |
 
-**Prossima fetta da lavorare:** M5 (gioco: instant win, obiettivi, badge, classifiche, referral); resta `smoke.sh` sulla demo online per M3–M4
+**Prossima fetta da lavorare:** M5.2 (giocata atomica, crediti, PT-05/PT-06); resta `smoke.sh` sulla demo online per M3–M4
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -224,7 +224,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 **Fette** (`docs/12 §3`)
 
-- [ ] `M5.1`
+- [x] `M5.1` — _gamification-service nell'hub (schema `gamification`), concorsi con montepremi e ciclo di vita, istanti generati col seme (`UNIFORM`/`BUSINESS_HOURS`), istanti solo ADMIN/LEGAL, istogramma, vincitori/CSV/consegna, statistiche, seed `contests.json` + BO-14_
 - [ ] `M5.2`
 - [ ] `M5.3`
 - [ ] `M5.4`
@@ -237,13 +237,13 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [ ] `F-MBR-06` Registrazione dal portale (P1)
 - [ ] `F-MBR-07` Completamento profilo (P1)
 - [ ] `F-CMP-12` Campagne di sistema (P0)
-- [ ] `F-IW-01` Concorso (P0)
-- [ ] `F-IW-02` Montepremi (P0)
-- [ ] `F-IW-03` Istanti vincenti pre-generati (P0)
+- [x] `F-IW-01` Concorso (P0) — _M5.1: API + BO-14; approvazione LEGAL obbligatoria in M7_
+- [x] `F-IW-02` Montepremi (P0) — _M5.1: modificabile solo prima del LIVE; cambiarlo cancella gli istanti_
+- [x] `F-IW-03` Istanti vincenti pre-generati (P0) — _M5.1: stesso seme → stessi istanti (test), 409 dal LIVE, END → istanti aperti VOID_
 - [ ] `F-IW-04` Giocata (P0)
 - [ ] `F-IW-05` Crediti di gioco (P0)
 - [ ] `F-IW-06` Vincita come azione interna (P0)
-- [ ] `F-IW-07` Vincitori e report (P0)
+- [~] `F-IW-07` Vincitori e report (P0) — _2026-09-24 M5.1: API vincitori/CSV/consegna/statistiche e schede BO-14; vincite reali da M5.2_
 - [ ] `F-IW-08` Aiuto demo (P0)
 - [ ] `F-ACH-01` Obiettivi (P0)
 - [ ] `F-ACH-02` Progresso (P0)
@@ -332,6 +332,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 | Data | Fetta | Esito | Commit | Domande aperte create | Note per la prossima sessione |
 |---|---|---|---|---|---|
+| 2026-09-24 | M5.1 | ✅ `./mvnw verify` verde (`ContestIT` 6: 355 istanti di `IW-AUTUNNO` in orario 8–22, seme 42 due volte → stessi istanti, `GET /instants` MARKETING/CARE/ANALYST → 403, `INSTANTS_NOT_GENERATED`, `CONTEST_LIVE_LOCKED`/`INSTANTS_LOCKED`, END → istanti VOID, `contest.status.changed` su Kafka), `pnpm lint typecheck test build` verdi, `check-contracts` 32, `check-seed` 17 (nuove regole sui concorsi), 48 test web; BO-14 controllata con Playwright su servizio locale e dati del seed (elenco, schede, istanti ADMIN vs MARKETING, approvazione LEGAL, flusso crea → pubblica senza istanti → genera → LIVE) | (questo commit) | Q-56, Q-57 | **gamification-service** (porta 8086) nell'hub: tutte le tabelle della scheda in V1, `gamification_member_snapshot` prefissata come in reward. Contratto `fact.contest.status.changed`. Pool `POOL-CAF` 600 e `POOL-SHP10` 400 codici: servono anche ai premi coupon dei concorsi (nuovo controllo in `check-seed`). `LifecycleBar`: `IN_REVIEW` → *Approva* (`object.approve`), `APPROVED` → *Pubblica* (prima proponeva *Pubblica* da `IN_REVIEW`, transizione rifiutata dal backend). Meccanica `BOX` (spec del servizio) invece di `GIFT` (docs/08-10). **Da fare fuori sessione**: env Vercel `LH_SVC_GAMIFICATION_URL` → hub Render, senza la quale BO-14 mostra lo stato *degraded*. |
 | 2026-09-24 | M4.6 · accettazione M4 | ✅ `./mvnw verify` verde (`HubEndToEndIT` 8 con il ponte `reward.redeemed` nel tracciato e lo stock +1 all'annullo, `RedemptionIT` 10 con "wallet fermo → PENDING"), `check-seed` 16, `check-contracts` 31 | (questo commit) | — | Ponte già attivo dal seed di M3.5: ora provato end-to-end e con contratto. Il test d'accettazione ha trovato un'incoerenza nel seed: i residui di stock non tenevano conto delle richieste attive dello storico (la borraccia era 150/150 pur con due richieste attive, quindi all'annullo di Sofia lo stock non poteva risalire): residui allineati (es. `RWD-BORRACCIA` 148) e nuova regola in `check-seed`. |
 | 2026-09-23 | M4.5 | ✅ `pnpm lint typecheck test build` verdi (42 test, nuovi su `lib/reward/portal`), `./mvnw verify` wallet verde, `check-seed` 16; percorso E2E n. 2 di docs/09 §4 eseguito con Playwright su API simulate a stato (Davide: PT-03 → PT-04 `RWD-COFFEE-5` → codice → PT-13 → saldo −500): 7/7 passi | (questo commit) | — | Portale: PT-03, PT-04, PT-13, tab «Premi» (attiva anche su «I miei premi»), collegamenti da home e profilo, avviso «N punti scadono il … — usali» in PT-01 ora che PT-03 esiste. Icone di categoria in `lib/reward/icons` (condivise, backoffice e portale non si importano). Wallet: titolo «Rettifica punti» anche per `ADJUST_CREDIT/DEBIT` nell'attività del portale. Banner `CATALOG_TOP` rinviato a M6 (engagement). Script E2E fuori dal repo (la CI non esegue ancora Playwright). |
 | 2026-09-23 | M4.4 | ✅ `./mvnw verify` verde (`RedemptionIT` 10, `CouponIT` 5, `HubEndToEndIT` 8 con il rimborso di Sofia e Σ lotti = saldo), `pnpm lint typecheck test build` verdi (36 test), `check-seed` 16 (nuovi controlli su `redemptions.json`), `check-contracts` 30; BO-13 renderizzata e controllata (Playwright) | 7061712, (questo commit) | — | CI rossa su M4.3 per un test mio (`WalletRedemptionIT` leggeva il saldo prima che il wallet del membro nuovo esistesse): corretto in 7061712. Storico demo: 24 richieste (niente `PENDING`, che il timeout respingerebbe), coupon presi dai pool con seme, spese/rimborsi storici nel ledger del wallet legati a `redemption_id` così gli annulli da BO-13 rimborsano davvero; rimborso di spese senza consumi registrati → lotto nuovo. BO-30: aggiunti reward al reset orchestrato (mancava) e i job scadenza coupon / timeout richieste. |

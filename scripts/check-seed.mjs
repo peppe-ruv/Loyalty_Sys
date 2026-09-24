@@ -98,13 +98,49 @@ if (Array.isArray(rewards)) {
         continue;
       }
       // Le richieste d'esempio evase con coupon consumano codici dello stesso pool.
+      // I premi coupon dei concorsi non ancora chiusi (docs/10 §6) pescano dallo stesso pool.
       const issuedBySeed = (readSeed("redemptions.json") ?? []).filter((x) => x.rewardCode === r.code && x.coupon).length;
       const available = (pool.size ?? 0) - (pool.consumed ?? 0) - issuedBySeed;
-      const declared = r.stockRemaining ?? r.stockTotal ?? 0;
+      const contestDemand = (readSeed("contests.json") ?? [])
+        .filter((c) => c.status !== "ENDED" && c.status !== "ARCHIVED")
+        .flatMap((c) => c.prizes ?? [])
+        .filter((p) => p.type === "COUPON" && p.rewardCode === r.code)
+        .reduce((sum, p) => sum + (p.quantity ?? 0), 0);
+      const declared = (r.stockRemaining ?? r.stockTotal ?? 0) + contestDemand;
       if (available < declared) {
-        errors.push(`coupon-pools.json: ${pool.code} ha ${available} codici disponibili, meno dello stock di ${r.code} (${declared})`);
+        errors.push(`coupon-pools.json: ${pool.code} ha ${available} codici disponibili, meno dello stock di ${r.code} più i premi dei concorsi (${declared})`);
       }
     }
+  }
+}
+
+// Concorsi (docs/10 §6, docs/servizi/gamification-service.md §2): meccanica e distribuzione ammesse, periodo, premi
+// con codice univoco, quantità ≥ 1, punti per POINTS e premio coupon esistente (AUTO_COUPON) per COUPON.
+const contests = readSeed("contests.json");
+if (Array.isArray(contests)) {
+  const rewardByCode = new Map((rewards ?? []).map((r) => [r.code, r]));
+  const seen = new Set();
+  for (const c of contests) {
+    if (seen.has(c.code)) errors.push(`contests.json: codice duplicato ${c.code}`);
+    seen.add(c.code);
+    if (!["WHEEL", "SCRATCH", "BOX"].includes(c.mechanic)) errors.push(`contests.json: ${c.code} ha meccanica "${c.mechanic}"`);
+    if (!["UNIFORM", "BUSINESS_HOURS"].includes(c.distribution)) errors.push(`contests.json: ${c.code} ha distribuzione "${c.distribution}"`);
+    if (!c.startAt || !c.endAt) errors.push(`contests.json: ${c.code} senza periodo`);
+    if (typeof c.seed !== "number") errors.push(`contests.json: ${c.code} senza seme fisso`);
+    const prizeCodes = new Set();
+    for (const p of c.prizes ?? []) {
+      if (prizeCodes.has(p.code)) errors.push(`contests.json: ${c.code} ripete il premio ${p.code}`);
+      prizeCodes.add(p.code);
+      if (!(p.quantity >= 1)) errors.push(`contests.json: ${c.code}/${p.code} con quantità ${p.quantity}`);
+      if (p.type === "POINTS" && !(p.points > 0)) errors.push(`contests.json: ${c.code}/${p.code} senza punti`);
+      if (p.type === "COUPON") {
+        const r = rewardByCode.get(p.rewardCode);
+        if (!r) errors.push(`contests.json: ${c.code}/${p.code} usa il premio inesistente ${p.rewardCode}`);
+        else if (r.fulfilment !== "AUTO_COUPON") errors.push(`contests.json: ${c.code}/${p.code}: ${p.rewardCode} non è AUTO_COUPON`);
+      }
+      if (!["POINTS", "COUPON", "PHYSICAL"].includes(p.type)) errors.push(`contests.json: ${c.code}/${p.code} ha tipo "${p.type}"`);
+    }
+    if ((c.prizes ?? []).length === 0) errors.push(`contests.json: ${c.code} senza montepremi`);
   }
 }
 

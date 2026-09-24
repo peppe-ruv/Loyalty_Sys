@@ -24,7 +24,7 @@ import org.springframework.stereotype.Component;
 public class HubDatabase implements BeanFactoryPostProcessor, EnvironmentAware, PriorityOrdered {
 
     private static final Logger log = LoggerFactory.getLogger(HubDatabase.class);
-    private static final String[] SCHEMAS = {"ingestion", "member", "campaign", "wallet", "insight", "reward"};
+    private static final String[] SCHEMAS = {"ingestion", "member", "campaign", "wallet", "insight", "reward", "gamification"};
 
     private Environment env;
 
