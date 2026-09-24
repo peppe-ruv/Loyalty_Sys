@@ -42,7 +42,7 @@ public class TestbookEngContentTest {
         Instant endAt = endOffsetHours != null ? NOW.plus(endOffsetHours, ChronoUnit.HOURS) : null;
 
         ContentItem item = new ContentItem("id", "CODE", "BANNER", "HOME_GRID", "Title", "Body", "url",
-                "cta", "url", "NONE", null, audience, startAt, endAt, 10, null, false, null, status, 1);
+                "cta", "url", "NONE", null, audience, startAt, endAt, 10, null, false, null, status, 1L, null);
 
         Instant registeredAt = viewerRegisteredDaysAge != null ? NOW.minus(viewerRegisteredDaysAge, ChronoUnit.DAYS) : null;
         List<String> segs = viewerSegments != null ? List.of(viewerSegments.split(";")) : List.of();
@@ -119,6 +119,6 @@ public class TestbookEngContentTest {
 
     private ContentItem buildItem(String id, String code, int priority) {
         return new ContentItem(id, code, "BANNER", "HOME_GRID", "Title", "Body", "url",
-                "cta", "url", "NONE", null, MAPPER.createObjectNode(), null, null, priority, null, false, null, "LIVE", 1);
+                "cta", "url", "NONE", null, MAPPER.createObjectNode(), null, null, priority, null, false, null, "LIVE", 1L, null);
     }
 }
