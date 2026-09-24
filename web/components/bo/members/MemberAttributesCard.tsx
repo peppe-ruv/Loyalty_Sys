@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { lhFetch, LhError, useLhQuery } from "@/lib/api/client";
 import type { MemberView } from "@/lib/api/types";
+import { ANONYMIZED_LABEL, isAnonymized } from "@/lib/member/anonymized";
 import { Card, CardBody } from "@/components/ui/card";
 import { QueryState } from "@/components/bo/QueryState";
 import { CodeText } from "@/components/bo/primitives";
@@ -36,11 +37,27 @@ export function MemberAttributesCard({ id }: { id: string }) {
       <CardBody className="space-y-3 pt-4">
         <h2 className="text-sm font-semibold">Attributi ed etichette</h2>
         <QueryState query={member} service="member">
-          {(m) => (
+          {(m) =>
+            isAnonymized(m.status) ? (
+              // F-MBR-05 (M7.5): attributi cancellati con l'anonimizzazione, etichette conservate, niente modifiche.
+              <div className="space-y-2 text-sm">
+                <p className="italic text-slate-500">{ANONYMIZED_LABEL}: attributi personali cancellati, modifiche disabilitate.</p>
+                {(m.labels ?? []).length > 0 ? (
+                  <ul className="flex flex-wrap gap-1.5">
+                    {(m.labels ?? []).map((l) => (
+                      <li key={l} className="rounded-full border border-[var(--color-bo-border)] px-2 py-0.5 text-xs">
+                        {l}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : (
             <QueryState query={defs} service="member">
               {(d) => <AttributesForm key={`${m.id}-${m.version}`} member={m} defs={d} message={message} setMessage={setMessage} />}
             </QueryState>
-          )}
+            )
+          }
         </QueryState>
       </CardBody>
     </Card>

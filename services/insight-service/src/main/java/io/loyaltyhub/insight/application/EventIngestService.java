@@ -13,6 +13,8 @@ import io.loyaltyhub.insight.domain.StoredEvent;
 import io.loyaltyhub.insight.infra.AuditRepository;
 import io.loyaltyhub.insight.infra.DlqRepository;
 import io.loyaltyhub.insight.infra.EventStoreRepository;
+import io.loyaltyhub.common.privacy.PersonalData;
+import io.loyaltyhub.insight.infra.MemberRedactionRepository;
 import io.loyaltyhub.insight.infra.MetricRepository;
 import io.loyaltyhub.insight.infra.TopicStatRepository;
 import io.loyaltyhub.insight.live.EventSummaries;
@@ -48,10 +50,12 @@ public class EventIngestService {
     private final DlqRepository dlq;
     private final LiveEventHub liveHub;
     private final ObjectMapper mapper;
+    private final MemberRedactionRepository redaction;
 
     public EventIngestService(EventStoreRepository events, TopicStatRepository topicStats,
                               MetricRepository metrics, AuditRepository audits, DlqRepository dlq,
-                              LiveEventHub liveHub, ObjectMapper mapper) {
+                              LiveEventHub liveHub, ObjectMapper mapper, MemberRedactionRepository redaction) {
+        this.redaction = redaction;
         this.events = events;
         this.topicStats = topicStats;
         this.metrics = metrics;
@@ -136,6 +140,11 @@ public class EventIngestService {
             updateMetrics(family, shortType, event, stored);
             if ("AUDIT".equals(family)) {
                 recordAudit(event);
+            }
+            // Anonimizzazione (F-MBR-05, M7.5): le copie del membro perdono i dati personali (anche questo evento).
+            if ("FACT".equals(family) && event.memberId() != null && PersonalData.isAnonymization(event)) {
+                int rows = redaction.redact(event.memberId());
+                log.info("Membro {} anonimizzato: {} copie ripulite", event.memberId(), rows);
             }
             liveHub.publish(new LiveEvent(event.id(), topic, family, shortType, event.memberId(),
                     event.lhcorrelationid(), event.time(), EventSummaries.of(shortType, event.data())));

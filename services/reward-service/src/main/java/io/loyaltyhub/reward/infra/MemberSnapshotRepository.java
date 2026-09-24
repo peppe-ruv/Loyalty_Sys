@@ -42,6 +42,16 @@ public class MemberSnapshotRepository {
                 .params(memberId, status, firstName, lastName).update();
     }
 
+    /** Anonimizzazione (F-MBR-05, M7.5): nome e cognome cancellati, stato {@code ANONYMIZED}; livello e segmenti restano. */
+    public void erasePersonal(String memberId) {
+        jdbc.sql("""
+                        INSERT INTO reward_member_snapshot (member_id, status) VALUES (?, 'ANONYMIZED')
+                        ON CONFLICT (member_id) DO UPDATE SET status = 'ANONYMIZED', first_name = NULL, last_name = NULL,
+                          updated_at = now()
+                        """)
+                .param(memberId).update();
+    }
+
     public void updateStatus(String memberId, String status) {
         jdbc.sql("""
                         INSERT INTO reward_member_snapshot (member_id, status) VALUES (?, ?)

@@ -8,6 +8,7 @@ import type { Segment } from "@/lib/segments/types";
 import { QueryState } from "@/components/bo/QueryState";
 import { DataTable, type Column } from "@/components/bo/DataTable";
 import { PageHeader, StatusPill, TierBadge, CodeText, PointsAmount } from "@/components/bo/primitives";
+import { isAnonymized, memberDisplayName, personalValue } from "@/lib/member/anonymized";
 
 // BO-02 Membri (docs/08 §BO-02): elenco con filtri testo/stato/tier/segmento (M6.6). Riga → scheda 360°.
 const STATUSES = ["", "ACTIVE", "BLOCKED", "INACTIVE", "ANONYMIZED"];
@@ -29,13 +30,15 @@ export default function MembersPage() {
       key: "member",
       header: "Membro",
       render: (m) => (
-        <span className={m.status === "ANONYMIZED" ? "italic text-slate-400" : ""}>
-          {m.firstName ? `${m.firstName} ${m.lastName ?? ""}` : (m.nickname ?? "Membro anonimo")}
-        </span>
+        <span className={isAnonymized(m.status) ? "italic text-slate-400" : ""}>{memberDisplayName(m)}</span>
       ),
     },
     { key: "id", header: "ID", render: (m) => <CodeText>{m.id}</CodeText> },
-    { key: "email", header: "E-mail", render: (m) => m.email ?? "—" },
+    {
+      key: "email",
+      header: "E-mail",
+      render: (m) => <span className={isAnonymized(m.status) ? "italic text-slate-400" : ""}>{personalValue(m.status, m.email)}</span>,
+    },
     { key: "status", header: "Stato", render: (m) => <StatusPill status={m.status} /> },
     { key: "tier", header: "Tier", render: (m) => <TierBadge tier={m.tier} /> },
     { key: "pts", header: "Saldo PTS", className: "text-right", render: (m) => <PointsAmount value={m.balancePts} /> },
