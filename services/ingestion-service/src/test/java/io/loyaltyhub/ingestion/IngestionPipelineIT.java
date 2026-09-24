@@ -319,6 +319,35 @@ class IngestionPipelineIT {
         assertThat(last.path("ok").asBoolean()).isTrue();
     }
 
+    /** docs/10 §8: SCN-DUPLICATE ripetibile (id {run}) e SCN-BAD-EVENT con i quattro esiti negativi. */
+    @Test
+    void duplicateAndBadEventScenariosMatchDocs10() {
+        for (int run = 0; run < 2; run++) {
+            JsonNode dup = runScenario("SCN-DUPLICATE");
+            assertThat(dup.path("status").asString()).isEqualTo("DONE");
+            JsonNode steps = dup.path("results");
+            assertThat(steps.get(0).path("status").asString()).as("esecuzione " + run).isEqualTo("ACCEPTED");
+            assertThat(steps.get(1).path("status").asString()).isEqualTo("DUPLICATE");
+            assertThat(steps.get(1).path("eventId").asString()).isEqualTo(steps.get(0).path("eventId").asString());
+        }
+
+        JsonNode bad = runScenario("SCN-BAD-EVENT").path("results");
+        assertThat(bad.size()).isEqualTo(4);
+        List<String> outcomes = new java.util.ArrayList<>();
+        bad.forEach(r -> {
+            assertThat(r.path("ok").asBoolean()).as(r.toString()).isTrue();
+            outcomes.add(r.path("status").asString() + (r.hasNonNull("rejectCode") ? "/" + r.path("rejectCode").asString() : ""));
+        });
+        assertThat(outcomes).containsExactly("REJECTED/INVALID_DATA", "REJECTED/SOURCE_DISABLED", "UNMATCHED",
+                "REJECTED/MEMBER_NOT_ACTIVE");
+    }
+
+    private JsonNode runScenario(String code) {
+        String runId = client().post().uri("/v1/demo/scenarios/" + code + "/run")
+                .header("X-LH-Actor", "ADMIN:test").retrieve().body(JsonNode.class).path("runId").asString();
+        return awaitScenarioDone(runId);
+    }
+
     private JsonNode awaitScenarioDone(String runId) {
         long deadline = System.currentTimeMillis() + 25_000;
         JsonNode run = null;
