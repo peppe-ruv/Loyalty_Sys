@@ -1,5 +1,14 @@
 package io.loyaltyhub.reward.application;
 
+import io.loyaltyhub.common.approval.ApprovalAction;
+import io.loyaltyhub.common.approval.ApprovalHistory;
+import io.loyaltyhub.common.approval.ApprovalHistoryStore;
+import io.loyaltyhub.common.approval.ApprovalItem;
+import io.loyaltyhub.common.approval.ApprovalPolicy;
+import io.loyaltyhub.common.approval.ApprovalRule;
+import io.loyaltyhub.common.approval.ApprovalSource;
+import io.loyaltyhub.common.approval.ApprovalStatus;
+import io.loyaltyhub.common.approval.GovernedTransitions;
 import io.loyaltyhub.common.audit.AuditEntry;
 import io.loyaltyhub.common.audit.AuditPublisher;
 import io.loyaltyhub.common.event.LhEventFactory;
@@ -14,7 +23,6 @@ import io.loyaltyhub.reward.domain.Reward;
 import io.loyaltyhub.reward.domain.RewardStatus;
 import io.loyaltyhub.reward.infra.CatalogRepository;
 import io.loyaltyhub.reward.infra.RewardRepository;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,7 +39,7 @@ import java.util.Objects;
  * fatto {@code reward.status.changed} (forma di EVT-FACT-11, chiave = codice del premio).
  */
 @Service
-public class CatalogAdminService {
+public class CatalogAdminService implements ApprovalSource {
 
     public static final String STATUS_CHANGED = "io.loyaltyhub.fact.reward.status.changed";
 
@@ -48,18 +56,20 @@ public class CatalogAdminService {
     private final LhEventFactory events;
     private final OutboxWriter outbox;
     private final Clock clock;
-    private final boolean approvalEnabled;
+    private final ApprovalPolicy policy;
+    private final ApprovalHistoryStore history;
 
     public CatalogAdminService(CatalogRepository catalog, RewardRepository rewards, AuditPublisher audit,
                                LhEventFactory events, OutboxWriter outbox, Clock clock,
-                               @Value("${loyaltyhub.approval.enabled:false}") boolean approvalEnabled) {
+                               ApprovalPolicy policy, ApprovalHistoryStore history) {
         this.catalog = catalog;
         this.rewards = rewards;
         this.audit = audit;
         this.events = events;
         this.outbox = outbox;
         this.clock = clock;
-        this.approvalEnabled = approvalEnabled;
+        this.policy = policy;
+        this.history = history;
     }
 
     // ---------- categorie ----------
@@ -142,7 +152,7 @@ public class CatalogAdminService {
     }
 
     /**
-     * Modifica: ammessa in {@code DRAFT}/{@code REJECTED}/{@code PAUSED}; in {@code LIVE} solo {@code stockTotal},
+     * Modifica: ammessa in {@code DRAFT}/{@code PAUSED}; in {@code LIVE} solo {@code stockTotal},
      * {@code validTo}, {@code imageUrl} (altrimenti 409 {@code REWARD_LIVE_LOCKED}). Cambiare lo stock totale sposta
      * il residuo della stessa differenza (mai sotto zero).
      */
@@ -154,7 +164,7 @@ public class CatalogAdminService {
         }
         Reward m = merge(c, r);
         switch (c.status()) {
-            case DRAFT, REJECTED, PAUSED -> { }
+            case DRAFT, PAUSED -> { }
             case LIVE -> {
                 List<String> locked = lockedChanges(c, m);
                 if (!locked.isEmpty()) {
@@ -190,35 +200,55 @@ public class CatalogAdminService {
         return rewards.findByCode(code).orElseThrow();
     }
 
+    /**
+     * Transizione del ciclo di vita comune (docs/03 §3.6) con la policy (docs/06 §7: i premi si approvano sempre da
+     * LEGAL): MARKETING invia in revisione, LEGAL (o ADMIN, override) approva o respinge con commento, poi si pubblica.
+     */
     @Transactional
     public Reward transition(String id, String action, String comment) {
         Reward r = get(id);
-        String a = action == null ? "" : action.trim().toUpperCase();
-        if ((a.equals("APPROVE") || a.equals("REJECT"))
-                && ActorHolder.get().role() != Role.ADMIN && ActorHolder.get().role() != Role.LEGAL) {
-            throw LhException.forbiddenRole("Approvare o respingere richiede il ruolo LEGAL o ADMIN.");
-        }
-        RewardStatus from = r.status();
-        RewardStatus to = switch (a) {
-            case "SUBMIT" -> approvalEnabled ? require(from, RewardStatus.IN_REVIEW, RewardStatus.DRAFT, RewardStatus.REJECTED)
-                    : require(from, RewardStatus.LIVE, RewardStatus.DRAFT, RewardStatus.REJECTED);
-            case "APPROVE" -> require(from, RewardStatus.LIVE, RewardStatus.IN_REVIEW);
-            case "REJECT" -> require(from, RewardStatus.REJECTED, RewardStatus.IN_REVIEW);
-            case "PUBLISH" -> require(from, RewardStatus.LIVE, RewardStatus.DRAFT, RewardStatus.IN_REVIEW, RewardStatus.PAUSED);
-            case "PAUSE" -> require(from, RewardStatus.PAUSED, RewardStatus.LIVE);
-            case "RESUME" -> require(from, RewardStatus.LIVE, RewardStatus.PAUSED);
-            case "END" -> require(from, RewardStatus.ENDED, RewardStatus.LIVE, RewardStatus.PAUSED);
-            case "ARCHIVE" -> require(from, RewardStatus.ARCHIVED, RewardStatus.DRAFT, RewardStatus.REJECTED,
-                    RewardStatus.ENDED, RewardStatus.PAUSED, RewardStatus.IN_REVIEW);
-            default -> throw LhException.badRequest("Transizione sconosciuta: " + action);
-        };
+        ApprovalAction a = GovernedTransitions.parse(action);
+        Role role = ActorHolder.get().role();
+        ApprovalRule rule = policy.forReward();
+        ApprovalStatus from = ApprovalStatus.valueOf(r.status().name());
+        ApprovalStatus next = GovernedTransitions.next(from, a, rule, policy.enabled(), role, comment);
+        RewardStatus to = RewardStatus.valueOf(next.name());
+        String actor = ActorHolder.get().asActorString();
         rewards.updateStatus(r.id(), to);
+        history.record(ApprovalPolicy.REWARD, r.id(), from, next, a, actor, comment, clock.instant());
         outbox.write(events.newRoot(STATUS_CHANGED, "reward:" + r.code(), Map.of(
                 "rewardCode", r.code(), "name", r.name(), "previousStatus", from.name(), "newStatus", to.name())));
         audit.record("REWARD", r.code(), AuditEntry.Action.TRANSITION,
-                r.name() + ": " + from + " → " + to + " (" + a + ")" + (blank(comment) ? "" : " — " + comment),
+                r.name() + ": " + from + " → " + to + " (" + a + ")"
+                        + (GovernedTransitions.isOverride(a, rule, role) ? " [override ADMIN]" : "")
+                        + (blank(comment) ? "" : " — " + comment),
                 Map.of("status", from.name()), Map.of("status", to.name()));
         return rewards.findById(r.id()).orElseThrow();
+    }
+
+    /** Coda approvazioni nel formato comune (docs/06 §7): premi in revisione o inviati da {@code submittedBy}. */
+    @Override
+    public List<ApprovalItem> approvals(String submittedBy) {
+        List<Reward> list = submittedBy == null || submittedBy.isBlank()
+                ? rewards.search(RewardStatus.IN_REVIEW.name(), null, null, null, null)
+                : history.submittedBy(ApprovalPolicy.REWARD, submittedBy).stream()
+                        .map(rewards::findById).flatMap(java.util.Optional::stream).toList();
+        ApprovalRule rule = policy.forReward();
+        return list.stream().map(r -> ApprovalItem.of(ApprovalPolicy.REWARD, r.id(), r.code(), r.name(),
+                r.status().name(), rule, summary(r), history.list(ApprovalPolicy.REWARD, r.id()))).toList();
+    }
+
+    public List<ApprovalHistory> history(String idOrCode) {
+        return history.list(ApprovalPolicy.REWARD, get(idOrCode).id());
+    }
+
+    /** Riepilogo leggibile per BO-21 (docs/08: "premi: fascia, stock, termini"). */
+    private String summary(Reward r) {
+        String band = catalog.band(r.bandCode()).map(b -> b.name() + " · " + b.pointsThreshold() + " punti")
+                .orElse(r.bandCode());
+        String stock = r.stockTotal() == null ? "stock illimitato" : "stock " + r.stockTotal();
+        String terms = blank(r.terms()) ? "senza termini" : "termini: " + r.terms();
+        return "Fascia " + band + " · " + stock + " · " + terms;
     }
 
     // ---------- interni ----------
@@ -273,15 +303,6 @@ public class CatalogAdminService {
         if (!b.eligibleSegments().equals(a.eligibleSegments())) changed.add("eligibleSegments");
         if (!Objects.equals(b.validFrom(), a.validFrom())) changed.add("validFrom");
         return changed;
-    }
-
-    private static RewardStatus require(RewardStatus from, RewardStatus to, RewardStatus... allowed) {
-        for (RewardStatus s : allowed) {
-            if (s == from) {
-                return to;
-            }
-        }
-        throw LhException.conflict("INVALID_TRANSITION", "Transizione non valida da " + from + " a " + to);
     }
 
     private static String pick(String v, String fallback) {

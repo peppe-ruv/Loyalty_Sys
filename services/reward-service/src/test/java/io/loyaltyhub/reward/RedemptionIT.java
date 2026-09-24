@@ -138,6 +138,9 @@ class RedemptionIT {
     void lastUnitGoesToExactlyOneOfTwoConcurrentRequests() throws Exception {
         String rewardId = send("POST", "/v1/rewards", "ADMIN:test", Map.of("code", "RWD-IT-LAST", "name", "Ultimo pezzo",
                 "type", "DIGITAL", "band", "F1", "fulfilment", "INSTANT", "stockTotal", 1), 201).path("id").asString();
+        // ADMIN decide anche al posto di LEGAL (override, M7.1).
+        send("POST", "/v1/rewards/" + rewardId + "/transitions", "ADMIN:test", Map.of("action", "SUBMIT"), 200);
+        send("POST", "/v1/rewards/" + rewardId + "/transitions", "ADMIN:test", Map.of("action", "APPROVE"), 200);
         send("POST", "/v1/rewards/" + rewardId + "/transitions", "ADMIN:test", Map.of("action", "PUBLISH"), 200);
 
         CompletableFuture<Integer> a = CompletableFuture.supplyAsync(() -> status("MBR-000003", "RWD-IT-LAST"));

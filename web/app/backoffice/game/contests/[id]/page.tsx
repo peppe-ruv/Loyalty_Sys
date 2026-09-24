@@ -19,6 +19,8 @@ import { DataTable, type Column } from "@/components/bo/DataTable";
 import { Tabs } from "@/components/bo/Tabs";
 import { Can, useCan } from "@/components/bo/Can";
 import { LifecycleBar } from "@/components/bo/LifecycleBar";
+import { useApprovalPolicy } from "@/lib/approvals/usePolicy";
+import { requiresApproval } from "@/lib/approvals/queue";
 import { Card, CardBody } from "@/components/ui/card";
 import { CodeText, PageHeader, StatusPill } from "@/components/bo/primitives";
 import { INPUT } from "@/components/bo/FormBits";
@@ -80,6 +82,7 @@ function CreateContest() {
 function ContestDetail({ id }: { id: string }) {
   const tab = useSearchParams().get("tab") ?? "setup";
   const contest = useLhQuery<Contest>("gamification", `/v1/contests/${id}`);
+  const policy = useApprovalPolicy();
   return (
     <div>
       <Back />
@@ -96,6 +99,7 @@ function ContestDetail({ id }: { id: string }) {
                 service="gamification"
                 transitionsPath={`/v1/contests/${c.id}/transitions`}
                 status={c.status}
+                approvalRequired={requiresApproval("CONTEST", policy.data)}
                 onChanged={() => contest.refetch()}
                 renderError={(e) =>
                   e.code === "INSTANTS_NOT_GENERATED" ? (

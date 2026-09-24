@@ -1,7 +1,13 @@
 package io.loyaltyhub.gamification.application;
 
 import io.loyaltyhub.common.approval.ApprovalAction;
-import io.loyaltyhub.common.approval.ApprovalStateMachine;
+import io.loyaltyhub.common.approval.ApprovalHistory;
+import io.loyaltyhub.common.approval.ApprovalHistoryStore;
+import io.loyaltyhub.common.approval.ApprovalItem;
+import io.loyaltyhub.common.approval.ApprovalPolicy;
+import io.loyaltyhub.common.approval.ApprovalRule;
+import io.loyaltyhub.common.approval.ApprovalSource;
+import io.loyaltyhub.common.approval.GovernedTransitions;
 import io.loyaltyhub.common.approval.ApprovalStatus;
 import io.loyaltyhub.common.audit.AuditEntry;
 import io.loyaltyhub.common.audit.AuditPublisher;
@@ -40,7 +46,7 @@ import java.util.regex.Pattern;
  * istanti già generati (vanno rigenerati prima di pubblicare).
  */
 @Service
-public class ContestAdminService {
+public class ContestAdminService implements ApprovalSource {
 
     public static final String STATUS_CHANGED = "io.loyaltyhub.fact.contest.status.changed";
     private static final Pattern CODE = Pattern.compile("^[A-Z][A-Z0-9-]{2,39}$");
@@ -70,9 +76,12 @@ public class ContestAdminService {
     private final LhEventFactory events;
     private final OutboxWriter outbox;
     private final Clock clock;
+    private final ApprovalPolicy policy;
+    private final ApprovalHistoryStore history;
 
     public ContestAdminService(ContestRepository contests, InstantRepository instants, PlayRepository plays,
-                               AuditPublisher audit, LhEventFactory events, OutboxWriter outbox, Clock clock) {
+                               AuditPublisher audit, LhEventFactory events, OutboxWriter outbox, Clock clock,
+                               ApprovalPolicy policy, ApprovalHistoryStore history) {
         this.contests = contests;
         this.instants = instants;
         this.plays = plays;
@@ -80,6 +89,8 @@ public class ContestAdminService {
         this.events = events;
         this.outbox = outbox;
         this.clock = clock;
+        this.policy = policy;
+        this.history = history;
     }
 
     public Contest get(String idOrCode) {
@@ -165,26 +176,53 @@ public class ContestAdminService {
     @Transactional
     public Contest transition(String id, String action, String comment) {
         Contest c = contests.lock(get(id).id()).orElseThrow();
-        ApprovalAction a;
-        try {
-            a = ApprovalAction.valueOf(action == null ? "" : action.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw LhException.validation("INVALID_ACTION", "Azione sconosciuta: " + action);
-        }
+        ApprovalAction a = GovernedTransitions.parse(action);
         Role role = ActorHolder.get().role();
-        if ((a == ApprovalAction.APPROVE || a == ApprovalAction.REJECT) && role != Role.ADMIN && role != Role.LEGAL) {
-            throw LhException.forbiddenRole("Approvare o respingere un concorso richiede il ruolo LEGAL o ADMIN.");
-        }
-        ApprovalStatus to = ApprovalStateMachine.next(c.status(), a, false, comment != null && !comment.isBlank());
+        // Policy (docs/06 §7): i concorsi si approvano sempre da LEGAL; MARKETING può solo inviarli in revisione.
+        ApprovalRule rule = policy.forContest();
+        ApprovalStatus to = GovernedTransitions.next(c.status(), a, rule, policy.enabled(), role, comment);
         if (to == ApprovalStatus.LIVE && c.instantsGeneratedAt() == null) {
             throw LhException.validation("INSTANTS_NOT_GENERATED", "Genera gli istanti vincenti prima di pubblicare il concorso.");
         }
-        int voided = changeStatus(c, to, ActorHolder.get().asActorString());
+        String actor = ActorHolder.get().asActorString();
+        int voided = changeStatus(c, to, actor);
+        history.record(ApprovalPolicy.CONTEST, c.id(), c.status(), to, a, actor, comment, clock.instant());
         audit.record("CONTEST", c.code(), AuditEntry.Action.TRANSITION,
-                c.name() + ": " + c.status() + " → " + to + " (" + a + ")" + (voided > 0 ? ", " + voided + " istanti annullati" : "")
+                c.name() + ": " + c.status() + " → " + to + " (" + a + ")"
+                        + (GovernedTransitions.isOverride(a, rule, role) ? " [override ADMIN]" : "")
+                        + (voided > 0 ? ", " + voided + " istanti annullati" : "")
                         + (comment == null || comment.isBlank() ? "" : " — " + comment),
                 Map.of("status", c.status().name()), Map.of("status", to.name()));
         return get(c.id());
+    }
+
+    /**
+     * Coda approvazioni nel formato comune (docs/06 §7, F-APR-03): concorsi {@code IN_REVIEW}, oppure — con
+     * {@code submittedBy} — quelli inviati da quell'attore, in qualunque stato (scheda «Inviate da me» di BO-21).
+     */
+    @Override
+    public List<ApprovalItem> approvals(String submittedBy) {
+        List<Contest> list = submittedBy == null || submittedBy.isBlank()
+                ? contests.findByStatus(ApprovalStatus.IN_REVIEW)
+                : history.submittedBy(ApprovalPolicy.CONTEST, submittedBy).stream()
+                        .map(contests::find).flatMap(java.util.Optional::stream).toList();
+        ApprovalRule rule = policy.forContest();
+        return list.stream().map(c -> ApprovalItem.of(ApprovalPolicy.CONTEST, c.id(), c.code(), c.name(),
+                c.status().name(), rule, summary(c), history.list(ApprovalPolicy.CONTEST, c.id()))).toList();
+    }
+
+    public List<ApprovalHistory> history(String idOrCode) {
+        return history.list(ApprovalPolicy.CONTEST, get(idOrCode).id());
+    }
+
+    /** Riepilogo leggibile per BO-21 (docs/08: "concorsi: montepremi e periodo"). */
+    private String summary(Contest c) {
+        List<Prize> prizes = contests.prizes(c.id());
+        int pieces = prizes.stream().mapToInt(Prize::quantityTotal).sum();
+        java.time.format.DateTimeFormatter d = java.time.format.DateTimeFormatter.ofPattern("d/M/yyyy")
+                .withZone(java.time.ZoneId.of("Europe/Rome"));
+        return prizes.size() + " premi (" + pieces + " pezzi) · dal " + d.format(c.startAt()) + " al " + d.format(c.endAt())
+                + " · meccanica " + c.mechanic();
     }
 
     /**

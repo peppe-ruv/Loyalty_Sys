@@ -8,6 +8,8 @@ import type { CouponPool, Reward, RewardBand, RewardCategory, Tier } from "@/lib
 import { QueryState } from "@/components/bo/QueryState";
 import { PageHeader, CodeText } from "@/components/bo/primitives";
 import { LifecycleBar } from "@/components/bo/LifecycleBar";
+import { useApprovalPolicy } from "@/lib/approvals/usePolicy";
+import { requiresApproval } from "@/lib/approvals/queue";
 import { Can } from "@/components/bo/Can";
 import { RewardForm, type RewardInput } from "@/components/bo/rewards/RewardForm";
 import { StockBar } from "@/components/bo/rewards/RewardBits";
@@ -104,6 +106,7 @@ function EditReward({
   pools: CouponPool[];
   onChanged: () => void;
 }) {
+  const policy = useApprovalPolicy();
   const router = useRouter();
   const [error, setError] = useState<LhError | null>(null);
   const update = useLhMutation<Reward, RewardInput>("reward", "PUT", () => `/v1/rewards/${reward.id}`, {
@@ -137,6 +140,7 @@ function EditReward({
           service="reward"
           transitionsPath={`/v1/rewards/${reward.id}/transitions`}
           status={reward.status}
+          approvalRequired={requiresApproval("REWARD", policy.data)}
           onChanged={onChanged}
         />
         <div className="w-56">

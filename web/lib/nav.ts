@@ -71,6 +71,7 @@ export const NAV: NavGroup[] = [
   {
     label: "Governance",
     items: [
+      { id: "BO-21", label: "Approvazioni", href: "/backoffice/governance/approvals", milestone: 7 },
       { id: "BO-22", label: "Audit", href: "/backoffice/governance/audit", milestone: 2 },
     ],
   },

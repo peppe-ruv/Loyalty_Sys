@@ -1,6 +1,10 @@
 package io.loyaltyhub.common.config;
 
 import tools.jackson.databind.ObjectMapper;
+import io.loyaltyhub.common.approval.ApprovalHistoryStore;
+import io.loyaltyhub.common.approval.ApprovalPolicy;
+import io.loyaltyhub.common.approval.ApprovalSource;
+import io.loyaltyhub.common.approval.ApprovalsController;
 import io.loyaltyhub.common.audit.AuditPublisher;
 import io.loyaltyhub.common.demo.SeedLoader;
 import io.loyaltyhub.common.event.LhEventFactory;
@@ -21,7 +25,9 @@ import io.loyaltyhub.common.web.GlobalExceptionHandler;
 import io.loyaltyhub.common.web.RequiresRoleInterceptor;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -125,6 +131,30 @@ public class LhCommonAutoConfiguration {
     @ConditionalOnMissingBean
     public AuditPublisher auditPublisher(OutboxWriter outbox, LhEventFactory events, LoyaltyHubProperties props) {
         return new AuditPublisher(outbox, events, props);
+    }
+
+    /** Policy delle approvazioni (docs/06 §7): accesa da M7 ({@code LH_APPROVAL_ENABLED}). */
+    @Bean
+    @ConditionalOnMissingBean
+    public ApprovalPolicy approvalPolicy(
+            @Value("${loyaltyhub.approval.enabled:true}") boolean enabled,
+            @Value("${loyaltyhub.approval.campaign-budget-threshold:100000}") long threshold) {
+        return new ApprovalPolicy(enabled, threshold);
+    }
+
+    /** {@code GET /v1/approvals} comune: solo dove c'è almeno una fonte (campaign, reward, gamification; tutte nell'hub). */
+    @Bean
+    @ConditionalOnBean(ApprovalSource.class)
+    @ConditionalOnMissingBean
+    public ApprovalsController approvalsController(List<ApprovalSource> sources, ApprovalPolicy policy) {
+        return new ApprovalsController(sources, policy);
+    }
+
+    /** Storico delle transizioni: usato solo dai servizi che hanno la tabella {@code approval_history}. */
+    @Bean
+    @ConditionalOnMissingBean
+    public ApprovalHistoryStore approvalHistoryStore(JdbcClient jdbc) {
+        return new ApprovalHistoryStore(jdbc);
     }
 
     @Bean

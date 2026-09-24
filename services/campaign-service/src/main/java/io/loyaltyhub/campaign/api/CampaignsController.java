@@ -1,5 +1,6 @@
 package io.loyaltyhub.campaign.api;
 
+import io.loyaltyhub.common.approval.ApprovalHistory;
 import io.loyaltyhub.campaign.application.CampaignAdminService;
 import io.loyaltyhub.campaign.domain.Campaign;
 import io.loyaltyhub.campaign.engine.Evaluation;
@@ -63,6 +64,12 @@ public class CampaignsController {
     @PostMapping("/{id}/transitions")
     public Campaign transition(@PathVariable String id, @RequestBody TransitionRequest request) {
         return service.transition(id, request);
+    }
+
+    /** Storico delle transizioni (docs/03 §3.6: chi, quando, commento), dal più recente. */
+    @GetMapping("/{id}/approval-history")
+    public List<ApprovalHistory> approvalHistory(@PathVariable String id) {
+        return service.history(id);
     }
 
     @PostMapping("/validate")

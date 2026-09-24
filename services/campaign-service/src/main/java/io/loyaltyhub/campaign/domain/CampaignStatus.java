@@ -4,6 +4,7 @@ package io.loyaltyhub.campaign.domain;
 public enum CampaignStatus {
     DRAFT,
     IN_REVIEW,
+    APPROVED,
     LIVE,
     PAUSED,
     ENDED,

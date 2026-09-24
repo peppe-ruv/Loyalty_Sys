@@ -1,5 +1,9 @@
 package io.loyaltyhub.reward.demo;
 
+import io.loyaltyhub.common.approval.ApprovalAction;
+import io.loyaltyhub.common.approval.ApprovalHistoryStore;
+import io.loyaltyhub.common.approval.ApprovalPolicy;
+import io.loyaltyhub.common.approval.ApprovalStatus;
 import tools.jackson.databind.JsonNode;
 import io.loyaltyhub.common.demo.DemoResettable;
 import io.loyaltyhub.common.demo.SeedDates;
@@ -50,11 +54,12 @@ public class RewardSeeder implements ApplicationRunner, DemoResettable {
     private final MemberSnapshotRepository members;
     private final CouponRepository coupons;
     private final CouponService couponService;
+    private final ApprovalHistoryStore approvalHistory;
     private final Clock clock;
 
     public RewardSeeder(SeedLoader seed, CatalogRepository catalog, RewardRepository rewards,
                         RedemptionRepository redemptions, MemberSnapshotRepository members, CouponRepository coupons,
-                        CouponService couponService, Clock clock) {
+                        CouponService couponService, ApprovalHistoryStore approvalHistory, Clock clock) {
         this.seed = seed;
         this.catalog = catalog;
         this.rewards = rewards;
@@ -62,6 +67,7 @@ public class RewardSeeder implements ApplicationRunner, DemoResettable {
         this.members = members;
         this.coupons = coupons;
         this.couponService = couponService;
+        this.approvalHistory = approvalHistory;
         this.clock = clock;
     }
 
@@ -79,6 +85,7 @@ public class RewardSeeder implements ApplicationRunner, DemoResettable {
     @Transactional
     public void resetToSeed() {
         redemptions.deleteAll();
+        approvalHistory.deleteAll(ApprovalPolicy.REWARD);
         rewards.deleteAll();
         coupons.deleteAll();
         catalog.deleteAll();
@@ -119,6 +126,12 @@ public class RewardSeeder implements ApplicationRunner, DemoResettable {
                     strings(r.path("eligibleTiers")), strings(r.path("eligibleSegments")),
                     date(r, "validFrom"), date(r, "validTo"), RewardStatus.valueOf(r.path("status").asString("DRAFT")),
                     0, "seed", null));
+        }
+        // Premi in revisione nel seed: nella coda approvazioni (BO-21) dal giorno prima, inviati dal marketing.
+        for (Reward r : rewards.search(RewardStatus.IN_REVIEW.name(), null, null, null, null)) {
+            approvalHistory.record(ApprovalPolicy.REWARD, r.id(), ApprovalStatus.DRAFT, ApprovalStatus.IN_REVIEW,
+                    ApprovalAction.SUBMIT, "MARKETING:luca.marketing", null,
+                    clock.instant().minus(java.time.Duration.ofDays(1)));
         }
         Map<String, String> tiers = new HashMap<>();
         for (JsonNode w : seed.readTree("wallets.json")) {

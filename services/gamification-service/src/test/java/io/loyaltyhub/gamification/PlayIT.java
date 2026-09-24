@@ -187,6 +187,9 @@ class PlayIT {
             jdbc.sql("UPDATE winning_instant SET instant_at = ? WHERE contest_id = ?")
                     .params(Timestamp.from(Instant.now().plus(Duration.ofHours(2))), id).update();
         }
+        // Ciclo di vita con approvazione (M7.1): revisione, approvazione LEGAL, pubblicazione.
+        send("POST", "/v1/contests/" + id + "/transitions", "MARKETING:luca", Map.of("action", "SUBMIT"), 200);
+        send("POST", "/v1/contests/" + id + "/transitions", "LEGAL:elena", Map.of("action", "APPROVE"), 200);
         send("POST", "/v1/contests/" + id + "/transitions", "MARKETING:luca", Map.of("action", "PUBLISH"), 200);
         return id;
     }

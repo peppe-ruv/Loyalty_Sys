@@ -1,5 +1,6 @@
 package io.loyaltyhub.gamification.api;
 
+import io.loyaltyhub.common.approval.ApprovalHistory;
 import io.loyaltyhub.common.approval.ApprovalStatus;
 import io.loyaltyhub.common.web.PageResponse;
 import io.loyaltyhub.common.web.RequiresRole;
@@ -122,6 +123,12 @@ public class ContestController {
     @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL})
     public ContestView transition(@PathVariable String id, @RequestBody TransitionRequest t) {
         return view(admin.transition(id, t.action(), t.comment()));
+    }
+
+    /** Storico delle transizioni (docs/03 §3.6: chi, quando, commento), dal più recente. */
+    @GetMapping("/contests/{id}/approval-history")
+    public List<ApprovalHistory> approvalHistory(@PathVariable String id) {
+        return admin.history(id);
     }
 
     @PostMapping("/contests/{id}/instants/generate")

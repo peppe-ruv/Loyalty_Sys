@@ -53,7 +53,7 @@ loyaltyhub:
       password: ${KAFKA_SASL_PASSWORD:}
       mechanism: ${KAFKA_SASL_MECHANISM:SCRAM-SHA-256}
   approval:
-    enabled: false
+    enabled: ${LH_APPROVAL_ENABLED:true}
   engine:
     max-multiplier: 5
   jobs:

@@ -28,6 +28,9 @@ server:
   port: ${PORT:8085}
 
 loyaltyhub:
+  # Approvazioni accese da M7 (docs/06 §7, docs/11 §8).
+  approval:
+    enabled: ${LH_APPROVAL_ENABLED:true}
   service: reward
   kafka:
     security: ${KAFKA_SECURITY:PLAINTEXT}

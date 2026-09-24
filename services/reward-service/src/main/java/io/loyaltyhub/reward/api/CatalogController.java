@@ -1,5 +1,6 @@
 package io.loyaltyhub.reward.api;
 
+import io.loyaltyhub.common.approval.ApprovalHistory;
 import io.loyaltyhub.common.web.RequiresRole;
 import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.reward.application.CatalogAdminService;
@@ -113,6 +114,12 @@ public class CatalogController {
     @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL})
     public Reward transition(@PathVariable String id, @RequestBody TransitionRequest t) {
         return admin.transition(id, t.action(), t.comment());
+    }
+
+    /** Storico delle transizioni (docs/03 §3.6: chi, quando, commento), dal più recente. */
+    @GetMapping("/rewards/{id}/approval-history")
+    public List<ApprovalHistory> approvalHistory(@PathVariable String id) {
+        return admin.history(id);
     }
 
     @PostMapping("/rewards/{id}/duplicate")

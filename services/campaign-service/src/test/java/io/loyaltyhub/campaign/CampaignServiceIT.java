@@ -352,8 +352,8 @@ class CampaignServiceIT {
                 List.of(Map.of("type", "GRANT_POINTS", "currency", "PTS", "mode", "FIXED", "value", 20))), 200);
         assertThat(draftEdit.path("effects").get(0).path("value").asInt()).isEqualTo(20);
 
-        client().post().uri("/v1/campaigns/" + id + "/transitions").contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("action", "PUBLISH")).retrieve().body(JsonNode.class);
+        client().post().uri("/v1/campaigns/" + id + "/transitions").header("X-LH-Actor", "MARKETING:giulia")
+                .contentType(MediaType.APPLICATION_JSON).body(Map.of("action", "PUBLISH")).retrieve().body(JsonNode.class);
 
         JsonNode safe = put(id, Map.of("name", "Prova modifica (v2)", "priority", 150,
                 "schedule", Map.of("startAt", "2026-01-01T00:00:00Z", "endAt", "2027-12-31T23:59:59Z")), 200);
@@ -374,6 +374,53 @@ class CampaignServiceIT {
                 .contentType(MediaType.APPLICATION_JSON).body(Map.of("name", "x"))
                 .exchange((req, res) -> res.getStatusCode().value());
         assertThat(analyst).isEqualTo(403);
+    }
+
+    /** M7.1 (docs/06 §7): campagna con budget oltre 100 000 punti → approvazione LEGAL; policy in sola lettura. */
+    @Test
+    void campaignAboveBudgetNeedsLegalApproval() {
+        Map<String, Object> body = new java.util.HashMap<>(Map.of(
+                "code", "CMP-IT-BIG", "name", "Budget alto", "triggerActionTypes", List.of("review.submitted"),
+                "effects", List.of(Map.of("type", "GRANT_POINTS", "currency", "PTS", "mode", "FIXED", "value", 10)),
+                "limits", Map.of("global", Map.of("maxPoints", 500_000)),
+                "schedule", Map.of("startAt", "2026-01-01T00:00:00Z")));
+        String id = send("POST", "/v1/campaigns", "MARKETING:giulia", body, 201).path("id").asString();
+        String path = "/v1/campaigns/" + id + "/transitions";
+        assertThat(send("POST", path, "MARKETING:giulia", Map.of("action", "PUBLISH"), 409).path("code").asString())
+                .isEqualTo("APPROVAL_REQUIRED");
+        send("POST", path, "MARKETING:giulia", Map.of("action", "SUBMIT"), 200);
+        JsonNode queue = send("GET", "/v1/approvals", "LEGAL:elena", null, 200);
+        assertThat(queue.toString()).contains("CMP-IT-BIG", "budget oltre", "CMP-BLACK-FRIDAY");
+        assertThat(send("POST", path, "ADMIN:marta", Map.of("action", "APPROVE", "comment", "Ok dal budget"), 200)
+                .path("status").asString()).isEqualTo("APPROVED");
+        assertThat(send("POST", path, "MARKETING:giulia", Map.of("action", "PUBLISH"), 200).path("status").asString())
+                .isEqualTo("LIVE");
+        JsonNode history = send("GET", "/v1/campaigns/" + id + "/approval-history", "ANALYST:sara", null, 200);
+        assertThat(history.get(1).path("actor").asString()).isEqualTo("ADMIN:marta");
+        JsonNode policy = send("GET", "/v1/approvals/policy", "ANALYST:sara", null, 200);
+        assertThat(policy.path("enabled").asBoolean()).isTrue();
+        assertThat(policy.path("campaignBudgetThreshold").asLong()).isEqualTo(100_000);
+        assertThat(policy.path("rows").toString()).contains("CONTEST", "LEGAL");
+
+        // Sotto soglia: pubblicazione diretta.
+        Map<String, Object> small = new java.util.HashMap<>(body);
+        small.put("code", "CMP-IT-SMALL");
+        small.put("limits", Map.of("global", Map.of("maxPoints", 5_000)));
+        String smallId = send("POST", "/v1/campaigns", "MARKETING:giulia", small, 201).path("id").asString();
+        assertThat(send("POST", "/v1/campaigns/" + smallId + "/transitions", "MARKETING:giulia", Map.of("action", "PUBLISH"), 200)
+                .path("status").asString()).isEqualTo("LIVE");
+    }
+
+    private JsonNode send(String method, String path, String actor, Object body, int expected) {
+        var spec = client().method(org.springframework.http.HttpMethod.valueOf(method)).uri(path).header("X-LH-Actor", actor);
+        if (body != null) {
+            spec = spec.contentType(MediaType.APPLICATION_JSON).body(body);
+        }
+        return spec.exchange((req, res) -> {
+            String text = new String(res.getBody().readAllBytes());
+            assertThat(res.getStatusCode().value()).as(method + " " + path + " → " + text).isEqualTo(expected);
+            return text.isBlank() ? mapper.createObjectNode() : mapper.readTree(text);
+        });
     }
 
     private JsonNode put(String id, Map<String, Object> body, int expected) {

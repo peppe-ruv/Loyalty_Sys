@@ -8,15 +8,24 @@ import { QueryState } from "@/components/bo/QueryState";
 import { Card, CardBody } from "@/components/ui/card";
 import { PageHeader, CodeText } from "@/components/bo/primitives";
 import { LifecycleBar } from "@/components/bo/LifecycleBar";
+import { useApprovalPolicy } from "@/lib/approvals/usePolicy";
+import { requiresApproval } from "@/lib/approvals/queue";
 import { GeneratedSentence } from "@/components/bo/GeneratedSentence";
 import { SimulationPanel } from "@/components/bo/SimulationPanel";
 import { CampaignStatsPanel } from "@/components/bo/campaigns/CampaignStatsPanel";
 
 // BO-06 Editor campagna (docs/08 §BO-06) — vista di un oggetto esistente: regole in sola lettura (per cambiarle
 // si duplica, docs/03 §3.6), barra ciclo di vita, frase generata e simulazione.
+/** Tetto di punti della campagna (`limits.global.maxPoints`): sopra soglia serve LEGAL (docs/06 §7). */
+function budgetOf(limits: unknown): number | null {
+  const max = (limits as { global?: { maxPoints?: unknown } } | null)?.global?.maxPoints;
+  return typeof max === "number" ? max : null;
+}
+
 export default function CampaignEditorPage() {
   const id = String(useParams().id);
   const query = useLhQuery<Campaign>("campaign", `/v1/campaigns/${id}`);
+  const policy = useApprovalPolicy();
 
   return (
     <QueryState query={query} service="campaign">
@@ -35,6 +44,10 @@ export default function CampaignEditorPage() {
                 transitionsPath={`/v1/campaigns/${c.id}/transitions`}
                 status={c.status}
                 system={c.system}
+                approvalRequired={requiresApproval("CAMPAIGN", policy.data, {
+                  requiresLegal: c.requiresLegal,
+                  budgetPoints: budgetOf(c.limits),
+                })}
                 onChanged={() => query.refetch()}
               />
             </div>

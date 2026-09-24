@@ -73,6 +73,7 @@ export interface Campaign {
   schedule: unknown;
   visibleInPortal: boolean;
   system: boolean;
+  requiresLegal?: boolean;
 }
 
 /** Tipo azione (`ingestion GET /v1/event-types`). Da M6.7 `dataSchema` è un oggetto JSON Schema, non più un testo. */

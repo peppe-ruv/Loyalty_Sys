@@ -129,6 +129,9 @@ class ContestIT {
     @Test
     void publishRequiresInstantsAndLiveLocksPrizes() {
         String id = create("IW-IT-LIFE", null).path("id").asString();
+        // M7.1: un concorso si pubblica solo dopo l'approvazione LEGAL (docs/06 §7).
+        send("POST", "/v1/contests/" + id + "/transitions", "MARKETING:luca", Map.of("action", "SUBMIT"), 200);
+        send("POST", "/v1/contests/" + id + "/transitions", "LEGAL:elena", Map.of("action", "APPROVE"), 200);
         assertThat(send("POST", "/v1/contests/" + id + "/transitions", "MARKETING:luca", Map.of("action", "PUBLISH"), 422)
                 .path("code").asString()).isEqualTo("INSTANTS_NOT_GENERATED");
 
@@ -159,6 +162,65 @@ class ContestIT {
         assertThat(ended.path("instants").path("voided").asLong()).isEqualTo(4);
 
         assertThat(factTypesFor("contest:IW-IT-LIFE")).contains("io.loyaltyhub.fact.contest.status.changed");
+    }
+
+    /**
+     * Accettazione M7 (docs/12 §M7): {@code luca.marketing} non porta un concorso a LIVE, solo *Invia in revisione*;
+     * {@code elena.legal} rifiuta (commento obbligatorio, 422 senza) e poi approva con commento; storico visibile;
+     * coda approvazioni nel formato comune, anche «inviate da me».
+     */
+    @Test
+    void marketingSubmitsLegalDecidesAndHistoryIsVisible() {
+        String id = create("IW-IT-GOV", null).path("id").asString();
+        send("POST", "/v1/contests/" + id + "/instants/generate", "MARKETING:luca", null, 200);
+        String path = "/v1/contests/" + id + "/transitions";
+
+        assertThat(send("POST", path, "MARKETING:luca", Map.of("action", "PUBLISH"), 409).path("code").asString())
+                .isEqualTo("APPROVAL_REQUIRED");
+        assertThat(send("POST", path, "MARKETING:luca", Map.of("action", "SUBMIT"), 200).path("status").asString())
+                .isEqualTo("IN_REVIEW");
+        JsonNode queued = find(send("GET", "/v1/approvals", "LEGAL:elena", null, 200), "IW-IT-GOV");
+        assertThat(queued.path("entityType").asString()).isEqualTo("CONTEST");
+        assertThat(queued.path("submittedBy").asString()).isEqualTo("MARKETING:luca");
+        assertThat(queued.path("requiredRole").asString()).isEqualTo("LEGAL");
+        assertThat(queued.path("summary").asString()).contains("premi", "dal");
+
+        assertThat(status("POST", path, "CARE:paolo", Map.of("action", "APPROVE"))).isEqualTo(403);
+        assertThat(send("POST", path, "LEGAL:elena", Map.of("action", "REJECT"), 422).path("code").asString())
+                .isEqualTo("REJECT_COMMENT_REQUIRED");
+        assertThat(send("POST", path, "LEGAL:elena", Map.of("action", "REJECT", "comment", "Manca il regolamento"), 200)
+                .path("status").asString()).isEqualTo("DRAFT");
+        JsonNode mine = find(send("GET", "/v1/approvals?submittedBy=MARKETING:luca", "MARKETING:luca", null, 200), "IW-IT-GOV");
+        assertThat(mine.path("decision").asString()).isEqualTo("REJECT");
+        assertThat(mine.path("comment").asString()).isEqualTo("Manca il regolamento");
+
+        send("POST", path, "MARKETING:luca", Map.of("action", "SUBMIT"), 200);
+        assertThat(send("POST", path, "LEGAL:elena", Map.of("action", "APPROVE", "comment", "Regolamento conforme"), 200)
+                .path("status").asString()).isEqualTo("APPROVED");
+        assertThat(status("POST", path, "LEGAL:elena", Map.of("action", "PUBLISH"))).isEqualTo(403);
+        assertThat(send("POST", path, "MARKETING:luca", Map.of("action", "PUBLISH"), 200).path("status").asString())
+                .isEqualTo("LIVE");
+
+        JsonNode history = send("GET", "/v1/contests/" + id + "/approval-history", "ANALYST:sara", null, 200);
+        List<String> actions = new java.util.ArrayList<>();
+        history.forEach(h -> actions.add(h.path("action").asString()));
+        assertThat(actions).containsExactly("PUBLISH", "APPROVE", "SUBMIT", "REJECT", "SUBMIT");
+        assertThat(history.get(1).path("actor").asString()).isEqualTo("LEGAL:elena");
+        assertThat(history.get(1).path("comment").asString()).isEqualTo("Regolamento conforme");
+        assertThat(history.get(3).path("comment").asString()).isEqualTo("Manca il regolamento");
+
+        // Seed: IW-NATALE è in coda da ieri, inviato dal marketing (docs/10).
+        assertThat(find(send("GET", "/v1/approvals", "LEGAL:elena", null, 200), "IW-NATALE").path("submittedBy").asString())
+                .isEqualTo("MARKETING:luca.marketing");
+    }
+
+    private static JsonNode find(JsonNode items, String code) {
+        for (JsonNode i : items) {
+            if (code.equals(i.path("code").asString())) {
+                return i;
+            }
+        }
+        throw new AssertionError("non in coda: " + code + " in " + items);
     }
 
     @Test

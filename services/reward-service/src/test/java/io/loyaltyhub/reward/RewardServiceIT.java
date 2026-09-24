@@ -147,8 +147,24 @@ class RewardServiceIT {
         assertThat(created.path("status").asString()).isEqualTo("DRAFT");
         assertThat(created.path("stockRemaining").asInt()).isEqualTo(10);
 
-        JsonNode live = send("POST", "/v1/rewards/" + id + "/transitions", "MARKETING:giulia", Map.of("action", "SUBMIT"), 200);
-        assertThat(live.path("status").asString()).as("approvazione disattivata nel PoC").isEqualTo("LIVE");
+        // M7.1: i premi si approvano sempre da LEGAL (docs/06 §7); il rifiuto riporta in bozza.
+        assertThat(send("POST", "/v1/rewards/" + id + "/transitions", "MARKETING:giulia", Map.of("action", "PUBLISH"), 409)
+                .path("code").asString()).isEqualTo("APPROVAL_REQUIRED");
+        assertThat(send("POST", "/v1/rewards/" + id + "/transitions", "MARKETING:giulia", Map.of("action", "SUBMIT"), 200)
+                .path("status").asString()).isEqualTo("IN_REVIEW");
+        assertThat(send("POST", "/v1/rewards/" + id + "/transitions", "MARKETING:giulia", Map.of("action", "APPROVE"), 403)
+                .path("code").asString()).isEqualTo("FORBIDDEN_ROLE");
+        assertThat(send("POST", "/v1/rewards/" + id + "/transitions", "LEGAL:elena", Map.of("action", "REJECT", "comment", "Termini mancanti"), 200)
+                .path("status").asString()).isEqualTo("DRAFT");
+        send("POST", "/v1/rewards/" + id + "/transitions", "MARKETING:giulia", Map.of("action", "SUBMIT"), 200);
+        assertThat(send("POST", "/v1/rewards/" + id + "/transitions", "LEGAL:elena", Map.of("action", "APPROVE"), 200)
+                .path("status").asString()).isEqualTo("APPROVED");
+        JsonNode live = send("POST", "/v1/rewards/" + id + "/transitions", "MARKETING:giulia", Map.of("action", "PUBLISH"), 200);
+        assertThat(live.path("status").asString()).isEqualTo("LIVE");
+        JsonNode history = send("GET", "/v1/rewards/" + id + "/approval-history", "ANALYST:sara", null, 200);
+        assertThat(history).hasSize(5);
+        assertThat(history.get(3).path("comment").asString()).isEqualTo("Termini mancanti");
+        assertThat(send("GET", "/v1/approvals", "LEGAL:elena", null, 200).toString()).contains("RWD-GIFT-50");
 
         JsonNode restocked = send("PUT", "/v1/rewards/" + id, "MARKETING:giulia", Map.of("stockTotal", 15), 200);
         assertThat(restocked.path("stockTotal").asInt()).isEqualTo(15);

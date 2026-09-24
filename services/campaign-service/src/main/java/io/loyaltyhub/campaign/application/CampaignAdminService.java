@@ -18,6 +18,15 @@ import io.loyaltyhub.campaign.infra.CounterRepository;
 import io.loyaltyhub.campaign.infra.EvaluationLogRepository;
 import io.loyaltyhub.campaign.infra.EvaluationLogRepository.DailyStat;
 import io.loyaltyhub.campaign.infra.MemberSnapshotRepository;
+import io.loyaltyhub.common.approval.ApprovalAction;
+import io.loyaltyhub.common.approval.ApprovalHistory;
+import io.loyaltyhub.common.approval.ApprovalHistoryStore;
+import io.loyaltyhub.common.approval.ApprovalItem;
+import io.loyaltyhub.common.approval.ApprovalPolicy;
+import io.loyaltyhub.common.approval.ApprovalRule;
+import io.loyaltyhub.common.approval.ApprovalSource;
+import io.loyaltyhub.common.approval.ApprovalStatus;
+import io.loyaltyhub.common.approval.GovernedTransitions;
 import io.loyaltyhub.common.audit.AuditEntry;
 import io.loyaltyhub.common.audit.AuditPublisher;
 import io.loyaltyhub.common.event.LhEvent;
@@ -25,8 +34,9 @@ import io.loyaltyhub.common.event.LhEventFactory;
 import io.loyaltyhub.common.event.LhEventTypes;
 import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.common.outbox.OutboxWriter;
+import io.loyaltyhub.common.web.ActorHolder;
 import io.loyaltyhub.common.web.LhException;
-import org.springframework.beans.factory.annotation.Value;
+import io.loyaltyhub.common.web.Role;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,7 +49,7 @@ import java.util.Map;
 
 /** Gestione delle campagne (docs/servizi/campaign-service.md §3): elenco, creazione, transizioni, validazione, portale, simulazione. */
 @Service
-public class CampaignAdminService {
+public class CampaignAdminService implements ApprovalSource {
 
     private final CampaignRepository campaigns;
     private final CounterRepository counters;
@@ -53,14 +63,15 @@ public class CampaignAdminService {
     private final AuditPublisher audit;
     private final ObjectMapper mapper;
     private final Clock clock;
-    private final boolean approvalEnabled;
+    private final ApprovalPolicy policy;
+    private final ApprovalHistoryStore history;
 
     public CampaignAdminService(CampaignRepository campaigns, CounterRepository counters,
                                 EvaluationLogRepository evaluations, MemberSnapshotRepository snapshots,
                                 CampaignCache cache, CampaignEngine engine,
                                 EvaluationService evaluation, LhEventFactory events, OutboxWriter outbox,
                                 AuditPublisher audit, ObjectMapper mapper, Clock clock,
-                                @Value("${loyaltyhub.approval.enabled:false}") boolean approvalEnabled) {
+                                ApprovalPolicy policy, ApprovalHistoryStore history) {
         this.campaigns = campaigns;
         this.counters = counters;
         this.evaluations = evaluations;
@@ -73,7 +84,8 @@ public class CampaignAdminService {
         this.audit = audit;
         this.mapper = mapper;
         this.clock = clock;
-        this.approvalEnabled = approvalEnabled;
+        this.policy = policy;
+        this.history = history;
     }
 
     // ---------- letture ----------
@@ -243,15 +255,27 @@ public class CampaignAdminService {
         return n != null && !n.isNull();
     }
 
+    /**
+     * Transizione del ciclo di vita comune (docs/03 §3.6) con la policy (docs/06 §7): una campagna richiede LEGAL se
+     * segnata {@code requiresLegal} o con budget ({@code limits.global.maxPoints}) oltre la soglia; le altre si
+     * pubblicano direttamente. {@code ACTIVATE} resta un sinonimo di {@code PUBLISH}.
+     */
     @Transactional
     public Campaign transition(String id, TransitionRequest req) {
         Campaign c = get(id);
-        CampaignStatus from = c.status();
-        CampaignStatus to = target(req.action(), from, c.system());
-        if (to == from) {
-            return c;
+        String raw = req.action() == null ? "" : req.action().trim().toUpperCase();
+        ApprovalAction a = GovernedTransitions.parse("ACTIVATE".equals(raw) ? "PUBLISH" : raw);
+        if (a == ApprovalAction.ARCHIVE && c.system()) {
+            throw LhException.conflict("SYSTEM_LOCKED", "Le campagne di sistema non si archiviano");
         }
+        Role role = ActorHolder.get().role();
+        ApprovalRule rule = ruleFor(c);
+        ApprovalStatus from = ApprovalStatus.valueOf(c.status().name());
+        ApprovalStatus next = GovernedTransitions.next(from, a, rule, policy.enabled(), role, req.comment());
+        CampaignStatus to = CampaignStatus.valueOf(next.name());
+        String actor = ActorHolder.get().asActorString();
         campaigns.updateStatus(id, to);
+        history.record(ApprovalPolicy.CAMPAIGN, c.id(), from, next, a, actor, req.comment(), clock.instant());
         LhEvent<Map<String, Object>> fact = events.newRoot(
                 LhEventTypes.Fact.CAMPAIGN_STATUS_CHANGED, "campaign:" + c.code(),
                 Map.of("campaignCode", c.code(), "name", c.name(),
@@ -259,39 +283,41 @@ public class CampaignAdminService {
         outbox.write(fact); // fatto campaign.status.changed → lh.facts.v1 (chiave = memberId assente → subject)
         cache.reload();
         audit.record("CAMPAIGN", c.code(), AuditEntry.Action.TRANSITION,
-                c.name() + ": " + from.name() + " → " + to.name() + " (" + req.action().trim().toUpperCase() + ")",
+                c.name() + ": " + from.name() + " → " + to.name() + " (" + a + ")"
+                        + (GovernedTransitions.isOverride(a, rule, role) ? " [override ADMIN]" : "")
+                        + (req.comment() == null || req.comment().isBlank() ? "" : " — " + req.comment().trim()),
                 Map.of("status", from.name()), Map.of("status", to.name()));
         return campaigns.findById(id).orElseThrow();
     }
 
-    private CampaignStatus target(String action, CampaignStatus from, boolean system) {
-        String a = action == null ? "" : action.trim().toUpperCase();
-        return switch (a) {
-            case "SUBMIT" -> approvalEnabled ? require(from, CampaignStatus.DRAFT, CampaignStatus.IN_REVIEW)
-                    : require(from, CampaignStatus.LIVE, CampaignStatus.DRAFT, CampaignStatus.IN_REVIEW);
-            case "PUBLISH", "ACTIVATE", "APPROVE" -> require(from, CampaignStatus.LIVE,
-                    CampaignStatus.DRAFT, CampaignStatus.IN_REVIEW, CampaignStatus.PAUSED);
-            case "PAUSE" -> require(from, CampaignStatus.PAUSED, CampaignStatus.LIVE);
-            case "RESUME" -> require(from, CampaignStatus.LIVE, CampaignStatus.PAUSED);
-            case "END" -> require(from, CampaignStatus.ENDED, CampaignStatus.LIVE, CampaignStatus.PAUSED);
-            case "ARCHIVE" -> {
-                if (system) {
-                    throw LhException.conflict("SYSTEM_LOCKED", "Le campagne di sistema non si archiviano");
-                }
-                yield require(from, CampaignStatus.ARCHIVED,
-                        CampaignStatus.DRAFT, CampaignStatus.ENDED, CampaignStatus.PAUSED, CampaignStatus.IN_REVIEW);
-            }
-            default -> throw LhException.badRequest("Transizione sconosciuta: " + action);
-        };
+    /** Policy della campagna (docs/06 §7): {@code requiresLegal} o budget oltre soglia → LEGAL. */
+    public ApprovalRule ruleFor(Campaign c) {
+        JsonNode max = c.limits() == null ? null : c.limits().path("global").path("maxPoints");
+        Long budget = max != null && max.isNumber() ? max.asLong() : null;
+        return policy.forCampaign(c.requiresLegal(), budget);
     }
 
-    private CampaignStatus require(CampaignStatus from, CampaignStatus to, CampaignStatus... allowedFrom) {
-        for (CampaignStatus s : allowedFrom) {
-            if (s == from) {
-                return to;
-            }
-        }
-        throw LhException.conflict("INVALID_TRANSITION", "Transizione non valida da " + from + " a " + to);
+    /** Coda approvazioni nel formato comune (docs/06 §7): campagne in revisione o inviate da {@code submittedBy}. */
+    @Override
+    public List<ApprovalItem> approvals(String submittedBy) {
+        List<Campaign> list = submittedBy == null || submittedBy.isBlank()
+                ? campaigns.search(CampaignStatus.IN_REVIEW.name(), null, null)
+                : history.submittedBy(ApprovalPolicy.CAMPAIGN, submittedBy).stream()
+                        .map(campaigns::findById).flatMap(java.util.Optional::stream).toList();
+        return list.stream().map(c -> ApprovalItem.of(ApprovalPolicy.CAMPAIGN, c.id(), c.code(), c.name(),
+                c.status().name(), ruleFor(c), summary(c), history.list(ApprovalPolicy.CAMPAIGN, c.id()))).toList();
+    }
+
+    public List<ApprovalHistory> history(String idOrCode) {
+        return history.list(ApprovalPolicy.CAMPAIGN, get(idOrCode).id());
+    }
+
+    /** Riepilogo per BO-21 (la frase generata la compone il backoffice dal dettaglio della campagna). */
+    private String summary(Campaign c) {
+        JsonNode max = c.limits() == null ? null : c.limits().path("global").path("maxPoints");
+        String budget = max != null && max.isNumber() ? "budget " + max.asLong() + " punti" : "senza budget";
+        return "Su " + String.join(", ", c.triggerActionTypes()) + " · " + budget + " · priorità " + c.priority()
+                + (c.requiresLegal() ? " · richiede LEGAL" : "");
     }
 
     // ---------- validazione (docs §5) ----------

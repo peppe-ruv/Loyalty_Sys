@@ -1,5 +1,8 @@
 package io.loyaltyhub.gamification.demo;
 
+import io.loyaltyhub.common.approval.ApprovalAction;
+import io.loyaltyhub.common.approval.ApprovalHistoryStore;
+import io.loyaltyhub.common.approval.ApprovalPolicy;
 import io.loyaltyhub.common.approval.ApprovalStatus;
 import io.loyaltyhub.common.demo.DemoResettable;
 import io.loyaltyhub.common.demo.SeedDates;
@@ -62,12 +65,13 @@ public class GamificationSeeder implements ApplicationRunner, DemoResettable {
     private final AchievementRepository achievements;
     private final BadgeRepository badges;
     private final LeaderboardRepository leaderboards;
+    private final ApprovalHistoryStore approvalHistory;
     private final Clock clock;
 
     public GamificationSeeder(SeedLoader seed, ContestRepository contests, InstantRepository instants, PlayRepository plays,
                               MemberSnapshotRepository members, ContestAdminService admin,
                               AchievementRepository achievements, BadgeRepository badges,
-                              LeaderboardRepository leaderboards, Clock clock) {
+                              LeaderboardRepository leaderboards, ApprovalHistoryStore approvalHistory, Clock clock) {
         this.seed = seed;
         this.contests = contests;
         this.instants = instants;
@@ -77,6 +81,7 @@ public class GamificationSeeder implements ApplicationRunner, DemoResettable {
         this.achievements = achievements;
         this.badges = badges;
         this.leaderboards = leaderboards;
+        this.approvalHistory = approvalHistory;
         this.clock = clock;
     }
 
@@ -94,6 +99,7 @@ public class GamificationSeeder implements ApplicationRunner, DemoResettable {
     @Transactional
     public void resetToSeed() {
         plays.deleteAll();
+        approvalHistory.deleteAll(ApprovalPolicy.CONTEST);
         contests.deleteAll();
         members.deleteAll();
         achievements.deleteAll();
@@ -128,6 +134,12 @@ public class GamificationSeeder implements ApplicationRunner, DemoResettable {
             ApprovalStatus status = ApprovalStatus.valueOf(c.path("status").asString("DRAFT"));
             if (status != ApprovalStatus.DRAFT) {
                 contests.updateStatus(contest.id(), status);
+            }
+            if (status == ApprovalStatus.IN_REVIEW) {
+                // In coda approvazioni (BO-21) dal giorno prima, inviato da chi l'ha creato.
+                approvalHistory.record(ApprovalPolicy.CONTEST, contest.id(), ApprovalStatus.DRAFT, status,
+                        ApprovalAction.SUBMIT, contest.createdBy() != null ? contest.createdBy() : "MARKETING:luca.marketing",
+                        null, clock.instant().minus(java.time.Duration.ofDays(1)));
             }
             byCode.put(code, contest);
             targetStatus.put(code, status);

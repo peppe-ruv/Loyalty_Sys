@@ -28,6 +28,9 @@ server:
   port: ${PORT:8086}
 
 loyaltyhub:
+  # Approvazioni accese da M7 (docs/06 §7, docs/11 §8).
+  approval:
+    enabled: ${LH_APPROVAL_ENABLED:true}
   service: gamification
   kafka:
     security: ${KAFKA_SECURITY:PLAINTEXT}

@@ -1,5 +1,9 @@
 package io.loyaltyhub.campaign.demo;
 
+import io.loyaltyhub.common.approval.ApprovalAction;
+import io.loyaltyhub.common.approval.ApprovalHistoryStore;
+import io.loyaltyhub.common.approval.ApprovalPolicy;
+import io.loyaltyhub.common.approval.ApprovalStatus;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.campaign.application.CampaignCache;
@@ -39,17 +43,19 @@ public class CampaignSeeder implements ApplicationRunner, DemoResettable {
     private final MemberSnapshotRepository snapshots;
     private final CounterRepository counters;
     private final CampaignCache cache;
+    private final ApprovalHistoryStore approvalHistory;
     private final Clock clock;
 
     public CampaignSeeder(SeedLoader seed, ObjectMapper mapper, CampaignRepository campaigns,
                           MemberSnapshotRepository snapshots, CounterRepository counters,
-                          CampaignCache cache, Clock clock) {
+                          CampaignCache cache, ApprovalHistoryStore approvalHistory, Clock clock) {
         this.seed = seed;
         this.mapper = mapper;
         this.campaigns = campaigns;
         this.snapshots = snapshots;
         this.counters = counters;
         this.cache = cache;
+        this.approvalHistory = approvalHistory;
         this.clock = clock;
     }
 
@@ -67,11 +73,19 @@ public class CampaignSeeder implements ApplicationRunner, DemoResettable {
     @Transactional
     public void resetToSeed() {
         counters.deleteAll();
+        approvalHistory.deleteAll(ApprovalPolicy.CAMPAIGN);
         campaigns.deleteAll();
         snapshots.deleteAll();
 
         for (JsonNode c : seed.readTree("campaigns.json")) {
-            campaigns.insert(toCampaign(c));
+            Campaign campaign = toCampaign(c);
+            campaigns.insert(campaign);
+            if (campaign.status() == CampaignStatus.IN_REVIEW) {
+                // In coda approvazioni (BO-21) dal giorno prima, inviata dal marketing.
+                approvalHistory.record(ApprovalPolicy.CAMPAIGN, campaign.id(), ApprovalStatus.DRAFT,
+                        ApprovalStatus.IN_REVIEW, ApprovalAction.SUBMIT, "MARKETING:luca.marketing", null,
+                        clock.instant().minus(java.time.Duration.ofDays(1)));
+            }
         }
         for (JsonNode m : seed.readTree("members.json")) {
             // Data di nascita e attributi personalizzati come nello snapshot dei fatti member.* (member.age,
