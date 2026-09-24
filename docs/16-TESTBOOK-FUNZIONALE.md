@@ -20,6 +20,15 @@ Stato: in costruzione — le tabelle di dettaglio arrivano per dominio (bozze pr
 4. **Esecuzione.** Test parametrizzati guidati da dati (JUnit 5 `@ParameterizedTest` con CSV in `src/test/resources/testbook/<dominio>/`, vitest con tabelle `it.each` nel web); unit test per la logica pura, un solo contesto Spring per classe d'integrazione, test sull'hub consolidato solo per i flussi tra servizi.
 5. **Revisione.** Ogni tabella è rivista prima dell'inserimento: l'atteso deriva dalla specifica citata; nessun caso duplicato; valori limite presenti per ogni dominio numerico e temporale; divergenze e ambiguità tracciate.
 
+## 1bis. Esecuzione
+
+Il testbook è eseguibile per intero con un comando e produce un rapporto riga per riga.
+
+- **Convenzione.** Ogni caso eseguito ha un nome che inizia con l'ID della riga (`[TB-CMP-042] …`). Backend: classi `Testbook<Dominio><Tema>Test` (unit, surefire) e `Testbook<Dominio><Tema>IT` (integrazione, failsafe), parametrizzate da CSV in `src/test/resources/testbook/<dominio>/` (prima colonna `id`). Web: file `*.testbook.test.ts(x)` con `it.each`.
+- **In locale:** `bash scripts/testbook.sh` → esegue solo i test `Testbook*` di tutti i moduli e i file `*.testbook.test.*` del web, poi `scripts/testbook-report.mjs` scrive `target/testbook/rapporto.md`. Variabili: `TESTBOOK_JAVA=0` / `TESTBOOK_WEB=0` per un solo lato, `TESTBOOK_STRICT=0` per avere il rapporto senza uscita d'errore.
+- **In CI:** workflow `testbook` (manuale e ogni notte): rapporto nel riepilogo del job e come artefatto `testbook-rapporto`. Gli stessi test girano comunque in `ci.yml` a ogni push, quindi `main` resta verde solo se tutte le righe inserite sono verdi.
+- **Il rapporto** incrocia le righe documentate (tabelle di questo documento e di `docs/testbook/*.md` che iniziano con un ID) con gli esiti JUnit: righe OK, **fallite** (divergenza o regressione), **non eseguite** (riga senza test) e **test senza riga** (caso che non appartiene al testbook). Uscita ≠ 0 se esiste una delle ultime tre.
+
 ## 2. Domini
 
 | Dominio | Sezione | Servizi | Specifiche principali | Stato |

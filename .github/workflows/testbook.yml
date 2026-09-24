@@ -1,0 +1,46 @@
+name: testbook
+
+# Esecuzione del testbook funzionale (docs/16): tutte le righe TB-XXX-NNN, backend (Testbook*Test/IT) e web
+# (*.testbook.test.ts[x]), con il rapporto riga per riga nel riepilogo del job e come artefatto.
+# Gira a mano e ogni notte (i job normali di ci.yml eseguono già gli stessi test; qui conta il rapporto).
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 2 * * *"
+
+concurrency:
+  group: testbook
+  cancel-in-progress: true
+
+jobs:
+  testbook:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Dipendenze web
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+      - name: Testbook
+        run: bash scripts/testbook.sh
+      - name: Rapporto
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testbook-rapporto
+          path: |
+            target/testbook/rapporto.md
+            target/testbook/junit/
