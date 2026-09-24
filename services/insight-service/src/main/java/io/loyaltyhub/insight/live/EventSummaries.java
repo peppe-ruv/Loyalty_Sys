@@ -24,8 +24,8 @@ public final class EventSummaries {
             case "campaign.evaluated" -> "Campagna valutata" + evaluated(d);
             case "member.registered" -> "Nuovo membro";
             case "member.updated" -> "Membro aggiornato";
-            case "member.status.changed" -> "Stato membro: " + d.path("status").asString("?");
-            case "tier.upgraded", "tier.changed" -> "Livello → " + d.path("tier").asString("?");
+            case "member.status.changed" -> "Stato membro: " + statusChange(d);
+            case "tier.upgraded", "tier.changed" -> "Livello → " + d.path("newTier").asString(d.path("tier").asString("?"));
             case "app.login.daily" -> "Accesso all'app";
             case "ebill.activated" -> "Bolletta digitale attivata";
             case "directdebit.activated" -> "Domiciliazione attivata";
@@ -34,6 +34,19 @@ public final class EventSummaries {
             case "entry" -> "Audit: " + d.path("action").asString("modifica");
             default -> shortType;
         };
+    }
+
+    /**
+     * {@code member.status.changed} (EVT-FACT-03, contracts/events/fact/member.status.changed.schema.json): porta
+     * {@code previousStatus} e {@code newStatus}, es. "ACTIVE → BLOCKED"; senza il precedente solo il nuovo.
+     */
+    private static String statusChange(JsonNode d) {
+        String next = d.path("newStatus").asString("");
+        String previous = d.path("previousStatus").asString("");
+        if (next.isBlank()) {
+            return "?";
+        }
+        return previous.isBlank() ? next : previous + " → " + next;
     }
 
     private static String amountEuro(JsonNode d) {
