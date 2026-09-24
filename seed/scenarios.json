@@ -125,5 +125,30 @@
         "note": "Primo acquisto: 24,90 € online (+24) → badge Rompighiaccio (+100)"
       }
     ]
+  },
+  {
+    "code": "SCN-DIGITAL",
+    "name": "Marco passa al digitale",
+    "description": "Marco attiva la bolletta digitale e la domiciliazione: due campagne lo premiano, completa l'obiettivo «Tutto digitale» e riceve il badge. Al ricalcolo dei segmenti entra in SEG-DIGITAL ed esce da SEG-NOT-EBILL.",
+    "protagonist": "Marco (MBR-000002)",
+    "watch": "Guarda i due accrediti (bolletta e domiciliazione, col moltiplicatore SILVER), il badge «Zero carta» con il bonus +100, poi lancia «Ricalcolo segmenti» da BO-30 o «Ricalcola ora» in BO-04: nella home del portale di Marco compare «Grazie per essere digitale».",
+    "steps": [
+      {
+        "delayMs": 0,
+        "memberId": "MBR-000002",
+        "type": "ebill.activated",
+        "source": "billing",
+        "data": { "contractId": "CTR-SCN-DIGITAL" },
+        "note": "Marco attiva la bolletta digitale (+300 PTS col moltiplicatore, +150 STS)"
+      },
+      {
+        "delayMs": 1500,
+        "memberId": "MBR-000002",
+        "type": "directdebit.activated",
+        "source": "billing",
+        "data": { "contractId": "CTR-SCN-DIGITAL" },
+        "note": "Marco attiva la domiciliazione (+400 PTS col moltiplicatore, +200 STS) → badge «Zero carta» (+100)"
+      }
+    ]
   }
 ]

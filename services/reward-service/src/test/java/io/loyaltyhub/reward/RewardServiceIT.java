@@ -109,6 +109,24 @@ class RewardServiceIT {
         assertThat(unlocked).isTrue();
     }
 
+    /** M6.6 (F-RWD-04 P1): {@code member.segment.entered/left} aggiornano lo snapshot; RWD-EBIKE-RENT è per SEG-TORINO. */
+    @Test
+    void segmentFactsShowAndHideSegmentRewards() throws Exception {
+        assertThat(reward(get("/v1/portal/catalog?memberId=MBR-000007"), "RWD-EBIKE-RENT")).isNull();
+        publishFact("io.loyaltyhub.fact.member.segment.entered", "MBR-000007", Map.of("segmentCode", "SEG-TORINO"));
+        long deadline = System.currentTimeMillis() + 15_000;
+        while (reward(get("/v1/portal/catalog?memberId=MBR-000007"), "RWD-EBIKE-RENT") == null && System.currentTimeMillis() < deadline) {
+            Thread.sleep(300);
+        }
+        assertThat(reward(get("/v1/portal/catalog?memberId=MBR-000007"), "RWD-EBIKE-RENT")).as("nel segmento: visibile").isNotNull();
+        publishFact("io.loyaltyhub.fact.member.segment.left", "MBR-000007", Map.of("segmentCode", "SEG-TORINO"));
+        deadline = System.currentTimeMillis() + 15_000;
+        while (reward(get("/v1/portal/catalog?memberId=MBR-000007"), "RWD-EBIKE-RENT") != null && System.currentTimeMillis() < deadline) {
+            Thread.sleep(300);
+        }
+        assertThat(reward(get("/v1/portal/catalog?memberId=MBR-000007"), "RWD-EBIKE-RENT")).as("uscito: di nuovo escluso").isNull();
+    }
+
     @Test
     void bandsKeepUniqueIncreasingThresholdsAndCannotBeDeletedInUse() {
         assertThat(status("POST", "/v1/reward-bands", "ADMIN:test",

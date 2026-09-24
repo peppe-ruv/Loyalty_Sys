@@ -378,6 +378,160 @@ if (Array.isArray(templatesSeed)) {
   }
 }
 
+// Segmenti e storico attività (docs/10 §3, docs/servizi/member-service.md §2, §6; M6.6): codici univoci nel formato
+// docs/06 §2, tipo ammesso, criteri solo sullo spazio member.* esteso (docs/03 §10), statici con membri esistenti; ogni
+// segmento citato da campagne, premi e contenuti esiste (§11.2); i membri attesi (`expectedMembers`, la colonna "Membri
+// attesi" di docs/10 §3) coincidono con la valutazione dei criteri sui seed. Lo storico ha membri e tipi esistenti e
+// rispetta le storie (Marco senza bolletta digitale né domiciliazione: servono a SCN-DIGITAL; Elisa senza acquisti).
+// SPEC-GAP: Q-93 — docs/10 §3 attende 4 membri in SEG-TORINO, ma members.json ha un solo membro di Torino (Davide):
+// le città dei seed non sono state cambiate, expectedMembers = [MBR-000004].
+// SPEC-GAP: Q-94 — docs/10 §3 dice SEG-VIP-EVENT "usato da RWD-PLATINUM-EVENT", ma rewards.json non lo cita (il premio
+// è visibile per tier PLATINUM): il premio non è stato toccato, il segmento risulta "usato da nessuno".
+{
+  const segments = readSeed("segments.json") ?? [];
+  const members = readSeed("members.json") ?? [];
+  const history = readSeed("activity-history.json") ?? { memberActivity: [] };
+  const actionTypes = new Set((readSeed("event-types.json") ?? []).map((t) => t.code));
+  const byId = new Map(members.map((m) => [m.id, m]));
+  const CODE = /^[A-Z][A-Z0-9-]{2,39}$/;
+  const SIMPLE = ["tier", "status", "labels", "city", "age", "registeredDaysAgo", "balance.PTS", "lifetimeEarned.PTS", "lastActivityDaysAgo", "purchases.amount90d"];
+  const CMPS = ["eq", "neq", "gt", "gte", "lt", "lte", "in", "nin", "contains", "ncontains", "exists", "nexists", "between", "startsWith"];
+  const strip = (f) => (f.startsWith("member.") ? f.slice(7) : f);
+  const knownField = (f) => {
+    const s = strip(f);
+    return SIMPLE.includes(s) || /^attributes\..+/.test(s) || /^actions\..+\.(count30d|total)$/.test(s);
+  };
+  // Giorni fa di un'espressione @today±Nd…: basta la parte in giorni/mesi/anni (approssimati) per i confronti.
+  const daysAgo = (expr) => {
+    if (typeof expr !== "string" || !expr.startsWith("@")) return null;
+    let d = 0;
+    for (const [, sign, n, unit] of expr.matchAll(/([+-])(\d+)([dhMy])/g)) {
+      const k = unit === "d" ? 1 : unit === "M" ? 30 : unit === "y" ? 365 : 0;
+      d += (sign === "-" ? 1 : -1) * Number(n) * k;
+    }
+    return d;
+  };
+  const lastActivity = new Map();
+  for (const entry of history.memberActivity ?? []) {
+    const m = byId.get(entry.memberId);
+    if (!m) errors.push(`activity-history.json: membro inesistente ${entry.memberId}`);
+    else if (m.status === "ANONYMIZED") errors.push(`activity-history.json: ${entry.memberId} è anonimizzato`);
+    for (const a of entry.actions ?? []) {
+      if (!actionTypes.has(a.type)) errors.push(`activity-history.json: ${entry.memberId} usa il tipo inesistente ${a.type}`);
+      const ago = daysAgo(a.at);
+      if (ago === null) errors.push(`activity-history.json: ${entry.memberId} ha una data non relativa "${a.at}"`);
+      else if (!lastActivity.has(entry.memberId) || ago < lastActivity.get(entry.memberId)) lastActivity.set(entry.memberId, ago);
+      if (a.type === "purchase.completed" && !(a.amount > 0)) errors.push(`activity-history.json: acquisto di ${entry.memberId} senza importo`);
+      if (entry.memberId === "MBR-000002" && ["ebill.activated", "directdebit.activated"].includes(a.type)) {
+        errors.push("activity-history.json: Marco non deve avere ancora bolletta digitale né domiciliazione (SCN-DIGITAL)");
+      }
+      if (entry.memberId === "MBR-000009" && a.type === "purchase.completed") {
+        errors.push("activity-history.json: Elisa non ha ancora comprato (SCN-REFERRAL)");
+      }
+    }
+  }
+  const resolve = (m, field) => {
+    const s = strip(field);
+    if (s === "tier") return m.tier;
+    if (s === "status") return m.status;
+    if (s === "labels") return m.labels ?? [];
+    if (s === "city") return m.city ?? undefined;
+    if (s === "balance.PTS") return m.points ?? 0;
+    if (s === "registeredDaysAgo") return daysAgo(m.registeredAt) ?? undefined;
+    if (s === "lastActivityDaysAgo") return lastActivity.has(m.id) ? lastActivity.get(m.id) : undefined;
+    return Symbol.for("unsupported");
+  };
+  const leaf = (m, r) => {
+    const v = resolve(m, r.field);
+    if (v === Symbol.for("unsupported")) throw new Error(`campo ${r.field} non verificabile da check-seed`);
+    if (r.cmp === "exists") return v !== undefined && !(Array.isArray(v) && v.length === 0);
+    if (r.cmp === "nexists") return v === undefined || (Array.isArray(v) && v.length === 0);
+    if (v === undefined) return false;
+    if (Array.isArray(v)) {
+      if (r.cmp === "contains") return v.includes(r.value);
+      if (r.cmp === "ncontains") return !v.includes(r.value);
+      if (r.cmp === "in") return v.some((x) => r.value.includes(x));
+      if (r.cmp === "nin") return !v.some((x) => r.value.includes(x));
+      return v.some((x) => scalar(x, r));
+    }
+    return scalar(v, r);
+  };
+  const scalar = (v, r) => {
+    switch (r.cmp) {
+      case "eq": return v === r.value;
+      case "neq": return v !== r.value;
+      case "gt": return v > r.value;
+      case "gte": return v >= r.value;
+      case "lt": return v < r.value;
+      case "lte": return v <= r.value;
+      case "in": return r.value.includes(v);
+      case "nin": return !r.value.includes(v);
+      case "between": return v >= r.value[0] && v <= r.value[1];
+      case "startsWith": return String(v).startsWith(r.value);
+      default: return false;
+    }
+  };
+  const evalNode = (m, n) => {
+    if (n.op || n.rules) {
+      const rules = n.rules ?? [];
+      if (n.op === "any") return rules.some((r) => evalNode(m, r));
+      if (n.op === "not") return !rules.every((r) => evalNode(m, r));
+      return rules.every((r) => evalNode(m, r));
+    }
+    return leaf(m, n);
+  };
+  const checkShape = (code, n, path) => {
+    if (n.op || n.rules) {
+      if (!["all", "any", "not"].includes(n.op)) errors.push(`segments.json: ${code} ${path}.op non valido`);
+      if (!Array.isArray(n.rules) || n.rules.length === 0) errors.push(`segments.json: ${code} ${path}.rules vuoto`);
+      (n.rules ?? []).forEach((r, i) => checkShape(code, r, `${path}.rules[${i}]`));
+      return;
+    }
+    if (!knownField(n.field ?? "")) errors.push(`segments.json: ${code} ${path}.field fuori dallo spazio member.* (${n.field})`);
+    if (!CMPS.includes(n.cmp)) errors.push(`segments.json: ${code} ${path}.cmp non valido (${n.cmp})`);
+  };
+  const codes = new Set();
+  for (const s of segments) {
+    const where = `segments.json: ${s.code}`;
+    if (!CODE.test(s.code ?? "")) errors.push(`${where} codice non valido`);
+    if (codes.has(s.code)) errors.push(`${where} codice duplicato`);
+    codes.add(s.code);
+    if (!s.name) errors.push(`${where} senza nome`);
+    if (!["STATIC", "DYNAMIC"].includes(s.type)) errors.push(`${where} tipo non valido ${s.type}`);
+    let actual = null;
+    if (s.type === "DYNAMIC") {
+      if (!s.criteria) errors.push(`${where} dinamico senza criteri`);
+      else {
+        checkShape(s.code, s.criteria, "criteria");
+        try {
+          actual = members.filter((m) => m.status !== "ANONYMIZED" && evalNode(m, s.criteria)).map((m) => m.id);
+        } catch (e) {
+          warnings.push(`${where}: ${e.message}`);
+        }
+      }
+    } else {
+      for (const id of s.memberIds ?? []) {
+        const m = byId.get(id);
+        if (!m || m.status === "ANONYMIZED") errors.push(`${where} membro inesistente o anonimizzato ${id}`);
+      }
+      actual = [...new Set(s.memberIds ?? [])];
+    }
+    if (actual && s.expectedMembers) {
+      const want = [...s.expectedMembers].sort().join(",");
+      const got = [...actual].sort().join(",");
+      if (want !== got) errors.push(`${where} membri attesi [${want}] ma i criteri danno [${got}]`);
+    }
+  }
+  const cited = [
+    ...(readSeed("campaigns.json") ?? []).flatMap((c) => (c.audience?.segments ?? []).map((x) => [`campaigns.json: ${c.code}`, x])),
+    ...(readSeed("rewards.json") ?? []).flatMap((r) => (r.eligibleSegments ?? []).map((x) => [`rewards.json: ${r.code}`, x])),
+    ...(readSeed("contents.json") ?? []).flatMap((c) => (c.audience?.segments ?? []).map((x) => [`contents.json: ${c.code}`, x])),
+  ];
+  for (const [where, code] of cited) {
+    if (!codes.has(code)) errors.push(`${where} cita il segmento inesistente ${code}`);
+  }
+}
+
 for (const w of warnings) console.warn(`⚠ ${w}`);
 if (errors.length > 0) {
   for (const e of errors) console.error(`✗ ${e}`);

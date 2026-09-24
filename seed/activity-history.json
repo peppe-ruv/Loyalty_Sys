@@ -1,0 +1,64 @@
+{
+  "_note": "Storico delle azioni esterne per le statistiche di attività di member (docs/servizi/member-service.md §6): ultima attività, conteggi per tipo, spesa a 90 giorni. Coerente con docs/10: Marco non ha ancora attivato bolletta digitale né domiciliazione (SCN-DIGITAL), Elisa non ha ancora comprato (SCN-REFERRAL), Stefano è fermo da due mesi (SEG-AT-RISK), Matteo ha 5 accessi di fila (ACH-STREAK-7 5/7), Anna non ha storico.",
+  "memberActivity": [
+    { "memberId": "MBR-000002", "actions": [
+      { "type": "purchase.completed", "at": "@today-6dT19:10", "amount": 64.90 },
+      { "type": "purchase.completed", "at": "@today-21dT12:30", "amount": 42.50 },
+      { "type": "selfreading.submitted", "at": "@today-25dT09:00" },
+      { "type": "review.submitted", "at": "@today-40dT21:15" },
+      { "type": "app.login.daily", "at": "@today-2dT08:15" },
+      { "type": "app.login.daily", "at": "@today-1dT08:05" }
+    ] },
+    { "memberId": "MBR-000003", "actions": [
+      { "type": "purchase.completed", "at": "@today-10dT18:40", "amount": 45.00 },
+      { "type": "purchase.completed", "at": "@today-3dT17:20", "amount": 89.00 },
+      { "type": "app.login.daily", "at": "@today-1dT07:50" }
+    ] },
+    { "memberId": "MBR-000004", "actions": [
+      { "type": "ebill.activated", "at": "@today-300dT10:00" },
+      { "type": "directdebit.activated", "at": "@today-290dT10:00" },
+      { "type": "purchase.completed", "at": "@today-15dT13:10", "amount": 75.50 },
+      { "type": "purchase.completed", "at": "@today-4dT18:00", "amount": 120.00 },
+      { "type": "app.login.daily", "at": "@today-2dT09:30" }
+    ] },
+    { "memberId": "MBR-000005", "actions": [
+      { "type": "ebill.activated", "at": "@today-500dT10:00" },
+      { "type": "directdebit.activated", "at": "@today-480dT10:00" },
+      { "type": "purchase.completed", "at": "@today-30dT11:00", "amount": 99.00 },
+      { "type": "purchase.completed", "at": "@today-9dT16:45", "amount": 150.00 },
+      { "type": "purchase.completed", "at": "@today-2dT10:20", "amount": 210.00 },
+      { "type": "selfreading.submitted", "at": "@today-12dT08:30" },
+      { "type": "app.login.daily", "at": "@today-1dT08:00" }
+    ] },
+    { "memberId": "MBR-000006", "actions": [
+      { "type": "app.login.daily", "at": "@today-75dT08:20" },
+      { "type": "purchase.completed", "at": "@today-60dT17:30", "amount": 55.00 }
+    ] },
+    { "memberId": "MBR-000007", "actions": [
+      { "type": "purchase.completed", "at": "@today-20dT12:00", "amount": 35.00 },
+      { "type": "selfreading.submitted", "at": "@today-12dT09:10" }
+    ] },
+    { "memberId": "MBR-000008", "actions": [
+      { "type": "purchase.completed", "at": "@today-100dT15:00", "amount": 30.00 }
+    ] },
+    { "memberId": "MBR-000009", "actions": [
+      { "type": "app.login.daily", "at": "@today-5dT20:10" }
+    ] },
+    { "memberId": "MBR-000010", "actions": [
+      { "type": "purchase.completed", "at": "@today-14dT18:30", "amount": 28.00 },
+      { "type": "survey.completed", "at": "@today-8dT12:00" },
+      { "type": "survey.completed", "at": "@today-7dT12:00" },
+      { "type": "app.login.daily", "at": "@today-5dT08:00" },
+      { "type": "app.login.daily", "at": "@today-4dT08:00" },
+      { "type": "app.login.daily", "at": "@today-3dT08:00" },
+      { "type": "app.login.daily", "at": "@today-2dT08:00" },
+      { "type": "app.login.daily", "at": "@today-1dT08:00" }
+    ] },
+    { "memberId": "MBR-000011", "actions": [
+      { "type": "ebill.activated", "at": "@today-400dT10:00" },
+      { "type": "directdebit.activated", "at": "@today-390dT10:00" },
+      { "type": "purchase.completed", "at": "@today-7dT19:00", "amount": 60.00 },
+      { "type": "app.login.daily", "at": "@today-2dT21:00" }
+    ] }
+  ]
+}

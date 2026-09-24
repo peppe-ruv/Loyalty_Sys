@@ -76,6 +76,12 @@ public class CampaignSeeder implements ApplicationRunner, DemoResettable {
         for (JsonNode m : seed.readTree("members.json")) {
             snapshots.upsertIdentity(m.path("id").asString(), m.path("status").asString("ACTIVE"),
                     m.path("tier").asString("BASE"), null, null, "{}");
+            // Etichette del seed (docs/10 §3: SEG-DIGITAL); i segmenti arrivano dai fatti member.segment.* (M6.6).
+            if (m.path("labels").isArray() && !m.path("labels").isEmpty()) {
+                java.util.List<String> labels = new java.util.ArrayList<>();
+                m.path("labels").forEach(l -> labels.add(l.asString()));
+                snapshots.updateLabels(m.path("id").asString(), labels);
+            }
         }
         cache.reload();
         log.info("Seed campaign caricato (profilo demo): campagne + snapshot membri");

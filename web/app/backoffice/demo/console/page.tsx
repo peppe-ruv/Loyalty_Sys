@@ -24,6 +24,9 @@ type JobOutcome = {
   redemptions?: number;
   contests?: number;
   voided?: number;
+  segments?: number;
+  entered?: number;
+  left?: number;
 };
 const walletDetail = (verb: string) => (out: JobOutcome) =>
   !out.lots ? "nessun lotto interessato" : `${(out.amount ?? 0).toLocaleString("it-IT")} PTS ${verb} · ${out.lots} lotti · ${out.members} membri`;
@@ -31,6 +34,13 @@ const JOBS: { service: ServiceCode; path: string; label: string; detail: (out: J
   { service: "wallet", path: "expire-points", label: "Scadenza punti", detail: walletDetail("scaduti") },
   { service: "wallet", path: "expiry-warnings", label: "Preavviso scadenze", detail: walletDetail("in preavviso") },
   { service: "wallet", path: "release-pending", label: "Rilascio pending", detail: walletDetail("rilasciati") },
+  // M6.6 (docs/servizi/member-service.md §3 "Demo"): ricalcolo dei segmenti dinamici, solo le differenze.
+  {
+    service: "member",
+    path: "refresh-segments",
+    label: "Ricalcolo segmenti",
+    detail: (o) => `${o.segments ?? 0} segmenti · ${o.entered ?? 0} ingressi · ${o.left ?? 0} uscite`,
+  },
   { service: "reward", path: "expire-coupons", label: "Scadenza coupon", detail: (o) => `${o.coupons ?? 0} coupon scaduti` },
   { service: "reward", path: "timeout-redemptions", label: "Timeout richieste", detail: (o) => `${o.redemptions ?? 0} richieste respinte per timeout` },
   {

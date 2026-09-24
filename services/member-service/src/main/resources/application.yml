@@ -32,6 +32,12 @@ loyaltyhub:
   referral:
     # Tipo azione (forma breve) che completa il referral dell'invitato (docs/03 §8).
     qualifying-action-type: ${LH_REFERRAL_QUALIFYING_ACTION:purchase.completed}
+  member:
+    segments:
+      # Ricalcolo periodico (docs/servizi/member-service.md §5): ogni 15 minuti, solo con loyaltyhub.jobs.enabled=true.
+      refresh-interval-ms: ${LH_SEGMENTS_REFRESH_MS:900000}
+      # Dopo seed/reset: ri-annuncio delle appartenenze per gli snapshot azzerati dopo di noi (SPEC-GAP Q-91); 0 = mai.
+      reannounce-delay-ms: ${LH_SEGMENTS_REANNOUNCE_MS:15000}
   kafka:
     security: ${KAFKA_SECURITY:PLAINTEXT}
 

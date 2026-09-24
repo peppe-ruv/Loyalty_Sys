@@ -55,6 +55,32 @@ public class MemberSnapshotRepository {
                 .update();
     }
 
+    /** Etichette dallo snapshot completo di {@code member.registered/updated} (docs/05 EVT-FACT-01/02). */
+    public void updateLabels(String memberId, java.util.List<String> labels) {
+        jdbc.sql("""
+                        INSERT INTO member_snapshot (member_id, labels) VALUES (?, ?::text[])
+                        ON CONFLICT (member_id) DO UPDATE SET labels = excluded.labels
+                        """)
+                .params(memberId, TextArrays.literal(labels)).update();
+    }
+
+    /** {@code member.segment.entered} (EVT-FACT-06): aggiunge il segmento se non c'è già (idempotente). */
+    public void addSegment(String memberId, String segmentCode) {
+        jdbc.sql("""
+                        INSERT INTO member_snapshot (member_id, segments) VALUES (?, ARRAY[?::text])
+                        ON CONFLICT (member_id) DO UPDATE SET segments = CASE
+                          WHEN ?::text = ANY(member_snapshot.segments) THEN member_snapshot.segments
+                          ELSE array_append(member_snapshot.segments, ?::text) END
+                        """)
+                .params(memberId, segmentCode, segmentCode, segmentCode).update();
+    }
+
+    /** {@code member.segment.left} (EVT-FACT-07). */
+    public void removeSegment(String memberId, String segmentCode) {
+        jdbc.sql("UPDATE member_snapshot SET segments = array_remove(segments, ?::text) WHERE member_id = ?")
+                .params(segmentCode, memberId).update();
+    }
+
     public void updateStatus(String memberId, String status) {
         jdbc.sql("""
                         INSERT INTO member_snapshot (member_id, status) VALUES (?, ?)

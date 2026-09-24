@@ -50,6 +50,23 @@ public class MemberSnapshotRepository {
                 .params(memberId, status).update();
     }
 
+    /** {@code member.segment.entered} (EVT-FACT-06): aggiunge il segmento se non c'è già (idempotente). */
+    public void addSegment(String memberId, String segmentCode) {
+        jdbc.sql("""
+                        INSERT INTO reward_member_snapshot (member_id, segments) VALUES (?, ARRAY[?::text])
+                        ON CONFLICT (member_id) DO UPDATE SET segments = CASE
+                          WHEN ?::text = ANY(reward_member_snapshot.segments) THEN reward_member_snapshot.segments
+                          ELSE array_append(reward_member_snapshot.segments, ?::text) END, updated_at = now()
+                        """)
+                .params(memberId, segmentCode, segmentCode, segmentCode).update();
+    }
+
+    /** {@code member.segment.left} (EVT-FACT-07). */
+    public void removeSegment(String memberId, String segmentCode) {
+        jdbc.sql("UPDATE reward_member_snapshot SET segments = array_remove(segments, ?::text), updated_at = now() WHERE member_id = ?")
+                .params(segmentCode, memberId).update();
+    }
+
     public void updateTier(String memberId, String tier) {
         jdbc.sql("""
                         INSERT INTO reward_member_snapshot (member_id, tier_code) VALUES (?, ?)

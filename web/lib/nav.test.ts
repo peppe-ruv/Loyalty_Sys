@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeHref } from "./nav";
+import { activeHref, visibleNav } from "./nav";
 
 describe("activeHref", () => {
   it("sceglie la voce più specifica", () => {
@@ -13,6 +13,10 @@ describe("activeHref", () => {
   it("la dashboard è attiva solo sulla radice del backoffice", () => {
     expect(activeHref("/backoffice")).toBe("/backoffice");
     expect(activeHref("/backoffice/members")).toBe("/backoffice/members");
+  });
+  it("BO-04 Segmenti vive nel gruppo Clienti (M6.6)", () => {
+    expect(activeHref("/backoffice/segments/SEG-DIGITAL")).toBe("/backoffice/segments");
+    expect(visibleNav().find((g) => g.label === "Clienti")?.items.map((i) => i.id)).toEqual(["BO-02", "BO-04"]);
   });
   it("nessuna voce fuori dal backoffice", () => {
     expect(activeHref("/portal")).toBeNull();
