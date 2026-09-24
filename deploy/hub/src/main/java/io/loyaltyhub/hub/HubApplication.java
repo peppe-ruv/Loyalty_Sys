@@ -2,6 +2,7 @@ package io.loyaltyhub.hub;
 
 import io.loyaltyhub.campaign.CampaignApplication;
 import io.loyaltyhub.campaign.engine.CampaignEngine;
+import io.loyaltyhub.engagement.EngagementApplication;
 import io.loyaltyhub.ingestion.IngestionApplication;
 import io.loyaltyhub.insight.InsightApplication;
 import io.loyaltyhub.reward.RewardApplication;
@@ -19,7 +20,8 @@ import org.springframework.context.annotation.FullyQualifiedAnnotationBeanNameGe
 /**
  * Deployable <strong>consolidato</strong> per la demo ospitata (docs/13 ADR-023): avvia i 4 servizi del core
  * loop (ingestion, member, campaign, wallet) più <strong>insight</strong> (event store + stream SSE del rail
- * live, M2.8 anticipato) <strong>reward</strong> (catalogo premi, M4) e <strong>gamification</strong> (concorsi, M5) in un solo JVM, mantenendo i confini del codice, uno schema per servizio (search_path
+ * live, M2.8 anticipato) <strong>reward</strong> (catalogo premi, M4), <strong>gamification</strong> (concorsi, M5) e <strong>engagement</strong>
+ * (messaggi e inbox, M6) in un solo JVM, mantenendo i confini del codice, uno schema per servizio (search_path
  * multiplo) e un gruppo consumer per servizio. Fuori dalla demo ogni servizio resta un deployable a sé.
  *
  * <p>{@code @SpringBootApplication} scansiona il pacchetto {@code io.loyaltyhub.hub}; una seconda {@code @ComponentScan}
@@ -40,13 +42,14 @@ import org.springframework.context.annotation.FullyQualifiedAnnotationBeanNameGe
                 "io.loyaltyhub.insight",
                 "io.loyaltyhub.reward",
                 "io.loyaltyhub.gamification",
+                "io.loyaltyhub.engagement",
         },
         nameGenerator = FullyQualifiedAnnotationBeanNameGenerator.class,
         excludeFilters = @ComponentScan.Filter(
                 type = FilterType.ASSIGNABLE_TYPE,
                 classes = {IngestionApplication.class, MemberApplication.class,
                         CampaignApplication.class, WalletApplication.class, InsightApplication.class,
-                        RewardApplication.class, GamificationApplication.class}))
+                        RewardApplication.class, GamificationApplication.class, EngagementApplication.class}))
 public class HubApplication {
 
     public static void main(String[] args) {
