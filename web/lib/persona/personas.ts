@@ -11,11 +11,11 @@ export interface BackofficePersona {
 }
 
 export const BACKOFFICE_PERSONAS: BackofficePersona[] = [
-  { username: "marta.admin", displayName: "Marta Bianchi", role: "ADMIN", summary: "Amministra tutto: configurazioni, job, reset demo." },
-  { username: "luca.marketing", displayName: "Luca Verdi", role: "MARKETING", summary: "Crea e manda in revisione campagne, premi, concorsi." },
-  { username: "elena.legal", displayName: "Elena Conti", role: "LEGAL", summary: "Approva o rifiuta concorsi e premi; vede gli istanti vincenti." },
-  { username: "anna.care", displayName: "Anna Ferri", role: "CARE", summary: "Assiste i membri: rettifiche punti, scheda 360°." },
-  { username: "giovanni.analyst", displayName: "Giovanni Sala", role: "ANALYST", summary: "Sola lettura: cruscotti, tracciati, audit." },
+  { username: "marta.admin", displayName: "Marta Villa", role: "ADMIN", summary: "Amministra tutto: configurazioni, job, reset demo." },
+  { username: "luca.marketing", displayName: "Luca Serra", role: "MARKETING", summary: "Crea e manda in revisione campagne, premi, concorsi." },
+  { username: "elena.legal", displayName: "Elena Riva", role: "LEGAL", summary: "Approva o rifiuta concorsi e premi; vede gli istanti vincenti." },
+  { username: "paolo.care", displayName: "Paolo Neri", role: "CARE", summary: "Assiste i membri: rettifiche punti, scheda 360°." },
+  { username: "sara.analyst", displayName: "Sara Longo", role: "ANALYST", summary: "Sola lettura: cruscotti, tracciati, audit." },
 ];
 
 export const DEFAULT_BACKOFFICE_USERNAME = "marta.admin";

@@ -233,7 +233,8 @@ export function buildCatalog(input: CatalogInput): ConditionField[] {
   );
   for (const a of input.attributes ?? []) out.push(attributeField(a));
   out.push(
-    { path: "context.source", label: "Fonte", space: "context", type: "string", hint: "codice della fonte" },
+    // context.source è l'attributo source dell'azione: sempre l'URN della fonte (docs/05 §2), anche in simulazione.
+    { path: "context.source", label: "Fonte", space: "context", type: "string", hint: "URN della fonte, es. urn:loyaltyhub:source:ecommerce" },
     {
       path: "context.dayOfWeek",
       label: "Giorno della settimana",

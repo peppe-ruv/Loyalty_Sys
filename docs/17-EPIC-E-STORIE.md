@@ -16,14 +16,14 @@ Catalogo di **tutte** le epic e le storie utente che si possono associare alle d
 
 | Username (spec) | Nome (docs/01 §5, docs/10 §2) | Ruolo | Capacità principali (docs/08 §2) | Nel codice (`web/lib/persona/personas.ts`) |
 |---|---|---|---|---|
-| `marta.admin` | Marta Villa | `ADMIN` | tutto; reset, job, pianta istante, applica chiusura, riprocessa DLQ, webhook, override approvazioni | `marta.admin` «Marta Bianchi» |
-| `luca.marketing` | Luca Serra | `MARKETING` | `object.edit`, `content.write`, `segment.write`, `actiontype.custom`, simulatore/scenari; *invia in revisione* | `luca.marketing` «Luca Verdi» |
-| `elena.legal` | Elena Riva | `LEGAL` | `object.approve` (APPROVE/REJECT), `instants.view`, simulatore/scenari | `elena.legal` «Elena Conti» |
-| `paolo.care` | Paolo Neri | `CARE` | `member.write`, `points.adjust`, `redemption.handle`, `delivery.handle`, `coupon.void`, `inbound.handle` | `anna.care` «Anna Ferri» |
-| `sara.analyst` | Sara Longo | `ANALYST` | sola lettura (ogni scrittura → 403) | `giovanni.analyst` «Giovanni Sala» |
+| `marta.admin` | Marta Villa | `ADMIN` | tutto; reset, job, pianta istante, applica chiusura, riprocessa DLQ, webhook, override approvazioni | `marta.admin` «Marta Villa» |
+| `luca.marketing` | Luca Serra | `MARKETING` | `object.edit`, `content.write`, `segment.write`, `actiontype.custom`, simulatore/scenari; *invia in revisione* | `luca.marketing` «Luca Serra» |
+| `elena.legal` | Elena Riva | `LEGAL` | `object.approve` (APPROVE/REJECT), `instants.view`, simulatore/scenari | `elena.legal` «Elena Riva» |
+| `paolo.care` | Paolo Neri | `CARE` | `member.write`, `points.adjust`, `redemption.handle`, `delivery.handle`, `coupon.void`, `inbound.handle` | `paolo.care` «Paolo Neri» |
+| `sara.analyst` | Sara Longo | `ANALYST` | sola lettura (ogni scrittura → 403) | `sara.analyst` «Sara Longo» |
 | — | chiamante senza header | `ANALYST:anonymous` | sola lettura; header malformato o ruolo ignoto ⇒ `ANALYST` | `ActorContext.parse` |
 
-⚠ divergenza: nomi e due username delle personas nel codice differiscono da docs/01/docs/10, e `seed/personas.json` (docs/10 §1) non esiste (le personas sono solo nel web). Da registrare in docs/15 e da coprire in TB-WEB (selettore persona).
+Nomi e username delle personas nel web allineati a docs/01/docs/10 (`web/lib/persona/personas.test.ts`). ⚠ divergenza residua: `seed/personas.json` (docs/10 §1) non esiste (le personas sono solo nel web). Da registrare in docs/15 e da coprire in TB-WEB (selettore persona).
 
 ### 2.2 Membri del portale (dati demo, docs/10 §2)
 
@@ -233,12 +233,13 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
 #### US-E01-11 · Gestione delle fonti ⛔
 *Come* ADMIN, *voglio* disabilitare una fonte o restringerne i tipi ammessi da BO-09, *così che* un sistema che invia dati errati venga fermato subito.
 - **Contesto reale**: il partner dei sondaggi invia duplicati a raffica: Marta spegne `partner`.
-- **Tocca**: F-ING-05 · BO-09 (scheda *Fonti*) · ING-02, ING-03, ING-22 (⛔ `POST/PUT /v1/sources` assenti).
-- **Decisioni**: fonte spenta → `SOURCE_DISABLED`; tipi ammessi → `TYPE_NOT_ALLOWED` (decisioni esistenti, ma configurabili solo da seed).
+- **Tocca**: F-ING-05 · BO-09 (scheda *Fonti*, interruttore) · ING-02, ING-03, ING-22 (`PUT /v1/sources/{code}`; ⛔ `POST /v1/sources` assente).
+- **Decisioni**: fonte spenta → `SOURCE_DISABLED`; tipi ammessi → `TYPE_NOT_ALLOWED`; `PUT /v1/sources/{code}` `{enabled?, allowedTypes?}` solo ADMIN (`program.config`), audit `UPDATE`; corpo vuoto o tipo sconosciuto → 422 `SOURCE_INVALID`; fonte inesistente → 404.
 - **Criteri**:
-  1. ⛔ Dato ADMIN, quando spegne una fonte da BO-09, allora gli eventi successivi sono `REJECTED/SOURCE_DISABLED` — oggi non realizzabile: l'API di modifica non esiste.
+  1. Dato ADMIN, quando spegne una fonte da BO-09, allora gli eventi successivi sono `REJECTED/SOURCE_DISABLED`.
   2. ✗ Dato MARKETING, allora la modifica è negata (403).
-- **Testbook**: TB-ING (da coprire, righe attese in divergenza finché l'API manca).
+  3. ⛔ Dato ADMIN, quando vuole aggiungere una fonte nuova, allora oggi non può (`POST /v1/sources` assente).
+- **Testbook**: TB-ING (da coprire; 3 in divergenza finché l'API manca).
 
 #### US-E01-12 · Tipi azione custom
 *Come* MARKETING, *voglio* creare un nuovo tipo azione con i suoi campi, *così che* possa premiarlo con una campagna senza rilasciare codice.
@@ -293,6 +294,7 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
   2. ✗ Dato due PATCH con la stessa `version`, allora il secondo 409 e il dialogo «ricarica / sovrascrivi».
   3. ✗ Dato un attributo `householdSize: "tanti"`, allora 422 `MEMBER_INVALID` sul campo.
   4. ✗ Dato un membro anonimizzato, allora 409 e campi in sola lettura.
+  5. ✗ Dato MARKETING, LEGAL o ANALYST, allora il PATCH di gestione è 403 `FORBIDDEN_ROLE` (`member.write` = ADMIN, CARE); il profilo dal portale passa da `PATCH /v1/portal/members/{id}`.
 - **Testbook**: TB-GOV (da coprire).
 
 #### US-E02-03 · Trovare un membro
@@ -416,7 +418,7 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
   1. Dato una campagna valida, allora 201 in `DRAFT` con audit `CREATE` (attore `MARKETING:luca.marketing`).
   2. ✗ Dato `MULTIPLIER` con fattore 6, allora 422 con il messaggio sul fattore; `validate` restituisce `{valid:false, errors[]}` senza salvare.
   3. ✗ Dato un codice già usato, allora 409 `CODE_TAKEN`.
-  4. ✗ Dato ANALYST, allora il pulsante non c'è; ⚠ l'API oggi crea comunque (nessuna guardia).
+  4. ✗ Dato ANALYST, allora il pulsante non c'è e l'API risponde 403 `FORBIDDEN_ROLE` (`object.edit` = ADMIN, MARKETING).
 - **Testbook**: TB-CMP (da coprire).
 
 #### US-E03-02 · Modificare una campagna in base allo stato
@@ -469,12 +471,12 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
 *Come* MARKETING, *voglio* costruire condizioni annidate su campi dell'azione, del membro, del contesto e dello storico, *così che* premi solo i comportamenti giusti.
 - **Contesto reale**: «acquisto online ≥ 50 € in categoria casa, non per chi ha già 5 acquisti dello stesso tipo».
 - **Tocca**: F-CMP-03 · BO-06 (`ConditionBuilder`) · CMP-16, CMP-17, WEB-15 · Q-90, Q-91, Q-92.
-- **Decisioni**: `all/any/not` (op ignoto → `all`; `not` = «non tutte vere») · campo assente → falso tranne `nexists` · array: basta un elemento · tipi incompatibili → falso · `context.*` in Rome · `history.actionCount` conta le precedenti · ⚠ `context.source` confrontato con l'URN completo.
+- **Decisioni**: `all/any/not` (op ignoto → `all`; `not` = «non tutte vere») · campo assente → falso tranne `nexists` · array: basta un elemento · tipi incompatibili → falso · `context.*` in Rome · `history.actionCount` conta le precedenti · `context.source` = URN completo della fonte (anche in simulazione).
 - **Criteri**:
   1. Dato `data.items[*].category eq casa` con due righe di cui una «casa», allora vero.
   2. Dato un campo assente con `gte`, allora foglia falsa e nessuna eccezione (campaign §7); con `nexists` vero.
   3. Dato `context.hour` alle 23:30 UTC di un giorno d'estate, allora vale 1 (ora di Roma) e `context.date` è il giorno dopo.
-  4. ⚠ Dato `context.source eq ecommerce`, allora in simulazione è vero ma in valutazione reale è falso (valore `urn:loyaltyhub:source:ecommerce`): da decidere.
+  4. Dato `context.source eq urn:loyaltyhub:source:ecommerce`, allora simulazione (anche con `source: "ecommerce"`, normalizzato in URN) e valutazione reale danno lo stesso esito.
   5. Dato un gruppo NESSUNA con 2 regole, allora BO-06 avvisa (Q-90).
 - **Testbook**: TB-CMP (da coprire); costruttore in TB-WEB.
 
@@ -592,14 +594,14 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
 *Come* azienda, *voglio* togliere i punti di un acquisto reso. F-CMP-14 (P2): `purchase.returned` è accettato (US-E01-08) ma nessuna campagna né il wallet stornano.
 - **Testbook**: fuori perimetro PoC.
 
-#### US-E03-19 · Una campagna a tempo finisce da sola ⛔
+#### US-E03-19 · Una campagna a tempo finisce da sola
 *Come* MARKETING, *voglio* che una campagna con data di fine passi a ENDED quando la data è superata, *così che* elenchi e portale non la mostrino più come attiva.
 - **Contesto reale**: `CMP-BLACK-FRIDAY` finisce il 30 novembre.
 - **Tocca**: F-CMP-02 · campaign §5 («job ogni minuto») · CMP-03, CMP-29.
 - **Criteri**:
   1. Dato una LIVE con `endAt` superato, allora le azioni successive sono `NOT_IN_SCHEDULE` (oggi vero).
-  2. ⛔ Dato lo stesso caso, allora entro un minuto lo stato diventa `ENDED` con `campaign.status.changed`: oggi resta `LIVE`.
-- **Testbook**: TB-CMP (da coprire, 2 come divergenza).
+  2. Dato lo stesso caso, allora entro un minuto lo stato diventa `ENDED` con `campaign.status.changed` (job con `loyaltyhub.jobs.enabled`; esattamente a `endAt` resta `LIVE`).
+- **Testbook**: TB-CMP (da coprire).
 
 ### E04 — Wallet, livelli ed edizioni
 
@@ -641,11 +643,11 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
 *Come* azienda, *voglio* far scadere i lotti arrivati a scadenza, *così che* la passività resti sotto controllo.
 - **Contesto reale**: i 1 900 PTS di Chiara scadono tra 12 giorni.
 - **Tocca**: F-WAL-06 · BO-30 (macchina del tempo) · `POST /v1/demo/jobs/expire-points?asOf=` · WAL-05, WAL-19.
-- **Decisioni**: lotti ACTIVE con `expiresAt ≤ asOf` → EXPIRED + `wallet.points.expired` · ⚠ un movimento `EXPIRE` per lotto (spec: uno per membro/valuta).
+- **Decisioni**: lotti ACTIVE con `expiresAt ≤ asOf` → EXPIRED + `wallet.points.expired` · un movimento `EXPIRE` per membro/valuta col totale.
 - **Criteri**:
   1. Dato il job con `asOf` = +31 gg, allora Chiara perde 1 900 PTS (`EXPIRE`), fatto `wallet.points.expired`, saldo aggiornato nel portale (docs/12 M3).
   2. Dato `asOf` = +11 gg, allora nulla scade.
-  3. ⚠ Dato due lotti scaduti dello stesso membro, allora la specifica attende un solo movimento col totale; oggi due.
+  3. Dato due lotti scaduti dello stesso membro, allora un solo movimento `EXPIRE` e un solo fatto col totale (`lotId` solo se il lotto è uno).
 - **Testbook**: TB-WAL (da coprire).
 
 #### US-E04-05 · Preavviso di scadenza
@@ -1247,7 +1249,7 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
   1. Dato nessun header, allora `ANALYST:anonymous` e ogni scrittura 403.
   2. Dato `X-LH-Actor: ADMINISTRATOR:x`, allora ruolo sconosciuto ⇒ ANALYST.
   3. Dato ogni capacità di docs/08 §2 × 5 ruoli, allora UI e API concordano (●: 403 lato server).
-  4. ⚠ Dato ANALYST che chiama `POST /v1/campaigns` o `POST/PATCH /v1/members`, allora la specifica attende 403: oggi l'API accetta.
+  4. Dato ANALYST che chiama `POST /v1/campaigns` o `PATCH /v1/members/{id}`, allora 403; ⚠ `POST /v1/members` resta senza guardia (serve anche alla registrazione dal portale).
 - **Testbook**: TB-GOV (API) · TB-WEB (UI).
 
 #### US-E08-07 · Audit di ogni scrittura
@@ -1518,7 +1520,7 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
   1. Dato il cambio persona, allora cookie aggiornato, cache invalidata, permessi ricalcolati (MARKETING non vede la Console demo; LEGAL vede gli istanti — Playwright docs/12 §4).
   2. Dato un cookie illeggibile, allora default `marta.admin` / MBR-000002.
   3. Dato il seed, allora 11 membri selezionabili (MBR-000012 escluso, Q-136).
-  4. ⚠ Dato le personas mostrate, allora nomi/username differiscono da docs/10 (§2.1).
+  4. Dato le personas mostrate, allora nomi e username sono quelli di docs/10 (§2.1).
 - **Testbook**: TB-WEB (da coprire).
 
 #### US-E11-03 · Keep-alive gentile
@@ -1541,7 +1543,7 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
   1. Dato *Acquisto 130 € (tier-up di Giulia)*, allora il tracciato si popola in tempo reale con il tier-up.
   2. Dato `count=50`, allora 20 eventi; dato ANALYST, allora 403.
   3. Dato la scorciatoia «Evento duplicato», allora il secondo è `DUPLICATE`.
-  4. ⚠ Dato un evento dal simulatore, allora la riga BO-26 dovrebbe avere origine `SIMULATOR`: oggi `EXTERNAL`.
+  4. Dato un evento dal simulatore, allora la riga BO-26 ha origine `SIMULATOR`.
 - **Testbook**: TB-ING (da coprire) · TB-WEB.
 
 #### US-E11-06 · Scenari guidati
@@ -1856,7 +1858,7 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | ING-20 `SimulatorController#fire` (F-DEMO-03) | `count` limitato a 1…20 | ingestion §3, BO-28 | US-E11-05 | TB-ING |
 | ↳ | fonte assente ⇒ `simulator`; `occurredAt` assente ⇒ adesso | ingestion §3 | US-E11-05 | TB-ING |
 | ↳ | `data` assente ⇒ `sample_data` del tipo | ingestion §3 | US-E11-05 | TB-ING |
-| ↳ | ⚠ riga registrata con origine `EXTERNAL` (ingestion §2 prevede `SIMULATOR`) | ingestion §2 | US-E11-05 | TB-ING |
+| ↳ | riga registrata con origine `SIMULATOR` (come gli scenari) | ingestion §2 | US-E11-05 | TB-ING |
 | ING-21 `ScenarioService` (F-DEMO-04) | 404 scenario inesistente | ingestion §3 | US-E11-06 | TB-ING |
 | ↳ | ritardo del passo limitato a 0…10 s | ingestion §5 | US-E11-06 | TB-ING |
 | ↳ | `eventId` con `{run}` ⇒ duplicato solo dentro la stessa esecuzione | Q-130 | US-E11-06 | TB-ING |
@@ -1868,7 +1870,7 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | ↳ | `POST/PUT /v1/event-types` → ADMIN, MARKETING (+ tipo di sistema solo ADMIN) | `actiontype.custom`, Q-89 | US-E01-12 | TB-ING |
 | ↳ | `POST /v1/demo/simulator/fire`, `POST /v1/demo/scenarios/{code}/run` → ADMIN, MARKETING, LEGAL, CARE | docs/06 §3 | US-E11-05, US-E11-06 | TB-ING |
 | ↳ | `POST /v1/events`, `POST /v1/transactions` → nessuna guardia (fonti esterne) | docs/06 §2 | US-E01-01 | TB-ING |
-| ↳ | ⛔ `POST/PUT /v1/sources` non esistono: fonti non gestibili da BO-09 | F-ING-05, ingestion §3 | US-E01-11 | TB-ING |
+| ↳ | `PUT /v1/sources/{code}` (ADMIN, audit) cambia abilitazione e tipi ammessi; ⛔ `POST /v1/sources` (nuova fonte) non esiste | F-ING-05, ingestion §3 | US-E01-11 | TB-ING |
 | ING-23 enum | `InboundStatus`: `ACCEPTED`, `DUPLICATE`, `REJECTED`, `UNMATCHED` | ingestion §2 | US-E01-13 | TB-ING |
 | ↳ | `RejectCode`: `SOURCE_DISABLED`, `UNKNOWN_TYPE`, `TYPE_NOT_ALLOWED`, `INVALID_DATA`, `INVALID_TIME`, `MEMBER_NOT_ACTIVE` | ingestion §5 | US-E01-03, US-E01-05 | TB-ING |
 | ↳ | origine: `EXTERNAL`, `INTERNAL`, `SIMULATOR` | ingestion §2 | US-E01-13 | TB-ING |
@@ -1888,7 +1890,7 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | ↳ | 422 `MEMBER_INVALID` (attributi/etichette non validi) | F-MBR-03 | US-E02-02, US-E02-07 | TB-GOV |
 | ↳ | primo completamento del profilo ⇒ `profile_completed_at` + `member.profile.completed` (una sola volta) | F-MBR-07, member §5 | US-E10-09 | TB-GOV |
 | ↳ | `member.updated` con snapshot completo | member §5 | US-E02-02 | TB-GOV |
-| ↳ | ⚠ nessuna guardia di ruolo sul PATCH di gestione | docs/08 §2 | US-E02-02, US-E08-06 | TB-GOV |
+| ↳ | PATCH di gestione solo ADMIN/CARE (`member.write`); il portale usa `PATCH /v1/portal/members/{id}` | docs/08 §2 | US-E02-02, US-E08-06 | TB-GOV |
 | MBR-03 `#changeStatus` | 404 · 409 `MEMBER_ANONYMIZED` | F-MBR-04 | US-E02-04 | TB-GOV |
 | ↳ | 400 destinazione ∉ {ACTIVE, INACTIVE, BLOCKED} | member §3 | US-E02-04 | TB-GOV |
 | ↳ | stesso stato ⇒ nessun fatto | nessuna | US-E02-04 | TB-GOV |
@@ -1935,7 +1937,7 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | ↳ | `POST /v1/members/{id}/anonymize` → ADMIN | `member.anonymize` | US-E02-05 | TB-GOV |
 | ↳ | `POST/PUT /v1/segments`, `…/refresh`, `…/members`, `PUT /v1/attribute-definitions` → MARKETING (+ ADMIN) | `segment.write` | US-E02-08…10, US-E02-07 | TB-GOV |
 | ↳ | `POST /v1/demo/jobs/refresh-segments` → ADMIN | `demo.admin` | US-E11-08 | TB-GOV |
-| ↳ | `POST /v1/members`, `PATCH /v1/members/{id}`, `POST /v1/segments/preview`, `PATCH /v1/portal/members/{id}` → nessuna guardia | ⚠ docs/08 §2 per i primi due | US-E02-01, US-E02-02, US-E10-09 | TB-GOV |
+| ↳ | `POST /v1/members`, `POST /v1/segments/preview`, `PATCH /v1/portal/members/{id}` → nessuna guardia; `PATCH /v1/members/{id}` ⇒ ADMIN, CARE | ⚠ docs/08 §2 per il primo | US-E02-01, US-E02-02, US-E10-09 | TB-GOV |
 | ↳ | ⛔ `POST /v1/demo/jobs/birthdays` assente (F-MBR-08, P2) | fuori perimetro | US-E02-13 | — |
 | MBR-21 enum | `MemberStatus`: `ACTIVE`, `INACTIVE`, `BLOCKED`, `ANONYMIZED` | F-MBR-04, Q-139 | US-E02-04 | TB-GOV |
 | ↳ | `MemberStatus.CLOSED` (mai assegnabile da API) | nessuna | — | TB-GOV |
@@ -1988,7 +1990,7 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | ↳ | array ⇒ vero se almeno un elemento soddisfa (non per `in/nin/contains/ncontains`) | docs/03 §3.3 | US-E03-06 | TB-CMP |
 | ↳ | tipi incompatibili, `between` senza 2 valori, confronti numerici su non numeri ⇒ falso, mai eccezione | docs/03 §3.3, Q-91 | US-E03-06 | TB-CMP |
 | ↳ | `context.dayOfWeek/hour/date` in Europe/Rome sul `time` dell'azione | docs/03 §3.3 | US-E03-06 | TB-CMP |
-| ↳ | ⚠ `context.source` = URN completo (`urn:loyaltyhub:source:ecommerce`) in valutazione reale, ma il valore passato così com'è in simulazione e il costruttore suggerisce «codice della fonte» | docs/03 §3.3, BO-06 | US-E03-06, US-E03-11 | TB-CMP |
+| ↳ | `context.source` = URN completo (`urn:loyaltyhub:source:ecommerce`) in valutazione reale e in simulazione (il codice semplice è normalizzato in URN); il costruttore suggerisce l'URN | docs/03 §3.3, docs/05 §2, BO-06 | US-E03-06, US-E03-11 | TB-CMP |
 | ↳ | `history.actionCount` (precedenti), `daysSinceLastAction` (nessuna storia ⇒ assente); `member.age`, `registeredDaysAgo` senza dato ⇒ assente | docs/03 §3.3 | US-E03-06 | TB-CMP |
 | CMP-17 `EvaluationService#evaluate` | `MATCHED` ⇒ consuma i limiti per ogni periodo dichiarato (nessun limite ⇒ traccia `ALWAYS`), totali, contatore azioni | docs/03 §3.5.5 | US-E03-09, US-E03-13 | TB-CMP |
 | ↳ | `NO_MATCH` con snapshot ⇒ solo contatore azioni (`history.*`) | nessuna | US-E03-06 | TB-CMP |
@@ -2001,7 +2003,7 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | ↳ | `POST /v1/campaigns/validate` ⇒ `{valid, errors[]}` senza salvare | campaign §3 | US-E03-01 | TB-CMP |
 | CMP-20 `#create` | 400 `code` mancante · 409 `CODE_TAKEN` | docs/06 §2 | US-E03-01 | TB-CMP |
 | ↳ | creata `DRAFT`, `priority` 100, pubblico «tutti», mai di sistema + audit | F-CMP-01 | US-E03-01 | TB-CMP |
-| ↳ | ⚠ nessuna guardia di ruolo: ANALYST/CARE/LEGAL possono creare | docs/06 §3, docs/08 §2 `object.edit` | US-E03-01, US-E08-06 | TB-CMP |
+| ↳ | creazione solo ADMIN/MARKETING: ANALYST/CARE/LEGAL ⇒ 403 `FORBIDDEN_ROLE` | docs/06 §3, docs/08 §2 `object.edit` | US-E03-01, US-E08-06 | TB-CMP |
 | CMP-21 `#update` | 409 `CODE_IMMUTABLE` · 409 `CAMPAIGN_NOT_EDITABLE` (ENDED, ARCHIVED) | Q-51 | US-E03-02 | TB-CMP |
 | ↳ | LIVE/PAUSED: modifica di trigger, pubblico, condizioni, effetti, limiti, `startAt`, gruppo, visibilità, etichette ⇒ 409 `CAMPAIGN_LIVE_LOCKED` | docs/03 §3.6, Q-51 | US-E03-02 | TB-CMP |
 | ↳ | LIVE/PAUSED: nome, descrizioni, icona, priorità, `endAt` ammessi | docs/03 §3.6 | US-E03-02 | TB-CMP |
@@ -2020,11 +2022,11 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | CMP-27 `CampaignTotalsHandler` | `wallet.points.earned` senza `campaignCode`/`amount` o `amount = 0` ⇒ ignorato; altrimenti `points_granted +=` | campaign §2 | US-E03-13 | TB-CMP |
 | CMP-28 `#stats` / budget | nessun limite globale ⇒ budget `null`; residuo = max(0, max − consumato); serie 30 gg dal registro | F-CMP-10 | US-E03-13 | TB-CMP |
 | CMP-29 Job | `CampaignCache.reload` ogni 30 s e a ogni scrittura | campaign §5 | US-E03-03 | TB-CMP |
-| ↳ | ⛔ fine automatica `LIVE/PAUSED` → `ENDED` a `endAt` superato (job al minuto) assente | campaign §5 | US-E03-19 | TB-CMP |
+| ↳ | fine automatica `LIVE/PAUSED` → `ENDED` a `endAt` superato (job al minuto con `loyaltyhub.jobs.enabled`; storico `END` di `system`, `campaign.status.changed`, audit `JOB`) | campaign §5 | US-E03-19 | TB-CMP |
 | ↳ | ⛔ pulizia `evaluation_log` > 30 gg assente | campaign §2, RNF-07 | US-E09-06 | TB-CMP |
 | CMP-30 Guardie | `PUT /v1/campaigns/{id}`, `POST …/duplicate` → ADMIN, MARKETING | `object.edit` | US-E03-02, US-E03-16 | TB-CMP |
 | ↳ | `POST …/transitions` → controllo in `GovernedTransitions` (ANALYST/CARE 403) | docs/06 §3 | US-E08-04 | TB-CMP |
-| ↳ | `POST /v1/campaigns`, `…/validate`, `…/simulate` → nessuna guardia (⚠ la creazione è una scrittura) | docs/06 §3 | US-E03-01, US-E03-11 | TB-CMP |
+| ↳ | `…/validate`, `…/simulate` → nessuna guardia; `POST /v1/campaigns` ⇒ ADMIN, MARKETING | docs/06 §3 | US-E03-01, US-E03-11 | TB-CMP |
 | CMP-31 enum | `CampaignStatus`: `DRAFT, IN_REVIEW, APPROVED, LIVE, PAUSED, ENDED, ARCHIVED` | docs/03 §3.6 | US-E03-03 | TB-CMP |
 | ↳ | `Outcome`: `MATCHED, NO_MATCH, NO_MEMBER` | campaign §2 | US-E03-05 | TB-CMP |
 | ↳ | `SkipReason`: `NOT_IN_SCHEDULE, AUDIENCE, CONDITION, EXCLUSIVE, LIMIT, BUDGET, EFFECT_NOT_SUPPORTED_YET` (⚠ F-CMP-09 elenca `NOT_LIVE`; docs/12 `MEMBER_LIMIT_REACHED`, `EXCLUSIVE_GROUP`) | docs/03 §3.5, Q-50 | US-E03-05 | TB-CMP |
@@ -2054,7 +2056,7 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | ↳ | lotto STS rilasciato ⇒ `periodSts` + verifica salita | docs/03 §4.3 | US-E04-02 | TB-WAL |
 | ↳ | nessun lotto dovuto ⇒ esito 0 | nessuna | US-E04-02 | TB-WAL |
 | WAL-05 `#expirePoints(asOf)` | lotti `ACTIVE` con `expiresAt ≤ asOf` ⇒ `EXPIRED`, `wallet.points.expired` | F-WAL-06 | US-E04-04 | TB-WAL |
-| ↳ | ⚠ un movimento `EXPIRE` **per lotto** (docs/03 §4.2: uno per membro/valuta col totale) | docs/03 §4.2 | US-E04-04 | TB-WAL |
+| ↳ | un movimento `EXPIRE` **per membro/valuta** col totale e un solo `wallet.points.expired` | docs/03 §4.2 | US-E04-04 | TB-WAL |
 | WAL-06 `#expiryWarnings(asOf)` | lotti in scadenza entro 30 gg non ancora preavvisati ⇒ flag + `wallet.points.expiring` | F-WAL-06, wallet §5 | US-E04-05 | TB-WAL |
 | ↳ | lotto già preavvisato ⇒ escluso | wallet §5 | US-E04-05 | TB-WAL |
 | WAL-07 `#adjustBalance` (F-WAL-07) | 422 `CURRENCY_NOT_ADJUSTABLE` (≠ PTS) | Q-46 | US-E04-06 | TB-WAL |
@@ -2254,7 +2256,7 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | ↳ | ⚠ ogni altro periodo (anche `DAY`, `WEEK` di docs/03 §8) ⇒ `EVER` | docs/03 §8 | US-E06-13 | TB-GAM |
 | ↳ | `COUNT` +1 · `SUM` del campo (troncato, ≤ 0 ignorato) · `DISTINCT_TYPES` (tipo nuovo) | docs/03 §8 | US-E06-13 | TB-GAM |
 | ↳ | `STREAK` (`DAY`/`WEEK`): stessa unità ⇒ invariato; unità successiva ⇒ +1; buco ⇒ 1 | docs/03 §8 | US-E06-13 | TB-GAM |
-| ↳ | filtro `all`/`any`; ⚠ campo assente ⇒ vero solo per `neq` (docs/03 §3.3: falso tranne `nexists`) | docs/03 §3.3 | US-E06-13 | TB-GAM |
+| ↳ | filtro `all`/`any`; campo assente o `null` ⇒ foglia falsa con ogni comparatore | docs/03 §3.3 | US-E06-13 | TB-GAM |
 | GAM-17 `AchievementAdminService` | 422 `ACHIEVEMENT_INVALID` · 422 `BADGE_INVALID` · 409 `CODE_TAKEN` · 409 `CODE_IMMUTABLE` · 404 | F-ACH-01 | US-E06-12 | TB-GAM |
 | GAM-18 `LeaderboardService` | `wallet.points.earned` con importo ≤ 0 ⇒ ignorato; classifiche PTS/STS della valuta ⇒ +importo effettivo | gamification §5 | US-E06-15 | TB-GAM |
 | ↳ | `ACTION_COUNT` ⇒ +1 se il tipo è elencato | F-LDB-01 | US-E06-15 | TB-GAM |
@@ -2452,17 +2454,16 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 
 | # | Regola | Fonte | Nodo | Storia |
 |---|---|---|---|---|
-| 1 | gestione delle fonti (abilita/disabilita, tipi ammessi) da BO-09 — `POST/PUT /v1/sources` | F-ING-05, ingestion §3 | ING-22 | US-E01-11 |
+| 1 | creazione di una fonte da BO-09 — `POST /v1/sources` (abilita/disabilita e tipi ammessi: `PUT /v1/sources/{code}` realizzato) | F-ING-05, ingestion §3 | ING-22 | US-E01-11 |
 | 2 | ritentare 3 volte un'azione il cui membro manca dallo snapshot, poi `NO_MEMBER` | campaign §5 | CMP-01 | US-E01-06, US-E03-05 |
 | 3 | limite `cooldownMinutes` | F-CMP-05, docs/03 §3.2 | CMP-10 | US-E03-09 |
 | 4 | limite `perMemberPoints` (tetto punti per membro) | F-CMP-05 | CMP-10 | US-E03-09 |
-| 5 | fine automatica delle campagne a `endAt` (job al minuto) | campaign §5 | CMP-29 | US-E03-19 |
-| 6 | pulizia `evaluation_log` > 30 gg | campaign §2, RNF-07 | CMP-29 | US-E09-06 |
-| 7 | pulizia `inbound_event` > 7 gg o > 20 000 righe | ingestion §2, RNF-07 | (nessun nodo: codice assente) | US-E09-06 |
-| 8 | pulizia `processed_event` > 14 gg | docs/06 §4, RNF-07 | CMN-11 | US-E09-06 |
-| 9 | `keepWarning` (avviso di mantenimento da ottobre) | docs/03 §4.3, wallet §3/§5, PT-01 | WAL-18 | US-E04-14, US-E10-01 |
-| 10 | `GET /v1/members/{id}/timeline` (insight) e `GET /v1/members/{id}/gamification` (riepilogo per BO-03) | insight §3, gamification §3 | INS-08 | US-E09-05, US-E02-06 |
-| 11 | `GET /v1/demo/info` | docs/06 §10, BO-30 | CMN-13 | US-E11-07 |
+| 5 | pulizia `evaluation_log` > 30 gg | campaign §2, RNF-07 | CMP-29 | US-E09-06 |
+| 6 | pulizia `inbound_event` > 7 gg o > 20 000 righe | ingestion §2, RNF-07 | (nessun nodo: codice assente) | US-E09-06 |
+| 7 | pulizia `processed_event` > 14 gg | docs/06 §4, RNF-07 | CMN-11 | US-E09-06 |
+| 8 | `keepWarning` (avviso di mantenimento da ottobre) | docs/03 §4.3, wallet §3/§5, PT-01 | WAL-18 | US-E04-14, US-E10-01 |
+| 9 | `GET /v1/members/{id}/timeline` (insight) e `GET /v1/members/{id}/gamification` (riepilogo per BO-03) | insight §3, gamification §3 | INS-08 | US-E09-05, US-E02-06 |
+| 10 | `GET /v1/demo/info` | docs/06 §10, BO-30 | CMN-13 | US-E11-07 |
 
 Fuori perimetro PoC (P2, non contate come lacune): F-ING-10 invio batch, F-MBR-08 compleanno (job e `POST /v1/demo/jobs/birthdays`), F-CMP-14 storno su reso.
 
@@ -2470,17 +2471,17 @@ Fuori perimetro PoC (P2, non contate come lacune): F-ING-10 invio batch, F-MBR-0
 
 | Modulo | Nodi | Righe | Foglie | Foglie con ≥ 1 storia | Foglie senza specifica | Rami ⚠ divergenti | Rami ⛔ |
 |---|--:|--:|--:|--:|--:|--:|--:|
-| 5.2 ingestion-service | 23 | 91 | 107 | 107 | 13 | 1 | 1 |
-| 5.3 member-service | 21 | 61 | 84 | 83 | 7 | 2 | 1 |
-| 5.4 campaign-service | 31 | 83 | 106 | 106 | 8 | 5 | 5 |
-| 5.5 wallet-service | 21 | 80 | 110 | 109 | 11 | 2 | 1 |
+| 5.2 ingestion-service | 23 | 91 | 107 | 107 | 13 | 0 | 1 |
+| 5.3 member-service | 21 | 61 | 84 | 83 | 7 | 1 | 1 |
+| 5.4 campaign-service | 31 | 83 | 106 | 106 | 8 | 2 | 4 |
+| 5.5 wallet-service | 21 | 80 | 110 | 109 | 11 | 1 | 1 |
 | 5.6 reward-service | 26 | 79 | 116 | 116 | 5 | 1 | 0 |
-| 5.7 gamification-service | 22 | 71 | 112 | 112 | 8 | 2 | 0 |
+| 5.7 gamification-service | 22 | 71 | 112 | 112 | 8 | 1 | 0 |
 | 5.8 engagement-service | 25 | 55 | 121 | 121 | 2 | 1 | 0 |
 | 5.9 insight-service | 10 | 25 | 40 | 40 | 2 | 0 | 1 |
 | 5.10 libs/lh-common | 14 | 42 | 47 | 46 | 6 | 0 | 2 |
 | 5.11 web (`web/lib`, `web/app/api`) | 18 | 32 | 35 | 35 | 2 | 1 | 0 |
-| **Totale** | **211** | **619** | **878** | **875** | **64** | **15** | **11** |
+| **Totale** | **211** | **619** | **878** | **875** | **64** | **8** | **10** |
 
 Regole di conteggio: *nodo* = riga con identificativo (`ING-01`…); *foglia* = esito distinto: in una riga normale 1 + il numero di alternative separate da « · » nella colonna *Rami / esiti*; in una riga «enum» un valore per foglia; *senza specifica* = foglie della riga con *Regola* «nessuna»; ⚠ e ⛔ contano le righe che li riportano (le ⛔ includono la voce P2 del compleanno; l'elenco puntuale è in §5.12). Codici d'errore: **114** codici HTTP (§5.1: 108 specifici + 6 generici; **24** senza una regola di specifica che li nomini), **10** codici DLQ (§5.1 bis), **6** codici di rifiuto dell'ingresso (`RejectCode`) con 4 esiti (`InboundStatus`).
 
@@ -2502,7 +2503,7 @@ Stato alla data del documento: docs/16 non ha ancora righe `TB-*` e `docs/testbo
 | US-E01-08 | F-ING-07 | TB-ING | pianificata |
 | US-E01-09 | F-ING-08, F-IW-06 | TB-ING | pianificata |
 | US-E01-10 | F-ING-08 | TB-ING | pianificata |
-| US-E01-11 | F-ING-05 | TB-ING | pianificata (⛔ API assente) |
+| US-E01-11 | F-ING-05 | TB-ING | pianificata (⛔ `POST /v1/sources` assente) |
 | US-E01-12 | F-ING-06 | TB-ING | pianificata |
 | US-E01-13 | F-ING-09 | TB-ING, TB-WEB | pianificata |
 | US-E01-14 | F-ING-10 | — | fuori perimetro PoC |
@@ -2537,7 +2538,7 @@ Stato alla data del documento: docs/16 non ha ancora righe `TB-*` e `docs/testbo
 | US-E03-16 | F-CMP-13 | TB-CMP | pianificata |
 | US-E03-17 | F-CMP-04 (idempotenza), RNF-03 | TB-CMP | pianificata |
 | US-E03-18 | F-CMP-14 | — | fuori perimetro PoC |
-| US-E03-19 | F-CMP-02 | TB-CMP | pianificata (⛔ job assente) |
+| US-E03-19 | F-CMP-02 | TB-CMP | pianificata |
 | US-E04-01 | F-WAL-01, F-WAL-02, F-WAL-03, F-TIER-03 | TB-WAL | pianificata |
 | US-E04-02 | F-WAL-05 | TB-WAL | pianificata |
 | US-E04-03 | F-TIER-02 | TB-WAL | pianificata |
@@ -2716,9 +2717,9 @@ Anche tutte le schermate sono raggiunte: BO-01…BO-30, PT-01…PT-14 e HUB-01 c
 | · associate ad almeno una storia | 875 |
 | · senza storia (§6.3) | 3 |
 | · rami senza specifica | 64 |
-| · rami ⚠ divergenti dalla specifica (righe) | 15 |
+| · rami ⚠ divergenti dalla specifica (righe) | 8 |
 | Codici d'errore HTTP / DLQ / rifiuto ingresso | 114 / 10 / 6 |
-| Regole di specifica senza codice (§5.12) | 11 (+ 3 feature P2 fuori perimetro) |
+| Regole di specifica senza codice (§5.12) | 10 (+ 3 feature P2 fuori perimetro) |
 
 Dettaglio per modulo in §5.13. I conteggi sono ricavati contando le righe del documento: vanno rifatti a ogni modifica di §4–§6.
 
@@ -2728,14 +2729,14 @@ Le righe `TB-*` vanno scritte partendo dai **criteri** delle storie (oracolo = s
 
 | Dominio | Cosa aggiungere (oltre ai criteri delle storie) |
 |---|---|
-| **TB-ING** | ordine della pipeline con fallimenti multipli (una riga per coppia di passi); limiti esatti di `time` (+5 min, −30 gg, cambio d'ora); subject senza prefisso (ramo senza specifica); gara sull'insert; *Riprova*/*Abbina* per ogni stato × ruolo; abbinamento automatico: 7 gg ± 1 s, 100/101 righe, `member:` escluso; ponte: ognuna delle 9 mappature accesa/spenta, `lhhop` 2/3; `X-LH-Reprocess` × ruolo × payload presente/assente; divergenza origine `SIMULATOR`; ⛔ gestione fonti (righe in divergenza). |
-| **TB-CMP** | tabella decisionale del motore (calendario × pubblico × condizioni × gruppo × limiti × budget) con l'ordine dei controlli; arrotondamenti PER_AMOUNT su valori limite (x,99 / x,50); moltiplicatori con tetto e con etichette; confini di periodo DAY/WEEK/MONTH/EDITION in Europe/Rome (mezzanotte, cambio d'ora, 31→1); ⚠ `context.source` reale vs simulazione; ⛔ `cooldownMinutes`, `perMemberPoints`, ritentativo `NO_MEMBER`, fine automatica a `endAt`; ⚠ nomi dei motivi (`NOT_LIVE`, `MEMBER_LIMIT_REACHED`, `EXCLUSIVE_GROUP`) da riallineare con docs/12; guardia mancante su `POST /v1/campaigns`. |
-| **TB-WAL** | FIFO con lotti a pari scadenza, scadenza nulla, lotti PENDING esclusi; rimborso con lotti d'origine scaduti (⚠ Q-54 vs docs/03 §4.2); ⚠ un `EXPIRE` per lotto; chiusura edizione: matrice tier attuale (4) × tier guadagnato (4), membri non ACTIVE, nessuna edizione PLANNED; `ROLLING_MONTHS` a fine mese con guadagno a cavallo della mezzanotte UTC/Rome e 29 febbraio; ordine degli effetti PTS/STS nella salita (WAL-01); cron senza zona dei job; ⛔ `keepWarning`. |
+| **TB-ING** | ordine della pipeline con fallimenti multipli (una riga per coppia di passi); limiti esatti di `time` (+5 min, −30 gg, cambio d'ora); subject senza prefisso (ramo senza specifica); gara sull'insert; *Riprova*/*Abbina* per ogni stato × ruolo; abbinamento automatico: 7 gg ± 1 s, 100/101 righe, `member:` escluso; ponte: ognuna delle 9 mappature accesa/spenta, `lhhop` 2/3; `X-LH-Reprocess` × ruolo × payload presente/assente; origine `SIMULATOR` del simulatore; `PUT /v1/sources/{code}` × ruolo; ⛔ `POST /v1/sources` (righe in divergenza). |
+| **TB-CMP** | tabella decisionale del motore (calendario × pubblico × condizioni × gruppo × limiti × budget) con l'ordine dei controlli; arrotondamenti PER_AMOUNT su valori limite (x,99 / x,50); moltiplicatori con tetto e con etichette; confini di periodo DAY/WEEK/MONTH/EDITION in Europe/Rome (mezzanotte, cambio d'ora, 31→1); `context.source` reale = simulazione (URN o codice); fine automatica a `endAt` (confine incluso); ⛔ `cooldownMinutes`, `perMemberPoints`, ritentativo `NO_MEMBER`; ⚠ nomi dei motivi (`NOT_LIVE`, `MEMBER_LIMIT_REACHED`, `EXCLUSIVE_GROUP`) da riallineare con docs/12; guardia su `POST /v1/campaigns` × ruolo. |
+| **TB-WAL** | FIFO con lotti a pari scadenza, scadenza nulla, lotti PENDING esclusi; rimborso con lotti d'origine scaduti (⚠ Q-54 vs docs/03 §4.2); un solo `EXPIRE` per membro/valuta con più lotti; chiusura edizione: matrice tier attuale (4) × tier guadagnato (4), membri non ACTIVE, nessuna edizione PLANNED; `ROLLING_MONTHS` a fine mese con guadagno a cavallo della mezzanotte UTC/Rome e 29 febbraio; ordine degli effetti PTS/STS nella salita (WAL-01); cron senza zona dei job; ⛔ `keepWarning`. |
 | **TB-RWD** | ordine dei 7 controlli della richiesta (una riga per coppia di condizioni vere); stato × evento della saga (PENDING/CONFIRMED/FULFILLED/REJECTED/CANCELLED × spent/rejected/timeout/annullo membro/annullo CARE); `LOW` al 10 % esatto; coupon `ISSUED` scaduto prima del job (410); premio AUTO_COUPON senza pool (ramo senza specifica); ⚠ `REWARD_NOT_EDITABLE` per stato. |
-| **TB-GAM** | ordine dei controlli della giocata; gratuita a cavallo della mezzanotte di Roma; `maxWinsPerMember`; concorrenza (50 giocate/1 istante; stesso membro in parallelo); `BUSINESS_HOURS` nei giorni del cambio d'ora; ⚠ periodi `DAY`/`WEEK` degli obiettivi trattati come `EVER`; ⚠ filtro obiettivi con campo assente e `neq`; `PAUSED` non chiusi dal job; classifiche con parimerito e membri non ACTIVE. |
-| **TB-GOV** | tabella completa stato (7) × azione (8) × ruolo (5) × policy (richiesta sì/no) per CAMPAIGN, REWARD, CONTEST, più la tabella dei contenuti; override ADMIN in audit; approvazione spenta; matrice `@RequiresRole` endpoint × ruolo (§5, nodi «Guardie») con le 2 guardie mancanti (⚠ `POST /v1/campaigns`, `POST/PATCH /v1/members`); `X-LH-Actor` malformato; membri: stati × azioni, anonimizzazione propagata servizio per servizio; segmenti: criteri su ogni campo di docs/03 §10. |
+| **TB-GAM** | ordine dei controlli della giocata; gratuita a cavallo della mezzanotte di Roma; `maxWinsPerMember`; concorrenza (50 giocate/1 istante; stesso membro in parallelo); `BUSINESS_HOURS` nei giorni del cambio d'ora; ⚠ periodi `DAY`/`WEEK` degli obiettivi trattati come `EVER`; filtro obiettivi con campo assente e `neq` (falso); `PAUSED` non chiusi dal job; classifiche con parimerito e membri non ACTIVE. |
+| **TB-GOV** | tabella completa stato (7) × azione (8) × ruolo (5) × policy (richiesta sì/no) per CAMPAIGN, REWARD, CONTEST, più la tabella dei contenuti; override ADMIN in audit; approvazione spenta; matrice `@RequiresRole` endpoint × ruolo (§5, nodi «Guardie») con la guardia mancante su `POST /v1/members` (⚠, registrazione dal portale) e quelle aggiunte su `POST /v1/campaigns`, `PATCH /v1/members/{id}`; `X-LH-Actor` malformato; membri: stati × azioni, anonimizzazione propagata servizio per servizio; segmenti: criteri su ogni campo di docs/03 §10. |
 | **TB-ENG** | pubblico dei contenuti (⚠ AND tra tier, segmenti, stati); frequenza pop-up × giorno di Roma; limiti per posizione; template con segnaposto assenti e formattatori su tipi sbagliati; deduplica inbox; ANONYMIZED/BLOCKED; webhook: URL policy per profilo, tabella dei 4 tentativi, 2xx/3xx/4xx/5xx/timeout, *Riprova* per stato. |
-| **TB-WEB** | stati *loading/empty/error/degraded/forbidden/validation/stale* per ogni schermata (docs/07 §6); matrice capacità × ruolo in UI; ordine dei motivi di blocco in PT-04; `SERVICE_ASLEEP`; keep-alive e polling di stato; «in arrivo…» con timeout 20 s; ⚠ personas diverse da docs/10. |
+| **TB-WEB** | stati *loading/empty/error/degraded/forbidden/validation/stale* per ogni schermata (docs/07 §6); matrice capacità × ruolo in UI; ordine dei motivi di blocco in PT-04; `SERVICE_ASLEEP`; keep-alive e polling di stato; «in arrivo…» con timeout 20 s; personas di docs/10 (⚠ `seed/personas.json` assente). |
 
 **Domini da aggiungere a docs/16 §2** (proposta):
 
@@ -2745,4 +2746,4 @@ Le righe `TB-*` vanno scritte partendo dai **criteri** delle storie (oracolo = s
 | **TB-E2E** (percorsi tra servizi) | una riga per percorso reale, oracolo = sequenza di fatti attesa in **un** tracciato + stato finale in ogni servizio + ciò che vede il portale: tier-up con bonus e messaggi; premio coupon; premio fisico con evasione CARE; saldo insufficiente; vincita garantita; scadenza con preavviso; cliente digitale con segmento e contenuto; referral; onboarding; smoke. Varianti reali da includere: **servizio addormentato a metà percorso** (wallet giù durante la saga: conferma entro 10 min / timeout / spesa tardiva con rimborso), **riconsegna** di un messaggio a metà catena, **reset** tra due esecuzioni, **ora di Roma** vicino alla mezzanotte e al cambio d'ora, **due azioni dello stesso membro ravvicinate** (limiti e salita di livello) | US-E10-03…07, US-E10-13…16, US-E11-09 |
 | **TB-PLT** (piattaforma) | outbox con Kafka giù, retry e DLQ per tipo di errore, idempotenza generica, contratti evento, errori RFC 9457, reset idempotente dei seed, RNF misurabili | US-E11-07, US-E12-01, US-E12-03, US-E12-05, US-E12-06, US-E12-08 |
 
-**Da registrare prima di scrivere le righe** (divergenze e buchi emersi in §5, da portare in docs/15 e poi nel registro di docs/16 §12): guardie di ruolo mancanti (campagne, membri); `context.source` URN; ⛔ `cooldownMinutes`, `perMemberPoints`, ritentativo `NO_MEMBER`, fine automatica campagne, `keepWarning`, gestione fonti, `timeline` e riepilogo gamification per BO-03, `/v1/demo/info`, pulizie `processed_event`/`inbound_event`/`evaluation_log`; ⚠ `EXPIRE` per lotto, scadenza del rimborso, periodi `DAY`/`WEEK` degli obiettivi, filtro obiettivi su campo assente, AND nel pubblico dei contenuti, origine del simulatore, `MemberStatus.CLOSED`, personas; nomi dei motivi in docs/12 (Q-50 esteso a `MEMBER_LIMIT_REACHED`).
+**Da registrare prima di scrivere le righe** (divergenze e buchi emersi in §5, da portare in docs/15 e poi nel registro di docs/16 §12): guardia di ruolo mancante su `POST /v1/members`; ⛔ `cooldownMinutes`, `perMemberPoints`, ritentativo `NO_MEMBER`, `keepWarning`, creazione di fonti (`POST /v1/sources`), `timeline` e riepilogo gamification per BO-03, `/v1/demo/info`, pulizie `processed_event`/`inbound_event`/`evaluation_log`; ⚠ scadenza del rimborso, periodi `DAY`/`WEEK` degli obiettivi, AND nel pubblico dei contenuti, `MemberStatus.CLOSED`, `seed/personas.json`; nomi dei motivi in docs/12 (Q-50 esteso a `MEMBER_LIMIT_REACHED`).

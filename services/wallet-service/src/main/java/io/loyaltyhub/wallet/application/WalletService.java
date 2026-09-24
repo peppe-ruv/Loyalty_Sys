@@ -301,33 +301,45 @@ public class WalletService {
     }
 
     /**
-     * Scade i lotti {@code ACTIVE} con {@code expires_at ≤ asOf} (docs §5, F-WAL-06). Riduce il saldo attivo,
-     * incrementa {@code lifetime_expired}, scrive un movimento {@code EXPIRE} e produce
-     * {@code wallet.points.expired}. Idempotente: un lotto già {@code EXPIRED} non viene scaduto due volte.
+     * Scade i lotti {@code ACTIVE} con {@code expires_at ≤ asOf} (docs §5, F-WAL-06). Per ogni membro/valuta
+     * (docs/03 §4.2): i lotti diventano {@code EXPIRED}, il saldo attivo scende del totale, {@code lifetime_expired}
+     * cresce, un solo movimento {@code EXPIRE} col totale e un solo {@code wallet.points.expired} ({@code lotId} solo se
+     * il lotto è uno). Idempotente: un lotto già {@code EXPIRED} non viene scaduto due volte.
      */
     @Transactional
     public JobOutcome expirePoints(Instant asOf) {
         List<PointsLot> expired = lots.findActiveExpired(asOf);
+        // Ordinati per membro, valuta, scadenza: gruppi contigui per (membro, valuta).
+        java.util.Map<String, List<PointsLot>> groups = new java.util.LinkedHashMap<>();
+        for (PointsLot lot : expired) {
+            groups.computeIfAbsent(lot.memberId() + "|" + lot.currency(), k -> new java.util.ArrayList<>()).add(lot);
+        }
         java.util.Set<String> members = new java.util.HashSet<>();
         long total = 0;
-        for (PointsLot lot : expired) {
-            wallets.lock(lot.memberId(), lot.currency());
-            long amount = lot.remaining();
-            lots.markExpired(lot.id());
-            long balanceAfter = wallets.expire(lot.memberId(), lot.currency(), amount);
+        for (List<PointsLot> group : groups.values()) {
+            PointsLot first = group.getFirst();
+            wallets.lock(first.memberId(), first.currency());
+            long amount = 0;
+            for (PointsLot lot : group) {
+                lots.markExpired(lot.id());
+                amount += lot.remaining();
+            }
+            long balanceAfter = wallets.expire(first.memberId(), first.currency(), amount);
             String ledgerId = Ulid.next(clock);
-            LedgerEntry entry = new LedgerEntry(ledgerId, lot.memberId(), lot.currency(), "EXPIRE",
+            LedgerEntry entry = new LedgerEntry(ledgerId, first.memberId(), first.currency(), "EXPIRE",
                     amount, "-", balanceAfter, asOf, "SYSTEM", null, "Scadenza punti", null);
             ledger.insert(entry, null, null, null, "system:jobs");
 
             ObjectNode data = mapper.createObjectNode();
             data.put("ledgerEntryId", ledgerId);
-            data.put("lotId", lot.id());
-            data.put("currency", lot.currency());
+            if (group.size() == 1) {
+                data.put("lotId", first.id());
+            }
+            data.put("currency", first.currency());
             data.put("amount", amount);
             data.put("balanceAfter", balanceAfter);
-            outbox.write(events.newRoot(LhEventTypes.Fact.WALLET_POINTS_EXPIRED, "member:" + lot.memberId(), data));
-            members.add(lot.memberId());
+            outbox.write(events.newRoot(LhEventTypes.Fact.WALLET_POINTS_EXPIRED, "member:" + first.memberId(), data));
+            members.add(first.memberId());
             total += amount;
         }
         if (!expired.isEmpty()) {
