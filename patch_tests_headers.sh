@@ -1,0 +1,3 @@
+#!/bin/bash
+sed -i 's/new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8))/new RecordHeader(LhHeaders.CORRELATION_ID, id.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", id.getBytes(StandardCharsets.UTF_8))/g' deploy/hub/src/test/java/io/loyaltyhub/hub/HubRedeliveryIT.java
+sed -i 's/new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8))/new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", eventId.getBytes(StandardCharsets.UTF_8))/g' deploy/hub/src/test/java/io/loyaltyhub/hub/HubRedeliveryIT.java
