@@ -259,7 +259,55 @@ class UnmatchedResolutionIT {
         assertThat(status(rowId)).as("resta parcheggiato per l'operatore").isEqualTo("UNMATCHED");
     }
 
+    // ---------- conteggi per esito (BO-26: "schede per esito con conteggi") ----------
+
+    @Test
+    void countsPerOutcomeFollowTheListFiltersAndIncludeDuplicates() {
+        String sourceCode = "itcnt" + SEQ.incrementAndGet();
+        sources.upsert(new Source(sourceCode, "Fonte conteggi IT", "HTTP", true, List.of(), null));
+        String active = freshMember("ACTIVE");
+        String blocked = freshMember("BLOCKED");
+
+        JsonNode empty = counts("?source=" + sourceCode);
+        assertThat(empty.propertyNames()).containsExactly("ACCEPTED", "DUPLICATE", "REJECTED", "UNMATCHED");
+        assertThat(countsOf(empty)).containsExactly(0L, 0L, 0L, 0L);
+
+        String acceptedId = Ulid.next(Clock.systemUTC());
+        assertThat(postEvent(purchase(acceptedId, "member:" + active, sourceCode)).path("status").asString()).isEqualTo("ACCEPTED");
+        // Due reinvii dalla fonte: due righe DUPLICATE nel monitor (docs/servizi/ingestion-service.md §5), nulla pubblicato.
+        assertThat(postEvent(purchase(acceptedId, "member:" + active, sourceCode)).path("status").asString()).isEqualTo("DUPLICATE");
+        assertThat(postEvent(purchase(acceptedId, "member:" + active, sourceCode)).path("status").asString()).isEqualTo("DUPLICATE");
+        assertThat(postEvent(purchase(Ulid.next(Clock.systemUTC()), "member:" + blocked, sourceCode)).path("rejectCode").asString())
+                .isEqualTo("MEMBER_NOT_ACTIVE");
+        String unmatchedId = Ulid.next(Clock.systemUTC());
+        assertThat(postEvent(purchase(unmatchedId, "external:NOPE-" + unmatchedId, sourceCode)).path("status").asString())
+                .isEqualTo("UNMATCHED");
+
+        assertThat(countsOf(counts("?source=" + sourceCode))).containsExactly(1L, 2L, 1L, 1L);
+        // Stessi filtri dell'elenco: membro e tipo restringono; l'esito è la dimensione del conteggio (ignorato).
+        assertThat(countsOf(counts("?source=" + sourceCode + "&memberId=" + active))).containsExactly(1L, 2L, 0L, 0L);
+        assertThat(countsOf(counts("?source=" + sourceCode + "&type=purchase.completed&status=ACCEPTED")))
+                .containsExactly(1L, 2L, 1L, 1L);
+        assertThat(countsOf(counts("?source=" + sourceCode + "&type=survey.completed"))).containsExactly(0L, 0L, 0L, 0L);
+
+        // Coerenti con l'elenco della scheda.
+        Response duplicates = call("GET", "/v1/inbound-events?source=" + sourceCode + "&status=DUPLICATE", null, null);
+        assertThat(duplicates.body.size()).isEqualTo(2);
+        assertThat(duplicates.body.get(0).path("rejectDetail").asString()).contains("stessa fonte");
+    }
+
     // ---------- helper ----------
+
+    private JsonNode counts(String query) {
+        Response r = call("GET", "/v1/inbound-events/counts" + query, null, null);
+        assertThat(r.status).isEqualTo(200);
+        return r.body;
+    }
+
+    private static List<Long> countsOf(JsonNode counts) {
+        return List.of(counts.path("ACCEPTED").asLong(-1), counts.path("DUPLICATE").asLong(-1),
+                counts.path("REJECTED").asLong(-1), counts.path("UNMATCHED").asLong(-1));
+    }
 
     private record Response(int status, JsonNode body) {
     }

@@ -640,6 +640,64 @@ if (Array.isArray(templatesSeed)) {
   }
 }
 
+// Riferimenti incrociati residui (AUDIT-SEED-1): ciò che i controlli sopra non coprono ancora.
+{
+  const memberIds = new Set((readSeed("members.json") ?? []).map((m) => m.id));
+  const tierCodes = new Set((readSeed("tiers.json") ?? []).map((t) => t.code));
+  const bandCodes = new Set((readSeed("reward-bands.json") ?? []).map((b) => b.code));
+  const categoryCodes = new Set((readSeed("reward-categories.json") ?? []).map((c) => c.code));
+  const typeCodes = new Set((readSeed("event-types.json") ?? []).map((t) => t.code));
+  const contestCodes = new Set((readSeed("contests.json") ?? []).map((c) => c.code));
+  const sourcesSeed = readSeed("sources.json") ?? [];
+  const sourceCodes = new Set(sourcesSeed.map((x) => x.code));
+  // Tipi accettati da almeno una fonte esterna abilitata (internal e simulator non hanno elenco: ponte e demo).
+  const allowedByEnabled = new Set(sourcesSeed.filter((x) => x.enabled !== false).flatMap((x) => x.allowedTypes ?? []));
+
+  for (const m of readSeed("members.json") ?? []) {
+    if (m.referredBy && !memberIds.has(m.referredBy)) errors.push(`members.json: ${m.id} invitato da ${m.referredBy}, che non esiste`);
+  }
+  for (const w of readSeed("wallets.json") ?? []) {
+    if (!memberIds.has(w.memberId)) errors.push(`wallets.json: wallet del membro inesistente ${w.memberId}`);
+    if (w.tier && !tierCodes.has(w.tier)) errors.push(`wallets.json: ${w.memberId} ha il livello inesistente ${w.tier}`);
+  }
+  for (const r of readSeed("rewards.json") ?? []) {
+    if (r.band && !bandCodes.has(r.band)) errors.push(`rewards.json: ${r.code} usa la fascia inesistente ${r.band}`);
+    if (r.category && !categoryCodes.has(r.category)) errors.push(`rewards.json: ${r.code} usa la categoria inesistente ${r.category}`);
+    for (const t of r.eligibleTiers ?? []) if (!tierCodes.has(t)) errors.push(`rewards.json: ${r.code} ammette il livello inesistente ${t}`);
+  }
+  for (const c of readSeed("campaigns.json") ?? []) {
+    for (const t of c.triggerActionTypes ?? []) {
+      if (!typeCodes.has(t)) errors.push(`campaigns.json: ${c.code} scatta sul tipo azione inesistente ${t}`);
+      // I tipi interni (ponte) arrivano da "internal": nessuna fonte esterna li deve ammettere.
+      const internalOnly = (readSeed("event-types.json") ?? []).find((x) => x.code === t)?.category === "INTERNAL";
+      if (typeCodes.has(t) && !internalOnly && !allowedByEnabled.has(t)) {
+        warnings.push(`campaigns.json: ${c.code} scatta su ${t}, che nessuna fonte esterna abilitata ammette (solo simulatore o ponte)`);
+      }
+    }
+    for (const e of c.effects ?? []) {
+      if (e.type === "GRANT_PLAYS" && !contestCodes.has(e.contestCode)) errors.push(`campaigns.json: ${c.code} dà giocate al concorso inesistente ${e.contestCode}`);
+    }
+  }
+  for (const sg of readSeed("segments.json") ?? []) {
+    for (const id of sg.expectedMembers ?? []) if (!memberIds.has(id)) errors.push(`segments.json: ${sg.code} attende il membro inesistente ${id}`);
+  }
+  for (const a of readSeed("activity-history.json")?.memberActivity ?? []) {
+    if (!memberIds.has(a.memberId)) errors.push(`activity-history.json: attività del membro inesistente ${a.memberId}`);
+  }
+  // Scenari (docs/10 §8): esiti della pipeline e riferimenti. Un passo negativo può citare apposta una fonte
+  // sconosciuta (expect REJECTED, Q-129) o un membro sconosciuto (expect UNMATCHED).
+  const OUTCOMES = new Set(["ACCEPTED", "DUPLICATE", "REJECTED", "UNMATCHED"]);
+  for (const sc of readSeed("scenarios.json") ?? []) {
+    (sc.steps ?? []).forEach((st, i) => {
+      const w = `scenarios.json: ${sc.code} passo ${i + 1}`;
+      if (st.expect && !OUTCOMES.has(st.expect)) errors.push(`${w} attende l'esito inesistente ${st.expect}`);
+      if (!typeCodes.has(st.type)) errors.push(`${w} usa il tipo azione inesistente ${st.type}`);
+      if (st.source && !sourceCodes.has(st.source) && st.expect !== "REJECTED") errors.push(`${w} usa la fonte inesistente ${st.source}`);
+      if (st.memberId && !memberIds.has(st.memberId) && st.expect !== "UNMATCHED") errors.push(`${w} usa il membro inesistente ${st.memberId}`);
+    });
+  }
+}
+
 for (const w of warnings) console.warn(`⚠ ${w}`);
 if (errors.length > 0) {
   for (const e of errors) console.error(`✗ ${e}`);

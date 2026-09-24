@@ -18,6 +18,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Monitor ingressi (docs/servizi/ingestion-service.md §3, BO-26, F-ING-09): elenco per esito, dettaglio con il
@@ -58,6 +59,18 @@ public class InboundEventsController {
             @RequestParam(required = false) String memberId,
             @RequestParam(defaultValue = "100") int limit) {
         return repository.search(status, source, type, memberId, Math.min(Math.max(limit, 1), 500));
+    }
+
+    /**
+     * Conteggi per esito per le schede di BO-26 ("schede per esito con conteggi", docs/08): stessi filtri dell'elenco
+     * tranne l'esito, che è la dimensione del conteggio. Risposta {@code {ACCEPTED, DUPLICATE, REJECTED, UNMATCHED}}.
+     */
+    @GetMapping("/counts")
+    public Map<String, Long> counts(
+            @RequestParam(required = false) String source,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String memberId) {
+        return repository.countByStatus(source, type, memberId);
     }
 
     @GetMapping("/{id}")

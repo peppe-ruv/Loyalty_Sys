@@ -1,5 +1,19 @@
 import { describe, it, expect, vi } from "vitest";
-import { insightBaseUrl, streamUrl, familyColorVar } from "./sse";
+import { insightBaseUrl, streamUrl, familyColorVar, liveFeedView } from "./sse";
+
+describe("stati del flusso live (BO-24, docs/07 §6)", () => {
+  it("senza righe: scheletro in collegamento, ambra se disconnesso, attesa se collegato", () => {
+    expect(liveFeedView("connecting", 0)).toBe("loading");
+    expect(liveFeedView("disconnected", 0)).toBe("degraded");
+    expect(liveFeedView("live", 0)).toBe("empty");
+    expect(liveFeedView("reduced", 0)).toBe("empty");
+  });
+  it("con righe già arrivate le tiene, qualunque sia lo stato", () => {
+    expect(liveFeedView("disconnected", 3)).toBe("rows");
+    expect(liveFeedView("connecting", 1)).toBe("rows");
+    expect(liveFeedView("live", 12)).toBe("rows");
+  });
+});
 
 describe("realtime/sse", () => {
   it("recupera l'URL base da env", () => {

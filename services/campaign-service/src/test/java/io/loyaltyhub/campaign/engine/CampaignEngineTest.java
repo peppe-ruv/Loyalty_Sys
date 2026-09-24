@@ -748,6 +748,26 @@ class CampaignEngineTest {
         return ev.effects().stream().filter(g -> g.currency().equals(currency)).findFirst().orElseThrow();
     }
 
+    /**
+     * AUD-BE-02: l'età si calcola al giorno di business dell'azione in Europe/Rome, non con l'orologio di sistema
+     * (simulazioni e macchina del tempo restano coerenti). Nato il 25/09/2000: 24 anni fino al 24/09/2025 in Roma.
+     */
+    @Test
+    void memberAgeUsesTheActionDayInRome() {
+        MemberSnapshot born = new MemberSnapshot("MBR-000003", "ACTIVE", "SILVER", List.of(), List.of(),
+                JSON.createObjectNode(), Instant.parse("2024-01-01T00:00:00Z"), java.time.LocalDate.parse("2000-09-25"));
+        JsonNode adult25 = JSON.readTree("{\"field\":\"member.age\",\"cmp\":\"gte\",\"value\":25}");
+        // 2025-09-24T21:59Z = 23:59 del 24 a Roma (CEST) → ancora 24 anni.
+        assertThat(new ConditionEvaluator(action("purchase.completed", Instant.parse("2025-09-24T21:59:00Z"),
+                JSON.createObjectNode()), born, null).evaluate(adult25).pass()).isFalse();
+        // 2025-09-24T22:00Z = 00:00 del 25 a Roma → 25 anni, anche se in UTC è ancora il 24.
+        assertThat(new ConditionEvaluator(action("purchase.completed", Instant.parse("2025-09-24T22:00:00Z"),
+                JSON.createObjectNode()), born, null).evaluate(adult25).pass()).isTrue();
+        // Azioni lontane nel tempo (demo con macchina del tempo): nessun legame con l'orologio di sistema.
+        assertThat(new ConditionEvaluator(action("purchase.completed", Instant.parse("2010-06-01T10:00:00Z"),
+                JSON.createObjectNode()), born, null).evaluate(adult25).pass()).isFalse();
+    }
+
     private EvalAction purchase(Instant t, double amount) {
         return action("purchase.completed", t, JSON.createObjectNode().put("amount", amount).put("currency", "EUR"));
     }

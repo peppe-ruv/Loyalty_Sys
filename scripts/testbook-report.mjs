@@ -6,7 +6,8 @@ import { readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 const [junitDir = "target/testbook/junit", outFile = "target/testbook/rapporto.md"] = process.argv.slice(2);
-const ID = /TB-[A-Z]{3}-\d{3,4}/g;
+// ID riga: TB-<DOMINIO>-NNN oppure TB-<DOMINIO>-<AREA>-NNN (es. TB-WAL-GRT-001).
+const ID = /TB-[A-Z]{3}(?:-[A-Z]{2,5})?-\d{3,4}/g;
 
 // 1. Righe documentate.
 const docFiles = ["docs/16-TESTBOOK-FUNZIONALE.md"];
@@ -17,7 +18,7 @@ const documented = new Map(); // id → file
 for (const f of docFiles) {
   for (const line of readFileSync(f, "utf8").split("\n")) {
     // Una riga documentata è una riga di tabella che inizia con l'ID.
-    const m = line.match(/^\|\s*`?(TB-[A-Z]{3}-\d{3,4})`?\s*\|/);
+    const m = line.match(/^\|\s*`?(TB-[A-Z]{3}(?:-[A-Z]{2,5})?-\d{3,4})`?\s*\|/);
     if (m && !documented.has(m[1])) documented.set(m[1], f);
   }
 }
@@ -36,7 +37,7 @@ for (const f of files) {
     const name = decode((attrs.match(/\bname="([^"]*)"/) || [])[1] ?? "");
     const cls = decode((attrs.match(/\bclassname="([^"]*)"/) || [])[1] ?? "");
     const time = Number((attrs.match(/\btime="([^"]*)"/) || [])[1] ?? 0);
-    const head = name.match(/^\[?(TB-[A-Z]{3}-\d{3,4})\]?/);
+    const head = name.match(/^\[?(TB-[A-Z]{3}(?:-[A-Z]{2,5})?-\d{3,4})\]?/);
     if (!head) continue;
     const id = head[1];
     let status = "OK";

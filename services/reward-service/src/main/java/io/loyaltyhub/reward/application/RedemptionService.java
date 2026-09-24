@@ -380,7 +380,7 @@ public class RedemptionService {
     @Transactional(readOnly = true)
     public PageResponse<RedemptionView> search(String status, String fulfilment, String memberId, String rewardCode,
                                                Boolean needsAttention, Instant from, Instant to, int page, int size) {
-        int s = Math.max(1, Math.min(size, 200));
+        int s = Math.max(1, Math.min(size, 100));
         int p = Math.max(0, page);
         List<RedemptionView> items = redemptions.search(status, fulfilment, memberId, rewardCode, needsAttention, from, to, p, s)
                 .stream().map(r -> toView(r, null)).toList();

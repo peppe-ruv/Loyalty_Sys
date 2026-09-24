@@ -226,6 +226,16 @@ class CouponIT {
         return n;
     }
 
+    /** AUD-BE-10 / AUD-BE-09: pagina al massimo 100 elementi (docs/06 §2), anche se il client ne chiede di più. */
+    @Test
+    void pageSizeIsCappedAt100() {
+        String caf = pool(get("/v1/coupon-pools"), "POOL-CAF").path("id").asString();
+        JsonNode coupons = get("/v1/coupon-pools/" + caf + "/coupons?size=150");
+        assertThat(coupons.path("page").path("size").asInt()).isEqualTo(100);
+        assertThat(coupons.path("items").size()).isLessThanOrEqualTo(100);
+        assertThat(get("/v1/redemptions?size=150").path("page").path("size").asInt()).isEqualTo(100);
+    }
+
     private JsonNode get(String path) {
         return RestClient.create("http://localhost:" + port).get().uri(path).retrieve().body(JsonNode.class);
     }

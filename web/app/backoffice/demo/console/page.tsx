@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { RESET_CONFIRM_WORD, isResetConfirmed } from "@/lib/demo/reset";
 import { useQuery } from "@tanstack/react-query";
 import type { DemoStatus } from "@/lib/api/status";
 import type { ServiceCode } from "@/lib/api/services";
-import { lhFetch } from "@/lib/api/client";
+import { LhError, lhFetch } from "@/lib/api/client";
+import { QueryState } from "@/components/bo/QueryState";
 import { Card, CardBody } from "@/components/ui/card";
 import { PageHeader, StatusPill } from "@/components/bo/primitives";
 import { Can } from "@/components/bo/Can";
@@ -66,16 +68,21 @@ const JOBS: { service: ServiceCode; path: string; label: string; detail: (out: J
 ];
 
 export default function ConsolePage() {
-  const status = useQuery<DemoStatus>({
+  const status = useQuery<DemoStatus, LhError>({
     queryKey: ["demo-status"],
     queryFn: async () => {
       const res = await fetch("/api/demo/status", { cache: "no-store" });
+      if (!res.ok) {
+        throw new LhError(res.status, `HTTP_${res.status}`, "Stato della demo non disponibile.", false);
+      }
       return res.json();
     },
     refetchInterval: 15_000,
   });
   const [log, setLog] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [typed, setTyped] = useState("");
   const [asOf, setAsOf] = useState("");
   const [jobLog, setJobLog] = useState<string[]>([]);
   const [jobBusy, setJobBusy] = useState(false);
@@ -118,32 +125,48 @@ export default function ConsolePage() {
     setBusy(false);
   }
 
-  const services = status.data?.services ?? [];
-
   return (
     <div>
       <PageHeader title="Console demo" subtitle="Stato dei servizi e ripristino dei dati" />
-      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-5">
-        {services.map((s) => (
-          <Card key={s.code}>
-            <CardBody className="pt-3">
-              <p className="text-sm font-medium">{s.name}</p>
-              <p className="mt-1 text-xs">
-                <StatusPill status={s.state === "UP" ? "ACTIVE" : s.state === "DOWN" ? "BLOCKED" : "PAUSED"} />
-              </p>
-              <p className="mt-1 text-xs text-[var(--color-bo-ink-2)]">
-                {it.states[s.state]}
-                {s.latencyMs != null ? ` · ${s.latencyMs} ms` : ""}
-              </p>
-            </CardBody>
-          </Card>
-        ))}
-        {status.data ? (
-          <>
-            <Infra label="Kafka" state={status.data.kafka.state} />
-            <Infra label="Postgres" state={status.data.db.state} />
-          </>
-        ) : null}
+      {/* Stati (docs/07 §6): scheletro, errore con Riprova, vuoto; i servizi addormentati sono il caso "degraded" e
+          compaiono tessera per tessera, con un riepilogo sopra. Reset e job restano usabili e riportano l'esito. */}
+      <div className="mb-4">
+        <QueryState
+          query={status}
+          service="demo"
+          isEmpty={(d) => d.services.length === 0}
+          emptyTitle="Nessun servizio da mostrare"
+          emptyHint="Lo stato della demo non elenca servizi: controlla la configurazione del proxy (LH_SVC_*_URL)."
+        >
+          {(d) => (
+            <>
+              {d.readyCount < d.totalCount ? (
+                <p role="status" className="mb-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  {d.readyCount}/{d.totalCount} componenti svegli: quelli addormentati rispondono dopo il risveglio dal
+                  Demo Hub; reset e job verso di loro falliscono finché non sono su.
+                </p>
+              ) : null}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-5">
+                {d.services.map((s) => (
+                  <Card key={s.code}>
+                    <CardBody className="pt-3">
+                      <p className="text-sm font-medium">{s.name}</p>
+                      <p className="mt-1 text-xs">
+                        <StatusPill status={s.state === "UP" ? "ACTIVE" : s.state === "DOWN" ? "BLOCKED" : "PAUSED"} />
+                      </p>
+                      <p className="mt-1 text-xs text-[var(--color-bo-ink-2)]">
+                        {it.states[s.state]}
+                        {s.latencyMs != null ? ` · ${s.latencyMs} ms` : ""}
+                      </p>
+                    </CardBody>
+                  </Card>
+                ))}
+                <Infra label="Kafka" state={d.kafka.state} />
+                <Infra label="Postgres" state={d.db.state} />
+              </div>
+            </>
+          )}
+        </QueryState>
       </div>
 
       <Can capability="demo.admin" mode="disable">
@@ -152,13 +175,46 @@ export default function ConsolePage() {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">Reset dati</h3>
               <button
-                onClick={resetAll}
-                disabled={busy}
+                onClick={() => {
+                  setTyped("");
+                  setConfirming(true);
+                }}
+                disabled={busy || confirming}
                 className="rounded bg-[var(--color-bo-accent)] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
               >
                 {busy ? "In corso…" : "Ripristina tutto"}
               </button>
             </div>
+            {confirming ? (
+              <div role="alertdialog" aria-label="Conferma reset" className="space-y-2 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                <p>
+                  Tutti i servizi tornano ai dati di <code>seed/</code>: richieste, giocate, movimenti e modifiche fatte durante la
+                  demo si perdono. Digita <strong>{RESET_CONFIRM_WORD}</strong> per confermare.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    aria-label="Digita RESET per confermare"
+                    value={typed}
+                    onChange={(e) => setTyped(e.target.value)}
+                    className="w-32 rounded border border-amber-300 bg-white px-2 py-1 font-mono text-sm"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => {
+                      setConfirming(false);
+                      void resetAll();
+                    }}
+                    disabled={!isResetConfirmed(typed) || busy}
+                    className="rounded bg-red-600 px-3 py-1 text-sm font-medium text-white disabled:opacity-50"
+                  >
+                    Ripristina tutto
+                  </button>
+                  <button onClick={() => setConfirming(false)} className="rounded border border-amber-300 px-3 py-1 text-sm hover:bg-amber-100">
+                    Annulla
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               {RESETTABLE.map((s) => (
                 <button key={s} onClick={() => resetOne(s)} disabled={busy} className="rounded border border-[var(--color-bo-border)] px-2.5 py-1 text-xs hover:bg-slate-50 disabled:opacity-50">
