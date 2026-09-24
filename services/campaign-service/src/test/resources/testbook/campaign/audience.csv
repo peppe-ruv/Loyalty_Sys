@@ -1,0 +1,5 @@
+id,all,tiers,segments,memberTier,memberSegments,expectedOutcome,expectedReason
+TB-CMP-AUD-01,false,SILVER;GOLD,,GOLD,,MATCHED,
+TB-CMP-AUD-02,true,,,,,,MATCHED,
+TB-CMP-AUD-03,false,,SEG-1;SEG-2,,SEG-3,NO_MATCH,AUDIENCE
+TB-CMP-AUD-04,false,,SEG-1;SEG-2,,SEG-1,MATCHED,

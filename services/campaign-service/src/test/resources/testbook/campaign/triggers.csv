@@ -1,0 +1,3 @@
+id,trigger,cmpTrigger,expectedOutcome,expectedReason
+TB-CMP-TRIG-01,purchase.completed,purchase.completed,MATCHED,
+TB-CMP-TRIG-02,purchase.cancelled,purchase.completed,NO_MATCH,NOT_TRIGGERED

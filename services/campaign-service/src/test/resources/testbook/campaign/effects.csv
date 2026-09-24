@@ -1,0 +1,5 @@
+id,effectsJson,actionDataJson,expectedAmount
+TB-CMP-EFF-01,"[{""type"":""GRANT_POINTS"",""currency"":""PTS"",""mode"":""PER_AMOUNT"",""amountField"":""data.amount"",""value"":1,""unitStep"":1,""rounding"":""FLOOR"",""tierMultiplierApplies"":false}]","{""amount"":130.5}",130
+TB-CMP-EFF-02,"[{""type"":""GRANT_POINTS"",""currency"":""PTS"",""mode"":""FROM_FIELD"",""amountField"":""data.missing"",""tierMultiplierApplies"":false}]","{""amount"":100}",0
+TB-CMP-EFF-05,"[{""type"":""GRANT_POINTS"",""currency"":""PTS"",""mode"":""FROM_FIELD"",""amountField"":""data.negative"",""tierMultiplierApplies"":false}]","{""negative"":-5}",0
+TB-CMP-EFF-06,"[{""type"":""GRANT_POINTS"",""currency"":""PTS"",""mode"":""FIXED"",""value"":50,""tierMultiplierApplies"":false}]","{}",50

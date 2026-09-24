@@ -1,0 +1,4 @@
+id,conditionsJson,actionDataJson,memberAttributesJson,contextJson,historyJson,expectedMatch
+TB-CMP-COND-01,"{""op"":""not"",""rules"":[{""op"":""any"",""rules"":[{""op"":""all"",""rules"":[{""field"":""data.amount"",""cmp"":""lt"",""value"":10}]}]}]}","{""amount"":15}","{}","{}","{}",true
+TB-CMP-COND-02,"{""op"":""all"",""rules"":[{""field"":""data.items[*].category"",""cmp"":""eq"",""value"":""FOOD""}]}","{""items"":[{""category"":""DRINK""},{""category"":""FOOD""}]}","{}","{}","{}",true
+TB-CMP-COND-04,"{""op"":""all"",""rules"":[{""field"":""context.date"",""cmp"":""between"",""value"":[""2026-01-01"",""2026-12-31""]}]}","{}","{}","{""date"":""2026-06-15""}","{}",false
