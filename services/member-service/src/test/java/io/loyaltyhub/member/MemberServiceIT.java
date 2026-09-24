@@ -74,6 +74,12 @@ class MemberServiceIT {
         JsonNode personas = get("/v1/demo/personas");
         assertThat(personas.size()).isEqualTo(11); // l'anonimizzato non è selezionabile
         assertThat(personas.get(0).path("story").asString()).isNotBlank();
+        // Saldo dalla proiezione, per le schede membro del Demo Hub (docs/07 §8, HUB-01).
+        JsonNode first = personas.get(0);
+        JsonNode member = get("/v1/members/" + first.path("memberId").asString());
+        assertThat(first.path("balancePts").isNumber()).isTrue();
+        assertThat(first.path("balancePts").asLong()).isPositive();
+        assertThat(first.path("balancePts").asLong()).isEqualTo(member.path("balancePts").asLong());
     }
 
     @Test

@@ -9,7 +9,7 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```
 
 **M0.6 (fondamenta):** token e font (`app/globals.css`, `next/font`), shell delle tre aree
-(`app/page.tsx` HUB-01, `app/backoffice`, `app/portal`), proxy `app/api/lh/[service]/[...path]`
+(`app/(hub)/page.tsx` HUB-01, `app/backoffice`, `app/portal`), proxy `app/api/lh/[service]/[...path]`
 (aggiunge `X-LH-Actor` dal cookie persona e `X-Correlation-Id`), cookie persona (`lib/persona`),
 `app/api/demo/status` e `app/api/demo/wake`, keep-alive gentile. Le schermate `BO-xx`/`PT-xx`
 arrivano da M1 (docs/08, docs/09): una voce di menu compare solo quando la sua milestone è chiusa.
