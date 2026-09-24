@@ -8,6 +8,7 @@ import io.loyaltyhub.common.event.LhEventTypes;
 import io.loyaltyhub.common.inbox.EventHandler;
 import io.loyaltyhub.common.kafka.LoopGuardException;
 import io.loyaltyhub.common.outbox.OutboxWriter;
+import io.loyaltyhub.ingestion.application.InboundResolutionService;
 import io.loyaltyhub.ingestion.domain.InternalMapping;
 import io.loyaltyhub.ingestion.infra.InboundEventRepository;
 import io.loyaltyhub.ingestion.infra.InternalMappingRepository;
@@ -23,6 +24,9 @@ import java.util.Set;
  * {@code member.registered} serve a entrambi gli scopi e il router ammette un handler per {@code type}:
  * <ul>
  *   <li><b>indice membri</b>: {@code member.registered/updated/status.changed} → {@code member_index};</li>
+ *   <li><b>abbinamento automatico</b> (F-ING-04, M7.4): a {@code member.registered} gli eventi {@code UNMATCHED}
+ *       parcheggiati il cui subject ({@code external:}/{@code email:}) ora risolve al nuovo membro sono accettati e
+ *       pubblicati ({@link InboundResolutionService#autoMatch}); idempotente sotto riconsegna del fatto;</li>
  *   <li><b>ponte interno</b> (docs/05 §7, ADR in docs/13): i fatti di {@link InternalMapping#BRIDGEABLE_FACTS} con
  *       mappatura abilitata diventano l'azione corrispondente ({@code source=internal}, stessa correlazione,
  *       {@code lhhop+1}); oltre {@code lhhop 3} → {@link LoopGuardException} → DLQ {@code LOOP_GUARD}.</li>
@@ -44,15 +48,18 @@ public class FactsHandler implements EventHandler {
     private final LhEventFactory events;
     private final OutboxWriter outbox;
     private final ObjectMapper mapper;
+    private final InboundResolutionService resolution;
 
     public FactsHandler(InternalMappingRepository mappings, MemberIndexRepository memberIndex,
-                        InboundEventRepository inbound, LhEventFactory events, OutboxWriter outbox, ObjectMapper mapper) {
+                        InboundEventRepository inbound, LhEventFactory events, OutboxWriter outbox, ObjectMapper mapper,
+                        InboundResolutionService resolution) {
         this.mappings = mappings;
         this.memberIndex = memberIndex;
         this.inbound = inbound;
         this.events = events;
         this.outbox = outbox;
         this.mapper = mapper;
+        this.resolution = resolution;
     }
 
     @Override
@@ -86,8 +93,13 @@ public class FactsHandler implements EventHandler {
             return;
         }
         // registered / updated portano lo snapshot completo del membro (member-service).
-        memberIndex.upsert(memberId, text(d, "externalId"), text(d, "email"),
-                Optional.ofNullable(text(d, "status")).orElse("ACTIVE"));
+        String externalId = text(d, "externalId");
+        String email = text(d, "email");
+        memberIndex.upsert(memberId, externalId, email, Optional.ofNullable(text(d, "status")).orElse("ACTIVE"));
+        if (LhEventTypes.Fact.MEMBER_REGISTERED.equals(fact.type())) {
+            // Solo alla registrazione (docs/02 F-ING-04), nella stessa transazione del consumer idempotente.
+            resolution.autoMatch(memberId, externalId, email);
+        }
     }
 
     private void bridge(LhEvent<JsonNode> fact) {

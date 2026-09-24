@@ -20,15 +20,21 @@ public class InboundEventRepository {
     /** Riga del monitor ingressi (docs/servizi/ingestion-service.md §3, BO-26). */
     public record InboundRow(String id, String eventId, String sourceCode, String typeCode, String subject,
                              String memberId, java.time.Instant receivedAt, String status, String rejectCode,
-                             String rejectDetail, String correlationId) {
+                             String rejectDetail, String correlationId, String origin, String resolution,
+                             String resolvedBy, java.time.Instant resolvedAt) {
     }
 
+    /** Riga completa per il dettaglio (BO-26: "CloudEvent completo") e per la rivalutazione (retry / match). */
+    public record StoredInbound(InboundRow row, Instant eventTime, String payloadJson) {
+    }
+
+    private static final String COLUMNS = """
+            id, event_id, source_code, type_code, subject, member_id, received_at,
+            status, reject_code, reject_detail, correlation_id, origin, resolution, resolved_by, resolved_at
+            """;
+
     public java.util.List<InboundRow> search(String status, String source, String type, String memberId, int limit) {
-        StringBuilder sql = new StringBuilder("""
-                SELECT id, event_id, source_code, type_code, subject, member_id, received_at,
-                       status, reject_code, reject_detail, correlation_id
-                FROM inbound_event WHERE 1 = 1
-                """);
+        StringBuilder sql = new StringBuilder("SELECT " + COLUMNS + " FROM inbound_event WHERE 1 = 1\n");
         java.util.List<Object> args = new java.util.ArrayList<>();
         if (status != null && !status.isBlank()) {
             sql.append(" AND status = ?");
@@ -52,20 +58,85 @@ public class InboundEventRepository {
     }
 
     public java.util.Optional<InboundRow> findById(String id) {
-        return jdbc.sql("""
-                        SELECT id, event_id, source_code, type_code, subject, member_id, received_at,
-                               status, reject_code, reject_detail, correlation_id
-                        FROM inbound_event WHERE id = ?
-                        """)
+        return jdbc.sql("SELECT " + COLUMNS + " FROM inbound_event WHERE id = ?")
                 .param(id).query(InboundEventRepository::mapRow).optional();
+    }
+
+    /** Riga completa (payload e istante dell'evento) per il dettaglio. */
+    public java.util.Optional<StoredInbound> findStored(String id) {
+        return jdbc.sql("SELECT " + COLUMNS + ", event_time, payload::text AS payload FROM inbound_event WHERE id = ?")
+                .param(id).query(InboundEventRepository::mapStored).optional();
+    }
+
+    /**
+     * Come {@link #findStored} ma blocca la riga ({@code FOR UPDATE}) fino a fine transazione: due <em>riprova</em> /
+     * <em>abbina</em> concorrenti (o l'abbinamento automatico) sulla stessa riga si serializzano, e il secondo vede
+     * l'esito del primo — mai una doppia pubblicazione.
+     */
+    public java.util.Optional<StoredInbound> lockForResolution(String id) {
+        return jdbc.sql("SELECT " + COLUMNS + ", event_time, payload::text AS payload FROM inbound_event WHERE id = ? FOR UPDATE")
+                .param(id).query(InboundEventRepository::mapStored).optional();
+    }
+
+    /**
+     * Righe {@code UNMATCHED} ricevute da {@code since} il cui subject è {@code externalSubject} (confronto esatto) o
+     * {@code emailSubject} (senza maiuscole; {@code email:} in minuscolo come lo riconosce la pipeline). Le più
+     * vecchie per prime, al massimo {@code limit}.
+     */
+    public java.util.List<String> findUnmatchedIds(String externalSubject, String emailSubject, Instant since, int limit) {
+        return jdbc.sql("""
+                        SELECT id FROM inbound_event
+                        WHERE status = 'UNMATCHED' AND received_at >= ?
+                          AND (subject = ? OR (subject LIKE 'email:%' AND lower(subject) = ?))
+                        ORDER BY received_at ASC LIMIT ?
+                        """)
+                .params(java.sql.Timestamp.from(since), externalSubject, emailSubject, limit)
+                .query(String.class).list();
+    }
+
+    /**
+     * Rivalutazione riuscita: la riga {@code REJECTED}/{@code UNMATCHED} diventa {@code ACCEPTED} con il membro, il
+     * payload arricchito (quello pubblicato) e la correlazione. Il subject originale resta per provenienza.
+     * {@code false} se la riga non era più in uno stato risolvibile (nessun aggiornamento). Una violazione
+     * dell'indice unico parziale (un ACCEPTED con la stessa fonte+id nel frattempo) fa fallire la transazione:
+     * outbox compresa, quindi nulla viene pubblicato.
+     */
+    public boolean markAccepted(String id, String memberId, String payloadJson, String correlationId,
+                                String resolution, String resolvedBy, Instant resolvedAt) {
+        return jdbc.sql("""
+                        UPDATE inbound_event SET status = 'ACCEPTED', reject_code = NULL, reject_detail = NULL,
+                          member_id = ?, payload = cast(? AS jsonb), correlation_id = ?,
+                          resolution = ?, resolved_by = ?, resolved_at = ?
+                        WHERE id = ? AND status IN ('REJECTED', 'UNMATCHED')
+                        """)
+                .params(memberId, payloadJson, correlationId, resolution, resolvedBy,
+                        java.sql.Timestamp.from(resolvedAt), id)
+                .update() == 1;
+    }
+
+    /** Rivalutazione non riuscita: si aggiorna l'esito (stato, codice, dettaglio, membro) con quello nuovo. */
+    public boolean updateOutcome(String id, InboundStatus status, RejectCode rejectCode, String rejectDetail, String memberId) {
+        return jdbc.sql("""
+                        UPDATE inbound_event SET status = ?, reject_code = ?, reject_detail = ?, member_id = ?
+                        WHERE id = ? AND status IN ('REJECTED', 'UNMATCHED')
+                        """)
+                .params(status.name(), rejectCode == null ? null : rejectCode.name(), rejectDetail, memberId, id)
+                .update() == 1;
     }
 
     private static InboundRow mapRow(java.sql.ResultSet rs, int n) throws java.sql.SQLException {
         java.sql.Timestamp ts = rs.getTimestamp("received_at");
+        java.sql.Timestamp resolved = rs.getTimestamp("resolved_at");
         return new InboundRow(rs.getString("id"), rs.getString("event_id"), rs.getString("source_code"),
                 rs.getString("type_code"), rs.getString("subject"), rs.getString("member_id"),
                 ts == null ? null : ts.toInstant(), rs.getString("status"), rs.getString("reject_code"),
-                rs.getString("reject_detail"), rs.getString("correlation_id"));
+                rs.getString("reject_detail"), rs.getString("correlation_id"), rs.getString("origin"),
+                rs.getString("resolution"), rs.getString("resolved_by"), resolved == null ? null : resolved.toInstant());
+    }
+
+    private static StoredInbound mapStored(java.sql.ResultSet rs, int n) throws java.sql.SQLException {
+        java.sql.Timestamp time = rs.getTimestamp("event_time");
+        return new StoredInbound(mapRow(rs, n), time == null ? null : time.toInstant(), rs.getString("payload"));
     }
 
     /** Esiste già un evento ACCETTATO per questa coppia (fonte, id)? (dedup, docs §5 punto 6). */
