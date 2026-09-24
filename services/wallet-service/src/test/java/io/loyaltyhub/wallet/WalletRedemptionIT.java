@@ -81,7 +81,11 @@ class WalletRedemptionIT {
 
         // Stessa richiesta rielaborata (nuovo messaggio): nessuna seconda spesa.
         publishRequested(m, "RDM-IT-FIFO", 1500);
-        Thread.sleep(1500);
+        long deadline = System.currentTimeMillis() + 1500;
+        while (System.currentTimeMillis() < deadline) {
+            if (balance(m) != 700) break;
+            Thread.sleep(100);
+        }
         assertThat(balance(m)).isEqualTo(700);
 
         // Annullo con rimborso: i punti tornano nei lotti d'origine.
@@ -91,7 +95,11 @@ class WalletRedemptionIT {
         assertThat(remainingByAmount(m)).containsEntry(500L, 500L).containsEntry(800L, 800L).containsEntry(900L, 900L);
 
         publishCancelled(m, "RDM-IT-FIFO", 1500, true);
-        Thread.sleep(1500);
+        deadline = System.currentTimeMillis() + 1500;
+        while (System.currentTimeMillis() < deadline) {
+            if (balance(m) != 2200) break;
+            Thread.sleep(100);
+        }
         assertThat(balance(m)).as("rimborso idempotente").isEqualTo(2200);
     }
 
@@ -115,7 +123,11 @@ class WalletRedemptionIT {
         long before = balance("MBR-000009");
         publishCancelled("MBR-000009", "RDM-IT-NEVER-SPENT", 500, true);
         publishCancelled("MBR-000009", "RDM-IT-NO-REFUND", 500, false);
-        Thread.sleep(1500);
+        long deadline = System.currentTimeMillis() + 1500;
+        while (System.currentTimeMillis() < deadline) {
+            if (balance("MBR-000009") != before) break;
+            Thread.sleep(100);
+        }
         assertThat(balance("MBR-000009")).isEqualTo(before);
     }
 

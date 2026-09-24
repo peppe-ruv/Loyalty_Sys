@@ -104,7 +104,7 @@ class RewardServiceIT {
         boolean unlocked = false;
         while (!unlocked && System.currentTimeMillis() < deadline) {
             unlocked = reward(get("/v1/portal/catalog?memberId=MBR-000010"), "RWD-WEEKEND").path("lockedByTier").isMissingNode();
-            if (!unlocked) Thread.sleep(300);
+            if (!unlocked) Thread.sleep(100);
         }
         assertThat(unlocked).isTrue();
     }
@@ -116,13 +116,13 @@ class RewardServiceIT {
         publishFact("io.loyaltyhub.fact.member.segment.entered", "MBR-000007", Map.of("segmentCode", "SEG-TORINO"));
         long deadline = System.currentTimeMillis() + 15_000;
         while (reward(get("/v1/portal/catalog?memberId=MBR-000007"), "RWD-EBIKE-RENT") == null && System.currentTimeMillis() < deadline) {
-            Thread.sleep(300);
+            Thread.sleep(100);
         }
         assertThat(reward(get("/v1/portal/catalog?memberId=MBR-000007"), "RWD-EBIKE-RENT")).as("nel segmento: visibile").isNotNull();
         publishFact("io.loyaltyhub.fact.member.segment.left", "MBR-000007", Map.of("segmentCode", "SEG-TORINO"));
         deadline = System.currentTimeMillis() + 15_000;
         while (reward(get("/v1/portal/catalog?memberId=MBR-000007"), "RWD-EBIKE-RENT") != null && System.currentTimeMillis() < deadline) {
-            Thread.sleep(300);
+            Thread.sleep(100);
         }
         assertThat(reward(get("/v1/portal/catalog?memberId=MBR-000007"), "RWD-EBIKE-RENT")).as("uscito: di nuovo escluso").isNull();
     }

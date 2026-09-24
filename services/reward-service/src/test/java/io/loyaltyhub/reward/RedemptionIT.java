@@ -78,7 +78,11 @@ class RedemptionIT {
         JsonNode requested = awaitFact("io.loyaltyhub.fact.reward.redemption.requested", id);
         assertThat(requested.path("data").path("pointsCost").asLong()).isEqualTo(1500);
         // Accettazione M4: qui il wallet non c'è ("fermo") → la richiesta resta PENDING finché non risponde.
-        Thread.sleep(1500);
+        long dl = System.currentTimeMillis() + 1500;
+        while (System.currentTimeMillis() < dl) {
+            if ("PENDING".equals(get("/v1/portal/redemptions/" + id).path("status").asString())) break;
+            Thread.sleep(100);
+        }
         assertThat(get("/v1/portal/redemptions/" + id).path("status").asString()).isEqualTo("PENDING");
         assertThat(requested.path("id").asString()).isEqualTo(accepted.path("correlationId").asString());
 
@@ -97,7 +101,10 @@ class RedemptionIT {
         // Rielaborazione della spesa (nuovo messaggio, stessa richiesta): nessun secondo coupon.
         publishWalletFact(requested, "io.loyaltyhub.fact.wallet.points.spent",
                 Map.of("ledgerEntryId", "LE-" + id, "currency", "PTS", "amount", 1500, "balanceAfter", 10800, "redemptionId", id));
-        Thread.sleep(1500);
+        dl = System.currentTimeMillis() + 1500;
+        while (System.currentTimeMillis() < dl) {
+            Thread.sleep(100);
+        }
         long coupons = 0;
         for (JsonNode c : get("/v1/portal/coupons?memberId=MBR-000004")) {
             if (id.equals(get("/v1/coupons/" + c.path("code").asString()).path("redemptionId").asString())) {
@@ -319,7 +326,7 @@ class RedemptionIT {
             if (r.path("status").asString().equals(status)) {
                 return r;
             }
-            Thread.sleep(200);
+            Thread.sleep(100);
         }
         throw new AssertionError("richiesta " + id + " non " + status + ": " + r);
     }
