@@ -6,7 +6,7 @@ import { Crown } from "lucide-react";
 import { useLhQuery } from "@/lib/api/client";
 import type { PortalLeaderboard } from "@/lib/api/types";
 import { useActiveMember } from "@/components/portal/MemberContext";
-import { QueryState } from "@/components/bo/QueryState";
+import { QueryState } from "@/components/shared/QueryState";
 import { myPositionLine, periodKeyLabel, scoreUnit } from "@/lib/gamification/leaderboards";
 import { formatPoints } from "@/lib/format/points";
 import { cn } from "@/lib/cn";

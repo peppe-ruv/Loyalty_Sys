@@ -6,7 +6,7 @@ import { Check, Lock } from "lucide-react";
 import { useLhQuery } from "@/lib/api/client";
 import type { PortalCatalog, PortalReward, RewardCategory, WalletView } from "@/lib/api/types";
 import { useActiveMember } from "@/components/portal/MemberContext";
-import { QueryState } from "@/components/bo/QueryState";
+import { QueryState } from "@/components/shared/QueryState";
 import { RewardArt } from "@/components/portal/RewardArt";
 import { ContentSlot } from "@/components/portal/ContentSlot";
 import { bandProgress, blockReason, rewardBadge } from "@/lib/reward/portal";

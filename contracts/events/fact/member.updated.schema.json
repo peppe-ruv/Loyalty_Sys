@@ -12,7 +12,7 @@
     "nickname": { "type": "string" },
     "email": { "type": "string" },
     "externalId": { "type": "string" },
-    "status": { "enum": ["ACTIVE", "SUSPENDED", "BLOCKED", "CLOSED", "ANONYMIZED"] },
+    "status": { "enum": ["ACTIVE", "INACTIVE", "SUSPENDED", "BLOCKED", "CLOSED", "ANONYMIZED"] },
     "channel": { "type": "string" },
     "registeredAt": { "type": "string", "format": "date-time" },
     "birthDate": { "type": "string" },

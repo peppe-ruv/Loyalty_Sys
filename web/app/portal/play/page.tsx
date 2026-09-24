@@ -5,7 +5,7 @@ import { Gift, Sparkles, Ticket, Trophy } from "lucide-react";
 import { useLhQuery } from "@/lib/api/client";
 import type { PortalContest } from "@/lib/api/types";
 import { useActiveMember } from "@/components/portal/MemberContext";
-import { QueryState } from "@/components/bo/QueryState";
+import { QueryState } from "@/components/shared/QueryState";
 import { ContentSlot } from "@/components/portal/ContentSlot";
 import { endsIn, freePlayLine, shortPrize } from "@/lib/gamification/play";
 

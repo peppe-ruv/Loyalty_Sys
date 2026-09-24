@@ -76,19 +76,27 @@ public class RewardRepository {
                 .update();
     }
 
-    public void update(Reward r) {
-        jdbc.sql("""
+    /**
+     * Riscrive i campi modificabili se la versione è ancora {@code expectedVersion}; {@code false} = modificato nel
+     * frattempo (409, M7.6). Lo stock residuo si ricalcola sulla riga corrente (residuo + delta del totale), così una
+     * richiesta premio arrivata tra lettura e scrittura non si perde.
+     */
+    public boolean update(Reward r, long expectedVersion) {
+        return jdbc.sql("""
                         UPDATE reward SET name = ?, description = ?, terms = ?, image_url = ?, type = ?, category_code = ?,
-                          band_code = ?, fulfilment = ?, coupon_pool_id = ?, stock_total = ?, stock_remaining = ?,
-                          per_member_limit = ?, eligible_tiers = ?::text[], eligible_segments = ?::text[], valid_from = ?,
-                          valid_to = ?, version = version + 1, updated_at = now()
-                        WHERE id = ?
+                          band_code = ?, fulfilment = ?, coupon_pool_id = ?,
+                          stock_remaining = CASE WHEN cast(? AS integer) IS NULL THEN NULL
+                                                 WHEN stock_total IS NULL THEN cast(? AS integer)
+                                                 ELSE greatest(0, stock_remaining + (cast(? AS integer) - stock_total)) END,
+                          stock_total = ?, per_member_limit = ?, eligible_tiers = ?::text[], eligible_segments = ?::text[],
+                          valid_from = ?, valid_to = ?, version = version + 1, updated_at = now()
+                        WHERE id = ? AND version = ?
                         """)
                 .params(r.name(), r.description(), r.terms(), r.imageUrl(), r.type(), r.categoryCode(), r.bandCode(),
-                        r.fulfilment(), r.couponPoolId(), r.stockTotal(), r.stockRemaining(), r.perMemberLimit(),
-                        TextArrays.literal(r.eligibleTiers()), TextArrays.literal(r.eligibleSegments()),
-                        ts(r.validFrom()), ts(r.validTo()), r.id())
-                .update();
+                        r.fulfilment(), r.couponPoolId(), r.stockTotal(), r.stockTotal(), r.stockTotal(), r.stockTotal(),
+                        r.perMemberLimit(), TextArrays.literal(r.eligibleTiers()), TextArrays.literal(r.eligibleSegments()),
+                        ts(r.validFrom()), ts(r.validTo()), r.id(), expectedVersion)
+                .update() == 1;
     }
 
     public void updateStatus(String id, RewardStatus status) {

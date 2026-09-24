@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useLhQuery } from "@/lib/api/client";
 import { useActiveMember } from "@/components/portal/MemberContext";
 import { usePending } from "@/components/portal/PendingContext";
-import { QueryState } from "@/components/bo/QueryState";
+import { QueryState } from "@/components/shared/QueryState";
 import { PendingBanner, ActivityRow, type ActivityItem } from "@/components/portal/parts";
 import { formatDateTime } from "@/lib/format/dates";
 

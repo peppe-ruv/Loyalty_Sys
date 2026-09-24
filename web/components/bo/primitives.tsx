@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/cn";
 import { formatPoints } from "@/lib/format/points";
+export { DegradedBox, EmptyState } from "@/components/shared/QueryState";
 
 // Primitive condivise del backoffice (docs/08 §3.6). Piccole, componibili, coerenti coi token del tema.
 
@@ -73,31 +74,6 @@ export function PointsAmount({ value, currency }: { value: number; currency?: st
 
 export function CodeText({ children }: { children: React.ReactNode }) {
   return <span className="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-700">{children}</span>;
-}
-
-export function EmptyState({ title, hint }: { title: string; hint?: string }) {
-  return (
-    <div className="rounded-md border border-dashed border-[var(--color-bo-border)] p-8 text-center">
-      <p className="text-sm font-medium text-[var(--color-bo-ink)]">{title}</p>
-      {hint ? <p className="mt-1 text-xs text-[var(--color-bo-ink-2)]">{hint}</p> : null}
-    </div>
-  );
-}
-
-export function DegradedBox({ service, onRetry }: { service: string; onRetry?: () => void }) {
-  return (
-    <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-      <p className="font-medium">Servizio «{service}» non raggiungibile</p>
-      <p className="mt-1 text-xs">
-        Probabilmente è addormentato (piano gratuito). Accendi la demo dal Demo Hub, poi riprova.
-      </p>
-      {onRetry ? (
-        <button onClick={onRetry} className="mt-2 rounded border border-amber-300 px-2 py-1 text-xs hover:bg-amber-100">
-          Riprova
-        </button>
-      ) : null}
-    </div>
-  );
 }
 
 export function PageHeader({

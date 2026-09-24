@@ -195,16 +195,45 @@ public class CampaignAdminService implements ApprovalSource {
         }
         List<String> errors = validate(new CreateCampaignRequest(m.code(), m.name(), m.description(), m.memberDescription(),
                 m.icon(), m.triggerActionTypes(), m.audience(), m.conditions(), m.effects(), m.limits(), m.schedule(),
-                m.priority(), m.exclusiveGroup(), m.visibleInPortal(), m.labels()));
+                m.priority(), m.exclusiveGroup(), m.visibleInPortal(), m.labels(), null));
         if (!errors.isEmpty()) {
             throw LhException.validation("CAMPAIGN_INVALID", String.join("; ", errors));
         }
-        campaigns.update(m);
+        // SPEC-GAP: Q-112 — "versioni" (M7.6) = optimistic locking con 409, niente storico delle revisioni.
+        long expected = r.version() != null ? r.version() : c.version();
+        if (!campaigns.update(m, expected)) {
+            throw LhException.conflict("VERSION_CONFLICT", "La campagna è stata modificata nel frattempo: ricarica e riprova.");
+        }
         cache.reload();
         audit.record("CAMPAIGN", c.code(), AuditEntry.Action.UPDATE, "Modificata campagna " + m.name() + " (" + c.code() + ")",
                 Map.of("name", c.name(), "priority", c.priority(), "schedule", c.schedule().toString()),
                 Map.of("name", m.name(), "priority", m.priority(), "schedule", m.schedule().toString()));
         return campaigns.findById(id).orElseThrow();
+    }
+
+    /**
+     * Duplica ({@code POST /v1/campaigns/{id}/duplicate}, F-CMP-13, M7.6): copia regole, pubblico, limiti e calendario
+     * in {@code DRAFT} con codice {@code <code>-COPY-n} (primo {@code n} libero da 1) e nome "(copia)". È il modo di
+     * cambiare i campi bloccati di una campagna {@code LIVE} (docs/03 §3.6). La copia non è mai di sistema; il flag
+     * {@code requiresLegal} resta (la policy si ricalcola all'invio).
+     */
+    @Transactional
+    public Campaign duplicate(String id) {
+        Campaign c = get(id);
+        int n = 1;
+        String code = c.code() + "-COPY-" + n;
+        while (campaigns.findByCode(code).isPresent()) {
+            code = c.code() + "-COPY-" + ++n;
+        }
+        Campaign copy = new Campaign(Ulid.next(clock), code, c.name() + " (copia)", c.description(), c.memberDescription(),
+                c.icon(), c.triggerActionTypes(), c.audience(), c.conditions(), c.effects(), c.limits(), c.schedule(),
+                c.priority(), c.exclusiveGroup(), c.visibleInPortal(), false, c.requiresLegal(), c.labels(),
+                CampaignStatus.DRAFT, 0, null, null);
+        campaigns.insert(copy);
+        cache.reload();
+        audit.record("CAMPAIGN", code, AuditEntry.Action.CREATE, "Duplicata campagna " + c.code() + " in " + code,
+                null, Map.of("from", c.code(), "code", code, "status", CampaignStatus.DRAFT.name()));
+        return campaigns.findByCode(code).orElseThrow();
     }
 
     private Campaign merge(Campaign c, CreateCampaignRequest r) {

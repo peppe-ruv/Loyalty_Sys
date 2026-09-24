@@ -9,6 +9,7 @@ import io.loyaltyhub.common.demo.SeedLoader;
 import io.loyaltyhub.common.ids.Codes;
 import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.member.application.SegmentRefresher;
+import io.loyaltyhub.member.domain.Anonymization;
 import io.loyaltyhub.member.domain.AttributeDefinition;
 import io.loyaltyhub.member.domain.Member;
 import io.loyaltyhub.member.domain.MemberStatus;
@@ -130,6 +131,10 @@ public class MemberSeeder implements ApplicationRunner, DemoResettable {
             // Profilo già completo nei seed (docs/10 §2: incompleti solo Anna ed Elisa): nessun fatto da riemettere.
             if (ProfileRules.missingFields(member).isEmpty()) {
                 member = ProfileRules.withCompletedAt(member, registeredAt);
+            }
+            // Un membro già anonimizzato nel seed (MBR-000012, docs/10 §2) segue la stessa regola dell'API (F-MBR-05).
+            if (status == MemberStatus.ANONYMIZED) {
+                member = Anonymization.apply(member);
             }
             members.insert(member);
 

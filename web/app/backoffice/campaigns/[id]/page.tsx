@@ -8,6 +8,7 @@ import { QueryState } from "@/components/bo/QueryState";
 import { Card, CardBody } from "@/components/ui/card";
 import { PageHeader, CodeText } from "@/components/bo/primitives";
 import { LifecycleBar } from "@/components/bo/LifecycleBar";
+import { DuplicateButton } from "@/components/bo/DuplicateButton";
 import { useApprovalPolicy } from "@/lib/approvals/usePolicy";
 import { requiresApproval } from "@/lib/approvals/queue";
 import { GeneratedSentence } from "@/components/bo/GeneratedSentence";
@@ -36,7 +37,17 @@ export default function CampaignEditorPage() {
             <PageHeader
               title={c.name}
               subtitle={undefined}
-              actions={<CodeText>{c.code}</CodeText>}
+              actions={
+                <>
+                  <CodeText>{c.code}</CodeText>
+                  <span className="text-xs text-[var(--color-bo-ink-2)]">v{c.version}</span>
+                  <DuplicateButton
+                    service="campaign"
+                    path={`/v1/campaigns/${c.id}/duplicate`}
+                    hrefFor={(copy) => `/backoffice/campaigns/${copy.id}`}
+                  />
+                </>
+              }
             />
             <div className="mb-4">
               <LifecycleBar

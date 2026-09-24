@@ -5,8 +5,8 @@
   "type": "object",
   "required": ["previousStatus", "newStatus"],
   "properties": {
-    "previousStatus": { "enum": ["ACTIVE", "SUSPENDED", "BLOCKED", "CLOSED", "ANONYMIZED"] },
-    "newStatus": { "enum": ["ACTIVE", "SUSPENDED", "BLOCKED", "CLOSED", "ANONYMIZED"] },
+    "previousStatus": { "enum": ["ACTIVE", "INACTIVE", "SUSPENDED", "BLOCKED", "CLOSED", "ANONYMIZED"] },
+    "newStatus": { "enum": ["ACTIVE", "INACTIVE", "SUSPENDED", "BLOCKED", "CLOSED", "ANONYMIZED"] },
     "reason": { "type": "string" }
   },
   "additionalProperties": true

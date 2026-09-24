@@ -22,6 +22,23 @@ class EventSummariesTest {
         assertThat(EventSummaries.of("purchase.completed", data)).isEqualTo("Acquisto · 130 €");
     }
 
+    /** Forma del contratto fact.member.status.changed (EVT-FACT-03): previousStatus / newStatus, non "status". */
+    @Test
+    void memberStatusChangedShowsPreviousAndNewStatusFromTheContract() {
+        var data = mapper.readTree("{\"memberId\":\"MBR-000010\",\"previousStatus\":\"ACTIVE\",\"newStatus\":\"BLOCKED\",\"reason\":\"test\"}");
+        assertThat(EventSummaries.of("member.status.changed", data)).isEqualTo("Stato membro: ACTIVE → BLOCKED");
+        assertThat(EventSummaries.of("member.status.changed", mapper.readTree("{\"newStatus\":\"ANONYMIZED\"}")))
+                .isEqualTo("Stato membro: ANONYMIZED");
+        assertThat(EventSummaries.of("member.status.changed", mapper.createObjectNode())).isEqualTo("Stato membro: ?");
+    }
+
+    /** fact.tier.upgraded porta newTier (contracts/events/fact/tier.upgraded.schema.json). */
+    @Test
+    void tierUpgradedShowsTheNewTier() {
+        var data = mapper.readTree("{\"previousTier\":\"SILVER\",\"newTier\":\"GOLD\",\"periodSts\":3010}");
+        assertThat(EventSummaries.of("tier.upgraded", data)).isEqualTo("Livello → GOLD");
+    }
+
     @Test
     void unknownTypeFallsBackToShortType() {
         assertThat(EventSummaries.of("something.new", mapper.createObjectNode())).isEqualTo("something.new");

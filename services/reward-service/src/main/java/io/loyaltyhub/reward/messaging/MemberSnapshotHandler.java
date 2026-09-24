@@ -4,9 +4,12 @@ import tools.jackson.databind.JsonNode;
 import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhEventTypes;
 import io.loyaltyhub.common.inbox.EventHandler;
+import io.loyaltyhub.common.privacy.PersonalData;
 import io.loyaltyhub.reward.infra.MemberSnapshotRepository;
+import io.loyaltyhub.reward.infra.RedemptionErasureRepository;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -17,9 +20,11 @@ import java.util.Set;
 public class MemberSnapshotHandler implements EventHandler {
 
     private final MemberSnapshotRepository members;
+    private final RedemptionErasureRepository redemptions;
 
-    public MemberSnapshotHandler(MemberSnapshotRepository members) {
+    public MemberSnapshotHandler(MemberSnapshotRepository members, RedemptionErasureRepository redemptions) {
         this.members = members;
+        this.redemptions = redemptions;
     }
 
     @Override
@@ -62,6 +67,14 @@ public class MemberSnapshotHandler implements EventHandler {
             default -> members.upsertProfile(memberId, d.path("status").asString("ACTIVE"),
                     d.hasNonNull("firstName") ? d.get("firstName").asString() : null,
                     d.hasNonNull("lastName") ? d.get("lastName").asString() : null);
+        }
+        // Anonimizzazione (F-MBR-05, M7.5): i nomi ancora nello snapshot servono a ripulire le note, poi si cancellano.
+        if (PersonalData.isAnonymization(event)) {
+            List<String> tokens = members.find(memberId)
+                    .map(m -> PersonalData.nameTokens(m.firstName(), m.lastName()))
+                    .orElse(List.of());
+            redemptions.erase(memberId, tokens);
+            members.erasePersonal(memberId);
         }
     }
 }

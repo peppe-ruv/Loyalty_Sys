@@ -57,7 +57,8 @@ public class ContestAdminService implements ApprovalSource {
 
     public record ContestRequest(String code, String name, String description, String rulesText, String mechanic,
                                  Instant startAt, Instant endAt, Boolean freePlayDaily, Integer maxPlaysPerMemberPerDay,
-                                 Integer maxWinsPerMember, String distribution, Long seed, List<PrizeRequest> prizes) {
+                                 Integer maxWinsPerMember, String distribution, Long seed, List<PrizeRequest> prizes,
+                                 Long version) {
     }
 
     public record GenerateResult(int instants, long seed, Instant generatedAt) {
@@ -134,6 +135,11 @@ public class ContestAdminService implements ApprovalSource {
         if (c.status() == ApprovalStatus.ENDED || c.status() == ApprovalStatus.ARCHIVED) {
             throw LhException.conflict("CONTEST_NOT_EDITABLE", "Un concorso " + c.status() + " non si modifica.");
         }
+        // SPEC-GAP: Q-112 — "versioni" = optimistic locking (docs/06), niente storico delle revisioni.
+        // Versione letta dall'editor (M7.6): la riga è bloccata, il confronto basta a rilevare modifiche concorrenti.
+        if (r.version() != null && r.version() != c.version()) {
+            throw LhException.conflict("VERSION_CONFLICT", "Il concorso è stato modificato nel frattempo: ricarica e riprova.");
+        }
         Contest m = new Contest(c.id(), c.code(), or(r.name(), c.name()), or(r.description(), c.description()),
                 or(r.rulesText(), c.rulesText()), r.mechanic() == null ? c.mechanic() : upper(r.mechanic()),
                 or(r.startAt(), c.startAt()), or(r.endAt(), c.endAt()), or(r.freePlayDaily(), c.freePlayDaily()),
@@ -167,6 +173,36 @@ public class ContestAdminService implements ApprovalSource {
                 "Modificato concorso " + m.name() + (instantsAffected ? " (istanti da rigenerare)" : ""),
                 Map.of("units", units(contests.prizes(c.id()))), Map.of("units", units(prizes)));
         return get(c.id());
+    }
+
+    /**
+     * Duplica ({@code POST /v1/contests/{id}/duplicate}, M7.6; docs/08 §ciclo di vita: *Duplica* da {@code ENDED}):
+     * copia impostazioni e premi (quantità piene) in {@code DRAFT} con codice {@code <code>-COPY-n}, seme derivato dal
+     * nuovo codice e istanti da generare. Il periodo resta quello dell'originale: si corregge nell'editor prima di
+     * generare gli istanti (la validazione del periodo scatta alla modifica).
+     */
+    // SPEC-GAP: Q-113 — per i concorsi la spec non fissa il codice della copia: si usa la regola delle campagne.
+    @Transactional
+    public Contest duplicate(String id) {
+        Contest c = get(id);
+        String code = null;
+        for (int n = 1; code == null || contests.find(code).isPresent(); n++) {
+            String suffix = "-COPY-" + n;
+            code = (c.code().length() + suffix.length() > 40 ? c.code().substring(0, 40 - suffix.length()) : c.code()) + suffix;
+        }
+        Contest copy = new Contest(Ulid.next(clock), code, c.name() + " (copia)", c.description(), c.rulesText(), c.mechanic(),
+                c.startAt(), c.endAt(), c.freePlayDaily(), c.maxPlaysPerMemberPerDay(), c.maxWinsPerMember(),
+                c.distribution(), seedFor(code), null, ApprovalStatus.DRAFT, 0, ActorHolder.get().asActorString(), null);
+        contests.insert(copy);
+        List<Prize> prizes = new ArrayList<>();
+        for (Prize p : contests.prizes(c.id())) {
+            prizes.add(new Prize(Ulid.next(clock), copy.id(), p.code(), p.name(), p.type(), p.points(), p.rewardCode(),
+                    p.quantityTotal(), p.quantityTotal(), p.imageUrl(), p.wheelColor(), p.sortOrder()));
+        }
+        prizes.forEach(contests::insertPrize);
+        audit.record("CONTEST", code, AuditEntry.Action.CREATE, "Duplicato concorso " + c.code() + " in " + code, null,
+                Map.of("from", c.code(), "prizes", prizes.size(), "units", units(prizes)));
+        return get(copy.id());
     }
 
     /**

@@ -119,6 +119,12 @@ public class ContestController {
         return view(admin.update(id, r));
     }
 
+    @PostMapping("/contests/{id}/duplicate")
+    @RequiresRole({Role.ADMIN, Role.MARKETING})
+    public ResponseEntity<ContestView> duplicate(@PathVariable String id) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(view(admin.duplicate(id)));
+    }
+
     @PostMapping("/contests/{id}/transitions")
     @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL})
     public ContestView transition(@PathVariable String id, @RequestBody TransitionRequest t) {

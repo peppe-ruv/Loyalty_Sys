@@ -7,51 +7,78 @@ import type { Tier, TierCount } from "@/lib/api/types";
 import { Card, CardBody } from "@/components/ui/card";
 import { PageHeader } from "@/components/bo/primitives";
 import { Can } from "@/components/bo/Can";
+import { QueryState } from "@/components/bo/QueryState";
 
 // BO-07 Livelli (docs/08 §BO-07): scala dei livelli + modifica (program.config) + discesa morbida spiegata.
+// Stati (docs/07 §6): la scala passa da QueryState (scheletro / vuoto / errore / wallet addormentato); se manca solo la
+// distribuzione i conteggi dei membri mostrano "—" con una nota, il resto resta usabile.
 export default function TiersPage() {
   const tiers = useLhQuery<Tier[]>("wallet", "/v1/tiers");
   const dist = useLhQuery<TierCount[]>("wallet", "/v1/tiers/distribution");
   const [selected, setSelected] = useState<string | null>(null);
 
   const counts = new Map((dist.data ?? []).map((d) => [d.code, d.members]));
-  const scale = tiers.data ?? [];
-  const current = scale.find((t) => t.code === selected) ?? null;
+  const membersOf = (code: string) =>
+    dist.isLoading ? "…" : dist.isError ? "—" : (counts.get(code) ?? 0).toLocaleString("it-IT");
 
   return (
     <div>
       <PageHeader title="Livelli" subtitle="Scala dei livelli, soglie di punti status e vantaggi" />
 
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {scale.map((t) => (
-          <button key={t.code} onClick={() => setSelected(t.code)} className="text-left">
-            <Card className={selected === t.code ? "ring-2 ring-[var(--color-bo-accent)]" : ""}>
-              <CardBody className="pt-3">
-                <div className="flex items-center gap-2">
-                  <span className="inline-block h-3 w-3 rounded-full" style={{ background: t.color ?? "#94a3b8" }} />
-                  <p className="text-sm font-semibold">{t.name}</p>
-                </div>
-                <dl className="mt-2 space-y-0.5 text-xs text-[var(--color-bo-ink-2)]">
-                  <div className="flex justify-between"><dt>Soglia STS</dt><dd className="font-mono">{t.thresholdSts.toLocaleString("it-IT")}</dd></div>
-                  <div className="flex justify-between"><dt>Moltiplicatore</dt><dd className="font-mono">×{t.multiplier.toLocaleString("it-IT")}</dd></div>
-                  <div className="flex justify-between"><dt>Membri</dt><dd className="font-mono">{(counts.get(t.code) ?? 0).toLocaleString("it-IT")}</dd></div>
-                </dl>
-                <ul className="mt-2 space-y-0.5 text-[11px] text-[var(--color-bo-ink-2)]">
-                  {t.benefits.slice(0, 3).map((b, i) => <li key={i}>· {b}</li>)}
-                </ul>
-              </CardBody>
-            </Card>
-          </button>
-        ))}
-      </div>
+      <QueryState
+        query={tiers}
+        service="wallet"
+        isEmpty={(d) => d.length === 0}
+        emptyTitle="Nessun livello configurato"
+        emptyHint="La scala dei livelli arriva dai dati demo del wallet: ripristinali dalla Console demo (BO-30)."
+      >
+        {(scale) => {
+          const current = scale.find((t) => t.code === selected) ?? null;
+          return (
+            <>
+              <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {scale.map((t) => (
+                  <button key={t.code} onClick={() => setSelected(t.code)} className="text-left">
+                    <Card className={selected === t.code ? "ring-2 ring-[var(--color-bo-accent)]" : ""}>
+                      <CardBody className="pt-3">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-block h-3 w-3 rounded-full" style={{ background: t.color ?? "#94a3b8" }} />
+                          <p className="text-sm font-semibold">{t.name}</p>
+                        </div>
+                        <dl className="mt-2 space-y-0.5 text-xs text-[var(--color-bo-ink-2)]">
+                          <div className="flex justify-between"><dt>Soglia STS</dt><dd className="font-mono">{t.thresholdSts.toLocaleString("it-IT")}</dd></div>
+                          <div className="flex justify-between"><dt>Moltiplicatore</dt><dd className="font-mono">×{t.multiplier.toLocaleString("it-IT")}</dd></div>
+                          <div className="flex justify-between"><dt>Membri</dt><dd className="font-mono">{membersOf(t.code)}</dd></div>
+                        </dl>
+                        <ul className="mt-2 space-y-0.5 text-[11px] text-[var(--color-bo-ink-2)]">
+                          {t.benefits.slice(0, 3).map((b, i) => <li key={i}>· {b}</li>)}
+                        </ul>
+                      </CardBody>
+                    </Card>
+                  </button>
+                ))}
+              </div>
+              {dist.isError ? (
+                <p className="mb-3 text-xs text-amber-700">
+                  {dist.error.asleep ? "Il wallet non risponde" : "Distribuzione non disponibile"}: il numero di membri per
+                  livello non è mostrato.{" "}
+                  <button onClick={() => dist.refetch()} className="underline">
+                    Riprova
+                  </button>
+                </p>
+              ) : null}
 
-      {current ? (
-        <Can capability="program.config" mode="disable">
-          <TierEditor key={current.code} tier={current} />
-        </Can>
-      ) : (
-        <p className="text-sm text-[var(--color-bo-ink-2)]">Seleziona un livello per modificarlo.</p>
-      )}
+              {current ? (
+                <Can capability="program.config" mode="disable">
+                  <TierEditor key={current.code} tier={current} />
+                </Can>
+              ) : (
+                <p className="text-sm text-[var(--color-bo-ink-2)]">Seleziona un livello per modificarlo.</p>
+              )}
+            </>
+          );
+        }}
+      </QueryState>
 
       <Card className="mt-4">
         <CardBody className="pt-4 text-sm">
