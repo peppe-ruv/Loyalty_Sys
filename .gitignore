@@ -26,3 +26,6 @@ Thumbs.db
 
 # Lockfile npm spurio dell'hook di sessione (il PoC usa pnpm in web/)
 /package-lock.json
+
+# worktree temporanei degli agenti paralleli (non fanno parte del repo)
+.claude/worktrees/
