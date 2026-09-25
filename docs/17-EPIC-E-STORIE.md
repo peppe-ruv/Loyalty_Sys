@@ -683,12 +683,12 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
 
 #### US-E04-08 · Rimborso di una richiesta annullata
 *Come* membro, *voglio* riavere i punti se la richiesta è annullata, *così che* non paghi un premio che non ricevo.
-- **Tocca**: F-RWD-07, F-WAL-08 · `reward.redemption.cancelled (refund=true)` → `wallet.points.refunded` · WAL-10 · Q-54.
-- **Decisioni**: `refund ≠ true` → nulla · nessuna spesa → nulla · già rimborsata → nulla · punti ai lotti d'origine ancora validi · ⚠ quelli da lotti scaduti → nuovo lotto con scadenza di oggi + policy (docs/03 §4.2: max(originaria, oggi + 30 gg)).
+- **Tocca**: F-RWD-07, F-WAL-08 · `reward.redemption.cancelled (refund=true)` → `wallet.points.refunded` · WAL-10 · docs/03 §4.2 (supera Q-54).
+- **Decisioni**: `refund ≠ true` → nulla · nessuna spesa → nulla · già rimborsata → nulla · tutto l'importo in un lotto nuovo con scadenza `max(scadenza più lontana dei lotti consumati, oggi + 30 gg)` (lotto consumato senza scadenza → nessuna scadenza; nessun consumo registrato → oggi + 30 gg).
 - **Criteri**:
   1. Dato un annullo CONFIRMED, allora `REFUND` di pari importo e `wallet.points.refunded` (reward §7).
   2. Dato un annullo del membro in PENDING (`refund=false`), allora nessun movimento.
-  3. ⚠ Dato un lotto d'origine scaduto nel frattempo, allora la specifica chiede una scadenza max(originaria, oggi+30): oggi scade a oggi + 12 mesi (Q-54 non la cita).
+  3. Dato un lotto d'origine scaduto nel frattempo, allora il lotto di rimborso scade a max(originaria più lontana, oggi + 30 gg); i lotti d'origine restano consumati.
 - **Testbook**: TB-WAL (da coprire).
 
 #### US-E04-09 · Configurare i livelli
@@ -2078,8 +2078,8 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | WAL-10 `RedemptionPayments#refund` (F-RWD-07) | `refund ≠ true` o `redemptionId` assente ⇒ ignorato | EVT-FACT-44 | US-E04-08 | TB-WAL |
 | ↳ | nessuna `SPEND` per la richiesta ⇒ nulla (log) | nessuna | US-E04-08 | TB-WAL |
 | ↳ | `REFUND` già registrato ⇒ nulla | RNF-03 | US-E04-08 | TB-WAL |
-| ↳ | punti restituiti ai lotti d'origine ancora validi | Q-54 | US-E04-08 | TB-WAL |
-| ↳ | ⚠ parte da lotti scaduti (o senza consumi registrati) ⇒ nuovo lotto con scadenza di un accredito di oggi (docs/03 §4.2: `max(scadenza originaria più lontana, oggi + 30 gg)`) | docs/03 §4.2, Q-54 | US-E04-08 | TB-WAL |
+| ↳ | tutto l'importo in un lotto nuovo; i lotti d'origine restano consumati | docs/03 §4.2 | US-E04-08 | TB-WAL |
+| ↳ | scadenza del lotto nuovo `max(scadenza originaria più lontana, oggi + 30 gg)`; lotto consumato senza scadenza ⇒ nessuna; nessun consumo registrato ⇒ oggi + 30 gg | docs/03 §4.2 | US-E04-08 | TB-WAL |
 | ↳ | movimento `REFUND` unico + `wallet.points.refunded` | docs/03 §4.2 | US-E04-08 | TB-WAL |
 | WAL-11 `MemberLifecycleHandler` | `member.registered` ⇒ wallet PTS/STS + `member_tier` BASE | wallet §4 | US-E04-16 | TB-WAL |
 | ↳ | `member.status.changed` ⇒ `member_status` (senza `newStatus` ⇒ `ACTIVE`) | wallet §4 | US-E04-16 | TB-WAL |
@@ -2474,14 +2474,14 @@ Fuori perimetro PoC (P2, non contate come lacune): F-ING-10 invio batch, F-MBR-0
 | 5.2 ingestion-service | 23 | 91 | 107 | 107 | 13 | 0 | 1 |
 | 5.3 member-service | 21 | 61 | 84 | 83 | 7 | 1 | 1 |
 | 5.4 campaign-service | 31 | 83 | 106 | 106 | 8 | 2 | 4 |
-| 5.5 wallet-service | 21 | 80 | 110 | 109 | 11 | 1 | 1 |
+| 5.5 wallet-service | 21 | 80 | 110 | 109 | 11 | 0 | 1 |
 | 5.6 reward-service | 26 | 79 | 116 | 116 | 5 | 1 | 0 |
 | 5.7 gamification-service | 22 | 71 | 112 | 112 | 8 | 1 | 0 |
 | 5.8 engagement-service | 25 | 55 | 121 | 121 | 2 | 1 | 0 |
 | 5.9 insight-service | 10 | 25 | 40 | 40 | 2 | 0 | 1 |
 | 5.10 libs/lh-common | 14 | 42 | 47 | 46 | 6 | 0 | 2 |
 | 5.11 web (`web/lib`, `web/app/api`) | 18 | 32 | 35 | 35 | 2 | 1 | 0 |
-| **Totale** | **211** | **619** | **878** | **875** | **64** | **8** | **10** |
+| **Totale** | **211** | **619** | **878** | **875** | **64** | **7** | **10** |
 
 Regole di conteggio: *nodo* = riga con identificativo (`ING-01`…); *foglia* = esito distinto: in una riga normale 1 + il numero di alternative separate da « · » nella colonna *Rami / esiti*; in una riga «enum» un valore per foglia; *senza specifica* = foglie della riga con *Regola* «nessuna»; ⚠ e ⛔ contano le righe che li riportano (le ⛔ includono la voce P2 del compleanno; l'elenco puntuale è in §5.12). Codici d'errore: **114** codici HTTP (§5.1: 108 specifici + 6 generici; **24** senza una regola di specifica che li nomini), **10** codici DLQ (§5.1 bis), **6** codici di rifiuto dell'ingresso (`RejectCode`) con 4 esiti (`InboundStatus`).
 
@@ -2717,7 +2717,7 @@ Anche tutte le schermate sono raggiunte: BO-01…BO-30, PT-01…PT-14 e HUB-01 c
 | · associate ad almeno una storia | 875 |
 | · senza storia (§6.3) | 3 |
 | · rami senza specifica | 64 |
-| · rami ⚠ divergenti dalla specifica (righe) | 8 |
+| · rami ⚠ divergenti dalla specifica (righe) | 7 |
 | Codici d'errore HTTP / DLQ / rifiuto ingresso | 114 / 10 / 6 |
 | Regole di specifica senza codice (§5.12) | 10 (+ 3 feature P2 fuori perimetro) |
 
@@ -2731,7 +2731,7 @@ Le righe `TB-*` vanno scritte partendo dai **criteri** delle storie (oracolo = s
 |---|---|
 | **TB-ING** | ordine della pipeline con fallimenti multipli (una riga per coppia di passi); limiti esatti di `time` (+5 min, −30 gg, cambio d'ora); subject senza prefisso (ramo senza specifica); gara sull'insert; *Riprova*/*Abbina* per ogni stato × ruolo; abbinamento automatico: 7 gg ± 1 s, 100/101 righe, `member:` escluso; ponte: ognuna delle 9 mappature accesa/spenta, `lhhop` 2/3; `X-LH-Reprocess` × ruolo × payload presente/assente; origine `SIMULATOR` del simulatore; `PUT /v1/sources/{code}` × ruolo; ⛔ `POST /v1/sources` (righe in divergenza). |
 | **TB-CMP** | tabella decisionale del motore (calendario × pubblico × condizioni × gruppo × limiti × budget) con l'ordine dei controlli; arrotondamenti PER_AMOUNT su valori limite (x,99 / x,50); moltiplicatori con tetto e con etichette; confini di periodo DAY/WEEK/MONTH/EDITION in Europe/Rome (mezzanotte, cambio d'ora, 31→1); `context.source` reale = simulazione (URN o codice); fine automatica a `endAt` (confine incluso); ⛔ `cooldownMinutes`, `perMemberPoints`, ritentativo `NO_MEMBER`; ⚠ nomi dei motivi (`NOT_LIVE`, `MEMBER_LIMIT_REACHED`, `EXCLUSIVE_GROUP`) da riallineare con docs/12; guardia su `POST /v1/campaigns` × ruolo. |
-| **TB-WAL** | FIFO con lotti a pari scadenza, scadenza nulla, lotti PENDING esclusi; rimborso con lotti d'origine scaduti (⚠ Q-54 vs docs/03 §4.2); un solo `EXPIRE` per membro/valuta con più lotti; chiusura edizione: matrice tier attuale (4) × tier guadagnato (4), membri non ACTIVE, nessuna edizione PLANNED; `ROLLING_MONTHS` a fine mese con guadagno a cavallo della mezzanotte UTC/Rome e 29 febbraio; ordine degli effetti PTS/STS nella salita (WAL-01); cron senza zona dei job; ⛔ `keepWarning`. |
+| **TB-WAL** | FIFO con lotti a pari scadenza, scadenza nulla, lotti PENDING esclusi; rimborso in un lotto nuovo con lotti d'origine scaduti, vicini alla scadenza o senza scadenza (docs/03 §4.2); un solo `EXPIRE` per membro/valuta con più lotti; chiusura edizione: matrice tier attuale (4) × tier guadagnato (4), membri non ACTIVE, nessuna edizione PLANNED; `ROLLING_MONTHS` a fine mese con guadagno a cavallo della mezzanotte UTC/Rome e 29 febbraio; ordine degli effetti PTS/STS nella salita (WAL-01); cron senza zona dei job; ⛔ `keepWarning`. |
 | **TB-RWD** | ordine dei 7 controlli della richiesta (una riga per coppia di condizioni vere); stato × evento della saga (PENDING/CONFIRMED/FULFILLED/REJECTED/CANCELLED × spent/rejected/timeout/annullo membro/annullo CARE); `LOW` al 10 % esatto; coupon `ISSUED` scaduto prima del job (410); premio AUTO_COUPON senza pool (ramo senza specifica); ⚠ `REWARD_NOT_EDITABLE` per stato. |
 | **TB-GAM** | ordine dei controlli della giocata; gratuita a cavallo della mezzanotte di Roma; `maxWinsPerMember`; concorrenza (50 giocate/1 istante; stesso membro in parallelo); `BUSINESS_HOURS` nei giorni del cambio d'ora; ⚠ periodi `DAY`/`WEEK` degli obiettivi trattati come `EVER`; filtro obiettivi con campo assente e `neq` (falso); `PAUSED` non chiusi dal job; classifiche con parimerito e membri non ACTIVE. |
 | **TB-GOV** | tabella completa stato (7) × azione (8) × ruolo (5) × policy (richiesta sì/no) per CAMPAIGN, REWARD, CONTEST, più la tabella dei contenuti; override ADMIN in audit; approvazione spenta; matrice `@RequiresRole` endpoint × ruolo (§5, nodi «Guardie») con la guardia mancante su `POST /v1/members` (⚠, registrazione dal portale) e quelle aggiunte su `POST /v1/campaigns`, `PATCH /v1/members/{id}`; `X-LH-Actor` malformato; membri: stati × azioni, anonimizzazione propagata servizio per servizio; segmenti: criteri su ogni campo di docs/03 §10. |
@@ -2746,4 +2746,4 @@ Le righe `TB-*` vanno scritte partendo dai **criteri** delle storie (oracolo = s
 | **TB-E2E** (percorsi tra servizi) | una riga per percorso reale, oracolo = sequenza di fatti attesa in **un** tracciato + stato finale in ogni servizio + ciò che vede il portale: tier-up con bonus e messaggi; premio coupon; premio fisico con evasione CARE; saldo insufficiente; vincita garantita; scadenza con preavviso; cliente digitale con segmento e contenuto; referral; onboarding; smoke. Varianti reali da includere: **servizio addormentato a metà percorso** (wallet giù durante la saga: conferma entro 10 min / timeout / spesa tardiva con rimborso), **riconsegna** di un messaggio a metà catena, **reset** tra due esecuzioni, **ora di Roma** vicino alla mezzanotte e al cambio d'ora, **due azioni dello stesso membro ravvicinate** (limiti e salita di livello) | US-E10-03…07, US-E10-13…16, US-E11-09 |
 | **TB-PLT** (piattaforma) | outbox con Kafka giù, retry e DLQ per tipo di errore, idempotenza generica, contratti evento, errori RFC 9457, reset idempotente dei seed, RNF misurabili | US-E11-07, US-E12-01, US-E12-03, US-E12-05, US-E12-06, US-E12-08 |
 
-**Da registrare prima di scrivere le righe** (divergenze e buchi emersi in §5, da portare in docs/15 e poi nel registro di docs/16 §12): guardia di ruolo mancante su `POST /v1/members`; ⛔ `cooldownMinutes`, `perMemberPoints`, ritentativo `NO_MEMBER`, `keepWarning`, creazione di fonti (`POST /v1/sources`), `timeline` e riepilogo gamification per BO-03, `/v1/demo/info`, pulizie `processed_event`/`inbound_event`/`evaluation_log`; ⚠ scadenza del rimborso, periodi `DAY`/`WEEK` degli obiettivi, AND nel pubblico dei contenuti, `MemberStatus.CLOSED`, `seed/personas.json`; nomi dei motivi in docs/12 (Q-50 esteso a `MEMBER_LIMIT_REACHED`).
+**Da registrare prima di scrivere le righe** (divergenze e buchi emersi in §5, da portare in docs/15 e poi nel registro di docs/16 §12): guardia di ruolo mancante su `POST /v1/members`; ⛔ `cooldownMinutes`, `perMemberPoints`, ritentativo `NO_MEMBER`, `keepWarning`, creazione di fonti (`POST /v1/sources`), `timeline` e riepilogo gamification per BO-03, `/v1/demo/info`, pulizie `processed_event`/`inbound_event`/`evaluation_log`; ⚠ periodi `DAY`/`WEEK` degli obiettivi, AND nel pubblico dei contenuti, `MemberStatus.CLOSED`, `seed/personas.json`; nomi dei motivi in docs/12 (Q-50 esteso a `MEMBER_LIMIT_REACHED`).
