@@ -22,7 +22,7 @@ negli altri servizi, anonimizzazione, attributi personalizzati, segmenti. Serviz
 | `libs/lh-common` · `TestbookGovPolicyTest` | unit: `ApprovalPolicy` | `policy.csv`, `policy-rows.csv` | POL |
 | `services/member-service` · `TestbookGovSegmentCriteriaTest` | unit: `SegmentCriteria` | `criteria.csv`, `criteria-validation.csv` | CRT, CRV |
 | `services/member-service` · `TestbookGovAttributesTest` | unit: `MemberAttributes` | `attribute-values.csv`, `attribute-definitions.csv` | ATV, ATD |
-| `services/member-service` · `TestbookGovMemberIT` | integrazione (Spring, Postgres e Kafka embedded, profilo `demo`) | `member-status.csv`, `member-roles.csv`, `anonymize.csv`, `attributes-in-use.csv`, `segments.csv` | MST, MRL, ANO, ATU, SEG |
+| `services/member-service` · `TestbookGovMemberIT` | integrazione (Spring, Postgres e Kafka embedded, profilo `demo`) | `member-status.csv`, `member-roles.csv`, `anonymize.csv`, `attributes-in-use.csv`, `segments.csv`, `referral.csv` | MST, MRL, ANO, ATU, SEG, REF |
 | `deploy/hub` · `TestbookGovHubIT` | integrazione tra servizi (hub consolidato, profili `demo, inproc`) | `hub-entities.csv`, `hub-approvals.csv`, `hub-matrix.csv`, `hub-effects.csv`, `hub-anonymization.csv` | ENT, APQ, MAT, EFF, ANX |
 
 Ogni caso ha nome `[<ID>] <descrizione>`; una riga = un caso eseguito. Nei CSV i valori speciali sono scritti come
@@ -70,6 +70,8 @@ vuoto, così che ogni riga misuri una sola decisione.
 | R-29 | Segmenti dinamici: si valutano tutti gli stati tranne `ANONYMIZED` | Q-85 | SEG |
 | R-30 | Segmenti: scritture con `segment.write`; anteprima in lettura per tutti | docs/08 §2 · member §3 | SEG, MRL |
 | R-31 | Contenuti: stesso ciclo di vita, pubblicazione diretta | docs/03 §3.6 · docs/06 §7 | ENT |
+| R-32 | Referral: ogni membro ha un codice di 8 caratteri `A-Z2-9` univoco; la registrazione con codice valido crea il legame (un solo invitante, non modificabile, non se stessi); codice inesistente ⇒ 422 `REFERRAL_CODE_INVALID`, invitante non ACTIVE ⇒ idem | F-REF-01 · docs/03 §2, §8 · member §3, §5 · Q-61 | REF-001…015 |
+| R-33 | Referral: alla **prima** azione qualificante dell'invitato (`purchase.completed`) due fatti `referral.completed` (REFEREE sull'invitato, REFERRER sull'invitante, chiavi = i due membri); nessun altro dopo | F-REF-02 · docs/03 §8 · member §5, §7 · EVT-FACT-08 | REF-016…023 |
 
 ## 2. Rami del codice mappati sulle regole
 
@@ -136,6 +138,9 @@ Percorsi relativi a `libs/lh-common/src/main/java/io/loyaltyhub/common/` e `serv
 | B-56 | `services/engagement-service/…/application/ContentService.java:245` transizioni dei contenuti senza `approval_history` | R-13 — **divergenza** | ENT-046 |
 | B-57 | `libs/lh-common/…/approval/ApprovalItem.java:32-44` voce della coda; `requiredRole` nullo senza approvatore | R-14 | APQ |
 | B-58 | guardie `@RequiresRole` e controlli di ruolo nei servizi (elenco in docs/17 §5) | R-03 | MAT |
+| B-59 | `application/MemberService.java:331-343` codice vuoto ⇒ nessun legame; `trim` + maiuscole; inesistente o invitante non ACTIVE ⇒ 422 | R-32 (Q-61); normalizzazione senza specifica | REF-001…010 |
+| B-60 | `application/MemberService.java:353-361` codice di 8 caratteri univoco; 10 tentativi poi 409 `REFERRAL_CODE_EXHAUSTED` | R-32; l'esaurimento è senza specifica e non raggiungibile | REF-012, REF-013 |
+| B-61 | `application/ReferralService.java:68-82` solo il tipo qualificante; completamento condizionale (una volta); due fatti, anche con invitante non più ACTIVE | R-33; invitante non ACTIVE senza specifica | REF-016…023 |
 
 ## 3. Identità simulata e guardie di ruolo
 
@@ -1104,6 +1109,40 @@ dinamici (Q-85: tutti tranne ANONYMIZED, una riga per stato).
 | TB-GOV-SEG-029 | dinamico: membro ANONYMIZED escluso | `fuori` | Q-85 | `TestbookGovMemberIT#segments` |
 | TB-GOV-SEG-030 | versione superata | `409:VERSION_CONFLICT` — AMBIGUO (Q-112 riguarda campagne, premi, concorsi) | docs/06 §4 · Q-112 | `TestbookGovMemberIT#segments` |
 
+### 11.4 Referral lato member-service (REF)
+Nodi MBR-05 (legame alla registrazione), MBR-06 (codice invito), MBR-09 (completamento) di docs/17; il lato gioco e
+premi del referral è in TB-GAM/TB-CMP. Domini: codice (assente, vuoto, valido, minuscolo, con spazi, inesistente, di un
+invitante BLOCKED o INACTIVE — ogni classe da sola); formato e unicità del codice generato; azione (prima qualificante,
+seconda, di altro tipo, di un membro senza invitante, con invitante nel frattempo bloccato). L'invitato non può usare il
+proprio codice perché il codice nasce con il membro: `REFERRAL_SELF` non è raggiungibile via API (member §5, nessuna
+riga). Le azioni arrivano dal Kafka embedded e i fatti si leggono dall'outbox, attesi fino a 15 s.
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-GOV-REF-001 | registrazione senza codice | `nessun legame` | F-REF-01 · docs/03 §8 | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-002 | codice vuoto | `nessun legame` | F-REF-01 | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-003 | codice valido | `legato all'invitante` | F-REF-01 · docs/03 §8 · member §3 | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-004 | codice in minuscolo | `legato all'invitante` — AMBIGUO (normalizzato in maiuscolo) | docs/03 §2 (`A-Z2-9`) | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-005 | codice con spazi ai bordi | `legato all'invitante` — AMBIGUO (spazi tolti) | docs/03 §2 | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-006 | codice inesistente | `422:REFERRAL_CODE_INVALID` | member §5 | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-007 | codice di un invitante BLOCKED | `422:REFERRAL_CODE_INVALID` | Q-61 | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-008 | codice di un invitante INACTIVE | `422:REFERRAL_CODE_INVALID` | Q-61 | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-009 | il legame non si modifica (PATCH con `referredBy`) | `invariato` | docs/03 §8 (non modificabile) | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-010 | il fatto `member.registered` porta l'invitante | `referredBy presente` | member §5 (snapshot completo) · docs/05 | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-011 | seed: Elisa invitata da Marco | `MBR-000002` | docs/10 §2 · seed/members.json · member §7 | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-012 | codice di 8 caratteri `A-Z2-9` | `valido` | docs/03 §2 · F-REF-01 | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-013 | codici univoci su 20 iscrizioni | `20 distinti` | docs/03 §2 (`referralCode` univoco) | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-014 | vista del portale | `code\|shareUrl\|invited\|completedCount` | member §3 (`{code, shareUrl, invited[], completedCount}`) · PT-11 | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-015 | invitati dell'invitante nel backoffice | `invitato PENDING` | member §3 (`/v1/members/{id}/referrals`) · BO-17 | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-016 | prima azione qualificante dell'invitato | `REFEREE→invitante\|REFERRER→invitato` | F-REF-02 · docs/03 §8 · member §5 | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-017 | fatti sulle chiavi dei due membri | `invitato\|invitante` | member §5 (chiavi = i due `memberId`) | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-018 | fatti conformi al contratto | `validi` | EVT-FACT-08 · contracts/events/fact/referral.completed | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-019 | seconda azione qualificante | `0 fatti nuovi` | docs/03 §8 (solo la prima) · member §7 | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-020 | azione non qualificante | `0 fatti\|PENDING` | docs/03 §8 (`referral.qualifyingActionType`) | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-021 | acquisto di un membro senza invitante | `0 fatti` | F-REF-02 | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-022 | invitante bloccato prima del completamento | `2 fatti` — AMBIGUO (fatto emesso comunque, il motore lo scarta) | F-REF-02 · Q-61 | `TestbookGovMemberIT#referral` |
+| TB-GOV-REF-023 | completamento nella panoramica | `COMPLETED` | member §3 (`/v1/referral/overview`) · BO-17 | `TestbookGovMemberIT#referral` |
+
 ## 12. Flussi tra servizi (hub)
 
 `deploy/hub/src/test/java/io/loyaltyhub/hub/TestbookGovHubIT.java` (dati in `deploy/hub/src/test/resources/testbook/gov/`):
@@ -1376,6 +1415,8 @@ Righe che asseriscono il comportamento attuale perché la specifica tace e `docs
 | SEG-015, 016 | Statico con membri inesistenti o anonimizzati | 422 `MEMBER_NOT_FOUND` |
 | SEG-017, SEG-021 | Codici d'errore di «solo STATIC» e «archiviato» | 409 `SEGMENT_NOT_STATIC`, 409 `SEGMENT_ARCHIVED` |
 | SEG-030 | Blocco ottimistico dei segmenti (Q-112 cita solo campagne, premi, concorsi) | 409 `VERSION_CONFLICT` |
+| REF-004, REF-005 | Codice invito in minuscolo o con spazi ai bordi | normalizzato: legame creato |
+| REF-022 | Invitante bloccato prima della prima azione qualificante dell'invitato | i due fatti `referral.completed` sono emessi comunque (il motore scarta quello dell'invitante con `NO_MEMBER`) |
 | ENT-019, ENT-031, ENT-043 | `ACTIVATE`: sinonimo di `PUBLISH` per le campagne, azione sconosciuta per premi e concorsi | campagna `LIVE`; premio/concorso 422 `INVALID_ACTION` |
 | APQ-008 | `requiredRole` di una campagna senza obbligo inviata in revisione (Q-193 riguarda solo il web) | `null` |
 | MAT-009, MAT-010 | Istogramma degli istanti per CARE e ANALYST (docs/08 §2 dà «solo istogramma» solo a MARKETING) | ammesso |
@@ -1397,12 +1438,12 @@ Nessuna divergenza nelle aree di `lh-common` a logica pura (ACT, GRD, PRS, SMR, 
 
 | Misura | Valore |
 |---|---|
-| Regole inventariate | 31 (R-01…R-31) |
-| Rami del codice mappati | 58 (B-01…B-58); non raggiungibili senza concorrenza o per le API: B-05, B-30 |
-| Rami senza specifica | 15 (B-02, B-03, B-04, B-10, B-13, B-25, B-26, B-28, B-33, B-36, B-37, B-38, B-50, B-51, B-54) → righe AMBIGUO |
+| Regole inventariate | 33 (R-01…R-33) |
+| Rami del codice mappati | 61 (B-01…B-61); non raggiungibili senza concorrenza o per le API: B-05, B-30, esaurimento dei codici di B-60, `REFERRAL_SELF` |
+| Rami senza specifica | 18 (B-02, B-03, B-04, B-10, B-13, B-25, B-26, B-28, B-33, B-36, B-37, B-38, B-50, B-51, B-54, B-59, B-60, B-61) → righe AMBIGUO |
 | Regole senza codice | 1: storico delle transizioni dei contenuti (R-13 per i contenuti, D-04) |
-| Righe | 949 — ACT 14, GRD 30, PRS 16, SMR 56, SMN 10, SMF 56, ROL 60, CMT 14, OVR 22, POL 44, MST 41, MRL 74, ANO 47, ATV 70, ATD 29, ATU 14, CRT 118, CRV 27, SEG 30, ENT 47, APQ 8, MAT 100, EFF 17, ANX 5 |
-| di cui AMBIGUO | 136 (§13) |
+| Righe | 972 — ACT 14, GRD 30, PRS 16, SMR 56, SMN 10, SMF 56, ROL 60, CMT 14, OVR 22, POL 44, MST 41, MRL 74, ANO 47, ATV 70, ATD 29, ATU 14, CRT 118, CRV 27, SEG 30, REF 23, ENT 47, APQ 8, MAT 100, EFF 17, ANX 5 |
+| di cui AMBIGUO | 139 (§13) |
 | Tabelle complete | GRD 6 × 5; SMR e SMF 7 × 8; ROL 8 × 5 (+ 2 × 5, 1 × 5); OVR 2 × 2 × 5; POL campagna 2 × 2 × 7 e scheda 4 × 2; MST 4 × 8; MRL 12 × 6; ATV 4 × 16; CRT 14 × 4 e assente × 14; MAT 20 × 5; EFF 4 × 4 |
 | Riduzioni | stato × azione × ruolo × policy (560) → SMR + SMF (112) + SMN (10: le celle in cui la regola entra nel ramo, 46 identiche a SMR) + ROL (60), perché ruolo e stato sono controlli indipendenti e in sequenza, più 5 righe di precedenza; per tipo di oggetto (3 × 56) → 12 verifiche di cablaggio per tipo nell'hub (la logica è la stessa `GovernedTransitions`); policy spenta nell'hub → nessun contesto dedicato (stesso bean, tabelle SMF/ROL); tabella dei contenuti → TB-ENG; ACT, PRS, ANO, ATD, CRV, SEG → ogni classe non valida da sola sul caso valido (guasto singolo) |
 | Divergenze | 4 cause, 12 righe: D-01 (8), D-02 (2), D-03 (1, risolta da `main`), D-04 (1) → 11 righe rosse aperte |
@@ -1417,5 +1458,5 @@ righe che le coprono falliscono (D-03 era rossa prima del merge di `main` e verd
 
 ### Tempi
 
-`lh-common` unit ≈ 1 s di test (322 casi); member-service unit ≈ 2 s, `TestbookGovMemberIT` ≈ 30 s; `TestbookGovHubIT`
+`lh-common` unit ≈ 1 s di test (322 casi); member-service unit ≈ 2 s, `TestbookGovMemberIT` ≈ 35 s (con REF); `TestbookGovHubIT`
 ≈ 50 s (un contesto per classe).

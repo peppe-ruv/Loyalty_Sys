@@ -1,0 +1,24 @@
+id,descrizione,scenario,expected
+TB-GOV-REF-001,registrazione senza codice,NO_CODE,nessun legame
+TB-GOV-REF-002,codice vuoto,EMPTY_CODE,nessun legame
+TB-GOV-REF-003,codice valido,VALID_CODE,legato all'invitante
+TB-GOV-REF-004,codice in minuscolo,LOWER_CODE,legato all'invitante
+TB-GOV-REF-005,codice con spazi ai bordi,PADDED_CODE,legato all'invitante
+TB-GOV-REF-006,codice inesistente,UNKNOWN_CODE,422:REFERRAL_CODE_INVALID
+TB-GOV-REF-007,codice di un invitante BLOCKED,BLOCKED_REFERRER,422:REFERRAL_CODE_INVALID
+TB-GOV-REF-008,codice di un invitante INACTIVE,INACTIVE_REFERRER,422:REFERRAL_CODE_INVALID
+TB-GOV-REF-009,il legame non si modifica (PATCH con `referredBy`),PATCH_REFERRED_BY,invariato
+TB-GOV-REF-010,il fatto `member.registered` porta l'invitante,REGISTERED_FACT,referredBy presente
+TB-GOV-REF-011,seed: Elisa invitata da Marco,SEED_ELISA,MBR-000002
+TB-GOV-REF-012,codice di 8 caratteri `A-Z2-9`,CODE_FORMAT,valido
+TB-GOV-REF-013,codici univoci su 20 iscrizioni,CODE_UNIQUE,20 distinti
+TB-GOV-REF-014,vista del portale,PORTAL,code|shareUrl|invited|completedCount
+TB-GOV-REF-015,invitati dell'invitante nel backoffice,REFERRALS_OF,invitato PENDING
+TB-GOV-REF-016,prima azione qualificante dell'invitato,FIRST_PURCHASE,REFEREE→invitante|REFERRER→invitato
+TB-GOV-REF-017,fatti sulle chiavi dei due membri,FACT_KEYS,invitato|invitante
+TB-GOV-REF-018,fatti conformi al contratto,CONTRACT,validi
+TB-GOV-REF-019,seconda azione qualificante,SECOND_PURCHASE,0 fatti nuovi
+TB-GOV-REF-020,azione non qualificante,OTHER_ACTION,0 fatti|PENDING
+TB-GOV-REF-021,acquisto di un membro senza invitante,NO_REFERRER,0 fatti
+TB-GOV-REF-022,invitante bloccato prima del completamento,REFERRER_BLOCKED,2 fatti
+TB-GOV-REF-023,completamento nella panoramica,OVERVIEW,COMPLETED

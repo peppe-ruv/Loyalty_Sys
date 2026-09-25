@@ -699,6 +699,237 @@ class TestbookGovMemberIT {
                 .params(type, code).query(String.class).list().stream().map(mapper::readTree).toList();
     }
 
+    // ======================================================================= REF
+    private static final String REFERRAL = "io.loyaltyhub.fact.referral.completed";
+    private static final java.util.regex.Pattern CODE_FORMAT = java.util.regex.Pattern.compile("^[A-Z2-9]{8}$");
+
+    @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
+    @CsvFileSource(resources = "/testbook/gov/referral.csv", numLinesToSkip = 1)
+    void referral(String id, String description, String scenario, String expected) {
+        // Righe REF-004, REF-005, REF-022 — TESTBOOK: ambiguo, vedi TB-GOV §13
+        String got = switch (scenario) {
+            case "NO_CODE" -> linkOf(register(null));
+            case "EMPTY_CODE" -> linkOf(register(""));
+            case "VALID_CODE", "LOWER_CODE", "PADDED_CODE" -> {
+                String referrer = newMember();
+                String code = codeOf(referrer);
+                String sent = switch (scenario) {
+                    case "LOWER_CODE" -> code.toLowerCase();
+                    case "PADDED_CODE" -> "  " + code + " ";
+                    default -> code;
+                };
+                Resp r = register(sent);
+                yield !r.ok() ? r.outcome()
+                        : referrer.equals(r.body.path("referredBy").asString()) ? "legato all'invitante"
+                        : "legato a " + r.body.path("referredBy").asString("nessuno");
+            }
+            case "UNKNOWN_CODE" -> register("ZZZZ2222").outcome();
+            case "BLOCKED_REFERRER", "INACTIVE_REFERRER" -> {
+                String referrer = memberIn(scenario.startsWith("BLOCKED") ? "BLOCKED" : "INACTIVE");
+                yield register(codeOf(referrer)).outcome();
+            }
+            case "PATCH_REFERRED_BY" -> {
+                String referrer = newMember();
+                String m = register(codeOf(referrer)).expect(201).path("id").asString();
+                http(HttpMethod.PATCH, "/v1/members/" + m, ADMIN, Map.of("referredBy", "MBR-000001", "city", "Lodi"));
+                yield referrer.equals(member(m).path("referredBy").asString()) ? "invariato"
+                        : member(m).path("referredBy").asString("null");
+            }
+            case "REGISTERED_FACT" -> {
+                String referrer = newMember();
+                String m = register(codeOf(referrer)).expect(201).path("id").asString();
+                JsonNode f = last(facts("io.loyaltyhub.fact.member.registered", m));
+                yield referrer.equals(f.path("data").path("referredBy").asString()) ? "referredBy presente"
+                        : "referredBy " + f.path("data").path("referredBy").asString("assente");
+            }
+            case "SEED_ELISA" -> member("MBR-000009").path("referredBy").asString("null");
+            case "CODE_FORMAT" -> {
+                String code = codeOf(newMember());
+                yield CODE_FORMAT.matcher(code).matches() ? "valido" : "non valido: " + code;
+            }
+            case "CODE_UNIQUE" -> {
+                Set<String> codes = new java.util.HashSet<>();
+                for (int i = 0; i < 20; i++) {
+                    codes.add(codeOf(newMember()));
+                }
+                yield codes.size() + " distinti";
+            }
+            case "PORTAL" -> {
+                String referrer = newMember();
+                register(codeOf(referrer)).expect(201);
+                JsonNode p = http(HttpMethod.GET, "/v1/portal/members/" + referrer + "/referral", null, null).expect(200);
+                List<String> fields = new ArrayList<>();
+                if (codeOf(referrer).equals(p.path("code").asString())) {
+                    fields.add("code");
+                }
+                if (p.path("shareUrl").asString("").contains(codeOf(referrer))) {
+                    fields.add("shareUrl");
+                }
+                if (p.path("invited").isArray() && p.path("invited").size() == 1) {
+                    fields.add("invited");
+                }
+                if (p.has("completedCount") && p.path("completedCount").asInt() == 0) {
+                    fields.add("completedCount");
+                }
+                yield String.join("|", fields);
+            }
+            case "REFERRALS_OF" -> {
+                String referrer = newMember();
+                String m = register(codeOf(referrer)).expect(201).path("id").asString();
+                JsonNode list = http(HttpMethod.GET, "/v1/members/" + referrer + "/referrals", ADMIN, null).expect(200);
+                JsonNode link = list.path(0);
+                yield (m.equals(link.path("refereeId").asString()) ? "invitato " : "altro ") + link.path("status").asString();
+            }
+            case "FIRST_PURCHASE", "FACT_KEYS", "CONTRACT" -> {
+                String referrer = newMember();
+                String m = register(codeOf(referrer)).expect(201).path("id").asString();
+                publishAction("purchase.completed", m);
+                List<JsonNode> f = awaitReferralFacts(m, referrer, 2);
+                if ("CONTRACT".equals(scenario)) {
+                    List<String> errors = new ArrayList<>();
+                    f.forEach(x -> errors.addAll(contractErrors(x, "referral.completed")));
+                    yield f.size() == 2 && errors.isEmpty() ? "validi" : f.size() + " fatti; " + String.join("; ", errors);
+                }
+                JsonNode referee = f.stream().filter(x -> "REFEREE".equals(x.path("data").path("role").asString())).findFirst()
+                        .orElse(mapper.createObjectNode());
+                JsonNode rer = f.stream().filter(x -> "REFERRER".equals(x.path("data").path("role").asString())).findFirst()
+                        .orElse(mapper.createObjectNode());
+                if ("FACT_KEYS".equals(scenario)) {
+                    yield (("member:" + m).equals(referee.path("subject").asString()) ? "invitato" : "?") + "|"
+                            + (("member:" + referrer).equals(rer.path("subject").asString()) ? "invitante" : "?");
+                }
+                yield "REFEREE→" + (referrer.equals(referee.path("data").path("counterpartMemberId").asString()) ? "invitante" : "?")
+                        + "|REFERRER→" + (m.equals(rer.path("data").path("counterpartMemberId").asString()) ? "invitato" : "?");
+            }
+            case "SECOND_PURCHASE" -> {
+                String referrer = newMember();
+                String m = register(codeOf(referrer)).expect(201).path("id").asString();
+                publishAction("purchase.completed", m);
+                awaitReferralFacts(m, referrer, 2);
+                publishAction("purchase.completed", m);
+                awaitStats(m, 2);
+                yield (referralFacts(m, referrer).size() - 2) + " fatti nuovi";
+            }
+            case "OTHER_ACTION" -> {
+                String referrer = newMember();
+                String m = register(codeOf(referrer)).expect(201).path("id").asString();
+                publishAction("app.login.daily", m);
+                awaitStats(m, 1);
+                String status = http(HttpMethod.GET, "/v1/members/" + referrer + "/referrals", ADMIN, null).body
+                        .path(0).path("status").asString();
+                yield referralFacts(m, referrer).size() + " fatti|" + status;
+            }
+            case "NO_REFERRER" -> {
+                String m = newMember();
+                publishAction("purchase.completed", m);
+                awaitStats(m, 1);
+                yield jdbc.sql("SELECT count(*) FROM outbox WHERE type = ? AND payload::text LIKE ?")
+                        .params(REFERRAL, "%" + m + "%").query(Long.class).single() + " fatti";
+            }
+            case "REFERRER_BLOCKED" -> {
+                String referrer = newMember();
+                String m = register(codeOf(referrer)).expect(201).path("id").asString();
+                moveTo(referrer, "BLOCKED");
+                publishAction("purchase.completed", m);
+                yield awaitReferralFacts(m, referrer, 2).size() + " fatti";
+            }
+            case "OVERVIEW" -> {
+                String referrer = newMember();
+                String m = register(codeOf(referrer)).expect(201).path("id").asString();
+                publishAction("purchase.completed", m);
+                awaitReferralFacts(m, referrer, 2);
+                JsonNode o = http(HttpMethod.GET, "/v1/referral/overview", ADMIN, null).expect(200);
+                String status = "assente";
+                for (JsonNode l : o.path("links")) {
+                    if (m.equals(l.path("refereeId").asString())) {
+                        status = l.path("status").asString();
+                    }
+                }
+                yield status;
+            }
+            default -> throw new IllegalArgumentException(scenario);
+        };
+        assertThat(got).as("%s: %s", id, description).isEqualTo(expected);
+    }
+
+    private Resp register(String referralCode) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("firstName", "Invitata");
+        body.put("lastName", "Testbook");
+        body.put("email", email());
+        body.put("referralCode", referralCode);
+        return http(HttpMethod.POST, "/v1/members", null, body);
+    }
+
+    private String linkOf(Resp r) {
+        return !r.ok() ? r.outcome() : r.body.hasNonNull("referredBy") ? "legato a " + r.body.path("referredBy").asString()
+                : "nessun legame";
+    }
+
+    private String codeOf(String memberId) {
+        return member(memberId).path("referralCode").asString();
+    }
+
+    private List<JsonNode> referralFacts(String referee, String referrer) {
+        return jdbc.sql("SELECT payload::text FROM outbox WHERE type = ? AND (payload->>'subject' = ? OR payload->>'subject' = ?) "
+                        + "ORDER BY created_at")
+                .params(REFERRAL, "member:" + referee, "member:" + referrer).query(String.class).list().stream()
+                .map(mapper::readTree).toList();
+    }
+
+    /** Fatti {@code referral.completed} della coppia, attesi fino a 15 s (l'azione passa dal Kafka embedded). */
+    private List<JsonNode> awaitReferralFacts(String referee, String referrer, int count) {
+        long deadline = System.currentTimeMillis() + 15_000;
+        List<JsonNode> f = referralFacts(referee, referrer);
+        while (f.size() < count && System.currentTimeMillis() < deadline) {
+            pause();
+            f = referralFacts(referee, referrer);
+        }
+        return f;
+    }
+
+    /** Attende che il consumer delle azioni abbia elaborato {@code count} azioni del membro (statistiche). */
+    private void awaitStats(String memberId, long count) {
+        long deadline = System.currentTimeMillis() + 15_000;
+        while (System.currentTimeMillis() < deadline) {
+            Long total = jdbc.sql("SELECT coalesce(max(actions_total), 0) FROM member_stats WHERE member_id = ?")
+                    .param(memberId).query(Long.class).single();
+            if (total >= count) {
+                return;
+            }
+            pause();
+        }
+        throw new AssertionError("azioni di " + memberId + " non elaborate entro 15 s");
+    }
+
+    private static void pause() {
+        try {
+            Thread.sleep(200);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private void publishAction(String shortType, String memberId) {
+        String eventId = "tbgov-" + seq.incrementAndGet() + "-" + System.nanoTime();
+        Map<String, Object> event = Map.of(
+                "specversion", "1.0", "id", eventId,
+                "source", "urn:loyaltyhub:source:ecommerce", "type", "io.loyaltyhub.action." + shortType,
+                "subject", "member:" + memberId, "time", java.time.Instant.now().toString(),
+                "lhcorrelationid", eventId, "lhhop", 0,
+                "data", Map.of("orderId", "ORD-" + eventId, "amount", 20, "currency", "EUR", "channel", "ONLINE"));
+        try (org.apache.kafka.clients.producer.KafkaProducer<String, String> producer =
+                     new org.apache.kafka.clients.producer.KafkaProducer<>(Map.of(
+                             "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
+                             "key.serializer", org.apache.kafka.common.serialization.StringSerializer.class,
+                             "value.serializer", org.apache.kafka.common.serialization.StringSerializer.class))) {
+            producer.send(new org.apache.kafka.clients.producer.ProducerRecord<>("lh.actions.v1", memberId,
+                    mapper.writeValueAsString(event))).get();
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     // ======================================================================= supporto
     record Resp(int status, JsonNode body) {
         boolean ok() {
