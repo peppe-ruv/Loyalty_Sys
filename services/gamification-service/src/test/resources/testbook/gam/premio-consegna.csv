@@ -13,4 +13,4 @@ TB-GAM-PRZ-030,consegna manuale su una vincita POINTS,POINTS,CARE,DELIVERED,-,40
 TB-GAM-PRZ-031,consegna manuale su una vincita COUPON,COUPON,CARE,DELIVERED,-,409/422,NA,-
 TB-GAM-PRZ-032,consegna manuale su una giocata perdente,LOSE,CARE,DELIVERED,-,409/422,NA,-
 TB-GAM-PRZ-033,giocata inesistente,UNKNOWN,CARE,DELIVERED,-,404,-,-
-TB-GAM-PRZ-034,AMBIGUO nota di soli spazi,PHYSICAL,CARE,DELIVERED,"   ",204,DELIVERED,NULL
+TB-GAM-PRZ-034,Q-297 nota di soli spazi,PHYSICAL,CARE,DELIVERED,"   ",204,DELIVERED,NULL

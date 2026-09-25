@@ -50,13 +50,21 @@ public class AttributeService {
         for (AttributeDefinition old : before.values()) {
             AttributeDefinition now = defs.stream().filter(d -> d.key().equals(old.key())).findFirst().orElse(null);
             boolean removedOrRetyped = now == null || !now.type().equals(old.type());
-            if (removedOrRetyped && definitions.membersUsing(old.key()) > 0) {
-                blocked.add(old.key());
+            if (removedOrRetyped) {
+                if (definitions.membersUsing(old.key()) > 0) {
+                    blocked.add(old.key());
+                }
+            } else if (!now.options().isEmpty() && (old.options().isEmpty() || !now.options().containsAll(old.options()))) {
+                // Q-306 DECISA (come Q-93): le opzioni si restringono (o si introducono su un testo libero) solo se nessun
+                // valore presente ne resta fuori.
+                if (definitions.membersOutsideOptions(old.key(), now.options()) > 0) {
+                    blocked.add(old.key());
+                }
             }
         }
         if (!blocked.isEmpty()) {
-            throw LhException.conflict("ATTRIBUTE_IN_USE", "Attributi con valori sui membri: non si tolgono né cambiano tipo ("
-                    + String.join(", ", blocked) + ").");
+            throw LhException.conflict("ATTRIBUTE_IN_USE", "Attributi con valori sui membri: non si tolgono, non cambiano "
+                    + "tipo e non perdono opzioni ancora usate (" + String.join(", ", blocked) + ").");
         }
         definitions.replaceAll(defs);
         audit.record("attribute_definition", "all", AuditEntry.Action.UPDATE,

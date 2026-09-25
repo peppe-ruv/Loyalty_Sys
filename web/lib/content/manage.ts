@@ -60,9 +60,9 @@ export function fromLocalInput(value: string): string | null {
 }
 
 /**
- * Oggetto `LIVE` (docs/03 §3.6; docs/08 §3.2): si modificano solo i campi "sicuri" (titolo, testo, immagine, priorità,
+ * Oggetto `LIVE` o `PAUSED` (docs/03 §3.6; docs/08 §3.2; Q-174): si modificano solo i campi "sicuri" (titolo, testo, immagine, priorità,
  * fine calendario); per il resto si duplica, e il servizio risponde `409 CONTENT_LIVE_LOCKED`. Il `PUT` sostituisce
- * tutto: per un `LIVE` i campi non sicuri si rimandano come li ha il servizio, così salvare i soli campi sicuri non
+ * tutto: per un `LIVE`/`PAUSED` i campi non sicuri si rimandano come li ha il servizio, così salvare i soli campi sicuri non
  * cambia altro per errore (minuti delle date, chiavi del pubblico che il form non mostra).
  */
 export function liveSafeBody<B extends object>(body: B, current: ContentItem): B {

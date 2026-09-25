@@ -7,8 +7,8 @@ TB-GOV-MAT-005,read × ANALYST,read,ANALYST,ammessa
 TB-GOV-MAT-006,instants.view × ADMIN,instants.view,ADMIN,ammessa/ammessa
 TB-GOV-MAT-007,instants.view × MARKETING,instants.view,MARKETING,403/ammessa
 TB-GOV-MAT-008,instants.view × LEGAL,instants.view,LEGAL,ammessa/ammessa
-TB-GOV-MAT-009,instants.view × CARE,instants.view,CARE,403/ammessa
-TB-GOV-MAT-010,instants.view × ANALYST,instants.view,ANALYST,403/ammessa
+TB-GOV-MAT-009,instants.view × CARE,instants.view,CARE,403/403
+TB-GOV-MAT-010,instants.view × ANALYST,instants.view,ANALYST,403/403
 TB-GOV-MAT-011,member.write × ADMIN,member.write,ADMIN,ammessa
 TB-GOV-MAT-012,member.write × MARKETING,member.write,MARKETING,403
 TB-GOV-MAT-013,member.write × LEGAL,member.write,LEGAL,403

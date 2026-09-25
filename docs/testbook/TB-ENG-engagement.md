@@ -45,7 +45,7 @@ Dominio **engagement** del testbook funzionale (metodo e convenzioni in `docs/16
 | R24 | `message.delivered` non è mai oggetto di regole né di webhook | engagement §5 | `FactHandler` :45; `NotificationService` :43; `RuleAdminService.build` :127; `WebhookService.enqueue` :93, `build` :262 | DDP, RAD, WSUB, WDLV |
 | R25 | Deduplica dei messaggi per `(memberId, sourceEventId, templateCode)` | docs/03 §9; engagement §2, §7 | `InboxRepository.insertIfAbsent`; `InboxService.deliver` :94–97 | DDP |
 | R26 | Ogni messaggio nuovo produce `message.delivered`, figlio del fatto sorgente | engagement §4; docs/05 | `InboxService.deliver` :98–104 | DDP |
-| R27 | Nessun messaggio ai membri `ANONYMIZED`; i `BLOCKED` li ricevono | Q-70 | `InboxService.deliver` :82–85 | RUL, DDP |
+| R27 | Nessun messaggio ai membri `ANONYMIZED` né `INACTIVE`; i `BLOCKED` e i membri senza snapshot li ricevono | Q-70; Q-180 | `InboxService.deliver` :82–87 | RUL, DDP |
 | R28 | Effetto `message.send`: `data.*` = effetto con `params`; deduplica su `effectId`; template inesistente → errore «a valle in DLQ» | docs/03 §3.4; Q-68; Q-73; campaign §5 | `MessageSendHandler.handle` :40–61 | DDP |
 | R29 | Gestione delle regole: tipo del catalogo fatti, template esistente, condizione solo su `data.*` | BO-19; engagement §2; docs/05 | `RuleAdminService.create/update/build` :67–143 | RAD |
 | R30 | Anteprima renderizzata `POST …/render` su un evento campione | engagement §3; BO-19; Q-75 | `TemplateAdminService.render` :100–127 | RND |
@@ -101,11 +101,11 @@ Ogni condizione, eccezione o uscita anticipata delle classi `domain`, `applicati
 | `ContentService` :185 anteprima `WIN` senza limite | senza spec | PRV-012 |
 | `ContentService` :196 codice non valido → `422` | R14 | EDT-028…034 |
 | `ContentService` :200 codice già usato → `409` | R15 | EDT-053 |
-| `ContentService` :213 `ARCHIVED` non modificabile (`ENDED` sì) | senza spec | EDT-057, EDT-060 |
+| `ContentService` :213 `ARCHIVED` ed `ENDED` non modificabili | senza spec; Q-174 DECISA | EDT-057, EDT-060 |
 | `ContentService` :216 codice immutabile | senza spec | EDT-055 |
 | `ContentService` :219 tipo immutabile | senza spec (coerente con R11) | EDT-056 |
 | `ContentService` :222 `PUT` senza versione = nessun controllo | senza spec | non coperto |
-| `ContentService` :224–230, :400–427 `LIVE`: campo non sicuro cambiato → `409 CONTENT_LIVE_LOCKED` | R11 | EDL-006…010 |
+| `ContentService` :224–230, :400–427 `LIVE` o `PAUSED`: campo non sicuro cambiato → `409 CONTENT_LIVE_LOCKED` | R11; Q-174 DECISA per `PAUSED` | EDL-006…010, EDT-061 |
 | `ContentService` :232 versione superata → `409` | R15 | EDT-054 |
 | `ContentService` :248 transizione non ammessa → `409` | R09 | LIF |
 | `ContentService` :262–266 codice della copia (troncamento, `-COPIA-n`) | senza spec | DUP-002, DUP-006 |
@@ -649,7 +649,8 @@ Come si combinano livelli, segmenti e stati non è scritto: il codice richiede t
 | TB-ENG-EDT-057 | modifica di un contenuto `ARCHIVED` | **AMBIGUO** — `409 CONTENT_NOT_EDITABLE` | docs/03 §3.6 | `TestbookEngContentIT`#archivedNotEditable |
 | TB-ENG-EDT-058 | modifica di un contenuto inesistente | `404` | docs/06 §2 | `TestbookEngContentIT`#updateNotFound |
 | TB-ENG-EDT-059 | modifica di una bozza (`DRAFT`): cambia posizionamento e pubblico | `200`, campi aggiornati, versione +1 | docs/03 §3.6 (vincoli solo su LIVE) | `TestbookEngContentIT`#draftFullyEditable |
-| TB-ENG-EDT-060 | modifica di un contenuto `ENDED` | **AMBIGUO** — `200` (docs/17 US-E07-01 indica `409 CONTENT_NOT_EDITABLE`, le fonti tacciono) | docs/03 §3.6 | `TestbookEngContentIT`#endedEditable |
+| TB-ENG-EDT-060 | modifica di un contenuto `ENDED` | `409 CONTENT_NOT_EDITABLE` (Q-174 DECISA, come docs/17 US-E07-01) | docs/03 §3.6; docs/17 US-E07-01; Q-174 | `TestbookEngContentIT`#endedNotEditable |
+| TB-ENG-EDT-061 | modifica di un contenuto `PAUSED`: posizionamento, poi solo titolo | `409 CONTENT_LIVE_LOCKED`, poi `200` (Q-174 DECISA: stessi campi sicuri del `LIVE`, come Q-51) | docs/03 §3.6; Q-51; Q-174 | `TestbookEngContentIT`#pausedLockedLikeLive |
 
 ### 7.2 Modifica di un contenuto LIVE (EDL)
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
@@ -827,7 +828,7 @@ Come si combinano livelli, segmenti e stati non è scritto: il codice richiede t
 
 ## 10. Regole di notifica e condizioni (R22, R23, R27, R29)
 
-**Regola.** «Una regola collega un tipo di fatto (+ condizione opzionale) a un template» (docs/03 §9); `notification_rule`: `fact_type`, `condition jsonb null` («stesso formato condizioni, spazio `data.*`»), `template_code`, `enabled` (engagement §2). Formato delle condizioni: docs/03 §3.3 («Campo assente → la foglia è falsa (tranne `nexists`). Tipi incompatibili → falsa, mai eccezione»; su array «vero se almeno un elemento soddisfa»). Membri non attivi: Q-70 («nessun messaggio agli `ANONYMIZED`; i `BLOCKED` li ricevono»). Il template non ha un campo "abilitato": l'interruttore è della regola (BO-19 `rules`).
+**Regola.** «Una regola collega un tipo di fatto (+ condizione opzionale) a un template» (docs/03 §9); `notification_rule`: `fact_type`, `condition jsonb null` («stesso formato condizioni, spazio `data.*`»), `template_code`, `enabled` (engagement §2). Formato delle condizioni: docs/03 §3.3 («Campo assente → la foglia è falsa (tranne `nexists`). Tipi incompatibili → falsa, mai eccezione»; su array «vero se almeno un elemento soddisfa»). Membri non attivi: Q-70 («nessun messaggio agli `ANONYMIZED`; i `BLOCKED` li ricevono») e Q-180 DECISA (nessun messaggio agli `INACTIVE`; senza snapshot il messaggio parte). Il template non ha un campo "abilitato": l'interruttore è della regola (BO-19 `rules`).
 
 | Ingresso | Classi |
 |---|---|
@@ -912,20 +913,20 @@ Come si combinano livelli, segmenti e stati non è scritto: il codice richiede t
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
 | TB-ENG-RUL-001 | tipo di fatto uguale · senza condizione · regola attiva · membro `ACTIVE` | 1 messaggio | docs/03 §9; engagement §2, §5; F-MSG-01 | `TestbookEngMessagingIT` · `rul.csv` |
-| TB-ENG-RUL-002 | tipo di fatto uguale · senza condizione · regola attiva · membro `INACTIVE` | **AMBIGUO** — 1 messaggio | docs/03 §9; engagement §2, §5; F-MSG-01; Q-70 | `TestbookEngMessagingIT` · `rul.csv` |
+| TB-ENG-RUL-002 | tipo di fatto uguale · senza condizione · regola attiva · membro `INACTIVE` | nessun messaggio (Q-180 DECISA) | docs/03 §9; engagement §2, §5; F-MSG-01; Q-70; Q-180 | `TestbookEngMessagingIT` · `rul.csv` |
 | TB-ENG-RUL-003 | tipo di fatto uguale · senza condizione · regola attiva · membro `BLOCKED` | 1 messaggio | docs/03 §9; engagement §2, §5; F-MSG-01; Q-70 | `TestbookEngMessagingIT` · `rul.csv` |
 | TB-ENG-RUL-004 | tipo di fatto uguale · senza condizione · regola attiva · membro `ANONYMIZED` | nessun messaggio | docs/03 §9; engagement §2, §5; F-MSG-01; Q-70 | `TestbookEngMessagingIT` · `rul.csv` |
-| TB-ENG-RUL-005 | tipo di fatto uguale · senza condizione · regola attiva · membro senza snapshot | **AMBIGUO** — 1 messaggio | docs/03 §9; engagement §2, §5; F-MSG-01; Q-70 | `TestbookEngMessagingIT` · `rul.csv` |
+| TB-ENG-RUL-005 | tipo di fatto uguale · senza condizione · regola attiva · membro senza snapshot | 1 messaggio (Q-180 DECISA: lo snapshot può arrivare dopo) | docs/03 §9; engagement §2, §5; F-MSG-01; Q-70; Q-180 | `TestbookEngMessagingIT` · `rul.csv` |
 | TB-ENG-RUL-006 | tipo di fatto uguale · senza condizione · regola disattivata · membro `ACTIVE` | nessun messaggio | docs/03 §9; engagement §2, §5; F-MSG-01 | `TestbookEngMessagingIT` · `rul.csv` |
 | TB-ENG-RUL-007 | tipo di fatto uguale · senza condizione · regola disattivata · membro `INACTIVE` | nessun messaggio | docs/03 §9; engagement §2, §5; F-MSG-01; Q-70 | `TestbookEngMessagingIT` · `rul.csv` |
 | TB-ENG-RUL-008 | tipo di fatto uguale · senza condizione · regola disattivata · membro `BLOCKED` | nessun messaggio | docs/03 §9; engagement §2, §5; F-MSG-01; Q-70 | `TestbookEngMessagingIT` · `rul.csv` |
 | TB-ENG-RUL-009 | tipo di fatto uguale · senza condizione · regola disattivata · membro `ANONYMIZED` | nessun messaggio | docs/03 §9; engagement §2, §5; F-MSG-01; Q-70 | `TestbookEngMessagingIT` · `rul.csv` |
 | TB-ENG-RUL-010 | tipo di fatto uguale · senza condizione · regola disattivata · membro senza snapshot | nessun messaggio | docs/03 §9; engagement §2, §5; F-MSG-01; Q-70 | `TestbookEngMessagingIT` · `rul.csv` |
 | TB-ENG-RUL-011 | tipo di fatto uguale · condizione vera · regola attiva · membro `ACTIVE` | 1 messaggio | docs/03 §9; engagement §2, §5; F-MSG-01 | `TestbookEngMessagingIT` · `rul.csv` |
-| TB-ENG-RUL-012 | tipo di fatto uguale · condizione vera · regola attiva · membro `INACTIVE` | **AMBIGUO** — 1 messaggio | docs/03 §9; engagement §2, §5; F-MSG-01; Q-70 | `TestbookEngMessagingIT` · `rul.csv` |
+| TB-ENG-RUL-012 | tipo di fatto uguale · condizione vera · regola attiva · membro `INACTIVE` | nessun messaggio (Q-180 DECISA) | docs/03 §9; engagement §2, §5; F-MSG-01; Q-70; Q-180 | `TestbookEngMessagingIT` · `rul.csv` |
 | TB-ENG-RUL-013 | tipo di fatto uguale · condizione vera · regola attiva · membro `BLOCKED` | 1 messaggio | docs/03 §9; engagement §2, §5; F-MSG-01; Q-70 | `TestbookEngMessagingIT` · `rul.csv` |
 | TB-ENG-RUL-014 | tipo di fatto uguale · condizione vera · regola attiva · membro `ANONYMIZED` | nessun messaggio | docs/03 §9; engagement §2, §5; F-MSG-01; Q-70 | `TestbookEngMessagingIT` · `rul.csv` |
-| TB-ENG-RUL-015 | tipo di fatto uguale · condizione vera · regola attiva · membro senza snapshot | **AMBIGUO** — 1 messaggio | docs/03 §9; engagement §2, §5; F-MSG-01; Q-70 | `TestbookEngMessagingIT` · `rul.csv` |
+| TB-ENG-RUL-015 | tipo di fatto uguale · condizione vera · regola attiva · membro senza snapshot | 1 messaggio (Q-180 DECISA: lo snapshot può arrivare dopo) | docs/03 §9; engagement §2, §5; F-MSG-01; Q-70; Q-180 | `TestbookEngMessagingIT` · `rul.csv` |
 | TB-ENG-RUL-016 | tipo di fatto uguale · condizione vera · regola disattivata · membro `ACTIVE` | nessun messaggio | docs/03 §9; engagement §2, §5; F-MSG-01 | `TestbookEngMessagingIT` · `rul.csv` |
 | TB-ENG-RUL-017 | tipo di fatto uguale · condizione vera · regola disattivata · membro `INACTIVE` | nessun messaggio | docs/03 §9; engagement §2, §5; F-MSG-01; Q-70 | `TestbookEngMessagingIT` · `rul.csv` |
 | TB-ENG-RUL-018 | tipo di fatto uguale · condizione vera · regola disattivata · membro `BLOCKED` | nessun messaggio | docs/03 §9; engagement §2, §5; F-MSG-01; Q-70 | `TestbookEngMessagingIT` · `rul.csv` |
@@ -1162,14 +1163,14 @@ Come si combinano livelli, segmenti e stati non è scritto: il codice richiede t
 | TB-ENG-WURL-022 | 169.253.255.255 (prima di 169.254/16) | ammesso | docs/11; Q-99 | `TestbookEngWebhookTest` · `wurl.csv` |
 | TB-ENG-WURL-023 | 169.255.0.0 (dopo 169.254/16) | ammesso | docs/11; Q-99 | `TestbookEngWebhookTest` · `wurl.csv` |
 | TB-ENG-WURL-024 | 0.0.0.0 (indirizzo non specificato) | rifiutato | docs/11 (anti-SSRF); Q-99 | `TestbookEngWebhookTest` · `wurl.csv` |
-| TB-ENG-WURL-025 | 100.64.0.0 (CGNAT 100.64/10, primo) | **AMBIGUO** — rifiutato | docs/11; Q-99 | `TestbookEngWebhookTest` · `wurl.csv` |
-| TB-ENG-WURL-026 | 100.127.255.255 (CGNAT, ultimo) | **AMBIGUO** — rifiutato | docs/11; Q-99 | `TestbookEngWebhookTest` · `wurl.csv` |
+| TB-ENG-WURL-025 | 100.64.0.0 (CGNAT 100.64/10, primo) | rifiutato (Q-184 DECISA) | docs/11; Q-99; Q-184 | `TestbookEngWebhookTest` · `wurl.csv` |
+| TB-ENG-WURL-026 | 100.127.255.255 (CGNAT, ultimo) | rifiutato (Q-184 DECISA) | docs/11; Q-99; Q-184 | `TestbookEngWebhookTest` · `wurl.csv` |
 | TB-ENG-WURL-027 | 100.63.255.255 (prima di 100.64/10) | ammesso | docs/11; Q-99 | `TestbookEngWebhookTest` · `wurl.csv` |
 | TB-ENG-WURL-028 | 100.128.0.0 (dopo 100.64/10) | ammesso | docs/11; Q-99 | `TestbookEngWebhookTest` · `wurl.csv` |
-| TB-ENG-WURL-029 | 192.0.0.8 (192.0.0.0/24 riservato IETF) | **AMBIGUO** — rifiutato | docs/11; Q-99 | `TestbookEngWebhookTest` · `wurl.csv` |
-| TB-ENG-WURL-030 | 198.18.0.1 (198.18/15 benchmark) | **AMBIGUO** — rifiutato | docs/11; Q-99 | `TestbookEngWebhookTest` · `wurl.csv` |
-| TB-ENG-WURL-031 | 224.0.0.1 (multicast) | **AMBIGUO** — rifiutato | docs/11; Q-99 | `TestbookEngWebhookTest` · `wurl.csv` |
-| TB-ENG-WURL-032 | 240.0.0.1 (240/4 riservato) | **AMBIGUO** — rifiutato | docs/11; Q-99 | `TestbookEngWebhookTest` · `wurl.csv` |
+| TB-ENG-WURL-029 | 192.0.0.8 (192.0.0.0/24 riservato IETF) | rifiutato (Q-184 DECISA) | docs/11; Q-99; Q-184 | `TestbookEngWebhookTest` · `wurl.csv` |
+| TB-ENG-WURL-030 | 198.18.0.1 (198.18/15 benchmark) | rifiutato (Q-184 DECISA) | docs/11; Q-99; Q-184 | `TestbookEngWebhookTest` · `wurl.csv` |
+| TB-ENG-WURL-031 | 224.0.0.1 (multicast) | rifiutato (Q-184 DECISA) | docs/11; Q-99; Q-184 | `TestbookEngWebhookTest` · `wurl.csv` |
+| TB-ENG-WURL-032 | 240.0.0.1 (240/4 riservato) | rifiutato (Q-184 DECISA) | docs/11; Q-99; Q-184 | `TestbookEngWebhookTest` · `wurl.csv` |
 | TB-ENG-WURL-033 | 8.8.8.8 (pubblico) | ammesso | engagement §5 | `TestbookEngWebhookTest` · `wurl.csv` |
 | TB-ENG-WURL-034 | `[::1]` (loopback IPv6) | rifiutato | engagement §5; Q-99 | `TestbookEngWebhookTest` · `wurl.csv` |
 | TB-ENG-WURL-035 | `[::]` (non specificato IPv6) | rifiutato | docs/11; Q-99 | `TestbookEngWebhookTest` · `wurl.csv` |
@@ -1182,18 +1183,24 @@ Come si combinano livelli, segmenti e stati non è scritto: il codice richiede t
 | TB-ENG-WURL-042 | `localhost` | rifiutato | engagement §5; Q-99 | `TestbookEngWebhookTest` · `wurl.csv` |
 | TB-ENG-WURL-043 | `LOCALHOST` (maiuscole) | rifiutato | engagement §5; Q-99 | `TestbookEngWebhookTest` · `wurl.csv` |
 | TB-ENG-WURL-044 | `api.localhost` | rifiutato | docs/11; Q-99 | `TestbookEngWebhookTest` · `wurl.csv` |
-| TB-ENG-WURL-045 | `printer.local` (mDNS) | **AMBIGUO** — rifiutato | docs/11; Q-99 | `TestbookEngWebhookTest` · `wurl.csv` |
-| TB-ENG-WURL-046 | `metadata.internal` | **AMBIGUO** — rifiutato | docs/11; Q-99 | `TestbookEngWebhookTest` · `wurl.csv` |
-| TB-ENG-WURL-047 | `2130706433` (127.0.0.1 in forma decimale) al salvataggio | **AMBIGUO** — ammesso | Q-99 (letterali al salvataggio) | `TestbookEngWebhookTest` · `wurl.csv` |
-| TB-ENG-WURL-048 | credenziali nell'URL | **AMBIGUO** — rifiutato | engagement §5 | `TestbookEngWebhookTest` · `wurl.csv` |
-| TB-ENG-WURL-049 | frammento `#x` | **AMBIGUO** — rifiutato | engagement §5 | `TestbookEngWebhookTest` · `wurl.csv` |
-| TB-ENG-WURL-050 | URL di 500 caratteri (massimo) | **AMBIGUO** — ammesso | engagement §5 | `TestbookEngWebhookTest` · `wurl.csv` |
-| TB-ENG-WURL-051 | URL di 501 caratteri | **AMBIGUO** — rifiutato | engagement §5 | `TestbookEngWebhookTest` · `wurl.csv` |
+| TB-ENG-WURL-045 | `printer.local` (mDNS) | rifiutato (Q-184 DECISA) | docs/11; Q-99; Q-184 | `TestbookEngWebhookTest` · `wurl.csv` |
+| TB-ENG-WURL-046 | `metadata.internal` | rifiutato (Q-184 DECISA) | docs/11; Q-99; Q-184 | `TestbookEngWebhookTest` · `wurl.csv` |
+| TB-ENG-WURL-047 | `2130706433` (127.0.0.1 in forma decimale) al salvataggio | rifiutato: forma non puntata (Q-184 DECISA) | Q-99 (letterali al salvataggio); Q-184 | `TestbookEngWebhookTest` · `wurl.csv` |
+| TB-ENG-WURL-048 | credenziali nell'URL | rifiutato (Q-184 DECISA) | engagement §5; Q-184 | `TestbookEngWebhookTest` · `wurl.csv` |
+| TB-ENG-WURL-049 | frammento `#x` | rifiutato (Q-184 DECISA) | engagement §5; Q-184 | `TestbookEngWebhookTest` · `wurl.csv` |
+| TB-ENG-WURL-050 | URL di 500 caratteri (massimo) | ammesso (Q-184 DECISA) | engagement §5; Q-184 | `TestbookEngWebhookTest` · `wurl.csv` |
+| TB-ENG-WURL-051 | URL di 501 caratteri | rifiutato (Q-184 DECISA) | engagement §5; Q-184 | `TestbookEngWebhookTest` · `wurl.csv` |
 | TB-ENG-WURL-052 | profilo `local`: `http://localhost` | ammesso | engagement §5 (in local anche http://localhost) | `TestbookEngWebhookTest` · `wurl.csv` |
 | TB-ENG-WURL-053 | profilo `local`: `http://127.0.0.1` | ammesso | engagement §5 | `TestbookEngWebhookTest` · `wurl.csv` |
 | TB-ENG-WURL-054 | profilo `local`: `http://` non locale | rifiutato | engagement §5 | `TestbookEngWebhookTest` · `wurl.csv` |
 | TB-ENG-WURL-055 | profilo `local`: indirizzo privato | ammesso | Q-99 (blocco in ogni profilo tranne local) | `TestbookEngWebhookTest` · `wurl.csv` |
 | TB-ENG-WURL-056 | profilo non `local`: `http://localhost` | rifiutato | engagement §5; Q-99 | `TestbookEngWebhookTest` · `wurl.csv` |
+| TB-ENG-WURL-057 | `0x7f000001` (127.0.0.1 esadecimale) | rifiutato: forma non puntata (Q-184 DECISA) | Q-99; Q-184 | `TestbookEngWebhookTest` · `wurl.csv` |
+| TB-ENG-WURL-058 | `127.1` (forma abbreviata) | rifiutato: forma non puntata (Q-184 DECISA) | Q-99; Q-184 | `TestbookEngWebhookTest` · `wurl.csv` |
+| TB-ENG-WURL-059 | `0177.0.0.1` (ottale) | rifiutato: forma non canonica (Q-184 DECISA) | Q-99; Q-184 | `TestbookEngWebhookTest` · `wurl.csv` |
+| TB-ENG-WURL-060 | `08.8.8.8` (zero iniziale su indirizzo pubblico) | rifiutato: forma non canonica (Q-184 DECISA) | Q-184 | `TestbookEngWebhookTest` · `wurl.csv` |
+| TB-ENG-WURL-061 | profilo `local`: `2130706433` | rifiutato: la forma canonica vale in ogni profilo (Q-184 DECISA) | Q-184 | `TestbookEngWebhookTest` · `wurl.csv` |
+| TB-ENG-WURL-062 | nome con cifre non finali (`123.example.org`) | ammesso (non è un host numerico) | Q-184 | `TestbookEngWebhookTest` · `wurl.csv` |
 
 ### 14.2 Profili e invio (WPRF)
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
@@ -1364,17 +1371,17 @@ Sono le tre voci da riportare nel registro delle divergenze di `docs/16` §12 al
 | ORD-002 | spareggio a parità di priorità | codice crescente | Q-171 |
 | EXT-005, EXT-016 | iscrizione ignota con `registeredWithinDays`; chiavi Q-71 applicate anche alle card | fuori dal pubblico; applicate a ogni contenuto | Q-172 |
 | LIF-009/010, -019/020, -029/030, -039/040, -049/050 | azione sconosciuta o assente: `409` o `400` | `409 INVALID_TRANSITION` | Q-173 |
-| EDT-012, -017…019, -025, -033, -037…045, -047, -052, -055…057, -060 | vincoli senza fonte (banner solo `CATALOG_TOP`, `PRIZE` ⇔ `WIN`, `linkCode` obbligatorio, lunghezze 80/280, priorità 0…1000 e 50 di default, fine = inizio, CTA `http://`, codice minuscolo, codice/tipo immutabili, `ARCHIVED` non modificabile, `ENDED` modificabile — docs/17 US-E07-01 dice `409` —, chiudibile di default) | come nel codice (§2) | Q-174 |
+| EDT-012, -017…019, -025, -033, -037…045, -047, -052, -055…057, -060 | vincoli senza fonte (banner solo `CATALOG_TOP`, `PRIZE` ⇔ `WIN`, `linkCode` obbligatorio, lunghezze 80/280, priorità 0…1000 e 50 di default, fine = inizio, CTA `http://`, codice minuscolo, codice/tipo immutabili, `ARCHIVED` ed `ENDED` non modificabili, `PAUSED` bloccato come `LIVE`, chiudibile di default) | come nel codice (§2); `ENDED` → `409 CONTENT_NOT_EDITABLE` e `PAUSED` → `409 CONTENT_LIVE_LOCKED` (Q-174 DECISA) | Q-174 |
 | DUP-002, DUP-006, PRV-011, PRV-012 | nome della copia, troncamento del codice; forma della risposta del portale; anteprima `WIN` senza limite | `-COPIA`, `-COPIA-2`, "(copia)"; niente pubblico/stato/versione; tutte le card vincita | Q-175 |
 | ROL (LEGAL, CARE, intestazione non valida), WROL-002…004, -007…010 | capacità senza ● in docs/08 §2 | `403 FORBIDDEN_ROLE`; intestazione non valida = `ANALYST` | Q-176 |
 | TPL-007, -008, -010, -014, -017, -027, -028, -030, -038…040, TPV-007 | valori non semplici, indici, spazi, template nullo, HTML, cifre decimali e arrotondamento, ripieghi dei formattatori | vuoto; indice risolto; spazi ammessi; stringa vuota; nessun escape; 2 decimali al pari; valore grezzo | Q-177 |
 | TAD-004, TAD-010, TAD-014, RAD-012, WDLV-029 | canale di default, nome obbligatorio, codice immutabile di template, regole e webhook | `INAPP`; `422`; `409 CODE_IMMUTABLE` | Q-178 |
 | CND-041, -044, -045, -049, -063…065 | `null` come assente, estremi di `between`, stringa numerica, gruppi vuoti, comparatore sconosciuto | **DECISA** (conservativa): assente; estremi inclusi; la stringa numerica del dato resta testo (cast tipizzato di Q-215); `all` vuoto vero, `any` vuoto falso e rifiutato al salvataggio; falso e rifiutato al salvataggio | Q-179 |
-| RUL con membro `INACTIVE` o senza snapshot che riceve (4 righe) | Q-70 nomina solo `ANONYMIZED` e `BLOCKED` | ricevono | Q-180 |
+| RUL con membro `INACTIVE` o senza snapshot (4 righe) | Q-70 nomina solo `ANONYMIZED` e `BLOCKED` | `INACTIVE` nessun messaggio, senza snapshot riceve (Q-180 DECISA) | Q-180 |
 | RAD-002, DDP-014 | tipo di fatto in forma completa; `message.send` senza membro | salvato in forma breve; DLQ `INVALID_EFFECT` | Q-181 |
 | IBX-005, IBX-014 | segna letto due volte; `memberId` nel corpo | `readAt` invariato; accettato | Q-182 |
 | THM-005…007, THA-012, THA-020…023 | colori senza `#`, `#RGB`, `#RRGGBBAA`; nome del programma obbligatorio e ≤ 40; logo solo `/…` o `https://` | rifiutati; `422`; `422`; `/demo/logo.svg` ammesso | Q-183 |
-| WURL-025, -026, -029…032, -045…051 | intervalli speciali oltre privati/loopback, nomi `.local`/`.internal`, forma decimale al salvataggio, credenziali, frammento, 500 caratteri | bloccati; decimale accettato al salvataggio; rifiutati; 500 ammessi, 501 no | Q-184 |
+| WURL-025, -026, -029…032, -045…051, -057…062 | intervalli speciali oltre privati/loopback, nomi `.local`/`.internal`, forma decimale al salvataggio, credenziali, frammento, 500 caratteri | bloccati; host numerico non in forma puntata canonica rifiutato al salvataggio (Q-184 DECISA); rifiutati; 500 ammessi, 501 no | Q-184 |
 | WRTY-009, WRTY-020, WDLV-013, WDLV-017, WDLV-021, WDLV-023, WDLV-031 | tentativo 0; Riprova su `PENDING`; prova su webhook disattivato; nessun tipo; nome obbligatorio; Riprova durante un invio | `GAVE_UP`; `409`; inviata; `422`; `422`; `409 DELIVERY_BUSY` | Q-185 |
 
 ### 17.3 Rami senza specifica

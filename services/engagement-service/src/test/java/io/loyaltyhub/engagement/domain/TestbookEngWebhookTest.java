@@ -43,8 +43,8 @@ class TestbookEngWebhookTest {
     }
 
     private void urlPolicy(String id, String description, String policy, String url, String expected) {
-        // TESTBOOK: ambiguo, vedi le righe WURL marcate AMBIGUO (intervalli speciali oltre privati/loopback, nomi .local e
-        // .internal, forma decimale, credenziali, frammento, lunghezza massima).
+        // Q-184 DECISA: intervalli speciali oltre privati/loopback, nomi .local e .internal, credenziali e frammento
+        // rifiutati, 500 caratteri al massimo; host numerici non in forma puntata canonica rifiutati al salvataggio.
         WebhookUrlPolicy p = "LOCAL".equals(policy) ? LOCAL : REMOTE;
         String u = "<empty>".equals(url) ? "" : url;
         assertThat(p.problem(u).isEmpty()).as(p.problem(u).orElse("ammesso")).isEqualTo("OK".equals(expected));

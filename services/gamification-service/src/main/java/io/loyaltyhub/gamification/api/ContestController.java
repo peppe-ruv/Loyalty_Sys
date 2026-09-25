@@ -157,7 +157,10 @@ public class ContestController {
         return PageResponse.of(instants.search(c.id(), status, prizeId, p, s), p, s, instants.count(c.id(), status, prizeId));
     }
 
+    // Q-303 DECISA: l'istogramma (docs/08 §2 «solo istogramma» a MARKETING) va ad ADMIN, MARKETING e LEGAL; CARE e
+    // ANALYST hanno «—» in instants.view → 403 FORBIDDEN_ROLE.
     @GetMapping("/contests/{id}/instants/histogram")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL})
     @Transactional(readOnly = true)
     public Histogram histogram(@PathVariable String id) {
         Contest c = admin.get(id);

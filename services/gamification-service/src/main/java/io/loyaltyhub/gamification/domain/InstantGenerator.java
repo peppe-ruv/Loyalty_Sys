@@ -1,6 +1,7 @@
 package io.loyaltyhub.gamification.domain;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -20,6 +21,7 @@ public final class InstantGenerator {
     private static final int OPEN_HOUR = 8;
     private static final int CLOSE_HOUR = 22;
     private static final int MAX_ATTEMPTS = 10_000;
+    public static final String NO_BUSINESS_HOURS = "Nessun orario 08–22 nel periodo del concorso";
 
     public record PrizeQuantity(String prizeId, int quantity, int sortOrder) {
     }
@@ -36,6 +38,10 @@ public final class InstantGenerator {
             throw new IllegalArgumentException("endAt deve seguire startAt");
         }
         boolean businessHours = "BUSINESS_HOURS".equals(distribution);
+        if (businessHours && !hasBusinessHours(startAt, endAt)) {
+            // Q-294 DECISA: errore di validazione (422 CONTEST_INVALID nel servizio), non un 500.
+            throw new IllegalArgumentException(NO_BUSINESS_HOURS);
+        }
         SplittableRandom random = new SplittableRandom(seed);
         long start = startAt.toEpochMilli();
         long span = endAt.toEpochMilli() - start;
@@ -58,7 +64,20 @@ public final class InstantGenerator {
                 return candidate;
             }
         }
-        throw new IllegalStateException("Nessun orario 08–22 nel periodo del concorso");
+        throw new IllegalStateException(NO_BUSINESS_HOURS);
+    }
+
+    /** Vero se {@code [startAt, endAt)} contiene almeno un istante tra le 08 e le 22 di Roma. */
+    public static boolean hasBusinessHours(Instant startAt, Instant endAt) {
+        LocalDate last = LocalDate.ofInstant(endAt, ZONE);
+        for (LocalDate d = LocalDate.ofInstant(startAt, ZONE); !d.isAfter(last); d = d.plusDays(1)) {
+            Instant open = d.atTime(OPEN_HOUR, 0).atZone(ZONE).toInstant();
+            Instant close = d.atTime(CLOSE_HOUR, 0).atZone(ZONE).toInstant();
+            if (open.isBefore(endAt) && close.isAfter(startAt)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static boolean inBusinessHours(Instant at) {

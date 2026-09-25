@@ -158,14 +158,14 @@ risposta attuale è la più conservativa: ruolo sconosciuto ⇒ ANALYST, sola le
 | TB-GOV-ACT-004 | `X-LH-Actor` = `"MARKETING:luca.marketing"` | `MARKETING:luca.marketing` | docs/06 §3 | `TestbookGovActorTest#parse` |
 | TB-GOV-ACT-005 | `X-LH-Actor` = `"ADMIN:marta.admin"` | `ADMIN:marta.admin` | docs/06 §3 | `TestbookGovActorTest#parse` |
 | TB-GOV-ACT-006 | `X-LH-Actor` = `"ANALYST:anna"` | `ANALYST:anna` | docs/06 §3 | `TestbookGovActorTest#parse` |
-| TB-GOV-ACT-007 | `X-LH-Actor` = `"marketing:luca"` | `MARKETING:luca` — AMBIGUO | docs/06 §3 (enum UPPER_SNAKE, docs/06 §2) | `TestbookGovActorTest#parse` |
-| TB-GOV-ACT-008 | `X-LH-Actor` = `" CARE : paolo "` | `CARE:paolo` — AMBIGUO | docs/06 §3 | `TestbookGovActorTest#parse` |
-| TB-GOV-ACT-009 | `X-LH-Actor` = `"ADMINISTRATOR:x"` | `ANALYST:x` — AMBIGUO | docs/06 §3 · US-E08-06 | `TestbookGovActorTest#parse` |
-| TB-GOV-ACT-010 | `X-LH-Actor` = `"LEGAL"` | `LEGAL:anonymous` — AMBIGUO | docs/06 §3 | `TestbookGovActorTest#parse` |
-| TB-GOV-ACT-011 | `X-LH-Actor` = `"CARE:"` | `ANALYST:anonymous` — AMBIGUO | docs/06 §3 | `TestbookGovActorTest#parse` |
-| TB-GOV-ACT-012 | `X-LH-Actor` = `"CARE: "` | `CARE:anonymous` — AMBIGUO | docs/06 §3 | `TestbookGovActorTest#parse` |
-| TB-GOV-ACT-013 | `X-LH-Actor` = `":paolo"` | `ANALYST:anonymous` — AMBIGUO | docs/06 §3 | `TestbookGovActorTest#parse` |
-| TB-GOV-ACT-014 | `X-LH-Actor` = `"ADMIN:marta:extra"` | `ADMIN:marta:extra` — AMBIGUO | docs/06 §3 | `TestbookGovActorTest#parse` |
+| TB-GOV-ACT-007 | `X-LH-Actor` = `"marketing:luca"` | `ANALYST:luca` (Q-298 DECISA) | docs/06 §3 (enum UPPER_SNAKE, docs/06 §2) | `TestbookGovActorTest#parse` |
+| TB-GOV-ACT-008 | `X-LH-Actor` = `" CARE : paolo "` | `ANALYST:paolo` (Q-298 DECISA) | docs/06 §3 | `TestbookGovActorTest#parse` |
+| TB-GOV-ACT-009 | `X-LH-Actor` = `"ADMINISTRATOR:x"` | `ANALYST:x` (Q-261, Q-298 DECISA) | docs/06 §3 · US-E08-06 | `TestbookGovActorTest#parse` |
+| TB-GOV-ACT-010 | `X-LH-Actor` = `"LEGAL"` | `ANALYST:anonymous` (Q-298 DECISA) | docs/06 §3 | `TestbookGovActorTest#parse` |
+| TB-GOV-ACT-011 | `X-LH-Actor` = `"CARE:"` | `ANALYST:anonymous` (Q-298 DECISA) | docs/06 §3 | `TestbookGovActorTest#parse` |
+| TB-GOV-ACT-012 | `X-LH-Actor` = `"CARE: "` | `ANALYST:anonymous` (Q-298 DECISA) | docs/06 §3 | `TestbookGovActorTest#parse` |
+| TB-GOV-ACT-013 | `X-LH-Actor` = `":paolo"` | `ANALYST:paolo` (Q-298 DECISA) | docs/06 §3 | `TestbookGovActorTest#parse` |
+| TB-GOV-ACT-014 | `X-LH-Actor` = `"ADMIN:marta:extra"` | `ANALYST:marta:extra` (Q-298 DECISA) | docs/06 §3 | `TestbookGovActorTest#parse` |
 
 ### 3.2 Guardia `@RequiresRole` (`RequiresRoleInterceptor`)
 Domini: variante dell'annotazione (assente, vuota, un ruolo, due ruoli, solo ADMIN, sulla classe) × ruolo (5). Prodotto
@@ -473,7 +473,7 @@ non marcato).
 | TB-GOV-OVR-003 | APPROVE, regola LEGAL, ruolo LEGAL | non marcato | docs/08 §2 `object.approve` «ADMIN ✓ (override, marcato in audit)» | `TestbookGovTransitionsTest#override` |
 | TB-GOV-OVR-004 | APPROVE, regola LEGAL, ruolo CARE | non marcato | docs/08 §2 `object.approve` «ADMIN ✓ (override, marcato in audit)» | `TestbookGovTransitionsTest#override` |
 | TB-GOV-OVR-005 | APPROVE, regola LEGAL, ruolo ANALYST | non marcato | docs/08 §2 `object.approve` «ADMIN ✓ (override, marcato in audit)» | `TestbookGovTransitionsTest#override` |
-| TB-GOV-OVR-006 | APPROVE, regola senza approvatore, ruolo ADMIN | non marcato — AMBIGUO | docs/08 §2 `object.approve` «ADMIN ✓ (override, marcato in audit)» | `TestbookGovTransitionsTest#override` |
+| TB-GOV-OVR-006 | APPROVE, regola senza approvatore, ruolo ADMIN | non marcato (Q-300 DECISA: non scavalca nessuno) | docs/08 §2 `object.approve` «ADMIN ✓ (override, marcato in audit)» | `TestbookGovTransitionsTest#override` |
 | TB-GOV-OVR-007 | APPROVE, regola senza approvatore, ruolo MARKETING | non marcato | docs/08 §2 `object.approve` «ADMIN ✓ (override, marcato in audit)» | `TestbookGovTransitionsTest#override` |
 | TB-GOV-OVR-008 | APPROVE, regola senza approvatore, ruolo LEGAL | non marcato | docs/08 §2 `object.approve` «ADMIN ✓ (override, marcato in audit)» | `TestbookGovTransitionsTest#override` |
 | TB-GOV-OVR-009 | APPROVE, regola senza approvatore, ruolo CARE | non marcato | docs/08 §2 `object.approve` «ADMIN ✓ (override, marcato in audit)» | `TestbookGovTransitionsTest#override` |
@@ -483,7 +483,7 @@ non marcato).
 | TB-GOV-OVR-013 | REJECT, regola LEGAL, ruolo LEGAL | non marcato | docs/08 §2 `object.approve` «ADMIN ✓ (override, marcato in audit)» | `TestbookGovTransitionsTest#override` |
 | TB-GOV-OVR-014 | REJECT, regola LEGAL, ruolo CARE | non marcato | docs/08 §2 `object.approve` «ADMIN ✓ (override, marcato in audit)» | `TestbookGovTransitionsTest#override` |
 | TB-GOV-OVR-015 | REJECT, regola LEGAL, ruolo ANALYST | non marcato | docs/08 §2 `object.approve` «ADMIN ✓ (override, marcato in audit)» | `TestbookGovTransitionsTest#override` |
-| TB-GOV-OVR-016 | REJECT, regola senza approvatore, ruolo ADMIN | non marcato — AMBIGUO | docs/08 §2 `object.approve` «ADMIN ✓ (override, marcato in audit)» | `TestbookGovTransitionsTest#override` |
+| TB-GOV-OVR-016 | REJECT, regola senza approvatore, ruolo ADMIN | non marcato (Q-300 DECISA: non scavalca nessuno) | docs/08 §2 `object.approve` «ADMIN ✓ (override, marcato in audit)» | `TestbookGovTransitionsTest#override` |
 | TB-GOV-OVR-017 | REJECT, regola senza approvatore, ruolo MARKETING | non marcato | docs/08 §2 `object.approve` «ADMIN ✓ (override, marcato in audit)» | `TestbookGovTransitionsTest#override` |
 | TB-GOV-OVR-018 | REJECT, regola senza approvatore, ruolo LEGAL | non marcato | docs/08 §2 `object.approve` «ADMIN ✓ (override, marcato in audit)» | `TestbookGovTransitionsTest#override` |
 | TB-GOV-OVR-019 | REJECT, regola senza approvatore, ruolo CARE | non marcato | docs/08 §2 `object.approve` «ADMIN ✓ (override, marcato in audit)» | `TestbookGovTransitionsTest#override` |
@@ -504,7 +504,7 @@ un rifiuto a policy spenta. Un commento di soli U+00A0 non è «vuoto» per `Str
 | TB-GOV-CMT-003 | REJECT da IN_REVIEW (LEGAL), un solo spazio | 422 `REJECT_COMMENT_REQUIRED` | docs/03 §3.6 «REJECT (commento obbligatorio)» · docs/12 M7 | `TestbookGovTransitionsTest#stateMachine` |
 | TB-GOV-CMT-004 | REJECT da IN_REVIEW (LEGAL), solo spazi | 422 `REJECT_COMMENT_REQUIRED` | docs/03 §3.6 «REJECT (commento obbligatorio)» · docs/12 M7 | `TestbookGovTransitionsTest#stateMachine` |
 | TB-GOV-CMT-005 | REJECT da IN_REVIEW (LEGAL), tabulazione e a capo | 422 `REJECT_COMMENT_REQUIRED` | docs/03 §3.6 «REJECT (commento obbligatorio)» · docs/12 M7 | `TestbookGovTransitionsTest#stateMachine` |
-| TB-GOV-CMT-006 | REJECT da IN_REVIEW (LEGAL), solo spazio non separabile (U+00A0) | `DRAFT` — AMBIGUO | docs/03 §3.6 «REJECT (commento obbligatorio)» · docs/12 M7 | `TestbookGovTransitionsTest#stateMachine` |
+| TB-GOV-CMT-006 | REJECT da IN_REVIEW (LEGAL), solo spazio non separabile (U+00A0) | 422 `REJECT_COMMENT_REQUIRED` (Q-300 DECISA: spazi Unicode = commento vuoto) | docs/03 §3.6 «REJECT (commento obbligatorio)» · docs/12 M7 | `TestbookGovTransitionsTest#stateMachine` |
 | TB-GOV-CMT-007 | REJECT da IN_REVIEW (LEGAL), un carattere | `DRAFT` | docs/03 §3.6 «REJECT (commento obbligatorio)» · docs/12 M7 | `TestbookGovTransitionsTest#stateMachine` |
 | TB-GOV-CMT-008 | REJECT da IN_REVIEW (LEGAL), testo con spazi ai bordi | `DRAFT` | docs/03 §3.6 «REJECT (commento obbligatorio)» · docs/12 M7 | `TestbookGovTransitionsTest#stateMachine` |
 | TB-GOV-CMT-009 | REJECT da IN_REVIEW (LEGAL), 2000 caratteri | `DRAFT` | docs/03 §3.6 «REJECT (commento obbligatorio)» · docs/12 M7 | `TestbookGovTransitionsTest#stateMachine` |
@@ -705,8 +705,8 @@ registrata Q-157 (serve anche alla registrazione dal portale).
 | TB-GOV-MRL-070 | `GET /v1/members/{id}` (lettura), CARE | accettata (2xx) | docs/08 §2 (lettura per tutti) | `TestbookGovMemberIT#roles` |
 | TB-GOV-MRL-071 | `GET /v1/members/{id}` (lettura), ANALYST | accettata (2xx) | docs/08 §2 (lettura per tutti) | `TestbookGovMemberIT#roles` |
 | TB-GOV-MRL-072 | `GET /v1/members/{id}` (lettura), intestazione assente | accettata (2xx) | docs/08 §2 (lettura per tutti) | `TestbookGovMemberIT#roles` |
-| TB-GOV-MRL-073 | `POST /v1/members/{id}/status`, `X-LH-Actor: ADMINISTRATOR:x` | 403 `FORBIDDEN_ROLE` — AMBIGUO (ruolo sconosciuto) | docs/06 §3 | `TestbookGovMemberIT#roles` |
-| TB-GOV-MRL-074 | `POST /v1/members/{id}/status`, `X-LH-Actor: care:paolo.care` | accettata (2xx) — AMBIGUO (ruolo in minuscolo) | docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-073 | `POST /v1/members/{id}/status`, `X-LH-Actor: ADMINISTRATOR:x` | 403 `FORBIDDEN_ROLE` (ruolo sconosciuto: ANALYST, Q-298 DECISA) | docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-074 | `POST /v1/members/{id}/status`, `X-LH-Actor: care:paolo.care` | 403 `FORBIDDEN_ROLE` (ruolo in minuscolo: ANALYST, Q-298 DECISA) | docs/06 §3 | `TestbookGovMemberIT#roles` |
 | TB-GOV-MRL-075 | `POST /v1/members/{id}/status` da BLOCKED ad ACTIVE (sblocco, member.write), ADMIN | accettata (2xx) | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
 | TB-GOV-MRL-076 | `POST /v1/members/{id}/status` da BLOCKED ad ACTIVE (sblocco, member.write), MARKETING | 403 `FORBIDDEN_ROLE` — AMBIGUO (rifiuto non imposto senza ●) | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
 | TB-GOV-MRL-077 | `POST /v1/members/{id}/status` da BLOCKED ad ACTIVE (sblocco, member.write), LEGAL | 403 `FORBIDDEN_ROLE` — AMBIGUO (rifiuto non imposto senza ●) | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
@@ -905,10 +905,10 @@ su un anonimizzato) — le celle significative; poi gli esiti via API della vali
 | TB-GOV-ATU-003 | togliere una chiave senza valori | `200` | Q-93 | `TestbookGovMemberIT#attributes` |
 | TB-GOV-ATU-004 | cambiare tipo a una chiave senza valori | `200` | Q-93 | `TestbookGovMemberIT#attributes` |
 | TB-GOV-ATU-005 | cambiare etichetta a una chiave con valori | `200` | Q-93 (solo rimozione e tipo) | `TestbookGovMemberIT#attributes` |
-| TB-GOV-ATU-006 | restringere le opzioni escludendo un valore presente | `200` — AMBIGUO (valori fuori dalle nuove opzioni) | Q-93 | `TestbookGovMemberIT#attributes` |
+| TB-GOV-ATU-006 | restringere le opzioni escludendo un valore presente (poi tenendolo: `200`) | `409:ATTRIBUTE_IN_USE` (Q-306 DECISA, come Q-93) | Q-93 · Q-306 | `TestbookGovMemberIT#attributes` |
 | TB-GOV-ATU-007 | togliere dopo aver azzerato i valori | `200` | Q-93 | `TestbookGovMemberIT#attributes` |
 | TB-GOV-ATU-008 | togliere una chiave usata solo da un anonimizzato | `200` | Q-93 · Q-121 | `TestbookGovMemberIT#attributes` |
-| TB-GOV-ATU-009 | chiave con spazi ai bordi | `200:tbTrim` — AMBIGUO (spazi tolti in silenzio) | F-MBR-03 | `TestbookGovMemberIT#attributes` |
+| TB-GOV-ATU-009 | chiave con spazi ai bordi | `200:tbTrim` (spazi tolti in silenzio, Q-306 DECISA) | F-MBR-03 · Q-306 | `TestbookGovMemberIT#attributes` |
 | TB-GOV-ATU-010 | definizione non valida via API | `422:ATTRIBUTE_DEFINITION_INVALID` | F-MBR-03 · docs/06 §2 | `TestbookGovMemberIT#attributes` |
 | TB-GOV-ATU-011 | definizione senza tipo via API | `422:ATTRIBUTE_DEFINITION_INVALID` | F-MBR-03 · docs/06 §2 (422, non 500) | `TestbookGovMemberIT#attributes` |
 | TB-GOV-ATU-012 | audit della sostituzione | `UPDATE` | F-AUD-01 · docs/06 §3 | `TestbookGovMemberIT#attributes` |
@@ -1250,8 +1250,8 @@ l'engagement, qui estesa per analogia (AMBIGUO). Gli altri endpoint di member-se
 | TB-GOV-MAT-006 | `instants.view` — `GET …/instants` / `…/instants/histogram`, ADMIN (cella «✓») | `ammessa/ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
 | TB-GOV-MAT-007 | `instants.view` — `GET …/instants` / `…/instants/histogram`, MARKETING (cella «solo istogramma») | `403/ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
 | TB-GOV-MAT-008 | `instants.view` — `GET …/instants` / `…/instants/histogram`, LEGAL (cella «✓») | `ammessa/ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
-| TB-GOV-MAT-009 | `instants.view` — `GET …/instants` / `…/instants/histogram`, CARE (cella «—») | `403/ammessa` — AMBIGUO (istogramma per chi non vede gli istanti) | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
-| TB-GOV-MAT-010 | `instants.view` — `GET …/instants` / `…/instants/histogram`, ANALYST (cella «—») | `403/ammessa` — AMBIGUO (istogramma per chi non vede gli istanti) | docs/08 §2 ● · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-009 | `instants.view` — `GET …/instants` / `…/instants/histogram`, CARE (cella «—») | `403/403` (istogramma solo ad ADMIN, MARKETING, LEGAL: Q-303 DECISA) | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-010 | `instants.view` — `GET …/instants` / `…/instants/histogram`, ANALYST (cella «—») | `403/403` (istogramma solo ad ADMIN, MARKETING, LEGAL: Q-303 DECISA) | docs/08 §2 ● · docs/06 §3 | `TestbookGovHubIT#matrix` |
 | TB-GOV-MAT-011 | `member.write` — `PATCH /v1/members/{id}`, ADMIN (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
 | TB-GOV-MAT-012 | `member.write` — `PATCH /v1/members/{id}`, MARKETING (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
 | TB-GOV-MAT-013 | `member.write` — `PATCH /v1/members/{id}`, LEGAL (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
@@ -1389,18 +1389,18 @@ conservativa la domanda lo dice e propone l'alternativa (Q-298, Q-300, Q-303, Q-
 
 | Righe | Punto aperto | Comportamento attuale asserito | Domanda |
 |---|---|---|---|
-| ACT-007…014 | Formati non canonici di `X-LH-Actor` (minuscole, spazi, ruolo sconosciuto, senza `:`, `:` in coda, più `:`) | lettura permissiva di ruolo e username; ruolo sconosciuto o `RUOLO:` ⇒ ANALYST | Q-298 (estende Q-261) |
+| ACT-007…014 | Formati non canonici di `X-LH-Actor` (minuscole, spazi, ruolo sconosciuto, senza `:`, `:` in coda, più `:`) | DECISA: solo `RUOLO:username` canonico vale il ruolo, il resto ⇒ ANALYST (username = testo dopo il primo `:`) | Q-298 (estende Q-261) |
 | PRS-009…016 | Azione in minuscolo/con spazi; codice di un'azione sconosciuta (docs/06 §2 direbbe 400 «parametri errati») | accettate in modo permissivo; sconosciuta ⇒ 422 `INVALID_ACTION` | Q-299 (con Q-244, Q-246, Q-282) |
 | SMF-001, ROL-051, ROL-052 | Con la policy spenta `SUBMIT` da DRAFT porta a LIVE (docs/06 §7 dice solo «DRAFT → LIVE diretto») | `LIVE` | Q-282 |
 | ROL-056…060 | Precedenza tra ruolo vietato (403), transizione vietata (409), commento mancante (422) | ruolo, poi stato, poi commento | Q-299 |
-| OVR-006, OVR-016 | ADMIN che approva/rifiuta un oggetto senza approvatore di policy: è un override da marcare? | non marcato | Q-300 |
-| CMT-006 | Commento di soli spazi non separabili (U+00A0) | accettato come commento | Q-300 |
+| OVR-006, OVR-016 | ADMIN che approva/rifiuta un oggetto senza approvatore di policy: è un override da marcare? | DECISA: non marcato | Q-300 |
+| CMT-006 | Commento di soli spazi non separabili (U+00A0) | DECISA: vale vuoto, 422 `REJECT_COMMENT_REQUIRED` | Q-300 |
 | MST-001, MST-010, MST-019 | Cambio verso lo stesso stato | 200 senza fatto né audit | Q-301 |
 | MST-008, MST-016, MST-024 | Stato in minuscolo (`blocked`) | accettato | Q-301 |
 | MST-028…031 | Anonimizzato con destinazione non valida: 409 o 400? | 409 `MEMBER_ANONYMIZED` | Q-301 |
 | MST-040 | `CLOSED` come filtro dell'elenco: i contratti lo ammettono (Q-139), docs/03 §2 e F-MBR-04 no | 200 (0 membri) | Q-301 (con Q-139) |
 | MRL-002, 003, 008, 009, 021, 022, 027, 028, 033, 034, 039, 040, 045, 046, 076, 077 | Celle «—» senza ● per ruoli diversi da ANALYST: il backend deve rifiutare? (docs/08 §2 lo impone solo con ●) | 403 `FORBIDDEN_ROLE` | Q-302 (estende Q-176) |
-| MRL-073, MRL-074 | `X-LH-Actor` con ruolo sconosciuto o in minuscolo | ANALYST (403) / ruolo riconosciuto | Q-298 (estende Q-261) |
+| MRL-073, MRL-074 | `X-LH-Actor` con ruolo sconosciuto o in minuscolo | DECISA: ANALYST (403) in entrambi i casi | Q-298 (estende Q-261) |
 | ANO-002 | Conferma con spazi ai bordi | accettata (`trim`) | Q-304 |
 | ANO-010 | Membro inesistente con conferma errata: 404 o 422? | 404 | Q-304 |
 | ATV-002, 003, 005 | Testo vuoto o di soli spazi; lunghezza massima 200 | rifiutati (422) | Q-305 |
@@ -1408,8 +1408,8 @@ conservativa la domanda lo dice e propone l'alternativa (Q-298, Q-300, Q-303, Q-
 | ATV-062 | Data con ora per un attributo DATE | rifiutata | Q-305 |
 | ATV-069 | Chiave interna della demo (`story`) nel PATCH | rifiutata | Q-305 |
 | ATD-002…009, 012…016, 028, 029 | Formato della chiave (camelCase, 2–40), etichetta obbligatoria ≤ 60, tetto di 30 definizioni | come scritto nelle righe | Q-305 |
-| ATU-006 | Restringere le opzioni lasciando valori fuori elenco (Q-93 non lo dice) | ammesso (200) | Q-306 (estende Q-93) |
-| ATU-009 | Chiave con spazi ai bordi | normalizzata in silenzio | Q-306 |
+| ATU-006 | Restringere le opzioni lasciando valori fuori elenco (Q-93 non lo dice) | DECISA: 409 `ATTRIBUTE_IN_USE` | Q-306 (estende Q-93) |
+| ATU-009 | Chiave con spazi ai bordi | DECISA: normalizzata in silenzio | Q-306 |
 | CRT-045…048, 055, CRV-025 | Confronti d'ordine e `between` sulle date ISO | **DECISO** (Q-215): date confrontate come date; data ISO valida ammessa in validazione | Q-215 (supera Q-91) |
 | CRT-051, 052, 056 | `contains`, `ncontains`, `startsWith` su un attributo DATE | **DECISO** (Q-215): falsi, una data non è testo | Q-215 (supera Q-307 su questo punto) |
 | CRT-081 | `nin` su una lista: «almeno un elemento» (docs/03 §3.3, per `data.*`) o intersezione vuota? | intersezione vuota | Q-307 |
@@ -1430,7 +1430,7 @@ conservativa la domanda lo dice e propone l'alternativa (Q-298, Q-300, Q-303, Q-
 | REF-022 | Invitante bloccato prima della prima azione qualificante dell'invitato | i due fatti `referral.completed` sono emessi comunque (il motore scarta quello dell'invitante con `NO_MEMBER`) | Q-309 (con Q-61) |
 | ENT-019, ENT-031, ENT-043 | `ACTIVATE`: sinonimo di `PUBLISH` per le campagne, azione sconosciuta per premi e concorsi | campagna `LIVE`; premio/concorso 422 `INVALID_ACTION` | Q-299 (con Q-245) |
 | APQ-008 | `requiredRole` di una campagna senza obbligo inviata in revisione (Q-193 riguarda solo il web) | `null` | Q-310 (con Q-193) |
-| MAT-009, MAT-010 | Istogramma degli istanti per CARE e ANALYST (docs/08 §2 dà «solo istogramma» solo a MARKETING) | ammesso | Q-303 |
+| MAT-009, MAT-010 | Istogramma degli istanti per CARE e ANALYST (docs/08 §2 dà «solo istogramma» solo a MARKETING) | DECISA: 403 `FORBIDDEN_ROLE` | Q-303 |
 | MAT-012, 013, 028, 029, 033, 034, 043, 044, 047…049, 053, 054, 072, 073, 077, 078, 082…084 | Celle «—» senza ● di ruoli diversi da ANALYST: Q-176 registra il 403 solo per l'engagement | 403 (Q-176 esteso per analogia) | Q-302 (estende Q-176) |
 
 ## 14. Divergenze

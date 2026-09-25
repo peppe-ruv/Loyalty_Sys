@@ -19,9 +19,10 @@ it.each(
   expect(view(status)).toEqual(expected);
 });
 
-it("[TB-WEB-MBR-005] stato non noto (null) → come ACTIVE", () => {
-  // TESTBOOK: ambiguo, vedi TB-WEB-MBR-005 — stato non ancora caricato: nessuna fonte.
-  expect(view(null)).toEqual(["Blocca→BLOCKED", "Disattiva→INACTIVE"]);
+it("[TB-WEB-MBR-005] stato non noto (null o fuori elenco) → voci disabilitate", () => {
+  // Q-206 DECISA: finché lo stato non è noto nessuna voce di stato è utilizzabile.
+  expect(view(null)).toEqual(["Blocca (disabilitato)→BLOCKED", "Disattiva (disabilitato)→INACTIVE"]);
+  expect(view("SUSPENDED")).toEqual(["Blocca (disabilitato)→BLOCKED", "Disattiva (disabilitato)→INACTIVE"]);
 });
 
 it.each(
@@ -33,8 +34,7 @@ it.each(
   expect(statusChangeBody("BLOCKED", reason)).toEqual(expected);
 });
 
-// TESTBOOK: ambiguo, vedi TB-WEB-MBR-008/009 — le parole dei messaggi d'errore non sono nella spec (docs/07 §6 chiede
-// solo il riquadro degraded o il problema).
+// Q-206 DECISA: servizio che dorme → invito a riprovare a demo accesa; codice non previsto → detail del problema.
 it("[TB-WEB-MBR-008] errore «servizio addormentato» → messaggio che invita a riprovare a demo accesa", () => {
   expect(statusChangeErrorMessage({ asleep: true })).toMatch(/non risponde/);
 });

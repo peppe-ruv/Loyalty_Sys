@@ -30,7 +30,7 @@ Non possiede saldi né tier (sono del wallet): li riflette.
 | POST | `/v1/segments/preview` | `{criteria}` → `{count, sample[10]}` senza salvare |
 | POST | `/v1/segments/{id}/refresh` | ricalcolo immediato → `{entered, left, total}` |
 | PUT | `/v1/segments/{id}/members` | solo `STATIC`: sostituisce l'elenco |
-| GET/PUT | `/v1/attribute-definitions` | |
+| GET/PUT | `/v1/attribute-definitions` | PUT sostituisce l'elenco; una chiave con valori sui membri non si toglie né cambia tipo (Q-93), e le sue opzioni non si restringono (né si introducono) se un valore presente ne resterebbe fuori (Q-306): `409 ATTRIBUTE_IN_USE` |
 | GET | `/v1/referral/overview` | totali: inviti, completati, tasso, top presentatori |
 
 ### Portale

@@ -70,7 +70,7 @@ class TestbookGamEffectIT extends TestbookGamBase {
         assertThat(credits(m, code)).isEqualTo(5);
     }
 
-    // TESTBOOK: ambiguo, vedi TB-GAM-GRT-004 (count assente: GRANT_PLAYS lo richiede, docs/03 §3.4)
+    // Q-297 DECISA: count assente → 1 credito (come Q-230)
     @Test
     @DisplayName("[TB-GAM-GRT-004] count assente: un credito")
     void grantWithoutCount() {
@@ -81,14 +81,19 @@ class TestbookGamEffectIT extends TestbookGamBase {
         assertThat(credits(m, code)).isEqualTo(1);
     }
 
-    // TESTBOOK: ambiguo, vedi TB-GAM-GRT-005 (count 0 o negativo)
+    // Q-297 DECISA: count < 1 → DLQ INVALID_EFFECT, nessun credito
     @Test
-    @DisplayName("[TB-GAM-GRT-005] count 0: un credito")
+    @DisplayName("[TB-GAM-GRT-005] count 0 o negativo: errore non ritentabile INVALID_EFFECT, nessun credito")
     void grantZero() {
         String code = liveContest("TB-GAM-GRT-005");
         String m = member("ACTIVE");
-        playsGrantHandler.handle(grant(m, code, 0, "EFF-GRT-005"));
-        assertThat(credits(m, code)).isEqualTo(1);
+        for (int count : new int[] {0, -2}) {
+            assertThatThrownBy(() -> playsGrantHandler.handle(grant(m, code, count, "EFF-GRT-005-" + Math.abs(count))))
+                    .isInstanceOf(NonRetryableEventException.class)
+                    .satisfies(e -> assertThat(((NonRetryableEventException) e).code()).isEqualTo("INVALID_EFFECT"));
+        }
+        assertThat(credits(m, code)).isZero();
+        assertThat(count("SELECT count(*) FROM play_grant WHERE effect_id LIKE 'EFF-GRT-005%'")).isZero();
     }
 
     @Test
@@ -101,7 +106,7 @@ class TestbookGamEffectIT extends TestbookGamBase {
         assertThat(count("SELECT count(*) FROM play_grant WHERE effect_id = 'EFF-GRT-006'")).isZero();
     }
 
-    // TESTBOOK: ambiguo, vedi TB-GAM-GRT-007 (codice DLQ dell'effetto senza dati)
+    // Q-297 DECISA: effetto senza dati → DLQ INVALID_EFFECT
     @Test
     @DisplayName("[TB-GAM-GRT-007] effetto senza dati: errore non ritentabile INVALID_EFFECT")
     void grantWithoutData() {
@@ -110,7 +115,7 @@ class TestbookGamEffectIT extends TestbookGamBase {
                 .satisfies(e -> assertThat(((NonRetryableEventException) e).code()).isEqualTo("INVALID_EFFECT"));
     }
 
-    // TESTBOOK: ambiguo, vedi TB-GAM-GRT-008
+    // Q-297 DECISA: effetto senza membro → DLQ INVALID_EFFECT
     @Test
     @DisplayName("[TB-GAM-GRT-008] effetto senza membro nel subject: errore non ritentabile INVALID_EFFECT")
     void grantWithoutMember() {
@@ -121,7 +126,7 @@ class TestbookGamEffectIT extends TestbookGamBase {
                 .satisfies(e -> assertThat(((NonRetryableEventException) e).code()).isEqualTo("INVALID_EFFECT"));
     }
 
-    // TESTBOOK: ambiguo, vedi TB-GAM-GRT-009 (crediti verso un concorso non ancora LIVE)
+    // Q-297 DECISA: il credito verso un concorso DRAFT resta e vale quando il concorso va LIVE
     @Test
     @DisplayName("[TB-GAM-GRT-009] crediti su un concorso DRAFT: conservati e usabili quando va LIVE")
     void grantBeforeLive() {

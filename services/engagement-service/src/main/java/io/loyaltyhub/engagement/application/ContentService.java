@@ -219,8 +219,10 @@ public class ContentService {
     @Transactional
     public ContentItem update(String idOrCode, ContentRequest r) {
         ContentItem current = get(idOrCode);
-        if ("ARCHIVED".equals(current.status())) {
-            throw LhException.conflict("CONTENT_NOT_EDITABLE", "Un contenuto archiviato non si modifica: duplicalo.");
+        // Q-174 DECISA: come campagne, premi e concorsi (docs/17 US-E07-01) anche un contenuto ENDED non si modifica.
+        if ("ARCHIVED".equals(current.status()) || "ENDED".equals(current.status())) {
+            throw LhException.conflict("CONTENT_NOT_EDITABLE", "Un contenuto " + ("ENDED".equals(current.status())
+                    ? "terminato" : "archiviato") + " non si modifica: duplicalo.");
         }
         if (r.code() != null && !upper(r.code()).equals(current.code())) {
             throw LhException.conflict("CODE_IMMUTABLE", "Il codice di un contenuto non si modifica: " + current.code());
@@ -230,10 +232,12 @@ public class ContentService {
         }
         long expected = r.version() != null ? r.version() : current.version();
         ContentItem next = validated(current.id(), current.code(), r, current);
-        if ("LIVE".equals(current.status())) {
+        // Q-174 DECISA: un PAUSED ha gli stessi campi bloccati di un LIVE (come le campagne, Q-51).
+        if ("LIVE".equals(current.status()) || "PAUSED".equals(current.status())) {
             List<String> locked = lockedChanges(current, next);
             if (!locked.isEmpty()) {
-                throw LhException.conflict("CONTENT_LIVE_LOCKED", "Su un contenuto LIVE si modificano solo titolo, testo, "
+                throw LhException.conflict("CONTENT_LIVE_LOCKED", "Su un contenuto " + current.status()
+                        + " si modificano solo titolo, testo, "
                         + "immagine, priorità e fine calendario; campi bloccati: " + String.join(", ", locked)
                         + ". Per cambiarli duplica il contenuto.");
             }

@@ -20,14 +20,21 @@ export const DEFAULT_MEMBER_PERSONA: Persona = {
   memberId: DEFAULT_MEMBER_ID,
 };
 
-/** Interpreta il valore del cookie; formati non validi ⇒ `null`. */
+const ROLES: readonly Role[] = ["ADMIN", "MARKETING", "LEGAL", "CARE", "ANALYST"];
+
+/** Ruolo fuori dai 5 di docs/07 §4 ⇒ `ANALYST`, sola lettura (Q-186 DECISA: stessa regola di Q-261 lato servizi). */
+export function knownRole(role: string): Role {
+  return (ROLES as readonly string[]).includes(role) ? (role as Role) : "ANALYST";
+}
+
+/** Interpreta il valore del cookie; formati non validi ⇒ `null`; ruolo fuori elenco ⇒ `ANALYST` (Q-186). */
 export function parsePersona(raw: string | undefined | null): Persona | null {
   if (!raw) return null;
   try {
     const decoded = decodeURIComponent(raw);
     const value = JSON.parse(decoded) as Persona;
     if (value?.kind === "BO" && typeof value.username === "string" && typeof value.role === "string") {
-      return { kind: "BO", username: value.username, role: value.role };
+      return { kind: "BO", username: value.username, role: knownRole(value.role) };
     }
     if (value?.kind === "MEMBER" && typeof value.memberId === "string") {
       return { kind: "MEMBER", memberId: value.memberId };

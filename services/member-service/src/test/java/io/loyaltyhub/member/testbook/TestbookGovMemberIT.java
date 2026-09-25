@@ -151,7 +151,8 @@ class TestbookGovMemberIT {
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/gov/member-roles.csv", numLinesToSkip = 1)
     void roles(String id, String description, String endpoint, String actor, String expected) {
-        // Righe AMBIGUO (celle «—» senza ●, intestazioni non canoniche) — TESTBOOK: ambiguo, vedi TB-GOV §13
+        // Righe AMBIGUO (celle «—» senza ●) — TESTBOOK: ambiguo, vedi TB-GOV §13.
+        // Righe MRL-073, MRL-074 (intestazioni non canoniche) — Q-298 DECISA: valgono ANALYST (403).
         Resp r = switch (endpoint) {
             case "STATUS" -> http(HttpMethod.POST, "/v1/members/" + newMember() + "/status", actor, Map.of("status", "BLOCKED"));
             case "STATUS_UNBLOCK" -> {
@@ -367,7 +368,8 @@ class TestbookGovMemberIT {
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/gov/attributes-in-use.csv", numLinesToSkip = 1)
     void attributes(String id, String description, String scenario, String expected) {
-        // Righe ATU-006, ATU-009 — TESTBOOK: ambiguo, vedi TB-GOV §13. ATU-011: divergenza (TB-GOV §14).
+        // Righe ATU-006, ATU-009 — Q-306 DECISA (409 se un valore presente esce dalle opzioni; chiave con trim).
+        // ATU-011: divergenza (TB-GOV §14).
         int n = seq.incrementAndGet();
         String key = "tbKey" + n;
         String m = newMember();
@@ -407,6 +409,8 @@ class TestbookGovMemberIT {
                 putDefs(withDef(key, "STRING", List.of())).expect(200);
                 setAttr(m, key, "TV");
                 String out = putDefs(replaceDef(key, "STRING", null, List.of("APP", "WEB"))).outcome();
+                // Q-306: opzioni che comprendono il valore presente → ammesse.
+                putDefs(replaceDef(key, "STRING", null, List.of("TV", "WEB"))).expect(200);
                 cleanup(m, key);
                 yield out;
             }

@@ -47,6 +47,18 @@ public class AttributeDefinitionRepository {
                 .param(key).query(Long.class).single();
     }
 
+    /**
+     * Membri (non anonimizzati) con un valore per la chiave che non è tra le {@code options} date: restringere le opzioni
+     * lascerebbe loro un valore non più valido (Q-306).
+     */
+    public long membersOutsideOptions(String key, List<String> options) {
+        return jdbc.sql("""
+                        SELECT count(*) FROM member WHERE status <> 'ANONYMIZED' AND jsonb_exists(attributes, ?)
+                        AND jsonb_typeof(attributes -> ?) <> 'null' AND NOT ((attributes ->> ?) = ANY (?::text[]))
+                        """)
+                .params(key, key, key, TextArrays.literal(options)).query(Long.class).single();
+    }
+
     public void deleteAll() {
         jdbc.sql("DELETE FROM attribute_definition").update();
     }

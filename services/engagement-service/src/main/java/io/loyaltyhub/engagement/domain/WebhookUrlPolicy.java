@@ -23,6 +23,9 @@ public record WebhookUrlPolicy(boolean allowHttpLocalhost, boolean blockPrivateA
     private static final Set<String> LOCAL_HOSTS = Set.of("localhost", "127.0.0.1", "[::1]", "::1");
     private static final Pattern IPV4 = Pattern.compile("^\\d{1,3}(\\.\\d{1,3}){3}$");
     private static final String PRIVATE = "indirizzo locale o privato non ammesso";
+    private static final Pattern NUMERIC_LABEL = Pattern.compile("^(0x[0-9a-f]*|[0-9]+)$");
+    private static final String OCTET = "(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])";
+    private static final Pattern CANONICAL_IPV4 = Pattern.compile("^" + OCTET + "(\\." + OCTET + "){3}$");
 
     /** Motivo del rifiuto (in italiano, per l'errore di campo) o vuoto se l'URL è ammesso. */
     public Optional<String> problem(String url) {
@@ -48,6 +51,12 @@ public record WebhookUrlPolicy(boolean allowHttpLocalhost, boolean blockPrivateA
         }
         if (uri.getRawFragment() != null) {
             return Optional.of("frammento (#…) non ammesso");
+        }
+        // Q-184 DECISA: un host numerico (ultima etichetta di sole cifre o 0x…) vale solo in forma puntata canonica
+        // a.b.c.d (0…255, senza zeri iniziali): 2130706433, 0x7f000001, 127.1 o 0177.0.0.1 sono rifiutati al salvataggio
+        // invece di scoprire all'invio, dopo la risoluzione, che puntano a un indirizzo bloccato.
+        if (numericHost(host) && !CANONICAL_IPV4.matcher(host).matches()) {
+            return Optional.of("indirizzo IP in forma non canonica: usa la forma puntata, es. 203.0.113.10");
         }
         boolean local = LOCAL_HOSTS.contains(host);
         if ("http".equals(scheme)) {
@@ -89,6 +98,16 @@ public record WebhookUrlPolicy(boolean allowHttpLocalhost, boolean blockPrivateA
             return (b[0] & 0xFE) == 0xFC; // fc00::/7 (ULA)
         }
         return false;
+    }
+
+    /** Host che un risolutore leggerebbe come IPv4 (ultima etichetta numerica, decimale o esadecimale). */
+    static boolean numericHost(String host) {
+        if (host.startsWith("[")) {
+            return false;
+        }
+        String h = host.endsWith(".") ? host.substring(0, host.length() - 1) : host;
+        String last = h.substring(h.lastIndexOf('.') + 1);
+        return !last.isEmpty() && NUMERIC_LABEL.matcher(last).matches();
     }
 
     /** Indirizzo IP letterale (senza DNS), se l'host lo è. */

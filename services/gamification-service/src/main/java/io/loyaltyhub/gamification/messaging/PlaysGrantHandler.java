@@ -56,7 +56,17 @@ public class PlaysGrantHandler implements EventHandler {
         String code = d.path("contestCode").asString("");
         Contest c = contests.find(code).filter(x -> x.code().equals(code))
                 .orElseThrow(() -> new NonRetryableEventException("CONTEST_NOT_FOUND", "Concorso sconosciuto: " + code));
-        int count = Math.max(1, d.path("count").asInt(1));
+        // count assente → 1 credito (come Q-230). Q-297 DECISA: count presente ma non intero o < 1 → DLQ INVALID_EFFECT,
+        // nessun credito (prima valeva 1).
+        JsonNode rawCount = d.get("count");
+        int count = 1;
+        if (rawCount != null && !rawCount.isNull()) {
+            if (!rawCount.isIntegralNumber() || !rawCount.canConvertToInt() || rawCount.asInt() < 1) {
+                throw new NonRetryableEventException("INVALID_EFFECT", "plays.grant con count non valido (" + rawCount
+                        + "): serve un intero ≥ 1: " + event.id());
+            }
+            count = rawCount.asInt();
+        }
         String effectId = d.path("effectId").asString(event.id());
         String campaign = d.hasNonNull("campaignCode") ? d.get("campaignCode").asString() : null;
         if (!plays.insertGrant(Ulid.next(clock), memberId, c.id(), count, effectId, campaign, clock.instant())) {

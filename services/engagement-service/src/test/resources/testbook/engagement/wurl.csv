@@ -45,7 +45,7 @@ TB-ENG-WURL-043	`LOCALHOST` (maiuscole)	REMOTE	https://LOCALHOST/hook	REJECT
 TB-ENG-WURL-044	`api.localhost`	REMOTE	https://api.localhost/hook	REJECT
 TB-ENG-WURL-045	`printer.local` (mDNS)	REMOTE	https://printer.local/hook	REJECT
 TB-ENG-WURL-046	`metadata.internal`	REMOTE	https://metadata.internal/hook	REJECT
-TB-ENG-WURL-047	`2130706433` (127.0.0.1 in forma decimale) al salvataggio	REMOTE	https://2130706433/hook	OK
+TB-ENG-WURL-047	`2130706433` (127.0.0.1 in forma decimale) al salvataggio	REMOTE	https://2130706433/hook	REJECT
 TB-ENG-WURL-048	credenziali nell'URL	REMOTE	https://user:pw@example.org/hook	REJECT
 TB-ENG-WURL-049	frammento `#x`	REMOTE	https://example.org/hook#x	REJECT
 TB-ENG-WURL-050	URL di 500 caratteri (massimo)	REMOTE	https://example.org/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	OK
@@ -55,3 +55,9 @@ TB-ENG-WURL-053	profilo `local`: `http://127.0.0.1`	LOCAL	http://127.0.0.1:8080/
 TB-ENG-WURL-054	profilo `local`: `http://` non locale	LOCAL	http://example.org/hook	REJECT
 TB-ENG-WURL-055	profilo `local`: indirizzo privato	LOCAL	https://10.0.0.1/hook	OK
 TB-ENG-WURL-056	profilo non `local`: `http://localhost`	REMOTE	http://localhost:8080/hook	REJECT
+TB-ENG-WURL-057	`0x7f000001` (127.0.0.1 esadecimale)	REMOTE	https://0x7f000001/hook	REJECT
+TB-ENG-WURL-058	`127.1` (forma abbreviata)	REMOTE	https://127.1/hook	REJECT
+TB-ENG-WURL-059	`0177.0.0.1` (ottale)	REMOTE	https://0177.0.0.1/hook	REJECT
+TB-ENG-WURL-060	`08.8.8.8` (zero iniziale su indirizzo pubblico)	REMOTE	https://08.8.8.8/hook	REJECT
+TB-ENG-WURL-061	profilo `local`: `2130706433`	LOCAL	https://2130706433/hook	REJECT
+TB-ENG-WURL-062	nome con cifre non finali (`123.example.org`)	REMOTE	https://123.example.org/hook	OK
