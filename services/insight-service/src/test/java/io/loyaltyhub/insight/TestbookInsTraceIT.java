@@ -95,14 +95,12 @@ class TestbookInsTraceIT extends TestbookInsBase {
     }
 
     @Test
-    @DisplayName("[TB-INS-TST-031] correlationId sconosciuto (AMBIGUO: 404?): 200 IN_PROGRESS senza nodi")
+    @DisplayName("[TB-INS-TST-031] correlationId sconosciuto: 404 NOT_FOUND (Q-N7 DECISA: nessun tracciato vuoto inventato)")
     void unknownCorrelation() {
-        // TESTBOOK: ambiguo, vedi TB-INS-TST-031
+        // Q-N7 DECISA
         Resp r = call("GET", "/v1/traces/" + uid("COR-NONE"), null, null);
-        assertThat(r.status()).isEqualTo(200);
-        assertThat(r.body().path("status").asString()).isEqualTo("IN_PROGRESS");
-        assertThat(r.body().path("nodes").size()).isZero();
-        assertThat(r.body().path("outcome").path("points").size()).isZero();
+        assertThat(r.status()).as(r.text()).isEqualTo(404);
+        assertThat(r.code()).isEqualTo("NOT_FOUND");
     }
 
     @Test
@@ -153,7 +151,7 @@ class TestbookInsTraceIT extends TestbookInsBase {
     @Test
     @DisplayName("[TB-INS-TST-036] voce DLQ REPROCESSED più recente dell'ultimo evento (AMBIGUO): la quiete parte dalla voce")
     void quietIncludesDlq() {
-        // TESTBOOK: ambiguo, vedi TB-INS-TST-036
+        // Q-N8 DECISA (TB-INS-TST-036)
         String cor = uid("COR-TST");
         Instant t = Instant.parse("2035-06-06T10:00:00Z");
         stored(uid("EVT-A"), "ACTION", "purchase.completed", "urn:loyaltyhub:source:ecommerce", "MBR-000003", cor, null, t, t,
@@ -235,7 +233,7 @@ class TestbookInsTraceIT extends TestbookInsBase {
     @Test
     @DisplayName("[TB-INS-TTR-004] genitore assente dall'event store (AMBIGUO): il nodo conserva parentEventId del genitore mancante")
     void orphan() {
-        // TESTBOOK: ambiguo, vedi TB-INS-TTR-004
+        // Q-N9 DECISA (TB-INS-TTR-004)
         String cor = uid("COR-TTR");
         Instant t = Instant.parse("2035-07-04T10:00:00Z");
         String f = uid("EVT-F");
@@ -330,7 +328,7 @@ class TestbookInsTraceIT extends TestbookInsBase {
     @Test
     @DisplayName("[TB-INS-TTR-011] sintesi per tipo (insight §5, AMBIGUO sulla forma): wallet.points.earned contiene «+162 PTS»")
     void nodeSummary() {
-        // TESTBOOK: ambiguo, vedi TB-INS-TTR-011 (l'esempio di §5 è «+162 PTS · Acquisto»)
+        // Q-N9 DECISA (TB-INS-TTR-011) (l'esempio di §5 è «+162 PTS · Acquisto»)
         String cor = uid("COR-TTR");
         Instant t = Instant.parse("2035-07-11T10:00:00Z");
         stored(uid("EVT-F"), "FACT", "wallet.points.earned", SERVICE + "wallet", "MBR-000003", cor, null, t, t,
@@ -392,7 +390,7 @@ class TestbookInsTraceIT extends TestbookInsBase {
     @Test
     @DisplayName("[TB-INS-TOU-004] accredito senza valuta (AMBIGUO): contato come PTS")
     void outcomeNoCurrency() {
-        // TESTBOOK: ambiguo, vedi TB-INS-TOU-004
+        // Q-N10 DECISA (TB-INS-TOU-004)
         String cor = facts(Instant.parse("2035-08-04T10:00:00Z"), "wallet.points.earned", Map.of("amount", 40));
         assertThat(points(outcomeOf(cor))).containsExactly(Map.entry("PTS", 40L));
     }
@@ -457,7 +455,7 @@ class TestbookInsTraceIT extends TestbookInsBase {
     @Test
     @DisplayName("[TB-INS-TOU-011] due voci DLQ (una OPEN, una REPROCESSED) (AMBIGUO): outcome.dlq = 2")
     void outcomeDlq() {
-        // TESTBOOK: ambiguo, vedi TB-INS-TOU-011
+        // Q-N10 DECISA (TB-INS-TOU-011)
         String cor = uid("COR-TOU");
         Instant t = Instant.parse("2035-08-11T10:00:00Z");
         openEntry("ACTION", "lh-campaign", "X", cor, t);
@@ -530,13 +528,15 @@ class TestbookInsTraceIT extends TestbookInsBase {
     }
 
     @Test
-    @DisplayName("[TB-INS-TLS-005] limit=0 (AMBIGUO): portato a 1")
+    @DisplayName("[TB-INS-TLS-005] limit=0 (sinonimo di size): 400 BAD_REQUEST (Q-N12 DECISA)")
     void listLimitZero() {
-        // TESTBOOK: ambiguo, vedi TB-INS-TLS-005
+        // Q-N12 DECISA
         String m = uid("MBR-TLS");
         simpleTrace(m, uid("COR-O"), Instant.parse("2035-09-05T10:00:00Z"));
         simpleTrace(m, uid("COR-N"), Instant.parse("2035-09-05T11:00:00Z"));
-        assertThat(list("?limit=0&memberId=" + m).path("items").size()).isEqualTo(1);
+        Resp r = call("GET", "/v1/traces?limit=0&memberId=" + m, null, null);
+        assertThat(r.status()).as(r.text()).isEqualTo(400);
+        assertThat(r.code()).isEqualTo("BAD_REQUEST");
     }
 
     @Test

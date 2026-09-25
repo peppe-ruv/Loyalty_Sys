@@ -486,8 +486,8 @@ class TestbookGovHubIT {
                 String msgs = http(HttpMethod.GET, "/v1/messages?size=100&memberId=" + a.id, ADMIN, null).body.toString();
                 return !msgs.contains(FIRST) && msgs.contains("Membro anonimo") ? "segnaposto" : "nome ancora presente";
             };
-            case "EVENT_STORE" -> () -> http(HttpMethod.GET, "/v1/events?limit=500&q=" + FIRST, ADMIN, null).body
-                    .path("count").asString();
+            case "EVENT_STORE" -> () -> http(HttpMethod.GET, "/v1/events?size=100&q=" + FIRST, ADMIN, null).body
+                    .path("page").path("totalItems").asString();
             default -> throw new IllegalArgumentException(scenario);
         };
         assertThat(await(probe, expected)).as("%s: %s", id, description).isEqualTo(expected);

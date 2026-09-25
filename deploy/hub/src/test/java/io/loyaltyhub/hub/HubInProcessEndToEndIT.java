@@ -82,7 +82,7 @@ class HubInProcessEndToEndIT {
         int stored = 0;
         while (System.currentTimeMillis() < insightDeadline) {
             JsonNode page = client().get().uri("/v1/events?memberId=MBR-000002").retrieve().body(JsonNode.class);
-            stored = page.path("count").asInt();
+            stored = page.path("page").path("totalItems").asInt();
             if (stored >= 3) {
                 break;
             }

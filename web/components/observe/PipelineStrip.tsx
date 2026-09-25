@@ -5,7 +5,8 @@ import { familyColorVar, type LiveFamily } from "@/lib/realtime/sse";
 import { formatRelative } from "@/lib/format/dates";
 import { DegradedBox } from "@/components/shared/QueryState";
 
-// Striscia pipeline di BO-24 (docs/08 §BO-24): una tessera per topic con ultimo evento e volume.
+// Striscia pipeline di BO-24 (docs/08 §BO-24): una tessera per topic con ultimo evento, volumi 1 h/24 h e ritardo
+// stimato (insight §3 `GET /v1/pipeline/status`).
 const TOPICS: { topic: string; label: string; family: LiveFamily }[] = [
   { topic: "lh.actions.v1", label: "Azioni", family: "ACTION" },
   { topic: "lh.effects.v1", label: "Effetti", family: "EFFECT" },
@@ -18,10 +19,29 @@ interface TopicStat {
   topic: string;
   lastEventAt: string | null;
   countTotal: number;
+  /** Arrivati nell'ultima ora / nelle ultime 24 h. */
+  count1h?: number;
+  count24h?: number;
+  /** Ritardo stimato dell'ultimo record (arrivo in insight − timestamp Kafka), in ms. */
+  lagMs?: number | null;
+}
+
+/** Ultimo fatto prodotto da un servizio. */
+interface ServiceStat {
+  service: string;
+  lastFactAt: string;
+  lastFactType: string;
 }
 
 interface PipelineStatus {
   topics: TopicStat[];
+  services?: ServiceStat[];
+}
+
+/** Ritardo leggibile: ms sotto il secondo, poi secondi con un decimale. */
+export function formatLag(ms: number | null | undefined): string {
+  if (ms == null) return "—";
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
 }
 
 export function PipelineStrip() {
@@ -76,10 +96,26 @@ export function PipelineStrip() {
               <p className="mt-1 text-[11px] text-[var(--color-bo-ink-2)]">
                 {stat?.lastEventAt ? formatRelative(stat.lastEventAt) : "nessun evento"}
               </p>
+              <p className="text-[11px] text-[var(--color-bo-ink-2)]">
+                1 h <span className="font-mono">{stat?.count1h ?? 0}</span> · 24 h{" "}
+                <span className="font-mono">{stat?.count24h ?? 0}</span> · ritardo{" "}
+                <span className="font-mono">{formatLag(stat?.lagMs)}</span>
+              </p>
             </div>
           );
         })}
       </div>
+      {(query.data?.services ?? []).length > 0 ? (
+        <p className="mt-2 text-[11px] text-[var(--color-bo-ink-2)]" aria-label="Ultimo fatto per servizio">
+          Ultimo fatto per servizio:{" "}
+          {(query.data?.services ?? []).map((s, i) => (
+            <span key={s.service}>
+              {i > 0 ? " · " : null}
+              <span className="font-mono">{s.service}</span> {formatRelative(s.lastFactAt)} ({s.lastFactType})
+            </span>
+          ))}
+        </p>
+      ) : null}
     </div>
   );
 }

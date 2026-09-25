@@ -4,7 +4,8 @@ Dominio **TB-INS** del testbook (`docs/16`, §10ter): event store, flusso live S
 
 - **Oracolo** = specifica: `docs/servizi/insight-service.md` (qui «insight §n»), `docs/02` F-INS-01…06 e F-AUD-01, RNF-07, `docs/03` (fuso di business `Europe/Rome`), `docs/04 §5` (DLQ, correlazione), `docs/05` §1–§7 e `contracts/events/`, `docs/06` §2–§3 e §10, `docs/08` §2, BO-01, BO-22, BO-24, BO-25, BO-27, `docs/10 §9`, `docs/12` M2, le scelte di `docs/15` citate col loro `Q-nn` (Q-26, Q-104…Q-111, Q-126, Q-261). Mai «quello che il codice restituisce oggi».
 - **AMBIGUO** = la specifica tace e `docs/15` non ha una scelta: la riga asserisce il comportamento attuale, marcata AMBIGUO nella descrizione e nel test (`// TESTBOOK: ambiguo, vedi <ID>`). Elenco e proposte di domanda in §15.
-- **DIVERGENZA** = il codice non rispetta la specifica: il test asserisce la specifica e fallisce; registro in §14. Nessun codice di produzione è stato modificato.
+- **DIVERGENZA** = il codice non rispetta la specifica: il test asserisce la specifica; registro in §14. Le 55 righe divergenti (17 cause) sono state poi corrette nel codice di produzione (§14, «Correzioni»).
+- **Q-Nn DECISA** = riga prima AMBIGUO: il proprietario ha scelto l'opzione conservativa (docs/15, §15); la riga asserisce la scelta.
 
 ## 0. Esecuzione
 
@@ -278,11 +279,11 @@ Rami senza specifica (righe AMBIGUO): 13 voci — 404 vs tracciato vuoto, `REPRO
 |---|---|---|---|---|
 | TB-INS-DLS-001 | solo consumer | voci #4, #3, #2, #1, #0 (dalla più recente); totalItems 5, number 0 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
 | TB-INS-DLS-002 | status=OPEN | voci #4, #1, #0 (dalla più recente); totalItems 3, number 0 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
-| TB-INS-DLS-003 | status=open minuscolo (AMBIGUO) | voci #4, #1, #0 (dalla più recente); totalItems 3, number 0 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
+| TB-INS-DLS-003 | status=open minuscolo (Q-N6 DECISA) | voci #4, #1, #0 (dalla più recente); totalItems 3, number 0 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
 | TB-INS-DLS-004 | status=REPROCESSED | voci #2 (dalla più recente); totalItems 1, number 0 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
 | TB-INS-DLS-005 | status=DISCARDED | voci #3 (dalla più recente); totalItems 1, number 0 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
 | TB-INS-DLS-006 | status=NEW (nome di BO-27; API con OPEN per Q-105) | voci nessuna (dalla più recente); totalItems 0, number 0, totalPages 0 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
-| TB-INS-DLS-007 | status sconosciuto (AMBIGUO) | voci nessuna (dalla più recente); totalItems 0, number 0, totalPages 0 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
+| TB-INS-DLS-007 | status sconosciuto (Q-N6 DECISA, come `NEW` di Q-105) | voci nessuna (dalla più recente); totalItems 0, number 0, totalPages 0 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
 | TB-INS-DLS-008 | errorCode=E_A | voci #3, #2, #0 (dalla più recente); totalItems 3, number 0 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
 | TB-INS-DLS-009 | errorCode=E_B e status=OPEN | voci #4, #1 (dalla più recente); totalItems 2, number 0 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
 | TB-INS-DLS-010 | errorCode inesistente | voci nessuna (dalla più recente); totalItems 0, number 0, totalPages 0 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
@@ -291,11 +292,11 @@ Rami senza specifica (righe AMBIGUO): 13 voci — 404 vs tracciato vuoto, `REPRO
 | TB-INS-DLS-013 | size=2 page=2 (ultima e parziale) | voci #0 (dalla più recente); totalItems 5, number 2, size 2, totalPages 3 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
 | TB-INS-DLS-014 | size=2 page=3 (oltre l'ultima) | voci nessuna (dalla più recente); totalItems 5, number 3, size 2, totalPages 3 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
 | TB-INS-DLS-015 | size=1 | voci #4 (dalla più recente); totalItems 5, number 0, size 1, totalPages 5 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
-| TB-INS-DLS-016 | size=0 (AMBIGUO) | voci #4 (dalla più recente); totalItems 5, number 0, size 1, totalPages 5 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
+| TB-INS-DLS-016 | size=0 (Q-N6 DECISA) | 400 `BAD_REQUEST` | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
 | TB-INS-DLS-017 | size=100 (massimo di docs/06) | voci #4, #3, #2, #1, #0 (dalla più recente); totalItems 5, number 0, size 100, totalPages 1 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
 | TB-INS-DLS-018 | size=101 | **DIVERGENZA** — voci #4, #3, #2, #1, #0 (dalla più recente); totalItems 5, number 0, size 100, totalPages 1 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
 | TB-INS-DLS-019 | size=200 | **DIVERGENZA** — voci #4, #3, #2, #1, #0 (dalla più recente); totalItems 5, number 0, size 100, totalPages 1 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
-| TB-INS-DLS-020 | page=-1 (AMBIGUO) | voci #4, #3, #2, #1, #0 (dalla più recente); totalItems 5, number 0 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
+| TB-INS-DLS-020 | page=-1 (Q-N6 DECISA) | 400 `BAD_REQUEST` | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
 | TB-INS-DLS-021 | page non numerica | HTTP 400 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
 | TB-INS-DLS-022 | size non numerica | HTTP 400 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
 | TB-INS-DLS-023 | filtri vuoti (status= errorCode=) ignorati | voci #4, #3, #2, #1, #0 (dalla più recente); totalItems 5, number 0 | insight §3; docs/06 §2; BO-27; Q-105 | `TestbookInsDlqIT` · `dlq-elenco.csv` |
@@ -364,7 +365,7 @@ Rami senza specifica (righe AMBIGUO): 13 voci — 404 vs tracciato vuoto, `REPRO
 | TB-INS-TST-028 | una REPROCESSED e una DISCARDED e ultimo evento da 5000 ms | FAILED | insight §3, §5; Q-106; US-E09-03 | `TestbookInsTraceIT` · `tracciato-stato.csv` |
 | TB-INS-TST-029 | una REPROCESSED e una DISCARDED e ultimo evento da 5001 ms | FAILED | insight §3, §5; Q-106; US-E09-03 | `TestbookInsTraceIT` · `tracciato-stato.csv` |
 | TB-INS-TST-030 | una REPROCESSED e una DISCARDED e ultimo evento da 60000 ms | FAILED | insight §3, §5; Q-106; US-E09-03 | `TestbookInsTraceIT` · `tracciato-stato.csv` |
-| TB-INS-TST-031 | correlationId sconosciuto (AMBIGUO | 404?): 200 IN_PROGRESS senza nodi | insight §3, §5; Q-106; US-E09-03 | `TestbookInsTraceIT` |
+| TB-INS-TST-031 | correlationId sconosciuto (Q-N7 DECISA) | 404 `NOT_FOUND` (nessun tracciato vuoto inventato) | insight §3, §5; Q-106; US-E09-03 | `TestbookInsTraceIT` |
 | TB-INS-TST-032 | solo una voce DLQ aperta (eventi già potati) | FAILED, un nodo DLQ, membro dalla voce | insight §3, §5; Q-106; US-E09-03 | `TestbookInsTraceIT` |
 | TB-INS-TST-033 | riga di famiglia DLQ nell'event store (ramo senza specifica, Q-111) | FAILED | insight §3, §5; Q-106; US-E09-03 | `TestbookInsTraceIT` |
 | TB-INS-TST-034 | quiete misurata sull'arrivo | evento con time vecchio di 1 h ma arrivato 1 s fa ⇒ IN_PROGRESS | insight §3, §5; Q-106; US-E09-03 | `TestbookInsTraceIT` |
@@ -405,7 +406,7 @@ Rami senza specifica (righe AMBIGUO): 13 voci — 404 vs tracciato vuoto, `REPRO
 | TB-INS-TLS-002 | ordine | prima il tracciato con l'attività più recente | insight §3; BO-25; docs/06 §2 | `TestbookInsTraceIT` |
 | TB-INS-TLS-003 | uno per correlationId | tre eventi dello stesso tracciato ⇒ una riga | insight §3; BO-25; docs/06 §2 | `TestbookInsTraceIT` |
 | TB-INS-TLS-004 | limit=1 | solo il più recente | insight §3; BO-25; docs/06 §2 | `TestbookInsTraceIT` |
-| TB-INS-TLS-005 | limit=0 (AMBIGUO) | portato a 1 | insight §3; BO-25; docs/06 §2 | `TestbookInsTraceIT` |
+| TB-INS-TLS-005 | limit=0, sinonimo di size (Q-N12 DECISA) | 400 `BAD_REQUEST` | insight §3; BO-25; docs/06 §2 | `TestbookInsTraceIT` |
 | TB-INS-TLS-006 | from/to sull'istante d'arrivo, estremi inclusi | dentro sì, un'ora dopo no | insight §3; BO-25; docs/06 §2 | `TestbookInsTraceIT` |
 | TB-INS-TLS-007 | from non ISO-8601 | 400 | insight §3; BO-25; docs/06 §2 | `TestbookInsTraceIT` |
 | TB-INS-TLS-008 | to non ISO-8601 | 400 | insight §3; BO-25; docs/06 §2 | `TestbookInsTraceIT` |
@@ -490,15 +491,15 @@ Rami senza specifica (righe AMBIGUO): 13 voci — 404 vs tracciato vuoto, `REPRO
 | TB-INS-KOV-005 | finestra di un giorno (from = to) | il precedente è il giorno prima | insight §3; BO-01; docs/06 §2; docs/10 §9 | `TestbookInsKpiIT` |
 | TB-INS-KOV-006 | days=7 senza from/to (BO-01 7/30/90) | da oggi-6 a oggi | insight §3; BO-01; docs/06 §2; docs/10 §9 | `TestbookInsKpiIT` |
 | TB-INS-KOV-007 | senza parametri | default 30 giorni (BO-01) | insight §3; BO-01; docs/06 §2; docs/10 §9 | `TestbookInsKpiIT` |
-| TB-INS-KOV-008 | days=0 (AMBIGUO) | finestra di un giorno | insight §3; BO-01; docs/06 §2; docs/10 §9 | `TestbookInsKpiIT` |
-| TB-INS-KOV-009 | days negativo (AMBIGUO) | finestra di un giorno | insight §3; BO-01; docs/06 §2; docs/10 §9 | `TestbookInsKpiIT` |
+| TB-INS-KOV-008 | days=0 (Q-N12 DECISA) | 400 `BAD_REQUEST` | insight §3; BO-01; docs/06 §2; docs/10 §9 | `TestbookInsKpiIT` |
+| TB-INS-KOV-009 | days negativo (Q-N12 DECISA) | 400 `BAD_REQUEST` | insight §3; BO-01; docs/06 §2; docs/10 §9 | `TestbookInsKpiIT` |
 | TB-INS-KOV-010 | days non numerico | 400 | insight §3; BO-01; docs/06 §2; docs/10 §9 | `TestbookInsKpiIT` |
 | TB-INS-KOV-011 | from non è una data ISO (2034-13-01) | 400 | insight §3; BO-01; docs/06 §2; docs/10 §9 | `TestbookInsKpiIT` |
-| TB-INS-KOV-012 | from dopo to (AMBIGUO | 400?): 200 con totali a zero | insight §3; BO-01; docs/06 §2; docs/10 §9 | `TestbookInsKpiIT` |
+| TB-INS-KOV-012 | from dopo to (Q-N12 DECISA) | 400 `BAD_REQUEST` | insight §3; BO-01; docs/06 §2; docs/10 §9 | `TestbookInsKpiIT` |
 | TB-INS-KOV-013 | campi di insight §3 | **DIVERGENZA** — membersTotal, membersActive30d, actions, pointsEarned/Spent/Expired, redemptions, plays, wins, deltas | insight §3; BO-01; docs/06 §2; docs/10 §9 | `TestbookInsKpiIT` |
 | TB-INS-KOV-014 | membri totali = storico sintetico (3 100 → 3 480) + i 12 reali (docs/10 §9) | **DIVERGENZA** — come nella descrizione (asserito dal caso) | insight §3; BO-01; docs/06 §2; docs/10 §9 | `TestbookInsKpiIT` |
 | TB-INS-KOV-015 | dato reale e sintetico dello stesso giorno sommati (insight §5) | come nella descrizione (asserito dal caso) | insight §3; BO-01; docs/06 §2; docs/10 §9 | `TestbookInsKpiIT` |
-| TB-INS-KOV-016 | membri attivi (AMBIGUO | gauge): valore dell'ultimo giorno della finestra, non la somma | insight §3; BO-01; docs/06 §2; docs/10 §9 | `TestbookInsKpiIT` |
+| TB-INS-KOV-016 | membri attivi `membersActive30d` (gauge, Q-N14 DECISA) | valore dell'ultimo giorno della finestra, non la somma | insight §3; BO-01; docs/06 §2; docs/10 §9 | `TestbookInsKpiIT` |
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -508,16 +509,16 @@ Rami senza specifica (righe AMBIGUO): 13 voci — 404 vs tracciato vuoto, `REPRO
 | TB-INS-KTS-004 | marcatura synthetic per giorno | giorno sintetico con reale sommato = true, solo reale = false | insight §3; BO-01; docs/06 §2 | `TestbookInsKpiIT` |
 | TB-INS-KTS-005 | settimana con un giorno sintetico e uno reale (AMBIGUO) | synthetic = true | insight §3; BO-01; docs/06 §2 | `TestbookInsKpiIT` |
 | TB-INS-KTS-006 | granularity=WEEK maiuscolo (AMBIGUO) | accettato come week | insight §3; BO-01; docs/06 §2 | `TestbookInsKpiIT` |
-| TB-INS-KTS-007 | granularity=month fuori da day\|week (AMBIGUO | 400?): serie giornaliera | insight §3; BO-01; docs/06 §2 | `TestbookInsKpiIT` |
+| TB-INS-KTS-007 | granularity=month fuori da day\|week (Q-N15 DECISA) | 400 `BAD_REQUEST` | insight §3; BO-01; docs/06 §2 | `TestbookInsKpiIT` |
 | TB-INS-KTS-008 | metric assente | **DIVERGENZA** — 400 (docs/06 §2 parametri errati) | insight §3; BO-01; docs/06 §2 | `TestbookInsKpiIT` |
-| TB-INS-KTS-009 | metrica sconosciuta (AMBIGUO) | 200 con serie vuota | insight §3; BO-01; docs/06 §2 | `TestbookInsKpiIT` |
+| TB-INS-KTS-009 | metrica sconosciuta (Q-N15 DECISA) | 400 `BAD_REQUEST` | insight §3; BO-01; docs/06 §2 | `TestbookInsKpiIT` |
 | TB-INS-KTS-010 | from non è una data ISO | 400 | insight §3; BO-01; docs/06 §2 | `TestbookInsKpiIT` |
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
 | TB-INS-KBR-001 | top N (limit=2) in ordine decrescente | come nella descrizione (asserito dal caso) | insight §3; BO-01; docs/06 §2 | `TestbookInsKpiIT` |
 | TB-INS-KBR-002 | limit di default 5 (top 5 di BO-01) | 6 valori ⇒ 5 righe, escluso il minore | insight §3; BO-01; docs/06 §2 | `TestbookInsKpiIT` |
-| TB-INS-KBR-003 | limit=0 (AMBIGUO) | una riga | insight §3; BO-01; docs/06 §2 | `TestbookInsKpiIT` |
+| TB-INS-KBR-003 | limit=0 (Q-N12 DECISA) | 400 `BAD_REQUEST` | insight §3; BO-01; docs/06 §2 | `TestbookInsKpiIT` |
 | TB-INS-KBR-004 | total (AMBIGUO) | somma delle sole righe restituite | insight §3; BO-01; docs/06 §2 | `TestbookInsKpiIT` |
 | TB-INS-KBR-005 | dimensione di default | source | insight §3; BO-01; docs/06 §2 | `TestbookInsKpiIT` |
 | TB-INS-KBR-006 | dimensione senza dati | nessuna riga e total 0 | insight §3; BO-01; docs/06 §2 | `TestbookInsKpiIT` |
@@ -575,7 +576,7 @@ Rami senza specifica (righe AMBIGUO): 13 voci — 404 vs tracciato vuoto, `REPRO
 | TB-INS-SRP-001 | senza Last-Event-ID | nessun rinvio degli eventi passati, arrivano solo i nuovi | insight §3, §7 | `TestbookInsStreamIT` |
 | TB-INS-SRP-002 | Last-Event-ID a metà | rinviati in ordine gli eventi successivi | insight §3, §7 | `TestbookInsStreamIT` |
 | TB-INS-SRP-003 | Last-Event-ID = ultimo evento | nulla da rinviare | insight §3, §7 | `TestbookInsStreamIT` |
-| TB-INS-SRP-004 | Last-Event-ID sconosciuto (AMBIGUO) | rinviato tutto il buffer che passa il filtro | insight §3, §7 | `TestbookInsStreamIT` |
+| TB-INS-SRP-004 | Last-Event-ID sconosciuto (Q-N11 DECISA) | nessun rinvio (niente duplicati); gli eventi successivi arrivano dal vivo | insight §3, §7 | `TestbookInsStreamIT` |
 | TB-INS-SRP-005 | Last-Event-ID di soli spazi | come assente, nessun rinvio | insight §3, §7 | `TestbookInsStreamIT` |
 | TB-INS-SRP-006 | 1 evento perso | rinviato | insight §3, §7 | `TestbookInsStreamIT` |
 | TB-INS-SRP-007 | 199 eventi persi | rinviati tutti | insight §3, §7 | `TestbookInsStreamIT` |
@@ -867,36 +868,56 @@ Nel deployable consolidato (`TestbookInsHubIT`, profilo `inproc`): traffico real
 | HUB-005, 006, 010, 011, 012, 013 | docs/05 §6: `data.service` = servizio che scrive (es. `wallet`); BO-22 filtra per servizio | nell'hub consolidato tutte le voci hanno `service = hub` | `AuditPublisher.java:41` (`props.getService()`), `deploy/hub/src/main/resources/hub.yml:42` |
 | HUB-007 | docs/05 §6: `before/after` contengono solo i campi cambiati | l'UPDATE di una campagna riporta sempre `name`, `priority`, `schedule` | `services/campaign-service/.../CampaignAdminService.java:223-225` |
 
-Totale: **55 righe divergenti**, 17 cause. Nessuna divergenza è stata corretta (il compito non ammette modifiche al codice di produzione).
+Totale: **55 righe divergenti**, 17 cause. **Tutte corrette** nel codice di produzione (vedi «Correzioni» sotto): le righe asseriscono la specifica e sono verdi.
 
-Da osservare: TB-INS-SRP-013 (riconnessione con 20 eventi) è fallita una volta su cinque esecuzioni con un evento ricevuto due volte; nelle altre è verde. Causa possibile in `LiveEventHub.subscribe` (`LiveEventHub.java:74-83`): l'iscritto è registrato prima di copiare il buffer da rinviare, quindi un evento pubblicato tra i due passi arriva sia dal vivo sia dal rinvio. Non è registrata come divergenza finché non è riprodotta in modo deterministico.
+**Correzioni** (per causa):
 
-## 15. Ambiguità (proposte di domanda per docs/15)
+| Causa | Correzione |
+|---|---|
+| Giorno in UTC | `EventIngestService.businessDay` (`BusinessCalendar.ZONE` = `Europe/Rome`) per metriche e DLQ; `KpiService.today()` e `InsightSyntheticSeeder` sul giorno di Roma |
+| Metriche e dimensioni di insight §2 | `EventIngestService#updateMetrics`: `actions` per `type`; `points_spent`/`points_expired` per `currency`; `points_by_campaign` per `campaign`; `redemptions` per `status` (ogni passaggio del ciclo di vita) e `reward`; `plays`, `wins`, `messages`; `tier_changes` per `direction` con `tier.downgraded` (DOWN); solo i fatti contano per le metriche di valore |
+| `membersActive30d` | campo rinominato nell'overview e nei delta (web BO-01 aggiornato) |
+| Membri totali | `seed/insight-synthetic.json` `members_total` lineare 3 100 → 3 480 (senza rumore); `membersTotal` = ultimo valore sintetico + 12 + registrati |
+| Storico di richieste, giocate, vincite | `seed/insight-synthetic.json`: `redemptions` 14, `plays` 95, `wins` 11 (docs/10 §9), in coda per non cambiare le sequenze esistenti |
+| `metric` assente ⇒ 500 | `GlobalExceptionHandler#onMissingParameter` (lh-common): `MissingServletRequestParameterException` ⇒ 400 `BAD_REQUEST` |
+| Contatori dell'esito | `TraceService#outcomeOf`: `message.delivered`, `coupon.issued`, `contest.played` |
+| `size` fino a 200 | `Paging` comune agli elenchi: `size` oltre 100 ⇒ 100 |
+| Paginazione di audit, eventi, tracciati | `/v1/audit`, `/v1/events`, `/v1/traces` con `?page&size` e `{items, page}` (`PageResponse`), `limit` sinonimo di `size`; web (BO-22, BO-24 polling, BO-25) aggiornato |
+| Stato pipeline | `/v1/pipeline/status`: per topic `count1h`, `count24h` (dall'event store, DLQ da `dlq_entry`), `lagMs` (arrivo − timestamp del record), `lastReceivedAt`; `services[]` con l'ultimo fatto (`V5__insight_pipeline.sql`: `topic_stat.last_lag_ms`, `last_received_at`, tabella `service_stat`); striscia BO-24 aggiornata |
+| SSE senza coda per client | `LiveEventHub`: coda limitata a 500 e thread (virtuale) d'invio per client; coda piena ⇒ client disconnesso, gli altri continuano |
+| Payload non troncato | `EventIngestService#truncate`: payload oltre `payload-max-bytes` accorciato (testi più lunghi, poi `data` segnaposto), `lhtruncatedbytes` = dimensione originale |
+| Nessun audit `RESET` | `DemoResetController` (lh-common) pubblica `RESET` con l'attore dopo i reset |
+| `service = hub` nell'hub | `AuditPublisher.callerService()`: servizio logico dal package del chiamante (`io.loyaltyhub.<servizio>`) |
+| UPDATE di campagna con tutti i campi | `CampaignAdminService.changedFields`: solo i campi cambiati in `before/after` |
 
-| Righe | Domanda | Comportamento asserito oggi |
+TB-INS-SRP-013 (duplicato occasionale alla riconnessione): **riprodotto in modo deterministico** da `LiveEventHubTest` (`insight.live`): con un solo thread d'invio condiviso, la consegna di un evento restava in coda dietro un client bloccato e, quando ripartiva, trovava già iscritto il nuovo client, che lo riceveva dal vivo e dal rinvio (il buffer era copiato dopo l'iscrizione). Corretto in `LiveEventHub`: iscrizione (copia del buffer + registrazione) e pubblicazione passano dallo stesso lock e ogni client ha la propria coda, quindi il testimone tra rinvio e vivo passa senza duplicati né buchi. `TestbookInsStreamIT` verde 5 esecuzioni su 5.
+
+## 15. Ambiguità (decise: opzione conservativa, docs/15 Q-N1…Q-N20)
+
+Il proprietario ha deciso di applicare a ogni ambiguità l'opzione più conservativa. Dove il comportamento attuale lo era già resta (e diventa la scelta registrata); dove non lo era è stato cambiato e le righe asseriscono la scelta (`// Q-Nn DECISA`).
+
+| Righe | Domanda (docs/15) | Scelta |
 |---|---|---|
-| DST-004, DST-005, DRP-010, DRP-013 | *Riprocessa* di una voce `AUDIT` o di famiglia sconosciuta: §5 parla solo di azioni, effetti e fatti | 409 `NOT_REPROCESSABLE` (conservativo) |
-| DST-033, 034 | Ordine dei controlli di *scarta*: nota mancante su voce chiusa o inesistente | 422 `NOTE_REQUIRED` prima di 409/404 |
-| DRL-015 | Ruolo in minuscolo in `X-LH-Actor` | accettato (`admin` = ADMIN) |
-| DIN-002…005, 007…009 | Risposte di ingestion diverse da `ACCEPTED` e errori HTTP | voce aperta; 409 `REPROCESS_REJECTED`; 4xx ripropagati come `INGESTION_REFUSED`; corpo vuoto ⇒ 503 |
-| DIG-002…005 | Header `kafka_dlt-*` del recoverer standard, `errorCode` senza `lh-error-code`, consumer assente, tentativi non numerici | letti come ripiego; codice = nome semplice della classe; `unknown`; nulli |
-| DLS-003, 007, 016, 020 | `status` minuscolo o sconosciuto, `size=0`, `page` negativa | normalizzati (maiuscolo, vuoto, 1, 0) invece di 400 |
-| TST-031 | Tracciato sconosciuto: 404 o vuoto | 200 `IN_PROGRESS` senza nodi |
-| TST-036 | La quiete di 5 s conta anche l'arrivo delle voci DLQ | sì |
-| TTR-004, TTR-005, TTR-011 | Nodo orfano; corsia di un `source` estraneo; forma della sintesi (esempio «+162 PTS · Acquisto») | genitore mancante conservato; corsia = famiglia; «Punti accreditati · +162 PTS» |
-| TOU-004, TOU-011 | Accredito senza valuta; `dlq` conta anche le voci riprocessate | PTS; sì |
-| TLS-005, KOV-008, 009, KBR-003 | Valori < 1 di `limit`/`days` | portati a 1 |
-| MET-008, MET-011 | Totale di `points_earned` somma PTS e STS; rimborso sottratto da `points_spent` | sì; sì (spesa netta) |
-| KOV-012, KOV-016 | `from` > `to`; «membri attivi» come ultimo valore della finestra | 200 a zero; ultimo valore |
-| KTS-001, 005, 006, 007, 009, KBR-004 | Giorni senza dati, settimana mista, `WEEK`, `granularity` sconosciuta, metrica sconosciuta, `total` della ripartizione | omessi; synthetic se ne ha uno; accettato; serie giornaliera; vuota; somma delle righe restituite |
-| SRP-004 | `Last-Event-ID` sconosciuto (evento sfrattato o di un'altra istanza) | rinvio dell'intero buffer filtrato (può duplicare) |
-| SSE-006 | Forma del heartbeat (evento `heartbeat` o commento) | commento SSE `:hb` |
-| SFL-019, 020 | Filtro `types` col tipo completo; `topics` in maiuscolo | nessuna corrispondenza |
-| AIN-008, 010, 012, 014, 017, 020; AFL-002, 004, 005, 020 | `action` fuori elenco, attore `system`/assente/senza ruolo, `data` nullo, `entityId` assente; filtro attore nella forma `RUOLO:nome`, ruolo minuscolo, ruolo `system`, `from` solo data | registrata così com'è; ruolo `system` senza nome; voce senza attore; ruolo = valore intero; nessuna voce; id vuoto; nessuna corrispondenza; 400 |
-| EVT-007 | Filtro `type` col tipo completo | nessuna corrispondenza |
-| ING-005 | Tipo fuori da `io.loyaltyhub.*` | tipo breve = tipo intero |
-
-Conflitti tra fonti da registrare: (1) docs/10 §9 (baseline: azioni 180/g, PTS 21 000, spesi 9 500, scaduti 600, richieste 14, giocate 95, vincite 11; membri 3 100 → 3 480) contro `seed/insight-synthetic.json` (azioni 320, PTS 5 200, spesi 1 550, scaduti 170, nessuna richiesta/giocata/vincita, nessun totale membri): le righe SYN non asseriscono le baseline, solo la presenza (SYN-008…010, KOV-014 divergenti). (2) docs/10 §9 «+35 % sab–dom per gli acquisti» contro insight §5 «+35 % sab/dom per `points_earned`»: SYN-011 prova `points_earned`.
+| DST-004, DST-005, DRP-010, DRP-013 | Q-N1 — *Riprocessa* di una voce `AUDIT` o di famiglia sconosciuta | 409 `NOT_REPROCESSABLE` (già così) |
+| DST-033, 034 | Q-N2 — ordine dei controlli di *scarta* | 422 `NOTE_REQUIRED` prima di 409/404 (già così) |
+| DRL-015 | Q-N3 — ruolo in minuscolo in `X-LH-Actor` | segue Q-298 (lh-common, comune a tutti i servizi): nessun cambio locale |
+| DIN-002…005, 007…009 | Q-N4 — risposte di ingestion diverse da `ACCEPTED` | voce resta `OPEN`; 409 `REPROCESS_REJECTED`; 4xx `INGESTION_REFUSED`; vuoto 503 (già così) |
+| DIG-002…005 | Q-N5 — header `kafka_dlt-*`, `errorCode` dalla classe, consumer `unknown`, tentativi non numerici | lettura tollerante (già così: un errore qui rimanderebbe il record in DLQ) |
+| DLS-003, 007, 016, 020 | Q-N6 — `status` minuscolo o sconosciuto, `size=0`, `page` negativa | minuscolo accettato; sconosciuto = nessuna voce (come `NEW`, Q-105); `size` < 1 e `page` < 0 ⇒ **400** (cambiato) |
+| TST-031 | Q-N7 — tracciato sconosciuto | **404** `NOT_FOUND` (cambiato) |
+| TST-036 | Q-N8 — la quiete di 5 s conta le voci DLQ | sì (già così) |
+| TTR-004, 005, 011 | Q-N9 — nodo orfano, corsia di un `source` estraneo, forma della sintesi | genitore mancante conservato; corsia = famiglia; «Punti accreditati · +162 PTS» (già così) |
+| TOU-004, TOU-011 | Q-N10 — accredito senza valuta; `dlq` conta anche le riprocessate | PTS; sì (già così) |
+| SRP-004 | Q-N11 — `Last-Event-ID` mai visto da questa istanza | **nessun rinvio** (cambiato: niente duplicati); un id sfrattato da poco dal buffer riceve gli ultimi 200 (SRP-008…010) |
+| TLS-005, KOV-008, 009, 012, KBR-003 | Q-N12 — valori < 1 di `limit`/`size`/`days`, `from` dopo `to` | **400** (cambiato) |
+| MET-008, MET-012 | Q-N13 — totale di `points_earned` su PTS e STS; rimborso sottratto da `points_spent` | sì; sì (già così; la dimensione `currency` separa le valute) |
+| KOV-016 | Q-N14 — «membri attivi» come ultimo valore della finestra | ultimo valore (già così) |
+| KTS-001, 005, 006, 007, 009, KBR-004 | Q-N15 — giorni vuoti, settimana mista, `WEEK`, `granularity` o metrica sconosciute, `total` | omessi; synthetic; accettato; granularità e metrica sconosciute ⇒ **400** (cambiato); somma delle righe restituite |
+| SSE-006 | Q-N16 — forma del heartbeat | commento SSE `:hb` (già così) |
+| SFL-019, 020, EVT-007 | Q-N17 — tipo completo nei filtri, topic in maiuscolo | nessuna corrispondenza (già così) |
+| AIN-008, 010, 012, 014, 017, 020; AFL-002, 004, 005, 020 | Q-N18 — audit: azione fuori elenco, attore anomalo, `data` nullo, `entityId` assente, filtri | come oggi (ingest tollerante, filtri esatti, `from` solo data ⇒ 400) |
+| ING-005 | Q-N19 — tipo fuori da `io.loyaltyhub.*` | tipo breve = tipo intero (già così) |
+| SYN (baseline), SYN-011 | Q-N20 — conflitto docs/10 §9 ↔ `seed/insight-synthetic.json` e «acquisti» ↔ `points_earned` | baseline del seed per le metriche esistenti, docs/10 §9 per le nuove; stagionalità su `points_earned` (insight §5, fonte più autorevole) |
 
 ## 16. Storie di docs/17 coperte
 
@@ -911,8 +932,8 @@ US-E08-07 (AIN, AFL, APG, ADT, HUB-006…016), US-E08-11 (DST, DIN, DRP, DRS, DA
 | Righe di testbook | **586** (DST 34 · DRL 15 · DNT 50 · DIN 15 · DRP 15 · DSH 4 · DRS 4 · DAU 6 · DCC 2 · DLS 26 · DIG 18 · TST 36 · TTR 11 · TOU 11 · TLS 11 · MET 32 · DAY 24 · KOV 16 · KTS 10 · KBR 9 · SFL 23 · SUM 10 · SRP 13 · SSE 9 · AIN 20 · AFL 21 · APG 4 · ADT 2 · EVT 17 · ING 8 · PIP 9 · ROL 42 · CFG 6 · RET 17 · RST 4 · SYN 16 · HUB 16) |
 | Combinazioni ridotte | SFL: 81 → 9 all-pairs (L9) + 4 guasti singoli + 1 tutti uguali + 10 speciali; DLQ stato × azione × famiglia × ruolo × nota = 4 × 2 × 5 × 8 × 10 = 3 200 → 34 (macchina a stati completa con ADMIN e nota valida) + 15 (ruolo × azione) + 50 (nota × famiglia completa per scarta + riprocessa) = 99; tabelle complete: TST 6 × 5 = 30, DRP 5 × 3 = 15, DNT 9 × 5 = 45, ROL 6 × 7 = 42 |
 | Rami senza specifica | 13 voci (§2), righe marcate AMBIGUO (§15) |
-| Regole non implementate | `GET /v1/members/{id}/timeline` (Q-167); dimensione della serie (`timeseries?dimension=`); coda per client di 500 messaggi (SSE-009); troncamento del payload (RET-017); audit `RESET` (RST-004) |
-| Divergenze aperte | 55 righe, 17 cause (§14) |
+| Regole non implementate | `GET /v1/members/{id}/timeline` (Q-167); dimensione della serie (`timeseries?dimension=`) |
+| Divergenze aperte | nessuna (55 righe, 17 cause corrette, §14) |
 | Verifica a mutazione | 11 mutazioni, tutte rilevate (vedi sotto) |
 
 **Mutazioni** (codice di produzione rotto temporaneamente, poi ripristinato con `git checkout`; nessuna modifica residua):

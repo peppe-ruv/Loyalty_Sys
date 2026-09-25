@@ -118,15 +118,17 @@ class TestbookInsStreamIT extends TestbookInsSupport {
 
     @Test
     @Order(4)
-    @DisplayName("[TB-INS-SRP-004] Last-Event-ID sconosciuto (AMBIGUO): rinviato tutto il buffer che passa il filtro")
+    @DisplayName("[TB-INS-SRP-004] Last-Event-ID sconosciuto: nessun rinvio (Q-N11 DECISA: niente duplicati), poi dal vivo")
     void unknownId() throws Exception {
-        // TESTBOOK: ambiguo, vedi TB-INS-SRP-004
+        // Q-N11 DECISA
         String cor = uid("COR-SRP");
-        List<String> all = publishLive(cor, 5);
+        publishLive(cor, 5);
         try (SseClient c = new SseClient("?correlationId=" + cor, "ID-MAI-VISTO", Map.of())) {
-            List<SseEvent> got = c.take(5, 5_000);
+            assertThat(c.drain(800)).isEmpty();
+            List<String> fresh = publishLive(cor, 1);
+            List<SseEvent> got = c.take(1, 5_000);
             got.addAll(c.drain(500));
-            assertThat(ids(got)).containsExactlyElementsOf(all);
+            assertThat(ids(got)).containsExactlyElementsOf(fresh);
         }
     }
 
@@ -317,7 +319,7 @@ class TestbookInsStreamIT extends TestbookInsSupport {
     @Order(25)
     @DisplayName("[TB-INS-SSE-006] heartbeat ogni 15 s (AMBIGUO sulla forma: commento SSE): arriva entro 16 s su un canale muto")
     void heartbeat() throws Exception {
-        // TESTBOOK: ambiguo, vedi TB-INS-SSE-006 (insight §3 «heartbeat»: evento con nome o commento)
+        // Q-N16 DECISA (TB-INS-SSE-006) (insight §3 «heartbeat»: evento con nome o commento)
         try (SseClient c = new SseClient("?correlationId=" + uid("COR-MUTO"), null, Map.of())) {
             await("heartbeat", () -> !c.comments.isEmpty()
                     || c.events.stream().anyMatch(e -> "heartbeat".equals(e.event())), 16_500);

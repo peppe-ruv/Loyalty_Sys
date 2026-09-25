@@ -18,13 +18,14 @@ import java.util.List;
 
 /**
  * DLQ (docs/servizi/insight-service.md §3, docs/08 §BO-27; F-INS-05): elenco filtrato per {@code status, consumer,
- * errorCode}, dettaglio, e le due azioni ADMIN {@code reprocess} / {@code discard} (§5).
+ * errorCode} e paginato ({@code size} massimo 100, docs/06 §2), dettaglio, e le due azioni ADMIN {@code reprocess} /
+ * {@code discard} (§5). Uno {@code status} sconosciuto (anche {@code NEW} di BO-27, Q-105) filtra e non trova nulla.
  */
 @RestController
 @RequestMapping("/v1/dlq")
 public class DlqController {
 
-    private static final int MAX_SIZE = 200;
+    private static final int DEFAULT_SIZE = 50;
 
     private final DlqRepository repo;
     private final DlqService service;
@@ -43,12 +44,11 @@ public class DlqController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String consumer,
             @RequestParam(required = false) String errorCode,
-            @RequestParam(required = false, defaultValue = "0") int page,
-            @RequestParam(required = false, defaultValue = "50") int size) {
-        int capped = Math.min(Math.max(size, 1), MAX_SIZE);
-        int number = Math.max(page, 0);
-        List<DlqEntry> items = repo.search(status, consumer, errorCode, capped, number * capped);
-        return PageResponse.of(items, number, capped, repo.count(status, consumer, errorCode));
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        Paging p = Paging.of(page, size, null, DEFAULT_SIZE);
+        List<DlqEntry> items = repo.search(status, consumer, errorCode, p.size(), p.offset());
+        return PageResponse.of(items, p.page(), p.size(), repo.count(status, consumer, errorCode));
     }
 
     @GetMapping("/{id}")

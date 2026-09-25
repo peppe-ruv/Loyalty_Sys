@@ -172,8 +172,14 @@ class TestbookInsHubIT {
         return r.path("correlationId").asString();
     }
 
+    /** Tracciato; nodo vuoto finché è 404 (nessun evento ancora arrivato, Q-N7 DECISA). */
     private JsonNode trace(String cor) {
-        return get("/v1/traces/" + cor);
+        Resp r = call("GET", "/v1/traces/" + cor, null, null);
+        if (r.status() == 404) {
+            return mapper.createObjectNode();
+        }
+        assertThat(r.status()).as("GET /v1/traces/" + cor + " → " + r.text()).isEqualTo(200);
+        return r.body();
     }
 
     private Map<String, Long> points(JsonNode trace) {

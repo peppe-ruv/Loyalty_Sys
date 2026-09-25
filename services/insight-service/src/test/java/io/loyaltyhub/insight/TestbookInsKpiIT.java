@@ -250,19 +250,23 @@ class TestbookInsKpiIT extends TestbookInsBase {
     }
 
     @Test
-    @DisplayName("[TB-INS-KOV-008] days=0 (AMBIGUO): finestra di un giorno")
+    @DisplayName("[TB-INS-KOV-008] days=0: 400 BAD_REQUEST (Q-N12 DECISA: niente finestra corretta in silenzio)")
     void overviewDays0() {
-        // TESTBOOK: ambiguo, vedi TB-INS-KOV-008
+        // Q-N12 DECISA
         CLOCK.set(Instant.parse("2034-06-10T10:00:00Z"));
-        assertThat(get("/v1/kpi/overview?days=0").path("from").asString()).isEqualTo("2034-06-10");
+        Resp r = call("GET", "/v1/kpi/overview?days=0", null, null);
+        assertThat(r.status()).as(r.text()).isEqualTo(400);
+        assertThat(r.code()).isEqualTo("BAD_REQUEST");
     }
 
     @Test
-    @DisplayName("[TB-INS-KOV-009] days negativo (AMBIGUO): finestra di un giorno")
+    @DisplayName("[TB-INS-KOV-009] days negativo: 400 BAD_REQUEST (Q-N12 DECISA)")
     void overviewDaysNegative() {
-        // TESTBOOK: ambiguo, vedi TB-INS-KOV-009
+        // Q-N12 DECISA
         CLOCK.set(Instant.parse("2034-06-10T10:00:00Z"));
-        assertThat(get("/v1/kpi/overview?days=-5").path("from").asString()).isEqualTo("2034-06-10");
+        Resp r = call("GET", "/v1/kpi/overview?days=-5", null, null);
+        assertThat(r.status()).as(r.text()).isEqualTo(400);
+        assertThat(r.code()).isEqualTo("BAD_REQUEST");
     }
 
     @Test
@@ -278,13 +282,13 @@ class TestbookInsKpiIT extends TestbookInsBase {
     }
 
     @Test
-    @DisplayName("[TB-INS-KOV-012] from dopo to (AMBIGUO: 400?): 200 con totali a zero")
+    @DisplayName("[TB-INS-KOV-012] from dopo to: 400 BAD_REQUEST (Q-N12 DECISA: non una finestra vuota a zero)")
     void overviewInverted() {
-        // TESTBOOK: ambiguo, vedi TB-INS-KOV-012
+        // Q-N12 DECISA
         put("actions", "2034-07-11", 9);
         Resp r = call("GET", "/v1/kpi/overview?from=2034-07-12&to=2034-07-10", null, null);
-        assertThat(r.status()).isEqualTo(200);
-        assertThat(r.body().path("actions").asLong()).isZero();
+        assertThat(r.status()).as(r.text()).isEqualTo(400);
+        assertThat(r.code()).isEqualTo("BAD_REQUEST");
     }
 
     @Test
@@ -312,12 +316,12 @@ class TestbookInsKpiIT extends TestbookInsBase {
     }
 
     @Test
-    @DisplayName("[TB-INS-KOV-016] membri attivi (AMBIGUO: gauge): valore dell'ultimo giorno della finestra, non la somma")
+    @DisplayName("[TB-INS-KOV-016] membri attivi (gauge, Q-N14 DECISA): valore dell'ultimo giorno della finestra, non la somma")
     void overviewMembersActiveGauge() {
-        // TESTBOOK: ambiguo, vedi TB-INS-KOV-016
+        // Q-N14 DECISA
         put("members_active", "2034-10-09", 9);
         put("members_active", "2034-10-10", 11);
-        assertThat(overview("2034-10-09", "2034-10-10").path("membersActive").asLong()).isEqualTo(11);
+        assertThat(overview("2034-10-09", "2034-10-10").path("membersActive30d").asLong()).isEqualTo(11);
     }
 
     // ---------- KTS: serie ----------
@@ -329,7 +333,7 @@ class TestbookInsKpiIT extends TestbookInsBase {
     @Test
     @DisplayName("[TB-INS-KTS-001] granularità day (AMBIGUO sui giorni vuoti): un punto per giorno con dati, in ordine crescente")
     void seriesDay() {
-        // TESTBOOK: ambiguo, vedi TB-INS-KTS-001
+        // Q-N15 DECISA (TB-INS-KTS-001)
         put("points_expired", "2034-11-12", 3);
         put("points_expired", "2034-11-10", 1);
         JsonNode s = series("metric=points_expired&from=2034-11-10&to=2034-11-12");
@@ -379,7 +383,7 @@ class TestbookInsKpiIT extends TestbookInsBase {
     @Test
     @DisplayName("[TB-INS-KTS-005] settimana con un giorno sintetico e uno reale (AMBIGUO): synthetic = true")
     void seriesWeekSynthetic() {
-        // TESTBOOK: ambiguo, vedi TB-INS-KTS-005
+        // Q-N15 DECISA (TB-INS-KTS-005)
         metrics.putSynthetic(LocalDate.parse("2034-12-11"), "wins", MetricRepository.TOTAL, MetricRepository.TOTAL, 5);
         put("wins", "2034-12-12", 1);
         JsonNode pts = series("metric=wins&from=2034-12-11&to=2034-12-17&granularity=week").path("points");
@@ -391,18 +395,18 @@ class TestbookInsKpiIT extends TestbookInsBase {
     @Test
     @DisplayName("[TB-INS-KTS-006] granularity=WEEK maiuscolo (AMBIGUO): accettato come week")
     void seriesWeekUpper() {
-        // TESTBOOK: ambiguo, vedi TB-INS-KTS-006
+        // Q-N15 DECISA (TB-INS-KTS-006)
         assertThat(series("metric=wins&from=2034-12-11&to=2034-12-17&granularity=WEEK").path("granularity").asString())
                 .isEqualTo("week");
     }
 
     @Test
-    @DisplayName("[TB-INS-KTS-007] granularity=month fuori da day|week (AMBIGUO: 400?): serie giornaliera")
+    @DisplayName("[TB-INS-KTS-007] granularity=month fuori da day|week: 400 BAD_REQUEST (Q-N15 DECISA)")
     void seriesMonth() {
-        // TESTBOOK: ambiguo, vedi TB-INS-KTS-007
+        // Q-N15 DECISA
         Resp r = call("GET", "/v1/kpi/timeseries?metric=wins&from=2034-12-11&to=2034-12-17&granularity=month", null, null);
-        assertThat(r.status()).isEqualTo(200);
-        assertThat(r.body().path("granularity").asString()).isEqualTo("day");
+        assertThat(r.status()).as(r.text()).isEqualTo(400);
+        assertThat(r.code()).isEqualTo("BAD_REQUEST");
     }
 
     @Test
@@ -413,12 +417,12 @@ class TestbookInsKpiIT extends TestbookInsBase {
     }
 
     @Test
-    @DisplayName("[TB-INS-KTS-009] metrica sconosciuta (AMBIGUO): 200 con serie vuota")
+    @DisplayName("[TB-INS-KTS-009] metrica sconosciuta: 400 BAD_REQUEST (Q-N15 DECISA: non una serie vuota)")
     void seriesUnknownMetric() {
-        // TESTBOOK: ambiguo, vedi TB-INS-KTS-009
+        // Q-N15 DECISA
         Resp r = call("GET", "/v1/kpi/timeseries?metric=sconosciuta&from=2034-12-11&to=2034-12-17", null, null);
-        assertThat(r.status()).isEqualTo(200);
-        assertThat(r.body().path("points").size()).isZero();
+        assertThat(r.status()).as(r.text()).isEqualTo(400);
+        assertThat(r.code()).isEqualTo("BAD_REQUEST");
     }
 
     @Test
@@ -460,19 +464,21 @@ class TestbookInsKpiIT extends TestbookInsBase {
     }
 
     @Test
-    @DisplayName("[TB-INS-KBR-003] limit=0 (AMBIGUO): una riga")
+    @DisplayName("[TB-INS-KBR-003] limit=0: 400 BAD_REQUEST (Q-N12 DECISA)")
     void breakdownLimitZero() {
-        // TESTBOOK: ambiguo, vedi TB-INS-KBR-003
+        // Q-N12 DECISA
         putDim("actions", "source", "x", "2037-03-10", 1);
         putDim("actions", "source", "y", "2037-03-10", 2);
-        assertThat(slices(get("/v1/kpi/breakdown?metric=actions&dimension=source&from=2037-03-10&to=2037-03-10&limit=0")))
-                .hasSize(1);
+        Resp r = call("GET", "/v1/kpi/breakdown?metric=actions&dimension=source&from=2037-03-10&to=2037-03-10&limit=0",
+                null, null);
+        assertThat(r.status()).as(r.text()).isEqualTo(400);
+        assertThat(r.code()).isEqualTo("BAD_REQUEST");
     }
 
     @Test
     @DisplayName("[TB-INS-KBR-004] total (AMBIGUO): somma delle sole righe restituite")
     void breakdownTotal() {
-        // TESTBOOK: ambiguo, vedi TB-INS-KBR-004
+        // Q-N15 DECISA (TB-INS-KBR-004)
         putDim("actions", "source", "a", "2037-04-10", 5);
         putDim("actions", "source", "b", "2037-04-10", 9);
         putDim("actions", "source", "c", "2037-04-10", 7);

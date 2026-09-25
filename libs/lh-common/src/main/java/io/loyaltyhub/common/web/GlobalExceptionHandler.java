@@ -67,6 +67,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(pd);
     }
 
+    @ExceptionHandler(org.springframework.web.bind.MissingServletRequestParameterException.class)
+    public ResponseEntity<ProblemDetail> onMissingParameter(
+            org.springframework.web.bind.MissingServletRequestParameterException ex, HttpServletRequest request) {
+        // Parametro di query obbligatorio assente (es. `metric` dei KPI): parametro errato del client → 400 (docs/06 §2).
+        ProblemDetail pd = base(HttpStatus.BAD_REQUEST, "bad-request", title(HttpStatus.BAD_REQUEST),
+                "Parametro obbligatorio assente: " + ex.getParameterName(), request);
+        pd.setProperty("code", "BAD_REQUEST");
+        return ResponseEntity.badRequest().body(pd);
+    }
+
     @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
     public ResponseEntity<ProblemDetail> onNoResource(
             org.springframework.web.servlet.resource.NoResourceFoundException ex, HttpServletRequest request) {

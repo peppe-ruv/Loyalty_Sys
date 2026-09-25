@@ -1,6 +1,7 @@
 package io.loyaltyhub.insight.api;
 
 import io.loyaltyhub.common.web.LhException;
+import io.loyaltyhub.common.web.PageResponse;
 import io.loyaltyhub.insight.domain.AuditRecord;
 import io.loyaltyhub.insight.infra.AuditRepository;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,14 +14,15 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Audit (docs/servizi/insight-service.md §3, docs/08 §BO-22): elenco filtrato e dettaglio con diff.
- * Sola lettura; le voci arrivano dagli eventi {@code io.loyaltyhub.audit.entry} consumati dall'ingest.
+ * Audit (docs/servizi/insight-service.md §3, docs/08 §BO-22): elenco filtrato e paginato ({@code ?page&size},
+ * risposta {@code {items, page}}, docs/06 §2) e dettaglio con diff. Sola lettura; le voci arrivano dagli eventi
+ * {@code io.loyaltyhub.audit.entry} consumati dall'ingest.
  */
 @RestController
 @RequestMapping("/v1/audit")
 public class AuditController {
 
-    private static final int MAX_LIMIT = 200;
+    private static final int DEFAULT_SIZE = 100;
 
     private final AuditRepository audits;
 
@@ -28,11 +30,8 @@ public class AuditController {
         this.audits = audits;
     }
 
-    public record AuditPage(List<AuditRecord> items, int count, long total) {
-    }
-
     @GetMapping
-    public AuditPage list(
+    public PageResponse<AuditRecord> list(
             @RequestParam(required = false) String actor,
             @RequestParam(required = false) String role,
             @RequestParam(required = false) String service,
@@ -41,31 +40,20 @@ public class AuditController {
             @RequestParam(required = false) String action,
             @RequestParam(required = false) String from,
             @RequestParam(required = false) String to,
-            @RequestParam(required = false, defaultValue = "100") int limit,
-            @RequestParam(required = false, defaultValue = "0") int page) {
-        int capped = Math.min(Math.max(limit, 1), MAX_LIMIT);
-        int offset = Math.max(page, 0) * capped;
-        Instant fromI = parseInstant(from);
-        Instant toI = parseInstant(to);
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) Integer limit) {
+        Paging p = Paging.of(page, size, limit, DEFAULT_SIZE);
+        Instant fromI = Paging.instant(from);
+        Instant toI = Paging.instant(to);
         List<AuditRecord> items = audits.search(actor, role, service, entityType, entityId, action,
-                fromI, toI, capped, offset);
+                fromI, toI, p.size(), p.offset());
         long total = audits.count(actor, role, service, entityType, entityId, action, fromI, toI);
-        return new AuditPage(items, items.size(), total);
+        return PageResponse.of(items, p.page(), p.size(), total);
     }
 
     @GetMapping("/{id}")
     public AuditRecord byId(@PathVariable String id) {
         return audits.findById(id).orElseThrow(() -> LhException.notFound("Voce di audit non trovata: " + id));
-    }
-
-    private static Instant parseInstant(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return Instant.parse(value.trim());
-        } catch (RuntimeException e) {
-            throw LhException.badRequest("Istante non valido (atteso ISO-8601): " + value);
-        }
     }
 }

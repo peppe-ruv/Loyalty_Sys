@@ -3,6 +3,7 @@ package io.loyaltyhub.insight.api;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.common.web.LhException;
+import io.loyaltyhub.common.web.PageResponse;
 import io.loyaltyhub.insight.domain.StoredEvent;
 import io.loyaltyhub.insight.infra.EventStoreRepository;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,14 +16,14 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Lettura dell'event store (docs/servizi/insight-service.md §3): elenco filtrato e dettaglio con payload.
- * Tracciati, KPI, audit, DLQ e SSE arrivano nelle fette successive di M2.
+ * Lettura dell'event store (docs/servizi/insight-service.md §3): elenco filtrato e paginato ({@code ?page&size},
+ * risposta {@code {items, page}}, docs/06 §2) e dettaglio con payload.
  */
 @RestController
 @RequestMapping("/v1/events")
 public class EventsController {
 
-    private static final int MAX_LIMIT = 200;
+    private static final int DEFAULT_SIZE = 100;
 
     private final EventStoreRepository events;
     private final ObjectMapper mapper;
@@ -43,11 +44,8 @@ public class EventsController {
                               int partition, long offset, JsonNode payload) {
     }
 
-    public record EventsPage(List<EventSummary> items, int count) {
-    }
-
     @GetMapping
-    public EventsPage list(
+    public PageResponse<EventSummary> list(
             @RequestParam(required = false) String topic,
             @RequestParam(required = false) String family,
             @RequestParam(required = false) String type,
@@ -57,13 +55,18 @@ public class EventsController {
             @RequestParam(required = false) String from,
             @RequestParam(required = false) String to,
             @RequestParam(required = false) String q,
-            @RequestParam(required = false, defaultValue = "100") int limit) {
-        int capped = Math.min(Math.max(limit, 1), MAX_LIMIT);
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) Integer limit) {
+        Paging p = Paging.of(page, size, limit, DEFAULT_SIZE);
+        Instant fromI = Paging.instant(from);
+        Instant toI = Paging.instant(to);
         List<EventSummary> items = events.search(topic, family, type, memberId, correlationId, source,
-                        parseInstant(from), parseInstant(to), q, capped).stream()
+                        fromI, toI, q, p.size(), p.offset()).stream()
                 .map(EventsController::summary)
                 .toList();
-        return new EventsPage(items, items.size());
+        long total = events.count(topic, family, type, memberId, correlationId, source, fromI, toI, q);
+        return PageResponse.of(items, p.page(), p.size(), total);
     }
 
     @GetMapping("/{eventId}")
@@ -85,17 +88,6 @@ public class EventsController {
             return json == null ? null : mapper.readTree(json);
         } catch (RuntimeException e) {
             return null;
-        }
-    }
-
-    private static Instant parseInstant(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return Instant.parse(value.trim());
-        } catch (RuntimeException e) {
-            throw LhException.badRequest("Istante non valido (atteso ISO-8601): " + value);
         }
     }
 }

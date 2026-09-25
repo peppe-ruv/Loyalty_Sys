@@ -12,7 +12,9 @@ import type { AuditPage, AuditRecord } from "@/lib/api/insight";
 // campo per campo e JSON grezzo. Override di ADMIN e RESET marcati. Dati: insight GET /v1/audit(/{id}).
 
 const ACTIONS = ["", "CREATE", "UPDATE", "DELETE", "TRANSITION", "ADJUST", "JOB", "RESET"];
-const SERVICES = ["", "member", "campaign", "wallet", "ingestion", "reward", "gamification", "engagement"];
+const SERVICES = ["", "member", "campaign", "wallet", "ingestion", "reward", "gamification", "engagement", "insight"];
+/** Righe per pagina (docs/06 §2: `size` massimo 100). */
+const PAGE_SIZE = 100;
 
 const ACTION_TONE: Record<string, string> = {
   CREATE: "bg-emerald-100 text-emerald-800",
@@ -41,7 +43,7 @@ export default function AuditPage() {
   const query = useLhQuery<AuditPage>(
     "insight",
     "/v1/audit",
-    { actor: actor || undefined, service: service || undefined, action: action || undefined, limit: 100 },
+    { actor: actor || undefined, service: service || undefined, action: action || undefined, size: PAGE_SIZE },
     { refetchInterval: 5000 },
   );
 
@@ -104,9 +106,9 @@ export default function AuditPage() {
                   ))}
                 </tbody>
               </table>
-              {data.total > data.items.length ? (
+              {data.page.totalItems > data.items.length ? (
                 <p className="px-3 py-2 text-[11px] text-[var(--color-bo-ink-2)]">
-                  Mostrate {data.items.length} di {data.total} voci — affina i filtri per restringere.
+                  Mostrate {data.items.length} di {data.page.totalItems} voci — affina i filtri per restringere.
                 </p>
               ) : null}
             </div>

@@ -86,6 +86,12 @@ public class DlqRepository {
                 .params(status, actor, note, id).update() > 0;
     }
 
+    /** Voci DLQ viste nell'ultimo intervallo (volumi 1 h / 24 h del topic DLQ nello stato pipeline). */
+    public long countWithin(java.time.Duration window) {
+        return jdbc.sql("SELECT count(*) FROM dlq_entry WHERE first_seen_at >= now() - make_interval(secs => ?)")
+                .param((double) window.toSeconds()).query(Long.class).single();
+    }
+
     public void deleteAll() {
         jdbc.sql("DELETE FROM dlq_entry").update();
     }

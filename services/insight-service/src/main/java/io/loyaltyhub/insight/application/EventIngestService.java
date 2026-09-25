@@ -7,6 +7,7 @@ import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhFamily;
 import io.loyaltyhub.common.event.LhHeaders;
 import io.loyaltyhub.common.ids.Ulid;
+import io.loyaltyhub.common.time.BusinessCalendar;
 import io.loyaltyhub.insight.domain.AuditRecord;
 import io.loyaltyhub.insight.domain.DlqEntry;
 import io.loyaltyhub.insight.domain.StoredEvent;
@@ -24,6 +25,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,7 +33,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
+import java.util.Locale;
 
 /**
  * Registra nell'event store gli eventi osservati sui topic (docs/servizi/insight-service.md §5).
@@ -53,11 +55,14 @@ public class EventIngestService {
     private final ObjectMapper mapper;
     private final MemberRedactionRepository redaction;
     private final Clock clock;
+    private final int payloadMaxBytes;
 
     public EventIngestService(EventStoreRepository events, TopicStatRepository topicStats,
                               MetricRepository metrics, AuditRepository audits, DlqRepository dlq,
                               LiveEventHub liveHub, ObjectMapper mapper, MemberRedactionRepository redaction,
-                              Clock clock) {
+                              Clock clock,
+                              @Value("${loyaltyhub.insight.retention.payload-max-bytes:8192}") int payloadMaxBytes) {
+        this.payloadMaxBytes = payloadMaxBytes;
         this.redaction = redaction;
         this.clock = clock;
         this.events = events;
@@ -113,9 +118,9 @@ public class EventIngestService {
 
         boolean isNew = dlq.insert(entry, record.partition(), record.offset());
         if (isNew) {
-            topicStats.record(record.topic(), seenAt, record.partition(), record.offset());
-            LocalDate day = seenAt.atZone(ZoneOffset.UTC).toLocalDate();
-            metrics.increment(day, "dlq", MetricRepository.TOTAL, MetricRepository.TOTAL, 1);
+            topicStats.record(record.topic(), seenAt, record.partition(), record.offset(), clock.instant(),
+                    lagMs(record));
+            increment(businessDay(seenAt), "dlq", 1);
             // Evento live con l'id della voce (non quello dell'originale, già usato dal suo topic).
             String shortType = entry.shortType() == null ? "dlq" : entry.shortType();
             liveHub.publish(new LiveEvent(entry.id(), record.topic(), "DLQ", shortType, memberId,
@@ -136,11 +141,16 @@ public class EventIngestService {
                 event.id(), topic, family, type, shortType, event.source(), event.memberId(),
                 event.lhcorrelationid(), event.lhcausationid(), event.lhhop(), event.lhactor(),
                 header(record, LhHeaders.ERROR_CODE), event.time(), null,
-                record.partition(), record.offset(), record.value());
+                record.partition(), record.offset(), truncate(record.value()));
 
         boolean isNew = events.insert(stored);
         if (isNew) {
-            topicStats.record(topic, event.time(), record.partition(), record.offset());
+            topicStats.record(topic, event.time(), record.partition(), record.offset(), clock.instant(),
+                    lagMs(record));
+            String producer = serviceOf(event.source());
+            if ("FACT".equals(family) && producer != null) {
+                topicStats.recordFact(producer, clock.instant(), shortType, event.id());
+            }
             updateMetrics(family, shortType, event, stored);
             if ("AUDIT".equals(family)) {
                 recordAudit(event);
@@ -157,44 +167,98 @@ public class EventIngestService {
         }
     }
 
-    /** Aggiorna gli aggregati giornalieri (docs §5): le metriche i cui eventi esistono già (M1–M4). */
+    /**
+     * Aggiorna gli aggregati giornalieri di insight §2 (docs §5) nel giorno di business ({@code Europe/Rome}, docs/03)
+     * dell'evento: {@code actions} (per fonte e tipo), punti emessi/spesi/scaduti (per valuta), punti per campagna,
+     * membri nuovi, richieste premio (per stato e premio), giocate, vincite, cambi di livello (per direzione), messaggi.
+     */
     private void updateMetrics(String family, String shortType, LhEvent<JsonNode> event, StoredEvent stored) {
-        LocalDate day = (event.time() != null ? event.time() : clock.instant()).atZone(ZoneOffset.UTC).toLocalDate();
+        LocalDate day = businessDay(event.time() != null ? event.time() : clock.instant());
         JsonNode data = event.data() == null ? mapper.createObjectNode() : event.data();
         switch (family) {
             case "ACTION" -> {
-                metrics.increment(day, "actions", MetricRepository.TOTAL, MetricRepository.TOTAL, 1);
+                increment(day, "actions", 1);
                 metrics.increment(day, "actions", "source", sourceCode(stored.source()), 1);
+                metrics.increment(day, "actions", "type", shortType, 1);
             }
-            case "DLQ" -> metrics.increment(day, "dlq", MetricRepository.TOTAL, MetricRepository.TOTAL, 1);
+            case "DLQ" -> increment(day, "dlq", 1);
             default -> {
                 // fatti e effetti sotto
             }
         }
+        if (!"FACT".equals(family)) {
+            return; // le metriche di valore contano solo i fatti (un effetto points.grant non è un accredito)
+        }
         switch (shortType) {
             case "wallet.points.earned" -> {
                 long amount = data.path("amount").asLong(0);
-                String currency = data.path("currency").asString("PTS");
-                metrics.increment(day, "points_earned", MetricRepository.TOTAL, MetricRepository.TOTAL, amount);
-                metrics.increment(day, "points_earned", "currency", currency, amount);
+                increment(day, "points_earned", amount);
+                metrics.increment(day, "points_earned", "currency", currencyOf(data), amount);
+                String campaign = data.path("campaignCode").asString(null);
+                if (campaign != null && !campaign.isBlank()) {
+                    metrics.increment(day, "points_by_campaign", "campaign", campaign, amount);
+                }
             }
-            // Spesa netta dei rimborsi e richieste confermate (M4, KPI di BO-01).
-            case "wallet.points.spent" ->
-                    metrics.increment(day, "points_spent", MetricRepository.TOTAL, MetricRepository.TOTAL, data.path("amount").asLong(0));
-            case "wallet.points.refunded" ->
-                    metrics.increment(day, "points_spent", MetricRepository.TOTAL, MetricRepository.TOTAL, -data.path("amount").asLong(0));
-            case "reward.redemption.confirmed" ->
-                    metrics.increment(day, "redemptions", MetricRepository.TOTAL, MetricRepository.TOTAL, 1);
-            case "wallet.points.expired" ->
-                    metrics.increment(day, "points_expired", MetricRepository.TOTAL, MetricRepository.TOTAL, data.path("amount").asLong(0));
-            case "member.registered" ->
-                    metrics.increment(day, "members_new", MetricRepository.TOTAL, MetricRepository.TOTAL, 1);
-            case "tier.upgraded", "tier.changed" ->
-                    metrics.increment(day, "tier_changes", MetricRepository.TOTAL, MetricRepository.TOTAL, 1);
+            // Spesa netta dei rimborsi (M4, KPI di BO-01).
+            case "wallet.points.spent" -> {
+                long amount = data.path("amount").asLong(0);
+                increment(day, "points_spent", amount);
+                metrics.increment(day, "points_spent", "currency", currencyOf(data), amount);
+            }
+            case "wallet.points.refunded" -> {
+                long amount = data.path("amount").asLong(0);
+                increment(day, "points_spent", -amount);
+                metrics.increment(day, "points_spent", "currency", currencyOf(data), -amount);
+            }
+            case "wallet.points.expired" -> {
+                long amount = data.path("amount").asLong(0);
+                increment(day, "points_expired", amount);
+                metrics.increment(day, "points_expired", "currency", currencyOf(data), amount);
+            }
+            case "member.registered" -> increment(day, "members_new", 1);
+            // Richieste premio: il totale conta le confermate (KPI «Richieste premio» di BO-01); la dimensione
+            // `status` conta ogni passaggio del ciclo di vita, `reward` le confermate per premio.
+            case "reward.redemption.confirmed" -> {
+                increment(day, "redemptions", 1);
+                metrics.increment(day, "redemptions", "status", "CONFIRMED", 1);
+                String reward = data.path("rewardCode").asString(null);
+                if (reward != null && !reward.isBlank()) {
+                    metrics.increment(day, "redemptions", "reward", reward, 1);
+                }
+            }
+            case "reward.redemption.requested", "reward.redemption.fulfilled", "reward.redemption.cancelled",
+                 "reward.redemption.rejected" -> metrics.increment(day, "redemptions", "status",
+                    shortType.substring("reward.redemption.".length()).toUpperCase(Locale.ROOT), 1);
+            case "contest.played" -> increment(day, "plays", 1);
+            case "contest.won" -> increment(day, "wins", 1);
+            case "tier.upgraded", "tier.downgraded", "tier.changed" -> {
+                increment(day, "tier_changes", 1);
+                String direction = switch (shortType) {
+                    case "tier.upgraded" -> "UP";
+                    case "tier.downgraded" -> "DOWN";
+                    default -> "CHANGED";
+                };
+                metrics.increment(day, "tier_changes", "direction", direction, 1);
+            }
+            case "message.delivered" -> increment(day, "messages", 1);
             default -> {
-                // altri tipi: nessuna metrica in M2
+                // altri fatti: nessuna metrica
             }
         }
+    }
+
+    private void increment(LocalDate day, String metric, long delta) {
+        metrics.increment(day, metric, MetricRepository.TOTAL, MetricRepository.TOTAL, delta);
+    }
+
+    private static String currencyOf(JsonNode data) {
+        String c = data.path("currency").asString("PTS");
+        return c == null || c.isBlank() ? "PTS" : c;
+    }
+
+    /** Giorno di business di un istante: {@code Europe/Rome} (docs/03), non UTC. */
+    static LocalDate businessDay(Instant instant) {
+        return instant.atZone(BusinessCalendar.ZONE).toLocalDate();
     }
 
     /** Estrae la voce di audit dall'evento {@code io.loyaltyhub.audit.entry} e la registra (docs/05 §6). */
@@ -214,6 +278,111 @@ public class EventIngestService {
                 data.path("entityId").asString(""), data.path("action").asString(""),
                 data.path("summary").asString(""), nodeOrNull(data.get("before")), nodeOrNull(data.get("after")),
                 event.lhcorrelationid()));
+    }
+
+    /** Ritardo stimato (insight §3): arrivo qui − timestamp del record Kafka; {@code null} se il record non l'ha. */
+    private Long lagMs(ConsumerRecord<String, String> record) {
+        return record.timestamp() > 0 ? Math.max(0, clock.millis() - record.timestamp()) : null;
+    }
+
+    /** Servizio che ha prodotto l'evento, dal {@code source} {@code urn:loyaltyhub:service:<servizio>}. */
+    private static String serviceOf(String source) {
+        String prefix = "urn:loyaltyhub:service:";
+        return source != null && source.startsWith(prefix) && source.length() > prefix.length()
+                ? source.substring(prefix.length()) : null;
+    }
+
+    /**
+     * Payload conservato al più di {@code payload-max-bytes} (8 KB, insight §5 / RNF-07). Oltre il limite si accorciano
+     * i testi più lunghi (con «…») finché l'envelope ci sta, conservando struttura e campi brevi (importi, valute, id)
+     * che tracciati e sintesi leggono; se non basta, {@code data} è sostituito da un segnaposto. L'envelope accorciato
+     * porta {@code lhtruncatedbytes} = dimensione originale. Metriche e audit usano l'evento intero, letto prima.
+     */
+    String truncate(String json) {
+        if (json == null || utf8Length(json) <= payloadMaxBytes) {
+            return json;
+        }
+        int original = utf8Length(json);
+        JsonNode root;
+        try {
+            root = mapper.readTree(json);
+        } catch (RuntimeException e) {
+            root = null;
+        }
+        if (!(root instanceof tools.jackson.databind.node.ObjectNode obj)) {
+            return mapper.writeValueAsString(mapper.createObjectNode()
+                    .put("raw", json.substring(0, Math.min(json.length(), payloadMaxBytes / 4)))
+                    .put("lhtruncatedbytes", original));
+        }
+        obj.put("lhtruncatedbytes", original);
+        // Margine per la forma testuale di jsonb (spazi dopo «:» e «,»).
+        int budget = payloadMaxBytes - 512;
+        for (int i = 0; i < 64; i++) {
+            String out = mapper.writeValueAsString(obj);
+            int size = utf8Length(out);
+            if (size <= budget) {
+                return out;
+            }
+            if (!shortenLongestText(obj, size - budget)) {
+                break;
+            }
+        }
+        obj.set("data", mapper.createObjectNode().put("truncated", true));
+        String out = mapper.writeValueAsString(obj);
+        return utf8Length(out) <= budget ? out : mapper.writeValueAsString(mapper.createObjectNode()
+                .put("id", obj.path("id").asString(null))
+                .put("type", obj.path("type").asString(null))
+                .put("lhtruncatedbytes", original));
+    }
+
+    /** Accorcia il testo più lungo dell'albero di almeno {@code excess} byte; {@code false} se non ce n'è di utili. */
+    private static boolean shortenLongestText(JsonNode root, int excess) {
+        tools.jackson.databind.node.ContainerNode<?>[] parent = new tools.jackson.databind.node.ContainerNode<?>[1];
+        Object[] key = new Object[1];
+        String[] longest = {""};
+        findLongest(root, parent, key, longest);
+        String text = longest[0];
+        if (parent[0] == null || text.length() <= 32) {
+            return false;
+        }
+        int keep = Math.max(16, text.length() - Math.max(excess, text.length() / 2) - 1);
+        String cut = text.substring(0, keep) + "…";
+        if (parent[0] instanceof tools.jackson.databind.node.ObjectNode o) {
+            o.put((String) key[0], cut);
+        } else if (parent[0] instanceof tools.jackson.databind.node.ArrayNode a) {
+            a.set((Integer) key[0], a.stringNode(cut));
+        }
+        return true;
+    }
+
+    private static void findLongest(JsonNode node, tools.jackson.databind.node.ContainerNode<?>[] parent,
+                                    Object[] key, String[] longest) {
+        if (node instanceof tools.jackson.databind.node.ObjectNode o) {
+            for (java.util.Map.Entry<String, JsonNode> e : o.properties()) {
+                if (e.getValue().isString() && e.getValue().asString().length() > longest[0].length()) {
+                    longest[0] = e.getValue().asString();
+                    parent[0] = o;
+                    key[0] = e.getKey();
+                } else {
+                    findLongest(e.getValue(), parent, key, longest);
+                }
+            }
+        } else if (node instanceof tools.jackson.databind.node.ArrayNode a) {
+            for (int i = 0; i < a.size(); i++) {
+                JsonNode v = a.get(i);
+                if (v.isString() && v.asString().length() > longest[0].length()) {
+                    longest[0] = v.asString();
+                    parent[0] = a;
+                    key[0] = i;
+                } else {
+                    findLongest(v, parent, key, longest);
+                }
+            }
+        }
+    }
+
+    private static int utf8Length(String s) {
+        return s.getBytes(StandardCharsets.UTF_8).length;
     }
 
     private static JsonNode nodeOrNull(JsonNode node) {

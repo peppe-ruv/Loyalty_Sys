@@ -94,6 +94,17 @@ public class MetricRepository {
         return v == null ? 0 : v;
     }
 
+    /** Valore più recente di una metrica-gauge (dimensione totale) fino a {@code to} incluso; 0 se assente. */
+    public long latestValueUpTo(String metric, LocalDate to) {
+        Long v = jdbc.sql("""
+                        SELECT value FROM metric_daily
+                        WHERE metric = ? AND dimension = '' AND day <= ?
+                        ORDER BY day DESC LIMIT 1
+                        """)
+                .params(metric, to).query(Long.class).optional().orElse(null);
+        return v == null ? 0 : v;
+    }
+
     public void deleteAll() {
         jdbc.sql("DELETE FROM metric_daily").update();
     }

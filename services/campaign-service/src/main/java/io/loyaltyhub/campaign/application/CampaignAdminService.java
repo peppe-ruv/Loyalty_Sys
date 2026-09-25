@@ -45,6 +45,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -220,10 +221,37 @@ public class CampaignAdminService implements ApprovalSource {
             throw LhException.conflict("VERSION_CONFLICT", "La campagna è stata modificata nel frattempo: ricarica e riprova.");
         }
         cache.reload();
+        Map<String, Object> before = new LinkedHashMap<>();
+        Map<String, Object> after = new LinkedHashMap<>();
+        changedFields(c, m, before, after);
         audit.record("CAMPAIGN", c.code(), AuditEntry.Action.UPDATE, "Modificata campagna " + m.name() + " (" + c.code() + ")",
-                Map.of("name", c.name(), "priority", c.priority(), "schedule", c.schedule().toString()),
-                Map.of("name", m.name(), "priority", m.priority(), "schedule", m.schedule().toString()));
+                before, after);
         return campaigns.findById(id).orElseThrow();
+    }
+
+    /** Campi modificabili cambiati tra {@code a} e {@code b}: la voce di audit riporta solo quelli (docs/05 §6). */
+    static void changedFields(Campaign a, Campaign b, Map<String, Object> before, Map<String, Object> after) {
+        diffField(before, after, "name", a.name(), b.name());
+        diffField(before, after, "description", a.description(), b.description());
+        diffField(before, after, "memberDescription", a.memberDescription(), b.memberDescription());
+        diffField(before, after, "icon", a.icon(), b.icon());
+        diffField(before, after, "triggerActionTypes", a.triggerActionTypes(), b.triggerActionTypes());
+        diffField(before, after, "audience", a.audience(), b.audience());
+        diffField(before, after, "conditions", a.conditions(), b.conditions());
+        diffField(before, after, "effects", a.effects(), b.effects());
+        diffField(before, after, "limits", a.limits(), b.limits());
+        diffField(before, after, "schedule", a.schedule(), b.schedule());
+        diffField(before, after, "priority", a.priority(), b.priority());
+        diffField(before, after, "exclusiveGroup", a.exclusiveGroup(), b.exclusiveGroup());
+        diffField(before, after, "visibleInPortal", a.visibleInPortal(), b.visibleInPortal());
+        diffField(before, after, "labels", a.labels(), b.labels());
+    }
+
+    private static void diffField(Map<String, Object> before, Map<String, Object> after, String field, Object a, Object b) {
+        if (!java.util.Objects.equals(a, b)) {
+            before.put(field, a);
+            after.put(field, b);
+        }
     }
 
     /**

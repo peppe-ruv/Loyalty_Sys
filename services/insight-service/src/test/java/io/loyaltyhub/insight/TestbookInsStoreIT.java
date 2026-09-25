@@ -246,7 +246,7 @@ class TestbookInsStoreIT extends TestbookInsSupport {
     // ---------- SYN: storico sintetico ----------
 
     private List<JsonNode> series(String metric) {
-        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        LocalDate today = LocalDate.now(ROME); // giorno di business (docs/03), come il generatore
         List<JsonNode> out = new ArrayList<>();
         get("/v1/kpi/timeseries?metric=" + metric + "&from=" + today.minusDays(90) + "&to=" + today.minusDays(1))
                 .path("points").forEach(out::add);
@@ -349,7 +349,7 @@ class TestbookInsStoreIT extends TestbookInsSupport {
         JsonNode pts = get("/v1/kpi/timeseries?metric=points_earned&days=90").path("points");
         assertThat(pts.size()).isGreaterThanOrEqualTo(89);
         for (JsonNode p : pts) {
-            if (!LocalDate.parse(p.path("day").asString()).equals(LocalDate.now(ZoneOffset.UTC))) {
+            if (!LocalDate.parse(p.path("day").asString()).equals(LocalDate.now(ROME))) {
                 assertThat(p.path("synthetic").asBoolean()).isTrue();
                 assertThat(p.path("value").asLong()).isPositive();
             }

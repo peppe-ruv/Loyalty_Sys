@@ -104,7 +104,7 @@ class HubAnonymizationIT {
         await("messaggio di benvenuto col nome", () -> get("/v1/messages?size=100&memberId=" + id).toString().contains(FIRST));
         await("consegna webhook del member.registered",
                 () -> get("/v1/webhooks/" + WEBHOOK + "/deliveries?size=100").toString().contains(id));
-        await("insight ha l'audit di creazione", () -> get("/v1/audit?entityId=" + id).path("count").asInt() >= 1);
+        await("insight ha l'audit di creazione", () -> get("/v1/audit?entityId=" + id).path("page").path("totalItems").asInt() >= 1);
         await("in classifica col nickname", () -> get("/v1/leaderboards/LDB-MONTH-PTS/ranking?limit=100").toString()
                 .contains(FIRST + " Q."));
 
@@ -137,7 +137,7 @@ class HubAnonymizationIT {
             leaks = leaks(dump(id, redemptionId));
         }
         assertThat(leaks).as("API che espongono ancora dati personali (sezione:valore)").isEmpty();
-        assertThat(get("/v1/events?limit=500&q=" + FIRST).path("count").asInt()).as("ricerca libera nell'event store").isZero();
+        assertThat(get("/v1/events?size=100&q=" + FIRST).path("page").path("totalItems").asInt()).as("ricerca libera nell'event store").isZero();
         assertThat(get("/v1/members?q=" + FIRST).path("page").path("totalItems").asInt()).isZero();
 
         // Segnaposto dove serviva un nome.
@@ -153,7 +153,7 @@ class HubAnonymizationIT {
         assertThat(redemption.path("memberId").asString()).isEqualTo(id);
         assertThat(redemption.hasNonNull("shipping")).as("indirizzo di spedizione cancellato").isFalse();
         assertThat(get("/v1/evaluations?memberId=" + id).size()).isGreaterThanOrEqualTo(1);
-        assertThat(get("/v1/events?limit=500&memberId=" + id).path("count").asInt()).isGreaterThan(3);
+        assertThat(get("/v1/events?size=100&memberId=" + id).path("page").path("totalItems").asInt()).isGreaterThan(3);
         assertThat(get("/v1/inbound-events?memberId=" + id).size()).isGreaterThanOrEqualTo(1);
 
         // 6. Un membro anonimizzato non accumula, non spende, non si rettifica (F-MBR-04).
@@ -199,11 +199,11 @@ class HubAnonymizationIT {
         paths.put("webhookDeliveries", "/v1/webhooks/" + WEBHOOK + "/deliveries?size=100");
         paths.put("inbound", "/v1/inbound-events?memberId=" + id);
         paths.put("inboundAll", "/v1/inbound-events?limit=500");
-        paths.put("events", "/v1/events?limit=500&memberId=" + id);
-        paths.put("eventsEmail", "/v1/events?limit=500&q=" + email);
-        paths.put("traces", "/v1/traces?limit=200&memberId=" + id);
-        paths.put("audit", "/v1/audit?limit=200&entityId=" + id);
-        paths.put("auditAll", "/v1/audit?limit=200");
+        paths.put("events", "/v1/events?size=100&memberId=" + id);
+        paths.put("eventsEmail", "/v1/events?size=100&q=" + email);
+        paths.put("traces", "/v1/traces?size=100&memberId=" + id);
+        paths.put("audit", "/v1/audit?size=100&entityId=" + id);
+        paths.put("auditAll", "/v1/audit?size=100");
         paths.put("evaluations", "/v1/evaluations?limit=200&memberId=" + id);
         paths.put("dlq", "/v1/dlq?size=100");
         paths.forEach((name, path) -> sections.put(name, get(path).toString()));
