@@ -21,10 +21,18 @@ public record WalletView(String memberId, Map<String, Balance> balances, Expirin
             long periodSts,
             BigDecimal multiplier,
             NextTier next,
-            int progressPct
+            int progressPct,
+            KeepWarning keepWarning
     ) {
     }
 
     public record NextTier(String code, long threshold, long missing) {
+    }
+
+    /**
+     * Avviso di mantenimento (wallet-service §5, docs/03 §4.3, PT-01): da ottobre, se {@code periodSts} è sotto la
+     * soglia del livello attuale, gli STS che mancano per mantenerlo alla chiusura dell'edizione. Assente altrimenti.
+     */
+    public record KeepWarning(String tier, long missing) {
     }
 }

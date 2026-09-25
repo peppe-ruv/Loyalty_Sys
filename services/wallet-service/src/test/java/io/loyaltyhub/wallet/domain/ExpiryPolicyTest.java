@@ -23,7 +23,17 @@ class ExpiryPolicyTest {
     }
 
     private static Instant endOfDayRome(LocalDate day) {
-        return day.atTime(LocalTime.MAX).atZone(ExpiryPolicy.ZONE).toInstant();
+        return day.atTime(LocalTime.of(23, 59, 59, 999_999_000)).atZone(ExpiryPolicy.ZONE).toInstant();
+    }
+
+    /** «Ultimo istante» alla precisione di Postgres (µs): salvato e riletto resta nello stesso giorno (TB-WAL-GRT-064). */
+    @Test
+    void lastInstantSurvivesMicrosecondStorage() {
+        Instant earned = LocalDate.of(2026, 9, 18).atStartOfDay(ExpiryPolicy.ZONE).toInstant();
+        Instant expires = ExpiryPolicy.expiresAt(policy("{\"type\":\"ROLLING_MONTHS\",\"months\":12}"), earned);
+        assertThat(expires.getNano() % 1_000).isZero();
+        assertThat(expires.atZone(ExpiryPolicy.ZONE).toLocalDate()).isEqualTo(LocalDate.of(2027, 9, 30));
+        assertThat(expires.plusNanos(1_000).atZone(ExpiryPolicy.ZONE).toLocalDate()).isEqualTo(LocalDate.of(2027, 10, 1));
     }
 
     @Test

@@ -61,16 +61,60 @@ public class LedgerRepository {
     }
 
     public List<LedgerEntry> listByMember(String memberId, String currency, int limit) {
-        StringBuilder sql = new StringBuilder("SELECT * FROM ledger_entry WHERE member_id = ?");
+        return search(memberId, new LedgerFilter(currency, null, null, null), limit).stream()
+                .map(LedgerLine::entry).toList();
+    }
+
+    /**
+     * Filtri del libro mastro (wallet-service §3: {@code currency, type, from, to}). Tutti facoltativi; {@code types}
+     * vuoto = tutti i tipi; {@code from}/{@code to} inclusi, sulla data di business {@code occurred_at}.
+     */
+    public record LedgerFilter(String currency, List<String> types, Instant from, Instant to) {
+    }
+
+    /**
+     * Movimento con i riferimenti salvati ma non nel record di dominio (F-WAL-02: azione e attore) e con il lotto
+     * nato dal movimento, se c'è (PT-07: stato in attesa e scadenza del lotto).
+     */
+    public record LedgerLine(LedgerEntry entry, String actionId, String actor, String lotStatus, Instant lotExpiresAt) {
+    }
+
+    public List<LedgerLine> search(String memberId, LedgerFilter filter, int limit) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT e.*, lot.status AS lot_status, lot.expires_at AS lot_expires_at
+                FROM ledger_entry e
+                LEFT JOIN LATERAL (
+                    SELECT l.status, l.expires_at FROM points_lot l
+                    WHERE l.member_id = e.member_id AND l.currency = e.currency AND l.ledger_entry_id = e.id
+                    ORDER BY l.id LIMIT 1
+                ) lot ON true
+                WHERE e.member_id = ?""");
         List<Object> args = new ArrayList<>();
         args.add(memberId);
-        if (currency != null && !currency.isBlank()) {
-            sql.append(" AND currency = ?");
-            args.add(currency.trim().toUpperCase());
+        if (filter.currency() != null && !filter.currency().isBlank()) {
+            sql.append(" AND e.currency = ?");
+            args.add(filter.currency().trim().toUpperCase());
         }
-        sql.append(" ORDER BY occurred_at DESC, created_at DESC LIMIT ?");
+        if (filter.types() != null && !filter.types().isEmpty()) {
+            sql.append(" AND e.type IN (").append(String.join(", ", java.util.Collections.nCopies(filter.types().size(), "?")))
+                    .append(')');
+            filter.types().forEach(t -> args.add(t.trim().toUpperCase()));
+        }
+        if (filter.from() != null) {
+            sql.append(" AND e.occurred_at >= ?");
+            args.add(java.sql.Timestamp.from(filter.from()));
+        }
+        if (filter.to() != null) {
+            sql.append(" AND e.occurred_at <= ?");
+            args.add(java.sql.Timestamp.from(filter.to()));
+        }
+        sql.append(" ORDER BY e.occurred_at DESC, e.created_at DESC LIMIT ?");
         args.add(limit);
-        return jdbc.sql(sql.toString()).params(args).query(LedgerRepository::map).list();
+        return jdbc.sql(sql.toString()).params(args).query((rs, n) -> {
+            java.sql.Timestamp lotExpires = rs.getTimestamp("lot_expires_at");
+            return new LedgerLine(map(rs, n), rs.getString("action_id"), rs.getString("actor"),
+                    rs.getString("lot_status"), lotExpires == null ? null : lotExpires.toInstant());
+        }).list();
     }
 
     public void deleteAll() {

@@ -1,0 +1,12 @@
+id,descrizione,job,actor,status
+TB-WAL-JOB-001,scadenze con ADMIN: eseguito,expire-points,ADMIN,200
+TB-WAL-JOB-002,scadenze con CARE: 403,expire-points,CARE,403
+TB-WAL-JOB-003,scadenze con MARKETING: 403,expire-points,MARKETING,403
+TB-WAL-JOB-004,scadenze con LEGAL: 403,expire-points,LEGAL,403
+TB-WAL-JOB-005,scadenze con ANALYST: 403,expire-points,ANALYST,403
+TB-WAL-JOB-006,scadenze senza X-LH-Actor (ANALYST anonimo): 403,expire-points,NONE,403
+TB-WAL-JOB-007,scadenze con X-LH-Actor non valido: 403,expire-points,INVALID,403
+TB-WAL-JOB-008,rilascio pending con ADMIN: eseguito,release-pending,ADMIN,200
+TB-WAL-JOB-009,rilascio pending con MARKETING: 403,release-pending,MARKETING,403
+TB-WAL-JOB-010,preavvisi con ADMIN: eseguito,expiry-warnings,ADMIN,200
+TB-WAL-JOB-011,preavvisi con CARE: 403,expiry-warnings,CARE,403

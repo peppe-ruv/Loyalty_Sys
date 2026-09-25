@@ -41,6 +41,9 @@ export interface ActivityItem {
   currency: string;
   pending: boolean;
   breakdown: string | null;
+  direction?: "+" | "-";
+  icon?: string;
+  expiresAt?: string | null;
 }
 
 export function ActivityRow({ item }: { item: ActivityItem }) {

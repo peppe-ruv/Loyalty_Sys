@@ -79,13 +79,13 @@ public class EditionCloseBatchService {
     /** Applicazione atomica e serializzata della chiusura (vedi Javadoc di classe). */
     @Transactional
     public BatchResult apply(String code, List<Tier> scale) {
-        requireActive(editions.lockByCode(code), code);
+        Edition closing = requireActive(editions.lockByCode(code), code);
         BatchResult result = processAll(scale, code, true);
-        finalizeClose(code, result.retained(), result.downgraded());
+        finalizeClose(closing, result.retained(), result.downgraded());
         return result;
     }
 
-    private static void requireActive(java.util.Optional<Edition> edition, String code) {
+    private static Edition requireActive(java.util.Optional<Edition> edition, String code) {
         Edition e = edition.orElseThrow(() -> LhException.notFound("Edizione non trovata: " + code));
         if (Edition.CLOSED.equals(e.status())) {
             throw LhException.validation("EDITION_ALREADY_CLOSED", "L'edizione " + code + " è già chiusa.");
@@ -93,6 +93,7 @@ public class EditionCloseBatchService {
         if (!Edition.ACTIVE.equals(e.status())) {
             throw LhException.validation("EDITION_NOT_ACTIVE", "Si può chiudere solo un'edizione attiva.");
         }
+        return e;
     }
 
     private BatchResult processAll(List<Tier> scale, String code, boolean apply) {
@@ -157,13 +158,24 @@ public class EditionCloseBatchService {
         return new BatchResult(retained, downgraded, membersPreview);
     }
 
-    private void finalizeClose(String code, int totalRetained, int totalDowngraded) {
+    /**
+     * Edizione che segue {@code closing} (docs/03 §4.3: «edizione → CLOSED; la successiva → ACTIVE»): la
+     * {@code PLANNED} con l'inizio più vicino dopo la fine di quella chiusa. Una {@code PLANNED} precedente non è «la
+     * successiva» e resta com'è; nessuna successiva → nessuna attivazione.
+     */
+    static java.util.Optional<Edition> nextEdition(Edition closing, List<Edition> all) {
+        java.time.LocalDate after = closing.endDate() != null ? closing.endDate() : closing.startDate();
+        return all.stream()
+                .filter(e -> Edition.PLANNED.equals(e.status()))
+                .filter(e -> e.startDate() != null && after != null && e.startDate().isAfter(after))
+                .min(Comparator.comparing(Edition::startDate));
+    }
+
+    private void finalizeClose(Edition closing, int totalRetained, int totalDowngraded) {
+        String code = closing.code();
         editions.updateStatus(code, Edition.CLOSED);
 
-        Edition nextEdition = editions.findAll().stream()
-                .filter(e -> Edition.PLANNED.equals(e.status()))
-                .min(Comparator.comparing(Edition::startDate))
-                .orElse(null);
+        Edition nextEdition = nextEdition(closing, editions.findAll()).orElse(null);
 
         if (nextEdition != null) {
             editions.updateStatus(nextEdition.code(), Edition.ACTIVE);

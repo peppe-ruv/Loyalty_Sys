@@ -297,7 +297,7 @@ public class WalletService {
         if (!due.isEmpty()) {
             log.info("Rilasciati {} lotti ({} punti) in attesa (asOf={})", due.size(), total, asOf);
         }
-        return new JobOutcome(due.size(), members.size(), total);
+        return auditJob(JOB_RELEASE, asOf, new JobOutcome(due.size(), members.size(), total));
     }
 
     /**
@@ -345,7 +345,7 @@ public class WalletService {
         if (!expired.isEmpty()) {
             log.info("Scaduti {} lotti ({} punti) per {} membri (asOf={})", expired.size(), total, members.size(), asOf);
         }
-        return new JobOutcome(expired.size(), members.size(), total);
+        return auditJob(JOB_EXPIRE, asOf, new JobOutcome(expired.size(), members.size(), total));
     }
 
     /**
@@ -375,7 +375,26 @@ public class WalletService {
             log.info("Preavvisati {} lotti ({} punti) in scadenza per {} membri (asOf={})",
                     warnable.size(), total, members.size(), asOf);
         }
-        return new JobOutcome(warnable.size(), members.size(), total);
+        return auditJob(JOB_WARNINGS, asOf, new JobOutcome(warnable.size(), members.size(), total));
+    }
+
+    static final String JOB_RELEASE = "release-pending";
+    static final String JOB_EXPIRE = "expire-points";
+    static final String JOB_WARNINGS = "expiry-warnings";
+
+    /**
+     * Voce di audit {@code JOB} per ogni esecuzione di un job, anche senza lotti toccati (wallet-service §4:
+     * «Produce {@code lh.audit.v1} | … job»; docs/05 §6). Stessa transazione del job, attore {@code system}.
+     */
+    private JobOutcome auditJob(String job, Instant asOf, JobOutcome outcome) {
+        Map<String, Object> after = new java.util.LinkedHashMap<>();
+        after.put("asOf", asOf.toString());
+        after.put("lots", outcome.lots());
+        after.put("members", outcome.members());
+        after.put("amount", outcome.amount());
+        audit.recordJob("job", job, "Job " + job + ": " + outcome.lots() + " lotti, " + outcome.members()
+                + " membri, " + outcome.amount() + " punti (asOf " + asOf + ")", Map.of(), after);
+        return outcome;
     }
 
     /**
