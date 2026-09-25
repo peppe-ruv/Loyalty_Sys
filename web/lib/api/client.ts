@@ -19,6 +19,10 @@ export class LhError extends Error {
     readonly detail: string,
     readonly asleep: boolean,
     readonly errors: LhFieldError[] = [],
+    /** `title` del problema RFC 9457 (docs/07 §6 Error), se il servizio lo manda. */
+    readonly title: string | null = null,
+    /** Correlazione della richiesta (problema o header `X-Correlation-Id`), da copiare nel riquadro d'errore. */
+    readonly correlationId: string | null = null,
   ) {
     super(detail || code);
   }
@@ -59,6 +63,8 @@ export async function lhFetch<T>(
       body?.detail ?? body?.title ?? text,
       asleep,
       fieldErrors(body?.errors),
+      typeof body?.title === "string" && body.title ? body.title : null,
+      (typeof body?.correlationId === "string" && body.correlationId) || res.headers?.get("x-correlation-id") || null,
     );
   }
   return body as T;

@@ -74,7 +74,13 @@ export default function CampaignsPage() {
           ))}
         </select>
       </div>
-      <QueryState query={query} service="campaign" isEmpty={(d) => d.length === 0} emptyTitle="Nessuna campagna">
+      <QueryState
+        query={query}
+        service="campaign"
+        isEmpty={(d) => d.length === 0}
+        emptyTitle={status === "DRAFT" ? "Nessuna campagna in bozza" : "Nessuna campagna"}
+        emptyAction={{ label: "Crea la prima", href: "/backoffice/campaigns/new" }}
+      >
         {(d) => (
           <DataTable columns={columns} rows={d} rowKey={(c) => c.id} onRowClick={(c) => router.push(`/backoffice/campaigns/${c.id}`)} />
         )}

@@ -13,6 +13,7 @@ Demo Hub e keep-alive. Metodo ed esecuzione: `docs/16 §1` e `§1bis`.
   `[TB-WEB-<AREA>-NNN]`; tabelle `it.each` per le combinazioni (tuple `[id, descrizione, caso]` di `web/test/testbook.ts`).
   Comando: `cd web && pnpm -s exec vitest run testbook`, oppure `TESTBOOK_JAVA=0 bash scripts/testbook.sh`.
 - **Legenda della colonna «atteso»**: **DIVERGENZA** = il test asserisce la specifica ed è rosso (registro in fondo);
+  ~~DIVERGENZA~~ risolta = il codice di produzione è stato allineato alla specifica e il test, invariato, è verde (§22);
   AMBIGUO = la specifica tace e nessuna `Q-nn` decide: il test fissa il comportamento attuale con il commento
   `// TESTBOOK: ambiguo, vedi <ID>`.
 - **Perimetro**: funzioni pure di `web/lib/**`, componenti condivisi (`components/bo`, `components/shared`), route
@@ -181,7 +182,7 @@ BO-08 — *Anteprima chiusura* senza gate, *Applica chiusura* dentro `program.co
 | TB-WEB-CAN-001 | ruolo abilitato (LEGAL × object.approve, modo disable) | azione visibile, senza tooltip di divieto | docs/07 §4 · §6 (Forbidden) · docs/08 §2 | `web/components/bo/Can.testbook.test.tsx` |
 | TB-WEB-CAN-002 | ruolo non abilitato, modo hide (default) | azione nascosta | docs/07 §4 · §6 (Forbidden) · docs/08 §2 | `web/components/bo/Can.testbook.test.tsx` |
 | TB-WEB-CAN-003 | ruolo non abilitato, modo disable | azione visibile con tooltip «Richiede … LEGAL» | docs/07 §4 · §6 (Forbidden) · docs/08 §2 | `web/components/bo/Can.testbook.test.tsx` |
-| TB-WEB-CAN-004 | ruolo non abilitato, modo disable | **DIVERGENZA** — il controllo è disabilitato (non attivabile da tastiera) | docs/07 §4 · §6 (Forbidden) · docs/08 §2 | `web/components/bo/Can.testbook.test.tsx` |
+| TB-WEB-CAN-004 | ruolo non abilitato, modo disable | ~~DIVERGENZA~~ risolta (§22) — il controllo è disabilitato (non attivabile da tastiera) | docs/07 §4 · §6 (Forbidden) · docs/08 §2 | `web/components/bo/Can.testbook.test.tsx` |
 
 
 ## 3. NAV — Sidebar del backoffice
@@ -234,7 +235,7 @@ Ramo senza specifica: un percorso `/backoffice/<qualunque>` senza voce propria a
 | TB-WEB-NAV-019 | voce BO-21 | gruppo «Governance», etichetta «Approvazioni», route /backoffice/governance/approvals, milestone M7 | docs/08 §1 | `web/lib/nav.testbook.test.ts` |
 | TB-WEB-NAV-020 | voce BO-22 | gruppo «Governance», etichetta «Audit», route /backoffice/governance/audit, milestone M2 | docs/08 §1 | `web/lib/nav.testbook.test.ts` |
 | TB-WEB-NAV-021 | voce BO-23 | gruppo «Governance», etichetta «Webhook», route /backoffice/governance/webhooks, milestone M7 | docs/08 §1 | `web/lib/nav.testbook.test.ts` |
-| TB-WEB-NAV-022 | voce BO-24 | **DIVERGENZA** — gruppo «Osservabilità», etichetta «Flusso live», route /backoffice/observe/live, milestone M2 | docs/08 §1 | `web/lib/nav.testbook.test.ts` |
+| TB-WEB-NAV-022 | voce BO-24 | ~~DIVERGENZA~~ risolta (§22) — gruppo «Osservabilità», etichetta «Flusso live», route /backoffice/observe/live, milestone M2 | docs/08 §1 | `web/lib/nav.testbook.test.ts` |
 | TB-WEB-NAV-023 | voce BO-25 | gruppo «Osservabilità», etichetta «Tracciati», route /backoffice/observe/traces, milestone M2 | docs/08 §1 | `web/lib/nav.testbook.test.ts` |
 | TB-WEB-NAV-024 | voce BO-26 | gruppo «Osservabilità», etichetta «Monitor ingressi», route /backoffice/observe/inbound, milestone M1 | docs/08 §1 | `web/lib/nav.testbook.test.ts` |
 | TB-WEB-NAV-025 | voce BO-27 | gruppo «Osservabilità», etichetta «DLQ», route /backoffice/observe/dlq, milestone M7 | docs/08 §1 | `web/lib/nav.testbook.test.ts` |
@@ -257,7 +258,7 @@ Ramo senza specifica: un percorso `/backoffice/<qualunque>` senza voce propria a
 | TB-WEB-NAV-042 | voce attiva per /backoffice/membersX (prefisso senza «/») | AMBIGUO — non Membri (Dashboard) | docs/08 §1 (voce attiva) | `web/lib/nav.testbook.test.ts` |
 | TB-WEB-NAV-043 | voce attiva per /portal/rewards (percorso del portale) | null | docs/08 §1 (voce attiva) | `web/lib/nav.testbook.test.ts` |
 | TB-WEB-NAV-044 | voce non ancora realizzata non si accende (milestone 1, /backoffice/segments) | nessuna voce attiva (`null`) | docs/08 §1 (voce attiva) | `web/lib/nav.testbook.test.ts` |
-| TB-WEB-NAV-045 | contatore su Approvazioni (BO-21, oggetti IN_REVIEW) | **DIVERGENZA** — contatore presente su *Approvazioni* | docs/08 §1 (contatori) | `web/lib/nav.testbook.test.ts` |
+| TB-WEB-NAV-045 | contatore su Approvazioni (BO-21, oggetti IN_REVIEW) | ~~DIVERGENZA~~ risolta (§22) — contatore presente su *Approvazioni* | docs/08 §1 (contatori) | `web/lib/nav.testbook.test.ts` |
 | TB-WEB-NAV-046 | contatore su Richieste premio (BO-13) | contatore `redemptions` (da evadere + `needsAttention`) | docs/08 §1 (contatori) | `web/lib/nav.testbook.test.ts` |
 | TB-WEB-NAV-047 | contatore su DLQ (BO-27) | contatore `dlq` (voci nuove) | docs/08 §1 (contatori) · Q-105 | `web/lib/nav.testbook.test.ts` |
 | TB-WEB-NAV-048 | sidebar per ADMIN | 28 voci, tutte le schermate in lettura | docs/08 §2 («tutte le personas leggono tutto») · §1 | `web/components/bo/NavLinks.testbook.test.tsx` |
@@ -418,16 +419,16 @@ provare (vedi anche HOME-018).
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
 | TB-WEB-QST-001 | loading | scheletro della forma finale, nessuno spinner, nessun contenuto | docs/07 §6 | `web/components/shared/QueryState.testbook.test.tsx` |
-| TB-WEB-QST-002 | loading di una tabella | **DIVERGENZA** — 8 righe scheletro | docs/07 §6 | `web/components/shared/QueryState.testbook.test.tsx` |
+| TB-WEB-QST-002 | loading di una tabella | ~~DIVERGENZA~~ risolta (§22) — 8 righe scheletro | docs/07 §6 | `web/components/shared/QueryState.testbook.test.tsx` |
 | TB-WEB-QST-003 | empty | frase che spiega perché è vuoto | docs/07 §6 | `web/components/shared/QueryState.testbook.test.tsx` |
-| TB-WEB-QST-004 | empty | **DIVERGENZA** — azione primaria (es. «Crea la prima») | docs/07 §6 | `web/components/shared/QueryState.testbook.test.tsx` |
+| TB-WEB-QST-004 | empty | ~~DIVERGENZA~~ risolta (§22) — azione primaria (es. «Crea la prima») | docs/07 §6 | `web/components/shared/QueryState.testbook.test.tsx` |
 | TB-WEB-QST-005 | dati presenti | contenuto | docs/07 §6 | `web/components/shared/QueryState.testbook.test.tsx` |
 | TB-WEB-QST-006 | elenco vuoto senza regola di vuoto | AMBIGUO — contenuto (vuoto) invece dello stato empty | docs/07 §6 | `web/components/shared/QueryState.testbook.test.tsx` |
 | TB-WEB-QST-007 | error | dettaglio del problema e «Riprova» che rilancia la query | docs/07 §6 | `web/components/shared/QueryState.testbook.test.tsx` |
-| TB-WEB-QST-008 | error | **DIVERGENZA** — «title» del problema RFC 9457 | docs/07 §6 | `web/components/shared/QueryState.testbook.test.tsx` |
-| TB-WEB-QST-009 | error | **DIVERGENZA** — correlationId mostrato (copiabile) | docs/07 §6 | `web/components/shared/QueryState.testbook.test.tsx` |
-| TB-WEB-QST-010 | degraded (SERVICE_ASLEEP) | **DIVERGENZA** — riquadro ambra «Il servizio wallet si sta svegliando…» | docs/07 §6 | `web/components/shared/QueryState.testbook.test.tsx` |
-| TB-WEB-QST-011 | degraded | **DIVERGENZA** — riprova automatica ogni 5 s fino a 90 s | docs/07 §6 | `web/components/shared/QueryState.testbook.test.tsx` |
+| TB-WEB-QST-008 | error | ~~DIVERGENZA~~ risolta (§22) — «title» del problema RFC 9457 | docs/07 §6 | `web/components/shared/QueryState.testbook.test.tsx` |
+| TB-WEB-QST-009 | error | ~~DIVERGENZA~~ risolta (§22) — correlationId mostrato (copiabile) | docs/07 §6 | `web/components/shared/QueryState.testbook.test.tsx` |
+| TB-WEB-QST-010 | degraded (SERVICE_ASLEEP) | ~~DIVERGENZA~~ risolta (§22) — riquadro ambra «Il servizio wallet si sta svegliando…» | docs/07 §6 | `web/components/shared/QueryState.testbook.test.tsx` |
+| TB-WEB-QST-011 | degraded | ~~DIVERGENZA~~ risolta (§22) — riprova automatica ogni 5 s fino a 90 s | docs/07 §6 | `web/components/shared/QueryState.testbook.test.tsx` |
 | TB-WEB-QST-012 | degraded | «Riprova» manuale disponibile | docs/07 §6 | `web/components/shared/QueryState.testbook.test.tsx` |
 
 
@@ -526,8 +527,8 @@ nell'intestazione della pagina (sempre presente), non nella barra.
 | TB-WEB-LIFE-050 | Rifiuta: commento di soli spazi | invio disabilitato | docs/03 §3.6 | `web/components/bo/LifecycleBar.testbook.test.tsx` |
 | TB-WEB-LIFE-051 | Rifiuta con commento | POST …/transitions {action: REJECT, comment} | docs/08 §3.3 · docs/06 §7 | `web/components/bo/LifecycleBar.testbook.test.tsx` |
 | TB-WEB-LIFE-052 | Pubblica rifiutata con 409 APPROVAL_REQUIRED | invito a «Invia in revisione» | docs/06 §7 · docs/03 §3.6 | `web/components/bo/LifecycleBar.testbook.test.tsx` |
-| TB-WEB-LIFE-053 | IN_REVIEW per chi non può decidere (MARKETING) | **DIVERGENZA** — «In attesa di LEGAL da …» | docs/08 §3.3 (IN_REVIEW) | `web/components/bo/LifecycleBar.testbook.test.tsx` |
-| TB-WEB-LIFE-054 | ogni transizione apre un dialogo con commento prima dell'invio (Metti in pausa) | **DIVERGENZA** — si apre un dialogo con commento; nessun `POST` prima della conferma | docs/08 §3.3 (ultimo capoverso) | `web/components/bo/LifecycleBar.testbook.test.tsx` |
+| TB-WEB-LIFE-053 | IN_REVIEW per chi non può decidere (MARKETING) | ~~DIVERGENZA~~ risolta (§22) — «In attesa di LEGAL da …» | docs/08 §3.3 (IN_REVIEW) | `web/components/bo/LifecycleBar.testbook.test.tsx` |
+| TB-WEB-LIFE-054 | ogni transizione apre un dialogo con commento prima dell'invio (Metti in pausa) | ~~DIVERGENZA~~ risolta (§22) — si apre un dialogo con commento; nessun `POST` prima della conferma | docs/08 §3.3 (ultimo capoverso) | `web/components/bo/LifecycleBar.testbook.test.tsx` |
 | TB-WEB-LIFE-055 | la pill mostra lo stato corrente | pill con «PAUSED» | docs/08 §3.3 · docs/07 §5.2 | `web/components/bo/LifecycleBar.testbook.test.tsx` |
 | TB-WEB-LIFE-056 | contenuto DRAFT | Pubblica, Archivia (mai Invia in revisione) | docs/06 §7 (CONTENT) · docs/08 §BO-18 · docs/03 §3.6 | `web/lib/content/manage.testbook.test.ts` |
 | TB-WEB-LIFE-057 | contenuto LIVE | Metti in pausa, Termina | docs/06 §7 (CONTENT) · docs/08 §BO-18 · docs/03 §3.6 | `web/lib/content/manage.testbook.test.ts` |
@@ -556,14 +557,14 @@ default (dove finisce `SCHEDULED`).
 | TB-WEB-PILL-001 | pill DRAFT | grigio | docs/07 §5.2 | `web/components/bo/primitives.testbook.test.tsx` |
 | TB-WEB-PILL-002 | pill IN_REVIEW | ambra | docs/07 §5.2 | `web/components/bo/primitives.testbook.test.tsx` |
 | TB-WEB-PILL-003 | pill APPROVED | blu | docs/07 §5.2 | `web/components/bo/primitives.testbook.test.tsx` |
-| TB-WEB-PILL-004 | pill SCHEDULED | **DIVERGENZA** — indaco | docs/07 §5.2 | `web/components/bo/primitives.testbook.test.tsx` |
+| TB-WEB-PILL-004 | pill SCHEDULED | ~~DIVERGENZA~~ risolta (§22) — indaco | docs/07 §5.2 | `web/components/bo/primitives.testbook.test.tsx` |
 | TB-WEB-PILL-005 | pill LIVE | verde | docs/07 §5.2 | `web/components/bo/primitives.testbook.test.tsx` |
-| TB-WEB-PILL-006 | pill PAUSED | **DIVERGENZA** — arancio | docs/07 §5.2 | `web/components/bo/primitives.testbook.test.tsx` |
+| TB-WEB-PILL-006 | pill PAUSED | ~~DIVERGENZA~~ risolta (§22) — arancio | docs/07 §5.2 | `web/components/bo/primitives.testbook.test.tsx` |
 | TB-WEB-PILL-007 | pill ENDED | slate | docs/07 §5.2 | `web/components/bo/primitives.testbook.test.tsx` |
 | TB-WEB-PILL-008 | pill REJECTED | rosso | docs/07 §5.2 | `web/components/bo/primitives.testbook.test.tsx` |
 | TB-WEB-PILL-009 | pill ARCHIVED | grigio chiaro | docs/07 §5.2 | `web/components/bo/primitives.testbook.test.tsx` |
-| TB-WEB-PILL-010 | ARCHIVED (grigio chiaro) si distingue da ENDED (slate) | **DIVERGENZA** — classi diverse | docs/07 §5.2 | `web/components/bo/primitives.testbook.test.tsx` |
-| TB-WEB-PILL-011 | PAUSED (arancio) si distingue da IN_REVIEW (ambra) | **DIVERGENZA** — classi diverse | docs/07 §5.2 | `web/components/bo/primitives.testbook.test.tsx` |
+| TB-WEB-PILL-010 | ARCHIVED (grigio chiaro) si distingue da ENDED (slate) | ~~DIVERGENZA~~ risolta (§22) — classi diverse | docs/07 §5.2 | `web/components/bo/primitives.testbook.test.tsx` |
+| TB-WEB-PILL-011 | PAUSED (arancio) si distingue da IN_REVIEW (ambra) | ~~DIVERGENZA~~ risolta (§22) — classi diverse | docs/07 §5.2 | `web/components/bo/primitives.testbook.test.tsx` |
 | TB-WEB-PILL-012 | la pill riporta il codice di stato come testo | testo «IN_REVIEW» | docs/07 §5.2 | `web/components/bo/primitives.testbook.test.tsx` |
 
 
@@ -682,14 +683,14 @@ preposizione «a», singolare/plurale, campo di FROM_FIELD e LOOKUP (vedi regist
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
-| TB-WEB-DESC-001 | esempio completo della spec, parola per parola | **DIVERGENZA** — «Quando arriva **Acquisto completato** da ecommerce o app, se **importo ≥ 50 €** e il membro è **GOLD o PLATINUM**, assegna **1 giocata a Ruota d'Autunno**, al massimo **1 volta al giorno**.» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
+| TB-WEB-DESC-001 | esempio completo della spec, parola per parola | ~~DIVERGENZA~~ risolta (§22) — «Quando arriva **Acquisto completato** da ecommerce o app, se **importo ≥ 50 €** e il membro è **GOLD o PLATINUM**, assegna **1 giocata a Ruota d'Autunno**, al massimo **1 volta al giorno**.» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-002 | un trigger noto | «Quando arriva **Acquisto completato**» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-003 | due trigger | uniti da «o» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-004 | tipo custom col nome fornito dal chiamante (BO-09) | il nome, non il codice | docs/08 §BO-06 · §BO-09 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-005 | tipo sconosciuto senza nome | AMBIGUO — il codice | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-006 | nessun trigger | AMBIGUO — «Quando arriva un'azione» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
-| TB-WEB-DESC-007 | fonti ammesse (ecommerce, app) | **DIVERGENZA** — «da ecommerce o app» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
-| TB-WEB-DESC-008 | importo ≥ 50 | **DIVERGENZA** — «**importo ≥ 50 €**» (importo in euro) | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
+| TB-WEB-DESC-007 | fonti ammesse (ecommerce, app) | ~~DIVERGENZA~~ risolta (§22) — «da ecommerce o app» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
+| TB-WEB-DESC-008 | importo ≥ 50 | ~~DIVERGENZA~~ risolta (§22) — «**importo ≥ 50 €**» (importo in euro) | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-009 | comparatore eq su context.hour | campo e valori in italiano, senza il codice «eq» | docs/08 §BO-06 · docs/03 §3.3 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-010 | comparatore neq su context.hour | campo e valori in italiano, senza il codice «neq» | docs/08 §BO-06 · docs/03 §3.3 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-011 | comparatore gt su context.hour | campo e valori in italiano, senza il codice «gt» | docs/08 §BO-06 · docs/03 §3.3 | `web/lib/campaign/describe.testbook.test.ts` |
@@ -715,10 +716,10 @@ preposizione «a», singolare/plurale, campo di FROM_FIELD e LOOKUP (vedi regist
 | TB-WEB-DESC-031 | condizioni e pubblico insieme | prima le condizioni, poi il pubblico (come nell'esempio) | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-032 | GRANT_POINTS FIXED 300 PTS | «assegna **300 PTS**» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-033 | GRANT_POINTS PER_AMOUNT 1 STS ogni 1 € | valore, valuta e passo in euro | docs/08 §BO-06 · docs/03 §3.4 | `web/lib/campaign/describe.testbook.test.ts` |
-| TB-WEB-DESC-034 | GRANT_POINTS FROM_FIELD da data.points | **DIVERGENZA** — la frase nomina il campo sorgente | docs/08 §BO-06 · docs/03 §3.4 (FROM_FIELD) | `web/lib/campaign/describe.testbook.test.ts` |
-| TB-WEB-DESC-035 | GRANT_POINTS LOOKUP su data.plan | **DIVERGENZA** — la frase nomina il campo della tabella | docs/08 §BO-06 · docs/03 §3.4 (LOOKUP) | `web/lib/campaign/describe.testbook.test.ts` |
+| TB-WEB-DESC-034 | GRANT_POINTS FROM_FIELD da data.points | ~~DIVERGENZA~~ risolta (§22) — la frase nomina il campo sorgente | docs/08 §BO-06 · docs/03 §3.4 (FROM_FIELD) | `web/lib/campaign/describe.testbook.test.ts` |
+| TB-WEB-DESC-035 | GRANT_POINTS LOOKUP su data.plan | ~~DIVERGENZA~~ risolta (§22) — la frase nomina il campo della tabella | docs/08 §BO-06 · docs/03 §3.4 (LOOKUP) | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-036 | MULTIPLIER ×2 su PTS | «**PTS ×2**» | docs/08 §BO-06 · docs/09 §PT-02 («×2») | `web/lib/campaign/describe.testbook.test.ts` |
-| TB-WEB-DESC-037 | GRANT_PLAYS 2 giocate | **DIVERGENZA** — «2 giocate» (plurale) | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
+| TB-WEB-DESC-037 | GRANT_PLAYS 2 giocate | ~~DIVERGENZA~~ risolta (§22) — «2 giocate» (plurale) | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-038 | ISSUE_COUPON | AMBIGUO — «**un coupon**» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-039 | AWARD_BADGE | AMBIGUO — «**un badge**» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-040 | SEND_MESSAGE con template | AMBIGUO — «**il messaggio MSG-WELCOME**» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
@@ -726,8 +727,8 @@ preposizione «a», singolare/plurale, campo di FROM_FIELD e LOOKUP (vedi regist
 | TB-WEB-DESC-042 | tipo di effetto sconosciuto | AMBIGUO — il codice | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-043 | nessun effetto | AMBIGUO — «**nessun effetto**» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-044 | più effetti | uniti da «e» nell'ordine dell'elenco | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
-| TB-WEB-DESC-045 | limite 1 al giorno | **DIVERGENZA** — «al massimo **1 volta al giorno**» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
-| TB-WEB-DESC-046 | limite 2 alla settimana | **DIVERGENZA** — «**2 volte alla settimana**» (plurale) | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
+| TB-WEB-DESC-045 | limite 1 al giorno | ~~DIVERGENZA~~ risolta (§22) — «al massimo **1 volta al giorno**» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
+| TB-WEB-DESC-046 | limite 2 alla settimana | ~~DIVERGENZA~~ risolta (§22) — «**2 volte alla settimana**» (plurale) | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-047 | limite: periodo MONTH | «al mese» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-048 | limite: periodo EDITION | «per edizione» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-049 | limite: periodo ALWAYS («sempre») | «in totale» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
@@ -909,12 +910,12 @@ movimento (spesa ambra, scadenza rossa, STS viola, docs/07 §5.2) — `PointsAmo
 | TB-WEB-FMT-007 | formatPoints 1000000 | «1.000.000» | docs/07 §9 | `web/lib/format/points.testbook.test.ts` |
 | TB-WEB-FMT-008 | formatPoints −1 | «-1» | docs/07 §9 | `web/lib/format/points.testbook.test.ts` |
 | TB-WEB-FMT-009 | formatPoints −1850 | «-1.850» | docs/07 §9 | `web/lib/format/points.testbook.test.ts` |
-| TB-WEB-FMT-010 | formatPoints −0 (zero negativo) | **DIVERGENZA** — «0» | docs/07 §9 | `web/lib/format/points.testbook.test.ts` |
+| TB-WEB-FMT-010 | formatPoints −0 (zero negativo) | ~~DIVERGENZA~~ risolta (§22) — «0» | docs/07 §9 | `web/lib/format/points.testbook.test.ts` |
 | TB-WEB-FMT-011 | formatPoints 1,5 | AMBIGUO — «2» (arrotondato) | docs/07 §9 | `web/lib/format/points.testbook.test.ts` |
 | TB-WEB-FMT-012 | formatPoints 1,4 | AMBIGUO — «1» (arrotondato) | docs/07 §9 | `web/lib/format/points.testbook.test.ts` |
-| TB-WEB-FMT-013 | formatEuro 129,9 | **DIVERGENZA** — «€ 129,90» (esempio della spec) | docs/07 §9 | `web/lib/format/points.testbook.test.ts` |
-| TB-WEB-FMT-014 | formatEuro 1234,5 | **DIVERGENZA** — «€ 1.234,50» | docs/07 §9 | `web/lib/format/points.testbook.test.ts` |
-| TB-WEB-FMT-015 | formatEuro 0 | **DIVERGENZA** — «€ 0,00» | docs/07 §9 | `web/lib/format/points.testbook.test.ts` |
+| TB-WEB-FMT-013 | formatEuro 129,9 | ~~DIVERGENZA~~ risolta (§22) — «€ 129,90» (esempio della spec) | docs/07 §9 | `web/lib/format/points.testbook.test.ts` |
+| TB-WEB-FMT-014 | formatEuro 1234,5 | ~~DIVERGENZA~~ risolta (§22) — «€ 1.234,50» | docs/07 §9 | `web/lib/format/points.testbook.test.ts` |
+| TB-WEB-FMT-015 | formatEuro 0 | ~~DIVERGENZA~~ risolta (§22) — «€ 0,00» | docs/07 §9 | `web/lib/format/points.testbook.test.ts` |
 | TB-WEB-FMT-016 | formatDateTime esempio della spec, ora legale (08:42Z) | «18 set 2026, 10:42» | docs/07 §9 · §2 (Europe/Rome) | `web/lib/format/dates.testbook.test.ts` |
 | TB-WEB-FMT-017 | formatDateTime un secondo prima della mezzanotte di Roma (21:59:59Z) | «18 set 2026, 23:59» | docs/07 §9 · §2 (Europe/Rome) | `web/lib/format/dates.testbook.test.ts` |
 | TB-WEB-FMT-018 | formatDateTime mezzanotte di Roma (22:00Z) | «19 set 2026, 00:00» | docs/07 §9 · §2 (Europe/Rome) | `web/lib/format/dates.testbook.test.ts` |
@@ -933,7 +934,7 @@ movimento (spesa ambra, scadenza rossa, STS viola, docs/07 §5.2) — `PointsAmo
 | TB-WEB-FMT-031 | formatRelative adesso (0 s) | AMBIGUO — «ora» | docs/07 §9 (relative sotto le 24 h) | `web/lib/format/dates.testbook.test.ts` |
 | TB-WEB-FMT-032 | formatRelative 60 min fa | AMBIGUO — «1 h fa» | docs/07 §9 (relative sotto le 24 h) | `web/lib/format/dates.testbook.test.ts` |
 | TB-WEB-FMT-033 | formatRelative 23 h fa | AMBIGUO — «23 h fa» | docs/07 §9 (relative sotto le 24 h) | `web/lib/format/dates.testbook.test.ts` |
-| TB-WEB-FMT-034 | formatRelative 23 h 40 min fa (sotto le 24 h) | **DIVERGENZA** — ancora relativa | docs/07 §9 (relative sotto le 24 h) | `web/lib/format/dates.testbook.test.ts` |
+| TB-WEB-FMT-034 | formatRelative 23 h 40 min fa (sotto le 24 h) | ~~DIVERGENZA~~ risolta (§22) — ancora relativa | docs/07 §9 (relative sotto le 24 h) | `web/lib/format/dates.testbook.test.ts` |
 | TB-WEB-FMT-035 | formatRelative esattamente 24 h fa | data estesa «17 set 2026, 12:00» | docs/07 §9 (relative sotto le 24 h) | `web/lib/format/dates.testbook.test.ts` |
 | TB-WEB-FMT-036 | formatRelative tra 5 minuti (futuro) | AMBIGUO — «ora» | docs/07 §9 (relative sotto le 24 h) | `web/lib/format/dates.testbook.test.ts` |
 | TB-WEB-FMT-037 | computeRollingExpiry 12 mesi dal 18 set 2026 | 30 set 2027 (esempio di BO-08) | docs/08 §BO-08 · docs/03 §4.1 | `web/lib/format/dates.testbook.test.ts` |
@@ -1099,23 +1100,23 @@ singolare "Ti manca 1 punto".
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
 | TB-WEB-HOME-001 | SILVER, mancano 120 STS a GOLD | «Ti mancano 120 punti status per GOLD» | docs/09 §PT-01 | `web/app/portal/page.testbook.test.tsx` |
-| TB-WEB-HOME-002 | manca 1 punto status (soglia − 1) | **DIVERGENZA** — «Ti manca 1 punto status per GOLD» | docs/09 §PT-01 | `web/app/portal/page.testbook.test.tsx` |
+| TB-WEB-HOME-002 | manca 1 punto status (soglia − 1) | ~~DIVERGENZA~~ risolta (§22) — «Ti manca 1 punto status per GOLD» | docs/09 §PT-01 | `web/app/portal/page.testbook.test.tsx` |
 | TB-WEB-HOME-003 | mancano 2.350 | separatore delle migliaia | docs/09 §PT-01 | `web/app/portal/page.testbook.test.tsx` |
 | TB-WEB-HOME-004 | livello massimo (PLATINUM, nessun successivo) | «Hai raggiunto il livello più alto» | docs/09 §PT-01 | `web/app/portal/page.testbook.test.tsx` |
 | TB-WEB-HOME-005 | barra verso il prossimo livello: appena salito (periodSts = soglia, progresso 0 %) | barra vuota | docs/09 §PT-01 | `web/app/portal/page.testbook.test.tsx` |
 | TB-WEB-HOME-006 | barra verso il prossimo livello: a metà (57 %) | barra al 57 % | docs/09 §PT-01 | `web/app/portal/page.testbook.test.tsx` |
 | TB-WEB-HOME-007 | barra verso il prossimo livello: livello massimo (100 %) | barra piena | docs/09 §PT-01 | `web/app/portal/page.testbook.test.tsx` |
-| TB-WEB-HOME-008 | keepWarning GOLD, mancano 2.350 | **DIVERGENZA** — «Per mantenere GOLD servono ancora 2.350 punti status…» | docs/09 §PT-01 · docs/03 §4.3 · wallet-service §2 (`keepWarning`) | `web/app/portal/page.testbook.test.tsx` |
+| TB-WEB-HOME-008 | keepWarning GOLD, mancano 2.350 | ~~DIVERGENZA~~ risolta (§22) — «Per mantenere GOLD servono ancora 2.350 punti status…» | docs/09 §PT-01 · docs/03 §4.3 · wallet-service §2 (`keepWarning`) | `web/app/portal/page.testbook.test.tsx` |
 | TB-WEB-HOME-009 | 1.900 punti in scadenza il 31 ott | avviso «1.900 punti scadono il 31 ott — usali» verso i premi | docs/09 §PT-01 (avviso scadenza) | `web/app/portal/page.testbook.test.tsx` |
 | TB-WEB-HOME-010 | importo in scadenza 0 | nessun avviso | docs/09 §PT-01 | `web/app/portal/page.testbook.test.tsx` |
 | TB-WEB-HOME-011 | dato di scadenza assente | nessun avviso | docs/09 §PT-01 | `web/app/portal/page.testbook.test.tsx` |
 | TB-WEB-HOME-012 | importo > 0 senza data di scadenza | AMBIGUO — nessun avviso | docs/09 §PT-01 | `web/app/portal/page.testbook.test.tsx` |
-| TB-WEB-HOME-013 | membro BLOCKED | **DIVERGENZA** — banda «Il tuo profilo è sospeso…» | docs/09 §2 (membro non attivo) | `web/app/portal/page.testbook.test.tsx` |
-| TB-WEB-HOME-014 | membro INACTIVE | **DIVERGENZA** — banda «Il tuo profilo è sospeso…» | docs/09 §2 (membro non attivo) | `web/app/portal/page.testbook.test.tsx` |
+| TB-WEB-HOME-013 | membro BLOCKED | ~~DIVERGENZA~~ risolta (§22) — banda «Il tuo profilo è sospeso…» | docs/09 §2 (membro non attivo) | `web/app/portal/page.testbook.test.tsx` |
+| TB-WEB-HOME-014 | membro INACTIVE | ~~DIVERGENZA~~ risolta (§22) — banda «Il tuo profilo è sospeso…» | docs/09 §2 (membro non attivo) | `web/app/portal/page.testbook.test.tsx` |
 | TB-WEB-HOME-015 | membro ACTIVE | nessuna banda di sospensione | docs/09 §2 | `web/app/portal/page.testbook.test.tsx` |
 | TB-WEB-HOME-016 | membro ANONYMIZED | AMBIGUO — avviso di profilo anonimizzato, saluto senza nome | docs/09 §2 · F-MBR-05 · Q-120 | `web/app/portal/page.testbook.test.tsx` |
 | TB-WEB-HOME-017 | wallet addormentato al primo caricamento | riquadro degraded, il resto della pagina resta | docs/09 §2 (servizio che dorme) · docs/07 §6 | `web/app/portal/page.testbook.test.tsx` |
-| TB-WEB-HOME-018 | wallet addormentato con saldo già noto | **DIVERGENZA** — tessera con l'ultimo saldo e «aggiornato alle …» | docs/09 §2 (servizio che dorme) | `web/app/portal/page.testbook.test.tsx` |
+| TB-WEB-HOME-018 | wallet addormentato con saldo già noto | ~~DIVERGENZA~~ risolta (§22) — tessera con l'ultimo saldo e «aggiornato alle …» | docs/09 §2 (servizio che dorme) | `web/app/portal/page.testbook.test.tsx` |
 | TB-WEB-HOME-019 | saluto col nome del membro | «Ciao Giulia» | docs/09 §PT-01 (saluto col nome) | `web/app/portal/page.testbook.test.tsx` |
 | TB-WEB-HOME-020 | dopo l'iscrizione (?welcome=1) con saldo ancora 0 | riga «+100 punti di benvenuto in arrivo…» | docs/09 §PT-08 (registrazione) · §2 «il saldo non mente» | `web/app/portal/page.testbook.test.tsx` |
 | TB-WEB-HOME-021 | dopo l'iscrizione con i punti di benvenuto già sul saldo | nessuna riga «in arrivo» | docs/09 §PT-08 · docs/07 §7 | `web/app/portal/page.testbook.test.tsx` |
@@ -1361,64 +1362,66 @@ smontaggio. **Strategia**: valori limite dei 4 e dei 45 minuti, ogni evento da s
 
 ## 22. Registro delle divergenze
 
-Test rossi che asseriscono la specifica (nessun codice di produzione cambiato). Numerazione propria (la prima colonna non
-è l'ID di riga).
+Test che asserivano la specifica ed erano rossi. **Tutte risolte** correggendo il codice di produzione (i test sono
+rimasti quelli del testbook; unica modifica: LIFE-052 conferma il dialogo che D5 introduce prima dell'invio). Numerazione
+propria (la prima colonna non è l'ID di riga); la colonna «Causa» riporta i riferimenti prima della correzione.
 
-| # | Righe | Specifica | Osservato | Causa (file:riga) |
-|---|---|---|---|---|
-| D1 | TB-WEB-NAV-022 | docs/08 §1: voce BO-24 «Flusso live» | «Flusso eventi live» | `web/lib/nav.ts:82` |
-| D2 | TB-WEB-NAV-045 | docs/08 §1: contatore su *Approvazioni* (oggetti `IN_REVIEW`) | BO-21 senza `counter`; `NavLinks` conosce solo `redemptions` e `dlq` | `web/lib/nav.ts:74`, `web/components/bo/NavLinks.tsx:37` |
-| D3 | TB-WEB-CAN-004 | docs/07 §4, §6: azione non consentita **disabilitata** | pulsante solo avvolto in `pointer-events: none` con tooltip: resta attivabile da tastiera (Tab + Invio) e da tecnologie assistive | `web/components/bo/Can.tsx:21-22` |
-| D4 | TB-WEB-LIFE-053 | docs/08 §3.3: IN_REVIEW, per chi non può decidere "In attesa di LEGAL da 2 h" | solo *Approva*/*Rifiuta* disabilitati, nessun testo d'attesa | `web/components/bo/LifecycleBar.tsx:20-23`, `:73-84` |
-| D5 | TB-WEB-LIFE-054 | docs/08 §3.3: ogni transizione apre un dialogo con commento → `POST {action, comment}` | solo *Rifiuta* ha il commento; le altre transizioni partono al clic senza dialogo | `web/components/bo/LifecycleBar.tsx:75-78` |
-| D6 | TB-WEB-PILL-004, 006, 010, 011 | docs/07 §5.2: SCHEDULED indaco, PAUSED arancio, ARCHIVED grigio chiaro distinto da ENDED slate | SCHEDULED senza voce (grigio di default); PAUSED ambra come IN_REVIEW; ENDED e ARCHIVED con le stesse classi | `web/components/bo/primitives.tsx:9-40` (`:20`, `:25-26`) |
-| D7 | TB-WEB-QST-002 | docs/07 §6 Loading: tabelle con 8 righe scheletro | 5 righe per ogni vista | `web/components/shared/QueryState.tsx:53` |
-| D8 | TB-WEB-QST-004 | docs/07 §6 Empty: icona + frase + **azione primaria** | `EmptyState` ha solo titolo e suggerimento | `web/components/shared/QueryState.tsx:60-67` |
-| D9 | TB-WEB-QST-008 | docs/07 §6 Error: `title` del problema RFC 9457 | mostra "Errore: <code>"; il client scarta `title` quando c'è `detail` | `web/lib/api/client.ts:59`, `web/components/shared/QueryState.tsx:32` |
-| D10 | TB-WEB-QST-009 | docs/07 §6 Error: `correlationId` copiabile | `LhError` non porta la correlazione, il riquadro non la mostra | `web/lib/api/client.ts:15-24`, `web/components/shared/QueryState.tsx:30-42` |
-| D11 | TB-WEB-QST-010, 011 | docs/07 §6 Degraded: "Il servizio *wallet* si sta svegliando…" con barra; riprova automatica ogni 5 s fino a 90 s | "Servizio «wallet» non raggiungibile… Accendi la demo dal Demo Hub"; solo *Riprova* manuale | `web/components/shared/QueryState.tsx:27-29`, `:69-83` |
-| D12 | TB-WEB-HOME-018 | docs/09 §2: servizio che dorme → la tessera usa l'ultimo saldo noto con "aggiornato alle 10:42" | con dato precedente e servizio addormentato la sezione mostra solo il riquadro degraded | `web/components/shared/QueryState.tsx:26-29` (l'errore prevale sul dato), `web/app/portal/page.tsx:64` |
-| D13 | TB-WEB-HOME-002 | docs/09 §2 (linguaggio del cliente) e §PT-01: "Ti mancano N punti status" | "Ti mancano 1 punti status" (nessun singolare) | `web/app/portal/page.tsx:76` |
-| D14 | TB-WEB-HOME-008 | docs/09 §PT-01, wallet-service §2: avviso `keepWarning` "Per mantenere GOLD servono ancora …" | `keepWarning` assente da `WalletView` e dalla pagina (regola non implementata) | `web/lib/api/types.ts:129-137`, `web/app/portal/page.tsx:73-83` |
-| D15 | TB-WEB-HOME-013, 014 | docs/09 §2: membro BLOCKED/INACTIVE → banda "Il tuo profilo è sospeso…" e azioni disabilitate | nessuna banda (solo il caso ANONYMIZED) | `web/app/portal/page.tsx:55-60` |
-| D16 | TB-WEB-DESC-001, 007 | docs/08 §BO-06: "…**Acquisto completato** da ecommerce o app…" | le fonti ammesse non entrano nella frase (`CampaignDraft` non ha fonti) | `web/lib/campaign/describe.ts:4-12`, `:99-102` |
-| D17 | TB-WEB-DESC-001, 008 | "se **importo ≥ 50 €**" | "importo ≥ 50" | `web/lib/campaign/describe.ts:145-148` |
-| D18 | TB-WEB-DESC-001, 037 | "assegna **1 giocata a Ruota d'Autunno**" | "1 giocata su IW-AUTUNNO" (codice, preposizione «su», nessun plurale: "2 giocata") | `web/lib/campaign/describe.ts:166` |
-| D19 | TB-WEB-DESC-001, 045, 046 | "al massimo **1 volta al giorno**" | "1 volta/e al giorno", "2 volta/e alla settimana" | `web/lib/campaign/describe.ts:182` |
-| D20 | TB-WEB-DESC-034, 035 | docs/08 §BO-06 (rilettura in italiano) · docs/03 §3.4: FROM_FIELD e LOOKUP leggono `amountField` | "PTS (FROM_FIELD)", "PTS (LOOKUP)": codice del modo, nessun campo | `web/lib/campaign/describe.ts:157-161` |
-| D21 | TB-WEB-FMT-010 | docs/07 §9: punti formattati, zero = "0" | −0 → "-0" (Intl mostra il segno dello zero negativo) | `web/lib/format/points.ts:5`, `:9-11` |
-| D22 | TB-WEB-FMT-013, 014, 015 | docs/07 §9: valute `€ 129,90` | "129,90 €", "1234,50 €" (simbolo dopo, nessun separatore a 4 cifre); `formatEuro` oggi non è usato da nessuna vista | `web/lib/format/points.ts:6`, `:13-15` |
-| D23 | TB-WEB-FMT-034 | docs/07 §9: relative sotto le 24 h | 23 h 40 min → arrotondato a 24 → data estesa | `web/lib/format/dates.ts:45-46` |
+| # | Righe | Specifica | Osservato | Causa (file:riga) | Correzione |
+|---|---|---|---|---|---|
+| D1 | TB-WEB-NAV-022 | docs/08 §1: voce BO-24 «Flusso live» | «Flusso eventi live» | `web/lib/nav.ts:82` | `web/lib/nav.ts`: etichetta «Flusso live» |
+| D2 | TB-WEB-NAV-045 | docs/08 §1: contatore su *Approvazioni* (oggetti `IN_REVIEW`) | BO-21 senza `counter`; `NavLinks` conosce solo `redemptions` e `dlq` | `web/lib/nav.ts:74`, `web/components/bo/NavLinks.tsx:37` | `web/lib/nav.ts` (`counter: "approvals"`), `web/components/bo/NavLinks.tsx` (`ApprovalsCounter`: tre code `GET /v1/approvals?status=IN_REVIEW`, ogni 30 s) |
+| D3 | TB-WEB-CAN-004 | docs/07 §4, §6: azione non consentita **disabilitata** | pulsante solo avvolto in `pointer-events: none` con tooltip: resta attivabile da tastiera (Tab + Invio) e da tecnologie assistive | `web/components/bo/Can.tsx:21-22` | `web/components/bo/Can.tsx`: controllo nativo `disabled` + `aria-disabled`, link `aria-disabled` fuori dal Tab, altro contenuto in `<fieldset disabled>` |
+| D4 | TB-WEB-LIFE-053 | docs/08 §3.3: IN_REVIEW, per chi non può decidere "In attesa di LEGAL da 2 h" | solo *Approva*/*Rifiuta* disabilitati, nessun testo d'attesa | `web/components/bo/LifecycleBar.tsx:20-23`, `:73-84` | `web/components/bo/LifecycleBar.tsx` (props `requiredRole`, `submittedAt`), `web/lib/approvals/usePolicy.ts` (`useReviewEntry`), `web/lib/format/dates.ts` (`formatElapsed`); cablato in BO-06 e BO-10 |
+| D5 | TB-WEB-LIFE-054 | docs/08 §3.3: ogni transizione apre un dialogo con commento → `POST {action, comment}` | solo *Rifiuta* ha il commento; le altre transizioni partono al clic senza dialogo | `web/components/bo/LifecycleBar.tsx:75-78` | `web/components/bo/LifecycleBar.tsx`: `TransitionDialog` per ogni transizione (commento facoltativo, obbligatorio per il rifiuto); LIFE-052 conferma ora il dialogo prima dell'invio |
+| D6 | TB-WEB-PILL-004, 006, 010, 011 | docs/07 §5.2: SCHEDULED indaco, PAUSED arancio, ARCHIVED grigio chiaro distinto da ENDED slate | SCHEDULED senza voce (grigio di default); PAUSED ambra come IN_REVIEW; ENDED e ARCHIVED con le stesse classi | `web/components/bo/primitives.tsx:9-40` (`:20`, `:25-26`) | `web/components/bo/primitives.tsx`: SCHEDULED indaco, PAUSED arancio, ARCHIVED grigio chiaro |
+| D7 | TB-WEB-QST-002 | docs/07 §6 Loading: tabelle con 8 righe scheletro | 5 righe per ogni vista | `web/components/shared/QueryState.tsx:53` | `web/components/shared/QueryState.tsx`: `skeletonRows` = 8 |
+| D8 | TB-WEB-QST-004 | docs/07 §6 Empty: icona + frase + **azione primaria** | `EmptyState` ha solo titolo e suggerimento | `web/components/shared/QueryState.tsx:60-67` | `web/components/shared/QueryState.tsx`: prop facoltativa `emptyAction`; senza, *Aggiorna* (rilancia la query) |
+| D9 | TB-WEB-QST-008 | docs/07 §6 Error: `title` del problema RFC 9457 | mostra "Errore: <code>"; il client scarta `title` quando c'è `detail` | `web/lib/api/client.ts:59`, `web/components/shared/QueryState.tsx:32` | `web/lib/api/client.ts` (`LhError.title`), `web/components/shared/QueryState.tsx` (`ErrorBox`) |
+| D10 | TB-WEB-QST-009 | docs/07 §6 Error: `correlationId` copiabile | `LhError` non porta la correlazione, il riquadro non la mostra | `web/lib/api/client.ts:15-24`, `web/components/shared/QueryState.tsx:30-42` | `web/lib/api/client.ts` (`LhError.correlationId` dal problema o da `X-Correlation-Id`), `ErrorBox` con *copia* |
+| D11 | TB-WEB-QST-010, 011 | docs/07 §6 Degraded: "Il servizio *wallet* si sta svegliando…" con barra; riprova automatica ogni 5 s fino a 90 s | "Servizio «wallet» non raggiungibile… Accendi la demo dal Demo Hub"; solo *Riprova* manuale | `web/components/shared/QueryState.tsx:27-29`, `:69-83` | `web/components/shared/QueryState.tsx` (`DegradedBox`: testo della spec, barra indeterminata, `autoRetry` 5 s × 90 s) |
+| D12 | TB-WEB-HOME-018 | docs/09 §2: servizio che dorme → la tessera usa l'ultimo saldo noto con "aggiornato alle 10:42" | con dato precedente e servizio addormentato la sezione mostra solo il riquadro degraded | `web/components/shared/QueryState.tsx:26-29` (l'errore prevale sul dato), `web/app/portal/page.tsx:64` | `web/components/shared/QueryState.tsx`: con un dato già noto e servizio addormentato, riquadro degraded + «aggiornato alle HH:MM» + ultimo dato |
+| D13 | TB-WEB-HOME-002 | docs/09 §2 (linguaggio del cliente) e §PT-01: "Ti mancano N punti status" | "Ti mancano 1 punti status" (nessun singolare) | `web/app/portal/page.tsx:76` | `web/app/portal/page.tsx`: «Ti manca 1 punto status» |
+| D14 | TB-WEB-HOME-008 | docs/09 §PT-01, wallet-service §2: avviso `keepWarning` "Per mantenere GOLD servono ancora …" | `keepWarning` assente da `WalletView` e dalla pagina (regola non implementata) | `web/lib/api/types.ts:129-137`, `web/app/portal/page.tsx:73-83` | `web/app/portal/page.tsx`: avviso `keepWarning`; la data «entro il …» è la fine dell'edizione `ACTIVE` (`wallet GET /v1/editions`), omessa se non nota |
+| D15 | TB-WEB-HOME-013, 014 | docs/09 §2: membro BLOCKED/INACTIVE → banda "Il tuo profilo è sospeso…" e azioni disabilitate | nessuna banda (solo il caso ANONYMIZED) | `web/app/portal/page.tsx:55-60` | `web/app/portal/page.tsx`: banda «Il tuo profilo è sospeso…» per BLOCKED/INACTIVE |
+| D16 | TB-WEB-DESC-001, 007 | docs/08 §BO-06: "…**Acquisto completato** da ecommerce o app…" | le fonti ammesse non entrano nella frase (`CampaignDraft` non ha fonti) | `web/lib/campaign/describe.ts:4-12`, `:99-102` | `web/lib/campaign/describe.ts` (`CampaignDraft.sources`). **Dato mancante**: campaign-service non modella le fonti ammesse, le viste non possono passarle → Q-U23 |
+| D17 | TB-WEB-DESC-001, 008 | "se **importo ≥ 50 €**" | "importo ≥ 50" | `web/lib/campaign/describe.ts:145-148` | `web/lib/campaign/describe.ts`: «€» dopo il valore di `data.amount` |
+| D18 | TB-WEB-DESC-001, 037 | "assegna **1 giocata a Ruota d'Autunno**" | "1 giocata su IW-AUTUNNO" (codice, preposizione «su», nessun plurale: "2 giocata") | `web/lib/campaign/describe.ts:166` | `web/lib/campaign/describe.ts` (`contestNames`, plurale, «a»), `web/components/bo/GeneratedSentence.tsx` (nomi da `gamification GET /v1/contests`) |
+| D19 | TB-WEB-DESC-001, 045, 046 | "al massimo **1 volta al giorno**" | "1 volta/e al giorno", "2 volta/e alla settimana" | `web/lib/campaign/describe.ts:182` | `web/lib/campaign/describe.ts`: «1 volta» / «N volte» |
+| D20 | TB-WEB-DESC-034, 035 | docs/08 §BO-06 (rilettura in italiano) · docs/03 §3.4: FROM_FIELD e LOOKUP leggono `amountField` | "PTS (FROM_FIELD)", "PTS (LOOKUP)": codice del modo, nessun campo | `web/lib/campaign/describe.ts:157-161` | `web/lib/campaign/describe.ts`: «PTS pari al campo points», «PTS dalla tabella sul campo plan» |
+| D21 | TB-WEB-FMT-010 | docs/07 §9: punti formattati, zero = "0" | −0 → "-0" (Intl mostra il segno dello zero negativo) | `web/lib/format/points.ts:5`, `:9-11` | `web/lib/format/points.ts`: zero sempre senza segno |
+| D22 | TB-WEB-FMT-013, 014, 015 | docs/07 §9: valute `€ 129,90` | "129,90 €", "1234,50 €" (simbolo dopo, nessun separatore a 4 cifre); `formatEuro` oggi non è usato da nessuna vista | `web/lib/format/points.ts:6`, `:13-15` | `web/lib/format/points.ts`: «€ 129,90», «€ 1.234,50» (simbolo davanti, separatore sempre) |
+| D23 | TB-WEB-FMT-034 | docs/07 §9: relative sotto le 24 h | 23 h 40 min → arrotondato a 24 → data estesa | `web/lib/format/dates.ts:45-46` | `web/lib/format/dates.ts`: ore per difetto (23 h 40 min → «23 h fa») |
 
 ## 23. Ambiguità (righe AMBIGUO)
 
-Nessuna fonte decide e nessuna `Q-nn` le copre: il test fissa il comportamento attuale. Proposta: registrarle in
-`docs/15` in un'unica voce "UI — dettagli di resa".
+Nessuna fonte decide: il test fissa il comportamento attuale, che non è stato cambiato. Ogni gruppo ha una voce in
+`docs/15` (SPEC-GAP, `Q-U1…Q-U22`); dove il comportamento attuale non è il più prudente la voce lo dice e propone
+l'alternativa, senza implementarla (A1 → Q-U1, A12 → Q-U12, A21 → Q-U21).
 
-| # | Righe | Dubbio | Comportamento fissato |
-|---|---|---|---|
-| A1 | TB-WEB-PERS-015 | ruolo fuori dai 5 nel cookie | accettato; `can()` nega tutto, il layout del backoffice ricava il ruolo dallo username (il proxy invia però il ruolo del cookie) |
-| A2 | TB-WEB-PERS-028 | username fuori dalle 5 personas | ruolo ANALYST |
-| A3 | TB-WEB-PERS-033…035 | codice del rifiuto di una persona non valida | 400 `INVALID_PERSONA` |
-| A4 | TB-WEB-PRX-015 | servizio inesistente nel percorso del proxy | 404 `UNKNOWN_SERVICE` |
-| A5 | TB-WEB-CLI-005 | errore senza problema RFC 9457 | codice `HTTP_<status>` |
-| A6 | TB-WEB-NAV-041, 042 | voce attiva per un percorso senza voce | Dashboard |
-| A7 | TB-WEB-LIFE-041…045, TB-WEB-APR-018 | policy delle approvazioni non nota (servizio che dorme) | DRAFT offre *Invia in revisione* e *Pubblica*; il servizio risponde 409 `APPROVAL_REQUIRED` (LIFE-052) |
-| A8 | TB-WEB-APR-025 | voce di coda senza `requiredRole` | vale LEGAL |
-| A9 | TB-WEB-APR-030, 032 | ordine delle schede di BO-21 | *Da approvare* dal più vecchio (poi per codice), *Inviate da me* dal più recente |
-| A10 | TB-WEB-APR-033…040 | parole dell'esito e formato dell'attore in BO-21 | "In attesa", "Rifiutato", "Approvato (e pubblicato)", "username (RUOLO)" |
-| A11 | TB-WEB-DESC-005, 006, 030, 038…043, 051 | frase per tipo senza nome, bozza senza trigger/effetti, segmenti, coupon/badge/messaggio, più limiti | codice del tipo, "un'azione", codici dei segmenti, "un coupon"/"un badge"/"il messaggio …", solo il primo limite |
-| A12 | TB-WEB-COND-042, 046 | catalogo dei campi parziale (servizio che dorme) | il trigger senza campi è ignorato nell'intersezione e negli avvisi |
-| A13 | TB-WEB-COND-087…089 | percorso scritto a mano | ammesso se inizia con `data.`/`member.`/`context.`/`history.` |
-| A14 | TB-WEB-FMT-011, 012 | punti decimali | arrotondamento it-IT a 0 decimali |
-| A15 | TB-WEB-FMT-027, 031, 032, 033, 036 | data assente, sotto il minuto, forma delle ore, futuro | "—", "ora", "N h fa", "ora" |
-| A16 | TB-WEB-RWD-054, 056, 057 | fascia a 0 punti, premio riservato a più livelli, `lockedByTier` vuoto | raggiunta; "Riservato a GOLD e PLATINUM"; non riservato |
-| A17 | TB-WEB-RWD-064…066, 070, 075 | parole di stati non elencati in PT-13, coupon che non arriva, ordine dei coupon attivi | "Coupon emesso", "Completata", "Annullata da te"; attesa conclusa; scadenza più vicina prima |
-| A18 | TB-WEB-HOME-012, 016 | scadenza senza data; membro anonimizzato come persona attiva | nessun avviso; messaggio di profilo anonimizzato |
-| A19 | TB-WEB-QST-006 | vista senza regola di vuoto | contenuto (vuoto) invece dello stato empty |
-| A20 | TB-WEB-CONF-008, 013 | spazi ai bordi del codice digitato | tollerati |
-| A21 | TB-WEB-MBR-005, 008, 009 | stato del membro non noto; parole degli errori | come ACTIVE; testi del codice |
-| A22 | TB-WEB-HUB-037…039 | formato del tempo trascorso, valore negativo | "m:ss", negativo → "0:00" |
+| # | Righe | Dubbio | Comportamento fissato | Domanda |
+|---|---|---|---|---|
+| A1 | TB-WEB-PERS-015 | ruolo fuori dai 5 nel cookie | accettato; `can()` nega tutto, il layout del backoffice ricava il ruolo dallo username (il proxy invia però il ruolo del cookie) | Q-U1 |
+| A2 | TB-WEB-PERS-028 | username fuori dalle 5 personas | ruolo ANALYST | Q-U2 |
+| A3 | TB-WEB-PERS-033…035 | codice del rifiuto di una persona non valida | 400 `INVALID_PERSONA` | Q-U3 |
+| A4 | TB-WEB-PRX-015 | servizio inesistente nel percorso del proxy | 404 `UNKNOWN_SERVICE` | Q-U4 |
+| A5 | TB-WEB-CLI-005 | errore senza problema RFC 9457 | codice `HTTP_<status>` | Q-U5 |
+| A6 | TB-WEB-NAV-041, 042 | voce attiva per un percorso senza voce | Dashboard | Q-U6 |
+| A7 | TB-WEB-LIFE-041…045, TB-WEB-APR-018 | policy delle approvazioni non nota (servizio che dorme) | DRAFT offre *Invia in revisione* e *Pubblica*; il servizio risponde 409 `APPROVAL_REQUIRED` (LIFE-052) | Q-U7 |
+| A8 | TB-WEB-APR-025 | voce di coda senza `requiredRole` | vale LEGAL | Q-U8 |
+| A9 | TB-WEB-APR-030, 032 | ordine delle schede di BO-21 | *Da approvare* dal più vecchio (poi per codice), *Inviate da me* dal più recente | Q-U9 |
+| A10 | TB-WEB-APR-033…040 | parole dell'esito e formato dell'attore in BO-21 | "In attesa", "Rifiutato", "Approvato (e pubblicato)", "username (RUOLO)" | Q-U10 |
+| A11 | TB-WEB-DESC-005, 006, 030, 038…043, 051 | frase per tipo senza nome, bozza senza trigger/effetti, segmenti, coupon/badge/messaggio, più limiti | codice del tipo, "un'azione", codici dei segmenti, "un coupon"/"un badge"/"il messaggio …", solo il primo limite | Q-U11 |
+| A12 | TB-WEB-COND-042, 046 | catalogo dei campi parziale (servizio che dorme) | il trigger senza campi è ignorato nell'intersezione e negli avvisi | Q-U12 |
+| A13 | TB-WEB-COND-087…089 | percorso scritto a mano | ammesso se inizia con `data.`/`member.`/`context.`/`history.` | Q-U13 |
+| A14 | TB-WEB-FMT-011, 012 | punti decimali | arrotondamento it-IT a 0 decimali | Q-U14 |
+| A15 | TB-WEB-FMT-027, 031, 032, 033, 036 | data assente, sotto il minuto, forma delle ore, futuro | "—", "ora", "N h fa", "ora" | Q-U15 |
+| A16 | TB-WEB-RWD-054, 056, 057 | fascia a 0 punti, premio riservato a più livelli, `lockedByTier` vuoto | raggiunta; "Riservato a GOLD e PLATINUM"; non riservato | Q-U16 |
+| A17 | TB-WEB-RWD-064…066, 070, 075 | parole di stati non elencati in PT-13, coupon che non arriva, ordine dei coupon attivi | "Coupon emesso", "Completata", "Annullata da te"; attesa conclusa; scadenza più vicina prima | Q-U17 |
+| A18 | TB-WEB-HOME-012, 016 | scadenza senza data; membro anonimizzato come persona attiva | nessun avviso; messaggio di profilo anonimizzato | Q-U18 |
+| A19 | TB-WEB-QST-006 | vista senza regola di vuoto | contenuto (vuoto) invece dello stato empty | Q-U19 |
+| A20 | TB-WEB-CONF-008, 013 | spazi ai bordi del codice digitato | tollerati | Q-U20 |
+| A21 | TB-WEB-MBR-005, 008, 009 | stato del membro non noto; parole degli errori | come ACTIVE; testi del codice | Q-U21 |
+| A22 | TB-WEB-HUB-037…039 | formato del tempo trascorso, valore negativo | "m:ss", negativo → "0:00" | Q-U22 |
 
 ## 24. Rami senza specifica e regole non implementate
 
@@ -1427,11 +1430,12 @@ NAV-041/042; LIFE-041…045; APR-025, 030, 032, 033–040; DESC-005, 006, 030, 0
 FMT-011, 012, 027, 031–033, 036; RWD-054, 056, 057, 064–066, 070, 075; HOME-012, 016; QST-006; CONF-008, 013; MBR-005,
 008, 009; HUB-039.
 
-**Regole della specifica senza codice** (righe rosse, §22): contatore *Approvazioni* (D2); attesa "In attesa di LEGAL"
-(D4); dialogo con commento per ogni transizione (D5); pill SCHEDULED (D6); 8 righe scheletro, azione primaria del vuoto,
-`title` e `correlationId` dell'errore, testo e riprova automatica del degraded (D7–D11); ultimo saldo noto (D12);
-`keepWarning` (D14); banda del membro non attivo (D15); fonti, «€», nome del concorso, campo di FROM_FIELD/LOOKUP nella
-frase (D16–D18, D20).
+**Regole della specifica senza codice** (erano righe rosse, §22): ora implementate — contatore *Approvazioni* (D2);
+attesa "In attesa di LEGAL" (D4); dialogo con commento per ogni transizione (D5); pill SCHEDULED (D6); 8 righe
+scheletro, azione primaria del vuoto, `title` e `correlationId` dell'errore, testo e riprova automatica del degraded
+(D7–D11); ultimo saldo noto (D12); `keepWarning` (D14); banda del membro non attivo (D15); «€», nome del concorso, campo
+di FROM_FIELD/LOOKUP nella frase (D17, D18, D20). Le fonti ammesse (D16) entrano nella frase quando la bozza le porta,
+ma campaign-service non le espone: dato mancante, Q-U23.
 **Senza codice e senza riga** (nessuna unità web da provare): stato *Stale* ("aggiornato alle" dopo 60 s senza SSE,
 docs/07 §6); colore semantico dei punti per tipo di movimento (docs/07 §5.2: spesa ambra, scadenza rossa, STS viola —
 `PointsAmount` distingue solo il segno); *Storico* delle transizioni in popover accanto alla barra (docs/08 §3.3; lo
@@ -1464,7 +1468,8 @@ storico è in `ApprovalHistoryList` di BO-21).
 | KA | 7 | 2 | 6 | — |
 | **Totale** | **741** | **77** | **349** | 5 tabelle complete, 4 riduzioni dichiarate |
 
-- Righe: **741**, di cui **33** DIVERGENZA (23 cause, §22) e **67** AMBIGUO (§23).
+- Righe: **741**, di cui **33** DIVERGENZA (23 cause, §22, tutte risolte: 0 righe rosse) e **67** AMBIGUO (§23,
+  `Q-U1…Q-U22`).
 - Rami del codice senza specifica: 22 gruppi (§23–24). Regole non implementate: 16 con riga rossa, 3 senza unità da
   provare (§24).
 - Esecuzione: `cd web && pnpm -s exec vitest run testbook` (un caso per riga) e `TESTBOOK_JAVA=0 bash scripts/testbook.sh`.

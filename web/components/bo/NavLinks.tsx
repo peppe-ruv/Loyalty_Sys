@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { activeHref, visibleNav, type NavItem } from "@/lib/nav";
 import { useLhQuery, type Page } from "@/lib/api/client";
 import { cn } from "@/lib/cn";
+import { mergeQueues } from "@/lib/approvals/queue";
+import type { ApprovalItem } from "@/lib/approvals/types";
 
 // Elenco dei gruppi/voci della sidebar (docs/08 §1), condiviso tra la sidebar fissa (desktop) e il
 // cassetto mobile. {@code onNavigate} chiude il cassetto quando si apre una voce.
@@ -34,7 +36,13 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
                     )}
                   >
                     <span className="flex-1">{item.label}</span>
-                    {item.counter === "dlq" ? <DlqCounter /> : item.counter ? <NavCounter kind={item.counter} /> : null}
+                    {item.counter === "dlq" ? (
+                      <DlqCounter />
+                    ) : item.counter === "approvals" ? (
+                      <ApprovalsCounter />
+                    ) : item.counter ? (
+                      <NavCounter kind={item.counter} />
+                    ) : null}
                   </Link>
                 </li>
               );
@@ -53,6 +61,30 @@ function DlqCounter() {
   if (n === 0) return null;
   return (
     <span className="rounded-full bg-[var(--color-topic-dlq)] px-1.5 text-xs font-medium tabular-nums text-white" aria-label={`${n} nuove in DLQ`}>
+      {n}
+    </span>
+  );
+}
+
+/**
+ * Oggetti in revisione (docs/08 §1: contatore *Approvazioni* sugli oggetti `IN_REVIEW`): le tre code di BO-21
+ * (campaign, reward, gamification) unite senza doppioni; una fonte addormentata conta zero.
+ */
+function ApprovalsCounter() {
+  const opts = { refetchInterval: 30_000 };
+  const params = { status: "IN_REVIEW" };
+  const campaign = useLhQuery<ApprovalItem[]>("campaign", "/v1/approvals", params, opts);
+  const reward = useLhQuery<ApprovalItem[]>("reward", "/v1/approvals", params, opts);
+  const contest = useLhQuery<ApprovalItem[]>("gamification", "/v1/approvals", params, opts);
+  const merged = mergeQueues([
+    { entityType: "CAMPAIGN", items: campaign.data, failed: campaign.isError },
+    { entityType: "REWARD", items: reward.data, failed: reward.isError },
+    { entityType: "CONTEST", items: contest.data, failed: contest.isError },
+  ]);
+  const n = merged.filter((i) => i.status === "IN_REVIEW").length;
+  if (n === 0) return null;
+  return (
+    <span className="rounded-full bg-amber-500 px-1.5 text-xs font-medium tabular-nums text-white" aria-label={`${n} in revisione`}>
       {n}
     </span>
   );

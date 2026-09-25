@@ -165,6 +165,8 @@ it("[TB-WEB-LIFE-052] Pubblica rifiutata con 409 APPROVAL_REQUIRED → invito a 
   );
   renderBar("MARKETING", "DRAFT", undefined);
   fireEvent.click(screen.getByRole("button", { name: "Pubblica" }));
+  // docs/08 §3.3: la transizione parte dalla conferma del dialogo (LIFE-054).
+  fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Serve l'approvazione: usa «Invia in revisione».");
 });
 

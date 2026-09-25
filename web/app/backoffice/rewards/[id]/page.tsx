@@ -8,7 +8,7 @@ import type { CouponPool, Reward, RewardBand, RewardCategory, Tier } from "@/lib
 import { QueryState } from "@/components/bo/QueryState";
 import { PageHeader, CodeText } from "@/components/bo/primitives";
 import { LifecycleBar } from "@/components/bo/LifecycleBar";
-import { useApprovalPolicy } from "@/lib/approvals/usePolicy";
+import { useApprovalPolicy, useReviewEntry } from "@/lib/approvals/usePolicy";
 import { requiresApproval } from "@/lib/approvals/queue";
 import { DuplicateButton } from "@/components/bo/DuplicateButton";
 import { VersionConflict } from "@/components/bo/VersionConflict";
@@ -109,6 +109,7 @@ function EditReward({
   onChanged: () => void;
 }) {
   const policy = useApprovalPolicy();
+  const review = useReviewEntry("reward", reward.id, reward.status);
   const [error, setError] = useState<LhError | null>(null);
   const [pending, setPending] = useState<RewardInput | null>(null);
   const update = useLhMutation<Reward, RewardInput & { version?: number }>("reward", "PUT", () => `/v1/rewards/${reward.id}`, {
@@ -138,6 +139,8 @@ function EditReward({
           transitionsPath={`/v1/rewards/${reward.id}/transitions`}
           status={reward.status}
           approvalRequired={requiresApproval("REWARD", policy.data)}
+          requiredRole={review?.requiredRole}
+          submittedAt={review?.submittedAt}
           onChanged={onChanged}
         />
         <div className="w-56">

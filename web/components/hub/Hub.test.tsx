@@ -114,7 +114,7 @@ describe("HUB-01 ingressi", () => {
 
     membersAsleep = true;
     renderWith(<Entrances />);
-    expect(await screen.findByText(/Servizio «member» non raggiungibile/)).toBeInTheDocument();
+    expect(await screen.findByText(/Il servizio member si sta svegliando/)).toBeInTheDocument();
   });
 });
 
