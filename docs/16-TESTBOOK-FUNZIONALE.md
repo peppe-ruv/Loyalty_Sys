@@ -39,8 +39,8 @@ Il testbook è eseguibile per intero con un comando e produce un rapporto riga p
 | Premi e coupon | [§6](#6-tb-rwd--premi-e-coupon) | reward (+ wallet) | docs/servizi/reward-service.md · F-RWD-*, F-CPN-* | in preparazione |
 | Gioco | [§7](#7-tb-gam--gioco) | gamification | docs/servizi/gamification-service.md · F-IW-*, F-ACH-*, F-LDB-*, F-REF-* | in preparazione |
 | Governance e membri | [§8](#8-tb-gov--governance-e-membri) | tutti · member | docs/03 §3.6 · docs/06 §7 · docs/08 §2 · F-APR-*, F-MBR-*, F-SEG-* | in preparazione |
-| Engagement | [§9](#9-tb-eng--engagement) | engagement | docs/servizi/engagement-service.md · F-CNT-*, F-MSG-*, F-WBH-01 | in preparazione |
-| Interfaccia | [§10](#10-tb-web--interfaccia) | web | docs/07 · docs/08 · docs/09 | in preparazione |
+| Engagement | [§9](#9-tb-eng--engagement) | engagement | docs/servizi/engagement-service.md · F-CNT-*, F-MSG-*, F-WBH-01 | **eseguibile** — 804 righe |
+| Interfaccia | [§10](#10-tb-web--interfaccia) | web | docs/07 · docs/08 · docs/09 | **eseguibile** — 741 righe |
 | Percorsi end-to-end | [§10bis](#10bis-tb-e2e--percorsi-end-to-end) | hub (tutti) | docs/17 E10 e percorsi tra servizi · docs/10 §8 | in preparazione |
 | Osservabilità e audit | [§10ter](#10ter-tb-ins--osservabilità-e-audit) | insight | docs/servizi/insight-service.md · F-INS-*, F-AUD-01 | in preparazione |
 | Piattaforma | [§10quater](#10quater-tb-plt--piattaforma) | lh-common, hub | docs/04 · docs/05 · docs/06 · contracts/ | in preparazione |
@@ -75,10 +75,27 @@ _In revisione._
 _In revisione._
 
 ## 9. TB-ENG — Engagement
-_In revisione._
+Documento completo: [`docs/testbook/TB-ENG-engagement.md`](testbook/TB-ENG-engagement.md) — 47 regole, 143 rami mappati,
+**804 righe** (395 unitarie, 409 d'integrazione). Test: `services/engagement-service/src/test/java/io/loyaltyhub/engagement/`
+(`TestbookEng*Test`, `TestbookEng*IT`), dati in `src/test/resources/testbook/engagement/*.csv`.
+
+- **Tabelle complete:** selezione (60), pubblico (27+9), pop-up (24), ciclo di vita (50), ruoli (28), regole messaggi (60).
+- **Divergenze trovate e corrette (7 righe):** confine «iscritti da < 7 giorni», campi non sicuri modificabili su un
+  contenuto LIVE (ora `409 CONTENT_LIVE_LOCKED`), portale senza `memberId` (ora 400).
+- **Scelte registrate:** Q-161, Q-170…Q-185; non conservative: Q-174, Q-179, Q-180, Q-184.
+- **Verifica a mutazione:** 8 mutazioni, tutte rilevate.
 
 ## 10. TB-WEB — Interfaccia
-_In revisione._
+Documento completo: [`docs/testbook/TB-WEB-interfaccia.md`](testbook/TB-WEB-interfaccia.md) — 77 regole, 349 rami mappati,
+**741 righe** in 21 aree. Test: file `web/**/*.testbook.test.ts(x)` accanto al codice, helper `web/test/testbook.ts`.
+
+- **Oracoli dalla specifica:** matrice ruoli × capacità (docs/08 §2), barra laterale (docs/08 §1), barra del ciclo di vita
+  (docs/08 §3.3) copiate nei test e confrontate col codice.
+- **Divergenze trovate e corrette (33 righe, 23 cause):** etichette e contatore della navigazione, azioni vietate davvero
+  disabilitate, dialogo per ogni transizione, colori degli stati, stati *loading/empty/error/degraded* di docs/07 §6,
+  avvisi del portale (mantenimento livello, profilo sospeso), frase generata della campagna, formati di euro, zero e tempo.
+- **Scelte registrate:** Q-186…Q-208; non conservative: Q-186, Q-197, Q-206; Q-208 = fonti ammesse non esposte da campaign.
+- **Verifica a mutazione:** 26 mutazioni, tutte rilevate.
 
 ## 10bis. TB-E2E — Percorsi end-to-end
 _Da scrivere: una riga per percorso reale (docs/17 E10, E11), con la catena di eventi attesa nello stesso tracciato e lo stato finale in ogni servizio; varianti con servizio addormentato a metà saga, riconsegna, reset tra esecuzioni, mezzanotte e cambio dell'ora a Roma, due azioni ravvicinate dello stesso membro._
