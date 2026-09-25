@@ -1,0 +1,4 @@
+id,descrizione,type,points,rewardCode,expDelivery
+TB-GAM-PRZ-001,vincita di un premio POINTS da 50 punti,POINTS,50,-,NA
+TB-GAM-PRZ-002,vincita di un premio COUPON collegato a RWD-COFFEE,COUPON,-,RWD-COFFEE,NA
+TB-GAM-PRZ-003,vincita di un premio PHYSICAL,PHYSICAL,-,-,PENDING

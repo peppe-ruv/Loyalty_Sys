@@ -1,0 +1,8 @@
+id,descrizione,period,t1,t2,expSame
+TB-GAM-PER-017,periodo DAY non ammesso (Q-159): chiave unica anche per giorni diversi,DAY,2026-09-24T10:00:00Z,2026-09-25T10:00:00Z,true
+TB-GAM-PER-018,periodo DAY: stesso giorno di Roma stessa chiave,DAY,2026-09-24T08:00:00Z,2026-09-24T20:00:00Z,true
+TB-GAM-PER-019,periodo WEEK non ammesso (Q-159): chiave unica anche per settimane diverse,WEEK,2026-09-21T10:00:00Z,2026-09-28T10:00:00Z,true
+TB-GAM-PER-020,periodo WEEK: lunedì e domenica della stessa settimana,WEEK,2026-09-21T10:00:00Z,2026-09-27T10:00:00Z,true
+TB-GAM-PER-021,periodo NONE: una sola chiave per sempre,NONE,2020-01-01T10:00:00Z,2030-01-01T10:00:00Z,true
+TB-GAM-PER-022,periodo DAY non ammesso (Q-159): 23:59:59 e 00:00 di Roma stessa chiave,DAY,2026-01-10T22:59:59Z,2026-01-10T23:00:00Z,true
+TB-GAM-PER-023,periodo MONTH: 1 e 30 settembre stessa chiave,MONTH,2026-08-31T22:00:00Z,2026-09-30T21:59:59Z,true

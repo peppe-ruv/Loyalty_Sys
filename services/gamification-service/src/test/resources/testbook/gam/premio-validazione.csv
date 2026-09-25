@@ -1,0 +1,15 @@
+id,descrizione,type,points,rewardCode,qty,expHttp
+TB-GAM-PRZ-004,POINTS senza punti,POINTS,-,-,3,422
+TB-GAM-PRZ-005,POINTS con 0 punti (min-1),POINTS,0,-,3,422
+TB-GAM-PRZ-006,POINTS con 1 punto (min),POINTS,1,-,3,201
+TB-GAM-PRZ-007,POINTS con punti negativi,POINTS,-5,-,3,422
+TB-GAM-PRZ-008,COUPON senza rewardCode,COUPON,-,-,3,422
+TB-GAM-PRZ-009,COUPON con rewardCode di soli spazi,COUPON,-,"   ",3,422
+TB-GAM-PRZ-010,COUPON con rewardCode valido,COUPON,-,RWD-COFFEE,3,201
+TB-GAM-PRZ-011,PHYSICAL senza punti né rewardCode,PHYSICAL,-,-,3,201
+TB-GAM-PRZ-012,tipo sconosciuto DIGITAL,DIGITAL,-,-,3,422
+TB-GAM-PRZ-013,tipo assente,-,-,-,3,422
+TB-GAM-PRZ-014,quantità 0 (min-1),PHYSICAL,-,-,0,422
+TB-GAM-PRZ-015,quantità 1 (min),PHYSICAL,-,-,1,201
+TB-GAM-PRZ-016,quantità assente,PHYSICAL,-,-,-,422
+TB-GAM-PRZ-017,quantità negativa,PHYSICAL,-,-,-1,422

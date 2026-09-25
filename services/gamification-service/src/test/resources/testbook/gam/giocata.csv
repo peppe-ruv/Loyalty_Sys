@@ -1,0 +1,56 @@
+id,descrizione,status,timing,member,free,credits,cap,today,winsCap,priorWins,matured,expHttp,expCode,expKind,expOutcome,expAvailBefore,expAvailAfter
+TB-GAM-PLY-001,stato DRAFT e adesso 1 ms prima di startAt,DRAFT,BEFORE,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-002,stato DRAFT e adesso esattamente a startAt,DRAFT,AT_START,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-003,stato DRAFT e adesso a metà periodo,DRAFT,IN,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-004,stato DRAFT e adesso 1 ms prima di endAt,DRAFT,END_M1,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-005,stato DRAFT e adesso esattamente a endAt,DRAFT,AT_END,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-006,stato DRAFT e adesso un giorno dopo endAt,DRAFT,AFTER,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-007,stato IN_REVIEW e adesso 1 ms prima di startAt,IN_REVIEW,BEFORE,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-008,stato IN_REVIEW e adesso esattamente a startAt,IN_REVIEW,AT_START,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-009,stato IN_REVIEW e adesso a metà periodo,IN_REVIEW,IN,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-010,stato IN_REVIEW e adesso 1 ms prima di endAt,IN_REVIEW,END_M1,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-011,stato IN_REVIEW e adesso esattamente a endAt,IN_REVIEW,AT_END,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-012,stato IN_REVIEW e adesso un giorno dopo endAt,IN_REVIEW,AFTER,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-013,stato APPROVED e adesso 1 ms prima di startAt,APPROVED,BEFORE,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-014,stato APPROVED e adesso esattamente a startAt,APPROVED,AT_START,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-015,stato APPROVED e adesso a metà periodo,APPROVED,IN,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-016,stato APPROVED e adesso 1 ms prima di endAt,APPROVED,END_M1,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-017,stato APPROVED e adesso esattamente a endAt,APPROVED,AT_END,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-018,stato APPROVED e adesso un giorno dopo endAt,APPROVED,AFTER,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-019,stato LIVE e adesso 1 ms prima di startAt,LIVE,BEFORE,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-020,stato LIVE e adesso esattamente a startAt,LIVE,AT_START,ACTIVE,AVAIL,0,-,0,-,0,N,200,-,FREE_DAILY,LOSE,1,0
+TB-GAM-PLY-021,stato LIVE e adesso a metà periodo,LIVE,IN,ACTIVE,AVAIL,0,-,0,-,0,N,200,-,FREE_DAILY,LOSE,1,0
+TB-GAM-PLY-022,stato LIVE e adesso 1 ms prima di endAt,LIVE,END_M1,ACTIVE,AVAIL,0,-,0,-,0,N,200,-,FREE_DAILY,LOSE,1,0
+TB-GAM-PLY-023,stato LIVE e adesso esattamente a endAt,LIVE,AT_END,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-024,stato LIVE e adesso un giorno dopo endAt,LIVE,AFTER,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-025,stato PAUSED e adesso 1 ms prima di startAt,PAUSED,BEFORE,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-026,stato PAUSED e adesso esattamente a startAt,PAUSED,AT_START,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-027,stato PAUSED e adesso a metà periodo,PAUSED,IN,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-028,stato PAUSED e adesso 1 ms prima di endAt,PAUSED,END_M1,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-029,stato PAUSED e adesso esattamente a endAt,PAUSED,AT_END,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-030,stato PAUSED e adesso un giorno dopo endAt,PAUSED,AFTER,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-031,stato ENDED e adesso 1 ms prima di startAt,ENDED,BEFORE,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-032,stato ENDED e adesso esattamente a startAt,ENDED,AT_START,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-033,stato ENDED e adesso a metà periodo,ENDED,IN,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-034,stato ENDED e adesso 1 ms prima di endAt,ENDED,END_M1,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-035,stato ENDED e adesso esattamente a endAt,ENDED,AT_END,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-036,stato ENDED e adesso un giorno dopo endAt,ENDED,AFTER,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-037,stato ARCHIVED e adesso 1 ms prima di startAt,ARCHIVED,BEFORE,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-038,stato ARCHIVED e adesso esattamente a startAt,ARCHIVED,AT_START,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-039,stato ARCHIVED e adesso a metà periodo,ARCHIVED,IN,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-040,stato ARCHIVED e adesso 1 ms prima di endAt,ARCHIVED,END_M1,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-041,stato ARCHIVED e adesso esattamente a endAt,ARCHIVED,AT_END,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-042,stato ARCHIVED e adesso un giorno dopo endAt,ARCHIVED,AFTER,ACTIVE,AVAIL,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-043,membro INACTIVE,LIVE,IN,INACTIVE,AVAIL,0,-,0,-,0,N,422,MEMBER_NOT_ACTIVE,-,-,-,-
+TB-GAM-PLY-044,membro BLOCKED,LIVE,IN,BLOCKED,AVAIL,0,-,0,-,0,N,422,MEMBER_NOT_ACTIVE,-,-,-,-
+TB-GAM-PLY-045,membro ANONYMIZED,LIVE,IN,ANONYMIZED,AVAIL,0,-,0,-,0,N,422,MEMBER_NOT_ACTIVE,-,-,-,-
+TB-GAM-PLY-046,membro senza snapshot (sconosciuto),LIVE,IN,UNKNOWN,AVAIL,0,-,0,-,0,N,422,MEMBER_NOT_ACTIVE,-,-,-,-
+TB-GAM-PLY-047,maxWinsPerMember assente e 3 vincite precedenti con istante maturo,LIVE,IN,ACTIVE,AVAIL,0,-,0,-,3,Y,200,-,FREE_DAILY,WIN,1,0
+TB-GAM-PLY-048,nessun istante maturo,LIVE,IN,ACTIVE,AVAIL,0,-,0,-,0,N,200,-,FREE_DAILY,LOSE,1,0
+TB-GAM-PLY-049,maxWinsPerMember 2 con 1 vincita (limite-1) e istante maturo,LIVE,IN,ACTIVE,AVAIL,0,-,0,2,1,Y,200,-,FREE_DAILY,WIN,1,0
+TB-GAM-PLY-050,maxWinsPerMember 2 con 2 vincite (limite) e istante maturo,LIVE,IN,ACTIVE,AVAIL,0,-,0,2,2,Y,200,-,FREE_DAILY,LOSE,1,0
+TB-GAM-PLY-051,maxWinsPerMember 2 con 3 vincite (limite+1) e istante maturo,LIVE,IN,ACTIVE,AVAIL,0,-,0,2,3,Y,200,-,FREE_DAILY,LOSE,1,0
+TB-GAM-PLY-052,maxWinsPerMember 1 con 0 vincite e istante maturo,LIVE,IN,ACTIVE,AVAIL,0,-,0,1,0,Y,200,-,FREE_DAILY,WIN,1,0
+TB-GAM-PLY-053,AMBIGUO ordine: membro BLOCKED e concorso DRAFT,DRAFT,IN,BLOCKED,AVAIL,0,-,0,-,0,N,422,MEMBER_NOT_ACTIVE,-,-,-,-
+TB-GAM-PLY-054,AMBIGUO ordine: concorso PAUSED e nessuna giocata,PAUSED,IN,ACTIVE,NO,0,-,0,-,0,N,422,CONTEST_NOT_LIVE,-,-,-,-
+TB-GAM-PLY-055,AMBIGUO ordine: membro sconosciuto e periodo finito,LIVE,AFTER,UNKNOWN,AVAIL,0,-,0,-,0,N,422,MEMBER_NOT_ACTIVE,-,-,-,-

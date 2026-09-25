@@ -1,0 +1,16 @@
+id,descrizione,win,actor,status,note,expHttp,expDelivery,expNote
+TB-GAM-PRZ-020,CARE segna DELIVERED una vincita PHYSICAL con nota,PHYSICAL,CARE,DELIVERED,Spedito con corriere,204,DELIVERED,Spedito con corriere
+TB-GAM-PRZ-021,ADMIN segna DELIVERED una vincita PHYSICAL,PHYSICAL,ADMIN,DELIVERED,-,204,DELIVERED,-
+TB-GAM-PRZ-022,CARE riporta a PENDING una vincita PHYSICAL,PHYSICAL,CARE,PENDING,-,204,PENDING,-
+TB-GAM-PRZ-023,MARKETING non può aggiornare la consegna,PHYSICAL,MARKETING,DELIVERED,-,403,PENDING,-
+TB-GAM-PRZ-024,LEGAL non può aggiornare la consegna,PHYSICAL,LEGAL,DELIVERED,-,403,PENDING,-
+TB-GAM-PRZ-025,ANALYST non può aggiornare la consegna,PHYSICAL,ANALYST,DELIVERED,-,403,PENDING,-
+TB-GAM-PRZ-026,senza intestazione X-LH-Actor,PHYSICAL,NONE,DELIVERED,-,403,PENDING,-
+TB-GAM-PRZ-027,stato SHIPPED fuori enumerato,PHYSICAL,CARE,SHIPPED,-,422,PENDING,-
+TB-GAM-PRZ-028,stato assente,PHYSICAL,CARE,-,-,422,PENDING,-
+TB-GAM-PRZ-029,stato NA (non applicabile a un premio fisico),PHYSICAL,CARE,NA,-,422,PENDING,-
+TB-GAM-PRZ-030,consegna manuale su una vincita POINTS,POINTS,CARE,DELIVERED,-,409/422,NA,-
+TB-GAM-PRZ-031,consegna manuale su una vincita COUPON,COUPON,CARE,DELIVERED,-,409/422,NA,-
+TB-GAM-PRZ-032,consegna manuale su una giocata perdente,LOSE,CARE,DELIVERED,-,409/422,NA,-
+TB-GAM-PRZ-033,giocata inesistente,UNKNOWN,CARE,DELIVERED,-,404,-,-
+TB-GAM-PRZ-034,AMBIGUO nota di soli spazi,PHYSICAL,CARE,DELIVERED,"   ",204,DELIVERED,NULL

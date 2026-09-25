@@ -1,0 +1,40 @@
+id,descrizione,filter,data,expected
+TB-GAM-FLT-001,nessun filtro,-,'{"amount":1}',true
+TB-GAM-FLT-002,filtro senza regole,'{"op":"all"}','{"amount":1}',true
+TB-GAM-FLT-003,eq numerico uguale,'{"op":"all","rules":[{"field":"data.amount","cmp":"eq","value":50}]}','{"amount":50}',true
+TB-GAM-FLT-004,eq numerico diverso,'{"op":"all","rules":[{"field":"data.amount","cmp":"eq","value":50}]}','{"amount":51}',false
+TB-GAM-FLT-005,eq testuale uguale,'{"op":"all","rules":[{"field":"data.channel","cmp":"eq","value":"APP"}]}','{"channel":"APP"}',true
+TB-GAM-FLT-006,neq su valore diverso,'{"op":"all","rules":[{"field":"data.channel","cmp":"neq","value":"APP"}]}','{"channel":"WEB"}',true
+TB-GAM-FLT-007,neq su valore uguale,'{"op":"all","rules":[{"field":"data.channel","cmp":"neq","value":"APP"}]}','{"channel":"APP"}',false
+TB-GAM-FLT-008,gt 50 con 50,'{"op":"all","rules":[{"field":"data.amount","cmp":"gt","value":50}]}','{"amount":50}',false
+TB-GAM-FLT-009,gt 50 con 50.01,'{"op":"all","rules":[{"field":"data.amount","cmp":"gt","value":50}]}','{"amount":50.01}',true
+TB-GAM-FLT-010,gte 50 con 49.99 (min-1),'{"op":"all","rules":[{"field":"data.amount","cmp":"gte","value":50}]}','{"amount":49.99}',false
+TB-GAM-FLT-011,gte 50 con 50 (min),'{"op":"all","rules":[{"field":"data.amount","cmp":"gte","value":50}]}','{"amount":50}',true
+TB-GAM-FLT-012,gte 50 con 50.01 (min+1),'{"op":"all","rules":[{"field":"data.amount","cmp":"gte","value":50}]}','{"amount":50.01}',true
+TB-GAM-FLT-013,lt 50 con 49.99,'{"op":"all","rules":[{"field":"data.amount","cmp":"lt","value":50}]}','{"amount":49.99}',true
+TB-GAM-FLT-014,lt 50 con 50,'{"op":"all","rules":[{"field":"data.amount","cmp":"lt","value":50}]}','{"amount":50}',false
+TB-GAM-FLT-015,lte 50 con 50,'{"op":"all","rules":[{"field":"data.amount","cmp":"lte","value":50}]}','{"amount":50}',true
+TB-GAM-FLT-016,lte 50 con 50.01,'{"op":"all","rules":[{"field":"data.amount","cmp":"lte","value":50}]}','{"amount":50.01}',false
+TB-GAM-FLT-017,in con valore presente,'{"op":"all","rules":[{"field":"data.channel","cmp":"in","value":["APP","WEB"]}]}','{"channel":"APP"}',true
+TB-GAM-FLT-018,in con valore assente,'{"op":"all","rules":[{"field":"data.channel","cmp":"in","value":["APP","WEB"]}]}','{"channel":"POS"}',false
+TB-GAM-FLT-019,nin con valore fuori elenco,'{"op":"all","rules":[{"field":"data.channel","cmp":"nin","value":["APP"]}]}','{"channel":"POS"}',true
+TB-GAM-FLT-020,contains su un elenco che contiene il valore,'{"op":"all","rules":[{"field":"data.tags","cmp":"contains","value":"a"}]}','{"tags":["a","b"]}',true
+TB-GAM-FLT-021,ncontains su un testo che non contiene il valore,'{"op":"all","rules":[{"field":"data.code","cmp":"ncontains","value":"z"}]}','{"code":"abc"}',true
+TB-GAM-FLT-022,exists su campo presente,'{"op":"all","rules":[{"field":"data.amount","cmp":"exists"}]}','{"amount":50}',true
+TB-GAM-FLT-023,exists su campo assente,'{"op":"all","rules":[{"field":"data.amount","cmp":"exists"}]}','{"channel":"APP"}',false
+TB-GAM-FLT-024,nexists su campo assente,'{"op":"all","rules":[{"field":"data.amount","cmp":"nexists"}]}','{"channel":"APP"}',true
+TB-GAM-FLT-025,nexists su campo presente,'{"op":"all","rules":[{"field":"data.amount","cmp":"nexists"}]}','{"amount":50}',false
+TB-GAM-FLT-026,between 10 e 100 con 50,'{"op":"all","rules":[{"field":"data.amount","cmp":"between","value":[10,100]}]}','{"amount":50}',true
+TB-GAM-FLT-027,startsWith AP su APP,'{"op":"all","rules":[{"field":"data.channel","cmp":"startsWith","value":"AP"}]}','{"channel":"APP"}',true
+TB-GAM-FLT-028,campo assente con eq,'{"op":"all","rules":[{"field":"data.amount","cmp":"eq","value":50}]}','{"channel":"APP"}',false
+TB-GAM-FLT-029,campo assente con neq (docs/03 §3.3: foglia falsa),'{"op":"all","rules":[{"field":"data.channel","cmp":"neq","value":"APP"}]}','{"amount":5}',false
+TB-GAM-FLT-030,tipi incompatibili: gte 50 su testo,'{"op":"all","rules":[{"field":"data.amount","cmp":"gte","value":50}]}','{"amount":"abc"}',false
+TB-GAM-FLT-031,all con una regola falsa,'{"op":"all","rules":[{"field":"data.amount","cmp":"gte","value":50},{"field":"data.channel","cmp":"eq","value":"APP"}]}','{"amount":60,"channel":"WEB"}',false
+TB-GAM-FLT-032,all con tutte le regole vere,'{"op":"all","rules":[{"field":"data.amount","cmp":"gte","value":50},{"field":"data.channel","cmp":"eq","value":"APP"}]}','{"amount":60,"channel":"APP"}',true
+TB-GAM-FLT-033,any con una regola vera,'{"op":"any","rules":[{"field":"data.amount","cmp":"gte","value":50},{"field":"data.channel","cmp":"eq","value":"APP"}]}','{"amount":10,"channel":"APP"}',true
+TB-GAM-FLT-034,any con tutte le regole false,'{"op":"any","rules":[{"field":"data.amount","cmp":"gte","value":50},{"field":"data.channel","cmp":"eq","value":"APP"}]}','{"amount":10,"channel":"WEB"}',false
+TB-GAM-FLT-035,not su una regola falsa,'{"op":"not","rules":[{"field":"data.amount","cmp":"gte","value":100}]}','{"amount":50}',true
+TB-GAM-FLT-036,campo su elenco items[*].category (almeno un elemento),'{"op":"all","rules":[{"field":"data.items[*].category","cmp":"eq","value":"food"}]}','{"items":[{"category":"tech"},{"category":"food"}]}',true
+TB-GAM-FLT-037,AMBIGUO comparatore sconosciuto foo tra numeri uguali,'{"op":"all","rules":[{"field":"data.amount","cmp":"foo","value":50}]}','{"amount":50}',true
+TB-GAM-FLT-038,gruppo annidato any dentro all,'{"op":"all","rules":[{"field":"data.amount","cmp":"gte","value":10},{"op":"any","rules":[{"field":"data.channel","cmp":"eq","value":"APP"},{"field":"data.channel","cmp":"eq","value":"WEB"}]}]}','{"amount":20,"channel":"WEB"}',true
+TB-GAM-FLT-039,between 10 e 100 con 5 (fuori),'{"op":"all","rules":[{"field":"data.amount","cmp":"between","value":[10,100]}]}','{"amount":5}',false

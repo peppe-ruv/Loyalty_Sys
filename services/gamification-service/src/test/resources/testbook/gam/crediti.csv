@@ -1,0 +1,37 @@
+id,descrizione,status,timing,member,free,credits,cap,today,winsCap,priorWins,matured,expHttp,expCode,expKind,expOutcome,expAvailBefore,expAvailAfter
+TB-GAM-CRD-001,gratuita non prevista e 0 crediti e nessun tetto giornaliero,LIVE,IN,ACTIVE,NO,0,-,0,-,0,N,422,NO_PLAYS_AVAILABLE,-,-,0,-
+TB-GAM-CRD-002,gratuita non prevista e 0 crediti e tetto 5 con 1 giocata oggi,LIVE,IN,ACTIVE,NO,0,5,1,-,0,N,422,NO_PLAYS_AVAILABLE,-,-,0,-
+TB-GAM-CRD-003,gratuita non prevista e 0 crediti e tetto 5 con 4 giocate oggi (limite-1),LIVE,IN,ACTIVE,NO,0,5,4,-,0,N,422,NO_PLAYS_AVAILABLE,-,-,0,-
+TB-GAM-CRD-004,AMBIGUO ordine: gratuita non prevista e 0 crediti e tetto 5 con 5 giocate oggi (limite),LIVE,IN,ACTIVE,NO,0,5,5,-,0,N,422,DAILY_LIMIT_REACHED,-,-,0,-
+TB-GAM-CRD-005,gratuita non prevista e 1 crediti e nessun tetto giornaliero,LIVE,IN,ACTIVE,NO,1,-,0,-,0,N,200,-,CREDIT,LOSE,1,0
+TB-GAM-CRD-006,gratuita non prevista e 1 crediti e tetto 5 con 1 giocata oggi,LIVE,IN,ACTIVE,NO,1,5,1,-,0,N,200,-,CREDIT,LOSE,1,0
+TB-GAM-CRD-007,gratuita non prevista e 1 crediti e tetto 5 con 4 giocate oggi (limite-1),LIVE,IN,ACTIVE,NO,1,5,4,-,0,N,200,-,CREDIT,LOSE,1,0
+TB-GAM-CRD-008,gratuita non prevista e 1 crediti e tetto 5 con 5 giocate oggi (limite),LIVE,IN,ACTIVE,NO,1,5,5,-,0,N,422,DAILY_LIMIT_REACHED,-,-,0,-
+TB-GAM-CRD-009,gratuita non prevista e 3 crediti e nessun tetto giornaliero,LIVE,IN,ACTIVE,NO,3,-,0,-,0,N,200,-,CREDIT,LOSE,3,2
+TB-GAM-CRD-010,gratuita non prevista e 3 crediti e tetto 5 con 1 giocata oggi,LIVE,IN,ACTIVE,NO,3,5,1,-,0,N,200,-,CREDIT,LOSE,3,2
+TB-GAM-CRD-011,gratuita non prevista e 3 crediti e tetto 5 con 4 giocate oggi (limite-1),LIVE,IN,ACTIVE,NO,3,5,4,-,0,N,200,-,CREDIT,LOSE,1,0
+TB-GAM-CRD-012,gratuita non prevista e 3 crediti e tetto 5 con 5 giocate oggi (limite),LIVE,IN,ACTIVE,NO,3,5,5,-,0,N,422,DAILY_LIMIT_REACHED,-,-,0,-
+TB-GAM-CRD-013,gratuita prevista e non usata oggi e 0 crediti e nessun tetto giornaliero,LIVE,IN,ACTIVE,AVAIL,0,-,0,-,0,N,200,-,FREE_DAILY,LOSE,1,0
+TB-GAM-CRD-014,gratuita prevista e non usata oggi e 0 crediti e tetto 5 con 1 giocata oggi,LIVE,IN,ACTIVE,AVAIL,0,5,1,-,0,N,200,-,FREE_DAILY,LOSE,1,0
+TB-GAM-CRD-015,gratuita prevista e non usata oggi e 0 crediti e tetto 5 con 4 giocate oggi (limite-1),LIVE,IN,ACTIVE,AVAIL,0,5,4,-,0,N,200,-,FREE_DAILY,LOSE,1,0
+TB-GAM-CRD-016,gratuita prevista e non usata oggi e 0 crediti e tetto 5 con 5 giocate oggi (limite),LIVE,IN,ACTIVE,AVAIL,0,5,5,-,0,N,422,DAILY_LIMIT_REACHED,-,-,0,-
+TB-GAM-CRD-017,gratuita prevista e non usata oggi e 1 crediti e nessun tetto giornaliero,LIVE,IN,ACTIVE,AVAIL,1,-,0,-,0,N,200,-,FREE_DAILY,LOSE,2,1
+TB-GAM-CRD-018,gratuita prevista e non usata oggi e 1 crediti e tetto 5 con 1 giocata oggi,LIVE,IN,ACTIVE,AVAIL,1,5,1,-,0,N,200,-,FREE_DAILY,LOSE,2,1
+TB-GAM-CRD-019,gratuita prevista e non usata oggi e 1 crediti e tetto 5 con 4 giocate oggi (limite-1),LIVE,IN,ACTIVE,AVAIL,1,5,4,-,0,N,200,-,FREE_DAILY,LOSE,1,0
+TB-GAM-CRD-020,gratuita prevista e non usata oggi e 1 crediti e tetto 5 con 5 giocate oggi (limite),LIVE,IN,ACTIVE,AVAIL,1,5,5,-,0,N,422,DAILY_LIMIT_REACHED,-,-,0,-
+TB-GAM-CRD-021,gratuita prevista e non usata oggi e 3 crediti e nessun tetto giornaliero,LIVE,IN,ACTIVE,AVAIL,3,-,0,-,0,N,200,-,FREE_DAILY,LOSE,4,3
+TB-GAM-CRD-022,gratuita prevista e non usata oggi e 3 crediti e tetto 5 con 1 giocata oggi,LIVE,IN,ACTIVE,AVAIL,3,5,1,-,0,N,200,-,FREE_DAILY,LOSE,4,3
+TB-GAM-CRD-023,gratuita prevista e non usata oggi e 3 crediti e tetto 5 con 4 giocate oggi (limite-1),LIVE,IN,ACTIVE,AVAIL,3,5,4,-,0,N,200,-,FREE_DAILY,LOSE,1,0
+TB-GAM-CRD-024,gratuita prevista e non usata oggi e 3 crediti e tetto 5 con 5 giocate oggi (limite),LIVE,IN,ACTIVE,AVAIL,3,5,5,-,0,N,422,DAILY_LIMIT_REACHED,-,-,0,-
+TB-GAM-CRD-025,gratuita già usata oggi e 0 crediti e nessun tetto giornaliero,LIVE,IN,ACTIVE,USED,0,-,1,-,0,N,422,NO_PLAYS_AVAILABLE,-,-,0,-
+TB-GAM-CRD-026,gratuita già usata oggi e 0 crediti e tetto 5 con 1 giocata oggi,LIVE,IN,ACTIVE,USED,0,5,1,-,0,N,422,NO_PLAYS_AVAILABLE,-,-,0,-
+TB-GAM-CRD-027,gratuita già usata oggi e 0 crediti e tetto 5 con 4 giocate oggi (limite-1),LIVE,IN,ACTIVE,USED,0,5,4,-,0,N,422,NO_PLAYS_AVAILABLE,-,-,0,-
+TB-GAM-CRD-028,AMBIGUO ordine: gratuita già usata oggi e 0 crediti e tetto 5 con 5 giocate oggi (limite),LIVE,IN,ACTIVE,USED,0,5,5,-,0,N,422,DAILY_LIMIT_REACHED,-,-,0,-
+TB-GAM-CRD-029,gratuita già usata oggi e 1 crediti e nessun tetto giornaliero,LIVE,IN,ACTIVE,USED,1,-,1,-,0,N,200,-,CREDIT,LOSE,1,0
+TB-GAM-CRD-030,gratuita già usata oggi e 1 crediti e tetto 5 con 1 giocata oggi,LIVE,IN,ACTIVE,USED,1,5,1,-,0,N,200,-,CREDIT,LOSE,1,0
+TB-GAM-CRD-031,gratuita già usata oggi e 1 crediti e tetto 5 con 4 giocate oggi (limite-1),LIVE,IN,ACTIVE,USED,1,5,4,-,0,N,200,-,CREDIT,LOSE,1,0
+TB-GAM-CRD-032,gratuita già usata oggi e 1 crediti e tetto 5 con 5 giocate oggi (limite),LIVE,IN,ACTIVE,USED,1,5,5,-,0,N,422,DAILY_LIMIT_REACHED,-,-,0,-
+TB-GAM-CRD-033,gratuita già usata oggi e 3 crediti e nessun tetto giornaliero,LIVE,IN,ACTIVE,USED,3,-,1,-,0,N,200,-,CREDIT,LOSE,3,2
+TB-GAM-CRD-034,gratuita già usata oggi e 3 crediti e tetto 5 con 1 giocata oggi,LIVE,IN,ACTIVE,USED,3,5,1,-,0,N,200,-,CREDIT,LOSE,3,2
+TB-GAM-CRD-035,gratuita già usata oggi e 3 crediti e tetto 5 con 4 giocate oggi (limite-1),LIVE,IN,ACTIVE,USED,3,5,4,-,0,N,200,-,CREDIT,LOSE,1,0
+TB-GAM-CRD-036,gratuita già usata oggi e 3 crediti e tetto 5 con 5 giocate oggi (limite),LIVE,IN,ACTIVE,USED,3,5,5,-,0,N,422,DAILY_LIMIT_REACHED,-,-,0,-

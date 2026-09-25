@@ -1,0 +1,21 @@
+id,descrizione,role,overrides,expHttp
+TB-GAM-LCF-001,AMBIGUO top N 2 (min-1),MARKETING,topN=2,422
+TB-GAM-LCF-002,top N 3 (min),MARKETING,topN=3,201
+TB-GAM-LCF-003,top N 50 (max),MARKETING,topN=50,201
+TB-GAM-LCF-004,AMBIGUO top N 51 (max+1),MARKETING,topN=51,422
+TB-GAM-LCF-005,ACTION_COUNT senza tipi di azione,MARKETING,metric=ACTION_COUNT,422
+TB-GAM-LCF-006,ACTION_COUNT con un tipo di azione,MARKETING,metric=ACTION_COUNT;types=tb.lcf.a,201
+TB-GAM-LCF-007,metrica sconosciuta FOO,MARKETING,metric=FOO,422
+TB-GAM-LCF-008,periodo WEEK fuori enumerato,MARKETING,period=WEEK,422
+TB-GAM-LCF-009,periodo ALL_TIME,MARKETING,period=ALL_TIME,201
+TB-GAM-LCF-010,periodo EDITION,MARKETING,period=EDITION,201
+TB-GAM-LCF-011,metrica STS_EARNED,MARKETING,metric=STS_EARNED,201
+TB-GAM-LCF-012,stato PAUSED fuori enumerato,MARKETING,status=PAUSED,422
+TB-GAM-LCF-013,nome di soli spazi,MARKETING,name=   ,422
+TB-GAM-LCF-014,codice già usato,MARKETING,code=@DUP,409
+TB-GAM-LCF-015,AMBIGUO codice senza prefisso LDB-,MARKETING,code=CLASSIFICA-TB,422
+TB-GAM-LCF-016,LEGAL non crea classifiche,LEGAL,-,403
+TB-GAM-LCF-017,CARE non crea classifiche,CARE,-,403
+TB-GAM-LCF-018,ANALYST non crea classifiche,ANALYST,-,403
+TB-GAM-LCF-019,ADMIN crea una classifica,ADMIN,-,201
+TB-GAM-LCF-024,metrica assente,MARKETING,metric=~,422

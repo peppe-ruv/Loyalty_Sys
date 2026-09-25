@@ -1,0 +1,24 @@
+id,descrizione,status,field,expHttp,expInstants
+TB-GAM-EDT-050,LIVE: cambio del nome (campo sicuro),LIVE,name,200,KEPT
+TB-GAM-EDT-051,LIVE: cambio della descrizione (campo sicuro),LIVE,description,200,KEPT
+TB-GAM-EDT-052,LIVE: proroga di endAt (campo sicuro per docs/03 §3.6),LIVE,endAt,200,KEPT
+TB-GAM-EDT-053,LIVE: cambio del regolamento (non tra i campi sicuri),LIVE,rulesText,409,KEPT
+TB-GAM-EDT-054,LIVE: cambio di startAt,LIVE,startAt,409,KEPT
+TB-GAM-EDT-055,LIVE: cambio del montepremi,LIVE,prizes,409,KEPT
+TB-GAM-EDT-056,LIVE: cambio della distribuzione,LIVE,distribution,409,KEPT
+TB-GAM-EDT-057,LIVE: cambio del seme,LIVE,seed,409,KEPT
+TB-GAM-EDT-058,LIVE: cambio della meccanica,LIVE,mechanic,409,KEPT
+TB-GAM-EDT-059,LIVE: cambio della giocata gratuita giornaliera,LIVE,freePlayDaily,409,KEPT
+TB-GAM-EDT-060,LIVE: cambio del limite giornaliero,LIVE,maxPlaysPerMemberPerDay,409,KEPT
+TB-GAM-EDT-061,LIVE: cambio del limite di vincite,LIVE,maxWinsPerMember,409,KEPT
+TB-GAM-EDT-062,AMBIGUO PAUSED: cambio del nome,PAUSED,name,200,KEPT
+TB-GAM-EDT-063,AMBIGUO PAUSED: cambio del montepremi,PAUSED,prizes,409,KEPT
+TB-GAM-EDT-064,DRAFT: proroga di endAt invalida gli istanti,DRAFT,endAt,200,DELETED
+TB-GAM-EDT-065,DRAFT: cambio del montepremi invalida gli istanti,DRAFT,prizes,200,DELETED
+TB-GAM-EDT-066,DRAFT: cambio della distribuzione invalida gli istanti,DRAFT,distribution,200,DELETED
+TB-GAM-EDT-067,DRAFT: cambio del seme invalida gli istanti,DRAFT,seed,200,DELETED
+TB-GAM-EDT-068,DRAFT: cambio di startAt invalida gli istanti,DRAFT,startAt,200,DELETED
+TB-GAM-EDT-069,DRAFT: cambio del nome conserva gli istanti,DRAFT,name,200,KEPT
+TB-GAM-EDT-070,DRAFT: cambio della meccanica conserva gli istanti,DRAFT,mechanic,200,KEPT
+TB-GAM-EDT-071,DRAFT: cambio del limite giornaliero conserva gli istanti,DRAFT,maxPlaysPerMemberPerDay,200,KEPT
+TB-GAM-EDT-072,IN_REVIEW: cambio del montepremi invalida gli istanti,IN_REVIEW,prizes,200,DELETED

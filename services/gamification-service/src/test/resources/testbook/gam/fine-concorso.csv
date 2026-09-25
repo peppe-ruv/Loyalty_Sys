@@ -1,0 +1,7 @@
+id,descrizione,status,endOffsetMs,expStatus
+TB-GAM-END-001,LIVE con endAt 1 ms dopo asOf,LIVE,1,LIVE
+TB-GAM-END-002,LIVE con endAt uguale ad asOf,LIVE,0,ENDED
+TB-GAM-END-003,LIVE con endAt 1 ms prima di asOf,LIVE,-1,ENDED
+TB-GAM-END-004,PAUSED con endAt passato da un giorno,PAUSED,-86400000,PAUSED
+TB-GAM-END-005,APPROVED con endAt passato da un giorno,APPROVED,-86400000,APPROVED
+TB-GAM-END-006,DRAFT con endAt passato da un giorno,DRAFT,-86400000,DRAFT

@@ -1,0 +1,7 @@
+id,descrizione,offsetMs,instantStatus,expOutcome
+TB-GAM-CLM-001,istante OPEN 1 ms dopo adesso,1,OPEN,LOSE
+TB-GAM-CLM-002,istante OPEN esattamente adesso,0,OPEN,WIN
+TB-GAM-CLM-003,istante OPEN 1 ms prima di adesso,-1,OPEN,WIN
+TB-GAM-CLM-004,istante OPEN maturato da 30 giorni e mai riscosso,-2592000000,OPEN,WIN
+TB-GAM-CLM-005,istante VOID nel passato (annullato a fine concorso),-1000,VOID,LOSE
+TB-GAM-CLM-006,istante CLAIMED nel passato (già riscosso),-1000,CLAIMED,LOSE
