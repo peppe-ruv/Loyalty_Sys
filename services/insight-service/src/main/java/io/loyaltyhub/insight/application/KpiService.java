@@ -51,7 +51,7 @@ public class KpiService {
      * Normalizza la finestra: se {@code from/to} assenti usa gli ultimi {@code days} giorni fino a oggi.
      * {@code days} &lt; 1 o {@code from} dopo {@code to} ⇒ 400.
      */
-    // SPEC-GAP: Q-N12 — days < 1 e from > to non sono corretti in silenzio (finestra di un giorno o a zero): 400.
+    // SPEC-GAP: Q-323 — days < 1 e from > to non sono corretti in silenzio (finestra di un giorno o a zero): 400.
     public Window window(LocalDate from, LocalDate to, int days) {
         if (days < 1) {
             throw LhException.badRequest("Parametro days non valido (atteso ≥ 1): " + days);
@@ -64,8 +64,8 @@ public class KpiService {
         return new Window(start, end);
     }
 
-    /** Metrica di insight §2; sconosciuta ⇒ 400 (Q-N15). */
-    // SPEC-GAP: Q-N15 — una metrica sconosciuta non restituisce una serie vuota (sembrerebbe «zero»): 400.
+    /** Metrica di insight §2; sconosciuta ⇒ 400 (Q-326). */
+    // SPEC-GAP: Q-326 — una metrica sconosciuta non restituisce una serie vuota (sembrerebbe «zero»): 400.
     public static String metric(String metric) {
         if (metric == null || !METRICS.contains(metric)) {
             throw LhException.badRequest("Metrica sconosciuta: " + metric);
@@ -104,7 +104,7 @@ public class KpiService {
                 redemptions, plays, wins, deltas);
     }
 
-    /** Serie {@code day|week} (maiuscole indifferenti); altra granularità ⇒ 400 (Q-N15). */
+    /** Serie {@code day|week} (maiuscole indifferenti); altra granularità ⇒ 400 (Q-326). */
     public TimeSeries timeseries(String metric, LocalDate from, LocalDate to, String granularity) {
         String g = granularity == null ? "day" : granularity.toLowerCase(Locale.ROOT);
         if (!"day".equals(g) && !"week".equals(g)) {

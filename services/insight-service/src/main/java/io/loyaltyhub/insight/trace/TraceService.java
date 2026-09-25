@@ -50,7 +50,7 @@ public class TraceService {
     public Optional<Trace> trace(String correlationId) {
         List<StoredEvent> rows = events.byCorrelation(correlationId);
         List<DlqEntry> dlqs = dlqEntries.byCorrelation(correlationId);
-        // SPEC-GAP: Q-N7 — nessun evento né voce DLQ per il correlationId: 404 (il chiamante che attende un tracciato
+        // SPEC-GAP: Q-318 — nessun evento né voce DLQ per il correlationId: 404 (il chiamante che attende un tracciato
         // appena avviato tratta il 404 come «non ancora arrivato»), non un tracciato vuoto inventato.
         if (rows.isEmpty() && dlqs.isEmpty()) {
             return Optional.empty();

@@ -132,7 +132,7 @@ class LiveEventHubTest {
     }
 
     @Test
-    @DisplayName("[TB-INS-SRP-004 unità] Last-Event-ID fuori dal buffer: nessun rinvio (Q-N11), poi dal vivo")
+    @DisplayName("[TB-INS-SRP-004 unità] Last-Event-ID fuori dal buffer: nessun rinvio (Q-322), poi dal vivo")
     void unknownLastEventId() throws Exception {
         hub.publish(event("U0"));
         hub.publish(event("U1"));

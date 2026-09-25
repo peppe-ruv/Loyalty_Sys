@@ -480,7 +480,7 @@ class TestbookInsDlqIT extends TestbookInsBase {
     @Test
     @DisplayName("[TB-INS-DIG-002] solo intestazioni kafka_dlt-* del recoverer standard (AMBIGUO, ramo senza specifica): campi letti da queste")
     void ingestSpringHeaders() {
-        // Q-N5 DECISA (TB-INS-DIG-002) (docs/04 §5 nomina solo gli header lh-*)
+        // Q-316 DECISA (TB-INS-DIG-002) (docs/04 §5 nomina solo gli header lh-*)
         String ev = uid("EVT-DIG");
         Map<String, String> h = new LinkedHashMap<>();
         h.put("kafka_dlt-original-topic", "lh.facts.v1");
@@ -500,7 +500,7 @@ class TestbookInsDlqIT extends TestbookInsBase {
     @Test
     @DisplayName("[TB-INS-DIG-003] senza lh-error-code (AMBIGUO): errorCode = nome semplice della classe d'errore")
     void ingestCodeFromClass() {
-        // Q-N5 DECISA (TB-INS-DIG-003)
+        // Q-316 DECISA (TB-INS-DIG-003)
         String ev = uid("EVT-DIG");
         publish("lh.dlq.v1", "k", actionEnvelope(ev, uid("COR"), "member:MBR-000002"),
                 lhHeaders("lh.actions.v1", "lh-tb-dig-003", null, "a.b.FooException", "1", "false"), null);
@@ -510,7 +510,7 @@ class TestbookInsDlqIT extends TestbookInsBase {
     @Test
     @DisplayName("[TB-INS-DIG-004] senza consumer (AMBIGUO): consumer = unknown")
     void ingestNoConsumer() {
-        // Q-N5 DECISA (TB-INS-DIG-004)
+        // Q-316 DECISA (TB-INS-DIG-004)
         String ev = uid("EVT-DIG");
         publish("lh.dlq.v1", "k", actionEnvelope(ev, uid("COR"), "member:MBR-000002"),
                 lhHeaders("lh.actions.v1", null, "X", "x.X", "1", "false"), null);
@@ -520,7 +520,7 @@ class TestbookInsDlqIT extends TestbookInsBase {
     @Test
     @DisplayName("[TB-INS-DIG-005] tentativi non numerici e retryable assente (AMBIGUO): campi nulli")
     void ingestBadAttempts() {
-        // Q-N5 DECISA (TB-INS-DIG-005)
+        // Q-316 DECISA (TB-INS-DIG-005)
         String ev = uid("EVT-DIG");
         publish("lh.dlq.v1", "k", actionEnvelope(ev, uid("COR"), "member:MBR-000002"),
                 lhHeaders("lh.actions.v1", "lh-tb-dig-005", "X", "x.X", "tre", null), null);

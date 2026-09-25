@@ -105,7 +105,7 @@ class TestbookInsAuditIT extends TestbookInsBase {
     @Test
     @DisplayName("[TB-INS-AIN-017] evento di audit senza data (AMBIGUO): nessuna voce, l'evento resta nell'event store")
     void noData() {
-        // Q-N18 DECISA (TB-INS-AIN-017)
+        // Q-329 DECISA (TB-INS-AIN-017)
         String ev = uid("EVT-AIN");
         ObjectNode env = envelope(ev, AUDIT_TYPE, "urn:loyaltyhub:service:campaign", "CAMPAIGN:CMP-X", uid("COR"), null,
                 Instant.now(), null);
@@ -149,7 +149,7 @@ class TestbookInsAuditIT extends TestbookInsBase {
     @Test
     @DisplayName("[TB-INS-AIN-020] voce senza entityId (AMBIGUO: il contratto lo richiede): registrata con id vuoto")
     void noEntityId() {
-        // Q-N18 DECISA (TB-INS-AIN-020)
+        // Q-329 DECISA (TB-INS-AIN-020)
         String summary = uid("senza-oggetto");
         Map<String, Object> d = new LinkedHashMap<>();
         d.put("service", "tb-ain-020");

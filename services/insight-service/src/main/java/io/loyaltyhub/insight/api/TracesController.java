@@ -46,7 +46,7 @@ public class TracesController {
         return PageResponse.of(items, p.page(), p.size(), traces.count(memberId, fromI, toI));
     }
 
-    /** Tracciato di un {@code correlationId}; 404 se non c'è ancora nessun evento né voce DLQ (Q-N7). */
+    /** Tracciato di un {@code correlationId}; 404 se non c'è ancora nessun evento né voce DLQ (Q-318). */
     @GetMapping("/{correlationId}")
     public Trace byCorrelation(@PathVariable String correlationId) {
         return traces.trace(correlationId)

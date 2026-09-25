@@ -118,9 +118,9 @@ class TestbookInsStreamIT extends TestbookInsSupport {
 
     @Test
     @Order(4)
-    @DisplayName("[TB-INS-SRP-004] Last-Event-ID sconosciuto: nessun rinvio (Q-N11 DECISA: niente duplicati), poi dal vivo")
+    @DisplayName("[TB-INS-SRP-004] Last-Event-ID sconosciuto: nessun rinvio (Q-322 DECISA: niente duplicati), poi dal vivo")
     void unknownId() throws Exception {
-        // Q-N11 DECISA
+        // Q-322 DECISA
         String cor = uid("COR-SRP");
         publishLive(cor, 5);
         try (SseClient c = new SseClient("?correlationId=" + cor, "ID-MAI-VISTO", Map.of())) {
@@ -319,7 +319,7 @@ class TestbookInsStreamIT extends TestbookInsSupport {
     @Order(25)
     @DisplayName("[TB-INS-SSE-006] heartbeat ogni 15 s (AMBIGUO sulla forma: commento SSE): arriva entro 16 s su un canale muto")
     void heartbeat() throws Exception {
-        // Q-N16 DECISA (TB-INS-SSE-006) (insight §3 «heartbeat»: evento con nome o commento)
+        // Q-327 DECISA (TB-INS-SSE-006) (insight §3 «heartbeat»: evento con nome o commento)
         try (SseClient c = new SseClient("?correlationId=" + uid("COR-MUTO"), null, Map.of())) {
             await("heartbeat", () -> !c.comments.isEmpty()
                     || c.events.stream().anyMatch(e -> "heartbeat".equals(e.event())), 16_500);

@@ -32,7 +32,7 @@ class TestbookInsDlqRulesTest {
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/ins/dlq-riprocessabile.csv", numLinesToSkip = 1)
     void riprocessabile(String id, String desc, String family, String status, boolean expected) {
-        // Q-N1 DECISA per AUDIT/UNKNOWN aperte (TB-INS-DRP-010, TB-INS-DRP-013)
+        // Q-312 DECISA per AUDIT/UNKNOWN aperte (TB-INS-DRP-010, TB-INS-DRP-013)
         assertThat(entry(family, "io.loyaltyhub.action.x", status).reprocessable()).isEqualTo(expected);
     }
 

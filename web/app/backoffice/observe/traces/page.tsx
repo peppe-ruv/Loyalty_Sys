@@ -32,7 +32,7 @@ export default function TracesPage() {
     const c = new URLSearchParams(window.location.search).get("c");
     if (c) setSelected(c);
   }, []);
-  // Elenco paginato {items, page} (docs/06 §2); un tracciato sconosciuto è 404 (Q-N7).
+  // Elenco paginato {items, page} (docs/06 §2); un tracciato sconosciuto è 404 (Q-318).
   const list = useLhQuery<Page<TraceSummary>>("insight", "/v1/traces", { size: 50 }, {
     refetchInterval: 5000,
   });

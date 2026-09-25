@@ -42,7 +42,7 @@ Il testbook è eseguibile per intero con un comando e produce un rapporto riga p
 | Engagement | [§9](#9-tb-eng--engagement) | engagement | docs/servizi/engagement-service.md · F-CNT-*, F-MSG-*, F-WBH-01 | **eseguibile** — 804 righe |
 | Interfaccia | [§10](#10-tb-web--interfaccia) | web | docs/07 · docs/08 · docs/09 | **eseguibile** — 741 righe |
 | Percorsi end-to-end | [§10bis](#10bis-tb-e2e--percorsi-end-to-end) | hub (tutti) | docs/17 E10 e percorsi tra servizi · docs/10 §8 | **eseguibile** — 114 righe |
-| Osservabilità e audit | [§10ter](#10ter-tb-ins--osservabilità-e-audit) | insight | docs/servizi/insight-service.md · F-INS-*, F-AUD-01 | in preparazione |
+| Osservabilità e audit | [§10ter](#10ter-tb-ins--osservabilità-e-audit) | insight | docs/servizi/insight-service.md · F-INS-*, F-AUD-01 | **eseguibile** — 586 righe |
 | Piattaforma | [§10quater](#10quater-tb-plt--piattaforma) | lh-common, hub | docs/04 · docs/05 · docs/06 · contracts/ | in preparazione |
 
 ## 3. TB-ING — Ingresso eventi
@@ -166,7 +166,20 @@ Documento completo: [`docs/testbook/TB-E2E-percorsi.md`](testbook/TB-E2E-percors
 - **Verifica a mutazione:** 5 mutazioni, tutte rilevate.
 
 ## 10ter. TB-INS — Osservabilità e audit
-_Da scrivere: DLQ riprocessa/scarta, regole di stato dei tracciati, ripresa SSE con `Last-Event-ID`, KPI senza doppi conteggi, conservazione, audit (F-AUD-01)._
+Documento completo: [`docs/testbook/TB-INS-insight.md`](testbook/TB-INS-insight.md) — 28 regole, circa 110 rami mappati,
+**586 righe** in 37 aree. Test: `services/insight-service/src/test/java/io/loyaltyhub/insight/` (`TestbookIns*Test`,
+`TestbookIns{Dlq,Trace,Kpi,Audit,Events,Stream,Store}IT`) e `deploy/hub/.../TestbookInsHubIT` per le righe tra servizi.
+
+- **Riduzioni dichiarate:** filtri SSE 81 → 9 all-pairs (L9) + guasti singoli; DLQ stato × azione × famiglia × ruolo × nota
+  3 200 → 99 righe; tabelle complete per stato del tracciato, riprocessabilità e ruoli di lettura.
+- **Divergenze trovate e corrette (55 righe, 17 cause):** giorno di business in Europe/Rome, tutte le metriche e dimensioni
+  di insight §2, `membersActive30d` e `membersTotal`, storico sintetico di riscatti/giocate/vincite (docs/10 §9), 400 per
+  parametro mancante, esiti del tracciato, paginazione `{items,page}` su audit/eventi/tracciati (backoffice adeguato), stato
+  della pipeline (volumi 1 h/24 h, ritardo, ultimo fatto per servizio), coda SSE per client con disconnessione del lento e
+  consegna senza doppioni alla riconnessione, troncamento del payload a 8 KB, voce di audit `RESET`, servizio corretto
+  nell'audit dell'hub, audit di modifica campagna con i soli campi cambiati.
+- **Scelte registrate:** Q-312…Q-331 (tutte decise, conservative).
+- **Verifica a mutazione:** 11 mutazioni, tutte rilevate.
 
 ## 10quater. TB-PLT — Piattaforma
 _Da scrivere: outbox con Kafka giù, ritentativi e DLQ per tipo d'errore, conformità dei contratti evento, errori RFC 9457, reset idempotente, requisiti non funzionali._

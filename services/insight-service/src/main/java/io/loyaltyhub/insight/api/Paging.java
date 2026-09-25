@@ -8,7 +8,7 @@ import java.time.Instant;
  * Paginazione degli elenchi di insight (docs/06 §2): {@code ?page=0&size=20}, {@code size} massimo 100 (oltre è
  * limitata a 100). {@code limit} resta accettato come sinonimo di {@code size} per i chiamanti esistenti.
  */
-// SPEC-GAP: Q-N6, Q-N12 — size (o limit) < 1 e page < 0 non sono portati a un valore valido: 400 BAD_REQUEST.
+// SPEC-GAP: Q-317, Q-323 — size (o limit) < 1 e page < 0 non sono portati a un valore valido: 400 BAD_REQUEST.
 record Paging(int page, int size) {
 
     static final int MAX_SIZE = 100;

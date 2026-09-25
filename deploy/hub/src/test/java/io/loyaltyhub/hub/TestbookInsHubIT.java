@@ -172,7 +172,7 @@ class TestbookInsHubIT {
         return r.path("correlationId").asString();
     }
 
-    /** Tracciato; nodo vuoto finché è 404 (nessun evento ancora arrivato, Q-N7 DECISA). */
+    /** Tracciato; nodo vuoto finché è 404 (nessun evento ancora arrivato, Q-318 DECISA). */
     private JsonNode trace(String cor) {
         Resp r = call("GET", "/v1/traces/" + cor, null, null);
         if (r.status() == 404) {

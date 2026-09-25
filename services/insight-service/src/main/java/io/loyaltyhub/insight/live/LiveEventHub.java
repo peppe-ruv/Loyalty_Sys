@@ -163,7 +163,7 @@ public class LiveEventHub {
      * Eventi da rinviare per {@code lastEventId}: i successivi se è nel buffer; tutto il buffer se ne è uscito da poco
      * (più di 200 persi: si rinviano gli ultimi 200, insight §3); nulla se l'id manca o non è mai stato visto qui.
      */
-    // SPEC-GAP: Q-N11 — Last-Event-ID mai visto da questa istanza (riavvio, altra istanza, id inventato): nessun
+    // SPEC-GAP: Q-322 — Last-Event-ID mai visto da questa istanza (riavvio, altra istanza, id inventato): nessun
     // rinvio, per non duplicare eventi già visti; il client riparte dal vivo.
     private List<LiveEvent> replaySince(String lastEventId) {
         if (lastEventId == null || lastEventId.isBlank()) {
