@@ -154,6 +154,12 @@ class TestbookGovMemberIT {
         // Righe AMBIGUO (celle «—» senza ●, intestazioni non canoniche) — TESTBOOK: ambiguo, vedi TB-GOV §13
         Resp r = switch (endpoint) {
             case "STATUS" -> http(HttpMethod.POST, "/v1/members/" + newMember() + "/status", actor, Map.of("status", "BLOCKED"));
+            case "STATUS_UNBLOCK" -> {
+                // Sblocco BLOCKED → ACTIVE: stessa capacità member.write, la guardia non dipende dalla transizione.
+                String m = newMember();
+                http(HttpMethod.POST, "/v1/members/" + m + "/status", ADMIN, Map.of("status", "BLOCKED"));
+                yield http(HttpMethod.POST, "/v1/members/" + m + "/status", actor, Map.of("status", "ACTIVE"));
+            }
             case "PATCH" -> http(HttpMethod.PATCH, "/v1/members/" + newMember(), actor, Map.of("city", "Ancona"));
             case "CREATE" -> http(HttpMethod.POST, "/v1/members", actor, Map.of("firstName", "Prova", "lastName", "Ruolo",
                     "email", email()));

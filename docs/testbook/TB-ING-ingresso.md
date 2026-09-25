@@ -1149,6 +1149,30 @@ anomalia di calendario una volta.
 | Regole non implementate | 6 (R-14, R-23, filtri di R-13, parti di R-25 e R-27, R-28) |
 | Divergenze | 46 righe, 14 cause (§5): tutte risolte |
 
+### Verifica a mutazione
+
+Eseguita il 2026-09-25 (prima non eseguita: bloccata dal controllo dei permessi dell'agente). Una regola di produzione
+rotta alla volta, in una copia di lavoro isolata; la classe Testbook interessata eseguita con
+`./mvnw -q -pl services/ingestion-service -am verify -Dtest='Testbook*Test' -Dit.test='<Classe>'`, esiti letti da
+`target/*-reports`; il file ripristinato con `git checkout` prima della mutazione successiva. Punto di partenza:
+685 righe verdi. **8 mutazioni, 8 rilevate**: ogni classe Testbook ne rileva almeno una.
+
+| # | Mutazione (file) | Classe eseguita | Righe diventate rosse |
+|---|---|---|---|
+| M-01 | limite nel futuro 5 → 6 minuti (`IngestionService.MAX_FUTURE`) | `TestbookIngPipelineIT` | TIM-004 (adesso + 5 min + 1 ms), TIM-005 (adesso + 6 min) |
+| M-02 | deduplica rotta: il controllo `(fonte, id)` già `ACCEPTED` non scatta mai (`IngestionService#evaluate`, passo 6) | `TestbookIngPipelineIT` | PIP-044, PIP-045 (con dedup e membro sbagliato vince DUPLICATE: il mutante risponde UNMATCHED) |
+| M-03 | `InboundResolution.canRetry` accetta anche `ACCEPTED` | `TestbookIngResolutionIT` | RES-015 (riprova su riga ACCEPTED), RES-042 (due riprova concorrenti), RES-056 (riprova dopo l'abbinamento) |
+| M-04 | finestra dell'abbinamento automatico 7 → 8 giorni (`InboundResolutionService.AUTO_MATCH_WINDOW`) | `TestbookIngResolutionIT` | AUT-009, AUT-021, AUT-033 (parcheggiati da 7 g 1 h), AUT-051 (7 g + 1 s) |
+| M-05 | nessun controllo ADMIN sulla modifica dei tipi SYSTEM (`EventTypeService#update`) | `TestbookIngConfigIT` | ETY-047 (tipo di sistema modificato da MARKETING) |
+| M-06 | prefisso dell'id `txn-` → `tx-` (`TransactionsController`) | `TestbookIngConfigIT` | TXN-001…003, TXN-015…022, TXN-024…028 (16 righe: id atteso `txn-<orderId>`) |
+| M-07 | sabato contato come feriale in `@lastWeekday` (lh-common `SeedDates#lastDayOfWeek`, usato da `ScenarioTime`) | `TestbookIngScenarioTimeTest` | SCT-005, SCT-006 (lunedì), SCT-008 (domenica), SCT-015 (lunedì dopo il cambio dell'ora) |
+| M-08 | fonte riconosciuta per suffisso dell'URN invece che per prefisso esatto `urn:loyaltyhub:source:` (`IngestionService#sourceCodeOf`) | `TestbookIngPipelineIT` | SRC-068 (`urn:loyaltyhub:service:ecommerce`), SRC-069 (`urn:altro:ecommerce`) |
+
+Nota su M-02: le righe DUP restano verdi perché la deduplica ha una seconda difesa, l'inserimento univoco della riga
+`ACCEPTED` (`IngestionService#ingest`, `insertAccepted` → DUPLICATE, pensato per le gare concorrenti). Il mutante è
+rilevato dalle righe d'ordine PIP-044/045: senza il passo 6 la pipeline arriva al passo 7 e il membro decide l'esito.
+Nessuna riga aggiunta.
+
 ## 5. Registro delle divergenze
 
 | N. | Righe | Specifica | Comportamento osservato | Causa (file:riga) | Stato |

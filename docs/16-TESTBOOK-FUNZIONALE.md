@@ -38,7 +38,7 @@ Il testbook è eseguibile per intero con un comando e produce un rapporto riga p
 | Wallet e livelli | [§5](#5-tb-wal--wallet-e-livelli) | wallet | docs/03 §4 · docs/servizi/wallet-service.md · F-WAL-*, F-TIER-* | **eseguibile** — 373 righe |
 | Premi e coupon | [§6](#6-tb-rwd--premi-e-coupon) | reward (+ wallet) | docs/servizi/reward-service.md · F-RWD-*, F-CPN-* | **eseguibile** — 567 righe |
 | Gioco | [§7](#7-tb-gam--gioco) | gamification | docs/servizi/gamification-service.md · F-IW-*, F-ACH-*, F-LDB-*, F-REF-* | **eseguibile** — 710 righe |
-| Governance e membri | [§8](#8-tb-gov--governance-e-membri) | tutti · member | docs/03 §3.6 · docs/06 §7 · docs/08 §2 · F-APR-*, F-MBR-*, F-SEG-* | **eseguibile** — 972 righe |
+| Governance e membri | [§8](#8-tb-gov--governance-e-membri) | tutti · member | docs/03 §3.6 · docs/06 §7 · docs/08 §2 · F-APR-*, F-MBR-*, F-SEG-* | **eseguibile** — 978 righe |
 | Engagement | [§9](#9-tb-eng--engagement) | engagement | docs/servizi/engagement-service.md · F-CNT-*, F-MSG-*, F-WBH-01 | **eseguibile** — 804 righe |
 | Interfaccia | [§10](#10-tb-web--interfaccia) | web | docs/07 · docs/08 · docs/09 | **eseguibile** — 741 righe |
 | Percorsi end-to-end | [§10bis](#10bis-tb-e2e--percorsi-end-to-end) | hub (tutti) | docs/17 E10 e percorsi tra servizi · docs/10 §8 | in preparazione |
@@ -58,8 +58,7 @@ Documento completo: [`docs/testbook/TB-ING-ingresso.md`](testbook/TB-ING-ingress
   `from`/`to`/`q` del monitor, storico demo di 40 ingressi (`seed/inbound-history.json`), `POST/PUT /v1/sources`,
   codici dei tipi custom e JSON Schema validato, origine e variazioni del simulatore, espressioni di tempo degli scenari.
 - **Scelte registrate:** Q-255…Q-272.
-- **Verifica a mutazione:** non eseguita per questo dominio (bloccata dal controllo dei permessi dell'agente); le
-  divergenze corrette hanno comunque fatto il percorso rosso → verde.
+- **Verifica a mutazione:** 8 mutazioni, tutte rilevate (tabella in §4 del documento).
 
 ## 4. TB-CMP — Campagne
 Documento completo: [`docs/testbook/TB-CMP-campagne.md`](testbook/TB-CMP-campagne.md) — 37 regole, 250 punti di decisione,
@@ -116,7 +115,7 @@ d'integrazione `TestbookGam*IT` con un solo contesto), dati in `testbook/gam/*.c
 
 ## 8. TB-GOV — Governance e membri
 Documento completo: [`docs/testbook/TB-GOV-governance.md`](testbook/TB-GOV-governance.md) — 33 regole, 61 rami mappati,
-**972 righe** in 25 aree. Test: `libs/lh-common/src/test/java/io/loyaltyhub/common/testbook/` (attore, transizioni, policy),
+**978 righe** in 25 aree. Test: `libs/lh-common/src/test/java/io/loyaltyhub/common/testbook/` (attore, transizioni, policy),
 `services/member-service/src/test/java/io/loyaltyhub/member/testbook/` (criteri dei segmenti, attributi, `TestbookGovMemberIT`),
 `deploy/hub/src/test/java/io/loyaltyhub/hub/TestbookGovHubIT.java` (righe tra servizi).
 
@@ -127,8 +126,8 @@ Documento completo: [`docs/testbook/TB-GOV-governance.md`](testbook/TB-GOV-gover
   → 422, corpo mancante → 400, storico approvazioni anche per i contenuti (`GET /v1/contents/{id}/approval-history`).
 - **Referral lato member-service:** area REF (23 righe).
 - **Scelte registrate:** Q-298…Q-310; non conservative: Q-298, Q-300, Q-303, Q-306.
-- **Verifica a mutazione:** non eseguita (bloccata dal controllo dei permessi dell'agente); le divergenze corrette hanno
-  fatto il percorso rosso → verde.
+- **Verifica a mutazione:** 9 mutazioni, tutte rilevate; lo sblocco di un membro senza CARE/ADMIN sopravviveva e ha
+  portato 6 righe nuove (MRL-075…080; tabella in §15 del documento).
 
 ## 9. TB-ENG — Engagement
 Documento completo: [`docs/testbook/TB-ENG-engagement.md`](testbook/TB-ENG-engagement.md) — 47 regole, 143 rami mappati,
