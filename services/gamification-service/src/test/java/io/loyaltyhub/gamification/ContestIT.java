@@ -149,7 +149,10 @@ class ContestIT {
         assertThat(live.path("status").asString()).isEqualTo("LIVE");
         assertThat(send("PUT", "/v1/contests/" + id, "MARKETING:luca", Map.of("prizes", List.of(
                 prize("PTS-10", "POINTS", 10, null, 9))), 409).path("code").asString()).isEqualTo("CONTEST_LIVE_LOCKED");
-        assertThat(send("PUT", "/v1/contests/" + id, "MARKETING:luca", Map.of("endAt", Instant.now().plus(Duration.ofDays(90)).toString()), 409)
+        // docs/03 §3.6: endAt è un campo sicuro (proroga ammessa, istanti invariati); il regolamento no.
+        assertThat(send("PUT", "/v1/contests/" + id, "MARKETING:luca", Map.of("endAt", Instant.now().plus(Duration.ofDays(90)).toString()), 200)
+                .path("instants").path("total").asLong()).isEqualTo(4);
+        assertThat(send("PUT", "/v1/contests/" + id, "MARKETING:luca", Map.of("rulesText", "Regolamento cambiato"), 409)
                 .path("code").asString()).isEqualTo("CONTEST_LIVE_LOCKED");
         assertThat(send("POST", "/v1/contests/" + id + "/instants/generate", "ADMIN:test", null, 409)
                 .path("code").asString()).isEqualTo("INSTANTS_LOCKED");
