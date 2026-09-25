@@ -220,7 +220,7 @@ public final class CampaignEngine {
             }
         }
         // F-CMP-05, docs/03 §3.2: tetto punti per membro e cooldown tra due match dello stesso membro.
-        // SPEC-GAP: Q-E9 — entrambi scartano con LIMIT; il tetto è sui punti decisi dalla campagna per il membro da
+        // SPEC-GAP: Q-165 — entrambi scartano con LIMIT; il tetto è sui punti decisi dalla campagna per il membro da
         // sempre (≥ tetto → scarta, l'ultimo accredito non si riduce, come il budget); il cooldown si misura sul time
         // di business dell'ultimo match (un'azione con time precedente all'ultimo match è dentro il cooldown).
         JsonNode perMemberPoints = limits.get("perMemberPoints");
@@ -422,7 +422,7 @@ public final class CampaignEngine {
             if (!m.currency.equals(grant.currency) || m.campaignCode.equals(grant.campaignCode)) {
                 continue;
             }
-            // SPEC-GAP: Q-C44 — scope diverso da ALL_GRANTS senza labels: nessuna campagna nell'ambito (non moltiplica).
+            // SPEC-GAP: Q-252 — scope diverso da ALL_GRANTS senza labels: nessuna campagna nell'ambito (non moltiplica).
             boolean inScope = m.scope.equals("ALL_GRANTS")
                     || (m.scope.equals("LABELS") && labelsIntersect(m.labels, grant.campaignLabels));
             if (inScope) {

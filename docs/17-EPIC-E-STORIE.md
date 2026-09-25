@@ -508,7 +508,7 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
 *Come* responsabile del budget, *voglio* limitare quante volte un membro ottiene un premio e quanto spende una campagna in totale, *così che* i costi siano sotto controllo.
 - **Contesto reale**: `CMP-APP-DAILY` 1/giorno; `CMP-BLACK-FRIDAY` budget 250 000; un membro fa l'ultimo acquisto alle 23:59 e il successivo alle 00:01.
 - **Tocca**: F-CMP-05 · CMP-08…10, CMP-17, CMN-14 · RNF-04.
-- **Decisioni**: conteggio del periodo (DAY/WEEK/MONTH/EDITION/ALWAYS in Rome sul `time` dell'azione) ≥ max → `LIMIT` · punti decisi ≥ `maxPoints` o attivazioni ≥ `maxMatches` → `BUDGET` · punti decisi dalla campagna per il membro ≥ `perMemberPoints` → `LIMIT` · meno di `cooldownMinutes` dall'ultimo match del membro (sul `time` di business) → `LIMIT` (Q-E9).
+- **Decisioni**: conteggio del periodo (DAY/WEEK/MONTH/EDITION/ALWAYS in Rome sul `time` dell'azione) ≥ max → `LIMIT` · punti decisi ≥ `maxPoints` o attivazioni ≥ `maxMatches` → `BUDGET` · punti decisi dalla campagna per il membro ≥ `perMemberPoints` → `LIMIT` · meno di `cooldownMinutes` dall'ultimo match del membro (sul `time` di business) → `LIMIT` (Q-165).
 - **Criteri**:
   1. Dato 3 acquisti in un giorno, allora il quarto `LIMIT` e nessun movimento (docs/12 M1).
   2. Dato un acquisto alle 23:59 e uno alle 00:01 ora di Roma, allora periodi DAY diversi (non UTC).
@@ -1966,8 +1966,8 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | CMP-09 budget globale | `BUDGET`: punti decisi ≥ `global.maxPoints` | F-CMP-05 | US-E03-09 | TB-CMP |
 | ↳ | `BUDGET`: attivazioni ≥ `global.maxMatches` | F-CMP-05 | US-E03-09 | TB-CMP |
 | ↳ | l'ultima attivazione sotto soglia può superare il budget (controllo prima dell'accredito) | nessuna | US-E03-09 | TB-CMP |
-| CMP-10 tetto punti e cooldown | `LIMIT`: meno di `cooldownMinutes` dall'ultimo match del membro (Q-E9) | F-CMP-05 | US-E03-09 | TB-CMP |
-| ↳ | `LIMIT`: punti decisi dalla campagna per il membro ≥ `perMemberPoints` (Q-E9) | F-CMP-05 | US-E03-09 | TB-CMP |
+| CMP-10 tetto punti e cooldown | `LIMIT`: meno di `cooldownMinutes` dall'ultimo match del membro (Q-165) | F-CMP-05 | US-E03-09 | TB-CMP |
+| ↳ | `LIMIT`: punti decisi dalla campagna per il membro ≥ `perMemberPoints` (Q-165) | F-CMP-05 | US-E03-09 | TB-CMP |
 | CMP-11 esito complessivo | `MATCHED` (≥ 1 campagna) · `NO_MATCH` | campaign §2 | US-E03-04, US-E03-05 | TB-CMP |
 | CMP-12 `computeBase` (GRANT_POINTS) | `FIXED` ⇒ `value` | docs/03 §3.4 | US-E03-07 | TB-CMP |
 | ↳ | `PER_AMOUNT`: campo assente o non numerico ⇒ effetto scartato | docs/03 §3.4 | US-E03-07 | TB-CMP |

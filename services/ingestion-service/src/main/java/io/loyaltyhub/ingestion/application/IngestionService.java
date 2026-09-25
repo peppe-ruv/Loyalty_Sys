@@ -303,7 +303,7 @@ public class IngestionService {
         if (source.startsWith(LhSource.SOURCE_PREFIX) || source.indexOf(':') >= 0) {
             return source;
         }
-        // SPEC-GAP: Q-I4 — forma breve (senza URN) accettata e normalizzata (comportamento indulgente del PoC).
+        // SPEC-GAP: Q-258 — forma breve (senza URN) accettata e normalizzata (comportamento indulgente del PoC).
         return LhSource.source(source);
     }
 

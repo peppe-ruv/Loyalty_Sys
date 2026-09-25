@@ -158,7 +158,7 @@ public final class ConditionEvaluator {
      * testo con testo. Il testo numerico contro un numero si confronta come numero, con la stessa conversione di
      * {@code gt/gte/lt/lte}.
      */
-    // SPEC-GAP: Q-C7 — testo numerico contro numero: confrontato come numero (comportamento conservato, da decidere).
+    // SPEC-GAP: Q-215 — testo numerico contro numero: confrontato come numero (comportamento conservato, da decidere).
     private static boolean comparable(Object actual, JsonNode value) {
         if (actual == null || actual == ABSENT || value == null || value.isNull()) {
             return false;

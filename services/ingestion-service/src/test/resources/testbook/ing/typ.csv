@@ -8,5 +8,5 @@ TB-ING-TYP-006|maiuscole Purchase.Completed|case|REJECTED|UNKNOWN_TYPE|REJECTED/
 TB-ING-TYP-007|doppio prefisso action.purchase.completed|doublePrefix|REJECTED|UNKNOWN_TYPE|REJECTED/UNKNOWN_TYPE|ingestion §5.3
 TB-ING-TYP-008|tipo custom disabilitato|customDisabled|REJECTED|UNKNOWN_TYPE|REJECTED/UNKNOWN_TYPE|ingestion §5.3 (noto e abilitato)
 TB-ING-TYP-009|tipo custom abilitato|customEnabled|ACCEPTED|-|ACCEPTED|ingestion §5.3; F-ING-06
-TB-ING-TYP-010|tipo custom senza JSON Schema, data qualunque|noSchema|ACCEPTED|-|Q-I16: ACCEPTED, il passo 4 non respinge (ramo senza specifica)|ingestion §5.4; docs/17 US-E01-03
-TB-ING-TYP-011|tipo custom da fonte con elenco che non lo contiene (ecommerce)|customAllowlist|REJECTED|TYPE_NOT_ALLOWED|Q-I16: REJECTED/TYPE_NOT_ALLOWED (docs/05 §3: custom da «qualsiasi fonte»)|ingestion §5.3; docs/05 §3 EVT-ACT-9x
+TB-ING-TYP-010|tipo custom senza JSON Schema, data qualunque|noSchema|ACCEPTED|-|Q-270: ACCEPTED, il passo 4 non respinge (ramo senza specifica)|ingestion §5.4; docs/17 US-E01-03
+TB-ING-TYP-011|tipo custom da fonte con elenco che non lo contiene (ecommerce)|customAllowlist|REJECTED|TYPE_NOT_ALLOWED|Q-270: REJECTED/TYPE_NOT_ALLOWED (docs/05 §3: custom da «qualsiasi fonte»)|ingestion §5.3; docs/05 §3 EVT-ACT-9x

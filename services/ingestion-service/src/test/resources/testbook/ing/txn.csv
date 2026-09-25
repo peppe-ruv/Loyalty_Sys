@@ -1,16 +1,16 @@
 id|descrizione|caso|http|stato|codice|atteso|rif
 TB-ING-TXN-001|ordine senza kind per external:CRM-102|purchase|202|ACCEPTED|-|202 ACCEPTED, eventId txn-<orderId>, memberId MBR-000002, type purchase.completed, data mappato|ingestion §3 (POST /v1/transactions); F-ING-07; docs/17 US-E01-08
 TB-ING-TXN-002|kind PURCHASE esplicito|purchaseExplicit|202|ACCEPTED|-|come senza kind|ingestion §3 (POST /v1/transactions); F-ING-07; Q-49
-TB-ING-TXN-003|kind purchase minuscolo|purchaseLower|202|ACCEPTED|-|Q-I15: accettato (maiuscole ignorate)|Q-49
+TB-ING-TXN-003|kind purchase minuscolo|purchaseLower|202|ACCEPTED|-|Q-269: accettato (maiuscole ignorate)|Q-49
 TB-ING-TXN-004|reso (kind RETURN)|return|202|ACCEPTED|-|purchase.returned, eventId txn-return-<orderId>, data {orderId, amount}|Q-49; F-ING-07
 TB-ING-TXN-005|reso senza currency|returnNoCurrency|202|ACCEPTED|-|202 ACCEPTED|Q-49
 TB-ING-TXN-006|kind REFUND|refund|400|-|-|400|Q-49; docs/17 US-E01-08
-TB-ING-TXN-007|acquisto senza currency|noCurrency|400|-|-|Q-I15: 400 (errore di forma, non INVALID_DATA)|ingestion §3 (POST /v1/transactions); F-ING-07; docs/17 US-E01-08
+TB-ING-TXN-007|acquisto senza currency|noCurrency|400|-|-|Q-269: 400 (errore di forma, non INVALID_DATA)|ingestion §3 (POST /v1/transactions); F-ING-07; docs/17 US-E01-08
 TB-ING-TXN-008|senza source|noSource|400|-|-|400|ingestion §3 (POST /v1/transactions); F-ING-07
 TB-ING-TXN-009|senza orderId|noOrderId|400|-|-|400|ingestion §3 (POST /v1/transactions); F-ING-07
 TB-ING-TXN-010|orderId di soli spazi|blankOrderId|400|-|-|400|ingestion §3 (POST /v1/transactions); F-ING-07
 TB-ING-TXN-011|senza memberRef|noMemberRef|400|-|-|400|ingestion §3 (POST /v1/transactions); F-ING-07
-TB-ING-TXN-012|senza amount|noAmount|400|-|-|Q-I15: 400 (errore di forma, non INVALID_DATA)|ingestion §3 (POST /v1/transactions); F-ING-07
+TB-ING-TXN-012|senza amount|noAmount|400|-|-|Q-269: 400 (errore di forma, non INVALID_DATA)|ingestion §3 (POST /v1/transactions); F-ING-07
 TB-ING-TXN-013|corpo vuoto|emptyBody|400|-|-|400 RFC 9457 (DIVERGENZA: oggi 500)|ingestion §3 (POST /v1/transactions); F-ING-07; docs/06 §2
 TB-ING-TXN-014|amount non numerico "abc"|amountText|400|-|-|400 RFC 9457 (DIVERGENZA: oggi 500)|ingestion §3 (POST /v1/transactions); F-ING-07; docs/06 §2
 TB-ING-TXN-015|stesso ordine rinviato|sameOrder|202|DUPLICATE|-|secondo invio DUPLICATE (id deterministico)|ingestion §3 (POST /v1/transactions); F-ING-07; F-ING-02

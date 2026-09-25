@@ -33,10 +33,10 @@ Il testbook è eseguibile per intero con un comando e produce un rapporto riga p
 
 | Dominio | Sezione | Servizi | Specifiche principali | Stato |
 |---|---|---|---|---|
-| Ingresso eventi | [§3](#3-tb-ing--ingresso-eventi) | ingestion | docs/servizi/ingestion-service.md §3, §5 · F-ING-* · contracts/events/action | in preparazione |
-| Campagne | [§4](#4-tb-cmp--campagne) | campaign | docs/03 §3 · docs/servizi/campaign-service.md · F-CMP-* | in preparazione |
+| Ingresso eventi | [§3](#3-tb-ing--ingresso-eventi) | ingestion | docs/servizi/ingestion-service.md §3, §5 · F-ING-* · contracts/events/action | **eseguibile** — 685 righe |
+| Campagne | [§4](#4-tb-cmp--campagne) | campaign | docs/03 §3 · docs/servizi/campaign-service.md · F-CMP-* | **eseguibile** — 638 righe |
 | Wallet e livelli | [§5](#5-tb-wal--wallet-e-livelli) | wallet | docs/03 §4 · docs/servizi/wallet-service.md · F-WAL-*, F-TIER-* | **eseguibile** — 373 righe |
-| Premi e coupon | [§6](#6-tb-rwd--premi-e-coupon) | reward (+ wallet) | docs/servizi/reward-service.md · F-RWD-*, F-CPN-* | in preparazione |
+| Premi e coupon | [§6](#6-tb-rwd--premi-e-coupon) | reward (+ wallet) | docs/servizi/reward-service.md · F-RWD-*, F-CPN-* | **eseguibile** — 567 righe |
 | Gioco | [§7](#7-tb-gam--gioco) | gamification | docs/servizi/gamification-service.md · F-IW-*, F-ACH-*, F-LDB-*, F-REF-* | in preparazione |
 | Governance e membri | [§8](#8-tb-gov--governance-e-membri) | tutti · member | docs/03 §3.6 · docs/06 §7 · docs/08 §2 · F-APR-*, F-MBR-*, F-SEG-* | in preparazione |
 | Engagement | [§9](#9-tb-eng--engagement) | engagement | docs/servizi/engagement-service.md · F-CNT-*, F-MSG-*, F-WBH-01 | **eseguibile** — 804 righe |
@@ -46,10 +46,34 @@ Il testbook è eseguibile per intero con un comando e produce un rapporto riga p
 | Piattaforma | [§10quater](#10quater-tb-plt--piattaforma) | lh-common, hub | docs/04 · docs/05 · docs/06 · contracts/ | in preparazione |
 
 ## 3. TB-ING — Ingresso eventi
-_In revisione._
+Documento completo: [`docs/testbook/TB-ING-ingresso.md`](testbook/TB-ING-ingresso.md) — 28 regole, 111 rami mappati,
+**685 righe** in 18 aree. Test: `services/ingestion-service/src/test/java/io/loyaltyhub/ingestion/testbook/`
+(`TestbookIngPipelineIT`, `TestbookIngResolutionIT`, `TestbookIngConfigIT`, `TestbookIngScenarioTimeTest`), dati in `testbook/ing/*.csv`.
+
+- **Ordine della pipeline provato** (forma → fonte → tipo → dati → tempo → dedup → membro): 51 righe PIP con ogni guasto da
+  solo, ogni coppia e le cascate. Tabelle complete: fonte × tipo (55), forma del subject × stato del membro (30),
+  abbinamento automatico (48).
+- **Divergenze trovate e corrette (46 righe, 14 cause):** schemi dei dati allineati ai contratti (seed e check-seed),
+  400 per `data` non oggetto e per corpo illeggibile (lh-common), fonte riconosciuta per URN esatto, filtri
+  `from`/`to`/`q` del monitor, storico demo di 40 ingressi (`seed/inbound-history.json`), `POST/PUT /v1/sources`,
+  codici dei tipi custom e JSON Schema validato, origine e variazioni del simulatore, espressioni di tempo degli scenari.
+- **Scelte registrate:** Q-255…Q-272.
+- **Verifica a mutazione:** non eseguita per questo dominio (bloccata dal controllo dei permessi dell'agente); le
+  divergenze corrette hanno comunque fatto il percorso rosso → verde.
 
 ## 4. TB-CMP — Campagne
-_In revisione._
+Documento completo: [`docs/testbook/TB-CMP-campagne.md`](testbook/TB-CMP-campagne.md) — 37 regole, 250 punti di decisione,
+**638 righe**. Test: `services/campaign-service/src/test/java/io/loyaltyhub/campaign/testbook/` (5 classi unitarie sul motore
+puro, `TestbookCmpLifecycleIT`, `TestbookCmpSimulationIT`), dati in `testbook/cmp/*.csv`.
+
+- **Tabelle complete:** pubblico (27), stato × azione del ciclo di vita (56), operazione × ruolo (35); riduzioni dichiarate
+  per operatori (84 → 80) e ciclo di vita × attore × policy (1 176 → 105).
+- **Divergenze trovate e corrette (23 righe, 12 cause):** tipi incompatibili nelle condizioni, `in`/`nin` sugli array,
+  arrotondamento esatto di `PER_AMOUNT`, `labels` del moltiplicatore, validazione di coupon e badge, `requiresLegal` alla
+  creazione, id o codice nel percorso, formato del codice e della copia, guardia di ruolo sulla creazione,
+  `cooldownMinutes` e `perMemberPoints` (Q-165).
+- **Scelte registrate:** Q-209…Q-254 (Q-209: conflitto BO-06/Q-51 sul codice in DRAFT, vince Q-51).
+- **Verifica a mutazione:** 7 mutazioni, tutte rilevate.
 
 ## 5. TB-WAL — Wallet e livelli
 Documento completo: [`docs/testbook/TB-WAL-wallet.md`](testbook/TB-WAL-wallet.md) — 32 regole, 97 rami di codice mappati,
@@ -66,7 +90,16 @@ Test: `services/wallet-service/src/test/java/io/loyaltyhub/wallet/testbook/` (`T
 - **Verifica a mutazione:** 7 mutazioni, tutte rilevate (vedi §Copertura del documento).
 
 ## 6. TB-RWD — Premi e coupon
-_In revisione._
+Documento completo: [`docs/testbook/TB-RWD-premi.md`](testbook/TB-RWD-premi.md) — 28 regole, 78 punti di decisione,
+**567 righe**. Test: `services/reward-service/src/test/java/io/loyaltyhub/reward/` (`TestbookRwdLifecycleTest`,
+`TestbookRwdRulesTest`, `TestbookRwd{Eligibility,Catalog,Saga,Coupon}IT`), dati in `testbook/rwd/*.csv`.
+
+- **Tabelle complete:** saga (7 × 7), ciclo del coupon (7 × 3), ruoli; riduzioni dichiarate per visibilità (864 → 59) e
+  ciclo di vita (560 → 99).
+- **Divergenze trovate e corrette:** corpo mancante → 400 (lh-common), fine giornata del job coupon a precisione di
+  microsecondi (un coupon che scade alle 00:00 del giorno dopo non scade prima).
+- **Scelte registrate:** Q-273…Q-288 (Q-286…Q-288: conflitti tra fonti).
+- **Verifica a mutazione:** 6 mutazioni, tutte rilevate.
 
 ## 7. TB-GAM — Gioco
 _In revisione._

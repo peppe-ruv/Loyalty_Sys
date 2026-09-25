@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
  * capacità {@code program.config} (solo ADMIN, docs/08 §2), audit {@code CREATE} su {@code lh.audit.v1} (ingestion §4:
  * "modifiche a fonti, tipi, mapping"). Il codice diventa {@code urn:loyaltyhub:source:<code>} (docs/05 §2).
  * <p>
- * SPEC-GAP: Q-I9 — la scheda elenca {@code POST /v1/sources} senza fissarne il corpo: scelte le opzioni più
+ * SPEC-GAP: Q-263 — la scheda elenca {@code POST /v1/sources} senza fissarne il corpo: scelte le opzioni più
  * conservative (codice minuscolo con cifre e trattini, 2–40 caratteri; nome obbligatorio ≤ 80; solo fonti
  * {@code HTTP}, perché {@code INTERNAL} è la sola {@code internal} del ponte; tipi ammessi esistenti; abilitata se
  * {@code enabled} è assente; codice già usato → {@code 409 SOURCE_EXISTS}).

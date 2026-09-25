@@ -19,7 +19,7 @@ import java.util.random.RandomGenerator;
  *   <li>il risultato resta nei limiti {@code minimum}/{@code maximum} (ed {@code exclusiveMinimum}/{@code exclusiveMaximum})
  *       dello schema del tipo: il simulatore non genera dati che la pipeline rifiuterebbe.</li>
  * </ul>
- * SPEC-GAP: Q-I10 — «piccole» non è quantificato: scelte le ampiezze sopra.
+ * SPEC-GAP: Q-264 — «piccole» non è quantificato: scelte le ampiezze sopra.
  */
 public final class SampleVariation {
 

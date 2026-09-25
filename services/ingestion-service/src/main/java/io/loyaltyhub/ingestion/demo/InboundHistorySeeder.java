@@ -32,7 +32,7 @@ import java.util.Optional;
  * risolto sull'indice membri già seminato, gli errori {@code INVALID_DATA} sono quelli dello schema del tipo. Righe
  * con l'esito dichiarato nel seed, nessuna pubblicazione (gli ACCEPTED sono azioni già presenti nello storico attività
  * di {@code activity-history.json}). Idempotente: le righe {@code hist-*} si cancellano e si ricaricano a ogni reset.
- * SPEC-GAP: Q-I17 — solo 9 ACCEPTED, per coerenza con lo storico attività e le storie di docs/10.
+ * SPEC-GAP: Q-271 — solo 9 ACCEPTED, per coerenza con lo storico attività e le storie di docs/10.
  */
 @Component
 @Profile("demo")

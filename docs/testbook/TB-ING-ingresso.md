@@ -8,7 +8,7 @@ risoluzione del membro, deduplica, eventi non abbinati (riprova, abbina, abbinam
   `contracts/events/` (envelope e `action/*.schema.json`), docs/03 §2, docs/08 §2 e BO-09/26/28/29, docs/10 §1-§3 e §8, e
   le scelte registrate in docs/15 (Q-49, Q-89, Q-114…Q-119, Q-128…Q-130). Mai «quello che il codice restituisce oggi».
 - **Q-In** nella colonna *atteso* (prima «AMBIGUO»): la specifica tace; la scelta in uso è registrata in docs/15 con quell'id
-  (numerazione provvisoria `Q-I1…Q-I18`, la rinumera l'orchestratore) e il test asserisce il comportamento attuale con il
+  (numerazione provvisoria `Q-255…Q-272`, la rinumera l'orchestratore) e il test asserisce il comportamento attuale con il
   commento `// TESTBOOK: ambiguo, vedi <ID>`.
 - **DIVERGENZA** nella colonna *atteso*: il codice non rispetta la specifica; il test asserisce la specifica e fallisce
   (registro in §5).
@@ -299,10 +299,10 @@ fonti a elenco vuoto × 3 tipi rappresentativi (6); poi una riga per ogni classe
 | TB-ING-SRC-064 | fonte disabilitata che ammetterebbe il tipo | REJECTED/SOURCE_DISABLED | ingestion §5.2; F-ING-05 | `TestbookIngPipelineIT#src` |
 | TB-ING-SRC-065 | fonte abilitata con elenco che ammette il tipo | ACCEPTED | ingestion §5.3 | `TestbookIngPipelineIT#src` |
 | TB-ING-SRC-066 | codice fonte in maiuscolo (ECOMMERCE) | REJECTED/SOURCE_DISABLED (fonte inesistente) | ingestion §5.2 | `TestbookIngPipelineIT#src` |
-| TB-ING-SRC-067 | fonte in forma breve senza URN (ecommerce) | Q-I4: ACCEPTED (comportamento attuale; docs/05 §2 prevede l'URN) | docs/05 §2 | `TestbookIngPipelineIT#src` |
+| TB-ING-SRC-067 | fonte in forma breve senza URN (ecommerce) | Q-258: ACCEPTED (comportamento attuale; docs/05 §2 prevede l'URN) | docs/05 §2 | `TestbookIngPipelineIT#src` |
 | TB-ING-SRC-068 | fonte con URN di servizio (urn:loyaltyhub:service:ecommerce) | REJECTED/SOURCE_DISABLED: non è una fonte (DIVERGENZA) | docs/05 §2 (source delle azioni = urn:loyaltyhub:source:&lt;codice&gt;); ingestion §5.2 | `TestbookIngPipelineIT#src` |
 | TB-ING-SRC-069 | fonte con URN estraneo che termina con :ecommerce (urn:altro:ecommerce) | REJECTED/SOURCE_DISABLED: fonte inesistente (DIVERGENZA) | docs/05 §2; ingestion §5.2 | `TestbookIngPipelineIT#src` |
-| TB-ING-SRC-070 | URN di fonte con codice vuoto (urn:loyaltyhub:source:) | Q-I4: REJECTED/SOURCE_DISABLED (nessun 400) | docs/05 §2; envelope.schema.json | `TestbookIngPipelineIT#src` |
+| TB-ING-SRC-070 | URN di fonte con codice vuoto (urn:loyaltyhub:source:) | Q-258: REJECTED/SOURCE_DISABLED (nessun 400) | docs/05 §2; envelope.schema.json | `TestbookIngPipelineIT#src` |
 
 ### 3.4 FON — Registro fonti via API (F-ING-05)
 
@@ -346,8 +346,8 @@ tipo di sistema è in ETY.
 | TB-ING-TYP-007 | doppio prefisso action.purchase.completed | REJECTED/UNKNOWN_TYPE | ingestion §5.3 | `TestbookIngPipelineIT#typ` |
 | TB-ING-TYP-008 | tipo custom disabilitato | REJECTED/UNKNOWN_TYPE | ingestion §5.3 (noto e abilitato) | `TestbookIngPipelineIT#typ` |
 | TB-ING-TYP-009 | tipo custom abilitato | ACCEPTED | ingestion §5.3; F-ING-06 | `TestbookIngPipelineIT#typ` |
-| TB-ING-TYP-010 | tipo custom senza JSON Schema, data qualunque | Q-I16: ACCEPTED, il passo 4 non respinge (ramo senza specifica) | ingestion §5.4; docs/17 US-E01-03 | `TestbookIngPipelineIT#typ` |
-| TB-ING-TYP-011 | tipo custom da fonte con elenco che non lo contiene (ecommerce) | Q-I16: REJECTED/TYPE_NOT_ALLOWED (docs/05 §3: custom da «qualsiasi fonte») | ingestion §5.3; docs/05 §3 EVT-ACT-9x | `TestbookIngPipelineIT#typ` |
+| TB-ING-TYP-010 | tipo custom senza JSON Schema, data qualunque | Q-270: ACCEPTED, il passo 4 non respinge (ramo senza specifica) | ingestion §5.4; docs/17 US-E01-03 | `TestbookIngPipelineIT#typ` |
+| TB-ING-TYP-011 | tipo custom da fonte con elenco che non lo contiene (ecommerce) | Q-270: REJECTED/TYPE_NOT_ALLOWED (docs/05 §3: custom da «qualsiasi fonte») | ingestion §5.3; docs/05 §3 EVT-ACT-9x | `TestbookIngPipelineIT#typ` |
 
 ### 3.6 SCH — `data` contro lo schema del tipo (passo 4)
 
@@ -459,7 +459,7 @@ indipendente e riporta tutti gli errori (una combinazione è provata in MON-006)
 | TB-ING-SCH-080 | quiz.completed: correctAnswers 0 · data `{"quizId":"QZ-1","correctAnswers":0,"totalQuestions":10}` | ACCEPTED | docs/05 §3 EVT-ACT-08; seed/event-types.json (minimum 0) | `TestbookIngPipelineIT#sch` |
 | TB-ING-SCH-081 | quiz.completed: totalQuestions 0 · data `{"quizId":"QZ-1","correctAnswers":0,"totalQuestions":0}` | REJECTED/INVALID_DATA su totalQuestions | docs/05 §3 EVT-ACT-08; seed/event-types.json (minimum 1) | `TestbookIngPipelineIT#sch` |
 | TB-ING-SCH-082 | quiz.completed: totalQuestions 1 · data `{"quizId":"QZ-1","correctAnswers":1,"totalQuestions":1}` | ACCEPTED | docs/05 §3 EVT-ACT-08; seed/event-types.json (minimum 1) | `TestbookIngPipelineIT#sch` |
-| TB-ING-SCH-083 | quiz.completed: correctAnswers 11 &gt; totalQuestions 10 · data `{"quizId":"QZ-1","correctAnswers":11,"totalQuestions":10}` | Q-I11: ACCEPTED | docs/05 §3 EVT-ACT-08; seed/event-types.json (nessun vincolo incrociato) | `TestbookIngPipelineIT#sch` |
+| TB-ING-SCH-083 | quiz.completed: correctAnswers 11 &gt; totalQuestions 10 · data `{"quizId":"QZ-1","correctAnswers":11,"totalQuestions":10}` | Q-265: ACCEPTED | docs/05 §3 EVT-ACT-08; seed/event-types.json (nessun vincolo incrociato) | `TestbookIngPipelineIT#sch` |
 | TB-ING-SCH-084 | review.submitted: senza productId · data `{"rating":5}` | REJECTED/INVALID_DATA su productId | docs/05 §3 EVT-ACT-09 (rating* 1–5); seed/event-types.json | `TestbookIngPipelineIT#sch` |
 | TB-ING-SCH-085 | review.submitted: senza rating · data `{"productId":"SKU-100"}` | REJECTED/INVALID_DATA su rating | docs/05 §3 EVT-ACT-09 (rating* 1–5); seed/event-types.json | `TestbookIngPipelineIT#sch` |
 | TB-ING-SCH-086 | review.submitted: rating 0 · data `{"productId":"SKU-100","rating":0}` | REJECTED/INVALID_DATA su rating | docs/05 §3 EVT-ACT-09 (rating* 1–5); seed/event-types.json | `TestbookIngPipelineIT#sch` |
@@ -540,7 +540,7 @@ righe 160-164 (`Duration` di 5 min e di 30 × 24 h sull'orologio del servizio).
 
 **Strategia.** Valori limite di ciascun estremo (min−1, min, min+1) con orologio del servizio fisso (`TbClock`); casi di
 calendario uno per classe; formati validi uno per classe. Il cambio dell'ora rende ambigua la lettura «30 giorni»
-(720 ore o 30 giorni di calendario a Roma): righe Q-I3 che asseriscono il comportamento attuale (720 ore).
+(720 ore o 30 giorni di calendario a Roma): righe Q-257 che asseriscono il comportamento attuale (720 ore).
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -565,9 +565,9 @@ calendario uno per classe; formati validi uno per classe. Il cambio dell'ora ren
 | TB-ING-TIM-019 | fine mese: 31/3 → 1/3 un secondo prima · servizio `2026-03-31T10:00:00Z` · time `2026-03-01T09:59:59Z` | REJECTED/INVALID_TIME | ingestion §5.5 | `TestbookIngPipelineIT#tim` |
 | TB-ING-TIM-020 | mezzanotte di Roma: servizio alle 00:00 del 25/9, evento alle 23:59:59 del 24/9 · servizio `2026-09-24T22:00:00Z` · time `2026-09-24T21:59:59Z` | ACCEPTED | ingestion §5.5 | `TestbookIngPipelineIT#tim` |
 | TB-ING-TIM-021 | mezzanotte di Roma: servizio alle 23:59:59, evento alle 00:00 del giorno dopo (+1 s) · servizio `2026-09-24T21:59:59Z` · time `2026-09-24T22:00:00Z` | ACCEPTED | ingestion §5.5 | `TestbookIngPipelineIT#tim` |
-| TB-ING-TIM-022 | cambio dell'ora di marzo: evento 30 gg prima alle 09:30 CET (dentro 720 h, fuori da 30 gg di calendario) · servizio `2026-04-15T08:00:00Z` · time `2026-03-16T08:30:00Z` | Q-I3: ACCEPTED (finestra di 720 ore, non di 30 giorni di calendario Europe/Rome) | ingestion §5.5 | `TestbookIngPipelineIT#tim` |
+| TB-ING-TIM-022 | cambio dell'ora di marzo: evento 30 gg prima alle 09:30 CET (dentro 720 h, fuori da 30 gg di calendario) · servizio `2026-04-15T08:00:00Z` · time `2026-03-16T08:30:00Z` | Q-257: ACCEPTED (finestra di 720 ore, non di 30 giorni di calendario Europe/Rome) | ingestion §5.5 | `TestbookIngPipelineIT#tim` |
 | TB-ING-TIM-023 | cambio dell'ora di marzo: evento oltre sia 720 h sia 30 gg di calendario · servizio `2026-04-15T08:00:00Z` · time `2026-03-16T07:59:59Z` | REJECTED/INVALID_TIME | ingestion §5.5 | `TestbookIngPipelineIT#tim` |
-| TB-ING-TIM-024 | cambio dell'ora di ottobre: evento 30 gg di calendario prima alle 10:30 CEST (fuori da 720 h) · servizio `2026-11-10T09:00:00Z` · time `2026-10-11T08:30:00Z` | Q-I3: REJECTED/INVALID_TIME (720 ore; 30 gg di calendario lo ammetterebbero) | ingestion §5.5 | `TestbookIngPipelineIT#tim` |
+| TB-ING-TIM-024 | cambio dell'ora di ottobre: evento 30 gg di calendario prima alle 10:30 CEST (fuori da 720 h) · servizio `2026-11-10T09:00:00Z` · time `2026-10-11T08:30:00Z` | Q-257: REJECTED/INVALID_TIME (720 ore; 30 gg di calendario lo ammetterebbero) | ingestion §5.5 | `TestbookIngPipelineIT#tim` |
 | TB-ING-TIM-025 | notte del 25/10/2026: +5 min reali ma ora locale indietro di 55 min · servizio `2026-10-25T00:58:00Z` · time `2026-10-25T01:03:00Z` | ACCEPTED (finestra sugli istanti) | ingestion §5.5 | `TestbookIngPipelineIT#tim` |
 | TB-ING-TIM-026 | notte del 29/3/2026: +5 min reali ma ora locale avanti di 65 min · servizio `2026-03-29T00:58:00Z` · time `2026-03-29T01:03:00Z` | ACCEPTED (finestra sugli istanti) | ingestion §5.5 | `TestbookIngPipelineIT#tim` |
 
@@ -585,7 +585,7 @@ calendario uno per classe; formati validi uno per classe. Il cambio dell'ora ren
 
 **Strategia.** Una riga per classe di «precedente» e per ogni differenza (guasto singolo); la precedenza di dati e tempo sul
 duplicato è in PIP (coppie DATA×DUP, TIME×DUP). «Già visto» (F-ING-02) non dice se un precedente `REJECTED`/`UNMATCHED`
-conti: righe Q-I2 che asseriscono il comportamento attuale (non conta), coerente con la riprova (F-ING-09).
+conti: righe Q-256 che asseriscono il comportamento attuale (non conta), coerente con la riprova (F-ING-09).
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -594,9 +594,9 @@ conti: righe Q-I2 che asseriscono il comportamento attuale (non conta), coerente
 | TB-ING-DUP-003 | stesso id da due fonti diverse | entrambi ACCEPTED, 1 pubblicazione per fonte | F-ING-02; ingestion §5.6 (chiave = fonte+id); docs/05 §2 | `TestbookIngPipelineIT#dup` |
 | TB-ING-DUP-004 | stesso source+id con type e data diversi | DUPLICATE (la chiave non guarda il contenuto) | F-ING-02; ingestion §5.6 | `TestbookIngPipelineIT#dup` |
 | TB-ING-DUP-005 | stesso source+id per un altro membro | DUPLICATE | F-ING-02; ingestion §5.6 | `TestbookIngPipelineIT#dup` |
-| TB-ING-DUP-006 | primo invio REJECTED/INVALID_DATA, secondo corretto con lo stesso id | Q-I2: secondo ACCEPTED (conta solo un ACCEPTED; F-ING-02 dice «già visto») | F-ING-02; ingestion §5.6; docs/17 US-E01-04 | `TestbookIngPipelineIT#dup` |
-| TB-ING-DUP-007 | primo invio UNMATCHED, poi il membro arriva e la fonte rimanda lo stesso id | Q-I2: secondo ACCEPTED | F-ING-02; ingestion §5.6; docs/17 US-E01-04 | `TestbookIngPipelineIT#dup` |
-| TB-ING-DUP-008 | due invii per un membro BLOCKED | Q-I2: due righe REJECTED/MEMBER_NOT_ACTIVE, nessun DUPLICATE | F-ING-02; ingestion §5.6 | `TestbookIngPipelineIT#dup` |
+| TB-ING-DUP-006 | primo invio REJECTED/INVALID_DATA, secondo corretto con lo stesso id | Q-256: secondo ACCEPTED (conta solo un ACCEPTED; F-ING-02 dice «già visto») | F-ING-02; ingestion §5.6; docs/17 US-E01-04 | `TestbookIngPipelineIT#dup` |
+| TB-ING-DUP-007 | primo invio UNMATCHED, poi il membro arriva e la fonte rimanda lo stesso id | Q-256: secondo ACCEPTED | F-ING-02; ingestion §5.6; docs/17 US-E01-04 | `TestbookIngPipelineIT#dup` |
+| TB-ING-DUP-008 | due invii per un membro BLOCKED | Q-256: due righe REJECTED/MEMBER_NOT_ACTIVE, nessun DUPLICATE | F-ING-02; ingestion §5.6 | `TestbookIngPipelineIT#dup` |
 | TB-ING-DUP-009 | prima con URN, poi con codice breve della stessa fonte | DUPLICATE (stessa fonte) | F-ING-02; ingestion §5.6; docs/05 §2 | `TestbookIngPipelineIT#dup` |
 | TB-ING-DUP-010 | prima con type breve, poi completo | DUPLICATE | F-ING-02; ingestion §5.6; docs/05 §2 | `TestbookIngPipelineIT#dup` |
 | TB-ING-DUP-011 | id che differiscono solo per maiuscole | entrambi ACCEPTED (id distinti) | F-ING-02; ingestion §5.6 | `TestbookIngPipelineIT#dup` |
@@ -617,7 +617,7 @@ docs/03 §2). Dopo l'anonimizzazione l'indice non ha più e-mail ed externalId: 
 
 **Strategia.** Tabella **completa** forma × stato = 5 × 6 = 30 (≤ 64); le forme speciali una riga ciascuna; 6 righe sui
 membri del seed (Marco, Roberto `BLOCKED`, Alessandro `ANONYMIZED`, `CRM-999`). Il subject senza prefisso non è una forma
-prevista: righe Q-I1 col comportamento attuale (trattato come id).
+prevista: righe Q-255 col comportamento attuale (trattato come id).
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -645,15 +645,15 @@ prevista: righe Q-I1 col comportamento attuale (trattato come id).
 | TB-ING-MBR-022 | email:&lt;e-mail con maiuscole&gt; · membro BLOCKED | REJECTED/MEMBER_NOT_ACTIVE + memberId | F-ING-03; docs/03 §2 (solo ACTIVE accumula) | `TestbookIngPipelineIT#mbr` |
 | TB-ING-MBR-023 | email:&lt;e-mail con maiuscole&gt; · membro anonimizzato (cancellazione reale) | UNMATCHED | Q-128 (indice senza e-mail/externalId) | `TestbookIngPipelineIT#mbr` |
 | TB-ING-MBR-024 | email:&lt;e-mail con maiuscole&gt; · stato sconosciuto SUSPENDED | REJECTED/MEMBER_NOT_ACTIVE + memberId | F-ING-03; docs/03 §2 (solo ACTIVE accumula) | `TestbookIngPipelineIT#mbr` |
-| TB-ING-MBR-025 | &lt;id&gt; senza prefisso · membro assente dall'indice | Q-I1: UNMATCHED (subject senza prefisso trattato come id) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
-| TB-ING-MBR-026 | &lt;id&gt; senza prefisso · membro ACTIVE | Q-I1: ACCEPTED + memberId (subject senza prefisso trattato come id) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
-| TB-ING-MBR-027 | &lt;id&gt; senza prefisso · membro INACTIVE | Q-I1: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
-| TB-ING-MBR-028 | &lt;id&gt; senza prefisso · membro BLOCKED | Q-I1: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
-| TB-ING-MBR-029 | &lt;id&gt; senza prefisso · membro anonimizzato (cancellazione reale) | Q-I1: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
-| TB-ING-MBR-030 | &lt;id&gt; senza prefisso · stato sconosciuto SUSPENDED | Q-I1: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
-| TB-ING-MBR-031 | external: con maiuscole diverse dall'indice | Q-I1: UNMATCHED (confronto esatto sull'externalId) | F-ING-03 | `TestbookIngPipelineIT#mbr` |
-| TB-ING-MBR-032 | prefisso sconosciuto phone: | Q-I1: UNMATCHED (forma non prevista) | F-ING-03 | `TestbookIngPipelineIT#mbr` |
-| TB-ING-MBR-033 | member: senza id | Q-I1: UNMATCHED | F-ING-03; ingestion §5.7 | `TestbookIngPipelineIT#mbr` |
+| TB-ING-MBR-025 | &lt;id&gt; senza prefisso · membro assente dall'indice | Q-255: UNMATCHED (subject senza prefisso trattato come id) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
+| TB-ING-MBR-026 | &lt;id&gt; senza prefisso · membro ACTIVE | Q-255: ACCEPTED + memberId (subject senza prefisso trattato come id) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
+| TB-ING-MBR-027 | &lt;id&gt; senza prefisso · membro INACTIVE | Q-255: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
+| TB-ING-MBR-028 | &lt;id&gt; senza prefisso · membro BLOCKED | Q-255: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
+| TB-ING-MBR-029 | &lt;id&gt; senza prefisso · membro anonimizzato (cancellazione reale) | Q-255: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
+| TB-ING-MBR-030 | &lt;id&gt; senza prefisso · stato sconosciuto SUSPENDED | Q-255: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
+| TB-ING-MBR-031 | external: con maiuscole diverse dall'indice | Q-255: UNMATCHED (confronto esatto sull'externalId) | F-ING-03 | `TestbookIngPipelineIT#mbr` |
+| TB-ING-MBR-032 | prefisso sconosciuto phone: | Q-255: UNMATCHED (forma non prevista) | F-ING-03 | `TestbookIngPipelineIT#mbr` |
+| TB-ING-MBR-033 | member: senza id | Q-255: UNMATCHED | F-ING-03; ingestion §5.7 | `TestbookIngPipelineIT#mbr` |
 | TB-ING-MBR-034 | seed: member:MBR-000002 (Marco, ACTIVE) | ACCEPTED memberId MBR-000002 | ingestion §7; docs/10 §2 | `TestbookIngPipelineIT#mbr` |
 | TB-ING-MBR-035 | seed: external:CRM-102 | ACCEPTED memberId MBR-000002 | F-ING-03; docs/10 §2 | `TestbookIngPipelineIT#mbr` |
 | TB-ING-MBR-036 | seed: email:MARCO.BIANCHI@example.org | ACCEPTED memberId MBR-000002 | F-ING-03; docs/17 US-E01-01 | `TestbookIngPipelineIT#mbr` |
@@ -678,7 +678,7 @@ aggiunge ingestion); outbox su `lh.actions.v1` con chiave `memberId` (ingestion 
 | TB-ING-ACC-003 | chiave e topic | record su lh.actions.v1 con chiave = memberId | docs/05 §1; ingestion §7 | `TestbookIngPipelineIT#acc` |
 | TB-ING-ACC-004 | subject email: normalizzato | subject pubblicato member:&lt;id&gt; | ingestion §5.8; docs/05 §2; F-ING-03 | `TestbookIngPipelineIT#acc` |
 | TB-ING-ACC-005 | riga del monitor | riga ACCEPTED, origin EXTERNAL, member_id, correlation_id = id | ingestion §2; docs/17 US-E01-01 | `TestbookIngPipelineIT#acc` |
-| TB-ING-ACC-006 | subject sulla riga di un ingresso accettato | Q-I5: la riga ACCEPTED porta il subject normalizzato member:&lt;id&gt; (per riprova/abbina Q-118 conserva invece l'originale) | ingestion §2; Q-118 | `TestbookIngPipelineIT#acc` |
+| TB-ING-ACC-006 | subject sulla riga di un ingresso accettato | Q-259: la riga ACCEPTED porta il subject normalizzato member:&lt;id&gt; (per riprova/abbina Q-118 conserva invece l'originale) | ingestion §2; Q-118 | `TestbookIngPipelineIT#acc` |
 | TB-ING-ACC-007 | attributi lh* inviati dalla fonte | ignorati: lhhop 0, lhcorrelationid = id, lhtenant aurora | docs/05 §2 (gli lh* li aggiunge ingestion) | `TestbookIngPipelineIT#acc` |
 | TB-ING-ACC-008 | conformità ai contratti | envelope valido per envelope.schema.json, data valido per purchase.completed.schema.json | docs/05 §2; contracts/events | `TestbookIngPipelineIT#acc` |
 | TB-ING-ACC-009 | nessuna guardia di ruolo sull'ingresso | X-LH-Actor ANALYST → 202 ACCEPTED | docs/06 §3 (solo scritture da backoffice); docs/17 ING-22 | `TestbookIngPipelineIT#acc` |
@@ -739,14 +739,14 @@ dedup dopo la riprova, concorrenza, audit); (d) per Abbina ogni classe del membr
 | TB-ING-RES-004 | Riprova di un UNMATCHED risolvibile · LEGAL | 403 FORBIDDEN_ROLE, riga UNMATCHED, nulla pubblicato | ingestion §3; docs/08 §2 (inbound.handle: ADMIN, CARE); docs/06 §3 | `TestbookIngResolutionIT#guard` |
 | TB-ING-RES-005 | Riprova di un UNMATCHED risolvibile · ANALYST | 403 FORBIDDEN_ROLE, riga UNMATCHED, nulla pubblicato | ingestion §3; docs/08 §2 (inbound.handle: ADMIN, CARE); docs/06 §3 | `TestbookIngResolutionIT#guard` |
 | TB-ING-RES-006 | Riprova di un UNMATCHED risolvibile · intestazione assente | 403 FORBIDDEN_ROLE, riga UNMATCHED, nulla pubblicato | ingestion §3; docs/08 §2 (inbound.handle: ADMIN, CARE); docs/06 §3 | `TestbookIngResolutionIT#guard` |
-| TB-ING-RES-007 | Riprova di un UNMATCHED risolvibile · intestazione non valida PIRATA:x | Q-I7: 403 FORBIDDEN_ROLE, riga UNMATCHED, nulla pubblicato (ruolo non valido trattato come ANALYST) | ingestion §3; docs/08 §2 (inbound.handle: ADMIN, CARE); docs/06 §3 | `TestbookIngResolutionIT#guard` |
+| TB-ING-RES-007 | Riprova di un UNMATCHED risolvibile · intestazione non valida PIRATA:x | Q-261: 403 FORBIDDEN_ROLE, riga UNMATCHED, nulla pubblicato (ruolo non valido trattato come ANALYST) | ingestion §3; docs/08 §2 (inbound.handle: ADMIN, CARE); docs/06 §3 | `TestbookIngResolutionIT#guard` |
 | TB-ING-RES-008 | Abbina di un UNMATCHED risolvibile · ADMIN | 200, riga ACCEPTED, 1 pubblicazione, audit con l'attore | ingestion §3; docs/08 §2 (inbound.handle: ADMIN, CARE); docs/06 §3 | `TestbookIngResolutionIT#guard` |
 | TB-ING-RES-009 | Abbina di un UNMATCHED risolvibile · CARE | 200, riga ACCEPTED, 1 pubblicazione, audit con l'attore | ingestion §3; docs/08 §2 (inbound.handle: ADMIN, CARE); docs/06 §3 | `TestbookIngResolutionIT#guard` |
 | TB-ING-RES-010 | Abbina di un UNMATCHED risolvibile · MARKETING | 403 FORBIDDEN_ROLE, riga UNMATCHED, nulla pubblicato | ingestion §3; docs/08 §2 (inbound.handle: ADMIN, CARE); docs/06 §3 | `TestbookIngResolutionIT#guard` |
 | TB-ING-RES-011 | Abbina di un UNMATCHED risolvibile · LEGAL | 403 FORBIDDEN_ROLE, riga UNMATCHED, nulla pubblicato | ingestion §3; docs/08 §2 (inbound.handle: ADMIN, CARE); docs/06 §3 | `TestbookIngResolutionIT#guard` |
 | TB-ING-RES-012 | Abbina di un UNMATCHED risolvibile · ANALYST | 403 FORBIDDEN_ROLE, riga UNMATCHED, nulla pubblicato | ingestion §3; docs/08 §2 (inbound.handle: ADMIN, CARE); docs/06 §3 | `TestbookIngResolutionIT#guard` |
 | TB-ING-RES-013 | Abbina di un UNMATCHED risolvibile · intestazione assente | 403 FORBIDDEN_ROLE, riga UNMATCHED, nulla pubblicato | ingestion §3; docs/08 §2 (inbound.handle: ADMIN, CARE); docs/06 §3 | `TestbookIngResolutionIT#guard` |
-| TB-ING-RES-014 | Abbina di un UNMATCHED risolvibile · intestazione non valida PIRATA:x | Q-I7: 403 FORBIDDEN_ROLE, riga UNMATCHED, nulla pubblicato (ruolo non valido trattato come ANALYST) | ingestion §3; docs/08 §2 (inbound.handle: ADMIN, CARE); docs/06 §3 | `TestbookIngResolutionIT#guard` |
+| TB-ING-RES-014 | Abbina di un UNMATCHED risolvibile · intestazione non valida PIRATA:x | Q-261: 403 FORBIDDEN_ROLE, riga UNMATCHED, nulla pubblicato (ruolo non valido trattato come ANALYST) | ingestion §3; docs/08 §2 (inbound.handle: ADMIN, CARE); docs/06 §3 | `TestbookIngResolutionIT#guard` |
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -791,11 +791,11 @@ dedup dopo la riprova, concorrenza, audit); (d) per Abbina ogni classe del membr
 | TB-ING-RES-047 | Abbina: membro INACTIVE | 422 MEMBER_NOT_ACTIVE, riga UNMATCHED | ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04; docs/03 §2 | `TestbookIngResolutionIT#matchOutcome` |
 | TB-ING-RES-048 | Abbina: membro seed MBR-000008 (Roberto, BLOCKED) | 422 MEMBER_NOT_ACTIVE | ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04; docs/03 §2; docs/17 US-E01-07 | `TestbookIngResolutionIT#matchOutcome` |
 | TB-ING-RES-049 | Abbina: membro ANONYMIZED | 422 MEMBER_NOT_ACTIVE | ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04; docs/03 §2 | `TestbookIngResolutionIT#matchOutcome` |
-| TB-ING-RES-050 | Abbina: membro non indicizzato | Q-I8: 422 MEMBER_NOT_FOUND (codice non specificato) | ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04 | `TestbookIngResolutionIT#matchOutcome` |
-| TB-ING-RES-051 | Abbina: memberId di soli spazi | Q-I8: 422 MEMBER_REQUIRED | ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04 | `TestbookIngResolutionIT#matchOutcome` |
-| TB-ING-RES-052 | Abbina: corpo assente | Q-I8: 422 MEMBER_REQUIRED | ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04 | `TestbookIngResolutionIT#matchOutcome` |
-| TB-ING-RES-053 | Abbina: corpo {} senza memberId | Q-I8: 422 MEMBER_REQUIRED | ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04 | `TestbookIngResolutionIT#matchOutcome` |
-| TB-ING-RES-054 | Abbina: memberId con spazi attorno | Q-I8: 200 ACCEPTED (spazi ignorati) | ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04 | `TestbookIngResolutionIT#matchOutcome` |
+| TB-ING-RES-050 | Abbina: membro non indicizzato | Q-262: 422 MEMBER_NOT_FOUND (codice non specificato) | ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04 | `TestbookIngResolutionIT#matchOutcome` |
+| TB-ING-RES-051 | Abbina: memberId di soli spazi | Q-262: 422 MEMBER_REQUIRED | ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04 | `TestbookIngResolutionIT#matchOutcome` |
+| TB-ING-RES-052 | Abbina: corpo assente | Q-262: 422 MEMBER_REQUIRED | ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04 | `TestbookIngResolutionIT#matchOutcome` |
+| TB-ING-RES-053 | Abbina: corpo {} senza memberId | Q-262: 422 MEMBER_REQUIRED | ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04 | `TestbookIngResolutionIT#matchOutcome` |
+| TB-ING-RES-054 | Abbina: memberId con spazi attorno | Q-262: 200 ACCEPTED (spazi ignorati) | ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04 | `TestbookIngResolutionIT#matchOutcome` |
 | TB-ING-RES-055 | Abbina: fonte spenta nel frattempo | 200 con esito REJECTED/SOURCE_DISABLED sulla stessa riga, nulla pubblicato | ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04; Q-118 | `TestbookIngResolutionIT#matchOutcome` |
 | TB-ING-RES-056 | Abbina: riprova dopo l'abbinamento | 409 INBOUND_NOT_RETRYABLE, 1 sola pubblicazione | ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04; ingestion §3 | `TestbookIngResolutionIT#matchOutcome` |
 
@@ -917,32 +917,32 @@ categoria ammessa una volta); ruoli uno per riga. Modifica: origine × campo (ta
 | TB-ING-ETY-006 | codice Meter_Reading | 422 su code | Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE); docs/17 US-E01-12 | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-007 | codice con maiuscola interna (x.readingSent) | 422 su code: non minuscolo (DIVERGENZA) | Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE) | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-008 | codice che inizia con una cifra | 422 su code | Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE) | `TestbookIngConfigIT#ety` |
-| TB-ING-ETY-009 | codice di 60 caratteri | Q-I6: 201 (limite di 60 non specificato) | Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE) | `TestbookIngConfigIT#ety` |
-| TB-ING-ETY-010 | codice di 61 caratteri | Q-I6: 422 (limite di 60 non specificato) | Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE) | `TestbookIngConfigIT#ety` |
+| TB-ING-ETY-009 | codice di 60 caratteri | Q-260: 201 (limite di 60 non specificato) | Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE) | `TestbookIngConfigIT#ety` |
+| TB-ING-ETY-010 | codice di 61 caratteri | Q-260: 422 (limite di 60 non specificato) | Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE) | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-011 | codice vuoto | 422 su code | Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE) | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-012 | codice di un custom già esistente | 409 | ingestion §3 (event-types); F-ING-06; Q-89; docs/06 §2 | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-013 | codice di un tipo di sistema (purchase.completed) | 409 | ingestion §3 (event-types); F-ING-06; Q-89; docs/06 §2 | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-014 | nome vuoto | 422 su name | ingestion §3 (event-types); F-ING-06; Q-89 | `TestbookIngConfigIT#ety` |
-| TB-ING-ETY-015 | nome di 60 caratteri | Q-I6: 201 (limite non specificato) | ingestion §3 (event-types); F-ING-06; Q-89 | `TestbookIngConfigIT#ety` |
-| TB-ING-ETY-016 | nome di 61 caratteri | Q-I6: 422 (limite non specificato) | ingestion §3 (event-types); F-ING-06; Q-89 | `TestbookIngConfigIT#ety` |
+| TB-ING-ETY-015 | nome di 60 caratteri | Q-260: 201 (limite non specificato) | ingestion §3 (event-types); F-ING-06; Q-89 | `TestbookIngConfigIT#ety` |
+| TB-ING-ETY-016 | nome di 61 caratteri | Q-260: 422 (limite non specificato) | ingestion §3 (event-types); F-ING-06; Q-89 | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-017 | categoria TRANSACTION | 201 | Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE) | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-018 | categoria ENGAGEMENT | 201 | Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE) | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-019 | categoria SERVICE | 201 | Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE) | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-020 | categoria INTERNAL (riservata ai tipi di sistema) | 422 su category | Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE) | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-021 | categoria sconosciuta FOO | 422 su category | Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE) | `TestbookIngConfigIT#ety` |
-| TB-ING-ETY-022 | categoria assente | Q-I6: 201 con categoria ENGAGEMENT | Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE) | `TestbookIngConfigIT#ety` |
+| TB-ING-ETY-022 | categoria assente | Q-260: 201 con categoria ENGAGEMENT | Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE) | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-023 | schema assente | 422 su dataSchema | ingestion §3 (event-types); F-ING-06; Q-89 (JSON Schema dei campi) | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-024 | schema di tipo array | 422 su dataSchema | ingestion §3 (event-types); F-ING-06; Q-89 | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-025 | schema non conforme al meta-schema (type: nonsense) | 422 su dataSchema (DIVERGENZA: oggi 201) | ingestion §3 (event-types); F-ING-06; Q-89 (JSON Schema valido) | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-026 | sampleData che viola lo schema | 422 su sampleData | ingestion §3 (event-types); F-ING-06; Q-89; ingestion §2 (sample_data) | `TestbookIngConfigIT#ety` |
-| TB-ING-ETY-027 | sampleData assente con schema senza obbligatori | Q-I6: 201 con sampleData {} | ingestion §3 (event-types); F-ING-06; Q-89 | `TestbookIngConfigIT#ety` |
+| TB-ING-ETY-027 | sampleData assente con schema senza obbligatori | Q-260: 201 con sampleData {} | ingestion §3 (event-types); F-ING-06; Q-89 | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-028 | creato disabilitato | 201 enabled=false; i suoi eventi sono UNKNOWN_TYPE | ingestion §3 (event-types); F-ING-06; Q-89; ingestion §5.3 | `TestbookIngConfigIT#ety` |
-| TB-ING-ETY-029 | abilitazione assente ⇒ abilitato | Q-I6: 201 enabled=true | ingestion §3 (event-types); F-ING-06; Q-89 | `TestbookIngConfigIT#ety` |
+| TB-ING-ETY-029 | abilitazione assente ⇒ abilitato | Q-260: 201 enabled=true | ingestion §3 (event-types); F-ING-06; Q-89 | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-030 | crea con LEGAL | 403 | docs/08 §2 (actiontype.custom: ADMIN, MARKETING) | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-031 | crea con CARE | 403 | docs/08 §2 | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-032 | crea con ANALYST | 403 | docs/08 §2; docs/06 §3 | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-033 | crea senza X-LH-Actor | 403 (assente = ANALYST) | docs/06 §3 | `TestbookIngConfigIT#ety` |
-| TB-ING-ETY-034 | crea con X-LH-Actor non valido | Q-I7: 403 (ruolo sconosciuto = ANALYST) | docs/06 §3 | `TestbookIngConfigIT#ety` |
+| TB-ING-ETY-034 | crea con X-LH-Actor non valido | Q-261: 403 (ruolo sconosciuto = ANALYST) | docs/06 §3 | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-035 | audit della creazione | voce CREATE su lh.audit.v1 con l'attore | ingestion §4; F-AUD-01 | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-036 | custom usabile subito | evento valido ACCEPTED, evento senza campo obbligatorio INVALID_DATA | ingestion §3 (event-types); F-ING-06; Q-89; docs/12 M6.7 | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-037 | campi del custom per il costruttore di condizioni | GET …/fields: data.meterId string obbligatorio, data.kind enum | ingestion §3 (event-types); F-ING-06; Q-89 (fields); BO-06 | `TestbookIngConfigIT#ety` |
@@ -965,7 +965,7 @@ categoria ammessa una volta); ruoli uno per riga. Modifica: origine × campo (ta
 | TB-ING-ETY-054 | ADMIN cambia l'esempio di un tipo di sistema | 422 | ingestion §3 | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-055 | ADMIN rimanda lo stesso schema del tipo di sistema | 200 (nessun cambiamento) | ingestion §3 | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-056 | ADMIN cambia il codice di un tipo di sistema | 422 | ingestion §3 | `TestbookIngConfigIT#ety` |
-| TB-ING-ETY-057 | ADMIN manda un nome vuoto a un tipo di sistema | Q-I6: 200, il nome resta quello di prima | ingestion §3 | `TestbookIngConfigIT#ety` |
+| TB-ING-ETY-057 | ADMIN manda un nome vuoto a un tipo di sistema | Q-260: 200, il nome resta quello di prima | ingestion §3 | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-058 | campi di purchase.completed | data.amount number obbligatorio, data.channel enum, data.items[*].sku | ingestion §3 (fields); docs/03 §3.3 | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-059 | campi di un tipo inesistente | 404 | ingestion §3 | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-060 | elenco dei tipi di sistema | i 19 tipi EVT-ACT del seed con origin SYSTEM | docs/10 §3; docs/05 §3 | `TestbookIngConfigIT#ety` |
@@ -991,16 +991,16 @@ la transazione; mappatura verificata sull'envelope pubblicato.
 |---|---|---|---|---|
 | TB-ING-TXN-001 | ordine senza kind per external:CRM-102 | 202 ACCEPTED, eventId txn-&lt;orderId&gt;, memberId MBR-000002, type purchase.completed, data mappato | ingestion §3 (POST /v1/transactions); F-ING-07; docs/17 US-E01-08 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-002 | kind PURCHASE esplicito | come senza kind | ingestion §3 (POST /v1/transactions); F-ING-07; Q-49 | `TestbookIngConfigIT#txn` |
-| TB-ING-TXN-003 | kind purchase minuscolo | Q-I15: accettato (maiuscole ignorate) | Q-49 | `TestbookIngConfigIT#txn` |
+| TB-ING-TXN-003 | kind purchase minuscolo | Q-269: accettato (maiuscole ignorate) | Q-49 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-004 | reso (kind RETURN) | purchase.returned, eventId txn-return-&lt;orderId&gt;, data {orderId, amount} | Q-49; F-ING-07 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-005 | reso senza currency | 202 ACCEPTED | Q-49 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-006 | kind REFUND | 400 | Q-49; docs/17 US-E01-08 | `TestbookIngConfigIT#txn` |
-| TB-ING-TXN-007 | acquisto senza currency | Q-I15: 400 (errore di forma, non INVALID_DATA) | ingestion §3 (POST /v1/transactions); F-ING-07; docs/17 US-E01-08 | `TestbookIngConfigIT#txn` |
+| TB-ING-TXN-007 | acquisto senza currency | Q-269: 400 (errore di forma, non INVALID_DATA) | ingestion §3 (POST /v1/transactions); F-ING-07; docs/17 US-E01-08 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-008 | senza source | 400 | ingestion §3 (POST /v1/transactions); F-ING-07 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-009 | senza orderId | 400 | ingestion §3 (POST /v1/transactions); F-ING-07 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-010 | orderId di soli spazi | 400 | ingestion §3 (POST /v1/transactions); F-ING-07 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-011 | senza memberRef | 400 | ingestion §3 (POST /v1/transactions); F-ING-07 | `TestbookIngConfigIT#txn` |
-| TB-ING-TXN-012 | senza amount | Q-I15: 400 (errore di forma, non INVALID_DATA) | ingestion §3 (POST /v1/transactions); F-ING-07 | `TestbookIngConfigIT#txn` |
+| TB-ING-TXN-012 | senza amount | Q-269: 400 (errore di forma, non INVALID_DATA) | ingestion §3 (POST /v1/transactions); F-ING-07 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-013 | corpo vuoto | 400 RFC 9457 (DIVERGENZA: oggi 500) | ingestion §3 (POST /v1/transactions); F-ING-07; docs/06 §2 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-014 | amount non numerico "abc" | 400 RFC 9457 (DIVERGENZA: oggi 500) | ingestion §3 (POST /v1/transactions); F-ING-07; docs/06 §2 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-015 | stesso ordine rinviato | secondo invio DUPLICATE (id deterministico) | ingestion §3 (POST /v1/transactions); F-ING-07; F-ING-02 | `TestbookIngConfigIT#txn` |
@@ -1040,9 +1040,9 @@ esiti della pipeline per provare che è la stessa.
 | TB-ING-SIM-008 | origine della riga | origin SIMULATOR (DIVERGENZA: oggi EXTERNAL) | ingestion §2 (origin EXTERNAL, INTERNAL, SIMULATOR); docs/17 ING-20 | `TestbookIngConfigIT#sim` |
 | TB-ING-SIM-009 | count assente ⇒ 1 | 1 evento | ingestion §3 (simulator/fire); F-DEMO-03; BO-28 (count?=1) | `TestbookIngConfigIT#sim` |
 | TB-ING-SIM-010 | count 20 | 20 eventi, id distinti | ingestion §3 (simulator/fire); F-DEMO-03; BO-28; BO-28 (ripetizioni 1–20) | `TestbookIngConfigIT#sim` |
-| TB-ING-SIM-011 | count 21 | Q-I14: 20 eventi (limitato, non rifiutato) | BO-28 | `TestbookIngConfigIT#sim` |
-| TB-ING-SIM-012 | count 0 | Q-I14: 1 evento (limitato, non rifiutato) | BO-28 | `TestbookIngConfigIT#sim` |
-| TB-ING-SIM-013 | count -3 | Q-I14: 1 evento | BO-28 | `TestbookIngConfigIT#sim` |
+| TB-ING-SIM-011 | count 21 | Q-268: 20 eventi (limitato, non rifiutato) | BO-28 | `TestbookIngConfigIT#sim` |
+| TB-ING-SIM-012 | count 0 | Q-268: 1 evento (limitato, non rifiutato) | BO-28 | `TestbookIngConfigIT#sim` |
+| TB-ING-SIM-013 | count -3 | Q-268: 1 evento | BO-28 | `TestbookIngConfigIT#sim` |
 | TB-ING-SIM-014 | data assente ⇒ sample_data del tipo | data con le chiavi del sample_data del tipo | ingestion §3 (simulator/fire); F-DEMO-03; BO-28 | `TestbookIngConfigIT#sim` |
 | TB-ING-SIM-015 | data assente: piccole variazioni casuali | due invii senza data hanno data diversi (DIVERGENZA: sample_data identico) | ingestion §3 (simulator/fire); F-DEMO-03; BO-28 | `TestbookIngConfigIT#sim` |
 | TB-ING-SIM-016 | occurredAt assente ⇒ adesso | time = istante del servizio | ingestion §3 (simulator/fire); F-DEMO-03; BO-28 | `TestbookIngConfigIT#sim` |
@@ -1086,10 +1086,10 @@ scenari di docs/10 §8 danno gli esiti descritti; `SCN-BAD-EVENT` usa `pos-legac
 | TB-ING-SCN-020 | avanzamento passo per passo | stepsTotal, stepsDone, un esito con correlationId per passo, attore registrato | ingestion §3 (scenario-runs) | `TestbookIngConfigIT#scn` |
 | TB-ING-SCN-021 | origine delle righe degli scenari | origin SIMULATOR | ingestion §5 (origine SIMULATOR) | `TestbookIngConfigIT#scn` |
 | TB-ING-SCN-022 | ritardo di un passo oltre 10 s | attesa limitata a 10 s | ingestion §5 (max 10 s per passo) | `TestbookIngConfigIT#scn` |
-| TB-ING-SCN-023 | expect non rispettato | passo ok=false; esecuzione DONE | Q-I12: ingestion §5 (esito dell'esecuzione non specificato) | `TestbookIngConfigIT#scn` |
+| TB-ING-SCN-023 | expect non rispettato | passo ok=false; esecuzione DONE | Q-266: ingestion §5 (esito dell'esecuzione non specificato) | `TestbookIngConfigIT#scn` |
 | TB-ING-SCN-024 | at = @now | DONE, passo all'istante corrente (DIVERGENZA: espressione non riconosciuta, FAILED) | docs/10 §8 (at è un'espressione del §1, default @now) | `TestbookIngConfigIT#scn` |
-| TB-ING-SCN-025 | at non valido ("domani") | Q-I12: esecuzione FAILED (esito di un passo non valido non specificato) | docs/10 §1; ingestion §2 (scenario_run.status) | `TestbookIngConfigIT#scn` |
-| TB-ING-SCN-026 | passo senza source | Q-I12: fonte simulator | docs/10 §8 | `TestbookIngConfigIT#scn` |
+| TB-ING-SCN-025 | at non valido ("domani") | Q-266: esecuzione FAILED (esito di un passo non valido non specificato) | docs/10 §1; ingestion §2 (scenario_run.status) | `TestbookIngConfigIT#scn` |
+| TB-ING-SCN-026 | passo senza source | Q-266: fonte simulator | docs/10 §8 | `TestbookIngConfigIT#scn` |
 
 ### 3.18 SCT — Istante di un passo (`at`, docs/10 §1)
 
@@ -1115,7 +1115,7 @@ anomalia di calendario una volta.
 | TB-ING-SCT-005 | @lastWeekdayT10:30 un lunedì · at `@lastWeekdayT10:30` · adesso `2026-09-21T09:00` (Roma) | → 2026-09-18T10:30 (Roma) | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
 | TB-ING-SCT-006 | @lastWeekdayT00:00 alla mezzanotte esatta di lunedì · at `@lastWeekdayT00:00` · adesso `2026-09-21T00:00` (Roma) | DIVERGENZA: → 2026-09-18T00:00 (Roma) | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
 | TB-ING-SCT-007 | @lastWeekdayT23:59 alle 00:00:01 di martedì · at `@lastWeekdayT23:59` · adesso `2026-09-22T00:00:01` (Roma) | → 2026-09-21T23:59 (Roma) | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
-| TB-ING-SCT-008 | @lastWeekdayT10:30 una domenica · at `@lastWeekdayT10:30` · adesso `2026-09-27T12:00` (Roma) | Q-I13 (feriale = lun–ven): → 2026-09-25T10:30 (Roma) | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
+| TB-ING-SCT-008 | @lastWeekdayT10:30 una domenica · at `@lastWeekdayT10:30` · adesso `2026-09-27T12:00` (Roma) | Q-267 (feriale = lun–ven): → 2026-09-25T10:30 (Roma) | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
 | TB-ING-SCT-009 | @lastWeekdayT10:30 un sabato · at `@lastWeekdayT10:30` · adesso `2026-09-26T12:00` (Roma) | → 2026-09-25T10:30 (Roma) | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
 | TB-ING-SCT-010 | @lastSaturdayT11:00 un sabato alle 12:00 · at `@lastSaturdayT11:00` · adesso `2026-09-26T12:00` (Roma) | DIVERGENZA: → 2026-09-19T11:00 (Roma) | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
 | TB-ING-SCT-011 | @lastSaturdayT11:00 un sabato alle 10:00 · at `@lastSaturdayT11:00` · adesso `2026-09-26T10:00` (Roma) | → 2026-09-19T11:00 (Roma) | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
@@ -1123,9 +1123,9 @@ anomalia di calendario una volta.
 | TB-ING-SCT-013 | @lastSaturdayT10:05 un venerdì alle 23:59:59 · at `@lastSaturdayT10:05` · adesso `2026-09-25T23:59:59` (Roma) | → 2026-09-19T10:05 (Roma) | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
 | TB-ING-SCT-014 | @lastSaturdayT10:00 dopo il cambio dell'ora di marzo (sabato in CET) · at `@lastSaturdayT10:00` · adesso `2026-03-30T12:00` (Roma) | → 2026-03-28T10:00 (Roma) | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
 | TB-ING-SCT-015 | @lastWeekdayT10:30 il lunedì dopo il cambio dell'ora di marzo · at `@lastWeekdayT10:30` · adesso `2026-03-30T09:00` (Roma) | → 2026-03-27T10:30 (Roma) | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
-| TB-ING-SCT-016 | @lastSundayT02:30 nell'ora che non esiste (29/3/2026) · at `@lastSundayT02:30` · adesso `2026-03-30T12:00` (Roma) | Q-I13 (ora inesistente ⇒ 03:30 CEST): → 2026-03-29T01:30:00Z UTC | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
+| TB-ING-SCT-016 | @lastSundayT02:30 nell'ora che non esiste (29/3/2026) · at `@lastSundayT02:30` · adesso `2026-03-30T12:00` (Roma) | Q-267 (ora inesistente ⇒ 03:30 CEST): → 2026-03-29T01:30:00Z UTC | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
 | TB-ING-SCT-017 | @lastSaturdayT11:00 dopo il cambio dell'ora di ottobre (sabato in CEST) · at `@lastSaturdayT11:00` · adesso `2026-10-26T12:00` (Roma) | → 2026-10-24T11:00 (Roma) | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
-| TB-ING-SCT-018 | @lastSundayT02:30 nell'ora ripetuta (25/10/2026) · at `@lastSundayT02:30` · adesso `2026-10-26T12:00` (Roma) | Q-I13 (ora doppia ⇒ prima occorrenza, CEST): → 2026-10-25T00:30:00Z UTC | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
+| TB-ING-SCT-018 | @lastSundayT02:30 nell'ora ripetuta (25/10/2026) · at `@lastSundayT02:30` · adesso `2026-10-26T12:00` (Roma) | Q-267 (ora doppia ⇒ prima occorrenza, CEST): → 2026-10-25T00:30:00Z UTC | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
 | TB-ING-SCT-019 | @lastWeekdayT10:30 il 1° gennaio 2027 alle 12:00 (fine anno) · at `@lastWeekdayT10:30` · adesso `2027-01-01T12:00` (Roma) | DIVERGENZA: → 2026-12-31T10:30 (Roma) | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
 | TB-ING-SCT-020 | @lastWeekdayT10:30 il 1° marzo 2028 (29 febbraio) · at `@lastWeekdayT10:30` · adesso `2028-03-01T08:00` (Roma) | → 2028-02-29T10:30 (Roma) | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
 | TB-ING-SCT-021 | @lastWeekday senza orario · at `@lastWeekday` · adesso `2026-09-24T15:00` (Roma) | DIVERGENZA: → 2026-09-23T00:00 (Roma) | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
@@ -1157,13 +1157,13 @@ anomalia di calendario una volta.
 | 2 | FRM-024, FRM-025 | envelope: `data` è un oggetto; errori di forma ⇒ 400 (ingestion §5.1; `envelope.schema.json`) | `202 REJECTED/INVALID_DATA` e riga salvata | `IngestionService.java:237` (controlla solo `null`) | risolta: `IngestionService.java:242` (`data` non oggetto ⇒ 400) |
 | 3 | FRM-026, FRM-027, TXN-013, TXN-014 | corpo non leggibile ⇒ 400 RFC 9457 (ingestion §3; docs/06 §2) | 500 `INTERNAL_ERROR` | lh-common `GlobalExceptionHandler.java:66` (nessun gestore per `HttpMessageNotReadableException`) | risolta: lh-common `GlobalExceptionHandler.java:48` (`HttpMessageNotReadableException` ⇒ 400 RFC 9457; anche `:60` per i parametri non convertibili) |
 | 4 | SRC-068, SRC-069 | `source` di un'azione = `urn:loyaltyhub:source:<codice>` (docs/05 §2) | qualunque stringa che termina con `:ecommerce` vale come fonte `ecommerce` ⇒ ACCEPTED | `IngestionService.java:293-300` (`normalizeSource` + ultimo segmento dopo `:`) | risolta: `IngestionService.java:302-315` (confronto esatto su `urn:loyaltyhub:source:`) |
-| 5 | MON-008, MON-009 | filtri `from`, `to`, `q` (ingestion §3) | parametri ignorati | `InboundEventsController.java:55-61` | risolta: `InboundEventsController.java:55-97`, `InboundEventRepository.java:42, 88` (anche su `/counts`; Q-I18) |
-| 6 | MON-010 | storico di 40 `inbound_event` degli ultimi 3 giorni (ingestion §6) | nessuna riga seminata | `DemoSeeder` (nessun seed di `inbound_event`) | risolta: `seed/inbound-history.json` + `InboundHistorySeeder.java:66`, chiamato da `DemoSeeder.java:82` (Q-I17) |
-| 7 | FON-002, FON-003, FON-004 | `POST`/`PUT /v1/sources` (ingestion §3; F-ING-05) | `PUT` 404, `POST` 500 | `RegistryController.java:22` (solo `GET`) | risolta: `PUT` dal ramo trasversale (`RegistryController.java:75`); `POST` in `RegistryController.java:68` + `SourceService.java:52` (Q-I9) |
+| 5 | MON-008, MON-009 | filtri `from`, `to`, `q` (ingestion §3) | parametri ignorati | `InboundEventsController.java:55-61` | risolta: `InboundEventsController.java:55-97`, `InboundEventRepository.java:42, 88` (anche su `/counts`; Q-272) |
+| 6 | MON-010 | storico di 40 `inbound_event` degli ultimi 3 giorni (ingestion §6) | nessuna riga seminata | `DemoSeeder` (nessun seed di `inbound_event`) | risolta: `seed/inbound-history.json` + `InboundHistorySeeder.java:66`, chiamato da `DemoSeeder.java:82` (Q-271) |
+| 7 | FON-002, FON-003, FON-004 | `POST`/`PUT /v1/sources` (ingestion §3; F-ING-05) | `PUT` 404, `POST` 500 | `RegistryController.java:22` (solo `GET`) | risolta: `PUT` dal ramo trasversale (`RegistryController.java:75`); `POST` in `RegistryController.java:68` + `SourceService.java:52` (Q-263) |
 | 8 | ETY-007 | codice custom minuscolo (Q-89) | `x.readingSent` accettato | `EventTypeService.java:42` (`[a-zA-Z0-9]` dopo il primo carattere) | risolta: `EventTypeService.java:42` (codice tutto minuscolo; anche `web/lib/actiontypes/schema.ts`) |
 | 9 | ETY-025 | lo schema di un custom è un JSON Schema valido (F-ING-06) | `{"type":"nonsense"}` accettato | `EventTypeService.java:146-158` (la compilazione non verifica il meta-schema) | risolta: `EventTypeService.java:144` + lh-common `JsonSchemaValidator.java:44` (meta-schema 2020-12) |
 | 10 | SIM-008 | origine `SIMULATOR` per gli eventi del simulatore (ingestion §2) | origine `EXTERNAL` | `SimulatorController.java:62` (`ingest(event)` senza origine) | risolta dal ramo trasversale: `SimulatorController.java:74` (origine `SIMULATOR`) |
-| 11 | SIM-015 | `data` assente ⇒ `sample_data` con piccole variazioni casuali (ingestion §3) | `sample_data` identico | `SimulatorController.java:55`, `#sampleData` | risolta: `SimulatorController.java:69, 84` + `SampleVariation.java:33` (Q-I10) |
+| 11 | SIM-015 | `data` assente ⇒ `sample_data` con piccole variazioni casuali (ingestion §3) | `sample_data` identico | `SimulatorController.java:55`, `#sampleData` | risolta: `SimulatorController.java:69, 84` + `SampleVariation.java:33` (Q-264) |
 | 12 | SCN-024, SCT-022, SCT-023 | `at` è un'espressione di docs/10 §1 (default `@now`) | `@now`, `@today…` non riconosciuti (esecuzione `FAILED`) | `ScenarioTime.java:28-30` (`Instant.parse`) | risolta: `ScenarioTime.java:25` (grammatica di `SeedDates`, docs/10 §1) |
 | 13 | SCT-003, SCT-006, SCT-010, SCT-019 | `@lastWeekday`/`@lastSaturday` = giorno **precedente a oggi** (docs/10 §1) | se l'orario di oggi è già passato si usa oggi | `ScenarioTime.java:38-41` (`back = 0` ammesso) | risolta: `ScenarioTime.java:25` (`@last…` = giorno precedente a oggi) |
 | 14 | SCT-021 | `@lastWeekday` senza orario è valido (docs/10 §1) | eccezione «senza orario» | `ScenarioTime.java:32-33` | risolta: `ScenarioTime.java:25` (senza orario = 00:00) |
@@ -1175,21 +1175,21 @@ la più conservativa, la voce lo dice e propone l'alternativa senza implementarl
 
 | Voce | Righe | Tema | In uso conservativo? |
 |---|---|---|---|
-| Q-I1 | MBR-025…MBR-033 | subject senza prefisso, prefisso sconosciuto, `member:` vuoto, `external:` con maiuscole | no (senza prefisso ⇒ proposto `UNMATCHED`) |
-| Q-I2 | DUP-006, DUP-007, DUP-008 | la dedup conta solo un `ACCEPTED` | sì |
-| Q-I3 | TIM-022, TIM-024 | «30 giorni» = 720 ore al cambio dell'ora | — |
-| Q-I4 | SRC-067, SRC-070 | `source` in forma breve; URN con codice vuoto | no (forma breve esterna ⇒ proposto `400`) |
-| Q-I5 | ACC-006 | subject normalizzato sulla riga `ACCEPTED` | — |
-| Q-I6 | ETY-009, 010, 015, 016, 022, 027, 029, 057 | limiti e default dei tipi custom; nome vuoto su un SYSTEM | sì |
-| Q-I7 | ETY-034, RES-007, RES-014 | `X-LH-Actor` non valido = ANALYST | sì |
-| Q-I8 | RES-050…RES-054 | codici e pulizia di *Abbina* | sì |
-| Q-I11 | SCH-083 | `correctAnswers` > `totalQuestions` | no (proposto `INVALID_DATA`) |
-| Q-I12 | SCN-023, SCN-025, SCN-026 | esito dell'esecuzione di uno scenario; fonte di default | — |
-| Q-I13 | SCT-008, SCT-016, SCT-018 | feriale = lun–ven; ora inesistente/doppia | — |
-| Q-I14 | SIM-011, SIM-012, SIM-013 | `count` fuori 1–20 limitato | no (proposto `422`) |
-| Q-I15 | TXN-003, TXN-007, TXN-012 | `kind` senza maiuscole; `amount`/`currency` mancanti ⇒ 400 | no (proposto `INVALID_DATA` visibile in BO-26) |
-| Q-I16 | TYP-010, TYP-011 | custom senza schema; custom da fonte con elenco | sì |
+| Q-255 | MBR-025…MBR-033 | subject senza prefisso, prefisso sconosciuto, `member:` vuoto, `external:` con maiuscole | no (senza prefisso ⇒ proposto `UNMATCHED`) |
+| Q-256 | DUP-006, DUP-007, DUP-008 | la dedup conta solo un `ACCEPTED` | sì |
+| Q-257 | TIM-022, TIM-024 | «30 giorni» = 720 ore al cambio dell'ora | — |
+| Q-258 | SRC-067, SRC-070 | `source` in forma breve; URN con codice vuoto | no (forma breve esterna ⇒ proposto `400`) |
+| Q-259 | ACC-006 | subject normalizzato sulla riga `ACCEPTED` | — |
+| Q-260 | ETY-009, 010, 015, 016, 022, 027, 029, 057 | limiti e default dei tipi custom; nome vuoto su un SYSTEM | sì |
+| Q-261 | ETY-034, RES-007, RES-014 | `X-LH-Actor` non valido = ANALYST | sì |
+| Q-262 | RES-050…RES-054 | codici e pulizia di *Abbina* | sì |
+| Q-265 | SCH-083 | `correctAnswers` > `totalQuestions` | no (proposto `INVALID_DATA`) |
+| Q-266 | SCN-023, SCN-025, SCN-026 | esito dell'esecuzione di uno scenario; fonte di default | — |
+| Q-267 | SCT-008, SCT-016, SCT-018 | feriale = lun–ven; ora inesistente/doppia | — |
+| Q-268 | SIM-011, SIM-012, SIM-013 | `count` fuori 1–20 limitato | no (proposto `422`) |
+| Q-269 | TXN-003, TXN-007, TXN-012 | `kind` senza maiuscole; `amount`/`currency` mancanti ⇒ 400 | no (proposto `INVALID_DATA` visibile in BO-26) |
+| Q-270 | TYP-010, TYP-011 | custom senza schema; custom da fonte con elenco | sì |
 
-Voci nate dalle correzioni, senza righe AMBIGUO: Q-I9 (`POST /v1/sources`, FON-003), Q-I10 (ampiezza delle variazioni
-del simulatore, SIM-015), Q-I17 (composizione dello storico demo, MON-010), Q-I18 (semantica di `from`/`to`/`q`, MON-008/009).
+Voci nate dalle correzioni, senza righe AMBIGUO: Q-263 (`POST /v1/sources`, FON-003), Q-264 (ampiezza delle variazioni
+del simulatore, SIM-015), Q-271 (composizione dello storico demo, MON-010), Q-272 (semantica di `from`/`to`/`q`, MON-008/009).
 

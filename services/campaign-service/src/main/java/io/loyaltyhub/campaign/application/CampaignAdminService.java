@@ -188,7 +188,7 @@ public class CampaignAdminService implements ApprovalSource {
      * {@code schedule.endAt} — altrimenti {@code 409 CAMPAIGN_LIVE_LOCKED} (per il resto si duplica).
      * {@code ENDED}/{@code ARCHIVED}: {@code 409 CAMPAIGN_NOT_EDITABLE}.
      */
-    // SPEC-GAP: Q-C46 — requiresLegal si imposta solo alla creazione: il PUT lo ignora (toglierlo aggirerebbe LEGAL).
+    // SPEC-GAP: Q-254 — requiresLegal si imposta solo alla creazione: il PUT lo ignora (toglierlo aggirerebbe LEGAL).
     @Transactional
     public Campaign update(String idOrCode, CreateCampaignRequest r) {
         Campaign c = get(idOrCode);
@@ -232,7 +232,7 @@ public class CampaignAdminService implements ApprovalSource {
      * cambiare i campi bloccati di una campagna {@code LIVE} (docs/03 §3.6). La copia non è mai di sistema; il flag
      * {@code requiresLegal} resta (la policy si ricalcola all'invio).
      */
-    // SPEC-GAP: Q-C45 — se <code>-COPY-n supera i 40 caratteri del formato (docs/06 §2) si tronca la base, come Q-113.
+    // SPEC-GAP: Q-253 — se <code>-COPY-n supera i 40 caratteri del formato (docs/06 §2) si tronca la base, come Q-113.
     @Transactional
     public Campaign duplicate(String idOrCode) {
         Campaign c = get(idOrCode);

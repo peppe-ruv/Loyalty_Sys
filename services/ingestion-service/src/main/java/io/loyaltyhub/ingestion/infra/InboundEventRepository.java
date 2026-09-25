@@ -37,7 +37,7 @@ public class InboundEventRepository {
      * Filtri del monitor (docs/servizi/ingestion-service.md §3: {@code status, source, type, memberId, from, to, q}).
      * {@code from}/{@code to} delimitano {@code received_at} (estremi inclusi); {@code q} è un testo cercato senza
      * maiuscole in id evento, soggetto, membro, tipo, fonte, correlazione e dettaglio del rifiuto.
-     * SPEC-GAP: Q-I18 — la scheda elenca i filtri senza la semantica.
+     * SPEC-GAP: Q-272 — la scheda elenca i filtri senza la semantica.
      */
     public record Filter(String source, String type, String memberId, Instant from, Instant to, String q) {
         public static Filter of(String source, String type, String memberId) {
