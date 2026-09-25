@@ -24,8 +24,8 @@ class TestbookCmpValidationTest {
     /**
      * TB-CMP-VAL: almeno un trigger, almeno un effetto, MULTIPLIER.factor in [1.1, 5] ai limiti, codici di concorso,
      * premio, badge e template non vuoti, endAt &gt; startAt.
-     * TESTBOOK: ambiguo, vedi TB-CMP-VAL-036 (mode sconosciuto), VAL-037 (comparatore sconosciuto): la scheda §5 non li
-     * elenca; si asserisce il comportamento attuale.
+     * TESTBOOK: ambiguo, vedi TB-CMP-VAL-036 (mode sconosciuto): la scheda §5 non lo elenca; si asserisce il
+     * comportamento attuale. VAL-037 (comparatore sconosciuto) rifiutato: Q-219 DECISA.
      * Q-243 DECISA (VAL-038: startAt non ISO-8601 rifiutato anche senza endAt, 422).
      */
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)

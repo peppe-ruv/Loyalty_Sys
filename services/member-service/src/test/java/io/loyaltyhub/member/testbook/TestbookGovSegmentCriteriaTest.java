@@ -35,8 +35,9 @@ class TestbookGovSegmentCriteriaTest {
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/gov/criteria.csv", numLinesToSkip = 1)
     void matches(String id, String description, String criteria, String variant, boolean expected) {
-        // Righe AMBIGUO (Q-90, Q-91, date come testo, liste vuote, 29 febbraio, giorni a Roma) — TESTBOOK: ambiguo,
-        // vedi TB-GOV §13. Righe DIVERGENZA (negazioni e startsWith su tipi incompatibili): TB-GOV §14.
+        // Righe AMBIGUO (Q-90, liste vuote, 29 febbraio, giorni a Roma) — TESTBOOK: ambiguo, vedi TB-GOV §13. Q-215
+        // DECISA (cast tipizzato di lh-common): date confrontate come date, mai come testo (CRT-045…056); negazioni e
+        // startsWith su tipi incompatibili falsi (CRT-024, 028, 038, 042, 057…060).
         Profile p = Profile.of(variant);
         JsonNode c = MAPPER.readTree(criteria.replace('\'', '"'));
         assertThat(SegmentCriteria.matches(c, p.facts(), p.asOf)).as("%s: %s", id, description).isEqualTo(expected);
@@ -45,7 +46,7 @@ class TestbookGovSegmentCriteriaTest {
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/gov/criteria-validation.csv", numLinesToSkip = 1)
     void validate(String id, String description, String criteria, String expected) {
-        // Righe CRV-006, CRV-011, CRV-015, CRV-025 — TESTBOOK: ambiguo, vedi TB-GOV §13
+        // Righe CRV-006, CRV-011, CRV-015 — TESTBOOK: ambiguo, vedi TB-GOV §13; CRV-025: Q-215 DECISA (data ISO ammessa)
         List<SegmentCriteria.Issue> issues = SegmentCriteria.validate(MAPPER.readTree(criteria.replace('\'', '"')));
         if ("OK".equals(expected)) {
             assertThat(issues).as("%s: %s", id, description).isEmpty();

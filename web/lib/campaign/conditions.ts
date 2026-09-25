@@ -58,6 +58,8 @@ export interface ConditionField {
   optionLabels?: Record<string, string>;
   /** Enum su un attributo numerico: i valori vanno salvati come numeri. */
   numericOptions?: boolean;
+  /** Data con ora e fuso (`format: date-time` dello schema): il valore è un istante, non una data (Q-215). */
+  dateTime?: boolean;
   hint?: string;
   /** Campo non presente nel catalogo (percorso scritto a mano o JSON esistente). */
   custom?: boolean;
@@ -87,8 +89,7 @@ export const COMPARATORS_BY_TYPE: Record<ValueType, Comparator[]> = {
   enum: ["eq", "neq", "in", "nin"],
   boolean: ["eq", "exists", "nexists"],
   list: ["contains", "ncontains", "exists", "nexists"],
-  // SPEC-GAP: Q-91 — il motore (ConditionEvaluator) confronta gt/gte/lt/lte/between solo sui numeri: sulle date ISO
-  // oggi solo `eq` funziona. Offriamo comunque i comparatori della spec; il confronto lessicografico va fatto nel motore.
+  // Q-215 DECISA: il motore confronta le date come date (stessa granularità: data con data, istante con istante).
   date: ["gte", "gt", "lte", "lt", "eq", "between"],
   object: ["exists", "nexists"],
   unknown: ALL_COMPARATORS,
@@ -145,15 +146,23 @@ export function dataFieldType(f: Pick<EventTypeField, "type" | "enum" | "format"
   }
 }
 
+/** Trigger il cui catalogo dei campi `data.*` non è ancora arrivato (servizio che dorme o errore). */
+export function missingCatalogs(fieldsByTrigger: Record<string, EventTypeField[] | undefined>, triggers: string[]): string[] {
+  return triggers.filter((t) => !Array.isArray(fieldsByTrigger[t]));
+}
+
 /**
- * Campi `data.*` comuni a tutti i trigger scelti (intersezione per percorso, docs/08 §BO-06). I trigger di cui i campi
- * non sono ancora arrivati sono ignorati. Tipi diversi fra trigger: `number`/`integer` → `number`, altrimenti `string`;
- * enum → unione dei valori (se tutti gli schemi ne dichiarano uno); `required` solo se lo è ovunque.
+ * Campi `data.*` comuni a tutti i trigger scelti (intersezione per percorso, docs/08 §BO-06). Q-197 DECISA
+ * (conservativa): finché il catalogo di un trigger non è arrivato nessun campo è dichiarato comune (elenco vuoto: i
+ * percorsi si scrivono a mano e {@link fieldWarnings} li segnala come non verificati). Tipi diversi fra trigger:
+ * `number`/`integer` → `number`, altrimenti `string`; enum → unione dei valori (se tutti gli schemi ne dichiarano uno);
+ * `required` solo se lo è ovunque.
  */
 export function commonDataFields(
   fieldsByTrigger: Record<string, EventTypeField[] | undefined>,
   triggers: string[],
 ): EventTypeField[] {
+  if (missingCatalogs(fieldsByTrigger, triggers).length > 0) return [];
   const lists = triggers.map((t) => fieldsByTrigger[t]).filter((l): l is EventTypeField[] => Array.isArray(l));
   if (lists.length === 0) return [];
   const [first, ...rest] = lists;
@@ -208,6 +217,7 @@ export function buildCatalog(input: CatalogInput): ConditionField[] {
       space: "data",
       type,
       ...(type === "enum" ? { options: f.enum ?? [] } : {}),
+      ...(type === "date" && f.format === "date-time" ? { dateTime: true } : {}),
       ...(f.path.includes("[*]") ? { hint: "vero se almeno un elemento soddisfa" } : {}),
     });
   }
@@ -591,24 +601,85 @@ export function countLeaves(node: UiNode): number {
   return leaves(node).length;
 }
 
-// ---------- validazione e avvisi ----------
+// ---------- cast tipizzato (stessa politica di lh-common TypedCast, Q-215) ----------
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}/;
+const NUMBER_RE = /^-?\d+(\.\d+)?$/;
+const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const INSTANT_RE = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,9})?)?(?:Z|[+-](\d{2}):(\d{2}))$/;
+
+/** Tipo bersaglio del cast: il tipo del campo. */
+export type CastType = "number" | "string" | "boolean" | "date" | "instant";
+
+/** `AAAA-MM-GG` valida nel calendario (niente 29 febbraio di un anno non bisestile). */
+export function isIsoDate(v: unknown): boolean {
+  if (typeof v !== "string") return false;
+  const m = DATE_RE.exec(v);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
+}
+
+/** Data e ora ISO-8601 con fuso (`Z` o `±hh:mm`), valida. */
+export function isIsoInstant(v: unknown): boolean {
+  if (typeof v !== "string") return false;
+  const m = INSTANT_RE.exec(v);
+  if (!m || !isIsoDate(m[1])) return false;
+  const [h, mi, se] = [Number(m[2]), Number(m[3]), m[4] === undefined ? 0 : Number(m[4])];
+  if (h > 23 || mi > 59 || se > 59) return false;
+  if (m[5] !== undefined && (Number(m[5]) > 18 || Number(m[6]) > 59)) return false;
+  return true;
+}
+
+/**
+ * Il valore della regola si converte nel tipo del campo? Stessa politica stretta del motore (lh-common `TypedCast`,
+ * Q-215 DECISA): numero ← numero o testo `^-?\d+(\.\d+)?$` esatto; booleano ← booleano o esattamente
+ * `"true"`/`"false"`; data ← `AAAA-MM-GG` valida; istante ← data e ora con fuso; testo ← solo testo (mai un numero).
+ * Un valore che non si converte rende la foglia sempre falsa, quindi il costruttore la blocca.
+ */
+export function castsTo(v: unknown, type: CastType): boolean {
+  switch (type) {
+    case "number":
+      return (typeof v === "number" && Number.isFinite(v)) || (typeof v === "string" && NUMBER_RE.test(v));
+    case "boolean":
+      return typeof v === "boolean" || v === "true" || v === "false";
+    case "date":
+      return isIsoDate(v);
+    case "instant":
+      return isIsoInstant(v);
+    default:
+      return typeof v === "string";
+  }
+}
+
+// ---------- validazione e avvisi ----------
 
 function scalarProblem(v: unknown, field: ConditionField): string | null {
   if (isBlank(v)) return "Valore mancante";
   switch (field.type) {
     case "number":
-      return typeof v === "number" ? null : "Serve un numero";
+      return castsTo(v, "number") ? null : "Serve un numero";
     case "boolean":
-      return typeof v === "boolean" ? null : "Scegli sì o no";
+      return castsTo(v, "boolean") ? null : "Scegli sì o no";
     case "date":
-      return typeof v === "string" && DATE_RE.test(v) ? null : "Data non valida (AAAA-MM-GG)";
+      if (field.dateTime) return castsTo(v, "instant") ? null : "Data e ora non valide (es. 2026-09-18T10:00:00+02:00)";
+      return castsTo(v, "date") ? null : "Data non valida (AAAA-MM-GG)";
     case "enum":
+      if (field.numericOptions && !castsTo(v, "number")) return "Serve un numero";
+      if (!field.numericOptions && typeof v !== "string") return `Valore non ammesso: ${String(v)}`;
       return field.options && !field.options.map(String).includes(String(v)) ? `Valore non ammesso: ${String(v)}` : null;
+    case "string":
+      return castsTo(v, "string") ? null : "Serve un testo";
     default:
       return null;
   }
+}
+
+/** Ordine di due estremi già validi (numeri come numeri, istanti come istanti, date AAAA-MM-GG come testo). */
+function rangeInverted(a: unknown, b: unknown, field: ConditionField): boolean {
+  if (field.type === "number" || (typeof a === "number" && typeof b === "number")) return Number(a) > Number(b);
+  if (field.type === "date" && field.dateTime) return Date.parse(String(a)) > Date.parse(String(b));
+  return typeof a === "string" && typeof b === "string" && a > b;
 }
 
 /** Problema di una foglia (per evidenziarla e bloccare il salvataggio), o `null`. */
@@ -632,9 +703,7 @@ export function leafProblem(leaf: UiLeaf, field: ConditionField): string | null 
       const p = scalarProblem(v[0], field) ?? scalarProblem(v[1], field);
       if (p) return p;
       if (field.type === "unknown" && (typeof v[0] !== "number" || typeof v[1] !== "number")) return "Servono due numeri";
-      if ((typeof v[0] === "number" && typeof v[1] === "number" && v[0] > v[1]) || (typeof v[0] === "string" && typeof v[1] === "string" && v[0] > v[1])) {
-        return "Il primo valore supera il secondo";
-      }
+      if (rangeInverted(v[0], v[1], field)) return "Il primo valore supera il secondo";
       return null;
     }
     default:
@@ -663,16 +732,22 @@ export interface WarningInput {
 
 /**
  * Avvisi non bloccanti (docs/08 §BO-06): un campo `data.*` non comune a tutti i trigger (la foglia sarebbe falsa per
- * gli altri) o un campo fuori catalogo. Il campo non viene mai tolto.
+ * gli altri) o un campo fuori catalogo. Q-197 DECISA (conservativa): con il catalogo di un trigger non ancora arrivato
+ * ogni campo `data.*` è segnalato come «non verificato» per quel trigger. Il campo non viene mai tolto.
  */
 export function fieldWarnings(tree: UiGroup, input: WarningInput): Record<string, string> {
   const out: Record<string, string> = {};
-  const loaded = input.triggers.length > 0 && input.triggers.every((t) => Array.isArray(input.fieldsByTrigger[t]));
+  const missing = missingCatalogs(input.fieldsByTrigger, input.triggers);
+  const loaded = input.triggers.length > 0 && missing.length === 0;
   const common = new Set(commonDataFields(input.fieldsByTrigger, input.triggers).map((f) => f.path));
   for (const leaf of leaves(tree)) {
     const path = leaf.field.trim();
     if (!path) continue;
     if (path.startsWith("data.")) {
+      if (missing.length > 0) {
+        out[leaf.id] = `Campo non verificato per ${missing.join(", ")}: il catalogo dei campi non è ancora arrivato`;
+        continue;
+      }
       if (!loaded || common.has(path)) continue;
       const present = input.triggers.filter((t) => input.fieldsByTrigger[t]!.some((f) => f.path === path));
       if (present.length === 0) {

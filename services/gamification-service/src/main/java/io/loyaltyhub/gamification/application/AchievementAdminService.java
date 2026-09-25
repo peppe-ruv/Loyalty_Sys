@@ -2,9 +2,11 @@ package io.loyaltyhub.gamification.application;
 
 import io.loyaltyhub.common.audit.AuditEntry;
 import io.loyaltyhub.common.audit.AuditPublisher;
+import io.loyaltyhub.common.condition.ConditionRules;
 import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.gamification.domain.Achievement;
+import io.loyaltyhub.gamification.domain.AchievementRules;
 import io.loyaltyhub.gamification.infra.AchievementRepository;
 import io.loyaltyhub.gamification.infra.BadgeRepository;
 import org.springframework.stereotype.Service;
@@ -121,6 +123,14 @@ public class AchievementAdminService {
         if (!"ACTIVE".equals(status) && !"INACTIVE".equals(status)) problems.add("stato ACTIVE o INACTIVE");
         if (!problems.isEmpty()) {
             throw LhException.validation("ACHIEVEMENT_INVALID", "Obiettivo non valido: " + String.join("; ", problems) + ".");
+        }
+        // Q-295 decisa: filtro con comparatore sconosciuto, forma errata o valore non convertibile → 422 CONDITION_INVALID.
+        JsonNode filter = r.filter() != null ? r.filter() : cur == null ? null : cur.filter();
+        List<ConditionRules.Issue> issues = AchievementRules.validateFilter(filter, "SUM".equals(metric) ? sumField : null);
+        if (!issues.isEmpty()) {
+            throw LhException.validation("CONDITION_INVALID", "Filtro non valido: " + issues.get(0).path() + " — "
+                            + issues.get(0).message(),
+                    issues.stream().map(i -> new LhException.FieldError(i.path(), i.message())).toList());
         }
         return new Achievement(id, code, name, r.description() != null ? r.description() : cur == null ? null : cur.description(),
                 r.icon() != null ? r.icon() : cur == null ? null : cur.icon(), types,

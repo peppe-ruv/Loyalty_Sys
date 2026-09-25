@@ -1,5 +1,7 @@
 package io.loyaltyhub.engagement.domain;
 
+import io.loyaltyhub.common.condition.ConditionRules;
+import io.loyaltyhub.common.condition.TypedCast;
 import tools.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
@@ -12,108 +14,102 @@ import java.util.Set;
  * campaign, riportata qui (nessuna chiamata tra servizi, CLAUDE.md §1.3): gruppo {@code {op: all|any|not, rules}} o
  * foglia {@code {field, cmp, value}}; campo assente → foglia falsa (tranne {@code nexists}); tipi incompatibili → falsa,
  * mai eccezione; su array ({@code items[*].x}) vero se almeno un elemento soddisfa. Un campo fuori da {@code data.*} è
- * sempre assente. Condizione {@code null} o vuota = sempre vera.
+ * sempre assente. Condizione {@code null} o vuota = sempre vera. Cast dei valori: {@link TypedCast} di lh-common
+ * (Q-215), lo stesso degli altri tre valutatori.
  */
 public final class DataCondition {
 
-    public static final Set<String> COMPARATORS = Set.of("eq", "neq", "gt", "gte", "lt", "lte", "in", "nin", "contains",
-            "ncontains", "exists", "nexists", "between", "startsWith");
-    private static final Set<String> OPS = Set.of("all", "any", "not");
+    public static final Set<String> COMPARATORS = Set.copyOf(TypedCast.COMPARATORS);
     private static final Object ABSENT = new Object();
+
+    /** Solo {@code data.*}: gli altri spazi non esistono per una regola di notifica. */
+    private static final ConditionRules.Schema SCHEMA = new ConditionRules.Schema() {
+        @Override
+        public String fieldProblem(String field) {
+            return field.startsWith("data.") && field.length() > "data.".length()
+                    ? null : "campo \"" + field + "\": le regole di notifica leggono solo data.*";
+        }
+    };
 
     private DataCondition() {
     }
 
-    /** Vero se {@code condition} è soddisfatta dal {@code data} del fatto. */
+    /** Vero se {@code condition} è soddisfatta dal {@code data} del fatto. Condizione {@code null} o {@code {}} = vera. */
     public static boolean matches(JsonNode condition, JsonNode data) {
+        if (condition == null || condition.isNull() || condition.isMissingNode()
+                || (condition.isObject() && condition.isEmpty())) {
+            return true;
+        }
         return eval(condition, data);
     }
 
-    /** Problemi di forma della condizione (per la validazione della gestione). Vuoto = valida. */
+    /**
+     * Problemi di forma della condizione (per la validazione della gestione, 422 {@code RULE_INVALID} sul campo
+     * {@code condition}). Vuoto = valida. Regole comuni di lh-common ({@link ConditionRules}): operatore di gruppo
+     * sconosciuto, {@code any} senza regole, foglia senza {@code field} o {@code cmp}, comparatore sconosciuto, valore
+     * mancante o di forma sbagliata (Q-179 decisa, conservativa). I tipi dei campi {@code data.*} non sono noti qui.
+     */
     public static List<String> problems(JsonNode condition) {
         List<String> out = new ArrayList<>();
-        check(condition, out);
+        for (ConditionRules.Issue i : ConditionRules.validate(condition, "condition", SCHEMA)) {
+            out.add(i.path() + ": " + i.message());
+        }
         return out;
     }
 
-    private static void check(JsonNode node, List<String> out) {
-        if (node == null || node.isNull() || (node.isObject() && node.isEmpty())) {
-            return;
-        }
-        if (!node.isObject()) {
-            out.add("ogni nodo della condizione è un oggetto");
-            return;
-        }
-        if (node.has("op")) {
-            String op = node.path("op").asString("");
-            if (!OPS.contains(op)) {
-                out.add("operatore di gruppo \"" + op + "\" (ammessi: all, any, not)");
-            }
-            if (!node.path("rules").isArray()) {
-                out.add("il gruppo \"" + op + "\" richiede l'elenco rules");
-                return;
-            }
-            node.path("rules").forEach(r -> check(r, out));
-            return;
-        }
-        String field = node.path("field").asString("");
-        String cmp = node.path("cmp").asString("eq");
-        if (!field.startsWith("data.") || field.length() <= "data.".length()) {
-            out.add("campo \"" + field + "\": le regole di notifica leggono solo data.*");
-        }
-        if (!COMPARATORS.contains(cmp)) {
-            out.add("comparatore \"" + cmp + "\" sconosciuto");
-        }
-        if (!"exists".equals(cmp) && !"nexists".equals(cmp) && !node.has("value")) {
-            out.add("la foglia su \"" + field + "\" richiede value");
-        }
-    }
-
+    /**
+     * Gruppo o foglia (Q-179 decisa, conservativa): operatore di gruppo sconosciuto o mancante → falso; {@code all}
+     * senza regole → vero, {@code any} senza regole → falso; foglia senza {@code field} o {@code cmp} → falsa.
+     */
     private static boolean eval(JsonNode node, JsonNode data) {
-        if (node == null || node.isNull() || node.isEmpty()) {
-            return true;
+        if (node == null || !node.isObject()) {
+            return false;
         }
-        if (node.has("op")) {
+        if (ConditionRules.isGroup(node)) {
             JsonNode rules = node.path("rules");
-            return switch (node.path("op").asString("all")) {
+            String op = node.path("op").isString() ? node.path("op").asString() : "";
+            return switch (op) {
+                case "all" -> allOf(rules, data);
                 case "any" -> anyOf(rules, data);
                 case "not" -> !allOf(rules, data);
-                default -> allOf(rules, data);
+                default -> false;
             };
         }
-        String field = node.path("field").asString(null);
-        if (field == null) {
-            return true;
+        String field = node.path("field").isString() ? node.path("field").asString() : null;
+        String cmp = node.path("cmp").isString() ? node.path("cmp").asString() : null;
+        if (field == null || field.isBlank() || cmp == null) {
+            return false;
         }
-        return compare(node.path("cmp").asString("eq"), resolve(field, data), node.get("value"));
+        return compare(cmp, resolve(field, data), node.get("value"));
     }
 
     private static boolean allOf(JsonNode rules, JsonNode data) {
-        boolean ok = true;
-        if (rules != null) {
-            for (JsonNode r : rules) {
-                if (!eval(r, data)) {
-                    ok = false;
-                }
+        for (JsonNode r : rules) {
+            if (!eval(r, data)) {
+                return false;
             }
         }
-        return ok;
+        return true;
     }
 
     private static boolean anyOf(JsonNode rules, JsonNode data) {
-        if (rules == null || rules.isEmpty()) {
-            return true;
-        }
         for (JsonNode r : rules) {
             if (eval(r, data)) {
                 return true;
             }
         }
-        return false;
+        return false; // any senza regole → falso (Q-179, Q-222)
     }
 
     // ---------- comparatori (come campaign, docs/03 §3.3) ----------
 
+    /**
+     * Campo assente o {@code null} → falsa (tranne {@code nexists}); su array vero se almeno un elemento soddisfa;
+     * {@code contains/ncontains} guardano l'array intero (appartenenza). Lo scalare usa il cast tipizzato comune di
+     * lh-common ({@link TypedCast}, Q-215/Q-216 decise), identico a campaign, member e gamification: il valore della
+     * regola è convertito nel tipo del dato (una stringa numerica nel dato resta testo); conversione fallita o
+     * comparatore sconosciuto → falsa, negazioni comprese; {@code between} con estremi inclusi.
+     */
     private static boolean compare(String cmp, Object actual, JsonNode value) {
         if ("exists".equals(cmp)) {
             return actual != ABSENT;
@@ -124,98 +120,21 @@ public final class DataCondition {
         if (actual == ABSENT) {
             return false;
         }
-        if (actual instanceof List<?> list && !isSetOp(cmp)) {
-            for (Object el : list) {
-                if (compareScalar(cmp, el, value)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        return compareScalar(cmp, actual, value);
-    }
-
-    private static boolean isSetOp(String cmp) {
-        return "in".equals(cmp) || "nin".equals(cmp) || "contains".equals(cmp) || "ncontains".equals(cmp);
-    }
-
-    private static boolean compareScalar(String cmp, Object actual, JsonNode value) {
-        return switch (cmp) {
-            case "eq" -> equalsValue(actual, value);
-            case "neq" -> !equalsValue(actual, value);
-            case "gt" -> numeric(actual, value, c -> c > 0);
-            case "gte" -> numeric(actual, value, c -> c >= 0);
-            case "lt" -> numeric(actual, value, c -> c < 0);
-            case "lte" -> numeric(actual, value, c -> c <= 0);
-            case "in" -> inList(actual, value);
-            case "nin" -> !inList(actual, value);
-            case "contains" -> contains(actual, value);
-            case "ncontains" -> !contains(actual, value);
-            case "between" -> between(actual, value);
-            case "startsWith" -> actual != null && value != null && actual.toString().startsWith(value.asString(""));
-            default -> false;
-        };
-    }
-
-    private static boolean equalsValue(Object actual, JsonNode value) {
-        if (value == null || value.isNull() || actual == null || actual == ABSENT) {
-            return false;
-        }
-        if (actual instanceof Number a && value.isNumber()) {
-            return a.doubleValue() == value.asDouble();
-        }
-        if (actual instanceof Boolean a && value.isBoolean()) {
-            return a == value.asBoolean();
-        }
-        return actual.toString().equals(value.asString(""));
-    }
-
-    private static boolean numeric(Object actual, JsonNode value, java.util.function.IntPredicate cmp) {
-        Double a = toDouble(actual);
-        if (a == null || value == null || !value.isNumber()) {
-            return false;
-        }
-        return cmp.test(Double.compare(a, value.asDouble()));
-    }
-
-    private static boolean inList(Object actual, JsonNode value) {
-        if (value == null || !value.isArray()) {
-            return false;
-        }
         if (actual instanceof List<?> list) {
+            if ("contains".equals(cmp)) {
+                return TypedCast.listContains(list, value);
+            }
+            if ("ncontains".equals(cmp)) {
+                return TypedCast.listNotContains(list, value);
+            }
             for (Object el : list) {
-                if (inList(el, value)) {
+                if (TypedCast.compare(cmp, el, value)) {
                     return true;
                 }
             }
             return false;
         }
-        for (JsonNode v : value) {
-            if (equalsValue(actual, v)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean contains(Object actual, JsonNode value) {
-        if (actual instanceof List<?> list) {
-            for (Object el : list) {
-                if (equalsValue(el, value)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        return actual != null && value != null && actual.toString().contains(value.asString(""));
-    }
-
-    private static boolean between(Object actual, JsonNode value) {
-        Double a = toDouble(actual);
-        if (a == null || value == null || !value.isArray() || value.size() < 2) {
-            return false;
-        }
-        return a >= value.get(0).asDouble() && a <= value.get(1).asDouble();
+        return TypedCast.compare(cmp, actual, value);
     }
 
     // ---------- risoluzione dei campi ----------
@@ -261,35 +180,26 @@ public final class DataCondition {
         return values;
     }
 
-    private static Double toDouble(Object o) {
-        if (o instanceof Number n) {
-            return n.doubleValue();
-        }
-        if (o instanceof String s) {
-            try {
-                return Double.parseDouble(s);
-            } catch (NumberFormatException e) {
-                return null;
-            }
-        }
-        return null;
-    }
-
     private static Object toObject(JsonNode n) {
         if (n == null || n.isNull() || n.isMissingNode()) {
             return ABSENT;
         }
         if (n.isNumber()) {
-            return n.asDouble();
+            return n.decimalValue(); // confronto con BigDecimal (Q-215), mai double
         }
         if (n.isBoolean()) {
             return n.asBoolean();
         }
         if (n.isArray()) {
             List<Object> list = new ArrayList<>();
-            n.forEach(e -> list.add(toObject(e)));
+            n.forEach(e -> {
+                Object o = toObject(e);
+                if (o != ABSENT) {
+                    list.add(o); // elemento null = assente
+                }
+            });
             return list;
         }
-        return n.asString("");
+        return n.isString() ? n.asString() : n; // oggetto: non scalare (nessun cast, Q-215)
     }
 }

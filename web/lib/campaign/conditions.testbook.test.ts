@@ -206,13 +206,9 @@ it("[TB-WEB-COND-041] obbligatorio solo se lo è in tutti i trigger", () => {
   expect([out.find((f) => f.path === "data.amount")?.required, out.find((f) => f.path === "data.channel")?.required]).toEqual([false, true]);
 });
 
-it("[TB-WEB-COND-042] campi di un trigger non ancora arrivati → quel trigger è ignorato nell'intersezione", () => {
-  // TESTBOOK: ambiguo, vedi TB-WEB-COND-042 — la spec non tratta il catalogo parziale.
-  expect(commonDataFields({ purchase: FIELDS.purchase, visit: undefined }, ["purchase", "visit"]).map((f) => f.path)).toEqual([
-    "data.amount",
-    "data.channel",
-    "data.sku",
-  ]);
+it("[TB-WEB-COND-042] campi di un trigger non ancora arrivati → nessun campo dichiarato comune", () => {
+  // Q-197 DECISA — con un catalogo parziale nessun campo è comune finché tutti i cataloghi non sono arrivati.
+  expect(commonDataFields({ purchase: FIELDS.purchase, visit: undefined }, ["purchase", "visit"])).toEqual([]);
 });
 
 // ---------- avvisi ----------
@@ -237,9 +233,14 @@ it("[TB-WEB-COND-045] campo data.* di nessun trigger → avviso «potrebbe non e
   expect(warn("data.coupon", ["purchase", "visit"])).toMatch(/potrebbe non essere mai vera/);
 });
 
-it("[TB-WEB-COND-046] campi dei trigger non ancora arrivati → nessun avviso", () => {
-  // TESTBOOK: ambiguo, vedi TB-WEB-COND-046 — con il catalogo incompleto l'avviso non è calcolabile.
-  expect(warn("data.sku", ["purchase", "visit"], { purchase: FIELDS.purchase, visit: undefined })).toBeUndefined();
+it("[TB-WEB-COND-046] campi dei trigger non ancora arrivati → avviso «non verificato per visit»", () => {
+  // Q-197 DECISA — con il catalogo incompleto il campo è segnalato come non verificato per il trigger mancante.
+  expect(warn("data.sku", ["purchase", "visit"], { purchase: FIELDS.purchase, visit: undefined })).toMatch(
+    /Campo non verificato per visit/,
+  );
+  expect(warn("data.amount", ["purchase", "visit"], { purchase: FIELDS.purchase, visit: undefined })).toMatch(
+    /Campo non verificato per visit/,
+  );
 });
 
 it("[TB-WEB-COND-047] campo member del catalogo (member.tier) → nessun avviso", () => {
@@ -274,11 +275,24 @@ it.each(
     { id: "TB-WEB-COND-060", desc: "tra 9 e 9 (estremi uguali) → valida", l: leaf("data.x", "between", [9, 9]), f: F("number"), expected: null },
     { id: "TB-WEB-COND-061", desc: "numero con testo «abc» → «Serve un numero»", l: leaf("data.x", "gte", "abc"), f: F("number"), expected: "Serve un numero" },
     { id: "TB-WEB-COND-062", desc: "numero vuoto → «Valore mancante»", l: leaf("data.x", "gte", ""), f: F("number"), expected: "Valore mancante" },
-    { id: "TB-WEB-COND-063", desc: "booleano con testo «true» → «Scegli sì o no»", l: leaf("data.x", "eq", "true"), f: F("boolean"), expected: "Scegli sì o no" },
+    // Q-215 DECISA: "true" si converte in booleano come nel motore (TypedCast); "TRUE" no.
+    { id: "TB-WEB-COND-063", desc: "booleano con testo «true» → valido (cast esatto)", l: leaf("data.x", "eq", "true"), f: F("boolean"), expected: null },
     { id: "TB-WEB-COND-064", desc: "data «18/09/2026» → «Data non valida (AAAA-MM-GG)»", l: leaf("data.x", "gte", "18/09/2026"), f: F("date"), expected: "Data non valida (AAAA-MM-GG)" },
     { id: "TB-WEB-COND-065", desc: "data «2026-09-18» → valida", l: leaf("data.x", "gte", "2026-09-18"), f: F("date"), expected: null },
     { id: "TB-WEB-COND-066", desc: "enum con valore fuori elenco → «Valore non ammesso: XYZ»", l: leaf("data.x", "eq", "XYZ"), f: F("enum", { options: ["ONLINE", "STORE"] }), expected: "Valore non ammesso: XYZ" },
     { id: "TB-WEB-COND-067", desc: "numero 0 → valido (zero non è «mancante»)", l: leaf("data.x", "gte", 0), f: F("number"), expected: null },
+    // Q-215 DECISA — i valori che il motore non converte nel tipo del campo sono bloccati (foglia sempre falsa).
+    { id: "TB-WEB-COND-090", desc: "numero con testo «50» → valido (cast esatto)", l: leaf("data.x", "gte", "50"), f: F("number"), expected: null },
+    { id: "TB-WEB-COND-091", desc: "numero con testo « 50» → «Serve un numero»", l: leaf("data.x", "gte", " 50"), f: F("number"), expected: "Serve un numero" },
+    { id: "TB-WEB-COND-092", desc: "numero con testo «5e1» → «Serve un numero»", l: leaf("data.x", "gte", "5e1"), f: F("number"), expected: "Serve un numero" },
+    { id: "TB-WEB-COND-093", desc: "booleano con testo «TRUE» → «Scegli sì o no»", l: leaf("data.x", "eq", "TRUE"), f: F("boolean"), expected: "Scegli sì o no" },
+    { id: "TB-WEB-COND-094", desc: "data «2026-02-29» (non esiste) → «Data non valida»", l: leaf("data.x", "gte", "2026-02-29"), f: F("date"), expected: "Data non valida (AAAA-MM-GG)" },
+    { id: "TB-WEB-COND-095", desc: "data con ora «2026-09-18T10:00:00Z» su campo data → «Data non valida»", l: leaf("data.x", "gte", "2026-09-18T10:00:00Z"), f: F("date"), expected: "Data non valida (AAAA-MM-GG)" },
+    { id: "TB-WEB-COND-096", desc: "data e ora con fuso su campo date-time → valida", l: leaf("data.x", "gte", "2026-03-29T02:30:00+01:00"), f: F("date", { dateTime: true }), expected: null },
+    { id: "TB-WEB-COND-097", desc: "data senza ora su campo date-time → «Data e ora non valide»", l: leaf("data.x", "gte", "2026-03-29"), f: F("date", { dateTime: true }), expected: "Data e ora non valide (es. 2026-09-18T10:00:00+02:00)" },
+    { id: "TB-WEB-COND-098", desc: "testo con numero 5 → «Serve un testo» (mai numero → testo)", l: leaf("data.x", "eq", 5), f: F("string"), expected: "Serve un testo" },
+    { id: "TB-WEB-COND-099", desc: "enum testuale con numero 1 → «Valore non ammesso: 1»", l: leaf("data.x", "eq", 1), f: F("enum", { options: ["1", "2"] }), expected: "Valore non ammesso: 1" },
+    { id: "TB-WEB-COND-100", desc: "tra «10» e 9 su numero → «Il primo valore supera il secondo»", l: leaf("data.x", "between", ["10", 9]), f: F("number"), expected: "Il primo valore supera il secondo" },
   ]),
 )("[%s] riga: %s", (_id, _desc, { l, f, expected }) => {
   expect(leafProblem(l, f)).toBe(expected);

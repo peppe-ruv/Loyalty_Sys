@@ -16,6 +16,7 @@ import io.loyaltyhub.member.api.SegmentViews.SegmentView;
 import io.loyaltyhub.member.domain.Segment;
 import io.loyaltyhub.member.domain.SegmentCriteria;
 import io.loyaltyhub.member.domain.SegmentFacts;
+import io.loyaltyhub.member.infra.AttributeDefinitionRepository;
 import io.loyaltyhub.member.infra.MemberRepository;
 import io.loyaltyhub.member.infra.SegmentRepository;
 import org.springframework.stereotype.Service;
@@ -50,14 +51,16 @@ public class SegmentService {
     private final SegmentRefresher refresher;
     private final AuditPublisher audit;
     private final Clock clock;
+    private final AttributeDefinitionRepository attributeDefinitions;
 
     public SegmentService(SegmentRepository segments, MemberRepository members, SegmentRefresher refresher,
-                          AuditPublisher audit, Clock clock) {
+                          AuditPublisher audit, Clock clock, AttributeDefinitionRepository attributeDefinitions) {
         this.segments = segments;
         this.members = members;
         this.refresher = refresher;
         this.audit = audit;
         this.clock = clock;
+        this.attributeDefinitions = attributeDefinitions;
     }
 
     // ---------- letture ----------
@@ -252,12 +255,28 @@ public class SegmentService {
         return segments.find(idOrCode).orElseThrow(() -> LhException.notFound("Segmento non trovato: " + idOrCode));
     }
 
+    /**
+     * Criteri non validi per forma → 422 {@code INVALID_CRITERIA}; forma corretta ma valore non convertibile nel tipo
+     * dichiarato del campo (attributi custom con la loro definizione, contatori numerici…) → 422
+     * {@code CONDITION_INVALID} con il percorso del valore (Q-215).
+     */
     private void requireValidCriteria(JsonNode criteria) {
-        List<SegmentCriteria.Issue> issues = SegmentCriteria.validate(criteria);
-        if (!issues.isEmpty()) {
-            throw LhException.validation("INVALID_CRITERIA", "Criteri non validi: " + issues.get(0).message(),
-                    issues.stream().map(i -> new LhException.FieldError(i.field(), i.message())).toList());
+        Map<String, String> types = new LinkedHashMap<>();
+        attributeDefinitions.findAll().forEach(d -> {
+            if (d.type() != null) {
+                types.put(d.key(), d.type());
+            }
+        });
+        List<SegmentCriteria.Issue> issues = SegmentCriteria.validate(criteria, types);
+        if (issues.isEmpty()) {
+            return;
         }
+        List<LhException.FieldError> errors = issues.stream()
+                .map(i -> new LhException.FieldError(i.field(), i.message())).toList();
+        boolean onlyTypes = issues.stream().allMatch(SegmentCriteria.Issue::typeMismatch);
+        throw LhException.validation(onlyTypes ? "CONDITION_INVALID" : "INVALID_CRITERIA",
+                onlyTypes ? "Condizione non valida: " + issues.get(0).field() + " — " + issues.get(0).message()
+                        : "Criteri non validi: " + issues.get(0).message(), errors);
     }
 
     private Set<String> requireMembers(List<String> memberIds) {

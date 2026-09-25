@@ -141,10 +141,10 @@ Ogni condizione, eccezione o uscita anticipata delle classi `domain`, `applicati
 | `DataCondition` :73–89 gruppi, foglie, condizione nulla | R23 | CND |
 | `DataCondition` :118–135 `exists`, `nexists`, assente, array | R23 | CND |
 | `DataCondition` :143–157 comparatori | R23 | CND |
-| `DataCondition` :92–113 gruppi vuoti | senza spec | CND-063, CND-064 |
-| `DataCondition` :156 comparatore sconosciuto | senza spec | CND-065 |
-| `DataCondition` :264–275 stringa numerica convertita | senza spec | CND-049 |
-| `DataCondition` :39–70 problemi di forma | R29 | RAD-007…009 |
+| `DataCondition#eval` gruppi vuoti: `all` vero, `any` falso | Q-179 DECISA | CND-063, CND-064 |
+| `DataCondition#compare` → `lh-common TypedCast` comparatore sconosciuto falso | Q-179 DECISA | CND-065 |
+| `lh-common TypedCast` cast tipizzato: la regola si converte nel tipo del dato, la stringa numerica del dato resta testo | Q-215, Q-179 DECISE | CND-046, CND-049 |
+| `DataCondition#problems` → `lh-common ConditionRules` problemi di forma (con `any` vuoto, `cmp` assente, foglia senza `field`) | R29 · Q-179 DECISA | RAD-007…009 |
 | `NotificationService` :43 senza membro o `message.delivered` | R24 | DDP-006 |
 | `NotificationService` :48 condizione falsa | R22 | RUL |
 | `NotificationService` :52 template inesistente | ramo difensivo (FK) | non coperto |
@@ -882,15 +882,15 @@ Come si combinano livelli, segmenti e stati non è scritto: il codice richiede t
 | TB-ENG-CND-038 | `exists` su campo assente | falso | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
 | TB-ENG-CND-039 | `nexists` su campo assente | vero (unica eccezione al campo assente) | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
 | TB-ENG-CND-040 | `nexists` su campo presente | falso | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
-| TB-ENG-CND-041 | `exists` su campo `null` | **AMBIGUO** — falso (null = assente) | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
+| TB-ENG-CND-041 | `exists` su campo `null` | falso (null = assente) — `// Q-179 DECISA` | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
 | TB-ENG-CND-042 | `gt` con valore uguale (150 > 150) | falso | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
 | TB-ENG-CND-043 | `lte` con valore uguale | vero | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
-| TB-ENG-CND-044 | `between [150,200]` con 150 | **AMBIGUO** — vero (estremi inclusi) | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
-| TB-ENG-CND-045 | `between [100,150]` con 150 | **AMBIGUO** — vero (estremi inclusi) | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
-| TB-ENG-CND-046 | `eq` numero contro stringa "150" | falso (tipi incompatibili) | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
+| TB-ENG-CND-044 | `between [150,200]` con 150 | vero (estremi inclusi) — `// Q-179 DECISA` | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
+| TB-ENG-CND-045 | `between [100,150]` con 150 | vero (estremi inclusi) — `// Q-179 DECISA` | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
+| TB-ENG-CND-046 | `eq` numero contro stringa "150" | vero — `// Q-215 DECISA`: `"150"` rispetta `^-?\d+(\.\d+)?$` ed è convertito nel tipo del dato (numero) | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
 | TB-ENG-CND-047 | `gt` su testo "PTS" | falso, nessuna eccezione | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
 | TB-ENG-CND-048 | `gt` con valore di confronto testuale | falso, nessuna eccezione | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
-| TB-ENG-CND-049 | `gt` su stringa numerica "10" > 5 | **AMBIGUO** — vero (la stringa numerica è convertita) | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
+| TB-ENG-CND-049 | `gt` su stringa numerica "10" > 5 | falso — `// Q-179 DECISA` (con Q-216): la stringa numerica del dato resta testo, niente confronto d'ordine | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
 | TB-ENG-CND-050 | `eq` booleano true | vero | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
 | TB-ENG-CND-051 | `data.items[*].category eq TECH` (uno su due) | vero (almeno un elemento) | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
 | TB-ENG-CND-052 | `data.items[*].category eq HOME` | falso | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
@@ -904,9 +904,9 @@ Come si combinano livelli, segmenti e stati non è scritto: il codice richiede t
 | TB-ENG-CND-060 | `not` di una foglia vera | falso | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
 | TB-ENG-CND-061 | `not` di una foglia falsa | vero | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
 | TB-ENG-CND-062 | gruppi annidati `all(any(vero,falso), not(falso))` | vero | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
-| TB-ENG-CND-063 | `all` senza regole | **AMBIGUO** — vero | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
-| TB-ENG-CND-064 | `any` senza regole | **AMBIGUO** — vero | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
-| TB-ENG-CND-065 | comparatore sconosciuto `like` | **AMBIGUO** — falso (la gestione lo rifiuta al salvataggio) | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
+| TB-ENG-CND-063 | `all` senza regole | vero (`all` senza regole) — `// Q-179 DECISA` | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
+| TB-ENG-CND-064 | `any` senza regole | falso — `// Q-179 DECISA` (con Q-222): `any` senza regole è falso; la gestione lo rifiuta (422 `RULE_INVALID` su `condition`) | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
+| TB-ENG-CND-065 | comparatore sconosciuto `like` | falso — `// Q-179 DECISA`: comparatore sconosciuto falso; la gestione lo rifiuta al salvataggio | docs/03 §3.3 | `TestbookEngConditionTest` · `cnd.csv` |
 
 ### 10.2 Regole × fatti × stato del membro (RUL)
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
@@ -1369,7 +1369,7 @@ Sono le tre voci da riportare nel registro delle divergenze di `docs/16` §12 al
 | ROL (LEGAL, CARE, intestazione non valida), WROL-002…004, -007…010 | capacità senza ● in docs/08 §2 | `403 FORBIDDEN_ROLE`; intestazione non valida = `ANALYST` | Q-176 |
 | TPL-007, -008, -010, -014, -017, -027, -028, -030, -038…040, TPV-007 | valori non semplici, indici, spazi, template nullo, HTML, cifre decimali e arrotondamento, ripieghi dei formattatori | vuoto; indice risolto; spazi ammessi; stringa vuota; nessun escape; 2 decimali al pari; valore grezzo | Q-177 |
 | TAD-004, TAD-010, TAD-014, RAD-012, WDLV-029 | canale di default, nome obbligatorio, codice immutabile di template, regole e webhook | `INAPP`; `422`; `409 CODE_IMMUTABLE` | Q-178 |
-| CND-041, -044, -045, -049, -063…065 | `null` come assente, estremi di `between`, stringa numerica, gruppi vuoti, comparatore sconosciuto | assente; estremi inclusi; convertita; vero; falso | Q-179 |
+| CND-041, -044, -045, -049, -063…065 | `null` come assente, estremi di `between`, stringa numerica, gruppi vuoti, comparatore sconosciuto | **DECISA** (conservativa): assente; estremi inclusi; la stringa numerica del dato resta testo (cast tipizzato di Q-215); `all` vuoto vero, `any` vuoto falso e rifiutato al salvataggio; falso e rifiutato al salvataggio | Q-179 |
 | RUL con membro `INACTIVE` o senza snapshot che riceve (4 righe) | Q-70 nomina solo `ANONYMIZED` e `BLOCKED` | ricevono | Q-180 |
 | RAD-002, DDP-014 | tipo di fatto in forma completa; `message.send` senza membro | salvato in forma breve; DLQ `INVALID_EFFECT` | Q-181 |
 | IBX-005, IBX-014 | segna letto due volte; `memberId` nel corpo | `readAt` invariato; accettato | Q-182 |

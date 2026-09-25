@@ -83,6 +83,48 @@ function readSeed(file) {
     return null;
   }
 }
+
+// Forma delle condizioni dei seed (docs/03 §3.3) con le stesse regole di salvataggio dei servizi (lh-common
+// ConditionRules, Q-215/Q-219/Q-222/Q-223/Q-224): gruppo con op all/any/not e rules, any non vuoto, foglia con field e
+// cmp noto, valore presente e della forma giusta; i valori d'ordine devono essere numeri o date ISO (cast stretto).
+const COND_CMPS = ["eq", "neq", "gt", "gte", "lt", "lte", "in", "nin", "contains", "ncontains", "exists", "nexists", "between", "startsWith"];
+const castsToOrdered = (v) =>
+  typeof v === "number" || (typeof v === "string" && (/^-?\d+(\.\d+)?$/.test(v) || /^\d{4}-\d{2}-\d{2}$/.test(v)));
+const isScalar = (v) => v !== null && v !== undefined && typeof v !== "object";
+function conditionProblems(node, path, out = []) {
+  if (node === null || node === undefined || (typeof node === "object" && !Array.isArray(node) && Object.keys(node).length === 0 && path.indexOf(".") < 0)) return out;
+  if (typeof node !== "object" || Array.isArray(node)) {
+    out.push(`${path}: serve un gruppo o una condizione`);
+    return out;
+  }
+  if ("op" in node || "rules" in node) {
+    if (!["all", "any", "not"].includes(node.op)) out.push(`${path}.op: operatore di gruppo "${node.op}"`);
+    if (!Array.isArray(node.rules)) out.push(`${path}.rules: serve un elenco`);
+    else {
+      if (node.op === "any" && node.rules.length === 0) out.push(`${path}.rules: any senza regole`);
+      node.rules.forEach((r, i) => conditionProblems(r, `${path}.rules[${i}]`, out));
+    }
+    return out;
+  }
+  if (typeof node.field !== "string" || !node.field.trim()) out.push(`${path}.field: campo mancante`);
+  if (!COND_CMPS.includes(node.cmp)) out.push(`${path}.cmp: comparatore "${node.cmp}"`);
+  else if (node.cmp !== "exists" && node.cmp !== "nexists") {
+    const v = node.value;
+    if (v === null || v === undefined) out.push(`${path}.value: valore mancante`);
+    else if ((node.cmp === "in" || node.cmp === "nin") && (!Array.isArray(v) || !v.every(isScalar))) out.push(`${path}.value: serve un elenco di valori`);
+    else if (node.cmp === "between" && (!Array.isArray(v) || v.length !== 2 || !v.every(castsToOrdered))) out.push(`${path}.value: servono due estremi`);
+    else if (["gt", "gte", "lt", "lte"].includes(node.cmp) && !castsToOrdered(v)) out.push(`${path}.value: serve un numero o una data`);
+    else if (["eq", "neq", "contains", "ncontains"].includes(node.cmp) && !isScalar(v)) out.push(`${path}.value: serve un valore singolo`);
+    else if (node.cmp === "startsWith" && typeof v !== "string") out.push(`${path}.value: serve un testo`);
+  }
+  return out;
+}
+for (const [file, key] of [["campaigns.json", "conditions"], ["notification-rules.json", "condition"], ["achievements.json", "filter"]]) {
+  for (const x of readSeed(file) ?? []) {
+    for (const p of conditionProblems(x[key], key)) errors.push(`${file}: ${x.code} ${p}`);
+  }
+}
+
 const rewards = readSeed("rewards.json");
 if (Array.isArray(rewards)) {
   const bands = new Set((readSeed("reward-bands.json") ?? []).map((b) => b.code));

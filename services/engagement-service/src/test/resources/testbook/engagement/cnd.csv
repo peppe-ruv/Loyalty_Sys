@@ -39,15 +39,15 @@ TB-ENG-CND-037	exists vero	{"field":"data.amount","cmp":"exists"}	true
 TB-ENG-CND-038	exists falso	{"field":"data.missing","cmp":"exists"}	false
 TB-ENG-CND-039	nexists vero	{"field":"data.missing","cmp":"nexists"}	true
 TB-ENG-CND-040	nexists falso	{"field":"data.amount","cmp":"nexists"}	false
-TB-ENG-CND-041	exists su null	{"field":"data.nul","cmp":"exists"}	false
+TB-ENG-CND-041	exists su null (null = assente) // Q-179 DECISA	{"field":"data.nul","cmp":"exists"}	false
 TB-ENG-CND-042	gt al limite	{"field":"data.amount","cmp":"gt","value":150}	false
 TB-ENG-CND-043	lte al limite	{"field":"data.amount","cmp":"lte","value":150}	true
-TB-ENG-CND-044	between estremo inferiore	{"field":"data.amount","cmp":"between","value":[150,200]}	true
-TB-ENG-CND-045	between estremo superiore	{"field":"data.amount","cmp":"between","value":[100,150]}	true
-TB-ENG-CND-046	eq tipo diverso	{"field":"data.amount","cmp":"eq","value":"150"}	false
+TB-ENG-CND-044	between estremo inferiore (estremi inclusi) // Q-179 DECISA	{"field":"data.amount","cmp":"between","value":[150,200]}	true
+TB-ENG-CND-045	between estremo superiore (estremi inclusi) // Q-179 DECISA	{"field":"data.amount","cmp":"between","value":[100,150]}	true
+TB-ENG-CND-046	eq numero contro testo numerico "150" (regola convertita nel tipo del dato) // Q-215 DECISA	{"field":"data.amount","cmp":"eq","value":"150"}	true
 TB-ENG-CND-047	gt tipo diverso	{"field":"data.currency","cmp":"gt","value":5}	false
 TB-ENG-CND-048	gt valore testo	{"field":"data.amount","cmp":"gt","value":"abc"}	false
-TB-ENG-CND-049	gt stringa numerica	{"field":"data.n","cmp":"gt","value":5}	true
+TB-ENG-CND-049	gt su stringa numerica "10" (il dato resta testo) // Q-179 DECISA con Q-216	{"field":"data.n","cmp":"gt","value":5}	false
 TB-ENG-CND-050	eq booleano	{"field":"data.flag","cmp":"eq","value":true}	true
 TB-ENG-CND-051	array almeno uno vero	{"field":"data.items[*].category","cmp":"eq","value":"TECH"}	true
 TB-ENG-CND-052	array nessuno	{"field":"data.items[*].category","cmp":"eq","value":"HOME"}	false
@@ -61,6 +61,6 @@ TB-ENG-CND-059	any falso	{"op":"any","rules":[{"field":"data.currency","cmp":"eq
 TB-ENG-CND-060	not di vero	{"op":"not","rules":[{"field":"data.amount","cmp":"eq","value":150}]}	false
 TB-ENG-CND-061	not di falso	{"op":"not","rules":[{"field":"data.amount","cmp":"eq","value":1}]}	true
 TB-ENG-CND-062	annidato	{"op":"all","rules":[{"op":"any","rules":[{"field":"data.role","cmp":"eq","value":"REFERRER"},{"field":"data.role","cmp":"eq","value":"X"}]},{"op":"not","rules":[{"field":"data.currency","cmp":"eq","value":"STS"}]}]}	true
-TB-ENG-CND-063	all vuoto	{"op": "all", "rules": []}	true
-TB-ENG-CND-064	any vuoto	{"op": "any", "rules": []}	true
-TB-ENG-CND-065	comparatore sconosciuto	{"field":"data.amount","cmp":"like","value":150}	false
+TB-ENG-CND-063	all vuoto (vero) // Q-179 DECISA	{"op": "all", "rules": []}	true
+TB-ENG-CND-064	any vuoto (falso, 422 al salvataggio) // Q-179 DECISA con Q-222	{"op": "any", "rules": []}	false
+TB-ENG-CND-065	comparatore sconosciuto (falso, 422 al salvataggio) // Q-179 DECISA	{"field":"data.amount","cmp":"like","value":150}	false

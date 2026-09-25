@@ -139,4 +139,34 @@ class SegmentCriteriaTest {
         assertThat(ActionLabels.after(List.of("ebill"), "ebill.activated")).as("già presente").isNull();
         assertThat(ActionLabels.after(List.of("ebill"), "purchase.completed")).isNull();
     }
+
+    /** Q-215 DECISA: valore non convertibile nel tipo della definizione dell'attributo → problema di tipo. */
+    @Test
+    void validationChecksDeclaredTypes() {
+        Map<String, String> types = Map.of("householdSize", "NUMBER", "hasGasContract", "BOOLEAN", "since", "DATE");
+        assertThat(SegmentCriteria.validate(json(
+                "{\"field\":\"member.attributes.householdSize\",\"cmp\":\"gte\",\"value\":\"3\"}"), types)).isEmpty();
+        List<SegmentCriteria.Issue> issues = SegmentCriteria.validate(json(
+                "{\"op\":\"all\",\"rules\":[{\"field\":\"member.attributes.householdSize\",\"cmp\":\"gte\",\"value\":\"tre\"},"
+                        + "{\"field\":\"member.attributes.hasGasContract\",\"cmp\":\"eq\",\"value\":\"TRUE\"},"
+                        + "{\"field\":\"member.attributes.since\",\"cmp\":\"gt\",\"value\":\"2026-02-29\"},"
+                        + "{\"field\":\"member.tier\",\"cmp\":\"eq\",\"value\":5}]}"), types);
+        assertThat(issues).extracting(SegmentCriteria.Issue::field).containsExactly(
+                "criteria.rules[0].value", "criteria.rules[1].value", "criteria.rules[2].value", "criteria.rules[3].value");
+        assertThat(issues).allMatch(SegmentCriteria.Issue::typeMismatch);
+        assertThat(SegmentCriteria.validate(json("{\"op\":\"any\",\"rules\":[]}"), types))
+                .singleElement().extracting(SegmentCriteria.Issue::typeMismatch).isEqualTo(false);
+    }
+
+    /** Q-215 DECISA: stesso cast di campaign — testo numerico nel dato resta testo, numero ← testo numerico. */
+    @Test
+    void typedCastLikeCampaign() {
+        SegmentFacts m = new SegmentFacts("MBR-X", "X", "ACTIVE", "GOLD", List.of("ebill"),
+                json("{\"code\":\"5\",\"n\":5}"), NOW, null, "Torino", 1500, 5000, null, Map.of(), 0.0);
+        assertThat(SegmentCriteria.matches(json("{\"field\":\"member.attributes.code\",\"cmp\":\"eq\",\"value\":5}"), m, NOW)).isFalse();
+        assertThat(SegmentCriteria.matches(json("{\"field\":\"member.attributes.n\",\"cmp\":\"eq\",\"value\":\"5\"}"), m, NOW)).isTrue();
+        assertThat(SegmentCriteria.matches(json("{\"field\":\"balance.PTS\",\"cmp\":\"gte\",\"value\":\"1500\"}"), m, NOW)).isTrue();
+        assertThat(SegmentCriteria.matches(json("{\"op\":\"any\",\"rules\":[]}"), m, NOW)).as("Q-222").isFalse();
+        assertThat(SegmentCriteria.matches(json("{\"field\":\"member.tier\",\"value\":\"GOLD\"}"), m, NOW)).as("Q-219").isFalse();
+    }
 }

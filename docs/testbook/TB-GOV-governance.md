@@ -923,7 +923,7 @@ valore per cella scelto per rendere la foglia vera quando i tipi sono compatibil
 attributo assente × 14 comparatori; liste (etichette, anche vuote); ogni campo dello spazio esteso di docs/03 §10 con i
 limiti (soglia, mezzanotte di Roma, cambio d'ora del 29/03/2026, 29 febbraio); gruppi `all/any/not` e annidati; criteri
 vuoti o `null`. Oracolo: docs/03 §3.3 «campo assente → falsa (tranne `nexists`); tipi incompatibili → falsa»; sulle date
-Q-91 (solo `eq`), su `not` Q-90.
+Q-215 DECISA (cast tipizzato di lh-common: date confrontate come date, mai come testo), su `not` Q-90.
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -950,11 +950,11 @@ Q-91 (solo `eq`), su `not` Q-90.
 | TB-GOV-CRT-021 | `{"field":"member.attributes.tNum","cmp":"in","value":[1,3]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-022 | `{"field":"member.attributes.tNum","cmp":"nin","value":[1,2]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-023 | `{"field":"member.attributes.tNum","cmp":"contains","value":3}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-024 | `{"field":"member.attributes.tNum","cmp":"ncontains","value":3}` | falso — divergenza risolta (D-01) | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-024 | `{"field":"member.attributes.tNum","cmp":"ncontains","value":3}` | falso — divergenza risolta (D-01); `// Q-215 DECISA`: il valore della regola non si converte nel tipo del dato | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-025 | `{"field":"member.attributes.tNum","cmp":"exists"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-026 | `{"field":"member.attributes.tNum","cmp":"nexists"}` | falso | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-027 | `{"field":"member.attributes.tNum","cmp":"between","value":[1,5]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-028 | `{"field":"member.attributes.tNum","cmp":"startsWith","value":"3"}` | falso — divergenza risolta (D-01) | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-028 | `{"field":"member.attributes.tNum","cmp":"startsWith","value":"3"}` | falso — divergenza risolta (D-01); `// Q-215 DECISA`: il valore della regola non si converte nel tipo del dato | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-029 | `{"field":"member.attributes.tBool","cmp":"eq","value":true}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-030 | `{"field":"member.attributes.tBool","cmp":"neq","value":false}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-031 | `{"field":"member.attributes.tBool","cmp":"gt","value":0}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
@@ -964,29 +964,29 @@ Q-91 (solo `eq`), su `not` Q-90.
 | TB-GOV-CRT-035 | `{"field":"member.attributes.tBool","cmp":"in","value":[true]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-036 | `{"field":"member.attributes.tBool","cmp":"nin","value":[false]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-037 | `{"field":"member.attributes.tBool","cmp":"contains","value":true}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-038 | `{"field":"member.attributes.tBool","cmp":"ncontains","value":true}` | falso — divergenza risolta (D-01) | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-038 | `{"field":"member.attributes.tBool","cmp":"ncontains","value":true}` | falso — divergenza risolta (D-01); `// Q-215 DECISA`: il valore della regola non si converte nel tipo del dato | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-039 | `{"field":"member.attributes.tBool","cmp":"exists"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-040 | `{"field":"member.attributes.tBool","cmp":"nexists"}` | falso | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-041 | `{"field":"member.attributes.tBool","cmp":"between","value":[0,1]}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-042 | `{"field":"member.attributes.tBool","cmp":"startsWith","value":"t"}` | falso — divergenza risolta (D-01) | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-042 | `{"field":"member.attributes.tBool","cmp":"startsWith","value":"t"}` | falso — divergenza risolta (D-01); `// Q-215 DECISA`: il valore della regola non si converte nel tipo del dato | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-043 | `{"field":"member.attributes.tDate","cmp":"eq","value":"2026-02-28"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-044 | `{"field":"member.attributes.tDate","cmp":"neq","value":"2026-03-01"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-045 | `{"field":"member.attributes.tDate","cmp":"gt","value":"2026-01-01"}` | falso — AMBIGUO (Q-91) | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-046 | `{"field":"member.attributes.tDate","cmp":"gte","value":"2026-02-28"}` | falso — AMBIGUO (Q-91) | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-047 | `{"field":"member.attributes.tDate","cmp":"lt","value":"2026-12-31"}` | falso — AMBIGUO (Q-91) | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-048 | `{"field":"member.attributes.tDate","cmp":"lte","value":"2026-02-28"}` | falso — AMBIGUO (Q-91) | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-045 | `{"field":"member.attributes.tDate","cmp":"gt","value":"2026-01-01"}` | vero — `// Q-215 DECISA` (supera Q-91): `"2026-02-28"` è una data e il valore si converte in data, confronto tra date | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-046 | `{"field":"member.attributes.tDate","cmp":"gte","value":"2026-02-28"}` | vero — `// Q-215 DECISA` (supera Q-91): `"2026-02-28"` è una data e il valore si converte in data, confronto tra date | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-047 | `{"field":"member.attributes.tDate","cmp":"lt","value":"2026-12-31"}` | vero — `// Q-215 DECISA` (supera Q-91): `"2026-02-28"` è una data e il valore si converte in data, confronto tra date | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-048 | `{"field":"member.attributes.tDate","cmp":"lte","value":"2026-02-28"}` | vero — `// Q-215 DECISA` (supera Q-91): `"2026-02-28"` è una data e il valore si converte in data, confronto tra date | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-049 | `{"field":"member.attributes.tDate","cmp":"in","value":["2026-02-28"]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-050 | `{"field":"member.attributes.tDate","cmp":"nin","value":["2026-03-01"]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-051 | `{"field":"member.attributes.tDate","cmp":"contains","value":"2026-02"}` | vero — AMBIGUO (data trattata come testo) | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-052 | `{"field":"member.attributes.tDate","cmp":"ncontains","value":"X"}` | vero — AMBIGUO (data trattata come testo) | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-051 | `{"field":"member.attributes.tDate","cmp":"contains","value":"2026-02"}` | falso — `// Q-215 DECISA` (supera Q-307 su questo punto): il tipo di `"2026-02-28"` è data, non testo; i comparatori di testo non valgono | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-052 | `{"field":"member.attributes.tDate","cmp":"ncontains","value":"X"}` | falso — `// Q-215 DECISA` (supera Q-307 su questo punto): il tipo di `"2026-02-28"` è data, non testo; i comparatori di testo non valgono | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-053 | `{"field":"member.attributes.tDate","cmp":"exists"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-054 | `{"field":"member.attributes.tDate","cmp":"nexists"}` | falso | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-055 | `{"field":"member.attributes.tDate","cmp":"between","value":["2026-01-01","2026-12-31"]}` | falso — AMBIGUO (Q-91) | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-056 | `{"field":"member.attributes.tDate","cmp":"startsWith","value":"2026"}` | vero — AMBIGUO (data trattata come testo) | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-057 | `{"field":"member.attributes.tNum","cmp":"neq","value":"tre"}` | falso — divergenza risolta (D-01) | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-058 | `{"field":"member.attributes.tNum","cmp":"nin","value":["tre"]}` | falso — divergenza risolta (D-01) | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-059 | `{"field":"member.attributes.tBool","cmp":"neq","value":"vero"}` | falso — divergenza risolta (D-01) | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-060 | `{"field":"member.attributes.tStr","cmp":"neq","value":5}` | falso — divergenza risolta (D-01) | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-055 | `{"field":"member.attributes.tDate","cmp":"between","value":["2026-01-01","2026-12-31"]}` | vero — `// Q-215 DECISA` (supera Q-91): `"2026-02-28"` è una data e il valore si converte in data, confronto tra date | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-056 | `{"field":"member.attributes.tDate","cmp":"startsWith","value":"2026"}` | falso — `// Q-215 DECISA` (supera Q-307 su questo punto): il tipo di `"2026-02-28"` è data, non testo; i comparatori di testo non valgono | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-057 | `{"field":"member.attributes.tNum","cmp":"neq","value":"tre"}` | falso — divergenza risolta (D-01); `// Q-215 DECISA`: il valore della regola non si converte nel tipo del dato | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-058 | `{"field":"member.attributes.tNum","cmp":"nin","value":["tre"]}` | falso — divergenza risolta (D-01); `// Q-215 DECISA`: il valore della regola non si converte nel tipo del dato | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-059 | `{"field":"member.attributes.tBool","cmp":"neq","value":"vero"}` | falso — divergenza risolta (D-01); `// Q-215 DECISA`: il valore della regola non si converte nel tipo del dato | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-060 | `{"field":"member.attributes.tStr","cmp":"neq","value":5}` | falso — divergenza risolta (D-01); `// Q-215 DECISA`: il valore della regola non si converte nel tipo del dato | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-061 | `{"field":"member.attributes.tMissing","cmp":"eq","value":"x"}` | falso | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-062 | `{"field":"member.attributes.tMissing","cmp":"neq","value":"x"}` | falso | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-063 | `{"field":"member.attributes.tMissing","cmp":"gt","value":1}` | falso | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
@@ -1074,7 +1074,7 @@ Q-91 (solo `eq`), su `not` Q-90.
 | TB-GOV-CRV-022 | `{"field":"member.tier","cmp":"nin","value":"GOLD"}` | non valido su `criteria.value` (422 `INVALID_CRITERIA` via API) | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#validate` |
 | TB-GOV-CRV-023 | `{"field":"balance.PTS","cmp":"between","value":[1]}` | non valido su `criteria.value` (422 `INVALID_CRITERIA` via API) | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#validate` |
 | TB-GOV-CRV-024 | `{"field":"balance.PTS","cmp":"between","value":[1,2,3]}` | non valido su `criteria.value` (422 `INVALID_CRITERIA` via API) | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#validate` |
-| TB-GOV-CRV-025 | `{"field":"member.attributes.contractDate","cmp":"gt","value":"2026-01-01"}` | non valido su `criteria.value` (422 `INVALID_CRITERIA` via API) — AMBIGUO (Q-91) | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-025 | `{"field":"member.attributes.contractDate","cmp":"gt","value":"2026-01-01"}` | valido (`"2026-01-01"` si converte in data ISO) — `// Q-215 DECISA` (supera Q-91) | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#validate` |
 | TB-GOV-CRV-026 | `{"field":"balance.PTS","cmp":"gte","value":100}` | valido | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#validate` |
 | TB-GOV-CRV-027 | `{"op":"all","rules":["tier"]}` | non valido su `criteria.rules[0]` (422 `INVALID_CRITERIA` via API) | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#validate` |
 
@@ -1410,8 +1410,8 @@ conservativa la domanda lo dice e propone l'alternativa (Q-298, Q-300, Q-303, Q-
 | ATD-002…009, 012…016, 028, 029 | Formato della chiave (camelCase, 2–40), etichetta obbligatoria ≤ 60, tetto di 30 definizioni | come scritto nelle righe | Q-305 |
 | ATU-006 | Restringere le opzioni lasciando valori fuori elenco (Q-93 non lo dice) | ammesso (200) | Q-306 (estende Q-93) |
 | ATU-009 | Chiave con spazi ai bordi | normalizzata in silenzio | Q-306 |
-| CRT-045…048, 055, CRV-025 | Confronti d'ordine e `between` sulle date ISO (Q-91 aperta) | falsi; `gt` con testo rifiutato in validazione | Q-91 (vedi Q-307) |
-| CRT-051, 052, 056 | `contains`, `ncontains`, `startsWith` su un attributo DATE | la data vale come testo | Q-307 |
+| CRT-045…048, 055, CRV-025 | Confronti d'ordine e `between` sulle date ISO | **DECISO** (Q-215): date confrontate come date; data ISO valida ammessa in validazione | Q-215 (supera Q-91) |
+| CRT-051, 052, 056 | `contains`, `ncontains`, `startsWith` su un attributo DATE | **DECISO** (Q-215): falsi, una data non è testo | Q-215 (supera Q-307 su questo punto) |
 | CRT-081 | `nin` su una lista: «almeno un elemento» (docs/03 §3.3, per `data.*`) o intersezione vuota? | intersezione vuota | Q-307 |
 | CRT-082, CRT-083 | `exists`/`nexists` su una lista vuota | lista vuota = assente | Q-307 |
 | CRT-088, CRV-015 | Prefisso `member.` facoltativo | accettato con e senza | Q-307 |
@@ -1441,7 +1441,7 @@ Nessuna divergenza nelle aree di `lh-common` a logica pura (ACT, GRD, PRS, SMR, 
 
 | # | Righe | Specifica | Osservato | Causa (file:riga) | Esito |
 |---|---|---|---|---|---|
-| D-01 | CRT-024, CRT-028, CRT-038, CRT-042, CRT-057…060 | docs/03 §3.3: «Tipi incompatibili → falsa, mai eccezione» | `neq`, `nin`, `ncontains` sono **veri** quando i tipi non sono confrontabili (numero contro testo, booleano contro testo, testo contro numero); `startsWith` è vero su numeri e booleani (`3.0` inizia per `3`, `true` per `t`) | `services/member-service/…/domain/SegmentCriteria.java:258, 264, 266` (negazione del confronto fallito) e `:268` (`actual.toString()`) | **risolta**: `SegmentCriteria.scalar`/`comparable`, come `ConditionEvaluator` di campaign-service e `AchievementRules` di gamification-service (testo numerico contro numero: incompatibile, `// SPEC-GAP: Q-215`) |
+| D-01 | CRT-024, CRT-028, CRT-038, CRT-042, CRT-057…060 | docs/03 §3.3: «Tipi incompatibili → falsa, mai eccezione» | `neq`, `nin`, `ncontains` sono **veri** quando i tipi non sono confrontabili (numero contro testo, booleano contro testo, testo contro numero); `startsWith` è vero su numeri e booleani (`3.0` inizia per `3`, `true` per `t`) | `services/member-service/…/domain/SegmentCriteria.java:258, 264, 266` (negazione del confronto fallito) e `:268` (`actual.toString()`) | **risolta**: `SegmentCriteria.scalar`/`comparable`, come `ConditionEvaluator` di campaign-service e `AchievementRules` di gamification-service (Q-215 DECISA: cast tipizzato comune di lh-common `TypedCast`, identico nei quattro valutatori) |
 | D-02 | ATD-023, ATU-011 | docs/06 §2: regola violata ⇒ 422 con `code` (F-MBR-03: definizione non valida) | una definizione senza `type` provoca `NullPointerException` ⇒ 500 `INTERNAL_ERROR` | `services/member-service/…/domain/MemberAttributes.java:165` (`List.of(...).contains(null)`) | **risolta**: `MemberAttributes.validateDefinitions` controlla `type == null` prima di `contains` (422 `ATTRIBUTE_DEFINITION_INVALID` su `type`) |
 | D-03 | MST-038 | docs/06 §2: «400 `bad-request` — JSON malformato, parametri errati» | corpo assente su `POST /v1/members/{id}/status` ⇒ 500 `INTERNAL_ERROR` | `libs/lh-common/…/web/GlobalExceptionHandler.java` (nessun gestore per `HttpMessageNotReadableException`) | **risolta** da `main` 6b1b964 (400 `BAD_REQUEST`) |
 | D-04 | ENT-046 | docs/03 §3.6 «Ogni transizione scrive storico (chi, quando, commento) e audit»; docs/06 §7 (la transizione «scrive `approval_history`»), anche per i contenuti | la pubblicazione di un contenuto non scrive nulla in `approval_history` (solo audit e fatto) | `services/engagement-service/…/application/ContentService.java:245-256` (nessun `ApprovalHistoryStore.record`) | **risolta**: `ContentService.transition` e `endExpired` scrivono `approval_history` con `ApprovalHistoryStore` di lh-common (`entity_type = CONTENT`); lettura con `GET /v1/contents/{id}/approval-history`, come campagne, premi e concorsi |
@@ -1455,7 +1455,7 @@ Nessuna divergenza nelle aree di `lh-common` a logica pura (ACT, GRD, PRS, SMR, 
 | Rami senza specifica | 18 (B-02, B-03, B-04, B-10, B-13, B-25, B-26, B-28, B-33, B-36, B-37, B-38, B-50, B-51, B-54, B-59, B-60, B-61) → righe AMBIGUO |
 | Regole senza codice | 0 (lo storico delle transizioni dei contenuti, R-13 per i contenuti, c'è da D-04) |
 | Righe | 978 — ACT 14, GRD 30, PRS 16, SMR 56, SMN 10, SMF 56, ROL 60, CMT 14, OVR 22, POL 44, MST 41, MRL 80, ANO 47, ATV 70, ATD 29, ATU 14, CRT 118, CRV 27, SEG 30, REF 23, ENT 47, APQ 8, MAT 100, EFF 17, ANX 5 |
-| di cui AMBIGUO | 141 (§13), registrate in `docs/15` (Q-298…Q-310 e domande già aperte) |
+| di cui AMBIGUO | 132 (§13; CRT-045…048, 051, 052, 055, 056 e CRV-025 decise da Q-215), registrate in `docs/15` (Q-298…Q-310 e domande già aperte) |
 | Tabelle complete | GRD 6 × 5; SMR e SMF 7 × 8; ROL 8 × 5 (+ 2 × 5, 1 × 5); OVR 2 × 2 × 5; POL campagna 2 × 2 × 7 e scheda 4 × 2; MST 4 × 8; MRL 13 × 6; ATV 4 × 16; CRT 14 × 4 e assente × 14; MAT 20 × 5; EFF 4 × 4 |
 | Riduzioni | stato × azione × ruolo × policy (560) → SMR + SMF (112) + SMN (10: le celle in cui la regola entra nel ramo, 46 identiche a SMR) + ROL (60), perché ruolo e stato sono controlli indipendenti e in sequenza, più 5 righe di precedenza; per tipo di oggetto (3 × 56) → 12 verifiche di cablaggio per tipo nell'hub (la logica è la stessa `GovernedTransitions`); policy spenta nell'hub → nessun contesto dedicato (stesso bean, tabelle SMF/ROL); tabella dei contenuti → TB-ENG; ACT, PRS, ANO, ATD, CRV, SEG → ogni classe non valida da sola sul caso valido (guasto singolo) |
 | Divergenze | 4 cause, 12 righe: D-01 (8), D-02 (2), D-03 (1, risolta da `main`), D-04 (1) → tutte risolte, 0 righe rosse |

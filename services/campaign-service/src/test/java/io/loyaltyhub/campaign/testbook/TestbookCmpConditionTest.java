@@ -35,8 +35,9 @@ class TestbookCmpConditionTest {
 
     /**
      * TB-CMP-OPS: ogni comparatore × tipo del campo, valori limite, campo assente/null, tipi incompatibili.
-     * TESTBOOK: ambiguo, vedi TB-CMP-OPS-011, OPS-032 (testo numerico contro numero), OPS-072 (between con estremi
-     * invertiti), OPS-078 (comparatore sconosciuto), OPS-079 (comparatore assente): si asserisce il comportamento attuale.
+     * Q-215/Q-216 DECISE (cast tipizzato di lh-common): OPS-011, OPS-032, OPS-033, OPS-036; Q-219 DECISA: OPS-079.
+     * TESTBOOK: ambiguo, vedi OPS-072 (between con estremi invertiti), OPS-078 (comparatore sconosciuto): si asserisce il
+     * comportamento attuale.
      */
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/cmp/operators.csv", numLinesToSkip = 1, delimiter = '|', quoteCharacter = '`')
@@ -73,8 +74,8 @@ class TestbookCmpConditionTest {
 
     /**
      * TB-CMP-GRP: gruppi all/any/not annidati fino a profondità 3 e spiegabilità delle foglie fallite.
-     * TESTBOOK: ambiguo, vedi TB-CMP-GRP-007 (any vuoto), GRP-019 (operatore sconosciuto), GRP-020 (foglia senza campo),
-     * GRP-021 (condizioni null); GRP-010 segue la scelta registrata in Q-90 (not = "non tutte vere").
+     * Q-222, Q-223, Q-224 DECISE (conservative): GRP-007 (any vuoto), GRP-019 (operatore sconosciuto), GRP-020 (foglia
+     * senza campo) sono falsi. TESTBOOK: ambiguo, vedi GRP-021 (condizioni null); GRP-010 segue Q-90 (not = "non tutte vere").
      */
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/cmp/groups.csv", numLinesToSkip = 1, delimiter = '|', quoteCharacter = '`')

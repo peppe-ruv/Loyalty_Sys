@@ -23,6 +23,6 @@ TB-GOV-CRV-021,in con scalare,"{'field':'member.tier','cmp':'in','value':'GOLD'}
 TB-GOV-CRV-022,nin con scalare,"{'field':'member.tier','cmp':'nin','value':'GOLD'}",criteria.value
 TB-GOV-CRV-023,between con un valore,"{'field':'balance.PTS','cmp':'between','value':[1]}",criteria.value
 TB-GOV-CRV-024,between con tre valori,"{'field':'balance.PTS','cmp':'between','value':[1,2,3]}",criteria.value
-TB-GOV-CRV-025,gt con testo (data ISO),"{'field':'member.attributes.contractDate','cmp':'gt','value':'2026-01-01'}",criteria.value
+TB-GOV-CRV-025,"gt con data ISO (valore convertibile in data) // Q-215 DECISA (Q-91)","{'field':'member.attributes.contractDate','cmp':'gt','value':'2026-01-01'}",OK
 TB-GOV-CRV-026,gte con numero,"{'field':'balance.PTS','cmp':'gte','value':100}",OK
 TB-GOV-CRV-027,regola non oggetto,"{'op':'all','rules':['tier']}",criteria.rules[0]

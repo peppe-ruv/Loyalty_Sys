@@ -774,7 +774,8 @@ catalogo; `groupFields`; `isPlausiblePath` (ramo senza specifica, COND-087…089
 (null, avvolgimento, profondità, eccezione; R1, R6); `parseConditionsText`; `nodeToJson` (valore, gruppo vuoto; R6);
 `appendChild`/`canAddGroup` (R1); `changeField`, `changeComparator` (4 forme), `coerceScalar` (4), `parseList`;
 `leafProblem`/`scalarProblem` (14 esiti, R3, R6); `fieldWarnings` (6 esiti, R4); avviso NESSUNA (R5). Rami senza
-specifica: catalogo parziale (COND-042, 046).
+specifica: catalogo parziale (COND-042, 046: Q-197 DECISA). Cast tipizzato dei valori (COND-063, COND-090…100): stessa politica del
+motore (`lh-common TypedCast`, Q-215 DECISA) — un valore che non si converte nel tipo del campo blocca il salvataggio.
 
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
@@ -820,11 +821,11 @@ specifica: catalogo parziale (COND-042, 046).
 | TB-WEB-COND-039 | number e integer | number | docs/08 §BO-06 (intersezione, avviso) | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-040 | enum diversi | unione dei valori | docs/08 §BO-06 (intersezione, avviso) | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-041 | obbligatorio solo se lo è in tutti i trigger | `data.amount` non obbligatorio, `data.channel` obbligatorio | docs/08 §BO-06 (intersezione, avviso) | `web/lib/campaign/conditions.testbook.test.ts` |
-| TB-WEB-COND-042 | campi di un trigger non ancora arrivati | AMBIGUO — quel trigger è ignorato nell'intersezione | docs/08 §BO-06 (intersezione, avviso) | `web/lib/campaign/conditions.testbook.test.ts` |
+| TB-WEB-COND-042 | campi di un trigger non ancora arrivati | nessun campo dichiarato comune finché tutti i cataloghi non sono arrivati — `// Q-197 DECISA` | docs/08 §BO-06 (intersezione, avviso) | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-043 | campo data.* comune a tutti i trigger | nessun avviso | docs/08 §BO-06 (intersezione, avviso) | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-044 | campo data.* di un solo trigger | avviso «manca in visit» | docs/08 §BO-06 (intersezione, avviso) | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-045 | campo data.* di nessun trigger | avviso «potrebbe non essere mai vera» | docs/08 §BO-06 (intersezione, avviso) | `web/lib/campaign/conditions.testbook.test.ts` |
-| TB-WEB-COND-046 | campi dei trigger non ancora arrivati | AMBIGUO — nessun avviso | docs/08 §BO-06 (intersezione, avviso) | `web/lib/campaign/conditions.testbook.test.ts` |
+| TB-WEB-COND-046 | campi dei trigger non ancora arrivati | avviso «Campo non verificato per visit» su ogni `data.*` — `// Q-197 DECISA` | docs/08 §BO-06 (intersezione, avviso) | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-047 | campo member del catalogo (member.tier) | nessun avviso | docs/08 §BO-06 (intersezione, avviso) | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-048 | campo member fuori catalogo (member.nickname) | «fuori catalogo» | docs/08 §BO-06 (intersezione, avviso) | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-049 | spazio sconosciuto (order.total) | «Spazio sconosciuto» | docs/08 §BO-06 (intersezione, avviso) | `web/lib/campaign/conditions.testbook.test.ts` |
@@ -841,7 +842,7 @@ specifica: catalogo parziale (COND-042, 046).
 | TB-WEB-COND-060 | riga: tra 9 e 9 (estremi uguali) | valida | docs/08 §BO-06 · §3.2 (validazione) · docs/03 §3.3 | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-061 | riga: numero con testo «abc» | «Serve un numero» | docs/08 §BO-06 · §3.2 (validazione) · docs/03 §3.3 | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-062 | riga: numero vuoto | «Valore mancante» | docs/08 §BO-06 · §3.2 (validazione) · docs/03 §3.3 | `web/lib/campaign/conditions.testbook.test.ts` |
-| TB-WEB-COND-063 | riga: booleano con testo «true» | «Scegli sì o no» | docs/08 §BO-06 · §3.2 (validazione) · docs/03 §3.3 | `web/lib/campaign/conditions.testbook.test.ts` |
+| TB-WEB-COND-063 | riga: booleano con testo «true» | valida (`"true"` si converte esattamente in booleano, come nel motore) — `// Q-215 DECISA` | docs/08 §BO-06 · §3.2 (validazione) · docs/03 §3.3 | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-064 | riga: data «18/09/2026» | «Data non valida (AAAA-MM-GG)» | docs/08 §BO-06 · §3.2 (validazione) · docs/03 §3.3 | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-065 | riga: data «2026-09-18» | valida | docs/08 §BO-06 · §3.2 (validazione) · docs/03 §3.3 | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-066 | riga: enum con valore fuori elenco | «Valore non ammesso: XYZ» | docs/08 §BO-06 · §3.2 (validazione) · docs/03 §3.3 | `web/lib/campaign/conditions.testbook.test.ts` |
@@ -868,6 +869,17 @@ specifica: catalogo parziale (COND-042, 046).
 | TB-WEB-COND-087 | percorso a mano «data.items[*].sku» → plausibile | AMBIGUO — plausibile | docs/03 §3.3 · docs/08 §BO-06 | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-088 | percorso a mano in uno spazio sconosciuto «order.total» | AMBIGUO — non plausibile | docs/03 §3.3 · docs/08 §BO-06 | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-089 | percorso a mano incompleto «data.» | AMBIGUO — non plausibile | docs/03 §3.3 · docs/08 §BO-06 | `web/lib/campaign/conditions.testbook.test.ts` |
+| TB-WEB-COND-090 | riga: numero con testo «50» | valida (`^-?\d+(\.\d+)?$` esatto) — `// Q-215 DECISA` | docs/08 §BO-06 · §3.2 (validazione) · docs/03 §3.3 · Q-215 | `web/lib/campaign/conditions.testbook.test.ts` |
+| TB-WEB-COND-091 | riga: numero con testo « 50» (spazio) | «Serve un numero» — `// Q-215 DECISA` | docs/08 §BO-06 · §3.2 (validazione) · docs/03 §3.3 · Q-215 | `web/lib/campaign/conditions.testbook.test.ts` |
+| TB-WEB-COND-092 | riga: numero con testo «5e1» | «Serve un numero» — `// Q-215 DECISA` | docs/08 §BO-06 · §3.2 (validazione) · docs/03 §3.3 · Q-215 | `web/lib/campaign/conditions.testbook.test.ts` |
+| TB-WEB-COND-093 | riga: booleano con testo «TRUE» | «Scegli sì o no» — `// Q-215 DECISA` | docs/08 §BO-06 · §3.2 (validazione) · docs/03 §3.3 · Q-215 | `web/lib/campaign/conditions.testbook.test.ts` |
+| TB-WEB-COND-094 | riga: data «2026-02-29» (non esiste) | «Data non valida (AAAA-MM-GG)» — `// Q-215 DECISA` | docs/08 §BO-06 · §3.2 (validazione) · docs/03 §3.3 · Q-215 | `web/lib/campaign/conditions.testbook.test.ts` |
+| TB-WEB-COND-095 | riga: data con ora «2026-09-18T10:00:00Z» su un campo data | «Data non valida (AAAA-MM-GG)» (stessa granularità) — `// Q-215 DECISA` | docs/08 §BO-06 · §3.2 (validazione) · docs/03 §3.3 · Q-215 | `web/lib/campaign/conditions.testbook.test.ts` |
+| TB-WEB-COND-096 | riga: data e ora con fuso su un campo `date-time` | valida — `// Q-215 DECISA` | docs/08 §BO-06 · §3.2 (validazione) · docs/03 §3.3 · Q-215 | `web/lib/campaign/conditions.testbook.test.ts` |
+| TB-WEB-COND-097 | riga: data senza ora su un campo `date-time` | «Data e ora non valide (es. 2026-09-18T10:00:00+02:00)» — `// Q-215 DECISA` | docs/08 §BO-06 · §3.2 (validazione) · docs/03 §3.3 · Q-215 | `web/lib/campaign/conditions.testbook.test.ts` |
+| TB-WEB-COND-098 | riga: testo con il numero 5 | «Serve un testo» (mai numero → testo) — `// Q-215 DECISA` | docs/08 §BO-06 · §3.2 (validazione) · docs/03 §3.3 · Q-215 | `web/lib/campaign/conditions.testbook.test.ts` |
+| TB-WEB-COND-099 | riga: enum testuale con il numero 1 | «Valore non ammesso: 1» — `// Q-215 DECISA` | docs/08 §BO-06 · §3.2 (validazione) · docs/03 §3.3 · Q-215 | `web/lib/campaign/conditions.testbook.test.ts` |
+| TB-WEB-COND-100 | riga: tra «10» e 9 su un numero | «Il primo valore supera il secondo» (estremi convertiti in numero) — `// Q-215 DECISA` | docs/08 §BO-06 · §3.2 (validazione) · docs/03 §3.3 · Q-215 | `web/lib/campaign/conditions.testbook.test.ts` |
 
 
 ## 13. FMT — Formati (punti, euro, date)
@@ -1411,7 +1423,7 @@ l'alternativa, senza implementarla (A1 → Q-186, A12 → Q-197, A21 → Q-206).
 | A9 | TB-WEB-APR-030, 032 | ordine delle schede di BO-21 | *Da approvare* dal più vecchio (poi per codice), *Inviate da me* dal più recente | Q-194 |
 | A10 | TB-WEB-APR-033…040 | parole dell'esito e formato dell'attore in BO-21 | "In attesa", "Rifiutato", "Approvato (e pubblicato)", "username (RUOLO)" | Q-195 |
 | A11 | TB-WEB-DESC-005, 006, 030, 038…043, 051 | frase per tipo senza nome, bozza senza trigger/effetti, segmenti, coupon/badge/messaggio, più limiti | codice del tipo, "un'azione", codici dei segmenti, "un coupon"/"un badge"/"il messaggio …", solo il primo limite | Q-196 |
-| A12 | TB-WEB-COND-042, 046 | catalogo dei campi parziale (servizio che dorme) | il trigger senza campi è ignorato nell'intersezione e negli avvisi | Q-197 |
+| A12 | TB-WEB-COND-042, 046 | catalogo dei campi parziale (servizio che dorme) | **DECISA** (conservativa): nessun campo comune finché tutti i cataloghi non sono arrivati; ogni `data.*` segnalato «non verificato per …» | Q-197 |
 | A13 | TB-WEB-COND-087…089 | percorso scritto a mano | ammesso se inizia con `data.`/`member.`/`context.`/`history.` | Q-198 |
 | A14 | TB-WEB-FMT-011, 012 | punti decimali | arrotondamento it-IT a 0 decimali | Q-199 |
 | A15 | TB-WEB-FMT-027, 031, 032, 033, 036 | data assente, sotto il minuto, forma delle ore, futuro | "—", "ora", "N h fa", "ora" | Q-200 |
@@ -1456,7 +1468,7 @@ storico è in `ApprovalHistoryList` di BO-21).
 | PILL | 12 | 1 | 10 | — |
 | APR | 40 | 4 | 21 | CAMPAIGN completa 3 × 4; altri tipi solo per policy |
 | DESC | 52 | 3 | 37 | classi una per volta su bozza minima (prodotto > 10⁴) |
-| COND | 89 | 6 | 78 | valori limite e classi una per volta |
+| COND | 100 | 6 | 78 | valori limite e classi una per volta (COND-090…100: cast tipizzato, Q-215) |
 | FMT | 48 | 3 | 14 | valori limite uno per riga |
 | RWD | 76 | 6 | 27 | nessuna: 36 e 12 complete |
 | HOME | 21 | 6 | 11 | classi una per volta |
@@ -1466,9 +1478,9 @@ storico è in `ApprovalHistoryList` di BO-21).
 | ADJ | 16 | 4 | 7 | valori limite su modulo valido |
 | HUB | 39 | 5 | 12 | nessuna: 16, 8 e 4 complete |
 | KA | 7 | 2 | 6 | — |
-| **Totale** | **741** | **77** | **349** | 5 tabelle complete, 4 riduzioni dichiarate |
+| **Totale** | **752** | **77** | **349** | 5 tabelle complete, 4 riduzioni dichiarate |
 
-- Righe: **741**, di cui **33** DIVERGENZA (23 cause, §22, tutte risolte: 0 righe rosse) e **67** AMBIGUO (§23,
+- Righe: **752**, di cui **33** DIVERGENZA (23 cause, §22, tutte risolte: 0 righe rosse) e **65** AMBIGUO (§23,
   `Q-186…Q-207`).
 - Rami del codice senza specifica: 22 gruppi (§23–24). Regole non implementate: 16 con riga rossa, 3 senza unità da
   provare (§24).

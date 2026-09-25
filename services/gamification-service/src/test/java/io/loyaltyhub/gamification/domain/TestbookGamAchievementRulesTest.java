@@ -76,7 +76,7 @@ class TestbookGamAchievementRulesTest {
         assertThat(values).isEqualTo(longs(expValues));
     }
 
-    // TESTBOOK: ambiguo, vedi TB-GAM-FLT-037 (comparatore sconosciuto)
+    // TB-GAM-FLT-037 (comparatore sconosciuto): foglia falsa, Q-295 DECISA (cast tipizzato di lh-common, Q-215)
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/gam/filtri.csv", numLinesToSkip = 1, quoteCharacter = '\'')
     void filtro(String id, String desc, String filter, String data, boolean expected) {
