@@ -121,7 +121,31 @@ public class TestbookGamPlayIT extends PlayIT {
     @Test
     @DisplayName("[TB-GAM-PLY-010] Giocata concorrente con 1 istante scaduto, 50 thread")
     void testPlayConcurrency() throws Exception {
-        fiftyConcurrentPlaysOneExpiredInstantOneWin();
+        // Run concurrent logic properly
+        String id = createLiveTb("IW-TB-PLY-RACE", 1, true, null);
+        org.springframework.jdbc.core.simple.JdbcClient jdbcTb = getJdbcTb();
+        jdbcTb.sql("UPDATE winning_instant SET instant_at = ? WHERE contest_id = ?")
+                .params(Timestamp.from(Instant.now().minusSeconds(1)), id).update();
+        java.util.List<String> racers = new java.util.ArrayList<>();
+        for (int i = 1; i <= 50; i++) {
+            String m = String.format("MBR-8%05d", i);
+            racers.add(m);
+            jdbcTb.sql("INSERT INTO gamification_member_snapshot (member_id, nickname, status) VALUES (?, ?, 'ACTIVE') ON CONFLICT DO NOTHING")
+                    .params(m, "racer" + i).update();
+        }
+        java.util.List<java.util.concurrent.Callable<JsonNode>> tasks = racers.stream().map(m -> (java.util.concurrent.Callable<JsonNode>) () -> playTb("IW-TB-PLY-RACE", m, 200)).toList();
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(50);
+        java.util.List<java.util.concurrent.Future<JsonNode>> futures = pool.invokeAll(tasks);
+        pool.shutdown();
+        int wins = 0;
+        int loses = 0;
+        for (java.util.concurrent.Future<JsonNode> f : futures) {
+            String outcome = f.get().path("outcome").asString();
+            if ("WIN".equals(outcome)) wins++;
+            else if ("LOSE".equals(outcome)) loses++;
+        }
+        assertThat(wins).as("un solo istante aperto scaduto deve dare una sola vincita").isEqualTo(1);
+        assertThat(loses).isEqualTo(49);
     }
 
     @Test

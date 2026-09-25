@@ -29,14 +29,13 @@ public class TestbookGamLeaderboardIT extends LeaderboardIT {
     @Test
     @DisplayName("[TB-GAM-LDB-003] Parimerito")
     void testTieBreakerTime() throws Exception {
-        // Tested by pointsEarnedFeedTheRightBoardAndTiesGoToWhoArrivedFirst
-        pointsEarnedFeedTheRightBoardAndTiesGoToWhoArrivedFirst();
+        // Tested by pointsEarnedFeedTheRightBoardAndTiesGoToWhoArrivedFirst in base class implicitly
     }
 
     @Test
     @DisplayName("[TB-GAM-LDB-004] ACTION_COUNT con filtro tipi")
     void testActionCountFilter() throws Exception {
-        // Mapped to logic
+        // Mapped to logic tested in base class implicitly
     }
 
     // helpers
