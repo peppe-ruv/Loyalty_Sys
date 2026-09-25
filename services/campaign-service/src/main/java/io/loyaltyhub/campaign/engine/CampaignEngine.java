@@ -422,7 +422,7 @@ public final class CampaignEngine {
             if (!m.currency.equals(grant.currency) || m.campaignCode.equals(grant.campaignCode)) {
                 continue;
             }
-            // SPEC-GAP: Q-C46 — scope diverso da ALL_GRANTS senza labels: nessuna campagna nell'ambito (non moltiplica).
+            // SPEC-GAP: Q-C44 — scope diverso da ALL_GRANTS senza labels: nessuna campagna nell'ambito (non moltiplica).
             boolean inScope = m.scope.equals("ALL_GRANTS")
                     || (m.scope.equals("LABELS") && labelsIntersect(m.labels, grant.campaignLabels));
             if (inScope) {

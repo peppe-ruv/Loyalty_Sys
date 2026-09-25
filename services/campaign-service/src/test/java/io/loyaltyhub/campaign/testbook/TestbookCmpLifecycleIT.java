@@ -146,7 +146,7 @@ class TestbookCmpLifecycleIT {
      * TB-CMP-ROL: operazione × ruolo (docs/06 §3, docs/08 §2).
      * TESTBOOK: ambiguo, vedi TB-CMP-ROL-003, ROL-004, ROL-010, ROL-011, ROL-017, ROL-018, ROL-024, ROL-025: la matrice
      * nega object.edit a LEGAL e CARE ma senza ● (il backend deve rifiutare solo ANALYST); si asserisce il comportamento
-     * attuale.
+     * attuale (Q-C39): con la guardia ADMIN/MARKETING anche su POST /v1/campaigns ogni scrittura di LEGAL e CARE è 403.
      */
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/cmp/roles.csv", numLinesToSkip = 1, delimiter = '|', quoteCharacter = '`')

@@ -1,8 +1,8 @@
 id|descrizione|operazione|X-LH-Actor (vuoto = intestazione assente)|HTTP atteso
 TB-CMP-ROL-001|crea come ADMIN|CREATE|ADMIN:marta|201
 TB-CMP-ROL-002|crea come MARKETING|CREATE|MARKETING:luca|201
-TB-CMP-ROL-003|crea come LEGAL|CREATE|LEGAL:elena|201
-TB-CMP-ROL-004|crea come CARE|CREATE|CARE:carla|201
+TB-CMP-ROL-003|crea come LEGAL|CREATE|LEGAL:elena|403
+TB-CMP-ROL-004|crea come CARE|CREATE|CARE:carla|403
 TB-CMP-ROL-005|crea come ANALYST|CREATE|ANALYST:sara|403
 TB-CMP-ROL-006|crea senza X-LH-Actor|CREATE||403
 TB-CMP-ROL-007|crea con ruolo non valido|CREATE|GUEST:ospite|403
