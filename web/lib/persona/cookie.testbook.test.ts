@@ -39,10 +39,12 @@ it.each(rows([
   expect(parsePersona(raw)).toEqual(expected);
 });
 
-it("[TB-WEB-PERS-015] BO con ruolo fuori dai 5 (ROOT) → accettato così com'è", () => {
-  // TESTBOOK: ambiguo, vedi TB-WEB-PERS-015 — docs/07 §4 non dice cosa fare di un ruolo non valido nel cookie; oggi il
-  // cookie è accettato (can() nega tutto e il layout del backoffice ricava il ruolo dallo username).
-  expect(parsePersona(enc({ kind: "BO", username: "x", role: "ROOT" }))).toEqual({ kind: "BO", username: "x", role: "ROOT" });
+it("[TB-WEB-PERS-015] BO con ruolo fuori dai 5 (ROOT) → ANALYST, nell'interfaccia e in X-LH-Actor", () => {
+  // Q-186 DECISA: ruolo fuori elenco trattato come ANALYST (sola lettura) sia nell'interfaccia sia verso i servizi.
+  const p = parsePersona(enc({ kind: "BO", username: "marta.admin", role: "ROOT" }));
+  expect(p).toEqual({ kind: "BO", username: "marta.admin", role: "ANALYST" });
+  expect(actorHeader(p)).toBe("ANALYST:marta.admin");
+  expect(parsePersona(enc({ kind: "BO", username: "x", role: "admin" }))).toEqual({ kind: "BO", username: "x", role: "ANALYST" });
 });
 
 it.each(rows([

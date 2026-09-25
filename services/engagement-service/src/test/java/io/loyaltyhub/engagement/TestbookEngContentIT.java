@@ -313,16 +313,38 @@ class TestbookEngContentIT {
     }
 
     @Test
-    @DisplayName("[TB-ENG-EDT-060] modifica di un contenuto ENDED: 200")
-    void endedEditable() {
-        // TESTBOOK: ambiguo, vedi TB-ENG-EDT-060 (docs/17 US-E07-01 indica 409, le fonti tacciono).
+    @DisplayName("[TB-ENG-EDT-060] modifica di un contenuto ENDED: 409 CONTENT_NOT_EDITABLE")
+    void endedNotEditable() {
+        // Q-174 DECISA: come campagne, premi e concorsi (docs/17 US-E07-01), un ENDED non si modifica.
         Map<String, Object> body = card(code("CNT"));
         String code = create(body).path("code").asString();
         transition(code, "PUBLISH");
         transition(code, "END");
         body.put("title", "Dopo la fine");
         body.put("version", content(code).path("version").asLong());
+        Resp r = api.send("PUT", "/v1/contents/" + code, MKT, body);
+        assertThat(r.status()).isEqualTo(409);
+        assertThat(r.code()).isEqualTo("CONTENT_NOT_EDITABLE");
+        assertThat(content(code).path("title").asString()).isNotEqualTo("Dopo la fine");
+    }
+
+    @Test
+    @DisplayName("[TB-ENG-EDT-061] modifica di un contenuto PAUSED: campi sicuri 200, gli altri 409 CONTENT_LIVE_LOCKED")
+    void pausedLockedLikeLive() {
+        // Q-174 DECISA: un PAUSED ha gli stessi campi bloccati di un LIVE (come le campagne, Q-51).
+        Map<String, Object> body = card(code("CNT"));
+        String code = create(body).path("code").asString();
+        transition(code, "PUBLISH");
+        transition(code, "PAUSE");
+        body.put("placement", "HOME_HERO");
+        body.put("version", content(code).path("version").asLong());
+        Resp locked = api.send("PUT", "/v1/contents/" + code, MKT, body);
+        assertThat(locked.status()).isEqualTo(409);
+        assertThat(locked.code()).isEqualTo("CONTENT_LIVE_LOCKED");
+        body.put("placement", content(code).path("placement").asString());
+        body.put("title", "In pausa");
         assertThat(api.send("PUT", "/v1/contents/" + code, MKT, body).status()).isEqualTo(200);
+        transition(code, "END");
     }
 
     // ================================================================= EDL

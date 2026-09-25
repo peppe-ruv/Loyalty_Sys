@@ -14,7 +14,10 @@ export default async function BackofficeLayout({ children }: { children: React.R
   const raw = (await cookies()).get(PERSONA_COOKIE)?.value;
   const parsed = parsePersona(raw);
   const username = parsed?.kind === "BO" ? parsed.username : DEFAULT_BACKOFFICE_USERNAME;
-  const persona = findBackofficePersona(username) ?? findBackofficePersona(DEFAULT_BACKOFFICE_USERNAME)!;
+  const found = findBackofficePersona(username) ?? findBackofficePersona(DEFAULT_BACKOFFICE_USERNAME)!;
+  // Q-186 DECISA: il ruolo mostrato e usato da can() è quello che il proxy manda in X-LH-Actor (dal cookie, già
+  // ricondotto ad ANALYST se fuori elenco), non quello ricavato dallo username.
+  const persona = parsed?.kind === "BO" ? { ...found, role: parsed.role } : found;
   const initials = persona.displayName
     .split(" ")
     .map((w) => w[0])

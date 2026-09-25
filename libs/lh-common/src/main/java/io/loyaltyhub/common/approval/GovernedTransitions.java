@@ -40,14 +40,30 @@ public final class GovernedTransitions {
         } else if (role != Role.ADMIN && role != Role.MARKETING) {
             throw LhException.forbiddenRole("Questa transizione richiede il ruolo MARKETING o ADMIN.");
         }
-        boolean hasComment = comment != null && !comment.isBlank();
+        boolean hasComment = !isBlankComment(comment);
         if (!enabled && action == ApprovalAction.SUBMIT && from == ApprovalStatus.DRAFT) {
             return ApprovalStatus.LIVE;
         }
         return ApprovalStateMachine.next(from, action, enabled && rule.required(), hasComment);
     }
 
-    /** L'ADMIN che decide al posto del ruolo della policy: da marcare in audit (docs/08 §2 "override"). */
+    /**
+     * Commento assente ai fini di «REJECT (commento obbligatorio)» (docs/03 §3.6). Q-300 DECISA: contano come spazi anche
+     * quelli Unicode che {@link String#isBlank} non vede (U+00A0, U+2007, U+202F: separatori {@code Zs}) e i caratteri
+     * invisibili di formato ({@code Cf}, es. U+200B, U+FEFF): un commento fatto solo di questi vale vuoto (422).
+     */
+    public static boolean isBlankComment(String comment) {
+        if (comment == null) {
+            return true;
+        }
+        return comment.codePoints().allMatch(c -> Character.isWhitespace(c) || Character.isSpaceChar(c)
+                || Character.getType(c) == Character.FORMAT);
+    }
+
+    /**
+     * L'ADMIN che decide al posto del ruolo della policy: da marcare in audit (docs/08 §2 "override"). Q-300 DECISA: con
+     * una regola senza approvatore ({@code NONE}) l'ADMIN non scavalca nessuno e non è marcato.
+     */
     public static boolean isOverride(ApprovalAction action, ApprovalRule rule, Role role) {
         return (action == ApprovalAction.APPROVE || action == ApprovalAction.REJECT)
                 && role == Role.ADMIN && rule.approverRole() != null && rule.approverRole() != Role.ADMIN;

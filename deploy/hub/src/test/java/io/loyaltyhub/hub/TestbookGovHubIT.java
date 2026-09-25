@@ -340,7 +340,8 @@ class TestbookGovHubIT {
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/gov/hub-matrix.csv", numLinesToSkip = 1)
     void matrix(String id, String description, String capability, String role, String expected) {
-        // Celle «—» senza ● di ruoli diversi da ANALYST e istogramma per CARE/ANALYST — TESTBOOK: ambiguo, vedi TB-GOV §13
+        // Celle «—» senza ● di ruoli diversi da ANALYST — TESTBOOK: ambiguo, vedi TB-GOV §13.
+        // Istogramma per CARE/ANALYST (MAT-009, MAT-010) — Q-303 DECISA: 403.
         String nope = "NOPE-TBGOV";
         String got = switch (capability) {
             case "read" -> guard(http(HttpMethod.GET, "/v1/campaigns", role, null));

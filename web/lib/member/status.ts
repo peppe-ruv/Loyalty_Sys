@@ -27,15 +27,19 @@ export interface MemberStatusAction {
 }
 
 const ANONYMIZED_REASON = "Membro anonimizzato: azioni disabilitate";
+const UNKNOWN_REASON = "Stato del membro non ancora noto: attendi il caricamento della scheda";
+const KNOWN_STATUSES = ["ACTIVE", "BLOCKED", "INACTIVE", "ANONYMIZED"];
 
 /**
  * Voci di stato del menu per lo stato attuale del membro, nell'ordine di docs/08: *Blocca* (o *Sblocca* se BLOCKED),
- * poi *Disattiva*.
+ * poi *Disattiva*. Stato non noto ⇒ voci disabilitate (Q-206).
  */
 export function memberStatusActions(status: string | null | undefined): MemberStatusAction[] {
   const anonymized = isAnonymized(status);
   const blocked = status === "BLOCKED";
   const inactive = status === "INACTIVE";
+  // Q-206 DECISA: finché lo stato non è noto (non caricato o fuori dai 4 di docs/03 §2) le voci restano disabilitate.
+  const unknown = !status || !KNOWN_STATUSES.includes(status);
 
   const toggle: MemberStatusAction = blocked
     ? {
@@ -54,7 +58,13 @@ export function memberStatusActions(status: string | null | undefined): MemberSt
         target: "BLOCKED",
         // SPEC-GAP: Q-137 — il menu di docs/08 non prevede *Riattiva*: per un membro INACTIVE nessun cambio di stato dal
         // backoffice (Blocca → Sblocca lo riattiverebbe di fatto). Scelta conservativa: voce disabilitata.
-        disabledReason: anonymized ? ANONYMIZED_REASON : inactive ? "Membro disattivato: nessun cambio di stato dal menu" : null,
+        disabledReason: unknown
+          ? UNKNOWN_REASON
+          : anonymized
+            ? ANONYMIZED_REASON
+            : inactive
+              ? "Membro disattivato: nessun cambio di stato dal menu"
+              : null,
         confirmTitle: "Bloccare il membro?",
         confirmBody:
           "Il membro passa a BLOCKED: conserva saldi e storico, ma ogni nuova azione in ingresso viene respinta (MEMBER_NOT_ACTIVE) e non può spendere né giocare. Si annulla con Sblocca.",
@@ -65,7 +75,7 @@ export function memberStatusActions(status: string | null | undefined): MemberSt
     key: "deactivate",
     label: "Disattiva",
     target: "INACTIVE",
-    disabledReason: anonymized ? ANONYMIZED_REASON : inactive ? "Membro già disattivato" : null,
+    disabledReason: unknown ? UNKNOWN_REASON : anonymized ? ANONYMIZED_REASON : inactive ? "Membro già disattivato" : null,
     confirmTitle: "Disattivare il membro?",
     confirmBody:
       "Il membro passa a INACTIVE (uscito dal programma): conserva saldi e storico, ma non accumula, non spende e non gioca più.",
@@ -86,7 +96,10 @@ export function statusChangeBody(target: MemberStatusTarget, reason: string): { 
   return r ? { status: target, reason: r } : { status: target };
 }
 
-/** Messaggio per gli errori del cambio di stato. */
+/**
+ * Messaggio per gli errori del cambio di stato (Q-206 DECISA): servizio che dorme → invito a riprovare a demo accesa;
+ * codice non previsto → `detail` del problema.
+ */
 export function statusChangeErrorMessage(err: { code?: string | null; detail?: string | null; asleep?: boolean } | null): string | null {
   if (!err) return null;
   if (err.asleep) return "Il servizio membri non risponde: riprova quando la demo è accesa.";

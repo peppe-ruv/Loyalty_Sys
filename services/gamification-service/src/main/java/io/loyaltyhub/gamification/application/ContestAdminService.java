@@ -347,9 +347,20 @@ public class ContestAdminService implements ApprovalSource {
         if (prizes.isEmpty()) {
             throw LhException.validation("CONTEST_INVALID", "Il concorso non ha premi: niente da generare.");
         }
-        var generated = InstantGenerator.generate(
-                prizes.stream().map(p -> new InstantGenerator.PrizeQuantity(p.id(), p.quantityTotal(), p.sortOrder())).toList(),
-                c.startAt(), c.endAt(), c.distribution(), s);
+        // Q-294 DECISA: BUSINESS_HOURS senza ore utili nel periodo → 422 CONTEST_INVALID (prima era un 500).
+        if ("BUSINESS_HOURS".equals(c.distribution()) && !InstantGenerator.hasBusinessHours(c.startAt(), c.endAt())) {
+            throw LhException.validation("CONTEST_INVALID", "Nessun orario 08–22 nel periodo del concorso: "
+                    + "allarga il periodo o usa la distribuzione UNIFORM.");
+        }
+        List<InstantGenerator.GeneratedInstant> generated;
+        try {
+            generated = InstantGenerator.generate(
+                    prizes.stream().map(p -> new InstantGenerator.PrizeQuantity(p.id(), p.quantityTotal(), p.sortOrder())).toList(),
+                    c.startAt(), c.endAt(), c.distribution(), s);
+        } catch (IllegalStateException e) {
+            // ore utili così poche che il ricampionamento non le trova: stesso esito, mai un 500
+            throw LhException.validation("CONTEST_INVALID", e.getMessage() + ": allarga le ore utili del periodo.");
+        }
         instants.deleteByContest(c.id());
         List<String> ids = new ArrayList<>(generated.size());
         for (int i = 0; i < generated.size(); i++) {

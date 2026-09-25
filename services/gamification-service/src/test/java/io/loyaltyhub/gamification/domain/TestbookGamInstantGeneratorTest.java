@@ -133,13 +133,19 @@ class TestbookGamInstantGeneratorTest {
         assertThat(out).extracting(GeneratedInstant::at).containsOnly(t);
     }
 
-    // TESTBOOK: ambiguo, vedi TB-GAM-GEN-033 (BUSINESS_HOURS senza ore utili: nessuna fonte)
+    // Q-294 DECISA: BUSINESS_HOURS senza ore utili = errore di validazione (422 CONTEST_INVALID nel servizio)
     @Test
-    @DisplayName("[TB-GAM-GEN-033] BUSINESS_HOURS su un periodo 01:00–02:00 di Roma: errore")
+    @DisplayName("[TB-GAM-GEN-033] BUSINESS_HOURS su un periodo 01:00–02:00 di Roma: errore di validazione")
     void noBusinessHours() {
-        assertThatThrownBy(() -> InstantGenerator.generate(List.of(new PrizeQuantity("A", 1, 1)),
-                Instant.parse("2026-01-15T00:00:00Z"), Instant.parse("2026-01-15T01:00:00Z"), "BUSINESS_HOURS", 1))
-                .isInstanceOf(IllegalStateException.class);
+        Instant from = Instant.parse("2026-01-15T00:00:00Z");
+        Instant to = Instant.parse("2026-01-15T01:00:00Z");
+        assertThat(InstantGenerator.hasBusinessHours(from, to)).isFalse();
+        assertThat(InstantGenerator.hasBusinessHours(Instant.parse("2026-01-15T20:59:59.999Z"), Instant.parse("2026-01-15T21:00:00Z")))
+                .isTrue();
+        assertThat(InstantGenerator.hasBusinessHours(Instant.parse("2026-01-15T21:00:00Z"), Instant.parse("2026-01-16T07:00:00Z")))
+                .isFalse();
+        assertThatThrownBy(() -> InstantGenerator.generate(List.of(new PrizeQuantity("A", 1, 1)), from, to, "BUSINESS_HOURS", 1))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage(InstantGenerator.NO_BUSINESS_HOURS);
     }
 
     @Test

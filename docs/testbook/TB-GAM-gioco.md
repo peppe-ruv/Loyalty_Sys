@@ -112,7 +112,7 @@ Estratti da `services/gamification-service/src/main` (domain, application, api, 
 | `ContestAdminService.generateInstants` :339–357 | rigenera da zero, quantità ripristinate, seme salvato, audit | R26 | INS-001…003, INS-013…016, INS-019 |
 | `InstantGenerator.generate` :35–37 | `endAt ≤ startAt` → errore | R26 (periodo vuoto) | GEN-030, GEN-031 |
 | `InstantGenerator.generate` :43–50 | premi in ordine di `sort_order`, `quantity` istanti ciascuno | R26 | GEN-021, GEN-028, GEN-029, GEN-036, INS-020 |
-| `InstantGenerator.next` :54–62 | `BUSINESS_HOURS`: rigetta e ricampiona; nessun orario valido in 10 000 tentativi → errore | R26 (errore: *ramo senza specifica*) | GEN-022…025, GEN-032…035, GEN-037, GEN-033 |
+| `InstantGenerator.next` :54–62 | `BUSINESS_HOURS`: rigetta e ricampiona; periodo senza ore utili → errore di validazione, 422 `CONTEST_INVALID` nel servizio (Q-294 DECISA) | R26; Q-294 | GEN-022…025, GEN-032…035, GEN-037, GEN-033, INS-037 |
 | `InstantGenerator.inBusinessHours` :64–67 | ora di Roma in [8, 22) | R26 | GEN-001…020, INS-018 |
 | `ContestAdminService.updateDelivery` :363–373 | 404; non `WIN` o non `PHYSICAL` → 409 `DELIVERY_NOT_APPLICABLE`; stato ∉ {PENDING, DELIVERED} → 422; nota vuota → null; audit | R12 (nota vuota: *ramo senza specifica*) | PRZ-020…035 |
 | `ContestController` `@RequiresRole` | create/update/duplicate/generate ADMIN, MARKETING; transitions + LEGAL; instants ADMIN, LEGAL; delivery ADMIN, CARE | R16, R28, R12 | EDT-031…035, EDT-046, EDT-083, INS-008…012, INS-021…027, PRZ-023…026 |
@@ -362,7 +362,7 @@ Regole R10, R11, R12, R21.
 | TB-GAM-PRZ-031 | consegna manuale su una vincita COUPON: giocata COUPON, ruolo CARE, stato DELIVERED | rifiutata (409 o 422); consegna `NA` | gamification §2 (`NA, PENDING, DELIVERED`), §3 (`{status, note}` per premi PHYSICAL — CARE/ADMIN), docs/08 §2 `delivery.handle`, docs/06 §3 | `TestbookGamPrizeIT#consegna` |
 | TB-GAM-PRZ-032 | consegna manuale su una giocata perdente: giocata LOSE, ruolo CARE, stato DELIVERED | rifiutata (409 o 422); consegna `NA` | gamification §2 (`NA, PENDING, DELIVERED`), §3 (`{status, note}` per premi PHYSICAL — CARE/ADMIN), docs/08 §2 `delivery.handle`, docs/06 §3 | `TestbookGamPrizeIT#consegna` |
 | TB-GAM-PRZ-033 | giocata inesistente: giocata UNKNOWN, ruolo CARE, stato DELIVERED | 404 | gamification §2 (`NA, PENDING, DELIVERED`), §3 (`{status, note}` per premi PHYSICAL — CARE/ADMIN), docs/08 §2 `delivery.handle`, docs/06 §3 | `TestbookGamPrizeIT#consegna` |
-| TB-GAM-PRZ-034 | AMBIGUO nota di soli spazi: giocata PHYSICAL, ruolo CARE, stato DELIVERED, nota «   » | 204; consegna `DELIVERED`; nota null **AMBIGUO** | gamification §2 (`NA, PENDING, DELIVERED`), §3 (`{status, note}` per premi PHYSICAL — CARE/ADMIN), docs/08 §2 `delivery.handle`, docs/06 §3 | `TestbookGamPrizeIT#consegna` |
+| TB-GAM-PRZ-034 | Q-297 nota di soli spazi: giocata PHYSICAL, ruolo CARE, stato DELIVERED, nota «   » | 204; consegna `DELIVERED`; nota null (Q-297 DECISA) | gamification §2 (`NA, PENDING, DELIVERED`), §3 (`{status, note}` per premi PHYSICAL — CARE/ADMIN), docs/08 §2 `delivery.handle`, docs/06 §3 | `TestbookGamPrizeIT#consegna` |
 | TB-GAM-PRZ-035 | consegna aggiornata da CARE | una voce di audit `PLAY:<playId>` con attore CARE e stato prima/dopo | gamification §4 (audit delle consegne), docs/06 §3 | `TestbookGamPrizeIT#deliveryAudit` |
 
 ## 6. Istante piantato (PLT)
@@ -646,7 +646,7 @@ Regole R26…R28.
 | TB-GAM-GEN-030 | `endAt = startAt` | errore (periodo vuoto) | docs/03 §6 [startAt, endAt) | `TestbookGamInstantGeneratorTest#emptyPeriod` |
 | TB-GAM-GEN-031 | `endAt` prima di `startAt` | errore | docs/03 §6 | `TestbookGamInstantGeneratorTest#reversedPeriod` |
 | TB-GAM-GEN-032 | periodo di 1 ms, 3 istanti | tutti a `startAt` | docs/03 §6 (estremo incluso) | `TestbookGamInstantGeneratorTest#oneMillisecond` |
-| TB-GAM-GEN-033 | `BUSINESS_HOURS` su 01:00–02:00 di Roma | errore **AMBIGUO** | *ramo senza specifica* | `TestbookGamInstantGeneratorTest#noBusinessHours` |
+| TB-GAM-GEN-033 | `BUSINESS_HOURS` su 01:00–02:00 di Roma | errore di validazione (Q-294 DECISA: 422 `CONTEST_INVALID` nel servizio, INS-037) | Q-294 | `TestbookGamInstantGeneratorTest#noBusinessHours` |
 | TB-GAM-GEN-034 | `BUSINESS_HOURS` su [07:59:59.999, 08:00:00.001) di Roma | tutti alle 08:00:00.000 | docs/03 §6 (08 incluso) | `TestbookGamInstantGeneratorTest#openingBoundary` |
 | TB-GAM-GEN-035 | `BUSINESS_HOURS` su [21:59:59.999, 22:00:00.001) di Roma | tutti alle 21:59:59.999 | docs/03 §6 (22 escluso) | `TestbookGamInstantGeneratorTest#closingBoundary` |
 | TB-GAM-GEN-036 | premio con quantità 0 | nessun istante | docs/03 §6 | `TestbookGamInstantGeneratorTest#zeroQuantity` |
@@ -667,7 +667,7 @@ Regole R26…R28.
 | TB-GAM-INS-014 | istanti riscossi e piantati, quantità a 1, poi rigenerazione | 5 istanti tutti `OPEN`, nessuno piantato, residuo 5 | gamification §3 («rigenera da zero») | `TestbookGamContestIT#regenerateFromScratch` |
 | TB-GAM-INS-015 | generazione con seme 4242 | seme salvato sul concorso | docs/03 §6 (seme salvato) | `TestbookGamContestIT#seedStored` |
 | TB-GAM-INS-016 | generazione con seme 77, poi senza seme | stesso seme e stessi istanti | gamification §3 (`{seed?}`), docs/03 §6 | `TestbookGamContestIT#seedOmittedReproducible` |
-| TB-GAM-INS-017 | concorso senza premi | 422 `CONTEST_INVALID` **AMBIGUO** | *ramo senza specifica* | `TestbookGamContestIT#generateWithoutPrizes` |
+| TB-GAM-INS-017 | concorso senza premi | 422 `CONTEST_INVALID` (Q-294 DECISA) | Q-294 | `TestbookGamContestIT#generateWithoutPrizes` |
 | TB-GAM-INS-018 | `BUSINESS_HOURS` dal 24 al 27 ottobre 2026, 300 istanti (dal DB) | tutti tra 08:00 e 22:00 di Roma, alcuni il 25 | docs/03 §6 | `TestbookGamContestIT#businessHoursInDb` |
 | TB-GAM-INS-019 | generazione con seme 9 | voce di audit con 5 istanti e seme 9 | gamification §4 (audit della generazione) | `TestbookGamContestIT#generationAudit` |
 | TB-GAM-INS-020 | premi da 3, 1 e 5 pezzi (dal DB) | 3, 1 e 5 istanti per premio | F-IW-03 | `TestbookGamContestIT#onePerUnit` |
@@ -679,14 +679,15 @@ Regole R26…R28.
 | TB-GAM-INS-026 | tabella degli istanti senza X-LH-Actor | 403 | gamification §3 (istanti solo ADMIN/LEGAL, istogramma visibile a MARKETING), docs/08 §2 `instants.view` e «tutte le personas leggono tutto», F-IW-07 | `TestbookGamContestIT#visibilita` |
 | TB-GAM-INS-027 | tabella degli istanti con ruolo inesistente | 403 | gamification §3 (istanti solo ADMIN/LEGAL, istogramma visibile a MARKETING), docs/08 §2 `instants.view` e «tutte le personas leggono tutto», F-IW-07 | `TestbookGamContestIT#visibilita` |
 | TB-GAM-INS-028 | istogramma con MARKETING | 200, conteggi per giorno senza gli orari | gamification §3 (istanti solo ADMIN/LEGAL, istogramma visibile a MARKETING), docs/08 §2 `instants.view` e «tutte le personas leggono tutto», F-IW-07 | `TestbookGamContestIT#visibilita` |
-| TB-GAM-INS-029 | istogramma con CARE | 200, conteggi per giorno senza gli orari | gamification §3 (istanti solo ADMIN/LEGAL, istogramma visibile a MARKETING), docs/08 §2 `instants.view` e «tutte le personas leggono tutto», F-IW-07 | `TestbookGamContestIT#visibilita` |
-| TB-GAM-INS-030 | istogramma con ANALYST | 200, conteggi per giorno senza gli orari | gamification §3 (istanti solo ADMIN/LEGAL, istogramma visibile a MARKETING), docs/08 §2 `instants.view` e «tutte le personas leggono tutto», F-IW-07 | `TestbookGamContestIT#visibilita` |
-| TB-GAM-INS-031 | istogramma senza X-LH-Actor | 200, conteggi per giorno senza gli orari | gamification §3 (istanti solo ADMIN/LEGAL, istogramma visibile a MARKETING), docs/08 §2 `instants.view` e «tutte le personas leggono tutto», F-IW-07 | `TestbookGamContestIT#visibilita` |
+| TB-GAM-INS-029 | istogramma con CARE | 403 `FORBIDDEN_ROLE` (Q-303 DECISA: istogramma solo ad ADMIN, MARKETING e LEGAL) | gamification §3 (istanti solo ADMIN/LEGAL, istogramma visibile a MARKETING), docs/08 §2 `instants.view` e «tutte le personas leggono tutto», F-IW-07 | `TestbookGamContestIT#visibilita` |
+| TB-GAM-INS-030 | istogramma con ANALYST | 403 `FORBIDDEN_ROLE` (Q-303 DECISA: istogramma solo ad ADMIN, MARKETING e LEGAL) | gamification §3 (istanti solo ADMIN/LEGAL, istogramma visibile a MARKETING), docs/08 §2 `instants.view` e «tutte le personas leggono tutto», F-IW-07 | `TestbookGamContestIT#visibilita` |
+| TB-GAM-INS-031 | istogramma senza X-LH-Actor | 403 `FORBIDDEN_ROLE` (Q-303 DECISA: istogramma solo ad ADMIN, MARKETING e LEGAL) | gamification §3 (istanti solo ADMIN/LEGAL, istogramma visibile a MARKETING), docs/08 §2 `instants.view` e «tutte le personas leggono tutto», F-IW-07 | `TestbookGamContestIT#visibilita` |
 | TB-GAM-INS-032 | filtro `status=CLAIMED` (LEGAL) dopo una vincita | solo l'istante riscosso | gamification §3 (filtri `status, prizeId`) | `TestbookGamContestIT#filterByStatus` |
 | TB-GAM-INS-033 | filtro `prizeId` (ADMIN) | solo gli istanti di quel premio | gamification §3 | `TestbookGamContestIT#filterByPrize` |
 | TB-GAM-INS-034 | istanti alle 23:59:59 e alle 00:00:00 di Roma | due giorni nell'istogramma (1 e 4) | gamification §3 (conteggio per giorno), convenzioni Europe/Rome | `TestbookGamContestIT#histogramRomeDays` |
 | TB-GAM-INS-035 | istanti il 29 febbraio 2028 | un giorno `2028-02-29` con 5 aperti | gamification §3 | `TestbookGamContestIT#histogramLeapDay` |
 | TB-GAM-INS-036 | 150 istanti, `size=500` | pagina da 100, `totalItems` 150 | docs/06 §2 (`size` massimo 100) | `TestbookGamContestIT#pageSizeCapped` |
+| TB-GAM-INS-037 | `BUSINESS_HOURS` su 01:00–02:00 di Roma, generazione via API | 422 `CONTEST_INVALID` (Q-294 DECISA; prima 500) | Q-294 | `TestbookGamContestIT#generateWithoutBusinessHours` |
 
 ## 10. Vincitori e statistiche (RPT)
 
@@ -715,7 +716,7 @@ Regole R20, R47. Il job si lancia con `POST /v1/demo/jobs/close-contests?asOf=` 
 | TB-GAM-END-005 | APPROVED con endAt passato da un giorno | resta/diventa `APPROVED` | gamification §5 («LIVE con end_at passato → ENDED»), docs/03 §6 [startAt, endAt) | `TestbookGamContestIT#fineConcorso` |
 | TB-GAM-END-006 | DRAFT con endAt passato da un giorno | resta/diventa `DRAFT` | gamification §5 («LIVE con end_at passato → ENDED»), docs/03 §6 [startAt, endAt) | `TestbookGamContestIT#fineConcorso` |
 | TB-GAM-END-007 | `LIVE` scaduto con 1 istante riscosso e 4 aperti | `ENDED`; 4 `VOID`, 1 `CLAIMED`; fatto `LIVE → ENDED`; audit `JOB` con `voided` 4 | docs/03 §6, gamification §4, §5 | `TestbookGamContestIT#closeEffects` |
-| TB-GAM-END-008 | `asOf=2020-02-10`: concorsi che finiscono alle 23:59:59 e alle 00:00 di Roma | il primo `ENDED`, il secondo resta `LIVE` **AMBIGUO** | *ramo senza specifica* (formato di `asOf`; Q-156 fissa la stessa regola solo per il wallet) | `TestbookGamContestIT#asOfDate` |
+| TB-GAM-END-008 | `asOf=2020-02-10`: concorsi che finiscono alle 23:59:59 e alle 00:00 di Roma | il primo `ENDED`, il secondo resta `LIVE` (Q-294 DECISA, come Q-156 per il wallet) | Q-294; Q-156 | `TestbookGamContestIT#asOfDate` |
 | TB-GAM-END-009 | job lanciato da MARKETING | 403 | docs/06 §3 (`/v1/demo/**` ⇒ ADMIN) | `TestbookGamContestIT#closeRole` |
 
 ## 12. Obiettivi: regole pure (PER, STK, MET, FLT)
@@ -918,8 +919,8 @@ Regola R40.
 | TB-GAM-BDG-002 | stesso badge da un secondo effetto | nessun secondo badge né fatto | gamification §2 (PK `member_id, badge_code`) | `TestbookGamAchievementIT#badgeOnce` |
 | TB-GAM-BDG-003 | stesso effetto consegnato due volte | nulla di nuovo | gamification §2 (`effect_id` univoco), RNF-03 | `TestbookGamAchievementIT#badgeEffectReplay` |
 | TB-GAM-BDG-004 | badge inesistente nell'effetto | errore non ritentabile `BADGE_NOT_FOUND` (DLQ); nessun fatto | campaign-service §5 («l'errore emergerà a valle in DLQ») | `TestbookGamAchievementIT#badgeUnknown` |
-| TB-GAM-BDG-005 | effetto senza `data` | errore non ritentabile `INVALID_EFFECT` **AMBIGUO** | codice DLQ non specificato | `TestbookGamAchievementIT#badgeWithoutData` |
-| TB-GAM-BDG-006 | effetto senza membro nel subject | errore non ritentabile `INVALID_EFFECT` **AMBIGUO** | codice DLQ non specificato | `TestbookGamAchievementIT#badgeWithoutMember` |
+| TB-GAM-BDG-005 | effetto senza `data` | errore non ritentabile `INVALID_EFFECT` (Q-297 DECISA) | Q-297 | `TestbookGamAchievementIT#badgeWithoutData` |
+| TB-GAM-BDG-006 | effetto senza membro nel subject | errore non ritentabile `INVALID_EFFECT` (Q-297 DECISA) | Q-297 | `TestbookGamAchievementIT#badgeWithoutMember` |
 | TB-GAM-BDG-007 | portale badge di un membro con un badge | prima il badge ottenuto con data e origine; poi quelli da ottenere senza data e con indicazione | gamification §3 («ottenuti + da ottenere»), PT-09 | `TestbookGamAchievementIT#portalBadges` |
 | TB-GAM-BDG-008 | badge con nome di soli spazi | 422 `BADGE_INVALID` | gamification §2 (`name`), docs/06 §2 | `TestbookGamAchievementIT#badgeWithoutName` |
 | TB-GAM-BDG-009 | codice badge già usato | 409 | docs/06 §2 | `TestbookGamAchievementIT#badgeDuplicate` |
@@ -1002,12 +1003,12 @@ Regola R31.
 | TB-GAM-GRT-001 | `plays.grant` count 2 | 2 crediti nel portale; `contest.plays.granted` {`contestCode`, `count` 2, `effectId`} | F-IW-05, gamification §4, contratto `fact.contest.plays.granted` | `TestbookGamEffectIT#grantTwo` |
 | TB-GAM-GRT-002 | stesso `effectId` consegnato due volte | 3 crediti, un solo fatto | gamification §2 (`effect_id` UQ), RNF-03 | `TestbookGamEffectIT#grantIdempotent` |
 | TB-GAM-GRT-003 | due effetti da 3 e 2 | 5 crediti | docs/03 §6 (Σ `play_grant.count`) | `TestbookGamEffectIT#grantsSum` |
-| TB-GAM-GRT-004 | `count` assente | 1 credito **AMBIGUO** | docs/03 §3.4 richiede `count` (Q-230 sceglie 1 solo lato motore campagne) | `TestbookGamEffectIT#grantWithoutCount` |
-| TB-GAM-GRT-005 | `count` 0 | 1 credito **AMBIGUO** | *ramo senza specifica* | `TestbookGamEffectIT#grantZero` |
+| TB-GAM-GRT-004 | `count` assente | 1 credito (Q-297 DECISA, come Q-230) | docs/03 §3.4; Q-230; Q-297 | `TestbookGamEffectIT#grantWithoutCount` |
+| TB-GAM-GRT-005 | `count` 0 o negativo | errore non ritentabile `INVALID_EFFECT` (DLQ), nessun credito (Q-297 DECISA) | Q-297 | `TestbookGamEffectIT#grantZero` |
 | TB-GAM-GRT-006 | concorso inesistente | errore non ritentabile `CONTEST_NOT_FOUND` (DLQ); nessun credito | campaign-service §5 (errore a valle in DLQ) | `TestbookGamEffectIT#grantUnknownContest` |
-| TB-GAM-GRT-007 | effetto senza `data` | errore non ritentabile `INVALID_EFFECT` **AMBIGUO** | codice DLQ non specificato | `TestbookGamEffectIT#grantWithoutData` |
-| TB-GAM-GRT-008 | effetto senza membro nel subject | errore non ritentabile `INVALID_EFFECT` **AMBIGUO** | codice DLQ non specificato | `TestbookGamEffectIT#grantWithoutMember` |
-| TB-GAM-GRT-009 | credito su un concorso `DRAFT`, poi `LIVE` senza gratuita | il credito resta e la giocata è `CREDIT` **AMBIGUO** | *ramo senza specifica* | `TestbookGamEffectIT#grantBeforeLive` |
+| TB-GAM-GRT-007 | effetto senza `data` | errore non ritentabile `INVALID_EFFECT` (Q-297 DECISA) | Q-297 | `TestbookGamEffectIT#grantWithoutData` |
+| TB-GAM-GRT-008 | effetto senza membro nel subject | errore non ritentabile `INVALID_EFFECT` (Q-297 DECISA) | Q-297 | `TestbookGamEffectIT#grantWithoutMember` |
+| TB-GAM-GRT-009 | credito su un concorso `DRAFT`, poi `LIVE` senza gratuita | il credito resta e la giocata è `CREDIT` (Q-297 DECISA) | Q-297 | `TestbookGamEffectIT#grantBeforeLive` |
 | TB-GAM-GRT-010 | `plays.grant` consegnato due volte al listener di `lh.effects.v1` (record Kafka) | 2 crediti nel portale, un solo `contest.plays.granted` | gamification §4 (consuma `lh.effects.v1`), RNF-03 | `TestbookGamEffectIT#grantThroughListener` |
 | TB-GAM-GRT-011 | `contestCode` valorizzato con l'id del concorso | `CONTEST_NOT_FOUND` | docs/03 §3.4 (`GRANT_PLAYS.contestCode`) | `TestbookGamEffectIT#grantWithId` |
 
@@ -1026,7 +1027,7 @@ Regole R01, R32.
 | TB-GAM-NCK-002 | nickname assente: nome e iniziale del cognome: `{"firstName":"Giulia","lastName":"Rossi"}` | «Giulia R.» | docs/03 §8 (default: nome + iniziale del cognome), F-LDB-01 | `TestbookGamNicknameTest#nickname` |
 | TB-GAM-NCK-003 | nickname di soli spazi: nome e iniziale del cognome: `{"nickname":"  ","firstName":"Giulia","lastName":"Rossi"}` | «Giulia R.» | docs/03 §8 (default: nome + iniziale del cognome), F-LDB-01 | `TestbookGamNicknameTest#nickname` |
 | TB-GAM-NCK-004 | cognome vuoto: solo il nome: `{"firstName":"Giulia","lastName":""}` | «Giulia» | docs/03 §8 (default: nome + iniziale del cognome), F-LDB-01 | `TestbookGamNicknameTest#nickname` |
-| TB-GAM-NCK-005 | AMBIGUO nome assente: nessun nickname: `{"lastName":"Rossi"}` | nessun nickname (il portale mostra il segnaposto) **AMBIGUO** | docs/03 §8 (default: nome + iniziale del cognome), F-LDB-01 | `TestbookGamNicknameTest#nickname` |
+| TB-GAM-NCK-005 | Q-297 nome assente: nessun nickname: `{"lastName":"Rossi"}` | nessun nickname (il portale mostra il segnaposto; Q-297 DECISA) | docs/03 §8 (default: nome + iniziale del cognome), F-LDB-01 | `TestbookGamNicknameTest#nickname` |
 
 ## 20. Referral (REF)
 

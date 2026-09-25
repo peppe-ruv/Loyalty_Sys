@@ -291,7 +291,7 @@ serializza → interpreta per i due `kind`.
 altro / eccezione (R1); `serializePersona` (R1); `actorHeader` BO / altro (R2); `backofficePersonaFromUsername` trovato
 (R3) / non trovato → ANALYST (ramo senza specifica, PERS-028); `POST /api/persona` MEMBER / BO / non valido → 400
 `INVALID_PERSONA` (codice senza specifica, PERS-033…035); layout del backoffice: cookie non BO → `marta.admin` (R1).
-Ruolo non valido nel cookie: accettato (ramo senza specifica, PERS-015).
+Ruolo non valido nel cookie: letto come ANALYST, nell'interfaccia e in `X-LH-Actor` (Q-186 DECISA, PERS-015).
 
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
@@ -310,7 +310,7 @@ Ruolo non valido nel cookie: accettato (ramo senza specifica, PERS-015).
 | TB-WEB-PERS-012 | parsePersona: BO senza role | `null` | docs/07 §4 | `web/lib/persona/cookie.testbook.test.ts` |
 | TB-WEB-PERS-013 | parsePersona: BO con role non testo | `null` | docs/07 §4 | `web/lib/persona/cookie.testbook.test.ts` |
 | TB-WEB-PERS-014 | parsePersona: BO senza username | `null` | docs/07 §4 | `web/lib/persona/cookie.testbook.test.ts` |
-| TB-WEB-PERS-015 | BO con ruolo fuori dai 5 (ROOT) | AMBIGUO — accettato così com'è | docs/07 §4 | `web/lib/persona/cookie.testbook.test.ts` |
+| TB-WEB-PERS-015 | BO con ruolo fuori dai 5 (ROOT, minuscolo) | ruolo ANALYST, anche in `X-LH-Actor` (Q-186 DECISA) | docs/07 §4; Q-186 | `web/lib/persona/cookie.testbook.test.ts` |
 | TB-WEB-PERS-016 | parsePersona: MEMBER senza memberId | `null` | docs/07 §4 | `web/lib/persona/cookie.testbook.test.ts` |
 | TB-WEB-PERS-017 | parsePersona: MEMBER con memberId numerico | `null` | docs/07 §4 | `web/lib/persona/cookie.testbook.test.ts` |
 | TB-WEB-PERS-018 | parsePersona: campi in più ignorati | solo `kind`, `username`, `role` | docs/07 §4 | `web/lib/persona/cookie.testbook.test.ts` |
@@ -1212,11 +1212,11 @@ MBR-008/009); `memberDisplayName` (3 casi); `personalValue` (3 casi).
 | TB-WEB-MBR-002 | BLOCKED | Sblocca (torna ACTIVE), Disattiva | docs/08 §BO-03 · docs/03 §2 | `web/lib/member/status.testbook.test.ts` |
 | TB-WEB-MBR-003 | INACTIVE | Blocca e Disattiva disabilitati (Q-137: niente Riattiva) | docs/08 §BO-03 · docs/03 §2 · Q-137 | `web/lib/member/status.testbook.test.ts` |
 | TB-WEB-MBR-004 | ANONYMIZED | tutte le azioni disabilitate (irreversibile) | docs/08 §BO-03 (Anonimizza) · docs/03 §2 · F-MBR-05 | `web/lib/member/status.testbook.test.ts` |
-| TB-WEB-MBR-005 | stato non noto (null) | AMBIGUO — come ACTIVE | docs/08 §BO-03 · docs/03 §2 | `web/lib/member/status.testbook.test.ts` |
+| TB-WEB-MBR-005 | stato non noto (null o fuori elenco) | voci disabilitate (Q-206 DECISA) | docs/08 §BO-03 · docs/03 §2 | `web/lib/member/status.testbook.test.ts` |
 | TB-WEB-MBR-006 | corpo del cambio stato: motivo vuoto o di soli spazi | non inviato (Q-138) | Q-138 | `web/lib/member/status.testbook.test.ts` |
 | TB-WEB-MBR-007 | corpo del cambio stato: motivo compilato | inviato senza spazi ai bordi | Q-138 | `web/lib/member/status.testbook.test.ts` |
-| TB-WEB-MBR-008 | errore «servizio addormentato» | AMBIGUO — messaggio che invita a riprovare a demo accesa | docs/07 §6 | `web/lib/member/status.testbook.test.ts` |
-| TB-WEB-MBR-009 | errore con codice non previsto | AMBIGUO — detail del problema | docs/07 §6 | `web/lib/member/status.testbook.test.ts` |
+| TB-WEB-MBR-008 | errore «servizio addormentato» | messaggio che invita a riprovare a demo accesa (Q-206 DECISA) | docs/07 §6 | `web/lib/member/status.testbook.test.ts` |
+| TB-WEB-MBR-009 | errore con codice non previsto | detail del problema (Q-206 DECISA) | docs/07 §6 | `web/lib/member/status.testbook.test.ts` |
 | TB-WEB-MBR-010 | nome mostrato: ANONYMIZED | «Membro anonimo» (Q-120) | docs/03 §2 · Q-120 | `web/lib/member/status.testbook.test.ts` |
 | TB-WEB-MBR-011 | nome mostrato: nome e cognome | «Giulia Neri» | docs/08 §3.6 (MemberChip) | `web/lib/member/status.testbook.test.ts` |
 | TB-WEB-MBR-012 | nome mostrato: senza nome | nickname | docs/08 §3.6 · Q-120 | `web/lib/member/status.testbook.test.ts` |
@@ -1400,7 +1400,7 @@ l'alternativa, senza implementarla (A1 → Q-186, A12 → Q-197, A21 → Q-206).
 
 | # | Righe | Dubbio | Comportamento fissato | Domanda |
 |---|---|---|---|---|
-| A1 | TB-WEB-PERS-015 | ruolo fuori dai 5 nel cookie | accettato; `can()` nega tutto, il layout del backoffice ricava il ruolo dallo username (il proxy invia però il ruolo del cookie) | Q-186 |
+| A1 | TB-WEB-PERS-015 | ruolo fuori dai 5 nel cookie | DECISA: letto come ANALYST; il layout del backoffice e il proxy usano lo stesso ruolo del cookie | Q-186 |
 | A2 | TB-WEB-PERS-028 | username fuori dalle 5 personas | ruolo ANALYST | Q-187 |
 | A3 | TB-WEB-PERS-033…035 | codice del rifiuto di una persona non valida | 400 `INVALID_PERSONA` | Q-188 |
 | A4 | TB-WEB-PRX-015 | servizio inesistente nel percorso del proxy | 404 `UNKNOWN_SERVICE` | Q-189 |
@@ -1420,7 +1420,7 @@ l'alternativa, senza implementarla (A1 → Q-186, A12 → Q-197, A21 → Q-206).
 | A18 | TB-WEB-HOME-012, 016 | scadenza senza data; membro anonimizzato come persona attiva | nessun avviso; messaggio di profilo anonimizzato | Q-203 |
 | A19 | TB-WEB-QST-006 | vista senza regola di vuoto | contenuto (vuoto) invece dello stato empty | Q-204 |
 | A20 | TB-WEB-CONF-008, 013 | spazi ai bordi del codice digitato | tollerati | Q-205 |
-| A21 | TB-WEB-MBR-005, 008, 009 | stato del membro non noto; parole degli errori | come ACTIVE; testi del codice | Q-206 |
+| A21 | TB-WEB-MBR-005, 008, 009 | stato del membro non noto; parole degli errori | DECISA: voci disabilitate; testi del codice | Q-206 |
 | A22 | TB-WEB-HUB-037…039 | formato del tempo trascorso, valore negativo | "m:ss", negativo → "0:00" | Q-207 |
 
 ## 24. Rami senza specifica e regole non implementate

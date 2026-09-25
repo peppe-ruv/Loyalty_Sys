@@ -31,7 +31,7 @@ class TestbookGovActorTest {
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/gov/actor.csv", numLinesToSkip = 1)
     void parse(String id, String description, String header, String role, String username) {
-        // Righe ACT-007…014 — TESTBOOK: ambiguo, vedi TB-GOV §13 (formati non canonici dell'intestazione)
+        // Righe ACT-007…014 — Q-298 DECISA: solo RUOLO:username canonico vale il ruolo, ogni altra forma vale ANALYST
         ActorContext actor = ActorContext.parse(decode(header));
         assertThat(actor.asActorString()).as("%s: %s", id, description).isEqualTo(role + ":" + username);
     }

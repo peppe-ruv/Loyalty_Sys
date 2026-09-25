@@ -14,7 +14,7 @@ class TestbookGamNicknameTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    // TESTBOOK: ambiguo, vedi TB-GAM-NCK-005 (nome assente)
+    // Q-297 DECISA: nome assente → nessun nickname (il portale mostra il segnaposto)
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/gam/nickname.csv", numLinesToSkip = 1, quoteCharacter = '\'')
     void nickname(String id, String desc, String data, String expected) {

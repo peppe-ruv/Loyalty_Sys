@@ -23,7 +23,7 @@ Non invia email/SMS/push reali: il canale `EMAIL_FAKE` produce solo un'anteprima
 ### Gestione
 | Metodo | Path | Note |
 |---|---|---|
-| GET/POST/PUT | `/v1/contents`, `/v1/contents/{id}` | filtri `kind, placement, status, q`; PUT su `LIVE` → solo campi sicuri (titolo, testo, immagine, priorità, `endAt`; docs/03 §3.6), altrimenti `409 CONTENT_LIVE_LOCKED` |
+| GET/POST/PUT | `/v1/contents`, `/v1/contents/{id}` | filtri `kind, placement, status, q`; PUT su `LIVE` o `PAUSED` → solo campi sicuri (titolo, testo, immagine, priorità, `endAt`; docs/03 §3.6, Q-174), altrimenti `409 CONTENT_LIVE_LOCKED`; PUT su `ENDED` o `ARCHIVED` → `409 CONTENT_NOT_EDITABLE` (Q-174) |
 | POST | `/v1/contents/{id}/transitions` | `CONTENT` non richiede approvazione (`DRAFT → LIVE` diretto) |
 | GET | `/v1/contents/{id}/approval-history` | storico delle transizioni (`approval_history`, `entity_type = CONTENT`: chi, quando, da/verso; docs/03 §3.6, docs/06 §7), dal più recente |
 | POST | `/v1/contents/{id}/duplicate` | |
@@ -56,7 +56,8 @@ Non invia email/SMS/push reali: il canale `EMAIL_FAKE` produce solo un'anteprima
 Dominio in `docs/03 §9`. Note implementative:
 - **Motore template**: sostituzione `{{percorso}}` su contesto `{data, member, event}`; percorso assente → stringa vuota + log `WARN`; nessuna logica nei template. Formattatori: `{{data.amount|number}}`, `{{data.expiresAt|date}}`.
 - `message.delivered` **non** è mai oggetto di regole né di webhook (evita cicli).
-- **Webhook**: corpo = CloudEvent originale; header `X-LH-Signature: sha256=<HMAC(secret, body)>`, `X-LH-Event-Id`, `X-LH-Delivery-Id`; timeout 5 s; ritenti a 1, 5, 15 min poi `GAVE_UP`; scheduler ogni 30 s; solo URL `https://` (in `local` anche `http://localhost`); blocca indirizzi privati/loopback nel profilo `free` (anti-SSRF).
+- **Destinatari** (regole e `message.send`): nessun messaggio ai membri `ANONYMIZED` (Q-70) né `INACTIVE` (Q-180); i `BLOCKED` e i membri di cui manca ancora lo snapshot lo ricevono.
+- **Webhook**: corpo = CloudEvent originale; header `X-LH-Signature: sha256=<HMAC(secret, body)>`, `X-LH-Event-Id`, `X-LH-Delivery-Id`; timeout 5 s; ritenti a 1, 5, 15 min poi `GAVE_UP`; scheduler ogni 30 s; solo URL `https://` (in `local` anche `http://localhost`); blocca indirizzi privati/loopback nel profilo `free` (anti-SSRF); un host numerico è accettato solo in forma puntata canonica `a.b.c.d` (forme decimali, esadecimali, ottali o abbreviate come `2130706433`, `0x7f000001`, `127.1` → `422` al salvataggio, in ogni profilo; Q-184).
 - `popups/next`: primo per priorità che passa pubblico, calendario e frequenza; la registrazione della vista avviene con `seen` (non alla lettura) così un errore di rendering non consuma il pop-up.
 - `ENDED` automatico dei contenuti con `end_at` passato (job ogni 10 min).
 - Pulizia: `inbox_message` > 180 giorni, `webhook_delivery` > 14 giorni, `popup_view` > 90 giorni.

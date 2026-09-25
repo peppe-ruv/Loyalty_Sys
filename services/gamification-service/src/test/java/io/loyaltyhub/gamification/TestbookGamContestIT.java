@@ -289,7 +289,7 @@ class TestbookGamContestIT extends TestbookGamBase {
         assertThat(instantFingerprint(contest)).isEqualTo(a);
     }
 
-    // TESTBOOK: ambiguo, vedi TB-GAM-INS-017 (concorso senza premi: nessuna fonte)
+    // Q-294 DECISA: concorso senza premi → 422 CONTEST_INVALID
     @Test
     @DisplayName("[TB-GAM-INS-017] concorso senza premi: 422 CONTEST_INVALID")
     void generateWithoutPrizes() {
@@ -298,6 +298,19 @@ class TestbookGamContestIT extends TestbookGamBase {
         String contest = createContest(body);
         Resp r = call("POST", "/v1/contests/" + contest + "/instants/generate", actor("MARKETING"), Map.of());
         assertThat(r.status()).isEqualTo(422);
+        assertThat(r.code()).isEqualTo("CONTEST_INVALID");
+    }
+
+    @Test
+    @DisplayName("[TB-GAM-INS-037] BUSINESS_HOURS su un periodo senza ore 08–22 di Roma: 422 CONTEST_INVALID")
+    void generateWithoutBusinessHours() {
+        // Q-294 DECISA: niente IllegalStateException (500) dal generatore, ma un errore di validazione.
+        Map<String, Object> body = contestBody(contestCode("TB-GAM-INS-037"), Instant.parse("2026-01-15T00:00:00Z"),
+                Instant.parse("2026-01-15T01:00:00Z"));
+        body.put("distribution", "BUSINESS_HOURS");
+        String contest = createContest(body);
+        Resp r = call("POST", "/v1/contests/" + contest + "/instants/generate", actor("MARKETING"), Map.of());
+        assertThat(r.status()).as(r.text()).isEqualTo(422);
         assertThat(r.code()).isEqualTo("CONTEST_INVALID");
     }
 
@@ -527,7 +540,7 @@ class TestbookGamContestIT extends TestbookGamBase {
                 && a.path("data").path("after").path("voided").asInt() == 4)).hasSize(1);
     }
 
-    // TESTBOOK: ambiguo, vedi TB-GAM-END-008 (asOf come data: formato non specificato)
+    // Q-294 DECISA: asOf data pura = ultimo istante di quel giorno a Roma, come Q-156 per il wallet
     @Test
     @DisplayName("[TB-GAM-END-008] asOf come data: fine di quel giorno a Roma (23:59:59 chiuso, 00:00 del giorno dopo no)")
     void asOfDate() {

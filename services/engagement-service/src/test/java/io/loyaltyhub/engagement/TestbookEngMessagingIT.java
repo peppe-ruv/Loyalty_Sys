@@ -121,8 +121,8 @@ class TestbookEngMessagingIT {
     @CsvFileSource(resources = "/testbook/engagement/rul.csv", numLinesToSkip = 1, delimiter = '\t', quoteCharacter = '~',
             maxCharsPerColumn = 8192)
     void ruleMatching(ArgumentsAccessor row) throws Exception {
-        // TESTBOOK: ambiguo, vedi le righe RUL con membro INACTIVE o senza snapshot che ricevono il messaggio (Q-70 esclude
-        // solo gli ANONYMIZED e cita i BLOCKED; gli altri stati non sono nominati).
+        // Q-180 DECISA: nessun messaggio ai membri INACTIVE (come gli ANONYMIZED, Q-70); il membro senza snapshot lo riceve
+        // (scelta prudente: lo snapshot può arrivare dopo il fatto).
         String[] c = TestbookRows.columns(row);
         boolean typeMatch = "YES".equals(c[2]);
         String condition = c[3];

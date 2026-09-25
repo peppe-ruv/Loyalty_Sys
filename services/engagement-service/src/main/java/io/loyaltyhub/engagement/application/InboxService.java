@@ -70,17 +70,19 @@ public class InboxService {
 
     /**
      * Rende il template sul contesto dell'evento e lo consegna al membro. Da chiamare dentro la transazione del
-     * consumo idempotente. I membri anonimizzati non ricevono messaggi.
+     * consumo idempotente. I membri anonimizzati e inattivi non ricevono messaggi (Q-70, Q-180).
      *
      * @param data          spazio {@code data.*} del contesto
      * @param sourceEventId chiave di deduplica dell'evento sorgente
-     * @return il messaggio consegnato ora; vuoto se duplicato o membro anonimizzato
+     * @return il messaggio consegnato ora; vuoto se duplicato o membro anonimizzato o inattivo
      */
     public Optional<InboxMessage> deliver(String memberId, MessageTemplate template, JsonNode data, LhEvent<?> source,
                                           String sourceEventId) {
-        // SPEC-GAP: Q-70 — scelta conservativa: un membro anonimizzato non riceve messaggi (gli altri stati sì).
-        if (members.find(memberId).map(s -> "ANONYMIZED".equals(s.status())).orElse(false)) {
-            log.info("Membro {} anonimizzato: nessun messaggio {}", memberId, template.code());
+        // SPEC-GAP: Q-70 — scelta conservativa: un membro anonimizzato non riceve messaggi (i BLOCKED sì).
+        // Q-180 DECISA: nemmeno un membro INACTIVE; senza snapshot il messaggio parte (lo snapshot può arrivare dopo).
+        Optional<String> status = members.find(memberId).map(s -> s.status());
+        if (status.filter(s -> "ANONYMIZED".equals(s) || "INACTIVE".equals(s)).isPresent()) {
+            log.info("Membro {} {}: nessun messaggio {}", memberId, status.get(), template.code());
             return Optional.empty();
         }
         String shortType = MessageContexts.shortType(source.type());

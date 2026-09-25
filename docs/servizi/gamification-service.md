@@ -28,8 +28,8 @@ Non consegna i premi vinti: emette `contest.won`; la consegna avviene tramite po
 |---|---|---|
 | GET/POST/PUT | `/v1/contests`, `/v1/contests/{id}` | premi modificabili solo prima di `LIVE` |
 | POST | `/v1/contests/{id}/transitions` | verso `LIVE` richiede istanti generati (`422 INSTANTS_NOT_GENERATED`) |
-| POST | `/v1/contests/{id}/instants/generate` | `{seed?}`; rigenera da zero; vietato da `LIVE` in poi (`409`) |
-| GET | `/v1/contests/{id}/instants` | **solo `ADMIN`/`LEGAL`** (altri `403`); filtri `status, prizeId`; + `GET …/instants/histogram` (conteggio per giorno, visibile a `MARKETING`) |
+| POST | `/v1/contests/{id}/instants/generate` | `{seed?}`; rigenera da zero; vietato da `LIVE` in poi (`409`); senza premi o con `BUSINESS_HOURS` senza ore 08–22 nel periodo → `422 CONTEST_INVALID` (Q-294) |
+| GET | `/v1/contests/{id}/instants` | **solo `ADMIN`/`LEGAL`** (altri `403`); filtri `status, prizeId`; + `GET …/instants/histogram` (conteggio per giorno, visibile ad `ADMIN`, `MARKETING` e `LEGAL`; `CARE`/`ANALYST` `403 FORBIDDEN_ROLE`, Q-303) |
 | GET | `/v1/contests/{id}/winners` · `…/winners.csv` | giocate `WIN` con membro, premio, stato consegna |
 | POST | `/v1/plays/{playId}/delivery` | `{status, note}` per premi `PHYSICAL` — `CARE/ADMIN` |
 | GET | `/v1/contests/{id}/stats` | giocate, vincite, tasso, premi residui, serie giornaliera |
@@ -68,6 +68,7 @@ Dominio in `docs/03 §6, §8`. Note implementative:
 - **Generatore istanti**: `SplittableRandom(seed)`; per ogni premio in ordine di `sort_order`, `quantity_total` istanti; `BUSINESS_HOURS` rigetta e ricampiona fuori 08–22. Stesso seme + stessi parametri = stessi istanti (test).
 - **Giocata**: transazione unica — lock sul membro/concorso (`pg_advisory_xact_lock(hash(member, contest))`), calcolo crediti, insert `play`, claim (SQL in `docs/03 §6`), decremento premio, outbox `contest.played` (+ `contest.won`). La risposta HTTP è sincrona perché il risultato è locale; la **consegna** è asincrona.
 - Ordine crediti: prima la giocata gratuita giornaliera, poi i crediti.
+- `plays.grant`: `count` assente → 1 credito (come Q-230); `count` presente ma non intero o < 1, effetto senza dati o senza membro → DLQ `INVALID_EFFECT` senza ritentativi e nessun credito (Q-297). Il credito verso un concorso non ancora `LIVE` resta e vale quando il concorso va `LIVE`.
 - `achievement.progressed` viene emesso solo al cambio di valore; per `STREAK` `last_unit_key` tiene l'ultimo giorno/settimana contato.
 - Le azioni **interne** contano per gli obiettivi solo se elencate in `action_types` (evita cicli: `achievement.completed` non alimenta obiettivi salvo esplicito).
 - Classifiche `PTS_EARNED/STS_EARNED`: da `wallet.points.earned` (importo effettivo); membri non `ACTIVE` esclusi dal ranking.

@@ -106,7 +106,7 @@ class TestbookGamPrizeIT extends TestbookGamBase {
 
     // ---------- consegna manuale dei premi fisici ----------
 
-    // TESTBOOK: ambiguo, vedi TB-GAM-PRZ-034 (nota di soli spazi)
+    // Q-297 DECISA: nota di soli spazi → null
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/gam/premio-consegna.csv", numLinesToSkip = 1)
     void consegna(String id, String desc, String win, String role, String status, String note, String expHttp,

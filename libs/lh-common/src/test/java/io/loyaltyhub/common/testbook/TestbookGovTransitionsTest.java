@@ -33,7 +33,8 @@ class TestbookGovTransitionsTest {
             "/testbook/gov/roles.csv", "/testbook/gov/comments.csv"}, numLinesToSkip = 1)
     void stateMachine(String id, String description, String policy, String rule, String from, String action,
                       String role, String comment, String expected) {
-        // Righe SMF-001, ROL-051/052, ROL-056…060, CMT-006 — TESTBOOK: ambiguo, vedi TB-GOV §13
+        // Righe SMF-001, ROL-051/052, ROL-056…060 — TESTBOOK: ambiguo, vedi TB-GOV §13.
+        // Riga CMT-006 — Q-300 DECISA: un commento di soli spazi Unicode vale vuoto (422).
         ApprovalRule r = "REQ".equals(rule) ? ApprovalRule.legal("testbook") : ApprovalRule.NONE;
         boolean enabled = "ON".equals(policy);
         String got = outcome(() -> GovernedTransitions.next(ApprovalStatus.valueOf(from), ApprovalAction.valueOf(action),
@@ -52,7 +53,7 @@ class TestbookGovTransitionsTest {
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/gov/override.csv", numLinesToSkip = 1)
     void override(String id, String description, String action, String rule, String role, boolean override) {
-        // Righe OVR-006, OVR-016 (ADMIN senza approvatore di policy) — TESTBOOK: ambiguo, vedi TB-GOV §13
+        // Righe OVR-006, OVR-016 (ADMIN senza approvatore di policy) — Q-300 DECISA: non marcato, non scavalca nessuno
         ApprovalRule r = "REQ".equals(rule) ? ApprovalRule.legal("testbook") : ApprovalRule.NONE;
         assertThat(GovernedTransitions.isOverride(ApprovalAction.valueOf(action), r, Role.valueOf(role)))
                 .as("%s: %s", id, description).isEqualTo(override);

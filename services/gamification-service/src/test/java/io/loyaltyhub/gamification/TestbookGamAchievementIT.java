@@ -258,7 +258,7 @@ class TestbookGamAchievementIT extends TestbookGamBase {
         assertThat(facts("badge.awarded", m)).isEmpty();
     }
 
-    // TESTBOOK: ambiguo, vedi TB-GAM-BDG-005 (effetto senza dati: codice DLQ non specificato)
+    // Q-297 DECISA: effetto senza dati → DLQ INVALID_EFFECT
     @Test
     @DisplayName("[TB-GAM-BDG-005] effetto senza dati: errore non ritentabile INVALID_EFFECT")
     void badgeWithoutData() {
@@ -267,7 +267,7 @@ class TestbookGamAchievementIT extends TestbookGamBase {
                 .satisfies(e -> assertThat(((NonRetryableEventException) e).code()).isEqualTo("INVALID_EFFECT"));
     }
 
-    // TESTBOOK: ambiguo, vedi TB-GAM-BDG-006
+    // Q-297 DECISA: effetto senza membro → DLQ INVALID_EFFECT
     @Test
     @DisplayName("[TB-GAM-BDG-006] effetto senza membro nel subject: errore non ritentabile INVALID_EFFECT")
     void badgeWithoutMember() {

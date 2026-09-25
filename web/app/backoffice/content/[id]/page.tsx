@@ -144,8 +144,10 @@ function Editor({ initial }: { initial: ContentItem | null }) {
   });
   const error = (create.error ?? update.error) as LhError | null;
   const busy = create.isPending || update.isPending;
-  // docs/03 §3.6, docs/08 §3.2: su un LIVE solo i campi sicuri; gli altri in sola lettura, per cambiarli si duplica.
-  const live = initial?.status === "LIVE";
+  // docs/03 §3.6, docs/08 §3.2: su un LIVE (e, Q-174, su un PAUSED) solo i campi sicuri; gli altri in sola lettura,
+  // per cambiarli si duplica. ENDED e ARCHIVED non si modificano (Q-174: 409 CONTENT_NOT_EDITABLE).
+  const live = initial?.status === "LIVE" || initial?.status === "PAUSED";
+  const readOnly = initial?.status === "ARCHIVED" || initial?.status === "ENDED";
 
   const preview = {
     code: d.code || "NUOVO",
@@ -183,10 +185,10 @@ function Editor({ initial }: { initial: ContentItem | null }) {
             else create.mutate(toBody(d, null));
           }}
         >
-          <fieldset disabled={!canWrite || initial?.status === "ARCHIVED"} className="space-y-4">
+          <fieldset disabled={!canWrite || readOnly} className="space-y-4">
             {live ? (
               <p className="rounded border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900">
-                Contenuto pubblicato: si modificano titolo, testo, immagine, priorità e data di fine. Per cambiare le regole, duplica.
+                {initial?.status === "PAUSED" ? "Contenuto in pausa" : "Contenuto pubblicato"}: si modificano titolo, testo, immagine, priorità e data di fine. Per cambiare le regole, duplica.
               </p>
             ) : null}
             <Section title="Generale">
@@ -283,7 +285,7 @@ function Editor({ initial }: { initial: ContentItem | null }) {
           ) : null}
           <div className="flex items-center gap-3">
             <Can capability="content.write" mode="disable">
-              <button type="submit" disabled={busy || initial?.status === "ARCHIVED"} className="rounded bg-[var(--color-bo-accent)] px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50">
+              <button type="submit" disabled={busy || readOnly} className="rounded bg-[var(--color-bo-accent)] px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50">
                 {busy ? "Salvataggio…" : initial ? "Salva" : "Crea bozza"}
               </button>
             </Can>

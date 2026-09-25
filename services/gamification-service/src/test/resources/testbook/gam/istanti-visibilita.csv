@@ -7,6 +7,6 @@ TB-GAM-INS-025,tabella degli istanti con ANALYST,instants,ANALYST,403
 TB-GAM-INS-026,tabella degli istanti senza X-LH-Actor,instants,NONE,403
 TB-GAM-INS-027,tabella degli istanti con ruolo inesistente,instants,INVALID,403
 TB-GAM-INS-028,istogramma con MARKETING,histogram,MARKETING,200
-TB-GAM-INS-029,istogramma con CARE,histogram,CARE,200
-TB-GAM-INS-030,istogramma con ANALYST,histogram,ANALYST,200
-TB-GAM-INS-031,istogramma senza X-LH-Actor,histogram,NONE,200
+TB-GAM-INS-029,istogramma con CARE (Q-303),histogram,CARE,403
+TB-GAM-INS-030,istogramma con ANALYST (Q-303),histogram,ANALYST,403
+TB-GAM-INS-031,istogramma senza X-LH-Actor (Q-303),histogram,NONE,403
