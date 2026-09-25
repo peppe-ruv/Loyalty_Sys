@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useLhQuery } from "@/lib/api/client";
+import { useLhQuery, type Page } from "@/lib/api/client";
 import { QueryState } from "@/components/bo/QueryState";
 import { PageHeader, CodeText } from "@/components/bo/primitives";
 import { formatDateTime } from "@/lib/format/dates";
@@ -32,7 +32,8 @@ export default function TracesPage() {
     const c = new URLSearchParams(window.location.search).get("c");
     if (c) setSelected(c);
   }, []);
-  const list = useLhQuery<{ items: TraceSummary[] }>("insight", "/v1/traces", { limit: 50 }, {
+  // Elenco paginato {items, page} (docs/06 §2); un tracciato sconosciuto è 404 (Q-N7).
+  const list = useLhQuery<Page<TraceSummary>>("insight", "/v1/traces", { size: 50 }, {
     refetchInterval: 5000,
   });
   const detail = useLhQuery<Trace>("insight", selected ? `/v1/traces/${selected}` : "/v1/traces", undefined, {

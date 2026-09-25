@@ -50,9 +50,10 @@ public class TraceService {
     public Optional<Trace> trace(String correlationId) {
         List<StoredEvent> rows = events.byCorrelation(correlationId);
         List<DlqEntry> dlqs = dlqEntries.byCorrelation(correlationId);
+        // SPEC-GAP: Q-N7 — nessun evento né voce DLQ per il correlationId: 404 (il chiamante che attende un tracciato
+        // appena avviato tratta il 404 come «non ancora arrivato»), non un tracciato vuoto inventato.
         if (rows.isEmpty() && dlqs.isEmpty()) {
-            return Optional.of(new Trace(correlationId, null, null, 0, "IN_PROGRESS", List.of(),
-                    new Outcome(List.of(), null, 0, 0, 0, 0)));
+            return Optional.empty();
         }
         List<Instant> times = new ArrayList<>();
         rows.forEach(e -> times.add(e.receivedAt()));
@@ -90,12 +91,17 @@ public class TraceService {
                 Duration.between(start, last).toMillis(), status, nodes, outcome));
     }
 
-    public List<TraceSummary> recent(String memberId, Instant from, Instant to, int limit) {
+    public List<TraceSummary> recent(String memberId, Instant from, Instant to, int limit, int offset) {
         List<TraceSummary> out = new ArrayList<>();
-        for (String correlationId : events.recentCorrelationIds(memberId, from, to, limit)) {
+        for (String correlationId : events.recentCorrelationIds(memberId, from, to, limit, offset)) {
             trace(correlationId).ifPresent(t -> out.add(summary(t)));
         }
         return out;
+    }
+
+    /** Numero di tracciati (correlationId distinti) che passano i filtri di {@link #recent}. */
+    public long count(String memberId, Instant from, Instant to) {
+        return events.countCorrelationIds(memberId, from, to);
     }
 
     // ---------- esito ----------
@@ -113,6 +119,9 @@ public class TraceService {
     private Outcome outcomeOf(List<StoredEvent> rows) {
         Map<String, Long> points = new LinkedHashMap<>();
         TierChange tierChange = null;
+        int messages = 0;
+        int coupons = 0;
+        int plays = 0;
         int dlq = 0;
         for (StoredEvent e : rows) {
             JsonNode data = dataOf(e);
@@ -125,8 +134,12 @@ public class TraceService {
                 // Contratto EVT-FACT-28/29 (docs/05): previousTier → newTier; from/to/tier restano come ripiego.
                 case "tier.upgraded", "tier.downgraded", "tier.changed" -> tierChange = new TierChange(
                         firstText(data, "previousTier", "from"), firstText(data, "newTier", "to", "tier"));
+                // Contatori dell'esito (insight §3, BO-25): messaggi consegnati, coupon emessi, giocate (docs/05 §5).
+                case "message.delivered" -> messages++;
+                case "coupon.issued" -> coupons++;
+                case "contest.played" -> plays++;
                 default -> {
-                    // altri tipi: nessun contributo all'esito in M2
+                    // altri tipi: nessun contributo all'esito
                 }
             }
             if ("DLQ".equals(e.family())) {
@@ -135,7 +148,7 @@ public class TraceService {
         }
         List<PointAmount> pointList = points.entrySet().stream()
                 .map(en -> new PointAmount(en.getKey(), en.getValue())).toList();
-        return new Outcome(pointList, tierChange, 0, 0, 0, dlq);
+        return new Outcome(pointList, tierChange, messages, coupons, plays, dlq);
     }
 
     private TraceSummary summary(Trace t) {

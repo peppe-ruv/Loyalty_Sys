@@ -1,12 +1,14 @@
 // Tipi delle API KPI di insight per BO-01 (docs/servizi/insight-service.md §3).
 
+import type { Page } from "@/lib/api/client";
+
 export interface KpiDelta {
   abs: number;
   pct: number | null;
 }
 
 export interface KpiDeltas {
-  membersActive: KpiDelta;
+  membersActive30d: KpiDelta;
   actions: KpiDelta;
   pointsEarned: KpiDelta;
   pointsSpent: KpiDelta;
@@ -17,8 +19,9 @@ export interface KpiDeltas {
 export interface KpiOverview {
   from: string;
   to: string;
+  /** Membri totali: storico sintetico + i 12 reali + i registrati (docs/10 §9). */
   membersTotal: number;
-  membersActive: number;
+  membersActive30d: number;
   actions: number;
   pointsEarned: number;
   pointsSpent: number;
@@ -78,8 +81,5 @@ export interface AuditRecord {
   correlationId: string | null;
 }
 
-export interface AuditPage {
-  items: AuditRecord[];
-  count: number;
-  total: number;
-}
+/** Elenco paginato dell'audit (docs/06 §2): `{ items, page }`. */
+export type AuditPage = Page<AuditRecord>;

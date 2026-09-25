@@ -1,0 +1,32 @@
+id,descrizione,tipo,source,dati,metrica,dimensione,valore,expDelta,copie
+TB-INS-MET-001,azione purchase.completed: actions +1 (totale),ACTION:purchase.completed,urn:loyaltyhub:source:ecommerce,orderId=O1;amount=130,actions,-,-,1,1
+TB-INS-MET-002,azione da ecommerce: actions per fonte ecommerce +1,ACTION:purchase.completed,urn:loyaltyhub:source:ecommerce,orderId=O1;amount=130,actions,source,ecommerce,1,1
+TB-INS-MET-003,azione da app: actions per fonte app +1,ACTION:app.login.daily,urn:loyaltyhub:source:app,platform=IOS,actions,source,app,1,1
+TB-INS-MET-004,azione: actions per tipo purchase.completed +1 (insight §2 dim type),ACTION:purchase.completed,urn:loyaltyhub:source:ecommerce,orderId=O1;amount=130,actions,type,purchase.completed,1,1
+TB-INS-MET-005,wallet.points.earned 162 PTS: points_earned +162 (totale),FACT:wallet.points.earned,urn:loyaltyhub:service:wallet,amount=162;currency=PTS;campaignCode=CMP-TB,points_earned,-,-,162,1
+TB-INS-MET-006,wallet.points.earned 162 PTS: points_earned per valuta PTS +162,FACT:wallet.points.earned,urn:loyaltyhub:service:wallet,amount=162;currency=PTS,points_earned,currency,PTS,162,1
+TB-INS-MET-007,wallet.points.earned 130 STS: points_earned per valuta STS +130,FACT:wallet.points.earned,urn:loyaltyhub:service:wallet,amount=130;currency=STS,points_earned,currency,STS,130,1
+TB-INS-MET-008,wallet.points.earned 130 STS nel totale di points_earned (AMBIGUO: PTS e STS sommati),FACT:wallet.points.earned,urn:loyaltyhub:service:wallet,amount=130;currency=STS,points_earned,-,-,130,1
+TB-INS-MET-009,wallet.points.earned con campaignCode: points_by_campaign per campagna +162,FACT:wallet.points.earned,urn:loyaltyhub:service:wallet,amount=162;currency=PTS;campaignCode=CMP-TB-KPI,points_by_campaign,campaign,CMP-TB-KPI,162,1
+TB-INS-MET-010,wallet.points.spent 500: points_spent +500,FACT:wallet.points.spent,urn:loyaltyhub:service:wallet,amount=500;currency=PTS;redemptionId=R1,points_spent,-,-,500,1
+TB-INS-MET-011,wallet.points.spent 500 PTS: points_spent per valuta PTS +500,FACT:wallet.points.spent,urn:loyaltyhub:service:wallet,amount=500;currency=PTS;redemptionId=R1,points_spent,currency,PTS,500,1
+TB-INS-MET-012,wallet.points.refunded 500 (AMBIGUO): points_spent -500 (spesa netta),FACT:wallet.points.refunded,urn:loyaltyhub:service:wallet,amount=500;redemptionId=R1,points_spent,-,-,-500,1
+TB-INS-MET-013,wallet.points.expired 1900: points_expired +1900,FACT:wallet.points.expired,urn:loyaltyhub:service:wallet,amount=1900;currency=PTS,points_expired,-,-,1900,1
+TB-INS-MET-014,wallet.points.expired 1900 PTS: points_expired per valuta PTS +1900,FACT:wallet.points.expired,urn:loyaltyhub:service:wallet,amount=1900;currency=PTS,points_expired,currency,PTS,1900,1
+TB-INS-MET-015,member.registered: members_new +1,FACT:member.registered,urn:loyaltyhub:service:member,memberId=MBR-TBK,members_new,-,-,1,1
+TB-INS-MET-016,reward.redemption.confirmed: redemptions +1,FACT:reward.redemption.confirmed,urn:loyaltyhub:service:reward,redemptionId=R1;rewardCode=RWD-TB;pointsCost=1500,redemptions,-,-,1,1
+TB-INS-MET-017,reward.redemption.confirmed: redemptions per premio RWD-TB +1,FACT:reward.redemption.confirmed,urn:loyaltyhub:service:reward,redemptionId=R1;rewardCode=RWD-TB;pointsCost=1500,redemptions,reward,RWD-TB,1,1
+TB-INS-MET-018,reward.redemption.confirmed: redemptions per stato (una ripartizione non vuota),FACT:reward.redemption.confirmed,urn:loyaltyhub:service:reward,redemptionId=R1;rewardCode=RWD-TB;pointsCost=1500,redemptions,status,ANY,1,1
+TB-INS-MET-019,contest.played: plays +1,FACT:contest.played,urn:loyaltyhub:service:gamification,contestCode=IW-TB;playId=P1;outcome=LOSE,plays,-,-,1,1
+TB-INS-MET-020,contest.won: wins +1,FACT:contest.won,urn:loyaltyhub:service:gamification,contestCode=IW-TB;playId=P1;prizeCode=PRZ-1,wins,-,-,1,1
+TB-INS-MET-021,tier.upgraded: tier_changes +1,FACT:tier.upgraded,urn:loyaltyhub:service:wallet,previousTier=SILVER;newTier=GOLD,tier_changes,-,-,1,1
+TB-INS-MET-022,tier.upgraded: tier_changes per direzione (una ripartizione non vuota),FACT:tier.upgraded,urn:loyaltyhub:service:wallet,previousTier=SILVER;newTier=GOLD,tier_changes,direction,ANY,1,1
+TB-INS-MET-023,tier.downgraded: tier_changes +1,FACT:tier.downgraded,urn:loyaltyhub:service:wallet,previousTier=GOLD;newTier=SILVER;editionCode=ED-1,tier_changes,-,-,1,1
+TB-INS-MET-024,message.delivered: messages +1,FACT:message.delivered,urn:loyaltyhub:service:engagement,templateCode=MSG-X;channel=INBOX;inboxMessageId=1,messages,-,-,1,1
+TB-INS-MET-025,fatto senza metrica (campaign.status.changed): actions invariata,FACT:campaign.status.changed,urn:loyaltyhub:service:campaign,campaignCode=CMP-X;newStatus=LIVE,actions,-,-,0,1
+TB-INS-MET-026,voce di audit: actions invariata,AUDIT:entry,urn:loyaltyhub:service:campaign,service=campaign;entityType=CAMPAIGN;entityId=CMP-X;action=UPDATE;summary=x,actions,-,-,0,1
+TB-INS-MET-027,azione consegnata due volte (stesso id): actions +1,ACTION:purchase.completed,urn:loyaltyhub:source:ecommerce,orderId=O1;amount=130,actions,-,-,1,2
+TB-INS-MET-028,wallet.points.earned consegnato due volte: points_earned +162,FACT:wallet.points.earned,urn:loyaltyhub:service:wallet,amount=162;currency=PTS,points_earned,-,-,162,2
+TB-INS-MET-029,riconsegna con payload diverso e stesso id: vale la prima (+162 non +999),FACT:wallet.points.earned,urn:loyaltyhub:service:wallet,amount=162;currency=PTS,points_earned,-,-,162,R
+TB-INS-MET-030,effetto points.grant 162: points_earned invariata (conta solo il fatto),EFFECT:points.grant,urn:loyaltyhub:service:campaign,amount=162;currency=PTS,points_earned,-,-,0,1
+TB-INS-MET-031,riconsegna di wallet.points.earned: points_earned per valuta PTS +162 una volta,FACT:wallet.points.earned,urn:loyaltyhub:service:wallet,amount=162;currency=PTS,points_earned,currency,PTS,162,2

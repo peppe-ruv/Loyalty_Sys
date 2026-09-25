@@ -47,7 +47,7 @@ export default function DashboardPage() {
       <QueryState query={overview} service="insight">
         {(o) => (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <KpiTile label="Membri attivi" value={o.membersActive} delta={o.deltas.membersActive} spark={spark(activeTs.data)} />
+            <KpiTile label="Membri attivi" value={o.membersActive30d} delta={o.deltas.membersActive30d} spark={spark(activeTs.data)} />
             <KpiTile label="Azioni ricevute" value={o.actions} delta={o.deltas.actions} spark={spark(actionsTs.data)} />
             <KpiTile label="PTS emessi" value={o.pointsEarned} unit="PTS" delta={o.deltas.pointsEarned} spark={spark(earned.data)} />
             <KpiTile label="PTS spesi" value={o.pointsSpent} unit="PTS" delta={o.deltas.pointsSpent} spark={spark(spent.data)} />

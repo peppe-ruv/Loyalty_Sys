@@ -81,7 +81,7 @@ export function useLiveEvents(filters: LiveFilters, enabled = true): UseLiveEven
       setState("reduced");
       const poll = async () => {
         try {
-          const res = await fetch("/api/lh/insight/v1/events?limit=100", { cache: "no-store" });
+          const res = await fetch("/api/lh/insight/v1/events?size=100", { cache: "no-store" });
           if (!res.ok) {
             setState("disconnected");
             return;

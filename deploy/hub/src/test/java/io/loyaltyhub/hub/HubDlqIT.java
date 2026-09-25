@@ -120,8 +120,9 @@ class HubDlqIT {
         long deadline = System.currentTimeMillis() + 30_000;
         String current = null;
         while (System.currentTimeMillis() < deadline) {
-            current = client().get().uri("/v1/traces/" + correlationId).retrieve().body(JsonNode.class)
-                    .path("status").asString();
+            JsonNode trace = client().get().uri("/v1/traces/" + correlationId).exchange((req, res) -> res.getStatusCode().value() == 200
+                    ? new tools.jackson.databind.ObjectMapper().readTree(res.getBody()) : null);
+            current = trace == null ? null : trace.path("status").asString();
             if (status.equals(current)) {
                 return current;
             }

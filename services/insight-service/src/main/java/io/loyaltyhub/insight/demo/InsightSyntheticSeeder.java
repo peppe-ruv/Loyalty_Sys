@@ -3,6 +3,7 @@ package io.loyaltyhub.insight.demo;
 import tools.jackson.databind.JsonNode;
 import io.loyaltyhub.common.demo.DemoResettable;
 import io.loyaltyhub.common.demo.SeedLoader;
+import io.loyaltyhub.common.time.BusinessCalendar;
 import io.loyaltyhub.insight.infra.MetricRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -72,7 +72,7 @@ public class InsightSyntheticSeeder implements ApplicationRunner, DemoResettable
         // Seme fisso: la sequenza di rumore è riproducibile perché consumata in ordine deterministico
         // (metriche nell'ordine del file, giorni crescenti) — docs/10 §1.3.
         Random rnd = new Random(cfg.path("seed").asLong(20240701L));
-        LocalDate today = LocalDate.now(clock.withZone(ZoneOffset.UTC));
+        LocalDate today = LocalDate.now(clock.withZone(BusinessCalendar.ZONE)); // giorno di business (docs/03)
         JsonNode metricDefs = cfg.path("metrics");
 
         int rows = 0;
@@ -82,6 +82,9 @@ public class InsightSyntheticSeeder implements ApplicationRunner, DemoResettable
             double baseline = def.path("baseline").asDouble(0);
             boolean peakSensitive = def.path("peakSensitive").asBoolean(false);
             boolean gauge = def.path("gauge").asBoolean(false);
+            // Crescita lineare senza rumore (es. membri totali 3 100 → 3 480, docs/10 §9): non consuma il generatore,
+            // così le sequenze delle altre metriche restano identiche.
+            JsonNode linear = def.get("linear");
             boolean isPointsEarned = "points_earned".equals(metric);
             JsonNode bySource = def.get("bySource");
             JsonNode byCurrency = def.get("byCurrency");
@@ -95,11 +98,14 @@ public class InsightSyntheticSeeder implements ApplicationRunner, DemoResettable
                 double peakFactor = peakSensitive
                         ? 1.0 + peakUplift * Math.exp(-Math.pow(offset - peakOffset, 2) / (2.0 * peakWidth * peakWidth))
                         : 1.0;
-                double jitter = 1.0 + (rnd.nextDouble() * 2.0 - 1.0) * noise;
+                double jitter = linear != null ? 1.0 : 1.0 + (rnd.nextDouble() * 2.0 - 1.0) * noise;
 
                 // Il gauge (es. membri attivi) oscilla attorno al baseline senza trend cumulativo;
                 // le metriche di flusso seguono trend, stagionalità, picco e rumore.
-                double raw = gauge
+                double raw = linear != null
+                        ? linear.path("from").asDouble(0) + (linear.path("to").asDouble(0) - linear.path("from").asDouble(0))
+                        * (days <= 1 ? 1.0 : t / (double) (days - 1))
+                        : gauge
                         ? baseline * (1.0 + (rnd.nextDouble() * 2.0 - 1.0) * (noise / 2.0))
                         : baseline * trend * weekend * peakFactor * jitter;
                 long total = Math.max(0, Math.round(raw));

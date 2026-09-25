@@ -1,0 +1,51 @@
+id,descrizione,azione,famiglia,corpo,expHttp,expCode,expStato,expNota
+TB-INS-DNT-001,scarta una voce ACTION con senza corpo: 422 NOTE_REQUIRED e resta OPEN,discard,ACTION,NONE,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-002,scarta una voce ACTION con corpo vuoto {}: 422 NOTE_REQUIRED e resta OPEN,discard,ACTION,EMPTY_OBJ,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-003,scarta una voce ACTION con note null: 422 NOTE_REQUIRED e resta OPEN,discard,ACTION,NULL,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-004,scarta una voce ACTION con note vuota: 422 NOTE_REQUIRED e resta OPEN,discard,ACTION,EMPTY,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-005,scarta una voce ACTION con note di soli spazi: 422 NOTE_REQUIRED e resta OPEN,discard,ACTION,BLANK,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-006,scarta una voce ACTION con note di 1 carattere: 200 DISCARDED,discard,ACTION,ONE_CHAR,200,-,DISCARDED,x
+TB-INS-DNT-007,scarta una voce ACTION con note con spazi attorno (salvata senza): 200 DISCARDED,discard,ACTION,PADDED,200,-,DISCARDED,motivo verificato
+TB-INS-DNT-008,scarta una voce ACTION con note di 2000 caratteri: 200 DISCARDED,discard,ACTION,LONG,200,-,DISCARDED,LONG
+TB-INS-DNT-009,scarta una voce ACTION con note con accenti ed emoji: 200 DISCARDED,discard,ACTION,UNICODE,200,-,DISCARDED,UNICODE
+TB-INS-DNT-010,scarta una voce EFFECT con senza corpo: 422 NOTE_REQUIRED e resta OPEN,discard,EFFECT,NONE,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-011,scarta una voce EFFECT con corpo vuoto {}: 422 NOTE_REQUIRED e resta OPEN,discard,EFFECT,EMPTY_OBJ,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-012,scarta una voce EFFECT con note null: 422 NOTE_REQUIRED e resta OPEN,discard,EFFECT,NULL,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-013,scarta una voce EFFECT con note vuota: 422 NOTE_REQUIRED e resta OPEN,discard,EFFECT,EMPTY,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-014,scarta una voce EFFECT con note di soli spazi: 422 NOTE_REQUIRED e resta OPEN,discard,EFFECT,BLANK,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-015,scarta una voce EFFECT con note di 1 carattere: 200 DISCARDED,discard,EFFECT,ONE_CHAR,200,-,DISCARDED,x
+TB-INS-DNT-016,scarta una voce EFFECT con note con spazi attorno (salvata senza): 200 DISCARDED,discard,EFFECT,PADDED,200,-,DISCARDED,motivo verificato
+TB-INS-DNT-017,scarta una voce EFFECT con note di 2000 caratteri: 200 DISCARDED,discard,EFFECT,LONG,200,-,DISCARDED,LONG
+TB-INS-DNT-018,scarta una voce EFFECT con note con accenti ed emoji: 200 DISCARDED,discard,EFFECT,UNICODE,200,-,DISCARDED,UNICODE
+TB-INS-DNT-019,scarta una voce FACT con senza corpo: 422 NOTE_REQUIRED e resta OPEN,discard,FACT,NONE,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-020,scarta una voce FACT con corpo vuoto {}: 422 NOTE_REQUIRED e resta OPEN,discard,FACT,EMPTY_OBJ,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-021,scarta una voce FACT con note null: 422 NOTE_REQUIRED e resta OPEN,discard,FACT,NULL,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-022,scarta una voce FACT con note vuota: 422 NOTE_REQUIRED e resta OPEN,discard,FACT,EMPTY,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-023,scarta una voce FACT con note di soli spazi: 422 NOTE_REQUIRED e resta OPEN,discard,FACT,BLANK,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-024,scarta una voce FACT con note di 1 carattere: 200 DISCARDED,discard,FACT,ONE_CHAR,200,-,DISCARDED,x
+TB-INS-DNT-025,scarta una voce FACT con note con spazi attorno (salvata senza): 200 DISCARDED,discard,FACT,PADDED,200,-,DISCARDED,motivo verificato
+TB-INS-DNT-026,scarta una voce FACT con note di 2000 caratteri: 200 DISCARDED,discard,FACT,LONG,200,-,DISCARDED,LONG
+TB-INS-DNT-027,scarta una voce FACT con note con accenti ed emoji: 200 DISCARDED,discard,FACT,UNICODE,200,-,DISCARDED,UNICODE
+TB-INS-DNT-028,scarta una voce AUDIT con senza corpo: 422 NOTE_REQUIRED e resta OPEN,discard,AUDIT,NONE,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-029,scarta una voce AUDIT con corpo vuoto {}: 422 NOTE_REQUIRED e resta OPEN,discard,AUDIT,EMPTY_OBJ,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-030,scarta una voce AUDIT con note null: 422 NOTE_REQUIRED e resta OPEN,discard,AUDIT,NULL,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-031,scarta una voce AUDIT con note vuota: 422 NOTE_REQUIRED e resta OPEN,discard,AUDIT,EMPTY,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-032,scarta una voce AUDIT con note di soli spazi: 422 NOTE_REQUIRED e resta OPEN,discard,AUDIT,BLANK,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-033,scarta una voce AUDIT con note di 1 carattere: 200 DISCARDED,discard,AUDIT,ONE_CHAR,200,-,DISCARDED,x
+TB-INS-DNT-034,scarta una voce AUDIT con note con spazi attorno (salvata senza): 200 DISCARDED,discard,AUDIT,PADDED,200,-,DISCARDED,motivo verificato
+TB-INS-DNT-035,scarta una voce AUDIT con note di 2000 caratteri: 200 DISCARDED,discard,AUDIT,LONG,200,-,DISCARDED,LONG
+TB-INS-DNT-036,scarta una voce AUDIT con note con accenti ed emoji: 200 DISCARDED,discard,AUDIT,UNICODE,200,-,DISCARDED,UNICODE
+TB-INS-DNT-037,scarta una voce UNKNOWN con senza corpo: 422 NOTE_REQUIRED e resta OPEN,discard,UNKNOWN,NONE,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-038,scarta una voce UNKNOWN con corpo vuoto {}: 422 NOTE_REQUIRED e resta OPEN,discard,UNKNOWN,EMPTY_OBJ,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-039,scarta una voce UNKNOWN con note null: 422 NOTE_REQUIRED e resta OPEN,discard,UNKNOWN,NULL,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-040,scarta una voce UNKNOWN con note vuota: 422 NOTE_REQUIRED e resta OPEN,discard,UNKNOWN,EMPTY,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-041,scarta una voce UNKNOWN con note di soli spazi: 422 NOTE_REQUIRED e resta OPEN,discard,UNKNOWN,BLANK,422,NOTE_REQUIRED,OPEN,-
+TB-INS-DNT-042,scarta una voce UNKNOWN con note di 1 carattere: 200 DISCARDED,discard,UNKNOWN,ONE_CHAR,200,-,DISCARDED,x
+TB-INS-DNT-043,scarta una voce UNKNOWN con note con spazi attorno (salvata senza): 200 DISCARDED,discard,UNKNOWN,PADDED,200,-,DISCARDED,motivo verificato
+TB-INS-DNT-044,scarta una voce UNKNOWN con note di 2000 caratteri: 200 DISCARDED,discard,UNKNOWN,LONG,200,-,DISCARDED,LONG
+TB-INS-DNT-045,scarta una voce UNKNOWN con note con accenti ed emoji: 200 DISCARDED,discard,UNKNOWN,UNICODE,200,-,DISCARDED,UNICODE
+TB-INS-DNT-046,riprocessa senza corpo: 200 senza nota,reprocess,ACTION,NONE,200,-,REPROCESSED,-
+TB-INS-DNT-047,riprocessa con nota facoltativa: salvata senza spazi,reprocess,ACTION,PADDED,200,-,REPROCESSED,motivo verificato
+TB-INS-DNT-048,riprocessa con nota di soli spazi: nessuna nota salvata,reprocess,ACTION,BLANK,200,-,REPROCESSED,-
+TB-INS-DNT-049,riprocessa con JSON malformato: 400 e resta OPEN,reprocess,ACTION,MALFORMED,400,BAD_REQUEST,OPEN,-
+TB-INS-DNT-050,scarta con JSON malformato: 400 e resta OPEN,discard,EFFECT,MALFORMED,400,BAD_REQUEST,OPEN,-

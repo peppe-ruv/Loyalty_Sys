@@ -1,0 +1,24 @@
+id,descrizione,topics,types,memberId,correlationId,evTopic,evType,evMember,evCorr,expPassa
+TB-INS-SFL-001,L9 topics assente types assente memberId assente correlationId assente: passa,-,-,-,-,lh.actions.v1,purchase.completed,MBR-000003,COR-1,true
+TB-INS-SFL-002,L9 topics assente types uguale memberId uguale correlationId uguale: passa,-,purchase.completed,MBR-000003,COR-1,lh.actions.v1,purchase.completed,MBR-000003,COR-1,true
+TB-INS-SFL-003,L9 topics assente types diverso memberId diverso correlationId diverso: scartato,-,tier.upgraded,MBR-000004,COR-2,lh.actions.v1,purchase.completed,MBR-000003,COR-1,false
+TB-INS-SFL-004,L9 topics uguale types assente memberId uguale correlationId diverso: scartato,lh.actions.v1,-,MBR-000003,COR-2,lh.actions.v1,purchase.completed,MBR-000003,COR-1,false
+TB-INS-SFL-005,L9 topics uguale types uguale memberId diverso correlationId assente: scartato,lh.actions.v1,purchase.completed,MBR-000004,-,lh.actions.v1,purchase.completed,MBR-000003,COR-1,false
+TB-INS-SFL-006,L9 topics uguale types diverso memberId assente correlationId uguale: scartato,lh.actions.v1,tier.upgraded,-,COR-1,lh.actions.v1,purchase.completed,MBR-000003,COR-1,false
+TB-INS-SFL-007,L9 topics diverso types assente memberId diverso correlationId uguale: scartato,lh.facts.v1,-,MBR-000004,COR-1,lh.actions.v1,purchase.completed,MBR-000003,COR-1,false
+TB-INS-SFL-008,L9 topics diverso types uguale memberId assente correlationId diverso: scartato,lh.facts.v1,purchase.completed,-,COR-2,lh.actions.v1,purchase.completed,MBR-000003,COR-1,false
+TB-INS-SFL-009,L9 topics diverso types diverso memberId uguale correlationId assente: scartato,lh.facts.v1,tier.upgraded,MBR-000003,-,lh.actions.v1,purchase.completed,MBR-000003,COR-1,false
+TB-INS-SFL-010,tutti i filtri uguali: passa,lh.actions.v1,purchase.completed,MBR-000003,COR-1,lh.actions.v1,purchase.completed,MBR-000003,COR-1,true
+TB-INS-SFL-011,solo topics diverso: scartato,lh.facts.v1,-,-,-,lh.actions.v1,purchase.completed,MBR-000003,COR-1,false
+TB-INS-SFL-012,solo types diverso: scartato,-,tier.upgraded,-,-,lh.actions.v1,purchase.completed,MBR-000003,COR-1,false
+TB-INS-SFL-013,solo memberId diverso: scartato,-,-,MBR-000004,-,lh.actions.v1,purchase.completed,MBR-000003,COR-1,false
+TB-INS-SFL-014,solo correlationId diverso: scartato,-,-,-,COR-2,lh.actions.v1,purchase.completed,MBR-000003,COR-1,false
+TB-INS-SFL-015,topics con due valori di cui uno uguale: passa,lh.facts.v1|lh.actions.v1,-,-,-,lh.actions.v1,purchase.completed,MBR-000003,COR-1,true
+TB-INS-SFL-016,insieme topics vuoto: nessun filtro,EMPTY,-,-,-,lh.actions.v1,purchase.completed,MBR-000003,COR-1,true
+TB-INS-SFL-017,memberId vuoto: nessun filtro,-,-,EMPTY,-,lh.actions.v1,purchase.completed,MBR-000003,COR-1,true
+TB-INS-SFL-018,correlationId vuoto: nessun filtro,-,-,-,EMPTY,lh.actions.v1,purchase.completed,MBR-000003,COR-1,true
+TB-INS-SFL-019,types col tipo completo (AMBIGUO): scartato perche si confronta il tipo breve,-,io.loyaltyhub.action.purchase.completed,-,-,lh.actions.v1,purchase.completed,MBR-000003,COR-1,false
+TB-INS-SFL-020,topics in maiuscolo (AMBIGUO): scartato (confronto esatto),LH.ACTIONS.V1,-,-,-,lh.actions.v1,purchase.completed,MBR-000003,COR-1,false
+TB-INS-SFL-021,filtro memberId su evento senza membro: scartato,-,-,MBR-000003,-,lh.actions.v1,purchase.completed,-,COR-1,false
+TB-INS-SFL-022,filtro correlationId su evento senza correlazione: scartato,-,-,-,COR-1,lh.actions.v1,purchase.completed,MBR-000003,-,false
+TB-INS-SFL-023,nessun filtro su evento senza membro ne correlazione: passa,-,-,-,-,lh.actions.v1,purchase.completed,-,-,true

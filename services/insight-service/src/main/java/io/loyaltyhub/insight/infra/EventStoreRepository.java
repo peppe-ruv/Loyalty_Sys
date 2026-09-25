@@ -9,7 +9,9 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -47,12 +49,29 @@ public class EventStoreRepository {
                 .query(EventStoreRepository::map).optional();
     }
 
-    /** Ricerca con filtri (docs/servizi/insight-service.md §3, {@code GET /v1/events}). */
+    /** Ricerca con filtri (docs/servizi/insight-service.md §3, {@code GET /v1/events}), dal più recente, a pagine. */
     public List<StoredEvent> search(String topic, String family, String type, String memberId,
                                     String correlationId, String source, Instant from, Instant to,
-                                    String q, int limit) {
-        StringBuilder sql = new StringBuilder("SELECT * FROM event_store WHERE 1 = 1");
+                                    String q, int limit, int offset) {
         List<Object> args = new ArrayList<>();
+        String where = where(args, topic, family, type, memberId, correlationId, source, from, to, q);
+        args.add(limit);
+        args.add(offset);
+        return jdbc.sql("SELECT * FROM event_store" + where + " ORDER BY received_at DESC LIMIT ? OFFSET ?")
+                .params(args).query(EventStoreRepository::map).list();
+    }
+
+    /** Totale degli eventi che passano i filtri di {@link #search} ({@code page.totalItems}, docs/06 §2). */
+    public long count(String topic, String family, String type, String memberId, String correlationId,
+                      String source, Instant from, Instant to, String q) {
+        List<Object> args = new ArrayList<>();
+        String where = where(args, topic, family, type, memberId, correlationId, source, from, to, q);
+        return jdbc.sql("SELECT count(*) FROM event_store" + where).params(args).query(Long.class).single();
+    }
+
+    private static String where(List<Object> args, String topic, String family, String type, String memberId,
+                                String correlationId, String source, Instant from, Instant to, String q) {
+        StringBuilder sql = new StringBuilder(" WHERE 1 = 1");
         appendEq(sql, args, "topic", topic);
         appendEq(sql, args, "family", family == null ? null : family.toUpperCase());
         appendEq(sql, args, "short_type", type);
@@ -71,9 +90,7 @@ public class EventStoreRepository {
             sql.append(" AND payload::text ILIKE ?");
             args.add("%" + q.trim() + "%");
         }
-        sql.append(" ORDER BY received_at DESC LIMIT ?");
-        args.add(limit);
-        return jdbc.sql(sql.toString()).params(args).query(EventStoreRepository::map).list();
+        return sql.toString();
     }
 
     private static void appendEq(StringBuilder sql, List<Object> args, String col, String value) {
@@ -89,11 +106,43 @@ public class EventStoreRepository {
                 .param(correlationId).query(EventStoreRepository::map).list();
     }
 
-    /** Gli ultimi correlationId osservati (uno per tracciato), opzionalmente per membro e intervallo. */
-    public List<String> recentCorrelationIds(String memberId, Instant from, Instant to, int limit) {
-        StringBuilder sql = new StringBuilder(
-                "SELECT correlation_id FROM event_store WHERE correlation_id IS NOT NULL");
+    /** Gli ultimi correlationId osservati (uno per tracciato), opzionalmente per membro e intervallo, a pagine. */
+    public List<String> recentCorrelationIds(String memberId, Instant from, Instant to, int limit, int offset) {
         List<Object> args = new ArrayList<>();
+        String where = correlationWhere(args, memberId, from, to);
+        args.add(limit);
+        args.add(offset);
+        return jdbc.sql("SELECT correlation_id FROM event_store" + where
+                        + " GROUP BY correlation_id ORDER BY max(received_at) DESC LIMIT ? OFFSET ?")
+                .params(args).query(String.class).list();
+    }
+
+    /** Numero di tracciati distinti che passano i filtri di {@link #recentCorrelationIds}. */
+    public long countCorrelationIds(String memberId, Instant from, Instant to) {
+        List<Object> args = new ArrayList<>();
+        String where = correlationWhere(args, memberId, from, to);
+        return jdbc.sql("SELECT count(DISTINCT correlation_id) FROM event_store" + where)
+                .params(args).query(Long.class).single();
+    }
+
+    /**
+     * Eventi arrivati per topic nell'ultimo intervallo (volumi 1 h / 24 h dello stato pipeline, insight §3). La finestra
+     * è calcolata dal database, come {@code received_at}.
+     */
+    public Map<String, Long> countByTopicWithin(java.time.Duration window) {
+        Map<String, Long> out = new HashMap<>();
+        jdbc.sql("""
+                        SELECT topic, count(*) AS n FROM event_store
+                        WHERE received_at >= now() - make_interval(secs => ?) GROUP BY topic
+                        """)
+                .param((double) window.toSeconds())
+                .query((rs, n) -> out.put(rs.getString("topic"), rs.getLong("n")))
+                .list();
+        return out;
+    }
+
+    private static String correlationWhere(List<Object> args, String memberId, Instant from, Instant to) {
+        StringBuilder sql = new StringBuilder(" WHERE correlation_id IS NOT NULL");
         if (memberId != null && !memberId.isBlank()) {
             sql.append(" AND member_id = ?");
             args.add(memberId.trim());
@@ -106,9 +155,7 @@ public class EventStoreRepository {
             sql.append(" AND received_at <= ?");
             args.add(Timestamp.from(to));
         }
-        sql.append(" GROUP BY correlation_id ORDER BY max(received_at) DESC LIMIT ?");
-        args.add(limit);
-        return jdbc.sql(sql.toString()).params(args).query(String.class).list();
+        return sql.toString();
     }
 
     /** Retention per età (docs §5): elimina gli eventi più vecchi di N giorni. */

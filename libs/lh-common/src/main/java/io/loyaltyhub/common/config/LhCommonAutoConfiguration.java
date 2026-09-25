@@ -170,8 +170,11 @@ public class LhCommonAutoConfiguration {
     @Bean
     @org.springframework.context.annotation.Profile("demo")
     @ConditionalOnMissingBean
-    public io.loyaltyhub.common.demo.DemoResetController demoResetController(List<io.loyaltyhub.common.demo.DemoResettable> resettables) {
-        return new io.loyaltyhub.common.demo.DemoResetController(resettables);
+    public io.loyaltyhub.common.demo.DemoResetController demoResetController(
+            List<io.loyaltyhub.common.demo.DemoResettable> resettables,
+            org.springframework.beans.factory.ObjectProvider<AuditPublisher> audit, LoyaltyHubProperties props) {
+        // Audit RESET con l'attore (docs/06 §10).
+        return new io.loyaltyhub.common.demo.DemoResetController(resettables, audit.getIfAvailable(), props.getService());
     }
 
     @Bean

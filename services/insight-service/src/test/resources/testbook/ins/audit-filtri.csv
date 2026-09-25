@@ -1,0 +1,22 @@
+id,descrizione,query,expHttp,expIndici
+TB-INS-AFL-001,filtro attore = nome utente,&actor=marta.admin,200,3 0
+TB-INS-AFL-002,filtro attore nella forma RUOLO:nome (AMBIGUO): nessuna voce,&actor=ADMIN:marta.admin,200,
+TB-INS-AFL-003,filtro ruolo ADMIN,&role=ADMIN,200,3 0
+TB-INS-AFL-004,filtro ruolo minuscolo admin (AMBIGUO): nessuna voce,&role=admin,200,
+TB-INS-AFL-005,filtro ruolo system (AMBIGUO): le voci dei job,&role=system,200,4
+TB-INS-AFL-006,solo servizio: tutte le voci dalla piu recente,,200,4 3 2 1 0
+TB-INS-AFL-007,filtro tipo oggetto CAMPAIGN,&entityType=CAMPAIGN,200,1 0
+TB-INS-AFL-008,filtro oggetto MBR-000004,&entityId=MBR-000004,200,2
+TB-INS-AFL-009,filtro azione UPDATE,&action=UPDATE,200,0
+TB-INS-AFL-010,filtro azione JOB,&action=JOB,200,4
+TB-INS-AFL-011,from uguale all'istante della voce: inclusa,&from=@120000,200,4 3 2
+TB-INS-AFL-012,from 1 ms dopo la voce: esclusa,&from=@120001,200,4 3
+TB-INS-AFL-013,to uguale all'istante della voce: inclusa,&to=@120000,200,2 1 0
+TB-INS-AFL-014,to 1 ms prima della voce: esclusa,&to=@119999,200,1 0
+TB-INS-AFL-015,finestra from e to,&from=@60000&to=@180000,200,3 2 1
+TB-INS-AFL-016,ruolo ADMIN e azione TRANSITION,&role=ADMIN&action=TRANSITION,200,3
+TB-INS-AFL-017,filtri vuoti ignorati,&role=&action=&actor=,200,4 3 2 1 0
+TB-INS-AFL-018,from non ISO-8601: 400,&from=ieri,400,
+TB-INS-AFL-019,to con mese 13: 400,&to=2035-13-01T00:00:00Z,400,
+TB-INS-AFL-020,from solo data (AMBIGUO): 400,&from=2035-01-10,400,
+TB-INS-AFL-021,tipo oggetto inesistente: nessuna voce,&entityType=NESSUNO,200,

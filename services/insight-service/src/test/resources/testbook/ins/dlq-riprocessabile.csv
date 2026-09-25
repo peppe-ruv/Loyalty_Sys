@@ -1,0 +1,16 @@
+id,descrizione,famiglia,stato,expRiprocessabile
+TB-INS-DRP-001,voce ACTION OPEN: riprocessabile = true,ACTION,OPEN,true
+TB-INS-DRP-002,voce ACTION REPROCESSED: riprocessabile = false,ACTION,REPROCESSED,false
+TB-INS-DRP-003,voce ACTION DISCARDED: riprocessabile = false,ACTION,DISCARDED,false
+TB-INS-DRP-004,voce EFFECT OPEN: riprocessabile = false,EFFECT,OPEN,false
+TB-INS-DRP-005,voce EFFECT REPROCESSED: riprocessabile = false,EFFECT,REPROCESSED,false
+TB-INS-DRP-006,voce EFFECT DISCARDED: riprocessabile = false,EFFECT,DISCARDED,false
+TB-INS-DRP-007,voce FACT OPEN: riprocessabile = false,FACT,OPEN,false
+TB-INS-DRP-008,voce FACT REPROCESSED: riprocessabile = false,FACT,REPROCESSED,false
+TB-INS-DRP-009,voce FACT DISCARDED: riprocessabile = false,FACT,DISCARDED,false
+TB-INS-DRP-010,voce AUDIT OPEN: riprocessabile = false (AMBIGUO),AUDIT,OPEN,false
+TB-INS-DRP-011,voce AUDIT REPROCESSED: riprocessabile = false,AUDIT,REPROCESSED,false
+TB-INS-DRP-012,voce AUDIT DISCARDED: riprocessabile = false,AUDIT,DISCARDED,false
+TB-INS-DRP-013,voce UNKNOWN OPEN: riprocessabile = false (AMBIGUO),UNKNOWN,OPEN,false
+TB-INS-DRP-014,voce UNKNOWN REPROCESSED: riprocessabile = false,UNKNOWN,REPROCESSED,false
+TB-INS-DRP-015,voce UNKNOWN DISCARDED: riprocessabile = false,UNKNOWN,DISCARDED,false

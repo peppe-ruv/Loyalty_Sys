@@ -327,7 +327,8 @@ class DlqIT {
         long deadline = System.currentTimeMillis() + 20_000;
         JsonNode trace = null;
         while (System.currentTimeMillis() < deadline) {
-            trace = client().get().uri("/v1/traces/" + correlationId).retrieve().body(JsonNode.class);
+            trace = client().get().uri("/v1/traces/" + correlationId).exchange((req, res) -> res.getStatusCode().value() == 200
+                    ? new tools.jackson.databind.ObjectMapper().readTree(res.getBody()) : null);
             if (trace != null && status.equals(trace.path("status").asString())) {
                 return trace;
             }

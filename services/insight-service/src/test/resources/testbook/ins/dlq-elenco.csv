@@ -1,0 +1,24 @@
+id,descrizione,query,expHttp,expIndici,expTotale,expNumero,expSize,expPagine
+TB-INS-DLS-001,solo consumer: tutte le 5 voci dalla piu recente,,200,4 3 2 1 0,5,0,-,-
+TB-INS-DLS-002,status=OPEN,&status=OPEN,200,4 1 0,3,0,-,-
+TB-INS-DLS-003,status=open minuscolo (Q-N6 DECISA): come OPEN,&status=open,200,4 1 0,3,0,-,-
+TB-INS-DLS-004,status=REPROCESSED,&status=REPROCESSED,200,2,1,0,-,-
+TB-INS-DLS-005,status=DISCARDED,&status=DISCARDED,200,3,1,0,-,-
+TB-INS-DLS-006,status=NEW (nome di BO-27; API con OPEN per Q-105): nessuna voce,&status=NEW,200,,0,0,-,0
+TB-INS-DLS-007,status sconosciuto (Q-N6 DECISA: come NEW di Q-105): elenco vuoto,&status=FOO,200,,0,0,-,0
+TB-INS-DLS-008,errorCode=E_A,&errorCode=E_A,200,3 2 0,3,0,-,-
+TB-INS-DLS-009,errorCode=E_B e status=OPEN,&errorCode=E_B&status=OPEN,200,4 1,2,0,-,-
+TB-INS-DLS-010,errorCode inesistente: vuoto con totalItems 0 e totalPages 0,&errorCode=E_Z,200,,0,0,-,0
+TB-INS-DLS-011,size=2 page=0,&size=2&page=0,200,4 3,5,0,2,3
+TB-INS-DLS-012,size=2 page=1,&size=2&page=1,200,2 1,5,1,2,3
+TB-INS-DLS-013,size=2 page=2 (ultima e parziale),&size=2&page=2,200,0,5,2,2,3
+TB-INS-DLS-014,size=2 page=3 (oltre l'ultima): vuota,&size=2&page=3,200,,5,3,2,3
+TB-INS-DLS-015,size=1: 5 pagine,&size=1,200,4,5,0,1,5
+TB-INS-DLS-016,size=0 (Q-N6 DECISA): 400,&size=0,400,,-,-,-,-
+TB-INS-DLS-017,size=100 (massimo di docs/06),&size=100,200,4 3 2 1 0,5,0,100,1
+TB-INS-DLS-018,size=101: limitata a 100 (docs/06 §2),&size=101,200,4 3 2 1 0,5,0,100,1
+TB-INS-DLS-019,size=200: limitata a 100 (docs/06 §2),&size=200,200,4 3 2 1 0,5,0,100,1
+TB-INS-DLS-020,page=-1 (Q-N6 DECISA): 400,&page=-1,400,,-,-,-,-
+TB-INS-DLS-021,page non numerica: 400,&page=abc,400,,-,-,-,-
+TB-INS-DLS-022,size non numerica: 400,&size=abc,400,,-,-,-,-
+TB-INS-DLS-023,filtri vuoti (status= errorCode=) ignorati,&status=&errorCode=,200,4 3 2 1 0,5,0,-,-

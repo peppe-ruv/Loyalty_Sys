@@ -78,7 +78,7 @@ class InsightServiceIT {
                 "urn:loyaltyhub:source:ecommerce", "member:MBR-000003", corr));
 
         JsonNode page = awaitCount(corr, 3);
-        assertThat(page.path("count").asInt()).isEqualTo(3);
+        assertThat(page.path("page").path("totalItems").asInt()).isEqualTo(3);
 
         // L'azione è registrata con la famiglia del topic e lo short type senza prefisso.
         JsonNode detail = client().get().uri("/v1/events/EVT-A1").retrieve().body(JsonNode.class);
@@ -110,7 +110,7 @@ class InsightServiceIT {
         assertThat(body.path("status").asString()).isEqualTo("OK");
 
         JsonNode page = client().get().uri("/v1/events?correlationId=COR-RST").retrieve().body(JsonNode.class);
-        assertThat(page.path("count").asInt()).isEqualTo(0);
+        assertThat(page.path("page").path("totalItems").asInt()).isEqualTo(0);
     }
 
     @Test
@@ -230,7 +230,7 @@ class InsightServiceIT {
         JsonNode o = client().get().uri("/v1/kpi/overview?days=90").retrieve().body(JsonNode.class);
         assertThat(o.path("pointsEarned").asLong()).isGreaterThan(0);
         assertThat(o.path("actions").asLong()).isGreaterThan(0);
-        assertThat(o.path("membersActive").asLong()).isGreaterThan(0);
+        assertThat(o.path("membersActive30d").asLong()).isGreaterThan(0);
         assertThat(o.path("membersTotal").asLong()).isGreaterThanOrEqualTo(12);
         // Il delta vs periodo precedente esiste (può essere positivo o negativo).
         assertThat(o.path("deltas").path("pointsEarned").has("abs")).isTrue();
@@ -316,7 +316,7 @@ class InsightServiceIT {
         JsonNode page = null;
         while (System.currentTimeMillis() < deadline) {
             page = client().get().uri("/v1/events?correlationId=" + correlationId).retrieve().body(JsonNode.class);
-            if (page != null && page.path("count").asInt() >= expected) {
+            if (page != null && page.path("page").path("totalItems").asInt() >= expected) {
                 return page;
             }
             sleep();
@@ -328,7 +328,8 @@ class InsightServiceIT {
         long deadline = System.currentTimeMillis() + 20_000;
         JsonNode trace = null;
         while (System.currentTimeMillis() < deadline) {
-            trace = client().get().uri("/v1/traces/" + correlationId).retrieve().body(JsonNode.class);
+            trace = client().get().uri("/v1/traces/" + correlationId).exchange((req, res) -> res.getStatusCode().value() == 200
+                    ? new tools.jackson.databind.ObjectMapper().readTree(res.getBody()) : null);
             if (trace != null && trace.path("nodes").size() >= expectedNodes) {
                 return trace;
             }
