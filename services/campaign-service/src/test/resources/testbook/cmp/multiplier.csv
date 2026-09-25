@@ -1,0 +1,18 @@
+id|descrizione|punti base di G1 (PTS; STS fisso 130)|etichette di G1|effetto di M1|priorità di M1|stato di M1 (OK, COND, LIMIT)|effetto di M2|variante (OWN = M1 dentro G1, G1LIMIT = G1 al limite, G2 = seconda campagna da 50)|tetto engine.maxMultiplier|PTS attesi da G1 (NONE = nessuno)|STS attesi|fattore atteso|PTS attesi da G2
+TB-CMP-MUL-001|×2 su tutti i PTS delle altre campagne|130||{"type":"MULTIPLIER","currency":"PTS","factor":2,"scope":"ALL_GRANTS"}|200|OK|||5|260|130|2.0|
+TB-CMP-MUL-002|×1.5 con arrotondamento per difetto|3||{"type":"MULTIPLIER","currency":"PTS","factor":1.5,"scope":"ALL_GRANTS"}|200|OK|||5|4|130|1.5|
+TB-CMP-MUL-003|×2 e ×3: prodotto 6 oltre il tetto 5|100||{"type":"MULTIPLIER","currency":"PTS","factor":2,"scope":"ALL_GRANTS"}|200|OK|{"type":"MULTIPLIER","currency":"PTS","factor":3,"scope":"ALL_GRANTS"}||5|500|130|5.0|
+TB-CMP-MUL-004|×2 e ×2.5: prodotto uguale al tetto|100||{"type":"MULTIPLIER","currency":"PTS","factor":2,"scope":"ALL_GRANTS"}|200|OK|{"type":"MULTIPLIER","currency":"PTS","factor":2.5,"scope":"ALL_GRANTS"}||5|500|130|5.0|
+TB-CMP-MUL-005|×5 e ×1.1: prodotto 5.5 ridotto al tetto|100||{"type":"MULTIPLIER","currency":"PTS","factor":5,"scope":"ALL_GRANTS"}|200|OK|{"type":"MULTIPLIER","currency":"PTS","factor":1.1,"scope":"ALL_GRANTS"}||5|500|130|5.0|
+TB-CMP-MUL-006|×1.1 (minimo ammesso) su 99|99||{"type":"MULTIPLIER","currency":"PTS","factor":1.1,"scope":"ALL_GRANTS"}|200|OK|||5|108|130|1.1|
+TB-CMP-MUL-007|moltiplicatore STS non tocca i PTS|130||{"type":"MULTIPLIER","currency":"STS","factor":2,"scope":"ALL_GRANTS"}|200|OK|||5|130|260|1.0|
+TB-CMP-MUL-008|moltiplicatore nella stessa campagna dell'accredito|130||{"type":"MULTIPLIER","currency":"PTS","factor":2,"scope":"ALL_GRANTS"}|200|OK||OWN|5|130|130|1.0|
+TB-CMP-MUL-009|moltiplicatore a priorità più bassa dell'accredito|130||{"type":"MULTIPLIER","currency":"PTS","factor":2,"scope":"ALL_GRANTS"}|50|OK|||5|260|130|2.0|
+TB-CMP-MUL-010|campagna moltiplicatore con condizione falsa|130||{"type":"MULTIPLIER","currency":"PTS","factor":2,"scope":"ALL_GRANTS"}|200|COND|||5|130|130|1.0|
+TB-CMP-MUL-011|campagna moltiplicatore al limite per membro|130||{"type":"MULTIPLIER","currency":"PTS","factor":2,"scope":"ALL_GRANTS"}|200|LIMIT|||5|130|130|1.0|
+TB-CMP-MUL-012|campagna dell'accredito al limite: niente da moltiplicare|130||{"type":"MULTIPLIER","currency":"PTS","factor":2,"scope":"ALL_GRANTS"}|200|OK||G1LIMIT|5|NONE|NONE||
+TB-CMP-MUL-013|moltiplicatore su labels, campagna con l'etichetta|130|PROMO|{"type":"MULTIPLIER","currency":"PTS","factor":2,"labels":["PROMO"]}|200|OK|||5|260|130|2.0|
+TB-CMP-MUL-014|moltiplicatore su labels, campagna senza l'etichetta|130||{"type":"MULTIPLIER","currency":"PTS","factor":2,"labels":["PROMO"]}|200|OK|||5|130|130|1.0|
+TB-CMP-MUL-015|tetto configurato a 3 con fattore 4|100||{"type":"MULTIPLIER","currency":"PTS","factor":4,"scope":"ALL_GRANTS"}|200|OK|||3|300|130|3.0|
+TB-CMP-MUL-016|arrotondamento per difetto dopo il prodotto (7 × 1.5)|7||{"type":"MULTIPLIER","currency":"PTS","factor":1.5,"scope":"ALL_GRANTS"}|200|OK|||5|10|130|1.5|
+TB-CMP-MUL-017|stesso moltiplicatore su due campagne di accredito|130||{"type":"MULTIPLIER","currency":"PTS","factor":2,"scope":"ALL_GRANTS"}|200|OK||G2|5|260|130|2.0|100

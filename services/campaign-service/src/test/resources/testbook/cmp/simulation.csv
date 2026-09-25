@@ -1,0 +1,23 @@
+id|descrizione|scenario
+TB-CMP-SIM-001|simulazioni ripetute non consumano il limite 1/sempre; poi l'azione reale scatta|NO_CONSUME
+TB-CMP-SIM-002|dopo il match reale la simulazione riporta LIMIT, come la seconda azione reale|LIMIT_AFTER_REAL
+TB-CMP-SIM-003|la simulazione non scrive il registro valutazioni|NO_LOG
+TB-CMP-SIM-004|con campaignIds la simulazione valuta anche una bozza|DRAFT_BY_ID
+TB-CMP-SIM-005|senza campaignIds la simulazione ignora le bozze|DRAFT_IGNORED
+TB-CMP-SIM-006|la valutazione reale ignora una campagna DRAFT|REAL_DRAFT
+TB-CMP-SIM-007|la valutazione reale ignora una campagna PAUSED|REAL_PAUSED
+TB-CMP-SIM-008|tipo completo io.loyaltyhub.action.* nella simulazione equivale al tipo breve|FULL_TYPE
+TB-CMP-SIM-009|simulazione senza action.type: 400|NO_TYPE
+TB-CMP-SIM-010|simulazione con action.time non valido: 400|BAD_TIME
+TB-CMP-SIM-011|memberOverride con tier ipotetico GOLD per un membro SILVER|OVERRIDE_TIER
+TB-CMP-SIM-012|memberOverride senza memberId: profilo ipotetico ACTIVE|OVERRIDE_NO_MEMBER
+TB-CMP-SIM-013|membro sconosciuto senza override: NO_MEMBER|UNKNOWN_MEMBER
+TB-CMP-SIM-014|history.actionCount conta solo le azioni precedenti (seconda azione reale: CONDITION)|HISTORY
+TB-CMP-SIM-015|cooldownMinutes 60: seconda azione dopo 10 minuti non scatta|COOLDOWN
+TB-CMP-SIM-016|budget maxMatches 1 consumato dalla valutazione reale: la seconda è BUDGET|BUDGET
+TB-CMP-SIM-017|limite 1/giorno reale: stessa giornata LIMIT, mezzanotte di Roma di nuovo MATCHED|DAY_LIMIT
+TB-CMP-SIM-018|membro bloccato (member.status.changed BLOCKED): NO_MEMBER|BLOCKED
+TB-CMP-SIM-019|doppia consegna della stessa azione: contatori incrementati una volta|DUPLICATE_DELIVERY
+TB-CMP-SIM-020|tipo custom con più segmenti valutato dal consumer della famiglia io.loyaltyhub.action.*|CUSTOM_TYPE
+TB-CMP-SIM-021|perMemberPoints 100: dopo 100 punti al membro la seconda azione non scatta|PER_MEMBER_POINTS
+TB-CMP-SIM-022|registro valutazioni: actionId inesistente → 404|UNKNOWN_EVALUATION
