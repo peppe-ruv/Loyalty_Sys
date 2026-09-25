@@ -1,0 +1,7 @@
+id,descrizione,caso,premio,catena,messaggi,deltaPts
+TB-E2E-IW-001,Istante piantato PTS-50 + giocata gratuita → WIN → ponte instantwin.won → CMP-IW-PRIZE-POINTS +50,punti,PTS-50,F:contest.played=1 F:contest.won=1 A:instantwin.won=1 F:campaign.evaluated=1 E:points.grant=1 F:wallet.points.earned=1 F:message.delivered=2,MSG-CONTEST-WON MSG-POINTS-EARNED,50
+TB-E2E-IW-002,Vincita di 100 punti di un membro SILVER → +100 esatti (premio senza moltiplicatore di livello),punti-silver,PTS-100,F:contest.played=1 F:contest.won=1 A:instantwin.won=1 F:campaign.evaluated=1 E:points.grant=1 F:wallet.points.earned=1 F:message.delivered=2,MSG-CONTEST-WON MSG-POINTS-EARNED,100
+TB-E2E-IW-003,Vincita del coupon colazione → ponte → CMP-IW-PRIZE-COUPON → coupon.issue → codice CAF- emesso (origine CAMPAIGN),coupon,COFFEE,F:contest.played=1 F:contest.won=1 A:instantwin.won=1 F:campaign.evaluated=1 E:coupon.issue=1 F:coupon.issued=1 F:message.delivered=2,MSG-CONTEST-WON MSG-COUPON-GIFT,0
+TB-E2E-IW-004,Vincita del powerbank (PHYSICAL) → nessun effetto dalle campagne di sistema; consegna PENDING poi DELIVERED da CARE,fisico,POWERBANK,F:contest.played=1 F:contest.won=1 A:instantwin.won=1 F:campaign.evaluated=1 F:message.delivered=1,MSG-CONTEST-WON,0
+TB-E2E-IW-005,Sondaggio → +80 e una giocata (plays.grant); due giocate senza istanti maturi → LOSE e giocate rimaste 1 poi 0,perde,-,F:contest.played=1,-,80
+TB-E2E-IW-006,Nessuna giocata rimasta → 422 NO_PLAYS_AVAILABLE; nessun fatto,senza-giocate,-,-,-,0

@@ -1,0 +1,8 @@
+id,descrizione,caso,atteso
+TB-E2E-ANO-001,Anonimizzazione (ADMIN) → member.status.changed + member.updated; ogni servizio cancella i dati personali dal proprio snapshot; movimenti conservati,propagazione,ANONYMIZED
+TB-E2E-ANO-002,Azione successiva con subject member: → REJECTED MEMBER_NOT_ACTIVE; niente sul topic,azione-membro,REJECTED:MEMBER_NOT_ACTIVE
+TB-E2E-ANO-003,Azione successiva con la vecchia e-mail → UNMATCHED (Q-128),azione-email,UNMATCHED
+TB-E2E-ANO-004,Richiesta premio dopo l'anonimizzazione → 422 MEMBER_NOT_ACTIVE,richiesta,422:MEMBER_NOT_ACTIVE
+TB-E2E-ANO-005,Rettifica dopo l'anonimizzazione → 409 MEMBER_ANONYMIZED (Q-127),rettifica,409:MEMBER_ANONYMIZED
+TB-E2E-ANO-006,Giocata dopo l'anonimizzazione → 422 MEMBER_NOT_ACTIVE,giocata,422:MEMBER_NOT_ACTIVE
+TB-E2E-ANO-007,Anonimizzazione chiesta da CARE → 403; nessun fatto e dati invariati,ruolo-care,403
