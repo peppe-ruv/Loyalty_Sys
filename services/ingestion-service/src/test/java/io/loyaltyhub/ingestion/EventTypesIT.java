@@ -107,7 +107,9 @@ class EventTypesIT {
             String eventId = fired.get(0).path("eventId").asString();
             JsonNode published = awaitAction(consumer, eventId);
             assertThat(published.path("type").asString()).isEqualTo("io.loyaltyhub.action.meter.reading.sent");
-            assertThat(published.path("data").path("reading").asInt()).isEqualTo(1234);
+            // data assente → sample_data con piccole variazioni casuali (ingestion §3): reading 1234 ± 10 %.
+            assertThat(published.path("data").path("reading").asInt()).isBetween(1110, 1358);
+            assertThat(published.path("data").path("channel").asString()).isEqualTo("APP");
         }
 
         JsonNode bad = send("POST", "/v1/demo/simulator/fire", MARKETING,

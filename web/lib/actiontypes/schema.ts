@@ -116,7 +116,7 @@ const TYPE_IT: Record<string, string> = {
 
 /** Codice di un tipo custom: minuscolo a punti, 2–4 parti (come i tipi di sistema). SPEC-GAP: Q-89. */
 export function isValidCode(code: string): boolean {
-  return code.length <= 60 && /^[a-z][a-z0-9]*(\.[a-z][a-zA-Z0-9]*){1,3}$/.test(code);
+  return code.length <= 60 && /^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*){1,3}$/.test(code);
 }
 
 /** Campagne che usano il tipo come trigger ("usato da n campagne"). */

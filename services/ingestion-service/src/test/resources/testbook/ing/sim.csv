@@ -9,9 +9,9 @@ TB-ING-SIM-007|fonte assente ⇒ simulator|defaultSource|riga con fonte simulato
 TB-ING-SIM-008|origine della riga|origin|origin SIMULATOR (DIVERGENZA: oggi EXTERNAL)|ingestion §2 (origin EXTERNAL, INTERNAL, SIMULATOR); docs/17 ING-20
 TB-ING-SIM-009|count assente ⇒ 1|count:-:1|1 evento|ingestion §3 (simulator/fire); F-DEMO-03; BO-28 (count?=1)
 TB-ING-SIM-010|count 20|count:20:20|20 eventi, id distinti|ingestion §3 (simulator/fire); F-DEMO-03; BO-28; BO-28 (ripetizioni 1–20)
-TB-ING-SIM-011|count 21|count:21:20|AMBIGUO: 20 eventi (limitato, non rifiutato)|BO-28
-TB-ING-SIM-012|count 0|count:0:1|AMBIGUO: 1 evento (limitato, non rifiutato)|BO-28
-TB-ING-SIM-013|count -3|count:-3:1|AMBIGUO: 1 evento|BO-28
+TB-ING-SIM-011|count 21|count:21:20|Q-I14: 20 eventi (limitato, non rifiutato)|BO-28
+TB-ING-SIM-012|count 0|count:0:1|Q-I14: 1 evento (limitato, non rifiutato)|BO-28
+TB-ING-SIM-013|count -3|count:-3:1|Q-I14: 1 evento|BO-28
 TB-ING-SIM-014|data assente ⇒ sample_data del tipo|sample|data con le chiavi del sample_data del tipo|ingestion §3 (simulator/fire); F-DEMO-03; BO-28
 TB-ING-SIM-015|data assente: piccole variazioni casuali|variation|due invii senza data hanno data diversi (DIVERGENZA: sample_data identico)|ingestion §3 (simulator/fire); F-DEMO-03; BO-28
 TB-ING-SIM-016|occurredAt assente ⇒ adesso|now|time = istante del servizio|ingestion §3 (simulator/fire); F-DEMO-03; BO-28

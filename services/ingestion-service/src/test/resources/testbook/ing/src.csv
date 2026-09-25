@@ -65,7 +65,7 @@ TB-ING-SRC-063|fonte esistente ma disabilitata (elenco vuoto)|@disabled|purchase
 TB-ING-SRC-064|fonte disabilitata che ammetterebbe il tipo|@disabled-allowing|purchase.completed|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED|ingestion §5.2; F-ING-05
 TB-ING-SRC-065|fonte abilitata con elenco che ammette il tipo|@allowing|purchase.completed|ACCEPTED|-|ACCEPTED|ingestion §5.3
 TB-ING-SRC-066|codice fonte in maiuscolo (ECOMMERCE)|urn:loyaltyhub:source:ECOMMERCE|purchase.completed|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED (fonte inesistente)|ingestion §5.2
-TB-ING-SRC-067|fonte in forma breve senza URN (ecommerce)|@short:ecommerce|purchase.completed|ACCEPTED|-|AMBIGUO: ACCEPTED (comportamento attuale; docs/05 §2 prevede l'URN)|docs/05 §2
+TB-ING-SRC-067|fonte in forma breve senza URN (ecommerce)|@short:ecommerce|purchase.completed|ACCEPTED|-|Q-I4: ACCEPTED (comportamento attuale; docs/05 §2 prevede l'URN)|docs/05 §2
 TB-ING-SRC-068|fonte con URN di servizio (urn:loyaltyhub:service:ecommerce)|urn:loyaltyhub:service:ecommerce|purchase.completed|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED: non è una fonte (DIVERGENZA)|docs/05 §2 (source delle azioni = urn:loyaltyhub:source:<codice>); ingestion §5.2
 TB-ING-SRC-069|fonte con URN estraneo che termina con :ecommerce (urn:altro:ecommerce)|urn:altro:ecommerce|purchase.completed|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED: fonte inesistente (DIVERGENZA)|docs/05 §2; ingestion §5.2
-TB-ING-SRC-070|URN di fonte con codice vuoto (urn:loyaltyhub:source:)|urn:loyaltyhub:source:|purchase.completed|REJECTED|SOURCE_DISABLED|AMBIGUO: REJECTED/SOURCE_DISABLED (nessun 400)|docs/05 §2; envelope.schema.json
+TB-ING-SRC-070|URN di fonte con codice vuoto (urn:loyaltyhub:source:)|urn:loyaltyhub:source:|purchase.completed|REJECTED|SOURCE_DISABLED|Q-I4: REJECTED/SOURCE_DISABLED (nessun 400)|docs/05 §2; envelope.schema.json

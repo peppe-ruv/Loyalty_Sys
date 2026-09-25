@@ -4,9 +4,9 @@ TB-ING-DUP-002|terzo invio dello stesso evento|thrice|DUPLICATE di nuovo; 2 righ
 TB-ING-DUP-003|stesso id da due fonti diverse|twoSources|entrambi ACCEPTED, 1 pubblicazione per fonte|F-ING-02; ingestion §5.6 (chiave = fonte+id); docs/05 §2
 TB-ING-DUP-004|stesso source+id con type e data diversi|diffPayload|DUPLICATE (la chiave non guarda il contenuto)|F-ING-02; ingestion §5.6
 TB-ING-DUP-005|stesso source+id per un altro membro|diffMember|DUPLICATE|F-ING-02; ingestion §5.6
-TB-ING-DUP-006|primo invio REJECTED/INVALID_DATA, secondo corretto con lo stesso id|afterRejected|AMBIGUO: secondo ACCEPTED (conta solo un ACCEPTED; F-ING-02 dice «già visto»)|F-ING-02; ingestion §5.6; docs/17 US-E01-04
-TB-ING-DUP-007|primo invio UNMATCHED, poi il membro arriva e la fonte rimanda lo stesso id|afterUnmatched|AMBIGUO: secondo ACCEPTED|F-ING-02; ingestion §5.6; docs/17 US-E01-04
-TB-ING-DUP-008|due invii per un membro BLOCKED|rejectedTwice|AMBIGUO: due righe REJECTED/MEMBER_NOT_ACTIVE, nessun DUPLICATE|F-ING-02; ingestion §5.6
+TB-ING-DUP-006|primo invio REJECTED/INVALID_DATA, secondo corretto con lo stesso id|afterRejected|Q-I2: secondo ACCEPTED (conta solo un ACCEPTED; F-ING-02 dice «già visto»)|F-ING-02; ingestion §5.6; docs/17 US-E01-04
+TB-ING-DUP-007|primo invio UNMATCHED, poi il membro arriva e la fonte rimanda lo stesso id|afterUnmatched|Q-I2: secondo ACCEPTED|F-ING-02; ingestion §5.6; docs/17 US-E01-04
+TB-ING-DUP-008|due invii per un membro BLOCKED|rejectedTwice|Q-I2: due righe REJECTED/MEMBER_NOT_ACTIVE, nessun DUPLICATE|F-ING-02; ingestion §5.6
 TB-ING-DUP-009|prima con URN, poi con codice breve della stessa fonte|shortVsUrn|DUPLICATE (stessa fonte)|F-ING-02; ingestion §5.6; docs/05 §2
 TB-ING-DUP-010|prima con type breve, poi completo|shortVsFullType|DUPLICATE|F-ING-02; ingestion §5.6; docs/05 §2
 TB-ING-DUP-011|id che differiscono solo per maiuscole|idCase|entrambi ACCEPTED (id distinti)|F-ING-02; ingestion §5.6

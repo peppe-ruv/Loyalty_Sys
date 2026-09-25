@@ -37,6 +37,23 @@ public final class JsonSchemaValidator {
         }
     }
 
+    /**
+     * Verifica che {@code schemaJson} sia un JSON Schema 2020-12 valido contro il meta-schema ufficiale (incluso nella
+     * libreria, nessun accesso di rete). Ritorna i messaggi d'errore (vuoto = schema valido).
+     */
+    public List<String> metaSchemaErrors(String schemaJson) {
+        try {
+            JsonSchema meta = cache.computeIfAbsent(META_SCHEMA_KEY,
+                    k -> FACTORY.getSchema(com.networknt.schema.SchemaLocation.of(com.networknt.schema.SchemaId.V202012)));
+            var errors = meta.validate(MAPPER.readTree(schemaJson));
+            return errors.stream().map(ValidationMessage::getMessage).sorted().toList();
+        } catch (Exception e) {
+            return List.of("schema non è JSON valido: " + e.getMessage());
+        }
+    }
+
+    private static final String META_SCHEMA_KEY = "urn:loyaltyhub:meta-schema:2020-12";
+
     private JsonSchema compile(String schemaJson) {
         try {
             return FACTORY.getSchema(MAPPER.readTree(schemaJson));
