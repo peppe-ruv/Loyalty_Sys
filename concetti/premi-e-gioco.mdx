@@ -16,6 +16,44 @@ Il catalogo è organizzato in **fasce** (per esempio 500 pts, 1000 pts, 2500 pts
 - Stock disponibile (opzionale, se limitato).
 - Regole di visibilità (per esempio "solo tier Gold").
 
+### I cinque tipi di premio
+
+Il campo `type` del premio dice che cosa il membro riceve. Determina anche quali modalità di evasione (`fulfilment`) hanno senso e che schermate vede in portale.
+
+<CardGroup cols={3}>
+  <Card title="PHYSICAL" icon="box">
+    Oggetto fisico spedito. Per esempio borraccia, gadget brandizzato. Serve l'indirizzo del membro. Evasione tipica: `MANUAL` da BO-13.
+  </Card>
+
+  <Card title="COUPON" icon="ticket">
+    Codice sconto o buono digitale. Per esempio sconto merchant, buono partner. Estratto dal pool di codici pre-caricati. Evasione tipica: `AUTO_COUPON`.
+  </Card>
+
+  <Card title="DIGITAL" icon="download">
+    Asset digitale (ebook, wallpaper, download). Nessuna spedizione. Evasione tipica: `INSTANT` con URL o `AUTO_COUPON` con codice.
+  </Card>
+
+  <Card title="DONATION" icon="heart">
+    Donazione a ente. Il membro spende punti, il programma dona in cambio. Nessun asset da consegnare. Evasione tipica: `INSTANT`.
+  </Card>
+
+  <Card title="EXPERIENCE" icon="star">
+    Esperienza (biglietto evento, workshop, accesso VIP). Richiede coordinamento con il membro. Evasione tipica: `MANUAL`.
+  </Card>
+</CardGroup>
+
+| Tipo | Cosa vede il membro | Chi consegna | Fulfilment coerente | Esempio demo |
+| --- | --- | --- | --- | --- |
+| PHYSICAL | Card premio + form indirizzo | CARE (BO-13) | MANUAL | `RWD-BORRACCIA` |
+| COUPON | Codice sconto in wallet | Sistema | AUTO_COUPON | `RWD-SHOP-10` |
+| DIGITAL | Link o codice download | Sistema | INSTANT o AUTO_COUPON | `RWD-EBOOK` |
+| DONATION | Ringraziamento + attestato | Sistema | INSTANT | `RWD-DONATION-TREE` |
+| EXPERIENCE | Voucher + istruzioni | CARE (BO-13) | MANUAL | `RWD-WEEKEND` |
+
+<Note>
+  Il `type` è indipendente dalla fascia (`band`) che determina il costo in PTS. Un premio PHYSICAL può stare in qualunque fascia. Vedi il campo `fulfilment` in [Backoffice](/specifiche/frontend-backoffice#opzioni-di-configurazione-ricorrenti) per come si consegna.
+</Note>
+
 ## Richieste premio con saga
 
 Una richiesta premio non è una scrittura semplice: coinvolge più servizi che devono restare consistenti. Loyalty Hub usa una **saga coreografata** su Kafka.
@@ -106,6 +144,74 @@ Ogni membro ha un `referralCode` univoco. Alla registrazione con un codice amico
 - Il vecchio membro riceve un bonus quando il nuovo completa una condizione (per esempio primo acquisto).
 
 Entrambi i bonus sono campagne configurabili in backoffice, non codice cablato.
+
+## Stati e cicli di vita
+
+Ogni oggetto del catalogo e del gioco attraversa una sequenza di stati. Conoscerli ti aiuta a leggere il backoffice e a diagnosticare i problemi senza aprire i log.
+
+<AccordionGroup>
+  <Accordion title="Premio (reward.status)">
+    | Stato | Significato | Chi lo cambia | Prossimo stato tipico |
+    | --- | --- | --- | --- |
+    | `DRAFT` | In composizione, non visibile ai membri | MARKETING | `IN_REVIEW` |
+    | `IN_REVIEW` | In attesa di approvazione LEGAL | MARKETING o LEGAL | `APPROVED` o `DRAFT` |
+    | `APPROVED` | Pronto per andare in pubblicazione | LEGAL | `LIVE` al pubblica |
+    | `LIVE` | Visibile ai membri nel portale | MARKETING | `PAUSED` o `ENDED` |
+    | `PAUSED` | Nascosto temporaneamente | MARKETING | `LIVE` o `ENDED` |
+    | `ENDED` | Fine vita, non più visibile | MARKETING o sistema | `ARCHIVED` |
+    | `ARCHIVED` | Archiviato, conservato per audit | MARKETING | nessuno |
+  </Accordion>
+
+  <Accordion title="Richiesta premio / redemption">
+    | Stato | Significato | Come si arriva | Come si esce |
+    | --- | --- | --- | --- |
+    | `PENDING` | In attesa della saga wallet | Dopo `POST /redemptions` | `wallet.points.spent` → `CONFIRMED`; saldo insufficiente → `FAILED` |
+    | `CONFIRMED` | Punti scalati, richiesta accettata | Evento `wallet.points.spent` | `AUTO_COUPON` o `INSTANT`: automatico → `FULFILLED`; `MANUAL`: attende BO-13 |
+    | `FULFILLED` | Premio consegnato al membro | Sistema o CARE (BO-13) | terminale |
+    | `FAILED` | Richiesta rifiutata | Saldo insufficiente o pool vuoto | terminale, con evento `.failed` |
+    | `EXPIRED` | Scaduta senza ritiro | Job schedulato | terminale |
+  </Accordion>
+
+  <Accordion title="Coupon (coupon.status)">
+    | Stato | Significato |
+    | --- | --- |
+    | `AVAILABLE` | In pool, pronto per essere assegnato |
+    | `ASSIGNED` | Assegnato a un membro specifico |
+    | `REDEEMED` | Utilizzato dal membro presso il merchant |
+    | `EXPIRED` | Scaduto senza essere utilizzato |
+  </Accordion>
+
+  <Accordion title="Lotto punti (points_lot.status)">
+    | Stato | Significato |
+    | --- | --- |
+    | `PENDING` | Accreditato ma non ancora spendibile (es. reso in attesa) |
+    | `ACTIVE` | Spendibile, incluso nel saldo del membro |
+    | `EXHAUSTED` | Consumato al 100% in richieste premio o rettifiche |
+    | `EXPIRED` | Scaduto per policy di scadenza della valuta |
+  </Accordion>
+
+  <Accordion title="Concorso (contest.status)">
+    | Stato | Significato |
+    | --- | --- |
+    | `DRAFT` | In configurazione |
+    | `SCHEDULED` | Pianificato, in attesa della data di inizio |
+    | `LIVE` | Aperto alle giocate dei membri |
+    | `PAUSED` | Sospeso temporaneamente |
+    | `ENDED` | Chiuso, nessuna nuova giocata |
+  </Accordion>
+
+  <Accordion title="Giocata (play.outcome)">
+    | Esito | Significato |
+    | --- | --- |
+    | `WON` | Giocata vincente, attiva la campagna premio |
+    | `LOST` | Giocata perdente |
+    | `VOIDED` | Annullata da LEGAL per motivi di compliance |
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+  Gli stati si leggono nel backoffice con la LifecycleBar. Sono anche i valori del campo `status` negli eventi `.status.changed` sui fatti Kafka, quindi puoi usarli per filtrare gli stream di `lh.facts.v1`.
+</Note>
 
 ## Prossimo passo
 

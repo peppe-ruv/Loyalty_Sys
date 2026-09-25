@@ -54,6 +54,78 @@ Sotto 1024 px la sidebar diventa un cassetto; le tabelle scorrono con la prima c
 | Demo | Scenari | BO-29 | `/demo/scenarios` | M2 |
 | Demo | Console demo | BO-30 | `/demo/console` | M1 |
 
+## Ruoli e persone
+
+Loyalty Hub definisce cinque ruoli di backoffice. Ogni ruolo corrisponde a un mestiere reale, non a una divisione tecnica. Quello che segue descrive cosa fa ciascuna persona in una giornata tipo e su quali schermate lavora.
+
+<CardGroup cols={2}>
+  <Card title="ADMIN — Marta" icon="user-shield">
+    L'amministratore di programma. Configura valute, tier, edizioni, feature flag, webhook, ruoli. Sblocca situazioni straordinarie (reset wallet, override di limiti). Schermate tipiche: BO-01 (dashboard), BO-08 (valute), BO-09 (tier), BO-10 (edizioni), BO-22 (feature flag), BO-23 (webhook), BO-24 (DLQ).
+  </Card>
+
+  <Card title="MARKETING — Luca" icon="bullhorn">
+    Il team che progetta l'esperienza. Crea e modifica campagne, premi, concorsi, contenuti CMS, messaggi push. Simula e schedula campagne. Non approva da solo se la campagna richiede LEGAL. Schermate: BO-05 (campagne), BO-11 (premi), BO-14 (concorsi), BO-18-20 (contenuti, template, messaggi).
+  </Card>
+
+  <Card title="LEGAL — Elena" icon="scale-balanced">
+    Il controllo di conformità. Approva le campagne e i premi che l'ADMIN ha marcato `requiresLegal`. Vede gli istanti vincenti pre-generati dei concorsi (trasparenza normativa). Può rifiutare con commento. Schermate: BO-06 (approvazioni), BO-14 (istanti vincenti), BO-25 (audit trail).
+  </Card>
+
+  <Card title="CARE — Paolo" icon="headset">
+    L'assistenza clienti. Consegna manualmente i premi `MANUAL` da BO-13, gestisce reclami e rettifiche punti, blocca membri sospetti, invia messaggi ad personam. Schermate: BO-02 (membri), BO-03 (scheda 360°), BO-13 (consegne), BO-16 (ticket/note interne se presente).
+  </Card>
+
+  <Card title="ANALYST — Sara" icon="chart-column">
+    L'osservatore. Legge KPI, esporta report, ispeziona event store e tracciati end-to-end. Solo lettura sulla configurazione. Schermate: BO-01 (dashboard), BO-25 (audit), BO-26 (event store), BO-27 (KPI), BO-28 (export).
+  </Card>
+</CardGroup>
+
+### Una giornata tipo
+
+<AccordionGroup>
+  <Accordion title="Marta (ADMIN) — inizio edizione 2027">
+    - Verifica in BO-10 che l'edizione 2026 sia in stato ACTIVE.
+    - Crea la nuova edizione 2027 con date, `redemptionGraceUntil` e piano di transizione tier.
+    - Rivede le valute in BO-08 e confermi la policy `ROLLING_MONTHS(24)` per PTS.
+    - Aggiunge un webhook per un nuovo partner.
+    - Attiva la feature flag `NEW_ENGAGEMENT_UI` per il rollout graduale.
+  </Accordion>
+
+  <Accordion title="Luca (MARKETING) — lancio campagna Black Friday">
+    - Duplica una campagna esistente da BO-05.
+    - Modifica condizioni, effetti (`MULTIPLIER factor=3`), audience (tier SILVER+).
+    - Chiama `POST /v1/campaigns/simulate` da BO-05 per verificare l'esito su membri campione.
+    - Marca `requiresLegal=true` e invia in revisione.
+    - Prepara i contenuti popup in BO-19.
+  </Accordion>
+
+  <Accordion title="Elena (LEGAL) — approvazione istanti vincenti concorso Natale">
+    - Apre BO-14, entra nel concorso `IW-NATALE-2026`.
+    - Scarica il file firmato con gli istanti vincenti e lo archivia.
+    - Rivede le regole e le note montepremi.
+    - Preme _Approva_ con commento.
+    - Firma il verbale.
+  </Accordion>
+
+  <Accordion title="Paolo (CARE) — reclami del lunedì">
+    - Apre BO-13 e vede 12 richieste MANUAL in coda.
+    - Prende in carico `RED-2026-00473`, verifica indirizzo, imposta `tracking`, preme _Evadi_.
+    - Un membro chiama per punti non accreditati: apre BO-03, vede l'evaluation log, spiega che la campagna richiedeva `SILVER`. Fa una rettifica di cortesia da BO-03.
+    - Segnala a MARKETING un pattern ricorrente.
+  </Accordion>
+
+  <Accordion title="Sara (ANALYST) — report settimanale">
+    - Apre BO-01 e verifica i KPI del periodo.
+    - Esporta da BO-28 il ledger degli accrediti.
+    - Analizza in BO-26 le azioni non matchate.
+    - Prepara la presentazione con le tre campagne più performanti.
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+  La matrice permessi che segue elenca per ogni scope (`campaign.write`, `reward.approve`, ecc.) quali ruoli hanno diritto di scrittura o approvazione.
+</Note>
+
 ## Matrice permessi
 
 Tutte le personas leggono tutto (con una sola eccezione, gli istanti vincenti). La UI nasconde o disabilita le azioni; il backend rifiuta con `403` dove serve (`@RequiresRole`). Il backend rifiuta inoltre ogni scrittura di `ANALYST`.

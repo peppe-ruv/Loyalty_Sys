@@ -1,10 +1,54 @@
 ---
-title: "eventi-kafka"
+title: "Eventi e topic Kafka: contratti tra i servizi di Loyalty Hub"
 sidebarTitle: "Eventi Kafka"
 description: "Formato CloudEvents 1.0, cinque topic Kafka, estensioni lh*, chiavi di partizione e regole per idempotenza e correlazione."
 ---
 
 Il bus è il contratto pubblico tra i microservizi. Questa pagina definisce topic, envelope e regole di correlazione. Ciò che è scritto qui è vincolante per tutti i servizi.
+
+## I cinque topic in un colpo d'occhio
+
+Loyalty Hub separa gli eventi in cinque topic Kafka. Ognuno ha un ruolo preciso, un tipo di produttore e un tipo di consumatore. Conoscere "chi scrive dove" ti aiuta a leggere i log e a diagnosticare i blocchi.
+
+<CardGroup cols={2}>
+  <Card title="lh.actions.v1" icon="inbox">
+    **Azioni in ingresso.** Ogni azione ricevuta da ingestion (acquisto, login, aggiornamento profilo) atterra qui. Prodotto SOLO da ingestion-service. Consumato da campaign-service. Chiave: `memberId`.
+  </Card>
+
+  <Card title="lh.effects.v1" icon="bolt">
+    **Effetti decisi dalle campagne.** Ogni match del motore emette uno o più effetti. Prodotto SOLO da campaign-service. Consumato da wallet, contest, engagement (a seconda del tipo). Chiave: `memberId`.
+  </Card>
+
+  <Card title="lh.facts.v1" icon="clipboard-check">
+    **Fatti avvenuti nel sistema.** Cambiamenti irreversibili: punti accreditati, tier promosso, richiesta premio confermata, campagna pubblicata. Prodotto da wallet, reward, contest, member, campaign, engagement. Consumato praticamente da tutti per aggiornare snapshot locali. Chiave: `memberId` (o `entityId` per fatti non membro).
+  </Card>
+
+  <Card title="lh.audit.v1" icon="lock">
+    **Tracciato immutabile del backoffice.** Ogni scrittura dal BO (creazione campagna, evasione premio, aggiustamento wallet, transizione stato) produce un audit event. Prodotto da tutti i servizi. Consumato da insight-service per audit trail e reportistica. Chiave: `actorId`.
+  </Card>
+
+  <Card title="lh.dlq.v1" icon="triangle-exclamation">
+    **Dead letter queue.** Messaggi non processabili dopo i retry (payload rotto, business rule violata). Prodotto da qualsiasi consumer che rinuncia. Consumato da un'interfaccia in BO-24 per ispezione e riprocessamento manuale.
+  </Card>
+</CardGroup>
+
+### Un flusso concreto
+
+> Marta compra un caffè da 4 €. Il POS chiama ingestion.
+>
+> 1. `ingestion` pubblica su `lh.actions.v1` una `purchase.completed`.
+> 2. `campaign` la legge, valuta le regole LIVE, produce due effetti su `lh.effects.v1`: un `GRANT` PTS 4 e un `GRANT` STS 4.
+> 3. `wallet` legge gli effetti, aggiorna il saldo, pubblica su `lh.facts.v1` due `wallet.points.earned`.
+> 4. `campaign` legge il fatto e aggiorna il suo `campaign_totals.points_granted` (spiegabilità).
+> 5. Se il tier di Marta cambia, `wallet` pubblica anche `tier.changed`; `engagement` invia una notifica (che a sua volta produce un audit su `lh.audit.v1`).
+
+<Note>
+  Le chiavi (`memberId` di default) determinano l'ordine dentro una partizione. Kafka NON garantisce ordine tra partizioni diverse. Vedi [Eventi e topic](/specifiche/eventi-e-topic) per il contratto completo.
+</Note>
+
+<Tip>
+  Quando qualcosa non funziona, il percorso di indagine è sempre lo stesso: guarda l'action su `lh.actions.v1`, poi cerca il correlation ID nella evaluation log di campaign, poi controlla `lh.effects.v1`, poi `lh.facts.v1`. Se manca un effetto atteso, il problema è nel motore; se manca il fatto, è nel servizio consumatore.
+</Tip>
 
 ## I cinque topic
 

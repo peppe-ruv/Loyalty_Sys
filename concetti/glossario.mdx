@@ -1,0 +1,320 @@
+---
+title: "Glossario: tutti i termini di Loyalty Hub"
+sidebarTitle: "Glossario"
+description: "Definizioni brevi di ogni sigla, stato ed espressione tecnica ricorrente in Loyalty Hub: dai punti PTS ai topic Kafka."
+---
+
+Questa pagina raccoglie tutti i termini usati in Loyalty Hub, dal vocabolario di business alle sigle tecniche. Serve come riferimento rapido quando incontri un concetto nuovo nel backoffice, nel portale o nella documentazione tecnica.
+
+<Note>
+  Se trovi un termine che manca o vuoi una definizione piú chiara, segnalalo. Aggiorneremo la pagina.
+</Note>
+
+## Concetti di programma
+
+<AccordionGroup>
+  <Accordion title="A-E">
+    **Edizione**
+    :  Periodo di validitá del programma loyalty, di solito annuale. Ha stato `PLANNED`, `ACTIVE` o `CLOSED`. Alla chiusura scatta la discesa tier e il grace period per i redemption.
+
+    **Edition grace period**
+    :  Finestra dopo la chiusura di un'edizione in cui il membro puó ancora richiedere premi. Si configura con `redemptionGraceUntil`.
+  </Accordion>
+
+  <Accordion title="M-P">
+    **Membro**
+    :  Persona iscritta al programma loyalty. Ha un ID interno (`MBR-XXXXX`), un wallet, un tier e un profilo.
+
+    **Persona**
+    :  Utente del backoffice con un ruolo assegnato (`ADMIN`, `MARKETING`, `LEGAL`, `CARE`, `ANALYST`). In demo: marta.admin, luca.marketing, elena.legal, paolo.care, sara.analyst.
+
+    **Programma**
+    :  Configurazione complessiva di un tenant loyalty: edizioni, valute, tier, catalogo premi e regole di gioco.
+  </Accordion>
+
+  <Accordion title="S-T">
+    **Segmento**
+    :  Gruppo di membri definito da filtri (tier, etá, cittá, comportamento). Usato nelle audience delle campagne.
+
+    **Tenant**
+    :  Isolamento logico tra programmi diversi. Nel PoC il tenant é `aurora`.
+
+    **Tier**
+    :  Livello del membro (`BASE`, `SILVER`, `GOLD`, `PLATINUM`). Determinato dai punti status maturati nell'edizione corrente. Salita immediata, discesa solo a fine edizione. (vedi [Punti e tier](/concetti/punti-e-tier))
+  </Accordion>
+
+  <Accordion title="W">
+    **Wallet**
+    :  Conto punti del membro. Contiene due valute: `PTS` (spendibili) e `STS` (per il tier). (vedi [Punti e tier](/concetti/punti-e-tier))
+  </Accordion>
+</AccordionGroup>
+
+## Valute e punti
+
+<AccordionGroup>
+  <Accordion title="E-F">
+    **END_OF_EDITION_PLUS_GRACE**
+    :  Policy di scadenza punti in cui i lotti scadono alla fine dell'edizione piú il grace period. Tipica dei punti status.
+
+    **FIFO**
+    :  First in, first out. Regola di consumo dei lotti punti: si spendono prima i piú vecchi. Protegge il membro dalla scadenza imminente. (vedi [Punti e tier](/concetti/punti-e-tier))
+  </Accordion>
+
+  <Accordion title="L-M">
+    **Lotto (points lot)**
+    :  Blocco di punti accreditati in una sola volta, con data di maturazione, disponibilitá e scadenza. Stati: `PENDING`, `ACTIVE`, `EXHAUSTED`, `EXPIRED`.
+
+    **Moltiplicatore tier**
+    :  Fattore che amplifica i punti premio in base al tier (per esempio Gold 1,5×). Wallet lo applica dopo che il motore ha calcolato l'importo base.
+  </Accordion>
+
+  <Accordion title="N-R">
+    **NEVER**
+    :  Policy di scadenza che non fa mai scadere i punti. Tipica dei punti status (`STS`).
+
+    **Passivitá (liability)**
+    :  Valore contabile dei punti emessi ma non ancora spesi dal membro. Tracciata nel ledger per reporting finanziario.
+
+    **ROLLING_MONTHS**
+    :  Policy di scadenza in cui i punti scadono dopo N mesi dalla data di maturazione. Tipica dei punti premio (`PTS`).
+  </Accordion>
+
+  <Accordion title="S">
+    **STS (status points)**
+    :  Punti status. Non spendibili, determinano il tier. Policy di scadenza `NEVER` o `END_OF_EDITION_PLUS_GRACE`.
+  </Accordion>
+
+  <Accordion title="P">
+    **PTS (points)**
+    :  Punti premio. Spendibili per richiedere premi e coupon. Policy di scadenza `ROLLING_MONTHS`.
+  </Accordion>
+</AccordionGroup>
+
+## Motore regole
+
+<AccordionGroup>
+  <Accordion title="A-C">
+    **Azione**
+    :  Evento che arriva da una fonte esterna (per esempio `purchase.completed`). Entra nel motore come CloudEvent su `lh.actions.v1`.
+
+    **Campagna**
+    :  Regola che collega trigger, audience, condizioni, effetti e limiti. Stati: `DRAFT`, `IN_REVIEW`, `APPROVED`, `SCHEDULED`, `LIVE`, `PAUSED`, `ENDED`, `ARCHIVED`.
+
+    **Condition**
+    :  Vincolo aggiuntivo su una campagna (per esempio "solo se importo > 50 EUR").
+
+    **Consumer group**
+    :  Gruppo di istanze Kafka che si dividono le partizioni di un topic. Ogni servizio Loyalty Hub ha il proprio gruppo `lh-<servizio>`.
+  </Accordion>
+
+  <Accordion title="E-L">
+    **Effetto**
+    :  Esito deciso dal motore campagne. Tipi: `GRANT`, `MULTIPLIER`, `GRANT_PLAYS`, `SEND_MESSAGE`, `GRANT_BADGE`.
+
+    **Evaluation log**
+    :  Traccia di ogni valutazione campagna per un membro e un'azione. Utile per il debug: perché una campagna ha scattato o no.
+
+    **Exclusive group**
+    :  Gruppo di campagne di cui puó attivarsi al massimo una per azione. Previene la sovrapposizione.
+
+    **Limit**
+    :  Vincolo di frequenza su una campagna (per esempio "max 1 volta al giorno per membro").
+  </Accordion>
+
+  <Accordion title="P-T">
+    **Priority**
+    :  Ordine di valutazione delle campagne. Se una campagna in un exclusive group scatta, le altre dello stesso gruppo vengono saltate.
+
+    **Simulazione**
+    :  Funzione del backoffice per vedere quali campagne scatterebbero per un membro e un'azione, senza applicare effetti reali.
+
+    **Snapshot membro**
+    :  Stato del membro al momento della valutazione (saldo, tier, segmenti). Il motore lo usa per decidere in modo consistente.
+
+    **Trigger**
+    :  Tipo di azione che fa partire la valutazione di una campagna (per esempio `purchase.completed`).
+  </Accordion>
+</AccordionGroup>
+
+## Premi e gioco
+
+<AccordionGroup>
+  <Accordion title="A-C">
+    **Achievement**
+    :  Obiettivo cumulativo (per esempio "5 acquisti in un mese"). Al completamento emette il fatto `achievement.completed`.
+
+    **Badge**
+    :  Riconoscimento visibile nel portale. Consegnato al completamento di un achievement. Puó essere trigger di altre campagne.
+
+    **Concorso instant win**
+    :  Gioco con esito prefissato. Istanti vincenti pre-generati alla creazione. Se la giocata cade in un istante vincente, scatta `contest.won`.
+
+    **Coupon pool**
+    :  Bacino di codici pre-caricati nel backoffice. I coupon passano da `AVAILABLE` a `ASSIGNED` quando consegnati, poi `REDEEMED` o `EXPIRED`.
+  </Accordion>
+
+  <Accordion title="F-G">
+    **Fascia (band)**
+    :  Raggruppamento di premi nel catalogo per costo in punti (per esempio 500 pts, 1000 pts).
+
+    **Fulfilment**
+    :  Modo in cui un premio viene consegnato. Tipi: `AUTO_COUPON` (coupon automatico), `INSTANT` (digitale immediato), `MANUAL` (gestito dal ruolo CARE in BO-13).
+
+    **Giocata (play)**
+    :  Tentativo di gioco in un instant win. Consuma una giocata accumulata. Il risultato dipende dagli istanti vincenti pre-generati.
+  </Accordion>
+
+  <Accordion title="I-L">
+    **Istante vincente**
+    :  Timestamp pre-calcolato in cui una giocata sará vincente. Il calendario degli istanti é visibile al ruolo LEGAL in BO-14.
+
+    **Leaderboard**
+    :  Classifica periodica su metriche configurabili. Non é un premio di per sé: premi i primi N con una campagna dedicata.
+  </Accordion>
+
+  <Accordion title="M-R">
+    **Meccanica (WHEEL/SCRATCH/BOX)**
+    :  Metafora visiva dell'instant win nel portale. WHEEL = ruota, SCRATCH = gratta e vinci, BOX = pacco regalo. Non influenza la logica di vincita. (vedi [Premi e gioco](/concetti/premi-e-gioco))
+
+    **Redemption (richiesta premio)**
+    :  Richiesta di un membro di ottenere un premio spendendo punti. Stati: `PENDING` → `CONFIRMED` → `FULFILLED` (o `FAILED`, `EXPIRED`).
+  </Accordion>
+</AccordionGroup>
+
+## Eventi e messaggistica
+
+<AccordionGroup>
+  <Accordion title="C-I">
+    **CloudEvent**
+    :  Formato standard per descrivere eventi. Loyalty Hub usa la versione 1.0 con estensioni `lh*`. (vedi [Eventi Kafka](/concetti/eventi-kafka))
+
+    **Correlation ID**
+    :  Identificatore `lhcorrelationid` che collega tutti gli eventi di una stessa catena end-to-end. Usato da insight-service per il tracciamento completo.
+
+    **DLQ (dead letter queue)**
+    :  Topic `lh.dlq.v1` dove finiscono i messaggi non processabili (errore, loop, formato invalido).
+
+    **Extension `lh*`**
+    :  Attributi aggiuntivi ai CloudEvent: `lhtenant`, `lhcorrelationid`, `lhcausationid`, `lhhop`, `lhactor`.
+
+    **Idempotenza**
+    :  Proprietá per cui ripetere la stessa azione non cambia il risultato. Ogni consumer verifica `processed_event(event_id, service)` prima di scrivere.
+
+    **Inbox pattern**
+    :  Pattern in cui i messaggi in arrivo vengono prima scritti in una tabella locale, poi processati in modo transazionale.
+  </Accordion>
+
+  <Accordion title="O-S">
+    **Outbox**
+    :  Pattern per pubblicare eventi Kafka in modo transazionale con la scrittura sul database. Garantisce che ogni modifica emetta l'evento corrispondente.
+
+    **Partizione**
+    :  Sottoinsieme ordinato di un topic Kafka. I topic di Loyalty Hub hanno 2 partizioni. La chiave di partizione é `memberId` per actions/effects.
+
+    **Saga**
+    :  Transazione distribuita a passi compensabili. Loyalty Hub usa saghe coreografate su Kafka (per esempio per le richieste premio). (vedi [Premi e gioco](/concetti/premi-e-gioco))
+
+    **Tombstone**
+    :  Messaggio Kafka con `data = null` usato per cancellare logicamente una proiezione o un record.
+
+    **Topic**
+    :  Canale Kafka dedicato a un tipo di evento. Loyalty Hub ne usa cinque: `lh.actions.v1`, `lh.effects.v1`, `lh.facts.v1`, `lh.audit.v1`, `lh.dlq.v1`. (vedi [Eventi Kafka](/concetti/eventi-kafka))
+  </Accordion>
+</AccordionGroup>
+
+## Backoffice e portale
+
+<AccordionGroup>
+  <Accordion title="A-B">
+    **ADR (Architecture Decision Record)**
+    :  Documento che registra una decisione architetturale importante e il suo contesto. Consultabile nel repository sotto `docs/adr/`.
+
+    **Approval workflow**
+    :  Flusso di approvazione per le campagne. Cambia stato con `POST .../transitions {action, comment}`. Ruoli coinvolti: MARKETING (proposta), LEGAL (revisione), ADMIN (approvazione).
+
+    **BO (backoffice)**
+    :  Interfaccia amministrativa di Loyalty Hub. Usata dai ruoli interni per gestire programmi, campagne, premi e membri.
+
+    **BO-XX**
+    :  Numerazione delle schermate del backoffice (per esempio BO-13 = Consegne, BO-14 = Concorsi).
+  </Accordion>
+
+  <Accordion title="F-L">
+    **Feature flag**
+    :  Interruttore che abilita o disabilita una funzionalitá senza rilasciare codice. Usato per rollout graduali e test A/B.
+
+    **LifecycleBar**
+    :  Componente UI del backoffice che mostra lo stato corrente di un'entitá e le transizioni possibili.
+
+    **PT (portale)**
+    :  Interfaccia per i membri. Qui il membro vede saldo, catalogo premi, giochi, badge e movimenti.
+
+    **PT-XX**
+    :  Numerazione delle schermate del portale (per esempio PT-06 = Concorsi).
+  </Accordion>
+
+  <Accordion title="Q-R">
+    **Quiet hours**
+    :  Fasce orarie in cui il sistema non invia messaggi al membro (push, email, SMS). Configurabili per canale e per tenant.
+
+    **ReaderPanel**
+    :  Componente UI del backoffice che mostra i dettagli di un'entitá in sola lettura (per esempio il profilo di un membro).
+
+    **Ruoli (ADMIN, MARKETING, LEGAL, CARE, ANALYST)**
+    :  Personas del backoffice. ADMIN gestisce tutto, MARKETING crea campagne, LEGAL revisiona, CARE assiste i membri, ANALYST consulta i dati.
+  </Accordion>
+</AccordionGroup>
+
+## Infrastruttura e osservabilitá
+
+<AccordionGroup>
+  <Accordion title="A-H">
+    **Audit trail**
+    :  Traccia immutabile di ogni modifica da backoffice. Pubblicata su `lh.audit.v1` e consumata da insight-service per i report.
+
+    **Health check**
+    :  Endpoint che verifica lo stato di un servizio. Restituisce UP o DOWN con dettagli sulle dipendenze (database, Kafka).
+
+    **Kafka**
+    :  Piattaforma di streaming usata come bus di eventi tra i microservizi. Piano gratuito Aiven con 5 topic e 2 partizioni ciascuno.
+  </Accordion>
+
+  <Accordion title="L-M">
+    **Log strutturato**
+    :  Log in formato JSON con campi standard (timestamp, livello, servizio, trace_id). Facili da interrogare in strumenti di observability.
+
+    **Metric**
+    :  Misura quantitativa del sistema (per esempio messaggi processati al secondo, latenza, errori). Esportata per il monitoring.
+  </Accordion>
+
+  <Accordion title="P-T">
+    **Postgres**
+    :  Database relazionale usato come sistema di record. Versione 16. Ogni servizio ha il proprio schema.
+
+    **Redis**
+    :  Store in-memory usato per cache e rate limiting dove necessario.
+
+    **Trace**
+    :  Tracciamento distribuito di una richiesta attraverso piú servizi. Si propaga con il correlation ID.
+  </Accordion>
+</AccordionGroup>
+
+## Prossimi passi
+
+<CardGroup cols={2}>
+  <Card title="Panoramica" icon="layer-group" href="/concetti/panoramica">
+    Il modello mentale completo: come si compongono azioni, campagne, effetti e fatti.
+  </Card>
+
+  <Card title="Punti e tier" icon="coins" href="/concetti/punti-e-tier">
+    Doppia valuta, lotti FIFO, tier annuali e moltiplicatori.
+  </Card>
+
+  <Card title="Eventi Kafka" icon="bolt" href="/concetti/eventi-kafka">
+    Topic, CloudEvents, idempotenza e regole di correlazione.
+  </Card>
+
+  <Card title="Premi e gioco" icon="gift" href="/concetti/premi-e-gioco">
+    Catalogo, instant win, badge e classifiche.
+  </Card>
+</CardGroup>

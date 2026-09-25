@@ -1,5 +1,5 @@
 ---
-title: "azioni-e-campagne"
+title: "Azioni e campagne: come una fonte diventa punti"
 sidebarTitle: "Azioni e campagne"
 description: "Comprendi il modello di azioni, fonti e campagne di Loyalty Hub. Trigger, pubblico, condizioni, effetti e limiti spiegati con esempi."
 ---
@@ -85,6 +85,50 @@ Per ogni campagna puoi:
 Questa spiegabilità risponde alla domanda classica: "Perché quel membro non ha preso i punti?".
 
 > **Nota:** Le campagne di sistema (seed) non sono eliminabili. Servono a rendere consistenti gli automatismi di piattaforma (per esempio la consegna dei premi in punti degli instant win).
+
+## Tipi di effetto
+
+Quando una campagna fa match, produce uno o più **effetti**. Ogni effetto è consumato dal servizio giusto (wallet, contest, engagement) che lo applica. Il motore campagne NON applica gli effetti, li dichiara.
+
+<CardGroup cols={2}>
+  <Card title="GRANT" icon="coins">
+    Accredita punti PTS o STS al wallet. È l'effetto più comune. Parametri: `currency` (PTS/STS), `amount` fisso o `formula` (per esempio `data.amount * 1`), `tierMultiplierApplies` (bool). Consumato da wallet-service.
+  </Card>
+
+  <Card title="MULTIPLIER" icon="xmark">
+    Moltiplica gli accrediti PTS di ALTRE campagne che matchano sulla stessa azione. Parametro: `factor` (fra 1.1 e 5.0). Un `factor` di 2.0 su una campagna con `priority` 100 raddoppia i GRANT delle campagne con `priority` inferiore. Consumato dallo stesso motore in fase di risoluzione. Esempio: "Weekend punti doppi".
+  </Card>
+
+  <Card title="GRANT_PLAYS" icon="dice">
+    Dà giocate per un concorso instant win. Parametri: `contestCode`, `count`. Consumato da contest-service. Esempio: "Fai un acquisto sopra 50 € e ricevi 1 giocata alla ruota".
+  </Card>
+
+  <Card title="SEND_MESSAGE" icon="envelope">
+    Invia un messaggio al membro attraverso engagement-service (email, push, inbox). Parametri: `templateCode`, `channel` (EMAIL/PUSH/INBOX), variabili facoltative. Rispetta le quiet hours del membro.
+  </Card>
+
+  <Card title="GRANT_BADGE" icon="medal">
+    Assegna un badge di gamification. Parametri: `badgeCode`. Consumato da contest-service. Il badge assegnato può a sua volta essere trigger di altre campagne.
+  </Card>
+</CardGroup>
+
+### Come interagiscono
+
+Gli effetti di una singola azione vengono applicati in questo ordine:
+
+| Passo | Effetti valutati | Cosa succede |
+| --- | --- | --- |
+| 1 | Tutti i MULTIPLIER | Il motore calcola il moltiplicatore risultante. Se più campagne producono MULTIPLIER, si moltiplicano fra loro (default) o vince la priorità più alta (configurabile). |
+| 2 | Tutti i GRANT PTS | Applica il moltiplicatore risultante; se `tierMultiplierApplies` è vero, applica anche il moltiplicatore di tier del membro. |
+| 3 | Tutti gli altri effetti | GRANT_PLAYS, SEND_MESSAGE, GRANT_BADGE, GRANT STS: nessun moltiplicatore, applicati come dichiarati. |
+
+<Note>
+  I MULTIPLIER si applicano solo ai GRANT di valuta PTS. Gli STS non sono moltiplicati, perché rappresentano una misura oggettiva ai fini del tier.
+</Note>
+
+<Warning>
+  Se una campagna dichiara sia un MULTIPLIER sia un GRANT, il moltiplicatore agisce sui GRANT delle ALTRE campagne, non sul proprio. Metti MULTIPLIER e GRANT in campagne separate se il risultato atteso è amplificare anche i punti della stessa campagna.
+</Warning>
 
 ## Prossimo passo
 
