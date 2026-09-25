@@ -1,0 +1,15 @@
+id,descrizione,lhactor,action,expRuolo,expNome,expAction
+TB-INS-AIN-001,voce di audit con action CREATE: registrata e filtrabile per azione,ADMIN:marta.admin,CREATE,ADMIN,marta.admin,CREATE
+TB-INS-AIN-002,voce di audit con action UPDATE: registrata e filtrabile per azione,ADMIN:marta.admin,UPDATE,ADMIN,marta.admin,UPDATE
+TB-INS-AIN-003,voce di audit con action DELETE: registrata e filtrabile per azione,ADMIN:marta.admin,DELETE,ADMIN,marta.admin,DELETE
+TB-INS-AIN-004,voce di audit con action TRANSITION: registrata e filtrabile per azione,ADMIN:marta.admin,TRANSITION,ADMIN,marta.admin,TRANSITION
+TB-INS-AIN-005,voce di audit con action ADJUST: registrata e filtrabile per azione,ADMIN:marta.admin,ADJUST,ADMIN,marta.admin,ADJUST
+TB-INS-AIN-006,voce di audit con action JOB: registrata e filtrabile per azione,ADMIN:marta.admin,JOB,ADMIN,marta.admin,JOB
+TB-INS-AIN-007,voce di audit con action RESET: registrata e filtrabile per azione,ADMIN:marta.admin,RESET,ADMIN,marta.admin,RESET
+TB-INS-AIN-008,action fuori elenco PURGE (AMBIGUO): registrata cosi com'e,ADMIN:marta.admin,PURGE,ADMIN,marta.admin,PURGE
+TB-INS-AIN-009,attore MARKETING:luca.marketing: ruolo MARKETING e nome luca.marketing,MARKETING:luca.marketing,UPDATE,MARKETING,luca.marketing,UPDATE
+TB-INS-AIN-010,attore system dei job (AMBIGUO): ruolo system senza nome,system,JOB,system,-,JOB
+TB-INS-AIN-011,attore member:MBR-000003 dal portale: ruolo member e nome MBR-000003,member:MBR-000003,UPDATE,member,MBR-000003,UPDATE
+TB-INS-AIN-012,lhactor assente (AMBIGUO: obbligatorio per l'audit): voce registrata senza attore,-,UPDATE,-,-,UPDATE
+TB-INS-AIN-013,attore ADMIN: senza nome: ruolo ADMIN e nome assente,ADMIN:,UPDATE,ADMIN,-,UPDATE
+TB-INS-AIN-014,attore :anonimo senza ruolo (AMBIGUO): ruolo = valore intero e nome anonimo,:anonimo,UPDATE,:anonimo,anonimo,UPDATE
