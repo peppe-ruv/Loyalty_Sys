@@ -61,7 +61,7 @@ class WalletRedemptionIT {
     }
 
     @Test
-    void spendConsumesLotsByExpiryAndRefundRestoresThem() throws Exception {
+    void spendConsumesLotsByExpiryAndRefundCreatesANewLot() throws Exception {
         // Lotti [500 scad. ott, 800 scad. dic, 900 scad. mar] (wallet-service.md §7), pubblicati in ordine inverso:
         // il FIFO è per scadenza, non per ordine di arrivo.
         String m = "MBR-IT-FIFO";
@@ -88,11 +88,17 @@ class WalletRedemptionIT {
         }
         assertThat(balance(m)).isEqualTo(700);
 
-        // Annullo con rimborso: i punti tornano nei lotti d'origine.
+        // Annullo con rimborso (docs/03 §4.2): un lotto NUOVO da 1 500 con scadenza max(scadenza più lontana dei lotti
+        // consumati = quella del lotto di marzo, oggi + 30 gg); i lotti d'origine restano consumati.
+        String marchExpiry = lotExpiry(m, 900);
         publishCancelled(m, "RDM-IT-FIFO", 1500, true);
         JsonNode refunded = awaitFact("io.loyaltyhub.fact.wallet.points.refunded", d -> d.path("redemptionId").asString().equals("RDM-IT-FIFO"));
         assertThat(refunded.path("data").path("balanceAfter").asLong()).isEqualTo(2200);
-        assertThat(remainingByAmount(m)).containsEntry(500L, 500L).containsEntry(800L, 800L).containsEntry(900L, 900L);
+        assertThat(remainingByAmount(m)).containsEntry(500L, 0L).containsEntry(800L, 0L).containsEntry(900L, 700L)
+                .containsEntry(1500L, 1500L);
+        assertThat(java.time.Instant.parse(marchExpiry)).as("scadenza del lotto di marzo oltre oggi + 30 gg")
+                .isAfter(java.time.Instant.now().plus(Duration.ofDays(30)));
+        assertThat(lotExpiry(m, 1500)).isEqualTo(marchExpiry);
 
         publishCancelled(m, "RDM-IT-FIFO", 1500, true);
         deadline = System.currentTimeMillis() + 1500;
@@ -132,6 +138,15 @@ class WalletRedemptionIT {
     }
 
     // ---------- helper ----------
+
+    private String lotExpiry(String memberId, long amount) {
+        for (JsonNode l : client().get().uri("/v1/wallets/" + memberId + "/lots").retrieve().body(JsonNode.class)) {
+            if (l.path("amount").asLong() == amount) {
+                return l.path("expiresAt").asString();
+            }
+        }
+        throw new AssertionError("lotto da " + amount + " non trovato per " + memberId);
+    }
 
     private Map<Long, Long> remainingByAmount(String memberId) {
         Map<Long, Long> out = new HashMap<>();

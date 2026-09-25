@@ -129,10 +129,31 @@ class MemberServiceIT {
         }
     }
 
+    /** member.write (docs/08 §2) = ADMIN, CARE: la PATCH di gestione rifiuta gli altri ruoli; quella del portale resta aperta. */
+    @Test
+    void managementPatchRequiresMemberWriteRole() {
+        String city = get("/v1/members/MBR-000004").path("city").asString();
+        Map<String, Object> req = Map.of("city", "Aosta");
+        int anonymous = client().patch().uri("/v1/members/MBR-000004").contentType(MediaType.APPLICATION_JSON).body(req)
+                .exchange((rq, res) -> res.getStatusCode().value());
+        assertThat(anonymous).isEqualTo(403);
+        assertThat(send("PATCH", "/v1/members/MBR-000004", "ANALYST:sara.analyst", req, 403).path("code").asString())
+                .isEqualTo("FORBIDDEN_ROLE");
+        send("PATCH", "/v1/members/MBR-000004", "MARKETING:luca.marketing", req, 403);
+        send("PATCH", "/v1/members/MBR-000004", "LEGAL:elena.legal", req, 403);
+        assertThat(get("/v1/members/MBR-000004").path("city").asString()).isEqualTo(city);
+        // Il profilo dal portale non passa di qui (PortalMembersController): nessun attore di backoffice richiesto
+        // (stesso valore: nessuna modifica visibile agli altri test).
+        int portal = client().patch().uri("/v1/portal/members/MBR-000004").contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("city", city)).exchange((rq, res) -> res.getStatusCode().value());
+        assertThat(portal).isEqualTo(200);
+    }
+
     @Test
     void versionConflictIsRejected() {
         try {
-            client().patch().uri("/v1/members/MBR-000003").contentType(MediaType.APPLICATION_JSON)
+            client().patch().uri("/v1/members/MBR-000003").header("X-LH-Actor", "ADMIN:marta.admin")
+                    .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of("version", 99, "city", "Roma")).retrieve().toEntity(JsonNode.class);
             fail("atteso 409");
         } catch (RestClientResponseException e) {
@@ -272,7 +293,7 @@ class MemberServiceIT {
     }
 
     private JsonNode patch(String path, Object body) {
-        return client().patch().uri(path).contentType(MediaType.APPLICATION_JSON)
+        return client().patch().uri(path).header("X-LH-Actor", "CARE:paolo.care").contentType(MediaType.APPLICATION_JSON)
                 .body(body).retrieve().body(JsonNode.class);
     }
 

@@ -49,7 +49,9 @@ public class CampaignsController {
         return service.stats(id);
     }
 
+    /** Creazione (F-CMP-01): capacità {@code object.edit} di docs/08 §2 → ADMIN e MARKETING. */
     @PostMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING})
     public ResponseEntity<Campaign> create(@RequestBody CreateCampaignRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(request));
     }
