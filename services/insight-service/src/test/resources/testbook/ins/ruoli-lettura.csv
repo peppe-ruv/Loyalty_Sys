@@ -1,0 +1,43 @@
+id,descrizione,percorso,ruolo,expHttp
+TB-INS-ROL-001,lettura eventi come ADMIN: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/events?memberId=MBR-000001,ADMIN,200
+TB-INS-ROL-002,lettura eventi come MARKETING: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/events?memberId=MBR-000001,MARKETING,200
+TB-INS-ROL-003,lettura eventi come LEGAL: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/events?memberId=MBR-000001,LEGAL,200
+TB-INS-ROL-004,lettura eventi come CARE: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/events?memberId=MBR-000001,CARE,200
+TB-INS-ROL-005,lettura eventi come ANALYST: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/events?memberId=MBR-000001,ANALYST,200
+TB-INS-ROL-006,lettura eventi come NONE: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/events?memberId=MBR-000001,NONE,200
+TB-INS-ROL-007,lettura eventi come INVALID: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/events?memberId=MBR-000001,INVALID,200
+TB-INS-ROL-008,lettura tracciati come ADMIN: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/traces?limit=1,ADMIN,200
+TB-INS-ROL-009,lettura tracciati come MARKETING: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/traces?limit=1,MARKETING,200
+TB-INS-ROL-010,lettura tracciati come LEGAL: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/traces?limit=1,LEGAL,200
+TB-INS-ROL-011,lettura tracciati come CARE: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/traces?limit=1,CARE,200
+TB-INS-ROL-012,lettura tracciati come ANALYST: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/traces?limit=1,ANALYST,200
+TB-INS-ROL-013,lettura tracciati come NONE: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/traces?limit=1,NONE,200
+TB-INS-ROL-014,lettura tracciati come INVALID: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/traces?limit=1,INVALID,200
+TB-INS-ROL-015,lettura audit come ADMIN: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/audit?entityId=CMP-X,ADMIN,200
+TB-INS-ROL-016,lettura audit come MARKETING: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/audit?entityId=CMP-X,MARKETING,200
+TB-INS-ROL-017,lettura audit come LEGAL: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/audit?entityId=CMP-X,LEGAL,200
+TB-INS-ROL-018,lettura audit come CARE: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/audit?entityId=CMP-X,CARE,200
+TB-INS-ROL-019,lettura audit come ANALYST: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/audit?entityId=CMP-X,ANALYST,200
+TB-INS-ROL-020,lettura audit come NONE: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/audit?entityId=CMP-X,NONE,200
+TB-INS-ROL-021,lettura audit come INVALID: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/audit?entityId=CMP-X,INVALID,200
+TB-INS-ROL-022,lettura DLQ come ADMIN: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/dlq?size=1,ADMIN,200
+TB-INS-ROL-023,lettura DLQ come MARKETING: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/dlq?size=1,MARKETING,200
+TB-INS-ROL-024,lettura DLQ come LEGAL: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/dlq?size=1,LEGAL,200
+TB-INS-ROL-025,lettura DLQ come CARE: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/dlq?size=1,CARE,200
+TB-INS-ROL-026,lettura DLQ come ANALYST: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/dlq?size=1,ANALYST,200
+TB-INS-ROL-027,lettura DLQ come NONE: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/dlq?size=1,NONE,200
+TB-INS-ROL-028,lettura DLQ come INVALID: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/dlq?size=1,INVALID,200
+TB-INS-ROL-029,lettura KPI come ADMIN: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/kpi/overview?days=7,ADMIN,200
+TB-INS-ROL-030,lettura KPI come MARKETING: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/kpi/overview?days=7,MARKETING,200
+TB-INS-ROL-031,lettura KPI come LEGAL: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/kpi/overview?days=7,LEGAL,200
+TB-INS-ROL-032,lettura KPI come CARE: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/kpi/overview?days=7,CARE,200
+TB-INS-ROL-033,lettura KPI come ANALYST: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/kpi/overview?days=7,ANALYST,200
+TB-INS-ROL-034,lettura KPI come NONE: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/kpi/overview?days=7,NONE,200
+TB-INS-ROL-035,lettura KPI come INVALID: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/kpi/overview?days=7,INVALID,200
+TB-INS-ROL-036,lettura stato pipeline come ADMIN: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/pipeline/status,ADMIN,200
+TB-INS-ROL-037,lettura stato pipeline come MARKETING: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/pipeline/status,MARKETING,200
+TB-INS-ROL-038,lettura stato pipeline come LEGAL: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/pipeline/status,LEGAL,200
+TB-INS-ROL-039,lettura stato pipeline come CARE: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/pipeline/status,CARE,200
+TB-INS-ROL-040,lettura stato pipeline come ANALYST: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/pipeline/status,ANALYST,200
+TB-INS-ROL-041,lettura stato pipeline come NONE: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/pipeline/status,NONE,200
+TB-INS-ROL-042,lettura stato pipeline come INVALID: 200 (docs/08 §2 tutte le personas leggono tutto),/v1/pipeline/status,INVALID,200

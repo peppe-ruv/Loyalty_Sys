@@ -1,0 +1,16 @@
+id,descrizione,query,expHttp,expIndici
+TB-INS-EVT-001,solo memberId: i 4 eventi del membro dal piu recente,,200,3 2 1 0
+TB-INS-EVT-002,topic lh.facts.v1,&topic=lh.facts.v1,200,3 2
+TB-INS-EVT-003,family=action minuscolo: le azioni,&family=action,200,0
+TB-INS-EVT-004,family=FACT,&family=FACT,200,3 2
+TB-INS-EVT-005,family=DLQ: nessun evento (i record DLQ vivono in dlq_entry per Q-111),&family=DLQ,200,
+TB-INS-EVT-006,type breve wallet.points.earned,&type=wallet.points.earned,200,2
+TB-INS-EVT-007,type completo io.loyaltyhub.fact.wallet.points.earned (AMBIGUO): nessun evento,&type=io.loyaltyhub.fact.wallet.points.earned,200,
+TB-INS-EVT-008,correlationId del tracciato,&correlationId={cor},200,2 1 0
+TB-INS-EVT-009,source urn:loyaltyhub:service:wallet,&source=urn:loyaltyhub:service:wallet,200,3 2
+TB-INS-EVT-010,from uguale all'arrivo del secondo evento: incluso,&from={t1},200,3 2 1
+TB-INS-EVT-011,to uguale all'arrivo del secondo evento: incluso,&to={t1},200,1 0
+TB-INS-EVT-012,q testo del payload in minuscolo: trovato senza distinzione di maiuscole,&q={ordlow},200,0
+TB-INS-EVT-013,q assente dai payload: nessun evento,&q=nessuna-corrispondenza,200,
+TB-INS-EVT-014,from non ISO-8601: 400,&from=ieri,400,
+TB-INS-EVT-015,page=0&size=2 (docs/06 §2): due eventi e page con totalItems 4,&page=0&size=2,200,3 2

@@ -1,0 +1,16 @@
+id,descrizione,azione,ruolo,expHttp,expCode,expStato,chiamateIngestion
+TB-INS-DRL-001,riprocessa un'azione aperta come ADMIN: 200,reprocess,ADMIN,200,-,REPROCESSED,1
+TB-INS-DRL-002,riprocessa un'azione aperta come MARKETING: 403 e voce invariata senza re-invio,reprocess,MARKETING,403,FORBIDDEN_ROLE,OPEN,0
+TB-INS-DRL-003,riprocessa un'azione aperta come LEGAL: 403 e voce invariata senza re-invio,reprocess,LEGAL,403,FORBIDDEN_ROLE,OPEN,0
+TB-INS-DRL-004,riprocessa un'azione aperta come CARE: 403 e voce invariata senza re-invio,reprocess,CARE,403,FORBIDDEN_ROLE,OPEN,0
+TB-INS-DRL-005,riprocessa un'azione aperta come ANALYST: 403 e voce invariata senza re-invio,reprocess,ANALYST,403,FORBIDDEN_ROLE,OPEN,0
+TB-INS-DRL-006,riprocessa un'azione aperta come senza X-LH-Actor: 403 e voce invariata senza re-invio,reprocess,NONE,403,FORBIDDEN_ROLE,OPEN,0
+TB-INS-DRL-007,riprocessa un'azione aperta come GUEST:ospite (ruolo sconosciuto = ANALYST per Q-261): 403 e voce invariata senza re-invio,reprocess,INVALID,403,FORBIDDEN_ROLE,OPEN,0
+TB-INS-DRL-008,scarta un'azione aperta come ADMIN: 200,discard,ADMIN,200,-,DISCARDED,0
+TB-INS-DRL-009,scarta un'azione aperta come MARKETING: 403 e voce invariata senza re-invio,discard,MARKETING,403,FORBIDDEN_ROLE,OPEN,0
+TB-INS-DRL-010,scarta un'azione aperta come LEGAL: 403 e voce invariata senza re-invio,discard,LEGAL,403,FORBIDDEN_ROLE,OPEN,0
+TB-INS-DRL-011,scarta un'azione aperta come CARE: 403 e voce invariata senza re-invio,discard,CARE,403,FORBIDDEN_ROLE,OPEN,0
+TB-INS-DRL-012,scarta un'azione aperta come ANALYST: 403 e voce invariata senza re-invio,discard,ANALYST,403,FORBIDDEN_ROLE,OPEN,0
+TB-INS-DRL-013,scarta un'azione aperta come senza X-LH-Actor: 403 e voce invariata senza re-invio,discard,NONE,403,FORBIDDEN_ROLE,OPEN,0
+TB-INS-DRL-014,scarta un'azione aperta come GUEST:ospite (ruolo sconosciuto = ANALYST per Q-261): 403 e voce invariata senza re-invio,discard,INVALID,403,FORBIDDEN_ROLE,OPEN,0
+TB-INS-DRL-015,scarta come admin minuscolo (AMBIGUO: ruolo letto senza maiuscole): 200,discard,LOWER,200,-,DISCARDED,0
