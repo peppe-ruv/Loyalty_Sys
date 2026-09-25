@@ -1,5 +1,6 @@
 package io.loyaltyhub.engagement.api;
 
+import io.loyaltyhub.common.approval.ApprovalHistory;
 import io.loyaltyhub.common.web.RequiresRole;
 import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.engagement.application.ContentService;
@@ -75,6 +76,13 @@ public class ContentsController {
     @RequiresRole({Role.ADMIN, Role.MARKETING})
     public ContentItem transition(@PathVariable String id, @RequestBody TransitionRequest r) {
         return service.transition(id, r == null ? null : r.action());
+    }
+
+    /** Storico delle transizioni (docs/03 §3.6, docs/06 §7), come campagne, premi e concorsi. */
+    @GetMapping("/{id}/approval-history")
+    @Transactional(readOnly = true)
+    public List<ApprovalHistory> approvalHistory(@PathVariable String id) {
+        return service.history(id);
     }
 
     @PostMapping("/{id}/duplicate")

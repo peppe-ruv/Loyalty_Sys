@@ -118,13 +118,13 @@ Percorsi relativi a `libs/lh-common/src/main/java/io/loyaltyhub/common/` e `serv
 | B-36 | `domain/MemberAttributes.java:105-131` valore × tipo; STRING: non vuoto, ≤ 200, nelle opzioni | R-23; vuoto e 200 senza specifica | ATV |
 | B-37 | `domain/MemberAttributes.java:69-103` chiave non definita o interna → problema; `null` rimuove | R-23; `null` senza specifica | ATV-015/031/047/063, ATV-068…070 |
 | B-38 | `domain/MemberAttributes.java:151-180` definizioni: chiave, etichetta, tipo, opzioni, tetto 30 | R-24; formati e tetti senza specifica | ATD |
-| B-39 | `domain/MemberAttributes.java:165` tipo assente → `NullPointerException` (500) | R-24 — **divergenza** | ATD-023, ATU-011 |
+| B-39 | `domain/MemberAttributes.java:165-166` tipo assente: era `NullPointerException` (500), ora problema su `type` (422) | R-24 — divergenza risolta (D-02) | ATD-023, ATU-011 |
 | B-40 | `application/AttributeService.java:44-60` 422 `ATTRIBUTE_DEFINITION_INVALID`; chiave tolta o ritipizzata con valori → 409 | R-24, R-25 | ATU |
 | B-41 | `domain/SegmentCriteria.java:49-101` validazione di gruppi, campi, comparatori e valori | R-26…R-28 | CRV |
 | B-42 | `domain/SegmentCriteria.java:118-155` criteri vuoti ⇒ falso; `any`/`not`/`all` | R-26, R-28 (Q-87, Q-90) | CRT-109…118 |
 | B-43 | `domain/SegmentCriteria.java:159-199` risoluzione dei campi (età e giorni in Europe/Rome o a blocchi di 24 h) | R-27 | CRT-084…108 |
 | B-44 | `domain/SegmentCriteria.java:225-253` assente ⇒ falso (tranne `nexists`); liste elemento per elemento, `in/nin` sull'intersezione | R-26 | CRT-061…083 |
-| B-45 | `domain/SegmentCriteria.java:258, 264, 266, 268` `neq`/`nin`/`ncontains` veri e `startsWith` su `toString()` con tipi incompatibili | R-26 — **divergenza** | CRT-024, 028, 038, 042, 057…060 |
+| B-45 | `domain/SegmentCriteria.java` `scalar`/`comparable`: `neq`/`nin`/`ncontains` falsi e `startsWith` solo su testo con tipi incompatibili (erano veri, `toString()`) | R-26 — divergenza risolta (D-01) | CRT-024, 028, 038, 042, 057…060 |
 | B-46 | `infra/SegmentFactsRepository.java:69` esclusi gli `ANONYMIZED` | R-29 (Q-85) | SEG-026…029 |
 | B-47 | `application/SegmentService.java:112-132` creazione: codice, nome, tipo, criteri, duplicato | R-28, docs/06 §2 | SEG-005…014 |
 | B-48 | `application/SegmentService.java:152-177` modifica: versione, codice e tipo immutabili, stato | Q-88 | SEG-018, SEG-019, SEG-022, SEG-030 |
@@ -135,7 +135,7 @@ Percorsi relativi a `libs/lh-common/src/main/java/io/loyaltyhub/common/` e `serv
 | B-53 | `web/GlobalExceptionHandler.java` (lh-common) corpo assente o JSON illeggibile: era 500 (ramo generico), da `main` 6b1b964 400 `BAD_REQUEST` | docs/06 §2 (400) — divergenza risolta | MST-038 |
 | B-54 | `services/campaign-service/…/application/CampaignAdminService.java:319` `ACTIVATE` sinonimo di `PUBLISH` (solo campagne) | senza specifica | ENT-019, ENT-031, ENT-043 |
 | B-55 | `services/campaign-service/…/CampaignAdminService.java` regola della policy da `requiresLegal` e `limits.global.maxPoints` | R-11 | ENT-001…007, ENT-044 |
-| B-56 | `services/engagement-service/…/application/ContentService.java:245` transizioni dei contenuti senza `approval_history` | R-13 — **divergenza** | ENT-046 |
+| B-56 | `services/engagement-service/…/application/ContentService.java` `transition`/`endExpired`: ogni transizione di un contenuto scrive `approval_history` (`entity_type = CONTENT`) | R-13 — divergenza risolta (D-04) | ENT-046 |
 | B-57 | `libs/lh-common/…/approval/ApprovalItem.java:32-44` voce della coda; `requiredRole` nullo senza approvatore | R-14 | APQ |
 | B-58 | guardie `@RequiresRole` e controlli di ruolo nei servizi (elenco in docs/17 §5) | R-03 | MAT |
 | B-59 | `application/MemberService.java:331-343` codice vuoto ⇒ nessun legame; `trim` + maiuscole; inesistente o invitante non ACTIVE ⇒ 422 | R-32 (Q-61); normalizzazione senza specifica | REF-001…010 |
@@ -942,11 +942,11 @@ Q-91 (solo `eq`), su `not` Q-90.
 | TB-GOV-CRT-021 | `{"field":"member.attributes.tNum","cmp":"in","value":[1,3]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-022 | `{"field":"member.attributes.tNum","cmp":"nin","value":[1,2]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-023 | `{"field":"member.attributes.tNum","cmp":"contains","value":3}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-024 | `{"field":"member.attributes.tNum","cmp":"ncontains","value":3}` | falso — **DIVERGENZA** | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-024 | `{"field":"member.attributes.tNum","cmp":"ncontains","value":3}` | falso — divergenza risolta (D-01) | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-025 | `{"field":"member.attributes.tNum","cmp":"exists"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-026 | `{"field":"member.attributes.tNum","cmp":"nexists"}` | falso | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-027 | `{"field":"member.attributes.tNum","cmp":"between","value":[1,5]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-028 | `{"field":"member.attributes.tNum","cmp":"startsWith","value":"3"}` | falso — **DIVERGENZA** | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-028 | `{"field":"member.attributes.tNum","cmp":"startsWith","value":"3"}` | falso — divergenza risolta (D-01) | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-029 | `{"field":"member.attributes.tBool","cmp":"eq","value":true}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-030 | `{"field":"member.attributes.tBool","cmp":"neq","value":false}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-031 | `{"field":"member.attributes.tBool","cmp":"gt","value":0}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
@@ -956,11 +956,11 @@ Q-91 (solo `eq`), su `not` Q-90.
 | TB-GOV-CRT-035 | `{"field":"member.attributes.tBool","cmp":"in","value":[true]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-036 | `{"field":"member.attributes.tBool","cmp":"nin","value":[false]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-037 | `{"field":"member.attributes.tBool","cmp":"contains","value":true}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-038 | `{"field":"member.attributes.tBool","cmp":"ncontains","value":true}` | falso — **DIVERGENZA** | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-038 | `{"field":"member.attributes.tBool","cmp":"ncontains","value":true}` | falso — divergenza risolta (D-01) | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-039 | `{"field":"member.attributes.tBool","cmp":"exists"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-040 | `{"field":"member.attributes.tBool","cmp":"nexists"}` | falso | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-041 | `{"field":"member.attributes.tBool","cmp":"between","value":[0,1]}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-042 | `{"field":"member.attributes.tBool","cmp":"startsWith","value":"t"}` | falso — **DIVERGENZA** | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-042 | `{"field":"member.attributes.tBool","cmp":"startsWith","value":"t"}` | falso — divergenza risolta (D-01) | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-043 | `{"field":"member.attributes.tDate","cmp":"eq","value":"2026-02-28"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-044 | `{"field":"member.attributes.tDate","cmp":"neq","value":"2026-03-01"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-045 | `{"field":"member.attributes.tDate","cmp":"gt","value":"2026-01-01"}` | falso — AMBIGUO (Q-91) | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#matches` |
@@ -975,10 +975,10 @@ Q-91 (solo `eq`), su `not` Q-90.
 | TB-GOV-CRT-054 | `{"field":"member.attributes.tDate","cmp":"nexists"}` | falso | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-055 | `{"field":"member.attributes.tDate","cmp":"between","value":["2026-01-01","2026-12-31"]}` | falso — AMBIGUO (Q-91) | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-056 | `{"field":"member.attributes.tDate","cmp":"startsWith","value":"2026"}` | vero — AMBIGUO (data trattata come testo) | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-057 | `{"field":"member.attributes.tNum","cmp":"neq","value":"tre"}` | falso — **DIVERGENZA** | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-058 | `{"field":"member.attributes.tNum","cmp":"nin","value":["tre"]}` | falso — **DIVERGENZA** | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-059 | `{"field":"member.attributes.tBool","cmp":"neq","value":"vero"}` | falso — **DIVERGENZA** | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
-| TB-GOV-CRT-060 | `{"field":"member.attributes.tStr","cmp":"neq","value":5}` | falso — **DIVERGENZA** | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-057 | `{"field":"member.attributes.tNum","cmp":"neq","value":"tre"}` | falso — divergenza risolta (D-01) | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-058 | `{"field":"member.attributes.tNum","cmp":"nin","value":["tre"]}` | falso — divergenza risolta (D-01) | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-059 | `{"field":"member.attributes.tBool","cmp":"neq","value":"vero"}` | falso — divergenza risolta (D-01) | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-060 | `{"field":"member.attributes.tStr","cmp":"neq","value":5}` | falso — divergenza risolta (D-01) | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-061 | `{"field":"member.attributes.tMissing","cmp":"eq","value":"x"}` | falso | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-062 | `{"field":"member.attributes.tMissing","cmp":"neq","value":"x"}` | falso | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
 | TB-GOV-CRT-063 | `{"field":"member.attributes.tMissing","cmp":"gt","value":1}` | falso | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
@@ -1208,7 +1208,7 @@ generati (regola di gamification, preparata nel test).
 | TB-GOV-ENT-043 | concorso: azione `ACTIVATE` da APPROVED | `422:INVALID_ACTION` — AMBIGUO (azione sconosciuta) | docs/03 §3.6 · docs/06 §2 | `TestbookGovHubIT#entities` |
 | TB-GOV-ENT-044 | campagna con budget 100 001: SUBMIT → APPROVE (LEGAL) → PUBLISH | `LIVE` | docs/06 §7 · Q-08 | `TestbookGovHubIT#entities` |
 | TB-GOV-ENT-045 | campagna senza vincoli: SUBMIT → APPROVE (LEGAL) → PUBLISH anche senza obbligo | `LIVE` | docs/03 §3.6 (SUBMIT sempre ammesso da DRAFT) | `TestbookGovHubIT#entities` |
-| TB-GOV-ENT-046 | contenuto: storico della transizione `PUBLISH` | `1 voce in approval_history` — **DIVERGENZA** | docs/03 §3.6 «ogni transizione scrive storico» · docs/06 §7 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-046 | contenuto: storico della transizione `PUBLISH` | `1 voce in approval_history` — divergenza risolta (D-04) | docs/03 §3.6 «ogni transizione scrive storico» · docs/06 §7 | `TestbookGovHubIT#entities` |
 | TB-GOV-ENT-047 | contenuto: non compare nella casella approvazioni | `assente` | docs/06 §7 (CONTENT mai) · F-APR-03 | `TestbookGovHubIT#entities` |
 
 ### 12.2 Casella approvazioni (APQ)
@@ -1371,68 +1371,72 @@ nome/e-mail» completo resta in `HubAnonymizationIT`.
 | TB-GOV-ANX-004 | engagement: messaggi già resi col segnaposto | `segnaposto` | Q-125 | `TestbookGovHubIT#anonymization` |
 | TB-GOV-ANX-005 | insight: event store senza il nome | `0` | Q-126 | `TestbookGovHubIT#anonymization` |
 
-## 13. Ambiguità (da registrare in `docs/15`)
+## 13. Ambiguità (registrate in `docs/15`)
 
 Righe che asseriscono il comportamento attuale perché la specifica tace e `docs/15` non registra una scelta
-(`// TESTBOOK: ambiguo, vedi …` nel test). Proposta: registrarle come domande Q-nnn.
+(`// TESTBOOK: ambiguo, vedi …` nel test). Ogni gruppo rimanda alla domanda di `docs/15` che lo registra: le nuove
+(`Q-V1`…`Q-V13`) o quelle già aperte che coprono il punto (Q-87, Q-90, Q-91, Q-93, Q-112, Q-139, Q-176, Q-193, Q-220,
+Q-221, Q-244…Q-246, Q-261, Q-282). Nessun comportamento è stato cambiato; dove quello attuale non è l'opzione
+conservativa la domanda lo dice e propone l'alternativa (Q-V1, Q-V3, Q-V6, Q-V9).
 
-| Righe | Punto aperto | Comportamento attuale asserito |
-|---|---|---|
-| ACT-007…014 | Formati non canonici di `X-LH-Actor` (minuscole, spazi, ruolo sconosciuto, senza `:`, `:` in coda, più `:`) | lettura permissiva di ruolo e username; ruolo sconosciuto o `RUOLO:` ⇒ ANALYST |
-| PRS-009…016 | Azione in minuscolo/con spazi; codice di un'azione sconosciuta (docs/06 §2 direbbe 400 «parametri errati») | accettate in modo permissivo; sconosciuta ⇒ 422 `INVALID_ACTION` |
-| SMF-001, ROL-051, ROL-052 | Con la policy spenta `SUBMIT` da DRAFT porta a LIVE (docs/06 §7 dice solo «DRAFT → LIVE diretto») | `LIVE` |
-| ROL-056…060 | Precedenza tra ruolo vietato (403), transizione vietata (409), commento mancante (422) | ruolo, poi stato, poi commento |
-| OVR-006, OVR-016 | ADMIN che approva/rifiuta un oggetto senza approvatore di policy: è un override da marcare? | non marcato |
-| CMT-006 | Commento di soli spazi non separabili (U+00A0) | accettato come commento |
-| MST-001, MST-010, MST-019 | Cambio verso lo stesso stato | 200 senza fatto né audit |
-| MST-008, MST-016, MST-024 | Stato in minuscolo (`blocked`) | accettato |
-| MST-028…031 | Anonimizzato con destinazione non valida: 409 o 400? | 409 `MEMBER_ANONYMIZED` |
-| MST-040 | `CLOSED` come filtro dell'elenco: i contratti lo ammettono (Q-139), docs/03 §2 e F-MBR-04 no | 200 (0 membri) |
-| MRL-002, 003, 008, 009, 021, 022, 027, 028, 033, 034, 039, 040, 045, 046 | Celle «—» senza ● per ruoli diversi da ANALYST: il backend deve rifiutare? (docs/08 §2 lo impone solo con ●) | 403 `FORBIDDEN_ROLE` |
-| MRL-073, MRL-074 | `X-LH-Actor` con ruolo sconosciuto o in minuscolo | ANALYST (403) / ruolo riconosciuto |
-| ANO-002 | Conferma con spazi ai bordi | accettata (`trim`) |
-| ANO-010 | Membro inesistente con conferma errata: 404 o 422? | 404 |
-| ATV-002, 003, 005 | Testo vuoto o di soli spazi; lunghezza massima 200 | rifiutati (422) |
-| ATV-015, 031, 047, 063 | `null` in un PATCH di attributi | rimuove la chiave |
-| ATV-062 | Data con ora per un attributo DATE | rifiutata |
-| ATV-069 | Chiave interna della demo (`story`) nel PATCH | rifiutata |
-| ATD-002…009, 012…016, 028, 029 | Formato della chiave (camelCase, 2–40), etichetta obbligatoria ≤ 60, tetto di 30 definizioni | come scritto nelle righe |
-| ATU-006 | Restringere le opzioni lasciando valori fuori elenco (Q-93 non lo dice) | ammesso (200) |
-| ATU-009 | Chiave con spazi ai bordi | normalizzata in silenzio |
-| CRT-045…048, 055, CRV-025 | Confronti d'ordine e `between` sulle date ISO (Q-91 aperta) | falsi; `gt` con testo rifiutato in validazione |
-| CRT-051, 052, 056 | `contains`, `ncontains`, `startsWith` su un attributo DATE | la data vale come testo |
-| CRT-081 | `nin` su una lista: «almeno un elemento» (docs/03 §3.3, per `data.*`) o intersezione vuota? | intersezione vuota |
-| CRT-082, CRT-083 | `exists`/`nexists` su una lista vuota | lista vuota = assente |
-| CRT-088, CRV-015 | Prefisso `member.` facoltativo | accettato con e senza |
-| CRT-092 | Età di chi è nato il 29 febbraio, il 28 febbraio di un anno non bisestile | compie gli anni il 1° marzo |
-| CRT-096, CRT-097 | `registeredDaysAgo` a cavallo della mezzanotte di Roma e del cambio d'ora | blocchi di 24 h (non giorni di calendario di Roma) |
-| CRT-115 | `not` con più regole (Q-90 aperta: «NESSUNA» o «non tutte») | «non tutte» |
-| CRV-006 | Gruppo senza regole | non valido |
-| CRV-011 | `member.segments` nei criteri di un segmento (docs/03 §3.3 lo elenca in `member.*`) | campo non disponibile |
-| SEG-003 | Anteprima con criteri vuoti: 422 o 0 membri (Q-87) | 422 `INVALID_CRITERIA` |
-| SEG-011 | Codice in minuscolo | normalizzato in maiuscolo |
-| SEG-012 | Nome del segmento obbligatorio | 422 `NAME_REQUIRED` |
-| SEG-015, 016 | Statico con membri inesistenti o anonimizzati | 422 `MEMBER_NOT_FOUND` |
-| SEG-017, SEG-021 | Codici d'errore di «solo STATIC» e «archiviato» | 409 `SEGMENT_NOT_STATIC`, 409 `SEGMENT_ARCHIVED` |
-| SEG-030 | Blocco ottimistico dei segmenti (Q-112 cita solo campagne, premi, concorsi) | 409 `VERSION_CONFLICT` |
-| REF-004, REF-005 | Codice invito in minuscolo o con spazi ai bordi | normalizzato: legame creato |
-| REF-022 | Invitante bloccato prima della prima azione qualificante dell'invitato | i due fatti `referral.completed` sono emessi comunque (il motore scarta quello dell'invitante con `NO_MEMBER`) |
-| ENT-019, ENT-031, ENT-043 | `ACTIVATE`: sinonimo di `PUBLISH` per le campagne, azione sconosciuta per premi e concorsi | campagna `LIVE`; premio/concorso 422 `INVALID_ACTION` |
-| APQ-008 | `requiredRole` di una campagna senza obbligo inviata in revisione (Q-193 riguarda solo il web) | `null` |
-| MAT-009, MAT-010 | Istogramma degli istanti per CARE e ANALYST (docs/08 §2 dà «solo istogramma» solo a MARKETING) | ammesso |
-| MAT-012, 013, 028, 029, 033, 034, 043, 044, 047…049, 053, 054, 072, 073, 077, 078, 082…084 | Celle «—» senza ● di ruoli diversi da ANALYST: Q-176 registra il 403 solo per l'engagement | 403 (Q-176 esteso per analogia) |
+| Righe | Punto aperto | Comportamento attuale asserito | Domanda |
+|---|---|---|---|
+| ACT-007…014 | Formati non canonici di `X-LH-Actor` (minuscole, spazi, ruolo sconosciuto, senza `:`, `:` in coda, più `:`) | lettura permissiva di ruolo e username; ruolo sconosciuto o `RUOLO:` ⇒ ANALYST | Q-V1 (estende Q-261) |
+| PRS-009…016 | Azione in minuscolo/con spazi; codice di un'azione sconosciuta (docs/06 §2 direbbe 400 «parametri errati») | accettate in modo permissivo; sconosciuta ⇒ 422 `INVALID_ACTION` | Q-V2 (con Q-244, Q-246, Q-282) |
+| SMF-001, ROL-051, ROL-052 | Con la policy spenta `SUBMIT` da DRAFT porta a LIVE (docs/06 §7 dice solo «DRAFT → LIVE diretto») | `LIVE` | Q-282 |
+| ROL-056…060 | Precedenza tra ruolo vietato (403), transizione vietata (409), commento mancante (422) | ruolo, poi stato, poi commento | Q-V2 |
+| OVR-006, OVR-016 | ADMIN che approva/rifiuta un oggetto senza approvatore di policy: è un override da marcare? | non marcato | Q-V3 |
+| CMT-006 | Commento di soli spazi non separabili (U+00A0) | accettato come commento | Q-V3 |
+| MST-001, MST-010, MST-019 | Cambio verso lo stesso stato | 200 senza fatto né audit | Q-V4 |
+| MST-008, MST-016, MST-024 | Stato in minuscolo (`blocked`) | accettato | Q-V4 |
+| MST-028…031 | Anonimizzato con destinazione non valida: 409 o 400? | 409 `MEMBER_ANONYMIZED` | Q-V4 |
+| MST-040 | `CLOSED` come filtro dell'elenco: i contratti lo ammettono (Q-139), docs/03 §2 e F-MBR-04 no | 200 (0 membri) | Q-V4 (con Q-139) |
+| MRL-002, 003, 008, 009, 021, 022, 027, 028, 033, 034, 039, 040, 045, 046 | Celle «—» senza ● per ruoli diversi da ANALYST: il backend deve rifiutare? (docs/08 §2 lo impone solo con ●) | 403 `FORBIDDEN_ROLE` | Q-V5 (estende Q-176) |
+| MRL-073, MRL-074 | `X-LH-Actor` con ruolo sconosciuto o in minuscolo | ANALYST (403) / ruolo riconosciuto | Q-V1 (estende Q-261) |
+| ANO-002 | Conferma con spazi ai bordi | accettata (`trim`) | Q-V7 |
+| ANO-010 | Membro inesistente con conferma errata: 404 o 422? | 404 | Q-V7 |
+| ATV-002, 003, 005 | Testo vuoto o di soli spazi; lunghezza massima 200 | rifiutati (422) | Q-V8 |
+| ATV-015, 031, 047, 063 | `null` in un PATCH di attributi | rimuove la chiave | Q-V8 |
+| ATV-062 | Data con ora per un attributo DATE | rifiutata | Q-V8 |
+| ATV-069 | Chiave interna della demo (`story`) nel PATCH | rifiutata | Q-V8 |
+| ATD-002…009, 012…016, 028, 029 | Formato della chiave (camelCase, 2–40), etichetta obbligatoria ≤ 60, tetto di 30 definizioni | come scritto nelle righe | Q-V8 |
+| ATU-006 | Restringere le opzioni lasciando valori fuori elenco (Q-93 non lo dice) | ammesso (200) | Q-V9 (estende Q-93) |
+| ATU-009 | Chiave con spazi ai bordi | normalizzata in silenzio | Q-V9 |
+| CRT-045…048, 055, CRV-025 | Confronti d'ordine e `between` sulle date ISO (Q-91 aperta) | falsi; `gt` con testo rifiutato in validazione | Q-91 (vedi Q-V10) |
+| CRT-051, 052, 056 | `contains`, `ncontains`, `startsWith` su un attributo DATE | la data vale come testo | Q-V10 |
+| CRT-081 | `nin` su una lista: «almeno un elemento» (docs/03 §3.3, per `data.*`) o intersezione vuota? | intersezione vuota | Q-V10 |
+| CRT-082, CRT-083 | `exists`/`nexists` su una lista vuota | lista vuota = assente | Q-V10 |
+| CRT-088, CRV-015 | Prefisso `member.` facoltativo | accettato con e senza | Q-V10 |
+| CRT-092 | Età di chi è nato il 29 febbraio, il 28 febbraio di un anno non bisestile | compie gli anni il 1° marzo | Q-220 (vedi Q-V10) |
+| CRT-096, CRT-097 | `registeredDaysAgo` a cavallo della mezzanotte di Roma e del cambio d'ora | blocchi di 24 h (non giorni di calendario di Roma) | Q-221 (vedi Q-V10) |
+| CRT-115 | `not` con più regole (Q-90 aperta: «NESSUNA» o «non tutte») | «non tutte» | Q-90 (vedi Q-V10) |
+| CRV-006 | Gruppo senza regole | non valido | Q-V10 |
+| CRV-011 | `member.segments` nei criteri di un segmento (docs/03 §3.3 lo elenca in `member.*`) | campo non disponibile | Q-V10 |
+| SEG-003 | Anteprima con criteri vuoti: 422 o 0 membri (Q-87) | 422 `INVALID_CRITERIA` | Q-V11 (con Q-87) |
+| SEG-011 | Codice in minuscolo | normalizzato in maiuscolo | Q-V11 |
+| SEG-012 | Nome del segmento obbligatorio | 422 `NAME_REQUIRED` | Q-V11 |
+| SEG-015, 016 | Statico con membri inesistenti o anonimizzati | 422 `MEMBER_NOT_FOUND` | Q-V11 |
+| SEG-017, SEG-021 | Codici d'errore di «solo STATIC» e «archiviato» | 409 `SEGMENT_NOT_STATIC`, 409 `SEGMENT_ARCHIVED` | Q-V11 |
+| SEG-030 | Blocco ottimistico dei segmenti (Q-112 cita solo campagne, premi, concorsi) | 409 `VERSION_CONFLICT` | Q-V11 (estende Q-112) |
+| REF-004, REF-005 | Codice invito in minuscolo o con spazi ai bordi | normalizzato: legame creato | Q-V12 |
+| REF-022 | Invitante bloccato prima della prima azione qualificante dell'invitato | i due fatti `referral.completed` sono emessi comunque (il motore scarta quello dell'invitante con `NO_MEMBER`) | Q-V12 (con Q-61) |
+| ENT-019, ENT-031, ENT-043 | `ACTIVATE`: sinonimo di `PUBLISH` per le campagne, azione sconosciuta per premi e concorsi | campagna `LIVE`; premio/concorso 422 `INVALID_ACTION` | Q-V2 (con Q-245) |
+| APQ-008 | `requiredRole` di una campagna senza obbligo inviata in revisione (Q-193 riguarda solo il web) | `null` | Q-V13 (con Q-193) |
+| MAT-009, MAT-010 | Istogramma degli istanti per CARE e ANALYST (docs/08 §2 dà «solo istogramma» solo a MARKETING) | ammesso | Q-V6 |
+| MAT-012, 013, 028, 029, 033, 034, 043, 044, 047…049, 053, 054, 072, 073, 077, 078, 082…084 | Celle «—» senza ● di ruoli diversi da ANALYST: Q-176 registra il 403 solo per l'engagement | 403 (Q-176 esteso per analogia) | Q-V5 (estende Q-176) |
 
 ## 14. Divergenze
 
 Il test asserisce la specifica e fallisce finché il codice non è corretto o `docs/15` non registra una scelta diversa.
+Tutte e quattro le divergenze sono risolte: nessuna riga rossa.
 Nessuna divergenza nelle aree di `lh-common` a logica pura (ACT, GRD, PRS, SMR, SMN, SMF, ROL, CMT, OVR, POL).
 
 | # | Righe | Specifica | Osservato | Causa (file:riga) | Esito |
 |---|---|---|---|---|---|
-| D-01 | CRT-024, CRT-028, CRT-038, CRT-042, CRT-057…060 | docs/03 §3.3: «Tipi incompatibili → falsa, mai eccezione» | `neq`, `nin`, `ncontains` sono **veri** quando i tipi non sono confrontabili (numero contro testo, booleano contro testo, testo contro numero); `startsWith` è vero su numeri e booleani (`3.0` inizia per `3`, `true` per `t`) | `services/member-service/…/domain/SegmentCriteria.java:258, 264, 266` (negazione del confronto fallito) e `:268` (`actual.toString()`) | aperta |
-| D-02 | ATD-023, ATU-011 | docs/06 §2: regola violata ⇒ 422 con `code` (F-MBR-03: definizione non valida) | una definizione senza `type` provoca `NullPointerException` ⇒ 500 `INTERNAL_ERROR` | `services/member-service/…/domain/MemberAttributes.java:165` (`List.of(...).contains(null)`) | aperta |
+| D-01 | CRT-024, CRT-028, CRT-038, CRT-042, CRT-057…060 | docs/03 §3.3: «Tipi incompatibili → falsa, mai eccezione» | `neq`, `nin`, `ncontains` sono **veri** quando i tipi non sono confrontabili (numero contro testo, booleano contro testo, testo contro numero); `startsWith` è vero su numeri e booleani (`3.0` inizia per `3`, `true` per `t`) | `services/member-service/…/domain/SegmentCriteria.java:258, 264, 266` (negazione del confronto fallito) e `:268` (`actual.toString()`) | **risolta**: `SegmentCriteria.scalar`/`comparable`, come `ConditionEvaluator` di campaign-service e `AchievementRules` di gamification-service (testo numerico contro numero: incompatibile, `// SPEC-GAP: Q-215`) |
+| D-02 | ATD-023, ATU-011 | docs/06 §2: regola violata ⇒ 422 con `code` (F-MBR-03: definizione non valida) | una definizione senza `type` provoca `NullPointerException` ⇒ 500 `INTERNAL_ERROR` | `services/member-service/…/domain/MemberAttributes.java:165` (`List.of(...).contains(null)`) | **risolta**: `MemberAttributes.validateDefinitions` controlla `type == null` prima di `contains` (422 `ATTRIBUTE_DEFINITION_INVALID` su `type`) |
 | D-03 | MST-038 | docs/06 §2: «400 `bad-request` — JSON malformato, parametri errati» | corpo assente su `POST /v1/members/{id}/status` ⇒ 500 `INTERNAL_ERROR` | `libs/lh-common/…/web/GlobalExceptionHandler.java` (nessun gestore per `HttpMessageNotReadableException`) | **risolta** da `main` 6b1b964 (400 `BAD_REQUEST`) |
-| D-04 | ENT-046 | docs/03 §3.6 «Ogni transizione scrive storico (chi, quando, commento) e audit»; docs/06 §7 (la transizione «scrive `approval_history`»), anche per i contenuti | la pubblicazione di un contenuto non scrive nulla in `approval_history` (solo audit e fatto) | `services/engagement-service/…/application/ContentService.java:245-256` (nessun `ApprovalHistoryStore.record`) | aperta |
+| D-04 | ENT-046 | docs/03 §3.6 «Ogni transizione scrive storico (chi, quando, commento) e audit»; docs/06 §7 (la transizione «scrive `approval_history`»), anche per i contenuti | la pubblicazione di un contenuto non scrive nulla in `approval_history` (solo audit e fatto) | `services/engagement-service/…/application/ContentService.java:245-256` (nessun `ApprovalHistoryStore.record`) | **risolta**: `ContentService.transition` e `endExpired` scrivono `approval_history` con `ApprovalHistoryStore` di lh-common (`entity_type = CONTENT`); lettura con `GET /v1/contents/{id}/approval-history`, come campagne, premi e concorsi |
 
 ## 15. Copertura
 
@@ -1441,12 +1445,12 @@ Nessuna divergenza nelle aree di `lh-common` a logica pura (ACT, GRD, PRS, SMR, 
 | Regole inventariate | 33 (R-01…R-33) |
 | Rami del codice mappati | 61 (B-01…B-61); non raggiungibili senza concorrenza o per le API: B-05, B-30, esaurimento dei codici di B-60, `REFERRAL_SELF` |
 | Rami senza specifica | 18 (B-02, B-03, B-04, B-10, B-13, B-25, B-26, B-28, B-33, B-36, B-37, B-38, B-50, B-51, B-54, B-59, B-60, B-61) → righe AMBIGUO |
-| Regole senza codice | 1: storico delle transizioni dei contenuti (R-13 per i contenuti, D-04) |
+| Regole senza codice | 0 (lo storico delle transizioni dei contenuti, R-13 per i contenuti, c'è da D-04) |
 | Righe | 972 — ACT 14, GRD 30, PRS 16, SMR 56, SMN 10, SMF 56, ROL 60, CMT 14, OVR 22, POL 44, MST 41, MRL 74, ANO 47, ATV 70, ATD 29, ATU 14, CRT 118, CRV 27, SEG 30, REF 23, ENT 47, APQ 8, MAT 100, EFF 17, ANX 5 |
-| di cui AMBIGUO | 139 (§13) |
+| di cui AMBIGUO | 139 (§13), registrate in `docs/15` (Q-V1…Q-V13 e domande già aperte) |
 | Tabelle complete | GRD 6 × 5; SMR e SMF 7 × 8; ROL 8 × 5 (+ 2 × 5, 1 × 5); OVR 2 × 2 × 5; POL campagna 2 × 2 × 7 e scheda 4 × 2; MST 4 × 8; MRL 12 × 6; ATV 4 × 16; CRT 14 × 4 e assente × 14; MAT 20 × 5; EFF 4 × 4 |
 | Riduzioni | stato × azione × ruolo × policy (560) → SMR + SMF (112) + SMN (10: le celle in cui la regola entra nel ramo, 46 identiche a SMR) + ROL (60), perché ruolo e stato sono controlli indipendenti e in sequenza, più 5 righe di precedenza; per tipo di oggetto (3 × 56) → 12 verifiche di cablaggio per tipo nell'hub (la logica è la stessa `GovernedTransitions`); policy spenta nell'hub → nessun contesto dedicato (stesso bean, tabelle SMF/ROL); tabella dei contenuti → TB-ENG; ACT, PRS, ANO, ATD, CRV, SEG → ogni classe non valida da sola sul caso valido (guasto singolo) |
-| Divergenze | 4 cause, 12 righe: D-01 (8), D-02 (2), D-03 (1, risolta da `main`), D-04 (1) → 11 righe rosse aperte |
+| Divergenze | 4 cause, 12 righe: D-01 (8), D-02 (2), D-03 (1, risolta da `main`), D-04 (1) → tutte risolte, 0 righe rosse |
 
 ### Verifica a mutazione
 

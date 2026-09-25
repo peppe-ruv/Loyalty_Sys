@@ -1,5 +1,10 @@
 package io.loyaltyhub.engagement.application;
 
+import io.loyaltyhub.common.approval.ApprovalAction;
+import io.loyaltyhub.common.approval.ApprovalHistory;
+import io.loyaltyhub.common.approval.ApprovalHistoryStore;
+import io.loyaltyhub.common.approval.ApprovalPolicy;
+import io.loyaltyhub.common.approval.ApprovalStatus;
 import io.loyaltyhub.common.audit.AuditEntry;
 import io.loyaltyhub.common.audit.AuditPublisher;
 import io.loyaltyhub.common.event.LhEventFactory;
@@ -37,7 +42,8 @@ import java.util.regex.Pattern;
 /**
  * Contenuti del CMS (docs/servizi/engagement-service.md §3, §5; F-CNT-01/02/03/04; BO-18): gestione con lock
  * ottimistico e audit, transizioni senza approvazione ({@code DRAFT → LIVE} diretto) col fatto
- * {@code content.status.changed}, duplicazione, selezione per posizionamento per il portale e anteprima per membro.
+ * {@code content.status.changed} e una riga di {@code approval_history} (docs/03 §3.6, docs/06 §7: chi, quando, da/verso),
+ * duplicazione, selezione per posizionamento per il portale e anteprima per membro.
  */
 @Service
 public class ContentService {
@@ -94,17 +100,20 @@ public class ContentService {
     private final LhEventFactory events;
     private final OutboxWriter outbox;
     private final AuditPublisher audit;
+    private final ApprovalHistoryStore history;
     private final ObjectMapper mapper;
     private final Clock clock;
 
     public ContentService(ContentRepository contents, PopupViewRepository popupViews, MemberSnapshotRepository members,
-                          LhEventFactory events, OutboxWriter outbox, AuditPublisher audit, ObjectMapper mapper, Clock clock) {
+                          LhEventFactory events, OutboxWriter outbox, AuditPublisher audit, ApprovalHistoryStore history,
+                          ObjectMapper mapper, Clock clock) {
         this.contents = contents;
         this.popupViews = popupViews;
         this.members = members;
         this.events = events;
         this.outbox = outbox;
         this.audit = audit;
+        this.history = history;
         this.mapper = mapper;
         this.clock = clock;
     }
@@ -249,10 +258,18 @@ public class ContentService {
         if (to == null) {
             throw LhException.conflict("INVALID_TRANSITION", "Azione " + action + " non ammessa da " + c.status() + ".");
         }
-        changeStatus(c, to, ActorHolder.get().asActorString());
+        String actor = ActorHolder.get().asActorString();
+        changeStatus(c, to, actor);
+        history.record(ApprovalPolicy.CONTENT, c.id(), ApprovalStatus.valueOf(c.status()), ApprovalStatus.valueOf(to),
+                ApprovalAction.valueOf(a), actor, null, clock.instant());
         audit.record("CONTENT", c.code(), AuditEntry.Action.TRANSITION, c.title() + ": " + c.status() + " → " + to,
                 Map.of("status", c.status()), Map.of("status", to));
         return get(c.id());
+    }
+
+    /** Storico delle transizioni del contenuto (docs/03 §3.6: chi, quando, da/verso), dal più recente. */
+    public List<ApprovalHistory> history(String idOrCode) {
+        return history.list(ApprovalPolicy.CONTENT, get(idOrCode).id());
     }
 
     /** Copia in bozza con codice {@code <CODICE>-COPIA[-n]}: il modo di cambiare tipo o riusare un archiviato. */
@@ -278,6 +295,8 @@ public class ContentService {
         int n = 0;
         for (ContentItem c : contents.expiredBy(asOf)) {
             changeStatus(c, "ENDED", "system");
+            history.record(ApprovalPolicy.CONTENT, c.id(), ApprovalStatus.valueOf(c.status()), ApprovalStatus.ENDED,
+                    ApprovalAction.END, "system", "Fine calendario", clock.instant());
             audit.recordJob("CONTENT", c.code(), c.title() + ": " + c.status() + " → ENDED (fine calendario)",
                     Map.of("status", c.status()), Map.of("status", "ENDED"));
             n++;

@@ -25,6 +25,7 @@ Non invia email/SMS/push reali: il canale `EMAIL_FAKE` produce solo un'anteprima
 |---|---|---|
 | GET/POST/PUT | `/v1/contents`, `/v1/contents/{id}` | filtri `kind, placement, status, q`; PUT su `LIVE` → solo campi sicuri (titolo, testo, immagine, priorità, `endAt`; docs/03 §3.6), altrimenti `409 CONTENT_LIVE_LOCKED` |
 | POST | `/v1/contents/{id}/transitions` | `CONTENT` non richiede approvazione (`DRAFT → LIVE` diretto) |
+| GET | `/v1/contents/{id}/approval-history` | storico delle transizioni (`approval_history`, `entity_type = CONTENT`: chi, quando, da/verso; docs/03 §3.6, docs/06 §7), dal più recente |
 | POST | `/v1/contents/{id}/duplicate` | |
 | GET | `/v1/contents/preview?memberId=&placement=` | ciò che vedrebbe quel membro adesso, con il motivo di esclusione degli altri (`NOT_IN_AUDIENCE, OUT_OF_SCHEDULE, NOT_LIVE, FREQUENCY`) |
 | GET/POST/PUT | `/v1/message-templates`, `/v1/notification-rules` | |

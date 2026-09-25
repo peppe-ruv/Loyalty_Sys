@@ -162,7 +162,8 @@ public final class MemberAttributes {
             if (d.label() == null || d.label().isBlank() || d.label().length() > 60) {
                 problems.add(new Problem(at + ".label", "obbligatoria, al massimo 60 caratteri"));
             }
-            if (!AttributeDefinition.TYPES.contains(d.type())) {
+            // Tipo assente → problema di validazione (422), non NullPointerException (List.of rifiuta contains(null)).
+            if (d.type() == null || !AttributeDefinition.TYPES.contains(d.type())) {
                 problems.add(new Problem(at + ".type", "uno tra STRING, NUMBER, BOOLEAN, DATE"));
             } else if (!d.options().isEmpty() && !"STRING".equals(d.type())) {
                 problems.add(new Problem(at + ".options", "opzioni solo per il tipo STRING"));

@@ -1,5 +1,7 @@
 package io.loyaltyhub.engagement.demo;
 
+import io.loyaltyhub.common.approval.ApprovalHistoryStore;
+import io.loyaltyhub.common.approval.ApprovalPolicy;
 import io.loyaltyhub.common.demo.DemoResettable;
 import io.loyaltyhub.common.demo.SeedDates;
 import io.loyaltyhub.common.demo.SeedLoader;
@@ -77,13 +79,15 @@ public class EngagementSeeder implements ApplicationRunner, DemoResettable {
     private final ThemeRepository themes;
     private final WebhookRepository webhooks;
     private final WebhookDeliveryRepository webhookDeliveries;
+    private final ApprovalHistoryStore approvalHistory;
     private final ObjectMapper mapper;
     private final Clock clock;
 
     public EngagementSeeder(SeedLoader seed, TemplateRepository templates, RuleRepository rules, InboxRepository inbox,
                             MemberSnapshotRepository members, MessageContexts contexts, ContentRepository contents,
                             PopupViewRepository popups, ThemeRepository themes, WebhookRepository webhooks,
-                            WebhookDeliveryRepository webhookDeliveries, ObjectMapper mapper, Clock clock) {
+                            WebhookDeliveryRepository webhookDeliveries, ApprovalHistoryStore approvalHistory,
+                            ObjectMapper mapper, Clock clock) {
         this.seed = seed;
         this.templates = templates;
         this.rules = rules;
@@ -95,6 +99,7 @@ public class EngagementSeeder implements ApplicationRunner, DemoResettable {
         this.themes = themes;
         this.webhooks = webhooks;
         this.webhookDeliveries = webhookDeliveries;
+        this.approvalHistory = approvalHistory;
         this.mapper = mapper;
         this.clock = clock;
     }
@@ -118,6 +123,7 @@ public class EngagementSeeder implements ApplicationRunner, DemoResettable {
         popups.deleteAll();
         themes.deleteAll();
         contents.deleteAll();
+        approvalHistory.deleteAll(ApprovalPolicy.CONTENT);
         rules.deleteAll();
         templates.deleteAll();
         members.deleteAll();
