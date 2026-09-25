@@ -120,6 +120,92 @@ Implementazione in `lib/persona/permissions.ts`: `can(role, capability)`. Il com
   </Accordion>
 </AccordionGroup>
 
+## Opzioni di configurazione ricorrenti
+
+Alcune scelte compaiono in più editor con lo stesso significato. Qui trovi cosa vuol dire ogni valore, quando sceglierlo e quali conseguenze operative comporta.
+
+### Evasione dei premi (`fulfilment`)
+
+Nell'editor premio (BO-11) il campo _Evasione_ decide **come** e **quando** il membro riceve il valore del premio dopo il pagamento dei punti. La saga wallet è identica per tutti; cambia solo cosa succede dopo `wallet.points.spent`.
+
+<CardGroup cols={3}>
+  <Card title="AUTO_COUPON" icon="ticket">
+    **Coupon automatico da pool.** Il servizio preleva un codice `AVAILABLE` dal pool con lock (`SELECT ... FOR UPDATE SKIP LOCKED`), lo assegna al membro, imposta scadenza `oggi + validityDays` e passa in `FULFILLED`.
+  </Card>
+
+  <Card title="INSTANT" icon="bolt">
+    **Istantaneo, senza asset da consegnare.** Adatto a donazioni ed esperienze digitali che non richiedono un codice. Passa direttamente in `FULFILLED` senza altre azioni.
+  </Card>
+
+  <Card title="MANUAL" icon="user-check">
+    **Consegna manuale da CARE.** La richiesta resta in stato `CONFIRMED` in coda a BO-13 (Consegne). Un operatore CARE preme _Evadi_, aggiunge nota e opzionalmente `tracking`, poi passa a `FULFILLED`.
+  </Card>
+</CardGroup>
+
+| Aspetto | AUTO_COUPON | INSTANT | MANUAL |
+| --- | --- | --- | --- |
+| Adatto a | COUPON | DONATION, DIGITAL | PHYSICAL, EXPERIENCE |
+| Serve pool coupon | ✓ obbligatorio | ✗ | ✗ |
+| Serve stock | opzionale | opzionale | ✓ tipico |
+| Chi consegna | sistema | sistema | CARE via BO-13 |
+| Stato finale | `FULFILLED` immediato | `FULFILLED` immediato | `CONFIRMED` → `FULFILLED` |
+| Fatti prodotti | `coupon.issued` + `fulfilled` | `fulfilled` | `fulfilled` (al click di CARE) |
+| Errori tipici | `COUPON_POOL_EMPTY` | nessuno specifico | premio bloccato in coda se CARE è assente |
+| Esempio dati demo | `RWD-COFFEE-5`, `RWD-SHOP-10` | `RWD-DONATION-TREE` | `RWD-BORRACCIA`, `RWD-WEEKEND` |
+
+<Warning>
+  Cambiare `fulfilment` su un premio con richieste `CONFIRMED` aperte non retroagisce: le richieste già in coda mantengono la modalità con cui sono state accettate. Duplica il premio invece di modificarlo se vuoi cambiare la modalità di un catalogo attivo.
+</Warning>
+
+### Scadenza dei punti (`expiryPolicy`)
+
+Nell'editor valuta (BO-08) il campo _Policy di scadenza_ decide quando i lotti di punti scadono. Vale per i **nuovi** lotti; quelli emessi in precedenza mantengono la policy con cui sono stati creati.
+
+| Policy | Comportamento | Adatto a |
+| --- | --- | --- |
+| `ROLLING_MONTHS(n)` | Scadenza all'ultimo istante del mese di `earnedAt + n mesi`, Europe/Rome. | PTS (valuta spendibile). |
+| `END_OF_EDITION_PLUS_GRACE` | Scadenza a `edition.redemptionGraceUntil`. Senza edizione, `endDate + graceDays`. | Punti legati al periodo di programma. |
+| `NEVER` | Nessuna scadenza. | STS (contatore per edizione). |
+
+### Periodo dei limiti (`limits.period`)
+
+Nelle campagne (BO-05) e nei limiti per membro dei premi (BO-11) puoi impostare quanto spesso una regola si può attivare per membro.
+
+| Periodo | Reset del contatore | Uso tipico |
+| --- | --- | --- |
+| `GLOBAL` | Mai (uno solo per sempre) | Bonus benvenuto, prima attivazione. |
+| `EDITION` | Alla chiusura dell'edizione | Referral, azioni annuali. |
+| `MONTH` | Primo giorno del mese | Campagne mensili, tris del mese. |
+| `WEEK` | Lunedì (Europe/Rome) | Bonus settimanali. |
+| `DAY` | Mezzanotte (Europe/Rome) | Login giornaliero. |
+
+### Tipo di achievement (`achievement.type`)
+
+Nell'editor obiettivi (BO-14, tab Obiettivi) il tipo decide **come si accumula il progresso**.
+
+| Tipo | Cosa conta | Esempio |
+| --- | --- | --- |
+| `COUNT` | Numero di azioni | "Fai 3 acquisti in un mese" |
+| `STREAK` | Giorni consecutivi con almeno un'azione | "Login per 7 giorni di fila" |
+| `SUM` | Somma di un campo numerico | "Spendi 1.000 € nell'edizione" |
+| `DISTINCT_TYPES` | Tipi di azione distinti | "Attiva ebill + directdebit" |
+
+### Trigger dei webhook
+
+Nell'editor webhook (BO-23) scegli quali eventi ricevi. Ogni tipo di fatto disponibile su `lh.facts.v1` (vedi [Eventi e topic](/specifiche/eventi-e-topic)) può essere sottoscritto singolarmente. Le consegne partono ogni 30 s dal dispatcher; scadono dopo `maxAttempts` con stato `GAVE_UP`.
+
+### Visibilità di un contenuto (`audience`)
+
+Nell'editor contenuti (BO-19) il pubblico è la combinazione di:
+
+- `tiers`: solo membri con quel tier (`GOLD`, `PLATINUM`).
+- `segments`: solo membri appartenenti a quei segmenti (`SEG-DIGITAL`).
+- `statuses`: solo membri con quello stato (di default `ACTIVE`).
+- `registeredWithinDays` (solo popup, Q-71): iscritti negli ultimi N giorni.
+- `daysOfWeek` (solo popup, Q-71): solo in certi giorni della settimana.
+
+Un contenuto senza `audience` è visibile a tutti i membri attivi.
+
 ## Schermate BO-01 a BO-30
 
 ### Panoramica e clienti
