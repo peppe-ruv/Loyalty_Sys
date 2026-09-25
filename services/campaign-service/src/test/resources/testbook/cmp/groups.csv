@@ -1,0 +1,26 @@
+id|descrizione ($A vera, $B e $C false; data = amount 50, channel APP, qty 1)|condizioni|vere|foglie fallite attese|valore osservato della prima foglia fallita
+TB-CMP-GRP-001|all senza regole|{"op":"all","rules":[]}|true||
+TB-CMP-GRP-002|all con una regola vera|{"op":"all","rules":[$A]}|true||
+TB-CMP-GRP-003|all con una vera e una falsa|{"op":"all","rules":[$A,$B]}|false|data.channel|APP
+TB-CMP-GRP-004|all con due false|{"op":"all","rules":[$B,$C]}|false|data.channel,data.qty|APP
+TB-CMP-GRP-005|any con una vera e una falsa|{"op":"any","rules":[$A,$B]}|true||
+TB-CMP-GRP-006|any con due false|{"op":"any","rules":[$B,$C]}|false|data.channel,data.qty|APP
+TB-CMP-GRP-007|any senza regole|{"op":"any","rules":[]}|true||
+TB-CMP-GRP-008|not con una regola vera|{"op":"not","rules":[$A]}|false|-|
+TB-CMP-GRP-009|not con una regola falsa|{"op":"not","rules":[$B]}|true||
+TB-CMP-GRP-010|not con una vera e una falsa (Q-90)|{"op":"not","rules":[$A,$B]}|true||
+TB-CMP-GRP-011|not con due false|{"op":"not","rules":[$B,$C]}|true||
+TB-CMP-GRP-012|not con due vere|{"op":"not","rules":[$A,$A]}|false|-|
+TB-CMP-GRP-013|all(A, any(B, A)) profondità 2|{"op":"all","rules":[$A,{"op":"any","rules":[$B,$A]}]}|true||
+TB-CMP-GRP-014|all(A, any(B, C)) profondità 2|{"op":"all","rules":[$A,{"op":"any","rules":[$B,$C]}]}|false|data.channel,data.qty|APP
+TB-CMP-GRP-015|any(B, all(A, not(B))) profondità 3|{"op":"any","rules":[$B,{"op":"all","rules":[$A,{"op":"not","rules":[$B]}]}]}|true||
+TB-CMP-GRP-016|not(any(B, all(A, A))) profondità 3|{"op":"not","rules":[{"op":"any","rules":[$B,{"op":"all","rules":[$A,$A]}]}]}|false|-|
+TB-CMP-GRP-017|all(any(not(B))) profondità 3|{"op":"all","rules":[{"op":"any","rules":[{"op":"not","rules":[$B]}]}]}|true||
+TB-CMP-GRP-018|any(all(B, A), not(all(A))) profondità 3|{"op":"any","rules":[{"op":"all","rules":[$B,$A]},{"op":"not","rules":[{"op":"all","rules":[$A]}]}]}|false|-|
+TB-CMP-GRP-019|operatore di gruppo sconosciuto|{"op":"xor","rules":[$A,$B]}|false|-|
+TB-CMP-GRP-020|foglia senza campo|{"op":"all","rules":[{"cmp":"eq","value":1}]}|true||
+TB-CMP-GRP-021|condizioni assenti (null)||true||
+TB-CMP-GRP-022|foglia vera alla radice senza gruppo|$A|true||
+TB-CMP-GRP-023|foglia falsa alla radice senza gruppo|$B|false|data.channel|APP
+TB-CMP-GRP-024|valore osservato numerico nella spiegabilità|{"op":"all","rules":[$C]}|false|data.qty|1
+TB-CMP-GRP-025|valore osservato di un campo assente|{"op":"all","rules":[{"field":"data.missing","cmp":"eq","value":1}]}|false|data.missing|null

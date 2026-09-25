@@ -1,0 +1,20 @@
+id|descrizione|effetti della campagna (JSON)|data dell'azione (JSON)|atteso (PLAYS/COUPON/BADGE/MESSAGE:…, MATCHED_NONE, UNSUPPORTED)|params attesi del messaggio|PTS attesi
+TB-CMP-OEF-001|GRANT_PLAYS con count 2|[{"type":"GRANT_PLAYS","contestCode":"IW-AUTUNNO","count":2}]|{}|PLAYS:IW-AUTUNNO:2||
+TB-CMP-OEF-002|GRANT_PLAYS senza count|[{"type":"GRANT_PLAYS","contestCode":"IW-AUTUNNO"}]|{}|PLAYS:IW-AUTUNNO:1||
+TB-CMP-OEF-003|GRANT_PLAYS senza contestCode|[{"type":"GRANT_PLAYS","count":1}]|{}|UNSUPPORTED||
+TB-CMP-OEF-004|GRANT_PLAYS con count 0|[{"type":"GRANT_PLAYS","contestCode":"IW-AUTUNNO","count":0}]|{}|UNSUPPORTED||
+TB-CMP-OEF-005|ISSUE_COUPON con rewardCode fisso|[{"type":"ISSUE_COUPON","rewardCode":"RWD-CAFFE"}]|{}|COUPON:RWD-CAFFE||
+TB-CMP-OEF-006|ISSUE_COUPON con rewardCodeField|[{"type":"ISSUE_COUPON","rewardCodeField":"data.rewardCode"}]|{"rewardCode":"RWD-BUONO-10"}|COUPON:RWD-BUONO-10||
+TB-CMP-OEF-007|ISSUE_COUPON con rewardCodeField assente dall'azione|[{"type":"ISSUE_COUPON","rewardCodeField":"data.rewardCode"}]|{}|MATCHED_NONE||
+TB-CMP-OEF-008|ISSUE_COUPON senza rewardCode né rewardCodeField|[{"type":"ISSUE_COUPON"}]|{}|UNSUPPORTED||
+TB-CMP-OEF-009|AWARD_BADGE con badgeCode|[{"type":"AWARD_BADGE","badgeCode":"BDG-PRIMO"}]|{}|BADGE:BDG-PRIMO||
+TB-CMP-OEF-010|AWARD_BADGE senza badgeCode|[{"type":"AWARD_BADGE"}]|{}|UNSUPPORTED||
+TB-CMP-OEF-011|SEND_MESSAGE con templateCode|[{"type":"SEND_MESSAGE","templateCode":"MSG-BIRTHDAY"}]|{}|MESSAGE:MSG-BIRTHDAY||
+TB-CMP-OEF-012|SEND_MESSAGE con params oggetto|[{"type":"SEND_MESSAGE","templateCode":"MSG-WELCOME","params":{"coupon":"RWD-CAFFE"}}]|{}|MESSAGE:MSG-WELCOME|{"coupon":"RWD-CAFFE"}|
+TB-CMP-OEF-013|SEND_MESSAGE senza templateCode (Q-73)|[{"type":"SEND_MESSAGE"}]|{}|UNSUPPORTED||
+TB-CMP-OEF-014|SEND_MESSAGE con params non oggetto (Q-73)|[{"type":"SEND_MESSAGE","templateCode":"MSG-BIRTHDAY","params":"testo"}]|{}|UNSUPPORTED||
+TB-CMP-OEF-015|tipo di effetto sconosciuto|[{"type":"DONATE","value":10}]|{}|UNSUPPORTED||
+TB-CMP-OEF-016|accredito insieme a un effetto sconosciuto: niente punti a metà|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":100},{"type":"DONATE"}]|{}|UNSUPPORTED||NONE
+TB-CMP-OEF-017|elenco effetti vuoto|[]|{}|MATCHED_NONE||NONE
+TB-CMP-OEF-018|accredito e giocata insieme (come CMP-SURVEY)|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":80},{"type":"GRANT_PLAYS","contestCode":"IW-AUTUNNO","count":1}]|{}|PLAYS:IW-AUTUNNO:1||80
+TB-CMP-OEF-019|effetti non in forma di elenco|{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":100}|{}|UNSUPPORTED||NONE
