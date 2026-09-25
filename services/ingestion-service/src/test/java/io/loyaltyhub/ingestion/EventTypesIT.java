@@ -114,6 +114,11 @@ class EventTypesIT {
                 Map.of("memberId", "MBR-000002", "type", "meter.reading.sent", "data", Map.of("reading", -1)), 200);
         assertThat(bad.get(0).path("rejectCode").asString()).isEqualTo("INVALID_DATA");
 
+        // Origine (ingestion §2: EXTERNAL | INTERNAL | SIMULATOR): ciò che parte dal simulatore è SIMULATOR, anche se scartato.
+        JsonNode rows = send("GET", "/v1/inbound-events?type=meter.reading.sent", null, null, 200);
+        assertThat(rows.size()).isGreaterThanOrEqualTo(2);
+        rows.forEach(r -> assertThat(r.path("origin").asString()).as("origine di " + r.path("eventId")).isEqualTo("SIMULATOR"));
+
         // Schema aggiornato: vale dall'azione successiva (niente cache dello schema vecchio).
         Map<String, Object> stricter = new java.util.HashMap<>(body);
         stricter.remove("code");

@@ -72,7 +72,7 @@ describe("HUB-01 ingressi", () => {
     upCodes = ["ingestion", "member", "campaign"]; // manca wallet
     renderWith(<Entrances />);
     await waitFor(() => expect(calls.some((c) => c.url.startsWith("/api/demo/status"))).toBe(true));
-    const marta = await screen.findByRole("button", { name: /Marta Bianchi/ });
+    const marta = await screen.findByRole("button", { name: /Marta Villa/ });
     expect(marta).toBeDisabled();
     expect(screen.getAllByText(/Gli ingressi si attivano/).length).toBeGreaterThan(0);
     expect(calls.some((c) => c.url.includes("/demo/personas"))).toBe(false);
@@ -81,7 +81,7 @@ describe("HUB-01 ingressi", () => {
   it("con ingestion, member, campaign e wallet UP: 5 persone e le schede membro con tier, saldo e storia", async () => {
     upCodes = ["ingestion", "member", "campaign", "wallet"];
     renderWith(<Entrances />);
-    await waitFor(() => expect(screen.getByRole("button", { name: /Marta Bianchi/ })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: /Marta Villa/ })).toBeEnabled());
     expect(screen.getAllByRole("button", { name: /ADMIN|MARKETING|LEGAL|CARE|ANALYST/ })).toHaveLength(5);
     const giulia = await screen.findByRole("button", { name: /Giulia Ferri/ });
     expect(giulia).toHaveTextContent("SILVER");
@@ -92,7 +92,7 @@ describe("HUB-01 ingressi", () => {
   it("scegliere una persona scrive il cookie e apre l'area", async () => {
     upCodes = ["ingestion", "member", "campaign", "wallet"];
     renderWith(<Entrances />);
-    const elena = await screen.findByRole("button", { name: /Elena Conti/ });
+    const elena = await screen.findByRole("button", { name: /Elena Riva/ });
     await waitFor(() => expect(elena).toBeEnabled());
     fireEvent.click(elena);
     await waitFor(() => expect(window.location.assign).toHaveBeenCalledWith("/backoffice"));

@@ -14,7 +14,7 @@ export interface BoPersona {
 
 const PersonaContext = createContext<BoPersona>({
   username: "marta.admin",
-  displayName: "Marta Bianchi",
+  displayName: "Marta Villa",
   role: "ADMIN",
 });
 

@@ -5,12 +5,9 @@ import io.loyaltyhub.common.event.LhEventFactory;
 import io.loyaltyhub.common.event.LhEventTypes;
 import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.common.outbox.OutboxWriter;
-import io.loyaltyhub.wallet.domain.ExpiryPolicy;
 import io.loyaltyhub.wallet.domain.LedgerEntry;
 import io.loyaltyhub.wallet.domain.MemberTier;
 import io.loyaltyhub.wallet.domain.PointsLot;
-import io.loyaltyhub.wallet.infra.CurrencyRepository;
-import io.loyaltyhub.wallet.infra.EditionRepository;
 import io.loyaltyhub.wallet.infra.LedgerRepository;
 import io.loyaltyhub.wallet.infra.MemberTierRepository;
 import io.loyaltyhub.wallet.infra.PointsLotRepository;
@@ -37,27 +34,25 @@ public class RedemptionPayments {
 
     private static final Logger log = LoggerFactory.getLogger(RedemptionPayments.class);
     private static final String CURRENCY = "PTS";
+    /** Validità minima del lotto di rimborso (docs/03 §4.2: "oggi + 30 giorni"). */
+    static final java.time.Duration REFUND_MIN_VALIDITY = java.time.Duration.ofDays(30);
 
     private final WalletRepository wallets;
     private final LedgerRepository ledger;
     private final PointsLotRepository lots;
     private final MemberTierRepository memberTiers;
-    private final CurrencyRepository currencies;
-    private final EditionRepository editions;
     private final LhEventFactory events;
     private final OutboxWriter outbox;
     private final ObjectMapper mapper;
     private final Clock clock;
 
     public RedemptionPayments(WalletRepository wallets, LedgerRepository ledger, PointsLotRepository lots,
-                              MemberTierRepository memberTiers, CurrencyRepository currencies, EditionRepository editions,
+                              MemberTierRepository memberTiers,
                               LhEventFactory events, OutboxWriter outbox, ObjectMapper mapper, Clock clock) {
         this.wallets = wallets;
         this.ledger = ledger;
         this.lots = lots;
         this.memberTiers = memberTiers;
-        this.currencies = currencies;
-        this.editions = editions;
         this.events = events;
         this.outbox = outbox;
         this.mapper = mapper;
@@ -113,8 +108,9 @@ public class RedemptionPayments {
     }
 
     /**
-     * Rimborso di una richiesta annullata dopo la spesa: i punti tornano nei lotti da cui erano stati presi; quelli
-     * di lotti ormai scaduti tornano in un lotto nuovo con la scadenza di un accredito di oggi (SPEC-GAP: Q-54).
+     * Rimborso di una richiesta annullata dopo la spesa (docs/03 §4.2): tutto l'importo speso torna in un lotto
+     * <b>nuovo</b> con {@code expiresAt = max(scadenza più lontana tra i lotti consumati, oggi + 30 giorni)}
+     * ({@link #refundExpiry}). I lotti d'origine restano come sono. Supera il default di Q-54 (vedi Q-E4).
      */
     @Transactional
     public void refund(LhEvent<JsonNode> cancelled) {
@@ -139,23 +135,9 @@ public class RedemptionPayments {
         long amount = spend.get().amount();
         Instant now = clock.instant();
         String ledgerId = Ulid.next(clock);
-        long restored = 0;
-        for (PointsLotRepository.Consumption c : lots.consumptions(spend.get().id())) {
-            boolean expired = PointsLot.EXPIRED.equals(c.status()) || (c.expiresAt() != null && !now.isBefore(c.expiresAt()));
-            if (!expired) {
-                lots.restore(c.lotId(), c.amount());
-                restored += c.amount();
-            }
-        }
-        // Quanto non torna in un lotto d'origine: presi da lotti ormai scaduti, oppure spesa senza consumi registrati
-        // (storico del seed demo). Va in un lotto nuovo, così Σ lotti attivi = saldo resta vero.
-        long expiredBack = amount - restored;
-        if (expiredBack > 0) {
-            // SPEC-GAP: Q-54 — i punti presi da lotti già scaduti non tornano scaduti: nuovo lotto da oggi.
-            Instant expiresAt = ExpiryPolicy.expiresAt(expiryPolicy(), now, editions::findContaining);
-            lots.insert(new PointsLot(Ulid.next(clock), memberId, CURRENCY, expiredBack, expiredBack,
-                    PointsLot.ACTIVE, now, null, expiresAt, ledgerId));
-        }
+        Instant expiresAt = refundExpiry(lots.consumptions(spend.get().id()), now);
+        lots.insert(new PointsLot(Ulid.next(clock), memberId, CURRENCY, amount, amount,
+                PointsLot.ACTIVE, now, null, expiresAt, ledgerId));
         long balanceAfter = wallets.refund(memberId, CURRENCY, amount);
         ObjectNode meta = mapper.createObjectNode();
         meta.put("reason", d.path("reason").asString(""));
@@ -170,6 +152,25 @@ public class RedemptionPayments {
         outbox.write(events.childOf(cancelled, LhEventTypes.Fact.WALLET_POINTS_REFUNDED, fact));
     }
 
+    /**
+     * Scadenza del lotto di rimborso (docs/03 §4.2): {@code max(scadenza originaria più lontana, now + 30 giorni)}. Un
+     * lotto consumato senza scadenza ({@code null}, policy {@code NEVER}) rende senza scadenza anche il rimborso. Nessun
+     * consumo registrato (spese storiche del seed) → {@code now + 30 giorni}.
+     */
+    // SPEC-GAP: Q-E4 — lotto consumato senza scadenza e spesa senza consumi non sono coperti da docs/03 §4.2.
+    static Instant refundExpiry(java.util.List<PointsLotRepository.Consumption> consumed, Instant now) {
+        Instant result = now.plus(REFUND_MIN_VALIDITY);
+        for (PointsLotRepository.Consumption c : consumed) {
+            if (c.expiresAt() == null) {
+                return null;
+            }
+            if (c.expiresAt().isAfter(result)) {
+                result = c.expiresAt();
+            }
+        }
+        return result;
+    }
+
     private void reject(LhEvent<JsonNode> requested, String redemptionId, String reason, long cost, long available) {
         ObjectNode fact = mapper.createObjectNode();
         fact.put("redemptionId", redemptionId);
@@ -177,13 +178,5 @@ public class RedemptionPayments {
         fact.put("requested", cost);
         fact.put("available", available);
         outbox.write(events.childOf(requested, LhEventTypes.Fact.WALLET_SPEND_REJECTED, fact));
-    }
-
-    private JsonNode expiryPolicy() {
-        return currencies.findByCode(CURRENCY)
-                .map(c -> c.expiryPolicyJson())
-                .filter(j -> j != null && !j.isBlank())
-                .map(mapper::readTree)
-                .orElse(null);
     }
 }

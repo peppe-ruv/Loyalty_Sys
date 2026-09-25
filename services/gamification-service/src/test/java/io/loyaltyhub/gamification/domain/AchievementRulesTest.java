@@ -66,6 +66,27 @@ class AchievementRulesTest {
         assertThat(AchievementRules.matches(null, data("{}"))).isTrue();
     }
 
+    /** docs/03 §3.3: campo assente → la foglia è falsa, anche con {@code neq} (il filtro non ha {@code nexists}). */
+    @Test
+    void absentFieldMakesEveryLeafFalse() {
+        JsonNode neq = data("{\"op\":\"all\",\"rules\":[{\"field\":\"data.channel\",\"cmp\":\"neq\",\"value\":\"STORE\"}]}");
+        assertThat(AchievementRules.matches(neq, data("{\"amount\":80}"))).as("campo assente").isFalse();
+        assertThat(AchievementRules.matches(neq, data("{\"channel\":null}"))).as("campo null").isFalse();
+        assertThat(AchievementRules.matches(neq, data("{\"channel\":\"ONLINE\"}"))).isTrue();
+        assertThat(AchievementRules.matches(neq, data("{\"channel\":\"STORE\"}"))).isFalse();
+        for (String cmp : List.of("eq", "gt", "gte", "lt", "lte")) {
+            JsonNode f = data("{\"rules\":[{\"field\":\"data.amount\",\"cmp\":\"" + cmp + "\",\"value\":10}]}");
+            assertThat(AchievementRules.matches(f, data("{}"))).as(cmp + " su campo assente").isFalse();
+        }
+        JsonNode in = data("{\"rules\":[{\"field\":\"data.channel\",\"cmp\":\"in\",\"value\":[\"APP\"]}]}");
+        assertThat(AchievementRules.matches(in, data("{}"))).isFalse();
+        // Gruppo "any": la foglia sul campo assente non basta a far passare, un'altra foglia vera sì.
+        JsonNode any = data("{\"op\":\"any\",\"rules\":[{\"field\":\"data.channel\",\"cmp\":\"neq\",\"value\":\"STORE\"},"
+                + "{\"field\":\"data.amount\",\"cmp\":\"gte\",\"value\":50}]}");
+        assertThat(AchievementRules.matches(any, data("{\"amount\":10}"))).isFalse();
+        assertThat(AchievementRules.matches(any, data("{\"amount\":60}"))).isTrue();
+    }
+
     private static Achievement a(String metric, String sumField, String unit, long target) {
         return new Achievement("id", "ACH-T", "T", null, null, List.of("x"), null, metric, sumField, unit, target, "EVER",
                 false, null, "ACTIVE");

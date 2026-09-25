@@ -19,7 +19,7 @@ import { Can } from "@/components/bo/Can";
 
 // BO-09 Azioni e fonti (docs/08 §BO-09). M6.7: tipi azione con dettaglio (campi, esempio, "usato da"), *Nuovo tipo
 // custom* con editor a righe → JSON Schema e *Prova* in BO-28. M3.5: scheda `bridge` — ponte interno fatto → azione
-// con interruttore (ADMIN) e contatore. Fonti in sola lettura.
+// con interruttore (ADMIN) e contatore. Fonti con interruttore (ADMIN, ingestion PUT /v1/sources/{code}).
 interface SourceRow {
   code: string;
   name: string;
@@ -169,7 +169,26 @@ function TypesTab() {
 }
 
 function SourcesTab() {
+  const qc = useQueryClient();
   const query = useLhQuery<SourceRow[]>("ingestion", "/v1/sources");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Interruttore (BO-09, F-ING-05): fonte spenta → i suoi eventi diventano REJECTED/SOURCE_DISABLED (visibili in BO-26).
+  async function toggle(s: SourceRow) {
+    setBusy(s.code);
+    setError(null);
+    try {
+      await lhFetch("ingestion", `/v1/sources/${s.code}`, { method: "PUT", body: JSON.stringify({ enabled: !s.enabled }) });
+      qc.invalidateQueries({ queryKey: ["ingestion"] });
+    } catch (e) {
+      const err = e as LhError;
+      setError(err.detail || err.code || "Aggiornamento non riuscito");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const columns: Column<SourceRow>[] = [
     { key: "code", header: "Codice", render: (s) => <CodeText>{s.code}</CodeText> },
     { key: "name", header: "Nome", render: (s) => s.name },
@@ -180,11 +199,30 @@ function SourcesTab() {
       header: "Tipi ammessi",
       render: (s) => <span className="text-xs">{s.allowedTypes.length ? s.allowedTypes.join(", ") : "tutti"}</span>,
     },
+    {
+      key: "toggle",
+      header: "Attiva",
+      render: (s) => (
+        <Can capability="program.config" mode="disable">
+          <button
+            onClick={() => toggle(s)}
+            disabled={busy === s.code}
+            aria-pressed={s.enabled}
+            className={`rounded-full px-2.5 py-0.5 text-xs font-medium disabled:opacity-50 ${s.enabled ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}
+          >
+            {s.enabled ? "Accesa" : "Spenta"}
+          </button>
+        </Can>
+      ),
+    },
   ];
   return (
-    <QueryState query={query} service="ingestion" isEmpty={(d) => d.length === 0} emptyTitle="Nessuna fonte">
-      {(d) => <DataTable columns={columns} rows={d} rowKey={(s) => s.code} />}
-    </QueryState>
+    <div className="space-y-3">
+      {error ? <p className="rounded bg-red-50 p-2 text-sm text-red-800">{error}</p> : null}
+      <QueryState query={query} service="ingestion" isEmpty={(d) => d.length === 0} emptyTitle="Nessuna fonte">
+        {(d) => <DataTable columns={columns} rows={d} rowKey={(s) => s.code} />}
+      </QueryState>
+    </div>
   );
 }
 

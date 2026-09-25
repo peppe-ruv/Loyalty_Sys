@@ -56,7 +56,7 @@ public final class AchievementRules {
 
     /**
      * Filtro opzionale sui dati dell'azione: {@code {"op":"all","rules":[{"field":"data.amount","cmp":"gte","value":50}]}}
-     * con {@code eq, neq, gt, gte, lt, lte, in}. Nessun filtro → passa.
+     * con {@code eq, neq, gt, gte, lt, lte, in}. Nessun filtro → passa. Campo assente o {@code null} → foglia falsa.
      */
     public static boolean matches(JsonNode filter, JsonNode data) {
         if (filter == null || filter.isNull() || !filter.has("rules")) {
@@ -123,7 +123,8 @@ public final class AchievementRules {
         JsonNode expected = r.path("value");
         String cmp = r.path("cmp").asString("eq");
         if (actual == null || actual.isNull()) {
-            return "neq".equals(cmp);
+            // docs/03 §3.3: campo assente → foglia falsa con ogni comparatore (il filtro non ha nexists), come nel motore campagne.
+            return false;
         }
         if ("in".equals(cmp)) {
             for (JsonNode e : expected) {

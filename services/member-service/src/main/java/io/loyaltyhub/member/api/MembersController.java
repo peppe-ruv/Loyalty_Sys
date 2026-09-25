@@ -62,7 +62,12 @@ public class MembersController {
         return service.get(id);
     }
 
+    /**
+     * Modifica parziale dal backoffice (F-MBR-03, BO-03): capacità {@code member.write} di docs/08 §2 → ADMIN e
+     * CARE. Il portale usa {@code PATCH /v1/portal/members/{id}} ({@link PortalMembersController}).
+     */
     @PatchMapping("/{id}")
+    @RequiresRole({Role.ADMIN, Role.CARE})
     public MemberView update(@PathVariable String id, @RequestBody UpdateMemberRequest request) {
         return service.update(id, request);
     }
