@@ -1,0 +1,8 @@
+id,descrizione,clockRome,tier,periodSts,missing
+TB-WAL-WVW-009,30 settembre 23:59:59 - GOLD sotto soglia: ancora nessun avviso,2026-09-30T23:59:59,GOLD,GOLD-500,NONE
+TB-WAL-WVW-010,1 ottobre 00:00 - GOLD sotto soglia di 500: avviso di mantenimento,2026-10-01T00:00:00,GOLD,GOLD-500,500
+TB-WAL-WVW-011,1 ottobre - GOLD esattamente in soglia: nessun avviso,2026-10-01T00:00:00,GOLD,GOLD,NONE
+TB-WAL-WVW-012,31 dicembre 23:59:59 - SILVER a soglia-1: avviso di 1 STS,2026-12-31T23:59:59,SILVER,SILVER-1,1
+TB-WAL-WVW-013,15 ottobre - BASE (soglia 0): nessun avviso,2026-10-15T12:00:00,BASE,0,NONE
+TB-WAL-WVW-014,15 novembre - PLATINUM con 0 STS: avviso per l'intera soglia,2026-11-15T12:00:00,PLATINUM,0,PLATINUM
+TB-WAL-WVW-015,1 gennaio 00:00 - GOLD con 0 STS: fuori dal periodo ottobre-dicembre,2027-01-01T00:00:00,GOLD,0,NONE

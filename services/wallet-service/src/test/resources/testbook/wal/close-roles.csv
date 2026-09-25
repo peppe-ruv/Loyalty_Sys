@@ -1,0 +1,6 @@
+id,descrizione,actor
+TB-WAL-ECL-007,applicazione con CARE: 403,CARE
+TB-WAL-ECL-008,applicazione con MARKETING: 403,MARKETING
+TB-WAL-ECL-009,applicazione con LEGAL: 403,LEGAL
+TB-WAL-ECL-010,applicazione con ANALYST: 403,ANALYST
+TB-WAL-ECL-011,applicazione senza X-LH-Actor: 403,NONE

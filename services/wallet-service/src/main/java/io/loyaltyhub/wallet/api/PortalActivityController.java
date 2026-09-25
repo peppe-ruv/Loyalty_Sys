@@ -3,6 +3,7 @@ package io.loyaltyhub.wallet.api;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.wallet.domain.LedgerEntry;
+import io.loyaltyhub.wallet.domain.PointsLot;
 import io.loyaltyhub.wallet.infra.LedgerRepository;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,8 +31,14 @@ public class PortalActivityController {
         this.mapper = mapper;
     }
 
+    /**
+     * Voce dell'attività (wallet-service §3): {@code {id, occurredAt, title, subtitle, amount, direction, currency, icon,
+     * pending, expiresAt?, breakdown?}}. {@code amount} è con segno (negativo in uscita), {@code direction} è
+     * {@code +}/{@code -} come nel libro mastro; {@code pending} e {@code expiresAt} vengono dal lotto nato dal movimento.
+     */
     public record ActivityItem(String id, Instant occurredAt, String title, String subtitle,
-                               long amount, String currency, boolean pending, String breakdown) {
+                               long amount, String currency, boolean pending, String breakdown,
+                               String direction, String icon, Instant expiresAt) {
     }
 
     @GetMapping("/{memberId}/activity")
@@ -39,14 +46,32 @@ public class PortalActivityController {
             @PathVariable String memberId,
             @RequestParam(required = false) String currency,
             @RequestParam(defaultValue = "30") int size) {
-        return ledger.listByMember(memberId, currency, Math.min(Math.max(size, 1), 100)).stream()
+        LedgerRepository.LedgerFilter filter = new LedgerRepository.LedgerFilter(currency, null, null, null);
+        return ledger.search(memberId, filter, Math.min(Math.max(size, 1), 100)).stream()
                 .map(this::toItem).toList();
     }
 
-    private ActivityItem toItem(LedgerEntry e) {
+    private ActivityItem toItem(LedgerRepository.LedgerLine line) {
+        LedgerEntry e = line.entry();
         long signed = "-".equals(e.direction()) ? -e.amount() : e.amount();
+        // PT-07: «stato in attesa» = il lotto nato dal movimento non è ancora rilasciato; «data di scadenza del lotto»
+        // solo per i movimenti che hanno creato un lotto (accrediti, rettifiche in accredito, rimborsi).
+        boolean pending = PointsLot.PENDING.equals(line.lotStatus());
         return new ActivityItem(e.id(), e.occurredAt(), title(e), subtitle(e), signed, e.currency(),
-                false, breakdown(e));
+                pending, breakdown(e), e.direction(), icon(e), line.lotExpiresAt());
+    }
+
+    /** Icona (nome lucide, come le icone dei seed) per tipo di movimento. */
+    private static String icon(LedgerEntry e) {
+        return switch (e.type()) {
+            case "EARN" -> "STS".equals(e.currency()) ? "star" : "sparkles";
+            case "SPEND" -> "gift";
+            case "ADJUST", "ADJUST_CREDIT", "ADJUST_DEBIT" -> "pencil";
+            case "EXPIRE" -> "hourglass";
+            case "REFUND" -> "undo-2";
+            case "RELEASE" -> "unlock";
+            default -> "circle";
+        };
     }
 
     private String title(LedgerEntry e) {

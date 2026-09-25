@@ -120,6 +120,9 @@ export interface LedgerEntry {
   occurredAt: string;
   campaignCode: string | null;
   description: string | null;
+  // F-WAL-02: azione e attore del movimento.
+  actionId?: string | null;
+  actor?: string | null;
 }
 
 export interface WalletView {
@@ -134,6 +137,8 @@ export interface WalletView {
     multiplier: number;
     progressPct: number;
     next: { code: string; threshold: number; missing: number } | null;
+    // Avviso di mantenimento (da ottobre, periodSts sotto la soglia del livello attuale).
+    keepWarning?: { tier: string; missing: number } | null;
   };
 }
 
@@ -143,6 +148,8 @@ export interface Tier {
   name: string;
   rank: number;
   thresholdSts: number;
+  // Solo `/v1/portal/tiers` (PT-08): stessa soglia di `thresholdSts`.
+  threshold?: number;
   multiplier: number;
   benefits: string[];
   color: string | null;
