@@ -1,0 +1,50 @@
+id,descrizione,state,event,expHttp,expStatus,expFact,expStockDelta
+TB-RWD-SAG-001,PENDING × wallet.points.spent,PENDING,SPENT,-,CONFIRMED,confirmed,0
+TB-RWD-SAG-002,PENDING × wallet.spend.rejected,PENDING,REJECT,-,REJECTED,rejected:INSUFFICIENT_BALANCE,+1
+TB-RWD-SAG-003,"PENDING × job timeout, asOf = richiesta + 10 min + 1 s",PENDING,TIMEOUT,200,REJECTED,rejected:TIMEOUT,+1
+TB-RWD-SAG-004,PENDING × annullo del membro (portale),PENDING,MEMBER_CANCEL,200,CANCELLED,cancelled:false,+1
+TB-RWD-SAG-005,"PENDING × annullo con rimborso (CARE, motivo)",PENDING,CARE_CANCEL,409,PENDING,none,0
+TB-RWD-SAG-006,"PENDING × evasione manuale (CARE, nota)",PENDING,CARE_FULFIL,409,PENDING,none,0
+TB-RWD-SAG-007,PENDING × retry-fulfilment (CARE),PENDING,RETRY,409,PENDING,none,0
+TB-RWD-SAG-008,CONFIRMED (evasione MANUAL) × wallet.points.spent,CONFIRMED_MANUAL,SPENT,-,CONFIRMED,none,0
+TB-RWD-SAG-009,CONFIRMED (evasione MANUAL) × wallet.spend.rejected,CONFIRMED_MANUAL,REJECT,-,CONFIRMED,none,0
+TB-RWD-SAG-010,"CONFIRMED (evasione MANUAL) × job timeout, asOf = richiesta + 10 min + 1 s",CONFIRMED_MANUAL,TIMEOUT,200,CONFIRMED,none,0
+TB-RWD-SAG-011,CONFIRMED (evasione MANUAL) × annullo del membro (portale),CONFIRMED_MANUAL,MEMBER_CANCEL,409,CONFIRMED,none,0
+TB-RWD-SAG-012,"CONFIRMED (evasione MANUAL) × annullo con rimborso (CARE, motivo)",CONFIRMED_MANUAL,CARE_CANCEL,200,CANCELLED,cancelled:true,+1
+TB-RWD-SAG-013,"CONFIRMED (evasione MANUAL) × evasione manuale (CARE, nota)",CONFIRMED_MANUAL,CARE_FULFIL,200,FULFILLED,fulfilled,0
+TB-RWD-SAG-014,CONFIRMED (evasione MANUAL) × retry-fulfilment (CARE),CONFIRMED_MANUAL,RETRY,409,CONFIRMED,none,0
+TB-RWD-SAG-015,"CONFIRMED con needsAttention (AUTO_COUPON, pool vuoto) × wallet.points.spent",CONFIRMED_ATTENTION,SPENT,-,CONFIRMED,none,0
+TB-RWD-SAG-016,"CONFIRMED con needsAttention (AUTO_COUPON, pool vuoto) × wallet.spend.rejected",CONFIRMED_ATTENTION,REJECT,-,CONFIRMED,none,0
+TB-RWD-SAG-017,"CONFIRMED con needsAttention (AUTO_COUPON, pool vuoto) × job timeout, asOf = richiesta + 10 min + 1 s",CONFIRMED_ATTENTION,TIMEOUT,200,CONFIRMED,none,0
+TB-RWD-SAG-018,"CONFIRMED con needsAttention (AUTO_COUPON, pool vuoto) × annullo del membro (portale)",CONFIRMED_ATTENTION,MEMBER_CANCEL,409,CONFIRMED,none,0
+TB-RWD-SAG-019,"CONFIRMED con needsAttention (AUTO_COUPON, pool vuoto) × annullo con rimborso (CARE, motivo)",CONFIRMED_ATTENTION,CARE_CANCEL,200,CANCELLED,cancelled:true,+1
+TB-RWD-SAG-020,"CONFIRMED con needsAttention (AUTO_COUPON, pool vuoto) × evasione manuale (CARE, nota)",CONFIRMED_ATTENTION,CARE_FULFIL,409,CONFIRMED,none,0
+TB-RWD-SAG-021,"CONFIRMED con needsAttention (AUTO_COUPON, pool vuoto) × retry-fulfilment (CARE)",CONFIRMED_ATTENTION,RETRY,200,FULFILLED,fulfilled,0
+TB-RWD-SAG-022,FULFILLED (INSTANT) × wallet.points.spent,FULFILLED,SPENT,-,FULFILLED,none,0
+TB-RWD-SAG-023,FULFILLED (INSTANT) × wallet.spend.rejected,FULFILLED,REJECT,-,FULFILLED,none,0
+TB-RWD-SAG-024,"FULFILLED (INSTANT) × job timeout, asOf = richiesta + 10 min + 1 s",FULFILLED,TIMEOUT,200,FULFILLED,none,0
+TB-RWD-SAG-025,FULFILLED (INSTANT) × annullo del membro (portale),FULFILLED,MEMBER_CANCEL,409,FULFILLED,none,0
+TB-RWD-SAG-026,"FULFILLED (INSTANT) × annullo con rimborso (CARE, motivo)",FULFILLED,CARE_CANCEL,409,FULFILLED,none,0
+TB-RWD-SAG-027,"FULFILLED (INSTANT) × evasione manuale (CARE, nota)",FULFILLED,CARE_FULFIL,409,FULFILLED,none,0
+TB-RWD-SAG-028,FULFILLED (INSTANT) × retry-fulfilment (CARE),FULFILLED,RETRY,409,FULFILLED,none,0
+TB-RWD-SAG-029,REJECTED (INSUFFICIENT_BALANCE) × wallet.points.spent,REJECTED,SPENT,-,REJECTED,cancelled:true,0
+TB-RWD-SAG-030,REJECTED (INSUFFICIENT_BALANCE) × wallet.spend.rejected,REJECTED,REJECT,-,REJECTED,none,0
+TB-RWD-SAG-031,"REJECTED (INSUFFICIENT_BALANCE) × job timeout, asOf = richiesta + 10 min + 1 s",REJECTED,TIMEOUT,200,REJECTED,none,0
+TB-RWD-SAG-032,REJECTED (INSUFFICIENT_BALANCE) × annullo del membro (portale),REJECTED,MEMBER_CANCEL,409,REJECTED,none,0
+TB-RWD-SAG-033,"REJECTED (INSUFFICIENT_BALANCE) × annullo con rimborso (CARE, motivo)",REJECTED,CARE_CANCEL,409,REJECTED,none,0
+TB-RWD-SAG-034,"REJECTED (INSUFFICIENT_BALANCE) × evasione manuale (CARE, nota)",REJECTED,CARE_FULFIL,409,REJECTED,none,0
+TB-RWD-SAG-035,REJECTED (INSUFFICIENT_BALANCE) × retry-fulfilment (CARE),REJECTED,RETRY,409,REJECTED,none,0
+TB-RWD-SAG-036,CANCELLED dal membro × wallet.points.spent,CANCELLED_MEMBER,SPENT,-,CANCELLED,cancelled:true,0
+TB-RWD-SAG-037,CANCELLED dal membro × wallet.spend.rejected,CANCELLED_MEMBER,REJECT,-,CANCELLED,none,0
+TB-RWD-SAG-038,"CANCELLED dal membro × job timeout, asOf = richiesta + 10 min + 1 s",CANCELLED_MEMBER,TIMEOUT,200,CANCELLED,none,0
+TB-RWD-SAG-039,CANCELLED dal membro × annullo del membro (portale),CANCELLED_MEMBER,MEMBER_CANCEL,409,CANCELLED,none,0
+TB-RWD-SAG-040,"CANCELLED dal membro × annullo con rimborso (CARE, motivo)",CANCELLED_MEMBER,CARE_CANCEL,409,CANCELLED,none,0
+TB-RWD-SAG-041,"CANCELLED dal membro × evasione manuale (CARE, nota)",CANCELLED_MEMBER,CARE_FULFIL,409,CANCELLED,none,0
+TB-RWD-SAG-042,CANCELLED dal membro × retry-fulfilment (CARE),CANCELLED_MEMBER,RETRY,409,CANCELLED,none,0
+TB-RWD-SAG-043,CANCELLED con rimborso (CARE) × wallet.points.spent,CANCELLED_REFUND,SPENT,-,CANCELLED,-,0
+TB-RWD-SAG-044,CANCELLED con rimborso (CARE) × wallet.spend.rejected,CANCELLED_REFUND,REJECT,-,CANCELLED,none,0
+TB-RWD-SAG-045,"CANCELLED con rimborso (CARE) × job timeout, asOf = richiesta + 10 min + 1 s",CANCELLED_REFUND,TIMEOUT,200,CANCELLED,none,0
+TB-RWD-SAG-046,CANCELLED con rimborso (CARE) × annullo del membro (portale),CANCELLED_REFUND,MEMBER_CANCEL,409,CANCELLED,none,0
+TB-RWD-SAG-047,"CANCELLED con rimborso (CARE) × annullo con rimborso (CARE, motivo)",CANCELLED_REFUND,CARE_CANCEL,409,CANCELLED,none,0
+TB-RWD-SAG-048,"CANCELLED con rimborso (CARE) × evasione manuale (CARE, nota)",CANCELLED_REFUND,CARE_FULFIL,409,CANCELLED,none,0
+TB-RWD-SAG-049,CANCELLED con rimborso (CARE) × retry-fulfilment (CARE),CANCELLED_REFUND,RETRY,409,CANCELLED,none,0

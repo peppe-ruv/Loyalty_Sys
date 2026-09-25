@@ -1,0 +1,21 @@
+id,descrizione,action,role,expHttp
+TB-RWD-ROL-030,uso alla cassa con ruolo ADMIN,USE,ADMIN,200
+TB-RWD-ROL-031,uso alla cassa con ruolo MARKETING,USE,MARKETING,200
+TB-RWD-ROL-032,uso alla cassa con ruolo LEGAL,USE,LEGAL,200
+TB-RWD-ROL-033,uso alla cassa con ruolo CARE,USE,CARE,200
+TB-RWD-ROL-034,uso alla cassa con ruolo ANALYST,USE,ANALYST,403
+TB-RWD-ROL-035,uso alla cassa con ruolo -,USE,-,403
+TB-RWD-ROL-036,uso alla cassa con ruolo INVALID,USE,INVALID,403
+TB-RWD-ROL-037,annullo del codice con ruolo ADMIN,VOID,ADMIN,200
+TB-RWD-ROL-038,annullo del codice con ruolo MARKETING,VOID,MARKETING,403
+TB-RWD-ROL-039,annullo del codice con ruolo LEGAL,VOID,LEGAL,403
+TB-RWD-ROL-040,annullo del codice con ruolo CARE,VOID,CARE,200
+TB-RWD-ROL-041,annullo del codice con ruolo ANALYST,VOID,ANALYST,403
+TB-RWD-ROL-042,annullo del codice con ruolo -,VOID,-,403
+TB-RWD-ROL-043,annullo del codice con ruolo INVALID,VOID,INVALID,403
+TB-RWD-ROL-044,job timeout-redemptions con ruolo ADMIN,JOB_TIMEOUT,ADMIN,200
+TB-RWD-ROL-045,job timeout-redemptions con ruolo MARKETING,JOB_TIMEOUT,MARKETING,403
+TB-RWD-ROL-046,job timeout-redemptions con ruolo -,JOB_TIMEOUT,-,403
+TB-RWD-ROL-047,job expire-coupons con ruolo ADMIN,JOB_EXPIRE,ADMIN,200
+TB-RWD-ROL-048,job expire-coupons con ruolo MARKETING,JOB_EXPIRE,MARKETING,403
+TB-RWD-ROL-049,job expire-coupons con ruolo -,JOB_EXPIRE,-,403

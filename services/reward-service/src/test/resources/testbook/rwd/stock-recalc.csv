@@ -1,0 +1,14 @@
+id,descrizione,initialTotal,held,newTotal,mode,expHttp,expTotal,expRemaining
+TB-RWD-EDT-040,"totale 10, nessuna prenotazione, nuovo totale 15",10,0,15,N,200,15,15
+TB-RWD-EDT-041,"totale 10, 3 prenotate, nuovo totale 15",10,3,15,N,200,15,12
+TB-RWD-EDT-042,"totale 10, 3 prenotate, stesso totale",10,3,10,N,200,10,7
+TB-RWD-EDT-043,"totale 10, 3 prenotate, nuovo totale 5",10,3,5,N,200,5,2
+TB-RWD-EDT-044,"totale 10, 3 prenotate, nuovo totale 3 (= prenotate)",10,3,3,N,200,3,0
+TB-RWD-EDT-045,"totale 10, 3 prenotate, nuovo totale 2 (< prenotate)",10,3,2,N,200,2,0
+TB-RWD-EDT-046,"totale 10, 3 prenotate, nuovo totale 0",10,3,0,N,200,0,0
+TB-RWD-EDT-047,"totale 10, prenotazione arrivata dopo la lettura della versione, nuovo totale 20",10,1,20,Y,200,20,19
+TB-RWD-EDT-048,versione superata da un'altra modifica,10,0,20,STALE,409,10,10
+TB-RWD-EDT-049,PUT senza version (ultima scrittura vince),10,0,12,NOVERSION,200,12,12
+TB-RWD-EDT-050,"totale 10, 3 prenotate, stockTotal omesso",10,3,-,N,200,10,7
+TB-RWD-EDT-051,"illimitato con 2 richieste in corso, nuovo totale 10",-,2,10,N,200,10,10
+TB-RWD-EDT-052,nuovo totale −1,10,0,-1,N,422,10,10

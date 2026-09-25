@@ -1,0 +1,36 @@
+id,descrizione,role,overrides,expHttp,expCode
+TB-RWD-CAT-001,"valido minimo (DIGITAL, INSTANT, F1)",MARKETING,-,201,-
+TB-RWD-CAT-002,tipo PHYSICAL con evasione MANUAL,MARKETING,type=PHYSICAL;fulfilment=MANUAL,201,-
+TB-RWD-CAT-003,tipo COUPON con AUTO_COUPON e pool,MARKETING,type=COUPON;fulfilment=AUTO_COUPON;couponPoolId=<pool>,201,-
+TB-RWD-CAT-004,tipo DONATION con INSTANT,MARKETING,type=DONATION;fulfilment=INSTANT,201,-
+TB-RWD-CAT-005,tipo EXPERIENCE con MANUAL,MARKETING,type=EXPERIENCE;fulfilment=MANUAL,201,-
+TB-RWD-CAT-006,tipo sconosciuto VOUCHER,MARKETING,type=VOUCHER,422,REWARD_INVALID
+TB-RWD-CAT-007,tipo minuscolo con spazi « coupon »,MARKETING,type= coupon ;fulfilment=AUTO_COUPON;couponPoolId=<pool>,201,-
+TB-RWD-CAT-008,evasione sconosciuta AUTO,MARKETING,fulfilment=AUTO,422,REWARD_INVALID
+TB-RWD-CAT-009,AUTO_COUPON su premio PHYSICAL,MARKETING,type=PHYSICAL;fulfilment=AUTO_COUPON,422,REWARD_INVALID
+TB-RWD-CAT-010,AUTO_COUPON senza pool,MARKETING,type=COUPON;fulfilment=AUTO_COUPON,201,-
+TB-RWD-CAT-011,nome solo spazi,MARKETING,name=<blank>,422,REWARD_INVALID
+TB-RWD-CAT-012,nome assente,MARKETING,name=<null>,422,REWARD_INVALID
+TB-RWD-CAT-013,fascia assente,MARKETING,band=<null>,422,REWARD_INVALID
+TB-RWD-CAT-014,fascia inesistente F9,MARKETING,band=F9,422,REWARD_INVALID
+TB-RWD-CAT-015,categoria inesistente,MARKETING,category=NOPE,422,REWARD_INVALID
+TB-RWD-CAT-016,categoria assente,MARKETING,category=<null>,201,-
+TB-RWD-CAT-017,stockTotal −1,MARKETING,stockTotal=-1,422,REWARD_INVALID
+TB-RWD-CAT-018,stockTotal 0,MARKETING,stockTotal=0,201,-
+TB-RWD-CAT-019,stockTotal 1,MARKETING,stockTotal=1,201,-
+TB-RWD-CAT-020,stockTotal assente (illimitato),MARKETING,stockTotal=<null>,201,-
+TB-RWD-CAT-021,perMemberLimit 0,MARKETING,perMemberLimit=0,422,REWARD_INVALID
+TB-RWD-CAT-022,perMemberLimit 1,MARKETING,perMemberLimit=1,201,-
+TB-RWD-CAT-023,perMemberLimit −1,MARKETING,perMemberLimit=-1,422,REWARD_INVALID
+TB-RWD-CAT-024,validTo = validFrom,MARKETING,validFrom=2026-10-01T00:00:00Z;validTo=2026-10-01T00:00:00Z,422,REWARD_INVALID
+TB-RWD-CAT-025,validTo = validFrom + 1 ms,MARKETING,validFrom=2026-10-01T00:00:00Z;validTo=2026-10-01T00:00:00.001Z,201,-
+TB-RWD-CAT-026,validTo < validFrom,MARKETING,validFrom=2026-10-01T00:00:00Z;validTo=2026-09-30T00:00:00Z,422,REWARD_INVALID
+TB-RWD-CAT-027,codice assente,MARKETING,code=<null>,400,-
+TB-RWD-CAT-028,codice solo spazi,MARKETING,code=<blank>,400,-
+TB-RWD-CAT-029,codice già esistente,MARKETING,code=<dup>,409,CODE_TAKEN
+TB-RWD-CAT-030,ruolo ADMIN,ADMIN,-,201,-
+TB-RWD-CAT-031,ruolo LEGAL,LEGAL,-,403,FORBIDDEN_ROLE
+TB-RWD-CAT-032,ruolo CARE,CARE,-,403,FORBIDDEN_ROLE
+TB-RWD-CAT-033,ruolo ANALYST,ANALYST,-,403,FORBIDDEN_ROLE
+TB-RWD-CAT-034,intestazione X-LH-Actor assente,-,-,403,FORBIDDEN_ROLE
+TB-RWD-CAT-035,intestazione X-LH-Actor non valida,INVALID,-,403,FORBIDDEN_ROLE
