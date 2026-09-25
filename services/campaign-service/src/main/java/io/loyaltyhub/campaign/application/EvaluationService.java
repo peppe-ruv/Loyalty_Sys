@@ -22,8 +22,10 @@ import io.loyaltyhub.common.outbox.OutboxWriter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -126,20 +128,25 @@ public class EvaluationService {
 
     // ---------- interni ----------
 
+    /**
+     * Un incremento per ogni contatore distinto (periodo, chiave) dei limiti per membro, più la riga {@code ALWAYS}
+     * sempre presente: accumula i punti del membro ({@code perMemberPoints}), l'ultimo match ({@code cooldownMinutes})
+     * e le statistiche.
+     */
     private void consumeLimits(Campaign c, EvalAction action, long points) {
         JsonNode perMember = c.limits() == null ? null : c.limits().get("perMember");
-        boolean any = false;
+        Set<String> seen = new LinkedHashSet<>();
         if (perMember != null && perMember.isArray()) {
             for (JsonNode lim : perMember) {
                 String period = lim.path("period").asString("ALWAYS");
-                counters.addMemberMatch(c.id(), action.memberId(), period,
-                        PeriodKeys.of(period, action.time()), points);
-                any = true;
+                String key = PeriodKeys.of(period, action.time());
+                if (seen.add(period + "|" + key)) {
+                    counters.addMemberMatch(c.id(), action.memberId(), period, key, points, action.time());
+                }
             }
         }
-        if (!any) {
-            // Nessun limite per membro: traccia comunque il match nel periodo ALWAYS (per statistiche).
-            counters.addMemberMatch(c.id(), action.memberId(), "ALWAYS", "ALWAYS", points);
+        if (seen.add("ALWAYS|ALWAYS")) {
+            counters.addMemberMatch(c.id(), action.memberId(), "ALWAYS", "ALWAYS", points, action.time());
         }
     }
 

@@ -29,4 +29,4 @@ TB-CMP-EDT-027|APPROVED: effetti|APPROVED|{"effects":[{"type":"GRANT_POINTS","cu
 TB-CMP-EDT-028|DRAFT: trigger|DRAFT|{"triggerActionTypes":["tbcmp.altro"]}|200|
 TB-CMP-EDT-029|DRAFT: elenco effetti vuoto|DRAFT|{"effects":[]}|422|
 TB-CMP-EDT-030|campagna inesistente|NONE|{"name":"Nome nuovo"}|404|
-TB-CMP-EDT-031|DRAFT: codice diverso (BO-06: modificabile solo in DRAFT)|DRAFT|{"code":"TB-CMP-EDT-031-NUOVO"}|200|
+TB-CMP-EDT-031|DRAFT: codice diverso (Q-51: il code non si modifica mai, prevale su BO-06; conflitto in Q-C1)|DRAFT|{"code":"TB-CMP-EDT-031-NUOVO"}|409|CODE_IMMUTABLE

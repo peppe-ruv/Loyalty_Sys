@@ -46,10 +46,15 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /** Gestione delle campagne (docs/servizi/campaign-service.md §3): elenco, creazione, transizioni, validazione, portale, simulazione. */
 @Service
 public class CampaignAdminService implements ApprovalSource {
+
+    /** Formato del {@code code} delle entità di configurazione (docs/06 §2). */
+    static final Pattern CODE = Pattern.compile("^[A-Z][A-Z0-9-]{2,39}$");
+    private static final int CODE_MAX = 40;
 
     private final CampaignRepository campaigns;
     private final CounterRepository counters;
@@ -98,15 +103,17 @@ public class CampaignAdminService implements ApprovalSource {
                 }).toList();
     }
 
-    public Campaign get(String id) {
-        return campaigns.findById(id).orElseThrow(() -> LhException.notFound("Campagna non trovata: " + id));
+    /** Campagna per {@code id} o per {@code code}: nei path si accetta indifferentemente l'uno o l'altro (docs/06 §2). */
+    public Campaign get(String idOrCode) {
+        return campaigns.findById(idOrCode).or(() -> campaigns.findByCode(idOrCode))
+                .orElseThrow(() -> LhException.notFound("Campagna non trovata: " + idOrCode));
     }
 
     /** Statistiche della campagna (F-CMP-10, docs §3): totali, budget residuo e serie giornaliera 30 giorni. */
-    public CampaignStats stats(String id) {
-        Campaign c = get(id);
-        CounterRepository.Totals t = counters.totals(id);
-        long uniqueMembers = counters.uniqueMembers(id);
+    public CampaignStats stats(String idOrCode) {
+        Campaign c = get(idOrCode);
+        CounterRepository.Totals t = counters.totals(c.id());
+        long uniqueMembers = counters.uniqueMembers(c.id());
         Budget budget = budgetOf(c.limits(), t.matches(), t.pointsDecided());
         Instant from = clock.instant().minus(Duration.ofDays(30));
         List<DailyStat> daily = evaluations.dailyForCampaign(c.code(), from);
@@ -149,6 +156,10 @@ public class CampaignAdminService implements ApprovalSource {
         if (r.code() == null || r.code().isBlank()) {
             throw LhException.badRequest("code è obbligatorio");
         }
+        if (!CODE.matcher(r.code()).matches()) {
+            throw LhException.validation("INVALID_CODE", "Codice non valido: lettere maiuscole, cifre e trattini (3–40)",
+                    List.of(new LhException.FieldError("code", "formato ^[A-Z][A-Z0-9-]{2,39}$")));
+        }
         if (campaigns.findByCode(r.code()).isPresent()) {
             throw LhException.conflict("CODE_TAKEN", "Codice campagna già esistente: " + r.code());
         }
@@ -158,7 +169,8 @@ public class CampaignAdminService implements ApprovalSource {
                 node(r.audience(), "{\"all\":true}"), node(r.conditions(), "{\"op\":\"all\",\"rules\":[]}"),
                 node(r.effects(), "[]"), node(r.limits(), "{}"), node(r.schedule(), "{}"),
                 r.priority() == null ? 100 : r.priority(), r.exclusiveGroup(),
-                r.visibleInPortal() != null && r.visibleInPortal(), false, false,
+                r.visibleInPortal() != null && r.visibleInPortal(), false,
+                r.requiresLegal() != null && r.requiresLegal(), // BO-06 sez. 1 + docs/06 §7: requiresLegal ⇒ LEGAL
                 r.labels() == null ? List.of() : r.labels(), CampaignStatus.DRAFT, 0, null, null);
         campaigns.insert(c);
         cache.reload();
@@ -175,9 +187,11 @@ public class CampaignAdminService implements ApprovalSource {
      * {@code schedule.endAt} — altrimenti {@code 409 CAMPAIGN_LIVE_LOCKED} (per il resto si duplica).
      * {@code ENDED}/{@code ARCHIVED}: {@code 409 CAMPAIGN_NOT_EDITABLE}.
      */
+    // SPEC-GAP: Q-C48 — requiresLegal si imposta solo alla creazione: il PUT lo ignora (toglierlo aggirerebbe LEGAL).
     @Transactional
-    public Campaign update(String id, CreateCampaignRequest r) {
-        Campaign c = get(id);
+    public Campaign update(String idOrCode, CreateCampaignRequest r) {
+        Campaign c = get(idOrCode);
+        String id = c.id();
         if (r.code() != null && !r.code().equals(c.code())) {
             throw LhException.conflict("CODE_IMMUTABLE", "Il codice di una campagna non si modifica: " + c.code());
         }
@@ -217,13 +231,13 @@ public class CampaignAdminService implements ApprovalSource {
      * cambiare i campi bloccati di una campagna {@code LIVE} (docs/03 §3.6). La copia non è mai di sistema; il flag
      * {@code requiresLegal} resta (la policy si ricalcola all'invio).
      */
+    // SPEC-GAP: Q-C47 — se <code>-COPY-n supera i 40 caratteri del formato (docs/06 §2) si tronca la base, come Q-113.
     @Transactional
-    public Campaign duplicate(String id) {
-        Campaign c = get(id);
-        int n = 1;
-        String code = c.code() + "-COPY-" + n;
-        while (campaigns.findByCode(code).isPresent()) {
-            code = c.code() + "-COPY-" + ++n;
+    public Campaign duplicate(String idOrCode) {
+        Campaign c = get(idOrCode);
+        String code = null;
+        for (int n = 1; code == null || campaigns.findByCode(code).isPresent(); n++) {
+            code = copyCode(c.code(), n);
         }
         Campaign copy = new Campaign(Ulid.next(clock), code, c.name() + " (copia)", c.description(), c.memberDescription(),
                 c.icon(), c.triggerActionTypes(), c.audience(), c.conditions(), c.effects(), c.limits(), c.schedule(),
@@ -234,6 +248,13 @@ public class CampaignAdminService implements ApprovalSource {
         audit.record("CAMPAIGN", code, AuditEntry.Action.CREATE, "Duplicata campagna " + c.code() + " in " + code,
                 null, Map.of("from", c.code(), "code", code, "status", CampaignStatus.DRAFT.name()));
         return campaigns.findByCode(code).orElseThrow();
+    }
+
+    /** {@code <code>-COPY-n} entro i 40 caratteri di {@code ^[A-Z][A-Z0-9-]{2,39}$}: si accorcia la base, mai il suffisso. */
+    static String copyCode(String code, int n) {
+        String suffix = "-COPY-" + n;
+        int room = CODE_MAX - suffix.length();
+        return (code.length() > room ? code.substring(0, room) : code) + suffix;
     }
 
     private Campaign merge(Campaign c, CreateCampaignRequest r) {
@@ -290,8 +311,9 @@ public class CampaignAdminService implements ApprovalSource {
      * pubblicano direttamente. {@code ACTIVATE} resta un sinonimo di {@code PUBLISH}.
      */
     @Transactional
-    public Campaign transition(String id, TransitionRequest req) {
-        Campaign c = get(id);
+    public Campaign transition(String idOrCode, TransitionRequest req) {
+        Campaign c = get(idOrCode);
+        String id = c.id();
         String raw = req.action() == null ? "" : req.action().trim().toUpperCase();
         ApprovalAction a = GovernedTransitions.parse("ACTIVATE".equals(raw) ? "PUBLISH" : raw);
         if (a == ApprovalAction.ARCHIVE && c.system()) {
@@ -370,6 +392,16 @@ public class CampaignAdminService implements ApprovalSource {
                 if (e.path("type").asString("").equals("GRANT_PLAYS")
                         && e.path("contestCode").asString("").isBlank()) {
                     errors.add("GRANT_PLAYS.contestCode obbligatorio");
+                }
+                // docs/servizi/campaign-service.md §5: codici premio e badge non vuoti.
+                if (e.path("type").asString("").equals("ISSUE_COUPON")
+                        && e.path("rewardCode").asString("").isBlank()
+                        && e.path("rewardCodeField").asString("").isBlank()) {
+                    errors.add("ISSUE_COUPON.rewardCode (o rewardCodeField) obbligatorio");
+                }
+                if (e.path("type").asString("").equals("AWARD_BADGE")
+                        && e.path("badgeCode").asString("").isBlank()) {
+                    errors.add("AWARD_BADGE.badgeCode obbligatorio");
                 }
                 if (e.path("type").asString("").equals("SEND_MESSAGE")) {
                     String templateCode = e.path("templateCode").asString("");
