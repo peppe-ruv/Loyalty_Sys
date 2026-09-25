@@ -1,0 +1,66 @@
+id	descrizione	condition	expected
+TB-ENG-CND-001	eq vero	{"field":"data.amount","cmp":"eq","value":150}	true
+TB-ENG-CND-002	eq falso	{"field":"data.amount","cmp":"eq","value":151}	false
+TB-ENG-CND-003	eq campo assente	{"field":"data.missing","cmp":"eq","value":150}	false
+TB-ENG-CND-004	neq vero	{"field":"data.currency","cmp":"neq","value":"STS"}	true
+TB-ENG-CND-005	neq falso	{"field":"data.currency","cmp":"neq","value":"PTS"}	false
+TB-ENG-CND-006	neq campo assente	{"field":"data.missing","cmp":"neq","value":"STS"}	false
+TB-ENG-CND-007	gt vero	{"field":"data.amount","cmp":"gt","value":149}	true
+TB-ENG-CND-008	gt falso	{"field":"data.amount","cmp":"gt","value":150}	false
+TB-ENG-CND-009	gt campo assente	{"field":"data.missing","cmp":"gt","value":149}	false
+TB-ENG-CND-010	gte vero	{"field":"data.amount","cmp":"gte","value":150}	true
+TB-ENG-CND-011	gte falso	{"field":"data.amount","cmp":"gte","value":151}	false
+TB-ENG-CND-012	gte campo assente	{"field":"data.missing","cmp":"gte","value":150}	false
+TB-ENG-CND-013	lt vero	{"field":"data.amount","cmp":"lt","value":151}	true
+TB-ENG-CND-014	lt falso	{"field":"data.amount","cmp":"lt","value":150}	false
+TB-ENG-CND-015	lt campo assente	{"field":"data.missing","cmp":"lt","value":151}	false
+TB-ENG-CND-016	lte vero	{"field":"data.amount","cmp":"lte","value":150}	true
+TB-ENG-CND-017	lte falso	{"field":"data.amount","cmp":"lte","value":149}	false
+TB-ENG-CND-018	lte campo assente	{"field":"data.missing","cmp":"lte","value":150}	false
+TB-ENG-CND-019	in vero	{"field":"data.role","cmp":"in","value":["REFERRER","REFEREE"]}	true
+TB-ENG-CND-020	in falso	{"field":"data.role","cmp":"in","value":["REFEREE"]}	false
+TB-ENG-CND-021	in campo assente	{"field":"data.missing","cmp":"in","value":["REFERRER","REFEREE"]}	false
+TB-ENG-CND-022	nin vero	{"field":"data.role","cmp":"nin","value":["REFEREE"]}	true
+TB-ENG-CND-023	nin falso	{"field":"data.role","cmp":"nin","value":["REFERRER"]}	false
+TB-ENG-CND-024	nin campo assente	{"field":"data.missing","cmp":"nin","value":["REFEREE"]}	false
+TB-ENG-CND-025	contains vero	{"field":"data.tags","cmp":"contains","value":"B"}	true
+TB-ENG-CND-026	contains falso	{"field":"data.tags","cmp":"contains","value":"Z"}	false
+TB-ENG-CND-027	contains campo assente	{"field":"data.missing","cmp":"contains","value":"B"}	false
+TB-ENG-CND-028	ncontains vero	{"field":"data.tags","cmp":"ncontains","value":"Z"}	true
+TB-ENG-CND-029	ncontains falso	{"field":"data.tags","cmp":"ncontains","value":"A"}	false
+TB-ENG-CND-030	ncontains campo assente	{"field":"data.missing","cmp":"ncontains","value":"Z"}	false
+TB-ENG-CND-031	between vero	{"field":"data.amount","cmp":"between","value":[100,200]}	true
+TB-ENG-CND-032	between falso	{"field":"data.amount","cmp":"between","value":[151,200]}	false
+TB-ENG-CND-033	between campo assente	{"field":"data.missing","cmp":"between","value":[100,200]}	false
+TB-ENG-CND-034	startsWith vero	{"field":"data.code","cmp":"startsWith","value":"CAF-"}	true
+TB-ENG-CND-035	startsWith falso	{"field":"data.code","cmp":"startsWith","value":"XYZ"}	false
+TB-ENG-CND-036	startsWith campo assente	{"field":"data.missing","cmp":"startsWith","value":"CAF-"}	false
+TB-ENG-CND-037	exists vero	{"field":"data.amount","cmp":"exists"}	true
+TB-ENG-CND-038	exists falso	{"field":"data.missing","cmp":"exists"}	false
+TB-ENG-CND-039	nexists vero	{"field":"data.missing","cmp":"nexists"}	true
+TB-ENG-CND-040	nexists falso	{"field":"data.amount","cmp":"nexists"}	false
+TB-ENG-CND-041	exists su null	{"field":"data.nul","cmp":"exists"}	false
+TB-ENG-CND-042	gt al limite	{"field":"data.amount","cmp":"gt","value":150}	false
+TB-ENG-CND-043	lte al limite	{"field":"data.amount","cmp":"lte","value":150}	true
+TB-ENG-CND-044	between estremo inferiore	{"field":"data.amount","cmp":"between","value":[150,200]}	true
+TB-ENG-CND-045	between estremo superiore	{"field":"data.amount","cmp":"between","value":[100,150]}	true
+TB-ENG-CND-046	eq tipo diverso	{"field":"data.amount","cmp":"eq","value":"150"}	false
+TB-ENG-CND-047	gt tipo diverso	{"field":"data.currency","cmp":"gt","value":5}	false
+TB-ENG-CND-048	gt valore testo	{"field":"data.amount","cmp":"gt","value":"abc"}	false
+TB-ENG-CND-049	gt stringa numerica	{"field":"data.n","cmp":"gt","value":5}	true
+TB-ENG-CND-050	eq booleano	{"field":"data.flag","cmp":"eq","value":true}	true
+TB-ENG-CND-051	array almeno uno vero	{"field":"data.items[*].category","cmp":"eq","value":"TECH"}	true
+TB-ENG-CND-052	array nessuno	{"field":"data.items[*].category","cmp":"eq","value":"HOME"}	false
+TB-ENG-CND-053	fuori da data	{"field":"member.tier","cmp":"eq","value":"GOLD"}	false
+TB-ENG-CND-054	condizione null	null	true
+TB-ENG-CND-055	condizione vuota	{}	true
+TB-ENG-CND-056	all vero	{"op":"all","rules":[{"field":"data.amount","cmp":"gte","value":100},{"field":"data.currency","cmp":"eq","value":"PTS"}]}	true
+TB-ENG-CND-057	all falso	{"op":"all","rules":[{"field":"data.amount","cmp":"gte","value":100},{"field":"data.currency","cmp":"eq","value":"STS"}]}	false
+TB-ENG-CND-058	any vero	{"op":"any","rules":[{"field":"data.currency","cmp":"eq","value":"STS"},{"field":"data.amount","cmp":"eq","value":150}]}	true
+TB-ENG-CND-059	any falso	{"op":"any","rules":[{"field":"data.currency","cmp":"eq","value":"STS"},{"field":"data.amount","cmp":"eq","value":1}]}	false
+TB-ENG-CND-060	not di vero	{"op":"not","rules":[{"field":"data.amount","cmp":"eq","value":150}]}	false
+TB-ENG-CND-061	not di falso	{"op":"not","rules":[{"field":"data.amount","cmp":"eq","value":1}]}	true
+TB-ENG-CND-062	annidato	{"op":"all","rules":[{"op":"any","rules":[{"field":"data.role","cmp":"eq","value":"REFERRER"},{"field":"data.role","cmp":"eq","value":"X"}]},{"op":"not","rules":[{"field":"data.currency","cmp":"eq","value":"STS"}]}]}	true
+TB-ENG-CND-063	all vuoto	{"op": "all", "rules": []}	true
+TB-ENG-CND-064	any vuoto	{"op": "any", "rules": []}	true
+TB-ENG-CND-065	comparatore sconosciuto	{"field":"data.amount","cmp":"like","value":150}	false

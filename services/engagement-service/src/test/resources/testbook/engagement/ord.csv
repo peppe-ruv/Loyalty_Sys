@@ -1,0 +1,15 @@
+id	descrizione	placement	items	expected
+TB-ENG-ORD-001	priorità 10, 90, 50	HOME_GRID	A:10 B:90 C:50	B C A
+TB-ENG-ORD-002	parità di priorità (50, 50), codici B e A	HOME_GRID	B:50 A:50	A B
+TB-ENG-ORD-003	priorità ai limiti 0 e 1000	HOME_GRID	LOW:0 HIGH:1000 MID:500	HIGH MID LOW
+TB-ENG-ORD-004	`HOME_HERO` con 0 idonei	HOME_HERO	-	-
+TB-ENG-ORD-005	`HOME_HERO` con 1 idoneo	HOME_HERO	A:10	A
+TB-ENG-ORD-006	`HOME_HERO` con 2 idonei	HOME_HERO	A:10 B:20	B
+TB-ENG-ORD-007	`HOME_GRID` con 5 idonei (max−1)	HOME_GRID	A:1 B:2 C:3 D:4 E:5	E D C B A
+TB-ENG-ORD-008	`HOME_GRID` con 6 idonei (max)	HOME_GRID	A:1 B:2 C:3 D:4 E:5 F:6	F E D C B A
+TB-ENG-ORD-009	`HOME_GRID` con 7 idonei (max+1)	HOME_GRID	A:1 B:2 C:3 D:4 E:5 F:6 G:7	G F E D C B
+TB-ENG-ORD-010	`CATALOG_TOP` con 2 idonei	CATALOG_TOP	A:1 B:2	B
+TB-ENG-ORD-011	`CONTEST` con 3 idonei	CONTEST	A:1 B:2 C:3	C B A
+TB-ENG-ORD-012	`CONTEST` con 4 idonei	CONTEST	A:1 B:2 C:3 D:4	D C B
+TB-ENG-ORD-013	`WIN` con 2 idonei	WIN	A:1 B:2	B
+TB-ENG-ORD-014	`HOME_HERO`: il più prioritario è `DRAFT`	HOME_HERO	!TOP:99 LOW:1	LOW

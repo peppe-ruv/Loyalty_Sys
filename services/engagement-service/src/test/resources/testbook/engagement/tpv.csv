@@ -1,0 +1,8 @@
+id	descrizione	template	expected
+TB-ENG-TPV-001	segnaposto validi con formattatori ammessi	{{data.amount|number}} {{member.firstName}} {{event.type}} {{data.d|date}}	OK
+TB-ENG-TPV-002	segnaposto vuoto `{{}}`	Ciao {{}}	vuoto
+TB-ENG-TPV-003	segnaposto senza radice `{{amount}}`	{{amount}} punti	data., member. o event.
+TB-ENG-TPV-004	formattatore sconosciuto `|euro`	{{data.x|euro}}	formattatore sconosciuto
+TB-ENG-TPV-005	graffa aperta non chiusa	Ciao {{data.x	non bilanciate
+TB-ENG-TPV-006	graffa chiusa senza apertura	Ciao data.x}}	non bilanciate
+TB-ENG-TPV-007	template assente	<null>	OK

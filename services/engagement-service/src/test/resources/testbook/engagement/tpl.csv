@@ -1,0 +1,42 @@
+id	descrizione	template	expected	missing
+TB-ENG-TPL-001	segnaposto `data.amount` presente (162)	Hai guadagnato {{data.amount}} punti	Hai guadagnato 162 punti	-
+TB-ENG-TPL-002	segnaposto `member.firstName`	Ciao {{member.firstName}}	Ciao Giulia	-
+TB-ENG-TPL-003	segnaposto `event.type`	{{event.type}}	wallet.points.earned	-
+TB-ENG-TPL-004	percorso assente in `data`	[{{data.missing}}]	[]	data.missing
+TB-ENG-TPL-005	percorso assente in `member`	[{{member.lastName}}]	[]	member.lastName
+TB-ENG-TPL-006	valore `null`	[{{data.nul}}]	[]	data.nul
+TB-ENG-TPL-007	valore oggetto (non semplice)	[{{data.obj}}]	[]	data.obj
+TB-ENG-TPL-008	indice di array `arr.0.name`	{{data.arr.0.name}}	X	-
+TB-ENG-TPL-009	segnaposto senza radice `{{amount}}`	[{{amount}}]	[]	amount
+TB-ENG-TPL-010	spazi dentro le graffe	{{ data.amount }}	162	-
+TB-ENG-TPL-011	stesso segnaposto due volte	{{data.amount}} e {{data.amount}}	162 e 162	-
+TB-ENG-TPL-012	testo senza segnaposto	Nessun segnaposto	Nessun segnaposto	-
+TB-ENG-TPL-013	template vuoto	<empty>	<empty>	-
+TB-ENG-TPL-014	template assente (`null`)	<null>	<empty>	-
+TB-ENG-TPL-015	valore con `$1` e `\` (caratteri speciali di sostituzione)	{{data.dollar}}	$1 \ fine	-
+TB-ENG-TPL-016	valore che contiene a sua volta `{{data.amount}}`	{{data.tpl}}	{{data.amount}}	-
+TB-ENG-TPL-017	valore con HTML `<b>ciao</b>`	{{data.html}}	<b>ciao</b>	-
+TB-ENG-TPL-018	graffe singole `{data.amount}`	{data.amount}	{data.amount}	-
+TB-ENG-TPL-019	`|number` di 0	{{data.zero|number}}	0	-
+TB-ENG-TPL-020	`|number` di 999	{{data.n999|number}}	999	-
+TB-ENG-TPL-021	`|number` di 1000	{{data.n1000|number}}	1.000	-
+TB-ENG-TPL-022	`|number` di 1500	{{data.n1500|number}}	1.500	-
+TB-ENG-TPL-023	`|number` di 1234567	{{data.big|number}}	1.234.567	-
+TB-ENG-TPL-024	`|number` di −1500	{{data.neg|number}}	-1.500	-
+TB-ENG-TPL-025	`|number` di 1.25	{{data.dec|number}}	1,25	-
+TB-ENG-TPL-026	`|number` di 1.5	{{data.half|number}}	1,5	-
+TB-ENG-TPL-027	`|number` di 1.255 (arrotondamento)	{{data.round|number}}	1,26	-
+TB-ENG-TPL-028	`|number` di 0.125 (arrotondamento al pari)	{{data.even|number}}	0,12	-
+TB-ENG-TPL-029	`|number` di stringa "1500"	{{data.str|number}}	1.500	-
+TB-ENG-TPL-030	`|number` di stringa non numerica "abc"	{{data.text|number}}	abc	-
+TB-ENG-TPL-031	`|date` di 2026-10-31	{{data.date|date}}	31 ottobre 2026	-
+TB-ENG-TPL-032	`|date` di 2026-10-31T23:30:00Z (00:30 dell'1/11 a Roma)	{{data.ts|date}}	1 novembre 2026	-
+TB-ENG-TPL-033	`|date` di 2026-10-31T22:59:59Z (23:59:59 CET)	{{data.ts2|date}}	31 ottobre 2026	-
+TB-ENG-TPL-034	`|date` di 2026-03-29T00:30:00Z (giorno del cambio d'ora)	{{data.dst|date}}	29 marzo 2026	-
+TB-ENG-TPL-035	`|date` di 2026-12-31T23:00:00Z (capodanno a Roma)	{{data.ny|date}}	1 gennaio 2027	-
+TB-ENG-TPL-036	`|date` di 2028-02-29	{{data.leap|date}}	29 febbraio 2028	-
+TB-ENG-TPL-037	`|date` di 2026-10-31T23:30:00+01:00	{{data.off|date}}	31 ottobre 2026	-
+TB-ENG-TPL-038	`|date` di un testo non data	{{data.text|date}}	abc	-
+TB-ENG-TPL-039	`|date` di 2026-02-30 (data inesistente)	{{data.bad|date}}	2026-02-30	-
+TB-ENG-TPL-040	formattatore sconosciuto `|euro` in resa	{{data.amount|euro}}	162	-
+TB-ENG-TPL-041	percorso assente con `|number`	[{{data.missing|number}}]	[]	data.missing

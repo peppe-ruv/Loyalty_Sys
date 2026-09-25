@@ -1,0 +1,53 @@
+id	descrizione	body	http	detail
+TB-ENG-EDT-001	card valida minima	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card"}	201	DRAFT
+TB-ENG-EDT-002	`kind` assente	{"code":"{CODE}","placement":"HOME_GRID","title":"Card"}	422	kind
+TB-ENG-EDT-003	`kind` sconosciuto `VIDEO`	{"code":"{CODE}","kind":"VIDEO","placement":"HOME_GRID","title":"Card"}	422	kind
+TB-ENG-EDT-004	card in `HOME_HERO`	{"code":"{CODE}","kind":"CARD","placement":"HOME_HERO","title":"Card"}	201	HOME_HERO
+TB-ENG-EDT-005	card in `CONTEST`	{"code":"{CODE}","kind":"CARD","placement":"CONTEST","title":"Card"}	201	CONTEST
+TB-ENG-EDT-006	card in `CATALOG_TOP`	{"code":"{CODE}","kind":"CARD","placement":"CATALOG_TOP","title":"Card"}	201	CATALOG_TOP
+TB-ENG-EDT-007	card in `WIN` collegata al premio	{"code":"{CODE}","kind":"CARD","placement":"WIN","title":"Vincita","linkType":"PRIZE","linkCode":"COFFEE"}	201	WIN
+TB-ENG-EDT-008	`placement` sconosciuto	{"code":"{CODE}","kind":"CARD","placement":"ALTROVE","title":"Card"}	422	placement
+TB-ENG-EDT-009	card senza `placement`	{"code":"{CODE}","kind":"CARD","title":"Card"}	422	placement
+TB-ENG-EDT-010	pop-up senza `placement`	{"code":"{CODE}","kind":"POPUP","title":"Pop-up"}	201	POPUP
+TB-ENG-EDT-011	banner in `CATALOG_TOP`	{"code":"{CODE}","kind":"BANNER","placement":"CATALOG_TOP","title":"Banner"}	201	CATALOG_TOP
+TB-ENG-EDT-012	banner in `HOME_GRID`	{"code":"{CODE}","kind":"BANNER","placement":"HOME_GRID","title":"Banner"}	422	placement
+TB-ENG-EDT-013	collegamento `CONTEST`	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","linkType":"CONTEST","linkCode":"IW-AUTUNNO"}	201	link:CONTEST
+TB-ENG-EDT-014	collegamento `CAMPAIGN`	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","linkType":"CAMPAIGN","linkCode":"CMP-EBILL"}	201	link:CAMPAIGN
+TB-ENG-EDT-015	collegamento `REWARD`	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","linkType":"REWARD","linkCode":"RWD-WEEKEND"}	201	link:REWARD
+TB-ENG-EDT-016	collegamento sconosciuto `PAGE`	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","linkType":"PAGE","linkCode":"X"}	422	linkType
+TB-ENG-EDT-017	collegamento `CAMPAIGN` senza `linkCode`	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","linkType":"CAMPAIGN"}	422	linkCode
+TB-ENG-EDT-018	`PRIZE` fuori da `WIN`	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","linkType":"PRIZE","linkCode":"COFFEE"}	422	linkType
+TB-ENG-EDT-019	card `WIN` senza premio	{"code":"{CODE}","kind":"CARD","placement":"WIN","title":"Vincita"}	422	linkType
+TB-ENG-EDT-020	pop-up `ONCE_PER_DAY`	{"code":"{CODE}","kind":"POPUP","title":"Pop-up","frequency":"ONCE_PER_DAY"}	201	ONCE_PER_DAY
+TB-ENG-EDT-021	pop-up `ALWAYS`	{"code":"{CODE}","kind":"POPUP","title":"Pop-up","frequency":"ALWAYS"}	201	ALWAYS
+TB-ENG-EDT-022	frequenza sconosciuta `SEMPRE`	{"code":"{CODE}","kind":"POPUP","title":"Pop-up","frequency":"SEMPRE"}	422	frequency
+TB-ENG-EDT-023	card con `frequency`	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","frequency":"ALWAYS"}	201	freq-null
+TB-ENG-EDT-024	pop-up non chiudibile	{"code":"{CODE}","kind":"POPUP","title":"Pop-up","dismissible":false}	201	not-dismissible
+TB-ENG-EDT-025	pop-up senza `dismissible`	{"code":"{CODE}","kind":"POPUP","title":"Pop-up"}	201	dismissible
+TB-ENG-EDT-026	tono `NIGHT`	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","style":{"tone":"NIGHT"}}	201	NIGHT
+TB-ENG-EDT-027	tono sconosciuto `RED`	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","style":{"tone":"RED"}}	422	style.tone
+TB-ENG-EDT-028	codice di 3 caratteri (minimo)	{"code":"ABC","kind":"CARD","placement":"HOME_GRID","title":"Card"}	201	ABC
+TB-ENG-EDT-029	codice di 2 caratteri	{"code":"AB","kind":"CARD","placement":"HOME_GRID","title":"Card"}	422	code
+TB-ENG-EDT-030	codice di 40 caratteri (massimo)	{"code":"CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC","kind":"CARD","placement":"HOME_GRID","title":"Card"}	201	C40
+TB-ENG-EDT-031	codice di 41 caratteri	{"code":"DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD","kind":"CARD","placement":"HOME_GRID","title":"Card"}	422	code
+TB-ENG-EDT-032	codice che inizia con una cifra	{"code":"1CNT","kind":"CARD","placement":"HOME_GRID","title":"Card"}	422	code
+TB-ENG-EDT-033	codice in minuscolo	{"code":"cnt-minuscolo","kind":"CARD","placement":"HOME_GRID","title":"Card"}	201	CNT-MINUSCOLO
+TB-ENG-EDT-034	codice assente	{"kind":"CARD","placement":"HOME_GRID","title":"Card"}	422	code
+TB-ENG-EDT-035	titolo assente	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID"}	422	title
+TB-ENG-EDT-036	titolo di soli spazi	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"   "}	422	title
+TB-ENG-EDT-037	titolo di 80 caratteri	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"}	201	T80
+TB-ENG-EDT-038	titolo di 81 caratteri	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"}	422	title
+TB-ENG-EDT-039	testo di 280 caratteri	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","body":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"}	201	B280
+TB-ENG-EDT-040	testo di 281 caratteri	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","body":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"}	422	body
+TB-ENG-EDT-041	priorità 0	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","priority":0}	201	P0
+TB-ENG-EDT-042	priorità 1000	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","priority":1000}	201	P1000
+TB-ENG-EDT-043	priorità −1	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","priority":-1}	422	priority
+TB-ENG-EDT-044	priorità 1001	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","priority":1001}	422	priority
+TB-ENG-EDT-045	priorità assente	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card"}	201	P50
+TB-ENG-EDT-046	calendario con fine dopo l'inizio	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","startAt":"2026-10-01T00:00:00Z","endAt":"2026-10-31T23:00:00Z"}	201	SCHED
+TB-ENG-EDT-047	fine uguale all'inizio	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","startAt":"2026-10-01T00:00:00Z","endAt":"2026-10-01T00:00:00Z"}	422	endAt
+TB-ENG-EDT-048	fine prima dell'inizio	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","startAt":"2026-10-02T00:00:00Z","endAt":"2026-10-01T00:00:00Z"}	422	endAt
+TB-ENG-EDT-049	CTA verso pagina del portale	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","ctaLabel":"Vai","ctaTarget":"/portal/earn"}	201	/portal/earn
+TB-ENG-EDT-050	CTA verso URL `https://`	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","ctaLabel":"Vai","ctaTarget":"https://example.org/x"}	201	https
+TB-ENG-EDT-051	CTA `javascript:`	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","ctaLabel":"Vai","ctaTarget":"javascript:alert(1)"}	422	ctaTarget
+TB-ENG-EDT-052	CTA `http://`	{"code":"{CODE}","kind":"CARD","placement":"HOME_GRID","title":"Card","ctaLabel":"Vai","ctaTarget":"http://example.org/x"}	422	ctaTarget

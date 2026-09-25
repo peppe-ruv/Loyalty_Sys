@@ -1,0 +1,17 @@
+id	descrizione	kind	audience	registeredAt	now	expected
+TB-ENG-EXT-001	`registeredWithinDays=7`, iscritto da 6 g 23:59:59	POPUP	within=7	2026-09-17T10:00:01Z	2026-09-24T10:00:00Z	IN
+TB-ENG-EXT-002	`registeredWithinDays=7`, iscritto da 7 g esatti	POPUP	within=7	2026-09-17T10:00:00Z	2026-09-24T10:00:00Z	OUT
+TB-ENG-EXT-003	`registeredWithinDays=7`, iscritto da 7 g + 1 s	POPUP	within=7	2026-09-17T09:59:59Z	2026-09-24T10:00:00Z	OUT
+TB-ENG-EXT-004	`registeredWithinDays=7`, iscritto adesso	POPUP	within=7	2026-09-24T10:00:00Z	2026-09-24T10:00:00Z	IN
+TB-ENG-EXT-005	`registeredWithinDays=7`, data di iscrizione ignota	POPUP	within=7	-	2026-09-24T10:00:00Z	OUT
+TB-ENG-EXT-006	senza `registeredWithinDays`, iscritto da anni	POPUP	none	2020-01-01T00:00:00Z	2026-09-24T10:00:00Z	IN
+TB-ENG-EXT-007	`daysOfWeek=[SAT,SUN]`, venerdì 23:59:59 a Roma	POPUP	days=SAT+SUN	-	2026-09-25T21:59:59Z	OUT
+TB-ENG-EXT-008	`daysOfWeek=[SAT,SUN]`, sabato 00:00:00 a Roma (venerdì in UTC)	POPUP	days=SAT+SUN	-	2026-09-25T22:00:00Z	IN
+TB-ENG-EXT-009	`daysOfWeek=[SAT,SUN]`, domenica 23:59:59 a Roma	POPUP	days=SAT+SUN	-	2026-09-27T21:59:59Z	IN
+TB-ENG-EXT-010	`daysOfWeek=[SAT,SUN]`, lunedì 00:00:00 a Roma (domenica in UTC)	POPUP	days=SAT+SUN	-	2026-09-27T22:00:00Z	OUT
+TB-ENG-EXT-011	`daysOfWeek=[SAT,SUN]`, domenica del cambio d'ora di ottobre, 23:59:59 CET	POPUP	days=SAT+SUN	-	2026-10-25T22:59:59Z	IN
+TB-ENG-EXT-012	`daysOfWeek=[SAT,SUN]`, lunedì 26/10 00:00 CET	POPUP	days=SAT+SUN	-	2026-10-25T23:00:00Z	OUT
+TB-ENG-EXT-013	`daysOfWeek=[SAT,SUN]`, domenica del cambio d'ora di marzo, 23:59:59 CEST	POPUP	days=SAT+SUN	-	2026-03-29T21:59:59Z	IN
+TB-ENG-EXT-014	`daysOfWeek=[SAT,SUN]`, lunedì 30/3 00:00 CEST	POPUP	days=SAT+SUN	-	2026-03-29T22:00:00Z	OUT
+TB-ENG-EXT-015	`daysOfWeek=[]`, mercoledì	POPUP	days=	-	2026-09-23T10:00:00Z	IN
+TB-ENG-EXT-016	card con daysOfWeek di mercoledi	CARD	days=SAT+SUN	-	2026-09-23T10:00:00Z	OUT
