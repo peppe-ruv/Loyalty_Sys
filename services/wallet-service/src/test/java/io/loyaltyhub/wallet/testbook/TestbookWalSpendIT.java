@@ -468,7 +468,8 @@ class TestbookWalSpendIT {
             body.put("note", note);
         }
 
-        // Righe 031, 032, 042 — TESTBOOK: ambiguo, vedi TB-WAL-ADJ-031, TB-WAL-ADJ-032, TB-WAL-ADJ-042
+        // Righe 031, 032 — TESTBOOK: ambiguo, vedi TB-WAL-ADJ-031, TB-WAL-ADJ-032
+        // Riga 042 — Q-147 DECISA: membro senza wallet → 404, nessun wallet creato
         WalItSupport.Resp r = s.http(HttpMethod.POST, "/v1/wallets/" + m + "/adjustments", role, body);
 
         assertThat(r.status()).as("%s: stato HTTP (%s)", id, r.body()).isEqualTo(httpStatus);
@@ -479,6 +480,9 @@ class TestbookWalSpendIT {
             assertThat(s.ledger(m)).as("%s: nessun movimento", id).isEmpty();
             assertThat(s.balance(m, "PTS").balanceActive()).isEqualTo(active);
             assertThat(s.memberFacts("wallet.points.adjusted", m)).isEmpty();
+            if ("NEW".equals(status)) {
+                assertThat(wallets.findByMember(m)).as("%s: nessun wallet creato", id).isEmpty();
+            }
             return;
         }
         boolean credit = "CREDIT".equals(direction);

@@ -23,14 +23,14 @@ Non conosce i saldi: il controllo del saldo è del wallet. Il campo `reachable` 
 |---|---|---|
 | GET/POST/PUT | `/v1/reward-categories` | |
 | GET/POST/PUT/DELETE | `/v1/reward-bands` | soglie uniche e crescenti (`422 BAND_THRESHOLD_DUPLICATE`); non eliminabile se ha premi (`409 BAND_IN_USE`) |
-| GET/POST/PUT | `/v1/rewards`, `/v1/rewards/{id}` | filtri `status, band, category, type, q`; modifica ammessa in `DRAFT`/`REJECTED`/`PAUSED`; in `LIVE` solo `stock_total`, `valid_to`, `image_url` |
+| GET/POST/PUT | `/v1/rewards`, `/v1/rewards/{id}` | filtri `status, band, category, type, q`; modifica ammessa in `DRAFT`/`REJECTED`/`PAUSED`; in `LIVE` solo `stock_total`, `valid_to`, `image_url`. `PUT` con `version` obbligatoria (`422 VERSION_REQUIRED` se assente, `409 VERSION_CONFLICT` se superata; Q-280). `fulfilment=AUTO_COUPON` richiede `couponPoolId` (`422 REWARD_INVALID` in creazione e modifica; la pubblicazione di un AUTO_COUPON senza pool è rifiutata con lo stesso codice; Q-281) |
 | POST | `/v1/rewards/{id}/transitions` | `{action, comment}` — macchina a stati comune (`docs/06 §7`) |
 | POST | `/v1/rewards/{id}/duplicate` | copia in `DRAFT` con codice `-COPY` |
 | GET/POST | `/v1/coupon-pools` | |
 | POST | `/v1/coupon-pools/{id}/generate` | `{count ≤ 5000}` → codici `prefix-XXXX-XXXX` |
 | POST | `/v1/coupon-pools/{id}/import` | `{codes[]}`; duplicati → riepilogo `{imported, skipped[]}` |
 | GET | `/v1/coupon-pools/{id}/coupons` | filtri `status, memberId` |
-| GET | `/v1/coupons/{code}` · POST `/v1/coupons/{code}/use` · POST `/v1/coupons/{code}/void` | `409 COUPON_ALREADY_USED`, `410 COUPON_EXPIRED`, `404` |
+| GET | `/v1/coupons/{code}` · POST `/v1/coupons/{code}/use` · POST `/v1/coupons/{code}/void` | `409 COUPON_ALREADY_USED`, `410 COUPON_EXPIRED`, `404`. `void` solo da `AVAILABLE` (ritiro di un codice mai emesso) e `ISSUED` valido; da `USED`/`VOID`/scaduto `409` (`COUPON_EXPIRED` per uno scaduto, che resta `EXPIRED`; Q-278) |
 | GET | `/v1/redemptions` | filtri `status, memberId, rewardCode, needsAttention, from, to` |
 | GET | `/v1/redemptions/{id}` | con cronologia stati |
 | POST | `/v1/redemptions/{id}/fulfil` | `{note, tracking?}` — solo `CONFIRMED` e `fulfilment=MANUAL`; ruoli `CARE/ADMIN` |
@@ -45,7 +45,7 @@ Non conosce i saldi: il controllo del saldo è del wallet. Il campo `reachable` 
 | GET | `/v1/portal/rewards/{code}?memberId=` | dettaglio + `terms` |
 | POST | `/v1/portal/redemptions` | `{memberId, rewardCode, shipping?}` → **202** `{redemptionId, status: PENDING, correlationId}` |
 | GET | `/v1/portal/redemptions?memberId=` · `/v1/portal/redemptions/{id}` | il portale interroga fino a stato finale o `CONFIRMED` |
-| POST | `/v1/portal/redemptions/{id}/cancel` | solo `PENDING` |
+| POST | `/v1/portal/redemptions/{id}/cancel` | `?memberId=` obbligatorio (`400` se assente, `404` se la richiesta è di un altro membro; Q-283); solo `PENDING` |
 | GET | `/v1/portal/coupons?memberId=` | `{code, rewardName, status, issuedAt, expiresAt, origin}` |
 
 Errori di validazione immediata su `POST redemptions`: `422 REWARD_NOT_AVAILABLE`, `REWARD_SOLD_OUT`, `MEMBER_LIMIT_REACHED`, `MEMBER_NOT_ACTIVE`, `TIER_NOT_ELIGIBLE`, `SHIPPING_REQUIRED` (per `PHYSICAL`).
@@ -64,9 +64,10 @@ Errori di validazione immediata su `POST redemptions`: `422 REWARD_NOT_AVAILABLE
 ## 5. Regole
 Dominio in `docs/03 §5`. Note implementative:
 - **Richiesta**: in un'unica transazione valida, decrementa `stock_remaining` con `UPDATE … WHERE stock_remaining > 0` (0 righe → `REWARD_SOLD_OUT`), inserisce `redemption PENDING`, scrive in outbox `reward.redemption.requested`. Il `correlationId` della richiesta HTTP diventa quello di tutta la saga.
-- **`wallet.points.spent`** → `CONFIRMED` + fatto `confirmed`. Poi, secondo `fulfilment`: `AUTO_COUPON` → preleva un codice (`SELECT … FOR UPDATE SKIP LOCKED LIMIT 1` su `coupon AVAILABLE` del pool), `ISSUED`, scadenza = oggi + `validity_days`, fatti `coupon.issued` + `fulfilled`; `INSTANT` (donazioni, digitali) → `FULFILLED` subito; `MANUAL` → resta `CONFIRMED` in coda a BO-13.
+- **`wallet.points.spent`** → `CONFIRMED` + fatto `confirmed`. Poi, secondo `fulfilment`: `AUTO_COUPON` → preleva un codice (`SELECT … FOR UPDATE SKIP LOCKED LIMIT 1` su `coupon AVAILABLE` del pool), `ISSUED`, scadenza = oggi + `validity_days` (fine di quel giorno, 23:59:59.999999 `Europe/Rome`: data di emissione a Roma + `validity_days`, Q-277), fatti `coupon.issued` + `fulfilled`; `INSTANT` (donazioni, digitali) → `FULFILLED` subito; `MANUAL` → resta `CONFIRMED` in coda a BO-13.
 - Pool vuoto → `needs_attention = true`, nessun fatto `fulfilled`; BO-13 mostra l'avviso; dopo una nuova generazione di codici `POST /v1/redemptions/{id}/retry-fulfilment`.
 - **`wallet.spend.rejected`** → `REJECTED` con motivo, stock ripristinato.
+- **Stock residuo** (Q-280): non supera mai `stock_total − richieste PENDING/CONFIRMED/FULFILLED` (mai sotto zero): vale alla modifica del totale (anche da illimitato a limitato) e a ogni ripristino (rifiuto, timeout, annullo).
 - **Timeout**: job ogni minuto, `PENDING` da più di 10 min → `REJECTED (TIMEOUT)`, stock ripristinato. Se `wallet.points.spent` arriva dopo il timeout → emette `reward.redemption.cancelled` con `refund=true` (compensazione) e log `WARN`.
 - **Annullo** da `CONFIRMED`: stock ripristinato, eventuale coupon `VOID`, fatto `cancelled` con `refund=true` → il wallet rimborsa.
 - `coupon.issue` da campagna: idempotenza su `effect_id`; usa il pool del premio indicato; pool vuoto → DLQ `COUPON_POOL_EMPTY` (non ritentabile).

@@ -63,4 +63,27 @@ class EditionCloseBatchServiceTest {
 
         verifyNoInteractions(memberTiers, tierHistory, outbox);
     }
+
+    @Test
+    void unknownTierLeftUnchangedAndReported() {
+        // Q-149 DECISA: livello assente dalla scala → membro invariato e contato nel riepilogo.
+        List<MemberTier> batch = List.of(
+            new MemberTier("MBR-9", "BRONZE", Instant.now(), 5000, null, "ACTIVE")
+        );
+        List<Tier> scale = List.of(
+            new Tier("BASE", "Base", 0, 0, BigDecimal.ONE, List.of(), null, null),
+            new Tier("SILVER", "Silver", 1, 1000, BigDecimal.valueOf(1.25), List.of(), null, null)
+        );
+
+        var result = service.processBatch(batch, scale, "ED-2026", false);
+
+        assertThat(result.unknownTier()).isEqualTo(1);
+        assertThat(result.retained()).isZero();
+        assertThat(result.downgraded()).isZero();
+        assertThat(result.previewMembers()).singleElement().satisfies(m -> {
+            assertThat(m.outcome()).isEqualTo(EditionCloseRule.Outcome.UNKNOWN_TIER);
+            assertThat(m.newTier()).isEqualTo("BRONZE");
+        });
+        verifyNoInteractions(memberTiers, tierHistory, outbox);
+    }
 }

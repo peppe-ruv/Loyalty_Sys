@@ -177,7 +177,7 @@ class TestbookRwdSagaIT extends TestbookRwdBase {
 
     // ---------- ROL: ruoli sulle azioni manuali ----------
 
-    // TESTBOOK: scelta da decidere, vedi Q-283 (TB-RWD-ROL-015, -018)
+    // Q-283 DECISA (TB-RWD-ROL-015, -018: retry-fulfilment ai ruoli di redemption.handle, ADMIN e CARE)
     @TestFactory
     Stream<DynamicTest> roles() {
         return TestbookRwdCsv.rows("roles-redemption.csv", row -> {
@@ -232,12 +232,12 @@ class TestbookRwdSagaIT extends TestbookRwdBase {
     Stream<DynamicTest> fulfilment() {
         return Stream.of(
                 scenario("TB-RWD-FUL-001", "AUTO_COUPON con pool disponibile", this::autoCouponFulfilled),
-                // TESTBOOK: scelta da decidere, vedi Q-277 (TB-RWD-FUL-002, «oggi + validity_days»)
+                // Q-277 DECISA (TB-RWD-FUL-002): scadenza = fine giornata a Roma di data di emissione + validity_days
                 scenario("TB-RWD-FUL-002", "scadenza del coupon emesso per la richiesta", this::couponExpiryFromValidity),
                 scenario("TB-RWD-FUL-003", "AUTO_COUPON con pool vuoto → needsAttention", this::emptyPoolNeedsAttention),
                 scenario("TB-RWD-FUL-004", "pool con un solo codice e due richieste", this::lastCodeThenAttention),
                 scenario("TB-RWD-FUL-005", "retry-fulfilment con pool ancora vuoto", this::retryStillEmpty),
-                // TESTBOOK: scelta da decidere, vedi Q-281 (TB-RWD-FUL-006, AUTO_COUPON senza pool)
+                // Q-281 DECISA (TB-RWD-FUL-006): un AUTO_COUPON senza pool non nasce né va online (422)
                 scenario("TB-RWD-FUL-006", "AUTO_COUPON su premio senza pool", this::autoCouponWithoutPool),
                 scenario("TB-RWD-FUL-007", "INSTANT evaso subito", this::instantFulfilled),
                 scenario("TB-RWD-FUL-008", "MANUAL resta CONFIRMED in «Da evadere»", this::manualWaits),
@@ -257,7 +257,7 @@ class TestbookRwdSagaIT extends TestbookRwdBase {
                 scenario("TB-RWD-FUL-022", "risposta 202 e fatto requested", this::acceptedAndRequestedFact),
                 scenario("TB-RWD-FUL-023", "rifiuto del wallet con motivo MEMBER_NOT_ACTIVE", this::rejectedWithWalletReason),
                 scenario("TB-RWD-FUL-024", "annullo dal portale con memberId di un altro membro", this::memberCancelOtherMember),
-                // TESTBOOK: scelta da decidere, vedi Q-283 (TB-RWD-FUL-025, annullo senza memberId)
+                // Q-283 DECISA (TB-RWD-FUL-025): annullo dal portale senza memberId → 400, richiesta invariata
                 scenario("TB-RWD-FUL-025", "annullo dal portale senza memberId", this::memberCancelWithoutMember),
                 scenario("TB-RWD-FUL-026", "dettaglio dal portale con memberId di un altro membro", this::portalGetOtherMember),
                 scenario("TB-RWD-FUL-027", "elenco dal portale senza memberId", this::portalListWithoutMember),
@@ -359,7 +359,9 @@ class TestbookRwdSagaIT extends TestbookRwdBase {
         Case c = request(memberId, rw, poolId);
         awaitProcessed(spent(c));
         String code = awaitStatus(c.id(), "FULFILLED").path("couponCode").asString();
-        assertThat(get("/v1/coupons/" + code).path("expiresAt").asString()).isEqualTo("2026-10-30T10:00:00Z");
+        // Emesso il 20/10 (Roma) con validità 10 giorni → fine del 30/10 a Roma (CET, dopo il cambio dell'ora).
+        assertThat(Instant.parse(get("/v1/coupons/" + code).path("expiresAt").asString()))
+                .isEqualTo(Instant.parse("2026-10-30T22:59:59.999999Z"));
     }
 
     void emptyPoolNeedsAttention() {
@@ -397,12 +399,16 @@ class TestbookRwdSagaIT extends TestbookRwdBase {
 
     void autoCouponWithoutPool() {
         CLOCK.set(T0);
-        JsonNode rw = reward("LIVE", Map.of("type", "COUPON", "fulfilment", "AUTO_COUPON"));
-        Case c = request(member("ACTIVE", "GOLD"), rw, null);
-        awaitProcessed(spent(c));
-        JsonNode r = redemption(c.id());
-        assertThat(r.path("status").asString()).isEqualTo("CONFIRMED");
-        assertThat(r.path("needsAttention").asBoolean()).isTrue();
+        Resp created = send("POST", "/v1/rewards", "ADMIN:testbook", Map.of("code", fresh("RWD-TB"), "name", "Premio testbook",
+                "type", "COUPON", "band", "F1", "category", "TEMPO", "fulfilment", "AUTO_COUPON"));
+        assertThat(created.status()).as("creazione → " + created.body()).isEqualTo(422);
+        assertThat(created.code()).isEqualTo("REWARD_INVALID");
+        // Neppure in modifica: un DRAFT MANUAL non diventa AUTO_COUPON senza pool.
+        JsonNode draft = reward("DRAFT", Map.of("type", "COUPON", "fulfilment", "MANUAL"));
+        Resp edited = send("PUT", "/v1/rewards/" + draft.path("id").asString(), "MARKETING:testbook",
+                Map.of("fulfilment", "AUTO_COUPON", "version", draft.path("version").asLong()));
+        assertThat(edited.status()).as("modifica → " + edited.body()).isEqualTo(422);
+        assertThat(edited.code()).isEqualTo("REWARD_INVALID");
     }
 
     void instantFulfilled() {
@@ -535,8 +541,8 @@ class TestbookRwdSagaIT extends TestbookRwdBase {
     void memberCancelWithoutMember() {
         Case c = prepare("PENDING");
         Resp r = send("POST", "/v1/portal/redemptions/" + c.id() + "/cancel", null, null);
-        assertThat(r.status()).isEqualTo(200);
-        assertThat(redemption(c.id()).path("status").asString()).isEqualTo("CANCELLED");
+        assertThat(r.status()).isEqualTo(400);
+        assertThat(redemption(c.id()).path("status").asString()).isEqualTo("PENDING");
     }
 
     void portalGetOtherMember() {

@@ -148,13 +148,19 @@ class TestbookWalAccrualIT {
         s.member(m, tier, WalTestbook.threshold(tier), status);
         String effectId = freshId("EFF");
 
-        // Righe 049–051 (membro non ACTIVE) — TESTBOOK: ambiguo, vedi TB-WAL-GRT-049..051
+        // Righe 049–051 (membro non ACTIVE) — Q-140 DECISA: BLOCKED/ANONYMIZED scartati con audit, INACTIVE accreditato
         wallet.applyGrant(grant(m, effectId, currency, amount, applies, pendingDays, T0));
 
         if ("NONE".equals(expected)) {
             assertThat(s.ledger(m, "EARN")).as("%s: nessun movimento", id).isEmpty();
             assertThat(s.allLots(m)).as("%s: nessun lotto", id).isEmpty();
             assertThat(s.memberFacts("wallet.points.earned", m)).as("%s: nessun fatto", id).isEmpty();
+            if ("BLOCKED".equals(status) || "ANONYMIZED".equals(status)) {
+                assertThat(s.balance(m, currency).balanceActive()).as("%s: saldo invariato", id).isZero();
+                assertThat(s.audit("wallet:" + m + ":" + currency)).as("%s: effetto scartato in audit", id)
+                        .anySatisfy(a -> assertThat(a.path("data").path("after").path("effectId").asString())
+                                .isEqualTo(effectId));
+            }
             return;
         }
         long exp = "TIER".equals(expected) ? WalTestbook.floorTimes(amount, tier) : amount;

@@ -166,7 +166,8 @@ class RewardServiceIT {
         assertThat(history.get(3).path("comment").asString()).isEqualTo("Termini mancanti");
         assertThat(send("GET", "/v1/approvals", "LEGAL:elena", null, 200).toString()).contains("RWD-GIFT-50");
 
-        JsonNode restocked = send("PUT", "/v1/rewards/" + id, "MARKETING:giulia", Map.of("stockTotal", 15), 200);
+        JsonNode restocked = send("PUT", "/v1/rewards/" + id, "MARKETING:giulia",
+                Map.of("stockTotal", 15, "version", live.path("version").asLong()), 200);
         assertThat(restocked.path("stockTotal").asInt()).isEqualTo(15);
         assertThat(restocked.path("stockRemaining").asInt()).isEqualTo(15);
         // Versioni (M7.6): un salvataggio con la versione letta prima dell'ultima modifica è rifiutato.
@@ -177,7 +178,8 @@ class RewardServiceIT {
                 Map.of("stockTotal", 16, "version", restocked.path("version").asLong()), 200).path("stockRemaining").asInt())
                 .isEqualTo(16);
 
-        JsonNode locked = send("PUT", "/v1/rewards/" + id, "MARKETING:giulia", Map.of("band", "F2"), 409);
+        JsonNode locked = send("PUT", "/v1/rewards/" + id, "MARKETING:giulia",
+                Map.of("band", "F2", "version", restocked.path("version").asLong() + 1), 409);
         assertThat(locked.path("code").asString()).isEqualTo("REWARD_LIVE_LOCKED");
         assertThat(send("POST", "/v1/rewards/" + id + "/transitions", "MARKETING:giulia", Map.of("action", "RESUME"), 409)
                 .path("code").asString()).isEqualTo("INVALID_TRANSITION");

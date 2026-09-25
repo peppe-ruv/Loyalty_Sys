@@ -296,9 +296,13 @@ class TestbookWalAdminIT {
             body.put("redemptionGraceUntil", grace);
         }
         String path = "POST".equals(method) ? "/v1/editions" : "/v1/editions/" + code;
-        // Righe 007, 010 — TESTBOOK: ambiguo, vedi TB-WAL-EDN-007, TB-WAL-EDN-010
+        // Riga 010 — TESTBOOK: ambiguo, vedi TB-WAL-EDN-010
+        // Riga 007 — Q-151 DECISA: un buco tra edizioni è rifiutato con 422 EDITION_NOT_CONTIGUOUS
         WalItSupport.Resp r = s.http(HttpMethod.valueOf(method), path, actor, body);
         assertThat(r.status()).as("%s: stato HTTP (%s)", id, r.body()).isEqualTo(httpStatus);
+        if ("TB-WAL-EDN-007".equals(id)) {
+            assertThat(r.code()).as("%s: codice d'errore", id).isEqualTo("EDITION_NOT_CONTIGUOUS");
+        }
         if (httpStatus == 200) {
             JsonNode e = edition(code);
             assertThat(e.path("startDate").asString()).isEqualTo(startDate);

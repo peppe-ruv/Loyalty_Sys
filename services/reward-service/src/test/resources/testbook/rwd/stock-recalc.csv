@@ -8,7 +8,7 @@ TB-RWD-EDT-045,"totale 10, 3 prenotate, nuovo totale 2 (< prenotate)",10,3,2,N,2
 TB-RWD-EDT-046,"totale 10, 3 prenotate, nuovo totale 0",10,3,0,N,200,0,0
 TB-RWD-EDT-047,"totale 10, prenotazione arrivata dopo la lettura della versione, nuovo totale 20",10,1,20,Y,200,20,19
 TB-RWD-EDT-048,versione superata da un'altra modifica,10,0,20,STALE,409,10,10
-TB-RWD-EDT-049,PUT senza version (ultima scrittura vince),10,0,12,NOVERSION,200,12,12
+TB-RWD-EDT-049,PUT senza version (Q-280 DECISA: 422 VERSION_REQUIRED),10,0,12,NOVERSION,422,10,10
 TB-RWD-EDT-050,"totale 10, 3 prenotate, stockTotal omesso",10,3,-,N,200,10,7
-TB-RWD-EDT-051,"illimitato con 2 richieste in corso, nuovo totale 10",-,2,10,N,200,10,10
+TB-RWD-EDT-051,"illimitato con 2 richieste in corso, nuovo totale 10 (Q-280 DECISA: le richieste in corso si sottraggono)",-,2,10,N,200,10,8
 TB-RWD-EDT-052,nuovo totale −1,10,0,-1,N,422,10,10

@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class TestbookRwdRulesTest {
 
-    // TESTBOOK: scelta da decidere, vedi Q-280 (TB-RWD-STK-012)
+    // Q-280 DECISA (TB-RWD-STK-012): residuo incoerente (< 0) = esaurito
     @TestFactory
     Stream<DynamicTest> stockState() {
         return TestbookRwdCsv.rows("stock-state.csv", row -> {

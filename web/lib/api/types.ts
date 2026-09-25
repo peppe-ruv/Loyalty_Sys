@@ -260,12 +260,15 @@ export interface ClosePreviewMember {
   periodSts: number;
   earnedTier: string;
   newTier: string;
-  outcome: "RETAINED" | "DOWNGRADED";
+  /** UNKNOWN_TIER (Q-149): livello assente dalla scala, membro lasciato invariato. */
+  outcome: "RETAINED" | "DOWNGRADED" | "UNKNOWN_TIER";
 }
 
 export interface ClosePreviewSummary {
   retained: number;
   downgraded: number;
+  /** Membri con livello assente dalla scala, lasciati invariati (Q-149). */
+  unknownTier?: number;
 }
 
 export interface EditionClosePreviewResult {

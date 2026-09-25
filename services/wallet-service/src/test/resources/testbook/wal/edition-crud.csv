@@ -5,7 +5,7 @@ TB-WAL-EDN-003,periodo interno a ED-2027: sovrapposta,ADMIN,POST,ED-X2,Interna,2
 TB-WAL-EDN-004,fine = primo giorno di ED-2025: sovrapposta,ADMIN,POST,ED-X3,Prima,2024-01-01,2025-01-01,-,422
 TB-WAL-EDN-005,edizione contigua prima di ED-2025 (fine = giorno prima): creata,ADMIN,POST,ED-2024,Edizione 2024,2024-01-01,2024-12-31,2025-01-31,200
 TB-WAL-EDN-006,inizio dopo la fine: rifiutata,ADMIN,POST,ED-X4,Rovesciata,2031-02-01,2031-01-01,-,422
-TB-WAL-EDN-007,edizione di un giorno non contigua (AMBIGUO: il buco è accettato),ADMIN,POST,ED-2031,Giorno singolo,2031-06-01,2031-06-01,-,200
+TB-WAL-EDN-007,edizione di un giorno non contigua (Q-151 DECISA: 422 EDITION_NOT_CONTIGUOUS),ADMIN,POST,ED-2031,Giorno singolo,2031-06-01,2031-06-01,-,422
 TB-WAL-EDN-008,nome assente: rifiutata,ADMIN,POST,ED-X5,NULL,2032-01-01,2032-12-31,-,422
 TB-WAL-EDN-009,data di inizio assente: rifiutata,ADMIN,POST,ED-X6,Senza inizio,NULL,2032-12-31,-,422
 TB-WAL-EDN-010,codice già esistente (AMBIGUO: 409),ADMIN,POST,ED-2026,Doppione,2040-01-01,2040-12-31,-,409

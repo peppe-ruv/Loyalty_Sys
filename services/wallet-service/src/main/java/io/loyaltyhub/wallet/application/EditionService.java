@@ -109,17 +109,31 @@ public class EditionService {
         if (start.isAfter(end)) {
             throw LhException.validation("EDITION_DATES_INVALID", "La data di inizio non può essere successiva alla data di fine.");
         }
-        for (Edition e : editions.findAll()) {
-            if (!e.code().equals(currentCode)) {
-                if (!(end.isBefore(e.startDate()) || start.isAfter(e.endDate()))) {
-                    throw LhException.validation("EDITION_OVERLAP", "L'edizione si sovrappone a " + e.code());
-                }
+        List<Edition> others = editions.findAll().stream().filter(e -> !e.code().equals(currentCode)).toList();
+        for (Edition e : others) {
+            if (!(end.isBefore(e.startDate()) || start.isAfter(e.endDate()))) {
+                throw LhException.validation("EDITION_OVERLAP", "L'edizione si sovrappone a " + e.code());
             }
         }
+        // Q-151 DECISA (docs/03 §4.4 «periodi contigui, senza sovrapposizioni»): niente buchi tra edizioni, perché gli
+        // STS guadagnati in un buco non apparterrebbero a nessuna edizione (Q-47).
+        others.stream().filter(e -> e.endDate().isBefore(start)).max(java.util.Comparator.comparing(Edition::endDate))
+                .filter(prev -> !prev.endDate().plusDays(1).equals(start))
+                .ifPresent(prev -> {
+                    throw LhException.validation("EDITION_NOT_CONTIGUOUS", "L'edizione deve iniziare il giorno dopo la fine di "
+                            + prev.code() + " (" + prev.endDate().plusDays(1) + ").");
+                });
+        others.stream().filter(e -> e.startDate().isAfter(end)).min(java.util.Comparator.comparing(Edition::startDate))
+                .filter(next -> !next.startDate().minusDays(1).equals(end))
+                .ifPresent(next -> {
+                    throw LhException.validation("EDITION_NOT_CONTIGUOUS", "L'edizione deve finire il giorno prima dell'inizio di "
+                            + next.code() + " (" + next.startDate().minusDays(1) + ").");
+                });
     }
 
     public record ClosePreviewMember(String memberId, String currentTier, long periodSts, String earnedTier, String newTier, EditionCloseRule.Outcome outcome) {}
-    public record ClosePreviewSummary(int retained, int downgraded) {}
+    /** {@code unknownTier} (Q-149 DECISA): membri con livello assente dalla scala, lasciati invariati. */
+    public record ClosePreviewSummary(int retained, int downgraded, int unknownTier) {}
     public record ClosePreviewResult(ClosePreviewSummary summary, List<ClosePreviewMember> members) {}
 
     /**
@@ -131,6 +145,6 @@ public class EditionService {
         EditionCloseBatchService.BatchResult r = dryRun
                 ? batchService.preview(code, scale)
                 : batchService.apply(code, scale);
-        return new ClosePreviewResult(new ClosePreviewSummary(r.retained(), r.downgraded()), r.previewMembers());
+        return new ClosePreviewResult(new ClosePreviewSummary(r.retained(), r.downgraded(), r.unknownTier()), r.previewMembers());
     }
 }

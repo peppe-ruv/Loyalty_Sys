@@ -18,7 +18,7 @@ class TestbookWalCloseRuleTest {
     @CsvFileSource(resources = "/testbook/wal/close-rule.csv", numLinesToSkip = 1)
     void computeNext(String id, String description, String currentTier, String periodSts,
                      String earnedTier, String newTier, String outcome) {
-        // Riga 033 (livello attuale sconosciuto) — TESTBOOK: ambiguo, vedi TB-WAL-CLR-033
+        // Riga 033 (livello attuale sconosciuto) — Q-149 DECISA: membro invariato, esito UNKNOWN_TIER
         EditionCloseRule.Result r = EditionCloseRule.computeNext(currentTier, WalTestbook.sts(periodSts), WalTestbook.seedScale());
 
         assertThat(r.earnedTier()).as("%s: livello guadagnato", id).isEqualTo(earnedTier);

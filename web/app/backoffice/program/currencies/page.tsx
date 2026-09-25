@@ -4,7 +4,14 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { lhFetch, useLhQuery, LhError } from "@/lib/api/client";
-import type { Currency, Edition, EditionClosePreviewResult, Liability } from "@/lib/api/types";
+import type {
+  ClosePreviewMember,
+  ClosePreviewSummary,
+  Currency,
+  Edition,
+  EditionClosePreviewResult,
+  Liability,
+} from "@/lib/api/types";
 import { LiabilityColumns } from "@/components/bo/LiabilityColumns";
 import { formatPoints } from "@/lib/format/points";
 import { Tabs } from "@/components/bo/Tabs";
@@ -188,7 +195,7 @@ function CurrencyCard({ currency }: { currency: Currency }) {
 function EditionsTab() {
   const query = useLhQuery<Edition[]>("wallet", "/v1/editions");
   // Tenuto qui: dopo la chiusura l'edizione non è più ACTIVE e il pannello si smonta.
-  const [closed, setClosed] = useState<{ code: string; retained: number; downgraded: number } | null>(null);
+  const [closed, setClosed] = useState<({ code: string } & ClosePreviewSummary) | null>(null);
 
   return (
     <QueryState query={query} service="wallet" isEmpty={(d) => d.length === 0}>
@@ -200,6 +207,11 @@ function EditionsTab() {
               <div className="rounded bg-emerald-50 p-4 text-emerald-800">
                 <p className="font-semibold">Edizione {closed.code} chiusa con successo.</p>
                 <p className="text-sm">Membri che mantengono il livello: {closed.retained}. Membri scesi di livello: {closed.downgraded}.</p>
+                {(closed.unknownTier ?? 0) > 0 && (
+                  <p className="text-sm text-amber-800">
+                    Membri con livello non più presente nella scala, lasciati invariati: {closed.unknownTier}.
+                  </p>
+                )}
               </div>
             )}
             <div className="flex gap-4 overflow-x-auto pb-4">
@@ -241,11 +253,11 @@ function EditionClosePanel({
   onClosed,
 }: {
   edition: Edition;
-  onClosed: (summary: { retained: number; downgraded: number }) => void;
+  onClosed: (summary: ClosePreviewSummary) => void;
 }) {
   const qc = useQueryClient();
   const [preview, setPreview] = useState<EditionClosePreviewResult | null>(null);
-  const [filter, setFilter] = useState<"ALL" | "RETAINED" | "DOWNGRADED">("ALL");
+  const [filter, setFilter] = useState<"ALL" | ClosePreviewMember["outcome"]>("ALL");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -350,16 +362,21 @@ function EditionClosePanel({
           <div className="mt-6 border-t border-[var(--color-bo-border)] pt-4">
             <div className="mb-4 flex items-center justify-between">
               <p className="text-sm font-medium">
-                Sintesi: {preview.summary.retained} mantengono il livello, {preview.summary.downgraded} scendono.
+                Sintesi: {preview.summary.retained} mantengono il livello, {preview.summary.downgraded} scendono
+                {(preview.summary.unknownTier ?? 0) > 0 && (
+                  <>, {preview.summary.unknownTier} con livello sconosciuto restano invariati</>
+                )}
+                .
               </p>
               <select
                 value={filter}
-                onChange={(e) => setFilter(e.target.value as "ALL" | "RETAINED" | "DOWNGRADED")}
+                onChange={(e) => setFilter(e.target.value as "ALL" | ClosePreviewMember["outcome"])}
                 className="rounded border border-[var(--color-bo-border)] px-2 py-1 text-sm"
               >
                 <option value="ALL">Tutti</option>
                 <option value="RETAINED">Mantengono</option>
                 <option value="DOWNGRADED">Scendono</option>
+                <option value="UNKNOWN_TIER">Livello sconosciuto</option>
               </select>
             </div>
             <div className="overflow-x-auto">
@@ -385,6 +402,8 @@ function EditionClosePanel({
                       <td className="py-2">
                         {m.outcome === "RETAINED" ? (
                           <span className="text-emerald-600">Mantiene</span>
+                        ) : m.outcome === "UNKNOWN_TIER" ? (
+                          <span className="text-amber-700">Livello sconosciuto: invariato</span>
                         ) : (
                           <span className="text-red-600">Scende</span>
                         )}
