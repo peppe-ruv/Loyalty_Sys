@@ -1,0 +1,13 @@
+id	descrizione	primary	night	bg	http	code	fields
+TB-ENG-THA-001	tema Aurora	#1FB98F	#0E1B2C	#F3F7F9	200	-	-
+TB-ENG-THA-002	`night` su `primary` 4,5000:1 (appena sopra la soglia)	#577B76	#000000	#FFFFFF	200	-	-
+TB-ENG-THA-003	`night` su `primary` 4,499:1 (appena sotto)	#457E76	#000000	#FFFFFF	422	THEME_CONTRAST_TOO_LOW	colors.primary
+TB-ENG-THA-004	`night` su `primary` 4,56:1 (grigio #757575)	#757575	#000000	#FFFFFF	200	-	-
+TB-ENG-THA-005	`night` su `primary` 4,49:1 (grigio #747474)	#747474	#000000	#FFFFFF	422	THEME_CONTRAST_TOO_LOW	colors.primary
+TB-ENG-THA-006	`night` su `bg` 4,5000:1	#FFFFFF	#000000	#577B76	200	-	-
+TB-ENG-THA-007	`night` su `bg` 4,499:1	#FFFFFF	#000000	#457E76	422	THEME_CONTRAST_TOO_LOW	colors.bg
+TB-ENG-THA-008	entrambi sotto soglia	#457E76	#000000	#457E76	422	THEME_CONTRAST_TOO_LOW	colors.primary colors.bg
+TB-ENG-THA-009	primario scuro su testo scuro (1,5:1)	#2A3A55	#0E1B2C	#F3F7F9	422	THEME_CONTRAST_TOO_LOW	colors.primary
+TB-ENG-THA-010	primario non esadecimale `verde`	verde	#0E1B2C	#F3F7F9	422	!THEME_CONTRAST_TOO_LOW	colors.primary
+TB-ENG-THA-011	primario in minuscolo	#1fb98f	#0E1B2C	#F3F7F9	200	-	-
+TB-ENG-THA-012	primario `#FFF` (3 cifre)	#FFF	#0E1B2C	#F3F7F9	422	!THEME_CONTRAST_TOO_LOW	colors.primary

@@ -25,6 +25,7 @@ import tools.jackson.databind.node.ObjectNode;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -120,9 +121,13 @@ public class ContentService {
 
     /**
      * Portale: i contenuti che il membro vede adesso nel posizionamento, già ordinati e limitati. Per {@code WIN}
-     * {@code prizeCode} filtra la card del premio vinto.
+     * {@code prizeCode} filtra la card del premio vinto. Come ogni endpoint del portale richiede un {@code memberId}
+     * esplicito (docs/06 §2): senza, {@code 400}.
      */
     public List<ContentDisplay> portal(String memberId, String placement, String prizeCode) {
+        if (memberId == null || memberId.isBlank()) {
+            throw LhException.badRequest("memberId è obbligatorio");
+        }
         String p = placementOrThrow(placement);
         List<ContentItem> candidates = contents.findByPlacement(p);
         if ("WIN".equals(p) && prizeCode != null && !prizeCode.isBlank()) {
@@ -216,6 +221,14 @@ public class ContentService {
         }
         long expected = r.version() != null ? r.version() : current.version();
         ContentItem next = validated(current.id(), current.code(), r, current);
+        if ("LIVE".equals(current.status())) {
+            List<String> locked = lockedChanges(current, next);
+            if (!locked.isEmpty()) {
+                throw LhException.conflict("CONTENT_LIVE_LOCKED", "Su un contenuto LIVE si modificano solo titolo, testo, "
+                        + "immagine, priorità e fine calendario; campi bloccati: " + String.join(", ", locked)
+                        + ". Per cambiarli duplica il contenuto.");
+            }
+        }
         if (!contents.update(next, expected, ActorHolder.get().asActorString())) {
             throw LhException.conflict("VERSION_CONFLICT", "Il contenuto è stato modificato nel frattempo: ricarica e riprova.");
         }
@@ -376,6 +389,45 @@ public class ContentService {
                 linkType, linkCode, audience, startAt,
                 endAt, priority, frequency, dismissible, style, cur == null ? "DRAFT" : cur.status(),
                 cur == null ? 0 : cur.version(), null);
+    }
+
+    /**
+     * docs/03 §3.6: un oggetto {@code LIVE} si modifica solo nei campi "sicuri" — nome ({@code title}), descrizione
+     * ({@code body}), {@code endAt}, priorità, immagine — e per il resto va duplicato (docs/06 §2: {@code 409}).
+     * Restituisce i campi non sicuri che la modifica cambierebbe, confrontati dopo la normalizzazione di
+     * {@link #validated}. Etichetta della CTA e stile non sono nell'elenco dei sicuri: bloccati anche loro.
+     */
+    private static List<String> lockedChanges(ContentItem cur, ContentItem next) {
+        List<String> locked = new ArrayList<>();
+        if (!Objects.equals(cur.placement(), next.placement())) {
+            locked.add("placement");
+        }
+        if (!Objects.equals(cur.audience(), next.audience())) {
+            locked.add("audience");
+        }
+        if (!Objects.equals(micros(cur.startAt()), micros(next.startAt()))) {
+            locked.add("startAt");
+        }
+        if (!Objects.equals(cur.linkType(), next.linkType()) || !Objects.equals(cur.linkCode(), next.linkCode())) {
+            locked.add("link");
+        }
+        if (!Objects.equals(cur.ctaLabel(), next.ctaLabel()) || !Objects.equals(cur.ctaTarget(), next.ctaTarget())) {
+            locked.add("cta");
+        }
+        if (!Objects.equals(cur.frequency(), next.frequency())) {
+            locked.add("frequency");
+        }
+        if (cur.dismissible() != next.dismissible()) {
+            locked.add("dismissible");
+        }
+        if (!Objects.equals(cur.style(), next.style())) {
+            locked.add("style");
+        }
+        return locked;
+    }
+
+    private static Instant micros(Instant i) {
+        return i == null ? null : i.truncatedTo(ChronoUnit.MICROS);
     }
 
     /** Pubblico normalizzato: le tre liste sempre presenti, codici in maiuscolo; altre chiavi conservate. */

@@ -1,0 +1,15 @@
+id	descrizione	value	expected
+TB-ENG-THM-001	`#1FB98F` (maiuscole)	#1FB98F	true
+TB-ENG-THM-002	`#1fb98f` (minuscole)	#1fb98f	true
+TB-ENG-THM-003	`#000000` (minimo)	#000000	true
+TB-ENG-THM-004	`#FFFFFF` (massimo)	#FFFFFF	true
+TB-ENG-THM-005	`1FB98F` senza `#`	1FB98F	false
+TB-ENG-THM-006	`#FFF` (forma corta a 3 cifre)	#FFF	false
+TB-ENG-THM-007	`#1FB98F80` (8 cifre con alfa)	#1FB98F80	false
+TB-ENG-THM-008	`#GGGGGG` (cifre non esadecimali)	#GGGGGG	false
+TB-ENG-THM-009	`#12345` (5 cifre)	#12345	false
+TB-ENG-THM-010	`#1234567` (7 cifre)	#1234567	false
+TB-ENG-THM-011	stringa vuota	<empty>	false
+TB-ENG-THM-012	assente (`null`)	<null>	false
+TB-ENG-THM-013	nome di colore `verde`	verde	false
+TB-ENG-THM-014	`rgb(0 0 0)`	rgb(0 0 0)	false
