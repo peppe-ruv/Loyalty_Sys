@@ -1,3 +1,178 @@
 ---
-title: "testbook-funzionale"
+title: "Testbook funzionale: casi di prova end-to-end del PoC"
+sidebarTitle: "Testbook"
+description: "Catalogo dei casi di prova funzionali end-to-end per dominio, con l'oracolo nella specifica e non nel comportamento del codice."
 ---
+
+Il testbook funzionale è il catalogo dei casi di prova end-to-end del PoC. Per ogni regola delle specifiche e ogni ramo decisionale, moltiplicato per i domini dei valori in ingresso, esiste una riga con un ID `TB-<DOM>-NNN` eseguita da un test automatico. Non misura la percentuale di codice eseguito (code coverage), ma **quante decisioni della specifica sono provate e con quali valori**.
+
+L'oracolo è la specifica, non il comportamento del codice. Dove la specifica tace, vale la scelta registrata in [Domande aperte](/specifiche/domande-aperte). Un test rosso indica la riga del testbook violata.
+
+<Note>
+  Il testbook è eseguibile per intero con `bash scripts/testbook.sh`. Ogni caso ha un nome che inizia con l'ID della riga (`[TB-WAL-042] ...`), così il rapporto incrocia le righe documentate con gli esiti JUnit.
+</Note>
+
+## Come è costruito
+
+<Steps>
+  <Step title="Inventario delle regole">
+    Ogni regola delle specifiche (es. "solo i membri ACTIVE accumulano") diventa una voce con i suoi riferimenti (`F-...`, `BO-...`, `PT-...`, `Q-...`). Anche i rami del codice sono mappati su una regola.
+  </Step>
+  <Step title="Domini dei valori">
+    Per ogni ingresso: classi di equivalenza valide e non valide, valori limite (min-1, min, min+1, max-1, max, max+1), assente, null, vuoto, tipo sbagliato, valori speciali (0, negativi, decimali, unicode), tempo (mezzanotte, cambio ora, fine mese, 29 febbraio), ruoli, stati del membro.
+  </Step>
+  <Step title="Strategia di combinazione">
+    Tabella decisionale **completa** se il prodotto dei domini è ≤ 64. Altrimenti **pairwise** sulle classi valide più ogni classe non valida singola più ogni valore limite singolo. **Macchine a stati**: ogni stato × ogni evento, comprese le transizioni vietate.
+  </Step>
+  <Step title="Esecuzione">
+    Test parametrizzati guidati da dati (JUnit 5 `@ParameterizedTest` con CSV in `src/test/resources/testbook/<dominio>/`, vitest con `it.each` nel web). Un solo contesto Spring per classe d'integrazione.
+  </Step>
+</Steps>
+
+## Domini del testbook
+
+<CardGroup cols={2}>
+  <Card title="TB-ING - Ingresso eventi" icon="inbox" href="https://github.com/peppe-ruv/loyalty_sys/blob/main/docs/testbook/TB-ING-ingresso.md">
+    Ingestion: validazione, deduplica, DLQ. Fonte: `ingestion-service` §3, §5 · F-ING-\*. <br />Stato: in preparazione.
+  </Card>
+
+  <Card title="TB-CMP - Campagne" icon="bullhorn" href="https://github.com/peppe-ruv/loyalty_sys/blob/main/docs/testbook/TB-CMP-campagne.md">
+    Motore regole, priorità, gruppi esclusivi. Fonte: `docs/03 §3` · `campaign-service` · F-CMP-\*. <br />Stato: in preparazione.
+  </Card>
+
+  <Card title="TB-WAL - Wallet e livelli" icon="wallet" href="https://github.com/peppe-ruv/loyalty_sys/blob/main/docs/testbook/TB-WAL-wallet.md">
+    **Eseguibile: 373 righe**, 32 regole, 97 rami mappati. Fonte: `docs/03 §4` · F-WAL-_, F-TIER-_.
+  </Card>
+
+  <Card title="TB-RWD - Premi e coupon" icon="gift" href="https://github.com/peppe-ruv/loyalty_sys/blob/main/docs/testbook/TB-RWD-premi.md">
+    Catalogo, richieste, coupon, saga. Fonte: `reward-service` · F-RWD-_, F-CPN-_. <br />Stato: in preparazione.
+  </Card>
+
+  <Card title="TB-GAM - Gioco" icon="dice" href="https://github.com/peppe-ruv/loyalty_sys/blob/main/docs/testbook/TB-GAM-gioco.md">
+    Concorsi instant win, obiettivi, badge, classifiche, referral. Fonte: `gamification-service` · F-IW-_, F-ACH-_. <br />Stato: in preparazione.
+  </Card>
+
+  <Card title="TB-GOV - Governance e membri" icon="scale-balanced">
+    Approvazioni, matrice permessi, membri, segmenti. Fonte: `docs/03 §3.6` · `docs/06 §7` · F-APR-_, F-MBR-_. <br />Stato: in preparazione.
+  </Card>
+
+  <Card title="TB-ENG - Engagement" icon="envelope" href="https://github.com/peppe-ruv/loyalty_sys/blob/main/docs/testbook/TB-ENG-engagement.md">
+    Contenuti, messaggi, template, webhook. Fonte: `engagement-service` · F-CNT-_, F-MSG-_. <br />Stato: in preparazione.
+  </Card>
+
+  <Card title="TB-WEB - Interfaccia" icon="window" href="https://github.com/peppe-ruv/loyalty_sys/blob/main/docs/testbook/TB-WEB-interfaccia.md">
+    Backoffice e portale: schermate, permessi, componenti. Fonte: `docs/07-09`. <br />Stato: in preparazione.
+  </Card>
+</CardGroup>
+
+Domini aggiuntivi (da scrivere):
+
+- **TB-E2E - Percorsi end-to-end**: una riga per percorso reale con la catena di eventi attesa nello stesso tracciato.
+- **TB-INS - Osservabilità e audit**: DLQ riprocessa/scarta, regole di stato dei tracciati, ripresa SSE, KPI, conservazione.
+- **TB-PLT - Piattaforma**: outbox con Kafka giù, ritentativi e DLQ per tipo d'errore, conformità dei contratti evento.
+
+## Esempi di casi TB-WAL
+
+Estratto dal dominio wallet, per mostrare la forma di una riga eseguibile.
+
+### Accredito con moltiplicatore di livello (GRT)
+
+Regola R-08: con `tierMultiplierApplies` e valuta `PTS`, l'importo è `floor(base × multiplier)` e il movimento porta metadata `{baseAmount, tierCode, tierMultiplier, campaignMultiplier}`.
+
+| ID | Livello | Base | Multiplier campagna | Atteso PTS | Movimento |
+| --- | --- | --: | --: | --: | --- |
+| `TB-WAL-GRT-001` | BASE (×1,00) | 100 | 1,00 | 100 | `EARN` |
+| `TB-WAL-GRT-013` | SILVER (×1,25) | 130 | 1,00 | 162 | `EARN` |
+| `TB-WAL-GRT-025` | GOLD (×1,50) | 130 | 2,00 | 390 | `EARN` |
+| `TB-WAL-GRT-037` | PLATINUM (×2,00) | 130 | 2,00 | 520 | `EARN` |
+| `TB-WAL-GRT-056` | GOLD | 0 | 1,00 | scartato | nessuno |
+| `TB-WAL-GRT-057` | GOLD | 1 | 0,00 | scartato | nessuno |
+
+Tabella completa: valuta × giorni di attesa × moltiplicatore × livello = 48 righe.
+
+### Spesa FIFO con lotti scaduti in mezzo (SPD)
+
+Regola R-13: lotti ordinati per `expiresAt` crescente (null in fondo), poi per `earnedAt`. Tutto o niente. Rifiuto con `wallet.spend.rejected` e campo `available`.
+
+| ID | Lotti attivi (id, remaining, expiresAt) | Richiesta | Esito | Movimenti |
+| --- | --- | --: | --- | --- |
+| `TB-WAL-SPD-001` | L1(100, 30/09) · L2(200, 31/10) | 150 | OK | `SPEND` totale 150 (L1: 100, L2: 50) |
+| `TB-WAL-SPD-007` | L1(100, 30/09) · L2(200, 31/10) | 500 | rifiuto `INSUFFICIENT_BALANCE`, available=300 | nessuno |
+| `TB-WAL-SPD-013` | L1(100, null) · L2(200, 30/09) | 250 | OK | `SPEND` totale 250 (L2: 200, L1: 50) |
+| `TB-WAL-SPD-024` | L1(100, 30/09) | -50 | 422 `AMOUNT_NOT_POSITIVE` | nessuno |
+
+### Chiusura di edizione (ECL)
+
+Regola R-22: `earned` = livello più alto con soglia ≤ `periodSts`, `floor` = rank − 1, nuovo = max(earned, floor). Mai salita in chiusura.
+
+| ID | Livello corrente | `periodSts` | Livello earned | Livello floor | Nuovo livello |
+| --- | --- | --: | --- | --- | --- |
+| `TB-WAL-ECL-001` | GOLD | 5.400 | GOLD | SILVER | GOLD (mantiene) |
+| `TB-WAL-ECL-004` | GOLD | 650 | BASE | SILVER | SILVER (discesa morbida) |
+| `TB-WAL-ECL-013` | PLATINUM | 15.000 | PLATINUM | GOLD | PLATINUM (mai salita in chiusura) |
+
+## Copertura attuale
+
+| Dominio | Regole | Rami mappati | Righe | Divergenze aperte |
+| --- | --: | --: | --: | --: |
+| TB-WAL | 32 | 97 | **373** | 0 (18 corrette) |
+| TB-ING | in preparazione |  |  |  |
+| TB-CMP | in preparazione |  |  |  |
+| TB-RWD | in preparazione |  |  |  |
+| TB-GAM | in preparazione |  |  |  |
+| TB-ENG | in preparazione |  |  |  |
+| TB-WEB | in preparazione |  |  |  |
+
+## Divergenze e scelte registrate
+
+Le divergenze trovate e corrette in TB-WAL (18 righe, 11 cause principali):
+
+- Scadenza di fine mese arrotondata al giorno dopo.
+- Un solo movimento `EXPIRE` per lotto invece che per membro e valuta.
+- Audit dei job assente.
+- Campo `keepWarning` assente in vista wallet.
+- Filtri e campi del registro non allineati alla spec.
+- Edizione successiva sbagliata alla chiusura.
+- Scadenza del rimborso (Q-160, supera Q-54).
+
+Scelte registrate come "spec-gap": Q-140..Q-156 (28 righe). Quattro non conservative, da decidere: Q-140, Q-147, Q-149, Q-151. Vedi [Domande aperte](/specifiche/domande-aperte) per il dettaglio.
+
+## Esecuzione locale
+
+```bash Esegui il testbook completo
+# Esegue tutti i test Testbook* di backend + *.testbook.test.* del web
+bash scripts/testbook.sh
+
+# Il rapporto viene scritto in:
+cat target/testbook/rapporto.md
+```
+
+Variabili di controllo:
+
+- `TESTBOOK_JAVA=0`: salta il backend.
+- `TESTBOOK_WEB=0`: salta il web.
+- `TESTBOOK_STRICT=0`: rapporto senza uscita d'errore anche in caso di fallimenti.
+
+<Warning>
+  Il rapporto esce con codice ≠ 0 se ci sono righe **fallite**, righe **non eseguite** (documentate ma senza test) o **test senza riga** (casi che non appartengono al testbook). Tutte e tre le condizioni bloccano `main` nella CI.
+</Warning>
+
+## Prossimi passi
+
+<CardGroup cols={2}>
+  <Card title="Backlog" icon="list" href="/specifiche/backlog">
+    Le user story che ogni riga di testbook deve coprire.
+  </Card>
+
+  <Card title="Domande aperte" icon="circle-question" href="/specifiche/domande-aperte">
+    Le scelte registrate (Q-nnn) referenziate dai test.
+  </Card>
+
+  <Card title="Catalogo funzionale" icon="clipboard-list" href="/specifiche/catalogo-funzionale">
+    Le feature `F-*` che identificano le regole da coprire.
+  </Card>
+
+  <Card title="Piano di sviluppo" icon="road" href="/specifiche/piano-di-sviluppo">
+    L'accettazione di ogni milestone si misura sul testbook.
+  </Card>
+</CardGroup>

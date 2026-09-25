@@ -1,3 +1,214 @@
 ---
-title: "backlog"
+title: "Backlog: 12 epiche e storie utente del Loyalty Hub"
+sidebarTitle: "Backlog"
+description: "Catalogo delle epiche e delle user story del PoC organizzate per dominio, con tracciabilità verso feature, testbook e foresta delle decisioni."
 ---
+
+Il backlog raccoglie tutte le epiche e le storie utente che si possono associare alle decisioni del codice e alle feature del PoC. Serve a verificare che il [testbook funzionale](/specifiche/testbook-funzionale) sia completo: ogni storia dice quali decisioni attraversa, con quali esiti, e quale dominio del testbook la deve provare.
+
+<Note>
+  Questa pagina è una sintesi navigabile. Il file sorgente `docs/17-EPIC-E-STORIE.md` nel repository contiene tutte le user story `US-Enn-nn` per esteso, con criteri di accettazione in formato `Dato/Quando/Allora` e la foresta delle decisioni sezione per sezione.
+</Note>
+
+## Catena di tracciabilità
+
+Ogni cosa che si costruisce nel PoC segue questa catena:
+
+<Steps>
+  <Step title="Feature (docs/02)">
+    `F-CMP-05`, `F-WAL-06`, ... una feature funzionale del catalogo.
+  </Step>
+  <Step title="Storia utente (questa pagina)">
+    `US-E03-04`, ... uno scenario concreto con protagonista e criterio di accettazione.
+  </Step>
+  <Step title="Schermate + API + eventi">
+    `BO-06`, `PT-01`, `POST /v1/campaigns`, `campaign.evaluated` ... i tocchi visibili.
+  </Step>
+  <Step title="Decisioni (foresta § 5 del sorgente)">
+    Regola → rami del codice → codici d'errore attesi.
+  </Step>
+  <Step title="Riga di testbook">
+    `TB-CMP-042` ... il caso di prova automatico che asserisce la specifica.
+  </Step>
+</Steps>
+
+## Le 12 epiche
+
+<AccordionGroup>
+  <Accordion title="E01 - Ingresso eventi">
+    **Cosa copre**: `POST /v1/events` e `POST /v1/transactions`, validazione contro contratti evento, deduplica (source, id), routing verso i topic `lh.actions.v1` / `lh.facts.v1`, DLQ per eventi malformati o non riconosciuti.
+
+    **Storie principali** (US-E01-01..09): fonte HTTP autorizzata invia un acquisto valido, fonte sconosciuta rifiutata, evento duplicato riconosciuto (`DUPLICATE`), membro non attivo o bloccato, fonte spenta dinamicamente, ponte fatti → azioni dal consumer `FactsHandler`.
+
+    **Domini di testbook**: TB-ING (in preparazione).
+  </Accordion>
+
+  <Accordion title="E02 - Membri e segmenti">
+    **Cosa copre**: anagrafica, profilo, stati (`ACTIVE`, `BLOCKED`, `ANONYMIZED`), etichette (`ebill`, `directdebit`), attributi custom, segmenti dinamici e statici, riemissione appartenenze dopo reset (Q-81).
+
+    **Storie principali** (US-E02-01..12): registrazione da portale, completamento profilo, blocco da BO-02, anonimizzazione con conservazione movimenti, cambio città → SEG-TORINO, aggiunta etichetta → SEG-DIGITAL, ricalcolo ogni 15 min solo sulle differenze.
+
+    **Domini di testbook**: TB-GOV (in preparazione).
+  </Accordion>
+
+  <Accordion title="E03 - Campagne e motore regole">
+    **Cosa copre**: creazione campagne (BO-05, BO-06), condizioni multi-campo, effetti (`GRANT`, `MULTIPLIER`, `SEND_MESSAGE`), priorità, gruppi esclusivi, budget e limiti per membro, tempi (LIVE/PAUSED/ENDED), invio in revisione (workflow legale).
+
+    **Storie principali** (US-E03-01..15): Luca crea `CMP-WEEKEND-X2`, valutazione con moltiplicatore ×2 nel weekend, gruppo esclusivo che scarta la seconda campagna con `EXCLUSIVE`, budget esaurito → `BUDGET_EXHAUSTED`, campagna `PAUSED` non valutata, cache campagne aggiornata a ogni scrittura.
+
+    **Domini di testbook**: TB-CMP (in preparazione).
+  </Accordion>
+
+  <Accordion title="E04 - Wallet, livelli ed edizioni">
+    **Cosa copre**: doppia valuta PTS/STS, libro mastro immutabile, lotti con scadenza, punti in attesa, spesa FIFO, rimborso, job (scadenze, preavvisi, rilascio), livelli con salita immediata e discesa morbida in chiusura edizione, rettifiche manuali.
+
+    **Storie principali** (US-E04-01..15): acquisto → EARN con moltiplicatore SILVER, rilascio pending il giorno dopo, preavviso scadenza a 30 giorni, spesa FIFO su più lotti, chiusura ED-2026 con discesa Stefano GOLD → SILVER, rettifica CARE con nota obbligatoria (≥ 10 caratteri), rifiuto rettifica STS (`CURRENCY_NOT_ADJUSTABLE`, Q-46).
+
+    **Domini di testbook**: **TB-WAL (eseguibile, 373 righe)**. È l'unico dominio con copertura completa oggi.
+  </Accordion>
+
+  <Accordion title="E05 - Premi e coupon">
+    **Cosa copre**: catalogo (BO-11), fasce F1-F5, visibilità per tier o segmento, stock e limiti, richiesta con saga (ledger wallet → issue coupon), timeout richieste (Q-55), tipi COUPON/PHYSICAL/EXPERIENCE/DIGITAL/DONATION, gestione da CARE.
+
+    **Storie principali** (US-E05-01..17): Sofia richiede borraccia → richiesta PENDING → CARE conferma → SHIPPED, richiesta EXPERIENCE riservata a PLATINUM rifiutata a GOLD, coupon.void da CARE annulla e restituisce punti, timeout dopo 10 min → REJECTED/TIMEOUT, scadenza coupon ISSUED alle 02:30.
+
+    **Domini di testbook**: TB-RWD (in preparazione).
+  </Accordion>
+
+  <Accordion title="E06 - Gioco">
+    **Cosa copre**: concorsi instant win (WHEEL, SCRATCH, BOX), obiettivi con progressi (COUNT, STREAK, SUM, DISTINCT_TYPES), badge, classifiche, referral con imbuto (invitato → registrato → prima azione qualificante → premiato).
+
+    **Storie principali** (US-E06-01..17): Matteo gira la ruota → istante piantato vince Powerbank, obiettivo `ACH-STREAK-7` incrementa e sblocca badge `BDG-STREAK`, Francesca in top 10 di `LDB-EDITION-STS`, Elisa completa referral → premio a lei e a Marco (`SEG-REFERRAL`).
+
+    **Domini di testbook**: TB-GAM (in preparazione).
+  </Accordion>
+
+  <Accordion title="E07 - Contenuti, messaggi, tema">
+    **Cosa copre**: card, popup, banner con pubblico target (tier, segmento, stato), template messaggi con segnaposto `{{data.*}}`, regole di notifica su fatti, inbox del portale, anteprima e-mail EMAIL_FAKE (BO-19), tema Aurora (BO-20).
+
+    **Storie principali** (US-E07-01..12): `POP-WELCOME` mostrato ad Anna (iscritta ieri), `POP-WEEKEND` solo sab-dom, `NR-POINTS-EARNED` genera messaggio "Hai guadagnato 162 punti", filtro `data.currency = PTS` evita duplicato con STS (Q-65), messaggio a `ANONYMIZED` bloccato (Q-70).
+
+    **Domini di testbook**: TB-ENG (in preparazione).
+  </Accordion>
+
+  <Accordion title="E08 - Governance">
+    **Cosa copre**: matrice permessi (5 ruoli × 24 capacità), workflow di approvazione (`IN_REVIEW`, `APPROVED`, `REJECTED`), oggetti che richiedono LEGAL (`requiresLegal=true` o budget > 100.000), storico approvazioni, override ADMIN, audit su ogni scrittura da backoffice.
+
+    **Storie principali** (US-E08-01..11): Luca invia `CMP-BLACK-FRIDAY` (budget 250.000 → richiede LEGAL), Elena approva, storico registrato, ANALYST vede solo lettura, ADMIN forza override con motivo, ogni scrittura scrive un evento su `lh.audit.v1`.
+
+    **Domini di testbook**: TB-GOV (in preparazione).
+  </Accordion>
+
+  <Accordion title="E09 - Osservabilità">
+    **Cosa copre**: KPI cross-servizio (BO-24, BO-25, BO-26), event store con retention, DLQ con riprocessa/scarta (BO-27), SSE live con `Last-Event-ID`, tracciato correlazione (`lhcorrelationid` propagato tra servizi), audit consultabile.
+
+    **Storie principali** (US-E09-01..07): SSE apre stream verso insight, heartbeat ogni 15 s tiene aperta la connessione, DLQ apre voce OPEN dopo 3 fallimenti, riprocessa ripubblica evento con `X-LH-Reprocess`, scarta con nota obbligatoria (Q-110), retention 14 giorni sull'event store.
+
+    **Domini di testbook**: TB-INS (da scrivere).
+  </Accordion>
+
+  <Accordion title="E10 - Portale del membro (percorsi end-to-end)">
+    **Cosa copre**: PT-01..PT-14, esperienza completa del membro dal primo login all'uso di un coupon, incluse notifiche, wallet, catalogo premi, gioco, profilo, referral, cronologia.
+
+    **Storie principali** (US-E10-01..16): Anna completa profilo → +150 PTS, Marco vede saldo 1.850 e prossimo tier a 120 STS, Chiara riceve preavviso scadenza 1.900 PTS entro 30 gg, Davide spende coupon in cassa (BO-12), Sofia vede stato borraccia CONFIRMED in attesa spedizione, Matteo gira ruota e vince.
+
+    **Domini di testbook**: TB-WEB (in preparazione), TB-E2E (da scrivere).
+  </Accordion>
+
+  <Accordion title="E11 - Demo e ambiente">
+    **Cosa copre**: reset idempotente (`POST /v1/demo/reset`), simulatore singolo evento (BO-28), scenari guidati (BO-29), console demo (BO-30) con job on-demand, portale demo (PT-14) senza login, sonno/risveglio dei provider gratuiti.
+
+    **Storie principali** (US-E11-01..09): reset azzera tutto e ricarica seed in ordine, scenario `SCN-TIER-UP` esegue passi con ritardo ≤ 10 s, provider Kafka gratuito si spegne di notte → outbox accumula → riprende al risveglio, membro anonimizzato non selezionabile.
+
+    **Domini di testbook**: TB-INS + TB-PLT (da scrivere).
+  </Accordion>
+
+  <Accordion title="E12 - Affidabilità e contratti">
+    **Cosa copre**: outbox transazionale (invariante saldo attivo = Σ lotti ACTIVE), retry esponenziale con DLQ tipizzata, contratti evento JSON Schema con validazione a runtime, errori RFC 9457 con `lh-error-code`, requisiti non funzionali (P95 \< 500 ms sui percorsi principali).
+
+    **Storie principali** (US-E12-01..06): OutboxRelay pubblica ogni 500 ms, Kafka giù → outbox accumula ma la scrittura DB non si rompe, evento con schema violato → DLQ con `SCHEMA_INVALID`, retry esponenziale con jitter, errore 422 con corpo RFC 9457.
+
+    **Domini di testbook**: TB-PLT (da scrivere).
+  </Accordion>
+</AccordionGroup>
+
+## Attori del backlog
+
+### Backoffice (5 personas)
+
+Dettaglio in [Dati demo - Personas](/specifiche/dati-demo) e nella [Matrice permessi](/specifiche/frontend-backoffice).
+
+- `marta.admin` **ADMIN** - tutto: reset, job, override, riprocessa DLQ.
+- `luca.marketing` **MARKETING** - crea, modifica, invia in revisione.
+- `elena.legal` **LEGAL** - approva o rifiuta.
+- `paolo.care` **CARE** - membri, richieste, coupon, rimborsi.
+- `sara.analyst` **ANALYST** - sola lettura (ogni scrittura → 403).
+
+### Membri del portale (12)
+
+Dettaglio in [Dati demo - Membri di esempio](/specifiche/dati-demo).
+
+### Sistemi esterni
+
+- Fonti HTTP `crm`, `app`, `ecommerce`, `billing`, `partner` → `POST /v1/events` e `POST /v1/transactions`.
+- Fonte `simulator` (demo) → BO-28, PT-14, scenari BO-29.
+- Fonte `internal` → consumer `FactsHandler` in ingestion (ponte fatti → azioni).
+- Ricevitori webhook esterni → consegne firmate HMAC da engagement.
+- Browser membro / presentatore → proxy Next.js `/api/lh/**`, SSE diretto a insight.
+
+### Job automatici
+
+I processi che agiscono senza intervento umano: `OutboxRelay`, `OutboxCleanup`, `CampaignCache.reload`, rilascio pending wallet, scadenza punti, preavvisi, timeout richieste, scadenza coupon, fine concorsi, dispatcher webhook, ricalcolo segmenti, retention insight.
+
+Ognuno ha una storia `US-E*-*` dedicata e un interruttore proprio, così la demo può accendere e spegnere ogni processo dalla console demo (BO-30).
+
+## Copertura attuale
+
+| Epica | Storie | Storie coperte da TB | Note |
+| --- | --: | --: | --- |
+| E01 Ingresso eventi | 9 | 0 | TB-ING in preparazione |
+| E02 Membri e segmenti | 12 | 0 | TB-GOV in preparazione |
+| E03 Campagne | 15 | 0 | TB-CMP in preparazione |
+| E04 Wallet | 15 | **12** | TB-WAL eseguibile, 373 righe |
+| E05 Premi | 17 | 0 | TB-RWD in preparazione |
+| E06 Gioco | 17 | 0 | TB-GAM in preparazione |
+| E07 Engagement | 12 | 0 | TB-ENG in preparazione |
+| E08 Governance | 11 | 0 | TB-GOV in preparazione |
+| E09 Osservabilità | 7 | 0 | TB-INS da scrivere |
+| E10 Portale | 16 | 0 | TB-WEB + TB-E2E |
+| E11 Demo | 9 | 0 | TB-INS + TB-PLT |
+| E12 Affidabilità | 6 | 0 | TB-PLT da scrivere |
+| **Totale** | **146** | **12** | 8% coperto |
+
+Stati di copertura:
+
+- **coperta**: esistono righe TB associate.
+- **pianificata**: il dominio TB esiste ma le righe non sono ancora scritte.
+- **scoperta**: nessun dominio TB la coprirebbe (da segnalare).
+- **fuori perimetro PoC**: feature P2 (docs/01 §4).
+
+## Manutenzione del backlog
+
+Quando aggiungi una feature o una schermata, aggiungi anche la storia qui. Quando aggiungi un `LhException`, un enum di esito, un `@RequiresRole` o un job, aggiungi la riga alla foresta delle decisioni del sorgente `docs/17-EPIC-E-STORIE.md`. Quando aggiungi righe di testbook, aggiorna la colonna _Testbook_ della storia e la matrice di copertura.
+
+Un ramo del codice che resta senza una storia è un campanello d'allarme: o serve una storia nuova, o quel ramo è morto e va rimosso.
+
+## Prossimi passi
+
+<CardGroup cols={2}>
+  <Card title="Catalogo funzionale" icon="clipboard-list" href="/specifiche/catalogo-funzionale">
+    Le feature `F-*` da cui nascono le storie.
+  </Card>
+
+  <Card title="Testbook" icon="flask" href="/specifiche/testbook-funzionale">
+    I casi di prova che asseriscono ogni storia.
+  </Card>
+
+  <Card title="Piano di sviluppo" icon="road" href="/specifiche/piano-di-sviluppo">
+    Le milestone M0-M7 che completano le storie per epica.
+  </Card>
+
+  <Card title="Dati demo" icon="database" href="/specifiche/dati-demo">
+    Le personas, i membri e gli scenari usati dalle storie.
+  </Card>
+</CardGroup>
