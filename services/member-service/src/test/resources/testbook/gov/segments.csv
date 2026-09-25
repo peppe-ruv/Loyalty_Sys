@@ -1,0 +1,31 @@
+id,descrizione,scenario,expected
+TB-GOV-SEG-001,"anteprima tier in [GOLD, PLATINUM]",PREVIEW_SEED,4
+TB-GOV-SEG-002,anteprima con criteri non validi,PREVIEW_INVALID,422:INVALID_CRITERIA
+TB-GOV-SEG-003,anteprima con criteri vuoti,PREVIEW_EMPTY,422:INVALID_CRITERIA
+TB-GOV-SEG-004,anteprima senza scritture,PREVIEW_NO_WRITE,0 fatti
+TB-GOV-SEG-005,creazione di un dinamico,CREATE_DYNAMIC,201:1
+TB-GOV-SEG-006,fatto entered alla creazione,CREATE_ENTERED,entered
+TB-GOV-SEG-007,codice di 2 caratteri,CODE_2,422:INVALID_CODE
+TB-GOV-SEG-008,codice di 3 caratteri (minimo),CODE_3,201
+TB-GOV-SEG-009,codice di 40 caratteri (massimo),CODE_40,201
+TB-GOV-SEG-010,codice di 41 caratteri,CODE_41,422:INVALID_CODE
+TB-GOV-SEG-011,codice in minuscolo,CODE_LOWER,201:maiuscolo
+TB-GOV-SEG-012,nome vuoto,NAME_BLANK,422:NAME_REQUIRED
+TB-GOV-SEG-013,tipo sconosciuto,TYPE_UNKNOWN,422:INVALID_TYPE
+TB-GOV-SEG-014,codice duplicato,CODE_TAKEN,409:CODE_TAKEN
+TB-GOV-SEG-015,statico con membro inesistente,STATIC_UNKNOWN,422:MEMBER_NOT_FOUND
+TB-GOV-SEG-016,statico con membro anonimizzato,STATIC_ANONYMIZED,422:MEMBER_NOT_FOUND
+TB-GOV-SEG-017,elenco manuale su un dinamico,MEMBERS_ON_DYNAMIC,409:SEGMENT_NOT_STATIC
+TB-GOV-SEG-018,cambio di tipo,CHANGE_TYPE,409:SEGMENT_IMMUTABLE_FIELD
+TB-GOV-SEG-019,cambio di codice,CHANGE_CODE,409:SEGMENT_IMMUTABLE_FIELD
+TB-GOV-SEG-020,archiviazione: escono tutti,ARCHIVE_LEFT,left
+TB-GOV-SEG-021,ricalcolo di un archiviato,REFRESH_ARCHIVED,409:SEGMENT_ARCHIVED
+TB-GOV-SEG-022,stato sconosciuto,STATUS_UNKNOWN,422:INVALID_STATUS
+TB-GOV-SEG-023,secondo ricalcolo senza variazioni,REFRESH_TWICE,0:0
+TB-GOV-SEG-024,criteri modificati: chi non soddisfa esce,CRITERIA_CHANGED,left
+TB-GOV-SEG-025,statico: sostituzione dell'elenco,STATIC_REPLACE,1:1
+TB-GOV-SEG-026,dinamico: membro ACTIVE incluso,STATUS_ACTIVE,dentro
+TB-GOV-SEG-027,dinamico: membro INACTIVE incluso,STATUS_INACTIVE,dentro
+TB-GOV-SEG-028,dinamico: membro BLOCKED incluso,STATUS_BLOCKED,dentro
+TB-GOV-SEG-029,dinamico: membro ANONYMIZED escluso,STATUS_ANONYMIZED,fuori
+TB-GOV-SEG-030,versione superata,VERSION_CONFLICT,409:VERSION_CONFLICT

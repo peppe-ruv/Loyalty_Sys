@@ -20,6 +20,9 @@ negli altri servizi, anonimizzazione, attributi personalizzati, segmenti. Serviz
 | `libs/lh-common` · `TestbookGovActorTest` | unit: `ActorContext.parse`, `RequiresRoleInterceptor` | `actor.csv`, `guard.csv` | ACT, GRD |
 | `libs/lh-common` · `TestbookGovTransitionsTest` | unit: `GovernedTransitions` (+ `ApprovalStateMachine`) | `parse.csv`, `sm-required.csv`, `sm-none.csv`, `sm-off.csv`, `roles.csv`, `comments.csv`, `override.csv` | PRS, SMR, SMN, SMF, ROL, CMT, OVR |
 | `libs/lh-common` · `TestbookGovPolicyTest` | unit: `ApprovalPolicy` | `policy.csv`, `policy-rows.csv` | POL |
+| `services/member-service` · `TestbookGovSegmentCriteriaTest` | unit: `SegmentCriteria` | `criteria.csv`, `criteria-validation.csv` | CRT, CRV |
+| `services/member-service` · `TestbookGovAttributesTest` | unit: `MemberAttributes` | `attribute-values.csv`, `attribute-definitions.csv` | ATV, ATD |
+| `services/member-service` · `TestbookGovMemberIT` | integrazione (Spring, Postgres e Kafka embedded, profilo `demo`) | `member-status.csv`, `member-roles.csv`, `anonymize.csv`, `attributes-in-use.csv`, `segments.csv` | MST, MRL, ANO, ATU, SEG |
 
 Ogni caso ha nome `[<ID>] <descrizione>`; una riga = un caso eseguito. Nei CSV i valori speciali sono scritti come
 `NULL` (assente), `EMPTY` (""), `SPACE`/`SPACES` (spazi), `TABNL` (tabulazione e a capo), `NBSP` (U+00A0), `LONG` (2000
@@ -97,6 +100,36 @@ Percorsi relativi a `libs/lh-common/src/main/java/io/loyaltyhub/common/` e `serv
 | B-21 | `approval/ApprovalPolicy.java:45-49` concorsi e premi: LEGAL se accesa | R-11 | POL-029…032 |
 | B-22 | `approval/ApprovalPolicy.java:54-63` campagna: spenta → no; `requiresLegal` → LEGAL; budget > soglia → LEGAL; altrimenti no | R-11, R-12 | POL-001…028, POL-035, POL-036 |
 | B-23 | `approval/ApprovalPolicy.java:67` righe della scheda policy (CONTENT sempre «mai») | R-11, R-14 | POL-033, POL-034, POL-037…044 |
+| B-24 | `application/MemberService.java:249-250` membro inesistente 404; anonimizzato 409 `MEMBER_ANONYMIZED` | R-15 | MST-025…032, MST-037 |
+| B-25 | `application/MemberService.java:371-377` destinazione ∉ {ACTIVE, INACTIVE, BLOCKED} → 400 (con `trim` + maiuscole) | R-15; minuscole senza specifica | MST (colonne ANONYMIZED, CLOSED, SOSPESO, assente, minuscolo) |
+| B-26 | `application/MemberService.java:253-255` stesso stato → nessun fatto né audit | senza specifica | MST-001, MST-010, MST-019 |
+| B-27 | `application/MemberService.java:256-268` cambio → fatto `member.status.changed` (motivo `""` se assente) + audit TRANSITION | R-16 | MST, MST-033…036 |
+| B-28 | `application/MemberService.java:379-388` filtro di stato sconosciuto → 400; `CLOSED` accettato (enum `domain/MemberStatus.java:9`) | R-15; `CLOSED` senza specifica (Q-139) | MST-039…041 |
+| B-29 | `application/MemberService.java:282-288` anonimizzazione: 404, poi `CONFIRM_MISMATCH` (422), poi già anonimizzato (409) | R-20 | ANO-001…010, ANO-018 |
+| B-30 | `application/MemberService.java:291-292` versione concorrente → 409 `VERSION_CONFLICT` | R-20 | non raggiungibile senza concorrenza |
+| B-31 | `application/MemberService.java:294-304` fatti `status.changed` poi `member.updated` ripulito, audit senza dati personali | R-20, R-22 | ANO-037…040 |
+| B-32 | `domain/Anonymization.java:28-52` campi cancellati e conservati | R-21 (Q-120, Q-121) | ANO-019…036 |
+| B-33 | `domain/Anonymization.java:55-57` conferma confrontata dopo `trim` | R-20; `trim` senza specifica | ANO-002, ANO-003 |
+| B-34 | `application/MemberService.java:170, 203` PATCH: anonimizzato 409; attributi/etichette non validi 422 `MEMBER_INVALID` | R-20, R-23 | ANO-046, ATU-013, ATU-014 |
+| B-35 | `application/MemberService.java:339-341` codice invito di un membro non ACTIVE → 422 | Q-61 | ANO-047 |
+| B-36 | `domain/MemberAttributes.java:105-131` valore × tipo; STRING: non vuoto, ≤ 200, nelle opzioni | R-23; vuoto e 200 senza specifica | ATV |
+| B-37 | `domain/MemberAttributes.java:69-103` chiave non definita o interna → problema; `null` rimuove | R-23; `null` senza specifica | ATV-015/031/047/063, ATV-068…070 |
+| B-38 | `domain/MemberAttributes.java:151-180` definizioni: chiave, etichetta, tipo, opzioni, tetto 30 | R-24; formati e tetti senza specifica | ATD |
+| B-39 | `domain/MemberAttributes.java:165` tipo assente → `NullPointerException` (500) | R-24 — **divergenza** | ATD-023, ATU-011 |
+| B-40 | `application/AttributeService.java:44-60` 422 `ATTRIBUTE_DEFINITION_INVALID`; chiave tolta o ritipizzata con valori → 409 | R-24, R-25 | ATU |
+| B-41 | `domain/SegmentCriteria.java:49-101` validazione di gruppi, campi, comparatori e valori | R-26…R-28 | CRV |
+| B-42 | `domain/SegmentCriteria.java:118-155` criteri vuoti ⇒ falso; `any`/`not`/`all` | R-26, R-28 (Q-87, Q-90) | CRT-109…118 |
+| B-43 | `domain/SegmentCriteria.java:159-199` risoluzione dei campi (età e giorni in Europe/Rome o a blocchi di 24 h) | R-27 | CRT-084…108 |
+| B-44 | `domain/SegmentCriteria.java:225-253` assente ⇒ falso (tranne `nexists`); liste elemento per elemento, `in/nin` sull'intersezione | R-26 | CRT-061…083 |
+| B-45 | `domain/SegmentCriteria.java:258, 264, 266, 268` `neq`/`nin`/`ncontains` veri e `startsWith` su `toString()` con tipi incompatibili | R-26 — **divergenza** | CRT-024, 028, 038, 042, 057…060 |
+| B-46 | `infra/SegmentFactsRepository.java:69` esclusi gli `ANONYMIZED` | R-29 (Q-85) | SEG-026…029 |
+| B-47 | `application/SegmentService.java:112-132` creazione: codice, nome, tipo, criteri, duplicato | R-28, docs/06 §2 | SEG-005…014 |
+| B-48 | `application/SegmentService.java:152-177` modifica: versione, codice e tipo immutabili, stato | Q-88 | SEG-018, SEG-019, SEG-022, SEG-030 |
+| B-49 | `application/SegmentService.java:191-198` archiviazione ⇒ `left` per tutti; criteri cambiati ⇒ ricalcolo | Q-88, F-SEG-03 | SEG-020, SEG-024 |
+| B-50 | `application/SegmentService.java:206, 220-224` archiviato ⇒ 409 `SEGMENT_ARCHIVED`; elenco su dinamico ⇒ 409 `SEGMENT_NOT_STATIC` | R-28 (codici senza specifica) | SEG-017, SEG-021 |
+| B-51 | `application/SegmentService.java:263-278` statico con membri inesistenti o anonimizzati ⇒ 422 `MEMBER_NOT_FOUND` | senza specifica | SEG-015, SEG-016 |
+| B-52 | `api/MembersController.java`, `SegmentsController.java`, `AttributeDefinitionsController.java`, `MemberJobsController.java` guardie `@RequiresRole` | R-03, R-19, R-30 | MRL |
+| B-53 | `web/GlobalExceptionHandler.java:66` (lh-common) corpo assente o JSON illeggibile → 500 `INTERNAL_ERROR` | docs/06 §2 (400) — **divergenza** | MST-038 |
 
 ## 3. Identità simulata e guardie di ruolo
 
@@ -525,9 +558,545 @@ soglia − 1, soglia, soglia + 1, `Long.MAX_VALUE`) ⇒ 2 × 2 × 7 = 28, **comp
 | TB-GOV-POL-043 | `/v1/approvals/policy`: riga CAMPAIGN, policy OFF | approvatore — | docs/06 §7 · BO-21 · Q-96 | `TestbookGovPolicyTest#rows` |
 | TB-GOV-POL-044 | `/v1/approvals/policy`: riga CONTENT, policy OFF | approvatore — | docs/06 §7 · BO-21 · Q-96 | `TestbookGovPolicyTest#rows` |
 
-## 8–11. Membri: stati, anonimizzazione, attributi, segmenti
+## 8. Stati del membro e guardie di member-service
 
-_In arrivo (member-service: `TestbookGovMember*`)._
+### 8.1 Cambio di stato (MST)
+Domini: stato di partenza (`ACTIVE, INACTIVE, BLOCKED, ANONYMIZED`) × destinazione (i 3 ammessi da member §3, `ANONYMIZED`,
+`CLOSED` — presente solo nell'enum del codice e nei contratti —, un valore sconosciuto, assente, minuscolo) = 4 × 8 = 32
+≤ 64 ⇒ **tabella completa**, attore ADMIN, motivo compilato. Esito: HTTP, stato risultante (o `code`) e numero di fatti
+`member.status.changed` scritti. Poi motivo (Q-138), audit, contratto (Q-139), membro inesistente, corpo assente, filtri
+dell'elenco. Q-137 riguarda solo l'interfaccia: l'API ammette ogni coppia tra i tre stati.
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-GOV-MST-001 | membro ACTIVE, `POST …/status` con `status` = `ACTIVE` (ADMIN) | 200, stato `ACTIVE`, 0 fatto `member.status.changed` — AMBIGUO (stesso stato: nessun fatto) | F-MBR-04 · member §3 | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-002 | membro ACTIVE, `POST …/status` con `status` = `INACTIVE` (ADMIN) | 200, stato `INACTIVE`, 1 fatto `member.status.changed` | F-MBR-04 · member §3, §4 · Q-137 | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-003 | membro ACTIVE, `POST …/status` con `status` = `BLOCKED` (ADMIN) | 200, stato `BLOCKED`, 1 fatto `member.status.changed` | F-MBR-04 · member §3, §4 · Q-137 | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-004 | membro ACTIVE, `POST …/status` con `status` = `ANONYMIZED` (ADMIN) | 400 `BAD_REQUEST`, 0 fatti | member §3 (`BLOCKED/INACTIVE/ACTIVE`) · docs/06 §2 (400) · F-MBR-05 | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-005 | membro ACTIVE, `POST …/status` con `status` = `CLOSED` (ADMIN) | 400 `BAD_REQUEST`, 0 fatti | member §3 (`BLOCKED/INACTIVE/ACTIVE`) · docs/06 §2 (400) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-006 | membro ACTIVE, `POST …/status` con `status` = `SOSPESO` (ADMIN) | 400 `BAD_REQUEST`, 0 fatti | member §3 (`BLOCKED/INACTIVE/ACTIVE`) · docs/06 §2 (400) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-007 | membro ACTIVE, `POST …/status` con `status` = assente (ADMIN) | 400 `BAD_REQUEST`, 0 fatti | member §3 (`BLOCKED/INACTIVE/ACTIVE`) · docs/06 §2 (400) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-008 | membro ACTIVE, `POST …/status` con `status` = `blocked` (ADMIN) | 200, stato `BLOCKED`, 1 fatto `member.status.changed` — AMBIGUO (valore in minuscolo) | docs/06 §2 (enum UPPER_SNAKE) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-009 | membro INACTIVE, `POST …/status` con `status` = `ACTIVE` (ADMIN) | 200, stato `ACTIVE`, 1 fatto `member.status.changed` | F-MBR-04 · member §3, §4 · Q-137 | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-010 | membro INACTIVE, `POST …/status` con `status` = `INACTIVE` (ADMIN) | 200, stato `INACTIVE`, 0 fatto `member.status.changed` — AMBIGUO (stesso stato: nessun fatto) | F-MBR-04 · member §3 | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-011 | membro INACTIVE, `POST …/status` con `status` = `BLOCKED` (ADMIN) | 200, stato `BLOCKED`, 1 fatto `member.status.changed` | F-MBR-04 · member §3, §4 · Q-137 | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-012 | membro INACTIVE, `POST …/status` con `status` = `ANONYMIZED` (ADMIN) | 400 `BAD_REQUEST`, 0 fatti | member §3 (`BLOCKED/INACTIVE/ACTIVE`) · docs/06 §2 (400) · F-MBR-05 | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-013 | membro INACTIVE, `POST …/status` con `status` = `CLOSED` (ADMIN) | 400 `BAD_REQUEST`, 0 fatti | member §3 (`BLOCKED/INACTIVE/ACTIVE`) · docs/06 §2 (400) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-014 | membro INACTIVE, `POST …/status` con `status` = `SOSPESO` (ADMIN) | 400 `BAD_REQUEST`, 0 fatti | member §3 (`BLOCKED/INACTIVE/ACTIVE`) · docs/06 §2 (400) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-015 | membro INACTIVE, `POST …/status` con `status` = assente (ADMIN) | 400 `BAD_REQUEST`, 0 fatti | member §3 (`BLOCKED/INACTIVE/ACTIVE`) · docs/06 §2 (400) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-016 | membro INACTIVE, `POST …/status` con `status` = `blocked` (ADMIN) | 200, stato `BLOCKED`, 1 fatto `member.status.changed` — AMBIGUO (valore in minuscolo) | docs/06 §2 (enum UPPER_SNAKE) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-017 | membro BLOCKED, `POST …/status` con `status` = `ACTIVE` (ADMIN) | 200, stato `ACTIVE`, 1 fatto `member.status.changed` | F-MBR-04 · member §3, §4 · Q-137 | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-018 | membro BLOCKED, `POST …/status` con `status` = `INACTIVE` (ADMIN) | 200, stato `INACTIVE`, 1 fatto `member.status.changed` | F-MBR-04 · member §3, §4 · Q-137 | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-019 | membro BLOCKED, `POST …/status` con `status` = `BLOCKED` (ADMIN) | 200, stato `BLOCKED`, 0 fatto `member.status.changed` — AMBIGUO (stesso stato: nessun fatto) | F-MBR-04 · member §3 | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-020 | membro BLOCKED, `POST …/status` con `status` = `ANONYMIZED` (ADMIN) | 400 `BAD_REQUEST`, 0 fatti | member §3 (`BLOCKED/INACTIVE/ACTIVE`) · docs/06 §2 (400) · F-MBR-05 | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-021 | membro BLOCKED, `POST …/status` con `status` = `CLOSED` (ADMIN) | 400 `BAD_REQUEST`, 0 fatti | member §3 (`BLOCKED/INACTIVE/ACTIVE`) · docs/06 §2 (400) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-022 | membro BLOCKED, `POST …/status` con `status` = `SOSPESO` (ADMIN) | 400 `BAD_REQUEST`, 0 fatti | member §3 (`BLOCKED/INACTIVE/ACTIVE`) · docs/06 §2 (400) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-023 | membro BLOCKED, `POST …/status` con `status` = assente (ADMIN) | 400 `BAD_REQUEST`, 0 fatti | member §3 (`BLOCKED/INACTIVE/ACTIVE`) · docs/06 §2 (400) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-024 | membro BLOCKED, `POST …/status` con `status` = `blocked` (ADMIN) | 200, stato `BLOCKED`, 0 fatto `member.status.changed` — AMBIGUO (valore in minuscolo) | docs/06 §2 (enum UPPER_SNAKE) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-025 | membro ANONYMIZED, `POST …/status` con `status` = `ACTIVE` (ADMIN) | 409 `MEMBER_ANONYMIZED`, 0 fatti | docs/03 §2 (ANONYMIZED irreversibile) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-026 | membro ANONYMIZED, `POST …/status` con `status` = `INACTIVE` (ADMIN) | 409 `MEMBER_ANONYMIZED`, 0 fatti | docs/03 §2 (ANONYMIZED irreversibile) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-027 | membro ANONYMIZED, `POST …/status` con `status` = `BLOCKED` (ADMIN) | 409 `MEMBER_ANONYMIZED`, 0 fatti | docs/03 §2 (ANONYMIZED irreversibile) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-028 | membro ANONYMIZED, `POST …/status` con `status` = `ANONYMIZED` (ADMIN) | 409 `MEMBER_ANONYMIZED`, 0 fatti — AMBIGUO (precedenza 409/400) | docs/03 §2 (ANONYMIZED irreversibile) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-029 | membro ANONYMIZED, `POST …/status` con `status` = `CLOSED` (ADMIN) | 409 `MEMBER_ANONYMIZED`, 0 fatti — AMBIGUO (precedenza 409/400) | docs/03 §2 (ANONYMIZED irreversibile) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-030 | membro ANONYMIZED, `POST …/status` con `status` = `SOSPESO` (ADMIN) | 409 `MEMBER_ANONYMIZED`, 0 fatti — AMBIGUO (precedenza 409/400) | docs/03 §2 (ANONYMIZED irreversibile) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-031 | membro ANONYMIZED, `POST …/status` con `status` = assente (ADMIN) | 409 `MEMBER_ANONYMIZED`, 0 fatti — AMBIGUO (precedenza 409/400) | docs/03 §2 (ANONYMIZED irreversibile) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-032 | membro ANONYMIZED, `POST …/status` con `status` = `blocked` (ADMIN) | 409 `MEMBER_ANONYMIZED`, 0 fatti | docs/03 §2 (ANONYMIZED irreversibile) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-033 | motivo assente → fatto con motivo vuoto | `vuoto` | Q-138 · contratto `member.status.changed` | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-034 | motivo compilato → nel fatto e nell'audit | `Sospetta frode\|audit` | Q-138 · F-AUD-01 | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-035 | audit TRANSITION con prima/dopo e attore | `TRANSITION\|ACTIVE\|BLOCKED\|CARE:paolo.care` | F-AUD-01 · docs/06 §3 (audit con l'attore) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-036 | fatto conforme al contratto (INACTIVE) | `valido` | docs/05 · contracts/events/fact/member.status.changed · Q-139 | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-037 | membro inesistente | `404:NOT_FOUND` | docs/06 §2 | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-038 | corpo assente | `400:BAD_REQUEST` | docs/06 §2 (JSON malformato) | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-039 | filtro elenco status=SOSPESO | `400:BAD_REQUEST` | F-MBR-01 · docs/06 §2 | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-040 | filtro elenco status=CLOSED | `200` — AMBIGUO (CLOSED: nei contratti ma non in docs/03) | docs/03 §2 (4 stati) · contratti (CLOSED ammesso) · Q-139 | `TestbookGovMemberIT#status` |
+| TB-GOV-MST-041 | filtro elenco status=BLOCKED | `200:MBR-000008` | F-MBR-01 · docs/10 §2 (Roberto) | `TestbookGovMemberIT#status` |
+
+### 8.2 Guardie per ruolo degli endpoint (MRL)
+Domini: endpoint di member-service (12, raggruppati per capacità di docs/08 §2) × attore (5 ruoli + intestazione assente)
+= 72, **completa**; più due intestazioni non canoniche. Le celle «—» senza ● di ruoli diversi da ANALYST (es. MARKETING su
+`member.write`) non hanno un rifiuto imposto dal backend (docs/08 §2: la UI nasconde, il 403 è obbligatorio solo con ● e
+per ogni scrittura di ANALYST): sono AMBIGUO e asseriscono il 403 attuale. `POST /v1/members` resta aperto per la scelta
+registrata Q-157 (serve anche alla registrazione dal portale).
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-GOV-MRL-001 | `POST /v1/members/{id}/status` (member.write), ADMIN | accettata (2xx) | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-002 | `POST /v1/members/{id}/status` (member.write), MARKETING | 403 `FORBIDDEN_ROLE` — AMBIGUO (rifiuto non imposto senza ●) | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-003 | `POST /v1/members/{id}/status` (member.write), LEGAL | 403 `FORBIDDEN_ROLE` — AMBIGUO (rifiuto non imposto senza ●) | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-004 | `POST /v1/members/{id}/status` (member.write), CARE | accettata (2xx) | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-005 | `POST /v1/members/{id}/status` (member.write), ANALYST | 403 `FORBIDDEN_ROLE` | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-006 | `POST /v1/members/{id}/status` (member.write), intestazione assente | 403 `FORBIDDEN_ROLE` | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-007 | `PATCH /v1/members/{id}` (member.write), ADMIN | accettata (2xx) | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-008 | `PATCH /v1/members/{id}` (member.write), MARKETING | 403 `FORBIDDEN_ROLE` — AMBIGUO (rifiuto non imposto senza ●) | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-009 | `PATCH /v1/members/{id}` (member.write), LEGAL | 403 `FORBIDDEN_ROLE` — AMBIGUO (rifiuto non imposto senza ●) | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-010 | `PATCH /v1/members/{id}` (member.write), CARE | accettata (2xx) | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-011 | `PATCH /v1/members/{id}` (member.write), ANALYST | 403 `FORBIDDEN_ROLE` | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-012 | `PATCH /v1/members/{id}` (member.write), intestazione assente | 403 `FORBIDDEN_ROLE` | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-013 | `POST /v1/members` (member.write, anche portale), ADMIN | accettata (2xx) | Q-157 (endpoint aperto) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-014 | `POST /v1/members` (member.write, anche portale), MARKETING | accettata (2xx) | Q-157 (endpoint aperto) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-015 | `POST /v1/members` (member.write, anche portale), LEGAL | accettata (2xx) | Q-157 (endpoint aperto) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-016 | `POST /v1/members` (member.write, anche portale), CARE | accettata (2xx) | Q-157 (endpoint aperto) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-017 | `POST /v1/members` (member.write, anche portale), ANALYST | accettata (2xx) | Q-157 (endpoint aperto) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-018 | `POST /v1/members` (member.write, anche portale), intestazione assente | accettata (2xx) | Q-157 (endpoint aperto) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-019 | `PUT /v1/attribute-definitions` (segment.write), ADMIN | accettata (2xx) | docs/08 §2 `segment.write` · Q-94 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-020 | `PUT /v1/attribute-definitions` (segment.write), MARKETING | accettata (2xx) | docs/08 §2 `segment.write` · Q-94 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-021 | `PUT /v1/attribute-definitions` (segment.write), LEGAL | 403 `FORBIDDEN_ROLE` — AMBIGUO (rifiuto non imposto senza ●) | docs/08 §2 `segment.write` · Q-94 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-022 | `PUT /v1/attribute-definitions` (segment.write), CARE | 403 `FORBIDDEN_ROLE` — AMBIGUO (rifiuto non imposto senza ●) | docs/08 §2 `segment.write` · Q-94 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-023 | `PUT /v1/attribute-definitions` (segment.write), ANALYST | 403 `FORBIDDEN_ROLE` | docs/08 §2 `segment.write` · Q-94 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-024 | `PUT /v1/attribute-definitions` (segment.write), intestazione assente | 403 `FORBIDDEN_ROLE` | docs/08 §2 `segment.write` · Q-94 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-025 | `POST /v1/segments` (segment.write), ADMIN | accettata (2xx) | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-026 | `POST /v1/segments` (segment.write), MARKETING | accettata (2xx) | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-027 | `POST /v1/segments` (segment.write), LEGAL | 403 `FORBIDDEN_ROLE` — AMBIGUO (rifiuto non imposto senza ●) | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-028 | `POST /v1/segments` (segment.write), CARE | 403 `FORBIDDEN_ROLE` — AMBIGUO (rifiuto non imposto senza ●) | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-029 | `POST /v1/segments` (segment.write), ANALYST | 403 `FORBIDDEN_ROLE` | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-030 | `POST /v1/segments` (segment.write), intestazione assente | 403 `FORBIDDEN_ROLE` | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-031 | `PUT /v1/segments/{id}` (segment.write), ADMIN | accettata (2xx) | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-032 | `PUT /v1/segments/{id}` (segment.write), MARKETING | accettata (2xx) | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-033 | `PUT /v1/segments/{id}` (segment.write), LEGAL | 403 `FORBIDDEN_ROLE` — AMBIGUO (rifiuto non imposto senza ●) | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-034 | `PUT /v1/segments/{id}` (segment.write), CARE | 403 `FORBIDDEN_ROLE` — AMBIGUO (rifiuto non imposto senza ●) | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-035 | `PUT /v1/segments/{id}` (segment.write), ANALYST | 403 `FORBIDDEN_ROLE` | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-036 | `PUT /v1/segments/{id}` (segment.write), intestazione assente | 403 `FORBIDDEN_ROLE` | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-037 | `POST /v1/segments/{id}/refresh` (segment.write), ADMIN | accettata (2xx) | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-038 | `POST /v1/segments/{id}/refresh` (segment.write), MARKETING | accettata (2xx) | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-039 | `POST /v1/segments/{id}/refresh` (segment.write), LEGAL | 403 `FORBIDDEN_ROLE` — AMBIGUO (rifiuto non imposto senza ●) | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-040 | `POST /v1/segments/{id}/refresh` (segment.write), CARE | 403 `FORBIDDEN_ROLE` — AMBIGUO (rifiuto non imposto senza ●) | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-041 | `POST /v1/segments/{id}/refresh` (segment.write), ANALYST | 403 `FORBIDDEN_ROLE` | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-042 | `POST /v1/segments/{id}/refresh` (segment.write), intestazione assente | 403 `FORBIDDEN_ROLE` | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-043 | `PUT /v1/segments/{id}/members` (segment.write), ADMIN | accettata (2xx) | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-044 | `PUT /v1/segments/{id}/members` (segment.write), MARKETING | accettata (2xx) | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-045 | `PUT /v1/segments/{id}/members` (segment.write), LEGAL | 403 `FORBIDDEN_ROLE` — AMBIGUO (rifiuto non imposto senza ●) | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-046 | `PUT /v1/segments/{id}/members` (segment.write), CARE | 403 `FORBIDDEN_ROLE` — AMBIGUO (rifiuto non imposto senza ●) | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-047 | `PUT /v1/segments/{id}/members` (segment.write), ANALYST | 403 `FORBIDDEN_ROLE` | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-048 | `PUT /v1/segments/{id}/members` (segment.write), intestazione assente | 403 `FORBIDDEN_ROLE` | docs/08 §2 `segment.write` | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-049 | `POST /v1/segments/preview` (lettura), ADMIN | accettata (2xx) | member §3 (anteprima senza salvare) · docs/08 §2 (lettura) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-050 | `POST /v1/segments/preview` (lettura), MARKETING | accettata (2xx) | member §3 (anteprima senza salvare) · docs/08 §2 (lettura) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-051 | `POST /v1/segments/preview` (lettura), LEGAL | accettata (2xx) | member §3 (anteprima senza salvare) · docs/08 §2 (lettura) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-052 | `POST /v1/segments/preview` (lettura), CARE | accettata (2xx) | member §3 (anteprima senza salvare) · docs/08 §2 (lettura) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-053 | `POST /v1/segments/preview` (lettura), ANALYST | accettata (2xx) | member §3 (anteprima senza salvare) · docs/08 §2 (lettura) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-054 | `POST /v1/segments/preview` (lettura), intestazione assente | accettata (2xx) | member §3 (anteprima senza salvare) · docs/08 §2 (lettura) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-055 | `POST /v1/demo/jobs/refresh-segments` (demo.admin ●), ADMIN | accettata (2xx) | docs/06 §3 (`/v1/demo/**` ⇒ ADMIN) · docs/08 §2 `demo.admin` ● | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-056 | `POST /v1/demo/jobs/refresh-segments` (demo.admin ●), MARKETING | 403 `FORBIDDEN_ROLE` | docs/06 §3 (`/v1/demo/**` ⇒ ADMIN) · docs/08 §2 `demo.admin` ● | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-057 | `POST /v1/demo/jobs/refresh-segments` (demo.admin ●), LEGAL | 403 `FORBIDDEN_ROLE` | docs/06 §3 (`/v1/demo/**` ⇒ ADMIN) · docs/08 §2 `demo.admin` ● | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-058 | `POST /v1/demo/jobs/refresh-segments` (demo.admin ●), CARE | 403 `FORBIDDEN_ROLE` | docs/06 §3 (`/v1/demo/**` ⇒ ADMIN) · docs/08 §2 `demo.admin` ● | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-059 | `POST /v1/demo/jobs/refresh-segments` (demo.admin ●), ANALYST | 403 `FORBIDDEN_ROLE` | docs/06 §3 (`/v1/demo/**` ⇒ ADMIN) · docs/08 §2 `demo.admin` ● | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-060 | `POST /v1/demo/jobs/refresh-segments` (demo.admin ●), intestazione assente | 403 `FORBIDDEN_ROLE` | docs/06 §3 (`/v1/demo/**` ⇒ ADMIN) · docs/08 §2 `demo.admin` ● | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-061 | `GET /v1/members` (lettura), ADMIN | accettata (2xx) | docs/08 §2 (lettura per tutti) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-062 | `GET /v1/members` (lettura), MARKETING | accettata (2xx) | docs/08 §2 (lettura per tutti) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-063 | `GET /v1/members` (lettura), LEGAL | accettata (2xx) | docs/08 §2 (lettura per tutti) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-064 | `GET /v1/members` (lettura), CARE | accettata (2xx) | docs/08 §2 (lettura per tutti) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-065 | `GET /v1/members` (lettura), ANALYST | accettata (2xx) | docs/08 §2 (lettura per tutti) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-066 | `GET /v1/members` (lettura), intestazione assente | accettata (2xx) | docs/08 §2 (lettura per tutti) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-067 | `GET /v1/members/{id}` (lettura), ADMIN | accettata (2xx) | docs/08 §2 (lettura per tutti) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-068 | `GET /v1/members/{id}` (lettura), MARKETING | accettata (2xx) | docs/08 §2 (lettura per tutti) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-069 | `GET /v1/members/{id}` (lettura), LEGAL | accettata (2xx) | docs/08 §2 (lettura per tutti) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-070 | `GET /v1/members/{id}` (lettura), CARE | accettata (2xx) | docs/08 §2 (lettura per tutti) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-071 | `GET /v1/members/{id}` (lettura), ANALYST | accettata (2xx) | docs/08 §2 (lettura per tutti) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-072 | `GET /v1/members/{id}` (lettura), intestazione assente | accettata (2xx) | docs/08 §2 (lettura per tutti) | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-073 | `POST /v1/members/{id}/status`, `X-LH-Actor: ADMINISTRATOR:x` | 403 `FORBIDDEN_ROLE` — AMBIGUO (ruolo sconosciuto) | docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-074 | `POST /v1/members/{id}/status`, `X-LH-Actor: care:paolo.care` | accettata (2xx) — AMBIGUO (ruolo in minuscolo) | docs/06 §3 | `TestbookGovMemberIT#roles` |
+
+## 9. Anonimizzazione (ANO)
+Domini: conferma (uguale all'id, con spazi, minuscola, altro id, vuota, assente, nessun corpo) × stato di partenza
+(ACTIVE, INACTIVE, BLOCKED, già ANONYMIZED) × ruolo (5 + assente) — ogni classe provata da sola (guasto singolo) sul
+caso valido; membro inesistente (anche con conferma errata: precedenza AMBIGUO). Poi **campo per campo** su un membro
+completo (nome, cognome, e-mail, telefono, nascita, genere, città, id esterno, attributi, consensi, avatar, etichette,
+invito, referral, iscrizione, proiezione dei saldi) anonimizzato una volta: cosa si cancella (docs/03 §2, Q-120, Q-121,
+Q-122) e cosa resta; fatti e audit senza dati personali e conformi ai contratti; ricerca, portale, e-mail di nuovo
+libera, irreversibilità, codice invito (Q-61). La propagazione negli altri servizi è in §12.4 (ANX).
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-GOV-ANO-001 | conferma = id | `200:ANONYMIZED` | F-MBR-05 · member §3 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-002 | conferma con spazi ai bordi | `200:ANONYMIZED` — AMBIGUO (conferma con spazi) | member §3 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-003 | conferma in minuscolo | `422:CONFIRM_MISMATCH` | member §3 · docs/08 §3.5 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-004 | conferma con l'id di un altro membro | `422:CONFIRM_MISMATCH` | member §3 · docs/08 §3.5 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-005 | conferma vuota | `422:CONFIRM_MISMATCH` | member §3 · docs/08 §3.5 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-006 | corpo senza conferma | `422:CONFIRM_MISMATCH` | member §3 · docs/08 §3.5 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-007 | nessun corpo | `422:CONFIRM_MISMATCH` | member §3 · docs/08 §3.5 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-008 | seconda anonimizzazione | `409:MEMBER_ANONYMIZED` | docs/03 §2 (irreversibile) | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-009 | membro inesistente | `404:NOT_FOUND` | docs/06 §2 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-010 | membro inesistente e conferma errata | `404:NOT_FOUND` — AMBIGUO (precedenza 404/422) | docs/06 §2 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-011 | da INACTIVE | `200:ANONYMIZED:INACTIVE` | F-MBR-05 · member §4 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-012 | da BLOCKED | `200:ANONYMIZED:BLOCKED` | F-MBR-05 · member §4 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-013 | ruolo MARKETING | `403:FORBIDDEN_ROLE` | docs/08 §2 `member.anonymize` ● | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-014 | ruolo LEGAL | `403:FORBIDDEN_ROLE` | docs/08 §2 `member.anonymize` ● | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-015 | ruolo CARE | `403:FORBIDDEN_ROLE` | docs/08 §2 `member.anonymize` ● | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-016 | ruolo ANALYST | `403:FORBIDDEN_ROLE` | docs/08 §2 `member.anonymize` ● | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-017 | intestazione assente | `403:FORBIDDEN_ROLE` | docs/06 §3 · docs/08 §2 ● | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-018 | membro del seed già anonimizzato (MBR-000012) | `409:MEMBER_ANONYMIZED` | docs/10 §2 · docs/03 §2 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-019 | nickname → segnaposto | `Membro anonimo` | docs/03 §2 · Q-120 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-020 | nome → null | `null` | Q-120 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-021 | cognome → null | `null` | Q-120 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-022 | e-mail → null | `null` | docs/03 §2 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-023 | telefono → null | `null` | docs/03 §2 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-024 | data di nascita → null | `null` | Q-122 (`birthDate`) | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-025 | genere → null | `null` | Q-122 (`gender`) | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-026 | città → null | `null` | Q-122 (`city`) | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-027 | identificativo esterno → null | `null` | Q-122 (`externalId`) | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-028 | attributi cancellati | `{}` | Q-121 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-029 | consensi cancellati | `{}` | Q-121 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-030 | seme dell'avatar → null | `null` | Q-122 (`avatarSeed`) | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-031 | id conservato | `uguale` | docs/03 §2 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-032 | etichette conservate | `[vip]` | Q-121 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-033 | codice invito conservato | `uguale` | Q-121 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-034 | legame di referral conservato | `uguale` | Q-121 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-035 | iscrizione e canale conservati | `uguale` | docs/03 §2 (statistiche) · Q-122 (non personali) | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-036 | proiezione dei saldi conservata | `1234` | docs/03 §2 (movimenti e statistiche restano) | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-037 | fatto member.status.changed | `ACTIVE→ANONYMIZED` | member §4 · docs/12 M7.5 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-038 | fatto member.updated ripulito dopo lo stato | `ANONYMIZED\|senza dati personali` | member §5 · docs/12 M7.5 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-039 | audit senza dati personali | `TRANSITION\|senza dati personali` | F-AUD-01 · docs/12 M7 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-040 | fatti conformi ai contratti | `validi` | docs/05 · contracts/events/fact | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-041 | ricerca per nome | `0` | docs/12 M7 (nessuna API espone il nome) | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-042 | ricerca per e-mail | `0` | docs/12 M7 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-043 | ricerca per id | `1:Membro anonimo` | F-MBR-01 · Q-120 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-044 | profilo del portale | `senza dati personali` | docs/12 M7 | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-045 | e-mail di nuovo libera | `201` | docs/03 §2 (e-mail univoca se presente) | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-046 | modifica dopo l'anonimizzazione | `409:MEMBER_ANONYMIZED` | docs/03 §2 (irreversibile) | `TestbookGovMemberIT#anonymize` |
+| TB-GOV-ANO-047 | codice invito di un anonimizzato | `422:REFERRAL_CODE_INVALID` | Q-61 | `TestbookGovMemberIT#anonymize` |
+
+## 10. Attributi personalizzati
+
+### 10.1 Valore × tipo (ATV)
+Domini: tipo della definizione (4) × classe del valore (16: testo, vuoto, spazi, 200/201 caratteri, intero, decimale,
+negativo, booleano, booleano come testo, data, 29 febbraio bisestile e non, data con ora, `null`, elenco) = 64 ⇒
+**tabella completa**; più opzioni (ammessa, minuscola, fuori elenco), chiave non definita, chiave interna, `attributes`
+non oggetto. La specifica fissa solo i quattro tipi: vuoto, lunghezza massima, data con ora e `null` che rimuove sono
+AMBIGUO.
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-GOV-ATV-001 | attributo STRING, valore `"Milano"` | ammesso | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-002 | attributo STRING, valore `""` | 422 `MEMBER_INVALID` sul campo — AMBIGUO (testo vuoto) | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-003 | attributo STRING, valore `"   "` | 422 `MEMBER_INVALID` sul campo — AMBIGUO (testo vuoto) | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-004 | attributo STRING, valore 200 caratteri | ammesso | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-005 | attributo STRING, valore 201 caratteri | 422 `MEMBER_INVALID` sul campo — AMBIGUO (lunghezza massima) | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-006 | attributo STRING, valore `3` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-007 | attributo STRING, valore `2.5` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-008 | attributo STRING, valore `-1` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-009 | attributo STRING, valore `true` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-010 | attributo STRING, valore `"true"` | ammesso | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-011 | attributo STRING, valore `"2026-02-28"` | ammesso | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-012 | attributo STRING, valore `"2028-02-29"` | ammesso | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-013 | attributo STRING, valore `"2026-02-29"` | ammesso | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-014 | attributo STRING, valore `"2026-02-28T10:00:00Z"` | ammesso | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-015 | attributo STRING, valore `null` | ammesso — AMBIGUO (null rimuove la chiave) | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-016 | attributo STRING, valore `[1]` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-017 | attributo NUMBER, valore `"Milano"` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-018 | attributo NUMBER, valore `""` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-019 | attributo NUMBER, valore `"   "` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-020 | attributo NUMBER, valore 200 caratteri | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-021 | attributo NUMBER, valore 201 caratteri | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-022 | attributo NUMBER, valore `3` | ammesso | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-023 | attributo NUMBER, valore `2.5` | ammesso | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-024 | attributo NUMBER, valore `-1` | ammesso | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-025 | attributo NUMBER, valore `true` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-026 | attributo NUMBER, valore `"true"` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-027 | attributo NUMBER, valore `"2026-02-28"` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-028 | attributo NUMBER, valore `"2028-02-29"` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-029 | attributo NUMBER, valore `"2026-02-29"` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-030 | attributo NUMBER, valore `"2026-02-28T10:00:00Z"` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-031 | attributo NUMBER, valore `null` | ammesso — AMBIGUO (null rimuove la chiave) | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-032 | attributo NUMBER, valore `[1]` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-033 | attributo BOOLEAN, valore `"Milano"` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-034 | attributo BOOLEAN, valore `""` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-035 | attributo BOOLEAN, valore `"   "` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-036 | attributo BOOLEAN, valore 200 caratteri | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-037 | attributo BOOLEAN, valore 201 caratteri | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-038 | attributo BOOLEAN, valore `3` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-039 | attributo BOOLEAN, valore `2.5` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-040 | attributo BOOLEAN, valore `-1` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-041 | attributo BOOLEAN, valore `true` | ammesso | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-042 | attributo BOOLEAN, valore `"true"` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-043 | attributo BOOLEAN, valore `"2026-02-28"` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-044 | attributo BOOLEAN, valore `"2028-02-29"` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-045 | attributo BOOLEAN, valore `"2026-02-29"` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-046 | attributo BOOLEAN, valore `"2026-02-28T10:00:00Z"` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-047 | attributo BOOLEAN, valore `null` | ammesso — AMBIGUO (null rimuove la chiave) | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-048 | attributo BOOLEAN, valore `[1]` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-049 | attributo DATE, valore `"Milano"` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-050 | attributo DATE, valore `""` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-051 | attributo DATE, valore `"   "` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-052 | attributo DATE, valore 200 caratteri | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-053 | attributo DATE, valore 201 caratteri | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-054 | attributo DATE, valore `3` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-055 | attributo DATE, valore `2.5` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-056 | attributo DATE, valore `-1` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-057 | attributo DATE, valore `true` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-058 | attributo DATE, valore `"true"` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-059 | attributo DATE, valore `"2026-02-28"` | ammesso | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-060 | attributo DATE, valore `"2028-02-29"` | ammesso | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-061 | attributo DATE, valore `"2026-02-29"` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-062 | attributo DATE, valore `"2026-02-28T10:00:00Z"` | 422 `MEMBER_INVALID` sul campo — AMBIGUO (data con ora) | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-063 | attributo DATE, valore `null` | ammesso — AMBIGUO (null rimuove la chiave) | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-064 | attributo DATE, valore `[1]` | 422 `MEMBER_INVALID` sul campo | docs/03 §2 (string, number, boolean, date) · F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-065 | STRING con opzioni: valore ammesso: `"APP"` | ammesso | member §2 `options` | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-066 | STRING con opzioni: minuscolo: `"app"` | 422 `MEMBER_INVALID` | member §2 `options` | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-067 | STRING con opzioni: fuori elenco: `"TV"` | 422 `MEMBER_INVALID` | member §2 `options` | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-068 | chiave non definita: `"x"` | 422 `MEMBER_INVALID` | F-MBR-03 (coppie tipizzate) | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-069 | chiave interna story: `"x"` | 422 `MEMBER_INVALID` — AMBIGUO (chiavi interne della demo) | F-MBR-03 | `TestbookGovAttributesTest#value` |
+| TB-GOV-ATV-070 | attributes non oggetto: `[1]` | 422 `MEMBER_INVALID` | F-MBR-03 | `TestbookGovAttributesTest#value` |
+
+### 10.2 Definizioni (ATD)
+Domini: chiave (valida, 1/2/40/41 caratteri, maiuscola, `_`, cifra iniziale, `story`, assente, duplicata), etichetta
+(assente, vuota, spazi, 60/61), tipo (4 ammessi, minuscolo, sconosciuto, assente), opzioni (per STRING, per NUMBER, vuota,
+duplicata), numero di definizioni (30/31): ogni classe da sola sul resto valido. member §2 fissa `key` come chiave
+primaria e i quattro tipi; formati, lunghezze e tetti sono del codice (AMBIGUO).
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-GOV-ATD-001 | chiave `householdSize`, etichetta Componenti, tipo NUMBER | valida | member §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-002 | chiave `a`, etichetta Etichetta, tipo STRING | 422 `ATTRIBUTE_DEFINITION_INVALID` su `key` — AMBIGUO (formato della chiave) | member §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-003 | chiave `ab`, etichetta Etichetta, tipo STRING | valida — AMBIGUO (formato della chiave) | member §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-004 | chiave 40 caratteri, etichetta Etichetta, tipo STRING | valida — AMBIGUO (formato della chiave) | member §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-005 | chiave 41 caratteri, etichetta Etichetta, tipo STRING | 422 `ATTRIBUTE_DEFINITION_INVALID` su `key` — AMBIGUO (formato della chiave) | member §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-006 | chiave `Household`, etichetta Etichetta, tipo STRING | 422 `ATTRIBUTE_DEFINITION_INVALID` su `key` — AMBIGUO (formato della chiave) | member §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-007 | chiave `house_size`, etichetta Etichetta, tipo STRING | 422 `ATTRIBUTE_DEFINITION_INVALID` su `key` — AMBIGUO (formato della chiave) | member §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-008 | chiave `1abc`, etichetta Etichetta, tipo STRING | 422 `ATTRIBUTE_DEFINITION_INVALID` su `key` — AMBIGUO (formato della chiave) | member §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-009 | chiave `story`, etichetta Storia, tipo STRING | 422 `ATTRIBUTE_DEFINITION_INVALID` su `key` — AMBIGUO (chiavi interne della demo) | member §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-010 | chiave assente, etichetta Etichetta, tipo STRING | 422 `ATTRIBUTE_DEFINITION_INVALID` su `key` | member §2 (`key` PK) | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-011 | chiave `tDup` due volte, etichetta Etichetta, tipo STRING | 422 `ATTRIBUTE_DEFINITION_INVALID` su `key` | member §2 (`key` PK) | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-012 | chiave `tLabel`, etichetta NULL, tipo STRING | 422 `ATTRIBUTE_DEFINITION_INVALID` su `label` — AMBIGUO (etichetta obbligatoria) | member §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-013 | chiave `tLabel`, etichetta EMPTY, tipo STRING | 422 `ATTRIBUTE_DEFINITION_INVALID` su `label` — AMBIGUO (etichetta obbligatoria) | member §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-014 | chiave `tLabel`, etichetta SPACES, tipo STRING | 422 `ATTRIBUTE_DEFINITION_INVALID` su `label` — AMBIGUO (etichetta obbligatoria) | member §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-015 | chiave `tLabel`, etichetta L60, tipo STRING | valida — AMBIGUO (lunghezza dell'etichetta) | member §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-016 | chiave `tLabel`, etichetta L61, tipo STRING | 422 `ATTRIBUTE_DEFINITION_INVALID` su `label` — AMBIGUO (lunghezza dell'etichetta) | member §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-017 | chiave `tType`, etichetta Tipo, tipo STRING | valida | member §2 · docs/03 §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-018 | chiave `tType`, etichetta Tipo, tipo NUMBER | valida | member §2 · docs/03 §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-019 | chiave `tType`, etichetta Tipo, tipo BOOLEAN | valida | member §2 · docs/03 §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-020 | chiave `tType`, etichetta Tipo, tipo DATE | valida | member §2 · docs/03 §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-021 | chiave `tType`, etichetta Tipo, tipo string | 422 `ATTRIBUTE_DEFINITION_INVALID` su `type` | docs/06 §2 (enum UPPER_SNAKE) | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-022 | chiave `tType`, etichetta Tipo, tipo TEXT | 422 `ATTRIBUTE_DEFINITION_INVALID` su `type` | member §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-023 | chiave `tType`, etichetta Tipo, tipo NULL | 422 `ATTRIBUTE_DEFINITION_INVALID` su `type` | member §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-024 | chiave `tOpt`, etichetta Opzioni, tipo STRING, opzioni A\|B | valida | member §2 `options` | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-025 | chiave `tOpt`, etichetta Opzioni, tipo NUMBER, opzioni 1\|2 | 422 `ATTRIBUTE_DEFINITION_INVALID` su `options` — AMBIGUO (opzioni solo per STRING) | member §2 `options` | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-026 | chiave `tOpt`, etichetta Opzioni, tipo STRING, opzioni A\|EMPTY | 422 `ATTRIBUTE_DEFINITION_INVALID` su `options` — AMBIGUO (opzione vuota) | member §2 `options` | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-027 | chiave `tOpt`, etichetta Opzioni, tipo STRING, opzioni A\|A | 422 `ATTRIBUTE_DEFINITION_INVALID` su `options` — AMBIGUO (opzioni duplicate) | member §2 `options` | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-028 | chiave 30 chiavi valide, etichetta Etichetta, tipo STRING | valida — AMBIGUO (numero massimo) | member §2 | `TestbookGovAttributesTest#definition` |
+| TB-GOV-ATD-029 | chiave 31 chiavi valide, etichetta Etichetta, tipo STRING | 422 `ATTRIBUTE_DEFINITION_INVALID` su `definitions` — AMBIGUO (numero massimo) | member §2 | `TestbookGovAttributesTest#definition` |
+
+### 10.3 Chiavi in uso e API (ATU)
+Q-93: una chiave con valori sui membri non si toglie né cambia tipo (409 `ATTRIBUTE_IN_USE`). Domini: operazione
+(togliere, cambiare tipo, cambiare etichetta, restringere le opzioni) × uso (con valori, senza, valori azzerati, solo
+su un anonimizzato) — le celle significative; poi gli esiti via API della validazione (422, audit, `MEMBER_INVALID`).
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-GOV-ATU-001 | togliere una chiave con valori | `409:ATTRIBUTE_IN_USE` | Q-93 | `TestbookGovMemberIT#attributes` |
+| TB-GOV-ATU-002 | cambiare tipo a una chiave con valori | `409:ATTRIBUTE_IN_USE` | Q-93 | `TestbookGovMemberIT#attributes` |
+| TB-GOV-ATU-003 | togliere una chiave senza valori | `200` | Q-93 | `TestbookGovMemberIT#attributes` |
+| TB-GOV-ATU-004 | cambiare tipo a una chiave senza valori | `200` | Q-93 | `TestbookGovMemberIT#attributes` |
+| TB-GOV-ATU-005 | cambiare etichetta a una chiave con valori | `200` | Q-93 (solo rimozione e tipo) | `TestbookGovMemberIT#attributes` |
+| TB-GOV-ATU-006 | restringere le opzioni escludendo un valore presente | `200` — AMBIGUO (valori fuori dalle nuove opzioni) | Q-93 | `TestbookGovMemberIT#attributes` |
+| TB-GOV-ATU-007 | togliere dopo aver azzerato i valori | `200` | Q-93 | `TestbookGovMemberIT#attributes` |
+| TB-GOV-ATU-008 | togliere una chiave usata solo da un anonimizzato | `200` | Q-93 · Q-121 | `TestbookGovMemberIT#attributes` |
+| TB-GOV-ATU-009 | chiave con spazi ai bordi | `200:tbTrim` — AMBIGUO (spazi tolti in silenzio) | F-MBR-03 | `TestbookGovMemberIT#attributes` |
+| TB-GOV-ATU-010 | definizione non valida via API | `422:ATTRIBUTE_DEFINITION_INVALID` | F-MBR-03 · docs/06 §2 | `TestbookGovMemberIT#attributes` |
+| TB-GOV-ATU-011 | definizione senza tipo via API | `422:ATTRIBUTE_DEFINITION_INVALID` | F-MBR-03 · docs/06 §2 (422, non 500) | `TestbookGovMemberIT#attributes` |
+| TB-GOV-ATU-012 | audit della sostituzione | `UPDATE` | F-AUD-01 · docs/06 §3 | `TestbookGovMemberIT#attributes` |
+| TB-GOV-ATU-013 | valore del tipo sbagliato via API | `422:MEMBER_INVALID:attributes.tbNum` | F-MBR-03 · docs/06 §2 | `TestbookGovMemberIT#attributes` |
+| TB-GOV-ATU-014 | chiave non definita via API | `422:MEMBER_INVALID:attributes.tbNope` | F-MBR-03 | `TestbookGovMemberIT#attributes` |
+
+## 11. Segmenti
+
+### 11.1 Criteri: comparatori × tipi e campi (CRT)
+Domini: comparatore (14) × tipo dell'attributo (STRING, NUMBER, BOOLEAN, DATE) = 56 ≤ 64 ⇒ **tabella completa**, un
+valore per cella scelto per rendere la foglia vera quando i tipi sono compatibili; negazioni con tipo incompatibile (4);
+attributo assente × 14 comparatori; liste (etichette, anche vuote); ogni campo dello spazio esteso di docs/03 §10 con i
+limiti (soglia, mezzanotte di Roma, cambio d'ora del 29/03/2026, 29 febbraio); gruppi `all/any/not` e annidati; criteri
+vuoti o `null`. Oracolo: docs/03 §3.3 «campo assente → falsa (tranne `nexists`); tipi incompatibili → falsa»; sulle date
+Q-91 (solo `eq`), su `not` Q-90.
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-GOV-CRT-001 | `{"field":"member.attributes.tStr","cmp":"eq","value":"APP"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-002 | `{"field":"member.attributes.tStr","cmp":"neq","value":"WEB"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-003 | `{"field":"member.attributes.tStr","cmp":"gt","value":1}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-004 | `{"field":"member.attributes.tStr","cmp":"gte","value":1}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-005 | `{"field":"member.attributes.tStr","cmp":"lt","value":1}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-006 | `{"field":"member.attributes.tStr","cmp":"lte","value":1}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-007 | `{"field":"member.attributes.tStr","cmp":"in","value":["APP","WEB"]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-008 | `{"field":"member.attributes.tStr","cmp":"nin","value":["WEB"]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-009 | `{"field":"member.attributes.tStr","cmp":"contains","value":"PP"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-010 | `{"field":"member.attributes.tStr","cmp":"ncontains","value":"X"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-011 | `{"field":"member.attributes.tStr","cmp":"exists"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-012 | `{"field":"member.attributes.tStr","cmp":"nexists"}` | falso | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-013 | `{"field":"member.attributes.tStr","cmp":"between","value":[1,5]}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-014 | `{"field":"member.attributes.tStr","cmp":"startsWith","value":"AP"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-015 | `{"field":"member.attributes.tNum","cmp":"eq","value":3}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-016 | `{"field":"member.attributes.tNum","cmp":"neq","value":4}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-017 | `{"field":"member.attributes.tNum","cmp":"gt","value":2}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-018 | `{"field":"member.attributes.tNum","cmp":"gte","value":3}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-019 | `{"field":"member.attributes.tNum","cmp":"lt","value":4}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-020 | `{"field":"member.attributes.tNum","cmp":"lte","value":3}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-021 | `{"field":"member.attributes.tNum","cmp":"in","value":[1,3]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-022 | `{"field":"member.attributes.tNum","cmp":"nin","value":[1,2]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-023 | `{"field":"member.attributes.tNum","cmp":"contains","value":3}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-024 | `{"field":"member.attributes.tNum","cmp":"ncontains","value":3}` | falso — **DIVERGENZA** | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-025 | `{"field":"member.attributes.tNum","cmp":"exists"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-026 | `{"field":"member.attributes.tNum","cmp":"nexists"}` | falso | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-027 | `{"field":"member.attributes.tNum","cmp":"between","value":[1,5]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-028 | `{"field":"member.attributes.tNum","cmp":"startsWith","value":"3"}` | falso — **DIVERGENZA** | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-029 | `{"field":"member.attributes.tBool","cmp":"eq","value":true}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-030 | `{"field":"member.attributes.tBool","cmp":"neq","value":false}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-031 | `{"field":"member.attributes.tBool","cmp":"gt","value":0}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-032 | `{"field":"member.attributes.tBool","cmp":"gte","value":0}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-033 | `{"field":"member.attributes.tBool","cmp":"lt","value":2}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-034 | `{"field":"member.attributes.tBool","cmp":"lte","value":2}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-035 | `{"field":"member.attributes.tBool","cmp":"in","value":[true]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-036 | `{"field":"member.attributes.tBool","cmp":"nin","value":[false]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-037 | `{"field":"member.attributes.tBool","cmp":"contains","value":true}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-038 | `{"field":"member.attributes.tBool","cmp":"ncontains","value":true}` | falso — **DIVERGENZA** | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-039 | `{"field":"member.attributes.tBool","cmp":"exists"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-040 | `{"field":"member.attributes.tBool","cmp":"nexists"}` | falso | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-041 | `{"field":"member.attributes.tBool","cmp":"between","value":[0,1]}` | falso | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-042 | `{"field":"member.attributes.tBool","cmp":"startsWith","value":"t"}` | falso — **DIVERGENZA** | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-043 | `{"field":"member.attributes.tDate","cmp":"eq","value":"2026-02-28"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-044 | `{"field":"member.attributes.tDate","cmp":"neq","value":"2026-03-01"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-045 | `{"field":"member.attributes.tDate","cmp":"gt","value":"2026-01-01"}` | falso — AMBIGUO (Q-91) | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-046 | `{"field":"member.attributes.tDate","cmp":"gte","value":"2026-02-28"}` | falso — AMBIGUO (Q-91) | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-047 | `{"field":"member.attributes.tDate","cmp":"lt","value":"2026-12-31"}` | falso — AMBIGUO (Q-91) | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-048 | `{"field":"member.attributes.tDate","cmp":"lte","value":"2026-02-28"}` | falso — AMBIGUO (Q-91) | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-049 | `{"field":"member.attributes.tDate","cmp":"in","value":["2026-02-28"]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-050 | `{"field":"member.attributes.tDate","cmp":"nin","value":["2026-03-01"]}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-051 | `{"field":"member.attributes.tDate","cmp":"contains","value":"2026-02"}` | vero — AMBIGUO (data trattata come testo) | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-052 | `{"field":"member.attributes.tDate","cmp":"ncontains","value":"X"}` | vero — AMBIGUO (data trattata come testo) | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-053 | `{"field":"member.attributes.tDate","cmp":"exists"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-054 | `{"field":"member.attributes.tDate","cmp":"nexists"}` | falso | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-055 | `{"field":"member.attributes.tDate","cmp":"between","value":["2026-01-01","2026-12-31"]}` | falso — AMBIGUO (Q-91) | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-056 | `{"field":"member.attributes.tDate","cmp":"startsWith","value":"2026"}` | vero — AMBIGUO (data trattata come testo) | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-057 | `{"field":"member.attributes.tNum","cmp":"neq","value":"tre"}` | falso — **DIVERGENZA** | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-058 | `{"field":"member.attributes.tNum","cmp":"nin","value":["tre"]}` | falso — **DIVERGENZA** | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-059 | `{"field":"member.attributes.tBool","cmp":"neq","value":"vero"}` | falso — **DIVERGENZA** | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-060 | `{"field":"member.attributes.tStr","cmp":"neq","value":5}` | falso — **DIVERGENZA** | docs/03 §3.3 «tipi incompatibili → falsa» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-061 | `{"field":"member.attributes.tMissing","cmp":"eq","value":"x"}` | falso | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-062 | `{"field":"member.attributes.tMissing","cmp":"neq","value":"x"}` | falso | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-063 | `{"field":"member.attributes.tMissing","cmp":"gt","value":1}` | falso | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-064 | `{"field":"member.attributes.tMissing","cmp":"gte","value":1}` | falso | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-065 | `{"field":"member.attributes.tMissing","cmp":"lt","value":1}` | falso | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-066 | `{"field":"member.attributes.tMissing","cmp":"lte","value":1}` | falso | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-067 | `{"field":"member.attributes.tMissing","cmp":"in","value":["x"]}` | falso | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-068 | `{"field":"member.attributes.tMissing","cmp":"nin","value":["x"]}` | falso | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-069 | `{"field":"member.attributes.tMissing","cmp":"contains","value":"x"}` | falso | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-070 | `{"field":"member.attributes.tMissing","cmp":"ncontains","value":"x"}` | falso | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-071 | `{"field":"member.attributes.tMissing","cmp":"exists"}` | falso | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-072 | `{"field":"member.attributes.tMissing","cmp":"nexists"}` | vero | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-073 | `{"field":"member.attributes.tMissing","cmp":"between","value":[1,5]}` | falso | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-074 | `{"field":"member.attributes.tMissing","cmp":"startsWith","value":"x"}` | falso | docs/03 §3.3 «campo assente → falsa (tranne nexists)» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-075 | `{"field":"member.labels","cmp":"eq","value":"ebill"}` | vero | docs/03 §3.3 (su array: vero se almeno un elemento soddisfa) | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-076 | `{"field":"member.labels","cmp":"contains","value":"ebill"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-077 | `{"field":"member.labels","cmp":"contains","value":"vip"}` | falso | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-078 | `{"field":"member.labels","cmp":"ncontains","value":"vip"}` | vero | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-079 | `{"field":"member.labels","cmp":"in","value":["vip","ebill"]}` | vero | docs/03 §3.3 (su array: vero se almeno un elemento soddisfa) | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-080 | `{"field":"member.labels","cmp":"nin","value":["vip"]}` | vero | docs/03 §3.3 (su array: vero se almeno un elemento soddisfa) | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-081 | `{"field":"member.labels","cmp":"nin","value":["ebill"]}` | falso — AMBIGUO (lista: «almeno un elemento» darebbe vero) | docs/03 §3.3 (su array: vero se almeno un elemento soddisfa) | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-082 | `{"field":"member.labels","cmp":"exists"}` · labels= | falso — AMBIGUO (lista vuota) | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-083 | `{"field":"member.labels","cmp":"nexists"}` · labels= | vero — AMBIGUO (lista vuota) | docs/03 §3.3, §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-084 | `{"field":"member.tier","cmp":"eq","value":"GOLD"}` | vero | docs/03 §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-085 | `{"field":"member.status","cmp":"eq","value":"ACTIVE"}` | vero | docs/03 §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-086 | `{"field":"member.status","cmp":"eq","value":"ACTIVE"}` · status=BLOCKED | falso | docs/03 §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-087 | `{"field":"city","cmp":"eq","value":"Torino"}` | vero | docs/03 §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-088 | `{"field":"member.city","cmp":"eq","value":"Torino"}` | vero — AMBIGUO (prefisso member. facoltativo) | docs/03 §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-089 | `{"field":"member.age","cmp":"eq","value":26}` | vero | docs/03 §3.3 `age` | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-090 | `{"field":"member.age","cmp":"eq","value":26}` · asOf=2026-09-23T22:30:00Z | vero | docs/03 (fuso Europe/Rome) §3.3 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-091 | `{"field":"member.age","cmp":"eq","value":25}` · asOf=2026-09-23T21:30:00Z | vero | docs/03 (fuso Europe/Rome) §3.3 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-092 | `{"field":"member.age","cmp":"eq","value":25}` · birthDate=2000-02-29;asOf=2026-02-28T12:00:00Z | vero — AMBIGUO (compleanno del 29 febbraio) | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-093 | `{"field":"member.age","cmp":"eq","value":26}` · birthDate=2000-02-29;asOf=2026-03-01T12:00:00Z | vero | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-094 | `{"field":"member.age","cmp":"gte","value":0}` · birthDate= | falso | docs/03 §3.3 (campo assente) | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-095 | `{"field":"member.registeredDaysAgo","cmp":"eq","value":30}` | vero | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-096 | `{"field":"member.registeredDaysAgo","cmp":"eq","value":0}` · registeredAt=2026-09-23T21:30:00Z;asOf=2026-09-24T06:00:00Z | vero — AMBIGUO (giorni di calendario di Roma o blocchi di 24 h) | docs/03 (fuso Europe/Rome) | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-097 | `{"field":"member.registeredDaysAgo","cmp":"eq","value":1}` · registeredAt=2026-03-28T12:00:00Z;asOf=2026-03-30T11:30:00Z | vero — AMBIGUO (giorni di calendario di Roma o blocchi di 24 h) | docs/03 (fuso Europe/Rome) | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-098 | `{"field":"balance.PTS","cmp":"gte","value":1500}` | vero | docs/03 §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-099 | `{"field":"balance.PTS","cmp":"gt","value":1500}` | falso | docs/03 §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-100 | `{"field":"lifetimeEarned.PTS","cmp":"gt","value":4999}` | vero | docs/03 §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-101 | `{"field":"lastActivityDaysAgo","cmp":"gt","value":45}` | vero | docs/03 §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-102 | `{"field":"lastActivityDaysAgo","cmp":"gt","value":45}` · lastActivityAt=2026-08-10T10:00:00Z | falso | docs/03 §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-103 | `{"field":"lastActivityDaysAgo","cmp":"gt","value":45}` · lastActivityAt= | falso | docs/03 §3.3 (campo assente) | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-104 | `{"field":"actions.purchase.completed.count30d","cmp":"gte","value":2}` | vero | docs/03 §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-105 | `{"field":"actions.purchase.completed.total","cmp":"eq","value":7}` | vero | docs/03 §10 · Q-87 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-106 | `{"field":"actions.app.login.daily.count30d","cmp":"eq","value":0}` | vero | docs/03 §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-107 | `{"field":"purchases.amount90d","cmp":"eq","value":107.4}` | vero | docs/03 §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-108 | `{"field":"purchases.amount90d","cmp":"gt","value":100}` | vero | docs/03 §10 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-109 | `{"op":"all","rules":[{"field":"member.tier","cmp":"eq","value":"GOLD"},{"field":"member.tier","cmp":"eq","value":"GOLD"}]}` | vero | docs/03 §3.3 (gruppi all/any/not) | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-110 | `{"op":"all","rules":[{"field":"member.tier","cmp":"eq","value":"GOLD"},{"field":"member.tier","cmp":"eq","value":"BASE"}]}` | falso | docs/03 §3.3 (gruppi all/any/not) | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-111 | `{"op":"any","rules":[{"field":"member.tier","cmp":"eq","value":"BASE"},{"field":"member.tier","cmp":"eq","value":"GOLD"}]}` | vero | docs/03 §3.3 (gruppi all/any/not) | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-112 | `{"op":"any","rules":[{"field":"member.tier","cmp":"eq","value":"BASE"},{"field":"member.tier","cmp":"eq","value":"BASE"}]}` | falso | docs/03 §3.3 (gruppi all/any/not) | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-113 | `{"op":"not","rules":[{"field":"member.tier","cmp":"eq","value":"BASE"}]}` | vero | docs/03 §3.3 (gruppi all/any/not) | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-114 | `{"op":"not","rules":[{"field":"member.tier","cmp":"eq","value":"GOLD"}]}` | falso | docs/03 §3.3 (gruppi all/any/not) | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-115 | `{"op":"not","rules":[{"field":"member.tier","cmp":"eq","value":"GOLD"},{"field":"member.tier","cmp":"eq","value":"BASE"}]}` | vero — AMBIGUO (Q-90: «NESSUNA» darebbe falso) | docs/03 §3.3 · docs/08 BO-06 «NESSUNA» · Q-90 | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-116 | `{"op":"all","rules":[{"op":"any","rules":[{"field":"member.tier","cmp":"eq","value":"BASE"},{"field":"member.tier","cmp":"eq","value":"GOLD"}]},{"op":"not","rules":[{"field":"member.tier","cmp":"eq","value":"BASE"}]}]}` | vero | docs/03 §3.3 (gruppi all/any/not) | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-117 | `{}` | falso | Q-87 «criteri vuoti non includono nessuno» | `TestbookGovSegmentCriteriaTest#matches` |
+| TB-GOV-CRT-118 | `null` | falso | Q-87 | `TestbookGovSegmentCriteriaTest#matches` |
+
+### 11.2 Validazione dei criteri (CRV)
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-GOV-CRV-001 | `null` | non valido su `criteria` (422 `INVALID_CRITERIA` via API) | Q-87 · member §3 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-002 | `{}` | non valido su `criteria` (422 `INVALID_CRITERIA` via API) | Q-87 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-003 | `{"field":"member.tier","cmp":"eq","value":"GOLD"}` | valido | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-004 | `{"op":"all","rules":[{"op":"any","rules":[{"op":"not","rules":[{"field":"member.tier","cmp":"eq","value":"GOLD"}]}]}]}` | valido | docs/03 §3.3 · docs/08 BO-06 (3 livelli) | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-005 | `{"op":"xor","rules":[{"field":"member.tier","cmp":"eq","value":"GOLD"}]}` | non valido su `criteria.op` (422 `INVALID_CRITERIA` via API) | docs/03 §3.3 (all/any/not) | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-006 | `{"op":"all","rules":[]}` | non valido su `criteria.rules` (422 `INVALID_CRITERIA` via API) — AMBIGUO (gruppo vuoto) | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-007 | `{"cmp":"eq","value":"GOLD"}` | non valido su `criteria.field` (422 `INVALID_CRITERIA` via API) | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-008 | `{"field":"member.shoeSize","cmp":"eq","value":42}` | non valido su `criteria.field` (422 `INVALID_CRITERIA` via API) | docs/03 §10 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-009 | `{"field":"data.amount","cmp":"gt","value":5}` | non valido su `criteria.field` (422 `INVALID_CRITERIA` via API) | docs/03 §10 (solo member.* esteso) | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-010 | `{"field":"context.hour","cmp":"eq","value":9}` | non valido su `criteria.field` (422 `INVALID_CRITERIA` via API) | docs/03 §10 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-011 | `{"field":"member.segments","cmp":"contains","value":"SEG-VIP"}` | non valido su `criteria.field` (422 `INVALID_CRITERIA` via API) — AMBIGUO (segmenti nei criteri di un segmento) | docs/03 §3.3 (`segments` in member.*) · F-SEG-02 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-012 | `{"field":"member.attributes.","cmp":"exists"}` | non valido su `criteria.field` (422 `INVALID_CRITERIA` via API) | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-013 | `{"field":"actions.purchase.completed","cmp":"gt","value":1}` | non valido su `criteria.field` (422 `INVALID_CRITERIA` via API) | docs/03 §10 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-014 | `{"field":"actions.purchase.completed.total","cmp":"gt","value":1}` | valido | Q-87 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-015 | `{"field":"tier","cmp":"eq","value":"GOLD"}` | valido — AMBIGUO (prefisso facoltativo) | docs/03 §10 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-016 | `{"field":"member.tier","cmp":"like","value":"GO"}` | non valido su `criteria.cmp` (422 `INVALID_CRITERIA` via API) | docs/03 §3.3 (14 comparatori) | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-017 | `{"field":"member.tier","value":"GOLD"}` | non valido su `criteria.cmp` (422 `INVALID_CRITERIA` via API) | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-018 | `{"field":"member.tier","cmp":"eq"}` | non valido su `criteria.value` (422 `INVALID_CRITERIA` via API) | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-019 | `{"field":"member.tier","cmp":"eq","value":null}` | non valido su `criteria.value` (422 `INVALID_CRITERIA` via API) | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-020 | `{"field":"member.city","cmp":"exists"}` | valido | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-021 | `{"field":"member.tier","cmp":"in","value":"GOLD"}` | non valido su `criteria.value` (422 `INVALID_CRITERIA` via API) | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-022 | `{"field":"member.tier","cmp":"nin","value":"GOLD"}` | non valido su `criteria.value` (422 `INVALID_CRITERIA` via API) | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-023 | `{"field":"balance.PTS","cmp":"between","value":[1]}` | non valido su `criteria.value` (422 `INVALID_CRITERIA` via API) | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-024 | `{"field":"balance.PTS","cmp":"between","value":[1,2,3]}` | non valido su `criteria.value` (422 `INVALID_CRITERIA` via API) | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-025 | `{"field":"member.attributes.contractDate","cmp":"gt","value":"2026-01-01"}` | non valido su `criteria.value` (422 `INVALID_CRITERIA` via API) — AMBIGUO (Q-91) | docs/03 §3.3 · Q-91 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-026 | `{"field":"balance.PTS","cmp":"gte","value":100}` | valido | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#validate` |
+| TB-GOV-CRV-027 | `{"op":"all","rules":["tier"]}` | non valido su `criteria.rules[0]` (422 `INVALID_CRITERIA` via API) | docs/03 §3.3 | `TestbookGovSegmentCriteriaTest#validate` |
+
+### 11.3 Segmenti via API (SEG)
+Domini: anteprima (seed, criteri non validi, vuoti, nessuna scrittura), creazione (codice 2/3/40/41 caratteri e
+minuscolo — docs/06 §2 `^[A-Z][A-Z0-9-]{2,39}$` —, nome, tipo, codice duplicato, statici con membri inesistenti o
+anonimizzati), modifica (tipo, codice, stato, criteri, versione), archiviazione e ricalcolo; stati del membro nei
+dinamici (Q-85: tutti tranne ANONYMIZED, una riga per stato).
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-GOV-SEG-001 | anteprima tier in [GOLD, PLATINUM] | `4` | member §7 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-002 | anteprima con criteri non validi | `422:INVALID_CRITERIA` | member §3 · docs/06 §2 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-003 | anteprima con criteri vuoti | `422:INVALID_CRITERIA` — AMBIGUO (criteri vuoti: 422 o 0 membri) | Q-87 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-004 | anteprima senza scritture | `0 fatti` | member §3 (senza salvare) | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-005 | creazione di un dinamico | `201:1` | F-SEG-02 · member §3 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-006 | fatto entered alla creazione | `entered` | F-SEG-03 · docs/03 §10 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-007 | codice di 2 caratteri | `422:INVALID_CODE` | docs/06 §2 (`^[A-Z][A-Z0-9-]{2,39}$`) | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-008 | codice di 3 caratteri (minimo) | `201` | docs/06 §2 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-009 | codice di 40 caratteri (massimo) | `201` | docs/06 §2 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-010 | codice di 41 caratteri | `422:INVALID_CODE` | docs/06 §2 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-011 | codice in minuscolo | `201:maiuscolo` — AMBIGUO (normalizzato in maiuscolo) | docs/06 §2 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-012 | nome vuoto | `422:NAME_REQUIRED` — AMBIGUO (nome obbligatorio) | member §2 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-013 | tipo sconosciuto | `422:INVALID_TYPE` | member §2 (`STATIC`/`DYNAMIC`) | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-014 | codice duplicato | `409:CODE_TAKEN` | docs/06 §2 (409 codice duplicato) | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-015 | statico con membro inesistente | `422:MEMBER_NOT_FOUND` — AMBIGUO (codice dell'errore) | F-SEG-01 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-016 | statico con membro anonimizzato | `422:MEMBER_NOT_FOUND` — AMBIGUO (anonimizzati non selezionabili) | F-SEG-01 · Q-85 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-017 | elenco manuale su un dinamico | `409:SEGMENT_NOT_STATIC` — AMBIGUO (codice dell'errore) | member §3 (solo STATIC) | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-018 | cambio di tipo | `409:SEGMENT_IMMUTABLE_FIELD` | Q-88 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-019 | cambio di codice | `409:SEGMENT_IMMUTABLE_FIELD` | Q-88 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-020 | archiviazione: escono tutti | `left` | Q-88 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-021 | ricalcolo di un archiviato | `409:SEGMENT_ARCHIVED` — AMBIGUO (codice dell'errore) | Q-88 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-022 | stato sconosciuto | `422:INVALID_STATUS` | member §2 (`ACTIVE`/`ARCHIVED`) | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-023 | secondo ricalcolo senza variazioni | `0:0` | F-SEG-03 · docs/03 §10 (solo differenze) | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-024 | criteri modificati: chi non soddisfa esce | `left` | F-SEG-03 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-025 | statico: sostituzione dell'elenco | `1:1` | F-SEG-01 · member §3 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-026 | dinamico: membro ACTIVE incluso | `dentro` | Q-85 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-027 | dinamico: membro INACTIVE incluso | `dentro` | Q-85 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-028 | dinamico: membro BLOCKED incluso | `dentro` | Q-85 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-029 | dinamico: membro ANONYMIZED escluso | `fuori` | Q-85 | `TestbookGovMemberIT#segments` |
+| TB-GOV-SEG-030 | versione superata | `409:VERSION_CONFLICT` — AMBIGUO (Q-112 riguarda campagne, premi, concorsi) | docs/06 §4 · Q-112 | `TestbookGovMemberIT#segments` |
 
 ## 12. Flussi tra servizi (hub)
 
@@ -546,14 +1115,52 @@ Righe che asseriscono il comportamento attuale perché la specifica tace e `docs
 | ROL-056…060 | Precedenza tra ruolo vietato (403), transizione vietata (409), commento mancante (422) | ruolo, poi stato, poi commento |
 | OVR-006, OVR-016 | ADMIN che approva/rifiuta un oggetto senza approvatore di policy: è un override da marcare? | non marcato |
 | CMT-006 | Commento di soli spazi non separabili (U+00A0) | accettato come commento |
+| MST-001, MST-010, MST-019 | Cambio verso lo stesso stato | 200 senza fatto né audit |
+| MST-008, MST-016, MST-024 | Stato in minuscolo (`blocked`) | accettato |
+| MST-028…031 | Anonimizzato con destinazione non valida: 409 o 400? | 409 `MEMBER_ANONYMIZED` |
+| MST-040 | `CLOSED` come filtro dell'elenco: i contratti lo ammettono (Q-139), docs/03 §2 e F-MBR-04 no | 200 (0 membri) |
+| MRL-002, 003, 008, 009, 021, 022, 027, 028, 033, 034, 039, 040, 045, 046 | Celle «—» senza ● per ruoli diversi da ANALYST: il backend deve rifiutare? (docs/08 §2 lo impone solo con ●) | 403 `FORBIDDEN_ROLE` |
+| MRL-073, MRL-074 | `X-LH-Actor` con ruolo sconosciuto o in minuscolo | ANALYST (403) / ruolo riconosciuto |
+| ANO-002 | Conferma con spazi ai bordi | accettata (`trim`) |
+| ANO-010 | Membro inesistente con conferma errata: 404 o 422? | 404 |
+| ATV-002, 003, 005 | Testo vuoto o di soli spazi; lunghezza massima 200 | rifiutati (422) |
+| ATV-015, 031, 047, 063 | `null` in un PATCH di attributi | rimuove la chiave |
+| ATV-062 | Data con ora per un attributo DATE | rifiutata |
+| ATV-069 | Chiave interna della demo (`story`) nel PATCH | rifiutata |
+| ATD-002…009, 012…016, 028, 029 | Formato della chiave (camelCase, 2–40), etichetta obbligatoria ≤ 60, tetto di 30 definizioni | come scritto nelle righe |
+| ATU-006 | Restringere le opzioni lasciando valori fuori elenco (Q-93 non lo dice) | ammesso (200) |
+| ATU-009 | Chiave con spazi ai bordi | normalizzata in silenzio |
+| CRT-045…048, 055, CRV-025 | Confronti d'ordine e `between` sulle date ISO (Q-91 aperta) | falsi; `gt` con testo rifiutato in validazione |
+| CRT-051, 052, 056 | `contains`, `ncontains`, `startsWith` su un attributo DATE | la data vale come testo |
+| CRT-081 | `nin` su una lista: «almeno un elemento» (docs/03 §3.3, per `data.*`) o intersezione vuota? | intersezione vuota |
+| CRT-082, CRT-083 | `exists`/`nexists` su una lista vuota | lista vuota = assente |
+| CRT-088, CRV-015 | Prefisso `member.` facoltativo | accettato con e senza |
+| CRT-092 | Età di chi è nato il 29 febbraio, il 28 febbraio di un anno non bisestile | compie gli anni il 1° marzo |
+| CRT-096, CRT-097 | `registeredDaysAgo` a cavallo della mezzanotte di Roma e del cambio d'ora | blocchi di 24 h (non giorni di calendario di Roma) |
+| CRT-115 | `not` con più regole (Q-90 aperta: «NESSUNA» o «non tutte») | «non tutte» |
+| CRV-006 | Gruppo senza regole | non valido |
+| CRV-011 | `member.segments` nei criteri di un segmento (docs/03 §3.3 lo elenca in `member.*`) | campo non disponibile |
+| SEG-003 | Anteprima con criteri vuoti: 422 o 0 membri (Q-87) | 422 `INVALID_CRITERIA` |
+| SEG-011 | Codice in minuscolo | normalizzato in maiuscolo |
+| SEG-012 | Nome del segmento obbligatorio | 422 `NAME_REQUIRED` |
+| SEG-015, 016 | Statico con membri inesistenti o anonimizzati | 422 `MEMBER_NOT_FOUND` |
+| SEG-017, SEG-021 | Codici d'errore di «solo STATIC» e «archiviato» | 409 `SEGMENT_NOT_STATIC`, 409 `SEGMENT_ARCHIVED` |
+| SEG-030 | Blocco ottimistico dei segmenti (Q-112 cita solo campagne, premi, concorsi) | 409 `VERSION_CONFLICT` |
 
 ## 14. Divergenze
 
-Nessuna divergenza nelle aree di `lh-common` (ACT, GRD, PRS, SMR, SMN, SMF, ROL, CMT, OVR, POL).
+Il test asserisce la specifica e fallisce finché il codice non è corretto o `docs/15` non registra una scelta diversa.
+Nessuna divergenza nelle aree di `lh-common` a logica pura (ACT, GRD, PRS, SMR, SMN, SMF, ROL, CMT, OVR, POL).
+
+| # | Righe | Specifica | Osservato | Causa (file:riga) |
+|---|---|---|---|---|
+| D-01 | CRT-024, CRT-028, CRT-038, CRT-042, CRT-057…060 | docs/03 §3.3: «Tipi incompatibili → falsa, mai eccezione» | `neq`, `nin`, `ncontains` sono **veri** quando i tipi non sono confrontabili (numero contro testo, booleano contro testo, testo contro numero); `startsWith` è vero su numeri e booleani (`3.0` inizia per `3`, `true` per `t`) | `services/member-service/…/domain/SegmentCriteria.java:258, 264, 266` (negazione del confronto fallito) e `:268` (`actual.toString()`) |
+| D-02 | ATD-023, ATU-011 | docs/06 §2: regola violata ⇒ 422 con `code` (F-MBR-03: definizione non valida) | una definizione senza `type` provoca `NullPointerException` ⇒ 500 `INTERNAL_ERROR` | `services/member-service/…/domain/MemberAttributes.java:165` (`List.of(...).contains(null)`) |
+| D-03 | MST-038 | docs/06 §2: «400 `bad-request` — JSON malformato, parametri errati» | corpo assente su `POST /v1/members/{id}/status` ⇒ 500 `INTERNAL_ERROR` | `libs/lh-common/…/web/GlobalExceptionHandler.java:66` (nessun gestore per `HttpMessageNotReadableException`, finisce nel ramo generico) |
 
 ## 15. Copertura
 
 | Misura | Valore |
 |---|---|
-| Righe (finora) | 322 |
-| di cui AMBIGUO | 27 |
+| Righe (finora) | 772 |
+| di cui AMBIGUO | 110 |

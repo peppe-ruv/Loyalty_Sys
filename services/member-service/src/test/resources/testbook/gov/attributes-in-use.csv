@@ -1,0 +1,15 @@
+id,descrizione,scenario,expected
+TB-GOV-ATU-001,togliere una chiave con valori,REMOVE_USED,409:ATTRIBUTE_IN_USE
+TB-GOV-ATU-002,cambiare tipo a una chiave con valori,RETYPE_USED,409:ATTRIBUTE_IN_USE
+TB-GOV-ATU-003,togliere una chiave senza valori,REMOVE_UNUSED,200
+TB-GOV-ATU-004,cambiare tipo a una chiave senza valori,RETYPE_UNUSED,200
+TB-GOV-ATU-005,cambiare etichetta a una chiave con valori,RELABEL_USED,200
+TB-GOV-ATU-006,restringere le opzioni escludendo un valore presente,NARROW_OPTIONS,200
+TB-GOV-ATU-007,togliere dopo aver azzerato i valori,CLEAR_THEN_REMOVE,200
+TB-GOV-ATU-008,togliere una chiave usata solo da un anonimizzato,ANONYMIZED_ONLY,200
+TB-GOV-ATU-009,chiave con spazi ai bordi,TRIM_KEY,200:tbTrim
+TB-GOV-ATU-010,definizione non valida via API,INVALID_DEF,422:ATTRIBUTE_DEFINITION_INVALID
+TB-GOV-ATU-011,definizione senza tipo via API,NULL_TYPE,422:ATTRIBUTE_DEFINITION_INVALID
+TB-GOV-ATU-012,audit della sostituzione,AUDIT,UPDATE
+TB-GOV-ATU-013,valore del tipo sbagliato via API,PATCH_WRONG_TYPE,422:MEMBER_INVALID:attributes.tbNum
+TB-GOV-ATU-014,chiave non definita via API,PATCH_UNDEFINED,422:MEMBER_INVALID:attributes.tbNope
