@@ -1375,55 +1375,55 @@ nome/e-mail» completo resta in `HubAnonymizationIT`.
 
 Righe che asseriscono il comportamento attuale perché la specifica tace e `docs/15` non registra una scelta
 (`// TESTBOOK: ambiguo, vedi …` nel test). Ogni gruppo rimanda alla domanda di `docs/15` che lo registra: le nuove
-(`Q-V1`…`Q-V13`) o quelle già aperte che coprono il punto (Q-87, Q-90, Q-91, Q-93, Q-112, Q-139, Q-176, Q-193, Q-220,
+(`Q-298`…`Q-310`) o quelle già aperte che coprono il punto (Q-87, Q-90, Q-91, Q-93, Q-112, Q-139, Q-176, Q-193, Q-220,
 Q-221, Q-244…Q-246, Q-261, Q-282). Nessun comportamento è stato cambiato; dove quello attuale non è l'opzione
-conservativa la domanda lo dice e propone l'alternativa (Q-V1, Q-V3, Q-V6, Q-V9).
+conservativa la domanda lo dice e propone l'alternativa (Q-298, Q-300, Q-303, Q-306).
 
 | Righe | Punto aperto | Comportamento attuale asserito | Domanda |
 |---|---|---|---|
-| ACT-007…014 | Formati non canonici di `X-LH-Actor` (minuscole, spazi, ruolo sconosciuto, senza `:`, `:` in coda, più `:`) | lettura permissiva di ruolo e username; ruolo sconosciuto o `RUOLO:` ⇒ ANALYST | Q-V1 (estende Q-261) |
-| PRS-009…016 | Azione in minuscolo/con spazi; codice di un'azione sconosciuta (docs/06 §2 direbbe 400 «parametri errati») | accettate in modo permissivo; sconosciuta ⇒ 422 `INVALID_ACTION` | Q-V2 (con Q-244, Q-246, Q-282) |
+| ACT-007…014 | Formati non canonici di `X-LH-Actor` (minuscole, spazi, ruolo sconosciuto, senza `:`, `:` in coda, più `:`) | lettura permissiva di ruolo e username; ruolo sconosciuto o `RUOLO:` ⇒ ANALYST | Q-298 (estende Q-261) |
+| PRS-009…016 | Azione in minuscolo/con spazi; codice di un'azione sconosciuta (docs/06 §2 direbbe 400 «parametri errati») | accettate in modo permissivo; sconosciuta ⇒ 422 `INVALID_ACTION` | Q-299 (con Q-244, Q-246, Q-282) |
 | SMF-001, ROL-051, ROL-052 | Con la policy spenta `SUBMIT` da DRAFT porta a LIVE (docs/06 §7 dice solo «DRAFT → LIVE diretto») | `LIVE` | Q-282 |
-| ROL-056…060 | Precedenza tra ruolo vietato (403), transizione vietata (409), commento mancante (422) | ruolo, poi stato, poi commento | Q-V2 |
-| OVR-006, OVR-016 | ADMIN che approva/rifiuta un oggetto senza approvatore di policy: è un override da marcare? | non marcato | Q-V3 |
-| CMT-006 | Commento di soli spazi non separabili (U+00A0) | accettato come commento | Q-V3 |
-| MST-001, MST-010, MST-019 | Cambio verso lo stesso stato | 200 senza fatto né audit | Q-V4 |
-| MST-008, MST-016, MST-024 | Stato in minuscolo (`blocked`) | accettato | Q-V4 |
-| MST-028…031 | Anonimizzato con destinazione non valida: 409 o 400? | 409 `MEMBER_ANONYMIZED` | Q-V4 |
-| MST-040 | `CLOSED` come filtro dell'elenco: i contratti lo ammettono (Q-139), docs/03 §2 e F-MBR-04 no | 200 (0 membri) | Q-V4 (con Q-139) |
-| MRL-002, 003, 008, 009, 021, 022, 027, 028, 033, 034, 039, 040, 045, 046 | Celle «—» senza ● per ruoli diversi da ANALYST: il backend deve rifiutare? (docs/08 §2 lo impone solo con ●) | 403 `FORBIDDEN_ROLE` | Q-V5 (estende Q-176) |
-| MRL-073, MRL-074 | `X-LH-Actor` con ruolo sconosciuto o in minuscolo | ANALYST (403) / ruolo riconosciuto | Q-V1 (estende Q-261) |
-| ANO-002 | Conferma con spazi ai bordi | accettata (`trim`) | Q-V7 |
-| ANO-010 | Membro inesistente con conferma errata: 404 o 422? | 404 | Q-V7 |
-| ATV-002, 003, 005 | Testo vuoto o di soli spazi; lunghezza massima 200 | rifiutati (422) | Q-V8 |
-| ATV-015, 031, 047, 063 | `null` in un PATCH di attributi | rimuove la chiave | Q-V8 |
-| ATV-062 | Data con ora per un attributo DATE | rifiutata | Q-V8 |
-| ATV-069 | Chiave interna della demo (`story`) nel PATCH | rifiutata | Q-V8 |
-| ATD-002…009, 012…016, 028, 029 | Formato della chiave (camelCase, 2–40), etichetta obbligatoria ≤ 60, tetto di 30 definizioni | come scritto nelle righe | Q-V8 |
-| ATU-006 | Restringere le opzioni lasciando valori fuori elenco (Q-93 non lo dice) | ammesso (200) | Q-V9 (estende Q-93) |
-| ATU-009 | Chiave con spazi ai bordi | normalizzata in silenzio | Q-V9 |
-| CRT-045…048, 055, CRV-025 | Confronti d'ordine e `between` sulle date ISO (Q-91 aperta) | falsi; `gt` con testo rifiutato in validazione | Q-91 (vedi Q-V10) |
-| CRT-051, 052, 056 | `contains`, `ncontains`, `startsWith` su un attributo DATE | la data vale come testo | Q-V10 |
-| CRT-081 | `nin` su una lista: «almeno un elemento» (docs/03 §3.3, per `data.*`) o intersezione vuota? | intersezione vuota | Q-V10 |
-| CRT-082, CRT-083 | `exists`/`nexists` su una lista vuota | lista vuota = assente | Q-V10 |
-| CRT-088, CRV-015 | Prefisso `member.` facoltativo | accettato con e senza | Q-V10 |
-| CRT-092 | Età di chi è nato il 29 febbraio, il 28 febbraio di un anno non bisestile | compie gli anni il 1° marzo | Q-220 (vedi Q-V10) |
-| CRT-096, CRT-097 | `registeredDaysAgo` a cavallo della mezzanotte di Roma e del cambio d'ora | blocchi di 24 h (non giorni di calendario di Roma) | Q-221 (vedi Q-V10) |
-| CRT-115 | `not` con più regole (Q-90 aperta: «NESSUNA» o «non tutte») | «non tutte» | Q-90 (vedi Q-V10) |
-| CRV-006 | Gruppo senza regole | non valido | Q-V10 |
-| CRV-011 | `member.segments` nei criteri di un segmento (docs/03 §3.3 lo elenca in `member.*`) | campo non disponibile | Q-V10 |
-| SEG-003 | Anteprima con criteri vuoti: 422 o 0 membri (Q-87) | 422 `INVALID_CRITERIA` | Q-V11 (con Q-87) |
-| SEG-011 | Codice in minuscolo | normalizzato in maiuscolo | Q-V11 |
-| SEG-012 | Nome del segmento obbligatorio | 422 `NAME_REQUIRED` | Q-V11 |
-| SEG-015, 016 | Statico con membri inesistenti o anonimizzati | 422 `MEMBER_NOT_FOUND` | Q-V11 |
-| SEG-017, SEG-021 | Codici d'errore di «solo STATIC» e «archiviato» | 409 `SEGMENT_NOT_STATIC`, 409 `SEGMENT_ARCHIVED` | Q-V11 |
-| SEG-030 | Blocco ottimistico dei segmenti (Q-112 cita solo campagne, premi, concorsi) | 409 `VERSION_CONFLICT` | Q-V11 (estende Q-112) |
-| REF-004, REF-005 | Codice invito in minuscolo o con spazi ai bordi | normalizzato: legame creato | Q-V12 |
-| REF-022 | Invitante bloccato prima della prima azione qualificante dell'invitato | i due fatti `referral.completed` sono emessi comunque (il motore scarta quello dell'invitante con `NO_MEMBER`) | Q-V12 (con Q-61) |
-| ENT-019, ENT-031, ENT-043 | `ACTIVATE`: sinonimo di `PUBLISH` per le campagne, azione sconosciuta per premi e concorsi | campagna `LIVE`; premio/concorso 422 `INVALID_ACTION` | Q-V2 (con Q-245) |
-| APQ-008 | `requiredRole` di una campagna senza obbligo inviata in revisione (Q-193 riguarda solo il web) | `null` | Q-V13 (con Q-193) |
-| MAT-009, MAT-010 | Istogramma degli istanti per CARE e ANALYST (docs/08 §2 dà «solo istogramma» solo a MARKETING) | ammesso | Q-V6 |
-| MAT-012, 013, 028, 029, 033, 034, 043, 044, 047…049, 053, 054, 072, 073, 077, 078, 082…084 | Celle «—» senza ● di ruoli diversi da ANALYST: Q-176 registra il 403 solo per l'engagement | 403 (Q-176 esteso per analogia) | Q-V5 (estende Q-176) |
+| ROL-056…060 | Precedenza tra ruolo vietato (403), transizione vietata (409), commento mancante (422) | ruolo, poi stato, poi commento | Q-299 |
+| OVR-006, OVR-016 | ADMIN che approva/rifiuta un oggetto senza approvatore di policy: è un override da marcare? | non marcato | Q-300 |
+| CMT-006 | Commento di soli spazi non separabili (U+00A0) | accettato come commento | Q-300 |
+| MST-001, MST-010, MST-019 | Cambio verso lo stesso stato | 200 senza fatto né audit | Q-301 |
+| MST-008, MST-016, MST-024 | Stato in minuscolo (`blocked`) | accettato | Q-301 |
+| MST-028…031 | Anonimizzato con destinazione non valida: 409 o 400? | 409 `MEMBER_ANONYMIZED` | Q-301 |
+| MST-040 | `CLOSED` come filtro dell'elenco: i contratti lo ammettono (Q-139), docs/03 §2 e F-MBR-04 no | 200 (0 membri) | Q-301 (con Q-139) |
+| MRL-002, 003, 008, 009, 021, 022, 027, 028, 033, 034, 039, 040, 045, 046 | Celle «—» senza ● per ruoli diversi da ANALYST: il backend deve rifiutare? (docs/08 §2 lo impone solo con ●) | 403 `FORBIDDEN_ROLE` | Q-302 (estende Q-176) |
+| MRL-073, MRL-074 | `X-LH-Actor` con ruolo sconosciuto o in minuscolo | ANALYST (403) / ruolo riconosciuto | Q-298 (estende Q-261) |
+| ANO-002 | Conferma con spazi ai bordi | accettata (`trim`) | Q-304 |
+| ANO-010 | Membro inesistente con conferma errata: 404 o 422? | 404 | Q-304 |
+| ATV-002, 003, 005 | Testo vuoto o di soli spazi; lunghezza massima 200 | rifiutati (422) | Q-305 |
+| ATV-015, 031, 047, 063 | `null` in un PATCH di attributi | rimuove la chiave | Q-305 |
+| ATV-062 | Data con ora per un attributo DATE | rifiutata | Q-305 |
+| ATV-069 | Chiave interna della demo (`story`) nel PATCH | rifiutata | Q-305 |
+| ATD-002…009, 012…016, 028, 029 | Formato della chiave (camelCase, 2–40), etichetta obbligatoria ≤ 60, tetto di 30 definizioni | come scritto nelle righe | Q-305 |
+| ATU-006 | Restringere le opzioni lasciando valori fuori elenco (Q-93 non lo dice) | ammesso (200) | Q-306 (estende Q-93) |
+| ATU-009 | Chiave con spazi ai bordi | normalizzata in silenzio | Q-306 |
+| CRT-045…048, 055, CRV-025 | Confronti d'ordine e `between` sulle date ISO (Q-91 aperta) | falsi; `gt` con testo rifiutato in validazione | Q-91 (vedi Q-307) |
+| CRT-051, 052, 056 | `contains`, `ncontains`, `startsWith` su un attributo DATE | la data vale come testo | Q-307 |
+| CRT-081 | `nin` su una lista: «almeno un elemento» (docs/03 §3.3, per `data.*`) o intersezione vuota? | intersezione vuota | Q-307 |
+| CRT-082, CRT-083 | `exists`/`nexists` su una lista vuota | lista vuota = assente | Q-307 |
+| CRT-088, CRV-015 | Prefisso `member.` facoltativo | accettato con e senza | Q-307 |
+| CRT-092 | Età di chi è nato il 29 febbraio, il 28 febbraio di un anno non bisestile | compie gli anni il 1° marzo | Q-220 (vedi Q-307) |
+| CRT-096, CRT-097 | `registeredDaysAgo` a cavallo della mezzanotte di Roma e del cambio d'ora | blocchi di 24 h (non giorni di calendario di Roma) | Q-221 (vedi Q-307) |
+| CRT-115 | `not` con più regole (Q-90 aperta: «NESSUNA» o «non tutte») | «non tutte» | Q-90 (vedi Q-307) |
+| CRV-006 | Gruppo senza regole | non valido | Q-307 |
+| CRV-011 | `member.segments` nei criteri di un segmento (docs/03 §3.3 lo elenca in `member.*`) | campo non disponibile | Q-307 |
+| SEG-003 | Anteprima con criteri vuoti: 422 o 0 membri (Q-87) | 422 `INVALID_CRITERIA` | Q-308 (con Q-87) |
+| SEG-011 | Codice in minuscolo | normalizzato in maiuscolo | Q-308 |
+| SEG-012 | Nome del segmento obbligatorio | 422 `NAME_REQUIRED` | Q-308 |
+| SEG-015, 016 | Statico con membri inesistenti o anonimizzati | 422 `MEMBER_NOT_FOUND` | Q-308 |
+| SEG-017, SEG-021 | Codici d'errore di «solo STATIC» e «archiviato» | 409 `SEGMENT_NOT_STATIC`, 409 `SEGMENT_ARCHIVED` | Q-308 |
+| SEG-030 | Blocco ottimistico dei segmenti (Q-112 cita solo campagne, premi, concorsi) | 409 `VERSION_CONFLICT` | Q-308 (estende Q-112) |
+| REF-004, REF-005 | Codice invito in minuscolo o con spazi ai bordi | normalizzato: legame creato | Q-309 |
+| REF-022 | Invitante bloccato prima della prima azione qualificante dell'invitato | i due fatti `referral.completed` sono emessi comunque (il motore scarta quello dell'invitante con `NO_MEMBER`) | Q-309 (con Q-61) |
+| ENT-019, ENT-031, ENT-043 | `ACTIVATE`: sinonimo di `PUBLISH` per le campagne, azione sconosciuta per premi e concorsi | campagna `LIVE`; premio/concorso 422 `INVALID_ACTION` | Q-299 (con Q-245) |
+| APQ-008 | `requiredRole` di una campagna senza obbligo inviata in revisione (Q-193 riguarda solo il web) | `null` | Q-310 (con Q-193) |
+| MAT-009, MAT-010 | Istogramma degli istanti per CARE e ANALYST (docs/08 §2 dà «solo istogramma» solo a MARKETING) | ammesso | Q-303 |
+| MAT-012, 013, 028, 029, 033, 034, 043, 044, 047…049, 053, 054, 072, 073, 077, 078, 082…084 | Celle «—» senza ● di ruoli diversi da ANALYST: Q-176 registra il 403 solo per l'engagement | 403 (Q-176 esteso per analogia) | Q-302 (estende Q-176) |
 
 ## 14. Divergenze
 
@@ -1447,7 +1447,7 @@ Nessuna divergenza nelle aree di `lh-common` a logica pura (ACT, GRD, PRS, SMR, 
 | Rami senza specifica | 18 (B-02, B-03, B-04, B-10, B-13, B-25, B-26, B-28, B-33, B-36, B-37, B-38, B-50, B-51, B-54, B-59, B-60, B-61) → righe AMBIGUO |
 | Regole senza codice | 0 (lo storico delle transizioni dei contenuti, R-13 per i contenuti, c'è da D-04) |
 | Righe | 972 — ACT 14, GRD 30, PRS 16, SMR 56, SMN 10, SMF 56, ROL 60, CMT 14, OVR 22, POL 44, MST 41, MRL 74, ANO 47, ATV 70, ATD 29, ATU 14, CRT 118, CRV 27, SEG 30, REF 23, ENT 47, APQ 8, MAT 100, EFF 17, ANX 5 |
-| di cui AMBIGUO | 139 (§13), registrate in `docs/15` (Q-V1…Q-V13 e domande già aperte) |
+| di cui AMBIGUO | 139 (§13), registrate in `docs/15` (Q-298…Q-310 e domande già aperte) |
 | Tabelle complete | GRD 6 × 5; SMR e SMF 7 × 8; ROL 8 × 5 (+ 2 × 5, 1 × 5); OVR 2 × 2 × 5; POL campagna 2 × 2 × 7 e scheda 4 × 2; MST 4 × 8; MRL 12 × 6; ATV 4 × 16; CRT 14 × 4 e assente × 14; MAT 20 × 5; EFF 4 × 4 |
 | Riduzioni | stato × azione × ruolo × policy (560) → SMR + SMF (112) + SMN (10: le celle in cui la regola entra nel ramo, 46 identiche a SMR) + ROL (60), perché ruolo e stato sono controlli indipendenti e in sequenza, più 5 righe di precedenza; per tipo di oggetto (3 × 56) → 12 verifiche di cablaggio per tipo nell'hub (la logica è la stessa `GovernedTransitions`); policy spenta nell'hub → nessun contesto dedicato (stesso bean, tabelle SMF/ROL); tabella dei contenuti → TB-ENG; ACT, PRS, ANO, ATD, CRV, SEG → ogni classe non valida da sola sul caso valido (guasto singolo) |
 | Divergenze | 4 cause, 12 righe: D-01 (8), D-02 (2), D-03 (1, risolta da `main`), D-04 (1) → tutte risolte, 0 righe rosse |
