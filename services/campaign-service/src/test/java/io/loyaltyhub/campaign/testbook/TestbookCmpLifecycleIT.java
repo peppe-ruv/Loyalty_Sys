@@ -155,7 +155,8 @@ class TestbookCmpLifecycleIT {
             case "CREATE" -> it.expect("POST", "/v1/campaigns", actor, it.body(id, TRIGGER, null), http);
             case "UPDATE" -> {
                 String cid = it.create(id, TRIGGER, null).path("id").asString();
-                it.expect("PUT", "/v1/campaigns/" + cid, actor, Map.of("name", "Rinominata"), http);
+                it.expect("PUT", "/v1/campaigns/" + cid, actor,
+                        Map.of("name", "Rinominata", "version", it.get(cid).path("version").asLong()), http);
             }
             case "DUPLICATE" -> {
                 String cid = it.create(id, TRIGGER, null).path("id").asString();
@@ -197,7 +198,8 @@ class TestbookCmpLifecycleIT {
                 // CMP-BLACK-FRIDAY è requiresLegal nel seed (docs/10 §4): la copia conserva il flag, il budget si toglie.
                 JsonNode copy = it.expect("POST", "/v1/campaigns/" + it.idOf("CMP-BLACK-FRIDAY") + "/duplicate", MARKETING, null, 201).body();
                 cid = copy.path("id").asString();
-                it.expect("PUT", "/v1/campaigns/" + cid, MARKETING, Map.of("limits", Map.of()), 200);
+                it.expect("PUT", "/v1/campaigns/" + cid, MARKETING,
+                        Map.of("limits", Map.of(), "version", it.get(cid).path("version").asLong()), 200);
                 it.transition(cid, MARKETING, "PUBLISH", null, http);
             }
             case "REQUIRES_LEGAL_CREATE" -> {
@@ -207,7 +209,8 @@ class TestbookCmpLifecycleIT {
             }
             case "LOWERED" -> {
                 cid = it.create(id, TRIGGER, limits).path("id").asString();
-                it.expect("PUT", "/v1/campaigns/" + cid, MARKETING, Map.of("limits", Map.of("global", Map.of("maxPoints", 99_999))), 200);
+                it.expect("PUT", "/v1/campaigns/" + cid, MARKETING, Map.of("limits", Map.of("global", Map.of("maxPoints", 99_999)),
+                        "version", it.get(cid).path("version").asLong()), 200);
                 it.transition(cid, MARKETING, "PUBLISH", null, http);
             }
             case "MAX_MATCHES" -> {
@@ -252,9 +255,12 @@ class TestbookCmpLifecycleIT {
         if ("FULL_BODY".equals(body)) {
             Map<String, Object> full = it.body(id, TRIGGER, null);
             full.put("name", "Nome nuovo con corpo completo");
+            full.put("version", before.path("version").asLong()); // Q-249: la version letta è obbligatoria
             payload = full;
         } else {
-            payload = it.mapper.readTree(body);
+            tools.jackson.databind.node.ObjectNode edit = (tools.jackson.databind.node.ObjectNode) it.mapper.readTree(body);
+            edit.put("version", before.path("version").asLong()); // Q-249: la version letta è obbligatoria
+            payload = edit;
         }
 
         Resp r = it.expect("PUT", "/v1/campaigns/" + cid, MARKETING, payload, http);
@@ -279,8 +285,8 @@ class TestbookCmpLifecycleIT {
 
     /**
      * TB-CMP-VER / TB-CMP-DUP / TB-CMP-CRT: versioni (Q-112), duplica (F-CMP-13), creazione e lettura.
-     * TESTBOOK: ambiguo, vedi TB-CMP-VER-003 (PUT senza versione), TB-CMP-DUP-006 (flag system della copia): si asserisce
-     * il comportamento attuale.
+     * TESTBOOK: ambiguo, vedi TB-CMP-DUP-006 (flag system della copia): si asserisce il comportamento attuale.
+     * Q-249 DECISA (VER-003: PUT senza version ⇒ 409 VERSION_REQUIRED).
      */
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/cmp/version-duplicate.csv", numLinesToSkip = 1, delimiter = '|', quoteCharacter = '`')
@@ -350,7 +356,8 @@ class TestbookCmpLifecycleIT {
                 }
                 if ("EDIT_COPY".equals(scenario)) {
                     it.expect("PUT", "/v1/campaigns/" + copy.path("id").asString(), MARKETING,
-                            Map.of("effects", List.of(Map.of("type", "GRANT_POINTS", "currency", "PTS", "mode", "FIXED", "value", 77))), 200);
+                            Map.of("effects", List.of(Map.of("type", "GRANT_POINTS", "currency", "PTS", "mode", "FIXED", "value", 77)),
+                                    "version", copy.path("version").asLong()), 200);
                     assertThat(it.get(cid).path("effects").get(0).path("value").asInt()).as(id + " originale intatto").isEqualTo(10);
                 }
             }

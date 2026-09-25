@@ -28,7 +28,8 @@ class TestbookCmpLimitScheduleTest {
     /**
      * TB-CMP-LIM: limiti prima/alla/oltre la soglia, chiavi di periodo su Europe/Rome, budget punti e match.
      * TESTBOOK: ambiguo, vedi TB-CMP-LIM-008 e LIM-025 (edizione = anno solare, come Q-59), LIM-010 (periodo assente),
-     * LIM-011 (periodo sconosciuto), LIM-035 (accredito che supera il budget residuo): si asserisce il comportamento attuale.
+     * LIM-011 (periodo sconosciuto): si asserisce il comportamento attuale.
+     * Q-237 DECISA (LIM-026, LIM-035: l'accredito si riduce al budget residuo; {@code MATCHED:n} = punti attesi).
      */
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/cmp/limits.csv", numLinesToSkip = 1, delimiter = '|', quoteCharacter = '`')
@@ -39,10 +40,12 @@ class TestbookCmpLimitScheduleTest {
 
         Evaluation ev = engine().evaluate(action(TYPE, Instant.parse(time), "{}"), silver(), List.of(c), counters);
 
-        assertThat(outcomeOf(ev, "CMP-TB-LIM")).as(id).isEqualTo(expected);
-        if ("MATCHED".equals(expected)) {
-            assertThat(ev.effects()).as(id + " accredito pieno").singleElement()
-                    .satisfies(g -> assertThat(g.amount()).isEqualTo(100));
+        String[] exp = expected.split(":");
+        assertThat(outcomeOf(ev, "CMP-TB-LIM")).as(id).isEqualTo(exp[0]);
+        if ("MATCHED".equals(exp[0])) {
+            long points = exp.length > 1 ? Long.parseLong(exp[1]) : 100;
+            assertThat(ev.effects()).as(id + " accredito (pieno o ridotto al residuo)").singleElement()
+                    .satisfies(g -> assertThat(g.amount()).isEqualTo(points));
         } else {
             assertThat(ev.effects()).as(id + " nessun accredito").isEmpty();
         }
@@ -50,8 +53,9 @@ class TestbookCmpLimitScheduleTest {
 
     /**
      * TB-CMP-SCH: startAt/endAt agli istanti limite, giorni della settimana e fasce orarie su Europe/Rome.
-     * TESTBOOK: ambiguo, vedi TB-CMP-SCH-017 (ora finale della fascia inclusa), SCH-019 (fascia a cavallo della
-     * mezzanotte), SCH-023 (giorno minuscolo): si asserisce il comportamento attuale.
+     * TESTBOOK: ambiguo, vedi TB-CMP-SCH-019 (fascia a cavallo della mezzanotte), SCH-023 (giorno minuscolo): si
+     * asserisce il comportamento attuale.
+     * Q-238 DECISA (SCH-017: la fascia [9, 18] finisce alle 18:00, le 18:59:59 sono fuori; SCH-021 usa quindi [3, 4]).
      */
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/cmp/schedule.csv", numLinesToSkip = 1, delimiter = '|', quoteCharacter = '`')

@@ -3,6 +3,7 @@ package io.loyaltyhub.ingestion.api;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.common.ids.Ulid;
+import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.common.web.RequiresRole;
 import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.ingestion.application.IngestionService;
@@ -57,7 +58,12 @@ public class SimulatorController {
 
     @PostMapping("/fire")
     public List<FireResult> fire(@RequestBody FireRequest req) {
-        int count = req.count() == null ? 1 : Math.min(Math.max(req.count(), 1), 20);
+        // Q-268: ripetizioni 1–20 (BO-28); fuori intervallo è un errore, non si limita in silenzio.
+        if (req.count() != null && (req.count() < 1 || req.count() > 20)) {
+            throw LhException.validation("SIMULATOR_COUNT_OUT_OF_RANGE", "Le ripetizioni vanno da 1 a 20: " + req.count(),
+                    List.of(new LhException.FieldError("count", "tra 1 e 20")));
+        }
+        int count = req.count() == null ? 1 : req.count();
         String source = req.source() != null && !req.source().isBlank() ? req.source() : "simulator";
         String time = req.occurredAt() != null && !req.occurredAt().isBlank()
                 ? req.occurredAt() : clock.instant().toString();

@@ -23,8 +23,8 @@ Pulizia: `inbound_event` > 7 giorni (o oltre 20 000 righe: si eliminano le più 
 ### Ingresso (fonti esterne)
 | Metodo | Path | Note |
 |---|---|---|
-| POST | `/v1/events` | corpo = CloudEvent. `202 {eventId, status, memberId?, rejectCode?}`. Errori di forma → `400` RFC 9457 (corpo assente o non JSON, attributo obbligatorio mancante, `data` non oggetto, `time` non RFC 3339); rifiuti di business → `202` con `status=REJECTED` (la fonte non deve ritentare). `source` = `urn:loyaltyhub:source:<codice>` con confronto esatto sul codice (un URN di servizio o estraneo non è una fonte → `SOURCE_DISABLED`) |
-| POST | `/v1/transactions` | `{source, orderId, memberRef, amount, currency, channel, items[], occurredAt}` → azione `purchase.completed` con `id = "txn-" + orderId` (P1) |
+| POST | `/v1/events` | corpo = CloudEvent. `202 {eventId, status, memberId?, rejectCode?}`. Errori di forma → `400` RFC 9457 (corpo assente o non JSON, attributo obbligatorio mancante, `data` non oggetto, `time` non RFC 3339); rifiuti di business → `202` con `status=REJECTED` (la fonte non deve ritentare). `source` = `urn:loyaltyhub:source:<codice>` con confronto esatto sul codice (un URN di servizio o estraneo non è una fonte → `SOURCE_DISABLED`); la forma breve senza `:` (`ecommerce`) è un errore di forma → `400` (Q-258: resta ammessa solo ai chiamanti interni — simulatore, scenari, transazioni) |
+| POST | `/v1/transactions` | `{source, orderId, memberRef, amount, currency, channel, items[], occurredAt}` → azione `purchase.completed` con `id = "txn-" + orderId` (P1). `source`, `orderId`, `memberRef` mancanti o `kind` sconosciuto → `400`; `amount`/`currency` mancanti → l'azione si costruisce senza e lo schema la respinge: `202 REJECTED/INVALID_DATA`, visibile in BO-26 (Q-269) |
 
 ### Gestione (backoffice)
 | Metodo | Path | Note |
@@ -42,7 +42,7 @@ Pulizia: `inbound_event` > 7 giorni (o oltre 20 000 righe: si eliminano le più 
 ### Demo
 | Metodo | Path | Note |
 |---|---|---|
-| POST | `/v1/demo/simulator/fire` | `{memberId, type, data?, source?, occurredAt?, count?=1}`; `data` assente → `sample_data` del tipo con piccole variazioni casuali (numeri di primo livello: decimali ±20 %, interi ±10 %, nei limiti dello schema; due invii consecutivi diversi). Risposta: `[{eventId, correlationId, status}]` |
+| POST | `/v1/demo/simulator/fire` | `{memberId, type, data?, source?, occurredAt?, count?=1}`; `count` fuori 1–20 → `422 SIMULATOR_COUNT_OUT_OF_RANGE` (Q-268); `data` assente → `sample_data` del tipo con piccole variazioni casuali (numeri di primo livello: decimali ±20 %, interi ±10 %, nei limiti dello schema; due invii consecutivi diversi). Risposta: `[{eventId, correlationId, status}]` |
 | GET | `/v1/demo/scenarios` · POST `/v1/demo/scenarios/{code}/run` | esecuzione asincrona; `202 {runId}` |
 | GET | `/v1/demo/scenario-runs/{runId}` | avanzamento passo per passo con `correlationId` di ogni evento |
 
@@ -58,10 +58,10 @@ Pipeline di accettazione, in ordine; al primo fallimento si salva `inbound_event
 1. forma envelope valida (altrimenti `400`, nulla salvato);
 2. fonte esistente e abilitata → altrimenti `REJECTED/SOURCE_DISABLED`;
 3. tipo noto e abilitato, ammesso per la fonte → `UNKNOWN_TYPE` / `TYPE_NOT_ALLOWED`;
-4. `data` valido contro lo schema → `INVALID_DATA` (dettaglio = errori dello schema);
+4. `data` valido contro lo schema, poi i vincoli tra campi che lo schema non esprime (`quiz.completed`: `correctAnswers` ≤ `totalQuestions`, Q-265) → `INVALID_DATA` (dettaglio = errori);
 5. `time` non nel futuro (> 5 min) né più vecchio di 30 giorni → `INVALID_TIME`;
 6. dedup `(source, id)` → `DUPLICATE`;
-7. membro: `member:<id>` / `external:<x>` / `email:<x>` → non trovato → `UNMATCHED`; stato ≠ `ACTIVE` → `REJECTED/MEMBER_NOT_ACTIVE`;
+7. membro: `member:<id>` / `external:<x>` / `email:<x>` → non trovato → `UNMATCHED` (anche ogni altra forma: senza prefisso, prefisso sconosciuto, `member:` vuoto — Q-255, recuperabile con *Abbina*); stato ≠ `ACTIVE` → `REJECTED/MEMBER_NOT_ACTIVE`;
 8. arricchimento (`lh*`, `type` completo, `subject` normalizzato a `member:<id>`) → outbox → `ACCEPTED`.
 
 Ponte: per ogni fatto mappato crea l'azione secondo `docs/05 §7`; salva `inbound_event` con `origin=INTERNAL`; `lhhop > 3` → DLQ.

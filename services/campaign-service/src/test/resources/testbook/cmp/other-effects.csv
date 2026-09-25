@@ -5,7 +5,7 @@ TB-CMP-OEF-003|GRANT_PLAYS senza contestCode|[{"type":"GRANT_PLAYS","count":1}]|
 TB-CMP-OEF-004|GRANT_PLAYS con count 0|[{"type":"GRANT_PLAYS","contestCode":"IW-AUTUNNO","count":0}]|{}|UNSUPPORTED||
 TB-CMP-OEF-005|ISSUE_COUPON con rewardCode fisso|[{"type":"ISSUE_COUPON","rewardCode":"RWD-CAFFE"}]|{}|COUPON:RWD-CAFFE||
 TB-CMP-OEF-006|ISSUE_COUPON con rewardCodeField|[{"type":"ISSUE_COUPON","rewardCodeField":"data.rewardCode"}]|{"rewardCode":"RWD-BUONO-10"}|COUPON:RWD-BUONO-10||
-TB-CMP-OEF-007|ISSUE_COUPON con rewardCodeField assente dall'azione|[{"type":"ISSUE_COUPON","rewardCodeField":"data.rewardCode"}]|{}|MATCHED_NONE||
+TB-CMP-OEF-007|ISSUE_COUPON con rewardCodeField assente dall'azione|[{"type":"ISSUE_COUPON","rewardCodeField":"data.rewardCode"}]|{}|UNSUPPORTED||
 TB-CMP-OEF-008|ISSUE_COUPON senza rewardCode né rewardCodeField|[{"type":"ISSUE_COUPON"}]|{}|UNSUPPORTED||
 TB-CMP-OEF-009|AWARD_BADGE con badgeCode|[{"type":"AWARD_BADGE","badgeCode":"BDG-PRIMO"}]|{}|BADGE:BDG-PRIMO||
 TB-CMP-OEF-010|AWARD_BADGE senza badgeCode|[{"type":"AWARD_BADGE"}]|{}|UNSUPPORTED||

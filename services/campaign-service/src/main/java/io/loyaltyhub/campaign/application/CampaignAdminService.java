@@ -215,7 +215,12 @@ public class CampaignAdminService implements ApprovalSource {
             throw LhException.validation("CAMPAIGN_INVALID", String.join("; ", errors));
         }
         // SPEC-GAP: Q-112 — "versioni" (M7.6) = optimistic locking con 409, niente storico delle revisioni.
-        long expected = r.version() != null ? r.version() : c.version();
+        // Q-249: la version letta è obbligatoria (niente «vince l'ultima scrittura»).
+        if (r.version() == null) {
+            throw LhException.conflict("VERSION_REQUIRED",
+                    "Manca la versione della campagna: ricarica e riprova con la version letta.");
+        }
+        long expected = r.version();
         if (!campaigns.update(m, expected)) {
             throw LhException.conflict("VERSION_CONFLICT", "La campagna è stata modificata nel frattempo: ricarica e riprova.");
         }
@@ -441,6 +446,11 @@ public class CampaignAdminService implements ApprovalSource {
                         && e.path("badgeCode").asString("").isBlank()) {
                     errors.add("AWARD_BADGE.badgeCode obbligatorio");
                 }
+                // Q-228: il passo di PER_AMOUNT deve essere positivo (il motore scarta comunque la campagna).
+                if (e.path("type").asString("").equals("GRANT_POINTS") && e.path("unitStep").isNumber()
+                        && e.path("unitStep").decimalValue().signum() <= 0) {
+                    errors.add("GRANT_POINTS.unitStep deve essere maggiore di 0");
+                }
                 if (e.path("type").asString("").equals("SEND_MESSAGE")) {
                     String templateCode = e.path("templateCode").asString("");
                     if (templateCode.isBlank()) {
@@ -454,8 +464,12 @@ public class CampaignAdminService implements ApprovalSource {
                 }
             }
         }
+        errors.addAll(audienceErrors(r.audience()));
         JsonNode schedule = r.schedule();
-        if (schedule != null && schedule.has("startAt") && schedule.has("endAt")
+        // Q-243: ogni data del calendario presente deve essere un istante ISO-8601, anche da sola.
+        List<String> dateErrors = scheduleDateErrors(schedule);
+        errors.addAll(dateErrors);
+        if (dateErrors.isEmpty() && schedule != null && schedule.has("startAt") && schedule.has("endAt")
                 && !schedule.get("endAt").isNull() && !schedule.get("startAt").isNull()) {
             try {
                 if (!Instant.parse(schedule.get("endAt").asString())
@@ -469,6 +483,47 @@ public class CampaignAdminService implements ApprovalSource {
         return errors;
     }
 
+    /** Chiavi del pubblico previste da docs/03 §3.2 e F-CMP-06. */
+    private static final List<String> AUDIENCE_KEYS = List.of("all", "tiers", "segments");
+
+    /** Q-214: il pubblico è un oggetto con le sole chiavi {@code all}, {@code tiers}, {@code segments}. */
+    static List<String> audienceErrors(JsonNode audience) {
+        if (audience == null || audience.isNull()) {
+            return List.of();
+        }
+        if (!audience.isObject()) {
+            return List.of("audience deve essere un oggetto {all, tiers, segments}");
+        }
+        List<String> errors = new ArrayList<>();
+        for (Map.Entry<String, JsonNode> e : audience.properties()) {
+            String key = e.getKey();
+            if (!AUDIENCE_KEYS.contains(key)) {
+                errors.add("audience." + key + " non previsto (ammessi: all, tiers, segments)");
+            }
+        }
+        return errors;
+    }
+
+    /** Q-243: {@code startAt}/{@code endAt} presenti e non {@code null} devono essere istanti ISO-8601. */
+    static List<String> scheduleDateErrors(JsonNode schedule) {
+        if (schedule == null || !schedule.isObject()) {
+            return List.of();
+        }
+        List<String> errors = new ArrayList<>();
+        for (String key : List.of("startAt", "endAt")) {
+            JsonNode v = schedule.get(key);
+            if (v == null || v.isNull()) {
+                continue;
+            }
+            try {
+                Instant.parse(v.asString());
+            } catch (Exception e) {
+                errors.add("schedule." + key + " non è un istante ISO-8601 valido");
+            }
+        }
+        return errors;
+    }
+
     // ---------- portale ----------
 
     public List<PortalCampaignView> portal(String memberId, List<String> codes) {
@@ -477,7 +532,7 @@ public class CampaignAdminService implements ApprovalSource {
         List<PortalCampaignView> out = new ArrayList<>();
         for (Campaign c : cache.live()) {
             boolean listed = byCode ? codes.contains(c.code()) : c.visibleInPortal();
-            if (!listed || !audienceOk(c.audience(), snapshot)) {
+            if (!listed || !CampaignEngine.audienceOk(c.audience(), snapshot)) {
                 continue;
             }
             String endsAt = c.schedule() != null && c.schedule().hasNonNull("endAt")
@@ -495,37 +550,6 @@ public class CampaignAdminService implements ApprovalSource {
         }
         JsonNode first = perMember.get(0);
         return new PortalCampaignView.MemberLimit(first.path("max").asInt(0), first.path("period").asString(null));
-    }
-
-    private boolean audienceOk(JsonNode audience, MemberSnapshot member) {
-        if (audience == null || audience.isEmpty() || audience.path("all").asBoolean(false)) {
-            return true;
-        }
-        JsonNode tiers = audience.get("tiers");
-        JsonNode segments = audience.get("segments");
-        boolean hasTiers = tiers != null && tiers.isArray() && !tiers.isEmpty();
-        boolean hasSegments = segments != null && segments.isArray() && !segments.isEmpty();
-        if (!hasTiers && !hasSegments) {
-            return true;
-        }
-        if (member == null) {
-            return false;
-        }
-        if (hasTiers) {
-            for (JsonNode t : tiers) {
-                if (t.asString("").equals(member.tier())) {
-                    return true;
-                }
-            }
-        }
-        if (hasSegments) {
-            for (JsonNode s : segments) {
-                if (member.segments().contains(s.asString(""))) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     private String rewardSummary(JsonNode effects) {

@@ -15,10 +15,10 @@ TB-CMP-SCH-013|fine settimana: venerdì in UTC ma sabato a Roma|{"daysOfWeek":["
 TB-CMP-SCH-014|giorni della settimana vuoti|{"daysOfWeek":[]}|2026-09-15T09:00:00Z|true
 TB-CMP-SCH-015|fascia 9-18: 08:59:59 di Roma|{"hours":[9,18]}|2026-09-15T06:59:59Z|false
 TB-CMP-SCH-016|fascia 9-18: 09:00 di Roma|{"hours":[9,18]}|2026-09-15T07:00:00Z|true
-TB-CMP-SCH-017|fascia 9-18: 18:59:59 di Roma|{"hours":[9,18]}|2026-09-15T16:59:59Z|true
+TB-CMP-SCH-017|fascia 9-18: 18:59:59 di Roma|{"hours":[9,18]}|2026-09-15T16:59:59Z|false
 TB-CMP-SCH-018|fascia 9-18: 19:00 di Roma|{"hours":[9,18]}|2026-09-15T17:00:00Z|false
 TB-CMP-SCH-019|fascia a cavallo della mezzanotte 22-2 alle 23:00 di Roma|{"hours":[22,2]}|2026-09-15T21:00:00Z|false
 TB-CMP-SCH-020|fasce orarie null|{"hours":null}|2026-09-15T02:00:00Z|true
-TB-CMP-SCH-021|fascia 3-3 nel giorno del cambio ora di marzo (03:00 CEST)|{"hours":[3,3]}|2026-03-29T01:00:00Z|true
+TB-CMP-SCH-021|fascia 3-4 nel giorno del cambio ora di marzo (03:00 CEST)|{"hours":[3,4]}|2026-03-29T01:00:00Z|true
 TB-CMP-SCH-022|Black Friday: istante UTC prima di startAt ma già 27 novembre a Roma|{"startAt":"2026-11-27T00:00:00Z","endAt":"2026-11-30T23:59:59Z"}|2026-11-26T23:30:00Z|false
 TB-CMP-SCH-023|giorno della settimana minuscolo|{"daysOfWeek":["sat"]}|2026-09-19T09:00:00Z|true

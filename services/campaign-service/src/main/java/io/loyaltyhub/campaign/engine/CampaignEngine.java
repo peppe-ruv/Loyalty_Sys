@@ -79,7 +79,7 @@ public final class CampaignEngine {
                 results.add(Evaluation.CampaignResult.skipped(c.code(), c.name(), Evaluation.SkipReason.EXCLUSIVE));
                 continue;
             }
-            if (!supported(c.effects())) {
+            if (!supported(c.effects()) || !couponsResolvable(c.effects(), action)) {
                 results.add(Evaluation.CampaignResult.skipped(c.code(), c.name(),
                         Evaluation.SkipReason.EFFECT_NOT_SUPPORTED_YET));
                 continue;
@@ -102,9 +102,16 @@ public final class CampaignEngine {
         // Applica i moltiplicatori e costruisci gli effetti finali.
         List<GrantedEffect> effects = new ArrayList<>();
         Map<String, List<Evaluation.EffectResult>> effectsByCampaign = new LinkedHashMap<>();
+        Map<String, Long> residual = new LinkedHashMap<>();
         for (Grant g : grants) {
             double factor = multiplierFor(g, multipliers);
             long amount = (long) Math.floor(g.baseAmount * factor);
+            // Q-237: l'accredito si riduce al residuo del budget (e del tetto per membro, stessa scelta) della campagna.
+            Long left = residual.computeIfAbsent(g.campaignCode, code -> residualPoints(byCode(candidates, code), member, counters));
+            if (left != null) {
+                amount = Math.min(amount, left);
+                residual.put(g.campaignCode, left - Math.max(0, amount));
+            }
             if (amount <= 0) {
                 continue;
             }
@@ -167,16 +174,24 @@ public final class CampaignEngine {
         }
         JsonNode hours = schedule.get("hours");
         if (hours != null && hours.isArray() && hours.size() == 2) {
+            // Q-238: fascia [inizio, fine) — hours [9, 18] finisce alle 18:00 (le 18:xx sono fuori).
             int h = t.getHour();
-            if (h < hours.get(0).asInt() || h > hours.get(1).asInt()) {
+            if (h < hours.get(0).asInt() || h >= hours.get(1).asInt()) {
                 return false;
             }
         }
         return true;
     }
 
-    private boolean audienceOk(JsonNode audience, MemberSnapshot member) {
-        if (audience == null || audience.isEmpty() || audience.path("all").asBoolean(false)) {
+    /**
+     * Pubblico della campagna (docs/03 §3.2, F-CMP-06), condiviso da motore e portale. Pubblico assente ({@code null} o
+     * oggetto senza chiavi) = tutti (Q-213). Altrimenti gli elenchi non vuoti restringono sempre, anche con
+     * {@code all=true} (Q-210); {@code tiers} e {@code segments} insieme vanno soddisfatti entrambi (AND tra i criteri,
+     * OR dentro ciascuno, come il pubblico dei contenuti Q-161, Q-212); senza elenchi non vuoti vale solo
+     * {@code all=true}, altrimenti nessuno (Q-211). Un membro sconosciuto ({@code null}) è solo nel pubblico «tutti».
+     */
+    public static boolean audienceOk(JsonNode audience, MemberSnapshot member) {
+        if (audience == null || audience.isNull() || (audience.isObject() && audience.isEmpty())) {
             return true;
         }
         JsonNode tiers = audience.get("tiers");
@@ -184,23 +199,33 @@ public final class CampaignEngine {
         JsonNode segments = audience.get("segments");
         boolean hasSegments = segments != null && segments.isArray() && !segments.isEmpty();
         if (!hasTiers && !hasSegments) {
-            return true; // pubblico non ristretto
+            return audience.path("all").asBoolean(false); // Q-211: senza restrizioni e all non vero ⇒ nessuno
+        }
+        if (member == null) {
+            return false;
         }
         if (hasTiers) {
+            boolean in = false;
             for (JsonNode tr : tiers) {
                 if (tr.asString("").equals(member.tier())) {
-                    return true;
+                    in = true;
+                    break;
                 }
+            }
+            if (!in) {
+                return false;
             }
         }
         if (hasSegments) {
+            List<String> own = member.segments() == null ? List.of() : member.segments();
             for (JsonNode sg : segments) {
-                if (member.segments().contains(sg.asString(""))) {
+                if (own.contains(sg.asString(""))) {
                     return true;
                 }
             }
+            return false;
         }
-        return false;
+        return true;
     }
 
     private Evaluation.SkipReason checkLimits(Campaign c, EvalAction action, MemberSnapshot member, Counters counters) {
@@ -221,8 +246,9 @@ public final class CampaignEngine {
         }
         // F-CMP-05, docs/03 §3.2: tetto punti per membro e cooldown tra due match dello stesso membro.
         // SPEC-GAP: Q-165 — entrambi scartano con LIMIT; il tetto è sui punti decisi dalla campagna per il membro da
-        // sempre (≥ tetto → scarta, l'ultimo accredito non si riduce, come il budget); il cooldown si misura sul time
-        // di business dell'ultimo match (un'azione con time precedente all'ultimo match è dentro il cooldown).
+        // sempre (≥ tetto → scarta; sotto il tetto l'ultimo accredito si riduce al residuo, come il budget: Q-237); il
+        // cooldown si misura sul time di business dell'ultimo match (un'azione con time precedente all'ultimo match è
+        // dentro il cooldown).
         JsonNode perMemberPoints = limits.get("perMemberPoints");
         if (perMemberPoints != null && perMemberPoints.isNumber()
                 && counters.memberPoints(c.id(), member.memberId()) >= perMemberPoints.asLong()) {
@@ -246,6 +272,37 @@ public final class CampaignEngine {
             if (maxMatches != null && maxMatches.isNumber()
                     && counters.globalMatches(c.id()) >= maxMatches.asLong()) {
                 return Evaluation.SkipReason.BUDGET;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Punti che la campagna può ancora decidere: minimo tra il residuo di {@code limits.global.maxPoints} e quello di
+     * {@code limits.perMemberPoints} (Q-237, Q-165); {@code null} = nessun tetto in punti.
+     */
+    private static Long residualPoints(Campaign c, MemberSnapshot member, Counters counters) {
+        JsonNode limits = c == null ? null : c.limits();
+        if (limits == null || limits.isEmpty()) {
+            return null;
+        }
+        Long left = null;
+        JsonNode maxPoints = limits.path("global").get("maxPoints");
+        if (maxPoints != null && maxPoints.isNumber()) {
+            left = Math.max(0, maxPoints.asLong() - counters.globalPointsDecided(c.id()));
+        }
+        JsonNode perMemberPoints = limits.get("perMemberPoints");
+        if (perMemberPoints != null && perMemberPoints.isNumber()) {
+            long memberLeft = Math.max(0, perMemberPoints.asLong() - counters.memberPoints(c.id(), member.memberId()));
+            left = left == null ? memberLeft : Math.min(left, memberLeft);
+        }
+        return left;
+    }
+
+    private static Campaign byCode(List<Campaign> campaigns, String code) {
+        for (Campaign c : campaigns) {
+            if (c.code().equals(code)) {
+                return c;
             }
         }
         return null;
@@ -282,11 +339,33 @@ public final class CampaignEngine {
             }
             if (type.equals("GRANT_POINTS")) {
                 String mode = e.path("mode").asString("FIXED");
+                // Q-228: PER_AMOUNT con unitStep ≤ 0 è un effetto non valido (la validazione lo rifiuta già): scartato
+                // con tutta la campagna, come ogni effetto incompleto (Q-73, niente punti a metà).
+                if (mode.equals("PER_AMOUNT") && e.path("unitStep").isNumber() && e.path("unitStep").decimalValue().signum() <= 0) {
+                    return false;
+                }
                 if (mode.equals("FIXED") || mode.equals("PER_AMOUNT") || mode.equals("FROM_FIELD") || mode.equals("LOOKUP")) {
                     continue;
                 }
             }
             return false; // tipo sconosciuto o parametri mancanti
+        }
+        return true;
+    }
+
+    /**
+     * Q-232: un {@code ISSUE_COUPON} senza {@code rewardCode} fisso il cui {@code rewardCodeField} non si risolve
+     * dall'azione scarta l'intera campagna (stesso motivo {@code EFFECT_NOT_SUPPORTED_YET} di Q-73), prima dei limiti:
+     * niente campagna che scatta senza coupon consumando i limiti.
+     */
+    private boolean couponsResolvable(JsonNode effects, EvalAction action) {
+        for (JsonNode e : effects) {
+            if (e.path("type").asString("").equals("ISSUE_COUPON") && e.path("rewardCode").asString("").isBlank()) {
+                JsonNode v = navigate(action.data(), e.path("rewardCodeField").asString(""));
+                if (v == null || v.isNull() || v.asString("").isBlank()) {
+                    return false;
+                }
+            }
         }
         return true;
     }
@@ -351,11 +430,11 @@ public final class CampaignEngine {
             JsonNode stepNode = effect.get("unitStep");
             BigDecimal unitStep = stepNode != null && stepNode.isNumber() ? stepNode.decimalValue() : BigDecimal.ONE;
             if (unitStep.signum() <= 0) {
-                unitStep = BigDecimal.ONE;
+                return null; // Q-228: mai raggiunto (supported() scarta la campagna), difesa in profondità
             }
             RoundingMode roundingMode = switch (effect.path("rounding").asString("FLOOR")) {
                 case "CEIL" -> RoundingMode.CEILING;
-                case "ROUND" -> RoundingMode.HALF_UP;
+                case "ROUND" -> RoundingMode.HALF_DOWN; // Q-227: la metà esatta va per difetto (130,5 → 130)
                 default -> RoundingMode.FLOOR;
             };
             long rounded = amountNode.decimalValue().divide(unitStep, 0, roundingMode).longValue();

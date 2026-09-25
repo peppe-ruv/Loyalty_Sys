@@ -33,8 +33,10 @@ class TestbookCmpEffectTest {
 
     /**
      * TB-CMP-PTS: GRANT_POINTS FIXED / PER_AMOUNT / FROM_FIELD / LOOKUP con min/max e arrotondamenti ai limiti.
-     * TESTBOOK: ambiguo, vedi TB-CMP-PTS-011 (mode assente), PTS-019 (ROUND sulla metà esatta), PTS-033 (unitStep 0),
-     * PTS-034 (arrotondamento sconosciuto): si asserisce il comportamento attuale. PTS-039 segue Q-44.
+     * TESTBOOK: ambiguo, vedi TB-CMP-PTS-011 (mode assente), PTS-034 (arrotondamento sconosciuto): si asserisce il
+     * comportamento attuale. PTS-039 segue Q-44.
+     * Q-227 DECISA (PTS-019: ROUND sulla metà esatta per difetto, 130,5 → 130); Q-228 DECISA (PTS-033: unitStep 0
+     * scarta la campagna, EFFECT_NOT_SUPPORTED_YET).
      */
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/cmp/points.csv", numLinesToSkip = 1, delimiter = '|', quoteCharacter = '`')
@@ -126,8 +128,9 @@ class TestbookCmpEffectTest {
 
     /**
      * TB-CMP-OEF: effetti non monetari e scarto EFFECT_NOT_SUPPORTED_YET (docs/12 M1.3, Q-73).
-     * TESTBOOK: ambiguo, vedi TB-CMP-OEF-002, OEF-003, OEF-004, OEF-007, OEF-008, OEF-010, OEF-017, OEF-019 (parametri
+     * TESTBOOK: ambiguo, vedi TB-CMP-OEF-002, OEF-003, OEF-004, OEF-008, OEF-010, OEF-017, OEF-019 (parametri
      * mancanti o fuori forma non trattati da docs/03 §3.4): si asserisce il comportamento attuale.
+     * Q-232 DECISA (OEF-007: coupon non risolvibile dall'azione ⇒ campagna scartata, EFFECT_NOT_SUPPORTED_YET).
      */
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/cmp/other-effects.csv", numLinesToSkip = 1, delimiter = '|', quoteCharacter = '`')

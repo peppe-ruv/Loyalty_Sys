@@ -36,4 +36,4 @@ TB-CMP-VAL-034|date del calendario non valide|purchase.completed|[{"type":"GRANT
 TB-CMP-VAL-035|più errori insieme (niente trigger né effetti)|NULL|[]|||false|2
 TB-CMP-VAL-036|GRANT_POINTS con mode sconosciuto|purchase.completed|[{"type":"GRANT_POINTS","currency":"PTS","mode":"PERCENT","value":10}]|||true|0
 TB-CMP-VAL-037|condizione con comparatore sconosciuto|purchase.completed|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]||{"op":"all","rules":[{"field":"data.amount","cmp":"regex","value":"1"}]}|true|0
-TB-CMP-VAL-038|startAt non valido senza endAt|purchase.completed|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]|{"startAt":"2026-13-01"}||true|0
+TB-CMP-VAL-038|startAt non valido senza endAt|purchase.completed|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]|{"startAt":"2026-13-01"}||false|1

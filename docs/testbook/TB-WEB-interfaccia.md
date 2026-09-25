@@ -709,9 +709,9 @@ preposizione «a», singolare/plurale, campo di FROM_FIELD e LOOKUP (vedi regist
 | TB-WEB-DESC-024 | gruppo NESSUNA con due righe | «non (a e b)» come le valuta il motore (Q-90) | docs/08 §BO-06 · Q-90 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-025 | gruppo vuoto | nessun «se» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-026 | gruppi annidati (TUTTE › ALMENO UNA) | «a e (b oppure c)» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
-| TB-WEB-DESC-027 | pubblico «tutti» | nessuna frase sul pubblico | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
+| TB-WEB-DESC-027 | pubblico «tutti» (`all=true`, elenchi vuoti); `all=true` con tier GOLD | nessuna frase sul pubblico; con GOLD «il membro è **GOLD**» (Q-210 DECISA: gli elenchi restringono anche con `all=true`) | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-028 | pubblico GOLD o PLATINUM | «il membro è **GOLD o PLATINUM**» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
-| TB-WEB-DESC-029 | pubblico con elenchi vuoti | nessuna frase sul pubblico | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
+| TB-WEB-DESC-029 | pubblico con elenchi vuoti | «il pubblico è **vuoto** (non scatta per nessuno)» (Q-211 DECISA: senza elenchi e `all` non vero = nessuno) | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-030 | pubblico per segmenti | AMBIGUO — «è nel segmento **SEG-1 o SEG-2**» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-031 | condizioni e pubblico insieme | prima le condizioni, poi il pubblico (come nell'esempio) | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |
 | TB-WEB-DESC-032 | GRANT_POINTS FIXED 300 PTS | «assegna **300 PTS**» | docs/08 §BO-06 | `web/lib/campaign/describe.testbook.test.ts` |

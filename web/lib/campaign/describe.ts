@@ -112,8 +112,13 @@ function sourcesPhrase(sources?: string[]): string {
   return sources && sources.length > 0 ? ` da ${sources.join(" o ")}` : "";
 }
 
+// Stessa regola del motore (campaign §5): pubblico assente o `{}` = tutti (Q-213); gli elenchi non vuoti restringono
+// anche con `all=true` (Q-210) e vanno soddisfatti entrambi (Q-212); senza elenchi e `all` non vero = nessuno (Q-211).
 function audiencePhrase(a?: CampaignDraft["audience"]): string | null {
-  if (!a || a.all || (!a.tiers?.length && !a.segments?.length)) return null;
+  if (!a || Object.keys(a).length === 0) return null;
+  if (!a.tiers?.length && !a.segments?.length) {
+    return a.all ? null : `il pubblico è ${bold("vuoto")} (non scatta per nessuno)`;
+  }
   const parts: string[] = [];
   if (a.tiers?.length) parts.push(`il membro è ${bold(a.tiers.join(" o "))}`);
   if (a.segments?.length) parts.push(`è nel segmento ${bold(a.segments.join(" o "))}`);

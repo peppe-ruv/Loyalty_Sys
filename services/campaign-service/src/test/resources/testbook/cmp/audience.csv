@@ -1,35 +1,35 @@
 id|descrizione|audience|tier|segmenti|atteso
 TB-CMP-AUD-001|all=true tiers=[] segments=[]|{"all":true,"tiers":[],"segments":[]}|SILVER|SEG-A,SEG-B|MATCHED
 TB-CMP-AUD-002|all=true tiers=[] segments=[SEG-A]|{"all":true,"tiers":[],"segments":["SEG-A"]}|SILVER|SEG-A,SEG-B|MATCHED
-TB-CMP-AUD-003|all=true tiers=[] segments=[SEG-Z]|{"all":true,"tiers":[],"segments":["SEG-Z"]}|SILVER|SEG-A,SEG-B|MATCHED
+TB-CMP-AUD-003|all=true tiers=[] segments=[SEG-Z]|{"all":true,"tiers":[],"segments":["SEG-Z"]}|SILVER|SEG-A,SEG-B|AUDIENCE
 TB-CMP-AUD-004|all=true tiers=[SILVER] segments=[]|{"all":true,"tiers":["SILVER"],"segments":[]}|SILVER|SEG-A,SEG-B|MATCHED
 TB-CMP-AUD-005|all=true tiers=[SILVER] segments=[SEG-A]|{"all":true,"tiers":["SILVER"],"segments":["SEG-A"]}|SILVER|SEG-A,SEG-B|MATCHED
-TB-CMP-AUD-006|all=true tiers=[SILVER] segments=[SEG-Z]|{"all":true,"tiers":["SILVER"],"segments":["SEG-Z"]}|SILVER|SEG-A,SEG-B|MATCHED
-TB-CMP-AUD-007|all=true tiers=[GOLD,PLATINUM] segments=[]|{"all":true,"tiers":["GOLD","PLATINUM"],"segments":[]}|SILVER|SEG-A,SEG-B|MATCHED
-TB-CMP-AUD-008|all=true tiers=[GOLD,PLATINUM] segments=[SEG-A]|{"all":true,"tiers":["GOLD","PLATINUM"],"segments":["SEG-A"]}|SILVER|SEG-A,SEG-B|MATCHED
-TB-CMP-AUD-009|all=true tiers=[GOLD,PLATINUM] segments=[SEG-Z]|{"all":true,"tiers":["GOLD","PLATINUM"],"segments":["SEG-Z"]}|SILVER|SEG-A,SEG-B|MATCHED
-TB-CMP-AUD-010|all=false tiers=[] segments=[]|{"all":false,"tiers":[],"segments":[]}|SILVER|SEG-A,SEG-B|MATCHED
+TB-CMP-AUD-006|all=true tiers=[SILVER] segments=[SEG-Z]|{"all":true,"tiers":["SILVER"],"segments":["SEG-Z"]}|SILVER|SEG-A,SEG-B|AUDIENCE
+TB-CMP-AUD-007|all=true tiers=[GOLD,PLATINUM] segments=[]|{"all":true,"tiers":["GOLD","PLATINUM"],"segments":[]}|SILVER|SEG-A,SEG-B|AUDIENCE
+TB-CMP-AUD-008|all=true tiers=[GOLD,PLATINUM] segments=[SEG-A]|{"all":true,"tiers":["GOLD","PLATINUM"],"segments":["SEG-A"]}|SILVER|SEG-A,SEG-B|AUDIENCE
+TB-CMP-AUD-009|all=true tiers=[GOLD,PLATINUM] segments=[SEG-Z]|{"all":true,"tiers":["GOLD","PLATINUM"],"segments":["SEG-Z"]}|SILVER|SEG-A,SEG-B|AUDIENCE
+TB-CMP-AUD-010|all=false tiers=[] segments=[]|{"all":false,"tiers":[],"segments":[]}|SILVER|SEG-A,SEG-B|AUDIENCE
 TB-CMP-AUD-011|all=false tiers=[] segments=[SEG-A]|{"all":false,"tiers":[],"segments":["SEG-A"]}|SILVER|SEG-A,SEG-B|MATCHED
 TB-CMP-AUD-012|all=false tiers=[] segments=[SEG-Z]|{"all":false,"tiers":[],"segments":["SEG-Z"]}|SILVER|SEG-A,SEG-B|AUDIENCE
 TB-CMP-AUD-013|all=false tiers=[SILVER] segments=[]|{"all":false,"tiers":["SILVER"],"segments":[]}|SILVER|SEG-A,SEG-B|MATCHED
 TB-CMP-AUD-014|all=false tiers=[SILVER] segments=[SEG-A]|{"all":false,"tiers":["SILVER"],"segments":["SEG-A"]}|SILVER|SEG-A,SEG-B|MATCHED
-TB-CMP-AUD-015|all=false tiers=[SILVER] segments=[SEG-Z]|{"all":false,"tiers":["SILVER"],"segments":["SEG-Z"]}|SILVER|SEG-A,SEG-B|MATCHED
+TB-CMP-AUD-015|all=false tiers=[SILVER] segments=[SEG-Z]|{"all":false,"tiers":["SILVER"],"segments":["SEG-Z"]}|SILVER|SEG-A,SEG-B|AUDIENCE
 TB-CMP-AUD-016|all=false tiers=[GOLD,PLATINUM] segments=[]|{"all":false,"tiers":["GOLD","PLATINUM"],"segments":[]}|SILVER|SEG-A,SEG-B|AUDIENCE
-TB-CMP-AUD-017|all=false tiers=[GOLD,PLATINUM] segments=[SEG-A]|{"all":false,"tiers":["GOLD","PLATINUM"],"segments":["SEG-A"]}|SILVER|SEG-A,SEG-B|MATCHED
+TB-CMP-AUD-017|all=false tiers=[GOLD,PLATINUM] segments=[SEG-A]|{"all":false,"tiers":["GOLD","PLATINUM"],"segments":["SEG-A"]}|SILVER|SEG-A,SEG-B|AUDIENCE
 TB-CMP-AUD-018|all=false tiers=[GOLD,PLATINUM] segments=[SEG-Z]|{"all":false,"tiers":["GOLD","PLATINUM"],"segments":["SEG-Z"]}|SILVER|SEG-A,SEG-B|AUDIENCE
-TB-CMP-AUD-019|all assente tiers=[] segments=[]|{"tiers":[],"segments":[]}|SILVER|SEG-A,SEG-B|MATCHED
+TB-CMP-AUD-019|all assente tiers=[] segments=[]|{"tiers":[],"segments":[]}|SILVER|SEG-A,SEG-B|AUDIENCE
 TB-CMP-AUD-020|all assente tiers=[] segments=[SEG-A]|{"tiers":[],"segments":["SEG-A"]}|SILVER|SEG-A,SEG-B|MATCHED
 TB-CMP-AUD-021|all assente tiers=[] segments=[SEG-Z]|{"tiers":[],"segments":["SEG-Z"]}|SILVER|SEG-A,SEG-B|AUDIENCE
 TB-CMP-AUD-022|all assente tiers=[SILVER] segments=[]|{"tiers":["SILVER"],"segments":[]}|SILVER|SEG-A,SEG-B|MATCHED
 TB-CMP-AUD-023|all assente tiers=[SILVER] segments=[SEG-A]|{"tiers":["SILVER"],"segments":["SEG-A"]}|SILVER|SEG-A,SEG-B|MATCHED
-TB-CMP-AUD-024|all assente tiers=[SILVER] segments=[SEG-Z]|{"tiers":["SILVER"],"segments":["SEG-Z"]}|SILVER|SEG-A,SEG-B|MATCHED
+TB-CMP-AUD-024|all assente tiers=[SILVER] segments=[SEG-Z]|{"tiers":["SILVER"],"segments":["SEG-Z"]}|SILVER|SEG-A,SEG-B|AUDIENCE
 TB-CMP-AUD-025|all assente tiers=[GOLD,PLATINUM] segments=[]|{"tiers":["GOLD","PLATINUM"],"segments":[]}|SILVER|SEG-A,SEG-B|AUDIENCE
-TB-CMP-AUD-026|all assente tiers=[GOLD,PLATINUM] segments=[SEG-A]|{"tiers":["GOLD","PLATINUM"],"segments":["SEG-A"]}|SILVER|SEG-A,SEG-B|MATCHED
+TB-CMP-AUD-026|all assente tiers=[GOLD,PLATINUM] segments=[SEG-A]|{"tiers":["GOLD","PLATINUM"],"segments":["SEG-A"]}|SILVER|SEG-A,SEG-B|AUDIENCE
 TB-CMP-AUD-027|all assente tiers=[GOLD,PLATINUM] segments=[SEG-Z]|{"tiers":["GOLD","PLATINUM"],"segments":["SEG-Z"]}|SILVER|SEG-A,SEG-B|AUDIENCE
 TB-CMP-AUD-028|audience assente (null)||SILVER|SEG-A,SEG-B|MATCHED
 TB-CMP-AUD-029|tier del membro assente con pubblico per tier|{"all":false,"tiers":["SILVER"],"segments":[]}||SEG-A,SEG-B|AUDIENCE
 TB-CMP-AUD-030|membro senza segmenti con pubblico per segmento|{"all":false,"tiers":[],"segments":["SEG-A"]}|SILVER||AUDIENCE
-TB-CMP-AUD-031|chiave labels non prevista dal pubblico|{"all":false,"labels":["VIP"]}|SILVER|SEG-A,SEG-B|MATCHED
-TB-CMP-AUD-032|chiave attributes non prevista dal pubblico|{"all":false,"attributes":{"city":"Roma"}}|SILVER|SEG-A,SEG-B|MATCHED
+TB-CMP-AUD-031|chiave labels non prevista dal pubblico|{"all":false,"labels":["VIP"]}|SILVER|SEG-A,SEG-B|AUDIENCE
+TB-CMP-AUD-032|chiave attributes non prevista dal pubblico|{"all":false,"attributes":{"city":"Roma"}}|SILVER|SEG-A,SEG-B|AUDIENCE
 TB-CMP-AUD-033|codice tier con maiuscole diverse|{"all":false,"tiers":["silver"],"segments":[]}|SILVER|SEG-A,SEG-B|AUDIENCE
 TB-CMP-AUD-034|secondo segmento della lista posseduto|{"all":false,"tiers":[],"segments":["SEG-Z","SEG-B"]}|SILVER|SEG-A,SEG-B|MATCHED

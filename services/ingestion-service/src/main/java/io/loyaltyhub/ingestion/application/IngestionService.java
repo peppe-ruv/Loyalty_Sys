@@ -10,6 +10,7 @@ import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.common.outbox.OutboxWriter;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.ingestion.api.InboundEventRequest;
+import io.loyaltyhub.ingestion.domain.CrossFieldRules;
 import io.loyaltyhub.ingestion.domain.EventType;
 import io.loyaltyhub.ingestion.domain.Evaluation;
 import io.loyaltyhub.ingestion.domain.IngestResult;
@@ -150,12 +151,16 @@ public class IngestionService {
             return o.rejected(null, RejectCode.TYPE_NOT_ALLOWED, RejectDetails.typeNotAllowed(sourceCode, shortType));
         }
 
-        // 4. data valido contro lo schema del tipo.
+        // 4. data valido contro lo schema del tipo, poi i vincoli tra campi che lo schema non esprime (Q-265).
         if (type.get().hasSchema()) {
             List<String> errors = schemaValidator.validate(type.get().schemaCacheKey(), type.get().dataSchema(), request.data().toString());
             if (!errors.isEmpty()) {
                 return o.rejected(null, RejectCode.INVALID_DATA, String.join("; ", errors));
             }
+        }
+        List<String> crossErrors = CrossFieldRules.errors(shortType, request.data());
+        if (!crossErrors.isEmpty()) {
+            return o.rejected(null, RejectCode.INVALID_DATA, String.join("; ", crossErrors));
         }
 
         // 5. time nella finestra ammessa.
@@ -258,7 +263,10 @@ public class IngestionService {
         }
     }
 
-    /** Risolve il membro dal {@code subject}: {@code member:<id>} / {@code external:<x>} / {@code email:<x>}. */
+    /**
+     * Risolve il membro dal {@code subject}: solo {@code member:<id>} / {@code external:<x>} / {@code email:<x>}
+     * (F-ING-03, §5.7); qualsiasi altra forma non si risolve (Q-255).
+     */
     private Optional<MemberRef> resolveMember(String subject) {
         if (subject.startsWith("member:")) {
             return memberIndex.findByMemberId(subject.substring("member:".length()));
@@ -269,8 +277,8 @@ public class IngestionService {
         if (subject.startsWith("email:")) {
             return memberIndex.findByEmail(subject.substring("email:".length()));
         }
-        // Nessun prefisso riconosciuto: tentativo indulgente come id membro.
-        return memberIndex.findByMemberId(subject);
+        // Q-255: ogni forma non prevista (senza prefisso, prefisso sconosciuto) ⇒ UNMATCHED, recuperabile con Abbina.
+        return Optional.empty();
     }
 
     /** Envelope CloudEvent canonico: id/correlation dalla fonte, hop 0, source come URN, actor nullo. */
@@ -303,7 +311,8 @@ public class IngestionService {
         if (source.startsWith(LhSource.SOURCE_PREFIX) || source.indexOf(':') >= 0) {
             return source;
         }
-        // SPEC-GAP: Q-258 — forma breve (senza URN) accettata e normalizzata (comportamento indulgente del PoC).
+        // Q-258: forma breve (senza URN) normalizzata solo per i chiamanti interni (simulatore, scenari, transazioni);
+        // POST /v1/events la rifiuta prima con 400 (EventsController).
         return LhSource.source(source);
     }
 

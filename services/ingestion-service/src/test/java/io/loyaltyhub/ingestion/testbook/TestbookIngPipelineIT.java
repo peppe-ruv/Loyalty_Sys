@@ -176,7 +176,8 @@ class TestbookIngPipelineIT extends TestbookIngHarness {
         return rows("src.csv", this::srcRow);
     }
 
-    // TESTBOOK: ambiguo, vedi TB-ING-SRC-067, TB-ING-SRC-070 (atteso = comportamento attuale, marcato AMBIGUO nel CSV)
+    // TESTBOOK: ambiguo, vedi TB-ING-SRC-070 (atteso = comportamento attuale, marcato AMBIGUO nel CSV)
+    // Q-258 DECISA: TB-ING-SRC-067 — forma breve da una fonte esterna ⇒ 400, nulla salvato (stato atteso «400»)
     void srcRow(Row a) {
         String source = a.getString(2), type = a.getString(3), status = a.getString(4), code = a.getString(5);
         String sourceValue;
@@ -197,7 +198,17 @@ class TestbookIngPipelineIT extends TestbookIngHarness {
         String id = freshEventId();
         ObjectNode e = event(id, "x", type, "member:" + m.memberId(), Instant.now(), sample(type));
         e.put("source", sourceValue);
-        assertOutcome(postEvent(e), id, status, code);
+        Response r = postEvent(e);
+        if ("400".equals(status)) {
+            assertThat(r.status()).as("HTTP (corpo: %s)", r.body()).isEqualTo(400);
+            assertThat(r.body().path("status").asInt()).as("problem RFC 9457").isEqualTo(400);
+            assertThat(r.text("detail")).as("il dettaglio indica il campo").contains("source");
+            assertThat(jdbc.sql("SELECT count(*) FROM inbound_event WHERE event_id = ?").param(id).query(Long.class).single())
+                    .as("nulla salvato").isZero();
+            assertThat(publicationsById(id)).as("nulla pubblicato").isZero();
+            return;
+        }
+        assertOutcome(r, id, status, code);
     }
 
     private JsonNode sample(String type) {
@@ -260,7 +271,7 @@ class TestbookIngPipelineIT extends TestbookIngHarness {
         return rows("sch.csv", this::schRow);
     }
 
-    // TESTBOOK: ambiguo, vedi TB-ING-SCH-083 (atteso = comportamento attuale, marcato AMBIGUO nel CSV)
+    // Q-265 DECISA: TB-ING-SCH-083 — correctAnswers > totalQuestions ⇒ REJECTED/INVALID_DATA (vincolo tra campi)
     void schRow(Row a) {
         String type = a.getString(2), data = a.getString(3), status = a.getString(4), code = a.getString(5),
                 field = a.getString(6);
@@ -381,7 +392,9 @@ class TestbookIngPipelineIT extends TestbookIngHarness {
                 assertOutcome(postEvent(ev), id, "ACCEPTED", "-");
                 ObjectNode shortSrc = ev.deepCopy();
                 shortSrc.put("source", src);
-                assertOutcome(postEvent(shortSrc), id, "DUPLICATE", "-");
+                // Q-258 DECISA: la forma breve da una fonte esterna è un errore di forma (400), mai un secondo invio.
+                assertThat(postEvent(shortSrc).status()).as("forma breve ⇒ 400").isEqualTo(400);
+                assertThat(countStatus(src, id, "DUPLICATE")).as("nessuna riga DUPLICATE").isZero();
                 assertThat(publicationsById(id)).isEqualTo(1);
             }
             case "shortVsFullType" -> {
@@ -434,7 +447,8 @@ class TestbookIngPipelineIT extends TestbookIngHarness {
         return rows("mbr.csv", this::mbrRow);
     }
 
-    // TESTBOOK: ambiguo, vedi TB-ING-MBR-025…TB-ING-MBR-033 (atteso = comportamento attuale, marcato AMBIGUO nel CSV)
+    // Q-255 DECISA: TB-ING-MBR-025…TB-ING-MBR-033 — ogni forma non prevista del subject (senza prefisso, prefisso
+    // sconosciuto, member: vuoto) ⇒ UNMATCHED qualunque sia il membro; external: a confronto esatto
     void mbrRow(Row a) {
         String form = a.getString(2), state = a.getString(3), status = a.getString(4), code = a.getString(5),
                 member = a.getString(6);
