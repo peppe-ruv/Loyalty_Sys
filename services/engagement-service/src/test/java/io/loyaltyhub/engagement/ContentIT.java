@@ -247,12 +247,22 @@ class ContentIT {
         send("POST", "/v1/portal/popups/POP-IT-DAILY/seen", null, Map.of("memberId", "MBR-000010", "dismissed", false), 204);
         send("POST", "/v1/portal/popups/POP-IT-DAILY/seen", null, Map.of("memberId", "MBR-000010", "dismissed", true), 204);
         assertThat(count("SELECT count(*) FROM popup_view WHERE member_id = 'MBR-000010'")).as("una riga per giorno").isEqualTo(1);
-        assertThat(status("GET", "/v1/portal/popups/next?memberId=MBR-000010", null, null)).isEqualTo(204);
+        // Dopo la vista del giorno POP-IT-DAILY non torna; nel fine settimana può comparire POP-WEEKEND del seed
+        // (daysOfWeek SAT/SUN), quindi si accetta 204 oppure un altro pop-up.
+        assertThat(popupShown("MBR-000010")).isNotEqualTo("POP-IT-DAILY");
 
         // Il giorno dopo: la vista registrata è di ieri.
         jdbc.sql("UPDATE popup_view SET view_date = view_date - 1 WHERE content_id = ? AND member_id = 'MBR-000010'")
                 .param(created.path("id").asString()).update();
         assertThat(get("/v1/portal/popups/next?memberId=MBR-000010").path("code").asString()).isEqualTo("POP-IT-DAILY");
+    }
+
+    /** Codice del pop-up proposto al membro, o {@code null} se non ce n'è (204). */
+    private String popupShown(String memberId) {
+        if (status("GET", "/v1/portal/popups/next?memberId=" + memberId, null, null) == 204) {
+            return null;
+        }
+        return get("/v1/portal/popups/next?memberId=" + memberId).path("code").asString();
     }
 
     @Test
