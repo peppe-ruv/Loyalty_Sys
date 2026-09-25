@@ -1,3 +1,291 @@
 ---
-title: "frontend-backoffice"
+title: "Backoffice: 30 schermate per operare il programma"
+sidebarTitle: "Backoffice"
+description: "Shell, matrice permessi e schermate BO-01 a BO-30 del backoffice Loyalty Hub per gestire programma, premi, gioco e contenuti."
 ---
+
+Il backoffice di Loyalty Hub vive sotto `/backoffice` nell'app `web/`. È l'unico strumento operativo: gestisce il programma fedeltà, i premi, il gioco e i contenuti del portale membro (fa anche da CMS). In questa pagina trovi la shell di navigazione, la matrice dei permessi per persona, i pattern comuni e la sintesi delle 30 schermate `BO-01` a `BO-30`.
+
+Per le fondamenta di stack, token, stati e proxy consulta [Fondamenta frontend](/specifiche/frontend-fondamenta). Notazione endpoint: `<servizio> <METODO> <path>` = chiamata a `/api/lh/<servizio><path>`.
+
+## Shell e navigazione
+
+Layout a tre colonne su desktop:
+
+- **Sidebar** scura 232 px, a gruppi, voce attiva con barra teal. Contatori numerici su _Approvazioni_ (oggetti `IN_REVIEW`), _Richieste premio_ e _DLQ_ aggiornati ogni 30 s.
+- **Barra alta**: breadcrumb, ricerca globale `⌘K` (membri, campagne, premi, concorsi), stato demo (pillola con salute dei servizi), selettore persona (5 personas + "Vai al portale come...").
+- **Rail eventi** a destra (320 px), alimentato da `useLiveEvents()`, chiudibile sotto 1280 px, stato in `localStorage`.
+- **Contenuto centrale** max 1440 px, padding 24 px.
+
+Sotto 1024 px la sidebar diventa un cassetto; le tabelle scorrono con la prima colonna fissa. Le voci di menu appartenenti a milestone non ancora realizzate non compaiono (flag in `lib/nav.ts`).
+
+### Mappa navigazione
+
+| Gruppo | Voce | ID | Route (`/backoffice…`) | Milestone |
+| --- | --- | --- | --- | --- |
+| Panoramica | Dashboard | BO-01 | `/` | M2 |
+| Clienti | Membri | BO-02 | `/members` | M1 |
+| Clienti | Scheda 360° | BO-03 | `/members/[id]` | M1→M6 |
+| Clienti | Segmenti | BO-04 | `/segments` | M6 |
+| Programma | Campagne | BO-05 | `/campaigns` | M1 |
+| Programma | Editor campagna | BO-06 | `/campaigns/[id]` | M1 |
+| Programma | Livelli | BO-07 | `/program/tiers` | M3 |
+| Programma | Valute ed edizioni | BO-08 | `/program/currencies` | M3 |
+| Programma | Azioni e fonti | BO-09 | `/program/actions` | M1 |
+| Premi | Catalogo | BO-10 | `/rewards` | M4 |
+| Premi | Fasce | BO-11 | `/rewards/bands` | M4 |
+| Premi | Coupon | BO-12 | `/rewards/coupons` | M4 |
+| Premi | Richieste premio | BO-13 | `/rewards/redemptions` | M4 |
+| Gioco | Concorsi | BO-14 | `/game/contests` | M5 |
+| Gioco | Obiettivi e badge | BO-15 | `/game/achievements` | M5 |
+| Gioco | Classifiche | BO-16 | `/game/leaderboards` | M5 |
+| Gioco | Referral | BO-17 | `/game/referral` | M5 |
+| Contenuti | Card e pop-up | BO-18 | `/content` | M6 |
+| Contenuti | Messaggi | BO-19 | `/content/messages` | M6 |
+| Contenuti | Tema e brand | BO-20 | `/content/theme` | M6 |
+| Governance | Approvazioni | BO-21 | `/governance/approvals` | M7 |
+| Governance | Audit | BO-22 | `/governance/audit` | M2 |
+| Governance | Webhook | BO-23 | `/governance/webhooks` | M7 |
+| Osservabilità | Flusso live | BO-24 | `/observe/live` | M2 |
+| Osservabilità | Tracciati | BO-25 | `/observe/traces` | M2 |
+| Osservabilità | Monitor ingressi | BO-26 | `/observe/inbound` | M1 |
+| Osservabilità | DLQ | BO-27 | `/observe/dlq` | M7 |
+| Demo | Simulatore eventi | BO-28 | `/demo/simulator` | M1 |
+| Demo | Scenari | BO-29 | `/demo/scenarios` | M2 |
+| Demo | Console demo | BO-30 | `/demo/console` | M1 |
+
+## Matrice permessi
+
+Tutte le personas leggono tutto (con una sola eccezione, gli istanti vincenti). La UI nasconde o disabilita le azioni; il backend rifiuta con `403` dove serve (`@RequiresRole`). Il backend rifiuta inoltre ogni scrittura di `ANALYST`.
+
+| Capacità | ADMIN | MARKETING | LEGAL | CARE | ANALYST |
+| --- | :-: | :-: | :-: | :-: | :-: |
+| Lettura schermate | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `instants.view` | ✓ | solo istogramma | ✓ |  |  |
+| `member.write` | ✓ |  |  | ✓ |  |
+| `member.anonymize` | ✓ |  |  |  |  |
+| `points.adjust` | ✓ |  |  | ✓ |  |
+| `segment.write` | ✓ | ✓ |  |  |  |
+| `object.edit` | ✓ | ✓ |  |  |  |
+| `object.approve` | ✓ (override) |  | ✓ |  |  |
+| `content.write` | ✓ | ✓ |  |  |  |
+| `program.config` | ✓ |  |  |  |  |
+| `actiontype.custom` | ✓ | ✓ |  |  |  |
+| `edition.close` (apply) | ✓ |  |  |  |  |
+| `redemption.handle` | ✓ |  |  | ✓ |  |
+| `delivery.handle` | ✓ |  |  | ✓ |  |
+| `coupon.void` | ✓ |  |  | ✓ |  |
+| `inbound.handle` | ✓ |  |  | ✓ |  |
+| `webhook.write` | ✓ |  |  |  |  |
+| `dlq.handle` | ✓ |  |  |  |  |
+| `demo.simulate` | ✓ | ✓ | ✓ | ✓ |  |
+| `demo.admin` | ✓ |  |  |  |  |
+
+Implementazione in `lib/persona/permissions.ts`: `can(role, capability)`. Il componente `<Can capability>` nasconde se l'azione non ha senso per il ruolo, disabilita con tooltip se conviene mostrarne l'esistenza.
+
+## Pattern comuni
+
+<AccordionGroup>
+  <Accordion title="ListPage: elenchi filtrabili">
+    Titolo con conteggio, azione primaria a destra, `FilterBar` con chip rimovibili (stato nell'URL), `DataTable` su TanStack con ordinamento lato server e paginazione `page/size`. Riga cliccabile porta al dettaglio. Codici e ID in monospace. Azioni di riga nel menu `⋯`.
+  </Accordion>
+
+  <Accordion title="EditorPage: modifica oggetti governati">
+    Pagina singola a sezioni con indice ancorato a sinistra (non wizard). Piè di pagina fisso con _Salva bozza_ e _Annulla_ più indicatore di modifiche non salvate. Validazione zod al blur, errori backend mappati sui campi. Un `409` di versione apre il dialogo "Qualcun altro ha modificato: ricarica o sovrascrivi". Oggetti `LIVE` hanno campi non sicuri in sola lettura con nota "Per cambiare le regole, duplica".
+  </Accordion>
+
+  <Accordion title="LifecycleBar: transizioni di stato">
+    In testa a ogni oggetto governato (campagna, premio, concorso, contenuto): pill dello stato, calendario e solo i pulsanti delle transizioni valide per stato × ruolo × policy.
+
+    | Stato | Pulsanti |
+    | --- | --- |
+    | `DRAFT` | _Invia in revisione_ o _Pubblica_, _Archivia_ |
+    | `IN_REVIEW` | _Approva_, _Rifiuta_ (commento obbligatorio) |
+    | `APPROVED` | _Pubblica_ (con `startAt` futuro passa a `SCHEDULED`) |
+    | `LIVE` | _Metti in pausa_, _Termina_ |
+    | `PAUSED` | _Riprendi_, _Termina_ |
+    | `ENDED` | _Archivia_, _Duplica_ |
+
+    Ogni transizione apre un dialogo con commento e chiama `POST …/transitions {action, comment}`. Storico in popover accanto.
+  </Accordion>
+
+  <Accordion title="ReaderPanel: dove si vede l'oggetto">
+    Applicazione visibile della regola "nessuna entità senza lettore". Ogni editor di configurazione ha in colonna destra i collegamenti ai punti dove l'oggetto produce effetto (per un premio: "Catalogo del portale, apri come Davide GOLD"; per un template: "Inbox di un membro"). Se un editor non ha nulla da mettere qui, la feature è incompleta.
+  </Accordion>
+
+  <Accordion title="Conferme e componenti condivisi">
+    Azioni irreversibili (anonimizza, applica chiusura edizione, reset, scarta DLQ) chiedono digitazione del codice oggetto. Azioni reversibili: conferma semplice.
+
+    Componenti condivisi: `DataTable`, `FilterBar`, `StatusPill`, `LifecycleBar`, `ReaderPanel`, `ConditionBuilder`, `EffectEditor`, `AudiencePicker`, `SchedulePicker`, `SchemaForm`, `TopicDot`, `MemberChip`, `PointsAmount`, `TierBadge`, `CodeText`, `JsonViewer`, `TraceLink`, `TraceWaterfall`, `ActorStamp`, `KpiTile`, `DiffView`, `PhoneFrame`, `EmptyState`, `DegradedBox`.
+  </Accordion>
+</AccordionGroup>
+
+## Schermate BO-01 a BO-30
+
+### Panoramica e clienti
+
+<AccordionGroup>
+  <Accordion title="BO-01 — Dashboard">
+    Salute del programma in un colpo d'occhio. Selettore periodo (7/30/90 giorni). Riga KPI: membri attivi, azioni ricevute, PTS emessi/spesi, richieste premio, giocate/vincite. Grafici: punti emessi vs spesi vs scaduti, azioni per fonte, distribuzione tier, passività per mese, top campagne e premi. Sezione "Da guardare": richieste da evadere, oggetti in revisione, stock in esaurimento, DLQ aperte, punti in scadenza.
+  </Accordion>
+
+  <Accordion title="BO-02 — Membri">
+    `ListPage` con colonne membro, ID, e-mail, stato, tier, saldo PTS, STS edizione, ultima attività. Filtri per stato, tier, etichetta, segmento, periodo. Azione _Nuovo membro_ (`member.write`) apre foglio laterale con nome, cognome, e-mail, externalId, data di nascita, codice amico.
+  </Accordion>
+
+  <Accordion title="BO-03 — Scheda 360°">
+    Tutto su un membro, anche con servizi degradati. Intestazione con tessera in miniatura, saldi, barra verso il prossimo tier, scadenze. Schede: `overview`, `ledger` (movimenti + lotti), `actions` (esito per campagna con motivo), `rewards`, `game`, `messages`, `segments`, `timeline`, `tiers`. Azioni: _Rettifica punti_, _Simula un'azione_, _Apri portale come questo membro_, _Blocca_, _Anonimizza_.
+  </Accordion>
+
+  <Accordion title="BO-04 — Segmenti">
+    Elenco con nome, tipo (`STATIC`/`DYNAMIC`), membri, ultimo ricalcolo, usato da. Editor con `ConditionBuilder` sui campi membro (tier, stato, saldo, etichette, spesa). Anteprima dal vivo con conteggio e 10 membri campione. `ReaderPanel` mostra oggetti che usano il segmento.
+  </Accordion>
+</AccordionGroup>
+
+### Programma
+
+<AccordionGroup>
+  <Accordion title="BO-05 — Campagne">
+    `ListPage` con nome + codice, stato, trigger (icone tipi azione), sintesi effetti, pubblico, calendario, attivazioni, punti erogati, budget, priorità. Vista alternativa **Calendario** su 12 settimane per vedere sovrapposizioni.
+  </Accordion>
+
+  <Accordion title="BO-06 — Editor campagna e simulazione">
+    La schermata più importante del backoffice. Tre colonne: indice, sezioni, pannello destro con Simulazione / Statistiche / Dove si vede. In testa: `LifecycleBar` + frase generata in italiano che rilegge la regola a ogni modifica. Sezioni: Generale, Quando, A chi, Se, Allora, Limiti, Calendario, Cumulabilità, Nel portale. La simulazione lavora sulla bozza non salvata: mostra esito SCATTA/NON SCATTA con albero condizioni e valore osservato vs atteso.
+  </Accordion>
+
+  <Accordion title="BO-07 — Livelli">
+    Scala orizzontale dei 4 livelli (soglia STS, moltiplicatore PTS, materiale, n. membri). Pannello di modifica: nome, soglia, moltiplicatore, vantaggi, colore. Spiegazione della discesa morbida con esempio calcolato. Solo `program.config`.
+  </Accordion>
+
+  <Accordion title="BO-08 — Valute, scadenze, edizioni">
+    Schede: `currencies` (PTS/STS con policy di scadenza), `editions` (linea del tempo), `liability` (passività per valuta e mese). Azione **Chiusura edizione** con anteprima (`dryRun=true`) che mostra tabella membro, tier attuale, STS del periodo, tier guadagnato, nuovo tier, esito. _Applica chiusura_ solo ADMIN.
+  </Accordion>
+
+  <Accordion title="BO-09 — Azioni e fonti">
+    Schede: `types` (tipi azione con codice, icona, origine `SYSTEM`/`CUSTOM`, schema campi, `sample_data`), `sources` (fonti con volumi 24h, interruttore), `bridge` (ponte interno fatto → azione).
+  </Accordion>
+</AccordionGroup>
+
+### Premi
+
+<AccordionGroup>
+  <Accordion title="BO-10 — Catalogo premi">
+    Vista griglia o tabella. Editor per generale, fascia (costo dalla fascia), disponibilità, visibilità, evasione (`AUTO` con pool coupon o `MANUAL`). `LifecycleBar` con approvazione LEGAL da M7. Stock sotto 10 % mostra pill ambra "in esaurimento".
+  </Accordion>
+
+  <Accordion title="BO-11 — Fasce">
+    Scala verticale F1-F5 con soglia, nome, n. premi per stato. Modifica in linea. Elimina solo se vuota. Cambiare soglia mostra impatto prima di salvare.
+  </Accordion>
+
+  <Accordion title="BO-12 — Coupon">
+    Elenco pool con totali per stato `AVAILABLE`/`ISSUED`/`USED`/`EXPIRED`/`VOID`. Dettaglio: tabella codici, _Genera codici_ (≤ 5000), _Importa_. Cassa simulata: verifica codice, segna come usato, annulla.
+  </Accordion>
+
+  <Accordion title="BO-13 — Richieste premio">
+    Schede di stato (`Da evadere`, `In attesa`, `Evase`, `Rifiutate/Annullate`, `Da verificare`). Foglio laterale con cronologia della saga (richiesta → punti spesi → confermata → evasa), spedizione, coupon emesso. Azioni (`redemption.handle`): _Segna come spedito_ (nota + tracking), _Annulla e rimborsa_ (motivo).
+  </Accordion>
+</AccordionGroup>
+
+### Gioco
+
+<AccordionGroup>
+  <Accordion title="BO-14 — Concorsi instant win">
+    Elenco con meccanica, periodo, stato, giocate, vincite. Dettaglio a schede: `setup`, `prizes` (montepremi), `instants` (_Genera istanti_ con seme mostrato; tabella istanti solo ADMIN/LEGAL), `winners`, `stats`. Aiuto demo `demo.admin`: _Pianta un istante adesso_ per far vincere la prossima giocata.
+  </Accordion>
+
+  <Accordion title="BO-15 — Obiettivi e badge">
+    `achievements`: nome, metrica (`COUNT`/`SUM`/`DISTINCT_TYPES`/`STREAK`), tipi azione, traguardo, periodo, ripetibile, badge collegato, con frase generata. `badges`: griglia icone.
+  </Accordion>
+
+  <Accordion title="BO-16 — Classifiche">
+    Elenco con nome, metrica (`PTS_EARNED`/`STS`/`ACTION_COUNT`), periodo, top N, stato. Dettaglio con anteprima del periodo corrente (nickname e nome reale affiancati; il portale mostra solo il nickname).
+  </Accordion>
+
+  <Accordion title="BO-17 — Referral">
+    KPI (inviti, completati, tasso), imbuto invitato → registrato → prima azione qualificante → premiato, top presentatori, tabella legami. Regola di completamento in chiaro con link a campagne `CMP-REFERRAL-*`.
+  </Accordion>
+</AccordionGroup>
+
+### Contenuti
+
+<AccordionGroup>
+  <Accordion title="BO-18 — Card, pop-up e banner (CMS)">
+    Elenco con miniatura, tipo (`CARD`/`POPUP`/`BANNER`), posizionamento, calendario, priorità. Vista "Per posizione" mostra l'ordine effettivo. Editor a due colonne: form + anteprima fedele in `PhoneFrame` che usa gli stessi componenti del portale. Anteprima per membro spiega perché gli altri contenuti sono esclusi (`NOT_IN_AUDIENCE`, `OUT_OF_SCHEDULE`, `NOT_LIVE`, `FREQUENCY`).
+  </Accordion>
+
+  <Accordion title="BO-19 — Messaggi">
+    `templates`: codice, titolo, canale (`INAPP`/`EMAIL_FAKE`), editor con segnaposto `{{…}}` e anteprima renderizzata. `rules`: regole fatto → template con interruttore. `log`: messaggi inviati con anteprima.
+  </Accordion>
+
+  <Accordion title="BO-20 — Tema e brand">
+    Form: nome programma, logo, colori (`night`, `primary`, `secondary`, `coin`, `bg`), testi hero, nome delle valute. Anteprima dal vivo di PT-01 in `PhoneFrame`. Verifica contrasto AA in linea, blocco su `THEME_CONTRAST_TOO_LOW`.
+  </Accordion>
+</AccordionGroup>
+
+### Governance e osservabilità
+
+<AccordionGroup>
+  <Accordion title="BO-21 — Approvazioni">
+    Aggregazione lato web di `campaign|reward|gamification GET /v1/approvals`. Un servizio addormentato non blocca gli altri (riga _degraded_). Schede _Da approvare_ e _Inviate da me_. Foglio laterale con riepilogo leggibile (campagne: frase generata) e _Approva_ / _Rifiuta con commento_.
+  </Accordion>
+
+  <Accordion title="BO-22 — Audit">
+    Tabella quando, attore (`ActorStamp`), servizio, azione, oggetto. Dettaglio con `DiffView` campo per campo + JSON grezzo. Override ADMIN e `RESET` sono marcati.
+  </Accordion>
+
+  <Accordion title="BO-23 — Webhook">
+    Elenco con URL, tipi di fatto sottoscritti, stato, ultima consegna, tasso di successo. Il secret compare una sola volta alla creazione. Dettaglio: registro consegne, _Invia evento di prova_, _Ritenta_.
+  </Accordion>
+
+  <Accordion title="BO-24 — Flusso eventi live">
+    Striscia pipeline con 5 tessere topic nel loro colore (ultimo evento, volumi 1h/24h, ritardo). Flusso a righe con ora ms, `TopicDot`, tipo, membro, `correlationId`. Hover su una riga evidenzia tutte quelle con lo stesso `correlationId`. Filtri per topic, famiglia, membro, tipo. Buffer 500 righe.
+  </Accordion>
+
+  <Accordion title="BO-25 — Tracciati">
+    Elenco con ora, membro, azione radice, esito sintetico ("+162 PTS · +130 STS · tier GOLD"), durata. Dettaglio con `TraceWaterfall`: una corsia per servizio, nodi posizionati per `offsetMs`, collegati dal `parentEventId`, colorati per topic. Pannello esito con punti, cambio tier, messaggi, coupon, giocate, DLQ.
+  </Accordion>
+
+  <Accordion title="BO-26 — Monitor ingressi">
+    Elenco eventi in ingresso con stato (`ACCEPTED`/`REJECTED`/`DUPLICATE`/`PENDING`), fonte, membro risolto, causa del rifiuto. Azione _Riprova_ e _Abbina_ (per matching manuale del membro).
+  </Accordion>
+
+  <Accordion title="BO-27 — DLQ">
+    Elenco messaggi in `lh.dlq.v1` con topic origine, motivo, tentativi, ultimo errore. Azioni (`dlq.handle`): _Riprocessa_ (rimette in coda) o _Scarta_ (con conferma).
+  </Accordion>
+</AccordionGroup>
+
+### Demo
+
+<AccordionGroup>
+  <Accordion title="BO-28 — Simulatore eventi">
+    Form per costruire un evento CloudEvent (membro, tipo azione, `data` in `SchemaForm` precompilato, data/ora, fonte). _Invia_ pubblica su `lh.actions.v1`. Utile per test rapidi senza chiamate reali.
+  </Accordion>
+
+  <Accordion title="BO-29 — Scenari">
+    Elenco scenari pre-costruiti (es. "Cliente GOLD fa un acquisto Black Friday", "Nuovo iscritto completa referral"). _Esegui_ lancia una sequenza di eventi con delay e mostra l'esito passo per passo.
+  </Accordion>
+
+  <Accordion title="BO-30 — Console demo">
+    Dashboard con stato dei 10 componenti (8 servizi + Kafka + DB). Azioni `demo.admin`: _Reset dati_, _Rigenera istanti_, _Ricarica personas_, _Simula degrado_ per verificare la resilienza del backoffice.
+  </Accordion>
+</AccordionGroup>
+
+## Prossimi passi
+
+<CardGroup cols={2}>
+  <Card title="Fondamenta frontend" icon="layer-group" href="/specifiche/frontend-fondamenta">
+    Stack Next.js 14, token, stati asincroni e proxy verso i microservizi.
+  </Card>
+
+  <Card title="Portale membro" icon="mobile" href="/specifiche/frontend-portale">
+    Le 14 schermate mobile-first del portale visto dai membri.
+  </Card>
+
+  <Card title="Convenzioni backend" icon="server" href="/specifiche/convenzioni-backend">
+    API REST, autorizzazione con `@RequiresRole`, gestione errori.
+  </Card>
+
+  <Card title="Eventi e topic" icon="bolt" href="/specifiche/eventi-e-topic">
+    I 5 topic Kafka e le extension CloudEvents che alimentano il rail eventi.
+  </Card>
+</CardGroup>

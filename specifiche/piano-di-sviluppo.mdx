@@ -1,3 +1,214 @@
 ---
-title: "piano-di-sviluppo"
+title: "Piano di sviluppo: milestone M0-M7 della PoC"
+sidebarTitle: "Piano Sviluppo"
+description: "Piano incrementale di Loyalty Hub in milestone M0-M7 con obiettivi, servizi coinvolti e deliverable per ogni tappa."
 ---
+
+Il piano di sviluppo della Proof of Concept (PoC) di Loyalty Hub suddivide il lavoro in otto milestone incrementali, da M0 a M7. Ogni tappa aggiunge funzionalita, integra nuovi microservizi e rilascia deliverable verificabili. In questa pagina trovi gli obiettivi di ogni milestone, i servizi attivati, i risultati attesi e le dipendenze fra i componenti.
+
+<Note>
+  Le milestone sono progettate per essere dimostrabili in ambienti di staging. Ogni tappa include test automatici e una revisione con le personas di riferimento.
+</Note>
+
+## Milestone
+
+<Steps>
+  <Step title="M0 - Setup e fondazioni">
+    **Obiettivo:** preparare l'ambiente di sviluppo, il repository condiviso e la pipeline di build.
+
+    **Servizi coinvolti:** nessuno servizio di business; solo infrastruttura di base.
+
+    **Deliverable principali:**
+
+    - Repository Git strutturato per 8 microservizi (porte 8081-8088)
+    - Docker Compose locale con Postgres 16, Kafka (5 topic) e ZooKeeper
+    - Pipeline CI con build, test unitari e lint
+    - Documentazione iniziale delle API e degli eventi CloudEvents
+    - Configurazione base di Spring Boot 4 e Java 25 per ogni servizio
+  </Step>
+  <Step title="M1 - Ingestion e member">
+    **Obiettivo:** raccogliere le prime azioni utente e gestire l'anagrafica dei membri.
+
+    **Servizi coinvolti:** ingestion (8081), member (8082)
+
+    **Deliverable principali:**
+
+    - Endpoint REST per l'invio di azioni in formato CloudEvents 1.0
+    - Topic Kafka `lh.actions.v1` attivo con producer e consumer
+    - CRUD anagrafica membro con persistenza su Postgres
+    - Extension `lhcorrelationid`, `lhcausationid`, `lhtenant` popolate
+    - Schermate backoffice BO-01 (dashboard) e BO-02 (lista membri)
+    - Schermata portal PT-01 (registrazione membro)
+  </Step>
+  <Step title="M2 - Wallet e transazioni">
+    **Obiettivo:** assegnare punti ai membri e tracciare i movimenti del wallet.
+
+    **Servizi coinvolti:** wallet (8084), member (8082), ingestion (8081)
+
+    **Deliverable principali:**
+
+    - Topic Kafka `lh.effects.v1` per eventi di accredito e addebito
+    - API di consultazione saldo e storico transazioni
+    - Regole base di assegnazione punti legate alle azioni ricevute
+    - Schermate backoffice BO-03 (wallet membri) e BO-04 (transazioni)
+    - Schermata portal PT-02 (saldo e storico personale)
+    - Test di integrazione fra ingestion, member e wallet
+  </Step>
+  <Step title="M3 - Campaign e reward">
+    **Obiettivo:** creare campagne di fidelizzazione e gestire i premi riscattabili.
+
+    **Servizi coinvolti:** campaign (8083), reward (8085), wallet (8084), member (8082)
+
+    **Deliverable principali:**
+
+    - CRUD campagne con condizioni, target e periodo di validita
+    - Catalogo premi con costo in punti e disponibilita
+    - Flusso di riscatto premio con aggiornamento wallet in transazione
+    - Topic Kafka `lh.facts.v1` per eventi di completamento campagna
+    - Schermate backoffice BO-05 (campagne), BO-06 (premi) e BO-07 (riscatti)
+    - Schermata portal PT-03 (catalogo premi) e PT-04 (riscatto)
+  </Step>
+  <Step title="M4 - Gamification">
+    **Obiettivo:** introdurre livelli, badge e classifiche per aumentare il coinvolgimento.
+
+    **Servizi coinvolti:** gamification (8086), campaign (8083), wallet (8084), member (8082)
+
+    **Deliverable principali:**
+
+    - Sistema di livelli con regole di progressione
+    - Assegnazione badge automatica in base a azioni e traguardi
+    - Classifiche personali e di gruppo
+    - Topic Kafka `lh.audit.v1` per tracciare assegnazioni badge e livelli
+    - Schermate backoffice BO-08 (badge), BO-09 (livelli) e BO-10 (classifiche)
+    - Schermate portal PT-05 (profilo gamification) e PT-06 (classifica)
+  </Step>
+  <Step title="M5 - Engagement">
+    **Obiettivo:** gestire comunicazioni personalizzate e notifiche verso i membri.
+
+    **Servizi coinvolti:** engagement (8087), gamification (8086), campaign (8083), member (8082)
+
+    **Deliverable principali:**
+
+    - Motore di segmentazione membri per campagne
+    - Invio notifiche push, email e in-app tramite template
+    - Tracking apertura e interazione
+    - Topic Kafka `lh.effects.v1` per eventi di notifica inviata
+    - Schermate backoffice BO-11 (segmenti), BO-12 (template) e BO-13 (report invii)
+    - Schermata portal PT-07 (centro notifiche)
+  </Step>
+  <Step title="M6 - Insight e audit">
+    **Obiettivo:** fornire dashboard analitiche e tracciabilita completa degli eventi.
+
+    **Servizi coinvolti:** insight (8088), engagement (8087), gamification (8086), wallet (8084), member (8082)
+
+    **Deliverable principali:**
+
+    - Aggregazione dati per metriche di business (attivazione, churn, LTV)
+    - Dashboard in tempo reale con filtri per tenant e periodo
+    - Ricerca full-text su audit log con extension `lhactor` e `lhhop`
+    - Topic Kafka `lh.dlq.v1` per gestione errori e retry
+    - Schermate backoffice BO-14 (dashboard insight) e BO-15 (audit log)
+    - Schermata portal PT-08 (report personale)
+  </Step>
+  <Step title="M7 - Hardening e rilascio">
+    **Obiettivo:** consolidare la PoC con sicurezza, performance e documentazione per il go-live.
+
+    **Servizi coinvolti:** tutti i servizi (8081-8088), frontend Next.js 14
+
+    **Deliverable principali:**
+
+    - Autenticazione e autorizzazione per tutte le personas (`marta.admin`, `luca.marketing`, `elena.legal`, `paolo.care`, `sara.analyst`)
+    - Rate limiting, idempotenza e gestione concorrenza su wallet
+    - Test end-to-end su tutte le schermate backoffice (BO-01..BO-30) e portal (PT-01..PT-14)
+    - Documentazione operativa e runbook
+    - Deploy su ambiente di staging con dati di demo
+    - Revisione finale con tutte le personas e approvazione PoC
+  </Step>
+</Steps>
+
+## Dipendenze fra servizi
+
+I microservizi si attivano in sequenza secondo il grafo delle dipendenze funzionali. Ogni servizio consuma eventi dai servizi a monte e pubblica eventi per quelli a valle.
+
+```text
+ingestion (8081)
+    |
+    v
+member (8082)  <--  ingestion (registrazione e aggiornamenti)
+    |
+    v
+wallet (8084)  <--  member (saldo iniziale), ingestion (azioni)
+    |
+    v
+campaign (8083)  <--  member (targeting), wallet (verifica saldo)
+    |
+    v
+reward (8085)  <--  campaign (campagne attive), wallet (debito punti)
+    |
+    v
+gamification (8086)  <--  member, wallet, reward (traguardi)
+    |
+    v
+engagement (8087)  <--  gamification, campaign (trigger)
+    |
+    v
+insight (8088)  <--  tutti i servizi (eventi su lh.facts.v1 e lh.audit.v1)
+```
+
+<Note>
+  Il servizio ingestion e il punto di ingresso unico per tutte le azioni esterne. Nessun altro servizio e esposto direttamente ai clienti per l'invio di eventi.
+</Note>
+
+<Warning>
+  Il wallet (8084) e un servizio critico per la concorrenza. Ogni operazione di accredito o addebito deve essere idempotente e protetta da race condition. Verifica sempre la presenza di `lhcorrelationid` prima di processare un evento.
+</Warning>
+
+## Definition of Done
+
+Ogni milestone e considerata completa quando soddisfa tutti i criteri cross-cutting elencati di seguito.
+
+### Qualita del codice
+
+- Copertura test unitari almeno al 70% per ogni servizio
+- Test di integrazione per ogni flusso end-to-end attivato nella milestone
+- Nessuna vulnerabilita critica segnalata da dependency check
+- Code review approvata da almeno un reviewer
+
+### Eventi e tracciabilita
+
+- Tutti gli eventi CloudEvents 1.0 pubblicati con le extension obbligatorie: `lhcorrelationid`, `lhcausationid`, `lhhop`, `lhactor`, `lhschemaversion`, `lhtenant`
+- Ogni evento e scritto sul topic `lh.audit.v1` con timestamp e outcome
+- Messaggi non processabili instradati su `lh.dlq.v1` con motivo del fallimento
+
+### Documentazione e UX
+
+- API documentate con OpenAPI 3.0 e esempi di request/response
+- Schermate backoffice e portal verificate con le personas di riferimento
+- Test di usabilita superati per i flussi principali (registrazione, riscatto, consultazione)
+
+### Operativita
+
+- Servizi deployabili con Docker Compose in meno di 5 minuti
+- Health check attivi su tutti i servizi (endpoint `/actuator/health`)
+- Log strutturati in formato JSON con correlation id
+- Metriche Prometheus esposte per monitoraggio
+
+## Prossimi passi
+
+<CardGroup cols={2}>
+  <Card title="Architettura dei servizi" icon="server" href="/specifiche/architettura">
+    Esplora i dettagli dei 8 microservizi, le loro responsabilita e le porte esposte.
+  </Card>
+
+  <Card title="Eventi CloudEvents" icon="bolt" href="/specifiche/eventi">
+    Scopri il formato degli eventi, le extension custom e i 5 topic Kafka utilizzati.
+  </Card>
+
+  <Card title="Personas e ruoli" icon="users" href="/specifiche/personas">
+    Consulta le 5 personas definite per la PoC e i permessi associati a ciascun ruolo.
+  </Card>
+
+  <Card title="Schermate frontend" icon="layout" href="/specifiche/frontend">
+    Visualizza le 30 schermate backoffice e le 14 schermate portal del frontend Next.js 14.
+  </Card>
+</CardGroup>

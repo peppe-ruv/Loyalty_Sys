@@ -1,3 +1,330 @@
 ---
-title: "domande-aperte"
+title: "Domande aperte: dubbi e decisioni in sospeso"
+sidebarTitle: "Domande Aperte"
+description: "Raccolta delle domande e dei temi ancora aperti nel progetto Loyalty Hub, organizzati per area con i default operativi in uso."
 ---
+
+Qui finiscono i dubbi che le specifiche non risolvono in modo definitivo. La regola per l'agente e per gli sviluppatori è: **non fermarsi** su una domanda non bloccante. Applica il default proposto, marca il codice con `// SPEC-GAP: Q-nn` e prosegui. Fermati solo sulle domande marcate come bloccanti.
+
+Ogni domanda ha uno stato: `APERTA` (in attesa di decisione), `DECISA` (con eventuale ADR di riferimento) o `SUPERATA` (obsoleta o sostituita da un'altra decisione).
+
+<Note>
+  Questa pagina è una sintesi navigabile. Il file sorgente `docs/15-DOMANDE-APERTE.md` nel repository contiene tutte le voci con motivazione estesa, campo per campo.
+</Note>
+
+## Domande del proprietario del progetto
+
+Decisioni di prodotto e organizzazione, in attesa di conferma dal committente.
+
+<AccordionGroup>
+  <Accordion title="Q-01 - Licenza del progetto">
+    **Default in uso**: Apache-2.0 (ADR-022). Alternativa valutata: AGPL-3.0.
+
+    **Impatto**: file `LICENSE`, intestazioni sorgenti, README. Bloccante per M0.1: basta conferma.
+  </Accordion>
+
+  <Accordion title="Q-02 - Nome repo e organizzazione GitHub">
+    **Default**: `loyalty-hub`, repo pubblico sotto account personale.
+
+    **Impatto**: URL nel README, nel Demo Hub, nei nomi delle immagini Docker. Bloccante per M0.1.
+  </Accordion>
+
+  <Accordion title="Q-03 - Brand demo Club Aurora">
+    **Default**: nome, colori e tono confermati. Tutto in `seed/theme.json` e `seed/contents.json`, sostituibile senza toccare il codice.
+  </Accordion>
+
+  <Accordion title="Q-04 - Autenticazione verso Kafka gratuito">
+    **Default**: `SSL_PEM` (predefinita dal fornitore). Il codice supporta anche `SASL_SSL`.
+
+    **Impatto**: variabili d'ambiente. Bloccante per M1.8.
+  </Accordion>
+
+  <Accordion title="Q-05 - Uso commerciale del piano gratuito Vercel">
+    **Default**: sì, la demo resta personale e open source. Per fini aziendali servirà un piano a pagamento o altro hosting statico.
+  </Accordion>
+
+  <Accordion title="Q-06 - Protezione endpoint demo">
+    **Default**: nessuna protezione in M1 (dichiarato nel Demo Hub). `X-LH-Demo-Key` prevista come P1 in futuro.
+  </Accordion>
+
+  <Accordion title="Q-07 - Lingua dell'interfaccia">
+    **Default**: interfaccia solo in italiano, con dizionario unico pronto a essere tradotto. Codice, API ed eventi in inglese. README in italiano con sezione breve in inglese.
+  </Accordion>
+
+  <Accordion title="Q-08 - Soglia per approvazione legale">
+    **Default**: campagna con budget > 100.000 punti o `requiresLegal=true`. Policy da rifinire in M7.
+  </Accordion>
+
+  <Accordion title="Q-09 - Dominio applicativo dei dati demo">
+    **Default**: multiutility immaginaria, senza riferimenti ad aziende reali. I tipi azione sono dati, sostituibili modificando i seed.
+  </Accordion>
+
+  <Accordion title="Q-10 - Dominio personalizzato demo">
+    **Default**: no, si usano `*.vercel.app` e `*.onrender.com`.
+  </Accordion>
+</AccordionGroup>
+
+## Domande tecniche in corso d'opera
+
+Da verificare durante la costruzione, tipicamente a M0.5, M1.8 o alla prima integrazione end-to-end.
+
+<AccordionGroup>
+  <Accordion title="Q-20 - Tempo di avvio Spring Boot 4 su 0.1 CPU / 512 MB">
+    **Default**: atteso 60-150 s. Oltre 180 s si attiva la cache AOT/CDS. Da misurare con `docker run --cpus 0.1 -m 512m` in M0.5 e M1.8.
+  </Accordion>
+
+  <Accordion title="Q-21 - Minuti di build gratuiti di Render per 8 immagini Docker">
+    **Default**: sì con `buildFilter`. Piano B: immagini su GHCR. Verifica a ogni milestone.
+  </Accordion>
+
+  <Accordion title="Q-22 - Formato PEM per client Kafka">
+    **Default**: convertire sempre in PKCS#8 senza passphrase. Verifica in M1.8.
+  </Accordion>
+
+  <Accordion title="Q-23 - Neon pooler in modalità transazione">
+    **Default**: compatibile con `FOR UPDATE SKIP LOCKED` e advisory lock `xact`. Flyway usa la connessione diretta.
+  </Accordion>
+
+  <Accordion title="Q-24 - Istanze multiple nel piano gratuito">
+    **Default**: una sola istanza per servizio (con 2 partizioni e `concurrency=2` non servono più istanze).
+  </Accordion>
+
+  <Accordion title="Q-25 - Consumer inattivo per più di 3 giorni">
+    **Default**: nessun meccanismo di riallineamento nel PoC. Lo stato sta nei DB dei proprietari; per gli snapshot usa `POST /v1/demo/reset`. Nel target: retention lunga o topic compattati.
+  </Accordion>
+
+  <Accordion title="Q-26 - SSE attraverso proxy con timeout 100 s">
+    **Default**: `heartbeat` ogni 15 s + header `X-Accel-Buffering: no`. Fallback polling se il proxy tronca comunque la connessione.
+  </Accordion>
+
+  <Accordion title="Q-27 - Librerie da confermare su Boot 4.1">
+    **Default**: `springdoc-openapi`, validatore JSON Schema (`networknt`), ULID. Scegliere l'ultima versione compatibile; alternativa minima scritta a mano se manca.
+  </Accordion>
+
+  <Accordion title="Q-28 - Generazione tipi TypeScript da OpenAPI">
+    **Default**: scrittura a mano fino a M4. Valutare `openapi-typescript` in CI da M4 in poi.
+  </Accordion>
+</AccordionGroup>
+
+## Spec-gap segnalati dallo sviluppo
+
+Voci `Q-40+` aggiunte dall'agente o dagli sviluppatori quando la spec è ambigua. Per ogni voce trovi: file coinvolto, dubbio, scelta conservativa adottata.
+
+### Ambiente e stack
+
+<AccordionGroup>
+  <Accordion title="Q-41 - Java 25 vs JDK locale">
+    **Stato**: DECISA in M0.7. CI su `temurin` 25, `pom.xml` con `release=25`. JDK 25 in `/opt/jdk-25` in sessione.
+  </Accordion>
+
+  <Accordion title="Q-40 - Testcontainers negati dal proxy">
+    Test d'integrazione con Kafka in-JVM (`EmbeddedKafka` KRaft) e Postgres in-process (Zonky). Stesso comportamento verificato per outbox, idempotenza, DLQ, migrazioni.
+  </Accordion>
+
+  <Accordion title="Q-43 - Jackson 3 (Boot 4.1) vs Jackson 2 (networknt)">
+    Runtime su **Jackson 3**; Jackson 2 confinato ai soli test di contratto. `LhJson` costruisce il mapper Jackson 3.
+  </Accordion>
+</AccordionGroup>
+
+### Wallet e valute
+
+<AccordionGroup>
+  <Accordion title="Q-45 - Motivi di rettifica: lista da usare">
+    Usata la lista da `wallet-service.md`: `GOODWILL`, `CORRECTION`, `COMPLAINT`, `TEST`.
+  </Accordion>
+
+  <Accordion title="Q-46 - Rettifica di valute non spendibili (STS)">
+    Non consentita. Restituisce `422 CURRENCY_NOT_ADJUSTABLE`. Modificare STS cambierebbe `periodSts` e tier.
+  </Accordion>
+
+  <Accordion title="Q-47 - Scadenza END_OF_EDITION_PLUS_GRACE senza edizione">
+    Scadenza = fine giornata (Europe/Rome) di `redemptionGraceUntil` dell'edizione che contiene la data. Nessuna edizione che copre la data → il lotto non scade (scelta conservativa lato membro).
+  </Accordion>
+
+  <Accordion title="Q-48 - Accredito STS durante chiusura edizione">
+    La chiusura blocca `member_tier` con `FOR UPDATE`: un accredito in volo viene visto e conta per l'edizione che si chiude. Quello successivo al lock attende e conta per la nuova edizione.
+  </Accordion>
+</AccordionGroup>
+
+### Campagne e motore
+
+<AccordionGroup>
+  <Accordion title="Q-44 - Numeri decimali in FROM_FIELD">
+    Scelta conservativa: valori decimali scartati, ritorna `null` e l'effetto è saltato.
+  </Accordion>
+
+  <Accordion title="Q-50 - Motivo esclusione: EXCLUSIVE vs EXCLUSIVE_GROUP">
+    Mantenuto `EXCLUSIVE` (già nel registro valutazioni e nel fatto `campaign.evaluated`). Da allineare `docs/12`.
+  </Accordion>
+
+  <Accordion title="Q-51 - Modifiche a campagne PAUSED/ENDED/ARCHIVED">
+    `PAUSED` bloccata come `LIVE` (`409 CAMPAIGN_LIVE_LOCKED`); `ENDED`/`ARCHIVED` non modificabili (`409 CAMPAIGN_NOT_EDITABLE`); `code` mai modificabile.
+  </Accordion>
+
+  <Accordion title="Q-90, Q-91, Q-92 - Condition builder e catalogo campi">
+    Etichetta "NESSUNA" mantenuta con avviso se il gruppo ha più di una regola. Confronti data solo con `eq`. Campi `member.*/context.*/history.*` fissi nel frontend; `data.*` da ingestion.
+  </Accordion>
+</AccordionGroup>
+
+### Premi, coupon, richieste
+
+<AccordionGroup>
+  <Accordion title="Q-52 - Chi può fare coupon.void">
+    Ai ruoli di `redemption.handle` (ADMIN, CARE). Uso alla cassa a ogni ruolo operativo (ADMIN, MARKETING, LEGAL, CARE), mai ANALYST.
+  </Accordion>
+
+  <Accordion title="Q-53 - Fatto reward.status.changed mancante nel catalogo">
+    Aggiunti schema ed esempio `fact.reward.status.changed` sulla stessa forma di `campaign.status.changed`. È un nuovo `type` su un topic esistente.
+  </Accordion>
+
+  <Accordion title="Q-54 - Rimborso di richiesta annullata con lotti scaduti">
+    **Stato**: SUPERATA da Q-160. I punti tornano nei lotti d'origine validi; quelli di lotti scaduti tornano in un lotto nuovo con scadenza di oggi.
+  </Accordion>
+
+  <Accordion title="Q-55 - Job timeout richieste in demo">
+    Il timeout della saga ha un interruttore proprio (`loyaltyhub.reward.redemption-timeout.enabled`), acceso di default anche in demo. Endpoint `POST /v1/demo/jobs/timeout-redemptions?asOf=`.
+  </Accordion>
+</AccordionGroup>
+
+### Gamification
+
+<AccordionGroup>
+  <Accordion title="Q-56 - Meccanica concorso: BOX vs GIFT">
+    Valore `BOX` in API, seed e UI (etichetta "Pacco regalo"). Il valore non è un ID né un contratto evento.
+  </Accordion>
+
+  <Accordion title="Q-57 - Periodo di IW-ESTATE (date relative)">
+    `@today-85d` → `@today-24dT23:59` (62 giorni, sempre concluso). `IW-NATALE` resta 1-24 dic dell'anno corrente.
+  </Accordion>
+
+  <Accordion title="Q-59 - Periodo EDITION degli obiettivi">
+    Chiave `ED-<anno>` dal giorno dell'azione (Europe/Rome). Coincide con le edizioni annuali del seed. Con edizioni non annuali servirebbe consumare `edition.*`.
+  </Accordion>
+
+  <Accordion title="Q-62 - Pianta istante che rispetta gli istanti già maturati">
+    L'istante piantato va a `min(now − 1 s, istante aperto più vecchio − 1 s)`: resta il primo del claim. Il montepremi non cambia.
+  </Accordion>
+</AccordionGroup>
+
+### Engagement e contenuti
+
+<AccordionGroup>
+  <Accordion title="Q-64 - Messaggio 'richiesta confermata' mancante">
+    Aggiunti `MSG-REWARD-CONFIRMED` e la regola `NR-REWARD-CONFIRMED` su `reward.redemption.confirmed`. Un premio con coupon automatico dà due messaggi.
+  </Accordion>
+
+  <Accordion title="Q-65 - Filtro PTS su NR-POINTS-EARNED">
+    Condizione `data.currency = PTS` sulla regola. Evita di annunciare "162 punti" e "130 punti" per lo stesso acquisto.
+  </Accordion>
+
+  <Accordion title="Q-66 - Segnaposto template: {{amount}} vs {{data.amount}}">
+    Seguita la scheda servizio: `{{data.amount}}`. `campaignName` non è nel fatto.
+  </Accordion>
+
+  <Accordion title="Q-67 - EMAIL_FAKE nell'inbox del portale">
+    Solo nel registro `/v1/messages`: niente inbox del portale né conteggio non letti.
+  </Accordion>
+
+  <Accordion title="Q-70 - Messaggi ai membri non attivi">
+    Nessun messaggio agli `ANONYMIZED`. I `BLOCKED` li ricevono (l'assistenza può doverli informare).
+  </Accordion>
+
+  <Accordion title="Q-71 - Pubblico dei pop-up (giorni della settimana, iscritti da <7g)">
+    Nel seed: chiavi aggiuntive `audience.registeredWithinDays` e `audience.daysOfWeek`, applicate ai pop-up con M6.2.
+  </Accordion>
+
+  <Accordion title="Q-72 - Limiti contenuti per posizione">
+    `CATALOG_TOP` 1 (banner), `CONTEST` 3, `WIN` 1 (card del premio vinto).
+  </Accordion>
+</AccordionGroup>
+
+### Member e segmenti
+
+<AccordionGroup>
+  <Accordion title="Q-61 - Referral: membri non attivi, imbuto BO-17, contatore PT-11">
+    Codice di membro non ACTIVE → `422 REFERRAL_CODE_INVALID`. Imbuto coi dati disponibili con nota in pagina. Completamenti dell'anno solare.
+  </Accordion>
+
+  <Accordion title="Q-80 - Chi imposta le etichette ebill e directdebit">
+    Le azioni `ebill.activated` e `directdebit.activated` aggiungono le etichette (mai le tolgono) ed emettono `member.updated`.
+  </Accordion>
+
+  <Accordion title="Q-81 - Riemissione appartenenze segmenti dopo reset">
+    Dopo seed/reset si riemette `entered` per ogni appartenenza, di nuovo dopo 15 s, più `left` per quelle precedenti al reset. Consumatori idempotenti.
+  </Accordion>
+
+  <Accordion title="Q-83 - SEG-TORINO ha solo Davide, non 4 membri">
+    Città invariate; membri attesi = solo Davide. Segmento resta di esempio.
+  </Accordion>
+
+  <Accordion title="Q-88 - Archiviazione segmento">
+    Archiviare emette `left` per tutti i membri; codice e tipo non cambiano dopo la creazione (`409 SEGMENT_IMMUTABLE_FIELD`).
+  </Accordion>
+</AccordionGroup>
+
+### Governance, webhook, DLQ
+
+<AccordionGroup>
+  <Accordion title="Q-96 - Endpoint approvazioni condiviso">
+    `/v1/approvals` è un controller comune che aggrega le fonti del processo. In più `?submittedBy=` e `/v1/approvals/policy`; storico in `GET /v1/<risorsa>/{id}/approval-history`.
+  </Accordion>
+
+  <Accordion title="Q-99 - URL webhook privati">
+    Indirizzi privati e loopback bloccati in ogni profilo tranne `local` (al salvataggio e dopo la risoluzione DNS all'invio). Il DNS rebinding tra controllo e invio non è coperto.
+  </Accordion>
+
+  <Accordion title="Q-100 - Evento di prova webhook">
+    Esempio del primo tipo di fatto sottoscritto, con id, tempo e correlazione nuovi e `lhactor` di chi invia. Esempi nel jar (`webhook-samples/`).
+  </Accordion>
+
+  <Accordion title="Q-104 - Riprocessa evento già accettato">
+    Header opzionale `X-LH-Reprocess` (solo ADMIN) su `POST /v1/events`: ripubblica l'evento accettato. I consumer che l'avevano già elaborato lo saltano per idempotenza.
+  </Accordion>
+
+  <Accordion title="Q-105 - Stato iniziale DLQ: NEW o OPEN">
+    API con `OPEN`, interfaccia "Nuova".
+  </Accordion>
+
+  <Accordion title="Q-108 - SCN-POISON: 3 tentativi o non ritentabile">
+    Non ritentabile: un solo tentativo (`DEMO_POISON`, solo col profilo demo).
+  </Accordion>
+</AccordionGroup>
+
+## Come contribuire
+
+Se trovi un'ambiguità in una spec durante lo sviluppo:
+
+<Steps>
+  <Step title="Applica una scelta conservativa">
+    Scegli il comportamento che rispetta più fonti possibili e non toglie funzionalità al membro.
+  </Step>
+  <Step title="Marca il codice">
+    Aggiungi `// SPEC-GAP: Q-<numero>` sulla riga interessata.
+  </Step>
+  <Step title="Aggiungi la voce">
+    Aggiungi una riga nel file sorgente `docs/15-DOMANDE-APERTE.md` con dove, dubbio, scelta adottata e stato `APERTA`.
+  </Step>
+  <Step title="Prosegui">
+    Non fermarti per una domanda non bloccante: la decisione arriverà dopo. Se è bloccante, aprila come blocker con etichetta chiara.
+  </Step>
+</Steps>
+
+## Prossimi passi
+
+<CardGroup cols={2}>
+  <Card title="Registro decisioni" icon="scale-balanced" href="/specifiche/registro-decisioni">
+    Le decisioni architetturali già prese (ADR-001..ADR-024).
+  </Card>
+
+  <Card title="Piano di sviluppo" icon="road" href="/specifiche/piano-di-sviluppo">
+    Le milestone M0-M7 in cui queste domande si chiuderanno.
+  </Card>
+
+  <Card title="Convenzioni backend" icon="server" href="/specifiche/convenzioni-backend">
+    Il quadro tecnico entro cui vanno risolte le ambiguità.
+  </Card>
+
+  <Card title="Backlog" icon="list" href="/specifiche/backlog">
+    Le epiche e user story che riporteranno queste decisioni al piano.
+  </Card>
+</CardGroup>

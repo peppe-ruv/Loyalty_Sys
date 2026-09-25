@@ -1,3 +1,192 @@
 ---
-title: "registro-decisioni"
+title: "Registro decisioni: 24 ADR di architettura Loyalty Hub"
+sidebarTitle: "ADR"
+description: "Elenco dei 24 Architecture Decision Record di Loyalty Hub con contesto, decisione presa e conseguenze principali per ogni scelta architetturale."
 ---
+
+Un Architecture Decision Record (ADR) documenta una scelta architetturale significativa, il contesto in cui è stata presa e le conseguenze attese. Loyalty Hub mantiene 24 ADR per tracciare ogni decisione strategica, dalla scelta dello stack tecnologico alla definizione dei pattern di comunicazione tra i microservizi. Questo registro ti aiuta a comprendere il percorso evolutivo del sistema e a valutare l'impatto di ogni scelta.
+
+## Formato ADR
+
+Ogni ADR nel progetto segue una struttura standardizzata per garantire chiarezza e tracciabilità:
+
+| Campo | Descrizione |
+| --- | --- |
+| **Numero** | Identificativo sequenziale (ADR-001, ADR-002, ecc.) |
+| **Titolo** | Nome descrittivo della decisione |
+| **Contesto** | Situazione e vincoli che hanno reso necessaria la decisione |
+| **Decisione** | Scelta architetturale presa, con opzioni valutate e scartate |
+| **Conseguenze** | Impatti positivi, negativi e rischi accettati |
+| **Stato** | `Approvato`, `In revisione` o `Deprecato` |
+
+<Note>
+  Lo stato `In revisione` indica che l'ADR potrebbe essere aggiornato in seguito a nuove evidenze operative. Lo stato `Deprecato` segnala che la decisione è stata sostituita da un ADR successivo.
+</Note>
+
+## Registro ADR
+
+<AccordionGroup>
+  <Accordion title="ADR-001 - Architettura a microservizi">
+    **Stato:** Approvato
+
+    **Sintesi:** Adozione di un'architettura a 8 microservizi invece di un monolite modulare. I servizi (ingestion, member, campaign, wallet, reward, gamification, engagement, insight) sono distribuiti su porte 8081-8088. Questa scelta garantisce scalabilità indipendente per ogni dominio di business e isolamento dei fault, al costo di una maggiore complessità operativa nella gestione dei deployment e della consistenza dei dati.
+  </Accordion>
+
+  <Accordion title="ADR-002 - Stack backend Spring Boot 4 e Java 25">
+    **Stato:** Approvato
+
+    **Sintesi:** Scelta di Spring Boot 4 con Java 25 come piattaforma principale per tutti i microservizi. Java 25 offre performance migliorate con il generational ZGC e preview di pattern matching avanzato. Spring Boot 4 fornisce il framework di riferimento per la configurazione, la gestione delle dipendenze e l'integrazione con il cloud. Alternative valutate: Quarkus (scartato per minor maturità nell'ecosistema aziendale) e Micronaut (scartato per curve di apprendimento più ripide).
+  </Accordion>
+
+  <Accordion title="ADR-003 - Database PostgreSQL 16">
+    **Stato:** Approvato
+
+    **Sintesi:** Adozione di PostgreSQL 16 come database relazionale principale per la persistenza transazionale. La versione 16 introduce miglioramenti significativi nelle query parallele e nella replica logica. Ogni microservizio possiede il proprio schema per garantire l'isolamento dei dati. Alternative valutate: MySQL 8 (scartato per funzionalità JSON inferiori) e Oracle (scartato per costi di licenza).
+  </Accordion>
+
+  <Accordion title="ADR-004 - Message broker Apache Kafka">
+    **Stato:** Approvato
+
+    **Sintesi:** Scelta di Apache Kafka come message broker per la comunicazione asincrona tra microservizi. Kafka gestisce 5 topic dedicati: `lh.actions.v1`, `lh.effects.v1`, `lh.facts.v1`, `lh.audit.v1`, `lh.dlq.v1`. La decisione si basa sulla necessità di garantire alta throughput, persistenza dei messaggi e replay capability. Alternative valutate: RabbitMQ (scartato per throughput inferiore su volumi elevati) e NATS (scartato per minor maturità nel settore enterprise).
+  </Accordion>
+
+  <Accordion title="ADR-005 - Schema eventi CloudEvents 1.0">
+    **Stato:** Approvato
+
+    **Sintesi:** Adozione dello standard CloudEvents 1.0 per la serializzazione di tutti gli eventi scambiati su Kafka. Ogni evento include attributi obbligatori (`specversion`, `type`, `source`, `id`, `time`) e extension custom: `lhcorrelationid`, `lhcausationid`, `lhhop`, `lhactor`, `lhschemaversion`, `lhtenant`. Questo standard garantisce interoperabilità e tracciabilità end-to-end delle operazioni distribuite.
+  </Accordion>
+
+  <Accordion title="ADR-006 - Frontend Next.js 14 App Router">
+    **Stato:** Approvato
+
+    **Sintesi:** Scelta di Next.js 14 con App Router per il frontend di Loyalty Hub. L'App Router offre Server Components per ridurre il JavaScript inviato al client e migliorare le performance di caricamento. Il frontend è organizzato in due aree principali: `/backoffice` (30 schermate BO-01..BO-30) per gli operatori e `/portal` (14 schermate PT-01..PT-14) per i membri del programma loyalty. Alternative valutate: React SPA con Vite (scartato per SEO e performance iniziali inferiori) e Angular (scartato per allineamento con competenze del team).
+  </Accordion>
+
+  <Accordion title="ADR-007 - Modello di autorizzazione RBAC per 5 personas">
+    **Stato:** Approvato
+
+    **Sintesi:** Definizione di un modello Role-Based Access Control con 5 personas distinte: `marta.admin` (ADMIN), `luca.marketing` (MARKETING), `elena.legal` (LEGAL), `paolo.care` (CARE), `sara.analyst` (ANALYST). Ogni ruolo ha permessi granulari sulle schermate del backoffice e sulle API dei microservizi. La decisione evita la complessità di ABAC (Attribute-Based Access Control) mantenendo sufficiente flessibilità per i casi d'uso attuali.
+  </Accordion>
+
+  <Accordion title="ADR-008 - Pattern CQRS per servizio insight">
+    **Stato:** Approvato
+
+    **Sintesi:** Adozione del pattern CQRS (Command Query Responsibility Segregation) per il microservizio insight (porta 8088). I dati analitici sono mantenuti in un modello di lettura ottimizzato separato dal modello di scrittura transazionale. Questo consente query complesse sui dati di loyalty senza impattare le performance dei sistemi operazionali. Il modello di lettura viene popolato in modo asincrono tramite eventi Kafka.
+  </Accordion>
+
+  <Accordion title="ADR-009 - API REST sincrone per operazioni CRUD">
+    **Stato:** Approvato
+
+    **Sintesi:** Utilizzo di API REST HTTP sincrone per le operazioni CRUD immediate che richiedono risposta in tempo reale (lettura profilo membro, aggiornamento wallet, consultazione campagne attive). Le API seguono le convenzioni OpenAPI 3.1 con documentazione automatica tramite SpringDoc. Le operazioni di lunga durata o ad alta latenza sono delegate alla comunicazione asincrona su Kafka.
+  </Accordion>
+
+  <Accordion title="ADR-010 - Event sourcing parziale per wallet">
+    **Stato:** Approvato
+
+    **Sintesi:** Implementazione di event sourcing parziale per il microservizio wallet (porta 8084). Tutte le transazioni di punti sono registrate come eventi immutabili in una tabella dedicata, mentre lo stato corrente del saldo è mantenuto in una tabella di snapshot per performance di lettura. Questo pattern garantisce audit trail completo e possibilità di ricostruire lo stato in caso di anomalie.
+  </Accordion>
+
+  <Accordion title="ADR-011 - Circuit breaker con Resilience4j">
+    **Stato:** Approvato
+
+    **Sintesi:** Adozione della libreria Resilience4j per implementare pattern di resilienza (circuit breaker, retry, rate limiter, bulkhead) nelle chiamate tra microservizi. Ogni servizio configura threshold specifici in base alla criticità del dominio. La decisione migliora la tolleranza ai fault evitando effetti cascata quando un servizio diventa non disponibile.
+  </Accordion>
+
+  <Accordion title="ADR-012 - Containerizzazione Docker e orchestrazione">
+    **Stato:** Approvato
+
+    **Sintesi:** Containerizzazione di tutti i microservizi con Docker e definizione dei deployment tramite Docker Compose per l'ambiente di sviluppo locale. Ogni servizio ha il proprio Dockerfile multi-stage per ottimizzare la dimensione dell'immagine. Per gli ambienti di staging e produzione è previsto l'uso di Kubernetes, con i manifest gestiti in un repository separato.
+  </Accordion>
+
+  <Accordion title="ADR-013 - Tracciamento distribuito con correlation ID">
+    **Stato:** Approvato
+
+    **Sintesi:** Implementazione obbligatoria del tracciamento distribuito attraverso l'extension CloudEvents `lhcorrelationid`. Ogni richiesta in ingresso genera un correlation ID che viene propagato attraverso tutte le chiamate sincrone e asincrone. Il campo `lhcausationid` traccia la relazione causa-effetto tra eventi, mentre `lhhop` conta il numero di salti nel grafo delle dipendenze.
+  </Accordion>
+
+  <Accordion title="ADR-014 - Multi-tenancy con schema separation">
+    **Stato:** Approvato
+
+    **Sintesi:** Implementazione del multi-tenancy a livello di schema PostgreSQL. L'extension CloudEvents `lhtenant` identifica il tenant di ogni evento, e i microservizi instradano le query verso lo schema corretto. Questo approccio offre isolamento completo dei dati tra tenant con overhead gestibile rispetto al multi-tenancy a livello di riga. Ogni nuovo tenant richiede la creazione di uno schema dedicato.
+  </Accordion>
+
+  <Accordion title="ADR-015 - Dead Letter Queue dedicata">
+    **Stato:** Approvato
+
+    **Sintesi:** Configurazione del topic `lh.dlq.v1` come Dead Letter Queue per la gestione dei messaggi Kafka che non possono essere elaborati dopo il numero massimo di retry. I messaggi in DLQ sono persistenti e consultabili tramite il microservizio insight per analisi e reprocessing manuale. Questo pattern previene la perdita di dati critici in caso di errori transitori o permanenti nei consumer.
+  </Accordion>
+
+  <Accordion title="ADR-016 - Validazione schema eventi con Avro">
+    **Stato:** Approvato
+
+    **Sintesi:** Uso di Apache Avro per la definizione e validazione degli schemi degli eventi Kafka. Ogni evento è associato a uno schema versionato (tracciato tramite `lhschemaversion`) registrato in un schema registry. Avro garantisce compatibilità backward e forward, riducendo il rischio di breaking changes nella comunicazione tra servizi. La serializzazione Avro è più compatta rispetto a JSON, riducendo il traffico di rete.
+  </Accordion>
+
+  <Accordion title="ADR-017 - Testing con Testcontainers">
+    **Stato:** Approvato
+
+    **Sintesi:** Adozione di Testcontainers per l'esecuzione di test di integrazione con istanze reali di PostgreSQL, Kafka e altre dipendenze esterne. Ogni microservizio ha una suite di test di integrazione che avvia container Docker per verificare il comportamento end-to-end. Questa scelta aumenta la fedeltà dei test rispetto agli mock, a fronte di un tempo di esecuzione maggiore.
+  </Accordion>
+
+  <Accordion title="ADR-018 - Metriche e health check con Spring Boot Actuator">
+    **Stato:** Approvato
+
+    **Sintesi:** Esposizione di endpoint di health check e metriche tramite Spring Boot Actuator su tutti i microservizi. Le metriche personalizzate includono contatori di eventi processati, latenza delle query, saldo punti elaborati e errori per tipo. I endpoint `/actuator/health` e `/actuator/metrics` sono utilizzati dai sistemi di monitoraggio e orchestrazione per rilevare anomalie.
+  </Accordion>
+
+  <Accordion title="ADR-019 - Versioning API con URL path">
+    **Stato:** Approvato
+
+    **Sintesi:** Scelta del versioning delle API tramite URL path (`/v1/`, `/v2/`) invece che tramite header o content negotiation. Questa convenzione è immediatamente visibile, facile da documentare e compatibile con tutti i client HTTP. Le versioni deprecate vengono mantenute per almeno 6 mesi con avvisi di sunset nel header `Deprecation`.
+  </Accordion>
+
+  <Accordion title="ADR-020 - Gestione configurazione esternalizzata">
+    **Stato:** Approvato
+
+    **Sintesi:** Utilizzo di Spring Cloud Config per la gestione centralizzata della configurazione dei microservizi. Le proprietà specifiche per ambiente (dev, staging, prod) sono mantenute in un repository Git separato e distribuite ai servizi all'avvio. Le configurazioni sensibili (password, chiavi API) sono cifrate con Spring Cloud Config Server e decifrate runtime tramite chiavi di ambiente.
+  </Accordion>
+
+  <Accordion title="ADR-021 - Pattern Outbox per consistenza eventi">
+    **Stato:** Approvato
+
+    **Sintesi:** Implementazione del pattern Outbox in tutti i microservizi che pubblicano eventi Kafka. Le modifiche al database e i corrispondenti eventi da pubblicare sono scritti nella stessa transazione locale in una tabella outbox. Un processo asincrono legge dalla outbox e pubblica su Kafka, garantendo che nessun evento venga perso anche in caso di failure del broker. Questo pattern risolve il problema del dual write tra database e message broker.
+  </Accordion>
+
+  <Accordion title="ADR-022 - Caching distribuito con Redis">
+    **Stato:** Approvato
+
+    **Sintesi:** Introduzione di Redis come cache distribuita per i dati ad alta frequenza di lettura (profili membri, configurazioni campagne, regole di gamification). Il TTL della cache è configurabile per dominio e invalidato in modo asincrono tramite eventi Kafka quando i dati sottostanti cambiano. Redis riduce il carico su PostgreSQL e migliora i tempi di risposta delle API.
+  </Accordion>
+
+  <Accordion title="ADR-023 - Pipeline CI/CD con GitHub Actions">
+    **Stato:** Approvato
+
+    **Sintesi:** Configurazione di pipeline CI/CD tramite GitHub Actions per la build, il test e il deployment dei microservizi. Ogni pull request attiva la build e l'esecuzione di test unitari e di integrazione. Il merge sul branch main innesca la creazione dell'immagine Docker e il deployment automatico in staging. Il deployment in produzione richiede approvazione manuale.
+  </Accordion>
+
+  <Accordion title="ADR-024 - Documentazione API con OpenAPI e Mintlify">
+    **Stato:** Approvato
+
+    **Sintesi:** Generazione automatica della documentazione API a partire dagli schemi OpenAPI 3.1 e pubblicazione su portale Mintlify. La documentazione è versionata insieme alle API e include esempi di richiesta/risposta per ogni endpoint. Il portale Mintlify ospita anche guide operative, specifiche architetturali e questo registro delle decisioni, centralizzando la knowledge base del progetto.
+  </Accordion>
+</AccordionGroup>
+
+## Prossimi passi
+
+<CardGroup cols={2}>
+  <Card title="Architettura dei microservizi" href="/specifiche/architettura-microservizi">
+    Esplora la topologia completa degli 8 microservizi Loyalty Hub, le loro responsabilità e le interazioni.
+  </Card>
+
+  <Card title="Topic Kafka e CloudEvents" href="/specifiche/topic-kafka">
+    Approfondisci la struttura dei 5 topic Kafka e lo schema degli eventi CloudEvents 1.0 con le extension custom.
+  </Card>
+
+  <Card title="Stack tecnologico" href="/specifiche/stack-tecnologico">
+    Consulta il dettaglio completo dello stack tecnologico: Spring Boot 4, Java 25, PostgreSQL 16, Kafka e Next.js 14.
+  </Card>
+
+  <Card title="Modello dati" href="/specifiche/modello-dati">
+    Visualizza il modello entita-relazione e la struttura dei database per ogni microservizio.
+  </Card>
+</CardGroup>
