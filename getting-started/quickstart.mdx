@@ -1,5 +1,5 @@
 ---
-title: "quickstart"
+title: "Quickstart: avvia Loyalty Hub in cinque minuti"
 sidebarTitle: "Quickstart"
 description: "Avvia lo stack completo di Loyalty Hub in locale con Docker Compose, invia il primo evento e osserva punti e tier reagire nel portale."
 ---
@@ -37,9 +37,15 @@ Verifica di aver completato i [Prerequisiti](getting-started/prerequisiti). Ti s
     Il frontend Next.js si trova all'indirizzo:
 
     - Hub / login demo: [http://localhost:3000](http://localhost:3000)
+    - Backoffice: [http://localhost:3000/backoffice](http://localhost:3000/backoffice)
+    - Portale membro: [http://localhost:3000/portal](http://localhost:3000/portal)
     - Kafka UI (opzionale, per ispezionare i topic): [http://localhost:8090](http://localhost:8090)
 
     Non serve creare un account: scegli una persona dalla pagina iniziale (per esempio `marta.admin` per il backoffice o un membro qualsiasi per il portale).
+
+    <Tip>
+      Se non vuoi avviare nulla in locale, la stessa demo è online su [loyalty-hub-web.vercel.app](https://loyalty-hub-web.vercel.app/) (backoffice su `/backoffice`, portale su `/portal`).
+    </Tip>
   </Step>
   <Step title="Invia il primo evento">
     Simula un acquisto per il membro `MBR-000003` tramite l'API di `ingestion-service`:
@@ -69,7 +75,7 @@ Verifica di aver completato i [Prerequisiti](getting-started/prerequisiti). Ti s
     La risposta contiene l'esito (`ACCEPTED`) e il `memberId` risolto.
   </Step>
   <Step title="Vedi punti e tier reagire">
-    Apri il portale della persona `MBR-000003` su [http://localhost:3000](http://localhost:3000). Entro pochi secondi vedrai:
+    Apri il portale della persona `MBR-000003` su [http://localhost:3000/portal](http://localhost:3000/portal) (o su [loyalty-hub-web.vercel.app/portal](https://loyalty-hub-web.vercel.app/portal) se usi la demo online). Entro pochi secondi vedrai:
 
     - Un nuovo movimento nel wallet con i punti accreditati.
     - L'aggiornamento della barra di progresso verso il tier successivo.
