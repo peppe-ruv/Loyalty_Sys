@@ -1,5 +1,5 @@
 ---
-title: "premi-e-gioco"
+title: "Premi e gioco: catalogo, coupon, instant win e badge"
 sidebarTitle: "Premi e gioco"
 description: "Come funzionano premi a fasce, coupon, richieste premio con saga, instant win a istanti vincenti pre-generati, obiettivi, badge e classifiche."
 ---
@@ -44,13 +44,46 @@ Alcuni premi consegnano un **coupon** (codice sconto, buono digitale). I coupon 
 
 ## Instant win
 
-Un concorso instant win offre giocate immediate con esito prefissato. Il modello:
+Un concorso instant win offre giocate immediate con esito prefissato. Il modello di base:
 
 - **Istanti vincenti pre-generati**: alla creazione del concorso il sistema calcola in anticipo N istanti in cui la giocata sarà vincente.
 - **Giocate consumate una a una**: il membro guadagna giocate da campagne o azioni.
 - **Vincita = azione interna**: se la giocata cade in un istante vincente, si crea un'azione `contest.won` che rientra dal ponte interno e attiva le campagne che consegnano il premio (di solito una campagna di sistema).
 
-Il ruolo LEGAL vede in backoffice l'elenco degli istanti vincenti e i vincitori.
+La logica di vincita è identica per tutti i concorsi. Quello che cambia è la **meccanica**, cioè l'esperienza che il membro vede nel portale (PT-06) e la metafora usata nel backoffice (BO-14). Il valore della meccanica è dato: né un identificativo tecnico né un contratto evento.
+
+### Le tre meccaniche
+
+<CardGroup cols={3}>
+  <Card title="WHEEL" icon="circle-dot">
+    **Ruota della fortuna**. Il membro fa girare una ruota animata divisa in spicchi. Adatta a montepremi ampi con più tipi di premio (punti + coupon + oggetto).
+  </Card>
+
+  <Card title="SCRATCH" icon="hand-sparkles">
+    **Gratta e vinci**. Il membro gratta una superficie per rivelare l'esito. Adatta a montepremi con pochi premi ma di valore alto, o a stagionalità natalizia.
+  </Card>
+
+  <Card title="BOX" icon="gift">
+    **Pacco regalo**. Il membro sceglie o apre un pacco tra più opzioni visibili. Adatta a concorsi con premi di uguale valore o a periodi di lancio.
+  </Card>
+</CardGroup>
+
+### Confronto tra meccaniche
+
+| Aspetto | WHEEL | SCRATCH | BOX |
+| --- | --- | --- | --- |
+| Metafora | Ruota della fortuna | Gratta e vinci | Pacco regalo |
+| Interazione portale | Bottone "Gira" → animazione di rotazione | Trascina il dito → superficie che si scopre | Bottone "Apri" o scelta tra pacchi visibili |
+| Durata percepita | 3-4 secondi con animazione | 2-3 secondi + interazione | 1-2 secondi immediato |
+| Ideale per | Molte tipologie di premio miste | Premi rari ma di alto valore | Periodi di lancio, premi omogenei |
+| Esempio nei dati demo | `IW-AUTUNNO` (Ruota d'Autunno) | `IW-NATALE` (Gratta e vinci di Natale) | `IW-ESTATE` (Pacchi d'Estate) |
+| Backoffice (BO-14) | Anteprima ruota con spicchi | Anteprima superficie da grattare | Anteprima pacchi disponibili |
+
+<Note>
+  La meccanica è puramente presentazionale. Il motore di estrazione, il calendario istanti, la deduplica e la saga di consegna del premio funzionano allo stesso modo. Cambiare `mechanic` di un concorso non modifica gli istanti già pianificati, cambia solo l'esperienza portale al prossimo rendering.
+</Note>
+
+Il ruolo LEGAL vede in backoffice l'elenco degli istanti vincenti e i vincitori indipendentemente dalla meccanica scelta.
 
 ## Obiettivi e badge
 
