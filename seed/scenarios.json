@@ -2,9 +2,9 @@
   {
     "code": "SCN-WEEKEND-ANNA",
     "name": "Il weekend di Anna",
-    "description": "Anna fa un acquisto online nel weekend, apre l'app e lascia una recensione: tre azioni che le fanno guadagnare punti.",
+    "description": "Anna fa un acquisto online, apre l'app e lascia una recensione: tre giri nella pipeline. L'acquisto e l'accesso le fanno guadagnare punti (nel weekend quelli dell'acquisto raddoppiano); la recensione è valutata ma non vale punti, perché CMP-REVIEW è in pausa.",
     "protagonist": "Anna (MBR-000001)",
-    "watch": "Guarda i punti salire nel wallet di Anna e i tre giri nel flusso live.",
+    "watch": "Guarda i punti salire nel wallet di Anna e i tre giri nel flusso live: sulla recensione la valutazione non fa scattare nessuna campagna.",
     "steps": [
       { "delayMs": 0, "memberId": "MBR-000001", "type": "purchase.completed", "source": "ecommerce",
         "data": { "orderId": "ORD-SCN-1", "amount": 80, "currency": "EUR", "channel": "ONLINE" },
