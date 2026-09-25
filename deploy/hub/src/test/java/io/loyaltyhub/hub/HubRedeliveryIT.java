@@ -80,7 +80,7 @@ public class HubRedeliveryIT {
 
         String json = mapper.writeValueAsString(effect);
 
-        bus.publish(new ProducerRecord<>("lh.effects.v1", null, memberId, json,
+        bus.publish(new ProducerRecord<>("lh.facts.v1", null, memberId, json,
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.points.grant".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
@@ -99,7 +99,7 @@ public class HubRedeliveryIT {
         assertThat(pts).isEqualTo(before + 100);
 
         // Seconda consegna: ricreiamo lo stesso record come se fosse stato riemesso dal broker
-        bus.publish(new ProducerRecord<>("lh.effects.v1", null, memberId, json,
+        bus.publish(new ProducerRecord<>("lh.facts.v1", null, memberId, json,
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.points.grant".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
@@ -223,7 +223,7 @@ public class HubRedeliveryIT {
 
         String json = mapper.writeValueAsString(effect);
 
-        bus.publish(new ProducerRecord<>("lh.effects.v1", null, memberId, json,
+        bus.publish(new ProducerRecord<>("lh.facts.v1", null, memberId, json,
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.message.send".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
@@ -241,7 +241,7 @@ public class HubRedeliveryIT {
         }
         assertThat(messages).isEqualTo(messagesBefore + 1);
 
-        bus.publish(new ProducerRecord<>("lh.effects.v1", null, memberId, json,
+        bus.publish(new ProducerRecord<>("lh.facts.v1", null, memberId, json,
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.message.send".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
@@ -303,15 +303,15 @@ public class HubRedeliveryIT {
         String effectId = "spend-" + UUID.randomUUID().toString();
         Map<String, Object> effect = Map.of(
             "specversion", "1.0", "id", eventId, "source", "urn:loyaltyhub:reward",
-            "type", "io.loyaltyhub.effect.points.spend", "subject", "member:" + memberId,
+            "type", "io.loyaltyhub.fact.reward.redemption.requested", "subject", "member:" + memberId,
             "time", Instant.now().toString(),
-            "data", Map.of("amount", 50, "currency", "PTS", "effectId", effectId)
+            "data", Map.of("redemptionId", "RED-" + eventId, "rewardCode", "RWD-x", "rewardName", "Premio", "currency", "PTS", "pointsCost", 50)
         );
         String json = mapper.writeValueAsString(effect);
 
-        bus.publish(new ProducerRecord<>("lh.effects.v1", null, memberId, json,
+        bus.publish(new ProducerRecord<>("lh.facts.v1", null, memberId, json,
                 java.util.List.of(
-                    new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.points.spend".getBytes(StandardCharsets.UTF_8)),
+                    new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.fact.reward.redemption.requested".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", eventId.getBytes(StandardCharsets.UTF_8))
                 )));
@@ -321,11 +321,11 @@ public class HubRedeliveryIT {
             if (walletPts(memberId) < start) break;
             sleep();
         }
-        assertThat(walletPts(memberId)).isEqualTo(start - 50);
+        assertThat(walletPts(memberId)).isEqualTo(start - 100);
 
-        bus.publish(new ProducerRecord<>("lh.effects.v1", null, memberId, json,
+        bus.publish(new ProducerRecord<>("lh.facts.v1", null, memberId, json,
                 java.util.List.of(
-                    new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.points.spend".getBytes(StandardCharsets.UTF_8)),
+                    new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.fact.reward.redemption.requested".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.CORRELATION_ID, eventId.getBytes(StandardCharsets.UTF_8)), new RecordHeader("id", eventId.getBytes(StandardCharsets.UTF_8))
                 )));
@@ -333,7 +333,7 @@ public class HubRedeliveryIT {
         long steadyDeadline = System.currentTimeMillis() + 3000;
         while(System.currentTimeMillis() < steadyDeadline) {
            sleep(500);
-           assertThat(walletPts(memberId)).isEqualTo(start - 50);
+           assertThat(walletPts(memberId)).isEqualTo(start - 100);
         }
     }
 
@@ -346,10 +346,10 @@ public class HubRedeliveryIT {
         Map<String, Object> effect = Map.of("specversion", "1.0", "id", id, "source", "urn:loyaltyhub:campaign",
                 "type", "io.loyaltyhub.effect.plays.grant", "subject", "member:" + memberId,
                 "time", Instant.now().toString(),
-                "data", Map.of("effectId", "EFF-" + id, "contestCode", "WHEEL", "plays", 1));
+                "data", Map.of("effectId", "EFF-" + id, "contestCode", "CT-WHEEL", "count", 1, "actionId", "ACT-x", "actionType", "campaign.eval", "campaignCode", "CMP-1"));
         String json = mapper.writeValueAsString(effect);
 
-        bus.publish(new ProducerRecord<>("lh.effects.v1", null, memberId, json,
+        bus.publish(new ProducerRecord<>("lh.facts.v1", null, memberId, json,
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.plays.grant".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
@@ -362,7 +362,7 @@ public class HubRedeliveryIT {
             sleep();
         }
 
-        bus.publish(new ProducerRecord<>("lh.effects.v1", null, memberId, json,
+        bus.publish(new ProducerRecord<>("lh.facts.v1", null, memberId, json,
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.plays.grant".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
@@ -385,10 +385,10 @@ public class HubRedeliveryIT {
         Map<String, Object> effect = Map.of("specversion", "1.0", "id", id, "source", "urn:loyaltyhub:campaign",
                 "type", "io.loyaltyhub.effect.coupon.issue", "subject", "member:" + memberId,
                 "time", Instant.now().toString(),
-                "data", Map.of("effectId", "EFF-" + id, "poolCode", "COFFEE"));
+                "data", Map.of("effectId", "EFF-" + id, "rewardCode", "RWD-COFFEE", "actionId", "ACT-x", "actionType", "campaign.eval", "campaignCode", "CMP-1"));
         String json = mapper.writeValueAsString(effect);
 
-        bus.publish(new ProducerRecord<>("lh.effects.v1", null, memberId, json,
+        bus.publish(new ProducerRecord<>("lh.facts.v1", null, memberId, json,
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.coupon.issue".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
@@ -401,7 +401,7 @@ public class HubRedeliveryIT {
             sleep();
         }
 
-        bus.publish(new ProducerRecord<>("lh.effects.v1", null, memberId, json,
+        bus.publish(new ProducerRecord<>("lh.facts.v1", null, memberId, json,
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.coupon.issue".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
@@ -424,10 +424,10 @@ public class HubRedeliveryIT {
         Map<String, Object> effect = Map.of("specversion", "1.0", "id", id, "source", "urn:loyaltyhub:campaign",
                 "type", "io.loyaltyhub.effect.badge.award", "subject", "member:" + memberId,
                 "time", Instant.now().toString(),
-                "data", Map.of("effectId", "EFF-" + id, "badgeCode", "COFFEE_LOVER"));
+                "data", Map.of("effectId", "EFF-" + id, "badgeCode", "BDG-COFFEE", "campaignCode", "CMP-1", "actionId", "ACT-x", "actionType", "campaign.eval"));
         String json = mapper.writeValueAsString(effect);
 
-        bus.publish(new ProducerRecord<>("lh.effects.v1", null, memberId, json,
+        bus.publish(new ProducerRecord<>("lh.facts.v1", null, memberId, json,
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.badge.award".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
@@ -440,7 +440,7 @@ public class HubRedeliveryIT {
             sleep();
         }
 
-        bus.publish(new ProducerRecord<>("lh.effects.v1", null, memberId, json,
+        bus.publish(new ProducerRecord<>("lh.facts.v1", null, memberId, json,
                 java.util.List.of(
                     new RecordHeader(LhHeaders.TYPE, "io.loyaltyhub.effect.badge.award".getBytes(StandardCharsets.UTF_8)),
                     new RecordHeader(LhHeaders.ACTOR, "ADMIN".getBytes(StandardCharsets.UTF_8)),
