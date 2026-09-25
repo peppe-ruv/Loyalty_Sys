@@ -13,4 +13,4 @@ TB-INS-DRL-011,scarta un'azione aperta come CARE: 403 e voce invariata senza re-
 TB-INS-DRL-012,scarta un'azione aperta come ANALYST: 403 e voce invariata senza re-invio,discard,ANALYST,403,FORBIDDEN_ROLE,OPEN,0
 TB-INS-DRL-013,scarta un'azione aperta come senza X-LH-Actor: 403 e voce invariata senza re-invio,discard,NONE,403,FORBIDDEN_ROLE,OPEN,0
 TB-INS-DRL-014,scarta un'azione aperta come GUEST:ospite (ruolo sconosciuto = ANALYST per Q-261): 403 e voce invariata senza re-invio,discard,INVALID,403,FORBIDDEN_ROLE,OPEN,0
-TB-INS-DRL-015,scarta come admin minuscolo (AMBIGUO: ruolo letto senza maiuscole): 200,discard,LOWER,200,-,DISCARDED,0
+TB-INS-DRL-015,scarta come admin minuscolo (Q-298 DECISA: forma non canonica = ANALYST): 403 e voce invariata,discard,LOWER,403,FORBIDDEN_ROLE,OPEN,0

@@ -152,7 +152,7 @@ Rami senza specifica (righe AMBIGUO): 13 voci — 404 vs tracciato vuoto, `REPRO
 | TB-INS-DRL-012 | scarta un'azione aperta come ANALYST | 403 e voce invariata senza re-invio | docs/08 §2 `dlq.handle`; docs/06 §3; Q-261 | `TestbookInsDlqIT` · `dlq-ruoli.csv` |
 | TB-INS-DRL-013 | scarta un'azione aperta come senza X-LH-Actor | 403 e voce invariata senza re-invio | docs/08 §2 `dlq.handle`; docs/06 §3; Q-261 | `TestbookInsDlqIT` · `dlq-ruoli.csv` |
 | TB-INS-DRL-014 | scarta un'azione aperta come GUEST:ospite (ruolo sconosciuto = ANALYST per Q-261) | 403 e voce invariata senza re-invio | docs/08 §2 `dlq.handle`; docs/06 §3; Q-261 | `TestbookInsDlqIT` · `dlq-ruoli.csv` |
-| TB-INS-DRL-015 | scarta come admin minuscolo (AMBIGUO | ruolo letto senza maiuscole): 200 | docs/08 §2 `dlq.handle`; docs/06 §3; Q-261 | `TestbookInsDlqIT` · `dlq-ruoli.csv` |
+| TB-INS-DRL-015 | scarta come admin minuscolo | 403 `FORBIDDEN_ROLE`, voce invariata — Q-298 DECISA (forma non canonica = ANALYST) | docs/08 §2 `dlq.handle`; docs/06 §3; Q-261 | `TestbookInsDlqIT` · `dlq-ruoli.csv` |
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -900,7 +900,7 @@ Il proprietario ha deciso di applicare a ogni ambiguità l'opzione più conserva
 |---|---|---|
 | DST-004, DST-005, DRP-010, DRP-013 | Q-312 — *Riprocessa* di una voce `AUDIT` o di famiglia sconosciuta | 409 `NOT_REPROCESSABLE` (già così) |
 | DST-033, 034 | Q-313 — ordine dei controlli di *scarta* | 422 `NOTE_REQUIRED` prima di 409/404 (già così) |
-| DRL-015 | Q-314 — ruolo in minuscolo in `X-LH-Actor` | segue Q-298 (lh-common, comune a tutti i servizi): nessun cambio locale |
+| DRL-015 | Q-314 — ruolo in minuscolo in `X-LH-Actor` | segue Q-298 DECISA (lh-common): forma non canonica = ANALYST, quindi 403 |
 | DIN-002…005, 007…009 | Q-315 — risposte di ingestion diverse da `ACCEPTED` | voce resta `OPEN`; 409 `REPROCESS_REJECTED`; 4xx `INGESTION_REFUSED`; vuoto 503 (già così) |
 | DIG-002…005 | Q-316 — header `kafka_dlt-*`, `errorCode` dalla classe, consumer `unknown`, tentativi non numerici | lettura tollerante (già così: un errore qui rimanderebbe il record in DLQ) |
 | DLS-003, 007, 016, 020 | Q-317 — `status` minuscolo o sconosciuto, `size=0`, `page` negativa | minuscolo accettato; sconosciuto = nessuna voce (come `NEW`, Q-105); `size` < 1 e `page` < 0 ⇒ **400** (cambiato) |
