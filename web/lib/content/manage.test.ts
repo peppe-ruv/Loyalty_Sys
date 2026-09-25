@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ContentItem } from "./types";
-import { audienceLabel, effectiveOrder, scheduleLabel } from "./manage";
+import { audienceLabel, effectiveOrder, liveSafeBody, scheduleLabel } from "./manage";
 
 const base: ContentItem = {
   id: "1", code: "A", kind: "CARD", placement: "HOME_GRID", title: "A", body: null, imageUrl: null, ctaLabel: null,
@@ -27,5 +27,23 @@ describe("gestione contenuti", () => {
     expect(scheduleLabel({ startAt: null, endAt: "2026-01-01T00:00:00Z" }, now)).toMatch(/^terminato/);
     expect(audienceLabel({ tiers: ["GOLD", "PLATINUM"], segments: [], statuses: [] })).toBe("GOLD, PLATINUM");
     expect(audienceLabel({ tiers: [], segments: [], statuses: [] })).toBe("tutti");
+  });
+
+  it("su un LIVE rimanda i campi non sicuri come sono e cambia solo quelli sicuri (docs/03 §3.6)", () => {
+    const live: ContentItem = {
+      ...base, placement: "HOME_HERO", ctaLabel: "Scopri", ctaTarget: "/portal/earn", startAt: "2026-09-01T08:00:30Z",
+      audience: { tiers: ["GOLD"], segments: [], statuses: [] }, style: { tone: "COIN" },
+    };
+    const body = {
+      version: 3, title: "Nuovo", body: "Testo", imageUrl: "/demo/x.webp", priority: 90, endAt: "2026-12-31T23:00:00.000Z",
+      placement: "HOME_GRID", ctaLabel: "Altro", ctaTarget: null, linkType: "NONE", linkCode: null,
+      audience: { tiers: [], segments: [], statuses: [] }, startAt: "2026-09-01T08:00:00.000Z", frequency: null,
+      dismissible: true, style: { tone: "PRIMARY" },
+    };
+    const out = liveSafeBody(body, live);
+    expect(out).toMatchObject({ version: 3, title: "Nuovo", body: "Testo", imageUrl: "/demo/x.webp", priority: 90,
+      endAt: "2026-12-31T23:00:00.000Z" });
+    expect(out).toMatchObject({ placement: "HOME_HERO", ctaLabel: "Scopri", ctaTarget: "/portal/earn",
+      startAt: "2026-09-01T08:00:30Z", audience: live.audience, style: { tone: "COIN" } });
   });
 });

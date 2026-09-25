@@ -4,7 +4,7 @@ Dominio **engagement** del testbook funzionale (metodo e convenzioni in `docs/16
 
 - **Servizio:** `services/engagement-service`.
 - **Fonti (oracolo):** `docs/servizi/engagement-service.md` (§2 modello, §3 API, §4 eventi, §5 regole, §7 accettazione) · `docs/03` §3.3 (condizioni), §3.4 (`SEND_MESSAGE`), §3.6 (ciclo di vita), §9 (contenuti e messaggi) · `docs/02` `F-CNT-01…04`, `F-MSG-01/02`, `F-THM-01`, `F-WBH-01` · `docs/05` (fatti) · `docs/06` §2–§4 (API, errori, attore, lock) · `docs/07` §2 (formattazione it-IT, Europe/Rome) · `docs/08` §2 (permessi), BO-18, BO-19, BO-20, BO-23 · `docs/09` PT-12 · `docs/10` §7 · `docs/11` (anti-SSRF) · scelte registrate in `docs/15`: Q-66, Q-67, Q-68, Q-70, Q-71, Q-72, Q-73, Q-75, Q-79, Q-97…Q-103.
-- **Righe:** 804, di cui 132 marcate **AMBIGUO** e 7 **DIVERGENZA** (test rossi finché il codice non segue la specifica o `docs/15` non registra una scelta diversa).
+- **Righe:** 804, di cui 132 marcate **AMBIGUO** (registrate in `docs/15`: Q-161 e Q-G1…Q-G16, §17.2) e 7 ex **DIVERGENZA**, risolte correggendo il codice secondo la specifica (§17.1).
 
 ## 0. Come si legge e come si esegue
 
@@ -21,21 +21,21 @@ Dominio **engagement** del testbook funzionale (metodo e convenzioni in `docs/16
 |---|---|---|---|---|
 | R01 | Un contenuto è visibile se `LIVE` ∧ in calendario ∧ pubblico soddisfatto; ordine per `priority` decrescente | docs/03 §9; F-CNT-01 | `ContentSelection.select/exclusion` :42–69, `inSchedule` :102–104 | SEL, CAL, ORD |
 | R02 | Limiti per posizionamento: `HOME_HERO` 1, `HOME_GRID` 6; `CATALOG_TOP` 1, `CONTEST` 3, `WIN` 1 | docs/03 §9; Q-72 | `ContentSelection.LIMITS` :23 | ORD |
-| R03 | Pubblico `{tiers[], segments[], statuses[]}`, vuoto = tutti; una dimensione non vuota va soddisfatta (livello presente, almeno un segmento in comune, stato presente); tra dimensioni diverse il codice usa AND, non prescritto (**AMBIGUO**, docs/17 US-E07-03) | engagement §2; docs/03 §9 | `ContentSelection.inAudience` :111–126 | AUD, PRV |
-| R04 | Estensioni del seed `registeredWithinDays` (iscritti da < N giorni) e `daysOfWeek` (giorno di Roma) | Q-71; docs/10 §7; docs/03 §3.3 | `ContentSelection.inAudience` :127–134 | EXT |
-| R05 | Anteprima per membro con motivo di esclusione `NOT_IN_AUDIENCE`, `OUT_OF_SCHEDULE`, `NOT_LIVE`, `FREQUENCY` | engagement §3; F-CNT-04; BO-18 | `ContentService.preview` :169–184 | SEL, PRV |
+| R03 | Pubblico `{tiers[], segments[], statuses[]}`, vuoto = tutti; una dimensione non vuota va soddisfatta (livello presente, almeno un segmento in comune, stato presente); tra dimensioni diverse il codice usa AND, non prescritto (**AMBIGUO**, docs/17 US-E07-03; Q-161) | engagement §2; docs/03 §9 | `ContentSelection.inAudience` :112–127 | AUD, PRV |
+| R04 | Estensioni del seed `registeredWithinDays` (iscritti da < N giorni) e `daysOfWeek` (giorno di Roma) | Q-71; docs/10 §7; docs/03 §3.3 | `ContentSelection.inAudience` :128–135 | EXT |
+| R05 | Anteprima per membro con motivo di esclusione `NOT_IN_AUDIENCE`, `OUT_OF_SCHEDULE`, `NOT_LIVE`, `FREQUENCY` | engagement §3; F-CNT-04; BO-18 | `ContentService.preview` :174–189 | SEL, PRV |
 | R06 | Pop-up: al più uno, il primo per priorità che rispetta la frequenza (`ONCE` mai visto, `ONCE_PER_DAY` non visto oggi, `ALWAYS`) | docs/03 §9; F-CNT-02 | `ContentSelection.selectPopup/frequencyAllows` :76–100 | POP, POPA |
-| R07 | `popups/next` risponde `204` se nessuno; la vista si registra con `seen` (non alla lettura) nel giorno di Roma | engagement §3, §5, §7 | `ContentService.nextPopup/seen` :139–158; `PortalPopupsController` | POPA |
-| R08 | Card vincita mostrata per premio (`WIN` + `prizeCode`) | F-CNT-03; engagement §3 | `ContentService.portal` :125–133 | PRV |
-| R09 | Ciclo di vita dei contenuti senza approvazione: `DRAFT→LIVE`, `LIVE⇄PAUSED`, `LIVE/PAUSED→ENDED`, `DRAFT/ENDED→ARCHIVED`; il resto `409` | docs/03 §3.6; docs/06 §2, §7; engagement §3 | `ContentService.TRANSITIONS` :83–88, `transition` :232–243 | LIF |
-| R10 | Ogni transizione produce `content.status.changed` | engagement §4; docs/05 | `ContentService.changeStatus` :277–287 | LIF, END |
-| R11 | Un contenuto `LIVE` si modifica solo nei campi sicuri (titolo, testo, `endAt`, priorità, immagine); per il resto si duplica (`409`) | docs/03 §3.6; docs/06 §2; docs/08 §3.2 | **non implementata** (`ContentService.update` :206–229) | EDL |
-| R12 | Duplicazione: copia nuova in `DRAFT` | engagement §3; docs/03 §3.6 | `ContentService.duplicate` :247–260 | DUP |
-| R13 | `ENDED` automatico dei contenuti con `end_at` passato (job ogni 10 min) | engagement §5 | `ContentService.endExpired` :264–273; `ContentRepository.expiredBy` | END |
-| R14 | Campi validi: `kind`, `placement`, `link_type`, `frequency` (solo pop-up), `style.tone` negli enumerati; codice `^[A-Z][A-Z0-9-]{2,39}$` | engagement §2; docs/06 §2 | `ContentService.create` :189–203, `validated` :310–379 | EDT |
-| R15 | Codice duplicato `409`; lock ottimistico `409` | docs/06 §2, §4 | `ContentService.create` :195, `update` :217–221; stessi rami in template, regole, tema, webhook | EDT, TAD, RAD, THA, WDLV |
+| R07 | `popups/next` risponde `204` se nessuno; la vista si registra con `seen` (non alla lettura) nel giorno di Roma | engagement §3, §5, §7 | `ContentService.nextPopup/seen` :144–163; `PortalPopupsController` | POPA |
+| R08 | Card vincita mostrata per premio (`WIN` + `prizeCode`) | F-CNT-03; engagement §3 | `ContentService.portal` :127–138 | PRV |
+| R09 | Ciclo di vita dei contenuti senza approvazione: `DRAFT→LIVE`, `LIVE⇄PAUSED`, `LIVE/PAUSED→ENDED`, `DRAFT/ENDED→ARCHIVED`; il resto `409` | docs/03 §3.6; docs/06 §2, §7; engagement §3 | `ContentService.TRANSITIONS` :84–89, `transition` :245–256 | LIF |
+| R10 | Ogni transizione produce `content.status.changed` | engagement §4; docs/05 | `ContentService.changeStatus` :290–300 | LIF, END |
+| R11 | Un contenuto `LIVE` si modifica solo nei campi sicuri (titolo, testo, `endAt`, priorità, immagine); per il resto si duplica (`409`) | docs/03 §3.6; docs/06 §2; docs/08 §3.2 | `ContentService.update` :224–230, `lockedChanges` :400 (`409 CONTENT_LIVE_LOCKED`) | EDL |
+| R12 | Duplicazione: copia nuova in `DRAFT` | engagement §3; docs/03 §3.6 | `ContentService.duplicate` :260–273 | DUP |
+| R13 | `ENDED` automatico dei contenuti con `end_at` passato (job ogni 10 min) | engagement §5 | `ContentService.endExpired` :277–286; `ContentRepository.expiredBy` | END |
+| R14 | Campi validi: `kind`, `placement`, `link_type`, `frequency` (solo pop-up), `style.tone` negli enumerati; codice `^[A-Z][A-Z0-9-]{2,39}$` | engagement §2; docs/06 §2 | `ContentService.create` :194–208, `validated` :323–392 | EDT |
+| R15 | Codice duplicato `409`; lock ottimistico `409` | docs/06 §2, §4 | `ContentService.create` :200, `update` :222–234; stessi rami in template, regole, tema, webhook | EDT, TAD, RAD, THA, WDLV |
 | R16 | Scritture di contenuti (anche transizioni e duplicazione), template, regole e tema: `content.write` (ADMIN, MARKETING); `ANALYST` e intestazione assente rifiutati | docs/08 §2; docs/06 §3 | `@RequiresRole` nei controller | ROL |
-| R17 | Endpoint del portale sempre con `memberId` esplicito (altrimenti `400`), senza intestazione `X-LH-Actor` | docs/06 §2, §3 | **parziale**: `ContentService.portal` :125 e `viewer` :289–291 accettano il membro assente | PRV, POPA, IBX, ROL |
+| R17 | Endpoint del portale sempre con `memberId` esplicito (altrimenti `400`), senza intestazione `X-LH-Actor` | docs/06 §2, §3 | `ContentService.portal` :128–130, `nextPopup`/`seen` :145, :154, `preview` :175; `InboxService` | PRV, POPA, IBX, ROL |
 | R18 | Motore dei template: `{{percorso}}` sul contesto `{data, member, event}`, percorso assente → stringa vuota + `WARN`, nessuna logica | engagement §5; docs/03 §9; Q-66 | `TemplateEngine.render/resolve` :56–140; `MessageContexts.build` | TPL, DDP, RND |
 | R19 | Formattatori `|number` e `|date` (it-IT, Europe/Rome) | engagement §5; docs/07 §2 | `TemplateEngine.format/number/date` :142–187 | TPL |
 | R20 | Template validi: segnaposto con radice `data./member./event.`, formattatori ammessi, graffe bilanciate; titolo e testo obbligatori | engagement §5; F-MSG-02; Q-66 | `TemplateEngine.problems` :90–116; `TemplateAdminService.build` :129–150 | TPV, TAD |
@@ -84,47 +84,49 @@ Ogni condizione, eccezione o uscita anticipata delle classi `domain`, `applicati
 | `ContentSelection` :92 al più un pop-up | R06 | POP-035, POPA-012 |
 | `ContentSelection` :96 mai visto o `ALWAYS` | R06 | POP |
 | `ContentSelection` :99 `ONCE_PER_DAY` visto prima di oggi (Roma) | R06 | POP-009…016, POP-025…034, POPA-006 |
-| `ContentSelection` :112 pubblico nullo o vuoto | R03 | AUD-028, AUD-032 |
-| `ContentSelection` :118 livelli | R03 | AUD, AUD-029 |
-| `ContentSelection` :121 segmenti | R03 | AUD, AUD-030 |
-| `ContentSelection` :124 stati | R03 | AUD, AUD-031, AUD-033…036 |
-| `ContentSelection` :128–130 `registeredWithinDays` | R04 | EXT-001…006 |
-| `ContentSelection` :132–134 `daysOfWeek` | R04 | EXT-007…016 |
-| `ContentSelection` :139 lista non array trattata come vuota | senza spec | non coperto |
-| `ContentService` :128 filtro `WIN` per `prizeCode` | R08 | PRV-007 |
-| `ContentService` :140, :149 `memberId` assente → `400` | R17 | POPA-002, POPA-010 |
-| `ContentService` :152 id sconosciuto → `404` | docs/06 §2 | POPA-011, EDT-058, DUP-007 |
-| `ContentService` :153 `seen` su non pop-up → `404` | R07 | POPA-009 |
-| `ContentService` :170 anteprima senza membro → `400` | R05 | PRV-005 |
-| `ContentService` :173 anteprima dei pop-up (`placement=POPUP`) | R05 | PRV-004 |
-| `ContentService` :180 anteprima `WIN` senza limite | senza spec | PRV-012 |
-| `ContentService` :191 codice non valido → `422` | R14 | EDT-028…034 |
-| `ContentService` :195 codice già usato → `409` | R15 | EDT-053 |
-| `ContentService` :208 `ARCHIVED` non modificabile (`ENDED` sì) | senza spec | EDT-057, EDT-060 |
-| `ContentService` :211 codice immutabile | senza spec | EDT-055 |
-| `ContentService` :214 tipo immutabile | senza spec (coerente con R11) | EDT-056 |
-| `ContentService` :217 `PUT` senza versione = nessun controllo | senza spec | non coperto |
-| `ContentService` :219 versione superata → `409` | R15 | EDT-054 |
-| `ContentService` :235 transizione non ammessa → `409` | R09 | LIF |
-| `ContentService` :249–253 codice della copia (troncamento, `-COPIA-n`) | senza spec | DUP-002, DUP-006 |
-| `ContentService` :266 fine automatica | R13 | END |
-| `ContentService` :290, :295 membro assente o sconosciuto → spettatore sconosciuto | R17 (divergenza) / R03 | PRV-009, PRV-010 |
-| `ContentService` :300 posizionamento non valido → `400` | docs/06 §2 | PRV-006, PRV-008 |
-| `ContentService` :314 `kind` | R14 | EDT-002, EDT-003 |
-| `ContentService` :317–318 `placement` (pop-up senza) | R14 | EDT-004…010 |
-| `ContentService` :321 banner solo `CATALOG_TOP` | senza spec | EDT-011, EDT-012 |
-| `ContentService` :325–329 titolo obbligatorio, ≤ 80 | F-CNT-01 / lunghezza senza spec | EDT-035…038 |
-| `ContentService` :331 testo ≤ 280 | senza spec | EDT-039, EDT-040 |
-| `ContentService` :335–339 `linkType` (default `NONE`) | R14 | EDT-013…016 |
-| `ContentService` :342 `linkCode` obbligatorio | senza spec | EDT-017 |
-| `ContentService` :345 `PRIZE` ⇔ `WIN` | senza spec | EDT-018, EDT-019 |
-| `ContentService` :349 CTA `/portal…` o `https://` | R14 (`http://` senza spec) | EDT-049…052 |
-| `ContentService` :354 fine non dopo l'inizio | F-CNT-01 (uguaglianza senza spec) | EDT-046…048 |
-| `ContentService` :357–358 priorità 0…1000, default 50 | senza spec | EDT-041…045 |
-| `ContentService` :361–363 frequenza (default `ONCE`) | R14 | EDT-010, EDT-020…023 |
-| `ContentService` :365 chiudibile (default vero) | R14 (default senza spec) | EDT-024, EDT-025 |
-| `ContentService` :369 `style.tone` | R14 | EDT-026, EDT-027 |
-| `ContentService` :382–398 pubblico normalizzato in maiuscolo | R03 | PRV-001 |
+| `ContentSelection` :113 pubblico nullo o vuoto | R03 | AUD-028, AUD-032 |
+| `ContentSelection` :119 livelli | R03 | AUD, AUD-029 |
+| `ContentSelection` :122 segmenti | R03 | AUD, AUD-030 |
+| `ContentSelection` :125 stati | R03 | AUD, AUD-031, AUD-033…036 |
+| `ContentSelection` :129–131 `registeredWithinDays` | R04 | EXT-001…006 |
+| `ContentSelection` :133–135 `daysOfWeek` | R04 | EXT-007…016 |
+| `ContentSelection` :140 lista non array trattata come vuota | senza spec | non coperto |
+| `ContentService` :128–130 portale senza `memberId` → `400` | R17 | PRV-009 |
+| `ContentService` :133 filtro `WIN` per `prizeCode` | R08 | PRV-007 |
+| `ContentService` :145, :154 `memberId` assente → `400` | R17 | POPA-002, POPA-010 |
+| `ContentService` :157 id sconosciuto → `404` | docs/06 §2 | POPA-011, EDT-058, DUP-007 |
+| `ContentService` :158 `seen` su non pop-up → `404` | R07 | POPA-009 |
+| `ContentService` :175 anteprima senza membro → `400` | R05 | PRV-005 |
+| `ContentService` :178 anteprima dei pop-up (`placement=POPUP`) | R05 | PRV-004 |
+| `ContentService` :185 anteprima `WIN` senza limite | senza spec | PRV-012 |
+| `ContentService` :196 codice non valido → `422` | R14 | EDT-028…034 |
+| `ContentService` :200 codice già usato → `409` | R15 | EDT-053 |
+| `ContentService` :213 `ARCHIVED` non modificabile (`ENDED` sì) | senza spec | EDT-057, EDT-060 |
+| `ContentService` :216 codice immutabile | senza spec | EDT-055 |
+| `ContentService` :219 tipo immutabile | senza spec (coerente con R11) | EDT-056 |
+| `ContentService` :222 `PUT` senza versione = nessun controllo | senza spec | non coperto |
+| `ContentService` :224–230, :400–427 `LIVE`: campo non sicuro cambiato → `409 CONTENT_LIVE_LOCKED` | R11 | EDL-006…010 |
+| `ContentService` :232 versione superata → `409` | R15 | EDT-054 |
+| `ContentService` :248 transizione non ammessa → `409` | R09 | LIF |
+| `ContentService` :262–266 codice della copia (troncamento, `-COPIA-n`) | senza spec | DUP-002, DUP-006 |
+| `ContentService` :279 fine automatica | R13 | END |
+| `ContentService` :303, :308 membro sconosciuto → spettatore sconosciuto (membro assente: difensivo, i chiamanti rispondono prima `400`) | R03 | PRV-010 |
+| `ContentService` :313 posizionamento non valido → `400` | docs/06 §2 | PRV-006, PRV-008 |
+| `ContentService` :327 `kind` | R14 | EDT-002, EDT-003 |
+| `ContentService` :330–331 `placement` (pop-up senza) | R14 | EDT-004…010 |
+| `ContentService` :334 banner solo `CATALOG_TOP` | senza spec | EDT-011, EDT-012 |
+| `ContentService` :338–342 titolo obbligatorio, ≤ 80 | F-CNT-01 / lunghezza senza spec | EDT-035…038 |
+| `ContentService` :344 testo ≤ 280 | senza spec | EDT-039, EDT-040 |
+| `ContentService` :348–352 `linkType` (default `NONE`) | R14 | EDT-013…016 |
+| `ContentService` :355 `linkCode` obbligatorio | senza spec | EDT-017 |
+| `ContentService` :358 `PRIZE` ⇔ `WIN` | senza spec | EDT-018, EDT-019 |
+| `ContentService` :362 CTA `/portal…` o `https://` | R14 (`http://` senza spec) | EDT-049…052 |
+| `ContentService` :367 fine non dopo l'inizio | F-CNT-01 (uguaglianza senza spec) | EDT-046…048 |
+| `ContentService` :370–371 priorità 0…1000, default 50 | senza spec | EDT-041…045 |
+| `ContentService` :374–376 frequenza (default `ONCE`) | R14 | EDT-010, EDT-020…023 |
+| `ContentService` :378 chiudibile (default vero) | R14 (default senza spec) | EDT-024, EDT-025 |
+| `ContentService` :382 `style.tone` | R14 | EDT-026, EDT-027 |
+| `ContentService` :434–450 pubblico normalizzato in maiuscolo | R03 | PRV-001 |
 | `TemplateEngine` :57 template nullo o vuoto | R18 | TPL-013, TPL-014 |
 | `TemplateEngine` :68 percorso assente → vuoto + mancante | R18 | TPL-004…007, TPL-009, TPL-041 |
 | `TemplateEngine` :125–138 navigazione (indici, oggetti, valori non semplici) | R18 (indici senza spec) | TPL-006…008 |
@@ -233,7 +235,7 @@ Ogni condizione, eccezione o uscita anticipata delle classi `domain`, `applicati
 | priorità | 0 … 1000 | parità |
 | numero di idonei | 0 … limite | limite + 1 |
 
-Come si combinano livelli, segmenti e stati non è scritto: il codice richiede tutte le dimensioni non vuote (AND), mentre il pubblico delle campagne è "livello **o** segmento"; docs/17 (US-E07-03, nodo ENG-02) lo segnala da decidere. Le righe AUD in cui una dimensione è soddisfatta e un'altra no sono quindi **AMBIGUO**.
+Come si combinano livelli, segmenti e stati non è scritto: il codice richiede tutte le dimensioni non vuote (AND), mentre il pubblico delle campagne è "livello **o** segmento"; docs/17 (US-E07-03, nodo ENG-02) lo segnala da decidere (domanda Q-161 in `docs/15`). Le righe AUD in cui una dimensione è soddisfatta e un'altra no sono quindi **AMBIGUO**.
 
 **Strategia.** Idoneità: tabella decisionale **completa** stato (5) × calendario (4) × pubblico (3) = 60 righe; con più condizioni violate la specifica non fissa quale motivo mostrare, quindi l'atteso è «escluso con uno dei motivi violati». Estremi del calendario provati uno alla volta. Pubblico: tabella **completa** livelli (3) × segmenti (3) × stati (3) = 27 più le classi del membro sconosciuto (4), il pubblico `null` e ogni stato del membro. Estensioni Q-71 e ordine/limiti: ogni valore limite da solo (min−1, min, min+1 dei 7 giorni; mezzanotte di Roma venerdì/sabato e domenica/lunedì, anche a marzo e ottobre; limite −1, limite, limite +1 per `HOME_HERO` e `HOME_GRID`, limite e limite +1 per i posizionamenti di Q-72).
 
@@ -355,7 +357,7 @@ Come si combinano livelli, segmenti e stati non è scritto: il codice richiede t
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
 | TB-ENG-EXT-001 | `registeredWithinDays=7`, iscritto da 6 g 23:59:59 (pop-up) | nel pubblico | Q-71; docs/10 §7 (iscritti da < 7 giorni) | `TestbookEngContentSelectionTest` · `ext.csv` |
-| TB-ENG-EXT-002 | `registeredWithinDays=7`, iscritto da 7 g esatti (pop-up) | **DIVERGENZA** — fuori dal pubblico ("da < 7 giorni"); il codice lo include | Q-71; docs/10 §7 | `TestbookEngContentSelectionTest` · `ext.csv` |
+| TB-ENG-EXT-002 | `registeredWithinDays=7`, iscritto da 7 g esatti (pop-up) | fuori dal pubblico ("da < 7 giorni"; divergenza risolta, §17.1) | Q-71; docs/10 §7 | `TestbookEngContentSelectionTest` · `ext.csv` |
 | TB-ENG-EXT-003 | `registeredWithinDays=7`, iscritto da 7 g + 1 s (pop-up) | fuori dal pubblico | Q-71; docs/10 §7 | `TestbookEngContentSelectionTest` · `ext.csv` |
 | TB-ENG-EXT-004 | `registeredWithinDays=7`, iscritto adesso (pop-up) | nel pubblico | Q-71; docs/10 §7 | `TestbookEngContentSelectionTest` · `ext.csv` |
 | TB-ENG-EXT-005 | `registeredWithinDays=7`, data di iscrizione ignota (pop-up) | **AMBIGUO** — fuori dal pubblico (iscrizione non dimostrabile) | Q-71 | `TestbookEngContentSelectionTest` · `ext.csv` |
@@ -482,7 +484,7 @@ Come si combinano livelli, segmenti e stati non è scritto: il codice richiede t
 | TB-ENG-PRV-006 | anteprima con posizionamento sconosciuto | `400` | docs/06 §2 (parametri errati) | `TestbookEngContentIT`#previewBadPlacement |
 | TB-ENG-PRV-007 | portale `WIN` con `prizeCode` | solo la card del premio vinto | engagement §3; F-CNT-03 | `TestbookEngContentIT`#winCardByPrize |
 | TB-ENG-PRV-008 | portale con posizionamento sconosciuto | `400` | docs/06 §2 | `TestbookEngContentIT`#portalBadPlacement |
-| TB-ENG-PRV-009 | portale senza `memberId` | **DIVERGENZA** — `400` (portale sempre con memberId esplicito); il codice risponde `200` | docs/06 §2 | `TestbookEngContentIT`#portalWithoutMember |
+| TB-ENG-PRV-009 | portale senza `memberId` | `400` (portale sempre con memberId esplicito; divergenza risolta, §17.1) | docs/06 §2 | `TestbookEngContentIT`#portalWithoutMember |
 | TB-ENG-PRV-010 | membro sconosciuto (nessuno snapshot) | vede i contenuti per tutti, non quelli con pubblico | engagement §2 (vuoto = tutti) | `TestbookEngContentIT`#unknownMember |
 | TB-ENG-PRV-011 | risposta del portale | **AMBIGUO** — senza pubblico, stato, versione | engagement §3 | `TestbookEngContentIT`#portalDisplayOnly |
 | TB-ENG-PRV-012 | anteprima di `WIN` con due card vincita idonee | **AMBIGUO** — entrambe mostrate (una per premio), mentre il portale ne mostra una | engagement §3; BO-18; Q-72 | `TestbookEngContentIT`#winPreviewShowsAll |
@@ -657,11 +659,11 @@ Come si combinano livelli, segmenti e stati non è scritto: il codice richiede t
 | TB-ENG-EDL-003 | contenuto `LIVE`: modifica di `endAt` (campo sicuro) | `200` | docs/03 §3.6 (LIVE: solo campi sicuri); docs/06 §2 (409); docs/08 §3.2 | `TestbookEngContentIT` · `edl.csv` |
 | TB-ENG-EDL-004 | contenuto `LIVE`: modifica di priorità (campo sicuro) | `200` | docs/03 §3.6 (LIVE: solo campi sicuri); docs/06 §2 (409); docs/08 §3.2 | `TestbookEngContentIT` · `edl.csv` |
 | TB-ENG-EDL-005 | contenuto `LIVE`: modifica di immagine (campo sicuro) | `200` | docs/03 §3.6 (LIVE: solo campi sicuri); docs/06 §2 (409); docs/08 §3.2 | `TestbookEngContentIT` · `edl.csv` |
-| TB-ENG-EDL-006 | contenuto `LIVE`: modifica di posizionamento (non sicuro) | **DIVERGENZA** — `409` (duplicare); il codice accetta con `200` | docs/03 §3.6 (LIVE: solo campi sicuri); docs/06 §2 (409); docs/08 §3.2 | `TestbookEngContentIT` · `edl.csv` |
-| TB-ENG-EDL-007 | contenuto `LIVE`: modifica di pubblico (non sicuro) | **DIVERGENZA** — `409` (duplicare); il codice accetta con `200` | docs/03 §3.6 (LIVE: solo campi sicuri); docs/06 §2 (409); docs/08 §3.2 | `TestbookEngContentIT` · `edl.csv` |
-| TB-ENG-EDL-008 | contenuto `LIVE`: modifica di `startAt` (non sicuro) | **DIVERGENZA** — `409` (duplicare); il codice accetta con `200` | docs/03 §3.6 (LIVE: solo campi sicuri); docs/06 §2 (409); docs/08 §3.2 | `TestbookEngContentIT` · `edl.csv` |
-| TB-ENG-EDL-009 | contenuto `LIVE`: modifica di collegamento (non sicuro) | **DIVERGENZA** — `409` (duplicare); il codice accetta con `200` | docs/03 §3.6 (LIVE: solo campi sicuri); docs/06 §2 (409); docs/08 §3.2 | `TestbookEngContentIT` · `edl.csv` |
-| TB-ENG-EDL-010 | contenuto `LIVE`: modifica di frequenza di un pop-up (non sicuro) | **DIVERGENZA** — `409` (duplicare); il codice accetta con `200` | docs/03 §3.6 (LIVE: solo campi sicuri); docs/06 §2 (409); docs/08 §3.2 | `TestbookEngContentIT` · `edl.csv` |
+| TB-ENG-EDL-006 | contenuto `LIVE`: modifica di posizionamento (non sicuro) | `409 CONTENT_LIVE_LOCKED` (duplicare; divergenza risolta, §17.1) | docs/03 §3.6 (LIVE: solo campi sicuri); docs/06 §2 (409); docs/08 §3.2 | `TestbookEngContentIT` · `edl.csv` |
+| TB-ENG-EDL-007 | contenuto `LIVE`: modifica di pubblico (non sicuro) | `409 CONTENT_LIVE_LOCKED` (duplicare; divergenza risolta, §17.1) | docs/03 §3.6 (LIVE: solo campi sicuri); docs/06 §2 (409); docs/08 §3.2 | `TestbookEngContentIT` · `edl.csv` |
+| TB-ENG-EDL-008 | contenuto `LIVE`: modifica di `startAt` (non sicuro) | `409 CONTENT_LIVE_LOCKED` (duplicare; divergenza risolta, §17.1) | docs/03 §3.6 (LIVE: solo campi sicuri); docs/06 §2 (409); docs/08 §3.2 | `TestbookEngContentIT` · `edl.csv` |
+| TB-ENG-EDL-009 | contenuto `LIVE`: modifica di collegamento (non sicuro) | `409 CONTENT_LIVE_LOCKED` (duplicare; divergenza risolta, §17.1) | docs/03 §3.6 (LIVE: solo campi sicuri); docs/06 §2 (409); docs/08 §3.2 | `TestbookEngContentIT` · `edl.csv` |
+| TB-ENG-EDL-010 | contenuto `LIVE`: modifica di frequenza di un pop-up (non sicuro) | `409 CONTENT_LIVE_LOCKED` (duplicare; divergenza risolta, §17.1) | docs/03 §3.6 (LIVE: solo campi sicuri); docs/06 §2 (409); docs/08 §3.2 | `TestbookEngContentIT` · `edl.csv` |
 
 ### 7.3 Duplicazione (DUP)
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
@@ -1333,56 +1335,60 @@ Come si combinano livelli, segmenti e stati non è scritto: il codice richiede t
 | Voce | Valore |
 |---|---|
 | Regole inventariate (§1) | 47 (R01–R47) |
-| Regole non implementate | 1 (R11) + 1 parziale (R17, `GET /v1/portal/content` senza `memberId`) |
+| Regole non implementate | nessuna (R11 e R17 completate con la correzione delle divergenze, §17.4) |
 | Rami del codice mappati (§2) | 143 voci; 43 rami senza specifica; 7 rami non coperti da righe |
 | Righe del testbook | 804 (unit 395, integrazione 409) |
 | Righe AMBIGUO | 132 |
-| Divergenze | 7 righe, 3 cause |
+| Divergenze | nessuna aperta (7 righe, 3 cause, risolte: §17.1) |
 | Tabelle complete | SEL (60), AUD (27 + 9), POP (24), LIF (50), ROL (28), RUL (60), WSUB (8), WROL (7) |
 | Combinazioni ridotte | EDT (guasto singolo su ~10⁶ → 59), EDL (un campo alla volta → 10), EXT/CAL/ORD (limiti da soli), TPL/TPV (classi e limiti da soli), CND (14 comparatori × 3 + 29 casi speciali), THM/THA (classi e confini da soli), WURL (intervalli × confini da soli → 56), WRTY (tentativi e confini 2xx → 23), IBX, TAD, RAD, DDP, DUP, PRV, POPA (una riga per ramo) |
 
-### 17.1 Divergenze (test rossi)
+### 17.1 Divergenze (risolte)
 
-| Righe (TB-ENG-…) | Specifica | Comportamento osservato | Causa (file:riga) |
+Le tre cause sono state corrette nel codice di produzione, senza toccare i test: le 7 righe sono verdi. Le righe di codice della colonna *Causa* sono quelle di prima della correzione.
+
+| Righe (TB-ENG-…) | Specifica | Causa (prima della correzione) | Correzione |
 |---|---|---|---|
-| EXT-002 | Q-71 applica ai pop-up `registeredWithinDays`, che traduce «iscritti da < 7 giorni» (docs/10 §7): a 7 giorni esatti il membro è fuori | incluso (`inAudience` vero) | `ContentSelection.java:129` confronta `registeredAt.isBefore(now − 7 g)`: l'istante esatto passa |
-| EDL-006…010 | docs/03 §3.6 «un oggetto `LIVE` si modifica solo nei campi "sicuri" (nome, descrizione, `endAt`, priorità, immagine); per il resto va duplicato»; docs/06 §2 `409` «modifica non ammessa su oggetto `LIVE`» | `200`: posizionamento, pubblico, `startAt`, collegamento e frequenza di un `LIVE` cambiano | `ContentService.java:206-229`: `update` rifiuta solo `ARCHIVED` (:208), codice (:211) e tipo (:214); `validated` (:310) ricostruisce tutti i campi |
-| PRV-009 | docs/06 §2 «portale (`/v1/portal/**` — sempre con `memberId` esplicito)», `400` per parametri errati | `200` con i contenuti "per tutti" | `PortalContentController.java` (`memberId` facoltativo) e `ContentService.java:289-291` (`viewer` con membro assente → spettatore sconosciuto) |
+| EXT-002 | Q-71 applica ai pop-up `registeredWithinDays`, che traduce «iscritti da < 7 giorni» (docs/10 §7): a 7 giorni esatti il membro è fuori | `ContentSelection.java:129` confrontava `registeredAt.isBefore(now − 7 g)`: l'istante esatto passava | `ContentSelection.inAudience` :129–131: fuori se `registeredAt` non è dopo `now − N g` |
+| EDL-006…010 | docs/03 §3.6 «un oggetto `LIVE` si modifica solo nei campi "sicuri" (nome, descrizione, `endAt`, priorità, immagine); per il resto va duplicato»; docs/06 §2 `409` «modifica non ammessa su oggetto `LIVE`» | `ContentService.java:206-229`: `update` rifiutava solo `ARCHIVED` (:208), codice (:211) e tipo (:214); `validated` (:310) ricostruiva tutti i campi | `ContentService.update` :224–230 e `lockedChanges` :400–427: su un `LIVE` un cambio di posizionamento, pubblico, `startAt`, collegamento, CTA, frequenza, chiudibile o stile ⇒ `409 CONTENT_LIVE_LOCKED` (stessa forma di `CAMPAIGN_LIVE_LOCKED`); BO-18 mette in sola lettura i campi non sicuri di un `LIVE` e li rimanda invariati (`web/lib/content/manage.ts` `liveSafeBody`) |
+| PRV-009 | docs/06 §2 «portale (`/v1/portal/**` — sempre con `memberId` esplicito)», `400` per parametri errati | `PortalContentController.java` (`memberId` facoltativo) e `ContentService.java:289-291` (`viewer` con membro assente → spettatore sconosciuto) | `ContentService.portal` :128–130: `memberId` assente ⇒ `400` RFC 9457; i chiamanti del web (`ContentSlot`, esito `WIN` di PT-06) lo passano già |
 
-Sono le tre voci da riportare nel registro delle divergenze di `docs/16` §12 all'inserimento del dominio.
+Sono le tre voci da riportare nel registro delle divergenze di `docs/16` §12 all'inserimento del dominio, come risolte.
 
 ### 17.2 Ambiguità (AMBIGUO, comportamento attuale asserito)
 
-| Righe | Punto aperto | Comportamento attuale |
-|---|---|---|
-| AUD-006, -008, -012, -015…018, -020, -022…024, -026 | livelli, segmenti e stati in AND o in OR (docs/17 US-E07-03 ⚠) | AND: basta una dimensione non soddisfatta per escludere |
-| CAL-001, CAL-004, END-005 | istante esatto di inizio/fine del calendario ed `end_at` "passato" all'istante | inizio incluso, fine esclusa, job che chiude all'istante |
-| ORD-002 | spareggio a parità di priorità | codice crescente |
-| EXT-005, EXT-016 | iscrizione ignota con `registeredWithinDays`; chiavi Q-71 applicate anche alle card | fuori dal pubblico; applicate a ogni contenuto |
-| LIF-009/010, -019/020, -029/030, -039/040, -049/050 | azione sconosciuta o assente: `409` o `400` | `409 INVALID_TRANSITION` |
-| EDT-012, -017…019, -025, -033, -037…045, -047, -052, -055…057, -060 | vincoli senza fonte (banner solo `CATALOG_TOP`, `PRIZE` ⇔ `WIN`, `linkCode` obbligatorio, lunghezze 80/280, priorità 0…1000 e 50 di default, fine = inizio, CTA `http://`, codice minuscolo, codice/tipo immutabili, `ARCHIVED` non modificabile, `ENDED` modificabile — docs/17 US-E07-01 dice `409` —, chiudibile di default) | come nel codice (§2) |
-| DUP-002, DUP-006, PRV-011, PRV-012 | nome della copia, troncamento del codice; forma della risposta del portale; anteprima `WIN` senza limite | `-COPIA`, `-COPIA-2`, "(copia)"; niente pubblico/stato/versione; tutte le card vincita |
-| ROL (LEGAL, CARE, intestazione non valida), WROL-002…004, -007…010 | capacità senza ● in docs/08 §2 | `403 FORBIDDEN_ROLE`; intestazione non valida = `ANALYST` |
-| TPL-007, -008, -010, -014, -017, -027, -028, -030, -038…040, TPV-007 | valori non semplici, indici, spazi, template nullo, HTML, cifre decimali e arrotondamento, ripieghi dei formattatori | vuoto; indice risolto; spazi ammessi; stringa vuota; nessun escape; 2 decimali al pari; valore grezzo |
-| TAD-004, TAD-010, TAD-014, RAD-012, WDLV-029 | canale di default, nome obbligatorio, codice immutabile di template, regole e webhook | `INAPP`; `422`; `409 CODE_IMMUTABLE` |
-| CND-041, -044, -045, -049, -063…065 | `null` come assente, estremi di `between`, stringa numerica, gruppi vuoti, comparatore sconosciuto | assente; estremi inclusi; convertita; vero; falso |
-| RUL con membro `INACTIVE` o senza snapshot che riceve (4 righe) | Q-70 nomina solo `ANONYMIZED` e `BLOCKED` | ricevono |
-| RAD-002, DDP-014 | tipo di fatto in forma completa; `message.send` senza membro | salvato in forma breve; DLQ `INVALID_EFFECT` |
-| IBX-005, IBX-014 | segna letto due volte; `memberId` nel corpo | `readAt` invariato; accettato |
-| THM-005…007, THA-012, THA-020…023 | colori senza `#`, `#RGB`, `#RRGGBBAA`; nome del programma obbligatorio e ≤ 40; logo solo `/…` o `https://` | rifiutati; `422`; `422`; `/demo/logo.svg` ammesso |
-| WURL-025, -026, -029…032, -045…051 | intervalli speciali oltre privati/loopback, nomi `.local`/`.internal`, forma decimale al salvataggio, credenziali, frammento, 500 caratteri | bloccati; decimale accettato al salvataggio; rifiutati; 500 ammessi, 501 no |
-| WRTY-009, WRTY-020, WDLV-013, WDLV-017, WDLV-021, WDLV-023, WDLV-031 | tentativo 0; Riprova su `PENDING`; prova su webhook disattivato; nessun tipo; nome obbligatorio; Riprova durante un invio | `GAVE_UP`; `409`; inviata; `422`; `422`; `409 DELIVERY_BUSY` |
+| Righe | Punto aperto | Comportamento attuale | docs/15 |
+|---|---|---|---|
+| AUD-006, -008, -012, -015…018, -020, -022…024, -026 | livelli, segmenti e stati in AND o in OR (docs/17 US-E07-03 ⚠) | AND: basta una dimensione non soddisfatta per escludere | Q-161 |
+| CAL-001, CAL-004, END-005 | istante esatto di inizio/fine del calendario ed `end_at` "passato" all'istante | inizio incluso, fine esclusa, job che chiude all'istante | Q-G1 |
+| ORD-002 | spareggio a parità di priorità | codice crescente | Q-G2 |
+| EXT-005, EXT-016 | iscrizione ignota con `registeredWithinDays`; chiavi Q-71 applicate anche alle card | fuori dal pubblico; applicate a ogni contenuto | Q-G3 |
+| LIF-009/010, -019/020, -029/030, -039/040, -049/050 | azione sconosciuta o assente: `409` o `400` | `409 INVALID_TRANSITION` | Q-G4 |
+| EDT-012, -017…019, -025, -033, -037…045, -047, -052, -055…057, -060 | vincoli senza fonte (banner solo `CATALOG_TOP`, `PRIZE` ⇔ `WIN`, `linkCode` obbligatorio, lunghezze 80/280, priorità 0…1000 e 50 di default, fine = inizio, CTA `http://`, codice minuscolo, codice/tipo immutabili, `ARCHIVED` non modificabile, `ENDED` modificabile — docs/17 US-E07-01 dice `409` —, chiudibile di default) | come nel codice (§2) | Q-G5 |
+| DUP-002, DUP-006, PRV-011, PRV-012 | nome della copia, troncamento del codice; forma della risposta del portale; anteprima `WIN` senza limite | `-COPIA`, `-COPIA-2`, "(copia)"; niente pubblico/stato/versione; tutte le card vincita | Q-G6 |
+| ROL (LEGAL, CARE, intestazione non valida), WROL-002…004, -007…010 | capacità senza ● in docs/08 §2 | `403 FORBIDDEN_ROLE`; intestazione non valida = `ANALYST` | Q-G7 |
+| TPL-007, -008, -010, -014, -017, -027, -028, -030, -038…040, TPV-007 | valori non semplici, indici, spazi, template nullo, HTML, cifre decimali e arrotondamento, ripieghi dei formattatori | vuoto; indice risolto; spazi ammessi; stringa vuota; nessun escape; 2 decimali al pari; valore grezzo | Q-G8 |
+| TAD-004, TAD-010, TAD-014, RAD-012, WDLV-029 | canale di default, nome obbligatorio, codice immutabile di template, regole e webhook | `INAPP`; `422`; `409 CODE_IMMUTABLE` | Q-G9 |
+| CND-041, -044, -045, -049, -063…065 | `null` come assente, estremi di `between`, stringa numerica, gruppi vuoti, comparatore sconosciuto | assente; estremi inclusi; convertita; vero; falso | Q-G10 |
+| RUL con membro `INACTIVE` o senza snapshot che riceve (4 righe) | Q-70 nomina solo `ANONYMIZED` e `BLOCKED` | ricevono | Q-G11 |
+| RAD-002, DDP-014 | tipo di fatto in forma completa; `message.send` senza membro | salvato in forma breve; DLQ `INVALID_EFFECT` | Q-G12 |
+| IBX-005, IBX-014 | segna letto due volte; `memberId` nel corpo | `readAt` invariato; accettato | Q-G13 |
+| THM-005…007, THA-012, THA-020…023 | colori senza `#`, `#RGB`, `#RRGGBBAA`; nome del programma obbligatorio e ≤ 40; logo solo `/…` o `https://` | rifiutati; `422`; `422`; `/demo/logo.svg` ammesso | Q-G14 |
+| WURL-025, -026, -029…032, -045…051 | intervalli speciali oltre privati/loopback, nomi `.local`/`.internal`, forma decimale al salvataggio, credenziali, frammento, 500 caratteri | bloccati; decimale accettato al salvataggio; rifiutati; 500 ammessi, 501 no | Q-G15 |
+| WRTY-009, WRTY-020, WDLV-013, WDLV-017, WDLV-021, WDLV-023, WDLV-031 | tentativo 0; Riprova su `PENDING`; prova su webhook disattivato; nessun tipo; nome obbligatorio; Riprova durante un invio | `GAVE_UP`; `409`; inviata; `422`; `422`; `409 DELIVERY_BUSY` | Q-G16 |
 
 ### 17.3 Rami senza specifica
 
 Provati come **AMBIGUO** (§17.2): AND tra le dimensioni del pubblico; spareggio per codice; banner solo in `CATALOG_TOP`; `PRIZE` ⇔ `WIN`; `linkCode` obbligatorio; CTA solo `/portal…` o `https://`; titolo ≤ 80 e testo ≤ 280; priorità 0…1000, default 50; frequenza `ONCE` e chiudibile di default; codice in maiuscolo; codice e tipo immutabili; `ARCHIVED` non modificabile; nome e troncamento della copia; anteprima `WIN` senza limite; canale `INAPP` di default e nome del template obbligatorio; tipo di fatto in forma completa; `|number`/`|date` su valori non validi, formattatore sconosciuto in resa, due decimali; indici di array nei percorsi; gruppi vuoti, comparatore sconosciuto, stringhe numeriche; `readAt` invariato e `memberId` nel corpo; lunghezza, credenziali, frammento e nomi `.local`/`.internal` degli URL; intervalli speciali bloccati; Riprova su `PENDING`; prova su webhook disattivato; webhook senza tipi o senza nome; nome del programma obbligatorio e ≤ 40, logo; codici immutabili di regole, template e webhook; `DELIVERY_BUSY`; `ENDED` modificabile; `message.send` senza membro.
 
-Non coperti da righe: `PUT` senza `version` (nessun controllo di versione, `ContentService.java:217` e analoghi); ripiego Aurora senza riga (`ThemeService.java:42`); template inesistente a runtime (`NotificationService.java:52`, impedito dalla FK); host sconosciuto ed errori di rete all'invio (`WebhookHttpSender.java:79`, `:100-108`); `asOf` come data pura del job demo (`EngagementJobsController.java:57`); liste del pubblico non array (`ContentSelection.java:139`); evento non di tipo fatto in `WebhookService.enqueue` (:93, non raggiungibile dal consumer dei fatti); scheduler automatico ogni 30 s e il suo interruttore (Q-101: nei test lo scheduler è spento e i giri sono lanciati con l'istante voluto).
+Non coperti da righe: `PUT` senza `version` (nessun controllo di versione, `ContentService.java:222` e analoghi); ripiego Aurora senza riga (`ThemeService.java:42`); template inesistente a runtime (`NotificationService.java:52`, impedito dalla FK); host sconosciuto ed errori di rete all'invio (`WebhookHttpSender.java:79`, `:100-108`); `asOf` come data pura del job demo (`EngagementJobsController.java:57`); liste del pubblico non array (`ContentSelection.java:140`); evento non di tipo fatto in `WebhookService.enqueue` (:93, non raggiungibile dal consumer dei fatti); scheduler automatico ogni 30 s e il suo interruttore (Q-101: nei test lo scheduler è spento e i giri sono lanciati con l'istante voluto).
 
 ### 17.4 Regole non implementate
 
-- **R11** — docs/03 §3.6, campi sicuri di un oggetto `LIVE`: nessun controllo in `ContentService.update` (righe EDL-006…010, divergenza).
-- **R17 (parziale)** — docs/06 §2, portale sempre con `memberId`: `GET /v1/portal/content` lo accetta assente (PRV-009, divergenza); gli altri endpoint del portale lo richiedono.
+Nessuna. Prima della correzione delle divergenze (§17.1):
+
+- **R11** — docs/03 §3.6, campi sicuri di un oggetto `LIVE`: nessun controllo in `ContentService.update` (righe EDL-006…010); ora `409 CONTENT_LIVE_LOCKED`.
+- **R17 (parziale)** — docs/06 §2, portale sempre con `memberId`: `GET /v1/portal/content` lo accettava assente (PRV-009); ora `400` come gli altri endpoint del portale.
 
 ### 17.5 Controlli di mutazione
 

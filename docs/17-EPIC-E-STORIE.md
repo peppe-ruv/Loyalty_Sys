@@ -1669,6 +1669,7 @@ Inventario dei punti di decisione **ricavato dal codice** (`services/*/src/main`
 | `CODE_TAKEN` | 409 | campaign, engagement ×4, gamification ×4, member (segmenti), reward (premi, pool) | docs/06 §2 | US-E03-01, US-E02-08, US-E05-01, US-E05-13, US-E06-01, US-E06-12, US-E06-15, US-E07-01, US-E07-07, US-E07-08, US-E08-08 |
 | `CONFIRM_MISMATCH` | 422 | member `MemberService` | docs/08 §3.5, BO-03 | US-E02-05 |
 | `CONTENT_INVALID` | 422 | engagement `ContentService` | F-CNT-01 | US-E07-01 |
+| `CONTENT_LIVE_LOCKED` | 409 | engagement `ContentService` | docs/03 §3.6, docs/06 §2 | US-E07-01 |
 | `CONTENT_NOT_EDITABLE` | 409 | engagement `ContentService` | nessuna | US-E07-01 |
 | `CONTEST_INVALID` | 422 | gamification `ContestAdminService` | F-IW-01, F-IW-02 | US-E06-01, US-E06-02 |
 | `CONTEST_LIVE_LOCKED` | 409 | gamification `ContestAdminService` | gamification §3 | US-E06-01 |
