@@ -6,7 +6,7 @@ import { Copy } from "lucide-react";
 import { useLhMutation, useLhQuery, type LhError } from "@/lib/api/client";
 import type { PortalCoupon, Redemption } from "@/lib/api/types";
 import { useActiveMember } from "@/components/portal/MemberContext";
-import { QueryState } from "@/components/bo/QueryState";
+import { QueryState } from "@/components/shared/QueryState";
 import { COUPON_WORDS, redemptionWords, sortCoupons } from "@/lib/reward/portal";
 import { formatDate } from "@/lib/format/dates";
 import { formatPoints } from "@/lib/format/points";

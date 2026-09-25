@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useLiveEvents } from "@/lib/realtime/useLiveEvents";
-import { type ConnectionState, type LiveFamily } from "@/lib/realtime/sse";
+import { liveFeedView, type ConnectionState, type LiveFamily } from "@/lib/realtime/sse";
 import { TopicDot } from "./TopicDot";
 import { CodeText } from "@/components/bo/primitives";
 import { formatTime } from "@/lib/format/dates";
@@ -19,6 +20,7 @@ const FAMILIES: { value: string; label: string; topic?: string }[] = [
 ];
 
 const CONNECTION: Record<ConnectionState, { label: string; className: string }> = {
+  connecting: { label: "connessione…", className: "bg-slate-100 text-slate-600" },
   live: { label: "live", className: "bg-emerald-100 text-emerald-800" },
   reduced: { label: "live ridotto", className: "bg-amber-100 text-amber-800" },
   disconnected: { label: "disconnesso", className: "bg-slate-200 text-slate-700" },
@@ -36,6 +38,7 @@ export function EventRail() {
 
   const { events, state, paused, pendingCount, pause, resume, clear } = useLiveEvents(filters);
   const conn = CONNECTION[state];
+  const view = liveFeedView(state, events.length);
 
   return (
     <div className="rounded-md border border-[var(--color-bo-border)] bg-white">
@@ -72,9 +75,27 @@ export function EventRail() {
         </span>
       </div>
 
-      {events.length === 0 ? (
+      {view === "loading" ? (
+        <div className="space-y-2 p-3" aria-busy="true" aria-label="Collegamento al flusso eventi">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="h-6 animate-pulse rounded bg-slate-100" />
+          ))}
+        </div>
+      ) : view === "degraded" ? (
+        <div role="status" className="m-3 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <p className="font-medium">Servizio «insight» non raggiungibile</p>
+          <p className="mt-1 text-xs">
+            Probabilmente si sta svegliando (piano gratuito). Il flusso si ricollega da solo e, se lo stream non riparte,
+            passa al polling ogni 3 s: accendi la demo dal Demo Hub se resta disconnesso.
+          </p>
+        </div>
+      ) : view === "empty" ? (
         <p className="p-6 text-center text-sm text-[var(--color-bo-ink-2)]">
-          In attesa di eventi… invia un&apos;azione dal simulatore o dal portale.
+          In attesa di eventi… invia un&apos;azione dal{" "}
+          <Link href="/backoffice/demo/simulator" className="text-[var(--color-bo-accent)] hover:underline">
+            simulatore
+          </Link>{" "}
+          o dal portale.
         </p>
       ) : (
         <ul className="max-h-[60vh] divide-y divide-[var(--color-bo-border)] overflow-y-auto">

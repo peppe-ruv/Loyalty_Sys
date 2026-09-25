@@ -17,9 +17,15 @@ import { AdjustPointsDialog } from "@/components/bo/AdjustPointsDialog";
 import { TypePill } from "@/components/bo/segments/TypePill";
 import type { MemberSegment } from "@/lib/segments/types";
 import { MemberAttributesCard } from "@/components/bo/members/MemberAttributesCard";
+import { AnonymizeDialog } from "@/components/bo/members/AnonymizeDialog";
+import { StatusChangeDialog } from "@/components/bo/members/StatusChangeDialog";
+import { memberStatusActions, type MemberStatusAction } from "@/lib/member/status";
+import { isAnonymized, memberDisplayName, personalValue } from "@/lib/member/anonymized";
 
 // BO-03 Scheda 360° (docs/08 §BO-03). M1: schede overview / ledger / actions; ogni pannello degrada da solo.
 // M3.6: azione rapida "Rettifica punti" (CARE/ADMIN). M6.6: scheda segments (segmenti di appartenenza); M6.7 attributi ed etichette.
+// M7.5: menu *Anonimizza* (ADMIN, conferma con l'ID digitato); dopo, campi personali "Membro anonimo" e azioni disabilitate.
+// FIN-2: menu *Blocca/Sblocca* e *Disattiva* (F-MBR-04, capacità member.write: ADMIN, CARE) con conferma semplice.
 const TABS = [
   { key: "overview", label: "Panoramica" },
   { key: "ledger", label: "Movimenti" },
@@ -33,32 +39,82 @@ export default function MemberDetailPage() {
   const member = useLhQuery<MemberView>("member", `/v1/members/${id}`);
   const wallet = useLhQuery<WalletView>("wallet", `/v1/wallets/${id}`);
   const [adjusting, setAdjusting] = useState(false);
+  const [anonymizing, setAnonymizing] = useState(false);
+  const [statusAction, setStatusAction] = useState<MemberStatusAction | null>(null);
+  const [done, setDone] = useState<string | null>(null);
 
   return (
     <div>
       <QueryState query={member} service="member">
-        {(m) => (
-          <PageHeader
-            title={m.firstName ? `${m.firstName} ${m.lastName ?? ""}` : (m.nickname ?? "Membro")}
-            subtitle={undefined}
-            actions={
-              <div className="flex items-center gap-2">
-                <StatusPill status={m.status} />
-                <TierBadge tier={m.tier} />
-                <CodeText>{m.id}</CodeText>
-                <Can capability="points.adjust" mode="disable">
-                  <button
-                    onClick={() => setAdjusting(true)}
-                    disabled={!wallet.data}
-                    className="rounded border border-[var(--color-bo-border)] px-2.5 py-1 text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    Rettifica punti ●
-                  </button>
-                </Can>
-              </div>
-            }
-          />
-        )}
+        {(m) => {
+          const anonymized = isAnonymized(m.status);
+          return (
+            <>
+              <PageHeader
+                title={memberDisplayName(m, "Membro")}
+                subtitle={undefined}
+                actions={
+                  <div className="flex items-center gap-2">
+                    <StatusPill status={m.status} />
+                    <TierBadge tier={m.tier} />
+                    <CodeText>{m.id}</CodeText>
+                    <Can capability="points.adjust" mode="disable">
+                      <button
+                        onClick={() => setAdjusting(true)}
+                        disabled={!wallet.data || anonymized}
+                        title={anonymized ? "Membro anonimizzato: azioni disabilitate" : undefined}
+                        className="rounded border border-[var(--color-bo-border)] px-2.5 py-1 text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        Rettifica punti ●
+                      </button>
+                    </Can>
+                    <MemberMenu
+                      status={m.status}
+                      anonymized={anonymized}
+                      onStatus={(a) => {
+                        setDone(null);
+                        setStatusAction(a);
+                      }}
+                      onAnonymize={() => setAnonymizing(true)}
+                    />
+                  </div>
+                }
+              />
+              {done ? (
+                <p role="status" className="mb-3 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                  {done}
+                </p>
+              ) : anonymized ? (
+                <p className="mb-3 rounded bg-slate-100 px-3 py-2 text-sm italic text-slate-600">
+                  Membro anonimizzato: i dati personali sono stati rimossi, movimenti e statistiche restano. Le azioni sono disabilitate.
+                </p>
+              ) : null}
+              {statusAction ? (
+                <StatusChangeDialog
+                  member={m}
+                  action={statusAction}
+                  onClose={() => setStatusAction(null)}
+                  onDone={(updated) => {
+                    setDone(`${statusAction.doneMessage} Stato attuale: ${updated.status}.`);
+                    setStatusAction(null);
+                  }}
+                />
+              ) : null}
+              {anonymizing ? (
+                <AnonymizeDialog
+                  member={m}
+                  onClose={() => setAnonymizing(false)}
+                  onDone={(updated) => {
+                    setAnonymizing(false);
+                    setDone(
+                      `Membro ${updated.id} anonimizzato. I dati personali spariscono da tutti i servizi entro pochi secondi; movimenti e saldo restano.`,
+                    );
+                  }}
+                />
+              ) : null}
+            </>
+          );
+        }}
       </QueryState>
 
       <Tabs tabs={TABS} current={tab} />
@@ -75,6 +131,72 @@ export default function MemberDetailPage() {
   );
 }
 
+/**
+ * Menu della scheda (docs/08 §BO-03): *Blocca/Sblocca* e *Disattiva* (capacità member.write, conferma semplice) e
+ * *Anonimizza* ● (solo ADMIN, capacità member.anonymize). Con un membro anonimizzato tutto è disabilitato.
+ */
+function MemberMenu({
+  status,
+  anonymized,
+  onStatus,
+  onAnonymize,
+}: {
+  status: string;
+  anonymized: boolean;
+  onStatus: (action: MemberStatusAction) => void;
+  onAnonymize: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Altre azioni"
+        className="rounded border border-[var(--color-bo-border)] px-2 py-1 text-xs font-medium hover:bg-slate-50"
+      >
+        ⋯
+      </button>
+      {open ? (
+        <div role="menu" className="absolute right-0 z-30 mt-1 w-48 rounded border border-[var(--color-bo-border)] bg-white py-1 text-sm shadow-md">
+          {memberStatusActions(status).map((a) => (
+            <Can key={a.key} capability="member.write" mode="disable">
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  onStatus(a);
+                }}
+                disabled={a.disabledReason !== null}
+                title={a.disabledReason ?? undefined}
+                className="block w-full px-3 py-1.5 text-left hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {a.label}
+              </button>
+            </Can>
+          ))}
+          <div className="my-1 border-t border-[var(--color-bo-border)]" />
+          <Can capability="member.anonymize" mode="disable">
+            <button
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onAnonymize();
+              }}
+              disabled={anonymized}
+              title={anonymized ? "Membro già anonimizzato" : undefined}
+              className="block w-full px-3 py-1.5 text-left text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Anonimizza ●
+            </button>
+          </Can>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function OverviewTab({ id }: { id: string }) {
   const member = useLhQuery<MemberView>("member", `/v1/members/${id}`);
   const wallet = useLhQuery<WalletView>("wallet", `/v1/wallets/${id}`);
@@ -85,9 +207,10 @@ function OverviewTab({ id }: { id: string }) {
           <h2 className="mb-2 text-sm font-semibold">Profilo</h2>
           <QueryState query={member} service="member">
             {(m) => (
-              <dl className="space-y-1 text-sm">
-                <Row label="E-mail" value={m.email ?? "—"} />
-                <Row label="External ID" value={m.externalId ?? "—"} />
+              <dl className={isAnonymized(m.status) ? "space-y-1 text-sm [&_dd]:italic [&_dd]:text-slate-500" : "space-y-1 text-sm"}>
+                <Row label="Nome" value={personalValue(m.status, memberDisplayName(m, ""))} />
+                <Row label="E-mail" value={personalValue(m.status, m.email)} />
+                <Row label="External ID" value={personalValue(m.status, m.externalId)} />
                 <Row label="Codice amico" value={m.email ? undefined : "—"} />
                 <Row label="Iscritto il" value={m.registeredAt ? formatDateTime(m.registeredAt) : "—"} />
                 <Row label="Versione" value={String(m.version)} />

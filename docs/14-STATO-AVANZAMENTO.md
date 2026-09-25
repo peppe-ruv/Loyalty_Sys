@@ -11,13 +11,13 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M0 — Fondamenta | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M0.1→M0.7 chiuse; CI in piedi |
 | M1 — Core loop e primo deploy | ✅ completata | 2026-09-19 | 2026-09-19 | ☐ | M1.1→M1.8 chiuse; demo ospitata online |
 | M2 — Visibilità | completata | M2.8 | | ☑ | |
-| M3 — Punti adulti | chiusa (codice) | 2026-09-21 | 2026-09-23 | ☑ | M3.1–M3.9 implementate; criteri di accettazione verdi con test automatici; resta `smoke.sh` sulla demo online |
-| M4 — Premi | chiusa (codice) | 2026-09-23 | 2026-09-24 | ☐ | M4.1–M4.6 implementate; criteri di accettazione verdi con test automatici (E2E portale su API simulate); resta `smoke.sh` sulla demo online |
-| M5 — Gioco | chiusa (codice) | 2026-09-24 | 2026-09-24 | ☐ | M5.1–M5.7 implementate; criteri di accettazione verdi con test automatici + E2E n. 3 con Playwright su servizio locale; resta `smoke.sh` sulla demo online |
-| M6 — Contenuti | in corso | 2026-09-24 | | ☐ | M6.0–M6.7 chiuse (engagement: template, regole, inbox, `message.send`; contenuti per posizionamento, BO-18; pop-up e frequenze; card vincita; PT-12, BO-19, `SEND_MESSAGE`; tema a runtime, BO-20; segmenti statici e dinamici, BO-04; tipi azione custom, attributi personalizzati, costruttore di condizioni) — accettazione verde (il webhook è arrivato con M7.2); resta la demo online |
-| M7 — Governance | in corso | 2026-09-24 | | ☐ | M7.1–M7.3 chiuse (approvazioni per ruolo con policy e storico, BO-21; webhook firmati con ritenti, BO-23; DLQ con riprocessa/scarta, BO-27) |
+| M3 — Punti adulti | ✅ completata | 2026-09-21 | 2026-09-24 | ☑ | M3.1–M3.9 implementate; criteri di accettazione verdi con test automatici; `smoke.sh` verde sulla demo online |
+| M4 — Premi | ✅ completata | 2026-09-23 | 2026-09-24 | ☑ | M4.1–M4.6 implementate; criteri di accettazione verdi con test automatici (E2E portale su API simulate); `smoke.sh` verde sulla demo online |
+| M5 — Gioco | ✅ completata | 2026-09-24 | 2026-09-24 | ☑ | M5.1–M5.7 implementate; criteri di accettazione verdi con test automatici + E2E n. 3 con Playwright su servizio locale; `smoke.sh` verde sulla demo online |
+| M6 — Contenuti | ✅ completata | 2026-09-24 | 2026-09-24 | ☑ | M6.0–M6.7 chiuse (engagement: template, regole, inbox, `message.send`; contenuti per posizionamento, BO-18; pop-up e frequenze; card vincita; PT-12, BO-19, `SEND_MESSAGE`; tema a runtime, BO-20; segmenti statici e dinamici, BO-04; tipi azione custom, attributi personalizzati, costruttore di condizioni) — accettazione verde (il webhook è arrivato con M7.2); demo online verde |
+| M7 — Governance | ✅ completata | 2026-09-24 | 2026-09-24 | ☑ | M7.1–M7.6 chiuse (approvazioni per ruolo con policy e storico, BO-21; webhook firmati con ritenti, BO-23; DLQ con riprocessa/scarta, BO-27; eventi non abbinati con abbina e riprova, BO-26; anonimizzazione propagata, BO-03; versioni e duplica) — accettazione anonimizzazione verde (`HubAnonymizationIT`); smoke online verde |
 
-**Prossima fetta da lavorare:** M7.4 (eventi non abbinati: abbina e reinvia, BO-26), poi M7.5 anonimizzazione e M7.6 versioni/duplica; resta `smoke.sh` sulla demo online per M3–M7
+**Prossima fetta da lavorare:** FIN-1 (Demo Hub e keep-alive, F-DEMO-01/07), FIN-2 (lacune del backoffice), accettazione M2 con `HubScenariosIT`, PR di verifica (Jules)
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -44,7 +44,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 **Feature** (`docs/02`)
 
-- [ ] `F-DEMO-01` Demo Hub (P0) — _M0/M1_
+- [x] `F-DEMO-01` Demo Hub (P0) — _FIN-1: 10 riquadri con stato e tempi, «Accendi la demo» con tempo trascorso, avviso Kafka giù oltre 2 min, ingressi attivi solo coi servizi core UP, scelta della persona di backoffice e del membro del portale, percorso consigliato; stati caricamento/vuoto/errore/degradato (Q-133…Q-136)_
 - [x] `F-DEMO-02` Cambio persona (P0) — _cookie `lh_persona` via `/api/persona`; tray PT-14 + selettore backoffice_
 
 **Accettazione M0** (`docs/12`)
@@ -90,7 +90,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `F-WAL-02` Libro mastro (P0)
 - [x] `F-DEMO-03` Simulatore eventi (P0) — _BO-28 + ingestion `POST /v1/demo/simulator/fire`_
 - [x] `F-DEMO-05` Reset dati (P0) — _`POST /v1/demo/reset` (profilo demo) + Console demo BO-30_
-- [ ] `F-DEMO-07` Keep-alive gentile (P0)
+- [x] `F-DEMO-07` Keep-alive gentile (P0) — _FIN-1: `useKeepAlive` in hub, backoffice e portale, sveglia ogni 4 min solo a scheda visibile, stop dopo 45 min senza interazione (Q-132); nessun pinger esterno_
 
 **Accettazione M1** (`docs/12`)
 
@@ -128,7 +128,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [ ] criteri di accettazione verdi
 - [ ] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi
 - [ ] stati *loading / empty / error / degraded* sulle schermate toccate
-- [ ] demo online aggiornata e `smoke.sh` verde
+- [x] demo online aggiornata e `smoke.sh` verde — _2026-09-24: workflow `smoke-demo` (run 36050650694) sull'hub online con M7 (6570c38): Marco 1 850 → 1 875 PTS (+25, 20 € × 1,25 SILVER) in circa 4 s_
 
 ## M3 — Punti adulti
 
@@ -173,7 +173,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
   - _campagna `LIVE`, campi bloccati → `409 CAMPAIGN_LIVE_LOCKED` → `CampaignServiceIT` (API `PUT` aggiunta ora; lato UI la modifica di BO-06 è in M6)_
 - [x] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi
 - [x] stati *loading / empty / error / degraded* sulle schermate toccate (BO-03, BO-07, BO-08, BO-09, BO-01 passività, PT-08 via `QueryState`)
-- [ ] demo online aggiornata e `smoke.sh` verde — _deploy Render/Vercel automatici da `main` e `live`; `smoke.sh` da lanciare da una macchina che raggiunge la demo_
+- [x] demo online aggiornata e `smoke.sh` verde — _2026-09-24: workflow `smoke-demo` (run 36050650694) sull'hub online con M7 (6570c38): Marco 1 850 → 1 875 PTS (+25, 20 € × 1,25 SILVER) in circa 4 s_
 
 ## M4 — Premi
 
@@ -218,7 +218,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
   - _wallet fermo → `PENDING`, poi `CONFIRMED` al suo ritorno → `RedemptionIT`; oltre 10 min → `REJECTED (TIMEOUT)` con stock ripristinato, e la spesa tardiva è compensata con rimborso → `RedemptionIT`_
 - [x] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi
 - [x] stati *loading / empty / error / degraded* sulle schermate toccate (BO-10/11/12/13, PT-03/04/13 via `QueryState`)
-- [ ] demo online aggiornata e `smoke.sh` verde — _deploy Render/Vercel automatici da `main` (env `LH_SVC_REWARD_URL` impostata); `smoke.sh` da lanciare da una macchina che raggiunge la demo_
+- [x] demo online aggiornata e `smoke.sh` verde — _2026-09-24: workflow `smoke-demo` (run 36050650694) sull'hub online con M7 (6570c38): Marco 1 850 → 1 875 PTS (+25, 20 € × 1,25 SILVER) in circa 4 s_
 
 ## M5 — Gioco
 
@@ -267,7 +267,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
   - _E2E n. 3 di `docs/09 §4`: BO-14 *Pianta un istante adesso* (100 punti) come `marta.admin` → PT-06 come Matteo *Gira* → "Hai vinto! 100 punti · I punti stanno arrivando…" → Playwright su gamification-service locale, 3/3 passi (script fuori dal repo); la card vincita arriva con M6.3_
 - [x] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi
 - [x] stati *loading / empty / error / degraded* sulle schermate toccate (BO-14/15/16/17, PT-05/06/09/10/11, `/portal/join` via `QueryState` e stati di form)
-- [ ] demo online aggiornata e `smoke.sh` verde — _deploy Render/Vercel automatici da `main`; `smoke.sh` da lanciare da una macchina che raggiunge la demo_
+- [x] demo online aggiornata e `smoke.sh` verde — _2026-09-24: workflow `smoke-demo` (run 36050650694) sull'hub online con M7 (6570c38): Marco 1 850 → 1 875 PTS (+25, 20 € × 1,25 SILVER) in circa 4 s_
 
 ## M6 — Contenuti
 
@@ -309,7 +309,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
   - _contenuto riservato a SEG-DIGITAL per Marco dopo SCN-DIGITAL e ricalcolo → `HubSegmentsIT`_
 - [x] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi — _2026-09-24 (M6.7)_
 - [x] stati *loading / empty / error / degraded* sulle schermate toccate — _BO-04, BO-09, BO-06, BO-18…20, PT-12 con `QueryState`; BO-06 ripiega sul testo se ingestion dorme_
-- [ ] demo online aggiornata e `smoke.sh` verde
+- [x] demo online aggiornata e `smoke.sh` verde — _2026-09-24: workflow `smoke-demo` (run 36050650694) sull'hub online con M7 (6570c38): Marco 1 850 → 1 875 PTS (+25, 20 € × 1,25 SILVER) in circa 4 s_
 
 ## M7 — Governance
 
@@ -318,15 +318,15 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `M7.1` — _approvazioni (F-APR-01/02/03): `LH_APPROVAL_ENABLED` acceso di default; policy in lh-common (concorsi e premi sempre LEGAL, campagne con `requiresLegal` o budget oltre 100 000 punti, contenuti mai) e transizioni per ruolo sopra la macchina a stati comune: MARKETING invia in revisione e pubblica dopo l'approvazione (`PUBLISH` da DRAFT → 409 `APPROVAL_REQUIRED`), LEGAL o ADMIN (override marcato in audit) approva o rifiuta (commento obbligatorio, 422); storico `approval_history` per ogni transizione con `GET /v1/<risorsa>/{id}/approval-history`; `GET /v1/approvals` comune (aggrega le fonti del processo, anche «inviate da me») e `/v1/approvals/policy` (Q-96); reward senza lo stato REJECTED (torna in DRAFT), campagne con APPROVED; seed in revisione nello storico (IW-NATALE, RWD-GIFT-50, CMP-BLACK-FRIDAY). Web: BO-21 (Da approvare per ruolo, Inviate da me con esito e commento, Policy), foglio con riepilogo (frase generata per le campagne), storico e Approva/Rifiuta; barra del ciclo di vita con *Invia in revisione* e *Rifiuta…* (4d2e5a4)_
 - [x] `M7.2` — _webhook in uscita (F-WBH-01): firma `X-LH-Signature: sha256=HMAC`, consegne scritte nel consumer e inviate da uno scheduler ogni 30 s su thread virtuale, ritenti a 1/5/15 min poi `GAVE_UP`, *Riprova* manuale, evento di prova dagli esempi dei contratti, blocco degli indirizzi privati (Q-99), pulizia a 14 giorni; `deploy/webhook-receiver/` con ricevitore e verifica della firma (`node --test`); BO-23 e job «Invio webhook» in BO-30 (a1156b8)_
 - [x] `M7.3` — _DLQ (F-INS-05): intestazioni di docs/04 dall'error handler comune e dal bus in-process dell'hub (prima i messaggi falliti nella demo online andavano persi), `dlq_entry` in insight, riprocessa delle azioni via ingestion con `X-LH-Reprocess` (ADMIN, Q-104), scarta con nota, tracciato FAILED con il nodo DLQ; `SCN-POISON`; BO-27 con spiegazione di `LOOP_GUARD` e contatore nella sidebar, voci DLQ nel tracciato di BO-25 (762a6b1)_
-- [ ] `M7.4`
-- [ ] `M7.5`
-- [ ] `M7.6`
+- [x] `M7.4` — _eventi non abbinati (F-ING-04): `POST /v1/inbound-events/{id}/retry` (REJECTED/UNMATCHED) e `/match {memberId}` (UNMATCHED, membro attivo), ruoli ADMIN/CARE (`inbound.handle`); riga bloccata e aggiornata in place con pubblicazione via outbox nella stessa transazione (mai doppia); abbinamento automatico su `member.registered` per subject `external:`/`email:` (7 giorni, 100 righe); audit; BO-26 con foglio di dettaglio (CloudEvent, errori di schema, esito, TraceLink), *Riprova* e *Abbina a un membro* (4dcb2d0)_
+- [x] `M7.5` — _anonimizzazione (F-MBR-05): `POST /v1/members/{id}/anonymize {confirm}` solo ADMIN, irreversibile; `member.status.changed` + `member.updated` ripuliti; ogni servizio cancella i dati personali dal proprio snapshot nel consumer esistente (helper comune `PersonalData`): indice e ingressi di ingestion, snapshot di campaign, reward (anche spedizioni e note), gamification (nickname, note di consegna), engagement (nome nei messaggi, webhook rifirmati), insight (event_store, audit, DLQ); movimenti conservati; BO-03 *Anonimizza* con digitazione dell'ID, BO-02 in corsivo grigio, portale senza errori (c190303)_
+- [x] `M7.6` — _versioni e duplica: `POST /v1/campaigns/{id}/duplicate` (`<code>-COPY-n`, DRAFT) e `/v1/contests/{id}/duplicate` (premi pieni, istanti da generare); `PUT` di campagne, premi e concorsi con `version` → 409 `VERSION_CONFLICT`; stock dei premi ricalcolato sulla riga corrente; web: *Duplica* in BO-05 (riga e dettaglio), BO-10, BO-14, avviso «ricarica / sovrascrivi» (bbce3d2)_
 
 **Feature** (`docs/02`)
 
-- [ ] `F-ING-04` Eventi non abbinati (P1)
-- [ ] `F-MBR-05` Anonimizzazione (P1)
-- [ ] `F-CMP-13` Duplica campagna (P1)
+- [x] `F-ING-04` Eventi non abbinati (P1) — _M7.4 abbina, riprova, abbinamento automatico alla registrazione_
+- [x] `F-MBR-05` Anonimizzazione (P1) — _M7.5 propagata a tutti gli snapshot, test di accettazione nell'hub_
+- [x] `F-CMP-13` Duplica campagna (P1) — _M7.6, anche premi e concorsi_
 - [x] `F-WBH-01` Webhook in uscita (P1) — _M7.2 firma, ritenti, GAVE_UP, Riprova, BO-23_
 - [x] `F-APR-01` Workflow di approvazione (P0) — _M7.1 invio, approvazione/rifiuto con commento, storico_
 - [x] `F-APR-02` Policy (P1) — _M7.1 policy configurabile, scheda in BO-21_
@@ -335,10 +335,14 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 **Accettazione M7** (`docs/12`)
 
-- [ ] criteri di accettazione verdi
-- [ ] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi
-- [ ] stati *loading / empty / error / degraded* sulle schermate toccate
-- [ ] demo online aggiornata e `smoke.sh` verde
+- [x] criteri di accettazione verdi — _2026-09-24, tutti con test automatici:_
+  - _luca.marketing non pubblica un concorso (solo *Invia in revisione*), elena.legal approva con commento, storico e audit → `ContestIT.marketingSubmitsLegalDecidesAndHistoryIsVisible`_
+  - _rifiuto senza commento → 422 `REJECT_COMMENT_REQUIRED` → `ContestIT`_
+  - _webhook verso endpoint che fallisce → ritenti, `GAVE_UP`, *Riprova*, firma verificata da `deploy/webhook-receiver/verify.mjs` → `WebhookIT`, `verify.test.mjs`_
+  - _anonimizzazione di un membro di prova: nessuna API di gestione espone nome/e-mail, movimenti conservati → `HubAnonymizationIT`_
+- [x] `./mvnw verify` · `pnpm lint typecheck test` · `check-seed` verdi — _2026-09-24 sul codice integrato M7.4–M7.6 (385 test backend, 223 web)_
+- [x] stati *loading / empty / error / degraded* sulle schermate toccate (BO-21, BO-23, BO-26, BO-27, BO-03, editor con conflitto di versione, via `QueryState`)
+- [x] demo online aggiornata e `smoke.sh` verde — _2026-09-24: workflow `smoke-demo` (run 36050650694) sull'hub online con M7 (6570c38): Marco 1 850 → 1 875 PTS (+25, 20 € × 1,25 SILVER) in circa 4 s_
 
 ## Fuori PoC (P2, solo predisposizione)
 
@@ -350,6 +354,8 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 | Data | Fetta | Esito | Commit | Domande aperte create | Note per la prossima sessione |
 |---|---|---|---|---|---|
+| 2026-09-24 | FIN-1 · FIN-2 | ✅ `./mvnw verify` verde (3 895 casi con le suite di proprietà), `pnpm lint typecheck test build` verdi (285 test), `check-seed` 30, `check-contracts` 52 | FIN-1 6a97298 · FIN-2 4 commit | Q-132…Q-139 | **FIN-1** Demo Hub completo (F-DEMO-01) e keep-alive gentile (F-DEMO-07). **FIN-2** BO-03 *Blocca/Sblocca* e *Disattiva* (ADMIN, CARE), conteggi per esito in BO-26 con `GET /v1/inbound-events/counts` e **duplicati ora salvati in `inbound_event`** (prima la scheda DUPLICATE non poteva mai popolarsi), stati di caricamento/errore/degradato su BO-07, BO-24, BO-30, sintesi live di `member.status.changed`/`tier.upgraded` corrette. In revisione: `POST /v1/members/{id}/status` ristretto ad ADMIN e CARE (prima accettava ANALYST, contro docs/08 §2); *Ripristina tutto* in BO-30 con conferma digitando `RESET`. **Q-139 decisa:** `INACTIVE` aggiunto agli enum di stato nei contratti `member.*`. |
+| 2026-09-24 | M7.4 · M7.5 · M7.6 | ✅ `./mvnw verify` verde sul codice integrato (385 test: nuovi `UnmatchedResolutionIT` 6 e `InboundResolutionTest` 5; `AnonymizationTest` 4, `PersonalDataTest` 5, `AnonymizationIT` 2 e **`HubAnonymizationIT`** con l'**accettazione M7**: membro di prova anonimizzato, ~30 API di gestione e portale interrogate senza più nome, e-mail, telefono o indirizzo, movimenti conservati; `CampaignServiceIT`, `RewardServiceIT`, `ContestIT` con duplica e 409 di versione), `pnpm lint typecheck test build` verdi (40 file, 223 test), `check-seed` 30, `check-contracts` 52 | 4dcb2d0 · c190303 · bbce3d2 | Q-112…Q-128 | M7.4 e M7.5 svolte da due agenti in parallelo (SPEC-GAP rinumerati da Q-A1…A6 e Q-B1…B9), M7.6 in sessione; conflitto in ingestion `FactsHandler` risolto tenendo abbinamento automatico e cancellazione dei dati personali. Verifiche parallele affidate a Jules (PR #11–#13 e seguenti, da rivedere prima del merge). Rilevato: `seed/scenarios.json` non contiene `SCN-WEEKEND-BURST`, `SCN-DUPLICATE`, `SCN-BAD-EVENT`, `SCN-SMOKE` di docs/10 (ha invece `SCN-WEEKEND-ANNA`, `SCN-MIXED-DAY`, `SCN-REJECTS`). |
 | 2026-09-24 | M7.1 · M7.2 · M7.3 | ✅ `./mvnw verify` verde (nuovi `GovernedTransitionsTest`; `ContestIT` con l'**accettazione M7**: luca.marketing → `PUBLISH` 409 `APPROVAL_REQUIRED`, solo *Invia in revisione*; elena.legal rifiuta senza commento → 422, con commento → DRAFT, poi approva con commento; storico di 5 transizioni con attori e commenti; coda comune e «inviate da me»; `RewardServiceIT`, `CampaignServiceIT` sopra soglia di budget; `WebhookIT` 5: endpoint 500 → ritenti +1/+5/+15 min → `GAVE_UP`, *Riprova* → OK, firma verificata anche da `verify.mjs`; `DlqIT` 7 e `HubDlqIT`: `SCN-POISON` → voce `DEMO_POISON`, tracciato FAILED, riprocessa via HTTP, scarta con nota), `pnpm lint typecheck test build` verdi (37 file, 205 test), `check-seed` 30, `check-contracts` 52, `node --test deploy/webhook-receiver/verify.test.mjs` 3 | 4d2e5a4 · a1156b8 · 762a6b1 | Q-96…Q-111 | M7.2 e M7.3 svolte da due agenti in parallelo e integrate dopo revisione (SPEC-GAP rinumerati da Q-A1…A7 e Q-B1…B8). `/v1/approvals` è un controller comune che aggrega le fonti del processo: nell'hub i tre servizi condividono il server web e un endpoint per servizio sarebbe andato in conflitto. Sidebar a milestone 7. Ritenti Kafka ancora a 200 ms × 3 invece di 1/5/15 s di docs/04 (preesistente). |
 | 2026-09-24 | M6.7 | ✅ `./mvnw verify` verde (nuovi `EventTypesIT` 4: campi dallo schema, custom creato da MARKETING e accettato subito, schema aggiornato valido dall'azione successiva, disabilitato → `UNKNOWN_TYPE`, sistema modificabile solo da ADMIN e solo nelle etichette; `MemberServiceIT` 9 con attributi validati, `member.updated` con attributi e data di nascita, definizioni con ruoli e `ATTRIBUTE_IN_USE`; `HubCustomActionIT`: **accettazione M6** — tipo custom → campagna LIVE con `data.reading` e `member.attributes.hasGasContract` → +75 PTS a Marco, niente a Giulia finché BO-03 non le cambia l'attributo), `pnpm lint typecheck test build` verdi (34 file, 177 test), `check-seed` 29; Playwright su servizi locali: BO-09 nuovo tipo a righe → dettaglio coi campi → *Prova* apre BO-28 con tipo e dati d'esempio; BO-06 lo mostra tra i trigger con i suoi campi e gli attributi nel costruttore; BO-03 etichetta salvata; BO-04 definizioni | 1c710e2 · d22affe | Q-89…Q-95 | Trovato e corretto: campaign e member instradavano solo i 19 tipi di sistema, un tipo custom sarebbe stato scartato in silenzio; lo snapshot di `member.*` non portava attributi e data di nascita (il contratto li prevedeva). Costruttore di condizioni di BO-06 svolto da un agente in parallelo e integrato dopo revisione. |
 | 2026-09-24 | M6.6 | ✅ `./mvnw verify` verde (`SegmentCriteriaTest` 7, `SegmentIT` 8: appartenenze dei seed, anteprima `member.tier in [GOLD, PLATINUM]` = 4, ruoli, fatti solo per le differenze validati sui contratti, statici, `SCN-DIGITAL` → ricalcolo → Marco entra in SEG-DIGITAL ed esce da SEG-NOT-EBILL; `CampaignServiceIT` 15 e `RewardServiceIT` 6 col pubblico per segmento; nuovo `HubSegmentsIT` 2: **accettazione M6 sui segmenti** — dopo `SCN-DIGITAL` e ricalcolo la griglia Home di Marco mostra `CNT-DIGITAL-THANKS` al posto di `CNT-EBILL`; Stefano nel pubblico SEG-AT-RISK di `CMP-REVIEW`, `RWD-EBIKE-RENT` visibile a Davide), `pnpm lint typecheck test build` verdi (119 test), `check-seed` 28 con la rivalutazione dei criteri sui seed, `check-contracts` 52; Playwright su BO-04, BO-03, BO-02, BO-30 anche come ANALYST | 768319b | Q-80…Q-88 | Fetta svolta da un agente in parallelo e integrata in `main` dopo revisione (SPEC-GAP rinumerati da Q-90…98). `actions_by_type` di `member_stats` portato alla forma della scheda servizio `{count30d, total, lastAt}`. |

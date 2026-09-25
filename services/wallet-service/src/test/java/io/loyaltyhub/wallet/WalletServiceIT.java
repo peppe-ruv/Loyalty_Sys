@@ -386,6 +386,7 @@ class WalletServiceIT {
         return mapper.readTree(value);
     }
 
+    /** Attesa fissa per provare che qualcosa NON accade (accredito duplicato): non va accorciata. */
     private static void sleep() {
         try {
             Thread.sleep(2000);

@@ -29,3 +29,38 @@ describe("computeRollingExpiry", () => {
     expect(expiry.getDate()).toBe(31);
   });
 });
+
+import { formatDate, formatDateTime, formatTime, formatRelative } from "./dates";
+
+describe("format/dates", () => {
+  it("formatta le date in it-IT", () => {
+    const date = new Date("2026-09-18T08:42:00Z");
+
+    expect(formatDate(date)).toMatch(/18 set 2026/i);
+    expect(formatDateTime(date)).toMatch(/18 set 2026/i);
+    expect(formatDateTime(date)).toMatch(/10:42/);
+    expect(formatTime(date)).toMatch(/10:42/);
+  });
+
+  it("gestisce i valori vuoti", () => {
+    expect(formatDate(null)).toBe("—");
+    expect(formatDate(undefined)).toBe("—");
+  });
+
+  it("formatta le date relative", () => {
+    const now = new Date("2024-01-15T12:00:00Z");
+
+    // < 1 min -> "ora" (Math.round(29_000 / 60_000) = 0).
+    expect(formatRelative(new Date("2024-01-15T11:59:31Z"), now)).toBe("ora");
+
+    // < 60 min -> "X min fa"
+    expect(formatRelative(new Date("2024-01-15T11:45:00Z"), now)).toBe("15 min fa");
+
+    // < 24 h -> "X h fa"
+    expect(formatRelative(new Date("2024-01-15T09:00:00Z"), now)).toBe("3 h fa");
+
+    // >= 24 h -> data assoluta
+    const old = new Date("2024-01-10T12:00:00Z");
+    expect(formatRelative(old, now)).toMatch(/10 gen 2024/i);
+  });
+});

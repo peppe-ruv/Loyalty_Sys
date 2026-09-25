@@ -3,6 +3,8 @@ package io.loyaltyhub.gamification.messaging;
 import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhEventTypes;
 import io.loyaltyhub.common.inbox.EventHandler;
+import io.loyaltyhub.common.privacy.PersonalData;
+import io.loyaltyhub.gamification.infra.MemberErasureRepository;
 import io.loyaltyhub.gamification.infra.MemberSnapshotRepository;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
@@ -14,9 +16,11 @@ import java.util.Set;
 public class MemberSnapshotHandler implements EventHandler {
 
     private final MemberSnapshotRepository members;
+    private final MemberErasureRepository erasure;
 
-    public MemberSnapshotHandler(MemberSnapshotRepository members) {
+    public MemberSnapshotHandler(MemberSnapshotRepository members, MemberErasureRepository erasure) {
         this.members = members;
+        this.erasure = erasure;
     }
 
     @Override
@@ -29,6 +33,11 @@ public class MemberSnapshotHandler implements EventHandler {
         String memberId = event.memberId();
         JsonNode d = event.data();
         if (memberId == null || d == null) {
+            return;
+        }
+        // Anonimizzazione (F-MBR-05, M7.5): segnaposto al posto del nickname, qualunque dei due fatti arrivi prima.
+        if (PersonalData.isAnonymization(event)) {
+            erasure.erase(memberId);
             return;
         }
         if (LhEventTypes.Fact.MEMBER_STATUS_CHANGED.equals(event.type())) {

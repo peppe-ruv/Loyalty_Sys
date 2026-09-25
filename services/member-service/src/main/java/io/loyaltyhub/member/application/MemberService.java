@@ -16,6 +16,7 @@ import io.loyaltyhub.member.api.PortalProfileView;
 import io.loyaltyhub.member.api.StatusChangeRequest;
 import io.loyaltyhub.member.api.UpdateMemberRequest;
 import io.loyaltyhub.member.domain.ActionLabels;
+import io.loyaltyhub.member.domain.Anonymization;
 import io.loyaltyhub.member.domain.Member;
 import io.loyaltyhub.member.domain.MemberAttributes;
 import io.loyaltyhub.member.domain.MemberProjection;
@@ -166,6 +167,7 @@ public class MemberService {
     @Transactional
     public MemberView update(String id, UpdateMemberRequest r) {
         Member m = members.findById(id).orElseThrow(() -> LhException.notFound("Membro non trovato: " + id));
+        requireNotAnonymized(m);
         if (r.version() != null && r.version() != m.version()) {
             throw LhException.conflict("VERSION_CONFLICT",
                     "Versione non aggiornata: attesa " + m.version() + ", ricevuta " + r.version());
@@ -245,6 +247,7 @@ public class MemberService {
     @Transactional
     public MemberView changeStatus(String id, StatusChangeRequest r) {
         Member m = members.findById(id).orElseThrow(() -> LhException.notFound("Membro non trovato: " + id));
+        requireNotAnonymized(m);
         MemberStatus target = parseTargetStatus(r.status());
         MemberStatus previous = m.status();
         if (target == previous) {
@@ -268,7 +271,49 @@ public class MemberService {
         return MemberView.of(updated, projections.findByMemberId(id).orElse(null));
     }
 
+    /**
+     * Anonimizzazione irreversibile (F-MBR-05, docs/03 §2, M7.5): {@code confirm} deve essere l'id del membro.
+     * Nella stessa transazione: riga anonimizzata ({@link Anonymization#apply}), fatto {@code member.status.changed}
+     * (→ {@code ANONYMIZED}) e poi {@code member.updated} con lo snapshot già ripulito (gli altri servizi lo usano per
+     * cancellare i dati personali dal proprio snapshot, docs/12 §M7). L'audit non riporta alcun dato personale.
+     */
+    @Transactional
+    public MemberView anonymize(String id, String confirm) {
+        Member m = members.findById(id).orElseThrow(() -> LhException.notFound("Membro non trovato: " + id));
+        if (!Anonymization.confirms(id, confirm)) {
+            throw LhException.validation("CONFIRM_MISMATCH", "Per confermare digita l'ID del membro (" + id + ").",
+                    List.of(new LhException.FieldError("confirm", "deve essere " + id)));
+        }
+        if (m.status() == MemberStatus.ANONYMIZED) {
+            throw LhException.conflict("MEMBER_ANONYMIZED", "Il membro " + id + " è già anonimizzato.");
+        }
+        Member redacted = Anonymization.apply(m);
+        if (!members.anonymize(redacted, m.version())) {
+            throw LhException.conflict("VERSION_CONFLICT", "Modifica concorrente sul membro " + id);
+        }
+        segmentChanges.markChanged(); // gli anonimizzati escono dai segmenti dinamici al prossimo ricalcolo
+
+        Member updated = members.findById(id).orElseThrow();
+        outbox.write(events.newRoot(LhEventTypes.Fact.MEMBER_STATUS_CHANGED, "member:" + id,
+                Map.of("memberId", id, "previousStatus", m.status().name(),
+                        "newStatus", MemberStatus.ANONYMIZED.name(), "reason", "Anonimizzazione")));
+        publish(LhEventTypes.Fact.MEMBER_UPDATED, updated, tierOf(id));
+
+        audit.record("MEMBER", id, AuditEntry.Action.TRANSITION,
+                "Membro " + id + " anonimizzato: dati personali rimossi",
+                Map.of("status", m.status().name()), Map.of("status", MemberStatus.ANONYMIZED.name()));
+        return MemberView.of(updated, projections.findByMemberId(id).orElse(null));
+    }
+
     // ---------- interni ----------
+
+    /** Un membro anonimizzato non si modifica più (docs/03 §2: stato irreversibile). */
+    private static void requireNotAnonymized(Member m) {
+        if (m.status() == MemberStatus.ANONYMIZED) {
+            throw LhException.conflict("MEMBER_ANONYMIZED",
+                    "Il membro " + m.id() + " è anonimizzato: l'operazione non è più possibile.");
+        }
+    }
 
     private void publish(String factType, Member m, String tier) {
         LhEvent<MemberSnapshot> fact = events.newRoot(factType, "member:" + m.id(), MemberSnapshot.of(m, tier));

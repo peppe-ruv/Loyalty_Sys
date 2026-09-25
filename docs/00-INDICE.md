@@ -22,6 +22,8 @@ Specifiche del PoC **Loyalty Hub**, scritte per essere eseguite da Claude Code. 
 | 13 | [Registro decisioni](13-REGISTRO-DECISIONI.md) | Architetto | ADR compatte |
 | 14 | [Stato avanzamento](14-STATO-AVANZAMENTO.md) | Delivery | checklist viva, aggiornata da Claude Code |
 | 15 | [Domande aperte](15-DOMANDE-APERTE.md) | Tutti | decisioni in sospeso e SPEC-GAP |
+| 16 | [Testbook funzionale](16-TESTBOOK-FUNZIONALE.md) | Tutti | casi di prova per regola × domini dei valori, oracolo = specifica |
+| 17 | [Epic e storie](17-EPIC-E-STORIE.md) | Tutti | epic, storie utente, foresta delle decisioni e copertura del testbook |
 
 Alla radice: [`CLAUDE.md`](../CLAUDE.md) (regole per l'agente), [`README.md`](../README.md), [`COME-PARTIRE.md`](../COME-PARTIRE.md) (primi passi e primo prompt per Claude Code).
 

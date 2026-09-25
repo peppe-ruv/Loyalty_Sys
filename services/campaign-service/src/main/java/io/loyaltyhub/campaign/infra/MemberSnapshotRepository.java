@@ -89,6 +89,19 @@ public class MemberSnapshotRepository {
                 .params(memberId, status).update();
     }
 
+    /**
+     * Anonimizzazione (F-MBR-05, M7.5): stato {@code ANONYMIZED}, data di nascita e attributi personalizzati cancellati.
+     * Livello, segmenti ed etichette restano (statistiche, docs/03 §2).
+     */
+    public void erasePersonal(String memberId) {
+        jdbc.sql("""
+                        INSERT INTO member_snapshot (member_id, status) VALUES (?, 'ANONYMIZED')
+                        ON CONFLICT (member_id) DO UPDATE SET status = 'ANONYMIZED', birth_date = NULL,
+                          attributes = '{}'::jsonb
+                        """)
+                .param(memberId).update();
+    }
+
     public void updateTier(String memberId, String tier) {
         jdbc.sql("""
                         INSERT INTO member_snapshot (member_id, status, tier_code) VALUES (?, 'ACTIVE', ?)

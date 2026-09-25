@@ -101,7 +101,26 @@ public class MemberRepository {
                 .params(status.name(), id).update();
     }
 
-    /** Elenco filtrato con proiezione (docs §3): {@code q, status, tier}. Ordinato per id. */
+    /**
+     * Anonimizzazione (F-MBR-05): sovrascrive anagrafica, recapiti, consensi e attributi con i valori già anonimizzati
+     * ({@link io.loyaltyhub.member.domain.Anonymization#apply}) e porta lo stato ad {@code ANONYMIZED}, con lock
+     * ottimistico. {@code true} se ha aggiornato la riga.
+     */
+    public boolean anonymize(Member a, long expectedVersion) {
+        int n = jdbc.sql("""
+                        UPDATE member SET
+                          external_id = ?, first_name = ?, last_name = ?, nickname = ?, email = ?, phone = ?,
+                          birth_date = ?, gender = ?, city = ?, status = ?, consents = cast(? AS jsonb),
+                          attributes = cast(? AS jsonb), avatar_seed = ?, version = version + 1
+                        WHERE id = ? AND version = ?
+                        """)
+                .params(a.externalId(), a.firstName(), a.lastName(), a.nickname(), a.email(), a.phone(),
+                        a.birthDate(), a.gender(), a.city(), a.status().name(), a.consentsJson(), a.attributesJson(),
+                        a.avatarSeed(), a.id(), expectedVersion)
+                .update();
+        return n == 1;
+    }
+
     /** Etichette aggiornate da un'azione (SPEC-GAP Q-80): incrementa la versione come ogni modifica anagrafica. */
     public void updateLabels(String id, List<String> labels) {
         jdbc.sql("UPDATE member SET labels = ?::text[], version = version + 1 WHERE id = ?")
@@ -180,7 +199,8 @@ public class MemberRepository {
         return jdbc.sql("""
                         SELECT m.id, m.first_name, m.last_name, m.nickname, m.avatar_seed,
                                m.attributes ->> 'story' AS story,
-                               coalesce(p.tier_code, 'BASE') AS tier_code
+                               coalesce(p.tier_code, 'BASE') AS tier_code,
+                               coalesce(p.balance_pts, 0) AS balance_pts
                         FROM member m LEFT JOIN member_projection p ON p.member_id = m.id
                         WHERE m.status <> 'ANONYMIZED' AND jsonb_exists(m.attributes, 'story')
                         ORDER BY m.id
@@ -190,7 +210,8 @@ public class MemberRepository {
                         displayName(rs.getString("first_name"), rs.getString("last_name"), rs.getString("nickname"), rs.getString("id")),
                         rs.getString("tier_code"),
                         rs.getString("story"),
-                        rs.getString("avatar_seed")))
+                        rs.getString("avatar_seed"),
+                        rs.getLong("balance_pts")))
                 .list();
     }
 

@@ -4,7 +4,7 @@ import { useLhQuery } from "@/lib/api/client";
 import { useActiveMember } from "@/components/portal/MemberContext";
 import Link from "next/link";
 import type { PortalCampaign } from "@/lib/api/types";
-import { QueryState } from "@/components/bo/QueryState";
+import { QueryState } from "@/components/shared/QueryState";
 
 // PT-02 Guadagna (docs/09 §PT-02): campagne attive in forma leggibile, con riepilogo premio; collegamento a PT-11.
 

@@ -11,8 +11,8 @@ import java.time.Instant;
  * (<em>Riprova</em> / <em>Abbina</em>, F-ING-04, F-ING-09), che invece aggiorna la riga esistente.
  *
  * @param event envelope da salvare come {@code payload}: per {@code ACCEPTED} è l'azione arricchita da pubblicare
- *              (subject normalizzato a {@code member:<id>}); negli altri casi l'envelope col subject originale;
- *              {@code null} per {@code DUPLICATE} (nulla si salva).
+ *              (subject normalizzato a {@code member:<id>}); negli altri casi (anche {@code DUPLICATE}, che si
+ *              salva come riga del monitor ma non si pubblica) l'envelope col subject originale.
  */
 public record Evaluation(
         InboundStatus status,

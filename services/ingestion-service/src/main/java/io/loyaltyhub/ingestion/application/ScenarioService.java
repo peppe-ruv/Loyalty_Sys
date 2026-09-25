@@ -80,7 +80,7 @@ public class ScenarioService {
             int index = 0;
             for (JsonNode step : scenario.steps()) {
                 sleep(step.path("delayMs").asLong(0));
-                results.add(runStep(index, step));
+                results.add(runStep(runId, index, step));
                 runs.updateProgress(runId, index + 1, mapper.writeValueAsString(results));
                 index++;
             }
@@ -91,13 +91,18 @@ public class ScenarioService {
         }
     }
 
-    /** Esegue un passo nella pipeline (origine SIMULATOR) e ne descrive l'esito, confrontandolo con {@code expect}. */
-    private ObjectNode runStep(int index, JsonNode step) {
+    /**
+     * Esegue un passo nella pipeline (origine SIMULATOR) e ne descrive l'esito, confrontandolo con {@code expect}.
+     * Un {@code eventId} esplicito può contenere {@code {run}}, sostituito col {@code runId}: due passi con lo stesso
+     * id sono duplicati nella stessa esecuzione, ma lo scenario resta ripetibile (SCN-DUPLICATE).
+     */
+    // SPEC-GAP: Q-130 — docs/10 chiede "stesso id due volte" ma non come ripetere lo scenario: segnaposto {run}.
+    private ObjectNode runStep(String runId, int index, JsonNode step) {
         String memberId = step.path("memberId").asString("");
         String type = step.path("type").asString("");
         String source = step.path("source").asString("simulator");
         String expect = step.path("expect").asString(null);
-        String eventId = step.hasNonNull("eventId") ? step.get("eventId").asString() : Ulid.next(clock);
+        String eventId = step.hasNonNull("eventId") ? step.get("eventId").asString().replace("{run}", runId) : Ulid.next(clock);
         JsonNode data = step.hasNonNull("data") ? step.get("data") : mapper.createObjectNode();
 
         InboundEventRequest request = new InboundEventRequest(

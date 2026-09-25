@@ -53,6 +53,8 @@ public class IngestionService {
     private static final Duration MAX_PAST = Duration.ofDays(30);
     private static final String ORIGIN_EXTERNAL = "EXTERNAL";
     public static final String ORIGIN_SIMULATOR = "SIMULATOR";
+    /** Dettaglio salvato sulle righe {@code DUPLICATE} (BO-26 lo mostra nel dettaglio). */
+    public static final String DUPLICATE_DETAIL = "Un evento con la stessa fonte e lo stesso id è già stato accettato.";
 
     private final InboundEventRepository inbound;
     private final SourceRepository sources;
@@ -87,10 +89,9 @@ public class IngestionService {
     public IngestResult ingest(InboundEventRequest request, String origin) {
         Evaluation ev = evaluate(request, null);
         switch (ev.status()) {
-            case DUPLICATE -> {
-                return ev.toResult();
-            }
-            case REJECTED, UNMATCHED -> {
+            case DUPLICATE, REJECTED, UNMATCHED -> {
+                // docs/servizi/ingestion-service.md §5: "al primo fallimento si salva inbound_event con l'esito" — anche
+                // il duplicato (docs/12: SCN-DUPLICATE → BO-26 mostra DUPLICATE). Nulla va sul topic.
                 inbound.saveOutcome(Ulid.next(clock), ev.eventId(), ev.sourceCode(), ev.typeCode(), ev.subject(),
                         ev.memberId(), ev.time(), ev.status(), ev.rejectCode(), ev.detail(), serialize(ev.event()),
                         ev.correlationId(), origin);
@@ -102,6 +103,9 @@ public class IngestionService {
                         ev.event().subject(), ev.memberId(), ev.time(), serialize(ev.event()), ev.correlationId(), origin);
                 if (!inserted) {
                     // Gara concorrente sullo stesso (fonte, id): trattata come duplicato, nessuna doppia pubblicazione.
+                    inbound.saveOutcome(Ulid.next(clock), ev.eventId(), ev.sourceCode(), ev.typeCode(), ev.subject(),
+                            ev.memberId(), ev.time(), InboundStatus.DUPLICATE, null, DUPLICATE_DETAIL,
+                            serialize(ev.event()), ev.correlationId(), origin);
                     return IngestResult.duplicate(ev.eventId(), ev.memberId(), ev.correlationId());
                 }
                 outbox.write(ev.event());
@@ -161,8 +165,8 @@ public class IngestionService {
 
         // 6. dedup (source, id): conta solo un ACCEPTED, così una riga REJECTED/UNMATCHED rivalutata non collide con sé stessa.
         if (inbound.acceptedExists(sourceCode, eventId)) {
-            return new Evaluation(InboundStatus.DUPLICATE, null, null, memberIdOf(subject), eventId, sourceCode, shortType,
-                    subject, time, correlationId, null);
+            return new Evaluation(InboundStatus.DUPLICATE, null, DUPLICATE_DETAIL, memberIdOf(subject), eventId, sourceCode,
+                    shortType, subject, time, correlationId, o.envelope(subject));
         }
 
         // 7. risoluzione membro (o membro esplicito dell'abbinamento manuale).

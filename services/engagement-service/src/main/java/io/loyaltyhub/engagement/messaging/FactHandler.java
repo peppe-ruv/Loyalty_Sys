@@ -5,6 +5,8 @@ import io.loyaltyhub.common.event.LhEventTypes;
 import io.loyaltyhub.common.inbox.EventHandler;
 import io.loyaltyhub.engagement.application.NotificationService;
 import io.loyaltyhub.engagement.application.WebhookService;
+import io.loyaltyhub.common.privacy.PersonalData;
+import io.loyaltyhub.engagement.infra.MemberErasureRepository;
 import io.loyaltyhub.engagement.infra.MemberSnapshotRepository;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
@@ -23,8 +25,11 @@ public class FactHandler implements EventHandler {
     private final MemberSnapshotRepository members;
     private final NotificationService notifications;
     private final WebhookService webhooks;
+    private final MemberErasureRepository erasure;
 
-    public FactHandler(MemberSnapshotRepository members, NotificationService notifications, WebhookService webhooks) {
+    public FactHandler(MemberSnapshotRepository members, NotificationService notifications, WebhookService webhooks,
+                       MemberErasureRepository erasure) {
+        this.erasure = erasure;
         this.members = members;
         this.notifications = notifications;
         this.webhooks = webhooks;
@@ -83,6 +88,10 @@ public class FactHandler implements EventHandler {
             default -> {
                 // nessun effetto sullo snapshot
             }
+        }
+        // Anonimizzazione (F-MBR-05, M7.5): dopo l'aggiornamento (che conserva il nome noto, usato per ripulire i testi).
+        if (PersonalData.isAnonymization(event)) {
+            erasure.erase(memberId);
         }
     }
 

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useLhQuery } from "@/lib/api/client";
 import type { PortalCampaign, PortalReferral } from "@/lib/api/types";
 import { useActiveMember } from "@/components/portal/MemberContext";
-import { QueryState } from "@/components/bo/QueryState";
+import { QueryState } from "@/components/shared/QueryState";
 import { actionLabel } from "@/lib/campaign/describe";
 import { completedThisEdition, inviteLink, inviteeStatusLabel } from "@/lib/member/referral";
 import { formatDate } from "@/lib/format/dates";

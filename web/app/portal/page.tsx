@@ -8,12 +8,13 @@ import { useActiveMember } from "@/components/portal/MemberContext";
 import { usePending } from "@/components/portal/PendingContext";
 import { MemberCard } from "@/components/shared/content/MemberCard";
 import { PendingBanner, ActivityRow, type ActivityItem } from "@/components/portal/parts";
-import { QueryState } from "@/components/bo/QueryState";
+import { QueryState } from "@/components/shared/QueryState";
 import { ContentSlot } from "@/components/portal/ContentSlot";
 import { PopupHost } from "@/components/portal/PopupHost";
 import { usePortalTheme } from "@/components/shared/ThemeContext";
 import { formatPoints } from "@/lib/format/points";
 import { formatDate } from "@/lib/format/dates";
+import { isAnonymized, memberDisplayName } from "@/lib/member/anonymized";
 
 // PT-01 Home (docs/09 §PT-01): tessera, saldo, avanzamento livello, card hero (HOME_HERO), azioni rapide, griglia di
 // card (HOME_GRID), ultimi movimenti. All'ingresso il pop-up del momento (M6.2; per i nuovi iscritti POP-WELCOME). Dopo l'iscrizione
@@ -30,7 +31,9 @@ export default function PortalHome() {
     refetchInterval: pending ? 5000 : undefined,
   });
 
-  const name = member.data?.firstName ?? "";
+  // Un membro anonimizzato (F-MBR-05) non ha più un nome: saluto senza nome, tessera col segnaposto.
+  const anonymized = isAnonymized(member.data?.status);
+  const name = anonymized ? "" : (member.data?.firstName ?? "");
   const [welcome, setWelcome] = useState(false);
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("welcome") === "1") {
@@ -49,6 +52,12 @@ export default function PortalHome() {
         <h1 className="text-lg font-semibold text-[var(--color-pt-night)]">Ciao{name ? ` ${name}` : ""} 👋</h1>
         {theme.heroTitle ? <p className="text-sm text-[var(--color-pt-night)]/70">{theme.heroTitle}</p> : null}
       </div>
+      {anonymized ? (
+        <p className="rounded-xl bg-slate-100 p-3 text-sm text-slate-600">
+          Questo profilo è stato anonimizzato: i dati personali sono stati rimossi e non si accumulano più punti. Scegli un
+          altro membro dal pannello demo.
+        </p>
+      ) : null}
       <PendingBanner />
       <PopupHost />
 
@@ -56,7 +65,7 @@ export default function PortalHome() {
         {(w) => (
           <div className="space-y-3">
             <MemberCard
-              memberName={member.data?.firstName ? `${member.data.firstName} ${member.data.lastName ?? ""}` : memberId}
+              memberName={member.data ? memberDisplayName(member.data, memberId) : memberId}
               memberId={memberId}
               pts={w.balances.PTS?.active ?? 0}
               tier={w.tier.code}

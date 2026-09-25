@@ -19,6 +19,7 @@ import {
   actionErrorMessage,
   matchBlock,
   memberSearchHint,
+  outcomeCount,
   outcomeOf,
   prettyEvent,
   resolutionLabel,
@@ -27,6 +28,7 @@ import {
   schemaErrors,
   type InboundDetail,
   type InboundRow,
+  type OutcomeCounts,
 } from "@/lib/inbound/inbound";
 
 // BO-26 Monitor ingressi (docs/08 §BO-26; F-ING-09, F-ING-04): eventi in ingresso per esito; dettaglio in foglio
@@ -39,6 +41,8 @@ export default function InboundPage() {
   const status = outcomeOf(search.get("status"));
   const openId = search.get("e");
   const query = useLhQuery<InboundRow[]>("ingestion", "/v1/inbound-events", { status, limit: 200 });
+  // Conteggi delle schede (docs/08 §BO-26): stessa chiave di servizio, quindi Riprova / Abbina li aggiornano.
+  const counts = useLhQuery<OutcomeCounts>("ingestion", "/v1/inbound-events/counts");
 
   const go = (next: { status?: string; e?: string | null }) => {
     const q = new URLSearchParams(search.toString());
@@ -81,20 +85,33 @@ export default function InboundPage() {
     <div>
       <PageHeader title="Monitor ingressi" subtitle="Eventi in ingresso e loro esito: riprova i respinti, abbina i non abbinati." />
       <div className="mb-3 flex flex-wrap gap-1" role="tablist">
-        {OUTCOMES.map((o) => (
-          <button
-            key={o.key}
-            role="tab"
-            aria-selected={status === o.key}
-            onClick={() => go({ status: o.key })}
-            className={
-              "rounded-full px-3 py-1 text-xs " +
-              (status === o.key ? "bg-[var(--color-bo-accent)] text-white" : "bg-slate-100 text-slate-700")
-            }
-          >
-            {o.label}
-          </button>
-        ))}
+        {OUTCOMES.map((o) => {
+          const n = outcomeCount(o.key, counts.data);
+          return (
+            <button
+              key={o.key}
+              role="tab"
+              aria-selected={status === o.key}
+              onClick={() => go({ status: o.key })}
+              className={
+                "rounded-full px-3 py-1 text-xs " +
+                (status === o.key ? "bg-[var(--color-bo-accent)] text-white" : "bg-slate-100 text-slate-700")
+              }
+            >
+              {o.label}
+              {n != null ? <span className="ml-1.5 font-mono tabular-nums opacity-80">{n.toLocaleString("it-IT")}</span> : null}
+            </button>
+          );
+        })}
+        {counts.isLoading ? <span className="self-center text-xs text-[var(--color-bo-ink-2)]">conteggi…</span> : null}
+        {counts.isError ? (
+          <span className="self-center text-xs text-amber-700">
+            Conteggi non disponibili{" "}
+            <button onClick={() => counts.refetch()} className="underline">
+              riprova
+            </button>
+          </span>
+        ) : null}
       </div>
       <QueryState
         query={query}
