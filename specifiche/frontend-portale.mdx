@@ -1,3 +1,209 @@
 ---
-title: "frontend-portale"
+title: "Portale membro: 14 schermate mobile-first per i clienti"
+sidebarTitle: "Portale"
+description: "Schermate PT-01 a PT-14 del portale membro Loyalty Hub: home, guadagna, catalogo, richiesta premi, gioco, notifiche e referral."
 ---
+
+Il portale membro vive sotto `/portal` nell'app `web/`. È ciò che vedrebbe il cliente finale: niente gergo tecnico, niente ID di sistema, niente stati interni. Tutto ciò che mostra (card, pop-up, premi, concorsi, testi, colori) è configurato dal backoffice. In questa pagina trovi la shell mobile-first, le regole trasversali e le 14 schermate `PT-01` a `PT-14`.
+
+Per le fondamenta di tema, tessera, stati e asincronia consulta [Fondamenta frontend](/specifiche/frontend-fondamenta). Ogni chiamata porta il `memberId` della persona attiva.
+
+## Shell
+
+Layout mobile-first con tab bar fissa a 5 voci. Sopra 900 px la tab bar diventa barra di navigazione in alto e la colonna centrale ha larghezza massima 1080 px; PT-01 passa a due colonne con la tessera fissa a sinistra.
+
+- **Tab bar**: Home (PT-01), Guadagna (PT-02), Premi (PT-03), Gioca (PT-05), Io (PT-08). Pallino su _Gioca_ se c'è una giocata disponibile; su _Io_ se il profilo è incompleto.
+- **Campanella** in alto a destra: contatore non letti da `engagement GET /v1/portal/inbox/unread-count`, aggiornato ogni 30 s e a ogni fatto ricevuto. Porta a PT-12.
+- **Tema**: il layout legge `engagement GET /v1/portal/theme` e imposta le variabili CSS; nome e logo del programma vengono da lì.
+- **Pop-up**: all'ingresso in PT-01, al più uno per visita, `GET /v1/portal/popups/next`; alla chiusura `POST …/seen {dismissed}`.
+
+### Mappa schermate
+
+| ID | Schermata | Route (`/portal…`) | Accesso | Milestone |
+| --- | --- | --- | --- | --- |
+| PT-01 | Home | `/` | tab | M1 |
+| PT-02 | Guadagna | `/earn` | tab | M1 |
+| PT-03 | Catalogo premi | `/rewards` | tab | M4 |
+| PT-04 | Dettaglio premio e richiesta | `/rewards/[code]` | da PT-03 | M4 |
+| PT-05 | Gioca | `/play` | tab | M5 |
+| PT-06 | Giocata instant win | `/play/[code]` | da PT-05 | M5 |
+| PT-07 | Attività | `/activity` | da PT-01 | M1 |
+| PT-08 | Profilo e livello | `/profile`, `/join` | tab | M3 |
+| PT-09 | Obiettivi e badge | `/achievements` | da PT-08 | M5 |
+| PT-10 | Classifica | `/leaderboard` | da PT-05 | M5 |
+| PT-11 | Porta un amico | `/invite` | da PT-02 | M5 |
+| PT-12 | Notifiche | `/inbox` | campanella | M6 |
+| PT-13 | I miei premi e coupon | `/my-rewards` | da PT-03 | M4 |
+| PT-14 | Pannello demo (tray) | tray | pulsante flottante | M1 |
+
+## Regole trasversali
+
+- **Linguaggio**: "punti" (PTS) e "punti status" (STS) coi nomi del tema; mai `PTS/STS`, codici campagna, `correlationId`. Date relative ("oggi", "ieri", "3 giorni fa"), poi estese.
+- **Il saldo non mente**: cambia solo quando arriva il fatto del wallet. Nel frattempo compare una riga "in arrivo..." in PT-01 e PT-07. All'arrivo: count-up 600 ms e, se c'è un cambio tier, capovolgimento della tessera.
+- **Realtime**: `useLiveEvents({memberId})` filtra l'SSE sul membro attivo; ogni fatto invalida le query interessate (mappa in `lib/realtime/expectations.ts`). Senza SSE: polling 5 s solo mentre c'è qualcosa in elaborazione.
+- **Membro non attivo**: `BLOCKED` o `INACTIVE` mostrano una banda in alto: "Il tuo profilo è sospeso: puoi consultare ma non accumulare o richiedere premi". Pulsanti d'azione disabilitati. `ANONYMIZED` non è selezionabile come persona.
+- **Servizio che dorme**: ogni sezione degrada da sola con un riquadro gentile ("Stiamo recuperando i tuoi premi..."); la tessera usa l'ultimo saldo noto con etichetta "aggiornato alle 10:42".
+- **Vuoti utili**: ogni stato vuoto invita a un'azione (es. "Nessun movimento ancora. Scopri come guadagnare punti").
+- **Movimento**: coriandoli solo per vincita e salita di livello; tutto disattivato con `prefers-reduced-motion` (rivelazione diretta).
+
+<Note>
+  I componenti condivisi col backoffice (`ContentCard`, `PopupModal`, `WinCard`, `MemberCard`) vivono in `components/shared/content` così l'anteprima di BO-18 e BO-20 è fedele al portale reale.
+</Note>
+
+## Schermate PT-01 a PT-14
+
+### Home e navigazione
+
+<AccordionGroup>
+  <Accordion title="PT-01 — Home">
+    **Scopo**: "quanto ho, a che punto sono, cosa posso fare adesso".
+
+    **Layout dall'alto**: saluto col nome, tessera membro (nome, numero tessera, saldo punti, materiale del tier), barra verso il prossimo livello ("Ti mancano 120 punti status per GOLD"), avviso scadenza se `expiringSoon.amount > 0`, card hero da `HOME_HERO`, azioni rapide (_Gioca_, _Premi_, _Porta un amico_), griglia card `HOME_GRID` a 2 colonne, obiettivo più vicino, ultimi 3 movimenti.
+
+    **Dati**: `wallet GET /v1/portal/wallets/{id}`, `engagement GET /v1/portal/content?placement=HOME_HERO|HOME_GRID`, `gamification GET /v1/portal/contests`, `wallet GET /v1/portal/wallets/{id}/activity?size=3`.
+  </Accordion>
+
+  <Accordion title="PT-02 — Guadagna">
+    **Scopo**: rendere leggibili le campagne attive.
+
+    **Layout**: elenco di schede con icona, nome per il membro, descrizione, riepilogo premio ("+300 punti", "×2 nel weekend", "1 giocata"), progresso sui limiti ("2 di 5 questo mese"), scadenza. In cima le campagne a tempo; in fondo quelle già completate (attenuate). Sezione finale "Porta un amico" a PT-11.
+
+    **Dati**: `campaign GET /v1/portal/campaigns?memberId=`.
+  </Accordion>
+</AccordionGroup>
+
+### Premi
+
+<AccordionGroup>
+  <Accordion title="PT-03 — Catalogo premi">
+    **Scopo**: far vedere cosa è raggiungibile.
+
+    **Layout**: intestazione fissa col saldo, banner `CATALOG_TOP`, fasce come sezioni in ordine di soglia ("Fascia 1.500 punti" con stato raggiunta o "ti mancano 350 punti"). Griglia 2 colonne di premi con immagine, nome, categoria. Filtro per categoria a chip e interruttore "Solo quelli che posso richiedere".
+
+    **Stati del premio**: `LOW` mostra "Ultimi pezzi"; `SOLD_OUT` attenuato con "Esaurito"; `lockedByTier` lucchetto "Riservato a GOLD"; `perMemberLimitReached` "Già richiesto".
+  </Accordion>
+
+  <Accordion title="PT-04 — Dettaglio premio e richiesta">
+    **Scopo**: completare il flusso di richiesta premio.
+
+    **Layout**: immagine grande, nome, categoria, costo in punti, descrizione, termini pieghevoli, disponibilità. Barra fissa in basso con **"Richiedi per 1.500 punti"** oppure motivo del blocco ("Ti mancano 350 punti", "Riservato a GOLD", "Esaurito").
+
+    **Flusso** (feature `F-RWD-05`):
+
+    <Steps>
+      <Step title="Conferma">
+        Foglio di conferma con saldo prima e dopo. Per premi fisici: form spedizione (nome, indirizzo, CAP, città).
+      </Step>
+      <Step title="Attesa">
+        `POST` restituisce `202`. Schermata "Stiamo confermando la tua richiesta..." mentre la saga passa dal wallet.
+      </Step>
+      <Step title="Esito">
+        `CONFIRMED`/`FULFILLED`: per i coupon codice in grande con copia e scadenza; per i fisici "Ti avviseremo alla spedizione". Saldo aggiornato con count-up. `REJECTED`: "Punti non sufficienti" senza addebito. Timeout 20 s: "Ci stiamo mettendo più del solito, troverai l'esito in _I miei premi_".
+      </Step>
+    </Steps>
+
+    Errori immediati `422` mostrati nel foglio: esaurito, limite raggiunto, livello non idoneo, spedizione mancante.
+  </Accordion>
+
+  <Accordion title="PT-13 — I miei premi e coupon">
+    Due schede: **Richieste** (premio, data, punti, stato in parole con linea di avanzamento per i fisici; _Annulla_ solo se in conferma) e **Coupon** (schede "biglietto" con codice mono grande, _Copia_, scadenza, origine, stato attivo/usato/scaduto).
+  </Accordion>
+</AccordionGroup>
+
+### Gioco
+
+<AccordionGroup>
+  <Accordion title="PT-05 — Gioca">
+    Per ogni concorso `LIVE` una scheda grande: nome, immagine, "termina tra 12 giorni", giocate disponibili in evidenza, stato della giocata gratuita ("Giocata di oggi disponibile" / "Torna domani"), vetrina dei premi in palio (senza quantità), **Gioca ora** a PT-06. In fondo: "Come ottenere altre giocate" (link a PT-02) e ingresso a Classifica (PT-10).
+  </Accordion>
+
+  <Accordion title="PT-06 — Giocata instant win">
+    Il momento più spettacolare della demo. L'esito lo decide sempre il server; l'animazione lo rivela.
+
+    **Meccaniche**:
+
+    - `WHEEL`: ruota con uno spicchio per premio + spicchi "Ritenta"; parte al tocco di _Gira_, decelera per 4 s, si ferma sullo spicchio dell'esito.
+    - `SCRATCH`: superficie da grattare (canvas) che scopre l'esito; al 55 % scoperto si rivela tutto.
+    - `GIFT`: tre pacchi, qualunque si scelga contiene l'esito.
+
+    Sempre presente pulsante _Gioca_ equivalente (tastiera, screen reader, `prefers-reduced-motion`).
+
+    **Esito `WIN`**: coriandoli + `WinCard` configurata in BO-18. Premio in punti: "I punti stanno arrivando..." finché non arriva `wallet.points.earned`. Coupon: link a PT-13 quando emesso. Fisico: "Ti contatteremo per la consegna".
+
+    **Esito `LOSE`**: "Non è andata: riprova domani" + giocate rimaste.
+
+    **Errori**: `NO_PLAYS_AVAILABLE` (invito a PT-02), `DAILY_LIMIT_REACHED`, `CONTEST_NOT_LIVE`.
+  </Accordion>
+
+  <Accordion title="PT-09 — Obiettivi e badge">
+    Due sezioni. **Obiettivi**: schede con icona, nome, descrizione, barra `value/target`, periodo, premio collegato; completati con segno di spunta e data; le serie (`STREAK`) mostrano i giorni come pallini. **Badge**: griglia; ottenuti a colori con data, da ottenere in grigio con come sbloccarli. Al completamento in tempo reale la scheda pulsa e compare un toast.
+  </Accordion>
+
+  <Accordion title="PT-10 — Classifica">
+    Selettore classifica (mese/edizione), podio dei primi 3, elenco top N con nickname e punteggio. Riga del membro sempre visibile, fissata in basso se fuori dalla top N ("Sei 14°"). Solo nickname, mai nomi reali.
+  </Accordion>
+</AccordionGroup>
+
+### Attività e profilo
+
+<AccordionGroup>
+  <Accordion title="PT-07 — Attività">
+    Elenco per giorno. Riga con icona, titolo leggibile ("Acquisto online", "Premio richiesto: Buono cinema"), sottotitolo ("Doppio weekend ×2"), quantità con segno e colore (guadagno verde, spesa ambra, scadenza rossa, status viola). Tocco apre la scomposizione ("130 punti base × 1,25 SILVER = 162") e la data di scadenza del lotto. Filtri a chip: tutti, guadagnati, spesi, scaduti, punti status. Riquadro "In scadenza" con prossime scadenze per mese.
+  </Accordion>
+
+  <Accordion title="PT-08 — Profilo e livello">
+    Tessera grande. Sezione **Il tuo livello**: scala dei 4 livelli col materiale, livello attuale evidenziato, vantaggi per livello, moltiplicatore ("Guadagni ×1,25 punti"), regola di permanenza in una frase ("A fine anno puoi scendere al massimo di un livello"). Sezione **I tuoi dati**: nome, e-mail, telefono, data di nascita, città, consensi; indicatore di completezza con campi mancanti e premio previsto ("Completa il profilo: +150 punti").
+
+    **Registrazione** (`/portal/join`): form minimo con nome, cognome, e-mail, codice amico opzionale, consenso. Invio a `member POST /v1/members` fa diventare il nuovo membro la persona attiva; ritorno a PT-01 con pop-up di benvenuto.
+  </Accordion>
+</AccordionGroup>
+
+### Comunicazione e demo
+
+<AccordionGroup>
+  <Accordion title="PT-11 — Porta un amico">
+    Spiegazione in 3 passi (invita, l'amico si iscrive, al suo primo acquisto premio per entrambi) coi valori reali delle campagne. Codice amico in grande con _Copia_ e _Condividi_ (Web Share API con fallback copia del link `/portal/join?ref=<code>`). Elenco invitati con stato _iscritto_ o _premio ottenuto_. Contatore "3 di 10 inviti premiati in questa edizione".
+  </Accordion>
+
+  <Accordion title="PT-12 — Notifiche">
+    Elenco cronologico con icona per categoria (punti, livello, premio, vincita, scadenza, benvenuto), titolo, testo, quando. Non letti con pallino e fondo leggero. Tocco segna letto e segue il link. _Segna tutte come lette_. Arrivo realtime: nuova riga in cima + incremento della campanella.
+  </Accordion>
+
+  <Accordion title="PT-14 — Pannello demo (tray)">
+    Fa accadere le cose restando nel portale. È l'unico punto "tecnico" e lo dichiara. Pulsante flottante "Demo" sopra la tab bar, trascinabile sul bordo. Apre un foglio dal basso con tre parti:
+
+    - **Chi sei**: membro attivo + cambio membro (12 schede con tier, saldo, storia) + _Nuovo membro_.
+    - **Fai accadere qualcosa**: scorciatoie che inviano azioni reali per il membro attivo (_Acquisto_ con importo, _Accesso all'app_, _Attiva bolletta digitale_, _Attiva domiciliazione_, _Invia autolettura_, _Completa sondaggio_).
+    - **Dietro le quinte**: ultimo tracciato del membro con collegamento a BO-25 e _Apri il backoffice_.
+
+    Visibile solo con profilo `demo` (`NEXT_PUBLIC_LH_DEMO=true`). Stile volutamente diverso dal portale (bordo tratteggiato, mono) per non confonderlo col prodotto.
+  </Accordion>
+</AccordionGroup>
+
+## Percorsi end-to-end di riferimento
+
+Test Playwright rappresentativi:
+
+1. **Tier-up di Giulia**: PT-14 acquisto 130 € → "in arrivo..." → saldo con count-up → tessera che passa a GOLD → notifica in PT-12.
+2. **Premio con coupon**: come Davide, PT-03 → PT-04 richiesta `RWD-COFFEE-5` → codice mostrato → presente in PT-13 → saldo diminuito.
+3. **Vincita garantita**: da BO-14 _Pianta un istante_, poi come Matteo PT-06 _Gira_ → `WIN` → card vincita → punti in arrivo.
+
+## Prossimi passi
+
+<CardGroup cols={2}>
+  <Card title="Backoffice" icon="gauge" href="/specifiche/frontend-backoffice">
+    Le 30 schermate operative usate dagli admin per configurare programma, premi e contenuti.
+  </Card>
+
+  <Card title="Fondamenta frontend" icon="layer-group" href="/specifiche/frontend-fondamenta">
+    Tema Aurora, tessera membro, stati asincroni e proxy.
+  </Card>
+
+  <Card title="Dati demo" icon="database" href="/specifiche/dati-demo">
+    Personas, membri e catalogo pre-caricati per esplorare il portale.
+  </Card>
+
+  <Card title="Testbook interfaccia" icon="clipboard-check" href="/specifiche/testbook-funzionale">
+    Come vengono verificate le schermate PT-01 a PT-14.
+  </Card>
+</CardGroup>

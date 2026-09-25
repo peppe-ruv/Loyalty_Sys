@@ -1,3 +1,223 @@
 ---
-title: "dati-demo"
+title: "Dati demo: 12 membri e catalogo pre-caricati Club Aurora"
+sidebarTitle: "Dati Demo"
+description: "Personas, membri, campagne, premi, concorsi e contenuti pre-caricati in Loyalty Hub per raccontare il prodotto senza login."
 ---
+
+Loyalty Hub non ha login: sono i dati a raccontare il prodotto. Il brand fittizio è **Club Aurora** (tenant `aurora`), programma fedeltà di una multiutility immaginaria. In questa pagina trovi le personas del backoffice, i 12 membri di esempio, il catalogo di campagne, premi, concorsi e contenuti pre-caricati, e come rigenerare tutto in modo idempotente.
+
+I dati vivono in `seed/*.json` alla radice del monorepo: una sola cartella letta da tutti i servizi, così la coerenza è garantita per costruzione (il membro `MBR-000004` è lo stesso in member, wallet, campaign, reward).
+
+<Note>
+  Le date nei seed sono espressioni relative (`@today`, `@today-20d`, `@lastSaturday`) risolte al caricamento. La demo è sempre "fresca": concorso in corso, punti in scadenza tra 12 giorni, campagne attive.
+</Note>
+
+## Personas del backoffice
+
+Cinque personas coprono l'intera matrice permessi. Ogni persona ha una riga "cosa posso fare" nel selettore in alto.
+
+| Login | Nome | Ruolo | Riassunto |
+| --- | --- | --- | --- |
+| `marta.admin` | Marta Villa | `ADMIN` | Configura il programma, approva override, gestisce demo. |
+| `luca.marketing` | Luca Serra | `MARKETING` | Crea campagne, premi e contenuti; li invia in revisione. |
+| `elena.legal` | Elena Riva | `LEGAL` | Approva o rifiuta oggetti con `requiresLegal`. |
+| `paolo.care` | Paolo Neri | `CARE` | Gestisce membri, richieste premio, consegne, rimborsi. |
+| `sara.analyst` | Sara Longo | `ANALYST` | Consulta insight e audit; nessuna scrittura. |
+
+Vedi [Backoffice - Matrice permessi](/specifiche/frontend-backoffice) per il dettaglio delle capacità.
+
+## Membri di esempio
+
+Dodici membri, ognuno con una storia da raccontare. ID `MBR-00000n`, e-mail su `example.org`, nickname per le classifiche.
+
+| ID | Nome | Stato | Tier | PTS | STS ediz. | Storia |
+| --- | --- | --- | --- | --: | --: | --- |
+| 000001 | Anna Rossi | ACTIVE | BASE | 100 | 0 | Iscritta ieri: solo bonus benvenuto. |
+| 000002 | Marco Bianchi | ACTIVE | SILVER | 1.850 | 1.420 | Cliente tipo: compra online, ha invitato Elisa. |
+| 000003 | Giulia Ferri | ACTIVE | SILVER | 3.240 | 2.880 | A 120 STS da GOLD, ideale per il tier-up. |
+| 000004 | Davide Russo | ACTIVE | GOLD | 12.300 | 4.100 | Ha punti da spendere e 2 coupon attivi. |
+| 000005 | Francesca Romano | ACTIVE | PLATINUM | 28.750 | 9.600 | La cliente migliore, vede i premi riservati. |
+| 000006 | Stefano Galli | ACTIVE | GOLD | 5.400 | 650 | GOLD dall'anno scorso, quest'anno poco attivo. |
+| 000007 | Chiara Marino | ACTIVE | SILVER | 2.400 | 1.150 | 1.900 punti in scadenza entro 30 giorni. |
+| 000008 | Roberto Costa | BLOCKED | BASE | 320 | 40 | Profilo sospeso, per testare i rifiuti. |
+| 000009 | Elisa Fontana | ACTIVE | BASE | 300 | 0 | Invitata da Marco, non ha ancora comprato. |
+| 000010 | Matteo Ricci | ACTIVE | SILVER | 1.120 | 1.060 | Ha 3 giocate da usare su `IW-AUTUNNO`. |
+| 000011 | Sofia Greco | ACTIVE | GOLD | 6.900 | 3.350 | Ha richiesto la borraccia, in attesa di spedizione. |
+| 000012 | Alessandro Conti | ANONYMIZED | BASE | 0 | 0 | Riga anonimizzata, movimenti conservati. |
+
+Vincoli notevoli: **GOLD + PLATINUM = 4** (Davide, Francesca, Stefano, Sofia). Ogni membro `ACTIVE` ha 8-25 movimenti storici negli ultimi 120 giorni, con Σ lotti attivi = saldo PTS.
+
+## Programma: livelli, valute, segmenti
+
+<AccordionGroup>
+  <Accordion title="Livelli (tiers.json)">
+    Quattro livelli con moltiplicatore PTS crescente:
+
+    | Tier | Soglia STS | Moltiplicatore | Materiale |
+    | --- | --: | --: | --- |
+    | BASE | 0 | ×1,00 | carta |
+    | SILVER | 1.000 | ×1,25 | argento spazzolato |
+    | GOLD | 3.000 | ×1,50 | oro |
+    | PLATINUM | 7.000 | ×2,00 | platino |
+
+    Vantaggi testuali 2-4 per livello (es. GOLD: "Premi riservati", "1 giocata bonus sugli acquisti ≥ 50 €", "Assistenza prioritaria").
+  </Accordion>
+
+  <Accordion title="Valute e edizioni">
+    - **PTS**: valuta spendibile, policy `ROLLING_MONTHS` 12 mesi, arrotondamento a fine mese.
+    - **STS**: valuta di status, non spendibile, azzerata a chiusura edizione.
+
+    **Edizioni**: anno scorso `CLOSED`, anno corrente `ACTIVE`, prossimo `PLANNED`.
+  </Accordion>
+
+  <Accordion title="Segmenti (segments.json)">
+    | Codice | Tipo | Criterio | Membri attesi |
+    | --- | --- | --- | --- |
+    | `SEG-DIGITAL` | DYNAMIC | etichetta `ebill` e `directdebit` | Davide, Francesca, Sofia |
+    | `SEG-NOT-EBILL` | DYNAMIC | senza etichetta `ebill` | Anna, Marco, Giulia, Chiara, Elisa, Matteo, Stefano |
+    | `SEG-AT-RISK` | DYNAMIC | `lastActivityDaysAgo > 45` | Stefano |
+    | `SEG-TORINO` | DYNAMIC | `city = "Torino"` | 4 membri |
+    | `SEG-VIP-EVENT` | STATIC | elenco manuale | Francesca, Davide |
+  </Accordion>
+</AccordionGroup>
+
+## Campagne pre-caricate
+
+Le 20 campagne coprono benvenuto, acquisti, contenuti digitali, referral, gioco e stagionalità. Estratto delle principali:
+
+| Codice | Stato | Trigger | Effetti | Portale |
+| --- | --- | --- | --- | :-: |
+| `CMP-WELCOME` | LIVE | `member.registered` | 100 PTS | ✓ |
+| `CMP-PURCHASE-BASE` | LIVE | `purchase.completed` | 1 PTS/€ + 1 STS/€ | ✓ |
+| `CMP-WEEKEND-X2` | LIVE | `purchase.completed` (sab-dom) | `MULTIPLIER ×2` su PTS | ✓ |
+| `CMP-EBILL` | LIVE | `ebill.activated` | 300 PTS + 150 STS | ✓ |
+| `CMP-DIRECT-DEBIT` | LIVE | `directdebit.activated` | 400 PTS + 200 STS | ✓ |
+| `CMP-APP-DAILY` | LIVE | `app.login.daily` | 5 PTS | ✓ |
+| `CMP-REFERRAL-REFERRER` | LIVE | `referral.completed` (REFERRER) | 500 PTS + 250 STS | ✓ |
+| `CMP-BIRTHDAY` | LIVE | `member.birthday` | 250 PTS + messaggio | ✓ |
+| `CMP-GOLD-PURCHASE-PLAY` | LIVE | `purchase.completed` ≥ 50 € (GOLD+) | 1 giocata `IW-AUTUNNO` | ✓ |
+| `CMP-BLACK-FRIDAY` | IN_REVIEW | `purchase.completed` (27-30 nov) | `MULTIPLIER ×3`, budget 250.000 | ✓ |
+| `CMP-REVIEW` | PAUSED | `review.submitted` | 30 PTS | ✓ |
+
+`CMP-BLACK-FRIDAY` è inviata in revisione da `luca.marketing`: popola BO-21 per `elena.legal`.
+
+**Esempio canonico di calcolo**: Giulia (SILVER ×1,25), acquisto 130 € feriale → `CMP-PURCHASE-BASE`: `floor(130 × 1,25) = 162 PTS` + `130 STS` → STS 3.010 ≥ 3.000 → `tier.upgraded` GOLD → `CMP-TIER-UP-BONUS` **+500 PTS**.
+
+## Catalogo premi
+
+**Fasce** F1 500, F2 1.500, F3 3.000, F4 6.000, F5 12.000. **Categorie**: Casa & energia, Tempo libero, Mobilità, Solidarietà, Esperienze.
+
+| Codice | Nome | Tipo | Fascia | Stock | Visibilità |
+| --- | --- | --- | --- | --- | --- |
+| `RWD-COFFEE-5` | Buono colazione 5 € | COUPON | F1 | pool 500 | tutti |
+| `RWD-DONATION-TREE` | Pianta un albero | DONATION | F1 | illimitato | tutti |
+| `RWD-SHOP-10` | Buono shopping 10 € | COUPON | F2 | pool 300 | tutti |
+| `RWD-BORRACCIA` | Borraccia termica Aurora | PHYSICAL | F2 | 150 | tutti |
+| `RWD-POWERBANK` | Powerbank solare | PHYSICAL | F3 | **0 esaurito** | tutti |
+| `RWD-SHOP-25` | Buono shopping 25 € | COUPON | F3 | **9 in esaurimento** | tutti |
+| `RWD-BILL-20` | Sconto 20 € in bolletta | DIGITAL | F3 | 1.000 (max 2/membro) | tutti |
+| `RWD-EBIKE-RENT` | Weekend in e-bike | EXPERIENCE | F4 | 40 | `SEG-TORINO` |
+| `RWD-WEEKEND` | Weekend benessere per 2 | EXPERIENCE | F5 | 25 | GOLD, PLATINUM |
+| `RWD-PLATINUM-EVENT` | Serata evento riservata | EXPERIENCE | F5 | 20 | PLATINUM |
+| `RWD-GIFT-50` | Gift card 50 € | COUPON | F4 | pool 100 | IN_REVIEW |
+
+## Concorsi, obiettivi e classifiche
+
+<AccordionGroup>
+  <Accordion title="Concorsi instant win">
+    | Codice | Nome | Meccanica | Stato | Montepremi |
+    | --- | --- | --- | --- | --- |
+    | `IW-AUTUNNO` | Ruota d'Autunno | WHEEL | LIVE | 200 × 50 PTS · 100 × 100 PTS · 50 × coupon `RWD-COFFEE-5` · 5 × Powerbank |
+    | `IW-NATALE` | Gratta e vinci di Natale | SCRATCH | IN_REVIEW | 300 × 100 PTS · 60 × `RWD-SHOP-10` · 3 × Weekend benessere |
+    | `IW-ESTATE` | Pacchi d'Estate | GIFT | ENDED | Storico chiuso: 142 vincite |
+
+    `IW-AUTUNNO` ha 355 istanti generati con distribuzione `BUSINESS_HOURS` e seme `20260901`. Gli istanti con orario già passato e non reclamati restano `OPEN`: la prima giocata della demo tende a vincere (è voluto).
+  </Accordion>
+
+  <Accordion title="Obiettivi e badge">
+    | Codice | Nome | Metrica | Traguardo | Badge |
+    | --- | --- | --- | --- | --- |
+    | `ACH-FIRST-PURCHASE` | Primo acquisto | COUNT | 1 EVER | `BDG-FIRST` Rompighiaccio |
+    | `ACH-3-PURCHASES-MONTH` | Tris del mese | COUNT | 3 MONTH | `BDG-TRIS` |
+    | `ACH-STREAK-7` | Sette giorni di fila | STREAK | 7 EVER | `BDG-STREAK` Costanza |
+    | `ACH-DIGITAL` | Tutto digitale | DISTINCT_TYPES | 2 EVER | `BDG-DIGITAL` Zero carta |
+    | `ACH-SELF-READER` | Letturista | COUNT | 6 EDITION | `BDG-READER` |
+    | `ACH-BIG-SPENDER` | Grande spesa | SUM (importo) | 1.000 EDITION | `BDG-SPENDER` |
+
+    Progressi seed: Marco `ACH-DIGITAL` 0/2, Giulia `ACH-3-PURCHASES-MONTH` 2/3, Matteo `ACH-STREAK-7` 5/7, Francesca ha tutti i badge, Anna nessuno.
+  </Accordion>
+
+  <Accordion title="Classifiche">
+    - `LDB-MONTH-PTS`: PTS guadagnati nel mese, top 10.
+    - `LDB-EDITION-STS`: STS dell'edizione, top 10.
+
+    Punteggi per tutti i membri attivi + 15 nickname di fantasia per riempire le top 10.
+  </Accordion>
+</AccordionGroup>
+
+## Contenuti e messaggi
+
+Cards, popup e banner popolano il portale in tempo reale:
+
+| Codice | Tipo | Posizione | Titolo | Pubblico |
+| --- | --- | --- | --- | --- |
+| `CNT-HERO-AUTUNNO` | CARD | HOME_HERO | "Gira la Ruota d'Autunno" | tutti |
+| `CNT-EBILL` | CARD | HOME_GRID | "Passa alla bolletta digitale: +300 punti" | `SEG-NOT-EBILL` |
+| `CNT-FRIEND` | CARD | HOME_GRID | "Porta un amico, vincete in due" | tutti |
+| `POP-WELCOME` | POPUP |  | "Benvenuto nel Club Aurora" | iscritti \< 7 giorni |
+| `POP-WEEKEND` | POPUP |  | "Questo weekend i punti valgono doppio" | tutti, sab-dom |
+| `BNR-CATALOG` | BANNER | CATALOG_TOP | "Nuovi premi in fascia 1.500" | tutti |
+
+Ci sono 11 template messaggio `MSG-*` con segnaposto (`"Hai guadagnato {{amount}} punti con {{campaignName}}"`), 11 regole di notifica e 3-8 messaggi in inbox per membro coerenti coi movimenti.
+
+## Scenari guidati
+
+`scenarios.json` contiene 9 scenari pronti da eseguire da BO-29. I più significativi:
+
+| Codice | Protagonista | Cosa mostra |
+| --- | --- | --- |
+| `SCN-ONBOARDING` | Anna | Login, completa profilo, primo acquisto: catena di azioni interne fino al badge |
+| `SCN-TIER-UP` | Giulia | Acquisto 130 € feriale → +162 PTS → GOLD → bonus 500 → tris del mese |
+| `SCN-DIGITAL` | Marco | Attiva ebill + directdebit → badge `Zero carta` → +100 |
+| `SCN-REFERRAL` | Elisa (+Marco) | Primo acquisto di Elisa premia entrambi |
+| `SCN-WEEKEND-BURST` | 6 membri | 12 acquisti in 20 s per vedere volume e moltiplicatore ×2 |
+| `SCN-DUPLICATE` | Marco | Stesso evento due volte: `DUPLICATE`, un solo accredito |
+| `SCN-BAD-EVENT` |  | Rifiuti: `INVALID_DATA`, `SOURCE_DISABLED`, `UNMATCHED`, `MEMBER_NOT_ACTIVE` |
+| `SCN-POISON` | Marco | Consumer fallisce 3 volte → messaggio in DLQ |
+
+## Reset e ricarica
+
+I dati sono idempotenti. Per ripartire pulito:
+
+```bash Reset dati demo
+# Reset totale su tutti i servizi
+curl -X POST http://localhost:8090/api/lh/ingestion/v1/demo/reset
+
+# Oppure dal backoffice: BO-30 Console demo -> Reset dati
+```
+
+Semi fissi garantiscono che codici coupon, istanti vincenti e storico sintetico siano riproducibili.
+
+<Warning>
+  Il reset cancella tutti i movimenti aggiunti dopo l'ultimo caricamento. Fai il reset solo negli ambienti demo; non lanciarlo in produzione o su tenant reali.
+</Warning>
+
+## Prossimi passi
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/getting-started/quickstart">
+    Avvia l'ambiente locale e carica i dati demo in 5 minuti.
+  </Card>
+
+  <Card title="Tour della demo" icon="compass" href="/getting-started/tour-demo">
+    Percorso guidato per esplorare backoffice e portale con questi dati.
+  </Card>
+
+  <Card title="Backoffice" icon="gauge" href="/specifiche/frontend-backoffice">
+    Le schermate dove i dati diventano operativi.
+  </Card>
+
+  <Card title="Modello dominio" icon="database" href="/specifiche/modello-di-dominio">
+    Il modello ER che regge questi seed.
+  </Card>
+</CardGroup>
