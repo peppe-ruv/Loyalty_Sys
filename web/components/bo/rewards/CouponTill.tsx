@@ -105,7 +105,8 @@ export function CouponTill() {
             <Can capability="coupon.void" mode="disable">
               <button
                 onClick={() => act(voidIt, "Coupon annullato.")}
-                disabled={voidIt.isPending || coupon.status === "USED" || coupon.status === "VOID"}
+                // Q-278: si annulla solo un codice AVAILABLE o ISSUED (uno scaduto conserva il suo storico).
+                disabled={voidIt.isPending || (coupon.status !== "AVAILABLE" && coupon.status !== "ISSUED")}
                 className="rounded border border-[var(--color-bo-border)] px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:opacity-40"
               >
                 Annulla

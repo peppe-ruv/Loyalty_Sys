@@ -82,7 +82,7 @@ Percorsi relativi a `services/reward-service/src/main/java/io/loyaltyhub/reward/
 | `application/RedemptionService.java:217-226` + `infra/RedemptionRepository.java:140` | PENDING con `requested_at < asOf − 10 min` ⇒ REJECTED (TIMEOUT) | R-10 | TMO, SAG-003 |
 | `application/RedemptionService.java:221` | già non PENDING al lock ⇒ saltata | R-10 | SAG-010, -017, -024, -031, -038, -045 |
 | `application/RedemptionService.java:232-234` | annullo membro: 404 (altro membro) | R-27 | FUL-024 |
-| `application/RedemptionService.java:233` | annullo membro senza `memberId` ⇒ ammesso | **ramo senza specifica** | FUL-025 (Q-283) |
+| `api/PortalRedemptionsController.java` `cancel` | annullo membro senza `memberId` ⇒ 400 | Q-283 DECISA | FUL-025 (Q-283) |
 | `application/RedemptionService.java:235-238` | 409 REDEMPTION_NOT_CANCELLABLE se non PENDING | R-11 | SAG-011, -018, -025, -032, -039, -046 |
 | `application/RedemptionService.java:240-244` | CANCELLED (MEMBER), stock +1, `refund=false` | R-11 | SAG-004 |
 | `application/RedemptionService.java:256-261` | fulfil: 404 · 409 REDEMPTION_NOT_FULFILLABLE | R-13 | FUL-019, SAG-006, -020, -027, -034, -041, -048 |
@@ -97,7 +97,7 @@ Percorsi relativi a `services/reward-service/src/main/java/io/loyaltyhub/reward/
 | `application/RedemptionService.java:328-329` | premio non trovato all'evasione ⇒ MANUAL | **ramo senza specifica** | — |
 | `application/RedemptionService.java:333-336` | coupon già legato alla richiesta ⇒ riusato (idempotenza) | R-14 | FUL-015 |
 | `application/RedemptionService.java:337-343` | nessun codice ⇒ needsAttention | R-08 | FUL-003, FUL-004 |
-| `application/RedemptionService.java:334` | premio AUTO_COUPON senza pool ⇒ needsAttention | **ramo senza specifica** | FUL-006 (Q-281) |
+| `application/RedemptionService.java:334` | premio AUTO_COUPON senza pool ⇒ needsAttention (non più raggiungibile via API: `CatalogAdminService.validate`/`transition` rifiutano AUTO_COUPON senza pool, Q-281 DECISA) | **ramo senza specifica** | FUL-006 (Q-281) |
 | `application/RedemptionService.java:344`, `:346`, `:347` | AUTO_COUPON evaso · INSTANT evaso · MANUAL in coda | R-07 | FUL-001, FUL-007, FUL-008 |
 | `application/PortalCatalogService.java:67-69` | catalogo: LIVE ∧ validità ∧ segmento | R-01 | VIS |
 | `application/PortalCatalogService.java:83-85` | dettaglio 404 se non visibile | R-01 | VIS |
@@ -115,12 +115,12 @@ Percorsi relativi a `services/reward-service/src/main/java/io/loyaltyhub/reward/
 | `application/CatalogAdminService.java:137-142` | 400 codice · 409 CODE_TAKEN | R-22 | CAT-027…029 |
 | `application/CatalogAdminService.java:162-164` | 409 CODE_IMMUTABLE | **ramo senza specifica** | EDT-029 (Q-281) |
 | `application/CatalogAdminService.java:166-176` | modifica per stato; LIVE: campi bloccati | R-19 | EDT-001…036 |
-| `application/CatalogAdminService.java:178-181` | 409 VERSION_CONFLICT; senza `version` vale quella corrente | R-20 (senza version: **ramo senza specifica**) | EDT-048, EDT-049 |
+| `application/CatalogAdminService.java` `update` | 409 VERSION_CONFLICT; senza `version` 422 VERSION_REQUIRED | R-20 · Q-280 DECISA | EDT-048, EDT-049 |
 | `application/CatalogAdminService.java:189-204` | duplica `-COPY`, poi `-COPY2`… | R-21 (`-COPYn`: **ramo senza specifica**) | EDT-060…063 |
 | `application/CatalogAdminService.java:211-230` | transizione, storico, fatto, audit (override) | R-18, R-25 | LCY-101…123, AUD-003 |
 | `application/CatalogAdminService.java:259-273` | 422 REWARD_INVALID (nome, tipo, evasione, fascia, categoria, AUTO_COUPON non COUPON, stock < 0, limite < 1, validTo ≤ validFrom) | R-22 (limite < 1: **ramo senza specifica**) | CAT-001…026 |
 | `application/CatalogAdminService.java:275-282` + `infra/RewardRepository.java:84-100` | stock residuo = residuo corrente + Δtotale, mai < 0; da illimitato = nuovo totale; `stockTotal` assente = invariato | R-20 (da illimitato e assente: **rami senza specifica**) | EDT-040…052 |
-| `infra/RewardRepository.java:118-124` | ripristino `least(residuo + 1, totale)` | R-09…R-12 | SAG, EDT-053 (Q-280) |
+| `infra/RewardRepository.java` `releaseStock` | ripristino `least(residuo + 1, totale, totale − richieste che tengono stock)` | R-09…R-12 · Q-280 DECISA | SAG, EDT-053 (Q-280) |
 | `lh-common …/approval/GovernedTransitions.java:24-30` | azione sconosciuta ⇒ 422 INVALID_ACTION | R-18 (codice: **ramo senza specifica**) | LCY-099 |
 | `lh-common …/approval/GovernedTransitions.java:34-42` | APPROVE/REJECT: ruolo della policy o ADMIN; altre: ADMIN, MARKETING | R-18, R-23 | LCY-059…094 |
 | `lh-common …/approval/GovernedTransitions.java:44-46` | approvazione spenta: SUBMIT da DRAFT ⇒ LIVE | **ramo senza specifica** (docs/06 §7: solo «DRAFT → LIVE diretto») | LCY-095 (Q-282) |
@@ -132,7 +132,7 @@ Percorsi relativi a `services/reward-service/src/main/java/io/loyaltyhub/reward/
 | `application/CouponService.java:214-224` | uso: 404 · 409 USED/VOID/AVAILABLE · 410 EXPIRED (anche ISSUED scaduto, persistito) | R-15 (VOID/AVAILABLE: codici **senza specifica**, 409 da docs/06 §2) | CPN-001…025 |
 | `application/CouponService.java:226-238` | USED + `coupon.used` + audit | R-15, R-25 | CPN-004, CPN-030, AUD-009 |
 | `application/CouponService.java:244-252` | annullo: 404 · 409 USED · 409 VOID · altrimenti VOID (anche AVAILABLE/EXPIRED) | R-15 (da AVAILABLE/EXPIRED: **rami senza specifica**) | CPN-002…020 |
-| `application/CouponService.java:266-271` | emissione: pool vuoto ⇒ vuoto; scadenza = adesso + N × 24 h | R-15, R-17 | FUL-002 (Q-277), EFF |
+| `application/CouponService.java` `issue`, `expiryFor` | emissione: pool vuoto ⇒ vuoto; scadenza = fine del giorno (Roma) di emissione + N giorni | R-15, R-17 · Q-277 DECISA | FUL-002 (Q-277), EFF |
 | `infra/CouponRepository.java:175` | job: ISSUED con `expires_at ≤ asOf` ⇒ EXPIRED | R-15 | CPN-040…050 |
 | `api/RewardJobsController.java:69-77` | `asOf` assente = adesso; con `T` istante; data pura = fine giorno Roma a 23:59:59.999999 (`LAST_INSTANT`, riga 41) | R-15, R-10 (data pura: **ramo senza specifica**, Q-284) | CPN-044…050, TMO-006/007 |
 | `messaging/CouponIssueHandler.java:42-57` | DLQ INVALID_EFFECT · idempotenza effectId (default id evento) · DLQ REWARD_NOT_FOUND · DLQ COUPON_POOL_MISSING · DLQ COUPON_POOL_EMPTY | R-17 (primi tre e default: **rami senza specifica**) | EFF-001…009 |
@@ -278,7 +278,7 @@ Percorsi relativi a `services/reward-service/src/main/java/io/loyaltyhub/reward/
 | TB-RWD-STK-009 | stock 1/11 (9,1 %) | stockState LOW | reward §3 (stockState AVAILABLE/LOW/SOLD_OUT), §3 stats (< 10 %), BO-10 note | TestbookRwdRulesTest#stockState |
 | TB-RWD-STK-010 | stock 1/1 (ultimo pezzo) | stockState AVAILABLE | reward §3 (stockState AVAILABLE/LOW/SOLD_OUT), §3 stats (< 10 %), BO-10 note | TestbookRwdRulesTest#stockState |
 | TB-RWD-STK-011 | stock 0/0 (creato esaurito) | stockState SOLD_OUT | reward §3 (stockState AVAILABLE/LOW/SOLD_OUT), §3 stats (< 10 %), BO-10 note | TestbookRwdRulesTest#stockState |
-| TB-RWD-STK-012 | stock residuo negativo −1/5 (dato incoerente) | **Q-280** (scelta di oggi, da decidere) — stockState SOLD_OUT | reward §3 (stockState AVAILABLE/LOW/SOLD_OUT), §3 stats (< 10 %), BO-10 note · Q-280 | TestbookRwdRulesTest#stockState |
+| TB-RWD-STK-012 | stock residuo negativo −1/5 (dato incoerente) | **Q-280 DECISA** — stockState SOLD_OUT | reward §3 (stockState AVAILABLE/LOW/SOLD_OUT), §3 stats (< 10 %), BO-10 note · Q-280 | TestbookRwdRulesTest#stockState |
 | TB-RWD-STK-020 | stock 1, due richieste concorrenti di due membri | una 202 PENDING e una 422 REWARD_SOLD_OUT; residuo 0 | reward §5, §7 (accettazione 3) | TestbookRwdEligibilityIT |
 | TB-RWD-STK-021 | stock 1, due richieste in sequenza | prima 202, seconda 422 REWARD_SOLD_OUT; catalogo SOLD_OUT | reward §5, PT-03 | TestbookRwdEligibilityIT |
 | TB-RWD-STK-022 | GET /v1/rewards/stats con premi 9/100, 0/100, 10/100 e illimitato | lowStock contiene 9/100 e 0/100, non 10/100 né l'illimitato | reward §3 (stats: stock sotto soglia < 10 %) | TestbookRwdCatalogIT |
@@ -296,21 +296,21 @@ Percorsi relativi a `services/reward-service/src/main/java/io/loyaltyhub/reward/
 | TB-RWD-CAT-004 | POST /v1/rewards — tipo DONATION con INSTANT (type=DONATION;fulfilment=INSTANT) | 201, stato DRAFT, version 0, stockRemaining = stockTotal | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit | TestbookRwdCatalogIT#create |
 | TB-RWD-CAT-005 | POST /v1/rewards — tipo EXPERIENCE con MANUAL (type=EXPERIENCE;fulfilment=MANUAL) | 201, stato DRAFT, version 0, stockRemaining = stockTotal | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit | TestbookRwdCatalogIT#create |
 | TB-RWD-CAT-006 | POST /v1/rewards — tipo sconosciuto VOUCHER (type=VOUCHER) | 422 REWARD_INVALID | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit | TestbookRwdCatalogIT#create |
-| TB-RWD-CAT-007 | POST /v1/rewards — tipo minuscolo con spazi « coupon » (type= coupon ;fulfilment=AUTO_COUPON;couponPoolId=<pool>) | **Q-281** (scelta di oggi, da decidere) — 201, stato DRAFT, version 0, stockRemaining = stockTotal | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit · Q-281 | TestbookRwdCatalogIT#create |
+| TB-RWD-CAT-007 | POST /v1/rewards — tipo minuscolo con spazi « coupon » (type= coupon ;fulfilment=AUTO_COUPON;couponPoolId=<pool>) | **Q-281 DECISA** — 201, stato DRAFT, version 0, stockRemaining = stockTotal | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit · Q-281 | TestbookRwdCatalogIT#create |
 | TB-RWD-CAT-008 | POST /v1/rewards — evasione sconosciuta AUTO (fulfilment=AUTO) | 422 REWARD_INVALID | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit | TestbookRwdCatalogIT#create |
 | TB-RWD-CAT-009 | POST /v1/rewards — AUTO_COUPON su premio PHYSICAL (type=PHYSICAL;fulfilment=AUTO_COUPON) | 422 REWARD_INVALID | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit | TestbookRwdCatalogIT#create |
-| TB-RWD-CAT-010 | POST /v1/rewards — AUTO_COUPON senza pool (type=COUPON;fulfilment=AUTO_COUPON) | **Q-281** (scelta di oggi, da decidere) — 201, stato DRAFT, version 0, stockRemaining = stockTotal | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit · Q-281 | TestbookRwdCatalogIT#create |
+| TB-RWD-CAT-010 | POST /v1/rewards — AUTO_COUPON senza pool (type=COUPON;fulfilment=AUTO_COUPON) | **Q-281 DECISA** — 422 REWARD_INVALID (AUTO_COUPON richiede couponPoolId) | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit · Q-281 | TestbookRwdCatalogIT#create |
 | TB-RWD-CAT-011 | POST /v1/rewards — nome solo spazi (name=<blank>) | 422 REWARD_INVALID | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit | TestbookRwdCatalogIT#create |
 | TB-RWD-CAT-012 | POST /v1/rewards — nome assente (name=<null>) | 422 REWARD_INVALID | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit | TestbookRwdCatalogIT#create |
 | TB-RWD-CAT-013 | POST /v1/rewards — fascia assente (band=<null>) | 422 REWARD_INVALID | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit | TestbookRwdCatalogIT#create |
 | TB-RWD-CAT-014 | POST /v1/rewards — fascia inesistente F9 (band=F9) | 422 REWARD_INVALID | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit | TestbookRwdCatalogIT#create |
 | TB-RWD-CAT-015 | POST /v1/rewards — categoria inesistente (category=NOPE) | 422 REWARD_INVALID | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit | TestbookRwdCatalogIT#create |
-| TB-RWD-CAT-016 | POST /v1/rewards — categoria assente (category=<null>) | **Q-281** (scelta di oggi, da decidere) — 201, stato DRAFT, version 0, stockRemaining = stockTotal | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit · Q-281 | TestbookRwdCatalogIT#create |
+| TB-RWD-CAT-016 | POST /v1/rewards — categoria assente (category=<null>) | **Q-281 DECISA** — 201, stato DRAFT, version 0, stockRemaining = stockTotal | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit · Q-281 | TestbookRwdCatalogIT#create |
 | TB-RWD-CAT-017 | POST /v1/rewards — stockTotal −1 (stockTotal=-1) | 422 REWARD_INVALID | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit | TestbookRwdCatalogIT#create |
 | TB-RWD-CAT-018 | POST /v1/rewards — stockTotal 0 (stockTotal=0) | 201, stato DRAFT, version 0, stockRemaining = stockTotal | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit | TestbookRwdCatalogIT#create |
 | TB-RWD-CAT-019 | POST /v1/rewards — stockTotal 1 (stockTotal=1) | 201, stato DRAFT, version 0, stockRemaining = stockTotal | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit | TestbookRwdCatalogIT#create |
 | TB-RWD-CAT-020 | POST /v1/rewards — stockTotal assente (illimitato) (stockTotal=<null>) | 201, stato DRAFT, version 0, stockRemaining = stockTotal | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit | TestbookRwdCatalogIT#create |
-| TB-RWD-CAT-021 | POST /v1/rewards — perMemberLimit 0 (perMemberLimit=0) | **Q-281** (scelta di oggi, da decidere) — 422 REWARD_INVALID | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit · Q-281 | TestbookRwdCatalogIT#create |
+| TB-RWD-CAT-021 | POST /v1/rewards — perMemberLimit 0 (perMemberLimit=0) | **Q-281 DECISA** — 422 REWARD_INVALID | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit · Q-281 | TestbookRwdCatalogIT#create |
 | TB-RWD-CAT-022 | POST /v1/rewards — perMemberLimit 1 (perMemberLimit=1) | 201, stato DRAFT, version 0, stockRemaining = stockTotal | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit | TestbookRwdCatalogIT#create |
 | TB-RWD-CAT-023 | POST /v1/rewards — perMemberLimit −1 (perMemberLimit=-1) | 422 REWARD_INVALID | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit | TestbookRwdCatalogIT#create |
 | TB-RWD-CAT-024 | POST /v1/rewards — validTo = validFrom (validFrom=2026-10-01T00:00:00Z;validTo=2026-10-01T00:00:00Z) | 422 REWARD_INVALID | reward §2, §3; F-RWD-01/03/08; docs/06 §2–3; docs/08 §2 object.edit | TestbookRwdCatalogIT#create |
@@ -366,7 +366,7 @@ Percorsi relativi a `services/reward-service/src/main/java/io/loyaltyhub/reward/
 | TB-RWD-EDT-026 | PUT /v1/rewards/{id} — LIVE: cambio validTo (validTo=+60d) | 200, modifica salvata, version +1 | reward §3 (modifica ammessa in DRAFT/REJECTED/PAUSED; in LIVE solo stock_total, valid_to, image_url), docs/06 §2, docs/08 §3.2 | TestbookRwdCatalogIT#edit |
 | TB-RWD-EDT-027 | PUT /v1/rewards/{id} — LIVE: cambio imageUrl (imageUrl=/demo/nuova.png) | 200, modifica salvata, version +1 | reward §3 (modifica ammessa in DRAFT/REJECTED/PAUSED; in LIVE solo stock_total, valid_to, image_url), docs/06 §2, docs/08 §3.2 | TestbookRwdCatalogIT#edit |
 | TB-RWD-EDT-028 | PUT /v1/rewards/{id} — LIVE: nome reinviato uguale (name=Premio testbook) | 200, modifica salvata, version +1 | reward §3 (modifica ammessa in DRAFT/REJECTED/PAUSED; in LIVE solo stock_total, valid_to, image_url), docs/06 §2, docs/08 §3.2 | TestbookRwdCatalogIT#edit |
-| TB-RWD-EDT-029 | PUT /v1/rewards/{id} — cambio del codice (code=<other>) | **Q-281** (scelta di oggi, da decidere) — 409 CODE_IMMUTABLE | reward §3 (modifica ammessa in DRAFT/REJECTED/PAUSED; in LIVE solo stock_total, valid_to, image_url), docs/06 §2, docs/08 §3.2 · Q-281 | TestbookRwdCatalogIT#edit |
+| TB-RWD-EDT-029 | PUT /v1/rewards/{id} — cambio del codice (code=<other>) | **Q-281 DECISA** — 409 CODE_IMMUTABLE | reward §3 (modifica ammessa in DRAFT/REJECTED/PAUSED; in LIVE solo stock_total, valid_to, image_url), docs/06 §2, docs/08 §3.2 · Q-281 | TestbookRwdCatalogIT#edit |
 | TB-RWD-EDT-030 | PUT /v1/rewards/{id} — PAUSED: cambio fascia, tipo, evasione (band=F2;type=EXPERIENCE;fulfilment=MANUAL) | 200, modifica salvata, version +1 | reward §3 (modifica ammessa in DRAFT/REJECTED/PAUSED; in LIVE solo stock_total, valid_to, image_url), docs/06 §2, docs/08 §3.2 | TestbookRwdCatalogIT#edit |
 | TB-RWD-EDT-031 | PUT /v1/rewards/{id} — DRAFT: stock negativo (stockTotal=-1) | 422 REWARD_INVALID | reward §3 (modifica ammessa in DRAFT/REJECTED/PAUSED; in LIVE solo stock_total, valid_to, image_url), docs/06 §2, docs/08 §3.2 | TestbookRwdCatalogIT#edit |
 | TB-RWD-EDT-032 | PUT /v1/rewards/{id} — ruolo ADMIN (name=Nome nuovo) | 200, modifica salvata, version +1 | reward §3 (modifica ammessa in DRAFT/REJECTED/PAUSED; in LIVE solo stock_total, valid_to, image_url), docs/06 §2, docs/08 §3.2 | TestbookRwdCatalogIT#edit |
@@ -383,13 +383,13 @@ Percorsi relativi a `services/reward-service/src/main/java/io/loyaltyhub/reward/
 | TB-RWD-EDT-046 | premio LIVE: totale 10, 3 prenotate, nuovo totale 0 | 200; stockTotal 0, stockRemaining 0 | reward §3 (LIVE: stock_total modificabile), §5 (stock prenotato); docs/12 M7.6; Q-112 (409 VERSION_CONFLICT) | TestbookRwdCatalogIT#stockRecalculation |
 | TB-RWD-EDT-047 | premio LIVE: totale 10, prenotazione arrivata dopo la lettura della versione, nuovo totale 20 | 200; stockTotal 20, stockRemaining 19 | reward §3 (LIVE: stock_total modificabile), §5 (stock prenotato); docs/12 M7.6; Q-112 (409 VERSION_CONFLICT) | TestbookRwdCatalogIT#stockRecalculation |
 | TB-RWD-EDT-048 | premio LIVE: versione superata da un'altra modifica | 409; stockTotal 10, stockRemaining 10 | reward §3 (LIVE: stock_total modificabile), §5 (stock prenotato); docs/12 M7.6; Q-112 (409 VERSION_CONFLICT) | TestbookRwdCatalogIT#stockRecalculation |
-| TB-RWD-EDT-049 | premio LIVE: PUT senza version (ultima scrittura vince) | **Q-280** (scelta di oggi, da decidere) — 200; stockTotal 12, stockRemaining 12 | reward §3 (LIVE: stock_total modificabile), §5 (stock prenotato); docs/12 M7.6; Q-112 (409 VERSION_CONFLICT) · Q-280 | TestbookRwdCatalogIT#stockRecalculation |
+| TB-RWD-EDT-049 | premio LIVE: PUT senza version (ultima scrittura vince) | **Q-280 DECISA** — 422 VERSION_REQUIRED; stockTotal 10, stockRemaining 10 | reward §3 (LIVE: stock_total modificabile), §5 (stock prenotato); docs/12 M7.6; Q-112 (409 VERSION_CONFLICT) · Q-280 | TestbookRwdCatalogIT#stockRecalculation |
 | TB-RWD-EDT-050 | premio LIVE: totale 10, 3 prenotate, stockTotal omesso | 200; stockTotal 10, stockRemaining 7 | reward §3 (LIVE: stock_total modificabile), §5 (stock prenotato); docs/12 M7.6; Q-112 (409 VERSION_CONFLICT) | TestbookRwdCatalogIT#stockRecalculation |
-| TB-RWD-EDT-051 | premio LIVE: illimitato con 2 richieste in corso, nuovo totale 10 | **Q-280** (scelta di oggi, da decidere) — 200; stockTotal 10, stockRemaining 10 | reward §3 (LIVE: stock_total modificabile), §5 (stock prenotato); docs/12 M7.6; Q-112 (409 VERSION_CONFLICT) · Q-280 | TestbookRwdCatalogIT#stockRecalculation |
+| TB-RWD-EDT-051 | premio LIVE: illimitato con 2 richieste in corso, nuovo totale 10 | **Q-280 DECISA** — 200; stockTotal 10, stockRemaining 8 (le 2 richieste in corso si sottraggono) | reward §3 (LIVE: stock_total modificabile), §5 (stock prenotato); docs/12 M7.6; Q-112 (409 VERSION_CONFLICT) · Q-280 | TestbookRwdCatalogIT#stockRecalculation |
 | TB-RWD-EDT-052 | premio LIVE: nuovo totale −1 | 422; stockTotal 10, stockRemaining 10 | reward §3 (LIVE: stock_total modificabile), §5 (stock prenotato); docs/12 M7.6; Q-112 (409 VERSION_CONFLICT) | TestbookRwdCatalogIT#stockRecalculation |
-| TB-RWD-EDT-053 | totale 5, 3 prenotate → totale 2 (residuo 0) → una richiesta respinta dal wallet | **Q-280** (scelta di oggi, da decidere) — residuo 1 (ripristino +1 fino al totale) | docs/03 §5 (REJECTED ripristina lo stock) · Q-280 | TestbookRwdCatalogIT |
+| TB-RWD-EDT-053 | totale 5, 3 prenotate → totale 2 (residuo 0) → una richiesta respinta dal wallet | **Q-280 DECISA** — residuo 0 (il ripristino non supera totale − richieste che tengono stock: 2 − 2) | docs/03 §5 (REJECTED ripristina lo stock) · Q-280 | TestbookRwdCatalogIT |
 | TB-RWD-EDT-060 | POST /v1/rewards/{id}/duplicate su un DRAFT | 201, copia con codice <code>-COPY in DRAFT, stessi campi, version 0 | reward §3 (duplicate), F-CMP-13, docs/12 M7.6 | TestbookRwdCatalogIT |
-| TB-RWD-EDT-061 | seconda duplica dello stesso premio | **Q-281** (scelta di oggi, da decidere) — 201, codice <code>-COPY2 | reward §3, Q-113 · Q-281 | TestbookRwdCatalogIT |
+| TB-RWD-EDT-061 | seconda duplica dello stesso premio | **Q-281 DECISA** — 201, codice <code>-COPY2 | reward §3, Q-113 · Q-281 | TestbookRwdCatalogIT |
 | TB-RWD-EDT-062 | duplica di un LIVE con 3 prenotazioni | copia DRAFT con stockRemaining = stockTotal (pieno) | reward §3 (copia in DRAFT) | TestbookRwdCatalogIT |
 | TB-RWD-EDT-063 | duplica con ruolo CARE | 403 | docs/08 §2 object.edit | TestbookRwdCatalogIT |
 
@@ -410,7 +410,7 @@ Percorsi relativi a `services/reward-service/src/main/java/io/loyaltyhub/reward/
 | TB-RWD-BND-009 | scala L1 < L2 < L3 (sortOrder crescente): fascia centrale portata a L3+1 | 422 BAND_THRESHOLD_DUPLICATE | reward §3 (soglie uniche e crescenti, 422 BAND_THRESHOLD_DUPLICATE, 409 BAND_IN_USE), F-RWD-02, BO-11, docs/08 §2 | TestbookRwdCatalogIT#bands |
 | TB-RWD-BND-010 | scala L1 < L2 < L3 (sortOrder crescente): fascia centrale risalvata con la stessa soglia | 200 salvata | reward §3 (soglie uniche e crescenti, 422 BAND_THRESHOLD_DUPLICATE, 409 BAND_IN_USE), F-RWD-02, BO-11, docs/08 §2 | TestbookRwdCatalogIT#bands |
 | TB-RWD-BND-011 | scala L1 < L2 < L3 (sortOrder crescente): nuova fascia con la soglia di F1 (500) | 422 BAND_THRESHOLD_DUPLICATE | reward §3 (soglie uniche e crescenti, 422 BAND_THRESHOLD_DUPLICATE, 409 BAND_IN_USE), F-RWD-02, BO-11, docs/08 §2 | TestbookRwdCatalogIT#bands |
-| TB-RWD-BND-012 | scala L1 < L2 < L3 (sortOrder crescente): soglia 0 | **Q-281** (scelta di oggi, da decidere) — 422 BAND_INVALID | reward §3 (soglie uniche e crescenti, 422 BAND_THRESHOLD_DUPLICATE, 409 BAND_IN_USE), F-RWD-02, BO-11, docs/08 §2 · Q-281 | TestbookRwdCatalogIT#bands |
+| TB-RWD-BND-012 | scala L1 < L2 < L3 (sortOrder crescente): soglia 0 | **Q-281 DECISA** — 422 BAND_INVALID | reward §3 (soglie uniche e crescenti, 422 BAND_THRESHOLD_DUPLICATE, 409 BAND_IN_USE), F-RWD-02, BO-11, docs/08 §2 · Q-281 | TestbookRwdCatalogIT#bands |
 | TB-RWD-BND-013 | scala L1 < L2 < L3 (sortOrder crescente): soglia −1 | 422 | reward §3 (soglie uniche e crescenti, 422 BAND_THRESHOLD_DUPLICATE, 409 BAND_IN_USE), F-RWD-02, BO-11, docs/08 §2 | TestbookRwdCatalogIT#bands |
 | TB-RWD-BND-014 | scala L1 < L2 < L3 (sortOrder crescente): codice solo spazi | 422 | reward §3 (soglie uniche e crescenti, 422 BAND_THRESHOLD_DUPLICATE, 409 BAND_IN_USE), F-RWD-02, BO-11, docs/08 §2 | TestbookRwdCatalogIT#bands |
 | TB-RWD-BND-015 | scala L1 < L2 < L3 (sortOrder crescente): nome assente | 422 | reward §3 (soglie uniche e crescenti, 422 BAND_THRESHOLD_DUPLICATE, 409 BAND_IN_USE), F-RWD-02, BO-11, docs/08 §2 | TestbookRwdCatalogIT#bands |
@@ -618,11 +618,11 @@ Percorsi relativi a `services/reward-service/src/main/java/io/loyaltyhub/reward/
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
 | TB-RWD-FUL-001 | AUTO_COUPON con pool disponibile → wallet.points.spent | FULFILLED con couponCode del pool; coupon ISSUED al membro, origin REDEMPTION, redemptionId; fatti confirmed, coupon.issued, fulfilled nello stesso tracciato (lhcorrelationid = correlationId); cronologia PENDING → CONFIRMED → FULFILLED | reward §5, docs/03 §5, F-CPN-02, US-E05-06 | TestbookRwdSagaIT |
-| TB-RWD-FUL-002 | coupon emesso alle 10:00 del 20/10 (Roma CEST) da un pool di validità 10 giorni | **Q-277** (scelta di oggi, da decidere) — expiresAt = emissione + 10 × 24 h (2026-10-30T10:00Z) | reward §5 («scadenza = oggi + validity_days») · Q-277 | TestbookRwdSagaIT |
+| TB-RWD-FUL-002 | coupon emesso alle 10:00 del 20/10 (Roma CEST) da un pool di validità 10 giorni | **Q-277 DECISA** — expiresAt = fine del giorno a Roma di emissione + 10 giorni (2026-10-30T22:59:59.999999Z, 23:59:59.999999 CET) | reward §5 («scadenza = oggi + validity_days») · Q-277 | TestbookRwdSagaIT |
 | TB-RWD-FUL-003 | AUTO_COUPON con pool vuoto → wallet.points.spent | resta CONFIRMED con needsAttention=true, nessun couponCode, nessun fatto fulfilled; compare in ?needsAttention=true | docs/03 §5, reward §5, BO-13 «Da verificare» | TestbookRwdSagaIT |
 | TB-RWD-FUL-004 | pool con 1 codice, due richieste confermate | la prima FULFILLED, la seconda CONFIRMED con needsAttention | docs/03 §5 (pool esaurito in fase di emissione) | TestbookRwdSagaIT |
 | TB-RWD-FUL-005 | retry-fulfilment con pool ancora vuoto | 409, resta CONFIRMED con needsAttention | reward §5 (retry dopo una nuova generazione) | TestbookRwdSagaIT |
-| TB-RWD-FUL-006 | AUTO_COUPON su premio senza pool → wallet.points.spent | **Q-281** (scelta di oggi, da decidere) — resta CONFIRMED con needsAttention | nessuna (ramo senza specifica) · Q-281 | TestbookRwdSagaIT |
+| TB-RWD-FUL-006 | AUTO_COUPON su premio senza pool → wallet.points.spent | **Q-281 DECISA** — il premio non si crea (422 REWARD_INVALID) né diventa AUTO_COUPON senza pool in modifica (422) | nessuna (ramo senza specifica) · Q-281 | TestbookRwdSagaIT |
 | TB-RWD-FUL-007 | INSTANT → wallet.points.spent | FULFILLED subito, senza couponCode; fatto fulfilled senza couponCode | reward §5 (INSTANT) | TestbookRwdSagaIT |
 | TB-RWD-FUL-008 | MANUAL → wallet.points.spent | resta CONFIRMED; compare in ?status=CONFIRMED&fulfilment=MANUAL («Da evadere») | reward §5, BO-13 | TestbookRwdSagaIT |
 | TB-RWD-FUL-009 | evasione manuale con nota e tracking (CARE) | FULFILLED, fulfilmentNote «nota · tracking X», fatto fulfilled con note, cronologia con l'attore CARE | F-RWD-06, reward §3 ({note, tracking?}) | TestbookRwdSagaIT |
@@ -641,7 +641,7 @@ Percorsi relativi a `services/reward-service/src/main/java/io/loyaltyhub/reward/
 | TB-RWD-FUL-022 | POST /v1/portal/redemptions valida | 202 {redemptionId, status PENDING, correlationId}; fatto requested con id = correlationId, pointsCost = soglia della fascia, currency PTS | reward §3 (202), §5 (correlationId della saga), docs/03 §5 (costo = soglia) | TestbookRwdSagaIT |
 | TB-RWD-FUL-023 | wallet.spend.rejected con reason MEMBER_NOT_ACTIVE | REJECTED con rejectReason MEMBER_NOT_ACTIVE, stock +1 | reward §5 (REJECTED con motivo) | TestbookRwdSagaIT |
 | TB-RWD-FUL-024 | annullo dal portale con memberId di un altro membro | 404, resta PENDING | reward §3 portale, US-E05-09 | TestbookRwdSagaIT |
-| TB-RWD-FUL-025 | annullo dal portale senza memberId | **Q-283** (scelta di oggi, da decidere) — 200 CANCELLED | reward §3 portale (identità esplicita) · Q-283 | TestbookRwdSagaIT |
+| TB-RWD-FUL-025 | annullo dal portale senza memberId | **Q-283 DECISA** — 400, la richiesta resta PENDING | reward §3 portale (identità esplicita) · Q-283 | TestbookRwdSagaIT |
 | TB-RWD-FUL-026 | GET /v1/portal/redemptions/{id} con memberId di un altro membro | 404 | reward §3 portale | TestbookRwdSagaIT |
 | TB-RWD-FUL-027 | GET /v1/portal/redemptions senza memberId | 400 | reward §3 portale (?memberId=) | TestbookRwdSagaIT |
 | TB-RWD-FUL-028 | POST /v1/portal/redemptions con intestazione X-Correlation-Id: C (come la aggiunge il proxy, docs/07 §3) | **Q-274** (scelta di oggi, da decidere) — oggi correlationId = id del fatto requested (nuova radice), l'intestazione è ignorata | reward §5 («il correlationId della richiesta HTTP diventa quello di tutta la saga»), docs/07 §3 · Q-274 | TestbookRwdSagaIT |
@@ -683,10 +683,10 @@ Percorsi relativi a `services/reward-service/src/main/java/io/loyaltyhub/reward/
 | TB-RWD-ROL-012 | annullo con rimborso, X-LH-Actor ANALYST | 403 forbidden-role, richiesta invariata | docs/08 §2 redemption.handle (ADMIN, CARE ●), docs/06 §3, reward §3 | TestbookRwdSagaIT#roles |
 | TB-RWD-ROL-013 | annullo con rimborso, X-LH-Actor assente | 403 forbidden-role, richiesta invariata | docs/08 §2 redemption.handle (ADMIN, CARE ●), docs/06 §3, reward §3 | TestbookRwdSagaIT#roles |
 | TB-RWD-ROL-014 | annullo con rimborso, X-LH-Actor non valida (SUPERUSER:mallory) | 403 forbidden-role, richiesta invariata | docs/08 §2 redemption.handle (ADMIN, CARE ●), docs/06 §3, reward §3 | TestbookRwdSagaIT#roles |
-| TB-RWD-ROL-015 | retry-fulfilment, X-LH-Actor ADMIN | **Q-283** (scelta di oggi, da decidere) — 200 e transizione eseguita | docs/08 §2 redemption.handle (ADMIN, CARE ●), docs/06 §3, reward §3 · Q-283 | TestbookRwdSagaIT#roles |
+| TB-RWD-ROL-015 | retry-fulfilment, X-LH-Actor ADMIN | **Q-283 DECISA** — 200 e transizione eseguita | docs/08 §2 redemption.handle (ADMIN, CARE ●), docs/06 §3, reward §3 · Q-283 | TestbookRwdSagaIT#roles |
 | TB-RWD-ROL-016 | retry-fulfilment, X-LH-Actor MARKETING | 403 forbidden-role, richiesta invariata | docs/08 §2 redemption.handle (ADMIN, CARE ●), docs/06 §3, reward §3 | TestbookRwdSagaIT#roles |
 | TB-RWD-ROL-017 | retry-fulfilment, X-LH-Actor LEGAL | 403 forbidden-role, richiesta invariata | docs/08 §2 redemption.handle (ADMIN, CARE ●), docs/06 §3, reward §3 | TestbookRwdSagaIT#roles |
-| TB-RWD-ROL-018 | retry-fulfilment, X-LH-Actor CARE | **Q-283** (scelta di oggi, da decidere) — 200 e transizione eseguita | docs/08 §2 redemption.handle (ADMIN, CARE ●), docs/06 §3, reward §3 · Q-283 | TestbookRwdSagaIT#roles |
+| TB-RWD-ROL-018 | retry-fulfilment, X-LH-Actor CARE | **Q-283 DECISA** — 200 e transizione eseguita | docs/08 §2 redemption.handle (ADMIN, CARE ●), docs/06 §3, reward §3 · Q-283 | TestbookRwdSagaIT#roles |
 | TB-RWD-ROL-019 | retry-fulfilment, X-LH-Actor ANALYST | 403 forbidden-role, richiesta invariata | docs/08 §2 redemption.handle (ADMIN, CARE ●), docs/06 §3, reward §3 | TestbookRwdSagaIT#roles |
 | TB-RWD-ROL-020 | retry-fulfilment, X-LH-Actor assente | 403 forbidden-role, richiesta invariata | docs/08 §2 redemption.handle (ADMIN, CARE ●), docs/06 §3, reward §3 | TestbookRwdSagaIT#roles |
 | TB-RWD-ROL-021 | retry-fulfilment, X-LH-Actor non valida (SUPERUSER:mallory) | 403 forbidden-role, richiesta invariata | docs/08 §2 redemption.handle (ADMIN, CARE ●), docs/06 §3, reward §3 | TestbookRwdSagaIT#roles |
@@ -718,16 +718,16 @@ Percorsi relativi a `services/reward-service/src/main/java/io/loyaltyhub/reward/
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
 | TB-RWD-CPN-001 | AVAILABLE (mai emesso) × uso alla cassa | 409; stato dopo AVAILABLE | docs/03 §5 (AVAILABLE → ISSUED → USED oppure EXPIRED/VOID), reward §3 (409 COUPON_ALREADY_USED, 410 COUPON_EXPIRED, 404), F-CPN-03, BO-12, PT-13 | TestbookRwdCouponIT#lifecycle |
-| TB-RWD-CPN-002 | AVAILABLE (mai emesso) × annulla | **Q-278** (scelta di oggi, da decidere) — 200; stato dopo VOID | docs/03 §5 (AVAILABLE → ISSUED → USED oppure EXPIRED/VOID), reward §3 (409 COUPON_ALREADY_USED, 410 COUPON_EXPIRED, 404), F-CPN-03, BO-12, PT-13 · Q-278 | TestbookRwdCouponIT#lifecycle |
+| TB-RWD-CPN-002 | AVAILABLE (mai emesso) × annulla | **Q-278 DECISA** — 200; stato dopo VOID | docs/03 §5 (AVAILABLE → ISSUED → USED oppure EXPIRED/VOID), reward §3 (409 COUPON_ALREADY_USED, 410 COUPON_EXPIRED, 404), F-CPN-03, BO-12, PT-13 · Q-278 | TestbookRwdCouponIT#lifecycle |
 | TB-RWD-CPN-003 | AVAILABLE (mai emesso) × verifica | 200; stato dopo AVAILABLE | docs/03 §5 (AVAILABLE → ISSUED → USED oppure EXPIRED/VOID), reward §3 (409 COUPON_ALREADY_USED, 410 COUPON_EXPIRED, 404), F-CPN-03, BO-12, PT-13 | TestbookRwdCouponIT#lifecycle |
 | TB-RWD-CPN-004 | ISSUED valido × uso alla cassa | 200; stato dopo USED | docs/03 §5 (AVAILABLE → ISSUED → USED oppure EXPIRED/VOID), reward §3 (409 COUPON_ALREADY_USED, 410 COUPON_EXPIRED, 404), F-CPN-03, BO-12, PT-13 | TestbookRwdCouponIT#lifecycle |
 | TB-RWD-CPN-005 | ISSUED valido × annulla | 200; stato dopo VOID | docs/03 §5 (AVAILABLE → ISSUED → USED oppure EXPIRED/VOID), reward §3 (409 COUPON_ALREADY_USED, 410 COUPON_EXPIRED, 404), F-CPN-03, BO-12, PT-13 | TestbookRwdCouponIT#lifecycle |
 | TB-RWD-CPN-006 | ISSUED valido × verifica | 200; stato dopo ISSUED | docs/03 §5 (AVAILABLE → ISSUED → USED oppure EXPIRED/VOID), reward §3 (409 COUPON_ALREADY_USED, 410 COUPON_EXPIRED, 404), F-CPN-03, BO-12, PT-13 | TestbookRwdCouponIT#lifecycle |
 | TB-RWD-CPN-007 | ISSUED oltre la scadenza, job non ancora eseguito × uso alla cassa | 410 COUPON_EXPIRED; stato dopo EXPIRED | docs/03 §5 (AVAILABLE → ISSUED → USED oppure EXPIRED/VOID), reward §3 (409 COUPON_ALREADY_USED, 410 COUPON_EXPIRED, 404), F-CPN-03, BO-12, PT-13 | TestbookRwdCouponIT#lifecycle |
-| TB-RWD-CPN-008 | ISSUED oltre la scadenza, job non ancora eseguito × annulla | **Q-278** (scelta di oggi, da decidere) — 200; stato dopo VOID | docs/03 §5 (AVAILABLE → ISSUED → USED oppure EXPIRED/VOID), reward §3 (409 COUPON_ALREADY_USED, 410 COUPON_EXPIRED, 404), F-CPN-03, BO-12, PT-13 · Q-278 | TestbookRwdCouponIT#lifecycle |
+| TB-RWD-CPN-008 | ISSUED oltre la scadenza, job non ancora eseguito × annulla | **Q-278 DECISA** — 409 COUPON_EXPIRED; stato dopo EXPIRED | docs/03 §5 (AVAILABLE → ISSUED → USED oppure EXPIRED/VOID), reward §3 (409 COUPON_ALREADY_USED, 410 COUPON_EXPIRED, 404), F-CPN-03, BO-12, PT-13 · Q-278 | TestbookRwdCouponIT#lifecycle |
 | TB-RWD-CPN-009 | ISSUED oltre la scadenza, job non ancora eseguito × verifica | 200; stato dopo EXPIRED | docs/03 §5 (AVAILABLE → ISSUED → USED oppure EXPIRED/VOID), reward §3 (409 COUPON_ALREADY_USED, 410 COUPON_EXPIRED, 404), F-CPN-03, BO-12, PT-13 | TestbookRwdCouponIT#lifecycle |
 | TB-RWD-CPN-010 | EXPIRED (job eseguito) × uso alla cassa | 410 COUPON_EXPIRED; stato dopo EXPIRED | docs/03 §5 (AVAILABLE → ISSUED → USED oppure EXPIRED/VOID), reward §3 (409 COUPON_ALREADY_USED, 410 COUPON_EXPIRED, 404), F-CPN-03, BO-12, PT-13 | TestbookRwdCouponIT#lifecycle |
-| TB-RWD-CPN-011 | EXPIRED (job eseguito) × annulla | **Q-278** (scelta di oggi, da decidere) — 200; stato dopo VOID | docs/03 §5 (AVAILABLE → ISSUED → USED oppure EXPIRED/VOID), reward §3 (409 COUPON_ALREADY_USED, 410 COUPON_EXPIRED, 404), F-CPN-03, BO-12, PT-13 · Q-278 | TestbookRwdCouponIT#lifecycle |
+| TB-RWD-CPN-011 | EXPIRED (job eseguito) × annulla | **Q-278 DECISA** — 409 COUPON_EXPIRED; stato dopo EXPIRED | docs/03 §5 (AVAILABLE → ISSUED → USED oppure EXPIRED/VOID), reward §3 (409 COUPON_ALREADY_USED, 410 COUPON_EXPIRED, 404), F-CPN-03, BO-12, PT-13 · Q-278 | TestbookRwdCouponIT#lifecycle |
 | TB-RWD-CPN-012 | EXPIRED (job eseguito) × verifica | 200; stato dopo EXPIRED | docs/03 §5 (AVAILABLE → ISSUED → USED oppure EXPIRED/VOID), reward §3 (409 COUPON_ALREADY_USED, 410 COUPON_EXPIRED, 404), F-CPN-03, BO-12, PT-13 | TestbookRwdCouponIT#lifecycle |
 | TB-RWD-CPN-013 | USED × uso alla cassa | 409 COUPON_ALREADY_USED; stato dopo USED | docs/03 §5 (AVAILABLE → ISSUED → USED oppure EXPIRED/VOID), reward §3 (409 COUPON_ALREADY_USED, 410 COUPON_EXPIRED, 404), F-CPN-03, BO-12, PT-13 | TestbookRwdCouponIT#lifecycle |
 | TB-RWD-CPN-014 | USED × annulla | 409; stato dopo USED | docs/03 §5 (AVAILABLE → ISSUED → USED oppure EXPIRED/VOID), reward §3 (409 COUPON_ALREADY_USED, 410 COUPON_EXPIRED, 404), F-CPN-03, BO-12, PT-13 | TestbookRwdCouponIT#lifecycle |
@@ -857,29 +857,29 @@ Righe che asseriscono la scelta di oggi in attesa di decisione (domanda in `docs
 - **TB-RWD-ORD-013** (Q-273) — la specifica elenca i codici ma non la precedenza quando più condizioni sono vere; il test verifica l'insieme ammesso (specifica) e il codice di oggi
 - **TB-RWD-ORD-014** (Q-273) — la specifica elenca i codici ma non la precedenza quando più condizioni sono vere; il test verifica l'insieme ammesso (specifica) e il codice di oggi
 - **TB-RWD-ORD-015** (Q-273) — la specifica elenca i codici ma non la precedenza quando più condizioni sono vere; il test verifica l'insieme ammesso (specifica) e il codice di oggi
-- **TB-RWD-STK-012** (Q-280) — dato incoerente non previsto dalla specifica
-- **TB-RWD-CAT-007** (Q-281) — normalizzazione del tipo non prevista dalla specifica
-- **TB-RWD-CAT-010** (Q-281) — BO-10 parla di «AUTO con pool coupon» ma nessuna fonte vieta il pool assente
-- **TB-RWD-CAT-016** (Q-281) — la categoria facoltativa non è prevista (reward §2 elenca category_code senza null)
-- **TB-RWD-CAT-021** (Q-281) — limite 0 non trattato dalla specifica
-- **TB-RWD-EDT-029** (Q-281) — l'immutabilità del codice non è scritta (reward §2: code UQ)
-- **TB-RWD-EDT-049** (Q-280) — il PUT senza version non è trattato da Q-112
-- **TB-RWD-EDT-051** (Q-280) — passaggio da illimitato a limitato: le richieste in corso non sono sottratte
-- **TB-RWD-EDT-053** (Q-280) — la specifica dice «ripristina lo stock» ma non come comporlo con un totale ridotto sotto le prenotazioni
-- **TB-RWD-EDT-061** (Q-281) — la specifica fissa solo «-COPY»; la collisione non è trattata
-- **TB-RWD-BND-012** (Q-281) — soglia nulla (premio gratuito) non trattata dalla specifica
+- **TB-RWD-STK-012** (Q-280) — dato incoerente non previsto dalla specifica — **DECISA: residuo < 0 = esaurito**
+- **TB-RWD-CAT-007** (Q-281) — normalizzazione del tipo non prevista dalla specifica — **DECISA: come oggi**
+- **TB-RWD-CAT-010** (Q-281) — BO-10 parla di «AUTO con pool coupon» ma nessuna fonte vieta il pool assente — **DECISA: 422 alla creazione, in modifica e alla pubblicazione**
+- **TB-RWD-CAT-016** (Q-281) — la categoria facoltativa non è prevista (reward §2 elenca category_code senza null) — **DECISA: come oggi**
+- **TB-RWD-CAT-021** (Q-281) — limite 0 non trattato dalla specifica — **DECISA: come oggi**
+- **TB-RWD-EDT-029** (Q-281) — l'immutabilità del codice non è scritta (reward §2: code UQ) — **DECISA: come oggi**
+- **TB-RWD-EDT-049** (Q-280) — il PUT senza version non è trattato da Q-112 — **DECISA: version obbligatoria, 422 VERSION_REQUIRED**
+- **TB-RWD-EDT-051** (Q-280) — passaggio da illimitato a limitato: le richieste in corso non sono sottratte — **DECISA: le richieste in corso si sottraggono**
+- **TB-RWD-EDT-053** (Q-280) — la specifica dice «ripristina lo stock» ma non come comporlo con un totale ridotto sotto le prenotazioni — **DECISA: residuo ≤ totale − richieste che tengono stock**
+- **TB-RWD-EDT-061** (Q-281) — la specifica fissa solo «-COPY»; la collisione non è trattata — **DECISA: come oggi**
+- **TB-RWD-BND-012** (Q-281) — soglia nulla (premio gratuito) non trattata dalla specifica — **DECISA: come oggi**
 - **TB-RWD-LCY-095** (Q-282) — SUBMIT che pubblica direttamente con approvazione spenta è una scelta di lh-common (docs/06 §7 dice solo «DRAFT → LIVE diretto»)
 - **TB-RWD-LCY-098** (Q-282) — maiuscole/minuscole dell'azione non trattate
 - **TB-RWD-LCY-099** (Q-282) — azione fuori enumerato: 422 (non 400) non fissato dalla specifica
-- **TB-RWD-FUL-002** (Q-277) — «oggi + validity_days» non dice se si contano giorni di calendario di Roma (qui il cambio dell'ora sposterebbe l'ora locale) o istanti; oggi + N × 24 h
-- **TB-RWD-FUL-006** (Q-281) — premio AUTO_COUPON senza pool: nessuna fonte ne descrive l'evasione
-- **TB-RWD-FUL-025** (Q-283) — annullo senza memberId: l'identità esplicita (CLAUDE.md §1.6) non dice cosa fare se manca
+- **TB-RWD-FUL-002** (Q-277) — «oggi + validity_days» non dice se si contano giorni di calendario di Roma (qui il cambio dell'ora sposterebbe l'ora locale) o istanti; oggi + N × 24 h — **DECISA: fine del giorno (Europe/Rome) di data di emissione + validity_days**
+- **TB-RWD-FUL-006** (Q-281) — premio AUTO_COUPON senza pool: nessuna fonte ne descrive l'evasione — **DECISA: 422, il caso non si presenta più**
+- **TB-RWD-FUL-025** (Q-283) — annullo senza memberId: l'identità esplicita (CLAUDE.md §1.6) non dice cosa fare se manca — **DECISA: memberId obbligatorio, 400**
 - **TB-RWD-FUL-028** (Q-274) — «correlationId della richiesta HTTP»: l'intestazione X-Correlation-Id del proxy o il correlationId restituito dal 202? Se è l'intestazione, la regola non è implementata
-- **TB-RWD-ROL-015** (Q-283) — retry-fulfilment non è elencato in docs/08 §2: si applica redemption.handle
-- **TB-RWD-ROL-018** (Q-283) — retry-fulfilment non è elencato in docs/08 §2: si applica redemption.handle
-- **TB-RWD-CPN-002** (Q-278) — docs/03 §5 dà VOID come esito del ciclo senza dire da quali stati: annullare un codice mai emesso o già scaduto non è trattato
-- **TB-RWD-CPN-008** (Q-278) — docs/03 §5 dà VOID come esito del ciclo senza dire da quali stati: annullare un codice mai emesso o già scaduto non è trattato
-- **TB-RWD-CPN-011** (Q-278) — docs/03 §5 dà VOID come esito del ciclo senza dire da quali stati: annullare un codice mai emesso o già scaduto non è trattato
+- **TB-RWD-ROL-015** (Q-283) — retry-fulfilment non è elencato in docs/08 §2: si applica redemption.handle — **DECISA: come oggi**
+- **TB-RWD-ROL-018** (Q-283) — retry-fulfilment non è elencato in docs/08 §2: si applica redemption.handle — **DECISA: come oggi**
+- **TB-RWD-CPN-002** (Q-278) — docs/03 §5 dà VOID come esito del ciclo senza dire da quali stati: annullare un codice mai emesso o già scaduto non è trattato — **DECISA: VOID da AVAILABLE e ISSUED**
+- **TB-RWD-CPN-008** (Q-278) — docs/03 §5 dà VOID come esito del ciclo senza dire da quali stati: annullare un codice mai emesso o già scaduto non è trattato — **DECISA: scaduto → 409 COUPON_EXPIRED**
+- **TB-RWD-CPN-011** (Q-278) — docs/03 §5 dà VOID come esito del ciclo senza dire da quali stati: annullare un codice mai emesso o già scaduto non è trattato — **DECISA: scaduto → 409 COUPON_EXPIRED**
 - **TB-RWD-CPN-023** (Q-276) — istante della scadenza: la specifica non dice se è ancora valido (docs/03 §4.2 per i lotti usa expiresAt ≤ asOf ⇒ scaduto)
 - **TB-RWD-CPN-025** (Q-284) — normalizzazione del codice alla cassa non prevista
 - **TB-RWD-CPN-041** (Q-276) — istante della scadenza: come docs/03 §4.2 (expiresAt ≤ asOf) per i lotti

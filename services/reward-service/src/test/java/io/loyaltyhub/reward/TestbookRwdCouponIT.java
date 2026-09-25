@@ -53,7 +53,8 @@ class TestbookRwdCouponIT extends TestbookRwdBase {
 
     // ---------- CPN: ciclo di vita × azione × tempo ----------
 
-    // TESTBOOK: scelta da decidere, vedi Q-278 (TB-RWD-CPN-002, -008, -011), Q-276 (TB-RWD-CPN-023), Q-284 (TB-RWD-CPN-025)
+    // Q-278 DECISA (TB-RWD-CPN-002, -008, -011: annullo solo da AVAILABLE e ISSUED valido, scaduto → 409)
+    // TESTBOOK: scelta da decidere, vedi Q-276 (TB-RWD-CPN-023), Q-284 (TB-RWD-CPN-025)
     @TestFactory
     Stream<DynamicTest> lifecycle() {
         return TestbookRwdCsv.rows("coupon-lifecycle.csv", row -> {
@@ -119,8 +120,13 @@ class TestbookRwdCouponIT extends TestbookRwdBase {
     Stream<DynamicTest> expiry() {
         return TestbookRwdCsv.rows("coupon-expiry.csv", row -> {
             Instant expiresAt = Instant.parse(row.get("expiresAt"));
-            Issued i = issue(expiresAt.minus(Duration.ofDays(1)), 1, 1);
-            assertThat(i.expiresAt()).isEqualTo(expiresAt);
+            Instant issuedAt = expiresAt.minus(Duration.ofDays(1));
+            Issued i = issue(issuedAt, 1, 1);
+            // Q-277 DECISA: l'emissione scade a fine giornata (Roma); per provare i confini del job la scadenza della
+            // riga è poi impostata sul codice emesso.
+            assertThat(i.expiresAt()).isEqualTo(CouponService.expiryFor(issuedAt, 1));
+            jdbc.sql("UPDATE coupon SET expires_at = ? WHERE code = ?")
+                    .params(java.sql.Timestamp.from(expiresAt), i.code()).update();
             if (row.is("expStatus", "USED")) {
                 CLOCK.set(expiresAt.minus(Duration.ofHours(1)));
                 call("POST", "/v1/coupons/" + i.code() + "/use", "CARE:testbook.care", null);
@@ -445,7 +451,8 @@ class TestbookRwdCouponIT extends TestbookRwdBase {
         Setup s = effectSetup("EMPTY".equals(kind) ? 0 : 1);
         String rewardCode = switch (kind) {
             case "UNKNOWN" -> fresh("RWD-NOPE");
-            case "NOPOOL" -> reward("LIVE", Map.of("type", "COUPON", "fulfilment", "AUTO_COUPON")).path("code").asString();
+            // Q-281 DECISA: un AUTO_COUPON senza pool non si crea più; il premio senza pool è un COUPON MANUAL.
+            case "NOPOOL" -> reward("LIVE", Map.of("type", "COUPON", "fulfilment", "MANUAL")).path("code").asString();
             default -> s.rewardCode();
         };
         String effectId = fresh("EFF");

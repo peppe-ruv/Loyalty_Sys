@@ -77,24 +77,35 @@ public class RewardRepository {
     }
 
     /**
+     * Richieste che tengono un'unità di stock (Q-280 DECISA): {@code PENDING}, {@code CONFIRMED}, {@code FULFILLED} del
+     * premio della riga {@code reward} corrente. {@code REJECTED} e {@code CANCELLED} l'hanno restituita.
+     */
+    private static final String HELD = """
+            (SELECT count(*) FROM redemption d
+              WHERE d.reward_code = reward.code AND d.status IN ('PENDING', 'CONFIRMED', 'FULFILLED'))""";
+
+    /**
      * Riscrive i campi modificabili se la versione è ancora {@code expectedVersion}; {@code false} = modificato nel
      * frattempo (409, M7.6). Lo stock residuo si ricalcola sulla riga corrente (residuo + delta del totale), così una
-     * richiesta premio arrivata tra lettura e scrittura non si perde.
+     * richiesta premio arrivata tra lettura e scrittura non si perde; Q-280 DECISA (niente vendite oltre lo stock): il
+     * residuo non supera mai {@code totale − richieste che tengono stock} (mai sotto zero), anche passando da
+     * illimitato a limitato.
      */
     public boolean update(Reward r, long expectedVersion) {
         return jdbc.sql("""
                         UPDATE reward SET name = ?, description = ?, terms = ?, image_url = ?, type = ?, category_code = ?,
                           band_code = ?, fulfilment = ?, coupon_pool_id = ?,
                           stock_remaining = CASE WHEN cast(? AS integer) IS NULL THEN NULL
-                                                 WHEN stock_total IS NULL THEN cast(? AS integer)
-                                                 ELSE greatest(0, stock_remaining + (cast(? AS integer) - stock_total)) END,
+                                                 WHEN stock_total IS NULL THEN greatest(0, cast(? AS integer) - {HELD})
+                                                 ELSE greatest(0, least(stock_remaining + (cast(? AS integer) - stock_total),
+                                                                        cast(? AS integer) - {HELD})) END,
                           stock_total = ?, per_member_limit = ?, eligible_tiers = ?::text[], eligible_segments = ?::text[],
                           valid_from = ?, valid_to = ?, version = version + 1, updated_at = now()
                         WHERE id = ? AND version = ?
-                        """)
+                        """.replace("{HELD}", HELD))
                 .params(r.name(), r.description(), r.terms(), r.imageUrl(), r.type(), r.categoryCode(), r.bandCode(),
                         r.fulfilment(), r.couponPoolId(), r.stockTotal(), r.stockTotal(), r.stockTotal(), r.stockTotal(),
-                        r.perMemberLimit(), TextArrays.literal(r.eligibleTiers()), TextArrays.literal(r.eligibleSegments()),
+                        r.stockTotal(), r.perMemberLimit(), TextArrays.literal(r.eligibleTiers()), TextArrays.literal(r.eligibleSegments()),
                         ts(r.validFrom()), ts(r.validTo()), r.id(), expectedVersion)
                 .update() == 1;
     }
@@ -114,12 +125,18 @@ public class RewardRepository {
         return updated == 1;
     }
 
-    /** Restituisce un'unità di stock (richiesta respinta, scaduta o annullata), senza superare il totale. */
+    /**
+     * Restituisce un'unità di stock (richiesta respinta, scaduta o annullata), senza superare il totale né, Q-280
+     * DECISA, {@code totale − richieste che ancora tengono stock} (la richiesta chiusa va già marcata nella stessa
+     * transazione): dopo una riduzione del totale sotto le prenotazioni il ripristino non riapre stock venduto.
+     */
     public void releaseStock(String code) {
         jdbc.sql("""
-                        UPDATE reward SET stock_remaining = least(stock_remaining + 1, stock_total), updated_at = now()
+                        UPDATE reward SET stock_remaining = greatest(0, least(stock_remaining + 1, stock_total,
+                                                                              stock_total - {HELD})),
+                          updated_at = now()
                         WHERE code = ? AND stock_total IS NOT NULL
-                        """)
+                        """.replace("{HELD}", HELD))
                 .param(code).update();
     }
 

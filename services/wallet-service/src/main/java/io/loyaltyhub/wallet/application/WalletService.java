@@ -122,13 +122,17 @@ public class WalletService {
         if (direction == null || (!"CREDIT".equals(direction) && !"DEBIT".equals(direction))) {
             throw LhException.validation("INVALID_DIRECTION", "La direzione deve essere CREDIT o DEBIT.");
         }
+        // Q-147 DECISA: niente wallet creato al volo da una rettifica (un id digitato male non riceve punti):
+        // 404 come la vista GET /v1/wallets/{memberId}.
+        if (wallets.find(memberId, currency).isEmpty()) {
+            throw LhException.notFound("Wallet non trovato per il membro " + memberId);
+        }
         // SPEC-GAP: Q-127 — F-MBR-05/docs/08 BO-03: dopo l'anonimizzazione "le azioni sono disabilitate"; il wallet
         // rifiuta anche le rettifiche (i movimenti esistenti restano). Gli altri stati non ACTIVE restano rettificabili.
         if (memberTiers.find(memberId).map(t -> "ANONYMIZED".equals(t.memberStatus())).orElse(false)) {
             throw LhException.conflict("MEMBER_ANONYMIZED", "Il membro " + memberId + " è anonimizzato: niente rettifiche.");
         }
 
-        wallets.ensureExists(memberId, currency);
         memberTiers.ensureBase(memberId);
         wallets.lock(memberId, currency);
 
@@ -200,6 +204,21 @@ public class WalletService {
             return;
         }
         String currency = d.path("currency").asString("PTS");
+
+        // Q-140 DECISA (docs/03 §2 «solo i membri ACTIVE accumulano»): un effetto già deciso per un membro nel
+        // frattempo BLOCKED o ANONYMIZED è scartato, con log e voce di audit; gli INACTIVE continuano ad accumulare.
+        String memberStatus = memberTiers.find(memberId).map(mt -> mt.memberStatus()).orElse(null);
+        if ("BLOCKED".equals(memberStatus) || "ANONYMIZED".equals(memberStatus)) {
+            log.warn("points.grant {} scartato: membro {} {}", effectId, memberId, memberStatus);
+            Map<String, Object> discarded = new java.util.LinkedHashMap<>();
+            discarded.put("effectId", effectId);
+            discarded.put("amount", d.path("amount").asLong(0));
+            discarded.put("memberStatus", memberStatus);
+            discarded.put("applied", false);
+            audit.recordJob("wallet", memberId + ":" + currency, "Effetto points.grant " + effectId
+                    + " scartato: membro " + memberStatus, Map.of(), discarded);
+            return;
+        }
 
         // Wallet "on the fly" se il fatto member.registered non è ancora arrivato (docs §5).
         wallets.ensureExists(memberId, currency);

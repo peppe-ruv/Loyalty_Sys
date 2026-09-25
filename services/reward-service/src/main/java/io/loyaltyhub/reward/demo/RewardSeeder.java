@@ -172,7 +172,7 @@ public class RewardSeeder implements ApplicationRunner, DemoResettable {
                 couponCode = coupons.takeAvailable(reward.couponPoolId()).orElse(null);
                 if (couponCode != null) {
                     Instant expires = c.hasNonNull("expiresAt") ? date(c, "expiresAt")
-                            : closed.plus(java.time.Duration.ofDays(validity.getOrDefault(reward.couponPoolId(), 90)));
+                            : CouponService.expiryFor(closed, validity.getOrDefault(reward.couponPoolId(), 90)); // Q-277
                     coupons.markIssued(couponCode, memberId, reward.code(), "REDEMPTION", id, null, closed, expires);
                     switch (c.path("status").asString("ISSUED")) {
                         case "USED" -> coupons.markUsed(couponCode, closed.plus(java.time.Duration.ofDays(2)));

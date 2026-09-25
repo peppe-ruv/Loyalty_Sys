@@ -60,6 +60,10 @@ public class PortalRedemptionsController {
 
     @PostMapping("/{id}/cancel")
     public RedemptionService.RedemptionView cancel(@PathVariable String id, @RequestParam(required = false) String memberId) {
+        // Q-283 DECISA: identità esplicita del portale (CLAUDE.md §1.6), come GET /v1/portal/redemptions.
+        if (memberId == null || memberId.isBlank()) {
+            throw LhException.badRequest("memberId è obbligatorio");
+        }
         return redemptions.cancelByMember(id, memberId);
     }
 }

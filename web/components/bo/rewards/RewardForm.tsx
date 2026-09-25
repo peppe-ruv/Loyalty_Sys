@@ -300,7 +300,14 @@ export function RewardForm({
           </Field>
           {f.fulfilment === "AUTO_COUPON" ? (
             <Field label="Pool coupon" hint="Obbligatorio per l'evasione automatica; i codici si gestiscono in «Coupon».">
-              <select value={f.couponPoolId} disabled={!editable("couponPoolId")} onChange={(e) => set("couponPoolId", e.target.value)} className={INPUT}>
+              {/* Q-281: un premio AUTO_COUPON senza pool è rifiutato (422) anche dal servizio. */}
+              <select
+                required
+                value={f.couponPoolId}
+                disabled={!editable("couponPoolId")}
+                onChange={(e) => set("couponPoolId", e.target.value)}
+                className={INPUT}
+              >
                 <option value="">—</option>
                 {pools.map((p) => (
                   <option key={p.id} value={p.id}>

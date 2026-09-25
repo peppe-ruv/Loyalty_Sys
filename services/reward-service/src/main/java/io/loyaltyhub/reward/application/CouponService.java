@@ -22,8 +22,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
@@ -238,8 +241,12 @@ public class CouponService {
         return get(c.code());
     }
 
-    /** Annullo ({@code coupon.void}): non si annulla un coupon già usato. */
-    @Transactional
+    /**
+     * Annullo ({@code coupon.void}), Q-278 DECISA: solo da {@code AVAILABLE} (ritiro di un codice mai emesso) e da
+     * {@code ISSUED} ancora valido. Usato, già annullato o scaduto → 409: lo storico di un codice scaduto non cambia
+     * (un {@code ISSUED} oltre la scadenza, job non ancora eseguito, passa a {@code EXPIRED} come all'uso).
+     */
+    @Transactional(noRollbackFor = LhException.class)
     public CouponView voidCoupon(String code) {
         Coupon c = coupons.lock(normalized(code)).orElseThrow(() -> LhException.notFound("Coupon non trovato: " + code));
         if (c.status() == CouponStatus.USED) {
@@ -247,6 +254,13 @@ public class CouponService {
         }
         if (c.status() == CouponStatus.VOID) {
             throw LhException.conflict("COUPON_VOID", "Coupon già annullato.");
+        }
+        if (c.status() == CouponStatus.EXPIRED) {
+            throw LhException.conflict("COUPON_EXPIRED", "Un coupon scaduto non si annulla (scaduto il " + c.expiresAt() + ").");
+        }
+        if (c.status() == CouponStatus.ISSUED && c.expiredAt(clock.instant())) {
+            coupons.markExpired(c.code());
+            throw LhException.conflict("COUPON_EXPIRED", "Un coupon scaduto non si annulla (scaduto il " + c.expiresAt() + ").");
         }
         coupons.markVoid(c.code(), clock.instant());
         audit.record("COUPON", c.code(), AuditEntry.Action.UPDATE, "Coupon " + c.code() + " annullato",
@@ -256,7 +270,7 @@ public class CouponService {
 
     /**
      * Emette un codice del pool al membro (richiesta premio o effetto {@code coupon.issue}): preleva il primo libero
-     * con {@code SKIP LOCKED}, scadenza = ora + validità del pool, fatto {@code coupon.issued} figlio di
+     * con {@code SKIP LOCKED}, scadenza = {@link #expiryFor} (fine giornata a Roma), fatto {@code coupon.issued} figlio di
      * {@code cause} se c'è. Vuoto se il pool è esaurito.
      */
     @Transactional
@@ -268,7 +282,7 @@ public class CouponService {
             return Optional.empty();
         }
         Instant now = clock.instant();
-        Instant expiresAt = now.plus(Duration.ofDays(p.validityDays()));
+        Instant expiresAt = expiryFor(now, p.validityDays());
         coupons.markIssued(code.get(), memberId, rewardCode, origin, redemptionId, effectId, now, expiresAt);
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("couponCode", code.get());
@@ -282,6 +296,25 @@ public class CouponService {
                 ? events.childOf(cause, LhEventTypes.Fact.COUPON_ISSUED, data)
                 : events.newRoot(LhEventTypes.Fact.COUPON_ISSUED, "member:" + memberId, data));
         return coupons.find(code.get());
+    }
+
+    /** Le date di business della loyalty sono in ora italiana (come le scadenze di fine mese del wallet). */
+    public static final ZoneId ZONE = ZoneId.of("Europe/Rome");
+
+    /**
+     * «Ultimo istante» di un giorno alla precisione di {@code timestamptz} (microsecondi): con {@link LocalTime#MAX}
+     * il driver arrotonderebbe al primo istante del giorno dopo.
+     */
+    static final LocalTime LAST_INSTANT = LocalTime.MAX.truncatedTo(ChronoUnit.MICROS);
+
+    /**
+     * Scadenza di un coupon emesso in {@code issuedAt} (reward §5 «oggi + validity_days», Q-277 DECISA): fine del
+     * giorno (23:59:59.999999, Europe/Rome) della data di emissione a Roma + {@code validityDays}. Non si sposta col
+     * cambio dell'ora e non scade a metà giornata.
+     */
+    public static Instant expiryFor(Instant issuedAt, int validityDays) {
+        LocalDate lastDay = issuedAt.atZone(ZONE).toLocalDate().plusDays(validityDays);
+        return lastDay.atTime(LAST_INSTANT).atZone(ZONE).toInstant();
     }
 
     /** Job di scadenza: {@code ISSUED} con scadenza ≤ {@code asOf} → {@code EXPIRED}. */

@@ -9,7 +9,11 @@ public final class EditionCloseRule {
     private EditionCloseRule() {
     }
 
-    public enum Outcome { RETAINED, DOWNGRADED }
+    /**
+     * Esito per un membro. {@code UNKNOWN_TIER} (Q-149 DECISA): il livello attuale non esiste più nella scala, il
+     * membro resta invariato e la chiusura lo segnala nel riepilogo.
+     */
+    public enum Outcome { RETAINED, DOWNGRADED, UNKNOWN_TIER }
 
     public record Result(String earnedTier, String newTier, Outcome outcome) { }
 
@@ -20,17 +24,20 @@ public final class EditionCloseRule {
      * @param scale scala dei livelli, ordinata per rank crescente
      */
     public static Result computeNext(String currentCode, long periodSts, List<Tier> scale) {
-        Tier current = scale.stream().filter(t -> t.code().equals(currentCode)).findFirst()
-                .orElse(scale.isEmpty() ? null : scale.get(0));
-
-        if (current == null) {
-             throw new IllegalArgumentException("Scala dei livelli vuota o livello corrente non trovato");
+        if (scale.isEmpty()) {
+            throw new IllegalArgumentException("Scala dei livelli vuota");
         }
 
         Tier earned = scale.stream()
                 .filter(t -> t.thresholdSts() <= periodSts)
                 .max(Comparator.comparingInt(Tier::rank))
                 .orElse(scale.get(0));
+
+        Tier current = scale.stream().filter(t -> t.code().equals(currentCode)).findFirst().orElse(null);
+        if (current == null) {
+            // Q-149 DECISA: livello sconosciuto → nessuna discesa non dichiarata; il membro resta com'è.
+            return new Result(earned.code(), currentCode, Outcome.UNKNOWN_TIER);
+        }
 
         int floorRank = Math.max(0, current.rank() - 1);
         Tier floor = scale.stream().filter(t -> t.rank() == floorRank).findFirst().orElse(scale.get(0));

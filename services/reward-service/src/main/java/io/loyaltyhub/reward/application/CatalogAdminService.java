@@ -159,6 +159,10 @@ public class CatalogAdminService implements ApprovalSource {
     @Transactional
     public Reward update(String id, RewardRequest r) {
         Reward c = get(id);
+        // Q-280 DECISA: niente «ultima scrittura vince» (lo stock residuo si ricalcola sulla versione letta).
+        if (r.version() == null) {
+            throw LhException.validation("VERSION_REQUIRED", "Il campo version è obbligatorio: ricarica il premio e riprova.");
+        }
         if (r.code() != null && !r.code().equals(c.code())) {
             throw LhException.conflict("CODE_IMMUTABLE", "Il codice di un premio non si modifica: " + c.code());
         }
@@ -175,7 +179,7 @@ public class CatalogAdminService implements ApprovalSource {
             default -> throw LhException.conflict("REWARD_NOT_EDITABLE", "Un premio " + c.status() + " non si modifica.");
         }
         validate(m);
-        long expected = r.version() != null ? r.version() : c.version();
+        long expected = r.version();
         if (!rewards.update(m, expected)) {
             throw LhException.conflict("VERSION_CONFLICT", "Il premio è stato modificato nel frattempo: ricarica e riprova.");
         }
@@ -216,6 +220,10 @@ public class CatalogAdminService implements ApprovalSource {
         ApprovalStatus from = ApprovalStatus.valueOf(r.status().name());
         ApprovalStatus next = GovernedTransitions.next(from, a, rule, policy.enabled(), role, comment);
         RewardStatus to = RewardStatus.valueOf(next.name());
+        // Q-281 DECISA: anche un premio nato prima della regola non va online come AUTO_COUPON senza pool.
+        if (to == RewardStatus.LIVE && "AUTO_COUPON".equals(r.fulfilment()) && blank(r.couponPoolId())) {
+            throw LhException.validation("REWARD_INVALID", "AUTO_COUPON richiede couponPoolId: il premio non si pubblica senza pool.");
+        }
         String actor = ActorHolder.get().asActorString();
         rewards.updateStatus(r.id(), to);
         history.record(ApprovalPolicy.REWARD, r.id(), from, next, a, actor, comment, clock.instant());
@@ -264,6 +272,8 @@ public class CatalogAdminService implements ApprovalSource {
         if (r.bandCode() == null || catalog.band(r.bandCode()).isEmpty()) errors.add("fascia inesistente: " + r.bandCode());
         if (r.categoryCode() != null && catalog.category(r.categoryCode()).isEmpty()) errors.add("categoria inesistente: " + r.categoryCode());
         if ("AUTO_COUPON".equals(r.fulfilment()) && !"COUPON".equals(r.type())) errors.add("AUTO_COUPON solo per premi COUPON");
+        // Q-281 DECISA: un AUTO_COUPON senza pool lascerebbe ogni richiesta senza codice → rifiutato in creazione e modifica.
+        if ("AUTO_COUPON".equals(r.fulfilment()) && blank(r.couponPoolId())) errors.add("AUTO_COUPON richiede couponPoolId");
         if (r.stockTotal() != null && r.stockTotal() < 0) errors.add("stockTotal non può essere negativo");
         if (r.perMemberLimit() != null && r.perMemberLimit() < 1) errors.add("perMemberLimit deve essere ≥ 1");
         if (r.validFrom() != null && r.validTo() != null && !r.validTo().isAfter(r.validFrom())) errors.add("validTo deve seguire validFrom");

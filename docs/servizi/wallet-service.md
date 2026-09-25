@@ -26,12 +26,12 @@ Non decide *quanti* punti dare (lo fa il motore); applica solo il moltiplicatore
 | GET | `/v1/wallets/{memberId}` | `{balances: {PTS:{active,pending,lifetimeEarned,…}, STS:{…}}, expiringSoon: {amount, within30d, nextExpiryAt}, tier: {code, name, since, periodSts, next?: {code, threshold, missing}, progressPct, multiplier, keepWarning?}}` |
 | GET | `/v1/wallets/{memberId}/ledger` | filtri `currency, type, from, to` (`type` anche più valori separati da virgola; `from`/`to` istante ISO o data `yyyy-MM-dd` in Europe/Rome, estremi inclusi, sulla data di business; valore non leggibile → `400`); ordinamento `occurredAt desc`. Ogni movimento: `{id, memberId, currency, type, amount, direction, balanceAfter, occurredAt, sourceType, campaignCode, description, metadataJson, actionId, actor}` (F-WAL-02) |
 | GET | `/v1/wallets/{memberId}/lots` | lotti non esauriti, per scadenza |
-| POST | `/v1/wallets/{memberId}/adjustments` | `{currency, direction (CREDIT/DEBIT), amount, reason (GOODWILL/CORRECTION/COMPLAINT/TEST), note ≥ 10 caratteri}` — ruoli `CARE/ADMIN`; `422 INSUFFICIENT_BALANCE`, `NOTE_TOO_SHORT` |
+| POST | `/v1/wallets/{memberId}/adjustments` | `{currency, direction (CREDIT/DEBIT), amount, reason (GOODWILL/CORRECTION/COMPLAINT/TEST), note ≥ 10 caratteri}` — ruoli `CARE/ADMIN`; `422 INSUFFICIENT_BALANCE`, `NOTE_TOO_SHORT`; `404` se il membro non ha wallet (nessun wallet creato al volo, Q-147) |
 | GET | `/v1/members/{memberId}/tier-history` | |
 | GET/PUT | `/v1/tiers`, `/v1/tiers/{code}` | soglie crescenti col rank (`422 TIER_THRESHOLDS_NOT_MONOTONIC`); `BASE` ha soglia 0 fissa |
 | GET/PUT | `/v1/currencies`, `/v1/currencies/{code}` | policy di scadenza (vale per i nuovi lotti) |
-| GET/POST/PUT | `/v1/editions` | niente sovrapposizioni |
-| POST | `/v1/editions/{code}/close?dryRun=true` | anteprima: `{summary: {retained, downgraded}, members[]: {memberId, currentTier, periodSts, earnedTier, newTier, outcome (RETAINED/DOWNGRADED)}}`; con `dryRun=false` applica (ruolo `ADMIN`) |
+| GET/POST/PUT | `/v1/editions` | niente sovrapposizioni (`422 EDITION_OVERLAP`) né buchi: l'inizio è il giorno dopo la fine dell'edizione precedente e la fine il giorno prima dell'inizio della successiva (`422 EDITION_NOT_CONTIGUOUS`, Q-151) |
+| POST | `/v1/editions/{code}/close?dryRun=true` | anteprima: `{summary: {retained, downgraded, unknownTier}, members[]: {memberId, currentTier, periodSts, earnedTier, newTier, outcome (RETAINED/DOWNGRADED/UNKNOWN_TIER)}}`; con `dryRun=false` applica (ruolo `ADMIN`). `UNKNOWN_TIER` (Q-149): livello attuale assente dalla scala, membro lasciato invariato e contato in `unknownTier` |
 | GET | `/v1/liability` | `{currency, outstanding, pending, byExpiryMonth[]}` |
 | GET | `/v1/tiers/distribution` | conteggio membri per tier |
 
@@ -54,11 +54,11 @@ Non decide *quanti* punti dare (lo fa il motore); applica solo il moltiplicatore
 ## 5. Regole
 Tutte in `docs/03 §4`. Note implementative:
 - Ogni operazione su un wallet prende il lock di riga (`SELECT … FOR UPDATE` su `wallet`) → serializzazione per membro/valuta.
-- `points.grant`: unicità su `effect_id` = idempotenza di dominio. Se il membro non ha wallet (fatto `member.registered` non ancora arrivato) → crea wallet e tier BASE *on the fly*.
+- `points.grant`: unicità su `effect_id` = idempotenza di dominio. Se il membro non ha wallet (fatto `member.registered` non ancora arrivato) → crea wallet e tier BASE *on the fly*. Se il membro è nel frattempo `BLOCKED` o `ANONYMIZED` l'effetto è scartato (nessun movimento né fatto; log + voce di audit `wallet` `{memberId}:{currency}` con `after.effectId`); un membro `INACTIVE` continua ad accumulare (Q-140).
 - Dopo un accredito `STS` → verifica salita nello stesso commit.
 - Spesa da richiesta premio: valuta sempre `PTS`; idempotenza su `redemption_id`.
 - Job schedulati (disattivabili con `loyaltyhub.jobs.enabled`): rilascio pending ogni ora; scadenze alle 02:00; preavvisi alle 09:00 (una volta per lotto: flag su `points_lot`). In demo si lanciano da BO-30.
-- Chiusura edizione: un'unica transazione per lotti da 200 membri; emette un fatto per membro + `edition.closed`. «La successiva» che diventa `ACTIVE` (docs/03 §4.3) è la `PLANNED` con l'inizio più vicino dopo la fine di quella chiusa; una `PLANNED` precedente resta com'è.
+- Chiusura edizione: un'unica transazione per lotti da 200 membri; emette un fatto per membro + `edition.closed`. Un membro con un livello assente dalla scala resta invariato (livello, `periodSts`, storico; nessun fatto) ed è segnalato nel riepilogo (`unknownTier`, esito `UNKNOWN_TIER`, voce di audit della chiusura) (Q-149). «La successiva» che diventa `ACTIVE` (docs/03 §4.3) è la `PLANNED` con l'inizio più vicino dopo la fine di quella chiusa; una `PLANNED` precedente resta com'è.
 - Calcolo `expires_at` per `ROLLING_MONTHS(n)`: ultimo istante del mese di `earned_at + n mesi`, in `Europe/Rome` — 23:59:59.999999, la precisione che `timestamptz` conserva (con i nanosecondi il driver arrotonderebbe al primo istante del mese dopo).
 - `keepWarning`: valorizzato da ottobre (a dicembre, mesi in `Europe/Rome`) se `periodSts` < soglia del tier attuale: `{tier, missing}` con `missing` = soglia − `periodSts`; mai per un tier con soglia 0.
 

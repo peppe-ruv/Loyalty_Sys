@@ -26,7 +26,7 @@ class TestbookRwdCatalogIT extends TestbookRwdBase {
 
     // ---------- CAT: creazione ----------
 
-    // TESTBOOK: scelta da decidere, vedi Q-281 (TB-RWD-CAT-007, -010, -016, -021)
+    // Q-281 DECISA (TB-RWD-CAT-007, -016, -021 come prima; -010: AUTO_COUPON senza pool → 422 REWARD_INVALID)
     @TestFactory
     Stream<DynamicTest> create() {
         return TestbookRwdCsv.rows("reward-create.csv", row -> {
@@ -135,7 +135,7 @@ class TestbookRwdCatalogIT extends TestbookRwdBase {
         return f;
     }
 
-    // TESTBOOK: scelta da decidere, vedi Q-281 (TB-RWD-EDT-029)
+    // Q-281 DECISA (TB-RWD-EDT-029: codice non modificabile, 409 CODE_IMMUTABLE)
     @TestFactory
     Stream<DynamicTest> edit() {
         return TestbookRwdCsv.rows("reward-edit.csv", row -> {
@@ -196,7 +196,7 @@ class TestbookRwdCatalogIT extends TestbookRwdBase {
 
     // ---------- EDT: stock e versione (M7.6) ----------
 
-    // TESTBOOK: scelta da decidere, vedi Q-280 (TB-RWD-EDT-049, -051)
+    // Q-280 DECISA (TB-RWD-EDT-049: version obbligatoria; -051: da illimitato il residuo sottrae le richieste in corso)
     @TestFactory
     Stream<DynamicTest> stockRecalculation() {
         return TestbookRwdCsv.rows("stock-recalc.csv", row -> {
@@ -231,6 +231,9 @@ class TestbookRwdCatalogIT extends TestbookRwdBase {
             assertThat(r.status()).as("→ " + r.body()).isEqualTo(row.integer("expHttp"));
             if ("STALE".equals(mode)) {
                 assertThat(r.code()).isEqualTo("VERSION_CONFLICT");
+            }
+            if ("NOVERSION".equals(mode)) {
+                assertThat(r.code()).isEqualTo("VERSION_REQUIRED");
             }
             JsonNode after = rewardById(id);
             assertThat(after.path("stockTotal").asInt()).as("stockTotal").isEqualTo(row.integer("expTotal"));
@@ -277,7 +280,7 @@ class TestbookRwdCatalogIT extends TestbookRwdBase {
         return null;
     }
 
-    // TESTBOOK: scelta da decidere, vedi Q-281 (TB-RWD-BND-012)
+    // Q-281 DECISA (TB-RWD-BND-012: soglia di fascia ≥ 1)
     @TestFactory
     Stream<DynamicTest> bands() {
         return TestbookRwdCsv.rows("bands.csv", row -> {
@@ -358,10 +361,10 @@ class TestbookRwdCatalogIT extends TestbookRwdBase {
     @TestFactory
     Stream<DynamicTest> scenarios() {
         return Stream.of(
-                // TESTBOOK: scelta da decidere, vedi Q-280 (TB-RWD-EDT-053, ripristino dello stock sotto un totale ridotto)
+                // Q-280 DECISA (TB-RWD-EDT-053): il ripristino non supera totale − richieste che tengono stock
                 scenario("TB-RWD-EDT-053", "ripristino dello stock dopo una riduzione del totale", this::restoreAfterReduction),
                 scenario("TB-RWD-EDT-060", "duplica di un DRAFT", this::duplicateDraft),
-                // TESTBOOK: scelta da decidere, vedi Q-281 (TB-RWD-EDT-061, collisione del codice della copia)
+                // Q-281 DECISA (TB-RWD-EDT-061: seconda copia -COPY2)
                 scenario("TB-RWD-EDT-061", "seconda duplica", this::duplicateTwice),
                 scenario("TB-RWD-EDT-062", "duplica di un LIVE con prenotazioni", this::duplicateLive),
                 scenario("TB-RWD-EDT-063", "duplica con ruolo CARE", this::duplicateAsCare),
@@ -399,7 +402,8 @@ class TestbookRwdCatalogIT extends TestbookRwdBase {
     void auditUpdate() {
         CLOCK.set(T0);
         JsonNode rw = reward("DRAFT", Map.of("stockTotal", 10));
-        call("PUT", "/v1/rewards/" + rw.path("id").asString(), "MARKETING:luca.marketing", Map.of("stockTotal", 12));
+        call("PUT", "/v1/rewards/" + rw.path("id").asString(), "MARKETING:luca.marketing",
+                Map.of("stockTotal", 12, "version", rw.path("version").asLong()));
         List<JsonNode> a = audits("REWARD", rw.path("code").asString());
         JsonNode update = a.get(a.size() - 1);
         assertThat(update.path("data").path("action").asString()).isEqualTo("UPDATE");
@@ -458,7 +462,8 @@ class TestbookRwdCatalogIT extends TestbookRwdBase {
         JsonNode first = held.get(0).body();
         awaitProcessed(publishFact("io.loyaltyhub.fact.wallet.spend.rejected", memberId, first.path("correlationId").asString(),
                 Map.of("redemptionId", first.path("redemptionId").asString(), "reason", "INSUFFICIENT_BALANCE")));
-        assertThat(stock(id)).isEqualTo(1);
+        // 2 richieste ancora in corso su un totale di 2: nessuna unità da riaprire.
+        assertThat(stock(id)).isZero();
     }
 
     void duplicateDraft() {

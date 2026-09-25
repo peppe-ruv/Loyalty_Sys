@@ -17,6 +17,8 @@ import io.loyaltyhub.wallet.domain.TierHistory;
 import io.loyaltyhub.wallet.infra.EditionRepository;
 import io.loyaltyhub.wallet.infra.MemberTierRepository;
 import io.loyaltyhub.wallet.infra.TierHistoryRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +43,7 @@ import java.util.Map;
 @Service
 public class EditionCloseBatchService {
 
+    private static final Logger log = LoggerFactory.getLogger(EditionCloseBatchService.class);
     static final int PAGE_SIZE = 200;
 
     private final EditionRepository editions;
@@ -67,7 +70,9 @@ public class EditionCloseBatchService {
         this.clock = clock;
     }
 
-    public record BatchResult(int retained, int downgraded, List<EditionService.ClosePreviewMember> previewMembers) {}
+    /** {@code unknownTier} (Q-149 DECISA): membri con un livello assente dalla scala, lasciati invariati. */
+    public record BatchResult(int retained, int downgraded, int unknownTier,
+                              List<EditionService.ClosePreviewMember> previewMembers) {}
 
     /** Anteprima: calcola gli esiti senza scrivere né bloccare. */
     @Transactional(readOnly = true)
@@ -81,7 +86,7 @@ public class EditionCloseBatchService {
     public BatchResult apply(String code, List<Tier> scale) {
         Edition closing = requireActive(editions.lockByCode(code), code);
         BatchResult result = processAll(scale, code, true);
-        finalizeClose(closing, result.retained(), result.downgraded());
+        finalizeClose(closing, result);
         return result;
     }
 
@@ -99,6 +104,7 @@ public class EditionCloseBatchService {
     private BatchResult processAll(List<Tier> scale, String code, boolean apply) {
         int retained = 0;
         int downgraded = 0;
+        int unknownTier = 0;
         List<EditionService.ClosePreviewMember> members = new ArrayList<>();
         String after = null;
         while (true) {
@@ -109,16 +115,18 @@ public class EditionCloseBatchService {
             BatchResult r = processBatch(page, scale, code, !apply);
             retained += r.retained();
             downgraded += r.downgraded();
+            unknownTier += r.unknownTier();
             members.addAll(r.previewMembers());
             after = page.getLast().memberId();
         }
-        return new BatchResult(retained, downgraded, members);
+        return new BatchResult(retained, downgraded, unknownTier, members);
     }
 
     /** Calcola (e, se non {@code dryRun}, applica) la discesa morbida per una pagina; gira nella transazione del chiamante. */
     BatchResult processBatch(List<MemberTier> batch, List<Tier> scale, String editionCode, boolean dryRun) {
         int retained = 0;
         int downgraded = 0;
+        int unknownTier = 0;
         List<EditionService.ClosePreviewMember> membersPreview = new ArrayList<>();
 
         for (MemberTier mt : batch) {
@@ -126,6 +134,16 @@ public class EditionCloseBatchService {
 
             membersPreview.add(new EditionService.ClosePreviewMember(mt.memberId(), mt.tierCode(), mt.periodSts(), next.earnedTier(), next.newTier(), next.outcome()));
 
+            if (next.outcome() == EditionCloseRule.Outcome.UNKNOWN_TIER) {
+                // Q-149 DECISA: livello assente dalla scala → membro invariato (livello, STS di periodo, storico,
+                // nessun fatto) e segnalato nel riepilogo della chiusura.
+                unknownTier++;
+                if (!dryRun) {
+                    log.warn("Chiusura {}: membro {} con livello {} assente dalla scala, lasciato invariato",
+                            editionCode, mt.memberId(), mt.tierCode());
+                }
+                continue;
+            }
             if (next.outcome() == EditionCloseRule.Outcome.RETAINED) {
                 retained++;
             } else {
@@ -155,7 +173,7 @@ public class EditionCloseBatchService {
                 }
             }
         }
-        return new BatchResult(retained, downgraded, membersPreview);
+        return new BatchResult(retained, downgraded, unknownTier, membersPreview);
     }
 
     /**
@@ -171,7 +189,7 @@ public class EditionCloseBatchService {
                 .min(Comparator.comparing(Edition::startDate));
     }
 
-    private void finalizeClose(Edition closing, int totalRetained, int totalDowngraded) {
+    private void finalizeClose(Edition closing, BatchResult result) {
         String code = closing.code();
         editions.updateStatus(code, Edition.CLOSED);
 
@@ -183,11 +201,15 @@ public class EditionCloseBatchService {
 
         ObjectNode data = mapper.createObjectNode();
         data.put("editionCode", code);
-        data.put("retained", totalRetained);
-        data.put("downgraded", totalDowngraded);
+        data.put("retained", result.retained());
+        data.put("downgraded", result.downgraded());
         outbox.write(events.newRoot(LhEventTypes.Fact.EDITION_CLOSED, "edition:" + code, data));
 
-        audit.record("edition", code, AuditEntry.Action.TRANSITION, "Chiusa edizione " + code,
-                Map.of("status", Edition.ACTIVE), Map.of("status", Edition.CLOSED));
+        audit.record("edition", code, AuditEntry.Action.TRANSITION, "Chiusa edizione " + code
+                        + (result.unknownTier() > 0 ? " (" + result.unknownTier() + " membri con livello sconosciuto lasciati invariati)" : ""),
+                Map.of("status", Edition.ACTIVE),
+                result.unknownTier() > 0
+                        ? Map.of("status", Edition.CLOSED, "unknownTier", result.unknownTier())
+                        : Map.of("status", Edition.CLOSED));
     }
 }

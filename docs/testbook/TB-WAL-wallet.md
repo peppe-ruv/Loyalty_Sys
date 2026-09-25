@@ -139,6 +139,7 @@ Percorsi relativi a `services/wallet-service/src/main/java/io/loyaltyhub/wallet/
 | B-68 | `EditionService.java:88` modifica di edizione assente → 404 | docs/06 §2 | EDN-015 |
 | B-69 | `EditionService.java:109` inizio dopo la fine → 422 | R-24 | EDN-006 |
 | B-70 | `EditionService.java:114` sovrapposizione → 422 | R-24 | EDN-002…004, 014 |
+| B-70b | `EditionService.java` buco tra edizioni → 422 `EDITION_NOT_CONTIGUOUS` | R-24 (Q-151) | EDN-007 |
 | B-71 | `application/TierAdminService.java:63` livello assente → 404 | docs/06 §2 | TAD-014 |
 | B-72 | `TierAdminService.java:66` `BASE` con soglia ≠ 0 → 422 | R-20 | TAD-010/011 |
 | B-73 | `TierAdminService.java:70` moltiplicatore ≤ 0 → 422 | senza specifica | TAD-015 |
@@ -167,7 +168,7 @@ Percorsi relativi a `services/wallet-service/src/main/java/io/loyaltyhub/wallet/
 | B-96 | `MemberLifecycleHandler.java:36` `member.registered` → 2 wallet + `BASE` | R-31 | MBR-001/002 |
 | B-97 | `MemberLifecycleHandler.java:38-41` `member.status.changed` (senza `newStatus` → `ACTIVE`) | R-31; default senza specifica | MBR-003 |
 
-**Regole senza codice** (o implementate in modo diverso): `keepWarning` (R-26) · filtri `type`/`from`/`to` del libro mastro (R-27) · azione e attore esposti dal libro mastro (R-02/R-27) · `pending` ed `expiresAt` nell'attività del portale (R-28) · campo `threshold` della scala del portale (R-28) · audit dei job (R-32) · un solo `EXPIRE` per membro/valuta (R-16) · nuovo lotto di rimborso (R-15, sostituito da Q-54) · «la successiva» edizione `ACTIVE` (R-23) · «periodi contigui» (R-24, non imposto: EDN-007) · «solo i membri ACTIVE accumulano» (docs/03 §2) non applicato dal wallet (GRT-049…051).
+**Regole senza codice** (o implementate in modo diverso): `keepWarning` (R-26) · filtri `type`/`from`/`to` del libro mastro (R-27) · azione e attore esposti dal libro mastro (R-02/R-27) · `pending` ed `expiresAt` nell'attività del portale (R-28) · campo `threshold` della scala del portale (R-28) · audit dei job (R-32) · un solo `EXPIRE` per membro/valuta (R-16) · nuovo lotto di rimborso (R-15, sostituito da Q-54) · «la successiva» edizione `ACTIVE` (R-23). «Periodi contigui» (R-24) è imposto da Q-151 (EDN-007); «solo i membri ACTIVE accumulano» (docs/03 §2) è applicato dal wallet per `BLOCKED`/`ANONYMIZED` da Q-140 (GRT-049…051).
 
 ## 3. Accredito (`points.grant`)
 
@@ -238,9 +239,9 @@ Atteso comune alle righe con accredito: un movimento `EARN` con importo atteso, 
 | TB-WAL-GRT-046 | STS · pendingDays 7 · tierMultiplierApplies false · SILVER · ACTIVE | EARN 130 (STS mai moltiplicati); lotto PENDING, availableAt = time + 7 g, saldo in attesa; nessuna scadenza; fatto `wallet.points.earned` coerente | docs/03 §4.2 · F-WAL-03/05 · F-TIER-03 | `TestbookWalAccrualIT.grants` |
 | TB-WAL-GRT-047 | STS · pendingDays 7 · tierMultiplierApplies false · GOLD · ACTIVE | EARN 130 (STS mai moltiplicati); lotto PENDING, availableAt = time + 7 g, saldo in attesa; nessuna scadenza; fatto `wallet.points.earned` coerente | docs/03 §4.2 · F-WAL-03/05 · F-TIER-03 | `TestbookWalAccrualIT.grants` |
 | TB-WAL-GRT-048 | STS · pendingDays 7 · tierMultiplierApplies false · PLATINUM · ACTIVE | EARN 130 (STS mai moltiplicati); lotto PENDING, availableAt = time + 7 g, saldo in attesa; nessuna scadenza; fatto `wallet.points.earned` coerente | docs/03 §4.2 · F-WAL-03/05 · F-TIER-03 | `TestbookWalAccrualIT.grants` |
-| TB-WAL-GRT-049 | PTS · 0 · sì · SILVER · membro `BLOCKED` | Q-140 — accreditato 162 come per `ACTIVE` (il wallet non filtra per stato; il filtro è del motore, docs/03 §3.5) | docs/03 §2, §3.5 | `TestbookWalAccrualIT.grants` |
-| TB-WAL-GRT-050 | PTS · 0 · sì · SILVER · membro `INACTIVE` | Q-140 — accreditato 162 | docs/03 §2, §3.5 | `TestbookWalAccrualIT.grants` |
-| TB-WAL-GRT-051 | PTS · 0 · sì · SILVER · membro `ANONYMIZED` | Q-140 — accreditato 162 | docs/03 §2, §3.5 | `TestbookWalAccrualIT.grants` |
+| TB-WAL-GRT-049 | PTS · 0 · sì · SILVER · membro `BLOCKED` | Q-140 DECISA — scartato: nessun movimento, lotto né fatto; voce di audit con l'`effectId` | docs/03 §2, §3.5 | `TestbookWalAccrualIT.grants` |
+| TB-WAL-GRT-050 | PTS · 0 · sì · SILVER · membro `INACTIVE` | Q-140 DECISA — accreditato 162 (effetto deciso prima del cambio di stato) | docs/03 §2, §3.5 | `TestbookWalAccrualIT.grants` |
+| TB-WAL-GRT-051 | PTS · 0 · sì · SILVER · membro `ANONYMIZED` | Q-140 DECISA — scartato: nessun movimento, lotto né fatto; voce di audit con l'`effectId` | docs/03 §2, §3.5 | `TestbookWalAccrualIT.grants` |
 | TB-WAL-GRT-052 | PTS · sì · SILVER · importo 1 | EARN 1 = floor(1,25) | docs/03 §4.2 | `TestbookWalAccrualIT.grants` |
 | TB-WAL-GRT-053 | PTS · sì · SILVER · importo 3 | EARN 3 = floor(3,75) | docs/03 §4.2 | `TestbookWalAccrualIT.grants` |
 | TB-WAL-GRT-054 | PTS · sì · SILVER · importo 4 | EARN 5 (prodotto esatto) | docs/03 §4.2 | `TestbookWalAccrualIT.grants` |
@@ -561,7 +562,7 @@ Atteso comune alle righe con accredito: un movimento `EARN` con importo atteso, 
 | TB-WAL-ADJ-039 | addebito 1 su saldo 0 | 422 `INSUFFICIENT_BALANCE` | docs/03 §4.2 | `TestbookWalSpendIT.adjustments` |
 | TB-WAL-ADJ-040 | accredito 1 su saldo 0 | 200; saldo 1 | wallet §3 | `TestbookWalSpendIT.adjustments` |
 | TB-WAL-ADJ-041 | accredito 1 000 000 000 (ADMIN) | 200; saldo 1 000 000 000 | wallet §3 | `TestbookWalSpendIT.adjustments` |
-| TB-WAL-ADJ-042 | membro senza wallet · accredito 100 | Q-147 — 200, wallet creato con 100 | — | `TestbookWalSpendIT.adjustments` |
+| TB-WAL-ADJ-042 | membro senza wallet · accredito 100 | Q-147 DECISA — 404 `NOT_FOUND`, nessun wallet creato | — | `TestbookWalSpendIT.adjustments` |
 | TB-WAL-ADJ-043 | lotti 300 (31/10/26) e 700 (31/12/26) · addebito 400 | Q-148 — consumo per scadenza: 300 a 0, 700 a 600 | docs/03 §4.2 | `TestbookWalSpendIT.debitConsumesByExpiry` |
 
 ## 13. Chiusura dell'edizione — regola (logica pura)
@@ -609,7 +610,7 @@ Atteso comune alle righe con accredito: un movimento `EARN` con importo atteso, 
 | TB-WAL-CLR-030 | PLATINUM · 6 999 | GOLD · GOLD · DOWNGRADED | docs/03 §4.3 | `TestbookWalCloseRuleTest` |
 | TB-WAL-CLR-031 | PLATINUM · 7 000 | PLATINUM · PLATINUM · RETAINED | docs/03 §4.3 | `TestbookWalCloseRuleTest` |
 | TB-WAL-CLR-032 | PLATINUM · 100 000 | PLATINUM · PLATINUM · RETAINED | docs/03 §4.3 | `TestbookWalCloseRuleTest` |
-| TB-WAL-CLR-033 | livello `BRONZE` sconosciuto · 0 | Q-149 — trattato come il primo della scala: BASE · BASE · RETAINED | — | `TestbookWalCloseRuleTest` |
+| TB-WAL-CLR-033 | livello `BRONZE` sconosciuto · 0 | Q-149 DECISA — membro invariato e segnalato: BASE · BRONZE · UNKNOWN_TIER | — | `TestbookWalCloseRuleTest` |
 
 ## 14. Chiusura dell'edizione — anteprima e applicazione
 
@@ -675,7 +676,7 @@ Stato del ciclo di vita dell'edizione × azione:
 | TB-WAL-EDN-004 | POST fine 01/01/2025 (primo giorno di ED-2025) | 422 | docs/03 §4.4 | `TestbookWalAdminIT.editionCrud` |
 | TB-WAL-EDN-005 | POST ED-2024 01/01–31/12/2024 (contigua prima di ED-2025) | 200, `PLANNED` | docs/03 §4.4 | `TestbookWalAdminIT.editionCrud` |
 | TB-WAL-EDN-006 | POST inizio 01/02/2031 dopo la fine 01/01/2031 | 422 | docs/03 §4.4 | `TestbookWalAdminIT.editionCrud` |
-| TB-WAL-EDN-007 | POST ED-2031 di un giorno, non contigua | Q-151 — 200 (il buco tra edizioni è accettato) | docs/03 §4.4 · Q-47 | `TestbookWalAdminIT.editionCrud` |
+| TB-WAL-EDN-007 | POST ED-2031 di un giorno, non contigua | Q-151 DECISA — 422 `EDITION_NOT_CONTIGUOUS` | docs/03 §4.4 · Q-47 | `TestbookWalAdminIT.editionCrud` |
 | TB-WAL-EDN-008 | POST senza nome | 422 | docs/03 §4.4 | `TestbookWalAdminIT.editionCrud` |
 | TB-WAL-EDN-009 | POST senza data d'inizio | 422 | docs/03 §4.4 | `TestbookWalAdminIT.editionCrud` |
 | TB-WAL-EDN-010 | POST codice ED-2026 già esistente, date libere | Q-152 — 409 | — | `TestbookWalAdminIT.editionCrud` |
@@ -835,22 +836,22 @@ Stato del ciclo di vita dell'edizione × azione:
 
 ## 19. Ambiguità (scelte registrate in `docs/15`)
 
-La specifica tace: ogni gruppo ha una voce in `docs/15` (Q-140…Q-156) e la riga asserisce il comportamento attuale finché la voce non è decisa. «Conservativo: no» = la voce propone un comportamento diverso, non ancora implementato.
+La specifica tace: ogni gruppo ha una voce in `docs/15` (Q-140…Q-156) e la riga asserisce il comportamento attuale finché la voce non è decisa. «DECISA» = la scelta conservativa è stata decisa e implementata (commento `// Q-nnn DECISA` nel test).
 
 | Riga | Voce | Questione | Comportamento attuale asserito | Conservativo |
 |---|---|---|---|---|
-| GRT-049…051 | Q-140 | docs/03 §2 «solo i membri ACTIVE accumulano», ma il controllo è del motore (§3.5): un `points.grant` già deciso per un membro non più `ACTIVE` va applicato? | accreditato | no (proposta: niente accredito a `BLOCKED`/`ANONYMIZED`) |
+| GRT-049…051 | Q-140 DECISA | docs/03 §2 «solo i membri ACTIVE accumulano», ma il controllo è del motore (§3.5): un `points.grant` già deciso per un membro non più `ACTIVE` va applicato? | scartato per `BLOCKED`/`ANONYMIZED` (log + audit), accreditato per `INACTIVE` | sì |
 | GRT-061, GRT-065 | Q-141 | effetto fuori contratto (senza `effectId`, subject non di membro) | ignorato senza errore né DLQ | sì |
-| POL-013, POL-023, POL-024 | Q-142 | policy senza `months`, valuta senza policy, tipo sconosciuto | 12 mesi; non scade; non scade | sì |
+| POL-013, POL-023, POL-024 | Q-142 DECISA | policy senza `months`, valuta senza policy, tipo sconosciuto | 12 mesi; non scade; non scade | sì |
 | TUP-016, TUP-017 | Q-143 | gli STS in attesa contano nel `periodSts` (e fanno salire) all'accredito o al rilascio? | al rilascio | sì |
 | SPD-018 | Q-144 | membro non `ACTIVE` e saldo insufficiente: quale motivo? | `MEMBER_NOT_ACTIVE` | sì |
 | SPD-021…023 | Q-145 | richiesta incompleta; membro senza wallet | ignorata; rifiuto con `available` 0 | sì |
 | ADJ-031, ADJ-032 | Q-146 | la nota ≥ 10 caratteri conta gli spazi? | conta il testo senza spazi ai bordi | sì |
-| ADJ-042 | Q-147 | rettifica su un membro senza wallet | wallet creato | no (proposta: 404) |
+| ADJ-042 | Q-147 DECISA | rettifica su un membro senza wallet | 404, nessun wallet creato | sì |
 | ADJ-043 | Q-148 | ordine di consumo di un addebito manuale | FIFO come la spesa | sì |
-| CLR-033 | Q-149 | livello attuale sconosciuto in chiusura | trattato come il primo della scala | no (proposta: membro invariato e segnalato) |
+| CLR-033 | Q-149 DECISA | livello attuale sconosciuto in chiusura | membro invariato, esito `UNKNOWN_TIER`, contato in `summary.unknownTier` | sì |
 | ECL-006 | Q-150 | ruolo per l'anteprima di chiusura | qualsiasi ruolo | sì (sola lettura) |
-| EDN-007 | Q-151 | «periodi contigui»: un buco tra edizioni va rifiutato? | accettato | no (proposta: 422 `EDITION_NOT_CONTIGUOUS`) |
+| EDN-007 | Q-151 DECISA | «periodi contigui»: un buco tra edizioni va rifiutato? | 422 `EDITION_NOT_CONTIGUOUS` | sì |
 | EDN-010 | Q-152 | codice di edizione già esistente | 409 | sì |
 | CUR-006, 007, 009 | Q-153 | limiti di `months` | 1…60 | sì |
 | TAD-015 | Q-154 | moltiplicatore 0 | 422 | sì |
