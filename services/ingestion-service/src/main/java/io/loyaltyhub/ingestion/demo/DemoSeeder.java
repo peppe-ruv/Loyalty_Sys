@@ -120,6 +120,9 @@ public class DemoSeeder implements ApplicationRunner, DemoResettable {
     }
 
     private void seedMembers() {
+        // Il reset riporta l'indice esattamente al seed (docs/10 §1.3): anche i membri registrati dopo il seed spariscono,
+        // altrimenti ingestion continuerebbe ad abbinare eventi a membri che negli altri servizi non esistono più.
+        members.deleteAll();
         for (JsonNode m : seed.readTree("members.json")) {
             members.upsert(
                     m.path("id").asString(),

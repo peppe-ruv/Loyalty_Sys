@@ -41,7 +41,7 @@ Il testbook è eseguibile per intero con un comando e produce un rapporto riga p
 | Governance e membri | [§8](#8-tb-gov--governance-e-membri) | tutti · member | docs/03 §3.6 · docs/06 §7 · docs/08 §2 · F-APR-*, F-MBR-*, F-SEG-* | **eseguibile** — 978 righe |
 | Engagement | [§9](#9-tb-eng--engagement) | engagement | docs/servizi/engagement-service.md · F-CNT-*, F-MSG-*, F-WBH-01 | **eseguibile** — 804 righe |
 | Interfaccia | [§10](#10-tb-web--interfaccia) | web | docs/07 · docs/08 · docs/09 | **eseguibile** — 741 righe |
-| Percorsi end-to-end | [§10bis](#10bis-tb-e2e--percorsi-end-to-end) | hub (tutti) | docs/17 E10 e percorsi tra servizi · docs/10 §8 | in preparazione |
+| Percorsi end-to-end | [§10bis](#10bis-tb-e2e--percorsi-end-to-end) | hub (tutti) | docs/17 E10 e percorsi tra servizi · docs/10 §8 | **eseguibile** — 114 righe |
 | Osservabilità e audit | [§10ter](#10ter-tb-ins--osservabilità-e-audit) | insight | docs/servizi/insight-service.md · F-INS-*, F-AUD-01 | in preparazione |
 | Piattaforma | [§10quater](#10quater-tb-plt--piattaforma) | lh-common, hub | docs/04 · docs/05 · docs/06 · contracts/ | in preparazione |
 
@@ -153,7 +153,17 @@ Documento completo: [`docs/testbook/TB-WEB-interfaccia.md`](testbook/TB-WEB-inte
 - **Verifica a mutazione:** 26 mutazioni, tutte rilevate.
 
 ## 10bis. TB-E2E — Percorsi end-to-end
-_Da scrivere: una riga per percorso reale (docs/17 E10, E11), con la catena di eventi attesa nello stesso tracciato e lo stato finale in ogni servizio; varianti con servizio addormentato a metà saga, riconsegna, reset tra esecuzioni, mezzanotte e cambio dell'ora a Roma, due azioni ravvicinate dello stesso membro._
+Documento completo: [`docs/testbook/TB-E2E-percorsi.md`](testbook/TB-E2E-percorsi.md) — 35 regole, 38 punti di decisione
+(10 nell'hub, 28 passaggi tra servizi), **114 righe**. Test: `deploy/hub/src/test/java/io/loyaltyhub/hub/TestbookE2e*IT`
+(percorsi, riscatti, affidabilità, persone di docs/10, tempo di business), dati in `deploy/hub/src/test/resources/testbook/e2e/`.
+
+- **Oracolo di catena:** per ogni riga il numero esatto di eventi per tipo nella stessa correlazione (da `event_store`), un
+  solo albero nel tracciato, `lhhop` crescente sulle azioni del ponte, e lo stato finale in ogni servizio toccato.
+- **Varianti:** servizio addormentato a metà saga, riconsegna dell'intera catena, reset tra esecuzioni, mezzanotte e
+  cambio dell'ora a Roma, azioni ravvicinate dello stesso membro, gestore che fallisce e poi riesce.
+- **Divergenza trovata e corretta:** il reset della demo lasciava in `ingestion.member_index` i membri registrati dopo il
+  seed (docs/10 §1.3): ora l'indice torna esattamente al seed.
+- **Verifica a mutazione:** 5 mutazioni, tutte rilevate.
 
 ## 10ter. TB-INS — Osservabilità e audit
 _Da scrivere: DLQ riprocessa/scarta, regole di stato dei tracciati, ripresa SSE con `Last-Event-ID`, KPI senza doppi conteggi, conservazione, audit (F-AUD-01)._
