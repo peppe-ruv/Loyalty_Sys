@@ -3,7 +3,7 @@
 Dominio **wallet** del testbook funzionale (`docs/16`): valute `PTS`/`STS`, libro mastro, lotti e scadenze, punti in attesa, spesa FIFO e rimborso, job (scadenze, preavvisi, rilascio), livelli (salita immediata, chiusura di edizione con discesa morbida), edizioni, valute, rettifiche manuali, viste e passività. Servizio: `services/wallet-service`.
 
 - **Oracolo**: `docs/03 §2, §3.1, §3.4, §4` · `docs/servizi/wallet-service.md` · `docs/02` (`F-WAL-*`, `F-TIER-*`, `F-DEMO-06`) · `docs/05` + `contracts/events/` · `docs/06 §2–3` · `docs/08` (BO-03, BO-07, BO-08, BO-30) · `docs/09` (PT-01, PT-07, PT-08) · `seed/tiers.json`, `currencies.json`, `editions.json` (letti a runtime) · scelte registrate in `docs/15` (Q-45, Q-46, Q-47, Q-54, Q-127). Mai «quello che il codice fa oggi».
-- **AMBIGUO**: la specifica tace e `docs/15` non registra una scelta → la riga asserisce il comportamento attuale (commento `// TESTBOOK: ambiguo, vedi <ID>` nel test) ed è elencata in §19.
+- **Scelta registrata (`Q-Wn`)**: la specifica tace → la scelta è registrata in `docs/15` (voci `Q-W1…Q-W17`), la riga asserisce il comportamento attuale (commento `// TESTBOOK: ambiguo, vedi <ID>` nel test) ed è elencata in §19.
 - **Divergenza**: il test asserisce la specifica e fallisce; registro in §20.
 
 ## 0. Esecuzione
@@ -238,9 +238,9 @@ Atteso comune alle righe con accredito: un movimento `EARN` con importo atteso, 
 | TB-WAL-GRT-046 | STS · pendingDays 7 · tierMultiplierApplies false · SILVER · ACTIVE | EARN 130 (STS mai moltiplicati); lotto PENDING, availableAt = time + 7 g, saldo in attesa; nessuna scadenza; fatto `wallet.points.earned` coerente | docs/03 §4.2 · F-WAL-03/05 · F-TIER-03 | `TestbookWalAccrualIT.grants` |
 | TB-WAL-GRT-047 | STS · pendingDays 7 · tierMultiplierApplies false · GOLD · ACTIVE | EARN 130 (STS mai moltiplicati); lotto PENDING, availableAt = time + 7 g, saldo in attesa; nessuna scadenza; fatto `wallet.points.earned` coerente | docs/03 §4.2 · F-WAL-03/05 · F-TIER-03 | `TestbookWalAccrualIT.grants` |
 | TB-WAL-GRT-048 | STS · pendingDays 7 · tierMultiplierApplies false · PLATINUM · ACTIVE | EARN 130 (STS mai moltiplicati); lotto PENDING, availableAt = time + 7 g, saldo in attesa; nessuna scadenza; fatto `wallet.points.earned` coerente | docs/03 §4.2 · F-WAL-03/05 · F-TIER-03 | `TestbookWalAccrualIT.grants` |
-| TB-WAL-GRT-049 | PTS · 0 · sì · SILVER · membro `BLOCKED` | AMBIGUO — accreditato 162 come per `ACTIVE` (il wallet non filtra per stato; il filtro è del motore, docs/03 §3.5) | docs/03 §2, §3.5 | `TestbookWalAccrualIT.grants` |
-| TB-WAL-GRT-050 | PTS · 0 · sì · SILVER · membro `INACTIVE` | AMBIGUO — accreditato 162 | docs/03 §2, §3.5 | `TestbookWalAccrualIT.grants` |
-| TB-WAL-GRT-051 | PTS · 0 · sì · SILVER · membro `ANONYMIZED` | AMBIGUO — accreditato 162 | docs/03 §2, §3.5 | `TestbookWalAccrualIT.grants` |
+| TB-WAL-GRT-049 | PTS · 0 · sì · SILVER · membro `BLOCKED` | Q-W1 — accreditato 162 come per `ACTIVE` (il wallet non filtra per stato; il filtro è del motore, docs/03 §3.5) | docs/03 §2, §3.5 | `TestbookWalAccrualIT.grants` |
+| TB-WAL-GRT-050 | PTS · 0 · sì · SILVER · membro `INACTIVE` | Q-W1 — accreditato 162 | docs/03 §2, §3.5 | `TestbookWalAccrualIT.grants` |
+| TB-WAL-GRT-051 | PTS · 0 · sì · SILVER · membro `ANONYMIZED` | Q-W1 — accreditato 162 | docs/03 §2, §3.5 | `TestbookWalAccrualIT.grants` |
 | TB-WAL-GRT-052 | PTS · sì · SILVER · importo 1 | EARN 1 = floor(1,25) | docs/03 §4.2 | `TestbookWalAccrualIT.grants` |
 | TB-WAL-GRT-053 | PTS · sì · SILVER · importo 3 | EARN 3 = floor(3,75) | docs/03 §4.2 | `TestbookWalAccrualIT.grants` |
 | TB-WAL-GRT-054 | PTS · sì · SILVER · importo 4 | EARN 5 (prodotto esatto) | docs/03 §4.2 | `TestbookWalAccrualIT.grants` |
@@ -250,11 +250,11 @@ Atteso comune alle righe con accredito: un movimento `EARN` con importo atteso, 
 | TB-WAL-GRT-058 | PTS · sì · PLATINUM · importo 1 000 000 000 | EARN 2 000 000 000 | docs/03 §4.2 | `TestbookWalAccrualIT.grants` |
 | TB-WAL-GRT-059 | stesso `effectId` applicato due volte | un solo `EARN`, un lotto, un fatto; saldo accreditato una volta | wallet §5, §7 | `TestbookWalAccrualIT.grantIdempotent` |
 | TB-WAL-GRT-060 | membro senza wallet né livello | wallet `PTS` creato con 100, livello `BASE`, `periodSts` 0 | wallet §5 | `TestbookWalAccrualIT.grantCreatesWalletOnTheFly` |
-| TB-WAL-GRT-061 | effetto senza `effectId` | AMBIGUO — ignorato: nessun movimento, saldo 0 | contracts `effect.points.grant` | `TestbookWalAccrualIT.grantWithoutEffectIdIgnored` |
+| TB-WAL-GRT-061 | effetto senza `effectId` | Q-W2 — ignorato: nessun movimento, saldo 0 | contracts `effect.points.grant` | `TestbookWalAccrualIT.grantWithoutEffectIdIgnored` |
 | TB-WAL-GRT-062 | `time` dell'effetto 10/12/2025 09:00 con «oggi» 24/09/2026 | `earned_at` e `occurredAt` = 10/12/2025; scadenza ultimo istante 31/12/2026; `time` del fatto = data di business | docs/03 §3.1 · docs/05 §2 | `TestbookWalAccrualIT.grantUsesBusinessTime` |
 | TB-WAL-GRT-063 | SILVER, `baseAmount` 65, `campaignMultiplier` 2,0, `amount` 130, moltiplicatore sì | EARN 162; metadata `{baseAmount 65, tierCode SILVER, tierMultiplier 1,25, campaignMultiplier 2,0}` | docs/03 §4.2 | `TestbookWalAccrualIT.grantMetadataWithCampaignMultiplier` |
 | TB-WAL-GRT-064 | lotto PTS guadagnato a T0, letto da `GET /v1/wallets/{id}/lots` | `expiresAt` = ultimo istante del 30/09/2027 (Roma) | docs/03 §4.1 · wallet §5 | `TestbookWalAccrualIT.persistedLotExpiryIsLastInstantOfMonth` |
-| TB-WAL-GRT-065 | effetto con `subject` `campaign:…` | AMBIGUO — ignorato, nessun movimento | docs/05 §1 | `TestbookWalAccrualIT.grantWithoutMemberSubjectIgnored` |
+| TB-WAL-GRT-065 | effetto con `subject` `campaign:…` | Q-W2 — ignorato, nessun movimento | docs/05 §1 | `TestbookWalAccrualIT.grantWithoutMemberSubjectIgnored` |
 
 ## 4. Calcolo della scadenza (logica pura)
 
@@ -283,7 +283,7 @@ Atteso comune alle righe con accredito: un movimento `EARN` con importo atteso, 
 | TB-WAL-POL-010 | ROLLING 1 · 31/01/2028 | 29/02/2028 | wallet §5 | `TestbookWalPolicyTest` |
 | TB-WAL-POL-011 | ROLLING 12 · 31/12/2026 23:59:59 Roma | 31/12/2027 | wallet §5 | `TestbookWalPolicyTest` |
 | TB-WAL-POL-012 | ROLLING 12 · 01/01/2027 00:00 Roma | 31/01/2028 | wallet §5 | `TestbookWalPolicyTest` |
-| TB-WAL-POL-013 | ROLLING senza `months` · 05/05/2026 | AMBIGUO — 12 mesi: 31/05/2027 | — | `TestbookWalPolicyTest` |
+| TB-WAL-POL-013 | ROLLING senza `months` · 05/05/2026 | Q-W3 — 12 mesi: 31/05/2027 | — | `TestbookWalPolicyTest` |
 | TB-WAL-POL-014 | policy `PTS` del seed · 24/09/2026 | 30/09/2027 (BO-08: «guadagnati oggi → scadono il 30 set 2027») | seed · BO-08 | `TestbookWalPolicyTest` |
 | TB-WAL-POL-015 | END_OF_EDITION_PLUS_GRACE · 15/06/2026 | fine di `redemptionGraceUntil` di ED-2026: 31/01/2027 | docs/03 §4.1 | `TestbookWalPolicyTest` |
 | TB-WAL-POL-016 | END_OF_EDITION_PLUS_GRACE · 31/12/2026 23:59:59 Roma | ED-2026 → 31/01/2027 | docs/03 §4.1 | `TestbookWalPolicyTest` |
@@ -293,8 +293,8 @@ Atteso comune alle righe con accredito: un movimento `EARN` con importo atteso, 
 | TB-WAL-POL-020 | END_OF_EDITION_PLUS_GRACE senza `graceDays`, edizioni senza grace | `endDate` = 31/12/2026 | Q-47 | `TestbookWalPolicyTest` |
 | TB-WAL-POL-021 | `NEVER` | non scade | docs/03 §4.1 | `TestbookWalPolicyTest` |
 | TB-WAL-POL-022 | policy `STS` del seed (`EDITION`) | non scade | docs/03 §4.1 | `TestbookWalPolicyTest` |
-| TB-WAL-POL-023 | valuta senza policy | AMBIGUO — non scade | — | `TestbookWalPolicyTest` |
-| TB-WAL-POL-024 | tipo sconosciuto `WEEKLY` | AMBIGUO — non scade | — | `TestbookWalPolicyTest` |
+| TB-WAL-POL-023 | valuta senza policy | Q-W3 — non scade | — | `TestbookWalPolicyTest` |
+| TB-WAL-POL-024 | tipo sconosciuto `WEEKLY` | Q-W3 — non scade | — | `TestbookWalPolicyTest` |
 
 ## 5. Job di scadenza
 
@@ -356,7 +356,7 @@ Atteso comune alle righe con accredito: un movimento `EARN` con importo atteso, 
 | TB-WAL-JOB-011 | preavvisi · `CARE` | 403 | docs/06 §3 | `TestbookWalAccrualIT.jobRoles` |
 | TB-WAL-JOB-012 | scadenze senza `asOf`; lotti in scadenza 1 s prima e 1 s dopo «adesso» | scade solo il primo; saldo 40 | F-DEMO-06 | `TestbookWalAccrualIT.jobWithoutAsOfUsesNow` |
 | TB-WAL-JOB-013 | esecuzione di un job | una voce di audit con `action = JOB` | wallet §4 · docs/05 §6 | `TestbookWalAccrualIT.jobIsAudited` |
-| TB-WAL-JOB-014 | `asOf=2026-10-31` (data pura); lotto che scade il 31/10 23:59:59 | AMBIGUO — fine giornata a Roma: il lotto scade | — | `TestbookWalAccrualIT.jobAsOfDateOnly` |
+| TB-WAL-JOB-014 | `asOf=2026-10-31` (data pura); lotto che scade il 31/10 23:59:59 | Q-W17 — fine giornata a Roma: il lotto scade | — | `TestbookWalAccrualIT.jobAsOfDateOnly` |
 
 ## 7. Preavvisi di scadenza
 
@@ -432,8 +432,8 @@ Atteso comune alle righe con accredito: un movimento `EARN` con importo atteso, 
 | TB-WAL-TUP-013 | GOLD con `periodSts` 0 → 1 000 | resta GOLD (nessuna discesa né salita fuori chiusura) | docs/03 §4.3 | `TestbookWalAccrualIT.tierUpgrade` |
 | TB-WAL-TUP-014 | BASE, 999 + 1 STS | SILVER | docs/03 §4.3 | `TestbookWalAccrualIT.tierUpgrade` |
 | TB-WAL-TUP-015 | BASE, 999 STS + 100 000 PTS | resta BASE, `periodSts` 999 | docs/03 §4.3 (solo accrediti `STS`) | `TestbookWalAccrualIT.tierUpgrade` |
-| TB-WAL-TUP-016 | BASE · 1 000 STS con `pendingDays` 3 | AMBIGUO — nessuna salita finché `PENDING`, `periodSts` 0 | docs/03 §4.3 | `TestbookWalAccrualIT.pendingStsDoesNotUpgrade` |
-| TB-WAL-TUP-017 | idem, poi rilascio | AMBIGUO — al rilascio `periodSts` 1 000 e salita a SILVER | docs/03 §4.3 | `TestbookWalAccrualIT.releasedStsUpgrades` |
+| TB-WAL-TUP-016 | BASE · 1 000 STS con `pendingDays` 3 | Q-W4 — nessuna salita finché `PENDING`, `periodSts` 0 | docs/03 §4.3 | `TestbookWalAccrualIT.pendingStsDoesNotUpgrade` |
+| TB-WAL-TUP-017 | idem, poi rilascio | Q-W4 — al rilascio `periodSts` 1 000 e salita a SILVER | docs/03 §4.3 | `TestbookWalAccrualIT.releasedStsUpgrades` |
 | TB-WAL-TUP-018 | BASE → 3 000 STS (sale a GOLD), poi 130 PTS con moltiplicatore | 195 = floor(130 × 1,50) | docs/03 §4.2–4.3 · F-TIER-03 | `TestbookWalAccrualIT.pointsAfterUpgradeUseNewMultiplier` |
 | TB-WAL-TUP-019 | salita BASE → SILVER, `GET /v1/members/{id}/tier-history` | una voce `UPGRADE` da BASE a SILVER | F-TIER-06 | `TestbookWalAccrualIT.tierHistoryShowsUpgrade` |
 
@@ -469,12 +469,12 @@ Atteso comune alle righe con accredito: un movimento `EARN` con importo atteso, 
 | TB-WAL-SPD-015 | membro `BLOCKED`, 500 disponibili · 100 | rifiuto `MEMBER_NOT_ACTIVE`, `available` 500 | docs/03 §2 · EVT-FACT-22 | `TestbookWalSpendIT.spend` |
 | TB-WAL-SPD-016 | membro `INACTIVE` · 100 | rifiuto `MEMBER_NOT_ACTIVE` | docs/03 §2 | `TestbookWalSpendIT.spend` |
 | TB-WAL-SPD-017 | membro `ANONYMIZED` · 100 | rifiuto `MEMBER_NOT_ACTIVE` | docs/03 §2 | `TestbookWalSpendIT.spend` |
-| TB-WAL-SPD-018 | membro `BLOCKED` e saldo insufficiente · 900 | AMBIGUO — prevale `MEMBER_NOT_ACTIVE` | EVT-FACT-22 | `TestbookWalSpendIT.spend` |
+| TB-WAL-SPD-018 | membro `BLOCKED` e saldo insufficiente · 900 | Q-W5 — prevale `MEMBER_NOT_ACTIVE` | EVT-FACT-22 | `TestbookWalSpendIT.spend` |
 | TB-WAL-SPD-019 | solo 5 000 `STS`, 0 `PTS` · 100 | rifiuto `INSUFFICIENT_BALANCE`, `available` 0 | wallet §5 · F-WAL-01 | `TestbookWalSpendIT.spend` |
 | TB-WAL-SPD-020 | stessa `redemptionId` elaborata due volte | un solo `SPEND`, un solo fatto, saldo 300 | wallet §5 | `TestbookWalSpendIT.spendIdempotent` |
-| TB-WAL-SPD-021 | richiesta senza `redemptionId` | AMBIGUO — ignorata: nessun movimento né fatto | contracts `reward.redemption.requested` | `TestbookWalSpendIT.spendWithoutRedemptionIdIgnored` |
-| TB-WAL-SPD-022 | `pointsCost` 0 | AMBIGUO — ignorata | contracts | `TestbookWalSpendIT.spendZeroCostIgnored` |
-| TB-WAL-SPD-023 | membro senza wallet · 100 | AMBIGUO — rifiuto `INSUFFICIENT_BALANCE`, `available` 0 | — | `TestbookWalSpendIT.spendWithoutWallet` |
+| TB-WAL-SPD-021 | richiesta senza `redemptionId` | Q-W6 — ignorata: nessun movimento né fatto | contracts `reward.redemption.requested` | `TestbookWalSpendIT.spendWithoutRedemptionIdIgnored` |
+| TB-WAL-SPD-022 | `pointsCost` 0 | Q-W6 — ignorata | contracts | `TestbookWalSpendIT.spendZeroCostIgnored` |
+| TB-WAL-SPD-023 | membro senza wallet · 100 | Q-W6 — rifiuto `INSUFFICIENT_BALANCE`, `available` 0 | — | `TestbookWalSpendIT.spendWithoutWallet` |
 | TB-WAL-SPD-024 | Y 600 (guad. 01/12/25, scad. 31/12/26) e X 400 (guad. 01/03/26, scad. 31/10/26) · 500 | X 400, Y 100 (vince la scadenza sull'anzianità) | docs/03 §4.2 | `TestbookWalSpendIT.spend` |
 
 ## 11. Rimborso
@@ -550,8 +550,8 @@ Atteso comune alle righe con accredito: un movimento `EARN` con importo atteso, 
 | TB-WAL-ADJ-028 | nota assente | 422 `NOTE_TOO_SHORT` | wallet §3 · BO-03 | `TestbookWalSpendIT.adjustments` |
 | TB-WAL-ADJ-029 | nota vuota | 422 `NOTE_TOO_SHORT` | wallet §3 | `TestbookWalSpendIT.adjustments` |
 | TB-WAL-ADJ-030 | nota di 9 caratteri | 422 `NOTE_TOO_SHORT` | wallet §3 | `TestbookWalSpendIT.adjustments` |
-| TB-WAL-ADJ-031 | nota di 12 spazi | AMBIGUO — 422 `NOTE_TOO_SHORT` | wallet §3 | `TestbookWalSpendIT.adjustments` |
-| TB-WAL-ADJ-032 | 9 caratteri preceduti e seguiti da 5 spazi | AMBIGUO — 422 (conta il testo senza spazi) | wallet §3 | `TestbookWalSpendIT.adjustments` |
+| TB-WAL-ADJ-031 | nota di 12 spazi | Q-W7 — 422 `NOTE_TOO_SHORT` | wallet §3 | `TestbookWalSpendIT.adjustments` |
+| TB-WAL-ADJ-032 | 9 caratteri preceduti e seguiti da 5 spazi | Q-W7 — 422 (conta il testo senza spazi) | wallet §3 | `TestbookWalSpendIT.adjustments` |
 | TB-WAL-ADJ-033 | membro `ANONYMIZED` · CREDIT | 409 `MEMBER_ANONYMIZED` | Q-127 | `TestbookWalSpendIT.adjustments` |
 | TB-WAL-ADJ-034 | membro `ANONYMIZED` · DEBIT (ADMIN) | 409 `MEMBER_ANONYMIZED` | Q-127 | `TestbookWalSpendIT.adjustments` |
 | TB-WAL-ADJ-035 | addebito 1 001 su saldo 1 000 | 422 `INSUFFICIENT_BALANCE` | docs/03 §4.2 · wallet §3 | `TestbookWalSpendIT.adjustments` |
@@ -561,8 +561,8 @@ Atteso comune alle righe con accredito: un movimento `EARN` con importo atteso, 
 | TB-WAL-ADJ-039 | addebito 1 su saldo 0 | 422 `INSUFFICIENT_BALANCE` | docs/03 §4.2 | `TestbookWalSpendIT.adjustments` |
 | TB-WAL-ADJ-040 | accredito 1 su saldo 0 | 200; saldo 1 | wallet §3 | `TestbookWalSpendIT.adjustments` |
 | TB-WAL-ADJ-041 | accredito 1 000 000 000 (ADMIN) | 200; saldo 1 000 000 000 | wallet §3 | `TestbookWalSpendIT.adjustments` |
-| TB-WAL-ADJ-042 | membro senza wallet · accredito 100 | AMBIGUO — 200, wallet creato con 100 | — | `TestbookWalSpendIT.adjustments` |
-| TB-WAL-ADJ-043 | lotti 300 (31/10/26) e 700 (31/12/26) · addebito 400 | AMBIGUO — consumo per scadenza: 300 a 0, 700 a 600 | docs/03 §4.2 | `TestbookWalSpendIT.debitConsumesByExpiry` |
+| TB-WAL-ADJ-042 | membro senza wallet · accredito 100 | Q-W8 — 200, wallet creato con 100 | — | `TestbookWalSpendIT.adjustments` |
+| TB-WAL-ADJ-043 | lotti 300 (31/10/26) e 700 (31/12/26) · addebito 400 | Q-W9 — consumo per scadenza: 300 a 0, 700 a 600 | docs/03 §4.2 | `TestbookWalSpendIT.debitConsumesByExpiry` |
 
 ## 13. Chiusura dell'edizione — regola (logica pura)
 
@@ -609,7 +609,7 @@ Atteso comune alle righe con accredito: un movimento `EARN` con importo atteso, 
 | TB-WAL-CLR-030 | PLATINUM · 6 999 | GOLD · GOLD · DOWNGRADED | docs/03 §4.3 | `TestbookWalCloseRuleTest` |
 | TB-WAL-CLR-031 | PLATINUM · 7 000 | PLATINUM · PLATINUM · RETAINED | docs/03 §4.3 | `TestbookWalCloseRuleTest` |
 | TB-WAL-CLR-032 | PLATINUM · 100 000 | PLATINUM · PLATINUM · RETAINED | docs/03 §4.3 | `TestbookWalCloseRuleTest` |
-| TB-WAL-CLR-033 | livello `BRONZE` sconosciuto · 0 | AMBIGUO — trattato come il primo della scala: BASE · BASE · RETAINED | — | `TestbookWalCloseRuleTest` |
+| TB-WAL-CLR-033 | livello `BRONZE` sconosciuto · 0 | Q-W10 — trattato come il primo della scala: BASE · BASE · RETAINED | — | `TestbookWalCloseRuleTest` |
 
 ## 14. Chiusura dell'edizione — anteprima e applicazione
 
@@ -633,7 +633,7 @@ Stato del ciclo di vita dell'edizione × azione:
 | TB-WAL-ECL-003 | anteprima | `summary.retained`/`downgraded` = conteggi degli esiti in `members[]` | wallet §3 | `TestbookWalAdminIT.previewSummary` |
 | TB-WAL-ECL-004 | anteprima con un membro GOLD `BLOCKED` | il membro non compare | docs/03 §4.3 | `TestbookWalAdminIT.previewExcludesInactive` |
 | TB-WAL-ECL-005 | anteprima | nessuna scrittura: livelli e STS invariati, ED-2026 `ACTIVE`, nessun `tier.*` né `edition.closed` | F-TIER-05 | `TestbookWalAdminIT.previewWritesNothing` |
-| TB-WAL-ECL-006 | anteprima con ruolo ANALYST | AMBIGUO — 200 (solo l'applicazione è riservata) | wallet §3 | `TestbookWalAdminIT.previewAnalyst` |
+| TB-WAL-ECL-006 | anteprima con ruolo ANALYST | Q-W11 — 200 (solo l'applicazione è riservata) | wallet §3 | `TestbookWalAdminIT.previewAnalyst` |
 | TB-WAL-ECL-007 | applicazione con CARE | 403 `FORBIDDEN_ROLE`; ED-2026 resta `ACTIVE` | wallet §3 · BO-08 | `TestbookWalAdminIT.applyForbidden` |
 | TB-WAL-ECL-008 | applicazione con MARKETING | 403 | wallet §3 | `TestbookWalAdminIT.applyForbidden` |
 | TB-WAL-ECL-009 | applicazione con LEGAL | 403 | wallet §3 | `TestbookWalAdminIT.applyForbidden` |
@@ -675,10 +675,10 @@ Stato del ciclo di vita dell'edizione × azione:
 | TB-WAL-EDN-004 | POST fine 01/01/2025 (primo giorno di ED-2025) | 422 | docs/03 §4.4 | `TestbookWalAdminIT.editionCrud` |
 | TB-WAL-EDN-005 | POST ED-2024 01/01–31/12/2024 (contigua prima di ED-2025) | 200, `PLANNED` | docs/03 §4.4 | `TestbookWalAdminIT.editionCrud` |
 | TB-WAL-EDN-006 | POST inizio 01/02/2031 dopo la fine 01/01/2031 | 422 | docs/03 §4.4 | `TestbookWalAdminIT.editionCrud` |
-| TB-WAL-EDN-007 | POST ED-2031 di un giorno, non contigua | AMBIGUO — 200 (il buco tra edizioni è accettato) | docs/03 §4.4 · Q-47 | `TestbookWalAdminIT.editionCrud` |
+| TB-WAL-EDN-007 | POST ED-2031 di un giorno, non contigua | Q-W12 — 200 (il buco tra edizioni è accettato) | docs/03 §4.4 · Q-47 | `TestbookWalAdminIT.editionCrud` |
 | TB-WAL-EDN-008 | POST senza nome | 422 | docs/03 §4.4 | `TestbookWalAdminIT.editionCrud` |
 | TB-WAL-EDN-009 | POST senza data d'inizio | 422 | docs/03 §4.4 | `TestbookWalAdminIT.editionCrud` |
-| TB-WAL-EDN-010 | POST codice ED-2026 già esistente, date libere | AMBIGUO — 409 | — | `TestbookWalAdminIT.editionCrud` |
+| TB-WAL-EDN-010 | POST codice ED-2026 già esistente, date libere | Q-W13 — 409 | — | `TestbookWalAdminIT.editionCrud` |
 | TB-WAL-EDN-011 | POST con MARKETING | 403 | docs/08 §2 | `TestbookWalAdminIT.editionCrud` |
 | TB-WAL-EDN-012 | POST senza `X-LH-Actor` | 403 | docs/06 §3 | `TestbookWalAdminIT.editionCrud` |
 | TB-WAL-EDN-013 | PUT ED-2028 con nuova grace, stesse date | 200 | wallet §3 | `TestbookWalAdminIT.editionCrud` |
@@ -707,10 +707,10 @@ Stato del ciclo di vita dell'edizione × azione:
 | TB-WAL-CUR-003 | PTS → `END_OF_EDITION_PLUS_GRACE` | 200; nuovo lotto scade a fine 31/01/2027 (`redemptionGraceUntil` di ED-2026) | docs/03 §4.1 | `TestbookWalAdminIT.currencyPolicy` |
 | TB-WAL-CUR-004 | PTS → `NEVER` | 200; nuovo lotto senza scadenza | docs/03 §4.1 | `TestbookWalAdminIT.currencyPolicy` |
 | TB-WAL-CUR-005 | tipo `WEEKLY` | 422 | docs/03 §4.1 | `TestbookWalAdminIT.currencyPolicy` |
-| TB-WAL-CUR-006 | `ROLLING_MONTHS 0` | AMBIGUO — 422 | — | `TestbookWalAdminIT.currencyPolicy` |
-| TB-WAL-CUR-007 | `ROLLING_MONTHS 61` | AMBIGUO — 422 (massimo 60) | — | `TestbookWalAdminIT.currencyPolicy` |
+| TB-WAL-CUR-006 | `ROLLING_MONTHS 0` | Q-W14 — 422 | — | `TestbookWalAdminIT.currencyPolicy` |
+| TB-WAL-CUR-007 | `ROLLING_MONTHS 61` | Q-W14 — 422 (massimo 60) | — | `TestbookWalAdminIT.currencyPolicy` |
 | TB-WAL-CUR-008 | `ROLLING_MONTHS 1` | 200; nuovo lotto scade il 31/10/2026 | wallet §5 | `TestbookWalAdminIT.currencyPolicy` |
-| TB-WAL-CUR-009 | `ROLLING_MONTHS 60` | AMBIGUO — 200; scade il 30/09/2031 | wallet §5 | `TestbookWalAdminIT.currencyPolicy` |
+| TB-WAL-CUR-009 | `ROLLING_MONTHS 60` | Q-W14 — 200; scade il 30/09/2031 | wallet §5 | `TestbookWalAdminIT.currencyPolicy` |
 | TB-WAL-CUR-010 | ruolo MARKETING | 403 | docs/08 §2 | `TestbookWalAdminIT.currencyPolicy` |
 | TB-WAL-CUR-011 | senza `X-LH-Actor` | 403 | docs/06 §3 | `TestbookWalAdminIT.currencyPolicy` |
 | TB-WAL-CUR-012 | valuta `XYZ` | 404 | docs/06 §2 | `TestbookWalAdminIT.currencyPolicy` |
@@ -747,7 +747,7 @@ Stato del ciclo di vita dell'edizione × azione:
 | TB-WAL-TAD-012 | ruolo MARKETING | 403 `FORBIDDEN_ROLE` | BO-07 · docs/08 §2 | `TestbookWalAdminIT.tierAdmin` |
 | TB-WAL-TAD-013 | senza `X-LH-Actor` | 403 `FORBIDDEN_ROLE` | docs/06 §3 | `TestbookWalAdminIT.tierAdmin` |
 | TB-WAL-TAD-014 | livello `BRONZE` | 404 | docs/06 §2 | `TestbookWalAdminIT.tierAdmin` |
-| TB-WAL-TAD-015 | moltiplicatore SILVER 0 | AMBIGUO — 422 | F-TIER-01 | `TestbookWalAdminIT.tierAdmin` |
+| TB-WAL-TAD-015 | moltiplicatore SILVER 0 | Q-W15 — 422 | F-TIER-01 | `TestbookWalAdminIT.tierAdmin` |
 | TB-WAL-TAD-016 | moltiplicatore SILVER 1,75 | 200 | F-TIER-01 | `TestbookWalAdminIT.tierAdmin` |
 | TB-WAL-TAD-017 | moltiplicatore SILVER 1,75, poi 130 PTS con moltiplicatore a un SILVER | 227 = floor(130 × 1,75) | F-TIER-01 · F-TIER-03 | `TestbookWalAdminIT.newMultiplierAppliesToNextGrant` |
 | TB-WAL-TAD-018 | modifica di SILVER | audit `UPDATE` su `tier:SILVER` | wallet §4 | `TestbookWalAdminIT.tierChangeAudited` |
@@ -775,7 +775,7 @@ Stato del ciclo di vita dell'edizione × azione:
 | TB-WAL-WVW-004 | PLATINUM, 7 100 STS | nessun `next` (livello massimo), moltiplicatore 2,00 | docs/03 §4.3 | `TestbookWalAccrualIT.walletViewNextTier` |
 | TB-WAL-WVW-005 | lotto 250 PTS che scade fra 30 giorni esatti | `expiringSoon {amount 250, within30d true, nextExpiryAt}` | wallet §3 | `TestbookWalAccrualIT.expiringSoonIncludesThirtyDays` |
 | TB-WAL-WVW-006 | lotto che scade fra 30 giorni + 1 s | `amount` 0, `within30d` false | wallet §3 | `TestbookWalAccrualIT.expiringSoonExcludesBeyondThirtyDays` |
-| TB-WAL-WVW-007 | lotto scaduto un'ora fa, non spazzato | AMBIGUO — escluso (`amount` 0) | wallet §3 | `TestbookWalAccrualIT.expiringSoonExcludesAlreadyDue` |
+| TB-WAL-WVW-007 | lotto scaduto un'ora fa, non spazzato | Q-W16 — escluso (`amount` 0) | wallet §3 | `TestbookWalAccrualIT.expiringSoonExcludesAlreadyDue` |
 | TB-WAL-WVW-008 | lotti 200 (+5 g), 300 (+20 g), 900 (+200 g) PTS e 400 STS | `amount` 500, `nextExpiryAt` = +5 g | wallet §3 | `TestbookWalAccrualIT.expiringSoonSumsAndEarliest` |
 | TB-WAL-WVW-009 | 30/09 23:59:59, GOLD con 2 500 STS | nessun `keepWarning` | wallet §5 | `TestbookWalAccrualIT.keepWarning` |
 | TB-WAL-WVW-010 | 01/10 00:00, GOLD con 2 500 STS | `keepWarning {tier GOLD, missing 500}` | wallet §5 · PT-01 | `TestbookWalAccrualIT.keepWarning` |
@@ -833,33 +833,35 @@ Stato del ciclo di vita dell'edizione × azione:
 | TB-WAL-MBR-002 | `member.registered` ripetuto dopo un accredito STS di 1 000 | due wallet; saldo STS 1 000 e livello SILVER invariati | wallet §4 | `TestbookWalAccrualIT.memberRegisteredIdempotent` |
 | TB-WAL-MBR-003 | `member.status.changed` → `BLOCKED`, poi richiesta premio | stato `BLOCKED`; spesa rifiutata `MEMBER_NOT_ACTIVE`, saldo invariato | wallet §4 · docs/03 §2 | `TestbookWalAccrualIT.memberStatusChanged` |
 
-## 19. Ambiguità (righe AMBIGUO)
+## 19. Ambiguità (scelte registrate in `docs/15`)
 
-Nessuna di queste è registrata in `docs/15`: la riga asserisce il comportamento attuale. Da decidere con una voce in `docs/15`.
+La specifica tace: ogni gruppo ha una voce `Q-Wn` in `docs/15` (numerazione provvisoria) e la riga asserisce il comportamento attuale finché la voce non è decisa. «Conservativo: no» = la voce propone un comportamento diverso, non ancora implementato.
 
-| Riga | Questione | Comportamento attuale asserito |
-|---|---|---|
-| GRT-049…051 | docs/03 §2 «solo i membri ACTIVE accumulano», ma il controllo è del motore (§3.5): un `points.grant` già deciso per un membro non più `ACTIVE` va applicato? | accreditato |
-| GRT-061, GRT-065 | effetto fuori contratto (senza `effectId`, subject non di membro) | ignorato senza errore né DLQ |
-| POL-013, POL-023, POL-024 | policy senza `months`, valuta senza policy, tipo sconosciuto | 12 mesi; non scade; non scade |
-| TUP-016, TUP-017 | gli STS in attesa contano nel `periodSts` (e fanno salire) all'accredito o al rilascio? | al rilascio |
-| SPD-018 | membro non `ACTIVE` e saldo insufficiente: quale motivo? | `MEMBER_NOT_ACTIVE` |
-| SPD-021…023 | richiesta incompleta; membro senza wallet | ignorata; rifiuto con `available` 0 |
-| ADJ-031, ADJ-032 | la nota ≥ 10 caratteri conta gli spazi? | conta il testo senza spazi ai bordi |
-| ADJ-042 | rettifica su un membro senza wallet | wallet creato |
-| ADJ-043 | ordine di consumo di un addebito manuale | FIFO come la spesa |
-| CLR-033 | livello attuale sconosciuto in chiusura | trattato come il primo della scala |
-| ECL-006 | ruolo per l'anteprima di chiusura | qualsiasi ruolo |
-| EDN-007 | «periodi contigui»: un buco tra edizioni va rifiutato? | accettato |
-| EDN-010 | codice di edizione già esistente | 409 |
-| CUR-006, 007, 009 | limiti di `months` | 1…60 |
-| TAD-015 | moltiplicatore 0 | 422 |
-| WVW-007 | un lotto scaduto non ancora spazzato è «in scadenza»? | no |
-| JOB-014 | `asOf` come data pura | fine di quel giorno a Roma |
+| Riga | Voce | Questione | Comportamento attuale asserito | Conservativo |
+|---|---|---|---|---|
+| GRT-049…051 | Q-W1 | docs/03 §2 «solo i membri ACTIVE accumulano», ma il controllo è del motore (§3.5): un `points.grant` già deciso per un membro non più `ACTIVE` va applicato? | accreditato | no (proposta: niente accredito a `BLOCKED`/`ANONYMIZED`) |
+| GRT-061, GRT-065 | Q-W2 | effetto fuori contratto (senza `effectId`, subject non di membro) | ignorato senza errore né DLQ | sì |
+| POL-013, POL-023, POL-024 | Q-W3 | policy senza `months`, valuta senza policy, tipo sconosciuto | 12 mesi; non scade; non scade | sì |
+| TUP-016, TUP-017 | Q-W4 | gli STS in attesa contano nel `periodSts` (e fanno salire) all'accredito o al rilascio? | al rilascio | sì |
+| SPD-018 | Q-W5 | membro non `ACTIVE` e saldo insufficiente: quale motivo? | `MEMBER_NOT_ACTIVE` | sì |
+| SPD-021…023 | Q-W6 | richiesta incompleta; membro senza wallet | ignorata; rifiuto con `available` 0 | sì |
+| ADJ-031, ADJ-032 | Q-W7 | la nota ≥ 10 caratteri conta gli spazi? | conta il testo senza spazi ai bordi | sì |
+| ADJ-042 | Q-W8 | rettifica su un membro senza wallet | wallet creato | no (proposta: 404) |
+| ADJ-043 | Q-W9 | ordine di consumo di un addebito manuale | FIFO come la spesa | sì |
+| CLR-033 | Q-W10 | livello attuale sconosciuto in chiusura | trattato come il primo della scala | no (proposta: membro invariato e segnalato) |
+| ECL-006 | Q-W11 | ruolo per l'anteprima di chiusura | qualsiasi ruolo | sì (sola lettura) |
+| EDN-007 | Q-W12 | «periodi contigui»: un buco tra edizioni va rifiutato? | accettato | no (proposta: 422 `EDITION_NOT_CONTIGUOUS`) |
+| EDN-010 | Q-W13 | codice di edizione già esistente | 409 | sì |
+| CUR-006, 007, 009 | Q-W14 | limiti di `months` | 1…60 | sì |
+| TAD-015 | Q-W15 | moltiplicatore 0 | 422 | sì |
+| WVW-007 | Q-W16 | un lotto scaduto non ancora spazzato è «in scadenza»? | no | sì |
+| JOB-014 | Q-W17 | `asOf` come data pura | fine di quel giorno a Roma | sì |
 
 ## 20. Divergenze
 
-Le righe restano rosse finché il codice non è corretto o una decisione in `docs/15` non cambia l'oracolo. Nessun codice di produzione è stato modificato.
+Le righe restano rosse finché il codice non è corretto o una decisione in `docs/15` non cambia l'oracolo.
+
+**Stato**: corrette nel codice D-01, D-02 (`domain/ExpiryPolicy.java`: ultimo istante = 23:59:59.999999, precisione di `timestamptz`), D-04 (`application/WalletService.auditJob`: voce `JOB` a ogni esecuzione), D-05…D-07 (`keepWarning` in `api/WalletView.java` e `application/WalletQueryService.keepWarning`), D-08…D-10 (`infra/LedgerRepository.search`, `api/WalletsController.ledger`: filtri `type`, `from`, `to` e campi `actionId`, `actor`), D-11 (`api/PortalWalletsController.PortalTier`: `threshold`, con `thresholdSts` per compatibilità), D-12, D-13 (`api/PortalActivityController`: `pending` ed `expiresAt` dal lotto nato dal movimento, più `direction` e `icon`), D-18 (`application/EditionCloseBatchService.nextEdition`). Restano aperte D-03 e D-14…D-17 (in carico a una correzione separata).
 
 | # | Riga | Specifica | Osservato | Causa (file:riga) |
 |---|---|---|---|---|
@@ -879,7 +881,7 @@ Le righe restano rosse finché il codice non è corretto o una decisione in `doc
 | D-14 | TB-WAL-REF-003 | docs/03 §4.2: rimborso = nuovo lotto con scadenza max(più lontana consumata, oggi + 30 g) | nessun lotto nuovo: i punti tornano nei lotti d'origine (A 500, B 800, C 900) | `application/RedemptionPayments.java:143-149` (scelta Q-54) |
 | D-15 | TB-WAL-REF-004 | idem: scadenza almeno oggi + 30 g | punti restituiti al lotto d'origine che scade fra 10 giorni | `RedemptionPayments.java:143-149` (Q-54) |
 | D-16 | TB-WAL-REF-005 | idem: nuovo lotto di 200 con la scadenza del lotto consumato | il lotto d'origine torna a 500, nessun lotto nuovo | `RedemptionPayments.java:143-149` (Q-54) |
-| D-17 | TB-WAL-REF-006 | idem: lotto scaduto → scadenza oggi + 30 g (02/12/2026) | nuovo lotto con la policy di oggi: 30/11/2027 (01/12/2027 00:00 Roma, vedi D-01) | `RedemptionPayments.java:153-158` (Q-54) |
+| D-17 | TB-WAL-REF-006 | idem: lotto scaduto → scadenza oggi + 30 g (02/12/2026) | nuovo lotto con la policy di oggi: 30/11/2027 23:59:59.999999 Roma | `RedemptionPayments.java:153-158` (Q-54) |
 | D-18 | TB-WAL-ECL-017 | docs/03 §4.3: «edizione → CLOSED; **la successiva** → ACTIVE» | diventa `ACTIVE` ED-2024 (PLANNED con inizio minimo, precedente a ED-2026); ED-2027 resta `PLANNED` | `application/EditionCloseBatchService.java:163-166`: sceglie la `PLANNED` con `startDate` minima invece della prima dopo l'edizione chiusa |
 
 Nota su D-14…D-17: Q-54 (APERTA) registra la scelta implementata, ma la motiva con «nessuna fonte dice cosa fare» mentre docs/03 §4.2 definisce il rimborso; la decisione va presa aggiornando docs/03 oppure il codice.
@@ -890,12 +892,12 @@ Nota su D-14…D-17: Q-54 (APERTA) registra la scelta implementata, ma la motiva
 |---|---|
 | Regole inventariate | 32 (R-01…R-32) |
 | Rami del codice mappati | 97 (B-01…B-97) |
-| Rami senza specifica | 29 (B-03 trim, B-07, B-08, B-11 ordine, B-13, B-15, B-16, B-18, B-21, B-26 tempistica, B-33, B-34, B-40, B-46, B-47 default, B-49 tipo sconosciuto, B-50, B-64 anteprima, B-66, B-73, B-77, B-78, B-81, B-85, B-86 `progressPct`, B-91, B-94, B-95, B-97 default) — 17 provati da righe AMBIGUO; 12 non eseguiti (eventi o richieste fuori contratto, dati incoerenti, formula non specificata) |
+| Rami senza specifica | 29 (B-03 trim, B-07, B-08, B-11 ordine, B-13, B-15, B-16, B-18, B-21, B-26 tempistica, B-33, B-34, B-40, B-46, B-47 default, B-49 tipo sconosciuto, B-50, B-64 anteprima, B-66, B-73, B-77, B-78, B-81, B-85, B-86 `progressPct`, B-91, B-94, B-95, B-97 default) — 17 provati da righe con scelta registrata (Q-W1…Q-W17); 12 non eseguiti (eventi o richieste fuori contratto, dati incoerenti, formula non specificata) |
 | Rami non raggiungibili | 3 (B-08 via HTTP, B-29, B-30) |
 | Regole non implementate o implementate diversamente | 11 (vedi fine §2) |
 | Righe del testbook | 373 |
 | Righe per area | POL 24 · CLR 33 · GRT 65 · TUP 19 · REL 5 · WVW 17 · API 11 · MBR 3 · LIA 7 · JOB 14 · EXP 16 · WRN 9 · SPD 24 · REF 11 · ADJ 43 · CUR 14 · TAD 18 · EDN 16 · ECL 24 |
 | Tabelle decisionali complete | GRT-001…048 (48 = 2 × 3 × 2 × 4), CLR-001…032 (32 = 4 × 8) |
 | Combinazioni ridotte | rettifiche: 48 combinazioni valide → 12 righe a coppie (ADJ-001…012) + 22 classi non valide da sole + 8 limiti da soli; accredito × stato del membro: 192 → 48 + 3 stati da soli; ruoli dei job: 7 × 3 → 7 + 2 + 2; chiusura in integrazione: rappresentanti per esito (tabella completa in §13) |
-| Righe AMBIGUO | 28 (§19) |
-| Divergenze | 18 righe (D-01…D-18), 11 cause distinte |
+| Righe con scelta registrata | 28 (§19, Q-W1…Q-W17) |
+| Divergenze | 18 righe (D-01…D-18), 11 cause distinte; 13 corrette, 5 aperte (D-03, D-14…D-17) |

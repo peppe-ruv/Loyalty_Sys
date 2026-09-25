@@ -2,6 +2,7 @@ package io.loyaltyhub.wallet.application;
 
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.wallet.api.WalletView;
+import io.loyaltyhub.wallet.domain.ExpiryPolicy;
 import io.loyaltyhub.wallet.domain.MemberTier;
 import io.loyaltyhub.wallet.domain.Tier;
 import io.loyaltyhub.wallet.domain.WalletBalance;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.Month;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -83,7 +85,26 @@ public class WalletQueryService {
         }
         return new WalletView.TierView(mt.tierCode(),
                 current != null ? current.name() : mt.tierCode(), mt.since(), mt.periodSts(),
-                multiplier, nextView, progressPct);
+                multiplier, nextView, progressPct, keepWarning(current, mt.periodSts(), clock.instant()));
+    }
+
+    /** Primo mese (in {@code Europe/Rome}) in cui compare l'avviso di mantenimento (wallet-service §5: «da ottobre»). */
+    static final Month KEEP_WARNING_FROM = Month.OCTOBER;
+
+    /**
+     * {@code keepWarning} (wallet-service §5): da ottobre a fine anno (le edizioni sono annuali e chiudono il 31/12,
+     * PT-01 «entro il 31 dic»), se {@code periodSts} è sotto la soglia del livello attuale → {@code {tier, missing}}.
+     * Un livello con soglia 0 (BASE) non si perde mai: nessun avviso.
+     */
+    static WalletView.KeepWarning keepWarning(Tier current, long periodSts, Instant now) {
+        if (current == null) {
+            return null;
+        }
+        Month month = now.atZone(ExpiryPolicy.ZONE).getMonth();
+        if (month.compareTo(KEEP_WARNING_FROM) < 0 || periodSts >= current.thresholdSts()) {
+            return null;
+        }
+        return new WalletView.KeepWarning(current.code(), current.thresholdSts() - periodSts);
     }
 
     public List<Tier> tierScale() {

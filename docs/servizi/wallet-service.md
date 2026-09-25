@@ -24,7 +24,7 @@ Non decide *quanti* punti dare (lo fa il motore); applica solo il moltiplicatore
 | Metodo | Path | Note |
 |---|---|---|
 | GET | `/v1/wallets/{memberId}` | `{balances: {PTS:{active,pending,lifetimeEarned,…}, STS:{…}}, expiringSoon: {amount, within30d, nextExpiryAt}, tier: {code, name, since, periodSts, next?: {code, threshold, missing}, progressPct, multiplier, keepWarning?}}` |
-| GET | `/v1/wallets/{memberId}/ledger` | filtri `currency, type, from, to`; ordinamento `occurredAt desc` |
+| GET | `/v1/wallets/{memberId}/ledger` | filtri `currency, type, from, to` (`type` anche più valori separati da virgola; `from`/`to` istante ISO o data `yyyy-MM-dd` in Europe/Rome, estremi inclusi, sulla data di business; valore non leggibile → `400`); ordinamento `occurredAt desc`. Ogni movimento: `{id, memberId, currency, type, amount, direction, balanceAfter, occurredAt, sourceType, campaignCode, description, metadataJson, actionId, actor}` (F-WAL-02) |
 | GET | `/v1/wallets/{memberId}/lots` | lotti non esauriti, per scadenza |
 | POST | `/v1/wallets/{memberId}/adjustments` | `{currency, direction (CREDIT/DEBIT), amount, reason (GOODWILL/CORRECTION/COMPLAINT/TEST), note ≥ 10 caratteri}` — ruoli `CARE/ADMIN`; `422 INSUFFICIENT_BALANCE`, `NOTE_TOO_SHORT` |
 | GET | `/v1/members/{memberId}/tier-history` | |
@@ -37,8 +37,8 @@ Non decide *quanti* punti dare (lo fa il motore); applica solo il moltiplicatore
 
 ### Portale
 | GET | `/v1/portal/wallets/{memberId}` | come sopra, senza campi interni |
-| GET | `/v1/portal/tiers` | scala dei livelli per il portale: `{code, name, threshold, multiplier, benefits[], color}` (PT-08) |
-| GET | `/v1/portal/wallets/{memberId}/activity` | movimenti in forma leggibile: `{id, occurredAt, title, subtitle, amount, direction, currency, icon, pending, expiresAt?, breakdown?}` |
+| GET | `/v1/portal/tiers` | scala dei livelli per il portale: `{code, name, threshold, multiplier, benefits[], color}` (PT-08); per compatibilità anche `rank`, `thresholdSts` (= `threshold`), `icon` |
+| GET | `/v1/portal/wallets/{memberId}/activity` | movimenti in forma leggibile: `{id, occurredAt, title, subtitle, amount, direction, currency, icon, pending, expiresAt?, breakdown?}` — `amount` con segno, `direction` `+`/`−` come nel libro mastro, `icon` nome lucide per tipo; `pending` = il lotto nato dal movimento è ancora `PENDING`; `expiresAt` = scadenza di quel lotto (assente se il movimento non ha creato un lotto o il lotto non scade) |
 
 ### Demo (ruolo `ADMIN`)
 | POST | `/v1/demo/jobs/expire-points?asOf=` · `/release-pending?asOf=` · `/expiry-warnings?asOf=` | eseguono i job con data di riferimento |
@@ -49,7 +49,7 @@ Non decide *quanti* punti dare (lo fa il motore); applica solo il moltiplicatore
 | Consuma | `lh.effects.v1` | `points.grant` |
 | Consuma | `lh.facts.v1` | `member.registered` (crea 2 wallet + `member_tier` BASE), `member.status.changed`, `reward.redemption.requested`, `reward.redemption.cancelled` (con `refund=true`) |
 | Produce | `lh.facts.v1` | `wallet.points.*`, `wallet.spend.rejected`, `tier.upgraded/downgraded/retained`, `edition.closed` |
-| Produce | `lh.audit.v1` | rettifiche, modifiche a tier/valute/edizioni, job |
+| Produce | `lh.audit.v1` | rettifiche, modifiche a tier/valute/edizioni, job (una voce `JOB` per esecuzione, anche senza lotti toccati: `entityType` `job`, `entityId` = nome del job, `after` = `{asOf, lots, members, amount}`) |
 
 ## 5. Regole
 Tutte in `docs/03 §4`. Note implementative:
@@ -58,9 +58,9 @@ Tutte in `docs/03 §4`. Note implementative:
 - Dopo un accredito `STS` → verifica salita nello stesso commit.
 - Spesa da richiesta premio: valuta sempre `PTS`; idempotenza su `redemption_id`.
 - Job schedulati (disattivabili con `loyaltyhub.jobs.enabled`): rilascio pending ogni ora; scadenze alle 02:00; preavvisi alle 09:00 (una volta per lotto: flag su `points_lot`). In demo si lanciano da BO-30.
-- Chiusura edizione: un'unica transazione per lotti da 200 membri; emette un fatto per membro + `edition.closed`.
-- Calcolo `expires_at` per `ROLLING_MONTHS(n)`: ultimo istante del mese di `earned_at + n mesi`, in `Europe/Rome`.
-- `keepWarning`: valorizzato da ottobre se `periodSts` < soglia del tier attuale: `{tier, missing}`.
+- Chiusura edizione: un'unica transazione per lotti da 200 membri; emette un fatto per membro + `edition.closed`. «La successiva» che diventa `ACTIVE` (docs/03 §4.3) è la `PLANNED` con l'inizio più vicino dopo la fine di quella chiusa; una `PLANNED` precedente resta com'è.
+- Calcolo `expires_at` per `ROLLING_MONTHS(n)`: ultimo istante del mese di `earned_at + n mesi`, in `Europe/Rome` — 23:59:59.999999, la precisione che `timestamptz` conserva (con i nanosecondi il driver arrotonderebbe al primo istante del mese dopo).
+- `keepWarning`: valorizzato da ottobre (a dicembre, mesi in `Europe/Rome`) se `periodSts` < soglia del tier attuale: `{tier, missing}` con `missing` = soglia − `periodSts`; mai per un tier con soglia 0.
 
 ## 6. Seed
 `seed/tiers.json`, `seed/currencies.json`, `seed/editions.json` (2025 `CLOSED`, 2026 `ACTIVE`, 2027 `PLANNED`), `seed/wallets.json` (saldi, `periodSts`, lotti con date **relative a oggi**, 8–25 movimenti storici per membro). Il seeder verifica l'invariante: Σ lotti attivi = saldo.

@@ -8,6 +8,7 @@ import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.function.Function;
 
@@ -26,6 +27,13 @@ public final class ExpiryPolicy {
     public static final ZoneId ZONE = ZoneId.of("Europe/Rome");
 
     public static final String ROLLING_MONTHS = "ROLLING_MONTHS";
+
+    /**
+     * «Ultimo istante» di un giorno alla precisione che Postgres conserva ({@code timestamptz}: microsecondi):
+     * 23:59:59.999999. Con {@link LocalTime#MAX} (nanosecondi) il driver JDBC arrotonderebbe al primo istante del
+     * giorno dopo, spostando la scadenza (e il mese della passività) al mese successivo.
+     */
+    public static final LocalTime LAST_INSTANT = LocalTime.MAX.truncatedTo(ChronoUnit.MICROS);
     public static final String END_OF_EDITION_PLUS_GRACE = "END_OF_EDITION_PLUS_GRACE";
 
     private ExpiryPolicy() {
@@ -48,7 +56,7 @@ public final class ExpiryPolicy {
         if (ROLLING_MONTHS.equals(type)) {
             int months = policy.path("months").asInt(12);
             ZonedDateTime shifted = earnedAt.atZone(ZONE).plusMonths(months);
-            return YearMonth.from(shifted).atEndOfMonth().atTime(LocalTime.MAX).atZone(ZONE).toInstant();
+            return YearMonth.from(shifted).atEndOfMonth().atTime(LAST_INSTANT).atZone(ZONE).toInstant();
         }
         if (END_OF_EDITION_PLUS_GRACE.equals(type)) {
             LocalDate earnedDay = earnedAt.atZone(ZONE).toLocalDate();
@@ -61,7 +69,7 @@ public final class ExpiryPolicy {
             LocalDate lastDay = e.redemptionGraceUntil() != null
                     ? e.redemptionGraceUntil()
                     : (e.endDate() == null ? null : e.endDate().plusDays(Math.max(0, policy.path("graceDays").asInt(0))));
-            return lastDay == null ? null : lastDay.atTime(LocalTime.MAX).atZone(ZONE).toInstant();
+            return lastDay == null ? null : lastDay.atTime(LAST_INSTANT).atZone(ZONE).toInstant();
         }
         return null; // EDITION / NEVER
     }

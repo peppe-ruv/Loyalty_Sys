@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalTime;
 
 /**
  * Job demo del wallet (docs/servizi/wallet-service.md §3, BO-30 "Macchina del tempo"): scadenze, preavvisi e
@@ -63,6 +62,6 @@ public class WalletJobsController {
         if (value.contains("T")) {
             return Instant.parse(value);
         }
-        return LocalDate.parse(value).atTime(LocalTime.MAX).atZone(ExpiryPolicy.ZONE).toInstant();
+        return LocalDate.parse(value).atTime(ExpiryPolicy.LAST_INSTANT).atZone(ExpiryPolicy.ZONE).toInstant();
     }
 }

@@ -1,6 +1,8 @@
 package io.loyaltyhub.wallet.api;
 
 import io.loyaltyhub.wallet.application.WalletQueryService;
+import io.loyaltyhub.common.web.LhException;
+import io.loyaltyhub.wallet.domain.ExpiryPolicy;
 import io.loyaltyhub.wallet.domain.LedgerEntry;
 import io.loyaltyhub.wallet.domain.PointsLot;
 import io.loyaltyhub.wallet.domain.Tier;
@@ -47,12 +49,64 @@ public class WalletsController {
         return query.wallet(memberId);
     }
 
+    /**
+     * Movimento esposto (wallet-service §3, F-WAL-02): i campi del libro mastro più azione e attore, già salvati
+     * ({@code action_id}, {@code actor}) e mostrati da BO-03.
+     */
+    public record LedgerEntryView(String id, String memberId, String currency, String type, long amount,
+                                  String direction, long balanceAfter, Instant occurredAt, String sourceType,
+                                  String campaignCode, String description, String metadataJson,
+                                  String actionId, String actor) {
+        static LedgerEntryView of(LedgerRepository.LedgerLine line) {
+            LedgerEntry e = line.entry();
+            return new LedgerEntryView(e.id(), e.memberId(), e.currency(), e.type(), e.amount(), e.direction(),
+                    e.balanceAfter(), e.occurredAt(), e.sourceType(), e.campaignCode(), e.description(),
+                    e.metadataJson(), line.actionId(), line.actor());
+        }
+    }
+
+    /**
+     * Libro mastro con i filtri di wallet-service §3: {@code currency}, {@code type} (uno o più, separati da virgola),
+     * {@code from}/{@code to} sulla data di business (istante ISO o data {@code yyyy-MM-dd} in Europe/Rome, estremi
+     * inclusi); ordinamento {@code occurredAt desc}.
+     */
     @GetMapping("/wallets/{memberId}/ledger")
-    public List<LedgerEntry> ledger(
+    public List<LedgerEntryView> ledger(
             @PathVariable String memberId,
             @RequestParam(required = false) String currency,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
             @RequestParam(defaultValue = "100") int limit) {
-        return ledger.listByMember(memberId, currency, Math.min(Math.max(limit, 1), 500));
+        LedgerRepository.LedgerFilter filter = new LedgerRepository.LedgerFilter(currency, types(type),
+                bound(from, "from", false), bound(to, "to", true));
+        return ledger.search(memberId, filter, Math.min(Math.max(limit, 1), 500)).stream()
+                .map(LedgerEntryView::of).toList();
+    }
+
+    private static List<String> types(String type) {
+        if (type == null || type.isBlank()) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(type.split(",")).map(String::trim).filter(t -> !t.isEmpty()).toList();
+    }
+
+    /** Istante ISO, oppure data pura: inizio ({@code from}) o ultimo istante ({@code to}) del giorno a Roma. */
+    private static Instant bound(String value, String name, boolean endOfDay) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            if (value.contains("T")) {
+                return Instant.parse(value.trim());
+            }
+            java.time.LocalDate day = java.time.LocalDate.parse(value.trim());
+            return endOfDay
+                    ? day.atTime(ExpiryPolicy.LAST_INSTANT).atZone(ExpiryPolicy.ZONE).toInstant()
+                    : day.atStartOfDay(ExpiryPolicy.ZONE).toInstant();
+        } catch (java.time.format.DateTimeParseException e) {
+            throw LhException.badRequest("Parametro " + name + " non valido: atteso un istante ISO o una data yyyy-MM-dd.");
+        }
     }
 
     @GetMapping("/wallets/{memberId}/lots")
