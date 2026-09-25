@@ -1,0 +1,32 @@
+id|descrizione|stato|corpo del PUT (JSON)|HTTP atteso|code atteso
+TB-CMP-EDT-001|LIVE: nome|LIVE|{"name":"Nome nuovo"}|200|
+TB-CMP-EDT-002|LIVE: descrizione|LIVE|{"description":"Descrizione nuova"}|200|
+TB-CMP-EDT-003|LIVE: icona (immagine)|LIVE|{"icon":"gift"}|200|
+TB-CMP-EDT-004|LIVE: priorità|LIVE|{"priority":150}|200|
+TB-CMP-EDT-005|LIVE: solo schedule.endAt|LIVE|{"schedule":{"startAt":"2026-01-01T00:00:00Z","endAt":"2027-12-31T23:59:59Z"}}|200|
+TB-CMP-EDT-006|LIVE: testo per il membro (memberDescription)|LIVE|{"memberDescription":"Nuovo testo per il portale"}|200|
+TB-CMP-EDT-007|LIVE: trigger|LIVE|{"triggerActionTypes":["tbcmp.altro"]}|409|CAMPAIGN_LIVE_LOCKED
+TB-CMP-EDT-008|LIVE: pubblico|LIVE|{"audience":{"all":false,"tiers":["GOLD"],"segments":[]}}|409|CAMPAIGN_LIVE_LOCKED
+TB-CMP-EDT-009|LIVE: condizioni|LIVE|{"conditions":{"op":"all","rules":[{"field":"data.amount","cmp":"gte","value":5}]}}|409|CAMPAIGN_LIVE_LOCKED
+TB-CMP-EDT-010|LIVE: effetti|LIVE|{"effects":[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":999}]}|409|CAMPAIGN_LIVE_LOCKED
+TB-CMP-EDT-011|LIVE: limiti|LIVE|{"limits":{"perMember":[{"max":1,"period":"DAY"}]}}|409|CAMPAIGN_LIVE_LOCKED
+TB-CMP-EDT-012|LIVE: schedule.startAt|LIVE|{"schedule":{"startAt":"2026-02-01T00:00:00Z"}}|409|CAMPAIGN_LIVE_LOCKED
+TB-CMP-EDT-013|LIVE: schedule.daysOfWeek|LIVE|{"schedule":{"startAt":"2026-01-01T00:00:00Z","daysOfWeek":["SAT"]}}|409|CAMPAIGN_LIVE_LOCKED
+TB-CMP-EDT-014|LIVE: schedule.hours|LIVE|{"schedule":{"startAt":"2026-01-01T00:00:00Z","hours":[9,18]}}|409|CAMPAIGN_LIVE_LOCKED
+TB-CMP-EDT-015|LIVE: gruppo esclusivo|LIVE|{"exclusiveGroup":"G-NUOVO"}|409|CAMPAIGN_LIVE_LOCKED
+TB-CMP-EDT-016|LIVE: visibilità nel portale|LIVE|{"visibleInPortal":true}|409|CAMPAIGN_LIVE_LOCKED
+TB-CMP-EDT-017|LIVE: etichette|LIVE|{"labels":["PROMO"]}|409|CAMPAIGN_LIVE_LOCKED
+TB-CMP-EDT-018|LIVE: codice diverso|LIVE|{"code":"TB-CMP-ALTRO"}|409|CODE_IMMUTABLE
+TB-CMP-EDT-019|LIVE: corpo completo coi campi bloccati invariati e nome nuovo|LIVE|FULL_BODY|200|
+TB-CMP-EDT-020|LIVE: endAt uguale a startAt|LIVE|{"schedule":{"startAt":"2026-01-01T00:00:00Z","endAt":"2026-01-01T00:00:00Z"}}|422|
+TB-CMP-EDT-021|PAUSED: effetti (Q-51)|PAUSED|{"effects":[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":999}]}|409|CAMPAIGN_LIVE_LOCKED
+TB-CMP-EDT-022|PAUSED: nome (Q-51)|PAUSED|{"name":"Nome nuovo"}|200|
+TB-CMP-EDT-023|ENDED: nome (Q-51)|ENDED|{"name":"Nome nuovo"}|409|CAMPAIGN_NOT_EDITABLE
+TB-CMP-EDT-024|ARCHIVED: nome (Q-51)|ARCHIVED|{"name":"Nome nuovo"}|409|CAMPAIGN_NOT_EDITABLE
+TB-CMP-EDT-025|DRAFT: effetti|DRAFT|{"effects":[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":999}]}|200|
+TB-CMP-EDT-026|IN_REVIEW: effetti|IN_REVIEW|{"effects":[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":999}]}|200|
+TB-CMP-EDT-027|APPROVED: effetti|APPROVED|{"effects":[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":999}]}|200|
+TB-CMP-EDT-028|DRAFT: trigger|DRAFT|{"triggerActionTypes":["tbcmp.altro"]}|200|
+TB-CMP-EDT-029|DRAFT: elenco effetti vuoto|DRAFT|{"effects":[]}|422|
+TB-CMP-EDT-030|campagna inesistente|NONE|{"name":"Nome nuovo"}|404|
+TB-CMP-EDT-031|DRAFT: codice diverso (Q-51: il code non si modifica mai, prevale su BO-06; conflitto in Q-C1)|DRAFT|{"code":"TB-CMP-EDT-031-NUOVO"}|409|CODE_IMMUTABLE

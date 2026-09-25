@@ -1,0 +1,6 @@
+id|descrizione|verifica (SPEC_PTS, SPEC_ACTION, SAME, DIFF)|indice dell'effetto
+TB-CMP-EID-001|effectId del primo accredito = sha256(actionId + campaignCode + 0) a 26 caratteri|SPEC_PTS|0
+TB-CMP-EID-002|effectId del secondo accredito usa l'indice 1|SPEC_PTS|1
+TB-CMP-EID-003|effectId della giocata usa il suo indice nella campagna|SPEC_ACTION|2
+TB-CMP-EID-004|stessa azione valutata due volte: stessi effectId|SAME|0
+TB-CMP-EID-005|azioni diverse: effectId diversi|DIFF|0

@@ -58,18 +58,41 @@ public class CounterRepository implements Counters {
         return last == null ? -1 : java.time.Duration.between(last, Instant.now()).toDays();
     }
 
+    /**
+     * Punti decisi dalla campagna per il membro da sempre: la riga {@code ALWAYS} li accumula tutti ed è la maggiore
+     * delle righe del membro (le altre sono per periodo), quindi basta il massimo.
+     */
+    @Override
+    public long memberPoints(String campaignId, String memberId) {
+        return jdbc.sql("SELECT coalesce(max(points), 0) FROM campaign_counter WHERE campaign_id = ? AND member_id = ?")
+                .params(campaignId, memberId).query(Long.class).single();
+    }
+
+    @Override
+    public Instant memberLastMatchAt(String campaignId, String memberId) {
+        return jdbc.sql("SELECT max(last_match_at) FROM campaign_counter WHERE campaign_id = ? AND member_id = ?")
+                .params(campaignId, memberId)
+                .query((rs, n) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant())
+                .optional().orElse(null);
+    }
+
     // ---------- incrementi (transazionali) ----------
 
-    /** Incremento del contatore per (campagna, membro, periodo): matches +1, points += delta. */
-    public void addMemberMatch(String campaignId, String memberId, String period, String periodKey, long pointsDelta) {
+    /**
+     * Incremento del contatore per (campagna, membro, periodo): matches +1, points += delta, ultimo match =
+     * {@code at} (time di business dell'azione, per il cooldown).
+     */
+    public void addMemberMatch(String campaignId, String memberId, String period, String periodKey, long pointsDelta,
+                               Instant at) {
         jdbc.sql("""
-                        INSERT INTO campaign_counter (campaign_id, member_id, period, period_key, matches, points)
-                        VALUES (?, ?, ?, ?, 1, ?)
+                        INSERT INTO campaign_counter (campaign_id, member_id, period, period_key, matches, points, last_match_at)
+                        VALUES (?, ?, ?, ?, 1, ?, ?)
                         ON CONFLICT (campaign_id, member_id, period, period_key) DO UPDATE SET
                           matches = campaign_counter.matches + 1,
-                          points = campaign_counter.points + excluded.points
+                          points = campaign_counter.points + excluded.points,
+                          last_match_at = GREATEST(campaign_counter.last_match_at, excluded.last_match_at)
                         """)
-                .params(campaignId, memberId, period, periodKey, pointsDelta).update();
+                .params(campaignId, memberId, period, periodKey, pointsDelta, java.sql.Timestamp.from(at)).update();
     }
 
     /** Totali della campagna: match +1, punti decisi += delta, ultimo match. */

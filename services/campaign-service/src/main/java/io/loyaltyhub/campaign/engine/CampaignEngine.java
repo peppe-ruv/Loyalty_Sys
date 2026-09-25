@@ -3,8 +3,12 @@ package io.loyaltyhub.campaign.engine;
 import tools.jackson.databind.JsonNode;
 import io.loyaltyhub.campaign.domain.Campaign;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -215,6 +219,22 @@ public final class CampaignEngine {
                 }
             }
         }
+        // F-CMP-05, docs/03 §3.2: tetto punti per membro e cooldown tra due match dello stesso membro.
+        // SPEC-GAP: Q-E9 — entrambi scartano con LIMIT; il tetto è sui punti decisi dalla campagna per il membro da
+        // sempre (≥ tetto → scarta, l'ultimo accredito non si riduce, come il budget); il cooldown si misura sul time
+        // di business dell'ultimo match (un'azione con time precedente all'ultimo match è dentro il cooldown).
+        JsonNode perMemberPoints = limits.get("perMemberPoints");
+        if (perMemberPoints != null && perMemberPoints.isNumber()
+                && counters.memberPoints(c.id(), member.memberId()) >= perMemberPoints.asLong()) {
+            return Evaluation.SkipReason.LIMIT;
+        }
+        JsonNode cooldown = limits.get("cooldownMinutes");
+        if (cooldown != null && cooldown.isNumber() && cooldown.asLong() > 0) {
+            Instant last = counters.memberLastMatchAt(c.id(), member.memberId());
+            if (last != null && action.time().isBefore(last.plus(Duration.ofMinutes(cooldown.asLong())))) {
+                return Evaluation.SkipReason.LIMIT;
+            }
+        }
         JsonNode global = limits.get("global");
         if (global != null && !global.isNull()) {
             JsonNode maxPoints = global.get("maxPoints");
@@ -327,17 +347,18 @@ public final class CampaignEngine {
             if (amountNode == null || !amountNode.isNumber()) {
                 return null;
             }
-            double unitStep = effect.path("unitStep").asDouble(1);
-            if (unitStep <= 0) {
-                unitStep = 1;
+            // Aritmetica decimale esatta (docs/03 §3.4: rounding(amount / unitStep) × value): 0.3 / 0.1 = 3, non 2.999…
+            JsonNode stepNode = effect.get("unitStep");
+            BigDecimal unitStep = stepNode != null && stepNode.isNumber() ? stepNode.decimalValue() : BigDecimal.ONE;
+            if (unitStep.signum() <= 0) {
+                unitStep = BigDecimal.ONE;
             }
-            String rounding = effect.path("rounding").asString("FLOOR");
-            double units = amountNode.asDouble() / unitStep;
-            long rounded = switch (rounding) {
-                case "CEIL" -> (long) Math.ceil(units);
-                case "ROUND" -> Math.round(units);
-                default -> (long) Math.floor(units);
+            RoundingMode roundingMode = switch (effect.path("rounding").asString("FLOOR")) {
+                case "CEIL" -> RoundingMode.CEILING;
+                case "ROUND" -> RoundingMode.HALF_UP;
+                default -> RoundingMode.FLOOR;
             };
+            long rounded = amountNode.decimalValue().divide(unitStep, 0, roundingMode).longValue();
             value = rounded * effect.path("value").asLong(0);
         } else if (mode.equals("FROM_FIELD")) {
             JsonNode fieldNode = navigate(action.data(), effect.path("amountField").asString(""));
@@ -375,11 +396,22 @@ public final class CampaignEngine {
         return value;
     }
 
+    /**
+     * Ambito del {@code MULTIPLIER} (docs/03 §3.4: {@code scope: ALL_GRANTS} oppure {@code labels[]}): con {@code labels}
+     * dell'effetto non vuote moltiplica solo i {@code GRANT_POINTS} delle campagne che portano almeno una di quelle
+     * etichette; altrimenti {@code scope} (assente = {@code ALL_GRANTS}).
+     */
     private void collectMultipliers(Campaign c, List<Mult> multipliers) {
         for (JsonNode e : c.effects()) {
             if (e.path("type").asString("").equals("MULTIPLIER")) {
+                List<String> labels = new ArrayList<>();
+                JsonNode labelsNode = e.get("labels");
+                if (labelsNode != null && labelsNode.isArray()) {
+                    labelsNode.forEach(l -> labels.add(l.asString("")));
+                }
+                String scope = labels.isEmpty() ? e.path("scope").asString("ALL_GRANTS") : "LABELS";
                 multipliers.add(new Mult(c.code(), e.path("currency").asString("PTS"),
-                        e.path("factor").asDouble(1), e.path("scope").asString("ALL_GRANTS"), c.labels()));
+                        e.path("factor").asDouble(1), scope, labels));
             }
         }
     }
@@ -390,7 +422,10 @@ public final class CampaignEngine {
             if (!m.currency.equals(grant.currency) || m.campaignCode.equals(grant.campaignCode)) {
                 continue;
             }
-            if (m.scope.equals("ALL_GRANTS") || labelsIntersect(m.labels, grant.campaignLabels)) {
+            // SPEC-GAP: Q-C44 — scope diverso da ALL_GRANTS senza labels: nessuna campagna nell'ambito (non moltiplica).
+            boolean inScope = m.scope.equals("ALL_GRANTS")
+                    || (m.scope.equals("LABELS") && labelsIntersect(m.labels, grant.campaignLabels));
+            if (inScope) {
                 factor *= m.factor;
             }
         }

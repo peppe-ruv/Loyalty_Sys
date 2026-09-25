@@ -1,0 +1,12 @@
+id|descrizione|trigger della campagna|tipo dell'azione|atteso
+TB-CMP-TRG-001|tipo esatto, un solo trigger|purchase.completed|purchase.completed|MATCHED
+TB-CMP-TRG-002|tipo diverso dal trigger|purchase.completed|purchase.returned|ABSENT
+TB-CMP-TRG-003|più trigger, azione uguale al secondo|ebill.activated,directdebit.activated|directdebit.activated|MATCHED
+TB-CMP-TRG-004|più trigger, azione uguale al primo|ebill.activated,directdebit.activated|ebill.activated|MATCHED
+TB-CMP-TRG-005|più trigger, nessuno uguale|ebill.activated,directdebit.activated|selfreading.submitted|ABSENT
+TB-CMP-TRG-006|azione col prefisso del trigger|purchase.completed|purchase|ABSENT
+TB-CMP-TRG-007|azione più lunga del trigger|purchase.completed|purchase.completed.v2|ABSENT
+TB-CMP-TRG-008|maiuscole diverse|purchase.completed|Purchase.Completed|ABSENT
+TB-CMP-TRG-009|tipo custom esatto|tbcmp.eco.pledge|tbcmp.eco.pledge|MATCHED
+TB-CMP-TRG-010|trigger con carattere jolly|purchase.*|purchase.completed|ABSENT
+TB-CMP-TRG-011|elenco trigger vuoto||purchase.completed|ABSENT

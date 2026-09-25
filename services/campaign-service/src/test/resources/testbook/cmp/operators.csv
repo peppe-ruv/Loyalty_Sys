@@ -1,0 +1,81 @@
+id|descrizione|campo|cmp|valore (JSON)|data dell'azione (JSON)|foglia vera
+TB-CMP-OPS-001|eq numero uguale|data.amount|eq|50|{"amount":50}|true
+TB-CMP-OPS-002|eq intero e decimale di pari valore|data.amount|eq|50|{"amount":50.0}|true
+TB-CMP-OPS-003|eq numero diverso|data.amount|eq|50|{"amount":51}|false
+TB-CMP-OPS-004|eq testo uguale|data.channel|eq|"APP"|{"channel":"APP"}|true
+TB-CMP-OPS-005|eq testo con maiuscole diverse|data.channel|eq|"APP"|{"channel":"app"}|false
+TB-CMP-OPS-006|eq booleano uguale|data.firstOrder|eq|true|{"firstOrder":true}|true
+TB-CMP-OPS-007|eq booleano diverso|data.firstOrder|eq|true|{"firstOrder":false}|false
+TB-CMP-OPS-008|eq campo assente|data.channel|eq|"APP"|{"amount":50}|false
+TB-CMP-OPS-009|eq campo null|data.channel|eq|"APP"|{"channel":null}|false
+TB-CMP-OPS-010|eq con valore atteso null|data.channel|eq|null|{"channel":"APP"}|false
+TB-CMP-OPS-011|eq testo numerico contro numero|data.code|eq|5|{"code":"5"}|true
+TB-CMP-OPS-012|eq numero contro testo non numerico|data.amount|eq|"abc"|{"amount":5}|false
+TB-CMP-OPS-013|neq testo diverso|data.channel|neq|"WEB"|{"channel":"APP"}|true
+TB-CMP-OPS-014|neq testo uguale|data.channel|neq|"APP"|{"channel":"APP"}|false
+TB-CMP-OPS-015|neq campo assente|data.channel|neq|"APP"|{"amount":50}|false
+TB-CMP-OPS-016|neq tipi incompatibili (numero contro testo)|data.amount|neq|"abc"|{"amount":5}|false
+TB-CMP-OPS-017|gt appena sopra la soglia|data.amount|gt|50|{"amount":50.01}|true
+TB-CMP-OPS-018|gt alla soglia|data.amount|gt|50|{"amount":50}|false
+TB-CMP-OPS-019|gt appena sotto la soglia|data.amount|gt|50|{"amount":49.99}|false
+TB-CMP-OPS-020|gte alla soglia|data.amount|gte|50|{"amount":50}|true
+TB-CMP-OPS-021|gte appena sotto la soglia|data.amount|gte|50|{"amount":49.99}|false
+TB-CMP-OPS-022|gte appena sopra la soglia|data.amount|gte|50|{"amount":50.01}|true
+TB-CMP-OPS-023|lt appena sotto la soglia|data.amount|lt|50|{"amount":49.99}|true
+TB-CMP-OPS-024|lt alla soglia|data.amount|lt|50|{"amount":50}|false
+TB-CMP-OPS-025|lt appena sopra la soglia|data.amount|lt|50|{"amount":50.01}|false
+TB-CMP-OPS-026|lte alla soglia|data.amount|lte|50|{"amount":50}|true
+TB-CMP-OPS-027|lte appena sopra la soglia|data.amount|lte|50|{"amount":50.01}|false
+TB-CMP-OPS-028|lte appena sotto la soglia|data.amount|lte|50|{"amount":49.99}|true
+TB-CMP-OPS-029|gt tra negativi|data.delta|gt|-2|{"delta":-1}|true
+TB-CMP-OPS-030|gte zero su zero|data.amount|gte|0|{"amount":0}|true
+TB-CMP-OPS-031|gt su testo non numerico|data.channel|gt|5|{"channel":"abc"}|false
+TB-CMP-OPS-032|gt su testo numerico|data.code|gt|50|{"code":"60"}|true
+TB-CMP-OPS-033|gt con valore atteso testuale|data.amount|gt|"50"|{"amount":60}|false
+TB-CMP-OPS-034|gt su booleano|data.firstOrder|gt|0|{"firstOrder":true}|false
+TB-CMP-OPS-035|gt campo assente|data.amount|gt|50|{"channel":"APP"}|false
+TB-CMP-OPS-036|gt su date ISO (Q-91)|data.day|gt|"2026-09-01"|{"day":"2026-09-20"}|false
+TB-CMP-OPS-037|lt su numeri molto grandi|data.amount|lt|10000000000000000|{"amount":1000000000000000}|true
+TB-CMP-OPS-038|in testo presente|data.channel|in|["APP","WEB"]|{"channel":"APP"}|true
+TB-CMP-OPS-039|in testo assente dalla lista|data.channel|in|["APP","WEB"]|{"channel":"POS"}|false
+TB-CMP-OPS-040|in numero presente|data.qty|in|[1,2,3]|{"qty":3}|true
+TB-CMP-OPS-041|in lista vuota|data.channel|in|[]|{"channel":"APP"}|false
+TB-CMP-OPS-042|in con valore atteso non lista|data.channel|in|"APP"|{"channel":"APP"}|false
+TB-CMP-OPS-043|in campo assente|data.channel|in|["APP"]|{"amount":5}|false
+TB-CMP-OPS-044|nin testo assente dalla lista|data.channel|nin|["APP","WEB"]|{"channel":"POS"}|true
+TB-CMP-OPS-045|nin testo presente nella lista|data.channel|nin|["APP","WEB"]|{"channel":"APP"}|false
+TB-CMP-OPS-046|nin campo assente|data.channel|nin|["APP"]|{"amount":5}|false
+TB-CMP-OPS-047|nin con valore atteso non lista|data.channel|nin|"WEB"|{"channel":"APP"}|false
+TB-CMP-OPS-048|contains sottostringa presente|data.promo|contains|"ESTATE"|{"promo":"PROMO-ESTATE"}|true
+TB-CMP-OPS-049|contains sottostringa assente|data.promo|contains|"INVERNO"|{"promo":"PROMO-ESTATE"}|false
+TB-CMP-OPS-050|contains su lista con l'elemento|data.tags|contains|"B"|{"tags":["A","B"]}|true
+TB-CMP-OPS-051|contains su lista senza l'elemento|data.tags|contains|"C"|{"tags":["A","B"]}|false
+TB-CMP-OPS-052|contains su numero (tipo incompatibile)|data.amount|contains|"3"|{"amount":130}|false
+TB-CMP-OPS-053|contains campo assente|data.tags|contains|"A"|{"amount":5}|false
+TB-CMP-OPS-054|ncontains su lista senza l'elemento|data.tags|ncontains|"C"|{"tags":["A","B"]}|true
+TB-CMP-OPS-055|ncontains su lista con l'elemento|data.tags|ncontains|"A"|{"tags":["A","B"]}|false
+TB-CMP-OPS-056|ncontains campo assente|data.tags|ncontains|"A"|{"amount":5}|false
+TB-CMP-OPS-057|ncontains su numero (tipo incompatibile)|data.amount|ncontains|"x"|{"amount":130}|false
+TB-CMP-OPS-058|exists campo presente|data.channel|exists||{"channel":"APP"}|true
+TB-CMP-OPS-059|exists campo assente|data.channel|exists||{"amount":5}|false
+TB-CMP-OPS-060|exists campo null|data.channel|exists||{"channel":null}|false
+TB-CMP-OPS-061|nexists campo assente|data.channel|nexists||{"amount":5}|true
+TB-CMP-OPS-062|nexists campo presente|data.channel|nexists||{"channel":"APP"}|false
+TB-CMP-OPS-063|nexists campo null|data.channel|nexists||{"channel":null}|true
+TB-CMP-OPS-064|exists su booleano false|data.firstOrder|exists||{"firstOrder":false}|true
+TB-CMP-OPS-065|between estremo inferiore|data.amount|between|[10,20]|{"amount":10}|true
+TB-CMP-OPS-066|between estremo superiore|data.amount|between|[10,20]|{"amount":20}|true
+TB-CMP-OPS-067|between appena sotto|data.amount|between|[10,20]|{"amount":9.99}|false
+TB-CMP-OPS-068|between appena sopra|data.amount|between|[10,20]|{"amount":20.01}|false
+TB-CMP-OPS-069|between con un solo estremo|data.amount|between|[10]|{"amount":10}|false
+TB-CMP-OPS-070|between su testo non numerico|data.channel|between|[10,20]|{"channel":"APP"}|false
+TB-CMP-OPS-071|between campo assente|data.amount|between|[10,20]|{"channel":"APP"}|false
+TB-CMP-OPS-072|between con estremi invertiti|data.amount|between|[20,10]|{"amount":15}|false
+TB-CMP-OPS-073|startsWith prefisso presente|data.promo|startsWith|"PROMO"|{"promo":"PROMO-ESTATE"}|true
+TB-CMP-OPS-074|startsWith prefisso assente|data.promo|startsWith|"SALDI"|{"promo":"PROMO-ESTATE"}|false
+TB-CMP-OPS-075|startsWith maiuscole diverse|data.promo|startsWith|"PROMO"|{"promo":"promo-estate"}|false
+TB-CMP-OPS-076|startsWith su numero (tipo incompatibile)|data.amount|startsWith|"13"|{"amount":130}|false
+TB-CMP-OPS-077|startsWith campo assente|data.promo|startsWith|"PROMO"|{"amount":5}|false
+TB-CMP-OPS-078|comparatore sconosciuto|data.promo|regex|"PROMO.*"|{"promo":"PROMO-ESTATE"}|false
+TB-CMP-OPS-079|comparatore assente|data.channel||"APP"|{"channel":"APP"}|true
+TB-CMP-OPS-080|eq testo unicode|data.note|eq|"Caffè ☕ perché"|{"note":"Caffè ☕ perché"}|true
