@@ -624,7 +624,9 @@ dell'elenco. Q-137 riguarda solo l'interfaccia: l'API ammette ogni coppia tra i 
 
 ### 8.2 Guardie per ruolo degli endpoint (MRL)
 Domini: endpoint di member-service (12, raggruppati per capacità di docs/08 §2) × attore (5 ruoli + intestazione assente)
-= 72, **completa**; più due intestazioni non canoniche. Le celle «—» senza ● di ruoli diversi da ANALYST (es. MARKETING su
+= 72, **completa**; più due intestazioni non canoniche. Il cambio di stato è provato in due verse: blocco (ACTIVE → BLOCKED,
+MRL-001…006) e sblocco (BLOCKED → ACTIVE, MRL-075…080, aggiunte dalla verifica a mutazione di §15): la guardia
+`member.write` non dipende dalla transizione. Le celle «—» senza ● di ruoli diversi da ANALYST (es. MARKETING su
 `member.write`) non hanno un rifiuto imposto dal backend (docs/08 §2: la UI nasconde, il 403 è obbligatorio solo con ● e
 per ogni scrittura di ANALYST): sono AMBIGUO e asseriscono il 403 attuale. `POST /v1/members` resta aperto per la scelta
 registrata Q-157 (serve anche alla registrazione dal portale).
@@ -705,6 +707,12 @@ registrata Q-157 (serve anche alla registrazione dal portale).
 | TB-GOV-MRL-072 | `GET /v1/members/{id}` (lettura), intestazione assente | accettata (2xx) | docs/08 §2 (lettura per tutti) | `TestbookGovMemberIT#roles` |
 | TB-GOV-MRL-073 | `POST /v1/members/{id}/status`, `X-LH-Actor: ADMINISTRATOR:x` | 403 `FORBIDDEN_ROLE` — AMBIGUO (ruolo sconosciuto) | docs/06 §3 | `TestbookGovMemberIT#roles` |
 | TB-GOV-MRL-074 | `POST /v1/members/{id}/status`, `X-LH-Actor: care:paolo.care` | accettata (2xx) — AMBIGUO (ruolo in minuscolo) | docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-075 | `POST /v1/members/{id}/status` da BLOCKED ad ACTIVE (sblocco, member.write), ADMIN | accettata (2xx) | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-076 | `POST /v1/members/{id}/status` da BLOCKED ad ACTIVE (sblocco, member.write), MARKETING | 403 `FORBIDDEN_ROLE` — AMBIGUO (rifiuto non imposto senza ●) | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-077 | `POST /v1/members/{id}/status` da BLOCKED ad ACTIVE (sblocco, member.write), LEGAL | 403 `FORBIDDEN_ROLE` — AMBIGUO (rifiuto non imposto senza ●) | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-078 | `POST /v1/members/{id}/status` da BLOCKED ad ACTIVE (sblocco, member.write), CARE | accettata (2xx) | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-079 | `POST /v1/members/{id}/status` da BLOCKED ad ACTIVE (sblocco, member.write), ANALYST | 403 `FORBIDDEN_ROLE` | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
+| TB-GOV-MRL-080 | `POST /v1/members/{id}/status` da BLOCKED ad ACTIVE (sblocco, member.write), intestazione assente | 403 `FORBIDDEN_ROLE` | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
 
 ## 9. Anonimizzazione (ANO)
 Domini: conferma (uguale all'id, con spazi, minuscola, altro id, vuota, assente, nessun corpo) × stato di partenza
@@ -1391,7 +1399,7 @@ conservativa la domanda lo dice e propone l'alternativa (Q-298, Q-300, Q-303, Q-
 | MST-008, MST-016, MST-024 | Stato in minuscolo (`blocked`) | accettato | Q-301 |
 | MST-028…031 | Anonimizzato con destinazione non valida: 409 o 400? | 409 `MEMBER_ANONYMIZED` | Q-301 |
 | MST-040 | `CLOSED` come filtro dell'elenco: i contratti lo ammettono (Q-139), docs/03 §2 e F-MBR-04 no | 200 (0 membri) | Q-301 (con Q-139) |
-| MRL-002, 003, 008, 009, 021, 022, 027, 028, 033, 034, 039, 040, 045, 046 | Celle «—» senza ● per ruoli diversi da ANALYST: il backend deve rifiutare? (docs/08 §2 lo impone solo con ●) | 403 `FORBIDDEN_ROLE` | Q-302 (estende Q-176) |
+| MRL-002, 003, 008, 009, 021, 022, 027, 028, 033, 034, 039, 040, 045, 046, 076, 077 | Celle «—» senza ● per ruoli diversi da ANALYST: il backend deve rifiutare? (docs/08 §2 lo impone solo con ●) | 403 `FORBIDDEN_ROLE` | Q-302 (estende Q-176) |
 | MRL-073, MRL-074 | `X-LH-Actor` con ruolo sconosciuto o in minuscolo | ANALYST (403) / ruolo riconosciuto | Q-298 (estende Q-261) |
 | ANO-002 | Conferma con spazi ai bordi | accettata (`trim`) | Q-304 |
 | ANO-010 | Membro inesistente con conferma errata: 404 o 422? | 404 | Q-304 |
@@ -1446,19 +1454,36 @@ Nessuna divergenza nelle aree di `lh-common` a logica pura (ACT, GRD, PRS, SMR, 
 | Rami del codice mappati | 61 (B-01…B-61); non raggiungibili senza concorrenza o per le API: B-05, B-30, esaurimento dei codici di B-60, `REFERRAL_SELF` |
 | Rami senza specifica | 18 (B-02, B-03, B-04, B-10, B-13, B-25, B-26, B-28, B-33, B-36, B-37, B-38, B-50, B-51, B-54, B-59, B-60, B-61) → righe AMBIGUO |
 | Regole senza codice | 0 (lo storico delle transizioni dei contenuti, R-13 per i contenuti, c'è da D-04) |
-| Righe | 972 — ACT 14, GRD 30, PRS 16, SMR 56, SMN 10, SMF 56, ROL 60, CMT 14, OVR 22, POL 44, MST 41, MRL 74, ANO 47, ATV 70, ATD 29, ATU 14, CRT 118, CRV 27, SEG 30, REF 23, ENT 47, APQ 8, MAT 100, EFF 17, ANX 5 |
-| di cui AMBIGUO | 139 (§13), registrate in `docs/15` (Q-298…Q-310 e domande già aperte) |
-| Tabelle complete | GRD 6 × 5; SMR e SMF 7 × 8; ROL 8 × 5 (+ 2 × 5, 1 × 5); OVR 2 × 2 × 5; POL campagna 2 × 2 × 7 e scheda 4 × 2; MST 4 × 8; MRL 12 × 6; ATV 4 × 16; CRT 14 × 4 e assente × 14; MAT 20 × 5; EFF 4 × 4 |
+| Righe | 978 — ACT 14, GRD 30, PRS 16, SMR 56, SMN 10, SMF 56, ROL 60, CMT 14, OVR 22, POL 44, MST 41, MRL 80, ANO 47, ATV 70, ATD 29, ATU 14, CRT 118, CRV 27, SEG 30, REF 23, ENT 47, APQ 8, MAT 100, EFF 17, ANX 5 |
+| di cui AMBIGUO | 141 (§13), registrate in `docs/15` (Q-298…Q-310 e domande già aperte) |
+| Tabelle complete | GRD 6 × 5; SMR e SMF 7 × 8; ROL 8 × 5 (+ 2 × 5, 1 × 5); OVR 2 × 2 × 5; POL campagna 2 × 2 × 7 e scheda 4 × 2; MST 4 × 8; MRL 13 × 6; ATV 4 × 16; CRT 14 × 4 e assente × 14; MAT 20 × 5; EFF 4 × 4 |
 | Riduzioni | stato × azione × ruolo × policy (560) → SMR + SMF (112) + SMN (10: le celle in cui la regola entra nel ramo, 46 identiche a SMR) + ROL (60), perché ruolo e stato sono controlli indipendenti e in sequenza, più 5 righe di precedenza; per tipo di oggetto (3 × 56) → 12 verifiche di cablaggio per tipo nell'hub (la logica è la stessa `GovernedTransitions`); policy spenta nell'hub → nessun contesto dedicato (stesso bean, tabelle SMF/ROL); tabella dei contenuti → TB-ENG; ACT, PRS, ANO, ATD, CRV, SEG → ogni classe non valida da sola sul caso valido (guasto singolo) |
 | Divergenze | 4 cause, 12 righe: D-01 (8), D-02 (2), D-03 (1, risolta da `main`), D-04 (1) → tutte risolte, 0 righe rosse |
 
 ### Verifica a mutazione
 
-Le mutazioni temporanee del codice di produzione (es. `>` → `>=` sulla soglia della policy, commento vuoto con `isEmpty`
-invece di `isBlank`, ADMIN senza scorciatoia nella guardia) sono state **bloccate dal controllo dei permessi**
-dell'ambiente («modifica di risorse condivise») e non sono state eseguite; l'unica applicata (guardia) è stata subito
-annullata senza esecuzione. Evidenza sostitutiva: le 4 divergenze sono «mutanti naturali» già presenti nel codice e le
-righe che le coprono falliscono (D-03 era rossa prima del merge di `main` e verde dopo la correzione).
+Eseguita il 2026-09-25 (prima non eseguita: bloccata dal controllo dei permessi dell'agente). Una regola di produzione
+rotta alla volta, in una copia di lavoro isolata; la classe Testbook interessata eseguita con
+`./mvnw -q -pl <modulo> -am verify -Dtest='Testbook*Test' -Dit.test='<Classe>'`, esiti letti da `target/*-reports`; il
+file ripristinato con `git checkout` prima della mutazione successiva. Punto di partenza: tutte le righe verdi.
+**9 mutazioni (7 regole, due in due varianti), 8 rilevate subito, 1 sopravvissuta → 6 righe aggiunte, ora rilevata.**
+Ogni classe Testbook ne rileva almeno una.
+
+| # | Mutazione (file) | Classe eseguita | Righe diventate rosse |
+|---|---|---|---|
+| G-01 | nessuna scorciatoia ADMIN nella guardia (lh-common `RequiresRoleInterceptor`) | `TestbookGovActorTest` | GRD-011 (MARKETING × ADMIN), GRD-026 (solo LEGAL × ADMIN) |
+| G-02 | `PUBLISH` da DRAFT ammesso anche con approvazione richiesta (lh-common `GovernedTransitions#next`) | `TestbookGovTransitionsTest` | SMR-004 (DRAFT + PUBLISH ⇒ 409 `APPROVAL_REQUIRED`) |
+| G-03a | soglia del budget 100 000 → 100 001 nel valore di default (lh-common `LhCommonAutoConfiguration#approvalPolicy`) | `TestbookGovHubIT` | ENT-004 (campagna da 100 001 pubblicata da DRAFT), APQ-007 (scheda della policy) |
+| G-03b | soglia del budget spostata di 1 nel confronto (`ApprovalPolicy#forCampaign`: `> soglia + 1`) | `TestbookGovPolicyTest` | POL-006 (budget 100 001), POL-036 (soglia configurata 50 000, budget 50 001) |
+| G-04 | ruolo sconosciuto in `X-LH-Actor` ⇒ ADMIN invece di ANALYST (lh-common `ActorContext#parse`) | `TestbookGovActorTest` | ACT-009 (`ADMINISTRATOR:x`) |
+| G-05 | `gte` → `gt` nei criteri dei segmenti (member `SegmentCriteria`) | `TestbookGovSegmentCriteriaTest` | CRT-018 (NUMBER gte), CRT-098 (`balance.PTS` al limite), CRT-104 (`actions.<tipo>.count30d`) |
+| G-06 | lunghezza massima di un attributo testo 200 → 201 (member `MemberAttributes`) | `TestbookGovAttributesTest` | ATV-005 (STRING di 201 caratteri) |
+| G-07a | cambio di stato aperto a ogni ruolo di scrittura (`MembersController#changeStatus`: `@RequiresRole` senza ruoli) | `TestbookGovMemberIT` | MRL-002 (MARKETING), MRL-003 (LEGAL) |
+| G-07b | solo lo **sblocco** BLOCKED → ACTIVE ammesso senza CARE/ADMIN (guardia allargata + controllo in `MemberService#changeStatus` che salta BLOCKED → ACTIVE) | `TestbookGovMemberIT` | **nessuna** con le 229 righe di partenza (le righe di ruolo provavano solo il blocco) → aggiunte MRL-075…080 (§8.2); con il mutante: MRL-076 (MARKETING), MRL-077 (LEGAL); sul codice reale: 235 righe verdi |
+
+Lacuna trovata: la guardia `member.write` sul cambio di stato era provata solo nel verso ACTIVE → BLOCKED, quindi una
+guardia che dipendesse dalla transizione (sblocco libero) passava. Oracolo delle nuove righe: docs/08 §2
+(`member.write` = ADMIN, CARE; R-19) e, per MARKETING e LEGAL, la stessa scelta registrata delle righe MRL-002/003 (Q-302).
 
 ### Tempi
 
