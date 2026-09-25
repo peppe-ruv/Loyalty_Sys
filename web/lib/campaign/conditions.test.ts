@@ -150,8 +150,8 @@ describe("intersezione dei campi data.* fra trigger", () => {
     expect(common[1].format).toBe("date");
   });
 
-  it("ignora i trigger non ancora caricati; nessun trigger → nessun campo", () => {
-    expect(commonDataFields({ a: PURCHASE }, ["a", "zzz"]).length).toBe(PURCHASE.length);
+  it("catalogo parziale → nessun campo comune (Q-197 DECISA); nessun trigger → nessun campo", () => {
+    expect(commonDataFields({ a: PURCHASE }, ["a", "zzz"])).toEqual([]); // Q-197 DECISA
     expect(commonDataFields({ a: PURCHASE }, [])).toEqual([]);
     expect(commonDataFields({}, ["a"])).toEqual([]);
   });
@@ -465,10 +465,10 @@ describe("avvisi sui campi", () => {
     expect(tree.rules).toHaveLength(7);
   });
 
-  it("nessun avviso sui data.* finché i campi non sono arrivati", () => {
+  it("data.* «non verificati» finché i campi di un trigger non sono arrivati (Q-197 DECISA)", () => {
     const w = fieldWarnings(tree, { triggers: ["a", "b"], fieldsByTrigger: { a: PURCHASE }, catalog: CATALOG });
-    expect(w[ids[1]]).toBeUndefined();
-    expect(w[ids[2]]).toBeUndefined();
+    expect(w[ids[1]]).toMatch(/non verificato per b/); // Q-197 DECISA
+    expect(w[ids[2]]).toMatch(/non verificato per b/); // Q-197 DECISA
   });
 
   it("attributi non segnalati se il catalogo dei membri non è disponibile", () => {

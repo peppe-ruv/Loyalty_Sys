@@ -22,11 +22,11 @@ TB-GOV-CRT-020,NUMBER lte,"{'field':'member.attributes.tNum','cmp':'lte','value'
 TB-GOV-CRT-021,NUMBER in,"{'field':'member.attributes.tNum','cmp':'in','value':[1,3]}",,true
 TB-GOV-CRT-022,NUMBER nin,"{'field':'member.attributes.tNum','cmp':'nin','value':[1,2]}",,true
 TB-GOV-CRT-023,NUMBER contains,"{'field':'member.attributes.tNum','cmp':'contains','value':3}",,false
-TB-GOV-CRT-024,NUMBER ncontains,"{'field':'member.attributes.tNum','cmp':'ncontains','value':3}",,false
+TB-GOV-CRT-024,"NUMBER ncontains // Q-215 DECISA (tipi incompatibili: falsa)","{'field':'member.attributes.tNum','cmp':'ncontains','value':3}",,false
 TB-GOV-CRT-025,NUMBER exists,"{'field':'member.attributes.tNum','cmp':'exists'}",,true
 TB-GOV-CRT-026,NUMBER nexists,"{'field':'member.attributes.tNum','cmp':'nexists'}",,false
 TB-GOV-CRT-027,NUMBER between,"{'field':'member.attributes.tNum','cmp':'between','value':[1,5]}",,true
-TB-GOV-CRT-028,NUMBER startsWith,"{'field':'member.attributes.tNum','cmp':'startsWith','value':'3'}",,false
+TB-GOV-CRT-028,"NUMBER startsWith // Q-215 DECISA (tipi incompatibili: falsa)","{'field':'member.attributes.tNum','cmp':'startsWith','value':'3'}",,false
 TB-GOV-CRT-029,BOOLEAN eq,"{'field':'member.attributes.tBool','cmp':'eq','value':true}",,true
 TB-GOV-CRT-030,BOOLEAN neq,"{'field':'member.attributes.tBool','cmp':'neq','value':false}",,true
 TB-GOV-CRT-031,BOOLEAN gt,"{'field':'member.attributes.tBool','cmp':'gt','value':0}",,false
@@ -36,29 +36,29 @@ TB-GOV-CRT-034,BOOLEAN lte,"{'field':'member.attributes.tBool','cmp':'lte','valu
 TB-GOV-CRT-035,BOOLEAN in,"{'field':'member.attributes.tBool','cmp':'in','value':[true]}",,true
 TB-GOV-CRT-036,BOOLEAN nin,"{'field':'member.attributes.tBool','cmp':'nin','value':[false]}",,true
 TB-GOV-CRT-037,BOOLEAN contains,"{'field':'member.attributes.tBool','cmp':'contains','value':true}",,false
-TB-GOV-CRT-038,BOOLEAN ncontains,"{'field':'member.attributes.tBool','cmp':'ncontains','value':true}",,false
+TB-GOV-CRT-038,"BOOLEAN ncontains // Q-215 DECISA (tipi incompatibili: falsa)","{'field':'member.attributes.tBool','cmp':'ncontains','value':true}",,false
 TB-GOV-CRT-039,BOOLEAN exists,"{'field':'member.attributes.tBool','cmp':'exists'}",,true
 TB-GOV-CRT-040,BOOLEAN nexists,"{'field':'member.attributes.tBool','cmp':'nexists'}",,false
 TB-GOV-CRT-041,BOOLEAN between,"{'field':'member.attributes.tBool','cmp':'between','value':[0,1]}",,false
-TB-GOV-CRT-042,BOOLEAN startsWith,"{'field':'member.attributes.tBool','cmp':'startsWith','value':'t'}",,false
+TB-GOV-CRT-042,"BOOLEAN startsWith // Q-215 DECISA (tipi incompatibili: falsa)","{'field':'member.attributes.tBool','cmp':'startsWith','value':'t'}",,false
 TB-GOV-CRT-043,DATE eq,"{'field':'member.attributes.tDate','cmp':'eq','value':'2026-02-28'}",,true
 TB-GOV-CRT-044,DATE neq,"{'field':'member.attributes.tDate','cmp':'neq','value':'2026-03-01'}",,true
-TB-GOV-CRT-045,DATE gt,"{'field':'member.attributes.tDate','cmp':'gt','value':'2026-01-01'}",,false
-TB-GOV-CRT-046,DATE gte,"{'field':'member.attributes.tDate','cmp':'gte','value':'2026-02-28'}",,false
-TB-GOV-CRT-047,DATE lt,"{'field':'member.attributes.tDate','cmp':'lt','value':'2026-12-31'}",,false
-TB-GOV-CRT-048,DATE lte,"{'field':'member.attributes.tDate','cmp':'lte','value':'2026-02-28'}",,false
+TB-GOV-CRT-045,"DATE gt (date confrontate come date) // Q-215 DECISA (Q-91)","{'field':'member.attributes.tDate','cmp':'gt','value':'2026-01-01'}",,true
+TB-GOV-CRT-046,"DATE gte (date confrontate come date) // Q-215 DECISA (Q-91)","{'field':'member.attributes.tDate','cmp':'gte','value':'2026-02-28'}",,true
+TB-GOV-CRT-047,"DATE lt (date confrontate come date) // Q-215 DECISA (Q-91)","{'field':'member.attributes.tDate','cmp':'lt','value':'2026-12-31'}",,true
+TB-GOV-CRT-048,"DATE lte (date confrontate come date) // Q-215 DECISA (Q-91)","{'field':'member.attributes.tDate','cmp':'lte','value':'2026-02-28'}",,true
 TB-GOV-CRT-049,DATE in,"{'field':'member.attributes.tDate','cmp':'in','value':['2026-02-28']}",,true
 TB-GOV-CRT-050,DATE nin,"{'field':'member.attributes.tDate','cmp':'nin','value':['2026-03-01']}",,true
-TB-GOV-CRT-051,DATE contains,"{'field':'member.attributes.tDate','cmp':'contains','value':'2026-02'}",,true
-TB-GOV-CRT-052,DATE ncontains,"{'field':'member.attributes.tDate','cmp':'ncontains','value':'X'}",,true
+TB-GOV-CRT-051,"DATE contains (una data non è testo) // Q-215 DECISA (Q-307)","{'field':'member.attributes.tDate','cmp':'contains','value':'2026-02'}",,false
+TB-GOV-CRT-052,"DATE ncontains (una data non è testo) // Q-215 DECISA (Q-307)","{'field':'member.attributes.tDate','cmp':'ncontains','value':'X'}",,false
 TB-GOV-CRT-053,DATE exists,"{'field':'member.attributes.tDate','cmp':'exists'}",,true
 TB-GOV-CRT-054,DATE nexists,"{'field':'member.attributes.tDate','cmp':'nexists'}",,false
-TB-GOV-CRT-055,DATE between,"{'field':'member.attributes.tDate','cmp':'between','value':['2026-01-01','2026-12-31']}",,false
-TB-GOV-CRT-056,DATE startsWith,"{'field':'member.attributes.tDate','cmp':'startsWith','value':'2026'}",,true
-TB-GOV-CRT-057,NUMBER neq testo,"{'field':'member.attributes.tNum','cmp':'neq','value':'tre'}",,false
-TB-GOV-CRT-058,NUMBER nin elenco di testi,"{'field':'member.attributes.tNum','cmp':'nin','value':['tre']}",,false
-TB-GOV-CRT-059,BOOLEAN neq testo,"{'field':'member.attributes.tBool','cmp':'neq','value':'vero'}",,false
-TB-GOV-CRT-060,STRING neq numero,"{'field':'member.attributes.tStr','cmp':'neq','value':5}",,false
+TB-GOV-CRT-055,"DATE between (date confrontate come date) // Q-215 DECISA (Q-91)","{'field':'member.attributes.tDate','cmp':'between','value':['2026-01-01','2026-12-31']}",,true
+TB-GOV-CRT-056,"DATE startsWith (una data non è testo) // Q-215 DECISA (Q-307)","{'field':'member.attributes.tDate','cmp':'startsWith','value':'2026'}",,false
+TB-GOV-CRT-057,"NUMBER neq testo // Q-215 DECISA (tipi incompatibili: falsa)","{'field':'member.attributes.tNum','cmp':'neq','value':'tre'}",,false
+TB-GOV-CRT-058,"NUMBER nin elenco di testi // Q-215 DECISA (tipi incompatibili: falsa)","{'field':'member.attributes.tNum','cmp':'nin','value':['tre']}",,false
+TB-GOV-CRT-059,"BOOLEAN neq testo // Q-215 DECISA (tipi incompatibili: falsa)","{'field':'member.attributes.tBool','cmp':'neq','value':'vero'}",,false
+TB-GOV-CRT-060,"STRING neq numero // Q-215 DECISA (tipi incompatibili: falsa)","{'field':'member.attributes.tStr','cmp':'neq','value':5}",,false
 TB-GOV-CRT-061,attributo assente eq,"{'field':'member.attributes.tMissing','cmp':'eq','value':'x'}",,false
 TB-GOV-CRT-062,attributo assente neq,"{'field':'member.attributes.tMissing','cmp':'neq','value':'x'}",,false
 TB-GOV-CRT-063,attributo assente gt,"{'field':'member.attributes.tMissing','cmp':'gt','value':1}",,false

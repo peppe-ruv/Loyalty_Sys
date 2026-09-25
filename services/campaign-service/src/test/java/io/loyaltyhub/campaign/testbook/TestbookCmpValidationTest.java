@@ -24,8 +24,9 @@ class TestbookCmpValidationTest {
     /**
      * TB-CMP-VAL: almeno un trigger, almeno un effetto, MULTIPLIER.factor in [1.1, 5] ai limiti, codici di concorso,
      * premio, badge e template non vuoti, endAt &gt; startAt.
-     * TESTBOOK: ambiguo, vedi TB-CMP-VAL-036 (mode sconosciuto), VAL-037 (comparatore sconosciuto), VAL-038 (startAt
-     * non valido senza endAt): la scheda §5 non li elenca; si asserisce il comportamento attuale.
+     * VAL-037 (comparatore sconosciuto) rifiutato: Q-219 DECISA. TESTBOOK: ambiguo, vedi TB-CMP-VAL-036 (mode
+     * sconosciuto), VAL-038 (startAt non valido senza endAt): la scheda §5 non li elenca; si asserisce il comportamento
+     * attuale.
      */
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/cmp/validation.csv", numLinesToSkip = 1, delimiter = '|', quoteCharacter = '`')

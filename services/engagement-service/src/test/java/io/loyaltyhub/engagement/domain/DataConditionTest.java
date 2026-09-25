@@ -30,7 +30,8 @@ class DataConditionTest {
     void leafComparators() {
         assertThat(DataCondition.matches(json("{\"field\":\"data.role\",\"cmp\":\"eq\",\"value\":\"REFERRER\"}"), referrer)).isTrue();
         assertThat(DataCondition.matches(json("{\"field\":\"data.role\",\"cmp\":\"eq\",\"value\":\"REFEREE\"}"), referrer)).isFalse();
-        assertThat(DataCondition.matches(json("{\"field\":\"data.role\",\"value\":\"REFERRER\"}"), referrer)).as("eq di default").isTrue();
+        assertThat(DataCondition.matches(json("{\"field\":\"data.role\",\"value\":\"REFERRER\"}"), referrer))
+                .as("cmp assente: foglia falsa, non eq di default (Q-219 DECISA)").isFalse();
         assertThat(DataCondition.matches(json("{\"field\":\"data.amount\",\"cmp\":\"gte\",\"value\":130}"), referrer)).isTrue();
         assertThat(DataCondition.matches(json("{\"field\":\"data.amount\",\"cmp\":\"between\",\"value\":[100,130]}"), referrer)).isFalse();
         assertThat(DataCondition.matches(json("{\"field\":\"data.role\",\"cmp\":\"in\",\"value\":[\"REFERRER\",\"X\"]}"), referrer)).isTrue();
@@ -82,5 +83,18 @@ class DataConditionTest {
         assertThat(DataCondition.problems(json("{\"field\":\"data.role\",\"cmp\":\"eq\"}")))
                 .singleElement().asString().contains("richiede value");
         assertThat(DataCondition.problems(json("{\"op\":\"xor\",\"rules\":[]}"))).singleElement().asString().contains("xor");
+    }
+
+    /** Q-179 DECISA: any vuoto, cmp assente e foglia senza campo rifiutati al salvataggio (e falsi nel motore). */
+    @Test
+    void conservativeValidation() {
+        assertThat(DataCondition.problems(json("{\"op\":\"any\",\"rules\":[]}"))).singleElement().asString()
+                .startsWith("condition.rules:");
+        assertThat(DataCondition.problems(json("{\"field\":\"data.role\",\"value\":\"X\"}"))).singleElement().asString()
+                .contains("comparatore mancante");
+        assertThat(DataCondition.problems(json("{\"op\":\"all\",\"rules\":[{\"cmp\":\"eq\",\"value\":1}]}")))
+                .singleElement().asString().startsWith("condition.rules[0].field:");
+        assertThat(DataCondition.matches(json("{\"op\":\"any\",\"rules\":[]}"), json("{}"))).isFalse();
+        assertThat(DataCondition.matches(json("{\"op\":\"xor\",\"rules\":[]}"), json("{}"))).isFalse();
     }
 }

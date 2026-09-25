@@ -91,11 +91,11 @@ verifica. Un contesto Spring per classe IT.
 | azione senza distinzione di maiuscole | `application/CampaignAdminService.java:295` | `publish` accettata | LCX-004 |
 | azione sconosciuta o assente | `lh-common approval/GovernedTransitions.java:parse` | `422 INVALID_ACTION` | LCX-001, LCX-002 |
 | `all=true` prevale su `tiers`/`segments`; pubblico senza liste = tutti; `tiers` OR `segments` | `engine/CampaignEngine.java:175-184` | scatta | AUD-002…010, AUD-015, AUD-017, AUD-019, AUD-024, AUD-026, AUD-028, AUD-031, AUD-032 |
-| operatore di gruppo sconosciuto trattato come `all` | `engine/ConditionEvaluator.java:53` | come `all` | GRP-019 |
-| `any` vuoto vero | `engine/ConditionEvaluator.java:73-75` | vero | GRP-007 |
-| foglia senza `field` vera; condizioni `null` vere | `engine/ConditionEvaluator.java:43-45, 90-92` | vero | GRP-020, GRP-021 |
-| `cmp` assente = `eq`; comparatore sconosciuto falso | `engine/ConditionEvaluator.java:88, 146` | come indicato | OPS-078, OPS-079 |
-| testo numerico confrontato come numero (anche con `eq`/`neq`/`in`/`nin`); nessun confronto testuale tra tipi diversi | `engine/ConditionEvaluator.java:156-172` | vero | OPS-011 (Q-215), OPS-032 (Q-216) |
+| operatore di gruppo sconosciuto falso (Q-223 DECISA) | `engine/ConditionEvaluator.java#eval` | falso; 422 `CONDITION_INVALID` al salvataggio | GRP-019 |
+| `any` vuoto falso (Q-222 DECISA) | `engine/ConditionEvaluator.java#anyOf` | falso; 422 al salvataggio | GRP-007 |
+| foglia senza `field` falsa (Q-224 DECISA); condizioni `null` vere | `engine/ConditionEvaluator.java#evaluate, #leaf` | falso / vero | GRP-020, GRP-021 |
+| `cmp` assente falso (Q-219 DECISA); comparatore sconosciuto falso | `engine/ConditionEvaluator.java#leaf` · `lh-common condition/TypedCast.java#compare` | falso; 422 al salvataggio | OPS-078, OPS-079, VAL-037 |
+| cast tipizzato comune (Q-215/Q-216 DECISE): il valore della regola è convertito nel tipo del dato (numero ← `^-?\d+(\.\d+)?$`, booleano ← `"true"/"false"`, data/istante ISO stretti, testo ← solo testo); cast fallito → falsa, negazioni comprese | `lh-common condition/TypedCast.java` | come indicato | OPS-011, OPS-032, OPS-033, OPS-036, CTX-021 |
 | `mode` assente = `FIXED`; `unitStep` ≤ 0 = 1; `rounding` sconosciuto = `FLOOR`; `ROUND` = metà per eccesso | `engine/CampaignEngine.java:321, 331-339` | come indicato | PTS-011, PTS-019, PTS-033, PTS-034 |
 | `GRANT_PLAYS.count` assente = 1, ≤ 0 non supportato; coupon non risolvibile senza effetto | `engine/CampaignEngine.java:245-247, 289-299` | come indicato | OEF-002, OEF-004, OEF-007 |
 | elenco effetti vuoto o non elenco nel motore | `engine/CampaignEngine.java:236-238` | vuoto: scatta; non elenco: `EFFECT_NOT_SUPPORTED_YET` | OEF-017, OEF-019 |
@@ -106,7 +106,7 @@ verifica. Un contesto Spring per classe IT.
 | `memberDescription` modificabile su `LIVE` | `application/CampaignAdminService.java:259-271` | 200 | EDT-006 |
 | `PUT` senza `version` senza controllo | `application/CampaignAdminService.java:203` | 200 | VER-003 |
 | copia mai di sistema; `requiresLegal` conservato | `application/CampaignAdminService.java:228-231` | come indicato | DUP-006, POL-006 |
-| validazione: `mode`, comparatori e `startAt` isolato non controllati | `application/CampaignAdminService.java:354-400` | valida | VAL-036, VAL-037, VAL-038 |
+| validazione: `mode` e `startAt` isolato non controllati; condizioni controllate da `ConditionEvaluator.validate` (Q-219 DECISA) | `application/CampaignAdminService.java#validate` | valida / 1 errore | VAL-036, VAL-037, VAL-038 |
 | LEGAL/CARE: ogni scrittura (creazione, modifica, duplica, transizioni) rifiutata | `api/CampaignsController.java:52-68 · lh-common approval/GovernedTransitions.java:44-46` | 403 (Q-247) | ROL-003, ROL-004, ROL-010, ROL-011, ROL-017, ROL-018, ROL-024, ROL-025 |
 
 **Regole della specifica senza codice** (regola non implementata):
@@ -242,7 +242,7 @@ falsa `data.channel eq "WEB"`, `$C` la foglia falsa `data.qty gt 5` (azione con 
 | TB-CMP-OPS-008 | eq campo assente: `data.channel eq "APP"` su data `{"amount":50}` | foglia falsa: scartata `CONDITION` con la foglia fallita | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
 | TB-CMP-OPS-009 | eq campo null: `data.channel eq "APP"` su data `{"channel":null}` | foglia falsa: scartata `CONDITION` con la foglia fallita | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
 | TB-CMP-OPS-010 | eq con valore atteso null: `data.channel eq null` su data `{"channel":"APP"}` | foglia falsa: scartata `CONDITION` con la foglia fallita | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
-| TB-CMP-OPS-011 | eq testo numerico contro numero: `data.code eq 5` su data `{"code":"5"}` | **Q-215** (domanda aperta, docs/15): testo numerico contro numero: tipi incompatibili o stesso valore? attuale: confrontato come numero (prima: confronto testuale), vera. Si asserisce: foglia vera: scatta | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
+| TB-CMP-OPS-011 | eq testo numerico contro numero: `data.code eq 5` su data `{"code":"5"}` | foglia falsa: scartata `CONDITION` con la foglia fallita — `// Q-215 DECISA`: il tipo bersaglio è quello del dato (testo); un numero non diventa mai testo | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
 | TB-CMP-OPS-012 | eq numero contro testo non numerico: `data.amount eq "abc"` su data `{"amount":5}` | foglia falsa: scartata `CONDITION` con la foglia fallita | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
 | TB-CMP-OPS-013 | neq testo diverso: `data.channel neq "WEB"` su data `{"channel":"APP"}` | foglia vera: scatta | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
 | TB-CMP-OPS-014 | neq testo uguale: `data.channel neq "APP"` su data `{"channel":"APP"}` | foglia falsa: scartata `CONDITION` con la foglia fallita | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
@@ -263,11 +263,11 @@ falsa `data.channel eq "WEB"`, `$C` la foglia falsa `data.qty gt 5` (azione con 
 | TB-CMP-OPS-029 | gt tra negativi: `data.delta gt -2` su data `{"delta":-1}` | foglia vera: scatta | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
 | TB-CMP-OPS-030 | gte zero su zero: `data.amount gte 0` su data `{"amount":0}` | foglia vera: scatta | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
 | TB-CMP-OPS-031 | gt su testo non numerico: `data.channel gt 5` su data `{"channel":"abc"}` | foglia falsa: scartata `CONDITION` con la foglia fallita | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
-| TB-CMP-OPS-032 | gt su testo numerico: `data.code gt 50` su data `{"code":"60"}` | **Q-216** (domanda aperta, docs/15): testo numerico con comparatore numerico: attuale convertito in numero, vera. Si asserisce: foglia vera: scatta | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
-| TB-CMP-OPS-033 | gt con valore atteso testuale: `data.amount gt "50"` su data `{"amount":60}` | foglia falsa: scartata `CONDITION` con la foglia fallita | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
+| TB-CMP-OPS-032 | gt su testo numerico: `data.code gt 50` su data `{"code":"60"}` | foglia falsa: scartata `CONDITION` con la foglia fallita — `// Q-216 DECISA`: il dato `"60"` resta testo, niente confronto d'ordine | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
+| TB-CMP-OPS-033 | gt con valore atteso testuale: `data.amount gt "50"` su data `{"amount":60}` | foglia vera: scatta — `// Q-215 DECISA`: `"50"` rispetta `^-?\d+(\.\d+)?$` ed è convertito nel tipo del dato (numero) | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
 | TB-CMP-OPS-034 | gt su booleano: `data.firstOrder gt 0` su data `{"firstOrder":true}` | foglia falsa: scartata `CONDITION` con la foglia fallita | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
 | TB-CMP-OPS-035 | gt campo assente: `data.amount gt 50` su data `{"channel":"APP"}` | foglia falsa: scartata `CONDITION` con la foglia fallita | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
-| TB-CMP-OPS-036 | gt su date ISO (Q-91): `data.day gt "2026-09-01"` su data `{"day":"2026-09-20"}` | foglia falsa: scartata `CONDITION` con la foglia fallita | docs/03 §3.3 · Q-91 | `TestbookCmpConditionTest#operator` · `operators.csv` |
+| TB-CMP-OPS-036 | gt su date ISO (Q-91): `data.day gt "2026-09-01"` su data `{"day":"2026-09-20"}` | foglia vera: scatta — `// Q-215 DECISA`: due date `AAAA-MM-GG` si confrontano come date (supera Q-91) | docs/03 §3.3 · Q-91 | `TestbookCmpConditionTest#operator` · `operators.csv` |
 | TB-CMP-OPS-037 | lt su numeri molto grandi: `data.amount lt 10000000000000000` su data `{"amount":1000000000000000}` | foglia vera: scatta | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
 | TB-CMP-OPS-038 | in testo presente: `data.channel in ["APP","WEB"]` su data `{"channel":"APP"}` | foglia vera: scatta | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
 | TB-CMP-OPS-039 | in testo assente dalla lista: `data.channel in ["APP","WEB"]` su data `{"channel":"POS"}` | foglia falsa: scartata `CONDITION` con la foglia fallita | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
@@ -310,7 +310,7 @@ falsa `data.channel eq "WEB"`, `$C` la foglia falsa `data.qty gt 5` (azione con 
 | TB-CMP-OPS-076 | startsWith su numero (tipo incompatibile): `data.amount startsWith "13"` su data `{"amount":130}` | foglia falsa: scartata `CONDITION` con la foglia fallita — D-05 risolta (§14). | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
 | TB-CMP-OPS-077 | startsWith campo assente: `data.promo startsWith "PROMO"` su data `{"amount":5}` | foglia falsa: scartata `CONDITION` con la foglia fallita | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
 | TB-CMP-OPS-078 | comparatore sconosciuto: `data.promo regex "PROMO.*"` su data `{"promo":"PROMO-ESTATE"}` | **Q-218** (domanda aperta, docs/15): comparatore fuori elenco: nessuna regola; attuale: foglia falsa. Si asserisce: foglia falsa: scartata `CONDITION` con la foglia fallita | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
-| TB-CMP-OPS-079 | comparatore assente: `data.channel (cmp assente) "APP"` su data `{"channel":"APP"}` | **Q-219** (domanda aperta, docs/15): `cmp` assente: nessuna regola; attuale: `eq` di default, vera. Si asserisce: foglia vera: scatta | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
+| TB-CMP-OPS-079 | comparatore assente: `data.channel (cmp assente) "APP"` su data `{"channel":"APP"}` | foglia falsa: scartata `CONDITION` con la foglia fallita — `// Q-219 DECISA`: `cmp` assente = foglia falsa; il salvataggio la rifiuta (422 `CONDITION_INVALID`) | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
 | TB-CMP-OPS-080 | eq testo unicode: `data.note eq "Caffè ☕ perché"` su data `{"note":"Caffè ☕ perché"}` | foglia vera: scatta | docs/03 §3.3 | `TestbookCmpConditionTest#operator` · `operators.csv` |
 | TB-CMP-ARR-001 | wildcard, un elemento su tre soddisfa: `data.items[*].category eq "FOOD"` · data `{"items":[{"category":"TECH"},{"category":"FOOD"},{"category":"HOME"}]}` | foglia vera: scatta | docs/03 §3.3 (data.*, array) | `TestbookCmpConditionTest#field` · `fields.csv` |
 | TB-CMP-ARR-002 | wildcard, nessun elemento soddisfa: `data.items[*].category eq "FOOD"` · data `{"items":[{"category":"TECH"},{"category":"HOME"}]}` | foglia falsa: scartata `CONDITION` con la foglia fallita | docs/03 §3.3 (data.*, array) | `TestbookCmpConditionTest#field` · `fields.csv` |
@@ -370,7 +370,7 @@ falsa `data.channel eq "WEB"`, `$C` la foglia falsa `data.qty gt 5` (azione con 
 | TB-CMP-CTX-018 | date: 31 dicembre alle 23:59:59 di Roma: `context.date eq "2026-12-31"` · istante `2026-12-31T22:59:59Z` | foglia vera: scatta | docs/03 §3.3 (context.*, Europe/Rome) · §3.1 | `TestbookCmpConditionTest#field` · `fields.csv` |
 | TB-CMP-CTX-019 | date: 29 febbraio: `context.date eq "2028-02-29"` · istante `2028-02-28T23:00:00Z` | foglia vera: scatta | docs/03 §3.3 (context.*, Europe/Rome) · §3.1 | `TestbookCmpConditionTest#field` · `fields.csv` |
 | TB-CMP-CTX-020 | date: primo del mese dopo il 31 gennaio: `context.date eq "2026-02-01"` · istante `2026-01-31T23:00:00Z` | foglia vera: scatta | docs/03 §3.3 (context.*, Europe/Rome) · §3.1 | `TestbookCmpConditionTest#field` · `fields.csv` |
-| TB-CMP-CTX-021 | date con gt (Q-91): `context.date gt "2026-09-01"` · istante `2026-09-15T09:00:00Z` | foglia falsa: scartata `CONDITION` con la foglia fallita | docs/03 §3.3 (context.*, Europe/Rome) · §3.1 · Q-91 | `TestbookCmpConditionTest#field` · `fields.csv` |
+| TB-CMP-CTX-021 | date con gt (Q-91): `context.date gt "2026-09-01"` · istante `2026-09-15T09:00:00Z` | foglia vera: scatta — `// Q-215 DECISA`: `context.date` e il valore sono date, confrontate come date (supera Q-91) | docs/03 §3.3 (context.*, Europe/Rome) · §3.1 · Q-91 | `TestbookCmpConditionTest#field` · `fields.csv` |
 | TB-CMP-CTX-022 | campo context sconosciuto: `context.weather exists (nessun valore)` | foglia falsa: scartata `CONDITION` con la foglia fallita | docs/03 §3.3 (context.*, Europe/Rome) · §3.1 | `TestbookCmpConditionTest#field` · `fields.csv` |
 | TB-CMP-HIS-001 | actionCount 0 alla prima azione: `history.actionCount eq 0` · storico: 0 azioni precedenti, mai eseguita | foglia vera: scatta | docs/03 §3.3 (history.*) | `TestbookCmpConditionTest#field` · `fields.csv` |
 | TB-CMP-HIS-002 | actionCount alla soglia: `history.actionCount gte 3` · storico: 3 azioni precedenti, ultima 1 giorni fa | foglia vera: scatta | docs/03 §3.3 (history.*) | `TestbookCmpConditionTest#field` · `fields.csv` |
@@ -388,7 +388,7 @@ falsa `data.channel eq "WEB"`, `$C` la foglia falsa `data.qty gt 5` (azione con 
 | TB-CMP-GRP-004 | all con due false: `{"op":"all","rules":[$B,$C]}` | condizioni false: scartata `CONDITION`; foglie fallite `data.channel,data.qty`; valore osservato della prima `APP` | docs/03 §3.3, §3.5 p. 2.3 · F-CMP-03 | `TestbookCmpConditionTest#group` · `groups.csv` |
 | TB-CMP-GRP-005 | any con una vera e una falsa: `{"op":"any","rules":[$A,$B]}` | condizioni vere: scatta | docs/03 §3.3, §3.5 p. 2.3 · F-CMP-03 | `TestbookCmpConditionTest#group` · `groups.csv` |
 | TB-CMP-GRP-006 | any con due false: `{"op":"any","rules":[$B,$C]}` | condizioni false: scartata `CONDITION`; foglie fallite `data.channel,data.qty`; valore osservato della prima `APP` | docs/03 §3.3, §3.5 p. 2.3 · F-CMP-03 | `TestbookCmpConditionTest#group` · `groups.csv` |
-| TB-CMP-GRP-007 | any senza regole: `{"op":"any","rules":[]}` | **Q-222** (domanda aperta, docs/15): `any` senza regole; attuale: vera. Si asserisce: condizioni vere: scatta | docs/03 §3.3, §3.5 p. 2.3 · F-CMP-03 | `TestbookCmpConditionTest#group` · `groups.csv` |
+| TB-CMP-GRP-007 | any senza regole: `{"op":"any","rules":[]}` | condizioni false: scartata `CONDITION` — `// Q-222 DECISA`: `any` senza regole è falso; il salvataggio lo rifiuta (422 `CONDITION_INVALID`) | docs/03 §3.3, §3.5 p. 2.3 · F-CMP-03 | `TestbookCmpConditionTest#group` · `groups.csv` |
 | TB-CMP-GRP-008 | not con una regola vera: `{"op":"not","rules":[$A]}` | condizioni false: scartata `CONDITION` | docs/03 §3.3, §3.5 p. 2.3 · F-CMP-03 | `TestbookCmpConditionTest#group` · `groups.csv` |
 | TB-CMP-GRP-009 | not con una regola falsa: `{"op":"not","rules":[$B]}` | condizioni vere: scatta | docs/03 §3.3, §3.5 p. 2.3 · F-CMP-03 | `TestbookCmpConditionTest#group` · `groups.csv` |
 | TB-CMP-GRP-010 | not con una vera e una falsa (Q-90): `{"op":"not","rules":[$A,$B]}` | condizioni vere: scatta | docs/03 §3.3, §3.5 p. 2.3 · F-CMP-03 · Q-90 | `TestbookCmpConditionTest#group` · `groups.csv` |
@@ -400,8 +400,8 @@ falsa `data.channel eq "WEB"`, `$C` la foglia falsa `data.qty gt 5` (azione con 
 | TB-CMP-GRP-016 | not(any(B, all(A, A))) profondità 3: `{"op":"not","rules":[{"op":"any","rules":[$B,{"op":"all","rules":[$A,$A]}]}]}` | condizioni false: scartata `CONDITION` | docs/03 §3.3, §3.5 p. 2.3 · F-CMP-03 · BO-06 (3 livelli) | `TestbookCmpConditionTest#group` · `groups.csv` |
 | TB-CMP-GRP-017 | all(any(not(B))) profondità 3: `{"op":"all","rules":[{"op":"any","rules":[{"op":"not","rules":[$B]}]}]}` | condizioni vere: scatta | docs/03 §3.3, §3.5 p. 2.3 · F-CMP-03 · BO-06 (3 livelli) | `TestbookCmpConditionTest#group` · `groups.csv` |
 | TB-CMP-GRP-018 | any(all(B, A), not(all(A))) profondità 3: `{"op":"any","rules":[{"op":"all","rules":[$B,$A]},{"op":"not","rules":[{"op":"all","rules":[$A]}]}]}` | condizioni false: scartata `CONDITION` | docs/03 §3.3, §3.5 p. 2.3 · F-CMP-03 · BO-06 (3 livelli) | `TestbookCmpConditionTest#group` · `groups.csv` |
-| TB-CMP-GRP-019 | operatore di gruppo sconosciuto: `{"op":"xor","rules":[$A,$B]}` | **Q-223** (domanda aperta, docs/15): operatore di gruppo sconosciuto; attuale: trattato come `all` (falsa). Si asserisce: condizioni false: scartata `CONDITION` | docs/03 §3.3, §3.5 p. 2.3 · F-CMP-03 | `TestbookCmpConditionTest#group` · `groups.csv` |
-| TB-CMP-GRP-020 | foglia senza campo: `{"op":"all","rules":[{"cmp":"eq","value":1}]}` | **Q-224** (domanda aperta, docs/15): foglia senza `field`; attuale: vera. Si asserisce: condizioni vere: scatta | docs/03 §3.3, §3.5 p. 2.3 · F-CMP-03 | `TestbookCmpConditionTest#group` · `groups.csv` |
+| TB-CMP-GRP-019 | operatore di gruppo sconosciuto: `{"op":"xor","rules":[$A,$B]}` | condizioni false: scartata `CONDITION` — `// Q-223 DECISA`: gruppo con operatore sconosciuto falso; il salvataggio lo rifiuta (422 `CONDITION_INVALID`) | docs/03 §3.3, §3.5 p. 2.3 · F-CMP-03 | `TestbookCmpConditionTest#group` · `groups.csv` |
+| TB-CMP-GRP-020 | foglia senza campo: `{"op":"all","rules":[{"cmp":"eq","value":1}]}` | condizioni false: scartata `CONDITION` — `// Q-224 DECISA`: foglia senza `field` falsa; il salvataggio la rifiuta (422 `CONDITION_INVALID`) | docs/03 §3.3, §3.5 p. 2.3 · F-CMP-03 | `TestbookCmpConditionTest#group` · `groups.csv` |
 | TB-CMP-GRP-021 | condizioni assenti (null): `null` | **Q-225** (domanda aperta, docs/15): condizioni `null`; attuale: nessuna condizione, vera. Si asserisce: condizioni vere: scatta | docs/03 §3.3, §3.5 p. 2.3 · F-CMP-03 | `TestbookCmpConditionTest#group` · `groups.csv` |
 | TB-CMP-GRP-022 | foglia vera alla radice senza gruppo: `$A` | condizioni vere: scatta | docs/03 §3.3, §3.5 p. 2.3 · F-CMP-03 | `TestbookCmpConditionTest#group` · `groups.csv` |
 | TB-CMP-GRP-023 | foglia falsa alla radice senza gruppo: `$B` | condizioni false: scartata `CONDITION`; foglie fallite `data.channel`; valore osservato della prima `APP` | docs/03 §3.3, §3.5 p. 2.3 · F-CMP-03 | `TestbookCmpConditionTest#group` · `groups.csv` |
@@ -656,7 +656,7 @@ moltiplicatore ai limiti (1.0, 1.09, 1.1, 1.11, 4.99, 5, 5.01, assente, negativo
 | TB-CMP-VAL-034 | date del calendario non valide: trigger `purchase.completed` · effetti `[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]` · calendario `{"startAt":"2026-11-27T00:00:00Z","endAt":"domani"}` | non valida: `valid=false`, 1 errore/i (al salvataggio `422`) | docs/servizi/campaign-service.md §5, §3 (validate) | `TestbookCmpValidationTest#validate` · `validation.csv` |
 | TB-CMP-VAL-035 | più errori insieme (niente trigger né effetti): trigger assenti · effetti `[]` | non valida: `valid=false`, 2 errore/i (al salvataggio `422`) | docs/servizi/campaign-service.md §5, §3 (validate) | `TestbookCmpValidationTest#validate` · `validation.csv` |
 | TB-CMP-VAL-036 | GRANT_POINTS con mode sconosciuto: trigger `purchase.completed` · effetti `[{"type":"GRANT_POINTS","currency":"PTS","mode":"PERCENT","value":10}]` | **Q-241** (domanda aperta, docs/15): `mode` sconosciuto: la scheda §5 non lo elenca tra le validazioni; attuale: valida (poi `EFFECT_NOT_SUPPORTED_YET` nel motore). Si asserisce: valida: `{valid: true, errors: []}` | docs/servizi/campaign-service.md §5, §3 (validate) | `TestbookCmpValidationTest#validate` · `validation.csv` |
-| TB-CMP-VAL-037 | condizione con comparatore sconosciuto: trigger `purchase.completed` · effetti `[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]` · condizioni `{"op":"all","rules":[{"field":"data.amount","cmp":"regex","value":"1"}]}` | **Q-242** (domanda aperta, docs/15): comparatore sconosciuto: §3 dice «valida struttura di condizioni», §5 non lo elenca; attuale: valida. Si asserisce: valida: `{valid: true, errors: []}` | docs/servizi/campaign-service.md §5, §3 (validate) | `TestbookCmpValidationTest#validate` · `validation.csv` |
+| TB-CMP-VAL-037 | condizione con comparatore sconosciuto: trigger `purchase.completed` · effetti `[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]` · condizioni `{"op":"all","rules":[{"field":"data.amount","cmp":"regex","value":"1"}]}` | non valida: 1 errore `conditions.rules[0].cmp: comparatore sconosciuto «regex»` (422 `CONDITION_INVALID` al salvataggio) — `// Q-219 DECISA` (chiude Q-242) | docs/servizi/campaign-service.md §5, §3 (validate) | `TestbookCmpValidationTest#validate` · `validation.csv` |
 | TB-CMP-VAL-038 | startAt non valido senza endAt: trigger `purchase.completed` · effetti `[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]` · calendario `{"startAt":"2026-13-01"}` | **Q-243** (domanda aperta, docs/15): `startAt` non ISO senza `endAt`: attuale valida; il motore poi solleva un'eccezione su ogni azione di quel tipo (`CampaignEngine.java:143`). Si asserisce: valida: `{valid: true, errors: []}` | docs/servizi/campaign-service.md §5, §3 (validate) | `TestbookCmpValidationTest#validate` · `validation.csv` |
 
 ## 10. Ciclo di vita, ruoli e policy (LC, LCX, ROL, POL)
@@ -967,16 +967,16 @@ quando il comportamento attuale non lo è, la proposta (non realizzata).
 - **Q-212** · TB-CMP-AUD-015, TB-CMP-AUD-017, TB-CMP-AUD-024, TB-CMP-AUD-026: `tiers` e `segments` insieme: basta uno (OR) o servono entrambi (AND)? attuale: OR (scatta).
 - **Q-213** · TB-CMP-AUD-028: pubblico assente: attuale come «tutti» (la creazione mette `{all:true}`).
 - **Q-214** · TB-CMP-AUD-031, TB-CMP-AUD-032: chiave non prevista da docs/03 §3.2 / F-CMP-06; attuale: ignorata, pubblico non ristretto (scatta).
-- **Q-215** · TB-CMP-OPS-011: testo numerico contro numero: tipi incompatibili o stesso valore? attuale: confrontato come numero (prima: confronto testuale), vera.
-- **Q-216** · TB-CMP-OPS-032: testo numerico con comparatore numerico: attuale convertito in numero, vera.
+- **Q-215** · TB-CMP-OPS-011, OPS-033, OPS-036, CTX-021: **DECISA** — cast tipizzato comune di lh-common (`TypedCast`): la regola si converte nel tipo del dato, mai il contrario; `"5"` nel dato contro `5` è falsa.
+- **Q-216** · TB-CMP-OPS-032: **DECISA** — il testo numerico nel dato resta testo: `"60" gt 50` falsa.
 - **Q-217** · TB-CMP-OPS-072: `between` con estremi invertiti non trattato; attuale: falsa.
 - **Q-218** · TB-CMP-OPS-078: comparatore fuori elenco: nessuna regola; attuale: foglia falsa.
-- **Q-219** · TB-CMP-OPS-079: `cmp` assente: nessuna regola; attuale: `eq` di default, vera.
+- **Q-219** · TB-CMP-OPS-079, VAL-037: **DECISA** — `cmp` assente o sconosciuto: foglia falsa e 422 `CONDITION_INVALID` al salvataggio.
 - **Q-220** · TB-CMP-MEM-018: compleanno del 29 febbraio in anno non bisestile; attuale: gli anni si compiono il 1° marzo (17, falsa).
 - **Q-221** · TB-CMP-MEM-023: `registeredDaysAgo` a giorni di 24 h o di calendario di Roma? attuale: 24 h (0 giorni, falsa).
-- **Q-222** · TB-CMP-GRP-007: `any` senza regole; attuale: vera.
-- **Q-223** · TB-CMP-GRP-019: operatore di gruppo sconosciuto; attuale: trattato come `all` (falsa).
-- **Q-224** · TB-CMP-GRP-020: foglia senza `field`; attuale: vera.
+- **Q-222** · TB-CMP-GRP-007: **DECISA** — `any` senza regole: falso e 422 al salvataggio.
+- **Q-223** · TB-CMP-GRP-019: **DECISA** — operatore di gruppo sconosciuto: gruppo falso e 422 al salvataggio.
+- **Q-224** · TB-CMP-GRP-020: **DECISA** — foglia senza `field`: falsa e 422 al salvataggio.
 - **Q-225** · TB-CMP-GRP-021: condizioni `null`; attuale: nessuna condizione, vera.
 - **Q-226** · TB-CMP-PTS-011: `mode` assente; attuale: `FIXED` (100).
 - **Q-227** · TB-CMP-PTS-019: `ROUND` sulla metà esatta: per eccesso o al pari? attuale: per eccesso (131).
@@ -994,7 +994,7 @@ quando il comportamento attuale non lo è, la proposta (non realizzata).
 - **Q-239** · TB-CMP-SCH-019: fascia a cavallo della mezzanotte; attuale: mai dentro.
 - **Q-240** · TB-CMP-SCH-023: giorno della settimana minuscolo; attuale: accettato.
 - **Q-241** · TB-CMP-VAL-036: `mode` sconosciuto: la scheda §5 non lo elenca tra le validazioni; attuale: valida (poi `EFFECT_NOT_SUPPORTED_YET` nel motore).
-- **Q-242** · TB-CMP-VAL-037: comparatore sconosciuto: §3 dice «valida struttura di condizioni», §5 non lo elenca; attuale: valida.
+- **Q-242** · TB-CMP-VAL-037: comparatore sconosciuto alla validazione: chiusa dalla decisione di Q-219 (rifiuto 422 `CONDITION_INVALID`).
 - **Q-243** · TB-CMP-VAL-038: `startAt` non ISO senza `endAt`: attuale valida; il motore poi solleva un'eccezione su ogni azione di quel tipo (`CampaignEngine.java:143`).
 - **Q-244** · TB-CMP-LCX-001, TB-CMP-LCX-002: azione sconosciuta o assente: `400` (parametro errato) o `422`? attuale: `422 INVALID_ACTION`.
 - **Q-245** · TB-CMP-LCX-003: `ACTIVATE` non è un'azione di docs/03 §3.6; attuale: sinonimo di `PUBLISH`.

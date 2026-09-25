@@ -10,6 +10,7 @@ import io.loyaltyhub.campaign.api.TransitionRequest;
 import io.loyaltyhub.campaign.domain.Campaign;
 import io.loyaltyhub.campaign.domain.CampaignStatus;
 import io.loyaltyhub.campaign.engine.CampaignEngine;
+import io.loyaltyhub.campaign.engine.ConditionEvaluator;
 import io.loyaltyhub.campaign.engine.EvalAction;
 import io.loyaltyhub.campaign.engine.Evaluation;
 import io.loyaltyhub.campaign.engine.MemberSnapshot;
@@ -29,6 +30,7 @@ import io.loyaltyhub.common.approval.ApprovalStatus;
 import io.loyaltyhub.common.approval.GovernedTransitions;
 import io.loyaltyhub.common.audit.AuditEntry;
 import io.loyaltyhub.common.audit.AuditPublisher;
+import io.loyaltyhub.common.condition.ConditionRules;
 import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhEventFactory;
 import io.loyaltyhub.common.event.LhEventTypes;
@@ -150,10 +152,11 @@ public class CampaignAdminService implements ApprovalSource {
 
     @Transactional
     public Campaign create(CreateCampaignRequest r) {
-        List<String> errors = validate(r);
+        List<String> errors = generalErrors(r);
         if (!errors.isEmpty()) {
             throw LhException.validation("CAMPAIGN_INVALID", String.join("; ", errors));
         }
+        requireValidConditions(r.conditions());
         if (r.code() == null || r.code().isBlank()) {
             throw LhException.badRequest("code è obbligatorio");
         }
@@ -208,12 +211,13 @@ public class CampaignAdminService implements ApprovalSource {
                         + String.join(", ", locked) + ". Per cambiarli duplica la campagna.");
             }
         }
-        List<String> errors = validate(new CreateCampaignRequest(m.code(), m.name(), m.description(), m.memberDescription(),
+        List<String> errors = generalErrors(new CreateCampaignRequest(m.code(), m.name(), m.description(), m.memberDescription(),
                 m.icon(), m.triggerActionTypes(), m.audience(), m.conditions(), m.effects(), m.limits(), m.schedule(),
                 m.priority(), m.exclusiveGroup(), m.visibleInPortal(), m.labels(), null));
         if (!errors.isEmpty()) {
             throw LhException.validation("CAMPAIGN_INVALID", String.join("; ", errors));
         }
+        requireValidConditions(m.conditions());
         // SPEC-GAP: Q-112 — "versioni" (M7.6) = optimistic locking con 409, niente storico delle revisioni.
         long expected = r.version() != null ? r.version() : c.version();
         if (!campaigns.update(m, expected)) {
@@ -411,7 +415,27 @@ public class CampaignAdminService implements ApprovalSource {
 
     // ---------- validazione (docs §5) ----------
 
+    /**
+     * {@code POST /v1/campaigns/validate}: regole della scheda §5 più la forma e il tipo delle condizioni
+     * ({@link ConditionEvaluator#validate}, Q-215/Q-219/Q-222/Q-223/Q-224), ciascuna come {@code percorso: messaggio}.
+     */
     public List<String> validate(CreateCampaignRequest r) {
+        List<String> errors = generalErrors(r);
+        ConditionEvaluator.validate(r.conditions()).forEach(i -> errors.add(i.path() + ": " + i.message()));
+        return errors;
+    }
+
+    /** Condizioni non valide → 422 {@code CONDITION_INVALID} con il percorso JSON di ogni problema (RFC 9457). */
+    private static void requireValidConditions(JsonNode conditions) {
+        List<ConditionRules.Issue> issues = ConditionEvaluator.validate(conditions);
+        if (!issues.isEmpty()) {
+            throw LhException.validation("CONDITION_INVALID", "Condizione non valida: " + issues.get(0).path() + " — "
+                            + issues.get(0).message(),
+                    issues.stream().map(i -> new LhException.FieldError(i.path(), i.message())).toList());
+        }
+    }
+
+    private List<String> generalErrors(CreateCampaignRequest r) {
         List<String> errors = new ArrayList<>();
         if (r.triggerActionTypes() == null || r.triggerActionTypes().isEmpty()) {
             errors.add("almeno un trigger");

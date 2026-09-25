@@ -110,7 +110,7 @@ d'integrazione `TestbookGam*IT` con un solo contesto), dati in `testbook/gam/*.c
   ciclo di vita (56), azione × ruolo (56); riduzioni dichiarate per giocata (2 100 → 59), consegna (150 → 16), modifica LIVE (72 → 25).
 - **Divergenze trovate e corrette (16 righe, 7 cause):** campi obbligatori mancanti → 422 invece di 500, campi sicuri di un
   concorso LIVE (`endAt` modificabile, regolamento bloccato), grammatica completa delle condizioni nei filtri degli obiettivi.
-- **Scelte registrate:** Q-159, Q-167, Q-289…Q-297; non conservative: Q-294, Q-295, Q-297.
+- **Scelte registrate:** Q-159, Q-167, Q-289…Q-297; non conservative: Q-294, Q-295 (tranne il comparatore sconosciuto, deciso: foglia falsa), Q-297.
 - **Referral lato member-service:** coperto in TB-GOV (area REF).
 - **Verifica a mutazione:** 11 mutazioni, tutte rilevate.
 
@@ -138,19 +138,19 @@ Documento completo: [`docs/testbook/TB-ENG-engagement.md`](testbook/TB-ENG-engag
 - **Tabelle complete:** selezione (60), pubblico (27+9), pop-up (24), ciclo di vita (50), ruoli (28), regole messaggi (60).
 - **Divergenze trovate e corrette (7 righe):** confine «iscritti da < 7 giorni», campi non sicuri modificabili su un
   contenuto LIVE (ora `409 CONTENT_LIVE_LOCKED`), portale senza `memberId` (ora 400).
-- **Scelte registrate:** Q-161, Q-170…Q-185; non conservative: Q-174, Q-179, Q-180, Q-184.
+- **Scelte registrate:** Q-161, Q-170…Q-185; non conservative: Q-174, Q-180, Q-184 (Q-179 decisa conservativa, con Q-215).
 - **Verifica a mutazione:** 8 mutazioni, tutte rilevate.
 
 ## 10. TB-WEB — Interfaccia
 Documento completo: [`docs/testbook/TB-WEB-interfaccia.md`](testbook/TB-WEB-interfaccia.md) — 77 regole, 349 rami mappati,
-**741 righe** in 21 aree. Test: file `web/**/*.testbook.test.ts(x)` accanto al codice, helper `web/test/testbook.ts`.
+**752 righe** in 21 aree. Test: file `web/**/*.testbook.test.ts(x)` accanto al codice, helper `web/test/testbook.ts`.
 
 - **Oracoli dalla specifica:** matrice ruoli × capacità (docs/08 §2), barra laterale (docs/08 §1), barra del ciclo di vita
   (docs/08 §3.3) copiate nei test e confrontate col codice.
 - **Divergenze trovate e corrette (33 righe, 23 cause):** etichette e contatore della navigazione, azioni vietate davvero
   disabilitate, dialogo per ogni transizione, colori degli stati, stati *loading/empty/error/degraded* di docs/07 §6,
   avvisi del portale (mantenimento livello, profilo sospeso), frase generata della campagna, formati di euro, zero e tempo.
-- **Scelte registrate:** Q-186…Q-208; non conservative: Q-186, Q-197, Q-206; Q-208 = fonti ammesse non esposte da campaign.
+- **Scelte registrate:** Q-186…Q-208; non conservative: Q-186, Q-206 (Q-197 decisa conservativa, con il cast tipizzato di Q-215); Q-208 = fonti ammesse non esposte da campaign.
 - **Verifica a mutazione:** 26 mutazioni, tutte rilevate.
 
 ## 10bis. TB-E2E — Percorsi end-to-end

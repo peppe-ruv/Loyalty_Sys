@@ -99,4 +99,28 @@ class AchievementRulesTest {
     private static Instant now() {
         return Instant.parse("2026-09-24T10:00:00Z");
     }
+
+    /** Q-295 DECISA: filtro con forma errata o comparatore sconosciuto rifiutato; campo di SUM numerico (Q-215). */
+    @Test
+    void filterValidation() {
+        assertThat(AchievementRules.validateFilter(null, null)).isEmpty();
+        assertThat(AchievementRules.validateFilter(data("{\"op\":\"all\",\"rules\":[{\"field\":\"data.amount\",\"cmp\":\"foo\",\"value\":1}]}"), null))
+                .extracting(io.loyaltyhub.common.condition.ConditionRules.Issue::path).containsExactly("filter.rules[0].cmp");
+        assertThat(AchievementRules.validateFilter(data("{\"op\":\"any\",\"rules\":[]}"), null))
+                .extracting(io.loyaltyhub.common.condition.ConditionRules.Issue::path).containsExactly("filter.rules");
+        assertThat(AchievementRules.validateFilter(data("{\"field\":\"data.amount\",\"cmp\":\"eq\",\"value\":\"molto\"}"), "data.amount"))
+                .extracting(io.loyaltyhub.common.condition.ConditionRules.Issue::path).containsExactly("filter.value");
+        assertThat(AchievementRules.validateFilter(data("{\"field\":\"data.amount\",\"cmp\":\"gte\",\"value\":\"50\"}"), "purchase.completed.data.amount"))
+                .isEmpty();
+        assertThat(AchievementRules.validateFilter(data("{\"field\":\"data.channel\",\"cmp\":\"eq\",\"value\":\"molto\"}"), "data.amount"))
+                .isEmpty();
+    }
+
+    /** Q-215 DECISA: il dato "60" resta testo (niente gt), il valore "50" della regola diventa numero. */
+    @Test
+    void filterTypedCast() {
+        assertThat(AchievementRules.matches(data("{\"field\":\"data.amount\",\"cmp\":\"gt\",\"value\":50}"), data("{\"amount\":\"60\"}"))).isFalse();
+        assertThat(AchievementRules.matches(data("{\"field\":\"data.amount\",\"cmp\":\"gt\",\"value\":\"50\"}"), data("{\"amount\":60}"))).isTrue();
+        assertThat(AchievementRules.matches(data("{\"op\":\"any\",\"rules\":[]}"), data("{}"))).as("Q-222").isFalse();
+    }
 }

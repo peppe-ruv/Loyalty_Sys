@@ -34,8 +34,8 @@ class TestbookEngConditionTest {
     }
 
     private void matches(String id, String description, String condition, boolean expected) {
-        // TESTBOOK: ambiguo, vedi le righe CND marcate AMBIGUO (null come assente, estremi di between, stringa numerica,
-        // gruppi vuoti, comparatore sconosciuto).
+        // Q-179 DECISA (conservativa, con Q-215/Q-216/Q-222): null = assente, between con estremi inclusi, stringa
+        // numerica nel dato resta testo, all vuoto vero, any vuoto falso, comparatore sconosciuto falso.
         JsonNode c = "null".equals(condition) ? null : MAPPER.readTree(condition);
         assertThatCode(() -> DataCondition.matches(c, DATA)).as("mai eccezioni").doesNotThrowAnyException();
         assertThat(DataCondition.matches(c, DATA)).isEqualTo(expected);

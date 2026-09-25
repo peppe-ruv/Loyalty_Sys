@@ -35,5 +35,5 @@ TB-CMP-VAL-033|solo startAt|purchase.completed|[{"type":"GRANT_POINTS","currency
 TB-CMP-VAL-034|date del calendario non valide|purchase.completed|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]|{"startAt":"2026-11-27T00:00:00Z","endAt":"domani"}||false|1
 TB-CMP-VAL-035|più errori insieme (niente trigger né effetti)|NULL|[]|||false|2
 TB-CMP-VAL-036|GRANT_POINTS con mode sconosciuto|purchase.completed|[{"type":"GRANT_POINTS","currency":"PTS","mode":"PERCENT","value":10}]|||true|0
-TB-CMP-VAL-037|condizione con comparatore sconosciuto|purchase.completed|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]||{"op":"all","rules":[{"field":"data.amount","cmp":"regex","value":"1"}]}|true|0
+TB-CMP-VAL-037|condizione con comparatore sconosciuto (conditions.rules[0].cmp) // Q-219 DECISA (rifiuto al salvataggio, chiude Q-242)|purchase.completed|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]||{"op":"all","rules":[{"field":"data.amount","cmp":"regex","value":"1"}]}|false|1
 TB-CMP-VAL-038|startAt non valido senza endAt|purchase.completed|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]|{"startAt":"2026-13-01"}||true|0

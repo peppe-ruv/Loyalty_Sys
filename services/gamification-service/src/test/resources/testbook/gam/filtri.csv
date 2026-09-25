@@ -35,6 +35,6 @@ TB-GAM-FLT-033,any con una regola vera,'{"op":"any","rules":[{"field":"data.amou
 TB-GAM-FLT-034,any con tutte le regole false,'{"op":"any","rules":[{"field":"data.amount","cmp":"gte","value":50},{"field":"data.channel","cmp":"eq","value":"APP"}]}','{"amount":10,"channel":"WEB"}',false
 TB-GAM-FLT-035,not su una regola falsa,'{"op":"not","rules":[{"field":"data.amount","cmp":"gte","value":100}]}','{"amount":50}',true
 TB-GAM-FLT-036,campo su elenco items[*].category (almeno un elemento),'{"op":"all","rules":[{"field":"data.items[*].category","cmp":"eq","value":"food"}]}','{"items":[{"category":"tech"},{"category":"food"}]}',true
-TB-GAM-FLT-037,AMBIGUO comparatore sconosciuto foo tra numeri uguali,'{"op":"all","rules":[{"field":"data.amount","cmp":"foo","value":50}]}','{"amount":50}',true
+TB-GAM-FLT-037,comparatore sconosciuto foo tra numeri uguali: foglia falsa // Q-295 DECISA,'{"op":"all","rules":[{"field":"data.amount","cmp":"foo","value":50}]}','{"amount":50}',false
 TB-GAM-FLT-038,gruppo annidato any dentro all,'{"op":"all","rules":[{"field":"data.amount","cmp":"gte","value":10},{"op":"any","rules":[{"field":"data.channel","cmp":"eq","value":"APP"},{"field":"data.channel","cmp":"eq","value":"WEB"}]}]}','{"amount":20,"channel":"WEB"}',true
 TB-GAM-FLT-039,between 10 e 100 con 5 (fuori),'{"op":"all","rules":[{"field":"data.amount","cmp":"between","value":[10,100]}]}','{"amount":5}',false

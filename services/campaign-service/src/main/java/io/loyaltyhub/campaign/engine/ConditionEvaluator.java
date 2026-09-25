@@ -1,5 +1,7 @@
 package io.loyaltyhub.campaign.engine;
 
+import io.loyaltyhub.common.condition.ConditionRules;
+import io.loyaltyhub.common.condition.TypedCast;
 import tools.jackson.databind.JsonNode;
 
 import java.time.LocalDate;
@@ -11,8 +13,9 @@ import java.util.List;
 
 /**
  * Valuta l'albero di condizioni di una campagna (docs/03 §3.3) sullo spazio {@code data/member/context/history}.
- * Campo assente → foglia falsa (tranne {@code nexists}); tipi incompatibili → falsa, mai eccezione.
- * Su array ({@code items[*].x}): vero se almeno un elemento soddisfa.
+ * Campo assente o {@code null} → foglia falsa (tranne {@code nexists}); tipi incompatibili → falsa, mai eccezione.
+ * Su array ({@code items[*].x}): vero se almeno un elemento soddisfa. Cast dei valori: {@link TypedCast} di lh-common,
+ * identico in member, gamification ed engagement (Q-215).
  */
 public final class ConditionEvaluator {
 
@@ -33,27 +36,64 @@ public final class ConditionEvaluator {
     public record Result(boolean pass, List<Evaluation.FailedCondition> failed) {
     }
 
+    /**
+     * Validazione di salvataggio delle condizioni (422 {@code CONDITION_INVALID}, Q-215/Q-219/Q-222/Q-223/Q-224): regole
+     * comuni di lh-common ({@link ConditionRules}) più il tipo dei campi che il motore calcola da sé
+     * ({@code member.*} tranne gli attributi custom, {@code context.*}, {@code history.*}).
+     */
+    // SPEC-GAP: Q-215 — i tipi di data.* (catalogo di ingestion GET /v1/event-types/{code}/fields) e di
+    // member.attributes.* (definizioni di member) non sono raggiungibili senza chiamate sincrone (CLAUDE.md §1.3): li
+    // verifica il costruttore del backoffice (web/lib/campaign/conditions.ts) con lo stesso cast; qui solo la forma.
+    public static List<ConditionRules.Issue> validate(JsonNode conditions) {
+        return ConditionRules.validate(conditions, "conditions", SCHEMA);
+    }
+
+    private static final ConditionRules.Schema SCHEMA = new ConditionRules.Schema() {
+        @Override
+        public TypedCast.Type declaredType(String field) {
+            return switch (field) {
+                case "member.tier", "member.status", "context.source", "context.dayOfWeek" -> TypedCast.Type.STRING;
+                case "member.age", "member.registeredDaysAgo", "context.hour", "history.actionCount",
+                     "history.daysSinceLastAction" -> TypedCast.Type.NUMBER;
+                case "context.date" -> TypedCast.Type.DATE;
+                default -> null;
+            };
+        }
+
+        @Override
+        public boolean isList(String field) {
+            return "member.segments".equals(field) || "member.labels".equals(field);
+        }
+    };
+
     public Result evaluate(JsonNode node) {
         List<Evaluation.FailedCondition> failed = new ArrayList<>();
+        if (node == null || node.isNull() || node.isMissingNode() || (node.isObject() && node.isEmpty())) {
+            return new Result(true, failed); // nessuna condizione = sempre vero (Q-225)
+        }
         boolean pass = eval(node, failed);
         return new Result(pass, failed);
     }
 
+    /**
+     * Gruppo {@code {op, rules}} o foglia. Decisioni conservative (docs/15): operatore di gruppo sconosciuto o mancante
+     * → falso (Q-223); {@code any} senza regole → falso (Q-222); foglia senza {@code field} o senza {@code cmp} → falsa
+     * (Q-224, Q-219). La validazione di salvataggio li rifiuta con 422 {@code CONDITION_INVALID}.
+     */
     private boolean eval(JsonNode node, List<Evaluation.FailedCondition> failed) {
-        if (node == null || node.isNull() || node.isEmpty()) {
-            return true; // nessuna condizione = sempre vero
+        if (node == null || !node.isObject()) {
+            return false;
         }
-        if (node.has("op")) {
-            String op = node.path("op").asString("all");
+        if (ConditionRules.isGroup(node)) {
+            String op = node.path("op").isString() ? node.path("op").asString() : "";
             JsonNode rules = node.path("rules");
             return switch (op) {
                 case "all" -> allOf(rules, failed);
                 case "any" -> anyOf(rules, failed);
                 case "not" -> !allOf(rules, new ArrayList<>());
-                default -> allOf(rules, failed);
+                default -> false;
             };
         }
-        // foglia
         return leaf(node, failed);
     }
 
@@ -71,7 +111,7 @@ public final class ConditionEvaluator {
 
     private boolean anyOf(JsonNode rules, List<Evaluation.FailedCondition> failed) {
         if (rules == null || rules.isEmpty()) {
-            return true;
+            return false; // Q-222: nessuna regola soddisfatta
         }
         List<Evaluation.FailedCondition> local = new ArrayList<>();
         for (JsonNode r : rules) {
@@ -84,16 +124,15 @@ public final class ConditionEvaluator {
     }
 
     private boolean leaf(JsonNode node, List<Evaluation.FailedCondition> failed) {
-        String field = node.path("field").asString(null);
-        String cmp = node.path("cmp").asString("eq");
+        String field = node.path("field").isString() ? node.path("field").asString() : null;
+        String cmp = node.path("cmp").isString() ? node.path("cmp").asString() : null;
         JsonNode value = node.get("value");
-        if (field == null) {
-            return true;
-        }
-        Object actual = resolve(field);
-        boolean ok = compare(cmp, actual, value);
+        boolean named = field != null && !field.isBlank();
+        Object actual = named ? resolve(field) : ABSENT;
+        boolean ok = named && cmp != null && compare(cmp, actual, value);
         if (!ok) {
-            failed.add(new Evaluation.FailedCondition(field, cmp, jsonToObject(value),
+            Object expected = jsonToObject(value);
+            failed.add(new Evaluation.FailedCondition(field, cmp, expected == ABSENT ? null : expected,
                     actual == ABSENT ? null : actual));
         }
         return ok;
@@ -101,7 +140,12 @@ public final class ConditionEvaluator {
 
     // ---------- comparatori ----------
 
-    @SuppressWarnings("unchecked")
+    /**
+     * Campo assente → falsa (tranne {@code nexists}); su elenco vero se almeno un elemento soddisfa (docs/03 §3.3),
+     * anche con {@code in/nin}; {@code contains/ncontains} guardano l'elenco intero (appartenenza). Il confronto sullo
+     * scalare è il cast tipizzato comune di lh-common ({@link TypedCast}, Q-215/Q-216 decise): il valore della regola è
+     * convertito nel tipo del dato, conversione fallita → falsa per ogni comparatore, negazioni comprese.
+     */
     private boolean compare(String cmp, Object actual, JsonNode value) {
         if ("exists".equals(cmp)) {
             return actual != ABSENT;
@@ -112,131 +156,21 @@ public final class ConditionEvaluator {
         if (actual == ABSENT) {
             return false; // campo assente → foglia falsa
         }
-        // Su array: vero se almeno un elemento soddisfa (docs/03 §3.3), anche con in/nin; solo contains/ncontains
-        // guardano la lista intera (appartenenza dell'elemento cercato).
-        if (actual instanceof List<?> list && !isListOp(cmp)) {
-            for (Object el : list) {
-                if (compareScalar(cmp, el, value)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        return compareScalar(cmp, actual, value);
-    }
-
-    private boolean isListOp(String cmp) {
-        return "contains".equals(cmp) || "ncontains".equals(cmp);
-    }
-
-    /**
-     * Confronto su uno scalare. Tipi incompatibili → falsa per ogni comparatore, negazioni comprese ({@code neq},
-     * {@code nin}, {@code ncontains}): la negazione vale solo tra tipi confrontabili (docs/03 §3.3), mai un ripiego
-     * sul confronto testuale.
-     */
-    private boolean compareScalar(String cmp, Object actual, JsonNode value) {
-        return switch (cmp) {
-            case "eq" -> comparable(actual, value) && equalsValue(actual, value);
-            case "neq" -> comparable(actual, value) && !equalsValue(actual, value);
-            case "gt" -> numeric(actual, value, c -> c > 0);
-            case "gte" -> numeric(actual, value, c -> c >= 0);
-            case "lt" -> numeric(actual, value, c -> c < 0);
-            case "lte" -> numeric(actual, value, c -> c <= 0);
-            case "in" -> value != null && value.isArray() && inList(actual, value);
-            case "nin" -> value != null && value.isArray() && allComparable(actual, value) && !inList(actual, value);
-            case "contains" -> containsCompatible(actual, value) && contains(actual, value);
-            case "ncontains" -> containsCompatible(actual, value) && !contains(actual, value);
-            case "between" -> between(actual, value);
-            case "startsWith" -> actual instanceof String s && value != null && value.isString()
-                    && s.startsWith(value.asString());
-            default -> false;
-        };
-    }
-
-    /**
-     * Tipi confrontabili per {@code eq}/{@code neq}/{@code in}/{@code nin}: numero con numero, booleano con booleano,
-     * testo con testo. Il testo numerico contro un numero si confronta come numero, con la stessa conversione di
-     * {@code gt/gte/lt/lte}.
-     */
-    // SPEC-GAP: Q-215 — testo numerico contro numero: confrontato come numero (comportamento conservato, da decidere).
-    private static boolean comparable(Object actual, JsonNode value) {
-        if (actual == null || actual == ABSENT || value == null || value.isNull()) {
-            return false;
-        }
-        if (value.isNumber()) {
-            return toDouble(actual) != null;
-        }
-        if (value.isBoolean()) {
-            return actual instanceof Boolean;
-        }
-        return value.isString() && actual instanceof String;
-    }
-
-    private static boolean allComparable(Object actual, JsonNode values) {
-        for (JsonNode v : values) {
-            if (!comparable(actual, v)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean equalsValue(Object actual, JsonNode value) {
-        if (!comparable(actual, value)) {
-            return false;
-        }
-        if (value.isNumber()) {
-            return toDouble(actual) == value.asDouble();
-        }
-        if (value.isBoolean()) {
-            return (Boolean) actual == value.asBoolean();
-        }
-        return actual.equals(value.asString());
-    }
-
-    /** {@code contains}/{@code ncontains}: su lista (appartenenza) o su testo con un valore testuale (sottostringa). */
-    private static boolean containsCompatible(Object actual, JsonNode value) {
-        if (value == null || value.isNull()) {
-            return false;
-        }
-        return actual instanceof List<?> || (actual instanceof String && value.isString());
-    }
-
-    private boolean numeric(Object actual, JsonNode value, java.util.function.IntPredicate cmp) {
-        Double a = toDouble(actual);
-        if (a == null || value == null || !value.isNumber()) {
-            return false;
-        }
-        return cmp.test(Double.compare(a, value.asDouble()));
-    }
-
-    private boolean inList(Object actual, JsonNode value) {
-        for (JsonNode v : value) {
-            if (equalsValue(actual, v)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean contains(Object actual, JsonNode value) {
         if (actual instanceof List<?> list) {
+            if ("contains".equals(cmp)) {
+                return TypedCast.listContains(list, value);
+            }
+            if ("ncontains".equals(cmp)) {
+                return TypedCast.listNotContains(list, value);
+            }
             for (Object el : list) {
-                if (equalsValue(el, value)) {
+                if (el != ABSENT && TypedCast.compare(cmp, el, value)) {
                     return true;
                 }
             }
             return false;
         }
-        return actual instanceof String s && s.contains(value.asString());
-    }
-
-    private boolean between(Object actual, JsonNode value) {
-        Double a = toDouble(actual);
-        if (a == null || value == null || !value.isArray() || value.size() < 2) {
-            return false;
-        }
-        return a >= value.get(0).asDouble() && a <= value.get(1).asDouble();
+        return TypedCast.compare(cmp, actual, value);
     }
 
     // ---------- risoluzione dei campi ----------
@@ -343,35 +277,26 @@ public final class ConditionEvaluator {
 
     // ---------- utilità ----------
 
-    private static Double toDouble(Object o) {
-        if (o instanceof Number n) {
-            return n.doubleValue();
-        }
-        if (o instanceof String s) {
-            try {
-                return Double.parseDouble(s);
-            } catch (NumberFormatException e) {
-                return null;
-            }
-        }
-        return null;
-    }
-
     private static Object jsonToObject(JsonNode n) {
         if (n == null || n.isNull() || n.isMissingNode()) {
             return ABSENT;
         }
         if (n.isNumber()) {
-            return n.asDouble();
+            return n.decimalValue(); // confronto con BigDecimal (Q-215), mai double
         }
         if (n.isBoolean()) {
             return n.asBoolean();
         }
         if (n.isArray()) {
             List<Object> list = new ArrayList<>();
-            n.forEach(e -> list.add(jsonToObject(e)));
+            n.forEach(e -> {
+                Object o = jsonToObject(e);
+                if (o != ABSENT) {
+                    list.add(o); // elemento null = assente
+                }
+            });
             return list;
         }
-        return n.asString("");
+        return n.isString() ? n.asString() : n; // oggetto: non scalare (nessun cast, Q-215)
     }
 }
