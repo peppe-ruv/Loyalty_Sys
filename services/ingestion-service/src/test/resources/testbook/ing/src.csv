@@ -1,0 +1,71 @@
+id|descrizione|fonte|tipo|stato|codice|atteso|rif
+TB-ING-SRC-001|fonte crm · tipo purchase.completed|crm|purchase.completed|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-002|fonte crm · tipo purchase.returned|crm|purchase.returned|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-003|fonte crm · tipo ebill.activated|crm|ebill.activated|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-004|fonte crm · tipo directdebit.activated|crm|directdebit.activated|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-005|fonte crm · tipo selfreading.submitted|crm|selfreading.submitted|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-006|fonte crm · tipo app.login.daily|crm|app.login.daily|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-007|fonte crm · tipo survey.completed|crm|survey.completed|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-008|fonte crm · tipo quiz.completed|crm|quiz.completed|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-009|fonte crm · tipo review.submitted|crm|review.submitted|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-010|fonte crm · tipo newsletter.subscribed|crm|newsletter.subscribed|ACCEPTED|-|ACCEPTED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-011|fonte crm · tipo tier.upgraded|crm|tier.upgraded|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-012|fonte app · tipo purchase.completed|app|purchase.completed|ACCEPTED|-|ACCEPTED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-013|fonte app · tipo purchase.returned|app|purchase.returned|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-014|fonte app · tipo ebill.activated|app|ebill.activated|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-015|fonte app · tipo directdebit.activated|app|directdebit.activated|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-016|fonte app · tipo selfreading.submitted|app|selfreading.submitted|ACCEPTED|-|ACCEPTED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-017|fonte app · tipo app.login.daily|app|app.login.daily|ACCEPTED|-|ACCEPTED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-018|fonte app · tipo survey.completed|app|survey.completed|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-019|fonte app · tipo quiz.completed|app|quiz.completed|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-020|fonte app · tipo review.submitted|app|review.submitted|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-021|fonte app · tipo newsletter.subscribed|app|newsletter.subscribed|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-022|fonte app · tipo tier.upgraded|app|tier.upgraded|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-023|fonte ecommerce · tipo purchase.completed|ecommerce|purchase.completed|ACCEPTED|-|ACCEPTED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-024|fonte ecommerce · tipo purchase.returned|ecommerce|purchase.returned|ACCEPTED|-|ACCEPTED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-025|fonte ecommerce · tipo ebill.activated|ecommerce|ebill.activated|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-026|fonte ecommerce · tipo directdebit.activated|ecommerce|directdebit.activated|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-027|fonte ecommerce · tipo selfreading.submitted|ecommerce|selfreading.submitted|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-028|fonte ecommerce · tipo app.login.daily|ecommerce|app.login.daily|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-029|fonte ecommerce · tipo survey.completed|ecommerce|survey.completed|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-030|fonte ecommerce · tipo quiz.completed|ecommerce|quiz.completed|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-031|fonte ecommerce · tipo review.submitted|ecommerce|review.submitted|ACCEPTED|-|ACCEPTED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-032|fonte ecommerce · tipo newsletter.subscribed|ecommerce|newsletter.subscribed|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-033|fonte ecommerce · tipo tier.upgraded|ecommerce|tier.upgraded|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-034|fonte billing · tipo purchase.completed|billing|purchase.completed|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-035|fonte billing · tipo purchase.returned|billing|purchase.returned|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-036|fonte billing · tipo ebill.activated|billing|ebill.activated|ACCEPTED|-|ACCEPTED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-037|fonte billing · tipo directdebit.activated|billing|directdebit.activated|ACCEPTED|-|ACCEPTED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-038|fonte billing · tipo selfreading.submitted|billing|selfreading.submitted|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-039|fonte billing · tipo app.login.daily|billing|app.login.daily|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-040|fonte billing · tipo survey.completed|billing|survey.completed|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-041|fonte billing · tipo quiz.completed|billing|quiz.completed|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-042|fonte billing · tipo review.submitted|billing|review.submitted|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-043|fonte billing · tipo newsletter.subscribed|billing|newsletter.subscribed|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-044|fonte billing · tipo tier.upgraded|billing|tier.upgraded|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-045|fonte partner · tipo purchase.completed|partner|purchase.completed|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-046|fonte partner · tipo purchase.returned|partner|purchase.returned|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-047|fonte partner · tipo ebill.activated|partner|ebill.activated|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-048|fonte partner · tipo directdebit.activated|partner|directdebit.activated|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-049|fonte partner · tipo selfreading.submitted|partner|selfreading.submitted|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-050|fonte partner · tipo app.login.daily|partner|app.login.daily|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-051|fonte partner · tipo survey.completed|partner|survey.completed|ACCEPTED|-|ACCEPTED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-052|fonte partner · tipo quiz.completed|partner|quiz.completed|ACCEPTED|-|ACCEPTED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-053|fonte partner · tipo review.submitted|partner|review.submitted|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-054|fonte partner · tipo newsletter.subscribed|partner|newsletter.subscribed|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-055|fonte partner · tipo tier.upgraded|partner|tier.upgraded|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|docs/05 §3 (colonna Origine); docs/10 §3; ingestion §5.3
+TB-ING-SRC-056|fonte internal (tipi ammessi vuoti) · tipo purchase.completed|internal|purchase.completed|ACCEPTED|-|ACCEPTED (elenco vuoto = tutti)|ingestion §2 (allowed_types vuoto = tutti)
+TB-ING-SRC-057|fonte internal (tipi ammessi vuoti) · tipo newsletter.subscribed|internal|newsletter.subscribed|ACCEPTED|-|ACCEPTED (elenco vuoto = tutti)|ingestion §2 (allowed_types vuoto = tutti)
+TB-ING-SRC-058|fonte internal (tipi ammessi vuoti) · tipo tier.upgraded|internal|tier.upgraded|ACCEPTED|-|ACCEPTED (elenco vuoto = tutti)|ingestion §2 (allowed_types vuoto = tutti)
+TB-ING-SRC-059|fonte simulator (tipi ammessi vuoti) · tipo purchase.completed|simulator|purchase.completed|ACCEPTED|-|ACCEPTED (elenco vuoto = tutti)|ingestion §2 (allowed_types vuoto = tutti)
+TB-ING-SRC-060|fonte simulator (tipi ammessi vuoti) · tipo newsletter.subscribed|simulator|newsletter.subscribed|ACCEPTED|-|ACCEPTED (elenco vuoto = tutti)|ingestion §2 (allowed_types vuoto = tutti)
+TB-ING-SRC-061|fonte simulator (tipi ammessi vuoti) · tipo tier.upgraded|simulator|tier.upgraded|ACCEPTED|-|ACCEPTED (elenco vuoto = tutti)|ingestion §2 (allowed_types vuoto = tutti)
+TB-ING-SRC-062|fonte sconosciuta pos-legacy|pos-legacy|purchase.completed|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED|ingestion §5.2; Q-129
+TB-ING-SRC-063|fonte esistente ma disabilitata (elenco vuoto)|@disabled|purchase.completed|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED|ingestion §5.2; F-ING-05
+TB-ING-SRC-064|fonte disabilitata che ammetterebbe il tipo|@disabled-allowing|purchase.completed|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED|ingestion §5.2; F-ING-05
+TB-ING-SRC-065|fonte abilitata con elenco che ammette il tipo|@allowing|purchase.completed|ACCEPTED|-|ACCEPTED|ingestion §5.3
+TB-ING-SRC-066|codice fonte in maiuscolo (ECOMMERCE)|urn:loyaltyhub:source:ECOMMERCE|purchase.completed|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED (fonte inesistente)|ingestion §5.2
+TB-ING-SRC-067|fonte in forma breve senza URN (ecommerce)|@short:ecommerce|purchase.completed|ACCEPTED|-|AMBIGUO: ACCEPTED (comportamento attuale; docs/05 §2 prevede l'URN)|docs/05 §2
+TB-ING-SRC-068|fonte con URN di servizio (urn:loyaltyhub:service:ecommerce)|urn:loyaltyhub:service:ecommerce|purchase.completed|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED: non è una fonte (DIVERGENZA)|docs/05 §2 (source delle azioni = urn:loyaltyhub:source:<codice>); ingestion §5.2
+TB-ING-SRC-069|fonte con URN estraneo che termina con :ecommerce (urn:altro:ecommerce)|urn:altro:ecommerce|purchase.completed|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED: fonte inesistente (DIVERGENZA)|docs/05 §2; ingestion §5.2
+TB-ING-SRC-070|URN di fonte con codice vuoto (urn:loyaltyhub:source:)|urn:loyaltyhub:source:|purchase.completed|REJECTED|SOURCE_DISABLED|AMBIGUO: REJECTED/SOURCE_DISABLED (nessun 400)|docs/05 §2; envelope.schema.json

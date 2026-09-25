@@ -1,0 +1,11 @@
+id|descrizione|caso|atteso|rif
+TB-ING-ACC-001|risposta dell'evento accettato|response|202 {eventId, status=ACCEPTED, memberId}|ingestion §3
+TB-ING-ACC-002|envelope pubblicato|envelope|type completo, source URN, subject member:<id>, datacontenttype, dataschema urn:loyaltyhub:schema:action.purchase.completed:1, lhtenant aurora, lhcorrelationid = id, lhhop 0, time e data invariati|ingestion §5.8; docs/05 §2
+TB-ING-ACC-003|chiave e topic|key|record su lh.actions.v1 con chiave = memberId|docs/05 §1; ingestion §7
+TB-ING-ACC-004|subject email: normalizzato|subjectNormalized|subject pubblicato member:<id>|ingestion §5.8; docs/05 §2; F-ING-03
+TB-ING-ACC-005|riga del monitor|row|riga ACCEPTED, origin EXTERNAL, member_id, correlation_id = id|ingestion §2; docs/17 US-E01-01
+TB-ING-ACC-006|subject sulla riga di un ingresso accettato|rowSubject|AMBIGUO: la riga ACCEPTED porta il subject normalizzato member:<id> (per riprova/abbina Q-118 conserva invece l'originale)|ingestion §2; Q-118
+TB-ING-ACC-007|attributi lh* inviati dalla fonte|lhOverride|ignorati: lhhop 0, lhcorrelationid = id, lhtenant aurora|docs/05 §2 (gli lh* li aggiunge ingestion)
+TB-ING-ACC-008|conformità ai contratti|contract|envelope valido per envelope.schema.json, data valido per purchase.completed.schema.json|docs/05 §2; contracts/events
+TB-ING-ACC-009|nessuna guardia di ruolo sull'ingresso|noGuard|X-LH-Actor ANALYST → 202 ACCEPTED|docs/06 §3 (solo scritture da backoffice); docs/17 ING-22
+TB-ING-ACC-010|record reale su Kafka|kafka|record su lh.actions.v1 con chiave memberId e lhhop 0 entro 15 s|ingestion §7; docs/12 M0

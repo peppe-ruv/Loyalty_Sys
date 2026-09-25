@@ -1,0 +1,30 @@
+id|descrizione|op|campo|valore|http|stato|codice|dettaglio|atteso|rif
+TB-ING-FRM-001|specversion assente|del|specversion|-|400|-|-|specversion|400, nulla salvato|ingestion §5.1; docs/05 §2
+TB-ING-FRM-002|specversion 0.3|str|specversion|0.3|400|-|-|specversion|400, nulla salvato|ingestion §5.1; docs/05 §2
+TB-ING-FRM-003|specversion 1 (senza .0)|str|specversion|1|400|-|-|specversion|400, nulla salvato|ingestion §5.1; docs/05 §2
+TB-ING-FRM-004|specversion vuoto|str|specversion|<vuoto>|400|-|-|specversion|400, nulla salvato|ingestion §5.1; docs/05 §2
+TB-ING-FRM-005|id assente|del|id|-|400|-|-|id|400, nulla salvato|ingestion §5.1; docs/05 §2
+TB-ING-FRM-006|id vuoto|str|id|<vuoto>|400|-|-|id|400, nulla salvato|ingestion §5.1; docs/05 §2
+TB-ING-FRM-007|id di soli spazi|str|id|<spazi>|400|-|-|id|400, nulla salvato|ingestion §5.1; docs/05 §2
+TB-ING-FRM-008|source assente|del|source|-|400|-|-|source|400, nulla salvato|ingestion §5.1; docs/05 §2
+TB-ING-FRM-009|source vuoto|str|source|<vuoto>|400|-|-|source|400, nulla salvato|ingestion §5.1; docs/05 §2
+TB-ING-FRM-010|type assente|del|type|-|400|-|-|type|400, nulla salvato|ingestion §5.1; docs/05 §2
+TB-ING-FRM-011|type di soli spazi|str|type|<spazi>|400|-|-|type|400, nulla salvato|ingestion §5.1; docs/05 §2
+TB-ING-FRM-012|subject assente|del|subject|-|400|-|-|subject|400, nulla salvato|ingestion §5.1; docs/05 §2
+TB-ING-FRM-013|subject di soli spazi|str|subject|<spazi>|400|-|-|subject|400, nulla salvato|ingestion §5.1; docs/05 §2
+TB-ING-FRM-014|time assente|del|time|-|400|-|-|time|400, nulla salvato|ingestion §5.1; docs/05 §2
+TB-ING-FRM-015|time 24/09/2026|str|time|24/09/2026|400|-|-|time|400, nulla salvato|ingestion §5.1; docs/05 §2; RFC 3339
+TB-ING-FRM-016|time solo data 2026-09-24|str|time|2026-09-24|400|-|-|time|400|ingestion §5.1; docs/05 §2; RFC 3339
+TB-ING-FRM-017|time senza secondi 2026-09-24T10:00Z|str|time|2026-09-24T10:00Z|400|-|-|time|400|ingestion §5.1; docs/05 §2; RFC 3339 (secondi obbligatori)
+TB-ING-FRM-018|time senza fuso 2026-09-24T10:00:00|str|time|2026-09-24T10:00:00|400|-|-|time|400|ingestion §5.1; docs/05 §2; RFC 3339 (offset obbligatorio)
+TB-ING-FRM-019|time 29 febbraio di anno non bisestile (2026-02-29T10:00:00Z)|str|time|2026-02-29T10:00:00Z|400|-|-|time|400|ingestion §5.1; docs/05 §2; RFC 3339
+TB-ING-FRM-020|time con ora 25|str|time|2026-09-24T25:00:00Z|400|-|-|time|400|ingestion §5.1; docs/05 §2; RFC 3339
+TB-ING-FRM-021|time con spazio al posto di T|str|time|2026-09-24 10:00:00Z|400|-|-|time|400|ingestion §5.1; docs/05 §2; RFC 3339 §5.6
+TB-ING-FRM-022|data assente|del|data|-|400|-|-|data|400, nulla salvato|ingestion §5.1; docs/05 §2
+TB-ING-FRM-023|data null|json|data|null|400|-|-|data|400, nulla salvato|ingestion §5.1; docs/05 §2
+TB-ING-FRM-024|data array []|json|data|[]|400|-|-|-|400: data deve essere un oggetto (DIVERGENZA)|ingestion §5.1; docs/05 §2; contracts/events/envelope.schema.json (data: object)
+TB-ING-FRM-025|data stringa|json|data|"x"|400|-|-|-|400: data deve essere un oggetto (DIVERGENZA)|ingestion §5.1; docs/05 §2; contracts/events/envelope.schema.json (data: object)
+TB-ING-FRM-026|corpo non JSON|raw|-|{non json|400|-|-|-|400 RFC 9457 (DIVERGENZA: oggi 500)|ingestion §3 (errori di forma → 400); docs/06 §2
+TB-ING-FRM-027|corpo vuoto|raw|-|<vuoto>|400|-|-|-|400 RFC 9457 (DIVERGENZA: oggi 500)|ingestion §3; docs/06 §2
+TB-ING-FRM-028|content-type application/cloudevents+json|ctype|-|application/cloudevents+json|202|ACCEPTED|-|-|202 ACCEPTED|docs/05 §2 (content-type application/cloudevents+json)
+TB-ING-FRM-029|attributo di estensione sconosciuto (foo)|json|foo|1|202|ACCEPTED|-|-|202 ACCEPTED (estensioni tollerate)|docs/05 §2; contracts/events/envelope.schema.json (additionalProperties)
