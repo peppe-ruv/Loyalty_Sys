@@ -32,6 +32,7 @@ import io.loyaltyhub.common.audit.AuditPublisher;
 import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhEventFactory;
 import io.loyaltyhub.common.event.LhEventTypes;
+import io.loyaltyhub.common.event.LhSource;
 import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.common.outbox.OutboxWriter;
 import io.loyaltyhub.common.web.ActorHolder;
@@ -319,6 +320,43 @@ public class CampaignAdminService implements ApprovalSource {
         return campaigns.findById(id).orElseThrow();
     }
 
+    /**
+     * Fine automatica (docs/servizi/campaign-service.md §5): le campagne {@code LIVE}/{@code PAUSED} con
+     * {@code schedule.endAt} superato ({@code asOf} oltre {@code endAt}, lo stesso confine del calendario del motore)
+     * passano a {@code ENDED}: storico con azione {@code END} dell'attore {@code system}, fatto
+     * {@code campaign.status.changed}, audit {@code JOB}, cache ricaricata. Idempotente: una campagna già
+     * {@code ENDED} non è più candidata. Restituisce quante ne ha chiuse.
+     */
+    @Transactional
+    public int endExpired(Instant asOf) {
+        int ended = 0;
+        for (Campaign c : campaigns.findAll()) {
+            if (c.status() != CampaignStatus.LIVE && c.status() != CampaignStatus.PAUSED) {
+                continue;
+            }
+            JsonNode end = c.schedule() == null ? null : c.schedule().get("endAt");
+            if (end == null || end.isNull() || end.asString("").isBlank()
+                    || !asOf.isAfter(Instant.parse(end.asString()))) {
+                continue;
+            }
+            ApprovalStatus from = ApprovalStatus.valueOf(c.status().name());
+            campaigns.updateStatus(c.id(), CampaignStatus.ENDED);
+            history.record(ApprovalPolicy.CAMPAIGN, c.id(), from, ApprovalStatus.ENDED, ApprovalAction.END, "system",
+                    "Fine calendario", clock.instant());
+            outbox.write(events.newRoot(LhEventTypes.Fact.CAMPAIGN_STATUS_CHANGED, "campaign:" + c.code(),
+                    Map.of("campaignCode", c.code(), "name", c.name(),
+                            "previousStatus", from.name(), "newStatus", CampaignStatus.ENDED.name()),
+                    LhSource.service("campaign"), "system"));
+            audit.recordJob("CAMPAIGN", c.code(), c.name() + ": " + from.name() + " → ENDED (fine calendario)",
+                    Map.of("status", from.name()), Map.of("status", CampaignStatus.ENDED.name()));
+            ended++;
+        }
+        if (ended > 0) {
+            cache.reload();
+        }
+        return ended;
+    }
+
     /** Policy della campagna (docs/06 §7): {@code requiresLegal} o budget oltre soglia → LEGAL. */
     public ApprovalRule ruleFor(Campaign c) {
         JsonNode max = c.limits() == null ? null : c.limits().path("global").path("maxPoints");
@@ -498,7 +536,7 @@ public class CampaignAdminService implements ApprovalSource {
                 ? type.substring(LhEventTypes.Action.PREFIX.length()) : type;
         Instant time = r.action().time() != null ? parse(r.action().time()) : clock.instant();
         EvalAction action = new EvalAction("sim-" + Ulid.next(clock), shortType, r.memberId(),
-                r.action().source(), time, r.action().data());
+                canonicalSource(r.action().source()), time, r.action().data());
 
         MemberSnapshot base = r.memberId() == null ? null : snapshots.findById(r.memberId()).orElse(null);
         MemberSnapshot snapshot = applyOverride(base, r.memberId(), r.memberOverride());
@@ -510,6 +548,19 @@ public class CampaignAdminService implements ApprovalSource {
             pool = cache.live();
         }
         return engine.evaluate(action, snapshot, pool, counters);
+    }
+
+    /**
+     * {@code context.source} è l'attributo {@code source} dell'azione, che nel motore reale è sempre l'URN
+     * {@code urn:loyaltyhub:source:<codice>} (docs/05 §2, docs/03 §3.3). La simulazione accetta anche il solo codice
+     * della fonte e lo porta nella stessa forma, così una condizione su {@code context.source} dà lo stesso esito.
+     */
+    static String canonicalSource(String source) {
+        if (source == null || source.isBlank()) {
+            return null;
+        }
+        String trimmed = source.trim();
+        return trimmed.startsWith(LhSource.SOURCE_PREFIX) ? trimmed : LhSource.source(trimmed);
     }
 
     private MemberSnapshot applyOverride(MemberSnapshot base, String memberId, SimulateRequest.MemberOverride ov) {

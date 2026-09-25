@@ -199,11 +199,11 @@ public class RewardSeeder implements ApplicationRunner, DemoResettable {
             switch (status) {
                 case FULFILLED -> redemptions.addHistory(Ulid.next(clock), id, status,
                         couponCode != null ? "Coupon emesso: " + couponCode : x.hasNonNull("note") ? "Evasa: " + text(x, "note") : "Evasa",
-                        couponCode != null || !x.hasNonNull("note") ? "SYSTEM" : "CARE:anna.care", closed);
+                        couponCode != null || !x.hasNonNull("note") ? "SYSTEM" : "CARE:paolo.care", closed);
                 case REJECTED -> redemptions.addHistory(Ulid.next(clock), id, status, "Respinta: " + reason, "SYSTEM", closed);
                 case CANCELLED -> redemptions.addHistory(Ulid.next(clock), id, status,
                         x.path("refund").asBoolean(false) ? "Annullata con rimborso: " + reason : "Annullata dal membro",
-                        x.path("refund").asBoolean(false) ? "CARE:anna.care" : "MEMBER:" + memberId, closed);
+                        x.path("refund").asBoolean(false) ? "CARE:paolo.care" : "MEMBER:" + memberId, closed);
                 default -> { }
             }
         }

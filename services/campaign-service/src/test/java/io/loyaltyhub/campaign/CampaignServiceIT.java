@@ -56,6 +56,9 @@ class CampaignServiceIT {
     @Autowired
     private JsonSchemaValidator validator;
 
+    @Autowired
+    private io.loyaltyhub.campaign.application.CampaignAdminService admin;
+
     // Martedì e sabato di settembre 2026 (Europe/Rome).
     private static final String TUESDAY = "2026-09-15T09:00:00Z";
     private static final String SATURDAY = "2026-09-19T09:00:00Z";
@@ -252,6 +255,49 @@ class CampaignServiceIT {
                 .isZero();
     }
 
+    /**
+     * {@code context.source} (docs/03 §3.3) è l'URN della fonte (docs/05 §2): la simulazione con il solo codice
+     * ({@code ecommerce}, come la passa il backoffice) deve dare lo stesso esito della valutazione reale via Kafka.
+     */
+    @Test
+    void contextSourceConditionBehavesTheSameInSimulationAndRealEvaluation() {
+        Map<String, Object> body = Map.of(
+                "code", "CMP-IT-SOURCE", "name", "Solo e-commerce", "triggerActionTypes", List.of("source.probe"),
+                "conditions", Map.of("op", "all", "rules", List.of(
+                        Map.of("field", "context.source", "cmp", "eq", "value", "urn:loyaltyhub:source:ecommerce"))),
+                "effects", List.of(Map.of("type", "GRANT_POINTS", "currency", "PTS", "mode", "FIXED", "value", 5)),
+                "schedule", Map.of("startAt", "2026-01-01T00:00:00Z"));
+        String id = send("POST", "/v1/campaigns", "MARKETING:giulia", body, 201).path("id").asString();
+        send("POST", "/v1/campaigns/" + id + "/transitions", "MARKETING:giulia", Map.of("action", "PUBLISH"), 200);
+
+        // Valutazione reale: l'azione arriva da ingestion con source = urn:loyaltyhub:source:ecommerce.
+        publishAction("01SRCPROBE01", "source.probe", "MBR-000009", TUESDAY, Map.of("probe", 1));
+        String real = null;
+        long deadline = System.currentTimeMillis() + 15_000;
+        while (real == null && System.currentTimeMillis() < deadline) {
+            real = client().get().uri("/v1/evaluations/01SRCPROBE01")
+                    .exchange((req, res) -> res.getStatusCode().value() == 200 ? new String(res.getBody().readAllBytes()) : null);
+            if (real == null) {
+                sleep();
+            }
+        }
+        assertThat(real).as("valutazione reale registrata").isNotNull();
+        JsonNode realRow = mapper.readTree(real).get(0);
+        assertThat(realRow.path("campaignCode").asString()).isEqualTo("CMP-IT-SOURCE");
+
+        for (String source : List.of("ecommerce", "urn:loyaltyhub:source:ecommerce")) {
+            JsonNode sim = send("POST", "/v1/campaigns/simulate", "MARKETING:giulia", Map.of(
+                    "action", Map.of("type", "source.probe", "time", TUESDAY, "source", source, "data", Map.of("probe", 1)),
+                    "memberId", "MBR-000009", "campaignIds", List.of(id)), 200);
+            assertThat(sim.path("results").get(0).path("matched").asBoolean())
+                    .as("simulazione con source=" + source).isEqualTo(realRow.path("matched").asBoolean()).isTrue();
+        }
+        JsonNode other = send("POST", "/v1/campaigns/simulate", "MARKETING:giulia", Map.of(
+                "action", Map.of("type", "source.probe", "time", TUESDAY, "source", "app", "data", Map.of("probe", 1)),
+                "memberId", "MBR-000009", "campaignIds", List.of(id)), 200);
+        assertThat(other.path("results").get(0).path("reason").asString()).isEqualTo("CONDITION");
+    }
+
     @Test
     void simulateTierUpgradedWithLookupCampaign() {
         Map<String, Object> body = Map.of(
@@ -344,8 +390,14 @@ class CampaignServiceIT {
                 "code", "CMP-IT-EDIT", "name", "Prova modifica", "triggerActionTypes", List.of("quiz.completed"),
                 "effects", List.of(Map.of("type", "GRANT_POINTS", "currency", "PTS", "mode", "FIXED", "value", 10)),
                 "schedule", Map.of("startAt", "2026-01-01T00:00:00Z")));
-        JsonNode created = client().post().uri("/v1/campaigns").contentType(MediaType.APPLICATION_JSON)
-                .body(body).retrieve().body(JsonNode.class);
+        // Creazione = object.edit (docs/08 §2): ANALYST, CARE, LEGAL e l'anonimo ricevono 403.
+        int anonymous = client().post().uri("/v1/campaigns").contentType(MediaType.APPLICATION_JSON).body(body)
+                .exchange((req, res) -> res.getStatusCode().value());
+        assertThat(anonymous).isEqualTo(403);
+        assertThat(send("POST", "/v1/campaigns", "ANALYST:sara", body, 403).path("code").asString()).isEqualTo("FORBIDDEN_ROLE");
+        send("POST", "/v1/campaigns", "CARE:paolo", body, 403);
+        send("POST", "/v1/campaigns", "LEGAL:elena", body, 403);
+        JsonNode created = send("POST", "/v1/campaigns", "MARKETING:giulia", body, 201);
         String id = created.path("id").asString();
 
         JsonNode draftEdit = put(id, Map.of("effects",
@@ -374,6 +426,51 @@ class CampaignServiceIT {
                 .contentType(MediaType.APPLICATION_JSON).body(Map.of("name", "x"))
                 .exchange((req, res) -> res.getStatusCode().value());
         assertThat(analyst).isEqualTo(403);
+    }
+
+    /** Fine automatica (campaign §5): LIVE/PAUSED con endAt superato → ENDED, con storico, fatto e cache aggiornata. */
+    @Test
+    void campaignsPastEndAtAreEndedByTheJob() {
+        String endAt = "2020-01-31T23:00:00Z";
+        Map<String, Object> body = new java.util.HashMap<>(Map.of(
+                "code", "CMP-IT-END-LIVE", "name", "Finita (live)", "triggerActionTypes", List.of("end.probe"),
+                "effects", List.of(Map.of("type", "GRANT_POINTS", "currency", "PTS", "mode", "FIXED", "value", 1)),
+                "schedule", Map.of("startAt", "2020-01-01T00:00:00Z", "endAt", endAt)));
+        String live = send("POST", "/v1/campaigns", "MARKETING:giulia", body, 201).path("id").asString();
+        send("POST", "/v1/campaigns/" + live + "/transitions", "MARKETING:giulia", Map.of("action", "PUBLISH"), 200);
+        body.put("code", "CMP-IT-END-PAUSED");
+        String paused = send("POST", "/v1/campaigns", "MARKETING:giulia", body, 201).path("id").asString();
+        send("POST", "/v1/campaigns/" + paused + "/transitions", "MARKETING:giulia", Map.of("action", "PUBLISH"), 200);
+        send("POST", "/v1/campaigns/" + paused + "/transitions", "MARKETING:giulia", Map.of("action", "PAUSE"), 200);
+        body.put("code", "CMP-IT-END-DRAFT");
+        String draft = send("POST", "/v1/campaigns", "MARKETING:giulia", body, 201).path("id").asString();
+
+        // Esattamente a endAt la campagna è ancora nel calendario (confine incluso, come nel motore).
+        assertThat(admin.endExpired(java.time.Instant.parse(endAt))).isZero();
+        assertThat(send("GET", "/v1/campaigns/" + live, "ANALYST:sara", null, 200).path("status").asString()).isEqualTo("LIVE");
+
+        try (KafkaConsumer<String, String> consumer = consumer("end-job")) {
+            consumer.subscribe(List.of("lh.facts.v1"));
+            assertThat(admin.endExpired(java.time.Instant.parse("2020-01-31T23:00:01Z"))).isEqualTo(2);
+            ConsumerRecord<String, String> fact = poll(consumer, r -> {
+                JsonNode e = readJson(r.value());
+                return e.path("type").asString().equals("io.loyaltyhub.fact.campaign.status.changed")
+                        && e.path("data").path("campaignCode").asString().equals("CMP-IT-END-PAUSED")
+                        && e.path("data").path("newStatus").asString().equals("ENDED");
+            });
+            assertThat(fact).as("campaign.status.changed della fine automatica").isNotNull();
+            JsonNode event = readJson(fact.value());
+            assertThat(event.path("data").path("previousStatus").asString()).isEqualTo("PAUSED");
+            assertThat(event.path("data").path("newStatus").asString()).isEqualTo("ENDED");
+            assertThat(event.path("lhactor").asString()).isEqualTo("system");
+        }
+        assertThat(send("GET", "/v1/campaigns/" + live, "ANALYST:sara", null, 200).path("status").asString()).isEqualTo("ENDED");
+        assertThat(send("GET", "/v1/campaigns/" + paused, "ANALYST:sara", null, 200).path("status").asString()).isEqualTo("ENDED");
+        assertThat(send("GET", "/v1/campaigns/" + draft, "ANALYST:sara", null, 200).path("status").asString()).isEqualTo("DRAFT");
+        JsonNode history = send("GET", "/v1/campaigns/" + live + "/approval-history", "ANALYST:sara", null, 200);
+        assertThat(history.get(0).path("action").asString()).isEqualTo("END");
+        assertThat(history.get(0).path("actor").asString()).isEqualTo("system");
+        assertThat(admin.endExpired(java.time.Instant.parse("2020-01-31T23:00:01Z"))).as("idempotente").isZero();
     }
 
     /** M7.1 (docs/06 §7): campagna con budget oltre 100 000 punti → approvazione LEGAL; policy in sola lettura. */

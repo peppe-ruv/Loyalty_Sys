@@ -204,6 +204,36 @@ class WalletServiceIT {
         assertThat(wallet(member).path("balances").path("PTS").path("active").asLong()).isZero();
     }
 
+    /** docs/03 §4.2: un movimento {@code EXPIRE} per membro/valuta col totale, non uno per lotto. */
+    @Test
+    void expiryWritesOneMovementPerMemberAndCurrency() {
+        String member = "MBR-009210";
+        publishGrant("EFF-EXP-21", member, "PTS", 300, false, "CMP-PURCHASE-BASE", 0, "2025-08-05T10:00:00Z");
+        awaitEarned("EFF-EXP-21");
+        publishGrant("EFF-EXP-22", member, "PTS", 450, false, "CMP-PURCHASE-BASE", 0, "2025-08-20T10:00:00Z");
+        awaitEarned("EFF-EXP-22");
+        assertThat(wallet(member).path("balances").path("PTS").path("active").asLong()).isEqualTo(750);
+
+        walletService.expirePoints(java.time.Instant.parse("2026-09-30T23:00:00Z"));
+
+        JsonNode ledger = client().get().uri("/v1/wallets/" + member + "/ledger?currency=PTS").retrieve().body(JsonNode.class);
+        List<JsonNode> expires = new java.util.ArrayList<>();
+        ledger.forEach(e -> {
+            if (e.path("type").asString().equals("EXPIRE")) {
+                expires.add(e);
+            }
+        });
+        assertThat(expires).as("un solo EXPIRE per membro/valuta").hasSize(1);
+        assertThat(expires.getFirst().path("amount").asLong()).isEqualTo(750);
+        assertThat(expires.getFirst().path("balanceAfter").asLong()).isZero();
+        JsonNode fact = awaitFact("io.loyaltyhub.fact.wallet.points.expired",
+                d -> d.path("ledgerEntryId").asString().equals(expires.getFirst().path("id").asString()));
+        assertThat(fact).isNotNull();
+        assertThat(fact.path("amount").asLong()).isEqualTo(750);
+        assertThat(fact.has("lotId")).as("più lotti: nessun lotId singolo").isFalse();
+        assertThat(wallet(member).path("balances").path("PTS").path("active").asLong()).isZero();
+    }
+
     @Test
     void expiringLotIsWarnedOncePerLot() {
         // Lotto in scadenza a fine 10/2026: dentro la finestra di preavviso (asOf → +30 giorni).

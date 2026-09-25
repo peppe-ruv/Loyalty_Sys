@@ -59,7 +59,8 @@ public class SimulatorController {
             String id = Ulid.next(clock);
             InboundEventRequest event = new InboundEventRequest(
                     "1.0", id, source, req.type(), "member:" + req.memberId(), time, data);
-            IngestResult r = ingestion.ingest(event);
+            // inbound_event.origin = SIMULATOR (ingestion §2): BO-26 distingue le prove dal traffico delle fonti.
+            IngestResult r = ingestion.ingest(event, IngestionService.ORIGIN_SIMULATOR);
             results.add(new FireResult(r.eventId(), r.correlationId(), r.status().name(),
                     r.rejectCode() == null ? null : r.rejectCode().name()));
         }

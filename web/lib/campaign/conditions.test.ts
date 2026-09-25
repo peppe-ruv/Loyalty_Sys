@@ -198,6 +198,8 @@ describe("catalogo", () => {
     expect(field("context.hour").type).toBe("number");
     expect(field("context.date").type).toBe("date");
     expect(field("context.source").type).toBe("string");
+    // Il motore confronta l'URN (docs/05 §2): il suggerimento non deve indurre a scrivere il solo codice.
+    expect(field("context.source").hint).toContain("urn:loyaltyhub:source:");
     expect(field("history.actionCount").type).toBe("number");
     expect(field("history.daysSinceLastAction").type).toBe("number");
   });
