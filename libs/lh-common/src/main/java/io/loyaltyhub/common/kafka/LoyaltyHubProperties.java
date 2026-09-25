@@ -184,7 +184,12 @@ public class LoyaltyHubProperties {
     }
 
     public static class Consumer {
-        private long[] retryBackoffMs = new long[]{1000L, 5000L, 15000L};
+        /**
+         * Ritardi tra un tentativo e il successivo: n ritardi = n + 1 tentativi. docs/04 dice "3 tentativi con backoff
+         * 1 s / 5 s / 15 s" (tre ritardi = quattro tentativi); vince il conteggio di docs/12 (accettazione M0: DLQ dopo 3
+         * tentativi), quindi 1 s e 5 s. SPEC-GAP: Q-131
+         */
+        private long[] retryBackoffMs = new long[]{1000L, 5000L};
 
         public long[] getRetryBackoffMs() {
             return retryBackoffMs;

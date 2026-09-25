@@ -219,7 +219,7 @@ class DlqIT {
                 "urn:loyaltyhub:source:ecommerce", "COR-RPR-1", Map.of("orderId", "ORD-RPR", "amount", 42));
         publish("lh.actions.v1", action, Map.of());
         publish("lh.dlq.v1", action, dlqHeaders("lh.actions.v1", "lh-campaign", "IllegalStateException",
-                "java.lang.IllegalStateException", "boom", "4", "true"));
+                "java.lang.IllegalStateException", "boom", "3", "true"));
         String id = awaitEntry("EVT-RPR-1").path("id").asString();
         assertThat(awaitTraceStatus("COR-RPR-1", "FAILED").path("status").asString()).isEqualTo("FAILED");
 
@@ -259,7 +259,7 @@ class DlqIT {
         String action = envelope("EVT-RPR-2", "io.loyaltyhub.action.app.login.daily",
                 "urn:loyaltyhub:source:app", "COR-RPR-2", Map.of("platform", "IOS"));
         publish("lh.dlq.v1", action, dlqHeaders("lh.actions.v1", "lh-gamification", "IllegalStateException",
-                "java.lang.IllegalStateException", "boom", "4", "true"));
+                "java.lang.IllegalStateException", "boom", "3", "true"));
         String id = awaitEntry("EVT-RPR-2").path("id").asString();
 
         INGESTION_STATUS.set("DUPLICATE");
@@ -275,7 +275,7 @@ class DlqIT {
         publish("lh.dlq.v1", envelope("EVT-NRP-1", "io.loyaltyhub.effect.points.grant",
                 "urn:loyaltyhub:service:campaign", "COR-NRP-1", Map.of("amount", 10, "currency", "PTS")),
                 dlqHeaders("lh.effects.v1", "lh-wallet", "IllegalStateException", "java.lang.IllegalStateException",
-                        "boom", "4", "true"));
+                        "boom", "3", "true"));
         JsonNode entry = awaitEntry("EVT-NRP-1");
         assertThat(entry.path("family").asString()).isEqualTo("EFFECT");
         assertThat(entry.path("reprocessable").asBoolean()).isFalse();
@@ -289,7 +289,7 @@ class DlqIT {
     @Test
     void nonJsonDlqValueIsKeptAsRaw() {
         publish("lh.dlq.v1", "questo non è json", dlqHeaders("lh.actions.v1", "lh-member", "JacksonException",
-                "tools.jackson.core.JacksonException", "Unrecognized token", "4", "true"));
+                "tools.jackson.core.JacksonException", "Unrecognized token", "3", "true"));
         JsonNode page = null;
         long deadline = System.currentTimeMillis() + 20_000;
         JsonNode found = null;

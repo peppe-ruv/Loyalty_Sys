@@ -27,7 +27,6 @@ import org.apache.kafka.common.config.TopicConfig;
 import org.springframework.kafka.config.KafkaListenerContainerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -106,7 +105,8 @@ public class LhKafkaConfiguration {
             metrics.eventDlq(headerType(record), DlqRecords.errorCode(cause));
             return DlqRecords.headers(record.topic(), group, cause, DlqRecords.attemptsFor(cause));
         });
-        // maxRetries = 3 ⇒ 4 tentativi totali (docs/04); gli eventi non ritentabili vanno subito in DLQ.
+        // Ritardi configurabili (default 1 s, 5 s ⇒ 3 tentativi, docs/12 accettazione M0, SPEC-GAP: Q-131);
+        // gli eventi non ritentabili vanno subito in DLQ.
         DefaultErrorHandler handler = new DefaultErrorHandler(recoverer,
                 new SequenceBackOff(props.getConsumer().getRetryBackoffMs()));
         // LOOP_GUARD è deterministico come un errore di validazione (docs/04 §5): nessun ritentativo lo risolverebbe.

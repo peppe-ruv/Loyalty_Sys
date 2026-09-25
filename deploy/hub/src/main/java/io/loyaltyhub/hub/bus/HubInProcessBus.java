@@ -40,8 +40,8 @@ import java.util.concurrent.atomic.AtomicLong;
 public class HubInProcessBus implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(HubInProcessBus.class);
-
-
+    /** Default come {@code loyaltyhub.consumer.retry-backoff-ms}: 1 s, 5 s ⇒ 3 tentativi (SPEC-GAP: Q-131). */
+    private static final long[] DEFAULT_BACKOFFS = {1000L, 5000L};
 
     private final String dlqTopic;
     private final long[] backoffs;
@@ -55,11 +55,12 @@ public class HubInProcessBus implements AutoCloseable {
             });
 
     public HubInProcessBus() {
-        this("lh.dlq.v1", new long[]{1000L, 5000L, 15000L});
+        this("lh.dlq.v1", DEFAULT_BACKOFFS);
     }
 
+    /** @param dlqTopic topic su cui finiscono i messaggi non elaborabili ({@code loyaltyhub.topics.dlq}). */
     public HubInProcessBus(String dlqTopic) {
-        this(dlqTopic, new long[]{1000L, 5000L, 15000L});
+        this(dlqTopic, DEFAULT_BACKOFFS);
     }
 
     /**

@@ -26,7 +26,7 @@ class DlqRecordsTest {
         assertThat(DlqRecords.retryable(pool)).isFalse();
         assertThat(DlqRecords.retryable(boom)).isTrue();
         assertThat(DlqRecords.attemptsFor(pool)).isEqualTo(1);
-        assertThat(DlqRecords.attemptsFor(boom)).isEqualTo(4);
+        assertThat(DlqRecords.attemptsFor(boom)).isEqualTo(3);
     }
 
     @Test

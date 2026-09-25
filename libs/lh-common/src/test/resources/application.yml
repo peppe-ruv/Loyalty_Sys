@@ -1,3 +1,3 @@
 loyaltyhub:
   consumer:
-    retry-backoff-ms: 50,50,50
+    retry-backoff-ms: 50,50
