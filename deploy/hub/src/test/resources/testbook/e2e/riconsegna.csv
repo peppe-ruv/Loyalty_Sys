@@ -1,0 +1,18 @@
+id,descrizione,percorso,evento,filtro,nuovoId
+TB-E2E-RED-001,Riconsegna dell'azione purchase.completed (campaign · gamification · member · insight) → nessun effetto,acquisto1000,ACTION:purchase.completed,-,no
+TB-E2E-RED-002,Riconsegna dell'effetto points.grant PTS dell'acquisto (wallet) → nessun secondo accredito,acquisto1000,EFFECT:points.grant,currency=PTS,no
+TB-E2E-RED-003,Riconsegna di wallet.points.earned PTS (engagement · gamification · member · campaign) → nessun messaggio né punteggio doppio,acquisto1000,FACT:wallet.points.earned,currency=PTS,no
+TB-E2E-RED-004,Riconsegna del fatto tier.upgraded (ponte · snapshot · engagement) → nessuna seconda azione né messaggio,acquisto1000,FACT:tier.upgraded,-,no
+TB-E2E-RED-005,Riconsegna dell'azione interna tier.upgraded (campaign) → nessun secondo bonus,acquisto1000,ACTION:tier.upgraded,-,no
+TB-E2E-RED-006,Riconsegna del fatto badge.awarded (ponte · engagement) → nessun secondo bonus badge,acquisto1000,FACT:badge.awarded,-,no
+TB-E2E-RED-007,Riconsegna del fatto achievement.completed (ponte) → nessuna seconda azione,acquisto1000,FACT:achievement.completed,-,no
+TB-E2E-RED-008,Riconsegna di reward.redemption.requested (wallet) → nessuna seconda spesa,premio,FACT:reward.redemption.requested,-,no
+TB-E2E-RED-009,Riconsegna di wallet.points.spent (reward) → nessun secondo coupon né conferma,premio,FACT:wallet.points.spent,-,no
+TB-E2E-RED-010,Riconsegna di reward.redemption.confirmed (ponte · engagement) → nessuna seconda azione reward.redeemed,premio,FACT:reward.redemption.confirmed,-,no
+TB-E2E-RED-011,Riconsegna di contest.won (ponte · engagement) → nessuna seconda azione instantwin.won,vincita-coupon,FACT:contest.won,-,no
+TB-E2E-RED-012,Riconsegna dell'effetto coupon.issue (reward) → nessun secondo coupon,vincita-coupon,EFFECT:coupon.issue,-,no
+TB-E2E-RED-013,Riconsegna di referral.completed REFERRER (ponte · engagement) → nessun secondo premio,amico,FACT:referral.completed,role=REFERRER,no
+TB-E2E-RED-014,Riconsegna di member.registered (wallet · ingestion · snapshot · engagement) → nessun secondo benvenuto,iscrizione,FACT:member.registered,-,no
+TB-E2E-RED-015,Riconsegna di reward.redemption.cancelled con refund (wallet) → un solo rimborso,annullo,FACT:reward.redemption.cancelled,-,no
+TB-E2E-RED-016,Effetto points.grant con nuovo id CloudEvents e stesso effectId → un solo movimento (idempotenza di dominio),acquisto1000,EFFECT:points.grant,currency=PTS,si
+TB-E2E-RED-017,Riconsegna dell'intera catena del tracciato nell'ordine originale → stato identico,acquisto1000,*,-,no
