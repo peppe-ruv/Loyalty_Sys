@@ -1,0 +1,21 @@
+test(wallet): test basato su proprietà con salti temporali [TEST-PROP-2]
+
+Sommario:
+Aggiunto `WalletPropTestIT`, un test basato su proprietà per validare la correttezza del ledger del wallet. Il test genera in modo casuale 100 sequenze di 20-60 operazioni, confrontando l'output del servizio reale (attraverso un `MutableClock` iniettato) contro un modello di riferimento semplificato in memoria.
+
+Test aggiunti:
+- `WalletPropTestIT`: Modello di validazione completo. Le sequenze randomiche includono `GRANT_PTS`, `GRANT_STS`, `SPEND`, `ADJUST_CREDIT`, `ADJUST_DEBIT`, balzi temporali casuali (inclusi fine mese, 29 Febbraio e cambi d'ora legati al DST), `RUN_EXPIRY` e `RUN_WARNING`. Valida le invarianze del saldo e l'applicazione corretta della logica di scadenza e discesa/salita di livello.
+
+Mutation check eseguiti:
+- Rompendo il sorting temporale della consumazione dei lotti (`reversed()`) durante una spesa/addebito manuale, i test hanno correttamente rilevato lo sbilanciamento causando un `AssertionError`.
+- Incrementando di `1` il saldo atteso nei confronti, il test ha intercettato e fermato la property-based verification.
+
+Bug trovati:
+- Nessuno.
+
+Da decidere:
+- Come suggerito, non ho modellato la complessità legata alla logica di `REFUND` parziali multi-lotto o al delay dei `PENDING_DAYS`, mantenendoli fuori dalla validazione in memoria e concentrandomi sulle transazioni immediate e la precisione a livello mensile, per aderire a `docs/03 §4.2`.
+
+Comandi eseguiti con esito e durata:
+`export JAVA_HOME=/usr/lib/jvm/java-25-openjdk-amd64 && mvn -q -pl services/wallet-service -am test -Dtest=WalletPropTestIT -Dprop.seed=123`
+`[INFO] BUILD SUCCESS` (circa 5 minuti di esecuzione per le 100 sequenze generate).
