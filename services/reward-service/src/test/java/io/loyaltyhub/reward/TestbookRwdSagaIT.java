@@ -177,7 +177,7 @@ class TestbookRwdSagaIT extends TestbookRwdBase {
 
     // ---------- ROL: ruoli sulle azioni manuali ----------
 
-    // TESTBOOK: ambiguo, vedi TB-RWD-ROL-015, TB-RWD-ROL-018
+    // TESTBOOK: scelta da decidere, vedi Q-R11 (TB-RWD-ROL-015, -018)
     @TestFactory
     Stream<DynamicTest> roles() {
         return TestbookRwdCsv.rows("roles-redemption.csv", row -> {
@@ -232,12 +232,12 @@ class TestbookRwdSagaIT extends TestbookRwdBase {
     Stream<DynamicTest> fulfilment() {
         return Stream.of(
                 scenario("TB-RWD-FUL-001", "AUTO_COUPON con pool disponibile", this::autoCouponFulfilled),
-                // TESTBOOK: ambiguo, vedi TB-RWD-FUL-002 («oggi + validity_days»)
+                // TESTBOOK: scelta da decidere, vedi Q-R5 (TB-RWD-FUL-002, «oggi + validity_days»)
                 scenario("TB-RWD-FUL-002", "scadenza del coupon emesso per la richiesta", this::couponExpiryFromValidity),
                 scenario("TB-RWD-FUL-003", "AUTO_COUPON con pool vuoto → needsAttention", this::emptyPoolNeedsAttention),
                 scenario("TB-RWD-FUL-004", "pool con un solo codice e due richieste", this::lastCodeThenAttention),
                 scenario("TB-RWD-FUL-005", "retry-fulfilment con pool ancora vuoto", this::retryStillEmpty),
-                // TESTBOOK: ambiguo, vedi TB-RWD-FUL-006 (AUTO_COUPON senza pool)
+                // TESTBOOK: scelta da decidere, vedi Q-R9 (TB-RWD-FUL-006, AUTO_COUPON senza pool)
                 scenario("TB-RWD-FUL-006", "AUTO_COUPON su premio senza pool", this::autoCouponWithoutPool),
                 scenario("TB-RWD-FUL-007", "INSTANT evaso subito", this::instantFulfilled),
                 scenario("TB-RWD-FUL-008", "MANUAL resta CONFIRMED in «Da evadere»", this::manualWaits),
@@ -257,11 +257,11 @@ class TestbookRwdSagaIT extends TestbookRwdBase {
                 scenario("TB-RWD-FUL-022", "risposta 202 e fatto requested", this::acceptedAndRequestedFact),
                 scenario("TB-RWD-FUL-023", "rifiuto del wallet con motivo MEMBER_NOT_ACTIVE", this::rejectedWithWalletReason),
                 scenario("TB-RWD-FUL-024", "annullo dal portale con memberId di un altro membro", this::memberCancelOtherMember),
-                // TESTBOOK: ambiguo, vedi TB-RWD-FUL-025 (annullo senza memberId)
+                // TESTBOOK: scelta da decidere, vedi Q-R11 (TB-RWD-FUL-025, annullo senza memberId)
                 scenario("TB-RWD-FUL-025", "annullo dal portale senza memberId", this::memberCancelWithoutMember),
                 scenario("TB-RWD-FUL-026", "dettaglio dal portale con memberId di un altro membro", this::portalGetOtherMember),
                 scenario("TB-RWD-FUL-027", "elenco dal portale senza memberId", this::portalListWithoutMember),
-                // TESTBOOK: ambiguo, vedi TB-RWD-FUL-028 («correlationId della richiesta HTTP»)
+                // TESTBOOK: scelta da decidere, vedi Q-R2 (TB-RWD-FUL-028, «correlationId della richiesta HTTP»)
                 scenario("TB-RWD-FUL-028", "intestazione X-Correlation-Id sulla richiesta", this::correlationHeader),
                 scenario("TB-RWD-FUL-029", "filtri rewardCode, from, to dell'elenco richieste", this::listFilters),
                 scenario("TB-RWD-FUL-030", "indirizzo di spedizione conservato", this::shippingKept),

@@ -31,14 +31,14 @@ class TestbookRwdEligibilityIT extends TestbookRwdBase {
 
     // ---------- VIS / ORD ----------
 
-    // TESTBOOK: ambiguo, vedi TB-RWD-VIS-043, TB-RWD-VIS-046, TB-RWD-VIS-058
+    // TESTBOOK: scelta da decidere, vedi Q-R3 (TB-RWD-VIS-043, -046), Q-R7 (TB-RWD-VIS-058)
     @TestFactory
     Stream<DynamicTest> visibility() {
         return TestbookRwdCsv.rows("visibility.csv", this::eligibility);
     }
 
     /** Coppie di condizioni vere: la specifica ammette uno dei due codici; il codice esatto è quello di oggi. */
-    // TESTBOOK: ambiguo, vedi TB-RWD-ORD-001…015 (precedenza dei controlli non fissata dalle specifiche)
+    // TESTBOOK: scelta da decidere, vedi Q-R1 (TB-RWD-ORD-001…015, precedenza dei controlli non fissata dalle specifiche)
     @TestFactory
     Stream<DynamicTest> order() {
         return TestbookRwdCsv.rows("order.csv", this::eligibility);

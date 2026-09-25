@@ -53,7 +53,7 @@ class TestbookRwdCouponIT extends TestbookRwdBase {
 
     // ---------- CPN: ciclo di vita × azione × tempo ----------
 
-    // TESTBOOK: ambiguo, vedi TB-RWD-CPN-002, TB-RWD-CPN-008, TB-RWD-CPN-011, TB-RWD-CPN-023, TB-RWD-CPN-025
+    // TESTBOOK: scelta da decidere, vedi Q-R6 (TB-RWD-CPN-002, -008, -011), Q-R4 (TB-RWD-CPN-023), Q-R12 (TB-RWD-CPN-025)
     @TestFactory
     Stream<DynamicTest> lifecycle() {
         return TestbookRwdCsv.rows("coupon-lifecycle.csv", row -> {
@@ -114,7 +114,7 @@ class TestbookRwdCouponIT extends TestbookRwdBase {
 
     // ---------- CPN: scadenza col job ----------
 
-    // TESTBOOK: ambiguo, vedi TB-RWD-CPN-041, TB-RWD-CPN-044, TB-RWD-CPN-045, TB-RWD-CPN-046, TB-RWD-CPN-047, TB-RWD-CPN-048
+    // TESTBOOK: scelta da decidere, vedi Q-R4 (TB-RWD-CPN-041), Q-R12 (TB-RWD-CPN-044, -046, -048)
     @TestFactory
     Stream<DynamicTest> expiry() {
         return TestbookRwdCsv.rows("coupon-expiry.csv", row -> {
@@ -138,7 +138,7 @@ class TestbookRwdCouponIT extends TestbookRwdBase {
 
     // ---------- CPN: pool ----------
 
-    // TESTBOOK: ambiguo, vedi TB-RWD-CPN-061 … TB-RWD-CPN-067, TB-RWD-CPN-069, TB-RWD-CPN-070, TB-RWD-CPN-071
+    // TESTBOOK: scelta da decidere, vedi Q-R12 (TB-RWD-CPN-061…067, -069…071)
     @TestFactory
     Stream<DynamicTest> createPool() {
         return TestbookRwdCsv.rows("pool-create.csv", row -> {
@@ -173,7 +173,7 @@ class TestbookRwdCouponIT extends TestbookRwdBase {
         });
     }
 
-    // TESTBOOK: ambiguo, vedi TB-RWD-CPN-083, TB-RWD-CPN-084
+    // TESTBOOK: scelta da decidere, vedi Q-R12 (TB-RWD-CPN-083, -084)
     @TestFactory
     Stream<DynamicTest> generate() {
         return TestbookRwdCsv.rows("pool-generate.csv", row -> {
@@ -222,7 +222,7 @@ class TestbookRwdCouponIT extends TestbookRwdBase {
         return out;
     }
 
-    // TESTBOOK: ambiguo, vedi TB-RWD-CPN-095, TB-RWD-CPN-096, TB-RWD-CPN-097, TB-RWD-CPN-098
+    // TESTBOOK: scelta da decidere, vedi Q-R12 (TB-RWD-CPN-095…098)
     @TestFactory
     Stream<DynamicTest> importCodes() {
         return TestbookRwdCsv.rows("pool-import.csv", row -> {
@@ -299,7 +299,7 @@ class TestbookRwdCouponIT extends TestbookRwdBase {
                 scenario("TB-RWD-EFF-002", "stesso effectId in un nuovo messaggio", this::effectSameEffectId),
                 scenario("TB-RWD-EFF-003", "stesso evento riconsegnato", this::effectRedelivered),
                 scenario("TB-RWD-EFF-004", "pool vuoto → DLQ COUPON_POOL_EMPTY", () -> effectToDlq("EMPTY", "COUPON_POOL_EMPTY")),
-                // TESTBOOK: ambiguo, vedi TB-RWD-EFF-005…008 (rami senza specifica dell'effetto coupon.issue)
+                // TESTBOOK: scelta da decidere, vedi Q-R13 (TB-RWD-EFF-005…008, rami senza specifica dell'effetto coupon.issue)
                 scenario("TB-RWD-EFF-005", "premio inesistente → DLQ", () -> effectToDlq("UNKNOWN", "REWARD_NOT_FOUND")),
                 scenario("TB-RWD-EFF-006", "premio senza pool → DLQ", () -> effectToDlq("NOPOOL", "COUPON_POOL_MISSING")),
                 scenario("TB-RWD-EFF-007", "effetto senza membro → DLQ", () -> effectToDlq("NOSUBJECT", "INVALID_EFFECT")),

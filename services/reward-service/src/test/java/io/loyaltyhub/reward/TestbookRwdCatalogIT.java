@@ -26,7 +26,7 @@ class TestbookRwdCatalogIT extends TestbookRwdBase {
 
     // ---------- CAT: creazione ----------
 
-    // TESTBOOK: ambiguo, vedi TB-RWD-CAT-007, TB-RWD-CAT-010, TB-RWD-CAT-016, TB-RWD-CAT-021
+    // TESTBOOK: scelta da decidere, vedi Q-R9 (TB-RWD-CAT-007, -010, -016, -021)
     @TestFactory
     Stream<DynamicTest> create() {
         return TestbookRwdCsv.rows("reward-create.csv", row -> {
@@ -135,7 +135,7 @@ class TestbookRwdCatalogIT extends TestbookRwdBase {
         return f;
     }
 
-    // TESTBOOK: ambiguo, vedi TB-RWD-EDT-029
+    // TESTBOOK: scelta da decidere, vedi Q-R9 (TB-RWD-EDT-029)
     @TestFactory
     Stream<DynamicTest> edit() {
         return TestbookRwdCsv.rows("reward-edit.csv", row -> {
@@ -196,7 +196,7 @@ class TestbookRwdCatalogIT extends TestbookRwdBase {
 
     // ---------- EDT: stock e versione (M7.6) ----------
 
-    // TESTBOOK: ambiguo, vedi TB-RWD-EDT-049, TB-RWD-EDT-051
+    // TESTBOOK: scelta da decidere, vedi Q-R8 (TB-RWD-EDT-049, -051)
     @TestFactory
     Stream<DynamicTest> stockRecalculation() {
         return TestbookRwdCsv.rows("stock-recalc.csv", row -> {
@@ -277,7 +277,7 @@ class TestbookRwdCatalogIT extends TestbookRwdBase {
         return null;
     }
 
-    // TESTBOOK: ambiguo, vedi TB-RWD-BND-012
+    // TESTBOOK: scelta da decidere, vedi Q-R9 (TB-RWD-BND-012)
     @TestFactory
     Stream<DynamicTest> bands() {
         return TestbookRwdCsv.rows("bands.csv", row -> {
@@ -358,10 +358,10 @@ class TestbookRwdCatalogIT extends TestbookRwdBase {
     @TestFactory
     Stream<DynamicTest> scenarios() {
         return Stream.of(
-                // TESTBOOK: ambiguo, vedi TB-RWD-EDT-053 (ripristino dello stock sotto un totale ridotto)
+                // TESTBOOK: scelta da decidere, vedi Q-R8 (TB-RWD-EDT-053, ripristino dello stock sotto un totale ridotto)
                 scenario("TB-RWD-EDT-053", "ripristino dello stock dopo una riduzione del totale", this::restoreAfterReduction),
                 scenario("TB-RWD-EDT-060", "duplica di un DRAFT", this::duplicateDraft),
-                // TESTBOOK: ambiguo, vedi TB-RWD-EDT-061 (collisione del codice della copia)
+                // TESTBOOK: scelta da decidere, vedi Q-R9 (TB-RWD-EDT-061, collisione del codice della copia)
                 scenario("TB-RWD-EDT-061", "seconda duplica", this::duplicateTwice),
                 scenario("TB-RWD-EDT-062", "duplica di un LIVE con prenotazioni", this::duplicateLive),
                 scenario("TB-RWD-EDT-063", "duplica con ruolo CARE", this::duplicateAsCare),

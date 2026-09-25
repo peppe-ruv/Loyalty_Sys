@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class TestbookRwdRulesTest {
 
-    // TESTBOOK: ambiguo, vedi TB-RWD-STK-012
+    // TESTBOOK: scelta da decidere, vedi Q-R8 (TB-RWD-STK-012)
     @TestFactory
     Stream<DynamicTest> stockState() {
         return TestbookRwdCsv.rows("stock-state.csv", row -> {

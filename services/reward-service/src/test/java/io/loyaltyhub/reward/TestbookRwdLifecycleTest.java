@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class TestbookRwdLifecycleTest {
 
-    // TESTBOOK: ambiguo, vedi TB-RWD-LCY-095, TB-RWD-LCY-098, TB-RWD-LCY-099
+    // TESTBOOK: scelta da decidere, vedi Q-R10 (TB-RWD-LCY-095, -098, -099)
     @TestFactory
     Stream<DynamicTest> transition() {
         return TestbookRwdCsv.rows("lifecycle.csv", row -> {
