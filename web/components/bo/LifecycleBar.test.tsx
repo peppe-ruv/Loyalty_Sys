@@ -77,6 +77,7 @@ describe("LifecycleBar", () => {
       );
 
       fireEvent.click(screen.getByRole("button", { name: "Pubblica" }));
+      fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
       await waitFor(() => {
           expect(screen.getByRole("alert")).toHaveTextContent("Serve l'approvazione: usa «Invia in revisione».");
       });

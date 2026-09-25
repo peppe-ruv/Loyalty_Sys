@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLhQuery } from "@/lib/api/client";
-import type { WalletView, MemberView } from "@/lib/api/types";
+import type { Edition, WalletView, MemberView } from "@/lib/api/types";
 import { useActiveMember } from "@/components/portal/MemberContext";
 import { usePending } from "@/components/portal/PendingContext";
 import { MemberCard } from "@/components/shared/content/MemberCard";
@@ -13,7 +13,7 @@ import { ContentSlot } from "@/components/portal/ContentSlot";
 import { PopupHost } from "@/components/portal/PopupHost";
 import { usePortalTheme } from "@/components/shared/ThemeContext";
 import { formatPoints } from "@/lib/format/points";
-import { formatDate } from "@/lib/format/dates";
+import { formatDate, formatDayMonth } from "@/lib/format/dates";
 import { isAnonymized, memberDisplayName } from "@/lib/member/anonymized";
 
 // PT-01 Home (docs/09 §PT-01): tessera, saldo, avanzamento livello, card hero (HOME_HERO), azioni rapide, griglia di
@@ -31,8 +31,15 @@ export default function PortalHome() {
     refetchInterval: pending ? 5000 : undefined,
   });
 
+  // Avviso di mantenimento (docs/09 §PT-01, wallet §2 `keepWarning`): la scadenza è la fine dell'edizione attiva.
+  const keepWarning = wallet.data?.tier.keepWarning ?? null;
+  const editions = useLhQuery<Edition[]>("wallet", "/v1/editions", undefined, { enabled: keepWarning != null });
+  const editionEnd = editions.data?.find((e) => e.status === "ACTIVE")?.endDate ?? null;
+
   // Un membro anonimizzato (F-MBR-05) non ha più un nome: saluto senza nome, tessera col segnaposto.
   const anonymized = isAnonymized(member.data?.status);
+  // docs/09 §2: BLOCKED/INACTIVE consultano ma non accumulano né richiedono premi.
+  const suspended = member.data?.status === "BLOCKED" || member.data?.status === "INACTIVE";
   const name = anonymized ? "" : (member.data?.firstName ?? "");
   const [welcome, setWelcome] = useState(false);
   useEffect(() => {
@@ -52,6 +59,11 @@ export default function PortalHome() {
         <h1 className="text-lg font-semibold text-[var(--color-pt-night)]">Ciao{name ? ` ${name}` : ""} 👋</h1>
         {theme.heroTitle ? <p className="text-sm text-[var(--color-pt-night)]/70">{theme.heroTitle}</p> : null}
       </div>
+      {suspended ? (
+        <p role="status" className="rounded-xl bg-amber-100 p-3 text-sm text-amber-900">
+          Il tuo profilo è sospeso: puoi consultare ma non accumulare o richiedere premi.
+        </p>
+      ) : null}
       {anonymized ? (
         <p className="rounded-xl bg-slate-100 p-3 text-sm text-slate-600">
           Questo profilo è stato anonimizzato: i dati personali sono stati rimossi e non si accumulano più punti. Scegli un
@@ -73,7 +85,9 @@ export default function PortalHome() {
             <div className="rounded-xl border border-[var(--color-bo-border)] bg-white p-3">
               {w.tier.next ? (
                 <p className="text-sm text-[var(--color-pt-night)]">
-                  Ti mancano <strong>{formatPoints(w.tier.next.missing)}</strong> punti status per {w.tier.next.code}
+                  {w.tier.next.missing === 1 ? "Ti manca " : "Ti mancano "}
+                  <strong>{formatPoints(w.tier.next.missing)}</strong>
+                  {w.tier.next.missing === 1 ? " punto status" : " punti status"} per {w.tier.next.code}
                 </p>
               ) : (
                 <p className="text-sm text-[var(--color-pt-night)]">Hai raggiunto il livello più alto 🎉</p>
@@ -81,6 +95,14 @@ export default function PortalHome() {
               <div className="mt-2 h-2 overflow-hidden rounded bg-slate-100">
                 <div className="h-full bg-[var(--color-pt-primary)]" style={{ width: `${w.tier.progressPct}%` }} />
               </div>
+              {w.tier.keepWarning && w.tier.keepWarning.missing > 0 ? (
+                <p className="mt-2 text-sm text-[var(--color-pt-night)]">
+                  Per mantenere {w.tier.keepWarning.tier} servono ancora{" "}
+                  <strong>{formatPoints(w.tier.keepWarning.missing)}</strong>{" "}
+                  {w.tier.keepWarning.missing === 1 ? "punto status" : "punti status"}
+                  {editionEnd ? ` entro il ${formatDayMonth(editionEnd)}` : ""}
+                </p>
+              ) : null}
             </div>
             {w.expiringSoon && w.expiringSoon.amount > 0 && w.expiringSoon.nextExpiryAt ? (
               <Link
@@ -122,6 +144,7 @@ export default function PortalHome() {
           isEmpty={(d) => d.length === 0}
           emptyTitle="Nessun movimento ancora"
           emptyHint="Scopri come guadagnare punti."
+          emptyAction={{ label: "Come guadagnare", href: "/portal/earn" }}
         >
           {(d) => (
             <ul className="rounded-xl border border-[var(--color-bo-border)] bg-white px-3">
