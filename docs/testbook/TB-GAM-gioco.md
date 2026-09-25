@@ -131,7 +131,7 @@ Estratti da `services/gamification-service/src/main` (domain, application, api, 
 | `AchievementService.onAction` :75–97 | valore invariato → nessun fatto; `progressed` (valore limitato al traguardo); `completed` + badge | R37, R40 | PRG |
 | `AchievementRules.periodKey` :33–40 | `MONTH` → `aaaa-mm`, `EDITION` → `ED-aaaa`, ogni altro periodo → `EVER` (`DAY`, `WEEK` non ammessi, Q-159) | R34 | PER |
 | `AchievementRules.advance` :78–103 | `COUNT` +1; `SUM` troncato, ≤ 0 ignorato; `DISTINCT_TYPES`; `STREAK` stessa unità / unità successiva / buco | R33 (troncamento e segno: *ramo senza specifica*) | MET, STK |
-| `AchievementRules.matches/leaf/compare` :58–352 | grammatica di docs/03 §3.3 su `data.*` come `ConditionEvaluator` di campaign-service: `all/any/not` annidati, 14 comparatori, `[*]`, campo assente → falso tranne `nexists`, tipi incompatibili → falso (D-7 risolta); comparatore sconosciuto tra numeri = `eq` (Q-A7) | R35 | FLT |
+| `AchievementRules.matches/leaf/compare` :58–352 | grammatica di docs/03 §3.3 su `data.*` come `ConditionEvaluator` di campaign-service: `all/any/not` annidati, 14 comparatori, `[*]`, campo assente → falso tranne `nexists`, tipi incompatibili → falso (D-7 risolta); comparatore sconosciuto tra numeri = `eq` (Q-295) | R35 | FLT |
 | `AchievementRules.field` :110–114 | `tipo.data.campo` (forma di docs/10) → `campo` | *ramo senza specifica* | MET-008 |
 | `AchievementAdminService.create/update/build` :50–130 | codice `ACH-…` (422), duplicato 409, `CODE_IMMUTABLE`, validazioni metrica/periodo/tipi/traguardo/SUM/STREAK/DISTINCT/badge/stato | R39 (prefisso, `DISTINCT` oltre i tipi, codice immutabile: *rami senza specifica*) | ACF |
 | `AchievementAdminService.build` :113–114 | metrica `null` → 422 `ACHIEVEMENT_INVALID` (D-3 risolta); periodi ammessi solo `EVER, MONTH, EDITION` (Q-159) | R39, R34 | ACF-002, ACF-017…019 |
@@ -1048,7 +1048,7 @@ Il referral è di **member-service** (gamification §1, docs/02 F-REF-01/02 «MB
 | Regole della specifica inventariate (§1.1) | 47 (R01…R47); con righe in questo testbook: 45 (R45 referral di member-service e R46 pulizia dei progressi senza righe, vedi §21.4) |
 | Rami del codice mappati (§1.2) | 78 nodi, di cui 19 con almeno un *ramo senza specifica*; i 5 in contrasto con la specifica (⚠) sono stati corretti (§21.5) |
 | Righe del testbook | 710 |
-| Righe **AMBIGUO** (comportamento attuale, domanda registrata: Q-A1…Q-A9 di docs/15) | 56 |
+| Righe **AMBIGUO** (comportamento attuale, domanda registrata: Q-289…Q-297 di docs/15) | 56 |
 | Righe in **DIVERGENZA** | 16 alla prima esecuzione, 0 aperte: tutte risolte correggendo il codice (§21.5) |
 | Casi JUnit eseguiti | 710 (una riga = un caso) |
 
@@ -1132,16 +1132,16 @@ Ognuno ha una riga **AMBIGUO** (salvo i due rami d'infrastruttura senza riga: su
 
 Righe **AMBIGUO** (56): TB-GAM-PLY-053, TB-GAM-PLY-054, TB-GAM-PLY-055, TB-GAM-PLY-056, TB-GAM-PLY-057, TB-GAM-PLY-059, TB-GAM-CRD-004, TB-GAM-CRD-028, TB-GAM-PTL-002, TB-GAM-PTL-003, TB-GAM-PTL-006, TB-GAM-PRZ-034, TB-GAM-PLT-006, TB-GAM-PLT-007, TB-GAM-PLT-008, TB-GAM-PLT-009, TB-GAM-PLT-017, TB-GAM-EDT-008, TB-GAM-EDT-018, TB-GAM-EDT-040, TB-GAM-EDT-044, TB-GAM-EDT-045, TB-GAM-EDT-062, TB-GAM-EDT-063, TB-GAM-GEN-033, TB-GAM-INS-017, TB-GAM-END-008, TB-GAM-STK-019, TB-GAM-MET-002, TB-GAM-MET-003, TB-GAM-MET-005, TB-GAM-MET-007, TB-GAM-MET-008, TB-GAM-MET-013, TB-GAM-FLT-037, TB-GAM-PRG-013, TB-GAM-PRG-018, TB-GAM-PRG-021, TB-GAM-ACF-012, TB-GAM-ACF-025, TB-GAM-ACF-033, TB-GAM-BDG-005, TB-GAM-BDG-006, TB-GAM-BDG-013, TB-GAM-LCF-001, TB-GAM-LCF-004, TB-GAM-LCF-015, TB-GAM-LCF-020, TB-GAM-LCF-021, TB-GAM-LCF-023, TB-GAM-GRT-004, TB-GAM-GRT-005, TB-GAM-GRT-007, TB-GAM-GRT-008, TB-GAM-GRT-009, TB-GAM-NCK-005.
 
-Domande registrate in docs/15 (identificativi provvisori `Q-A1…Q-A9`, da rinumerare):
-1. **Q-A1** — Ordine dei controlli della giocata e codice quando più condizioni sono false (PLY-053…055, CRD con tetto raggiunto e nessuna giocata).
-2. **Q-A2** — `memberId` assente o vuoto nella giocata e id al posto del codice nel path del portale (PLY-056, PLY-057, PLY-059).
-3. **Q-A3** — Portale: concorsi `LIVE` fuori periodo, membro non attivo (PTL-002, PTL-003, PTL-006).
-4. **Q-A4** — Istante piantato: stato del concorso, premio sconosciuto o assente, nessun istante aperto (PLT-006…009, PLT-017).
-5. **Q-A5** — Concorsi `PAUSED` come `LIVE` per le modifiche; `ENDED/ARCHIVED` non modificabili; codice immutabile (EDT-040, EDT-044, EDT-045, EDT-062, EDT-063 — Q-51 vale solo per le campagne); codice minuscolo normalizzato, distribuzione di default (EDT-008, EDT-018).
-6. **Q-A6** — Generazione senza premi o senza ore utili in `BUSINESS_HOURS` (INS-017, GEN-033); formato di `asOf` (END-008, come Q-156 per il wallet).
-7. **Q-A7** — `SUM`: troncamento dei decimali, importi negativi o testuali, forma `tipo.data.campo` (MET-002…008, MET-013, PRG-018, PRG-021); serie con azione fuori ordine (STK-019); progresso di un membro senza snapshot (PRG-013); comparatore sconosciuto (FLT-037).
-8. **Q-A8** — Configurazione: prefissi `ACH-`/`BDG-`/`LDB-`, `DISTINCT_TYPES` oltre i tipi, top N 3…50, metrica/periodo/codice immutabili (ACF-012, ACF-025, ACF-033, BDG-013, LCF-001, LCF-004, LCF-015, LCF-020, LCF-021, LCF-023).
-9. **Q-A9** — Effetti: `count` assente o < 1, crediti verso un concorso non `LIVE`, codice DLQ per effetti senza dati o senza membro (GRT-004, GRT-005, GRT-007…009, BDG-005, BDG-006); nota di consegna vuota (PRZ-034); nickname senza nome (NCK-005).
+Domande registrate in docs/15 (identificativi provvisori `Q-289…Q-297`, da rinumerare):
+1. **Q-289** — Ordine dei controlli della giocata e codice quando più condizioni sono false (PLY-053…055, CRD con tetto raggiunto e nessuna giocata).
+2. **Q-290** — `memberId` assente o vuoto nella giocata e id al posto del codice nel path del portale (PLY-056, PLY-057, PLY-059).
+3. **Q-291** — Portale: concorsi `LIVE` fuori periodo, membro non attivo (PTL-002, PTL-003, PTL-006).
+4. **Q-292** — Istante piantato: stato del concorso, premio sconosciuto o assente, nessun istante aperto (PLT-006…009, PLT-017).
+5. **Q-293** — Concorsi `PAUSED` come `LIVE` per le modifiche; `ENDED/ARCHIVED` non modificabili; codice immutabile (EDT-040, EDT-044, EDT-045, EDT-062, EDT-063 — Q-51 vale solo per le campagne); codice minuscolo normalizzato, distribuzione di default (EDT-008, EDT-018).
+6. **Q-294** — Generazione senza premi o senza ore utili in `BUSINESS_HOURS` (INS-017, GEN-033); formato di `asOf` (END-008, come Q-156 per il wallet).
+7. **Q-295** — `SUM`: troncamento dei decimali, importi negativi o testuali, forma `tipo.data.campo` (MET-002…008, MET-013, PRG-018, PRG-021); serie con azione fuori ordine (STK-019); progresso di un membro senza snapshot (PRG-013); comparatore sconosciuto (FLT-037).
+8. **Q-296** — Configurazione: prefissi `ACH-`/`BDG-`/`LDB-`, `DISTINCT_TYPES` oltre i tipi, top N 3…50, metrica/periodo/codice immutabili (ACF-012, ACF-025, ACF-033, BDG-013, LCF-001, LCF-004, LCF-015, LCF-020, LCF-021, LCF-023).
+9. **Q-297** — Effetti: `count` assente o < 1, crediti verso un concorso non `LIVE`, codice DLQ per effetti senza dati o senza membro (GRT-004, GRT-005, GRT-007…009, BDG-005, BDG-006); nota di consegna vuota (PRZ-034); nickname senza nome (NCK-005).
 
 ### 21.7 Referral di member-service (non coperto qui)
 

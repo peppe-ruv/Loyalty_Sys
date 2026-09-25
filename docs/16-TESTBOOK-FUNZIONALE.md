@@ -37,7 +37,7 @@ Il testbook è eseguibile per intero con un comando e produce un rapporto riga p
 | Campagne | [§4](#4-tb-cmp--campagne) | campaign | docs/03 §3 · docs/servizi/campaign-service.md · F-CMP-* | **eseguibile** — 638 righe |
 | Wallet e livelli | [§5](#5-tb-wal--wallet-e-livelli) | wallet | docs/03 §4 · docs/servizi/wallet-service.md · F-WAL-*, F-TIER-* | **eseguibile** — 373 righe |
 | Premi e coupon | [§6](#6-tb-rwd--premi-e-coupon) | reward (+ wallet) | docs/servizi/reward-service.md · F-RWD-*, F-CPN-* | **eseguibile** — 567 righe |
-| Gioco | [§7](#7-tb-gam--gioco) | gamification | docs/servizi/gamification-service.md · F-IW-*, F-ACH-*, F-LDB-*, F-REF-* | in preparazione |
+| Gioco | [§7](#7-tb-gam--gioco) | gamification | docs/servizi/gamification-service.md · F-IW-*, F-ACH-*, F-LDB-*, F-REF-* | **eseguibile** — 710 righe |
 | Governance e membri | [§8](#8-tb-gov--governance-e-membri) | tutti · member | docs/03 §3.6 · docs/06 §7 · docs/08 §2 · F-APR-*, F-MBR-*, F-SEG-* | in preparazione |
 | Engagement | [§9](#9-tb-eng--engagement) | engagement | docs/servizi/engagement-service.md · F-CNT-*, F-MSG-*, F-WBH-01 | **eseguibile** — 804 righe |
 | Interfaccia | [§10](#10-tb-web--interfaccia) | web | docs/07 · docs/08 · docs/09 | **eseguibile** — 741 righe |
@@ -102,7 +102,17 @@ Documento completo: [`docs/testbook/TB-RWD-premi.md`](testbook/TB-RWD-premi.md) 
 - **Verifica a mutazione:** 6 mutazioni, tutte rilevate.
 
 ## 7. TB-GAM — Gioco
-_In revisione._
+Documento completo: [`docs/testbook/TB-GAM-gioco.md`](testbook/TB-GAM-gioco.md) — 47 regole, 78 nodi di decisione,
+**710 righe**. Test: `services/gamification-service/src/test/java/io/loyaltyhub/gamification/` (4 classi unitarie e 7
+d'integrazione `TestbookGam*IT` con un solo contesto), dati in `testbook/gam/*.csv`.
+
+- **Tabelle complete:** stato del concorso × istante nel periodo (42), giocata gratuita × crediti × tetto giornaliero (36),
+  ciclo di vita (56), azione × ruolo (56); riduzioni dichiarate per giocata (2 100 → 59), consegna (150 → 16), modifica LIVE (72 → 25).
+- **Divergenze trovate e corrette (16 righe, 7 cause):** campi obbligatori mancanti → 422 invece di 500, campi sicuri di un
+  concorso LIVE (`endAt` modificabile, regolamento bloccato), grammatica completa delle condizioni nei filtri degli obiettivi.
+- **Scelte registrate:** Q-159, Q-167, Q-289…Q-297; non conservative: Q-294, Q-295, Q-297.
+- **Referral lato member-service:** coperto in TB-GOV (area REF).
+- **Verifica a mutazione:** 11 mutazioni, tutte rilevate.
 
 ## 8. TB-GOV — Governance e membri
 _In revisione._

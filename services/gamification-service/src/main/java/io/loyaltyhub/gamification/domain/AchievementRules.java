@@ -237,7 +237,7 @@ public final class AchievementRules {
             case "ncontains" -> containsCompatible(actual, value) && !contains(actual, value);
             case "between" -> between(actual, value);
             case "startsWith" -> actual instanceof String s && value != null && value.isString() && s.startsWith(value.asString());
-            // SPEC-GAP: Q-A7 — comparatore sconosciuto: tra numeri vale come eq (comportamento conservato), altrimenti
+            // SPEC-GAP: Q-295 — comparatore sconosciuto: tra numeri vale come eq (comportamento conservato), altrimenti
             // falso; il motore campagne lo tratta sempre come falso.
             default -> actual instanceof Double && value != null && value.isNumber() && equalsValue(actual, value);
         };
