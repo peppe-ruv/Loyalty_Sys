@@ -26,7 +26,7 @@ Il PoC non ha login: **sono i dati a raccontare il prodotto**. Questo documento 
 | `wallets.json` | wallet | member (proiezione), campaign, reward (snapshot saldo/tier) |
 | `activity-history.json` | campaign | member (statistiche), gamification (progressi) |
 | `segments.json`, `attribute-definitions.json` | member | campaign, reward, engagement |
-| `sources.json`, `event-types.json`, `internal-mappings.json`, `scenarios.json` | ingestion | — |
+| `sources.json`, `event-types.json`, `internal-mappings.json`, `scenarios.json`, `inbound-history.json` | ingestion | — |
 | `campaigns.json` | campaign | — |
 | `tiers.json`, `currencies.json`, `editions.json` | wallet | campaign, reward, gamification (tier) |
 | `reward-categories.json`, `reward-bands.json`, `rewards.json`, `coupon-pools.json`, `redemptions.json` | reward | — |
@@ -197,6 +197,13 @@ Passo: `{delayMs, memberId, type, source, data, at?, note, expect?}`; `at` è un
 
 Il flag `_poison` è onorato **solo** col profilo `demo` (campaign-service lancia un'eccezione non ritentabile).
 
+### 8.1 Storico del monitor ingressi (`inbound-history.json`)
+40 `inbound_event` degli ultimi 3 giorni (ingestion §6), **dove si vede**: BO-26 (schede per esito piene a demo appena accesa).
+- **ACCEPTED (9)**: gli accessi e l'acquisto recenti di `activity-history.json` (Marco, Giulia, Davide, Francesca, Matteo, Sofia), con le tre forme di soggetto (`member:`, `external:`, `email:`); non vengono ripubblicati.
+- **DUPLICATE (7)**: l'app e l'e-commerce ritentano gli stessi (fonte, id) pochi minuti dopo.
+- **REJECTED (14)**: ogni codice di rifiuto: `pos-legacy` sconosciuta (Q-129), tipi `ticket.opened`/`store.visit` inesistenti, tipo non ammesso dalla fonte, dati non validi (importo negativo, valuta mancante, voto 6, punteggio 120), istante fuori finestra, Roberto bloccato.
+- **UNMATCHED (10)**: clienti non ancora iscritti (`laura.conti@`, `pietro.sala@`, `CRM-131`, `CRM-142`, `MBR-000404`): da abbinare con *Abbina* o in automatico alla registrazione (F-ING-04).
+
 ## 9. Storico sintetico (`insight-synthetic.json`)
 Generatore con seme fisso per 90 giorni di `metric_daily` (`synthetic=true`): baseline per metrica (azioni/giorno 180 ± 25 %, PTS emessi 21.000, spesi 9.500, scaduti 600, richieste 14, giocate 95, vincite 11), stagionalità settimanale (+35 % sab–dom per gli acquisti), crescita lineare dei membri da 3.100 a 3.480, ripartizione per fonte (ecommerce 38 %, app 31 %, billing 14 %, crm 9 %, partner 8 %). I KPI "membri totali" del PoC sommano il sintetico ai 12 reali: l'origine è dichiarata in legenda.
 
@@ -213,3 +220,5 @@ Generatore con seme fisso per 90 giorni di `metric_daily` (`synthetic=true`): ba
 7. Ogni contenuto `WIN` punta a un premio in palio esistente; ogni premio in palio ha la sua card `WIN`.
 8. Ogni espressione di data è valida per la grammatica del §1.
 9. Nessuna stringa vietata (nomi di aziende reali, domini diversi da `example.org`).
+10. `event-types.json`: lo schema di `data` dei tipi con un contratto coincide con `contracts/events/action/<tipo>.schema.json` (precedenza 2); `sampleData` e passi di scenario non negativi hanno i campi obbligatori.
+11. `inbound-history.json` (storico di BO-26, ingestion §6): 40 righe `hist-*` degli ultimi 3 giorni con tutti gli esiti; gli `ACCEPTED` sono azioni di `activity-history.json` (stesso membro, tipo e istante) ammesse dalla fonte; i `DUPLICATE` reinviano un `ACCEPTED`; fonti, tipi e membri esistono salvo dove l'esito dichiara il contrario (`SOURCE_DISABLED`, `UNKNOWN_TYPE`, `UNMATCHED`).

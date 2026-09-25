@@ -1,0 +1,12 @@
+id|descrizione|caso|atteso|rif
+TB-ING-MON-001|conteggi per esito di una fonte senza eventi|countsEmpty|{ACCEPTED:0, DUPLICATE:0, REJECTED:0, UNMATCHED:0}|ingestion §3; F-ING-09; BO-26 (schede per esito con conteggi)
+TB-ING-MON-002|conteggi dopo 1 accettato, 2 duplicati, 1 respinto, 1 non abbinato|counts|1 / 2 / 1 / 1|ingestion §3; F-ING-09; BO-26
+TB-ING-MON-003|conteggi filtrati per membro|countsMember|solo le righe del membro|ingestion §3; F-ING-09; BO-26
+TB-ING-MON-004|elenco filtrato per esito e fonte|listStatus|solo righe REJECTED della fonte|ingestion §3; F-ING-09; BO-26 (filtro status, source)
+TB-ING-MON-005|elenco filtrato per tipo|listType|solo righe del tipo|ingestion §3; F-ING-09; BO-26 (filtro type)
+TB-ING-MON-006|dettaglio di un INVALID_DATA|detail|CloudEvent completo, correlationId, errori di schema campo per campo|ingestion §3; F-ING-09; BO-26
+TB-ING-MON-007|dettaglio inesistente|detail404|404|docs/06 §2
+TB-ING-MON-008|filtro per intervallo from/to|fromTo|solo le righe ricevute nell'intervallo (DIVERGENZA: filtro assente)|ingestion §3; F-ING-09; BO-26 (filtri from, to)
+TB-ING-MON-009|ricerca libera q|q|solo le righe che contengono il testo (DIVERGENZA: filtro assente)|ingestion §3; F-ING-09; BO-26 (filtro q)
+TB-ING-MON-010|storico demo all'avvio|seedHistory|≥ 40 righe negli ultimi 3 giorni con tutti e 4 gli esiti (DIVERGENZA: storico non seminato)|ingestion §6 (storico: 40 inbound_event degli ultimi 3 giorni)
+TB-ING-MON-011|lettura con ruolo ANALYST|readOnly|200 su elenco, conteggi e dettaglio|docs/06 §3; docs/08 §2

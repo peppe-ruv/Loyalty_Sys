@@ -1,0 +1,52 @@
+id|descrizione|FORM|SOURCE|UNKNOWN|NOTALLOWED|DATA|TIME|DUP|UNMATCHED|NOTACTIVE|http|stato|codice|atteso|rif
+TB-ING-PIP-001|nessun guasto|N|N|N|N|N|N|N|N|N|202|ACCEPTED|-|202 ACCEPTED, 1 pubblicazione|ingestion §5.8, §7
+TB-ING-PIP-002|solo specversion 0.3|S|N|N|N|N|N|N|N|N|400|-|-|400, nulla salvato|ingestion §5 §5.1
+TB-ING-PIP-003|solo fonte disabilitata|N|S|N|N|N|N|N|N|N|202|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED|ingestion §5 §5.2
+TB-ING-PIP-004|solo tipo sconosciuto|N|N|S|N|N|N|N|N|N|202|REJECTED|UNKNOWN_TYPE|REJECTED/UNKNOWN_TYPE|ingestion §5 §5.3
+TB-ING-PIP-005|solo tipo non ammesso dalla fonte|N|N|N|S|N|N|N|N|N|202|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|ingestion §5 §5.3
+TB-ING-PIP-006|solo amount -1|N|N|N|N|S|N|N|N|N|202|REJECTED|INVALID_DATA|REJECTED/INVALID_DATA|ingestion §5 §5.4
+TB-ING-PIP-007|solo time = adesso + 10 min|N|N|N|N|N|S|N|N|N|202|REJECTED|INVALID_TIME|REJECTED/INVALID_TIME|ingestion §5 §5.5
+TB-ING-PIP-008|solo (fonte, id) già ACCEPTED|N|N|N|N|N|N|S|N|N|202|DUPLICATE|-|DUPLICATE|ingestion §5 §5.6
+TB-ING-PIP-009|solo membro non in indice|N|N|N|N|N|N|N|S|N|202|UNMATCHED|-|UNMATCHED|ingestion §5 §5.7
+TB-ING-PIP-010|solo membro BLOCKED|N|N|N|N|N|N|N|N|S|202|REJECTED|MEMBER_NOT_ACTIVE|REJECTED/MEMBER_NOT_ACTIVE|ingestion §5 §5.7
+TB-ING-PIP-011|specversion 0.3 + fonte disabilitata|S|S|N|N|N|N|N|N|N|400|-|-|400, nulla salvato (vince specversion 0.3)|ingestion §5 §5.1; ordine §5
+TB-ING-PIP-012|specversion 0.3 + tipo sconosciuto|S|N|S|N|N|N|N|N|N|400|-|-|400, nulla salvato (vince specversion 0.3)|ingestion §5 §5.1; ordine §5
+TB-ING-PIP-013|specversion 0.3 + tipo non ammesso dalla fonte|S|N|N|S|N|N|N|N|N|400|-|-|400, nulla salvato (vince specversion 0.3)|ingestion §5 §5.1; ordine §5
+TB-ING-PIP-014|specversion 0.3 + amount -1|S|N|N|N|S|N|N|N|N|400|-|-|400, nulla salvato (vince specversion 0.3)|ingestion §5 §5.1; ordine §5
+TB-ING-PIP-015|specversion 0.3 + time = adesso + 10 min|S|N|N|N|N|S|N|N|N|400|-|-|400, nulla salvato (vince specversion 0.3)|ingestion §5 §5.1; ordine §5
+TB-ING-PIP-016|specversion 0.3 + (fonte, id) già ACCEPTED|S|N|N|N|N|N|S|N|N|400|-|-|400, nulla salvato (vince specversion 0.3)|ingestion §5 §5.1; ordine §5
+TB-ING-PIP-017|specversion 0.3 + membro non in indice|S|N|N|N|N|N|N|S|N|400|-|-|400, nulla salvato (vince specversion 0.3)|ingestion §5 §5.1; ordine §5
+TB-ING-PIP-018|specversion 0.3 + membro BLOCKED|S|N|N|N|N|N|N|N|S|400|-|-|400, nulla salvato (vince specversion 0.3)|ingestion §5 §5.1; ordine §5
+TB-ING-PIP-019|fonte disabilitata + tipo sconosciuto|N|S|S|N|N|N|N|N|N|202|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED (vince fonte disabilitata)|ingestion §5 §5.2; ordine §5
+TB-ING-PIP-020|fonte disabilitata + tipo non ammesso dalla fonte|N|S|N|S|N|N|N|N|N|202|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED (vince fonte disabilitata)|ingestion §5 §5.2; ordine §5
+TB-ING-PIP-021|fonte disabilitata + amount -1|N|S|N|N|S|N|N|N|N|202|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED (vince fonte disabilitata)|ingestion §5 §5.2; ordine §5
+TB-ING-PIP-022|fonte disabilitata + time = adesso + 10 min|N|S|N|N|N|S|N|N|N|202|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED (vince fonte disabilitata)|ingestion §5 §5.2; ordine §5
+TB-ING-PIP-023|fonte disabilitata + (fonte, id) già ACCEPTED|N|S|N|N|N|N|S|N|N|202|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED (vince fonte disabilitata)|ingestion §5 §5.2; ordine §5
+TB-ING-PIP-024|fonte disabilitata + membro non in indice|N|S|N|N|N|N|N|S|N|202|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED (vince fonte disabilitata)|ingestion §5 §5.2; ordine §5
+TB-ING-PIP-025|fonte disabilitata + membro BLOCKED|N|S|N|N|N|N|N|N|S|202|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED (vince fonte disabilitata)|ingestion §5 §5.2; ordine §5
+TB-ING-PIP-026|tipo sconosciuto + tipo non ammesso dalla fonte|N|N|S|S|N|N|N|N|N|202|REJECTED|UNKNOWN_TYPE|REJECTED/UNKNOWN_TYPE (vince tipo sconosciuto)|ingestion §5 §5.3; ordine §5
+TB-ING-PIP-027|tipo sconosciuto + amount -1|N|N|S|N|S|N|N|N|N|202|REJECTED|UNKNOWN_TYPE|REJECTED/UNKNOWN_TYPE (vince tipo sconosciuto)|ingestion §5 §5.3; ordine §5
+TB-ING-PIP-028|tipo sconosciuto + time = adesso + 10 min|N|N|S|N|N|S|N|N|N|202|REJECTED|UNKNOWN_TYPE|REJECTED/UNKNOWN_TYPE (vince tipo sconosciuto)|ingestion §5 §5.3; ordine §5
+TB-ING-PIP-029|tipo sconosciuto + (fonte, id) già ACCEPTED|N|N|S|N|N|N|S|N|N|202|REJECTED|UNKNOWN_TYPE|REJECTED/UNKNOWN_TYPE (vince tipo sconosciuto)|ingestion §5 §5.3; ordine §5
+TB-ING-PIP-030|tipo sconosciuto + membro non in indice|N|N|S|N|N|N|N|S|N|202|REJECTED|UNKNOWN_TYPE|REJECTED/UNKNOWN_TYPE (vince tipo sconosciuto)|ingestion §5 §5.3; ordine §5
+TB-ING-PIP-031|tipo sconosciuto + membro BLOCKED|N|N|S|N|N|N|N|N|S|202|REJECTED|UNKNOWN_TYPE|REJECTED/UNKNOWN_TYPE (vince tipo sconosciuto)|ingestion §5 §5.3; ordine §5
+TB-ING-PIP-032|tipo non ammesso dalla fonte + amount -1|N|N|N|S|S|N|N|N|N|202|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED (vince tipo non ammesso dalla fonte)|ingestion §5 §5.3; ordine §5
+TB-ING-PIP-033|tipo non ammesso dalla fonte + time = adesso + 10 min|N|N|N|S|N|S|N|N|N|202|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED (vince tipo non ammesso dalla fonte)|ingestion §5 §5.3; ordine §5
+TB-ING-PIP-034|tipo non ammesso dalla fonte + (fonte, id) già ACCEPTED|N|N|N|S|N|N|S|N|N|202|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED (vince tipo non ammesso dalla fonte)|ingestion §5 §5.3; ordine §5
+TB-ING-PIP-035|tipo non ammesso dalla fonte + membro non in indice|N|N|N|S|N|N|N|S|N|202|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED (vince tipo non ammesso dalla fonte)|ingestion §5 §5.3; ordine §5
+TB-ING-PIP-036|tipo non ammesso dalla fonte + membro BLOCKED|N|N|N|S|N|N|N|N|S|202|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED (vince tipo non ammesso dalla fonte)|ingestion §5 §5.3; ordine §5
+TB-ING-PIP-037|amount -1 + time = adesso + 10 min|N|N|N|N|S|S|N|N|N|202|REJECTED|INVALID_DATA|REJECTED/INVALID_DATA (vince amount -1)|ingestion §5 §5.4; ordine §5
+TB-ING-PIP-038|amount -1 + (fonte, id) già ACCEPTED|N|N|N|N|S|N|S|N|N|202|REJECTED|INVALID_DATA|REJECTED/INVALID_DATA (vince amount -1)|ingestion §5 §5.4; ordine §5
+TB-ING-PIP-039|amount -1 + membro non in indice|N|N|N|N|S|N|N|S|N|202|REJECTED|INVALID_DATA|REJECTED/INVALID_DATA (vince amount -1)|ingestion §5 §5.4; ordine §5
+TB-ING-PIP-040|amount -1 + membro BLOCKED|N|N|N|N|S|N|N|N|S|202|REJECTED|INVALID_DATA|REJECTED/INVALID_DATA (vince amount -1)|ingestion §5 §5.4; ordine §5
+TB-ING-PIP-041|time = adesso + 10 min + (fonte, id) già ACCEPTED|N|N|N|N|N|S|S|N|N|202|REJECTED|INVALID_TIME|REJECTED/INVALID_TIME (vince time = adesso + 10 min)|ingestion §5 §5.5; ordine §5
+TB-ING-PIP-042|time = adesso + 10 min + membro non in indice|N|N|N|N|N|S|N|S|N|202|REJECTED|INVALID_TIME|REJECTED/INVALID_TIME (vince time = adesso + 10 min)|ingestion §5 §5.5; ordine §5
+TB-ING-PIP-043|time = adesso + 10 min + membro BLOCKED|N|N|N|N|N|S|N|N|S|202|REJECTED|INVALID_TIME|REJECTED/INVALID_TIME (vince time = adesso + 10 min)|ingestion §5 §5.5; ordine §5
+TB-ING-PIP-044|(fonte, id) già ACCEPTED + membro non in indice|N|N|N|N|N|N|S|S|N|202|DUPLICATE|-|DUPLICATE (vince (fonte, id) già ACCEPTED)|ingestion §5 §5.6; ordine §5
+TB-ING-PIP-045|(fonte, id) già ACCEPTED + membro BLOCKED|N|N|N|N|N|N|S|N|S|202|DUPLICATE|-|DUPLICATE (vince (fonte, id) già ACCEPTED)|ingestion §5 §5.6; ordine §5
+TB-ING-PIP-046|specversion 0.3 + fonte disabilitata + tipo sconosciuto + tipo non ammesso dalla fonte + amount -1 + time = adesso + 10 min + (fonte, id) già ACCEPTED + membro non in indice|S|S|S|S|S|S|S|S|N|400|-|-|400, nulla salvato (vince specversion 0.3)|ingestion §5 §5.1; ordine §5
+TB-ING-PIP-047|fonte disabilitata + tipo sconosciuto + tipo non ammesso dalla fonte + amount -1 + time = adesso + 10 min + (fonte, id) già ACCEPTED + membro non in indice|N|S|S|S|S|S|S|S|N|202|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED (vince fonte disabilitata)|ingestion §5 §5.2; ordine §5
+TB-ING-PIP-048|tipo sconosciuto + tipo non ammesso dalla fonte + amount -1 + time = adesso + 10 min + (fonte, id) già ACCEPTED + membro non in indice|N|N|S|S|S|S|S|S|N|202|REJECTED|UNKNOWN_TYPE|REJECTED/UNKNOWN_TYPE (vince tipo sconosciuto)|ingestion §5 §5.3; ordine §5
+TB-ING-PIP-049|tipo non ammesso dalla fonte + amount -1 + time = adesso + 10 min + (fonte, id) già ACCEPTED + membro non in indice|N|N|N|S|S|S|S|S|N|202|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED (vince tipo non ammesso dalla fonte)|ingestion §5 §5.3; ordine §5
+TB-ING-PIP-050|amount -1 + time = adesso + 10 min + (fonte, id) già ACCEPTED + membro non in indice|N|N|N|N|S|S|S|S|N|202|REJECTED|INVALID_DATA|REJECTED/INVALID_DATA (vince amount -1)|ingestion §5 §5.4; ordine §5
+TB-ING-PIP-051|time = adesso + 10 min + (fonte, id) già ACCEPTED + membro non in indice|N|N|N|N|N|S|S|S|N|202|REJECTED|INVALID_TIME|REJECTED/INVALID_TIME (vince time = adesso + 10 min)|ingestion §5 §5.5; ordine §5

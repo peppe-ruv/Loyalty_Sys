@@ -39,7 +39,7 @@ public class EventTypeService {
                                    JsonNode dataSchema, JsonNode sampleData, Boolean enabled) {
     }
 
-    static final Pattern CODE = Pattern.compile("^[a-z][a-z0-9]*(\\.[a-z][a-zA-Z0-9]*){1,3}$");
+    static final Pattern CODE = Pattern.compile("^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*){1,3}$");
     static final Set<String> CUSTOM_CATEGORIES = Set.of("TRANSACTION", "ENGAGEMENT", "SERVICE");
 
     private final EventTypeRepository types;
@@ -140,7 +140,13 @@ public class EventTypeService {
         if (schema == null || !schema.isObject() || !"object".equals(schema.path("type").asString(""))) {
             errors.add(new LhException.FieldError("dataSchema", "JSON Schema con \"type\": \"object\""));
         } else {
-            schemaJson = schema.toString();
+            // F-ING-06: lo schema deve essere un JSON Schema valido (meta-schema 2020-12), non solo JSON ben formato.
+            List<String> invalid = validator.metaSchemaErrors(schema.toString());
+            if (invalid.isEmpty()) {
+                schemaJson = schema.toString();
+            } else {
+                errors.add(new LhException.FieldError("dataSchema", "JSON Schema non valido: " + String.join("; ", invalid)));
+            }
         }
         String sampleJson = null;
         if (schemaJson != null) {

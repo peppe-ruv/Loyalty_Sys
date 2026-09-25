@@ -23,25 +23,26 @@ Pulizia: `inbound_event` > 7 giorni (o oltre 20 000 righe: si eliminano le più 
 ### Ingresso (fonti esterne)
 | Metodo | Path | Note |
 |---|---|---|
-| POST | `/v1/events` | corpo = CloudEvent. `202 {eventId, status, memberId?, rejectCode?}`. Errori di forma → `400`; rifiuti di business → `202` con `status=REJECTED` (la fonte non deve ritentare) |
+| POST | `/v1/events` | corpo = CloudEvent. `202 {eventId, status, memberId?, rejectCode?}`. Errori di forma → `400` RFC 9457 (corpo assente o non JSON, attributo obbligatorio mancante, `data` non oggetto, `time` non RFC 3339); rifiuti di business → `202` con `status=REJECTED` (la fonte non deve ritentare). `source` = `urn:loyaltyhub:source:<codice>` con confronto esatto sul codice (un URN di servizio o estraneo non è una fonte → `SOURCE_DISABLED`) |
 | POST | `/v1/transactions` | `{source, orderId, memberRef, amount, currency, channel, items[], occurredAt}` → azione `purchase.completed` con `id = "txn-" + orderId` (P1) |
 
 ### Gestione (backoffice)
 | Metodo | Path | Note |
 |---|---|---|
-| GET | `/v1/inbound-events` | filtri `status, source, type, memberId, from, to, q` |
+| GET | `/v1/inbound-events` | filtri `status, source, type, memberId, from, to, q`: `from`/`to` istanti ISO-8601 su `received_at` (estremi inclusi, malformati → `400`); `q` testo cercato senza maiuscole in id evento, soggetto, membro, tipo, fonte, correlazione e dettaglio del rifiuto; `limit` (default 100, max 500). Risposta: array delle righe, più recenti prima |
+| GET | `/v1/inbound-events/counts` | conteggi per esito `{ACCEPTED, DUPLICATE, REJECTED, UNMATCHED}` con gli stessi filtri dell'elenco tranne `status` (schede di BO-26) |
 | GET | `/v1/inbound-events/{id}` | payload completo + `correlationId` per aprire il tracciato |
 | POST | `/v1/inbound-events/{id}/retry` | solo `REJECTED`/`UNMATCHED`: rivaluta e, se valido, pubblica |
 | POST | `/v1/inbound-events/{id}/match` | `{memberId}` abbina un `UNMATCHED` (P1) |
-| GET/POST/PUT | `/v1/sources`, `/v1/sources/{code}` | abilitazione, tipi ammessi |
-| GET/POST/PUT | `/v1/event-types`, `/v1/event-types/{code}` | i tipi `SYSTEM` permettono di modificare solo `name, description, enabled, icon`; i `CUSTOM` tutto tranne `code` |
+| GET/POST/PUT | `/v1/sources`, `/v1/sources/{code}` | abilitazione, tipi ammessi. Scrittura solo ADMIN (`program.config`), audit su `lh.audit.v1`. `POST {code, name, kind?, enabled?, allowedTypes?, description?}` → `201` (solo fonti `HTTP`; codice minuscolo 2–40 caratteri; `409 SOURCE_EXISTS`; `422 SOURCE_INVALID`). `PUT {enabled?, allowedTypes?}` aggiorna solo i campi presenti (`422 SOURCE_INVALID` se vuoto o con tipi inesistenti; `404` fonte inesistente) |
+| GET/POST/PUT | `/v1/event-types`, `/v1/event-types/{code}` | i tipi `SYSTEM` permettono di modificare solo `name, description, enabled, icon`; i `CUSTOM` tutto tranne `code` (minuscolo a punti, 2–4 parti, Q-89). Lo schema di un custom deve essere un JSON Schema 2020-12 valido (meta-schema) con `"type": "object"`, altrimenti `422 EVENT_TYPE_INVALID`. Gli schemi dei tipi `SYSTEM` con un contratto coincidono con `contracts/events/action/*.schema.json` (verificato da `check-seed.mjs`) |
 | GET | `/v1/event-types/{code}/fields` | elenco piatto dei campi `data.*` dedotti dallo schema `{path, type, enum?}` → alimenta il costruttore di condizioni |
 | GET/PUT | `/v1/internal-mappings` | ponte: abilita/disabilita |
 
 ### Demo
 | Metodo | Path | Note |
 |---|---|---|
-| POST | `/v1/demo/simulator/fire` | `{memberId, type, data?, source?, occurredAt?, count?=1}`; `data` assente → `sample_data` del tipo con piccole variazioni casuali. Risposta: `[{eventId, correlationId, status}]` |
+| POST | `/v1/demo/simulator/fire` | `{memberId, type, data?, source?, occurredAt?, count?=1}`; `data` assente → `sample_data` del tipo con piccole variazioni casuali (numeri di primo livello: decimali ±20 %, interi ±10 %, nei limiti dello schema; due invii consecutivi diversi). Risposta: `[{eventId, correlationId, status}]` |
 | GET | `/v1/demo/scenarios` · POST `/v1/demo/scenarios/{code}/run` | esecuzione asincrona; `202 {runId}` |
 | GET | `/v1/demo/scenario-runs/{runId}` | avanzamento passo per passo con `correlationId` di ogni evento |
 
@@ -64,10 +65,10 @@ Pipeline di accettazione, in ordine; al primo fallimento si salva `inbound_event
 8. arricchimento (`lh*`, `type` completo, `subject` normalizzato a `member:<id>`) → outbox → `ACCEPTED`.
 
 Ponte: per ogni fatto mappato crea l'azione secondo `docs/05 §7`; salva `inbound_event` con `origin=INTERNAL`; `lhhop > 3` → DLQ.
-Scenari: i passi sono `{delayMs, memberId, type, data, source, note}`; l'esecutore rispetta i ritardi (max 10 s per passo) e passa dalla stessa pipeline (origine `SIMULATOR`). Un passo può dichiarare `expect: REJECTED|DUPLICATE|UNMATCHED` per gli scenari negativi.
+Scenari: i passi sono `{delayMs, memberId, type, data, source, note, at?}` (`at` = espressione di data di docs/10 §1 su Europe/Rome, default `@now`); l'esecutore rispetta i ritardi (max 10 s per passo) e passa dalla stessa pipeline (origine `SIMULATOR`). Un passo può dichiarare `expect: REJECTED|DUPLICATE|UNMATCHED` per gli scenari negativi.
 
 ## 6. Seed
-`seed/sources.json`, `seed/event-types.json`, `seed/internal-mappings.json`, `seed/scenarios.json`, più `seed/members.json` per popolare `member_index`. Storico: 40 `inbound_event` degli ultimi 3 giorni con tutti gli esiti.
+`seed/sources.json`, `seed/event-types.json`, `seed/internal-mappings.json`, `seed/scenarios.json`, più `seed/members.json` per popolare `member_index`. Storico: 40 `inbound_event` degli ultimi 3 giorni con tutti gli esiti, da `seed/inbound-history.json` (id evento `hist-*`, ricaricati a ogni reset; membro e dettaglio del rifiuto calcolati come nella pipeline; nessuna pubblicazione: gli `ACCEPTED` sono azioni già presenti in `activity-history.json`).
 
 ## 7. Accettazione minima
 - Dato un evento valido per `MBR-000002`, quando lo invio, allora `202 ACCEPTED` e un record su `lh.actions.v1` con chiave `MBR-000002` e `lhhop=0`.

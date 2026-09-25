@@ -45,6 +45,28 @@ public class GlobalExceptionHandler {
         return ResponseEntity.unprocessableEntity().body(pd);
     }
 
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ProblemDetail> onUnreadableBody(
+            org.springframework.http.converter.HttpMessageNotReadableException ex, HttpServletRequest request) {
+        // Corpo assente, non JSON o con un valore del tipo sbagliato: errore di forma del client → 400, non 500
+        // (docs/06 §2). Il dettaglio non riporta il messaggio del parser (può contenere il corpo ricevuto).
+        log.debug("Corpo non leggibile su {}: {}", request != null ? request.getRequestURI() : "?", ex.getMessage());
+        ProblemDetail pd = base(HttpStatus.BAD_REQUEST, "bad-request", title(HttpStatus.BAD_REQUEST),
+                "Corpo della richiesta assente o non leggibile come JSON valido", request);
+        pd.setProperty("code", "BAD_REQUEST");
+        return ResponseEntity.badRequest().body(pd);
+    }
+
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ProblemDetail> onArgumentTypeMismatch(
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        // Parametro di query/percorso non convertibile (es. una data malformata in un filtro) → 400.
+        ProblemDetail pd = base(HttpStatus.BAD_REQUEST, "bad-request", title(HttpStatus.BAD_REQUEST),
+                "Parametro non valido: " + ex.getName(), request);
+        pd.setProperty("code", "BAD_REQUEST");
+        return ResponseEntity.badRequest().body(pd);
+    }
+
     @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
     public ResponseEntity<ProblemDetail> onNoResource(
             org.springframework.web.servlet.resource.NoResourceFoundException ex, HttpServletRequest request) {

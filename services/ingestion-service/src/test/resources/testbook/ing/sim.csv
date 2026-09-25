@@ -1,0 +1,20 @@
+id|descrizione|caso|atteso|rif
+TB-ING-SIM-001|ADMIN invia|role:ADMIN:marta.admin|200 [{eventId, correlationId, status}]|ingestion §3 (simulator/fire); F-DEMO-03; BO-28; docs/08 §2 (demo.simulate)
+TB-ING-SIM-002|MARKETING invia|role:MARKETING:luca.marketing|200|ingestion §3 (simulator/fire); F-DEMO-03; BO-28; docs/08 §2
+TB-ING-SIM-003|LEGAL invia|role:LEGAL:elena.legal|200|ingestion §3 (simulator/fire); F-DEMO-03; BO-28; docs/08 §2
+TB-ING-SIM-004|CARE invia|role:CARE:paolo.care|200|ingestion §3 (simulator/fire); F-DEMO-03; BO-28; docs/08 §2
+TB-ING-SIM-005|ANALYST invia|role:ANALYST:sara.analyst|403 FORBIDDEN_ROLE|docs/06 §3; docs/08 §2
+TB-ING-SIM-006|senza X-LH-Actor|role:-|403 FORBIDDEN_ROLE|docs/06 §3
+TB-ING-SIM-007|fonte assente ⇒ simulator|defaultSource|riga con fonte simulator, ACCEPTED|ingestion §3 (simulator/fire); F-DEMO-03; BO-28
+TB-ING-SIM-008|origine della riga|origin|origin SIMULATOR (DIVERGENZA: oggi EXTERNAL)|ingestion §2 (origin EXTERNAL, INTERNAL, SIMULATOR); docs/17 ING-20
+TB-ING-SIM-009|count assente ⇒ 1|count:-:1|1 evento|ingestion §3 (simulator/fire); F-DEMO-03; BO-28 (count?=1)
+TB-ING-SIM-010|count 20|count:20:20|20 eventi, id distinti|ingestion §3 (simulator/fire); F-DEMO-03; BO-28; BO-28 (ripetizioni 1–20)
+TB-ING-SIM-011|count 21|count:21:20|Q-I14: 20 eventi (limitato, non rifiutato)|BO-28
+TB-ING-SIM-012|count 0|count:0:1|Q-I14: 1 evento (limitato, non rifiutato)|BO-28
+TB-ING-SIM-013|count -3|count:-3:1|Q-I14: 1 evento|BO-28
+TB-ING-SIM-014|data assente ⇒ sample_data del tipo|sample|data con le chiavi del sample_data del tipo|ingestion §3 (simulator/fire); F-DEMO-03; BO-28
+TB-ING-SIM-015|data assente: piccole variazioni casuali|variation|due invii senza data hanno data diversi (DIVERGENZA: sample_data identico)|ingestion §3 (simulator/fire); F-DEMO-03; BO-28
+TB-ING-SIM-016|occurredAt assente ⇒ adesso|now|time = istante del servizio|ingestion §3 (simulator/fire); F-DEMO-03; BO-28
+TB-ING-SIM-017|occurredAt esplicito|occurredAt|time = occurredAt|ingestion §3 (simulator/fire); F-DEMO-03; BO-28
+TB-ING-SIM-018|stessa pipeline: tipo non ammesso dalla fonte scelta|pipelineType|REJECTED/TYPE_NOT_ALLOWED|ingestion §3 (simulator/fire); F-DEMO-03; BO-28; ingestion §5
+TB-ING-SIM-019|stessa pipeline: membro BLOCKED|pipelineMember|REJECTED/MEMBER_NOT_ACTIVE|ingestion §3 (simulator/fire); F-DEMO-03; BO-28; docs/03 §2

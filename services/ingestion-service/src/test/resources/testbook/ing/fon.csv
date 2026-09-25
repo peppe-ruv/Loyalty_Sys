@@ -1,0 +1,5 @@
+id|descrizione|caso|atteso|rif
+TB-ING-FON-001|elenco delle fonti|list|le 7 fonti del seed con stato e tipi ammessi|ingestion §3; docs/10 §3
+TB-ING-FON-002|ADMIN spegne una fonte da API|put|200; gli eventi successivi REJECTED/SOURCE_DISABLED (DIVERGENZA: PUT /v1/sources/{code} assente)|ingestion §3; F-ING-05; BO-09; docs/17 US-E01-11
+TB-ING-FON-003|ADMIN crea una fonte da API|post|201 (DIVERGENZA: POST /v1/sources assente)|ingestion §3; F-ING-05
+TB-ING-FON-004|MARKETING modifica una fonte|putMarketing|403 FORBIDDEN_ROLE (DIVERGENZA: endpoint assente)|docs/08 §2 (program.config: ADMIN); docs/17 US-E01-11

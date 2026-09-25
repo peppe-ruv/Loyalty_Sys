@@ -57,8 +57,11 @@ public class InboundEventsController {
             @RequestParam(required = false) String source,
             @RequestParam(required = false) String type,
             @RequestParam(required = false) String memberId,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "100") int limit) {
-        return repository.search(status, source, type, memberId, Math.min(Math.max(limit, 1), 500));
+        return repository.search(status, filter(source, type, memberId, from, to, q), Math.min(Math.max(limit, 1), 500));
     }
 
     /**
@@ -69,8 +72,28 @@ public class InboundEventsController {
     public Map<String, Long> counts(
             @RequestParam(required = false) String source,
             @RequestParam(required = false) String type,
-            @RequestParam(required = false) String memberId) {
-        return repository.countByStatus(source, type, memberId);
+            @RequestParam(required = false) String memberId,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String q) {
+        return repository.countByStatus(filter(source, type, memberId, from, to, q));
+    }
+
+    private static InboundEventRepository.Filter filter(String source, String type, String memberId,
+                                                        String from, String to, String q) {
+        return new InboundEventRepository.Filter(source, type, memberId, instant("from", from), instant("to", to), q);
+    }
+
+    /** {@code from}/{@code to}: istante ISO-8601 (RFC 3339); malformato → {@code 400}. */
+    private static Instant instant(String name, String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return java.time.OffsetDateTime.parse(value.trim()).toInstant();
+        } catch (java.time.format.DateTimeParseException e) {
+            throw LhException.badRequest("Parametro " + name + " non valido (atteso un istante ISO-8601): " + value);
+        }
     }
 
     @GetMapping("/{id}")

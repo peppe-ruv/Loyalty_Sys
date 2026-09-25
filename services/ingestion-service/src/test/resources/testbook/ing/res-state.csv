@@ -1,0 +1,11 @@
+id|descrizione|stato_iniziale|azione|http|codice|stato_riga|atteso|rif
+TB-ING-RES-015|Riprova su riga ACCEPTED|ACCEPTED|retry|409|INBOUND_NOT_RETRYABLE|ACCEPTED|409, nessuna ripubblicazione|ingestion §3 (riprova solo REJECTED/UNMATCHED; abbina un UNMATCHED); docs/17 US-E01-07
+TB-ING-RES-016|Abbina su riga ACCEPTED|ACCEPTED|match|409|INBOUND_NOT_UNMATCHED|ACCEPTED|409, nessuna ripubblicazione|ingestion §3 (riprova solo REJECTED/UNMATCHED; abbina un UNMATCHED)
+TB-ING-RES-017|Riprova su riga DUPLICATE|DUPLICATE|retry|409|INBOUND_NOT_RETRYABLE|DUPLICATE|409|ingestion §3 (riprova solo REJECTED/UNMATCHED; abbina un UNMATCHED)
+TB-ING-RES-018|Abbina su riga DUPLICATE|DUPLICATE|match|409|INBOUND_NOT_UNMATCHED|DUPLICATE|409|ingestion §3 (riprova solo REJECTED/UNMATCHED; abbina un UNMATCHED)
+TB-ING-RES-019|Riprova su riga REJECTED|REJECTED|retry|200|-|ACCEPTED|200, rivalutato e accettato (membro riattivato)|ingestion §3 (riprova solo REJECTED/UNMATCHED; abbina un UNMATCHED); F-ING-09
+TB-ING-RES-020|Abbina su riga REJECTED|REJECTED|match|409|INBOUND_NOT_UNMATCHED|REJECTED|409 (si abbinano solo i non abbinati)|ingestion §3 (riprova solo REJECTED/UNMATCHED; abbina un UNMATCHED)
+TB-ING-RES-021|Riprova su riga UNMATCHED|UNMATCHED|retry|200|-|ACCEPTED|200, accettato (membro ora indicizzato)|ingestion §3 (riprova solo REJECTED/UNMATCHED; abbina un UNMATCHED); F-ING-04
+TB-ING-RES-022|Abbina su riga UNMATCHED|UNMATCHED|match|200|-|ACCEPTED|200, accettato col membro indicato|ingestion §3 (riprova solo REJECTED/UNMATCHED; abbina un UNMATCHED); F-ING-04
+TB-ING-RES-023|Riprova su riga INESISTENTE|INESISTENTE|retry|404|NOT_FOUND|-|404|docs/06 §2
+TB-ING-RES-024|Abbina su riga INESISTENTE|INESISTENTE|match|404|NOT_FOUND|-|404|docs/06 §2

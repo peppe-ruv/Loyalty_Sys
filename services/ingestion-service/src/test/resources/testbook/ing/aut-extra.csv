@@ -1,0 +1,10 @@
+id|descrizione|caso|atteso|rif
+TB-ING-AUT-052|registrazione senza externalId né e-mail|noKeys|nessuna riga toccata|Q-119
+TB-ING-AUT-053|fonte dell'evento spenta nel frattempo|sourceOff|resta UNMATCHED|Q-116; docs/17 US-E01-06
+TB-ING-AUT-054|tipo dell'evento disabilitato nel frattempo|typeOff|resta UNMATCHED|Q-116
+TB-ING-AUT-055|riga già abbinata a mano|alreadyResolved|saltata: resta ACCEPTED col primo membro, 1 pubblicazione|ingestion §3; docs/17 ING-13
+TB-ING-AUT-056|fatto member.registered riconsegnato|redelivery|1 sola pubblicazione|docs/04 §5 (consumer idempotenti); docs/17 US-E01-06
+TB-ING-AUT-057|101 righe parcheggiate per lo stesso membro|limit|100 accettate (le più vecchie), 1 resta UNMATCHED|Q-115
+TB-ING-AUT-058|provenienza dell'abbinamento automatico|provenance|resolution AUTO_MATCH, resolvedBy system, audit come job (lhactor system)|Q-117; Q-118
+TB-ING-AUT-059|riga via e-mail e riga via externalId dello stesso membro|both|entrambe ACCEPTED|F-ING-04; Q-119
+TB-ING-AUT-060|member.status.changed → ACTIVE di un membro prima BLOCKED|statusChanged|resta UNMATCHED (solo alla registrazione)|Q-119

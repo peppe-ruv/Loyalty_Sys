@@ -16,6 +16,7 @@ import io.loyaltyhub.ingestion.domain.IngestResult;
 import io.loyaltyhub.ingestion.domain.InboundStatus;
 import io.loyaltyhub.ingestion.domain.MemberRef;
 import io.loyaltyhub.ingestion.domain.RejectCode;
+import io.loyaltyhub.ingestion.domain.RejectDetails;
 import io.loyaltyhub.ingestion.domain.Source;
 import io.loyaltyhub.ingestion.infra.EventTypeRepository;
 import io.loyaltyhub.ingestion.infra.InboundEventRepository;
@@ -54,7 +55,7 @@ public class IngestionService {
     private static final String ORIGIN_EXTERNAL = "EXTERNAL";
     public static final String ORIGIN_SIMULATOR = "SIMULATOR";
     /** Dettaglio salvato sulle righe {@code DUPLICATE} (BO-26 lo mostra nel dettaglio). */
-    public static final String DUPLICATE_DETAIL = "Un evento con la stessa fonte e lo stesso id è già stato accettato.";
+    public static final String DUPLICATE_DETAIL = RejectDetails.DUPLICATE;
 
     private final InboundEventRepository inbound;
     private final SourceRepository sources;
@@ -137,16 +138,16 @@ public class IngestionService {
         // 2. fonte esistente e abilitata.
         Optional<Source> source = sources.findByCode(sourceCode);
         if (source.isEmpty() || !source.get().enabled()) {
-            return o.rejected(null, RejectCode.SOURCE_DISABLED, "Fonte sconosciuta o disabilitata: " + sourceCode);
+            return o.rejected(null, RejectCode.SOURCE_DISABLED, RejectDetails.sourceDisabled(sourceCode));
         }
 
         // 3. tipo noto, abilitato e ammesso per la fonte.
         Optional<EventType> type = eventTypes.findByCode(shortType);
         if (type.isEmpty() || !type.get().enabled()) {
-            return o.rejected(null, RejectCode.UNKNOWN_TYPE, "Tipo azione sconosciuto o disabilitato: " + shortType);
+            return o.rejected(null, RejectCode.UNKNOWN_TYPE, RejectDetails.unknownType(shortType));
         }
         if (!source.get().allows(shortType)) {
-            return o.rejected(null, RejectCode.TYPE_NOT_ALLOWED, "Tipo non ammesso per la fonte " + sourceCode + ": " + shortType);
+            return o.rejected(null, RejectCode.TYPE_NOT_ALLOWED, RejectDetails.typeNotAllowed(sourceCode, shortType));
         }
 
         // 4. data valido contro lo schema del tipo.
@@ -160,7 +161,7 @@ public class IngestionService {
         // 5. time nella finestra ammessa.
         Instant now = clock.instant();
         if (time.isAfter(now.plus(MAX_FUTURE)) || time.isBefore(now.minus(MAX_PAST))) {
-            return o.rejected(null, RejectCode.INVALID_TIME, "time fuori finestra (max +5 min, -30 giorni): " + request.time());
+            return o.rejected(null, RejectCode.INVALID_TIME, RejectDetails.invalidTime(request.time()));
         }
 
         // 6. dedup (source, id): conta solo un ACCEPTED, così una riga REJECTED/UNMATCHED rivalutata non collide con sé stessa.
@@ -174,12 +175,12 @@ public class IngestionService {
                 ? memberIndex.findByMemberId(explicitMemberId)
                 : resolveMember(subject);
         if (member.isEmpty()) {
-            return new Evaluation(InboundStatus.UNMATCHED, null, "Membro non trovato per subject " + subject, null,
+            return new Evaluation(InboundStatus.UNMATCHED, null, RejectDetails.unmatched(subject), null,
                     eventId, sourceCode, shortType, subject, time, correlationId, o.envelope(subject));
         }
         if (!member.get().isActive()) {
             return o.rejected(member.get().memberId(), RejectCode.MEMBER_NOT_ACTIVE,
-                    "Membro non attivo (" + member.get().status() + ")");
+                    RejectDetails.memberNotActive(member.get().status()));
         }
 
         // 8. arricchimento: subject normalizzato a member:<id>.
@@ -237,6 +238,10 @@ public class IngestionService {
         if (r.data() == null || r.data().isNull()) {
             throw LhException.badRequest("data è obbligatorio");
         }
+        // envelope.schema.json: data è un oggetto → errore di forma, non un rifiuto di business.
+        if (!r.data().isObject()) {
+            throw LhException.badRequest("data deve essere un oggetto JSON");
+        }
     }
 
     private void require(String value, String field) {
@@ -290,13 +295,23 @@ public class IngestionService {
                 : fullType;
     }
 
+    /**
+     * {@code source} di un'azione = {@code urn:loyaltyhub:source:<codice>} (docs/05 §2). Un URN diverso (di servizio,
+     * estraneo) resta com'è e non corrisponde a nessuna fonte; la forma breve senza {@code :} viene prefissata.
+     */
     private String normalizeSource(String source) {
-        return source.startsWith(LhSource.SOURCE_PREFIX) ? source : LhSource.source(source);
+        if (source.startsWith(LhSource.SOURCE_PREFIX) || source.indexOf(':') >= 0) {
+            return source;
+        }
+        // SPEC-GAP: Q-I4 — forma breve (senza URN) accettata e normalizzata (comportamento indulgente del PoC).
+        return LhSource.source(source);
     }
 
+    /** Codice fonte dall'URN, confronto esatto sul prefisso {@code urn:loyaltyhub:source:} (mai sul suffisso). */
     private String sourceCodeOf(String sourceUrn) {
-        int last = sourceUrn.lastIndexOf(':');
-        return last >= 0 ? sourceUrn.substring(last + 1) : sourceUrn;
+        return sourceUrn.startsWith(LhSource.SOURCE_PREFIX)
+                ? sourceUrn.substring(LhSource.SOURCE_PREFIX.length())
+                : sourceUrn;
     }
 
     private String memberIdOf(String subject) {

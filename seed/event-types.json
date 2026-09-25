@@ -13,9 +13,9 @@
       "required": ["orderId", "amount", "currency"],
       "properties": {
         "orderId": { "type": "string", "minLength": 1 },
-        "amount": { "type": "number", "exclusiveMinimum": 0 },
-        "currency": { "type": "string", "minLength": 3, "maxLength": 3 },
-        "channel": { "type": "string", "enum": ["ONLINE", "STORE", "APP"] },
+        "amount": { "type": "number", "minimum": 0 },
+        "currency": { "type": "string", "minLength": 1 },
+        "channel": { "enum": ["ONLINE", "STORE", "APP"] },
         "items": {
           "type": "array",
           "items": {
@@ -23,12 +23,14 @@
             "properties": {
               "sku": { "type": "string" },
               "category": { "type": "string" },
-              "quantity": { "type": "integer", "minimum": 1 },
+              "quantity": { "type": "integer", "minimum": 0 },
               "unitPrice": { "type": "number", "minimum": 0 }
-            }
+            },
+            "additionalProperties": true
           }
         }
-      }
+      },
+      "additionalProperties": true
     },
     "sampleData": {
       "orderId": "ORD-48213",
@@ -123,8 +125,9 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "platform": { "type": "string", "enum": ["IOS", "ANDROID", "WEB"] }
-      }
+        "platform": { "enum": ["IOS", "ANDROID", "WEB"] }
+      },
+      "additionalProperties": true
     },
     "sampleData": { "platform": "IOS" }
   },
@@ -230,7 +233,10 @@
     "dataSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
-      "properties": {}
+      "properties": {
+        "memberId": { "type": "string", "pattern": "^MBR-[0-9]{6}$" }
+      },
+      "additionalProperties": true
     },
     "sampleData": {}
   },
@@ -281,12 +287,15 @@
       "type": "object",
       "required": ["contestCode", "prizeCode", "prizeType"],
       "properties": {
-        "contestCode": { "type": "string" },
-        "prizeCode": { "type": "string" },
-        "prizeType": { "type": "string", "enum": ["POINTS", "COUPON", "PHYSICAL"] },
-        "points": { "type": "integer", "minimum": 0 },
-        "rewardCode": { "type": "string" }
-      }
+        "contestCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$" },
+        "playId": { "type": "string", "minLength": 1 },
+        "prizeCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$" },
+        "prizeName": { "type": "string" },
+        "prizeType": { "enum": ["POINTS", "COUPON", "PHYSICAL"] },
+        "points": { "type": "integer", "minimum": 1 },
+        "rewardCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$" }
+      },
+      "additionalProperties": true
     },
     "sampleData": { "contestCode": "IW-AUTUNNO", "prizeCode": "PZ-500", "prizeType": "POINTS", "points": 500 }
   },
@@ -303,9 +312,11 @@
       "type": "object",
       "required": ["achievementCode", "periodKey"],
       "properties": {
-        "achievementCode": { "type": "string" },
-        "periodKey": { "type": "string" }
-      }
+        "achievementCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$" },
+        "achievementName": { "type": "string", "minLength": 1 },
+        "periodKey": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
     },
     "sampleData": { "achievementCode": "ACH-3-PURCHASES", "periodKey": "2026-Q3" }
   },
@@ -321,7 +332,12 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "required": ["badgeCode"],
-      "properties": { "badgeCode": { "type": "string" } }
+      "properties": {
+        "badgeCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$" },
+        "badgeName": { "type": "string", "minLength": 1 },
+        "origin": { "enum": ["ACHIEVEMENT", "CAMPAIGN"] }
+      },
+      "additionalProperties": true
     },
     "sampleData": { "badgeCode": "BDG-EXPLORER" }
   },
@@ -336,11 +352,13 @@
     "dataSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
-      "required": ["role"],
+      "required": ["role", "counterpartMemberId"],
       "properties": {
-        "role": { "type": "string", "enum": ["REFERRER", "REFEREE"] },
-        "counterpartMemberId": { "type": "string" }
-      }
+        "role": { "enum": ["REFERRER", "REFEREE"] },
+        "counterpartMemberId": { "type": "string", "pattern": "^MBR-[0-9]{6}$" },
+        "qualifyingActionId": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
     },
     "sampleData": { "role": "REFERRER", "counterpartMemberId": "MBR-000009" }
   },
@@ -357,9 +375,12 @@
       "type": "object",
       "required": ["rewardCode", "pointsCost"],
       "properties": {
-        "rewardCode": { "type": "string" },
-        "pointsCost": { "type": "integer", "minimum": 0 }
-      }
+        "rewardCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$" },
+        "pointsCost": { "type": "integer", "minimum": 1 },
+        "redemptionId": { "type": "string" },
+        "rewardName": { "type": "string" }
+      },
+      "additionalProperties": true
     },
     "sampleData": { "rewardCode": "RWD-COFFEE-5", "pointsCost": 500 }
   }

@@ -1,22 +1,19 @@
 package io.loyaltyhub.ingestion.domain;
 
-import java.time.DayOfWeek;
+import io.loyaltyhub.common.demo.SeedDates;
+import io.loyaltyhub.common.time.BusinessCalendar;
+
+import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.util.Locale;
 
 /**
- * Istante di un passo di scenario (campo {@code at}, docs/10 §9), relativo a oggi in {@code Europe/Rome} così gli
- * scenari restano deterministici: {@code @lastWeekdayT10:30} (ultimo lunedì–venerdì), {@code @lastSaturdayT11:00}
- * (e gli altri giorni in inglese), oppure un istante ISO-8601. Sempre l'ultima occorrenza non futura rispetto a
- * {@code now}. Assente → {@code now}.
+ * Istante di un passo di scenario (campo {@code at}, docs/10 §8): un'espressione di data di docs/10 §1 risolta su
+ * {@code Europe/Rome} rispetto a {@code now}, con la stessa grammatica dei seed ({@link SeedDates}):
+ * {@code @now}, {@code @today-1dT10:30}, {@code @som}…, {@code @lastWeekday} / {@code @lastSaturday} (ultimo giorno
+ * feriale / ultimo sabato <em>precedente</em> a oggi, alle 00:00 se manca il suffisso {@code T10:30}), oppure un
+ * istante ISO-8601. Assente → {@code @now}. Espressione non valida → {@link RuntimeException}.
  */
 public final class ScenarioTime {
-
-    private static final ZoneId ROME = ZoneId.of("Europe/Rome");
 
     private ScenarioTime() {
     }
@@ -25,31 +22,6 @@ public final class ScenarioTime {
         if (at == null || at.isBlank()) {
             return now;
         }
-        if (!at.startsWith("@last")) {
-            return Instant.parse(at);
-        }
-        int t = at.indexOf('T');
-        if (t < 0) {
-            throw new IllegalArgumentException("Segnaposto temporale senza orario: " + at);
-        }
-        String day = at.substring("@last".length(), t).toUpperCase(Locale.ROOT);
-        LocalTime time = LocalTime.parse(at.substring(t + 1));
-        ZonedDateTime current = now.atZone(ROME);
-        for (int back = 0; back <= 7; back++) {
-            LocalDate d = current.toLocalDate().minusDays(back);
-            ZonedDateTime candidate = d.atTime(time).atZone(ROME);
-            if (candidate.isAfter(current) || !matches(d.getDayOfWeek(), day)) {
-                continue;
-            }
-            return candidate.toInstant();
-        }
-        throw new IllegalArgumentException("Segnaposto temporale non riconosciuto: " + at);
-    }
-
-    private static boolean matches(DayOfWeek dow, String token) {
-        if (token.equals("WEEKDAY")) {
-            return dow != DayOfWeek.SATURDAY && dow != DayOfWeek.SUNDAY;
-        }
-        return dow.name().equals(token);
+        return SeedDates.resolve(at.trim(), Clock.fixed(now, BusinessCalendar.ZONE));
     }
 }
