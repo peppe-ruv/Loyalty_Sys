@@ -1,0 +1,609 @@
+---
+title: "Loyalty Hub: modello di dominio e regole di business"
+sidebarTitle: "Modello di dominio"
+description: "Esplora le entità principali di Loyalty Hub, i loro invariants e le regole di calcolo che governano wallet, tier, campagne, premi e gioco."
+---
+
+Il modello di dominio di Loyalty Hub elenca le entità principali, i loro invariants e le regole di calcolo su cui gira l'intero sistema. E' la fonte di verità che vince sul codice: ogni microservizio implementa queste regole e ogni evento Kafka le rispetta. In questa pagina trovi la definizione completa di membro, wallet a doppia valuta, lotti e scadenze, tier, edizioni, azioni premianti, campagne, premi, gioco, referral, contenuti e segmenti.
+
+## Membro (Member)
+
+Ogni partecipante al programma loyalty è rappresentato da un'entità Membro. Il membro è l'ancoraggio di tutte le altre entità: wallet, tier, referral, segmenti e storico azioni.
+
+### Identità
+
+- **id**: generato automaticamente nel formato `MBR-######` (esempio: `MBR-000042`).
+- **external_id**: identificativo univoco proveniente dalla fonte esterna (CRM, app, ecommerce).
+- **email**: univoca nel sistema. Serve per il login al portale e per le comunicazioni.
+
+### Attributi anagrafici
+
+| Campo | Descrizione |
+| --- | --- |
+| `first_name` | Nome |
+| `last_name` | Cognome |
+| `nickname` | Nome visualizzato nel portale e nelle classifiche. Default: `Giulia F.` (iniziale del cognome) |
+| `email` | Indirizzo email univoco |
+| `phone` | Numero di telefono |
+| `birth_date` | Data di nascita |
+| `gender` | Genere |
+| `city` | Città |
+| `avatar_seed` | Seme per la generazione dell'avatar nel portale |
+
+### Metadati e consensi
+
+- **consents**: oggetto JSONB con almeno `marketing` e `profiling` (boolean).
+- **attributes**: JSONB libero per campi custom definiti dal backoffice.
+- **labels**: array di stringhe `text[]` assegnabili liberamente per tagging (esempio: `["vip", "tester"]`).
+- **channel**: canale di registrazione. Valori: `PORTAL`, `APP`, `STORE`, `IMPORT`.
+- **registered_at**: timestamp di registrazione nel sistema.
+
+### Referral
+
+Ogni membro ha un `referral_code` univoco di 8 caratteri. Quando un nuovo membro si registra inserendo il codice di un amico, il sistema crea il legame `referred_by`. Il campo `referral_completed_at` si popola quando l'invitato compie la prima azione qualificante.
+
+### Stati del membro
+
+| Stato | Descrizione | Partecipa al programma? |
+| --- | --- | --- |
+| `ACTIVE` | Membro attivo, accumula e spende punti | Sì |
+| `BLOCKED` | Bloccato temporaneamente (esempio: frode in corso di verifica) | No |
+| `INACTIVE` | Dormiente, nessuna interazione da tempo | No |
+| `ANONYMIZED` | Dati personali sostituiti (richiesta GDPR) | No |
+
+> **Attenzione:** Solo i membri nello stato `ACTIVE` partecipano al programma loyalty. Le campagne, i premi e il gioco ignorano membri `BLOCKED`, `INACTIVE` o `ANONYMIZED`.
+
+## Wallet a doppia valuta
+
+Il wallet è il cuore contabile di Loyalty Hub. Ogni membro ha esattamente due wallet distinti, creati automaticamente al momento dell'evento `member.registered`.
+
+### Le due valute
+
+| Valuta | Codice | Spendibile? | Scopo |
+| --- | --- | --- | --- |
+| Punti spendibili | `PTS` | Sì | Usati per riscattare premi nel catalogo |
+| Punti status | `STS` | No | Contatore per l'edizione corrente, alimenta il calcolo tier |
+
+### Ledger entry immutabile
+
+Ogni variazione di saldo genera un `ledger_entry` immutabile con questi campi:
+
+```json esempio-ledger-entry.json
+{
+  "id": "LED-000001",
+  "wallet_id": "WAL-PTS-000042",
+  "amount": 150,
+  "direction": "+",
+  "reason": "Campagna Benvenuto",
+  "source_type": "CAMPAIGN",
+  "campaign_id": "CMP-001",
+  "action_id": "ACT-000123",
+  "actor": "system",
+  "correlation_id": "lhcorrelationid-uuid",
+  "created_at": "2025-06-15T09:30:00+02:00"
+}
+```
+
+Campi del ledger entry:
+
+- **amount**: sempre positivo (il segno è nel campo `direction`).
+- **direction**: `+` per accredito, `-` per addebito.
+- **reason**: causale leggibile.
+- **source_type**: `CAMPAIGN`, `REDEMPTION`, `MANUAL`, `SYSTEM`.
+- **campaign_id**, **action_id**: riferimenti alla campagna e all'azione che hanno generato la variazione.
+- **actor**: chi ha generato la variazione (utente backoffice o `system`).
+- **correlation_id**: tracciabilità end-to-end tramite `lhcorrelationid`.
+
+### Invariante fondamentale
+
+> **Nota:** Il saldo attivo del wallet deve sempre essere uguale alla somma dei `remaining` di tutti i lotti nello stato `ACTIVE`. Questo invariante viene verificato ad ogni transazione e ricalcolato in caso di discrepanza.
+
+## Lotti e scadenze
+
+I punti non sono un numero astratto: ogni accredito crea un lotto (`points_lot`) con regole di disponibilità e scadenza precise.
+
+### Creazione del lotto
+
+Ogni operazione di tipo `EARN`, `ADJUST_CREDIT` o `REFUND` crea un nuovo lotto con:
+
+- **amount**: punti totali del lotto.
+- **remaining**: punti ancora disponibili (inizialmente uguale ad `amount`).
+- **earned_at**: data di business dell'accredito.
+- **available_at**: istante da cui il lotto diventa spendibile (può essere immediato o differito per `pendingDays`).
+- **expires_at**: istante di scadenza del lotto.
+
+### Stati del lotto
+
+| Stato | Condizione |
+| --- | --- |
+| `PENDING` | `available_at` è nel futuro |
+| `ACTIVE` | `available_at` è passato e `remaining > 0` |
+| `EXHAUSTED` | `remaining = 0` (tutti i punti spesi) |
+| `EXPIRED` | `expires_at` è passato |
+
+### Policy di scadenza
+
+La scadenza è configurabile per valuta nel sistema:
+
+| Policy | Descrizione | Esempio |
+| --- | --- | --- |
+| `ROLLING_MONTHS(n)` | Ultimo istante del mese di `earned_at + n` mesi, timezone `Europe/Rome` | `ROLLING_MONTHS(3)`: se earned_at = 15 giugno, expires_at = 30 settembre 23:59:59 Europe/Rome |
+| `END_OF_EDITION_PLUS_GRACE` | `redemptionGraceUntil` dell'edizione corrente | Se l'edizione finisce il 31 dicembre e redemptionGraceUntil è il 15 gennaio, i punti scadono il 15 gennaio |
+| `NEVER` | Nessuna scadenza | Usato per punti speciali |
+| STS | I punti status non scadono mai | Sono un contatore per l'edizione corrente |
+
+### Spesa FIFO
+
+Quando un membro spende punti, il sistema consuma i lotti in ordine **FIFO** (First In, First Out) per `expires_at`: prima i lotti con scadenza più vicina. Questo minimizza la perdita di punti per scadenza.
+
+## Tier
+
+Il sistema tier premia la fedeltà con livelli crescenti, ciascuno con vantaggi specifici.
+
+### Livelli e soglie
+
+| Tier | Soglia STS | Moltiplicatore PTS | Colore |
+| --- | --- | --- | --- |
+| `BASE` | 0 | 1.0 | Grigio |
+| `SILVER` | 500 | 1.25 | Argento |
+| `GOLD` | 1.500 | 1.5 | Oro |
+| `PLATINUM` | 5.000 | 2.0 | Nero |
+
+Il moltiplicatore PTS si applica agli accrediti punti: un membro `GOLD` che guadagna 100 punti base ne riceve 150.
+
+### Salita
+
+La salita di tier è **immediata**: appena il saldo STS supera la soglia del livello successivo nell'edizione corrente, il membro viene promosso.
+
+### Discesa morbida
+
+La discesa di tier avviene solo alla **chiusura dell'edizione**, con questa regola:
+
+```text
+nuovo_tier = max(tier_guadagnato_nell_edizione, tier_attuale - 1)
+```
+
+Questo significa che un membro scende al massimo di un livello per edizione, anche se il suo saldo STS è sceso di più.
+
+### Storico tier
+
+Ogni cambio di tier viene registrato in `tier_history` con:
+
+- **change_type**: `UPGRADE`, `DOWNGRADE`, `RETAIN`, `INITIAL`.
+- **from_tier**, **to_tier**: livello precedente e nuovo.
+- **sts_at_change**: saldo STS al momento del cambio.
+- **edition_id**: edizione di riferimento.
+
+## Edizioni
+
+Le edizioni sono periodi di programma con regole proprie. Definiscono il ciclo di vita del contatore STS e del calcolo tier.
+
+### Definizione
+
+| Campo | Descrizione |
+| --- | --- |
+| `code` | Codice univoco dell'edizione (esempio: `ED-2025-H1`) |
+| `start_date` | Inizio edizione |
+| `end_date` | Fine edizione |
+| `redemption_grace_until` | Fine periodo di grazia per riscatti (dopo `end_date`) |
+| `status` | `ACTIVE`, `PLANNED`, `CLOSED` |
+
+### Regole di business
+
+1. **Una sola edizione ACTIVE per volta**: non sono ammesse sovrapposizioni di edizioni `ACTIVE`.
+2. **Chiusura edizione**: quando un'edizione passa a `CLOSED`:
+   - Azzeramento del saldo STS di periodo.
+   - Ricalcolo tier con discesa morbida.
+   - L'edizione `PLANNED` con `start_date` più vicino dopo la fine di quella chiusa diventa `ACTIVE`.
+
+> **Nota:** Se non c'è un'edizione `PLANNED` valida, il sistema rimane senza edizione `ACTIVE` finché il backoffice non ne crea una.
+
+## Azioni premianti
+
+Le azioni sono gli eventi che innescano il motore delle campagne. Ogni azione è un CloudEvent 1.0 con estensioni custom di Loyalty Hub.
+
+### Envelope CloudEvent minimo
+
+```json esempio-cloudevent.json
+{
+  "specversion": "1.0",
+  "id": "evt-uuid-001",
+  "source": "crm",
+  "type": "action.purchase.completed",
+  "subject": "member:MBR-000042",
+  "time": "2025-06-15T09:30:00Z",
+  "datacontenttype": "application/json",
+  "data": {
+    "order_id": "ORD-12345",
+    "amount": 150.00,
+    "currency": "EUR"
+  },
+  "lhcorrelationid": "corr-uuid-001",
+  "lhcausationid": "cause-uuid-001",
+  "lhhop": 0,
+  "lhschemaversion": "1",
+  "lhactor": "crm-sync",
+  "lhtenant": "default"
+}
+```
+
+### Estensioni obbligatorie
+
+| Estensione | Descrizione |
+| --- | --- |
+| `lhcorrelationid` | ID di correlazione end-to-end per tracciare una catena di eventi |
+| `lhcausationid` | ID dell'evento che ha causato questo evento |
+| `lhhop` | Contatore di hop. 0 per eventi esterni, incrementato per eventi interni |
+| `lhschemaversion` | Versione dello schema dell'azione |
+| `lhactor` | Attore che ha generato l'evento |
+| `lhtenant` | Tenant di riferimento |
+
+### Fonti (source)
+
+| Source | Descrizione |
+| --- | --- |
+| `crm` | Sistema CRM esterno |
+| `app` | Applicazione mobile |
+| `ecommerce` | Piattaforma ecommerce |
+| `billing` | Sistema di fatturazione |
+| `partner` | Partner esterno |
+| `internal` | Ponte interno (ripubblicazione di fatti) |
+| `simulator` | Simulatore di scenari |
+
+### Validazione schema
+
+Ogni tipo di azione ha un JSON Schema che valida il payload `data`. Il servizio `ingestion` (porta 8081) rifiuta azioni con payload non conforme.
+
+### Azioni interne e loop guard
+
+Le azioni con `source=internal` sono ripubblicazioni di fatti tramite il ponte (F-ING-08). Il campo `lhhop` viene incrementato ad ogni passaggio. Se `lhhop > 3`, l'evento viene instradato al topic `lh.dlq.v1` con motivo `LOOP_GUARD`.
+
+## Campagne
+
+Le campagne sono il motore di business di Loyalty Hub. Definiscono quando, chi, cosa e quanto premiano.
+
+### Anatomia di una campagna
+
+<AccordionGroup>
+  <Accordion title="Trigger">
+    Tipi di azione che innescano la campagna (esempio: `action.purchase.completed`, `action.profile.updated`).
+  </Accordion>
+
+  <Accordion title="Audience">
+    Filtro su tier, segmento o stato del membro (esempio: solo `GOLD`, solo segmento `VIP`).
+  </Accordion>
+
+  <Accordion title="Conditions">
+    Albero JSON con operatori `all`, `any`, `not` su:
+
+    - `data.*`: campi del payload azione
+    - `member.*`: attributi del membro
+    - `context.*`: contesto (esempio: ora, canale)
+    - `history.*`: storico azioni del membro
+  </Accordion>
+
+  <Accordion title="Effects">
+    Effetti da applicare:
+
+    - `points.grant`: accredita punti
+    - `multiplier`: moltiplicatore su punti base
+    - `coupon.issue`: emette un coupon
+    - `badge.award`: assegna un badge
+    - `plays.grant`: concede giocate extra
+    - `message.send`: invia messaggio
+  </Accordion>
+
+  <Accordion title="Limits">
+    - Per membro per periodo (esempio: max 1 volta al giorno)
+    - Tetto punti per membro
+    - Budget globale campagna
+    - Cooldown tra attivazioni
+  </Accordion>
+
+  <Accordion title="Schedule">
+    - `startAt`, `endAt`
+    - `timezone` (default `Europe/Rome`)
+    - `daysOfWeek` (esempio: solo weekend)
+    - `hours` (esempio: dalle 9 alle 18)
+  </Accordion>
+
+  <Accordion title="Priority e Exclusive Group">
+    - `priority`: numero, più alto = valutato prima
+    - `exclusive_group`: solo la prima campagna dell'esclusiva vince
+  </Accordion>
+</AccordionGroup>
+
+### Ciclo di vita
+
+```text
+DRAFT → (IN_REVIEW → APPROVED) → LIVE ⇄ PAUSED → ENDED → ARCHIVED
+```
+
+Solo le campagne nello stato `LIVE` e dentro il proprio schedule vengono valutate dal motore.
+
+### Motore di valutazione
+
+Per ogni azione in arrivo, il motore esegue questi passi:
+
+<Steps>
+  <Step title="Filtra campagne applicabili">
+    Seleziona campagne `LIVE` il cui trigger corrisponde al tipo azione.
+  </Step>
+  <Step title="Ordina per priority">
+    Le campagne con priority più alta vengono valutate prima.
+  </Step>
+  <Step title="Applica exclusive_group">
+    Se una campagna appartiene a un exclusive_group, solo la prima che matcha vince. Le altre dello stesso gruppo vengono saltate.
+  </Step>
+  <Step title="Valuta audience">
+    Verifica che il membro soddisfi i criteri di audience (tier, segmento, stato).
+  </Step>
+  <Step title="Valuta conditions">
+    Valuta l'albero JSON delle condizioni su dati, membro, contesto e storico.
+  </Step>
+  <Step title="Calcola effetti">
+    Determina quali effetti applicare e con quali parametri.
+  </Step>
+  <Step title="Controlla limiti">
+    Verifica limiti per membro, tetto punti, budget globale e cooldown.
+  </Step>
+  <Step title="Emette effect">
+    Genera l'evento effect sul topic `lh.effects.v1`.
+  </Step>
+</Steps>
+
+### Evaluation log
+
+Ogni valutazione viene registrata in `evaluation_log` con il motivo:
+
+| Esito | Descrizione |
+| --- | --- |
+| `MATCHED` | Campagna applicata con successo |
+| `NO_MATCH_NOT_LIVE` | Campagna non in stato LIVE |
+| `NO_MATCH_AUDIENCE` | Membro non soddisfa l'audience |
+| `NO_MATCH_CONDITION` | Condizioni non soddisfatte |
+| `NO_MATCH_LIMIT` | Limite per membro o globale raggiunto |
+| `NO_MATCH_BUDGET` | Budget campagna esaurito |
+| `NO_MATCH_EXCLUSIVE` | Persa per exclusive_group |
+
+## Premi (Rewards) e coupon
+
+Il catalogo premi permette ai membri di convertire i punti PTS in vantaggi concreti.
+
+### Anatomia di un premio
+
+| Campo | Descrizione |
+| --- | --- |
+| `type` | `PHYSICAL`, `COUPON`, `DIGITAL`, `DONATION`, `EXPERIENCE` |
+| `category` | Categoria merceologica |
+| `tier_band` | Fascia F1..F5 con soglia punti |
+| `stock_total` | Stock totale disponibile |
+| `stock_remaining` | Stock residuo |
+| `stock_per_member` | Max riscatti per membro |
+| `fulfilment` | `AUTO_COUPON`, `MANUAL`, `INSTANT` |
+| `eligible_tiers` | Tier che possono riscattare |
+| `eligible_segments` | Segmenti che possono riscattare |
+| `valid_from`, `valid_to` | Periodo di validità del premio nel catalogo |
+
+### Pool coupon
+
+I coupon possono essere:
+
+- **Generati**: prefisso + stringa casuale (esempio: `LH-AB3D9X2K`).
+- **Importati**: codici forniti da partner.
+
+Stati del coupon:
+
+| Stato | Descrizione |
+| --- | --- |
+| `AVAILABLE` | Pronto per essere emesso |
+| `ISSUED` | Assegnato a un membro |
+| `USED` | Utilizzato dal membro |
+| `EXPIRED` | Scaduto senza uso |
+| `VOID` | Annullato dal backoffice |
+
+### Richiesta premio (Redemption)
+
+Il ciclo di vita di una richiesta premio:
+
+```text
+PENDING → CONFIRMED → FULFILLED
+     ↘ REJECTED
+     ↘ CANCELLED
+```
+
+### Saga di spesa (coreografata via Kafka)
+
+<Steps>
+  <Step title="Richiesta">
+    Il membro richiede un premio dal portale o dal backoffice.
+  </Step>
+  <Step title="Spesa sul wallet">
+    Il servizio `wallet` (porta 8084) tenta di addebitare i punti PTS.
+  </Step>
+  <Step title="Conferma">
+    Se la spesa va a buon fine, emette `wallet.points.spent` e lo stato diventa `CONFIRMED`.
+  </Step>
+  <Step title="Adempimento">
+    - Se `AUTO_COUPON`: emette il coupon automaticamente.
+    - Se `MANUAL`: segna per evasione manuale.
+    - Se `INSTANT`: consegna immediata. Stato finale: `FULFILLED`.
+  </Step>
+</Steps>
+
+### Compensazione e annullo
+
+- **Rifiuto**: se la spesa fallisce, `wallet.spend.rejected` porta lo stato a `REJECTED`.
+- **Annullamento**: un operatore `paolo.care` può annullare una richiesta `CONFIRMED`. Il sistema emette `wallet.points.refunded` e porta lo stato a `CANCELLED`.
+
+## Gioco
+
+Il modulo gamification aggiunge meccaniche di gioco per aumentare l'engagement.
+
+### Concorso instant win
+
+| Campo | Descrizione |
+| --- | --- |
+| `mechanic` | `WHEEL` (ruota), `SCRATCH` (gratta e vinci), `BOX` (apri la scatola) |
+| `period` | Periodo di validità del concorso |
+| `free_daily_play` | Una giocata gratuita al giorno per membro |
+| `max_plays_per_member_per_day` | Max giocate totali (gratuite + a pagamento) |
+| `distribution` | `UNIFORM` (istanti distribuiti uniformemente) o `BUSINESS_HOURS` (più probabili in orario lavorativo) |
+| `seed` | Seme riproducibile per `SplittableRandom` |
+
+### Montepremi
+
+Il montepremi definisce i premi in palio:
+
+| Tipo premio | Esempio |
+| --- | --- |
+| `POINTS` | 100 PTS |
+| `COUPON` | Coupon sconto 20% |
+| `PHYSICAL` | Gadget brandizzato |
+
+Ogni premio ha `quantity_total` e `quantity_remaining`.
+
+### Istanti vincenti
+
+Gli istanti vincenti (`winning_instant`) vengono pre-generati all'avvio del concorso:
+
+- Un istante per ogni unità di premio.
+- Generati con `SplittableRandom(seed)` per riproducibilità.
+- Stato: `OPEN` → `CLAIMED` (o `VOID` a fine concorso se non reclamati).
+
+### Meccanica della giocata
+
+<Steps>
+  <Step title="Validazione crediti">
+    Il sistema verifica che il membro abbia crediti: prima la giocata gratuita giornaliera, poi eventuali crediti acquistati o vinti.
+  </Step>
+  <Step title="Lock sul membro">
+    Acquisisce un lock transazionale sul membro per prevenire giocate concorrenti.
+  </Step>
+  <Step title="Inserimento giocata">
+    Registra la transazione `play` nel database.
+  </Step>
+  <Step title="Claim atomico">
+    Esegue `SELECT ... FOR UPDATE SKIP LOCKED` per reclamare un istante `OPEN` scaduto (cioè il timestamp dell'istante è nel passato).
+  </Step>
+  <Step title="Aggiornamento premio">
+    Decrementa `quantity_remaining` del premio vinto.
+  </Step>
+  <Step title="Outbox">
+    Emette `contest.played`. Se vittoria, emette anche `contest.won`.
+  </Step>
+</Steps>
+
+### Vincita come azione interna
+
+L'evento `contest.won` viene ripubblicato dal ponte come `action.instantwin.won` (source=`internal`, `lhhop` incrementato). Le campagne di sistema consegnano il premio associato.
+
+### Obiettivi (Achievement)
+
+Gli obiettivi permettono di premiare comportamenti ricorrenti:
+
+| Metrica | Descrizione |
+| --- | --- |
+| `conteggio` | Numero di azioni di un tipo |
+| `somma` | Somma di un campo numerico |
+| `tipi_distinti` | Numero di tipi azione diversi |
+| `serie_consecutiva` | Azioni consecutive in un periodo |
+
+Ogni obiettivo ha un traguardo, un periodo di validità, flag `ripetibile` e opzionalmente un badge associato.
+
+### Badge
+
+I badge vengono assegnati:
+
+1. Al completamento di un obiettivo.
+2. Da effetto `badge.award` di una campagna.
+
+### Classifiche (Leaderboard)
+
+| Campo | Descrizione |
+| --- | --- |
+| `metric` | `PTS_EARNED`, `STS_EARNED`, `ACTION_COUNT` |
+| `period` | `MONTH`, `EDITION`, `ALL_TIME` |
+| `top_n` | Numero di posizioni in classifica |
+| `use_nickname` | Se true, mostra il nickname per privacy |
+
+## Referral
+
+Il sistema referral incentiva l'acquisizione di nuovi membri tramite il passaparola.
+
+### Meccanica
+
+<Steps>
+  <Step title="Generazione codice">
+    Al momento della registrazione, ogni membro riceve un `referral_code` univoco di 8 caratteri.
+  </Step>
+  <Step title="Registrazione con codice">
+    Un nuovo membro si registra inserendo il codice di un amico. Il sistema imposta `referred_by`.
+  </Step>
+  <Step title="Azione qualificante">
+    Alla prima azione qualificante dell'invitato, il sistema imposta `referral_completed_at`.
+  </Step>
+  <Step title="Fatti referral">
+    Emette due fatti `referral.completed`: uno con ruolo `REFERRER` (chi ha invitato) e uno con ruolo `REFEREE` (chi si è iscritto).
+  </Step>
+  <Step title="Premiazione">
+    Le campagne premiano entrambi i ruoli con effetti dedicati.
+  </Step>
+</Steps>
+
+## Contenuti (CMS)
+
+Il CMS gestisce card, popup e banner visualizzati nel portale loyalty.
+
+### Placement
+
+| Placement | Descrizione |
+| --- | --- |
+| `HOME_HERO` | Banner principale homepage |
+| `HOME_GRID` | Card in griglia homepage |
+| `CATALOG_TOP` | Banner sopra il catalogo premi |
+| `CONTEST` | Area concorso |
+| `WIN` | Pagina vittorie |
+
+### Regole di visualizzazione
+
+Il portale mostra i contenuti rispettando:
+
+1. **Audience**: tier, segmento, stato del membro.
+2. **Schedule**: periodo di validità.
+3. **Frequency** (solo popup): `ONCE` (una sola volta), `ONCE_PER_DAY` (una volta al giorno), `ALWAYS` (sempre).
+4. **Priority**: in caso di conflitto, vince il contenuto con priority più alta.
+
+> **Nota:** Al più un popup per visita. Se più popup sono eleggibili, vince quello con priority più alta.
+
+## Segmenti
+
+I segmenti permettono di raggruppare membri per targeting di campagne, premi e contenuti.
+
+### Segmenti statici
+
+Elenco manuale di `memberId`. Utile per liste VIP, tester, ecc.
+
+### Segmenti dinamici
+
+Definiti da criteria JSONB valutati periodicamente:
+
+- **Ogni 15 minuti**: se ci sono state variazioni rilevanti (nuovi membri, cambi tier, aggiornamenti attributi).
+- **Su richiesta**: il backoffice può forzare la rivalutazione.
+
+### Fatti di ingresso e uscita
+
+Quando un membro entra o esce da un segmento, il sistema emette:
+
+- `member.segment.entered`
+- `member.segment.left`
+
+Questi fatti sono utilizzati da campagne, premi e contenuti per reagire in tempo reale ai cambi di appartenenza.
+
+## Prossimi passi
+
+Approfondisci gli aspetti tecnici del sistema:
+
+- [Eventi e topic Kafka](/specifiche/eventi-e-topic): scopri il flusso dei CloudEvent sui 5 topic del sistema.
+- [Convenzioni backend](/specifiche/convenzioni-backend): leggi le convenzioni di codice, naming e struttura dei microservizi Spring Boot.
+- [Architettura del sistema](/specifiche/architettura): esplora la disposizione degli 8 microservizi e le loro responsabilità.

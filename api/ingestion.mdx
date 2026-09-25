@@ -1,0 +1,460 @@
+---
+title: "Ingestion API: ricevi, valida e instrada azioni premianti"
+sidebarTitle: "Ingestion"
+description: "API reference completa del servizio ingestion di Loyalty Hub. Riceve eventi CloudEvent, li valida, deduplica, risolve il membro e produce sul topic lh.actions.v1."
+---
+
+Il servizio ingestion di Loyalty Hub e l'unica porta di ingresso per le azioni premianti. Riceve eventi CloudEvent 1.0, li sottopone a una pipeline di validazione in 8 fasi, risolve l'identita del membro e, se tutto e valido, pubblica l'azione sul topic Kafka `lh.actions.v1`. Gestisce anche il ponte interno fatti→azioni, il simulatore demo e il backoffice di monitoraggio e configurazione.
+
+## Base URL
+
+```http Base URL
+http://localhost:8081
+```
+
+Tutti gli endpoint sono relativi a questo base URL. In ambiente di produzione, l'URL cambia in base al dominio assegnato al cluster.
+
+## Pipeline di accettazione
+
+Ogni evento che arriva all'ingestion attraversa 8 fasi. Se una fase fallisce, il processo si interrompe e l'evento riceve uno stato `REJECTED` con un codice specifico.
+
+<Steps>
+  <Step title="Envelope valido">
+    Il body deve essere un CloudEvent 1.0 valido con almeno `specversion`, `type`, `source`, `id` e `time`. Se mancano campi obbligatori o il formato e errato, ritorna `400 Bad Request`.
+  </Step>
+  <Step title="Fonte esistente e abilitata">
+    Il campo `source` deve corrispondere a una fonte registrata e abilitata nel backoffice. Se la fonte e disabilitata o non esiste, ritorna `202` con `rejectCode: SOURCE_DISABLED`.
+  </Step>
+  <Step title="Tipo noto, abilitato, ammesso per la fonte">
+    Il campo `type` deve corrispondere a un tipo evento esistente, abilitato e associato alla fonte. Se il tipo e sconosciuto, ritorna `TYPE_UNKNOWN`. Se la fonte non puo emettere quel tipo, ritorna `TYPE_NOT_ALLOWED`.
+  </Step>
+  <Step title="Data valido contro JSON Schema">
+    Il campo `data` viene validato contro lo schema JSON del tipo evento. Se i dati non rispettano lo schema, ritorna `INVALID_DATA`.
+  </Step>
+  <Step title="Time nel range valido">
+    Il campo `time` non deve essere nel futuro di piu di 5 minuti ne nel passato di piu di 30 giorni. Se e fuori range, ritorna `INVALID_TIME`.
+  </Step>
+  <Step title="Dedup (source, id)">
+    La coppia (`source`, `id`) deve essere unica. Se esiste gia un evento con la stessa coppia, ritorna `DUPLICATE`.
+  </Step>
+  <Step title="Risoluzione membro">
+    Il campo `subject` viene interpretato come riferimento al membro nei formati `member:<id>`, `external:<x>` o `email:<x>`. Se non trova corrispondenza, ritorna `UNMATCHED`. Se il membro esiste ma non e attivo, ritorna `MEMBER_NOT_ACTIVE`.
+  </Step>
+  <Step title="Arricchimento e pubblicazione">
+    L'evento viene arricchito con estensioni `lh*` (correlation, causation, hop, actor, schema version), il `subject` viene normalizzato a `member:<id>`, e l'azione viene scritta nell'outbox per la pubblicazione su `lh.actions.v1`. Stato finale: `ACCEPTED`.
+  </Step>
+</Steps>
+
+> **Nota:** Anche in caso di rifiuto di business, l'ingestion risponde sempre `202 Accepted`. Questo evita che la fonte ritenti l'invio per errori non transitori.
+
+## Endpoint di ingresso
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `POST` | `/v1/events` | Riceve un CloudEvent e lo instrada nella pipeline |
+| `POST` | `/v1/transactions` | Riceve una transazione commerciale e genera un evento `purchase.completed` |
+
+### POST /v1/events
+
+Riceve un evento CloudEvent 1.0 nel formato `application/cloudevents+json`. E l'endpoint principale per tutte le fonti esterne.
+
+**Headers richiesti:**
+
+```http Headers
+POST /v1/events HTTP/1.1
+Host: localhost:8081
+Content-Type: application/cloudevents+json
+X-LH-Actor: marta.admin
+```
+
+**Body di esempio:**
+
+```json purchase.completed
+{
+  "specversion": "1.0",
+  "type": "purchase.completed",
+  "source": "ecommerce",
+  "id": "evt-2024-001",
+  "time": "2024-01-15T14:30:00Z",
+  "subject": "external:CUST-12345",
+  "data": {
+    "orderId": "ORD-789",
+    "amount": 125.50,
+    "currency": "EUR",
+    "channel": "web",
+    "items": [
+      {
+        "sku": "SKU-001",
+        "name": "Prodotto A",
+        "quantity": 2,
+        "unitPrice": 50.00
+      },
+      {
+        "sku": "SKU-002",
+        "name": "Prodotto B",
+        "quantity": 1,
+        "unitPrice": 25.50
+      }
+    ]
+  }
+}
+```
+
+**Risposta 202 ACCEPTED:**
+
+```json Risposta accettata
+{
+  "eventId": "evt-2024-001",
+  "status": "ACCEPTED",
+  "memberId": "member-abc-123"
+}
+```
+
+**Risposta 202 REJECTED:**
+
+```json Risposta rifiutata
+{
+  "eventId": "evt-2024-001",
+  "status": "REJECTED",
+  "rejectCode": "SOURCE_DISABLED"
+}
+```
+
+### POST /v1/transactions
+
+Endpoint semplificato per transazioni commerciali. Converte automaticamente il payload in un evento `purchase.completed` con `id` prefissato da `txn-`.
+
+**Headers richiesti:**
+
+```http Headers
+POST /v1/transactions HTTP/1.1
+Host: localhost:8081
+Content-Type: application/json
+X-LH-Actor: marta.admin
+```
+
+**Body di esempio:**
+
+```json Transazione
+{
+  "source": "ecommerce",
+  "orderId": "ORD-789",
+  "memberRef": "external:CUST-12345",
+  "amount": 125.50,
+  "currency": "EUR",
+  "channel": "web",
+  "items": [
+    {
+      "sku": "SKU-001",
+      "name": "Prodotto A",
+      "quantity": 2,
+      "unitPrice": 50.00
+    }
+  ],
+  "occurredAt": "2024-01-15T14:30:00Z"
+}
+```
+
+**Risposta 202:**
+
+```json Risposta transazione
+{
+  "eventId": "txn-ORD-789",
+  "status": "ACCEPTED",
+  "memberId": "member-abc-123"
+}
+```
+
+## Backoffice: monitor ingressi
+
+Questi endpoint permettono di consultare lo storico degli eventi ricevuti e di gestire i casi di errore.
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/inbound-events` | Elenca gli eventi in ingresso con filtri |
+| `GET` | `/v1/inbound-events/{id}` | Dettaglio di un singolo evento |
+| `POST` | `/v1/inbound-events/{id}/retry` | Riprocessa un evento rifiutato o non abbinato |
+| `POST` | `/v1/inbound-events/{id}/match` | Abbinamento manuale a un membro |
+
+### GET /v1/inbound-events
+
+Restituisce la lista degli eventi in ingresso, paginata e filtrabile.
+
+**Query parameters:**
+
+| Parametro | Tipo | Descrizione |
+| --- | --- | --- |
+| `status` | string | Filtra per stato: `ACCEPTED`, `REJECTED`, `UNMATCHED` |
+| `source` | string | Filtra per fonte |
+| `type` | string | Filtra per tipo evento |
+| `memberId` | string | Filtra per ID membro |
+| `from` | ISO 8601 | Data inizio |
+| `to` | ISO 8601 | Data fine |
+| `q` | string | Ricerca testuale libera |
+| `page` | integer | Pagina (0-based) |
+| `size` | integer | Elementi per pagina (max 100) |
+
+**Risposta di esempio:**
+
+```json Lista eventi
+{
+  "content": [
+    {
+      "id": "evt-2024-001",
+      "source": "ecommerce",
+      "type": "purchase.completed",
+      "status": "ACCEPTED",
+      "memberId": "member-abc-123",
+      "receivedAt": "2024-01-15T14:30:01Z",
+      "processedAt": "2024-01-15T14:30:02Z"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
+
+### GET /v1/inbound-events/{id}
+
+Restituisce il dettaglio completo di un evento, incluso il payload originale e la traccia di processing.
+
+### POST /v1/inbound-events/{id}/retry
+
+Riprocessa un evento nello stato `REJECTED` o `UNMATCHED`. Utile quando la causa del rifiuto e stata corretta (fonte riabilitata, schema aggiornato, membro creato).
+
+> **Attenzione:** Il retry e consentito solo per eventi in stato `REJECTED` o `UNMATCHED`. Gli eventi `ACCEPTED` o `DUPLICATE` non possono essere ripetuti.
+
+### POST /v1/inbound-events/{id}/match
+
+Abbina manualmente un evento `UNMATCHED` a un membro esistente. Dopo l'abbinamento, l'evento viene ripassato attraverso la pipeline a partire dalla fase di risoluzione membro.
+
+**Body di esempio:**
+
+```json Abbinamento manuale
+{
+  "memberId": "member-abc-123"
+}
+```
+
+## Backoffice: configurazione
+
+Questi endpoint gestiscono le fonti, i tipi evento e il ponte interno fatti→azioni.
+
+### Fonti (Sources)
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/sources` | Elenca tutte le fonti |
+| `POST` | `/v1/sources` | Crea una nuova fonte |
+| `PUT` | `/v1/sources/{code}` | Aggiorna una fonte esistente |
+
+Le fonti predefinite sono: `crm`, `app`, `ecommerce`, `billing`, `partner`, `internal`, `simulator`. Ogni fonte ha un codice, un nome, uno stato (abilitata/disabilitata) e una descrizione.
+
+**Body di esempio per creazione:**
+
+```json Nuova fonte
+{
+  "code": "pos-store-01",
+  "name": "POS Negozio Centrale",
+  "enabled": true,
+  "description": "Terminali POS del negozio di Roma"
+}
+```
+
+### Tipi evento (Event Types)
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/event-types` | Elenca tutti i tipi evento |
+| `POST` | `/v1/event-types` | Crea un nuovo tipo evento |
+| `PUT` | `/v1/event-types/{code}` | Aggiorna un tipo evento |
+| `GET` | `/v1/event-types/{code}/fields` | Campi data.\* piatti per costruttore condizioni |
+
+I tipi evento si dividono in due categorie:
+
+- **SYSTEM:** tipi built-in gestiti dalla piattaforma. Puoi modificare solo `name`, `description`, `enabled` e `icon`.
+- **CUSTOM:** tipi creati dall'utente. Puoi modificare tutto tranne il `code`.
+
+**Body di esempio per tipo CUSTOM:**
+
+```json Nuovo tipo evento
+{
+  "code": "review.submitted",
+  "name": "Recensione inviata",
+  "description": "Evento generato quando un membro lascia una recensione",
+  "enabled": true,
+  "icon": "star",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "productId": { "type": "string" },
+      "rating": { "type": "integer", "minimum": 1, "maximum": 5 },
+      "comment": { "type": "string" }
+    },
+    "required": ["productId", "rating"]
+  }
+}
+```
+
+### GET /v1/event-types/{code}/fields
+
+Restituisce i campi del payload `data` in formato piatto, utili per il costruttore di condizioni delle campagne. Esempio: per `purchase.completed` restituisce `data.amount`, `data.currency`, `data.channel`, `data.items[].sku`, ecc.
+
+### Ponte interno (Internal Mappings)
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/internal-mappings` | Elenca le regole di mapping |
+| `PUT` | `/v1/internal-mappings` | Aggiorna le regole di mapping |
+
+Questo endpoint configura il ponte fatti→azioni. Vedi la sezione dedicata piu avanti per i dettagli.
+
+## Demo: simulatore
+
+Il simulatore permette di generare eventi di test senza bisogno di una fonte esterna. Utile per sviluppo, test e demo.
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `POST` | `/v1/demo/simulator/fire` | Genera uno o piu eventi di test |
+| `GET` | `/v1/demo/scenarios` | Elenca gli scenari demo predefiniti |
+| `POST` | `/v1/demo/scenarios/{code}/run` | Avvia uno scenario demo |
+| `GET` | `/v1/demo/scenario-runs/{runId}` | Stato di un run scenario |
+
+### POST /v1/demo/simulator/fire
+
+Genera uno o piu eventi di test per un membro specifico.
+
+**Body di esempio:**
+
+```json Fire simulator
+{
+  "memberId": "member-abc-123",
+  "type": "purchase.completed",
+  "data": {
+    "orderId": "SIM-001",
+    "amount": 99.99,
+    "currency": "EUR",
+    "channel": "simulator",
+    "items": []
+  },
+  "source": "simulator",
+  "occurredAt": "2024-01-15T14:30:00Z",
+  "count": 1
+}
+```
+
+I parametri `data`, `source`, `occurredAt` e `count` sono opzionali. Se omessi, vengono usati valori di default appropriati per il tipo evento.
+
+### GET /v1/demo/scenarios
+
+Restituisce la lista degli scenari demo predefiniti, come "primo acquisto", "upgrade tier", "streak giornaliera", ecc.
+
+### POST /v1/demo/scenarios/{code}/run
+
+Avvia uno scenario demo predefinito. Restituisce un `runId` per tracciare lo stato.
+
+**Risposta:**
+
+```json Avvio scenario
+{
+  "runId": "run-2024-001-abc"
+}
+```
+
+### GET /v1/demo/scenario-runs/{runId}
+
+Restituisce lo stato di avanzamento di uno scenario demo, inclusi gli eventi generati e i risultati.
+
+## Codici di rifiuto
+
+Quando un evento viene rifiutato, la risposta contiene un `rejectCode` che indica il motivo. Ecco la lista completa.
+
+<AccordionGroup>
+  <Accordion title="SOURCE_DISABLED">
+    La fonte indicata nel campo `source` e disabilitata nel backoffice. Verifica che la fonte sia abilitata o contatta l'amministratore.
+  </Accordion>
+
+  <Accordion title="TYPE_UNKNOWN">
+    Il tipo evento indicato nel campo `type` non esiste nel sistema. Verifica che il tipo sia stato registrato nel backoffice.
+  </Accordion>
+
+  <Accordion title="TYPE_NOT_ALLOWED">
+    La fonte non e autorizzata a emettere eventi di questo tipo. Verifica le associazioni fonte-tipo nel backoffice.
+  </Accordion>
+
+  <Accordion title="INVALID_DATA">
+    Il payload `data` non rispetta lo schema JSON del tipo evento. Verifica la struttura dei dati e i tipi dei campi.
+  </Accordion>
+
+  <Accordion title="INVALID_TIME">
+    Il campo `time` e fuori dal range valido: non puo essere nel futuro di piu di 5 minuti ne nel passato di piu di 30 giorni.
+  </Accordion>
+
+  <Accordion title="DUPLICATE">
+    Esiste gia un evento con la stessa coppia (`source`, `id`). Ogni evento deve avere un `id` univoco per fonte.
+  </Accordion>
+
+  <Accordion title="UNMATCHED">
+    Il campo `subject` non corrisponde a nessun membro attivo nel sistema. Verifica il riferimento o usa l'abbinamento manuale.
+  </Accordion>
+
+  <Accordion title="MEMBER_NOT_ACTIVE">
+    Il membro corrispondente al `subject` esiste ma non e in stato attivo. Verifica lo stato del membro nel backoffice.
+  </Accordion>
+</AccordionGroup>
+
+## Ponte interno (fatti→azioni)
+
+L'ingestion gestisce anche un ponte interno che converte eventi di dominio ("fatti") in azioni premianti. Questo meccanismo permette ai microservizi interni di emettere eventi di business che vengono automaticamente tradotti in azioni valutabili dalle campagne.
+
+Il flusso e il seguente:
+
+1. Un microservizio interno pubblica un fatto su `lh.facts.v1` (es. `member.tier_changed`).
+2. L'ingestion consuma il fatto e lo confronta con le regole di mapping configurate in `/v1/internal-mappings`.
+3. Se esiste una regola corrispondente, il fatto viene trasformato in un'azione (es. `tier.upgraded`) e reinserita nella pipeline.
+4. L'azione risultante viene pubblicata su `lh.actions.v1`.
+
+> **Attenzione:** Per prevenire loop infiniti, l'ingestion controlla l'estensione `lhhop`. Se il valore supera 3, l'evento viene scartato e inviato alla dead letter queue con codice `LOOP_GUARD`.
+
+**Esempio di regola di mapping:**
+
+```json Regola mapping
+{
+  "factType": "member.tier_changed",
+  "actionType": "tier.upgraded",
+  "condition": "data.newTier != data.oldTier",
+  "dataMapping": {
+    "oldTier": "data.oldTier",
+    "newTier": "data.newTier"
+  }
+}
+```
+
+## Eventi prodotti e consumati
+
+L'ingestion interagisce con i topic Kafka come produttore e consumatore.
+
+### Eventi prodotti
+
+| Topic | Tipo evento | Descrizione |
+| --- | --- | --- |
+| `lh.actions.v1` | `action.*` | Tutte le azioni premianti validate e accettate |
+| `lh.audit.v1` | `audit.*` | Eventi di audit per ogni scrittura in backoffice |
+
+### Eventi consumati
+
+| Topic | Tipo evento | Descrizione |
+| --- | --- | --- |
+| `lh.facts.v1` | `member.*` | Fatti di dominio per l'indice membro e il ponte fatti→azioni |
+
+L'ingestion consuma gli eventi `member.*` per mantenere aggiornato l'indice di ricerca membro, necessario per la risoluzione dei riferimenti `external:<x>` e `email:<x>`.
+
+## Prossimi passi
+
+Ora che conosci l'API del servizio ingestion, puoi approfondire questi argomenti:
+
+- [Inviare un evento](/guide/inviare-un-evento): guida passo passo per inviare il tuo primo evento premiante
+- [Eventi Kafka](/concetti/eventi-kafka): approfondimento sui topic, gli envelope CloudEvent e le estensioni `lh*`
+- [Architettura](/concetti/architettura): panoramica dei microservizi e dei flussi di dati di Loyalty Hub

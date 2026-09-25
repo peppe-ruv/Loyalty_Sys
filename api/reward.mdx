@@ -1,0 +1,265 @@
+---
+title: "Reward Service API: Catalogo, Coupon e Redemption"
+sidebarTitle: "Reward"
+description: "API reference completa del reward-service (porta 8085). Gestisci catalogo premi per fasce, pool coupon, redemptions con saga di spesa e coupon singoli."
+---
+
+Il reward-service gestisce il catalogo premi di Loyalty Hub, le richieste di riscatto (redemptions) e i coupon. Organizza i premi in fasce (F1-F5) e categorie, gestisce pool coupon generabili o importabili, e coordina le redemption tramite una saga event-driven che interagisce con il wallet-service. Questa pagina documenta tutti gli endpoint REST del servizio, i concetti chiave, gli errori tipici e un esempio completo di richiesta premio.
+
+## Base URL
+
+```text
+http://localhost:8085
+```
+
+Tutte le chiamate richiedono l'header `Content-Type: application/json` e, per la PoC, l'header `X-LH-Actor: <username>` per l'autenticazione demo.
+
+## Concetti chiave
+
+Prima di chiamare gli endpoint, familiarizza con questi concetti del dominio premi.
+
+**Fasce (F1-F5)**
+
+Le fasce (`reward-bands`) definiscono i livelli di accesso al catalogo. Ogni fascia ha una soglia minima di punti richiesta. Le soglie devono essere uniche e crescenti: non puoi creare due fasce con la stessa soglia. I premi sono assegnati a una fascia: un membro può richiedere solo premi della sua fascia o inferiori.
+
+**Pool coupon**
+
+Un pool (`coupon-pool`) rappresenta un lotto di coupon generato o importato. Puoi generare fino a 5000 coupon per chiamata o importare un elenco di codici personalizzati. I coupon di un pool sono associati a un premio di tipo `COUPON`.
+
+**Redemption**
+
+Una redemption è la richiesta di un premio da parte di un membro. Passa attraverso questi stati:
+
+| Stato | Descrizione |
+| --- | --- |
+| `PENDING` | Richiesta ricevuta, in attesa di conferma dalla saga |
+| `CONFIRMED` | Punti scalati dal wallet, pronta per il fulfilment |
+| `FULFILLED` | Premio erogato (coupon emesso o spedizione avviata) |
+| `REJECTED` | Rifiutata per regola di business (es. stock esaurito) |
+| `CANCELLED` | Annullata dal membro o dall'operatore |
+
+**Fulfilment**
+
+Il tipo di erogazione di un premio:
+
+| Tipo | Descrizione |
+| --- | --- |
+| `AUTO_COUPON` | Il sistema emette automaticamente un coupon dalla pool |
+| `MANUAL` | Richiede intervento operatore (es. spedizione fisica) |
+| `INSTANT` | Erogazione immediata senza coupon né spedizione |
+
+Per approfondire il modello premi, consulta la pagina [Concetti: premi e gioco](/concetti/premi-e-gioco).
+
+## Endpoint di gestione (backoffice)
+
+### Categorie e fasce
+
+Gestisci la struttura del catalogo premi.
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/reward-categories` | Elenca le categorie premi |
+| `POST` | `/v1/reward-categories` | Crea una nuova categoria |
+| `PUT` | `/v1/reward-categories/{id}` | Aggiorna una categoria esistente |
+| `GET` | `/v1/reward-bands` | Elenca le fasce con soglie |
+| `POST` | `/v1/reward-bands` | Crea una nuova fascia |
+| `PUT` | `/v1/reward-bands/{id}` | Aggiorna una fascia esistente |
+| `DELETE` | `/v1/reward-bands/{id}` | Elimina una fascia (se non in uso) |
+
+> **Attenzione:** Le soglie delle fasce devono essere uniche e crescenti. Se provi a creare o aggiornare una fascia con soglia duplicata, ricevi `422 BAND_THRESHOLD_DUPLICATE`. Se provi a eliminare una fascia assegnata a uno o più premi, ricevi `409 BAND_IN_USE`.
+
+### Premi
+
+Gestisci il catalogo premi con filtri e workflow di pubblicazione.
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/rewards` | Elenca i premi (filtri: `status`, `band`, `category`, `type`, `q`) |
+| `POST` | `/v1/rewards` | Crea un nuovo premio in stato `DRAFT` |
+| `PUT` | `/v1/rewards/{id}` | Aggiorna un premio |
+| `POST` | `/v1/rewards/{id}/transitions` | Cambia stato del premio (`action`, `comment`) |
+| `POST` | `/v1/rewards/{id}/duplicate` | Duplica un premio esistente |
+
+> **Nota:** Un premio in stato `LIVE` ammette aggiornamenti limitati: solo `stock_total`, `valid_to` e `image_url`. Per modifiche più invasive, duplica il premio o riportalo in `DRAFT`.
+
+Le transizioni di stato disponibili tramite `POST /v1/rewards/{id}/transitions` includono tipicamente: `PUBLISH` (da `DRAFT` a `LIVE`), `UNPUBLISH` (da `LIVE` a `DRAFT`), `ARCHIVE`.
+
+### Pool coupon
+
+Gestisci i lotti di coupon associati ai premi.
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/coupon-pools` | Elenca i pool coupon |
+| `POST` | `/v1/coupon-pools` | Crea un nuovo pool |
+| `POST` | `/v1/coupon-pools/{id}/generate` | Genera coupon automaticamente (`count`, max 5000) |
+| `POST` | `/v1/coupon-pools/{id}/import` | Importa codici coupon esistenti (`codes[]`) |
+| `GET` | `/v1/coupon-pools/{id}/coupons` | Elenca i coupon di un pool |
+
+### Coupon singoli
+
+Opera su singoli codici coupon.
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/coupons/{code}` | Dettaglio di un coupon |
+| `POST` | `/v1/coupons/{code}/use` | Marca un coupon come utilizzato |
+| `POST` | `/v1/coupons/{code}/void` | Annulla l'utilizzo di un coupon |
+
+> **Attenzione:** `POST /v1/coupons/{code}/use` restituisce `409 COUPON_ALREADY_USED` se il coupon è già stato utilizzato, `410 COUPON_EXPIRED` se scaduto, `404` se il codice non esiste.
+
+### Redemptions
+
+Gestisci le richieste di premio dal backoffice.
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/redemptions` | Elenca le redemptions (filtri: `status`, `memberId`, `rewardCode`, `needsAttention`, `from`, `to`) |
+| `GET` | `/v1/redemptions/{id}` | Dettaglio di una redemption con cronologia |
+| `POST` | `/v1/redemptions/{id}/fulfil` | Completa manualmente una redemption (`note`, `tracking?`) |
+| `POST` | `/v1/redemptions/{id}/cancel` | Cancella una redemption (`reason`) |
+
+> **Nota:** `POST /v1/redemptions/{id}/fulfil` è disponibile solo per redemptions in stato `CONFIRMED` con `fulfilment: MANUAL`. Richiede il ruolo `CARE` o `ADMIN`. Usa `note` per annotazioni interne e `tracking` per il codice di tracciamento della spedizione.
+
+### Statistiche
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/rewards/stats` | Statistiche del catalogo: top premi, richieste per stato, premi con stock sotto il 10% |
+
+## Endpoint portale
+
+Questi endpoint sono progettati per il portale Next.js (`web/`). Richiedono sempre il parametro `memberId`.
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/portal/catalog?memberId={id}` | Catalogo personalizzato per il membro: fasce con premi, stato stock, blocchi di tier e limiti |
+| `GET` | `/v1/portal/rewards/{code}?memberId={id}` | Dettaglio di un premio per il membro |
+| `POST` | `/v1/portal/redemptions` | Richiede un premio (`memberId`, `rewardCode`, `shipping?`) |
+| `GET` | `/v1/portal/redemptions?memberId={id}` | Elenco redemptions del membro |
+| `GET` | `/v1/portal/redemptions/{id}` | Dettaglio di una redemption del membro |
+| `POST` | `/v1/portal/redemptions/{id}/cancel` | Annulla una redemption in stato `PENDING` |
+| `GET` | `/v1/portal/coupons?memberId={id}` | Coupon attivi del membro |
+
+Il catalogo (`GET /v1/portal/catalog`) restituisce per ogni premio:
+
+- `stockState`: `AVAILABLE`, `LOW` (sotto soglia), `SOLD_OUT`
+- `lockedByTier`: `true` se il premio richiede una fascia superiore a quella del membro
+- `perMemberLimitReached`: `true` se il membro ha già raggiunto il limite di richieste per quel premio
+
+## Errori tipici
+
+<AccordionGroup>
+  <Accordion title="422 REWARD_NOT_AVAILABLE">
+    Il premio richiesto non è disponibile al momento. Verifica che lo stato sia `LIVE` e che il periodo di validità sia attivo.
+  </Accordion>
+
+  <Accordion title="422 REWARD_SOLD_OUT">
+    Lo stock del premio è esaurito. Il sistema rifiuta la richiesta con stato `REJECTED` nella response 202.
+  </Accordion>
+
+  <Accordion title="422 MEMBER_LIMIT_REACHED">
+    Il membro ha raggiunto il limite massimo di richieste per questo premio. Controlla il campo `perMemberLimitReached` nel catalogo portale.
+  </Accordion>
+
+  <Accordion title="422 MEMBER_NOT_ACTIVE">
+    Il membro non è in stato attivo. Verifica lo stato del profilo nel member-service prima di permettere la richiesta.
+  </Accordion>
+
+  <Accordion title="422 TIER_NOT_ELIGIBLE">
+    Il membro non ha il tier necessario per richiedere il premio. Controlla `lockedByTier` nel catalogo portale.
+  </Accordion>
+
+  <Accordion title="422 SHIPPING_REQUIRED">
+    Il premio è di tipo `PHYSICAL` ma la richiesta non include l'oggetto `shipping`. Aggiungi indirizzo e dati di spedizione.
+  </Accordion>
+
+  <Accordion title="409 COUPON_ALREADY_USED">
+    Il coupon è già stato utilizzato. Non puoi riutilizzare un coupon singolo. Verifica lo stato con `GET /v1/coupons/{code}`.
+  </Accordion>
+
+  <Accordion title="410 COUPON_EXPIRED">
+    Il coupon è scaduto. Controlla il campo `valid_to` nel dettaglio del coupon.
+  </Accordion>
+</AccordionGroup>
+
+## Richiesta di un premio
+
+Segui questi passaggi per richiedere un premio dal portale e osservare l'evoluzione della saga.
+
+<Steps>
+  <Step title="Verifica la disponibilità nel catalogo">
+    Chiama `GET /v1/portal/catalog?memberId=MEM-123` per verificare che il premio sia disponibile, che il membro abbia punti sufficienti e che non ci siano blocchi di tier o limiti.
+  </Step>
+  <Step title="Invia la richiesta di redemption">
+    Esegui la chiamata POST al portale con il codice del premio desiderato.
+
+    ```bash Richiesta redemption
+    curl -X POST http://localhost:8085/v1/portal/redemptions \
+      -H "Content-Type: application/json" \
+      -H "X-LH-Actor: marta.admin" \
+      -d '{
+        "memberId": "MEM-123",
+        "rewardCode": "COFFEE-2024",
+        "shipping": {
+          "fullName": "Mario Rossi",
+          "address": "Via Roma 1",
+          "city": "Milano",
+          "zip": "20121",
+          "country": "IT"
+        }
+      }'
+    ```
+
+    Per premi digitali o coupon, ometti l'oggetto `shipping`.
+  </Step>
+  <Step title="Osserva la risposta 202">
+    Il sistema accetta la richiesta e restituisce immediatamente lo stato iniziale.
+
+    ```json Risposta 202 PENDING
+    {
+      "redemptionId": "rmd-7f8a9b2c",
+      "status": "PENDING",
+      "correlationId": "lhc-550e8400-e29b-41d4-a716-446655440000"
+    }
+    ```
+
+    > **Nota:** Anche in caso di rifiuto di business (es. stock esaurito), il servizio risponde `202`. Lo stato finale `REJECTED` viene comunicato tramite evento Kafka.
+  </Step>
+  <Step title="Traccia l'evoluzione della saga">
+    Usa il `correlationId` per seguire il flusso event-driven:
+
+    1. **wallet.points.spent**: il wallet-service scala i punti dal saldo del membro
+    2. **reward.redemption.confirmed**: il reward-service conferma la redemption (stato `CONFIRMED`)
+    3. **coupon.issued**: se il premio è di tipo `AUTO_COUPON`, il sistema assegna un coupon dalla pool
+    4. **reward.redemption.fulfilled**: la redemption è completa (stato `FULFILLED`)
+
+    In caso di errore (es. punti insufficienti), il flusso si interrompe con **reward.redemption.rejected**.
+  </Step>
+  <Step title="Verifica lo stato finale">
+    Polla `GET /v1/portal/redemptions/rmd-7f8a9b2c` o sottoscrivi gli eventi Kafka per ricevere l'aggiornamento di stato. Per premi `MANUAL`, lo stato rimane `CONFIRMED` fino all'intervento dell'operatore.
+  </Step>
+</Steps>
+
+## Eventi prodotti
+
+Il reward-service emette eventi sui topic Kafka di Loyalty Hub. Ecco i tipi di evento prodotti:
+
+| Tipo evento | Topic | Descrizione |
+| --- | --- | --- |
+| `reward.redemption.requested` | `lh.actions.v1` | Una nuova redemption è stata richiesta |
+| `reward.redemption.confirmed` | `lh.effects.v1` | La redemption è stata confermata dopo lo scalamento punti |
+| `reward.redemption.fulfilled` | `lh.effects.v1` | La redemption è stata evasa completamente |
+| `reward.redemption.rejected` | `lh.effects.v1` | La redemption è stata rifiutata per regola di business |
+| `reward.redemption.cancelled` | `lh.effects.v1` | La redemption è stata annullata |
+| `coupon.issued` | `lh.effects.v1` | Un coupon è stato assegnato a un membro |
+| `coupon.used` | `lh.facts.v1` | Un coupon è stato marcato come utilizzato |
+| `reward.status.changed` | `lh.audit.v1` | Cambio di stato di un premio (backoffice) |
+
+Tutti gli eventi usano l'envelope CloudEvent 1.0 con le estensioni `lhcorrelationid`, `lhcausationid`, `lhhop`, `lhactor`, `lhschemaversion`. Per approfondire il modello event-driven, consulta [Concetti: eventi Kafka](/concetti/eventi-kafka).
+
+## Prossimi passi
+
+- Consulta la guida [Gestire i premi](/guide/gestire-i-premi) per un tutorial passo passo sulla creazione e gestione del catalogo
+- Approfondisci il modello di dominio in [Concetti: premi e gioco](/concetti/premi-e-gioco)
+- Esplora l'API del wallet per capire la saga di spesa punti in [Wallet Service API](/api/wallet)

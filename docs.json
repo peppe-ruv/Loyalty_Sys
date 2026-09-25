@@ -8,56 +8,110 @@
     "dark": "#1D4ED8"
   },
   "navigation": {
-    "groups": [
+    "tabs": [
       {
-        "group": "Specifiche principali",
-        "pages": [
-          "docs/README",
-          "docs/01-VISIONE-E-SCOPE",
-          "docs/02-CATALOGO-FUNZIONALE",
-          "docs/03-MODELLO-DI-DOMINIO",
-          "docs/04-ARCHITETTURA",
-          "docs/05-EVENTI-E-TOPIC",
-          "docs/06-CONVENZIONI-BACKEND",
-          "docs/07-FRONTEND-FONDAMENTA",
-          "docs/08-FRONTEND-BACKOFFICE",
-          "docs/09-FRONTEND-PORTALE",
-          "docs/10-DATI-DEMO",
-          "docs/11-DEPLOY-COSTO-ZERO",
-          "docs/12-PIANO-DI-SVILUPPO",
-          "docs/13-REGISTRO-DECISIONI",
-          "docs/14-STATO-AVANZAMENTO",
-          "docs/15-DOMANDE-APERTE",
-          "docs/16-TESTBOOK-FUNZIONALE",
-          "docs/17-EPIC-E-STORIE"
+        "tab": "Documentazione",
+        "groups": [
+          {
+            "group": "Introduzione",
+            "pages": [
+              "index",
+              "getting-started/prerequisiti",
+              "getting-started/quickstart",
+              "getting-started/tour-demo"
+            ]
+          },
+          {
+            "group": "Concetti",
+            "pages": [
+              "concetti/panoramica",
+              "concetti/architettura",
+              "concetti/azioni-e-campagne",
+              "concetti/punti-e-tier",
+              "concetti/premi-e-gioco",
+              "concetti/eventi-kafka"
+            ]
+          },
+          {
+            "group": "Guide pratiche",
+            "pages": [
+              "guide/inviare-un-evento",
+              "guide/creare-una-campagna",
+              "guide/gestire-i-premi",
+              "guide/simulare-uno-scenario",
+              "guide/osservare-il-sistema"
+            ]
+          },
+          {
+            "group": "Deploy & Operations",
+            "pages": [
+              "operations/avvio-locale",
+              "operations/deploy-costo-zero",
+              "operations/troubleshooting"
+            ]
+          }
         ]
       },
       {
-        "group": "Servizi",
-        "pages": [
-          "docs/servizi/README",
-          "docs/servizi/campaign-service",
-          "docs/servizi/engagement-service",
-          "docs/servizi/gamification-service",
-          "docs/servizi/ingestion-service",
-          "docs/servizi/insight-service",
-          "docs/servizi/member-service",
-          "docs/servizi/reward-service",
-          "docs/servizi/wallet-service"
+        "tab": "Specifiche tecniche",
+        "groups": [
+          {
+            "group": "Fondamenta",
+            "pages": [
+              "specifiche/panoramica",
+              "specifiche/visione-e-scope",
+              "specifiche/catalogo-funzionale",
+              "specifiche/modello-di-dominio"
+            ]
+          },
+          {
+            "group": "Architettura & convenzioni",
+            "pages": [
+              "specifiche/architettura",
+              "specifiche/eventi-e-topic",
+              "specifiche/convenzioni-backend",
+              "specifiche/frontend-fondamenta",
+              "specifiche/frontend-backoffice",
+              "specifiche/frontend-portale"
+            ]
+          },
+          {
+            "group": "Dati & processo",
+            "pages": [
+              "specifiche/dati-demo",
+              "specifiche/piano-di-sviluppo",
+              "specifiche/registro-decisioni",
+              "specifiche/domande-aperte",
+              "specifiche/testbook-funzionale",
+              "specifiche/backlog"
+            ]
+          }
         ]
       },
       {
-        "group": "Audit",
-        "pages": [
-          "docs/audit/README",
-          "docs/audit/2026-09-audit-backend"
-        ]
-      },
-      {
-        "group": "Testbook",
-        "pages": [
-          "docs/testbook/README",
-          "docs/testbook/TB-WAL-wallet"
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Panoramica",
+            "pages": [
+              "api/introduzione",
+              "api/autenticazione",
+              "api/convenzioni"
+            ]
+          },
+          {
+            "group": "Servizi",
+            "pages": [
+              "api/ingestion",
+              "api/member",
+              "api/campaign",
+              "api/wallet",
+              "api/reward",
+              "api/gamification",
+              "api/engagement",
+              "api/insight"
+            ]
+          }
         ]
       }
     ]

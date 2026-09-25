@@ -1,0 +1,108 @@
+---
+title: "eventi-kafka"
+sidebarTitle: "Eventi Kafka"
+description: "Formato CloudEvents 1.0, cinque topic Kafka, estensioni lh*, chiavi di partizione e regole per idempotenza e correlazione."
+---
+
+Il bus è il contratto pubblico tra i microservizi. Questa pagina definisce topic, envelope e regole di correlazione. Ciò che è scritto qui è vincolante per tutti i servizi.
+
+## I cinque topic
+
+Il piano gratuito Aiven consente 5 topic da 2 partizioni. Loyalty Hub ne usa esattamente cinque.
+
+| Topic | Contenuto | Chiave | Produttore | Consumatori |
+| --- | --- | --- | --- | --- |
+| `lh.actions.v1` | Azioni premianti (esterne e interne). | `memberId` | Solo `ingestion` | `campaign`, `gamification`, `member`, `insight` |
+| `lh.effects.v1` | Effetti decisi dal motore. | `memberId` | Solo `campaign` | `wallet`, `reward`, `gamification`, `engagement`, `insight` |
+| `lh.facts.v1` | Fatti di dominio di tutti i servizi. | `memberId` o id aggregato | Tutti tranne `insight` | Tutti (filtrano per `type`) |
+| `lh.audit.v1` | Audit delle scritture da backoffice. | `entityType:entityId` | Tutti | `insight` |
+| `lh.dlq.v1` | Messaggi non elaborabili. | Chiave originale | Tutti (error handler) | `insight` |
+
+**Parametri:** 2 partizioni per topic; retention del provider (3 giorni sul free tier: il sistema di record è Postgres); consumer group `lh-<servizio>`; `auto.offset.reset=earliest`.
+
+> **Nota:** Sul free tier di Aiven i topic vanno creati **una tantum a mano**. I servizi hanno `auto-create` disabilitato per evitare che un sesto topic accidentale rompa l'avvio.
+
+## L'envelope: CloudEvents 1.0
+
+Ogni messaggio è un CloudEvent JSON strutturato (`content-type: application/cloudevents+json`).
+
+| Attributo | Obbligatorio | Regola |
+| --- | --- | --- |
+| `specversion` | Sì | `"1.0"` |
+| `id` | Sì | ULID (26 caratteri). Per fonti esterne è l'id fornito dalla fonte (dedup su `source`\+`id`). |
+| `source` | Sì | `urn:loyaltyhub:source:<codice>` per azioni; `urn:loyaltyhub:service:<servizio>` per effetti, fatti, audit. |
+| `type` | Sì | `io.loyaltyhub.<famiglia>.<nome>`. Famiglie: `action`, `effect`, `fact`, `audit`. |
+| `subject` | Sì | `member:<memberId>`; per fatti di configurazione `<entityType>:<id>`. |
+| `time` | Sì | RFC 3339 UTC. Data di business. |
+| `datacontenttype` | Sì | `application/json` |
+| `dataschema` | Sì | `urn:loyaltyhub:schema:<famiglia>.<nome>:<versione>` |
+| `lhtenant` | Sì | `aurora` nel PoC. |
+| `lhcorrelationid` | Sì | Id dell'azione radice della catena. |
+| `lhcausationid` | No | Id dell'evento che ha causato questo. |
+| `lhhop` | Sì | `0` per azioni esterne; +1 a ogni passaggio del ponte interno; `> 3` → DLQ `LOOP_GUARD`. |
+| `lhactor` | No | `<ruolo>:<username>` da backoffice, `system` per i job, `member:<id>` dal portale. |
+| `data` | Sì | Payload specifico del tipo. |
+
+In ingresso dalle fonti esterne sono obbligatori solo `specversion`, `id`, `source`, `type`, `subject`, `time`, `data`. Gli attributi `lh*` li aggiunge `ingestion`.
+
+> **Nota:** Header Kafka duplicati per filtrare senza deserializzare: `lh-type` e `lh-correlation-id`.
+
+## Esempio: un'azione
+
+```json purchase.completed
+{
+  "specversion": "1.0",
+  "id": "01J8ZK3V7Q2M9T4B6N8R0XWYCD",
+  "source": "urn:loyaltyhub:source:ecommerce",
+  "type": "io.loyaltyhub.action.purchase.completed",
+  "subject": "member:MBR-000003",
+  "time": "2026-09-18T10:15:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:action.purchase.completed:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZK3V7Q2M9T4B6N8R0XWYCD",
+  "lhhop": 0,
+  "data": {
+    "orderId": "ORD-88213",
+    "amount": 130.00,
+    "currency": "EUR",
+    "channel": "ONLINE"
+  }
+}
+```
+
+## Esempio: un effetto
+
+```json points.grant
+{
+  "specversion": "1.0",
+  "id": "01J8ZK4A0Q...",
+  "source": "urn:loyaltyhub:service:campaign",
+  "type": "io.loyaltyhub.effect.points.grant",
+  "subject": "member:MBR-000003",
+  "time": "2026-09-18T10:15:01Z",
+  "datacontenttype": "application/json",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZK3V7Q2M9T4B6N8R0XWYCD",
+  "lhcausationid": "01J8ZK3V7Q2M9T4B6N8R0XWYCD",
+  "lhhop": 1,
+  "data": {
+    "campaignCode": "WEEKEND-BOOST",
+    "currency": "PTS",
+    "amount": 260,
+    "reason": "purchase multiplier x2"
+  }
+}
+```
+
+## Convenzioni operative
+
+- **Idempotenza:** ogni consumer verifica `processed_event(event_id, service)` prima di scrivere. Un rerun a offset arretrato non duplica gli effetti.
+- **Correlazione:** l'`lhcorrelationid` identifica una catena end-to-end. `insight-service` la usa per costruire il tracciato completo.
+- **Anti-loop:** il ponte interno può ripubblicare fatti come azioni. `lhhop` cresce di 1 a ogni passaggio; oltre 3 il messaggio finisce in DLQ.
+- **Consumer tolleranti:** un consumer che riceve un `type` che non gli interessa **lo ignora senza errore** e senza scrivere `processed_event`.
+- **Nomi tipi:** dalle fonti esterne accetti anche nomi brevi (`purchase.completed`); ingestion li normalizza a nome completo prima di pubblicare.
+
+## Prossimo passo
+
+Per gli endpoint REST esposti dai servizi vai a [API](reference/api).

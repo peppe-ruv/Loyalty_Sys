@@ -1,0 +1,123 @@
+---
+title: "creare-una-campagna"
+sidebarTitle: "Creare una campagna"
+description: "Costruisci una campagna end-to-end nel backoffice di Loyalty Hub: trigger, condizioni, effetti, limiti, simulazione e pubblicazione."
+---
+
+Questa guida ti porta dalla creazione di una campagna in bozza fino al suo passaggio LIVE. Come esempio realizziamo una campagna che raddoppia i punti sugli acquisti online sopra i 100 euro nel weekend.
+
+## Prima di iniziare
+
+- Stack in esecuzione (vedi [Quickstart](getting-started/quickstart)).
+- Entra in backoffice come `luca.marketing` o `marta.admin`.
+
+## Passo 1: nome, descrizione e trigger
+
+<Steps>
+  <Step title="Apri la sezione Campagne">
+    In backoffice, vai a **Programma → Campagne** e clicca **Nuova campagna**.
+  </Step>
+  <Step title="Dai nome e descrizione">
+    - **Nome:** `Weekend Boost`
+    - **Codice:** `WEEKEND-BOOST` (usato come identificatore stabile)
+    - **Descrizione interna:** ad uso backoffice.
+    - **Descrizione per il membro:** appare nel portale, sezione "Come guadagnare". Scrivi: _Nel weekend raddoppiamo i punti sui tuoi acquisti online sopra 100 euro._
+  </Step>
+  <Step title="Scegli i trigger">
+    Aggiungi il tipo azione `purchase.completed`. La campagna verrà valutata a ogni acquisto.
+  </Step>
+</Steps>
+
+## Passo 2: pubblico e condizioni
+
+<Steps>
+  <Step title="Definisci il pubblico">
+    Seleziona **Tutti i membri attivi**. Per limitare a specifici tier o segmenti, cambia scelta.
+  </Step>
+  <Step title="Aggiungi le condizioni">
+    Nel costruttore condizioni imposta:
+
+    - `data.channel` **uguale a** `ONLINE`
+    - `data.amount` **maggiore o uguale a** `100`
+    - `context.dayOfWeek` **in** `[SATURDAY, SUNDAY]`
+
+    Il costruttore mostra i campi disponibili a partire dallo schema del tipo azione (per `data.*`) e da un insieme fisso (per `member.*`, `context.*`, `history.*`).
+  </Step>
+</Steps>
+
+## Passo 3: effetti
+
+Aggiungi un effetto **MULTIPLIER** di `2×` sui punti premio (`PTS`) delle altre campagne che scattano sulla stessa azione.
+
+> **Nota:** `MULTIPLIER` non genera punti da solo: moltiplica quelli erogati da altre campagne. Se vuoi anche accreditare punti fissi, aggiungi un secondo effetto `GRANT_POINTS`.
+
+## Passo 4: limiti
+
+Imposta:
+
+- **Per membro:** massimo 4 attivazioni al mese.
+- **Budget globale:** 100.000 punti nel periodo.
+- **Cooldown:** 4 ore tra un'attivazione e l'altra sullo stesso membro.
+
+I limiti impediscono che una campagna esploda in modo incontrollato.
+
+## Passo 5: calendario e priorità
+
+<Steps>
+  <Step title="Finestra attiva">
+    Definisci `start_at` e `end_at`. Solo dentro questa finestra la campagna viene valutata (anche se `LIVE`).
+  </Step>
+  <Step title="Priorità e gruppo esclusivo">
+    - **Priorità:** numero più alto = valutata prima.
+    - **Gruppo esclusivo:** se assegnato, quando due campagne dello stesso gruppo scattano sulla stessa azione vince quella con priorità maggiore. Utile per evitare doppi premi.
+  </Step>
+</Steps>
+
+## Passo 6: simula prima di pubblicare
+
+Clicca **Simula**. Scegli:
+
+- Un tipo azione (`purchase.completed`).
+- Un membro (per esempio `MBR-000003`).
+- Un payload di prova (`amount: 150`, `channel: "ONLINE"`, orario sabato).
+
+La simulazione mostra:
+
+- Se la campagna scatterebbe.
+- Quali condizioni sono state valutate e con quale esito.
+- Gli effetti risultanti.
+
+Ripeti con parametri che non dovrebbero scattare (per esempio `amount: 50` o giorno feriale) per confermare che i vincoli funzionano.
+
+> **Nota:** La simulazione non scrive nulla. Non genera movimenti punti né consuma budget.
+
+## Passo 7: pubblicazione
+
+Il flusso di stati è:
+
+```text
+DRAFT → IN_REVIEW → APPROVED → LIVE
+```
+
+<Steps>
+  <Step title="Invia in revisione">
+    Clicca **Invia in revisione**. La campagna passa a `IN_REVIEW`. Se non richiede LEGAL puoi approvare tu stesso; altrimenti attendi che `elena.legal` la approvi.
+  </Step>
+  <Step title="Pubblica">
+    Da `APPROVED` clicca **Attiva** per passare a `LIVE`. Da questo momento le prossime azioni saranno valutate.
+  </Step>
+</Steps>
+
+## Verifica in produzione
+
+- **Statistiche campagna** (Programma → Campagne → Weekend Boost → Stats): attivazioni, membri unici, punti erogati, budget residuo.
+- **Registro valutazioni** (Programma → Valutazioni): puoi filtrare per campagna e vedere per ogni azione se è scattata e perché sì o no.
+- **Sospensione rapida:** se qualcosa non va, clicca **Metti in pausa**. La campagna passa a `PAUSED` e smette di essere valutata immediatamente.
+
+## Duplicare per iterare
+
+Vuoi provare una variante? Usa **Duplica**: crei una nuova bozza `WEEKEND-BOOST-COPY-1` con la stessa configurazione, modificabile senza toccare la campagna LIVE.
+
+## Prossimo passo
+
+Vuoi generare traffico di prova senza aspettare acquisti reali? Vai a [Come simulare uno scenario](guide/simulare-uno-scenario).

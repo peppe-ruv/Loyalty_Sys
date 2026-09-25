@@ -1,0 +1,213 @@
+---
+title: "Catalogo funzionale di Loyalty Hub: tutte le feature"
+sidebarTitle: "Catalogo funzionale"
+description: "Esplora l'elenco completo e verificabile di ogni feature di Loyalty Hub. Ogni riga riporta ID, comportamento, priorità, servizio proprietario, schermate UI e milestone."
+---
+
+Il catalogo funzionale elenca tutte le feature di Loyalty Hub in formato verificabile. Ogni riga ha un ID univoco, una descrizione del comportamento atteso, una priorità, un servizio proprietario, le schermate UI coinvolte e la milestone di riferimento. Usa questo documento per tracciare lo stato di implementazione e per pianificare i test.
+
+## Sigle servizi
+
+| Sigla | Servizio | Porta |
+| --- | --- | --- |
+| ING | Ingestion | 8081 |
+| MBR | Member | 8082 |
+| CMP | Campaign | 8083 |
+| WAL | Wallet | 8084 |
+| RWD | Reward | 8085 |
+| GAM | Gamification | 8086 |
+| ENG | Engagement | 8087 |
+| INS | Insight | 8088 |
+
+## Come leggere la tabella
+
+Ogni feature è descritta da queste colonne:
+
+- **ID**: identificativo univoco nel formato `F-<AREA>-<NN>`
+- **Feature**: nome sintetico della funzionalità
+- **Comportamento**: descrizione del risultato atteso, inclusi stati e flussi
+- **Pri**: priorità. `P0` per PoC, `P1` per affinamento, `P2` per target futuro
+- **Svc**: servizio proprietario (sigla dalla tabella precedente)
+- **UI**: schermate backoffice (`BO-xx`) o portale (`PT-xx`, `HUB-xx`) coinvolte
+- **M**: milestone (`M0` preparazione, `M1-M7` sviluppo incrementale)
+
+> **Nota:** Quando una feature coinvolge più servizi, il primo servizio elencato è il proprietario principale.
+
+## Feature per area
+
+### Ingresso azioni (F-ING)
+
+| ID | Feature | Comportamento | Pri | Svc | UI | M |
+| --- | --- | --- | --- | --- | --- | --- |
+| F-ING-01 | Ricezione CloudEvents | POST `/v1/events` valida envelope, fonte, tipo e schema del payload. Restituisce 202 con esito. | P0 | ING | BO-26 | M1 |
+| F-ING-02 | Deduplica | Stesso `source` + `id` produce stato `DUPLICATE`. | P0 | ING | BO-26 | M1 |
+| F-ING-03 | Risoluzione membro | `subject` accetta `member:<id>`, `external:<x>` o `email:<x>`. Membro non attivo produce stato `REJECTED`. | P0 | ING | BO-26 | M1 |
+| F-ING-04 | Eventi non abbinati | Membro sconosciuto produce stato `UNMATCHED` e l'evento viene parcheggiato per riconciliazione futura. | P1 | ING | BO-26 | M7 |
+| F-ING-05 | Registro fonti | Ogni fonte ha codice, nome, tipi ammessi e stato. | P0 | ING | BO-09 | M1 |
+| F-ING-06 | Tipi azione e schemi | Tipi `SYSTEM` e `CUSTOM` con JSON Schema di validazione. | P0 | ING | BO-09, BO-06 | M1 (custom M6) |
+| F-ING-07 | Transazioni acquisto | POST `/v1/transactions` genera evento `purchase.completed`. | P1 | ING | BO-26 | M3 |
+| F-ING-08 | Ponte azioni interne | Fatti selezionati vengono ripubblicati come azioni con protezione anti-loop. | P0 | ING | BO-09 | M3 |
+| F-ING-09 | Monitor ingressi | Dashboard in tempo reale degli eventi in ingresso. | P0 | ING | BO-26 | M1 |
+| F-ING-10 | Invio batch | POST `/v1/events/batch` accetta fino a 100 eventi per chiamata. | P2 | ING | — | — |
+
+### Membri (F-MBR) e segmenti (F-SEG)
+
+| ID | Feature | Comportamento | Pri | Svc | UI | M |
+| --- | --- | --- | --- | --- | --- | --- |
+| F-MBR-01 | Anagrafica membro | Creazione, modifica e ricerca dei profili membro. | P0 | MBR | BO-02 | M1 |
+| F-MBR-02 | Scheda 360° | Vista unificata con profilo, saldi, tier, movimenti, azioni ricevute con spiegazione, richieste premio, coupon, giocate, badge, messaggi e tracciati. | P0 | MBR + altri | BO-03 | M1-M6 |
+| F-MBR-03 | Attributi custom + etichette | Campi aggiuntivi e tag associabili al profilo. | P1 | MBR | BO-03 | M6 |
+| F-MBR-04 | Stati membro | `ACTIVE`, `INACTIVE`, `BLOCKED`, `ANONYMIZED`. Solo `ACTIVE` accumula e spende punti. | P0 | MBR | BO-03 | M1 |
+| F-MBR-05 | Anonimizzazione | Rimozione dei dati personali con conservazione dello storico anonimizzato. | P1 | MBR | BO-03 | M7 |
+| F-MBR-06 | Registrazione dal portale | Flusso di iscrizione self-service per il membro. | P1 | MBR | PT-08, HUB-01 | M5 |
+| F-MBR-07 | Completamento profilo | Primo completamento genera evento `member.profile.completed`. | P1 | MBR | PT-08 | M5 |
+| F-MBR-08 | Compleanno | Job giornaliero che genera evento `member.birthday` per i membri in data corrente. | P2 | MBR | — | — |
+| F-SEG-01 | Segmenti statici | Liste manuali di membri. | P1 | MBR | BO-04 | M6 |
+| F-SEG-02 | Segmenti dinamici | Criteri automatici con preview di conteggio e campione. | P1 | MBR | BO-04 | M6 |
+| F-SEG-03 | Ricalcolo e fatti | Ingressi e uscite dai segmenti generano fatti rilevabili dalle campagne. | P1 | MBR | BO-04 | M6 |
+
+### Campagne (F-CMP)
+
+| ID | Feature | Comportamento | Pri | Svc | UI | M |
+| --- | --- | --- | --- | --- | --- | --- |
+| F-CMP-01 | CRUD campagne | Creazione, lettura, aggiornamento e eliminazione delle campagne. | P0 | CMP | BO-05, BO-06 | M1 |
+| F-CMP-02 | Ciclo vita campagna | Stati: `DRAFT` → `IN_REVIEW` → `APPROVED` → `LIVE` ⇄ `PAUSED` → `ENDED` → `ARCHIVED`. | P0 | CMP | BO-05 | M1 |
+| F-CMP-03 | Costruttore condizioni | Operatori `all`, `any`, `not` su campi `data.*`, `member.*`, `context.*`, `history.*`. | P0 | CMP | BO-06 | M1 |
+| F-CMP-04 | Effetti campagna | `GRANT_POINTS` (fisso, per importo, da campo, da tabella), `MULTIPLIER`, `GRANT_PLAYS`, `ISSUE_COUPON`, `AWARD_BADGE`, `SEND_MESSAGE`. | P0 | CMP | BO-06 | M1-M5 |
+| F-CMP-05 | Limiti campagna | Per membro: `n` per giorno, settimana, mese, edizione o sempre. Tetto punti, budget globale, cooldown. | P0 | CMP | BO-06 | M1 |
+| F-CMP-06 | Pubblico campagna | Tutti i membri, per tier (P0) o per segmento (P1). | P0/P1 | CMP | BO-06 | M1/M6 |
+| F-CMP-07 | Cumulabilità | Priorità, gruppo esclusivo, moltiplicatori tra campagne. | P0 | CMP | BO-06 | M3 |
+| F-CMP-08 | Simulazione | Mostra campagne che scattano, condizioni fallite ed effetti senza scrivere dati. | P0 | CMP | BO-06, BO-28 | M1 |
+| F-CMP-09 | Registro valutazioni | Motivo per campagna: `NOT_LIVE`, `AUDIENCE`, `CONDITION`, `LIMIT`, `BUDGET`, `EXCLUSIVE`. | P0 | CMP | BO-03, BO-25 | M1 |
+| F-CMP-10 | Statistiche campagna | Metriche di performance e utilizzo. | P1 | CMP | BO-05 | M2 |
+| F-CMP-11 | Come guadagnare | Campagne visibili al membro con indicazione del progresso sui limiti. | P0 | CMP | PT-02 | M1 |
+| F-CMP-12 | Campagne di sistema | Seed non eliminabili che consegnano premi di instant win. | P0 | CMP | BO-05 | M5 |
+| F-CMP-13 | Duplica campagna | Crea una copia di una campagna esistente. | P1 | CMP | BO-05 | M7 |
+| F-CMP-14 | Storno su reso | Annullamento dei punti assegnati in caso di reso merce. | P2 | CMP + WAL | — | — |
+
+### Wallet (F-WAL) e tier (F-TIER)
+
+| ID | Feature | Comportamento | Pri | Svc | UI | M |
+| --- | --- | --- | --- | --- | --- | --- |
+| F-WAL-01 | Doppia valuta | `PTS` spendibile, `STS` non spendibile (stato tier). | P0 | WAL | BO-03, PT-01 | M1 |
+| F-WAL-02 | Libro mastro | Movimenti immutabili con tracciabilità completa. | P0 | WAL | BO-03, PT-07 | M1 |
+| F-WAL-03 | Lotti e scadenza | Modalità `ROLLING_MONTHS` o `END_OF_EDITION_PLUS_GRACE`. | P0 | WAL | BO-08, PT-07 | M3 |
+| F-WAL-04 | Spesa FIFO | Consumo punti in ordine di scadenza. | P0 | WAL | — | M4 |
+| F-WAL-05 | Punti in attesa | `pendingDays` crea lotto `PENDING` prima della disponibilità. | P1 | WAL | PT-07 | M3 |
+| F-WAL-06 | Scadenza punti | Job giornaliero con preavviso a 30 giorni. | P0 | WAL | BO-30, PT-01 | M3 |
+| F-WAL-07 | Rettifiche manuali | Motivo obbligatorio, ruoli `CARE` o `ADMIN`, tracciamento audit. | P0 | WAL | BO-03 | M3 |
+| F-WAL-08 | Saga di spesa | Reazione a `reward.redemption.requested`, rimborso su annullo. | P0 | WAL | — | M4 |
+| F-WAL-09 | Passività | Report per valuta e mese. | P1 | WAL | BO-01, BO-08 | M3 |
+| F-TIER-01 | Definizione livelli | Codice, nome, soglia `STS`, moltiplicatore, vantaggi, colore. | P0 | WAL | BO-07, PT-08 | M3 |
+| F-TIER-02 | Salita immediata | Promozione al nuovo livello non appena si supera la soglia. | P0 | WAL | PT-01 | M3 |
+| F-TIER-03 | Moltiplicatore livello | Punti moltiplicati in base al tier attuale. | P0 | WAL | PT-07 | M3 |
+| F-TIER-04 | Chiusura edizione con discesa morbida | Nuovo livello = `max(guadagnato, attuale - 1)`. Azzeramento `STS` periodo. | P0 | WAL | BO-08, BO-30 | M3 |
+| F-TIER-05 | Anteprima chiusura | Dry-run della chiusura edizione senza scrivere dati. | P0 | WAL | BO-08 | M3 |
+| F-TIER-06 | Storico livelli | Cronologia delle promozioni e retrocessioni. | P1 | WAL | BO-03 | M3 |
+
+### Premi (F-RWD) e coupon (F-CPN)
+
+| ID | Feature | Comportamento | Pri | Svc | UI | M |
+| --- | --- | --- | --- | --- | --- | --- |
+| F-RWD-01 | Catalogo premi | Tipi: fisico, coupon, digitale, donazione, esperienza. | P0 | RWD | BO-10, PT-03 | M4 |
+| F-RWD-02 | Fasce premi | Raggruppamento dei premi in categorie visive. | P0 | RWD | BO-11, PT-03 | M4 |
+| F-RWD-03 | Disponibilità | Controllo stock e limite per membro. | P0 | RWD | BO-10, PT-04 | M4 |
+| F-RWD-04 | Visibilità premi | Per tier (P0) o per segmento (P1). | P0/P1 | RWD | BO-10 | M4/M6 |
+| F-RWD-05 | Richiesta premio | Stati: `PENDING` → `CONFIRMED` → `FULFILLED`, `REJECTED`, `CANCELLED`. | P0 | RWD | PT-04, PT-13, BO-13 | M4 |
+| F-RWD-06 | Evasione premio | Automatica per coupon, manuale per fisico. | P0 | RWD | BO-13 | M4 |
+| F-RWD-07 | Annullamento con rimborso | Restituzione punti su richiesta di annullo. | P1 | RWD + WAL | BO-13 | M4 |
+| F-RWD-08 | Ciclo vita premio con approvazione | Stati gestiti con workflow di approvazione. | P0 | RWD | BO-10 | M4 (M7 approv.) |
+| F-CPN-01 | Pool coupon | Prefisso + casuale o importazione massiva. | P0 | RWD | BO-12 | M4 |
+| F-CPN-02 | Emissione coupon | Da richiesta premio o effetto `ISSUE_COUPON`. | P0 | RWD | PT-13 | M4/M5 |
+| F-CPN-03 | Utilizzo coupon | POST `/v1/coupons/{code}/use`. | P1 | RWD | BO-12, PT-13 | M4 |
+
+### Gioco: instant win (F-IW), obiettivi (F-ACH), classifiche (F-LDB), referral (F-REF)
+
+| ID | Feature | Comportamento | Pri | Svc | UI | M |
+| --- | --- | --- | --- | --- | --- | --- |
+| F-IW-01 | Concorso | Periodo, meccanica `WHEEL`/`SCRATCH`/`BOX`, giocata gratuita giornaliera, limite giocate, regolamento. | P0 | GAM | BO-14, PT-05 | M5 |
+| F-IW-02 | Montepremi | Definizione del pool di premi disponibili. | P0 | GAM | BO-14 | M5 |
+| F-IW-03 | Istanti vincenti pre-generati | Generazione con seme riproducibile per audit. | P0 | GAM | BO-14 | M5 |
+| F-IW-04 | Giocata | Claim atomico dell'istante scaduto non reclamato. | P0 | GAM | PT-06 | M5 |
+| F-IW-05 | Crediti di gioco | Accumulo e consumo delle giocate. | P0 | GAM | PT-05 | M5 |
+| F-IW-06 | Vincita come azione interna | `contest.won` → `instantwin.won` → campagne di sistema. | P0 | GAM + ING + CMP | BO-25 | M5 |
+| F-IW-07 | Vincitori e report | Esportazione CSV. Istanti visibili solo a `ADMIN` e `LEGAL`. | P0 | GAM | BO-14 | M5 |
+| F-IW-08 | Aiuto demo | Pianta un istante vincente per dimostrazione. | P0 | GAM | BO-14, BO-30 | M5 |
+| F-ACH-01 | Obiettivi | Metriche: conteggio, somma, tipi distinti, serie consecutiva. | P0 | GAM | BO-15, PT-09 | M5 |
+| F-ACH-02 | Progresso | Barra visuale di avanzamento verso l'obiettivo. | P0 | GAM | PT-09 | M5 |
+| F-ACH-03 | Badge | `badge.awarded` rientra come azione nel sistema. | P0 | GAM | BO-15, PT-09 | M5 |
+| F-LDB-01 | Classifiche | `PTS`, `STS` o conteggio, per periodo, top N. Nickname per privacy. | P1 | GAM | BO-16, PT-10 | M5 |
+| F-REF-01 | Codice amico | Generazione e condivisione del codice referral. | P1 | MBR | PT-11 | M5 |
+| F-REF-02 | Completamento referral | Tracciamento del completamento con reward. | P1 | MBR + CMP | BO-17, PT-11 | M5 |
+
+### Contenuti e comunicazione (F-CNT, F-MSG, F-THM, F-WBH)
+
+| ID | Feature | Comportamento | Pri | Svc | UI | M |
+| --- | --- | --- | --- | --- | --- | --- |
+| F-CNT-01 | Card | Posizionamento: `HOME_HERO`, `HOME_GRID`, `CATALOG_TOP`, `CONTEST`, `WIN`. | P0 | ENG | BO-18, PT-01 | M6 |
+| F-CNT-02 | Pop-up | Frequenza: `ONCE`, `ONCE_PER_DAY`, `ALWAYS`. | P0 | ENG | BO-18, PT-01 | M6 |
+| F-CNT-03 | Card vincita | Visualizzazione del risultato di una giocata. | P0 | ENG | BO-18, PT-06 | M6 |
+| F-CNT-04 | Anteprima contenuto | Preview del contenuto prima della pubblicazione. | P1 | ENG | BO-18 | M6 |
+| F-MSG-01 | Inbox in-app | Centro messaggi integrato nel portale. | P0 | ENG | PT-12, BO-19 | M6 |
+| F-MSG-02 | Template messaggi | Segnaposto `{{...}}`. `INAPP` reale, `EMAIL_FAKE` per anteprima. | P0 | ENG | BO-19 | M6 |
+| F-THM-01 | Tema portale | Colori, hero, applicato a runtime senza redeploy. | P1 | ENG | BO-20, PT-\* | M6 |
+| F-WBH-01 | Webhook uscita | Firma HMAC, ritentativi con backoff, registro chiamate. | P1 | ENG | BO-23 | M7 |
+
+### Governance e osservabilità (F-APR, F-AUD, F-INS)
+
+| ID | Feature | Comportamento | Pri | Svc | UI | M |
+| --- | --- | --- | --- | --- | --- | --- |
+| F-APR-01 | Workflow approvazione | Transizioni controllate tra stati con approvatore designato. | P0 | tutti | BO-21 | M7 |
+| F-APR-02 | Policy approvazione | `LEGAL` per concorsi e premi. Campagne oltre soglia richiedono approvazione. | P1 | tutti | BO-21 | M7 |
+| F-APR-03 | Casella approvazioni aggregata | Vista unificata delle richieste in attesa nel backoffice. | P0 | web | BO-21 | M7 |
+| F-AUD-01 | Audit log | Chi, cosa, quando, prima, dopo. | P0 | tutti → INS | BO-22 | M2 |
+| F-INS-01 | Flusso eventi live | Stream in tempo reale degli eventi di sistema. | P0 | INS | BO-24 | M2 |
+| F-INS-02 | Tracciato | Catena di eventi per `correlationId`. | P0 | INS | BO-25 | M2 |
+| F-INS-03 | KPI e serie storiche | Metriche aggregate con trend temporali. | P0 | INS | BO-01 | M2 |
+| F-INS-04 | Storico sintetico | 90 giorni di dati aggregati. | P0 | INS | BO-01 | M2 |
+| F-INS-05 | DLQ con riprocessa | Dead letter queue con funzione di rinvio manuale. | P1 | INS | BO-27 | M7 |
+| F-INS-06 | Stato pipeline | Health check visivo dei flussi di elaborazione. | P1 | INS | BO-24 | M2 |
+
+### Demo (F-DEMO)
+
+| ID | Feature | Comportamento | Pri | Svc | UI | M |
+| --- | --- | --- | --- | --- | --- | --- |
+| F-DEMO-01 | Demo Hub | Stato servizi, Kafka, DB. Pulsante "Accendi la demo". Scelta persona. | P0 | web | HUB-01 | M0/M1 |
+| F-DEMO-02 | Cambio persona | Switch tra le diverse personas di demo. | P0 | web | tutte | M0 |
+| F-DEMO-03 | Simulatore eventi | Invio manuale di eventi di test. | P0 | ING + web | BO-28, PT-14 | M1 |
+| F-DEMO-04 | Scenari guidati | Flussi predefiniti (`SCN-*`) per dimostrazione. | P0 | ING | BO-29 | M2 |
+| F-DEMO-05 | Reset dati | POST `/v1/demo/reset` ripristina lo stato iniziale. | P0 | tutti | BO-30 | M1 |
+| F-DEMO-06 | Job su richiesta | Scadenza punti, rilascio pending, chiusura edizione, ricalcolo segmenti. | P0 | WAL + MBR | BO-30 | M3 |
+| F-DEMO-07 | Keep-alive gentile | Sveglia i servizi finché la scheda del browser è aperta. | P0 | web | — | M1 |
+
+## Requisiti non funzionali
+
+| ID | Requisito | Soglia PoC |
+| --- | --- | --- |
+| RNF-01 | Footprint per servizio | RSS ≤ 450 MB con `-XX:MaxRAMPercentage=65` su 512 MB |
+| RNF-02 | Latenza pipeline a servizi svegli | p50 ≤ 3s, p95 ≤ 8s |
+| RNF-03 | Idempotenza | Rielaborare lo stesso evento non cambia lo stato finale |
+| RNF-04 | Ordinamento per membro | Chiave Kafka = `memberId` |
+| RNF-05 | Nessuna perdita | Outbox transazionale |
+| RNF-06 | Resilienza al sonno | Recupera l'arretrato al risveglio |
+| RNF-07 | Spazio DB | ≤ 300 MB totali |
+| RNF-08 | Accessibilità UI | Contrasto AA, focus visibile, navigazione tastiera, `prefers-reduced-motion` |
+| RNF-09 | Responsive | Portale mobile-first ≥ 360px. Backoffice ≥ 1024px |
+| RNF-10 | Osservabilità minima | Log JSON con `eventId`, `correlationId`, `memberId`. Endpoint Actuator |
+
+## Regola: nessuna entità senza lettore
+
+Una feature di configurazione è completa solo quando esistono contemporaneamente questi quattro elementi:
+
+1. **Schermata di gestione**: il backoffice permette di creare, modificare e consultare l'entità
+2. **Servizio proprietario**: un microservizio possiede la logica e la persistenza dell'entità
+3. **Consumatore visibile**: almeno un altro servizio o il portale rende l'effetto percepibile dall'utente finale
+4. **Dati seed**: esistono dati di esempio pronti per la demo e i test
+
+> **Attenzione:** Se manca anche solo uno di questi elementi, la feature resta in stato incompleto anche se il codice è funzionante.
+
+## Prossimi passi
+
+- Esplora il [modello di dominio](/specifiche/modello-di-dominio) per vedere come le entità si relazionano tra loro
+- Consulta l'[architettura di sistema](/specifiche/architettura) per i dettagli sui microservizi e i topic Kafka
+- Inizia a integrare con le [API di Loyalty Hub](/api/introduzione)

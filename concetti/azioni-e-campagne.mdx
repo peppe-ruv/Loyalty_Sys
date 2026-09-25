@@ -1,0 +1,91 @@
+---
+title: "azioni-e-campagne"
+sidebarTitle: "Azioni e campagne"
+description: "Comprendi il modello di azioni, fonti e campagne di Loyalty Hub. Trigger, pubblico, condizioni, effetti e limiti spiegati con esempi."
+---
+
+Il motore di Loyalty Hub è governato da un principio semplice: **tutto è un'azione premiante**. Un acquisto, una registrazione, una vincita, un salto di tier: entrano tutte dallo stesso topic e sono valutate dallo stesso motore. Questa pagina spiega il perché di questa scelta e come costruire una regola.
+
+## Perché "tutto è un'azione"
+
+Un unico ingresso semplifica molte cose:
+
+- **Un solo posto per validare, deduplicare, tracciare.** `ingestion-service` è l'unico produttore di `lh.actions.v1`.
+- **Un solo motore da imparare.** Che il trigger sia esterno (un acquisto) o interno (un salto di tier), la regola si scrive nello stesso costruttore.
+- **Comportamenti componibili.** Un badge ottenuto può a sua volta essere trigger per un'altra campagna, senza codice ad hoc.
+
+## Anatomia di un'azione
+
+Ogni azione entra come CloudEvent JSON con questi campi essenziali:
+
+| Campo | Descrizione |
+| --- | --- |
+| `source` | Chi la produce (`urn:loyaltyhub:source:ecommerce`). |
+| `type` | Il tipo, per esempio `purchase.completed`, `member.registered`. |
+| `subject` | Il membro coinvolto: `member:MBR-000003`. |
+| `time` | Quando è accaduta (RFC 3339, UTC). |
+| `data` | Payload specifico del tipo (per un acquisto: `orderId`, `amount`, `currency`). |
+
+> **Nota:** Il payload `data` deve rispettare il JSON Schema del tipo azione. Puoi crearne di nuovi dal backoffice (Ingestion → Tipi azione) e i campi diventano automaticamente disponibili nel costruttore di condizioni.
+
+## Anatomia di una campagna
+
+Una campagna è composta da cinque ingredienti:
+
+<Steps>
+  <Step title="Trigger">
+    Uno o più tipi di azione che la fanno scattare (per esempio `purchase.completed` e `purchase.returned`).
+  </Step>
+  <Step title="Pubblico">
+    Chi può ricevere gli effetti: tutti, un elenco di tier, un segmento.
+  </Step>
+  <Step title="Condizioni">
+    Un albero booleano `all/any/not` su `data.*`, `member.*`, `context.*`, `history.*`.
+  </Step>
+  <Step title="Effetti">
+    Cosa succede se le condizioni sono vere: `GRANT_POINTS`, `MULTIPLIER`, `GRANT_PLAYS`, `ISSUE_COUPON`, `AWARD_BADGE`, `SEND_MESSAGE`.
+  </Step>
+  <Step title="Limiti e calendario">
+    Massimo per membro (giorno, settimana, mese, edizione, sempre), budget globale, cooldown, finestre attive.
+  </Step>
+</Steps>
+
+## Esempio: welcome bonus
+
+Un membro che si registra riceve 500 punti premio una sola volta.
+
+```json Welcome bonus (semplificato)
+{
+  "code": "WELCOME_500",
+  "trigger_action_types": ["member.registered"],
+  "audience": {"kind": "ALL"},
+  "conditions": {"all": []},
+  "effects": [
+    {"type": "GRANT_POINTS", "currency": "PTS", "amount": 500}
+  ],
+  "limits": {"perMember": {"period": "EVER", "max": 1}}
+}
+```
+
+## Ciclo di vita di una campagna
+
+```text
+DRAFT → IN_REVIEW → APPROVED → LIVE ⇄ PAUSED → ENDED → ARCHIVED
+```
+
+Solo le campagne in stato `LIVE` e dentro il calendario configurato vengono valutate. Alcune campagne (per esempio quelle con effetti sensibili) richiedono l'approvazione del ruolo LEGAL prima di andare LIVE.
+
+## Simulazione e spiegabilità
+
+Per ogni campagna puoi:
+
+- **Simulare** una specifica azione su un membro: il motore ti dice quali campagne scattano, quali condizioni falliscono e con quali effetti, senza scrivere movimenti.
+- **Ispezionare il registro valutazioni**: per ogni azione reale trovi l'esito per campagna con il motivo (`NOT_LIVE`, `AUDIENCE`, `CONDITION`, `LIMIT`, `BUDGET`, `EXCLUSIVE`).
+
+Questa spiegabilità risponde alla domanda classica: "Perché quel membro non ha preso i punti?".
+
+> **Nota:** Le campagne di sistema (seed) non sono eliminabili. Servono a rendere consistenti gli automatismi di piattaforma (per esempio la consegna dei premi in punti degli instant win).
+
+## Prossimo passo
+
+Ora che sai come si generano i punti, scopri come vengono gestiti in [Punti e tier](concetti/punti-e-tier).

@@ -1,0 +1,130 @@
+---
+title: "Visione e scope del progetto Loyalty Hub"
+sidebarTitle: "Visione e scope"
+description: "Scopri la visione, lo scope e i criteri di successo del PoC di Loyalty Hub: piattaforma open source event-driven su microservizi Spring Boot e Kafka."
+---
+
+Questa pagina riassume il punto di partenza, la visione a lungo termine e i confini del proof of concept (PoC) di Loyalty Hub. Leggila per capire perché esiste il progetto, cosa include e cosa rimane fuori dalla prima release.
+
+## Problema di partenza
+
+Il progetto legacy era cresciuto più in fretta della sua struttura. Le entità del backoffice non avevano lettori definiti, i confini tra servizi erano sfumati e le specifiche erano sparse tra documenti e codice. Per questo si riparte da zero con una regola semplice: prima la specifica, poi il codice. Ogni elemento configurabile deve produrre un effetto visibile e misurabile.
+
+## Visione
+
+Loyalty Hub è una piattaforma loyalty open source, paragonabile a Open Loyalty, ma costruita su microservizi Spring Boot che comunicano esclusivamente tramite Kafka. Tre tratti la distinguono:
+
+- **Tutto è un'azione premiante.** Fonti esterne ed eventi interni entrano dallo stesso topic Kafka e vengono valutati dallo stesso motore di regole. Non ci sono pipeline separate per dati diversi.
+- **Spiegabile.** Per ogni azione puoi vedere il tracciato completo: azione, valutazione, effetti, movimenti, notifiche. Se una campagna non scatta, il sistema ti dice il motivo.
+- **Un solo backoffice.** Programma, premi, concorsi, contenuti portale e workflow di approvazione convivono in un'unica interfaccia, con un ruolo Legal dedicato.
+
+## Obiettivo del PoC
+
+L'obiettivo è un sistema funzionante e guardabile. In cinque minuti devi poter: scegliere una persona, simulare un'azione, vedere punti, tier e notifiche reagire dal vivo, configurare una campagna e osservarne l'effetto, giocare un instant win e richiedere un premio.
+
+I criteri di successo del PoC sono i seguenti:
+
+| # | Criterio | Misura |
+| --- | --- | --- |
+| S1 | Ciclo azione-punti visibile nel portale | ≤ 5 secondi con i servizi già attivi |
+| S2 | Ogni entità configurabile ha un effetto osservabile | 100% |
+| S3 | Demo accendibile senza intervento manuale | Comando unico, tutto UP in ≤ 4 minuti |
+| S4 | Costo mensile | 0 euro entro i free tier dei provider |
+| S5 | Nessuna schermata vuota dopo il reset | 100% schermate P0 popolate |
+| S6 | Avvio locale con un comando | `docker compose --profile all up` |
+
+## Scope
+
+### Dentro il PoC (P0/P1)
+
+Le seguenti funzionalità sono incluse nel PoC:
+
+- Ingresso eventi multi-fonte con deduplicazione e monitoraggio
+- Membri e profilo con scheda 360°
+- Segmenti statici e dinamici
+- Campagne con motore regole, limiti, budget, simulazione e spiegazione
+- Wallet a doppia valuta con lotti, scadenze e rettifiche motivate
+- Tier annuali con discesa morbida
+- Catalogo premi a fasce con coupon e saga di erogazione
+- Instant win a istanti pre-generati
+- Obiettivi, badge e classifiche
+- Referral
+- Contenuti portale (card, popup, banner), messaggi in-app e tema personalizzabile
+- Workflow di approvazione per Legal
+- Audit completo
+- KPI, flusso eventi live, tracciati e dead letter queue (DLQ)
+- Simulatore eventi con scenari guidati e reset dati
+- Deploy a costo zero
+
+### Fuori dal PoC
+
+I seguenti temi sono esclusi o solo predisposti. La colonna Trattamento indica il motivo o la modalita di gestione.
+
+| Tema | Trattamento |
+| --- | --- |
+| Autenticazione OIDC | Sostituita da personas con header `X-LH-Actor` |
+| Multi-tenant | Solo tenant 'aurora'; l'envelope CloudEvent porta gia `lhtenant` |
+| Email, SMS, push reali | Canale `EMAIL_FAKE` con anteprima; inbox in-app reale |
+| Upload immagini | Solo URL o asset statici |
+| i18n | Solo italiano |
+| Kubernetes, DR, Prometheus/Grafana, ClickHouse/Superset | Target ADR-012; il PoC usa Actuator e insight-service |
+| Adempimenti concorsi a premio | Annotati, senza implementazione |
+| Import massivi ed export schedulati | P2 |
+| Schema Registry | P2; JSON Schema mantenuto nel repository |
+
+> **Nota:** I temi fuori scope sono comunque presi in considerazione durante la progettazione, in modo da non chiudere porte per il futuro.
+
+## Personas
+
+### Backoffice
+
+| Username | Nome | Ruolo | Cosa fa |
+| --- | --- | --- | --- |
+| marta.admin | Marta | ADMIN | Accesso completo a tutte le funzionalita |
+| luca.marketing | Luca | MARKETING | Crea campagne, premi, concorsi e contenuti; invia in approvazione |
+| elena.legal | Elena | LEGAL | Approva o rifiuta concorsi, premi e campagne che richiedono via libera; vede gli istanti vincenti |
+| paolo.care | Paolo | CARE | Scheda membro 360° con rettifiche punti motivate e gestione richieste premio |
+| sara.analyst | Sara | ANALYST | Sola lettura su dashboard, tracciati e audit |
+
+### Membri portale
+
+Il portale include 12 membri fittizi, ognuno con una storia diversa: nuovo iscritto, utente a un passo dal tier Gold, membro con punti in scadenza, utente a rischio discesa di tier, giocatore con giocate disponibili e altri profili tipici. Usali per testare scenari realistici durante la demo.
+
+## Parità con Open Loyalty
+
+La tabella seguente confronta le aree di Loyalty Hub con le funzionalità di riferimento di Open Loyalty.
+
+| Area | Copertura | Feature |
+| --- | --- | --- |
+| Membri e attributi | Completa | F-MBR-\*: profilo, attributi custom, GDPR |
+| Tier | Completa | F-TIER-\*: tier annuali con discesa morbida |
+| Wallet | Completa | F-WAL-\*: doppia valuta, lotti FIFO |
+| Campagne | Completa | F-CMP-\*: motore regole, limiti, budget |
+| Ingestion | Completa | F-ING-\*: eventi custom, transazioni, unmatched |
+| Premi | Completa | F-RWD-_, F-CPN-_: catalogo a fasce, coupon |
+| Segmenti | Completa | F-SEG-\*: statici e dinamici |
+| Achievement | Completa | F-ACH-_, F-LDB-_: obiettivi, badge, classifiche |
+| Referral | Completa | F-REF-\*: referral program |
+| Instant win | Completa | F-IW-\*: fortune wheel a istanti pre-generati |
+| Analytics | Completa | F-INS-\*: KPI, live, tracciati |
+| Webhook e audit | Completa | F-WBH-_, F-AUD-_: webhook, audit, ruoli |
+| CMS portale | Completa | F-CNT-_, F-THM-_: contenuti, tema, messaggi |
+| Multi-store | P2 | Fuori scope del PoC |
+| Traduzioni | P2 | Solo italiano nel PoC |
+| Provider email | P2 | Canale fake con inbox in-app |
+
+## Rischi
+
+| Rischio | Mitigazione |
+| --- | --- |
+| Avvio lento JVM su 0.1 CPU | Demo Hub con stato per servizio; JVM snella; nessun JPA |
+| Kafka gratuito con spegnimento per inattività | Design a 5 topic; riaccensione manuale documentata; stato visibile nel Hub |
+| 8 servizi = molto boilerplate | Modulo `lh-common` + archetipo M0; sviluppo a fette verticali |
+| Endpoint pubblici senza login | Dati solo fittizi; reset con un clic; nessun segreto nel frontend |
+| Deriva tra seed dei servizi | Unica cartella `seed/` + script `check-seed.mjs` in CI |
+
+## Prossimi passi
+
+- Consulta il [catalogo funzionale](/specifiche/catalogo-funzionale) per l'elenco completo delle feature e dei requisiti.
+- Esplora il [modello di dominio](/specifiche/modello-di-dominio) per capire le entità e i loro rapporti.
+- Leggi il [registro decisioni](/specifiche/registro-decisioni) per i record architetturali (ADR) che guidano le scelte di progettazione.
