@@ -1,0 +1,68 @@
+---
+title: "Prerequisiti per sviluppare Loyalty Hub in locale"
+sidebarTitle: "Prerequisiti"
+description: "Elenco degli strumenti che devi installare per compilare e avviare Loyalty Hub sulla tua macchina: JDK 25, Docker, Maven wrapper e opzionali."
+---
+
+Prima di eseguire il quickstart, installa gli strumenti elencati in questa pagina. Loyalty Hub gira in locale con Docker Compose e non richiede account su servizi esterni.
+
+## Cosa ti serve
+
+<CardGroup cols={2}>
+  <Card title="JDK 25" icon="java">
+    Servono per compilare i microservizi Spring Boot. Consigliato Temurin o Zulu.
+  </Card>
+
+  <Card title="Docker + Compose" icon="docker">
+    Docker Desktop (macOS/Windows) o Docker Engine + plugin `compose` (Linux).
+  </Card>
+
+  <Card title="Git" icon="github">
+    Per clonare il repository.
+  </Card>
+
+  <Card title="Node.js 20+" icon="node-js">
+    Solo se vuoi lavorare sul frontend `web/` (Next.js). Non serve per il backend.
+  </Card>
+</CardGroup>
+
+## Requisiti minimi di sistema
+
+- **RAM libera:** almeno 6 GB. Lo stack completo usa 8 servizi Spring Boot più Kafka e Postgres.
+- **Spazio disco:** circa 3 GB per immagini Docker e cache Maven.
+- **Porte libere:** `3000` (web), `5432` (Postgres), `8081` - `8088` (microservizi), `8090` (Kafka UI), `9092` (Kafka).
+
+## Verifica l'installazione
+
+Esegui questi comandi e assicurati che restituiscano una versione compatibile.
+
+```bash Verifica prerequisiti
+# JDK 25 (accetta anche versioni 25.x)
+java --version
+
+# Docker e Compose plugin
+docker --version
+docker compose version
+
+# Git
+git --version
+```
+
+> **Nota:** Il repository include il Maven Wrapper (`./mvnw`). **Non installare Maven a mano**: usa sempre il wrapper per avere la versione corretta.
+
+## Clona il repository
+
+```bash
+git clone https://github.com/peppe-ruv/loyalty_sys.git
+cd loyalty_sys
+```
+
+## Cosa NON ti serve
+
+- Un account Kafka, Neon, Render o Vercel. Servono solo per pubblicare la demo online (vedi [Deploy a costo zero](/docs_v2/operations/deploy-costo-zero)).
+- Maven installato manualmente. Il wrapper `./mvnw` fa tutto.
+- Configurazioni particolari di Postgres o Kafka. Il compose fornisce entrambi con impostazioni pronte.
+
+## Prossimo passo
+
+Sei pronto per avviare lo stack. Vai al [Quickstart](/docs_v2/getting-started/quickstart).

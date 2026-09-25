@@ -1,0 +1,66 @@
+---
+title: "tour-demo"
+sidebarTitle: "Tour della demo"
+description: "Esplora Loyalty Hub scegliendo una persona di backoffice o membro. Simula acquisti, valuta campagne e osserva il flusso eventi live."
+---
+
+La demo di Loyalty Hub non ha login: scegli una persona dalla pagina iniziale e la interfaccia adatta menu e permessi al ruolo. Questa pagina ti guida in un giro completo delle funzioni principali.
+
+## Le personas disponibili
+
+Il brand demo è **Club Aurora**. I ruoli sono precaricati con dati fittizi.
+
+### Backoffice
+
+| Username | Ruolo | Cosa puoi fare |
+| --- | --- | --- |
+| `marta.admin` | ADMIN | Tutto: reset dati, configurazione tier e valute, job demo. |
+| `luca.marketing` | MARKETING | Crea campagne, premi, concorsi, contenuti. Invia in approvazione. |
+| `elena.legal` | LEGAL | Approva o rifiuta campagne, premi e concorsi che richiedono controllo. |
+| `paolo.care` | CARE | Scheda membro 360°, rettifiche punti motivate, gestione richieste premio. |
+| `sara.analyst` | ANALYST | Solo lettura: dashboard, tracciati, audit. |
+
+### Portale membri
+
+Selezioni un membro dal menu iniziale. I membri seed hanno storia diversa (bronze, silver, gold, con o senza acquisti) per rendere il portale realistico fin da subito.
+
+## Un giro guidato in 6 mosse
+
+<Steps>
+  <Step title="Entra come marketing e apri le campagne">
+    Scegli `luca.marketing`. Vai in **Programma → Campagne**. Vedi le campagne seed (welcome, moltiplicatori, birthday). Ognuna mostra stato, tipi di trigger e statistiche.
+  </Step>
+  <Step title="Simula un'azione senza scrivere nulla">
+    Apri una campagna e usa **Simula**. Scegli un tipo di azione, un membro e un payload di prova. La simulazione ti dice se la campagna scatta e quali effetti produrrebbe, senza generare movimenti reali.
+  </Step>
+  <Step title="Passa al portale del membro">
+    Torna alla pagina iniziale e scegli un membro (per esempio Silvia Rossi, silver). Nel portale vedi saldo punti, tier corrente, prossimi obiettivi, catalogo premi e la sezione "Come guadagnare".
+  </Step>
+  <Step title="Genera un evento dal simulatore">
+    Come `marta.admin`, vai in **Demo → Simulatore eventi**. Scegli un membro e un tipo di azione (per esempio `purchase.completed`) e clicca invia. Puoi generare anche 10 eventi in un colpo per stressare il sistema.
+  </Step>
+  <Step title="Osserva il flusso eventi live">
+    In **Demo → Flusso eventi** vedi in tempo reale ogni azione che entra e ogni effetto che ne deriva, con la catena di correlazione. Cliccando un evento vedi il **tracciato completo**: azione → valutazione campagne → effetti → movimenti wallet → notifiche.
+  </Step>
+  <Step title="Gioca un instant win o richiedi un premio">
+    Torna al portale membro. Se il membro ha giocate disponibili, prova un instant win. Con il saldo sufficiente, avvia una richiesta premio: partirà la saga che coinvolge `wallet-service` e `reward-service`.
+  </Step>
+</Steps>
+
+## Ripristina i dati
+
+Ogni ruolo `ADMIN` può fare reset da **Demo → Reset dati**. In un solo clic il seed torna allo stato iniziale, così puoi rifare il giro con dati puliti.
+
+> **Nota:** Il reset elimina i movimenti e le giocate generate durante la sessione, ma non modifica la configurazione delle campagne o dei tier.
+
+## Cosa fare dopo
+
+<CardGroup cols={2}>
+  <Card title="Come funziona sotto" icon="lightbulb" href="concetti/panoramica">
+    Leggi i concetti chiave per capire cosa vedi nelle schermate.
+  </Card>
+
+  <Card title="Crea la tua prima campagna" icon="pencil" href="guide/creare-una-campagna">
+    Un walkthrough end-to-end per configurare una campagna reale.
+  </Card>
+</CardGroup>

@@ -1,0 +1,79 @@
+---
+title: "premi-e-gioco"
+sidebarTitle: "Premi e gioco"
+description: "Come funzionano premi a fasce, coupon, richieste premio con saga, instant win a istanti vincenti pre-generati, obiettivi, badge e classifiche."
+---
+
+Loyalty Hub trasforma il saldo del membro in valore percepito attraverso catalogo premi, giochi e riconoscimenti. Questa pagina descrive ogni meccanica e i suoi confini.
+
+## Catalogo premi
+
+Il catalogo è organizzato in **fasce** (per esempio 500 pts, 1000 pts, 2500 pts). Ogni fascia contiene uno o più premi. Un premio ha:
+
+- Nome, immagine, descrizione.
+- Categoria (per filtri di navigazione).
+- Costo in punti.
+- Stock disponibile (opzionale, se limitato).
+- Regole di visibilità (per esempio "solo tier Gold").
+
+## Richieste premio con saga
+
+Una richiesta premio non è una scrittura semplice: coinvolge più servizi che devono restare consistenti. Loyalty Hub usa una **saga coreografata** su Kafka.
+
+```mermaid
+sequenceDiagram
+  participant Portale
+  participant RWD as reward-service
+  participant WAL as wallet-service
+  Portale->>RWD: POST /v1/redemptions
+  RWD->>WAL: fact "redemption.reserved"
+  WAL->>WAL: prenota lotti FIFO
+  WAL->>RWD: fact "wallet.points.reserved"
+  RWD->>RWD: conferma e assegna coupon
+  RWD->>WAL: fact "redemption.confirmed"
+  WAL->>WAL: consolida il debito
+```
+
+Se il wallet non ha saldo sufficiente, la saga fallisce e il portale mostra un errore leggibile.
+
+## Coupon
+
+Alcuni premi consegnano un **coupon** (codice sconto, buono digitale). I coupon vengono estratti da un **pool** caricato dal backoffice. Ogni coupon ha stato (`AVAILABLE`, `ASSIGNED`, `REDEEMED`, `EXPIRED`) e appartiene a un premio.
+
+> **Nota:** Se il pool si esaurisce, la richiesta premio fallisce con `COUPON_POOL_EMPTY`. Configura sempre una soglia di allarme in backoffice.
+
+## Instant win
+
+Un concorso instant win offre giocate immediate con esito prefissato. Il modello:
+
+- **Istanti vincenti pre-generati**: alla creazione del concorso il sistema calcola in anticipo N istanti in cui la giocata sarà vincente.
+- **Giocate consumate una a una**: il membro guadagna giocate da campagne o azioni.
+- **Vincita = azione interna**: se la giocata cade in un istante vincente, si crea un'azione `contest.won` che rientra dal ponte interno e attiva le campagne che consegnano il premio (di solito una campagna di sistema).
+
+Il ruolo LEGAL vede in backoffice l'elenco degli istanti vincenti e i vincitori.
+
+## Obiettivi e badge
+
+Un **obiettivo** è una condizione cumulativa (per esempio "fai 5 acquisti in un mese"). Al raggiungimento:
+
+- Emette un fatto `achievement.completed`.
+- Assegna un **badge** al membro.
+
+I badge sono visibili nel portale ("le mie medaglie") e possono a loro volta essere trigger di campagne (per esempio "chi prende il badge silver riceve 100 punti bonus").
+
+## Classifiche
+
+Loyalty Hub calcola classifiche periodiche su metriche configurabili (punti maturati nel mese, giocate vinte, obiettivi completati). La classifica non è di per sé un premio: usa una campagna per premiare i primi N.
+
+## Referral
+
+Ogni membro ha un `referralCode` univoco. Alla registrazione con un codice amico:
+
+- Il nuovo membro riceve un bonus.
+- Il vecchio membro riceve un bonus quando il nuovo completa una condizione (per esempio primo acquisto).
+
+Entrambi i bonus sono campagne configurabili in backoffice, non codice cablato.
+
+## Prossimo passo
+
+Vuoi vedere questi meccanismi all'opera? Vai alle [Guide pratiche](guide/inviare-un-evento).

@@ -1,0 +1,628 @@
+---
+title: "Wallet Service: API per punti, tier e passività"
+sidebarTitle: "Wallet"
+description: "API reference del wallet-service (port 8084). Gestisce doppia valuta PTS/STS, lotti con scadenza, tier annuali, ledger immutabile e passività del programma."
+---
+
+Il Wallet Service è il libro mastro di Loyalty Hub. Tiene traccia di ogni movimento in doppia valuta: i punti spendibili (PTS) e i punti di qualifica (STS) che determinano il tier del membro. Ogni accredito viene suddiviso in lotti con scadenza e consumato in ordine FIFO. Questa pagina documenta tutti gli endpoint REST per leggere saldi, movimenti, lotti, tier, edizioni e passività, oltre alle operazioni di aggiustamento manuale e ai job di manutenzione.
+
+Per capire il modello completo di punti e tier, consulta la pagina [Punti e tier](/concetti/punti-e-tier).
+
+## Base URL
+
+```http Base URL
+http://localhost:8084
+```
+
+## Modello wallet
+
+Il dominio wallet si articola in queste entità principali:
+
+- **Valuta**: ogni valuta ha un codice (`PTS` o `STS`), un nome, un fattore di conversione e una `expiry_policy`. PTS è spendibile in premi. STS non è spendibile e serve solo per calcolare il tier.
+- **Wallet**: uno per membro e per valuta. Contiene il saldo attivo, quello in sospeso e i punti accumulati nel tempo.
+- **Points lot**: ogni accredito genera uno o più lotti. Stati: `PENDING` (non ancora disponibile), `ACTIVE` (disponibile), `EXHAUSTED` (consumato), `EXPIRED` (scaduto). Ogni lotto porta `earned_at`, `available_at` e `expires_at`.
+- **Ledger entry**: movimento immutabile con direzione `+` (accredito) o `-` (addebito). Ogni entry punta al lotto di origine o al riferimento di spesa.
+- **Tier**: livelli `BASE`, `SILVER`, `GOLD`, `PLATINUM`. Ogni tier ha una soglia minima di STS e un moltiplicatore che amplifica gli accrediti PTS. Il tier `BASE` ha soglia fissa a 0.
+- **Edition**: periodo annuale del programma con `start_date`, `end_date` e `redemption_grace_until`. Stati: `PLANNED`, `ACTIVE`, `CLOSED`. Alla chiusura si ricalcolano i tier e si azzerano gli STS.
+
+## Endpoint di gestione
+
+### GET /v1/wallets/{memberId}
+
+Restituisce il riepilogo completo del wallet di un membro, inclusi saldi, lotti in scadenza, tier attuale e progresso verso il prossimo livello.
+
+**Parametri path**
+
+| Parametro | Tipo | Descrizione |
+| --- | --- | --- |
+| memberId | string | Identificativo del membro |
+
+**Risposta 200**
+
+```json Risposta wallet
+{
+  "balances": {
+    "PTS": {
+      "active": 3200,
+      "pending": 500,
+      "lifetimeEarned": 15000
+    },
+    "STS": {
+      "active": 650,
+      "pending": 0,
+      "lifetimeEarned": 1200
+    }
+  },
+  "expiringSoon": [
+    {
+      "currency": "PTS",
+      "amount": 800,
+      "expiresAt": "2026-12-31T23:59:59Z"
+    }
+  ],
+  "tier": {
+    "code": "GOLD",
+    "since": "2025-03-15T10:30:00Z",
+    "periodSts": 650,
+    "next": {
+      "code": "PLATINUM",
+      "threshold": 1000,
+      "missing": 350
+    },
+    "progressPct": 65.0,
+    "multiplier": 1.5,
+    "keepWarning": false
+  }
+}
+```
+
+### GET /v1/wallets/{memberId}/ledger
+
+Restituisce il registro movimenti del membro, ordinato per `occurredAt` decrescente.
+
+**Parametri query**
+
+| Parametro | Tipo | Descrizione |
+| --- | --- | --- |
+| currency | string | Filtra per valuta: `PTS` o `STS` |
+| type | string | Filtra per tipo movimento |
+| from | string | Data inizio (ISO 8601) |
+| to | string | Data fine (ISO 8601) |
+| page | int | Pagina 0-based |
+| size | int | Elementi per pagina (max 100) |
+
+**Risposta 200**
+
+```json Risposta ledger
+{
+  "content": [
+    {
+      "id": "le-abc123",
+      "occurredAt": "2026-07-20T14:00:00Z",
+      "direction": "-",
+      "amount": 1500,
+      "currency": "PTS",
+      "type": "REDEEM",
+      "referenceId": "red-xyz789",
+      "lotId": "lot-456"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 45
+}
+```
+
+### GET /v1/wallets/{memberId}/lots
+
+Elenca i lotti non esauriti del membro, ordinati per scadenza crescente (i primi a scadere per primi).
+
+**Risposta 200**
+
+```json Risposta lotti
+{
+  "content": [
+    {
+      "id": "lot-111",
+      "currency": "PTS",
+      "status": "ACTIVE",
+      "initialAmount": 500,
+      "remaining": 500,
+      "earnedAt": "2026-01-10T09:00:00Z",
+      "availableAt": "2026-01-10T09:00:00Z",
+      "expiresAt": "2026-10-31T23:59:59Z"
+    },
+    {
+      "id": "lot-222",
+      "currency": "PTS",
+      "status": "ACTIVE",
+      "initialAmount": 800,
+      "remaining": 800,
+      "earnedAt": "2026-03-05T11:00:00Z",
+      "availableAt": "2026-03-05T11:00:00Z",
+      "expiresAt": "2026-12-31T23:59:59Z"
+    }
+  ]
+}
+```
+
+### POST /v1/wallets/{memberId}/adjustments
+
+Crea un aggiustamento manuale sul wallet di un membro. Richiede il ruolo `CARE` o `ADMIN`.
+
+> **Attenzione:** Gli aggiustamenti manuali vengono tracciati su `lh.audit.v1` e sono visibili nel registro come `GOODWILL`, `CORRECTION`, `COMPLAINT` o `TEST`.
+
+**Body**
+
+```json Body aggiustamento
+{
+  "currency": "PTS",
+  "direction": "CREDIT",
+  "amount": 200,
+  "reason": "GOODWILL",
+  "note": "Riconoscimento per ritardo consegna ordine 12345"
+}
+```
+
+| Campo | Tipo | Descrizione |
+| --- | --- | --- |
+| currency | string | Valuta: `PTS` o `STS` |
+| direction | string | `CREDIT` o `DEBIT` |
+| amount | int | Importo positivo |
+| reason | string | `GOODWILL`, `CORRECTION`, `COMPLAINT`, `TEST` |
+| note | string | Motivazione dettagliata (minimo 10 caratteri) |
+
+**Errori**
+
+- `422 INSUFFICIENT_BALANCE`: il saldo attivo non copre l'addebito richiesto.
+- `422 NOTE_TOO_SHORT`: la nota è inferiore a 10 caratteri.
+
+### GET /v1/members/{memberId}/tier-history
+
+Restituisce la cronologia dei tier del membro con date di inizio e fine periodo.
+
+**Risposta 200**
+
+```json Risposta tier history
+{
+  "content": [
+    {
+      "tierCode": "BASE",
+      "startDate": "2025-01-01T00:00:00Z",
+      "endDate": "2025-03-15T10:29:59Z"
+    },
+    {
+      "tierCode": "SILVER",
+      "startDate": "2025-03-15T10:30:00Z",
+      "endDate": "2025-09-20T08:00:00Z"
+    },
+    {
+      "tierCode": "GOLD",
+      "startDate": "2025-09-20T08:00:00Z",
+      "endDate": null
+    }
+  ]
+}
+```
+
+### GET /v1/tiers
+
+Elenca tutti i tier configurati, ordinati per soglia crescente.
+
+### PUT /v1/tiers
+
+Aggiorna l'intera scala tier. Le soglie devono essere strettamente crescenti con il rank. Il tier `BASE` ha soglia 0 e non può essere rimosso.
+
+**Body**
+
+```json Body tiers
+[
+  {
+    "code": "BASE",
+    "name": "Base",
+    "threshold": 0,
+    "multiplier": 1.0,
+    "rank": 1
+  },
+  {
+    "code": "SILVER",
+    "name": "Argento",
+    "threshold": 300,
+    "multiplier": 1.2,
+    "rank": 2
+  },
+  {
+    "code": "GOLD",
+    "name": "Oro",
+    "threshold": 600,
+    "multiplier": 1.5,
+    "rank": 3
+  },
+  {
+    "code": "PLATINUM",
+    "name": "Platino",
+    "threshold": 1000,
+    "multiplier": 2.0,
+    "rank": 4
+  }
+]
+```
+
+**Errore**
+
+- `422 TIER_THRESHOLDS_NOT_MONOTONIC`: le soglie non sono in ordine crescente.
+
+### GET /v1/tiers/{code}
+
+Restituisce il dettaglio di un singolo tier.
+
+### GET /v1/currencies
+
+Elenca le valute configurate.
+
+### PUT /v1/currencies
+
+Aggiorna la configurazione delle valute.
+
+### GET /v1/currencies/{code}
+
+Restituisce il dettaglio di una singola valuta.
+
+### GET /v1/editions
+
+Elenca tutte le edizioni del programma loyalty.
+
+### POST /v1/editions
+
+Crea una nuova edizione. Le date non devono sovrapporsi a edizioni esistenti.
+
+**Body**
+
+```json Body nuova edizione
+{
+  "code": "2027",
+  "name": "Edizione 2027",
+  "startDate": "2027-01-01T00:00:00Z",
+  "endDate": "2027-12-31T23:59:59Z",
+  "redemptionGraceUntil": "2028-03-31T23:59:59Z"
+}
+```
+
+**Errore**
+
+- `409 EDITION_OVERLAP`: le date si sovrappongono a un'edizione esistente.
+
+### PUT /v1/editions/{code}
+
+Aggiorna un'edizione esistente (stato `PLANNED` o `ACTIVE`).
+
+### POST /v1/editions/{code}/close
+
+Chiude un'edizione attiva e avvia il ricalcolo tier. Richiede il ruolo `ADMIN`.
+
+**Parametri query**
+
+| Parametro | Tipo | Descrizione |
+| --- | --- | --- |
+| dryRun | boolean | `true` per anteprima, `false` per applicare |
+
+**Risposta dryRun=true**
+
+```json Risposta dry run
+{
+  "editionCode": "2026",
+  "wouldCloseAt": "2026-12-31T23:59:59Z",
+  "affectedMembers": 12450,
+  "tierChanges": {
+    "upgraded": 320,
+    "downgraded": 890,
+    "retained": 11240
+  },
+  "stsReset": {
+    "totalStsToReset": 1540000,
+    "currencies": ["STS"]
+  }
+}
+```
+
+> **Nota:** Con `dryRun=false` l'operazione è irreversibile. I tier vengono ricalcolati e gli STS azzerati per la nuova edizione.
+
+### GET /v1/liability
+
+Restituisce la passività del programma: punti outstanding, pending e distribuzione per mese di scadenza.
+
+**Risposta 200**
+
+```json Risposta liability
+{
+  "currency": "PTS",
+  "outstanding": 4500000,
+  "pending": 320000,
+  "byExpiryMonth": [
+    {
+      "month": "2026-08",
+      "amount": 450000
+    },
+    {
+      "month": "2026-09",
+      "amount": 380000
+    },
+    {
+      "month": "2026-10",
+      "amount": 520000
+    }
+  ]
+}
+```
+
+### GET /v1/tiers/distribution
+
+Restituisce la distribuzione attuale dei membri per tier.
+
+**Risposta 200**
+
+```json Risposta distribuzione tier
+{
+  "totalMembers": 50000,
+  "byTier": [
+    {
+      "tierCode": "BASE",
+      "count": 28000,
+      "percentage": 56.0
+    },
+    {
+      "tierCode": "SILVER",
+      "count": 12000,
+      "percentage": 24.0
+    },
+    {
+      "tierCode": "GOLD",
+      "count": 8000,
+      "percentage": 16.0
+    },
+    {
+      "tierCode": "PLATINUM",
+      "count": 2000,
+      "percentage": 4.0
+    }
+  ]
+}
+```
+
+## Endpoint portale
+
+Questi endpoint sono ottimizzati per il portale Next.js e restituiscono dati in formato leggibile per l'interfaccia utente.
+
+### GET /v1/portal/wallets/{memberId}
+
+Versione semplificata del wallet per il portale, con importi formattati e messaggi localizzati.
+
+### GET /v1/portal/tiers
+
+Restituisce la scala tier completa per la visualizzazione nel portale, inclusi benefici e icone.
+
+### GET /v1/portal/wallets/{memberId}/activity
+
+Elenca i movimenti del wallet in formato leggibile per il feed attività del portale.
+
+**Risposta 200**
+
+```json Risposta attività portale
+{
+  "content": [
+    {
+      "id": "act-001",
+      "occurredAt": "2026-07-20T14:00:00Z",
+      "title": "Riscatto premio",
+      "subtitle": "Buono sconto 20€",
+      "amount": -1500,
+      "direction": "-",
+      "currency": "PTS",
+      "icon": "gift",
+      "pending": false,
+      "expiresAt": null,
+      "breakdown": [
+        { "lotId": "lot-111", "amount": 500 },
+        { "lotId": "lot-222", "amount": 800 },
+        { "lotId": "lot-333", "amount": 200 }
+      ]
+    },
+    {
+      "id": "act-002",
+      "occurredAt": "2026-07-18T09:30:00Z",
+      "title": "Punti guadagnati",
+      "subtitle": "Acquisto ordine #98765",
+      "amount": 450,
+      "direction": "+",
+      "currency": "PTS",
+      "icon": "cart",
+      "pending": false,
+      "expiresAt": "2027-07-18T09:30:00Z",
+      "breakdown": []
+    }
+  ]
+}
+```
+
+## Demo: job manuali
+
+Questi endpoint sono disponibili solo in ambiente demo e richiedono il ruolo `ADMIN`. Simulano i job batch che in produzione girano su scheduler.
+
+### POST /v1/demo/jobs/expire-points
+
+Esegue la scadenza dei lotti scaduti.
+
+**Parametri query**
+
+| Parametro | Tipo | Descrizione |
+| --- | --- | --- |
+| asOf | string | Data di riferimento (ISO 8601) |
+
+```bash Esempio
+POST /v1/demo/jobs/expire-points?asOf=2026-07-31T23:59:59Z
+```
+
+### POST /v1/demo/jobs/release-pending
+
+Rilascia i lotti in stato `PENDING` la cui `availableAt` è scaduta.
+
+**Parametri query**
+
+| Parametro | Tipo | Descrizione |
+| --- | --- | --- |
+| asOf | string | Data di riferimento (ISO 8601) |
+
+```bash Esempio
+POST /v1/demo/jobs/release-pending?asOf=2026-07-31T23:59:59Z
+```
+
+### POST /v1/demo/jobs/expiry-warnings
+
+Genera le notifiche di avviso scadenza per i lotti in scadenza a breve.
+
+**Parametri query**
+
+| Parametro | Tipo | Descrizione |
+| --- | --- | --- |
+| asOf | string | Data di riferimento (ISO 8601) |
+
+```bash Esempio
+POST /v1/demo/jobs/expiry-warnings?asOf=2026-07-31T23:59:59Z
+```
+
+## Come funziona la spesa
+
+Quando un membro richiede un riscatto premio, il Wallet Service addebita i punti seguendo una logica FIFO rigorosa sui lotti `ACTIVE`, ordinati per scadenza crescente.
+
+### Regole di spesa
+
+1. Seleziona solo i lotti `ACTIVE` della valuta richiesta (`PTS`).
+2. Ordina per `expiresAt` crescente: prima i lotti che scadono prima.
+3. Consuma lotti fino a coprire l'importo richiesto.
+4. Se un lotto è parzialmente consumato, il rimanente resta disponibile.
+5. Se il saldo totale è insufficiente, la spesa viene rifiutata con `INSUFFICIENT_BALANCE`.
+
+### Idempotenza
+
+Ogni spesa è idempotente rispetto alla coppia `effect_id` / `redemption_id`. Se lo stesso identificativo viene ricevuto due volte, il secondo messaggio restituisce il risultato già calcolato senza riaddebitare.
+
+### Rollback compensativo
+
+Se arriva un evento `reward.redemption.cancelled` con `refund=true`, il Wallet Service crea un movimento di accredito compensativo che restituisce i punti consumati. I punti vengono ricreditati come nuovo lotto con la scadenza originale del lotto da cui erano stati prelevati.
+
+### Esempio pratico
+
+Un membro ha tre lotti `ACTIVE`:
+
+| Lotto | Importo | Scadenza |
+| --- | --- | --- |
+| A | 500 | 31 ott 2026 |
+| B | 800 | 31 dic 2026 |
+| C | 900 | 31 mar 2027 |
+
+Il membro richiede un riscatto da 1500 PTS. Il sistema consuma:
+
+- 500 dal lotto A (esaurito)
+- 800 dal lotto B (esaurito)
+- 200 dal lotto C (rimangono 700)
+
+Il registro mostra tre movimenti di addebito, ognuno con riferimento al proprio lotto di origine.
+
+## Tier: salita e discesa
+
+Il sistema tier di Loyalty Hub combina salita immediata e discesa differita alla chiusura edizione.
+
+### Salita immediata
+
+Quando i punti STS accumulati dal membro superano la soglia del tier successivo, la promozione avviene immediatamente. Il nuovo moltiplicatore si applica fin dal prossimo accredito.
+
+### Discesa solo alla chiusura edizione
+
+Il tier non scende mai durante l'anno. Solo alla chiusura dell'edizione avviene il ricalcolo:
+
+- Se il membro ha guadagnato il tier attuale (o uno superiore) almeno una volta nell'edizione appena chiusa, mantiene il tier per l'edizione successiva (regola del pavimento).
+- Se il membro non ha mai raggiunto il tier attuale nell'edizione, scende al livello corrispondente ai suoi STS accumulati.
+
+### Esempio di chiusura edizione
+
+Un membro è `GOLD` con 650 STS alla chiusura dell'edizione 2026. Durante l'anno ha toccato `GOLD` (quindi ha diritto al pavimento), ma i suoi STS totali non raggiungono la soglia `GOLD` per la nuova edizione. Con il dry run il sistema mostra:
+
+```json
+{
+  "currentTier": "GOLD",
+  "stsAtClosure": 650,
+  "newTier": "SILVER",
+  "reason": "FLOOR_APPLIED",
+  "message": "Mantiene SILVER per pavimento: ha toccato GOLD nell'edizione 2026 ma i STS (650) non coprono la soglia GOLD (600) per il nuovo periodo"
+}
+```
+
+Il membro scende a `SILVER`, non a `BASE`, perché il pavimento gli garantisce almeno il livello massimo toccato nell'edizione precedente.
+
+## Eventi
+
+Il Wallet Service è fortemente event-driven. Consuma effetti, reagisce a fatti e pubblica nuovi fatti e audit.
+
+### Topic consumati
+
+| Topic | Evento | Azione |
+| --- | --- | --- |
+| lh.effects.v1 | `points.grant` | Crea lotti PTS/STS con moltiplicatore tier |
+| lh.facts.v1 | `member.registered` | Crea 2 wallet (PTS + STS) e assegna tier BASE |
+| lh.facts.v1 | `member.status.changed` | Aggiorna stato membro (blocco/sblocco wallet) |
+| lh.facts.v1 | `reward.redemption.requested` | Addebita PTS, verifica saldo |
+| lh.facts.v1 | `reward.redemption.cancelled` | Esegue refund compensativo se `refund=true` |
+
+### Topic prodotti
+
+| Topic | Evento | Quando |
+| --- | --- | --- |
+| lh.facts.v1 | `wallet.points.earned` | Dopo ogni accredito confermato |
+| lh.facts.v1 | `wallet.points.spent` | Dopo ogni addebito per riscatto |
+| lh.facts.v1 | `wallet.points.expired` | Quando un lotto scade |
+| lh.facts.v1 | `wallet.points.refunded` | Dopo un rollback di riscatto annullato |
+| lh.facts.v1 | `wallet.spend.rejected` | Quando un riscatto fallisce per saldo insufficiente |
+| lh.facts.v1 | `tier.upgraded` | Quando il membro supera una soglia superiore |
+| lh.facts.v1 | `tier.downgraded` | Alla chiusura edizione con discesa di livello |
+| lh.facts.v1 | `tier.retained` | Alla chiusura edizione con mantenimento livello |
+| lh.facts.v1 | `edition.closed` | Quando un admin chiude un'edizione |
+| lh.audit.v1 | `wallet.adjustment.created` | Dopo ogni aggiustamento manuale |
+| lh.audit.v1 | `tier.scale.updated` | Dopo ogni modifica alla scala tier |
+| lh.audit.v1 | `edition.closed` | Replica audit della chiusura edizione |
+
+## Errori
+
+<AccordionGroup>
+  <Accordion title="422 INSUFFICIENT_BALANCE">
+    Il saldo attivo del membro non è sufficiente per completare l'operazione. Si verifica durante:
+
+    - Addebiti per riscatto premi (`reward.redemption.requested`)
+    - Aggiustamenti manuali in direzione `DEBIT`
+
+    **Come risolvere:** Verifica il saldo con `GET /v1/wallets/{memberId}` prima di addebitare. Per i riscatti, il Campaign Service dovrebbe prevalidare il saldo.
+  </Accordion>
+
+  <Accordion title="422 NOTE_TOO_SHORT">
+    La nota di un aggiustamento manuale è inferiore a 10 caratteri. Ogni aggiustamento deve includere una motivazione chiara per l'audit.
+
+    **Come risolvere:** Scrivi una nota descrittiva di almeno 10 caratteri che spieghi il motivo dell'intervento.
+  </Accordion>
+
+  <Accordion title="422 TIER_THRESHOLDS_NOT_MONOTONIC">
+    Le soglie tier inviate non sono in ordine strettamente crescente per rank. La scala deve essere coerente: BASE (0) \< SILVER (300) \< GOLD (600) \< PLATINUM (1000).
+
+    **Come risolvere:** Verifica che ogni tier abbia soglia maggiore del precedente e che BASE abbia soglia 0.
+  </Accordion>
+
+  <Accordion title="409 EDITION_OVERLAP">
+    Le date della nuova edizione si sovrappongono a un'edizione esistente. Le edizioni devono essere disgiunte nel tempo.
+
+    **Come risolvere:** Controlla le edizioni esistenti con `GET /v1/editions` e regola le date di inizio/fine.
+  </Accordion>
+</AccordionGroup>
+
+## Prossimi passi
+
+- Approfondisci il modello di punti e tier nella pagina [Punti e tier](/concetti/punti-e-tier)
+- Scopri come i premi si collegano al wallet nella pagina [Reward Service](/api/reward)
+- Consulta la documentazione del [Campaign Service](/api/campaign) per capire come le campagne generano effetti di accredito punti

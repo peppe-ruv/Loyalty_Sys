@@ -1,0 +1,116 @@
+---
+title: "Avvio locale di Loyalty Hub con Docker Compose"
+sidebarTitle: "Avvio locale"
+description: "Avvia l'intero stack Loyalty Hub sul tuo computer con Docker Compose. Include Kafka, Postgres, otto microservizi e portale web."
+---
+
+Questa pagina ti guida nell'avvio locale dell'intero stack Loyalty Hub. Al termine avrai otto microservizi, Kafka, Postgres e il portale web in esecuzione sul tuo computer.
+
+## Prerequisiti
+
+- Docker Desktop 4.x o Docker Engine 24+.
+- Docker Compose v2.
+- 8 GB di RAM liberi.
+- Porte libere: 5432, 9092, 8080-8088, 3000.
+
+Vedi anche la [checklist completa dei prerequisiti](/getting-started/prerequisiti).
+
+## Avvio rapido
+
+<Steps>
+  <Step title="Clona il repository">
+    ```bash Clone
+    git clone https://github.com/peppe-ruv/loyalty_sys.git
+    cd loyalty_sys
+    ```
+  </Step>
+  <Step title="Avvia lo stack completo">
+    Il profilo `all` include ogni servizio, il broker Kafka, Postgres e il frontend.
+
+    ```bash Avvio completo
+    docker compose -f deploy/docker-compose.yml --profile all up --build
+    ```
+
+    La prima esecuzione scarica le immagini e costruisce i JAR. Attendi circa 3-5 minuti.
+  </Step>
+  <Step title="Verifica lo stato">
+    Ogni servizio espone `/actuator/health`.
+
+    ```bash Health check
+    for port in 8081 8082 8083 8084 8085 8086 8087 8088; do
+      curl -s http://localhost:$port/actuator/health | jq -r '.status'
+    done
+    ```
+
+    Tutti i servizi devono restituire `UP`.
+  </Step>
+  <Step title="Apri il portale">
+    Naviga su [http://localhost:3000](http://localhost:3000) per usare l'interfaccia web demo.
+  </Step>
+</Steps>
+
+## Profili disponibili
+
+Docker Compose supporta profili per avviare solo cio che ti serve.
+
+| Profilo | Cosa include |
+| --- | --- |
+| `all` | Ogni servizio, Kafka, Postgres, portal. |
+| `infra` | Solo Kafka e Postgres. |
+| `core` | Ingestion, Member, Wallet, Campaign. |
+| `engagement` | Reward, Gamification, Engagement, Insight. |
+| `portal` | Solo frontend web. |
+
+Esempio: avvia solo l'infrastruttura per sviluppare un servizio in locale.
+
+```bash Solo infra
+docker compose -f deploy/docker-compose.yml --profile infra up
+```
+
+## Comandi utili
+
+```bash Fermare tutto
+docker compose -f deploy/docker-compose.yml down
+```
+
+```bash Reset totale (cancella dati)
+docker compose -f deploy/docker-compose.yml down -v
+```
+
+```bash Rileggere i log di un servizio
+docker compose -f deploy/docker-compose.yml logs -f ingestion-service
+```
+
+## Dati di seed
+
+All'avvio, il servizio Member carica cinque personas demo e un centinaio di clienti fittizi. Le personas hanno saldi punti e tier pre-assegnati per testare scenari realistici.
+
+> **Nota:** per rifare il seed dopo un reset, riavvia con `--profile all up --build` senza `-v`. Il volume dati Postgres si ricrea e i seed girano automaticamente.
+
+## Errori comuni
+
+<AccordionGroup>
+  <Accordion title="Porta gia in uso">
+    Un'altra applicazione occupa una delle porte. Ferma il processo con `lsof -i :<porta>` (macOS/Linux) o cambia la porta in `deploy/docker-compose.yml`.
+  </Accordion>
+
+  <Accordion title="Servizio in restart loop">
+    Controlla i log del servizio con `docker compose logs <service>`. La causa piu comune e Postgres non ancora pronto: attendi 30 secondi e riprova.
+  </Accordion>
+
+  <Accordion title="Build fallita per JAR mancante">
+    Rilancia con `--build` per forzare la ricompilazione. Se persiste, verifica di avere Java 21 installato sull'host per il build multistage.
+  </Accordion>
+</AccordionGroup>
+
+## Prossimi passi
+
+<CardGroup cols={2}>
+  <Card title="Tour della demo" icon="compass" href="/getting-started/tour-demo">
+    Fai un giro guidato delle funzionalita principali.
+  </Card>
+
+  <Card title="Deploy costo zero" icon="cloud" href="/operations/deploy-costo-zero">
+    Pubblica l'ambiente su un provider gratuito.
+  </Card>
+</CardGroup>

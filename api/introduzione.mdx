@@ -1,0 +1,85 @@
+---
+title: "API Reference: panoramica dei servizi Loyalty Hub"
+sidebarTitle: "Introduzione"
+description: "Scopri i servizi API di Loyalty Hub, le loro porte, i domini di responsabilita e come sceglierli in base al caso d'uso."
+---
+
+Loyalty Hub espone otto microservizi HTTP indipendenti. Ogni servizio possiede il proprio dominio dati, la propria porta e un set di endpoint REST. Usa questa pagina per capire quale servizio chiamare in base al tuo obiettivo.
+
+## Elenco dei servizi
+
+<CardGroup cols={2}>
+  <Card title="Ingestion" icon="inbox-in" href="/api/ingestion">
+    Riceve gli eventi di azione dagli app client e li instrada al motore di regole.
+  </Card>
+
+  <Card title="Member" icon="user" href="/api/member">
+    Anagrafica clienti, consensi, segmenti e programma di referral.
+  </Card>
+
+  <Card title="Campaign" icon="megaphone" href="/api/campaign">
+    Regole, campagne attive e simulatore di scenari.
+  </Card>
+
+  <Card title="Wallet" icon="wallet" href="/api/wallet">
+    Saldo punti, tier, movimenti e passivita.
+  </Card>
+
+  <Card title="Reward" icon="gift" href="/api/reward">
+    Catalogo premi, pool di coupon e riscatti.
+  </Card>
+
+  <Card title="Gamification" icon="trophy" href="/api/gamification">
+    Concorsi, obiettivi, badge e classifiche.
+  </Card>
+
+  <Card title="Engagement" icon="envelope" href="/api/engagement">
+    Template, inbox notifiche e webhook di consegna.
+  </Card>
+
+  <Card title="Insight" icon="chart-line" href="/api/insight">
+    KPI, eventi in streaming (SSE) e coda DLQ.
+  </Card>
+</CardGroup>
+
+## Base URL e porte
+
+In ambiente demo locale ogni servizio risponde su `http://localhost:<porta>`.
+
+| Servizio | Porta | Base URL |
+| --- | --- | --- |
+| Ingestion | 8081 | `http://localhost:8081` |
+| Member | 8082 | `http://localhost:8082` |
+| Campaign | 8083 | `http://localhost:8083` |
+| Wallet | 8084 | `http://localhost:8084` |
+| Reward | 8085 | `http://localhost:8085` |
+| Gamification | 8086 | `http://localhost:8086` |
+| Engagement | 8087 | `http://localhost:8087` |
+| Insight | 8088 | `http://localhost:8088` |
+
+> **Nota:** in produzione le porte sono nascoste dietro un API gateway. Chiedi al team infrastruttura il DNS e il prefisso di path assegnato al tuo ambiente.
+
+## Come scegliere il servizio giusto
+
+Parti dall'obiettivo, non dal dato.
+
+- Vuoi **inviare un evento** (acquisto, visita, quiz)? Usa [Ingestion](/api/ingestion).
+- Vuoi **leggere o aggiornare un cliente**? Usa [Member](/api/member).
+- Vuoi **creare o simulare una campagna**? Usa [Campaign](/api/campaign).
+- Vuoi **consultare il saldo punti o il tier**? Usa [Wallet](/api/wallet).
+- Vuoi **gestire il catalogo premi o riscattare un coupon**? Usa [Reward](/api/reward).
+- Vuoi **gestire concorsi, obiettivi o classifiche**? Usa [Gamification](/api/gamification).
+- Vuoi **inviare notifiche o gestire template**? Usa [Engagement](/api/engagement).
+- Vuoi **KPI, streaming eventi o DLQ**? Usa [Insight](/api/insight).
+
+## Prossimi passi
+
+<CardGroup cols={2}>
+  <Card title="Autenticazione" icon="key" href="/api/autenticazione">
+    Impara come firmare le chiamate demo con l'header X-LH-Actor.
+  </Card>
+
+  <Card title="Convenzioni API" icon="ruler" href="/api/convenzioni">
+    Paginazione, errori, versioning e idempotency.
+  </Card>
+</CardGroup>

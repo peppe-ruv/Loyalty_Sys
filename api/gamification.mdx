@@ -1,0 +1,576 @@
+---
+title: "Gamification API: concorsi, obiettivi, badge e classifiche"
+sidebarTitle: "Gamification"
+description: "Riferimento completo delle API del gamification-service (porta 8086): concorsi instant win, achievement, badge, classifiche e endpoint portale per il gioco in tempo reale."
+---
+
+Il gamification-service di Loyalty Hub gestisce l'intero ciclo di vita del gioco e della motivazione: concorsi instant win a istanti pre-generati, obiettivi (achievement) con tracciamento progressivo, badge riconoscitivi e classifiche (leaderboard). Non consegna direttamente i premi: quando un membro vince, emette un evento `contest.won` che attraversa il ponte eventi e si trasforma in un'azione `instantwin.won` gestita dalle campagne di sistema. Per approfondire il flusso completo, consulta la pagina dedicata ai [concetti di premi e gioco](/concetti/premi-e-gioco).
+
+## Base URL
+
+```text
+http://localhost:8086
+```
+
+## Modello concorsi
+
+Un concorso instant win si compone di quattro entita principali:
+
+- **Contest**: il concorso vero e proprio. Campi chiave:
+  - `mechanic`: `WHEEL`, `SCRATCH` o `BOX` (determina l'esperienza utente nel portale)
+  - `free_play_daily`: numero di giocate gratuite al giorno per membro
+  - `max_plays_per_member_per_day`: limite massimo giornaliero (gratuite + a credito)
+  - `distribution`: `UNIFORM` (istanti distribuiti uniformemente) o `BUSINESS_HOURS` (ricampionamento fuori fascia 08:00-22:00)
+  - `seed`: seme numerico per il generatore determinista degli istanti
+- **Prize**: il premio associato al concorso. Tipi:
+  - `POINTS`: punti fedelta
+  - `COUPON`: coupon digitale
+  - `PHYSICAL`: premio fisico (richiede consegna manuale)
+  - `quantity_total` e `quantity_remaining`: tracciamento scorte
+- **Winning instant**: l'istante vincita pre-generato. Stati:
+  - `OPEN`: disponibile per essere vinto
+  - `CLAIMED`: gia assegnato a un membro
+  - `VOID`: annullato o scaduto
+  - `instant_at`: timestamp preciso in cui l'istante diventa vincibile
+- **Play**: la singola giocata effettuata da un membro. Traccia crediti utilizzati, esito e riferimento all'istante eventualmente vinto.
+
+> **Nota:** I concorsi partono in stato `DRAFT`. Per attivarli (`LIVE`) e necessario prima generare gli istanti vincita. Una volta in `LIVE`, la generazione e bloccata per garantire l'immutabilita del piano premi.
+
+## Endpoint di gestione: Concorsi
+
+### CRUD concorsi
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/contests` | Elenco concorsi paginato |
+| `POST` | `/v1/contests` | Crea un nuovo concorso in stato `DRAFT` |
+| `GET` | `/v1/contests/{id}` | Dettaglio concorso con premi associati |
+| `PUT` | `/v1/contests/{id}` | Aggiorna un concorso in `DRAFT` |
+
+**Esempio: creazione concorso**
+
+```json concorso.json
+{
+  "code": "ESTATE2024",
+  "name": "Concorso Estate 2024",
+  "mechanic": "WHEEL",
+  "description": "Gira la ruota e vinci premi esclusivi",
+  "freePlayDaily": 1,
+  "maxPlaysPerMemberPerDay": 5,
+  "distribution": "BUSINESS_HOURS",
+  "seed": 42,
+  "startAt": "2024-06-01T00:00:00Z",
+  "endAt": "2024-08-31T23:59:59Z",
+  "prizes": [
+    {
+      "code": "PUNTI100",
+      "name": "100 Punti Fedelta",
+      "type": "POINTS",
+      "quantityTotal": 1000,
+      "sortOrder": 1
+    },
+    {
+      "code": "COUPON20",
+      "name": "Sconto 20%",
+      "type": "COUPON",
+      "quantityTotal": 500,
+      "sortOrder": 2
+    }
+  ]
+}
+```
+
+```http Crea concorso
+POST /v1/contests HTTP/1.1
+Host: localhost:8086
+Content-Type: application/json
+X-LH-Actor: marta.admin
+
+{
+  "code": "ESTATE2024",
+  "name": "Concorso Estate 2024",
+  "mechanic": "WHEEL",
+  "description": "Gira la ruota e vinci premi esclusivi",
+  "freePlayDaily": 1,
+  "maxPlaysPerMemberPerDay": 5,
+  "distribution": "BUSINESS_HOURS",
+  "seed": 42,
+  "startAt": "2024-06-01T00:00:00Z",
+  "endAt": "2024-08-31T23:59:59Z",
+  "prizes": [
+    {
+      "code": "PUNTI100",
+      "name": "100 Punti Fedelta",
+      "type": "POINTS",
+      "quantityTotal": 1000,
+      "sortOrder": 1
+    }
+  ]
+}
+```
+
+### Transizioni di stato
+
+```http Transizione stato
+POST /v1/contests/{id}/transitions HTTP/1.1
+Host: localhost:8086
+Content-Type: application/json
+X-LH-Actor: marta.admin
+
+{
+  "status": "LIVE"
+}
+```
+
+La transizione verso `LIVE` richiede che gli istanti vincita siano stati generati. Se mancano, il servizio risponde:
+
+```json Errore 422
+{
+  "code": "INSTANTS_NOT_GENERATED",
+  "message": "Impossibile attivare il concorso: istanti vincita non generati",
+  "details": {
+    "contestId": "550e8400-e29b-41d4-a716-446655440000"
+  }
+}
+```
+
+Transizioni valide: `DRAFT` → `LIVE` → `CLOSED` → `ARCHIVED`.
+
+### Generazione istanti
+
+```http Genera istanti
+POST /v1/contests/{id}/instants/generate HTTP/1.1
+Host: localhost:8086
+Content-Type: application/json
+X-LH-Actor: marta.admin
+
+{
+  "seed": 42
+}
+```
+
+Il parametro `seed` e opzionale: se omesso, il servizio ne genera uno casuale. La generazione e vietata una volta che il concorso e in stato `LIVE` o successivo. Il servizio risponde `409 CONFLICT` in caso di tentativo successivo:
+
+```json Errore 409
+{
+  "code": "INSTANTS_GENERATION_LOCKED",
+  "message": "Generazione istanti bloccata: il concorso non e piu in DRAFT"
+}
+```
+
+### Query istanti
+
+```http Elenco istanti
+GET /v1/contests/{id}/instants?status=OPEN&prizeId=550e8400-e29b-41d4-a716-446655440001 HTTP/1.1
+Host: localhost:8086
+X-LH-Actor: elena.legal
+```
+
+> **Attenzione:** L'elenco degli istanti e riservato ai ruoli `ADMIN` e `LEGAL`. Altri attori ricevono `403 FORBIDDEN` per prevenire la lettura del piano premi.
+
+Filtri disponibili: `status` (`OPEN`, `CLAIMED`, `VOID`), `prizeId`.
+
+### Istogramma istanti
+
+```http Istogramma
+GET /v1/contests/{id}/instants/histogram HTTP/1.1
+Host: localhost:8086
+X-LH-Actor: luca.marketing
+```
+
+Restituisce la distribuzione degli istanti per fascia oraria/giornaliera. Visibile ai ruoli `MARKETING` e `ADMIN` per pianificazione campagne.
+
+### Vincitori
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/contests/{id}/winners` | Elenco vincitori paginato |
+| `GET` | `/v1/contests/{id}/winners.csv` | Export CSV vincitori |
+
+```http Elenco vincitori
+GET /v1/contests/{id}/winners?page=0&size=50 HTTP/1.1
+Host: localhost:8086
+X-LH-Actor: luca.marketing
+```
+
+### Consegna premi fisici
+
+```http Aggiorna consegna
+POST /v1/plays/{playId}/delivery HTTP/1.1
+Host: localhost:8086
+Content-Type: application/json
+X-LH-Actor: paolo.care
+
+{
+  "status": "DELIVERED",
+  "note": "Spedito via corriere BRT, tracking 1234567890"
+}
+```
+
+> **Nota:** L'endpoint di consegna e riservato ai ruoli `CARE` e `ADMIN`. I campi `status` accettano valori come `PENDING`, `SHIPPED`, `DELIVERED`.
+
+### Statistiche concorso
+
+```http Statistiche
+GET /v1/contests/{id}/stats HTTP/1.1
+Host: localhost:8086
+X-LH-Actor: sara.analyst
+```
+
+Restituisce metriche aggregate: giocate totali, giocate giornaliere, vincite per premio, tasso di conversione, crediti consumati.
+
+## Endpoint di gestione: Achievement, Badge, Leaderboard
+
+### Achievement (obiettivi)
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/achievements` | Elenco obiettivi paginato |
+| `POST` | `/v1/achievements` | Crea un nuovo obiettivo |
+| `PUT` | `/v1/achievements/{id}` | Aggiorna un obiettivo |
+
+Un achievement definisce un obiettivo misurabile con `targetValue` e `metricKey` (la chiave dell'evento da contare, es. `purchase.count` o `review.submitted`). Il servizio incrementa automaticamente il progresso consumando eventi da `lh.actions.v1`.
+
+```json achievement.json
+{
+  "code": "PRIMO_ACQUISTO",
+  "name": "Primo Acquisto",
+  "description": "Effettua il tuo primo acquisto",
+  "metricKey": "purchase.count",
+  "targetValue": 1,
+  "periodType": "NONE",
+  "badgeCode": "BADGE_BENVENUTO"
+}
+```
+
+### Badge
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/badges` | Elenco badge |
+| `POST` | `/v1/badges` | Crea un badge |
+| `PUT` | `/v1/badges/{id}` | Aggiorna un badge |
+
+I badge sono riconoscimenti visuali ottenuti al completamento di un achievement o assegnati manualmente tramite evento `badge.award`.
+
+### Leaderboard (classifiche)
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/leaderboards` | Elenco classifiche |
+| `POST` | `/v1/leaderboards` | Crea una classifica |
+| `PUT` | `/v1/leaderboards/{id}` | Aggiorna una classifica |
+| `GET` | `/v1/leaderboards/{code}/ranking` | Classifica effettiva |
+
+```http Classifica
+GET /v1/leaderboards/PUNTI_MENSILI/ranking?periodKey=2024-06&limit=100 HTTP/1.1
+Host: localhost:8086
+X-LH-Actor: sara.analyst
+```
+
+Parametri query:
+
+- `periodKey`: identificatore del periodo (formato dipende dalla configurazione, es. `YYYY-MM` per mensile)
+- `limit`: massimo 100 elementi
+
+### Riepilogo gamification membro (Scheda 360°)
+
+```http Scheda 360°
+GET /v1/members/{memberId}/gamification HTTP/1.1
+Host: localhost:8086
+X-LH-Actor: paolo.care
+```
+
+Restituisce il riepilogo completo di un membro: achievement in corso e completati, badge ottenuti, posizioni nelle classifiche attive, storico giocate recenti.
+
+### Approvazioni
+
+```http Elenco approvazioni
+GET /v1/approvals HTTP/1.1
+Host: localhost:8086
+X-LH-Actor: elena.legal
+```
+
+Elenco delle operazioni in attesa di approvazione legale (creazione concorsi con premi fisici di valore, modifiche post-live).
+
+## Endpoint portale
+
+Gli endpoint portale sono ottimizzati per l'esperienza utente del membro nel frontend Next.js. Non espongono mai dati sensibili come quantita residue o dettagli degli istanti.
+
+### Concorsi disponibili
+
+```http Concorsi portale
+GET /v1/portal/contests?memberId=mem_12345 HTTP/1.1
+Host: localhost:8086
+```
+
+Restituisce solo concorsi in stato `LIVE`. Per ogni concorso:
+
+```json Risposta
+{
+  "code": "ESTATE2024",
+  "name": "Concorso Estate 2024",
+  "mechanic": "WHEEL",
+  "endAt": "2024-08-31T23:59:59Z",
+  "playsAvailable": 4,
+  "freePlayAvailable": true,
+  "prizes": [
+    { "code": "PUNTI100", "name": "100 Punti Fedelta", "type": "POINTS" }
+  ]
+}
+```
+
+> **Nota:** Il campo `playsAvailable` indica quante giocate rimangono oggi al membro (gratuite + crediti). Non viene mai esposta la quantita residua dei premi.
+
+### Giocata
+
+```http Giocata
+POST /v1/portal/contests/{code}/play HTTP/1.1
+Host: localhost:8086
+Content-Type: application/json
+
+{
+  "memberId": "mem_12345"
+}
+```
+
+Il endpoint e **sincrono** e restituisce immediatamente l'esito:
+
+```json Risposta 200
+{
+  "playId": "play_550e8400-e29b-41d4-a716-446655440000",
+  "outcome": "WIN",
+  "prize": {
+    "code": "PUNTI100",
+    "name": "100 Punti Fedelta",
+    "type": "POINTS"
+  },
+  "playsAvailable": 3,
+  "correlationId": "corr_abc123"
+}
+```
+
+Valori di `outcome`: `WIN`, `LOSS`, `FREE_PLAY`.
+
+> **Attenzione:** La consegna effettiva del premio (accredito punti, emissione coupon) avviene in modo asincrono attraverso il ponte eventi. Il membro vede l'esito immediato, ma il premio potrebbe richiedere qualche secondo per essere disponibile nel wallet.
+
+### Storico giocate
+
+```http Storico
+GET /v1/portal/contests/{code}/plays?memberId=mem_12345 HTTP/1.1
+Host: localhost:8086
+```
+
+### Achievement portale
+
+```http Achievement
+GET /v1/portal/achievements?memberId=mem_12345 HTTP/1.1
+Host: localhost:8086
+```
+
+```json Risposta
+[
+  {
+    "code": "PRIMO_ACQUISTO",
+    "name": "Primo Acquisto",
+    "value": 1,
+    "target": 1,
+    "pct": 100.0,
+    "periodKey": null,
+    "completedAt": "2024-06-15T10:30:00Z",
+    "badge": {
+      "code": "BADGE_BENVENUTO",
+      "name": "Benvenuto",
+      "iconUrl": "/badges/welcome.svg"
+    }
+  }
+]
+```
+
+### Badge portale
+
+```http Badge
+GET /v1/portal/badges?memberId=mem_12345 HTTP/1.1
+Host: localhost:8086
+```
+
+Restituisce i badge ottenuti con stato `earned` e i badge ancora da ottenere in stato `locked` (visualizzati in grigio nel portale).
+
+### Classifiche portale
+
+```http Elenco classifiche
+GET /v1/portal/leaderboards?memberId=mem_12345 HTTP/1.1
+Host: localhost:8086
+```
+
+```http Dettaglio classifica
+GET /v1/portal/leaderboards/PUNTI_MENSILI?memberId=mem_12345 HTTP/1.1
+Host: localhost:8086
+```
+
+```json Risposta
+{
+  "top": [
+    { "rank": 1, "memberId": "mem_111", "score": 15000, "nickname": "Mario" },
+    { "rank": 2, "memberId": "mem_222", "score": 14200, "nickname": "Luigi" }
+  ],
+  "me": {
+    "rank": 15,
+    "score": 8750,
+    "nickname": "Tu"
+  }
+}
+```
+
+## Endpoint demo
+
+Gli endpoint demo facilitano i test in ambiente di sviluppo.
+
+### Pianta un istante vincita
+
+```http Pianta istante
+POST /v1/demo/contests/{id}/plant-instant HTTP/1.1
+Host: localhost:8086
+Content-Type: application/json
+X-LH-Actor: marta.admin
+
+{
+  "prizeCode": "PUNTI100"
+}
+```
+
+Crea un istante `OPEN` con timestamp `now() - 1 secondo`, garantendo che la prossima giocata lo vinca immediatamente. Utile per dimostrazioni e test end-to-end.
+
+### Chiusura concorsi schedulata
+
+```http Chiudi concorsi
+POST /v1/demo/jobs/close-contests?asOf=2024-08-31T23:59:59Z HTTP/1.1
+Host: localhost:8086
+X-LH-Actor: marta.admin
+```
+
+Forza la transizione a `CLOSED` di tutti i concorsi scaduti entro la data specificata. Simula il job scheduler di produzione.
+
+## Errori giocata
+
+<AccordionGroup>
+  <Accordion title="422 CONTEST_NOT_LIVE">
+    Il concorso non e in stato `LIVE`. Verifica che sia stato attivato tramite transizione e che la data corrente rientri nel periodo di validita (`startAt` / `endAt`).
+  </Accordion>
+
+  <Accordion title="422 NO_PLAYS_AVAILABLE">
+    Il membro ha esaurito tutte le giocate disponibili per oggi (gratuite + crediti). Il conteggio si resetta a mezzanotte UTC. Controlla il campo `playsAvailable` nella risposta del portale.
+  </Accordion>
+
+  <Accordion title="422 DAILY_LIMIT_REACHED">
+    Il membro ha raggiunto il limite giornaliero massimo configurato (`maxPlaysPerMemberPerDay`), indipendentemente dalla disponibilita di crediti. Attendi il reset giornaliero.
+  </Accordion>
+
+  <Accordion title="422 MEMBER_NOT_ACTIVE">
+    Il membro non e in stato attivo. Verifica nel member-service che il profilo sia `ACTIVE` e non `SUSPENDED` o `CLOSED`.
+  </Accordion>
+</AccordionGroup>
+
+## Come funziona una giocata
+
+<Steps>
+  <Step title="Il portale invia la giocata">
+    Il frontend Next.js invia una `POST /v1/portal/contests/{code}/play` con il `memberId`.
+  </Step>
+  <Step title="Acquisizione del lock">
+    Il servizio acquisisce un **lock advisory Postgres** sulla coppia `(memberId, contestId)` per prevenire giocate concorrenti dello stesso membro sullo stesso concorso.
+  </Step>
+  <Step title="Valutazione crediti">
+    Il servizio verifica prima la disponibilita di giocate gratuite giornaliere (`freePlayDaily`). Se esaurite, controlla i crediti del membro nel wallet-service.
+  </Step>
+  <Step title="Registrazione giocata">
+    Inserisce una riga `play` con stato `PENDING` e decrementa il credito appropriato (gratuito o wallet).
+  </Step>
+  <Step title="Claim dell'istante">
+    Esegue `SELECT ... FOR UPDATE SKIP LOCKED` sulla tabella `winning_instant` per trovare il primo istante `OPEN` con `instant_at <= now()`. Se trovato, lo marca `CLAIMED` e associa il `playId`.
+  </Step>
+  <Step title="Decremento premio">
+    Se l'istante e stato vinto, decrementa `quantity_remaining` del premio associato.
+  </Step>
+  <Step title="Emissione eventi">
+    Scrive nell'outbox:
+
+    - `contest.played` per ogni giocata
+    - `contest.won` in caso di vincita
+
+    Gli eventi vengono poi pubblicati su `lh.facts.v1`.
+  </Step>
+  <Step title="Risposta sincrona">
+    Restituisce al portale l'esito immediato (`WIN` o `LOSS`), il premio eventualmente vinto e le giocate rimanenti.
+  </Step>
+  <Step title="Consegna asincrona">
+    L'evento `contest.won` attraversa il ponte eventi e si trasforma in azione `instantwin.won`. Le campagne di sistema gestiscono la consegna: accredito punti, emissione coupon o notifica per premio fisico.
+  </Step>
+</Steps>
+
+## Determinismo degli istanti
+
+La generazione degli istanti vincita e completamente deterministica: con gli stessi parametri e lo stesso seed, si ottengono sempre gli stessi istanti.
+
+Il servizio utilizza `SplittableRandom(seed)` di Java per generare i timestamp. Per ogni premio, in ordine di `sort_order`, crea `quantity_total` istanti distribuiti nell'intervallo `startAt`-`endAt`:
+
+- **Distribuzione `UNIFORM`**: gli istanti sono distribuiti uniformemente nell'intero arco temporale.
+- **Distribuzione `BUSINESS_HOURS`**: gli istanti generati fuori dalla fascia 08:00-22:00 vengono ricampionati casualmente all'interno della fascia oraria lavorativa, garantendo che le vincite avvengano prevalentemente in orari di traffico utente.
+
+> **Nota:** Utilizza sempre lo stesso seed in ambienti di test per ottenere risultati riproducibili. In produzione, lascia che il servizio generi un seed casuale.
+
+## Eventi Kafka
+
+### Consumati
+
+Il gamification-service si iscrive ai seguenti topic:
+
+| Topic | Scopo |
+| --- | --- |
+| `lh.actions.v1` | Tutti gli eventi azione per aggiornare progressi achievement e punteggi leaderboard |
+| `lh.effects.v1` | Eventi effetto come `plays.grant` (accredito giocate) e `badge.award` (assegnazione badge manuale) |
+| `lh.facts.v1` | Eventi di dominio come `member.*` (cambi stato membro) e `wallet.points.earned` (per leaderboard basate su punti) |
+
+### Prodotti
+
+| Topic | Eventi | Descrizione |
+| --- | --- | --- |
+| `lh.facts.v1` | `contest.plays.granted` | Giocate gratuite accreditate a un membro |
+| `lh.facts.v1` | `contest.played` | Giocata effettuata |
+| `lh.facts.v1` | `contest.won` | Istante vinto da un membro |
+| `lh.facts.v1` | `achievement.progressed` | Progresso achievement aggiornato |
+| `lh.facts.v1` | `achievement.completed` | Achievement completato |
+| `lh.facts.v1` | `badge.awarded` | Badge assegnato |
+| `lh.facts.v1` | `contest.status.changed` | Cambio stato concorso |
+| `lh.audit.v1` | Tutte le scritture | Ogni operazione di modifica in backoffice |
+
+Tutti gli eventi seguono l'envelope CloudEvent 1.0 con le estensioni Loyalty Hub:
+
+```json CloudEvent
+{
+  "specversion": "1.0",
+  "type": "contest.won",
+  "source": "gamification-service",
+  "id": "evt_550e8400-e29b-41d4-a716-446655440000",
+  "time": "2024-06-15T14:30:00Z",
+  "datacontenttype": "application/json",
+  "data": {
+    "contestId": "550e8400-e29b-41d4-a716-446655440001",
+    "playId": "play_550e8400-e29b-41d4-a716-446655440002",
+    "memberId": "mem_12345",
+    "prizeCode": "PUNTI100",
+    "wonAt": "2024-06-15T14:30:00Z"
+  },
+  "lhcorrelationid": "corr_abc123",
+  "lhcausationid": "play_550e8400-e29b-41d4-a716-446655440002",
+  "lhhop": 3,
+  "lhactor": "mem_12345",
+  "lhschemaversion": "1"
+}
+```
+
+## Prossimi passi
+
+- Approfondisci il flusso completo di premi e gioco nella pagina dedicata ai [concetti di premi e gioco](/concetti/premi-e-gioco)
+- Scopri come le campagne di sistema gestiscono la consegna dei premi vinti nelle [API Campaign](/api/campaign)
+- Consulta le [API Wallet](/api/wallet) per il tracciamento dei crediti e dei punti fedelta

@@ -1,0 +1,567 @@
+---
+title: "Engagement Service: API CMS, inbox e webhook"
+sidebarTitle: "Engagement"
+description: "Riferimento API per il servizio engagement (porta 8087): CMS contenuti, inbox in-app, template messaggi, tema portale e webhook uscita con firma HMAC."
+---
+
+Il servizio **engagement** (porta 8087) gestisce l'esperienza di comunicazione del programma fedelta. Offre un CMS per card, popup e banner, un inbox in-app generata automaticamente dai fatti di business, un sistema di template messaggi con formattatori, la personalizzazione del tema del portale e i webhook uscita per integrazioni esterne. Il servizio non invia email, SMS o push reali: il canale `EMAIL_FAKE` produce solo anteprime nel backoffice.
+
+## Base URL
+
+```http Base URL
+http://localhost:8087
+```
+
+## Modello contenuti
+
+Ogni elemento di contenuto e un `content_item` con i seguenti attributi principali:
+
+- **kind**: tipo di contenuto. Valori: `CARD`, `POPUP`, `BANNER`.
+- **placement**: posizione nel portale. Valori: `HOME_HERO`, `HOME_GRID`, `CATALOG_TOP`, `CONTEST`, `WIN`.
+- **audience**: filtro pubblico in formato JSON. Struttura: `{tiers[], segments[], statuses[]}`. Se vuoto o omesso, il contenuto e visibile a tutti.
+- **schedule**: finestra temporale di visibilita (data inizio e fine opzionali).
+- **priority**: numero intero per ordinare i contenuti nello stesso placement (maggiore = prima).
+- **frequency**: controllo frequenza per i popup. Valori: `ONCE` (una sola volta per membro), `ONCE_PER_DAY` (una volta al giorno), `ALWAYS` (ogni volta). Si applica solo a `kind=POPUP`.
+- **dismissible**: booleano. Se `true`, il membro puo chiudere il popup.
+- **style**: oggetto stilistico con `tone` (`PRIMARY`, `SECONDARY`, `COIN`, `NIGHT`).
+- **status**: stato del contenuto. Valori: `DRAFT`, `LIVE`, `PAUSED`, `ENDED`, `ARCHIVED`.
+
+> **Nota:** I contenuti di tipo `CONTENT` non richiedono approvazione. La transizione da `DRAFT` a `LIVE` e diretta.
+
+## Endpoint: Contenuti
+
+### Elencare e filtrare contenuti
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/contents` | Elenca tutti i contenuti. Filtri: `kind`, `placement`, `status`, `q` (ricerca testuale). |
+| `POST` | `/v1/contents` | Crea un nuovo contenuto. |
+| `PUT` | `/v1/contents/{id}` | Aggiorna un contenuto esistente. |
+| `GET` | `/v1/contents/{id}` | Recupera un singolo contenuto per ID. |
+
+**Query parameters per GET /v1/contents:**
+
+- `kind`: filtra per tipo (`CARD`, `POPUP`, `BANNER`).
+- `placement`: filtra per posizione (`HOME_HERO`, `HOME_GRID`, `CATALOG_TOP`, `CONTEST`, `WIN`).
+- `status`: filtra per stato (`DRAFT`, `LIVE`, `PAUSED`, `ENDED`, `ARCHIVED`).
+- `q`: ricerca testuale su titolo e corpo.
+- `page`: pagina 0-based.
+- `size`: elementi per pagina (max 100).
+
+**Esempio di richiesta:**
+
+```http GET /v1/contents
+GET /v1/contents?kind=CARD&placement=HOME_HERO&status=LIVE&page=0&size=20 HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+X-LH-Actor: marta.admin
+```
+
+**Esempio di risposta:**
+
+```json response.json
+{
+  "content": [
+    {
+      "id": "cont-123e4567",
+      "kind": "CARD",
+      "placement": "HOME_HERO",
+      "title": "Benvenuto nella nuova stagione",
+      "body": "Scopri le offerte dedicate ai membri Gold",
+      "audience": {
+        "tiers": ["GOLD", "PLATINUM"],
+        "segments": [],
+        "statuses": []
+      },
+      "priority": 100,
+      "status": "LIVE",
+      "style": {
+        "tone": "PRIMARY"
+      },
+      "createdAt": "2024-01-15T10:30:00Z",
+      "updatedAt": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "page": {
+    "number": 0,
+    "size": 20,
+    "totalElements": 1,
+    "totalPages": 1
+  }
+}
+```
+
+### Transizioni di stato
+
+```http Transizione stato
+POST /v1/contents/{id}/transitions HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+X-LH-Actor: marta.admin
+```
+
+**Body:**
+
+```json transition.json
+{
+  "to": "LIVE"
+}
+```
+
+Transizioni valide:
+
+- `DRAFT` → `LIVE` (diretta, nessuna approvazione richiesta)
+- `LIVE` → `PAUSED`
+- `PAUSED` → `LIVE`
+- `LIVE` / `PAUSED` → `ENDED`
+- `ENDED` → `ARCHIVED`
+
+### Duplicare un contenuto
+
+```http Duplica contenuto
+POST /v1/contents/{id}/duplicate HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+X-LH-Actor: marta.admin
+```
+
+Il contenuto duplicato viene creato in stato `DRAFT` con lo stesso titolo prefissato da "Copia di ".
+
+### Anteprima per membro
+
+```http Anteprima contenuti
+GET /v1/contents/preview?memberId=mem-abc&placement=HOME_HERO HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+X-LH-Actor: marta.admin
+```
+
+Restituisce l'elenco dei contenuti che il membro specificato vedrebbe nella posizione indicata, con il motivo di esclusione per i contenuti non visibili.
+
+**Motivi di esclusione:**
+
+- `NOT_IN_AUDIENCE`: il membro non rientra nel pubblico target.
+- `OUT_OF_SCHEDULE`: fuori dalla finestra temporale.
+- `NOT_LIVE`: il contenuto non e in stato `LIVE`.
+- `FREQUENCY`: il membro ha gia visto il popup secondo la regola di frequenza.
+
+**Esempio di risposta:**
+
+```json preview.json
+{
+  "visible": [
+    {
+      "id": "cont-123e4567",
+      "kind": "CARD",
+      "placement": "HOME_HERO",
+      "title": "Benvenuto nella nuova stagione"
+    }
+  ],
+  "excluded": [
+    {
+      "id": "cont-890f1234",
+      "reason": "NOT_IN_AUDIENCE"
+    }
+  ]
+}
+```
+
+## Endpoint: Template messaggi e regole notifica
+
+### Template messaggi
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/message-templates` | Elenca i template messaggi. |
+| `POST` | `/v1/message-templates` | Crea un nuovo template. |
+| `PUT` | `/v1/message-templates/{code}` | Aggiorna un template esistente. |
+| `GET` | `/v1/message-templates/{code}` | Recupera un template per codice. |
+
+**Attributi del template:**
+
+- `code`: identificativo univoco del template (es. `MSG-WELCOME`).
+- `channel`: canale di destinazione. Valori: `INAPP`, `EMAIL_FAKE`.
+- `title_tpl`: titolo con variabili `{{percorso}}`.
+- `body_tpl`: corpo con variabili `{{percorso}}` e formattatori.
+
+### Regole notifica
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/notification-rules` | Elenca le regole di notifica. |
+| `POST` | `/v1/notification-rules` | Crea una nuova regola. |
+| `PUT` | `/v1/notification-rules/{id}` | Aggiorna una regola esistente. |
+| `GET` | `/v1/notification-rules/{id}` | Recupera una regola per ID. |
+
+**Attributi della regola:**
+
+- `fact_type`: tipo di fatto che attiva la regola (es. `wallet.points.earned`).
+- `condition`: condizione opzionale in formato JSON per filtrare i fatti.
+- `template_code`: codice del template da utilizzare.
+- `enabled`: booleano per attivare o disattivare la regola.
+
+### Render anteprima template
+
+```http Render template
+POST /v1/message-templates/{code}/render HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+X-LH-Actor: marta.admin
+```
+
+**Body:**
+
+```json render.json
+{
+  "sampleEvent": {
+    "type": "wallet.points.earned",
+    "data": {
+      "amount": 150,
+      "memberId": "mem-abc",
+      "campaignName": "Doppi punti weekend"
+    }
+  }
+}
+```
+
+**Risposta:**
+
+```json render-response.json
+{
+  "title": "Hai guadagnato 150 punti",
+  "body": "Hai guadagnato 150 punti nella campagna Doppi punti weekend."
+}
+```
+
+### Registro messaggi
+
+```http Registro messaggi
+GET /v1/messages?memberId=mem-abc&category=POINTS&channel=INAPP&page=0&size=20 HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+X-LH-Actor: marta.admin
+```
+
+**Query parameters:**
+
+- `memberId`: filtra per membro.
+- `category`: categoria del messaggio.
+- `channel`: canale (`INAPP`, `EMAIL_FAKE`).
+- `page`: pagina 0-based.
+- `size`: elementi per pagina (max 100).
+
+## Endpoint: Tema
+
+### Recuperare il tema
+
+```http GET tema
+GET /v1/theme HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+X-LH-Actor: marta.admin
+```
+
+**Risposta:**
+
+```json theme.json
+{
+  "colors": {
+    "primary": "#1a73e8",
+    "secondary": "#5f6368",
+    "background": "#ffffff",
+    "surface": "#f8f9fa",
+    "text": "#202124",
+    "accent": "#f9ab00"
+  },
+  "typography": {
+    "headingFont": "Inter",
+    "bodyFont": "Inter"
+  },
+  "borderRadius": "8px"
+}
+```
+
+### Aggiornare il tema
+
+```http PUT tema
+PUT /v1/theme HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+X-LH-Actor: marta.admin
+```
+
+**Body:**
+
+```json theme-update.json
+{
+  "colors": {
+    "primary": "#1a73e8",
+    "secondary": "#5f6368",
+    "background": "#ffffff",
+    "surface": "#f8f9fa",
+    "text": "#202124",
+    "accent": "#f9ab00"
+  }
+}
+```
+
+> **Attenzione:** Il sistema verifica il contrasto tra colori di testo e sfondo. Se il rapporto di contrasto e inferiore a 4.5:1, la richiesta fallisce con errore `422 THEME_CONTRAST_TOO_LOW`.
+
+## Endpoint: Webhook uscita
+
+I webhook uscita permettono di inviare eventi di business a sistemi esterni tramite chiamate HTTP.
+
+### Gestione webhook
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| `GET` | `/v1/webhooks` | Elenca i webhook configurati. |
+| `POST` | `/v1/webhooks` | Crea un nuovo webhook. |
+| `PUT` | `/v1/webhooks/{id}` | Aggiorna un webhook esistente. |
+| `DELETE` | `/v1/webhooks/{id}` | Elimina un webhook. |
+| `GET` | `/v1/webhooks/{id}` | Recupera un webhook per ID. |
+
+**Attributi del webhook:**
+
+- `url`: endpoint esterno che riceve le chiamate.
+- `eventTypes`: array di tipi di evento da inoltrare.
+- `secret`: stringa segreta per la firma HMAC (leggibile solo alla creazione).
+- `active`: booleano per attivare o disattivare.
+
+> **Nota:** Il secret del webhook e visibile solo al momento della creazione. Conservalo in modo sicuro: non sara piu leggibile in seguito.
+
+### Consegne webhook
+
+```http Consegne webhook
+GET /v1/webhooks/{id}/deliveries?page=0&size=20 HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+X-LH-Actor: marta.admin
+```
+
+Restituisce lo storico delle consegne per un webhook, con stato, codice HTTP di risposta e timestamp.
+
+### Test webhook
+
+```http Test webhook
+POST /v1/webhooks/{id}/test HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+X-LH-Actor: marta.admin
+```
+
+Invia un evento di test all'endpoint configurato senza registrare il risultato nel flusso normale.
+
+### Ritentare una consegna
+
+```http Ritenta consegna
+POST /v1/webhook-deliveries/{id}/retry HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+X-LH-Actor: marta.admin
+```
+
+Forza il ritentativo di una consegna fallita.
+
+### Firma e sicurezza
+
+Ogni richiesta webhook include i seguenti header:
+
+- `X-LH-Signature`: firma HMAC-SHA256 del body calcolata con il secret. Formato: `sha256=<HMAC(secret, body)>`.
+- `X-LH-Event-Id`: identificativo univoco dell'evento.
+- `X-LH-Delivery-Id`: identificativo univoco della consegna.
+
+**Politica di retry:**
+
+- Timeout della chiamata: 5 secondi.
+- Ritentativi automatici a: 1 minuto, 5 minuti, 15 minuti.
+- Dopo il terzo tentativo fallito, lo stato diventa `GAVE_UP`.
+
+**Verifica della firma (esempio in Python):**
+
+```python verify.py
+import hmac
+import hashlib
+
+def verify_signature(secret: str, body: bytes, signature: str) -> bool:
+    expected = "sha256=" + hmac.new(
+        secret.encode(),
+        body,
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature)
+```
+
+## Endpoint: Portale
+
+Questi endpoint sono consumati dal portale Next.js (`web/`) per mostrare contenuti personalizzati ai membri.
+
+### Contenuti per placement
+
+```http Contenuti portale
+GET /v1/portal/content?memberId=mem-abc&placement=HOME_HERO HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+```
+
+Per il placement `WIN`, aggiungi anche il parametro `prizeCode`:
+
+```http Contenuti WIN
+GET /v1/portal/content?memberId=mem-abc&placement=WIN&prizeCode=PRZ-123 HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+```
+
+### Popup successivo
+
+```http Prossimo popup
+GET /v1/portal/popups/next?memberId=mem-abc HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+```
+
+Restituisce il prossimo popup da mostrare al membro, in base a priorita, frequenza e audience. Risponde `204 No Content` se non ci sono popup da mostrare.
+
+### Segnalazione visualizzazione popup
+
+```http Popup visto
+POST /v1/portal/popups/{id}/seen HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+```
+
+**Body:**
+
+```json popup-seen.json
+{
+  "memberId": "mem-abc",
+  "dismissed": true
+}
+```
+
+### Inbox in-app
+
+```http Elenco inbox
+GET /v1/portal/inbox?memberId=mem-abc&page=0&size=20 HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+```
+
+```http Conteggio non letti
+GET /v1/portal/inbox/unread-count?memberId=mem-abc HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+```
+
+### Segnalazione lettura messaggio
+
+```http Segna come letto
+POST /v1/portal/inbox/{id}/read HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+```
+
+```http Segna tutti come letti
+POST /v1/portal/inbox/read-all?memberId=mem-abc HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+```
+
+### Tema portale
+
+```http Tema portale
+GET /v1/portal/theme HTTP/1.1
+Host: localhost:8087
+Content-Type: application/json
+```
+
+La risposta e in cache per 60 secondi. Il portale Next.js utilizza questo endpoint per applicare il tema configurato nel backoffice.
+
+## Motore template
+
+Il motore di template sostituisce le variabili nel formato `{{percorso}}` utilizzando il contesto `{data, member, event}`.
+
+- Il percorso indica la chiave nell'oggetto contesto, con notazione a punti per gli oggetti annidati.
+- Se il percorso non esiste, viene sostituito con stringa vuota e viene emesso un log `WARN`.
+- Non e prevista alcuna logica condizionale o cicli: solo sostituzione diretta.
+
+### Formattatori
+
+| Formattatore | Esempio | Risultato |
+| --- | --- | --- |
+| `\|number` | `{{data.amount\|number}}` | Formatta il numero con separatori delle migliaia. |
+| `\|date` | `{{data.expiresAt\|date}}` | Formatta la data in formato locale. |
+
+**Esempio di template:**
+
+```json template-example.json
+{
+  "title_tpl": "Hai guadagnato {{data.amount|number}} punti",
+  "body_tpl": "I tuoi punti scadranno il {{data.expiresAt|date}}."
+}
+```
+
+**Contesto:**
+
+```json context.json
+{
+  "data": {
+    "amount": 1500,
+    "expiresAt": "2024-12-31T23:59:59Z"
+  },
+  "member": {
+    "firstName": "Mario",
+    "tier": "GOLD"
+  },
+  "event": {
+    "type": "wallet.points.earned"
+  }
+}
+```
+
+**Risultato:**
+
+- Titolo: `Hai guadagnato 1.500 punti`
+- Corpo: `I tuoi punti scadranno il 31/12/2024.`
+
+## Regole seed default
+
+All'avvio del sistema, le seguenti regole di notifica vengono create automaticamente:
+
+| Tipo fatto | Condizione | Template |
+| --- | --- | --- |
+| `wallet.points.earned` | - | `MSG-POINTS-EARNED` |
+| `wallet.points.expiring` | - | `MSG-POINTS-EXPIRING` |
+| `tier.upgraded` | - | `MSG-TIER-UP` |
+| `tier.downgraded` | - | `MSG-TIER-DOWN` |
+| `reward.redemption.fulfilled` | - | `MSG-REWARD-READY` |
+| `reward.redemption.rejected` | - | `MSG-REWARD-REJECTED` |
+| `coupon.issued` | `origin=CAMPAIGN` | `MSG-COUPON-GIFT` |
+| `contest.won` | - | `MSG-CONTEST-WON` |
+| `badge.awarded` | - | `MSG-BADGE` |
+| `referral.completed` | `role=REFERRER` | `MSG-REFERRAL-DONE` |
+| `member.registered` | - | `MSG-WELCOME` |
+
+Queste regole sono abilitate di default e possono essere modificate o disattivate dal backoffice.
+
+## Eventi Kafka
+
+Il servizio engagement interagisce con i seguenti topic Kafka:
+
+### Consuma
+
+- **`lh.effects.v1`**: elabora comandi di tipo `message.send` per inviare messaggi manualmente.
+- **`lh.facts.v1`**: ascolta tutti i fatti di business per generare notifiche automatiche tramite le regole configurate.
+
+> **Attenzione:** Il fatto `message.delivered` non e oggetto di regole ne di webhook. Questo impedisce cicli infiniti di notifiche.
+
+### Produce
+
+- **`lh.facts.v1`**: emette `message.delivered` (conferma consegna messaggio) e `content.status.changed` (cambio stato contenuto).
+- **`lh.audit.v1`**: ogni operazione di scrittura nel backoffice emette un evento di audit.
+
+## Prossimi passi
+
+- Consulta la guida [Osservare il sistema](/guide/osservare-il-sistema) per monitorare i flussi di eventi del servizio engagement.
+- Approfondisci il modello a eventi in [Concetti: Eventi Kafka](/concetti/eventi-kafka).
+- Esplora le API di analisi in [Insight Service](/api/insight) per reportistica su contenuti e messaggi.
