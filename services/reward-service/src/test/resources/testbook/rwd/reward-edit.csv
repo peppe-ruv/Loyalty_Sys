@@ -1,0 +1,37 @@
+id,descrizione,state,change,role,expHttp,expCode
+TB-RWD-EDT-001,cambio nome in DRAFT,DRAFT,name=Nome nuovo,MARKETING,200,-
+TB-RWD-EDT-002,cambio stock totale in DRAFT,DRAFT,stockTotal=20,MARKETING,200,-
+TB-RWD-EDT-003,cambio nome in IN_REVIEW,IN_REVIEW,name=Nome nuovo,MARKETING,409,-
+TB-RWD-EDT-004,cambio stock totale in IN_REVIEW,IN_REVIEW,stockTotal=20,MARKETING,409,-
+TB-RWD-EDT-005,cambio nome in APPROVED,APPROVED,name=Nome nuovo,MARKETING,409,-
+TB-RWD-EDT-006,cambio stock totale in APPROVED,APPROVED,stockTotal=20,MARKETING,409,-
+TB-RWD-EDT-007,cambio nome in LIVE,LIVE,name=Nome nuovo,MARKETING,409,REWARD_LIVE_LOCKED
+TB-RWD-EDT-008,cambio stock totale in LIVE,LIVE,stockTotal=20,MARKETING,200,-
+TB-RWD-EDT-009,cambio nome in PAUSED,PAUSED,name=Nome nuovo,MARKETING,200,-
+TB-RWD-EDT-010,cambio stock totale in PAUSED,PAUSED,stockTotal=20,MARKETING,200,-
+TB-RWD-EDT-011,cambio nome in ENDED,ENDED,name=Nome nuovo,MARKETING,409,-
+TB-RWD-EDT-012,cambio stock totale in ENDED,ENDED,stockTotal=20,MARKETING,409,-
+TB-RWD-EDT-013,cambio nome in ARCHIVED,ARCHIVED,name=Nome nuovo,MARKETING,409,-
+TB-RWD-EDT-014,cambio stock totale in ARCHIVED,ARCHIVED,stockTotal=20,MARKETING,409,-
+TB-RWD-EDT-015,LIVE: cambio description,LIVE,description=Nuova descrizione,MARKETING,409,REWARD_LIVE_LOCKED
+TB-RWD-EDT-016,LIVE: cambio terms,LIVE,terms=Nuovi termini,MARKETING,409,REWARD_LIVE_LOCKED
+TB-RWD-EDT-017,LIVE: cambio type,LIVE,type=EXPERIENCE,MARKETING,409,REWARD_LIVE_LOCKED
+TB-RWD-EDT-018,LIVE: cambio category,LIVE,category=CASA,MARKETING,409,REWARD_LIVE_LOCKED
+TB-RWD-EDT-019,LIVE: cambio band,LIVE,band=F2,MARKETING,409,REWARD_LIVE_LOCKED
+TB-RWD-EDT-020,LIVE: cambio fulfilment,LIVE,fulfilment=MANUAL,MARKETING,409,REWARD_LIVE_LOCKED
+TB-RWD-EDT-021,LIVE: cambio couponPoolId,LIVE,couponPoolId=<pool>,MARKETING,409,REWARD_LIVE_LOCKED
+TB-RWD-EDT-022,LIVE: cambio perMemberLimit,LIVE,perMemberLimit=3,MARKETING,409,REWARD_LIVE_LOCKED
+TB-RWD-EDT-023,LIVE: cambio eligibleTiers,LIVE,eligibleTiers=GOLD,MARKETING,409,REWARD_LIVE_LOCKED
+TB-RWD-EDT-024,LIVE: cambio eligibleSegments,LIVE,eligibleSegments=SEG-X,MARKETING,409,REWARD_LIVE_LOCKED
+TB-RWD-EDT-025,LIVE: cambio validFrom,LIVE,validFrom=-2d,MARKETING,409,REWARD_LIVE_LOCKED
+TB-RWD-EDT-026,LIVE: cambio validTo,LIVE,validTo=+60d,MARKETING,200,-
+TB-RWD-EDT-027,LIVE: cambio imageUrl,LIVE,imageUrl=/demo/nuova.png,MARKETING,200,-
+TB-RWD-EDT-028,LIVE: nome reinviato uguale,LIVE,name=Premio testbook,MARKETING,200,-
+TB-RWD-EDT-029,cambio del codice,LIVE,code=<other>,MARKETING,409,CODE_IMMUTABLE
+TB-RWD-EDT-030,"PAUSED: cambio fascia, tipo, evasione",PAUSED,band=F2;type=EXPERIENCE;fulfilment=MANUAL,MARKETING,200,-
+TB-RWD-EDT-031,DRAFT: stock negativo,DRAFT,stockTotal=-1,MARKETING,422,REWARD_INVALID
+TB-RWD-EDT-032,ruolo ADMIN,DRAFT,name=Nome nuovo,ADMIN,200,-
+TB-RWD-EDT-033,ruolo LEGAL,DRAFT,name=Nome nuovo,LEGAL,403,FORBIDDEN_ROLE
+TB-RWD-EDT-034,ruolo CARE,DRAFT,name=Nome nuovo,CARE,403,FORBIDDEN_ROLE
+TB-RWD-EDT-035,ruolo ANALYST,DRAFT,name=Nome nuovo,ANALYST,403,FORBIDDEN_ROLE
+TB-RWD-EDT-036,premio inesistente,UNKNOWN,name=Nome nuovo,MARKETING,404,-

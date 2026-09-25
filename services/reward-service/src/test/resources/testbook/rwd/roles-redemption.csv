@@ -1,0 +1,22 @@
+id,descrizione,action,role,expHttp
+TB-RWD-ROL-001,evasione manuale con ruolo ADMIN,FULFIL,ADMIN,200
+TB-RWD-ROL-002,evasione manuale con ruolo MARKETING,FULFIL,MARKETING,403
+TB-RWD-ROL-003,evasione manuale con ruolo LEGAL,FULFIL,LEGAL,403
+TB-RWD-ROL-004,evasione manuale con ruolo CARE,FULFIL,CARE,200
+TB-RWD-ROL-005,evasione manuale con ruolo ANALYST,FULFIL,ANALYST,403
+TB-RWD-ROL-006,evasione manuale con ruolo -,FULFIL,-,403
+TB-RWD-ROL-007,evasione manuale con ruolo INVALID,FULFIL,INVALID,403
+TB-RWD-ROL-008,annullo con rimborso con ruolo ADMIN,CANCEL,ADMIN,200
+TB-RWD-ROL-009,annullo con rimborso con ruolo MARKETING,CANCEL,MARKETING,403
+TB-RWD-ROL-010,annullo con rimborso con ruolo LEGAL,CANCEL,LEGAL,403
+TB-RWD-ROL-011,annullo con rimborso con ruolo CARE,CANCEL,CARE,200
+TB-RWD-ROL-012,annullo con rimborso con ruolo ANALYST,CANCEL,ANALYST,403
+TB-RWD-ROL-013,annullo con rimborso con ruolo -,CANCEL,-,403
+TB-RWD-ROL-014,annullo con rimborso con ruolo INVALID,CANCEL,INVALID,403
+TB-RWD-ROL-015,retry-fulfilment con ruolo ADMIN,RETRY,ADMIN,200
+TB-RWD-ROL-016,retry-fulfilment con ruolo MARKETING,RETRY,MARKETING,403
+TB-RWD-ROL-017,retry-fulfilment con ruolo LEGAL,RETRY,LEGAL,403
+TB-RWD-ROL-018,retry-fulfilment con ruolo CARE,RETRY,CARE,200
+TB-RWD-ROL-019,retry-fulfilment con ruolo ANALYST,RETRY,ANALYST,403
+TB-RWD-ROL-020,retry-fulfilment con ruolo -,RETRY,-,403
+TB-RWD-ROL-021,retry-fulfilment con ruolo INVALID,RETRY,INVALID,403

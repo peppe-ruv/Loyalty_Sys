@@ -1,0 +1,17 @@
+id,descrizione,code,name,prefix,validityDays,role,expHttp,expCode
+TB-RWD-CPN-060,pool valido,NEW,Pool test,TBP,30,MARKETING,201,-
+TB-RWD-CPN-061,prefisso e codice in minuscolo,LOWER,Pool test,tbp,30,MARKETING,201,-
+TB-RWD-CPN-062,prefisso «caf!»,NEW,Pool test,caf!,30,MARKETING,422,COUPON_PREFIX_INVALID
+TB-RWD-CPN-063,prefisso di 1 carattere,NEW,Pool test,C,30,MARKETING,422,COUPON_PREFIX_INVALID
+TB-RWD-CPN-064,prefisso di 2 caratteri,NEW,Pool test,CA,30,MARKETING,201,-
+TB-RWD-CPN-065,prefisso di 10 caratteri,NEW,Pool test,ABCDEFGHJK,30,MARKETING,201,-
+TB-RWD-CPN-066,prefisso di 11 caratteri,NEW,Pool test,ABCDEFGHJKM,30,MARKETING,422,COUPON_PREFIX_INVALID
+TB-RWD-CPN-067,validità 0 giorni,NEW,Pool test,TBP,0,MARKETING,422,COUPON_VALIDITY_INVALID
+TB-RWD-CPN-068,validità 1 giorno,NEW,Pool test,TBP,1,MARKETING,201,-
+TB-RWD-CPN-069,validità 3650 giorni,NEW,Pool test,TBP,3650,MARKETING,201,-
+TB-RWD-CPN-070,validità 3651 giorni,NEW,Pool test,TBP,3651,MARKETING,422,COUPON_VALIDITY_INVALID
+TB-RWD-CPN-071,validità assente,NEW,Pool test,TBP,-,MARKETING,201,-
+TB-RWD-CPN-072,codice già esistente,DUP,Pool test,TBP,30,MARKETING,409,CODE_TAKEN
+TB-RWD-CPN-073,nome assente,NEW,-,TBP,30,MARKETING,400,-
+TB-RWD-CPN-074,ruolo CARE,NEW,Pool test,TBP,30,CARE,403,FORBIDDEN_ROLE
+TB-RWD-CPN-075,ruolo ANALYST,NEW,Pool test,TBP,30,ANALYST,403,FORBIDDEN_ROLE

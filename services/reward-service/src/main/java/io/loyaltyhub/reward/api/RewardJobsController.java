@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 
 /**
  * Job demo di reward (docs/servizi/reward-service.md §3 "Demo"; BO-30): scadenza coupon e timeout delle richieste
@@ -32,6 +33,12 @@ public class RewardJobsController {
     }
 
     private static final ZoneId ZONE = ZoneId.of("Europe/Rome");
+    /**
+     * Ultimo istante del giorno alla precisione del database (microsecondi): 23:59:59.999999. Con {@link LocalTime#MAX}
+     * (nanosecondi) il timestamp verrebbe arrotondato alla mezzanotte successiva e il job scadrebbe anche i coupon che
+     * scadono alle 00:00 del giorno dopo (come {@code ExpiryPolicy.LAST_INSTANT} del wallet).
+     */
+    static final LocalTime LAST_INSTANT = LocalTime.MAX.truncatedTo(ChronoUnit.MICROS);
 
     private final CouponService coupons;
     private final RedemptionService redemptions;
@@ -66,6 +73,6 @@ public class RewardJobsController {
         if (value.contains("T")) {
             return Instant.parse(value);
         }
-        return LocalDate.parse(value).atTime(LocalTime.MAX).atZone(ZONE).toInstant();
+        return LocalDate.parse(value).atTime(LAST_INSTANT).atZone(ZONE).toInstant();
     }
 }

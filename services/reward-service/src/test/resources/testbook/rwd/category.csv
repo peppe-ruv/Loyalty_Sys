@@ -1,0 +1,7 @@
+id,descrizione,code,name,role,expHttp,expCode
+TB-RWD-CAT-040,categoria valida,NEW,Categoria test,MARKETING,201,-
+TB-RWD-CAT-041,codice solo spazi, ,Categoria,MARKETING,422,CATEGORY_INVALID
+TB-RWD-CAT-042,nome assente,NEW,-,MARKETING,422,CATEGORY_INVALID
+TB-RWD-CAT-043,modifica (PUT) di una categoria esistente,PUT,Nome nuovo,ADMIN,200,-
+TB-RWD-CAT-044,ruolo CARE,NEW,Categoria,CARE,403,FORBIDDEN_ROLE
+TB-RWD-CAT-045,ruolo ANALYST,NEW,Categoria,ANALYST,403,FORBIDDEN_ROLE

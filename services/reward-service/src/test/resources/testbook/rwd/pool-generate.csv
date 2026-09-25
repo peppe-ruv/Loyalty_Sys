@@ -1,0 +1,12 @@
+id,descrizione,count,role,expHttp,expCode,expAvailable
+TB-RWD-CPN-080,genera 1 codice,1,MARKETING,200,-,1
+TB-RWD-CPN-081,genera 5000 codici (massimo),5000,MARKETING,200,-,5000
+TB-RWD-CPN-082,genera 5001 codici,5001,MARKETING,422,COUPON_COUNT_INVALID,0
+TB-RWD-CPN-083,genera 0 codici,0,MARKETING,422,COUPON_COUNT_INVALID,0
+TB-RWD-CPN-084,genera −1 codici,-1,MARKETING,422,COUPON_COUNT_INVALID,0
+TB-RWD-CPN-085,count assente,-,MARKETING,400,-,0
+TB-RWD-CPN-086,pool inesistente,UNKNOWN,MARKETING,404,-,0
+TB-RWD-CPN-087,ruolo CARE,3,CARE,403,FORBIDDEN_ROLE,0
+TB-RWD-CPN-088,due generazioni successive 3 + 2,3+2,MARKETING,200,-,5
+TB-RWD-CPN-089,formato di 100 codici generati,FORMAT100,MARKETING,200,-,100
+TB-RWD-CPN-090,seme fisso: stessi codici per stesso pool e stesso stato di partenza,SEED5,MARKETING,200,-,5
