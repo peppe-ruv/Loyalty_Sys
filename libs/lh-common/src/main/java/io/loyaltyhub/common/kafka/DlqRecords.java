@@ -14,7 +14,7 @@ import java.nio.charset.StandardCharsets;
  */
 public final class DlqRecords {
 
-    /** Tentativi totali per un errore ritentabile (1 + 2 ritenti, docs/12 accettazione M0). */
+    /** Tentativi totali per un errore ritentabile (1 + 2 ritenti, docs/12 accettazione M0; SPEC-GAP: Q-131). */
     public static final int MAX_ATTEMPTS = 3;
 
     private static final int MAX_MESSAGE_CHARS = 1_000;

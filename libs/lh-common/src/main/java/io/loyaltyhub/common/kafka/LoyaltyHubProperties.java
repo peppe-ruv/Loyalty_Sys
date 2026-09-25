@@ -9,11 +9,16 @@ public class LoyaltyHubProperties {
 
     private final Topics topics = new Topics();
     private final Kafka kafka = new Kafka();
+    private final Consumer consumer = new Consumer();
     /** Nome del servizio (usato come {@code source} degli eventi e nei log). */
     private String service = "lh-service";
 
     public Topics getTopics() {
         return topics;
+    }
+
+    public Consumer getConsumer() {
+        return consumer;
     }
 
     public Kafka getKafka() {
@@ -175,6 +180,23 @@ public class LoyaltyHubProperties {
 
         public void setMechanism(String mechanism) {
             this.mechanism = mechanism;
+        }
+    }
+
+    public static class Consumer {
+        /**
+         * Ritardi tra un tentativo e il successivo: n ritardi = n + 1 tentativi. docs/04 dice "3 tentativi con backoff
+         * 1 s / 5 s / 15 s" (tre ritardi = quattro tentativi); vince il conteggio di docs/12 (accettazione M0: DLQ dopo 3
+         * tentativi), quindi 1 s e 5 s. SPEC-GAP: Q-131
+         */
+        private long[] retryBackoffMs = new long[]{1000L, 5000L};
+
+        public long[] getRetryBackoffMs() {
+            return retryBackoffMs;
+        }
+
+        public void setRetryBackoffMs(long[] retryBackoffMs) {
+            this.retryBackoffMs = retryBackoffMs;
         }
     }
 }

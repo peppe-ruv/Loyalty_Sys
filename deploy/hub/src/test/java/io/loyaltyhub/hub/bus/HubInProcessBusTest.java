@@ -19,7 +19,7 @@ class HubInProcessBusTest {
 
     @Test
     void failingConsumerEndsOnTheDlqTopicWithLhHeadersAfterThreeAttempts() throws Exception {
-        try (HubInProcessBus bus = new HubInProcessBus("lh.dlq.v1")) {
+        try (HubInProcessBus bus = new HubInProcessBus("lh.dlq.v1", new long[]{50L, 50L})) {
             AtomicInteger attempts = new AtomicInteger();
             BlockingQueue<ConsumerRecord<String, String>> dead = new LinkedBlockingQueue<>();
             bus.subscribe("lh.actions.v1", "lh-campaign", r -> {
@@ -47,7 +47,7 @@ class HubInProcessBusTest {
 
     @Test
     void nonRetryableErrorGoesStraightToDlqAndDlqFailuresDoNotLoop() throws Exception {
-        try (HubInProcessBus bus = new HubInProcessBus("lh.dlq.v1")) {
+        try (HubInProcessBus bus = new HubInProcessBus("lh.dlq.v1", new long[]{50L, 50L})) {
             AtomicInteger attempts = new AtomicInteger();
             AtomicInteger dlqDeliveries = new AtomicInteger();
             bus.subscribe("lh.actions.v1", "lh-campaign", r -> {
