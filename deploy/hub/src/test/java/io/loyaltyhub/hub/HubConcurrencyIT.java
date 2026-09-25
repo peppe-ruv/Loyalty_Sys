@@ -70,8 +70,8 @@ class HubConcurrencyIT {
         String memberId = "MBR-000004";
         long ptsBefore = walletPts(memberId);
 
-        long deadlineReward = System.currentTimeMillis() + 15_000;
-        while (System.currentTimeMillis() < deadlineReward) {
+        long deadlineReward1 = System.currentTimeMillis() + 15_000;
+        while (System.currentTimeMillis() < deadlineReward1) {
             try {
                 client().get().uri("/v1/portal/catalog?memberId=" + memberId).header("X-LH-Actor", "ANALYST:portal").retrieve().toBodilessEntity();
                 break;
@@ -80,10 +80,33 @@ class HubConcurrencyIT {
             }
         }
 
-        setBalance(memberId, 1500);
+        if (ptsBefore != 1500) {
+            setBalance(memberId, 1500);
+        }
 
         String rewardCode = "RWD-CONC-DS-" + UUID.randomUUID().toString().substring(0, 8);
         createAndApproveReward(rewardCode, 500, 100);
+
+        long deadlineReward2 = System.currentTimeMillis() + 15_000;
+        boolean rewardVisible = false;
+        while (System.currentTimeMillis() < deadlineReward2) {
+            try {
+                JsonNode catalog = client().get().uri("/v1/portal/catalog?memberId=" + memberId).header("X-LH-Actor", "ANALYST:portal").retrieve().body(JsonNode.class);
+                for (JsonNode band : catalog.path("bands")) {
+                    for (JsonNode item : band.path("rewards")) {
+                        if (rewardCode.equals(item.path("code").asText())) {
+                            rewardVisible = true;
+                            break;
+                        }
+                    }
+                }
+                if (rewardVisible) break;
+            } catch (Exception e) {}
+            sleep(300);
+        }
+        if (!rewardVisible) {
+            org.assertj.core.api.Assertions.fail("Il premio " + rewardCode + " non è visibile a " + memberId);
+        }
 
         int threads = 10;
         ExecutorService executor = Executors.newFixedThreadPool(threads);
@@ -94,6 +117,7 @@ class HubConcurrencyIT {
         List<Future<Integer>> results = new ArrayList<>();
         List<String> redemptionIds = Collections.synchronizedList(new ArrayList<>());
 
+        List<Integer> statuses = Collections.synchronizedList(new ArrayList<>());
         for (int i = 0; i < threads; i++) {
             results.add(executor.submit(() -> {
                 ready.countDown();
@@ -104,11 +128,16 @@ class HubConcurrencyIT {
                             .contentType(MediaType.APPLICATION_JSON)
                             .body(Map.of("memberId", memberId, "rewardCode", rewardCode))
                             .retrieve().body(JsonNode.class);
-                    if (r.has("id")) {
+                    if (r.has("redemptionId")) {
+                        redemptionIds.add(r.path("redemptionId").asString());
+                    } else if (r.has("id")) {
                         redemptionIds.add(r.path("id").asString());
                     }
+                    statuses.add(202);
                     return 202;
                 } catch (HttpClientErrorException e) {
+                    System.err.println("Redemption failed with status " + e.getStatusCode() + ": " + e.getResponseBodyAsString());
+                    statuses.add(e.getStatusCode().value());
                     return e.getStatusCode().value();
                 } finally {
                     done.countDown();
@@ -119,6 +148,9 @@ class HubConcurrencyIT {
         ready.await();
         start.countDown();
         done.await(20, TimeUnit.SECONDS);
+
+        long successStatusCount = statuses.stream().filter(s -> s == 200 || s == 202).count();
+        assertThat(successStatusCount).as("almeno 3 richieste accettate o fallite per concorrenza (" + statuses + ")").isGreaterThanOrEqualTo(3);
 
         long deadline = System.currentTimeMillis() + 30_000;
         List<JsonNode> redemptions = new ArrayList<>();
@@ -184,28 +216,44 @@ class HubConcurrencyIT {
         int threads = 20;
         List<String> memberIds = new ArrayList<>();
         String[] seedMembers = {
-            "MBR-000004", "MBR-000005", "MBR-000006", "MBR-000010", "MBR-000011",
-            "MBR-000027", "MBR-000013", "MBR-000014", "MBR-000015", "MBR-000016",
-            "MBR-000017", "MBR-000018", "MBR-000019", "MBR-000020", "MBR-000021",
-            "MBR-000022", "MBR-000023", "MBR-000024", "MBR-000025", "MBR-000026"
+            "MBR-000001", "MBR-000002", "MBR-000003", "MBR-000004", "MBR-000005",
+            "MBR-000006", "MBR-000007", "MBR-000009", "MBR-000010", "MBR-000011",
+            "MBR-000013", "MBR-000014", "MBR-000015", "MBR-000016", "MBR-000017",
+            "MBR-000018", "MBR-000019", "MBR-000020", "MBR-000021", "MBR-000022"
         };
 
         for (int i = 0; i < threads; i++) {
             String mid = seedMembers[i];
 
             long deadlineReward = System.currentTimeMillis() + 15_000;
+            boolean rewardVisible = false;
             while (System.currentTimeMillis() < deadlineReward) {
                 try {
-                    client().get().uri("/v1/portal/catalog?memberId=" + mid).header("X-LH-Actor", "ANALYST:portal").retrieve().toBodilessEntity();
-                    break;
-                } catch (Exception e) {
-                    sleep(300);
-                }
+                    JsonNode catalog = client().get().uri("/v1/portal/catalog?memberId=" + mid).header("X-LH-Actor", "ANALYST:portal").retrieve().body(JsonNode.class);
+                    for (JsonNode band : catalog.path("bands")) {
+                        for (JsonNode item : band.path("rewards")) {
+                            if (rewardCode.equals(item.path("code").asText())) {
+                                rewardVisible = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (rewardVisible) break;
+                } catch (Exception e) {}
+                sleep(300);
+            }
+            if (!rewardVisible) {
+                org.assertj.core.api.Assertions.fail("Il premio " + rewardCode + " non è visibile a " + mid);
             }
 
-            setBalance(mid, 200);
+            long current = walletPts(mid);
+            if (current < 200) {
+                setBalance(mid, 200);
+            }
             memberIds.add(mid);
         }
+        assertThat(memberIds.size()).as("At least 5 members should see the reward").isGreaterThanOrEqualTo(5);
+        threads = memberIds.size();
 
         ExecutorService executor = Executors.newFixedThreadPool(threads);
         CountDownLatch ready = new CountDownLatch(threads);
@@ -325,10 +373,10 @@ class HubConcurrencyIT {
         int threads = 20;
         List<String> memberIds = new ArrayList<>();
         String[] seedMembers = {
-            "MBR-000004", "MBR-000005", "MBR-000006", "MBR-000010", "MBR-000011",
-            "MBR-000027", "MBR-000013", "MBR-000014", "MBR-000015", "MBR-000016",
-            "MBR-000017", "MBR-000018", "MBR-000019", "MBR-000020", "MBR-000021",
-            "MBR-000022", "MBR-000023", "MBR-000024", "MBR-000025", "MBR-000026"
+            "MBR-000001", "MBR-000002", "MBR-000003", "MBR-000004", "MBR-000005",
+            "MBR-000006", "MBR-000007", "MBR-000009", "MBR-000010", "MBR-000011",
+            "MBR-000013", "MBR-000014", "MBR-000015", "MBR-000016", "MBR-000017",
+            "MBR-000018", "MBR-000019", "MBR-000020", "MBR-000021", "MBR-000022"
         };
         for (int i = 0; i < threads; i++) {
             memberIds.add(seedMembers[i]);
@@ -343,15 +391,25 @@ class HubConcurrencyIT {
 
         for (int i = 0; i < threads; i++) {
             final String mid = memberIds.get(i);
+
+            long current = walletPts(mid);
+            if (current < 500) {
+                setBalance(mid, 500);
+            }
             results.add(executor.submit(() -> {
                 ready.countDown();
                 start.await();
                 try {
                     return client().post().uri("/v1/portal/contests/" + contestCode + "/play")
+                            .header("X-LH-Actor", "ANALYST:portal")
                             .contentType(MediaType.APPLICATION_JSON)
                             .body(Map.of("memberId", mid))
                             .retrieve().body(JsonNode.class);
+                } catch (HttpClientErrorException e) {
+                    System.err.println("Play failed with status " + e.getStatusCode() + ": " + e.getResponseBodyAsString());
+                    return null;
                 } catch (Exception e) {
+                    System.err.println("Play failed: " + e.getMessage());
                     return null;
                 } finally {
                     done.countDown();
@@ -556,9 +614,13 @@ class HubConcurrencyIT {
     }
 
     private void createAndApproveReward(String code, int cost, int stock) {
+        String bandCode = "F1";
+        if (cost == 500) bandCode = "F2";
+        else if (cost == 100) bandCode = "F1";
+
         JsonNode created = client().post().uri("/v1/rewards").header("X-LH-Actor", "MARKETING:giulia")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("code", code, "name", "Conc Test Reward", "type", "DIGITAL", "category", "CASA", "band", "F1", "fulfilment", "MANUAL", "stockTotal", stock))
+                .body(Map.of("code", code, "name", "Conc Test Reward", "type", "DIGITAL", "category", "CASA", "band", bandCode, "fulfilment", "MANUAL", "stockTotal", stock, "perMemberLimit", 100))
                 .retrieve().body(JsonNode.class);
         String id = created.path("id").asString();
 
@@ -578,6 +640,15 @@ class HubConcurrencyIT {
                 .contentType(MediaType.APPLICATION_JSON).body(Map.of("action", "APPROVE")).retrieve().toBodilessEntity();
         client().post().uri("/v1/rewards/" + id + "/transitions").header("X-LH-Actor", "MARKETING:giulia")
                 .contentType(MediaType.APPLICATION_JSON).body(Map.of("action", "PUBLISH")).retrieve().toBodilessEntity();
+
+        long deadline = System.currentTimeMillis() + 10_000;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                JsonNode live = client().get().uri("/v1/rewards/" + id).retrieve().body(JsonNode.class);
+                if (live.path("status").asString().equals("LIVE")) break;
+            } catch (Exception e) {}
+            sleep(300);
+        }
 
         JsonNode live = client().get().uri("/v1/rewards/" + id).retrieve().body(JsonNode.class);
         assertThat(live.path("status").asString()).isEqualTo("LIVE");
