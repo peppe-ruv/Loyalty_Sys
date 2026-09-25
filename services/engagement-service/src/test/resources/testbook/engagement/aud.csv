@@ -1,0 +1,37 @@
+id	descrizione	viewer	tiers	segments	statuses	expected
+TB-ENG-AUD-001	tiers vuoto segments vuoto statuses vuoto	V	-	-	-	IN
+TB-ENG-AUD-002	tiers vuoto segments vuoto statuses soddisfatto	V	-	-	ACTIVE BLOCKED	IN
+TB-ENG-AUD-003	tiers vuoto segments vuoto statuses non soddisfatto	V	-	-	INACTIVE	OUT
+TB-ENG-AUD-004	tiers vuoto segments almeno uno in comune statuses vuoto	V	-	SEG-B SEG-X	-	IN
+TB-ENG-AUD-005	tiers vuoto segments almeno uno in comune statuses soddisfatto	V	-	SEG-B SEG-X	ACTIVE BLOCKED	IN
+TB-ENG-AUD-006	tiers vuoto segments almeno uno in comune statuses non soddisfatto	V	-	SEG-B SEG-X	INACTIVE	OUT
+TB-ENG-AUD-007	tiers vuoto segments nessuno in comune statuses vuoto	V	-	SEG-X	-	OUT
+TB-ENG-AUD-008	tiers vuoto segments nessuno in comune statuses soddisfatto	V	-	SEG-X	ACTIVE BLOCKED	OUT
+TB-ENG-AUD-009	tiers vuoto segments nessuno in comune statuses non soddisfatto	V	-	SEG-X	INACTIVE	OUT
+TB-ENG-AUD-010	tiers soddisfatto segments vuoto statuses vuoto	V	GOLD PLATINUM	-	-	IN
+TB-ENG-AUD-011	tiers soddisfatto segments vuoto statuses soddisfatto	V	GOLD PLATINUM	-	ACTIVE BLOCKED	IN
+TB-ENG-AUD-012	tiers soddisfatto segments vuoto statuses non soddisfatto	V	GOLD PLATINUM	-	INACTIVE	OUT
+TB-ENG-AUD-013	tiers soddisfatto segments almeno uno in comune statuses vuoto	V	GOLD PLATINUM	SEG-B SEG-X	-	IN
+TB-ENG-AUD-014	tiers soddisfatto segments almeno uno in comune statuses soddisfatto	V	GOLD PLATINUM	SEG-B SEG-X	ACTIVE BLOCKED	IN
+TB-ENG-AUD-015	tiers soddisfatto segments almeno uno in comune statuses non soddisfatto	V	GOLD PLATINUM	SEG-B SEG-X	INACTIVE	OUT
+TB-ENG-AUD-016	tiers soddisfatto segments nessuno in comune statuses vuoto	V	GOLD PLATINUM	SEG-X	-	OUT
+TB-ENG-AUD-017	tiers soddisfatto segments nessuno in comune statuses soddisfatto	V	GOLD PLATINUM	SEG-X	ACTIVE BLOCKED	OUT
+TB-ENG-AUD-018	tiers soddisfatto segments nessuno in comune statuses non soddisfatto	V	GOLD PLATINUM	SEG-X	INACTIVE	OUT
+TB-ENG-AUD-019	tiers non soddisfatto segments vuoto statuses vuoto	V	BASE	-	-	OUT
+TB-ENG-AUD-020	tiers non soddisfatto segments vuoto statuses soddisfatto	V	BASE	-	ACTIVE BLOCKED	OUT
+TB-ENG-AUD-021	tiers non soddisfatto segments vuoto statuses non soddisfatto	V	BASE	-	INACTIVE	OUT
+TB-ENG-AUD-022	tiers non soddisfatto segments almeno uno in comune statuses vuoto	V	BASE	SEG-B SEG-X	-	OUT
+TB-ENG-AUD-023	tiers non soddisfatto segments almeno uno in comune statuses soddisfatto	V	BASE	SEG-B SEG-X	ACTIVE BLOCKED	OUT
+TB-ENG-AUD-024	tiers non soddisfatto segments almeno uno in comune statuses non soddisfatto	V	BASE	SEG-B SEG-X	INACTIVE	OUT
+TB-ENG-AUD-025	tiers non soddisfatto segments nessuno in comune statuses vuoto	V	BASE	SEG-X	-	OUT
+TB-ENG-AUD-026	tiers non soddisfatto segments nessuno in comune statuses soddisfatto	V	BASE	SEG-X	ACTIVE BLOCKED	OUT
+TB-ENG-AUD-027	tiers non soddisfatto segments nessuno in comune statuses non soddisfatto	V	BASE	SEG-X	INACTIVE	OUT
+TB-ENG-AUD-028	membro sconosciuto (nessuno snapshot) · pubblico vuoto	UNKNOWN	-	-	-	IN
+TB-ENG-AUD-029	membro sconosciuto · livelli [GOLD]	UNKNOWN	GOLD	-	-	OUT
+TB-ENG-AUD-030	membro sconosciuto · segmenti [SEG-A]	UNKNOWN	-	SEG-A	-	OUT
+TB-ENG-AUD-031	membro sconosciuto · stati [ACTIVE]	UNKNOWN	-	-	ACTIVE	OUT
+TB-ENG-AUD-032	pubblico null	V	NULL	-	-	IN
+TB-ENG-AUD-033	statuses ACTIVE membro ACTIVE	S:ACTIVE	-	-	ACTIVE	IN
+TB-ENG-AUD-034	statuses INACTIVE membro INACTIVE	S:INACTIVE	-	-	INACTIVE	IN
+TB-ENG-AUD-035	statuses BLOCKED membro BLOCKED	S:BLOCKED	-	-	BLOCKED	IN
+TB-ENG-AUD-036	statuses ANONYMIZED membro ANONYMIZED	S:ANONYMIZED	-	-	ANONYMIZED	IN

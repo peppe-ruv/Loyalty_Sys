@@ -1,0 +1,24 @@
+id	descrizione	op	input	expected
+TB-ENG-WRTY-001	1° tentativo fallito	AFTER	1:false	FAILED+1
+TB-ENG-WRTY-002	2° tentativo fallito	AFTER	2:false	FAILED+5
+TB-ENG-WRTY-003	3° tentativo fallito	AFTER	3:false	FAILED+15
+TB-ENG-WRTY-004	4° tentativo fallito	AFTER	4:false	GAVE_UP
+TB-ENG-WRTY-005	5° tentativo (Riprova dopo GAVE_UP) fallito	AFTER	5:false	GAVE_UP
+TB-ENG-WRTY-006	1° tentativo riuscito	AFTER	1:true	OK
+TB-ENG-WRTY-007	4° tentativo riuscito	AFTER	4:true	OK
+TB-ENG-WRTY-008	Riprova dopo GAVE_UP riuscita	AFTER	5:true	OK
+TB-ENG-WRTY-009	tentativo numero 0 (fuori dominio)	AFTER	0:false	GAVE_UP
+TB-ENG-WRTY-010	numero massimo di tentativi	MAX	-	4
+TB-ENG-WRTY-011	HTTP 199	SUCCESS	199	false
+TB-ENG-WRTY-012	HTTP 200	SUCCESS	200	true
+TB-ENG-WRTY-013	HTTP 204	SUCCESS	204	true
+TB-ENG-WRTY-014	HTTP 299	SUCCESS	299	true
+TB-ENG-WRTY-015	HTTP 300	SUCCESS	300	false
+TB-ENG-WRTY-016	HTTP 302 (redirect)	SUCCESS	302	false
+TB-ENG-WRTY-017	HTTP 404	SUCCESS	404	false
+TB-ENG-WRTY-018	HTTP 500	SUCCESS	500	false
+TB-ENG-WRTY-019	nessuna risposta (errore di rete o timeout)	SUCCESS	<null>	false
+TB-ENG-WRTY-020	Riprova su `PENDING`	RETRYABLE	PENDING	false
+TB-ENG-WRTY-021	Riprova su `OK`	RETRYABLE	OK	false
+TB-ENG-WRTY-022	Riprova su `FAILED`	RETRYABLE	FAILED	true
+TB-ENG-WRTY-023	Riprova su `GAVE_UP`	RETRYABLE	GAVE_UP	true

@@ -1,0 +1,8 @@
+id	descrizione	actor	http
+TB-ENG-WROL-001	webhook ADMIN	ADMIN:marta.admin	201
+TB-ENG-WROL-002	webhook MARKETING	MARKETING:luca.marketing	403
+TB-ENG-WROL-003	webhook LEGAL	LEGAL:elena.legal	403
+TB-ENG-WROL-004	webhook CARE	CARE:paolo.care	403
+TB-ENG-WROL-005	webhook ANALYST	ANALYST:sara.analyst	403
+TB-ENG-WROL-006	webhook intestazione assente	<none>	403
+TB-ENG-WROL-007	webhook intestazione non valida `PIPPO:x`	PIPPO:x	403

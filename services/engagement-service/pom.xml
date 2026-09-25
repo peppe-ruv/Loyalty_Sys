@@ -52,6 +52,10 @@
         <directory>${maven.multiModuleProjectDirectory}/contracts</directory>
         <targetPath>contracts</targetPath>
       </testResource>
+      <!-- Tabelle del testbook funzionale (docs/16 §1bis): CSV in src/test/resources/testbook/engagement. -->
+      <testResource>
+        <directory>src/test/resources</directory>
+      </testResource>
     </testResources>
     <resources>
       <resource>

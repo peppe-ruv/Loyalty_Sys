@@ -1,0 +1,11 @@
+id	descrizione	kind	field	value	http
+TB-ENG-EDL-001	titolo (campo sicuro)	CARD	title	"Nuovo titolo"	200
+TB-ENG-EDL-002	testo/descrizione (campo sicuro)	CARD	body	"Nuovo testo"	200
+TB-ENG-EDL-003	`endAt` (campo sicuro)	CARD	endAt	"2030-12-31T23:00:00Z"	200
+TB-ENG-EDL-004	priorità (campo sicuro)	CARD	priority	900	200
+TB-ENG-EDL-005	immagine (campo sicuro)	CARD	imageUrl	"/demo/contents/nuova.webp"	200
+TB-ENG-EDL-006	posizionamento (non sicuro)	CARD	placement	"HOME_HERO"	409
+TB-ENG-EDL-007	pubblico (non sicuro)	CARD	audience	{"tiers":["GOLD"]}	409
+TB-ENG-EDL-008	`startAt` (non sicuro)	CARD	startAt	"2020-01-01T00:00:00Z"	409
+TB-ENG-EDL-009	collegamento (non sicuro)	CARD	link	"REWARD:RWD-WEEKEND"	409
+TB-ENG-EDL-010	frequenza di un pop-up (non sicuro)	POPUP	frequency	"ALWAYS"	409
