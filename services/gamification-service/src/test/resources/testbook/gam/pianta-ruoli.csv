@@ -1,0 +1,7 @@
+id,descrizione,actor,expHttp
+TB-GAM-PLT-010,MARKETING non pianta istanti,MARKETING,403
+TB-GAM-PLT-011,LEGAL non pianta istanti,LEGAL,403
+TB-GAM-PLT-012,CARE non pianta istanti,CARE,403
+TB-GAM-PLT-013,ANALYST non pianta istanti,ANALYST,403
+TB-GAM-PLT-014,senza intestazione X-LH-Actor,NONE,403
+TB-GAM-PLT-015,ADMIN pianta un istante,ADMIN,200

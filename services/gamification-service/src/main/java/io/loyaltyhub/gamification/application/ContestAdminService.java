@@ -123,8 +123,10 @@ public class ContestAdminService implements ApprovalSource {
 
     /**
      * Modifica. Prima del {@code LIVE} tutto è modificabile (premi compresi); cambiare premi, periodo, distribuzione o
-     * seme cancella gli istanti generati. Da {@code LIVE}/{@code PAUSED} solo nome, descrizione e regolamento
-     * ({@code 409 CONTEST_LIVE_LOCKED}); {@code ENDED}/{@code ARCHIVED} non si modificano.
+     * seme cancella gli istanti generati. Da {@code LIVE}/{@code PAUSED} solo i campi sicuri di docs/03 §3.6 presenti
+     * nel concorso (nome, descrizione, {@code endAt}), senza toccare gli istanti già generati (docs/03 §7); il resto,
+     * regolamento compreso, → {@code 409 CONTEST_LIVE_LOCKED} (si duplica). {@code ENDED}/{@code ARCHIVED} non si
+     * modificano.
      */
     @Transactional
     public Contest update(String id, ContestRequest r) {
@@ -147,14 +149,23 @@ public class ContestAdminService implements ApprovalSource {
                 r.distribution() == null ? c.distribution() : upper(r.distribution()), or(r.seed(), c.seed()),
                 c.instantsGeneratedAt(), c.status(), c.version(), c.createdBy(), c.updatedAt());
         boolean instantsAffected = r.prizes() != null || !Objects.equals(m.startAt(), c.startAt())
-                || !Objects.equals(m.endAt(), c.endAt()) || !Objects.equals(m.distribution(), c.distribution())
-                || m.seed() != c.seed();
+                || !Objects.equals(m.endAt(), c.endAt())
+                || !Objects.equals(m.distribution(), c.distribution()) || m.seed() != c.seed();
         boolean rulesChanged = !Objects.equals(m.mechanic(), c.mechanic()) || m.freePlayDaily() != c.freePlayDaily()
                 || !Objects.equals(m.maxPlaysPerMemberPerDay(), c.maxPlaysPerMemberPerDay())
-                || !Objects.equals(m.maxWinsPerMember(), c.maxWinsPerMember());
-        if (c.locked() && (instantsAffected || rulesChanged)) {
-            throw LhException.conflict("CONTEST_LIVE_LOCKED",
-                    "Un concorso LIVE non cambia premi, periodo, istanti o regole di gioco: solo nome, descrizione e regolamento.");
+                || !Objects.equals(m.maxWinsPerMember(), c.maxWinsPerMember())
+                || !Objects.equals(m.rulesText(), c.rulesText());
+        if (c.locked()) {
+            // docs/03 §3.6: da LIVE solo i campi sicuri (nome, descrizione, endAt); gli istanti restano quelli
+            // generati (§7): quelli oltre un endAt anticipato diventano VOID alla chiusura del concorso.
+            boolean unsafe = r.prizes() != null || !Objects.equals(m.startAt(), c.startAt())
+                    || !Objects.equals(m.distribution(), c.distribution()) || m.seed() != c.seed() || rulesChanged;
+            if (unsafe) {
+                throw LhException.conflict("CONTEST_LIVE_LOCKED",
+                        "Un concorso LIVE non cambia premi, periodo di inizio, istanti, regole di gioco o regolamento: "
+                                + "solo nome, descrizione e data di fine (per il resto si duplica).");
+            }
+            instantsAffected = false;
         }
         List<Prize> prizes = r.prizes() != null ? prizes(c.id(), r.prizes()) : contests.prizes(c.id());
         validate(m, prizes);
@@ -415,15 +426,15 @@ public class ContestAdminService implements ApprovalSource {
     private static void validate(Contest c, List<Prize> prizes) {
         List<String> problems = new ArrayList<>();
         if (c.name() == null || c.name().isBlank()) problems.add("nome obbligatorio");
-        if (!Contest.MECHANICS.contains(c.mechanic())) problems.add("meccanica tra " + Contest.MECHANICS);
-        if (!Contest.DISTRIBUTIONS.contains(c.distribution())) problems.add("distribuzione tra " + Contest.DISTRIBUTIONS);
+        if (c.mechanic() == null || !Contest.MECHANICS.contains(c.mechanic())) problems.add("meccanica tra " + Contest.MECHANICS);
+        if (c.distribution() == null || !Contest.DISTRIBUTIONS.contains(c.distribution())) problems.add("distribuzione tra " + Contest.DISTRIBUTIONS);
         if (c.startAt() == null || c.endAt() == null || !c.endAt().isAfter(c.startAt())) problems.add("periodo non valido");
         if (c.maxPlaysPerMemberPerDay() != null && c.maxPlaysPerMemberPerDay() < 1) problems.add("limite giornaliero ≥ 1");
         Set<String> codes = new HashSet<>();
         for (Prize p : prizes) {
             if (p.code() == null || !codes.add(p.code())) problems.add("codici premio mancanti o ripetuti");
             if (p.name() == null || p.name().isBlank()) problems.add("nome premio obbligatorio");
-            if (!Prize.TYPES.contains(p.type())) problems.add("tipo premio tra " + Prize.TYPES);
+            if (p.type() == null || !Prize.TYPES.contains(p.type())) problems.add("tipo premio tra " + Prize.TYPES);
             if ("POINTS".equals(p.type()) && (p.points() == null || p.points() <= 0)) problems.add(p.code() + ": punti > 0");
             if ("COUPON".equals(p.type()) && (p.rewardCode() == null || p.rewardCode().isBlank())) problems.add(p.code() + ": premio coupon senza rewardCode");
             if (p.quantityTotal() < 1) problems.add(p.code() + ": quantità ≥ 1");

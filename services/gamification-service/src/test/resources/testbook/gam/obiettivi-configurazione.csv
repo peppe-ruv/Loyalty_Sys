@@ -1,0 +1,33 @@
+id,descrizione,role,overrides,expHttp
+TB-GAM-ACF-001,metrica sconosciuta FOO,MARKETING,metric=FOO,422
+TB-GAM-ACF-002,metrica assente,MARKETING,metric=~,422
+TB-GAM-ACF-003,traguardo 0 (min-1),MARKETING,target=0,422
+TB-GAM-ACF-004,traguardo 1 (min),MARKETING,target=1,201
+TB-GAM-ACF-005,traguardo negativo,MARKETING,target=-1,422
+TB-GAM-ACF-006,SUM senza campo da sommare,MARKETING,metric=SUM,422
+TB-GAM-ACF-007,SUM con campo data.amount,MARKETING,metric=SUM;sumField=data.amount,201
+TB-GAM-ACF-008,STREAK senza unità,MARKETING,metric=STREAK,422
+TB-GAM-ACF-009,STREAK con unità MONTH,MARKETING,metric=STREAK;streakUnit=MONTH,422
+TB-GAM-ACF-010,STREAK con unità DAY,MARKETING,metric=STREAK;streakUnit=DAY,201
+TB-GAM-ACF-011,STREAK con unità WEEK,MARKETING,metric=STREAK;streakUnit=WEEK,201
+TB-GAM-ACF-012,AMBIGUO DISTINCT_TYPES con traguardo oltre i tipi osservati,MARKETING,metric=DISTINCT_TYPES;types=tb.acf.a|tb.acf.b;target=3,422
+TB-GAM-ACF-013,DISTINCT_TYPES con traguardo pari ai tipi osservati,MARKETING,metric=DISTINCT_TYPES;types=tb.acf.a|tb.acf.b;target=2,201
+TB-GAM-ACF-014,nessun tipo di azione,MARKETING,types=,422
+TB-GAM-ACF-015,badge collegato inesistente,MARKETING,badgeCode=BDG-NON-ESISTE,422
+TB-GAM-ACF-016,badge collegato esistente,MARKETING,badgeCode=BDG-FIRST,201
+TB-GAM-ACF-017,periodo DAY non ammesso (Q-159),MARKETING,period=DAY,422
+TB-GAM-ACF-018,periodo WEEK non ammesso (Q-159),MARKETING,period=WEEK,422
+TB-GAM-ACF-019,periodo NONE non ammesso: vale EVER (Q-159),MARKETING,period=NONE,422
+TB-GAM-ACF-020,periodo MONTH,MARKETING,period=MONTH,201
+TB-GAM-ACF-021,periodo EDITION,MARKETING,period=EDITION,201
+TB-GAM-ACF-022,periodo EVER (docs/08 BO-15 e docs/10),MARKETING,period=EVER,201
+TB-GAM-ACF-023,periodo sconosciuto YEAR,MARKETING,period=YEAR,422
+TB-GAM-ACF-024,stato PAUSED fuori enumerato,MARKETING,status=PAUSED,422
+TB-GAM-ACF-025,AMBIGUO codice senza prefisso ACH-,MARKETING,code=OBJ-TESTBOOK,422
+TB-GAM-ACF-026,codice già usato,MARKETING,code=@DUP,409
+TB-GAM-ACF-027,nome di soli spazi,MARKETING,name=   ,422
+TB-GAM-ACF-028,ADMIN crea un obiettivo,ADMIN,-,201
+TB-GAM-ACF-029,LEGAL non crea obiettivi,LEGAL,-,403
+TB-GAM-ACF-030,CARE non crea obiettivi,CARE,-,403
+TB-GAM-ACF-031,ANALYST non crea obiettivi,ANALYST,-,403
+TB-GAM-ACF-032,senza intestazione X-LH-Actor,NONE,-,403

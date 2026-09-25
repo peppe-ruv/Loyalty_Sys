@@ -937,10 +937,10 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
 #### US-E06-01 · Creare un concorso e il suo montepremi
 *Come* MARKETING, *voglio* configurare un instant win con meccanica, periodo, giocata gratuita, limiti e premi, *così che* possa inviarlo a LEGAL.
 - **Tocca**: F-IW-01, F-IW-02 · BO-14 · `POST/PUT /v1/contests`, `…/duplicate` · GAM-05, GAM-06, GAM-12, GAM-21 · Q-56, Q-113.
-- **Decisioni**: codice non valido → 422 `CONTEST_INVALID` · duplicato → 409 · codice → 409 `CODE_IMMUTABLE` · ENDED/ARCHIVED → 409 `CONTEST_NOT_EDITABLE` · LIVE/PAUSED: premi/periodo/istanti/regole → 409 `CONTEST_LIVE_LOCKED` · prima di LIVE: cambiare premi/periodo/distribuzione/seme cancella gli istanti · versione → 409.
+- **Decisioni**: codice non valido → 422 `CONTEST_INVALID` · duplicato → 409 · codice → 409 `CODE_IMMUTABLE` · ENDED/ARCHIVED → 409 `CONTEST_NOT_EDITABLE` · LIVE/PAUSED: solo nome, descrizione, `endAt` (docs/03 §3.6, istanti invariati); premi/inizio/istanti/regole/regolamento → 409 `CONTEST_LIVE_LOCKED` · prima di LIVE: cambiare premi/periodo/distribuzione/seme cancella gli istanti · versione → 409.
 - **Criteri**:
   1. Dato un concorso in DRAFT con istanti generati, quando cambio il periodo, allora gli istanti vanno rigenerati.
-  2. ✗ Dato IW-AUTUNNO LIVE, quando cambio un premio, allora 409 `CONTEST_LIVE_LOCKED`; il regolamento si può cambiare.
+  2. ✗ Dato IW-AUTUNNO LIVE, quando cambio un premio, allora 409 `CONTEST_LIVE_LOCKED` (anche per il regolamento); nome, descrizione e proroga di `endAt` sono ammessi.
   3. Dato *Duplica*, allora `<code>-COPY-1` in DRAFT, premi a quantità piena, istanti da generare.
 - **Testbook**: TB-GAM (da coprire).
 
@@ -2227,7 +2227,7 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | GAM-05 `ContestAdminService#create` | 422 `CONTEST_INVALID` (codice) · 409 `CODE_TAKEN`; seme dal codice se assente | F-IW-01, F-IW-03 | US-E06-01 | TB-GAM |
 | GAM-06 `#update` | 409 `CODE_IMMUTABLE` · 409 `VERSION_CONFLICT` | docs/06 §2, Q-112 | US-E06-01 | TB-GAM |
 | ↳ | 409 `CONTEST_NOT_EDITABLE` (ENDED, ARCHIVED) | nessuna | US-E06-01 | TB-GAM |
-| ↳ | `LIVE`/`PAUSED`: premi, periodo, istanti o regole di gioco ⇒ 409 `CONTEST_LIVE_LOCKED`; nome, descrizione, regolamento ammessi | gamification §3 | US-E06-01 | TB-GAM |
+| ↳ | `LIVE`/`PAUSED`: premi, inizio, istanti, regole di gioco o regolamento ⇒ 409 `CONTEST_LIVE_LOCKED`; nome, descrizione, `endAt` ammessi (docs/03 §3.6) | gamification §3 | US-E06-01 | TB-GAM |
 | ↳ | prima di `LIVE`: cambio di premi/periodo/distribuzione/seme ⇒ istanti cancellati | docs/03 §6 | US-E06-01 | TB-GAM |
 | GAM-07 `#transition` | verso `LIVE` senza istanti ⇒ 422 `INSTANTS_NOT_GENERATED` | gamification §3 | US-E06-04 | TB-GAM |
 | ↳ | policy `CONTEST` ⇒ LEGAL sempre (vedi CMN-04…07); `contest.status.changed` | docs/06 §7 | US-E06-04, US-E08-01 | TB-GAM |

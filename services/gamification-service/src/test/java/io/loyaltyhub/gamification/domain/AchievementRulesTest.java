@@ -66,7 +66,7 @@ class AchievementRulesTest {
         assertThat(AchievementRules.matches(null, data("{}"))).isTrue();
     }
 
-    /** docs/03 §3.3: campo assente → la foglia è falsa, anche con {@code neq} (il filtro non ha {@code nexists}). */
+    /** docs/03 §3.3: campo assente → la foglia è falsa, anche con {@code neq} (solo {@code nexists} è vera). */
     @Test
     void absentFieldMakesEveryLeafFalse() {
         JsonNode neq = data("{\"op\":\"all\",\"rules\":[{\"field\":\"data.channel\",\"cmp\":\"neq\",\"value\":\"STORE\"}]}");

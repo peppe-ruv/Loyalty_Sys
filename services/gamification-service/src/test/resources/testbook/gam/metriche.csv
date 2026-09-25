@@ -1,0 +1,14 @@
+id,descrizione,metric,sumField,actions,expValues
+TB-GAM-MET-001,COUNT: +1 per azione,COUNT,-,A;A;A,1;2;3
+TB-GAM-MET-002,AMBIGUO SUM: 45.90 troncato a 45,SUM,data.amount,A=45.90,45
+TB-GAM-MET-003,AMBIGUO SUM: 45.90 e 54.10 danno 99,SUM,data.amount,A=45.90;A=54.10,45;99
+TB-GAM-MET-004,SUM: importo 0,SUM,data.amount,A=0,0
+TB-GAM-MET-005,AMBIGUO SUM: importo negativo ignorato,SUM,data.amount,A=-10,0
+TB-GAM-MET-006,SUM: campo assente,SUM,data.amount,A=miss,0
+TB-GAM-MET-007,AMBIGUO SUM: campo testuale ignorato,SUM,data.amount,A=s50,0
+TB-GAM-MET-008,AMBIGUO SUM: campo nella forma di docs/10 (tipo.data.campo),SUM,purchase.completed.data.amount,A=30,30
+TB-GAM-MET-009,SUM: campo annidato data.order.total,SUM,data.order.total,A=n12,12
+TB-GAM-MET-010,DISTINCT_TYPES: A B A C,DISTINCT_TYPES,-,A;B;A;C,1;2;2;3
+TB-GAM-MET-011,DISTINCT_TYPES: tipo ripetuto,DISTINCT_TYPES,-,A;A,1;1
+TB-GAM-MET-012,SUM: importo molto grande (10^12),SUM,data.amount,A=1000000000000,1000000000000
+TB-GAM-MET-013,AMBIGUO SUM: 0.99 troncato a 0,SUM,data.amount,A=0.99,0

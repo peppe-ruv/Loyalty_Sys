@@ -128,8 +128,8 @@ public class LeaderboardService {
         String name = r.name() != null ? r.name().trim() : cur == null ? null : cur.name();
         List<String> problems = new ArrayList<>();
         if (name == null || name.isBlank()) problems.add("nome obbligatorio");
-        if (!Leaderboard.METRICS.contains(metric)) problems.add("metrica tra " + Leaderboard.METRICS);
-        if (!Leaderboard.PERIODS.contains(period)) problems.add("periodo tra " + Leaderboard.PERIODS);
+        if (metric == null || !Leaderboard.METRICS.contains(metric)) problems.add("metrica tra " + Leaderboard.METRICS);
+        if (period == null || !Leaderboard.PERIODS.contains(period)) problems.add("periodo tra " + Leaderboard.PERIODS);
         if ("ACTION_COUNT".equals(metric) && types.isEmpty()) problems.add("ACTION_COUNT richiede almeno un tipo di azione");
         if (topN < 3 || topN > 50) problems.add("top N tra 3 e 50");
         if (!"ACTIVE".equals(status) && !"INACTIVE".equals(status)) problems.add("stato ACTIVE o INACTIVE");

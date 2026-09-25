@@ -8,6 +8,7 @@ import java.time.ZoneId;
 import java.time.temporal.IsoFields;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.IntPredicate;
 
 /**
  * Regole pure degli obiettivi (docs/03 §8): chiave di periodo, filtro sui dati dell'azione e avanzamento per metrica.
@@ -55,20 +56,51 @@ public final class AchievementRules {
     }
 
     /**
-     * Filtro opzionale sui dati dell'azione: {@code {"op":"all","rules":[{"field":"data.amount","cmp":"gte","value":50}]}}
-     * con {@code eq, neq, gt, gte, lt, lte, in}. Nessun filtro → passa. Campo assente o {@code null} → foglia falsa.
+     * Filtro opzionale sui dati dell'azione (docs/03 §8): albero di condizioni con la grammatica di docs/03 §3.3
+     * ristretta a {@code data.*}, es. {@code {"op":"all","rules":[{"field":"data.amount","cmp":"gte","value":50}]}}.
+     * Gruppi {@code all/any/not} annidabili; comparatori {@code eq, neq, gt, gte, lt, lte, in, nin, contains, ncontains,
+     * exists, nexists, between, startsWith}; campi su elenco {@code items[*].x} veri se almeno un elemento soddisfa.
+     * Campo assente o {@code null} → foglia falsa (tranne {@code nexists}); tipi incompatibili → falsa, mai eccezione.
+     * Stessa semantica del motore campagne ({@code ConditionEvaluator} di campaign-service). Nessun filtro → passa.
      */
     public static boolean matches(JsonNode filter, JsonNode data) {
-        if (filter == null || filter.isNull() || !filter.has("rules")) {
+        return eval(filter, data);
+    }
+
+    private static boolean eval(JsonNode node, JsonNode data) {
+        if (node == null || node.isNull() || node.isEmpty()) {
+            return true; // nessuna condizione = sempre vero
+        }
+        if (node.has("op") || node.has("rules")) { // {"rules": …} senza op = all (forma già accettata)
+            JsonNode rules = node.path("rules");
+            return switch (node.path("op").asString("all")) {
+                case "any" -> anyOf(rules, data);
+                case "not" -> !allOf(rules, data);
+                default -> allOf(rules, data);
+            };
+        }
+        return leaf(node, data);
+    }
+
+    private static boolean allOf(JsonNode rules, JsonNode data) {
+        for (JsonNode r : rules) {
+            if (!eval(r, data)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean anyOf(JsonNode rules, JsonNode data) {
+        if (rules.isEmpty()) {
             return true;
         }
-        boolean any = "any".equals(filter.path("op").asString("all"));
-        boolean result = !any;
-        for (JsonNode r : filter.path("rules")) {
-            boolean ok = rule(r, field(data, r.path("field").asString("")));
-            result = any ? result || ok : result && ok;
+        for (JsonNode r : rules) {
+            if (eval(r, data)) {
+                return true;
+            }
         }
-        return result;
+        return false;
     }
 
     /**
@@ -103,50 +135,219 @@ public final class AchievementRules {
         };
     }
 
+    /** Campo di {@code data} per {@code SUM}: valore del path (senza {@code [*]}), {@code null} se assente. */
     static JsonNode field(JsonNode data, String path) {
         if (data == null || path.isBlank()) {
             return null;
         }
-        String clean = path.startsWith("data.") ? path.substring(5) : path;
-        int dot = clean.lastIndexOf("data.");
-        if (dot > 0) {
-            clean = clean.substring(dot + 5); // es. "purchase.completed.data.amount" (docs/10) → "amount"
-        }
         JsonNode node = data;
-        for (String seg : clean.split("\\.")) {
+        for (String seg : dataPath(path).split("\\.")) {
             node = node == null ? null : node.get(seg);
         }
         return node;
     }
 
-    private static boolean rule(JsonNode r, JsonNode actual) {
-        JsonNode expected = r.path("value");
-        String cmp = r.path("cmp").asString("eq");
-        if (actual == null || actual.isNull()) {
-            // docs/03 §3.3: campo assente → foglia falsa con ogni comparatore (il filtro non ha nexists), come nel motore campagne.
-            return false;
+    /** {@code data.amount} → {@code amount}; {@code purchase.completed.data.amount} (forma di docs/10) → {@code amount}. */
+    private static String dataPath(String path) {
+        String clean = path.startsWith("data.") ? path.substring(5) : path;
+        int dot = clean.lastIndexOf("data.");
+        return dot > 0 ? clean.substring(dot + 5) : clean;
+    }
+
+    // ---------- foglie: docs/03 §3.3, stessa semantica di ConditionEvaluator (campaign-service) ----------
+
+    private static final Object ABSENT = new Object();
+
+    private static boolean leaf(JsonNode node, JsonNode data) {
+        String field = node.path("field").asString(null);
+        if (field == null) {
+            return true;
         }
-        if ("in".equals(cmp)) {
-            for (JsonNode e : expected) {
-                if (e.asString("").equals(actual.asString(""))) {
+        String cmp = node.path("cmp").asString("eq");
+        Object actual = data == null || field.isBlank() ? ABSENT : navigate(data, dataPath(field));
+        return compare(cmp, actual, node.get("value"));
+    }
+
+    /** Naviga {@code a.b} o {@code arr[*].c}: scalare, {@code List} (più valori o array) o {@link #ABSENT}. */
+    private static Object navigate(JsonNode root, String path) {
+        List<JsonNode> current = new ArrayList<>();
+        current.add(root);
+        for (String seg : path.split("\\.")) {
+            boolean wildcard = seg.endsWith("[*]");
+            String key = wildcard ? seg.substring(0, seg.length() - 3) : seg;
+            List<JsonNode> next = new ArrayList<>();
+            for (JsonNode n : current) {
+                JsonNode child = n.get(key);
+                if (child == null || child.isNull()) {
+                    continue;
+                }
+                if (wildcard && child.isArray()) {
+                    child.forEach(next::add);
+                } else {
+                    next.add(child);
+                }
+            }
+            current = next;
+            if (current.isEmpty()) {
+                return ABSENT;
+            }
+        }
+        if (current.size() == 1) {
+            return toObject(current.get(0));
+        }
+        List<Object> values = new ArrayList<>();
+        current.forEach(n -> values.add(toObject(n)));
+        return values;
+    }
+
+    private static boolean compare(String cmp, Object actual, JsonNode value) {
+        if ("exists".equals(cmp)) {
+            return actual != ABSENT;
+        }
+        if ("nexists".equals(cmp)) {
+            return actual == ABSENT;
+        }
+        if (actual == ABSENT) {
+            return false; // campo assente → foglia falsa
+        }
+        // Su elenco: vero se almeno un elemento soddisfa; solo contains/ncontains guardano l'elenco intero.
+        if (actual instanceof List<?> list && !"contains".equals(cmp) && !"ncontains".equals(cmp)) {
+            for (Object el : list) {
+                if (compareScalar(cmp, el, value)) {
                     return true;
                 }
             }
             return false;
         }
-        if (actual.isNumber() && expected.isNumber()) {
-            int c = actual.decimalValue().compareTo(expected.decimalValue());
-            return switch (cmp) {
-                case "neq" -> c != 0;
-                case "gt" -> c > 0;
-                case "gte" -> c >= 0;
-                case "lt" -> c < 0;
-                case "lte" -> c <= 0;
-                default -> c == 0;
-            };
-        }
-        boolean eq = actual.asString("").equals(expected.asString(""));
-        return "neq".equals(cmp) ? !eq : "eq".equals(cmp) && eq;
+        return compareScalar(cmp, actual, value);
     }
 
+    /** Tipi incompatibili → falsa per ogni comparatore, negazioni comprese ({@code neq}, {@code nin}, {@code ncontains}). */
+    private static boolean compareScalar(String cmp, Object actual, JsonNode value) {
+        return switch (cmp) {
+            case "eq" -> equalsValue(actual, value);
+            case "neq" -> comparable(actual, value) && !equalsValue(actual, value);
+            case "gt" -> numeric(actual, value, c -> c > 0);
+            case "gte" -> numeric(actual, value, c -> c >= 0);
+            case "lt" -> numeric(actual, value, c -> c < 0);
+            case "lte" -> numeric(actual, value, c -> c <= 0);
+            case "in" -> value != null && value.isArray() && inList(actual, value);
+            case "nin" -> value != null && value.isArray() && allComparable(actual, value) && !inList(actual, value);
+            case "contains" -> containsCompatible(actual, value) && contains(actual, value);
+            case "ncontains" -> containsCompatible(actual, value) && !contains(actual, value);
+            case "between" -> between(actual, value);
+            case "startsWith" -> actual instanceof String s && value != null && value.isString() && s.startsWith(value.asString());
+            // SPEC-GAP: Q-A7 — comparatore sconosciuto: tra numeri vale come eq (comportamento conservato), altrimenti
+            // falso; il motore campagne lo tratta sempre come falso.
+            default -> actual instanceof Double && value != null && value.isNumber() && equalsValue(actual, value);
+        };
+    }
+
+    /** Numero con numero (testo numerico compreso, come nel motore campagne), booleano con booleano, testo con testo. */
+    // SPEC-GAP: Q-215 — testo numerico contro numero: confrontato come numero, come in campaign-service.
+    private static boolean comparable(Object actual, JsonNode value) {
+        if (actual == null || actual == ABSENT || value == null || value.isNull()) {
+            return false;
+        }
+        if (value.isNumber()) {
+            return toDouble(actual) != null;
+        }
+        if (value.isBoolean()) {
+            return actual instanceof Boolean;
+        }
+        return value.isString() && actual instanceof String;
+    }
+
+    private static boolean allComparable(Object actual, JsonNode values) {
+        for (JsonNode v : values) {
+            if (!comparable(actual, v)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean equalsValue(Object actual, JsonNode value) {
+        if (!comparable(actual, value)) {
+            return false;
+        }
+        if (value.isNumber()) {
+            return toDouble(actual) == value.asDouble();
+        }
+        if (value.isBoolean()) {
+            return (Boolean) actual == value.asBoolean();
+        }
+        return actual.equals(value.asString());
+    }
+
+    /** {@code contains}/{@code ncontains}: su elenco (appartenenza) o su testo con un valore testuale (sottostringa). */
+    private static boolean containsCompatible(Object actual, JsonNode value) {
+        return value != null && !value.isNull() && (actual instanceof List<?> || (actual instanceof String && value.isString()));
+    }
+
+    private static boolean contains(Object actual, JsonNode value) {
+        if (actual instanceof List<?> list) {
+            for (Object el : list) {
+                if (equalsValue(el, value)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return actual instanceof String s && s.contains(value.asString());
+    }
+
+    private static boolean numeric(Object actual, JsonNode value, IntPredicate cmp) {
+        Double a = toDouble(actual);
+        return a != null && value != null && value.isNumber() && cmp.test(Double.compare(a, value.asDouble()));
+    }
+
+    private static boolean inList(Object actual, JsonNode values) {
+        for (JsonNode v : values) {
+            if (equalsValue(actual, v)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean between(Object actual, JsonNode value) {
+        Double a = toDouble(actual);
+        if (a == null || value == null || !value.isArray() || value.size() < 2) {
+            return false;
+        }
+        return a >= value.get(0).asDouble() && a <= value.get(1).asDouble();
+    }
+
+    private static Double toDouble(Object o) {
+        if (o instanceof Double d) {
+            return d;
+        }
+        if (o instanceof String s) {
+            try {
+                return Double.parseDouble(s);
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static Object toObject(JsonNode n) {
+        if (n == null || n.isNull() || n.isMissingNode()) {
+            return ABSENT;
+        }
+        if (n.isNumber()) {
+            return n.asDouble();
+        }
+        if (n.isBoolean()) {
+            return n.asBoolean();
+        }
+        if (n.isArray()) {
+            List<Object> list = new ArrayList<>();
+            n.forEach(e -> list.add(toObject(e)));
+            return list;
+        }
+        return n.asString("");
+    }
 }

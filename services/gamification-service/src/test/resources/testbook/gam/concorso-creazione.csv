@@ -1,0 +1,36 @@
+id,descrizione,role,field,value,expHttp,expField
+TB-GAM-EDT-001,codice di 2 caratteri (min-1),MARKETING,code,ab,422,-
+TB-GAM-EDT-002,codice di 3 caratteri (min),MARKETING,code,T3X,201,code=T3X
+TB-GAM-EDT-003,codice di 40 caratteri (max),MARKETING,code,@40,201,-
+TB-GAM-EDT-004,codice di 41 caratteri (max+1),MARKETING,code,@41,422,-
+TB-GAM-EDT-005,codice che inizia con una cifra,MARKETING,code,1ABC,422,-
+TB-GAM-EDT-006,codice con trattino basso,MARKETING,code,IW_UNDERSCORE,422,-
+TB-GAM-EDT-007,codice assente,MARKETING,code,-,422,-
+TB-GAM-EDT-008,AMBIGUO codice minuscolo normalizzato,MARKETING,code,iw-lower-case,201,code=IW-LOWER-CASE
+TB-GAM-EDT-009,codice già usato,MARKETING,code,@DUP,409,-
+TB-GAM-EDT-010,nome di soli spazi,MARKETING,name,"   ",422,-
+TB-GAM-EDT-011,nome assente,MARKETING,name,-,422,-
+TB-GAM-EDT-012,meccanica WHEEL,MARKETING,mechanic,WHEEL,201,mechanic=WHEEL
+TB-GAM-EDT-013,meccanica SCRATCH,MARKETING,mechanic,SCRATCH,201,mechanic=SCRATCH
+TB-GAM-EDT-014,meccanica BOX (Q-56),MARKETING,mechanic,BOX,201,mechanic=BOX
+TB-GAM-EDT-015,meccanica GIFT (Q-56: in API vale BOX),MARKETING,mechanic,GIFT,422,-
+TB-GAM-EDT-016,meccanica sconosciuta SPIN,MARKETING,mechanic,SPIN,422,-
+TB-GAM-EDT-017,meccanica assente,MARKETING,mechanic,-,422,-
+TB-GAM-EDT-018,AMBIGUO distribuzione assente (default UNIFORM),MARKETING,distribution,-,201,distribution=UNIFORM
+TB-GAM-EDT-019,distribuzione BUSINESS_HOURS,MARKETING,distribution,BUSINESS_HOURS,201,distribution=BUSINESS_HOURS
+TB-GAM-EDT-020,distribuzione sconosciuta RANDOM,MARKETING,distribution,RANDOM,422,-
+TB-GAM-EDT-021,endAt uguale a startAt,MARKETING,endAt,=start,422,-
+TB-GAM-EDT-022,endAt 1 s prima di startAt,MARKETING,endAt,start-1s,422,-
+TB-GAM-EDT-023,endAt 1 ms dopo startAt,MARKETING,endAt,start+1ms,201,-
+TB-GAM-EDT-024,startAt assente,MARKETING,startAt,-,422,-
+TB-GAM-EDT-025,limite giornaliero 0 (min-1),MARKETING,maxPlaysPerMemberPerDay,0,422,-
+TB-GAM-EDT-026,limite giornaliero 1 (min),MARKETING,maxPlaysPerMemberPerDay,1,201,maxPlaysPerMemberPerDay=1
+TB-GAM-EDT-027,limite giornaliero negativo,MARKETING,maxPlaysPerMemberPerDay,-1,422,-
+TB-GAM-EDT-028,limite giornaliero assente (nessun tetto),MARKETING,maxPlaysPerMemberPerDay,-,201,-
+TB-GAM-EDT-029,seme indicato 42,MARKETING,seed,42,201,seed=42
+TB-GAM-EDT-030,seme assente: il concorso ne salva uno,MARKETING,seed,-,201,seed=*
+TB-GAM-EDT-031,ADMIN crea un concorso,ADMIN,-,-,201,-
+TB-GAM-EDT-032,LEGAL non crea concorsi,LEGAL,-,-,403,-
+TB-GAM-EDT-033,CARE non crea concorsi,CARE,-,-,403,-
+TB-GAM-EDT-034,ANALYST non crea concorsi,ANALYST,-,-,403,-
+TB-GAM-EDT-035,senza intestazione X-LH-Actor,NONE,-,-,403,-

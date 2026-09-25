@@ -9,8 +9,9 @@ import { DISTRIBUTION_LABEL, MECHANIC_LABEL, isLocked, isoToLocalInput, localInp
 
 // Scheda `setup` di BO-14 (docs/08 §BO-14): generale, meccanica, periodo, giocata gratuita, limiti, regolamento.
 // Prima del LIVE tutto è modificabile (cambiare periodo, distribuzione o seme cancella gli istanti generati); da LIVE
-// solo nome, descrizione e regolamento (409 CONTEST_LIVE_LOCKED); ENDED e ARCHIVED in sola lettura. Si inviano solo i
-// campi cambiati: una data riscritta identica non deve invalidare gli istanti.
+// solo i campi sicuri di docs/03 §3.6 — nome, descrizione, data di fine — senza toccare gli istanti (il resto, regolamento
+// compreso, → 409 CONTEST_LIVE_LOCKED); ENDED e ARCHIVED in sola lettura. Si inviano solo i campi cambiati: una data
+// riscritta identica non deve invalidare gli istanti.
 
 export interface ContestInput {
   code?: string;
@@ -42,7 +43,7 @@ interface FormState {
   seed: string;
 }
 
-const LIVE_FIELDS = new Set<keyof FormState>(["name", "description", "rulesText"]);
+const LIVE_FIELDS = new Set<keyof FormState>(["name", "description", "endAt"]);
 const INSTANT_FIELDS = new Set<keyof FormState>(["startAt", "endAt", "distribution", "seed"]);
 
 function fromContest(c: Contest | null): FormState {
@@ -103,7 +104,8 @@ export function ContestSetupForm({
   const editable = (k: keyof FormState) => canEdit && !readOnly && (!locked || LIVE_FIELDS.has(k)) && (k !== "code" || creating);
   const changed = new Set((Object.keys(f) as (keyof FormState)[]).filter((k) => f[k] !== initial[k]));
   const dirty = creating || changed.size > 0;
-  const touchesInstants = !creating && contest?.instantsGeneratedAt != null && [...changed].some((k) => INSTANT_FIELDS.has(k));
+  const touchesInstants =
+    !creating && !locked && contest?.instantsGeneratedAt != null && [...changed].some((k) => INSTANT_FIELDS.has(k));
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setF((prev) => ({ ...prev, [k]: v }));
 
   return (
@@ -116,8 +118,8 @@ export function ContestSetupForm({
     >
       {locked && !readOnly ? (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Concorso {status}: periodo, meccanica, regole di gioco, premi e istanti sono bloccati. Si modificano solo nome,
-          descrizione e regolamento.
+          Concorso {status}: inizio, meccanica, regole di gioco, regolamento, premi e istanti sono bloccati. Si modificano
+          solo nome, descrizione e data di fine (gli istanti restano quelli generati); per il resto duplica il concorso.
         </p>
       ) : null}
 

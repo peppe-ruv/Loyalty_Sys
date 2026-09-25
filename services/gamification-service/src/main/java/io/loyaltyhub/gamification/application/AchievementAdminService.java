@@ -110,8 +110,8 @@ public class AchievementAdminService {
         String name = r.name() != null ? r.name().trim() : cur == null ? null : cur.name();
         List<String> problems = new ArrayList<>();
         if (name == null || name.isBlank()) problems.add("nome obbligatorio");
-        if (!Achievement.METRICS.contains(metric)) problems.add("metrica tra " + Achievement.METRICS);
-        if (!Achievement.PERIODS.contains(period)) problems.add("periodo tra " + Achievement.PERIODS);
+        if (metric == null || !Achievement.METRICS.contains(metric)) problems.add("metrica tra " + Achievement.METRICS);
+        if (period == null || !Achievement.PERIODS.contains(period)) problems.add("periodo tra " + Achievement.PERIODS);
         if (types.isEmpty()) problems.add("almeno un tipo di azione");
         if (target < 1) problems.add("traguardo ≥ 1");
         if ("SUM".equals(metric) && sumField == null) problems.add("SUM richiede il campo da sommare");

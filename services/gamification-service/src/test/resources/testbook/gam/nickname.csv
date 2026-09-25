@@ -1,0 +1,6 @@
+id,descrizione,data,expected
+TB-GAM-NCK-001,nickname presente,'{"nickname":"Giuly","firstName":"Giulia","lastName":"Rossi"}',Giuly
+TB-GAM-NCK-002,nickname assente: nome e iniziale del cognome,'{"firstName":"Giulia","lastName":"Rossi"}',Giulia R.
+TB-GAM-NCK-003,nickname di soli spazi: nome e iniziale del cognome,'{"nickname":"  ","firstName":"Giulia","lastName":"Rossi"}',Giulia R.
+TB-GAM-NCK-004,cognome vuoto: solo il nome,'{"firstName":"Giulia","lastName":""}',Giulia
+TB-GAM-NCK-005,AMBIGUO nome assente: nessun nickname,'{"lastName":"Rossi"}',-
