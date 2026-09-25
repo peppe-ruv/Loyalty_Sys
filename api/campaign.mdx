@@ -1,3 +1,282 @@
 ---
-title: "campaign"
+title: "Campaign Service: API del motore regole e valutazioni"
+sidebarTitle: "Campaign"
+description: "API reference del campaign-service (port 8083). Motore regole che valuta ogni azione contro le campagne LIVE e decide gli effetti da applicare."
 ---
+
+Il Campaign Service è il **motore regole** di Loyalty Hub. Consuma ogni azione in arrivo da `lh.actions.v1`, la valuta contro le campagne attive e decide quali effetti pubblicare su `lh.effects.v1`. Tiene i contatori dei limiti, i budget e il registro delle valutazioni con la spiegazione riga per riga (spiegabilità). Non applica gli effetti e non conosce i saldi.
+
+Per capire come funziona il motore end-to-end, leggi [Motore regole](/concetti/motore-regole) e [Campagne](/concetti/campagne).
+
+## Base URL
+
+```http Base URL
+http://localhost:8083
+```
+
+## Modello campagne
+
+Il dominio campagne si articola in queste entità principali:
+
+- **Campaign**: definizione di una regola con `code` (immutabile), `name`, `trigger_action_types`, `audience`, `conditions`, `effects`, `limits`, `schedule`, `priority`, `exclusive_group`. Stati: `DRAFT`, `IN_REVIEW`, `LIVE`, `PAUSED`, `ENDED`, `ARCHIVED`.
+- **Effect**: `GRANT` (accredito PTS/STS), `MULTIPLIER` (fattore su altre campagne), `GRANT_PLAYS` (giocate concorso), `SEND_MESSAGE` (notifica), `GRANT_BADGE`.
+- **Campaign counter**: contatore per campagna, membro e periodo (`GLOBAL`, `EDITION`, `MONTH`, `WEEK`, `DAY`).
+- **Evaluation log**: registro delle valutazioni con esito `MATCHED`, `NO_MATCH`, `NO_MEMBER` e ogni condizione fallita con `field`, `cmp`, `value`, `actual`. Retention 30 giorni.
+- **Member snapshot**: proiezione locale di stato, tier, segmenti, etichette e attributi del membro (aggiornata dai fatti su `lh.facts.v1`).
+
+## Endpoint di gestione
+
+### GET /v1/campaigns
+
+Restituisce l'elenco delle campagne con filtri e totali.
+
+**Query parameters**
+
+| Parametro | Tipo | Descrizione |
+| --- | --- | --- |
+| status | string | Filtra per stato (`DRAFT`, `LIVE`, ...). |
+| actionType | string | Solo campagne con quel tipo tra i `trigger_action_types`. |
+| q | string | Ricerca full-text su `code`, `name`, `description`. |
+| label | string | Filtra per etichetta. |
+| system | boolean | Solo campagne di sistema (`true`) o solo utente (`false`). |
+
+**Risposta 200**
+
+```json Risposta lista campagne
+{
+  "items": [
+    {
+      "id": "cmp_01HXK...",
+      "code": "CMP-WEEKEND-X2",
+      "name": "Weekend punti doppi",
+      "status": "LIVE",
+      "triggerActionTypes": ["purchase.completed"],
+      "priority": 100,
+      "exclusiveGroup": "WEEKEND",
+      "totals": {
+        "matches": 342,
+        "uniqueMembers": 87,
+        "pointsDecided": 25100,
+        "pointsGranted": 25100,
+        "lastMatchAt": "2026-09-25T09:12:03Z"
+      }
+    }
+  ],
+  "total": 20
+}
+```
+
+### POST /v1/campaigns
+
+Crea una campagna in stato `DRAFT`.
+
+```json Corpo richiesta
+{
+  "code": "CMP-BLACK-FRIDAY",
+  "name": "Black Friday x3",
+  "memberDescription": "Nel Black Friday i punti valgono tre volte",
+  "triggerActionTypes": ["purchase.completed"],
+  "audience": { "tiers": ["SILVER", "GOLD", "PLATINUM"] },
+  "conditions": [
+    { "field": "context.dayOfMonth", "cmp": "between", "value": [27, 30] }
+  ],
+  "effects": [
+    { "type": "MULTIPLIER", "currency": "PTS", "factor": 3.0 }
+  ],
+  "limits": { "budget": { "currency": "PTS", "amount": 250000 } },
+  "schedule": { "startAt": "2026-11-27T00:00:00Z", "endAt": "2026-11-30T23:59:59Z" },
+  "priority": 200,
+  "exclusiveGroup": "WEEKEND",
+  "requiresLegal": true
+}
+```
+
+**Risposta 201**: campagna creata in stato `DRAFT`.
+
+### GET /v1/campaigns/{id}
+
+Restituisce il dettaglio completo di una campagna con `conditions`, `effects`, `limits`, `schedule` e `totals`.
+
+### PUT /v1/campaigns/{id}
+
+Aggiorna una campagna. Con stato `LIVE` sono modificabili solo campi sicuri (`name`, `description`, `memberDescription`, `endAt`), altrimenti `409 CAMPAIGN_LIVE_LOCKED`. Il `code` non è mai modificabile.
+
+### POST /v1/campaigns/{id}/transitions
+
+Cambia lo stato di una campagna secondo il workflow di approvazione.
+
+```json Corpo richiesta
+{ "action": "SUBMIT_FOR_REVIEW" }
+```
+
+Azioni supportate: `SUBMIT_FOR_REVIEW`, `APPROVE`, `REJECT`, `PUBLISH`, `PAUSE`, `RESUME`, `END`, `ARCHIVE`. Le campagne `system=true` non ammettono `ARCHIVE`.
+
+### POST /v1/campaigns/{id}/duplicate
+
+Crea una copia in stato `DRAFT` con `code = <code>-COPY-n`.
+
+### POST /v1/campaigns/validate
+
+Valida la struttura di condizioni, effetti e limiti senza salvare.
+
+```json Risposta 200
+{ "valid": false, "errors": [{ "path": "effects[0].factor", "message": "factor deve essere tra 1.1 e 5" }] }
+```
+
+### POST /v1/campaigns/simulate
+
+Simula l'esito di una campagna senza scrivere.
+
+```json Corpo richiesta
+{
+  "action": { "type": "purchase.completed", "time": "2026-11-28T10:00:00Z", "source": "ecommerce", "data": { "amount": 130 } },
+  "memberId": "MBR-000003",
+  "memberOverride": { "tier": "GOLD", "segments": ["SEG-DIGITAL"] },
+  "campaignIds": ["cmp_01HXK...", "cmp_01HZZ..."]
+}
+```
+
+**Risposta 200**: stessa forma del campo `results` in `evaluation_log`, più totali per valuta.
+
+### GET /v1/campaigns/{id}/stats
+
+Totali della campagna più serie giornaliera dei 30 giorni precedenti.
+
+## Endpoint valutazioni
+
+### GET /v1/evaluations
+
+Elenco valutazioni con filtri per spiegabilità.
+
+| Parametro | Descrizione |
+| --- | --- |
+| memberId | Filtra per membro. |
+| actionId | Filtra per singola azione. |
+| outcome | `MATCHED`, `NO_MATCH`, `NO_MEMBER`. |
+| from, to | Intervallo temporale ISO 8601. |
+
+### GET /v1/evaluations/{actionId}
+
+Dettaglio di una valutazione con la lista completa delle campagne considerate, quelle che hanno fatto match e le condizioni fallite riga per riga.
+
+```json Risposta 200 (estratto)
+{
+  "actionId": "act_01HXK...",
+  "memberId": "MBR-000003",
+  "actionType": "purchase.completed",
+  "outcome": "MATCHED",
+  "results": [
+    {
+      "campaignCode": "CMP-PURCHASE-BASE",
+      "matched": true,
+      "effects": [
+        { "type": "GRANT", "currency": "PTS", "amount": 162, "tierMultiplierApplies": true },
+        { "type": "GRANT", "currency": "STS", "amount": 130 }
+      ]
+    },
+    {
+      "campaignCode": "CMP-WEEKEND-X2",
+      "matched": false,
+      "reason": "CONDITION_FAILED",
+      "failedConditions": [
+        { "field": "context.dayOfWeek", "cmp": "in", "value": ["SATURDAY", "SUNDAY"], "actual": "TUESDAY" }
+      ]
+    }
+  ]
+}
+```
+
+## Endpoint approvazioni e metadati
+
+### GET /v1/approvals
+
+Elenco oggetti in attesa di approvazione (formato comune, vedi [Convenzioni API](/api/convenzioni)).
+
+### GET /v1/meta/condition-fields
+
+Restituisce i campi disponibili per costruire condizioni: `member.*`, `context.*`, `history.*` con tipo (`STRING`, `NUMBER`, `DATE`, `ENUM`) e valori ammessi. I campi `data.*` arrivano da ingestion.
+
+## Endpoint portale
+
+### GET /v1/portal/campaigns?memberId=...
+
+Restituisce le campagne `LIVE`, `visible_in_portal=true` con pubblico soddisfatto per un membro specifico. Usato dal portale in PT-04 (elenco campagne attive).
+
+```json Risposta 200
+{
+  "items": [
+    {
+      "code": "CMP-WEEKEND-X2",
+      "name": "Weekend punti doppi",
+      "memberDescription": "Nel weekend i tuoi punti valgono il doppio",
+      "icon": "calendar-star",
+      "rewardSummary": "Punti ×2",
+      "limitProgress": { "used": 3, "max": 10, "period": "MONTH" },
+      "endsAt": "2026-12-31T23:59:59Z"
+    }
+  ]
+}
+```
+
+## Eventi
+
+| Direzione | Topic | Tipi |
+| --- | --- | --- |
+| Consuma | `lh.actions.v1` | tutte |
+| Consuma | `lh.facts.v1` | `member.*`, `tier.*` → aggiorna `member_snapshot`; `wallet.points.earned` → aggiorna `campaign_totals.points_granted` |
+| Produce | `lh.effects.v1` | tutti gli `effect.*` |
+| Produce | `lh.facts.v1` | `campaign.evaluated`, `campaign.status.changed` |
+| Produce | `lh.audit.v1` | scritture da backoffice |
+
+Vedi [Eventi e topic](/specifiche/eventi-e-topic) per il contratto completo.
+
+## Regole del motore
+
+- **Algoritmo**: implementato senza deviazioni da `docs/03 §3.5`. Il motore è una classe pura `CampaignEngine.evaluate(action, memberSnapshot, campaigns, counters, clock)`, testabile senza Spring.
+- **Cache**: le campagne `LIVE` sono tenute in memoria, invalidata a ogni scrittura o transizione e ricaricata ogni 30 s.
+- **Fine automatica**: job al minuto porta a `ENDED` le `LIVE`/`PAUSED` con `schedule.endAt` superato.
+- **Rifiuti membro assente**: se lo snapshot manca, ritenta 3 volte (il fatto `member.registered` potrebbe essere in arrivo), poi `NO_MEMBER`.
+- **Gruppi esclusivi**: al pareggio di priorità vince il `code` alfabetico più basso; le altre riportano `reason=EXCLUSIVE`.
+
+## Validazioni salvataggio (422)
+
+| Motivo | Codice |
+| --- | --- |
+| Nessun trigger action type | `TRIGGERS_REQUIRED` |
+| Nessun effetto | `EFFECTS_REQUIRED` |
+| `MULTIPLIER.factor` fuori da [1.1, 5] | `MULTIPLIER_OUT_OF_RANGE` |
+| `endAt` ≤ `startAt` | `SCHEDULE_INVALID` |
+| Codice premio o badge vuoto in un effetto | `EFFECT_REF_EMPTY` |
+
+L'esistenza dei codici referenziati (premio, badge, template) non è verificabile senza chiamate sincrone: l'errore emerge in DLQ o nel tracciato quando l'effetto viene consumato.
+
+## Codici di errore
+
+| HTTP | Codice | Motivo |
+| --- | --- | --- |
+| 404 | `CAMPAIGN_NOT_FOUND` | ID inesistente. |
+| 409 | `CAMPAIGN_LIVE_LOCKED` | PUT non ammesso su campagna LIVE oltre i campi sicuri. |
+| 409 | `CAMPAIGN_NOT_EDITABLE` | Stato `ENDED` o `ARCHIVED`. |
+| 409 | `CODE_IMMUTABLE` | Tentativo di modifica del `code`. |
+| 409 | `TRANSITION_NOT_ALLOWED` | Azione non compatibile con lo stato corrente. |
+| 422 | `VALIDATION_ERROR` | Vedi lista sopra. |
+
+## Prossimi passi
+
+<CardGroup cols={2}>
+  <Card title="Ingestion API" icon="inbox" href="/api/ingestion">
+    Inviare le azioni che il motore valuta.
+  </Card>
+
+  <Card title="Wallet API" icon="wallet" href="/api/wallet">
+    Il servizio che applica gli effetti `GRANT` decisi da campaign.
+  </Card>
+
+  <Card title="Motore regole" icon="cogs" href="/concetti/motore-regole">
+    Come si costruisce una campagna passo passo.
+  </Card>
+
+  <Card title="Eventi e topic" icon="stream" href="/specifiche/eventi-e-topic">
+    Il contratto degli eventi consumati e prodotti.
+  </Card>
+</CardGroup>
