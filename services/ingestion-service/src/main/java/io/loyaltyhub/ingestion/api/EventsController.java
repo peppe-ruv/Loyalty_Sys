@@ -1,5 +1,6 @@
 package io.loyaltyhub.ingestion.api;
 
+import io.loyaltyhub.common.event.LhSource;
 import io.loyaltyhub.common.web.ActorHolder;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.common.web.Role;
@@ -18,7 +19,8 @@ import java.util.Optional;
 
 /**
  * Ingresso delle azioni premianti (docs/servizi/ingestion-service.md §3): {@code POST /v1/events}.
- * Errori di forma → {@code 400}; tutto il resto → {@code 202} con lo {@code status} dell'esito
+ * Errori di forma → {@code 400} (anche {@code source} in forma breve, Q-258); tutto il resto → {@code 202} con lo
+ * {@code status} dell'esito
  * (la fonte non deve ritentare su un rifiuto di business).
  *
  * <p>Con l'header {@code X-LH-Reprocess} (solo ADMIN) è il <em>riprocessa</em> DLQ di insight (ADR-002
@@ -44,6 +46,13 @@ public class EventsController {
             consumes = {"application/json", "application/cloudevents+json"})
     public ResponseEntity<IngestResult> ingest(@RequestBody InboundEventRequest request,
                                                @RequestHeader(value = REPROCESS_HEADER, required = false) String reprocess) {
+        // Q-258: una fonte esterna dichiara l'URN urn:loyaltyhub:source:<codice> (docs/05 §2); la forma breve resta
+        // ammessa solo ai chiamanti interni (simulatore, scenari, transazioni), che non passano da qui.
+        if (request != null && request.source() != null && !request.source().isBlank()
+                && request.source().indexOf(':') < 0) {
+            throw LhException.badRequest("source deve essere un URN " + LhSource.SOURCE_PREFIX + "<codice>: "
+                    + request.source());
+        }
         if (reprocess != null && !reprocess.isBlank()) {
             // Solo su comando umano di un ADMIN (docs/servizi/insight-service.md §3: reprocess ruolo ADMIN).
             if (ActorHolder.get().role() != Role.ADMIN) {

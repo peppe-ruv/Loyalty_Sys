@@ -469,7 +469,8 @@ class TestbookIngConfigIT extends TestbookIngHarness {
         return call("POST", "/v1/transactions", actor, body);
     }
 
-    // TESTBOOK: ambiguo, vedi TB-ING-TXN-003, TB-ING-TXN-007, TB-ING-TXN-012 (atteso = comportamento attuale, marcato AMBIGUO nel CSV)
+    // TESTBOOK: ambiguo, vedi TB-ING-TXN-003 (atteso = comportamento attuale, marcato AMBIGUO nel CSV)
+    // Q-269 DECISA: TB-ING-TXN-007, TB-ING-TXN-012 — amount/currency mancanti ⇒ 202 REJECTED/INVALID_DATA (riga in BO-26)
     void txnRow(Row a) {
         String kase = a.getString(2);
         int http = a.getInteger(3);
@@ -604,7 +605,7 @@ class TestbookIngConfigIT extends TestbookIngHarness {
         return call("POST", "/v1/demo/simulator/fire", actor, body);
     }
 
-    // TESTBOOK: ambiguo, vedi TB-ING-SIM-011…TB-ING-SIM-013 (atteso = comportamento attuale, marcato AMBIGUO nel CSV)
+    // Q-268 DECISA: TB-ING-SIM-011…TB-ING-SIM-013 — count fuori 1–20 ⇒ 422 (caso «count:<n>:422»), nessun evento
     void simRow(Row a) {
         String kase = a.getString(2);
         Fresh m = freshMember("ACTIVE");
@@ -633,6 +634,13 @@ class TestbookIngConfigIT extends TestbookIngHarness {
                 body.put("count", Integer.valueOf(p[1]));
             }
             Response r = fire(body, ADMIN);
+            if ("422".equals(p[2])) {
+                assertThat(r.status()).as("HTTP (corpo: %s)", r.body()).isEqualTo(422);
+                assertThat(r.text("code")).isEqualTo("SIMULATOR_COUNT_OUT_OF_RANGE");
+                assertThat(jdbc.sql("SELECT count(*) FROM inbound_event WHERE member_id = ?").param(m.memberId())
+                        .query(Long.class).single()).as("nessun evento").isZero();
+                return;
+            }
             assertThat(r.status()).isEqualTo(200);
             assertThat(r.body().size()).isEqualTo(Integer.parseInt(p[2]));
             Set<String> ids = new HashSet<>();

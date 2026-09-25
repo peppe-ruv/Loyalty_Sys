@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * Corpo di {@code POST /v1/campaigns} (docs/servizi/campaign-service.md §3): crea in stato {@code DRAFT}. In
  * {@code PUT} {@code version} è la versione letta dall'editor: se nel frattempo è cambiata → {@code 409 VERSION_CONFLICT}
- * (docs/06 §colonne standard, M7.6); assente = nessun controllo. {@code requiresLegal} (opzionale, BO-06 sez. 1) vale
+ * (docs/06 §colonne standard, M7.6); assente → {@code 409 VERSION_REQUIRED} (Q-249). {@code requiresLegal} (opzionale, BO-06 sez. 1) vale
  * solo alla creazione: la policy (docs/06 §7) chiede allora l'approvazione LEGAL.
  */
 public record CreateCampaignRequest(

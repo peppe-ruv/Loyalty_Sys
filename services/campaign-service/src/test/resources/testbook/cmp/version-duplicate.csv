@@ -1,7 +1,7 @@
 id|descrizione|scenario|HTTP atteso|code atteso
 TB-CMP-VER-001|PUT con la versione corrente|CURRENT|200|
 TB-CMP-VER-002|PUT con una versione superata da un altro salvataggio|STALE|409|VERSION_CONFLICT
-TB-CMP-VER-003|PUT senza versione|ABSENT|200|
+TB-CMP-VER-003|PUT senza versione|ABSENT|409|VERSION_REQUIRED
 TB-CMP-VER-004|PUT con una versione futura|FUTURE|409|VERSION_CONFLICT
 TB-CMP-VER-005|PUT con la versione letta prima di una transizione|AFTER_TRANSITION|409|VERSION_CONFLICT
 TB-CMP-VER-006|PUT su LIVE di un campo sicuro con la versione corrente|LIVE_CURRENT|200|

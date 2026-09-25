@@ -24,7 +24,7 @@ TB-CMP-LIM-022|mese: 31 gennaio 23:59:59 di Roma|{"perMember":[{"max":1,"period"
 TB-CMP-LIM-023|mese: 1 febbraio 00:00 di Roma|{"perMember":[{"max":1,"period":"MONTH"}]}|MONTH:2026-01=1|||2026-01-31T23:00:00Z|MATCHED
 TB-CMP-LIM-024|mese: 29 febbraio 23:59:59 di Roma|{"perMember":[{"max":1,"period":"MONTH"}]}|MONTH:2028-02=1|||2028-02-29T22:59:59Z|LIMIT
 TB-CMP-LIM-025|edizione: capodanno alla mezzanotte di Roma|{"perMember":[{"max":1,"period":"EDITION"}]}|EDITION:2026=1|||2026-12-31T23:00:00Z|MATCHED
-TB-CMP-LIM-026|budget punti: consumato max-1|{"global":{"maxPoints":1000}}||999||2026-09-15T09:00:00Z|MATCHED
+TB-CMP-LIM-026|budget punti: consumato max-1|{"global":{"maxPoints":1000}}||999||2026-09-15T09:00:00Z|MATCHED:1
 TB-CMP-LIM-027|budget punti: consumato max|{"global":{"maxPoints":1000}}||1000||2026-09-15T09:00:00Z|BUDGET
 TB-CMP-LIM-028|budget punti: consumato max+1|{"global":{"maxPoints":1000}}||1001||2026-09-15T09:00:00Z|BUDGET
 TB-CMP-LIM-029|budget match: registrati max-1|{"global":{"maxMatches":10}}|||9|2026-09-15T09:00:00Z|MATCHED
@@ -33,5 +33,5 @@ TB-CMP-LIM-031|budget match: registrati max+1|{"global":{"maxMatches":10}}|||11|
 TB-CMP-LIM-032|budget senza tetti (null)|{"global":{"maxPoints":null,"maxMatches":null}}||500000|500000|2026-09-15T09:00:00Z|MATCHED
 TB-CMP-LIM-033|budget match 0|{"global":{"maxMatches":0}}||||2026-09-15T09:00:00Z|BUDGET
 TB-CMP-LIM-034|limite per membro e budget entrambi esauriti|{"perMember":[{"max":1,"period":"DAY"}],"global":{"maxPoints":1000}}|DAY:2026-09-15=1|1000||2026-09-15T09:00:00Z|LIMIT
-TB-CMP-LIM-035|budget quasi esaurito e accredito che lo supera|{"global":{"maxPoints":1000}}||990||2026-09-15T09:00:00Z|MATCHED
+TB-CMP-LIM-035|budget quasi esaurito e accredito che lo supera|{"global":{"maxPoints":1000}}||990||2026-09-15T09:00:00Z|MATCHED:10
 TB-CMP-LIM-036|limiti vuoti|{}||||2026-09-15T09:00:00Z|MATCHED

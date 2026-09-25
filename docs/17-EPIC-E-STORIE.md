@@ -158,13 +158,13 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
 *Come* responsabile del programma, *voglio* che gli eventi di un cliente non iscritto vengano parcheggiati e quelli di un membro sospeso respinti, *così che* nessuno accumuli fuori regola ma nessun evento vada perso.
 - **Contesto reale**: un cliente acquista in negozio prima di iscriversi; l'assistenza ha sospeso Roberto (BLOCKED) che continua a comprare; un membro anonimizzato riceve ancora eventi dal CRM.
 - **Tocca**: F-ING-03, F-ING-04, F-MBR-04 · ING-07 · Q-128.
-- **Decisioni**: membro non trovato → `UNMATCHED` · stato ≠ ACTIVE → `REJECTED/MEMBER_NOT_ACTIVE` · anonimizzato: `member:` → `MEMBER_NOT_ACTIVE`, `email:`/`external:` → `UNMATCHED` (Q-128) · subject senza prefisso → trattato come id (ramo senza specifica).
+- **Decisioni**: membro non trovato → `UNMATCHED` · stato ≠ ACTIVE → `REJECTED/MEMBER_NOT_ACTIVE` · anonimizzato: `member:` → `MEMBER_NOT_ACTIVE`, `email:`/`external:` → `UNMATCHED` (Q-128) · subject senza prefisso o con prefisso sconosciuto → `UNMATCHED` (Q-255).
 - **Criteri**:
   1. ✗ Dato Roberto (MBR-000008, BLOCKED), quando invio un acquisto, allora `REJECTED/MEMBER_NOT_ACTIVE`, niente sul topic, riga in BO-26 (docs/12 M1).
   2. Dato `subject=external:CRM-999` inesistente, allora `UNMATCHED` (parcheggiato).
   3. ✗ Dato MBR-000012 (ANONYMIZED) con `member:MBR-000012`, allora `MEMBER_NOT_ACTIVE`.
   4. Dato un membro INACTIVE, allora `MEMBER_NOT_ACTIVE`.
-  5. Dato `subject=MBR-000002` (senza prefisso), allora accettato come MBR-000002 (da confermare in docs/15: nessuna specifica).
+  5. Dato `subject=MBR-000002` (senza prefisso), allora `UNMATCHED`, recuperabile con *Abbina* (Q-255).
 - **Testbook**: TB-ING (da coprire).
 
 #### US-E01-06 · Abbinamento automatico alla registrazione
@@ -199,11 +199,11 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
 *Come* sistema di cassa, *voglio* inviare un ordine con le righe (e il reso) senza costruire un CloudEvent, *così che* l'integrazione sia semplice.
 - **Contesto reale**: il gestionale del negozio chiude lo scontrino e chiama `POST /v1/transactions`; tre giorni dopo il cliente rende la merce.
 - **Tocca**: F-ING-07, F-CMP-14 (P2) · ING-19 · Q-49.
-- **Decisioni**: 400 corpo o campi mancanti (`currency` non richiesta per il reso) · `kind` ∉ PURCHASE/RETURN → 400 · PURCHASE → `purchase.completed`, `id=txn-<orderId>` · RETURN → `purchase.returned`, `id=txn-return-<orderId>` · poi la pipeline normale.
+- **Decisioni**: 400 corpo o campi mancanti (`source`, `orderId`, `memberRef`) · `amount`/`currency` mancanti → `202 REJECTED/INVALID_DATA` dello schema, visibile in BO-26 (Q-269) · `kind` ∉ PURCHASE/RETURN → 400 · PURCHASE → `purchase.completed`, `id=txn-<orderId>` · RETURN → `purchase.returned`, `id=txn-return-<orderId>` · poi la pipeline normale.
 - **Criteri**:
   1. Dato un ordine ORD-1 per `external:CRM-102`, allora 202 `ACCEPTED` con `eventId=txn-ORD-1`.
   2. Dato lo stesso ordine rinviato, allora `DUPLICATE` (id deterministico).
-  3. ✗ Dato un ordine senza `currency`, allora 400; dato `kind=REFUND`, allora 400.
+  3. Dato un ordine senza `currency`, allora `REJECTED/INVALID_DATA` (Q-269); dato `kind=REFUND`, allora 400.
   4. Dato un reso, allora `purchase.returned` accettato ma nessuno storno di punti (F-CMP-14 fuori perimetro, US-E03-18).
 - **Testbook**: TB-ING (da coprire).
 
@@ -484,7 +484,7 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
 *Come* MARKETING, *voglio* dare punti fissi, per importo, da un campo o da una tabella, con minimo e massimo, *così che* ogni regola commerciale sia esprimibile.
 - **Contesto reale**: «1 punto ogni euro», «bonus livello da tabella», «punti dal premio vinto».
 - **Tocca**: F-CMP-04 · CMP-12 · Q-44.
-- **Decisioni**: FIXED · PER_AMOUNT `rounding(amount/unitStep) × value` (FLOOR/CEIL/ROUND; `unitStep ≤ 0` → 1; campo non numerico → scartato) · FROM_FIELD intero (decimale → scartato) · LOOKUP (campo o chiave assenti → scartato) · `min`/`max` · ≤ 0 → scartato.
+- **Decisioni**: FIXED · PER_AMOUNT `rounding(amount/unitStep) × value` (FLOOR/CEIL/ROUND, metà esatta per difetto: Q-227; `unitStep ≤ 0` → 422 al salvataggio e campagna scartata nel motore: Q-228; campo non numerico → scartato) · FROM_FIELD intero (decimale → scartato) · LOOKUP (campo o chiave assenti → scartato) · `min`/`max` · ≤ 0 → scartato.
 - **Criteri**:
   1. Dato PER_AMOUNT FLOOR su 64,90 €, allora 64; con CEIL 65; con ROUND 65.
   2. Dato `CMP-TIER-UP-BONUS` e `newTier=GOLD`, allora 500; con un tier assente dalla tabella, allora nessun effetto.
@@ -512,9 +512,9 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
 - **Criteri**:
   1. Dato 3 acquisti in un giorno, allora il quarto `LIMIT` e nessun movimento (docs/12 M1).
   2. Dato un acquisto alle 23:59 e uno alle 00:01 ora di Roma, allora periodi DAY diversi (non UTC).
-  3. Dato un budget di 1 000 già a 990, allora l'attivazione successiva scatta (anche se supera) e quella dopo è `BUDGET`.
+  3. Dato un budget di 1 000 già a 990, allora l'attivazione successiva scatta con l'accredito ridotto a 10 (Q-237) e quella dopo è `BUDGET`.
   4. Dato `cooldownMinutes=60` e due azioni a 10 minuti, allora la seconda è `LIMIT`.
-  5. Dato `perMemberPoints=500`, allora raggiunti 500 punti le attivazioni successive sono `LIMIT` (l'ultima sotto il tetto non si riduce).
+  5. Dato `perMemberPoints=500`, allora raggiunti 500 punti le attivazioni successive sono `LIMIT` (l'ultima sotto il tetto si riduce al residuo, Q-237).
 - **Testbook**: TB-CMP (4–5: TB-CMP-SIM-015, TB-CMP-SIM-021).
 
 #### US-E03-10 · Effetti non monetari: giocate, coupon, badge, messaggi
@@ -1121,7 +1121,7 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
 - **Criteri**:
   1. Dato un contenuto con `audience.tiers=[GOLD, PLATINUM]`, allora assente per Anna e presente per Davide (engagement §7).
   2. Dato più di 6 card HOME_GRID idonee, allora le 6 a priorità più alta.
-  3. ⚠ Dato un pubblico con tier GOLD **e** segmento SEG-DIGITAL, allora serve soddisfare entrambi (le campagne usano «o»): da decidere.
+  3. ⚠ Dato un pubblico con tier GOLD **e** segmento SEG-DIGITAL, allora serve soddisfare entrambi (come le campagne, Q-212).
 - **Testbook**: TB-ENG (da coprire).
 
 #### US-E07-04 · Un pop-up alla volta, con frequenza
@@ -1804,7 +1804,7 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | ↳ | un precedente `REJECTED`/`UNMATCHED` con stessa fonte+id **non** fa duplicato | nessuna | US-E01-04 | TB-ING |
 | ↳ | gara concorrente sull'insert ⇒ `DUPLICATE`, nessuna doppia pubblicazione | RNF-03 | US-E01-04 | TB-ING |
 | ING-07 passo 7 membro | `member:<id>` / `external:<x>` / `email:<x>` (e-mail senza maiuscole) ⇒ indice | F-ING-03 | US-E01-01 | TB-ING |
-| ↳ | subject senza prefisso ⇒ trattato come id membro | nessuna | US-E01-05 | TB-ING |
+| ↳ | subject senza prefisso o con prefisso sconosciuto ⇒ `UNMATCHED` | Q-255 | US-E01-05 | TB-ING |
 | ↳ | `UNMATCHED` (parcheggiato): membro non trovato | F-ING-04 | US-E01-05 | TB-ING |
 | ↳ | `REJECTED/MEMBER_NOT_ACTIVE`: stato ≠ `ACTIVE` (BLOCKED, INACTIVE, ANONYMIZED con `member:`; Q-128) | F-ING-03, docs/03 §2 | US-E01-05, US-E02-04 | TB-ING |
 | ↳ | membro esplicito dell'abbinamento manuale al posto del subject | F-ING-04 | US-E01-07 | TB-ING |
@@ -1851,7 +1851,7 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | ↳ | `SYSTEM` e ruolo ≠ ADMIN ⇒ 403 | Q-89 | US-E01-12 | TB-ING |
 | ↳ | `SYSTEM`: cambio di categoria/schema/esempio ⇒ 422 `EVENT_TYPE_SYSTEM_LOCKED` | ingestion §3 | US-E01-12 | TB-ING |
 | ↳ | `SYSTEM`: nome, descrizione, icona, abilitazione aggiornati | ingestion §3 | US-E01-12 | TB-ING |
-| ING-19 `TransactionsController` (F-ING-07) | 400 corpo assente; 400 campi mancanti (`source, orderId, memberRef, amount`, `currency` se non reso) | ingestion §3 | US-E01-08 | TB-ING |
+| ING-19 `TransactionsController` (F-ING-07) | 400 corpo assente; 400 campi mancanti (`source, orderId, memberRef`); `amount`/`currency` mancanti ⇒ `REJECTED/INVALID_DATA` (Q-269) | ingestion §3 | US-E01-08 | TB-ING |
 | ↳ | 400 `kind` ≠ `PURCHASE`/`RETURN` | Q-49 | US-E01-08 | TB-ING |
 | ↳ | `PURCHASE` (default) ⇒ `purchase.completed` con `id = txn-<orderId>` | ingestion §3 | US-E01-08 | TB-ING |
 | ↳ | `RETURN` ⇒ `purchase.returned` con `id = txn-return-<orderId>` | Q-49 | US-E01-08 | TB-ING |
@@ -1955,9 +1955,9 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | CMP-03 calendario (Europe/Rome) | `NOT_IN_SCHEDULE`: `time < startAt` | docs/03 §3.5.2.1 | US-E03-05 | TB-CMP |
 | ↳ | `NOT_IN_SCHEDULE`: `time > endAt` (l'istante `endAt` è ancora dentro) | docs/03 §3.5.2.1 | US-E03-05 | TB-CMP |
 | ↳ | `NOT_IN_SCHEDULE`: giorno ∉ `daysOfWeek` | docs/03 §3.2 | US-E03-05 | TB-CMP |
-| ↳ | `NOT_IN_SCHEDULE`: ora ∉ `hours [da, a]` (estremi inclusi) | nessuna (formato `hours` non specificato) | US-E03-05 | TB-CMP |
+| ↳ | `NOT_IN_SCHEDULE`: ora ∉ `hours [da, a)` (fine esclusa: `[9, 18]` finisce alle 18:00) | Q-238 | US-E03-05 | TB-CMP |
 | ↳ | calendario vuoto ⇒ sempre dentro | nessuna | US-E03-04 | TB-CMP |
-| CMP-04 pubblico | `AUDIENCE`: né tier né segmento del membro nell'elenco (tier **o** segmento) | docs/03 §3.5.2.2, F-CMP-06 | US-E03-05 | TB-CMP |
+| CMP-04 pubblico | `AUDIENCE`: tier fuori dall'elenco **o** nessun segmento dell'elenco (tier **e** segmento, Q-212); elenchi che restringono anche con `all=true` (Q-210); senza elenchi e `all` non vero ⇒ nessuno (Q-211) | docs/03 §3.5.2.2, F-CMP-06 | US-E03-05 | TB-CMP |
 | ↳ | `all:true` o elenchi vuoti ⇒ tutti | docs/03 §3.2 | US-E03-04 | TB-CMP |
 | CMP-05 condizioni | `CONDITION` con `failedConditions[{field,cmp,value,actual}]` | docs/03 §3.5.2.3, F-CMP-09 | US-E03-05, US-E03-06 | TB-CMP |
 | CMP-06 gruppo esclusivo | `EXCLUSIVE`: gruppo già assegnato a una campagna di priorità maggiore | docs/03 §3.5.2.4, F-CMP-07, Q-50 | US-E03-08 | TB-CMP |
@@ -1965,13 +1965,13 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | CMP-08 limiti per membro | `LIMIT`: conteggio del periodo ≥ `max` (DAY, WEEK, MONTH, EDITION, ALWAYS; chiave periodo in Rome sul `time` dell'azione) | docs/03 §3.5.2.5, F-CMP-05 | US-E03-09 | TB-CMP |
 | CMP-09 budget globale | `BUDGET`: punti decisi ≥ `global.maxPoints` | F-CMP-05 | US-E03-09 | TB-CMP |
 | ↳ | `BUDGET`: attivazioni ≥ `global.maxMatches` | F-CMP-05 | US-E03-09 | TB-CMP |
-| ↳ | l'ultima attivazione sotto soglia può superare il budget (controllo prima dell'accredito) | nessuna | US-E03-09 | TB-CMP |
+| ↳ | l'ultima attivazione sotto soglia è ridotta al residuo del budget (e di `perMemberPoints`) | Q-237 | US-E03-09 | TB-CMP |
 | CMP-10 tetto punti e cooldown | `LIMIT`: meno di `cooldownMinutes` dall'ultimo match del membro (Q-165) | F-CMP-05 | US-E03-09 | TB-CMP |
 | ↳ | `LIMIT`: punti decisi dalla campagna per il membro ≥ `perMemberPoints` (Q-165) | F-CMP-05 | US-E03-09 | TB-CMP |
 | CMP-11 esito complessivo | `MATCHED` (≥ 1 campagna) · `NO_MATCH` | campaign §2 | US-E03-04, US-E03-05 | TB-CMP |
 | CMP-12 `computeBase` (GRANT_POINTS) | `FIXED` ⇒ `value` | docs/03 §3.4 | US-E03-07 | TB-CMP |
 | ↳ | `PER_AMOUNT`: campo assente o non numerico ⇒ effetto scartato | docs/03 §3.4 | US-E03-07 | TB-CMP |
-| ↳ | `PER_AMOUNT`: `unitStep ≤ 0` ⇒ 1 | nessuna | US-E03-07 | TB-CMP |
+| ↳ | `PER_AMOUNT`: `unitStep ≤ 0` ⇒ campagna scartata `EFFECT_NOT_SUPPORTED_YET` | Q-228 | US-E03-07 | TB-CMP |
 | ↳ | `PER_AMOUNT`: arrotondamento `FLOOR` (default) · `CEIL` · `ROUND`, su divisione decimale esatta | docs/03 §3.4 | US-E03-07 | TB-CMP |
 | ↳ | `FROM_FIELD`: valore non intero ⇒ scartato | Q-44 | US-E03-07 | TB-CMP |
 | ↳ | `LOOKUP`: campo assente ⇒ scartato; chiave assente dalla tabella ⇒ scartato | docs/03 §3.4 | US-E03-07 | TB-CMP |
@@ -1981,7 +1981,7 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | ↳ | importo = floor(base × fattore); ≤ 0 ⇒ effetto scartato | docs/03 §3.5.3 | US-E03-08 | TB-CMP |
 | ↳ | la campagna `MULTIPLIER` compare come scattata senza accrediti propri | campaign §2 | US-E03-08 | TB-CMP |
 | CMP-14 effetti non monetari | `GRANT_PLAYS` ⇒ `plays.grant` (`count ≥ 1`) | docs/03 §3.4 | US-E03-10 | TB-CMP |
-| ↳ | `ISSUE_COUPON`: `rewardCode` fisso o da `rewardCodeField`; non risolto ⇒ nessun effetto (la campagna resta scattata) | docs/03 §3.4 | US-E03-10, US-E06-08 | TB-CMP |
+| ↳ | `ISSUE_COUPON`: `rewardCode` fisso o da `rewardCodeField`; non risolto ⇒ campagna scartata `EFFECT_NOT_SUPPORTED_YET`, limiti non consumati | docs/03 §3.4, Q-232 | US-E03-10, US-E06-08 | TB-CMP |
 | ↳ | `AWARD_BADGE` ⇒ `badge.award`; `SEND_MESSAGE` ⇒ `message.send` (+ `params`) | docs/03 §3.4 | US-E03-10 | TB-CMP |
 | CMP-15 `effectId` | `sha256(actionId + campaignCode + indice)[0..26)` | docs/03 §3.5.4 | US-E03-17 | TB-CMP |
 | CMP-16 `ConditionEvaluator` | nodo vuoto ⇒ vero; `any` senza regole ⇒ vero | nessuna | US-E03-06 | TB-CMP |
@@ -2000,7 +2000,7 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | ↳ | ⚠ limiti letti e poi incrementati (non `UPDATE … WHERE count < max`): sicuro solo per l'ordine per membro | docs/03 §3.5.2.5, RNF-04 | US-E12-04 | TB-CMP |
 | CMP-18 `DemoPoison` | profilo `demo` e `data._poison=true` ⇒ `DEMO_POISON` non ritentabile ⇒ DLQ | docs/10 §8, Q-108 | US-E08-11, US-E09-03 | TB-CMP |
 | ↳ | fuori dal profilo `demo` il flag è ignorato | docs/10 §8 | US-E08-11 | TB-CMP |
-| CMP-19 `CampaignAdminService#validate` | 422 `CAMPAIGN_INVALID`: nessun trigger; nessun effetto; `MULTIPLIER.factor` ∉ [1.1, 5]; `GRANT_PLAYS` senza `contestCode`; `ISSUE_COUPON` senza `rewardCode` né `rewardCodeField`; `AWARD_BADGE` senza `badgeCode`; `SEND_MESSAGE` senza/formato `templateCode`, `params` non oggetto; `endAt ≤ startAt`; date non valide | campaign §5 | US-E03-01, US-E03-02 | TB-CMP |
+| CMP-19 `CampaignAdminService#validate` | 422 `CAMPAIGN_INVALID`: nessun trigger; nessun effetto; `MULTIPLIER.factor` ∉ [1.1, 5]; `GRANT_PLAYS` senza `contestCode`; `ISSUE_COUPON` senza `rewardCode` né `rewardCodeField`; `AWARD_BADGE` senza `badgeCode`; `SEND_MESSAGE` senza/formato `templateCode`, `params` non oggetto; `GRANT_POINTS.unitStep ≤ 0` (Q-228); chiavi di `audience` diverse da `all/tiers/segments` (Q-214); `endAt ≤ startAt`; date non ISO-8601 anche da sole (Q-243) | campaign §5 | US-E03-01, US-E03-02 | TB-CMP |
 | ↳ | `POST /v1/campaigns/validate` ⇒ `{valid, errors[]}` senza salvare | campaign §3 | US-E03-01 | TB-CMP |
 | CMP-20 `#create` | 400 `code` mancante · 422 `INVALID_CODE` (fuori da `^[A-Z][A-Z0-9-]{2,39}$`) · 409 `CODE_TAKEN` | docs/06 §2 | US-E03-01 | TB-CMP |
 | ↳ | creata `DRAFT`, `priority` 100, pubblico «tutti», mai di sistema, `requiresLegal` dal corpo (default `false`) + audit | F-CMP-01 | US-E03-01 | TB-CMP |

@@ -299,7 +299,7 @@ fonti a elenco vuoto × 3 tipi rappresentativi (6); poi una riga per ogni classe
 | TB-ING-SRC-064 | fonte disabilitata che ammetterebbe il tipo | REJECTED/SOURCE_DISABLED | ingestion §5.2; F-ING-05 | `TestbookIngPipelineIT#src` |
 | TB-ING-SRC-065 | fonte abilitata con elenco che ammette il tipo | ACCEPTED | ingestion §5.3 | `TestbookIngPipelineIT#src` |
 | TB-ING-SRC-066 | codice fonte in maiuscolo (ECOMMERCE) | REJECTED/SOURCE_DISABLED (fonte inesistente) | ingestion §5.2 | `TestbookIngPipelineIT#src` |
-| TB-ING-SRC-067 | fonte in forma breve senza URN (ecommerce) | Q-258: ACCEPTED (comportamento attuale; docs/05 §2 prevede l'URN) | docs/05 §2 | `TestbookIngPipelineIT#src` |
+| TB-ING-SRC-067 | fonte in forma breve senza URN (ecommerce) | Q-258 DECISA: 400, nulla salvato (la forma breve è ammessa solo ai chiamanti interni) | docs/05 §2 | `TestbookIngPipelineIT#src` |
 | TB-ING-SRC-068 | fonte con URN di servizio (urn:loyaltyhub:service:ecommerce) | REJECTED/SOURCE_DISABLED: non è una fonte (DIVERGENZA) | docs/05 §2 (source delle azioni = urn:loyaltyhub:source:&lt;codice&gt;); ingestion §5.2 | `TestbookIngPipelineIT#src` |
 | TB-ING-SRC-069 | fonte con URN estraneo che termina con :ecommerce (urn:altro:ecommerce) | REJECTED/SOURCE_DISABLED: fonte inesistente (DIVERGENZA) | docs/05 §2; ingestion §5.2 | `TestbookIngPipelineIT#src` |
 | TB-ING-SRC-070 | URN di fonte con codice vuoto (urn:loyaltyhub:source:) | Q-258: REJECTED/SOURCE_DISABLED (nessun 400) | docs/05 §2; envelope.schema.json | `TestbookIngPipelineIT#src` |
@@ -459,7 +459,7 @@ indipendente e riporta tutti gli errori (una combinazione è provata in MON-006)
 | TB-ING-SCH-080 | quiz.completed: correctAnswers 0 · data `{"quizId":"QZ-1","correctAnswers":0,"totalQuestions":10}` | ACCEPTED | docs/05 §3 EVT-ACT-08; seed/event-types.json (minimum 0) | `TestbookIngPipelineIT#sch` |
 | TB-ING-SCH-081 | quiz.completed: totalQuestions 0 · data `{"quizId":"QZ-1","correctAnswers":0,"totalQuestions":0}` | REJECTED/INVALID_DATA su totalQuestions | docs/05 §3 EVT-ACT-08; seed/event-types.json (minimum 1) | `TestbookIngPipelineIT#sch` |
 | TB-ING-SCH-082 | quiz.completed: totalQuestions 1 · data `{"quizId":"QZ-1","correctAnswers":1,"totalQuestions":1}` | ACCEPTED | docs/05 §3 EVT-ACT-08; seed/event-types.json (minimum 1) | `TestbookIngPipelineIT#sch` |
-| TB-ING-SCH-083 | quiz.completed: correctAnswers 11 &gt; totalQuestions 10 · data `{"quizId":"QZ-1","correctAnswers":11,"totalQuestions":10}` | Q-265: ACCEPTED | docs/05 §3 EVT-ACT-08; seed/event-types.json (nessun vincolo incrociato) | `TestbookIngPipelineIT#sch` |
+| TB-ING-SCH-083 | quiz.completed: correctAnswers 11 &gt; totalQuestions 10 · data `{"quizId":"QZ-1","correctAnswers":11,"totalQuestions":10}` | Q-265 DECISA: REJECTED/INVALID_DATA su correctAnswers (vincolo tra campi dopo lo schema) | docs/05 §3 EVT-ACT-08; seed/event-types.json (nessun vincolo incrociato) | `TestbookIngPipelineIT#sch` |
 | TB-ING-SCH-084 | review.submitted: senza productId · data `{"rating":5}` | REJECTED/INVALID_DATA su productId | docs/05 §3 EVT-ACT-09 (rating* 1–5); seed/event-types.json | `TestbookIngPipelineIT#sch` |
 | TB-ING-SCH-085 | review.submitted: senza rating · data `{"productId":"SKU-100"}` | REJECTED/INVALID_DATA su rating | docs/05 §3 EVT-ACT-09 (rating* 1–5); seed/event-types.json | `TestbookIngPipelineIT#sch` |
 | TB-ING-SCH-086 | review.submitted: rating 0 · data `{"productId":"SKU-100","rating":0}` | REJECTED/INVALID_DATA su rating | docs/05 §3 EVT-ACT-09 (rating* 1–5); seed/event-types.json | `TestbookIngPipelineIT#sch` |
@@ -597,7 +597,7 @@ conti: righe Q-256 che asseriscono il comportamento attuale (non conta), coerent
 | TB-ING-DUP-006 | primo invio REJECTED/INVALID_DATA, secondo corretto con lo stesso id | Q-256: secondo ACCEPTED (conta solo un ACCEPTED; F-ING-02 dice «già visto») | F-ING-02; ingestion §5.6; docs/17 US-E01-04 | `TestbookIngPipelineIT#dup` |
 | TB-ING-DUP-007 | primo invio UNMATCHED, poi il membro arriva e la fonte rimanda lo stesso id | Q-256: secondo ACCEPTED | F-ING-02; ingestion §5.6; docs/17 US-E01-04 | `TestbookIngPipelineIT#dup` |
 | TB-ING-DUP-008 | due invii per un membro BLOCKED | Q-256: due righe REJECTED/MEMBER_NOT_ACTIVE, nessun DUPLICATE | F-ING-02; ingestion §5.6 | `TestbookIngPipelineIT#dup` |
-| TB-ING-DUP-009 | prima con URN, poi con codice breve della stessa fonte | DUPLICATE (stessa fonte) | F-ING-02; ingestion §5.6; docs/05 §2 | `TestbookIngPipelineIT#dup` |
+| TB-ING-DUP-009 | prima con URN, poi con codice breve della stessa fonte | Q-258 DECISA: il secondo invio in forma breve è `400` (nulla salvato), una sola pubblicazione | F-ING-02; ingestion §5.6; docs/05 §2 | `TestbookIngPipelineIT#dup` |
 | TB-ING-DUP-010 | prima con type breve, poi completo | DUPLICATE | F-ING-02; ingestion §5.6; docs/05 §2 | `TestbookIngPipelineIT#dup` |
 | TB-ING-DUP-011 | id che differiscono solo per maiuscole | entrambi ACCEPTED (id distinti) | F-ING-02; ingestion §5.6 | `TestbookIngPipelineIT#dup` |
 | TB-ING-DUP-012 | 8 invii concorrenti dello stesso evento | esattamente 1 ACCEPTED e 7 DUPLICATE, 1 pubblicazione | F-ING-02; ingestion §5.6; RNF-03; docs/17 US-E01-04 | `TestbookIngPipelineIT#dup` |
@@ -617,7 +617,7 @@ docs/03 §2). Dopo l'anonimizzazione l'indice non ha più e-mail ed externalId: 
 
 **Strategia.** Tabella **completa** forma × stato = 5 × 6 = 30 (≤ 64); le forme speciali una riga ciascuna; 6 righe sui
 membri del seed (Marco, Roberto `BLOCKED`, Alessandro `ANONYMIZED`, `CRM-999`). Il subject senza prefisso non è una forma
-prevista: righe Q-255 col comportamento attuale (trattato come id).
+prevista: righe Q-255 (DECISA) ⇒ `UNMATCHED`, come ogni forma non prevista.
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -645,15 +645,15 @@ prevista: righe Q-255 col comportamento attuale (trattato come id).
 | TB-ING-MBR-022 | email:&lt;e-mail con maiuscole&gt; · membro BLOCKED | REJECTED/MEMBER_NOT_ACTIVE + memberId | F-ING-03; docs/03 §2 (solo ACTIVE accumula) | `TestbookIngPipelineIT#mbr` |
 | TB-ING-MBR-023 | email:&lt;e-mail con maiuscole&gt; · membro anonimizzato (cancellazione reale) | UNMATCHED | Q-128 (indice senza e-mail/externalId) | `TestbookIngPipelineIT#mbr` |
 | TB-ING-MBR-024 | email:&lt;e-mail con maiuscole&gt; · stato sconosciuto SUSPENDED | REJECTED/MEMBER_NOT_ACTIVE + memberId | F-ING-03; docs/03 §2 (solo ACTIVE accumula) | `TestbookIngPipelineIT#mbr` |
-| TB-ING-MBR-025 | &lt;id&gt; senza prefisso · membro assente dall'indice | Q-255: UNMATCHED (subject senza prefisso trattato come id) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
-| TB-ING-MBR-026 | &lt;id&gt; senza prefisso · membro ACTIVE | Q-255: ACCEPTED + memberId (subject senza prefisso trattato come id) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
-| TB-ING-MBR-027 | &lt;id&gt; senza prefisso · membro INACTIVE | Q-255: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
-| TB-ING-MBR-028 | &lt;id&gt; senza prefisso · membro BLOCKED | Q-255: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
-| TB-ING-MBR-029 | &lt;id&gt; senza prefisso · membro anonimizzato (cancellazione reale) | Q-255: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
-| TB-ING-MBR-030 | &lt;id&gt; senza prefisso · stato sconosciuto SUSPENDED | Q-255: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
-| TB-ING-MBR-031 | external: con maiuscole diverse dall'indice | Q-255: UNMATCHED (confronto esatto sull'externalId) | F-ING-03 | `TestbookIngPipelineIT#mbr` |
-| TB-ING-MBR-032 | prefisso sconosciuto phone: | Q-255: UNMATCHED (forma non prevista) | F-ING-03 | `TestbookIngPipelineIT#mbr` |
-| TB-ING-MBR-033 | member: senza id | Q-255: UNMATCHED | F-ING-03; ingestion §5.7 | `TestbookIngPipelineIT#mbr` |
+| TB-ING-MBR-025 | &lt;id&gt; senza prefisso · membro assente dall'indice | Q-255 DECISA: UNMATCHED (forma non prevista, recuperabile con Abbina) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
+| TB-ING-MBR-026 | &lt;id&gt; senza prefisso · membro ACTIVE | Q-255 DECISA: UNMATCHED (forma non prevista, recuperabile con Abbina) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
+| TB-ING-MBR-027 | &lt;id&gt; senza prefisso · membro INACTIVE | Q-255 DECISA: UNMATCHED (forma non prevista, recuperabile con Abbina) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
+| TB-ING-MBR-028 | &lt;id&gt; senza prefisso · membro BLOCKED | Q-255 DECISA: UNMATCHED (forma non prevista, recuperabile con Abbina) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
+| TB-ING-MBR-029 | &lt;id&gt; senza prefisso · membro anonimizzato (cancellazione reale) | Q-255 DECISA: UNMATCHED (forma non prevista, recuperabile con Abbina) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
+| TB-ING-MBR-030 | &lt;id&gt; senza prefisso · stato sconosciuto SUSPENDED | Q-255 DECISA: UNMATCHED (forma non prevista, recuperabile con Abbina) | F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05 | `TestbookIngPipelineIT#mbr` |
+| TB-ING-MBR-031 | external: con maiuscole diverse dall'indice | Q-255 DECISA: UNMATCHED (confronto esatto sull'externalId) | F-ING-03 | `TestbookIngPipelineIT#mbr` |
+| TB-ING-MBR-032 | prefisso sconosciuto phone: | Q-255 DECISA: UNMATCHED (forma non prevista) | F-ING-03 | `TestbookIngPipelineIT#mbr` |
+| TB-ING-MBR-033 | member: senza id | Q-255 DECISA: UNMATCHED (member: senza id) | F-ING-03; ingestion §5.7 | `TestbookIngPipelineIT#mbr` |
 | TB-ING-MBR-034 | seed: member:MBR-000002 (Marco, ACTIVE) | ACCEPTED memberId MBR-000002 | ingestion §7; docs/10 §2 | `TestbookIngPipelineIT#mbr` |
 | TB-ING-MBR-035 | seed: external:CRM-102 | ACCEPTED memberId MBR-000002 | F-ING-03; docs/10 §2 | `TestbookIngPipelineIT#mbr` |
 | TB-ING-MBR-036 | seed: email:MARCO.BIANCHI@example.org | ACCEPTED memberId MBR-000002 | F-ING-03; docs/17 US-E01-01 | `TestbookIngPipelineIT#mbr` |
@@ -995,12 +995,12 @@ la transazione; mappatura verificata sull'envelope pubblicato.
 | TB-ING-TXN-004 | reso (kind RETURN) | purchase.returned, eventId txn-return-&lt;orderId&gt;, data {orderId, amount} | Q-49; F-ING-07 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-005 | reso senza currency | 202 ACCEPTED | Q-49 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-006 | kind REFUND | 400 | Q-49; docs/17 US-E01-08 | `TestbookIngConfigIT#txn` |
-| TB-ING-TXN-007 | acquisto senza currency | Q-269: 400 (errore di forma, non INVALID_DATA) | ingestion §3 (POST /v1/transactions); F-ING-07; docs/17 US-E01-08 | `TestbookIngConfigIT#txn` |
+| TB-ING-TXN-007 | acquisto senza currency | Q-269 DECISA: 202 REJECTED/INVALID_DATA (riga visibile in BO-26) | ingestion §3 (POST /v1/transactions); F-ING-07; docs/17 US-E01-08 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-008 | senza source | 400 | ingestion §3 (POST /v1/transactions); F-ING-07 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-009 | senza orderId | 400 | ingestion §3 (POST /v1/transactions); F-ING-07 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-010 | orderId di soli spazi | 400 | ingestion §3 (POST /v1/transactions); F-ING-07 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-011 | senza memberRef | 400 | ingestion §3 (POST /v1/transactions); F-ING-07 | `TestbookIngConfigIT#txn` |
-| TB-ING-TXN-012 | senza amount | Q-269: 400 (errore di forma, non INVALID_DATA) | ingestion §3 (POST /v1/transactions); F-ING-07 | `TestbookIngConfigIT#txn` |
+| TB-ING-TXN-012 | senza amount | Q-269 DECISA: 202 REJECTED/INVALID_DATA (riga visibile in BO-26) | ingestion §3 (POST /v1/transactions); F-ING-07 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-013 | corpo vuoto | 400 RFC 9457 (DIVERGENZA: oggi 500) | ingestion §3 (POST /v1/transactions); F-ING-07; docs/06 §2 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-014 | amount non numerico "abc" | 400 RFC 9457 (DIVERGENZA: oggi 500) | ingestion §3 (POST /v1/transactions); F-ING-07; docs/06 §2 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-015 | stesso ordine rinviato | secondo invio DUPLICATE (id deterministico) | ingestion §3 (POST /v1/transactions); F-ING-07; F-ING-02 | `TestbookIngConfigIT#txn` |
@@ -1040,9 +1040,9 @@ esiti della pipeline per provare che è la stessa.
 | TB-ING-SIM-008 | origine della riga | origin SIMULATOR (DIVERGENZA: oggi EXTERNAL) | ingestion §2 (origin EXTERNAL, INTERNAL, SIMULATOR); docs/17 ING-20 | `TestbookIngConfigIT#sim` |
 | TB-ING-SIM-009 | count assente ⇒ 1 | 1 evento | ingestion §3 (simulator/fire); F-DEMO-03; BO-28 (count?=1) | `TestbookIngConfigIT#sim` |
 | TB-ING-SIM-010 | count 20 | 20 eventi, id distinti | ingestion §3 (simulator/fire); F-DEMO-03; BO-28; BO-28 (ripetizioni 1–20) | `TestbookIngConfigIT#sim` |
-| TB-ING-SIM-011 | count 21 | Q-268: 20 eventi (limitato, non rifiutato) | BO-28 | `TestbookIngConfigIT#sim` |
-| TB-ING-SIM-012 | count 0 | Q-268: 1 evento (limitato, non rifiutato) | BO-28 | `TestbookIngConfigIT#sim` |
-| TB-ING-SIM-013 | count -3 | Q-268: 1 evento | BO-28 | `TestbookIngConfigIT#sim` |
+| TB-ING-SIM-011 | count 21 | Q-268 DECISA: 422, nessun evento | BO-28 | `TestbookIngConfigIT#sim` |
+| TB-ING-SIM-012 | count 0 | Q-268 DECISA: 422, nessun evento | BO-28 | `TestbookIngConfigIT#sim` |
+| TB-ING-SIM-013 | count -3 | Q-268 DECISA: 422, nessun evento | BO-28 | `TestbookIngConfigIT#sim` |
 | TB-ING-SIM-014 | data assente ⇒ sample_data del tipo | data con le chiavi del sample_data del tipo | ingestion §3 (simulator/fire); F-DEMO-03; BO-28 | `TestbookIngConfigIT#sim` |
 | TB-ING-SIM-015 | data assente: piccole variazioni casuali | due invii senza data hanno data diversi (DIVERGENZA: sample_data identico) | ingestion §3 (simulator/fire); F-DEMO-03; BO-28 | `TestbookIngConfigIT#sim` |
 | TB-ING-SIM-016 | occurredAt assente ⇒ adesso | time = istante del servizio | ingestion §3 (simulator/fire); F-DEMO-03; BO-28 | `TestbookIngConfigIT#sim` |
@@ -1175,19 +1175,19 @@ la più conservativa, la voce lo dice e propone l'alternativa senza implementarl
 
 | Voce | Righe | Tema | In uso conservativo? |
 |---|---|---|---|
-| Q-255 | MBR-025…MBR-033 | subject senza prefisso, prefisso sconosciuto, `member:` vuoto, `external:` con maiuscole | no (senza prefisso ⇒ proposto `UNMATCHED`) |
+| Q-255 | MBR-025…MBR-033 | subject senza prefisso, prefisso sconosciuto, `member:` vuoto, `external:` con maiuscole | DECISA (ogni forma non prevista ⇒ `UNMATCHED`) |
 | Q-256 | DUP-006, DUP-007, DUP-008 | la dedup conta solo un `ACCEPTED` | sì |
 | Q-257 | TIM-022, TIM-024 | «30 giorni» = 720 ore al cambio dell'ora | — |
-| Q-258 | SRC-067, SRC-070 | `source` in forma breve; URN con codice vuoto | no (forma breve esterna ⇒ proposto `400`) |
+| Q-258 | SRC-067, SRC-070 | `source` in forma breve; URN con codice vuoto | DECISA (forma breve su `POST /v1/events` ⇒ `400`) |
 | Q-259 | ACC-006 | subject normalizzato sulla riga `ACCEPTED` | — |
 | Q-260 | ETY-009, 010, 015, 016, 022, 027, 029, 057 | limiti e default dei tipi custom; nome vuoto su un SYSTEM | sì |
 | Q-261 | ETY-034, RES-007, RES-014 | `X-LH-Actor` non valido = ANALYST | sì |
 | Q-262 | RES-050…RES-054 | codici e pulizia di *Abbina* | sì |
-| Q-265 | SCH-083 | `correctAnswers` > `totalQuestions` | no (proposto `INVALID_DATA`) |
+| Q-265 | SCH-083 | `correctAnswers` > `totalQuestions` | DECISA (`INVALID_DATA`) |
 | Q-266 | SCN-023, SCN-025, SCN-026 | esito dell'esecuzione di uno scenario; fonte di default | — |
 | Q-267 | SCT-008, SCT-016, SCT-018 | feriale = lun–ven; ora inesistente/doppia | — |
-| Q-268 | SIM-011, SIM-012, SIM-013 | `count` fuori 1–20 limitato | no (proposto `422`) |
-| Q-269 | TXN-003, TXN-007, TXN-012 | `kind` senza maiuscole; `amount`/`currency` mancanti ⇒ 400 | no (proposto `INVALID_DATA` visibile in BO-26) |
+| Q-268 | SIM-011, SIM-012, SIM-013 | `count` fuori 1–20 limitato | DECISA (`422`) |
+| Q-269 | TXN-003, TXN-007, TXN-012 | `kind` senza maiuscole; `amount`/`currency` mancanti ⇒ 400 | DECISA (`INVALID_DATA` visibile in BO-26; `kind` resta senza maiuscole) |
 | Q-270 | TYP-010, TYP-011 | custom senza schema; custom da fonte con elenco | sì |
 
 Voci nate dalle correzioni, senza righe AMBIGUO: Q-263 (`POST /v1/sources`, FON-003), Q-264 (ampiezza delle variazioni

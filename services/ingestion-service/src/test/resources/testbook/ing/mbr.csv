@@ -23,15 +23,15 @@ TB-ING-MBR-021|email:<e-mail con maiuscole> · membro INACTIVE|emailMixed|INACTI
 TB-ING-MBR-022|email:<e-mail con maiuscole> · membro BLOCKED|emailMixed|BLOCKED|REJECTED|MEMBER_NOT_ACTIVE|S|REJECTED/MEMBER_NOT_ACTIVE + memberId|F-ING-03; docs/03 §2 (solo ACTIVE accumula)
 TB-ING-MBR-023|email:<e-mail con maiuscole> · membro anonimizzato (cancellazione reale)|emailMixed|ANONYMIZED|UNMATCHED|-|N|UNMATCHED|Q-128 (indice senza e-mail/externalId)
 TB-ING-MBR-024|email:<e-mail con maiuscole> · stato sconosciuto SUSPENDED|emailMixed|SUSPENDED|REJECTED|MEMBER_NOT_ACTIVE|S|REJECTED/MEMBER_NOT_ACTIVE + memberId|F-ING-03; docs/03 §2 (solo ACTIVE accumula)
-TB-ING-MBR-025|<id> senza prefisso · membro assente dall'indice|noprefix|ABSENT|UNMATCHED|-|N|Q-255: UNMATCHED (subject senza prefisso trattato come id)|F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05
-TB-ING-MBR-026|<id> senza prefisso · membro ACTIVE|noprefix|ACTIVE|ACCEPTED|-|S|Q-255: ACCEPTED + memberId (subject senza prefisso trattato come id)|F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05
-TB-ING-MBR-027|<id> senza prefisso · membro INACTIVE|noprefix|INACTIVE|REJECTED|MEMBER_NOT_ACTIVE|S|Q-255: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id)|F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05
-TB-ING-MBR-028|<id> senza prefisso · membro BLOCKED|noprefix|BLOCKED|REJECTED|MEMBER_NOT_ACTIVE|S|Q-255: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id)|F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05
-TB-ING-MBR-029|<id> senza prefisso · membro anonimizzato (cancellazione reale)|noprefix|ANONYMIZED|REJECTED|MEMBER_NOT_ACTIVE|S|Q-255: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id)|F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05
-TB-ING-MBR-030|<id> senza prefisso · stato sconosciuto SUSPENDED|noprefix|SUSPENDED|REJECTED|MEMBER_NOT_ACTIVE|S|Q-255: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id)|F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05
-TB-ING-MBR-031|external: con maiuscole diverse dall'indice|externalCase|ACTIVE|UNMATCHED|-|N|Q-255: UNMATCHED (confronto esatto sull'externalId)|F-ING-03
-TB-ING-MBR-032|prefisso sconosciuto phone:|phone|ACTIVE|UNMATCHED|-|N|Q-255: UNMATCHED (forma non prevista)|F-ING-03
-TB-ING-MBR-033|member: senza id|memberEmpty|ACTIVE|UNMATCHED|-|N|Q-255: UNMATCHED|F-ING-03; ingestion §5.7
+TB-ING-MBR-025|<id> senza prefisso · membro assente dall'indice|noprefix|ABSENT|UNMATCHED|-|N|Q-255 DECISA: UNMATCHED (forma non prevista, recuperabile con Abbina)|F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05
+TB-ING-MBR-026|<id> senza prefisso · membro ACTIVE|noprefix|ACTIVE|UNMATCHED|-|N|Q-255 DECISA: UNMATCHED (forma non prevista, recuperabile con Abbina)|F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05
+TB-ING-MBR-027|<id> senza prefisso · membro INACTIVE|noprefix|INACTIVE|UNMATCHED|-|N|Q-255 DECISA: UNMATCHED (forma non prevista, recuperabile con Abbina)|F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05
+TB-ING-MBR-028|<id> senza prefisso · membro BLOCKED|noprefix|BLOCKED|UNMATCHED|-|N|Q-255 DECISA: UNMATCHED (forma non prevista, recuperabile con Abbina)|F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05
+TB-ING-MBR-029|<id> senza prefisso · membro anonimizzato (cancellazione reale)|noprefix|ANONYMIZED|UNMATCHED|-|N|Q-255 DECISA: UNMATCHED (forma non prevista, recuperabile con Abbina)|F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05
+TB-ING-MBR-030|<id> senza prefisso · stato sconosciuto SUSPENDED|noprefix|SUSPENDED|UNMATCHED|-|N|Q-255 DECISA: UNMATCHED (forma non prevista, recuperabile con Abbina)|F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05
+TB-ING-MBR-031|external: con maiuscole diverse dall'indice|externalCase|ACTIVE|UNMATCHED|-|N|Q-255 DECISA: UNMATCHED (confronto esatto sull'externalId)|F-ING-03
+TB-ING-MBR-032|prefisso sconosciuto phone:|phone|ACTIVE|UNMATCHED|-|N|Q-255 DECISA: UNMATCHED (forma non prevista)|F-ING-03
+TB-ING-MBR-033|member: senza id|memberEmpty|ACTIVE|UNMATCHED|-|N|Q-255 DECISA: UNMATCHED (member: senza id)|F-ING-03; ingestion §5.7
 TB-ING-MBR-034|seed: member:MBR-000002 (Marco, ACTIVE)|seed:member:MBR-000002|-|ACCEPTED|-|MBR-000002|ACCEPTED memberId MBR-000002|ingestion §7; docs/10 §2
 TB-ING-MBR-035|seed: external:CRM-102|seed:external:CRM-102|-|ACCEPTED|-|MBR-000002|ACCEPTED memberId MBR-000002|F-ING-03; docs/10 §2
 TB-ING-MBR-036|seed: email:MARCO.BIANCHI@example.org|seed:email:MARCO.BIANCHI@example.org|-|ACCEPTED|-|MBR-000002|ACCEPTED memberId MBR-000002|F-ING-03; docs/17 US-E01-01

@@ -549,9 +549,13 @@ class CampaignServiceIT {
         });
     }
 
+    /** PUT con la version appena letta (Q-249: senza version il PUT è rifiutato con 409 VERSION_REQUIRED). */
     private JsonNode put(String id, Map<String, Object> body, int expected) {
+        Map<String, Object> withVersion = new java.util.HashMap<>(body);
+        withVersion.putIfAbsent("version",
+                send("GET", "/v1/campaigns/" + id, "MARKETING:giulia", null, 200).path("version").asLong());
         return client().put().uri("/v1/campaigns/" + id).header("X-LH-Actor", "MARKETING:giulia")
-                .contentType(MediaType.APPLICATION_JSON).body(body)
+                .contentType(MediaType.APPLICATION_JSON).body(withVersion)
                 .exchange((req, res) -> {
                     assertThat(res.getStatusCode().value()).isEqualTo(expected);
                     return new ObjectMapper().readTree(res.getBody());

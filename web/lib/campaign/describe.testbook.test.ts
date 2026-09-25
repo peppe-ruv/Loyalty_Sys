@@ -124,9 +124,12 @@ it("[TB-WEB-DESC-026] gruppi annidati (TUTTE › ALMENO UNA) → «a e (b oppure
 
 it.each(
   rows([
-    { id: "TB-WEB-DESC-027", desc: "pubblico «tutti» → nessuna frase sul pubblico", audience: { all: true, tiers: ["GOLD"] }, has: null as string | null },
+    { id: "TB-WEB-DESC-027", desc: "pubblico «tutti» → nessuna frase sul pubblico", audience: { all: true, tiers: [], segments: [] }, has: null as string | null },
+    // Q-210 DECISA: con all=true gli elenchi non vuoti restringono comunque, quindi la frase li riporta.
+    { id: "TB-WEB-DESC-027", desc: "all=true con tier GOLD → «il membro è **GOLD**» (Q-210)", audience: { all: true, tiers: ["GOLD"] }, has: "se il membro è **GOLD**" },
     { id: "TB-WEB-DESC-028", desc: "pubblico GOLD o PLATINUM → «il membro è **GOLD o PLATINUM**»", audience: { tiers: ["GOLD", "PLATINUM"] }, has: "se il membro è **GOLD o PLATINUM**" },
-    { id: "TB-WEB-DESC-029", desc: "pubblico con elenchi vuoti → nessuna frase sul pubblico", audience: { tiers: [], segments: [] }, has: null },
+    // Q-211 DECISA: senza elenchi e all non vero il pubblico è vuoto (la campagna non scatta per nessuno).
+    { id: "TB-WEB-DESC-029", desc: "pubblico con elenchi vuoti → «il pubblico è **vuoto**» (Q-211)", audience: { tiers: [], segments: [] }, has: "se il pubblico è **vuoto** (non scatta per nessuno)" },
   ]),
 )("[%s] %s", (_id, _desc, { audience, has }) => {
   const s = describeCampaign(d({ audience }));

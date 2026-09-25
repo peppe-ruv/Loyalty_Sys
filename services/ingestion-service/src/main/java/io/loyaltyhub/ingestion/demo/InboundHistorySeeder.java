@@ -139,6 +139,9 @@ public class InboundHistorySeeder {
                 .orElseThrow(() -> incoherent(eventId, "INVALID_DATA su un tipo senza schema"));
         List<String> errors = validator.validate(t.schemaCacheKey(), t.dataSchema(), data.toString());
         if (errors.isEmpty()) {
+            errors = io.loyaltyhub.ingestion.domain.CrossFieldRules.errors(shortType, data); // come la pipeline (Q-265)
+        }
+        if (errors.isEmpty()) {
             throw incoherent(eventId, "INVALID_DATA con dati validi per lo schema");
         }
         return String.join("; ", errors);

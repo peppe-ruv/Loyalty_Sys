@@ -42,9 +42,11 @@ class TestbookCmpTriggerAudienceTest {
 
     /**
      * TB-CMP-AUD: tabella completa all × tiers × segments (27) + casi singoli.
-     * TESTBOOK: ambiguo, vedi TB-CMP-AUD-002…009, 010, 015, 017, 019, 024, 026, 028, 031, 032 (docs/03 §3.2 non dice
-     * come si combinano all/tiers/segments né cosa valga un pubblico senza restrizioni con all=false): si asserisce il
-     * comportamento attuale.
+     * Q-210 DECISA (AUD-002…009: gli elenchi non vuoti restringono anche con all=true), Q-211 DECISA (AUD-010, 019:
+     * senza restrizioni e all non vero ⇒ nessuno), Q-212 DECISA (AUD-015, 017, 024, 026: tiers AND segments, come il
+     * pubblico dei contenuti), Q-214 DECISA (AUD-031, 032: chiavi non previste rifiutate al salvataggio, nel motore non
+     * restringono ⇒ nessuno).
+     * TESTBOOK: ambiguo, vedi TB-CMP-AUD-028 (pubblico assente = tutti, Q-213): si asserisce il comportamento attuale.
      */
     @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
     @CsvFileSource(resources = "/testbook/cmp/audience.csv", numLinesToSkip = 1, delimiter = '|', quoteCharacter = '`')

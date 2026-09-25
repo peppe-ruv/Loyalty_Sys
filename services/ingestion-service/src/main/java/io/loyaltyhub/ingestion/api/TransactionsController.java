@@ -20,7 +20,9 @@ import java.util.List;
  * Transazioni d'acquisto (F-ING-07, docs/servizi/ingestion-service.md §3): {@code POST /v1/transactions} converte un
  * ordine in un'azione {@code purchase.completed} con {@code id = "txn-" + orderId} e la fa passare dalla stessa
  * pipeline di {@code POST /v1/events} (fonte, tipo, schema, finestra temporale, dedup {@code (source, id)}, membro).
- * Stesse risposte: {@code 400} per errori di forma, altrimenti {@code 202} con l'esito.
+ * Stesse risposte: {@code 400} per errori di forma ({@code source}, {@code orderId}, {@code memberRef} mancanti,
+ * {@code kind} sconosciuto), altrimenti {@code 202} con l'esito; {@code amount}/{@code currency} mancanti sono un
+ * {@code REJECTED/INVALID_DATA} dello schema (Q-269).
  * <p>
  * Reso ({@code kind = RETURN}) → {@code purchase.returned} con {@code id = "txn-return-" + orderId}.
  * // SPEC-GAP: Q-49 — la scheda non dice come la transazione segnali il reso; scelto un campo opzionale.
@@ -44,11 +46,17 @@ public class TransactionsController {
         requireForm(t);
         boolean isReturn = "RETURN".equalsIgnoreCase(t.kind());
 
+        // Q-269: amount/currency mancanti non sono un errore di forma: l'azione si costruisce senza e lo schema del
+        // tipo la respinge (REJECTED/INVALID_DATA, visibile in BO-26 come per POST /v1/events).
         ObjectNode data = mapper.createObjectNode();
         data.put("orderId", t.orderId());
-        data.put("amount", t.amount());
+        if (t.amount() != null) {
+            data.put("amount", t.amount());
+        }
         if (!isReturn) {
-            data.put("currency", t.currency());
+            if (t.currency() != null) {
+                data.put("currency", t.currency());
+            }
             if (t.channel() != null) {
                 data.put("channel", t.channel());
             }
@@ -76,8 +84,6 @@ public class TransactionsController {
         if (blank(t.source())) missing.add("source");
         if (blank(t.orderId())) missing.add("orderId");
         if (blank(t.memberRef())) missing.add("memberRef");
-        if (t.amount() == null) missing.add("amount");
-        if (!"RETURN".equalsIgnoreCase(t.kind()) && blank(t.currency())) missing.add("currency");
         if (!missing.isEmpty()) {
             throw LhException.badRequest("Campi obbligatori mancanti: " + String.join(", ", missing));
         }
