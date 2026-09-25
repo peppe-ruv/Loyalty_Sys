@@ -1,0 +1,13 @@
+id|descrizione|caso|atteso|rif
+TB-ING-RES-045|Abbina: membro ACTIVE|active|200 ACCEPTED, resolution MANUAL_MATCH, subject pubblicato member:<scelto>, subject della riga originale, audit TRANSITION|ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04; Q-117; Q-118
+TB-ING-RES-046|Abbina: membro seed MBR-000002 (Marco)|seedMarco|200 ACCEPTED memberId MBR-000002|ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04; docs/17 US-E01-07
+TB-ING-RES-047|Abbina: membro INACTIVE|inactive|422 MEMBER_NOT_ACTIVE, riga UNMATCHED|ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04; docs/03 §2
+TB-ING-RES-048|Abbina: membro seed MBR-000008 (Roberto, BLOCKED)|blocked|422 MEMBER_NOT_ACTIVE|ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04; docs/03 §2; docs/17 US-E01-07
+TB-ING-RES-049|Abbina: membro ANONYMIZED|anonymized|422 MEMBER_NOT_ACTIVE|ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04; docs/03 §2
+TB-ING-RES-050|Abbina: membro non indicizzato|notIndexed|AMBIGUO: 422 MEMBER_NOT_FOUND (codice non specificato)|ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04
+TB-ING-RES-051|Abbina: memberId di soli spazi|blank|AMBIGUO: 422 MEMBER_REQUIRED|ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04
+TB-ING-RES-052|Abbina: corpo assente|noBody|AMBIGUO: 422 MEMBER_REQUIRED|ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04
+TB-ING-RES-053|Abbina: corpo {} senza memberId|emptyObject|AMBIGUO: 422 MEMBER_REQUIRED|ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04
+TB-ING-RES-054|Abbina: memberId con spazi attorno|trimmed|AMBIGUO: 200 ACCEPTED (spazi ignorati)|ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04
+TB-ING-RES-055|Abbina: fonte spenta nel frattempo|otherStepFails|200 con esito REJECTED/SOURCE_DISABLED sulla stessa riga, nulla pubblicato|ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04; Q-118
+TB-ING-RES-056|Abbina: riprova dopo l'abbinamento|thenRetry|409 INBOUND_NOT_RETRYABLE, 1 sola pubblicazione|ingestion §3 (abbina {memberId} un UNMATCHED); F-ING-04; ingestion §3

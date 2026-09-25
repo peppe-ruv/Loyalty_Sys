@@ -1,0 +1,61 @@
+id|descrizione|caso|attore|http|codice|campo|atteso|rif
+TB-ING-ETY-001|crea custom a 3 parti (MARKETING)|c.valid3|MARKETING:luca.marketing|201|-|-|201, origin CUSTOM, abilitato|ingestion §3 (event-types); F-ING-06; Q-89
+TB-ING-ETY-002|crea custom a 2 parti|c.valid2|ADMIN:marta.admin|201|-|-|201|Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE)
+TB-ING-ETY-003|crea custom a 4 parti|c.valid4|ADMIN:marta.admin|201|-|-|201|Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE)
+TB-ING-ETY-004|codice di 1 parte|c.onePart|ADMIN:marta.admin|422|EVENT_TYPE_INVALID|code|422 su code|Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE)
+TB-ING-ETY-005|codice di 5 parti|c.fiveParts|ADMIN:marta.admin|422|EVENT_TYPE_INVALID|code|422 su code|Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE)
+TB-ING-ETY-006|codice Meter_Reading|c.upperSnake|ADMIN:marta.admin|422|EVENT_TYPE_INVALID|code|422 su code|Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE); docs/17 US-E01-12
+TB-ING-ETY-007|codice con maiuscola interna (x.readingSent)|c.camel|ADMIN:marta.admin|422|EVENT_TYPE_INVALID|code|422 su code: non minuscolo (DIVERGENZA)|Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE)
+TB-ING-ETY-008|codice che inizia con una cifra|c.digitStart|ADMIN:marta.admin|422|EVENT_TYPE_INVALID|code|422 su code|Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE)
+TB-ING-ETY-009|codice di 60 caratteri|c.len60|ADMIN:marta.admin|201|-|-|AMBIGUO: 201 (limite di 60 non specificato)|Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE)
+TB-ING-ETY-010|codice di 61 caratteri|c.len61|ADMIN:marta.admin|422|EVENT_TYPE_INVALID|code|AMBIGUO: 422 (limite di 60 non specificato)|Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE)
+TB-ING-ETY-011|codice vuoto|c.blankCode|ADMIN:marta.admin|422|EVENT_TYPE_INVALID|code|422 su code|Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE)
+TB-ING-ETY-012|codice di un custom già esistente|c.dupCustom|ADMIN:marta.admin|409|EVENT_TYPE_EXISTS|-|409|ingestion §3 (event-types); F-ING-06; Q-89; docs/06 §2
+TB-ING-ETY-013|codice di un tipo di sistema (purchase.completed)|c.dupSystem|ADMIN:marta.admin|409|EVENT_TYPE_EXISTS|-|409|ingestion §3 (event-types); F-ING-06; Q-89; docs/06 §2
+TB-ING-ETY-014|nome vuoto|c.nameBlank|ADMIN:marta.admin|422|EVENT_TYPE_INVALID|name|422 su name|ingestion §3 (event-types); F-ING-06; Q-89
+TB-ING-ETY-015|nome di 60 caratteri|c.name60|ADMIN:marta.admin|201|-|-|AMBIGUO: 201 (limite non specificato)|ingestion §3 (event-types); F-ING-06; Q-89
+TB-ING-ETY-016|nome di 61 caratteri|c.name61|ADMIN:marta.admin|422|EVENT_TYPE_INVALID|name|AMBIGUO: 422 (limite non specificato)|ingestion §3 (event-types); F-ING-06; Q-89
+TB-ING-ETY-017|categoria TRANSACTION|c.catTransaction|ADMIN:marta.admin|201|-|-|201|Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE)
+TB-ING-ETY-018|categoria ENGAGEMENT|c.catEngagement|ADMIN:marta.admin|201|-|-|201|Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE)
+TB-ING-ETY-019|categoria SERVICE|c.catService|ADMIN:marta.admin|201|-|-|201|Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE)
+TB-ING-ETY-020|categoria INTERNAL (riservata ai tipi di sistema)|c.catInternal|ADMIN:marta.admin|422|EVENT_TYPE_INVALID|category|422 su category|Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE)
+TB-ING-ETY-021|categoria sconosciuta FOO|c.catUnknown|ADMIN:marta.admin|422|EVENT_TYPE_INVALID|category|422 su category|Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE)
+TB-ING-ETY-022|categoria assente|c.catMissing|ADMIN:marta.admin|201|-|-|AMBIGUO: 201 con categoria ENGAGEMENT|Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE)
+TB-ING-ETY-023|schema assente|c.schemaMissing|ADMIN:marta.admin|422|EVENT_TYPE_INVALID|dataSchema|422 su dataSchema|ingestion §3 (event-types); F-ING-06; Q-89 (JSON Schema dei campi)
+TB-ING-ETY-024|schema di tipo array|c.schemaArray|ADMIN:marta.admin|422|EVENT_TYPE_INVALID|dataSchema|422 su dataSchema|ingestion §3 (event-types); F-ING-06; Q-89
+TB-ING-ETY-025|schema non conforme al meta-schema (type: nonsense)|c.schemaInvalid|ADMIN:marta.admin|422|EVENT_TYPE_INVALID|dataSchema|422 su dataSchema (DIVERGENZA: oggi 201)|ingestion §3 (event-types); F-ING-06; Q-89 (JSON Schema valido)
+TB-ING-ETY-026|sampleData che viola lo schema|c.sampleInvalid|ADMIN:marta.admin|422|EVENT_TYPE_INVALID|sampleData|422 su sampleData|ingestion §3 (event-types); F-ING-06; Q-89; ingestion §2 (sample_data)
+TB-ING-ETY-027|sampleData assente con schema senza obbligatori|c.sampleMissing|ADMIN:marta.admin|201|-|-|AMBIGUO: 201 con sampleData {}|ingestion §3 (event-types); F-ING-06; Q-89
+TB-ING-ETY-028|creato disabilitato|c.disabledAtCreate|ADMIN:marta.admin|201|-|-|201 enabled=false; i suoi eventi sono UNKNOWN_TYPE|ingestion §3 (event-types); F-ING-06; Q-89; ingestion §5.3
+TB-ING-ETY-029|abilitazione assente ⇒ abilitato|c.defaultEnabled|ADMIN:marta.admin|201|-|-|AMBIGUO: 201 enabled=true|ingestion §3 (event-types); F-ING-06; Q-89
+TB-ING-ETY-030|crea con LEGAL|c.role|LEGAL:elena.legal|403|FORBIDDEN_ROLE|-|403|docs/08 §2 (actiontype.custom: ADMIN, MARKETING)
+TB-ING-ETY-031|crea con CARE|c.role|CARE:paolo.care|403|FORBIDDEN_ROLE|-|403|docs/08 §2
+TB-ING-ETY-032|crea con ANALYST|c.role|ANALYST:sara.analyst|403|FORBIDDEN_ROLE|-|403|docs/08 §2; docs/06 §3
+TB-ING-ETY-033|crea senza X-LH-Actor|c.role|-|403|FORBIDDEN_ROLE|-|403 (assente = ANALYST)|docs/06 §3
+TB-ING-ETY-034|crea con X-LH-Actor non valido|c.role|PIRATA:x|403|FORBIDDEN_ROLE|-|AMBIGUO: 403 (ruolo sconosciuto = ANALYST)|docs/06 §3
+TB-ING-ETY-035|audit della creazione|c.audit|MARKETING:luca.marketing|201|-|-|voce CREATE su lh.audit.v1 con l'attore|ingestion §4; F-AUD-01
+TB-ING-ETY-036|custom usabile subito|c.usable|MARKETING:luca.marketing|201|-|-|evento valido ACCEPTED, evento senza campo obbligatorio INVALID_DATA|ingestion §3 (event-types); F-ING-06; Q-89; docs/12 M6.7
+TB-ING-ETY-037|campi del custom per il costruttore di condizioni|c.fields|ADMIN:marta.admin|201|-|-|GET …/fields: data.meterId string obbligatorio, data.kind enum|ingestion §3 (event-types); F-ING-06; Q-89 (fields); BO-06
+TB-ING-ETY-038|custom nell'elenco dei tipi|c.listed|ADMIN:marta.admin|201|-|-|GET /v1/event-types lo elenca con origin CUSTOM|ingestion §3 (event-types); F-ING-06; Q-89
+TB-ING-ETY-039|modifica di tutto tranne il codice (MARKETING)|u.all|MARKETING:luca.marketing|200|-|-|200 con nome, descrizione, categoria, schema, esempio, icona, abilitazione nuovi; audit UPDATE|ingestion §3 (CUSTOM: tutto tranne code)
+TB-ING-ETY-040|modifica con codice diverso|u.codeDiff|ADMIN:marta.admin|422|EVENT_TYPE_IMMUTABLE_FIELD|code|422|ingestion §3
+TB-ING-ETY-041|modifica con lo stesso codice nel corpo|u.codeSame|ADMIN:marta.admin|200|-|-|200|ingestion §3
+TB-ING-ETY-042|modifica con categoria non ammessa|u.badCategory|ADMIN:marta.admin|422|EVENT_TYPE_INVALID|category|422|Q-89 (codice minuscolo a punti, 2–4 parti; categorie TRANSACTION/ENGAGEMENT/SERVICE)
+TB-ING-ETY-043|nuovo campo obbligatorio vale subito|u.schemaNow|ADMIN:marta.admin|200|-|-|evento successivo senza il campo: INVALID_DATA|ingestion §3 (event-types); F-ING-06; Q-89 (senza rilascio); docs/12 M6.7
+TB-ING-ETY-044|disabilita e riabilita un custom|u.disable|ADMIN:marta.admin|200|-|-|disabilitato ⇒ UNKNOWN_TYPE; riabilitato ⇒ ACCEPTED|ingestion §5.3
+TB-ING-ETY-045|modifica di un tipo inesistente|u.notFound|ADMIN:marta.admin|404|NOT_FOUND|-|404|ingestion §3
+TB-ING-ETY-046|modifica di un custom con LEGAL|u.role|LEGAL:elena.legal|403|FORBIDDEN_ROLE|-|403|docs/08 §2
+TB-ING-ETY-047|tipo di sistema modificato da MARKETING|s.role|MARKETING:luca.marketing|403|FORBIDDEN_ROLE|-|403|Q-89; docs/17 US-E01-12
+TB-ING-ETY-048|tipo di sistema modificato da CARE|s.role|CARE:paolo.care|403|FORBIDDEN_ROLE|-|403|Q-89
+TB-ING-ETY-049|tipo di sistema modificato da ANALYST|s.role|ANALYST:sara.analyst|403|FORBIDDEN_ROLE|-|403|Q-89; docs/06 §3
+TB-ING-ETY-050|ADMIN cambia nome, descrizione, icona di un tipo di sistema|s.labels|ADMIN:marta.admin|200|-|-|200; origin, categoria e schema invariati|ingestion §3 (SYSTEM: name, description, enabled, icon)
+TB-ING-ETY-051|ADMIN disabilita un tipo di sistema|s.disable|ADMIN:marta.admin|200|-|-|200; nuovi eventi UNKNOWN_TYPE|ingestion §3; docs/17 US-E01-12
+TB-ING-ETY-052|ADMIN cambia la categoria di un tipo di sistema|s.category|ADMIN:marta.admin|422|EVENT_TYPE_SYSTEM_LOCKED|category|422|ingestion §3
+TB-ING-ETY-053|ADMIN cambia lo schema di un tipo di sistema|s.schema|ADMIN:marta.admin|422|EVENT_TYPE_SYSTEM_LOCKED|dataSchema|422|ingestion §3; docs/17 US-E01-12
+TB-ING-ETY-054|ADMIN cambia l'esempio di un tipo di sistema|s.sample|ADMIN:marta.admin|422|EVENT_TYPE_SYSTEM_LOCKED|sampleData|422|ingestion §3
+TB-ING-ETY-055|ADMIN rimanda lo stesso schema del tipo di sistema|s.sameSchema|ADMIN:marta.admin|200|-|-|200 (nessun cambiamento)|ingestion §3
+TB-ING-ETY-056|ADMIN cambia il codice di un tipo di sistema|s.code|ADMIN:marta.admin|422|EVENT_TYPE_IMMUTABLE_FIELD|code|422|ingestion §3
+TB-ING-ETY-057|ADMIN manda un nome vuoto a un tipo di sistema|s.nameBlank|ADMIN:marta.admin|200|-|-|AMBIGUO: 200, il nome resta quello di prima|ingestion §3
+TB-ING-ETY-058|campi di purchase.completed|f.system|-|200|-|-|data.amount number obbligatorio, data.channel enum, data.items[*].sku|ingestion §3 (fields); docs/03 §3.3
+TB-ING-ETY-059|campi di un tipo inesistente|f.notFound|-|404|NOT_FOUND|-|404|ingestion §3
+TB-ING-ETY-060|elenco dei tipi di sistema|l.system|-|200|-|-|i 19 tipi EVT-ACT del seed con origin SYSTEM|docs/10 §3; docs/05 §3

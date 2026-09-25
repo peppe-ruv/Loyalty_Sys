@@ -1,0 +1,21 @@
+id|descrizione|caso|atteso|rif
+TB-ING-RES-025|Riprova: SOURCE_DISABLED, fonte ancora spenta|sourceStillOff|REJECTED/SOURCE_DISABLED sulla stessa riga, nulla pubblicato|ingestion §3 (riprova: rivaluta e, se valido, pubblica); F-ING-09; Q-118; docs/17 US-E01-07
+TB-ING-RES-026|Riprova: SOURCE_DISABLED, fonte riaccesa|sourceOn|ACCEPTED, 1 pubblicazione con lo stesso id, resolution RETRY|ingestion §3 (riprova: rivaluta e, se valido, pubblica); F-ING-09; Q-118
+TB-ING-RES-027|Riprova: UNKNOWN_TYPE, tipo ancora disabilitato|typeStillOff|REJECTED/UNKNOWN_TYPE|ingestion §3 (riprova: rivaluta e, se valido, pubblica); F-ING-09
+TB-ING-RES-028|Riprova: UNKNOWN_TYPE, tipo riabilitato|typeOn|ACCEPTED|ingestion §3 (riprova: rivaluta e, se valido, pubblica); F-ING-09
+TB-ING-RES-029|Riprova: TYPE_NOT_ALLOWED, elenco della fonte corretto|allowFixed|ACCEPTED|ingestion §3 (riprova: rivaluta e, se valido, pubblica); F-ING-09
+TB-ING-RES-030|Riprova: INVALID_DATA, payload invariato|dataStill|REJECTED/INVALID_DATA (il payload salvato non cambia)|ingestion §3 (riprova: rivaluta e, se valido, pubblica); F-ING-09
+TB-ING-RES-031|Riprova: INVALID_DATA, schema del tipo custom allentato|schemaRelaxed|ACCEPTED (schema valido da subito)|ingestion §3 (riprova: rivaluta e, se valido, pubblica); F-ING-09; F-ING-06
+TB-ING-RES-032|Riprova: INVALID_TIME nel futuro, orologio avanzato di 10 min|timeNowOk|ACCEPTED|ingestion §3 (riprova: rivaluta e, se valido, pubblica); F-ING-09; ingestion §5.5
+TB-ING-RES-033|Riprova: INVALID_TIME di 31 giorni fa|timeTooOld|REJECTED/INVALID_TIME|ingestion §3 (riprova: rivaluta e, se valido, pubblica); F-ING-09; ingestion §5.5
+TB-ING-RES-034|Riprova: MEMBER_NOT_ACTIVE, membro ancora BLOCKED|memberStillBlocked|REJECTED/MEMBER_NOT_ACTIVE|ingestion §3 (riprova: rivaluta e, se valido, pubblica); F-ING-09; docs/03 §2
+TB-ING-RES-035|Riprova: MEMBER_NOT_ACTIVE, membro riattivato|memberReactivated|ACCEPTED|ingestion §3 (riprova: rivaluta e, se valido, pubblica); F-ING-09
+TB-ING-RES-036|Riprova: UNMATCHED, membro ancora sconosciuto|unmatchedNoMember|UNMATCHED, nessuna resolution|ingestion §3 (riprova: rivaluta e, se valido, pubblica); F-ING-09
+TB-ING-RES-037|Riprova: UNMATCHED, membro ora nell'indice|unmatchedMemberArrived|ACCEPTED col memberId risolto|ingestion §3 (riprova: rivaluta e, se valido, pubblica); F-ING-09; F-ING-04
+TB-ING-RES-038|Riprova: UNMATCHED, membro ora nell'indice ma BLOCKED|unmatchedMemberBlocked|REJECTED/MEMBER_NOT_ACTIVE (esito sostituito)|ingestion §3 (riprova: rivaluta e, se valido, pubblica); F-ING-09; Q-118
+TB-ING-RES-039|Riprova: REJECTED, nel frattempo stessa fonte+id accettata da un nuovo invio|acceptedElsewhere|DUPLICATE, nessuna ripubblicazione|ingestion §3 (riprova: rivaluta e, se valido, pubblica); F-ING-09; Q-114
+TB-ING-RES-040|Riprova: dopo una riprova accettata la fonte rimanda lo stesso id|dedupAfterRetry|DUPLICATE|F-ING-02; Q-118
+TB-ING-RES-041|Riprova: riprova accettata: identità e provenienza|identity|stesso id, lhcorrelationid = id, lhhop 0, subject pubblicato member:<id>, subject della riga originale|Q-118; docs/05 §2
+TB-ING-RES-042|Riprova: due riprova concorrenti|concurrent|una 200 ACCEPTED e una 409, 1 sola pubblicazione|Q-118; RNF-03; docs/17 US-E01-07
+TB-ING-RES-043|Riprova: audit della riprova riuscita|auditOk|voce TRANSITION su lh.audit.v1 con l'attore, prima/dopo dello stato|Q-117; F-AUD-01
+TB-ING-RES-044|Riprova: audit della riprova ancora negativa|auditKo|voce TRANSITION anche senza cambio di esito|Q-117
