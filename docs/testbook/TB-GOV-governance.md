@@ -23,6 +23,7 @@ negli altri servizi, anonimizzazione, attributi personalizzati, segmenti. Serviz
 | `services/member-service` · `TestbookGovSegmentCriteriaTest` | unit: `SegmentCriteria` | `criteria.csv`, `criteria-validation.csv` | CRT, CRV |
 | `services/member-service` · `TestbookGovAttributesTest` | unit: `MemberAttributes` | `attribute-values.csv`, `attribute-definitions.csv` | ATV, ATD |
 | `services/member-service` · `TestbookGovMemberIT` | integrazione (Spring, Postgres e Kafka embedded, profilo `demo`) | `member-status.csv`, `member-roles.csv`, `anonymize.csv`, `attributes-in-use.csv`, `segments.csv` | MST, MRL, ANO, ATU, SEG |
+| `deploy/hub` · `TestbookGovHubIT` | integrazione tra servizi (hub consolidato, profili `demo, inproc`) | `hub-entities.csv`, `hub-approvals.csv`, `hub-matrix.csv`, `hub-effects.csv`, `hub-anonymization.csv` | ENT, APQ, MAT, EFF, ANX |
 
 Ogni caso ha nome `[<ID>] <descrizione>`; una riga = un caso eseguito. Nei CSV i valori speciali sono scritti come
 `NULL` (assente), `EMPTY` (""), `SPACE`/`SPACES` (spazi), `TABNL` (tabulazione e a capo), `NBSP` (U+00A0), `LONG` (2000
@@ -129,7 +130,12 @@ Percorsi relativi a `libs/lh-common/src/main/java/io/loyaltyhub/common/` e `serv
 | B-50 | `application/SegmentService.java:206, 220-224` archiviato ⇒ 409 `SEGMENT_ARCHIVED`; elenco su dinamico ⇒ 409 `SEGMENT_NOT_STATIC` | R-28 (codici senza specifica) | SEG-017, SEG-021 |
 | B-51 | `application/SegmentService.java:263-278` statico con membri inesistenti o anonimizzati ⇒ 422 `MEMBER_NOT_FOUND` | senza specifica | SEG-015, SEG-016 |
 | B-52 | `api/MembersController.java`, `SegmentsController.java`, `AttributeDefinitionsController.java`, `MemberJobsController.java` guardie `@RequiresRole` | R-03, R-19, R-30 | MRL |
-| B-53 | `web/GlobalExceptionHandler.java:66` (lh-common) corpo assente o JSON illeggibile → 500 `INTERNAL_ERROR` | docs/06 §2 (400) — **divergenza** | MST-038 |
+| B-53 | `web/GlobalExceptionHandler.java` (lh-common) corpo assente o JSON illeggibile: era 500 (ramo generico), da `main` 6b1b964 400 `BAD_REQUEST` | docs/06 §2 (400) — divergenza risolta | MST-038 |
+| B-54 | `services/campaign-service/…/application/CampaignAdminService.java:319` `ACTIVATE` sinonimo di `PUBLISH` (solo campagne) | senza specifica | ENT-019, ENT-031, ENT-043 |
+| B-55 | `services/campaign-service/…/CampaignAdminService.java` regola della policy da `requiresLegal` e `limits.global.maxPoints` | R-11 | ENT-001…007, ENT-044 |
+| B-56 | `services/engagement-service/…/application/ContentService.java:245` transizioni dei contenuti senza `approval_history` | R-13 — **divergenza** | ENT-046 |
+| B-57 | `libs/lh-common/…/approval/ApprovalItem.java:32-44` voce della coda; `requiredRole` nullo senza approvatore | R-14 | APQ |
+| B-58 | guardie `@RequiresRole` e controlli di ruolo nei servizi (elenco in docs/17 §5) | R-03 | MAT |
 
 ## 3. Identità simulata e guardie di ruolo
 
@@ -1100,7 +1106,231 @@ dinamici (Q-85: tutti tranne ANONYMIZED, una riga per stato).
 
 ## 12. Flussi tra servizi (hub)
 
-_In arrivo (hub: tipi di oggetto, matrice capacità × ruolo, effetti degli stati del membro, anonimizzazione propagata, casella approvazioni)._
+`deploy/hub/src/test/java/io/loyaltyhub/hub/TestbookGovHubIT.java` (dati in `deploy/hub/src/test/resources/testbook/gov/`):
+tutti gli otto servizi in un processo (profili `demo, inproc`), approvazione accesa come in `hub.yml`
+(`LH_APPROVAL_ENABLED=true`). Il nome segue la convenzione `Testbook<Dom><Tema>IT` di docs/16 §1bis perché
+`scripts/testbook.sh` esegue solo `Testbook*IT`. La policy spenta non ha un contesto proprio: il suo effetto è tutto nella
+logica comune (`GovernedTransitions`, tabelle SMF e ROL-051…055) e i servizi la leggono dallo stesso bean
+`ApprovalPolicy` (riduzione dichiarata).
+
+### 12.1 Tipo di oggetto × policy (ENT)
+Domini: tipo (campagna senza vincoli, `requiresLegal`, budget 100 000 e 100 001 — limiti della soglia di Q-08 —, premio,
+concorso, contenuto) × azione. `PUBLISH` da DRAFT per ogni tipo (7, completa); per i tre tipi con approvazione richiesta
+(campagna `requiresLegal`, premio, concorso) le 12 verifiche del flusso (percorso completo, ruoli vietati per
+approvare/pubblicare/inviare, rifiuto con e senza commento, override di ADMIN in audit, storico chi/quando/commento, fatti
+`*.status.changed`, sinonimo `ACTIVATE`). La tabella stato × azione completa è in §5 (logica comune); quella dei contenuti
+è in TB-ENG (`TB-ENG-LIF`), qui solo ciò che riguarda policy e storico. Il concorso si pubblica solo con gli istanti
+generati (regola di gamification, preparata nel test).
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-GOV-ENT-001 | campagna senza vincoli: `PUBLISH` da DRAFT (MARKETING) | `LIVE` | docs/06 §7 · docs/03 §3.6 · Q-08 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-002 | campagna `requiresLegal`: `PUBLISH` da DRAFT (MARKETING) | `409:APPROVAL_REQUIRED` | docs/06 §7 · docs/03 §3.6 · Q-08 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-003 | campagna con budget 100 000: `PUBLISH` da DRAFT (MARKETING) | `LIVE` | docs/06 §7 · docs/03 §3.6 · Q-08 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-004 | campagna con budget 100 001: `PUBLISH` da DRAFT (MARKETING) | `409:APPROVAL_REQUIRED` | docs/06 §7 · docs/03 §3.6 · Q-08 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-005 | premio: `PUBLISH` da DRAFT (MARKETING) | `409:APPROVAL_REQUIRED` | docs/06 §7 · docs/03 §3.6 · Q-08 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-006 | concorso: `PUBLISH` da DRAFT (MARKETING) | `409:APPROVAL_REQUIRED` | docs/06 §7 · docs/03 §3.6 · Q-08 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-007 | contenuto: `PUBLISH` da DRAFT (MARKETING) | `LIVE` | docs/06 §7 · docs/03 §3.6 · Q-08 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-008 | campagna `requiresLegal`: SUBMIT (MARKETING) → APPROVE (LEGAL) → PUBLISH (MARKETING) | `LIVE` | docs/03 §3.6 · docs/12 M7 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-009 | campagna `requiresLegal`: APPROVE di MARKETING | `403:FORBIDDEN_ROLE` | docs/08 §2 `object.approve` ● | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-010 | campagna `requiresLegal`: PUBLISH di LEGAL dopo l'approvazione | `403:FORBIDDEN_ROLE` | docs/08 §2 `object.edit` | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-011 | campagna `requiresLegal`: SUBMIT di CARE | `403:FORBIDDEN_ROLE` | docs/08 §2 `object.edit` | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-012 | campagna `requiresLegal`: SUBMIT di ANALYST | `403:FORBIDDEN_ROLE` | docs/06 §3 (ANALYST non scrive) | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-013 | campagna `requiresLegal`: REJECT senza commento | `422:REJECT_COMMENT_REQUIRED` | docs/03 §3.6 · docs/12 M7 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-014 | campagna `requiresLegal`: REJECT con commento | `DRAFT\|commento nello storico` | docs/03 §3.6 · F-APR-01 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-015 | campagna `requiresLegal`: APPROVE di ADMIN | `APPROVED\|override in audit` | docs/08 §2 (override marcato in audit) | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-016 | campagna `requiresLegal`: APPROVE di LEGAL | `APPROVED\|nessun override` | docs/08 §2 · F-AUD-01 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-017 | campagna `requiresLegal`: storico di SUBMIT e APPROVE | `SUBMIT,APPROVE\|chi\|quando\|commento` | docs/03 §3.6 (chi, quando, commento) · docs/06 §7 · Q-96 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-018 | campagna `requiresLegal`: fatto `*.status.changed` a ogni transizione | `2 fatti` | docs/06 §7 · docs/05 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-019 | campagna `requiresLegal`: azione `ACTIVATE` da APPROVED | `LIVE` — AMBIGUO (sinonimo di PUBLISH solo per le campagne) | docs/03 §3.6 · docs/06 §2 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-020 | premio: SUBMIT (MARKETING) → APPROVE (LEGAL) → PUBLISH (MARKETING) | `LIVE` | docs/03 §3.6 · docs/12 M7 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-021 | premio: APPROVE di MARKETING | `403:FORBIDDEN_ROLE` | docs/08 §2 `object.approve` ● | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-022 | premio: PUBLISH di LEGAL dopo l'approvazione | `403:FORBIDDEN_ROLE` | docs/08 §2 `object.edit` | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-023 | premio: SUBMIT di CARE | `403:FORBIDDEN_ROLE` | docs/08 §2 `object.edit` | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-024 | premio: SUBMIT di ANALYST | `403:FORBIDDEN_ROLE` | docs/06 §3 (ANALYST non scrive) | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-025 | premio: REJECT senza commento | `422:REJECT_COMMENT_REQUIRED` | docs/03 §3.6 · docs/12 M7 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-026 | premio: REJECT con commento | `DRAFT\|commento nello storico` | docs/03 §3.6 · F-APR-01 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-027 | premio: APPROVE di ADMIN | `APPROVED\|override in audit` | docs/08 §2 (override marcato in audit) | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-028 | premio: APPROVE di LEGAL | `APPROVED\|nessun override` | docs/08 §2 · F-AUD-01 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-029 | premio: storico di SUBMIT e APPROVE | `SUBMIT,APPROVE\|chi\|quando\|commento` | docs/03 §3.6 (chi, quando, commento) · docs/06 §7 · Q-96 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-030 | premio: fatto `*.status.changed` a ogni transizione | `2 fatti` | docs/06 §7 · docs/05 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-031 | premio: azione `ACTIVATE` da APPROVED | `422:INVALID_ACTION` — AMBIGUO (azione sconosciuta) | docs/03 §3.6 · docs/06 §2 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-032 | concorso: SUBMIT (MARKETING) → APPROVE (LEGAL) → PUBLISH (MARKETING) | `LIVE` | docs/03 §3.6 · docs/12 M7 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-033 | concorso: APPROVE di MARKETING | `403:FORBIDDEN_ROLE` | docs/08 §2 `object.approve` ● | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-034 | concorso: PUBLISH di LEGAL dopo l'approvazione | `403:FORBIDDEN_ROLE` | docs/08 §2 `object.edit` | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-035 | concorso: SUBMIT di CARE | `403:FORBIDDEN_ROLE` | docs/08 §2 `object.edit` | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-036 | concorso: SUBMIT di ANALYST | `403:FORBIDDEN_ROLE` | docs/06 §3 (ANALYST non scrive) | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-037 | concorso: REJECT senza commento | `422:REJECT_COMMENT_REQUIRED` | docs/03 §3.6 · docs/12 M7 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-038 | concorso: REJECT con commento | `DRAFT\|commento nello storico` | docs/03 §3.6 · F-APR-01 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-039 | concorso: APPROVE di ADMIN | `APPROVED\|override in audit` | docs/08 §2 (override marcato in audit) | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-040 | concorso: APPROVE di LEGAL | `APPROVED\|nessun override` | docs/08 §2 · F-AUD-01 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-041 | concorso: storico di SUBMIT e APPROVE | `SUBMIT,APPROVE\|chi\|quando\|commento` | docs/03 §3.6 (chi, quando, commento) · docs/06 §7 · Q-96 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-042 | concorso: fatto `*.status.changed` a ogni transizione | `2 fatti` | docs/06 §7 · docs/05 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-043 | concorso: azione `ACTIVATE` da APPROVED | `422:INVALID_ACTION` — AMBIGUO (azione sconosciuta) | docs/03 §3.6 · docs/06 §2 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-044 | campagna con budget 100 001: SUBMIT → APPROVE (LEGAL) → PUBLISH | `LIVE` | docs/06 §7 · Q-08 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-045 | campagna senza vincoli: SUBMIT → APPROVE (LEGAL) → PUBLISH anche senza obbligo | `LIVE` | docs/03 §3.6 (SUBMIT sempre ammesso da DRAFT) | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-046 | contenuto: storico della transizione `PUBLISH` | `1 voce in approval_history` — **DIVERGENZA** | docs/03 §3.6 «ogni transizione scrive storico» · docs/06 §7 | `TestbookGovHubIT#entities` |
+| TB-GOV-ENT-047 | contenuto: non compare nella casella approvazioni | `assente` | docs/06 §7 (CONTENT mai) · F-APR-03 | `TestbookGovHubIT#entities` |
+
+### 12.2 Casella approvazioni (APQ)
+F-APR-03, docs/06 §7, Q-96: coda aggregata dai tre servizi proprietari, formato comune, `?submittedBy=`, scheda policy.
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-GOV-APQ-001 | oggetti in revisione del seed | `CMP-BLACK-FRIDAY,IW-NATALE,RWD-GIFT-50` | F-APR-03 · docs/10 · US-E08-05 | `TestbookGovHubIT#approvals` |
+| TB-GOV-APQ-002 | ruolo richiesto delle voci del seed | `LEGAL` | docs/06 §7 (`requiredRole`) | `TestbookGovHubIT#approvals` |
+| TB-GOV-APQ-003 | formato comune della voce | `completo` | docs/06 §7 `{entityType, id, code, name, submittedBy, submittedAt, requiredRole, summary}` | `TestbookGovHubIT#approvals` |
+| TB-GOV-APQ-004 | un premio inviato compare con chi l'ha inviato | `presente\|MARKETING:tb.marketing` | F-APR-03 · docs/06 §7 | `TestbookGovHubIT#approvals` |
+| TB-GOV-APQ-005 | dopo APPROVE esce dalla coda | `assente` | docs/06 §7 (`status=IN_REVIEW`) | `TestbookGovHubIT#approvals` |
+| TB-GOV-APQ-006 | `?submittedBy=` lo mostra in ogni stato | `presente\|APPROVED` | Q-96 | `TestbookGovHubIT#approvals` |
+| TB-GOV-APQ-007 | scheda della policy | `true\|100000\|CAMPAIGN:LEGAL,CONTENT:-,CONTEST:LEGAL,REWARD:LEGAL` | docs/06 §7 · Q-96 · BO-21 | `TestbookGovHubIT#approvals` |
+| TB-GOV-APQ-008 | campagna senza obbligo inviata in revisione: ruolo richiesto | `null` — AMBIGUO (nessun approvatore di policy (Q-193 per il web)) | docs/06 §7 | `TestbookGovHubIT#approvals` |
+
+### 12.3 Matrice capacità × ruolo di docs/08 §2 (MAT)
+Ogni cella: 20 capacità × 5 ruoli = 100 ⇒ **completa**. Per ogni capacità un endpoint rappresentativo; le celle ✓ usano
+risorse inesistenti o corpi non validi, così l'esito misura solo la guardia («ammessa» = qualunque risposta diversa da
+403 e da 5xx). Oracolo: ● ⇒ 403 obbligatorio; ogni scrittura di ANALYST ⇒ 403 (docs/06 §3); «—» senza ● per gli altri
+ruoli ⇒ rifiuto non imposto dalla specifica: si asserisce il 403 attuale, che è la scelta registrata da Q-176 per
+l'engagement, qui estesa per analogia (AMBIGUO). Gli altri endpoint di member-service sono in §8.2 (MRL).
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-GOV-MAT-001 | Lettura di tutte le schermate (`GET /v1/campaigns`), ADMIN (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-002 | Lettura di tutte le schermate (`GET /v1/campaigns`), MARKETING (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-003 | Lettura di tutte le schermate (`GET /v1/campaigns`), LEGAL (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-004 | Lettura di tutte le schermate (`GET /v1/campaigns`), CARE (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-005 | Lettura di tutte le schermate (`GET /v1/campaigns`), ANALYST (cella «✓») | `ammessa` | docs/08 §2 · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-006 | `instants.view` — `GET …/instants` / `…/instants/histogram`, ADMIN (cella «✓») | `ammessa/ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-007 | `instants.view` — `GET …/instants` / `…/instants/histogram`, MARKETING (cella «solo istogramma») | `403/ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-008 | `instants.view` — `GET …/instants` / `…/instants/histogram`, LEGAL (cella «✓») | `ammessa/ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-009 | `instants.view` — `GET …/instants` / `…/instants/histogram`, CARE (cella «—») | `403/ammessa` — AMBIGUO (istogramma per chi non vede gli istanti) | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-010 | `instants.view` — `GET …/instants` / `…/instants/histogram`, ANALYST (cella «—») | `403/ammessa` — AMBIGUO (istogramma per chi non vede gli istanti) | docs/08 §2 ● · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-011 | `member.write` — `PATCH /v1/members/{id}`, ADMIN (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-012 | `member.write` — `PATCH /v1/members/{id}`, MARKETING (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-013 | `member.write` — `PATCH /v1/members/{id}`, LEGAL (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-014 | `member.write` — `PATCH /v1/members/{id}`, CARE (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-015 | `member.write` — `PATCH /v1/members/{id}`, ANALYST (cella «—») | `403` | docs/08 §2 · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-016 | `member.anonymize` — `POST …/anonymize`, ADMIN (cella «✓») | `ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-017 | `member.anonymize` — `POST …/anonymize`, MARKETING (cella «—») | `403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-018 | `member.anonymize` — `POST …/anonymize`, LEGAL (cella «—») | `403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-019 | `member.anonymize` — `POST …/anonymize`, CARE (cella «—») | `403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-020 | `member.anonymize` — `POST …/anonymize`, ANALYST (cella «—») | `403` | docs/08 §2 ● · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-021 | `points.adjust` — `POST /v1/wallets/{id}/adjustments`, ADMIN (cella «✓») | `ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-022 | `points.adjust` — `POST /v1/wallets/{id}/adjustments`, MARKETING (cella «—») | `403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-023 | `points.adjust` — `POST /v1/wallets/{id}/adjustments`, LEGAL (cella «—») | `403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-024 | `points.adjust` — `POST /v1/wallets/{id}/adjustments`, CARE (cella «✓») | `ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-025 | `points.adjust` — `POST /v1/wallets/{id}/adjustments`, ANALYST (cella «—») | `403` | docs/08 §2 ● · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-026 | `segment.write` — `POST /v1/segments`, ADMIN (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-027 | `segment.write` — `POST /v1/segments`, MARKETING (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-028 | `segment.write` — `POST /v1/segments`, LEGAL (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-029 | `segment.write` — `POST /v1/segments`, CARE (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-030 | `segment.write` — `POST /v1/segments`, ANALYST (cella «—») | `403` | docs/08 §2 · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-031 | `object.edit` — `POST /v1/campaigns`, ADMIN (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-032 | `object.edit` — `POST /v1/campaigns`, MARKETING (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-033 | `object.edit` — `POST /v1/campaigns`, LEGAL (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-034 | `object.edit` — `POST /v1/campaigns`, CARE (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-035 | `object.edit` — `POST /v1/campaigns`, ANALYST (cella «—») | `403` | docs/08 §2 · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-036 | `object.approve` — `APPROVE` di un premio in revisione, ADMIN (cella «✓») | `ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-037 | `object.approve` — `APPROVE` di un premio in revisione, MARKETING (cella «—») | `403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-038 | `object.approve` — `APPROVE` di un premio in revisione, LEGAL (cella «✓») | `ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-039 | `object.approve` — `APPROVE` di un premio in revisione, CARE (cella «—») | `403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-040 | `object.approve` — `APPROVE` di un premio in revisione, ANALYST (cella «—») | `403` | docs/08 §2 ● · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-041 | `content.write` — `POST /v1/contents`, ADMIN (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-042 | `content.write` — `POST /v1/contents`, MARKETING (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-043 | `content.write` — `POST /v1/contents`, LEGAL (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-044 | `content.write` — `POST /v1/contents`, CARE (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-045 | `content.write` — `POST /v1/contents`, ANALYST (cella «—») | `403` | docs/08 §2 · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-046 | `program.config` — `PUT /v1/tiers/{code}`, ADMIN (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-047 | `program.config` — `PUT /v1/tiers/{code}`, MARKETING (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-048 | `program.config` — `PUT /v1/tiers/{code}`, LEGAL (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-049 | `program.config` — `PUT /v1/tiers/{code}`, CARE (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-050 | `program.config` — `PUT /v1/tiers/{code}`, ANALYST (cella «—») | `403` | docs/08 §2 · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-051 | `actiontype.custom` — `POST /v1/event-types`, ADMIN (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-052 | `actiontype.custom` — `POST /v1/event-types`, MARKETING (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-053 | `actiontype.custom` — `POST /v1/event-types`, LEGAL (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-054 | `actiontype.custom` — `POST /v1/event-types`, CARE (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-055 | `actiontype.custom` — `POST /v1/event-types`, ANALYST (cella «—») | `403` | docs/08 §2 · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-056 | `edition.close` — anteprima / applica (`POST /v1/editions/{code}/close`), ADMIN (cella «✓ / ✓») | `ammessa/ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-057 | `edition.close` — anteprima / applica (`POST /v1/editions/{code}/close`), MARKETING (cella «✓ / —») | `ammessa/403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-058 | `edition.close` — anteprima / applica (`POST /v1/editions/{code}/close`), LEGAL (cella «✓ / —») | `ammessa/403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-059 | `edition.close` — anteprima / applica (`POST /v1/editions/{code}/close`), CARE (cella «✓ / —») | `ammessa/403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-060 | `edition.close` — anteprima / applica (`POST /v1/editions/{code}/close`), ANALYST (cella «✓ / —») | `ammessa/403` | docs/08 §2 ● · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-061 | `redemption.handle` — `POST /v1/redemptions/{id}/fulfil`, ADMIN (cella «✓») | `ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-062 | `redemption.handle` — `POST /v1/redemptions/{id}/fulfil`, MARKETING (cella «—») | `403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-063 | `redemption.handle` — `POST /v1/redemptions/{id}/fulfil`, LEGAL (cella «—») | `403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-064 | `redemption.handle` — `POST /v1/redemptions/{id}/fulfil`, CARE (cella «✓») | `ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-065 | `redemption.handle` — `POST /v1/redemptions/{id}/fulfil`, ANALYST (cella «—») | `403` | docs/08 §2 ● · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-066 | `delivery.handle` — `POST /v1/plays/{id}/delivery`, ADMIN (cella «✓») | `ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-067 | `delivery.handle` — `POST /v1/plays/{id}/delivery`, MARKETING (cella «—») | `403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-068 | `delivery.handle` — `POST /v1/plays/{id}/delivery`, LEGAL (cella «—») | `403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-069 | `delivery.handle` — `POST /v1/plays/{id}/delivery`, CARE (cella «✓») | `ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-070 | `delivery.handle` — `POST /v1/plays/{id}/delivery`, ANALYST (cella «—») | `403` | docs/08 §2 ● · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-071 | `coupon.void` — `POST /v1/coupons/{code}/void`, ADMIN (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-072 | `coupon.void` — `POST /v1/coupons/{code}/void`, MARKETING (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-073 | `coupon.void` — `POST /v1/coupons/{code}/void`, LEGAL (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-074 | `coupon.void` — `POST /v1/coupons/{code}/void`, CARE (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-075 | `coupon.void` — `POST /v1/coupons/{code}/void`, ANALYST (cella «—») | `403` | docs/08 §2 · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-076 | `inbound.handle` — `POST /v1/inbound-events/{id}/retry`, ADMIN (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-077 | `inbound.handle` — `POST /v1/inbound-events/{id}/retry`, MARKETING (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-078 | `inbound.handle` — `POST /v1/inbound-events/{id}/retry`, LEGAL (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-079 | `inbound.handle` — `POST /v1/inbound-events/{id}/retry`, CARE (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-080 | `inbound.handle` — `POST /v1/inbound-events/{id}/retry`, ANALYST (cella «—») | `403` | docs/08 §2 · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-081 | `webhook.write` — `POST /v1/webhooks`, ADMIN (cella «✓») | `ammessa` | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-082 | `webhook.write` — `POST /v1/webhooks`, MARKETING (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-083 | `webhook.write` — `POST /v1/webhooks`, LEGAL (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-084 | `webhook.write` — `POST /v1/webhooks`, CARE (cella «—») | `403` — AMBIGUO (senza ●: Q-176 per analogia) | docs/08 §2 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-085 | `webhook.write` — `POST /v1/webhooks`, ANALYST (cella «—») | `403` | docs/08 §2 · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-086 | `dlq.handle` — `POST /v1/dlq/{id}/discard`, ADMIN (cella «✓») | `ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-087 | `dlq.handle` — `POST /v1/dlq/{id}/discard`, MARKETING (cella «—») | `403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-088 | `dlq.handle` — `POST /v1/dlq/{id}/discard`, LEGAL (cella «—») | `403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-089 | `dlq.handle` — `POST /v1/dlq/{id}/discard`, CARE (cella «—») | `403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-090 | `dlq.handle` — `POST /v1/dlq/{id}/discard`, ANALYST (cella «—») | `403` | docs/08 §2 ● · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-091 | `demo.simulate` — `POST /v1/demo/scenarios/{code}/run`, ADMIN (cella «✓») | `ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-092 | `demo.simulate` — `POST /v1/demo/scenarios/{code}/run`, MARKETING (cella «✓») | `ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-093 | `demo.simulate` — `POST /v1/demo/scenarios/{code}/run`, LEGAL (cella «✓») | `ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-094 | `demo.simulate` — `POST /v1/demo/scenarios/{code}/run`, CARE (cella «✓») | `ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-095 | `demo.simulate` — `POST /v1/demo/scenarios/{code}/run`, ANALYST (cella «—») | `403` | docs/08 §2 ● · docs/06 §3 | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-096 | `demo.admin` — `POST /v1/demo/contests/{id}/plant-instant`, ADMIN (cella «✓») | `ammessa` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-097 | `demo.admin` — `POST /v1/demo/contests/{id}/plant-instant`, MARKETING (cella «—») | `403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-098 | `demo.admin` — `POST /v1/demo/contests/{id}/plant-instant`, LEGAL (cella «—») | `403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-099 | `demo.admin` — `POST /v1/demo/contests/{id}/plant-instant`, CARE (cella «—») | `403` | docs/08 §2 ● | `TestbookGovHubIT#matrix` |
+| TB-GOV-MAT-100 | `demo.admin` — `POST /v1/demo/contests/{id}/plant-instant`, ANALYST (cella «—») | `403` | docs/08 §2 ● · docs/06 §3 | `TestbookGovHubIT#matrix` |
+
+### 12.4 Stato del membro × effetti negli altri servizi (EFF)
+Domini: stato (4) × effetto (accumulo, spesa, gioco, rettifica) = 16 ⇒ **completa**; più il saldo conservato dal
+bloccato. Il membro è noto a valle (bonus di benvenuto) prima del cambio di stato; l'esito si attende fino a 20 s.
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-GOV-EFF-001 | membro ACTIVE: accumulo (`purchase.completed` con `member:`) | `ACCEPTED` | ingestion §5 · docs/03 §2 · Q-128 | `TestbookGovHubIT#effects` |
+| TB-GOV-EFF-002 | membro ACTIVE: richiesta premio dal portale | `ammessa` | docs/03 §2 · reward §3 | `TestbookGovHubIT#effects` |
+| TB-GOV-EFF-003 | membro ACTIVE: giocata gratuita dal portale | `ammessa` | docs/03 §2 · gamification §3 | `TestbookGovHubIT#effects` |
+| TB-GOV-EFF-004 | membro ACTIVE: rettifica manuale (CARE) | `ammessa` | Q-127 | `TestbookGovHubIT#effects` |
+| TB-GOV-EFF-005 | membro INACTIVE: accumulo (`purchase.completed` con `member:`) | `REJECTED:MEMBER_NOT_ACTIVE` | ingestion §5 · docs/03 §2 · Q-128 | `TestbookGovHubIT#effects` |
+| TB-GOV-EFF-006 | membro INACTIVE: richiesta premio dal portale | `422:MEMBER_NOT_ACTIVE` | docs/03 §2 · reward §3 | `TestbookGovHubIT#effects` |
+| TB-GOV-EFF-007 | membro INACTIVE: giocata gratuita dal portale | `422:MEMBER_NOT_ACTIVE` | docs/03 §2 · gamification §3 | `TestbookGovHubIT#effects` |
+| TB-GOV-EFF-008 | membro INACTIVE: rettifica manuale (CARE) | `ammessa` | Q-127 | `TestbookGovHubIT#effects` |
+| TB-GOV-EFF-009 | membro BLOCKED: accumulo (`purchase.completed` con `member:`) | `REJECTED:MEMBER_NOT_ACTIVE` | ingestion §5 · docs/03 §2 · Q-128 | `TestbookGovHubIT#effects` |
+| TB-GOV-EFF-010 | membro BLOCKED: richiesta premio dal portale | `422:MEMBER_NOT_ACTIVE` | docs/03 §2 · reward §3 | `TestbookGovHubIT#effects` |
+| TB-GOV-EFF-011 | membro BLOCKED: giocata gratuita dal portale | `422:MEMBER_NOT_ACTIVE` | docs/03 §2 · gamification §3 | `TestbookGovHubIT#effects` |
+| TB-GOV-EFF-012 | membro BLOCKED: rettifica manuale (CARE) | `ammessa` | Q-127 | `TestbookGovHubIT#effects` |
+| TB-GOV-EFF-013 | membro ANONYMIZED: accumulo (`purchase.completed` con `member:`) | `REJECTED:MEMBER_NOT_ACTIVE` | ingestion §5 · docs/03 §2 · Q-128 | `TestbookGovHubIT#effects` |
+| TB-GOV-EFF-014 | membro ANONYMIZED: richiesta premio dal portale | `422:MEMBER_NOT_ACTIVE` | docs/03 §2 · reward §3 | `TestbookGovHubIT#effects` |
+| TB-GOV-EFF-015 | membro ANONYMIZED: giocata gratuita dal portale | `422:MEMBER_NOT_ACTIVE` | docs/03 §2 · gamification §3 | `TestbookGovHubIT#effects` |
+| TB-GOV-EFF-016 | membro ANONYMIZED: rettifica manuale (CARE) | `409:MEMBER_ANONYMIZED` | Q-127 | `TestbookGovHubIT#effects` |
+| TB-GOV-EFF-017 | membro bloccato: saldo PTS dopo il blocco | `invariato` | docs/03 §2 («conserva i saldi») | `TestbookGovHubIT#effects` |
+
+### 12.5 Anonimizzazione propagata (ANX)
+Una riga per servizio che ripulisce o reagisce (docs/12 M7.5, Q-123…Q-128); il controllo «nessuna API espone più
+nome/e-mail» completo resta in `HubAnonymizationIT`.
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-GOV-ANX-001 | wallet: movimenti conservati | `uguale` | docs/03 §2 · docs/12 M7 | `TestbookGovHubIT#anonymization` |
+| TB-GOV-ANX-002 | ingestion: evento successivo con `email:` | `UNMATCHED` | Q-128 | `TestbookGovHubIT#anonymization` |
+| TB-GOV-ANX-003 | reward: indirizzo di spedizione cancellato | `cancellato` | Q-123 | `TestbookGovHubIT#anonymization` |
+| TB-GOV-ANX-004 | engagement: messaggi già resi col segnaposto | `segnaposto` | Q-125 | `TestbookGovHubIT#anonymization` |
+| TB-GOV-ANX-005 | insight: event store senza il nome | `0` | Q-126 | `TestbookGovHubIT#anonymization` |
 
 ## 13. Ambiguità (da registrare in `docs/15`)
 
@@ -1146,21 +1376,46 @@ Righe che asseriscono il comportamento attuale perché la specifica tace e `docs
 | SEG-015, 016 | Statico con membri inesistenti o anonimizzati | 422 `MEMBER_NOT_FOUND` |
 | SEG-017, SEG-021 | Codici d'errore di «solo STATIC» e «archiviato» | 409 `SEGMENT_NOT_STATIC`, 409 `SEGMENT_ARCHIVED` |
 | SEG-030 | Blocco ottimistico dei segmenti (Q-112 cita solo campagne, premi, concorsi) | 409 `VERSION_CONFLICT` |
+| ENT-019, ENT-031, ENT-043 | `ACTIVATE`: sinonimo di `PUBLISH` per le campagne, azione sconosciuta per premi e concorsi | campagna `LIVE`; premio/concorso 422 `INVALID_ACTION` |
+| APQ-008 | `requiredRole` di una campagna senza obbligo inviata in revisione (Q-193 riguarda solo il web) | `null` |
+| MAT-009, MAT-010 | Istogramma degli istanti per CARE e ANALYST (docs/08 §2 dà «solo istogramma» solo a MARKETING) | ammesso |
+| MAT-012, 013, 028, 029, 033, 034, 043, 044, 047…049, 053, 054, 072, 073, 077, 078, 082…084 | Celle «—» senza ● di ruoli diversi da ANALYST: Q-176 registra il 403 solo per l'engagement | 403 (Q-176 esteso per analogia) |
 
 ## 14. Divergenze
 
 Il test asserisce la specifica e fallisce finché il codice non è corretto o `docs/15` non registra una scelta diversa.
 Nessuna divergenza nelle aree di `lh-common` a logica pura (ACT, GRD, PRS, SMR, SMN, SMF, ROL, CMT, OVR, POL).
 
-| # | Righe | Specifica | Osservato | Causa (file:riga) |
-|---|---|---|---|---|
-| D-01 | CRT-024, CRT-028, CRT-038, CRT-042, CRT-057…060 | docs/03 §3.3: «Tipi incompatibili → falsa, mai eccezione» | `neq`, `nin`, `ncontains` sono **veri** quando i tipi non sono confrontabili (numero contro testo, booleano contro testo, testo contro numero); `startsWith` è vero su numeri e booleani (`3.0` inizia per `3`, `true` per `t`) | `services/member-service/…/domain/SegmentCriteria.java:258, 264, 266` (negazione del confronto fallito) e `:268` (`actual.toString()`) |
-| D-02 | ATD-023, ATU-011 | docs/06 §2: regola violata ⇒ 422 con `code` (F-MBR-03: definizione non valida) | una definizione senza `type` provoca `NullPointerException` ⇒ 500 `INTERNAL_ERROR` | `services/member-service/…/domain/MemberAttributes.java:165` (`List.of(...).contains(null)`) |
-| D-03 | MST-038 | docs/06 §2: «400 `bad-request` — JSON malformato, parametri errati» | corpo assente su `POST /v1/members/{id}/status` ⇒ 500 `INTERNAL_ERROR` | `libs/lh-common/…/web/GlobalExceptionHandler.java:66` (nessun gestore per `HttpMessageNotReadableException`, finisce nel ramo generico) |
+| # | Righe | Specifica | Osservato | Causa (file:riga) | Esito |
+|---|---|---|---|---|---|
+| D-01 | CRT-024, CRT-028, CRT-038, CRT-042, CRT-057…060 | docs/03 §3.3: «Tipi incompatibili → falsa, mai eccezione» | `neq`, `nin`, `ncontains` sono **veri** quando i tipi non sono confrontabili (numero contro testo, booleano contro testo, testo contro numero); `startsWith` è vero su numeri e booleani (`3.0` inizia per `3`, `true` per `t`) | `services/member-service/…/domain/SegmentCriteria.java:258, 264, 266` (negazione del confronto fallito) e `:268` (`actual.toString()`) | aperta |
+| D-02 | ATD-023, ATU-011 | docs/06 §2: regola violata ⇒ 422 con `code` (F-MBR-03: definizione non valida) | una definizione senza `type` provoca `NullPointerException` ⇒ 500 `INTERNAL_ERROR` | `services/member-service/…/domain/MemberAttributes.java:165` (`List.of(...).contains(null)`) | aperta |
+| D-03 | MST-038 | docs/06 §2: «400 `bad-request` — JSON malformato, parametri errati» | corpo assente su `POST /v1/members/{id}/status` ⇒ 500 `INTERNAL_ERROR` | `libs/lh-common/…/web/GlobalExceptionHandler.java` (nessun gestore per `HttpMessageNotReadableException`) | **risolta** da `main` 6b1b964 (400 `BAD_REQUEST`) |
+| D-04 | ENT-046 | docs/03 §3.6 «Ogni transizione scrive storico (chi, quando, commento) e audit»; docs/06 §7 (la transizione «scrive `approval_history`»), anche per i contenuti | la pubblicazione di un contenuto non scrive nulla in `approval_history` (solo audit e fatto) | `services/engagement-service/…/application/ContentService.java:245-256` (nessun `ApprovalHistoryStore.record`) | aperta |
 
 ## 15. Copertura
 
 | Misura | Valore |
 |---|---|
-| Righe (finora) | 772 |
-| di cui AMBIGUO | 110 |
+| Regole inventariate | 31 (R-01…R-31) |
+| Rami del codice mappati | 58 (B-01…B-58); non raggiungibili senza concorrenza o per le API: B-05, B-30 |
+| Rami senza specifica | 15 (B-02, B-03, B-04, B-10, B-13, B-25, B-26, B-28, B-33, B-36, B-37, B-38, B-50, B-51, B-54) → righe AMBIGUO |
+| Regole senza codice | 1: storico delle transizioni dei contenuti (R-13 per i contenuti, D-04) |
+| Righe | 949 — ACT 14, GRD 30, PRS 16, SMR 56, SMN 10, SMF 56, ROL 60, CMT 14, OVR 22, POL 44, MST 41, MRL 74, ANO 47, ATV 70, ATD 29, ATU 14, CRT 118, CRV 27, SEG 30, ENT 47, APQ 8, MAT 100, EFF 17, ANX 5 |
+| di cui AMBIGUO | 136 (§13) |
+| Tabelle complete | GRD 6 × 5; SMR e SMF 7 × 8; ROL 8 × 5 (+ 2 × 5, 1 × 5); OVR 2 × 2 × 5; POL campagna 2 × 2 × 7 e scheda 4 × 2; MST 4 × 8; MRL 12 × 6; ATV 4 × 16; CRT 14 × 4 e assente × 14; MAT 20 × 5; EFF 4 × 4 |
+| Riduzioni | stato × azione × ruolo × policy (560) → SMR + SMF (112) + SMN (10: le celle in cui la regola entra nel ramo, 46 identiche a SMR) + ROL (60), perché ruolo e stato sono controlli indipendenti e in sequenza, più 5 righe di precedenza; per tipo di oggetto (3 × 56) → 12 verifiche di cablaggio per tipo nell'hub (la logica è la stessa `GovernedTransitions`); policy spenta nell'hub → nessun contesto dedicato (stesso bean, tabelle SMF/ROL); tabella dei contenuti → TB-ENG; ACT, PRS, ANO, ATD, CRV, SEG → ogni classe non valida da sola sul caso valido (guasto singolo) |
+| Divergenze | 4 cause, 12 righe: D-01 (8), D-02 (2), D-03 (1, risolta da `main`), D-04 (1) → 11 righe rosse aperte |
+
+### Verifica a mutazione
+
+Le mutazioni temporanee del codice di produzione (es. `>` → `>=` sulla soglia della policy, commento vuoto con `isEmpty`
+invece di `isBlank`, ADMIN senza scorciatoia nella guardia) sono state **bloccate dal controllo dei permessi**
+dell'ambiente («modifica di risorse condivise») e non sono state eseguite; l'unica applicata (guardia) è stata subito
+annullata senza esecuzione. Evidenza sostitutiva: le 4 divergenze sono «mutanti naturali» già presenti nel codice e le
+righe che le coprono falliscono (D-03 era rossa prima del merge di `main` e verde dopo la correzione).
+
+### Tempi
+
+`lh-common` unit ≈ 1 s di test (322 casi); member-service unit ≈ 2 s, `TestbookGovMemberIT` ≈ 30 s; `TestbookGovHubIT`
+≈ 50 s (un contesto per classe).

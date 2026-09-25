@@ -1,0 +1,6 @@
+id,descrizione,scenario,expected
+TB-GOV-ANX-001,wallet: movimenti conservati,LEDGER,uguale
+TB-GOV-ANX-002,ingestion: evento successivo con `email:`,EMAIL_EVENT,UNMATCHED
+TB-GOV-ANX-003,reward: indirizzo di spedizione cancellato,SHIPPING,cancellato
+TB-GOV-ANX-004,engagement: messaggi già resi col segnaposto,MESSAGES,segnaposto
+TB-GOV-ANX-005,insight: event store senza il nome,EVENT_STORE,0
