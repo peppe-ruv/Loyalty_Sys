@@ -1,0 +1,15 @@
+id,descrizione,header,role,username
+TB-GOV-ACT-001,intestazione assente,NULL,ANALYST,anonymous
+TB-GOV-ACT-002,intestazione vuota,EMPTY,ANALYST,anonymous
+TB-GOV-ACT-003,solo spazi,SPACES,ANALYST,anonymous
+TB-GOV-ACT-004,forma canonica RUOLO:username,MARKETING:luca.marketing,MARKETING,luca.marketing
+TB-GOV-ACT-005,forma canonica ADMIN,ADMIN:marta.admin,ADMIN,marta.admin
+TB-GOV-ACT-006,ANALYST esplicito,ANALYST:anna,ANALYST,anna
+TB-GOV-ACT-007,ruolo in minuscolo,marketing:luca,MARKETING,luca
+TB-GOV-ACT-008,spazi attorno a ruolo e username,« CARE : paolo »,CARE,paolo
+TB-GOV-ACT-009,ruolo sconosciuto → minimo privilegio,ADMINISTRATOR:x,ANALYST,x
+TB-GOV-ACT-010,senza `:` (solo ruolo),LEGAL,LEGAL,anonymous
+TB-GOV-ACT-011,"`:` finale, username vuoto",CARE:,ANALYST,anonymous
+TB-GOV-ACT-012,username di soli spazi,«CARE: »,CARE,anonymous
+TB-GOV-ACT-013,ruolo vuoto,:paolo,ANALYST,anonymous
+TB-GOV-ACT-014,più di un `:` (username col resto),ADMIN:marta:extra,ADMIN,marta:extra

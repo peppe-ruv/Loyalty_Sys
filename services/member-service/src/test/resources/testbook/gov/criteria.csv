@@ -1,0 +1,119 @@
+id,descrizione,criteria,variant,expected
+TB-GOV-CRT-001,STRING eq,"{'field':'member.attributes.tStr','cmp':'eq','value':'APP'}",,true
+TB-GOV-CRT-002,STRING neq,"{'field':'member.attributes.tStr','cmp':'neq','value':'WEB'}",,true
+TB-GOV-CRT-003,STRING gt,"{'field':'member.attributes.tStr','cmp':'gt','value':1}",,false
+TB-GOV-CRT-004,STRING gte,"{'field':'member.attributes.tStr','cmp':'gte','value':1}",,false
+TB-GOV-CRT-005,STRING lt,"{'field':'member.attributes.tStr','cmp':'lt','value':1}",,false
+TB-GOV-CRT-006,STRING lte,"{'field':'member.attributes.tStr','cmp':'lte','value':1}",,false
+TB-GOV-CRT-007,STRING in,"{'field':'member.attributes.tStr','cmp':'in','value':['APP','WEB']}",,true
+TB-GOV-CRT-008,STRING nin,"{'field':'member.attributes.tStr','cmp':'nin','value':['WEB']}",,true
+TB-GOV-CRT-009,STRING contains,"{'field':'member.attributes.tStr','cmp':'contains','value':'PP'}",,true
+TB-GOV-CRT-010,STRING ncontains,"{'field':'member.attributes.tStr','cmp':'ncontains','value':'X'}",,true
+TB-GOV-CRT-011,STRING exists,"{'field':'member.attributes.tStr','cmp':'exists'}",,true
+TB-GOV-CRT-012,STRING nexists,"{'field':'member.attributes.tStr','cmp':'nexists'}",,false
+TB-GOV-CRT-013,STRING between,"{'field':'member.attributes.tStr','cmp':'between','value':[1,5]}",,false
+TB-GOV-CRT-014,STRING startsWith,"{'field':'member.attributes.tStr','cmp':'startsWith','value':'AP'}",,true
+TB-GOV-CRT-015,NUMBER eq,"{'field':'member.attributes.tNum','cmp':'eq','value':3}",,true
+TB-GOV-CRT-016,NUMBER neq,"{'field':'member.attributes.tNum','cmp':'neq','value':4}",,true
+TB-GOV-CRT-017,NUMBER gt,"{'field':'member.attributes.tNum','cmp':'gt','value':2}",,true
+TB-GOV-CRT-018,NUMBER gte,"{'field':'member.attributes.tNum','cmp':'gte','value':3}",,true
+TB-GOV-CRT-019,NUMBER lt,"{'field':'member.attributes.tNum','cmp':'lt','value':4}",,true
+TB-GOV-CRT-020,NUMBER lte,"{'field':'member.attributes.tNum','cmp':'lte','value':3}",,true
+TB-GOV-CRT-021,NUMBER in,"{'field':'member.attributes.tNum','cmp':'in','value':[1,3]}",,true
+TB-GOV-CRT-022,NUMBER nin,"{'field':'member.attributes.tNum','cmp':'nin','value':[1,2]}",,true
+TB-GOV-CRT-023,NUMBER contains,"{'field':'member.attributes.tNum','cmp':'contains','value':3}",,false
+TB-GOV-CRT-024,NUMBER ncontains,"{'field':'member.attributes.tNum','cmp':'ncontains','value':3}",,false
+TB-GOV-CRT-025,NUMBER exists,"{'field':'member.attributes.tNum','cmp':'exists'}",,true
+TB-GOV-CRT-026,NUMBER nexists,"{'field':'member.attributes.tNum','cmp':'nexists'}",,false
+TB-GOV-CRT-027,NUMBER between,"{'field':'member.attributes.tNum','cmp':'between','value':[1,5]}",,true
+TB-GOV-CRT-028,NUMBER startsWith,"{'field':'member.attributes.tNum','cmp':'startsWith','value':'3'}",,false
+TB-GOV-CRT-029,BOOLEAN eq,"{'field':'member.attributes.tBool','cmp':'eq','value':true}",,true
+TB-GOV-CRT-030,BOOLEAN neq,"{'field':'member.attributes.tBool','cmp':'neq','value':false}",,true
+TB-GOV-CRT-031,BOOLEAN gt,"{'field':'member.attributes.tBool','cmp':'gt','value':0}",,false
+TB-GOV-CRT-032,BOOLEAN gte,"{'field':'member.attributes.tBool','cmp':'gte','value':0}",,false
+TB-GOV-CRT-033,BOOLEAN lt,"{'field':'member.attributes.tBool','cmp':'lt','value':2}",,false
+TB-GOV-CRT-034,BOOLEAN lte,"{'field':'member.attributes.tBool','cmp':'lte','value':2}",,false
+TB-GOV-CRT-035,BOOLEAN in,"{'field':'member.attributes.tBool','cmp':'in','value':[true]}",,true
+TB-GOV-CRT-036,BOOLEAN nin,"{'field':'member.attributes.tBool','cmp':'nin','value':[false]}",,true
+TB-GOV-CRT-037,BOOLEAN contains,"{'field':'member.attributes.tBool','cmp':'contains','value':true}",,false
+TB-GOV-CRT-038,BOOLEAN ncontains,"{'field':'member.attributes.tBool','cmp':'ncontains','value':true}",,false
+TB-GOV-CRT-039,BOOLEAN exists,"{'field':'member.attributes.tBool','cmp':'exists'}",,true
+TB-GOV-CRT-040,BOOLEAN nexists,"{'field':'member.attributes.tBool','cmp':'nexists'}",,false
+TB-GOV-CRT-041,BOOLEAN between,"{'field':'member.attributes.tBool','cmp':'between','value':[0,1]}",,false
+TB-GOV-CRT-042,BOOLEAN startsWith,"{'field':'member.attributes.tBool','cmp':'startsWith','value':'t'}",,false
+TB-GOV-CRT-043,DATE eq,"{'field':'member.attributes.tDate','cmp':'eq','value':'2026-02-28'}",,true
+TB-GOV-CRT-044,DATE neq,"{'field':'member.attributes.tDate','cmp':'neq','value':'2026-03-01'}",,true
+TB-GOV-CRT-045,DATE gt,"{'field':'member.attributes.tDate','cmp':'gt','value':'2026-01-01'}",,false
+TB-GOV-CRT-046,DATE gte,"{'field':'member.attributes.tDate','cmp':'gte','value':'2026-02-28'}",,false
+TB-GOV-CRT-047,DATE lt,"{'field':'member.attributes.tDate','cmp':'lt','value':'2026-12-31'}",,false
+TB-GOV-CRT-048,DATE lte,"{'field':'member.attributes.tDate','cmp':'lte','value':'2026-02-28'}",,false
+TB-GOV-CRT-049,DATE in,"{'field':'member.attributes.tDate','cmp':'in','value':['2026-02-28']}",,true
+TB-GOV-CRT-050,DATE nin,"{'field':'member.attributes.tDate','cmp':'nin','value':['2026-03-01']}",,true
+TB-GOV-CRT-051,DATE contains,"{'field':'member.attributes.tDate','cmp':'contains','value':'2026-02'}",,true
+TB-GOV-CRT-052,DATE ncontains,"{'field':'member.attributes.tDate','cmp':'ncontains','value':'X'}",,true
+TB-GOV-CRT-053,DATE exists,"{'field':'member.attributes.tDate','cmp':'exists'}",,true
+TB-GOV-CRT-054,DATE nexists,"{'field':'member.attributes.tDate','cmp':'nexists'}",,false
+TB-GOV-CRT-055,DATE between,"{'field':'member.attributes.tDate','cmp':'between','value':['2026-01-01','2026-12-31']}",,false
+TB-GOV-CRT-056,DATE startsWith,"{'field':'member.attributes.tDate','cmp':'startsWith','value':'2026'}",,true
+TB-GOV-CRT-057,NUMBER neq testo,"{'field':'member.attributes.tNum','cmp':'neq','value':'tre'}",,false
+TB-GOV-CRT-058,NUMBER nin elenco di testi,"{'field':'member.attributes.tNum','cmp':'nin','value':['tre']}",,false
+TB-GOV-CRT-059,BOOLEAN neq testo,"{'field':'member.attributes.tBool','cmp':'neq','value':'vero'}",,false
+TB-GOV-CRT-060,STRING neq numero,"{'field':'member.attributes.tStr','cmp':'neq','value':5}",,false
+TB-GOV-CRT-061,attributo assente eq,"{'field':'member.attributes.tMissing','cmp':'eq','value':'x'}",,false
+TB-GOV-CRT-062,attributo assente neq,"{'field':'member.attributes.tMissing','cmp':'neq','value':'x'}",,false
+TB-GOV-CRT-063,attributo assente gt,"{'field':'member.attributes.tMissing','cmp':'gt','value':1}",,false
+TB-GOV-CRT-064,attributo assente gte,"{'field':'member.attributes.tMissing','cmp':'gte','value':1}",,false
+TB-GOV-CRT-065,attributo assente lt,"{'field':'member.attributes.tMissing','cmp':'lt','value':1}",,false
+TB-GOV-CRT-066,attributo assente lte,"{'field':'member.attributes.tMissing','cmp':'lte','value':1}",,false
+TB-GOV-CRT-067,attributo assente in,"{'field':'member.attributes.tMissing','cmp':'in','value':['x']}",,false
+TB-GOV-CRT-068,attributo assente nin,"{'field':'member.attributes.tMissing','cmp':'nin','value':['x']}",,false
+TB-GOV-CRT-069,attributo assente contains,"{'field':'member.attributes.tMissing','cmp':'contains','value':'x'}",,false
+TB-GOV-CRT-070,attributo assente ncontains,"{'field':'member.attributes.tMissing','cmp':'ncontains','value':'x'}",,false
+TB-GOV-CRT-071,attributo assente exists,"{'field':'member.attributes.tMissing','cmp':'exists'}",,false
+TB-GOV-CRT-072,attributo assente nexists,"{'field':'member.attributes.tMissing','cmp':'nexists'}",,true
+TB-GOV-CRT-073,attributo assente between,"{'field':'member.attributes.tMissing','cmp':'between','value':[1,5]}",,false
+TB-GOV-CRT-074,attributo assente startsWith,"{'field':'member.attributes.tMissing','cmp':'startsWith','value':'x'}",,false
+TB-GOV-CRT-075,labels eq elemento presente,"{'field':'member.labels','cmp':'eq','value':'ebill'}",,true
+TB-GOV-CRT-076,labels contains presente,"{'field':'member.labels','cmp':'contains','value':'ebill'}",,true
+TB-GOV-CRT-077,labels contains assente,"{'field':'member.labels','cmp':'contains','value':'vip'}",,false
+TB-GOV-CRT-078,labels ncontains assente,"{'field':'member.labels','cmp':'ncontains','value':'vip'}",,true
+TB-GOV-CRT-079,labels in con intersezione,"{'field':'member.labels','cmp':'in','value':['vip','ebill']}",,true
+TB-GOV-CRT-080,labels nin senza intersezione,"{'field':'member.labels','cmp':'nin','value':['vip']}",,true
+TB-GOV-CRT-081,labels nin con intersezione,"{'field':'member.labels','cmp':'nin','value':['ebill']}",,false
+TB-GOV-CRT-082,labels exists su lista vuota,"{'field':'member.labels','cmp':'exists'}",labels=,false
+TB-GOV-CRT-083,labels nexists su lista vuota,"{'field':'member.labels','cmp':'nexists'}",labels=,true
+TB-GOV-CRT-084,tier,"{'field':'member.tier','cmp':'eq','value':'GOLD'}",,true
+TB-GOV-CRT-085,status,"{'field':'member.status','cmp':'eq','value':'ACTIVE'}",,true
+TB-GOV-CRT-086,status di un BLOCKED,"{'field':'member.status','cmp':'eq','value':'ACTIVE'}",status=BLOCKED,false
+TB-GOV-CRT-087,"city (spazio esteso, senza prefisso)","{'field':'city','cmp':'eq','value':'Torino'}",,true
+TB-GOV-CRT-088,member.city,"{'field':'member.city','cmp':'eq','value':'Torino'}",,true
+TB-GOV-CRT-089,age,"{'field':'member.age','cmp':'eq','value':26}",,true
+TB-GOV-CRT-090,age: compleanno a mezzanotte di Roma,"{'field':'member.age','cmp':'eq','value':26}",asOf=2026-09-23T22:30:00Z,true
+TB-GOV-CRT-091,age: vigilia del compleanno (23:30 Roma),"{'field':'member.age','cmp':'eq','value':25}",asOf=2026-09-23T21:30:00Z,true
+TB-GOV-CRT-092,"age: nato il 29 febbraio, 28/02 non bisestile","{'field':'member.age','cmp':'eq','value':25}",birthDate=2000-02-29;asOf=2026-02-28T12:00:00Z,true
+TB-GOV-CRT-093,"age: nato il 29 febbraio, 01/03","{'field':'member.age','cmp':'eq','value':26}",birthDate=2000-02-29;asOf=2026-03-01T12:00:00Z,true
+TB-GOV-CRT-094,age senza data di nascita,"{'field':'member.age','cmp':'gte','value':0}",birthDate=,false
+TB-GOV-CRT-095,registeredDaysAgo,"{'field':'member.registeredDaysAgo','cmp':'eq','value':30}",,true
+TB-GOV-CRT-096,registeredDaysAgo a cavallo della mezzanotte di Roma,"{'field':'member.registeredDaysAgo','cmp':'eq','value':0}",registeredAt=2026-09-23T21:30:00Z;asOf=2026-09-24T06:00:00Z,true
+TB-GOV-CRT-097,registeredDaysAgo a cavallo del cambio d'ora (29/03/2026),"{'field':'member.registeredDaysAgo','cmp':'eq','value':1}",registeredAt=2026-03-28T12:00:00Z;asOf=2026-03-30T11:30:00Z,true
+TB-GOV-CRT-098,balance.PTS al limite (gte),"{'field':'balance.PTS','cmp':'gte','value':1500}",,true
+TB-GOV-CRT-099,balance.PTS al limite (gt),"{'field':'balance.PTS','cmp':'gt','value':1500}",,false
+TB-GOV-CRT-100,lifetimeEarned.PTS,"{'field':'lifetimeEarned.PTS','cmp':'gt','value':4999}",,true
+TB-GOV-CRT-101,lastActivityDaysAgo 46 > 45,"{'field':'lastActivityDaysAgo','cmp':'gt','value':45}",,true
+TB-GOV-CRT-102,lastActivityDaysAgo 45 > 45 (limite),"{'field':'lastActivityDaysAgo','cmp':'gt','value':45}",lastActivityAt=2026-08-10T10:00:00Z,false
+TB-GOV-CRT-103,lastActivityDaysAgo senza attività,"{'field':'lastActivityDaysAgo','cmp':'gt','value':45}",lastActivityAt=,false
+TB-GOV-CRT-104,actions.<type>.count30d,"{'field':'actions.purchase.completed.count30d','cmp':'gte','value':2}",,true
+TB-GOV-CRT-105,actions.<type>.total,"{'field':'actions.purchase.completed.total','cmp':'eq','value':7}",,true
+TB-GOV-CRT-106,actions.<type>.count30d senza azioni = 0,"{'field':'actions.app.login.daily.count30d','cmp':'eq','value':0}",,true
+TB-GOV-CRT-107,purchases.amount90d decimale,"{'field':'purchases.amount90d','cmp':'eq','value':107.4}",,true
+TB-GOV-CRT-108,purchases.amount90d gt,"{'field':'purchases.amount90d','cmp':'gt','value':100}",,true
+TB-GOV-CRT-109,"all [vero, vero]","{'op':'all','rules':[{'field':'member.tier','cmp':'eq','value':'GOLD'},{'field':'member.tier','cmp':'eq','value':'GOLD'}]}",,true
+TB-GOV-CRT-110,"all [vero, falso]","{'op':'all','rules':[{'field':'member.tier','cmp':'eq','value':'GOLD'},{'field':'member.tier','cmp':'eq','value':'BASE'}]}",,false
+TB-GOV-CRT-111,"any [falso, vero]","{'op':'any','rules':[{'field':'member.tier','cmp':'eq','value':'BASE'},{'field':'member.tier','cmp':'eq','value':'GOLD'}]}",,true
+TB-GOV-CRT-112,"any [falso, falso]","{'op':'any','rules':[{'field':'member.tier','cmp':'eq','value':'BASE'},{'field':'member.tier','cmp':'eq','value':'BASE'}]}",,false
+TB-GOV-CRT-113,not [falso],"{'op':'not','rules':[{'field':'member.tier','cmp':'eq','value':'BASE'}]}",,true
+TB-GOV-CRT-114,not [vero],"{'op':'not','rules':[{'field':'member.tier','cmp':'eq','value':'GOLD'}]}",,false
+TB-GOV-CRT-115,"not [vero, falso]","{'op':'not','rules':[{'field':'member.tier','cmp':'eq','value':'GOLD'},{'field':'member.tier','cmp':'eq','value':'BASE'}]}",,true
+TB-GOV-CRT-116,"annidati all[any[falso,vero], not[falso]]","{'op':'all','rules':[{'op':'any','rules':[{'field':'member.tier','cmp':'eq','value':'BASE'},{'field':'member.tier','cmp':'eq','value':'GOLD'}]},{'op':'not','rules':[{'field':'member.tier','cmp':'eq','value':'BASE'}]}]}",,true
+TB-GOV-CRT-117,criteri vuoti,{},,false
+TB-GOV-CRT-118,criteri null,null,,false

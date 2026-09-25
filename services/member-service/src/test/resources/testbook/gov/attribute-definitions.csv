@@ -1,0 +1,30 @@
+id,descrizione,key,label,type,options,expected
+TB-GOV-ATD-001,chiave camelCase,householdSize,Componenti,NUMBER,,OK
+TB-GOV-ATD-002,chiave di 1 carattere,a,Etichetta,STRING,,key
+TB-GOV-ATD-003,chiave di 2 caratteri (minimo),ab,Etichetta,STRING,,OK
+TB-GOV-ATD-004,chiave di 40 caratteri (massimo),kxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,Etichetta,STRING,,OK
+TB-GOV-ATD-005,chiave di 41 caratteri,kxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,Etichetta,STRING,,key
+TB-GOV-ATD-006,chiave con iniziale maiuscola,Household,Etichetta,STRING,,key
+TB-GOV-ATD-007,chiave con trattino basso,house_size,Etichetta,STRING,,key
+TB-GOV-ATD-008,chiave che inizia con una cifra,1abc,Etichetta,STRING,,key
+TB-GOV-ATD-009,chiave interna story,story,Storia,STRING,,key
+TB-GOV-ATD-010,chiave assente,NULL,Etichetta,STRING,,key
+TB-GOV-ATD-011,chiave duplicata,DUP,Etichetta,STRING,,key
+TB-GOV-ATD-012,etichetta assente,tLabel,NULL,STRING,,label
+TB-GOV-ATD-013,etichetta vuota,tLabel,EMPTY,STRING,,label
+TB-GOV-ATD-014,etichetta di soli spazi,tLabel,SPACES,STRING,,label
+TB-GOV-ATD-015,etichetta di 60 caratteri,tLabel,L60,STRING,,OK
+TB-GOV-ATD-016,etichetta di 61 caratteri,tLabel,L61,STRING,,label
+TB-GOV-ATD-017,tipo STRING,tType,Tipo,STRING,,OK
+TB-GOV-ATD-018,tipo NUMBER,tType,Tipo,NUMBER,,OK
+TB-GOV-ATD-019,tipo BOOLEAN,tType,Tipo,BOOLEAN,,OK
+TB-GOV-ATD-020,tipo DATE,tType,Tipo,DATE,,OK
+TB-GOV-ATD-021,tipo in minuscolo,tType,Tipo,string,,type
+TB-GOV-ATD-022,tipo sconosciuto,tType,Tipo,TEXT,,type
+TB-GOV-ATD-023,tipo assente,tType,Tipo,NULL,,type
+TB-GOV-ATD-024,opzioni per STRING,tOpt,Opzioni,STRING,A|B,OK
+TB-GOV-ATD-025,opzioni per NUMBER,tOpt,Opzioni,NUMBER,1|2,options
+TB-GOV-ATD-026,opzione vuota,tOpt,Opzioni,STRING,A|EMPTY,options
+TB-GOV-ATD-027,opzioni duplicate,tOpt,Opzioni,STRING,A|A,options
+TB-GOV-ATD-028,30 definizioni,N30,Etichetta,STRING,,OK
+TB-GOV-ATD-029,31 definizioni,N31,Etichetta,STRING,,definitions

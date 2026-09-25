@@ -1,0 +1,9 @@
+id,descrizione,scenario,expected
+TB-GOV-APQ-001,oggetti in revisione del seed,SEED_ITEMS,"CMP-BLACK-FRIDAY,IW-NATALE,RWD-GIFT-50"
+TB-GOV-APQ-002,ruolo richiesto delle voci del seed,REQUIRED_ROLE,LEGAL
+TB-GOV-APQ-003,formato comune della voce,FORMAT,completo
+TB-GOV-APQ-004,un premio inviato compare con chi l'ha inviato,SUBMITTED_APPEARS,presente|MARKETING:tb.marketing
+TB-GOV-APQ-005,dopo APPROVE esce dalla coda,APPROVED_LEAVES,assente
+TB-GOV-APQ-006,`?submittedBy=` lo mostra in ogni stato,SUBMITTED_BY,presente|APPROVED
+TB-GOV-APQ-007,scheda della policy,POLICY,"true|100000|CAMPAIGN:LEGAL,CONTENT:-,CONTEST:LEGAL,REWARD:LEGAL"
+TB-GOV-APQ-008,campagna senza obbligo inviata in revisione: ruolo richiesto,CAMPAIGN_NO_RULE,null

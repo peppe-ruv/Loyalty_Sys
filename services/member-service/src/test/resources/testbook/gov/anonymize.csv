@@ -1,0 +1,48 @@
+id,descrizione,scenario,expected
+TB-GOV-ANO-001,conferma = id,CONFIRM_OK,200:ANONYMIZED
+TB-GOV-ANO-002,conferma con spazi ai bordi,CONFIRM_PADDED,200:ANONYMIZED
+TB-GOV-ANO-003,conferma in minuscolo,CONFIRM_LOWER,422:CONFIRM_MISMATCH
+TB-GOV-ANO-004,conferma con l'id di un altro membro,CONFIRM_OTHER,422:CONFIRM_MISMATCH
+TB-GOV-ANO-005,conferma vuota,CONFIRM_EMPTY,422:CONFIRM_MISMATCH
+TB-GOV-ANO-006,corpo senza conferma,CONFIRM_MISSING,422:CONFIRM_MISMATCH
+TB-GOV-ANO-007,nessun corpo,NO_BODY,422:CONFIRM_MISMATCH
+TB-GOV-ANO-008,seconda anonimizzazione,REPEAT,409:MEMBER_ANONYMIZED
+TB-GOV-ANO-009,membro inesistente,UNKNOWN,404:NOT_FOUND
+TB-GOV-ANO-010,membro inesistente e conferma errata,UNKNOWN_MISMATCH,404:NOT_FOUND
+TB-GOV-ANO-011,da INACTIVE,FROM_INACTIVE,200:ANONYMIZED:INACTIVE
+TB-GOV-ANO-012,da BLOCKED,FROM_BLOCKED,200:ANONYMIZED:BLOCKED
+TB-GOV-ANO-013,ruolo MARKETING,ROLE_MARKETING,403:FORBIDDEN_ROLE
+TB-GOV-ANO-014,ruolo LEGAL,ROLE_LEGAL,403:FORBIDDEN_ROLE
+TB-GOV-ANO-015,ruolo CARE,ROLE_CARE,403:FORBIDDEN_ROLE
+TB-GOV-ANO-016,ruolo ANALYST,ROLE_ANALYST,403:FORBIDDEN_ROLE
+TB-GOV-ANO-017,intestazione assente,ROLE_NONE,403:FORBIDDEN_ROLE
+TB-GOV-ANO-018,membro del seed già anonimizzato (MBR-000012),SEED_012,409:MEMBER_ANONYMIZED
+TB-GOV-ANO-019,nickname → segnaposto,F_nickname,Membro anonimo
+TB-GOV-ANO-020,nome → null,F_firstName,null
+TB-GOV-ANO-021,cognome → null,F_lastName,null
+TB-GOV-ANO-022,e-mail → null,F_email,null
+TB-GOV-ANO-023,telefono → null,F_phone,null
+TB-GOV-ANO-024,data di nascita → null,F_birthDate,null
+TB-GOV-ANO-025,genere → null,F_gender,null
+TB-GOV-ANO-026,città → null,F_city,null
+TB-GOV-ANO-027,identificativo esterno → null,F_externalId,null
+TB-GOV-ANO-028,attributi cancellati,F_attributes,{}
+TB-GOV-ANO-029,consensi cancellati,F_consents,{}
+TB-GOV-ANO-030,seme dell'avatar → null,F_avatarSeed,null
+TB-GOV-ANO-031,id conservato,K_id,uguale
+TB-GOV-ANO-032,etichette conservate,K_labels,[vip]
+TB-GOV-ANO-033,codice invito conservato,K_referralCode,uguale
+TB-GOV-ANO-034,legame di referral conservato,K_referredBy,uguale
+TB-GOV-ANO-035,iscrizione e canale conservati,K_registered,uguale
+TB-GOV-ANO-036,proiezione dei saldi conservata,K_projection,1234
+TB-GOV-ANO-037,fatto member.status.changed,FACT_STATUS,ACTIVE→ANONYMIZED
+TB-GOV-ANO-038,fatto member.updated ripulito dopo lo stato,FACT_UPDATED,ANONYMIZED|senza dati personali
+TB-GOV-ANO-039,audit senza dati personali,AUDIT,TRANSITION|senza dati personali
+TB-GOV-ANO-040,fatti conformi ai contratti,CONTRACT,validi
+TB-GOV-ANO-041,ricerca per nome,SEARCH_NAME,0
+TB-GOV-ANO-042,ricerca per e-mail,SEARCH_EMAIL,0
+TB-GOV-ANO-043,ricerca per id,SEARCH_ID,1:Membro anonimo
+TB-GOV-ANO-044,profilo del portale,PORTAL,senza dati personali
+TB-GOV-ANO-045,e-mail di nuovo libera,EMAIL_REUSE,201
+TB-GOV-ANO-046,modifica dopo l'anonimizzazione,PATCH_AFTER,409:MEMBER_ANONYMIZED
+TB-GOV-ANO-047,codice invito di un anonimizzato,REFERRAL_AFTER,422:REFERRAL_CODE_INVALID

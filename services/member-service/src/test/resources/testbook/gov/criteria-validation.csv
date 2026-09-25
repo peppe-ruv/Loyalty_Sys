@@ -1,0 +1,28 @@
+id,descrizione,criteria,expected
+TB-GOV-CRV-001,criteri assenti,null,criteria
+TB-GOV-CRV-002,criteri vuoti,{},criteria
+TB-GOV-CRV-003,foglia valida,"{'field':'member.tier','cmp':'eq','value':'GOLD'}",OK
+TB-GOV-CRV-004,gruppo valido annidato su 3 livelli,"{'op':'all','rules':[{'op':'any','rules':[{'op':'not','rules':[{'field':'member.tier','cmp':'eq','value':'GOLD'}]}]}]}",OK
+TB-GOV-CRV-005,operatore di gruppo sconosciuto,"{'op':'xor','rules':[{'field':'member.tier','cmp':'eq','value':'GOLD'}]}",criteria.op
+TB-GOV-CRV-006,gruppo senza regole,"{'op':'all','rules':[]}",criteria.rules
+TB-GOV-CRV-007,foglia senza campo,"{'cmp':'eq','value':'GOLD'}",criteria.field
+TB-GOV-CRV-008,campo sconosciuto,"{'field':'member.shoeSize','cmp':'eq','value':42}",criteria.field
+TB-GOV-CRV-009,campo dello spazio data.*,"{'field':'data.amount','cmp':'gt','value':5}",criteria.field
+TB-GOV-CRV-010,campo dello spazio context.*,"{'field':'context.hour','cmp':'eq','value':9}",criteria.field
+TB-GOV-CRV-011,member.segments,"{'field':'member.segments','cmp':'contains','value':'SEG-VIP'}",criteria.field
+TB-GOV-CRV-012,attributes. senza chiave,"{'field':'member.attributes.','cmp':'exists'}",criteria.field
+TB-GOV-CRV-013,actions.<type> senza finestra,"{'field':'actions.purchase.completed','cmp':'gt','value':1}",criteria.field
+TB-GOV-CRV-014,actions.<type>.total,"{'field':'actions.purchase.completed.total','cmp':'gt','value':1}",OK
+TB-GOV-CRV-015,campo senza prefisso member.,"{'field':'tier','cmp':'eq','value':'GOLD'}",OK
+TB-GOV-CRV-016,comparatore sconosciuto,"{'field':'member.tier','cmp':'like','value':'GO'}",criteria.cmp
+TB-GOV-CRV-017,comparatore assente,"{'field':'member.tier','value':'GOLD'}",criteria.cmp
+TB-GOV-CRV-018,valore assente per eq,"{'field':'member.tier','cmp':'eq'}",criteria.value
+TB-GOV-CRV-019,valore null per eq,"{'field':'member.tier','cmp':'eq','value':null}",criteria.value
+TB-GOV-CRV-020,exists senza valore,"{'field':'member.city','cmp':'exists'}",OK
+TB-GOV-CRV-021,in con scalare,"{'field':'member.tier','cmp':'in','value':'GOLD'}",criteria.value
+TB-GOV-CRV-022,nin con scalare,"{'field':'member.tier','cmp':'nin','value':'GOLD'}",criteria.value
+TB-GOV-CRV-023,between con un valore,"{'field':'balance.PTS','cmp':'between','value':[1]}",criteria.value
+TB-GOV-CRV-024,between con tre valori,"{'field':'balance.PTS','cmp':'between','value':[1,2,3]}",criteria.value
+TB-GOV-CRV-025,gt con testo (data ISO),"{'field':'member.attributes.contractDate','cmp':'gt','value':'2026-01-01'}",criteria.value
+TB-GOV-CRV-026,gte con numero,"{'field':'balance.PTS','cmp':'gte','value':100}",OK
+TB-GOV-CRV-027,regola non oggetto,"{'op':'all','rules':['tier']}",criteria.rules[0]
