@@ -1,0 +1,9 @@
+id,descrizione,enabled,entity,approver
+TB-GOV-POL-037,scheda policy CONTEST ON,true,CONTEST,LEGAL
+TB-GOV-POL-038,scheda policy REWARD ON,true,REWARD,LEGAL
+TB-GOV-POL-039,scheda policy CAMPAIGN ON,true,CAMPAIGN,LEGAL
+TB-GOV-POL-040,scheda policy CONTENT ON,true,CONTENT,NONE
+TB-GOV-POL-041,scheda policy CONTEST OFF,false,CONTEST,NONE
+TB-GOV-POL-042,scheda policy REWARD OFF,false,REWARD,NONE
+TB-GOV-POL-043,scheda policy CAMPAIGN OFF,false,CAMPAIGN,NONE
+TB-GOV-POL-044,scheda policy CONTENT OFF,false,CONTENT,NONE

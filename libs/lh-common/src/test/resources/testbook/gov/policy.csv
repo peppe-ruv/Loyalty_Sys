@@ -1,0 +1,37 @@
+id,descrizione,enabled,threshold,entity,requiresLegal,budget,required,approver
+TB-GOV-POL-001,CAMPAIGN ON requiresLegal=false budget=NULL,true,100000,CAMPAIGN,false,NULL,false,NONE
+TB-GOV-POL-002,CAMPAIGN ON requiresLegal=false budget=0,true,100000,CAMPAIGN,false,0,false,NONE
+TB-GOV-POL-003,CAMPAIGN ON requiresLegal=false budget=-1,true,100000,CAMPAIGN,false,-1,false,NONE
+TB-GOV-POL-004,CAMPAIGN ON requiresLegal=false budget=99999,true,100000,CAMPAIGN,false,99999,false,NONE
+TB-GOV-POL-005,CAMPAIGN ON requiresLegal=false budget=100000,true,100000,CAMPAIGN,false,100000,false,NONE
+TB-GOV-POL-006,CAMPAIGN ON requiresLegal=false budget=100001,true,100000,CAMPAIGN,false,100001,true,LEGAL
+TB-GOV-POL-007,CAMPAIGN ON requiresLegal=false budget=MAX,true,100000,CAMPAIGN,false,MAX,true,LEGAL
+TB-GOV-POL-008,CAMPAIGN ON requiresLegal=true budget=NULL,true,100000,CAMPAIGN,true,NULL,true,LEGAL
+TB-GOV-POL-009,CAMPAIGN ON requiresLegal=true budget=0,true,100000,CAMPAIGN,true,0,true,LEGAL
+TB-GOV-POL-010,CAMPAIGN ON requiresLegal=true budget=-1,true,100000,CAMPAIGN,true,-1,true,LEGAL
+TB-GOV-POL-011,CAMPAIGN ON requiresLegal=true budget=99999,true,100000,CAMPAIGN,true,99999,true,LEGAL
+TB-GOV-POL-012,CAMPAIGN ON requiresLegal=true budget=100000,true,100000,CAMPAIGN,true,100000,true,LEGAL
+TB-GOV-POL-013,CAMPAIGN ON requiresLegal=true budget=100001,true,100000,CAMPAIGN,true,100001,true,LEGAL
+TB-GOV-POL-014,CAMPAIGN ON requiresLegal=true budget=MAX,true,100000,CAMPAIGN,true,MAX,true,LEGAL
+TB-GOV-POL-015,CAMPAIGN OFF requiresLegal=false budget=NULL,false,100000,CAMPAIGN,false,NULL,false,NONE
+TB-GOV-POL-016,CAMPAIGN OFF requiresLegal=false budget=0,false,100000,CAMPAIGN,false,0,false,NONE
+TB-GOV-POL-017,CAMPAIGN OFF requiresLegal=false budget=-1,false,100000,CAMPAIGN,false,-1,false,NONE
+TB-GOV-POL-018,CAMPAIGN OFF requiresLegal=false budget=99999,false,100000,CAMPAIGN,false,99999,false,NONE
+TB-GOV-POL-019,CAMPAIGN OFF requiresLegal=false budget=100000,false,100000,CAMPAIGN,false,100000,false,NONE
+TB-GOV-POL-020,CAMPAIGN OFF requiresLegal=false budget=100001,false,100000,CAMPAIGN,false,100001,false,NONE
+TB-GOV-POL-021,CAMPAIGN OFF requiresLegal=false budget=MAX,false,100000,CAMPAIGN,false,MAX,false,NONE
+TB-GOV-POL-022,CAMPAIGN OFF requiresLegal=true budget=NULL,false,100000,CAMPAIGN,true,NULL,false,NONE
+TB-GOV-POL-023,CAMPAIGN OFF requiresLegal=true budget=0,false,100000,CAMPAIGN,true,0,false,NONE
+TB-GOV-POL-024,CAMPAIGN OFF requiresLegal=true budget=-1,false,100000,CAMPAIGN,true,-1,false,NONE
+TB-GOV-POL-025,CAMPAIGN OFF requiresLegal=true budget=99999,false,100000,CAMPAIGN,true,99999,false,NONE
+TB-GOV-POL-026,CAMPAIGN OFF requiresLegal=true budget=100000,false,100000,CAMPAIGN,true,100000,false,NONE
+TB-GOV-POL-027,CAMPAIGN OFF requiresLegal=true budget=100001,false,100000,CAMPAIGN,true,100001,false,NONE
+TB-GOV-POL-028,CAMPAIGN OFF requiresLegal=true budget=MAX,false,100000,CAMPAIGN,true,MAX,false,NONE
+TB-GOV-POL-029,CONTEST ON,true,100000,CONTEST,false,NULL,true,LEGAL
+TB-GOV-POL-030,CONTEST OFF,false,100000,CONTEST,false,NULL,false,NONE
+TB-GOV-POL-031,REWARD ON,true,100000,REWARD,false,NULL,true,LEGAL
+TB-GOV-POL-032,REWARD OFF,false,100000,REWARD,false,NULL,false,NONE
+TB-GOV-POL-033,CONTENT ON,true,100000,CONTENT,false,NULL,false,NONE
+TB-GOV-POL-034,CONTENT OFF,false,100000,CONTENT,false,NULL,false,NONE
+TB-GOV-POL-035,soglia configurata 50000 budget=50000,true,50000,CAMPAIGN,false,50000,false,NONE
+TB-GOV-POL-036,soglia configurata 50000 budget=50001,true,50000,CAMPAIGN,false,50001,true,LEGAL
