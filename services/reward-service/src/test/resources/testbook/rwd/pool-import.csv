@@ -1,0 +1,9 @@
+id,descrizione,codes,role,expHttp,expImported,expSkipped
+TB-RWD-CPN-092,3 codici nuovi,NEW1|NEW2|NEW3,MARKETING,200,3,0
+TB-RWD-CPN-093,6 codici con 3 duplicati nell'elenco,NEW1|NEW1|NEW2|NEW2|NEW3|NEW3,MARKETING,200,3,3
+TB-RWD-CPN-094,codice già presente in un altro pool,EXIST|NEW1,MARKETING,200,1,1
+TB-RWD-CPN-095,codice troppo corto «ab»,ab|NEW1,MARKETING,200,1,1
+TB-RWD-CPN-096,codice minuscolo con spazi «  abcd-efgh »,LOWER,MARKETING,200,1,0
+TB-RWD-CPN-097,elenco vuoto,EMPTY,MARKETING,422,0,0
+TB-RWD-CPN-098,5001 codici,MANY5001,MARKETING,422,0,0
+TB-RWD-CPN-099,ruolo CARE,NEW1,CARE,403,0,0

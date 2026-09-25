@@ -42,9 +42,27 @@ export function formatRelative(value: Date | string | number, now: Date = new Da
   const diffMin = Math.round(diffMs / 60_000);
   if (diffMin < 1) return "ora";
   if (diffMin < 60) return `${diffMin} min fa`;
-  const diffH = Math.round(diffMin / 60);
+  // Ore per difetto: 23 h 40 min è ancora "23 h fa" (sotto le 24 h la resa resta relativa, docs/07 §9).
+  const diffH = Math.floor(diffMin / 60);
   if (diffH < 24) return `${diffH} h fa`;
   return formatDateTime(value);
+}
+
+/** Tempo trascorso senza "fa", per le attese ("In attesa di LEGAL da 2 h", docs/08 §3.3): min, h, poi giorni. */
+export function formatElapsed(since: Date | string | number, now: Date = new Date()): string {
+  const diffMin = Math.max(0, Math.floor((now.getTime() - new Date(since).getTime()) / 60_000));
+  if (diffMin < 60) return `${Math.max(1, diffMin)} min`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `${diffH} h`;
+  const days = Math.floor(diffH / 24);
+  return days === 1 ? "1 giorno" : `${days} giorni`;
+}
+
+const DAY_MONTH = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short", timeZone: "Europe/Rome" });
+
+/** "31 dic": giorno e mese brevi (scadenze dentro l'anno, docs/09 §PT-01). */
+export function formatDayMonth(value: Date | string | number): string {
+  return DAY_MONTH.format(new Date(value));
 }
 
 /**

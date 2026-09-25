@@ -1,0 +1,155 @@
+---
+title: "inviare-un-evento"
+sidebarTitle: "Inviare un evento"
+description: "Guida pratica per inviare un CloudEvent all'API di ingestion-service: formato, autenticazione, deduplica e gestione degli errori."
+---
+
+Ogni integrazione con Loyalty Hub inizia da qui: come mandare un evento e cosa aspettarti dalla risposta. Questa guida usa `purchase.completed` come esempio, ma il pattern vale per qualunque tipo di azione.
+
+## Prima di iniziare
+
+Ti serve:
+
+- Lo stack in esecuzione (vedi [Quickstart](getting-started/quickstart)).
+- L'indirizzo del servizio di ingestione (in locale: `http://localhost:8081`).
+- Un membro esistente. In demo puoi usare `MBR-000003` (Silvia Rossi).
+
+## L'endpoint
+
+Tutti gli eventi arrivano a un solo endpoint:
+
+```text
+POST /v1/events
+Content-Type: application/cloudevents+json
+```
+
+Il corpo è un CloudEvent 1.0 JSON. In ingresso i campi obbligatori sono: `specversion`, `id`, `source`, `type`, `subject`, `time`, `data`. Gli attributi di estensione (`lhtenant`, `lhhop`, `lhcorrelationid`) li aggiunge ingestion.
+
+## Invia il tuo primo evento
+
+<Steps>
+  <Step title="Costruisci il payload">
+    Un acquisto minimo:
+
+    ```json Payload di esempio
+    {
+      "specversion": "1.0",
+      "id": "order-2026-09-25-0001",
+      "source": "urn:loyaltyhub:source:ecommerce",
+      "type": "purchase.completed",
+      "subject": "member:MBR-000003",
+      "time": "2026-09-25T10:15:00Z",
+      "datacontenttype": "application/json",
+      "data": {
+        "orderId": "ORD-88213",
+        "amount": 130.00,
+        "currency": "EUR",
+        "channel": "ONLINE"
+      }
+    }
+    ```
+
+    > **Nota:** `id` è la chiave di deduplica insieme a `source`. Se rimandi lo stesso `id` da `ecommerce`, l'evento non viene rielaborato.
+  </Step>
+  <Step title="Invia con curl">
+    ```bash
+    # Sostituisci l'URL con quello del tuo ambiente.
+    curl -X POST http://localhost:8081/v1/events \
+      -H "Content-Type: application/cloudevents+json" \
+      -d @evento.json
+    ```
+  </Step>
+  <Step title="Leggi la risposta">
+    Risposta di successo (`202 Accepted`):
+
+    ```json
+    {
+      "eventId": "01J8ZK3V7Q2M9T4B6N8R0XWYCD",
+      "status": "ACCEPTED",
+      "memberId": "MBR-000003"
+    }
+    ```
+
+    Possibili valori di `status`:
+
+    | Status | Significato |
+    | --- | --- |
+    | `ACCEPTED` | Evento accettato e pubblicato su `lh.actions.v1`. |
+    | `DUPLICATE` | Stessa coppia (`source`, `id`) già ricevuta. Ignorato. |
+    | `REJECTED` | Rifiutato per motivi di business. Il campo `rejectCode` spiega perché. |
+    | `UNMATCHED` | Membro non trovato. Rimane in parcheggio finché non lo abbini o si registra. |
+  </Step>
+</Steps>
+
+## Formati alternativi di `subject`
+
+Puoi identificare il membro in tre modi:
+
+- Per ID interno: `member:MBR-000003`
+- Per ID esterno: `external:CRM-8842`
+- Per email: `email:silvia.rossi@example.com`
+
+Ingestion risolve il primo che trova nell'indice locale.
+
+## Errori comuni
+
+<AccordionGroup>
+  <Accordion title="400 - Envelope non valido">
+    Manca un campo obbligatorio del CloudEvent (per esempio `specversion` o `type`), oppure il JSON è malformato. Controlla il corpo e i campi obbligatori elencati sopra.
+  </Accordion>
+
+  <Accordion title="202 con status REJECTED e rejectCode SOURCE_DISABLED">
+    La fonte è nota ma disabilitata in backoffice (Ingestion → Fonti). Riabilitala per accettare eventi.
+  </Accordion>
+
+  <Accordion title="202 con status REJECTED e rejectCode TYPE_UNKNOWN">
+    Il `type` non è registrato tra i tipi azione. Registralo in backoffice (Ingestion → Tipi azione) con il relativo JSON Schema.
+  </Accordion>
+
+  <Accordion title="202 con status REJECTED e rejectCode SCHEMA_INVALID">
+    Il payload `data` non rispetta il JSON Schema del tipo. La risposta indica il campo che ha fallito.
+  </Accordion>
+
+  <Accordion title="202 con status UNMATCHED">
+    Il membro non esiste. Puoi abbinare manualmente l'evento dal Monitor ingressi in backoffice, oppure attendere la registrazione del membro e riprovare.
+  </Accordion>
+</AccordionGroup>
+
+## Invio in batch
+
+Per volumi elevati:
+
+```text
+POST /v1/events/batch
+```
+
+Accetta fino a 100 eventi in un unico body. La risposta è un array con l'esito per singolo elemento.
+
+## Transazioni d'acquisto
+
+Se preferisci un formato "ordine" invece del CloudEvent completo, usa:
+
+```text
+POST /v1/transactions
+```
+
+con corpo:
+
+```json
+{
+  "source": "ecommerce",
+  "orderId": "ORD-88213",
+  "memberRef": "MBR-000003",
+  "amount": 130.00,
+  "currency": "EUR",
+  "channel": "ONLINE",
+  "items": [{"sku": "SKU-1", "qty": 1, "price": 130.00}],
+  "occurredAt": "2026-09-25T10:15:00Z"
+}
+```
+
+Ingestion lo converte internamente in un `purchase.completed` con `id = "txn-" + orderId`.
+
+## Prossimo passo
+
+Ora che invii eventi, guarda come premiarli in [Come creare una campagna](guide/creare-una-campagna).

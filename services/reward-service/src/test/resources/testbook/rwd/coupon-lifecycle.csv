@@ -1,0 +1,26 @@
+id,descrizione,state,action,role,nowFromExpiry,expHttp,expCode,expStatusAfter
+TB-RWD-CPN-001,AVAILABLE (mai emesso) × uso alla cassa,AVAILABLE,USE,CARE,-,409,-,AVAILABLE
+TB-RWD-CPN-002,AVAILABLE (mai emesso) × annulla,AVAILABLE,VOID,CARE,-,200,-,VOID
+TB-RWD-CPN-003,AVAILABLE (mai emesso) × verifica,AVAILABLE,GET,CARE,-,200,-,AVAILABLE
+TB-RWD-CPN-004,ISSUED valido × uso alla cassa,ISSUED,USE,CARE,-,200,-,USED
+TB-RWD-CPN-005,ISSUED valido × annulla,ISSUED,VOID,CARE,-,200,-,VOID
+TB-RWD-CPN-006,ISSUED valido × verifica,ISSUED,GET,CARE,-,200,-,ISSUED
+TB-RWD-CPN-007,"ISSUED oltre la scadenza, job non ancora eseguito × uso alla cassa",ISSUED_EXPIRED,USE,CARE,-,410,COUPON_EXPIRED,EXPIRED
+TB-RWD-CPN-008,"ISSUED oltre la scadenza, job non ancora eseguito × annulla",ISSUED_EXPIRED,VOID,CARE,-,200,-,VOID
+TB-RWD-CPN-009,"ISSUED oltre la scadenza, job non ancora eseguito × verifica",ISSUED_EXPIRED,GET,CARE,-,200,-,EXPIRED
+TB-RWD-CPN-010,EXPIRED (job eseguito) × uso alla cassa,EXPIRED,USE,CARE,-,410,COUPON_EXPIRED,EXPIRED
+TB-RWD-CPN-011,EXPIRED (job eseguito) × annulla,EXPIRED,VOID,CARE,-,200,-,VOID
+TB-RWD-CPN-012,EXPIRED (job eseguito) × verifica,EXPIRED,GET,CARE,-,200,-,EXPIRED
+TB-RWD-CPN-013,USED × uso alla cassa,USED,USE,CARE,-,409,COUPON_ALREADY_USED,USED
+TB-RWD-CPN-014,USED × annulla,USED,VOID,CARE,-,409,-,USED
+TB-RWD-CPN-015,USED × verifica,USED,GET,CARE,-,200,-,USED
+TB-RWD-CPN-016,VOID × uso alla cassa,VOID,USE,CARE,-,409,-,VOID
+TB-RWD-CPN-017,VOID × annulla,VOID,VOID,CARE,-,409,-,VOID
+TB-RWD-CPN-018,VOID × verifica,VOID,GET,CARE,-,200,-,VOID
+TB-RWD-CPN-019,codice inesistente × uso alla cassa,UNKNOWN,USE,CARE,-,404,-,-
+TB-RWD-CPN-020,codice inesistente × annulla,UNKNOWN,VOID,CARE,-,404,-,-
+TB-RWD-CPN-021,codice inesistente × verifica,UNKNOWN,GET,CARE,-,404,-,-
+TB-RWD-CPN-022,uso 1 ms prima della scadenza,ISSUED,USE,CARE,-1ms,200,-,USED
+TB-RWD-CPN-023,uso all'istante della scadenza,ISSUED,USE,CARE,0,410,COUPON_EXPIRED,EXPIRED
+TB-RWD-CPN-024,uso 1 ms dopo la scadenza,ISSUED,USE,CARE,+1ms,410,COUPON_EXPIRED,EXPIRED
+TB-RWD-CPN-025,uso con codice scritto in minuscolo,ISSUED,USE_LOWER,CARE,-,200,-,USED

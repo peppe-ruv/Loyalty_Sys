@@ -1,0 +1,112 @@
+---
+title: "Quickstart: avvia Loyalty Hub in cinque minuti"
+sidebarTitle: "Quickstart"
+description: "Avvia lo stack completo di Loyalty Hub in locale con Docker Compose, invia il primo evento e osserva punti e tier reagire nel portale."
+---
+
+Questa guida ti porta da un repository clonato a un ciclo azione → punti visibile nel portale in circa 5 minuti. Al termine avrai lo stack completo attivo e saprai come inviare la prima azione premiante.
+
+## Prima di iniziare
+
+Verifica di aver completato i [Prerequisiti](/docs_v2/getting-started/prerequisiti). Ti serve JDK 25, Docker e il repository clonato.
+
+## Avvia lo stack
+
+<Steps>
+  <Step title="Avvia infrastruttura e servizi">
+    Dalla radice del repository, lancia lo stack completo (infrastruttura + 8 microservizi + web):
+
+    ```bash
+    docker compose -f deploy/docker-compose.yml --profile all up --build
+    ```
+
+    Il primo avvio compila le immagini Docker e può richiedere qualche minuto. Le esecuzioni successive sono molto più rapide grazie alla cache.
+
+    > **Nota:** Se preferisci avviare solo Kafka, Postgres e Kafka UI (ad esempio per eseguire i servizi da IDE), ometti `--profile all` ed elenca esplicitamente i container di infrastruttura.
+  </Step>
+  <Step title="Controlla che tutto sia UP">
+    In un altro terminale:
+
+    ```bash
+    docker compose -f deploy/docker-compose.yml ps
+    ```
+
+    Devi vedere tutti i servizi in stato `running` e `healthy`. I microservizi espongono `/actuator/health` sulle rispettive porte (8081 - 8088).
+  </Step>
+  <Step title="Apri backoffice e portale">
+    Il frontend Next.js si trova all'indirizzo:
+
+    - Hub / login demo: [http://localhost:3000](http://localhost:3000)
+    - Kafka UI (opzionale, per ispezionare i topic): [http://localhost:8090](http://localhost:8090)
+
+    Non serve creare un account: scegli una persona dalla pagina iniziale (per esempio `marta.admin` per il backoffice o un membro qualsiasi per il portale).
+  </Step>
+  <Step title="Invia il primo evento">
+    Simula un acquisto per il membro `MBR-000003` tramite l'API di `ingestion-service`:
+
+    ```bash Invia una purchase.completed
+    # Invia un CloudEvent all'endpoint di ingestione.
+    # source, id e type sono obbligatori; ingestion aggiunge lhtenant, lhhop, ecc.
+    curl -X POST http://localhost:8081/v1/events \
+      -H "Content-Type: application/cloudevents+json" \
+      -d '{
+        "specversion": "1.0",
+        "id": "quickstart-001",
+        "source": "urn:loyaltyhub:source:ecommerce",
+        "type": "purchase.completed",
+        "subject": "member:MBR-000003",
+        "time": "2026-09-25T10:00:00Z",
+        "datacontenttype": "application/json",
+        "data": {
+          "orderId": "ORD-QS-001",
+          "amount": 130.00,
+          "currency": "EUR",
+          "channel": "ONLINE"
+        }
+      }'
+    ```
+
+    La risposta contiene l'esito (`ACCEPTED`) e il `memberId` risolto.
+  </Step>
+  <Step title="Vedi punti e tier reagire">
+    Apri il portale della persona `MBR-000003` su [http://localhost:3000](http://localhost:3000). Entro pochi secondi vedrai:
+
+    - Un nuovo movimento nel wallet con i punti accreditati.
+    - L'aggiornamento della barra di progresso verso il tier successivo.
+    - Eventuali notifiche in-app se la campagna prevede messaggi.
+  </Step>
+</Steps>
+
+## Cosa è successo dietro le quinte
+
+Il flusso in cinque passi:
+
+1. `ingestion-service` valida il CloudEvent, deduplica per (`source`, `id`), risolve `MBR-000003` e pubblica su `lh.actions.v1`.
+2. `campaign-service` valuta l'azione contro le campagne LIVE e produce effetti (per esempio `points.grant`) su `lh.effects.v1`.
+3. `wallet-service` applica l'effetto, crea un lotto di punti e aggiorna il saldo del membro.
+4. `member-service` e gli altri aggiornano le proprie proiezioni.
+5. Il portale legge i dati aggiornati e mostra il nuovo saldo.
+
+Per capire in dettaglio ognuno di questi passi vai a [Concetti chiave](/docs_v2/concetti/panoramica).
+
+## Ferma lo stack
+
+Quando hai finito:
+
+```bash
+docker compose -f deploy/docker-compose.yml down
+```
+
+Aggiungi `-v` per rimuovere anche il volume dati di Postgres (utile per ripartire pulito).
+
+## Prossimi passi
+
+<CardGroup cols={2}>
+  <Card title="Tour della demo" icon="compass" href="/docs_v2/getting-started/tour-demo">
+    Esplora backoffice e portale con le persone preconfigurate.
+  </Card>
+
+  <Card title="Crea una campagna" icon="pencil" href="/docs_v2/guide/creare-una-campagna">
+    Configura la prima campagna dal backoffice e osservala scattare.
+  </Card>
+</CardGroup>

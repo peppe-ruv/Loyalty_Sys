@@ -1,0 +1,24 @@
+id|descrizione|scenario|HTTP atteso|code atteso
+TB-CMP-VER-001|PUT con la versione corrente|CURRENT|200|
+TB-CMP-VER-002|PUT con una versione superata da un altro salvataggio|STALE|409|VERSION_CONFLICT
+TB-CMP-VER-003|PUT senza versione|ABSENT|200|
+TB-CMP-VER-004|PUT con una versione futura|FUTURE|409|VERSION_CONFLICT
+TB-CMP-VER-005|PUT con la versione letta prima di una transizione|AFTER_TRANSITION|409|VERSION_CONFLICT
+TB-CMP-VER-006|PUT su LIVE di un campo sicuro con la versione corrente|LIVE_CURRENT|200|
+TB-CMP-DUP-001|prima copia: code -COPY-1 in DRAFT|FIRST|201|
+TB-CMP-DUP-002|seconda copia: code -COPY-2|SECOND|201|
+TB-CMP-DUP-003|copia di una LIVE: copia in DRAFT, originale ancora LIVE|FROM_LIVE|201|
+TB-CMP-DUP-004|la copia riporta regole, pubblico, limiti, calendario e cumulabilità|RULES|201|
+TB-CMP-DUP-005|copia di una ARCHIVED: copia in DRAFT|FROM_ARCHIVED|201|
+TB-CMP-DUP-006|copia di una campagna di sistema (CMP-IW-PRIZE-POINTS)|FROM_SYSTEM|201|
+TB-CMP-DUP-007|code della copia nel formato ^[A-Z][A-Z0-9-]{2,39}$ con originale di 40 caratteri|LONG_CODE|201|
+TB-CMP-DUP-008|duplica una campagna inesistente|UNKNOWN|404|
+TB-CMP-DUP-009|la copia di una LIVE si modifica liberamente (campi bloccati sull'originale)|EDIT_COPY|201|
+TB-CMP-CRT-001|creazione valida: 201 in DRAFT con versione|VALID|201|
+TB-CMP-CRT-002|codice già esistente|DUPLICATE_CODE|409|
+TB-CMP-CRT-003|codice fuori formato|BAD_CODE|4xx|
+TB-CMP-CRT-004|codice assente|MISSING_CODE|4xx|
+TB-CMP-CRT-005|corpo non valido (senza effetti): 422|INVALID|422|
+TB-CMP-CRT-006|dettaglio letto col code nel percorso|GET_BY_CODE|200|
+TB-CMP-CRT-007|dettaglio letto con l'id nel percorso|GET_BY_ID|200|
+TB-CMP-CRT-008|dettaglio di una campagna inesistente|GET_UNKNOWN|404|

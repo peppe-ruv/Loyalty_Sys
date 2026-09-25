@@ -7,7 +7,7 @@ import { useLhMutation, useLhQuery, type LhError } from "@/lib/api/client";
 import type { CampaignSummary, Contest, Reward } from "@/lib/api/types";
 import type { ContentFrequency, ContentItem, ContentKind, ContentLinkType, ContentPlacement, ContentTone } from "@/lib/content/types";
 import { PLACEMENT_LABEL, contentHref } from "@/lib/content/links";
-import { CONTENT_ACTIONS, KIND_LABEL, PLACEMENTS, fromLocalInput, toLocalInput } from "@/lib/content/manage";
+import { CONTENT_ACTIONS, KIND_LABEL, PLACEMENTS, fromLocalInput, liveSafeBody, toLocalInput } from "@/lib/content/manage";
 import { QueryState } from "@/components/bo/QueryState";
 import { Can, useCan } from "@/components/bo/Can";
 import { PhoneFrame } from "@/components/bo/PhoneFrame";
@@ -144,6 +144,8 @@ function Editor({ initial }: { initial: ContentItem | null }) {
   });
   const error = (create.error ?? update.error) as LhError | null;
   const busy = create.isPending || update.isPending;
+  // docs/03 §3.6, docs/08 §3.2: su un LIVE solo i campi sicuri; gli altri in sola lettura, per cambiarli si duplica.
+  const live = initial?.status === "LIVE";
 
   const preview = {
     code: d.code || "NUOVO",
@@ -177,11 +179,16 @@ function Editor({ initial }: { initial: ContentItem | null }) {
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
-            if (initial) update.mutate(toBody(d, initial.version));
+            if (initial) update.mutate(live ? liveSafeBody(toBody(d, initial.version), initial) : toBody(d, initial.version));
             else create.mutate(toBody(d, null));
           }}
         >
           <fieldset disabled={!canWrite || initial?.status === "ARCHIVED"} className="space-y-4">
+            {live ? (
+              <p className="rounded border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900">
+                Contenuto pubblicato: si modificano titolo, testo, immagine, priorità e data di fine. Per cambiare le regole, duplica.
+              </p>
+            ) : null}
             <Section title="Generale">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Codice" hint="Maiuscole, cifre e trattini, es. CNT-AUTUNNO">
@@ -194,13 +201,13 @@ function Editor({ initial }: { initial: ContentItem | null }) {
                 </Field>
                 {d.kind !== "POPUP" ? (
                   <Field label="Posizionamento">
-                    <select value={d.placement} onChange={(e) => set("placement", e.target.value as ContentPlacement)} className={INPUT}>
+                    <select value={d.placement} onChange={(e) => set("placement", e.target.value as ContentPlacement)} disabled={live} className={INPUT}>
                       {PLACEMENTS.map((p) => <option key={p} value={p}>{PLACEMENT_LABEL[p]}</option>)}
                     </select>
                   </Field>
                 ) : null}
                 <Field label="Tono">
-                  <select value={d.tone} onChange={(e) => set("tone", e.target.value as ContentTone)} className={INPUT}>
+                  <select value={d.tone} onChange={(e) => set("tone", e.target.value as ContentTone)} disabled={live} className={INPUT}>
                     {TONES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                   </select>
                 </Field>
@@ -213,6 +220,7 @@ function Editor({ initial }: { initial: ContentItem | null }) {
             </Section>
 
             <Section title="Pulsante">
+              <fieldset disabled={live} className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Etichetta"><input value={d.ctaLabel} onChange={(e) => set("ctaLabel", e.target.value)} className={INPUT} maxLength={24} /></Field>
                 <Field label="Destinazione">
@@ -229,6 +237,7 @@ function Editor({ initial }: { initial: ContentItem | null }) {
               </div>
               <DestinationPicker d={d} set={set} />
               {d.ctaLabel && !href && d.destination !== "PRIZE" ? <p className="text-xs text-amber-700">Destinazione non valida: il pulsante non comparirà.</p> : null}
+              </fieldset>
             </Section>
 
             <Section title="Pubblico e calendario">
@@ -236,17 +245,17 @@ function Editor({ initial }: { initial: ContentItem | null }) {
                 <div className="flex flex-wrap gap-3">
                   {TIERS.map((t) => (
                     <label key={t} className="flex items-center gap-1.5 text-sm">
-                      <input type="checkbox" checked={d.tiers.includes(t)} onChange={(e) => set("tiers", e.target.checked ? [...d.tiers, t] : d.tiers.filter((x) => x !== t))} />
+                      <input type="checkbox" disabled={live} checked={d.tiers.includes(t)} onChange={(e) => set("tiers", e.target.checked ? [...d.tiers, t] : d.tiers.filter((x) => x !== t))} />
                       {t}
                     </label>
                   ))}
                 </div>
               </Field>
               <Field label="Segmenti (codici separati da virgola)" hint="Codici di BO-04 (es. SEG-DIGITAL); un codice inesistente non include nessuno.">
-                <input value={d.segments} onChange={(e) => set("segments", e.target.value)} className={INPUT} placeholder="SEG-DIGITAL" />
+                <input value={d.segments} onChange={(e) => set("segments", e.target.value)} disabled={live} className={INPUT} placeholder="SEG-DIGITAL" />
               </Field>
               <div className="grid gap-3 sm:grid-cols-3">
-                <Field label="Dal"><input type="datetime-local" value={d.startAt} onChange={(e) => set("startAt", e.target.value)} className={INPUT} /></Field>
+                <Field label="Dal"><input type="datetime-local" value={d.startAt} onChange={(e) => set("startAt", e.target.value)} disabled={live} className={INPUT} /></Field>
                 <Field label="Al"><input type="datetime-local" value={d.endAt} onChange={(e) => set("endAt", e.target.value)} className={INPUT} /></Field>
                 <Field label="Priorità" hint="Più alta = prima">
                   <input type="number" min={0} max={1000} value={d.priority} onChange={(e) => set("priority", Number(e.target.value))} className={INPUT} />
@@ -255,14 +264,14 @@ function Editor({ initial }: { initial: ContentItem | null }) {
               {d.kind === "POPUP" ? (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="Frequenza">
-                    <select value={d.frequency} onChange={(e) => set("frequency", e.target.value as ContentFrequency)} className={INPUT}>
+                    <select value={d.frequency} onChange={(e) => set("frequency", e.target.value as ContentFrequency)} disabled={live} className={INPUT}>
                       <option value="ONCE">Una volta sola</option>
                       <option value="ONCE_PER_DAY">Una volta al giorno</option>
                       <option value="ALWAYS">A ogni visita</option>
                     </select>
                   </Field>
                   <label className="flex items-center gap-2 pt-5 text-sm">
-                    <input type="checkbox" checked={d.dismissible} onChange={(e) => set("dismissible", e.target.checked)} /> Chiudibile
+                    <input type="checkbox" checked={d.dismissible} onChange={(e) => set("dismissible", e.target.checked)} disabled={live} /> Chiudibile
                   </label>
                 </div>
               ) : null}

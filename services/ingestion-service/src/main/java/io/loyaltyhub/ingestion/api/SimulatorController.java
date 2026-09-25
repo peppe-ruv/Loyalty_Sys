@@ -6,7 +6,9 @@ import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.common.web.RequiresRole;
 import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.ingestion.application.IngestionService;
+import io.loyaltyhub.ingestion.domain.EventType;
 import io.loyaltyhub.ingestion.domain.IngestResult;
+import io.loyaltyhub.ingestion.domain.SampleVariation;
 import io.loyaltyhub.ingestion.infra.EventTypeRepository;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,10 +18,16 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.random.RandomGenerator;
 
 /**
  * Simulatore eventi della demo (docs/servizi/ingestion-service.md §3, BO-28, F-DEMO-03): invia azioni vere
- * nella pipeline. Se {@code data} è assente usa il {@code sample_data} del tipo. Riservato a chi può simulare.
+ * nella pipeline. Se {@code data} è assente usa il {@code sample_data} del tipo con piccole variazioni casuali
+ * ({@link SampleVariation}). Riservato a chi può simulare.
  */
 @RestController
 @RequestMapping("/v1/demo/simulator")
@@ -30,6 +38,7 @@ public class SimulatorController {
     private final EventTypeRepository eventTypes;
     private final ObjectMapper mapper;
     private final Clock clock;
+    private final RandomGenerator random = RandomGenerator.of("L64X128MixRandom");
 
     public SimulatorController(IngestionService ingestion, EventTypeRepository eventTypes,
                               ObjectMapper mapper, Clock clock) {
@@ -52,10 +61,12 @@ public class SimulatorController {
         String source = req.source() != null && !req.source().isBlank() ? req.source() : "simulator";
         String time = req.occurredAt() != null && !req.occurredAt().isBlank()
                 ? req.occurredAt() : clock.instant().toString();
-        JsonNode data = req.data() != null && !req.data().isNull() ? req.data() : sampleData(req.type());
+        boolean explicitData = req.data() != null && !req.data().isNull();
 
         List<FireResult> results = new ArrayList<>();
         for (int i = 0; i < count; i++) {
+            // data assente → sample_data del tipo con piccole variazioni casuali, diverse a ogni invio (ingestion §3).
+            JsonNode data = explicitData ? req.data() : variedSample(req.type());
             String id = Ulid.next(clock);
             InboundEventRequest event = new InboundEventRequest(
                     "1.0", id, source, req.type(), "member:" + req.memberId(), time, data);
@@ -67,11 +78,22 @@ public class SimulatorController {
         return results;
     }
 
-    private JsonNode sampleData(String type) {
+    /** Ultimo {@code data} variato per tipo: l'invio successivo ne sceglie uno diverso (niente due prove uguali). */
+    private final Map<String, JsonNode> lastVaried = new ConcurrentHashMap<>();
+
+    private JsonNode variedSample(String type) {
         String shortType = type.startsWith("io.loyaltyhub.action.")
                 ? type.substring("io.loyaltyhub.action.".length()) : type;
-        return eventTypes.sampleData(shortType)
-                .map(mapper::readTree)
+        Optional<EventType> t = eventTypes.findByCode(shortType);
+        JsonNode sample = t.map(EventType::sampleData).filter(Objects::nonNull).map(mapper::readTree)
                 .orElseGet(mapper::createObjectNode);
+        JsonNode schema = t.map(EventType::dataSchema).filter(Objects::nonNull).map(mapper::readTree).orElse(null);
+        JsonNode previous = lastVaried.get(shortType);
+        JsonNode varied = SampleVariation.vary(sample, schema, random);
+        for (int attempt = 0; attempt < 5 && varied.equals(previous); attempt++) {
+            varied = SampleVariation.vary(sample, schema, random);
+        }
+        lastVaried.put(shortType, varied);
+        return varied;
     }
 }

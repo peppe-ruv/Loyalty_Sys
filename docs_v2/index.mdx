@@ -1,0 +1,61 @@
+---
+title: "Loyalty Hub: piattaforma loyalty event-driven open source"
+sidebarTitle: "Introduzione"
+description: "Loyalty Hub è una piattaforma loyalty open source con microservizi Spring Boot su Kafka. Scopri cosa fa, come è organizzata e come iniziare."
+---
+
+Loyalty Hub è una piattaforma loyalty open source, vendor neutral ed event-driven. Trasforma azioni premianti (acquisti, registrazioni, vincite, salti di tier) in punti, badge, coupon e premi, tramite un motore a campagne configurabile dal backoffice.
+
+Questa sezione (Docs v2) è pensata per chi entra nel progetto per la prima volta: parte dai concetti, ti guida ai primi passi e ti rimanda alla reference tecnica quando serve.
+
+## Da dove iniziare
+
+<CardGroup cols={2}>
+  <Card title="Prerequisiti" icon="list-check" href="/docs_v2/getting-started/prerequisiti">
+    Cosa ti serve installato sulla macchina prima di partire.
+  </Card>
+
+  <Card title="Quickstart" icon="rocket" href="/docs_v2/getting-started/quickstart">
+    Avvia l'intero stack in locale con un comando e vedi il primo evento premiato.
+  </Card>
+
+  <Card title="Tour della demo" icon="compass" href="/docs_v2/getting-started/tour-demo">
+    Scegli una persona, simula un'azione, osserva punti, tier e notifiche reagire.
+  </Card>
+
+  <Card title="Concetti chiave" icon="lightbulb" href="/docs_v2/concetti/panoramica">
+    Azioni, campagne, punti, tier, premi e gioco: il vocabolario della piattaforma.
+  </Card>
+</CardGroup>
+
+## Approfondimenti
+
+<CardGroup cols={2}>
+  <Card title="Guide pratiche" icon="book-open" href="/docs_v2/guide/inviare-un-evento">
+    Istruzioni passo passo per compiti comuni: inviare eventi, creare campagne, simulare scenari.
+  </Card>
+
+  <Card title="Reference" icon="code" href="/docs_v2/reference/architettura">
+    Architettura, servizi, topic Kafka e API dettagliate.
+  </Card>
+
+  <Card title="Deploy" icon="cloud" href="/docs_v2/operations/deploy-costo-zero">
+    Come pubblicare la demo pubblica a costo zero su Vercel, Render, Neon e Aiven.
+  </Card>
+
+  <Card title="Troubleshooting" icon="wrench" href="/docs_v2/operations/troubleshooting">
+    Errori comuni all'avvio, in ingestione e sul deploy.
+  </Card>
+</CardGroup>
+
+## Cosa fa Loyalty Hub
+
+- Riceve azioni premianti da fonti eterogenee (CRM, e-commerce, app, partner) come CloudEvents.
+- Le valuta con un motore a campagne configurabile: trigger, pubblico, condizioni, effetti, limiti.
+- Gestisce una doppia valuta: punti premio spendibili e punti status per la scala tier.
+- Eroga premi a fasce, coupon, instant win, obiettivi, badge, classifiche e referral.
+- Espone un backoffice unico che governa programma, premi, concorsi e contenuti del portale membri.
+
+<Note>
+  Il codice è ancora in stato PoC. Le specifiche complete sono in [Specifiche principali](/docs/README). Docs v2 è una riscrittura orientata all'onboarding.
+</Note>

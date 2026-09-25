@@ -1,0 +1,27 @@
+id|descrizione|ora_servizio|time|stato|codice|atteso|rif
+TB-ING-TIM-001|time = adesso|2026-09-24T10:00:00Z|Δ+PT0S|ACCEPTED|-|ACCEPTED|ingestion §5.5
+TB-ING-TIM-002|adesso + 4 min 59,999 s|2026-09-24T10:00:00Z|Δ+PT4M59.999S|ACCEPTED|-|ACCEPTED|ingestion §5.5
+TB-ING-TIM-003|adesso + 5 min esatti|2026-09-24T10:00:00Z|Δ+PT5M|ACCEPTED|-|ACCEPTED (rifiuto solo se > 5 min)|ingestion §5.5; docs/17 US-E01-03
+TB-ING-TIM-004|adesso + 5 min + 1 ms|2026-09-24T10:00:00Z|Δ+PT5M0.001S|REJECTED|INVALID_TIME|REJECTED/INVALID_TIME|ingestion §5.5
+TB-ING-TIM-005|adesso + 6 min|2026-09-24T10:00:00Z|Δ+PT6M|REJECTED|INVALID_TIME|REJECTED/INVALID_TIME|ingestion §5.5; docs/17 US-E01-03
+TB-ING-TIM-006|orologio del client avanti di 10 min|2026-09-24T10:00:00Z|Δ+PT10M|REJECTED|INVALID_TIME|REJECTED/INVALID_TIME|ingestion §5.5
+TB-ING-TIM-007|adesso + 1 giorno|2026-09-24T10:00:00Z|Δ+P1D|REJECTED|INVALID_TIME|REJECTED/INVALID_TIME|ingestion §5.5
+TB-ING-TIM-008|adesso − 1 ms|2026-09-24T10:00:00Z|Δ-PT0.001S|ACCEPTED|-|ACCEPTED|ingestion §5.5
+TB-ING-TIM-009|adesso − 30 giorni + 1 ms|2026-09-24T10:00:00Z|Δ-P29DT23H59M59.999S|ACCEPTED|-|ACCEPTED|ingestion §5.5
+TB-ING-TIM-010|adesso − 30 giorni esatti|2026-09-24T10:00:00Z|Δ-P30D|ACCEPTED|-|ACCEPTED (non «più vecchio di 30 giorni»)|ingestion §5.5
+TB-ING-TIM-011|adesso − 30 giorni − 1 ms|2026-09-24T10:00:00Z|Δ-P30DT0.001S|REJECTED|INVALID_TIME|REJECTED/INVALID_TIME|ingestion §5.5
+TB-ING-TIM-012|batch notturno: adesso − 40 giorni|2026-09-24T10:00:00Z|Δ-P40D|REJECTED|INVALID_TIME|REJECTED/INVALID_TIME|ingestion §5.5; docs/17 US-E01-03
+TB-ING-TIM-013|time con offset +02:00 equivalente ad adesso|2026-09-24T10:00:00Z|@offset|ACCEPTED|-|ACCEPTED|ingestion §5.5; docs/05 §2 (RFC 3339)
+TB-ING-TIM-014|time con t e z minuscole|2026-09-24T10:00:00Z|@lower|ACCEPTED|-|ACCEPTED|docs/05 §2; RFC 3339 §5.6
+TB-ING-TIM-015|time con nanosecondi|2026-09-24T10:00:00Z|@nanos|ACCEPTED|-|ACCEPTED|docs/05 §2; RFC 3339
+TB-ING-TIM-016|29 febbraio 2028 (bisestile), 1 h prima|2028-02-29T12:00:00Z|2028-02-29T11:00:00Z|ACCEPTED|-|ACCEPTED|ingestion §5.5
+TB-ING-TIM-017|30 giorni esatti che iniziano il 29 febbraio 2028|2028-03-30T12:00:00Z|2028-02-29T12:00:00Z|ACCEPTED|-|ACCEPTED|ingestion §5.5
+TB-ING-TIM-018|fine mese: 31/3 → 1/3 stessa ora (30 giorni)|2026-03-31T10:00:00Z|2026-03-01T10:00:00Z|ACCEPTED|-|ACCEPTED|ingestion §5.5
+TB-ING-TIM-019|fine mese: 31/3 → 1/3 un secondo prima|2026-03-31T10:00:00Z|2026-03-01T09:59:59Z|REJECTED|INVALID_TIME|REJECTED/INVALID_TIME|ingestion §5.5
+TB-ING-TIM-020|mezzanotte di Roma: servizio alle 00:00 del 25/9, evento alle 23:59:59 del 24/9|2026-09-24T22:00:00Z|2026-09-24T21:59:59Z|ACCEPTED|-|ACCEPTED|ingestion §5.5
+TB-ING-TIM-021|mezzanotte di Roma: servizio alle 23:59:59, evento alle 00:00 del giorno dopo (+1 s)|2026-09-24T21:59:59Z|2026-09-24T22:00:00Z|ACCEPTED|-|ACCEPTED|ingestion §5.5
+TB-ING-TIM-022|cambio dell'ora di marzo: evento 30 gg prima alle 09:30 CET (dentro 720 h, fuori da 30 gg di calendario)|2026-04-15T08:00:00Z|2026-03-16T08:30:00Z|ACCEPTED|-|Q-257: ACCEPTED (finestra di 720 ore, non di 30 giorni di calendario Europe/Rome)|ingestion §5.5
+TB-ING-TIM-023|cambio dell'ora di marzo: evento oltre sia 720 h sia 30 gg di calendario|2026-04-15T08:00:00Z|2026-03-16T07:59:59Z|REJECTED|INVALID_TIME|REJECTED/INVALID_TIME|ingestion §5.5
+TB-ING-TIM-024|cambio dell'ora di ottobre: evento 30 gg di calendario prima alle 10:30 CEST (fuori da 720 h)|2026-11-10T09:00:00Z|2026-10-11T08:30:00Z|REJECTED|INVALID_TIME|Q-257: REJECTED/INVALID_TIME (720 ore; 30 gg di calendario lo ammetterebbero)|ingestion §5.5
+TB-ING-TIM-025|notte del 25/10/2026: +5 min reali ma ora locale indietro di 55 min|2026-10-25T00:58:00Z|2026-10-25T01:03:00Z|ACCEPTED|-|ACCEPTED (finestra sugli istanti)|ingestion §5.5
+TB-ING-TIM-026|notte del 29/3/2026: +5 min reali ma ora locale avanti di 65 min|2026-03-29T00:58:00Z|2026-03-29T01:03:00Z|ACCEPTED|-|ACCEPTED (finestra sugli istanti)|ingestion §5.5

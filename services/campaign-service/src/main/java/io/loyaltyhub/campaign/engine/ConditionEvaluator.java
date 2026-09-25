@@ -112,8 +112,9 @@ public final class ConditionEvaluator {
         if (actual == ABSENT) {
             return false; // campo assente → foglia falsa
         }
-        // Su array: vero se almeno un elemento soddisfa (tranne le set-op che gestiscono la lista intera).
-        if (actual instanceof List<?> list && !isSetOp(cmp)) {
+        // Su array: vero se almeno un elemento soddisfa (docs/03 §3.3), anche con in/nin; solo contains/ncontains
+        // guardano la lista intera (appartenenza dell'elemento cercato).
+        if (actual instanceof List<?> list && !isListOp(cmp)) {
             for (Object el : list) {
                 if (compareScalar(cmp, el, value)) {
                     return true;
@@ -124,40 +125,81 @@ public final class ConditionEvaluator {
         return compareScalar(cmp, actual, value);
     }
 
-    private boolean isSetOp(String cmp) {
-        return "in".equals(cmp) || "nin".equals(cmp) || "contains".equals(cmp) || "ncontains".equals(cmp);
+    private boolean isListOp(String cmp) {
+        return "contains".equals(cmp) || "ncontains".equals(cmp);
     }
 
+    /**
+     * Confronto su uno scalare. Tipi incompatibili → falsa per ogni comparatore, negazioni comprese ({@code neq},
+     * {@code nin}, {@code ncontains}): la negazione vale solo tra tipi confrontabili (docs/03 §3.3), mai un ripiego
+     * sul confronto testuale.
+     */
     private boolean compareScalar(String cmp, Object actual, JsonNode value) {
         return switch (cmp) {
-            case "eq" -> equalsValue(actual, value);
-            case "neq" -> !equalsValue(actual, value);
+            case "eq" -> comparable(actual, value) && equalsValue(actual, value);
+            case "neq" -> comparable(actual, value) && !equalsValue(actual, value);
             case "gt" -> numeric(actual, value, c -> c > 0);
             case "gte" -> numeric(actual, value, c -> c >= 0);
             case "lt" -> numeric(actual, value, c -> c < 0);
             case "lte" -> numeric(actual, value, c -> c <= 0);
-            case "in" -> inList(actual, value);
-            case "nin" -> !inList(actual, value);
-            case "contains" -> contains(actual, value);
-            case "ncontains" -> !contains(actual, value);
+            case "in" -> value != null && value.isArray() && inList(actual, value);
+            case "nin" -> value != null && value.isArray() && allComparable(actual, value) && !inList(actual, value);
+            case "contains" -> containsCompatible(actual, value) && contains(actual, value);
+            case "ncontains" -> containsCompatible(actual, value) && !contains(actual, value);
             case "between" -> between(actual, value);
-            case "startsWith" -> actual != null && value != null
-                    && actual.toString().startsWith(value.asString(""));
+            case "startsWith" -> actual instanceof String s && value != null && value.isString()
+                    && s.startsWith(value.asString());
             default -> false;
         };
     }
 
+    /**
+     * Tipi confrontabili per {@code eq}/{@code neq}/{@code in}/{@code nin}: numero con numero, booleano con booleano,
+     * testo con testo. Il testo numerico contro un numero si confronta come numero, con la stessa conversione di
+     * {@code gt/gte/lt/lte}.
+     */
+    // SPEC-GAP: Q-215 — testo numerico contro numero: confrontato come numero (comportamento conservato, da decidere).
+    private static boolean comparable(Object actual, JsonNode value) {
+        if (actual == null || actual == ABSENT || value == null || value.isNull()) {
+            return false;
+        }
+        if (value.isNumber()) {
+            return toDouble(actual) != null;
+        }
+        if (value.isBoolean()) {
+            return actual instanceof Boolean;
+        }
+        return value.isString() && actual instanceof String;
+    }
+
+    private static boolean allComparable(Object actual, JsonNode values) {
+        for (JsonNode v : values) {
+            if (!comparable(actual, v)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private boolean equalsValue(Object actual, JsonNode value) {
+        if (!comparable(actual, value)) {
+            return false;
+        }
+        if (value.isNumber()) {
+            return toDouble(actual) == value.asDouble();
+        }
+        if (value.isBoolean()) {
+            return (Boolean) actual == value.asBoolean();
+        }
+        return actual.equals(value.asString());
+    }
+
+    /** {@code contains}/{@code ncontains}: su lista (appartenenza) o su testo con un valore testuale (sottostringa). */
+    private static boolean containsCompatible(Object actual, JsonNode value) {
         if (value == null || value.isNull()) {
             return false;
         }
-        if (actual instanceof Number a && value.isNumber()) {
-            return a.doubleValue() == value.asDouble();
-        }
-        if (actual instanceof Boolean a && value.isBoolean()) {
-            return a == value.asBoolean();
-        }
-        return actual.toString().equals(value.asString(""));
+        return actual instanceof List<?> || (actual instanceof String && value.isString());
     }
 
     private boolean numeric(Object actual, JsonNode value, java.util.function.IntPredicate cmp) {
@@ -169,9 +211,6 @@ public final class ConditionEvaluator {
     }
 
     private boolean inList(Object actual, JsonNode value) {
-        if (value == null || !value.isArray()) {
-            return false;
-        }
         for (JsonNode v : value) {
             if (equalsValue(actual, v)) {
                 return true;
@@ -189,7 +228,7 @@ public final class ConditionEvaluator {
             }
             return false;
         }
-        return actual != null && value != null && actual.toString().contains(value.asString(""));
+        return actual instanceof String s && s.contains(value.asString());
     }
 
     private boolean between(Object actual, JsonNode value) {

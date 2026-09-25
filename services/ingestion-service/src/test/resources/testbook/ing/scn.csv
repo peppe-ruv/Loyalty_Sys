@@ -1,0 +1,27 @@
+id|descrizione|caso|atteso|rif
+TB-ING-SCN-001|elenco scenari|list|contiene i 9 scenari di docs/10 §8|docs/10 §8; ingestion §3
+TB-ING-SCN-002|SCN-ONBOARDING|run:SCN-ONBOARDING|DONE; app.login.daily → member.profile.completed → purchase.completed 24,90 tutti ACCEPTED|docs/10 §8; ingestion §5 (scenari); Q-63
+TB-ING-SCN-003|SCN-TIER-UP|run:SCN-TIER-UP|DONE; purchase.completed 130 € ACCEPTED|docs/10 §8; ingestion §5 (scenari)
+TB-ING-SCN-004|SCN-DIGITAL|run:SCN-DIGITAL|DONE; ebill.activated → directdebit.activated ACCEPTED|docs/10 §8; ingestion §5 (scenari)
+TB-ING-SCN-005|SCN-REFERRAL|run:SCN-REFERRAL|DONE; purchase.completed 45 € ACCEPTED|docs/10 §8; ingestion §5 (scenari)
+TB-ING-SCN-006|SCN-WEEKEND-BURST|run:SCN-WEEKEND-BURST|DONE; 12 acquisti ACCEPTED|docs/10 §8; ingestion §5 (scenari)
+TB-ING-SCN-007|SCN-DUPLICATE|run:SCN-DUPLICATE|DONE; ACCEPTED poi DUPLICATE (expect), un solo accredito|docs/10 §8; ingestion §5 (scenari); Q-130
+TB-ING-SCN-008|SCN-DUPLICATE eseguito una seconda volta|rerunDuplicate|di nuovo ACCEPTED + DUPLICATE|Q-130; docs/17 US-E01-04
+TB-ING-SCN-009|SCN-BAD-EVENT|run:SCN-BAD-EVENT|DONE; INVALID_DATA, SOURCE_DISABLED, UNMATCHED, MEMBER_NOT_ACTIVE, tutti come expect|docs/10 §8; ingestion §5 (scenari); Q-129
+TB-ING-SCN-010|SCN-POISON|run:SCN-POISON|DONE; l'azione con _poison è ACCEPTED in ingresso|docs/10 §8; ingestion §5 (scenari)
+TB-ING-SCN-011|SCN-SMOKE|run:SCN-SMOKE|DONE; app.login.daily ACCEPTED|docs/10 §8; ingestion §5 (scenari)
+TB-ING-SCN-012|scenario inesistente|unknown|404|ingestion §3; docs/06 §2
+TB-ING-SCN-013|esecuzione inesistente|unknownRun|404|ingestion §3
+TB-ING-SCN-014|avvio con ADMIN|role:ADMIN:marta.admin|202 {runId}|docs/06 §3; docs/08 §2 (demo.simulate)
+TB-ING-SCN-015|avvio con MARKETING|role:MARKETING:luca.marketing|202|docs/08 §2
+TB-ING-SCN-016|avvio con LEGAL|role:LEGAL:elena.legal|202|docs/08 §2
+TB-ING-SCN-017|avvio con CARE|role:CARE:paolo.care|202|docs/08 §2
+TB-ING-SCN-018|avvio con ANALYST|role:ANALYST:sara.analyst|403|docs/06 §3
+TB-ING-SCN-019|avvio senza X-LH-Actor|role:-|403|docs/06 §3
+TB-ING-SCN-020|avanzamento passo per passo|progress|stepsTotal, stepsDone, un esito con correlationId per passo, attore registrato|ingestion §3 (scenario-runs)
+TB-ING-SCN-021|origine delle righe degli scenari|origin|origin SIMULATOR|ingestion §5 (origine SIMULATOR)
+TB-ING-SCN-022|ritardo di un passo oltre 10 s|delayCap|attesa limitata a 10 s|ingestion §5 (max 10 s per passo)
+TB-ING-SCN-023|expect non rispettato|expectMismatch|passo ok=false; esecuzione DONE|Q-266: ingestion §5 (esito dell'esecuzione non specificato)
+TB-ING-SCN-024|at = @now|atNow|DONE, passo all'istante corrente (DIVERGENZA: espressione non riconosciuta, FAILED)|docs/10 §8 (at è un'espressione del §1, default @now)
+TB-ING-SCN-025|at non valido ("domani")|atInvalid|Q-266: esecuzione FAILED (esito di un passo non valido non specificato)|docs/10 §1; ingestion §2 (scenario_run.status)
+TB-ING-SCN-026|passo senza source|noSource|Q-266: fonte simulator|docs/10 §8

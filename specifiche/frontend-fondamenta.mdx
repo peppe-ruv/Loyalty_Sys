@@ -1,0 +1,407 @@
+---
+title: "Loyalty Hub: fondamenta frontend condivise"
+sidebarTitle: "Frontend"
+description: "Convenzioni, struttura e componenti condivisi tra backoffice e portale nella singola app Next.js 14 di Loyalty Hub."
+---
+
+Loyalty Hub offre due esperienze utente distinte, backoffice e portale, ospitate all'interno di una singola applicazione web Next.js 14 con React 18 e TailwindCSS. Questa pagina descrive le fondamenta condivise: struttura del progetto, autenticazione demo, proxy API, componenti UI, tema runtime, aggiornamenti live, keep-alive, accessibilita e convenzioni di denominazione delle schermate.
+
+## Struttura del progetto
+
+Il codice sorgente del frontend risiede nella cartella `web/`. Al suo interno trovi il routing Next.js, i componenti condivisi, i client API e le risorse statiche.
+
+```text
+web/
+├─ app/
+│  ├─ (hub)/          Demo Hub, selettori persona/membro
+│  ├─ backoffice/     BO-01 … BO-30 sotto /backoffice/*
+│  ├─ portale/        PT-01 … PT-14 sotto /portale/*
+│  └─ api/lh/         Proxy verso i microservizi (per CORS e reverse-URL)
+├─ components/       UI condivisa (Card, Table, Timeline, Simulator, ecc.)
+├─ lib/               API client, hook (useSse, useKeepAlive), utils
+├─ public/demo/       Immagini demo (coupon, premi, banner)
+└─ styles/            Tailwind config, tokens theme
+```
+
+L'app unifica tre aree:
+
+- **Demo Hub** (`(hub)/`): punto di ingresso per la demo, con selettori di persona e membro.
+- **Backoffice** (`backoffice/`): schermate di gestione per Marta, Luca, Elena, Paolo e Sara.
+- **Portale** (`portale/`): esperienza per i membri del programma fedelta.
+
+Il proxy sotto `api/lh/` incapsula tutte le chiamate ai microservizi, evitando problemi di CORS e mantenendo URL relativi nel frontend.
+
+## Autenticazione demo
+
+Loyalty Hub non implementa un sistema di login tradizionale nella demo. L'identita dell'utente attivo viaggia tramite cookie.
+
+### Cookie `lh_actor`
+
+Il cookie `lh_actor` conserva l'username del ruolo backoffice o del membro attivo nel portale. Quando selezioni una persona nel Demo Hub, il cookie si aggiorna immediatamente.
+
+Ogni chiamata a `api/lh/*` legge il cookie e inoltra l'header `X-LH-Actor` al microservizio di destinazione. I microservizi usano questo header per loggare l'attore e, dove previsto, per autorizzare l'operazione.
+
+### Cambio membro nel portale
+
+Nel portale, il cookie `lh_member_id` identifica il membro attivo. Cambiare membro aggiorna il cookie e ricarica i dati della sessione. Il backend member-service riconosce il membro dal cookie o da un header equivalente.
+
+> **Nota:** I cookie sono `HttpOnly` e `Secure` in produzione. In sviluppo locale sono `SameSite=Lax` per permettere il flusso tra hub e aree protette.
+
+## Proxy /api/lh
+
+Il frontend non chiama i microservizi direttamente. Tranne un'eccezione documentata piu avanti, ogni fetch parte da un path relativo sotto `/api/lh/`.
+
+### Come funziona il proxy
+
+```text
+Frontend          Next.js proxy           Microservizio
+--------          -------------           -------------
+/api/lh/member/v1/members/123
+                  -> rewrite
+                  -> http://member-service:8082/v1/members/123
+```
+
+La route handler Next.js riceve la richiesta, aggiunge l'header `X-LH-Actor` dal cookie, e inoltra tutto al microservizio corrispondente. La risposta torna al frontend senza modifiche.
+
+### Vantaggi
+
+- **Nessun CORS:** il browser vede solo il dominio del frontend.
+- **URL relativi:** nessun hardcoding di host e porte nei sorgenti.
+- **Flessibilita:** puoi spostare i microservizi senza toccare il codice client.
+
+### Eccezione: Insight SSE
+
+Il servizio insight (porta 8088) espone un endpoint SSE per gli eventi live. SSE non funziona bene attraverso il proxy serverless di Next.js perche la connessione deve rimanere aperta a lungo.
+
+Il frontend si connette direttamente a insight-service. Questo richiede che il backend abbia la variabile `LH_CORS_ALLOWED_ORIGINS` configurata con l'origine del frontend.
+
+```javascript
+const eventSource = new EventSource(
+  `${INSIGHT_URL}/v1/stream/events?memberId=123`
+);
+```
+
+> **Attenzione:** Se `LH_CORS_ALLOWED_ORIGINS` non include il tuo dominio, il browser blocca la connessione SSE con un errore CORS.
+
+## Componenti UI condivisi
+
+Il design system di Loyalty Hub e minimale e si ispira a shadcn/ui e Radix UI. I componenti risiedono in `components/` e sono usati sia dal backoffice che dal portale.
+
+### Elenco componenti principali
+
+| Componente | Scopo principale |
+| --- | --- |
+| `Card` | Contenitori con ombra e bordi arrotondati |
+| `CardGroup` | Griglia responsive di Card |
+| `Section` | Raggruppamento semantico con titolo e padding |
+| `Table` | Tabella con sorting, paginazione e ricerca |
+| `Timeline` | Visualizzazione cronologica di tracciati e attivita |
+| `FormField` | Input con label, errore e hint integrati |
+| `Modal` | Dialog sovrapposto con focus trap |
+| `Tabs` | Navigazione a schede orizzontali |
+| `Tooltip` | Info aggiuntive al hover |
+| `Toast` | Notifiche temporanee in basso a destra |
+| `Badge` | Etichette colorate per stati e categorie |
+| `IconButton` | Bottone icona con tooltip accessibile |
+
+### Icone
+
+Tutte le icone provengono da `lucide-react`. Importale per nome:
+
+```jsx
+import { User, Trophy, Bell, Settings } from "lucide-react";
+```
+
+## Theme runtime
+
+Il portale supporta la personalizzazione del tema senza ricompilare l'applicazione. Il tema viene caricato dinamicamente da un endpoint del backend.
+
+### Caricamento tema
+
+Al primo render del portale, il frontend chiama:
+
+```bash
+GET /v1/portal/theme
+```
+
+La risposta viene messa in cache per 60 secondi. Esempio di risposta:
+
+```json tema.json
+{
+  "primary": "#3b82f6",
+  "secondary": "#8b5cf6",
+  "coin": "#f59e0b",
+  "night": "#0f172a",
+  "bg": "#ffffff"
+}
+```
+
+### Applicazione variabili CSS
+
+Il frontend applica le variabili CSS sull'elemento `<html>`:
+
+```javascript
+Snippet
+// al caricamento del tema
+document.documentElement.style.setProperty("--lh-primary", theme.primary);
+document.documentElement.style.setProperty("--lh-secondary", theme.secondary);
+document.documentElement.style.setProperty("--lh-coin", theme.coin);
+document.documentElement.style.setProperty("--lh-night", theme.night);
+document.documentElement.style.setProperty("--lh-bg", theme.bg);
+```
+
+Tailwind referenzia queste variabili nelle classi utility:
+
+```jsx
+<button className="bg-[var(--lh-primary)] text-white">
+  Conferma
+</button>
+```
+
+### Aggiornamento tema
+
+Quando un amministratore modifica il tema nella schermata BO-20 (Configurazione portale), le modifiche si riflettono al prossimo refresh della pagina del portale. Non e necessario un rebuild del frontend.
+
+## Live updates via SSE
+
+Il backoffice include un rail live sempre visibile (schermata BO-24 stream events) che mostra gli eventi Kafka in tempo reale.
+
+### Componente LiveRail
+
+Il componente `<LiveRail>` apre una connessione EventSource:
+
+```javascript
+const source = new EventSource(
+  `${INSIGHT_URL}/v1/stream/events?tenant=demo`
+);
+```
+
+L'evento `lh-event` trasporta i payload CloudEvent. Il rail mostra fino a 200 eventi piu recenti, con scroll automatico verso l'ultimo.
+
+### Riconnessione automatica
+
+Se la connessione cade, il browser tenta la riconnessione automatica usando l'header `Last-Event-ID`. Questo garantisce che nessun evento venga perso durante brevi interruzioni di rete.
+
+### Hook useSse
+
+Un hook custom `useSse(url, options)` incapsula la gestione completa dell'EventSource:
+
+```javascript
+Snippet
+import { useSse } from "@/lib/hooks/useSse";
+
+function LiveRail() {
+  const { events, status, error } = useSse(
+    `${INSIGHT_URL}/v1/stream/events?tenant=demo`,
+    { maxEvents: 200 }
+  );
+
+  return (
+    <div>
+      <div>Stato: {status}</div>
+      {events.map((ev) => (
+        <EventCard key={ev.id} event={ev} />
+      ))}
+    </div>
+  );
+}
+```
+
+Il hook gestisce:
+
+- Apertura e chiusura della connessione
+- Parsing dei messaggi `lh-event`
+- Riconnessione con backoff esponenziale
+- Cleanup al smontaggio del componente
+
+## Keep-alive gentile (F-DEMO-07)
+
+I microservizi di Loyalty Hub sono ospitati su Render con piano gratuito, che mette i servizi in sleep dopo un periodo di inattivita. Il frontend implementa un keep-alive gentile che evita cron esterni e costi aggiuntivi.
+
+### Hook useKeepAlive
+
+Finché una scheda del browser e aperta e visibile, un hook `useKeepAlive` invia un ping al proxy ogni 5 minuti:
+
+```javascript
+Snippet
+import { useKeepAlive } from "@/lib/hooks/useKeepAlive";
+
+function App() {
+  useKeepAlive({
+    url: "/api/lh/health",
+    interval: 5 * 60 * 1000, // 5 minuti
+  });
+
+  return <Layout />;
+}
+```
+
+Il proxy `/api/lh/health` a sua volta pinga i servizi Render, tenendoli svegli.
+
+### Pausa alla chiusura della scheda
+
+Quando la scheda diventa invisibile (evento `visibilitychange`), il ping si ferma immediatamente. I servizi tornano a dormire dopo il timeout di Render. Questo meccanismo rispetta le risorse e non spreca chiamate quando nessuno sta usando l'app.
+
+> **Nota:** Il keep-alive e attivo solo in ambiente demo. In produzione i servizi restano sempre accesi e il hook non invia ping.
+
+## Accessibilita
+
+Loyalty Hub rispetta gli standard WCAG 2.1 livello AA sia nel backoffice che nel portale.
+
+### Contrasto e focus
+
+- Tutti i testi su sfondo colorato hanno un rapporto di contrasto di almeno 4.5:1.
+- Ogni controllo interattivo mostra un indicatore di focus visibile e coerente.
+- Il focus trap e attivo in tutti i modal e i dialog.
+
+### Navigazione da tastiera
+
+- `Tab` e `Shift+Tab` muovono il focus tra tutti i controlli.
+- `Enter` e `Space` attivano bottoni e link.
+- `Escape` chiude modal, dropdown e toast.
+- Le tabelle supportano la navigazione con frecce per screen reader.
+
+### Reduced motion
+
+Quando il sistema operativo segnala `prefers-reduced-motion`, il frontend:
+
+- Spegne le animazioni della ruota gamification
+- Riduce le transizioni non essenziali a istantanee
+- Mantiene solo le animazioni funzionali (skeleton loader, progress bar)
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+```
+
+## Responsive
+
+Le due esperienze hanno strategie responsive diverse, riflesse nelle loro audience.
+
+### Portale mobile-first
+
+Il portale e progettato per i membri del programma fedelta, che accedono principalmente da smartphone.
+
+- **Viewport minimo:** 360px
+- **Touch friendly:** bottoni e target di tocco di almeno 44x44dp
+- **Layout fluido:** griglie che passano da 1 a 2 a 3 colonne
+- **Bottom sheet:** azioni contestuali su mobile
+
+### Backoffice desktop-first
+
+Il backoffice e pensato per gli operatori che lavorano da postazione fissa.
+
+- **Viewport minimo:** 1024px
+- **A 768px:** la sidebar collassa in un hamburger menu
+- **Sotto 768px:** l'uso e sconsigliato; alcune tabelle potrebbero richiedere scroll orizzontale
+
+## Loading e degrado
+
+Il frontend gestisce lo stato di caricamento e gli errori in modo elegante, senza mai lasciare l'utente di fronte a una pagina bianca.
+
+### Skeleton loader
+
+Ogni pagina che effettua fetch asincroni mostra uno skeleton loader durante il primo render:
+
+```jsx
+Snippet
+function MembersPage() {
+  const { data, isLoading } = useMembers();
+
+  if (isLoading) {
+    return <MembersSkeleton />;
+  }
+
+  return <MembersTable members={data} />;
+}
+```
+
+### Servizio non raggiungibile
+
+Se un microservizio e UNREACHABLE, la sezione interessata mostra un banner grigio:
+
+```jsx
+Snippet
+{memberError && (
+  <Banner variant="subtle">
+    Sezione in ripresa. I dati dei membri non sono al momento disponibili.
+  </Banner>
+)}
+```
+
+Il resto della pagina continua a funzionare. Gli altri servizi non sono bloccati.
+
+### Errore da API
+
+Quando un endpoint restituisce un errore (4xx o 5xx):
+
+1. Un toast mostra il messaggio di errore
+2. La sezione offre un bottone "Riprova" per il reload manuale
+3. Mai una white screen o un crash del runtime
+
+```javascript
+Snippet
+fetch("/api/lh/campaign/v1/campaigns")
+  .then(async (res) => {
+    if (!res.ok) {
+      toast.error("Errore nel caricamento campagne");
+      throw new Error(await res.text());
+    }
+    return res.json();
+  })
+  .catch(() => {
+    // errore gia mostrato in UI, nessun crash
+  });
+```
+
+## Convenzioni schermate
+
+Ogni schermata del frontend ha un codice identificativo che facilita la tracciabilita tra specifiche, test e implementazione.
+
+### Backoffice
+
+Prefisso `BO-<NN>` (da BO-01 a BO-30). Esempi:
+
+- BO-01 Dashboard
+- BO-02 Membri elenco
+- BO-03 Scheda 360 gradi membro
+
+Vedi l'elenco completo in [Frontend backoffice](/specifiche/frontend-backoffice).
+
+### Portale
+
+Prefisso `PT-<NN>` (da PT-01 a PT-14). Esempi:
+
+- PT-01 Home
+- PT-02 Come guadagnare punti
+- PT-03 Catalogo premi
+
+Vedi l'elenco completo in [Frontend portale](/specifiche/frontend-portale).
+
+### Demo Hub
+
+Prefisso `HUB-<NN>`:
+
+- HUB-01 Demo Hub (selettori persona e membro)
+
+## Prossimi passi
+
+Esplora le specifiche dettagliate delle due esperienze utente e le convenzioni condivise con il backend.
+
+<CardGroup cols={3}>
+  <Card title="Frontend backoffice" icon="layout-dashboard" href="/specifiche/frontend-backoffice">
+    Elenco completo delle 30 schermate backoffice con descrizione e flusso.
+  </Card>
+
+  <Card title="Frontend portale" icon="smartphone" href="/specifiche/frontend-portale">
+    Elenco completo delle 14 schermate portale per i membri del programma.
+  </Card>
+
+  <Card title="Convenzioni backend" icon="server" href="/specifiche/convenzioni-backend">
+    Standard API, naming, CloudEvent e convenzioni per i microservizi Spring Boot.
+  </Card>
+</CardGroup>

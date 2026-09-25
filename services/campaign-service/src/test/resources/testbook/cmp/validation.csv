@@ -1,0 +1,39 @@
+id|descrizione|trigger (NULL = assenti, EMPTY = elenco vuoto)|effetti (JSON)|calendario (JSON)|condizioni (JSON)|valida|errori attesi
+TB-CMP-VAL-001|campagna minima valida|purchase.completed|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]|||true|0
+TB-CMP-VAL-002|trigger assenti|NULL|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]|||false|1
+TB-CMP-VAL-003|elenco trigger vuoto|EMPTY|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]|||false|1
+TB-CMP-VAL-004|effetti assenti|purchase.completed||||false|1
+TB-CMP-VAL-005|elenco effetti vuoto|purchase.completed|[]|||false|1
+TB-CMP-VAL-006|effetti non in forma di elenco|purchase.completed|{"type":"GRANT_POINTS","value":10}|||false|1
+TB-CMP-VAL-007|MULTIPLIER fattore 1.0|purchase.completed|[{"type":"MULTIPLIER","currency":"PTS","factor":1.0}]|||false|1
+TB-CMP-VAL-008|MULTIPLIER fattore 1.09 (min-ε)|purchase.completed|[{"type":"MULTIPLIER","currency":"PTS","factor":1.09}]|||false|1
+TB-CMP-VAL-009|MULTIPLIER fattore 1.1 (min)|purchase.completed|[{"type":"MULTIPLIER","currency":"PTS","factor":1.1}]|||true|0
+TB-CMP-VAL-010|MULTIPLIER fattore 1.11 (min+ε)|purchase.completed|[{"type":"MULTIPLIER","currency":"PTS","factor":1.11}]|||true|0
+TB-CMP-VAL-011|MULTIPLIER fattore 4.99 (max-ε)|purchase.completed|[{"type":"MULTIPLIER","currency":"PTS","factor":4.99}]|||true|0
+TB-CMP-VAL-012|MULTIPLIER fattore 5 (max)|purchase.completed|[{"type":"MULTIPLIER","currency":"PTS","factor":5}]|||true|0
+TB-CMP-VAL-013|MULTIPLIER fattore 5.01 (max+ε)|purchase.completed|[{"type":"MULTIPLIER","currency":"PTS","factor":5.01}]|||false|1
+TB-CMP-VAL-014|MULTIPLIER senza fattore|purchase.completed|[{"type":"MULTIPLIER","currency":"PTS"}]|||false|1
+TB-CMP-VAL-015|MULTIPLIER fattore negativo|purchase.completed|[{"type":"MULTIPLIER","currency":"PTS","factor":-2}]|||false|1
+TB-CMP-VAL-016|GRANT_PLAYS senza contestCode|purchase.completed|[{"type":"GRANT_PLAYS","count":1}]|||false|1
+TB-CMP-VAL-017|GRANT_PLAYS con contestCode di soli spazi|purchase.completed|[{"type":"GRANT_PLAYS","contestCode":"   ","count":1}]|||false|1
+TB-CMP-VAL-018|GRANT_PLAYS con contestCode|purchase.completed|[{"type":"GRANT_PLAYS","contestCode":"IW-AUTUNNO","count":1}]|||true|0
+TB-CMP-VAL-019|ISSUE_COUPON senza rewardCode né rewardCodeField|purchase.completed|[{"type":"ISSUE_COUPON"}]|||false|1
+TB-CMP-VAL-020|ISSUE_COUPON con rewardCode vuoto|purchase.completed|[{"type":"ISSUE_COUPON","rewardCode":""}]|||false|1
+TB-CMP-VAL-021|ISSUE_COUPON con rewardCode|purchase.completed|[{"type":"ISSUE_COUPON","rewardCode":"RWD-CAFFE"}]|||true|0
+TB-CMP-VAL-022|ISSUE_COUPON con rewardCodeField|purchase.completed|[{"type":"ISSUE_COUPON","rewardCodeField":"data.rewardCode"}]|||true|0
+TB-CMP-VAL-023|AWARD_BADGE senza badgeCode|purchase.completed|[{"type":"AWARD_BADGE"}]|||false|1
+TB-CMP-VAL-024|AWARD_BADGE con badgeCode|purchase.completed|[{"type":"AWARD_BADGE","badgeCode":"BDG-PRIMO"}]|||true|0
+TB-CMP-VAL-025|SEND_MESSAGE senza templateCode|purchase.completed|[{"type":"SEND_MESSAGE"}]|||false|1
+TB-CMP-VAL-026|SEND_MESSAGE con templateCode fuori formato|purchase.completed|[{"type":"SEND_MESSAGE","templateCode":"msg-bday"}]|||false|1
+TB-CMP-VAL-027|SEND_MESSAGE con templateCode valido|purchase.completed|[{"type":"SEND_MESSAGE","templateCode":"MSG-BIRTHDAY"}]|||true|0
+TB-CMP-VAL-028|SEND_MESSAGE con params non oggetto (Q-73)|purchase.completed|[{"type":"SEND_MESSAGE","templateCode":"MSG-BIRTHDAY","params":["a"]}]|||false|1
+TB-CMP-VAL-029|endAt uguale a startAt|purchase.completed|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]|{"startAt":"2026-11-27T00:00:00Z","endAt":"2026-11-27T00:00:00Z"}||false|1
+TB-CMP-VAL-030|endAt un secondo dopo startAt|purchase.completed|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]|{"startAt":"2026-11-27T00:00:00Z","endAt":"2026-11-27T00:00:01Z"}||true|0
+TB-CMP-VAL-031|endAt prima di startAt|purchase.completed|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]|{"startAt":"2026-11-27T00:00:00Z","endAt":"2026-11-26T23:59:59Z"}||false|1
+TB-CMP-VAL-032|endAt null|purchase.completed|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]|{"startAt":"2026-11-27T00:00:00Z","endAt":null}||true|0
+TB-CMP-VAL-033|solo startAt|purchase.completed|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]|{"startAt":"2026-11-27T00:00:00Z"}||true|0
+TB-CMP-VAL-034|date del calendario non valide|purchase.completed|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]|{"startAt":"2026-11-27T00:00:00Z","endAt":"domani"}||false|1
+TB-CMP-VAL-035|più errori insieme (niente trigger né effetti)|NULL|[]|||false|2
+TB-CMP-VAL-036|GRANT_POINTS con mode sconosciuto|purchase.completed|[{"type":"GRANT_POINTS","currency":"PTS","mode":"PERCENT","value":10}]|||true|0
+TB-CMP-VAL-037|condizione con comparatore sconosciuto|purchase.completed|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]||{"op":"all","rules":[{"field":"data.amount","cmp":"regex","value":"1"}]}|true|0
+TB-CMP-VAL-038|startAt non valido senza endAt|purchase.completed|[{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":10}]|{"startAt":"2026-13-01"}||true|0

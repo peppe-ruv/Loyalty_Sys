@@ -1,0 +1,29 @@
+id|descrizione|caso|http|stato|codice|atteso|rif
+TB-ING-TXN-001|ordine senza kind per external:CRM-102|purchase|202|ACCEPTED|-|202 ACCEPTED, eventId txn-<orderId>, memberId MBR-000002, type purchase.completed, data mappato|ingestion §3 (POST /v1/transactions); F-ING-07; docs/17 US-E01-08
+TB-ING-TXN-002|kind PURCHASE esplicito|purchaseExplicit|202|ACCEPTED|-|come senza kind|ingestion §3 (POST /v1/transactions); F-ING-07; Q-49
+TB-ING-TXN-003|kind purchase minuscolo|purchaseLower|202|ACCEPTED|-|Q-269: accettato (maiuscole ignorate)|Q-49
+TB-ING-TXN-004|reso (kind RETURN)|return|202|ACCEPTED|-|purchase.returned, eventId txn-return-<orderId>, data {orderId, amount}|Q-49; F-ING-07
+TB-ING-TXN-005|reso senza currency|returnNoCurrency|202|ACCEPTED|-|202 ACCEPTED|Q-49
+TB-ING-TXN-006|kind REFUND|refund|400|-|-|400|Q-49; docs/17 US-E01-08
+TB-ING-TXN-007|acquisto senza currency|noCurrency|400|-|-|Q-269: 400 (errore di forma, non INVALID_DATA)|ingestion §3 (POST /v1/transactions); F-ING-07; docs/17 US-E01-08
+TB-ING-TXN-008|senza source|noSource|400|-|-|400|ingestion §3 (POST /v1/transactions); F-ING-07
+TB-ING-TXN-009|senza orderId|noOrderId|400|-|-|400|ingestion §3 (POST /v1/transactions); F-ING-07
+TB-ING-TXN-010|orderId di soli spazi|blankOrderId|400|-|-|400|ingestion §3 (POST /v1/transactions); F-ING-07
+TB-ING-TXN-011|senza memberRef|noMemberRef|400|-|-|400|ingestion §3 (POST /v1/transactions); F-ING-07
+TB-ING-TXN-012|senza amount|noAmount|400|-|-|Q-269: 400 (errore di forma, non INVALID_DATA)|ingestion §3 (POST /v1/transactions); F-ING-07
+TB-ING-TXN-013|corpo vuoto|emptyBody|400|-|-|400 RFC 9457 (DIVERGENZA: oggi 500)|ingestion §3 (POST /v1/transactions); F-ING-07; docs/06 §2
+TB-ING-TXN-014|amount non numerico "abc"|amountText|400|-|-|400 RFC 9457 (DIVERGENZA: oggi 500)|ingestion §3 (POST /v1/transactions); F-ING-07; docs/06 §2
+TB-ING-TXN-015|stesso ordine rinviato|sameOrder|202|DUPLICATE|-|secondo invio DUPLICATE (id deterministico)|ingestion §3 (POST /v1/transactions); F-ING-07; F-ING-02
+TB-ING-TXN-016|stesso ordine da due fonti|twoSources|202|ACCEPTED|-|entrambi ACCEPTED|F-ING-02 (chiave fonte+id)
+TB-ING-TXN-017|acquisto e reso dello stesso ordine|purchaseAndReturn|202|ACCEPTED|-|entrambi ACCEPTED (id diversi)|Q-49
+TB-ING-TXN-018|amount negativo|negative|202|REJECTED|INVALID_DATA|REJECTED/INVALID_DATA|ingestion §3 (POST /v1/transactions); F-ING-07; contracts purchase.completed
+TB-ING-TXN-019|amount 0|zero|202|ACCEPTED|-|ACCEPTED (DIVERGENZA: lo schema del seed esclude lo 0)|contracts/events/action/purchase.completed.schema.json (minimum 0)
+TB-ING-TXN-020|occurredAt assente ⇒ adesso|noOccurredAt|202|ACCEPTED|-|time dell'azione = istante del servizio|ingestion §3 (POST /v1/transactions); F-ING-07
+TB-ING-TXN-021|occurredAt di 40 giorni fa|old|202|REJECTED|INVALID_TIME|REJECTED/INVALID_TIME|ingestion §5.5
+TB-ING-TXN-022|fonte pos-legacy|posLegacy|202|REJECTED|SOURCE_DISABLED|REJECTED/SOURCE_DISABLED|ingestion §5.2; Q-129
+TB-ING-TXN-023|reso dalla fonte app (non ammesso)|returnFromApp|202|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED|ingestion §5.3; docs/05 §3
+TB-ING-TXN-024|memberRef sconosciuto|unknownMember|202|UNMATCHED|-|UNMATCHED|F-ING-04
+TB-ING-TXN-025|channel e items assenti|minimal|202|ACCEPTED|-|data senza channel né items|ingestion §3 (POST /v1/transactions); F-ING-07
+TB-ING-TXN-026|channel KIOSK|badChannel|202|REJECTED|INVALID_DATA|REJECTED/INVALID_DATA|contracts purchase.completed (enum)
+TB-ING-TXN-027|riga con quantity -1|badItem|202|REJECTED|INVALID_DATA|REJECTED/INVALID_DATA|contracts purchase.completed
+TB-ING-TXN-028|nessuna guardia di ruolo (ANALYST)|noGuard|202|ACCEPTED|-|202 ACCEPTED|docs/06 §3; docs/17 ING-22

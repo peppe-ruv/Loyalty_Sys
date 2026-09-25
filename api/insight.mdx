@@ -1,0 +1,610 @@
+---
+title: "Insight Service API: Osservabilita e Analytics"
+sidebarTitle: "Insight"
+description: "API del servizio Insight di Loyalty Hub (porta 8088): event store, tracciati end-to-end, metriche KPI, audit, DLQ e stream live SSE per il monitoraggio della piattaforma."
+---
+
+Il servizio Insight di Loyalty Hub e la finestra di osservabilita sulla piattaforma loyalty. Consuma tutti i topic Kafka, conserva gli eventi recenti, ricostruisce i tracciati end-to-end, calcola le metriche giornaliere ed espone audit, DLQ e un flusso live tramite SSE. E un servizio di sola lettura: non produce eventi Kafka (con un'unica eccezione, la rielaborazione DLQ che avviene via HTTP verso ingestion).
+
+## Base URL
+
+```text
+http://localhost:8088
+```
+
+## Modello dati
+
+Il servizio Insight persiste i dati in tre tabelle principali piu la DLQ.
+
+- **event_store**
+  - `event_id` (string): identificativo univoco dell'evento
+  - `topic` (string): topic Kafka di origine
+  - `family` (enum): `ACTION`, `EFFECT`, `FACT`, `AUDIT`, `DLQ`
+  - `type` (string): tipo completo dell'evento
+  - `short_type` (string): tipo abbreviato per la visualizzazione
+  - `source` (string): sorgente che ha generato l'evento
+  - `member_id` (string, nullable): identificativo del membro coinvolto
+  - `correlation_id` (string): identificativo di correlazione del tracciato
+  - `causation_id` (string): identificativo dell'evento causante
+  - `hop` (int): numero di hop nel tracciato
+  - `actor` (string): attore che ha generato l'evento
+  - `event_time` (timestamp): istante di generazione dell'evento
+  - `received_at` (timestamp): istante di ricezione da parte di Insight
+  - `payload` (jsonb): corpo completo dell'evento
+  - **Retention**: 14 giorni oppure 200.000 righe (la prima condizione che si verifica)
+- **metric_daily**
+  - `day` (date): giorno di riferimento
+  - `metric` (string): nome della metrica
+  - `dimension` (string): dimensione di raggruppamento
+  - `dim_value` (string): valore della dimensione
+  - `value` (decimal): valore numerico
+  - `synthetic` (boolean): `true` se il dato e generato dal seed, `false` se reale
+- **audit_entry**
+  - `event_id` (string, UQ): identificativo univoco dell'evento di audit
+  - `at` (timestamp): istante dell'azione
+  - `actor_role` (string): ruolo dell'attore
+  - `actor_name` (string): nome dell'attore
+  - `service` (string): servizio che ha eseguito l'azione
+  - `entity_type` (string): tipo di entita modificata
+  - `entity_id` (string): identificativo dell'entita
+  - `action` (string): azione eseguita
+  - `summary` (string): riepilogo testuale
+  - `before` (jsonb): stato precedente
+  - `after` (jsonb): stato successivo
+  - `correlation_id` (string): identificativo di correlazione
+  - **Retention**: 180 giorni
+- **dlq_entry**
+  - `event_id` (string): identificativo dell'evento
+  - `original_topic` (string): topic originale
+  - `original_type` (string): tipo originale
+  - `consumer` (string): consumer che ha fallito
+  - `error_code` (string): codice di errore
+  - `error_message` (string): messaggio di errore
+  - `retryable` (boolean): se l'errore e ritentabile
+  - `attempts` (int): numero di tentativi
+  - `payload` (jsonb): payload originale
+  - `status` (enum): `OPEN`, `REPROCESSED`, `DISCARDED`
+
+## Stream live (SSE)
+
+L'endpoint SSE trasmette gli eventi in tempo reale man mano che vengono consumati dai topic Kafka.
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/stream/events` | Stream live di eventi (text/event-stream) |
+
+**Parametri query:**
+
+| Parametro | Tipo | Descrizione |
+| --- | --- | --- |
+| `topics` | string | Filtro per topic, separati da virgola |
+| `memberId` | string | Filtro per identificativo membro |
+| `types` | string | Filtro per tipo evento, separati da virgola |
+| `correlationId` | string | Filtro per tracciato |
+
+**Formato evento SSE:**
+
+```text
+event: lh-event
+data: {"eventId":"...","topic":"lh.actions.v1","family":"ACTION","shortType":"Purchase","memberId":"M123","correlationId":"corr-abc","time":"2024-01-15T10:30:00Z","summary":"Acqua minerale 1.50 EUR"}
+```
+
+**Caratteristiche:**
+
+- Heartbeat ogni 15 secondi (evento `heartbeat`)
+- Supporto `Last-Event-ID`: se specificato, il server rinvia fino a 200 eventi persi
+- Content-Type: `text/event-stream`
+
+**Esempio client JavaScript:**
+
+```javascript Stream client SSE
+const source = new EventSource(
+  'http://localhost:8088/v1/stream/events?topics=lh.actions.v1,lh.effects.v1&memberId=M123'
+);
+
+source.addEventListener('lh-event', (e) => {
+  const event = JSON.parse(e.data);
+  console.log(`[${event.family}] ${event.shortType}: ${event.summary}`);
+});
+
+source.addEventListener('heartbeat', () => {
+  console.log('heartbeat ricevuto');
+});
+
+source.onerror = (err) => {
+  console.error('Errore SSE:', err);
+};
+
+// Riconnessione automatica con Last-Event-ID
+// Il browser gestisce automaticamente l'header Last-Event-ID
+```
+
+> **Nota:** Il browser gestisce automaticamente la riconnessione e l'header `Last-Event-ID`. In un client Node.js o in ambienti server, devi gestire manualmente la riconnessione e inviare l'header `Last-Event-ID` per recuperare gli eventi persi.
+
+## Endpoint eventi
+
+### Elenco eventi
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/events` | Elenco eventi con filtri |
+
+**Parametri query:**
+
+| Parametro | Tipo | Descrizione |
+| --- | --- | --- |
+| `topic` | string | Filtro per topic |
+| `family` | string | Filtro per famiglia (`ACTION`, `EFFECT`, `FACT`, `AUDIT`, `DLQ`) |
+| `type` | string | Filtro per tipo evento |
+| `memberId` | string | Filtro per membro |
+| `correlationId` | string | Filtro per tracciato |
+| `source` | string | Filtro per sorgente |
+| `from` | string (ISO 8601) | Inizio intervallo temporale |
+| `to` | string (ISO 8601) | Fine intervallo temporale |
+| `q` | string | Ricerca testuale nel payload |
+| `page` | int | Pagina (0-based, default 0) |
+| `size` | int | Dimensione pagina (max 100, default 20) |
+
+**Risposta:**
+
+```json Eventi paginati
+{
+  "content": [
+    {
+      "eventId": "evt-001",
+      "topic": "lh.actions.v1",
+      "family": "ACTION",
+      "shortType": "Purchase",
+      "memberId": "M123",
+      "correlationId": "corr-abc",
+      "eventTime": "2024-01-15T10:30:00Z",
+      "receivedAt": "2024-01-15T10:30:01Z",
+      "summary": "Acqua minerale 1.50 EUR"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 150,
+  "totalPages": 8
+}
+```
+
+### Dettaglio evento
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/events/{eventId}` | Dettaglio completo con payload |
+
+**Risposta:**
+
+```json Dettaglio evento
+{
+  "eventId": "evt-001",
+  "topic": "lh.actions.v1",
+  "family": "ACTION",
+  "type": "com.loyaltyhub.action.Purchase",
+  "shortType": "Purchase",
+  "source": "web-portal",
+  "memberId": "M123",
+  "correlationId": "corr-abc",
+  "causationId": "caus-001",
+  "hop": 0,
+  "actor": "marta.admin",
+  "eventTime": "2024-01-15T10:30:00Z",
+  "receivedAt": "2024-01-15T10:30:01Z",
+  "payload": {
+    "productId": "PRD-001",
+    "amount": 1.50,
+    "currency": "EUR"
+  }
+}
+```
+
+## Tracciati
+
+I tracciati ricostruiscono la catena causale di un evento end-to-end, mostrando tutti i nodi correlati tramite `correlationId`.
+
+### Dettaglio tracciato
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/traces/{correlationId}` | Tracciato completo per correlationId |
+
+**Risposta:**
+
+```json Tracciato completo
+{
+  "correlationId": "corr-abc",
+  "memberId": "M123",
+  "startedAt": "2024-01-15T10:30:00Z",
+  "durationMs": 2450,
+  "status": "COMPLETE",
+  "nodes": [
+    {
+      "eventId": "evt-001",
+      "family": "ACTION",
+      "shortType": "Purchase",
+      "service": "ingestion",
+      "time": "2024-01-15T10:30:00Z",
+      "offsetMs": 0,
+      "parentEventId": null,
+      "summary": "Acqua minerale 1.50 EUR"
+    },
+    {
+      "eventId": "evt-002",
+      "family": "EFFECT",
+      "shortType": "PointsEarned",
+      "service": "wallet",
+      "time": "2024-01-15T10:30:01Z",
+      "offsetMs": 1200,
+      "parentEventId": "evt-001",
+      "summary": "+15 punti"
+    },
+    {
+      "eventId": "evt-003",
+      "family": "FACT",
+      "shortType": "TierChanged",
+      "service": "member",
+      "time": "2024-01-15T10:30:02Z",
+      "offsetMs": 2450,
+      "parentEventId": "evt-002",
+      "summary": "Upgrade a Gold"
+    }
+  ],
+  "outcome": {
+    "points": [
+      { "currency": "EUR", "amount": 15 }
+    ],
+    "tierChange": {
+      "from": "SILVER",
+      "to": "GOLD"
+    },
+    "messages": ["Complimenti! Sei passato a Gold"],
+    "coupons": [],
+    "plays": 0,
+    "dlq": false
+  }
+}
+```
+
+**Status possibili:**
+
+- `COMPLETE`: il tracciato e concluso con successo
+- `IN_PROGRESS`: ci sono eventi recenti, il tracciato potrebbe evolvere
+- `FAILED`: almeno un evento e finito in DLQ o ha generato un errore
+
+### Elenco tracciati
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/traces` | Ultimi tracciati con filtri |
+
+**Parametri query:**
+
+| Parametro | Tipo | Descrizione |
+| --- | --- | --- |
+| `memberId` | string | Filtro per membro |
+| `from` | string (ISO 8601) | Inizio intervallo |
+| `to` | string (ISO 8601) | Fine intervallo |
+| `status` | string | Filtro per status |
+| `page` | int | Pagina (0-based) |
+| `size` | int | Dimensione pagina (max 100) |
+
+## KPI
+
+### Panoramica KPI
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/kpi/overview` | Panoramica metriche aggregate |
+
+**Parametri query:**
+
+| Parametro | Tipo | Descrizione |
+| --- | --- | --- |
+| `from` | string (ISO 8601) | Inizio periodo |
+| `to` | string (ISO 8601) | Fine periodo |
+
+**Risposta:**
+
+```json Panoramica KPI
+{
+  "membersTotal": 12500,
+  "membersActive30d": 8430,
+  "actions": 45200,
+  "pointsEarned": 678000,
+  "pointsSpent": 234000,
+  "pointsExpired": 12000,
+  "redemptions": 8900,
+  "plays": 12300,
+  "wins": 3450,
+  "deltas": {
+    "membersTotal": 150,
+    "membersActive30d": 45,
+    "actions": 1200,
+    "pointsEarned": 18000
+  }
+}
+```
+
+### Serie temporale
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/kpi/timeseries` | Serie temporale di una metrica |
+
+**Parametri query:**
+
+| Parametro | Tipo | Descrizione |
+| --- | --- | --- |
+| `metric` | string | Nome metrica (vedi elenco sotto) |
+| `dimension` | string | Dimensione di raggruppamento |
+| `from` | string (ISO 8601) | Inizio periodo |
+| `to` | string (ISO 8601) | Fine periodo |
+| `granularity` | string | `day` o `week` |
+
+**Risposta:**
+
+```json Serie temporale
+{
+  "metric": "actions",
+  "dimension": "source",
+  "granularity": "day",
+  "data": [
+    { "day": "2024-01-15", "dimValue": "web-portal", "value": 1200 },
+    { "day": "2024-01-15", "dimValue": "mobile-app", "value": 800 },
+    { "day": "2024-01-16", "dimValue": "web-portal", "value": 1350 }
+  ]
+}
+```
+
+### Breakdown
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/kpi/breakdown` | Top N per dimensione |
+
+**Parametri query:**
+
+| Parametro | Tipo | Descrizione |
+| --- | --- | --- |
+| `metric` | string | Nome metrica |
+| `dimension` | string | Dimensione di raggruppamento |
+| `from` | string (ISO 8601) | Inizio periodo |
+| `to` | string (ISO 8601) | Fine periodo |
+| `limit` | int | Numero massimo di risultati (default 10) |
+
+### Metriche disponibili
+
+| Metrica | Dimensioni disponibili |
+| --- | --- |
+| `actions` | `source`, `type` |
+| `points_earned` | `currency` |
+| `points_spent` | `currency` |
+| `points_expired` | `currency` |
+| `points_by_campaign` | `campaign_id` |
+| `members_new` | `source` |
+| `members_active` | `period` |
+| `redemptions` | `status`, `reward` |
+| `plays` | `game` |
+| `wins` | `game` |
+| `tier_changes` | `direction` |
+| `messages` | `channel` |
+| `dlq` | `topic`, `consumer`, `error_code` |
+
+## Audit
+
+### Elenco audit
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/audit` | Elenco entry di audit |
+
+**Parametri query:**
+
+| Parametro | Tipo | Descrizione |
+| --- | --- | --- |
+| `actor` | string | Filtro per nome attore |
+| `role` | string | Filtro per ruolo attore |
+| `service` | string | Filtro per servizio |
+| `entityType` | string | Filtro per tipo entita |
+| `entityId` | string | Filtro per ID entita |
+| `action` | string | Filtro per azione |
+| `from` | string (ISO 8601) | Inizio intervallo |
+| `to` | string (ISO 8601) | Fine intervallo |
+| `page` | int | Pagina (0-based) |
+| `size` | int | Dimensione pagina (max 100) |
+
+### Dettaglio audit
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/audit/{id}` | Dettaglio con diff before/after |
+
+**Risposta:**
+
+```json Dettaglio audit
+{
+  "eventId": "audit-001",
+  "at": "2024-01-15T14:30:00Z",
+  "actorRole": "ADMIN",
+  "actorName": "marta.admin",
+  "service": "campaign",
+  "entityType": "Campaign",
+  "entityId": "CAMP-001",
+  "action": "UPDATE",
+  "summary": "Modificata campagna 'Sconti Inverno'",
+  "before": {
+    "name": "Sconti Inverno",
+    "status": "DRAFT",
+    "budget": 5000
+  },
+  "after": {
+    "name": "Sconti Inverno",
+    "status": "ACTIVE",
+    "budget": 7500
+  },
+  "correlationId": "corr-audit-001"
+}
+```
+
+> **Nota:** Ogni scrittura nel backoffice emette un evento su `lh.audit.v1`. L'Insight service consuma questo topic e popola la tabella `audit_entry` con i dettagli delle modifiche.
+
+## DLQ (Dead Letter Queue)
+
+### Elenco DLQ
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/dlq` | Elenco eventi in DLQ |
+
+**Parametri query:**
+
+| Parametro | Tipo | Descrizione |
+| --- | --- | --- |
+| `status` | string | `OPEN`, `REPROCESSED`, `DISCARDED` |
+| `consumer` | string | Filtro per consumer |
+| `errorCode` | string | Filtro per codice errore |
+| `page` | int | Pagina (0-based) |
+| `size` | int | Dimensione pagina (max 100) |
+
+### Dettaglio DLQ
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/dlq/{id}` | Dettaglio evento DLQ |
+
+### Rielabora evento DLQ
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| POST | `/v1/dlq/{id}/reprocess` | Rielabora un evento dalla DLQ |
+
+**Comportamento:**
+
+- L'evento viene reinviato al servizio ingestion tramite `POST /v1/events` mantenendo lo stesso `eventId`
+- Se l'evento e un effetto o un fatto, restituisce `409 CONFLICT` con codice `NOT_REPROCESSABLE`
+- Solo gli eventi di tipo azione possono essere rielaborati (ADR-002, eccezione 1)
+
+> **Attenzione:** La rielaborazione e l'unico caso in cui Insight effettua una chiamata di scrittura (HTTP verso ingestion). In tutti gli altri casi, Insight e un servizio di sola lettura.
+
+### Scarta evento DLQ
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| POST | `/v1/dlq/{id}/discard` | Marca l'evento come scartato |
+
+**Body:**
+
+```json Scarta evento
+{
+  "note": "Evento duplicato, gia processato manualmente"
+}
+```
+
+> **Nota:** L'azione di scarto richiede il ruolo `ADMIN`. L'header `X-LH-Actor` deve corrispondere a un utente con ruolo amministrativo (es. `marta.admin`).
+
+## Pipeline
+
+### Stato pipeline
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/pipeline/status` | Stato della pipeline di consumo |
+
+**Risposta:**
+
+```json Stato pipeline
+{
+  "topics": [
+    {
+      "topic": "lh.actions.v1",
+      "lastEvent": "2024-01-15T10:30:00Z",
+      "volume1h": 1200,
+      "volume24h": 28400,
+      "estimatedLagMs": 150
+    },
+    {
+      "topic": "lh.effects.v1",
+      "lastEvent": "2024-01-15T10:30:01Z",
+      "volume1h": 980,
+      "volume24h": 22100,
+      "estimatedLagMs": 200
+    }
+  ],
+  "services": [
+    {
+      "service": "wallet",
+      "lastFact": "2024-01-15T10:30:02Z"
+    },
+    {
+      "service": "member",
+      "lastFact": "2024-01-15T10:30:02Z"
+    }
+  ]
+}
+```
+
+## Timeline membro
+
+La timeline membro aggrega gli eventi raggruppati per tracciato, utile per la Scheda 360 del membro.
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/members/{memberId}/timeline` | Timeline eventi del membro |
+
+**Risposta:**
+
+```json Timeline membro
+{
+  "memberId": "M123",
+  "traces": [
+    {
+      "correlationId": "corr-abc",
+      "startedAt": "2024-01-15T10:30:00Z",
+      "status": "COMPLETE",
+      "summary": "Acquisto + Punti + Upgrade Gold",
+      "events": [
+        { "eventId": "evt-001", "shortType": "Purchase", "time": "2024-01-15T10:30:00Z" },
+        { "eventId": "evt-002", "shortType": "PointsEarned", "time": "2024-01-15T10:30:01Z" },
+        { "eventId": "evt-003", "shortType": "TierChanged", "time": "2024-01-15T10:30:02Z" }
+      ]
+    }
+  ]
+}
+```
+
+## Storico sintetico
+
+Al seed, Insight genera 90 giorni di dati sintetici nella tabella `metric_daily` con `synthetic=true`. Questi dati simulano un carico realistico con le seguenti caratteristiche:
+
+- **Stagionalita settimanale**: +35% di volume il sabato e la domenica
+- **Rumore**: variazione casuale di ±12% rispetto alla media
+- **Trend**: crescita giornaliera dello 0,4%
+- **Picco**: un picco di traffico al giorno -30 (30 giorni prima del seed)
+
+I dati reali si sommano ai dati sintetici. Nel backoffice (BO-01), i periodi sintetici sono marcati con un'indicazione visiva e una nota informativa.
+
+> **Nota:** I dati sintetici sono utili per dimostrare le dashboard e le metriche in ambienti di sviluppo e demo. In produzione, i dati sintetici non vengono generati e le metriche si basano esclusivamente su eventi reali.
+
+## Eventi Kafka
+
+Il servizio Insight consuma tutti e cinque i topic Kafka (gruppo consumer `lh-insight`):
+
+| Topic | Famiglia | Descrizione |
+| --- | --- | --- |
+| `lh.actions.v1` | `ACTION` | Azioni dei membri |
+| `lh.effects.v1` | `EFFECT` | Effetti calcolati (punti, premi) |
+| `lh.facts.v1` | `FACT` | Fatti di dominio (tier, stato) |
+| `lh.audit.v1` | `AUDIT` | Audit delle modifiche backoffice |
+| `lh.dlq.v1` | `DLQ` | Eventi finiti in dead letter queue |
+
+Insight **non produce eventi Kafka**. L'unica eccezione e la rielaborazione DLQ, che avviene tramite chiamata HTTP al servizio ingestion (`POST /v1/events`) anziche tramite produzione diretta su Kafka.
+
+> **Nota:** In futuro, il servizio Insight potrebbe essere sostituito o affiancato da un'architettura basata su ClickHouse per lo storage analitico e Apache Superset per le dashboard.
+
+## Prossimi passi
+
+- Consulta la guida [Osservare il sistema](/guide/osservare-il-sistema) per un tutorial passo-passo sull'uso di Insight in un caso reale
+- Approfondisci il modello degli [Eventi Kafka](/concetti/eventi-kafka) per capire come vengono strutturati e propagati gli eventi nella piattaforma
+- Se riscontri problemi di consumo o lag, consulta la sezione [Troubleshooting](/operations/troubleshooting) per le procedure di diagnostica

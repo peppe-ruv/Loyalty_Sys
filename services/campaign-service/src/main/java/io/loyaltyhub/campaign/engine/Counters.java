@@ -20,4 +20,14 @@ public interface Counters {
 
     /** Giorni dall'ultima azione dello stesso tipo, o {@code -1} se mai ({@code history.daysSinceLastAction}). */
     long historyDaysSinceLastAction(String memberId, String actionType);
+
+    /** Punti già decisi dalla campagna per il membro, da sempre ({@code limits.perMemberPoints}, F-CMP-05). */
+    default long memberPoints(String campaignId, String memberId) {
+        return 0;
+    }
+
+    /** Istante di business dell'ultimo match della campagna per il membro, o {@code null} ({@code limits.cooldownMinutes}). */
+    default java.time.Instant memberLastMatchAt(String campaignId, String memberId) {
+        return null;
+    }
 }

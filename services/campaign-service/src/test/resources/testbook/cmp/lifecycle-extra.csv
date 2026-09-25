@@ -1,0 +1,11 @@
+id|descrizione|scenario|HTTP atteso|stato atteso dopo
+TB-CMP-LCX-001|azione sconosciuta su DRAFT|UNKNOWN_ACTION|422|DRAFT
+TB-CMP-LCX-002|azione assente su DRAFT|MISSING_ACTION|422|DRAFT
+TB-CMP-LCX-003|ACTIVATE su DRAFT (sinonimo di PUBLISH)|ACTIVATE|200|LIVE
+TB-CMP-LCX-004|azione in minuscolo (publish) su DRAFT|LOWERCASE|200|LIVE
+TB-CMP-LCX-005|REJECT senza commento|REJECT_NO_COMMENT|422|IN_REVIEW
+TB-CMP-LCX-006|REJECT con commento di soli spazi|REJECT_BLANK_COMMENT|422|IN_REVIEW
+TB-CMP-LCX-007|transizione su campagna inesistente|UNKNOWN_CAMPAIGN|404|
+TB-CMP-LCX-008|ARCHIVE di una campagna di sistema terminata (CMP-IW-PRIZE-COUPON)|SYSTEM_ARCHIVE|409|ENDED
+TB-CMP-LCX-009|transizione indicando il code nel percorso|BY_CODE|200|IN_REVIEW
+TB-CMP-LCX-010|la transizione scrive lo storico (chi, quando, commento)|HISTORY|200|IN_REVIEW

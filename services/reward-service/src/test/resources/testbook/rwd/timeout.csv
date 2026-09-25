@@ -1,0 +1,9 @@
+id,descrizione,asOf,expStatus
+TB-RWD-TMO-001,asOf = richiesta + 9 min,+9m,PENDING
+TB-RWD-TMO-002,asOf = richiesta + 10 min − 1 ms,+10m-1ms,PENDING
+TB-RWD-TMO-003,asOf = richiesta + 10 min esatti,+10m,PENDING
+TB-RWD-TMO-004,asOf = richiesta + 10 min + 1 ms,+10m+1ms,REJECTED
+TB-RWD-TMO-005,asOf = richiesta + 12 min,+12m,REJECTED
+TB-RWD-TMO-006,"asOf assente, orologio a richiesta + 11 min",CLOCK+11m,REJECTED
+TB-RWD-TMO-007,"asOf assente, orologio a richiesta + 10 min",CLOCK+10m,PENDING
+TB-RWD-TMO-008,asOf precedente alla richiesta (− 1 min),-1m,PENDING

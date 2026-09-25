@@ -1,0 +1,81 @@
+---
+title: "Reference dei microservizi di Loyalty Hub"
+sidebarTitle: "Servizi"
+description: "Panoramica sintetica degli otto microservizi Spring Boot di Loyalty Hub: scopo, dati posseduti, eventi consumati e prodotti."
+---
+
+Loyalty Hub è composto da otto microservizi Spring Boot. Ogni servizio ha uno scopo preciso e un contratto chiaro sui topic Kafka. Questa pagina è la scheda riassuntiva; per il dettaglio implementativo di ciascuno esiste una pagina dedicata in [Servizi](/docs/servizi/README).
+
+## Elenco veloce
+
+<CardGroup cols={2}>
+  <Card title="ingestion-service" icon="arrow-right-to-bracket" href="/docs/servizi/ingestion-service">
+    Porta d'ingresso di tutte le azioni. Unico produttore di `lh.actions.v1`.
+  </Card>
+
+  <Card title="member-service" icon="users" href="/docs/servizi/member-service">
+    Anagrafica membri, attributi, etichette, segmenti, referral.
+  </Card>
+
+  <Card title="campaign-service" icon="gears" href="/docs/servizi/campaign-service">
+    Motore regole. Unico produttore di `lh.effects.v1`.
+  </Card>
+
+  <Card title="wallet-service" icon="wallet" href="/docs/servizi/wallet-service">
+    Libro mastro punti, lotti, tier, edizioni.
+  </Card>
+
+  <Card title="reward-service" icon="gift" href="/docs/servizi/reward-service">
+    Catalogo premi, richieste premio (saga), coupon.
+  </Card>
+
+  <Card title="gamification-service" icon="dice" href="/docs/servizi/gamification-service">
+    Instant win, obiettivi, badge, classifiche.
+  </Card>
+
+  <Card title="engagement-service" icon="envelope" href="/docs/servizi/engagement-service">
+    Messaggi in-app, template, contenuti CMS del portale.
+  </Card>
+
+  <Card title="insight-service" icon="chart-line" href="/docs/servizi/insight-service">
+    Read model per dashboard, tracciati, KPI, DLQ, audit.
+  </Card>
+</CardGroup>
+
+## Contratti in una tabella
+
+| Servizio | Produce | Consuma |
+| --- | --- | --- |
+| `ingestion` | `lh.actions.v1` | `lh.facts.v1` (per il ponte interno) |
+| `member` | `lh.facts.v1` (`member.*`) | `lh.actions.v1`, `lh.facts.v1` |
+| `campaign` | `lh.effects.v1` | `lh.actions.v1`, `lh.facts.v1` |
+| `wallet` | `lh.facts.v1` (`wallet.*`, `tier.*`) | `lh.effects.v1`, `lh.facts.v1` |
+| `reward` | `lh.facts.v1` (`redemption.*`, `coupon.*`) | `lh.effects.v1`, `lh.facts.v1` |
+| `gamification` | `lh.facts.v1` (`play.*`, `achievement.*`, `badge.*`) | `lh.actions.v1`, `lh.effects.v1`, `lh.facts.v1` |
+| `engagement` | `lh.facts.v1` (`message.*`) | `lh.effects.v1`, `lh.facts.v1` |
+| `insight` | Nessun evento | Tutti e cinque i topic (in sola lettura) |
+
+Tutti i servizi possono scrivere su `lh.audit.v1` per registrare le operazioni da backoffice e su `lh.dlq.v1` per messaggi non elaborabili.
+
+## Convenzioni comuni
+
+- **Porte:** `8081` - `8088` in ordine come nell'elenco sopra.
+- **Path:** ogni servizio espone REST sotto `/v1/...` e Actuator sotto `/actuator/*`.
+- **Auth:** nel PoC gli headers `X-LH-Actor` e `X-LH-Roles` sono impostati dal proxy `/api/lh` del web in base alla persona selezionata.
+- **Idempotenza:** ogni consumer scrive nella tabella `processed_event` (event_id + servizio) prima di applicare l'effetto, garantendo che un rerun non duplichi le scritture.
+- **Outbox:** ogni servizio scrive prima nella tabella `outbox` in transazione con il proprio stato, poi un publisher periodico spinge i record verso Kafka. Questo elimina la finestra di incoerenza fra DB e broker.
+- **DLQ:** un messaggio che fallisce oltre le retry in-process finisce in `lh.dlq.v1` con causa e payload originale.
+
+## Come i servizi restano coerenti
+
+Ogni servizio mantiene le proiezioni di cui ha bisogno. Per esempio:
+
+- `campaign-service` tiene una `member_snapshot` (tier, segmenti, etichette) costruita dai fatti pubblicati da `member-service` e `wallet-service`.
+- `reward-service` non chiede il saldo a wallet: usa la saga con `redemption.reserved` / `wallet.points.reserved`.
+- `insight-service` non tocca gli altri schemi: costruisce tutto dai fatti.
+
+Questa autonomia comporta un piccolo ritardo di propagazione (in genere sub-secondo), ma disaccoppia le release e i guasti.
+
+## Prossimo passo
+
+Per capire il formato esatto dei messaggi che questi servizi si scambiano, vai a [Eventi Kafka](/docs_v2/reference/eventi-kafka).

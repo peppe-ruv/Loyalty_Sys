@@ -1,0 +1,83 @@
+---
+title: "Deploy della demo pubblica di Loyalty Hub a costo zero"
+sidebarTitle: "Deploy a costo zero"
+description: "Pubblica Loyalty Hub online usando Vercel, Render, Neon e Aiven nei rispettivi piani gratuiti. Passi, limiti e strategia di risparmio."
+---
+
+Loyalty Hub è progettato per una demo pubblica che, da spenta, costa zero. Questa pagina spiega quali fornitori usa, come mettere in opera lo stack e quali limiti tenere a mente.
+
+## Prima di iniziare
+
+- Repository su GitHub pubblico.
+- Account gratuiti su Vercel, Render, Neon e Aiven.
+- Docker in locale per il primo smoke test.
+
+> **Nota:** I limiti dei piani gratuiti cambiano nel tempo. Verifica sempre le condizioni aggiornate dei fornitori prima del go-live.
+
+## Mappa dei fornitori
+
+| Componente | Fornitore | Limiti principali |
+| --- | --- | --- |
+| Frontend `web` (Next.js) | Vercel Hobby | Uso non commerciale, no connessioni serverless lunghe. |
+| 8 microservizi Spring Boot | Render Free Web Service | 512 MB RAM, sospensione dopo 15 min, 750 ore-istanza/mese. |
+| PostgreSQL | Neon Free | 0,5 GB, 100 CU-ore/mese, scale-to-zero dopo 5 min. |
+| Kafka | Aiven Free | 5 topic × 2 partizioni, retention 3 giorni, si spegne per inattività. |
+| CI | GitHub Actions | Gratuito su repo pubblico. |
+
+**Conti chiave**
+
+- 750 ore-istanza ÷ 8 servizi ≈ 93 ore di demo accesa al mese.
+- Neon: circa 400 ore di DB acceso al mese senza keep-alive esterno.
+- Aiven: esattamente 5 topic, quelli di Loyalty Hub. Nessun topic aggiuntivo consentito.
+
+## Ordine di messa in opera
+
+<Steps>
+  <Step title="Aiven Kafka (manuale)">
+    Console Aiven, crea servizio Kafka Free in regione europea. Crea a mano i 5 topic con 2 partizioni:
+
+    - `lh.actions.v1`
+    - `lh.effects.v1`
+    - `lh.facts.v1`
+    - `lh.audit.v1`
+    - `lh.dlq.v1`
+
+    Scarica `ca.pem`, `service.cert`, `service.key`. Codifica in base64 e crea i segreti `KAFKA_SSL_CA_B64`, `KAFKA_SSL_CERT_B64`, `KAFKA_SSL_KEY_B64`. Aggiungi `KAFKA_SECURITY=SSL_PEM` e `KAFKA_BOOTSTRAP=<host>:<porta>`.
+
+    > **Nota:** Se la chiave è PKCS#1 converti con `openssl pkcs8 -topk8 -nocrypt -in service.key -out service.pk8.key`.
+  </Step>
+  <Step title="Neon Postgres">
+    Crea progetto e database. Prendi due URL: pooled (`-pooler` nell'host) per l'app in `DB_URL`, diretto per Flyway in `DB_URL_DIRECT`. Entrambi con `sslmode=require`. Non creare schemi a mano: li crea Flyway.
+
+    > **Nota:** Nel pool a transazione niente `SET` di sessione né advisory lock di sessione. Usa `prepareThreshold=0` nel JDBC URL.
+  </Step>
+  <Step title="Render (Blueprint)">
+    Crea Blueprint dal `render.yaml`. Configura il gruppo variabili `lh-shared` con i valori dei passi precedenti. Deploya prima i servizi del core loop (`ingestion`, `member`, `campaign`, `wallet`), poi gli altri.
+  </Step>
+  <Step title="Vercel (frontend)">
+    Nuovo progetto con root `web/`. Variabili ambiente con gli URL `<servizio>.onrender.com`. Aggiorna `LH_CORS_ALLOWED_ORIGINS` di `insight-service` con l'URL Vercel finale e ridistribuisci `insight`.
+  </Step>
+  <Step title="Smoke test">
+    ```bash
+    bash scripts/smoke.sh https://<web>.vercel.app
+    ```
+
+    Verde = pronto per condividere l'URL.
+  </Step>
+</Steps>
+
+## Accendere e spegnere
+
+- **Accensione:** l'hub ha un endpoint di wake che pinga i servizi Render dormienti e sveglia Neon. Pochi minuti e tutto è UP.
+- **Sospensione:** senza traffico, Render sospende i servizi dopo 15 minuti e Neon scala a zero dopo 5. Il costo torna a zero.
+- **Kafka:** Aiven Free si spegne per inattività prolungata. Va riacceso a mano dalla console quando l'hub segnala Kafka `DOWN` oltre 2 minuti.
+
+## Cosa NON fare
+
+- Non aggiungere pinger 24/7: esauriresti le 750 ore Render e le 100 CU-ore Neon.
+- Non creare topic Kafka extra: sul free plan Aiven un sesto topic manda in errore l'avvio.
+- Non abilitare `auto.create.topics.enable`: `spring.kafka.admin.auto-create` è `false` per evitare topic accidentali.
+
+## Prossimo passo
+
+Se qualcosa non funziona, vai a [Troubleshooting](/docs_v2/operations/troubleshooting).

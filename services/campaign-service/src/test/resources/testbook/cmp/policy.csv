@@ -1,0 +1,12 @@
+id|descrizione|scenario|budget limits.global.maxPoints|HTTP atteso|stato atteso dopo
+TB-CMP-POL-001|budget 99 999: MARKETING pubblica da DRAFT|PUBLISH|99999|200|LIVE
+TB-CMP-POL-002|budget 100 000: MARKETING pubblica da DRAFT|PUBLISH|100000|200|LIVE
+TB-CMP-POL-003|budget 100 001: MARKETING pubblica da DRAFT|PUBLISH|100001|409|DRAFT
+TB-CMP-POL-004|senza budget: MARKETING pubblica da DRAFT|PUBLISH||200|LIVE
+TB-CMP-POL-005|budget 100 001: SUBMIT, APPROVE di LEGAL, PUBLISH di MARKETING|FULL_PATH|100001|200|LIVE
+TB-CMP-POL-006|requiresLegal (copia di CMP-BLACK-FRIDAY senza budget): PUBLISH da DRAFT|REQUIRES_LEGAL_COPY||409|DRAFT
+TB-CMP-POL-007|requiresLegal indicato alla creazione, senza budget: PUBLISH da DRAFT|REQUIRES_LEGAL_CREATE||409|DRAFT
+TB-CMP-POL-008|budget 100 001 abbassato a 99 999 in DRAFT: PUBLISH|LOWERED|100001|200|LIVE
+TB-CMP-POL-009|solo maxMatches 200 000 (nessun budget punti): PUBLISH|MAX_MATCHES||200|LIVE
+TB-CMP-POL-010|campagna in revisione nella coda approvazioni con ruolo LEGAL|QUEUE|100001|200|IN_REVIEW
+TB-CMP-POL-011|ADMIN pubblica da DRAFT una campagna che richiede approvazione|ADMIN_PUBLISH|100001|409|DRAFT

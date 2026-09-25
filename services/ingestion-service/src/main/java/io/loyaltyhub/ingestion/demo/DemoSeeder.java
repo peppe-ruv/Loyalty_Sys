@@ -25,7 +25,8 @@ import java.util.List;
 
 /**
  * Carica i registri di ingestion dai seed canonici (docs/10 §3, docs/servizi/ingestion-service.md §6):
- * fonti, tipi azione con JSON Schema, ponte interno e indice membri. Attivo col profilo {@code demo},
+ * fonti, tipi azione con JSON Schema, ponte interno, indice membri e storico del monitor ingressi
+ * ({@link InboundHistorySeeder}). Attivo col profilo {@code demo},
  * idempotente (upsert) e ripetibile via {@code POST /v1/demo/reset} ({@link DemoResettable}).
  */
 @Component
@@ -42,11 +43,12 @@ public class DemoSeeder implements ApplicationRunner, DemoResettable {
     private final InternalMappingRepository mappings;
     private final ScenarioRepository scenarios;
     private final ScenarioRunRepository scenarioRuns;
+    private final InboundHistorySeeder inboundHistory;
 
     public DemoSeeder(SeedLoader seed, ObjectMapper mapper, SourceRepository sources,
                       EventTypeRepository types, MemberIndexRepository members,
                       InternalMappingRepository mappings, ScenarioRepository scenarios,
-                      ScenarioRunRepository scenarioRuns) {
+                      ScenarioRunRepository scenarioRuns, InboundHistorySeeder inboundHistory) {
         this.seed = seed;
         this.mapper = mapper;
         this.sources = sources;
@@ -55,6 +57,7 @@ public class DemoSeeder implements ApplicationRunner, DemoResettable {
         this.mappings = mappings;
         this.scenarios = scenarios;
         this.scenarioRuns = scenarioRuns;
+        this.inboundHistory = inboundHistory;
     }
 
     @Override
@@ -75,7 +78,10 @@ public class DemoSeeder implements ApplicationRunner, DemoResettable {
         seedMembers();
         seedMappings();
         seedScenarios();
-        log.info("Seed ingestion caricato (profilo demo): fonti, tipi azione, membri, ponte interno, scenari");
+        // Dopo fonti, tipi e indice membri: lo storico ne ricava membro e dettagli come la pipeline.
+        int history = inboundHistory.reseed();
+        log.info("Seed ingestion caricato (profilo demo): fonti, tipi azione, membri, ponte interno, scenari, "
+                + "{} ingressi di storico", history);
     }
 
     private void seedScenarios() {

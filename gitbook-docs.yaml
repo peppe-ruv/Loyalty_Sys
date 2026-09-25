@@ -1,0 +1,12 @@
+$schema: https://api.gitbook.com/gitbook-docs.yaml
+site:
+  title: Loyalty Hub
+  structure:
+    - type: space
+      key: loyalty-hub-docs
+      title: Specifiche Loyalty Hub
+      path: docs
+      default: true
+      content:
+        directory: ./docs
+        language: it

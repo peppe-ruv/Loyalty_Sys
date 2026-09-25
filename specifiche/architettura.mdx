@@ -1,0 +1,146 @@
+---
+title: "Loyalty Hub: architettura a 8 microservizi event-driven su Kafka"
+sidebarTitle: "Architettura"
+description: "Loyalty Hub è costruito come 8 microservizi Spring Boot che comunicano esclusivamente tramite 5 topic Kafka. Nessuna chiamata sincrona tra servizi: ogni servizio è proprietario esclusivo dei propri dati e si sincronizza tramite fatti di dominio."
+---
+
+Loyalty Hub è costruito come 8 microservizi Spring Boot che si parlano esclusivamente tramite 5 topic Kafka. Nessuna chiamata sincrona tra servizi. Ogni servizio è proprietario esclusivo dei propri dati. Ciò che serve di un altro dominio si tiene in uno snapshot locale alimentato dai fatti. Le viste composte le costruisce il frontend. Questa pagina descrive i principi architetturali, i topic Kafka, i microservizi, la pipeline di un evento e lo stack tecnologico.
+
+## Principi architetturali
+
+1. **Otto microservizi a confini di dominio (ADR-001):** il codice risiede in una monorepo con un modulo `libs/lh-common` condiviso. Ogni servizio ha un confine di dominio ben definito e non accede ai dati degli altri.
+2. **Nessuna chiamata sincrona tra servizi (ADR-002):** tutta la comunicazione passa su Kafka. Ciò che serve di un altro dominio si tiene in uno snapshot locale alimentato dai fatti. Le viste composte le costruisce il frontend. Unica eccezione: il reprocess della DLQ da parte di insight-service verso ingestion-service via HTTP, attivabile solo su comando umano.
+3. **Ingestion unico produttore delle azioni (ADR-003):** solo ingestion-service scrive su `lh.actions.v1`. Le azioni interne rientrano dal ponte fatti-azioni con un meccanismo anti-loop: se `lhhop` supera 3, il messaggio finisce in DLQ con causa `LOOP_GUARD`.
+4. **Un database, uno schema per servizio (ADR-007):** tutti i servizi condividono un'istanza PostgreSQL 16, ma ognuno ha il proprio schema (`ingestion`, `member`, `campaign`, `wallet`, `reward`, `gamification`, `engagement`, `insight`). Nessuna query cross-schema è permessa.
+5. **Outbox transazionale (ADR-008):** nessuna pubblicazione su Kafka avviene fuori transazione. Ogni scrittura di stato e ogni pubblicazione avvengono nella stessa transazione database. I consumer sono idempotenti, il retry è in-process e l'ultima spiaggia è la DLQ.
+6. **CloudEvents 1.0 JSON + JSON Schema nel repo (ADR-009):** i messaggi seguono lo standard CloudEvents 1.0 in formato JSON. Gli schemi JSON Schema risiedono nel repository. Nel PoC non è previsto un Schema Registry esterno.
+
+## I 5 topic Kafka
+
+| Topic | Chi produce | Chi consuma | Cosa contiene |
+| --- | --- | --- | --- |
+| `lh.actions.v1` | ingestion-service | campaign-service, gamification-service, member-service | Azioni premianti (esterne e interne dal ponte fatti-azioni) |
+| `lh.effects.v1` | campaign-service | wallet-service, reward-service, gamification-service, engagement-service | Effetti da applicare: `points.grant`, `coupon.issue`, `badge.award`, `plays.grant`, `message.send` |
+| `lh.facts.v1` | Tutti i servizi di dominio | Tutti i servizi (per snapshot locali) | Fatti di dominio a effetto avvenuto: `wallet.points.earned`, `tier.upgraded`, `reward.redemption.fulfilled`, ecc. |
+| `lh.audit.v1` | Tutti i servizi | insight-service | Ogni scrittura da backoffice: chi, cosa, quando, prima/dopo |
+| `lh.dlq.v1` | Tutti i servizi (fallback) | insight-service | Messaggi non elaborabili con causa: `SCHEMA_INVALID`, `LOOP_GUARD`, `RUNTIME_ERROR`, ecc. |
+
+## Gli 8 microservizi
+
+| Servizio | Porta | Schema | Responsabilità |
+| --- | --- | --- | --- |
+| ingestion-service | 8081 | ingestion | Unica porta d'ingresso per le azioni; produttore di `lh.actions.v1`; ponte fatti-azioni; simulatore |
+| member-service | 8082 | member | Anagrafica membri, segmenti, referral, proiezione saldi e tier |
+| campaign-service | 8083 | campaign | Motore regole; unico produttore di `lh.effects.v1`; registro valutazioni |
+| wallet-service | 8084 | wallet | Libro mastro a doppia valuta, lotti FIFO, tier, edizioni, saga spesa |
+| reward-service | 8085 | reward | Catalogo premi a fasce, pool coupon, saga richieste premio |
+| gamification-service | 8086 | gamification | Concorsi instant win, obiettivi, badge, classifiche |
+| engagement-service | 8087 | engagement | CMS portale, inbox, template messaggi, tema, webhook uscita |
+| insight-service | 8088 | insight | Event store, tracciati, KPI, audit, DLQ, SSE live |
+
+## Il diagramma della pipeline
+
+```text
+Fonte esterna ──POST /v1/events─▶ ingestion ──lh.actions.v1─▶ campaign ──lh.effects.v1─▶ wallet/reward/gam/eng
+                                    │                                                            │
+                                    └──lh.audit.v1───▶ insight ◀─────lh.facts.v1───────┘
+                                                     (Event Store, KPI, tracciati)
+
+                     ∀ fatto rilevante ───────────────────▶ ingestion (ponte)
+                                                                       └─ azione interna (source=internal, lhhop+1)
+```
+
+## Il flusso di un evento
+
+<Steps>
+  <Step title="Ricezione dell'azione">
+    Una fonte esterna invia una richiesta `POST /v1/events` all'ingestion-service. Il payload è un CloudEvent 1.0 JSON con le estensioni Loyalty Hub.
+  </Step>
+  <Step title="Validazione e pubblicazione">
+    L'ingestion-service valida l'envelope (fonte, tipo, schema), esegue deduplicazione, verifica l'esistenza del membro e arricchisce il messaggio. Poi pubblica l'azione su `lh.actions.v1` tramite outbox transazionale.
+  </Step>
+  <Step title="Valutazione campagna">
+    Il campaign-service consuma l'azione, la valuta contro le campagne in stato `LIVE`, decide gli effetti applicabili e li pubblica su `lh.effects.v1`.
+  </Step>
+  <Step title="Applicazione effetti e emissione fatti">
+    Wallet-service, reward-service, gamification-service e engagement-service consumano gli effetti che li riguardano e applicano lo stato. Ogni servizio emette fatti su `lh.facts.v1` (ad esempio `wallet.points.earned`, `coupon.issued`, `badge.awarded`).
+  </Step>
+  <Step title="Ponte fatti-azioni">
+    Alcuni fatti rilevanti (come `tier.upgraded`, `contest.won`, `badge.awarded`) rientrano nel ponte fatti-azioni come nuove azioni interne. Il campo `source` diventa `internal`, `lhhop` incrementa di 1. Se `lhhop` supera 3, il messaggio finisce in DLQ con causa `LOOP_GUARD`.
+  </Step>
+  <Step title="Osservabilità e SSE">
+    L'insight-service consuma tutti i topic, calcola tracciati e KPI, li espone su SSE (Server-Sent Events) per il backoffice in tempo reale.
+  </Step>
+</Steps>
+
+## Snapshot locali
+
+Ogni servizio che ha bisogno di dati di altri domini li tiene in una tabella locale (ad esempio `member_snapshot`) alimentata esclusivamente dai fatti su `lh.facts.v1`.
+
+I fatti tipici per i snapshot sono:
+
+- `member.registered`
+- `tier.upgraded`
+- `member.segment.entered`
+- `member.segment.left`
+
+> **Nota:** non sono permesse query cross-schema e non sono permesse chiamate HTTP sincrone tra servizi. Lo snapshot locale è l'unico modo per accedere a dati di altri domini.
+
+## Outbox + idempotenza
+
+Ogni scrittura di stato e ogni pubblicazione su Kafka avvengono nella stessa transazione database. La tabella `outbox` (presente in ogni schema di servizio) contiene i CloudEvent da pubblicare.
+
+Un thread separato legge la tabella outbox e pubblica su Kafka con `acks=all`. I consumer sono idempotenti:
+
+- Per gli effetti: unicità su `effect_id`
+- Per le azioni: unicità su `sourceId`
+- Per i fatti: unicità su `eventId`
+
+Se un consumer fallisce, ritenta in-process per 3 tentativi con backoff esponenziale. Dopo il terzo tentativo, il messaggio finisce in DLQ su `lh.dlq.v1`.
+
+> **Attenzione:** non pubblicare mai su Kafka fuori transazione. L'outbox garantisce esattamente-once per la scrittura e al-meno-once per la pubblicazione, con idempotenza a valle.
+
+## Stack tecnologico
+
+### Backend
+
+- Java 25
+- Spring Boot 4.1.x
+- Maven Wrapper
+- Spring Data JDBC + JdbcClient (no JPA)
+- Flyway per le migrazioni database
+- PostgreSQL 16
+
+### Broker
+
+- Apache Kafka 3.x
+- In locale via Docker Compose
+- In produzione Aiven Free
+
+### Frontend
+
+- Next.js 14
+- React 18
+- TailwindCSS
+- Unica app web in `web/` (backoffice + portale + hub demo)
+
+### Observabilità
+
+- Log JSON strutturati con `correlationId` propagato via MDC
+- Actuator health, metrics, Prometheus endpoint
+- insight-service per event store e SSE live
+
+## Architettura target (fuori PoC)
+
+> **Nota:** le seguenti evoluzioni sono fuori scope del PoC ma rappresentano la direzione architetturale target.
+
+- **Osservabilità:** ClickHouse + Superset + Prometheus/Grafana/Loki al posto di insight-service
+- **Autenticazione:** OIDC (oggi le personas sono fittizie con header `X-LH-Actor`)
+- **Multi-tenant:** l'envelope CloudEvent porta già `lhtenant`, ma il PoC è single-tenant con tenant `aurora`
+- **Kubernetes + DR:** fuori scope
+
+## Prossimi passi
+
+- Esplora il formato dei messaggi e la struttura dei topic in [Eventi e topic Kafka](/specifiche/eventi-e-topic)
+- Leggi le convenzioni di codice e di naming in [Convenzioni backend](/specifiche/convenzioni-backend)
+- Consulta le decisioni architetturali documentate nel [Registro decisioni](/specifiche/registro-decisioni)

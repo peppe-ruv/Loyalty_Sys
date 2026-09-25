@@ -1,0 +1,125 @@
+---
+title: "API REST dei microservizi di Loyalty Hub"
+sidebarTitle: "API"
+description: "Riepilogo degli endpoint REST esposti dagli otto microservizi di Loyalty Hub: ingestion, member, campaign, wallet, reward, gamification, engagement, insight."
+---
+
+Ogni microservizio espone un'API REST sotto `/v1/...` e Actuator sotto `/actuator/*`. Questa pagina è un indice: per parametri, filtri e risposte complete consulta la scheda di ciascun servizio in [Servizi](/docs/servizi/README).
+
+## Base URL
+
+- **Locale (compose):** `http://localhost:<porta>` con le porte indicate sotto.
+- **Deploy Render:** ogni servizio ha un URL `<servizio>.onrender.com`.
+- **Dal frontend:** il proxy `/api/lh` del web mappa i path ai servizi in modo trasparente.
+
+## Ingestion (porta 8081)
+
+Ingressi eventi:
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| POST | `/v1/events` | Riceve un CloudEvent JSON. Risposta `202` con esito. |
+| POST | `/v1/events/batch` | Fino a 100 eventi in un colpo. |
+| POST | `/v1/transactions` | Ordine convertito internamente in `purchase.completed`. |
+
+Gestione:
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/inbound-events` | Elenco eventi ricevuti con filtri. |
+| GET | `/v1/inbound-events/{id}` | Dettaglio payload + `correlationId`. |
+| POST | `/v1/inbound-events/{id}/retry` | Ritenta un evento `REJECTED` o `UNMATCHED`. |
+| GET/POST/PUT | `/v1/sources` | Gestione fonti. |
+| GET/POST/PUT | `/v1/event-types` | Gestione tipi azione (custom con JSON Schema). |
+
+Demo:
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| POST | `/v1/demo/simulator/fire` | Genera 1 o N eventi finti. |
+| GET | `/v1/demo/scenarios` | Elenco scenari guidati. |
+| POST | `/v1/demo/scenarios/{code}/run` | Esegue uno scenario in modo asincrono. |
+
+## Member (porta 8082)
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/members` | Ricerca con filtri (nome, email, tier, etichette). |
+| GET | `/v1/members/{id}` | Scheda 360°. |
+| POST/PUT | `/v1/members` | Crea o aggiorna. |
+| POST | `/v1/members/{id}/anonymize` | Anonimizza mantenendo movimenti. |
+| GET/POST/PUT | `/v1/segments` | Segmenti statici e dinamici. |
+
+## Campaign (porta 8083)
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/campaigns` | Elenco con statistiche. |
+| POST/PUT | `/v1/campaigns` | Crea o modifica. |
+| POST | `/v1/campaigns/{id}/transitions` | Cambia stato (DRAFT → LIVE, ecc.). |
+| POST | `/v1/campaigns/simulate` | Simula un'azione contro campagne LIVE (o incluse bozze). |
+| GET | `/v1/campaigns/{id}/stats` | Metriche con serie giornaliera 30 giorni. |
+| GET | `/v1/evaluations` | Registro valutazioni con filtri. |
+| GET | `/v1/portal/campaigns?memberId=` | Campagne visibili al membro. |
+
+## Wallet (porta 8084)
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/wallets/{memberId}` | Saldi, tier, progresso, prossime scadenze. |
+| GET | `/v1/wallets/{memberId}/ledger` | Libro mastro con filtri. |
+| GET | `/v1/wallets/{memberId}/lots` | Lotti non esauriti per scadenza. |
+| POST | `/v1/wallets/{memberId}/adjustments` | Rettifica manuale con motivo e nota. |
+| GET/PUT | `/v1/tiers` | Configurazione tier. |
+| GET/POST/PUT | `/v1/editions` | Edizioni annuali. |
+| POST | `/v1/editions/{code}/close?dryRun=` | Anteprima e chiusura edizione. |
+| GET | `/v1/liability` | Punti in giro per valuta e mese di scadenza. |
+
+## Reward (porta 8085)
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/rewards` | Catalogo con filtri. |
+| POST/PUT | `/v1/rewards` | Crea o modifica premio. |
+| POST | `/v1/redemptions` | Avvia richiesta premio (saga). |
+| GET | `/v1/redemptions/{id}` | Stato della richiesta. |
+| GET/POST | `/v1/coupon-pools` | Gestione pool coupon. |
+
+## Gamification (porta 8086)
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET/POST/PUT | `/v1/contests` | Concorsi instant win. |
+| POST | `/v1/contests/{id}/generate-instants` | Pre-genera gli istanti vincenti. |
+| POST | `/v1/portal/contests/{id}/play` | Il membro consuma una giocata. |
+| GET/POST/PUT | `/v1/achievements` | Obiettivi. |
+| GET | `/v1/leaderboards/{code}` | Classifica corrente. |
+
+## Engagement (porta 8087)
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET/POST/PUT | `/v1/templates` | Template messaggi. |
+| GET | `/v1/portal/inbox?memberId=` | Messaggi in-app del membro. |
+| POST | `/v1/portal/inbox/{id}/read` | Segna come letto. |
+| GET/POST/PUT | `/v1/contents` | Contenuti CMS del portale. |
+
+## Insight (porta 8088)
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/kpi/program` | KPI programma (attivazioni, membri attivi, ecc.). |
+| GET | `/v1/traces/{correlationId}` | Tracciato end-to-end. |
+| GET | `/v1/dlq` | Elenco messaggi in DLQ con causa. |
+| POST | `/v1/dlq/{id}/retry` | Ritenta un messaggio DLQ. |
+| GET | `/v1/events/stream` | Server-Sent Events del flusso live (SSE diretto al browser). |
+
+## Autenticazione
+
+Nel PoC non c'è OIDC: le API si aspettano gli header `X-LH-Actor` (per esempio `MARKETING:luca.marketing`) e `X-LH-Roles` (per esempio `MARKETING,ADMIN`). Il proxy `/api/lh` del frontend li inietta in base alla persona selezionata.
+
+> **Nota:** In produzione questi header vanno emessi solo da un edge affidabile. La roadmap prevede l'introduzione di OIDC (vedi ADR-010).
+
+## Prossimo passo
+
+Vuoi pubblicare il sistema online? Vai a [Deploy a costo zero](/docs_v2/operations/deploy-costo-zero).

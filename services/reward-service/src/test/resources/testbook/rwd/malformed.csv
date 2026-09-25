@@ -1,0 +1,5 @@
+id,descrizione,memberId,rewardCode,expHttp
+TB-RWD-ORD-016,memberId assente,-,RWD,400
+TB-RWD-ORD-017,rewardCode assente,M,-,400
+TB-RWD-ORD-018,memberId e rewardCode solo spazi, , ,400
+TB-RWD-ORD-019,corpo assente,NOBODY,NOBODY,400

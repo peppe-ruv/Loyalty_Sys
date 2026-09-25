@@ -9,7 +9,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { PageHeader, CodeText } from "@/components/bo/primitives";
 import { LifecycleBar } from "@/components/bo/LifecycleBar";
 import { DuplicateButton } from "@/components/bo/DuplicateButton";
-import { useApprovalPolicy } from "@/lib/approvals/usePolicy";
+import { useApprovalPolicy, useReviewEntry } from "@/lib/approvals/usePolicy";
 import { requiresApproval } from "@/lib/approvals/queue";
 import { GeneratedSentence } from "@/components/bo/GeneratedSentence";
 import { SimulationPanel } from "@/components/bo/SimulationPanel";
@@ -27,6 +27,7 @@ export default function CampaignEditorPage() {
   const id = String(useParams().id);
   const query = useLhQuery<Campaign>("campaign", `/v1/campaigns/${id}`);
   const policy = useApprovalPolicy();
+  const review = useReviewEntry("campaign", id, query.data?.status);
 
   return (
     <QueryState query={query} service="campaign">
@@ -59,6 +60,8 @@ export default function CampaignEditorPage() {
                   requiresLegal: c.requiresLegal,
                   budgetPoints: budgetOf(c.limits),
                 })}
+                requiredRole={review?.requiredRole}
+                submittedAt={review?.submittedAt}
                 onChanged={() => query.refetch()}
               />
             </div>

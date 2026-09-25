@@ -10,7 +10,7 @@ Non applica gli effetti e non conosce i saldi.
 | Tabella | Colonne principali |
 |---|---|
 | `campaign` | `id`, `code` UQ, `name`, `description`, `member_description` (testo per il portale), `icon`, `trigger_action_types text[]`, `audience jsonb`, `conditions jsonb`, `effects jsonb`, `limits jsonb`, `schedule jsonb`, `priority int`, `exclusive_group`, `visible_in_portal bool`, `system bool`, `requires_legal bool`, `labels text[]`, `status`, `version`, audit cols |
-| `campaign_counter` | (`campaign_id`, `member_id`, `period`, `period_key`) PK, `matches int`, `points bigint` |
+| `campaign_counter` | (`campaign_id`, `member_id`, `period`, `period_key`) PK, `matches int`, `points bigint`, `last_match_at` (`time` di business dell'ultimo match, per `cooldownMinutes`). Una riga per periodo dichiarato nei limiti più la riga `ALWAYS`/`ALWAYS`, sempre presente: accumula i punti del membro (`perMemberPoints`) |
 | `campaign_totals` | `campaign_id` PK, `matches`, `unique_members`, `points_decided bigint`, `points_granted bigint` (da fatti wallet), `last_match_at` |
 | `member_action_counter` | (`member_id`, `action_type`) PK, `count`, `first_at`, `last_at` |
 | `member_snapshot` | `member_id` PK, `status`, `tier_code`, `segments text[]`, `labels text[]`, `attributes jsonb`, `registered_at`, `birth_date` |
@@ -23,9 +23,9 @@ Non applica gli effetti e non conosce i saldi.
 | Metodo | Path | Note |
 |---|---|---|
 | GET | `/v1/campaigns` | filtri `status, actionType, q, label, system`; include `totals` |
-| POST/GET/PUT | `/v1/campaigns`, `/v1/campaigns/{id}` | PUT su `LIVE` → solo campi sicuri, altrimenti `409 CAMPAIGN_LIVE_LOCKED` |
+| POST/GET/PUT | `/v1/campaigns`, `/v1/campaigns/{id}` | `{id}` = id o `code` (vale per tutti i path `/v1/campaigns/{id}/…`, docs/06 §2). POST: `code` nel formato `^[A-Z][A-Z0-9-]{2,39}$` (`422 INVALID_CODE`), `requiresLegal` opzionale (default `false`; solo alla creazione, SPEC-GAP Q-254). PUT su `LIVE` → solo campi sicuri, altrimenti `409 CAMPAIGN_LIVE_LOCKED`; `code` mai modificabile (`409 CODE_IMMUTABLE`, Q-51) |
 | POST | `/v1/campaigns/{id}/transitions` | `docs/06 §7`; le `system` non ammettono `ARCHIVE` |
-| POST | `/v1/campaigns/{id}/duplicate` | nuovo `code` = `<code>-COPY-n`, stato `DRAFT` |
+| POST | `/v1/campaigns/{id}/duplicate` | nuovo `code` = `<code>-COPY-n` (primo `n` libero; base accorciata se servisse a restare entro 40 caratteri, SPEC-GAP Q-253), stato `DRAFT` |
 | POST | `/v1/campaigns/validate` | valida struttura di condizioni/effetti/limiti senza salvare → `{valid, errors[]}` |
 | POST | `/v1/campaigns/simulate` | `{action: {type, time?, source?, data}, memberId? , memberOverride?: {tier, segments, attributes}, campaignIds?: []}` → stessa forma di `evaluation_log.results` + totali per valuta. Con `campaignIds` include anche bozze |
 | GET | `/v1/campaigns/{id}/stats` | totali + serie giornaliera 30 giorni (da `evaluation_log`) |
@@ -51,7 +51,8 @@ Non applica gli effetti e non conosce i saldi.
 - Le campagne `LIVE` sono tenute in cache in memoria, invalidata a ogni scrittura/transizione (e comunque ogni 30 s).
 - Fine automatica: job ogni minuto porta a `ENDED` le `LIVE`/`PAUSED` con `schedule.endAt` superato.
 - `rewardSummary` per il portale è generato dagli effetti: `FIXED` → "+300 punti"; `PER_AMOUNT` → "1 punto ogni 1 €"; `MULTIPLIER` → "Punti ×2"; `GRANT_PLAYS` → "+1 giocata".
-- Validazioni di salvataggio (`422`): almeno un trigger; almeno un effetto; `MULTIPLIER.factor` tra 1.1 e 5; `GRANT_PLAYS.contestCode` e codici premio/badge/template non vuoti (l'esistenza non è verificabile senza chiamate sincrone: l'errore emergerà a valle in DLQ e nel tracciato); `endAt > startAt`.
+- Validazioni di salvataggio (`422`): almeno un trigger; almeno un effetto; `MULTIPLIER.factor` tra 1.1 e 5; `GRANT_PLAYS.contestCode`, `ISSUE_COUPON.rewardCode` (o `rewardCodeField`), `AWARD_BADGE.badgeCode` e `SEND_MESSAGE.templateCode` non vuoti (l'esistenza non è verificabile senza chiamate sincrone: l'errore emergerà a valle in DLQ e nel tracciato); `endAt > startAt`.
+- Limiti per membro oltre ai periodi (F-CMP-05, docs/03 §3.2; SPEC-GAP Q-165): `limits.perMemberPoints` — punti già decisi dalla campagna per il membro da sempre ≥ tetto → `LIMIT` (l'ultimo accredito sotto il tetto non si riduce, come il budget); `limits.cooldownMinutes` — meno di N minuti tra il `time` dell'ultimo match del membro sulla campagna e quello dell'azione → `LIMIT`. Letti anche dalla simulazione, consumati solo dalla valutazione reale.
 - Azione per membro assente dallo snapshot: ritenta 3 volte (il fatto `member.registered` può essere in arrivo), poi `NO_MEMBER`.
 
 ## 6. Seed

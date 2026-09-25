@@ -1,0 +1,57 @@
+id	descrizione	policy	url	expected
+TB-ENG-WURL-001	`https://example.org/hook`	REMOTE	https://example.org/hook	OK
+TB-ENG-WURL-002	`http://` pubblico	REMOTE	http://example.org/hook	REJECT
+TB-ENG-WURL-003	schema `ftp://`	REMOTE	ftp://example.org/hook	REJECT
+TB-ENG-WURL-004	URL vuoto	REMOTE	<empty>	REJECT
+TB-ENG-WURL-005	URL relativo `/hook`	REMOTE	/hook	REJECT
+TB-ENG-WURL-006	10.0.0.1 (10/8, primo)	REMOTE	https://10.0.0.1/hook	REJECT
+TB-ENG-WURL-007	10.255.255.255 (10/8, ultimo)	REMOTE	https://10.255.255.255/hook	REJECT
+TB-ENG-WURL-008	9.255.255.255 (prima di 10/8)	REMOTE	https://9.255.255.255/hook	OK
+TB-ENG-WURL-009	11.0.0.0 (dopo 10/8)	REMOTE	https://11.0.0.0/hook	OK
+TB-ENG-WURL-010	172.16.0.0 (172.16/12, primo)	REMOTE	https://172.16.0.0/hook	REJECT
+TB-ENG-WURL-011	172.31.255.255 (172.16/12, ultimo)	REMOTE	https://172.31.255.255/hook	REJECT
+TB-ENG-WURL-012	172.15.255.255 (prima di 172.16/12)	REMOTE	https://172.15.255.255/hook	OK
+TB-ENG-WURL-013	172.32.0.0 (dopo 172.16/12)	REMOTE	https://172.32.0.0/hook	OK
+TB-ENG-WURL-014	192.168.0.0 (192.168/16, primo)	REMOTE	https://192.168.0.0/hook	REJECT
+TB-ENG-WURL-015	192.168.255.255 (192.168/16, ultimo)	REMOTE	https://192.168.255.255/hook	REJECT
+TB-ENG-WURL-016	192.167.255.255 (prima di 192.168/16)	REMOTE	https://192.167.255.255/hook	OK
+TB-ENG-WURL-017	192.169.0.0 (dopo 192.168/16)	REMOTE	https://192.169.0.0/hook	OK
+TB-ENG-WURL-018	127.0.0.1 (loopback)	REMOTE	https://127.0.0.1/hook	REJECT
+TB-ENG-WURL-019	127.255.255.254 (127/8)	REMOTE	https://127.255.255.254/hook	REJECT
+TB-ENG-WURL-020	128.0.0.1 (dopo 127/8)	REMOTE	https://128.0.0.1/hook	OK
+TB-ENG-WURL-021	169.254.169.254 (link-local, metadati cloud)	REMOTE	https://169.254.169.254/hook	REJECT
+TB-ENG-WURL-022	169.253.255.255 (prima di 169.254/16)	REMOTE	https://169.253.255.255/hook	OK
+TB-ENG-WURL-023	169.255.0.0 (dopo 169.254/16)	REMOTE	https://169.255.0.0/hook	OK
+TB-ENG-WURL-024	0.0.0.0 (indirizzo non specificato)	REMOTE	https://0.0.0.0/hook	REJECT
+TB-ENG-WURL-025	100.64.0.0 (CGNAT 100.64/10, primo)	REMOTE	https://100.64.0.0/hook	REJECT
+TB-ENG-WURL-026	100.127.255.255 (CGNAT, ultimo)	REMOTE	https://100.127.255.255/hook	REJECT
+TB-ENG-WURL-027	100.63.255.255 (prima di 100.64/10)	REMOTE	https://100.63.255.255/hook	OK
+TB-ENG-WURL-028	100.128.0.0 (dopo 100.64/10)	REMOTE	https://100.128.0.0/hook	OK
+TB-ENG-WURL-029	192.0.0.8 (192.0.0.0/24 riservato IETF)	REMOTE	https://192.0.0.8/hook	REJECT
+TB-ENG-WURL-030	198.18.0.1 (198.18/15 benchmark)	REMOTE	https://198.18.0.1/hook	REJECT
+TB-ENG-WURL-031	224.0.0.1 (multicast)	REMOTE	https://224.0.0.1/hook	REJECT
+TB-ENG-WURL-032	240.0.0.1 (240/4 riservato)	REMOTE	https://240.0.0.1/hook	REJECT
+TB-ENG-WURL-033	8.8.8.8 (pubblico)	REMOTE	https://8.8.8.8/hook	OK
+TB-ENG-WURL-034	`[::1]` (loopback IPv6)	REMOTE	https://[::1]/hook	REJECT
+TB-ENG-WURL-035	`[::]` (non specificato IPv6)	REMOTE	https://[::]/hook	REJECT
+TB-ENG-WURL-036	`[fe80::1]` (link-local IPv6)	REMOTE	https://[fe80::1]/hook	REJECT
+TB-ENG-WURL-037	`[fc00::1]` (ULA fc00::/7, inizio)	REMOTE	https://[fc00::1]/hook	REJECT
+TB-ENG-WURL-038	`[fdff:ffff::1]` (ULA, fine)	REMOTE	https://[fdff:ffff::1]/hook	REJECT
+TB-ENG-WURL-039	`[fbff::1]` (prima di fc00::/7)	REMOTE	https://[fbff::1]/hook	OK
+TB-ENG-WURL-040	`[::ffff:10.0.0.1]` (IPv4 privato mappato in IPv6)	REMOTE	https://[::ffff:10.0.0.1]/hook	REJECT
+TB-ENG-WURL-041	`[2001:4860:4860::8888]` (IPv6 pubblico)	REMOTE	https://[2001:4860:4860::8888]/hook	OK
+TB-ENG-WURL-042	`localhost`	REMOTE	https://localhost/hook	REJECT
+TB-ENG-WURL-043	`LOCALHOST` (maiuscole)	REMOTE	https://LOCALHOST/hook	REJECT
+TB-ENG-WURL-044	`api.localhost`	REMOTE	https://api.localhost/hook	REJECT
+TB-ENG-WURL-045	`printer.local` (mDNS)	REMOTE	https://printer.local/hook	REJECT
+TB-ENG-WURL-046	`metadata.internal`	REMOTE	https://metadata.internal/hook	REJECT
+TB-ENG-WURL-047	`2130706433` (127.0.0.1 in forma decimale) al salvataggio	REMOTE	https://2130706433/hook	OK
+TB-ENG-WURL-048	credenziali nell'URL	REMOTE	https://user:pw@example.org/hook	REJECT
+TB-ENG-WURL-049	frammento `#x`	REMOTE	https://example.org/hook#x	REJECT
+TB-ENG-WURL-050	URL di 500 caratteri (massimo)	REMOTE	https://example.org/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	OK
+TB-ENG-WURL-051	URL di 501 caratteri	REMOTE	https://example.org/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	REJECT
+TB-ENG-WURL-052	profilo `local`: `http://localhost`	LOCAL	http://localhost:8080/hook	OK
+TB-ENG-WURL-053	profilo `local`: `http://127.0.0.1`	LOCAL	http://127.0.0.1:8080/hook	OK
+TB-ENG-WURL-054	profilo `local`: `http://` non locale	LOCAL	http://example.org/hook	REJECT
+TB-ENG-WURL-055	profilo `local`: indirizzo privato	LOCAL	https://10.0.0.1/hook	OK
+TB-ENG-WURL-056	profilo non `local`: `http://localhost`	REMOTE	http://localhost:8080/hook	REJECT

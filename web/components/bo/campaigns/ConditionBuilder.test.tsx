@@ -89,7 +89,7 @@ describe("TriggerPicker", () => {
     const onChange = vi.fn();
     wrap(<PickerHarness onChange={onChange} />);
     const input = await screen.findByLabelText(/codici separati da virgola/);
-    expect(screen.getByText(/non raggiungibile/)).toBeInTheDocument();
+    expect(screen.getByText(/si sta svegliando/)).toBeInTheDocument();
     expect(input).toHaveValue("purchase.completed");
     fireEvent.change(input, { target: { value: "purchase.completed, store.visit" } });
     expect(onChange).toHaveBeenLastCalledWith(["purchase.completed", "store.visit"]);

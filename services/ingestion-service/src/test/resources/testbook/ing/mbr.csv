@@ -1,0 +1,40 @@
+id|descrizione|forma|stato_indice|stato|codice|membro|atteso|rif
+TB-ING-MBR-001|member:<id> · membro assente dall'indice|member|ABSENT|UNMATCHED|-|N|UNMATCHED|F-ING-03, F-ING-04; ingestion §5.7
+TB-ING-MBR-002|member:<id> · membro ACTIVE|member|ACTIVE|ACCEPTED|-|S|ACCEPTED + memberId|F-ING-03; ingestion §5.7-§5.8
+TB-ING-MBR-003|member:<id> · membro INACTIVE|member|INACTIVE|REJECTED|MEMBER_NOT_ACTIVE|S|REJECTED/MEMBER_NOT_ACTIVE + memberId|F-ING-03; docs/03 §2 (solo ACTIVE accumula)
+TB-ING-MBR-004|member:<id> · membro BLOCKED|member|BLOCKED|REJECTED|MEMBER_NOT_ACTIVE|S|REJECTED/MEMBER_NOT_ACTIVE + memberId|F-ING-03; docs/03 §2 (solo ACTIVE accumula)
+TB-ING-MBR-005|member:<id> · membro anonimizzato (cancellazione reale)|member|ANONYMIZED|REJECTED|MEMBER_NOT_ACTIVE|S|REJECTED/MEMBER_NOT_ACTIVE + memberId|F-ING-03; docs/03 §2 (solo ACTIVE accumula); Q-128
+TB-ING-MBR-006|member:<id> · stato sconosciuto SUSPENDED|member|SUSPENDED|REJECTED|MEMBER_NOT_ACTIVE|S|REJECTED/MEMBER_NOT_ACTIVE + memberId|F-ING-03; docs/03 §2 (solo ACTIVE accumula)
+TB-ING-MBR-007|external:<externalId> · membro assente dall'indice|external|ABSENT|UNMATCHED|-|N|UNMATCHED|F-ING-03, F-ING-04; ingestion §5.7
+TB-ING-MBR-008|external:<externalId> · membro ACTIVE|external|ACTIVE|ACCEPTED|-|S|ACCEPTED + memberId|F-ING-03; ingestion §5.7-§5.8
+TB-ING-MBR-009|external:<externalId> · membro INACTIVE|external|INACTIVE|REJECTED|MEMBER_NOT_ACTIVE|S|REJECTED/MEMBER_NOT_ACTIVE + memberId|F-ING-03; docs/03 §2 (solo ACTIVE accumula)
+TB-ING-MBR-010|external:<externalId> · membro BLOCKED|external|BLOCKED|REJECTED|MEMBER_NOT_ACTIVE|S|REJECTED/MEMBER_NOT_ACTIVE + memberId|F-ING-03; docs/03 §2 (solo ACTIVE accumula)
+TB-ING-MBR-011|external:<externalId> · membro anonimizzato (cancellazione reale)|external|ANONYMIZED|UNMATCHED|-|N|UNMATCHED|Q-128 (indice senza e-mail/externalId)
+TB-ING-MBR-012|external:<externalId> · stato sconosciuto SUSPENDED|external|SUSPENDED|REJECTED|MEMBER_NOT_ACTIVE|S|REJECTED/MEMBER_NOT_ACTIVE + memberId|F-ING-03; docs/03 §2 (solo ACTIVE accumula)
+TB-ING-MBR-013|email:<e-mail minuscola> · membro assente dall'indice|email|ABSENT|UNMATCHED|-|N|UNMATCHED|F-ING-03, F-ING-04; ingestion §5.7
+TB-ING-MBR-014|email:<e-mail minuscola> · membro ACTIVE|email|ACTIVE|ACCEPTED|-|S|ACCEPTED + memberId|F-ING-03; ingestion §5.7-§5.8
+TB-ING-MBR-015|email:<e-mail minuscola> · membro INACTIVE|email|INACTIVE|REJECTED|MEMBER_NOT_ACTIVE|S|REJECTED/MEMBER_NOT_ACTIVE + memberId|F-ING-03; docs/03 §2 (solo ACTIVE accumula)
+TB-ING-MBR-016|email:<e-mail minuscola> · membro BLOCKED|email|BLOCKED|REJECTED|MEMBER_NOT_ACTIVE|S|REJECTED/MEMBER_NOT_ACTIVE + memberId|F-ING-03; docs/03 §2 (solo ACTIVE accumula)
+TB-ING-MBR-017|email:<e-mail minuscola> · membro anonimizzato (cancellazione reale)|email|ANONYMIZED|UNMATCHED|-|N|UNMATCHED|Q-128 (indice senza e-mail/externalId)
+TB-ING-MBR-018|email:<e-mail minuscola> · stato sconosciuto SUSPENDED|email|SUSPENDED|REJECTED|MEMBER_NOT_ACTIVE|S|REJECTED/MEMBER_NOT_ACTIVE + memberId|F-ING-03; docs/03 §2 (solo ACTIVE accumula)
+TB-ING-MBR-019|email:<e-mail con maiuscole> · membro assente dall'indice|emailMixed|ABSENT|UNMATCHED|-|N|UNMATCHED|F-ING-03, F-ING-04; ingestion §5.7
+TB-ING-MBR-020|email:<e-mail con maiuscole> · membro ACTIVE|emailMixed|ACTIVE|ACCEPTED|-|S|ACCEPTED + memberId|F-ING-03; ingestion §5.7-§5.8
+TB-ING-MBR-021|email:<e-mail con maiuscole> · membro INACTIVE|emailMixed|INACTIVE|REJECTED|MEMBER_NOT_ACTIVE|S|REJECTED/MEMBER_NOT_ACTIVE + memberId|F-ING-03; docs/03 §2 (solo ACTIVE accumula)
+TB-ING-MBR-022|email:<e-mail con maiuscole> · membro BLOCKED|emailMixed|BLOCKED|REJECTED|MEMBER_NOT_ACTIVE|S|REJECTED/MEMBER_NOT_ACTIVE + memberId|F-ING-03; docs/03 §2 (solo ACTIVE accumula)
+TB-ING-MBR-023|email:<e-mail con maiuscole> · membro anonimizzato (cancellazione reale)|emailMixed|ANONYMIZED|UNMATCHED|-|N|UNMATCHED|Q-128 (indice senza e-mail/externalId)
+TB-ING-MBR-024|email:<e-mail con maiuscole> · stato sconosciuto SUSPENDED|emailMixed|SUSPENDED|REJECTED|MEMBER_NOT_ACTIVE|S|REJECTED/MEMBER_NOT_ACTIVE + memberId|F-ING-03; docs/03 §2 (solo ACTIVE accumula)
+TB-ING-MBR-025|<id> senza prefisso · membro assente dall'indice|noprefix|ABSENT|UNMATCHED|-|N|Q-255: UNMATCHED (subject senza prefisso trattato come id)|F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05
+TB-ING-MBR-026|<id> senza prefisso · membro ACTIVE|noprefix|ACTIVE|ACCEPTED|-|S|Q-255: ACCEPTED + memberId (subject senza prefisso trattato come id)|F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05
+TB-ING-MBR-027|<id> senza prefisso · membro INACTIVE|noprefix|INACTIVE|REJECTED|MEMBER_NOT_ACTIVE|S|Q-255: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id)|F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05
+TB-ING-MBR-028|<id> senza prefisso · membro BLOCKED|noprefix|BLOCKED|REJECTED|MEMBER_NOT_ACTIVE|S|Q-255: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id)|F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05
+TB-ING-MBR-029|<id> senza prefisso · membro anonimizzato (cancellazione reale)|noprefix|ANONYMIZED|REJECTED|MEMBER_NOT_ACTIVE|S|Q-255: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id)|F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05
+TB-ING-MBR-030|<id> senza prefisso · stato sconosciuto SUSPENDED|noprefix|SUSPENDED|REJECTED|MEMBER_NOT_ACTIVE|S|Q-255: REJECTED/MEMBER_NOT_ACTIVE + memberId (subject senza prefisso trattato come id)|F-ING-03 (forme ammesse: member:/external:/email:); docs/17 US-E01-05
+TB-ING-MBR-031|external: con maiuscole diverse dall'indice|externalCase|ACTIVE|UNMATCHED|-|N|Q-255: UNMATCHED (confronto esatto sull'externalId)|F-ING-03
+TB-ING-MBR-032|prefisso sconosciuto phone:|phone|ACTIVE|UNMATCHED|-|N|Q-255: UNMATCHED (forma non prevista)|F-ING-03
+TB-ING-MBR-033|member: senza id|memberEmpty|ACTIVE|UNMATCHED|-|N|Q-255: UNMATCHED|F-ING-03; ingestion §5.7
+TB-ING-MBR-034|seed: member:MBR-000002 (Marco, ACTIVE)|seed:member:MBR-000002|-|ACCEPTED|-|MBR-000002|ACCEPTED memberId MBR-000002|ingestion §7; docs/10 §2
+TB-ING-MBR-035|seed: external:CRM-102|seed:external:CRM-102|-|ACCEPTED|-|MBR-000002|ACCEPTED memberId MBR-000002|F-ING-03; docs/10 §2
+TB-ING-MBR-036|seed: email:MARCO.BIANCHI@example.org|seed:email:MARCO.BIANCHI@example.org|-|ACCEPTED|-|MBR-000002|ACCEPTED memberId MBR-000002|F-ING-03; docs/17 US-E01-01
+TB-ING-MBR-037|seed: member:MBR-000008 (Roberto, BLOCKED)|seed:member:MBR-000008|-|REJECTED|MEMBER_NOT_ACTIVE|MBR-000008|REJECTED/MEMBER_NOT_ACTIVE, niente sul topic|docs/12 M1; docs/10 §2; docs/03 §2
+TB-ING-MBR-038|seed: member:MBR-000012 (ANONYMIZED)|seed:member:MBR-000012|-|REJECTED|MEMBER_NOT_ACTIVE|MBR-000012|REJECTED/MEMBER_NOT_ACTIVE|Q-128; docs/10 §2
+TB-ING-MBR-039|seed: external:CRM-999 (inesistente)|seed:external:CRM-999|-|UNMATCHED|-|N|UNMATCHED (parcheggiato)|F-ING-04; docs/17 US-E01-05

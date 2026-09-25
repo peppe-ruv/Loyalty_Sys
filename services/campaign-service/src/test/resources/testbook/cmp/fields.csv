@@ -1,0 +1,71 @@
+id|descrizione|campo|cmp|valore (JSON)|data (JSON)|istante|nato il|iscritto il|etichette|storico (conteggio;giorni)|foglia vera
+TB-CMP-ARR-001|wildcard, un elemento su tre soddisfa|data.items[*].category|eq|"FOOD"|{"items":[{"category":"TECH"},{"category":"FOOD"},{"category":"HOME"}]}|||||| true
+TB-CMP-ARR-002|wildcard, nessun elemento soddisfa|data.items[*].category|eq|"FOOD"|{"items":[{"category":"TECH"},{"category":"HOME"}]}||||||false
+TB-CMP-ARR-003|wildcard, lista di un solo elemento che soddisfa|data.items[*].category|eq|"FOOD"|{"items":[{"category":"FOOD"}]}||||||true
+TB-CMP-ARR-004|wildcard su lista vuota|data.items[*].category|eq|"FOOD"|{"items":[]}||||||false
+TB-CMP-ARR-005|wildcard numerico, un prezzo sopra soglia|data.items[*].price|gte|50|{"items":[{"price":5},{"price":60}]}||||||true
+TB-CMP-ARR-006|wildcard con in, un elemento su due nella lista|data.items[*].category|in|["TECH","HOME"]|{"items":[{"category":"FOOD"},{"category":"TECH"}]}||||||true
+TB-CMP-ARR-007|wildcard con in, lista di un solo elemento|data.items[*].category|in|["TECH","HOME"]|{"items":[{"category":"TECH"}]}||||||true
+TB-CMP-ARR-008|wildcard con nin, un elemento fuori lista|data.items[*].category|nin|["FOOD"]|{"items":[{"category":"FOOD"},{"category":"TECH"}]}||||||true
+TB-CMP-ARR-009|wildcard con neq, tutti uguali al valore|data.items[*].category|neq|"FOOD"|{"items":[{"category":"FOOD"},{"category":"FOOD"}]}||||||false
+TB-CMP-ARR-010|wildcard exists su lista non vuota|data.items[*].category|exists||{"items":[{"category":"FOOD"}]}||||||true
+TB-CMP-ARR-011|percorso annidato|data.customer.address.city|eq|"Roma"|{"customer":{"address":{"city":"Roma"}}}||||||true
+TB-CMP-ARR-012|percorso annidato con intermedio assente|data.customer.address.city|eq|"Roma"|{"customer":{}}||||||false
+TB-CMP-ARR-013|wildcard con elementi privi del campo|data.items[*].category|eq|"FOOD"|{"items":[{"sku":"1"},{"category":"FOOD"}]}||||||true
+TB-CMP-MEM-001|member.tier uguale|member.tier|eq|"SILVER"|{}||||||true
+TB-CMP-MEM-002|member.tier fuori elenco|member.tier|in|["GOLD","PLATINUM"]|{}||||||false
+TB-CMP-MEM-003|member.status|member.status|eq|"ACTIVE"|{}||||||true
+TB-CMP-MEM-004|member.segments contiene il segmento|member.segments|contains|"SEG-A"|{}||||||true
+TB-CMP-MEM-005|member.segments non contiene il segmento|member.segments|contains|"SEG-Z"|{}||||||false
+TB-CMP-MEM-006|member.segments in, uno dei segmenti nella lista|member.segments|in|["SEG-B","SEG-Z"]|{}||||||true
+TB-CMP-MEM-007|member.segments eq su un elemento|member.segments|eq|"SEG-B"|{}||||||true
+TB-CMP-MEM-008|member.labels contiene l'etichetta|member.labels|contains|"VIP"|{}||||||true
+TB-CMP-MEM-009|member.labels ncontains con etichette vuote|member.labels|ncontains|"VIP"|{}||||-||true
+TB-CMP-MEM-010|attributo numerico|member.attributes.kids|gte|1|{}||||||true
+TB-CMP-MEM-011|attributo booleano|member.attributes.newsletter|eq|true|{}||||||true
+TB-CMP-MEM-012|attributo assente|member.attributes.pets|eq|"DOG"|{}||||||false
+TB-CMP-MEM-013|attributo assente con nexists|member.attributes.pets|nexists||{}||||||true
+TB-CMP-MEM-014|attributo data ISO con eq (Q-91)|member.attributes.since|eq|"2026-05-01"|{}||||||true
+TB-CMP-MEM-015|età: 18 anni alle 00:00 di Roma del compleanno|member.age|gte|18|{}|2026-09-23T22:00:00Z|2008-09-24||||true
+TB-CMP-MEM-016|età: 23:59:59 di Roma del giorno prima del compleanno|member.age|gte|18|{}|2026-09-23T21:59:59Z|2008-09-24||||false
+TB-CMP-MEM-017|età con data di nascita assente|member.age|gte|0|{}||NULL||||false
+TB-CMP-MEM-018|età: nato il 29 febbraio, azione il 28 febbraio non bisestile|member.age|gte|18|{}|2026-02-28T12:00:00Z|2008-02-29||||false
+TB-CMP-MEM-019|età: nato il 29 febbraio, azione il 1 marzo|member.age|gte|18|{}|2026-03-01T12:00:00Z|2008-02-29||||true
+TB-CMP-MEM-020|registeredDaysAgo esattamente 10 giorni|member.registeredDaysAgo|eq|10|{}|2026-09-15T09:00:00Z||2026-09-05T09:00:00Z|||true
+TB-CMP-MEM-021|registeredDaysAgo 6 giorni e 23:59:59|member.registeredDaysAgo|lt|7|{}|2026-09-15T09:00:00Z||2026-09-08T09:00:01Z|||true
+TB-CMP-MEM-022|registeredDaysAgo con iscrizione assente|member.registeredDaysAgo|gte|0|{}|||NULL|||false
+TB-CMP-MEM-023|registeredDaysAgo a cavallo della mezzanotte di Roma in meno di 24 h|member.registeredDaysAgo|gte|1|{}|2026-09-15T06:00:00Z||2026-09-14T21:30:00Z|||false
+TB-CMP-MEM-024|campo member sconosciuto|member.foo|exists||{}||||||false
+TB-CMP-MEM-025|spazio di campi sconosciuto|wallet.balance|exists||{}||||||false
+TB-CMP-CTX-001|context.source uguale|context.source|eq|"urn:loyaltyhub:source:ecommerce"|{}||||||true
+TB-CMP-CTX-002|context.source diverso|context.source|eq|"urn:loyaltyhub:source:app"|{}||||||false
+TB-CMP-CTX-003|dayOfWeek: domenica 23:59:59 a Roma|context.dayOfWeek|eq|"SUN"|{}|2026-09-20T21:59:59Z|||||true
+TB-CMP-CTX-004|dayOfWeek: lunedì 00:00 a Roma|context.dayOfWeek|eq|"SUN"|{}|2026-09-20T22:00:00Z|||||false
+TB-CMP-CTX-005|dayOfWeek: sabato in UTC ma domenica a Roma|context.dayOfWeek|eq|"SUN"|{}|2026-09-19T22:30:00Z|||||true
+TB-CMP-CTX-006|dayOfWeek in fine settimana, sabato|context.dayOfWeek|in|["SAT","SUN"]|{}|2026-09-19T09:00:00Z|||||true
+TB-CMP-CTX-007|dayOfWeek minuscolo|context.dayOfWeek|eq|"sun"|{}|2026-09-20T09:00:00Z|||||false
+TB-CMP-CTX-008|hour 0 alla mezzanotte di Roma|context.hour|eq|0|{}|2026-09-14T22:00:00Z|||||true
+TB-CMP-CTX-009|hour 23 alle 23:59:59 di Roma|context.hour|eq|23|{}|2026-09-14T21:59:59Z|||||true
+TB-CMP-CTX-010|hour gte 9 alle 08:59:59 di Roma|context.hour|gte|9|{}|2026-09-15T06:59:59Z|||||false
+TB-CMP-CTX-011|hour between 9 e 18 alle 18:59 di Roma|context.hour|between|[9,18]|{}|2026-09-15T16:59:00Z|||||true
+TB-CMP-CTX-012|cambio ora di marzo: 01:59:59 CET|context.hour|eq|1|{}|2026-03-29T00:59:59Z|||||true
+TB-CMP-CTX-013|cambio ora di marzo: 03:00 CEST|context.hour|eq|3|{}|2026-03-29T01:00:00Z|||||true
+TB-CMP-CTX-014|cambio ora di marzo: le 02 non esistono|context.hour|eq|2|{}|2026-03-29T01:00:00Z|||||false
+TB-CMP-CTX-015|cambio ora di ottobre: 02:30 CEST|context.hour|eq|2|{}|2026-10-25T00:30:00Z|||||true
+TB-CMP-CTX-016|cambio ora di ottobre: 02:30 CET|context.hour|eq|2|{}|2026-10-25T01:30:00Z|||||true
+TB-CMP-CTX-017|date: capodanno alla mezzanotte di Roma|context.date|eq|"2027-01-01"|{}|2026-12-31T23:00:00Z|||||true
+TB-CMP-CTX-018|date: 31 dicembre alle 23:59:59 di Roma|context.date|eq|"2026-12-31"|{}|2026-12-31T22:59:59Z|||||true
+TB-CMP-CTX-019|date: 29 febbraio|context.date|eq|"2028-02-29"|{}|2028-02-28T23:00:00Z|||||true
+TB-CMP-CTX-020|date: primo del mese dopo il 31 gennaio|context.date|eq|"2026-02-01"|{}|2026-01-31T23:00:00Z|||||true
+TB-CMP-CTX-021|date con gt (Q-91)|context.date|gt|"2026-09-01"|{}|2026-09-15T09:00:00Z|||||false
+TB-CMP-CTX-022|campo context sconosciuto|context.weather|exists||{}||||||false
+TB-CMP-HIS-001|actionCount 0 alla prima azione|history.actionCount|eq|0|{}|||||0;-1|true
+TB-CMP-HIS-002|actionCount alla soglia|history.actionCount|gte|3|{}|||||3;1|true
+TB-CMP-HIS-003|actionCount sotto la soglia|history.actionCount|gte|3|{}|||||2;1|false
+TB-CMP-HIS-004|actionCount lt 1 con un'azione precedente|history.actionCount|lt|1|{}|||||1;1|false
+TB-CMP-HIS-005|daysSinceLastAction senza azioni precedenti|history.daysSinceLastAction|gte|0|{}|||||0;-1|false
+TB-CMP-HIS-006|daysSinceLastAction nexists senza azioni precedenti|history.daysSinceLastAction|nexists||{}|||||0;-1|true
+TB-CMP-HIS-007|daysSinceLastAction alla soglia|history.daysSinceLastAction|gte|30|{}|||||4;30|true
+TB-CMP-HIS-008|daysSinceLastAction sotto la soglia|history.daysSinceLastAction|gte|30|{}|||||4;29|false
+TB-CMP-HIS-009|daysSinceLastAction 0 nello stesso giorno|history.daysSinceLastAction|eq|0|{}|||||4;0|true
+TB-CMP-HIS-010|campo history sconosciuto|history.unknown|exists||{}|||||4;0|false

@@ -1,0 +1,72 @@
+---
+title: "Autenticazione API di Loyalty Hub: header X-LH-Actor"
+sidebarTitle: "Autenticazione"
+description: "Autentica le chiamate API di Loyalty Hub con l'header X-LH-Actor. Scopri le personas demo, i ruoli e le regole di autorizzazione."
+---
+
+Loyalty Hub usa un modello di autenticazione demo semplice basato sull'header HTTP `X-LH-Actor`. Ogni chiamata identifica l'attore (username) che la esegue. Il servizio ricava il ruolo dalla persona e applica il controllo di autorizzazione sull'endpoint.
+
+## Header richiesto
+
+Aggiungi l'header a ogni richiesta ai servizi di backoffice.
+
+```bash
+curl http://localhost:8083/backoffice/campaigns \
+  -H "X-LH-Actor: luca.marketing"
+```
+
+> **Nota:** gli endpoint del portale cliente (`/portal/...`) e di Ingestion (`/v1/actions`) accettano richieste senza header in modalita demo. In produzione tutti i canali richiedono un token OAuth o JWT emesso dal gateway.
+
+## Personas disponibili
+
+Il seed dell'ambiente demo carica cinque personas con ruoli diversi.
+
+| Username | Ruolo | Descrizione |
+| --- | --- | --- |
+| `marta.admin` | ADMIN | Accesso completo a ogni servizio e a operazioni distruttive. |
+| `luca.marketing` | MARKETING | Crea e pubblica campagne, template e concorsi. |
+| `elena.legal` | LEGAL | Approva contenuti e gestisce clausole di privacy. |
+| `paolo.care` | CARE | Consulta clienti, crea aggiustamenti punti manuali. |
+| `sara.analyst` | ANALYST | Legge KPI, esporta report, consulta DLQ. |
+
+## Ruoli e permessi
+
+Ogni endpoint dei servizi dichiara i ruoli ammessi. La tabella riassume le regole principali.
+
+| Area | Endpoint | Ruoli ammessi |
+| --- | --- | --- |
+| Campagne | `POST /backoffice/campaigns` | ADMIN, MARKETING |
+| Campagne | `POST /backoffice/campaigns/{id}/publish` | ADMIN, LEGAL |
+| Wallet | `POST /backoffice/adjustments` | ADMIN, CARE |
+| Reward | `POST /backoffice/rewards` | ADMIN, MARKETING |
+| Engagement | `POST /backoffice/templates` | ADMIN, MARKETING, LEGAL |
+| Insight | `GET /backoffice/kpi/**` | ADMIN, ANALYST |
+| DLQ | `POST /backoffice/dlq/{id}/replay` | ADMIN |
+
+## Errori di autenticazione
+
+<AccordionGroup>
+  <Accordion title="401 UNAUTHENTICATED">
+    Header `X-LH-Actor` assente su un endpoint di backoffice. Aggiungi l'header con uno degli username validi.
+  </Accordion>
+
+  <Accordion title="403 FORBIDDEN">
+    L'attore esiste ma il suo ruolo non e ammesso sull'endpoint. Verifica la tabella dei permessi qui sopra o usa `marta.admin` per test rapidi.
+  </Accordion>
+
+  <Accordion title="404 ACTOR_NOT_FOUND">
+    Lo username non esiste nel seed. Controlla la spelling o rilancia lo script di seed.
+  </Accordion>
+</AccordionGroup>
+
+## Prossimi passi
+
+<CardGroup cols={2}>
+  <Card title="Convenzioni API" icon="ruler" href="/api/convenzioni">
+    Paginazione, errori, idempotency e versioning.
+  </Card>
+
+  <Card title="Inviare un evento" icon="paper-plane" href="/guide/inviare-un-evento">
+    Manda la tua prima azione al servizio Ingestion.
+  </Card>
+</CardGroup>

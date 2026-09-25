@@ -1,0 +1,81 @@
+---
+title: "punti-e-tier"
+sidebarTitle: "Punti e tier"
+description: "Come Loyalty Hub gestisce punti premio, punti status, lotti con scadenza FIFO e tier annuali con discesa morbida a fine edizione."
+---
+
+Loyalty Hub tratta il conto del membro come un libro mastro. Ogni movimento è tracciato e ha una motivazione. Questa pagina spiega la doppia valuta, la gestione dei lotti e il funzionamento dei tier.
+
+## Doppia valuta: perché
+
+Due valute perché servono scopi diversi:
+
+| Valuta | Codice | Scopo | Spendibile |
+| --- | --- | --- | --- |
+| Punti premio | `PTS` | Il membro li spende per premi e coupon. | Sì |
+| Punti status | `STS` | Determinano il tier del membro nell'edizione corrente. | No, mai spesi |
+
+Un acquisto tipico accredita entrambi: `PTS` per essere consumati, `STS` per far salire il tier.
+
+## Come si accreditano i punti
+
+Ogni effetto `points.grant` crea un **lotto** con:
+
+- `amount`: quantità di punti.
+- `earned_at`: quando sono maturati (data di business).
+- `available_at`: quando diventano disponibili (per campagne con delay).
+- `expires_at`: quando scadono, in base alla policy della valuta.
+
+Il saldo attivo di un membro è la somma dei lotti in stato `ACTIVE`.
+
+## Come si spendono: FIFO
+
+Il consumo dei punti segue la regola **first-in, first-out**: si consumano prima i lotti più vecchi. Questo protegge il membro dalla perdita di punti che stanno per scadere.
+
+Ogni scrittura sul libro mastro crea:
+
+- Una riga `ledger_entry` con importo, direzione (`+`/`−`), saldo dopo il movimento, correlazione con l'azione o la richiesta premio che l'ha causata.
+- Le corrispondenti `lot_consumption` che dicono da quale lotto è stato prelevato quanto.
+
+> **Nota:** Le rettifiche manuali (ruolo CARE o ADMIN) richiedono un motivo (`GOODWILL`, `CORRECTION`, `COMPLAINT`, `TEST`) e una nota di almeno 10 caratteri. La nota è visibile in audit.
+
+## Tier: le regole
+
+Il tier del membro è calcolato sui **punti status maturati nell'edizione corrente**.
+
+### Salita e discesa
+
+- **Salita immediata**: appena il membro supera la soglia del tier successivo, sale subito. La modifica emette il fatto `tier.upgraded` (che rientra come azione interna: puoi premiare la salita con una campagna).
+- **Discesa morbida a fine edizione**: la retrocessione avviene solo alla chiusura dell'edizione annuale. Chi ha mantenuto la soglia resta; chi non l'ha mantenuta scende al livello raggiunto nel periodo.
+
+### Il moltiplicatore di tier
+
+Ogni tier ha un `multiplier` (per esempio Silver 1,2×, Gold 1,5×). Wallet applica il moltiplicatore ai punti calcolati dal motore. Il motore decide **quanti** punti dare; wallet **come** ampliarli in base al tier.
+
+### Edizioni
+
+Un'edizione è un periodo (di solito annuale) con:
+
+- `start_date`, `end_date`.
+- `redemption_grace_until`: finestra per richiedere premi dopo la chiusura.
+
+Alla chiusura dell'edizione puoi eseguire un dry-run per prevedere quanti membri retrocedono, poi applicare la chiusura vera.
+
+## Scadenza dei punti
+
+Ogni valuta ha una `expiry_policy` (per esempio "rolling 12 mesi"). Un job periodico:
+
+1. Emette **warning di scadenza** ai membri con punti in scadenza entro 30 giorni.
+2. **Esperie i lotti** oltre la data, riducendo il saldo e registrando un movimento negativo di tipo `EXPIRE`.
+
+## Cosa vede il membro nel portale
+
+Il portale mostra:
+
+- Saldo `PTS` attivo, pending (ancora non disponibili) e in scadenza a breve.
+- Tier corrente, `STS` maturato nell'edizione, mancante al tier successivo, moltiplicatore.
+- Elenco movimenti con titolo leggibile, icona per tipo, indicazione di `pending` ed `expiresAt` dove pertinente.
+
+## Prossimo passo
+
+Ora che il saldo è chiaro, scopri come il membro lo trasforma in valore in [Premi e gioco](concetti/premi-e-gioco).

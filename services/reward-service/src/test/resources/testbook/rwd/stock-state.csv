@@ -1,0 +1,13 @@
+id,descrizione,stockTotal,stockRemaining,expected
+TB-RWD-STK-001,illimitato,-,-,AVAILABLE
+TB-RWD-STK-002,pieno 100/100,100,100,AVAILABLE
+TB-RWD-STK-003,11/100 (11 %),100,11,AVAILABLE
+TB-RWD-STK-004,10/100 (10 % esatto),100,10,AVAILABLE
+TB-RWD-STK-005,9/100 (sotto il 10 %),100,9,LOW
+TB-RWD-STK-006,1/100,100,1,LOW
+TB-RWD-STK-007,0/100,100,0,SOLD_OUT
+TB-RWD-STK-008,1/10 (10 % esatto),10,1,AVAILABLE
+TB-RWD-STK-009,"1/11 (9,1 %)",11,1,LOW
+TB-RWD-STK-010,1/1 (ultimo pezzo),1,1,AVAILABLE
+TB-RWD-STK-011,0/0 (creato esaurito),0,0,SOLD_OUT
+TB-RWD-STK-012,residuo negativo −1/5 (dato incoerente),5,-1,SOLD_OUT

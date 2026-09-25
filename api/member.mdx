@@ -1,0 +1,767 @@
+---
+title: "Member Service API: anagrafica, segmenti e referral"
+sidebarTitle: "Member"
+description: "API reference del member-service (porta 8082). Gestisci anagrafica membri, attributi, etichette, segmenti statici e dinamici, referral e proiezioni di saldo e tier per elenchi."
+---
+
+Il member-service gestisce l'anagrafica dei membri, i loro attributi personalizzati, le etichette, i segmenti di pubblico e il programma referral. Non possiede i saldi: riflette i dati di wallet e tier attraverso proiezioni aggiornate dai fatti, cosi puoi consultare il profilo completo senza chiamare piu servizi.
+
+## Base URL
+
+```text
+http://localhost:8082
+```
+
+Tutte le chiamate usano `Content-Type: application/json` e richiedono l'header `X-LH-Actor: <username>` per l'autenticazione demo.
+
+## Modello membro
+
+Un membro ha i seguenti campi principali:
+
+- **id**: `MBR-######` (generato automaticamente)
+- **external_id**: identificativo esterno (opzionale, unico se presente)
+- **Dati personali**: `first_name`, `last_name`, `nickname`, `email`, `phone`, `birth_date`, `gender`, `city`
+- **status**: `ACTIVE`, `BLOCKED`, `INACTIVE`
+- **channel**: `PORTAL`, `APP`, `STORE`, `IMPORT`
+- **consents**: oggetto JSON (`marketing`, `profiling`)
+- **attributes**: oggetto JSON libero per attributi personalizzati
+- **labels**: array di testo (`text[]`)
+- **referral_code**: codice univoco di 8 caratteri
+- **referred_by**: ID del membro che ha invitato questo utente
+- **version**: numero di versione per ottimistic locking
+
+### Proiezione saldo e tier
+
+Per comodita nei risultati di elenco, il member-service include proiezioni aggiornate:
+
+- **tier_code**: codice del tier attuale
+- **period_sts**: punti nel periodo di qualifica
+- **balance_pts**: saldo punti disponibile
+- **pending_pts**: punti in sospeso
+- **lifetime_earned_pts**: punti totali guadagnati nel tempo
+
+> **Nota:** questi valori sono proiezioni eventualmente consistenti. Per il saldo autoritativo, consulta il wallet-service.
+
+## Endpoint di gestione membri
+
+### Elenca membri
+
+```text
+GET /v1/members
+```
+
+Restituisce l'elenco paginato dei membri con le proiezioni di saldo e tier.
+
+**Query parameters:**
+
+| Parametro | Tipo | Descrizione |
+| --- | --- | --- |
+| `q` | string | Ricerca per nome, email, ID o externalId |
+| `status` | string | Filtra per stato (`ACTIVE`, `BLOCKED`, `INACTIVE`) |
+| `tier` | string | Filtra per codice tier |
+| `label` | string | Filtra per etichetta |
+| `segment` | string | Filtra per ID segmento |
+| `registeredFrom` | date | Data registrazione da (ISO 8601) |
+| `registeredTo` | date | Data registrazione a (ISO 8601) |
+| `page` | integer | Pagina, 0-based (default: 0) |
+| `size` | integer | Elementi per pagina, max 100 (default: 20) |
+
+**Risposta 200:**
+
+```json
+{
+  "content": [
+    {
+      "id": "MBR-000001",
+      "firstName": "Giulia",
+      "lastName": "Ferrari",
+      "nickname": "Giulia F.",
+      "email": "giulia.ferrari@example.com",
+      "status": "ACTIVE",
+      "tierCode": "GOLD",
+      "balancePts": 1250,
+      "pendingPts": 50,
+      "lifetimeEarnedPts": 5000,
+      "labels": ["vip", "early_adopter"]
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
+
+### Crea un membro
+
+```text
+POST /v1/members
+```
+
+Crea un nuovo membro. Se fornisci un `referralCode` valido, il membro viene collegato al presentatore.
+
+**Body:**
+
+```json
+{
+  "firstName": "Marco",
+  "lastName": "Bianchi",
+  "email": "marco.bianchi@example.com",
+  "phone": "+393331234567",
+  "birthDate": "1990-05-15",
+  "gender": "M",
+  "city": "Milano",
+  "channel": "PORTAL",
+  "consents": {
+    "marketing": true,
+    "profiling": false
+  },
+  "attributes": {
+    "favouriteCategory": "electronics"
+  },
+  "labels": ["new"],
+  "referralCode": "ABC123XY"
+}
+```
+
+**Risposta 201:**
+
+```json
+{
+  "id": "MBR-000042",
+  "firstName": "Marco",
+  "lastName": "Bianchi",
+  "nickname": "Marco B.",
+  "email": "marco.bianchi@example.com",
+  "status": "ACTIVE",
+  "referralCode": "XYZ789AB",
+  "referredBy": "MBR-000001",
+  "version": 0
+}
+```
+
+> **Attenzione:** se il `referralCode` non esiste, ricevi `422 REFERRAL_CODE_INVALID`. Se usi il tuo stesso codice, ricevi `422 REFERRAL_SELF`.
+
+### Recupera un membro
+
+```text
+GET /v1/members/{id}
+```
+
+Restituisce il dettaglio completo di un membro, inclusi attributi, consensi e proiezioni.
+
+**Risposta 200:**
+
+```json
+{
+  "id": "MBR-000001",
+  "externalId": "CUST-12345",
+  "firstName": "Giulia",
+  "lastName": "Ferrari",
+  "nickname": "Giulia F.",
+  "email": "giulia.ferrari@example.com",
+  "phone": "+393331234567",
+  "birthDate": "1985-03-20",
+  "gender": "F",
+  "city": "Roma",
+  "status": "ACTIVE",
+  "channel": "APP",
+  "consents": {
+    "marketing": true,
+    "profiling": true
+  },
+  "attributes": {
+    "favouriteCategory": "fashion",
+    "shoeSize": "38"
+  },
+  "labels": ["vip", "early_adopter"],
+  "referralCode": "ABC123XY",
+  "referredBy": null,
+  "tierCode": "GOLD",
+  "periodSts": 3200,
+  "balancePts": 1250,
+  "pendingPts": 50,
+  "lifetimeEarnedPts": 5000,
+  "version": 3
+}
+```
+
+### Aggiorna un membro
+
+```text
+PATCH /v1/members/{id}
+```
+
+Aggiornamento parziale. Includi solo i campi che vuoi modificare e la `version` per ottimistic locking.
+
+**Body:**
+
+```json
+{
+  "firstName": "Giulia Maria",
+  "city": "Firenze",
+  "attributes": {
+    "favouriteCategory": "home"
+  },
+  "labels": ["vip", "early_adopter", "home_lover"],
+  "version": 3
+}
+```
+
+**Risposta 200:** restituisce il membro aggiornato con `version` incrementata.
+
+> **Attenzione:** se la versione non corrisponde, ricevi `409 CONCURRENT_MODIFICATION`.
+
+### Cambia stato
+
+```text
+POST /v1/members/{id}/status
+```
+
+Cambia lo stato di un membro con motivazione.
+
+**Body:**
+
+```json
+{
+  "status": "BLOCKED",
+  "reason": "Richiesta del membro per privacy"
+}
+```
+
+**Risposta 200:** restituisce il membro con il nuovo stato.
+
+### Anonimizza un membro
+
+```text
+POST /v1/members/{id}/anonymize
+```
+
+Operazione irreversibile. Rimuove i dati personali e rende il profilo anonimo.
+
+**Body di conferma:**
+
+```json
+{
+  "confirm": "MBR-000001"
+}
+```
+
+> **Attenzione:** l'anonimizzazione e permanente. Il membro mantiene l'ID e lo storico transazionale, ma nome, email, telefono e altri dati personali vengono cancellati. Richiede la conferma esplicita con l'ID del membro.
+
+### Segmenti di un membro
+
+```text
+GET /v1/members/{id}/segments
+```
+
+Restituisce l'elenco dei segmenti a cui il membro appartiene.
+
+**Risposta 200:**
+
+```json
+{
+  "memberId": "MBR-000001",
+  "segments": [
+    {
+      "id": "SEG-001",
+      "name": "VIP Oro",
+      "type": "DYNAMIC"
+    },
+    {
+      "id": "SEG-002",
+      "name": "Early Adopters",
+      "type": "STATIC"
+    }
+  ]
+}
+```
+
+### Referral di un membro
+
+```text
+GET /v1/members/{id}/referrals
+```
+
+Restituisce gli invitati del membro con il loro stato.
+
+**Risposta 200:**
+
+```json
+{
+  "memberId": "MBR-000001",
+  "referralCode": "ABC123XY",
+  "invited": [
+    {
+      "memberId": "MBR-000042",
+      "name": "Marco Bianchi",
+      "status": "ACTIVE",
+      "registeredAt": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "completedCount": 1
+}
+```
+
+## Endpoint segmenti
+
+### Elenca segmenti
+
+```text
+GET /v1/segments
+```
+
+Restituisce tutti i segmenti con conteggio membri e data ultimo ricalcolo.
+
+**Risposta 200:**
+
+```json
+{
+  "content": [
+    {
+      "id": "SEG-001",
+      "name": "VIP Oro",
+      "type": "DYNAMIC",
+      "criteria": {
+        "tierCode": "GOLD",
+        "minLifetimeEarned": 3000
+      },
+      "status": "ACTIVE",
+      "memberCount": 42,
+      "refreshedAt": "2024-01-15T08:00:00Z"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
+
+### Crea un segmento
+
+```text
+POST /v1/segments
+```
+
+**Body:**
+
+```json
+{
+  "name": "Nuovi iscritti app",
+  "type": "DYNAMIC",
+  "criteria": {
+    "channel": "APP",
+    "registeredWithinDays": 30
+  }
+}
+```
+
+**Risposta 201:** restituisce il segmento creato.
+
+### Aggiorna un segmento
+
+```text
+PUT /v1/segments/{id}
+```
+
+**Body:**
+
+```json
+{
+  "name": "Nuovi iscritti app",
+  "type": "DYNAMIC",
+  "criteria": {
+    "channel": "APP",
+    "registeredWithinDays": 60
+  },
+  "status": "ACTIVE"
+}
+```
+
+### Anteprima segmento
+
+```text
+POST /v1/segments/preview
+```
+
+Calcola il segmento senza salvarlo. Utile per verificare i criteri prima della creazione.
+
+**Body:**
+
+```json
+{
+  "criteria": {
+    "channel": "APP",
+    "registeredWithinDays": 30
+  }
+}
+```
+
+**Risposta 200:**
+
+```json
+{
+  "count": 156,
+  "sample": [
+    { "id": "MBR-000010", "firstName": "Anna", "lastName": "Rossi", "email": "anna@example.com" },
+    { "id": "MBR-000011", "firstName": "Luigi", "lastName": "Verdi", "email": "luigi@example.com" }
+  ]
+}
+```
+
+### Ricalcola segmento
+
+```text
+POST /v1/segments/{id}/refresh
+```
+
+Forza il ricalcolo di un segmento dinamico. Restituisce le variazioni.
+
+**Risposta 200:**
+
+```json
+{
+  "entered": 12,
+  "left": 5,
+  "total": 156
+}
+```
+
+> **Nota:** i segmenti dinamici vengono ricalcolati automaticamente ogni 15 minuti se ci sono state variazioni rilevanti nei dati.
+
+### Sostituisci membri di un segmento statico
+
+```text
+PUT /v1/segments/{id}/members
+```
+
+Sostituisce l'intero elenco dei membri di un segmento **STATIC**. I membri precedenti vengono rimossi.
+
+**Body:**
+
+```json
+{
+  "memberIds": ["MBR-000001", "MBR-000002", "MBR-000003"]
+}
+```
+
+**Risposta 200:** restituisce il segmento aggiornato con il nuovo conteggio.
+
+> **Attenzione:** questo endpoint e disponibile solo per segmenti di tipo `STATIC`.
+
+## Endpoint attributi
+
+### Elenca definizioni attributi
+
+```text
+GET /v1/attribute-definitions
+```
+
+Restituisce le definizioni degli attributi personalizzati disponibili per i membri.
+
+**Risposta 200:**
+
+```json
+[
+  {
+    "key": "favouriteCategory",
+    "type": "STRING",
+    "label": "Categoria preferita",
+    "required": false
+  },
+  {
+    "key": "shoeSize",
+    "type": "STRING",
+    "label": "Numero scarpe",
+    "required": false
+  }
+]
+```
+
+### Aggiorna definizioni attributi
+
+```text
+PUT /v1/attribute-definitions
+```
+
+Sostituisce l'intero set di definizioni degli attributi.
+
+**Body:**
+
+```json
+[
+  {
+    "key": "favouriteCategory",
+    "type": "STRING",
+    "label": "Categoria preferita",
+    "required": false
+  },
+  {
+    "key": "shoeSize",
+    "type": "STRING",
+    "label": "Numero scarpe",
+    "required": false
+  },
+  {
+    "key": "loyaltyYears",
+    "type": "INTEGER",
+    "label": "Anni fedelta",
+    "required": false
+  }
+]
+```
+
+## Endpoint referral
+
+### Panoramica referral
+
+```text
+GET /v1/referral/overview
+```
+
+Restituisce le metriche aggregate del programma referral.
+
+**Risposta 200:**
+
+```json
+{
+  "totalInvited": 342,
+  "totalCompleted": 189,
+  "conversionRate": 0.552,
+  "topReferrers": [
+    {
+      "memberId": "MBR-000001",
+      "name": "Giulia Ferrari",
+      "completedReferrals": 12
+    },
+    {
+      "memberId": "MBR-000015",
+      "name": "Paolo Russo",
+      "completedReferrals": 8
+    }
+  ]
+}
+```
+
+## Endpoint portale
+
+### Profilo portale
+
+```text
+GET /v1/portal/members/{id}
+```
+
+Restituisce il profilo del membro per il portale Next.js, inclusa la completezza del profilo.
+
+**Risposta 200:**
+
+```json
+{
+  "id": "MBR-000001",
+  "firstName": "Giulia",
+  "lastName": "Ferrari",
+  "nickname": "Giulia F.",
+  "email": "giulia.ferrari@example.com",
+  "phone": "+393331234567",
+  "birthDate": "1985-03-20",
+  "gender": "F",
+  "city": "Roma",
+  "status": "ACTIVE",
+  "tierCode": "GOLD",
+  "balancePts": 1250,
+  "pendingPts": 50,
+  "lifetimeEarnedPts": 5000,
+  "consents": {
+    "marketing": true,
+    "profiling": true
+  },
+  "attributes": {
+    "favouriteCategory": "fashion"
+  },
+  "profileCompleteness": {
+    "completed": 0.85,
+    "missingFields": ["phone", "birthDate"]
+  }
+}
+```
+
+> **Nota:** il campo `profileCompleteness` indica la percentuale di completamento e i campi mancanti. Quando il membro completa tutti i campi richiesti con una PATCH, viene emesso l'evento `member.profile.completed`.
+
+### Aggiorna profilo portale
+
+```text
+PATCH /v1/portal/members/{id}
+```
+
+Aggiornamento limitato ai soli campi profilo e consensi. Non permette di modificare attributi, etichette o stato.
+
+**Body:**
+
+```json
+{
+  "firstName": "Giulia Maria",
+  "city": "Firenze",
+  "consents": {
+    "marketing": true,
+    "profiling": false
+  }
+}
+```
+
+### Dati referral portale
+
+```text
+GET /v1/portal/members/{id}/referral
+```
+
+Restituisce i dati referral formattati per il portale.
+
+**Risposta 200:**
+
+```json
+{
+  "code": "ABC123XY",
+  "shareUrl": "https://loyalty.example.com/r/ABC123XY",
+  "invited": [
+    {
+      "memberId": "MBR-000042",
+      "name": "Marco Bianchi",
+      "status": "ACTIVE",
+      "registeredAt": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "completedCount": 1
+}
+```
+
+## Endpoint demo
+
+### Personas
+
+```text
+GET /v1/demo/personas
+```
+
+Restituisce membri in evidenza con storia e dati completi, utili per dimostrazioni e sviluppo frontend.
+
+**Risposta 200:**
+
+```json
+[
+  {
+    "memberId": "MBR-000001",
+    "name": "Giulia Ferrari",
+    "tier": "GOLD",
+    "story": "Cliente fedele da 3 anni, amante della moda sostenibile",
+    "avatarSeed": "giulia-ferrari",
+    "balancePts": 1250
+  },
+  {
+    "memberId": "MBR-000002",
+    "name": "Marco Bianchi",
+    "tier": "SILVER",
+    "story": "Nuovo iscritto via app, interessato all'elettronica",
+    "avatarSeed": "marco-bianchi",
+    "balancePts": 340
+  }
+]
+```
+
+### Ricalcola segmenti (job demo)
+
+```text
+POST /v1/demo/jobs/refresh-segments
+```
+
+Forza il ricalcolo di tutti i segmenti dinamici. Utile in ambiente demo per testare le regole di segmentazione.
+
+**Risposta 202:**
+
+```json
+{
+  "jobId": "JOB-001",
+  "status": "STARTED"
+}
+```
+
+### Compleanni (job demo)
+
+```text
+POST /v1/demo/jobs/birthdays?asOf=2024-01-15
+```
+
+Simula l'elaborazione dei compleanni per una data specifica. Utile per testare campagne di compleanno.
+
+**Risposta 202:**
+
+```json
+{
+  "jobId": "JOB-002",
+  "status": "STARTED",
+  "asOf": "2024-01-15"
+}
+```
+
+> **Nota:** il parametro `asOf` e opzionale. Se omesso, usa la data corrente.
+
+## Regole importanti
+
+### Snapshot completi negli eventi
+
+Gli eventi `member.registered` e `member.updated` portano sempre uno snapshot completo del membro. Questo permette ai consumer di ricostruire lo stato senza dover interrogare il servizio.
+
+### Nickname predefinito
+
+Se non fornito, il nickname viene generato automaticamente come nome + iniziale del cognome. Ad esempio, "Giulia Ferrari" diventa "Giulia F.".
+
+### Completa il profilo
+
+L'evento `member.profile.completed` viene emesso alla prima PATCH che valorizza tutti i campi richiesti. Dopo l'emissione, il flag rimane attivo anche se campi successivi vengono rimossi.
+
+### Validazione referral
+
+- Codice inesistente: `422 REFERRAL_CODE_INVALID`
+- Uso del proprio codice: `422 REFERRAL_SELF`
+- Un membro puo essere referrato solo una volta: il campo `referred_by` e immutabile dopo la creazione
+
+### Segmenti dinamici
+
+I segmenti di tipo `DYNAMIC` vengono ricalcolati:
+
+1. Su richiesta esplicita tramite `POST /v1/segments/{id}/refresh`
+2. Automaticamente ogni 15 minuti se ci sono state variazioni rilevanti nei dati dei membri
+
+I segmenti `STATIC` mantengono l'elenco esplicito di membri e non vengono ricalcolati automaticamente.
+
+## Eventi
+
+### Eventi prodotti
+
+Il member-service produce i seguenti eventi su `lh.facts.v1`:
+
+| Evento | Descrizione |
+| --- | --- |
+| `member.registered` | Nuovo membro creato (snapshot completo) |
+| `member.updated` | Membro modificato (snapshot completo) |
+| `member.status.changed` | Cambio di stato con motivazione |
+| `member.profile.completed` | Profilo completato per la prima volta |
+| `member.birthday` | Evento giornaliero per i compleanni |
+| `member.segment.entered` | Membro entrato in un segmento |
+| `member.segment.left` | Membro uscito da un segmento |
+| `referral.completed` | Referral completato con successo |
+
+Tutte le operazioni di scrittura emettono anche un evento su `lh.audit.v1`.
+
+### Eventi consumati
+
+Il member-service consuma:
+
+- `lh.actions.v1`: per aggiornare le statistiche membro (`member_stats`)
+- `lh.facts.v1`: eventi `tier.*` e `wallet.points.*` per mantenere aggiornate le proiezioni di saldo e tier
+
+## Prossimi passi
+
+- Consulta l'[API del wallet-service](/api/wallet) per gestire saldi, transazioni e movimenti punti
+- Esplora l'[API del campaign-service](/api/campaign) per creare regole di acquisizione e campagne
+- Approfondisci l'[architettura dei microservizi](/concetti/architettura) per capire come i servizi comunicano tramite Kafka

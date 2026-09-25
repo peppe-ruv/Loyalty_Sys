@@ -1,0 +1,100 @@
+---
+title: "Come gestire premi e coupon in Loyalty Hub"
+sidebarTitle: "Gestire i premi"
+description: "Crea premi nel catalogo, importa pool di coupon, gestisci il riscatto e il fulfillment usando il servizio Reward."
+---
+
+Questa guida ti accompagna nella gestione end-to-end di un premio: creazione nel catalogo, caricamento dei coupon, riscatto da parte del cliente e chiusura del fulfillment. Usa il servizio [Reward](/api/reward) e l'autenticazione [X-LH-Actor](/api/autenticazione).
+
+## Prerequisiti
+
+- Ambiente demo avviato con `docker compose --profile all up`.
+- Persona `luca.marketing` per creare premi, `paolo.care` per operazioni di supporto.
+- Cliente demo con saldo punti sufficiente (usa `member:42`).
+
+## Passi
+
+<Steps>
+  <Step title="Crea un premio nel catalogo">
+    Definisci nome, costo in punti, canale di consegna e stock.
+
+    ```bash Crea premio
+    curl http://localhost:8085/backoffice/rewards \
+      -H "X-LH-Actor: luca.marketing" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "Buono Amazon 10 EUR",
+        "costPoints": 1000,
+        "channel": "COUPON_POOL",
+        "stock": 500
+      }'
+    ```
+
+    La risposta contiene l'`id` del premio. Salvalo per i passi successivi.
+  </Step>
+  <Step title="Carica il pool di coupon">
+    Importa un file CSV con i codici. Ogni riga contiene un codice univoco.
+
+    ```bash Import coupon
+    curl http://localhost:8085/backoffice/rewards/{rewardId}/coupons/import \
+      -H "X-LH-Actor: luca.marketing" \
+      -F "file=@coupons.csv"
+    ```
+
+    > **Nota:** i codici duplicati vengono scartati e riportati nella risposta come `skipped`.
+  </Step>
+  <Step title="Pubblica il premio">
+    Solo i premi pubblicati sono visibili sul portale cliente.
+
+    ```bash Pubblica
+    curl -X POST http://localhost:8085/backoffice/rewards/{rewardId}/publish \
+      -H "X-LH-Actor: luca.marketing"
+    ```
+  </Step>
+  <Step title="Il cliente riscatta il premio">
+    Il portale chiama l'endpoint di redemption. Wallet verifica il saldo, blocca i punti e Reward assegna un coupon dal pool.
+
+    ```bash Riscatto
+    curl -X POST http://localhost:8085/portal/rewards/{rewardId}/redeem \
+      -H "X-LH-Actor: member:42"
+    ```
+
+    La risposta include `couponCode` e `expiresAt`.
+  </Step>
+  <Step title="Traccia il fulfillment">
+    Consulta lo stato del riscatto per il supporto clienti.
+
+    ```bash Stato redemption
+    curl http://localhost:8085/backoffice/redemptions/{redemptionId} \
+      -H "X-LH-Actor: paolo.care"
+    ```
+  </Step>
+</Steps>
+
+## Errori comuni
+
+<AccordionGroup>
+  <Accordion title="422 INSUFFICIENT_POINTS">
+    Il cliente non ha punti sufficienti. Verifica il saldo con `GET /portal/wallet` sul servizio [Wallet](/api/wallet).
+  </Accordion>
+
+  <Accordion title="409 OUT_OF_STOCK">
+    Il pool di coupon e esaurito. Importa nuovi codici o disattiva il premio.
+  </Accordion>
+
+  <Accordion title="404 REWARD_NOT_PUBLISHED">
+    Il premio non e ancora pubblicato. Esegui la publish prima del riscatto.
+  </Accordion>
+</AccordionGroup>
+
+## Prossimi passi
+
+<CardGroup cols={2}>
+  <Card title="Reward API" icon="gift" href="/api/reward">
+    Documentazione completa di tutti gli endpoint.
+  </Card>
+
+  <Card title="Osservare il sistema" icon="chart-line" href="/guide/osservare-il-sistema">
+    Monitora riscatti, KPI e coda DLQ con Insight.
+  </Card>
+</CardGroup>

@@ -1,0 +1,47 @@
+---
+title: "Loyalty Hub: Specifiche tecniche e fonte di verità del PoC"
+sidebarTitle: "Panoramica"
+description: "Le Specifiche tecniche di Loyalty Hub definiscono il dominio, l'architettura a microservizi e le decisioni di design. Tutte le guide, le API e il quickstart si basano su queste pagine."
+---
+
+Le Specifiche tecniche sono la fonte di verità del prodotto Loyalty Hub. Questo tab definisce cosa include il Proof of Concept, come modellizziamo il dominio loyalty, come comunicano i microservizi attraverso Kafka e quali decisioni architetturali abbiamo preso. Ogni altra sezione del sito, dalle guide operative ai riferimenti API, attinge a queste pagine per garantire coerenza.
+
+<CardGroup cols={3}>
+  <Card title="Fondamenta" icon="compass" href="/specifiche/visione-e-scope">
+    Visione, scope, catalogo funzionale e modello di dominio.
+  </Card>
+
+  <Card title="Architettura & convenzioni" icon="layers" href="/specifiche/architettura">
+    Microservizi, eventi Kafka, convenzioni backend, frontend backoffice e portale.
+  </Card>
+
+  <Card title="Dati & processo" icon="database" href="/specifiche/dati-demo">
+    Dati demo, piano di sviluppo, ADR, testbook, backlog.
+  </Card>
+</CardGroup>
+
+## Come usare queste pagine
+
+Segui queste regole quando leggi e citi le Specifiche tecniche:
+
+- Le regole di dominio descritte in [Modello di dominio](/specifiche/modello-di-dominio) e [Catalogo funzionale](/specifiche/catalogo-funzionale) vincono sul codice. Se il codice sorgente si discosta dalle specifiche, la specifica ha priorità e il codice va aggiornato.
+- Le decisioni architetturali sono immutabili una volta accettate. Consulta il [Registro decisioni](/specifiche/registro-decisioni) per conoscere lo stato e il contesto di ogni ADR.
+- Le domande ancora aperte vivono in [Domande aperte](/specifiche/domande-aperte). Aggiungi nuovi punti se trovi aree non coperte.
+- Ogni feature del PoC ha almeno un test nel [Testbook funzionale](/specifiche/testbook-funzionale). Usalo per validare implementazioni e regressioni.
+- Le convenzioni di naming, struttura dei package e pattern di comunicazione sono descritte in [Convenzioni backend](/specifiche/convenzioni-backend) e [Eventi e topic](/specifiche/eventi-e-topic).
+
+## Convenzioni di lettura
+
+Per leggere rapidamente le Specifiche, familiarizza con queste sigle e convenzioni:
+
+- **Sigle servizi**: ING (ingestion), MBR (member), CMP (campaign), WAL (wallet), RWD (reward), GAM (gamification), ENG (engagement), INS (insight). Ogni sigla identifica un microservizio Spring Boot con porta dedicata da 8081 a 8088.
+- **Priorità**: P0 indica requisito del PoC, P1 indica affinamento post-PoC, P2 indica target futuro.
+- **Milestone**: M0-M7 indicano le fasi del piano di sviluppo. Consulta il [Piano di sviluppo](/specifiche/piano-di-sviluppo) per la mappatura tra milestone e deliverable.
+
+> **Nota:** Le Specifiche tecniche si aggiornano in parallelo al codice. Se trovi discrepanze, segnala un aggiornamento tramite il backlog o il registro decisioni.
+
+## Prossimi passi
+
+- Esplora la [Visione e scope](/specifiche/visione-e-scope) per capire gli obiettivi del PoC.
+- Approfondisci l'[Architettura](/specifiche/architettura) per la disposizione dei microservizi e dei topic Kafka.
+- Passa alle [API](/api/introduzione) per iniziare a invocare i servizi.

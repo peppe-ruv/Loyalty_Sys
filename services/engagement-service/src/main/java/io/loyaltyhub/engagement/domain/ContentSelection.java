@@ -105,8 +105,9 @@ public final class ContentSelection {
 
     /**
      * Ogni dimensione non vuota deve essere soddisfatta (livelli, segmenti: almeno uno in comune, stati). Estensioni dei
-     * pop-up del seed (SPEC-GAP Q-71): {@code registeredWithinDays} (iscrizione nota e recente) e {@code daysOfWeek}
-     * ({@code MON…SUN}, giorno di oggi in Europe/Rome).
+     * pop-up del seed (SPEC-GAP Q-71): {@code registeredWithinDays} (iscrizione nota e da meno di N giorni, «iscritti da
+     * &lt; 7 giorni» di docs/10 §7: a N giorni esatti il membro è fuori) e {@code daysOfWeek} ({@code MON…SUN}, giorno di
+     * oggi in Europe/Rome).
      */
     public static boolean inAudience(JsonNode audience, Viewer viewer, Instant now) {
         if (audience == null || audience.isNull() || audience.isEmpty()) {
@@ -126,7 +127,7 @@ public final class ContentSelection {
         }
         JsonNode within = audience.get("registeredWithinDays");
         if (within != null && within.isNumber()
-                && (viewer.registeredAt() == null || viewer.registeredAt().isBefore(now.minus(Duration.ofDays(within.asInt()))))) {
+                && (viewer.registeredAt() == null || !viewer.registeredAt().isAfter(now.minus(Duration.ofDays(within.asInt()))))) {
             return false;
         }
         List<String> days = strings(audience.get("daysOfWeek"));

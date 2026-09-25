@@ -1,0 +1,13 @@
+id|descrizione|campagne (JSON, campi che sovrascrivono la campagna base +10 PTS)|tier del membro (vuoto = membro sconosciuto)|data dell'azione (JSON)|istante dell'azione|esito atteso
+TB-CMP-EQV-001|accredito fisso|[{}]|SILVER|{}|2026-09-15T09:00:00Z|MATCHED
+TB-CMP-EQV-002|accredito per importo PTS e STS|[{"effects":[{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"FLOOR","tierMultiplierApplies":true},{"type":"GRANT_POINTS","currency":"STS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"FLOOR"}]}]|SILVER|{"amount":130.99}|2026-09-15T09:00:00Z|MATCHED
+TB-CMP-EQV-003|condizione falsa con foglia fallita|[{"conditions":{"op":"all","rules":[{"field":"data.amount","cmp":"gte","value":50}]}}]|SILVER|{"amount":30}|2026-09-15T09:00:00Z|NO_MATCH
+TB-CMP-EQV-004|pubblico per tier non soddisfatto|[{"audience":{"all":false,"tiers":["GOLD"],"segments":[]}}]|SILVER|{}|2026-09-15T09:00:00Z|NO_MATCH
+TB-CMP-EQV-005|fuori calendario|[{"schedule":{"startAt":"2027-01-01T00:00:00Z"}}]|SILVER|{}|2026-09-15T09:00:00Z|NO_MATCH
+TB-CMP-EQV-006|gruppo esclusivo tra due campagne|[{"priority":200,"exclusiveGroup":"G1"},{"priority":100,"exclusiveGroup":"G1"}]|SILVER|{}|2026-09-15T09:00:00Z|MATCHED
+TB-CMP-EQV-007|moltiplicatore ×2 su un'altra campagna|[{},{"priority":200,"effects":[{"type":"MULTIPLIER","currency":"PTS","factor":2,"scope":"ALL_GRANTS"}]}]|SILVER|{}|2026-09-15T09:00:00Z|MATCHED
+TB-CMP-EQV-008|context.dayOfWeek: sabato a Roma, venerdì in UTC|[{"conditions":{"op":"all","rules":[{"field":"context.dayOfWeek","cmp":"in","value":["SAT","SUN"]}]}}]|SILVER|{}|2026-09-18T22:30:00Z|MATCHED
+TB-CMP-EQV-009|membro sconosciuto|[{}]||{}|2026-09-15T09:00:00Z|NO_MEMBER
+TB-CMP-EQV-010|giocata e messaggio|[{"effects":[{"type":"GRANT_PLAYS","contestCode":"IW-AUTUNNO","count":1},{"type":"SEND_MESSAGE","templateCode":"MSG-BIRTHDAY"}]}]|SILVER|{}|2026-09-15T09:00:00Z|MATCHED
+TB-CMP-EQV-011|condizione su history.actionCount alla prima azione|[{"conditions":{"op":"all","rules":[{"field":"history.actionCount","cmp":"eq","value":0}]}}]|SILVER|{}|2026-09-15T09:00:00Z|MATCHED
+TB-CMP-EQV-012|condizione su member.tier|[{"conditions":{"op":"all","rules":[{"field":"member.tier","cmp":"eq","value":"GOLD"}]}}]|GOLD|{}|2026-09-15T09:00:00Z|MATCHED

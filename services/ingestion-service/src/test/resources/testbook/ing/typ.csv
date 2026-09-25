@@ -1,0 +1,12 @@
+id|descrizione|caso|stato|codice|atteso|rif
+TB-ING-TYP-001|type breve purchase.completed|short|ACCEPTED|-|ACCEPTED; type pubblicato in forma completa|ingestion §5.3; docs/05 §2 (breve ≡ completo)
+TB-ING-TYP-002|type completo io.loyaltyhub.action.purchase.completed|full|ACCEPTED|-|ACCEPTED; stesso type pubblicato|ingestion §5.3; docs/05 §2
+TB-ING-TYP-003|type sconosciuto tb.never.seen|unknown|REJECTED|UNKNOWN_TYPE|REJECTED/UNKNOWN_TYPE|ingestion §5.3
+TB-ING-TYP-004|famiglia fact (io.loyaltyhub.fact.tier.upgraded)|fact|REJECTED|UNKNOWN_TYPE|REJECTED/UNKNOWN_TYPE (solo azioni)|ingestion §5.3; docs/05 §1
+TB-ING-TYP-005|famiglia effect (io.loyaltyhub.effect.points.grant)|effect|REJECTED|UNKNOWN_TYPE|REJECTED/UNKNOWN_TYPE|ingestion §5.3; docs/05 §1
+TB-ING-TYP-006|maiuscole Purchase.Completed|case|REJECTED|UNKNOWN_TYPE|REJECTED/UNKNOWN_TYPE|ingestion §5.3
+TB-ING-TYP-007|doppio prefisso action.purchase.completed|doublePrefix|REJECTED|UNKNOWN_TYPE|REJECTED/UNKNOWN_TYPE|ingestion §5.3
+TB-ING-TYP-008|tipo custom disabilitato|customDisabled|REJECTED|UNKNOWN_TYPE|REJECTED/UNKNOWN_TYPE|ingestion §5.3 (noto e abilitato)
+TB-ING-TYP-009|tipo custom abilitato|customEnabled|ACCEPTED|-|ACCEPTED|ingestion §5.3; F-ING-06
+TB-ING-TYP-010|tipo custom senza JSON Schema, data qualunque|noSchema|ACCEPTED|-|Q-270: ACCEPTED, il passo 4 non respinge (ramo senza specifica)|ingestion §5.4; docs/17 US-E01-03
+TB-ING-TYP-011|tipo custom da fonte con elenco che non lo contiene (ecommerce)|customAllowlist|REJECTED|TYPE_NOT_ALLOWED|Q-270: REJECTED/TYPE_NOT_ALLOWED (docs/05 §3: custom da «qualsiasi fonte»)|ingestion §5.3; docs/05 §3 EVT-ACT-9x

@@ -1,0 +1,119 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "Loyalty Hub",
+  "theme": "mint",
+  "colors": {
+    "primary": "#2563EB",
+    "light": "#60A5FA",
+    "dark": "#1D4ED8"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentazione",
+        "groups": [
+          {
+            "group": "Introduzione",
+            "pages": [
+              "index",
+              "getting-started/prerequisiti",
+              "getting-started/quickstart",
+              "getting-started/tour-demo"
+            ]
+          },
+          {
+            "group": "Concetti",
+            "pages": [
+              "concetti/panoramica",
+              "concetti/architettura",
+              "concetti/azioni-e-campagne",
+              "concetti/punti-e-tier",
+              "concetti/premi-e-gioco",
+              "concetti/eventi-kafka"
+            ]
+          },
+          {
+            "group": "Guide pratiche",
+            "pages": [
+              "guide/inviare-un-evento",
+              "guide/creare-una-campagna",
+              "guide/gestire-i-premi",
+              "guide/simulare-uno-scenario",
+              "guide/osservare-il-sistema"
+            ]
+          },
+          {
+            "group": "Deploy & Operations",
+            "pages": [
+              "operations/avvio-locale",
+              "operations/deploy-costo-zero",
+              "operations/troubleshooting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Specifiche tecniche",
+        "groups": [
+          {
+            "group": "Fondamenta",
+            "pages": [
+              "specifiche/panoramica",
+              "specifiche/visione-e-scope",
+              "specifiche/catalogo-funzionale",
+              "specifiche/modello-di-dominio"
+            ]
+          },
+          {
+            "group": "Architettura & convenzioni",
+            "pages": [
+              "specifiche/architettura",
+              "specifiche/eventi-e-topic",
+              "specifiche/convenzioni-backend",
+              "specifiche/frontend-fondamenta",
+              "specifiche/frontend-backoffice",
+              "specifiche/frontend-portale"
+            ]
+          },
+          {
+            "group": "Dati & processo",
+            "pages": [
+              "specifiche/dati-demo",
+              "specifiche/piano-di-sviluppo",
+              "specifiche/registro-decisioni",
+              "specifiche/domande-aperte",
+              "specifiche/testbook-funzionale",
+              "specifiche/backlog"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Panoramica",
+            "pages": [
+              "api/introduzione",
+              "api/autenticazione",
+              "api/convenzioni"
+            ]
+          },
+          {
+            "group": "Servizi",
+            "pages": [
+              "api/ingestion",
+              "api/member",
+              "api/campaign",
+              "api/wallet",
+              "api/reward",
+              "api/gamification",
+              "api/engagement",
+              "api/insight"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,119 @@
+---
+title: "Come simulare uno scenario di prova in Loyalty Hub"
+sidebarTitle: "Simulare uno scenario"
+description: "Genera eventi finti nel motore di Loyalty Hub con simulatore, scenari guidati e ripristino dati. Utile per demo, QA e sviluppo di campagne."
+---
+
+Per lavorare sulle regole senza aspettare traffico reale, Loyalty Hub include un simulatore integrato in `ingestion-service`. Puoi mandare singoli eventi, eseguire scenari preconfezionati o ricreare da zero lo stato demo.
+
+## Prima di iniziare
+
+- Stack in esecuzione (vedi [Quickstart](/docs_v2/getting-started/quickstart)).
+- Entra come `marta.admin`.
+
+## Simulare un singolo evento
+
+Il simulatore è disponibile in **Demo → Simulatore eventi** oppure via API.
+
+### Da UI
+
+<Steps>
+  <Step title="Scegli membro e tipo">
+    Seleziona un membro esistente (per esempio `MBR-000003`) e un tipo di azione (`purchase.completed`).
+  </Step>
+  <Step title="Compila il payload o usa il sample">
+    Il form ti mostra i campi definiti dallo schema del tipo. Se lasci vuoto, il simulatore usa `sample_data` con piccole variazioni casuali.
+  </Step>
+  <Step title="Genera 1 o più eventi">
+    Il campo `count` ti permette di generare 1, 5 o 10 eventi in un colpo, utile per riempire in fretta la scheda del membro.
+  </Step>
+</Steps>
+
+### Da API
+
+```bash Genera 3 acquisti
+curl -X POST http://localhost:8081/v1/demo/simulator/fire \
+  -H "Content-Type: application/json" \
+  -d '{
+    "memberId": "MBR-000003",
+    "type": "purchase.completed",
+    "count": 3,
+    "data": {
+      "amount": 89.90,
+      "currency": "EUR",
+      "channel": "ONLINE"
+    }
+  }'
+```
+
+Risposta:
+
+```json
+[
+  {"eventId": "01J...", "correlationId": "01J...", "status": "ACCEPTED"},
+  {"eventId": "01J...", "correlationId": "01J...", "status": "ACCEPTED"},
+  {"eventId": "01J...", "correlationId": "01J...", "status": "ACCEPTED"}
+]
+```
+
+## Scenari guidati
+
+Uno scenario è una sequenza di passi predefiniti (per esempio: registrazione, primo acquisto, riscatto premio, vincita instant win). Vengono caricati dal seed e sono ideali per demo commerciali.
+
+### Elenca gli scenari
+
+```bash
+curl http://localhost:8081/v1/demo/scenarios
+```
+
+### Esegui uno scenario
+
+```bash
+curl -X POST http://localhost:8081/v1/demo/scenarios/SC-ONBOARDING/run
+```
+
+Risposta:
+
+```json
+{"runId": "01J..."}
+```
+
+L'esecuzione è asincrona. Puoi seguire l'avanzamento in **Demo → Esecuzioni scenari** in backoffice.
+
+## Job demo utili
+
+Alcuni job di dominio si possono eseguire su richiesta con una data di riferimento, per testare comportamenti temporali (scadenze, warning, chiusura edizioni).
+
+```bash Fai scadere i lotti al 30 settembre
+curl -X POST "http://localhost:8084/v1/demo/jobs/expire-points?asOf=2026-09-30"
+```
+
+Altri job simili in `wallet-service`:
+
+- `POST /v1/demo/jobs/release-pending?asOf=...` — rilascia i lotti pending.
+- `POST /v1/demo/jobs/expiry-warnings?asOf=...` — genera warning di scadenza.
+
+## Osservare l'effetto: flusso eventi live
+
+Mentre generi eventi, tieni aperto **Demo → Flusso eventi** in backoffice. Vedrai:
+
+- L'evento in ingresso con lo `status`.
+- Le valutazioni delle campagne che scattano.
+- Gli effetti applicati (accrediti punti, badge, messaggi).
+- I fatti prodotti da wallet, gamification, engagement.
+
+Cliccando un evento apri il **tracciato completo**: azione → valutazione → effetti → movimenti → notifiche. È il modo più veloce per capire perché una regola non ha prodotto ciò che ti aspettavi.
+
+## Ripristina lo stato demo
+
+Da **Demo → Reset dati** (ruolo ADMIN):
+
+- Ricarica il seed originale (membri, campagne, catalogo, tier, edizioni).
+- Cancella movimenti, richieste premio, giocate generate durante la sessione.
+- Non tocca le configurazioni che hai modificato (per esempio nuove campagne che hai creato).
+
+> **Nota:** Se vuoi un reset totale, incluse le tue configurazioni, usa `docker compose down -v` per cancellare anche il volume di Postgres, poi riavvia. Il seed ricreerà lo stato iniziale al primo avvio.
+
+## Prossimo passo
+
+Torna alla [Reference](/docs_v2/reference/architettura) per capire i confini dei servizi e i topic Kafka coinvolti.

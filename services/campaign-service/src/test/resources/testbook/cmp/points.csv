@@ -1,0 +1,55 @@
+id|descrizione|effetto GRANT_POINTS (JSON)|data dell'azione (JSON)|punti attesi (NONE = nessun accredito, UNSUPPORTED = campagna scartata)|valuta attesa|tierMultiplierApplies atteso|pendingDays atteso
+TB-CMP-PTS-001|FIXED 100|{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":100}|{}|100|PTS||
+TB-CMP-PTS-002|FIXED 1 (minimo positivo)|{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":1}|{}|1|||
+TB-CMP-PTS-003|FIXED 0|{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":0}|{}|NONE|||
+TB-CMP-PTS-004|FIXED negativo|{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":-5}|{}|NONE|||
+TB-CMP-PTS-005|FIXED senza value|{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED"}|{}|NONE|||
+TB-CMP-PTS-006|FIXED 50 con min 100|{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":50,"min":100}|{}|100|||
+TB-CMP-PTS-007|FIXED 500 con max 300|{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":500,"max":300}|{}|300|||
+TB-CMP-PTS-008|FIXED 300 con max 300|{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":300,"max":300}|{}|300|||
+TB-CMP-PTS-009|FIXED 0 con min 10|{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":0,"min":10}|{}|10|||
+TB-CMP-PTS-010|FIXED 100 con max 0|{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":100,"max":0}|{}|NONE|||
+TB-CMP-PTS-011|mode assente|{"type":"GRANT_POINTS","currency":"PTS","value":100}|{}|100|||
+TB-CMP-PTS-012|PER_AMOUNT FLOOR 130.99|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"FLOOR"}|{"amount":130.99}|130|||
+TB-CMP-PTS-013|PER_AMOUNT FLOOR 130|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"FLOOR"}|{"amount":130}|130|||
+TB-CMP-PTS-014|PER_AMOUNT FLOOR 0.99|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"FLOOR"}|{"amount":0.99}|NONE|||
+TB-CMP-PTS-015|PER_AMOUNT FLOOR 1|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"FLOOR"}|{"amount":1}|1|||
+TB-CMP-PTS-016|PER_AMOUNT CEIL 130.01|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"CEIL"}|{"amount":130.01}|131|||
+TB-CMP-PTS-017|PER_AMOUNT CEIL 130|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"CEIL"}|{"amount":130}|130|||
+TB-CMP-PTS-018|PER_AMOUNT CEIL 0.01|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"CEIL"}|{"amount":0.01}|1|||
+TB-CMP-PTS-019|PER_AMOUNT ROUND 130.5 (metà esatta)|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"ROUND"}|{"amount":130.5}|131|||
+TB-CMP-PTS-020|PER_AMOUNT ROUND 130.49|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"ROUND"}|{"amount":130.49}|130|||
+TB-CMP-PTS-021|PER_AMOUNT ROUND 130.51|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"ROUND"}|{"amount":130.51}|131|||
+TB-CMP-PTS-022|PER_AMOUNT passo 10 FLOOR 129.99|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":10,"rounding":"FLOOR"}|{"amount":129.99}|12|||
+TB-CMP-PTS-023|PER_AMOUNT passo 10 FLOOR 130|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":10,"rounding":"FLOOR"}|{"amount":130}|13|||
+TB-CMP-PTS-024|PER_AMOUNT passo 10 CEIL 121|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":10,"rounding":"CEIL"}|{"amount":121}|13|||
+TB-CMP-PTS-025|PER_AMOUNT value 2 per unità|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":2,"unitStep":1,"rounding":"FLOOR"}|{"amount":130.99}|260|||
+TB-CMP-PTS-026|PER_AMOUNT importo 0|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"FLOOR"}|{"amount":0}|NONE|||
+TB-CMP-PTS-027|PER_AMOUNT importo negativo|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"FLOOR"}|{"amount":-50}|NONE|||
+TB-CMP-PTS-028|PER_AMOUNT importo assente|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"FLOOR"}|{"channel":"APP"}|NONE|||
+TB-CMP-PTS-029|PER_AMOUNT importo testuale|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"FLOOR"}|{"amount":"130"}|NONE|||
+TB-CMP-PTS-030|PER_AMOUNT da campo personalizzato|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.total","value":1,"unitStep":1,"rounding":"FLOOR"}|{"amount":10,"total":75.5}|75|||
+TB-CMP-PTS-031|PER_AMOUNT da campo annidato|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.order.total","value":1,"unitStep":1,"rounding":"FLOOR"}|{"order":{"total":42}}|42|||
+TB-CMP-PTS-032|PER_AMOUNT passo decimale 0.1 su 0.3|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":0.1,"rounding":"FLOOR"}|{"amount":0.3}|3|||
+TB-CMP-PTS-033|PER_AMOUNT passo 0|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":0,"rounding":"FLOOR"}|{"amount":130}|130|||
+TB-CMP-PTS-034|PER_AMOUNT arrotondamento sconosciuto|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"BANKERS"}|{"amount":130.99}|130|||
+TB-CMP-PTS-035|PER_AMOUNT con max 100|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"FLOOR","max":100}|{"amount":130}|100|||
+TB-CMP-PTS-036|PER_AMOUNT arrotondato a 0 con min 5|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"FLOOR","min":5}|{"amount":0.5}|5|||
+TB-CMP-PTS-037|PER_AMOUNT importo molto grande|{"type":"GRANT_POINTS","currency":"PTS","mode":"PER_AMOUNT","amountField":"data.amount","value":1,"unitStep":1,"rounding":"FLOOR"}|{"amount":1000000000}|1000000000|||
+TB-CMP-PTS-038|FROM_FIELD intero|{"type":"GRANT_POINTS","currency":"PTS","mode":"FROM_FIELD","amountField":"data.points"}|{"points":250}|250|||
+TB-CMP-PTS-039|FROM_FIELD decimale (Q-44)|{"type":"GRANT_POINTS","currency":"PTS","mode":"FROM_FIELD","amountField":"data.points"}|{"points":12.5}|NONE|||
+TB-CMP-PTS-040|FROM_FIELD campo assente|{"type":"GRANT_POINTS","currency":"PTS","mode":"FROM_FIELD","amountField":"data.points"}|{}|NONE|||
+TB-CMP-PTS-041|FROM_FIELD zero|{"type":"GRANT_POINTS","currency":"PTS","mode":"FROM_FIELD","amountField":"data.points"}|{"points":0}|NONE|||
+TB-CMP-PTS-042|FROM_FIELD negativo|{"type":"GRANT_POINTS","currency":"PTS","mode":"FROM_FIELD","amountField":"data.points"}|{"points":-10}|NONE|||
+TB-CMP-PTS-043|FROM_FIELD testuale|{"type":"GRANT_POINTS","currency":"PTS","mode":"FROM_FIELD","amountField":"data.points"}|{"points":"50"}|NONE|||
+TB-CMP-PTS-044|FROM_FIELD con max 100|{"type":"GRANT_POINTS","currency":"PTS","mode":"FROM_FIELD","amountField":"data.points","max":100}|{"points":250}|100|||
+TB-CMP-PTS-045|LOOKUP chiave presente|{"type":"GRANT_POINTS","currency":"PTS","mode":"LOOKUP","amountField":"data.newTier","lookup":{"SILVER":200,"GOLD":500}}|{"newTier":"GOLD"}|500|||
+TB-CMP-PTS-046|LOOKUP chiave assente dalla tabella|{"type":"GRANT_POINTS","currency":"PTS","mode":"LOOKUP","amountField":"data.newTier","lookup":{"SILVER":200,"GOLD":500}}|{"newTier":"BRONZE"}|NONE|||
+TB-CMP-PTS-047|LOOKUP campo assente|{"type":"GRANT_POINTS","currency":"PTS","mode":"LOOKUP","amountField":"data.newTier","lookup":{"SILVER":200,"GOLD":500}}|{}|NONE|||
+TB-CMP-PTS-048|LOOKUP chiave numerica|{"type":"GRANT_POINTS","currency":"PTS","mode":"LOOKUP","amountField":"data.level","lookup":{"1":10,"2":20}}|{"level":2}|20|||
+TB-CMP-PTS-049|LOOKUP valore di tabella 0|{"type":"GRANT_POINTS","currency":"PTS","mode":"LOOKUP","amountField":"data.newTier","lookup":{"SILVER":0}}|{"newTier":"SILVER"}|NONE|||
+TB-CMP-PTS-050|LOOKUP con min 600|{"type":"GRANT_POINTS","currency":"PTS","mode":"LOOKUP","amountField":"data.newTier","lookup":{"GOLD":500},"min":600}|{"newTier":"GOLD"}|600|||
+TB-CMP-PTS-051|mode sconosciuto|{"type":"GRANT_POINTS","currency":"PTS","mode":"PERCENT","value":10}|{"amount":100}|UNSUPPORTED|||
+TB-CMP-PTS-052|valuta STS|{"type":"GRANT_POINTS","currency":"STS","mode":"FIXED","value":150}|{}|150|STS||
+TB-CMP-PTS-053|tierMultiplierApplies e pendingDays passati invariati|{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":300,"tierMultiplierApplies":true,"pendingDays":7}|{}|300|PTS|true|7
+TB-CMP-PTS-054|tierMultiplierApplies assente|{"type":"GRANT_POINTS","currency":"PTS","mode":"FIXED","value":300}|{}|300|PTS|false|0

@@ -1,0 +1,64 @@
+---
+title: "Loyalty Hub: piattaforma di loyalty event-driven"
+sidebarTitle: "Introduzione"
+description: "Loyalty Hub è una piattaforma modulare per programmi fedeltà: eventi, punti, tier, premi e gamification, orchestrati da Kafka."
+---
+
+Loyalty Hub è la piattaforma che trasforma qualunque comportamento del cliente, un acquisto, una registrazione, un aggiornamento di profilo, in **punti, livelli, premi e giochi**. Ogni evento entra dalla porta di ingestione, viene valutato dalle campagne che hai configurato in backoffice, e produce ricompense che il membro vede immediatamente nel portale.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/getting-started/quickstart">
+    Avvia il sistema in locale e invia il tuo primo evento in cinque minuti.
+  </Card>
+
+  <Card title="Tour della demo" icon="play" href="/getting-started/tour-demo">
+    Esplora l'esperienza dei cinque personaggi preconfigurati.
+  </Card>
+
+  <Card title="Come funziona" icon="lightbulb" href="/concetti/panoramica">
+    Il modello mentale in cinque minuti: eventi, campagne, premi, gioco.
+  </Card>
+
+  <Card title="API Reference" icon="code" href="/api/introduzione">
+    Endpoint REST di ogni servizio, con esempi e codici di errore.
+  </Card>
+</CardGroup>
+
+## Cosa fa
+
+- **Ingestione eventi**: normalizza qualunque azione in un [CloudEvent](/concetti/eventi-kafka), la valida e la pubblica su Kafka.
+- **Motore campagne**: valuta ogni azione contro le regole configurate e produce effetti (accredito punti, coupon, badge).
+- **Wallet**: gestisce due valute (`PTS` spendibile, `STS` per il tier), con lotti FIFO, scadenze e rettifiche.
+- **Premi**: catalogo a fasce, pool di coupon, saga di spesa con compensazione.
+- **Gioco**: concorsi instant win a istanti pre-generati, obiettivi, badge, classifiche.
+- **Coinvolgimento**: contenuti CMS, inbox, pop-up, tema del portale, webhook.
+- **Osservabilità**: event store consultabile, tracciati end-to-end, KPI, audit, DLQ.
+
+## Da dove iniziare
+
+<Steps>
+  <Step title="Installa i prerequisiti">
+    JDK 25, Docker, Node 20. Dettagli in [Prerequisiti](/getting-started/prerequisiti).
+  </Step>
+  <Step title="Avvia in locale">
+    Un solo comando fa partire otto microservizi, Postgres, Kafka e il backoffice. Vai al [Quickstart](/getting-started/quickstart).
+  </Step>
+  <Step title="Esplora la demo">
+    Cinque personaggi con storie diverse ti mostrano cosa può fare la piattaforma. Segui il [Tour della demo](/getting-started/tour-demo).
+  </Step>
+  <Step title="Personalizza">
+    Crea la tua prima campagna con la guida [Creare una campagna](/guide/creare-una-campagna).
+  </Step>
+</Steps>
+
+## Cerchi altro?
+
+<CardGroup cols={2}>
+  <Card title="Deploy pubblico gratis" icon="cloud" href="/operations/deploy-costo-zero">
+    Metti online la tua istanza su Aiven, Neon, Render e Vercel senza spendere un euro.
+  </Card>
+
+  <Card title="Risoluzione problemi" icon="wrench" href="/operations/troubleshooting">
+    Errori comuni e come risolverli in un colpo d'occhio.
+  </Card>
+</CardGroup>

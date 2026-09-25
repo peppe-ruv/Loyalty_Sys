@@ -698,6 +698,101 @@ if (Array.isArray(templatesSeed)) {
   }
 }
 
+// Tipi azione SYSTEM con un contratto (docs/05 §3, contracts/events/action/*.schema.json, precedenza 2 su seed/): lo
+// schema di `data` del seed coincide con quello del contratto (a meno di `$id`/`title`), così l'ingresso valida con
+// il contratto (TB-ING SCH-*). I sampleData dei tipi e i `data` dei passi di scenario non negativi devono avere
+// almeno i campi obbligatori dello schema.
+{
+  const contractsDir = resolve(here, "..", "contracts", "events", "action");
+  const canon = (v) => (Array.isArray(v) ? v.map(canon) : v && typeof v === "object"
+    ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canon(v[k])])) : v);
+  const types = readSeed("event-types.json") ?? [];
+  const byCode = new Map(types.map((t) => [t.code, t]));
+  if (existsSync(contractsDir)) {
+    for (const f of readdirSync(contractsDir).filter((x) => x.endsWith(".schema.json"))) {
+      const code = f.replace(/\.schema\.json$/, "");
+      const t = byCode.get(code);
+      if (!t) continue;
+      const contract = JSON.parse(readFileSync(join(contractsDir, f), "utf8"));
+      delete contract.$id;
+      delete contract.title;
+      if (JSON.stringify(canon(contract)) !== JSON.stringify(canon(t.dataSchema))) {
+        errors.push(`event-types.json: dataSchema di ${code} diverso da contracts/events/action/${f}`);
+      }
+    }
+  }
+  const missingRequired = (schema, data) => (schema?.required ?? []).filter((k) => data?.[k] === undefined);
+  for (const t of types) {
+    const miss = missingRequired(t.dataSchema, t.sampleData ?? {});
+    if (miss.length) errors.push(`event-types.json: sampleData di ${t.code} senza i campi obbligatori ${miss.join(", ")}`);
+  }
+  for (const sc of readSeed("scenarios.json") ?? []) {
+    (sc.steps ?? []).forEach((st, i) => {
+      const t = byCode.get(st.type);
+      if (!t || st.expect || st.data === undefined) return;
+      const miss = missingRequired(t.dataSchema, st.data);
+      if (miss.length) errors.push(`scenarios.json: ${sc.code} passo ${i + 1} senza i campi obbligatori ${miss.join(", ")}`);
+    });
+  }
+}
+
+// Storico del monitor ingressi (docs/servizi/ingestion-service.md §6, BO-26): 40 righe degli ultimi 3 giorni con tutti
+// e quattro gli esiti; riferimenti esistenti tranne dove l'esito dichiara il contrario (fonte sconosciuta, tipo
+// sconosciuto, membro non trovato); gli ACCEPTED sono azioni di activity-history.json (stesso membro, tipo, istante)
+// ammesse dalla fonte; i DUPLICATE reinviano un ACCEPTED dello storico; i MEMBER_NOT_ACTIVE citano un membro non attivo.
+{
+  const hist = readSeed("inbound-history.json");
+  if (hist) {
+    const events = hist.events ?? [];
+    const W = "inbound-history.json";
+    const members = readSeed("members.json") ?? [];
+    const sources = new Map((readSeed("sources.json") ?? []).map((x) => [x.code, x]));
+    const types = new Set((readSeed("event-types.json") ?? []).map((t) => t.code));
+    const bySubject = (subj) => {
+      const [kind, ...rest] = String(subj).split(":");
+      const v = rest.join(":");
+      if (kind === "member") return members.find((m) => m.id === v);
+      if (kind === "external") return members.find((m) => m.externalId === v);
+      if (kind === "email") return members.find((m) => (m.email ?? "").toLowerCase() === v.toLowerCase());
+      return undefined;
+    };
+    const activity = new Set();
+    for (const a of readSeed("activity-history.json")?.memberActivity ?? []) {
+      for (const x of a.actions ?? []) activity.add(`${a.memberId}|${x.type}|${x.at}`);
+    }
+    const CODES = new Set(["SOURCE_DISABLED", "UNKNOWN_TYPE", "TYPE_NOT_ALLOWED", "INVALID_DATA", "INVALID_TIME", "MEMBER_NOT_ACTIVE"]);
+    const accepted = new Set();
+    if (events.length !== 40) errors.push(`${W}: attese 40 righe (ingestion §6), trovate ${events.length}`);
+    const RECENT = /^@today-[12]dT\d{2}:\d{2}$/;
+    for (const e of events) {
+      const w = `${W}: ${e.eventId}`;
+      if (!String(e.eventId ?? "").startsWith("hist-")) errors.push(`${w}: eventId senza prefisso hist-`);
+      if (!RECENT.test(e.receivedAt ?? "")) errors.push(`${w}: receivedAt fuori dagli ultimi 3 giorni (atteso @today-1d/-2d con orario)`);
+      const src = sources.get(e.source);
+      const code = e.rejectCode;
+      if (e.status === "REJECTED" && !CODES.has(code)) errors.push(`${w}: rejectCode non valido ${code}`);
+      if (e.status !== "REJECTED" && code) errors.push(`${w}: rejectCode su un esito ${e.status}`);
+      if (!src && code !== "SOURCE_DISABLED") errors.push(`${w}: fonte inesistente ${e.source}`);
+      if (!types.has(e.type) && code !== "UNKNOWN_TYPE") errors.push(`${w}: tipo azione inesistente ${e.type}`);
+      const m = bySubject(e.subject);
+      if (e.status === "UNMATCHED" && m) errors.push(`${w}: UNMATCHED ma il soggetto è il membro ${m.id}`);
+      if (e.status === "ACCEPTED") {
+        if (!m || m.status !== "ACTIVE") errors.push(`${w}: ACCEPTED senza un membro ACTIVE`);
+        else if (!activity.has(`${m.id}|${e.type}|${e.receivedAt}`)) errors.push(`${w}: ACCEPTED assente da activity-history.json`);
+        if (src && (src.allowedTypes ?? []).length && !src.allowedTypes.includes(e.type)) errors.push(`${w}: tipo non ammesso dalla fonte`);
+        accepted.add(`${e.source}|${e.eventId}`);
+      }
+      if (code === "MEMBER_NOT_ACTIVE" && (!m || m.status === "ACTIVE")) errors.push(`${w}: MEMBER_NOT_ACTIVE senza un membro non attivo`);
+    }
+    for (const e of events.filter((x) => x.status === "DUPLICATE")) {
+      if (!accepted.has(`${e.source}|${e.eventId}`)) errors.push(`${W}: ${e.eventId} DUPLICATE senza l'ACCEPTED originale`);
+    }
+    for (const st of ["ACCEPTED", "DUPLICATE", "REJECTED", "UNMATCHED"]) {
+      if (!events.some((e) => e.status === st)) errors.push(`${W}: nessuna riga ${st} (servono tutti gli esiti)`);
+    }
+  }
+}
+
 for (const w of warnings) console.warn(`⚠ ${w}`);
 if (errors.length > 0) {
   for (const e of errors) console.error(`✗ ${e}`);

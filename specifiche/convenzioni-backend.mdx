@@ -1,0 +1,499 @@
+---
+title: "Convenzioni backend: regole per ogni microservizio"
+sidebarTitle: "Convenzioni backend"
+description: "Scopri le convenzioni tecniche condivise da tutti i microservizi Spring Boot di Loyalty Hub: outbox, paginazione, macchina a stati, determinismo temporale e gestione errori."
+---
+
+Questa pagina raccoglie le convenzioni tecniche che ogni microservizio Spring Boot di Loyalty Hub deve seguire. Se contribuisci codice, applica queste regole senza eccezioni. Le convenzioni coprono lo stack Java, il pattern outbox, la paginazione, la macchina a stati comune, l'idempotenza, il determinismo temporale, la gestione errori, i log strutturati e i job schedulati.
+
+## Stack Java per ogni servizio
+
+Ogni microservizio si basa sullo stesso stack tecnologico. Questa uniformita semplifica il passaggio da un servizio all'altro e riduce la sorpresa.
+
+### Runtime e build
+
+- **Java 25**: versione unica per tutti i servizi.
+- **Spring Boot 4.1.x**: framework comune per autoconfigurazione, web, data e messaging.
+- **Maven Wrapper**: usa sempre `./mvnw` per build riproducibili. Non richiedere Maven installato a livello di sistema.
+
+### Persistenza
+
+- **Spring Data JDBC** + `JdbcClient`: scrivi query SQL esplicite o usa il repository JDBC. Non usare JPA, Hibernate o Lombok.
+- **Flyway**: ogni servizio ha una cartella dedicata per le migrazioni del proprio schema. Le migrazioni partono da `V1__init.sql` e crescono in modo sequenziale.
+- **PostgreSQL 16**: unico storage relativo. Ogni servizio ha uno schema separato sullo stesso database o su istanze distinte.
+
+### Libreria condivisa lh-common
+
+Il modulo `libs/lh-common` e una dipendenza obbligatoria per ogni servizio. Contiene:
+
+- **CloudEvent envelope**: costruzione e validazione degli eventi CloudEvent 1.0 con estensioni Loyalty Hub.
+- **Outbox writer**: scrittura transazionale nella tabella outbox.
+- **EventBus**: wrapper intorno a Kafka Producer/Consumer con configurazione uniforme.
+- **Clock e Ulid**: generazione di ID e timestamp deterministici.
+- **JSON mapper**: istanza ObjectMapper condivisa e configurata.
+- **Tracing filter**: propagazione automatica di `X-LH-Correlation-Id` via MDC.
+
+> **Nota:** Non duplicare in un servizio cio che gia esiste in `lh-common`. Se manca una funzionalita, aggiungila alla libreria condivisa.
+
+## Outbox transazionale (ADR-008)
+
+Loyalty Hub usa il pattern outbox per garantire che ogni cambiamento di stato sia pubblicato su Kafka in modo atomico. Nessuna pubblicazione diretta su Kafka fuori transazione.
+
+### Schema outbox
+
+Ogni schema di database contiene una tabella `outbox` con queste colonne:
+
+| Colonna | Tipo | Descrizione |
+| --- | --- | --- |
+| `event_id` | `UUID` | Identificatore univoco dell'evento. Chiave primaria. |
+| `topic` | `VARCHAR` | Topic Kafka di destinazione (es. `lh.facts.v1`). |
+| `payload` | `JSONB` | Corpo dell'evento CloudEvent serializzato. |
+| `created_at` | `TIMESTAMP` | Istante di creazione della riga. |
+| `sent_at` | `TIMESTAMP NULLABLE` | Istante di pubblicazione su Kafka. `NULL` se non ancora inviato. |
+
+### Scrittura transazionale
+
+Ogni operazione che modifica lo stato e pubblica un evento deve avvenire nella stessa transazione Spring:
+
+```java Esempio
+@Transactional
+public void processEffect(GrantEffect e) {
+  wallet.credit(e.memberId(), e.amount());   // scrittura stato
+  outbox.write(events.newFact("wallet.points.earned", e));  // scrittura outbox
+}
+```
+
+> **Attenzione:** La regola e ferrea: nessuna `kafkaTemplate.send()` diretta. Se pubblichi un evento, fallo sempre tramite l'outbox.
+
+### Pubblicazione asincrona
+
+Un thread separato, l'`OutboxPublisher`, esegue il polling sulla tabella outbox:
+
+1. Seleziona le righe con `sent_at IS NULL` ordinate per `created_at`.
+2. Pubblica ogni evento su Kafka con `acks=all`.
+3. Aggiorna `sent_at` alla data corrente nella stessa transazione di lettura.
+
+### Retry e DLQ
+
+Il publisher applica un retry in-process:
+
+- **3 tentativi** con backoff crescente: 100 ms, 500 ms, 2 secondi.
+- Dopo il terzo tentativo fallito, l'evento viene spostato in DLQ (topic `lh.dlq.v1`) per analisi manuale.
+
+> **Nota:** L'evento rimane nella tabella outbox con `sent_at = NULL` fino al successo o allo spostamento in DLQ. Non cancellare mai righe outbox.
+
+## Paginazione
+
+Tutte le API di lista seguono la stessa convenzione di paginazione.
+
+### Parametri di richiesta
+
+| Parametro | Tipo | Default | Massimo | Descrizione |
+| --- | --- | --- | --- | --- |
+| `page` | Integer | `0` | — | Pagina 0-based. |
+| `size` | Integer | `20` | `100` | Elementi per pagina. |
+
+Se il chiamante passa `size` maggiore di 100, il server tronca automaticamente a 100. Non restituisce errori per valori troppo alti.
+
+### Risposta paginata
+
+```json Risposta paginata
+{
+  "content": [...],
+  "page": 0,
+  "size": 20,
+  "total": 157,
+  "hasNext": true
+}
+```
+
+- `content`: array di risorse.
+- `page`: numero pagina corrente (0-based).
+- `size`: elementi richiesti (troncato se necessario).
+- `total`: elementi totali disponibili.
+- `hasNext`: `true` se esiste una pagina successiva.
+
+### Ordinamento
+
+L'ordinamento avviene per colonna specifica della risorsa. Non esporre parametri di ordinamento SQL grezzo al chiamante. Ogni endpoint documenta la colonna di ordinamento predefinita (tipicamente `created_at DESC`).
+
+## Macchina a stati comune (ADR-021)
+
+Campagne, premi, concorsi e contenuti condividono lo stesso ciclo di vita. Questa uniformita semplifica l'interfaccia utente del backoffice e riduce la sorpresa per gli operatori.
+
+### Stati del ciclo di vita
+
+Il flusso standard e:
+
+```text
+DRAFT -> (IN_REVIEW -> APPROVED | REJECTED) -> LIVE <-> PAUSED -> ENDED -> ARCHIVED
+```
+
+- **DRAFT**: la risorsa e in fase di preparazione. Modificabile liberamente.
+- **IN_REVIEW**: in attesa di approvazione (se il tipo di risorsa la richiede).
+- **APPROVED**: approvata, pronta per la pubblicazione.
+- **REJECTED**: rifiutata, richiede modifiche.
+- **LIVE**: attiva e visibile ai membri.
+- **PAUSED**: temporaneamente sospesa.
+- **ENDED**: terminata, non piu attiva.
+- **ARCHIVED**: archiviata, visibile solo in lettura storica.
+
+### Eccezione per i contenuti
+
+I contenuti di tipo `CONTENT` non richiedono approvazione. Il loro flusso e semplificato:
+
+```text
+DRAFT -> LIVE
+```
+
+### Endpoint di transizione
+
+Ogni risorsa con stato espone lo stesso endpoint:
+
+```bash Transizione di stato
+POST /v1/<resource>/{id}/transitions
+Content-Type: application/json
+X-LH-Actor: marta.admin
+
+{
+  "action": "PUBLISH",
+  "comment": "Pronta per il go-live"
+}
+```
+
+### Azioni ammesse per stato
+
+<AccordionGroup>
+  <Accordion title="Da DRAFT">
+    - `SUBMIT` -> `IN_REVIEW` (se richiede approvazione)
+    - `PUBLISH` -> `LIVE` (se NON richiede approvazione)
+  </Accordion>
+
+  <Accordion title="Da IN_REVIEW">
+    - `APPROVE` -> `APPROVED`
+    - `REJECT` -> `REJECTED`
+  </Accordion>
+
+  <Accordion title="Da APPROVED">
+    - `PUBLISH` -> `LIVE`
+  </Accordion>
+
+  <Accordion title="Da LIVE">
+    - `PAUSE` -> `PAUSED`
+    - `END` -> `ENDED`
+  </Accordion>
+
+  <Accordion title="Da PAUSED">
+    - `RESUME` -> `LIVE`
+    - `END` -> `ENDED`
+  </Accordion>
+
+  <Accordion title="Da ENDED">
+    - `ARCHIVE` -> `ARCHIVED`
+  </Accordion>
+</AccordionGroup>
+
+### Modifiche in stato LIVE
+
+Quando una risorsa e in stato `LIVE`, sono modificabili solo campi "sicuri":
+
+- Descrizione
+- Priorita
+- Calendario di fine
+
+Tentare di modificare altri campi restituisce `409 <RESOURCE>_LIVE_LOCKED`.
+
+> **Nota:** Il campo `comment` nella transizione e opzionale ma consigliato per tracciabilita.
+
+## Idempotenza dei consumer
+
+Ogni consumer Kafka e idempotente. La stessa chiave di deduplicazione garantisce che un evento riprocessato non applichi effetti doppi.
+
+### Chiavi di deduplicazione per tipo
+
+| Tipo evento | Chiave di deduplicazione | Motivazione |
+| --- | --- | --- |
+| Effetti (`points.grant`, `coupon.issue`) | `effect_id` | Generato con l'evento e stabile su rielaborazione. |
+| Saga (`redemption`) | `redemption_id` | Identifica l'intera transazione di riscatto. |
+| Fatti in event store | `event_id` | Chiave primaria su `event_id` nella tabella. |
+
+### Implementazione
+
+Usa una delle due tecniche:
+
+```java Idempotenza con INSERT ON CONFLICT
+jdbcClient.sql("""
+  INSERT INTO wallet_effects (effect_id, member_id, amount, created_at)
+  VALUES (:effectId, :memberId, :amount, :createdAt)
+  ON CONFLICT (effect_id) DO NOTHING
+""")
+.bind("effectId", effectId)
+.bind("memberId", memberId)
+.bind("amount", amount)
+.bind("createdAt", clock.instant())
+.update();
+```
+
+Oppure esegui un `SELECT` prima dell'`INSERT` e salta l'elaborazione se la chiave esiste gia.
+
+> **Attenzione:** Non implementare deduplicazione in memoria. Usa sempre il database per garantire idempotenza anche in caso di riavvio del servizio.
+
+## Determinismo temporale
+
+Nessun `Instant.now()` o `LocalDate.now()` diretto nel codice di business. Ogni servizio inietta un bean `Clock` configurato.
+
+### Configurazione del Clock
+
+```java Configurazione Clock
+@Configuration
+public class TimeConfig {
+
+  @Bean
+  public Clock clock() {
+    return Clock.systemUTC();
+  }
+}
+```
+
+In ambiente di test o demo, sostituisci il bean con un `Clock` fisso:
+
+```java Clock fisso per test
+Clock fixed = Clock.fixed(
+  Instant.parse("2025-06-15T10:00:00Z"),
+  ZoneOffset.UTC
+);
+```
+
+### Regole di utilizzo
+
+| Operazione | Corretto | Errato |
+| --- | --- | --- |
+| Generazione ID | `Ulid.next(clock)` | `Ulid.next()` |
+| Data di business | `LocalDate.now(clock.withZone(ROME))` | `LocalDate.now()` |
+| Timestamp interno | `clock.instant()` | `Instant.now()` |
+
+### Timezone di riferimento
+
+- **Europe/Rome**: per date di business (compleanni, scadenze, giorni della settimana per campagne).
+- **UTC**: per timestamp interni Kafka e log.
+
+> **Nota:** Il determinismo temporale consente test stabili e job demo su una data specifica. Senza Clock fisso, i test diventano flaky.
+
+## Gestione errori HTTP
+
+Tutte le API REST condividono lo stesso schema di risposta errore. L'ingestion e l'unica eccezione (vedi sotto).
+
+### Codici HTTP
+
+| Codice | Quando usarlo | Esempi |
+| --- | --- | --- |
+| `400` | Errore di forma | JSON malformato, envelope CloudEvent non valido. |
+| `404` | Risorsa non esiste | Campagna, membro o premio non trovato. |
+| `409` | Conflitto di stato | `CAMPAIGN_LIVE_LOCKED`, `COUPON_ALREADY_USED`, `EDITION_OVERLAP`. |
+| `410` | Risorsa scaduta | `COUPON_EXPIRED`. |
+| `422` | Validazione di business | `INSUFFICIENT_BALANCE`, `TIER_NOT_ELIGIBLE`, `REWARD_SOLD_OUT`, `THEME_CONTRAST_TOO_LOW`, `NOTE_TOO_SHORT`, `TIER_THRESHOLDS_NOT_MONOTONIC`. |
+
+### Corpo di risposta errore
+
+```json Errore uniforme
+{
+  "code": "INSUFFICIENT_BALANCE",
+  "message": "Saldo insufficiente per completare l'operazione.",
+  "details": {
+    "available": 150,
+    "required": 500
+  }
+}
+```
+
+- `code`: codice macchina univoco, maiuscolo con underscore.
+- `message`: descrizione leggibile per l'utente.
+- `details` (opzionale): oggetto con informazioni aggiuntive contestuali.
+
+### Eccezione: ingestion
+
+Il servizio ingestion risponde sempre `202 Accepted`, anche in caso di rifiuto di business. Il body contiene:
+
+```json Risposta ingestion con rifiuto
+{
+  "status": "REJECTED",
+  "rejectCode": "MEMBER_NOT_FOUND",
+  "message": "Membro non riconosciuto."
+}
+```
+
+Questo evita che la fonte esterna ritenti l'invio per errori di business.
+
+> **Nota:** Non usare `500` per errori di business prevedibili. Il codice `500` e riservato a malfunzionamenti interni non previsti.
+
+## Header standard
+
+Ogni richiesta e risposta HTTP include questi header.
+
+### Header di richiesta
+
+| Header | Valore | Descrizione |
+| --- | --- | --- |
+| `X-LH-Actor` | `marta.admin`, `luca.marketing`, `elena.legal`, `paolo.care`, `sara.analyst` | Identita dell'operatore nel backoffice demo. |
+| `X-LH-Correlation-Id` | UUID | ID di correlazione. Propagato automaticamente via MDC. Se assente, il servizio lo genera. |
+| `Content-Type` | `application/json` | Default per tutte le API. |
+| `Content-Type` | `application/cloudevents+json` | Solo per `POST /v1/events`. |
+
+### Header di risposta
+
+| Header | Descrizione |
+| --- | --- |
+| `X-LH-Correlation-Id` | Riporta l'ID di correlazione usato per la richiesta. |
+
+> **Nota:** Il tracing filter in `lh-common` estrae `X-LH-Correlation-Id` e lo inserisce nel MDC. Ogni log strutturato lo include automaticamente.
+
+## Log strutturati
+
+Ogni servizio emette log in formato JSON su stdout. Il formato e uniforme per consentire aggregazione e ricerca.
+
+### Campi obbligatori
+
+```json Esempio log strutturato
+{
+  "timestamp": "2025-06-15T10:00:00.123Z",
+  "level": "INFO",
+  "logger": "it.loyaltyhub.wallet.WalletService",
+  "message": "Credito applicato per memberId=abc123",
+  "correlationId": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b",
+  "memberId": "abc123",
+  "eventId": "0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6c",
+  "service": "wallet"
+}
+```
+
+| Campo | Descrizione |
+| --- | --- |
+| `timestamp` | Istante ISO-8601 UTC. |
+| `level` | Livello log (TRACE, DEBUG, INFO, WARN, ERROR). |
+| `logger` | Nome completo della classe logger. |
+| `message` | Messaggio leggibile. |
+| `correlationId` | Da MDC, propagato dalla richiesta. |
+| `memberId` | Se disponibile nel contesto. |
+| `eventId` | Se applicabile (elaborazione evento). |
+| `service` | Nome del microservizio. |
+
+> **Attenzione:** Non loggare mai segreti, token, password o PII sensibili (codici fiscali, numeri di telefono). Se necessario, maschera i dati sensibili prima del log.
+
+## Retry e DLQ
+
+Il consumer Kafka wrappa ogni messaggio in un retry template con 3 tentativi.
+
+### Configurazione retry
+
+| Tentativo | Backoff |
+| --- | --- |
+| 1 | 100 ms |
+| 2 | 500 ms |
+| 3 | 2000 ms |
+
+### Classificazione errori
+
+<AccordionGroup>
+  <Accordion title="Non retryable (DLQ immediata)">
+    - `SCHEMA_INVALID`: schema dell'evento non riconosciuto.
+    - `LOOP_GUARD`: superato il limite di hop (`lhhop`).
+    - `IDEMPOTENCY_CONFLICT`: conflitto di idempotenza non risolvibile.
+  </Accordion>
+
+  <Accordion title="Retryable (ritenta)">
+    - `RUNTIME_ERROR`: eccezione non prevista durante l'elaborazione.
+    - `TIMEOUT`: timeout su chiamata esterna o database.
+  </Accordion>
+</AccordionGroup>
+
+Gli errori non retryable finiscono direttamente in DLQ (`lh.dlq.v1`) al primo tentativo. Gli errori retryable vengono ritentati fino a 3 volte, poi spostati in DLQ.
+
+> **Nota:** Ogni messaggio in DLQ include l'header `x-lh-dlq-reason` con il codice errore e il numero di tentativi effettuati.
+
+## Test
+
+La strategia di test e uniforme per tutti i servizi.
+
+### Struttura dei test
+
+- **Unit test**: in `src/test/java`. Testano classi isolate con mock.
+- **Integration test**: file `*IT.java` in `src/test/java`, eseguiti da Failsafe.
+
+### Dipendenze esterne nei test
+
+- **Testcontainers**: avvia un PostgreSQL 16 per ogni suite di integrazione. Flyway migra lo schema all'avvio del container.
+- **Kafka embedded** o **TestConsumer/TestProducer**: verifica che l'outbox produca eventi corretti su Kafka.
+
+### Determinismo nei test
+
+```java Test con Clock fisso
+@SpringBootTest
+class WalletServiceIT {
+
+  @Test
+  void creditAppliesPoints() {
+    Clock fixed = Clock.fixed(
+      Instant.parse("2025-06-15T10:00:00Z"),
+      ZoneOffset.UTC
+    );
+    // usa il clock fisso per tutte le operazioni
+  }
+}
+```
+
+- Inietta sempre un `Clock` fisso.
+- Usa `Ulid.next(fixedClock)` per ID prevedibili.
+- Disabilita i job schedulati con il profilo `test` o la property `loyaltyhub.jobs.enabled=false`.
+
+> **Nota:** Non usare `@MockBean` per il Clock. Configura un bean `@Primary` nel profilo di test.
+
+## Job schedulati
+
+Ogni servizio ha job schedulati per operazioni ricorrenti. Sono controllabili tramite property.
+
+### Property di controllo
+
+```properties application.properties
+loyaltyhub.jobs.enabled=true
+```
+
+Default `true`. Disabilita in profilo `test` per evitare esecuzioni durante i test.
+
+### Job per servizio
+
+| Servizio | Job | Frequenza | Descrizione |
+| --- | --- | --- | --- |
+| **wallet** | Rilascio pending | Ogni ora | Applica crediti in attesa. |
+| **wallet** | Scadenze | Alle 02:00 | Marca punti scaduti. |
+| **wallet** | Preavvisi | Alle 09:00 | Notifica scadenze imminenti. |
+| **reward** | Coupon scaduti | Giornaliero | Invalida coupon oltre la data. |
+| **reward** | Timeout redemptions | Ogni minuto | Annulla riscatti bloccati troppo a lungo. |
+| **campaign** | Fine automatica | Ogni minuto | Termina campagne con data fine raggiunta. |
+| **engagement** | Content ended | Ogni 10 min | Marca contenuti terminati. |
+| **engagement** | Pulizia inbox | Ogni 10 min | Rimuove notifiche vecchie. |
+| **engagement** | Pulizia webhook | Ogni 10 min | Elimina delivery confermati. |
+| **engagement** | Pulizia popup | Ogni 10 min | Rimuove visualizzazioni obsolete. |
+| **insight** | Retention event_store | Ogni ora | Compatta eventi storici. |
+| **insight** | Retention audit | Ogni ora | Rimuove log audit vecchi. |
+| **insight** | Retention metric_daily | Ogni ora | Aggrega e rimuove metriche giornaliere obsolete. |
+
+### Job in demo
+
+In ambiente demo, i job si lanciano manualmente dal backoffice (BO-30):
+
+```bash Lancio job demo
+POST /v1/demo/jobs/wallet-expire
+X-LH-Actor: marta.admin
+```
+
+Questo consente di simulare scenari specifici su una data controllata.
+
+> **Nota:** I job usano sempre il `Clock` iniettato. In demo, con Clock fisso, i job si comportano come se fosse la data impostata.
+
+## Prossimi passi
+
+Esplora gli argomenti correlati per approfondire la piattaforma:
+
+- [Eventi e topic Kafka](/specifiche/eventi-e-topic): scopri il modello di eventi CloudEvent e i 5 topic di Loyalty Hub.
+- [Architettura dei microservizi](/specifiche/architettura): consulta la mappa dei servizi, delle porte e delle dipendenze.
+- [Testbook funzionale](/specifiche/testbook-funzionale): verifica gli scenari di test accettazione per ogni flusso di business.

@@ -1,0 +1,133 @@
+---
+title: "Convenzioni API di Loyalty Hub: paginazione, errori, idempotency"
+sidebarTitle: "Convenzioni"
+description: "Regole comuni a tutti i servizi Loyalty Hub: paginazione, formato errori, versioning, idempotency e busta CloudEvents standard."
+---
+
+Tutti i servizi Loyalty Hub condividono un insieme di convenzioni per rendere prevedibile l'integrazione. Consulta questa pagina prima di scrivere client o SDK.
+
+## Paginazione
+
+Gli endpoint di lista accettano due query parameter opzionali.
+
+| Parametro | Tipo | Default | Vincoli |
+| --- | --- | --- | --- |
+| `page` | integer | `0` | maggiore o uguale a 0 |
+| `size` | integer | `20` | tra 1 e 100 inclusi |
+
+La risposta contiene sempre `content`, `page`, `size`, `totalElements`, `totalPages`.
+
+```json Esempio risposta paginata
+{
+  "content": [ { "id": "..." } ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 152,
+  "totalPages": 8
+}
+```
+
+> **Nota:** un `size` superiore a 100 restituisce `400 VALIDATION_ERROR`. Riduci la dimensione della pagina.
+
+## Formato errori
+
+Ogni errore usa la stessa struttura JSON con codice testuale e messaggio.
+
+```json Formato errore standard
+{
+  "code": "VALIDATION_ERROR",
+  "message": "Il campo 'points' deve essere positivo",
+  "details": {
+    "field": "points",
+    "rejectedValue": -10
+  },
+  "correlationId": "b1e6...c3"
+}
+```
+
+I codici piu comuni:
+
+| HTTP | Code | Quando |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Payload malformato o vincoli violati. |
+| 401 | `UNAUTHENTICATED` | Header `X-LH-Actor` mancante. |
+| 403 | `FORBIDDEN` | Ruolo non autorizzato. |
+| 404 | `NOT_FOUND` | Risorsa inesistente. |
+| 409 | `CONFLICT` | Stato incompatibile (es. campagna gia pubblicata). |
+| 422 | `BUSINESS_RULE` | Regola di dominio violata (es. saldo insufficiente). |
+| 429 | `RATE_LIMITED` | Superata la soglia richieste per minuto. |
+| 500 | `INTERNAL_ERROR` | Errore inatteso, tracciato in DLQ. |
+
+## Versioning
+
+L'URL contiene sempre il numero di versione maggiore.
+
+- Endpoint stabili: `/v1/...`
+- Endpoint sperimentali: `/experimental/...`
+
+Le modifiche non retrocompatibili passano a `/v2/...` con un periodo di deprecazione di sei mesi.
+
+## Idempotency
+
+Gli endpoint di scrittura critici accettano l'header `Idempotency-Key`.
+
+```bash Retry sicuro
+curl http://localhost:8081/v1/actions \
+  -H "Idempotency-Key: 8f6c1d2b-9a" \
+  -H "Content-Type: application/cloudevents+json" \
+  --data @evento.json
+```
+
+Se ritenti la stessa richiesta con la stessa chiave entro 24 ore ricevi la risposta originale senza duplicare l'effetto.
+
+## Busta CloudEvents 1.0
+
+Gli eventi inviati a Ingestion e pubblicati sui topic Kafka seguono lo standard [CloudEvents 1.0](https://cloudevents.io) con estensioni Loyalty Hub.
+
+```json Esempio evento
+{
+  "specversion": "1.0",
+  "id": "01HA00000000000000000001",
+  "source": "app://portal/web",
+  "type": "purchase.completed",
+  "subject": "member:42",
+  "time": "2025-01-15T10:30:00Z",
+  "datacontenttype": "application/json",
+  "lhcorrelationid": "b1e6c3",
+  "lhcausationid": "a0d5b2",
+  "lhhop": 0,
+  "lhactor": "luca.marketing",
+  "lhschemaversion": "1.0.0",
+  "data": {
+    "orderId": "ord_123",
+    "amount": 49.90,
+    "currency": "EUR"
+  }
+}
+```
+
+Estensioni obbligatorie: `lhcorrelationid`, `lhcausationid`, `lhhop`, `lhactor`, `lhschemaversion`.
+
+## Rate limit
+
+Il rate limit demo e globale per attore.
+
+| Canale | Soglia |
+| --- | --- |
+| Portal (utente finale) | 60 richieste/min |
+| Backoffice | 300 richieste/min |
+| Ingestion `/v1/actions` | 1000 richieste/min |
+
+Superata la soglia il servizio risponde `429 RATE_LIMITED` con header `Retry-After` in secondi.
+
+## Prossimi passi
+
+<CardGroup cols={2}>
+  <Card title="Panoramica servizi" icon="layer-group" href="/api/introduzione">
+    Torna all'elenco degli otto servizi.
+  </Card>
+
+  <Card title="Eventi Kafka" icon="bolt" href="/concetti/eventi-kafka">
+    Scopri i cinque topic e la logica di routing.
+  </Card>
+</CardGroup>

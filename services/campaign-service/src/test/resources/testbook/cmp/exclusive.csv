@@ -1,0 +1,17 @@
+id|descrizione|priorità di A (CMP-TB-A)|priorità di B (CMP-TB-B)|gruppo di A|gruppo di B|stato di A (OK, COND, LIMIT, BUDGET, SCHED, AUD, UNSUP)|stato di B|esito atteso di A|esito atteso di B
+TB-CMP-EXC-001|stesso gruppo, A a priorità più alta|200|100|G1|G1|OK|OK|MATCHED|EXCLUSIVE
+TB-CMP-EXC-002|stesso gruppo, B a priorità più alta|100|200|G1|G1|OK|OK|EXCLUSIVE|MATCHED
+TB-CMP-EXC-003|stesso gruppo e stessa priorità: vince il codice minore|100|100|G1|G1|OK|OK|MATCHED|EXCLUSIVE
+TB-CMP-EXC-004|gruppi diversi|200|100|G1|G2|OK|OK|MATCHED|MATCHED
+TB-CMP-EXC-005|gruppo solo su A|200|100|G1||OK|OK|MATCHED|MATCHED
+TB-CMP-EXC-006|nessun gruppo|200|100|||OK|OK|MATCHED|MATCHED
+TB-CMP-EXC-007|stesso gruppo, A con condizione falsa|200|100|G1|G1|COND|OK|CONDITION|MATCHED
+TB-CMP-EXC-008|stesso gruppo, A al limite per membro|200|100|G1|G1|LIMIT|OK|LIMIT|MATCHED
+TB-CMP-EXC-009|stesso gruppo, A a budget esaurito|200|100|G1|G1|BUDGET|OK|BUDGET|MATCHED
+TB-CMP-EXC-010|stesso gruppo, A fuori calendario|200|100|G1|G1|SCHED|OK|NOT_IN_SCHEDULE|MATCHED
+TB-CMP-EXC-011|stesso gruppo, A fuori pubblico|200|100|G1|G1|AUD|OK|AUDIENCE|MATCHED
+TB-CMP-EXC-012|stesso gruppo, A con effetto non supportato|200|100|G1|G1|UNSUP|OK|EFFECT_NOT_SUPPORTED_YET|MATCHED
+TB-CMP-EXC-013|stesso gruppo, B (perdente) con condizione falsa: prevale CONDITION|200|100|G1|G1|OK|COND|MATCHED|CONDITION
+TB-CMP-EXC-014|stesso gruppo, B (perdente) al limite: prevale EXCLUSIVE|200|100|G1|G1|OK|LIMIT|MATCHED|EXCLUSIVE
+TB-CMP-ORD-001|ordine di valutazione: priorità negativa dopo lo zero (stesso gruppo)|-1|0|G1|G1|OK|OK|EXCLUSIVE|MATCHED
+TB-CMP-ORD-002|ordine di valutazione: priorità massima prima di max-1 (stesso gruppo)|2147483647|2147483646|G1|G1|OK|OK|MATCHED|EXCLUSIVE

@@ -1,0 +1,313 @@
+---
+title: "Eventi e topic Kafka di Loyalty Hub"
+sidebarTitle: "Eventi e topic"
+description: "Scopri gli eventi CloudEvent 1.0, i 5 topic Kafka, le estensioni lh*, la serializzazione e le garanzie di idempotenza e ordinamento di Loyalty Hub."
+---
+
+Gli eventi sono il linguaggio comune di Loyalty Hub. Ogni microservizio comunica esclusivamente tramite CloudEvent 1.0 pubblicati su cinque topic Kafka. Questa pagina spiega lo schema degli eventi, le estensioni personalizzate, il ruolo di ogni topic, il ponte interno fra fatti e azioni, e le garanzie di ordinamento, idempotenza e retry.
+
+## CloudEvents 1.0 come standard
+
+Tutti gli eventi di Loyalty Hub usano l'envelope CloudEvents 1.0 in formato JSON. Questo garantisce un formato uniforme indipendentemente dal tipo di evento o dal servizio che lo produce.
+
+Il campo `type` identifica la semantica dell'evento, `source` indica chi l'ha originato, `subject` punta all'entità interessata e `data` contiene il payload specifico del dominio.
+
+```json purchase.completed.json
+{
+  "specversion": "1.0",
+  "id": "01J8ZK9V3PQ2X4YM5R7T",
+  "source": "ecommerce:demo",
+  "type": "action.purchase.completed",
+  "subject": "member:MBR-000009",
+  "time": "2026-09-25T14:32:18.472Z",
+  "datacontenttype": "application/json",
+  "lhcorrelationid": "cor-01J8ZK9V3PQ2X4YM5R7T",
+  "lhcausationid": null,
+  "lhhop": 0,
+  "lhactor": "ecommerce",
+  "lhschemaversion": "1",
+  "lhtenant": "aurora",
+  "data": {
+    "orderId": "ORD-0001234",
+    "amount": 130.00,
+    "currency": "EUR",
+    "channel": "WEB",
+    "items": [
+      { "sku": "CAF-500", "quantity": 2, "unitPrice": 12.50 }
+    ],
+    "occurredAt": "2026-09-25T14:32:00Z"
+  }
+}
+```
+
+> **Nota:** Ogni evento ha un `id` univoco generato dal produttore. I consumer usano questo ID per deduplicare i messaggi e garantire l'idempotenza.
+
+## Estensioni lh\*
+
+Loyalty Hub estende lo standard CloudEvents con attributi personalizzati prefissati da `lh`. Questi campi abilitano il tracciamento end-to-end, il multi-tenancy e la protezione dai loop.
+
+| Campo | Tipo | Descrizione |
+| --- | --- | --- |
+| `lhcorrelationid` | string | ID del tracciato end-to-end. Nasce con la prima azione e si propaga su tutti gli eventi collegati. |
+| `lhcausationid` | string | ID dell'evento che ha causato questo. Valore `null` per l'evento iniziale. |
+| `lhhop` | int | Numero di salti dal primo evento. `0` per azioni esterne. Il ponte interno lo incrementa. Guardia anti-loop: se supera `3`, l'evento finisce in DLQ. |
+| `lhactor` | string | Chi ha originato l'evento: username della persona o codice della fonte. |
+| `lhschemaversion` | string | Versione dello schema di `data`. Consente l'evoluzione dei tipi senza rompere i consumer esistenti. |
+| `lhtenant` | string | Tenant di appartenenza. Nel PoC e sempre impostato a `aurora`. |
+
+> **Attenzione:** Il campo `lhhop` e il controllo `LOOP_GUARD` sono fondamentali per evitare cicli infiniti quando il ponte interno trasforma fatti in azioni. Verifica sempre che i consumer non generino eventi che si auto-attivano.
+
+## I 5 topic
+
+Loyalty Hub usa cinque topic Kafka, ognuno con una famiglia di eventi ben definita.
+
+### lh.actions.v1
+
+Questo topic raccoglie le azioni premianti, sia esterne (dal mondo esterno) sia interne (generate dal ponte interno).
+
+- **Chiave Kafka:** `memberId` (garantisce l'ordine per membro)
+- **Produttore:** solo `ingestion-service`
+- **Consumer:** `campaign`, `member` (statistiche), `gamification` (obiettivi e classifiche)
+- **Prefisso type:** `action.*`
+
+Esempi di tipi:
+
+- `action.purchase.completed`
+- `action.app.login.daily`
+- `action.instantwin.won`
+- `action.tier.upgraded`
+- `action.member.registered`
+
+### lh.effects.v1
+
+Questo topic trasporta gli effetti decisi dal motore regole del servizio campaign.
+
+- **Chiave Kafka:** `memberId`
+- **Produttore:** solo `campaign-service`
+- **Consumer:** `wallet` (per `points.grant`), `reward` (per `coupon.issue`), `gamification` (per `plays.grant` e `badge.award`), `engagement` (per `message.send`)
+- **Prefisso type:** `effect.*`
+
+Esempi di tipi:
+
+- `effect.points.grant`
+- `effect.coupon.issue`
+- `effect.badge.award`
+- `effect.plays.grant`
+- `effect.message.send`
+
+### lh.facts.v1
+
+Questo topic raccoglie i fatti di dominio: eventi che descrivono un cambiamento già avvenuto nello stato del sistema.
+
+- **Chiave Kafka:** `memberId` (o entità specifica per fatti tecnici come `content.status.changed`)
+- **Produttori:** tutti i servizi di dominio (`wallet`, `member`, `reward`, `gamification`, `engagement`, `campaign`)
+- **Consumer:** tutti (per mantenere snapshot locali), `engagement` (per regole di notifica e webhook), `insight` (per event store)
+- **Pattern type:** `<entità>.<verbo>`
+
+Esempi di tipi:
+
+- `wallet.points.earned`, `wallet.points.spent`, `wallet.points.expired`
+- `tier.upgraded`, `tier.downgraded`
+- `member.registered`, `member.updated`, `member.segment.entered`
+- `reward.redemption.requested`, `reward.redemption.confirmed`, `reward.redemption.fulfilled`, `reward.redemption.rejected`, `reward.redemption.cancelled`
+- `coupon.issued`, `coupon.used`
+- `contest.played`, `contest.won`
+- `achievement.completed`, `badge.awarded`
+- `referral.completed`
+- `edition.closed`
+- `message.delivered`
+
+### lh.audit.v1
+
+Questo topic registra ogni scrittura effettuata dal backoffice, creando una traccia di audit completa.
+
+- **Chiave Kafka:** `entityType+entityId`
+- **Produttori:** tutti i servizi (una voce per ogni scrittura da BO)
+- **Consumer:** `insight` (per audit log consultabile)
+
+Il payload di audit include:
+
+- `actor_role`
+- `actor_name`
+- `service`
+- `entity_type`
+- `entity_id`
+- `action`
+- `before`
+- `after`
+- `correlationId`
+
+### lh.dlq.v1
+
+Questo topic funge da Dead Letter Queue per gli eventi che non possono essere elaborati dopo i tentativi di retry.
+
+- **Chiave Kafka:** `originalTopic+eventId`
+- **Produttori:** tutti i servizi (dopo il fallimento dei retry in-process)
+- **Consumer:** `insight` (per interfaccia di riprocessa)
+
+Il payload include:
+
+- `original_topic`
+- `original_type`
+- `consumer`
+- `error_code`
+- `error_message`
+- `retryable`
+- `attempts`
+- payload originale completo
+
+## Ponte interno (fatti → azioni)
+
+Il ponte interno consente a Loyalty Hub di reagire ai fatti di dominio generando nuove azioni premianti. Il servizio `ingestion` consuma `lh.facts.v1` e mappa alcuni fatti in azioni interne con `source=<service>:internal`.
+
+La configurazione del mapping risiede in una tabella `internal_mapping` con queste colonne:
+
+| Colonna | Tipo | Descrizione |
+| --- | --- | --- |
+| `fact_type` | string | Il tipo del fatto da ascoltare (es. `tier.upgraded`) |
+| `action_type` | string | Il tipo dell'azione da generare (es. `action.tier.upgraded`) |
+| `enabled` | boolean | Se il mapping e attivo |
+
+Fatti tipicamente mappati:
+
+| Fatto | Azione generata |
+| --- | --- |
+| `tier.upgraded` | `action.tier.upgraded` |
+| `contest.won` | `action.instantwin.won` |
+| `badge.awarded` | `action.badge.awarded` |
+| `member.registered` | `action.member.registered` |
+| `referral.completed` | `action.referral.completed` |
+
+Ogni volta che il ponte genera un'azione, incrementa il campo `lhhop`. Se `lhhop` supera `3`, l'evento viene scartato e pubblicato su `lh.dlq.v1` con il codice errore `LOOP_GUARD`.
+
+> **Attenzione:** Il ponte interno e il meccanismo `LOOP_GUARD` sono fondamentali per la stabilita del sistema. Non modificare la soglia `lhhop > 3` senza una valutazione d'impatto completa.
+
+## Serializzazione e configurazione Kafka
+
+Loyalty Hub usa una configurazione Kafka orientata alla durabilita e alla coerenza.
+
+| Proprieta | Valore | Descrizione |
+| --- | --- | --- |
+| Serializer chiave | `StringSerializer` | La chiave e sempre una stringa (memberId o composizione) |
+| Serializer valore | `StringSerializer` | Il payload JSON viene serializzato come stringa |
+| Compressione | `producer.compression.type=lz4` | Compressione efficiente per ridurre il traffico di rete |
+| Ack | `producer.acks=all` | Garanzia di durabilita: tutti i replica confermano la scrittura |
+| Retention | 3 giorni | Sul piano Aiven Free. Il sistema di record e sempre il database |
+| Partizioni | 2 per topic | Sul piano gratuito. Target: 12 partizioni per topic |
+| Consumer group | `lh-<service>` | Esempi: `lh-campaign`, `lh-wallet`, `lh-insight` |
+
+> **Nota:** Con solo 2 partizioni sul piano gratuito, la scalabilita orizzontale dei consumer e limitata. Passa a 12 partizioni in produzione per sfruttare piu consumer in parallelo.
+
+## Idempotenza
+
+Ogni consumer di Loyalty Hub deve essere idempotente. Il sistema implementa strategie di deduplica specifiche per servizio.
+
+| Servizio | Strategia di idempotenza |
+| --- | --- |
+| `wallet` | Unicita su `effect_id` per `points.grant`; unicita su `redemption_id` per la saga di riscatto |
+| `reward` | Unicita su `effect_id` per `coupon.issue` |
+| `insight` | Chiave primaria su `event_id` |
+| `member` (statistiche) | Dedup per `event_id` in memoria piu flag su `member_stats` |
+
+> **Nota:** Quando progetti un nuovo consumer, prevedi sempre una chiave di idempotenza derivata dall'evento (tipicamente `id` o un campo di business come `effect_id`).
+
+## Retry e DLQ
+
+Quando un consumer fallisce l'elaborazione di un evento, Loyalty Hub applica un retry in-process con backoff esponenziale.
+
+<Steps>
+  <Step title="Primo tentativo">
+    Il consumer elabora l'evento immediatamente.
+  </Step>
+  <Step title="Primo retry">
+    Se fallisce, attende 100ms e riprova.
+  </Step>
+  <Step title="Secondo retry">
+    Se fallisce di nuovo, attende 500ms e riprova.
+  </Step>
+  <Step title="Terzo retry">
+    Se fallisce ancora, attende 2 secondi e riprova.
+  </Step>
+  <Step title="Pubblicazione su DLQ">
+    Dopo il terzo fallimento, l'evento viene pubblicato su `lh.dlq.v1` con `error_code`, `error_message`, `retryable`, `attempts` e il payload originale.
+  </Step>
+</Steps>
+
+Il servizio `insight` espone gli eventi in DLQ tramite l'endpoint `GET /v1/dlq`. Da li, gli operatori possono:
+
+1. **Riprocessare azioni:** invia una chiamata HTTP POST a `ingestion /v1/events` con lo stesso `id` dell'evento originale. L'idempotenza del consumer fa il resto.
+2. **Scartare effetti e fatti:** questi tipi restituiscono `409 NOT_REPROCESSABLE`. L'unica azione possibile e lo scarto con nota.
+
+> **Attenzione:** Non riprocessare manualmente eventi di tipo `effect.*` o `fact.*` tramite l'API di ingestion. Questi devono essere gestiti tramite il flusso di scarto con nota per mantenere la coerenza del sistema.
+
+## Ordinamento
+
+Le chiavi Kafka garantiscono l'ordinamento per membro. Tutti gli eventi con la stessa chiave (tipicamente `memberId`) arrivano allo stesso consumer nello stesso ordine in cui sono stati pubblicati.
+
+Fra membri diversi non esiste alcuna garanzia di ordinamento. Questo e corretto perche le logiche di business di Loyalty Hub sono per lo piu indipendenti per membro.
+
+Per gli eventi di audit con chiave `entityType+entityId`, l'ordinamento e garantito per entita. Per gli eventi DLQ con chiave `originalTopic+eventId`, l'ordinamento e garantito per coppia topic/evento.
+
+## Nomenclatura
+
+Loyalty Hub segue convenzioni rigorose per nomi di topic e tipi di evento.
+
+### Topic
+
+Il formato e:
+
+```text
+lh.<famiglia>.v<versione>
+```
+
+Esempi: `lh.actions.v1`, `lh.effects.v1`, `lh.facts.v1`.
+
+> **Nota:** Il bump di versione richiede sempre un topic nuovo. Non si aggiornano mai topic esistenti in-place.
+
+### Type
+
+Il formato e:
+
+```text
+<famiglia>.<entita>.<verbo>
+```
+
+Esempi: `action.purchase.completed`, `wallet.points.earned`.
+
+Il verbo segue queste regole:
+
+- **Fatti:** passato (es. `earned`, `spent`, `expired`, `upgraded`)
+- **Azioni gia avvenute:** passato (es. `purchase.completed`, `app.login.daily`)
+- **Effetti:** imperativo (es. `points.grant`, `coupon.issue`, `badge.award`)
+
+### Source
+
+Per le azioni, il formato e:
+
+```text
+<code_fonte>:<sottotipo>
+```
+
+Esempi:
+
+- `ecommerce:web`
+- `crm:demo`
+- `member:internal` (per il ponte interno)
+
+## Prossimi passi
+
+Approfondisci gli aspetti tecnici di Loyalty Hub:
+
+<CardGroup cols={2}>
+  <Card title="Convenzioni backend" icon="code" href="/specifiche/convenzioni-backend">
+    Scopri le convenzioni di codice, naming e struttura dei microservizi Spring Boot.
+  </Card>
+
+  <Card title="Architettura" icon="layers" href="/specifiche/architettura">
+    Esplora la struttura dei microservizi, le porte e le dipendenze fra i servizi.
+  </Card>
+
+  <Card title="API Ingestion" icon="send" href="/api/ingestion">
+    Consulta la documentazione delle API per inviare eventi al sistema.
+  </Card>
+</CardGroup>

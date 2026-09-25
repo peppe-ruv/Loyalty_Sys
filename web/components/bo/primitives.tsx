@@ -6,6 +6,8 @@ export { DegradedBox, EmptyState } from "@/components/shared/QueryState";
 
 // Primitive condivise del backoffice (docs/08 §3.6). Piccole, componibili, coerenti coi token del tema.
 
+// Colori degli stati oggetto (docs/07 §5.2): DRAFT grigio, IN_REVIEW ambra, APPROVED blu, SCHEDULED indaco, LIVE verde,
+// PAUSED arancio, ENDED slate, REJECTED rosso, ARCHIVED grigio chiaro.
 const STATUS_TONE: Record<string, string> = {
   ACTIVE: "bg-emerald-100 text-emerald-800",
   LIVE: "bg-emerald-100 text-emerald-800",
@@ -14,16 +16,17 @@ const STATUS_TONE: Record<string, string> = {
   PLANNED: "bg-slate-100 text-slate-700",
   IN_REVIEW: "bg-amber-100 text-amber-800",
   APPROVED: "bg-sky-100 text-sky-800",
+  SCHEDULED: "bg-indigo-100 text-indigo-800",
   OPEN: "bg-sky-100 text-sky-800",
   CLAIMED: "bg-emerald-100 text-emerald-800",
   DELIVERED: "bg-emerald-100 text-emerald-800",
-  PAUSED: "bg-amber-100 text-amber-800",
+  PAUSED: "bg-orange-100 text-orange-800",
   DUPLICATE: "bg-amber-100 text-amber-800",
   UNMATCHED: "bg-amber-100 text-amber-800",
   BLOCKED: "bg-red-100 text-red-800",
   REJECTED: "bg-red-100 text-red-800",
   ENDED: "bg-slate-200 text-slate-600",
-  ARCHIVED: "bg-slate-200 text-slate-600",
+  ARCHIVED: "bg-gray-50 text-gray-500 ring-1 ring-inset ring-gray-200",
   ANONYMIZED: "bg-slate-100 italic text-slate-500",
   // richieste premio (BO-13)
   PENDING: "bg-amber-100 text-amber-800",

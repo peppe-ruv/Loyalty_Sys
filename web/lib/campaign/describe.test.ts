@@ -16,7 +16,7 @@ describe("describeCampaign", () => {
     expect(s).toContain("Acquisto completato");
     expect(s).toContain("importo ≥ 1");
     expect(s).toContain("1 PTS ogni 1 €");
-    expect(s).toContain("3 volta/e al giorno");
+    expect(s).toContain("3 volte al giorno");
     expect(s.endsWith(".")).toBe(true);
   });
 
@@ -28,7 +28,7 @@ describe("describeCampaign", () => {
       effects: [{ type: "GRANT_PLAYS", contestCode: "IW-AUTUNNO", count: 1 }],
     });
     expect(s).toContain("GOLD o PLATINUM");
-    expect(s).toContain("1 giocata su IW-AUTUNNO");
+    expect(s).toContain("1 giocata a IW-AUTUNNO");
   });
 
   it("non lancia con una bozza vuota", () => {

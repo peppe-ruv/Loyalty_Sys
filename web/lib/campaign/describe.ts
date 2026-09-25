@@ -5,6 +5,10 @@ export interface CampaignDraft {
   triggerActionTypes?: string[];
   /** Nomi dei tipi azione noti al chiamante (es. i tipi custom da ingestion), prioritari sulla mappa interna. */
   actionLabels?: Record<string, string>;
+  /** Fonti ammesse (BO-06 §2 Quando, default tutte): elencate dopo il trigger ("da ecommerce o app"). */
+  sources?: string[];
+  /** Nomi dei concorsi per codice (gamification `GET /v1/contests`): "1 giocata a Ruota d'Autunno". */
+  contestNames?: Record<string, string>;
   audience?: { all?: boolean; tiers?: string[]; segments?: string[] };
   conditions?: ConditionNode;
   effects?: EffectSpec[];
@@ -21,6 +25,9 @@ export interface EffectSpec {
   mode?: string;
   value?: number;
   unitStep?: number;
+  /** FROM_FIELD e LOOKUP (docs/03 §3.4): campo dell'azione da cui si legge il valore o la chiave della tabella. */
+  amountField?: string;
+  lookup?: Record<string, number>;
   factor?: number;
   count?: number;
   contestCode?: string;
@@ -80,10 +87,10 @@ const CMP_LABEL: Record<string, string> = {
 };
 
 export function describeCampaign(c: CampaignDraft): string {
-  const trigger = triggerPhrase(c.triggerActionTypes, c.actionLabels);
+  const trigger = triggerPhrase(c.triggerActionTypes, c.actionLabels) + sourcesPhrase(c.sources);
   const audience = audiencePhrase(c.audience);
   const conditions = conditionsPhrase(c.conditions);
-  const effects = effectsPhrase(c.effects);
+  const effects = effectsPhrase(c.effects, c.contestNames);
   const limits = limitsPhrase(c.limits);
 
   let sentence = `Quando arriva ${trigger}`;
@@ -99,6 +106,10 @@ export function describeCampaign(c: CampaignDraft): string {
 function triggerPhrase(types?: string[], labels?: Record<string, string>): string {
   if (!types || types.length === 0) return "un'azione";
   return bold(types.map((t) => labels?.[t] ?? ACTION_LABEL[t] ?? t).join(" o "));
+}
+
+function sourcesPhrase(sources?: string[]): string {
+  return sources && sources.length > 0 ? ` da ${sources.join(" o ")}` : "";
 }
 
 function audiencePhrase(a?: CampaignDraft["audience"]): string | null {
@@ -125,7 +136,12 @@ function renderNode(node: ConditionNode): string | null {
   const label = fieldLabel(node.field);
   const cmp = CMP_LABEL[node.cmp] ?? node.cmp;
   if (node.cmp === "exists" || node.cmp === "nexists") return bold(`${label} ${cmp}`);
-  return bold(`${label} ${cmp} ${formatValue(node.value)}`);
+  return bold(`${label} ${cmp} ${formatValue(node.value)}${isEuroField(node.field) ? " €" : ""}`);
+}
+
+/** `data.amount` è un importo in euro (esempio di BO-06: "importo ≥ 50 €"). */
+function isEuroField(field: string): boolean {
+  return field === "data.amount";
 }
 
 function fieldLabel(field: string): string {
@@ -147,23 +163,29 @@ function formatValue(value: unknown): string {
   return String(value ?? "");
 }
 
-function effectsPhrase(effects?: EffectSpec[]): string {
+function effectsPhrase(effects?: EffectSpec[], contestNames?: Record<string, string>): string {
   if (!effects || effects.length === 0) return bold("nessun effetto");
-  return "assegna " + effects.map(effectLabel).join(" e ");
+  return "assegna " + effects.map((e) => effectLabel(e, contestNames)).join(" e ");
 }
 
-function effectLabel(e: EffectSpec): string {
+function effectLabel(e: EffectSpec, contestNames?: Record<string, string>): string {
   switch (e.type) {
     case "GRANT_POINTS": {
       const cur = e.currency ?? "PTS";
       if (e.mode === "PER_AMOUNT") return bold(`${e.value ?? 1} ${cur} ogni ${e.unitStep ?? 1} €`);
       if (e.mode === "FIXED") return bold(`${e.value ?? 0} ${cur}`);
+      if (e.mode === "FROM_FIELD") return bold(`${cur} pari al campo ${fieldLabel(e.amountField ?? "?")}`);
+      if (e.mode === "LOOKUP") return bold(`${cur} dalla tabella sul campo ${fieldLabel(e.amountField ?? "?")}`);
       return bold(`${cur} (${e.mode ?? "?"})`);
     }
     case "MULTIPLIER":
       return bold(`${e.currency ?? "PTS"} ×${e.factor ?? 1}`);
-    case "GRANT_PLAYS":
-      return bold(`${e.count ?? 1} giocata su ${e.contestCode ?? "?"}`);
+    case "GRANT_PLAYS": {
+      const count = e.count ?? 1;
+      const plays = `${count} ${count === 1 ? "giocata" : "giocate"}`;
+      if (!e.contestCode) return bold(plays);
+      return bold(`${plays} a ${contestNames?.[e.contestCode] ?? e.contestCode}`);
+    }
     case "ISSUE_COUPON":
       return bold("un coupon");
     case "AWARD_BADGE":
@@ -179,7 +201,7 @@ function limitsPhrase(limits?: CampaignDraft["limits"]): string | null {
   const perMember = limits?.perMember;
   if (!perMember || perMember.length === 0) return null;
   const l = perMember[0];
-  return `al massimo ${bold(`${l.max} volta/e ${PERIOD_LABEL[l.period] ?? l.period}`)}`;
+  return `al massimo ${bold(`${l.max} ${l.max === 1 ? "volta" : "volte"} ${PERIOD_LABEL[l.period] ?? l.period}`)}`;
 }
 
 // Enfasi con marcatori **…**: il renderer li converte in <strong> (o li mostra così nei test).

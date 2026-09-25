@@ -1,0 +1,37 @@
+id|descrizione|limiti della campagna (JSON)|match già registrati (PERIODO:chiave=n;…)|punti globali già decisi|match globali già registrati|istante dell'azione|esito atteso
+TB-CMP-LIM-001|1 al giorno, nessun uso|{"perMember":[{"max":1,"period":"DAY"}]}||||2026-09-15T09:00:00Z|MATCHED
+TB-CMP-LIM-002|3 al giorno, 2 usati (max-1)|{"perMember":[{"max":3,"period":"DAY"}]}|DAY:2026-09-15=2|||2026-09-15T09:00:00Z|MATCHED
+TB-CMP-LIM-003|3 al giorno, 3 usati (max)|{"perMember":[{"max":3,"period":"DAY"}]}|DAY:2026-09-15=3|||2026-09-15T09:00:00Z|LIMIT
+TB-CMP-LIM-004|3 al giorno, 4 usati (max+1)|{"perMember":[{"max":3,"period":"DAY"}]}|DAY:2026-09-15=4|||2026-09-15T09:00:00Z|LIMIT
+TB-CMP-LIM-005|max 0|{"perMember":[{"max":0,"period":"DAY"}]}||||2026-09-15T09:00:00Z|LIMIT
+TB-CMP-LIM-006|1 a settimana già usato nella settimana ISO|{"perMember":[{"max":1,"period":"WEEK"}]}|WEEK:2026-W38=1|||2026-09-15T09:00:00Z|LIMIT
+TB-CMP-LIM-007|1 al mese già usato nel mese|{"perMember":[{"max":1,"period":"MONTH"}]}|MONTH:2026-09=1|||2026-09-15T09:00:00Z|LIMIT
+TB-CMP-LIM-008|1 a edizione già usato nell'anno|{"perMember":[{"max":1,"period":"EDITION"}]}|EDITION:2026=1|||2026-09-15T09:00:00Z|LIMIT
+TB-CMP-LIM-009|1 per sempre già usato|{"perMember":[{"max":1,"period":"ALWAYS"}]}|ALWAYS:ALWAYS=1|||2026-09-15T09:00:00Z|LIMIT
+TB-CMP-LIM-010|periodo assente = sempre|{"perMember":[{"max":1}]}|ALWAYS:ALWAYS=1|||2026-09-15T09:00:00Z|LIMIT
+TB-CMP-LIM-011|periodo sconosciuto|{"perMember":[{"max":1,"period":"HOUR"}]}|HOUR:ALWAYS=1|||2026-09-15T09:00:00Z|LIMIT
+TB-CMP-LIM-012|due limiti, il mensile esaurito|{"perMember":[{"max":1,"period":"DAY"},{"max":3,"period":"MONTH"}]}|MONTH:2026-09=3|||2026-09-15T09:00:00Z|LIMIT
+TB-CMP-LIM-013|due limiti, entrambi con margine|{"perMember":[{"max":1,"period":"DAY"},{"max":3,"period":"MONTH"}]}|DAY:2026-09-14=1;MONTH:2026-09=2|||2026-09-15T09:00:00Z|MATCHED
+TB-CMP-LIM-014|giorno: 23:59:59 di Roma dello stesso giorno|{"perMember":[{"max":1,"period":"DAY"}]}|DAY:2026-03-28=1|||2026-03-28T22:59:59Z|LIMIT
+TB-CMP-LIM-015|giorno: 00:00 di Roma del giorno dopo|{"perMember":[{"max":1,"period":"DAY"}]}|DAY:2026-03-28=1|||2026-03-28T23:00:00Z|MATCHED
+TB-CMP-LIM-016|giorno del cambio ora di marzo: 23:59:59 CEST|{"perMember":[{"max":1,"period":"DAY"}]}|DAY:2026-03-29=1|||2026-03-29T21:59:59Z|LIMIT
+TB-CMP-LIM-017|giorno del cambio ora di ottobre: 23:59:59 CET|{"perMember":[{"max":1,"period":"DAY"}]}|DAY:2026-10-25=1|||2026-10-25T22:59:59Z|LIMIT
+TB-CMP-LIM-018|giorno dopo il cambio ora di ottobre: 00:00 CET|{"perMember":[{"max":1,"period":"DAY"}]}|DAY:2026-10-25=1|||2026-10-25T23:00:00Z|MATCHED
+TB-CMP-LIM-019|settimana: domenica 23:59:59 di Roma|{"perMember":[{"max":1,"period":"WEEK"}]}|WEEK:2026-W38=1|||2026-09-20T21:59:59Z|LIMIT
+TB-CMP-LIM-020|settimana: lunedì 00:00 di Roma|{"perMember":[{"max":1,"period":"WEEK"}]}|WEEK:2026-W38=1|||2026-09-20T22:00:00Z|MATCHED
+TB-CMP-LIM-021|settimana ISO a cavallo d'anno (1 gennaio 2027 in 2026-W53)|{"perMember":[{"max":1,"period":"WEEK"}]}|WEEK:2026-W53=1|||2027-01-01T12:00:00Z|LIMIT
+TB-CMP-LIM-022|mese: 31 gennaio 23:59:59 di Roma|{"perMember":[{"max":1,"period":"MONTH"}]}|MONTH:2026-01=1|||2026-01-31T22:59:59Z|LIMIT
+TB-CMP-LIM-023|mese: 1 febbraio 00:00 di Roma|{"perMember":[{"max":1,"period":"MONTH"}]}|MONTH:2026-01=1|||2026-01-31T23:00:00Z|MATCHED
+TB-CMP-LIM-024|mese: 29 febbraio 23:59:59 di Roma|{"perMember":[{"max":1,"period":"MONTH"}]}|MONTH:2028-02=1|||2028-02-29T22:59:59Z|LIMIT
+TB-CMP-LIM-025|edizione: capodanno alla mezzanotte di Roma|{"perMember":[{"max":1,"period":"EDITION"}]}|EDITION:2026=1|||2026-12-31T23:00:00Z|MATCHED
+TB-CMP-LIM-026|budget punti: consumato max-1|{"global":{"maxPoints":1000}}||999||2026-09-15T09:00:00Z|MATCHED
+TB-CMP-LIM-027|budget punti: consumato max|{"global":{"maxPoints":1000}}||1000||2026-09-15T09:00:00Z|BUDGET
+TB-CMP-LIM-028|budget punti: consumato max+1|{"global":{"maxPoints":1000}}||1001||2026-09-15T09:00:00Z|BUDGET
+TB-CMP-LIM-029|budget match: registrati max-1|{"global":{"maxMatches":10}}|||9|2026-09-15T09:00:00Z|MATCHED
+TB-CMP-LIM-030|budget match: registrati max|{"global":{"maxMatches":10}}|||10|2026-09-15T09:00:00Z|BUDGET
+TB-CMP-LIM-031|budget match: registrati max+1|{"global":{"maxMatches":10}}|||11|2026-09-15T09:00:00Z|BUDGET
+TB-CMP-LIM-032|budget senza tetti (null)|{"global":{"maxPoints":null,"maxMatches":null}}||500000|500000|2026-09-15T09:00:00Z|MATCHED
+TB-CMP-LIM-033|budget match 0|{"global":{"maxMatches":0}}||||2026-09-15T09:00:00Z|BUDGET
+TB-CMP-LIM-034|limite per membro e budget entrambi esauriti|{"perMember":[{"max":1,"period":"DAY"}],"global":{"maxPoints":1000}}|DAY:2026-09-15=1|1000||2026-09-15T09:00:00Z|LIMIT
+TB-CMP-LIM-035|budget quasi esaurito e accredito che lo supera|{"global":{"maxPoints":1000}}||990||2026-09-15T09:00:00Z|MATCHED
+TB-CMP-LIM-036|limiti vuoti|{}||||2026-09-15T09:00:00Z|MATCHED

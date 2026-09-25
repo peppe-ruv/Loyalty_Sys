@@ -7,7 +7,7 @@ export interface NavItem {
   href: string;
   milestone: number; // milestone in cui la voce diventa reale
   /** Contatore mostrato accanto alla voce (docs/08 §1), aggiornato ogni 30 s. */
-  counter?: "redemptions" | "dlq";
+  counter?: "approvals" | "redemptions" | "dlq";
 }
 
 export interface NavGroup {
@@ -71,7 +71,7 @@ export const NAV: NavGroup[] = [
   {
     label: "Governance",
     items: [
-      { id: "BO-21", label: "Approvazioni", href: "/backoffice/governance/approvals", milestone: 7 },
+      { id: "BO-21", label: "Approvazioni", href: "/backoffice/governance/approvals", milestone: 7, counter: "approvals" },
       { id: "BO-22", label: "Audit", href: "/backoffice/governance/audit", milestone: 2 },
       { id: "BO-23", label: "Webhook", href: "/backoffice/governance/webhooks", milestone: 7 },
     ],
@@ -79,7 +79,7 @@ export const NAV: NavGroup[] = [
   {
     label: "Osservabilità",
     items: [
-      { id: "BO-24", label: "Flusso eventi live", href: "/backoffice/observe/live", milestone: 2 },
+      { id: "BO-24", label: "Flusso live", href: "/backoffice/observe/live", milestone: 2 },
       { id: "BO-25", label: "Tracciati", href: "/backoffice/observe/traces", milestone: 2 },
       { id: "BO-26", label: "Monitor ingressi", href: "/backoffice/observe/inbound", milestone: 1 },
       { id: "BO-27", label: "DLQ", href: "/backoffice/observe/dlq", milestone: 7, counter: "dlq" },

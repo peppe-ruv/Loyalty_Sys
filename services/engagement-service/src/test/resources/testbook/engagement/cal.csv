@@ -1,0 +1,7 @@
+id	descrizione	start	end	expected
+TB-ENG-CAL-001	`startAt` = adesso	0	-	SHOWN
+TB-ENG-CAL-002	`startAt` = adesso + 1 s	1	-	OUT_OF_SCHEDULE
+TB-ENG-CAL-003	`startAt` = adesso − 1 s	-1	-	SHOWN
+TB-ENG-CAL-004	`endAt` = adesso	-	0	OUT_OF_SCHEDULE
+TB-ENG-CAL-005	`endAt` = adesso + 1 s	-	1	SHOWN
+TB-ENG-CAL-006	`endAt` = adesso − 1 s	-	-1	OUT_OF_SCHEDULE
