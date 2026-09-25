@@ -29,7 +29,8 @@ public class TestbookGamLeaderboardIT extends LeaderboardIT {
     @Test
     @DisplayName("[TB-GAM-LDB-003] Parimerito")
     void testTieBreakerTime() throws Exception {
-        // Mapped to tie test logic
+        // Tested by pointsEarnedFeedTheRightBoardAndTiesGoToWhoArrivedFirst
+        pointsEarnedFeedTheRightBoardAndTiesGoToWhoArrivedFirst();
     }
 
     @Test

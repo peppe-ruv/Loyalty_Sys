@@ -62,7 +62,7 @@ public class TestbookGamPlayIT extends PlayIT {
         String code = "IW-TB-PLY-005";
         String id = createLiveTb(code, 5, true, null);
         // Change start time to future
-        org.springframework.jdbc.core.simple.JdbcClient jdbcTb = (org.springframework.jdbc.core.simple.JdbcClient) org.springframework.test.util.ReflectionTestUtils.getField(this, "jdbc");
+        org.springframework.jdbc.core.simple.JdbcClient jdbcTb = getJdbcTb();
         jdbcTb.sql("UPDATE contest SET start_at = ? WHERE id = ?").params(Timestamp.from(Instant.now().plusSeconds(10000)), id).update();
         String memberId = "MBR-000005";
         JsonNode result = playTb(code, memberId, 422);
@@ -74,7 +74,7 @@ public class TestbookGamPlayIT extends PlayIT {
     void testPlayAfterEnd() {
         String code = "IW-TB-PLY-006";
         String id = createLiveTb(code, 5, true, null);
-        org.springframework.jdbc.core.simple.JdbcClient jdbcTb = (org.springframework.jdbc.core.simple.JdbcClient) org.springframework.test.util.ReflectionTestUtils.getField(this, "jdbc");
+        org.springframework.jdbc.core.simple.JdbcClient jdbcTb = getJdbcTb();
         jdbcTb.sql("UPDATE contest SET end_at = ? WHERE id = ?").params(Timestamp.from(Instant.now().minusSeconds(10000)), id).update();
         String memberId = "MBR-000006";
         JsonNode result = playTb(code, memberId, 422);
@@ -109,7 +109,7 @@ public class TestbookGamPlayIT extends PlayIT {
     void testPlayWinsLimit() throws Exception {
         String code = "IW-TB-PLY-009";
         String id = createLiveTb(code, 5, true, null);
-        org.springframework.jdbc.core.simple.JdbcClient jdbcTb = (org.springframework.jdbc.core.simple.JdbcClient) org.springframework.test.util.ReflectionTestUtils.getField(this, "jdbc");
+        org.springframework.jdbc.core.simple.JdbcClient jdbcTb = getJdbcTb();
         jdbcTb.sql("UPDATE contest SET max_wins_per_member = 0 WHERE id = ?").params(id).update();
         // plant instant
         jdbcTb.sql("UPDATE winning_instant SET instant_at = ? WHERE contest_id = ?").params(Timestamp.from(Instant.now().minusSeconds(1)), id).update();
@@ -121,31 +121,7 @@ public class TestbookGamPlayIT extends PlayIT {
     @Test
     @DisplayName("[TB-GAM-PLY-010] Giocata concorrente con 1 istante scaduto, 50 thread")
     void testPlayConcurrency() throws Exception {
-        // Copied from PlayIT.fiftyConcurrentPlaysOneExpiredInstantOneWin with a unique code
-        String id = createLiveTb("IW-TB-PLY-RACE", 1, true, null);
-        org.springframework.jdbc.core.simple.JdbcClient jdbcTb = (org.springframework.jdbc.core.simple.JdbcClient) org.springframework.test.util.ReflectionTestUtils.getField(this, "jdbc");
-        jdbcTb.sql("UPDATE winning_instant SET instant_at = ? WHERE contest_id = ?")
-                .params(Timestamp.from(Instant.now().minusSeconds(1)), id).update();
-        java.util.List<String> racers = new java.util.ArrayList<>();
-        for (int i = 1; i <= 50; i++) {
-            String m = String.format("MBR-9%05d", i);
-            racers.add(m);
-            jdbcTb.sql("INSERT INTO gamification_member_snapshot (member_id, nickname, status) VALUES (?, ?, 'ACTIVE') ON CONFLICT DO NOTHING")
-                    .params(m, "racer" + i).update();
-        }
-        java.util.List<java.util.concurrent.Callable<JsonNode>> tasks = racers.stream().map(m -> (java.util.concurrent.Callable<JsonNode>) () -> playTb("IW-TB-PLY-RACE", m, 200)).toList();
-        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(50);
-        java.util.List<java.util.concurrent.Future<JsonNode>> futures = pool.invokeAll(tasks);
-        pool.shutdown();
-        int wins = 0;
-        int loses = 0;
-        for (java.util.concurrent.Future<JsonNode> f : futures) {
-            String outcome = f.get().path("outcome").asString();
-            if ("WIN".equals(outcome)) wins++;
-            else if ("LOSE".equals(outcome)) loses++;
-        }
-        assertThat(wins).as("un solo istante aperto scaduto deve dare una sola vincita").isEqualTo(1);
-        assertThat(loses).isEqualTo(49);
+        fiftyConcurrentPlaysOneExpiredInstantOneWin();
     }
 
     @Test
@@ -154,7 +130,11 @@ public class TestbookGamPlayIT extends PlayIT {
         String id = createLiveTb("IW-TB-INST-004", 5, true, null);
         String code = "IW-TB-INST-004";
         // Call plant
-        var spec = org.springframework.web.client.RestClient.create("http://localhost:" + org.springframework.test.util.ReflectionTestUtils.getField(this, "port"))
+        int actualPort = 8086;
+        try {
+            actualPort = (int) org.springframework.test.util.ReflectionTestUtils.getField(this, "port");
+        } catch (Exception e) {}
+        var spec = org.springframework.web.client.RestClient.create("http://localhost:" + actualPort)
                 .post().uri("/v1/demo/contests/" + id + "/plant-instant").header("X-LH-Actor", "ADMIN:test")
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON).body(Map.of("prizeCode", "PTS-10"));
         spec.retrieve().toBodilessEntity();
@@ -165,10 +145,19 @@ public class TestbookGamPlayIT extends PlayIT {
     }
 
     // helper
+
+    private org.springframework.jdbc.core.simple.JdbcClient getJdbcTb() {
+        try {
+            return (org.springframework.jdbc.core.simple.JdbcClient) org.springframework.test.util.ReflectionTestUtils.getField(this, "jdbc");
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private String createDraftTb(String code) {
         String id = java.util.UUID.randomUUID().toString();
         Instant start = Instant.now().minus(java.time.Duration.ofDays(1));
-        org.springframework.jdbc.core.simple.JdbcClient jdbcTb = (org.springframework.jdbc.core.simple.JdbcClient) org.springframework.test.util.ReflectionTestUtils.getField(this, "jdbc");
+        org.springframework.jdbc.core.simple.JdbcClient jdbcTb = getJdbcTb();
         jdbcTb.sql("INSERT INTO contest (id, code, name, mechanic, start_at, end_at, free_play_daily, distribution, seed, status, created_by, version) " +
                  "VALUES (?, ?, 'Draft Contest', 'WHEEL', ?, ?, true, 'UNIFORM', 42, 'DRAFT', 'test', 0)")
                 .params(id, code, Timestamp.from(start), Timestamp.from(start.plus(java.time.Duration.ofDays(10)))).update();
