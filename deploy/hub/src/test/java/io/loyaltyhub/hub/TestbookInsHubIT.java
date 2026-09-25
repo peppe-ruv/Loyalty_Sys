@@ -356,7 +356,9 @@ class TestbookInsHubIT {
     @DisplayName("[TB-INS-HUB-007] UPDATE: nome cambiato ⇒ diff con il solo campo cambiato (prima/dopo)")
     void auditUpdate() {
         assertThat(campaignCode).as("dipende da HUB-006").isNotNull();
-        ok("PUT", "/v1/campaigns/" + campaignCode, MARKETING, campaignBody(campaignCode, "Campagna testbook rinominata", false));
+        Map<String, Object> renamed = campaignBody(campaignCode, "Campagna testbook rinominata", false);
+        renamed.put("version", get("/v1/campaigns/" + campaignCode).path("version").asLong()); // Q-249: version obbligatoria
+        ok("PUT", "/v1/campaigns/" + campaignCode, MARKETING, renamed);
         JsonNode a = auditOf(campaignCode, "UPDATE");
         assertThat(a.path("before").path("name").asString()).isEqualTo("Campagna testbook");
         assertThat(a.path("after").path("name").asString()).isEqualTo("Campagna testbook rinominata");
