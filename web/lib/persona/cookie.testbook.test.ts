@@ -19,7 +19,7 @@ const enc = (v: unknown) => encodeURIComponent(JSON.stringify(v));
 
 it.each(rows([
   { id: "TB-WEB-PERS-001", desc: "BO valido (codificato)", raw: enc({ kind: "BO", username: "luca.marketing", role: "MARKETING" }), expected: { kind: "BO", username: "luca.marketing", role: "MARKETING" } },
-  { id: "TB-WEB-PERS-002", desc: "BO valido (JSON non codificato)", raw: JSON.stringify({ kind: "BO", username: "anna.care", role: "CARE" }), expected: { kind: "BO", username: "anna.care", role: "CARE" } },
+  { id: "TB-WEB-PERS-002", desc: "BO valido (JSON non codificato)", raw: JSON.stringify({ kind: "BO", username: "paolo.care", role: "CARE" }), expected: { kind: "BO", username: "paolo.care", role: "CARE" } },
   { id: "TB-WEB-PERS-003", desc: "MEMBER valido", raw: enc({ kind: "MEMBER", memberId: "MBR-000007" }), expected: { kind: "MEMBER", memberId: "MBR-000007" } },
   { id: "TB-WEB-PERS-004", desc: "cookie assente (undefined)", raw: undefined, expected: null },
   { id: "TB-WEB-PERS-005", desc: "cookie null", raw: null, expected: null },
@@ -46,7 +46,7 @@ it("[TB-WEB-PERS-015] BO con ruolo fuori dai 5 (ROOT) → accettato così com'è
 });
 
 it.each(rows([
-  { id: "TB-WEB-PERS-019", desc: "BO", p: { kind: "BO", username: "giovanni.analyst", role: "ANALYST" } as Persona },
+  { id: "TB-WEB-PERS-019", desc: "BO", p: { kind: "BO", username: "sara.analyst", role: "ANALYST" } as Persona },
   { id: "TB-WEB-PERS-020", desc: "MEMBER", p: { kind: "MEMBER", memberId: "MBR-000012" } as Persona },
 ]))("[%s] serializePersona → parsePersona restituisce la stessa persona (%s)", (_id, _desc, { p }) => {
   expect(parsePersona(serializePersona(p))).toEqual(p);

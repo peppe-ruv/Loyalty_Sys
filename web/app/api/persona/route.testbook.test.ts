@@ -20,17 +20,17 @@ function cookieOf(res: Response) {
 }
 
 it("[TB-WEB-PERS-030] cambio a persona BO nota → cookie con ruolo dall'elenco, Max-Age 30 giorni", async () => {
-  const res = await post(JSON.stringify({ kind: "BO", username: "anna.care" }));
+  const res = await post(JSON.stringify({ kind: "BO", username: "paolo.care" }));
   expect(res.status).toBe(200);
   const { header, persona } = cookieOf(res);
-  expect(persona).toEqual({ kind: "BO", username: "anna.care", role: "CARE" });
+  expect(persona).toEqual({ kind: "BO", username: "paolo.care", role: "CARE" });
   expect(header).toMatch(/Max-Age=2592000/i);
   expect(header).toMatch(/Path=\//i);
 });
 
-it("[TB-WEB-PERS-031] il ruolo nel corpo non conta: BO giovanni.analyst con role ADMIN → ANALYST", async () => {
-  const res = await post(JSON.stringify({ kind: "BO", username: "giovanni.analyst", role: "ADMIN" }));
-  expect(cookieOf(res).persona).toEqual({ kind: "BO", username: "giovanni.analyst", role: "ANALYST" });
+it("[TB-WEB-PERS-031] il ruolo nel corpo non conta: BO sara.analyst con role ADMIN → ANALYST", async () => {
+  const res = await post(JSON.stringify({ kind: "BO", username: "sara.analyst", role: "ADMIN" }));
+  expect(cookieOf(res).persona).toEqual({ kind: "BO", username: "sara.analyst", role: "ANALYST" });
 });
 
 it("[TB-WEB-PERS-032] cambio a membro → cookie MEMBER", async () => {
