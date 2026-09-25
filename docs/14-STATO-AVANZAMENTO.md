@@ -189,14 +189,14 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 **Feature** (`docs/02`)
 
 - [x] `F-WAL-04` Spesa FIFO (P0) — _M4.3: lotti per scadenza poi anzianità, `lot_consumption`; la rettifica in addebito usa lo stesso consumo_
-- [x] `F-WAL-08` Saga di spesa (P0) — _M4.3: `wallet.points.spent` / `wallet.spend.rejected` idempotenti su `redemption_id`, rimborso con `wallet.points.refunded` (Q-54)_
+- [x] `F-WAL-08` Saga di spesa (P0) — _M4.3: `wallet.points.spent` / `wallet.spend.rejected` idempotenti su `redemption_id`, rimborso con `wallet.points.refunded` (lotto nuovo, Q-160)_
 - [x] `F-RWD-01` Catalogo premi (P0) — _M4.1: API + BO-10 (griglia/tabella, editor); PT-03 in M4.5_
 - [x] `F-RWD-02` Fasce premi (P0) — _M4.1: soglie uniche e crescenti, `BAND_IN_USE`, BO-11 con impatto sui premi LIVE_
 - [x] `F-RWD-03` Disponibilità (P0) — _M4.1 stock/limite/`stockState`; M4.3 prenotazione atomica (`UPDATE … WHERE stock_remaining > 0`), limite per membro sotto lock, ripristino su rifiuto/timeout/annullo_
 - [x] `F-RWD-04` Visibilità (P0 tier · P1 segmenti) — _M4.1: tier (lucchetto) e segmenti (esclusione) sul catalogo portale da snapshot dei fatti; `AudiencePicker` in M6_
 - [x] `F-RWD-05` Richiesta premio (P0) — _M4.3 backend (saga, timeout, compensazione); M4.4 BO-13; M4.5 PT-04 (conferma, attesa, esito, timeout 20 s → «I miei premi») e PT-13 (annullo in conferma)_
 - [x] `F-RWD-06` Evasione (P0) — _M4.3 automatica (coupon, pool vuoto → `needsAttention`) e immediata; M4.4 manuale da BO-13 (nota + tracking, CARE/ADMIN) e nuovo tentativo dopo una generazione di codici_
-- [x] `F-RWD-07` Annullamento con rimborso (P1) — _M4.4: da `CONFIRMED`, motivo obbligatorio, stock ripristinato, coupon `VOID`, rimborso nei lotti d'origine (Q-54); BO-13 mostra "in elaborazione" finché il wallet non rimborsa_
+- [x] `F-RWD-07` Annullamento con rimborso (P1) — _M4.4: da `CONFIRMED`, motivo obbligatorio, stock ripristinato, coupon `VOID`, rimborso in un lotto nuovo con scadenza max(originaria, oggi + 30 gg) (Q-160); BO-13 mostra "in elaborazione" finché il wallet non rimborsa_
 - [x] `F-RWD-08` Ciclo di vita premio (P0) — _M4.1: macchina a stati comune, blocco campi LIVE (`REWARD_LIVE_LOCKED`), duplica; approvazione in M7_
 - [x] `F-CPN-01` Pool di coupon (P0) — _M4.2: `prefix-XXXX-XXXX` da seme (stessi codici a ogni reset), import con scartati, stato per codice, BO-12_
 - [x] `F-CPN-02` Emissione (P0) — _M4.2 da effetto `coupon.issue` (idempotente su `effectId`, pool vuoto → DLQ `COUPON_POOL_EMPTY`); M4.3 da richiesta premio (un solo coupon per richiesta anche se la spesa è rielaborata). M5.3 da vincita a un concorso (`CMP-IW-PRIZE-COUPON`)_

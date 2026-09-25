@@ -35,7 +35,7 @@ Il testbook è eseguibile per intero con un comando e produce un rapporto riga p
 |---|---|---|---|---|
 | Ingresso eventi | [§3](#3-tb-ing--ingresso-eventi) | ingestion | docs/servizi/ingestion-service.md §3, §5 · F-ING-* · contracts/events/action | in preparazione |
 | Campagne | [§4](#4-tb-cmp--campagne) | campaign | docs/03 §3 · docs/servizi/campaign-service.md · F-CMP-* | in preparazione |
-| Wallet e livelli | [§5](#5-tb-wal--wallet-e-livelli) | wallet | docs/03 §4 · docs/servizi/wallet-service.md · F-WAL-*, F-TIER-* | in preparazione |
+| Wallet e livelli | [§5](#5-tb-wal--wallet-e-livelli) | wallet | docs/03 §4 · docs/servizi/wallet-service.md · F-WAL-*, F-TIER-* | **eseguibile** — 373 righe |
 | Premi e coupon | [§6](#6-tb-rwd--premi-e-coupon) | reward (+ wallet) | docs/servizi/reward-service.md · F-RWD-*, F-CPN-* | in preparazione |
 | Gioco | [§7](#7-tb-gam--gioco) | gamification | docs/servizi/gamification-service.md · F-IW-*, F-ACH-*, F-LDB-*, F-REF-* | in preparazione |
 | Governance e membri | [§8](#8-tb-gov--governance-e-membri) | tutti · member | docs/03 §3.6 · docs/06 §7 · docs/08 §2 · F-APR-*, F-MBR-*, F-SEG-* | in preparazione |
@@ -52,7 +52,18 @@ _In revisione._
 _In revisione._
 
 ## 5. TB-WAL — Wallet e livelli
-_In revisione._
+Documento completo: [`docs/testbook/TB-WAL-wallet.md`](testbook/TB-WAL-wallet.md) — 32 regole, 97 rami di codice mappati,
+**373 righe** (19 aree: POL, CLR, GRT, TUP, REL, WVW, API, MBR, LIA, JOB, EXP, WRN, SPD, REF, ADJ, CUR, TAD, EDN, ECL).
+Test: `services/wallet-service/src/test/java/io/loyaltyhub/wallet/testbook/` (`TestbookWalPolicyTest`, `TestbookWalCloseRuleTest`,
+`TestbookWalAccrualIT`, `TestbookWalSpendIT`, `TestbookWalAdminIT`), dati in `src/test/resources/testbook/wal/*.csv`.
+
+- **Tabelle complete:** accredito (valuta × giorni di attesa × moltiplicatore × livello, 48 righe), chiusura edizione
+  (livello corrente × classe STS, 32 righe). **Riduzioni:** rettifiche 48 → 12 all-pairs + 22 classi non valide + 8 limiti.
+- **Divergenze trovate e corrette (18 righe, 11 cause):** scadenza di fine mese arrotondata al giorno dopo, un movimento
+  EXPIRE per lotto invece che per membro e valuta, audit dei job assente, `keepWarning` assente, filtri e campi del
+  registro, campi del portale, edizione successiva sbagliata alla chiusura, scadenza del rimborso (Q-160, supera Q-54).
+- **Scelte registrate:** Q-140…Q-156 (28 righe); quattro non conservative, da decidere: Q-140, Q-147, Q-149, Q-151.
+- **Verifica a mutazione:** 7 mutazioni, tutte rilevate (vedi §Copertura del documento).
 
 ## 6. TB-RWD — Premi e coupon
 _In revisione._

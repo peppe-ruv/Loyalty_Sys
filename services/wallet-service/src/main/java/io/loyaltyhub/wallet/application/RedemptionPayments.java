@@ -110,7 +110,7 @@ public class RedemptionPayments {
     /**
      * Rimborso di una richiesta annullata dopo la spesa (docs/03 §4.2): tutto l'importo speso torna in un lotto
      * <b>nuovo</b> con {@code expiresAt = max(scadenza più lontana tra i lotti consumati, oggi + 30 giorni)}
-     * ({@link #refundExpiry}). I lotti d'origine restano come sono. Supera il default di Q-54 (vedi Q-E4).
+     * ({@link #refundExpiry}). I lotti d'origine restano come sono. Supera il default di Q-54 (vedi Q-160).
      */
     @Transactional
     public void refund(LhEvent<JsonNode> cancelled) {
@@ -157,7 +157,7 @@ public class RedemptionPayments {
      * lotto consumato senza scadenza ({@code null}, policy {@code NEVER}) rende senza scadenza anche il rimborso. Nessun
      * consumo registrato (spese storiche del seed) → {@code now + 30 giorni}.
      */
-    // SPEC-GAP: Q-E4 — lotto consumato senza scadenza e spesa senza consumi non sono coperti da docs/03 §4.2.
+    // SPEC-GAP: Q-160 — lotto consumato senza scadenza e spesa senza consumi non sono coperti da docs/03 §4.2.
     static Instant refundExpiry(java.util.List<PointsLotRepository.Consumption> consumed, Instant now) {
         Instant result = now.plus(REFUND_MIN_VALIDITY);
         for (PointsLotRepository.Consumption c : consumed) {
