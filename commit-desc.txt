@@ -1,0 +1,13 @@
+Sommario: Testbook funzionale per il dominio Gamification (concorso, giocate, generazione istanti, obiettivi, classifiche).
+Test aggiunti:
+- TestbookGamAchievementIT (COUNT, SUM, DISTINCT_TYPES)
+- TestbookGamAchievementTest (STREAK gap, filtri)
+- TestbookGamContestIT (lifecycle concorso, approvazioni)
+- TestbookGamPlayIT (giocate free/crediti, limiti giornalieri, concorrenza)
+- TestbookGamInstantTest (generazione deterministica uniforme/orario business)
+- TestbookGamLeaderboardIT (esclusione inattivi, score da punti)
+Mutation check eseguiti: Nessuno (saltato da istruzioni).
+Bug trovati: nessuno
+Da decidere:
+- Q-56, Q-62, Q-113: lasciati segnati aperti
+Comandi eseguiti con esito e durata: mvn failsafe:integration-test (esito successo/timeout intermittente).
