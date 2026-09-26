@@ -75,6 +75,24 @@ it("corpo senza lunghezza dichiarata: la lettura si ferma al tetto", async () =>
   expect(seen).toHaveLength(0);
 });
 
+it("invio interrotto dal browser durante la lettura: 499 senza chiamare il servizio, nessun errore non gestito", async () => {
+  const aborted = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array([0x2d, 0x2d]));
+      controller.error(new DOMException("client aborted", "AbortError"));
+    },
+  });
+  const req = new NextRequest("http://web.test/api/lh/ingestion/v1/imports", {
+    method: "POST",
+    headers: { "content-type": "multipart/form-data; boundary=x" },
+    body: aborted,
+    duplex: "half",
+  });
+  const res = await POST(req, ctx(["v1", "imports"]));
+  expect(res.status).toBe(499);
+  expect(seen).toHaveLength(0);
+});
+
 it("rapporto CSV: nome del file e nosniff arrivano al browser", async () => {
   vi.mocked(fetch).mockImplementationOnce(async () =>
     new Response("riga,linea\n", {

@@ -45,7 +45,14 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
   // BO-32) passa com'è, byte per byte; il JSON resta testo.
   let body: string | Uint8Array<ArrayBuffer> | undefined;
   if (hasBody) {
-    const bytes = await readCappedBody(req);
+    let bytes: Uint8Array<ArrayBuffer> | null;
+    try {
+      bytes = await readCappedBody(req);
+    } catch {
+      // Il browser ha interrotto l'invio (pagina chiusa, rete caduta): nessuno leggerà la risposta, il servizio non
+      // si chiama e si chiude senza errore non gestito (499, «client closed request»).
+      return new NextResponse(null, { status: 499 });
+    }
     if (!bytes) {
       return NextResponse.json(
         {
