@@ -122,8 +122,15 @@ class LiveEventHubTest {
         RecordingEmitter healthy = emitter(false);
         hub.subscribe(ALL, null, slow);
         hub.subscribe(ALL, null, healthy);
-        int n = LiveEventHub.CLIENT_QUEUE + 10;
-        for (int i = 0; i < n; i++) {
+        // Prima si riempie la coda del lento e si attende che il sano abbia svuotato la sua: pubblicando tutto di fila,
+        // su un runner lento anche il sano superava i 500 in coda e veniva disconnesso (0 iscritti invece di 1).
+        int full = LiveEventHub.CLIENT_QUEUE;
+        int n = full + 10;
+        for (int i = 0; i < full; i++) {
+            hub.publish(event("S" + i));
+        }
+        await("il client sano svuota la coda", () -> healthy.ids.size() == full);
+        for (int i = full; i < n; i++) {
             hub.publish(event("S" + i));
         }
         assertThat(hub.subscriberCount()).as("il client lento è tolto dagli iscritti").isEqualTo(1);
