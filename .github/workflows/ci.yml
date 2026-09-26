@@ -26,6 +26,25 @@ jobs:
       - name: Build e test
         run: ./mvnw -B -ntp verify
 
+  # Governance del repository (docs/18 §3.13, ADR-041): le ADR di docs/13 solo in aggiunta e gli ID di seed/
+  # invariati senza la label "decisione". Gira solo sulle pull request; dopo aver aggiunto la label si rilancia il job.
+  guard:
+    name: guard
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: ADR solo in aggiunta, ID seed stabili
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: node scripts/check-adr-append-only.mjs "origin/$BASE_REF" HEAD "--pr-labels=$PR_LABELS"
+
   web:
     name: web (Next.js)
     runs-on: ubuntu-latest
