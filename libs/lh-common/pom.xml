@@ -64,6 +64,12 @@
     </dependency>
     <!-- OpenAPI (docs/06 §2): /v3/api-docs e /swagger-ui.html; UI spenta nel profilo free (docs/11 §6). Q-341, ADR-046 -->
     <dependency>
+      <!-- Verifica dei JWT nel profilo enterprise (ADR-027, M8.2): solo decoder e validatori, senza la catena di filtri
+           di Spring Security; l'autorizzazione resta @RequiresRole. Versione dalla BOM di Spring Boot. -->
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-oauth2-jose</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.springdoc</groupId>
       <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
     </dependency>
