@@ -115,7 +115,7 @@ class TestbookPltApiIT extends TestbookPltSupportIT {
                 case "openapi" -> {
                     Raw r = raw("GET", "/v3/api-docs", headers(), null);
                     assertThat(String.valueOf(r.status())).isEqualTo(row.get("atteso"));
-                    // docs/06 §2: ogni endpoint ha summary e tag = area (Q-341, ADR-026).
+                    // docs/06 §2: ogni endpoint ha summary e tag = area (Q-341, ADR-046).
                     JsonNode paths = r.json(mapper).path("paths");
                     assertThat(paths.size()).as("operazioni documentate").isGreaterThan(50);
                     List<String> missing = new ArrayList<>();
