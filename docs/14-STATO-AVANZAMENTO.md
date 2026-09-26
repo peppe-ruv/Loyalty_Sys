@@ -361,7 +361,7 @@ Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della 
 - [ ] M8.1 — immagine unica a ruoli
 - [ ] M8.2 — identità (Keycloak `idp`, BFF, OIDC)
 - [ ] M8.3 — chart Helm e compose di riferimento
-- [ ] M8.4 — PII fuori dal bus
+- [~] M8.4 — PII fuori dal bus — _parte 1 (contratti `x-lh-pii`, `member.*:2`, test) in revisione: PR #50; parte 2 (produttore, consumer, delivery, cifratura) da fare_
 - [ ] M8.5 — sicurezza di piattaforma
 - [ ] M8.6 — osservabilità
 - [ ] M8.7 — ingresso batch e import file (BO-32)
