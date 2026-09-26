@@ -77,7 +77,10 @@ public class TestbookGamAchievementIT extends AchievementIT {
 
     // helper
     private JsonNode sendTb(String method, String path, String actor, Object body, int expected) {
-        int actualPort = (int) org.springframework.test.util.ReflectionTestUtils.getField(this, "port");
+        int actualPort = 8086;
+        try {
+            actualPort = (int) org.springframework.test.util.ReflectionTestUtils.getField(this, "port");
+        } catch (Exception e) {}
         var spec = org.springframework.web.client.RestClient.create("http://localhost:" + actualPort)
                 .method(org.springframework.http.HttpMethod.valueOf(method))
                 .uri(path).header("X-LH-Actor", actor);
