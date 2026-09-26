@@ -12,15 +12,18 @@
       "enum": [
         "REFERRER",
         "REFEREE"
-      ]
+      ],
+      "x-lh-pii": false
     },
     "counterpartMemberId": {
       "type": "string",
-      "pattern": "^MBR-[0-9]{6}$"
+      "pattern": "^MBR-[0-9]{6}$",
+      "x-lh-pii": false
     },
     "qualifyingActionId": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "x-lh-pii": false
     }
   },
   "additionalProperties": true

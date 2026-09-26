@@ -5,9 +5,9 @@
   "type": "object",
   "required": ["editionCode", "retained", "downgraded"],
   "properties": {
-    "editionCode": { "type": "string" },
-    "retained": { "type": "integer", "minimum": 0 },
-    "downgraded": { "type": "integer", "minimum": 0 }
+    "editionCode": { "type": "string", "x-lh-pii": false },
+    "retained": { "type": "integer", "minimum": 0, "x-lh-pii": false },
+    "downgraded": { "type": "integer", "minimum": 0, "x-lh-pii": false }
   },
   "additionalProperties": true
 }

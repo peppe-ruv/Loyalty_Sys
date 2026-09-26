@@ -5,8 +5,8 @@
   "type": "object",
   "required": ["segmentCode"],
   "properties": {
-    "segmentCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$" },
-    "segmentName": { "type": "string" }
+    "segmentCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$", "x-lh-pii": false },
+    "segmentName": { "type": "string", "x-lh-pii": false }
   },
   "additionalProperties": true
 }
