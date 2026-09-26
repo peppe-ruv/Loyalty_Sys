@@ -43,7 +43,14 @@ Il testbook è eseguibile per intero con un comando e produce un rapporto riga p
 | Interfaccia | [§10](#10-tb-web--interfaccia) | web | docs/07 · docs/08 · docs/09 | **eseguibile** — 741 righe |
 | Percorsi end-to-end | [§10bis](#10bis-tb-e2e--percorsi-end-to-end) | hub (tutti) | docs/17 E10 e percorsi tra servizi · docs/10 §8 | **eseguibile** — 114 righe |
 | Osservabilità e audit | [§10ter](#10ter-tb-ins--osservabilità-e-audit) | insight | docs/servizi/insight-service.md · F-INS-*, F-AUD-01 | **eseguibile** — 586 righe |
-| Piattaforma | [§10quater](#10quater-tb-plt--piattaforma) | lh-common, hub | docs/04 · docs/05 · docs/06 · contracts/ | in preparazione |
+| Piattaforma | [§10quater](#10quater-tb-plt--piattaforma) | lh-common, hub | docs/04 · docs/05 · docs/06 · contracts/ | **eseguibile** — 563 righe |
+| Distribuzione (Fase 2) | `TB-DIST` | immagine, chart, compose, appliance, CLI, aggiornamento | docs/18 §3.1, ADR-026, 037, 038 · F2-DIST-* | pianificata — M8.1, M8.3, M12 |
+| Identità e accessi (Fase 2) | `TB-IAM` | Keycloak `idp`, BFF, resource server, client credentials | docs/18 §3.2, ADR-027 · F2-IAM-*, F2-SEC-06/07 | pianificata — M8.2 |
+| Sicurezza applicativa (Fase 2) | `TB-SEC` | lh-common, tutti | docs/18 §3.10, ADR-042 · F2-SEC-08…12 | pianificata — M8.10, M8.11 |
+| Governo e conformità (Fase 2) | `TB-GRC` | tutti, CLI | docs/18 §3.15, ADR-044 · F2-GRC-* | pianificata — M8.13, M12.6 |
+| Esperienza data-driven (Fase 2) | `TB-EXP` | experience, cms, web | docs/18 §3.5–3.7, ADR-029…031, 039 · F2-EXP-*, F2-DS-* | pianificata — M10 |
+| Multilingua (Fase 2) | `TB-I18N` | web, tutti | docs/18 §3.8, ADR-033 · F2-I18N-* | pianificata — M11 |
+| Agente regolamento (Fase 2) | `TB-AST` | assistant | docs/18 §3.9, ADR-035 · F2-AST-* | pianificata — M14 |
 
 ## 3. TB-ING — Ingresso eventi
 Documento completo: [`docs/testbook/TB-ING-ingresso.md`](testbook/TB-ING-ingresso.md) — 28 regole, 111 rami mappati,
@@ -201,6 +208,10 @@ mappati, **563 righe** in 28 aree. Test: `libs/lh-common/src/test/java/io/loyalt
   listener `@Lazy(false)`, OpenAPI su `/v3/api-docs` con springdoc approvato: Q-341, ADR-046).
 - **Scelte registrate:** Q-332…Q-342 (tutte decise; Q-341 approvata dall'owner: springdoc, ADR-046).
 - **Verifica a mutazione:** 12 mutazioni (una per classe di test), tutte rilevate.
+
+## 10quinquies. Domini di Fase 2 (pianificati)
+
+Nati con l'adozione di Fase 2 (M8.0, `docs/18` Appendice B punti 9 e 14): stesso metodo di §1, righe `TB-<DOM>-NNN` in `docs/testbook/TB-<DOM>-*.md`, oracolo = `docs/18` e le ADR 026–045. Ogni dominio diventa *eseguibile* con le fette della sua milestone; fino ad allora non ha righe. `TB-SEC` è obbligatorio dalla fetta M8.11 (job `security`), `TB-GRC` dalla M8.13.
 
 ## 11. Copertura
 

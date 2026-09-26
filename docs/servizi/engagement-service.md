@@ -75,3 +75,16 @@ Regole seed minime: `wallet.points.earned → MSG-POINTS-EARNED`; `wallet.points
 - Contenuto con `audience.tiers=[GOLD,PLATINUM]` → assente per Anna, presente per Davide; `preview` ne spiega il motivo.
 - `PUT /v1/theme` con nuovo `primary` → `GET /v1/portal/theme` lo restituisce; il portale cambia colore senza rebuild.
 - Webhook di test verso un endpoint che risponde 500 → 3 ritenti pianificati, stato finale `GAVE_UP`, firma verificabile.
+
+## 8. Fase 2 (profilo `enterprise`)
+
+Riferimento: `docs/18`. Le righe qui sotto sono segnaposto dell'adozione (M8.0): la fetta citata le rende normative aggiornando questa scheda.
+
+- **Rinomina in `experience-service`** (ADR-031, M10.3): schema `engagement → experience` con doppia lettura dei consumer group; composizione versionata (notify-and-pull da Directus, validatore, rollback, `block_reference`), `GET /v1/portal/pages/{slug}`; nuova scheda `docs/servizi/experience-service.md`.
+- **Bridge audit del CMS** (ADR-043, M8.12): `POST /v1/audit/external` (HMAC come `/v1/cms/notify`) verso `audit_entry`.
+- **Dati personali** (ADR-032, M8.4): `member_snapshot.first_name` esce dagli snapshot; i segnaposto con il nome si risolvono nel BFF a lettura.
+
+**Classificazione `x-lh-class`** (`docs/18 §3.15`, F2-GRC-05; prima stesura M8.0, verificata e resa per colonna in M8.13). Tutto ciò che non è elencato è `INTERNAL`.
+- `PERSONAL`: `member_snapshot.first_name` (fino a M8.4), `inbox_message.title`/`body` (possono contenere il nome), `popup_view.member_id` con date.
+- `CONFIDENTIAL`: `webhook.secret`, `webhook.url`, `webhook_delivery.response_excerpt`.
+- `PUBLIC`: `content_item` pubblicati, `theme`.

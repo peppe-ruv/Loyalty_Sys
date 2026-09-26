@@ -84,7 +84,8 @@
               "specifiche/registro-decisioni",
               "specifiche/domande-aperte",
               "specifiche/testbook-funzionale",
-              "specifiche/backlog"
+              "specifiche/backlog",
+              "specifiche/fase-2"
             ]
           }
         ]

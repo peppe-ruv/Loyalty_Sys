@@ -1,0 +1,12 @@
+# Governance del repository (docs/18 §3.13, ADR-041).
+# Revisione obbligatoria dal secondo maintainer; oggi solo notifica (un solo maintainer, D-19).
+
+/docs/13-REGISTRO-DECISIONI.md   @peppe-ruv
+/docs/18-FASE-2.md               @peppe-ruv
+/CLAUDE.md                       @peppe-ruv
+/contracts/                      @peppe-ruv
+/registry/                       @peppe-ruv
+/seed/                           @peppe-ruv
+/.github/                        @peppe-ruv
+/deploy/helm/                    @peppe-ruv
+/scripts/setup-branch-protection.sh  @peppe-ruv

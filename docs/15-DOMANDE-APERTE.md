@@ -14,7 +14,7 @@ Stati: `APERTA` · `DECISA` (riportare la decisione e, se architetturale, l'ADR)
 | Q-04 | Autenticazione verso il Kafka gratuito: certificato client (`SSL_PEM`) o `SASL_SSL`? | `SSL_PEM` (predefinita dal fornitore); il codice supporta entrambe | variabili d'ambiente | M1.8 | APERTA |
 | Q-05 | Il piano gratuito di Vercel è per uso **non commerciale**: la demo resta personale/open source? | sì. Se la demo servirà a fini aziendali → piano a pagamento o altro hosting statico | hosting del web | M1.8 | APERTA |
 | Q-06 | Proteggere gli endpoint demo (reset, job) con una chiave condivisa? | no in M1 (dichiarato nel Demo Hub); `X-LH-Demo-Key` come P1 (`docs/11 §11`) | proxy + filtro in `lh-common` | — | APERTA |
-| Q-07 | Lingua dell'interfaccia: solo italiano o anche inglese per il pubblico open source? | interfaccia solo in italiano, con dizionario unico pronto a essere tradotto; codice, API ed eventi in inglese; **README in italiano con una sezione breve in inglese** | `lib/i18n`, README | — | APERTA |
+| Q-07 | Lingua dell'interfaccia: solo italiano o anche inglese per il pubblico open source? | interfaccia solo in italiano, con dizionario unico pronto a essere tradotto; codice, API ed eventi in inglese; **README in italiano con una sezione breve in inglese** | `lib/i18n`, README | — | DECISA (ADR-033: multilingua a tre livelli con prefisso URL, M11) |
 | Q-08 | Soglia oltre la quale una campagna richiede l'approvazione legale | budget > 100 000 punti o `requiresLegal=true` | policy in M7 | — | APERTA |
 | Q-09 | Dominio applicativo dei dati demo: multiutility (bolletta digitale, autolettura) o generico retail? | multiutility **immaginaria**, senza alcun riferimento ad aziende reali; i tipi azione sono dati, quindi sostituibili | `seed/event-types.json`, `seed/campaigns.json` | — | APERTA |
 | Q-10 | Serve un dominio personalizzato per la demo? | no: `*.vercel.app` e `*.onrender.com` | CORS, variabili | — | APERTA |
@@ -28,10 +28,39 @@ Stati: `APERTA` · `DECISA` (riportare la decisione e, se architetturale, l'ADR)
 | Q-22 | Il client Kafka accetta i PEM in linea (`ssl.keystore.type=PEM`) con la chiave fornita, o serve la conversione PKCS#8? | convertire sempre in PKCS#8 senza passphrase | M1.8 | APERTA |
 | Q-23 | Il pooler di Neon (modalità transazione) è compatibile con tutte le query previste (`FOR UPDATE SKIP LOCKED`, advisory lock `xact`)? | sì; Flyway usa la connessione diretta | M1.8 | APERTA |
 | Q-24 | Con 2 partizioni per topic e `concurrency=2`, più istanze dello stesso servizio non servono: confermare che il piano gratuito non ne avvii più d'una | una sola istanza per servizio | M1.8 | APERTA |
-| Q-25 | Un consumer che dorme più di 3 giorni perde eventi (retention Kafka). Serve un meccanismo di riallineamento? | no nel PoC: lo stato sta nei DB dei proprietari; per gli snapshot, `POST /v1/demo/reset` riallinea tutto. Nel target: retention lunga o topic compattati per gli snapshot | M2 | APERTA |
+| Q-25 | Un consumer che dorme più di 3 giorni perde eventi (retention Kafka). Serve un meccanismo di riallineamento? | no nel PoC: lo stato sta nei DB dei proprietari; per gli snapshot, `POST /v1/demo/reset` riallinea tutto. Nel target: retention lunga o topic compattati per gli snapshot | M2 | DECISA (ADR-028, ADR-032: retention lunga su `facts`/`audit`, lecita perché senza dati personali) |
 | Q-26 | L'SSE diretto verso insight regge il passaggio attraverso il proxy del fornitore (buffering, timeout a 100 s)? | `heartbeat` ogni 15 s + `X-Accel-Buffering: no`; in caso contrario polling | M2.2 | APERTA |
 | Q-27 | Librerie da confermare su Boot 4.1: `springdoc-openapi`, validatore JSON Schema (`networknt`), ULID | scegliere l'ultima versione compatibile; se manca, alternativa minima scritta a mano (ULID) | M0.2 | APERTA |
 | Q-28 | Generare i tipi TypeScript dall'OpenAPI dei servizi invece di scriverli a mano? | a mano fino a M4; poi valutare `openapi-typescript` in CI | M4 | APERTA |
+
+## Fase 2 (`docs/18`)
+
+Domande nate con la specifica di Fase 2 (Appendice B di `docs/18`), registrate in M8.0. Numerazione adattata all'adozione: in stesura erano `Q-289…Q-310`. Il default è in uso finché il proprietario non decide; chi lo applica marca `SPEC-GAP: Q-nnn`.
+
+| ID | Domanda | Default proposto | Fetta | Stato |
+|---|---|---|---|---|
+| Q-343 | provider di test per il broker OIDC (Keycloak secondario o mock SAML) | Keycloak secondario nello stesso ambiente di test come IdP aziendale fittizio (il mock SAML resta alternativa) | M8.2 | APERTA |
+| Q-344 | granularità di `province`/`birthYear` in `member.*:2` | sigla provincia, anno | M8.4 | APERTA |
+| Q-345 | adattatore push (`PUSH`) in M8.4 o M13 | predisposto | M8.4 | APERTA |
+| Q-346 | finestra di doppia lettura `member.*:1`/`:2` | fino a M10 | M8.4 | APERTA |
+| Q-347 | base image (Wolfi o Debian slim) | Wolfi | M8.1 | APERTA |
+| Q-348 | Directus: versione da bloccare e chiave di registrazione MSCL | ultima LTS disponibile alla M10.2, variabile predisposta | M10.2 | APERTA |
+| Q-349 | set di lingue del seed oltre IT/EN | nessuna | M11.5 | APERTA |
+| Q-350 | modello open-weight di riferimento per l'eval | da scegliere sul golden set in M14.1 | M14.1 | APERTA |
+| Q-351 | mesh | Linkerd; alternativa Istio ambient | M8.5 | APERTA |
+| Q-352 | rotazione delle chiavi di firma degli eventi | 90 giorni, due `kid` attivi | M8.10 | APERTA |
+| Q-353 | POST con `Idempotency-Key` obbligatoria | riscatto, giocata, rettifica punti, import | M8.10 | APERTA |
+| Q-354 | durata delle sessioni del backoffice | idle 30 min, massimo 10 h | M8.2 | APERTA |
+| Q-355 | formato esatto degli admin/user events di Keycloak da mappare | solo gli eventi di cambiamento elencati in §3.14, non ogni login riuscito nell'audit di backoffice | M8.12 | APERTA |
+| Q-356 | se `member_activity_entry` richiede un proprio topic o resta lettura diretta da member-service | lettura diretta, coerente con "nessuna chiamata sincrona tra servizi" solo per la scrittura via bus, non per l'esposizione read-only al portale | M8.12 | APERTA |
+| Q-357 | regime CRA del titolare (produttore commerciale o *open-source steward*; default: processo di segnalazione attivo comunque) | — | M12.6 | APERTA |
+| Q-358 | soglie delle operazioni sensibili con doppio controllo | rettifiche > 10 000 punti, chiusura edizione, ruoli, export di dati personali | M8.13 | APERTA |
+| Q-359 | periodo di supporto LTS | 24 mesi per le versioni LTS, una LTS all'anno | M12.4 | APERTA |
+| Q-360 | crypto-shredding attivo di default o su scelta dell'adottante | attivo in `enterprise` | M8.13 | APERTA |
+| Q-361 | metodo di stima dei punti non spesi | tasso storico per anzianità del lotto e livello, finestra 12 mesi | M13.4 | APERTA |
+| Q-362 | formato del catalogo degli adattatori generici | mappatura JSONata | M13.6 | APERTA |
+| Q-363 | chi approva i premi sincronizzati | come i premi manuali, `LEGAL` | M13.6 | APERTA |
+| Q-364 | limite di passi per missione e di missioni attive per membro | 10 passi, 5 missioni | M13.7 | APERTA |
 
 ## SPEC-GAP segnalati durante lo sviluppo
 _(vuoto: l'agente aggiunge qui le voci `Q-40+` con file, riga, scelta fatta e motivo)_

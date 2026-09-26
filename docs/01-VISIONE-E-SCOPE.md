@@ -32,17 +32,17 @@ Un sistema **funzionante e guardabile**, in cui chiunque possa in 5 minuti: sceg
 Ingresso eventi multi-fonte con dedup e monitor · membri e profilo · segmenti · campagne (motore regole, limiti, budget, simulazione, spiegazione) · wallet a doppia valuta con lotti, scadenze, rettifiche · tier annuali con discesa morbida · catalogo premi a fasce, coupon, richieste premio (saga) · instant win a istanti pre-generati · obiettivi, badge, classifiche · referral · contenuti (card, pop-up, banner), messaggi in-app, tema del portale · workflow di approvazione · audit · KPI, flusso eventi live, tracciati, DLQ · simulatore eventi, scenari guidati, reset dati · deploy a costo zero.
 
 ### Fuori dal PoC (solo predisposizione o ADR)
-| Tema | Trattamento nel PoC |
-|---|---|
-| Autenticazione/autorizzazione (OIDC, IAM) | sostituita da *personas*; header `X-LH-Actor`. Target: OIDC (ADR-010) |
-| Multi-tenant | singolo tenant `aurora`; l'envelope evento porta già `lhtenant` |
-| E-mail/SMS/push reali | canale `EMAIL_FAKE` = solo anteprima; in-app reale |
-| Upload immagini | solo URL o asset statici in `web/public/demo/` |
-| i18n | solo italiano |
-| Kubernetes, DR, stack Prometheus/Grafana/Loki, ClickHouse/Superset | architettura target (ADR-012); nel PoC Actuator + `insight-service` |
-| Adempimenti concorsi a premio (perizia software, notaio, server in Italia) | annotati in `docs/03 §7`; nessuna implementazione |
-| Import massivi, export schedulati | P2 |
-| Schema Registry | P2; nel PoC JSON Schema nel repo |
+| Tema | Trattamento nel PoC | Fase 2 (`docs/18`) |
+|---|---|---|
+| Autenticazione/autorizzazione (OIDC, IAM) | sostituita da *personas*; header `X-LH-Actor`. Target: OIDC (ADR-010) | OIDC con Keycloak (ruolo `idp`) e BFF, ADR-027 (M8.2) |
+| Multi-tenant | singolo tenant `aurora`; l'envelope evento porta già `lhtenant` | resta un programma per installazione: ADR-013 confermata |
+| E-mail/SMS/push reali | canale `EMAIL_FAKE` = solo anteprima; in-app reale | consegna esterna nel modulo `delivery` del member-service, SMTP/WEBHOOK (M8.4, ADR-032) |
+| Upload immagini | solo URL o asset statici in `web/public/demo/` | asset su volume o S3 (`LH_S3_*`), controlli sui file (M8.10) |
+| i18n | solo italiano | multilingua a tre livelli con prefisso URL, ADR-033 (M11) |
+| Kubernetes, DR, stack Prometheus/Grafana/Loki, ClickHouse/Superset | architettura target (ADR-012); nel PoC Actuator + `insight-service` | chart Helm con operatori e SLO/DR, ADR-026 e ADR-036 (M8.3, M15) |
+| Adempimenti concorsi a premio (perizia software, notaio, server in Italia) | annotati in `docs/03 §7`; nessuna implementazione | impronta firmata degli istanti, verbale, export ritenuta (M14.4) |
+| Import massivi, export schedulati | P2 | `POST /v1/events/batch` e import file con rapporto (M8.7) |
+| Schema Registry | P2; nel PoC JSON Schema nel repo | resta P2: JSON Schema nel repo con controllo di compatibilità, ADR-028 |
 
 ## 5. Personas
 

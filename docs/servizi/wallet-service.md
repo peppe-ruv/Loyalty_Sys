@@ -73,3 +73,13 @@ Tutte in `docs/03 §4`. Note implementative:
 - Spesa oltre il saldo → nessun movimento, fatto `wallet.spend.rejected` con `available`.
 - Chiusura 2026 in `dryRun`: Stefano (`GOLD`, 650 STS) → `SILVER` (guadagnato `BASE`, pavimento `SILVER`).
 - Rettifica in addebito oltre il saldo → `422 INSUFFICIENT_BALANCE`; senza nota → `422`.
+
+## 8. Fase 2 (profilo `enterprise`)
+
+Riferimento: `docs/18`. Le righe qui sotto sono segnaposto dell'adozione (M8.0): la fetta citata le rende normative aggiornando questa scheda.
+
+- **Economia del programma** (ADR-045, M13.4): `currency.unit_cost` con storico, `cost_at_entry` sui lotti, controvalore della passività, `/v1/liability/forecast` con soglia e fatto `wallet.expiry.forecast.threshold` (metodo Q-361); BO-36.
+
+**Classificazione `x-lh-class`** (`docs/18 §3.15`, F2-GRC-05; prima stesura M8.0, verificata e resa per colonna in M8.13). Tutto ciò che non è elencato è `INTERNAL`.
+- `CONFIDENTIAL`: `ledger_entry` e `points_lot` per membro (valore economico individuale), `member_tier`, `tier_history`.
+- `PUBLIC`: `currency.name`, `tier` (nome, soglia, vantaggi, colore), `edition` (nome e date).

@@ -246,3 +246,11 @@ I concorsi a premio reali richiedono tipicamente regolamento depositato, garanzi
 
 ## 10. Segmenti dinamici
 Criteri nello stesso formato delle condizioni (§3.3) sullo spazio `member.*` esteso con: `balance.PTS`, `lifetimeEarned.PTS`, `lastActivityDaysAgo`, `actions.<type>.count30d`, `purchases.amount90d`, `city`. Il ricalcolo confronta l'appartenenza precedente ed emette `member.segment.entered/left` solo per le differenze.
+
+## 11. Audit e attività del membro (Fase 2, ADR-043)
+
+Aggiunta dell'adozione di Fase 2 (M8.0); normativa dalla fetta M8.12. Riferimento completo: `docs/18 §3.14`.
+
+- **Audit di configurazione (operatori).** Un solo registro, `audit_entry` in insight-service, per tutte le modifiche di configurazione: dal backoffice (come oggi, `AuditPublisher`), da Directus (`service=cms`, via `POST /v1/audit/external` su experience-service con HMAC) e da Keycloak (`service=idp`, *admin events* e *user events* di cambiamento tramite event listener SPI). L'attore è sempre quello del token verificato (claim OIDC), mai un valore dichiarato dal chiamante né un utente tecnico come «directus».
+- **Retention e integrità.** `audit_entry` passa da 180 a **400 giorni**; è *sola-inserzione* (nessun `GRANT UPDATE` sul ruolo applicativo, `DELETE` solo dal job di retention); i campi `pii:true` sono mascherati; catena di hash con ancoraggio immutabile e verifica `lh audit verify` (ADR-044).
+- **Attività del membro (entità nuova, member-service).** `member_activity_entry` registra ciò che il membro finale ha fatto per sé: login (da Keycloak), consensi, giocate, riscatti, azioni dal portale. È una capacità **separata** dall'audit degli operatori (semantica, retention e visibilità diverse): la vede il membro in PT-18 «La mia attività» (solo i propri dati, via `MemberPrincipal`, copre GDPR art. 15) e `CARE` nella tab «Attività» di BO-03. Alimentazione: fatti di dominio su `lh.facts.v1`, eventi Keycloak, azioni del portale; lettura diretta da member-service (Q-356).

@@ -22,6 +22,19 @@ Otto milestone, ciascuna **dimostrabile da sola**. Si lavora a **fette verticali
 | M6 | Contenuti | CMS, pop-up, messaggi, tema, segmenti, attributi, tipi custom | engagement, member, ingestion | BO-04, 18–20 · PT-12, contenuti in PT-01/03/05/06 |
 | M7 | Governance | approvazioni, webhook, DLQ riprocessa, non abbinati, anonimizzazione | tutti | BO-21, 23, 27 |
 
+**Fase 2 (`docs/18`, profilo `enterprise`).** Minimo enterprise = M8–M12, poi M13–M15. Ogni fetta è un ramo `fase2/Mn.k-…` e una PR verso `main` (ADR-041).
+
+| M | Titolo | Risultato visibile | Riferimento |
+|---|---|---|---|
+| M8 | Fondazioni enterprise | immagine unica a ruoli, OIDC/BFF, chart e compose, PII fuori dal bus, sicurezza, audit unificato, OpenAPI, documentazione Mintlify | `docs/18 §6 M8` |
+| M9 | Qualità | `e2e/` con journey e invarianti, matrice device, carico k6, test di installazione | `docs/18 §6 M9` |
+| M10 | Esperienza data-driven | Element Registry, Directus `cms`, `experience-service`, design system `brand`/`pa`, widget | `docs/18 §6 M10` |
+| M11 | Multilingua | `/[locale]`, stringhe estratte, `LocalizedText`, inbox nella lingua del membro | `docs/18 §6 M11` |
+| M12 | Distribuzione | appliance `embedded`, CLI `lh`, wizard, rilascio firmato, aggiornamento N−1 → N, pacchetto di conformità | `docs/18 §6 M12` |
+| M13 | Composizione estesa | page builder, flag, program package, economia, punteggi, cataloghi esterni, missioni | `docs/18 §6 M13` |
+| M14 | Agente regolamento | `assistant-service` self-hosted, BO-33 | `docs/18 §6 M14` |
+| M15 | Esercizio | runbook, DR e game day, audit di accessibilità, penetration test | `docs/18 §6 M15` |
+
 ## 3. Milestone
 
 ### M0 — Fondamenta
@@ -122,9 +135,62 @@ Fette: **M7.1** `LH_APPROVAL_ENABLED=true`, policy, BO-21, transizioni per ruolo
 - Webhook verso endpoint che fallisce → 3 ritenti, `GAVE_UP`, *Riprova* manuale funziona; firma verificata da uno script d'esempio in `deploy/webhook-receiver/`.
 - Anonimizzazione di un membro di prova: nessun servizio espone più nome/e-mail (test che interroga tutte le API di gestione); i movimenti restano.
 
+**Fase 2 — milestone M8–M15.**
+
+Copia di `docs/18 §6` all'adozione (M8.0); in caso di differenze vale `docs/18`.
+
+### M8 — Fondazioni enterprise
+Fette: **M8.0** adozione e governance: registrazione ADR 026–045 in `docs/13`, aggiornamento `CLAUDE.md`, `docs/12`, `docs/14`, `docs/15`, `docs/01 §4`, `docs/README` (Appendice B); `.github/CODEOWNERS`, `.github/pull_request_template.md`, `.github/dependabot.yml`, `scripts/setup-branch-protection.sh`, job `guard`; al termine il proprietario applica il ruleset e da lì in poi si lavora solo per PR (§3.13) · **M8.1** immagine unica (`deploy/image/Dockerfile` multi-stage, entrypoint a ruoli, `LH_ROLE/LH_SERVICES/LH_MODE=external`, s6-overlay per `all`, base Wolfi, non root, healthcheck per ruolo; CI: build multi-arch su tag, `hub` di Fase 1 = `LH_ROLE=hub`) · **M8.2** identità (Keycloak `idp`, realm as code, BFF con sessione server-side, CSRF, back-channel logout, passkey e MFA operatori, Spring resource server, `ActorContext` dal token, `member.external_id = sub`, client credentials per fonti e job, token exchange per i widget, broker e LDAP provati con un IdP di test) · **M8.3** chart Helm (`deploy/helm/loyaltyhub`, Deployment per ruolo, Strimzi e CloudNativePG di default, `values` per gestiti, migrazioni Job, Ingress + gateway) e compose di riferimento (`deploy/compose/reference.yml`); partizioni e concorrenza configurabili · **M8.4** PII fuori dal bus (`x-lh-pii`, test di contratto, `member.*:2`, doppia lettura, campaign su `birthYear/province`, segnaposto risolti dal BFF, modulo `delivery` con SMTP/WEBHOOK, audit mascherato, cifratura contatti) · **M8.5** sicurezza di piattaforma (gateway con JWT/rate limit/CORS/header, mesh mTLS Linkerd, network policy, ACL Kafka, ruoli DB owner/app per servizio, External Secrets, Pod Security `restricted`, SBOM/Trivy/cosign/CodeQL/IaC/secret scanning in CI, `docs/security/threat-model.md`) · **M8.6** osservabilità (OTel in tutti i ruoli, values Prometheus/Loki/Tempo/Grafana, dashboard SLO) · **M8.7** ingresso batch e import file (BO-32) · **M8.8** OpenAPI generata e verificata (`contracts/api/`) · **M8.10** sicurezza applicativa (§3.10 punti 2–9: firma dei messaggi e `producers.yaml`, validazione in consumo, deny by default e `MemberPrincipal`, builder SQL e regole Semgrep, limiti di input, template senza logica, sanitizzazione, SSRF, `Idempotency-Key`, rate limit per membro, file caricati) · **M8.11** verifica di sicurezza (ArchUnit, Schemathesis, ZAP, testbook `TB-SEC`, `docs/security/asvs.md`, `SECURITY.md`, job `security` obbligatorio) · **M8.12** audit unificato (§3.14: bridge Directus e Keycloak verso `audit_entry`, `member_activity_entry` in member-service, BO-03 estesa, PT-18 «La mia attività», retention audit a 400 giorni e sola-inserzione) · **M8.13** governo di accessi e dati (§3.15 punti 3–4: niente auto-approvazione e quattro occhi configurabili, deprovisioning dall'IdP, BO-34, break-glass, `x-lh-class` e registro dei trattamenti, retention per categoria, `erasure_log` e crypto-shredding, esportazioni con permesso e motivo; catena di hash dell'audit in M8.12) · **M8.9** documentazione (§3.12): contenuti in `site/`, dismissione di GitBook e `docs_v2/`, `docs-sync`, pagine eventi e riferimento API da OpenAPI, catalogo minimo dei diagrammi per le pagine di Fase 1, job `docs` con `broken-links` e `check-mermaid`.
+
+**Accettazione**
+- `docker run` dell'immagine con `LH_MODE=external` verso Postgres e Kafka di compose: tutti i ruoli `UP`, migrazioni applicate, smoke di Fase 1 verde con login OIDC reale.
+- `helm install` su un cluster kind in CI: pod di tutti i ruoli `Ready`, Strimzi e CNPG provisionati, smoke verde attraverso il gateway.
+- Test di contratto: nessun campo `pii:true` in alcun evento pubblicato; `check-contracts` contro l'ultimo tag verde.
+- `luca.marketing` via Keycloak non può portare un concorso a `LIVE` (M7.1 invariata sotto OIDC); un membro vede solo i propri dati (test negativo su `memberId` altrui → 403).
+- Batch di 1000 eventi accettato con esito per elemento in < 10 s in locale; import file di 10 000 righe con rapporto.
+- Pipeline di rilascio produce immagine firmata con SBOM; scansione senza CVE alte.
+- Sicurezza: chiamata a `/v1/portal/*` con il token di un membro e l'id di un altro → dati del solo titolare (il parametro è ignorato o `400`); endpoint senza dichiarazione di ruolo → build rossa; messaggio pubblicato da un modulo non ammesso per quel `type` → DLQ `PRODUCER_NOT_ALLOWED` e allarme; payload di iniezione SQL dal fuzzing Schemathesis → nessun `5xx` né effetto; webhook verso `http://169.254.169.254` → rifiutato; secondo riscatto con la stessa `Idempotency-Key` → stesso esito, nessun doppio addebito; nessun token OAuth visibile al JavaScript del browser.
+- Un push diretto su `main` viene rifiutato; una PR che modifica il testo di un'ADR esistente fallisce `guard`.
+- Una pagina pubblicata in Directus da `luca.marketing` produce una voce in `GET /v1/audit` con `service=cms` e l'attore reale (dal claim OIDC, non "directus"); un cambio di ruolo in Keycloak produce una voce con `service=idp`; nessun `UPDATE` è possibile su `audit_entry` (solo `INSERT`, verificato a livello di privilegi database). Un membro autenticato su `PT-18` vede login, consensi, giocate e riscatti propri e nessun dato di altri membri; `CARE` vede la stessa cronologia da BO-03.
+- Governo: un `ADMIN` che sottomette un concorso non può approvarlo (`422 SELF_APPROVAL_FORBIDDEN`); un operatore disabilitato nell'IdP non ha più accesso entro la scadenza dell'access token; un ripristino da backup precedente a un'anonimizzazione non restituisce i dati di quel membro; un'esportazione senza permesso `DATA_EXPORT` o senza motivo è rifiutata; `lh audit verify` segnala una voce alterata direttamente nel database.
+- Il sito Mintlify pubblicato da `main` mostra Specifiche, Eventi e Riferimento API generati; ogni pagina del catalogo minimo ha il suo diagramma; `docs` verde.
+
+### M9 — Qualità
+Fette: **M9.1** harness `e2e/` (Playwright, client API tipizzato da OpenAPI, personas, macchina del tempo, invarianti; stack CI = immagine `LH_ROLE=all LH_MODE=external` + Postgres e Kafka come service container) · **M9.2** percorsi di `docs/09 §4` + permessi + 4 journey lunghe (anno di un membro, concorso completo, saga premi con annulli, edizione) + fuzz journey con seme, selettori per ruolo/`data-testid` · **M9.3** matrice device (`desktop-chromium`, `desktop-firefox`, `desktop-webkit`, `bo-narrow`, `iPad Pro 11`, `iPhone 15`, `Pixel 7`), screenshot di riferimento con maschere, axe + pa11y, percorsi da tastiera · **M9.4** carico k6 (ingresso azioni, giocate concorrenti, riscatti; profili 100k e 2M membri) con soglie SLO · **M9.5** test di installazione dei tagli disponibili e gate di sicurezza (ZAP baseline); job `e2e-pr` (smoke, 2 progetti) e `e2e-nightly` (matrice completa, report come artifact).
+
+**Accettazione**: invarianti verdi dopo ogni ciclo di ogni journey (Σ lotti = saldo, Σ mesi liability = in circolazione, stock ≤ totale, ogni `contest.won` con tracciato completo senza DLQ, nessun doppione in inbox, una voce audit per scrittura BO); nessuna violazione axe di livello *serious/critical* nella matrice; k6 entro SLO sul profilo 100k; `e2e-pr` < 15 min.
+
+### M10 — Esperienza data-driven (nucleo)
+Fette: **M10.1** Element Registry (manifesto, schemi, `registry:build`, drift check, `docs/registry/`) · **M10.2** Directus nell'immagine (ruolo `cms`, versione bloccata, snapshot generato, SSO, ruoli, `ref_*` via webhook, estensioni compilate, DB `cms`) · **M10.3** `experience-service` (rinomina con migrazione dello schema `engagement → experience` e doppia lettura dei consumer group; `composition_version`, notify-and-pull, validatore, rollback, `block_reference`, `GET /v1/portal/pages`; scheda `docs/servizi/experience-service.md`) · **M10.4** design system (token a tre livelli, profili `brand`/`pa`, tema dal CMS, blocchi strutturali, validatore di conformità) e renderer del portale sul set chiuso di pagine e blocchi · **M10.5** BO-31 e «Usato in» (BO-14/06/11) · **M10.6** widget kit.
+
+**Accettazione**: una seconda ruota su un secondo concorso creata in Directus da `luca.marketing` senza rilascio e visibile nel portale entro la pubblicazione; con Directus spento il portale serve la composizione attiva; rollback in un clic; il profilo `pa` senza footer istituzionale non si pubblica (`422`); ogni blocco del set chiuso passa axe su tutta la matrice; `<lh-game>` incorporato in `widgets/example.html` gioca con un token reale; drift check verde.
+
+### M11 — Multilingua
+Fette: **M11.1** `next-intl` con `/[locale]`, redirect, lint, formati · **M11.2** estrazione stringhe backoffice · **M11.3** estrazione stringhe portale e widget, frasi generate come messaggi ICU · **M11.4** `MessageSource` e `LhException` a chiavi, `Accept-Language` · **M11.5** `LocalizedText` sulle entità elencate in §3.8, `member.locale`, inbox nella lingua del membro, seed EN, `check-seed` per lingua · **M11.6** E2E in matrice locale × device × profilo; README EN.
+
+**Accettazione**: nessuna stringa letterale in `app/` e `components/` (lint verde); `/en/portal` completo senza fallback mancanti (report `i18n:coverage` = 100 %); un membro con `locale=en` riceve l'inbox in inglese; errori `422` localizzati; il sito Mintlify ha la versione inglese delle sezioni Introduzione, Concetti, Guide, Operazioni.
+
+### M12 — Distribuzione (appliance)
+Fette: **M12.1** modalità `embedded` (Postgres in-process con 3 database, bus in-process, asset su volume `/var/lib/lh`) · **M12.2** CLI `lh` (init, doctor, migrate, config validate, backup, restore, a11y-report) · **M12.3** wizard di primo avvio (admin, programma, lingue, profilo, package opzionale; segreti generati e stampati una volta) · **M12.4** pipeline di rilascio (semver, changelog, note di sicurezza, chart pubblicato in OCI, immagini per tag) e guida di installazione/aggiornamento · **M12.5** test di aggiornamento N−1 → N con dati e verifica invarianti · **M12.6** pacchetto di conformità (§3.15: `docs/compliance/iso27001-annex-a.md` e mappe collegate, rifiuto all'avvio e `lh doctor --security`, `lh data mask`, `lh decommission`, `lh forensics export`, export OCSF, prova di ripristino mensile, BO-35, VEX e SLSA nel rilascio, processo di segnalazione CRA in `SECURITY.md`, politica LTS, rapporto licenze).
+
+**Accettazione**: `docker run -p 8080:8080 -v lh-data:/var/lib/lh …:<ver>` → in ≤ 3 min wizard raggiungibile, programma «Club Aurora» importabile, smoke verde; `lh backup` + `lh restore` su installazione pulita = stessi dati (test in CI); aggiornamento da versione precedente senza fermo del portale su Helm (expand/contract verificato). Conformità: `LH_PROFILE=enterprise` con un segreto di default non si avvia; ogni controllo dell'Annex A ha responsabilità ed evidenza dichiarate; il rilascio v1.0 ha SBOM, VEX, provenienza SLSA verificabile e PR tutte approvate da una persona diversa dall'autore.
+
+### M13 — Composizione estesa
+Fette: **M13.1** page builder completo (pagine libere, navigazione data-driven, tutti i blocchi del Registry, anteprima per membro da BO-31) · **M13.2** feature flag e interruttori consumati a caldo · **M13.3** program package export/import con versione del Registry e trasformazioni · **M13.4** economia del programma (§3.16 punto 1: `unit_cost` e storico, `cost_at_entry`, `/v1/kpi/economics`, `campaign.budget` con soglie e fatti, `/v1/liability/forecast`, BO-36) · **M13.5** punteggi esterni (§3.16 punto 2: `kind=SCORE`, batch e import attributi, validità, vincoli nel validatore) · **M13.6** cataloghi esterni (§3.16 punto 3: `fulfilment=EXTERNAL`, `reward_provider`, adattatori, saga con riserva, sincronizzazione, BO-37) · **M13.7** missioni e serie (§3.16 punto 4: `mission`, estensioni `STREAK`, blocchi `mission_card` e `streak_widget`, BO-38, PT-19).
+
+**Accettazione (M13.4–M13.7)**: una campagna con `budget.maxPoints=10 000` e `warnAt=[80]` genera un solo `campaign.budget.threshold` all'80 % e va in `PAUSED` all'esaurimento con voce audit; `/v1/liability/forecast` su dati sintetici di 12 mesi restituisce una stima con `confidence` e la soglia genera l'allarme; un punteggio caricato con `validity_days=30` è visibile in BO-03 e, dopo 31 giorni, la condizione `nexists` diventa vera; una campagna con effetto negativo che usa uno `SCORE` è rifiutata dal validatore; un riscatto `EXTERNAL` con fornitore che rifiuta la riserva non spende punti; con `confirm` che fallisce oltre le riprove il membro è rimborsato e la voce audit lo mostra; un fornitore con tre errori passa a `DEGRADED` e i suoi premi escono dal portale con stato `degraded`; una missione a finestra relativa scade in base al `time` dell'azione di avvio anche se il server è avviato dopo; una serie mensile con `grace_units=1` sopravvive a un mese saltato; `mission.completed` produce punti solo tramite una campagna che lo ascolta.
+
+### M14 — Agente regolamento
+Fette: **M14.1** `assistant-service`, contratto `regulation-draft.schema.json`, `contest.regulation`, blocco `regulation`, golden set · **M14.2** pipeline (antivirus, PDFBox, per articolo, schema, fusione, quadratura) contro endpoint OpenAI-compatibile · **M14.3** BO-33 e applicazione in DRAFT via API esistenti · **M14.4** record/replay in CI, eval notturna, impronta firmata degli istanti, verbale ed export ritenuta.
+
+**Accettazione**: sul golden set accuratezza per campo ≥ 90 % sui campi obbligatori del concorso; nessuna scrittura `LIVE` possibile dall'agente; con endpoint assente BO-33 spiega come attivarlo.
+
+### M15 — Esercizio
+Fette: **M15.1** runbook e dashboard SLO · **M15.2** prova di ripristino DR e game day (pod, broker, AZ) · **M15.3** audit di accessibilità con tecnologie assistive e dichiarazione · **M15.4** penetration test e hardening finale.
+
 ## 4. Test E2E e fumo
 - `scripts/smoke.sh <base>`: sveglia → `SCN-SMOKE` (`app.login.daily` per Marco, `docs/10 §8`) → attende +5 PTS sul saldo (da M2: `wallet.points.earned` sul tracciato) ≤ 15 s a servizi svegli → esce ≠ 0 se fallisce. Lo scenario usa un `id` evento nuovo a ogni esecuzione; se il limite giornaliero di `CMP-APP-DAILY` è già scattato, lo script esegue prima il reset di campaign e wallet **solo in locale/CI**, mentre in demo verifica `campaign.evaluated` (scattata o `MEMBER_LIMIT_REACHED`) come prova che la pipeline è viva.
-- Playwright: i 3 percorsi di `docs/09 §4`, più "cambio persona → permessi" (MARKETING non vede la Console demo; LEGAL vede gli istanti).
+- E2E: da Fase 2 vivono in `e2e/` (M9, ADR-034): Playwright su stack reale con journey, invarianti, matrice device × lingua × profilo e carico k6; `e2e-pr` (smoke) e `e2e-nightly` (completa). I 3 percorsi di `docs/09 §4` e "cambio persona → permessi" ne fanno parte (M9.2).
 
 ## 5. Rischi di piano
 | Rischio | Segnale | Risposta |
@@ -134,3 +200,10 @@ Fette: **M7.1** `LH_APPROVAL_ENABLED=true`, policy, BO-21, transizioni per ruolo
 | Kafka gratuito ritirato | avviso del fornitore | piano B di `docs/11 §3` |
 | Minuti di build Render esauriti | build in coda | piano B immagini GHCR |
 | Deriva delle specifiche | `SPEC-GAP` che si accumulano | revisione di `docs/15` a ogni chiusura di milestone |
+| Onere di manutenzione dell'immagine (CVE di Directus, Keycloak, Node, JRE) | > 1 rilascio di sicurezza al mese richiesto | Treno di rilascio mensile + patch fuori ciclo; rivalutare in M12 il bundling di `cms`/`idp` (immagini ufficiali bloccate come alternativa, ADR) |
+| Perimetro troppo ampio per la squadra | fette che restano `[~]` oltre due settimane | Tenere il minimo enterprise (M8–M12); M13–M15 solo dopo |
+| Cambi alle API delle estensioni Directus | build delle estensioni rotta all'aggiornamento | Estensioni minime (interfaccia `ref_*`, pannello); logica nel servizio, non nel CMS |
+| Modelli self-hosted deboli sul testo giuridico | accuratezza < 90 % sul golden set | Estrazione per articolo, esempi few-shot dal golden set, revisione umana comunque obbligatoria |
+| Stack di frontiera (Java 25, Boot 4.1) | librerie terze in ritardo | Come Fase 1: Q in `docs/15`, alternative documentate |
+| Deriva delle traduzioni e dei seed | `check-seed` per lingua rosso | Blocco in CI, EN generato assistito e rivisto |
+| Directus senza licenza in uso aziendale | installatore sopra soglia | Avviso nel wizard e in `lh doctor`; responsabilità dichiarata |

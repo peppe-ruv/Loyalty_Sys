@@ -97,6 +97,18 @@ Il presentatore (in pratica `marta.admin` + un membro scelto) che accende la dem
 | **E10 Portale del membro** | percorsi reali del cliente finale, end-to-end tra servizi | membro | F-MBR-06, F-MBR-07 + tutte le feature visibili nel portale | PT-01…PT-14 | web + tutti | TB-WEB (+ TB-E2E proposto) |
 | **E11 Demo e ambiente** | accendere, raccontare, riportare a zero la demo senza interventi manuali | operatore demo, ADMIN | F-DEMO-01…07 | HUB-01, BO-28, BO-29, BO-30, PT-14 | web, ingestion, tutti (`/v1/demo/**`) | TB-WEB, TB-ING |
 | **E12 Affidabilità e contratti** | nessuna perdita, nessun doppio effetto, ordine per membro, contratti stabili | sistema | RNF-01…10 (docs/02 §2) | — | lh-common, tutti | (nessuno: parziale nei domini) |
+| **E-F2-DIST Distribuzione** | un'azienda installa e aggiorna il prodotto da una sola immagine | installatore, ADMIN | F2-DIST-* | HUB-02 | tutti | TB-DIST |
+| **E-F2-IAM Identità** | persone e sistemi entrano con un'identità verificata, senza token nel browser | operatori, membro, fonti, widget | F2-IAM-*, F2-SEC-06/07 | PT-16 | member, web, `idp` | TB-IAM |
+| **E-F2-SEC Sicurezza** | nessuna chiamata senza identità e autorizzazione minima; controlli di build | sistema, attaccante interno (negativo) | F2-SEC-01…15 | BO-03 (attività), PT-18 | tutti, lh-common | TB-SEC |
+| **E-F2-GRC Governo e conformità** | l'adottante certificato ISO 27001 integra il prodotto senza ricostruire evidenze | ADMIN, LEGAL, auditor | F2-GRC-* | BO-34, BO-35 | tutti, CLI | TB-GRC |
+| **E-F2-EVT Eventi e ingresso** | nessun dato personale sul bus; ingressi massivi con esito per elemento | sistema, fonti, CARE | F2-EVT-*, F2-ING-* | BO-19, BO-32 | member, ingestion, tutti | TB-ING, TB-SEC |
+| **E-F2-EXP Esperienza** | il marketing compone pagine e blocchi senza rilascio, il portale non dipende dal CMS | MARKETING, membro | F2-EXP-*, F2-DS-*, F2-API-* | BO-31, PT-15, PT-17 | experience, web, `cms` | TB-EXP |
+| **E-F2-I18N Multilingua** | il membro usa il programma nella sua lingua | membro, operatori | F2-I18N-* | PT-17 | web, tutti | TB-I18N |
+| **E-F2-QA Qualità** | ogni rilascio è provato su journey, matrice e carico | sistema | F2-QA-* | — | e2e | TB-E2E |
+| **E-F2-OPS Osservabilità ed esercizio** | SLO misurati, ripristino provato | ADMIN, operatore | F2-OBS-01, F2-OPS-01 | — | tutti | — |
+| **E-F2-GOV Repository e documentazione** | `main` sempre verde e rilasciabile, documentazione allineata al codice | proprietario, agenti | F2-GOV-*, F2-DOC-* | — | — | guard, docs |
+| **E-F2-ECO Economia, punteggi, cataloghi, missioni (P1)** | programma misurabile e governabile a budget | MARKETING, controllo di gestione, membro | F2-ECO-*, F2-SCO-01, F2-RWD-09/10, F2-GAM-01/02 | BO-36, BO-37, BO-38, PT-19 | wallet, insight, reward, gamification, member | — |
+| **E-F2-AST Agente regolamento (P1)** | un concorso configurato da un regolamento, approvato da LEGAL | MARKETING, LEGAL | F2-AST-* | BO-33 | assistant | TB-AST |
 
 ## 4. Storie utente
 
@@ -1629,6 +1641,78 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
 - **Tocca**: RNF-01, RNF-02, RNF-08, RNF-09, RNF-10.
 - **Criteri**: RSS ≤ 450 MB dopo 2 min; azione → movimento p50 ≤ 3 s, p95 ≤ 8 s; contrasto AA, focus visibile, tastiera, `prefers-reduced-motion`; portale ≥ 360 px; log JSON con `eventId`, `correlationId`, `memberId`.
 - **Testbook**: scoperta (non funzionale).
+
+### Fase 2 — storie principali (una per feature P0)
+
+Adozione M8.0 (`docs/18` Appendice B punto 9): una storia per ogni feature P0 del catalogo `docs/18 §4`, in forma breve. I criteri *Dato/Quando/Allora* sono quelli di accettazione della milestone (`docs/18 §6`) e si scrivono per esteso con la fetta che implementa la feature; le P1 (M13–M15) hanno la loro epic ma le storie nascono con la milestone.
+
+| Storia | Come … voglio … | Epic | Feature | Milestone | TB | Stato |
+|---|---|---|---|---|---|---|
+| US-F2-DIST-01 | *Come* chi installa *voglio*: immagine unica multi-arch con ruoli e modalità | E-F2-DIST | `F2-DIST-01` | M8.1 | TB-DIST | pianificata |
+| US-F2-DIST-02 | *Come* chi installa *voglio*: chart Helm con operatori di default, valori per servizi gestiti | E-F2-DIST | `F2-DIST-02` | M8.3 | TB-DIST | pianificata |
+| US-F2-DIST-03 | *Come* chi installa *voglio*: compose di riferimento (ruoli + infra open source) | E-F2-DIST | `F2-DIST-03` | M8.3 | TB-DIST | pianificata |
+| US-F2-DIST-04 | *Come* chi installa *voglio*: modalità `embedded` (Postgres in-process, bus in-process, volume) | E-F2-DIST | `F2-DIST-04` | M12.1 | TB-DIST | pianificata |
+| US-F2-DIST-05 | *Come* chi installa *voglio*: cLI `lh` (init, doctor, migrate, config validate, backup, restore) | E-F2-DIST | `F2-DIST-05` | M12.2 | TB-DIST | pianificata |
+| US-F2-DIST-06 | *Come* chi installa *voglio*: wizard di primo avvio (admin, programma, package) | E-F2-DIST | `F2-DIST-06` | M12.3 | TB-DIST | pianificata |
+| US-F2-DIST-08 | *Come* chi installa *voglio*: rilascio firmato: SBOM, cosign, note di sicurezza, percorso N−1 → N | E-F2-DIST | `F2-DIST-08` | M8.5, M12.4 | TB-DIST | pianificata |
+| US-F2-IAM-01 | *Come* operatore o membro *voglio*: keycloak ruolo `idp`, realm as code | E-F2-IAM | `F2-IAM-01` | M8.2 | TB-IAM | pianificata |
+| US-F2-IAM-02 | *Come* operatore o membro *voglio*: servizi resource server JWT; `ActorContext` dal token | E-F2-IAM | `F2-IAM-02` | M8.2 | TB-IAM | pianificata |
+| US-F2-IAM-03 | *Come* operatore o membro *voglio*: login e registrazione membri via OIDC; `member.external_id = sub` | E-F2-IAM | `F2-IAM-03` | M8.2 | TB-IAM | pianificata |
+| US-F2-IAM-04 | *Come* operatore o membro *voglio*: broker verso IdP aziendale e federazione LDAP (documentati e provati) | E-F2-IAM | `F2-IAM-04` | M8.2 | TB-IAM | pianificata |
+| US-F2-SEC-01 | *Come* responsabile della sicurezza dell'adottante *voglio*: gateway con JWT, rate limit, CORS per widget, header di sicurezza | E-F2-SEC | `F2-SEC-01` | M8.5 | TB-SEC | pianificata |
+| US-F2-SEC-02 | *Come* responsabile della sicurezza dell'adottante *voglio*: mesh mTLS, network policy, ACL Kafka, ruoli DB per servizio (owner/app), External Secrets, Pod Security `restricted` | E-F2-SEC | `F2-SEC-02` | M8.5 | TB-SEC | pianificata |
+| US-F2-SEC-03 | *Come* responsabile della sicurezza dell'adottante *voglio*: supply chain in CI (SBOM, scansione, firma, CodeQL, secret scanning, IaC) | E-F2-SEC | `F2-SEC-03` | M8.5 | TB-SEC | pianificata |
+| US-F2-SEC-04 | *Come* responsabile della sicurezza dell'adottante *voglio*: cifratura a colonna dei contatti nel member-service | E-F2-SEC | `F2-SEC-04` | M8.4 | TB-SEC | pianificata |
+| US-F2-SEC-06 | *Come* responsabile della sicurezza dell'adottante *voglio*: bFF con sessione server-side, CSRF, back-channel logout, passkey, MFA operatori | E-F2-SEC | `F2-SEC-06` | M8.2 | TB-SEC | pianificata |
+| US-F2-SEC-07 | *Come* responsabile della sicurezza dell'adottante *voglio*: client credentials per fonti e job; token exchange per i widget | E-F2-SEC | `F2-SEC-07` | M8.2 | TB-SEC | pianificata |
+| US-F2-SEC-08 | *Come* responsabile della sicurezza dell'adottante *voglio*: messaggi firmati sul bus con elenco dei produttori ammessi e validazione in consumo | E-F2-SEC | `F2-SEC-08` | M8.10 | TB-SEC | pianificata |
+| US-F2-SEC-09 | *Come* responsabile della sicurezza dell'adottante *voglio*: deny by default (`@RequiresRole`/`@PublicEndpoint`), `MemberPrincipal` nel portale, DTO espliciti | E-F2-SEC | `F2-SEC-09` | M8.10 | TB-SEC | pianificata |
+| US-F2-SEC-10 | *Come* responsabile della sicurezza dell'adottante *voglio*: builder SQL con allowlist, regole Semgrep, limiti di input, template senza logica, sanitizzazione contenuti | E-F2-SEC | `F2-SEC-10` | M8.10 | TB-SEC | pianificata |
+| US-F2-SEC-11 | *Come* responsabile della sicurezza dell'adottante *voglio*: difesa SSRF, `Idempotency-Key`, rate limit per membro, controlli sui file caricati | E-F2-SEC | `F2-SEC-11` | M8.10 | TB-SEC | pianificata |
+| US-F2-SEC-12 | *Come* responsabile della sicurezza dell'adottante *voglio*: verifica continua: ArchUnit, Semgrep, Schemathesis, ZAP, `TB-SEC`, tabella ASVS, `SECURITY.md` | E-F2-SEC | `F2-SEC-12` | M8.11 | TB-SEC | pianificata |
+| US-F2-SEC-13 | *Come* responsabile della sicurezza dell'adottante *voglio*: bridge audit Directus → `audit_entry` (`POST /v1/audit/external` su experience-service, HMAC) | E-F2-SEC | `F2-SEC-13` | M8.12 | TB-SEC | pianificata |
+| US-F2-SEC-14 | *Come* responsabile della sicurezza dell'adottante *voglio*: bridge audit Keycloak → `audit_entry` (admin events + user events, event listener SPI) | E-F2-SEC | `F2-SEC-14` | M8.12 | TB-SEC | pianificata |
+| US-F2-SEC-15 | *Come* responsabile della sicurezza dell'adottante *voglio*: attività del membro (`member_activity_entry`, BO-03 estesa, portale PT-18 «La mia attività»), retention audit 400 giorni, sola-inserzione | E-F2-SEC | `F2-SEC-15` | M8.12 | TB-SEC | pianificata |
+| US-F2-GRC-01 | *Come* responsabile della conformità dell'adottante *voglio*: mappa Annex A 2022 con responsabilità condivisa, mappe ISO 27701, GDPR, NIS2 | E-F2-GRC | `F2-GRC-01` | M12.6 | TB-GRC | pianificata |
+| US-F2-GRC-02 | *Come* responsabile della conformità dell'adottante *voglio*: rifiuto all'avvio con configurazione insicura, `lh doctor --security`, nessuna telemetria in uscita | E-F2-GRC | `F2-GRC-02` | M12.6 | TB-GRC | pianificata |
+| US-F2-GRC-03 | *Come* responsabile della conformità dell'adottante *voglio*: quattro occhi: niente auto-approvazione, operazioni sensibili con doppio controllo configurabile | E-F2-GRC | `F2-GRC-03` | M8.13 | TB-GRC | pianificata |
+| US-F2-GRC-04 | *Come* responsabile della conformità dell'adottante *voglio*: deprovisioning dall'IdP, revisione periodica degli accessi (BO-34), break-glass | E-F2-GRC | `F2-GRC-04` | M8.13 | TB-GRC | pianificata |
+| US-F2-GRC-05 | *Come* responsabile della conformità dell'adottante *voglio*: classificazione `x-lh-class`, registro dei trattamenti, retention per categoria con rapporto, esportazioni controllate | E-F2-GRC | `F2-GRC-05` | M8.13 | TB-GRC | pianificata |
+| US-F2-GRC-06 | *Come* responsabile della conformità dell'adottante *voglio*: `erasure_log` riapplicato al ripristino, crypto-shredding dei contatti, `lh data mask`, `lh decommission` | E-F2-GRC | `F2-GRC-06` | M8.13, M12.6 | TB-GRC | pianificata |
+| US-F2-GRC-07 | *Come* responsabile della conformità dell'adottante *voglio*: audit a catena di hash con ancoraggio immutabile, export OCSF, `lh forensics export`, prova di ripristino mensile | E-F2-GRC | `F2-GRC-07` | M8.12, M12.6 | TB-GRC | pianificata |
+| US-F2-GRC-08 | *Come* responsabile della conformità dell'adottante *voglio*: pacchetto di rilascio: SBOM, VEX, SLSA L3, report; SLA vulnerabilità, processo CRA, politica LTS, rapporto licenze | E-F2-GRC | `F2-GRC-08` | M12.4, M12.6 | TB-GRC | pianificata |
+| US-F2-GRC-09 | *Come* responsabile della conformità dell'adottante *voglio*: identità propria degli agenti (GitHub App) e approvazione obbligatoria delle PR prima di v1.0 | E-F2-GRC | `F2-GRC-09` | M8.0, M12.4 | TB-GRC | pianificata |
+| US-F2-EVT-01 | *Come* DPO dell'adottante *voglio*: contratti con `x-lh-pii`, test che vieta PII sul bus, compat check contro ultimo tag | E-F2-EVT | `F2-EVT-01` | M8.4 | TB-SEC | pianificata |
+| US-F2-EVT-02 | *Come* DPO dell'adottante *voglio*: `member.registered/updated` `:2` senza PII; doppia lettura | E-F2-EVT | `F2-EVT-02` | M8.4 | TB-SEC | pianificata |
+| US-F2-EVT-03 | *Come* DPO dell'adottante *voglio*: modulo `delivery` nel member-service con adattatori SMTP/WEBHOOK | E-F2-EVT | `F2-EVT-03` | M8.4 | TB-SEC | pianificata |
+| US-F2-EVT-04 | *Come* DPO dell'adottante *voglio*: partizioni e concorrenza configurabili; retention lunga | E-F2-EVT | `F2-EVT-04` | M8.3 | TB-SEC | pianificata |
+| US-F2-ING-01 | *Come* integratore di una fonte *voglio*: `POST /v1/events/batch` fino a 1000 | E-F2-EVT | `F2-ING-01` | M8.7 | TB-ING | pianificata |
+| US-F2-ING-02 | *Come* integratore di una fonte *voglio*: import file asincrono con rapporto (BO-32) | E-F2-EVT | `F2-ING-02` | M8.7 | TB-ING | pianificata |
+| US-F2-API-01 | *Come* sviluppatore di un'app dell'adottante *voglio*: openAPI generata e verificata; `contracts/api/` | E-F2-EXP | `F2-API-01` | M8.8 | TB-EXP | pianificata |
+| US-F2-API-02 | *Come* sviluppatore di un'app dell'adottante *voglio*: widget kit web components | E-F2-EXP | `F2-API-02` | M10.6 | TB-EXP | pianificata |
+| US-F2-OBS-01 | *Come* operatore *voglio*: oTel → Prometheus/Loki/Tempo/Grafana nel chart, dashboard SLO | E-F2-OPS | `F2-OBS-01` | M8.6 | — | pianificata |
+| US-F2-QA-01 | *Come* proprietario del prodotto *voglio*: harness `e2e/`, journey DSL, invarianti | E-F2-QA | `F2-QA-01` | M9.1–M9.2 | TB-E2E | pianificata |
+| US-F2-QA-02 | *Come* proprietario del prodotto *voglio*: matrice device, screenshot, axe/pa11y | E-F2-QA | `F2-QA-02` | M9.3 | TB-E2E | pianificata |
+| US-F2-QA-03 | *Come* proprietario del prodotto *voglio*: carico k6 con profili 100k–2M membri | E-F2-QA | `F2-QA-03` | M9.4 | TB-E2E | pianificata |
+| US-F2-QA-04 | *Come* proprietario del prodotto *voglio*: test di installazione (3 tagli) e di aggiornamento N−1 → N | E-F2-QA | `F2-QA-04` | M9.5, M12.5 | TB-E2E | pianificata |
+| US-F2-EXP-01 | *Come* MARKETING *voglio*: element Registry con generazione e drift check | E-F2-EXP | `F2-EXP-01` | M10.1 | TB-EXP | pianificata |
+| US-F2-EXP-02 | *Come* MARKETING *voglio*: directus nell'immagine: schema generato, SSO, ruoli, `ref_*`, estensioni | E-F2-EXP | `F2-EXP-02` | M10.2 | TB-EXP | pianificata |
+| US-F2-EXP-03 | *Come* MARKETING *voglio*: `experience-service`: composizione versionata, notify-and-pull, validatore, rollback | E-F2-EXP | `F2-EXP-03` | M10.3 | TB-EXP | pianificata |
+| US-F2-EXP-04 | *Come* MARKETING *voglio*: renderer del portale su composizione (set chiuso) + `GET /v1/portal/pages` | E-F2-EXP | `F2-EXP-04` | M10.4 | TB-EXP | pianificata |
+| US-F2-EXP-05 | *Come* MARKETING *voglio*: «Usato in» e avviso oggetto LIVE non esposto (BO-14/06/11, BO-31) | E-F2-EXP | `F2-EXP-05` | M10.5 | TB-EXP | pianificata |
+| US-F2-DS-01 | *Come* responsabile dell'accessibilità *voglio*: token a tre livelli, profili `brand`/`pa`, tema dal CMS | E-F2-EXP | `F2-DS-01` | M10.4 | TB-EXP | pianificata |
+| US-F2-DS-02 | *Come* responsabile dell'accessibilità *voglio*: blocchi strutturali AgID e validatore di conformità | E-F2-EXP | `F2-DS-02` | M10.4 | TB-EXP | pianificata |
+| US-F2-DS-03 | *Come* responsabile dell'accessibilità *voglio*: accessibilità WCAG 2.1 AA verificata + `lh a11y-report` | E-F2-EXP | `F2-DS-03` | M9.3, M12.2 | TB-EXP | pianificata |
+| US-F2-I18N-01 | *Come* membro *voglio*: uI multilingua con prefisso URL, lint, formati | E-F2-I18N | `F2-I18N-01` | M11.1–M11.3 | TB-I18N | pianificata |
+| US-F2-I18N-02 | *Come* membro *voglio*: `MessageSource` backend, `LhException` a chiavi | E-F2-I18N | `F2-I18N-02` | M11.4 | TB-I18N | pianificata |
+| US-F2-I18N-03 | *Come* membro *voglio*: `LocalizedText`, `member.locale`, inbox nella lingua del membro, seed EN | E-F2-I18N | `F2-I18N-03` | M11.5 | TB-I18N | pianificata |
+| US-F2-GOV-01 | *Come* proprietario del repository *voglio*: ruleset `main-protetto`, impostazioni del repo, `CODEOWNERS`, modello di PR, Dependabot | E-F2-GOV | `F2-GOV-01` | M8.0 | guard | pianificata |
+| US-F2-GOV-02 | *Come* proprietario del repository *voglio*: controllo `guard` (ADR solo in aggiunta, ID seed invariati) | E-F2-GOV | `F2-GOV-02` | M8.0 | guard | pianificata |
+| US-F2-DOC-01 | *Come* lettore della documentazione *voglio*: mintlify unico sito: `site/`, dismissione GitBook e `docs_v2/` | E-F2-GOV | `F2-DOC-01` | M8.9 | docs | pianificata |
+| US-F2-DOC-02 | *Come* lettore della documentazione *voglio*: specifiche ed eventi generati (`docs-sync`), riferimento API da OpenAPI | E-F2-GOV | `F2-DOC-02` | M8.9 | docs | pianificata |
+| US-F2-DOC-03 | *Come* lettore della documentazione *voglio*: catalogo minimo dei diagrammi Mermaid e controllo `check-mermaid` | E-F2-GOV | `F2-DOC-03` | M8.9 | docs | pianificata |
+| US-F2-DOC-04 | *Come* lettore della documentazione *voglio*: documentazione in inglese (`navigation.languages`) | E-F2-GOV | `F2-DOC-04` | M11.6 | docs | pianificata |
+| US-F2-DOC-05 | *Come* lettore della documentazione *voglio*: `erDiagram` per scheda servizio, `stateDiagram-v2` per ogni ciclo di vita, mapping fonte→azione→effetto→saldo (§3.12-bis) | E-F2-GOV | `F2-DOC-05` | M8.9 | docs | pianificata |
 
 ## 5. Foresta delle decisioni
 
