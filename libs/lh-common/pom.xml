@@ -16,7 +16,7 @@
   <description>Starter condiviso: envelope CloudEvents, outbox/inbox, idempotenza, Kafka, errori RFC 9457, actor, seed loader (docs/06 §1).</description>
 
   <properties>
-    <networknt-json-schema.version>1.5.4</networknt-json-schema.version>
+    <networknt-json-schema.version>3.0.7</networknt-json-schema.version>
     <zonky-embedded-postgres.version>2.2.2</zonky-embedded-postgres.version>
   </properties>
 
@@ -78,8 +78,8 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
-    <!-- Validatore JSON Schema 2020-12 (docs/05 §9, Q-27). Usa Jackson 2 internamente: resta confinato
-         ai test di contratto; il runtime del sistema usa Jackson 3. -->
+    <!-- Validatore JSON Schema 2020-12 (docs/05 §9, Q-27). Dalla 3.x usa Jackson 3 come il resto del
+         sistema (Q-43): nessun Jackson 2 sul classpath per lo schema. -->
     <dependency>
       <groupId>com.networknt</groupId>
       <artifactId>json-schema-validator</artifactId>
