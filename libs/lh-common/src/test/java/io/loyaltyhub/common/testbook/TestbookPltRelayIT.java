@@ -452,6 +452,9 @@ class TestbookPltRelayIT {
             ack.acknowledge();
         });
         container.start();
+        // Due consumer (concurrency 2) su due partizioni: se si invia prima che entrambi siano nel gruppo, il secondo
+        // ingresso ribilancia a metà dei ritentativi e il messaggio velenoso rifà l'intero ciclo (DLQ doppia).
+        org.springframework.kafka.test.utils.ContainerTestUtils.waitForAssignment(container, 2);
         try {
             template.send(new ProducerRecord<>(topic, null, key, "poison", List.of(
                     new org.apache.kafka.common.header.internals.RecordHeader(LhHeaders.TYPE,
