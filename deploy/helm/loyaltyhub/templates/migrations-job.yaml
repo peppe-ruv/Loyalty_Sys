@@ -24,7 +24,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "loyaltyhub.selectorLabels" (dict "ctx" $ "role" "migrate") | nindent 8 }}
+        {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "migrate") | nindent 8 }}
     spec:
       restartPolicy: Never
       # Hook pre-install: il ServiceAccount del chart potrebbe non esistere ancora (vale quello di default, senza

@@ -152,6 +152,13 @@ services:
       LH_OIDC_AUDIENCE: "hub"
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
       LH_REQUIRED_ENV: "DB_PASSWORD"
+    # Stesso controllo dell'HEALTHCHECK dell'immagine (per ruolo), reso esplicito per i depends_on.
+    healthcheck:
+      test: ["CMD", "/opt/lh/healthcheck.sh"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
     # Non esposto sull'host: lo raggiunge il BFF; le API per fonti e widget passeranno dal gateway (M8.5).
     depends_on:
       migrate:
@@ -184,6 +191,12 @@ services:
       LH_OIDC_ISSUER: "${LH_IDP_PUBLIC_URL:-http://localhost:8180}/realms/loyaltyhub"
       LH_WEB_URL: "${LH_WEB_URL:-http://localhost:3000}"
       LH_WEB_CLIENT_SECRET: "${LH_WEB_CLIENT_SECRET:-}"
+    healthcheck:
+      test: ["CMD", "/opt/lh/healthcheck.sh"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     depends_on:
       hub:
         condition: service_healthy
@@ -228,6 +241,18 @@ services:
       LH_SOURCE_SIMULATOR_JWKS_URL: "${LH_SOURCE_SIMULATOR_JWKS_URL:-http://localhost/jwks/simulator.json}"
     volumes:
       - ../idp/realm.json:/opt/keycloak/data/import/realm.json:ro
+    # L'immagine di Keycloak non ha curl: richiesta HTTP con /dev/tcp di bash alla porta di gestione (9000).
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"UP"' <&3
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
     depends_on:
       postgres:
         condition: service_healthy

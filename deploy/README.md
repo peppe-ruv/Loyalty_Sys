@@ -97,7 +97,9 @@ flowchart TB
 ### Installazione con Helm
 
 ```bash
-# 1. operatori (una volta per cluster; versioni e opzioni dalle rispettive documentazioni)
+# 1. operatori (una volta per cluster; versioni e opzioni dalle rispettive documentazioni).
+#    Servono Strimzi con KRaft e KafkaNodePool (0.46 o successivo) e CloudNativePG con la risorsa Database (1.25 o
+#    successivo); Kubernetes 1.29 o successivo.
 helm repo add strimzi https://strimzi.io/charts/ && helm install strimzi strimzi/strimzi-kafka-operator -n strimzi --create-namespace
 helm repo add cnpg https://cloudnative-pg.github.io/charts && helm install cnpg cnpg/cloudnative-pg -n cnpg-system --create-namespace
 
