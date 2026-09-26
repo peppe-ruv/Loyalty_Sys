@@ -16,7 +16,7 @@
   <description>Concorsi instant win, montepremi, istanti, giocate, obiettivi, badge, classifiche (porta 8086, schema gamification).</description>
 
   <properties>
-    <zonky-embedded-postgres.version>2.0.7</zonky-embedded-postgres.version>
+    <zonky-embedded-postgres.version>2.2.2</zonky-embedded-postgres.version>
   </properties>
 
   <dependencies>
