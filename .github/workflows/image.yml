@@ -66,6 +66,7 @@ jobs:
             -e LH_PROFILE=demo \
             -e LH_MODE=external \
             -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092 \
+            -e DB_URL="jdbc:postgresql://postgres:5432/loyaltyhub?currentSchema=ingestion,member,campaign,wallet,insight,reward,gamification,engagement" \
             -e DB_URL_DIRECT=jdbc:postgresql://postgres:5432/loyaltyhub \
             -e DB_USERNAME=loyaltyhub \
             -e DB_PASSWORD=loyaltyhub \
@@ -82,6 +83,39 @@ jobs:
           echo "Healthcheck failed"
           docker logs lh-hub
           exit 1
+
+      - name: Smoke Run LH_ROLE=web
+        if: github.event_name == 'pull_request'
+        run: |
+          docker run -d --name lh-web \
+            --network deploy_default \
+            -e LH_ROLE=web \
+            -e LH_PROFILE=demo \
+            -e LH_MODE=external \
+            lh-image:test
+
+          for i in {1..10}; do
+            if docker run --network deploy_default curlimages/curl -s http://lh-web:3000/api/demo/status | grep '"up"'; then
+               echo "Healthcheck passed"
+               exit 0
+            fi
+            sleep 5
+          done
+          echo "Healthcheck failed"
+          docker logs lh-web
+          exit 1
+
+      - name: Check invalid modes and roles
+        if: github.event_name == 'pull_request'
+        run: |
+          # Test cms
+          docker run --rm -e LH_ROLE=cms lh-image:test && exit 1 || echo "cms refused successfully"
+          # Test idp
+          docker run --rm -e LH_ROLE=idp lh-image:test && exit 1 || echo "idp refused successfully"
+          # Test embedded mode
+          docker run --rm -e LH_MODE=embedded lh-image:test && exit 1 || echo "embedded refused successfully"
+          # Test invalid module selection
+          docker run --rm -e LH_ROLE=hub -e LH_SERVICES=invalid lh-image:test && exit 1 || echo "LH_SERVICES refused successfully"
 
       - name: Build and Push Multi-arch on Tag
         if: startsWith(github.ref, 'refs/tags/v')

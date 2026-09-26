@@ -21,6 +21,11 @@ if [ "$LH_MODE" != "external" ]; then
     exit 1
 fi
 
+if [ -n "$LH_SERVICES" ] && [ "$LH_SERVICES" != "all" ]; then
+    echo "Errore: selezione dei moduli non ancora disponibile"
+    exit 1
+fi
+
 ROLE="${LH_ROLE:-all}"
 
 if [ "$ROLE" = "cms" ] || [ "$ROLE" = "idp" ]; then
@@ -31,18 +36,12 @@ fi
 if [ "$ROLE" = "hub" ]; then
     PROFILE="${LH_PROFILE:-demo}"
     export SPRING_PROFILES_ACTIVE="${PROFILE}"
-    if [ -n "$LH_SERVICES" ]; then
-        export SPRING_PROFILES_ACTIVE="$SPRING_PROFILES_ACTIVE,$LH_SERVICES"
-    fi
     exec java -jar /opt/lh/hub/hub.jar
 elif [ "$ROLE" = "jobs" ]; then
     echo "Avvio ruolo jobs..."
     PROFILE="${LH_PROFILE:-demo}"
     export SPRING_PROFILES_ACTIVE="${PROFILE}"
     export LH_JOBS_ENABLED=true
-    if [ -n "$LH_SERVICES" ]; then
-        export SPRING_PROFILES_ACTIVE="$SPRING_PROFILES_ACTIVE,$LH_SERVICES"
-    fi
     exec java -jar /opt/lh/hub/hub.jar
 elif [ "$ROLE" = "web" ]; then
     export NODE_ENV="production"
@@ -50,9 +49,13 @@ elif [ "$ROLE" = "web" ]; then
     export HOSTNAME="0.0.0.0"
     exec node /opt/lh/web/server.js
 elif [ "$ROLE" = "all" ]; then
-    echo "Avvio ruoli all sotto s6-overlay..."
-    rm -f /etc/services.d/hub/down /etc/services.d/web/down
-    exec /init
+    echo "Avvio ruoli all sotto s6-svscan..."
+    # Ensure run-time writeable service dir exists
+    mkdir -p /var/lib/lh/run/services/hub /var/lib/lh/run/services/web
+    cp /opt/lh/s6/hub/run /var/lib/lh/run/services/hub/run
+    cp /opt/lh/s6/web/run /var/lib/lh/run/services/web/run
+    chmod +x /var/lib/lh/run/services/hub/run /var/lib/lh/run/services/web/run
+    exec s6-svscan /var/lib/lh/run/services
 else
     echo "Errore: LH_ROLE sconosciuto: $ROLE"
     exit 1

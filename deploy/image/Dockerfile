@@ -23,6 +23,8 @@ RUN pnpm install --frozen-lockfile
 COPY web/ ./
 # Will build standalone if configured in next.config.mjs
 RUN pnpm build
+# Ensure public directory exists
+RUN mkdir -p /src/web/public
 
 # ---- final ----
 FROM cgr.dev/chainguard/wolfi-base@sha256:08df5982c3d27e70a4ce1607e3bb9af09d746f8722cf135a7694afef879fc5a2
@@ -35,8 +37,8 @@ RUN apk add --no-cache openjdk-25-jre nodejs-22 s6 tzdata \
     && adduser -S -u 1000 -G lh lh
 
 # Configure directories
-RUN mkdir -p /opt/lh/hub /opt/lh/web /var/lib/lh /tmp /etc/services.d/hub /etc/services.d/web && \
-    chown -R lh:lh /opt/lh /var/lib/lh /tmp /etc/services.d
+RUN mkdir -p /opt/lh/hub /opt/lh/web /var/lib/lh /tmp /opt/lh/s6/hub /opt/lh/s6/web && \
+    chown -R lh:lh /opt/lh /var/lib/lh /tmp
 
 # Copy hub artifact
 COPY --from=hub-build --chown=lh:lh /src/deploy/hub/target/hub-*-boot.jar /opt/lh/hub/hub.jar
@@ -51,12 +53,9 @@ COPY --chown=lh:lh deploy/image/entrypoint.sh /opt/lh/entrypoint.sh
 COPY --chown=lh:lh deploy/image/healthcheck.sh /opt/lh/healthcheck.sh
 RUN chmod +x /opt/lh/entrypoint.sh /opt/lh/healthcheck.sh
 
-# Copy s6-overlay services
-COPY --chown=lh:lh deploy/image/s6/hub/run /etc/services.d/hub/run
-COPY --chown=lh:lh deploy/image/s6/web/run /etc/services.d/web/run
-
-# Disable services by default using down files. The entrypoint will remove them if role=all
-RUN touch /etc/services.d/hub/down /etc/services.d/web/down
+# Copy s6 services (to be copied to runtime location by entrypoint)
+COPY --chown=lh:lh deploy/image/s6/hub/run /opt/lh/s6/hub/run
+COPY --chown=lh:lh deploy/image/s6/web/run /opt/lh/s6/web/run
 
 USER lh
 WORKDIR /opt/lh
