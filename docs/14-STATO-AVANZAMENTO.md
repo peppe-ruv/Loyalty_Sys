@@ -365,7 +365,7 @@ Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della 
 - [ ] M8.5 — sicurezza di piattaforma
 - [ ] M8.6 — osservabilità
 - [ ] M8.7 — ingresso batch e import file (BO-32)
-- [ ] M8.8 — OpenAPI generata e verificata (`contracts/api/`)
+- [ ] M8.8 — OpenAPI generata e verificata (`contracts/api/`) in revisione: PR #<n>
 - [ ] M8.9 — documentazione Mintlify (`site/`)
 - [ ] M8.10 — sicurezza applicativa
 - [ ] M8.11 — verifica di sicurezza (job `security`)
