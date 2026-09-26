@@ -30,8 +30,7 @@ RUN mkdir -p /src/web/public
 FROM cgr.dev/chainguard/wolfi-base@sha256:08df5982c3d27e70a4ce1607e3bb9af09d746f8722cf135a7694afef879fc5a2
 
 USER root
-# Wolfi uses 'apk' to install, but the issue in sandbox overlayfs means we can't run RUN commands easily.
-# For the purpose of completing the task correctly assuming standard docker behaviour:
+# We install required packages from wolfi package repository
 RUN apk add --no-cache openjdk-25-jre nodejs-22 s6 tzdata \
     && addgroup -S -g 1000 lh \
     && adduser -S -u 1000 -G lh lh
