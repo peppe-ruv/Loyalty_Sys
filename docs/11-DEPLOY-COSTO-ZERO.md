@@ -13,7 +13,7 @@ Obiettivo: una demo **pubblica, accendibile su richiesta, che da spenta costa ze
 | PostgreSQL | **Neon** Free | 0,5 GB; **100 CU-ore/mese**; scale-to-zero dopo 5 min | 0 | connettore Neon |
 | Kafka | **Aiven** Free | **5 topic × 2 partizioni**, 250 KiB/s, retention 3 giorni; **si spegne per inattività e va riacceso a mano** dalla console; creazione solo da console | 0 | **manuale** (una tantum) |
 | CI | GitHub Actions | gratuito su repo pubblico | 0 | file nel repo |
-| Registro immagini (piano B) | GHCR | gratuito su repo pubblico | 0 | workflow |
+| Immagini Docker | GHCR | gratuito su repo pubblico (es. `ghcr.io/.../loyaltyhub`) | 0 | workflow `image.yml` |
 
 **Conti da tenere a mente**
 - 750 ore ÷ 8 servizi ≈ **93 ore di demo accesa al mese** (tutti e 8 svegli). Più che sufficiente, a patto di **non** usare pinger esterni.
@@ -193,3 +193,8 @@ Nessun segreto in CI tranne, nel piano B, il deploy hook di Render.
 - Neon, piani: `https://neon.com/docs/introduction/plans`
 - Vercel, uso corretto del piano Hobby: `https://vercel.com/docs/limits/fair-use-guidelines`
 - Spring Boot, estrazione a strati con `jarmode=tools`: documentazione di riferimento "Packaging OCI Images / Dockerfiles".
+
+## 14. Immagine unica enterprise (Fase 2)
+A partire da M8, la distribuzione enterprise viene generata dal file `deploy/image/Dockerfile` in un'unica immagine multi-arch pubblicata su GHCR (es. `ghcr.io/loyaltyhub/loyaltyhub`).
+L'immagine contiene sia l'hub (Java) sia l'interfaccia (Node.js) e instradata in base alla variabile `LH_ROLE`.
+Il deploy "a costo zero" (demo) continuerà a funzionare esattamente come descritto finché non vi sarà una transizione esplita. Vedi `deploy/image/README.md`.

@@ -358,7 +358,7 @@ Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della 
 
 **Fette**
 - [~] M8.0 — adozione e governance (ADR 026–045, CLAUDE.md §7, docs, `.github/`, job `guard`) — _in revisione: PR #33 (dopo la preliminare #32, ADR-046)_
-- [ ] M8.1 — immagine unica a ruoli
+- [x] M8.1 — immagine unica a ruoli
 - [ ] M8.2 — identità (Keycloak `idp`, BFF, OIDC)
 - [ ] M8.3 — chart Helm e compose di riferimento
 - [ ] M8.4 — PII fuori dal bus
@@ -373,7 +373,7 @@ Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della 
 - [ ] M8.13 — governo di accessi e dati
 
 **Feature `F2-*` (catalogo `docs/18 §4`)**
-- [ ] `F2-DIST-01` Immagine unica multi-arch con ruoli e modalità (P0, M8.1)
+- [x] `F2-DIST-01` Immagine unica multi-arch con ruoli e modalità (P0, M8.1)
 - [ ] `F2-DIST-02` Chart Helm con operatori di default, valori per servizi gestiti (P0, M8.3)
 - [ ] `F2-DIST-03` Compose di riferimento (ruoli + infra open source) (P0, M8.3)
 - [ ] `F2-DIST-08` Rilascio firmato: SBOM, cosign, note di sicurezza, percorso N−1 → N (P0, M8.5, M12.4)

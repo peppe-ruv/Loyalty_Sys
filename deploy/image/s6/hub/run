@@ -1,0 +1,7 @@
+#!/bin/sh
+PROFILE="${LH_PROFILE:-demo}"
+export SPRING_PROFILES_ACTIVE="${PROFILE}"
+if [ -n "$LH_SERVICES" ]; then
+    export SPRING_PROFILES_ACTIVE="$SPRING_PROFILES_ACTIVE,$LH_SERVICES"
+fi
+exec java -jar /opt/lh/hub/hub.jar
