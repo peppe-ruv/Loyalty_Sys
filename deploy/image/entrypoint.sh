@@ -11,6 +11,8 @@ for var in $(env | grep '_FILE=' | awk -F= '{print $1}'); do
     fi
 done
 
+LH_MODE="${LH_MODE:-external}"
+
 if [ "$LH_MODE" = "embedded" ]; then
     echo "Errore: la modalita embedded non e' ancora disponibile (in arrivo con M12.1). Usa LH_MODE=external."
     exit 1
@@ -28,7 +30,7 @@ fi
 
 ROLE="${LH_ROLE:-all}"
 
-if [ "$ROLE" = "cms" ] || [ "$ROLE" = "idp" ]; then
+if [ "$ROLE" = "cms" ] || [ "$ROLE" = "idp" ] || [ "$ROLE" = "jobs" ]; then
     echo "Errore: ruolo non ancora disponibile ($ROLE)."
     exit 1
 fi
@@ -37,12 +39,6 @@ if [ "$ROLE" = "hub" ]; then
     PROFILE="${LH_PROFILE:-demo}"
     export SPRING_PROFILES_ACTIVE="${PROFILE}"
     exec java -jar /opt/lh/hub/hub.jar
-elif [ "$ROLE" = "jobs" ]; then
-    echo "Avvio ruolo jobs..."
-    PROFILE="${LH_PROFILE:-demo}"
-    export SPRING_PROFILES_ACTIVE="${PROFILE}"
-    export LH_JOBS_ENABLED=true
-    exec java -jar /opt/lh/hub/hub.jar
 elif [ "$ROLE" = "web" ]; then
     export NODE_ENV="production"
     export PORT="3000"
@@ -50,7 +46,6 @@ elif [ "$ROLE" = "web" ]; then
     exec node /opt/lh/web/server.js
 elif [ "$ROLE" = "all" ]; then
     echo "Avvio ruoli all sotto s6-svscan..."
-    # Ensure run-time writeable service dir exists
     mkdir -p /var/lib/lh/run/services/hub /var/lib/lh/run/services/web
     cp /opt/lh/s6/hub/run /var/lib/lh/run/services/hub/run
     cp /opt/lh/s6/web/run /var/lib/lh/run/services/web/run
