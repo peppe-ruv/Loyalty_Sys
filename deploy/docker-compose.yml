@@ -70,6 +70,7 @@ services:
       POSTGRES_PASSWORD: "loyaltyhub"
     volumes:
       - lh-postgres-data:/var/lib/postgresql/data
+      - ./postgres/init-idp-db.sql:/docker-entrypoint-initdb.d/init-idp-db.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U loyaltyhub -d loyaltyhub"]
       interval: 10s
@@ -103,11 +104,12 @@ services:
       KC_DB_URL: "jdbc:postgresql://postgres:5432/idp"
       KC_DB_USERNAME: "loyaltyhub"
       KC_DB_PASSWORD: "loyaltyhub"
-      KC_BOOTSTRAP_ADMIN_USERNAME: "admin"
-      KC_BOOTSTRAP_ADMIN_PASSWORD: "admin"
+      KC_BOOTSTRAP_ADMIN_USERNAME: "${LH_IDP_ADMIN_USERNAME:-admin}"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "${LH_IDP_ADMIN_PASSWORD:?LH_IDP_ADMIN_PASSWORD must be set}"
       KC_METRICS_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
     volumes:
+      # Mount both the main realm and the test overlay for local testing
       - ./idp:/opt/keycloak/data/import
     depends_on:
       postgres:
@@ -121,24 +123,26 @@ services:
     ports:
       - "8089:8080"
     environment:
+      # Test only IdP
       KC_BOOTSTRAP_ADMIN_USERNAME: "admin"
-      KC_BOOTSTRAP_ADMIN_PASSWORD: "admin"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "${LH_TEST_IDP_ADMIN_PASSWORD:-admin}"
       KC_METRICS_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
     volumes:
       - ./idp/test-idp/test-realm.json:/opt/keycloak/data/import/test-realm.json
 
   ldap:
-    image: osixia/openldap:2.6.10
+    image: osixia/openldap:1.5.0
     container_name: lh-ldap
     profiles: ["idp"]
     ports:
       - "389:389"
       - "636:636"
     environment:
+      # Test only LDAP
       LDAP_ORGANISATION: "Example Org"
       LDAP_DOMAIN: "example.org"
-      LDAP_ADMIN_PASSWORD: "admin"
+      LDAP_ADMIN_PASSWORD: "${LH_LDAP_ADMIN_PASSWORD:-admin}"
     volumes:
       - ./idp/test-idp/ldap-seed.ldif:/container/run/process/slapd/assets/config/bootstrap/ldif/custom/10-seed.ldif
 

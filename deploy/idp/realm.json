@@ -166,7 +166,7 @@
       "clientId": "lh-jobs",
       "name": "Scheduled Jobs",
       "enabled": true,
-      "clientAuthenticatorType": "private-key-jwt",
+      "clientAuthenticatorType": "client-jwt",
       "redirectUris": [],
       "bearerOnly": false,
       "consentRequired": false,
@@ -184,7 +184,7 @@
       "clientId": "crm",
       "name": "Source crm",
       "enabled": true,
-      "clientAuthenticatorType": "private-key-jwt",
+      "clientAuthenticatorType": "client-jwt",
       "redirectUris": [],
       "bearerOnly": false,
       "consentRequired": false,
@@ -202,7 +202,7 @@
       "clientId": "app",
       "name": "Source app",
       "enabled": true,
-      "clientAuthenticatorType": "private-key-jwt",
+      "clientAuthenticatorType": "client-jwt",
       "redirectUris": [],
       "bearerOnly": false,
       "consentRequired": false,
@@ -220,7 +220,7 @@
       "clientId": "ecommerce",
       "name": "Source ecommerce",
       "enabled": true,
-      "clientAuthenticatorType": "private-key-jwt",
+      "clientAuthenticatorType": "client-jwt",
       "redirectUris": [],
       "bearerOnly": false,
       "consentRequired": false,
@@ -238,7 +238,7 @@
       "clientId": "billing",
       "name": "Source billing",
       "enabled": true,
-      "clientAuthenticatorType": "private-key-jwt",
+      "clientAuthenticatorType": "client-jwt",
       "redirectUris": [],
       "bearerOnly": false,
       "consentRequired": false,
@@ -256,7 +256,7 @@
       "clientId": "partner",
       "name": "Source partner",
       "enabled": true,
-      "clientAuthenticatorType": "private-key-jwt",
+      "clientAuthenticatorType": "client-jwt",
       "redirectUris": [],
       "bearerOnly": false,
       "consentRequired": false,
@@ -274,7 +274,7 @@
       "clientId": "internal",
       "name": "Source internal",
       "enabled": true,
-      "clientAuthenticatorType": "private-key-jwt",
+      "clientAuthenticatorType": "client-jwt",
       "redirectUris": [],
       "bearerOnly": false,
       "consentRequired": false,
@@ -292,7 +292,7 @@
       "clientId": "simulator",
       "name": "Source simulator",
       "enabled": true,
-      "clientAuthenticatorType": "private-key-jwt",
+      "clientAuthenticatorType": "client-jwt",
       "redirectUris": [],
       "bearerOnly": false,
       "consentRequired": false,
@@ -505,108 +505,6 @@
       "defaultAction": false
     }
   ],
-  "identityProviders": [
-    {
-      "alias": "test-idp",
-      "displayName": "IdP Aziendale",
-      "providerId": "oidc",
-      "enabled": true,
-      "firstBrokerLoginFlowAlias": "first broker login with link",
-      "config": {
-        "authorizationUrl": "${LH_TEST_IDP_AUTH_URL}",
-        "tokenUrl": "${LH_TEST_IDP_TOKEN_URL}",
-        "clientId": "loyaltyhub-broker",
-        "clientSecret": "${LH_TEST_IDP_SECRET}",
-        "userInfoUrl": "${LH_TEST_IDP_USERINFO_URL}",
-        "issuer": "${LH_TEST_IDP_ISSUER}",
-        "syncMode": "IMPORT"
-      }
-    }
-  ],
-  "components": {
-    "org.keycloak.storage.UserStorageProvider": [
-      {
-        "name": "ldap",
-        "providerId": "ldap",
-        "subComponents": {
-          "org.keycloak.storage.ldap.mappers.LDAPStorageMapper": [
-            {
-              "name": "username",
-              "providerId": "user-attribute-ldap-mapper",
-              "config": {
-                "ldap.attribute": [
-                  "uid"
-                ],
-                "is.mandatory.in.ldap": [
-                  "true"
-                ],
-                "user.model.attribute": [
-                  "username"
-                ]
-              }
-            },
-            {
-              "name": "email",
-              "providerId": "user-attribute-ldap-mapper",
-              "config": {
-                "ldap.attribute": [
-                  "mail"
-                ],
-                "is.mandatory.in.ldap": [
-                  "false"
-                ],
-                "user.model.attribute": [
-                  "email"
-                ]
-              }
-            }
-          ]
-        },
-        "config": {
-          "vendor": [
-            "other"
-          ],
-          "connectionUrl": [
-            "ldap://ldap:389"
-          ],
-          "usersDn": [
-            "dc=example,dc=org"
-          ],
-          "authType": [
-            "simple"
-          ],
-          "bindDn": [
-            "cn=admin,dc=example,dc=org"
-          ],
-          "bindCredential": [
-            "admin"
-          ],
-          "searchScope": [
-            "1"
-          ],
-          "useTruststoreSpi": [
-            "ldapsOnly"
-          ],
-          "connectionPooling": [
-            "true"
-          ],
-          "pagination": [
-            "true"
-          ],
-          "allowKerberosAuthentication": [
-            "false"
-          ],
-          "batchSizeForSync": [
-            "1000"
-          ],
-          "editMode": [
-            "READ_ONLY"
-          ],
-          "syncRegistrations": [
-            "false"
-          ]
-        }
-      }
-    ]
-  }
+  "bruteForceProtected": true,
+  "sslRequired": "external"
 }

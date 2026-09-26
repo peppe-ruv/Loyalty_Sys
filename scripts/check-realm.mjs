@@ -40,6 +40,34 @@ test('Nessun segreto in chiaro o password negli utenti', () => {
       }
     });
   }
+
+  if (realm.components && realm.components['org.keycloak.storage.UserStorageProvider']) {
+    realm.components['org.keycloak.storage.UserStorageProvider'].forEach(p => {
+        if (p.config && p.config.bindCredential) {
+            p.config.bindCredential.forEach(cred => {
+                assert.ok(cred.startsWith('${') && cred.endsWith('}'), `Literal bindCredential found in LDAP component ${p.name}`);
+            });
+        }
+    });
+  }
+
+  if (realm.identityProviders) {
+      realm.identityProviders.forEach(idp => {
+          if (idp.config && idp.config.clientSecret) {
+              assert.ok(idp.config.clientSecret.startsWith('${') && idp.config.clientSecret.endsWith('}'), `Literal clientSecret found in IdP ${idp.alias}`);
+          }
+      });
+  }
+});
+
+test('I client di tipo service-account usano private_key_jwt (client-jwt)', () => {
+    if (realm.clients) {
+        realm.clients.forEach(client => {
+            if (client.serviceAccountsEnabled) {
+                assert.equal(client.clientAuthenticatorType, 'client-jwt', `Il client service-account ${client.clientId} deve usare client-jwt invece di ${client.clientAuthenticatorType}`);
+            }
+        });
+    }
 });
 
 test('Le redirect URI non contengono wildcard assolute come http://* o *', () => {

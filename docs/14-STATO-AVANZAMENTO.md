@@ -359,7 +359,7 @@ Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della 
 **Fette**
 - [~] M8.0 — adozione e governance (ADR 026–045, CLAUDE.md §7, docs, `.github/`, job `guard`) — _in revisione: PR #33 (dopo la preliminare #32, ADR-046)_
 - [ ] M8.1 — immagine unica a ruoli
-- [~] M8.2 — identità (Keycloak `idp`, BFF, OIDC) (#1)
+- [~] M8.2 — identità (Keycloak `idp`, BFF, OIDC) — _parte a (Keycloak `idp`, realm as code, IdP e LDAP di prova) in revisione: PR #57_
 - [ ] M8.3 — chart Helm e compose di riferimento
 - [ ] M8.4 — PII fuori dal bus
 - [ ] M8.5 — sicurezza di piattaforma
@@ -377,10 +377,10 @@ Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della 
 - [ ] `F2-DIST-02` Chart Helm con operatori di default, valori per servizi gestiti (P0, M8.3)
 - [ ] `F2-DIST-03` Compose di riferimento (ruoli + infra open source) (P0, M8.3)
 - [ ] `F2-DIST-08` Rilascio firmato: SBOM, cosign, note di sicurezza, percorso N−1 → N (P0, M8.5, M12.4)
-- [x] `F2-IAM-01` Keycloak ruolo `idp`, realm as code (P0, M8.2)
+- [ ] `F2-IAM-01` Keycloak ruolo `idp`, realm as code (P0, M8.2)
 - [ ] `F2-IAM-02` Servizi resource server JWT; `ActorContext` dal token (P0, M8.2)
 - [ ] `F2-IAM-03` Login e registrazione membri via OIDC; `member.external_id = sub` (P0, M8.2)
-- [x] `F2-IAM-04` Broker verso IdP aziendale e federazione LDAP (documentati e provati) (P0, M8.2)
+- [ ] `F2-IAM-04` Broker verso IdP aziendale e federazione LDAP (documentati e provati) (P0, M8.2)
 - [ ] `F2-SEC-01` Gateway con JWT, rate limit, CORS per widget, header di sicurezza (P0, M8.5)
 - [ ] `F2-SEC-02` Mesh mTLS, network policy, ACL Kafka, ruoli DB per servizio (owner/app), External Secrets, Pod Security `restricted` (P0, M8.5)
 - [ ] `F2-SEC-03` Supply chain in CI (SBOM, scansione, firma, CodeQL, secret scanning, IaC) (P0, M8.5)
