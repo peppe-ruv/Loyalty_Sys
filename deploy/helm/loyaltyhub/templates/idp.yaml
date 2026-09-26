@@ -1,7 +1,7 @@
 {{- /*
 Ruolo idp: Keycloak con il realm as code di deploy/idp/realm.json (ADR-027, F2-IAM-01). files/realm.json è una
 copia verificata byte per byte da scripts/check-helm.mjs (Helm non legge file fuori dal chart).
-SPEC-GAP: Q-371 — immagine ufficiale di Keycloak finché l'immagine unica non contiene il ruolo idp.
+SPEC-GAP: Q-374 — immagine ufficiale di Keycloak finché l'immagine unica non contiene il ruolo idp.
 */ -}}
 {{- if .Values.roles.idp.enabled }}
 {{- $r := .Values.roles.idp }}

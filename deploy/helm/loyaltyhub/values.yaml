@@ -124,7 +124,7 @@ roles:
   idp:
     enabled: true
     replicas: 2
-    # SPEC-GAP: Q-371 — l'immagine unica non contiene ancora Keycloak (/opt/lh/idp, ADR-037): il ruolo idp usa
+    # SPEC-GAP: Q-374 — l'immagine unica non contiene ancora Keycloak (/opt/lh/idp, ADR-037): il ruolo idp usa
     # l'immagine ufficiale di Keycloak alla stessa versione bloccata di deploy/docker-compose.yml. Quando l'immagine
     # unica avrà il ruolo idp basterà `image: {}` per usare quella.
     image:
@@ -134,7 +134,7 @@ roles:
     port: 8080
     managementPort: 9000
     # Keycloak ricompila la propria configurazione all'avvio (`kc.sh start` senza --optimized) e scrive nella sua
-    # cartella: niente filesystem in sola lettura finché l'immagine non porta una build ottimizzata (Q-371).
+    # cartella: niente filesystem in sola lettura finché l'immagine non porta una build ottimizzata (Q-374).
     readOnlyRootFilesystem: false
     resources:
       requests: { cpu: 500m, memory: 1Gi }
@@ -229,7 +229,7 @@ kafka:
     minInsyncReplicas: 2
     # 7 giorni per actions, effects e dlq.
     retentionMs: 604800000
-    # SPEC-GAP: Q-370 — ADR-028 vuole facts e audit a 365 giorni (31536000000), possibile solo senza PII sul bus
+    # SPEC-GAP: Q-373 — ADR-028 vuole facts e audit a 365 giorni (31536000000), possibile solo senza PII sul bus
     # (ADR-032). Finché M8.4 non pubblica solo member.*:2 e l'audit mascherato, il default resta 7 giorni.
     retentionMsByTopic:
       facts: 604800000
@@ -252,7 +252,7 @@ kafka:
     resources:
       requests: { cpu: 500m, memory: 2Gi }
       limits: { cpu: "2", memory: 4Gi }
-    # SPEC-GAP: Q-372 — listener interno senza TLS né autenticazione finché M8.5 non porta mTLS di mesh, principal
+    # SPEC-GAP: Q-375 — listener interno senza TLS né autenticazione finché M8.5 non porta mTLS di mesh, principal
     # Kafka per modulo e ACL (docs/18 §3.10): il chart lo dichiara e lo rende esplicito.
     listener:
       name: plain

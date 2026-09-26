@@ -258,7 +258,7 @@ topologySpreadConstraints:
 - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
   value: {{ include "loyaltyhub.kafka.bootstrap" . | quote }}
 {{- if eq .Values.kafka.mode "strimzi" }}
-# SPEC-GAP: Q-372 — listener interno senza TLS fino a M8.5.
+# SPEC-GAP: Q-375 — listener interno senza TLS fino a M8.5.
 - name: KAFKA_SECURITY
   value: "PLAINTEXT"
 # I 5 topic li possiede Strimzi (KafkaTopic): l'hub non li dichiara.

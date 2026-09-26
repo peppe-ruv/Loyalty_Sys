@@ -48,7 +48,7 @@ spec:
     version: {{ . }}
     {{- end }}
     listeners:
-      # SPEC-GAP: Q-372 — listener interno senza TLS né autenticazione fino a M8.5 (mTLS, principal e ACL).
+      # SPEC-GAP: Q-375 — listener interno senza TLS né autenticazione fino a M8.5 (mTLS, principal e ACL).
       - name: {{ $s.listener.name }}
         port: {{ $s.listener.port }}
         type: internal

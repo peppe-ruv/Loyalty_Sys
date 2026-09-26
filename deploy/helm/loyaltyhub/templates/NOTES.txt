@@ -15,5 +15,5 @@ Login (Keycloak):     {{ .Values.publicUrls.idp }}/realms/{{ .Values.global.real
 Stato dei Pod:
   kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }}
 
-Limiti noti di questa versione (deploy/README.md): Kafka interno senza TLS fino a M8.5 (Q-372); retention di facts
-e audit a 7 giorni finché M8.4 non toglie le PII dal bus (Q-370); ruolo idp con l'immagine ufficiale di Keycloak (Q-371).
+Limiti noti di questa versione (deploy/README.md): Kafka interno senza TLS fino a M8.5 (Q-375); retention di facts
+e audit a 7 giorni finché M8.4 non toglie le PII dal bus (Q-373); ruolo idp con l'immagine ufficiale di Keycloak (Q-374).

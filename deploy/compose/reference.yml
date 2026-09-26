@@ -12,7 +12,7 @@
 # Variabili e scelte: deploy/README.md §Compose di riferimento.
 #
 # Ruolo idp: immagine ufficiale di Keycloak alla versione di deploy/docker-compose.yml finché l'immagine unica non
-# contiene Keycloak (SPEC-GAP: Q-371). Ruolo cms (Directus) con Redis e MinIO: arrivano con M10.2 (Q-371).
+# contiene Keycloak (SPEC-GAP: Q-374). Ruolo cms (Directus) con Redis e MinIO: arrivano con M10.2 (Q-374).
 name: loyaltyhub-reference
 
 # Guardia dei segreti obbligatori (POSIX sh: vale per l'immagine unica e per Keycloak). Il valore non viene stampato.
@@ -35,10 +35,10 @@ x-lh-hardening: &lh-hardening
     - ALL
 
 # Forma dei 5 topic e concorrenza (F2-EVT-04, ADR-028): un broker, quindi una replica; nomi dei topic invariati.
-# SPEC-GAP: Q-370 — facts e audit a 7 giorni finché M8.4 non toglie le PII dal bus (poi 365 giorni).
+# SPEC-GAP: Q-373 — facts e audit a 7 giorni finché M8.4 non toglie le PII dal bus (poi 365 giorni).
 x-lh-kafka-env: &lh-kafka-env
   SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-  # SPEC-GAP: Q-372 — rete compose interna, Kafka senza TLS fino a M8.5.
+  # SPEC-GAP: Q-375 — rete compose interna, Kafka senza TLS fino a M8.5.
   KAFKA_SECURITY: "PLAINTEXT"
   LH_KAFKA_TOPICS_CREATE: "true"
   LH_KAFKA_TOPIC_PARTITIONS: "${LH_KAFKA_TOPIC_PARTITIONS:-12}"
@@ -203,7 +203,7 @@ services:
     mem_limit: 768m
     cpus: 1
 
-  # Keycloak con il realm as code di deploy/idp/realm.json (ADR-027). SPEC-GAP: Q-371.
+  # Keycloak con il realm as code di deploy/idp/realm.json (ADR-027). SPEC-GAP: Q-374.
   idp:
     <<: *lh-hardening
     image: quay.io/keycloak/keycloak:26.7.4
