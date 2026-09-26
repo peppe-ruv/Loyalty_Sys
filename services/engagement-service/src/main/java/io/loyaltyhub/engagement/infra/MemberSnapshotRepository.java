@@ -34,17 +34,29 @@ public class MemberSnapshotRepository {
                 .optional();
     }
 
-    /** Anagrafica da {@code member.registered/updated}: nome, stato, iscrizione; il livello resta quello noto. */
+    /**
+     * Anagrafica da {@code member.registered/updated} ({@code :1} o {@code :2}, ADR-032): nome, stato, iscrizione; il
+     * livello resta quello noto. Un valore {@code null} (campo assente nella versione ricevuta, es. {@code firstName}
+     * in {@code :2}) non sovrascrive mai quello già noto; una riga nuova senza stato nasce {@code ACTIVE}.
+     */
     public void upsertProfile(String memberId, String firstName, String status, java.time.Instant registeredAt) {
+        java.sql.Timestamp registered = null;
+        if (registeredAt != null) {
+            registered = java.sql.Timestamp.from(registeredAt);
+        }
         jdbc.sql("""
-                        INSERT INTO engagement_member_snapshot (member_id, first_name, status, registered_at) VALUES (?, ?, ?, ?)
+                        INSERT INTO engagement_member_snapshot (member_id, first_name, status, registered_at)
+                        VALUES (:memberId, CAST(:firstName AS text), COALESCE(CAST(:status AS text), 'ACTIVE'),
+                                CAST(:registeredAt AS timestamptz))
                         ON CONFLICT (member_id) DO UPDATE SET first_name = COALESCE(excluded.first_name, engagement_member_snapshot.first_name),
-                          status = excluded.status,
+                          status = COALESCE(CAST(:status AS text), engagement_member_snapshot.status),
                           registered_at = COALESCE(excluded.registered_at, engagement_member_snapshot.registered_at),
                           updated_at = now()
                         """)
-                .params(memberId, firstName, status == null ? "ACTIVE" : status,
-                        registeredAt == null ? null : java.sql.Timestamp.from(registeredAt))
+                .param("memberId", memberId)
+                .param("firstName", firstName)
+                .param("status", status)
+                .param("registeredAt", registered)
                 .update();
     }
 
