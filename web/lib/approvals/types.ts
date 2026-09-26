@@ -53,3 +53,15 @@ export const SOURCES: Record<EntityType, { service: ServiceCode; resource: strin
 };
 
 export const ENTITY_TYPES: EntityType[] = ["CAMPAIGN", "REWARD", "CONTEST"];
+
+/**
+ * Oggetti con storico delle transizioni (docs/03 §3.6, docs/06 §7): i tre della coda di BO-21 più i contenuti, che non
+ * richiedono approvazione (BO-18: *Pubblica* diretto) ma registrano comunque chi li ha pubblicati, messi in pausa o
+ * archiviati (`GET /v1/contents/{id}/approval-history`, F-APR-01).
+ */
+export type HistoryEntityType = EntityType | "CONTENT";
+
+export const HISTORY_SOURCES: Record<HistoryEntityType, { service: ServiceCode; resource: string }> = {
+  ...SOURCES,
+  CONTENT: { service: "engagement", resource: "contents" },
+};

@@ -243,6 +243,7 @@ Formato: **Scopo** · **Dati** · **Layout** · **Azioni** (ruolo) · **Note**. 
 - **Editor** a due colonne: form (titolo, testo, immagine, CTA etichetta + destinazione scelta da elenco: *concorso, premio, campagna, pagina del portale, URL*; posizionamento; pubblico; calendario; priorità; per i pop-up frequenza `ONCE/ONCE_PER_DAY/ALWAYS` e chiudibile; per le card vincita il premio in palio) · **anteprima fedele** in `PhoneFrame` che usa **gli stessi componenti del portale** da `components/shared/content` (non una copia), col tema corrente.
 - **Anteprima per membro** (`F-CNT-04`): scegli un membro → cosa vede ora in quel placement e **perché gli altri contenuti sono esclusi** (`NOT_IN_AUDIENCE`, `OUT_OF_SCHEDULE`, `NOT_LIVE`, `FREQUENCY`).
 - I contenuti non richiedono approvazione: *Pubblica* diretto.
+- **Storico** sotto l'anteprima (contenuto già salvato): chi ha pubblicato, messo in pausa, ripreso, terminato o archiviato, quando e da/verso, dal più recente (`GET /v1/contents/{id}/approval-history`, docs/03 §3.6, F-APR-01); stesso componente del foglio di BO-21.
 
 ### BO-19 — Messaggi
 - `templates` — codice, titolo, canale (`INAPP`/`EMAIL_FAKE`), categoria; editor con segnaposto `{{…}}` suggeriti in base al tipo di fatto e **anteprima renderizzata** su un evento campione (`POST …/render`).

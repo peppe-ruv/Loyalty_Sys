@@ -17,6 +17,7 @@ import { WinCard } from "@/components/shared/content/WinCard";
 import { Field, INPUT, Section } from "@/components/bo/FormBits";
 import { CodeText, PageHeader, StatusPill } from "@/components/bo/primitives";
 import { cn } from "@/lib/cn";
+import { ApprovalHistoryList } from "@/components/bo/approvals/ApprovalHistoryList";
 
 // BO-18 editor (docs/08 §BO-18): form a sinistra, anteprima fedele a destra in PhoneFrame con i componenti del portale
 // (components/shared/content), aggiornata mentre si scrive. Destinazione della CTA scelta da elenco: concorso, premio,
@@ -310,6 +311,13 @@ function Editor({ initial }: { initial: ContentItem | null }) {
               <ContentCard content={preview} variant={variant} preview />
             )}
           </PhoneFrame>
+          {initial ? (
+            // docs/03 §3.6, F-APR-01: chi ha pubblicato, messo in pausa, terminato o archiviato, quando e da/verso.
+            <section className="mt-4 rounded-md border border-[var(--color-bo-border)] bg-white p-3">
+              <h3 className="mb-2 text-sm font-semibold">Storico</h3>
+              <ApprovalHistoryList entityType="CONTENT" id={initial.id} />
+            </section>
+          ) : null}
         </div>
       </div>
     </div>
