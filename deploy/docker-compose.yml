@@ -29,6 +29,19 @@ x-lh-service: &lh-service
     DB_PASSWORD: "loyaltyhub"
     DB_URL_DIRECT: "jdbc:postgresql://postgres:5432/loyaltyhub"
 
+# Guardia per i segreti obbligatori dei profili idp e idp-test. Compose interpola le variabili di TUTTI i
+# servizi, anche di profili non attivi: un `${VAR:?}` qui renderebbe obbligatori i segreti dell'IdP anche per
+# `up -d kafka postgres kafka-ui`. I segreti hanno quindi default vuoto e il container rifiuta di partire
+# (fail-closed) se una variabile elencata in LH_REQUIRED_ENV è vuota. Il valore non viene mai stampato.
+x-lh-require-env: &lh-require-env
+  - /bin/bash
+  - -c
+  - |
+    for v in $$LH_REQUIRED_ENV; do
+      if [ -z "$${!v:-}" ]; then echo "Variabile obbligatoria mancante: $$v" >&2; exit 1; fi
+    done
+    exec "$$@"
+
 services:
   # ---------- Infrastruttura (sempre disponibile) ----------
   kafka:
@@ -91,12 +104,18 @@ services:
       kafka:
         condition: service_healthy
 
-  # ---------- Identità (solo con --profile idp) ----------
+  # ---------- Identità (solo con --profile idp; IdP e LDAP di prova con --profile idp-test) ----------
+  # Le variabili sono documentate in deploy/idp/README.md. Keycloak sostituisce i segnaposto ${LH_*}
+  # di realm.json con queste variabili all'import. I segreti non hanno valore di default: se mancano il
+  # container non parte (x-lh-require-env).
+  # Gli URL JWKS hanno un default locale segnaposto: finché non puntano al JWKS reale della fonte,
+  # l'autenticazione private_key_jwt di quel client fallisce (fail-closed).
   idp:
     image: quay.io/keycloak/keycloak:26.7.4
     container_name: lh-idp
     profiles: ["idp"]
-    command: ["start-dev", "--import-realm"]
+    entrypoint: *lh-require-env
+    command: ["lh-require-env", "/opt/keycloak/bin/kc.sh", "start-dev", "--import-realm"]
     ports:
       - "8080:8080"
     environment:
@@ -105,46 +124,67 @@ services:
       KC_DB_USERNAME: "loyaltyhub"
       KC_DB_PASSWORD: "loyaltyhub"
       KC_BOOTSTRAP_ADMIN_USERNAME: "${LH_IDP_ADMIN_USERNAME:-admin}"
-      KC_BOOTSTRAP_ADMIN_PASSWORD: "${LH_IDP_ADMIN_PASSWORD:?LH_IDP_ADMIN_PASSWORD must be set}"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "${LH_IDP_ADMIN_PASSWORD:-}"
+      LH_REQUIRED_ENV: "KC_BOOTSTRAP_ADMIN_PASSWORD LH_WEB_CLIENT_SECRET LH_WIDGETS_CLIENT_SECRET LH_CMS_CLIENT_SECRET"
       KC_METRICS_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
+      # Segnaposto di realm.json
+      LH_WEB_URL: "${LH_WEB_URL:-http://localhost:3000}"
+      LH_CMS_URL: "${LH_CMS_URL:-http://localhost:8055}"
+      LH_WEB_CLIENT_SECRET: "${LH_WEB_CLIENT_SECRET:-}"
+      LH_WIDGETS_CLIENT_SECRET: "${LH_WIDGETS_CLIENT_SECRET:-}"
+      LH_CMS_CLIENT_SECRET: "${LH_CMS_CLIENT_SECRET:-}"
+      LH_JOBS_JWKS_URL: "${LH_JOBS_JWKS_URL:-http://localhost/jwks/lh-jobs.json}"
+      LH_SOURCE_CRM_JWKS_URL: "${LH_SOURCE_CRM_JWKS_URL:-http://localhost/jwks/crm.json}"
+      LH_SOURCE_APP_JWKS_URL: "${LH_SOURCE_APP_JWKS_URL:-http://localhost/jwks/app.json}"
+      LH_SOURCE_ECOMMERCE_JWKS_URL: "${LH_SOURCE_ECOMMERCE_JWKS_URL:-http://localhost/jwks/ecommerce.json}"
+      LH_SOURCE_BILLING_JWKS_URL: "${LH_SOURCE_BILLING_JWKS_URL:-http://localhost/jwks/billing.json}"
+      LH_SOURCE_PARTNER_JWKS_URL: "${LH_SOURCE_PARTNER_JWKS_URL:-http://localhost/jwks/partner.json}"
+      LH_SOURCE_INTERNAL_JWKS_URL: "${LH_SOURCE_INTERNAL_JWKS_URL:-http://localhost/jwks/internal.json}"
+      LH_SOURCE_SIMULATOR_JWKS_URL: "${LH_SOURCE_SIMULATOR_JWKS_URL:-http://localhost/jwks/simulator.json}"
     volumes:
-      # Mount both the main realm and the test overlay for local testing
-      - ./idp:/opt/keycloak/data/import
+      # Solo il realm principale: l'overlay di prova si applica con deploy/idp/test-idp/apply-overlay.sh.
+      - ./idp/realm.json:/opt/keycloak/data/import/realm.json:ro
     depends_on:
       postgres:
         condition: service_healthy
 
+  # Solo prova (F2-IAM-04): IdP OIDC secondario per il broker. Mai in produzione.
   idp-test:
     image: quay.io/keycloak/keycloak:26.7.4
     container_name: lh-idp-test
-    profiles: ["idp"]
-    command: ["start-dev", "--import-realm"]
+    profiles: ["idp-test"]
+    entrypoint: *lh-require-env
+    command: ["lh-require-env", "/opt/keycloak/bin/kc.sh", "start-dev", "--import-realm"]
     ports:
       - "8089:8080"
     environment:
-      # Test only IdP
       KC_BOOTSTRAP_ADMIN_USERNAME: "admin"
-      KC_BOOTSTRAP_ADMIN_PASSWORD: "${LH_TEST_IDP_ADMIN_PASSWORD:-admin}"
-      KC_METRICS_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "${LH_TEST_IDP_ADMIN_PASSWORD:-}"
+      LH_REQUIRED_ENV: "KC_BOOTSTRAP_ADMIN_PASSWORD LH_TEST_IDP_SECRET"
       KC_HEALTH_ENABLED: "true"
+      LH_TEST_IDP_SECRET: "${LH_TEST_IDP_SECRET:-}"
     volumes:
-      - ./idp/test-idp/test-realm.json:/opt/keycloak/data/import/test-realm.json
+      # Keycloak rifiuta un file <nome>-realm.json che contiene un realm diverso: va montato come idp-test-realm.json.
+      - ./idp/test-idp/test-realm.json:/opt/keycloak/data/import/idp-test-realm.json:ro
 
+  # Solo prova (F2-IAM-04): LDAP per la federazione. La password admin è la stessa che Keycloak
+  # usa come bindCredential (LH_LDAP_BIND_CREDENTIAL). Mai in produzione.
   ldap:
     image: osixia/openldap:1.5.0
     container_name: lh-ldap
-    profiles: ["idp"]
+    profiles: ["idp-test"]
+    entrypoint: *lh-require-env
+    command: ["lh-require-env", "/container/tool/run", "--copy-service"]
     ports:
       - "389:389"
-      - "636:636"
     environment:
-      # Test only LDAP
       LDAP_ORGANISATION: "Example Org"
       LDAP_DOMAIN: "example.org"
-      LDAP_ADMIN_PASSWORD: "${LH_LDAP_ADMIN_PASSWORD:-admin}"
+      LDAP_ADMIN_PASSWORD: "${LH_LDAP_BIND_CREDENTIAL:-}"
+      LH_REQUIRED_ENV: "LDAP_ADMIN_PASSWORD"
     volumes:
-      - ./idp/test-idp/ldap-seed.ldif:/container/run/process/slapd/assets/config/bootstrap/ldif/custom/10-seed.ldif
+      - ./idp/test-idp/ldap-seed.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/10-seed.ldif:ro
 
   # ---------- Servizi backend (solo con --profile all; Dockerfile da M0.5) ----------
   ingestion-service:

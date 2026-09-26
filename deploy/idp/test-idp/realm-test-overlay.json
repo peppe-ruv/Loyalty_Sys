@@ -1,5 +1,5 @@
 {
-  "id": "loyaltyhub",
+  "_comment": "SOLO PROVA (F2-IAM-04). Non viene importato da --import-realm: lo applica deploy/idp/test-idp/apply-overlay.sh sul realm loyaltyhub gia' avviato. identityProviders e clients via partialImport (OVERWRITE), components via API components (partialImport non li supporta). I segnaposto ${LH_*} sono sostituiti dallo script, che fallisce se una variabile manca.",
   "realm": "loyaltyhub",
   "identityProviders": [
     {
@@ -17,6 +17,37 @@
         "issuer": "${LH_TEST_IDP_ISSUER}",
         "syncMode": "IMPORT"
       }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "lh-ldap-test",
+      "name": "SOLO PROVA - verifica non interattiva della federazione LDAP",
+      "description": "Client di prova con direct access grants: mai in produzione. Il client web lo ha disattivato.",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${LH_LDAP_TEST_CLIENT_SECRET}",
+      "redirectUris": [],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "publicClient": false,
+      "fullScopeAllowed": true,
+      "protocol": "openid-connect",
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "email",
+        "roles",
+        "acr",
+        "web-origins",
+        "hub-audience",
+        "lh-roles-scope"
+      ],
+      "optionalClientScopes": []
     }
   ],
   "components": {
@@ -38,6 +69,12 @@
                 ],
                 "user.model.attribute": [
                   "username"
+                ],
+                "read.only": [
+                  "true"
+                ],
+                "always.read.value.from.ldap": [
+                  "false"
                 ]
               }
             },
@@ -53,12 +90,24 @@
                 ],
                 "user.model.attribute": [
                   "email"
+                ],
+                "read.only": [
+                  "true"
+                ],
+                "always.read.value.from.ldap": [
+                  "true"
                 ]
               }
             }
           ]
         },
         "config": {
+          "enabled": [
+            "true"
+          ],
+          "priority": [
+            "0"
+          ],
           "vendor": [
             "other"
           ],
@@ -66,7 +115,19 @@
             "ldap://ldap:389"
           ],
           "usersDn": [
-            "dc=example,dc=org"
+            "ou=users,dc=example,dc=org"
+          ],
+          "usernameLDAPAttribute": [
+            "uid"
+          ],
+          "rdnLDAPAttribute": [
+            "uid"
+          ],
+          "uuidLDAPAttribute": [
+            "entryUUID"
+          ],
+          "userObjectClasses": [
+            "inetOrgPerson, organizationalPerson"
           ],
           "authType": [
             "simple"
@@ -81,7 +142,7 @@
             "1"
           ],
           "useTruststoreSpi": [
-            "ldapsOnly"
+            "always"
           ],
           "connectionPooling": [
             "true"
@@ -92,13 +153,31 @@
           "allowKerberosAuthentication": [
             "false"
           ],
+          "useKerberosForPasswordAuthentication": [
+            "false"
+          ],
+          "importEnabled": [
+            "true"
+          ],
           "batchSizeForSync": [
             "1000"
+          ],
+          "fullSyncPeriod": [
+            "-1"
+          ],
+          "changedSyncPeriod": [
+            "-1"
+          ],
+          "cachePolicy": [
+            "DEFAULT"
           ],
           "editMode": [
             "READ_ONLY"
           ],
           "syncRegistrations": [
+            "false"
+          ],
+          "trustEmail": [
             "false"
           ]
         }

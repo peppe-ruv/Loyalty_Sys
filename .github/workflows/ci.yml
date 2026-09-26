@@ -76,6 +76,9 @@ jobs:
         with:
           node-version: "22"
       - run: node scripts/check-seed.mjs
+      # Realm Keycloak as code (F2-IAM-01, ADR-027): scope referenziati definiti, nessun segreto letterale,
+      # segnaposto passati al servizio idp del compose.
+      - run: node --test scripts/check-realm.mjs
 
   contracts:
     name: contracts

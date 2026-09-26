@@ -3,8 +3,30 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const REALM_PATH = path.join(process.cwd(), 'deploy/idp/realm.json');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const REALM_PATH = path.join(ROOT, 'deploy/idp/realm.json');
+const OVERLAY_PATH = path.join(ROOT, 'deploy/idp/test-idp/realm-test-overlay.json');
+const COMPOSE_PATH = path.join(ROOT, 'deploy/docker-compose.yml');
+const PLACEHOLDER = /^\$\{[A-Z0-9_]+\}$/;
+const SECRET_KEYS = new Set(['secret', 'clientSecret', 'bindCredential']);
+
+// Raccoglie [percorso, valore] di ogni chiave segreta, a qualunque profondità (stringa o lista di stringhe).
+function secretValues(node, at = '$', out = []) {
+  if (Array.isArray(node)) {
+    node.forEach((v, i) => secretValues(v, `${at}[${i}]`, out));
+  } else if (node && typeof node === 'object') {
+    for (const [k, v] of Object.entries(node)) {
+      if (SECRET_KEYS.has(k)) {
+        for (const x of Array.isArray(v) ? v : [v]) out.push([`${at}.${k}`, x]);
+      } else {
+        secretValues(v, `${at}.${k}`, out);
+      }
+    }
+  }
+  return out;
+}
 
 let realm;
 
@@ -87,4 +109,42 @@ test('Lifespan access token <= 300 secondi (5 minuti)', () => {
   const lifespan = realm.accessTokenLifespan;
   assert.ok(lifespan !== undefined, 'accessTokenLifespan mancante nel realm');
   assert.ok(lifespan <= 300, `accessTokenLifespan troppo alto: ${lifespan}`);
+});
+
+test('Ogni client scope referenziato è definito in clientScopes', () => {
+  const defined = new Set((realm.clientScopes ?? []).map(s => s.name));
+  const refs = [
+    ...(realm.defaultDefaultClientScopes ?? []).map(n => ['defaultDefaultClientScopes', n]),
+    ...(realm.defaultOptionalClientScopes ?? []).map(n => ['defaultOptionalClientScopes', n]),
+  ];
+  for (const c of realm.clients ?? []) {
+    for (const n of c.defaultClientScopes ?? []) refs.push([`client ${c.clientId}.defaultClientScopes`, n]);
+    for (const n of c.optionalClientScopes ?? []) refs.push([`client ${c.clientId}.optionalClientScopes`, n]);
+  }
+  // Con un array clientScopes esplicito Keycloak non crea i propri scope predefiniti (profile, email, roles…):
+  // un riferimento a uno scope non definito lo perde in silenzio (niente preferred_username nel token).
+  const missing = refs.filter(([, n]) => !defined.has(n)).map(([where, n]) => `${where}: ${n}`);
+  assert.deepEqual(missing, [], `Client scope referenziati ma non definiti:\n${missing.join('\n')}`);
+  for (const std of ['profile', 'email', 'roles', 'web-origins', 'acr', 'basic', 'role_list', 'offline_access']) {
+    assert.ok(defined.has(std), `Manca lo scope standard ${std}`);
+  }
+});
+
+test('Nessun segreto letterale (secret, clientSecret, bindCredential) in realm.json e nell\'overlay di prova', () => {
+  for (const file of [REALM_PATH, OVERLAY_PATH]) {
+    const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+    for (const [where, value] of secretValues(doc)) {
+      assert.ok(typeof value === 'string' && PLACEHOLDER.test(value),
+        `${path.relative(ROOT, file)} ${where}: valore letterale, usare un segnaposto \${VAR}`);
+    }
+  }
+});
+
+test('Ogni segnaposto ${LH_*} di realm.json è passato al servizio idp nel compose', () => {
+  const vars = new Set([...fs.readFileSync(REALM_PATH, 'utf8').matchAll(/\$\{(LH_[A-Z0-9_]+)\}/g)].map(m => m[1]));
+  const compose = fs.readFileSync(COMPOSE_PATH, 'utf8');
+  const block = compose.match(/\n  idp:\n([\s\S]*?)(?=\n  [a-z][\w-]*:\n)/);
+  assert.ok(block, 'Servizio idp non trovato in deploy/docker-compose.yml');
+  const missing = [...vars].filter(v => !new RegExp(`^\\s+${v}:`, 'm').test(block[1]));
+  assert.deepEqual(missing, [], `Variabili non passate a idp (Keycloak lascerebbe il segnaposto e l'avvio fallisce): ${missing.join(', ')}`);
 });
