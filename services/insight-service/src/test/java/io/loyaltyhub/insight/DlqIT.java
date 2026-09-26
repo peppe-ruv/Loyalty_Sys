@@ -135,8 +135,9 @@ class DlqIT {
         assertThat(dlqNode.path("parentEventId").asString()).isEqualTo("EVT-POISON-1");
         assertThat(dlqNode.path("service").asString()).isEqualTo("campaign");
 
-        // L'event store conserva l'azione originale (il record DLQ non la oscura).
-        JsonNode stored = client().get().uri("/v1/events/EVT-POISON-1").retrieve().body(JsonNode.class);
+        // L'event store conserva l'azione originale (il record DLQ non la oscura). Azione e record DLQ arrivano da
+        // listener diversi: il tracciato FAILED può precedere l'azione nello store, quindi si attende anche questa.
+        JsonNode stored = awaitStored("EVT-POISON-1");
         assertThat(stored.path("family").asString()).isEqualTo("ACTION");
 
         // Idempotenza: una sola voce per (evento, consumer).
@@ -321,6 +322,19 @@ class DlqIT {
             sleep(400);
         }
         throw new AssertionError("Nessuna voce DLQ per " + eventId);
+    }
+
+    private JsonNode awaitStored(String eventId) {
+        long deadline = System.currentTimeMillis() + 20_000;
+        while (System.currentTimeMillis() < deadline) {
+            JsonNode stored = client().get().uri("/v1/events/" + eventId).exchange((req, res) -> res.getStatusCode().value() == 200
+                    ? new tools.jackson.databind.ObjectMapper().readTree(res.getBody()) : null);
+            if (stored != null) {
+                return stored;
+            }
+            sleep(400);
+        }
+        throw new AssertionError("Evento non memorizzato: " + eventId);
     }
 
     private JsonNode awaitTraceStatus(String correlationId, String status) {
