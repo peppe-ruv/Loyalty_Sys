@@ -1,0 +1,69 @@
+---
+title: "Installazione enterprise con Helm o con il compose di riferimento"
+sidebarTitle: "Installazione enterprise"
+description: "Chart Helm con Strimzi e CloudNativePG di default o servizi gestiti, compose di riferimento, migrazioni come Job, partizioni e concorrenza configurabili."
+---
+
+Il profilo `enterprise` si installa dalla **stessa immagine** in tre tagli: appliance a un container, compose di riferimento e chart Helm. Cambiano solo il ruolo di ogni container (`LH_ROLE`) e il posto dell'infrastruttura. Questa pagina riassume i due tagli disponibili da M8.3; comandi, valori e variabili completi sono in `deploy/README.md` del repository.
+
+## Topologia del chart Helm
+
+Ogni ruolo dell'immagine è un Deployment con repliche distribuite tra le zone. L'Ingress porta il browser al ruolo `web` (portale, backoffice e BFF) e al login del ruolo `idp`; l'hub resta interno e lo chiama il BFF. Postgres e Kafka sono gestiti dagli operatori CloudNativePG e Strimzi, installati prima come prerequisiti, oppure sono servizi gestiti fuori dal cluster.
+
+```mermaid
+flowchart TB
+  accTitle: Topologia del chart Helm in un cluster multi-zona
+  accDescr: L'Ingress porta il browser al ruolo web e al login del ruolo idp; web chiama hub dentro il cluster; hub usa Postgres di CloudNativePG e i 5 topic di Kafka gestiti da Strimzi; il Job di migrazione aggiorna gli schemi prima dei nuovi Pod; con i valori per servizi gestiti Postgres e Kafka stanno fuori dal cluster.
+  USR[Browser di membri e operatori]
+  ING[Ingress con TLS]
+  GW[Gateway, segnaposto fino a M8.5]
+  subgraph K8S["Namespace loyaltyhub, repliche su più zone"]
+    WEB[web: portale, backoffice e BFF]
+    HUB[hub: moduli Java con HPA]
+    IDP[idp: Keycloak con realm as code]
+    MIG[Job delle migrazioni Flyway]
+    PG[(Postgres CloudNativePG, 3 istanze)]
+    KF{{Kafka Strimzi, 3 broker, 5 topic}}
+  end
+  EXT[(Servizi gestiti: Postgres e Kafka)]
+  USR --> ING
+  ING --> WEB
+  ING --> IDP
+  GW -.-> HUB
+  WEB -->|HTTP con token| HUB
+  HUB --> PG
+  HUB <--> KF
+  IDP --> PG
+  MIG -->|pre-upgrade| PG
+  HUB -.->|valori per servizi gestiti| EXT
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef store fill:#F1F5F9,stroke:#475569,color:#0F172A
+  classDef topic fill:#FEF3C7,stroke:#D97706,color:#78350F
+  classDef ext fill:#FFFFFF,stroke:#94A3B8,stroke-dasharray:4 2,color:#334155
+  classDef human fill:#ECFDF5,stroke:#059669,color:#064E3B
+  class WEB,HUB,IDP,MIG svc
+  class PG,EXT store
+  class KF topic
+  class ING,GW ext
+  class USR human
+```
+
+## Cosa fa il chart
+
+- **Un Deployment per ruolo**: `hub` (tutti i moduli Java), `web`, `idp`. I ruoli `cms` e `jobs` non sono ancora nell'immagine e il chart rifiuta di abilitarli.
+- **Operatori di default, servizi gestiti come valori**: `postgres.mode` e `kafka.mode` valgono `cloudnativepg` e `strimzi`; con `external` il chart non crea risorse degli operatori.
+- **Migrazioni come Job**: stessa immagine, solo Flyway, prima dell'aggiornamento dei Pod (`pre-upgrade`).
+- **Sicurezza**: Pod Security `restricted`, filesystem in sola lettura, nessun token del service account, nessun segreto nei valori: solo riferimenti a Secret esistenti.
+- **Scala**: HPA su `hub` e `web`, PDB, partizioni e concorrenza dei consumer configurabili.
+
+## Compose di riferimento
+
+`deploy/compose/reference.yml` avvia Postgres, Kafka KRaft, le migrazioni, `hub`, `web` e `idp` con la stessa immagine. Non è HA: è il taglio per chi installa su Docker senza Kubernetes. I segreti arrivano dall'ambiente e un container a cui ne manca uno non parte.
+
+## Partizioni, concorrenza e retention
+
+I cinque topic mantengono sempre gli stessi nomi. Variano partizioni (12 nel chart), repliche (3), `min.insync.replicas` (2), retention per topic e numero di consumer per listener, tramite le variabili `LH_KAFKA_*` o i valori del chart. Senza configurazione valgono i default della demo: 2 partizioni, 1 replica, 3 giorni.
+
+<Note>
+Limiti noti di questa versione: `facts` e `audit` restano a 7 giorni finché i dati personali non sono fuori dal bus (Q-370); il ruolo `idp` usa l'immagine ufficiale di Keycloak (Q-371); Kafka interno senza TLS fino alla sicurezza di piattaforma di M8.5 (Q-372).
+</Note>

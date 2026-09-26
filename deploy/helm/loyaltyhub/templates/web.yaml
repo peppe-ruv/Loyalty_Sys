@@ -1,0 +1,143 @@
+{{- /* Ruolo web dell'immagine unica: portale, backoffice e BFF (ADR-027, ADR-037, F2-DIST-02). */ -}}
+{{- if .Values.roles.web.enabled }}
+{{- $r := .Values.roles.web }}
+{{- $hub := printf "http://%s-hub:%d" (include "loyaltyhub.fullname" .) (int .Values.roles.hub.port) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "loyaltyhub.fullname" . }}-web
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "web") | nindent 4 }}
+spec:
+  {{- if not $r.autoscaling.enabled }}
+  replicas: {{ $r.replicas }}
+  {{- end }}
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "loyaltyhub.selectorLabels" (dict "ctx" $ "role" "web") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "web") | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- include "loyaltyhub.podCommon" (dict "ctx" $ "role" "web" "serviceAccount" true) | nindent 6 }}
+      containers:
+        - name: web
+          image: {{ include "loyaltyhub.image" . }}
+          imagePullPolicy: {{ include "loyaltyhub.imagePullPolicy" . }}
+          securityContext:
+            {{- include "loyaltyhub.containerSecurityContext" (dict "ctx" $) | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ $r.port }}
+          env:
+            - name: LH_ROLE
+              value: web
+            - name: LH_MODE
+              value: {{ .Values.global.mode | quote }}
+            - name: LH_PROFILE
+              value: {{ .Values.global.profile | quote }}
+            # Il proxy /api/lh del BFF raggiunge i moduli dentro il cluster: tutti stanno nel ruolo hub.
+            {{- range $svc := list "INGESTION" "MEMBER" "CAMPAIGN" "WALLET" "REWARD" "GAMIFICATION" "ENGAGEMENT" "INSIGHT" }}
+            - name: LH_SVC_{{ $svc }}_URL
+              value: {{ $hub | quote }}
+            {{- end }}
+            {{- if eq .Values.global.profile "enterprise" }}
+            - name: LH_OIDC_ISSUER
+              value: {{ include "loyaltyhub.oidc.issuer" . | quote }}
+            - name: LH_WEB_URL
+              value: {{ .Values.publicUrls.web | quote }}
+            - name: LH_WEB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "roles.web.clientSecret.name" $r.clientSecret.name }}
+                  key: {{ $r.clientSecret.key }}
+            {{- end }}
+            {{- with $r.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            httpGet: { path: /api/demo/status, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet: { path: /api/demo/status, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml $r.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            # Cache di Next.js (immagini, ISR): l'unico percorso scritto dal server, il resto è in sola lettura.
+            - name: next-cache
+              mountPath: /opt/lh/web/.next/cache
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: next-cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "loyaltyhub.fullname" . }}-web
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "web") | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "loyaltyhub.selectorLabels" (dict "ctx" $ "role" "web") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $r.port }}
+      targetPort: http
+{{- if $r.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "loyaltyhub.fullname" . }}-web
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "web") | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "loyaltyhub.fullname" . }}-web
+  minReplicas: {{ $r.autoscaling.minReplicas }}
+  maxReplicas: {{ $r.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $r.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- if $r.pdb.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "loyaltyhub.fullname" . }}-web
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "web") | nindent 4 }}
+spec:
+  minAvailable: {{ $r.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "loyaltyhub.selectorLabels" (dict "ctx" $ "role" "web") | nindent 6 }}
+{{- end }}
+{{- end }}

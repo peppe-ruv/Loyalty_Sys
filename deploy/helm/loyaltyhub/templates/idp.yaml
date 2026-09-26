@@ -1,0 +1,181 @@
+{{- /*
+Ruolo idp: Keycloak con il realm as code di deploy/idp/realm.json (ADR-027, F2-IAM-01). files/realm.json è una
+copia verificata byte per byte da scripts/check-helm.mjs (Helm non legge file fuori dal chart).
+SPEC-GAP: Q-371 — immagine ufficiale di Keycloak finché l'immagine unica non contiene il ruolo idp.
+*/ -}}
+{{- if .Values.roles.idp.enabled }}
+{{- $r := .Values.roles.idp }}
+{{- $jwksDefault := "http://localhost/jwks/%s.json" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "loyaltyhub.fullname" . }}-idp-realm
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "idp") | nindent 4 }}
+data:
+  # I segnaposto ${LH_*} restano tali: Keycloak li sostituisce con le variabili d'ambiente all'import.
+  realm.json: |-
+    {{- .Files.Get "files/realm.json" | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "loyaltyhub.fullname" . }}-idp
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "idp") | nindent 4 }}
+spec:
+  replicas: {{ $r.replicas }}
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      {{- include "loyaltyhub.selectorLabels" (dict "ctx" $ "role" "idp") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "idp") | nindent 8 }}
+      annotations:
+        checksum/realm: {{ .Files.Get "files/realm.json" | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "loyaltyhub.podCommon" (dict "ctx" $ "role" "idp" "serviceAccount" true) | nindent 6 }}
+      containers:
+        - name: idp
+          {{- if $r.image.repository }}
+          image: "{{ $r.image.repository }}:{{ $r.image.tag }}"
+          imagePullPolicy: {{ $r.image.pullPolicy }}
+          args: ["start", "--import-realm"]
+          {{- else }}
+          image: {{ include "loyaltyhub.image" . }}
+          imagePullPolicy: {{ include "loyaltyhub.imagePullPolicy" . }}
+          {{- end }}
+          securityContext:
+            {{- include "loyaltyhub.containerSecurityContext" (dict "ctx" $ "readOnlyRootFilesystem" $r.readOnlyRootFilesystem) | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ $r.port }}
+            - name: management
+              containerPort: {{ $r.managementPort }}
+            # Cache distribuita tra le repliche (JGroups, scoperta tramite il database).
+            - name: jgroups
+              containerPort: 7800
+          env:
+            - name: LH_ROLE
+              value: idp
+            - name: KC_DB
+              value: postgres
+            {{- if eq .Values.postgres.mode "cloudnativepg" }}
+            - name: KC_DB_URL
+              value: {{ include "loyaltyhub.pg.jdbcUrl" (dict "ctx" $ "database" .Values.postgres.cloudnativepg.idp.database) | quote }}
+            - name: KC_DB_USERNAME
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.postgres.cloudnativepg.idp.credentialsSecretName }}, key: username }
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.postgres.cloudnativepg.idp.credentialsSecretName }}, key: password }
+            {{- else }}
+            - name: KC_DB_URL
+              value: {{ include "loyaltyhub.pg.jdbcUrl" (dict "ctx" $ "database" .Values.postgres.external.idp.database) | quote }}
+            - name: KC_DB_USERNAME
+              valueFrom:
+                secretKeyRef: { name: {{ required "postgres.external.idp.username.name" .Values.postgres.external.idp.username.name }}, key: {{ .Values.postgres.external.idp.username.key }} }
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ required "postgres.external.idp.password.name" .Values.postgres.external.idp.password.name }}, key: {{ .Values.postgres.external.idp.password.key }} }
+            {{- end }}
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              value: {{ $r.adminUsername | quote }}
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ required "roles.idp.adminPassword.name" $r.adminPassword.name }}, key: {{ $r.adminPassword.key }} }
+            - name: KC_HOSTNAME
+              value: {{ .Values.publicUrls.idp | quote }}
+            # TLS terminato all'Ingress (mTLS di mesh in M8.5): Keycloak parla HTTP dietro il proxy.
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            - name: KC_METRICS_ENABLED
+              value: "true"
+            # Segnaposto di realm.json (deploy/idp/README.md): stessi nomi del servizio idp del compose.
+            - name: LH_WEB_URL
+              value: {{ .Values.publicUrls.web | quote }}
+            - name: LH_CMS_URL
+              value: {{ .Values.publicUrls.cms | quote }}
+            - name: LH_WEB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: {{ required "roles.idp.clientSecrets.web.name" $r.clientSecrets.web.name }}, key: {{ $r.clientSecrets.web.key }} }
+            - name: LH_WIDGETS_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: {{ required "roles.idp.clientSecrets.widgets.name" $r.clientSecrets.widgets.name }}, key: {{ $r.clientSecrets.widgets.key }} }
+            - name: LH_CMS_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: {{ required "roles.idp.clientSecrets.cms.name" $r.clientSecrets.cms.name }}, key: {{ $r.clientSecrets.cms.key }} }
+            - name: LH_JOBS_JWKS_URL
+              value: {{ default (printf $jwksDefault "lh-jobs") $r.jwks.jobs | quote }}
+            {{- range $src := list "crm" "app" "ecommerce" "billing" "partner" "internal" "simulator" }}
+            - name: LH_SOURCE_{{ upper $src }}_JWKS_URL
+              value: {{ default (printf $jwksDefault $src) (index $r.jwks.sources $src) | quote }}
+            {{- end }}
+            {{- with $r.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          startupProbe:
+            httpGet: { path: /health/started, port: management }
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /health/live, port: management }
+            periodSeconds: 20
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet: { path: /health/ready, port: management }
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml $r.resources | nindent 12 }}
+          volumeMounts:
+            - name: realm
+              mountPath: /opt/keycloak/data/import
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: realm
+          configMap:
+            name: {{ include "loyaltyhub.fullname" . }}-idp-realm
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "loyaltyhub.fullname" . }}-idp
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "idp") | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "loyaltyhub.selectorLabels" (dict "ctx" $ "role" "idp") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $r.port }}
+      targetPort: http
+{{- if $r.pdb.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "loyaltyhub.fullname" . }}-idp
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "idp") | nindent 4 }}
+spec:
+  minAvailable: {{ $r.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "loyaltyhub.selectorLabels" (dict "ctx" $ "role" "idp") | nindent 6 }}
+{{- end }}
+{{- end }}

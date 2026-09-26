@@ -1,0 +1,56 @@
+{{- /*
+Migrazioni Flyway come Job (F2-DIST-02, ADR-038). Stessa immagine e stesso jar dell'hub, solo migrazioni
+(io.loyaltyhub.hub.HubMigrate): non è un nuovo ruolo. Hook:
+- pre-upgrade: le migrazioni expand arrivano prima che i Pod della nuova versione sostituiscano i vecchi;
+- primo install: pre-install se Postgres è esterno (esiste già), post-install con CloudNativePG, perché il cluster
+  nasce con la release e prima dell'install non c'è (il Job attende il Secret <cluster>-app e ritenta).
+*/ -}}
+{{- if and .Values.migrations.enabled .Values.roles.hub.enabled }}
+{{- $install := ternary "pre-install" "post-install" (eq .Values.postgres.mode "external") }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "loyaltyhub.fullname" . }}-migrate
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "migrate") | nindent 4 }}
+  annotations:
+    "helm.sh/hook": {{ $install }},pre-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.migrations.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ .Values.migrations.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "loyaltyhub.selectorLabels" (dict "ctx" $ "role" "migrate") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      # Hook pre-install: il ServiceAccount del chart potrebbe non esistere ancora (vale quello di default, senza
+      # token montato); il Job non usa l'API di Kubernetes.
+      {{- include "loyaltyhub.podCommon" (dict "ctx" $) | nindent 6 }}
+      containers:
+        - name: migrate
+          image: {{ include "loyaltyhub.image" . }}
+          imagePullPolicy: {{ include "loyaltyhub.imagePullPolicy" . }}
+          securityContext:
+            {{- include "loyaltyhub.containerSecurityContext" (dict "ctx" $) | nindent 12 }}
+          command:
+            - /usr/lib/jvm/default-jvm/bin/java
+            - -XX:MaxRAMPercentage=75
+            - -Dloader.main=io.loyaltyhub.hub.HubMigrate
+            - -cp
+            - /opt/lh/hub/hub.jar
+            - org.springframework.boot.loader.launch.PropertiesLauncher
+          env:
+            {{- include "loyaltyhub.hubDbEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.migrations.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

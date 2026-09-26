@@ -1,0 +1,239 @@
+# Compose di riferimento del profilo enterprise (F2-DIST-03, M8.3; docs/18 §3.1, ADR-037).
+#
+# Un container per ruolo dell'immagine unica (LH_ROLE=hub, web) più l'infrastruttura open source: Postgres 17 e
+# Kafka KRaft. Stessa immagine del chart Helm (deploy/helm/loyaltyhub) e dell'appliance; LH_MODE=external.
+# Non è HA (un broker, un Postgres): è il taglio per chi installa su Docker senza Kubernetes.
+#
+#   export LH_DB_PASSWORD=… LH_IDP_ADMIN_PASSWORD=… LH_WEB_CLIENT_SECRET=… LH_WIDGETS_CLIENT_SECRET=… LH_CMS_CLIENT_SECRET=…
+#   docker compose -f deploy/compose/reference.yml up -d
+#
+# Segreti: nessun valore nel file. Le variabili hanno default vuoto perché `docker compose config` resti valido senza
+# ambiente; a runtime il container che ne ha bisogno rifiuta di partire (x-lh-require-env, Postgres senza password).
+# Variabili e scelte: deploy/README.md §Compose di riferimento.
+#
+# Ruolo idp: immagine ufficiale di Keycloak alla versione di deploy/docker-compose.yml finché l'immagine unica non
+# contiene Keycloak (SPEC-GAP: Q-371). Ruolo cms (Directus) con Redis e MinIO: arrivano con M10.2 (Q-371).
+name: loyaltyhub-reference
+
+# Guardia dei segreti obbligatori (POSIX sh: vale per l'immagine unica e per Keycloak). Il valore non viene stampato.
+# Nell'immagine unica basta anche <VAR>_FILE (convenzione *_FILE dell'entrypoint, deploy/image/README.md).
+x-lh-require-env: &lh-require-env
+  - /bin/sh
+  - -c
+  - |
+    for v in $$LH_REQUIRED_ENV; do
+      eval "val=\$${$$v:-}\$${$${v}_FILE:-}"
+      if [ -z "$$val" ]; then echo "Variabile obbligatoria mancante: $$v" >&2; exit 1; fi
+    done
+    exec "$$@"
+
+# Sicurezza dei container (docs/18 §3.10 punto 10): non root, capability rimosse, niente nuovi privilegi.
+x-lh-hardening: &lh-hardening
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+# Forma dei 5 topic e concorrenza (F2-EVT-04, ADR-028): un broker, quindi una replica; nomi dei topic invariati.
+# SPEC-GAP: Q-370 — facts e audit a 7 giorni finché M8.4 non toglie le PII dal bus (poi 365 giorni).
+x-lh-kafka-env: &lh-kafka-env
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  # SPEC-GAP: Q-372 — rete compose interna, Kafka senza TLS fino a M8.5.
+  KAFKA_SECURITY: "PLAINTEXT"
+  LH_KAFKA_TOPICS_CREATE: "true"
+  LH_KAFKA_TOPIC_PARTITIONS: "${LH_KAFKA_TOPIC_PARTITIONS:-12}"
+  LH_KAFKA_TOPIC_REPLICAS: "1"
+  LH_KAFKA_TOPIC_RETENTION_MS: "${LH_KAFKA_TOPIC_RETENTION_MS:-604800000}"
+  LH_KAFKA_FACTS_RETENTION_MS: "${LH_KAFKA_FACTS_RETENTION_MS:-604800000}"
+  LH_KAFKA_AUDIT_RETENTION_MS: "${LH_KAFKA_AUDIT_RETENTION_MS:-604800000}"
+  LH_KAFKA_CONSUMER_CONCURRENCY: "${LH_KAFKA_CONSUMER_CONCURRENCY:-2}"
+
+x-lh-db-env: &lh-db-env
+  DB_URL: "jdbc:postgresql://postgres:5432/loyaltyhub"
+  DB_USERNAME: "loyaltyhub"
+  DB_PASSWORD: "${LH_DB_PASSWORD:-}"
+
+services:
+  # ---------- Infrastruttura open source ----------
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "loyaltyhub"
+      POSTGRES_USER: "loyaltyhub"
+      # Vuota = il container non inizializza il database e si ferma (fail-closed dell'immagine ufficiale).
+      POSTGRES_PASSWORD: "${LH_DB_PASSWORD:-}"
+    volumes:
+      - lh-ref-postgres:/var/lib/postgresql/data
+      # Database `idp` di Keycloak, come nel compose di sviluppo.
+      - ../postgres/init-idp-db.sql:/docker-entrypoint-initdb.d/init-idp-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loyaltyhub -d loyaltyhub"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    mem_limit: 1g
+    cpus: 1
+
+  kafka:
+    image: apache/kafka:3.9.1
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      CLUSTER_ID: "5L6g3nShT-eMCtK--X86sw"
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+      # I topic li crea l'hub con la forma di x-lh-kafka-env: mai per errore di battitura.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+    volumes:
+      - lh-ref-kafka:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 20s
+    mem_limit: 1g
+    cpus: 1
+
+  # ---------- Ruoli dell'immagine unica ----------
+  # Migrazioni Flyway una volta sola, prima dell'hub (come il Job del chart; ADR-038). Stessa immagine, solo il jar.
+  migrate:
+    <<: *lh-hardening
+    image: "${LH_IMAGE:-ghcr.io/loyaltyhub/loyaltyhub:latest}"
+    read_only: true
+    tmpfs: ["/tmp"]
+    entrypoint: *lh-require-env
+    command:
+      - lh-require-env
+      - /usr/lib/jvm/default-jvm/bin/java
+      - -Dloader.main=io.loyaltyhub.hub.HubMigrate
+      - -cp
+      - /opt/lh/hub/hub.jar
+      - org.springframework.boot.loader.launch.PropertiesLauncher
+    environment:
+      <<: *lh-db-env
+      LH_REQUIRED_ENV: "DB_PASSWORD"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    mem_limit: 1g
+    cpus: 1
+
+  hub:
+    <<: *lh-hardening
+    image: "${LH_IMAGE:-ghcr.io/loyaltyhub/loyaltyhub:latest}"
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp"]
+    entrypoint: *lh-require-env
+    command: ["lh-require-env", "/opt/lh/entrypoint.sh"]
+    environment:
+      <<: [*lh-db-env, *lh-kafka-env]
+      LH_ROLE: "hub"
+      LH_MODE: "external"
+      # enterprise: OIDC obbligatorio (ADR-027). `demo` solo per valutare con i dati fittizi (seed, X-LH-Actor).
+      LH_PROFILE: "${LH_PROFILE:-enterprise}"
+      LH_IDENTITY_MODE: "${LH_IDENTITY_MODE:-oidc}"
+      # Emittente visto dal browser; JWKS letto dentro la rete compose.
+      LH_OIDC_ISSUER: "${LH_IDP_PUBLIC_URL:-http://localhost:8180}/realms/loyaltyhub"
+      LH_OIDC_JWKS_URI: "http://idp:8080/realms/loyaltyhub/protocol/openid-connect/certs"
+      LH_OIDC_AUDIENCE: "hub"
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
+      LH_REQUIRED_ENV: "DB_PASSWORD"
+    # Non esposto sull'host: lo raggiunge il BFF; le API per fonti e widget passeranno dal gateway (M8.5).
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+    mem_limit: 2g
+    cpus: 2
+
+  web:
+    <<: *lh-hardening
+    image: "${LH_IMAGE:-ghcr.io/loyaltyhub/loyaltyhub:latest}"
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp", "/opt/lh/web/.next/cache:uid=1000,gid=1000"]
+    ports:
+      - "3000:3000"
+    environment:
+      LH_ROLE: "web"
+      LH_MODE: "external"
+      LH_PROFILE: "${LH_PROFILE:-enterprise}"
+      LH_SVC_INGESTION_URL: "http://hub:8080"
+      LH_SVC_MEMBER_URL: "http://hub:8080"
+      LH_SVC_CAMPAIGN_URL: "http://hub:8080"
+      LH_SVC_WALLET_URL: "http://hub:8080"
+      LH_SVC_REWARD_URL: "http://hub:8080"
+      LH_SVC_GAMIFICATION_URL: "http://hub:8080"
+      LH_SVC_ENGAGEMENT_URL: "http://hub:8080"
+      LH_SVC_INSIGHT_URL: "http://hub:8080"
+      LH_OIDC_ISSUER: "${LH_IDP_PUBLIC_URL:-http://localhost:8180}/realms/loyaltyhub"
+      LH_WEB_URL: "${LH_WEB_URL:-http://localhost:3000}"
+      LH_WEB_CLIENT_SECRET: "${LH_WEB_CLIENT_SECRET:-}"
+    depends_on:
+      hub:
+        condition: service_healthy
+    mem_limit: 768m
+    cpus: 1
+
+  # Keycloak con il realm as code di deploy/idp/realm.json (ADR-027). SPEC-GAP: Q-371.
+  idp:
+    <<: *lh-hardening
+    image: quay.io/keycloak/keycloak:26.7.4
+    restart: unless-stopped
+    entrypoint: *lh-require-env
+    command: ["lh-require-env", "/opt/keycloak/bin/kc.sh", "start", "--import-realm"]
+    ports:
+      - "8180:8080"
+    environment:
+      KC_DB: "postgres"
+      KC_DB_URL: "jdbc:postgresql://postgres:5432/idp"
+      KC_DB_USERNAME: "loyaltyhub"
+      KC_DB_PASSWORD: "${LH_DB_PASSWORD:-}"
+      KC_BOOTSTRAP_ADMIN_USERNAME: "${LH_IDP_ADMIN_USERNAME:-admin}"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "${LH_IDP_ADMIN_PASSWORD:-}"
+      KC_HOSTNAME: "${LH_IDP_PUBLIC_URL:-http://localhost:8180}"
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: "xforwarded"
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      LH_REQUIRED_ENV: "KC_DB_PASSWORD KC_BOOTSTRAP_ADMIN_PASSWORD LH_WEB_CLIENT_SECRET LH_WIDGETS_CLIENT_SECRET LH_CMS_CLIENT_SECRET"
+      # Segnaposto di realm.json (deploy/idp/README.md)
+      LH_WEB_URL: "${LH_WEB_URL:-http://localhost:3000}"
+      LH_CMS_URL: "${LH_CMS_URL:-http://localhost:8055}"
+      LH_WEB_CLIENT_SECRET: "${LH_WEB_CLIENT_SECRET:-}"
+      LH_WIDGETS_CLIENT_SECRET: "${LH_WIDGETS_CLIENT_SECRET:-}"
+      LH_CMS_CLIENT_SECRET: "${LH_CMS_CLIENT_SECRET:-}"
+      LH_JOBS_JWKS_URL: "${LH_JOBS_JWKS_URL:-http://localhost/jwks/lh-jobs.json}"
+      LH_SOURCE_CRM_JWKS_URL: "${LH_SOURCE_CRM_JWKS_URL:-http://localhost/jwks/crm.json}"
+      LH_SOURCE_APP_JWKS_URL: "${LH_SOURCE_APP_JWKS_URL:-http://localhost/jwks/app.json}"
+      LH_SOURCE_ECOMMERCE_JWKS_URL: "${LH_SOURCE_ECOMMERCE_JWKS_URL:-http://localhost/jwks/ecommerce.json}"
+      LH_SOURCE_BILLING_JWKS_URL: "${LH_SOURCE_BILLING_JWKS_URL:-http://localhost/jwks/billing.json}"
+      LH_SOURCE_PARTNER_JWKS_URL: "${LH_SOURCE_PARTNER_JWKS_URL:-http://localhost/jwks/partner.json}"
+      LH_SOURCE_INTERNAL_JWKS_URL: "${LH_SOURCE_INTERNAL_JWKS_URL:-http://localhost/jwks/internal.json}"
+      LH_SOURCE_SIMULATOR_JWKS_URL: "${LH_SOURCE_SIMULATOR_JWKS_URL:-http://localhost/jwks/simulator.json}"
+    volumes:
+      - ../idp/realm.json:/opt/keycloak/data/import/realm.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 1536m
+    cpus: 2
+
+volumes:
+  lh-ref-postgres:
+  lh-ref-kafka:

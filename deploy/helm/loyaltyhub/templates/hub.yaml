@@ -1,0 +1,147 @@
+{{- /* Ruolo hub dell'immagine unica: tutti i moduli Java in un Deployment (ADR-037, F2-DIST-02). */ -}}
+{{- if .Values.roles.hub.enabled }}
+{{- $r := .Values.roles.hub }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "loyaltyhub.fullname" . }}-hub
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "hub") | nindent 4 }}
+spec:
+  {{- if not $r.autoscaling.enabled }}
+  replicas: {{ $r.replicas }}
+  {{- end }}
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "loyaltyhub.selectorLabels" (dict "ctx" $ "role" "hub") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "hub") | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- include "loyaltyhub.podCommon" (dict "ctx" $ "role" "hub" "serviceAccount" true) | nindent 6 }}
+      containers:
+        - name: hub
+          image: {{ include "loyaltyhub.image" . }}
+          imagePullPolicy: {{ include "loyaltyhub.imagePullPolicy" . }}
+          securityContext:
+            {{- include "loyaltyhub.containerSecurityContext" (dict "ctx" $) | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ $r.port }}
+          env:
+            - name: LH_ROLE
+              value: hub
+            - name: LH_MODE
+              value: {{ .Values.global.mode | quote }}
+            - name: LH_PROFILE
+              value: {{ .Values.global.profile | quote }}
+            {{- if $r.services }}
+            - name: LH_SERVICES
+              value: {{ $r.services | quote }}
+            {{- end }}
+            - name: PORT
+              value: {{ $r.port | quote }}
+            - name: JAVA_TOOL_OPTIONS
+              value: {{ $r.javaToolOptions | quote }}
+            {{- include "loyaltyhub.hubDbEnv" . | nindent 12 }}
+            {{- include "loyaltyhub.hubKafkaEnv" . | nindent 12 }}
+            {{- if eq .Values.global.profile "enterprise" }}
+            - name: LH_IDENTITY_MODE
+              value: oidc
+            - name: LH_OIDC_ISSUER
+              value: {{ include "loyaltyhub.oidc.issuer" . | quote }}
+            {{- with (include "loyaltyhub.oidc.jwksUri" .) }}
+            - name: LH_OIDC_JWKS_URI
+              value: {{ . | quote }}
+            {{- end }}
+            - name: LH_OIDC_AUDIENCE
+              value: {{ .Values.oidc.audience | quote }}
+            {{- end }}
+            {{- with $r.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          # All'avvio l'hub esegue anche le migrazioni (già fatte dal Job, restano idempotenti): margine ampio.
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 20
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml $r.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "loyaltyhub.fullname" . }}-hub
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "hub") | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "loyaltyhub.selectorLabels" (dict "ctx" $ "role" "hub") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $r.port }}
+      targetPort: http
+{{- if $r.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "loyaltyhub.fullname" . }}-hub
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "hub") | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "loyaltyhub.fullname" . }}-hub
+  minReplicas: {{ $r.autoscaling.minReplicas }}
+  maxReplicas: {{ $r.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $r.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- if $r.pdb.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "loyaltyhub.fullname" . }}-hub
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "hub") | nindent 4 }}
+spec:
+  minAvailable: {{ $r.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "loyaltyhub.selectorLabels" (dict "ctx" $ "role" "hub") | nindent 6 }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,19 @@
+Loyalty Hub {{ .Chart.AppVersion }} installato come "{{ .Release.Name }}" (profilo {{ .Values.global.profile }}, LH_MODE={{ .Values.global.mode }}).
+
+Ruoli: {{ if .Values.roles.hub.enabled }}hub {{ end }}{{ if .Values.roles.web.enabled }}web {{ end }}{{ if .Values.roles.idp.enabled }}idp{{ end }}
+Postgres: {{ .Values.postgres.mode }}{{ if eq .Values.postgres.mode "cloudnativepg" }} (cluster {{ include "loyaltyhub.pg.clusterName" . }}, richiede l'operatore CloudNativePG){{ end }}
+Kafka: {{ .Values.kafka.mode }}{{ if eq .Values.kafka.mode "strimzi" }} (cluster {{ include "loyaltyhub.kafka.clusterName" . }}, richiede l'operatore Strimzi){{ end }}
+Topic: 5 (lh.actions.v1, lh.effects.v1, lh.facts.v1, lh.audit.v1, lh.dlq.v1) x {{ .Values.kafka.topics.partitions }} partizioni, RF {{ .Values.kafka.topics.replicas }}
+
+{{- if .Values.ingress.enabled }}
+Portale e backoffice: {{ .Values.publicUrls.web }}
+{{- if .Values.roles.idp.enabled }}
+Login (Keycloak):     {{ .Values.publicUrls.idp }}/realms/{{ .Values.global.realm }}
+{{- end }}
+{{- end }}
+
+Stato dei Pod:
+  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Limiti noti di questa versione (deploy/README.md): Kafka interno senza TLS fino a M8.5 (Q-372); retention di facts
+e audit a 7 giorni finché M8.4 non toglie le PII dal bus (Q-370); ruolo idp con l'immagine ufficiale di Keycloak (Q-371).

@@ -9,11 +9,11 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
-import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
@@ -23,7 +23,6 @@ import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.listener.ListenerExecutionFailedException;
-import org.apache.kafka.common.config.TopicConfig;
 import org.springframework.kafka.config.KafkaListenerContainerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 
@@ -33,6 +32,7 @@ import java.util.Map;
 /**
  * Configurazione Kafka condivisa (docs/06 §5): produttore idempotente, consumatore ad ack manuale,
  * error handler con 3 tentativi → DLQ {@code lh.dlq.v1}, e i 5 topic creati solo col profilo {@code local}.
+ * Concorrenza dei listener e forma dei topic da {@link LoyaltyHubProperties} (F2-EVT-04).
  */
 @Configuration(proxyBeanMethods = false)
 @org.springframework.kafka.annotation.EnableKafka
@@ -130,7 +130,8 @@ public class LhKafkaConfiguration {
         ConcurrentKafkaListenerContainerFactory<String, String> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(cf);
-        factory.setConcurrency(2);
+        // Consumer per listener configurabili (F2-EVT-04, ADR-028): default 2 come le partizioni di Fase 1.
+        factory.setConcurrency(LhTopics.concurrency(props));
         factory.setCommonErrorHandler(errorHandler);
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
         // Il fattore custom non eredita spring.kafka.listener.auto-startup (vale solo per quello di Boot):
@@ -140,7 +141,8 @@ public class LhKafkaConfiguration {
         return factory;
     }
 
-    // --- Topic locali (solo profilo local): 5 topic × 2 partizioni, retention 3 giorni (docs/05 §1) ---
+    // --- Topic locali (solo profilo local): per default 5 topic × 2 partizioni, retention 3 giorni (docs/05 §1);
+    //     forma configurabile con loyaltyhub.topic-settings.* (F2-EVT-04) ---
 
     @Configuration(proxyBeanMethods = false)
     @Profile("local")
@@ -153,15 +155,10 @@ public class LhKafkaConfiguration {
         }
 
         @Bean
+        @ConditionalOnProperty(prefix = "loyaltyhub.topic-settings", name = "create", havingValue = "true",
+                matchIfMissing = true)
         KafkaAdmin.NewTopics lhTopics() {
-            var topics = props.getTopics().all().stream()
-                    .map(name -> TopicBuilder.name(name)
-                            .partitions(2)
-                            .replicas(1)
-                            .config(TopicConfig.RETENTION_MS_CONFIG, String.valueOf(3L * 24 * 3600 * 1000))
-                            .build())
-                    .toArray(org.apache.kafka.clients.admin.NewTopic[]::new);
-            return new KafkaAdmin.NewTopics(topics);
+            return new KafkaAdmin.NewTopics(LhTopics.newTopics(props));
         }
     }
 
