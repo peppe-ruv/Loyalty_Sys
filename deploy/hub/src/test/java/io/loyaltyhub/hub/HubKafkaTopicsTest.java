@@ -5,8 +5,6 @@ import io.loyaltyhub.common.kafka.LoyaltyHubProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.core.KafkaAdmin;
 
 import java.util.Map;
@@ -23,7 +21,14 @@ class HubKafkaTopicsTest {
     // Il comportamento della guardia su un broker vero è in TopicEvolutionIT di lh-common.
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(Support.class, HubKafkaTopics.class)
+            .withBean(KafkaAdmin.class, HubKafkaTopicsTest::offlineAdmin)
             .withPropertyValues("loyaltyhub.topic-settings.allow-partition-increase=true");
+
+    private static KafkaAdmin offlineAdmin() {
+        KafkaAdmin admin = new KafkaAdmin(Map.of("bootstrap.servers", "localhost:1"));
+        admin.setAutoCreate(false);
+        return admin;
+    }
 
     @Test
     void createFalseSkipsTopicsAndGuard() {
@@ -52,14 +57,11 @@ class HubKafkaTopicsTest {
         });
     }
 
-    @Configuration(proxyBeanMethods = false)
+    /**
+     * Niente {@code @Configuration}: la scansione dei componenti dei {@code @SpringBootTest} dell'hub prenderebbe anche
+     * le classi di test e un {@code KafkaAdmin} finto sostituirebbe quello vero negli altri test d'integrazione.
+     */
     @EnableConfigurationProperties(LoyaltyHubProperties.class)
     static class Support {
-        @Bean
-        KafkaAdmin kafkaAdmin() {
-            KafkaAdmin admin = new KafkaAdmin(Map.of("bootstrap.servers", "localhost:1"));
-            admin.setAutoCreate(false);
-            return admin;
-        }
     }
 }
