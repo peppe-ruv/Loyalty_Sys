@@ -30,6 +30,7 @@ import {
   retryAllUnmatched,
   retrySummary,
   rowFilterOf,
+  rowPosition,
   statusLabel,
   uploadErrorMessage,
   type ImportDetail,
@@ -465,7 +466,7 @@ function ImportRows({ id, active }: { id: string; active: boolean }) {
     { refetchInterval: active ? POLL_MS : undefined },
   );
   const columns: Column<ImportRow>[] = [
-    { key: "row", header: "Riga", render: (r) => <span className="font-mono tabular-nums">{r.rowNumber}</span> },
+    { key: "row", header: "Riga", render: (r) => <span className="font-mono tabular-nums">{rowPosition(r)}</span> },
     { key: "event", header: "Id evento", render: (r) => <span className="break-all font-mono text-xs">{r.eventId ?? "—"}</span> },
     {
       key: "outcome",
@@ -499,12 +500,13 @@ function ImportRows({ id, active }: { id: string; active: boolean }) {
   return (
     <section className="space-y-2">
       <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-bo-ink-2)]">Righe non accettate</h3>
-      <div className="flex flex-wrap gap-1" role="tablist" aria-label="Filtra per esito">
+      {/* Filtri come pulsanti a due stati (aria-pressed): nessun pannello di schede da collegare né tasti freccia. */}
+      <div className="flex flex-wrap gap-1" role="group" aria-label="Filtra per esito">
         {ROW_FILTERS.map((f) => (
           <button
             key={f.key}
-            role="tab"
-            aria-selected={filter === f.key}
+            type="button"
+            aria-pressed={filter === f.key}
             onClick={() => {
               setFilter(rowFilterOf(f.key));
               setPage(0);

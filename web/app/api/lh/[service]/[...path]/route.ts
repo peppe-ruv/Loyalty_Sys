@@ -4,6 +4,7 @@ import { isServiceCode, serviceBaseUrl } from "@/lib/api/services";
 import { actorHeader, parsePersona, PERSONA_COOKIE } from "@/lib/persona/cookie";
 import { ulid } from "@/lib/ids";
 import { fetchNicknames, nicknameRoute, resolveNicknames } from "@/lib/api/memberNicknames";
+import { DOWNLOAD_HEADERS, MAX_PROXY_BODY_BYTES, isCsvDownload, readCappedBody } from "@/lib/api/proxyBody";
 
 // Proxy verso i microservizi (docs/07 §3): il browser chiama SEMPRE /api/lh/<service>/v1/...
 // Copiamo metodo/query/corpo e aggiungiamo X-LH-Actor (dal cookie persona) e X-Correlation-Id.
@@ -40,8 +41,25 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
   if (idempotencyKey) headers.set("idempotency-key", idempotencyKey);
 
   const hasBody = req.method !== "GET" && req.method !== "DELETE";
-  // Un file caricato (multipart, BO-32) passa com'è, byte per byte; il JSON resta testo.
-  const multipart = (contentType ?? "").toLowerCase().startsWith("multipart/");
+  // Corpo con un tetto (lib/api/proxyBody.ts): oltre, 413 senza chiamare il servizio. Un file caricato (multipart,
+  // BO-32) passa com'è, byte per byte; il JSON resta testo.
+  let body: string | Uint8Array<ArrayBuffer> | undefined;
+  if (hasBody) {
+    const bytes = await readCappedBody(req);
+    if (!bytes) {
+      return NextResponse.json(
+        {
+          type: "PAYLOAD_TOO_LARGE",
+          code: "PAYLOAD_TOO_LARGE",
+          title: "Richiesta troppo grande",
+          detail: `Il corpo supera ${MAX_PROXY_BODY_BYTES / (1024 * 1024)} MB: dividi il file o l'invio.`,
+        },
+        { status: 413 },
+      );
+    }
+    const multipart = (contentType ?? "").toLowerCase().startsWith("multipart/");
+    body = multipart ? bytes : new TextDecoder().decode(bytes);
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
@@ -49,7 +67,7 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
     const upstream = await fetch(target, {
       method: req.method,
       headers,
-      body: hasBody ? (multipart ? await req.arrayBuffer() : await req.text()) : undefined,
+      body,
       signal: controller.signal,
       cache: "no-store",
     });
@@ -59,21 +77,26 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
       return NextResponse.json({ type: "SERVICE_ASLEEP", service }, { status: 503 });
     }
 
-    let body = await upstream.text();
+    let text = await upstream.text();
     let degraded = false;
     if (nicknames && upstream.status === 200) {
       const forward = { "x-lh-actor": headers.get("x-lh-actor") ?? "", "x-correlation-id": correlationId };
-      const resolved = await resolveNicknames(nicknames, body, req.nextUrl.searchParams.get("memberId"), (ids) => fetchNicknames(ids, forward));
+      const resolved = await resolveNicknames(nicknames, text, req.nextUrl.searchParams.get("memberId"), (ids) => fetchNicknames(ids, forward));
       // Corpo di gamification inatteso: niente inoltro (potrebbe contenere id altrui).
       if (!resolved) return NextResponse.json({ type: "UPSTREAM_INVALID", service }, { status: 502 });
-      body = resolved.body;
+      text = resolved.body;
       degraded = resolved.degraded;
     }
-    const res = new NextResponse(body, { status: upstream.status });
+    const res = new NextResponse(text, { status: upstream.status });
     const ct = upstream.headers.get("content-type");
     if (ct) res.headers.set("content-type", ct);
-    const disposition = nicknames === "winners-csv" ? upstream.headers.get("content-disposition") : null;
-    if (disposition) res.headers.set("content-disposition", disposition);
+    // File CSV scaricati (vincitori BO-14, rapporto import BO-32): nome del file e nosniff arrivano al browser.
+    if (isCsvDownload(path ?? [])) {
+      for (const name of DOWNLOAD_HEADERS) {
+        const value = upstream.headers.get(name);
+        if (value) res.headers.set(name, value);
+      }
+    }
     // member-service non disponibile: soprannomi segnaposto, la pagina resta utilizzabile.
     if (degraded) res.headers.set("x-lh-degraded", "nicknames");
     res.headers.set("x-correlation-id", correlationId);

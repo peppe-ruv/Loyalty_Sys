@@ -35,7 +35,7 @@ const PAGE = { items: [JOB], page: { number: 0, size: 20, totalItems: 1, totalPa
 const ROWS = {
   items: [
     { rowNumber: 7, eventId: "hist-ecom-0007", outcome: "UNMATCHED", detail: "Membro non trovato", inboundEventId: "01INB7", currentStatus: "UNMATCHED" },
-    { rowNumber: 9, eventId: null, outcome: "INVALID", detail: "data.amount: atteso un numero", inboundEventId: null, currentStatus: null },
+    { rowNumber: 9, lineNumber: 10, eventId: null, outcome: "INVALID", detail: "data.amount: atteso un numero", inboundEventId: null, currentStatus: null },
   ],
   page: { number: 0, size: 50, totalItems: 2, totalPages: 1 },
 };
@@ -51,7 +51,7 @@ function route(overrides: (url: string, init?: RequestInit) => Response | undefi
     const o = overrides(u, init);
     if (o) return o;
     if (u.includes("/v1/sources")) return json(SOURCES);
-    if (u.includes("/retry-unmatched")) return json({ retried: 2, accepted: 1, stillUnmatched: 1, rejected: 0 });
+    if (u.includes("/retry-unmatched")) return json({ retried: 2, accepted: 1, stillUnmatched: 1, rejected: 0, failed: 0 });
     if (u.includes("/rows")) return json(ROWS);
     if (u.includes(`/v1/imports/${JOB.id}`)) return json({ job: JOB, openUnmatched: 2 });
     if (u.includes("/v1/imports")) return json(PAGE);
@@ -166,7 +166,11 @@ describe("BO-32 Import", () => {
     const retry = vi.mocked(fetch).mock.calls.find((c) => c[0].toString().includes("/retry-unmatched"));
     expect(retry![1]?.method).toBe("POST");
 
-    fireEvent.click(screen.getByRole("tab", { name: "Non valide" }));
+    expect(screen.getByText("9 (linea 10)")).toBeInTheDocument();
+    const invalidOnly = screen.getByRole("button", { name: "Non valide" });
+    expect(invalidOnly).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(invalidOnly);
+    expect(screen.getByRole("button", { name: "Non valide" })).toHaveAttribute("aria-pressed", "true");
     await waitFor(() =>
       expect(vi.mocked(fetch).mock.calls.some((c) => c[0].toString().includes("/rows?outcome=INVALID"))).toBe(true),
     );

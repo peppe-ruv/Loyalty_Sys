@@ -12,6 +12,7 @@ import {
   reportHref,
   retryAllUnmatched,
   retrySummary,
+  rowPosition,
   rowFilterOf,
   statusLabel,
   uploadErrorMessage,
@@ -98,20 +99,29 @@ describe("richiesta e risposte", () => {
     const total = await retryAllUnmatched(async (after) => {
       calls.push(after);
       return after === 0
-        ? { retried: 200, accepted: 150, stillUnmatched: 50, rejected: 0, nextAfterRow: 380 }
-        : { retried: 3, accepted: 1, stillUnmatched: 1, rejected: 1 };
+        ? { retried: 200, accepted: 150, stillUnmatched: 50, rejected: 0, failed: 0, nextAfterRow: 380 }
+        : { retried: 3, accepted: 1, stillUnmatched: 1, rejected: 1, failed: 2 };
     });
     expect(calls).toEqual([0, 380]);
-    expect(total).toEqual({ retried: 203, accepted: 151, stillUnmatched: 51, rejected: 1, nextAfterRow: null });
-    const capped = await retryAllUnmatched(async () => ({ retried: 1, accepted: 1, stillUnmatched: 0, rejected: 0, nextAfterRow: 9 }), 2);
+    expect(total).toEqual({ retried: 203, accepted: 151, stillUnmatched: 51, rejected: 1, failed: 2, nextAfterRow: null });
+    const capped = await retryAllUnmatched(async () => ({ retried: 1, accepted: 1, stillUnmatched: 0, rejected: 0, failed: 0, nextAfterRow: 9 }), 2);
     expect(capped.nextAfterRow).toBe(9);
   });
 
   it("sintesi di Riprova non abbinati", () => {
-    expect(retrySummary({ retried: 2, accepted: 1, stillUnmatched: 1, rejected: 0 })).toBe(
+    expect(retrySummary({ retried: 2, accepted: 1, stillUnmatched: 1, rejected: 0, failed: 0 })).toBe(
       "Riprovate 2 righe: 1 accettate, 1 ancora non abbinate.",
     );
-    expect(retrySummary({ retried: 0, accepted: 0, stillUnmatched: 0, rejected: 0 })).toMatch(/già stati risolti/);
+    expect(retrySummary({ retried: 0, accepted: 0, stillUnmatched: 0, rejected: 0, failed: 0 })).toMatch(/già stati risolti/);
+    expect(retrySummary({ retried: 1, accepted: 1, stillUnmatched: 0, rejected: 0, failed: 2 })).toBe(
+      "Riprovate 1 righe: 1 accettate. 2 non riprovate per un errore: riprova più tardi.",
+    );
+    expect(retrySummary({ retried: 0, accepted: 0, stillUnmatched: 0, rejected: 0, failed: 3 })).toMatch(/Nessuna riga riprovata/);
+  });
+
+  it("posizione di una riga: numero del record e linea del file", () => {
+    expect(rowPosition({ rowNumber: 3, lineNumber: 5 })).toBe("3 (linea 5)");
+    expect(rowPosition({ rowNumber: 3, lineNumber: null })).toBe("3");
   });
 
   it("dimensioni leggibili", () => {

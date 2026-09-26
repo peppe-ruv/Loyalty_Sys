@@ -45,6 +45,8 @@ export interface ImportDetail {
 /** Riga del rapporto (`GET /v1/imports/{id}/rows`): solo le righe non accettate. */
 export interface ImportRow {
   rowNumber: number;
+  /** Linea fisica del file dove comincia il record (per ritrovarlo); assente nello storico demo. */
+  lineNumber?: number | null;
   eventId?: string | null;
   outcome: ImportOutcome | string;
   rejectCode?: string | null;
@@ -59,6 +61,8 @@ export interface RetryUnmatchedResult {
   accepted: number;
   stillUnmatched: number;
   rejected: number;
+  /** Righe non riprovate per un errore imprevisto (restano da abbinare). */
+  failed: number;
   /** Riga da cui continuare; assente a fine elenco. */
   nextAfterRow?: number | null;
 }
@@ -71,7 +75,7 @@ export async function retryAllUnmatched(
   call: (afterRow: number) => Promise<RetryUnmatchedResult>,
   maxCalls = 100,
 ): Promise<RetryUnmatchedResult> {
-  const total: RetryUnmatchedResult = { retried: 0, accepted: 0, stillUnmatched: 0, rejected: 0, nextAfterRow: null };
+  const total: RetryUnmatchedResult = { retried: 0, accepted: 0, stillUnmatched: 0, rejected: 0, failed: 0, nextAfterRow: null };
   let after = 0;
   for (let i = 0; i < maxCalls; i++) {
     const r = await call(after);
@@ -79,6 +83,7 @@ export async function retryAllUnmatched(
     total.accepted += r.accepted;
     total.stillUnmatched += r.stillUnmatched;
     total.rejected += r.rejected;
+    total.failed += r.failed ?? 0;
     if (r.nextAfterRow == null) return total;
     after = r.nextAfterRow;
   }
@@ -210,9 +215,17 @@ export function reportHref(id: string): string {
 
 /** Sintesi di «Riprova non abbinati». */
 export function retrySummary(r: RetryUnmatchedResult): string {
-  if (r.retried === 0) return "Nessuna riga da riprovare: i non abbinati sono già stati risolti.";
+  const failed = r.failed ? ` ${r.failed} non riprovate per un errore: riprova più tardi.` : "";
+  if (r.retried === 0) {
+    return failed ? `Nessuna riga riprovata.${failed}` : "Nessuna riga da riprovare: i non abbinati sono già stati risolti.";
+  }
   const parts = [`${r.accepted} accettate`];
   if (r.stillUnmatched) parts.push(`${r.stillUnmatched} ancora non abbinate`);
   if (r.rejected) parts.push(`${r.rejected} respinte`);
-  return `Riprovate ${r.retried} righe: ${parts.join(", ")}.`;
+  return `Riprovate ${r.retried} righe: ${parts.join(", ")}.${failed}`;
+}
+
+/** Posizione di una riga del rapporto: «riga 3 (linea 5)», la linea serve a ritrovarla nel file. */
+export function rowPosition(r: Pick<ImportRow, "rowNumber" | "lineNumber">): string {
+  return r.lineNumber ? `${r.rowNumber} (linea ${r.lineNumber})` : String(r.rowNumber);
 }

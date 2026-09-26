@@ -1,10 +1,12 @@
 // @vitest-environment node
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { POST } from "./route";
+import { GET, POST } from "./route";
+import { MAX_PROXY_BODY_BYTES } from "@/lib/api/proxyBody";
 
-// Proxy /api/lh per l'import file (BO-32, F2-ING-02): il corpo multipart passa byte per byte e l'Idempotency-Key
-// arriva al servizio (Q-353); il JSON resta testo come prima.
+// Proxy /api/lh per l'import file (BO-32, F2-ING-02): il corpo multipart passa byte per byte, con un tetto (413 prima
+// di chiamare il servizio), l'Idempotency-Key arriva al servizio (Q-353), il JSON resta testo come prima e i CSV
+// scaricati portano nome del file e nosniff.
 
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }) }));
 
@@ -47,6 +49,46 @@ it("inoltra il multipart come byte, con content-type e Idempotency-Key", async (
   expect(headers.get("content-type")).toBe(`multipart/form-data; boundary=${boundary}`);
   expect(headers.get("idempotency-key")).toBe("bo32-k1");
   expect(new Uint8Array(seen[0].init.body as ArrayBuffer)).toEqual(body);
+});
+
+it("corpo oltre il tetto dichiarato: 413 senza chiamare il servizio", async () => {
+  const req = new NextRequest("http://web.test/api/lh/ingestion/v1/imports", {
+    method: "POST",
+    headers: { "content-type": "multipart/form-data; boundary=x", "content-length": String(MAX_PROXY_BODY_BYTES + 1) },
+    body: new Uint8Array(10),
+  });
+  const res = await POST(req, ctx(["v1", "imports"]));
+  expect(res.status).toBe(413);
+  expect((await res.json()).code).toBe("PAYLOAD_TOO_LARGE");
+  expect(seen).toHaveLength(0);
+});
+
+it("corpo senza lunghezza dichiarata: la lettura si ferma al tetto", async () => {
+  const req = new NextRequest("http://web.test/api/lh/ingestion/v1/events/batch", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: new Uint8Array(MAX_PROXY_BODY_BYTES + 1),
+  });
+  req.headers.delete("content-length");
+  const res = await POST(req, ctx(["v1", "events", "batch"]));
+  expect(res.status).toBe(413);
+  expect(seen).toHaveLength(0);
+});
+
+it("rapporto CSV: nome del file e nosniff arrivano al browser", async () => {
+  vi.mocked(fetch).mockImplementationOnce(async () =>
+    new Response("riga,linea\n", {
+      status: 200,
+      headers: {
+        "content-type": "text/csv;charset=UTF-8",
+        "content-disposition": 'attachment; filename="import-01X-esiti.csv"',
+        "x-content-type-options": "nosniff",
+      },
+    }),
+  );
+  const res = await GET(new NextRequest("http://web.test/api/lh/ingestion/v1/imports/01X/report.csv"), ctx(["v1", "imports", "01X", "report.csv"]));
+  expect(res.headers.get("content-disposition")).toBe('attachment; filename="import-01X-esiti.csv"');
+  expect(res.headers.get("x-content-type-options")).toBe("nosniff");
 });
 
 it("il JSON resta testo e senza Idempotency-Key non la inventa", async () => {
