@@ -11,7 +11,11 @@ import tools.jackson.databind.JsonNode;
 
 import java.util.Set;
 
-/** Snapshot del membro per il gioco (docs/servizi/gamification-service.md §4): nickname e stato dai fatti di member. */
+/**
+ * Snapshot del membro per il gioco (docs/servizi/gamification-service.md §4): nickname e stato dai fatti di member.
+ * Doppia lettura {@code member.*:1}/{@code :2} ({@link MemberSnapshotFact}, ADR-032, Q-346): da {@code :2} arriva solo
+ * lo stato; un campo assente non sovrascrive quello salvato. Il nome delle classifiche lo risolve il BFF (Q-368).
+ */
 @Component
 public class MemberSnapshotHandler implements EventHandler {
 
@@ -46,7 +50,8 @@ public class MemberSnapshotHandler implements EventHandler {
             }
             return;
         }
-        members.upsert(memberId, nickname(d), d.path("status").asString("ACTIVE"));
+        MemberSnapshotFact fact = MemberSnapshotFact.parse(event.dataschema(), d);
+        members.upsert(memberId, fact.nickname(), fact.status());
     }
 
     /** Nickname del membro; se manca, nome + iniziale del cognome (docs/03 §8). */

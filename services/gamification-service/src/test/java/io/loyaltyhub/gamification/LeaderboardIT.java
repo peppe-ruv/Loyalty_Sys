@@ -10,10 +10,13 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import io.loyaltyhub.gamification.infra.MemberSnapshotRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -55,6 +58,12 @@ class LeaderboardIT {
 
     @Value("${local.server.port}")
     private int port;
+
+    @Autowired
+    private MemberSnapshotRepository snapshots;
+
+    @Autowired
+    private JdbcClient jdbc;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -123,6 +132,66 @@ class LeaderboardIT {
         assertThat(quiz.path("me").path("rank").asInt()).isEqualTo(1);
     }
 
+    /**
+     * Q-368 (ADR-032, F2-EVT-02): con {@code resolve=ids} le voci portano il {@code memberId} e non il soprannome dello
+     * snapshot (lo inserisce il BFF); {@code isMe} resta calcolato; un valore diverso da {@code ids} è un 400.
+     */
+    @Test
+    void resolveIdsReturnsMemberIdsInsteadOfNicknames() {
+        JsonNode plain = get("/v1/portal/leaderboards/LDB-MONTH-PTS?memberId=MBR-000002");
+        JsonNode ids = get("/v1/portal/leaderboards/LDB-MONTH-PTS?memberId=MBR-000002&resolve=ids");
+        assertThat(ids.path("top").size()).isEqualTo(plain.path("top").size());
+        for (int i = 0; i < ids.path("top").size(); i++) {
+            JsonNode e = ids.path("top").get(i);
+            assertThat(e.path("memberId").asString()).startsWith("MBR-");
+            assertThat(e.hasNonNull("nickname")).as("niente soprannome dello snapshot").isFalse();
+            assertThat(e.path("rank").asInt()).isEqualTo(plain.path("top").get(i).path("rank").asInt());
+            assertThat(e.path("score").asLong()).isEqualTo(plain.path("top").get(i).path("score").asLong());
+            assertThat(e.path("isMe").asBoolean()).isEqualTo("MBR-000002".equals(e.path("memberId").asString()));
+        }
+        assertThat(ids.path("me").path("rank").asInt()).isEqualTo(plain.path("me").path("rank").asInt());
+        assertThat(get("/v1/portal/leaderboards?memberId=MBR-000002&resolve=ids").get(0).path("top").get(0).has("memberId")).isTrue();
+        assertThat(plain.toString()).as("la risposta di sempre non cambia").doesNotContain("MBR-");
+
+        JsonNode bo = get("/v1/leaderboards/LDB-MONTH-PTS/ranking?resolve=ids");
+        assertThat(bo.path("items").get(0).path("memberId").asString()).isEqualTo("MBR-000005");
+        assertThat(bo.path("items").get(0).hasNonNull("nickname")).isFalse();
+
+        assertThat(status("GET", "/v1/portal/leaderboards/LDB-MONTH-PTS?memberId=MBR-000002&resolve=nicknames", "ANALYST:sara", null))
+                .isEqualTo(400);
+    }
+
+    /**
+     * Doppia lettura {@code member.*:1}/{@code :2} (ADR-032, Q-346): {@code :1} porta il soprannome; {@code :2} solo lo
+     * stato, e il soprannome salvato resta (anche se un {@code :2} ne portasse uno); un campo assente non sovrascrive.
+     */
+    @Test
+    void memberFactsV2NeverOverwriteTheStoredNickname() throws Exception {
+        String m = "MBR-900001";
+        String v1 = publishMember("registered", m, 1, Map.of("memberId", m, "nickname", "nuovo_it", "status", "ACTIVE"));
+        awaitProcessed(v1);
+        assertThat(snapshots.find(m).orElseThrow().nickname()).isEqualTo("nuovo_it");
+
+        String v2 = publishMember("updated", m, 2, Map.of("memberId", m, "status", "BLOCKED", "nickname", "intruso",
+                "province", "MI", "birthYear", 1990));
+        awaitProcessed(v2);
+        MemberSnapshotRepository.Snapshot blocked = snapshots.find(m).orElseThrow();
+        assertThat(blocked.status()).isEqualTo("BLOCKED");
+        assertThat(blocked.nickname()).as(":2 non legge il soprannome").isEqualTo("nuovo_it");
+
+        String noStatus = publishMember("updated", m, 2, Map.of("memberId", m, "labels", List.of("vip")));
+        awaitProcessed(noStatus);
+        MemberSnapshotRepository.Snapshot after = snapshots.find(m).orElseThrow();
+        assertThat(after.status()).as("stato assente: resta quello salvato").isEqualTo("BLOCKED");
+        assertThat(after.nickname()).isEqualTo("nuovo_it");
+
+        String fresh = publishMember("registered", "MBR-900002", 2, Map.of("memberId", "MBR-900002", "status", "ACTIVE"));
+        awaitProcessed(fresh);
+        MemberSnapshotRepository.Snapshot created = snapshots.find("MBR-900002").orElseThrow();
+        assertThat(created.status()).isEqualTo("ACTIVE");
+        assertThat(created.nickname()).as("membro nuovo da :2: nessun soprannome, lo risolve il BFF").isNull();
+    }
+
     // ---------- helper ----------
 
     private JsonNode await(String path, Predicate<JsonNode> done) throws InterruptedException {
@@ -136,6 +205,27 @@ class LeaderboardIT {
             Thread.sleep(100);
         }
         throw new AssertionError("condizione non raggiunta su " + path + ": " + last);
+    }
+
+    private String publishMember(String name, String memberId, int version, Map<String, Object> data) throws Exception {
+        String id = "FACT-" + UUID.randomUUID();
+        publish("lh.facts.v1", memberId, Map.of("specversion", "1.0", "id", id, "source", "urn:loyaltyhub:service:member",
+                "type", "io.loyaltyhub.fact.member." + name, "subject", "member:" + memberId, "time", Instant.now().toString(),
+                "dataschema", "urn:loyaltyhub:schema:fact.member." + name + ":" + version,
+                "lhcorrelationid", id, "lhhop", 0, "data", data));
+        return id;
+    }
+
+    private void awaitProcessed(String eventId) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 15_000;
+        while (System.currentTimeMillis() < deadline) {
+            Long n = jdbc.sql("SELECT count(*) FROM processed_event WHERE event_id = ?").param(eventId).query(Long.class).single();
+            if (n != null && n > 0) {
+                return;
+            }
+            Thread.sleep(100);
+        }
+        throw new AssertionError("evento non elaborato: " + eventId);
     }
 
     private void publishEarned(String memberId, String currency, long amount) throws Exception {

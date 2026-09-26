@@ -23,6 +23,11 @@ public class LeaderboardRepository {
     private static final String ORDER = " ORDER BY CASE period WHEN 'MONTH' THEN 0 WHEN 'EDITION' THEN 1 ELSE 2 END, code";
 
     public record Ranked(int rank, String memberId, String nickname, long score, Instant reachedAt) {
+
+        /** Stessa voce senza il soprannome dello snapshot: variante {@code resolve=ids} per il BFF (Q-368). */
+        public Ranked withoutNickname() {
+            return new Ranked(rank, memberId, null, score, reachedAt);
+        }
     }
 
     private final JdbcClient jdbc;

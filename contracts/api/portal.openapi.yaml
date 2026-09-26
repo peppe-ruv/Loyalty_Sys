@@ -99,6 +99,8 @@ components:
       properties:
         isMe:
           type: boolean
+        memberId:
+          type: string
         nickname:
           type: string
         rank:
@@ -1238,6 +1240,11 @@ paths:
         required: true
         schema:
           type: string
+      - in: query
+        name: resolve
+        required: false
+        schema:
+          type: string
       responses:
         "200":
           content:
@@ -1262,6 +1269,11 @@ paths:
       - in: query
         name: memberId
         required: true
+        schema:
+          type: string
+      - in: query
+        name: resolve
+        required: false
         schema:
           type: string
       responses:
