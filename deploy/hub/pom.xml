@@ -1,71 +1,74 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-
   <parent>
     <groupId>io.loyaltyhub</groupId>
-    <artifactId>loyalty-hub-parent</artifactId>
+    <artifactId>deploy</artifactId>
     <version>0.1.0-SNAPSHOT</version>
-    <relativePath>../../pom.xml</relativePath>
   </parent>
 
   <artifactId>hub</artifactId>
-  <packaging>jar</packaging>
-  <description>Deployable consolidato per la demo ospitata (ADR-023): i 4 servizi del core loop in un solo JVM, schema per servizio.</description>
 
   <properties>
-    <zonky-embedded-postgres.version>2.0.7</zonky-embedded-postgres.version>
+    <!-- skip hub in standard root builds, handled manually -->
+    <maven.test.skip>false</maven.test.skip>
   </properties>
 
   <dependencies>
     <dependency>
       <groupId>io.loyaltyhub</groupId>
       <artifactId>ingestion-service</artifactId>
-      <version>0.1.0-SNAPSHOT</version>
+      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>io.loyaltyhub</groupId>
       <artifactId>member-service</artifactId>
-      <version>0.1.0-SNAPSHOT</version>
+      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>io.loyaltyhub</groupId>
       <artifactId>campaign-service</artifactId>
-      <version>0.1.0-SNAPSHOT</version>
+      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>io.loyaltyhub</groupId>
       <artifactId>wallet-service</artifactId>
-      <version>0.1.0-SNAPSHOT</version>
+      <version>${project.version}</version>
     </dependency>
-    <!-- insight nell'hub per la demo (M2.8 anticipato): event store + stream SSE del rail live. -->
     <dependency>
       <groupId>io.loyaltyhub</groupId>
       <artifactId>insight-service</artifactId>
-      <version>0.1.0-SNAPSHOT</version>
+      <version>${project.version}</version>
     </dependency>
-    <!-- reward nell'hub (M4): catalogo premi, pool coupon, saga di richiesta. -->
     <dependency>
       <groupId>io.loyaltyhub</groupId>
       <artifactId>reward-service</artifactId>
-      <version>0.1.0-SNAPSHOT</version>
+      <version>${project.version}</version>
     </dependency>
-    <!-- gamification nell'hub (M5): concorsi instant win, obiettivi, badge, classifiche. -->
     <dependency>
       <groupId>io.loyaltyhub</groupId>
       <artifactId>gamification-service</artifactId>
-      <version>0.1.0-SNAPSHOT</version>
+      <version>${project.version}</version>
     </dependency>
-    <!-- engagement nell'hub (M6): template, regole di notifica, inbox in-app. -->
     <dependency>
       <groupId>io.loyaltyhub</groupId>
       <artifactId>engagement-service</artifactId>
-      <version>0.1.0-SNAPSHOT</version>
+      <version>${project.version}</version>
     </dependency>
 
-    <!-- ==================== TEST ==================== -->
+    <!-- Spring Boot dependencies -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+
+    <!-- Test dependencies -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
@@ -79,7 +82,11 @@
     <dependency>
       <groupId>io.zonky.test</groupId>
       <artifactId>embedded-postgres</artifactId>
-      <version>${zonky-embedded-postgres.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>tools.jackson.dataformat</groupId>
+      <artifactId>jackson-dataformat-yaml</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -94,12 +101,10 @@
             <goals>
               <goal>repackage</goal>
             </goals>
-            <configuration>
-              <classifier>boot</classifier>
-            </configuration>
           </execution>
         </executions>
       </plugin>
     </plugins>
   </build>
+
 </project>

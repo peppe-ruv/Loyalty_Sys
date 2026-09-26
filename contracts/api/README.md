@@ -1,0 +1,31 @@
+# Contratti API
+
+Questa directory contiene le specifiche OpenAPI generate automaticamente dal codice sorgente del sistema Loyalty Hub.
+
+Le specifiche fungono da contratto garantito per l'interazione tra i servizi (o portali) client e i servizi di dominio, e sono generate dinamicamente durante i test d'integrazione di deploy (`deploy/hub`) del profilo `demo`.
+
+```mermaid
+flowchart LR
+    A[Codice Java] -->|Springdoc| B[OpenApiExportIT]
+    B -->|Rigenera| C[(YAML in contracts/api)]
+    C -->|Verifica CI| D[check-api.mjs]
+    D -->|Fail| E[Rottura Contratto]
+```
+
+## Regole e Policy (Breaking Changes)
+
+Ogni modifica introdotta non deve comportare incompatibilità a ritroso secondo lo standard, e viene verificata mediante lo script `scripts/check-api.mjs`. In caso di rilevamento, la pipeline si interrompe per tutelare i client pre-esistenti.
+
+Sono **vietate** le seguenti azioni sui contratti esistenti:
+- Rimozione di `paths` o singole iterazioni (`GET`, `POST`, `PUT`, `DELETE`).
+- Rimozione di chiavi negli schemi (models) o nelle proprietà di un response/body.
+- Restrizione di un enumeratore (eliminazione di opzioni valide).
+- Modifica dei tipi base per chiavi preesistenti.
+- Aggiunta di nuovi campi `required` nelle request non supportati dalla versione precedente.
+
+## Come rigenerare i contratti
+Per aggiornare il contratto OpenAPI a valle di una modifica al codice Java (es. un nuovo Controller o un nuovo schema Request/Response), esegui il test forzando il flag di scrittura dal root del repository:
+
+```bash
+./mvnw -q -pl deploy/hub -am test -Dtest=OpenApiExportIT -Dlh.openapi.write=true
+```
