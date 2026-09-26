@@ -12,22 +12,23 @@
       "type": "object",
       "required": ["orderId", "amount", "currency"],
       "properties": {
-        "orderId": { "type": "string", "minLength": 1 },
-        "amount": { "type": "number", "minimum": 0 },
-        "currency": { "type": "string", "minLength": 1 },
-        "channel": { "enum": ["ONLINE", "STORE", "APP"] },
+        "orderId": { "type": "string", "minLength": 1, "x-lh-pii": false },
+        "amount": { "type": "number", "minimum": 0, "x-lh-pii": false },
+        "currency": { "type": "string", "minLength": 1, "x-lh-pii": false },
+        "channel": { "enum": ["ONLINE", "STORE", "APP"], "x-lh-pii": false },
         "items": {
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
-              "sku": { "type": "string" },
-              "category": { "type": "string" },
-              "quantity": { "type": "integer", "minimum": 0 },
-              "unitPrice": { "type": "number", "minimum": 0 }
+              "sku": { "type": "string", "x-lh-pii": false },
+              "category": { "type": "string", "x-lh-pii": false },
+              "quantity": { "type": "integer", "minimum": 0, "x-lh-pii": false },
+              "unitPrice": { "type": "number", "minimum": 0, "x-lh-pii": false }
             },
             "additionalProperties": true
-          }
+          },
+          "x-lh-pii": false
         }
       },
       "additionalProperties": true
@@ -56,8 +57,8 @@
       "type": "object",
       "required": ["orderId", "amount"],
       "properties": {
-        "orderId": { "type": "string", "minLength": 1 },
-        "amount": { "type": "number", "exclusiveMinimum": 0 }
+        "orderId": { "type": "string", "minLength": 1, "x-lh-pii": false },
+        "amount": { "type": "number", "exclusiveMinimum": 0, "x-lh-pii": false }
       }
     },
     "sampleData": { "orderId": "ORD-48120", "amount": 24.90 }
@@ -74,7 +75,7 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "required": ["contractId"],
-      "properties": { "contractId": { "type": "string", "minLength": 1 } }
+      "properties": { "contractId": { "type": "string", "minLength": 1, "x-lh-pii": false } }
     },
     "sampleData": { "contractId": "CTR-77120" }
   },
@@ -90,7 +91,7 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "required": ["contractId"],
-      "properties": { "contractId": { "type": "string", "minLength": 1 } }
+      "properties": { "contractId": { "type": "string", "minLength": 1, "x-lh-pii": false } }
     },
     "sampleData": { "contractId": "CTR-77120" }
   },
@@ -107,8 +108,8 @@
       "type": "object",
       "required": ["meterId", "reading"],
       "properties": {
-        "meterId": { "type": "string", "minLength": 1 },
-        "reading": { "type": "number", "minimum": 0 }
+        "meterId": { "type": "string", "minLength": 1, "x-lh-pii": false },
+        "reading": { "type": "number", "minimum": 0, "x-lh-pii": false }
       }
     },
     "sampleData": { "meterId": "MTR-9931", "reading": 14820 }
@@ -125,7 +126,7 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "platform": { "enum": ["IOS", "ANDROID", "WEB"] }
+        "platform": { "enum": ["IOS", "ANDROID", "WEB"], "x-lh-pii": false }
       },
       "additionalProperties": true
     },
@@ -144,8 +145,8 @@
       "type": "object",
       "required": ["surveyId"],
       "properties": {
-        "surveyId": { "type": "string", "minLength": 1 },
-        "score": { "type": "integer", "minimum": 0, "maximum": 100 }
+        "surveyId": { "type": "string", "minLength": 1, "x-lh-pii": false },
+        "score": { "type": "integer", "minimum": 0, "maximum": 100, "x-lh-pii": false }
       }
     },
     "sampleData": { "surveyId": "SRV-2025-09", "score": 80 }
@@ -163,9 +164,9 @@
       "type": "object",
       "required": ["quizId", "correctAnswers", "totalQuestions"],
       "properties": {
-        "quizId": { "type": "string", "minLength": 1 },
-        "correctAnswers": { "type": "integer", "minimum": 0 },
-        "totalQuestions": { "type": "integer", "minimum": 1 }
+        "quizId": { "type": "string", "minLength": 1, "x-lh-pii": false },
+        "correctAnswers": { "type": "integer", "minimum": 0, "x-lh-pii": false },
+        "totalQuestions": { "type": "integer", "minimum": 1, "x-lh-pii": false }
       }
     },
     "sampleData": { "quizId": "QZ-AUTUNNO", "correctAnswers": 8, "totalQuestions": 10 }
@@ -183,8 +184,8 @@
       "type": "object",
       "required": ["productId", "rating"],
       "properties": {
-        "productId": { "type": "string", "minLength": 1 },
-        "rating": { "type": "integer", "minimum": 1, "maximum": 5 }
+        "productId": { "type": "string", "minLength": 1, "x-lh-pii": false },
+        "rating": { "type": "integer", "minimum": 1, "maximum": 5, "x-lh-pii": false }
       }
     },
     "sampleData": { "productId": "SKU-100", "rating": 5 }
@@ -216,8 +217,8 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "channel": { "type": "string" },
-        "referred": { "type": "boolean" }
+        "channel": { "type": "string", "x-lh-pii": false },
+        "referred": { "type": "boolean", "x-lh-pii": false }
       }
     },
     "sampleData": { "channel": "WEB", "referred": false }
@@ -234,7 +235,7 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "memberId": { "type": "string", "pattern": "^MBR-[0-9]{6}$" }
+        "memberId": { "type": "string", "pattern": "^MBR-[0-9]{6}$", "x-lh-pii": false }
       },
       "additionalProperties": true
     },
@@ -251,7 +252,7 @@
     "dataSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
-      "properties": { "age": { "type": "integer", "minimum": 0 } }
+      "properties": { "age": { "type": "integer", "minimum": 0, "x-lh-pii": false } }
     },
     "sampleData": { "age": 34 }
   },
@@ -268,8 +269,8 @@
       "type": "object",
       "required": ["newTier"],
       "properties": {
-        "previousTier": { "type": "string" },
-        "newTier": { "type": "string" }
+        "previousTier": { "type": "string", "x-lh-pii": false },
+        "newTier": { "type": "string", "x-lh-pii": false }
       }
     },
     "sampleData": { "previousTier": "SILVER", "newTier": "GOLD" }
@@ -287,13 +288,13 @@
       "type": "object",
       "required": ["contestCode", "prizeCode", "prizeType"],
       "properties": {
-        "contestCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$" },
-        "playId": { "type": "string", "minLength": 1 },
-        "prizeCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$" },
-        "prizeName": { "type": "string" },
-        "prizeType": { "enum": ["POINTS", "COUPON", "PHYSICAL"] },
-        "points": { "type": "integer", "minimum": 1 },
-        "rewardCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$" }
+        "contestCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$", "x-lh-pii": false },
+        "playId": { "type": "string", "minLength": 1, "x-lh-pii": false },
+        "prizeCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$", "x-lh-pii": false },
+        "prizeName": { "type": "string", "x-lh-pii": false },
+        "prizeType": { "enum": ["POINTS", "COUPON", "PHYSICAL"], "x-lh-pii": false },
+        "points": { "type": "integer", "minimum": 1, "x-lh-pii": false },
+        "rewardCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$", "x-lh-pii": false }
       },
       "additionalProperties": true
     },
@@ -312,9 +313,9 @@
       "type": "object",
       "required": ["achievementCode", "periodKey"],
       "properties": {
-        "achievementCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$" },
-        "achievementName": { "type": "string", "minLength": 1 },
-        "periodKey": { "type": "string", "minLength": 1 }
+        "achievementCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$", "x-lh-pii": false },
+        "achievementName": { "type": "string", "minLength": 1, "x-lh-pii": false },
+        "periodKey": { "type": "string", "minLength": 1, "x-lh-pii": false }
       },
       "additionalProperties": true
     },
@@ -333,9 +334,9 @@
       "type": "object",
       "required": ["badgeCode"],
       "properties": {
-        "badgeCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$" },
-        "badgeName": { "type": "string", "minLength": 1 },
-        "origin": { "enum": ["ACHIEVEMENT", "CAMPAIGN"] }
+        "badgeCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$", "x-lh-pii": false },
+        "badgeName": { "type": "string", "minLength": 1, "x-lh-pii": false },
+        "origin": { "enum": ["ACHIEVEMENT", "CAMPAIGN"], "x-lh-pii": false }
       },
       "additionalProperties": true
     },
@@ -354,9 +355,9 @@
       "type": "object",
       "required": ["role", "counterpartMemberId"],
       "properties": {
-        "role": { "enum": ["REFERRER", "REFEREE"] },
-        "counterpartMemberId": { "type": "string", "pattern": "^MBR-[0-9]{6}$" },
-        "qualifyingActionId": { "type": "string", "minLength": 1 }
+        "role": { "enum": ["REFERRER", "REFEREE"], "x-lh-pii": false },
+        "counterpartMemberId": { "type": "string", "pattern": "^MBR-[0-9]{6}$", "x-lh-pii": false },
+        "qualifyingActionId": { "type": "string", "minLength": 1, "x-lh-pii": false }
       },
       "additionalProperties": true
     },
@@ -375,10 +376,10 @@
       "type": "object",
       "required": ["rewardCode", "pointsCost"],
       "properties": {
-        "rewardCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$" },
-        "pointsCost": { "type": "integer", "minimum": 1 },
-        "redemptionId": { "type": "string" },
-        "rewardName": { "type": "string" }
+        "rewardCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$", "x-lh-pii": false },
+        "pointsCost": { "type": "integer", "minimum": 1, "x-lh-pii": false },
+        "redemptionId": { "type": "string", "x-lh-pii": false },
+        "rewardName": { "type": "string", "x-lh-pii": false }
       },
       "additionalProperties": true
     },
