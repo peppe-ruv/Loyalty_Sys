@@ -121,6 +121,9 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: node scripts/check-adr-append-only.mjs "origin/$BASE_REF" HEAD "--pr-labels=$PR_LABELS"
+      # ID unici in docs/15: due fette parallele non possono registrare lo stesso Q-nnn (ADR-047).
+      - name: Domande aperte con ID unici
+        run: node --test scripts/check-questions.test.mjs && node scripts/check-questions.mjs
 
   web:
     name: web (Next.js)
