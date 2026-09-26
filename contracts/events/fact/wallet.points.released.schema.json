@@ -5,11 +5,11 @@
   "type": "object",
   "required": ["currency", "amount", "balanceAfter"],
   "properties": {
-    "ledgerEntryId": { "type": "string", "minLength": 1 },
-    "lotId": { "type": "string" },
-    "currency": { "enum": ["PTS", "STS"] },
-    "amount": { "type": "integer", "minimum": 1 },
-    "balanceAfter": { "type": "integer" }
+    "ledgerEntryId": { "type": "string", "minLength": 1, "x-lh-pii": false },
+    "lotId": { "type": "string", "x-lh-pii": false },
+    "currency": { "enum": ["PTS", "STS"], "x-lh-pii": false },
+    "amount": { "type": "integer", "minimum": 1, "x-lh-pii": false },
+    "balanceAfter": { "type": "integer", "x-lh-pii": false }
   },
   "additionalProperties": true
 }

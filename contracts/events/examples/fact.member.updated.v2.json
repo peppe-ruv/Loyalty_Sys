@@ -1,0 +1,33 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZK2M1Q2M9T4B6N8R0XWYV2",
+  "source": "urn:loyaltyhub:service:member",
+  "type": "io.loyaltyhub.fact.member.updated",
+  "subject": "member:MBR-000003",
+  "time": "2026-09-15T18:20:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.member.updated:2",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZK2M1Q2M9T4B6N8R0XWYCK",
+  "lhhop": 0,
+  "data": {
+    "memberId": "MBR-000003",
+    "externalId": "CRM-3003",
+    "emailHash": "21cebef191120423981adfc0ba20d56791dd828ae5fe4bf3c5ab840bcc9deacb",
+    "status": "ACTIVE",
+    "channel": "APP",
+    "registeredAt": "2026-01-12T09:30:00Z",
+    "locale": "it",
+    "birthYear": 1988,
+    "province": "MI",
+    "referralCode": "MARCO-4KD2",
+    "referredBy": null,
+    "labels": [
+      "early-adopter",
+      "profile-complete"
+    ],
+    "attributes": {
+      "segmentHint": "digital"
+    }
+  }
+}

@@ -10,11 +10,13 @@
   "properties": {
     "redemptionId": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "x-lh-pii": false
     },
     "reason": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "x-lh-pii": false
     }
   },
   "additionalProperties": true

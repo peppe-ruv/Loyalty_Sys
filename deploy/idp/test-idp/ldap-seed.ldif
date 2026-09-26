@@ -1,0 +1,37 @@
+dn: ou=users,dc=example,dc=org
+objectClass: organizationalUnit
+ou: users
+
+dn: uid=testuser,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: testuser
+sn: User
+givenName: Test
+cn: Test User
+displayName: Test User
+uidNumber: 10000
+gidNumber: 10000
+userPassword: testpassword
+gecos: Test User
+loginShell: /bin/bash
+homeDirectory: /home/testuser
+mail: testuser@example.org
+
+dn: uid=testuser2,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: testuser2
+sn: User2
+givenName: Test2
+cn: Test User 2
+displayName: Test User 2
+uidNumber: 10001
+gidNumber: 10001
+userPassword: testpassword2
+gecos: Test User 2
+loginShell: /bin/bash
+homeDirectory: /home/testuser2
+mail: testuser2@example.org

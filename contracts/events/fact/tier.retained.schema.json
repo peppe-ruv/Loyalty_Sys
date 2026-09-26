@@ -5,8 +5,8 @@
   "type": "object",
   "required": ["tier", "editionCode"],
   "properties": {
-    "tier": { "type": "string" },
-    "editionCode": { "type": "string" }
+    "tier": { "type": "string", "x-lh-pii": false },
+    "editionCode": { "type": "string", "x-lh-pii": false }
   },
   "additionalProperties": true
 }

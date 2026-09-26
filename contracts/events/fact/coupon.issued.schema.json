@@ -12,24 +12,29 @@
   "properties": {
     "couponCode": {
       "type": "string",
-      "minLength": 4
+      "minLength": 4,
+      "x-lh-pii": false
     },
     "rewardCode": {
       "type": "string",
-      "pattern": "^[A-Z][A-Z0-9-]{2,39}$"
+      "pattern": "^[A-Z][A-Z0-9-]{2,39}$",
+      "x-lh-pii": false
     },
     "expiresAt": {
       "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "x-lh-pii": false
     },
     "origin": {
       "enum": [
         "REDEMPTION",
         "CAMPAIGN"
-      ]
+      ],
+      "x-lh-pii": false
     },
     "redemptionId": {
-      "type": "string"
+      "type": "string",
+      "x-lh-pii": false
     }
   },
   "additionalProperties": true

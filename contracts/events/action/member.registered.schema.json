@@ -5,10 +5,12 @@
   "type": "object",
   "properties": {
     "channel": {
-      "type": "string"
+      "type": "string",
+      "x-lh-pii": false
     },
     "referred": {
-      "type": "boolean"
+      "type": "boolean",
+      "x-lh-pii": false
     }
   }
 }

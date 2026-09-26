@@ -191,7 +191,8 @@ public class HubContractConformanceIT {
             paths.filter(Files::isRegularFile)
                     .filter(p -> p.toString().endsWith(".schema.json") && !p.toString().endsWith("envelope.schema.json"))
                     .forEach(p -> {
-                        String name = p.getFileName().toString().replace(".schema.json", "");
+                        // <nome>.v<n>.schema.json è la versione n dello stesso type (docs/05 §9)
+                        String name = p.getFileName().toString().replace(".schema.json", "").replaceFirst("\\.v\\d+$", "");
                         String family = p.getParent().getFileName().toString();
                         declaredTypes.add("io.loyaltyhub." + family + "." + name);
                     });
@@ -227,12 +228,15 @@ public class HubContractConformanceIT {
 
             if (declaredTypes.contains(type)) {
                 coveredTypes.add(type);
-                if (!schemas.containsKey(type)) {
-                    Path sp = Paths.get(rootDir, family, name + ".schema.json");
-                    schemas.put(type, Files.readString(sp));
+                String dataschema = env.path("dataschema").asText();
+                String schemaVersion = dataschema.substring(dataschema.lastIndexOf(':') + 1);
+                String schemaKey = type + ":" + schemaVersion;
+                if (!schemas.containsKey(schemaKey)) {
+                    String file = "1".equals(schemaVersion) ? name + ".schema.json" : name + ".v" + schemaVersion + ".schema.json";
+                    schemas.put(schemaKey, Files.readString(Paths.get(rootDir, family, file)));
                 }
                 String dataJson = env.path("data").toString();
-                List<String> dataErrors = validator.validate(type, schemas.get(type), dataJson);
+                List<String> dataErrors = validator.validate(type, schemas.get(schemaKey), dataJson);
                 assertThat(dataErrors).as("Data errors for event %s of type %s", env.path("id").asText(), type).isEmpty();
             }
         }

@@ -18,6 +18,7 @@ import java.util.Set;
  * {@code tier.*}, {@code member.segment.*}), poi le regole di notifica (F-MSG-01), infine l'abbinamento ai webhook
  * (F-WBH-01: solo righe {@code webhook_delivery} nella stessa transazione; l'HTTP parte dallo scheduler). L'ordine
  * conta: il messaggio di benvenuto di {@code member.registered} trova già il nome per {@code {{member.firstName}}}.
+ * {@code member.registered/updated} si leggono in versione {@code :1} e {@code :2} ({@link MemberProfileFact}, ADR-032).
  */
 @Component
 public class FactHandler implements EventHandler {
@@ -57,9 +58,11 @@ public class FactHandler implements EventHandler {
             return;
         }
         switch (event.type()) {
-            case LhEventTypes.Fact.MEMBER_REGISTERED, LhEventTypes.Fact.MEMBER_UPDATED ->
-                    members.upsertProfile(memberId, text(d, "firstName"), d.path("status").asString("ACTIVE"),
-                            registeredAt(d));
+            case LhEventTypes.Fact.MEMBER_REGISTERED, LhEventTypes.Fact.MEMBER_UPDATED -> {
+                // Doppia lettura :1/:2 (ADR-032, Q-346): un campo assente nella versione ricevuta non cancella il noto.
+                MemberProfileFact profile = MemberProfileFact.parse(event.dataschema(), d);
+                members.upsertProfile(memberId, profile.firstName(), profile.status(), profile.registeredAt());
+            }
             case LhEventTypes.Fact.MEMBER_STATUS_CHANGED -> {
                 if (d.hasNonNull("newStatus")) {
                     members.updateStatus(memberId, d.get("newStatus").asString());
@@ -93,18 +96,5 @@ public class FactHandler implements EventHandler {
         if (PersonalData.isAnonymization(event)) {
             erasure.erase(memberId);
         }
-    }
-
-    private static java.time.Instant registeredAt(JsonNode d) {
-        String v = text(d, "registeredAt");
-        try {
-            return v == null ? null : java.time.Instant.parse(v);
-        } catch (java.time.format.DateTimeParseException e) {
-            return null;
-        }
-    }
-
-    private static String text(JsonNode n, String field) {
-        return n.hasNonNull(field) && !n.get(field).asString().isBlank() ? n.get(field).asString() : null;
     }
 }

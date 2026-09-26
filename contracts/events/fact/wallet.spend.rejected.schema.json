@@ -12,21 +12,25 @@
   "properties": {
     "redemptionId": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "x-lh-pii": false
     },
     "reason": {
       "enum": [
         "INSUFFICIENT_BALANCE",
         "MEMBER_NOT_ACTIVE"
-      ]
+      ],
+      "x-lh-pii": false
     },
     "requested": {
       "type": "integer",
-      "minimum": 1
+      "minimum": 1,
+      "x-lh-pii": false
     },
     "available": {
       "type": "integer",
-      "minimum": 0
+      "minimum": 0,
+      "x-lh-pii": false
     }
   },
   "additionalProperties": true

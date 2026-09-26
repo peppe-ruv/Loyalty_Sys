@@ -4,17 +4,39 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      # Spring Boot e i moduli Spring si aggiornano insieme (stessa BOM).
+      spring:
+        patterns:
+          - "*spring*"
+      # surefire e failsafe restano alla stessa versione (rapporti dei testbook).
+      maven-test-plugins:
+        patterns:
+          - "org.apache.maven.plugins:maven-surefire-plugin"
+          - "org.apache.maven.plugins:maven-failsafe-plugin"
 
   - package-ecosystem: "npm"
     directory: "/web"
     schedule:
       interval: "weekly"
     groups:
-      spring:
+      # react e react-dom devono avere la stessa versione, altrimenti le suite di componenti falliscono.
+      react:
         patterns:
-          - "*spring*"
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+    ignore:
+      # I tipi di Node seguono il runtime usato in CI e nel deploy (Node 22): niente major finché non cambia.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      docker:
+        patterns:
+          - "docker/*"

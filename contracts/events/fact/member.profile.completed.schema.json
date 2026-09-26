@@ -6,7 +6,8 @@
   "properties": {
     "memberId": {
       "type": "string",
-      "pattern": "^MBR-[0-9]{6}$"
+      "pattern": "^MBR-[0-9]{6}$",
+      "x-lh-pii": false
     }
   },
   "additionalProperties": true

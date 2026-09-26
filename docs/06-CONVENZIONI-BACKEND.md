@@ -72,6 +72,34 @@ CREATE TABLE approval_history (
 - Gli endpoint `/v1/portal/**` non richiedono header; l'attore è `member:<memberId>`.
 - Ogni scrittura da backoffice pubblica un audit con l'attore.
 
+### 3.1 Profilo `enterprise`: attore dal token (M8.2, ADR-027)
+
+- `loyaltyhub.identity.mode` (`LH_IDENTITY_MODE`): `header` (default, solo profilo `demo`) oppure `oidc`. Con `oidc` il filtro `OidcActorFilter` sostituisce `ActorFilter`: ogni richiesta porta `Authorization: Bearer`; il token è verificato con il JWKS dell'emittente (`LH_OIDC_ISSUER`, `LH_OIDC_JWKS_URI`, default Keycloak `<issuer>/protocol/openid-connect/certs`): firma, scadenza, `iss` esatto, `aud` che contiene `hub` (`LH_OIDC_AUDIENCE`). `X-LH-Actor` è ignorato.
+- Token assente o non valido ⇒ `401` `unauthorized` con `WWW-Authenticate: Bearer`, sempre lo stesso corpo (nessun indizio sul motivo). Liberi solo `/actuator/health/**` e `/actuator/info`.
+- Ruoli dal claim `lh_roles`: `ADMIN` vince; un solo ruolo operatore vale quel ruolo; più ruoli operatore diversi o nessuno ⇒ `ANALYST` (Q-365). Username da `preferred_username`, poi `azp`, poi `sub`.
+- Un token di solo `MEMBER` vale soltanto su `/v1/portal/**` (altrimenti `403`); il `sub` è disponibile come attributo della richiesta per `MemberPrincipal` (M8.10).
+- Avvio: con il profilo `enterprise` e `mode` diverso da `oidc`, o `oidc` senza emittente, il servizio **non parte** (`INSECURE_CONFIG`, regola 22). L'autorizzazione resta `@RequiresRole`; niente catena di filtri di Spring Security (solo `spring-security-oauth2-jose` per decoder e validatori).
+
+```mermaid
+sequenceDiagram
+  accTitle: Attore dal token nel profilo enterprise
+  accDescr: Il BFF chiama un servizio con l'access token; il filtro OIDC verifica firma, emittente, audience e scadenza, ricava l'attore dai ruoli del token e lascia l'autorizzazione a RequiresRole; un token non valido riceve 401.
+  autonumber
+  participant W as web (BFF)
+  participant F as OidcActorFilter
+  participant K as JWKS dell'IdP
+  participant C as Controller con RequiresRole
+  W->>F: GET /v1/... con Authorization Bearer
+  F->>K: chiavi pubbliche (in cache)
+  alt token valido: firma, iss, aud=hub, exp
+    F->>F: ActorContext da lh_roles e preferred_username
+    F->>C: richiesta con l'attore nel contesto
+    C-->>W: 200, oppure 403 se il ruolo non basta
+  else token assente o non valido
+    F-->>W: 401 unauthorized, WWW-Authenticate Bearer
+  end
+```
+
 ## 4. Persistenza
 
 - Spring Data JDBC per aggregati semplici; `JdbcClient` con SQL esplicito per elenchi filtrati, contatori atomici, claim. Niente ORM.
@@ -81,6 +109,36 @@ CREATE TABLE approval_history (
 - Pool: Hikari `maximumPoolSize=4`, `minimumIdle=0`, `idleTimeout=60s`, `connectionTimeout=20s` (il DB serverless può essere in risveglio).
 - Flyway usa l'URL **diretto** (`DB_URL_DIRECT`), l'applicazione può usare quello con pooler.
 - Pulizie schedulate (RNF-07): `outbox` pubblicati > 24 h; `processed_event` > 14 giorni; tabelle di log indicate nelle schede.
+
+### SQL dinamico: `SqlWhere` / `SqlOrder` (regola 19, ADR-042)
+
+Il testo SQL è **costante** oppure composto dal builder di `lh-common` (package `io.loyaltyhub.common.sql`, F2-SEC-10); mai input nel testo SQL, mai `String.format`/`formatted` o concatenazioni con valori.
+
+- **Colonne solo da enum.** Ogni repository dichiara un `enum` che implementa `SqlColumn` con l'espressione costante della colonna (es. `e.occurred_at`); il builder rifiuta colonne che non sono costanti enum.
+- **Valori solo come parametri.** `SqlWhere` produce `" WHERE …"` (o `""` se vuoto; `andSql()` per accodarsi a un `WHERE` costante) con parametri con nome `:w0`, `:w1`, … e li lega con `bind(spec)`. I nomi `wN` sono riservati: gli altri parametri della query usano nomi diversi (es. `:limit`). Condizioni in `AND`; `anyOf(…)` apre un gruppo in `OR`.
+- **Filtri facoltativi** con `eqIfPresent` (salta `null` e testo vuoto) o `when(condizione, w -> …)`. `in(colonna, [])` non corrisponde a nessuna riga (`1 = 0`); un valore `null` in un filtro obbligatorio è un errore (usare `isNull`).
+- **Ricerca testuale** con `like`/`ilike`: `%`, `_` e `\` dell'input sono neutralizzati e la condizione dichiara `ESCAPE '\'`.
+- **Ordinamento** con `SqlOrder`: `sort=campo,desc` (§2) si traduce con `SqlOrder.parse(sort, allowlist)`, dove l'allowlist mappa il nome API sulla colonna enum; campo o direzione non ammessi → `400` con `code` `INVALID_SORT`.
+- La paginazione resta `PageParams` (`web`); `LIMIT`/`OFFSET` sono parametri con nome.
+
+```java
+enum LedgerColumn implements SqlColumn {
+    MEMBER_ID("e.member_id"), CURRENCY("e.currency"), OCCURRED_AT("e.occurred_at");
+    private final String sql;
+    LedgerColumn(String sql) { this.sql = sql; }
+    @Override public String sql() { return sql; }
+}
+
+SqlWhere where = new SqlWhere()
+        .eq(LedgerColumn.MEMBER_ID, memberId)
+        .eqIfPresent(LedgerColumn.CURRENCY, currency)
+        .when(from != null, w -> w.gte(LedgerColumn.OCCURRED_AT, Timestamp.from(from)));
+SqlOrder order = SqlOrder.parse(sort, Map.of("occurredAt", LedgerColumn.OCCURRED_AT),
+        SqlOrder.desc(LedgerColumn.OCCURRED_AT));
+List<Row> rows = where.bind(jdbc.sql(SELECT + where.sql() + order.sql() + " LIMIT :limit"))
+        .param("limit", page.size())
+        .query(MAPPER).list();
+```
 
 ## 5. Kafka
 

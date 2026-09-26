@@ -1,0 +1,144 @@
+components:
+  schemas:
+    ApprovalItem:
+      properties:
+        code:
+          type: string
+        comment:
+          type: string
+        decidedAt:
+          format: date-time
+          type: string
+        decidedBy:
+          type: string
+        decision:
+          type: string
+        entityType:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        reason:
+          type: string
+        requiredRole:
+          type: string
+        status:
+          type: string
+        submittedAt:
+          format: date-time
+          type: string
+        submittedBy:
+          type: string
+        summary:
+          type: string
+      type: object
+    PolicyRow:
+      properties:
+        approverRole:
+          enum:
+          - ANALYST
+          - CARE
+          - MARKETING
+          - LEGAL
+          - ADMIN
+          type: string
+        entityType:
+          type: string
+        when:
+          type: string
+      type: object
+    PolicyView:
+      properties:
+        campaignBudgetThreshold:
+          format: int64
+          type: integer
+        enabled:
+          type: boolean
+        rows:
+          items:
+            $ref: "#/components/schemas/PolicyRow"
+          type: array
+      type: object
+info:
+  description: "API HTTP di platform (docs/06 §2). Generata da OpenApiExportIT (M8.8, docs/18 §3.6): non modificare a mano."
+  title: Loyalty Hub · platform
+  version: v1
+openapi: 3.1.0
+paths:
+  /:
+    get:
+      operationId: root
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                additionalProperties: {}
+                type: object
+          description: OK
+      summary: Root — hub info
+      tags:
+      - hub-info
+  /v1/approvals:
+    get:
+      operationId: approvals
+      parameters:
+      - in: query
+        name: submittedBy
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/ApprovalItem"
+                type: array
+          description: OK
+      summary: Approvals — approvals
+      tags:
+      - approvals
+  /v1/approvals/policy:
+    get:
+      operationId: policy
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PolicyView"
+          description: OK
+      summary: Policy — approvals
+      tags:
+      - approvals
+  /v1/demo/info:
+    get:
+      operationId: info
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                additionalProperties: {}
+                type: object
+          description: OK
+      summary: Info — demo reset
+      tags:
+      - demo-reset
+  /v1/demo/reset:
+    post:
+      operationId: reset
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                additionalProperties: {}
+                type: object
+          description: OK
+      summary: Reset — demo reset
+      tags:
+      - demo-reset

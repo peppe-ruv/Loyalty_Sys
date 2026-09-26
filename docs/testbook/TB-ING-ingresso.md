@@ -359,7 +359,7 @@ schema di `event_type.data_schema` caricato dal seed (`DemoSeeder#seedEventTypes
 
 | Tipo | Campi e vincoli (oracolo) | Valori provati |
 |---|---|---|
-| `purchase.completed` | `orderId*` string ≥ 1 · `amount*` number ≥ 0 · `currency*` string ≥ 1 · `channel` ONLINE/STORE/APP · `items[]` {`sku` string, `quantity` integer ≥ 0, `unitPrice` number ≥ 0} (contratto) | assente, null, vuoto, 1 car., tipo sbagliato; amount −0,01 / −20 / 0 / 0,01 / 3 decimali / 10⁹ / stringa; currency 1-3-4 car.; ogni enum + minuscolo + sconosciuto + null; quantity −1/0/1,5/2.0; unitPrice −0,01/0; extra |
+| `purchase.completed` | `orderId*` string ≥ 1 · `amount*` number ≥ 0 · `currency*` string ≥ 1 · `channel` ONLINE/STORE/APP · `items[]` \{`sku` string, `quantity` integer ≥ 0, `unitPrice` number ≥ 0\} (contratto) | assente, null, vuoto, 1 car., tipo sbagliato; amount −0,01 / −20 / 0 / 0,01 / 3 decimali / 10⁹ / stringa; currency 1-3-4 car.; ogni enum + minuscolo + sconosciuto + null; quantity −1/0/1,5/2.0; unitPrice −0,01/0; extra |
 | `purchase.returned` | `orderId*`, `amount*` > 0 (docs/05 + seed) | assenti, 0, 0,01, −5, stringa |
 | `ebill.activated`, `directdebit.activated` | `contractId*` string ≥ 1 | valido, assente, vuoto, numero |
 | `selfreading.submitted` | `meterId*`, `reading*` number ≥ 0 | assenti, −1, 0, decimale, stringa |
@@ -695,7 +695,7 @@ e `correlationId`; schede per esito con conteggi; storico demo di 40 righe degli
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
-| TB-ING-MON-001 | conteggi per esito di una fonte senza eventi | {ACCEPTED:0, DUPLICATE:0, REJECTED:0, UNMATCHED:0} | ingestion §3; F-ING-09; BO-26 (schede per esito con conteggi) | `TestbookIngPipelineIT#mon` |
+| TB-ING-MON-001 | conteggi per esito di una fonte senza eventi | \{ACCEPTED:0, DUPLICATE:0, REJECTED:0, UNMATCHED:0\} | ingestion §3; F-ING-09; BO-26 (schede per esito con conteggi) | `TestbookIngPipelineIT#mon` |
 | TB-ING-MON-002 | conteggi dopo 1 accettato, 2 duplicati, 1 respinto, 1 non abbinato | 1 / 2 / 1 / 1 | ingestion §3; F-ING-09; BO-26 | `TestbookIngPipelineIT#mon` |
 | TB-ING-MON-003 | conteggi filtrati per membro | solo le righe del membro | ingestion §3; F-ING-09; BO-26 | `TestbookIngPipelineIT#mon` |
 | TB-ING-MON-004 | elenco filtrato per esito e fonte | solo righe REJECTED della fonte | ingestion §3; F-ING-09; BO-26 (filtro status, source) | `TestbookIngPipelineIT#mon` |
@@ -727,7 +727,7 @@ negativo sostituito (Q-118); accettato altrove nel frattempo ⇒ `DUPLICATE` sen
 **Strategia.** Prodotto 5 × 2 × 7 × 9 > 64 ⇒ riduzione in decisioni indipendenti, perché la guardia di ruolo è valutata
 prima di qualunque stato (intercettore) e lo stato prima del membro: (a) **ruolo × azione** completa (7 × 2 = 14) su una
 riga risolvibile; (b) **stato × azione** completa (5 × 2 = 10) con ADMIN; (c) per la Riprova ogni codice di rifiuto ×
-{causa rimossa, causa presente} più `UNMATCHED` × {membro assente, ACTIVE, BLOCKED} e le proprietà trasversali (identità,
+\{causa rimossa, causa presente\} più `UNMATCHED` × \{membro assente, ACTIVE, BLOCKED\} e le proprietà trasversali (identità,
 dedup dopo la riprova, concorrenza, audit); (d) per Abbina ogni classe del membro da sola più «altro passo fallisce» e
 «riprova dopo l'abbinamento».
 
@@ -901,7 +901,7 @@ Codice: `EventTypeService#create/#update/#customDraft`, `EventTypesController`, 
 | `dataSchema` / `sampleData` | schema oggetto · assente · `array` · non conforme al meta-schema · esempio che viola lo schema · esempio assente |
 | `enabled` | true · false · assente |
 | ruolo | ADMIN, MARKETING, LEGAL, CARE, ANALYST, assente, non valido |
-| origine × campo modificato | CUSTOM × {tutto, codice, categoria, schema, abilitazione} · SYSTEM × {nome/descrizione/icona, abilitazione, categoria, schema, esempio, stesso schema, codice, nome vuoto} |
+| origine × campo modificato | CUSTOM × \{tutto, codice, categoria, schema, abilitazione\} · SYSTEM × \{nome/descrizione/icona, abilitazione, categoria, schema, esempio, stesso schema, codice, nome vuoto\} |
 
 **Strategia.** Creazione: guasto singolo su una richiesta valida (ogni classe non valida da sola, ogni limite da solo, ogni
 categoria ammessa una volta); ruoli uno per riga. Modifica: origine × campo (tabella completa delle celle significative,

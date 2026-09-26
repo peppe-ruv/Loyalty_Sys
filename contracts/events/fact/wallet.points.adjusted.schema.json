@@ -5,12 +5,12 @@
   "type": "object",
   "required": ["direction", "currency", "amount", "reason", "note", "balanceAfter"],
   "properties": {
-    "direction": { "enum": ["CREDIT", "DEBIT"] },
-    "currency": { "type": "string" },
-    "amount": { "type": "integer", "minimum": 1 },
-    "reason": { "type": "string" },
-    "note": { "type": "string" },
-    "balanceAfter": { "type": "integer", "minimum": 0 }
+    "direction": { "enum": ["CREDIT", "DEBIT"], "x-lh-pii": false },
+    "currency": { "type": "string", "x-lh-pii": false },
+    "amount": { "type": "integer", "minimum": 1, "x-lh-pii": false },
+    "reason": { "type": "string", "x-lh-pii": false },
+    "note": { "type": "string", "x-lh-pii": false },
+    "balanceAfter": { "type": "integer", "minimum": 0, "x-lh-pii": false }
   },
   "additionalProperties": true
 }

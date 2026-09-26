@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.member.updated:2",
+  "title": "fact.member.updated:2 — data (EVT-FACT-02, docs/05 §5 e §10, ADR-032)",
+  "description": "Snapshot del membro dopo una modifica, senza dati identificativi: nome, cognome, soprannome, e-mail, data di nascita e città restano nel member-service. Età e territorio viaggiano come birthYear e province (Q-344).",
+  "type": "object",
+  "required": ["memberId", "status"],
+  "properties": {
+    "memberId": { "type": "string", "pattern": "^MBR-[0-9]{6}$", "x-lh-pii": false },
+    "externalId": { "type": "string", "x-lh-pii": false },
+    "emailHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "HMAC-SHA256 esadecimale dell'e-mail in minuscolo con la chiave LH_PSEUDONYM_KEY, nota solo a member e ingestion: serve a risolvere i soggetti email: in ingresso senza l'e-mail sul bus (Q-367). Pseudonimo, non reversibile senza la chiave.",
+      "x-lh-pii": false
+    },
+    "status": { "enum": ["ACTIVE", "INACTIVE", "SUSPENDED", "BLOCKED", "CLOSED", "ANONYMIZED"], "x-lh-pii": false },
+    "channel": { "type": "string", "x-lh-pii": false },
+    "registeredAt": { "type": "string", "format": "date-time", "x-lh-pii": false },
+    "locale": { "type": "string", "pattern": "^[a-z]{2}(-[A-Z]{2})?$", "x-lh-pii": false },
+    "birthYear": { "type": ["integer", "null"], "minimum": 1900, "maximum": 2100, "x-lh-pii": false },
+    "province": { "type": ["string", "null"], "pattern": "^[A-Z]{2}$", "x-lh-pii": false },
+    "referralCode": { "type": "string", "x-lh-pii": false },
+    "referredBy": { "type": ["string", "null"], "x-lh-pii": false },
+    "labels": { "type": "array", "items": { "type": "string" }, "x-lh-pii": false },
+    "attributes": {
+      "type": "object",
+      "description": "Solo gli attributi con attribute_definition.pii = false.",
+      "x-lh-pii": false
+    }
+  },
+  "additionalProperties": false
+}

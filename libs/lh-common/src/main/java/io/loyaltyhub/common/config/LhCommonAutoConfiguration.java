@@ -218,10 +218,38 @@ public class LhCommonAutoConfiguration {
                 new java.util.HashMap<>(kafkaAdmin.getConfigurationProperties()));
     }
 
+    /** Attore dall'header {@code X-LH-Actor}: solo con {@code loyaltyhub.identity.mode=header} (profilo demo). */
     @Bean
     @ConditionalOnMissingBean
-    public ActorFilter actorFilter(LoyaltyHubProperties props) {
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "loyaltyhub.identity.mode",
+            havingValue = "header", matchIfMissing = true)
+    public ActorFilter actorFilter(LoyaltyHubProperties props, org.springframework.core.env.Environment env) {
+        IdentityGuard.check(env);
         return new ActorFilter(props.getService());
+    }
+
+    /**
+     * Attore dal token (ADR-027, M8.2): {@code loyaltyhub.identity.mode=oidc}. Il JWKS è quello dell'emittente
+     * (default Keycloak: {@code <issuer>/protocol/openid-connect/certs}); validatori: firma, scadenza, {@code iss},
+     * {@code aud} contenente l'audience dei servizi (default {@code hub}).
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "loyaltyhub.identity.mode",
+            havingValue = "oidc")
+    public io.loyaltyhub.common.web.OidcActorFilter oidcActorFilter(LoyaltyHubProperties props,
+            org.springframework.core.env.Environment env) {
+        IdentityGuard.check(env);
+        String issuer = env.getProperty("loyaltyhub.identity.issuer-uri", "").trim();
+        String jwks = env.getProperty("loyaltyhub.identity.jwk-set-uri", "").trim();
+        String audience = env.getProperty("loyaltyhub.identity.audience", "hub").trim();
+        String rolesClaim = env.getProperty("loyaltyhub.identity.roles-claim", "lh_roles").trim();
+        org.springframework.security.oauth2.jwt.NimbusJwtDecoder decoder =
+                org.springframework.security.oauth2.jwt.NimbusJwtDecoder
+                        .withJwkSetUri(jwks.isEmpty() ? issuer.replaceAll("/+$", "") + "/protocol/openid-connect/certs" : jwks)
+                        .build();
+        decoder.setJwtValidator(IdentityGuard.validator(issuer, audience));
+        return new io.loyaltyhub.common.web.OidcActorFilter(props.getService(), decoder, rolesClaim);
     }
 
     @Bean

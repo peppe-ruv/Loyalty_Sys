@@ -1,0 +1,1568 @@
+components:
+  schemas:
+    ActivityItem:
+      properties:
+        amount:
+          format: int64
+          type: integer
+        breakdown:
+          type: string
+        currency:
+          type: string
+        direction:
+          type: string
+        expiresAt:
+          format: date-time
+          type: string
+        icon:
+          type: string
+        id:
+          type: string
+        occurredAt:
+          format: date-time
+          type: string
+        pending:
+          type: boolean
+        subtitle:
+          type: string
+        title:
+          type: string
+      type: object
+    BadgeRef:
+      properties:
+        code:
+          type: string
+        color:
+          type: string
+        icon:
+          type: string
+        name:
+          type: string
+      type: object
+    Balance:
+      properties:
+        active:
+          format: int64
+          type: integer
+        lifetimeEarned:
+          format: int64
+          type: integer
+        lifetimeSpent:
+          format: int64
+          type: integer
+        pending:
+          format: int64
+          type: integer
+      type: object
+    Completeness:
+      properties:
+        completed:
+          type: boolean
+        missingFields:
+          items:
+            type: string
+          type: array
+      type: object
+    Consents:
+      properties:
+        marketing:
+          type: boolean
+        profiling:
+          type: boolean
+      type: object
+    ContentDisplay:
+      properties:
+        body:
+          type: string
+        code:
+          type: string
+        ctaLabel:
+          type: string
+        ctaTarget:
+          type: string
+        imageUrl:
+          type: string
+        kind:
+          type: string
+        linkCode:
+          type: string
+        linkType:
+          type: string
+        placement:
+          type: string
+        style:
+          $ref: "#/components/schemas/JsonNode"
+        title:
+          type: string
+      type: object
+    Entry:
+      properties:
+        isMe:
+          type: boolean
+        nickname:
+          type: string
+        rank:
+          format: int32
+          type: integer
+        score:
+          format: int64
+          type: integer
+      type: object
+    ExpiringSoon:
+      properties:
+        amount:
+          format: int64
+          type: integer
+        nextExpiryAt:
+          format: date-time
+          type: string
+        within30d:
+          type: boolean
+      type: object
+    HistoryItem:
+      properties:
+        actor:
+          type: string
+        at:
+          format: date-time
+          type: string
+        note:
+          type: string
+        status:
+          type: string
+      type: object
+    JsonNode:
+      properties:
+        array:
+          type: boolean
+        bigDecimal:
+          type: boolean
+        bigInteger:
+          type: boolean
+        binary:
+          type: boolean
+        boolean:
+          type: boolean
+        container:
+          type: boolean
+        double:
+          type: boolean
+        embeddedValue:
+          type: boolean
+        empty:
+          type: boolean
+        float:
+          type: boolean
+        floatingPointNumber:
+          type: boolean
+        int:
+          type: boolean
+        integralNumber:
+          type: boolean
+        long:
+          type: boolean
+        missingNode:
+          type: boolean
+        nodeType:
+          enum:
+          - ARRAY
+          - BINARY
+          - BOOLEAN
+          - MISSING
+          - "NULL"
+          - NUMBER
+          - OBJECT
+          - POJO
+          - STRING
+          type: string
+        "null":
+          type: boolean
+        number:
+          type: boolean
+        object:
+          type: boolean
+        pojo:
+          type: boolean
+        short:
+          type: boolean
+        string:
+          type: boolean
+        textual:
+          deprecated: true
+          type: boolean
+        valueNode:
+          type: boolean
+      type: object
+    KeepWarning:
+      properties:
+        missing:
+          format: int64
+          type: integer
+        tier:
+          type: string
+      type: object
+    LockedByTier:
+      properties:
+        requiredTiers:
+          items:
+            type: string
+          type: array
+      type: object
+    Me:
+      properties:
+        rank:
+          format: int32
+          type: integer
+        score:
+          format: int64
+          type: integer
+      type: object
+    MemberLimit:
+      properties:
+        max:
+          format: int32
+          type: integer
+        period:
+          type: string
+      type: object
+    MemberPlay:
+      properties:
+        deliveryStatus:
+          type: string
+        kind:
+          type: string
+        outcome:
+          type: string
+        playId:
+          type: string
+        playedAt:
+          format: date-time
+          type: string
+        prizeCode:
+          type: string
+        prizeName:
+          type: string
+        prizeType:
+          type: string
+      type: object
+    MemberRequest:
+      properties:
+        memberId:
+          type: string
+      type: object
+    NextTier:
+      properties:
+        code:
+          type: string
+        missing:
+          format: int64
+          type: integer
+        threshold:
+          format: int64
+          type: integer
+      type: object
+    PageInfo:
+      properties:
+        number:
+          format: int32
+          type: integer
+        size:
+          format: int32
+          type: integer
+        totalItems:
+          format: int64
+          type: integer
+        totalPages:
+          format: int32
+          type: integer
+      type: object
+    PageResponsePortalMessage:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/PortalMessage"
+          type: array
+        page:
+          $ref: "#/components/schemas/PageInfo"
+      type: object
+    PlayRequest:
+      properties:
+        memberId:
+          type: string
+      type: object
+    PlayResult:
+      properties:
+        correlationId:
+          type: string
+        outcome:
+          type: string
+        playId:
+          type: string
+        playsAvailable:
+          format: int32
+          type: integer
+        prize:
+          $ref: "#/components/schemas/PrizeView"
+      type: object
+    PopupView:
+      properties:
+        body:
+          type: string
+        code:
+          type: string
+        ctaLabel:
+          type: string
+        ctaTarget:
+          type: string
+        dismissible:
+          type: boolean
+        frequency:
+          type: string
+        id:
+          type: string
+        imageUrl:
+          type: string
+        kind:
+          type: string
+        linkCode:
+          type: string
+        linkType:
+          type: string
+        style:
+          $ref: "#/components/schemas/JsonNode"
+        title:
+          type: string
+      type: object
+    PortalAchievement:
+      properties:
+        badge:
+          $ref: "#/components/schemas/BadgeRef"
+        code:
+          type: string
+        completedAt:
+          format: date-time
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+        lastUnitKey:
+          type: string
+        metric:
+          type: string
+        name:
+          type: string
+        pct:
+          format: int32
+          type: integer
+        period:
+          type: string
+        periodKey:
+          type: string
+        repeatable:
+          type: boolean
+        streakUnit:
+          type: string
+        target:
+          format: int64
+          type: integer
+        value:
+          format: int64
+          type: integer
+      type: object
+    PortalBadge:
+      properties:
+        awardedAt:
+          format: date-time
+          type: string
+        code:
+          type: string
+        color:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+        name:
+          type: string
+        origin:
+          type: string
+        unlockHint:
+          type: string
+      type: object
+    PortalBand:
+      properties:
+        code:
+          type: string
+        color:
+          type: string
+        name:
+          type: string
+        pointsThreshold:
+          format: int64
+          type: integer
+        rewards:
+          items:
+            $ref: "#/components/schemas/PortalReward"
+          type: array
+      type: object
+    PortalCampaignView:
+      properties:
+        code:
+          type: string
+        endsAt:
+          type: string
+        icon:
+          type: string
+        memberDescription:
+          type: string
+        memberLimit:
+          $ref: "#/components/schemas/MemberLimit"
+        name:
+          type: string
+        rewardSummary:
+          type: string
+      type: object
+    PortalCatalog:
+      properties:
+        bands:
+          items:
+            $ref: "#/components/schemas/PortalBand"
+          type: array
+      type: object
+    PortalContest:
+      properties:
+        code:
+          type: string
+        credits:
+          format: int32
+          type: integer
+        dailyLimit:
+          format: int32
+          type: integer
+        description:
+          type: string
+        endAt:
+          format: date-time
+          type: string
+        freePlayAvailable:
+          type: boolean
+        freePlayDaily:
+          type: boolean
+        mechanic:
+          type: string
+        name:
+          type: string
+        playsAvailable:
+          format: int32
+          type: integer
+        playsToday:
+          format: int32
+          type: integer
+        prizes:
+          items:
+            $ref: "#/components/schemas/PortalPrize"
+          type: array
+        rulesText:
+          type: string
+        startAt:
+          format: date-time
+          type: string
+      type: object
+    PortalCoupon:
+      properties:
+        code:
+          type: string
+        expiresAt:
+          format: date-time
+          type: string
+        issuedAt:
+          format: date-time
+          type: string
+        origin:
+          type: string
+        rewardCode:
+          type: string
+        rewardName:
+          type: string
+        status:
+          enum:
+          - AVAILABLE
+          - ISSUED
+          - USED
+          - EXPIRED
+          - VOID
+          type: string
+      type: object
+    PortalInvitee:
+      properties:
+        completedAt:
+          format: date-time
+          type: string
+        nickname:
+          type: string
+        registeredAt:
+          format: date-time
+          type: string
+        status:
+          type: string
+      type: object
+    PortalLeaderboard:
+      properties:
+        code:
+          type: string
+        me:
+          $ref: "#/components/schemas/Me"
+        metric:
+          type: string
+        name:
+          type: string
+        participants:
+          format: int32
+          type: integer
+        period:
+          type: string
+        periodKey:
+          type: string
+        top:
+          items:
+            $ref: "#/components/schemas/Entry"
+          type: array
+        topN:
+          format: int32
+          type: integer
+      type: object
+    PortalMessage:
+      properties:
+        body:
+          type: string
+        category:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        icon:
+          type: string
+        id:
+          type: string
+        linkTarget:
+          type: string
+        read:
+          type: boolean
+        readAt:
+          format: date-time
+          type: string
+        title:
+          type: string
+      type: object
+    PortalPrize:
+      properties:
+        code:
+          type: string
+        imageUrl:
+          type: string
+        name:
+          type: string
+        points:
+          format: int64
+          type: integer
+        type:
+          type: string
+        wheelColor:
+          type: string
+      type: object
+    PortalProfileRequest:
+      properties:
+        birthDate:
+          format: date
+          type: string
+        city:
+          type: string
+        consents:
+          $ref: "#/components/schemas/Consents"
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        nickname:
+          type: string
+        phone:
+          type: string
+        version:
+          format: int64
+          type: integer
+      type: object
+    PortalProfileView:
+      properties:
+        birthDate:
+          format: date
+          type: string
+        city:
+          type: string
+        completeness:
+          $ref: "#/components/schemas/Completeness"
+        consents:
+          $ref: "#/components/schemas/Consents"
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        memberId:
+          type: string
+        nickname:
+          type: string
+        phone:
+          type: string
+        referralCode:
+          type: string
+        version:
+          format: int64
+          type: integer
+      type: object
+    PortalReferral:
+      properties:
+        code:
+          type: string
+        completedCount:
+          format: int64
+          type: integer
+        invited:
+          items:
+            $ref: "#/components/schemas/PortalInvitee"
+          type: array
+        qualifyingActionType:
+          type: string
+        shareUrl:
+          type: string
+      type: object
+    PortalReward:
+      properties:
+        category:
+          type: string
+        code:
+          type: string
+        imageUrl:
+          type: string
+        lockedByTier:
+          $ref: "#/components/schemas/LockedByTier"
+        name:
+          type: string
+        perMemberLimitReached:
+          type: boolean
+        pointsCost:
+          format: int64
+          type: integer
+        stockState:
+          type: string
+        type:
+          type: string
+      type: object
+    PortalRewardDetail:
+      properties:
+        band:
+          type: string
+        category:
+          type: string
+        code:
+          type: string
+        description:
+          type: string
+        imageUrl:
+          type: string
+        lockedByTier:
+          $ref: "#/components/schemas/LockedByTier"
+        name:
+          type: string
+        perMemberLimit:
+          format: int32
+          type: integer
+        perMemberLimitReached:
+          type: boolean
+        pointsCost:
+          format: int64
+          type: integer
+        stockRemaining:
+          format: int32
+          type: integer
+        stockState:
+          type: string
+        terms:
+          type: string
+        type:
+          type: string
+      type: object
+    PortalTier:
+      properties:
+        benefits:
+          items:
+            type: string
+          type: array
+        code:
+          type: string
+        color:
+          type: string
+        icon:
+          type: string
+        multiplier:
+          type: number
+        name:
+          type: string
+        rank:
+          format: int32
+          type: integer
+        threshold:
+          format: int64
+          type: integer
+        thresholdSts:
+          format: int64
+          type: integer
+      type: object
+    PrizeView:
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        points:
+          format: int64
+          type: integer
+        rewardCode:
+          type: string
+        type:
+          type: string
+        wheelColor:
+          type: string
+      type: object
+    ReadAllOutcome:
+      properties:
+        marked:
+          format: int32
+          type: integer
+        memberId:
+          type: string
+        unread:
+          format: int64
+          type: integer
+      type: object
+    RedemptionRequest:
+      properties:
+        memberId:
+          type: string
+        rewardCode:
+          type: string
+        shipping:
+          $ref: "#/components/schemas/JsonNode"
+      type: object
+    RedemptionView:
+      properties:
+        closedAt:
+          format: date-time
+          type: string
+        confirmedAt:
+          format: date-time
+          type: string
+        correlationId:
+          type: string
+        couponCode:
+          type: string
+        fulfilmentNote:
+          type: string
+        history:
+          items:
+            $ref: "#/components/schemas/HistoryItem"
+          type: array
+        id:
+          type: string
+        memberId:
+          type: string
+        needsAttention:
+          type: boolean
+        pointsCost:
+          format: int64
+          type: integer
+        rejectReason:
+          type: string
+        requestedAt:
+          format: date-time
+          type: string
+        rewardCode:
+          type: string
+        rewardName:
+          type: string
+        shipping:
+          $ref: "#/components/schemas/JsonNode"
+        status:
+          enum:
+          - PENDING
+          - CONFIRMED
+          - FULFILLED
+          - REJECTED
+          - CANCELLED
+          type: string
+      type: object
+    RequestResult:
+      properties:
+        correlationId:
+          type: string
+        redemptionId:
+          type: string
+        status:
+          enum:
+          - PENDING
+          - CONFIRMED
+          - FULFILLED
+          - REJECTED
+          - CANCELLED
+          type: string
+      type: object
+    SeenRequest:
+      properties:
+        dismissed:
+          type: boolean
+        memberId:
+          type: string
+      type: object
+    Theme:
+      properties:
+        colors:
+          additionalProperties:
+            type: string
+          type: object
+        currencyNames:
+          additionalProperties:
+            type: string
+          type: object
+        fontDisplay:
+          type: string
+        heroSubtitle:
+          type: string
+        heroTitle:
+          type: string
+        logoUrl:
+          type: string
+        programName:
+          type: string
+        tagline:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+        version:
+          format: int64
+          type: integer
+      type: object
+    TierView:
+      properties:
+        code:
+          type: string
+        keepWarning:
+          $ref: "#/components/schemas/KeepWarning"
+        multiplier:
+          type: number
+        name:
+          type: string
+        next:
+          $ref: "#/components/schemas/NextTier"
+        periodSts:
+          format: int64
+          type: integer
+        progressPct:
+          format: int32
+          type: integer
+        since:
+          format: date-time
+          type: string
+      type: object
+    UnreadCount:
+      properties:
+        memberId:
+          type: string
+        unread:
+          format: int64
+          type: integer
+      type: object
+    WalletView:
+      properties:
+        balances:
+          additionalProperties:
+            $ref: "#/components/schemas/Balance"
+          type: object
+        expiringSoon:
+          $ref: "#/components/schemas/ExpiringSoon"
+        memberId:
+          type: string
+        tier:
+          $ref: "#/components/schemas/TierView"
+      type: object
+info:
+  description: "API del portale membri (/v1/portal/**): unione dei servizi. Generata da OpenApiExportIT (M8.8, docs/18 §3.6): non modificare a mano."
+  title: Loyalty Hub · portal
+  version: v1
+openapi: 3.1.0
+paths:
+  /v1/portal/achievements:
+    get:
+      operationId: achievements
+      parameters:
+      - in: query
+        name: memberId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/PortalAchievement"
+                type: array
+          description: OK
+      summary: Achievements — portal achievements
+      tags:
+      - portal-achievements
+  /v1/portal/badges:
+    get:
+      operationId: badges_1
+      parameters:
+      - in: query
+        name: memberId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/PortalBadge"
+                type: array
+          description: OK
+      summary: Badges — portal achievements
+      tags:
+      - portal-achievements
+  /v1/portal/campaigns:
+    get:
+      operationId: list_1
+      parameters:
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: codes
+        required: false
+        schema:
+          items:
+            type: string
+          type: array
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/PortalCampaignView"
+                type: array
+          description: OK
+      summary: List — portal campaigns
+      tags:
+      - portal-campaigns
+  /v1/portal/catalog:
+    get:
+      operationId: catalog
+      parameters:
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PortalCatalog"
+          description: OK
+      summary: Catalog — portal catalog
+      tags:
+      - portal-catalog
+  /v1/portal/content:
+    get:
+      operationId: content
+      parameters:
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: placement
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: prizeCode
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/ContentDisplay"
+                type: array
+          description: OK
+      summary: Content — portal content
+      tags:
+      - portal-content
+  /v1/portal/contests:
+    get:
+      operationId: live
+      parameters:
+      - in: query
+        name: memberId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/PortalContest"
+                type: array
+          description: OK
+      summary: Live — portal contests
+      tags:
+      - portal-contests
+  /v1/portal/contests/{code}/play:
+    post:
+      operationId: play
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlayRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlayResult"
+          description: OK
+      summary: Play — portal contests
+      tags:
+      - portal-contests
+  /v1/portal/contests/{code}/plays:
+    get:
+      operationId: plays
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: memberId
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 10
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/MemberPlay"
+                type: array
+          description: OK
+      summary: Plays — portal contests
+      tags:
+      - portal-contests
+  /v1/portal/coupons:
+    get:
+      operationId: coupons
+      parameters:
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/PortalCoupon"
+                type: array
+          description: OK
+      summary: Coupons — portal coupons
+      tags:
+      - portal-coupons
+  /v1/portal/inbox:
+    get:
+      operationId: inbox
+      parameters:
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 0
+          format: int32
+          type: integer
+      - in: query
+        name: size
+        required: false
+        schema:
+          default: 20
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageResponsePortalMessage"
+          description: OK
+      summary: Inbox — portal inbox
+      tags:
+      - portal-inbox
+  /v1/portal/inbox/read-all:
+    post:
+      operationId: readAll
+      parameters:
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ReadAllOutcome"
+          description: OK
+      summary: Read all
+      tags:
+      - portal-inbox
+  /v1/portal/inbox/unread-count:
+    get:
+      operationId: unreadCount
+      parameters:
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/UnreadCount"
+          description: OK
+      summary: Unread count
+      tags:
+      - portal-inbox
+  /v1/portal/inbox/{id}/read:
+    post:
+      operationId: read
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PortalMessage"
+          description: OK
+      summary: Read — portal inbox
+      tags:
+      - portal-inbox
+  /v1/portal/leaderboards:
+    get:
+      operationId: list_3
+      parameters:
+      - in: query
+        name: memberId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/PortalLeaderboard"
+                type: array
+          description: OK
+      summary: List — portal leaderboards
+      tags:
+      - portal-leaderboards
+  /v1/portal/leaderboards/{code}:
+    get:
+      operationId: one
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: memberId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PortalLeaderboard"
+          description: OK
+      summary: One — portal leaderboards
+      tags:
+      - portal-leaderboards
+  /v1/portal/members/{id}:
+    get:
+      operationId: get_1
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PortalProfileView"
+          description: OK
+      summary: Get — portal members
+      tags:
+      - portal-members
+    patch:
+      operationId: update_1
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortalProfileRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PortalProfileView"
+          description: OK
+      summary: Update — portal members
+      tags:
+      - portal-members
+  /v1/portal/members/{id}/referral:
+    get:
+      operationId: portal
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PortalReferral"
+          description: OK
+      summary: Portal — referral
+      tags:
+      - referral
+  /v1/portal/popups/next:
+    get:
+      operationId: next
+      parameters:
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PopupView"
+          description: OK
+      summary: Next — portal popups
+      tags:
+      - portal-popups
+  /v1/portal/popups/{id}/seen:
+    post:
+      operationId: seen
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SeenRequest"
+      responses:
+        "200":
+          description: OK
+      summary: Seen — portal popups
+      tags:
+      - portal-popups
+  /v1/portal/redemptions:
+    get:
+      operationId: list
+      parameters:
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/RedemptionView"
+                type: array
+          description: OK
+      summary: List — portal redemptions
+      tags:
+      - portal-redemptions
+    post:
+      operationId: request
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RedemptionRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RequestResult"
+          description: OK
+      summary: Request — portal redemptions
+      tags:
+      - portal-redemptions
+  /v1/portal/redemptions/{id}:
+    get:
+      operationId: get_1
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RedemptionView"
+          description: OK
+      summary: Get — portal redemptions
+      tags:
+      - portal-redemptions
+  /v1/portal/redemptions/{id}/cancel:
+    post:
+      operationId: cancel_1
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RedemptionView"
+          description: OK
+      summary: Cancel — portal redemptions
+      tags:
+      - portal-redemptions
+  /v1/portal/rewards/{code}:
+    get:
+      operationId: reward_1
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PortalRewardDetail"
+          description: OK
+      summary: Reward — portal catalog
+      tags:
+      - portal-catalog
+  /v1/portal/theme:
+    get:
+      operationId: portal
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Theme"
+          description: OK
+      summary: Portal — theme
+      tags:
+      - theme
+  /v1/portal/tiers:
+    get:
+      operationId: tiers_1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/PortalTier"
+                type: array
+          description: OK
+      summary: Tiers — portal wallets
+      tags:
+      - portal-wallets
+  /v1/portal/wallets/{memberId}:
+    get:
+      operationId: wallet_1
+      parameters:
+      - in: path
+        name: memberId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WalletView"
+          description: OK
+      summary: Wallet — portal wallets
+      tags:
+      - portal-wallets
+  /v1/portal/wallets/{memberId}/activity:
+    get:
+      operationId: activity
+      parameters:
+      - in: path
+        name: memberId
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: currency
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: size
+        required: false
+        schema:
+          default: 30
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+                type: array
+          description: OK
+      summary: Activity — portal activity
+      tags:
+      - portal-activity

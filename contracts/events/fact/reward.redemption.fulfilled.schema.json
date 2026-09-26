@@ -10,17 +10,21 @@
   "properties": {
     "redemptionId": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "x-lh-pii": false
     },
     "rewardCode": {
       "type": "string",
-      "pattern": "^[A-Z][A-Z0-9-]{2,39}$"
+      "pattern": "^[A-Z][A-Z0-9-]{2,39}$",
+      "x-lh-pii": false
     },
     "couponCode": {
-      "type": "string"
+      "type": "string",
+      "x-lh-pii": false
     },
     "note": {
-      "type": "string"
+      "type": "string",
+      "x-lh-pii": false
     }
   },
   "additionalProperties": true

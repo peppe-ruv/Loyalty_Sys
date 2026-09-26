@@ -5,9 +5,9 @@
   "type": "object",
   "required": ["previousTier", "newTier", "periodSts"],
   "properties": {
-    "previousTier": { "type": "string" },
-    "newTier": { "type": "string" },
-    "periodSts": { "type": "integer", "minimum": 0 }
+    "previousTier": { "type": "string", "x-lh-pii": false },
+    "newTier": { "type": "string", "x-lh-pii": false },
+    "periodSts": { "type": "integer", "minimum": 0, "x-lh-pii": false }
   },
   "additionalProperties": true
 }

@@ -82,6 +82,12 @@
       <version>${zonky-embedded-postgres.version}</version>
       <scope>test</scope>
     </dependency>
+    <!-- OpenApiExportIT (M8.8, F2-API-01): scrive contracts/api/*.openapi.yaml. Versione dal BOM di Jackson 3. -->
+    <dependency>
+      <groupId>tools.jackson.dataformat</groupId>
+      <artifactId>jackson-dataformat-yaml</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>

@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "25"
@@ -36,7 +36,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: ADR solo in aggiunta, ID seed stabili
@@ -56,7 +56,7 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: pnpm
@@ -72,21 +72,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - run: node scripts/check-seed.mjs
+      # Realm Keycloak as code (F2-IAM-01, ADR-027): scope referenziati definiti, nessun segreto letterale,
+      # segnaposto passati al servizio idp del compose.
+      - run: node --test scripts/check-realm.mjs
 
   contracts:
     name: contracts
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+        with:
+          fetch-depth: 0   # check-api confronta con il merge-base del ramo base
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       # Gate strutturale veloce; la validazione JSON Schema completa è in ContractsTest (job backend).
       - run: node scripts/check-contracts.mjs
+      # API HTTP (M8.8, docs/18 §3.6): solo modifiche compatibili rispetto al ramo base. Il drift tra codice e
+      # contracts/api/ lo verifica OpenApiExportIT nel job backend.
+      - run: npm --prefix scripts ci --omit=dev
+      - run: node --test scripts/check-api.test.mjs
+      - name: API compatibili col ramo base
+        env:
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: node scripts/check-api.mjs "--pr-labels=$PR_LABELS"
 
   docker:
     name: docker (solo main)

@@ -226,6 +226,7 @@ Regole: nuovo `id`; `source = urn:loyaltyhub:source:internal`; stesso `subject`,
 - Test di contratto: ogni esempio valida contro lo schema; ogni produttore ha un test che valida l'evento realmente prodotto.
 - I consumatori **tollerano campi sconosciuti** e non falliscono su campi opzionali assenti.
 - Compatibile (nuovo campo opzionale) → stessa versione. Incompatibile → `:<n+1>` in `dataschema`, doppia lettura temporanea, ADR.
+- **File per versione** (M8.4): la versione 1 vive in `<nome>.schema.json`, la versione `n>1` in `<nome>.v<n>.schema.json` con esempio `<famiglia>.<nome>.v<n>.json`; `$id` termina con `:<n>`. La versione superata dichiara `x-lh-superseded-by` e resta finché dura la doppia lettura.
 
 ## 10. Fase 2 (profilo `enterprise`)
 
@@ -233,7 +234,7 @@ Aggiunte dell'adozione (M8.0, `docs/18`); diventano vincolanti con la fetta cita
 
 - **Firma dei messaggi** (ADR-042, M8.10): due header CloudEvents di estensione, `lhsig` (firma JWS *detached* Ed25519 di `data` e degli attributi principali) e `lhkid` (identificativo della chiave del modulo produttore, rotazione Q-352). Il consumer verifica firma e produttore prima dell'idempotenza.
 - **Produttori ammessi** (ADR-042, M8.10): `contracts/events/producers.yaml` elenca per ogni `type` il modulo che può produrlo, ricavato dalle tabelle §3–§6; un messaggio di un modulo non ammesso va in DLQ con `PRODUCER_NOT_ALLOWED`. Un nuovo produttore per un `type` è un caso di *Fermati e chiedi*.
-- **Dati personali fuori dal bus** (ADR-032, M8.4): i campi degli schemi portano `x-lh-pii: true|false`; un test di contratto vieta campi `pii:true` negli eventi pubblicati; `member.registered`/`member.updated` passano a `:2` senza dati identificativi (`birthYear`, `province`, `locale`), con doppia lettura temporanea `:1`/`:2` (Q-346).
+- **Dati personali fuori dal bus** (ADR-032, M8.4): ogni campo degli schemi porta `x-lh-pii: true|false`; `ContractsTest` e `check-contracts` ammettono un campo `pii:true` solo in una versione superata (`x-lh-superseded-by` verso una versione esistente). `member.registered`/`member.updated` `:2` escono senza `firstName`, `lastName`, `nickname`, `email`, `birthDate`, `city` e aggiungono `locale`, `birthYear`, `province` (sigla di due lettere, Q-344) ed `emailHash` (HMAC-SHA256 dell'e-mail con `LH_PSEUDONYM_KEY`, per i soggetti `email:` di ingestion, Q-367); `attributes` contiene solo attributi con `pii=false`; `additionalProperties: false`. Doppia lettura `:1`/`:2` nei consumer fino a M10 (Q-346), poi la `:1` si rimuove. Il passaggio del produttore e dei consumer alla `:2` è la seconda parte di M8.4.
 - **Compatibilità additiva** (ADR-028): `check-contracts` confronta gli schemi con l'ultimo tag verde e fallisce su rimozioni o rinomine.
 - **Nuovi `type` pianificati** (ADR-045, M13.4–M13.7; nascono con schema, esempio e riga in `producers.yaml` nella loro fetta):
 

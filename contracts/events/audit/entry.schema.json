@@ -6,13 +6,13 @@
   "type": "object",
   "required": ["service", "entityType", "entityId", "action", "summary"],
   "properties": {
-    "service": { "type": "string", "minLength": 1 },
-    "entityType": { "type": "string", "minLength": 1 },
-    "entityId": { "type": "string", "minLength": 1 },
-    "action": { "enum": ["CREATE", "UPDATE", "DELETE", "TRANSITION", "ADJUST", "JOB", "RESET"] },
-    "summary": { "type": "string" },
-    "before": { "type": ["object", "null"] },
-    "after": { "type": ["object", "null"] }
+    "service": { "type": "string", "minLength": 1, "x-lh-pii": false },
+    "entityType": { "type": "string", "minLength": 1, "x-lh-pii": false },
+    "entityId": { "type": "string", "minLength": 1, "x-lh-pii": false },
+    "action": { "enum": ["CREATE", "UPDATE", "DELETE", "TRANSITION", "ADJUST", "JOB", "RESET"], "x-lh-pii": false },
+    "summary": { "type": "string", "x-lh-pii": false },
+    "before": { "type": ["object", "null"], "x-lh-pii": false },
+    "after": { "type": ["object", "null"], "x-lh-pii": false }
   },
   "additionalProperties": true
 }

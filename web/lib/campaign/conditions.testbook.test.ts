@@ -130,8 +130,8 @@ it("[TB-WEB-COND-026] campi raggruppati per spazio nell'ordine data, member, con
   expect(groupFields(catalog).map((g) => g.space)).toEqual(["data", "member", "context", "history"]);
 });
 
-it("[TB-WEB-COND-027] spazio member: tier, status, segments, labels, registeredDaysAgo, age", () => {
-  expect(paths("member")).toEqual(["member.tier", "member.status", "member.segments", "member.labels", "member.registeredDaysAgo", "member.age"]);
+it("[TB-WEB-COND-027] spazio member: tier, status, segments, labels, registeredDaysAgo, age, province (M8.4)", () => {
+  expect(paths("member")).toEqual(["member.tier", "member.status", "member.segments", "member.labels", "member.registeredDaysAgo", "member.age", "member.province"]);
 });
 
 it("[TB-WEB-COND-028] spazio context: source, dayOfWeek (MON…SUN), hour, date", () => {

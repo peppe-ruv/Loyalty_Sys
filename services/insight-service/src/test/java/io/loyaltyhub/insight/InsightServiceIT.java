@@ -280,7 +280,129 @@ class InsightServiceIT {
         assertThat(detail.path("correlationId").asString()).isEqualTo("COR-AUD");
     }
 
+    /**
+     * Doppia lettura {@code member.*:1}/{@code :2} (ADR-032, Q-346, docs/18 §3.4): la {@code :2} (senza nome, cognome,
+     * soprannome, e-mail, data di nascita, città; con locale, birthYear, province, emailHash) si registra, conta nei
+     * nuovi membri come la {@code :1}, ha la stessa sintesi e all'anonimizzazione perde {@code emailHash}; la copia
+     * {@code :1} perde le chiavi personali anche se l'anonimizzazione arriva come {@code member.updated:2}.
+     */
+    @Test
+    void memberFactsV1AndV2AreStoredCountedSummarizedAndRedacted() {
+        String hash = "21cebef191120423981adfc0ba20d56791dd828ae5fe4bf3c5ab840bcc9deacb";
+        String day = "2031-01-15";
+        Map<String, Object> v1 = new LinkedHashMap<>();
+        v1.put("memberId", "MBR-000901");
+        v1.put("firstName", "Ottavia");
+        v1.put("lastName", "Brunelli");
+        v1.put("nickname", "otta.b");
+        v1.put("email", "ottavia.brunelli@example.test");
+        v1.put("externalId", "CRM-9901");
+        v1.put("status", "ACTIVE");
+        v1.put("birthDate", "1990-02-03");
+        v1.put("city", "Pavia");
+        Map<String, Object> v2 = new LinkedHashMap<>();
+        v2.put("memberId", "MBR-000902");
+        v2.put("emailHash", hash);
+        v2.put("status", "ACTIVE");
+        v2.put("channel", "APP");
+        v2.put("locale", "it");
+        v2.put("birthYear", 1991);
+        v2.put("province", "PV");
+        v2.put("referredBy", null);
+        v2.put("labels", java.util.List.of("early-adopter"));
+        publish("lh.facts.v1", memberEnv("EVT-M1-REG", "registered", "MBR-000901", "COR-M12", 1, day, v1));
+        publish("lh.facts.v1", memberEnv("EVT-M2-REG", "registered", "MBR-000902", "COR-M12", 2, day, v2));
+
+        // Stessa sintesi per le due versioni, mai "null" (il tracciato usa EventSummaries come il rail).
+        JsonNode trace = awaitTrace("COR-M12", 2);
+        assertThat(trace.path("nodes").size()).isEqualTo(2);
+        for (JsonNode n : trace.path("nodes")) {
+            assertThat(n.path("summary").asString()).isEqualTo("Nuovo membro");
+        }
+        // I nuovi membri contano entrambe le versioni.
+        JsonNode series = client().get()
+                .uri("/v1/kpi/timeseries?metric=members_new&from=" + day + "&to=" + day)
+                .retrieve().body(JsonNode.class);
+        long membersNew = 0;
+        for (JsonNode p : series.path("points")) {
+            membersNew += p.path("value").asLong(0);
+        }
+        assertThat(membersNew).isEqualTo(2);
+        JsonNode storedV2 = awaitEvent("EVT-M2-REG", d -> d.path("emailHash").asString("").equals(hash));
+        assertThat(storedV2.path("province").asString()).isEqualTo("PV");
+
+        // Anonimizzazione con member.updated:2 (status ANONYMIZED) per entrambi.
+        Map<String, Object> anon1 = new LinkedHashMap<>();
+        anon1.put("memberId", "MBR-000901");
+        anon1.put("status", "ANONYMIZED");
+        Map<String, Object> anon2 = new LinkedHashMap<>();
+        anon2.put("memberId", "MBR-000902");
+        anon2.put("status", "ANONYMIZED");
+        anon2.put("birthYear", null);
+        anon2.put("province", null);
+        publish("lh.facts.v1", memberEnv("EVT-M1-ANON", "updated", "MBR-000901", "COR-M12-ANON", 2, day, anon1));
+        publish("lh.facts.v1", memberEnv("EVT-M2-ANON", "updated", "MBR-000902", "COR-M12-ANON", 2, day, anon2));
+
+        // Copia :1: senza chiavi personali, id e stato restano.
+        JsonNode redactedV1 = awaitEvent("EVT-M1-REG", d -> !d.has("firstName"));
+        for (String k : new String[]{"firstName", "lastName", "nickname", "email", "externalId", "birthDate", "city"}) {
+            assertThat(redactedV1.has(k)).as(k).isFalse();
+        }
+        assertThat(redactedV1.path("memberId").asString()).isEqualTo("MBR-000901");
+        assertThat(redactedV1.toString()).doesNotContain("Ottavia", "Brunelli", "ottavia.brunelli");
+        // Copia :2: senza emailHash, restano i campi non personali; nessun errore di consumo.
+        JsonNode redactedV2 = awaitEvent("EVT-M2-REG", d -> !d.has("emailHash"));
+        assertThat(redactedV2.has("emailHash")).isFalse();
+        assertThat(redactedV2.path("province").asString()).isEqualTo("PV");
+        assertThat(redactedV2.path("birthYear").asInt()).isEqualTo(1991);
+        assertThat(redactedV2.path("locale").asString()).isEqualTo("it");
+        JsonNode anonTrace = awaitTrace("COR-M12-ANON", 2);
+        for (JsonNode n : anonTrace.path("nodes")) {
+            assertThat(n.path("family").asString()).isEqualTo("FACT");
+            assertThat(n.path("summary").asString()).isEqualTo("Membro aggiornato");
+        }
+    }
+
     // ---------- helper ----------
+
+    /** {@code data} dell'evento registrato quando soddisfa {@code ready} (entro 20 s), altrimenti l'ultimo letto. */
+    private JsonNode awaitEvent(String eventId, java.util.function.Predicate<JsonNode> ready) {
+        long deadline = System.currentTimeMillis() + 20_000;
+        JsonNode data = null;
+        while (System.currentTimeMillis() < deadline) {
+            JsonNode detail = client().get().uri("/v1/events/" + eventId).exchange((req, res) ->
+                    res.getStatusCode().value() == 200 ? new ObjectMapper().readTree(res.getBody()) : null);
+            if (detail != null) {
+                data = detail.path("payload").path("data");
+                if (ready.test(data)) {
+                    return data;
+                }
+            }
+            sleep();
+        }
+        assertThat(data).as("evento " + eventId + " registrato").isNotNull();
+        return data;
+    }
+
+    /** Fatto {@code member.<name>} di member-service con {@code dataschema} alla versione {@code version}. */
+    private String memberEnv(String id, String name, String memberId, String correlationId, int version, String day,
+                             Map<String, Object> data) {
+        Map<String, Object> e = new LinkedHashMap<>();
+        e.put("specversion", "1.0");
+        e.put("id", id);
+        e.put("source", "urn:loyaltyhub:service:member");
+        e.put("type", "io.loyaltyhub.fact.member." + name);
+        e.put("subject", "member:" + memberId);
+        e.put("time", day + "T10:00:00Z");
+        e.put("datacontenttype", "application/json");
+        e.put("dataschema", "urn:loyaltyhub:schema:fact.member." + name + ":" + version);
+        e.put("lhtenant", "aurora");
+        e.put("lhcorrelationid", correlationId);
+        e.put("lhhop", 0);
+        e.put("lhactor", "system");
+        e.put("data", data);
+        return mapper.writeValueAsString(e);
+    }
 
     private JsonNode awaitAudit(String entityId, int expected) {
         long deadline = System.currentTimeMillis() + 20_000;

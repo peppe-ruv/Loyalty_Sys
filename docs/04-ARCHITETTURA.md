@@ -13,6 +13,8 @@
 
 ```mermaid
 flowchart LR
+  accTitle: Vista d'insieme dell'architettura
+  accDescr: Fonti esterne e web Next.js chiamano i microservizi via REST; gli otto servizi comunicano solo attraverso i cinque topic Kafka e usano un database con uno schema per servizio; il web riceve lo stream SSE da insight.
   subgraph Client
     EXT["Fonti esterne (crm, app, ecommerce, billing, partner)"]
     WEB["web: Next.js (hub, backoffice, portale, proxy /api/lh)"]
@@ -70,6 +72,8 @@ Le schede di dettaglio sono in `docs/servizi/`.
 ### 4.1 Azione esterna → punti → notifica
 ```mermaid
 sequenceDiagram
+  accTitle: Da un'azione esterna ai punti e alla notifica
+  accDescr: Una fonte invia un'azione a ingestion, che la valida e la pubblica; campaign la valuta ed emette effetti; wallet accredita i punti; engagement crea il messaggio; insight registra tutto.
   participant S as Fonte
   participant ING as ingestion
   participant K as Kafka
@@ -99,6 +103,8 @@ sequenceDiagram
 ### 4.3 Richiesta premio (saga coreografata)
 ```mermaid
 sequenceDiagram
+  accTitle: Richiesta premio con saga coreografata
+  accDescr: Il portale chiede un premio a reward, che prenota lo stock e pubblica la richiesta; wallet spende i punti o rifiuta per saldo insufficiente; reward conferma o rifiuta e ripristina lo stock, mentre il portale interroga lo stato.
   participant P as Portale
   participant RWD as reward
   participant K as Kafka

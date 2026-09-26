@@ -13,22 +13,27 @@
   "properties": {
     "ledgerEntryId": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "x-lh-pii": false
     },
     "currency": {
-      "const": "PTS"
+      "const": "PTS",
+      "x-lh-pii": false
     },
     "amount": {
       "type": "integer",
-      "minimum": 1
+      "minimum": 1,
+      "x-lh-pii": false
     },
     "balanceAfter": {
       "type": "integer",
-      "minimum": 0
+      "minimum": 0,
+      "x-lh-pii": false
     },
     "redemptionId": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "x-lh-pii": false
     }
   },
   "additionalProperties": true

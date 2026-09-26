@@ -21,10 +21,13 @@ public class ActionsListener {
 
     private final EventRouter router;
     private final ObjectMapper mapper;
+    private final MemberSnapshotAwait snapshotAwait;
 
-    public ActionsListener(@Qualifier("campaignEventRouter") EventRouter router, ObjectMapper mapper) {
+    public ActionsListener(@Qualifier("campaignEventRouter") EventRouter router, ObjectMapper mapper,
+                           MemberSnapshotAwait snapshotAwait) {
         this.router = router;
         this.mapper = mapper;
+        this.snapshotAwait = snapshotAwait;
     }
 
     @KafkaListener(
@@ -33,6 +36,7 @@ public class ActionsListener {
             containerFactory = "lhKafkaListenerContainerFactory")
     public void onAction(ConsumerRecord<String, String> record, Acknowledgment ack) {
         LhEvent<JsonNode> event = mapper.readValue(record.value(), EVENT_TYPE);
+        snapshotAwait.await(event.memberId()); // campaign §5: il fatto member.registered può essere in arrivo
         router.route(event);
         ack.acknowledge();
     }

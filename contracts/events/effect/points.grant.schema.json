@@ -8,17 +8,17 @@
     "currency", "baseAmount", "campaignMultiplier", "amount", "tierMultiplierApplies", "pendingDays"
   ],
   "properties": {
-    "effectId": { "type": "string", "minLength": 1 },
-    "campaignCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$" },
-    "actionId": { "type": "string", "minLength": 1 },
-    "actionType": { "type": "string", "minLength": 1 },
-    "currency": { "enum": ["PTS", "STS"] },
-    "baseAmount": { "type": "integer" },
-    "campaignMultiplier": { "type": "number", "minimum": 0 },
-    "amount": { "type": "integer" },
-    "tierMultiplierApplies": { "type": "boolean" },
-    "pendingDays": { "type": "integer", "minimum": 0 },
-    "description": { "type": "string" }
+    "effectId": { "type": "string", "minLength": 1, "x-lh-pii": false },
+    "campaignCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,39}$", "x-lh-pii": false },
+    "actionId": { "type": "string", "minLength": 1, "x-lh-pii": false },
+    "actionType": { "type": "string", "minLength": 1, "x-lh-pii": false },
+    "currency": { "enum": ["PTS", "STS"], "x-lh-pii": false },
+    "baseAmount": { "type": "integer", "x-lh-pii": false },
+    "campaignMultiplier": { "type": "number", "minimum": 0, "x-lh-pii": false },
+    "amount": { "type": "integer", "x-lh-pii": false },
+    "tierMultiplierApplies": { "type": "boolean", "x-lh-pii": false },
+    "pendingDays": { "type": "integer", "minimum": 0, "x-lh-pii": false },
+    "description": { "type": "string", "x-lh-pii": false }
   },
   "additionalProperties": true
 }

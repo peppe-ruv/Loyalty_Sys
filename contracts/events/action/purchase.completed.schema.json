@@ -5,22 +5,23 @@
   "type": "object",
   "required": ["orderId", "amount", "currency"],
   "properties": {
-    "orderId": { "type": "string", "minLength": 1 },
-    "amount": { "type": "number", "minimum": 0 },
-    "currency": { "type": "string", "minLength": 1 },
-    "channel": { "enum": ["ONLINE", "STORE", "APP"] },
+    "orderId": { "type": "string", "minLength": 1, "x-lh-pii": false },
+    "amount": { "type": "number", "minimum": 0, "x-lh-pii": false },
+    "currency": { "type": "string", "minLength": 1, "x-lh-pii": false },
+    "channel": { "enum": ["ONLINE", "STORE", "APP"], "x-lh-pii": false },
     "items": {
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
-          "sku": { "type": "string" },
-          "category": { "type": "string" },
-          "quantity": { "type": "integer", "minimum": 0 },
-          "unitPrice": { "type": "number", "minimum": 0 }
+          "sku": { "type": "string", "x-lh-pii": false },
+          "category": { "type": "string", "x-lh-pii": false },
+          "quantity": { "type": "integer", "minimum": 0, "x-lh-pii": false },
+          "unitPrice": { "type": "number", "minimum": 0, "x-lh-pii": false }
         },
         "additionalProperties": true
-      }
+      },
+      "x-lh-pii": false
     }
   },
   "additionalProperties": true
