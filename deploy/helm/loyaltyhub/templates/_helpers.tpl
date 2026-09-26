@@ -134,7 +134,7 @@ topologySpreadConstraints:
 {{- fail "global.mode: il chart installa solo LH_MODE=external; embedded è l'appliance a un container (ADR-037)" -}}
 {{- end -}}
 {{- if and .Values.roles.hub.services (ne .Values.roles.hub.services "all") -}}
-{{- fail "roles.hub.services: l'immagine accetta solo vuoto o `all` (selezione dei moduli non ancora disponibile, Q-365)" -}}
+{{- fail "roles.hub.services: l'immagine accetta solo vuoto o `all` (selezione dei moduli non ancora disponibile, Q-376)" -}}
 {{- end -}}
 {{- if .Values.roles.cms.enabled -}}
 {{- fail "roles.cms: il ruolo cms (Directus) non è ancora nell'immagine unica (M10.2)" -}}

@@ -83,7 +83,7 @@ roles:
   hub:
     enabled: true
     replicas: 2
-    # LH_SERVICES: per ora solo vuoto o `all` (l'immagine rifiuta selezioni parziali, SPEC-GAP Q-365 del M8.1):
+    # LH_SERVICES: per ora solo vuoto o `all` (l'immagine rifiuta selezioni parziali, SPEC-GAP Q-376 del M8.1):
     # un solo Deployment hub con tutti i moduli; i Deployment per modulo arrivano con la selezione dei moduli.
     services: ""
     javaToolOptions: "-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
