@@ -11,13 +11,76 @@ Non decide *quanti* punti dare (lo fa il motore); applica solo il moltiplicatore
 |---|---|
 | `currency` | `code` PK (`PTS`,`STS`), `name`, `spendable`, `expiry_policy jsonb` (`{type: ROLLING_MONTHS, months: 12}` …) |
 | `wallet` | (`member_id`,`currency`) PK, `balance_active`, `balance_pending`, `lifetime_earned`, `lifetime_spent`, `lifetime_expired`, `updated_at` |
-| `points_lot` | `id`, `member_id`, `currency`, `amount`, `remaining`, `status` (`PENDING, ACTIVE, EXHAUSTED, EXPIRED`), `earned_at`, `available_at`, `expires_at`, `ledger_entry_id` · indice (`member_id`,`currency`,`status`,`expires_at`) |
+| `points_lot` | `id`, `member_id`, `currency`, `amount`, `remaining`, `status` (`PENDING, ACTIVE, EXHAUSTED, EXPIRED`), `earned_at`, `available_at`, `expires_at`, `warned` (preavviso di scadenza già inviato), `ledger_entry_id` · indice (`member_id`,`currency`,`status`,`expires_at`) |
 | `ledger_entry` | `id` (ULID), `member_id`, `currency`, `type`, `amount` (sempre positivo), `direction` (`+`/`−`), `balance_after`, `occurred_at` (data di business), `created_at`, `source_type` (`CAMPAIGN, REDEMPTION, MANUAL, SYSTEM`), `effect_id` UQ null, `redemption_id`, `campaign_code`, `action_id`, `correlation_id`, `description`, `actor`, `metadata jsonb` |
-| `lot_consumption` | `ledger_entry_id`, `lot_id`, `amount` (per rimborsi e audit FIFO) |
+| `lot_consumption` | (`ledger_entry_id`, `lot_id`) PK, `amount` (per rimborsi e audit FIFO) |
 | `tier` | `code` PK, `name`, `rank`, `threshold_sts`, `multiplier numeric(4,2)`, `benefits jsonb` (elenco testi), `color`, `icon` |
 | `member_tier` | `member_id` PK, `tier_code`, `since`, `period_sts`, `previous_tier`, `member_status` |
 | `tier_history` | `id`, `member_id`, `from_tier`, `to_tier`, `kind` (`UPGRADE, DOWNGRADE, RETAIN, INITIAL`), `edition_code`, `at` |
 | `edition` | `code` PK, `name`, `start_date`, `end_date`, `redemption_grace_until`, `status` |
+
+Tracciato delle tabelle (docs/18 §3.12-bis, verificato sulla migrazione `V1`). L'unico vincolo `FOREIGN KEY` è `wallet.currency` verso `currency` (linea continua); il resto sono riferimenti logici tenuti dal codice (tratteggiati). I movimenti e i lotti di un membro si legano al wallet per la coppia (`member_id`, `currency`). Le tabelle comuni di lh-common (docs/06 §1) esistono nello schema ma wallet non usa `approval_history`. Gli stati del lotto e dell'edizione sono in docs/03 §4.2 e §4.4.
+
+```mermaid
+erDiagram
+  accTitle: Tabelle dello schema wallet
+  accDescr: Ogni wallet è una coppia membro e valuta con i suoi movimenti e lotti; un movimento di accredito crea un lotto e una spesa consuma lotti; il livello del membro rimanda alla scala dei tier e lo storico dei livelli alla edizione che li ha chiusi.
+  currency {
+    text code PK
+  }
+  wallet {
+    text member_id PK
+    text currency PK, FK
+  }
+  ledger_entry {
+    text id PK
+    text member_id
+    text currency
+    text type
+    text effect_id UK
+    text redemption_id
+  }
+  points_lot {
+    text id PK
+    text member_id
+    text currency
+    text status
+    text ledger_entry_id "rif. ledger_entry.id"
+  }
+  lot_consumption {
+    text ledger_entry_id PK "rif. ledger_entry.id"
+    text lot_id PK "rif. points_lot.id"
+  }
+  tier {
+    text code PK
+    int rank
+  }
+  member_tier {
+    text member_id PK
+    text tier_code "rif. tier.code"
+    text member_status
+  }
+  tier_history {
+    text id PK
+    text member_id
+    text to_tier "rif. tier.code"
+    text edition_code "rif. edition.code"
+  }
+  edition {
+    text code PK
+    text status
+  }
+  currency ||--o{ wallet : "valuta"
+  wallet ||..o{ ledger_entry : "movimenti"
+  wallet ||..o{ points_lot : "lotti"
+  ledger_entry ||..o| points_lot : "accredito crea"
+  ledger_entry ||..o{ lot_consumption : "spesa consuma"
+  points_lot ||..o{ lot_consumption : "consumato da"
+  tier ||..o{ member_tier : "livello attuale"
+  member_tier ||..o{ tier_history : "storico"
+  tier ||..o{ tier_history : "livello raggiunto"
+  edition |o..o{ tier_history : "chiusura"
+```
 
 ## 3. API
 ### Gestione
@@ -50,6 +113,22 @@ Non decide *quanti* punti dare (lo fa il motore); applica solo il moltiplicatore
 | Consuma | `lh.facts.v1` | `member.registered` (crea 2 wallet + `member_tier` BASE), `member.status.changed`, `reward.redemption.requested`, `reward.redemption.cancelled` (con `refund=true`) |
 | Produce | `lh.facts.v1` | `wallet.points.*`, `wallet.spend.rejected`, `tier.upgraded/downgraded/retained`, `edition.closed` |
 | Produce | `lh.audit.v1` | rettifiche, modifiche a tier/valute/edizioni, job (una voce `JOB` per esecuzione, anche senza lotti toccati: `entityType` `job`, `entityId` = nome del job, `after` = `{asOf, lots, members, amount}`) |
+
+A sinistra i topic che wallet consuma, a destra quelli su cui pubblica (tramite outbox, docs/04 §5).
+
+```mermaid
+flowchart LR
+  accTitle: Consumi e produzioni di wallet-service
+  accDescr: wallet consuma gli effetti points.grant e i fatti di registrazione e stato dei membri e delle richieste premio; pubblica i fatti su punti, livelli ed edizioni e le voci di audit di rettifiche, configurazione e job.
+  TE(["lh.effects.v1"]) -->|"points.grant"| WAL["wallet-service"]
+  TFI(["lh.facts.v1"]) -->|"member.registered, member.status.changed, reward.redemption.requested, reward.redemption.cancelled"| WAL
+  WAL -->|"wallet.points.*, wallet.spend.rejected, tier.*, edition.closed"| TFO(["lh.facts.v1"])
+  WAL -->|"rettifiche, configurazione, job"| TU(["lh.audit.v1"])
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef topic fill:#FEF3C7,stroke:#D97706,color:#78350F
+  class WAL svc
+  class TE,TFI,TFO,TU topic
+```
 
 ## 5. Regole
 Tutte in `docs/03 §4`. Note implementative:

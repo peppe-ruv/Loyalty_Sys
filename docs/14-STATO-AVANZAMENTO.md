@@ -16,7 +16,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M5 — Gioco | ✅ completata | 2026-09-24 | 2026-09-24 | ☑ | M5.1–M5.7 implementate; criteri di accettazione verdi con test automatici + E2E n. 3 con Playwright su servizio locale; `smoke.sh` verde sulla demo online |
 | M6 — Contenuti | ✅ completata | 2026-09-24 | 2026-09-24 | ☑ | M6.0–M6.7 chiuse (engagement: template, regole, inbox, `message.send`; contenuti per posizionamento, BO-18; pop-up e frequenze; card vincita; PT-12, BO-19, `SEND_MESSAGE`; tema a runtime, BO-20; segmenti statici e dinamici, BO-04; tipi azione custom, attributi personalizzati, costruttore di condizioni) — accettazione verde (il webhook è arrivato con M7.2); demo online verde |
 | M7 — Governance | ✅ completata | 2026-09-24 | 2026-09-24 | ☑ | M7.1–M7.6 chiuse (approvazioni per ruolo con policy e storico, BO-21; webhook firmati con ritenti, BO-23; DLQ con riprocessa/scarta, BO-27; eventi non abbinati con abbina e riprova, BO-26; anonimizzazione propagata, BO-03; versioni e duplica) — accettazione anonimizzazione verde (`HubAnonymizationIT`); smoke online verde |
-| M8 — Fondazioni enterprise | [ ] | | | ☐ | Fase 2 (`docs/18 §6`) |
+| M8 — Fondazioni enterprise | in corso | 2026-09-26 | | ☐ | Fase 2 (`docs/18 §6`); M8.0, M8.1, M8.8 chiuse; M8.2, M8.4, M8.10, M8.11 in parte; M8.3, M8.7, M8.9 in lavorazione |
 | M9 — Qualità | [ ] | | | ☐ | Fase 2 (`docs/18 §6`) |
 | M10 — Esperienza data-driven | [ ] | | | ☐ | Fase 2 (`docs/18 §6`) |
 | M11 — Multilingua | [ ] | | | ☐ | Fase 2 (`docs/18 §6`) |
@@ -25,7 +25,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M14 — Agente regolamento | [ ] | | | ☐ | Fase 2 (`docs/18 §6`) |
 | M15 — Esercizio | [ ] | | | ☐ | Fase 2 (`docs/18 §6`) |
 
-**Prossima fetta da lavorare:** M8.0 — adozione e governance di Fase 2 (in revisione); dopo il merge il proprietario applica `scripts/setup-branch-protection.sh`, poi M8.1, M8.2, M8.4, M8.7, M8.8 in parallelo (`docs/prompts/fase2-kickoff.md §3`). Le fette FIN di Fase 1 sono chiuse (FIN-1, FIN-2).
+**Prossima fetta da lavorare:** M8.3 (chart Helm e compose), M8.7 (ingresso batch e import) e M8.9 (diagrammi delle schede servizio) in lavorazione; poi il resto di M8.4 (produttore `:2`, `delivery`, cifratura), M8.2 (BFF, OIDC dei membri) e M8.10 (deny by default). Flusso: una fetta = una PR con auto-merge; questa pagina si aggiorna con la PR di stato cumulativa (ADR-047).
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -354,33 +354,33 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 
 ## M8 — Fondazioni enterprise (Fase 2)
 
-Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della sua PR (`[x] M8.k — … (#nn)`).
+Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della sua PR (`[x] M8.k — … (#nn)`); le spunte le aggiorna la PR di stato cumulativa dopo i merge, non la fetta (ADR-047).
 
 **Fette**
-- [~] M8.0 — adozione e governance (ADR 026–045, CLAUDE.md §7, docs, `.github/`, job `guard`) — _in revisione: PR #33 (dopo la preliminare #32, ADR-046)_
-- [~] M8.1 — immagine unica a ruoli — _in revisione: PR #52_
-- [~] M8.2 — identità (Keycloak `idp`, BFF, OIDC) — _parte a (Keycloak `idp`, realm as code, IdP e LDAP di prova) in revisione: PR #57_
-- [ ] M8.3 — chart Helm e compose di riferimento
-- [~] M8.4 — PII fuori dal bus — _parte 1 (contratti `x-lh-pii`, `member.*:2`, test) in revisione: PR #50; parte 2a (campaign: età e provincia, doppia lettura) PR #53; parte 2c (reward: doppia lettura, note svuotate all'anonimizzazione) PR #72; parte 2e (engagement: doppia lettura) PR #59; parte 2f (insight: doppia lettura, `emailHash` in anonimizzazione) PR #58; parte 2d (soprannomi) PR #78; resto della parte 2 (produttore, altri consumer, delivery, cifratura) da fare_
+- [x] M8.0 — adozione e governance (ADR 026–045, CLAUDE.md §7, docs, `.github/`, job `guard`) — #33 (dopo la preliminare #32, ADR-046); seguiti: gruppi Dependabot #56, testbook compatibili con MDX #77, attesa dello snapshot in campaign #73; flusso CI per aree e auto-merge (ADR-047) in revisione: PR #80
+- [x] M8.1 — immagine unica a ruoli — #52
+- [~] M8.2 — identità (Keycloak `idp`, BFF, OIDC) — _parte a (Keycloak `idp`, realm as code, IdP e LDAP di prova) #57; parte b (resource server JWT, `ActorContext` dal token nel profilo `enterprise`) #51; BFF con sessione, login dei membri via OIDC, client credentials e token exchange da fare_
+- [~] M8.3 — chart Helm e compose di riferimento — _in lavorazione_
+- [~] M8.4 — PII fuori dal bus — _unite: parte 1 (contratti `x-lh-pii`, `member.*:2`, test) #50; doppia lettura in campaign (età e provincia) #53, reward (note svuotate all'anonimizzazione) #72, engagement #59, insight (`emailHash` in anonimizzazione) #58; soprannomi risolti dal BFF #78. Da fare: produttore `member.*:2`, altri consumer, modulo `delivery`, cifratura dei contatti_
 - [ ] M8.5 — sicurezza di piattaforma
 - [ ] M8.6 — osservabilità
-- [ ] M8.7 — ingresso batch e import file (BO-32)
-- [~] M8.8 — OpenAPI generata e verificata (`contracts/api/`) — _in revisione: PR #76_
-- [ ] M8.9 — documentazione Mintlify (`site/`)
-- [~] M8.10 — sicurezza applicativa — _parte 1 (builder SQL con allowlist, adozione nel wallet) in revisione: PR #61; regole Semgrep/CodeQL e adozione negli altri servizi da fare_
-- [~] M8.11 — verifica di sicurezza — _parte 1 (threat model STRIDE, tabella ASVS 5.0 L2, `SECURITY.md`) in revisione: PR #60; job `security`, ArchUnit, Schemathesis, ZAP, `TB-SEC` da fare_ (job `security`)
+- [~] M8.7 — ingresso batch e import file (BO-32) — _in lavorazione (la bozza #75 si chiude senza merge)_
+- [x] M8.8 — OpenAPI generata e verificata (`contracts/api/`) — #76
+- [~] M8.9 — documentazione Mintlify (`site/`) — _diagrammi di Fase 1 conformi (accTitle/accDescr) #54; `erDiagram` e diagrammi di stato delle schede servizio in lavorazione; `site/`, `docs-sync`, job `docs` da fare_
+- [~] M8.10 — sicurezza applicativa — _parte 1 (builder SQL con allowlist, adozione nel wallet) #61; regole Semgrep, adozione negli altri servizi, firma dei messaggi, deny by default da fare_
+- [~] M8.11 — verifica di sicurezza — _parte 1 (threat model STRIDE, tabella ASVS 5.0 L2, `SECURITY.md`) #60; job `security`, ArchUnit, Schemathesis, ZAP, `TB-SEC` da fare_
 - [ ] M8.12 — audit unificato
 - [ ] M8.13 — governo di accessi e dati
 
 **Feature `F2-*` (catalogo `docs/18 §4`)**
-- [~] `F2-DIST-01` Immagine unica multi-arch con ruoli e modalità (P0, M8.1) — _in revisione: PR #52_
+- [x] `F2-DIST-01` Immagine unica multi-arch con ruoli e modalità (P0, M8.1) — #52
 - [ ] `F2-DIST-02` Chart Helm con operatori di default, valori per servizi gestiti (P0, M8.3)
 - [ ] `F2-DIST-03` Compose di riferimento (ruoli + infra open source) (P0, M8.3)
 - [ ] `F2-DIST-08` Rilascio firmato: SBOM, cosign, note di sicurezza, percorso N−1 → N (P0, M8.5, M12.4)
-- [ ] `F2-IAM-01` Keycloak ruolo `idp`, realm as code (P0, M8.2)
-- [~] `F2-IAM-02` Servizi resource server JWT; `ActorContext` dal token (P0, M8.2) — _in revisione: PR #51 (attore dal token, profilo enterprise)_
+- [x] `F2-IAM-01` Keycloak ruolo `idp`, realm as code (P0, M8.2) — #57
+- [x] `F2-IAM-02` Servizi resource server JWT; `ActorContext` dal token (P0, M8.2) — #51
 - [ ] `F2-IAM-03` Login e registrazione membri via OIDC; `member.external_id = sub` (P0, M8.2)
-- [ ] `F2-IAM-04` Broker verso IdP aziendale e federazione LDAP (documentati e provati) (P0, M8.2)
+- [~] `F2-IAM-04` Broker verso IdP aziendale e federazione LDAP (documentati e provati) (P0, M8.2) — _IdP e LDAP di prova nel realm #57; prova automatica da fare_
 - [ ] `F2-SEC-01` Gateway con JWT, rate limit, CORS per widget, header di sicurezza (P0, M8.5)
 - [ ] `F2-SEC-02` Mesh mTLS, network policy, ACL Kafka, ruoli DB per servizio (owner/app), External Secrets, Pod Security `restricted` (P0, M8.5)
 - [ ] `F2-SEC-03` Supply chain in CI (SBOM, scansione, firma, CodeQL, secret scanning, IaC) (P0, M8.5)
@@ -389,9 +389,9 @@ Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della 
 - [ ] `F2-SEC-07` Client credentials per fonti e job; token exchange per i widget (P0, M8.2)
 - [ ] `F2-SEC-08` Messaggi firmati sul bus con elenco dei produttori ammessi e validazione in consumo (P0, M8.10)
 - [ ] `F2-SEC-09` Deny by default (`@RequiresRole`/`@PublicEndpoint`), `MemberPrincipal` nel portale, DTO espliciti (P0, M8.10)
-- [ ] `F2-SEC-10` Builder SQL con allowlist, regole Semgrep, limiti di input, template senza logica, sanitizzazione contenuti (P0, M8.10)
+- [~] `F2-SEC-10` Builder SQL con allowlist, regole Semgrep, limiti di input, template senza logica, sanitizzazione contenuti (P0, M8.10) — _builder SQL e adozione nel wallet #61_
 - [ ] `F2-SEC-11` Difesa SSRF, `Idempotency-Key`, rate limit per membro, controlli sui file caricati (P0, M8.10)
-- [ ] `F2-SEC-12` Verifica continua: ArchUnit, Semgrep, Schemathesis, ZAP, `TB-SEC`, tabella ASVS, `SECURITY.md` (P0, M8.11)
+- [~] `F2-SEC-12` Verifica continua: ArchUnit, Semgrep, Schemathesis, ZAP, `TB-SEC`, tabella ASVS, `SECURITY.md` (P0, M8.11) — _tabella ASVS e `SECURITY.md` #60_
 - [ ] `F2-SEC-13` Bridge audit Directus → `audit_entry` (`POST /v1/audit/external` su experience-service, HMAC) (P0, M8.12)
 - [ ] `F2-SEC-14` Bridge audit Keycloak → `audit_entry` (admin events + user events, event listener SPI) (P0, M8.12)
 - [ ] `F2-SEC-15` Attività del membro (`member_activity_entry`, BO-03 estesa, portale PT-18 «La mia attività»), retention audit 400 giorni, sola-inserzione (P0, M8.12)
@@ -401,19 +401,19 @@ Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della 
 - [ ] `F2-GRC-06` `erasure_log` riapplicato al ripristino, crypto-shredding dei contatti, `lh data mask`, `lh decommission` (P0, M8.13, M12.6)
 - [ ] `F2-GRC-07` Audit a catena di hash con ancoraggio immutabile, export OCSF, `lh forensics export`, prova di ripristino mensile (P0, M8.12, M12.6)
 - [ ] `F2-GRC-09` Identità propria degli agenti (GitHub App) e approvazione obbligatoria delle PR prima di v1.0 (P0, M8.0, M12.4)
-- [ ] `F2-EVT-01` Contratti con `x-lh-pii`, test che vieta PII sul bus, compat check contro ultimo tag (P0, M8.4)
-- [ ] `F2-EVT-02` `member.registered/updated` `:2` senza PII; doppia lettura (P0, M8.4)
+- [~] `F2-EVT-01` Contratti con `x-lh-pii`, test che vieta PII sul bus, compat check contro ultimo tag (P0, M8.4) — _`x-lh-pii` e test #50; confronto con l'ultimo tag da fare_
+- [~] `F2-EVT-02` `member.registered/updated` `:2` senza PII; doppia lettura (P0, M8.4) — _contratto `:2` #50; doppia lettura in campaign #53, reward #72, engagement #59, insight #58, gamification #78; produttore `:2` da fare_
 - [ ] `F2-EVT-03` Modulo `delivery` nel member-service con adattatori SMTP/WEBHOOK (P0, M8.4)
 - [ ] `F2-EVT-04` Partizioni e concorrenza configurabili; retention lunga (P0, M8.3)
-- [ ] `F2-ING-01` `POST /v1/events/batch` fino a 1000 (P0, M8.7)
-- [ ] `F2-ING-02` Import file asincrono con rapporto (BO-32) (P0, M8.7)
-- [ ] `F2-API-01` OpenAPI generata e verificata; `contracts/api/` (P0, M8.8)
+- [~] `F2-ING-01` `POST /v1/events/batch` fino a 1000 (P0, M8.7) — _in lavorazione_
+- [~] `F2-ING-02` Import file asincrono con rapporto (BO-32) (P0, M8.7) — _in lavorazione_
+- [x] `F2-API-01` OpenAPI generata e verificata; `contracts/api/` (P0, M8.8) — #76
 - [ ] `F2-OBS-01` OTel → Prometheus/Loki/Tempo/Grafana nel chart, dashboard SLO (P0, M8.6)
-- [ ] `F2-GOV-01` Ruleset `main-protetto`, impostazioni del repo, `CODEOWNERS`, modello di PR, Dependabot (P0, M8.0)
-- [ ] `F2-GOV-02` Controllo `guard` (ADR solo in aggiunta, ID seed invariati) (P0, M8.0)
+- [~] `F2-GOV-01` Ruleset `main-protetto`, impostazioni del repo, `CODEOWNERS`, modello di PR, Dependabot (P0, M8.0) — _file del repository #33, #56; flusso con auto-merge #80; applicazione del ruleset da confermare dal proprietario_
+- [x] `F2-GOV-02` Controllo `guard` (ADR solo in aggiunta, ID seed invariati) (P0, M8.0) — #33
 - [ ] `F2-DOC-01` Mintlify unico sito: `site/`, dismissione GitBook e `docs_v2/` (P0, M8.9)
 - [ ] `F2-DOC-02` Specifiche ed eventi generati (`docs-sync`), riferimento API da OpenAPI (P0, M8.9)
-- [ ] `F2-DOC-03` Catalogo minimo dei diagrammi Mermaid e controllo `check-mermaid` (P0, M8.9)
+- [~] `F2-DOC-03` Catalogo minimo dei diagrammi Mermaid e controllo `check-mermaid` (P0, M8.9) — _diagrammi di Fase 1 conformi e `check-mermaid` #54, #33_
 - [ ] `F2-DOC-05` `erDiagram` per scheda servizio, `stateDiagram-v2` per ogni ciclo di vita, mapping fonte→azione→effetto→saldo (§3.12-bis) (P0, M8.9)
 
 ## Fuori PoC (P2, solo predisposizione)
@@ -426,6 +426,7 @@ Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della 
 
 | Data | Fetta | Esito | Commit | Domande aperte create | Note per la prossima sessione |
 |---|---|---|---|---|---|
+| 2026-09-26 | Stato cumulativo M8 (ADR-047) | ✅ solo documentazione; stato ricavato dalle PR unite su `main` | (questa PR) | — | Spuntate M8.0 (#32, #33), M8.1 (#52), M8.8 (#76), F2-DIST-01, F2-IAM-01/02, F2-API-01, F2-GOV-02; parti di M8.2, M8.4, M8.9, M8.10, M8.11 con i numeri delle PR unite. Da ADR-047 le fette non toccano più questa pagina. |
 | 2026-09-26 | M8.0h · campaign, attesa dello snapshot | ✅ `./mvnw -pl services/campaign-service verify` verde (4251 test); `TestbookPltFreeProfileIT` e `TestbookE2eJourneysIT` verdi in locale | PR #73 | — (Q-169 aggiornata) | Corregge TB-PLT-FRP-003 intermittente su main dopo #50: l'azione del ponte `member.registered` precedeva lo snapshot al ribilanciamento e il bonus di benvenuto andava perso. Il consumer delle azioni rilegge lo snapshot dopo 0,5/1/2 s, poi `NO_MEMBER` (campaign §5). |
 | 2026-09-26 | Decisioni conservative · Q-215 · TB-E2E · TB-INS · accettazione M2 | ✅ `./mvnw verify` verde su tutto il reattore (testbook TB-WAL/ENG/CMP/ING/RWD/GAM/GOV/E2E/INS, `HubScenariosIT`, `HubReplayIdempotencyIT`, `HubConcurrencyIT`, `WalletPropTestIT`), `pnpm lint typecheck test build` verdi (1055 test), `check-seed` 31, `check-contracts` | integ4 | Q-311…Q-331 | Decisione di Giuseppe: scelta conservativa su tutte le 47 domande non conservative (docs/15 DECISA) e cast tipizzato comune per le condizioni (Q-215). Corretto il reset della demo (indice membri di ingestion). **Accettazione M2 spuntata.** Da fare: TB-PLT, ridistribuzione della demo e smoke online. |
 | 2026-09-26 | TB-PLT · testbook e divergenze | ✅ `./mvnw verify` verde su main integrato (11 moduli, 0 rossi; i 3 rossi "preesistenti" del ramo dell'agente erano già corretti su main); TB-PLT 563/563 con HLR-008 che registra il 404 attuale (`SPEC-GAP: Q-341`, springdoc da approvare); `check-seed` e `check-contracts` verdi (64 esempi); `pnpm lint typecheck test` verdi (1055) | (questo commit) | Q-332…Q-342 | Testbook `docs/testbook/TB-PLT-piattaforma.md` (37 regole, 172 rami, 563 righe). 21 cause di divergenza corrette (docs/04 §5, docs/05 §9, docs/06 §2, §4, §5, §8, §10, docs/10 §1.2, docs/11 §6, §8, §11, ADR-004, BO-30): 503 col database giù, errori di Spring e titoli italiani, MDC, classificazione DLQ e `lh-attempts`, SASL_SSL con CA, cache della salute Kafka, `@eom`, variabili d'ambiente e readiness, `lh_outbox_pending`, pulizia di `processed_event`, `PageParams` (400 per `size`/`page` non validi), reset completo/ordinato/serializzato e `GET /v1/demo/info`, limite 60/min per IP, 12 schemi di contratto, 2 partizioni nell'hub, profilo free e `@Lazy(false)`. Web: l'editor BO-04 carica i membri di uno statico a pagine da 100 (il massimo ora è 100 anche lì). Resta Q-341 (springdoc: dipendenza nuova, decide Giuseppe). |

@@ -9,11 +9,56 @@ Sola lettura rispetto al dominio: non produce fatti. Nel target è sostituito da
 ## 2. Modello dati
 | Tabella | Colonne principali |
 |---|---|
-| `event_store` | `event_id` PK, `topic`, `family` (`ACTION, EFFECT, FACT, AUDIT, DLQ`), `type`, `short_type`, `source`, `member_id`, `correlation_id`, `causation_id`, `hop`, `actor`, `event_time`, `received_at`, `partition`, `offset`, `payload jsonb` · indici (`correlation_id`), (`member_id`,`event_time desc`), (`topic`,`received_at desc`) |
+| `event_store` | `event_id` PK, `topic`, `family` (`ACTION, EFFECT, FACT, AUDIT, DLQ`), `type`, `short_type`, `source`, `member_id`, `correlation_id`, `causation_id`, `hop`, `actor`, `error_code` (solo eventi del topic DLQ), `event_time`, `received_at`, `kafka_partition`, `kafka_offset`, `payload jsonb` · indici (`correlation_id`), (`member_id`,`event_time desc`), (`topic`,`received_at desc`) |
 | `metric_daily` | (`day`,`metric`,`dimension`,`dim_value`) PK, `value numeric`, `synthetic bool` |
 | `audit_entry` | `id`, `event_id` UQ, `at`, `actor_role`, `actor_name`, `service`, `entity_type`, `entity_id`, `action`, `summary`, `before jsonb`, `after jsonb`, `correlation_id` |
-| `dlq_entry` | `id`, `event_id`, `original_topic`, `original_type`, `consumer`, `error_code`, `error_message`, `retryable`, `attempts`, `payload jsonb`, `first_seen_at`, `status` (`OPEN, REPROCESSED, DISCARDED`), `resolved_by`, `resolved_at` |
-| `topic_stat` | `topic` PK, `last_event_at`, `count_1h`, `count_24h`, `last_offset_by_partition jsonb` |
+| `dlq_entry` | `id`, `event_id`, `original_topic`, `original_type`, `consumer`, `error_code`, `error_message`, `retryable`, `attempts`, `payload jsonb`, `first_seen_at`, `status` (`OPEN, REPROCESSED, DISCARDED`), `resolved_by`, `resolved_at`; in più `original_family`, `error_class`, `error_stack`, `member_id`, `correlation_id`, `dlq_partition`, `dlq_offset`, `resolution_note` · UQ parziale (`event_id`,`consumer`) sulle voci `OPEN` |
+| `topic_stat` | `topic` PK, `last_event_at`, `count_total`, `last_offset_by_partition jsonb`, `last_lag_ms`, `last_received_at` (V5). I volumi a 1 h e 24 h non sono colonne: si contano da `event_store` sull'istante d'arrivo |
+| `service_stat` | `service` PK (dal `source` del fatto), `last_fact_at`, `last_fact_type`, `last_event_id`, `facts_total` (V5, stato della pipeline per servizio) |
+
+Tracciato delle tabelle (docs/18 §3.12-bis, verificato sulle migrazioni `V1`–`V5`). insight non ha vincoli `FOREIGN KEY`: le tabelle sono registri e aggregati legati per `event_id`, topic o servizio (linee tratteggiate). `metric_daily` è un aggregato giornaliero senza relazioni.
+
+```mermaid
+erDiagram
+  accTitle: Tabelle dello schema insight
+  accDescr: L'event store conserva gli eventi dei cinque topic; le statistiche per topic e per servizio ne riassumono l'ultimo arrivo; audit e DLQ hanno una voce per evento; le metriche giornaliere sono aggregati indipendenti.
+  event_store {
+    text event_id PK
+    text topic
+    text family
+    text member_id
+    text correlation_id
+  }
+  topic_stat {
+    text topic PK
+  }
+  service_stat {
+    text service PK
+    text last_event_id "rif. event_store.event_id"
+  }
+  audit_entry {
+    text id PK
+    text event_id UK "evento lh.audit.v1"
+    text entity_type
+    text entity_id
+  }
+  dlq_entry {
+    text id PK
+    text event_id "UQ con consumer se OPEN"
+    text consumer
+    text status
+  }
+  metric_daily {
+    date day PK
+    text metric PK
+    text dimension PK
+    text dim_value PK
+  }
+  topic_stat ||..o{ event_store : "per topic"
+  service_stat |o..o| event_store : "ultimo fatto"
+  event_store |o..o| audit_entry : "stesso event_id"
+  event_store |o..o{ dlq_entry : "evento fallito"
+```
 
 Metriche (`metric`): `actions` (dim `source`, `type`), `points_earned`/`points_spent`/`points_expired` (dim `currency`), `points_by_campaign` (dim `campaign`), `members_new`, `members_active`, `redemptions` (dim `status`, `reward`), `plays`, `wins`, `tier_changes` (dim `direction`), `messages`, `dlq`.
 
@@ -42,12 +87,44 @@ Nota: `liabilityPts` non è calcolabile qui con esattezza: la dashboard la legge
 | Consuma | tutti e 5 | tutto, gruppo `lh-insight` |
 | Produce | — | **nessun evento su Kafka**. *Riprocessa* DLQ di un'azione = chiamata HTTP a `ingestion POST /v1/events` (ADR-003 resta valida: ingestion è l'unico produttore di azioni; è l'eccezione 1 di ADR-002) |
 
+insight è solo consumatore: legge i cinque topic con il gruppo `lh-insight` e non pubblica su Kafka. L'unica uscita è il *Riprocessa* di un'azione in DLQ, una chiamata HTTP a ingestion su comando umano.
+
+```mermaid
+flowchart LR
+  accTitle: Consumi e produzioni di insight-service
+  accDescr: insight consuma tutti e cinque i topic, azioni, effetti, fatti, audit e DLQ, e non produce eventi; su comando umano riprocessa un'azione in DLQ chiamando ingestion via HTTP.
+  TA(["lh.actions.v1"]) --> INS["insight-service"]
+  TE(["lh.effects.v1"]) --> INS
+  TF(["lh.facts.v1"]) --> INS
+  TU(["lh.audit.v1"]) --> INS
+  TD(["lh.dlq.v1"]) --> INS
+  INS -.->|"Riprocessa: POST /v1/events, solo azioni"| ING["ingestion-service"]
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef topic fill:#FEF3C7,stroke:#D97706,color:#78350F
+  class INS,ING svc
+  class TA,TE,TF,TU,TD topic
+```
+
 ## 5. Regole
 - **Ingest**: un consumer per topic, batch ≤ 200, `INSERT … ON CONFLICT (event_id) DO NOTHING`; poi aggiornamento `metric_daily` (`UPSERT` con incremento) e `topic_stat`; infine pubblicazione sul bus SSE in memoria (`Sinks.many().multicast()` o equivalente senza Reactor: lista di `SseEmitter` con coda limitata a 500 per client; client lento → disconnesso).
 - **Tracciato**: albero per `causation_id`; `status = COMPLETE` se nessun nuovo evento da 5 s e nessuna voce DLQ; `FAILED` se esiste DLQ; `summary` generato per tipo (tabella in codice, es. `wallet.points.earned` → "+162 PTS · Acquisto").
 - **Retention** (RNF-07): `event_store` 14 giorni o 200 000 righe (il minore); payload troncato a 8 KB; `audit_entry` 180 giorni; `metric_daily` illimitato. Job orario.
 - **Storico sintetico** (F-INS-04): al seed genera 90 giorni di `metric_daily` con `synthetic=true` — curva con stagionalità settimanale (+35 % sab/dom per `points_earned`), rumore ±12 %, trend +0,4 %/giorno, picco al giorno −30 (campagna estiva). Generatore con seme fisso. I dati reali del giorno si sommano a quelli sintetici; BO-01 marca il periodo sintetico con nota.
 - **DLQ riprocessa**: azione → re-invio a `ingestion POST /v1/events` con stesso `id` (unica chiamata HTTP tra servizi ammessa, *solo su comando umano*, ADR-002 eccezione 1); effetti/fatti → non riprocessabili da qui (`409 NOT_REPROCESSABLE`), solo `discard` con nota.
+
+Ciclo di vita di una voce DLQ (`dlq_entry.status`): un record aperto per coppia evento e consumer; chiuderlo è un'azione umana ADMIN. Un nuovo fallimento dello stesso evento dopo la chiusura apre una voce nuova.
+
+```mermaid
+stateDiagram-v2
+  accTitle: Ciclo di vita di una voce DLQ
+  accDescr: Una voce nasce aperta quando un record arriva in DLQ; un'azione si può riprocessare re-inviandola a ingestion, mentre effetti e fatti si possono solo scartare con una nota; entrambe le chiusure sono definitive.
+  [*] --> OPEN: record su lh.dlq.v1
+  OPEN --> REPROCESSED: Riprocessa, solo azioni, re-invio a ingestion
+  OPEN --> DISCARDED: Scarta con nota
+  REPROCESSED --> [*]
+  DISCARDED --> [*]
+```
+
 - **Avvio a freddo**: al risveglio recupera l'arretrato dai topic (`auto.offset.reset=earliest`, retention Kafka 3 giorni); nessun dato perso entro quella finestra.
 
 ## 6. Seed

@@ -1,11 +1,14 @@
 version: 2
+# ADR-047: poche PR di dipendenze. Una sola PR aperta per ecosistema: minor e patch raggruppati in un'unica PR,
+# le major arrivano una alla volta (valutate a parte). Le azioni di GitHub si controllano una volta al mese.
 updates:
   - package-ecosystem: "maven"
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 1
     groups:
-      # Spring Boot e i moduli Spring si aggiornano insieme (stessa BOM).
+      # Spring Boot e i moduli Spring si aggiornano insieme (stessa BOM), anche nelle major.
       spring:
         patterns:
           - "*spring*"
@@ -14,11 +17,14 @@ updates:
         patterns:
           - "org.apache.maven.plugins:maven-surefire-plugin"
           - "org.apache.maven.plugins:maven-failsafe-plugin"
+      maven-minor-patch:
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "npm"
     directory: "/web"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 1
     groups:
       # react e react-dom devono avere la stessa versione, altrimenti le suite di componenti falliscono.
       react:
@@ -27,6 +33,8 @@ updates:
           - "react-dom"
           - "@types/react"
           - "@types/react-dom"
+      web-minor-patch:
+        update-types: ["minor", "patch"]
     ignore:
       # I tipi di Node seguono il runtime usato in CI e nel deploy (Node 22): niente major finché non cambia.
       - dependency-name: "@types/node"
@@ -35,8 +43,9 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
+    open-pull-requests-limit: 1
     groups:
-      docker:
+      actions:
         patterns:
-          - "docker/*"
+          - "*"
