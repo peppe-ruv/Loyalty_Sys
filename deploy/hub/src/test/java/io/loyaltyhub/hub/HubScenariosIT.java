@@ -572,7 +572,7 @@ class HubScenariosIT {
         await("SCN-WEEKEND-BURST: 12 campaign.evaluated nell'event store", EFFECT_TIMEOUT_MS, () -> {
             evaluated.clear();
             for (Step s : run.steps) {
-                for (JsonNode n : get("/v1/traces/{id}", s.correlationId()).path("nodes")) {
+                for (JsonNode n : getIfPresent("/v1/traces/{id}", s.correlationId()).path("nodes")) {
                     if ("FACT".equals(n.path("family").asString())
                             && "campaign.evaluated".equals(n.path("shortType").asString())
                             && s.eventId().equals(n.path("parentEventId").asString())) {
@@ -649,7 +649,7 @@ class HubScenariosIT {
         assertThat(entry[0].path("family").asString()).isEqualTo("ACTION");
         assertThat(entry[0].path("reprocessable").asBoolean()).isTrue();
         await("SCN-POISON: tracciato FAILED", EFFECT_TIMEOUT_MS,
-                () -> "FAILED".equals(get("/v1/traces/{id}", login.correlationId()).path("status").asString()));
+                () -> "FAILED".equals(getIfPresent("/v1/traces/{id}", login.correlationId()).path("status").asString()));
         run.effects.add("DLQ lh-campaign DEMO_POISON, tracciato FAILED");
     }
 
@@ -1040,6 +1040,15 @@ class HubScenariosIT {
 
     private JsonNode get(String uri, Object... vars) {
         return client().get().uri(uri, vars).retrieve().body(JsonNode.class);
+    }
+
+    /**
+     * GET per le attese: un 404 (tracciato non ancora nell'event store) vale come nodo vuoto, così l'attesa riprova
+     * invece di fallire al primo giro.
+     */
+    private JsonNode getIfPresent(String uri, Object... vars) {
+        return client().get().uri(uri, vars).exchange((req, res) -> res.getStatusCode().value() == 404
+                ? mapper.createObjectNode() : mapper.readTree(res.getBody()));
     }
 
     private int status(String uri, Object... vars) {
