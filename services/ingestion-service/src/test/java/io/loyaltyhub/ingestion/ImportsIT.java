@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -190,14 +191,25 @@ class ImportsIT extends ImportsItSupport {
                 .header("Accept", "application/json")
                 .exchange((req, res) -> {
                     assertThat(res.getStatusCode().value()).isEqualTo(200);
-                    assertThat(res.getHeaders().getContentType().toString()).startsWith("text/csv");
-                    assertThat(res.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION)).startsWith("attachment;");
+                    assertThat(res.getHeaders().getContentType()).isEqualTo(MediaType.parseMediaType("text/csv;charset=UTF-8"));
+                    assertThat(res.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+                            .isEqualTo("attachment; filename=\"import-" + id + "-esiti.csv\"");
+                    assertThat(res.getHeaders().getFirst("X-Content-Type-Options")).isEqualTo("nosniff");
                     return new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8);
                 });
         assertThat(report).startsWith("riga,linea,id_evento,esito,codice,dettaglio,esito_attuale\n");
         assertThat(report).contains("\n5,6,'=1+2,INVALID,,data.amount: atteso un numero,\n");
         assertThat(report).doesNotContain("CRM-IMP-NUOVO");
         assertThat(report.lines()).hasSize(6);
+
+        // Anche chi chiede HTML riceve il CSV come allegato: il tipo non segue l'Accept.
+        RestClient.create("http://localhost:" + port).get().uri("/v1/imports/" + id + "/report.csv")
+                .accept(MediaType.TEXT_HTML)
+                .exchange((req, res) -> {
+                    assertThat(res.getStatusCode().value()).isEqualTo(200);
+                    assertThat(res.getHeaders().getContentType()).isEqualTo(MediaType.parseMediaType("text/csv;charset=UTF-8"));
+                    return null;
+                });
     }
 
     @Test
@@ -298,8 +310,8 @@ class ImportsIT extends ImportsItSupport {
                 {"id":"resume-2","source":"urn:loyaltyhub:source:app","type":"app.login.daily","subject":"member:MBR-000002","time":"%s","data":{"platform":"IOS"}}
                 """.formatted(now, now);
         // Un lavoratore si è fermato dopo aver confermato la riga 1 (conteggi e punto di ripresa già scritti).
-        insertRunning("01JRESUMEIMPORT00000000001", content, 1, 1, Instant.now().minus(Duration.ofHours(1)));
-        JsonNode done = awaitFinished("01JRESUMEIMPORT00000000001");
+        insertRunning("01JR0000000000000000000001", content, 1, 1, Instant.now().minus(Duration.ofHours(1)));
+        JsonNode done = awaitFinished("01JR0000000000000000000001");
         assertThat(done.path("job").path("status").asString()).isEqualTo("DONE");
         assertThat(done.path("job").path("attempts").asInt()).isEqualTo(2);
         assertThat(done.path("job").path("counts").path("accepted").asInt()).isEqualTo(2);
@@ -307,8 +319,8 @@ class ImportsIT extends ImportsItSupport {
         assertThat(inboundCount("resume-2")).isEqualTo(1);
 
         // Oltre i tentativi ammessi il lavoro fallisce invece di ripartire all'infinito.
-        insertRunning("01JRESUMEIMPORT00000000002", content, 0, 3, Instant.now().minus(Duration.ofHours(1)));
-        JsonNode failed = awaitFinished("01JRESUMEIMPORT00000000002");
+        insertRunning("01JR0000000000000000000002", content, 0, 3, Instant.now().minus(Duration.ofHours(1)));
+        JsonNode failed = awaitFinished("01JR0000000000000000000002");
         assertThat(failed.path("job").path("status").asString()).isEqualTo("FAILED");
         assertThat(failed.path("job").path("errorDetail").asString()).contains("abbandonato");
     }

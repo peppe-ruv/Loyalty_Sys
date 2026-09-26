@@ -11,6 +11,7 @@ import io.loyaltyhub.ingestion.domain.ImportRowResult;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -42,6 +43,9 @@ public class ImportsController {
 
     /** Header facoltativo: stessa chiave → stesso lavoro, nessun doppio import (Q-353, obbligatorio da M8.10). */
     public static final String IDEMPOTENCY_HEADER = "Idempotency-Key";
+
+    private static final MediaType REPORT_TYPE = new MediaType("text", "csv", StandardCharsets.UTF_8);
+    private static final String NOSNIFF_HEADER = "X-Content-Type-Options";
 
     private final ImportService imports;
     private final ImportWorker worker;
@@ -100,7 +104,7 @@ public class ImportsController {
     /** Dettaglio: il lavoro e le righe {@code UNMATCHED} ancora da abbinare nel monitor ingressi. */
     @GetMapping("/{id}")
     public ImportService.ImportDetail get(@PathVariable String id) {
-        return imports.get(id);
+        return imports.get(importId(id));
     }
 
     /** Rapporto per riga (solo le righe non accettate), in ordine di riga; filtro {@code outcome}. */
@@ -109,20 +113,28 @@ public class ImportsController {
                                               @RequestParam(required = false) String outcome,
                                               @RequestParam(defaultValue = "0") int page,
                                               @RequestParam(defaultValue = "50") int size) {
-        return imports.rows(id, outcome, page, size);
+        return imports.rows(importId(id), outcome, page, size);
     }
 
-    /** Rapporto esiti scaricabile in CSV (celle neutralizzate come formule, nessun dato personale). */
+    /**
+     * Rapporto esiti scaricabile in CSV: ogni cella è neutralizzata come formula e quotata ({@code ReportCsv}), nessun
+     * dato personale. Il corpo è {@code byte[]} con tipo esplicito {@code text/csv;charset=UTF-8}: il convertitore dei
+     * byte non negozia il tipo con l'{@code Accept} della richiesta (una {@code String} passerebbe dal convertitore
+     * testuale, che accetta ogni {@code text/*}), quindi la risposta non può diventare {@code text/html}. Il nome del
+     * file viene dall'id già validato, attraverso {@link ContentDisposition}; {@code nosniff} impedisce al browser di
+     * reinterpretare il tipo.
+     */
     @GetMapping("/{id}/report.csv")
     @ApiResponse(responseCode = "200", description = "CSV con intestazione riga, linea, id_evento, esito, codice, "
             + "dettaglio, esito_attuale", content = @Content(mediaType = "text/csv", schema = @Schema(type = "string")))
-    public ResponseEntity<String> report(@PathVariable String id) {
-        String csv = imports.reportCsv(id);
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"import-" + id + "-esiti.csv\"")
-                .header("X-Content-Type-Options", "nosniff")
-                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
-                .body(csv);
+    public ResponseEntity<byte[]> report(@PathVariable String id) {
+        String jobId = importId(id);
+        byte[] csv = imports.reportCsv(jobId).getBytes(StandardCharsets.UTF_8);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(REPORT_TYPE);
+        headers.setContentDisposition(ContentDisposition.attachment().filename("import-" + jobId + "-esiti.csv").build());
+        headers.set(NOSNIFF_HEADER, "nosniff");
+        return ResponseEntity.ok().headers(headers).body(csv);
     }
 
     /**
@@ -133,6 +145,18 @@ public class ImportsController {
     @RequiresRole({Role.ADMIN, Role.CARE})
     public ImportService.RetryResult retryUnmatched(@PathVariable String id,
                                                     @RequestParam(defaultValue = "0") int afterRow) {
-        return imports.retryUnmatched(id, afterRow);
+        return imports.retryUnmatched(importId(id), afterRow);
+    }
+
+    /**
+     * Id di percorso validato al confine: solo un ULID come quelli generati per {@code import_job.id} prosegue verso il
+     * servizio e l'intestazione del rapporto; qualunque altra stringa è un {@code 404} RFC 9457 con un messaggio fisso,
+     * che non riporta il valore ricevuto.
+     */
+    private static String importId(String raw) {
+        if (!ImportJob.isWellFormedId(raw)) {
+            throw LhException.notFound("Import non trovato");
+        }
+        return raw;
     }
 }

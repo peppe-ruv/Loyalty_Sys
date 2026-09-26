@@ -1,6 +1,7 @@
 package io.loyaltyhub.ingestion.domain;
 
 import java.time.Instant;
+import java.util.regex.Pattern;
 
 /**
  * Lavoro di import file (F2-ING-02, BO-32; tabella {@code import_job}). Ciclo di vita:
@@ -37,4 +38,16 @@ public record ImportJob(
     public static final String KIND_EVENTS = "EVENTS";
     /** Attributi dei membri (docs/18 §3.16 punto 2): arrivano con M13.5, non in M8.7 (Q-370). */
     public static final String KIND_ATTRIBUTES = "ATTRIBUTES";
+
+    /**
+     * Forma dell'id di un lavoro: un ULID come lo genera {@code Ulid.next} (26 caratteri Crockford Base32 maiuscoli, il
+     * primo al più {@code 7} perché il tempo è di 48 bit). Serve al controller per respingere un id di percorso prima di
+     * usarlo, anche in un'intestazione.
+     */
+    private static final Pattern ID = Pattern.compile("[0-7][0-9A-HJKMNP-TV-Z]{25}");
+
+    /** {@code id} ha la forma di un id di lavoro generato da questo servizio? */
+    public static boolean isWellFormedId(String id) {
+        return id != null && ID.matcher(id).matches();
+    }
 }

@@ -14,6 +14,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
@@ -24,6 +26,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import tools.jackson.databind.JsonNode;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -290,7 +294,7 @@ class ImportsRobustnessIT extends ImportsItSupport {
             ndjson.append(login(prefix + "-" + i, "member:MBR-000002", now, "IOS"))
                     .append('\n');
         }
-        String id = "01JRACE" + prefix.toUpperCase().replace("-", "") + "0000000000000";
+        String id = "01JRACE" + prefix.toUpperCase().replace("-", "") + "00000000000000"; // ULID ben formato (26)
         jdbc.sql("""
                         INSERT INTO import_job (id, kind, format, file_name, size_bytes, sha256, default_source, status,
                           rows_total, content, created_by, created_at)
@@ -369,15 +373,63 @@ class ImportsRobustnessIT extends ImportsItSupport {
     @Test
     void cleanupDeletesOnlyJobsFinishedBeyondRetention() {
         Instant now = Instant.now();
-        insertFinished("01JCLEANOLD0000000000000001", now.minus(Duration.ofDays(8)));
-        insertFinished("01JCLEANNEW0000000000000001", now.minus(Duration.ofDays(6)));
-        jdbc.sql("INSERT INTO import_row (import_id, row_number, outcome) VALUES ('01JCLEANOLD0000000000000001', 1, 'INVALID')")
+        insertFinished("01JCQ000000000000000000A01", now.minus(Duration.ofDays(8)));
+        insertFinished("01JCQ000000000000000000B01", now.minus(Duration.ofDays(6)));
+        jdbc.sql("INSERT INTO import_row (import_id, row_number, outcome) VALUES ('01JCQ000000000000000000A01', 1, 'INVALID')")
                 .update();
         worker.cleanup();
-        assertThat(get("/v1/imports/01JCLEANOLD0000000000000001", 404).path("code").asString()).isEqualTo("NOT_FOUND");
-        assertThat(jdbc.sql("SELECT count(*) FROM import_row WHERE import_id = '01JCLEANOLD0000000000000001'")
+        assertThat(get("/v1/imports/01JCQ000000000000000000A01", 404).path("code").asString()).isEqualTo("NOT_FOUND");
+        assertThat(jdbc.sql("SELECT count(*) FROM import_row WHERE import_id = '01JCQ000000000000000000A01'")
                 .query(Long.class).single()).isZero();
-        assertThat(get("/v1/imports/01JCLEANNEW0000000000000001").path("job").path("status").asString()).isEqualTo("DONE");
+        assertThat(get("/v1/imports/01JCQ000000000000000000B01").path("job").path("status").asString()).isEqualTo("DONE");
+    }
+
+    // ================= id di percorso =================
+
+    @Test
+    void pathIdsThatAreNotJobIdsAre404WithoutReflection() {
+        List<String> hostile = List.of("<script>alert(1)</script>", "a\"b'c", "x\r\nSet-Cookie: lh=1",
+                "../../etc/passwd", "..", "01jcq000000000000000000a01", "01JCQ000000000000000000A0", "8ZZZZZZZZZZZZZZZZZZZZZZZZZ");
+        for (String raw : hostile) {
+            for (String suffix : List.of("", "/rows", "/report.csv", "/retry-unmatched")) {
+                String method = suffix.equals("/retry-unmatched") ? "POST" : "GET";
+                URI uri = URI.create("http://localhost:" + port + "/v1/imports/"
+                        + URLEncoder.encode(raw, StandardCharsets.UTF_8).replace("+", "%20") + suffix);
+                client().method(HttpMethod.valueOf(method)).uri(uri).header("X-LH-Actor", ADMIN)
+                        .accept(MediaType.TEXT_HTML, MediaType.ALL)
+                        .exchange((req, res) -> {
+                            String body = new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8);
+                            int status = res.getStatusCode().value();
+                            MediaType type = res.getHeaders().getContentType();
+                            String where = method + " " + uri + " → " + status + " " + type;
+                            // 404 dal controller; 400 dal contenitore, che rifiuta prima dell'applicazione una barra
+                            // codificata (%2F) nel percorso.
+                            assertThat(status).as(where).isIn(400, 404);
+                            assertThat(res.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION)).as(where).isNull();
+                            assertThat(res.getHeaders().getFirst("Set-Cookie")).as(where).isNull();
+                            // Il valore decodificato non torna mai: al più l'instance RFC 9457 riporta il percorso
+                            // come ricevuto, ancora codificato.
+                            assertThat(body).as(where).doesNotContain("<script>", "\r", "\n", "Set-Cookie:", "etc/passwd",
+                                    "a\"b");
+                            if (status == 404) {
+                                assertThat(type).as(where).isNotNull();
+                                assertThat(type.isCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)).as(where).isTrue();
+                                JsonNode problem = mapper.readTree(body);
+                                assertThat(problem.path("code").asString()).as(where).isEqualTo("NOT_FOUND");
+                                assertThat(problem.path("detail").asString()).as(where).isEqualTo("Import non trovato");
+                            }
+                            return null;
+                        });
+            }
+        }
+        // Un id ben formato ma inesistente: 404 anche per il rapporto, senza intestazioni di file.
+        client().get().uri("/v1/imports/01JCQ000000000000000000Z99/report.csv")
+                .exchange((req, res) -> {
+                    assertThat(res.getStatusCode().value()).isEqualTo(404);
+                    assertThat(res.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION)).isNull();
+                    assertThat(res.getHeaders().getContentType().toString()).startsWith("application/problem+json");
+                    return null;
+                });
     }
 
     // ================= limiti del batch =================
