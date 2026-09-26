@@ -169,6 +169,8 @@ Deploy demo = `demo,free`. Sviluppo = `demo,local`. `server.port=${PORT:<porta l
 
 ## 7. Approvazioni (uso della macchina a stati comune)
 
+Il diagramma di riferimento della macchina è in `docs/03 §3.6` e vale per campagne, premi, concorsi e contenuti: le schede servizio lo richiamano invece di ripeterlo.
+
 Ogni servizio proprietario di oggetti governati espone:
 - `POST /v1/<risorsa>/{id}/transitions` → applica la transizione, scrive `approval_history`, audit e fatto `*.status.changed`;
 - `GET /v1/approvals?status=IN_REVIEW` → elementi in attesa nel formato comune `{entityType, id, code, name, submittedBy, submittedAt, requiredRole, summary}`.

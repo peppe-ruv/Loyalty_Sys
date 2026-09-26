@@ -56,6 +56,9 @@ fi
 if [ "$ROLE" = "hub" ]; then
     PROFILE="${LH_PROFILE:-demo}"
     export SPRING_PROFILES_ACTIVE="${PROFILE}"
+    # Porta dell'hub fissata a 8080 (EXPOSE, healthcheck.sh, image.yml): hub.yml usa ${PORT:8080} e una PORT
+    # ereditata (piattaforma o immagine) lo spostava altrove.
+    export PORT="8080"
     exec "$JAVA_BIN" -jar /opt/lh/hub/hub.jar
 elif [ "$ROLE" = "web" ]; then
     export NODE_ENV="production"

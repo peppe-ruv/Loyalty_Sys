@@ -56,6 +56,25 @@ flowchart TB
 
 Invarianti: solo i membri `ACTIVE` accumulano, spendono, giocano. Un membro `BLOCKED` conserva i saldi ma ogni azione è `REJECTED` in ingresso. L'anonimizzazione sostituisce nome → "Membro anonimo", e-mail/telefono → `null`, conserva `id`, movimenti e statistiche.
 
+Ciclo di vita del membro (`member.status`, member-service): `ACTIVE`, `INACTIVE` e `BLOCKED` si scambiano con `POST /v1/members/{id}/status` (ogni cambio emette `member.status.changed`); l'anonimizzazione è possibile da ogni stato ed è irreversibile.
+
+```mermaid
+stateDiagram-v2
+  accTitle: Ciclo di vita del membro
+  accDescr: Un membro nasce attivo; l'operatore lo porta tra attivo, inattivo e bloccato in qualunque direzione; da ognuno di questi stati l'anonimizzazione lo porta in modo irreversibile ad anonimizzato.
+  [*] --> ACTIVE: registrazione o import
+  ACTIVE --> INACTIVE: uscito
+  ACTIVE --> BLOCKED: sospeso
+  INACTIVE --> ACTIVE: riattivato
+  BLOCKED --> ACTIVE: sbloccato
+  INACTIVE --> BLOCKED: sospeso
+  BLOCKED --> INACTIVE: uscito
+  ACTIVE --> ANONYMIZED: anonimizzazione
+  INACTIVE --> ANONYMIZED: anonimizzazione
+  BLOCKED --> ANONYMIZED: anonimizzazione
+  ANONYMIZED --> [*]
+```
+
 ## 3. Azioni, campagne ed effetti
 
 ### 3.1 Azione
@@ -164,6 +183,22 @@ Policy alternative per `PTS`: `END_OF_EDITION_PLUS_GRACE` (scadono a `edition.re
 - **Moltiplicatore di tier**: se l'effetto ha `tierMultiplierApplies` e valuta `PTS`, importo finale = `floor(base × tier.multiplier)`; il movimento conserva `metadata = {baseAmount, tierCode, tierMultiplier, campaignMultiplier}`.
 - **Rettifica manuale**: `reason` obbligatorio tra `GOODWILL, CORRECTION, FRAUD, MIGRATION, OTHER` + nota ≥ 10 caratteri. Un addebito non può portare il saldo sotto zero.
 
+Ciclo di vita del lotto (`points_lot.status`, wallet-service): un rimborso non riapre i lotti consumati, ne crea uno nuovo.
+
+```mermaid
+stateDiagram-v2
+  accTitle: Ciclo di vita di un lotto punti
+  accDescr: Un lotto nasce in attesa se l'effetto prevede giorni di attesa, altrimenti attivo; il job di rilascio lo rende attivo; le spese FIFO e gli addebiti lo consumano fino a esaurirlo; il job di scadenza porta a scaduto un lotto attivo con residuo.
+  [*] --> PENDING: accredito con pendingDays maggiore di 0
+  [*] --> ACTIVE: accredito, rettifica a credito o rimborso
+  PENDING --> ACTIVE: job di rilascio, availableAt raggiunto
+  ACTIVE --> ACTIVE: spesa o addebito parziale
+  ACTIVE --> EXHAUSTED: remaining a 0
+  ACTIVE --> EXPIRED: job di scadenza, expiresAt raggiunto
+  EXHAUSTED --> [*]
+  EXPIRED --> [*]
+```
+
 ### 4.3 Tier
 | Tier | Rank | Soglia STS nell'edizione | Moltiplicatore PTS |
 |---|---|---|---|
@@ -187,8 +222,38 @@ Policy alternative per `PTS`: `END_OF_EDITION_PLUS_GRACE` (scadono a `edition.re
   La salita non avviene mai in chiusura (è già immediata durante l'anno).
 - **Progresso** mostrato al membro: STS mancanti al tier successivo; a `PLATINUM`: "livello massimo". Da ottobre in poi il portale mostra anche l'avviso di mantenimento ("ti mancano N punti status per mantenere GOLD").
 
+Discesa morbida alla chiusura dell'edizione, per ogni membro `ACTIVE`:
+
+```mermaid
+flowchart TB
+  accTitle: Chiusura dell'edizione con discesa morbida
+  accDescr: Alla chiusura si calcola il tier guadagnato con i punti status dell'edizione e il pavimento, un gradino sotto il tier attuale; il nuovo tier è il più alto dei due; se coincide con l'attuale il livello è mantenuto, altrimenti scende; i punti status ripartono da zero.
+  START["Membro ACTIVE, edizione che si chiude"] --> EARNED["earned: tier più alto con soglia al massimo pari a periodSts"]
+  START --> FLOOR["floor: rank attuale meno 1, minimo BASE"]
+  EARNED --> NEW["nuovo tier: il più alto tra earned e floor"]
+  FLOOR --> NEW
+  NEW -->|"uguale all'attuale"| RET["tier.retained"]
+  NEW -->|"più basso"| DOWN["tier.downgraded"]
+  RET --> RESET["periodSts a 0"]
+  DOWN --> RESET
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef topic fill:#FEF3C7,stroke:#D97706,color:#78350F
+  class START,EARNED,FLOOR,NEW,RESET svc
+  class RET,DOWN topic
+```
+
 ### 4.4 Edizione
 `{code: "2026", startDate, endDate, redemptionGraceUntil, status: PLANNED|ACTIVE|CLOSED}`. Una sola `ACTIVE`. Periodi contigui, senza sovrapposizioni.
+
+```mermaid
+stateDiagram-v2
+  accTitle: Ciclo di vita di un'edizione
+  accDescr: Un'edizione nasce pianificata, diventa attiva quando si chiude la precedente e viene chiusa dal job annuale o dal comando demo; ce n'è una sola attiva alla volta.
+  [*] --> PLANNED
+  PLANNED --> ACTIVE: chiusura della precedente, la PLANNED con inizio più vicino
+  ACTIVE --> CLOSED: chiusura edizione, job annuale o comando demo
+  CLOSED --> [*]
+```
 
 ## 5. Premi e richieste
 
@@ -210,6 +275,23 @@ stateDiagram-v2
   Validazioni alla richiesta (errore immediato, nessun evento): premio non visibile, esaurito, limite per membro raggiunto, membro non attivo. Il controllo del saldo è del wallet (saga). `REJECTED`/`CANCELLED` ripristinano lo stock.
 - **Coupon**: `AVAILABLE → ISSUED → USED` oppure `EXPIRED`/`VOID`. Codice = `prefisso-XXXX-XXXX` (`A-Z2-9`). Pool esaurito in fase di emissione → la richiesta resta `CONFIRMED` con flag `needsAttention`.
 
+Ciclo di vita del coupon (`coupon.status`, reward-service):
+
+```mermaid
+stateDiagram-v2
+  accTitle: Ciclo di vita di un coupon
+  accDescr: Un coupon nasce disponibile nel pool; viene emesso a un membro per una richiesta premio o per una campagna; emesso può essere usato, scadere o essere annullato; un codice disponibile può essere ritirato.
+  [*] --> AVAILABLE: generato nel pool
+  AVAILABLE --> ISSUED: emissione, richiesta premio o effetto coupon.issue
+  AVAILABLE --> VOID: ritiro di un codice mai emesso
+  ISSUED --> USED: uso
+  ISSUED --> EXPIRED: job giornaliero, scadenza superata
+  ISSUED --> VOID: annullo della richiesta o ritiro
+  USED --> [*]
+  EXPIRED --> [*]
+  VOID --> [*]
+```
+
 ## 6. Instant win
 
 - **Pre-generazione**: per ogni premio, `quantityTotal` istanti in `[startAt, endAt)`. Distribuzione `UNIFORM` (casuale uniforme) o `BUSINESS_HOURS` (solo 08–22 `Europe/Rome`). Generatore con **seme** salvato sul concorso (riproducibilità e verifica). Rigenerare è permesso solo in `DRAFT`/`IN_REVIEW`/`APPROVED`.
@@ -227,6 +309,20 @@ stateDiagram-v2
   Un membro può vincere più volte salvo `maxWinsPerMember` (default illimitato; il claim lo verifica prima).
 - **Consegna**: la vincita produce il fatto `contest.won`; il ponte lo trasforma nell'azione `instantwin.won {contestCode, prizeCode, prizeType, points?, rewardCode?}`; le campagne di sistema `CMP-IW-PRIZE-POINTS` / `CMP-IW-PRIZE-COUPON` consegnano. Premi `PHYSICAL`: consegna manuale tracciata sull'elenco vincitori.
 - **Fine concorso**: istanti `OPEN` residui → `VOID`; report premi non assegnati.
+
+Ciclo di vita di un istante vincente (`winning_instant.status`, gamification-service). Il concorso segue il ciclo comune di §3.6.
+
+```mermaid
+stateDiagram-v2
+  accTitle: Ciclo di vita di un istante vincente
+  accDescr: Gli istanti nascono aperti dalla pre-generazione o piantati; una giocata dopo l'istante lo reclama; alla fine del concorso gli istanti ancora aperti diventano nulli; rigenerare, ammesso solo prima della pubblicazione, cancella gli istanti e li ricrea.
+  [*] --> OPEN: pre-generazione con seme o istante piantato
+  OPEN --> CLAIMED: giocata con instantAt passato, claim SKIP LOCKED
+  OPEN --> VOID: fine concorso
+  OPEN --> [*]: rigenerazione, solo DRAFT, IN_REVIEW o APPROVED
+  CLAIMED --> [*]
+  VOID --> [*]
+```
 
 ## 7. Nota normativa (non implementata nel PoC)
 I concorsi a premio reali richiedono tipicamente regolamento depositato, garanzie sul montepremi, perizia sul software di assegnazione, verbali di assegnazione e infrastruttura sul territorio nazionale. Il modello (seme riproducibile, istanti immutabili dopo l'avvio, audit, ruolo `LEGAL`) è pensato per non ostacolare questi adempimenti.

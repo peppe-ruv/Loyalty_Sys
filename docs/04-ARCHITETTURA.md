@@ -127,6 +127,38 @@ sequenceDiagram
 ### 4.4 Giocata instant win
 Portale → `POST /v1/contests/{code}/play` (sincrono, esito immediato dal claim SQL) → `fact.contest.played` e, se vinta, `fact.contest.won` → ponte → `action.instantwin.won` → campagne di sistema → `effect.points.grant` o `effect.coupon.issue`.
 
+```mermaid
+sequenceDiagram
+  accTitle: Giocata instant win
+  accDescr: Il portale chiede una giocata a gamification, che in una transazione verifica concorso e crediti e tenta il claim del primo istante aperto già passato; risponde subito con l'esito; se vinta, il fatto contest.won passa dal ponte di ingestion e diventa un'azione che le campagne di sistema trasformano in punti o coupon.
+  participant P as Portale
+  participant GAM as gamification
+  participant K as Kafka
+  participant ING as ingestion
+  participant CMP as campaign
+  participant WAL as wallet
+  participant RWD as reward
+  P->>GAM: POST /v1/contests/{code}/play
+  GAM->>GAM: concorso LIVE, crediti, claim FOR UPDATE SKIP LOCKED
+  GAM->>K: fact.contest.played (+ fact.contest.won se vinta)
+  GAM-->>P: esito immediato WIN o LOSE
+  alt giocata vinta
+    K->>ING: fact.contest.won (ponte interno)
+    ING->>K: action.instantwin.won
+    K->>CMP: azione
+    CMP->>CMP: CMP-IW-PRIZE-POINTS o CMP-IW-PRIZE-COUPON
+    alt premio a punti
+      CMP->>K: effect.points.grant
+      K->>WAL: effetto: lotto e movimento
+    else premio coupon
+      CMP->>K: effect.coupon.issue
+      K->>RWD: effetto: coupon ISSUED
+    end
+  end
+```
+
+Stati del concorso: ciclo comune di docs/03 §3.6; stati degli istanti vincenti: docs/03 §6.
+
 ## 5. Pattern di affidabilità (implementati in `lh-common`)
 
 | Pattern | Regola |
@@ -141,6 +173,30 @@ Portale → `POST /v1/contests/{code}/play` (sincrono, esito immediato dal claim
 | **Snapshot locali** | tabelle `member_snapshot` alimentate dai fatti `member.*`, `tier.*`, `member.segment.*`; mai query cross-schema |
 
 Coerenza: **eventuale** tra servizi, **forte** dentro il servizio. La UI lo rende esplicito (stato "in elaborazione", `docs/07 §7`).
+
+Percorso di un messaggio che un consumer non riesce a elaborare, fino alla decisione umana in BO-27 (stati della voce in `docs/servizi/insight-service.md §5`):
+
+```mermaid
+flowchart LR
+  accTitle: Ritentativi e DLQ
+  accDescr: Un consumer riceve un evento; se l'elaborazione fallisce con un errore ritentabile riprova tre volte con attese crescenti; dopo l'ultimo tentativo, o subito per un errore non ritentabile, il record va su lh.dlq.v1 con gli header di diagnosi; insight ne apre una voce, che un amministratore riprocessa o scarta.
+  EV(["Evento da un topic"]) --> C["Consumer idempotente"]
+  C -->|"ok"| DONE["commit e ack"]
+  C -->|"errore ritentabile"| R["ritento a 1 s, 5 s, 15 s"]
+  R -->|"ok"| DONE
+  R -->|"esauriti"| DLQ(["lh.dlq.v1 con header lh-*"])
+  C -->|"errore non ritentabile"| DLQ
+  DLQ --> INS["insight: voce OPEN"]
+  INS -->|"Riprocessa, solo azioni"| ING["ingestion POST /v1/events"]
+  INS -->|"Scarta con nota"| DIS["voce DISCARDED"]
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef store fill:#F1F5F9,stroke:#475569,color:#0F172A
+  classDef topic fill:#FEF3C7,stroke:#D97706,color:#78350F
+  classDef human fill:#ECFDF5,stroke:#059669,color:#064E3B
+  class C,R,INS,ING svc
+  class DONE,DIS store
+  class EV,DLQ topic
+```
 
 ## 6. Stack
 

@@ -68,7 +68,9 @@ COPY --chown=lh:lh deploy/image/s6/web/run /opt/lh/s6/web/run
 USER lh
 WORKDIR /opt/lh
 
-ENV PORT=3000
+# Niente ENV PORT globale: l'hub legge server.port = ${PORT:8080} (deploy/hub hub.yml) e con PORT=3000
+# ereditata si metteva su 3000, lontano da healthcheck.sh e dallo smoke di image.yml (8080). Le porte le
+# fissano i lanciatori di ciascun ruolo: hub 8080 (entrypoint.sh, s6/hub/run), web 3000 (entrypoint.sh, s6/web/run).
 EXPOSE 8080 3000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \

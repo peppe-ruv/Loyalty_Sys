@@ -12,9 +12,59 @@ Non possiede saldi né tier (sono del wallet): li riflette.
 | `member` | `id` PK (`MBR-######`), `external_id` UQ, `first_name`, `last_name`, `nickname`, `email` UQ, `phone`, `birth_date`, `gender`, `city`, `status`, `channel` (`PORTAL, APP, STORE, IMPORT`), `registered_at`, `referral_code` UQ, `referred_by`, `referral_completed_at`, `consents jsonb` (`{marketing, profiling}`), `attributes jsonb`, `labels text[]`, `avatar_seed`, `profile_completed_at`, `version` |
 | `member_projection` | `member_id` PK, `tier_code`, `period_sts`, `balance_pts`, `pending_pts`, `lifetime_earned_pts`, `updated_at` |
 | `member_stats` | `member_id` PK, `last_activity_at`, `actions_total`, `actions_by_type jsonb` (`{type: {count30d, total, lastAt}}`), `purchases_count`, `purchases_amount_90d`, `purchases_amount_total` |
-| `segment` | `id`, `code` UQ, `name`, `description`, `type` (`STATIC`/`DYNAMIC`), `criteria jsonb`, `status` (`ACTIVE`/`ARCHIVED`), `member_count`, `refreshed_at` |
+| `segment` | `id`, `code` UQ, `name`, `description`, `type` (`STATIC`/`DYNAMIC`), `criteria jsonb`, `status` (`ACTIVE`/`ARCHIVED`), `member_count`, `refreshed_at`, `version` |
 | `segment_member` | (`segment_id`, `member_id`) PK, `entered_at` |
-| `attribute_definition` | `key` PK, `label`, `type` (`STRING, NUMBER, BOOLEAN, DATE`), `options text[]` |
+| `member_activity_day` | (`member_id`, `day`, `action_type`) PK, `count`, `purchase_amount`: contatori giornalieri per le finestre mobili dei criteri (`actions.<type>.count30d`, `purchases.amount90d`; SPEC-GAP Q-82, V2) |
+| `attribute_definition` | `key` PK, `label`, `type` (`STRING, NUMBER, BOOLEAN, DATE`), `options text[]`, `position` (ordine in BO-03 e nel costruttore di condizioni) |
+
+Tracciato delle tabelle (docs/18 §3.12-bis, verificato sulle migrazioni `V1`–`V3`). Linee continue: vincolo `FOREIGN KEY` nella migrazione; tratteggiate: riferimento logico (`member.referred_by` verso il membro che ha invitato, le chiavi di `member.attributes` verso `attribute_definition`). Le tabelle comuni di lh-common (docs/06 §1) esistono nello schema ma member non usa `approval_history`.
+
+```mermaid
+erDiagram
+  accTitle: Tabelle dello schema member
+  accDescr: Il membro ha una proiezione di saldi e tier, le statistiche di attività, i contatori giornalieri e le appartenenze ai segmenti; un membro può essere invitato da un altro; le definizioni degli attributi descrivono le chiavi di member.attributes.
+  member {
+    text id PK
+    text external_id UK
+    text email UK
+    text referral_code UK
+    text referred_by "rif. member.id"
+    text status
+    bigint version
+  }
+  member_projection {
+    text member_id PK, FK
+    text tier_code
+  }
+  member_stats {
+    text member_id PK, FK
+  }
+  member_activity_day {
+    text member_id PK, FK
+    date day PK
+    text action_type PK
+  }
+  segment {
+    text id PK
+    text code UK
+    text type
+    text status
+  }
+  segment_member {
+    text segment_id PK, FK
+    text member_id PK, FK
+  }
+  attribute_definition {
+    text key PK "chiave in member.attributes"
+  }
+  member ||--o| member_projection : "saldi e tier"
+  member ||--o| member_stats : "statistiche"
+  member ||--o{ member_activity_day : "attività per giorno"
+  member ||--o{ segment_member : "appartiene"
+  segment ||--o{ segment_member : "membri"
+  member |o..o{ member : "ha invitato"
+  attribute_definition ||..o{ member : "attributi"
+```
 
 ## 3. API
 ### Gestione
@@ -52,6 +102,22 @@ Non possiede saldi né tier (sono del wallet): li riflette.
 | Produce | `lh.audit.v1` | ogni scrittura da backoffice |
 | Consuma | `lh.actions.v1` | tutte → `member_stats`; verifica qualifica referral |
 | Consuma | `lh.facts.v1` | `tier.*`, `wallet.points.*` → `member_projection` |
+
+A sinistra i topic che member consuma, a destra quelli su cui pubblica (tramite outbox, docs/04 §5).
+
+```mermaid
+flowchart LR
+  accTitle: Consumi e produzioni di member-service
+  accDescr: member consuma tutte le azioni, per le statistiche e il referral, e i fatti di tier e punti per la proiezione; pubblica i fatti su membri, segmenti e referral e le voci di audit.
+  TA(["lh.actions.v1"]) -->|"tutte: statistiche, referral"| MBR["member-service"]
+  TFI(["lh.facts.v1"]) -->|"tier.*, wallet.points.*"| MBR
+  MBR -->|"member.*, member.segment.*, referral.completed"| TFO(["lh.facts.v1"])
+  MBR -->|"scritture da backoffice"| TU(["lh.audit.v1"])
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef topic fill:#FEF3C7,stroke:#D97706,color:#78350F
+  class MBR svc
+  class TA,TFI,TFO,TU topic
+```
 
 ## 5. Regole
 - `member.registered` e `member.updated` portano sempre lo **snapshot completo** (gli altri servizi sovrascrivono il proprio snapshot, nessun merge).

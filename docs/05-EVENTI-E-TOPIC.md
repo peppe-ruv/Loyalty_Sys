@@ -18,6 +18,53 @@ Parametri: 2 partizioni, retention del provider (3 giorni nel free tier; il sist
 
 Un consumer che riceve un `type` che non gli interessa lo **ignora senza errore** (e senza scrivere `processed_event`).
 
+Le cinque famiglie in un colpo d'occhio: un'azione diventa effetti, gli effetti diventano fatti, alcuni fatti rientrano come azioni dal ponte (§7); audit e DLQ raccolgono da tutti e finiscono in insight.
+
+```mermaid
+flowchart LR
+  accTitle: Le cinque famiglie di eventi
+  accDescr: Le fonti producono azioni tramite ingestion; campaign le trasforma in effetti; i servizi che applicano gli effetti producono fatti; il ponte di ingestion riporta alcuni fatti come azioni interne; tutti i servizi scrivono audit e mandano in DLQ i messaggi non elaborabili; insight legge tutte le famiglie.
+  SRC["Fonti esterne"] --> ING["ingestion"]
+  ING --> TA(["action: lh.actions.v1"])
+  TA --> CMP["campaign"]
+  CMP --> TE(["effect: lh.effects.v1"])
+  TE --> APP["wallet, reward, gamification, engagement"]
+  APP --> TF(["fact: lh.facts.v1"])
+  TF -.->|"ponte interno"| ING
+  ALL["tutti i servizi"] --> TU(["audit: lh.audit.v1"])
+  ALL -.->|"errori non elaborabili"| TD(["dlq: lh.dlq.v1"])
+  TA & TE & TF & TU & TD --> INS["insight"]
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef topic fill:#FEF3C7,stroke:#D97706,color:#78350F
+  classDef ext fill:#FFFFFF,stroke:#94A3B8,stroke-dasharray:4 2,color:#334155
+  class ING,CMP,APP,ALL,INS svc
+  class TA,TE,TF,TU,TD topic
+  class SRC ext
+```
+
+Dalla fonte al saldo con l'outbox: ogni servizio scrive l'evento nella tabella `outbox` nella stessa transazione del cambiamento di stato, il relay lo pubblica; ogni consumer registra `processed_event`, applica la logica e scrive i propri eventi in outbox in un'unica transazione (docs/04 §5).
+
+```mermaid
+sequenceDiagram
+  accTitle: Da ingestion a wallet passando per l'outbox
+  accDescr: Ingestion salva l'evento in ingresso e l'azione in outbox nella stessa transazione e il relay la pubblica; campaign la consuma in modo idempotente, valuta e scrive effetti e fatto di valutazione in outbox; wallet consuma l'effetto, crea lotto e movimento e scrive il fatto punti accreditati in outbox.
+  participant S as Fonte
+  participant ING as ingestion
+  participant K as Kafka
+  participant CMP as campaign
+  participant WAL as wallet
+  S->>ING: POST /v1/events
+  Note over ING: una transazione: inbound_event ACCEPTED e outbox
+  ING-->>S: 202 ACCEPTED
+  ING->>K: relay outbox: action su lh.actions.v1
+  K->>CMP: azione
+  Note over CMP: una transazione: processed_event, contatori, evaluation_log, outbox
+  CMP->>K: relay: effect.points.grant e fact.campaign.evaluated
+  K->>WAL: effetto
+  Note over WAL: una transazione: processed_event, ledger_entry, points_lot, outbox
+  WAL->>K: relay: fact.wallet.points.earned
+```
+
 ## 2. Envelope — CloudEvents 1.0, JSON strutturato
 
 Valore del record = CloudEvent completo, `content-type: application/cloudevents+json`. Header Kafka duplicati per filtrare senza parse: `lh-type`, `lh-correlation-id`.
@@ -219,6 +266,40 @@ Regole: nuovo `id`; `source = urn:loyaltyhub:source:internal`; stesso `subject`,
 | gamification | tutte (obiettivi, classifiche a conteggio) | `plays.grant`, `badge.award` | `member.registered/updated` (nickname) · `wallet.points.earned` (classifiche a punti) |
 | engagement | — | `message.send` | tutti (regole di notifica, webhook) · snapshot membro per il pubblico dei contenuti |
 | insight | tutte | tutti | tutti (+ `lh.audit.v1`, `lh.dlq.v1`) |
+
+### 8.1 Dalla fonte al saldo: esempi dal seed
+
+Se arriva un evento da una fonte, con un certo tipo, cosa succede fino al saldo del membro (docs/18 §3.12-bis punto 3). Fonti e tipi ammessi vengono da `seed/sources.json` (`allowed_types`, scheda ingestion §2), campagne, condizioni ed effetti da `seed/campaigns.json` (docs/03 §3). Un tipo non ammesso per la fonte è rifiutato in ingresso; un'azione accettata senza campagne `LIVE` che la valutano chiude il percorso con `NO_MATCH` nel registro delle valutazioni. Il `tier.upgraded` prodotto dal wallet rientra dal ponte (§7) come azione della fonte `internal`.
+
+```mermaid
+flowchart LR
+  accTitle: Dalla fonte al saldo con gli esempi del seed
+  accDescr: La fonte app invia purchase.completed, valutato da CMP-PURCHASE-BASE e moltiplicato da CMP-WEEKEND-X2 nel fine settimana, che producono points.grant verso il wallet; la fonte partner invia survey.completed, valutato da CMP-SURVEY, che produce punti e giocate; la fonte crm può inviare solo newsletter.subscribed, che nessuna campagna valuta, e un purchase.completed da crm è rifiutato; il salto di livello rientra dalla fonte internal e CMP-TIER-UP-BONUS aggiunge punti.
+  APP["Fonte app"] -->|"purchase.completed"| CPB["CMP-PURCHASE-BASE: data.amount almeno 1"]
+  APP -->|"purchase.completed nel fine settimana"| CWX["CMP-WEEKEND-X2: punti x2"]
+  PAR["Fonte partner"] -->|"survey.completed"| CSV["CMP-SURVEY"]
+  CRM["Fonte crm"] -->|"newsletter.subscribed"| NOM["nessuna campagna: NO_MATCH"]
+  CRM -->|"purchase.completed, tipo non ammesso"| REJ["REJECTED: TYPE_NOT_ALLOWED"]
+  INT["Fonte internal, ponte"] -->|"tier.upgraded"| CTU["CMP-TIER-UP-BONUS: bonus per nuovo tier"]
+  CPB --> EPG(["effect.points.grant"])
+  CWX -.->|"moltiplica gli accrediti"| EPG
+  CSV --> EPG
+  CSV --> EPL(["effect.plays.grant IW-AUTUNNO"])
+  CTU --> EPG
+  EPG --> WAL["wallet: lotto, movimento, saldo PTS e periodSts"]
+  EPL --> GAM["gamification: play_grant, crediti di gioco"]
+  WAL -.->|"fact.tier.upgraded"| INT
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef store fill:#F1F5F9,stroke:#475569,color:#0F172A
+  classDef topic fill:#FEF3C7,stroke:#D97706,color:#78350F
+  classDef ext fill:#FFFFFF,stroke:#94A3B8,stroke-dasharray:4 2,color:#334155
+  class CPB,CWX,CSV,CTU svc
+  class WAL,GAM,NOM,REJ store
+  class EPG,EPL topic
+  class APP,PAR,CRM,INT ext
+```
+
+Chi aggiunge una fonte o un tipo ammesso in ingestion aggiorna questo diagramma (docs/18 §3.12-bis).
 
 ## 9. Schemi e versioni
 
