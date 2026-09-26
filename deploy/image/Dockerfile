@@ -30,10 +30,17 @@ RUN mkdir -p /src/web/public
 FROM cgr.dev/chainguard/wolfi-base@sha256:08df5982c3d27e70a4ce1607e3bb9af09d746f8722cf135a7694afef879fc5a2
 
 USER root
-# We install required packages from wolfi package repository
-RUN apk add --no-cache openjdk-25-jre nodejs-22 s6 tzdata \
+# We install required packages from wolfi package repository.
+# openjdk-25-jre installa solo /usr/lib/jvm/java-25-openjdk: `java` finisce nel PATH (/usr/bin/java ->
+# /usr/lib/jvm/default-jvm) solo con openjdk-25-default-jvm (che porta java-common-jre). Il controllo
+# `java -version` fa fallire la build, non l'avvio, se il runtime non e' raggiungibile.
+RUN apk add --no-cache openjdk-25-jre openjdk-25-default-jvm nodejs-22 s6 tzdata \
+    && java -version \
+    && node --version \
     && addgroup -S -g 1000 lh \
     && adduser -S -u 1000 -G lh lh
+
+ENV JAVA_HOME=/usr/lib/jvm/default-jvm
 
 # Configure directories
 RUN mkdir -p /opt/lh/hub /opt/lh/web /var/lib/lh /tmp /opt/lh/s6/hub /opt/lh/s6/web && \

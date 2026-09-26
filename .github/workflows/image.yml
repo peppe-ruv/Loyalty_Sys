@@ -67,11 +67,17 @@ jobs:
             -e DB_PASSWORD=loyaltyhub \
             lh-image:test
 
-          # Wait until actuator health is UP
+          # Attende lo stato complessivo UP: /actuator/health risponde 503 finche' un componente (db, kafka,
+          # readinessState) non e' UP, quindi `curl -f` fallisce; un grep sul corpo troverebbe gia' "db" UP.
+          # Esce subito se il container e' gia' terminato.
           for i in {1..30}; do
-            if docker run --network deploy_default curlimages/curl -s http://lh-hub:8080/actuator/health | grep '"status":"UP"'; then
+            if docker run --rm --network deploy_default curlimages/curl -sf http://lh-hub:8080/actuator/health; then
                echo "Healthcheck passed"
                exit 0
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' lh-hub)" != "true" ]; then
+               echo "Il container lh-hub e' terminato"
+               break
             fi
             sleep 5
           done
@@ -83,16 +89,30 @@ jobs:
       - name: Smoke Run LH_ROLE=web
         if: github.event_name == 'pull_request'
         run: |
+          # Il web raggiunge l'hub del passo precedente (tutti i moduli su lh-hub:8080); lo stato aggregato
+          # usa "UP"/"DOWN"/"SLEEPING" (web/lib/api/status.ts), quindi si attende almeno un "state":"UP".
           docker run -d --name lh-web \
             --network deploy_default \
             -e LH_ROLE=web \
             -e LH_PROFILE=demo \
+            -e LH_SVC_INGESTION_URL=http://lh-hub:8080 \
+            -e LH_SVC_MEMBER_URL=http://lh-hub:8080 \
+            -e LH_SVC_CAMPAIGN_URL=http://lh-hub:8080 \
+            -e LH_SVC_WALLET_URL=http://lh-hub:8080 \
+            -e LH_SVC_REWARD_URL=http://lh-hub:8080 \
+            -e LH_SVC_GAMIFICATION_URL=http://lh-hub:8080 \
+            -e LH_SVC_ENGAGEMENT_URL=http://lh-hub:8080 \
+            -e LH_SVC_INSIGHT_URL=http://lh-hub:8080 \
             lh-image:test
 
           for i in {1..10}; do
-            if docker run --network deploy_default curlimages/curl -s http://lh-web:3000/api/demo/status | grep '"up"'; then
+            if docker run --rm --network deploy_default curlimages/curl -s http://lh-web:3000/api/demo/status | grep '"state":"UP"'; then
                echo "Healthcheck passed"
                exit 0
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' lh-web)" != "true" ]; then
+               echo "Il container lh-web e' terminato"
+               break
             fi
             sleep 5
           done
