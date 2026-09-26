@@ -1,4 +1,7 @@
 #!/bin/sh
 PROFILE="${LH_PROFILE:-demo}"
 export SPRING_PROFILES_ACTIVE="${PROFILE}"
+# Ruolo all: web su 3000 (s6/web/run), hub su 8080. hub.yml usa ${PORT:8080}: senza questo l'hub prenderebbe
+# una PORT ereditata e si scontrerebbe con il web.
+export PORT="8080"
 exec "${JAVA_HOME:-/usr/lib/jvm/default-jvm}/bin/java" -jar /opt/lh/hub/hub.jar
