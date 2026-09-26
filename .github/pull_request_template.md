@@ -14,7 +14,7 @@
 - [ ] Pagina Mintlify del concetto toccato aggiornata con almeno un diagramma Mermaid conforme (accTitle/accDescr), verificato con `node scripts/check-mermaid.mjs`; job `docs` verde
 - [ ] Sicurezza (regole 18–21): nuovo endpoint con `@RequiresRole` o `@PublicEndpoint` motivato; `memberId` nel portale solo da `MemberPrincipal`; SQL solo costante o dal builder `SqlWhere`/`SqlOrder`; nuovi `type` evento in `contracts/events/producers.yaml`; nessuna nuova scrittura di configurazione senza voce in `audit_entry`
 - [ ] Governo e conformità (regola 22): nessuna auto-approvazione; impostazioni nuove che in `enterprise` rifiutano l'avvio se insicure; `docs/compliance/iso27001-annex-a.md` aggiornato con i controlli toccati
-- [ ] `docs/14` aggiornato con la fetta e il numero di questa PR; eventuali `SPEC-GAP: Q-nnn` registrati in `docs/15`
+- [ ] Auto-merge (squash) attivo; `docs/14` **non** toccato (lo aggiorna la PR di stato cumulativa, ADR-047); eventuali `SPEC-GAP: Q-nnn` registrati in `docs/15`
 
 ## Note per il revisore
 
