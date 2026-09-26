@@ -95,7 +95,7 @@ Rami senza specifica (righe AMBIGUO): 13 voci — 404 vs tracciato vuoto, `REPRO
 
 ## 3. DLQ — riprocessa e scarta
 
-**Regole**: R-22…R-25. **Domini**: stato ∈ {`OPEN`, `REPROCESSED`, `DISCARDED`, inesistente}; azione ∈ {riprocessa, scarta}; famiglia ∈ {`ACTION`, `EFFECT`, `FACT`, `AUDIT`, `UNKNOWN`}; ruolo ∈ {ADMIN, MARKETING, LEGAL, CARE, ANALYST, assente, sconosciuto, minuscolo}; nota ∈ {assente, `{}`, `null`, `""`, spazi, 1 carattere, con spazi attorno, 2000 caratteri, unicode, JSON malformato}; risposta di ingestion ∈ {202/200 `ACCEPTED`, `DUPLICATE`, `REJECTED`, `UNMATCHED`, senza status, corpo vuoto, 400, 403, 500, 503, connessione chiusa}.
+**Regole**: R-22…R-25. **Domini**: stato ∈ \{`OPEN`, `REPROCESSED`, `DISCARDED`, inesistente\}; azione ∈ \{riprocessa, scarta\}; famiglia ∈ \{`ACTION`, `EFFECT`, `FACT`, `AUDIT`, `UNKNOWN`\}; ruolo ∈ \{ADMIN, MARKETING, LEGAL, CARE, ANALYST, assente, sconosciuto, minuscolo\}; nota ∈ \{assente, `{}`, `null`, `""`, spazi, 1 carattere, con spazi attorno, 2000 caratteri, unicode, JSON malformato\}; risposta di ingestion ∈ \{202/200 `ACCEPTED`, `DUPLICATE`, `REJECTED`, `UNMATCHED`, senza status, corpo vuoto, 400, 403, 500, 503, connessione chiusa\}.
 
 **Strategia**: macchina a stati **completa** stato × azione × famiglia con ADMIN e nota valida (3 × 2 × 5 = 30) + inesistente × 2 azioni + 2 righe sull'ordine dei controlli (DST, 34 righe). Ruoli: tabella completa ruolo × azione su un'azione aperta (7 × 2 + minuscolo = 15). Nota: tabella completa classe × famiglia per *scarta* (9 × 5 = 45 ≤ 64) + 5 righe su *riprocessa* e JSON malformato. Esito di ingestion: una riga per classe di risposta (12) + contenuto e intestazioni del re-invio + nuovo tentativo. Riprocessabilità: tabella completa famiglia × stato (15, unit). Su una voce già chiusa di effetto/fatto la specifica ammette entrambi i 409 (`DLQ_NOT_OPEN` per Q-107, `NOT_REPROCESSABLE` per §5): la riga accetta l'uno o l'altro.
 
@@ -313,12 +313,12 @@ Rami senza specifica (righe AMBIGUO): 13 voci — 404 vs tracciato vuoto, `REPRO
 | TB-INS-DIG-003 | senza lh-error-code (AMBIGUO) | errorCode = nome semplice della classe d'errore | insight §2, §5; docs/04 §5; Q-111 | `TestbookInsDlqIT` |
 | TB-INS-DIG-004 | senza consumer (AMBIGUO) | consumer = unknown | insight §2, §5; docs/04 §5; Q-111 | `TestbookInsDlqIT` |
 | TB-INS-DIG-005 | tentativi non numerici e retryable assente (AMBIGUO) | campi nulli | insight §2, §5; docs/04 §5; Q-111 | `TestbookInsDlqIT` |
-| TB-INS-DIG-006 | valore non JSON | payload {raw}, famiglia dal topic d'origine, id sintetico dlq-<topic>-<partizione>-<offset> | insight §2, §5; docs/04 §5; Q-111 | `TestbookInsDlqIT` |
-| TB-INS-DIG-007 | valore vuoto | payload {raw: ""}, voce registrata | insight §2, §5; docs/04 §5; Q-111 | `TestbookInsDlqIT` |
+| TB-INS-DIG-006 | valore non JSON | payload \{raw\}, famiglia dal topic d'origine, id sintetico dlq-&lt;topic>-&lt;partizione>-&lt;offset> | insight §2, §5; docs/04 §5; Q-111 | `TestbookInsDlqIT` |
+| TB-INS-DIG-007 | valore vuoto | payload \{raw: ""\}, voce registrata | insight §2, §5; docs/04 §5; Q-111 | `TestbookInsDlqIT` |
 | TB-INS-DIG-008 | tipo non riconoscibile con topic d'origine lh.facts.v1 | famiglia FACT | insight §2, §5; docs/04 §5; Q-111 | `TestbookInsDlqIT` |
 | TB-INS-DIG-009 | né tipo né topic d'origine | famiglia UNKNOWN, non riprocessabile | insight §2, §5; docs/04 §5; Q-111 | `TestbookInsDlqIT` |
 | TB-INS-DIG-010 | tipo d'azione arrivato da un topic diverso | la famiglia viene dal tipo (ACTION, riprocessabile) | insight §2, §5; docs/04 §5; Q-111 | `TestbookInsDlqIT` |
-| TB-INS-DIG-011 | subject member:<id> ⇒ memberId; subject di configurazione ⇒ nessun membro | come nella descrizione (asserito dal caso) | insight §2, §5; docs/04 §5; Q-111 | `TestbookInsDlqIT` |
+| TB-INS-DIG-011 | subject member:&lt;id> ⇒ memberId; subject di configurazione ⇒ nessun membro | come nella descrizione (asserito dal caso) | insight §2, §5; docs/04 §5; Q-111 | `TestbookInsDlqIT` |
 | TB-INS-DIG-012 | record DLQ riletto (stesso evento e consumer) | una sola voce aperta, metrica dlq e statistica del topic contate una volta | insight §2, §5; docs/04 §5; Q-111 | `TestbookInsDlqIT` |
 | TB-INS-DIG-013 | stesso evento fallito in due consumer | due voci distinte | insight §2, §5; docs/04 §5; Q-111 | `TestbookInsDlqIT` |
 | TB-INS-DIG-014 | nuovo fallimento dopo la chiusura della voce | si apre una seconda voce OPEN | insight §2, §5; docs/04 §5; Q-111 | `TestbookInsDlqIT` |
@@ -329,7 +329,7 @@ Rami senza specifica (righe AMBIGUO): 13 voci — 404 vs tracciato vuoto, `REPRO
 
 ## 4. Tracciati
 
-**Regole**: R-10…R-13. **Domini**: voci DLQ ∈ {nessuna, OPEN, DISCARDED, REPROCESSED, REPROCESSED+OPEN, REPROCESSED+DISCARDED}; età dell'ultimo arrivo ∈ {0, 4 999, 5 000, 5 001, 60 000 ms} (limiti del 5 s: −1, =, +1), più età negativa (orologio indietro) e `time` di business diverso dall'arrivo.
+**Regole**: R-10…R-13. **Domini**: voci DLQ ∈ \{nessuna, OPEN, DISCARDED, REPROCESSED, REPROCESSED+OPEN, REPROCESSED+DISCARDED\}; età dell'ultimo arrivo ∈ \{0, 4 999, 5 000, 5 001, 60 000 ms\} (limiti del 5 s: −1, =, +1), più età negativa (orologio indietro) e `time` di business diverso dall'arrivo.
 
 **Strategia**: tabella **completa** voci DLQ × età (6 × 5 = 30), più 6 righe di casi limite (tracciato sconosciuto, solo DLQ, riga di famiglia DLQ, quiete sull'arrivo, età negativa, DLQ più recente dell'ultimo evento). Albero, esito ed elenco: una riga per forma (catena, ramificazione, orfano, corsie, nodo DLQ) e per tipo di fatto dell'esito.
 
@@ -392,8 +392,8 @@ Rami senza specifica (righe AMBIGUO): 13 voci — 404 vs tracciato vuoto, `REPRO
 | TB-INS-TOU-002 | due accrediti PTS nello stesso tracciato (acquisto + bonus) | sommati per valuta | insight §3, §7; BO-25; docs/05 §5 | `TestbookInsTraceIT` |
 | TB-INS-TOU-003 | nessun accredito | points vuoto, tierChange assente, contatori 0 | insight §3, §7; BO-25; docs/05 §5 | `TestbookInsTraceIT` |
 | TB-INS-TOU-004 | accredito senza valuta (AMBIGUO) | contato come PTS | insight §3, §7; BO-25; docs/05 §5 | `TestbookInsTraceIT` |
-| TB-INS-TOU-005 | tier.upgraded SILVER → GOLD (EVT-FACT-28) | tierChange {from SILVER, to GOLD} | insight §3, §7; BO-25; docs/05 §5 | `TestbookInsTraceIT` |
-| TB-INS-TOU-006 | tier.downgraded GOLD → SILVER (EVT-FACT-29) | tierChange {from GOLD, to SILVER} | insight §3, §7; BO-25; docs/05 §5 | `TestbookInsTraceIT` |
+| TB-INS-TOU-005 | tier.upgraded SILVER → GOLD (EVT-FACT-28) | tierChange \{from SILVER, to GOLD\} | insight §3, §7; BO-25; docs/05 §5 | `TestbookInsTraceIT` |
+| TB-INS-TOU-006 | tier.downgraded GOLD → SILVER (EVT-FACT-29) | tierChange \{from GOLD, to SILVER\} | insight §3, §7; BO-25; docs/05 §5 | `TestbookInsTraceIT` |
 | TB-INS-TOU-007 | l'effetto points.grant da solo non è un accredito | points vuoto (niente doppio conteggio con il fatto) | insight §3, §7; BO-25; docs/05 §5 | `TestbookInsTraceIT` |
 | TB-INS-TOU-008 | due message.delivered (EVT-FACT-60) | **DIVERGENZA** — outcome.messages = 2 | insight §3, §7; BO-25; docs/05 §5 | `TestbookInsTraceIT` |
 | TB-INS-TOU-009 | un coupon.issued (EVT-FACT-45) | **DIVERGENZA** — outcome.coupons = 1 | insight §3, §7; BO-25; docs/05 §5 | `TestbookInsTraceIT` |
@@ -528,7 +528,7 @@ Rami senza specifica (righe AMBIGUO): 13 voci — 404 vs tracciato vuoto, `REPRO
 
 ## 6. Flusso live SSE
 
-**Regole**: R-06…R-09. **Domini**: `Last-Event-ID` ∈ {assente, spazi, a metà, ultimo, sconosciuto, sfrattato dal buffer}; eventi persi ∈ {1, 199, 200, 201, 250} (limite 200: −1, =, +1 e oltre); filtri `topics`/`types`/`memberId`/`correlationId` ciascuno ∈ {assente, uguale, diverso} + vuoto, più valori, maiuscole, tipo completo, evento senza membro/correlazione.
+**Regole**: R-06…R-09. **Domini**: `Last-Event-ID` ∈ \{assente, spazi, a metà, ultimo, sconosciuto, sfrattato dal buffer\}; eventi persi ∈ \{1, 199, 200, 201, 250\} (limite 200: −1, =, +1 e oltre); filtri `topics`/`types`/`memberId`/`correlationId` ciascuno ∈ \{assente, uguale, diverso\} + vuoto, più valori, maiuscole, tipo completo, evento senza membro/correlazione.
 
 **Strategia**: filtro con **all-pairs** L9 sui 4 fattori a 3 livelli (81 → 9) + i 4 guasti singoli + tutti uguali + 10 casi speciali (SFL, unit). Ripresa: una riga per classe e per limite della finestra; la riconnessione di insight §7 (20 eventi) come scenario.
 
@@ -654,7 +654,7 @@ Rami senza specifica (righe AMBIGUO): 13 voci — 404 vs tracciato vuoto, `REPRO
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
-| TB-INS-APG-001 | page=0&size=2 | **DIVERGENZA** — due voci e page {number 0, size 2, totalItems 5, totalPages 3} | docs/06 §2 | `TestbookInsAuditIT` |
+| TB-INS-APG-001 | page=0&size=2 | **DIVERGENZA** — due voci e page \{number 0, size 2, totalItems 5, totalPages 3\} | docs/06 §2 | `TestbookInsAuditIT` |
 | TB-INS-APG-002 | page=2&size=2 | **DIVERGENZA** — l'ultima voce | docs/06 §2 | `TestbookInsAuditIT` |
 | TB-INS-APG-003 | size=101 | **DIVERGENZA** — limitata a 100 (docs/06 §2) | docs/06 §2 | `TestbookInsAuditIT` |
 | TB-INS-APG-004 | senza parametri | **DIVERGENZA** — risposta {items, page} con totalItems | docs/06 §2 | `TestbookInsAuditIT` |
