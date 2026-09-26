@@ -1,0 +1,612 @@
+{
+  "id": "loyaltyhub",
+  "realm": "loyaltyhub",
+  "displayName": "Loyalty Hub",
+  "enabled": true,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "accessTokenLifespan": 300,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "eventsEnabled": true,
+  "adminEventsEnabled": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "ADMIN",
+        "description": "Amministra tutto"
+      },
+      {
+        "name": "MARKETING",
+        "description": "Crea campagne"
+      },
+      {
+        "name": "LEGAL",
+        "description": "Approva concorsi"
+      },
+      {
+        "name": "CARE",
+        "description": "Assiste membri"
+      },
+      {
+        "name": "ANALYST",
+        "description": "Cruscotti"
+      },
+      {
+        "name": "MEMBER",
+        "description": "Membro iscritto"
+      },
+      {
+        "name": "MFA_REQUIRED_ROLE",
+        "description": "Triggers Conditional MFA"
+      }
+    ],
+    "client": {}
+  },
+  "clientScopes": [
+    {
+      "name": "hub-audience",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "aud-hub",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "hub",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "lh-roles-scope",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "lh_roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "lh_roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "defaultDefaultClientScopes": [
+    "role_list",
+    "profile",
+    "email",
+    "roles",
+    "web-origins",
+    "hub-audience",
+    "lh-roles-scope"
+  ],
+  "clients": [
+    {
+      "clientId": "web",
+      "name": "Portale e Backoffice (BFF)",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${LH_WEB_CLIENT_SECRET}",
+      "redirectUris": [
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": false,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "backchannel.logout.url": "${LH_WEB_URL}/api/auth/backchannel-logout",
+        "backchannel.logout.session.required": "true"
+      }
+    },
+    {
+      "clientId": "widgets",
+      "name": "Widget SDK",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${LH_WIDGETS_CLIENT_SECRET}",
+      "redirectUris": [],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": false,
+      "protocol": "openid-connect"
+    },
+    {
+      "clientId": "cms",
+      "name": "Directus CMS",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${LH_CMS_CLIENT_SECRET}",
+      "redirectUris": [
+        "http://localhost:8055/*",
+        "${LH_CMS_URL}/*"
+      ],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": false,
+      "protocol": "openid-connect"
+    },
+    {
+      "clientId": "lh-jobs",
+      "name": "Scheduled Jobs",
+      "enabled": true,
+      "clientAuthenticatorType": "private-key-jwt",
+      "redirectUris": [],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "jwks.url": "${LH_JOBS_JWKS_URL}"
+      }
+    },
+    {
+      "clientId": "crm",
+      "name": "Source crm",
+      "enabled": true,
+      "clientAuthenticatorType": "private-key-jwt",
+      "redirectUris": [],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "jwks.url": "${LH_SOURCE_CRM_JWKS_URL}"
+      }
+    },
+    {
+      "clientId": "app",
+      "name": "Source app",
+      "enabled": true,
+      "clientAuthenticatorType": "private-key-jwt",
+      "redirectUris": [],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "jwks.url": "${LH_SOURCE_APP_JWKS_URL}"
+      }
+    },
+    {
+      "clientId": "ecommerce",
+      "name": "Source ecommerce",
+      "enabled": true,
+      "clientAuthenticatorType": "private-key-jwt",
+      "redirectUris": [],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "jwks.url": "${LH_SOURCE_ECOMMERCE_JWKS_URL}"
+      }
+    },
+    {
+      "clientId": "billing",
+      "name": "Source billing",
+      "enabled": true,
+      "clientAuthenticatorType": "private-key-jwt",
+      "redirectUris": [],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "jwks.url": "${LH_SOURCE_BILLING_JWKS_URL}"
+      }
+    },
+    {
+      "clientId": "partner",
+      "name": "Source partner",
+      "enabled": true,
+      "clientAuthenticatorType": "private-key-jwt",
+      "redirectUris": [],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "jwks.url": "${LH_SOURCE_PARTNER_JWKS_URL}"
+      }
+    },
+    {
+      "clientId": "internal",
+      "name": "Source internal",
+      "enabled": true,
+      "clientAuthenticatorType": "private-key-jwt",
+      "redirectUris": [],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "jwks.url": "${LH_SOURCE_INTERNAL_JWKS_URL}"
+      }
+    },
+    {
+      "clientId": "simulator",
+      "name": "Source simulator",
+      "enabled": true,
+      "clientAuthenticatorType": "private-key-jwt",
+      "redirectUris": [],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "jwks.url": "${LH_SOURCE_SIMULATOR_JWKS_URL}"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "marta.admin",
+      "enabled": true,
+      "realmRoles": [
+        "ADMIN",
+        "MFA_REQUIRED_ROLE"
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD"
+      ]
+    },
+    {
+      "username": "luca.marketing",
+      "enabled": true,
+      "realmRoles": [
+        "MARKETING",
+        "MFA_REQUIRED_ROLE"
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD"
+      ]
+    },
+    {
+      "username": "elena.legal",
+      "enabled": true,
+      "realmRoles": [
+        "LEGAL",
+        "MFA_REQUIRED_ROLE"
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD"
+      ]
+    },
+    {
+      "username": "paolo.care",
+      "enabled": true,
+      "realmRoles": [
+        "CARE",
+        "MFA_REQUIRED_ROLE"
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD"
+      ]
+    },
+    {
+      "username": "sara.analyst",
+      "enabled": true,
+      "realmRoles": [
+        "ANALYST",
+        "MFA_REQUIRED_ROLE"
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD"
+      ]
+    }
+  ],
+  "authenticationFlows": [
+    {
+      "alias": "browser-mfa",
+      "description": "Browser flow with conditional MFA",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-cookie",
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false
+        },
+        {
+          "authenticator": "identity-provider-redirector",
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false
+        },
+        {
+          "authenticator": "webauthn-authenticator-passwordless",
+          "requirement": "ALTERNATIVE",
+          "priority": 25,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false
+        },
+        {
+          "requirement": "ALTERNATIVE",
+          "priority": 30,
+          "flowAlias": "forms",
+          "userSetupAllowed": false,
+          "autheticatorFlow": true
+        }
+      ]
+    },
+    {
+      "alias": "forms",
+      "description": "Username, password, otp and other auth forms.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-username-password-form",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false
+        },
+        {
+          "requirement": "CONDITIONAL",
+          "priority": 20,
+          "flowAlias": "mfa-conditional",
+          "userSetupAllowed": false,
+          "autheticatorFlow": true
+        }
+      ]
+    },
+    {
+      "alias": "mfa-conditional",
+      "description": "Conditional MFA",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-user-role",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticatorConfig": "mfa-role-config"
+        },
+        {
+          "authenticator": "auth-otp-form",
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false
+        }
+      ]
+    },
+    {
+      "alias": "first broker login with link",
+      "description": "First broker login but automatically links user",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "idp-create-user-if-unique",
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "idp-auto-link",
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    }
+  ],
+  "authenticatorConfig": [
+    {
+      "alias": "mfa-role-config",
+      "config": {
+        "default.role.name": "MFA_REQUIRED_ROLE"
+      }
+    }
+  ],
+  "browserFlow": "browser-mfa",
+  "requiredActions": [
+    {
+      "alias": "UPDATE_PASSWORD",
+      "name": "Update Password",
+      "providerId": "UPDATE_PASSWORD",
+      "enabled": true,
+      "defaultAction": false
+    },
+    {
+      "alias": "CONFIGURE_TOTP",
+      "name": "Configure OTP",
+      "providerId": "CONFIGURE_TOTP",
+      "enabled": true,
+      "defaultAction": false
+    },
+    {
+      "alias": "webauthn-register-passwordless",
+      "name": "Webauthn Register Passwordless",
+      "providerId": "webauthn-register-passwordless",
+      "enabled": true,
+      "defaultAction": false
+    }
+  ],
+  "identityProviders": [
+    {
+      "alias": "test-idp",
+      "displayName": "IdP Aziendale",
+      "providerId": "oidc",
+      "enabled": true,
+      "firstBrokerLoginFlowAlias": "first broker login with link",
+      "config": {
+        "authorizationUrl": "${LH_TEST_IDP_AUTH_URL}",
+        "tokenUrl": "${LH_TEST_IDP_TOKEN_URL}",
+        "clientId": "loyaltyhub-broker",
+        "clientSecret": "${LH_TEST_IDP_SECRET}",
+        "userInfoUrl": "${LH_TEST_IDP_USERINFO_URL}",
+        "issuer": "${LH_TEST_IDP_ISSUER}",
+        "syncMode": "IMPORT"
+      }
+    }
+  ],
+  "components": {
+    "org.keycloak.storage.UserStorageProvider": [
+      {
+        "name": "ldap",
+        "providerId": "ldap",
+        "subComponents": {
+          "org.keycloak.storage.ldap.mappers.LDAPStorageMapper": [
+            {
+              "name": "username",
+              "providerId": "user-attribute-ldap-mapper",
+              "config": {
+                "ldap.attribute": [
+                  "uid"
+                ],
+                "is.mandatory.in.ldap": [
+                  "true"
+                ],
+                "user.model.attribute": [
+                  "username"
+                ]
+              }
+            },
+            {
+              "name": "email",
+              "providerId": "user-attribute-ldap-mapper",
+              "config": {
+                "ldap.attribute": [
+                  "mail"
+                ],
+                "is.mandatory.in.ldap": [
+                  "false"
+                ],
+                "user.model.attribute": [
+                  "email"
+                ]
+              }
+            }
+          ]
+        },
+        "config": {
+          "vendor": [
+            "other"
+          ],
+          "connectionUrl": [
+            "ldap://ldap:389"
+          ],
+          "usersDn": [
+            "dc=example,dc=org"
+          ],
+          "authType": [
+            "simple"
+          ],
+          "bindDn": [
+            "cn=admin,dc=example,dc=org"
+          ],
+          "bindCredential": [
+            "admin"
+          ],
+          "searchScope": [
+            "1"
+          ],
+          "useTruststoreSpi": [
+            "ldapsOnly"
+          ],
+          "connectionPooling": [
+            "true"
+          ],
+          "pagination": [
+            "true"
+          ],
+          "allowKerberosAuthentication": [
+            "false"
+          ],
+          "batchSizeForSync": [
+            "1000"
+          ],
+          "editMode": [
+            "READ_ONLY"
+          ],
+          "syncRegistrations": [
+            "false"
+          ]
+        }
+      }
+    ]
+  }
+}
