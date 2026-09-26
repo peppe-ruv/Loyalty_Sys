@@ -50,4 +50,32 @@ class EventSummariesTest {
                 .isEqualTo("Punti accreditati");
         assertThat(EventSummaries.of(null, null)).isEqualTo("evento");
     }
+
+    /**
+     * Doppia lettura member.*:1/:2 (ADR-032, Q-346): la versione 2 non ha nome, cognome, soprannome, e-mail, data di
+     * nascita e città; la sintesi non li usa in nessuna delle due versioni, quindi è la stessa e non stampa "null".
+     */
+    @Test
+    void memberFactsV2WithoutPersonalFieldsHaveTheSameSummaryAsV1() {
+        var v1 = mapper.readTree("""
+                {"memberId":"MBR-000003","firstName":"Marco","lastName":"Rossi","nickname":"marco.r",
+                 "email":"marco@example.test","birthDate":"1988-04-21","city":"Torino","status":"ACTIVE"}""");
+        var v2 = mapper.readTree("""
+                {"memberId":"MBR-000003","externalId":"CRM-3003","emailHash":"%s","status":"ACTIVE","channel":"APP",
+                 "locale":"it","birthYear":1988,"province":"MI","labels":["early-adopter"]}""".formatted("a".repeat(64)));
+        var v2Minimal = mapper.readTree("""
+                {"memberId":"MBR-000003","status":"ANONYMIZED","birthYear":null,"province":null,"referredBy":null}""");
+
+        for (String type : new String[]{"member.registered", "member.updated"}) {
+            String expected = EventSummaries.of(type, v1);
+            assertThat(EventSummaries.of(type, v2)).isEqualTo(expected).doesNotContain("null");
+            assertThat(EventSummaries.of(type, v2Minimal)).isEqualTo(expected).doesNotContain("null");
+            assertThat(EventSummaries.of(type, mapper.createObjectNode())).isEqualTo(expected);
+            assertThat(EventSummaries.of(type, null)).isEqualTo(expected);
+        }
+        assertThat(EventSummaries.of("member.registered", v2)).isEqualTo("Nuovo membro");
+        assertThat(EventSummaries.of("member.updated", v2)).isEqualTo("Membro aggiornato");
+        // Nessun dato personale nella sintesi della versione 1 (il rail è visibile a tutto il backoffice).
+        assertThat(EventSummaries.of("member.registered", v1)).doesNotContain("Marco", "Rossi", "marco");
+    }
 }
