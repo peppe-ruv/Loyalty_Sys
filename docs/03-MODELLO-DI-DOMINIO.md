@@ -49,19 +49,19 @@ flowchart TB
 |---|---|
 | `id` | `MBR-` + 6 cifre, sequenza; immutabile |
 | `externalId`, `email` | univoci se presenti; usati per risolvere le azioni in ingresso |
-| `status` | `ACTIVE` (default), `INACTIVE` (uscito), `BLOCKED` (sospeso), `ANONYMIZED` (irreversibile) |
+| `status` | `ACTIVE` (default), `INACTIVE` (uscito), `BLOCKED` (sospeso), `CLOSED`, `ANONYMIZED` (irreversibile) |
 | `referralCode` | 8 caratteri `A-Z2-9`, univoco, generato alla creazione |
 | `attributes` | mappa chiave → valore (string, number, boolean, date) |
 | profilo completo | `firstName, lastName, email, phone, birthDate, city` tutti valorizzati |
 
-Invarianti: solo i membri `ACTIVE` accumulano, spendono, giocano. Un membro `BLOCKED` conserva i saldi ma ogni azione è `REJECTED` in ingresso. L'anonimizzazione sostituisce nome → "Membro anonimo", e-mail/telefono → `null`, conserva `id`, movimenti e statistiche.
+Invarianti: solo i membri `ACTIVE` accumulano, spendono, giocano. Un membro `BLOCKED` conserva i saldi ma ogni azione è `REJECTED` in ingresso. L'anonimizzazione sostituisce nome → "Membro anonimo", e-mail/telefono → `null`, conserva `id`, movimenti e statistiche. Lo stato `CLOSED` esiste ma attualmente il codice non prevede alcuna transizione verso di esso (// SPEC-GAP: Q-389).
 
 Ciclo di vita del membro (`member.status`, member-service): `ACTIVE`, `INACTIVE` e `BLOCKED` si scambiano con `POST /v1/members/{id}/status` (ogni cambio emette `member.status.changed`); l'anonimizzazione è possibile da ogni stato ed è irreversibile.
 
 ```mermaid
 stateDiagram-v2
   accTitle: Ciclo di vita del membro
-  accDescr: Un membro nasce attivo; l'operatore lo porta tra attivo, inattivo e bloccato in qualunque direzione; da ognuno di questi stati l'anonimizzazione lo porta in modo irreversibile ad anonimizzato.
+  accDescr: Un membro nasce attivo; l'operatore lo porta tra attivo, inattivo e bloccato in qualunque direzione; da ognuno di questi stati l'anonimizzazione lo porta in modo irreversibile ad anonimizzato. Lo stato CLOSED non è raggiungibile.
   [*] --> ACTIVE: registrazione o import
   ACTIVE --> INACTIVE: uscito
   ACTIVE --> BLOCKED: sospeso
@@ -73,6 +73,7 @@ stateDiagram-v2
   INACTIVE --> ANONYMIZED: anonimizzazione
   BLOCKED --> ANONYMIZED: anonimizzazione
   ANONYMIZED --> [*]
+  CLOSED
 ```
 
 ## 3. Azioni, campagne ed effetti
