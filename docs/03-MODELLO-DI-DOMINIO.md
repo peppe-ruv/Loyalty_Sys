@@ -8,6 +8,8 @@ Convenzioni: fuso orario di business `Europe/Rome`; tutti i timestamp persistiti
 
 ```mermaid
 flowchart TB
+  accTitle: Mappa dei contesti del dominio
+  accDescr: I contesti del dominio raggruppati in ingresso, programma, conto, premi e gioco, con il membro legato a wallet e segmenti e il percorso dall'azione all'effetto su wallet, giocate e coupon.
   subgraph Ingresso
     SRC["Fonte"] --> ACT["Azione premiante"]
   end
@@ -124,6 +126,8 @@ Vale per campagne, premi, concorsi, contenuti.
 
 ```mermaid
 stateDiagram-v2
+  accTitle: Ciclo di vita degli oggetti governati
+  accDescr: Stati di campagne, premi, concorsi e contenuti: bozza, revisione, approvazione o rifiuto, pubblicazione, pausa e ripresa, chiusura e archiviazione.
   [*] --> DRAFT
   DRAFT --> IN_REVIEW: SUBMIT
   IN_REVIEW --> APPROVED: APPROVE
@@ -194,6 +198,8 @@ Policy alternative per `PTS`: `END_OF_EDITION_PLUS_GRACE` (scadono a `edition.re
 
 ```mermaid
 stateDiagram-v2
+  accTitle: Ciclo di vita di una richiesta premio
+  accDescr: Una richiesta premio nasce in attesa con lo stock prenotato; diventa confermata quando il wallet spende i punti, poi evasa; è rifiutata per saldo insufficiente o timeout; si annulla dal membro in attesa o da CARE con rimborso dopo la conferma.
   [*] --> PENDING: richiesta (stock prenotato)
   PENDING --> CONFIRMED: wallet.points.spent
   PENDING --> REJECTED: wallet.spend.rejected / timeout 10 min
