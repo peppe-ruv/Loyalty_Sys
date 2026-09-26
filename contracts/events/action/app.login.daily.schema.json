@@ -4,7 +4,7 @@
   "title": "action.app.login.daily — data (EVT-ACT-06, docs/05 §3)",
   "type": "object",
   "properties": {
-    "platform": { "enum": ["IOS", "ANDROID", "WEB"] }
+    "platform": { "enum": ["IOS", "ANDROID", "WEB"], "x-lh-pii": false }
   },
   "additionalProperties": true
 }

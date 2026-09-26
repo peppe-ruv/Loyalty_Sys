@@ -8,10 +8,12 @@
   ],
   "properties": {
     "previousTier": {
-      "type": "string"
+      "type": "string",
+      "x-lh-pii": false
     },
     "newTier": {
-      "type": "string"
+      "type": "string",
+      "x-lh-pii": false
     }
   }
 }

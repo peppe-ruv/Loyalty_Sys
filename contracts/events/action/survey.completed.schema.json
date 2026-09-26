@@ -9,12 +9,14 @@
   "properties": {
     "surveyId": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "x-lh-pii": false
     },
     "score": {
       "type": "integer",
       "minimum": 0,
-      "maximum": 100
+      "maximum": 100,
+      "x-lh-pii": false
     }
   }
 }

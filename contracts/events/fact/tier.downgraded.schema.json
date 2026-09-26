@@ -5,9 +5,9 @@
   "type": "object",
   "required": ["previousTier", "newTier", "editionCode"],
   "properties": {
-    "previousTier": { "type": "string" },
-    "newTier": { "type": "string" },
-    "editionCode": { "type": "string" }
+    "previousTier": { "type": "string", "x-lh-pii": false },
+    "newTier": { "type": "string", "x-lh-pii": false },
+    "editionCode": { "type": "string", "x-lh-pii": false }
   },
   "additionalProperties": true
 }

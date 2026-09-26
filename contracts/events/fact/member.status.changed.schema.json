@@ -5,9 +5,9 @@
   "type": "object",
   "required": ["previousStatus", "newStatus"],
   "properties": {
-    "previousStatus": { "enum": ["ACTIVE", "INACTIVE", "SUSPENDED", "BLOCKED", "CLOSED", "ANONYMIZED"] },
-    "newStatus": { "enum": ["ACTIVE", "INACTIVE", "SUSPENDED", "BLOCKED", "CLOSED", "ANONYMIZED"] },
-    "reason": { "type": "string" }
+    "previousStatus": { "enum": ["ACTIVE", "INACTIVE", "SUSPENDED", "BLOCKED", "CLOSED", "ANONYMIZED"], "x-lh-pii": false },
+    "newStatus": { "enum": ["ACTIVE", "INACTIVE", "SUSPENDED", "BLOCKED", "CLOSED", "ANONYMIZED"], "x-lh-pii": false },
+    "reason": { "type": "string", "x-lh-pii": false }
   },
   "additionalProperties": true
 }

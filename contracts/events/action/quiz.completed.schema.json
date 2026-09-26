@@ -11,15 +11,18 @@
   "properties": {
     "quizId": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "x-lh-pii": false
     },
     "correctAnswers": {
       "type": "integer",
-      "minimum": 0
+      "minimum": 0,
+      "x-lh-pii": false
     },
     "totalQuestions": {
       "type": "integer",
-      "minimum": 1
+      "minimum": 1,
+      "x-lh-pii": false
     }
   }
 }

@@ -10,12 +10,14 @@
   "properties": {
     "productId": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "x-lh-pii": false
     },
     "rating": {
       "type": "integer",
       "minimum": 1,
-      "maximum": 5
+      "maximum": 5,
+      "x-lh-pii": false
     }
   }
 }
