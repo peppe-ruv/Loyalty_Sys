@@ -38,6 +38,13 @@ public class MemberSnapshotRepository {
                 .optional();
     }
 
+    public boolean exists(String memberId) {
+        return jdbc.sql("SELECT count(*) FROM member_snapshot WHERE member_id = ?")
+                .param(memberId)
+                .query(Long.class)
+                .single() > 0;
+    }
+
     public void upsertIdentity(String memberId, String status, String tier, java.time.Instant registeredAt,
                                LocalDate birthDate, String attributesJson) {
         upsertIdentity(memberId, status, tier, registeredAt, birthDate,
