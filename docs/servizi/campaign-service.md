@@ -13,8 +13,26 @@ Non applica gli effetti e non conosce i saldi.
 | `campaign_counter` | (`campaign_id`, `member_id`, `period`, `period_key`) PK, `matches int`, `points bigint`, `last_match_at` (`time` di business dell'ultimo match, per `cooldownMinutes`). Una riga per periodo dichiarato nei limiti più la riga `ALWAYS`/`ALWAYS`, sempre presente: accumula i punti del membro (`perMemberPoints`) |
 | `campaign_totals` | `campaign_id` PK, `matches`, `unique_members`, `points_decided bigint`, `points_granted bigint` (da fatti wallet), `last_match_at` |
 | `member_action_counter` | (`member_id`, `action_type`) PK, `count`, `first_at`, `last_at` |
-| `member_snapshot` | `member_id` PK, `status`, `tier_code`, `segments text[]`, `labels text[]`, `attributes jsonb`, `registered_at`, `birth_date` |
+| `member_snapshot` | `member_id` PK, `status`, `tier_code`, `segments text[]`, `labels text[]`, `attributes jsonb`, `registered_at`, `birth_date` (solo dai fatti `:1`, rimossa con la `:1`), `birth_year`, `province` (M8.4, V4) |
 | `evaluation_log` | `action_id` PK, `member_id`, `action_type`, `action_time`, `evaluated_at`, `correlation_id`, `outcome` (`MATCHED, NO_MATCH, NO_MEMBER`), `results jsonb` |
+
+```mermaid
+erDiagram
+  accTitle: Snapshot del membro nella campaign
+  accDescr: Lo snapshot locale del membro che il motore valuta, costruito dai fatti member, tier e segmenti; da M8.4 anno di nascita e provincia al posto dei dati personali.
+  member_snapshot {
+    text member_id PK
+    text status
+    text tier_code
+    text_array segments
+    text_array labels
+    jsonb attributes
+    timestamptz registered_at
+    date birth_date "solo fatti :1"
+    int birth_year "M8.4"
+    text province "M8.4, sigla"
+  }
+```
 
 `results` = `[{campaignCode, campaignName, matched, reason?, failedConditions?[{field,cmp,value,actual}], effects?[…]}]`. Pulizia `evaluation_log` > 30 giorni.
 
@@ -76,7 +94,7 @@ Non applica gli effetti e non conosce i saldi.
 
 Riferimento: `docs/18`. Le righe qui sotto sono segnaposto dell'adozione (M8.0): la fetta citata le rende normative aggiornando questa scheda.
 
-- **Dati personali** (ADR-032, M8.4): `member_snapshot.birth_date` diventa `birth_year`; condizioni su `birthYear`/`province` (Q-344).
+- **Dati personali** (ADR-032, M8.4): `member_snapshot` guadagna `birth_year` e `province` (V4, fase expand; `birth_date` resta finché si leggono i fatti `:1`, Q-346). Doppia lettura: dalla `:2` `birthYear`/`province`, dalla `:1` l'anno ricavato dalla data; un fatto senza il campo non lo cancella. `member.age` con il solo anno = età minima certa (Q-366); nuovo campo condizione `member.province` (sigla, Q-344).
 - **Budget** (ADR-045, M13.4): `campaign.budget` con soglie (`warnAt`) e azione a esaurimento; fatti `campaign.budget.threshold` e `campaign.budget.exhausted`.
 - **Punteggi** (ADR-045, M13.5): gli attributi `SCORE` sono ammessi solo nelle condizioni e mai in effetti negativi (validatore al salvataggio).
 

@@ -40,9 +40,17 @@ public class MemberSnapshotHandler implements EventHandler {
         JsonNode d = event.data();
         switch (event.type()) {
             case Fact.MEMBER_REGISTERED, Fact.MEMBER_UPDATED -> {
+                // Doppia lettura :1/:2 (ADR-032, Q-346): la :1 porta birthDate, la :2 birthYear e province.
+                java.time.LocalDate birthDate = date(d, "birthDate");
+                Integer birthYear = null;
+                if (d != null && d.path("birthYear").isInt()) {
+                    birthYear = d.get("birthYear").asInt();
+                } else if (birthDate != null) {
+                    birthYear = birthDate.getYear();
+                }
                 snapshots.upsertIdentity(
                         memberId, text(d, "status", "ACTIVE"), text(d, "tier", null),
-                        instant(d, "registeredAt"), date(d, "birthDate"),
+                        instant(d, "registeredAt"), birthDate, birthYear, text(d, "province", null),
                         d != null && d.has("attributes") ? d.get("attributes").toString() : "{}");
                 // Lo snapshot completo porta le etichette (EVT-FACT-01/02): servono a `member.labels` (M6.6).
                 if (d != null && d.has("labels") && d.get("labels").isArray()) {

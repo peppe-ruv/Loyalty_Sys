@@ -353,16 +353,16 @@ timer di 25 s (R1).
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
-| TB-WEB-PRX-001 | GET inoltrato a LH_SVC_<SERVICE>_URL con percorso e query copiati | `GET http://wallet.test/v1/wallets/MBR-000002?size=3&page=1`, senza corpo; risposta 200 | docs/07 §3 | `web/app/api/lh/[service]/[...path]/route.testbook.test.ts` |
+| TB-WEB-PRX-001 | GET inoltrato a LH_SVC_`<SERVICE>`_URL con percorso e query copiati | `GET http://wallet.test/v1/wallets/MBR-000002?size=3&page=1`, senza corpo; risposta 200 | docs/07 §3 | `web/app/api/lh/[service]/[...path]/route.testbook.test.ts` |
 | TB-WEB-PRX-002 | POST: metodo e corpo copiati | `POST` a valle con lo stesso corpo e `content-type` | docs/07 §3 | `web/app/api/lh/[service]/[...path]/route.testbook.test.ts` |
 | TB-WEB-PRX-003 | X-LH-Actor dal cookie persona BO | `X-LH-Actor: LEGAL:elena.legal` | docs/07 §3 · docs/06 §3 | `web/app/api/lh/[service]/[...path]/route.testbook.test.ts` |
 | TB-WEB-PRX-004 | cookie assente | X-LH-Actor ANALYST:anonymous | docs/06 §3 | `web/app/api/lh/[service]/[...path]/route.testbook.test.ts` |
 | TB-WEB-PRX-005 | cookie non valido | X-LH-Actor ANALYST:anonymous | docs/06 §3 · docs/07 §4 | `web/app/api/lh/[service]/[...path]/route.testbook.test.ts` |
 | TB-WEB-PRX-006 | X-Correlation-Id presente nella richiesta | inoltrato e restituito uguale | docs/07 §3 | `web/app/api/lh/[service]/[...path]/route.testbook.test.ts` |
 | TB-WEB-PRX-007 | X-Correlation-Id assente | nuovo ULID (26 caratteri Crockford) | docs/07 §3 | `web/app/api/lh/[service]/[...path]/route.testbook.test.ts` |
-| TB-WEB-PRX-008 | risposta 502 dal servizio | 503 {type: SERVICE_ASLEEP, service} | docs/07 §3 | `web/app/api/lh/[service]/[...path]/route.testbook.test.ts` |
-| TB-WEB-PRX-009 | risposta 503 dal servizio | 503 {type: SERVICE_ASLEEP, service} | docs/07 §3 | `web/app/api/lh/[service]/[...path]/route.testbook.test.ts` |
-| TB-WEB-PRX-010 | risposta 504 dal servizio | 503 {type: SERVICE_ASLEEP, service} | docs/07 §3 | `web/app/api/lh/[service]/[...path]/route.testbook.test.ts` |
+| TB-WEB-PRX-008 | risposta 502 dal servizio | 503 `{type: SERVICE_ASLEEP, service}` | docs/07 §3 | `web/app/api/lh/[service]/[...path]/route.testbook.test.ts` |
+| TB-WEB-PRX-009 | risposta 503 dal servizio | 503 `{type: SERVICE_ASLEEP, service}` | docs/07 §3 | `web/app/api/lh/[service]/[...path]/route.testbook.test.ts` |
+| TB-WEB-PRX-010 | risposta 504 dal servizio | 503 `{type: SERVICE_ASLEEP, service}` | docs/07 §3 | `web/app/api/lh/[service]/[...path]/route.testbook.test.ts` |
 | TB-WEB-PRX-011 | errore di rete | 503 SERVICE_ASLEEP | docs/07 §3 | `web/app/api/lh/[service]/[...path]/route.testbook.test.ts` |
 | TB-WEB-PRX-012 | nessuna risposta entro 25 s | richiesta interrotta, 503 SERVICE_ASLEEP | docs/07 §3 | `web/app/api/lh/[service]/[...path]/route.testbook.test.ts` |
 | TB-WEB-PRX-013 | errore applicativo 422 (RFC 9457) | inoltrato tale e quale | docs/07 §3 | `web/app/api/lh/[service]/[...path]/route.testbook.test.ts` |
@@ -387,13 +387,13 @@ filtro delle voci malformate (R2); parametri vuoti omessi; percorso senza «/» 
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
-| TB-WEB-CLI-001 | 503 {type: SERVICE_ASLEEP} dal proxy | errore «addormentato» | docs/07 §3 · docs/06 §2 | `web/lib/api/client.testbook.test.ts` |
+| TB-WEB-CLI-001 | 503 `{type: SERVICE_ASLEEP}` dal proxy | errore «addormentato» | docs/07 §3 · docs/06 §2 | `web/lib/api/client.testbook.test.ts` |
 | TB-WEB-CLI-002 | 503 del servizio senza SERVICE_ASLEEP | errore ordinario (non degraded) | docs/07 §3 · docs/06 §2 | `web/lib/api/client.testbook.test.ts` |
 | TB-WEB-CLI-003 | 422 con errors[] | errori di campo {field, message} | docs/06 §2 · docs/07 §6 (Validation) | `web/lib/api/client.testbook.test.ts` |
 | TB-WEB-CLI-004 | problema con code e detail | code e detail dell'errore | docs/06 §2 (RFC 9457) | `web/lib/api/client.testbook.test.ts` |
-| TB-WEB-CLI-005 | problema senza code né type | AMBIGUO — HTTP_<status> | docs/07 §3 · docs/06 §2 | `web/lib/api/client.testbook.test.ts` |
+| TB-WEB-CLI-005 | problema senza code né type | AMBIGUO — HTTP_`<status>` | docs/07 §3 · docs/06 §2 | `web/lib/api/client.testbook.test.ts` |
 | TB-WEB-CLI-006 | 200 con JSON → corpo; 204 senza corpo | undefined | docs/07 §3 · docs/06 §2 | `web/lib/api/client.testbook.test.ts` |
-| TB-WEB-CLI-007 | chiamata sempre via /api/lh/<service>/…, parametri vuoti o assenti omessi | `/api/lh/member/v1/members?page=0&status=ACTIVE` | docs/07 §3 · docs/06 §2 | `web/lib/api/client.testbook.test.ts` |
+| TB-WEB-CLI-007 | chiamata sempre via /api/lh/`<service>`/…, parametri vuoti o assenti omessi | `/api/lh/member/v1/members?page=0&status=ACTIVE` | docs/07 §3 · docs/06 §2 | `web/lib/api/client.testbook.test.ts` |
 
 
 ## 7. QST — Stati di interfaccia (componente condiviso `QueryState`)
@@ -525,7 +525,7 @@ nell'intestazione della pagina (sempre presente), non nella barra.
 | TB-WEB-LIFE-048 | campagna di sistema ENDED | nessun pulsante (non si archivia) | docs/08 §BO-05 | `web/components/bo/LifecycleBar.testbook.test.tsx` |
 | TB-WEB-LIFE-049 | Rifiuta: commento vuoto | invio disabilitato | docs/03 §3.6 (REJECT, commento obbligatorio) | `web/components/bo/LifecycleBar.testbook.test.tsx` |
 | TB-WEB-LIFE-050 | Rifiuta: commento di soli spazi | invio disabilitato | docs/03 §3.6 | `web/components/bo/LifecycleBar.testbook.test.tsx` |
-| TB-WEB-LIFE-051 | Rifiuta con commento | POST …/transitions {action: REJECT, comment} | docs/08 §3.3 · docs/06 §7 | `web/components/bo/LifecycleBar.testbook.test.tsx` |
+| TB-WEB-LIFE-051 | Rifiuta con commento | POST …/transitions `{action: REJECT, comment}` | docs/08 §3.3 · docs/06 §7 | `web/components/bo/LifecycleBar.testbook.test.tsx` |
 | TB-WEB-LIFE-052 | Pubblica rifiutata con 409 APPROVAL_REQUIRED | invito a «Invia in revisione» | docs/06 §7 · docs/03 §3.6 | `web/components/bo/LifecycleBar.testbook.test.tsx` |
 | TB-WEB-LIFE-053 | IN_REVIEW per chi non può decidere (MARKETING) | ~~DIVERGENZA~~ risolta (§22) — «In attesa di LEGAL da …» | docs/08 §3.3 (IN_REVIEW) | `web/components/bo/LifecycleBar.testbook.test.tsx` |
 | TB-WEB-LIFE-054 | ogni transizione apre un dialogo con commento prima dell'invio (Metti in pausa) | ~~DIVERGENZA~~ risolta (§22) — si apre un dialogo con commento; nessun `POST` prima della conferma | docs/08 §3.3 (ultimo capoverso) | `web/components/bo/LifecycleBar.testbook.test.tsx` |
@@ -806,14 +806,14 @@ motore (`lh-common TypedCast`, Q-215 DECISA) — un valore che non si converte n
 | TB-WEB-COND-024 | tipo del valore: stringa format date-time | data | docs/08 §BO-06 «valore secondo il tipo» | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-025 | tipo del valore: stringa semplice | testo | docs/08 §BO-06 «valore secondo il tipo» | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-026 | campi raggruppati per spazio nell'ordine data, member, context, history | gruppi in quest'ordine, gli spazi vuoti omessi | docs/03 §3.3 · docs/08 §BO-06 · Q-92 | `web/lib/campaign/conditions.testbook.test.ts` |
-| TB-WEB-COND-027 | spazio member: tier, status, segments, labels, registeredDaysAgo, age | `member.tier`, `member.status`, `member.segments`, `member.labels`, `member.registeredDaysAgo`, `member.age` | docs/03 §3.3 · docs/08 §BO-06 · Q-92 | `web/lib/campaign/conditions.testbook.test.ts` |
+| TB-WEB-COND-027 | spazio member: tier, status, segments, labels, registeredDaysAgo, age, province | `member.tier`, `member.status`, `member.segments`, `member.labels`, `member.registeredDaysAgo`, `member.age`, `member.province` (M8.4) | docs/03 §3.3 · docs/08 §BO-06 · Q-92 · docs/18 §3.4 | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-028 | spazio context: source, dayOfWeek (MON…SUN), hour, date | `context.source`, `context.dayOfWeek` (opzioni MON…SUN), `context.hour`, `context.date` | docs/03 §3.3 · docs/08 §BO-06 · Q-92 | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-029 | spazio history: actionCount, daysSinceLastAction | `history.actionCount`, `history.daysSinceLastAction` | docs/03 §3.3 · docs/08 §BO-06 · Q-92 | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-030 | tier dal wallet; wallet assente | BASE, SILVER, GOLD, PLATINUM (docs/03 §4.3) | docs/03 §4.3 · Q-92 | `web/lib/campaign/conditions.testbook.test.ts` |
-| TB-WEB-COND-031 | attributo custom NUMBER con opzioni | enum di numeri (member.attributes.<k>) | docs/03 §3.3 · docs/08 §BO-06 · Q-92 | `web/lib/campaign/conditions.testbook.test.ts` |
-| TB-WEB-COND-032 | attributo custom BOOLEAN | booleano (member.attributes.<k>) | docs/03 §3.3 · docs/08 §BO-06 · Q-92 | `web/lib/campaign/conditions.testbook.test.ts` |
-| TB-WEB-COND-033 | attributo custom DATE | data (member.attributes.<k>) | docs/03 §3.3 · docs/08 §BO-06 · Q-92 | `web/lib/campaign/conditions.testbook.test.ts` |
-| TB-WEB-COND-034 | attributo custom STRING senza opzioni | testo (member.attributes.<k>) | docs/03 §3.3 · docs/08 §BO-06 · Q-92 | `web/lib/campaign/conditions.testbook.test.ts` |
+| TB-WEB-COND-031 | attributo custom NUMBER con opzioni | enum di numeri (member.attributes.`<k>`) | docs/03 §3.3 · docs/08 §BO-06 · Q-92 | `web/lib/campaign/conditions.testbook.test.ts` |
+| TB-WEB-COND-032 | attributo custom BOOLEAN | booleano (member.attributes.`<k>`) | docs/03 §3.3 · docs/08 §BO-06 · Q-92 | `web/lib/campaign/conditions.testbook.test.ts` |
+| TB-WEB-COND-033 | attributo custom DATE | data (member.attributes.`<k>`) | docs/03 §3.3 · docs/08 §BO-06 · Q-92 | `web/lib/campaign/conditions.testbook.test.ts` |
+| TB-WEB-COND-034 | attributo custom STRING senza opzioni | testo (member.attributes.`<k>`) | docs/03 §3.3 · docs/08 §BO-06 · Q-92 | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-035 | campo su elenco data.items[*].category | nota «vero se almeno un elemento soddisfa» | docs/03 §3.3 · docs/08 §BO-06 · Q-92 | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-036 | un trigger | tutti i suoi campi | docs/08 §BO-06 (intersezione, avviso) | `web/lib/campaign/conditions.testbook.test.ts` |
 | TB-WEB-COND-037 | due trigger | solo i campi comuni | docs/08 §BO-06 (intersezione, avviso) | `web/lib/campaign/conditions.testbook.test.ts` |
@@ -1388,7 +1388,7 @@ propria (la prima colonna non è l'ID di riga); la colonna «Causa» riporta i r
 | D6 | TB-WEB-PILL-004, 006, 010, 011 | docs/07 §5.2: SCHEDULED indaco, PAUSED arancio, ARCHIVED grigio chiaro distinto da ENDED slate | SCHEDULED senza voce (grigio di default); PAUSED ambra come IN_REVIEW; ENDED e ARCHIVED con le stesse classi | `web/components/bo/primitives.tsx:9-40` (`:20`, `:25-26`) | `web/components/bo/primitives.tsx`: SCHEDULED indaco, PAUSED arancio, ARCHIVED grigio chiaro |
 | D7 | TB-WEB-QST-002 | docs/07 §6 Loading: tabelle con 8 righe scheletro | 5 righe per ogni vista | `web/components/shared/QueryState.tsx:53` | `web/components/shared/QueryState.tsx`: `skeletonRows` = 8 |
 | D8 | TB-WEB-QST-004 | docs/07 §6 Empty: icona + frase + **azione primaria** | `EmptyState` ha solo titolo e suggerimento | `web/components/shared/QueryState.tsx:60-67` | `web/components/shared/QueryState.tsx`: prop facoltativa `emptyAction`; senza, *Aggiorna* (rilancia la query) |
-| D9 | TB-WEB-QST-008 | docs/07 §6 Error: `title` del problema RFC 9457 | mostra "Errore: <code>"; il client scarta `title` quando c'è `detail` | `web/lib/api/client.ts:59`, `web/components/shared/QueryState.tsx:32` | `web/lib/api/client.ts` (`LhError.title`), `web/components/shared/QueryState.tsx` (`ErrorBox`) |
+| D9 | TB-WEB-QST-008 | docs/07 §6 Error: `title` del problema RFC 9457 | mostra "Errore: `<code>`"; il client scarta `title` quando c'è `detail` | `web/lib/api/client.ts:59`, `web/components/shared/QueryState.tsx:32` | `web/lib/api/client.ts` (`LhError.title`), `web/components/shared/QueryState.tsx` (`ErrorBox`) |
 | D10 | TB-WEB-QST-009 | docs/07 §6 Error: `correlationId` copiabile | `LhError` non porta la correlazione, il riquadro non la mostra | `web/lib/api/client.ts:15-24`, `web/components/shared/QueryState.tsx:30-42` | `web/lib/api/client.ts` (`LhError.correlationId` dal problema o da `X-Correlation-Id`), `ErrorBox` con *copia* |
 | D11 | TB-WEB-QST-010, 011 | docs/07 §6 Degraded: "Il servizio *wallet* si sta svegliando…" con barra; riprova automatica ogni 5 s fino a 90 s | "Servizio «wallet» non raggiungibile… Accendi la demo dal Demo Hub"; solo *Riprova* manuale | `web/components/shared/QueryState.tsx:27-29`, `:69-83` | `web/components/shared/QueryState.tsx` (`DegradedBox`: testo della spec, barra indeterminata, `autoRetry` 5 s × 90 s) |
 | D12 | TB-WEB-HOME-018 | docs/09 §2: servizio che dorme → la tessera usa l'ultimo saldo noto con "aggiornato alle 10:42" | con dato precedente e servizio addormentato la sezione mostra solo il riquadro degraded | `web/components/shared/QueryState.tsx:26-29` (l'errore prevale sul dato), `web/app/portal/page.tsx:64` | `web/components/shared/QueryState.tsx`: con un dato già noto e servizio addormentato, riquadro degraded + «aggiornato alle HH:MM» + ultimo dato |
