@@ -83,7 +83,8 @@ jobs:
           java-version: "25"
           cache: maven
       - name: Moduli a monte (senza test)
-        run: ./mvnw -B -ntp install -DskipTests -pl "${{ matrix.modules }}" -am
+        # -DskipITs serve: failsafe 3.6 non salta gli IT con il solo -DskipTests.
+        run: ./mvnw -B -ntp install -DskipTests -DskipITs -pl "${{ matrix.modules }}" -am
       - name: Build e test
         run: ./mvnw -B -ntp verify -pl "${{ matrix.modules }}"
 
