@@ -198,8 +198,8 @@ mappati, **563 righe** in 28 aree. Test: `libs/lh-common/src/test/java/io/loyalt
   `@eom` con scostamenti, variabili d'ambiente di docs/11 §8 e readiness con db e kafka, `lh_outbox_pending`, pulizia di
   `processed_event`, 400 per `size`/`page` non validi ovunque, ordine e completezza del reset, `GET /v1/demo/info`,
   limite di 60 eventi/min per IP, 12 schemi di contratto mancanti, 2 partizioni nell'hub, profilo free completo e
-  listener `@Lazy(false)`, OpenAPI su `/v3/api-docs` con springdoc approvato: Q-341, ADR-026).
-- **Scelte registrate:** Q-332…Q-342 (tutte decise; Q-341 approvata dall'owner: springdoc, ADR-026).
+  listener `@Lazy(false)`, OpenAPI su `/v3/api-docs` con springdoc approvato: Q-341, ADR-046).
+- **Scelte registrate:** Q-332…Q-342 (tutte decise; Q-341 approvata dall'owner: springdoc, ADR-046).
 - **Verifica a mutazione:** 12 mutazioni (una per classe di test), tutte rilevate.
 
 ## 11. Copertura

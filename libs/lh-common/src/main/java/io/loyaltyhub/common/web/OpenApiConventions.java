@@ -21,7 +21,7 @@ import java.util.Locale;
  *   <li>Summary = quello di {@code @Operation} se presente, altrimenti il nome del metodo reso leggibile
  *       ({@code listCampaigns} → «List campaigns»; un nome di una parola prende l'area: «Get — webhooks»).</li>
  * </ul>
- * Q-341 / ADR-026: springdoc attivo ovunque; nel profilo {@code free} la UI Swagger è spenta (docs/11 §6).
+ * Q-341 / ADR-046: springdoc attivo ovunque; nel profilo {@code free} la UI Swagger è spenta (docs/11 §6).
  */
 @AutoConfiguration
 @ConditionalOnClass(OperationCustomizer.class)

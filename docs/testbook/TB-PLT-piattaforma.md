@@ -18,7 +18,7 @@ misurabili. Metodo ed esecuzione: docs/16 §1 e §1bis.
   `TestbookPltFreeProfileIT` (profilo `demo` su Kafka in-JVM con inizializzazione lazy). Dati: `testbook/plt/*.csv` di
   ciascun modulo; ogni caso si chiama `[TB-PLT-<AREA>-NNN] descrizione`.
 - **Esito.** 563 righe in 28 aree; 22 cause di divergenza trovate, tutte corrette nel codice (registro in §25); l'ultima,
-  OpenAPI, dopo l'approvazione di springdoc (Q-341, ADR-026). Nessuna riga AMBIGUO: ogni silenzio della specifica è
+  OpenAPI, dopo l'approvazione di springdoc (Q-341, ADR-046). Nessuna riga AMBIGUO: ogni silenzio della specifica è
   deciso nell'opzione conservativa e registrato in docs/15 (§26).
 
 ## 1. Inventario delle regole
@@ -790,7 +790,7 @@ e lasciati come sono o decisi in docs/15.
 | TB-PLT-HLR-005 | metrica lh_events_published_total esposta (`metric` lh_events_published_total) | 200 | docs/06 §8; docs/11 §6 | `TestbookPltApiIT#health` · `health.csv` |
 | TB-PLT-HLR-006 | metrica lh_events_consumed_total esposta (`metric` lh_events_consumed_total) | 200 | docs/06 §8; docs/11 §6 | `TestbookPltApiIT#health` · `health.csv` |
 | TB-PLT-HLR-007 | metrica lh_handler_seconds esposta (`metric` lh_handler_seconds) | 200 | docs/06 §8; docs/11 §6 | `TestbookPltApiIT#health` · `health.csv` |
-| TB-PLT-HLR-008 | OpenAPI su /v3/api-docs (docs/06 §2) (`openapi`) | 200, ogni operazione con `summary` e un solo tag (area) — D-22 corretta (ADR-026) | docs/06 §2 | `TestbookPltApiIT#health` · `health.csv` |
+| TB-PLT-HLR-008 | OpenAPI su /v3/api-docs (docs/06 §2) (`openapi`) | 200, ogni operazione con `summary` e un solo tag (area) — D-22 corretta (ADR-046) | docs/06 §2 | `TestbookPltApiIT#health` · `health.csv` |
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -1087,7 +1087,7 @@ la correzione è nel codice di produzione (o nei contratti, D-19).
 | D-19 | CTR-002…005, 007…011, 013, 014, 029 | docs/05 §9: uno schema e un esempio per ogni `type` | 12 schemi ed esempi assenti | `contracts/events/` | corretta: schemi ed esempi aggiunti (Q-342) |
 | D-20 | HCF-002 | docs/05 §1, ADR-004: 2 partizioni | 1 partizione sul broker reale dell'hub | `HubKafkaTopics.java:26` | corretta |
 | D-21 | HCF-006…008, FRE-001…008 | docs/06 §5, §6; docs/11 §4, §6: profilo free completo, listener e scheduler `@Lazy(false)` | 23 listener/job e 3 bean schedulati senza `@Lazy(false)`; lazy init, JMX, log JSON, Hikari `max-lifetime`/avvio col DB in risveglio assenti; insight senza profilo free | `application-free.yml` di 7 servizi; insight senza file; classi `*Listener`, `*Jobs`, `LhCommonAutoConfiguration.java:117, 126` | corretta; FRP-001…003 provano l'avvio lazy su broker reale |
-| D-22 | HLR-008 | docs/06 §2: OpenAPI su `/v3/api-docs` | 404 | nessuna dipendenza springdoc (**regola non implementata**) | **corretta**: springdoc in lh-common, approvato (Q-341, ADR-026) |
+| D-22 | HLR-008 | docs/06 §2: OpenAPI su `/v3/api-docs` | 404 | nessuna dipendenza springdoc (**regola non implementata**) | **corretta**: springdoc in lh-common, approvato (Q-341, ADR-046) |
 
 ## 26. Scelte registrate
 
@@ -1132,5 +1132,5 @@ quella precedente alle mutazioni.
 | Righe | 563 (lh-common 332: ENV 50, TOP 24, CLK 59, CAL 22, KCF 34, HLT 4, VAR 25, DLR 38, IDM 18, ERR 24, REL 22, ITX 3, DLK 11; hub 231: CTR 64, LOP 6, BRT 5, BUS 14, HER 10, PAG 60, ACT 17, RST 9, INF 3, HLR 8, FRP 3, NFR 2, RLM 5, HCF 8, FRE 15) |
 | Tabelle complete | famiglia → topic, elenco × classe di paginazione (60), tipo d'errore × campo DLQ, protocolli di sicurezza, un `type` per riga (64) |
 | Riduzioni | proprietà del profilo free × servizio 120 → 15 righe (una riga controlla gli 8 servizi); ruoli e forme dell'intestazione solo sull'endpoint ADMIN del reset (le altre guardie sono in TB-GOV) |
-| Divergenze | 22 cause, 108 righe: tutte corrette (D-22 con springdoc, ADR-026) |
+| Divergenze | 22 cause, 108 righe: tutte corrette (D-22 con springdoc, ADR-046) |
 | Non automatizzabili | RNF-01 (RSS ≤ 450 MB su 512 MB, docs/11 §6), tempo di avvio a freddo su 0,1 CPU (Q-20), RNF-06 oltre la retention (Q-25), RNF-08/09 (web, TB-WEB): richiedono il container reale o il browser |
