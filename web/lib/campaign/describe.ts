@@ -1,11 +1,16 @@
 // Frase generata che rilegge una campagna in italiano (docs/08 §BO-06). Funzione pura, testabile,
 // usata dall'editor e da BO-21. Non lancia mai: su dati incompleti produce una frase parziale sensata.
 
+import { splitAllowedSources } from "./sources";
+
 export interface CampaignDraft {
   triggerActionTypes?: string[];
   /** Nomi dei tipi azione noti al chiamante (es. i tipi custom da ingestion), prioritari sulla mappa interna. */
   actionLabels?: Record<string, string>;
-  /** Fonti ammesse (BO-06 §2 Quando, default tutte): elencate dopo il trigger ("da ecommerce o app"). */
+  /**
+   * Fonti ammesse (BO-06 §2 Quando, default tutte): elencate dopo il trigger ("da ecommerce o app"). Se assenti si
+   * leggono dalla regola `context.source` alla radice delle condizioni (Q-208, `lib/campaign/sources.ts`).
+   */
   sources?: string[];
   /** Nomi dei concorsi per codice (gamification `GET /v1/contests`): "1 giocata a Ruota d'Autunno". */
   contestNames?: Record<string, string>;
@@ -87,9 +92,12 @@ const CMP_LABEL: Record<string, string> = {
 };
 
 export function describeCampaign(c: CampaignDraft): string {
-  const trigger = triggerPhrase(c.triggerActionTypes, c.actionLabels) + sourcesPhrase(c.sources);
+  // Q-208: la regola sulle fonti alla radice si legge come «da …» dopo il trigger, non come condizione.
+  const split = splitAllowedSources(c.conditions);
+  const sources = c.sources && c.sources.length > 0 ? c.sources : split.sources;
+  const trigger = triggerPhrase(c.triggerActionTypes, c.actionLabels) + sourcesPhrase(sources);
   const audience = audiencePhrase(c.audience);
-  const conditions = conditionsPhrase(c.conditions);
+  const conditions = conditionsPhrase(split.rest ?? undefined);
   const effects = effectsPhrase(c.effects, c.contestNames);
   const limits = limitsPhrase(c.limits);
 

@@ -1446,8 +1446,8 @@ FMT-011, 012, 027, 031–033, 036; RWD-054, 056, 057, 064–066, 070, 075; HOME-
 attesa "In attesa di LEGAL" (D4); dialogo con commento per ogni transizione (D5); pill SCHEDULED (D6); 8 righe
 scheletro, azione primaria del vuoto, `title` e `correlationId` dell'errore, testo e riprova automatica del degraded
 (D7–D11); ultimo saldo noto (D12); `keepWarning` (D14); banda del membro non attivo (D15); «€», nome del concorso, campo
-di FROM_FIELD/LOOKUP nella frase (D17, D18, D20). Le fonti ammesse (D16) entrano nella frase quando la bozza le porta,
-ma campaign-service non le espone: dato mancante, Q-208.
+di FROM_FIELD/LOOKUP nella frase (D17, D18, D20). Le fonti ammesse (D16) entrano nella frase dalla bozza o dalla regola
+`context.source` alla radice delle condizioni (Q-208 decisa, `web/lib/campaign/sources.ts`).
 **Senza codice e senza riga** (nessuna unità web da provare): stato *Stale* ("aggiornato alle" dopo 60 s senza SSE,
 docs/07 §6); colore semantico dei punti per tipo di movimento (docs/07 §5.2: spesa ambra, scadenza rossa, STS viola —
 `PointsAmount` distingue solo il segno); *Storico* delle transizioni in popover accanto alla barra (docs/08 §3.3; lo

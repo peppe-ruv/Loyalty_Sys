@@ -149,7 +149,7 @@ Documento completo: [`docs/testbook/TB-WEB-interfaccia.md`](testbook/TB-WEB-inte
 - **Divergenze trovate e corrette (33 righe, 23 cause):** etichette e contatore della navigazione, azioni vietate davvero
   disabilitate, dialogo per ogni transizione, colori degli stati, stati *loading/empty/error/degraded* di docs/07 §6,
   avvisi del portale (mantenimento livello, profilo sospeso), frase generata della campagna, formati di euro, zero e tempo.
-- **Scelte registrate:** Q-186…Q-208; non conservative: Q-186, Q-206 (Q-197 decisa conservativa, con il cast tipizzato di Q-215); Q-208 = fonti ammesse non esposte da campaign.
+- **Scelte registrate:** Q-186…Q-208; non conservative: Q-186, Q-206 (Q-197 decisa conservativa, con il cast tipizzato di Q-215); Q-208 decisa: fonti ammesse = regola `context.source` alla radice delle condizioni, editata in BO-06 «Quando».
 - **Verifica a mutazione:** 26 mutazioni, tutte rilevate.
 
 ## 10bis. TB-E2E — Percorsi end-to-end

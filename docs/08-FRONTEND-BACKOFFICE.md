@@ -174,7 +174,7 @@ Formato: **Scopo** · **Dati** · **Layout** · **Azioni** (ruolo) · **Note**. 
 | Sezione | Campi |
 |---|---|
 | 1 Generale | nome, codice (auto dal nome, modificabile solo in `DRAFT`), descrizione interna, etichette, `requiresLegal` |
-| 2 Quando | tipi azione trigger (multi-scelta con icona e fonte), fonti ammesse (default tutte) |
+| 2 Quando | tipi azione trigger (multi-scelta con icona e fonte), fonti ammesse (default tutte; salvate come regola `context.source in [URN…]` alla radice delle condizioni, docs/03 §3.3, Q-208) |
 | 3 A chi | `AudiencePicker`: tutti · tier · segmenti (M6) |
 | 4 Se | `ConditionBuilder`: gruppi `TUTTE / ALMENO UNA / NESSUNA` annidabili (max 3 livelli); riga = campo (combobox raggruppato per spazio `data`, `member`, `context`, `history`) · operatore coerente col tipo · valore secondo il tipo (numero, testo, elenco, enum → select, data, booleano). Con più trigger i campi `data.*` disponibili sono l'intersezione; un campo non comune mostra un avviso |
 | 5 Allora | elenco effetti ordinabile (`EffectEditor`): `GRANT_POINTS` (valuta; modalità *fisso / per importo / da campo / da tabella*; arrotondamento; applica moltiplicatore tier; `pendingDays`), `MULTIPLIER` (fattore, valuta, campagne bersaglio), `GRANT_PLAYS` (concorso, quantità), `ISSUE_COUPON` (premio), `AWARD_BADGE`, `SEND_MESSAGE` (template) |

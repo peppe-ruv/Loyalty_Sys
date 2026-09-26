@@ -7,8 +7,8 @@ import { describeCampaign, type CampaignDraft } from "@/lib/campaign/describe";
 // Rende la frase generata da describeCampaign() convertendo i marcatori **…** in <strong> (docs/08 §BO-06). Con un
 // effetto GRANT_PLAYS legge i concorsi (gamification) per nominare il concorso ("1 giocata a Ruota d'Autunno"); se il
 // servizio dorme resta il codice.
-// SPEC-GAP: Q-208 — le fonti ammesse ("da ecommerce o app") entrano nella frase solo se la bozza le porta: campaign
-// oggi non modella le fonti ammesse della campagna.
+// Le fonti ammesse ("da ecommerce o app", Q-208) vengono dalla bozza o dalla regola context.source alla radice delle
+// condizioni (`lib/campaign/sources.ts`).
 export function GeneratedSentence({ draft }: { draft: CampaignDraft }) {
   const needsContests = (draft.effects ?? []).some((e) => e.type === "GRANT_PLAYS" && e.contestCode);
   const contests = useLhQuery<Contest[]>("gamification", "/v1/contests", undefined, { enabled: needsContests });

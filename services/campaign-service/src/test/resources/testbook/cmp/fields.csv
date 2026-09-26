@@ -59,6 +59,9 @@ TB-CMP-CTX-019|date: 29 febbraio|context.date|eq|"2028-02-29"|{}|2028-02-28T23:0
 TB-CMP-CTX-020|date: primo del mese dopo il 31 gennaio|context.date|eq|"2026-02-01"|{}|2026-01-31T23:00:00Z|||||true
 TB-CMP-CTX-021|date con gt (date confrontate come date) // Q-215 DECISA (Q-91)|context.date|gt|"2026-09-01"|{}|2026-09-15T09:00:00Z|||||true
 TB-CMP-CTX-022|campo context sconosciuto|context.weather|exists||{}||||||false
+TB-CMP-CTX-023|fonti ammesse (Q-208): context.source in con la fonte dell'azione|context.source|in|["urn:loyaltyhub:source:ecommerce","urn:loyaltyhub:source:app"]|{}||||||true
+TB-CMP-CTX-024|fonti ammesse (Q-208): context.source in senza la fonte dell'azione|context.source|in|["urn:loyaltyhub:source:app","urn:loyaltyhub:source:crm"]|{}||||||false
+TB-CMP-CTX-025|fonti ammesse (Q-208): codice senza URN non coincide con la fonte|context.source|in|["ecommerce"]|{}||||||false
 TB-CMP-HIS-001|actionCount 0 alla prima azione|history.actionCount|eq|0|{}|||||0;-1|true
 TB-CMP-HIS-002|actionCount alla soglia|history.actionCount|gte|3|{}|||||3;1|true
 TB-CMP-HIS-003|actionCount sotto la soglia|history.actionCount|gte|3|{}|||||2;1|false

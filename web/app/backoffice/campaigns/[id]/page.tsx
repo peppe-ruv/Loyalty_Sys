@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useLhQuery } from "@/lib/api/client";
 import type { Campaign } from "@/lib/api/types";
 import type { CampaignDraft, ConditionNode, EffectSpec } from "@/lib/campaign/describe";
+import { splitAllowedSources } from "@/lib/campaign/sources";
 import { QueryState } from "@/components/bo/QueryState";
 import { Card, CardBody } from "@/components/ui/card";
 import { PageHeader, CodeText } from "@/components/bo/primitives";
@@ -70,7 +71,18 @@ export default function CampaignEditorPage() {
             </div>
             <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
               <div className="space-y-4">
-                <Section title="Quando" body={c.triggerActionTypes.join(", ") || "—"} />
+                <Section
+                  title="Quando"
+                  body={
+                    <>
+                      <p>{c.triggerActionTypes.join(", ") || "—"}</p>
+                      {/* Q-208: fonti ammesse = regola context.source alla radice delle condizioni (default tutte). */}
+                      <p className="text-xs text-[var(--color-bo-ink-2)]">
+                        Fonti ammesse: {sourcesLabel(splitAllowedSources(c.conditions as ConditionNode).sources)}
+                      </p>
+                    </>
+                  }
+                />
                 <Section title="Se (condizioni)" body={<Json value={c.conditions} />} />
                 <Section title="Allora (effetti)" body={<Json value={c.effects} />} />
                 <Section title="Limiti" body={<Json value={c.limits} />} />
@@ -96,6 +108,10 @@ export default function CampaignEditorPage() {
       }}
     </QueryState>
   );
+}
+
+function sourcesLabel(sources: string[]): string {
+  return sources.length === 0 ? "tutte" : sources.join(", ");
 }
 
 function Section({ title, body }: { title: string; body: React.ReactNode }) {

@@ -13,11 +13,14 @@ import { GeneratedSentence } from "@/components/bo/GeneratedSentence";
 import { SimulationPanel } from "@/components/bo/SimulationPanel";
 import { Can, useCan } from "@/components/bo/Can";
 import { TriggerPicker } from "@/components/bo/campaigns/TriggerPicker";
+import { SourcesPicker } from "@/components/bo/campaigns/SourcesPicker";
+import { withAllowedSources } from "@/lib/campaign/sources";
 import { ConditionBuilder, useConditionCatalog } from "@/components/bo/campaigns/ConditionBuilder";
 import { cn } from "@/lib/cn";
 
 // BO-06 Nuova campagna (docs/08 §BO-06): editor con frase generata dal vivo. Salva come DRAFT (POST).
-// "2 Quando" sceglie i trigger fra i tipi azione di ingestion (anche custom, BO-09); "4 Se" è il ConditionBuilder con
+// "2 Quando" sceglie i trigger fra i tipi azione di ingestion (anche custom, BO-09) e le fonti ammesse (Q-208: regola
+// context.source alla radice delle condizioni, default tutte); "4 Se" è il ConditionBuilder con
 // vista JSON alternativa. Gli altri blocchi restano in JSON.
 const DEFAULT_CONDITIONS = { op: "all", rules: [{ field: "data.amount", cmp: "gte", value: 1 }] };
 const DEFAULTS = {
@@ -36,6 +39,7 @@ export default function NewCampaignPage() {
   const [priority, setPriority] = useState(100);
   const [visibleInPortal, setVisibleInPortal] = useState(true);
   const [triggers, setTriggers] = useState<string[]>(["purchase.completed"]);
+  const [sources, setSources] = useState<string[]>([]);
   const [json, setJson] = useState(DEFAULTS);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -60,12 +64,13 @@ export default function NewCampaignPage() {
     return {
       triggerActionTypes: triggers,
       actionLabels,
+      sources,
       audience: parse(json.audience) as CampaignDraft["audience"],
       conditions: conditions ?? undefined,
       effects: (parse(json.effects) as EffectSpec[]) ?? [],
       limits: parse(json.limits) as CampaignDraft["limits"],
     };
-  }, [triggers, actionLabels, json, conditions]);
+  }, [triggers, actionLabels, sources, json, conditions]);
 
   const autoCode = useMemo(
     () => "CMP-" + name.toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24),
@@ -120,8 +125,9 @@ export default function NewCampaignPage() {
         visibleInPortal,
         triggerActionTypes: triggers,
         audience: parse(json.audience),
-        // Nessuna condizione → null: il servizio salva {op: all, rules: []}, sempre vero.
-        conditions,
+        // Nessuna condizione → null: il servizio salva {op: all, rules: []}, sempre vero. Le fonti ammesse (Q-208) entrano
+        // come regola context.source in testa al gruppo TUTTE; nessuna fonte = tutte, nessuna regola.
+        conditions: withAllowedSources(conditions, sources),
         effects: parse(json.effects),
         limits: parse(json.limits),
         schedule: parse(json.schedule),
@@ -171,6 +177,10 @@ export default function NewCampaignPage() {
               <h3 className="text-sm font-semibold">2 · Quando</h3>
               <p className="text-xs text-[var(--color-bo-ink-2)]">Tipi azione che fanno scattare la campagna (uno o più).</p>
               <TriggerPicker value={triggers} onChange={setTriggers} disabled={!canEdit} />
+              <div>
+                <p className="mb-1 text-xs font-medium">Fonti ammesse</p>
+                <SourcesPicker value={sources} onChange={setSources} disabled={!canEdit} />
+              </div>
             </CardBody>
           </Card>
           <Card>
