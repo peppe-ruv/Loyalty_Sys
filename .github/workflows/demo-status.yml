@@ -1,0 +1,36 @@
+name: demo-status
+
+# Diagnosi in sola lettura della demo online (docs/07 §8, HUB-01): sveglia l'hub e stampa ciò che legge il pannello
+# di stato, cioè /actuator/health dell'hub (componenti db e kafka, tempo di risposta) e /api/demo/status del web.
+# Nessuna scrittura sui dati della demo. Solo manuale.
+on:
+  workflow_dispatch:
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      HUB_URL: ${{ vars.LH_HUB_URL || 'https://loyalty-hub-6dc3.onrender.com' }}
+      WEB_URL: ${{ vars.LH_WEB_URL || 'https://loyalty-hub-web.vercel.app' }}
+    steps:
+      - name: Sveglia l'hub
+        run: |
+          for i in $(seq 1 40); do
+            if curl -fsS --max-time 20 "$HUB_URL/actuator/health/liveness" >/dev/null; then echo "hub sveglio"; exit 0; fi
+            echo "hub non ancora sveglio ($i/40)…"; sleep 15
+          done
+          echo "l'hub non si è svegliato entro 10 minuti" >&2; exit 1
+      - name: Health dell'hub (tre letture)
+        run: |
+          for i in 1 2 3; do
+            curl -s -o health.json -w "HTTP %{http_code} in %{time_total}s\n" --max-time 30 "$HUB_URL/actuator/health" || true
+            jq -c '{status, components: (.components // {} | with_entries(.value = {status: .value.status, details: (.value.details // null)}))}' health.json || cat health.json
+            sleep 5
+          done
+      - name: Stato visto dal pannello del web
+        run: |
+          for i in 1 2 3; do
+            curl -s -w "\nHTTP %{http_code} in %{time_total}s\n" --max-time 30 "$WEB_URL/api/demo/status" | jq -c '{kafka, db, readyCount, totalCount, services: [.services[] | {code, state, latencyMs}]}' 2>/dev/null || true
+            sleep 5
+          done
