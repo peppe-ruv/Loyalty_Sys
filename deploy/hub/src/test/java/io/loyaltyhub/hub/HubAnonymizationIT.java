@@ -120,7 +120,7 @@ class HubAnonymizationIT {
         assertThat(storedInbound(id)).contains(mail).contains(first);                        // ingestion (payload conservato)
         assertThat(personal.get("eventDetails")).contains(first).contains(mail);             // insight
         assertThat(personal.get("auditDetails")).contains(first);                            // insight (audit)
-        int ledgerBefore = get("/v1/wallets/" + id + "/ledger?limit=100").size();
+        int ledgerBefore = settledLedgerSize(id);
         assertThat(ledgerBefore).isGreaterThanOrEqualTo(2);
 
         // 3. Anonimizzazione (BO-03): solo ADMIN, conferma con l'id digitato.
@@ -247,6 +247,26 @@ class HubAnonymizationIT {
     }
 
     // ---------- helper ----------
+
+    /**
+     * Numero di movimenti del libro mastro a riposo: stesso valore per tre letture consecutive. Le campagne
+     * dell'acquisto accreditano in momenti diversi; senza attesa il conteggio "prima" poteva perderne uno.
+     */
+    private int settledLedgerSize(String memberId) {
+        long deadline = System.currentTimeMillis() + 30_000;
+        int last = -1;
+        int stable = 0;
+        while (System.currentTimeMillis() < deadline) {
+            int size = get("/v1/wallets/" + memberId + "/ledger?limit=100").size();
+            stable = size == last ? stable + 1 : 0;
+            last = size;
+            if (stable >= 2) {
+                return size;
+            }
+            sleep();
+        }
+        throw new AssertionError("libro mastro non a riposo entro 30 s: " + last + " movimenti");
+    }
 
     private long pts(String memberId) {
         JsonNode w = client().get().uri("/v1/portal/wallets/" + memberId)
