@@ -1,14 +1,15 @@
 package io.loyaltyhub.common.contracts;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
+import com.networknt.schema.Error;
+import com.networknt.schema.Schema;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SpecificationVersion;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -24,15 +25,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ContractsTest {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final JsonSchemaFactory FACTORY =
-            JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012);
+    private static final ObjectMapper MAPPER = JsonMapper.builder().build();
+    private static final SchemaRegistry REGISTRY =
+            SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12);
     private static final PathMatchingResourcePatternResolver RESOLVER =
             new PathMatchingResourcePatternResolver();
 
     @Test
     void everyExampleValidatesAgainstEnvelopeAndDataSchema() throws Exception {
-        JsonSchema envelope = schema("classpath:contracts/events/envelope.schema.json");
+        Schema envelope = schema("classpath:contracts/events/envelope.schema.json");
         Resource[] examples = RESOLVER.getResources("classpath*:contracts/events/examples/*.json");
         assertThat(examples).as("esempi presenti").isNotEmpty();
 
@@ -41,12 +42,12 @@ class ContractsTest {
             String name = example.getFilename();
             JsonNode event = read(example);
 
-            Set<ValidationMessage> envelopeErrors = envelope.validate(event);
+            List<Error> envelopeErrors = envelope.validate(event);
             if (!envelopeErrors.isEmpty()) {
                 failures.add(name + " ⟶ envelope: " + envelopeErrors);
             }
 
-            String type = event.path("type").asText();
+            String type = event.path("type").asString();
             String familyDotName = type.replaceFirst("^io\\.loyaltyhub\\.", "");
             int firstDot = familyDotName.indexOf('.');
             String family = familyDotName.substring(0, firstDot);
@@ -54,21 +55,21 @@ class ContractsTest {
 
             // Coerenza del dataschema dichiarato (docs/05 §2): <famiglia>.<nome>:<n>, la versione n>1 in <nome>.v<n>.
             String prefix = "urn:loyaltyhub:schema:" + familyDotName + ":";
-            String dataschema = event.path("dataschema").asText();
+            String dataschema = event.path("dataschema").asString();
             int version = dataschema.startsWith(prefix) ? parseVersion(dataschema.substring(prefix.length())) : -1;
             if (version < 1) {
                 failures.add(name + " ⟶ dataschema atteso " + prefix + "<versione> ma trovato " + dataschema);
                 continue;
             }
 
-            JsonSchema dataSchema = schema("classpath:contracts/events/" + family + "/" + schemaFile(eventName, version));
-            Set<ValidationMessage> dataErrors = dataSchema.validate(event.path("data"));
+            Schema dataSchema = schema("classpath:contracts/events/" + family + "/" + schemaFile(eventName, version));
+            List<Error> dataErrors = dataSchema.validate(event.path("data"));
             if (!dataErrors.isEmpty()) {
                 failures.add(name + " ⟶ data: " + dataErrors);
             }
 
             // Gli audit hanno l'attore obbligatorio (docs/05 §6).
-            if (family.equals("audit") && event.path("lhactor").asText("").isBlank()) {
+            if (family.equals("audit") && event.path("lhactor").asString("").isBlank()) {
                 failures.add(name + " ⟶ audit senza lhactor");
             }
         }
@@ -124,13 +125,13 @@ class ContractsTest {
             java.util.regex.Matcher m = java.util.regex.Pattern.compile("^(.*?)(?:\\.v(\\d+))?\\.schema\\.json$").matcher(file);
             m.matches();
             int version = m.group(2) == null ? 1 : Integer.parseInt(m.group(2));
-            if (!node.path("$id").asText().endsWith(":" + version)) {
-                failures.add(rel + " ⟶ $id " + node.path("$id").asText() + " non termina con :" + version);
+            if (!node.path("$id").asString().endsWith(":" + version)) {
+                failures.add(rel + " ⟶ $id " + node.path("$id").asString() + " non termina con :" + version);
             }
             if (pii.isEmpty()) {
                 continue;
             }
-            String supersededBy = node.path("x-lh-superseded-by").asText("");
+            String supersededBy = node.path("x-lh-superseded-by").asString("");
             int next = supersededBy.matches(".*:\\d+$") ? parseVersion(supersededBy.substring(supersededBy.lastIndexOf(':') + 1)) : -1;
             boolean nextExists = next > version && RESOLVER.getResource(
                     "classpath:contracts/events/" + family + "/" + schemaFile(m.group(1), next)).exists();
@@ -165,9 +166,9 @@ class ContractsTest {
         return text.matches("[1-9][0-9]*") ? Integer.parseInt(text) : -1;
     }
 
-    private JsonSchema schema(String location) throws Exception {
+    private Schema schema(String location) throws Exception {
         try (InputStream in = RESOLVER.getResource(location).getInputStream()) {
-            return FACTORY.getSchema(in);
+            return REGISTRY.getSchema(in);
         }
     }
 
