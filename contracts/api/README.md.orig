@@ -5,9 +5,9 @@ Questa directory contiene le specifiche OpenAPI generate automaticamente dal cod
 Le specifiche fungono da contratto garantito per l'interazione tra i servizi (o portali) client e i servizi di dominio, e sono generate dinamicamente durante i test d'integrazione di deploy (`deploy/hub`) del profilo `demo`.
 
 ```mermaid
+accTitle: Generazione OpenAPI
+accDescr: Flusso di generazione e validazione dei contratti OpenAPI
 flowchart LR
-    accTitle: Generazione OpenAPI
-    accDescr: Flusso di generazione e validazione dei contratti OpenAPI
     A[Codice Java] -->|Springdoc| B[OpenApiExportIT]
     B -->|Rigenera| C[(YAML in contracts/api)]
     C -->|Verifica CI| D[check-api.mjs]
