@@ -16,7 +16,7 @@
   <description>Unico ingresso delle azioni e unico produttore di lh.actions.v1 (porta 8081, schema ingestion). Archetipo in M0.5.</description>
 
   <properties>
-    <zonky-embedded-postgres.version>2.0.7</zonky-embedded-postgres.version>
+    <zonky-embedded-postgres.version>2.2.2</zonky-embedded-postgres.version>
   </properties>
 
   <dependencies>

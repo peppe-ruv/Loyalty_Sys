@@ -16,7 +16,7 @@
   <description>Deployable consolidato per la demo ospitata (ADR-023): i 4 servizi del core loop in un solo JVM, schema per servizio.</description>
 
   <properties>
-    <zonky-embedded-postgres.version>2.0.7</zonky-embedded-postgres.version>
+    <zonky-embedded-postgres.version>2.2.2</zonky-embedded-postgres.version>
   </properties>
 
   <dependencies>
