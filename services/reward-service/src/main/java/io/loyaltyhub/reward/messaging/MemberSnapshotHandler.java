@@ -64,16 +64,32 @@ public class MemberSnapshotHandler implements EventHandler {
                     members.removeSegment(memberId, d.get("segmentCode").asString());
                 }
             }
-            default -> members.upsertProfile(memberId, d.path("status").asString("ACTIVE"),
-                    d.hasNonNull("firstName") ? d.get("firstName").asString() : null,
-                    d.hasNonNull("lastName") ? d.get("lastName").asString() : null);
+            default -> {
+                String ds = event.dataschema();
+                int version = 1;
+                if (ds != null && ds.endsWith(":2")) {
+                    version = 2;
+                }
+
+                String status = "ACTIVE";
+                if (d.hasNonNull("status")) {
+                    status = d.get("status").asString();
+                }
+
+                String firstName = null;
+                String lastName = null;
+
+                if (version == 1) {
+                    // M8.4 parte 2c: smettiamo di scrivere firstName e lastName per i nuovi eventi (coalesce li lascerà invariati)
+                    // Il db non verrà aggiornato con null.
+                }
+
+                members.upsertProfile(memberId, status, firstName, lastName);
+            }
         }
-        // Anonimizzazione (F-MBR-05, M7.5): i nomi ancora nello snapshot servono a ripulire le note, poi si cancellano.
+        // Anonimizzazione (F-MBR-05, M7.5, Q-369): svuota interamente le note scritte dagli operatori.
         if (PersonalData.isAnonymization(event)) {
-            List<String> tokens = members.find(memberId)
-                    .map(m -> PersonalData.nameTokens(m.firstName(), m.lastName()))
-                    .orElse(List.of());
-            redemptions.erase(memberId, tokens);
+            redemptions.erase(memberId);
             members.erasePersonal(memberId);
         }
     }
