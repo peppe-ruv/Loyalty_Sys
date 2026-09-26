@@ -226,3 +226,22 @@ Regole: nuovo `id`; `source = urn:loyaltyhub:source:internal`; stesso `subject`,
 - Test di contratto: ogni esempio valida contro lo schema; ogni produttore ha un test che valida l'evento realmente prodotto.
 - I consumatori **tollerano campi sconosciuti** e non falliscono su campi opzionali assenti.
 - Compatibile (nuovo campo opzionale) → stessa versione. Incompatibile → `:<n+1>` in `dataschema`, doppia lettura temporanea, ADR.
+
+## 10. Fase 2 (profilo `enterprise`)
+
+Aggiunte dell'adozione (M8.0, `docs/18`); diventano vincolanti con la fetta citata. I 5 topic restano (ADR-028); i contratti cambiano solo in modo additivo o con una versione nuova (§9).
+
+- **Firma dei messaggi** (ADR-042, M8.10): due header CloudEvents di estensione, `lhsig` (firma JWS *detached* Ed25519 di `data` e degli attributi principali) e `lhkid` (identificativo della chiave del modulo produttore, rotazione Q-352). Il consumer verifica firma e produttore prima dell'idempotenza.
+- **Produttori ammessi** (ADR-042, M8.10): `contracts/events/producers.yaml` elenca per ogni `type` il modulo che può produrlo, ricavato dalle tabelle §3–§6; un messaggio di un modulo non ammesso va in DLQ con `PRODUCER_NOT_ALLOWED`. Un nuovo produttore per un `type` è un caso di *Fermati e chiedi*.
+- **Dati personali fuori dal bus** (ADR-032, M8.4): i campi degli schemi portano `x-lh-pii: true|false`; un test di contratto vieta campi `pii:true` negli eventi pubblicati; `member.registered`/`member.updated` passano a `:2` senza dati identificativi (`birthYear`, `province`, `locale`), con doppia lettura temporanea `:1`/`:2` (Q-346).
+- **Compatibilità additiva** (ADR-028): `check-contracts` confronta gli schemi con l'ultimo tag verde e fallisce su rimozioni o rinomine.
+- **Nuovi `type` pianificati** (ADR-045, M13.4–M13.7; nascono con schema, esempio e riga in `producers.yaml` nella loro fetta):
+
+| `type` | Topic | Produttore | Fetta |
+|---|---|---|---|
+| `campaign.budget.threshold`, `campaign.budget.exhausted` | `lh.facts.v1` | campaign | M13.4 |
+| `wallet.expiry.forecast.threshold` | `lh.facts.v1` | wallet | M13.4 |
+| `reward.redemption.refunded` | `lh.facts.v1` | reward | M13.6 |
+| `achievement.streak.at_risk` | `lh.facts.v1` | gamification | M13.7 |
+| `mission.started`, `mission.progressed`, `mission.completed`, `mission.expired` | `lh.facts.v1` | gamification | M13.7 |
+| `mission.completed` (azione interna, dal ponte §7) | `lh.actions.v1` | ingestion (fonte `internal`) | M13.7 |
