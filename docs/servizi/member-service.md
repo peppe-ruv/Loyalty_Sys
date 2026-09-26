@@ -69,3 +69,16 @@ Non possiede saldi né tier (sono del wallet): li riflette.
 - Ricevendo `wallet.points.earned` per un membro, allora `member_projection.balance_pts` = `balanceAfter`.
 - Dato Elisa (`MBR-000009`, invitata da Marco) al primo `purchase.completed`, allora due fatti `referral.completed` con ruoli opposti e nessun altro ai successivi acquisti.
 - L'anteprima di un segmento `member.tier in [GOLD, PLATINUM]` restituisce il conteggio atteso dai seed (4).
+
+## 8. Fase 2 (profilo `enterprise`)
+
+Riferimento: `docs/18`. Le righe qui sotto sono segnaposto dell'adozione (M8.0): la fetta citata le rende normative aggiornando questa scheda.
+
+- **Dati personali fuori dal bus** (ADR-032, M8.4): `member.registered`/`member.updated` in versione `:2` con soli dati non identificativi (`birthYear`, `province`, `locale`, attributi `pii:false`), doppia lettura `:1`/`:2` (Q-346); modulo `delivery` con adattatori SMTP/WEBHOOK, unico proprietario dei contatti; cifratura a colonna di `email` e `phone` (F2-SEC-04).
+- **Identità** (ADR-027, M8.2): `member.external_id = sub` del token OIDC; nel portale il membro viene solo da `MemberPrincipal`.
+- **Attività del membro** (ADR-043, M8.12): tabella `member_activity_entry` (login da Keycloak, consensi, giocate, riscatti, azioni dal portale), in BO-03 (tab «Attività») e PT-18 «La mia attività»; lettura diretta da member-service (Q-356).
+- **Punteggi esterni** (ADR-045, M13.5): `attribute_definition.kind=SCORE` con validità; mai nel portale né in effetti negativi.
+
+**Classificazione `x-lh-class`** (`docs/18 §3.15`, F2-GRC-05; prima stesura M8.0, verificata e resa per colonna in M8.13). Tutto ciò che non è elencato è `INTERNAL`.
+- `PERSONAL`: `member.first_name`, `last_name`, `nickname`, `email`, `phone`, `birth_date`, `gender`, `city`, `consents`, `attributes` (se `pii:true`), `avatar_seed`; `member.external_id`.
+- `CONFIDENTIAL`: `member.referral_code`, `member_stats.*` (profilo di comportamento).

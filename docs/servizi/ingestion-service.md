@@ -76,3 +76,15 @@ Scenari: i passi sono `{delayMs, memberId, type, data, source, note, at?}` (`at`
 - Dato `data.amount` mancante in `purchase.completed`, allora `REJECTED/INVALID_DATA` con il campo indicato.
 - Dato il fatto `tier.upgraded`, allora compare `action.tier.upgraded` con `source=…:internal`, stesso `lhcorrelationid`, `lhhop=1`.
 - Dato un fatto con `lhhop=3` mappato, allora l'azione non viene pubblicata e c'è un record in DLQ con `LOOP_GUARD`.
+
+## 8. Fase 2 (profilo `enterprise`)
+
+Riferimento: `docs/18`. Le righe qui sotto sono segnaposto dell'adozione (M8.0): la fetta citata le rende normative aggiornando questa scheda.
+
+- **Ingresso batch e import file** (M8.7, F2-ING-01/02): `POST /v1/events/batch` fino a 1000 con esito per elemento; import file asincrono con rapporto (BO-32).
+- **Identità delle fonti** (ADR-027, M8.2): client credentials per fonte (`private_key_jwt` o mTLS) al posto dell'ingresso aperto.
+- **Dati personali** (ADR-032, M8.4): `member_index.email_lower` resta solo per l'abbinamento; `inbound_event.payload` con dati personali ha retention breve.
+
+**Classificazione `x-lh-class`** (`docs/18 §3.15`, F2-GRC-05; prima stesura M8.0, verificata e resa per colonna in M8.13). Tutto ciò che non è elencato è `INTERNAL`.
+- `PERSONAL`: `inbound_event.payload`, `inbound_event.subject` (può essere `email:…`), `member_index.email_lower`, `member_index.external_id`.
+- `CONFIDENTIAL`: `inbound_event.reject_detail`.

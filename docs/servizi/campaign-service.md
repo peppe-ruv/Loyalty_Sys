@@ -71,3 +71,16 @@ Non applica gli effetti e non conosce i saldi.
 - Doppia consegna della stessa azione → un solo insieme di effetti in outbox, contatori incrementati una volta.
 - Simulazione di `ebill.activated` per un membro che l'ha già ottenuta → `matched=false`, `reason=LIMIT`, nessuna scrittura.
 - Condizione su campo assente → foglia falsa, nessuna eccezione.
+
+## 8. Fase 2 (profilo `enterprise`)
+
+Riferimento: `docs/18`. Le righe qui sotto sono segnaposto dell'adozione (M8.0): la fetta citata le rende normative aggiornando questa scheda.
+
+- **Dati personali** (ADR-032, M8.4): `member_snapshot.birth_date` diventa `birth_year`; condizioni su `birthYear`/`province` (Q-344).
+- **Budget** (ADR-045, M13.4): `campaign.budget` con soglie (`warnAt`) e azione a esaurimento; fatti `campaign.budget.threshold` e `campaign.budget.exhausted`.
+- **Punteggi** (ADR-045, M13.5): gli attributi `SCORE` sono ammessi solo nelle condizioni e mai in effetti negativi (validatore al salvataggio).
+
+**Classificazione `x-lh-class`** (`docs/18 §3.15`, F2-GRC-05; prima stesura M8.0, verificata e resa per colonna in M8.13). Tutto ciò che non è elencato è `INTERNAL`.
+- `PERSONAL`: `member_snapshot.birth_date` (fino a M8.4), `member_snapshot.attributes` con `pii:true`.
+- `CONFIDENTIAL`: `evaluation_log.results` (profilazione per membro), `campaign_counter`, `member_action_counter`.
+- `PUBLIC`: `campaign.member_description`, `icon` delle campagne visibili nel portale.

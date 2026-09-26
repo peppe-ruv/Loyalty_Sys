@@ -87,3 +87,15 @@ Dominio in `docs/03 §6, §8`. Note implementative:
 - `GET /instants` con ruolo `MARKETING` → `403`.
 - 3 acquisti nel mese → `ACH-3-PURCHASES-MONTH` completato una volta; il 4° non riemette.
 - `ACH-DIGITAL`: `ebill.activated` + `directdebit.activated` → completato, badge assegnato, `badge.awarded` rientra come azione e `CMP-BADGE-BONUS` accredita 100 PTS.
+
+## 8. Fase 2 (profilo `enterprise`)
+
+Riferimento: `docs/18`. Le righe qui sotto sono segnaposto dell'adozione (M8.0): la fetta citata le rende normative aggiornando questa scheda.
+
+- **Missioni e serie** (ADR-045, M13.7): tabella `mission` con passi e finestra relativa al membro; estensioni `STREAK` (tolleranza, congelamento, `achievement.streak.at_risk`); fatti `mission.started/progressed/completed/expired` e azione interna `mission.completed` (con riga in `producers.yaml`); BO-38, PT-19; limiti Q-364.
+- **Dati personali** (ADR-032, M8.4): `member_snapshot.nickname` resta solo se non identificativo (nickname pseudonimo).
+
+**Classificazione `x-lh-class`** (`docs/18 §3.15`, F2-GRC-05; prima stesura M8.0, verificata e resa per colonna in M8.13). Tutto ciò che non è elencato è `INTERNAL`.
+- `PERSONAL`: `member_snapshot.nickname`, `play`/`winning_instant.claimed_by` per membro con data.
+- `CONFIDENTIAL`: `contest.seed`, `winning_instant` (istanti vincenti: solo ADMIN/LEGAL).
+- `PUBLIC`: `contest` pubblicati (nome, descrizione, regolamento), `prize`, `badge`, `achievement`, `leaderboard` (con nickname).

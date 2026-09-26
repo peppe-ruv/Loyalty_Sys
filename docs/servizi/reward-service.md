@@ -85,3 +85,15 @@ Dominio in `docs/03 §5`. Note implementative:
 - Annullo di una richiesta `CONFIRMED` → `wallet.points.refunded`, stock +1, coupon `VOID`.
 - `POST /v1/coupons/{code}/use` due volte → seconda `409`.
 - Rielaborazione di `wallet.points.spent` → nessun secondo coupon.
+
+## 8. Fase 2 (profilo `enterprise`)
+
+Riferimento: `docs/18`. Le righe qui sotto sono segnaposto dell'adozione (M8.0): la fetta citata le rende normative aggiornando questa scheda.
+
+- **Cataloghi esterni** (ADR-045, M13.6): `fulfilment=EXTERNAL`, `reward_provider` con adattatori generici, saga riserva → spesa → conferma con rilascio e rimborso automatico, sincronizzazione in `DRAFT`, stato `DEGRADED`; nuovo fatto `reward.redemption.refunded`.
+- **Dati personali** (ADR-032, M8.4): `reward_member_snapshot.first_name`/`last_name` escono dagli snapshot; i contatti per la spedizione li inoltra member-service.
+
+**Classificazione `x-lh-class`** (`docs/18 §3.15`, F2-GRC-05; prima stesura M8.0, verificata e resa per colonna in M8.13). Tutto ciò che non è elencato è `INTERNAL`.
+- `PERSONAL`: `redemption.shipping`, `reward_member_snapshot.first_name`, `last_name` (fino a M8.4).
+- `CONFIDENTIAL`: `coupon.code` non ancora emesso, `coupon_pool.prefix`.
+- `PUBLIC`: `reward` pubblicati (nome, descrizione, termini, immagine), `reward_category`, `reward_band`.
