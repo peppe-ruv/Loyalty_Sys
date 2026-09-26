@@ -64,16 +64,19 @@ public class MemberSnapshotHandler implements EventHandler {
                     members.removeSegment(memberId, d.get("segmentCode").asString());
                 }
             }
-            default -> members.upsertProfile(memberId, d.path("status").asString("ACTIVE"),
-                    d.hasNonNull("firstName") ? d.get("firstName").asString() : null,
-                    d.hasNonNull("lastName") ? d.get("lastName").asString() : null);
+            default -> {
+                // Doppia lettura member.*:1/:2 (ADR-032, Q-346): da M8.4 lo snapshot non riceve più nome e cognome da
+                // nessuna delle due versioni (colonne deprecate, restano fino al contract di M10); lo stato sì.
+                String status = "ACTIVE";
+                if (d.hasNonNull("status")) {
+                    status = d.get("status").asString();
+                }
+                members.upsertProfile(memberId, status, null, null);
+            }
         }
-        // Anonimizzazione (F-MBR-05, M7.5): i nomi ancora nello snapshot servono a ripulire le note, poi si cancellano.
+        // Anonimizzazione (F-MBR-05, M7.5, Q-369): svuota interamente le note scritte dagli operatori.
         if (PersonalData.isAnonymization(event)) {
-            List<String> tokens = members.find(memberId)
-                    .map(m -> PersonalData.nameTokens(m.firstName(), m.lastName()))
-                    .orElse(List.of());
-            redemptions.erase(memberId, tokens);
+            redemptions.erase(memberId);
             members.erasePersonal(memberId);
         }
     }

@@ -81,6 +81,21 @@ abstract class TestbookRwdBase {
     @Autowired
     MemberSnapshotRepository members;
 
+    @Autowired
+    org.springframework.kafka.config.KafkaListenerEndpointRegistry listeners;
+
+    /**
+     * I due listener di reward (effetti e fatti) stanno nello stesso gruppo {@code lh-reward}: se un caso pubblica
+     * prima che entrambi siano entrati, l'ingresso del secondo ribilancia il gruppo a metà elaborazione e un effetto
+     * non ritentabile finisce due volte in DLQ (TB-RWD-EFF-004…007). Si parte solo a gruppo stabile.
+     */
+    @org.junit.jupiter.api.BeforeAll
+    void waitForListenerAssignments() {
+        for (var container : listeners.getListenerContainers()) {
+            org.springframework.kafka.test.utils.ContainerTestUtils.waitForAssignment(container, 1);
+        }
+    }
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
