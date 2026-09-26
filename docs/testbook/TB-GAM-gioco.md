@@ -295,7 +295,7 @@ Regole R03, R04, R05, R06.
 
 Regole R07, R09, R10, R13. Concorrenza (50 giocate su un istante) esclusa da questo testbook: coperta da `PlayIT` e dal dominio TB-E2E.
 
-**Domini**: posizione dell'istante rispetto ad adesso {+1 ms, 0, −1 ms, −30 g}; stato dell'istante {`OPEN`, `CLAIMED`, `VOID`}; numero di istanti maturi {0, 1, 2 di premi diversi}; concorso dell'istante {questo, un altro}. **Strategia**: confini temporali e stati da soli (CLM-001…006), poi un caso per ogni interazione (CLM-007…014); portale: ogni stato del concorso rilevante e ogni condizione del periodo da sola (PTL-001…006) più lo storico (PTL-007).
+**Domini**: posizione dell'istante rispetto ad adesso \{+1 ms, 0, −1 ms, −30 g\}; stato dell'istante \{`OPEN`, `CLAIMED`, `VOID`\}; numero di istanti maturi \{0, 1, 2 di premi diversi\}; concorso dell'istante \{questo, un altro\}. **Strategia**: confini temporali e stati da soli (CLM-001…006), poi un caso per ogni interazione (CLM-007…014); portale: ogni stato del concorso rilevante e ogni condizione del periodo da sola (PTL-001…006) più lo storico (PTL-007).
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -310,7 +310,7 @@ Regole R07, R09, R10, R13. Concorrenza (50 giocate su un istante) esclusa da que
 | TB-GAM-CLM-009 | istante maturo solo in un altro concorso | `LOSE`; l'istante dell'altro concorso resta `OPEN` | docs/03 §6 (`contest_id=:contest`) | `TestbookGamPlayIT#otherContestInstant` |
 | TB-GAM-CLM-010 | vincita | istante `CLAIMED` con `claimed_by`, `play_id`, `claimed_at` = adesso; residuo 5 → 4; giocata `WIN` | docs/03 §6 (SQL del claim e decremento) | `TestbookGamPlayIT#winMarksInstant` |
 | TB-GAM-CLM-011 | nessun istante maturo | `LOSE`; 5 istanti `OPEN`; residuo invariato | docs/03 §6 | `TestbookGamPlayIT#loseTouchesNothing` |
-| TB-GAM-CLM-012 | perdita | un `contest.played` {`contestCode`, `playId`, `outcome` LOSE, `kind` FREE_DAILY}; nessun `contest.won` | gamification §4, §5, contratto `fact.contest.played` | `TestbookGamPlayIT#loseFacts` |
+| TB-GAM-CLM-012 | perdita | un `contest.played` \{`contestCode`, `playId`, `outcome` LOSE, `kind` FREE_DAILY\}; nessun `contest.won` | gamification §4, §5, contratto `fact.contest.played` | `TestbookGamPlayIT#loseFacts` |
 | TB-GAM-CLM-013 | vincita | `contest.played` e `contest.won` con lo stesso `lhcorrelationid` della risposta | gamification §5, §7 (stesso tracciato), F-IW-06 | `TestbookGamPlayIT#winFacts` |
 | TB-GAM-CLM-014 | due istanti maturi, gratuita + 1 credito, nessun `maxWinsPerMember` | `WIN`, `WIN` | docs/03 §6 («può vincere più volte») | `TestbookGamPlayIT#winTwice` |
 | TB-GAM-PTL-001 | concorso `LIVE` in periodo | in elenco con `mechanic`, `endAt`, `playsAvailable` 1, gratuita disponibile, premi `{code, type, …}`; nessuna quantità né istante | gamification §3 («mai quantità residue né istanti»), PT-05 | `TestbookGamPlayIT#portalListsLive` |
@@ -325,7 +325,7 @@ Regole R07, R09, R10, R13. Concorrenza (50 giocate su un istante) esclusa da que
 
 Regole R10, R11, R12, R21.
 
-**Domini**: tipo {`POINTS`, `COUPON`, `PHYSICAL`, `DIGITAL` (sconosciuto), assente}; punti {assente, 0 (min−1), 1 (min), −5}; `rewardCode` {assente, spazi, valido}; quantità {assente, −1, 0 (min−1), 1 (min)}; consegna: giocata {vincita PHYSICAL, POINTS, COUPON, perdita, inesistente} × ruolo {ADMIN, CARE, MARKETING, LEGAL, ANALYST, nessuno} × stato {`DELIVERED`, `PENDING`, `NA`, `SHIPPED`, assente}. **Strategia**: vincita per ogni tipo (PRZ-001…003); validazione: ogni classe non valida e ogni limite da solo (PRZ-004…019); consegna: il ruolo, lo stato e il tipo di giocata variano uno alla volta a partire dal caso valido (CARE, `DELIVERED`, PHYSICAL) (PRZ-020…034), più l'audit (PRZ-035). Riduzione: 5 × 6 × 5 = 150 → 16 righe (guasto singolo).
+**Domini**: tipo \{`POINTS`, `COUPON`, `PHYSICAL`, `DIGITAL` (sconosciuto), assente\}; punti \{assente, 0 (min−1), 1 (min), −5\}; `rewardCode` \{assente, spazi, valido\}; quantità \{assente, −1, 0 (min−1), 1 (min)\}; consegna: giocata \{vincita PHYSICAL, POINTS, COUPON, perdita, inesistente\} × ruolo \{ADMIN, CARE, MARKETING, LEGAL, ANALYST, nessuno\} × stato \{`DELIVERED`, `PENDING`, `NA`, `SHIPPED`, assente\}. **Strategia**: vincita per ogni tipo (PRZ-001…003); validazione: ogni classe non valida e ogni limite da solo (PRZ-004…019); consegna: il ruolo, lo stato e il tipo di giocata variano uno alla volta a partire dal caso valido (CARE, `DELIVERED`, PHYSICAL) (PRZ-020…034), più l'audit (PRZ-035). Riduzione: 5 × 6 × 5 = 150 → 16 righe (guasto singolo).
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -369,7 +369,7 @@ Regole R10, R11, R12, R21.
 
 Regola R14 (Q-62).
 
-**Domini**: istanti maturi di altri premi {nessuno, uno più vecchio}; piantati per lo stesso premio {1, 2}; stato del concorso {`LIVE`, `DRAFT`, `PAUSED`}; premio {del concorso, sconosciuto, senza istanti aperti, assente}; ruolo {ADMIN, MARKETING, LEGAL, CARE, ANALYST, nessuno}. **Strategia**: ogni classe da sola a partire dal caso valido (LIVE, premio con istanti, ADMIN).
+**Domini**: istanti maturi di altri premi \{nessuno, uno più vecchio\}; piantati per lo stesso premio \{1, 2\}; stato del concorso \{`LIVE`, `DRAFT`, `PAUSED`\}; premio \{del concorso, sconosciuto, senza istanti aperti, assente\}; ruolo \{ADMIN, MARKETING, LEGAL, CARE, ANALYST, nessuno\}. **Strategia**: ogni classe da sola a partire dal caso valido (LIVE, premio con istanti, ADMIN).
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -395,7 +395,7 @@ Regola R14 (Q-62).
 
 Regole R15…R20.
 
-**Domini**: stato {7 stati di docs/03 §3.6}; azione {`SUBMIT, APPROVE, REJECT, PUBLISH, PAUSE, RESUME, END, ARCHIVE`}; ruolo {ADMIN, MARKETING, LEGAL, CARE, ANALYST, intestazione assente, ruolo inesistente}; policy {approvazione accesa (sempre per `CONTEST`), spenta}; commento del rifiuto {presente, assente, spazi}; istanti {generati, assenti}.
+**Domini**: stato \{7 stati di docs/03 §3.6\}; azione \{`SUBMIT, APPROVE, REJECT, PUBLISH, PAUSE, RESUME, END, ARCHIVE`\}; ruolo \{ADMIN, MARKETING, LEGAL, CARE, ANALYST, intestazione assente, ruolo inesistente\}; policy \{approvazione accesa (sempre per `CONTEST`), spenta\}; commento del rifiuto \{presente, assente, spazi\}; istanti \{generati, assenti\}.
 
 **Strategia**: macchina a stati **completa** stato × azione = 56 righe col ruolo abilitato (LFC-001…056); **completa** azione × ruolo = 56 righe dallo stato di partenza valido (ROL-001…056); policy spenta, istanti, commento e tracciamento: un caso per ramo (LFC-057…066, APR-001…004). Ogni riga controlla lo stato finale e il numero di fatti `contest.status.changed` (1 se la transizione riesce, 0 altrimenti).
 
@@ -532,7 +532,7 @@ Regole R15…R20.
 
 Regole R16, R21…R25.
 
-**Domini**: codice {2 (min−1), 3 (min), 40 (max), 41 (max+1), inizia con cifra, `_`, assente, minuscolo, duplicato}; nome {spazi, assente}; meccanica {`WHEEL`, `SCRATCH`, `BOX`, `GIFT`, sconosciuta, assente}; distribuzione {assente, `BUSINESS_HOURS`, sconosciuta}; periodo {`endAt = startAt`, `startAt − 1 s`, `startAt + 1 ms`, `startAt` assente}; limite giornaliero {−1, 0, 1, assente}; seme {42, assente}; ruolo {5 ruoli + assente}; modifica: stato {`DRAFT`, `IN_REVIEW`, `LIVE`, `PAUSED`, `ENDED`, `ARCHIVED`} × campo {12 campi}. **Strategia**: creazione, ogni classe e limite da solo su un corpo valido (EDT-001…035); modifica di un oggetto `LIVE`: tutti i 12 campi (EDT-050…061), `PAUSED` 2 righe **AMBIGUO**, prima di `LIVE` un campo per tipo di effetto sugli istanti (EDT-064…072); versioni, codice e stati chiusi: un caso per ramo. Riduzione: 6 stati × 12 campi = 72 → 25 righe (le 23 della tabella più EDT-044 e EDT-045) (i campi sono indipendenti tra loro; per `DRAFT` basta un campo per effetto «istanti cancellati/conservati»; `ENDED`/`ARCHIVED` respingono qualunque campo).
+**Domini**: codice \{2 (min−1), 3 (min), 40 (max), 41 (max+1), inizia con cifra, `_`, assente, minuscolo, duplicato\}; nome \{spazi, assente\}; meccanica \{`WHEEL`, `SCRATCH`, `BOX`, `GIFT`, sconosciuta, assente\}; distribuzione \{assente, `BUSINESS_HOURS`, sconosciuta\}; periodo \{`endAt = startAt`, `startAt − 1 s`, `startAt + 1 ms`, `startAt` assente\}; limite giornaliero \{−1, 0, 1, assente\}; seme \{42, assente\}; ruolo \{5 ruoli + assente\}; modifica: stato \{`DRAFT`, `IN_REVIEW`, `LIVE`, `PAUSED`, `ENDED`, `ARCHIVED`\} × campo \{12 campi\}. **Strategia**: creazione, ogni classe e limite da solo su un corpo valido (EDT-001…035); modifica di un oggetto `LIVE`: tutti i 12 campi (EDT-050…061), `PAUSED` 2 righe **AMBIGUO**, prima di `LIVE` un campo per tipo di effetto sugli istanti (EDT-064…072); versioni, codice e stati chiusi: un caso per ramo. Riduzione: 6 stati × 12 campi = 72 → 25 righe (le 23 della tabella più EDT-044 e EDT-045) (i campi sono indipendenti tra loro; per `DRAFT` basta un campo per effetto «istanti cancellati/conservati»; `ENDED`/`ARCHIVED` respingono qualunque campo).
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -610,7 +610,7 @@ Regole R16, R21…R25.
 
 Regole R26…R28.
 
-**Domini**: ora di Roma {07:59:59.999, 08:00:00.000, 08:00:00.001, 08:59, 09:00, 21:59:59.999, 22:00:00.000, 22:00:00.001} × {ora solare, ora legale, 29 marzo 2026, 25 ottobre 2026}; periodo {vuoto, rovesciato, 1 ms, 1 ora di notte, finestre di 2 ms sui confini, 10 giorni, giorno del cambio d'ora, 29 febbraio}; seme {uguale, diverso}; premi {quantità 0/1/n, ordine d'ingresso, `sort_order`}; stato {7}; ruolo {5 + assente + inesistente}; endpoint {tabella, istogramma}. **Strategia**: confini orari tutti (GEN-001…020, anche con un calcolo indipendente sul fuso); generatore: un caso per proprietà (GEN-021…037); API: stato × generazione completa (7) più ruoli (INS-001…012), visibilità ruolo × endpoint (INS-021…031, 7 + 4 dove l'istogramma è pubblico), filtri, giorno di Roma e paginazione (INS-032…036).
+**Domini**: ora di Roma \{07:59:59.999, 08:00:00.000, 08:00:00.001, 08:59, 09:00, 21:59:59.999, 22:00:00.000, 22:00:00.001\} × \{ora solare, ora legale, 29 marzo 2026, 25 ottobre 2026\}; periodo \{vuoto, rovesciato, 1 ms, 1 ora di notte, finestre di 2 ms sui confini, 10 giorni, giorno del cambio d'ora, 29 febbraio\}; seme \{uguale, diverso\}; premi \{quantità 0/1/n, ordine d'ingresso, `sort_order`\}; stato \{7\}; ruolo \{5 + assente + inesistente\}; endpoint \{tabella, istogramma\}. **Strategia**: confini orari tutti (GEN-001…020, anche con un calcolo indipendente sul fuso); generatore: un caso per proprietà (GEN-021…037); API: stato × generazione completa (7) più ruoli (INS-001…012), visibilità ruolo × endpoint (INS-021…031, 7 + 4 dove l'istogramma è pubblico), filtri, giorno di Roma e paginazione (INS-032…036).
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -705,7 +705,7 @@ Regole R29, R30. Una vincita `PHYSICAL` e una perdita in un concorso di 3 pezzi.
 
 Regole R20, R47. Il job si lancia con `POST /v1/demo/jobs/close-contests?asOf=` (ADMIN) con date del 2020, lontane da ogni altro concorso.
 
-**Domini**: `endAt − asOf` {+1 ms, 0, −1 ms, −1 g}; stato {`LIVE`, `PAUSED`, `APPROVED`, `DRAFT`}; `asOf` {istante, data}; ruolo {ADMIN, MARKETING}. **Strategia**: confini su `LIVE` e ogni altro stato da solo (END-001…006), effetti e formato di `asOf` (END-007, END-008), ruolo (END-009).
+**Domini**: `endAt − asOf` \{+1 ms, 0, −1 ms, −1 g\}; stato \{`LIVE`, `PAUSED`, `APPROVED`, `DRAFT`\}; `asOf` \{istante, data\}; ruolo \{ADMIN, MARKETING\}. **Strategia**: confini su `LIVE` e ogni altro stato da solo (END-001…006), effetti e formato di `asOf` (END-007, END-008), ruolo (END-009).
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -723,7 +723,7 @@ Regole R20, R47. Il job si lancia con `POST /v1/demo/jobs/close-contests?asOf=` 
 
 Regole R33, R34, R35.
 
-**Domini**: periodo {`NONE`, `DAY`, `WEEK`, `MONTH`, `EDITION`, `EVER`} × istanti {mezzanotte di Roma d'estate e d'inverno, 29 febbraio, notte del cambio d'ora, fine anno}; serie {stesso giorno, giorno dopo, buco, mezzanotte di Roma contro UTC, cambi d'ora, fine mese, anni bisestili e no, fine anno, settimane ISO 53/01, domenica/lunedì, fuori ordine}; metrica {`COUNT`, `SUM` (intero, decimale, 0, negativo, assente, testo, annidato, molto grande), `DISTINCT_TYPES`}; filtro: ogni comparatore di docs/03 §3.3 (`eq neq gt gte lt lte in nin contains ncontains exists nexists between startsWith`) più uno sconosciuto, ai confini (49.99/50/50.01), campo assente, tipi incompatibili, gruppi `all/any/not`, annidati, `[*]`. **Strategia**: un caso per confine e per valore dell'enumerato (nessuna combinazione: le regole sono indipendenti).
+**Domini**: periodo \{`NONE`, `DAY`, `WEEK`, `MONTH`, `EDITION`, `EVER`\} × istanti \{mezzanotte di Roma d'estate e d'inverno, 29 febbraio, notte del cambio d'ora, fine anno\}; serie \{stesso giorno, giorno dopo, buco, mezzanotte di Roma contro UTC, cambi d'ora, fine mese, anni bisestili e no, fine anno, settimane ISO 53/01, domenica/lunedì, fuori ordine\}; metrica \{`COUNT`, `SUM` (intero, decimale, 0, negativo, assente, testo, annidato, molto grande), `DISTINCT_TYPES`\}; filtro: ogni comparatore di docs/03 §3.3 (`eq neq gt gte lt lte in nin contains ncontains exists nexists between startsWith`) più uno sconosciuto, ai confini (49.99/50/50.01), campo assente, tipi incompatibili, gruppi `all/any/not`, annidati, `[*]`. **Strategia**: un caso per confine e per valore dell'enumerato (nessuna combinazione: le regole sono indipendenti).
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -826,7 +826,7 @@ Regole R33, R34, R35.
 
 Regole R01, R33…R38, R40. Le azioni entrano da `AchievementService.onAction` come le consegna il listener di `lh.actions.v1`; i fatti si leggono dall'outbox. Ogni `achievement.progressed` deve avere `target` = traguardo e 0 ≤ `value` ≤ traguardo (contratto).
 
-**Domini**: metrica × traguardo {traguardo−1, traguardo, traguardo+1}; periodo {`EVER`, `MONTH`} × ripetibile {sì, no} × mesi {uno, due}; stato del membro {5}; stato dell'obiettivo {`ACTIVE`, `INACTIVE`}; tipo d'azione {elencato, no}; confini di mese (estate, inverno); tempo di business dell'azione contro ora di elaborazione. **Strategia**: traguardo ai confini per `COUNT` (PRG-001…003, 029), ripetibilità × periodo completa (2 × 2, PRG-003…006), confini di mese (PRG-007…009), stato del membro e dell'obiettivo da soli (PRG-010…015), una riga per comportamento di ogni metrica (PRG-016…026), filtro e tempo di business (PRG-027, 028); badge e azioni interne (PRG-030…034).
+**Domini**: metrica × traguardo \{traguardo−1, traguardo, traguardo+1\}; periodo \{`EVER`, `MONTH`\} × ripetibile \{sì, no\} × mesi \{uno, due\}; stato del membro \{5\}; stato dell'obiettivo \{`ACTIVE`, `INACTIVE`\}; tipo d'azione \{elencato, no\}; confini di mese (estate, inverno); tempo di business dell'azione contro ora di elaborazione. **Strategia**: traguardo ai confini per `COUNT` (PRG-001…003, 029), ripetibilità × periodo completa (2 × 2, PRG-003…006), confini di mese (PRG-007…009), stato del membro e dell'obiettivo da soli (PRG-010…015), una riga per comportamento di ogni metrica (PRG-016…026), filtro e tempo di business (PRG-027, 028); badge e azioni interne (PRG-030…034).
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -859,7 +859,7 @@ Regole R01, R33…R38, R40. Le azioni entrano da `AchievementService.onAction` c
 | TB-GAM-PRG-027 | filtro data.amount gte 50: 49.99 no e 50 sì — COUNT traguardo 1, periodo EVER, non ripetibile, membro ACTIVE, con filtro; azioni 2 | 1 `achievement.progressed`, 1 `achievement.completed`; valore 1 nel periodo `EVER` | docs/03 §2, §8, gamification §5, §7, F-ACH-01, F-ACH-02, contratto `achievement.progressed` | `TestbookGamAchievementIT#progresso` |
 | TB-GAM-PRG-028 | periodo dal tempo della azione (agosto) elaborata a settembre — COUNT traguardo 5, periodo MONTH, ripetibile, membro ACTIVE; azioni 1 | 1 `achievement.progressed`, 0 `achievement.completed`; valore 1 nel periodo `2026-08` | docs/03 §2, §8, gamification §5, §7, F-ACH-01, F-ACH-02, contratto `achievement.progressed` | `TestbookGamAchievementIT#progresso` |
 | TB-GAM-PRG-029 | COUNT 1 (traguardo minimo): una azione completa — COUNT traguardo 1, periodo EVER, non ripetibile, membro ACTIVE; azioni 1 | 1 `achievement.progressed`, 1 `achievement.completed`; valore 1 nel periodo `EVER` | docs/03 §2, §8, gamification §5, §7, F-ACH-01, F-ACH-02, contratto `achievement.progressed` | `TestbookGamAchievementIT#progresso` |
-| TB-GAM-PRG-030 | obiettivo COUNT 1 con badge collegato, completato | `badge.awarded` {`badgeCode`, `badgeName`, `origin` ACHIEVEMENT}; badge al membro | docs/03 §8, F-ACH-03, contratto `fact.badge.awarded` | `TestbookGamAchievementIT#completionAwardsBadge` |
+| TB-GAM-PRG-030 | obiettivo COUNT 1 con badge collegato, completato | `badge.awarded` \{`badgeCode`, `badgeName`, `origin` ACHIEVEMENT\}; badge al membro | docs/03 §8, F-ACH-03, contratto `fact.badge.awarded` | `TestbookGamAchievementIT#completionAwardsBadge` |
 | TB-GAM-PRG-031 | badge già ricevuto da un effetto, poi obiettivo completato | `achievement.completed` sì, un solo `badge.awarded` in totale | gamification §2 (PK `member_id, badge_code`), F-ACH-03 | `TestbookGamAchievementIT#badgeAlreadyOwned` |
 | TB-GAM-PRG-032 | portale a settembre: COUNT 3 MONTH con 2 azioni, COUNT 1 EVER completato | 2/3, `pct` 66–67, `periodKey` `2026-09`; completato con `pct` 100 e data | gamification §3 (portale obiettivi), PT-09 | `TestbookGamAchievementIT#portalView` |
 | TB-GAM-PRG-033 | obiettivo che elenca l'azione interna `achievement.completed` (con filtro sul codice), due azioni | completato | gamification §5 (le interne contano se elencate) | `TestbookGamAchievementIT#internalActionListed` |
@@ -869,7 +869,7 @@ Regole R01, R33…R38, R40. Le azioni entrano da `AchievementService.onAction` c
 
 Regola R39 (e R34 per i periodi, R16 per i ruoli).
 
-**Domini**: metrica {4 + sconosciuta + assente}; traguardo {−1, 0, 1}; `SUM` con/senza campo; `STREAK` con unità {assente, `DAY`, `WEEK`, `MONTH`}; `DISTINCT_TYPES` traguardo {= tipi, > tipi}; tipi {vuoti}; badge {esistente, inesistente}; periodo {`NONE`, `DAY`, `WEEK`, `MONTH`, `EDITION`, `EVER`, sconosciuto}; stato {sconosciuto}; codice {senza prefisso, duplicato}; nome {spazi}; ruolo {5 + assente}. **Strategia**: ogni classe da sola su un corpo valido (COUNT 3 EVER).
+**Domini**: metrica \{4 + sconosciuta + assente\}; traguardo \{−1, 0, 1\}; `SUM` con/senza campo; `STREAK` con unità \{assente, `DAY`, `WEEK`, `MONTH`\}; `DISTINCT_TYPES` traguardo \{= tipi, > tipi\}; tipi \{vuoti\}; badge \{esistente, inesistente\}; periodo \{`NONE`, `DAY`, `WEEK`, `MONTH`, `EDITION`, `EVER`, sconosciuto\}; stato \{sconosciuto\}; codice \{senza prefisso, duplicato\}; nome \{spazi\}; ruolo \{5 + assente\}. **Strategia**: ogni classe da sola su un corpo valido (COUNT 3 EVER).
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -915,7 +915,7 @@ Regola R40.
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
-| TB-GAM-BDG-001 | effetto `badge.award` | badge al membro con origine CAMPAIGN; `badge.awarded` {origin CAMPAIGN, `badgeName`} | F-ACH-03, docs/03 §3.4 (`AWARD_BADGE`), contratto | `TestbookGamAchievementIT#badgeFromEffect` |
+| TB-GAM-BDG-001 | effetto `badge.award` | badge al membro con origine CAMPAIGN; `badge.awarded` \{origin CAMPAIGN, `badgeName`\} | F-ACH-03, docs/03 §3.4 (`AWARD_BADGE`), contratto | `TestbookGamAchievementIT#badgeFromEffect` |
 | TB-GAM-BDG-002 | stesso badge da un secondo effetto | nessun secondo badge né fatto | gamification §2 (PK `member_id, badge_code`) | `TestbookGamAchievementIT#badgeOnce` |
 | TB-GAM-BDG-003 | stesso effetto consegnato due volte | nulla di nuovo | gamification §2 (`effect_id` univoco), RNF-03 | `TestbookGamAchievementIT#badgeEffectReplay` |
 | TB-GAM-BDG-004 | badge inesistente nell'effetto | errore non ritentabile `BADGE_NOT_FOUND` (DLQ); nessun fatto | campaign-service §5 («l'errore emergerà a valle in DLQ») | `TestbookGamAchievementIT#badgeUnknown` |
@@ -934,7 +934,7 @@ Regola R40.
 
 Regole R41, R42 (Q-59, Q-60). I fatti entrano da `LeaderboardService` con l'ora di elaborazione fissata (serve al parimerito); LDB-024 entra dal listener di `lh.facts.v1` (deserializzazione, router, idempotenza). Nessun caso pubblica sul broker: nella stessa JVM i contesti Spring in cache degli altri `*IT` condividono il gruppo `lh-gamification` e possono prendersi la partizione.
 
-**Domini**: valuta {PTS, STS} × metrica {`PTS_EARNED`, `STS_EARNED`, `ACTION_COUNT`}; importo {−10, 0, 100, somma}; periodo {`MONTH` al confine di mese, `EDITION` al confine d'anno, `ALL_TIME`}; stato del membro {5}; parimerito {raggiunto prima, raggiunto con un secondo accredito}; posizione del membro {in top N, fuori, assente}; stato della classifica {`INACTIVE`}. **Strategia**: valuta × metrica nelle combinazioni che cambiano l'esito (LDB-001, 002, 006, 007), importi ai confini (003…005), periodi ai confini (008…010), ogni stato del membro da solo (014…018), parimerito (012, 013), portale (020…022).
+**Domini**: valuta \{PTS, STS\} × metrica \{`PTS_EARNED`, `STS_EARNED`, `ACTION_COUNT`\}; importo \{−10, 0, 100, somma\}; periodo \{`MONTH` al confine di mese, `EDITION` al confine d'anno, `ALL_TIME`\}; stato del membro \{5\}; parimerito \{raggiunto prima, raggiunto con un secondo accredito\}; posizione del membro \{in top N, fuori, assente\}; stato della classifica \{`INACTIVE`\}. **Strategia**: valuta × metrica nelle combinazioni che cambiano l'esito (LDB-001, 002, 006, 007), importi ai confini (003…005), periodi ai confini (008…010), ogni stato del membro da solo (014…018), parimerito (012, 013), portale (020…022).
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -957,7 +957,7 @@ Regole R41, R42 (Q-59, Q-60). I fatti entrano da `LeaderboardService` con l'ora 
 | TB-GAM-LDB-017 | membro senza snapshot | escluso | gamification §5 (solo ACTIVE) | `TestbookGamLeaderboardIT#unknownExcluded` |
 | TB-GAM-LDB-018 | membro BLOCKED con 300 punti torna ACTIVE | rientra con 300 | gamification §5 | `TestbookGamLeaderboardIT#backToActive` |
 | TB-GAM-LDB-019 | top N 3 e 4 membri | 3 righe nel ranking di gestione | F-LDB-01 (top N) | `TestbookGamLeaderboardIT#topN` |
-| TB-GAM-LDB-020 | portale del secondo classificato | `top` con nickname e `isMe`; `me` {rank 2, score 100}; nessun `memberId` | PT-10 («solo nickname»), gamification §3, F-LDB-01 | `TestbookGamLeaderboardIT#portalView` |
+| TB-GAM-LDB-020 | portale del secondo classificato | `top` con nickname e `isMe`; `me` \{rank 2, score 100\}; nessun `memberId` | PT-10 («solo nickname»), gamification §3, F-LDB-01 | `TestbookGamLeaderboardIT#portalView` |
 | TB-GAM-LDB-021 | portale del quarto con top N 3 | `top` di 3; `me.rank` 4 | PT-10 (riga del membro sempre visibile) | `TestbookGamLeaderboardIT#portalOutsideTop` |
 | TB-GAM-LDB-022 | portale di un membro senza punteggio | `me` assente | gamification §3 | `TestbookGamLeaderboardIT#portalNotRanked` |
 | TB-GAM-LDB-023 | classifica INACTIVE | nessun punteggio | gamification §2 (`status`) | `TestbookGamLeaderboardIT#inactiveBoard` |
@@ -1000,7 +1000,7 @@ Regola R31.
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
-| TB-GAM-GRT-001 | `plays.grant` count 2 | 2 crediti nel portale; `contest.plays.granted` {`contestCode`, `count` 2, `effectId`} | F-IW-05, gamification §4, contratto `fact.contest.plays.granted` | `TestbookGamEffectIT#grantTwo` |
+| TB-GAM-GRT-001 | `plays.grant` count 2 | 2 crediti nel portale; `contest.plays.granted` \{`contestCode`, `count` 2, `effectId`\} | F-IW-05, gamification §4, contratto `fact.contest.plays.granted` | `TestbookGamEffectIT#grantTwo` |
 | TB-GAM-GRT-002 | stesso `effectId` consegnato due volte | 3 crediti, un solo fatto | gamification §2 (`effect_id` UQ), RNF-03 | `TestbookGamEffectIT#grantIdempotent` |
 | TB-GAM-GRT-003 | due effetti da 3 e 2 | 5 crediti | docs/03 §6 (Σ `play_grant.count`) | `TestbookGamEffectIT#grantsSum` |
 | TB-GAM-GRT-004 | `count` assente | 1 credito (Q-297 DECISA, come Q-230) | docs/03 §3.4; Q-230; Q-297 | `TestbookGamEffectIT#grantWithoutCount` |

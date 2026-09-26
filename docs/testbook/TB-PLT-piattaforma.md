@@ -120,8 +120,8 @@ e lasciati come sono o decisi in docs/15.
 |---|---|---|---|---|
 | TB-PLT-ENV-001 | radice: specversion 1.0 (`root.specversion`) | 1.0 | docs/05 §2 | `TestbookPltEnvelopeTest#envelope` · `envelope.csv` |
 | TB-PLT-ENV-002 | radice: id ULID di 26 caratteri Crockford (`root.idUlid`) | 26:true | docs/05 §2 | `TestbookPltEnvelopeTest#envelope` · `envelope.csv` |
-| TB-PLT-ENV-003 | radice di un servizio: source urn:loyaltyhub:service:<servizio> (`root.sourceService`) | urn:loyaltyhub:service:campaign | docs/05 §2 | `TestbookPltEnvelopeTest#envelope` · `envelope.csv` |
-| TB-PLT-ENV-004 | radice con fonte esplicita: source urn:loyaltyhub:source:<fonte> (`root.sourceExplicit`) | urn:loyaltyhub:source:ecommerce | docs/05 §2 | `TestbookPltEnvelopeTest#envelope` · `envelope.csv` |
+| TB-PLT-ENV-003 | radice di un servizio: source urn:loyaltyhub:service:&lt;servizio> (`root.sourceService`) | urn:loyaltyhub:service:campaign | docs/05 §2 | `TestbookPltEnvelopeTest#envelope` · `envelope.csv` |
+| TB-PLT-ENV-004 | radice con fonte esplicita: source urn:loyaltyhub:source:&lt;fonte> (`root.sourceExplicit`) | urn:loyaltyhub:source:ecommerce | docs/05 §2 | `TestbookPltEnvelopeTest#envelope` · `envelope.csv` |
 | TB-PLT-ENV-005 | radice: time = istante dell'orologio (UTC) (`root.time`) | 2026-09-24T10:00:00Z | docs/05 §2 | `TestbookPltEnvelopeTest#envelope` · `envelope.csv` |
 | TB-PLT-ENV-006 | radice: datacontenttype application/json (`root.datacontenttype`) | application/json | docs/05 §2 | `TestbookPltEnvelopeTest#envelope` · `envelope.csv` |
 | TB-PLT-ENV-007 | dataschema di un'azione (`root.dataschemaAction`) | urn:loyaltyhub:schema:action.purchase.completed:1 | docs/05 §2 | `TestbookPltEnvelopeTest#envelope` · `envelope.csv` |
@@ -201,7 +201,7 @@ e lasciati come sono o decisi in docs/15.
 | TB-PLT-TOP-013 | outbox di un type senza famiglia: rifiutato (`writer.unknownFamily`) | ERR:IllegalArgumentException | docs/05 §1, §6; ADR-004 | `TestbookPltEnvelopeTest#envelope` · `envelope.csv` |
 | TB-PLT-TOP-014 | outbox di un effetto: topic della famiglia e chiave memberId (`writer.familyTopic`) | lh.effects.v1 MBR-000003 | docs/05 §1, §6; ADR-004 | `TestbookPltEnvelopeTest#envelope` · `envelope.csv` |
 | TB-PLT-TOP-015 | chiave di un evento di membro = memberId (`key.member`) | MBR-000003 | docs/05 §1, §6; ADR-004 | `TestbookPltEnvelopeTest#envelope` · `envelope.csv` |
-| TB-PLT-TOP-016 | chiave di un fatto di configurazione = <entityType>:<id> (`key.config`) | edition:E2026 | docs/05 §1, §6; ADR-004 | `TestbookPltEnvelopeTest#envelope` · `envelope.csv` |
+| TB-PLT-TOP-016 | chiave di un fatto di configurazione = &lt;entityType>:&lt;id> (`key.config`) | edition:E2026 | docs/05 §1, §6; ADR-004 | `TestbookPltEnvelopeTest#envelope` · `envelope.csv` |
 | TB-PLT-TOP-017 | fatto di configurazione: nessun memberId (`key.memberId.config`) | null | docs/05 §1, §6; ADR-004 | `TestbookPltEnvelopeTest#envelope` · `envelope.csv` |
 | TB-PLT-TOP-018 | audit su lh.audit.v1 con chiave entityType:entityId (`audit.topicKey`) | lh.audit.v1 WALLET:MBR-000004 | docs/05 §1, §6; ADR-004 | `TestbookPltEnvelopeTest#envelope` · `envelope.csv` |
 | TB-PLT-TOP-019 | audit: type unico io.loyaltyhub.audit.entry (`audit.type`) | io.loyaltyhub.audit.entry | docs/05 §1, §6; ADR-004 | `TestbookPltEnvelopeTest#envelope` · `envelope.csv` |
@@ -818,7 +818,7 @@ e lasciati come sono o decisi in docs/15.
 | TB-PLT-KCF-002 | produttore idempotente (`producer.idempotence`) | true | docs/06 §5 | `TestbookPltConfigTest#config` · `config.csv` |
 | TB-PLT-KCF-003 | produttore: chiave e valore stringa (CloudEvent JSON) (`producer.serializers`) | StringSerializer StringSerializer | docs/06 §5 | `TestbookPltConfigTest#config` · `config.csv` |
 | TB-PLT-KCF-004 | produttore: bootstrap da configurazione (`producer.bootstrap`) | broker.example:9092 | docs/06 §5 | `TestbookPltConfigTest#config` · `config.csv` |
-| TB-PLT-KCF-005 | consumatore: gruppo lh-<servizio> (`consumer.group`) | lh-wallet | docs/06 §5 | `TestbookPltConfigTest#config` · `config.csv` |
+| TB-PLT-KCF-005 | consumatore: gruppo lh-&lt;servizio> (`consumer.group`) | lh-wallet | docs/06 §5 | `TestbookPltConfigTest#config` · `config.csv` |
 | TB-PLT-KCF-006 | consumatore: servizio già prefissato lh- non raddoppia il prefisso (`consumer.groupPrefixed`) | lh-hub | docs/06 §5 | `TestbookPltConfigTest#config` · `config.csv` |
 | TB-PLT-KCF-007 | consumatore: auto.offset.reset=earliest (RNF-06) (`consumer.offsetReset`) | earliest | RNF-06 | `TestbookPltConfigTest#config` · `config.csv` |
 | TB-PLT-KCF-008 | consumatore: commit automatico spento (ack manuale) (`consumer.autoCommit`) | false | docs/06 §5 | `TestbookPltConfigTest#config` · `config.csv` |
@@ -927,8 +927,8 @@ e lasciati come sono o decisi in docs/15.
 | TB-PLT-FRE-011 | pool Hikari: idle-timeout 60 s (`base:spring.datasource.hikari.idle-timeout`) | 60000 | docs/06 §4–§6; docs/11 §6 | `TestbookPltHubConfigTest#config` · `hub-config.csv` |
 | TB-PLT-FRE-012 | pool Hikari: connection-timeout 20 s (`base:spring.datasource.hikari.connection-timeout`) | 20000 | docs/06 §4–§6; docs/11 §6 | `TestbookPltHubConfigTest#config` · `hub-config.csv` |
 | TB-PLT-FRE-013 | sonde liveness e readiness accese in ogni servizio (`base:management.endpoint.health.probes.enabled`) | true | docs/06 §4–§6; docs/11 §6 | `TestbookPltHubConfigTest#config` · `hub-config.csv` |
-| TB-PLT-FRE-014 | bootstrap Kafka dall'ambiente (`base:spring.kafka.bootstrap-servers`) | ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092} | docs/06 §4–§6; docs/11 §6 | `TestbookPltHubConfigTest#config` · `hub-config.csv` |
-| TB-PLT-FRE-015 | sicurezza Kafka dall'ambiente (KAFKA_SECURITY) (`base:loyaltyhub.kafka.security`) | ${KAFKA_SECURITY:PLAINTEXT} | docs/06 §4–§6; docs/11 §6 | `TestbookPltHubConfigTest#config` · `hub-config.csv` |
+| TB-PLT-FRE-014 | bootstrap Kafka dall'ambiente (`base:spring.kafka.bootstrap-servers`) | $\{SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092\} | docs/06 §4–§6; docs/11 §6 | `TestbookPltHubConfigTest#config` · `hub-config.csv` |
+| TB-PLT-FRE-015 | sicurezza Kafka dall'ambiente (KAFKA_SECURITY) (`base:loyaltyhub.kafka.security`) | $\{KAFKA_SECURITY:PLAINTEXT\} | docs/06 §4–§6; docs/11 §6 | `TestbookPltHubConfigTest#config` · `hub-config.csv` |
 
 
 ## 23. CLK e CAL — Tempo di business
@@ -1024,7 +1024,7 @@ e lasciati come sono o decisi in docs/15.
 | TB-PLT-CAL-013 | YEAR alle 2026-12-31T22:59:59Z — YEAR alle 23:59:59 del 31 dicembre a Roma | 2026 | docs/06 §1 | `TestbookPltClockTest#calendar` · `calendar.csv` |
 | TB-PLT-CAL-014 | YEAR alle 2026-12-31T23:00:00Z — YEAR alle 00:00 del 1 gennaio a Roma (ancora 31/12 in UTC) | 2027 | docs/06 §1 | `TestbookPltClockTest#calendar` · `calendar.csv` |
 | TB-PLT-CAL-015 | EDITION alle 2026-12-31T23:00:00Z — EDITION = anno solare di Roma | 2027 | docs/06 §1 | `TestbookPltClockTest#calendar` · `calendar.csv` |
-| TB-PLT-CAL-016 | edition alle 2026-12-31T23:00:00Z — codice edizione E<anno> di Roma | E2027 | docs/06 §1 | `TestbookPltClockTest#calendar` · `calendar.csv` |
+| TB-PLT-CAL-016 | edition alle 2026-12-31T23:00:00Z — codice edizione E&lt;anno> di Roma | E2027 | docs/06 §1 | `TestbookPltClockTest#calendar` · `calendar.csv` |
 | TB-PLT-CAL-017 | edition alle 2026-09-24T10:00:00Z — codice edizione a metà anno | E2026 | docs/06 §1 | `TestbookPltClockTest#calendar` · `calendar.csv` |
 | TB-PLT-CAL-018 | ALL_TIME alle 2026-09-24T10:00:00Z — ALL_TIME | ALL | docs/06 §1 | `TestbookPltClockTest#calendar` · `calendar.csv` |
 | TB-PLT-CAL-019 | lastWeekday alle 2026-09-28T10:00:00Z — ultimo feriale di lunedì = venerdì | 2026-09-25 | docs/06 §1 | `TestbookPltClockTest#calendar` · `calendar.csv` |
