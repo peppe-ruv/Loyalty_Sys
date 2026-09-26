@@ -367,7 +367,7 @@ Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della 
 - [ ] M8.7 — ingresso batch e import file (BO-32)
 - [ ] M8.8 — OpenAPI generata e verificata (`contracts/api/`)
 - [ ] M8.9 — documentazione Mintlify (`site/`)
-- [ ] M8.10 — sicurezza applicativa
+- [~] M8.10 — sicurezza applicativa — _parte 1 (builder SQL con allowlist, adozione nel wallet) in revisione: PR #61; regole Semgrep/CodeQL e adozione negli altri servizi da fare_
 - [~] M8.11 — verifica di sicurezza — _parte 1 (threat model STRIDE, tabella ASVS 5.0 L2, `SECURITY.md`) in revisione: PR #60; job `security`, ArchUnit, Schemathesis, ZAP, `TB-SEC` da fare_ (job `security`)
 - [ ] M8.12 — audit unificato
 - [ ] M8.13 — governo di accessi e dati
