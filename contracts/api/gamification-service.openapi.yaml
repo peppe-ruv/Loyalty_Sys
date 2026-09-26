@@ -1,0 +1,1708 @@
+components:
+  schemas:
+    AchievementRequest:
+      properties:
+        actionTypes:
+          items:
+            type: string
+          type: array
+        badgeCode:
+          type: string
+        code:
+          type: string
+        description:
+          type: string
+        filter:
+          $ref: "#/components/schemas/JsonNode"
+        icon:
+          type: string
+        metric:
+          type: string
+        name:
+          type: string
+        period:
+          type: string
+        repeatable:
+          type: boolean
+        status:
+          type: string
+        streakUnit:
+          type: string
+        sumField:
+          type: string
+        target:
+          format: int64
+          type: integer
+      type: object
+    AchievementView:
+      properties:
+        actionTypes:
+          items:
+            type: string
+          type: array
+        badgeCode:
+          type: string
+        code:
+          type: string
+        completions:
+          format: int64
+          type: integer
+        description:
+          type: string
+        filter:
+          $ref: "#/components/schemas/JsonNode"
+        icon:
+          type: string
+        id:
+          type: string
+        inProgress:
+          format: int64
+          type: integer
+        metric:
+          type: string
+        name:
+          type: string
+        period:
+          type: string
+        repeatable:
+          type: boolean
+        status:
+          type: string
+        streakUnit:
+          type: string
+        sumField:
+          type: string
+        target:
+          format: int64
+          type: integer
+      type: object
+    ApprovalHistory:
+      properties:
+        action:
+          enum:
+          - SUBMIT
+          - APPROVE
+          - REJECT
+          - PUBLISH
+          - PAUSE
+          - RESUME
+          - END
+          - ARCHIVE
+          type: string
+        actor:
+          type: string
+        comment:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        entityId:
+          type: string
+        entityType:
+          type: string
+        fromStatus:
+          enum:
+          - DRAFT
+          - IN_REVIEW
+          - APPROVED
+          - LIVE
+          - PAUSED
+          - ENDED
+          - ARCHIVED
+          type: string
+        id:
+          format: uuid
+          type: string
+        toStatus:
+          enum:
+          - DRAFT
+          - IN_REVIEW
+          - APPROVED
+          - LIVE
+          - PAUSED
+          - ENDED
+          - ARCHIVED
+          type: string
+      type: object
+    Badge:
+      properties:
+        code:
+          type: string
+        color:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+        name:
+          type: string
+      type: object
+    BadgeRef:
+      properties:
+        code:
+          type: string
+        color:
+          type: string
+        icon:
+          type: string
+        name:
+          type: string
+      type: object
+    BadgeView:
+      properties:
+        code:
+          type: string
+        color:
+          type: string
+        description:
+          type: string
+        holders:
+          format: int64
+          type: integer
+        icon:
+          type: string
+        name:
+          type: string
+        unlockedBy:
+          items:
+            type: string
+          type: array
+      type: object
+    CloseContestsOutcome:
+      properties:
+        asOf:
+          format: date-time
+          type: string
+        contests:
+          format: int32
+          type: integer
+        job:
+          type: string
+        voided:
+          format: int32
+          type: integer
+      type: object
+    ContestRequest:
+      properties:
+        code:
+          type: string
+        description:
+          type: string
+        distribution:
+          type: string
+        endAt:
+          format: date-time
+          type: string
+        freePlayDaily:
+          type: boolean
+        maxPlaysPerMemberPerDay:
+          format: int32
+          type: integer
+        maxWinsPerMember:
+          format: int32
+          type: integer
+        mechanic:
+          type: string
+        name:
+          type: string
+        prizes:
+          items:
+            $ref: "#/components/schemas/PrizeRequest"
+          type: array
+        rulesText:
+          type: string
+        seed:
+          format: int64
+          type: integer
+        startAt:
+          format: date-time
+          type: string
+        version:
+          format: int64
+          type: integer
+      type: object
+    ContestStats:
+      properties:
+        code:
+          type: string
+        daily:
+          items:
+            $ref: "#/components/schemas/DayStat"
+          type: array
+        players:
+          format: int64
+          type: integer
+        plays:
+          format: int64
+          type: integer
+        prizes:
+          items:
+            $ref: "#/components/schemas/PrizeStat"
+          type: array
+        prizesRemaining:
+          format: int32
+          type: integer
+        prizesTotal:
+          format: int32
+          type: integer
+        winRate:
+          format: double
+          type: number
+        winners:
+          format: int64
+          type: integer
+        wins:
+          format: int64
+          type: integer
+      type: object
+    ContestView:
+      properties:
+        code:
+          type: string
+        createdBy:
+          type: string
+        description:
+          type: string
+        distribution:
+          type: string
+        endAt:
+          format: date-time
+          type: string
+        freePlayDaily:
+          type: boolean
+        id:
+          type: string
+        instants:
+          $ref: "#/components/schemas/InstantCounts"
+        instantsGeneratedAt:
+          format: date-time
+          type: string
+        maxPlaysPerMemberPerDay:
+          format: int32
+          type: integer
+        maxWinsPerMember:
+          format: int32
+          type: integer
+        mechanic:
+          type: string
+        name:
+          type: string
+        plays:
+          format: int64
+          type: integer
+        prizes:
+          items:
+            $ref: "#/components/schemas/Prize"
+          type: array
+        prizesRemaining:
+          format: int32
+          type: integer
+        prizesTotal:
+          format: int32
+          type: integer
+        rulesText:
+          type: string
+        seed:
+          format: int64
+          type: integer
+        startAt:
+          format: date-time
+          type: string
+        status:
+          enum:
+          - DRAFT
+          - IN_REVIEW
+          - APPROVED
+          - LIVE
+          - PAUSED
+          - ENDED
+          - ARCHIVED
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+        version:
+          format: int64
+          type: integer
+        wins:
+          format: int64
+          type: integer
+      type: object
+    DayCount:
+      properties:
+        claimed:
+          format: int64
+          type: integer
+        day:
+          format: date
+          type: string
+        open:
+          format: int64
+          type: integer
+        total:
+          format: int64
+          type: integer
+        voided:
+          format: int64
+          type: integer
+      type: object
+    DayStat:
+      properties:
+        day:
+          format: date
+          type: string
+        plays:
+          format: int64
+          type: integer
+        wins:
+          format: int64
+          type: integer
+      type: object
+    DeliveryRequest:
+      properties:
+        note:
+          type: string
+        status:
+          type: string
+      type: object
+    Entry:
+      properties:
+        isMe:
+          type: boolean
+        nickname:
+          type: string
+        rank:
+          format: int32
+          type: integer
+        score:
+          format: int64
+          type: integer
+      type: object
+    GenerateRequest:
+      properties:
+        seed:
+          format: int64
+          type: integer
+      type: object
+    GenerateResult:
+      properties:
+        generatedAt:
+          format: date-time
+          type: string
+        instants:
+          format: int32
+          type: integer
+        seed:
+          format: int64
+          type: integer
+      type: object
+    Histogram:
+      properties:
+        code:
+          type: string
+        days:
+          items:
+            $ref: "#/components/schemas/DayCount"
+          type: array
+        distribution:
+          type: string
+      type: object
+    InstantCounts:
+      properties:
+        claimed:
+          format: int64
+          type: integer
+        open:
+          format: int64
+          type: integer
+        total:
+          format: int64
+          type: integer
+        voided:
+          format: int64
+          type: integer
+      type: object
+    InstantRow:
+      properties:
+        claimedAt:
+          format: date-time
+          type: string
+        claimedBy:
+          type: string
+        id:
+          type: string
+        instantAt:
+          format: date-time
+          type: string
+        planted:
+          type: boolean
+        playId:
+          type: string
+        prizeCode:
+          type: string
+        prizeId:
+          type: string
+        prizeName:
+          type: string
+        status:
+          type: string
+      type: object
+    JsonNode:
+      properties:
+        array:
+          type: boolean
+        bigDecimal:
+          type: boolean
+        bigInteger:
+          type: boolean
+        binary:
+          type: boolean
+        boolean:
+          type: boolean
+        container:
+          type: boolean
+        double:
+          type: boolean
+        embeddedValue:
+          type: boolean
+        empty:
+          type: boolean
+        float:
+          type: boolean
+        floatingPointNumber:
+          type: boolean
+        int:
+          type: boolean
+        integralNumber:
+          type: boolean
+        long:
+          type: boolean
+        missingNode:
+          type: boolean
+        nodeType:
+          enum:
+          - ARRAY
+          - BINARY
+          - BOOLEAN
+          - MISSING
+          - "NULL"
+          - NUMBER
+          - OBJECT
+          - POJO
+          - STRING
+          type: string
+        "null":
+          type: boolean
+        number:
+          type: boolean
+        object:
+          type: boolean
+        pojo:
+          type: boolean
+        short:
+          type: boolean
+        string:
+          type: boolean
+        textual:
+          deprecated: true
+          type: boolean
+        valueNode:
+          type: boolean
+      type: object
+    Leaderboard:
+      properties:
+        actionTypes:
+          items:
+            type: string
+          type: array
+        code:
+          type: string
+        id:
+          type: string
+        metric:
+          type: string
+        name:
+          type: string
+        period:
+          type: string
+        status:
+          type: string
+        topN:
+          format: int32
+          type: integer
+      type: object
+    LeaderboardRequest:
+      properties:
+        actionTypes:
+          items:
+            type: string
+          type: array
+        code:
+          type: string
+        metric:
+          type: string
+        name:
+          type: string
+        period:
+          type: string
+        status:
+          type: string
+        topN:
+          format: int32
+          type: integer
+      type: object
+    Me:
+      properties:
+        rank:
+          format: int32
+          type: integer
+        score:
+          format: int64
+          type: integer
+      type: object
+    MemberPlay:
+      properties:
+        deliveryStatus:
+          type: string
+        kind:
+          type: string
+        outcome:
+          type: string
+        playId:
+          type: string
+        playedAt:
+          format: date-time
+          type: string
+        prizeCode:
+          type: string
+        prizeName:
+          type: string
+        prizeType:
+          type: string
+      type: object
+    PageInfo:
+      properties:
+        number:
+          format: int32
+          type: integer
+        size:
+          format: int32
+          type: integer
+        totalItems:
+          format: int64
+          type: integer
+        totalPages:
+          format: int32
+          type: integer
+      type: object
+    PageResponseInstantRow:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/InstantRow"
+          type: array
+        page:
+          $ref: "#/components/schemas/PageInfo"
+      type: object
+    PlantOutcome:
+      properties:
+        instantAt:
+          format: date-time
+          type: string
+        instantId:
+          type: string
+        prizeCode:
+          type: string
+        prizeName:
+          type: string
+      type: object
+    PlantRequest:
+      properties:
+        prizeCode:
+          type: string
+      type: object
+    PlayRequest:
+      properties:
+        memberId:
+          type: string
+      type: object
+    PlayResult:
+      properties:
+        correlationId:
+          type: string
+        outcome:
+          type: string
+        playId:
+          type: string
+        playsAvailable:
+          format: int32
+          type: integer
+        prize:
+          $ref: "#/components/schemas/PrizeView"
+      type: object
+    PortalAchievement:
+      properties:
+        badge:
+          $ref: "#/components/schemas/BadgeRef"
+        code:
+          type: string
+        completedAt:
+          format: date-time
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+        lastUnitKey:
+          type: string
+        metric:
+          type: string
+        name:
+          type: string
+        pct:
+          format: int32
+          type: integer
+        period:
+          type: string
+        periodKey:
+          type: string
+        repeatable:
+          type: boolean
+        streakUnit:
+          type: string
+        target:
+          format: int64
+          type: integer
+        value:
+          format: int64
+          type: integer
+      type: object
+    PortalBadge:
+      properties:
+        awardedAt:
+          format: date-time
+          type: string
+        code:
+          type: string
+        color:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+        name:
+          type: string
+        origin:
+          type: string
+        unlockHint:
+          type: string
+      type: object
+    PortalContest:
+      properties:
+        code:
+          type: string
+        credits:
+          format: int32
+          type: integer
+        dailyLimit:
+          format: int32
+          type: integer
+        description:
+          type: string
+        endAt:
+          format: date-time
+          type: string
+        freePlayAvailable:
+          type: boolean
+        freePlayDaily:
+          type: boolean
+        mechanic:
+          type: string
+        name:
+          type: string
+        playsAvailable:
+          format: int32
+          type: integer
+        playsToday:
+          format: int32
+          type: integer
+        prizes:
+          items:
+            $ref: "#/components/schemas/PortalPrize"
+          type: array
+        rulesText:
+          type: string
+        startAt:
+          format: date-time
+          type: string
+      type: object
+    PortalLeaderboard:
+      properties:
+        code:
+          type: string
+        me:
+          $ref: "#/components/schemas/Me"
+        metric:
+          type: string
+        name:
+          type: string
+        participants:
+          format: int32
+          type: integer
+        period:
+          type: string
+        periodKey:
+          type: string
+        top:
+          items:
+            $ref: "#/components/schemas/Entry"
+          type: array
+        topN:
+          format: int32
+          type: integer
+      type: object
+    PortalPrize:
+      properties:
+        code:
+          type: string
+        imageUrl:
+          type: string
+        name:
+          type: string
+        points:
+          format: int64
+          type: integer
+        type:
+          type: string
+        wheelColor:
+          type: string
+      type: object
+    Prize:
+      properties:
+        code:
+          type: string
+        contestId:
+          type: string
+        id:
+          type: string
+        imageUrl:
+          type: string
+        name:
+          type: string
+        points:
+          format: int64
+          type: integer
+        quantityRemaining:
+          format: int32
+          type: integer
+        quantityTotal:
+          format: int32
+          type: integer
+        rewardCode:
+          type: string
+        sortOrder:
+          format: int32
+          type: integer
+        type:
+          type: string
+        wheelColor:
+          type: string
+      type: object
+    PrizeRequest:
+      properties:
+        code:
+          type: string
+        imageUrl:
+          type: string
+        name:
+          type: string
+        points:
+          format: int64
+          type: integer
+        quantity:
+          format: int32
+          type: integer
+        rewardCode:
+          type: string
+        sortOrder:
+          format: int32
+          type: integer
+        type:
+          type: string
+        wheelColor:
+          type: string
+      type: object
+    PrizeStat:
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        remaining:
+          format: int32
+          type: integer
+        total:
+          format: int32
+          type: integer
+        type:
+          type: string
+        won:
+          format: int64
+          type: integer
+      type: object
+    PrizeView:
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        points:
+          format: int64
+          type: integer
+        rewardCode:
+          type: string
+        type:
+          type: string
+        wheelColor:
+          type: string
+      type: object
+    Ranked:
+      properties:
+        memberId:
+          type: string
+        nickname:
+          type: string
+        rank:
+          format: int32
+          type: integer
+        reachedAt:
+          format: date-time
+          type: string
+        score:
+          format: int64
+          type: integer
+      type: object
+    Ranking:
+      properties:
+        code:
+          type: string
+        currentPeriodKey:
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/Ranked"
+          type: array
+        metric:
+          type: string
+        name:
+          type: string
+        period:
+          type: string
+        periodKey:
+          type: string
+        periods:
+          items:
+            type: string
+          type: array
+        topN:
+          format: int32
+          type: integer
+      type: object
+    TransitionRequest:
+      properties:
+        action:
+          type: string
+        comment:
+          type: string
+      type: object
+    Winner:
+      properties:
+        deliveryNote:
+          type: string
+        deliveryStatus:
+          type: string
+        memberId:
+          type: string
+        nickname:
+          type: string
+        playId:
+          type: string
+        playedAt:
+          format: date-time
+          type: string
+        prizeCode:
+          type: string
+        prizeName:
+          type: string
+        prizeType:
+          type: string
+      type: object
+info:
+  description: "API HTTP di gamification-service (docs/06 §2). Generata da OpenApiExportIT (M8.8, docs/18 §3.6): non modificare a mano."
+  title: Loyalty Hub · gamification-service
+  version: v1
+openapi: 3.1.0
+paths:
+  /v1/achievements:
+    get:
+      operationId: list_2
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/AchievementView"
+                type: array
+          description: OK
+      summary: List — achievements
+      tags:
+      - achievements
+    post:
+      operationId: create_2
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AchievementRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AchievementView"
+          description: OK
+      summary: Create — achievements
+      tags:
+      - achievements
+  /v1/achievements/{id}:
+    get:
+      operationId: get_2
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AchievementView"
+          description: OK
+      summary: Get — achievements
+      tags:
+      - achievements
+    put:
+      operationId: update_2
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AchievementRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AchievementView"
+          description: OK
+      summary: Update — achievements
+      tags:
+      - achievements
+  /v1/badges:
+    get:
+      operationId: badges
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/BadgeView"
+                type: array
+          description: OK
+      summary: Badges — achievements
+      tags:
+      - achievements
+    post:
+      operationId: createBadge
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Badge"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Badge"
+          description: OK
+      summary: Create badge
+      tags:
+      - achievements
+  /v1/badges/{code}:
+    put:
+      operationId: updateBadge
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Badge"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Badge"
+          description: OK
+      summary: Update badge
+      tags:
+      - achievements
+  /v1/contests:
+    get:
+      operationId: list_1
+      parameters:
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/ContestView"
+                type: array
+          description: OK
+      summary: List — contest
+      tags:
+      - contest
+    post:
+      operationId: create_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContestRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ContestView"
+          description: OK
+      summary: Create — contest
+      tags:
+      - contest
+  /v1/contests/{id}:
+    get:
+      operationId: get_1
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ContestView"
+          description: OK
+      summary: Get — contest
+      tags:
+      - contest
+    put:
+      operationId: update_1
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContestRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ContestView"
+          description: OK
+      summary: Update — contest
+      tags:
+      - contest
+  /v1/contests/{id}/approval-history:
+    get:
+      operationId: approvalHistory
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/ApprovalHistory"
+                type: array
+          description: OK
+      summary: Approval history
+      tags:
+      - contest
+  /v1/contests/{id}/duplicate:
+    post:
+      operationId: duplicate
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ContestView"
+          description: OK
+      summary: Duplicate — contest
+      tags:
+      - contest
+  /v1/contests/{id}/instants:
+    get:
+      operationId: instants
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: prizeId
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 0
+          format: int32
+          type: integer
+      - in: query
+        name: size
+        required: false
+        schema:
+          default: 50
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageResponseInstantRow"
+          description: OK
+      summary: Instants — contest
+      tags:
+      - contest
+  /v1/contests/{id}/instants/generate:
+    post:
+      operationId: generate
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/GenerateResult"
+          description: OK
+      summary: Generate — contest
+      tags:
+      - contest
+  /v1/contests/{id}/instants/histogram:
+    get:
+      operationId: histogram
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Histogram"
+          description: OK
+      summary: Histogram — contest
+      tags:
+      - contest
+  /v1/contests/{id}/stats:
+    get:
+      operationId: stats
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ContestStats"
+          description: OK
+      summary: Stats — contest
+      tags:
+      - contest
+  /v1/contests/{id}/transitions:
+    post:
+      operationId: transition
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransitionRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ContestView"
+          description: OK
+      summary: Transition — contest
+      tags:
+      - contest
+  /v1/contests/{id}/winners:
+    get:
+      operationId: winners
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/Winner"
+                type: array
+          description: OK
+      summary: Winners — contest
+      tags:
+      - contest
+  /v1/contests/{id}/winners.csv:
+    get:
+      operationId: winnersCsv
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            text/csv:
+              schema:
+                type: string
+          description: OK
+      summary: Winners csv
+      tags:
+      - contest
+  /v1/demo/contests/{id}/plant-instant:
+    post:
+      operationId: plantInstant
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlantRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlantOutcome"
+          description: OK
+      summary: Plant instant
+      tags:
+      - gamification-demo
+  /v1/demo/jobs/close-contests:
+    post:
+      operationId: closeContests
+      parameters:
+      - in: query
+        name: asOf
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/CloseContestsOutcome"
+          description: OK
+      summary: Close contests
+      tags:
+      - gamification-demo
+  /v1/leaderboards:
+    get:
+      operationId: list
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/Leaderboard"
+                type: array
+          description: OK
+      summary: List — leaderboards
+      tags:
+      - leaderboards
+    post:
+      operationId: create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeaderboardRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Leaderboard"
+          description: OK
+      summary: Create — leaderboards
+      tags:
+      - leaderboards
+  /v1/leaderboards/{code}/ranking:
+    get:
+      operationId: ranking
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: periodKey
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 0
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Ranking"
+          description: OK
+      summary: Ranking — leaderboards
+      tags:
+      - leaderboards
+  /v1/leaderboards/{id}:
+    get:
+      operationId: get
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Leaderboard"
+          description: OK
+      summary: Get — leaderboards
+      tags:
+      - leaderboards
+    put:
+      operationId: update
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeaderboardRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Leaderboard"
+          description: OK
+      summary: Update — leaderboards
+      tags:
+      - leaderboards
+  /v1/plays/{playId}/delivery:
+    post:
+      operationId: delivery
+      parameters:
+      - in: path
+        name: playId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeliveryRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+      summary: Delivery — contest
+      tags:
+      - contest
+  /v1/portal/achievements:
+    get:
+      operationId: achievements
+      parameters:
+      - in: query
+        name: memberId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/PortalAchievement"
+                type: array
+          description: OK
+      summary: Achievements — portal achievements
+      tags:
+      - portal-achievements
+  /v1/portal/badges:
+    get:
+      operationId: badges_1
+      parameters:
+      - in: query
+        name: memberId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/PortalBadge"
+                type: array
+          description: OK
+      summary: Badges — portal achievements
+      tags:
+      - portal-achievements
+  /v1/portal/contests:
+    get:
+      operationId: live
+      parameters:
+      - in: query
+        name: memberId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/PortalContest"
+                type: array
+          description: OK
+      summary: Live — portal contests
+      tags:
+      - portal-contests
+  /v1/portal/contests/{code}/play:
+    post:
+      operationId: play
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlayRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlayResult"
+          description: OK
+      summary: Play — portal contests
+      tags:
+      - portal-contests
+  /v1/portal/contests/{code}/plays:
+    get:
+      operationId: plays
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: memberId
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 10
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/MemberPlay"
+                type: array
+          description: OK
+      summary: Plays — portal contests
+      tags:
+      - portal-contests
+  /v1/portal/leaderboards:
+    get:
+      operationId: list_3
+      parameters:
+      - in: query
+        name: memberId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/PortalLeaderboard"
+                type: array
+          description: OK
+      summary: List — portal leaderboards
+      tags:
+      - portal-leaderboards
+  /v1/portal/leaderboards/{code}:
+    get:
+      operationId: one
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: memberId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PortalLeaderboard"
+          description: OK
+      summary: One — portal leaderboards
+      tags:
+      - portal-leaderboards

@@ -1,0 +1,1111 @@
+components:
+  schemas:
+    AnonymizeRequest:
+      properties:
+        confirm:
+          type: string
+      type: object
+    AttributeDefinition:
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        options:
+          items:
+            type: string
+          type: array
+        type:
+          type: string
+      type: object
+    Completeness:
+      properties:
+        completed:
+          type: boolean
+        missingFields:
+          items:
+            type: string
+          type: array
+      type: object
+    Consents:
+      properties:
+        marketing:
+          type: boolean
+        profiling:
+          type: boolean
+      type: object
+    CreateMemberRequest:
+      properties:
+        channel:
+          type: string
+        city:
+          type: string
+        consents:
+          $ref: "#/components/schemas/Consents"
+        email:
+          type: string
+        firstName:
+          type: string
+        gender:
+          type: string
+        lastName:
+          type: string
+        nickname:
+          type: string
+        phone:
+          type: string
+        referralCode:
+          type: string
+      type: object
+    JsonNode:
+      properties:
+        array:
+          type: boolean
+        bigDecimal:
+          type: boolean
+        bigInteger:
+          type: boolean
+        binary:
+          type: boolean
+        boolean:
+          type: boolean
+        container:
+          type: boolean
+        double:
+          type: boolean
+        embeddedValue:
+          type: boolean
+        empty:
+          type: boolean
+        float:
+          type: boolean
+        floatingPointNumber:
+          type: boolean
+        int:
+          type: boolean
+        integralNumber:
+          type: boolean
+        long:
+          type: boolean
+        missingNode:
+          type: boolean
+        nodeType:
+          enum:
+          - ARRAY
+          - BINARY
+          - BOOLEAN
+          - MISSING
+          - "NULL"
+          - NUMBER
+          - OBJECT
+          - POJO
+          - STRING
+          type: string
+        "null":
+          type: boolean
+        number:
+          type: boolean
+        object:
+          type: boolean
+        pojo:
+          type: boolean
+        short:
+          type: boolean
+        string:
+          type: boolean
+        textual:
+          deprecated: true
+          type: boolean
+        valueNode:
+          type: boolean
+      type: object
+    MemberSample:
+      properties:
+        enteredAt:
+          format: date-time
+          type: string
+        memberId:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+        tier:
+          type: string
+      type: object
+    MemberSegmentView:
+      properties:
+        code:
+          type: string
+        enteredAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+        type:
+          type: string
+      type: object
+    MemberView:
+      properties:
+        attributes:
+          $ref: "#/components/schemas/JsonNode"
+        balancePts:
+          format: int64
+          type: integer
+        birthDate:
+          format: date
+          type: string
+        channel:
+          type: string
+        city:
+          type: string
+        email:
+          type: string
+        externalId:
+          type: string
+        firstName:
+          type: string
+        gender:
+          type: string
+        id:
+          type: string
+        labels:
+          items:
+            type: string
+          type: array
+        lastName:
+          type: string
+        lifetimeEarnedPts:
+          format: int64
+          type: integer
+        nickname:
+          type: string
+        pendingPts:
+          format: int64
+          type: integer
+        periodSts:
+          format: int64
+          type: integer
+        phone:
+          type: string
+        profileCompleted:
+          type: boolean
+        referralCode:
+          type: string
+        referredBy:
+          type: string
+        registeredAt:
+          format: date-time
+          type: string
+        status:
+          type: string
+        tier:
+          type: string
+        version:
+          format: int64
+          type: integer
+      type: object
+    Overview:
+      properties:
+        completed:
+          format: int64
+          type: integer
+        invited:
+          format: int64
+          type: integer
+        links:
+          items:
+            $ref: "#/components/schemas/ReferralLink"
+          type: array
+        pending:
+          format: int64
+          type: integer
+        qualifyingActionType:
+          type: string
+        rate:
+          format: double
+          type: number
+        topReferrers:
+          items:
+            $ref: "#/components/schemas/TopReferrer"
+          type: array
+      type: object
+    PageInfo:
+      properties:
+        number:
+          format: int32
+          type: integer
+        size:
+          format: int32
+          type: integer
+        totalItems:
+          format: int64
+          type: integer
+        totalPages:
+          format: int32
+          type: integer
+      type: object
+    PageResponseMemberSample:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/MemberSample"
+          type: array
+        page:
+          $ref: "#/components/schemas/PageInfo"
+      type: object
+    PageResponseMemberView:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/MemberView"
+          type: array
+        page:
+          $ref: "#/components/schemas/PageInfo"
+      type: object
+    PageResponseSegmentView:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/SegmentView"
+          type: array
+        page:
+          $ref: "#/components/schemas/PageInfo"
+      type: object
+    PersonaView:
+      properties:
+        avatarSeed:
+          type: string
+        balancePts:
+          format: int64
+          type: integer
+        memberId:
+          type: string
+        name:
+          type: string
+        story:
+          type: string
+        tier:
+          type: string
+      type: object
+    PortalInvitee:
+      properties:
+        completedAt:
+          format: date-time
+          type: string
+        nickname:
+          type: string
+        registeredAt:
+          format: date-time
+          type: string
+        status:
+          type: string
+      type: object
+    PortalProfileRequest:
+      properties:
+        birthDate:
+          format: date
+          type: string
+        city:
+          type: string
+        consents:
+          $ref: "#/components/schemas/Consents"
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        nickname:
+          type: string
+        phone:
+          type: string
+        version:
+          format: int64
+          type: integer
+      type: object
+    PortalProfileView:
+      properties:
+        birthDate:
+          format: date
+          type: string
+        city:
+          type: string
+        completeness:
+          $ref: "#/components/schemas/Completeness"
+        consents:
+          $ref: "#/components/schemas/Consents"
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        memberId:
+          type: string
+        nickname:
+          type: string
+        phone:
+          type: string
+        referralCode:
+          type: string
+        version:
+          format: int64
+          type: integer
+      type: object
+    PortalReferral:
+      properties:
+        code:
+          type: string
+        completedCount:
+          format: int64
+          type: integer
+        invited:
+          items:
+            $ref: "#/components/schemas/PortalInvitee"
+          type: array
+        qualifyingActionType:
+          type: string
+        shareUrl:
+          type: string
+      type: object
+    PreviewRequest:
+      properties:
+        criteria:
+          $ref: "#/components/schemas/JsonNode"
+      type: object
+    PreviewResult:
+      properties:
+        count:
+          format: int64
+          type: integer
+        sample:
+          items:
+            $ref: "#/components/schemas/MemberSample"
+          type: array
+      type: object
+    ReferralLink:
+      properties:
+        completedAt:
+          format: date-time
+          type: string
+        refereeId:
+          type: string
+        refereeName:
+          type: string
+        refereeNickname:
+          type: string
+        refereeStatus:
+          type: string
+        referrerId:
+          type: string
+        referrerName:
+          type: string
+        registeredAt:
+          format: date-time
+          type: string
+        status:
+          type: string
+      type: object
+    RefreshJobOutcome:
+      properties:
+        asOf:
+          format: date-time
+          type: string
+        entered:
+          format: int32
+          type: integer
+        job:
+          type: string
+        left:
+          format: int32
+          type: integer
+        segments:
+          format: int32
+          type: integer
+      type: object
+    RefreshResult:
+      properties:
+        code:
+          type: string
+        entered:
+          format: int32
+          type: integer
+        left:
+          format: int32
+          type: integer
+        total:
+          format: int32
+          type: integer
+      type: object
+    SegmentRequest:
+      properties:
+        code:
+          type: string
+        criteria:
+          $ref: "#/components/schemas/JsonNode"
+        description:
+          type: string
+        memberIds:
+          items:
+            type: string
+          type: array
+        name:
+          type: string
+        status:
+          type: string
+        type:
+          type: string
+        version:
+          format: int32
+          type: integer
+      type: object
+    SegmentView:
+      properties:
+        code:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        createdBy:
+          type: string
+        criteria:
+          $ref: "#/components/schemas/JsonNode"
+        description:
+          type: string
+        id:
+          type: string
+        memberCount:
+          format: int32
+          type: integer
+        name:
+          type: string
+        refreshedAt:
+          format: date-time
+          type: string
+        status:
+          type: string
+        type:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+        updatedBy:
+          type: string
+        version:
+          format: int32
+          type: integer
+      type: object
+    StaticMembersRequest:
+      properties:
+        memberIds:
+          items:
+            type: string
+          type: array
+      type: object
+    StatusChangeRequest:
+      properties:
+        reason:
+          type: string
+        status:
+          type: string
+      type: object
+    TopReferrer:
+      properties:
+        completed:
+          format: int64
+          type: integer
+        invited:
+          format: int64
+          type: integer
+        memberId:
+          type: string
+        name:
+          type: string
+      type: object
+    UpdateMemberRequest:
+      properties:
+        attributes:
+          $ref: "#/components/schemas/JsonNode"
+        birthDate:
+          format: date
+          type: string
+        city:
+          type: string
+        consents:
+          $ref: "#/components/schemas/Consents"
+        email:
+          type: string
+        firstName:
+          type: string
+        gender:
+          type: string
+        labels:
+          items:
+            type: string
+          type: array
+        lastName:
+          type: string
+        nickname:
+          type: string
+        phone:
+          type: string
+        version:
+          format: int64
+          type: integer
+      type: object
+info:
+  description: "API HTTP di member-service (docs/06 §2). Generata da OpenApiExportIT (M8.8, docs/18 §3.6): non modificare a mano."
+  title: Loyalty Hub · member-service
+  version: v1
+openapi: 3.1.0
+paths:
+  /v1/attribute-definitions:
+    get:
+      operationId: list
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/AttributeDefinition"
+                type: array
+          description: OK
+      summary: List — attribute definitions
+      tags:
+      - attribute-definitions
+    put:
+      operationId: replace
+      requestBody:
+        content:
+          application/json:
+            schema:
+              items:
+                $ref: "#/components/schemas/AttributeDefinition"
+              type: array
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/AttributeDefinition"
+                type: array
+          description: OK
+      summary: Replace — attribute definitions
+      tags:
+      - attribute-definitions
+  /v1/demo/jobs/refresh-segments:
+    post:
+      operationId: refreshSegments
+      parameters:
+      - in: query
+        name: asOf
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RefreshJobOutcome"
+          description: OK
+      summary: Refresh segments
+      tags:
+      - member-jobs
+  /v1/demo/personas:
+    get:
+      operationId: personas
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/PersonaView"
+                type: array
+          description: OK
+      summary: Personas — personas
+      tags:
+      - personas
+  /v1/members:
+    get:
+      operationId: list_2
+      parameters:
+      - in: query
+        name: q
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: tier
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: segment
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 0
+          format: int32
+          type: integer
+      - in: query
+        name: size
+        required: false
+        schema:
+          default: 20
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageResponseMemberView"
+          description: OK
+      summary: List — members
+      tags:
+      - members
+    post:
+      operationId: create_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMemberRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MemberView"
+          description: OK
+      summary: Create — members
+      tags:
+      - members
+  /v1/members/{id}:
+    get:
+      operationId: get_2
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MemberView"
+          description: OK
+      summary: Get — members
+      tags:
+      - members
+    patch:
+      operationId: update_2
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMemberRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MemberView"
+          description: OK
+      summary: Update — members
+      tags:
+      - members
+  /v1/members/{id}/anonymize:
+    post:
+      operationId: anonymize
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnonymizeRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MemberView"
+          description: OK
+      summary: Anonymize — members
+      tags:
+      - members
+  /v1/members/{id}/referrals:
+    get:
+      operationId: referrals
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/ReferralLink"
+                type: array
+          description: OK
+      summary: Referrals — referral
+      tags:
+      - referral
+  /v1/members/{id}/segments:
+    get:
+      operationId: segments
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/MemberSegmentView"
+                type: array
+          description: OK
+      summary: Segments — members
+      tags:
+      - members
+  /v1/members/{id}/status:
+    post:
+      operationId: changeStatus
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StatusChangeRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MemberView"
+          description: OK
+      summary: Change status
+      tags:
+      - members
+  /v1/portal/members/{id}:
+    get:
+      operationId: get_1
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PortalProfileView"
+          description: OK
+      summary: Get — portal members
+      tags:
+      - portal-members
+    patch:
+      operationId: update_1
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortalProfileRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PortalProfileView"
+          description: OK
+      summary: Update — portal members
+      tags:
+      - portal-members
+  /v1/portal/members/{id}/referral:
+    get:
+      operationId: portal
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PortalReferral"
+          description: OK
+      summary: Portal — referral
+      tags:
+      - referral
+  /v1/referral/overview:
+    get:
+      operationId: overview
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Overview"
+          description: OK
+      summary: Overview — referral
+      tags:
+      - referral
+  /v1/segments:
+    get:
+      operationId: list_1
+      parameters:
+      - in: query
+        name: q
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: type
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 0
+          format: int32
+          type: integer
+      - in: query
+        name: size
+        required: false
+        schema:
+          default: 50
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageResponseSegmentView"
+          description: OK
+      summary: List — segments
+      tags:
+      - segments
+    post:
+      operationId: create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SegmentRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/SegmentView"
+          description: OK
+      summary: Create — segments
+      tags:
+      - segments
+  /v1/segments/preview:
+    post:
+      operationId: preview
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PreviewRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PreviewResult"
+          description: OK
+      summary: Preview — segments
+      tags:
+      - segments
+  /v1/segments/{id}:
+    get:
+      operationId: get
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/SegmentView"
+          description: OK
+      summary: Get — segments
+      tags:
+      - segments
+    put:
+      operationId: update
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SegmentRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/SegmentView"
+          description: OK
+      summary: Update — segments
+      tags:
+      - segments
+  /v1/segments/{id}/members:
+    get:
+      operationId: members
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 0
+          format: int32
+          type: integer
+      - in: query
+        name: size
+        required: false
+        schema:
+          default: 50
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageResponseMemberSample"
+          description: OK
+      summary: Members — segments
+      tags:
+      - segments
+    put:
+      operationId: replaceMembers
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaticMembersRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RefreshResult"
+          description: OK
+      summary: Replace members
+      tags:
+      - segments
+  /v1/segments/{id}/refresh:
+    post:
+      operationId: refresh
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RefreshResult"
+          description: OK
+      summary: Refresh — segments
+      tags:
+      - segments
