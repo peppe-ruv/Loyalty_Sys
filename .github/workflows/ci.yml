@@ -1,20 +1,76 @@
 name: ci
 
 # Integrazione continua (docs/11 §10): l'arbitro del progetto.
+# ADR-047: una sola esecuzione per PR (niente doppio push + pull_request), job per area con filtro sui file
+# cambiati, backend diviso in gruppi paralleli. I controlli obbligatori del ruleset `main-protetto` restano
+# `backend (Java 25)`, `web (Next.js)`, `seed`, `contracts`, `guard`: un job saltato perché l'area non cambia
+# conta come superato.
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  backend:
-    name: backend (Java 25)
+  # Aree toccate dalla modifica. Su main e su esecuzione manuale gira tutto.
+  changes:
+    name: aree
     runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      web: ${{ steps.filter.outputs.web }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"; echo "web=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          files=$(git diff --name-only "origin/$BASE_REF...HEAD")
+          printf '%s\n' "$files"
+          # Backend: tutto tranne documentazione (docs/, sito Mintlify, .md/.mdx) e il frontend
+          # (seed/ e contracts/ li leggono i test Java). Niente `grep -q` in pipeline: con pipefail darebbe falsi negativi.
+          doc='^(docs/|site/|api/|concetti/|guide/|operations/|specifiche/|getting-started/|docs_v2/|docs\.json$)|\.mdx?$'
+          code=$(grep -Ev "$doc" <<< "$files" | grep -Ev '^web/' || true)
+          if [ -n "$code" ]; then backend=true; else backend=false; fi
+          # Il workflow stesso fa girare tutto.
+          if grep -q '^\.github/workflows/' <<< "$files"; then backend=true; fi
+          # Web: i test leggono anche i contratti evento (lib/messages/facts.test.ts).
+          if grep -Eq '^(web/|contracts/events/|\.github/workflows/)' <<< "$files"; then web=true; else web=false; fi
+          echo "backend=$backend" >> "$GITHUB_OUTPUT"
+          echo "web=$web" >> "$GITHUB_OUTPUT"
+          echo "backend=$backend web=$web"
+
+  # Backend in gruppi paralleli: ognuno installa i moduli a monte senza test e verifica solo i propri.
+  # I test usano Kafka in-JVM (EmbeddedKafka) e Postgres in-process (Zonky): niente Docker (Q-40).
+  backend-part:
+    name: backend ${{ matrix.group }}
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: lh-common
+            modules: libs/lh-common
+          - group: ingestion-member-campaign
+            modules: services/ingestion-service,services/member-service,services/campaign-service
+          - group: wallet-reward
+            modules: services/wallet-service,services/reward-service
+          - group: gamification-engagement-insight
+            modules: services/gamification-service,services/engagement-service,services/insight-service
+          - group: hub
+            modules: deploy/hub
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v6
@@ -22,9 +78,25 @@ jobs:
           distribution: temurin
           java-version: "25"
           cache: maven
-      # I test usano Kafka in-JVM (EmbeddedKafka) e Postgres in-process (Zonky): niente Docker (Q-40).
+      - name: Moduli a monte (senza test)
+        run: ./mvnw -B -ntp install -DskipTests -pl "${{ matrix.modules }}" -am
       - name: Build e test
-        run: ./mvnw -B -ntp verify
+        run: ./mvnw -B -ntp verify -pl "${{ matrix.modules }}"
+
+  # Nome invariato: è il controllo obbligatorio del ruleset. Verde se i gruppi sono verdi o se il backend non cambia.
+  backend:
+    name: backend (Java 25)
+    needs: [changes, backend-part]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          CHANGED: ${{ needs.changes.result }}
+          PARTS: ${{ needs.backend-part.result }}
+        run: |
+          echo "aree: $CHANGED, gruppi backend: $PARTS"
+          [ "$CHANGED" = "success" ] || exit 1
+          [ "$PARTS" = "success" ] || [ "$PARTS" = "skipped" ] || exit 1
 
   # Governance del repository (docs/18 §3.13, ADR-041): le ADR di docs/13 solo in aggiunta e gli ID di seed/
   # invariati senza la label "decisione". Gira solo sulle pull request; dopo aver aggiunto la label si rilancia il job.
@@ -47,6 +119,8 @@ jobs:
 
   web:
     name: web (Next.js)
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
