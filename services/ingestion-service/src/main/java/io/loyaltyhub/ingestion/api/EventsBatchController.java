@@ -1,6 +1,7 @@
 package io.loyaltyhub.ingestion.api;
 
 import io.loyaltyhub.common.web.GlobalExceptionHandler;
+import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.ingestion.application.BatchIngestionService;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -40,7 +41,7 @@ public class EventsBatchController {
         this.rateLimit = rateLimit;
     }
 
-    /** Limite di frequenza superato dal batch: {@code 429} con {@code Retry-After}. */
+    /** Finestra dell'indirizzo piena per un batch che altrimenti starebbe nel limite: {@code 429} con {@code Retry-After}. */
     static final class RateLimited extends RuntimeException {
         private final long retryAfterSeconds;
 
@@ -64,21 +65,26 @@ public class EventsBatchController {
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(responseCode = "413", description = "BATCH_BODY_TOO_LARGE: corpo oltre il tetto in byte",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
-    @ApiResponse(responseCode = "422", description = "BATCH_EMPTY, BATCH_TOO_LARGE",
+    @ApiResponse(responseCode = "422", description = "BATCH_EMPTY, BATCH_TOO_LARGE, BATCH_OVER_RATE_LIMIT (il batch da solo"
+            + " supera il limite di eventi al minuto: non ritentabile così com'è, va diviso)",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
-    @ApiResponse(responseCode = "429", description = "RATE_LIMITED: eventi al minuto per indirizzo superati (Retry-After)",
+    @ApiResponse(responseCode = "429", description = "RATE_LIMITED: il batch starebbe nel limite ma la finestra"
+            + " corrente dell'indirizzo è piena (Retry-After)",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<BatchIngestionService.BatchResult> ingestBatch(HttpEntity<JsonNode> request,
                                                                         HttpServletRequest http) {
         JsonNode body = request.getBody();
         int events = BatchIngestionService.requireBatch(body);
         IngressRateLimitFilter.Admission admission = rateLimit.admitEvents(http, events);
+        if (admission.tooMany()) {
+            throw LhException.validation("BATCH_OVER_RATE_LIMIT", "Un batch di " + events + " eventi supera il limite di "
+                    + rateLimit.perMinute() + " eventi al minuto per questo indirizzo e non passerebbe mai: dividilo in"
+                    + " batch di al più " + rateLimit.perMinute() + " eventi.");
+        }
         if (!admission.admitted()) {
-            String detail = admission.tooMany()
-                    ? "Un batch di " + events + " eventi supera il limite di " + rateLimit.perMinute()
-                    + " eventi al minuto per questo indirizzo: dividilo in batch più piccoli"
-                    : "Limite di " + rateLimit.perMinute() + " eventi al minuto superato per questo indirizzo: riprova tra poco";
-            throw new RateLimited(detail, Math.max(1, (admission.retryAfterMs() + 999) / 1000));
+            throw new RateLimited("Limite di " + rateLimit.perMinute()
+                    + " eventi al minuto superato per questo indirizzo: riprova tra poco",
+                    Math.max(1, (admission.retryAfterMs() + 999) / 1000));
         }
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(batch.ingest(body));
     }

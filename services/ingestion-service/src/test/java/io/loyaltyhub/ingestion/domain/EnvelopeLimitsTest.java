@@ -24,6 +24,16 @@ class EnvelopeLimitsTest {
     }
 
     @Test
+    void textProblemNamesTheFieldAndStorableTextHasNoNul() {
+        assertThat(EnvelopeLimits.textProblem("orderId", "o".repeat(246), 245))
+                .isEqualTo("orderId troppo lungo (al massimo 245 caratteri)");
+        assertThat(EnvelopeLimits.textProblem("orderId", "o".repeat(9999), null)).isNull();
+        assertThat(EnvelopeLimits.withoutNul("id\u0000x")).isEqualTo("id\uFFFDx");
+        assertThat(EnvelopeLimits.withoutNul("pulito")).isEqualTo("pulito");
+        assertThat(EnvelopeLimits.withoutNul(null)).isNull();
+    }
+
+    @Test
     void nulIsFoundAtAnyDepthInKeysAndValues() {
         assertThat(EnvelopeLimits.containsNul(json.readTree("{\"a\":1,\"b\":[\"x\",{\"c\":\"ok\"}]}"))).isFalse();
         assertThat(EnvelopeLimits.containsNul(json.readTree("{\"b\":[\"x\",{\"c\":\"o\\u0000k\"}]}"))).isTrue();

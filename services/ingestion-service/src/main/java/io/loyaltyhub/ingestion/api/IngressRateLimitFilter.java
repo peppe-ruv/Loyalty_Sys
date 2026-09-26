@@ -23,7 +23,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@code code} {@code RATE_LIMITED} e {@code Retry-After}.
  *
  * <p>Il batch ({@code POST /v1/events/batch}, F2-ING-01) non passa dal filtro: il controller, letto il corpo, conta nella
- * stessa finestra un evento per elemento ({@link #admitEvents}), tutti o nessuno (SPEC-GAP: Q-371).
+ * stessa finestra un evento per elemento ({@link #admitEvents}), tutti o nessuno (SPEC-GAP: Q-371). Un batch che da
+ * solo supera il limite al minuto non potrebbe mai passare: è {@code tooMany}, e il controller lo rifiuta senza
+ * {@code Retry-After} invece di un {@code 429} da ritentare all'infinito.
  *
  * <p>SPEC-GAP: Q-339 — l'indirizzo è il primo di {@code X-Forwarded-For} (la demo sta dietro il proxy di Render e di
  * Vercel), altrimenti quello della connessione; le chiamate dalla stessa macchina (loopback: simulatore e scenari
@@ -74,7 +76,10 @@ public class IngressRateLimitFilter extends OncePerRequestFilter {
                 "code":"RATE_LIMITED","instance":"%s"}""".formatted(perMinute, request.getRequestURI()));
     }
 
-    /** Esito di {@link #admitEvents}: ammesso, oppure da ritentare tra {@code retryAfterMs}; {@code tooMany} = mai. */
+    /**
+     * Esito di {@link #admitEvents}: ammesso; oppure da ritentare tra {@code retryAfterMs}; oppure {@code tooMany}, mai
+     * ammissibile così com'è ({@code retryAfterMs} = 0).
+     */
     public record Admission(boolean admitted, long retryAfterMs, boolean tooMany) {
         static final Admission OK = new Admission(true, 0, false);
     }
@@ -94,7 +99,7 @@ public class IngressRateLimitFilter extends OncePerRequestFilter {
             return Admission.OK;
         }
         if (events > perMinute) {
-            return new Admission(false, WINDOW_MS, true);
+            return new Admission(false, 0, true);
         }
         long retryAfterMs = admit(ip, events, clock.millis());
         return retryAfterMs < 0 ? Admission.OK : new Admission(false, retryAfterMs, false);

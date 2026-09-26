@@ -853,13 +853,13 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
-          description: "BATCH_EMPTY, BATCH_TOO_LARGE"
+          description: "BATCH_EMPTY, BATCH_TOO_LARGE, BATCH_OVER_RATE_LIMIT (il batch da solo supera il limite di eventi al minuto: non ritentabile così com'è, va diviso)"
         "429":
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
-          description: "RATE_LIMITED: eventi al minuto per indirizzo superati (Retry-After)"
+          description: "RATE_LIMITED: il batch starebbe nel limite ma la finestra corrente dell'indirizzo è piena (Retry-After)"
       summary: Ingest batch
       tags:
       - events-batch

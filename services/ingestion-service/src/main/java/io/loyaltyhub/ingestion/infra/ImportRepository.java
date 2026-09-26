@@ -2,6 +2,7 @@ package io.loyaltyhub.ingestion.infra;
 
 import io.loyaltyhub.common.sql.SqlColumn;
 import io.loyaltyhub.common.sql.SqlWhere;
+import io.loyaltyhub.ingestion.domain.EnvelopeLimits;
 import io.loyaltyhub.ingestion.domain.ImportJob;
 import io.loyaltyhub.ingestion.domain.ImportRowResult;
 import io.loyaltyhub.ingestion.domain.ItemOutcome;
@@ -228,10 +229,16 @@ public class ImportRepository {
 
     /**
      * Riga non accettata del rapporto. {@code detail} non contiene mai il soggetto: per {@code UNMATCHED} resta
-     * {@code null} e si legge da {@code inbound_event.reject_detail}, che l'anonimizzazione ripulisce.
+     * {@code null} e si legge da {@code inbound_event.reject_detail}, che l'anonimizzazione ripulisce. I testi liberi
+     * (id e dettaglio) passano da {@link EnvelopeLimits#withoutNul}: una riga respinta per un NUL nell'id non deve far
+     * fallire la propria registrazione (PostgreSQL rifiuta NUL in {@code text}).
      */
     public record NewRow(int rowNumber, Integer lineNumber, String eventId, ItemOutcome outcome, String rejectCode,
                          String detail, String inboundEventId) {
+        public NewRow {
+            eventId = EnvelopeLimits.withoutNul(eventId);
+            detail = EnvelopeLimits.withoutNul(detail);
+        }
     }
 
     public void insertRow(String importId, NewRow row) {

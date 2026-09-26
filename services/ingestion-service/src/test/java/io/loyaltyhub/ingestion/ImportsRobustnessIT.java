@@ -144,6 +144,28 @@ class ImportsRobustnessIT extends ImportsItSupport {
     }
 
     @Test
+    void nulInTheEventIdIsRecordedInvalidAndTheNextRowIsProcessed() {
+        String now = Instant.now().toString();
+        String ndjson = login("id" + NUL + "x", "member:MBR-000002", now, "IOS") + "\n"
+                + login("nul-id-ok", "member:MBR-000002", now, "IOS") + "\n";
+        String id = upload("id-nul.ndjson", "application/x-ndjson", ndjson, "app", ADMIN, null, 202)
+                .path("id").asString();
+
+        JsonNode job = awaitFinished(id).path("job");
+        assertThat(job.path("status").asString()).isEqualTo("DONE");
+        assertThat(job.path("attempts").asInt()).as("la riga si registra al primo tentativo").isEqualTo(1);
+        assertThat(job.path("rowsDone").asInt()).isEqualTo(2);
+        assertThat(job.path("counts").path("invalid").asInt()).isEqualTo(1);
+        assertThat(job.path("counts").path("accepted").asInt()).isEqualTo(1);
+
+        JsonNode row = get("/v1/imports/" + id + "/rows").path("items").get(0);
+        assertThat(row.path("outcome").asString()).isEqualTo("INVALID");
+        assertThat(row.path("detail").asString()).isEqualTo("id contiene il carattere NUL, non ammesso");
+        assertThat(row.path("eventId").asString()).as("NUL sostituito, mai scritto").isEqualTo("id\uFFFDx");
+        assertThat(inboundCount("nul-id-ok")).isEqualTo(1);
+    }
+
+    @Test
     void batchNeverReturns500AfterPartialCommits() {
         List<Object> batch = new ArrayList<>();
         batch.add(purchase("batch-ok-a", "member:MBR-000002"));
@@ -167,6 +189,14 @@ class ImportsRobustnessIT extends ImportsItSupport {
         // Anche POST /v1/events rifiuta NUL e id oltre il limite come errore di forma (400), mai 500.
         Map<String, Object> single = purchase("z".repeat(300), "member:MBR-000002");
         assertThat(postJson("/v1/events", single, null, 400).path("detail").asString()).contains("id troppo lungo");
+    }
+
+    @Test
+    void transactionOrderIdOverTheLimitNamesTheField() {
+        Map<String, Object> txn = Map.of("source", "urn:loyaltyhub:source:pos", "orderId", "o".repeat(246),
+                "memberRef", "member:MBR-000002", "amount", 10, "currency", "EUR");
+        assertThat(postJson("/v1/transactions", txn, null, 400).path("detail").asString())
+                .isEqualTo("orderId troppo lungo (al massimo 245 caratteri).");
     }
 
     // ================= M1: soggetto dei non abbinati e anonimizzazione =================
@@ -354,7 +384,10 @@ class ImportsRobustnessIT extends ImportsItSupport {
 
     @Test
     void batchRateLimitCountsEventsPerAddress() {
-        assertThat(postBatchFrom("203.0.113.7", 11, 429).path("detail").asString()).contains("dividilo");
+        JsonNode never = postBatchFrom("203.0.113.7", 11, 422);
+        assertThat(never.path("code").asString()).as("mai ammissibile: niente 429 da ritentare all'infinito")
+                .isEqualTo("BATCH_OVER_RATE_LIMIT");
+        assertThat(never.path("detail").asString()).contains("dividilo");
         postBatchFrom("203.0.113.7", 6, 202);
         JsonNode limited = postBatchFrom("203.0.113.7", 6, 429);
         assertThat(limited.path("code").asString()).isEqualTo("RATE_LIMITED");
@@ -387,6 +420,8 @@ class ImportsRobustnessIT extends ImportsItSupport {
                     assertThat(res.getStatusCode().value()).as(text).isEqualTo(expected);
                     if (expected == 429) {
                         assertThat(res.getHeaders().getFirst("Retry-After")).isNotBlank();
+                    } else {
+                        assertThat(res.getHeaders().getFirst("Retry-After")).isNull();
                     }
                     return mapper.readTree(text);
                 });

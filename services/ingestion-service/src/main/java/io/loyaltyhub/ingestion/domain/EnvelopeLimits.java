@@ -32,17 +32,32 @@ public final class EnvelopeLimits {
      * {@code null} se va bene (anche se assente: l'obbligatorietà la controlla la pipeline).
      */
     public static String attributeProblem(String name, String value) {
+        return textProblem(name, value, MAX_BY_ATTRIBUTE.get(name));
+    }
+
+    /**
+     * Problema di un campo testuale che finisce in un attributo o in una colonna: NUL o più di {@code max} caratteri
+     * ({@code null} = nessun limite di lunghezza). Il messaggio nomina il campo, mai il valore.
+     */
+    public static String textProblem(String name, String value, Integer max) {
         if (value == null) {
             return null;
         }
         if (value.indexOf('\0') >= 0) {
             return name + " contiene il carattere NUL, non ammesso";
         }
-        Integer max = MAX_BY_ATTRIBUTE.get(name);
         if (max != null && value.length() > max) {
             return name + " troppo lungo (al massimo " + max + " caratteri)";
         }
         return null;
+    }
+
+    /**
+     * Testo memorizzabile in una colonna {@code text}: ogni NUL diventa U+FFFD (carattere sostitutivo), così un valore
+     * respinto proprio per il NUL resta riconoscibile nel rapporto senza far fallire la scrittura.
+     */
+    public static String withoutNul(String value) {
+        return value == null || value.indexOf('\0') < 0 ? value : value.replace('\0', '\uFFFD');
     }
 
     /** {@code data} contiene un carattere NUL in una chiave o in un valore testuale, a qualunque profondità? */
