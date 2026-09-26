@@ -3,7 +3,10 @@ name: deploy-keepalive
 # Render free (docs/11 §2) sospende il servizio dopo 15 minuti senza traffico HTTP in ingresso. Se la sospensione
 # arriva mentre Render avvia la nuova versione (2–3 minuti su 0,1 CPU), cadono entrambe le istanze e il deploy
 # finisce in "update_failed" per port scan scaduto. Dopo ogni push su main che cambia l'hub teniamo sveglio il
-# servizio per la durata del deploy (build + avvio, 20 minuti al massimo). Costo zero: solo minuti di Actions.
+# servizio per la durata del deploy e basta: ogni minuto di hub sveglio è anche compute del database (l'outbox
+# interroga Postgres ogni 500 ms, Neon non si sospende). Ci si ferma appena risponde un'istanza avviata dopo il push
+# (process.uptime dall'actuator, quindi la nuova versione è online), al più dopo 15 minuti (build fallita o lenta).
+# Le build di oggi durano 4–5 minuti.
 on:
   push:
     branches: [main]
@@ -23,15 +26,29 @@ concurrency:
 jobs:
   keepalive:
     runs-on: ubuntu-latest
-    timeout-minutes: 22
+    timeout-minutes: 17
     env:
       HUB_URL: ${{ vars.LH_HUB_URL || 'https://loyalty-hub-6dc3.onrender.com' }}
     steps:
-      - name: Tieni sveglio l'hub durante il deploy
+      - name: Tieni sveglio l'hub finché la nuova versione è online
         run: |
-          end=$(( $(date +%s) + 20 * 60 ))
+          # La prima istanza che risponde è quella vecchia (anche se la chiamata l'ha appena svegliata): se ne ricorda
+          # l'avvio. Il deploy è online quando risponde un'istanza avviata dopo (restart di Render sulla nuova versione).
+          first=""
+          end=$(( $(date +%s) + 15 * 60 ))
           while [ "$(date +%s)" -lt "$end" ]; do
             code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$HUB_URL/actuator/health/liveness" || echo 000)
-            echo "$(date -u +%H:%M:%S) liveness $code"
+            uptime=$(curl -s --max-time 20 "$HUB_URL/actuator/metrics/process.uptime" | jq -r '.measurements[0].value // empty' 2>/dev/null || true)
+            echo "$(date -u +%H:%M:%S) liveness $code uptime ${uptime:-?}s"
+            if [ "$code" = "200" ] && [ -n "$uptime" ]; then
+              started=$(( $(date +%s) - ${uptime%.*} ))
+              if [ -z "$first" ]; then
+                first=$started
+              elif [ "$started" -gt $(( first + 30 )) ]; then
+                echo "istanza nuova avviata $(( started - first )) s dopo la precedente: deploy online, mi fermo"
+                exit 0
+              fi
+            fi
             sleep 45
           done
+          echo "nessuna istanza nuova entro 15 minuti: controlla il deploy su Render"
