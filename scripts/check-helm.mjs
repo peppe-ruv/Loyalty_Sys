@@ -89,6 +89,24 @@ test('compose di riferimento: ruoli dell\'immagine unica, nessun segreto in chia
   assert.doesNotMatch(compose, /LH_KAFKA_TOPIC_PARTITIONS: "?[0-9]/, 'le partizioni vengono da ${LH_KAFKA_TOPIC_PARTITIONS}');
 });
 
+test('porte dei ruoli allineate all\'immagine unica: hub 8080, web 3000 (deploy/image/entrypoint.sh)', () => {
+  const entrypoint = read('deploy/image/entrypoint.sh');
+  const hubPort = (entrypoint.match(/ROLE" = "hub"[\s\S]*?export PORT="(\d+)"/) || [])[1];
+  const webPort = (entrypoint.match(/ROLE" = "web"[\s\S]*?export PORT="(\d+)"/) || [])[1];
+  assert.equal(hubPort, '8080', 'porta dell\'hub nell\'entrypoint');
+  assert.equal(webPort, '3000', 'porta del web nell\'entrypoint');
+  const helpers = read('deploy/helm/loyaltyhub/templates/_helpers.tpl');
+  assert.match(helpers, new RegExp(`define "loyaltyhub\\.port\\.hub" -}}${hubPort}\\{`));
+  assert.match(helpers, new RegExp(`define "loyaltyhub\\.port\\.web" -}}${webPort}\\{`));
+  assert.doesNotMatch(read('deploy/helm/loyaltyhub/values.yaml'), /^\s+port: (8080|3000)\s*$/m,
+    'le porte dei ruoli non sono valori: l\'immagine le impone');
+  const compose = read(COMPOSE);
+  const svcUrls = [...compose.matchAll(/LH_SVC_[A-Z]+_URL: "([^"]+)"/g)].map((m) => m[1]);
+  assert.equal(svcUrls.length, 8);
+  assert.ok(svcUrls.every((u) => u === `http://hub:${hubPort}`), `URL dei moduli nel compose: ${svcUrls}`);
+  assert.match(compose, new RegExp(`"${webPort}:${webPort}"`), 'porta del web nel compose');
+});
+
 const helm = spawnSync('helm', ['version', '--short'], { encoding: 'utf8' });
 test('helm lint e helm template (solo se helm è installato)', { skip: helm.status !== 0 && 'helm non installato' }, () => {
   const lint = spawnSync('helm', ['lint', CHART, '--strict'], { encoding: 'utf8' });

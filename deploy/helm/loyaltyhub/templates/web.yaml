@@ -1,7 +1,7 @@
 {{- /* Ruolo web dell'immagine unica: portale, backoffice e BFF (ADR-027, ADR-037, F2-DIST-02). */ -}}
 {{- if .Values.roles.web.enabled }}
 {{- $r := .Values.roles.web }}
-{{- $hub := printf "http://%s-hub:%d" (include "loyaltyhub.fullname" .) (int .Values.roles.hub.port) }}
+{{- $hub := printf "http://%s-hub:%d" (include "loyaltyhub.fullname" .) (int (include "loyaltyhub.port.hub" .)) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -39,7 +39,7 @@ spec:
             {{- include "loyaltyhub.containerSecurityContext" (dict "ctx" $) | nindent 12 }}
           ports:
             - name: http
-              containerPort: {{ $r.port }}
+              containerPort: {{ include "loyaltyhub.port.web" . }}
           env:
             - name: LH_ROLE
               value: web
@@ -101,7 +101,7 @@ spec:
     {{- include "loyaltyhub.selectorLabels" (dict "ctx" $ "role" "web") | nindent 4 }}
   ports:
     - name: http
-      port: {{ $r.port }}
+      port: {{ include "loyaltyhub.port.web" . }}
       targetPort: http
 {{- if $r.autoscaling.enabled }}
 ---

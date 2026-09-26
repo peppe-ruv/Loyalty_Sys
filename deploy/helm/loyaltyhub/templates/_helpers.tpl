@@ -49,6 +49,12 @@ app.kubernetes.io/component: {{ .role }}
 {{- end -}}
 {{- end -}}
 
+{{/* Porte dei ruoli: le fissa l'immagine unica (entrypoint.sh: hub 8080, web 3000) e Keycloak (8080, gestione 9000). */}}
+{{- define "loyaltyhub.port.hub" -}}8080{{- end -}}
+{{- define "loyaltyhub.port.web" -}}3000{{- end -}}
+{{- define "loyaltyhub.port.idp" -}}8080{{- end -}}
+{{- define "loyaltyhub.port.idpManagement" -}}9000{{- end -}}
+
 {{/* Immagine unica (ADR-037). */}}
 {{- define "loyaltyhub.image" -}}
 {{- $tag := default .Chart.AppVersion .Values.image.tag -}}
@@ -304,6 +310,6 @@ topologySpreadConstraints:
 {{- if .Values.oidc.jwksUri -}}
 {{- .Values.oidc.jwksUri -}}
 {{- else if .Values.roles.idp.enabled -}}
-{{- printf "http://%s-idp:%d/realms/%s/protocol/openid-connect/certs" (include "loyaltyhub.fullname" .) (int .Values.roles.idp.port) .Values.global.realm -}}
+{{- printf "http://%s-idp:%d/realms/%s/protocol/openid-connect/certs" (include "loyaltyhub.fullname" .) (int (include "loyaltyhub.port.idp" .)) .Values.global.realm -}}
 {{- end -}}
 {{- end -}}

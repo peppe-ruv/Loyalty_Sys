@@ -38,7 +38,7 @@ spec:
             {{- include "loyaltyhub.containerSecurityContext" (dict "ctx" $) | nindent 12 }}
           ports:
             - name: http
-              containerPort: {{ $r.port }}
+              containerPort: {{ include "loyaltyhub.port.hub" . }}
           env:
             - name: LH_ROLE
               value: hub
@@ -50,8 +50,6 @@ spec:
             - name: LH_SERVICES
               value: {{ $r.services | quote }}
             {{- end }}
-            - name: PORT
-              value: {{ $r.port | quote }}
             - name: JAVA_TOOL_OPTIONS
               value: {{ $r.javaToolOptions | quote }}
             {{- include "loyaltyhub.hubDbEnv" . | nindent 12 }}
@@ -105,7 +103,7 @@ spec:
     {{- include "loyaltyhub.selectorLabels" (dict "ctx" $ "role" "hub") | nindent 4 }}
   ports:
     - name: http
-      port: {{ $r.port }}
+      port: {{ include "loyaltyhub.port.hub" . }}
       targetPort: http
 {{- if $r.autoscaling.enabled }}
 ---

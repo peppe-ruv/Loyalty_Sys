@@ -54,9 +54,9 @@ spec:
             {{- include "loyaltyhub.containerSecurityContext" (dict "ctx" $ "readOnlyRootFilesystem" $r.readOnlyRootFilesystem) | nindent 12 }}
           ports:
             - name: http
-              containerPort: {{ $r.port }}
+              containerPort: {{ include "loyaltyhub.port.idp" . }}
             - name: management
-              containerPort: {{ $r.managementPort }}
+              containerPort: {{ include "loyaltyhub.port.idpManagement" . }}
             # Cache distribuita tra le repliche (JGroups, scoperta tramite il database).
             - name: jgroups
               containerPort: 7800
@@ -162,7 +162,7 @@ spec:
     {{- include "loyaltyhub.selectorLabels" (dict "ctx" $ "role" "idp") | nindent 4 }}
   ports:
     - name: http
-      port: {{ $r.port }}
+      port: {{ include "loyaltyhub.port.idp" . }}
       targetPort: http
 {{- if $r.pdb.enabled }}
 ---

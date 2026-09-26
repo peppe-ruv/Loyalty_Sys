@@ -77,6 +77,8 @@ topologySpread:
   whenUnsatisfiable: ScheduleAnyway
 
 roles:
+  # Porte fisse, non configurabili: le impone l'immagine unica (hub 8080 e web 3000, deploy/image/entrypoint.sh)
+  # e Keycloak (8080 HTTP, 9000 gestione). Sono definite una volta sola in templates/_helpers.tpl.
   # ---- hub: tutti i moduli Java (ingestion, member, campaign, wallet, insight, reward, gamification, engagement) ----
   hub:
     enabled: true
@@ -84,7 +86,6 @@ roles:
     # LH_SERVICES: per ora solo vuoto o `all` (l'immagine rifiuta selezioni parziali, SPEC-GAP Q-365 del M8.1):
     # un solo Deployment hub con tutti i moduli; i Deployment per modulo arrivano con la selezione dei moduli.
     services: ""
-    port: 8080
     javaToolOptions: "-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
     resources:
       requests: { cpu: 500m, memory: 1Gi }
@@ -104,7 +105,6 @@ roles:
   web:
     enabled: true
     replicas: 2
-    port: 3000
     resources:
       requests: { cpu: 200m, memory: 384Mi }
       limits: { cpu: "1", memory: 768Mi }
@@ -131,8 +131,6 @@ roles:
       repository: quay.io/keycloak/keycloak
       tag: "26.7.4"
       pullPolicy: IfNotPresent
-    port: 8080
-    managementPort: 9000
     # Keycloak ricompila la propria configurazione all'avvio (`kc.sh start` senza --optimized) e scrive nella sua
     # cartella: niente filesystem in sola lettura finché l'immagine non porta una build ottimizzata (Q-374).
     readOnlyRootFilesystem: false

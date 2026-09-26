@@ -25,5 +25,5 @@ spec:
             value: /v1/
       backendRefs:
         - name: {{ include "loyaltyhub.fullname" . }}-hub
-          port: {{ .Values.roles.hub.port }}
+          port: {{ include "loyaltyhub.port.hub" . }}
 {{- end }}
