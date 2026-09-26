@@ -61,6 +61,7 @@ Domande nate con la specifica di Fase 2 (Appendice B di `docs/18`), registrate i
 | Q-362 | formato del catalogo degli adattatori generici | mappatura JSONata | M13.6 | APERTA |
 | Q-363 | chi approva i premi sincronizzati | come i premi manuali, `LEGAL` | M13.6 | APERTA |
 | Q-364 | limite di passi per missione e di missioni attive per membro | 10 passi, 5 missioni | M13.7 | APERTA |
+| Q-365 | token con più ruoli operatore (`lh_roles`) quando `ActorContext` ne porta uno solo | `ADMIN` vince; un solo ruolo operatore vale quel ruolo; più ruoli diversi ⇒ `ANALYST` (sola lettura), mai l'unione dei poteri (coerente con la regola 22) | M8.2 | APERTA |
 
 ## SPEC-GAP segnalati durante lo sviluppo
 _(vuoto: l'agente aggiunge qui le voci `Q-40+` con file, riga, scelta fatta e motivo)_

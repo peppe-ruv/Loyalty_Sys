@@ -368,7 +368,7 @@ Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della 
 - [ ] M8.8 — OpenAPI generata e verificata (`contracts/api/`)
 - [ ] M8.9 — documentazione Mintlify (`site/`)
 - [~] M8.10 — sicurezza applicativa — _parte 1 (builder SQL con allowlist, adozione nel wallet) in revisione: PR #61; regole Semgrep/CodeQL e adozione negli altri servizi da fare_
-- [ ] M8.11 — verifica di sicurezza (job `security`)
+- [~] M8.11 — verifica di sicurezza — _parte 1 (threat model STRIDE, tabella ASVS 5.0 L2, `SECURITY.md`) in revisione: PR #60; job `security`, ArchUnit, Schemathesis, ZAP, `TB-SEC` da fare_ (job `security`)
 - [ ] M8.12 — audit unificato
 - [ ] M8.13 — governo di accessi e dati
 
@@ -378,7 +378,7 @@ Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della 
 - [ ] `F2-DIST-03` Compose di riferimento (ruoli + infra open source) (P0, M8.3)
 - [ ] `F2-DIST-08` Rilascio firmato: SBOM, cosign, note di sicurezza, percorso N−1 → N (P0, M8.5, M12.4)
 - [ ] `F2-IAM-01` Keycloak ruolo `idp`, realm as code (P0, M8.2)
-- [ ] `F2-IAM-02` Servizi resource server JWT; `ActorContext` dal token (P0, M8.2)
+- [~] `F2-IAM-02` Servizi resource server JWT; `ActorContext` dal token (P0, M8.2) — _in revisione: PR #51 (attore dal token, profilo enterprise)_
 - [ ] `F2-IAM-03` Login e registrazione membri via OIDC; `member.external_id = sub` (P0, M8.2)
 - [ ] `F2-IAM-04` Broker verso IdP aziendale e federazione LDAP (documentati e provati) (P0, M8.2)
 - [ ] `F2-SEC-01` Gateway con JWT, rate limit, CORS per widget, header di sicurezza (P0, M8.5)
