@@ -74,3 +74,18 @@ export function formatElapsed(ms: number): string {
   const s = total % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
 }
+
+/**
+ * Kafka e Postgres dal corpo di `/actuator/health` di ingestion (nell'hub: di tutto il processo). Si leggono i
+ * componenti `kafka` e `db` anche quando la risposta è 503: durante l'avvio (o per un altro componente giù) lo stato
+ * complessivo è `OUT_OF_SERVICE`/`DOWN` mentre database e broker sono già `UP`, e il pannello non deve segnarli rossi.
+ * Senza corpo leggibile (o senza il componente) lo stato è `DOWN`.
+ */
+export function infraFromHealth(body: unknown): { kafka: ServiceState; db: ServiceState } {
+  const components =
+    body && typeof body === "object" && "components" in body
+      ? ((body as { components?: Record<string, { status?: string } | undefined> }).components ?? {})
+      : {};
+  const toState = (name: string): ServiceState => (components[name]?.status === "UP" ? "UP" : "DOWN");
+  return { kafka: toState("kafka"), db: toState("db") };
+}

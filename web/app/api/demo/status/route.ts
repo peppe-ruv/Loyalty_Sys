@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { SERVICES, serviceBaseUrl, type ServiceCode } from "@/lib/api/services";
-import type { DemoStatus, ServiceState, ServiceStatus } from "@/lib/api/status";
+import { infraFromHealth, type DemoStatus, type ServiceState, type ServiceStatus } from "@/lib/api/status";
 
 // Stato aggregato dei servizi (docs/07 §8). Cache 2 s per non martellare gli health.
 
@@ -39,11 +39,9 @@ async function kafkaAndDb(): Promise<{ kafka: ServiceState; db: ServiceState }> 
       signal: controller.signal,
       cache: "no-store",
     });
-    if (!res.ok) return { kafka: "DOWN", db: "DOWN" };
-    const body = (await res.json()) as { components?: Record<string, { status?: string }> };
-    const toState = (name: string): ServiceState =>
-      body.components?.[name]?.status === "UP" ? "UP" : "DOWN";
-    return { kafka: toState("kafka"), db: toState("db") };
+    // Anche con 503 (avvio in corso: readinessState OUT_OF_SERVICE) il corpo porta i componenti db e kafka.
+    const body: unknown = await res.json().catch(() => null);
+    return infraFromHealth(body);
   } catch {
     return { kafka: "SLEEPING", db: "SLEEPING" };
   } finally {
