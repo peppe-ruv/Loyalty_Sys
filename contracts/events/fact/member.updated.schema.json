@@ -3,6 +3,7 @@
   "$id": "urn:loyaltyhub:schema:fact.member.updated:1",
   "title": "fact.member.updated — data (EVT-FACT-02, docs/05 §5)",
   "description": "Snapshot completo del membro, come member.registered.",
+  "x-lh-superseded-by": "urn:loyaltyhub:schema:fact.member.updated:2",
   "type": "object",
   "required": ["memberId", "status"],
   "properties": {

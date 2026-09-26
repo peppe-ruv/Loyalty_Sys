@@ -13,6 +13,7 @@ const examplesDir = join(eventsDir, "examples");
 
 const REQUIRED = ["specversion", "id", "source", "type", "subject", "time", "datacontenttype", "dataschema", "lhtenant", "lhcorrelationid", "lhhop", "data"];
 const errors = [];
+const schemaFileName = (name, version) => (version > 1 ? `${name}.v${version}.schema.json` : `${name}.schema.json`);
 
 if (!existsSync(examplesDir)) {
   console.error("check-contracts: contracts/events/examples/ assente.");
@@ -42,17 +43,54 @@ for (const file of examples) {
   }
   const family = familyDotName.slice(0, dot);
   const name = familyDotName.slice(dot + 1);
-  const schemaFile = join(eventsDir, family, `${name}.schema.json`);
-  if (!existsSync(schemaFile)) errors.push(`${file}: schema mancante ${family}/${name}.schema.json`);
-
-  const expected = `urn:loyaltyhub:schema:${familyDotName}:1`;
-  if (event.dataschema !== expected) {
-    errors.push(`${file}: dataschema atteso ${expected}, trovato ${event.dataschema}`);
+  // dataschema = urn:loyaltyhub:schema:<famiglia>.<nome>:<n>; la versione n>1 vive in <nome>.v<n>.schema.json (docs/05 §9).
+  const prefix = `urn:loyaltyhub:schema:${familyDotName}:`;
+  const version = String(event.dataschema ?? "").startsWith(prefix) ? Number(event.dataschema.slice(prefix.length)) : NaN;
+  if (!Number.isInteger(version) || version < 1) {
+    errors.push(`${file}: dataschema atteso ${prefix}<versione>, trovato ${event.dataschema}`);
+    continue;
   }
+  const schemaName = schemaFileName(name, version);
+  if (!existsSync(join(eventsDir, family, schemaName))) errors.push(`${file}: schema mancante ${family}/${schemaName}`);
   if (family === "audit" && !event.lhactor) {
     errors.push(`${file}: audit senza lhactor`);
   }
 }
+
+// Dati personali fuori dal bus (ADR-032, CLAUDE.md regola 10): ogni campo dichiara x-lh-pii; uno schema con un
+// campo x-lh-pii: true è ammesso solo come versione superata (x-lh-superseded-by verso una versione esistente).
+function piiFields(node, path, out) {
+  for (const [key, prop] of Object.entries(node?.properties ?? {})) {
+    const at = path ? `${path}.${key}` : key;
+    if (typeof prop["x-lh-pii"] !== "boolean") out.missing.push(at);
+    else if (prop["x-lh-pii"]) out.pii.push(at);
+    piiFields(prop, at, out);
+    if (prop.items && typeof prop.items === "object") piiFields(prop.items, `${at}[]`, out);
+  }
+  return out;
+}
+function checkPii(dir, family) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (entry.name !== "examples") checkPii(join(dir, entry.name), entry.name);
+      continue;
+    }
+    if (!family || !entry.name.endsWith(".schema.json")) continue;
+    const rel = `${family}/${entry.name}`;
+    const schema = JSON.parse(readFileSync(join(dir, entry.name), "utf8"));
+    const { missing, pii } = piiFields(schema, "", { missing: [], pii: [] });
+    for (const m of missing) errors.push(`${rel}: il campo ${m} non dichiara x-lh-pii`);
+    const m = /^(.*?)(?:\.v(\d+))?\.schema\.json$/.exec(entry.name);
+    const version = m[2] ? Number(m[2]) : 1;
+    if (!String(schema.$id ?? "").endsWith(`:${version}`)) errors.push(`${rel}: $id ${schema.$id} non termina con :${version}`);
+    if (pii.length === 0) continue;
+    const next = /:(\d+)$/.exec(String(schema["x-lh-superseded-by"] ?? ""));
+    if (!next || Number(next[1]) <= version || !existsSync(join(dir, schemaFileName(m[1], Number(next[1]))))) {
+      errors.push(`${rel}: campi x-lh-pii: true (${pii.join(", ")}) in una versione non superata`);
+    }
+  }
+}
+checkPii(eventsDir, null);
 
 // Ogni schema di data ha un esempio.
 function walkSchemas(dir, family) {
