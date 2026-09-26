@@ -170,7 +170,7 @@ Stati del concorso: ciclo comune di docs/03 §3.6; stati degli istanti vincenti:
 | **DLQ** | `lh.dlq.v1` con header `lh-original-topic`, `lh-consumer`, `lh-error-class`, `lh-error-message`, `lh-attempts` |
 | **Ordinamento** | chiave = `memberId` (o id aggregato per fatti di configurazione); 2 partizioni; concorrenza listener = 2 |
 | **Correlazione** | `lhcorrelationid` = id dell'azione radice, propagato ovunque; `lhcausationid` = id dell'evento padre |
-| **Snapshot locali** | tabelle `member_snapshot` alimentate dai fatti `member.*`, `tier.*`, `member.segment.*`; mai query cross-schema |
+| **Snapshot locali** | tabelle `member_snapshot` (o `gamification_member_snapshot`, `engagement_member_snapshot`) alimentate dai fatti `member.*`, `tier.*`, `member.segment.*`; mai query cross-schema |
 
 Coerenza: **eventuale** tra servizi, **forte** dentro il servizio. La UI lo rende esplicito (stato "in elaborazione", `docs/07 §7`).
 

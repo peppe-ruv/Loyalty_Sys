@@ -202,11 +202,11 @@ Dominio in `docs/03 §6, §8`. Note implementative:
 Riferimento: `docs/18`. Le righe qui sotto sono segnaposto dell'adozione (M8.0): la fetta citata le rende normative aggiornando questa scheda.
 
 - **Missioni e serie** (ADR-045, M13.7): tabella `mission` con passi e finestra relativa al membro; estensioni `STREAK` (tolleranza, congelamento, `achievement.streak.at_risk`); fatti `mission.started/progressed/completed/expired` e azione interna `mission.completed` (con riga in `producers.yaml`); BO-38, PT-19; limiti Q-364.
-- **Dati personali** (ADR-032, M8.4): `member_snapshot.nickname` resta solo se non identificativo (nickname pseudonimo).
+- **Dati personali** (ADR-032, M8.4): `gamification_member_snapshot.nickname` resta solo se non identificativo (nickname pseudonimo).
 - **Doppia lettura `member.*:1`/`:2`** (ADR-032, Q-346, M8.4 parte 2d): lo snapshot legge il soprannome solo da `:1` (`dataschema` che finisce con `:1` o assente); da `:2` legge solo `status`. Un campo assente non sovrascrive il valore salvato (un membro nuovo da `:2` resta senza soprannome), nessun errore su `:2`.
-- **Soprannomi risolti dal BFF** (Q-368, M8.4 parte 2d): classifiche del portale, ranking e vincitori (anche CSV) accettano `resolve=ids`; il BFF chiede i soprannomi a member-service (`POST /v1/members/nicknames`) e li inserisce lato server. Le risposte senza parametro restano quelle di sempre (compatibilità all'indietro); `member_snapshot.nickname` si svuoterà con il contract di M10.
+- **Soprannomi risolti dal BFF** (Q-368, M8.4 parte 2d): classifiche del portale, ranking e vincitori (anche CSV) accettano `resolve=ids`; il BFF chiede i soprannomi a member-service (`POST /v1/members/nicknames`) e li inserisce lato server. Le risposte senza parametro restano quelle di sempre (compatibilità all'indietro); `gamification_member_snapshot.nickname` si svuoterà con il contract di M10.
 
 **Classificazione `x-lh-class`** (`docs/18 §3.15`, F2-GRC-05; prima stesura M8.0, verificata e resa per colonna in M8.13). Tutto ciò che non è elencato è `INTERNAL`.
-- `PERSONAL`: `member_snapshot.nickname`, `play`/`winning_instant.claimed_by` per membro con data.
+- `PERSONAL`: `gamification_member_snapshot.nickname`, `play`/`winning_instant.claimed_by` per membro con data.
 - `CONFIDENTIAL`: `contest.seed`, `winning_instant` (istanti vincenti: solo ADMIN/LEGAL).
 - `PUBLIC`: `contest` pubblicati (nome, descrizione, regolamento), `prize`, `badge`, `achievement`, `leaderboard` (con nickname).
