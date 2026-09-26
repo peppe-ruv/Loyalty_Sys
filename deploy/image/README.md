@@ -24,4 +24,4 @@ flowchart TD
     S --> W
 ```
 
-// SPEC-GAP: La selezione parziale dei moduli tramite `LH_SERVICES` è interdetta in attesa di M8.3 in quanto l'hub attualmente non usa profili per abilitare/disabilitare i singoli moduli. Vedi Q-365 in docs/15-DOMANDE-APERTE.md.
+// SPEC-GAP: La selezione parziale dei moduli tramite `LH_SERVICES` è interdetta in attesa di M8.3 in quanto l'hub attualmente non usa profili per abilitare/disabilitare i singoli moduli. Vedi Q-376 in docs/15-DOMANDE-APERTE.md.
