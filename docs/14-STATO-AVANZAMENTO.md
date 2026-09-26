@@ -16,8 +16,16 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M5 — Gioco | ✅ completata | 2026-09-24 | 2026-09-24 | ☑ | M5.1–M5.7 implementate; criteri di accettazione verdi con test automatici + E2E n. 3 con Playwright su servizio locale; `smoke.sh` verde sulla demo online |
 | M6 — Contenuti | ✅ completata | 2026-09-24 | 2026-09-24 | ☑ | M6.0–M6.7 chiuse (engagement: template, regole, inbox, `message.send`; contenuti per posizionamento, BO-18; pop-up e frequenze; card vincita; PT-12, BO-19, `SEND_MESSAGE`; tema a runtime, BO-20; segmenti statici e dinamici, BO-04; tipi azione custom, attributi personalizzati, costruttore di condizioni) — accettazione verde (il webhook è arrivato con M7.2); demo online verde |
 | M7 — Governance | ✅ completata | 2026-09-24 | 2026-09-24 | ☑ | M7.1–M7.6 chiuse (approvazioni per ruolo con policy e storico, BO-21; webhook firmati con ritenti, BO-23; DLQ con riprocessa/scarta, BO-27; eventi non abbinati con abbina e riprova, BO-26; anonimizzazione propagata, BO-03; versioni e duplica) — accettazione anonimizzazione verde (`HubAnonymizationIT`); smoke online verde |
+| M8 — Fondazioni enterprise | [ ] | | | ☐ | Fase 2 (`docs/18 §6`) |
+| M9 — Qualità | [ ] | | | ☐ | Fase 2 (`docs/18 §6`) |
+| M10 — Esperienza data-driven | [ ] | | | ☐ | Fase 2 (`docs/18 §6`) |
+| M11 — Multilingua | [ ] | | | ☐ | Fase 2 (`docs/18 §6`) |
+| M12 — Distribuzione | [ ] | | | ☐ | Fase 2 (`docs/18 §6`) |
+| M13 — Composizione estesa | [ ] | | | ☐ | Fase 2 (`docs/18 §6`) |
+| M14 — Agente regolamento | [ ] | | | ☐ | Fase 2 (`docs/18 §6`) |
+| M15 — Esercizio | [ ] | | | ☐ | Fase 2 (`docs/18 §6`) |
 
-**Prossima fetta da lavorare:** CI verde su main e smoke della demo online ridistribuita
+**Prossima fetta da lavorare:** M8.0 — adozione e governance di Fase 2 (in revisione); dopo il merge il proprietario applica `scripts/setup-branch-protection.sh`, poi M8.1, M8.2, M8.4, M8.7, M8.8 in parallelo (`docs/prompts/fase2-kickoff.md §3`). Le fette FIN di Fase 1 sono chiuse (FIN-1, FIN-2).
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -344,6 +352,70 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] stati *loading / empty / error / degraded* sulle schermate toccate (BO-21, BO-23, BO-26, BO-27, BO-03, editor con conflitto di versione, via `QueryState`)
 - [x] demo online aggiornata e `smoke.sh` verde — _2026-09-24: workflow `smoke-demo` (run 36050650694) sull'hub online con M7 (6570c38): Marco 1 850 → 1 875 PTS (+25, 20 € × 1,25 SILVER) in circa 4 s_
 
+## M8 — Fondazioni enterprise (Fase 2)
+
+Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della sua PR (`[x] M8.k — … (#nn)`).
+
+**Fette**
+- [~] M8.0 — adozione e governance (ADR 026–045, CLAUDE.md §7, docs, `.github/`, job `guard`) — _in revisione: PR da aprire su `fase2/M8.0-adozione`_
+- [ ] M8.1 — immagine unica a ruoli
+- [ ] M8.2 — identità (Keycloak `idp`, BFF, OIDC)
+- [ ] M8.3 — chart Helm e compose di riferimento
+- [ ] M8.4 — PII fuori dal bus
+- [ ] M8.5 — sicurezza di piattaforma
+- [ ] M8.6 — osservabilità
+- [ ] M8.7 — ingresso batch e import file (BO-32)
+- [ ] M8.8 — OpenAPI generata e verificata (`contracts/api/`)
+- [ ] M8.9 — documentazione Mintlify (`site/`)
+- [ ] M8.10 — sicurezza applicativa
+- [ ] M8.11 — verifica di sicurezza (job `security`)
+- [ ] M8.12 — audit unificato
+- [ ] M8.13 — governo di accessi e dati
+
+**Feature `F2-*` (catalogo `docs/18 §4`)**
+- [ ] `F2-DIST-01` Immagine unica multi-arch con ruoli e modalità (P0, M8.1)
+- [ ] `F2-DIST-02` Chart Helm con operatori di default, valori per servizi gestiti (P0, M8.3)
+- [ ] `F2-DIST-03` Compose di riferimento (ruoli + infra open source) (P0, M8.3)
+- [ ] `F2-DIST-08` Rilascio firmato: SBOM, cosign, note di sicurezza, percorso N−1 → N (P0, M8.5, M12.4)
+- [ ] `F2-IAM-01` Keycloak ruolo `idp`, realm as code (P0, M8.2)
+- [ ] `F2-IAM-02` Servizi resource server JWT; `ActorContext` dal token (P0, M8.2)
+- [ ] `F2-IAM-03` Login e registrazione membri via OIDC; `member.external_id = sub` (P0, M8.2)
+- [ ] `F2-IAM-04` Broker verso IdP aziendale e federazione LDAP (documentati e provati) (P0, M8.2)
+- [ ] `F2-SEC-01` Gateway con JWT, rate limit, CORS per widget, header di sicurezza (P0, M8.5)
+- [ ] `F2-SEC-02` Mesh mTLS, network policy, ACL Kafka, ruoli DB per servizio (owner/app), External Secrets, Pod Security `restricted` (P0, M8.5)
+- [ ] `F2-SEC-03` Supply chain in CI (SBOM, scansione, firma, CodeQL, secret scanning, IaC) (P0, M8.5)
+- [ ] `F2-SEC-04` Cifratura a colonna dei contatti nel member-service (P0, M8.4)
+- [ ] `F2-SEC-06` BFF con sessione server-side, CSRF, back-channel logout, passkey, MFA operatori (P0, M8.2)
+- [ ] `F2-SEC-07` Client credentials per fonti e job; token exchange per i widget (P0, M8.2)
+- [ ] `F2-SEC-08` Messaggi firmati sul bus con elenco dei produttori ammessi e validazione in consumo (P0, M8.10)
+- [ ] `F2-SEC-09` Deny by default (`@RequiresRole`/`@PublicEndpoint`), `MemberPrincipal` nel portale, DTO espliciti (P0, M8.10)
+- [ ] `F2-SEC-10` Builder SQL con allowlist, regole Semgrep, limiti di input, template senza logica, sanitizzazione contenuti (P0, M8.10)
+- [ ] `F2-SEC-11` Difesa SSRF, `Idempotency-Key`, rate limit per membro, controlli sui file caricati (P0, M8.10)
+- [ ] `F2-SEC-12` Verifica continua: ArchUnit, Semgrep, Schemathesis, ZAP, `TB-SEC`, tabella ASVS, `SECURITY.md` (P0, M8.11)
+- [ ] `F2-SEC-13` Bridge audit Directus → `audit_entry` (`POST /v1/audit/external` su experience-service, HMAC) (P0, M8.12)
+- [ ] `F2-SEC-14` Bridge audit Keycloak → `audit_entry` (admin events + user events, event listener SPI) (P0, M8.12)
+- [ ] `F2-SEC-15` Attività del membro (`member_activity_entry`, BO-03 estesa, portale PT-18 «La mia attività»), retention audit 400 giorni, sola-inserzione (P0, M8.12)
+- [ ] `F2-GRC-03` Quattro occhi: niente auto-approvazione, operazioni sensibili con doppio controllo configurabile (P0, M8.13)
+- [ ] `F2-GRC-04` Deprovisioning dall'IdP, revisione periodica degli accessi (BO-34), break-glass (P0, M8.13)
+- [ ] `F2-GRC-05` Classificazione `x-lh-class`, registro dei trattamenti, retention per categoria con rapporto, esportazioni controllate (P0, M8.13)
+- [ ] `F2-GRC-06` `erasure_log` riapplicato al ripristino, crypto-shredding dei contatti, `lh data mask`, `lh decommission` (P0, M8.13, M12.6)
+- [ ] `F2-GRC-07` Audit a catena di hash con ancoraggio immutabile, export OCSF, `lh forensics export`, prova di ripristino mensile (P0, M8.12, M12.6)
+- [ ] `F2-GRC-09` Identità propria degli agenti (GitHub App) e approvazione obbligatoria delle PR prima di v1.0 (P0, M8.0, M12.4)
+- [ ] `F2-EVT-01` Contratti con `x-lh-pii`, test che vieta PII sul bus, compat check contro ultimo tag (P0, M8.4)
+- [ ] `F2-EVT-02` `member.registered/updated` `:2` senza PII; doppia lettura (P0, M8.4)
+- [ ] `F2-EVT-03` Modulo `delivery` nel member-service con adattatori SMTP/WEBHOOK (P0, M8.4)
+- [ ] `F2-EVT-04` Partizioni e concorrenza configurabili; retention lunga (P0, M8.3)
+- [ ] `F2-ING-01` `POST /v1/events/batch` fino a 1000 (P0, M8.7)
+- [ ] `F2-ING-02` Import file asincrono con rapporto (BO-32) (P0, M8.7)
+- [ ] `F2-API-01` OpenAPI generata e verificata; `contracts/api/` (P0, M8.8)
+- [ ] `F2-OBS-01` OTel → Prometheus/Loki/Tempo/Grafana nel chart, dashboard SLO (P0, M8.6)
+- [ ] `F2-GOV-01` Ruleset `main-protetto`, impostazioni del repo, `CODEOWNERS`, modello di PR, Dependabot (P0, M8.0)
+- [ ] `F2-GOV-02` Controllo `guard` (ADR solo in aggiunta, ID seed invariati) (P0, M8.0)
+- [ ] `F2-DOC-01` Mintlify unico sito: `site/`, dismissione GitBook e `docs_v2/` (P0, M8.9)
+- [ ] `F2-DOC-02` Specifiche ed eventi generati (`docs-sync`), riferimento API da OpenAPI (P0, M8.9)
+- [ ] `F2-DOC-03` Catalogo minimo dei diagrammi Mermaid e controllo `check-mermaid` (P0, M8.9)
+- [ ] `F2-DOC-05` `erDiagram` per scheda servizio, `stateDiagram-v2` per ogni ciclo di vita, mapping fonte→azione→effetto→saldo (§3.12-bis) (P0, M8.9)
+
 ## Fuori PoC (P2, solo predisposizione)
 
 - `F-ING-10` Invio batch
@@ -357,6 +429,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | 2026-09-26 | Decisioni conservative · Q-215 · TB-E2E · TB-INS · accettazione M2 | ✅ `./mvnw verify` verde su tutto il reattore (testbook TB-WAL/ENG/CMP/ING/RWD/GAM/GOV/E2E/INS, `HubScenariosIT`, `HubReplayIdempotencyIT`, `HubConcurrencyIT`, `WalletPropTestIT`), `pnpm lint typecheck test build` verdi (1055 test), `check-seed` 31, `check-contracts` | integ4 | Q-311…Q-331 | Decisione di Giuseppe: scelta conservativa su tutte le 47 domande non conservative (docs/15 DECISA) e cast tipizzato comune per le condizioni (Q-215). Corretto il reset della demo (indice membri di ingestion). **Accettazione M2 spuntata.** Da fare: TB-PLT, ridistribuzione della demo e smoke online. |
 | 2026-09-26 | TB-PLT · testbook e divergenze | ✅ `./mvnw verify` verde su main integrato (11 moduli, 0 rossi; i 3 rossi "preesistenti" del ramo dell'agente erano già corretti su main); TB-PLT 563/563 con HLR-008 che registra il 404 attuale (`SPEC-GAP: Q-341`, springdoc da approvare); `check-seed` e `check-contracts` verdi (64 esempi); `pnpm lint typecheck test` verdi (1055) | (questo commit) | Q-332…Q-342 | Testbook `docs/testbook/TB-PLT-piattaforma.md` (37 regole, 172 rami, 563 righe). 21 cause di divergenza corrette (docs/04 §5, docs/05 §9, docs/06 §2, §4, §5, §8, §10, docs/10 §1.2, docs/11 §6, §8, §11, ADR-004, BO-30): 503 col database giù, errori di Spring e titoli italiani, MDC, classificazione DLQ e `lh-attempts`, SASL_SSL con CA, cache della salute Kafka, `@eom`, variabili d'ambiente e readiness, `lh_outbox_pending`, pulizia di `processed_event`, `PageParams` (400 per `size`/`page` non validi), reset completo/ordinato/serializzato e `GET /v1/demo/info`, limite 60/min per IP, 12 schemi di contratto, 2 partizioni nell'hub, profilo free e `@Lazy(false)`. Web: l'editor BO-04 carica i membri di uno statico a pagine da 100 (il massimo ora è 100 anche lì). Resta Q-341 (springdoc: dipendenza nuova, decide Giuseppe). |
 | 2026-09-25 | Condizioni · cast tipizzato comune | ✅ `./mvnw -pl libs/lh-common,services/{campaign,member,gamification,engagement}-service -am verify` verde (lh-common 622, campaign 4239, member 511, gamification 745, engagement 858 test); IT dell'hub verdi (206); `pnpm lint typecheck test` verdi (1054 test); `check-seed` verde | (questo commit) | — (decise Q-215, Q-216, Q-219, Q-222, Q-223, Q-224, Q-179, Q-197, Q-295 parte comparatore; chiuse di riflesso Q-242 e, per le date, Q-91 e Q-307) | Una sola politica di cast in `lh-common` (`condition/TypedCast` + `condition/ConditionRules`) usata da `ConditionEvaluator` (campaign), `SegmentCriteria` (member), `AchievementRules` (gamification), `DataCondition` (engagement): la regola si converte nel tipo del dato, cast stretti con `BigDecimal`, cast fallito → falsa anche per le negazioni; comparatore/gruppo sconosciuto, `cmp` o `field` assenti, `any` vuoto → falsi e rifiutati al salvataggio (`422 CONDITION_INVALID`; member tiene `INVALID_CRITERIA` per la forma, engagement `RULE_INVALID`). Costruttore web allineato (Q-197 conservativa, `castsTo`). Righe del testbook aggiornate con `// Q-nnn DECISA`. `check-seed` controlla la forma delle condizioni dei seed. |
+| 2026-09-26 | M8.0 · adozione Fase 2 | ✅ `check-adr-append-only` verde contro la base; nessun codice di prodotto | (PR da aprire) | Q-343…Q-364 (nuove, da docs/18) | ADR-026…045 registrate in `docs/13`, `CLAUDE.md §7`, `docs/12`, `docs/14`, `docs/15`, `docs/01 §4`, indici della documentazione, `docs/servizi/`, `docs/16`, `docs/17`, `docs/05`, `docs/06`, `docs/03`; governance `.github/` e job `guard`. Numerazione adattata: domande nuove Q-343…Q-364, ADR di springdoc = ADR-046 (PR preliminare `fase2/M8.0a-adr-046`). |
 | 2026-09-26 | HUB-01 · «Accendi la demo» | ✅ diagnosi col nuovo workflow manuale `demo-status.yml` (sola lettura): subito dopo l'avvio l'hub risponde a `/actuator/health` **503 `OUT_OF_SERVICE`** (solo `readinessState`) con `db` e `kafka` già **UP**; pochi secondi dopo 200 e 10/10. `pnpm lint typecheck test build` verdi (3 test nuovi) | (questo commit) | — | Il pannello segnava Postgres e Kafka DOWN su qualunque risposta non 200 di `/actuator/health`, senza leggere i componenti: con l'avvio a freddo dell'hub (≈3,5 min su 0,1 CPU) la fase `OUT_OF_SERVICE` li faceva sembrare spenti. `/api/demo/status` ora legge sempre i componenti `db` e `kafka` dal corpo, anche su 503 (`infraFromHealth` in `lib/api/status.ts`). |
 | 2026-09-26 | Keep-alive · risorse | ✅ YAML valido; logica simulata in locale (istanza nuova → stop immediato; build fallita → stop a 15 min) | (questo commit) | — | `deploy-keepalive.yml` non tiene più sveglio l'hub 20 minuti fissi: si ferma appena risponde l'istanza della nuova versione (`process.uptime` più recente della prima istanza vista), tetto 15 minuti. Ogni minuto di hub sveglio è anche compute di Neon (outbox ogni 500 ms). Resta da configurare su Render il filtro dei percorsi dell'autodeploy (oggi ogni commit, anche solo docs o web, rifà la build dell'hub). docs/11 aggiornato. |
 | 2026-09-26 | Q-208 · fonti ammesse delle campagne | ✅ `pnpm lint typecheck test build` verdi (11 test nuovi: `sources.test.ts`, `SourcesPicker.test.tsx`); `TestbookCmpConditionTest` 178/178 con TB-CMP-CTX-023…025 | (questo commit) | Q-208 decisa | Opzione conservativa: nessun campo, tabella, API o contratto nuovo. Le fonti ammesse di BO-06 «2 Quando» sono la regola `context.source in [URN…]` alla radice delle condizioni (docs/03 §3.3), già valutata e validata dal motore. Web: `lib/campaign/sources.ts` (split/applica, codice ↔ URN), `SourcesPicker` (ingestion `/v1/sources`, nessuna scelta = tutte, degraded col campo testo), la nuova campagna salva la regola, frase generata/BO-21/dettaglio leggono «da ecommerce o app». docs/08, docs/15, docs/16, `docs/servizi/campaign-service.md`, testbook TB-CMP e TB-WEB aggiornati. |
