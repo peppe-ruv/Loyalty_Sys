@@ -1,11 +1,13 @@
 package io.loyaltyhub.wallet.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlOrder;
+import io.loyaltyhub.common.sql.SqlWhere;
 import io.loyaltyhub.wallet.domain.LedgerEntry;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 
 /** Libro mastro (docs/servizi/wallet-service.md §2). {@code effect_id} unico = idempotenza degli accrediti. */
@@ -79,42 +81,55 @@ public class LedgerRepository {
     public record LedgerLine(LedgerEntry entry, String actionId, String actor, String lotStatus, Instant lotExpiresAt) {
     }
 
+    /** Colonne ammesse nei filtri e nell'ordinamento del libro mastro (regola 19, ADR-042). */
+    enum LedgerColumn implements SqlColumn {
+        MEMBER_ID("e.member_id"), CURRENCY("e.currency"), TYPE("e.type"), OCCURRED_AT("e.occurred_at"),
+        CREATED_AT("e.created_at");
+
+        private final String sql;
+
+        LedgerColumn(String sql) {
+            this.sql = sql;
+        }
+
+        @Override
+        public String sql() {
+            return sql;
+        }
+    }
+
+    private static final String SEARCH_SELECT = """
+            SELECT e.*, lot.status AS lot_status, lot.expires_at AS lot_expires_at
+            FROM ledger_entry e
+            LEFT JOIN LATERAL (
+                SELECT l.status, l.expires_at FROM points_lot l
+                WHERE l.member_id = e.member_id AND l.currency = e.currency AND l.ledger_entry_id = e.id
+                ORDER BY l.id LIMIT 1
+            ) lot ON true""";
+
+    /** Ordinamento fisso (wallet-service §3: {@code occurredAt desc}), spareggio sull'inserimento. */
+    private static final String SEARCH_ORDER = SqlOrder.desc(LedgerColumn.OCCURRED_AT)
+            .by(LedgerColumn.CREATED_AT, SqlOrder.Direction.DESC).sql();
+
     public List<LedgerLine> search(String memberId, LedgerFilter filter, int limit) {
-        StringBuilder sql = new StringBuilder("""
-                SELECT e.*, lot.status AS lot_status, lot.expires_at AS lot_expires_at
-                FROM ledger_entry e
-                LEFT JOIN LATERAL (
-                    SELECT l.status, l.expires_at FROM points_lot l
-                    WHERE l.member_id = e.member_id AND l.currency = e.currency AND l.ledger_entry_id = e.id
-                    ORDER BY l.id LIMIT 1
-                ) lot ON true
-                WHERE e.member_id = ?""");
-        List<Object> args = new ArrayList<>();
-        args.add(memberId);
-        if (filter.currency() != null && !filter.currency().isBlank()) {
-            sql.append(" AND e.currency = ?");
-            args.add(filter.currency().trim().toUpperCase());
-        }
-        if (filter.types() != null && !filter.types().isEmpty()) {
-            sql.append(" AND e.type IN (").append(String.join(", ", java.util.Collections.nCopies(filter.types().size(), "?")))
-                    .append(')');
-            filter.types().forEach(t -> args.add(t.trim().toUpperCase()));
-        }
-        if (filter.from() != null) {
-            sql.append(" AND e.occurred_at >= ?");
-            args.add(java.sql.Timestamp.from(filter.from()));
-        }
-        if (filter.to() != null) {
-            sql.append(" AND e.occurred_at <= ?");
-            args.add(java.sql.Timestamp.from(filter.to()));
-        }
-        sql.append(" ORDER BY e.occurred_at DESC, e.created_at DESC LIMIT ?");
-        args.add(limit);
-        return jdbc.sql(sql.toString()).params(args).query((rs, n) -> {
-            java.sql.Timestamp lotExpires = rs.getTimestamp("lot_expires_at");
-            return new LedgerLine(map(rs, n), rs.getString("action_id"), rs.getString("actor"),
-                    rs.getString("lot_status"), lotExpires == null ? null : lotExpires.toInstant());
-        }).list();
+        List<String> types = filter.types() == null ? List.of() : filter.types();
+        SqlWhere where = new SqlWhere()
+                .eq(LedgerColumn.MEMBER_ID, memberId)
+                .when(filter.currency() != null && !filter.currency().isBlank(),
+                        w -> w.eq(LedgerColumn.CURRENCY, filter.currency().trim().toUpperCase()))
+                .when(!types.isEmpty(),
+                        w -> w.in(LedgerColumn.TYPE, types.stream().map(t -> t.trim().toUpperCase()).toList()))
+                .when(filter.from() != null,
+                        w -> w.gte(LedgerColumn.OCCURRED_AT, java.sql.Timestamp.from(filter.from())))
+                .when(filter.to() != null,
+                        w -> w.lte(LedgerColumn.OCCURRED_AT, java.sql.Timestamp.from(filter.to())));
+        return where.bind(jdbc.sql(SEARCH_SELECT + where.sql() + SEARCH_ORDER + " LIMIT :limit"))
+                .param("limit", limit)
+                .query((rs, n) -> {
+                    java.sql.Timestamp lotExpires = rs.getTimestamp("lot_expires_at");
+                    return new LedgerLine(map(rs, n), rs.getString("action_id"), rs.getString("actor"),
+                            rs.getString("lot_status"), lotExpires == null ? null : lotExpires.toInstant());
+                }).list();
     }
 
     public void deleteAll() {
