@@ -92,7 +92,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-surefire-plugin</artifactId>
-          <version>3.2.5</version>
+          <version>3.6.0</version>
           <configuration>
             <!-- Testbook<Dominio><Tema>IT inizia per "Test": senza esclusione surefire lo eseguirebbe anche come unit test. -->
             <excludes>
