@@ -5,10 +5,13 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -23,7 +26,14 @@ import java.util.Set;
  *   <li>Sulle righe di altre entità sostituisce solo i valori inequivocabili (e-mail, nome completo, telefono, id
  *       esterno), mai il solo nome di battesimo (potrebbe essere di un altro membro).</li>
  * </ol>
+ * Doppia lettura {@code member.*:1}/{@code :2} (ADR-032, Q-346, docs/18 §3.4): le copie {@code :1} portano nome,
+ * cognome, soprannome ed e-mail e si ripuliscono come sempre; le copie {@code :2} non li hanno (i campi assenti si
+ * saltano) e portano {@code emailHash}, che sulle righe del membro si toglie e sulle altre si sostituisce come
+ * valore inequivocabile. {@code locale}, {@code birthYear} e {@code province} restano, come stato ed etichette.
  */
+// SPEC-GAP: Q-122 — PersonalData.KEYS (lh-common) non elenca emailHash di member.*:2 (Q-367): è uno pseudonimo
+// reversibile da chi ha LH_PSEUDONYM_KEY, quindi scelta conservativa, insight lo toglie in anonimizzazione come le
+// chiavi personali; birthYear, province e locale sono x-lh-pii:false (ADR-032) e restano.
 // SPEC-GAP: Q-126 — docs/servizi/insight-service.md non dice come trattare le copie degli eventi di un membro
 // anonimizzato: scelta conservativa, si riscrivono le copie (non si maschera in lettura), una volta per fatto di
 // anonimizzazione ricevuto. Un evento del membro con dati personali che arrivasse dopo entrambi i fatti non sarebbe
@@ -31,7 +41,11 @@ import java.util.Set;
 @Repository
 public class MemberRedactionRepository {
 
-    private static final Set<String> TOKEN_KEYS = Set.of("firstName", "lastName", "nickname", "email", "phone", "externalId");
+    /** Pseudonimo dell'e-mail in {@code member.registered/updated:2} (contracts/events/fact, Q-367). */
+    static final String EMAIL_HASH = "emailHash";
+
+    private static final Set<String> TOKEN_KEYS =
+            Set.of("firstName", "lastName", "nickname", "email", "phone", "externalId", EMAIL_HASH);
 
     private record Row(String id, String json) {
     }
@@ -90,7 +104,7 @@ public class MemberRedactionRepository {
                 .param(memberId)
                 .query((rs, n) -> new DlqRow(rs.getString("id"), rs.getString("payload"), rs.getString("error_message")))
                 .list()) {
-            String payload = json(PersonalData.redactAndScrub(mapper.readTree(d.payload()), known.all()));
+            String payload = json(stripPseudonyms(PersonalData.redactAndScrub(mapper.readTree(d.payload()), known.all())));
             String message = PersonalData.scrub(d.errorMessage(), known.all());
             if (!Objects.equals(payload, normalize(d.payload())) || !Objects.equals(message, d.errorMessage())) {
                 jdbc.sql("UPDATE dlq_entry SET payload = cast(? AS jsonb), error_message = ? WHERE id = ?")
@@ -188,7 +202,25 @@ public class MemberRedactionRepository {
             return null;
         }
         JsonNode node = mapper.readTree(raw);
-        return json(stripKeys ? PersonalData.redactAndScrub(node, tokens) : PersonalData.scrubAll(node, tokens));
+        if (stripKeys) {
+            return json(stripPseudonyms(PersonalData.redactAndScrub(node, tokens)));
+        }
+        return json(PersonalData.scrubAll(node, tokens));
+    }
+
+    /** Toglie {@link #EMAIL_HASH} a ogni livello (oggetti e array) dalla copia già ripulita; {@code null} resta tale. */
+    static JsonNode stripPseudonyms(JsonNode node) {
+        if (node instanceof ObjectNode obj) {
+            obj.remove(EMAIL_HASH);
+            for (Map.Entry<String, JsonNode> e : obj.properties()) {
+                stripPseudonyms(e.getValue());
+            }
+        } else if (node instanceof ArrayNode arr) {
+            for (JsonNode item : arr) {
+                stripPseudonyms(item);
+            }
+        }
+        return node;
     }
 
     private String normalize(String raw) {
