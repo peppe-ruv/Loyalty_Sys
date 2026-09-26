@@ -95,6 +95,9 @@ class LeaderboardIT {
         assertThat(sts.path("me").isNull() || sts.path("me").isMissingNode()).as("Anna non ha STS").isTrue();
 
         JsonNode bo = get("/v1/leaderboards/LDB-MONTH-PTS/ranking");
+        // verify parameterization of limit via HTTP call
+        JsonNode boLimit = get("/v1/leaderboards/LDB-MONTH-PTS/ranking?limit=1");
+        assertThat(boLimit.path("items").size()).isLessThanOrEqualTo(1);
         assertThat(bo.path("items").get(0).path("memberId").asString()).isEqualTo("MBR-000005");
         assertThat(bo.path("periods").get(0).asString()).isEqualTo(bo.path("currentPeriodKey").asString());
     }

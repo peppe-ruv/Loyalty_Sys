@@ -101,6 +101,32 @@ class ContestIT {
     }
 
     @Test
+    void instantsFiltersAndSqlInjectionProtection() {
+        String path = "/v1/contests/IW-ESTATE/instants";
+
+        JsonNode all = send("GET", path + "?size=200", "LEGAL:elena", null, 200);
+        long total = all.path("page").path("totalItems").asLong();
+        assertThat(total).isGreaterThan(0);
+
+        JsonNode claimed = send("GET", path + "?status=CLAIMED&size=200", "LEGAL:elena", null, 200);
+        long claimedTotal = claimed.path("page").path("totalItems").asLong();
+        assertThat(claimedTotal).isEqualTo(142);
+
+        String firstPrizeId = all.path("items").get(0).path("prizeId").asString();
+        JsonNode byPrize = send("GET", path + "?prizeId=" + firstPrizeId + "&size=200", "LEGAL:elena", null, 200);
+        long byPrizeTotal = byPrize.path("page").path("totalItems").asLong();
+        assertThat(byPrizeTotal).isGreaterThan(0).isLessThan(total);
+
+        JsonNode byBoth = send("GET", path + "?status=CLAIMED&prizeId=" + firstPrizeId + "&size=200", "LEGAL:elena", null, 200);
+        long byBothTotal = byBoth.path("page").path("totalItems").asLong();
+        assertThat(byBothTotal).isGreaterThanOrEqualTo(0).isLessThanOrEqualTo(byPrizeTotal);
+
+        // Verify SQL injection is prevented on filters
+        assertThat(send("GET", path + "?status=OPEN' OR '1'='1", "LEGAL:elena", null, 200).path("page").path("totalItems").asLong()).isEqualTo(0);
+        assertThat(send("GET", path + "?prizeId='; DROP TABLE winning_instant", "LEGAL:elena", null, 200).path("page").path("totalItems").asLong()).isEqualTo(0);
+    }
+
+    @Test
     void instantsTableIsReservedToAdminAndLegal() {
         String path = "/v1/contests/IW-AUTUNNO/instants";
         assertThat(status("GET", path, "MARKETING:luca", null)).isEqualTo(403);

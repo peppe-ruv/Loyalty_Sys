@@ -9,6 +9,9 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlWhere;
+
 /** Istanti vincenti (docs/03 §6; F-IW-03). */
 @Repository
 public class InstantRepository {
@@ -22,6 +25,21 @@ public class InstantRepository {
     }
 
     public record DayCount(LocalDate day, long total, long open, long claimed, long voided) {
+    }
+
+    enum InstantColumn implements SqlColumn {
+        CONTEST_ID("w.contest_id"), STATUS("w.status"), PRIZE_ID("w.prize_id");
+
+        private final String sql;
+
+        InstantColumn(String sql) {
+            this.sql = sql;
+        }
+
+        @Override
+        public String sql() {
+            return sql;
+        }
     }
 
     private final JdbcClient jdbc;
@@ -50,22 +68,27 @@ public class InstantRepository {
     }
 
     public long count(String contestId, String status, String prizeId) {
-        StringBuilder sql = new StringBuilder("SELECT count(*) FROM winning_instant w WHERE w.contest_id = ?");
-        List<Object> params = filters(sql, contestId, status, prizeId);
-        return jdbc.sql(sql.toString()).params(params).query(Long.class).single();
+        SqlWhere where = new SqlWhere()
+                .eq(InstantColumn.CONTEST_ID, contestId)
+                .when(status != null && !status.isBlank(), w -> w.eq(InstantColumn.STATUS, status.toUpperCase()))
+                .when(prizeId != null && !prizeId.isBlank(), w -> w.eq(InstantColumn.PRIZE_ID, prizeId));
+        return where.bind(jdbc.sql("SELECT count(*) FROM winning_instant w" + where.sql()))
+                .query(Long.class).single();
     }
 
     public List<InstantRow> search(String contestId, String status, String prizeId, int page, int size) {
-        StringBuilder sql = new StringBuilder("""
+        SqlWhere where = new SqlWhere()
+                .eq(InstantColumn.CONTEST_ID, contestId)
+                .when(status != null && !status.isBlank(), w -> w.eq(InstantColumn.STATUS, status.toUpperCase()))
+                .when(prizeId != null && !prizeId.isBlank(), w -> w.eq(InstantColumn.PRIZE_ID, prizeId));
+        String sql = """
                 SELECT w.id, w.prize_id, p.code AS prize_code, p.name AS prize_name, w.instant_at, w.status, w.claimed_by,
                   w.claimed_at, w.play_id, w.planted
-                FROM winning_instant w JOIN prize p ON p.id = w.prize_id
-                WHERE w.contest_id = ?""");
-        List<Object> params = filters(sql, contestId, status, prizeId);
-        sql.append(" ORDER BY w.instant_at, w.id LIMIT ? OFFSET ?");
-        params.add(size);
-        params.add(page * size);
-        return jdbc.sql(sql.toString()).params(params)
+                FROM winning_instant w JOIN prize p ON p.id = w.prize_id"""
+                + where.sql() + " ORDER BY w.instant_at, w.id LIMIT :limit OFFSET :offset";
+        return where.bind(jdbc.sql(sql))
+                .param("limit", size)
+                .param("offset", page * size)
                 .query((rs, n) -> new InstantRow(rs.getString("id"), rs.getString("prize_id"), rs.getString("prize_code"),
                         rs.getString("prize_name"), ContestRepository.inst(rs, "instant_at"), rs.getString("status"),
                         rs.getString("claimed_by"), ContestRepository.inst(rs, "claimed_at"), rs.getString("play_id"),
@@ -186,20 +209,6 @@ public class InstantRepository {
                 .params(ts(at), contestId, contestId, prizeId)
                 .query((rs, n) -> new PlantedInstant(rs.getString("id"), ContestRepository.inst(rs, "instant_at")))
                 .optional();
-    }
-
-    private static List<Object> filters(StringBuilder sql, String contestId, String status, String prizeId) {
-        List<Object> params = new ArrayList<>();
-        params.add(contestId);
-        if (status != null && !status.isBlank()) {
-            sql.append(" AND w.status = ?");
-            params.add(status.toUpperCase());
-        }
-        if (prizeId != null && !prizeId.isBlank()) {
-            sql.append(" AND w.prize_id = ?");
-            params.add(prizeId);
-        }
-        return params;
     }
 
     static Timestamp ts(Instant i) {
