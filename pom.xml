@@ -24,7 +24,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-    <spring-boot.version>4.1.0</spring-boot.version>
+    <spring-boot.version>4.1.1</spring-boot.version>
     <!-- OpenAPI su /v3/api-docs (docs/06 §2, Q-341, ADR-046) -->
     <springdoc.version>3.1.1</springdoc.version>
   </properties>
