@@ -27,6 +27,7 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       web: ${{ steps.filter.outputs.web }}
+      helm: ${{ steps.filter.outputs.helm }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -37,7 +38,8 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$EVENT" != "pull_request" ]; then
-            echo "backend=true" >> "$GITHUB_OUTPUT"; echo "web=true" >> "$GITHUB_OUTPUT"; exit 0
+            echo "backend=true" >> "$GITHUB_OUTPUT"; echo "web=true" >> "$GITHUB_OUTPUT"
+            echo "helm=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
           files=$(git diff --name-only "origin/$BASE_REF...HEAD")
           printf '%s\n' "$files"
@@ -50,9 +52,13 @@ jobs:
           if grep -q '^\.github/workflows/' <<< "$files"; then backend=true; fi
           # Web: i test leggono anche i contratti evento (lib/messages/facts.test.ts).
           if grep -Eq '^(web/|contracts/events/|\.github/workflows/)' <<< "$files"; then web=true; else web=false; fi
+          # Chart Helm e compose di riferimento (M8.3): chart, compose, immagine (porte ed entrypoint), realm copiato nel
+          # chart, la verifica stessa e il workflow.
+          if grep -Eq '^(deploy/helm/|deploy/compose/|deploy/image/|deploy/idp/realm\.json$|scripts/check-helm\.mjs$|\.github/workflows/)' <<< "$files"; then helm=true; else helm=false; fi
           echo "backend=$backend" >> "$GITHUB_OUTPUT"
           echo "web=$web" >> "$GITHUB_OUTPUT"
-          echo "backend=$backend web=$web"
+          echo "helm=$helm" >> "$GITHUB_OUTPUT"
+          echo "backend=$backend web=$web helm=$helm"
 
   # Backend in gruppi paralleli: ognuno installa i moduli a monte senza test e verifica solo i propri.
   # I test usano Kafka in-JVM (EmbeddedKafka) e Postgres in-process (Zonky): niente Docker (Q-40).
@@ -161,9 +167,54 @@ jobs:
       # Realm Keycloak as code (F2-IAM-01, ADR-027): scope referenziati definiti, nessun segreto letterale,
       # segnaposto passati al servizio idp del compose.
       - run: node --test scripts/check-realm.mjs
-      # Chart Helm e compose di riferimento (F2-DIST-02/03, M8.3): copia del realm, segnaposto, 5 topic, segreti,
-      # sicurezza dei Pod, porte allineate all'immagine. Senza helm sul runner la prova lint/template si salta.
-      - run: node --test scripts/check-helm.mjs
+
+  # Chart Helm e compose di riferimento (F2-DIST-02/03, M8.3). Non è un controllo obbligatorio del ruleset: gira solo
+  # quando cambiano chart, compose, immagine o la verifica, e sempre su main. helm e kubeconform a versione fissa;
+  # con CI=true scripts/check-helm.mjs fallisce se helm manca (nessuna prova saltata che conta come superata).
+  helm:
+    name: helm (chart e compose)
+    needs: changes
+    if: needs.changes.outputs.helm == 'true'
+    runs-on: ubuntu-latest
+    env:
+      HELM_VERSION: v3.18.4
+      KUBECONFORM_VERSION: v0.7.0
+      KUBE_VERSION: 1.31.0
+      # Schemi dei CRD (Strimzi, CloudNativePG, Gateway API) a un commit fisso del catalogo.
+      CRD_SCHEMAS: https://raw.githubusercontent.com/datreeio/CRDs-catalog/ad3b08c5045129d7bb1eeffd8e61719b2c8dd1e2/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.24"
+          cache: false
+      # go install verifica il modulo con il checksum database di Go: niente binari scaricati senza verifica.
+      - name: kubeconform
+        run: |
+          go install "github.com/yannh/kubeconform/cmd/kubeconform@${KUBECONFORM_VERSION}"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Verifiche statiche, helm lint e scenari di helm template
+        run: node --test scripts/check-helm.mjs
+      - name: Manifest validi (default con gateway, servizi gestiti)
+        run: |
+          chart=deploy/helm/loyaltyhub
+          helm template lh "$chart" --kube-version "$KUBE_VERSION" -f "$chart/ci/lint-values.yaml" \
+            --set gateway.enabled=true --set 'gateway.parentRefs[0].name=gw' \
+            | kubeconform -strict -summary -kubernetes-version "$KUBE_VERSION" \
+                -schema-location default -schema-location "$CRD_SCHEMAS" -
+          helm template lh "$chart" --kube-version "$KUBE_VERSION" -f "$chart/ci/lint-values.yaml" \
+            --set postgres.mode=external --set postgres.external.host=pg.example.internal \
+            --set kafka.mode=external --set kafka.external.bootstrapServers=kafka.example.internal:9093 \
+            --set kafka.external.sasl.username.name=lh-kafka --set kafka.external.sasl.password.name=lh-kafka \
+            | kubeconform -strict -summary -kubernetes-version "$KUBE_VERSION" -schema-location default -
+      - name: Compose di riferimento valido
+        run: LH_IMAGE=ghcr.io/example/loyaltyhub:ci docker compose -f deploy/compose/reference.yml config -q
 
   contracts:
     name: contracts

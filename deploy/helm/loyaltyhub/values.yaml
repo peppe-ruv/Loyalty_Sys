@@ -13,11 +13,13 @@ nameOverride: ""
 fullnameOverride: ""
 
 image:
-  # Immagine unica multi-arch (ADR-037). ghcr.io/<org>/loyaltyhub: sostituire <org> con l'organizzazione che pubblica.
-  repository: ghcr.io/loyaltyhub/loyaltyhub
-  # Vuoto = appVersion del chart. In produzione una versione fissa (semver o digest).
+  # OBBLIGATORI (il chart non si installa senza): immagine unica multi-arch (ADR-037) e versione.
+  # La pipeline .github/workflows/image.yml pubblica ghcr.io/<owner>/loyaltyhub solo sui tag git `v*`
+  # (es. repository: ghcr.io/<owner>/loyaltyhub, tag: v0.7.0), oppure un registro interno con la stessa immagine.
+  # Nessun default: un nome inventato finirebbe in ImagePullBackOff.
+  repository: ""
   tag: ""
-  # Vuoto = Always se il tag è `latest`, altrimenti IfNotPresent.
+  # Vuoto = IfNotPresent (Always se il tag è `latest`, sconsigliato).
   pullPolicy: ""
   pullSecrets: []
 
@@ -116,8 +118,9 @@ roles:
     pdb:
       enabled: true
       minAvailable: 1
-    # Segreto del client confidential `web` del realm, letto dal BFF (M8.2, ADR-027).
-    clientSecret: { name: lh-idp-clients, key: web-client-secret }
+    # SPEC-GAP: Q-393 — il BFF OIDC (F2-SEC-06) non esiste ancora: il proxy /api/lh inoltra solo X-LH-Actor e l'hub
+    # in `enterprise` rifiuta ogni chiamata senza token. Finché non c'è il BFF il Pod web non riceve segreti né
+    # emittente (nessun lettore); con `global.profile=demo` il web funziona come in Fase 1.
     extraEnv: []
 
   # ---- idp: Keycloak con il realm as code di deploy/idp/realm.json (ADR-027) ----
@@ -169,7 +172,8 @@ roles:
 
 # Migrazioni Flyway come Job (ADR-038, expand/contract). Hook pre-upgrade sempre; al primo install pre-install con
 # Postgres esterno (esiste già) e post-install con CloudNativePG (il cluster nasce con la release). I Pod dell'hub
-# eseguono comunque le stesse migrazioni all'avvio: Flyway usa un lock, quindi non si pestano.
+# eseguono comunque le stesse migrazioni all'avvio: Flyway usa un lock, quindi non si pestano. Il Job usa nodeSelector,
+# tolerations e sicurezza comuni, come i Pod dell'hub.
 migrations:
   enabled: true
   backoffLimit: 6
@@ -207,7 +211,11 @@ postgres:
     host: ""
     port: 5432
     # Parametri JDBC aggiunti all'URL (es. sslmode=verify-full&sslrootcert=...). M8.5 rende verify-full il default.
+    # Con global.profile=enterprise devono contenere sslmode=require, verify-ca o verify-full (regola 22): altrimenti
+    # il chart non si installa, salvo allowInsecure=true (solo reti già cifrate, es. collegamento privato del
+    # fornitore; la scelta resta nelle note del rilascio).
     jdbcParams: "sslmode=require"
+    allowInsecure: false
     credentials:
       username: { name: lh-db, key: username }
       password: { name: lh-db, key: password }
@@ -232,6 +240,14 @@ kafka:
     retentionMsByTopic:
       facts: 604800000
       audit: 604800000
+    # Applica ai topic esistenti retention e min.insync.replicas cambiati (LH_KAFKA_TOPICS_MODIFY_CONFIGS). Vale quando
+    # l'hub crea i topic (kafka.mode=external); con Strimzi li applica l'operatore dai KafkaTopic.
+    modifyConfigs: true
+    # Aumentare le partizioni rimappa le chiavi memberId: gli eventi in volo di uno stesso membro possono essere
+    # consumati fuori ordine. Il chart (KafkaTopic esistenti) e l'hub (topic esistenti) rifiutano l'aumento finché
+    # questo valore è false. Procedura: fermare i produttori, attendere lag 0, installare con true, poi rimetterlo a
+    # false. Le partizioni non si possono diminuire.
+    allowPartitionIncrease: false
   consumer:
     # Consumer per listener in ogni Pod dell'hub. Si scala prima con le repliche (HPA), poi con questo valore.
     concurrency: 2
@@ -258,8 +274,10 @@ kafka:
       tls: false
   external:
     bootstrapServers: ""
-    # PLAINTEXT | SSL_PEM | SASL_SSL (docs/06 §5, ADR-025)
+    # PLAINTEXT | SSL_PEM | SASL_SSL (docs/06 §5, ADR-025). Con global.profile=enterprise PLAINTEXT è rifiutato
+    # (regola 22), salvo allowInsecure=true (solo reti già cifrate; la scelta resta nelle note del rilascio).
     security: SASL_SSL
+    allowInsecure: false
     # L'hub crea i 5 topic con la forma di kafka.topics; false se li crea chi amministra il Kafka gestito.
     createTopics: true
     # Riferimenti ai Secret (i PEM sono base64 come in docs/11 §8); lasciare name vuoto per le chiavi non usate.
@@ -273,6 +291,8 @@ kafka:
       keyB64: { name: "", key: key-b64 }
 
 # ---- Esposizione ----
+# Nessuna NetworkPolicy in questa versione: il traffico dentro il namespace non è filtrato finché M8.5 non porta la
+# network policy deny-by-default e l'mTLS di mesh (docs/18 §3.10). Chi installa ora può applicare le proprie.
 ingress:
   enabled: true
   className: ""

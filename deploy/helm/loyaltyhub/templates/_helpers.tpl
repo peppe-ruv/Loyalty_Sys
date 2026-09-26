@@ -25,7 +25,7 @@
 {{- define "loyaltyhub.labels" -}}
 helm.sh/chart: {{ include "loyaltyhub.chart" .ctx }}
 {{ include "loyaltyhub.selectorLabels" . }}
-app.kubernetes.io/version: {{ .ctx.Chart.AppVersion | quote }}
+app.kubernetes.io/version: {{ default .ctx.Chart.AppVersion .ctx.Values.image.tag | trimPrefix "sha256:" | trunc 63 | quote }}
 app.kubernetes.io/managed-by: {{ .ctx.Release.Service }}
 app.kubernetes.io/part-of: loyaltyhub
 {{- with .ctx.Values.commonLabels }}
@@ -55,14 +55,19 @@ app.kubernetes.io/component: {{ .role }}
 {{- define "loyaltyhub.port.idp" -}}8080{{- end -}}
 {{- define "loyaltyhub.port.idpManagement" -}}9000{{- end -}}
 
-{{/* Immagine unica (ADR-037). */}}
+{{/* Immagine unica (ADR-037): repository e tag obbligatori, nessun nome inventato (finirebbe in ImagePullBackOff). */}}
 {{- define "loyaltyhub.image" -}}
-{{- $tag := default .Chart.AppVersion .Values.image.tag -}}
-{{- printf "%s:%s" .Values.image.repository $tag -}}
+{{- $repo := .Values.image.repository | default "<image.repository>" -}}
+{{- $tag := .Values.image.tag | default "<image.tag>" -}}
+{{- if hasPrefix "sha256:" $tag -}}
+{{- printf "%s@%s" $repo $tag -}}
+{{- else -}}
+{{- printf "%s:%s" $repo $tag -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "loyaltyhub.imagePullPolicy" -}}
-{{- $tag := default .Chart.AppVersion .Values.image.tag -}}
+{{- $tag := .Values.image.tag -}}
 {{- if .Values.image.pullPolicy -}}
 {{- .Values.image.pullPolicy -}}
 {{- else if eq $tag "latest" -}}
@@ -127,6 +132,13 @@ topologySpreadConstraints:
 
 {{/* ---------- Verifiche dei valori: il chart rifiuta configurazioni non supportate o insicure ---------- */}}
 {{- define "loyaltyhub.validate" -}}
+{{- /* `fail` e non `required`: helm lint non fa fallire `required`, e un nome d'immagine vuoto diventerebbe YAML rotto. */ -}}
+{{- if not .Values.image.repository -}}
+{{- fail "image.repository è obbligatorio: l'immagine unica pubblicata da .github/workflows/image.yml, es. ghcr.io/<owner>/loyaltyhub (nessun default: un nome inventato finirebbe in ImagePullBackOff)" -}}
+{{- end -}}
+{{- if not .Values.image.tag -}}
+{{- fail "image.tag è obbligatorio: una versione pubblicata (tag git v*, es. v0.7.0) o un digest sha256:…" -}}
+{{- end -}}
 {{- if not (has .Values.global.profile (list "enterprise" "demo")) -}}
 {{- fail (printf "global.profile deve essere enterprise o demo: %s" .Values.global.profile) -}}
 {{- end -}}
@@ -156,6 +168,29 @@ topologySpreadConstraints:
 {{- end -}}
 {{- if and (eq .Values.kafka.mode "external") (not (has .Values.kafka.external.security (list "PLAINTEXT" "SSL_PEM" "SASL_SSL"))) -}}
 {{- fail "kafka.external.security deve essere PLAINTEXT, SSL_PEM o SASL_SSL" -}}
+{{- end -}}
+{{- if eq .Values.global.profile "enterprise" -}}
+{{- /* Regola 22: in enterprise niente collegamenti esterni in chiaro, salvo deroga esplicita e documentata. */ -}}
+{{- if and (eq .Values.kafka.mode "external") (eq .Values.kafka.external.security "PLAINTEXT") (not .Values.kafka.external.allowInsecure) -}}
+{{- fail "INSECURE_CONFIG: kafka.external.security=PLAINTEXT nel profilo enterprise; usare SSL_PEM o SASL_SSL, oppure kafka.external.allowInsecure=true solo su una rete già cifrata (regola 22)" -}}
+{{- end -}}
+{{- if and (eq .Values.postgres.mode "external") (not .Values.postgres.external.allowInsecure) (not (regexMatch "(^|&)sslmode=(require|verify-ca|verify-full)(&|$)" (default "" .Values.postgres.external.jdbcParams))) -}}
+{{- fail "INSECURE_CONFIG: postgres.external.jdbcParams senza sslmode=require, verify-ca o verify-full nel profilo enterprise; oppure postgres.external.allowInsecure=true solo su una rete già cifrata (regola 22)" -}}
+{{- end -}}
+{{- end -}}
+{{- if and (eq .Values.kafka.mode "strimzi") (gt (int .Values.kafka.topics.replicas) (int .Values.kafka.strimzi.replicas)) -}}
+{{- fail (printf "kafka.topics.replicas (%d) non può superare i broker di kafka.strimzi.replicas (%d)" (int .Values.kafka.topics.replicas) (int .Values.kafka.strimzi.replicas)) -}}
+{{- end -}}
+{{- if eq .Values.kafka.mode "strimzi" -}}
+{{- /* Aumento di partizioni su KafkaTopic esistenti (lookup: vale in install/upgrade, non in `helm template`). */ -}}
+{{- $root := . -}}
+{{- $cluster := include "loyaltyhub.kafka.clusterName" . -}}
+{{- range $key := list "actions" "effects" "facts" "audit" "dlq" -}}
+{{- $existing := lookup $root.Values.kafka.strimzi.apiVersion "KafkaTopic" $root.Release.Namespace (printf "%s-%s" $cluster $key) -}}
+{{- if and $existing $existing.spec (lt (int $existing.spec.partitions) (int $root.Values.kafka.topics.partitions)) (not $root.Values.kafka.topics.allowPartitionIncrease) -}}
+{{- fail (printf "PARTITION_INCREASE_NOT_ACKNOWLEDGED: il topic %s passerebbe da %d a %d partizioni. L'aumento rimappa le chiavi memberId: fermare i produttori, attendere lag 0, poi ripetere con kafka.topics.allowPartitionIncrease=true" $existing.spec.topicName (int $existing.spec.partitions) (int $root.Values.kafka.topics.partitions)) -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- if and (eq .Values.global.profile "enterprise") (not .Values.roles.idp.enabled) (not .Values.oidc.issuer) -}}
 {{- fail "profilo enterprise senza ruolo idp: impostare oidc.issuer dell'IdP aziendale (ADR-027)" -}}
@@ -194,7 +229,10 @@ topologySpreadConstraints:
 {{/* URL JDBC; uso: include "loyaltyhub.pg.jdbcUrl" (dict "ctx" $ "database" "loyaltyhub") */}}
 {{- define "loyaltyhub.pg.jdbcUrl" -}}
 {{- $base := printf "jdbc:postgresql://%s:%s/%s" (include "loyaltyhub.pg.host" .ctx) (include "loyaltyhub.pg.port" .ctx) .database -}}
-{{- if and (eq .ctx.Values.postgres.mode "external") .ctx.Values.postgres.external.jdbcParams -}}
+{{- if eq .ctx.Values.postgres.mode "cloudnativepg" -}}
+{{- /* CloudNativePG serve sempre TLS: il client lo esige (verify-full con la CA del cluster in M8.5). */ -}}
+{{- printf "%s?sslmode=require" $base -}}
+{{- else if .ctx.Values.postgres.external.jdbcParams -}}
 {{- printf "%s?%s" $base .ctx.Values.postgres.external.jdbcParams -}}
 {{- else -}}
 {{- $base -}}
@@ -299,6 +337,10 @@ topologySpreadConstraints:
 {{- end }}
 - name: LH_KAFKA_CONSUMER_CONCURRENCY
   value: {{ .Values.kafka.consumer.concurrency | quote }}
+- name: LH_KAFKA_TOPICS_MODIFY_CONFIGS
+  value: {{ .Values.kafka.topics.modifyConfigs | quote }}
+- name: LH_KAFKA_TOPICS_ALLOW_PARTITION_INCREASE
+  value: {{ .Values.kafka.topics.allowPartitionIncrease | quote }}
 {{- end -}}
 
 {{/* ---------- Identità ---------- */}}

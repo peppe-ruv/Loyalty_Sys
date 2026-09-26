@@ -52,22 +52,15 @@ spec:
             - name: LH_SVC_{{ $svc }}_URL
               value: {{ $hub | quote }}
             {{- end }}
-            {{- if eq .Values.global.profile "enterprise" }}
-            - name: LH_OIDC_ISSUER
-              value: {{ include "loyaltyhub.oidc.issuer" . | quote }}
-            - name: LH_WEB_URL
-              value: {{ .Values.publicUrls.web | quote }}
-            - name: LH_WEB_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ required "roles.web.clientSecret.name" $r.clientSecret.name }}
-                  key: {{ $r.clientSecret.key }}
-            {{- end }}
+            # SPEC-GAP: Q-393 — niente emittente né segreto del client `web` finché il BFF OIDC (F2-SEC-06) non li
+            # legge: il proxy inoltra solo X-LH-Actor e in `enterprise` l'hub risponde 401 (limite noto).
             {{- with $r.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          # Liveness solo sul processo (porta aperta): /api/demo/status interroga l'hub per ogni modulo e un hub lento
+          # farebbe riavviare il web. La readiness invece usa lo stato aggregato.
           livenessProbe:
-            httpGet: { path: /api/demo/status, port: http }
+            tcpSocket: { port: http }
             initialDelaySeconds: 10
             periodSeconds: 20
             timeoutSeconds: 5

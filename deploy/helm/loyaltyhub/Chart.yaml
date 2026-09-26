@@ -5,11 +5,11 @@ description: >-
   Kafka con Strimzi e Postgres con CloudNativePG di default (operatori come prerequisiti), servizi gestiti come
   valori alternativi, migrazioni come Job, Ingress e segnaposto del gateway.
 type: application
-# Versione del chart (semver, ADR-038). appVersion = tag dell'immagine usato se image.tag è vuoto: finché la pipeline
-# di rilascio non pubblica versioni semver (M12.4) l'immagine pubblicata su main è `latest`; in produzione fissare
-# image.tag a una versione.
+# Versione del chart (semver, ADR-038). appVersion è solo informativa: l'immagine si sceglie sempre con image.repository
+# e image.tag, obbligatori. .github/workflows/image.yml pubblica ghcr.io/<owner>/loyaltyhub solo sui tag git `v*`
+# (sulle PR costruisce l'immagine senza pubblicarla).
 version: 0.1.0
-appVersion: "latest"
+appVersion: "0.1.0"
 kubeVersion: ">=1.29.0-0"
 home: https://github.com/peppe-ruv/Loyalty_Sys
 sources:

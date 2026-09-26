@@ -4,26 +4,45 @@
 # Kafka KRaft. Stessa immagine del chart Helm (deploy/helm/loyaltyhub) e dell'appliance; LH_MODE=external.
 # Non è HA (un broker, un Postgres): è il taglio per chi installa su Docker senza Kubernetes.
 #
-#   export LH_DB_PASSWORD=… LH_IDP_ADMIN_PASSWORD=… LH_WEB_CLIENT_SECRET=… LH_WIDGETS_CLIENT_SECRET=… LH_CMS_CLIENT_SECRET=…
+#   export LH_IMAGE=ghcr.io/<owner>/loyaltyhub:<versione>
+#   export LH_DB_PASSWORD=… LH_IDP_DB_PASSWORD=… LH_IDP_ADMIN_PASSWORD=…
+#   export LH_WEB_CLIENT_SECRET=… LH_WIDGETS_CLIENT_SECRET=… LH_CMS_CLIENT_SECRET=…
 #   docker compose -f deploy/compose/reference.yml up -d
 #
-# Segreti: nessun valore nel file. Le variabili hanno default vuoto perché `docker compose config` resti valido senza
-# ambiente; a runtime il container che ne ha bisogno rifiuta di partire (x-lh-require-env, Postgres senza password).
-# Variabili e scelte: deploy/README.md §Compose di riferimento.
+# Immagine: LH_IMAGE è obbligatoria (nessun default: un nome inventato non si scaricherebbe). La pipeline
+# .github/workflows/image.yml pubblica ghcr.io/<owner>/loyaltyhub solo sui tag git `v*`.
+# Segreti: nessun valore nel file. Le variabili hanno default vuoto; a runtime il container che ne ha bisogno rifiuta
+# di partire (x-lh-require-env, Postgres senza password o senza LH_IDP_DB_PASSWORD).
+# Rete: web e idp ascoltano solo su 127.0.0.1 dell'host (LH_BIND_ADDRESS) e parlano HTTP in chiaro: davanti serve un
+# reverse proxy con TLS (SPEC-GAP: Q-392, TLS end-to-end con M8.5). Variabili e scelte: deploy/README.md.
 #
 # Ruolo idp: immagine ufficiale di Keycloak alla versione di deploy/docker-compose.yml finché l'immagine unica non
 # contiene Keycloak (SPEC-GAP: Q-374). Ruolo cms (Directus) con Redis e MinIO: arrivano con M10.2 (Q-374).
+# Portale e backoffice nel profilo enterprise: non funzionano finché non c'è il BFF OIDC (SPEC-GAP: Q-393); per
+# valutare, LH_PROFILE=demo LH_IDENTITY_MODE=header.
 name: loyaltyhub-reference
 
-# Guardia dei segreti obbligatori (POSIX sh: vale per l'immagine unica e per Keycloak). Il valore non viene stampato.
-# Nell'immagine unica basta anche <VAR>_FILE (convenzione *_FILE dell'entrypoint, deploy/image/README.md).
+# Guardia dei segreti obbligatori (POSIX sh, vale per l'immagine unica e per Keycloak). Il valore non viene stampato.
+# Solo la variabile stessa: né Keycloak né il comando di migrazione (che non passa dall'entrypoint) leggono *_FILE.
 x-lh-require-env: &lh-require-env
   - /bin/sh
   - -c
   - |
     for v in $$LH_REQUIRED_ENV; do
-      eval "val=\$${$$v:-}\$${$${v}_FILE:-}"
+      eval "val=\$${$$v:-}"
       if [ -z "$$val" ]; then echo "Variabile obbligatoria mancante: $$v" >&2; exit 1; fi
+    done
+    exec "$$@"
+
+# Come sopra, ma accetta anche <VAR>_FILE: solo per i ruoli che partono da /opt/lh/entrypoint.sh, che legge la
+# convenzione *_FILE (una variabile vuota non oscura il file: deploy/image/README.md).
+x-lh-require-env-or-file: &lh-require-env-or-file
+  - /bin/sh
+  - -c
+  - |
+    for v in $$LH_REQUIRED_ENV; do
+      eval "val=\$${$$v:-}\$${$${v}_FILE:-}"
+      if [ -z "$$val" ]; then echo "Variabile obbligatoria mancante: $$v (o $${v}_FILE)" >&2; exit 1; fi
     done
     exec "$$@"
 
@@ -41,6 +60,9 @@ x-lh-kafka-env: &lh-kafka-env
   # SPEC-GAP: Q-375 — rete compose interna, Kafka senza TLS fino a M8.5.
   KAFKA_SECURITY: "PLAINTEXT"
   LH_KAFKA_TOPICS_CREATE: "true"
+  # Retention cambiata: applicata anche ai topic esistenti. Più partizioni: solo con i consumer svuotati.
+  LH_KAFKA_TOPICS_MODIFY_CONFIGS: "true"
+  LH_KAFKA_TOPICS_ALLOW_PARTITION_INCREASE: "${LH_KAFKA_TOPICS_ALLOW_PARTITION_INCREASE:-false}"
   LH_KAFKA_TOPIC_PARTITIONS: "${LH_KAFKA_TOPIC_PARTITIONS:-12}"
   LH_KAFKA_TOPIC_REPLICAS: "1"
   LH_KAFKA_TOPIC_RETENTION_MS: "${LH_KAFKA_TOPIC_RETENTION_MS:-604800000}"
@@ -58,15 +80,20 @@ services:
   postgres:
     image: postgres:17
     restart: unless-stopped
+    # Controllo prima di initdb: se lo facesse solo lo script d'inizializzazione, il riavvio automatico troverebbe il
+    # volume già inizializzato e partirebbe senza il ruolo idp.
+    entrypoint: *lh-require-env
+    command: ["lh-require-env", "docker-entrypoint.sh", "postgres"]
     environment:
       POSTGRES_DB: "loyaltyhub"
       POSTGRES_USER: "loyaltyhub"
-      # Vuota = il container non inizializza il database e si ferma (fail-closed dell'immagine ufficiale).
       POSTGRES_PASSWORD: "${LH_DB_PASSWORD:-}"
+      # Ruolo e database propri di Keycloak (come CloudNativePG nel chart): letta solo dallo script d'inizializzazione.
+      LH_IDP_DB_PASSWORD: "${LH_IDP_DB_PASSWORD:-}"
+      LH_REQUIRED_ENV: "POSTGRES_PASSWORD LH_IDP_DB_PASSWORD"
     volumes:
       - lh-ref-postgres:/var/lib/postgresql/data
-      # Database `idp` di Keycloak, come nel compose di sviluppo.
-      - ../postgres/init-idp-db.sql:/docker-entrypoint-initdb.d/init-idp-db.sql:ro
+      - ./postgres-init/10-idp.sh:/docker-entrypoint-initdb.d/10-idp.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U loyaltyhub -d loyaltyhub"]
       interval: 10s
@@ -107,10 +134,11 @@ services:
     cpus: 1
 
   # ---------- Ruoli dell'immagine unica ----------
-  # Migrazioni Flyway una volta sola, prima dell'hub (come il Job del chart; ADR-038). Stessa immagine, solo il jar.
+  # Migrazioni Flyway una volta sola, prima dell'hub (come il Job del chart; ADR-038). Stessa immagine, solo il jar:
+  # non passa dall'entrypoint, quindi niente *_FILE.
   migrate:
     <<: *lh-hardening
-    image: "${LH_IMAGE:-ghcr.io/loyaltyhub/loyaltyhub:latest}"
+    image: "${LH_IMAGE:?LH_IMAGE obbligatoria, es. ghcr.io/<owner>/loyaltyhub:v0.7.0}"
     read_only: true
     tmpfs: ["/tmp"]
     entrypoint: *lh-require-env
@@ -133,11 +161,11 @@ services:
 
   hub:
     <<: *lh-hardening
-    image: "${LH_IMAGE:-ghcr.io/loyaltyhub/loyaltyhub:latest}"
+    image: "${LH_IMAGE:?LH_IMAGE obbligatoria, es. ghcr.io/<owner>/loyaltyhub:v0.7.0}"
     restart: unless-stopped
     read_only: true
     tmpfs: ["/tmp"]
-    entrypoint: *lh-require-env
+    entrypoint: *lh-require-env-or-file
     command: ["lh-require-env", "/opt/lh/entrypoint.sh"]
     environment:
       <<: [*lh-db-env, *lh-kafka-env]
@@ -159,7 +187,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 90s
-    # Non esposto sull'host: lo raggiunge il BFF; le API per fonti e widget passeranno dal gateway (M8.5).
+    # Non esposto sull'host: lo raggiunge il web; le API per fonti e widget passeranno dal gateway (M8.5).
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -170,12 +198,13 @@ services:
 
   web:
     <<: *lh-hardening
-    image: "${LH_IMAGE:-ghcr.io/loyaltyhub/loyaltyhub:latest}"
+    image: "${LH_IMAGE:?LH_IMAGE obbligatoria, es. ghcr.io/<owner>/loyaltyhub:v0.7.0}"
     restart: unless-stopped
     read_only: true
     tmpfs: ["/tmp", "/opt/lh/web/.next/cache:uid=1000,gid=1000"]
     ports:
-      - "3000:3000"
+      - "${LH_BIND_ADDRESS:-127.0.0.1}:3000:3000"
+    # SPEC-GAP: Q-393 — niente emittente né segreto del client `web` finché il BFF OIDC (F2-SEC-06) non li legge.
     environment:
       LH_ROLE: "web"
       LH_MODE: "external"
@@ -188,9 +217,6 @@ services:
       LH_SVC_GAMIFICATION_URL: "http://hub:8080"
       LH_SVC_ENGAGEMENT_URL: "http://hub:8080"
       LH_SVC_INSIGHT_URL: "http://hub:8080"
-      LH_OIDC_ISSUER: "${LH_IDP_PUBLIC_URL:-http://localhost:8180}/realms/loyaltyhub"
-      LH_WEB_URL: "${LH_WEB_URL:-http://localhost:3000}"
-      LH_WEB_CLIENT_SECRET: "${LH_WEB_CLIENT_SECRET:-}"
     healthcheck:
       test: ["CMD", "/opt/lh/healthcheck.sh"]
       interval: 15s
@@ -204,6 +230,7 @@ services:
     cpus: 1
 
   # Keycloak con il realm as code di deploy/idp/realm.json (ADR-027). SPEC-GAP: Q-374.
+  # Solo su 127.0.0.1 dell'host: anche la console /admin è su questa porta, in HTTP (Q-392).
   idp:
     <<: *lh-hardening
     image: quay.io/keycloak/keycloak:26.7.4
@@ -211,12 +238,13 @@ services:
     entrypoint: *lh-require-env
     command: ["lh-require-env", "/opt/keycloak/bin/kc.sh", "start", "--import-realm"]
     ports:
-      - "8180:8080"
+      - "${LH_BIND_ADDRESS:-127.0.0.1}:8180:8080"
     environment:
       KC_DB: "postgres"
       KC_DB_URL: "jdbc:postgresql://postgres:5432/idp"
-      KC_DB_USERNAME: "loyaltyhub"
-      KC_DB_PASSWORD: "${LH_DB_PASSWORD:-}"
+      # Ruolo proprio, senza privilegi sul database dell'hub (postgres-init/10-idp.sh).
+      KC_DB_USERNAME: "idp"
+      KC_DB_PASSWORD: "${LH_IDP_DB_PASSWORD:-}"
       KC_BOOTSTRAP_ADMIN_USERNAME: "${LH_IDP_ADMIN_USERNAME:-admin}"
       KC_BOOTSTRAP_ADMIN_PASSWORD: "${LH_IDP_ADMIN_PASSWORD:-}"
       KC_HOSTNAME: "${LH_IDP_PUBLIC_URL:-http://localhost:8180}"

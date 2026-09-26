@@ -102,6 +102,8 @@ class KafkaScalingSettingsTest {
         Map<String, Object> vars = new LinkedHashMap<>();
         vars.put("LH_KAFKA_CONSUMER_CONCURRENCY", "12");
         vars.put("LH_KAFKA_TOPICS_CREATE", "false");
+        vars.put("LH_KAFKA_TOPICS_MODIFY_CONFIGS", "true");
+        vars.put("LH_KAFKA_TOPICS_ALLOW_PARTITION_INCREASE", "true");
         vars.put("LH_KAFKA_TOPIC_PARTITIONS", "12");
         vars.put("LH_KAFKA_TOPIC_REPLICAS", "3");
         vars.put("LH_KAFKA_TOPIC_MIN_INSYNC_REPLICAS", "2");
@@ -118,11 +120,50 @@ class KafkaScalingSettingsTest {
 
         assertThat(props.getConsumer().getConcurrency()).isEqualTo(12);
         assertThat(s.isCreate()).isFalse();
+        assertThat(s.getModifyConfigs()).isTrue();
+        assertThat(s.isAllowPartitionIncrease()).isTrue();
         assertThat(s.getPartitions()).isEqualTo(12);
         assertThat(s.getReplicas()).isEqualTo((short) 3);
         assertThat(s.getMinInsyncReplicas()).isEqualTo(2);
         assertThat(Arrays.stream(new String[]{"actions", "facts", "audit"}).map(k -> LhTopics.retentionFor(s, k)))
                 .containsExactly(604_800_000L, 31_536_000_000L, 31_536_000_000L);
+    }
+
+    @Test
+    void partitionIncreaseOnExistingTopicsIsRefusedUnlessAcknowledged() {
+        LoyaltyHubProperties props = new LoyaltyHubProperties();
+        props.getTopicSettings().setPartitions(12);
+        // Topic assenti o già alla forma (o oltre): nessun problema.
+        LhTopicPartitionGuard.check(Map.of(), props);
+        LhTopicPartitionGuard.check(Map.of("lh.facts.v1", 12, "lh.audit.v1", 24), props);
+
+        assertThatThrownBy(() -> LhTopicPartitionGuard.check(Map.of("lh.facts.v1", 2, "lh.dlq.v1", 12), props))
+                .hasMessageStartingWith("PARTITION_INCREASE_NOT_ACKNOWLEDGED")
+                .hasMessageContaining("lh.facts.v1 2 → 12")
+                .hasMessageNotContaining("lh.dlq.v1")
+                .hasMessageContaining("LH_KAFKA_TOPICS_ALLOW_PARTITION_INCREASE=true");
+
+        props.getTopicSettings().setAllowPartitionIncrease(true);
+        LhTopicPartitionGuard.check(Map.of("lh.facts.v1", 2), props);
+    }
+
+    @Test
+    void modifyConfigsIsOffByDefaultAndOnInEnterprise() {
+        LoyaltyHubProperties props = new LoyaltyHubProperties();
+        org.springframework.mock.env.MockEnvironment demo = new org.springframework.mock.env.MockEnvironment();
+        demo.setActiveProfiles("demo");
+        org.springframework.mock.env.MockEnvironment enterprise = new org.springframework.mock.env.MockEnvironment();
+        enterprise.setActiveProfiles("enterprise");
+
+        assertThat(props.getTopicSettings().isAllowPartitionIncrease()).isFalse();
+        assertThat(LhKafkaConfiguration.modifyTopicConfigs(props, demo)).isFalse();
+        assertThat(LhKafkaConfiguration.modifyTopicConfigs(props, enterprise)).isTrue();
+        props.getTopicSettings().setModifyConfigs(false);
+        assertThat(LhKafkaConfiguration.modifyTopicConfigs(props, enterprise)).isFalse();
+        props.getTopicSettings().setModifyConfigs(true);
+        assertThat(LhKafkaConfiguration.modifyTopicConfigs(props, demo)).isTrue();
+        assertThat(org.springframework.test.util.ReflectionTestUtils.getField(
+                new LhKafkaConfiguration(props, "b:1").kafkaAdmin(demo), "modifyTopicConfigs")).isEqualTo(true);
     }
 
     private static LoyaltyHubProperties with(java.util.function.Consumer<LoyaltyHubProperties.TopicSettings> change) {

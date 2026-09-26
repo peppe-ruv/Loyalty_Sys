@@ -1,4 +1,4 @@
-Loyalty Hub {{ .Chart.AppVersion }} installato come "{{ .Release.Name }}" (profilo {{ .Values.global.profile }}, LH_MODE={{ .Values.global.mode }}).
+Loyalty Hub {{ .Values.image.tag }} installato come "{{ .Release.Name }}" (profilo {{ .Values.global.profile }}, LH_MODE={{ .Values.global.mode }}).
 
 Ruoli: {{ if .Values.roles.hub.enabled }}hub {{ end }}{{ if .Values.roles.web.enabled }}web {{ end }}{{ if .Values.roles.idp.enabled }}idp{{ end }}
 Postgres: {{ .Values.postgres.mode }}{{ if eq .Values.postgres.mode "cloudnativepg" }} (cluster {{ include "loyaltyhub.pg.clusterName" . }}, richiede l'operatore CloudNativePG){{ end }}
@@ -12,8 +12,18 @@ Login (Keycloak):     {{ .Values.publicUrls.idp }}/realms/{{ .Values.global.real
 {{- end }}
 {{- end }}
 
-Stato dei Pod:
+Stato dei Pod (il primo avvio di Kafka, Postgres e Keycloak richiede alcuni minuti: installare con --wait --timeout 15m):
   kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }}
 
-Limiti noti di questa versione (deploy/README.md): Kafka interno senza TLS fino a M8.5 (Q-375); retention di facts
-e audit a 7 giorni finché M8.4 non toglie le PII dal bus (Q-373); ruolo idp con l'immagine ufficiale di Keycloak (Q-374).
+Partizioni: aumentarle rimappa le chiavi memberId e rompe l'ordine per membro degli eventi in volo. Si aumentano solo
+dopo aver svuotato i consumer (produttori fermi, lag 0) e con kafka.topics.allowPartitionIncrease=true, da rimettere
+a false subito dopo; senza, chart e hub rifiutano l'aumento. Non si possono diminuire.
+
+Limiti noti di questa versione (deploy/README.md):
+{{- if eq .Values.global.profile "enterprise" }}
+- portale e backoffice non funzionano ancora nel profilo enterprise: manca il BFF OIDC (F2-SEC-06) e l'hub rifiuta le
+  chiamate senza token (Q-393); per valutare usare global.profile=demo;
+{{- end }}
+- Kafka interno senza TLS fino a M8.5 (Q-375); nessuna NetworkPolicy fino a M8.5;
+- retention di facts e audit a 7 giorni finché M8.4 non toglie le PII dal bus (Q-373);
+- ruolo idp con l'immagine ufficiale di Keycloak (Q-374).

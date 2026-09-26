@@ -134,6 +134,34 @@ public class LoyaltyHubProperties {
         private Integer minInsyncReplicas;
         /** Retention per chiave logica ({@code facts}, {@code audit}…); una chiave assente usa {@link #retentionMs}. */
         private java.util.Map<String, Long> retentionMsByTopic = new java.util.LinkedHashMap<>();
+        /**
+         * Applica ai topic già esistenti le configurazioni cambiate (retention, {@code min.insync.replicas}). Assente =
+         * acceso nel profilo {@code enterprise}, spento altrimenti: il Kafka gratuito della demo può rifiutare
+         * {@code alterConfigs} (ADR-025).
+         */
+        private Boolean modifyConfigs;
+        /**
+         * Consente di aumentare le partizioni di un topic esistente. Spento: aumentare le partizioni rimappa le chiavi
+         * {@code memberId} e rompe l'ordine per membro degli eventi in volo; si accende solo dopo aver svuotato i
+         * consumer (lag 0, produttori fermi).
+         */
+        private boolean allowPartitionIncrease;
+
+        public Boolean getModifyConfigs() {
+            return modifyConfigs;
+        }
+
+        public void setModifyConfigs(Boolean modifyConfigs) {
+            this.modifyConfigs = modifyConfigs;
+        }
+
+        public boolean isAllowPartitionIncrease() {
+            return allowPartitionIncrease;
+        }
+
+        public void setAllowPartitionIncrease(boolean allowPartitionIncrease) {
+            this.allowPartitionIncrease = allowPartitionIncrease;
+        }
 
         public boolean isCreate() {
             return create;

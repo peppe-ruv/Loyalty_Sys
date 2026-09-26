@@ -37,11 +37,15 @@ public final class HubMigrate {
         HubDatabase.migrate(url, username, password);
     }
 
+    /**
+     * Primo valore non vuoto, <em>così com'è</em>: l'avvio dell'hub (Spring) non toglie spazi alle credenziali, quindi
+     * neanche il Job; una password con spazi ai bordi vale la stessa nei due percorsi.
+     */
     private static String first(Map<String, String> env, String... names) {
         for (String name : names) {
             String v = env.get(name);
             if (v != null && !v.isBlank()) {
-                return v.trim();
+                return v;
             }
         }
         throw new IllegalStateException("variabile mancante: " + String.join(" o ", names));

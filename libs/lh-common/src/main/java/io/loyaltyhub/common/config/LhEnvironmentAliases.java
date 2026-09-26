@@ -42,6 +42,8 @@ public class LhEnvironmentAliases implements EnvironmentPostProcessor, Ordered {
             // Partizioni, concorrenza e retention (F2-EVT-04, ADR-028): i nomi dei 5 topic non cambiano.
             new Alias("LH_KAFKA_CONSUMER_CONCURRENCY", "loyaltyhub.consumer.concurrency"),
             new Alias("LH_KAFKA_TOPICS_CREATE", "loyaltyhub.topic-settings.create"),
+            new Alias("LH_KAFKA_TOPICS_MODIFY_CONFIGS", "loyaltyhub.topic-settings.modify-configs"),
+            new Alias("LH_KAFKA_TOPICS_ALLOW_PARTITION_INCREASE", "loyaltyhub.topic-settings.allow-partition-increase"),
             new Alias("LH_KAFKA_TOPIC_PARTITIONS", "loyaltyhub.topic-settings.partitions"),
             new Alias("LH_KAFKA_TOPIC_REPLICAS", "loyaltyhub.topic-settings.replicas"),
             new Alias("LH_KAFKA_TOPIC_MIN_INSYNC_REPLICAS", "loyaltyhub.topic-settings.min-insync-replicas"),

@@ -43,8 +43,9 @@ spec:
     - host: {{ .Values.ingress.hosts.idp | quote }}
       http:
         paths:
-          # Solo i percorsi pubblici di Keycloak: la console di amministrazione resta fuori (docs/18 §3.10 punto 1).
-          - path: /realms/
+          # Solo il realm dell'installazione e le risorse statiche del login: console di amministrazione e realm
+          # `master` (endpoint dei token compreso) restano fuori (docs/18 §3.10 punto 1).
+          - path: /realms/{{ .Values.global.realm }}/
             pathType: Prefix
             backend:
               service:

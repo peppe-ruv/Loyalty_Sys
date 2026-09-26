@@ -45,6 +45,43 @@ class HubMigrateIT {
         assertThat(applied()).as("seconda esecuzione: nessuna nuova migrazione").isEqualTo(first);
     }
 
+    /**
+     * Il comando esatto del Job del chart e del servizio {@code migrate} del compose di riferimento, sul jar
+     * eseguibile costruito dal modulo (fase package, prima dei test d'integrazione).
+     */
+    @Test
+    void launcherCommandOfTheJobMigratesAndFailsWithoutConfiguration() throws Exception {
+        java.nio.file.Path jar;
+        try (var files = java.nio.file.Files.list(java.nio.file.Paths.get("target"))) {
+            jar = files.filter(p -> p.getFileName().toString().matches("hub-.*-boot\\.jar")).findFirst()
+                    .orElseThrow(() -> new IllegalStateException("jar eseguibile dell'hub assente in target/"));
+        }
+        String javaBin = java.nio.file.Paths.get(System.getProperty("java.home"), "bin", "java").toString();
+        java.util.List<String> command = java.util.List.of(javaBin, "-Dloader.main=io.loyaltyhub.hub.HubMigrate",
+                "-cp", jar.toAbsolutePath().toString(), "org.springframework.boot.loader.launch.PropertiesLauncher");
+
+        // Database dedicato: il comando parte da zero.
+        try (Connection c = pg.getPostgresDatabase().getConnection()) {
+            c.createStatement().execute("CREATE DATABASE launcher");
+        }
+        ProcessBuilder ok = new ProcessBuilder(command).redirectErrorStream(true);
+        ok.environment().put("DB_URL", pg.getJdbcUrl("postgres", "launcher"));
+        ok.environment().put("DB_USERNAME", "postgres");
+        ok.environment().put("DB_PASSWORD", "postgres");
+        Process p = ok.start();
+        String out = new String(p.getInputStream().readAllBytes());
+        assertThat(p.waitFor()).as(out).isZero();
+        assertThat(out).contains("Successfully applied").contains("schema \"engagement\"");
+
+        ProcessBuilder missing = new ProcessBuilder(command).redirectErrorStream(true);
+        missing.environment().remove("DB_URL");
+        missing.environment().remove("SPRING_DATASOURCE_URL");
+        Process q = missing.start();
+        String err = new String(q.getInputStream().readAllBytes());
+        assertThat(q.waitFor()).as(err).isEqualTo(2);
+        assertThat(err).contains("variabile mancante: SPRING_DATASOURCE_URL o DB_URL");
+    }
+
     @Test
     void refusesWithoutConfiguration() {
         assertThatThrownBy(() -> HubMigrate.run(Map.of("DB_USERNAME", "x", "DB_PASSWORD", "y")))

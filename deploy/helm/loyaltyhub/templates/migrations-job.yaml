@@ -29,7 +29,7 @@ spec:
       restartPolicy: Never
       # Hook pre-install: il ServiceAccount del chart potrebbe non esistere ancora (vale quello di default, senza
       # token montato); il Job non usa l'API di Kubernetes.
-      {{- include "loyaltyhub.podCommon" (dict "ctx" $) | nindent 6 }}
+      {{- include "loyaltyhub.podCommon" (dict "ctx" $ "role" "migrate") | nindent 6 }}
       containers:
         - name: migrate
           image: {{ include "loyaltyhub.image" . }}

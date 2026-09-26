@@ -143,7 +143,7 @@ services:
 | `KAFKA_BOOTSTRAP`, `KAFKA_SECURITY`, `KAFKA_SSL_*_B64` / `KAFKA_SASL_*` | servizi | Aiven; locale `localhost:9092`, `PLAINTEXT` |
 | `JAVA_OPTS` | servizi | §6 |
 | `LH_CONSUMER_RETRY_BACKOFF_MS` | servizi | `loyaltyhub.consumer.retry-backoff-ms` (default 1000,5000: 3 tentativi, vedi Q-131) |
-| `LH_KAFKA_CONSUMER_CONCURRENCY`, `LH_KAFKA_TOPIC_*`, `LH_KAFKA_<TOPIC>_RETENTION_MS`, `LH_KAFKA_TOPICS_CREATE` | servizi, hub | concorrenza dei listener e forma dei 5 topic (F2-EVT-04); da non impostare in demo: i default restano 2 consumer, 2 partizioni, 1 replica, 3 giorni. Elenco in `deploy/README.md` |
+| `LH_KAFKA_CONSUMER_CONCURRENCY`, `LH_KAFKA_TOPIC_*`, `LH_KAFKA_<TOPIC>_RETENTION_MS`, `LH_KAFKA_TOPICS_*` | servizi, hub | concorrenza dei listener e forma dei 5 topic (F2-EVT-04); da non impostare in demo: i default restano 2 consumer, 2 partizioni, 1 replica, 3 giorni, topic esistenti non modificati (il Kafka gratuito può rifiutare `alterConfigs`). Elenco in `deploy/README.md` |
 | `LH_CORS_ALLOWED_ORIGINS` | **insight** | URL Vercel (+ `http://localhost:3000`); serve solo all'SSE |
 | `LH_JOBS_ENABLED` | servizi | `true`; `false` per spegnere gli scheduler |
 | `LH_APPROVAL_ENABLED` | campaign, reward, gamification, engagement | mappa `loyaltyhub.approval.enabled`; `false` fino a M7 |

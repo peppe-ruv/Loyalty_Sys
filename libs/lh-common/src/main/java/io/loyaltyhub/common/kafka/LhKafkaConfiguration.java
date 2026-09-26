@@ -13,6 +13,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.env.Environment;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
@@ -65,13 +66,25 @@ public class LhKafkaConfiguration {
         return new KafkaTemplate<>(pf);
     }
 
-    /** Admin per creare i topic dai bean NewTopic (profilo local) con la sicurezza configurata. */
+    /**
+     * Admin per creare i topic dai bean NewTopic (profilo local, hub su broker reale) con la sicurezza configurata. Con
+     * {@code modify-configs} (default: acceso solo nel profilo {@code enterprise}) applica anche ai topic esistenti le
+     * configurazioni cambiate, per esempio la retention (F2-EVT-04).
+     */
     @Bean
     @ConditionalOnMissingBean
-    public KafkaAdmin kafkaAdmin() {
+    public KafkaAdmin kafkaAdmin(Environment environment) {
         Map<String, Object> cfg = new HashMap<>(LhKafkaSecurity.properties(props.getKafka()));
         cfg.put(org.apache.kafka.clients.admin.AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        return new KafkaAdmin(cfg);
+        KafkaAdmin admin = new KafkaAdmin(cfg);
+        admin.setModifyTopicConfigs(modifyTopicConfigs(props, environment));
+        return admin;
+    }
+
+    /** {@code modify-configs} esplicito, altrimenti acceso solo nel profilo {@code enterprise}. */
+    public static boolean modifyTopicConfigs(LoyaltyHubProperties props, Environment environment) {
+        Boolean explicit = props.getTopicSettings().getModifyConfigs();
+        return explicit != null ? explicit : environment.matchesProfiles("enterprise");
     }
 
     @Bean
@@ -159,6 +172,15 @@ public class LhKafkaConfiguration {
                 matchIfMissing = true)
         KafkaAdmin.NewTopics lhTopics() {
             return new KafkaAdmin.NewTopics(LhTopics.newTopics(props));
+        }
+
+        /** Rifiuta un aumento di partizioni non autorizzato prima che KafkaAdmin lo applichi (F2-EVT-04). */
+        @Bean
+        @org.springframework.context.annotation.Lazy(false)
+        @ConditionalOnProperty(prefix = "loyaltyhub.topic-settings", name = "create", havingValue = "true",
+                matchIfMissing = true)
+        LhTopicPartitionGuard lhTopicPartitionGuard(KafkaAdmin kafkaAdmin) {
+            return new LhTopicPartitionGuard(props, kafkaAdmin);
         }
     }
 
