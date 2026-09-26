@@ -93,7 +93,7 @@ erDiagram
 |---|---|---|
 | GET/POST/PUT | `/v1/reward-categories` | |
 | GET/POST/PUT/DELETE | `/v1/reward-bands` | soglie uniche e crescenti (`422 BAND_THRESHOLD_DUPLICATE`); non eliminabile se ha premi (`409 BAND_IN_USE`) |
-| GET/POST/PUT | `/v1/rewards`, `/v1/rewards/{id}` | filtri `status, band, category, type, q`; modifica ammessa in `DRAFT`/`REJECTED`/`PAUSED`; in `LIVE` solo `stock_total`, `valid_to`, `image_url`. `PUT` con `version` obbligatoria (`422 VERSION_REQUIRED` se assente, `409 VERSION_CONFLICT` se superata; Q-280). `fulfilment=AUTO_COUPON` richiede `couponPoolId` (`422 REWARD_INVALID` in creazione e modifica; la pubblicazione di un AUTO_COUPON senza pool è rifiutata con lo stesso codice; Q-281) |
+| GET/POST/PUT | `/v1/rewards`, `/v1/rewards/{id}` | filtri `status, band, category, type, q`; modifica ammessa in `DRAFT`/`PAUSED`; in `LIVE` solo `stock_total`, `valid_to`, `image_url`. `PUT` con `version` obbligatoria (`422 VERSION_REQUIRED` se assente, `409 VERSION_CONFLICT` se superata; Q-280). `fulfilment=AUTO_COUPON` richiede `couponPoolId` (`422 REWARD_INVALID` in creazione e modifica; la pubblicazione di un AUTO_COUPON senza pool è rifiutata con lo stesso codice; Q-281) |
 | POST | `/v1/rewards/{id}/transitions` | `{action, comment}` — macchina a stati comune (`docs/06 §7`) |
 | POST | `/v1/rewards/{id}/duplicate` | copia in `DRAFT` con codice `-COPY` |
 | GET/POST | `/v1/coupon-pools` | |
