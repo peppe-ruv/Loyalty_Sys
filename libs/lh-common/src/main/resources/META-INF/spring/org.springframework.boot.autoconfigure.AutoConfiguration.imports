@@ -1,1 +1,2 @@
 io.loyaltyhub.common.config.LhCommonAutoConfiguration
+io.loyaltyhub.common.web.OpenApiConventions

@@ -6,4 +6,4 @@ TB-PLT-HLR-004,metrica lh_outbox_pending esposta (docs/06 §8),metric,lh_outbox_
 TB-PLT-HLR-005,metrica lh_events_published_total esposta,metric,lh_events_published_total,200
 TB-PLT-HLR-006,metrica lh_events_consumed_total esposta,metric,lh_events_consumed_total,200
 TB-PLT-HLR-007,metrica lh_handler_seconds esposta,metric,lh_handler_seconds,200
-TB-PLT-HLR-008,OpenAPI su /v3/api-docs (docs/06 §2) — SPEC-GAP Q-341: 404 finché springdoc non è approvato,openapi,-,404
+TB-PLT-HLR-008,OpenAPI su /v3/api-docs (docs/06 §2): ogni operazione con summary e un solo tag (area),openapi,-,200

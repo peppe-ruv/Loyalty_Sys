@@ -62,6 +62,11 @@
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
     </dependency>
+    <!-- OpenAPI (docs/06 §2): /v3/api-docs e /swagger-ui.html; UI spenta nel profilo free (docs/11 §6). Q-341, ADR-026 -->
+    <dependency>
+      <groupId>org.springdoc</groupId>
+      <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+    </dependency>
     <!-- Actuator + Micrometer (health db/kafka, metriche lh_*) -->
     <dependency>
       <groupId>org.springframework.boot</groupId>

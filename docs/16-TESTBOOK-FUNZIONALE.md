@@ -193,13 +193,13 @@ mappati, **563 righe** in 28 aree. Test: `libs/lh-common/src/test/java/io/loyalt
   concorrente, confini temporali di Roma, profilo free, variabili d'ambiente, requisiti non funzionali misurabili.
 - **Riduzioni dichiarate:** proprietà del profilo free × servizio 120 → 15 righe; ruoli e forme dell'intestazione solo
   sull'endpoint ADMIN del reset (le altre guardie sono in TB-GOV).
-- **Divergenze trovate (108 righe, 22 cause):** 21 corrette nel codice (503 col database giù, errori di forma di Spring,
+- **Divergenze trovate (108 righe, 22 cause):** tutte corrette nel codice (503 col database giù, errori di forma di Spring,
   MDC, classificazione DLQ lungo le cause e `lh-attempts` veritiero, truststore SASL_SSL, cache della salute Kafka,
   `@eom` con scostamenti, variabili d'ambiente di docs/11 §8 e readiness con db e kafka, `lh_outbox_pending`, pulizia di
   `processed_event`, 400 per `size`/`page` non validi ovunque, ordine e completezza del reset, `GET /v1/demo/info`,
   limite di 60 eventi/min per IP, 12 schemi di contratto mancanti, 2 partizioni nell'hub, profilo free completo e
-  listener `@Lazy(false)`); **1 aperta**: OpenAPI su `/v3/api-docs` (TB-PLT-HLR-008, serve springdoc: Q-341).
-- **Scelte registrate:** Q-332…Q-342 (tutte decise e conservative tranne Q-341, aperta: la riga HLR-008 registra il 404 attuale).
+  listener `@Lazy(false)`, OpenAPI su `/v3/api-docs` con springdoc approvato: Q-341, ADR-026).
+- **Scelte registrate:** Q-332…Q-342 (tutte decise; Q-341 approvata dall'owner: springdoc, ADR-026).
 - **Verifica a mutazione:** 12 mutazioni (una per classe di test), tutte rilevate.
 
 ## 11. Copertura

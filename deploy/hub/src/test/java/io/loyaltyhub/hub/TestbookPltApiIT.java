@@ -21,6 +21,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
@@ -112,9 +113,21 @@ class TestbookPltApiIT extends TestbookPltSupportIT {
                     assertThat(String.valueOf(r.status())).as(r.body().toString()).isEqualTo(row.get("atteso"));
                 }
                 case "openapi" -> {
-                    // SPEC-GAP: Q-341 — docs/06 §2 vuole 200; la riga registra il 404 attuale finché springdoc non è approvato.
                     Raw r = raw("GET", "/v3/api-docs", headers(), null);
                     assertThat(String.valueOf(r.status())).isEqualTo(row.get("atteso"));
+                    // docs/06 §2: ogni endpoint ha summary e tag = area (Q-341, ADR-026).
+                    JsonNode paths = r.json(mapper).path("paths");
+                    assertThat(paths.size()).as("operazioni documentate").isGreaterThan(50);
+                    List<String> missing = new ArrayList<>();
+                    for (Map.Entry<String, JsonNode> path : paths.properties()) {
+                        for (Map.Entry<String, JsonNode> op : path.getValue().properties()) {
+                            JsonNode o = op.getValue();
+                            if (o.path("summary").asString("").isBlank() || o.path("tags").size() != 1) {
+                                missing.add(op.getKey().toUpperCase(Locale.ROOT) + " " + path.getKey());
+                            }
+                        }
+                    }
+                    assertThat(missing).as("operazioni senza summary o con tag diverso da uno").isEmpty();
                 }
                 default -> throw new IllegalArgumentException(kase);
             }
