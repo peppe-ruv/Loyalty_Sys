@@ -17,9 +17,9 @@ misurabili. Metodo ed esecuzione: docs/16 §1 e §1bis.
   `TestbookPltApiIT`, `TestbookPltContractIT` (profilo `demo,inproc`, un contesto per classe, orologio fisso che avanza),
   `TestbookPltFreeProfileIT` (profilo `demo` su Kafka in-JVM con inizializzazione lazy). Dati: `testbook/plt/*.csv` di
   ciascun modulo; ogni caso si chiama `[TB-PLT-<AREA>-NNN] descrizione`.
-- **Esito.** 563 righe in 28 aree; 22 cause di divergenza trovate, tutte corrette nel codice (registro in §25); l'ultima,
-  OpenAPI, dopo l'approvazione di springdoc (Q-341, ADR-046). Nessuna riga AMBIGUO: ogni silenzio della specifica è
-  deciso nell'opzione conservativa e registrato in docs/15 (§26).
+- **Esito.** 565 righe in 28 aree; 23 cause di divergenza trovate, tutte corrette nel codice (registro in §25); OpenAPI
+  dopo l'approvazione di springdoc (Q-341, ADR-046), l'ultima l'offset del record in DLQ (D-23). Nessuna riga AMBIGUO:
+  ogni silenzio della specifica è deciso nell'opzione conservativa e registrato in docs/15 (§26).
 
 ## 1. Inventario delle regole
 
@@ -448,7 +448,7 @@ e lasciati come sono o decisi in docs/15.
 
 ## 10. DLK — Ritentativi e DLQ su Kafka reale
 
-**Regola.** L'error handler di `LhKafkaConfiguration` con Kafka in-JVM e il contenitore vero (concorrenza 2, ack manuale): stesse regole di §9 viste dal consumatore — invocazioni, un solo record DLQ con chiave, valore e header originali (`lh-type`) più gli header `lh-*`, e il record successivo sulla stessa partizione elaborato (docs/12 M0).
+**Regola.** L'error handler di `LhKafkaConfiguration` con Kafka in-JVM e il contenitore vero (concorrenza 2, ack manuale): stesse regole di §9 viste dal consumatore — invocazioni, un solo record DLQ con chiave, valore e header originali (`lh-type`) più gli header `lh-*`, e il record successivo sulla stessa partizione elaborato (docs/12 M0). Il record recuperato ha l'offset confermato subito dopo la pubblicazione in DLQ: se la partizione passa di mano (riavvio del consumer o ribilanciamento del gruppo) prima che un altro record sposti l'offset, il messaggio velenoso non rifà il ciclo e non genera una seconda voce DLQ (ADR-008: nessun doppio effetto; una voce sola in BO-27). Ogni riga attende il gruppo stabile, due consumer con una partizione ciascuno, prima di inviare.
 
 **Domini dei valori.**
 
@@ -456,8 +456,9 @@ e lasciati come sono o decisi in docs/15.
 |---|---|---|
 | guasti prima del successo | 1, 2 | 3 (= tentativi), sempre |
 | ritardi | 50 50 | 50 (2 tentativi), 50 50 50 (4 tentativi) |
+| passaggio della partizione dopo la DLQ | nessuno, record successivo già in coda | riavvio del consumer con il velenoso ultimo record della partizione |
 
-**Strategia di combinazione.** ogni tipo d'errore con guasto permanente; valori limite dei guasti 1, 2, 3 con 3 tentativi disponibili; ritardi 1 e 3.
+**Strategia di combinazione.** ogni tipo d'errore con guasto permanente; valori limite dei guasti 1, 2, 3 con 3 tentativi disponibili; ritardi 1 e 3; riavvio dopo la DLQ con un errore ritentabile e uno non ritentabile.
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -472,6 +473,8 @@ e lasciati come sono o decisi in docs/15.
 | TB-PLT-DLK-009 | tre guasti con tre tentativi disponibili: DLQ al terzo (`state`, guasti 3, ritardi 50 50) | invocazioni=3 dlq=si tentativi=3 codice=IllegalStateException ritentabile=true topic=origine consumer=gruppo chiave=originale valore=poison lh-type=io.loyaltyhub.fact.probe successivo=elaborato | docs/04 §5; Q-131 | `TestbookPltRelayIT#dlq` · `dlq-kafka.csv` |
 | TB-PLT-DLK-010 | tre ritardi configurati: 4 tentativi e lh-attempts=4 (`state`, guasti 99, ritardi 50 50 50) | invocazioni=4 dlq=si tentativi=4 codice=IllegalStateException ritentabile=true topic=origine consumer=gruppo chiave=originale valore=poison lh-type=io.loyaltyhub.fact.probe successivo=elaborato — divergenza corretta D-07 | docs/04 §5; Q-131 | `TestbookPltRelayIT#dlq` · `dlq-kafka.csv` |
 | TB-PLT-DLK-011 | un solo ritardo configurato: 2 tentativi e lh-attempts=2 (`state`, guasti 99, ritardi 50) | invocazioni=2 dlq=si tentativi=2 codice=IllegalStateException ritentabile=true topic=origine consumer=gruppo chiave=originale valore=poison lh-type=io.loyaltyhub.fact.probe successivo=elaborato — divergenza corretta D-07 | docs/04 §5; Q-131 | `TestbookPltRelayIT#dlq` · `dlq-kafka.csv` |
+| TB-PLT-DLK-012 | errore ritentabile in DLQ poi riavvio del consumer prima di un altro record: nessun nuovo ciclo e nessuna seconda DLQ (`state`, ritardi 50 50) | prima: invocazioni=3 dlq=1 dopo il riavvio: invocazioni=3 dlq=1 successivo=elaborato — divergenza corretta D-23 | ADR-008; docs/04 §5 | `TestbookPltRelayIT#dlqAfterRestart` · `dlq-kafka-riavvio.csv` |
+| TB-PLT-DLK-013 | errore non ritentabile in DLQ poi riavvio del consumer prima di un altro record: nessuna seconda DLQ (`nonRetryable`, ritardi 50 50) | prima: invocazioni=1 dlq=1 dopo il riavvio: invocazioni=1 dlq=1 successivo=elaborato — divergenza corretta D-23 | ADR-008; docs/04 §5 | `TestbookPltRelayIT#dlqAfterRestart` · `dlq-kafka-riavvio.csv` |
 
 
 ## 11. BUS — Bus in-process dell'hub
@@ -1061,7 +1064,7 @@ e lasciati come sono o decisi in docs/15.
 
 ## 25. Registro delle divergenze
 
-Righe che fallivano contro la specifica prima della correzione (108 righe, 22 cause). Ogni test asserisce la specifica;
+Righe che fallivano contro la specifica prima della correzione (110 righe, 23 cause). Ogni test asserisce la specifica;
 la correzione è nel codice di produzione (o nei contratti, D-19).
 
 | Causa | Righe | Specifica | Comportamento osservato | Causa (file:riga prima della correzione) | Esito |
@@ -1088,6 +1091,7 @@ la correzione è nel codice di produzione (o nei contratti, D-19).
 | D-20 | HCF-002 | docs/05 §1, ADR-004: 2 partizioni | 1 partizione sul broker reale dell'hub | `HubKafkaTopics.java:26` | corretta |
 | D-21 | HCF-006…008, FRE-001…008 | docs/06 §5, §6; docs/11 §4, §6: profilo free completo, listener e scheduler `@Lazy(false)` | 23 listener/job e 3 bean schedulati senza `@Lazy(false)`; lazy init, JMX, log JSON, Hikari `max-lifetime`/avvio col DB in risveglio assenti; insight senza profilo free | `application-free.yml` di 7 servizi; insight senza file; classi `*Listener`, `*Jobs`, `LhCommonAutoConfiguration.java:117, 126` | corretta; FRP-001…003 provano l'avvio lazy su broker reale |
 | D-22 | HLR-008 | docs/06 §2: OpenAPI su `/v3/api-docs` | 404 | nessuna dipendenza springdoc (**regola non implementata**) | **corretta**: springdoc in lh-common, approvato (Q-341, ADR-046) |
+| D-23 | DLK-012, DLK-013 (e DLK-010 intermittente in CI) | ADR-008: nessun doppio effetto; docs/04 §5: un record DLQ per messaggio | offset del record recuperato non confermato: a un riavvio o ribilanciamento prima del record successivo il velenoso rifà il ciclo e va in DLQ due volte (in CI: 8 invocazioni e 2 voci con 4 tentativi) | `LhKafkaConfiguration.java:114` (`DefaultErrorHandler` senza `commitRecovered`) | corretta: `setCommitRecovered(true)`; la prova attende il gruppo stabile |
 
 ## 26. Scelte registrate
 
@@ -1112,6 +1116,7 @@ sulle righe attese, e il codice è stato ripristinato (`git diff` finale senza l
 | `TestbookPltRoutingTest` | `EventRouter`: MDC non valorizzato (docs/06 §8) | IDM-017 | rilevata, ripristinata |
 | `TestbookPltErrorsTest` | `GlobalExceptionHandler`: gestore del database irraggiungibile tolto (docs/06 §2) | ERR-010, ERR-011 | rilevata, ripristinata |
 | `TestbookPltRelayIT` | `OutboxRelay`: lotto letto `ORDER BY created_at DESC` (ADR-008, ordine per chiave) | REL-006, REL-007, REL-013 | rilevata, ripristinata |
+| `TestbookPltRelayIT` | `LhKafkaConfiguration#lhErrorHandler`: `setCommitRecovered(true)` tolto (ADR-008) | DLK-012, DLK-013 | rilevata, ripristinata |
 | `TestbookPltBusTest` | `HubInProcessBus`: tentativi = ritardi (senza il primo) (Q-131) | BUS-006, BUS-010, BUS-011, BUS-014 | rilevata, ripristinata |
 | `TestbookPltHubConfigTest` | `HubKafkaTopics`: 1 partizione invece di 2 (ADR-004) | HCF-002 | rilevata, ripristinata |
 | `TestbookPltHubConfigTest` + `TestbookPltFreeProfileIT` | `EffectsListener` di wallet senza `@Lazy(false)` (docs/06 §5) | HCF-006 (unitario); FRP-002, FRP-003 (broker reale) | rilevata, ripristinata |
@@ -1129,8 +1134,8 @@ quella precedente alle mutazioni.
 | Rami del codice mappati | 172 in 26 gruppi (§2) |
 | Rami senza specifica | 9 (innocui: mantenuti o decisi in Q-333, Q-337, Q-338) |
 | Regole senza codice | 8 prima delle correzioni (variabili d'ambiente, `lh_outbox_pending`, pulizia `processed_event`, `/v1/demo/info`, limite di frequenza, 12 contratti, profilo free lazy, OpenAPI); 1 dopo (OpenAPI, Q-341); `member.birthday` P2 fuori perimetro |
-| Righe | 563 (lh-common 332: ENV 50, TOP 24, CLK 59, CAL 22, KCF 34, HLT 4, VAR 25, DLR 38, IDM 18, ERR 24, REL 22, ITX 3, DLK 11; hub 231: CTR 64, LOP 6, BRT 5, BUS 14, HER 10, PAG 60, ACT 17, RST 9, INF 3, HLR 8, FRP 3, NFR 2, RLM 5, HCF 8, FRE 15) |
+| Righe | 565 (lh-common 334: ENV 50, TOP 24, CLK 59, CAL 22, KCF 34, HLT 4, VAR 25, DLR 38, IDM 18, ERR 24, REL 22, ITX 3, DLK 13; hub 231: CTR 64, LOP 6, BRT 5, BUS 14, HER 10, PAG 60, ACT 17, RST 9, INF 3, HLR 8, FRP 3, NFR 2, RLM 5, HCF 8, FRE 15) |
 | Tabelle complete | famiglia → topic, elenco × classe di paginazione (60), tipo d'errore × campo DLQ, protocolli di sicurezza, un `type` per riga (64) |
 | Riduzioni | proprietà del profilo free × servizio 120 → 15 righe (una riga controlla gli 8 servizi); ruoli e forme dell'intestazione solo sull'endpoint ADMIN del reset (le altre guardie sono in TB-GOV) |
-| Divergenze | 22 cause, 108 righe: tutte corrette (D-22 con springdoc, ADR-046) |
+| Divergenze | 23 cause, 110 righe: tutte corrette (D-22 con springdoc, ADR-046; D-23 offset della DLQ) |
 | Non automatizzabili | RNF-01 (RSS ≤ 450 MB su 512 MB, docs/11 §6), tempo di avvio a freddo su 0,1 CPU (Q-20), RNF-06 oltre la retention (Q-25), RNF-08/09 (web, TB-WEB): richiedono il container reale o il browser |

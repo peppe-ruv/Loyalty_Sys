@@ -43,7 +43,7 @@ Il testbook è eseguibile per intero con un comando e produce un rapporto riga p
 | Interfaccia | [§10](#10-tb-web--interfaccia) | web | docs/07 · docs/08 · docs/09 | **eseguibile** — 741 righe |
 | Percorsi end-to-end | [§10bis](#10bis-tb-e2e--percorsi-end-to-end) | hub (tutti) | docs/17 E10 e percorsi tra servizi · docs/10 §8 | **eseguibile** — 114 righe |
 | Osservabilità e audit | [§10ter](#10ter-tb-ins--osservabilità-e-audit) | insight | docs/servizi/insight-service.md · F-INS-*, F-AUD-01 | **eseguibile** — 586 righe |
-| Piattaforma | [§10quater](#10quater-tb-plt--piattaforma) | lh-common, hub | docs/04 · docs/05 · docs/06 · contracts/ | **eseguibile** — 563 righe |
+| Piattaforma | [§10quater](#10quater-tb-plt--piattaforma) | lh-common, hub | docs/04 · docs/05 · docs/06 · contracts/ | **eseguibile** — 565 righe |
 | Distribuzione (Fase 2) | `TB-DIST` | immagine, chart, compose, appliance, CLI, aggiornamento | docs/18 §3.1, ADR-026, 037, 038 · F2-DIST-* | pianificata — M8.1, M8.3, M12 |
 | Identità e accessi (Fase 2) | `TB-IAM` | Keycloak `idp`, BFF, resource server, client credentials | docs/18 §3.2, ADR-027 · F2-IAM-*, F2-SEC-06/07 | pianificata — M8.2 |
 | Sicurezza applicativa (Fase 2) | `TB-SEC` | lh-common, tutti | docs/18 §3.10, ADR-042 · F2-SEC-08…12 | pianificata — M8.10, M8.11 |
@@ -190,7 +190,7 @@ Documento completo: [`docs/testbook/TB-INS-insight.md`](testbook/TB-INS-insight.
 
 ## 10quater. TB-PLT — Piattaforma
 Documento completo: [`docs/testbook/TB-PLT-piattaforma.md`](testbook/TB-PLT-piattaforma.md) — 37 regole, 172 rami
-mappati, **563 righe** in 28 aree. Test: `libs/lh-common/src/test/java/io/loyaltyhub/common/testbook/`
+mappati, **565 righe** in 28 aree. Test: `libs/lh-common/src/test/java/io/loyaltyhub/common/testbook/`
 (`TestbookPlt{Envelope,Clock,Config,Dlq,Routing,Errors}Test`, `TestbookPltRelayIT` con Postgres e Kafka in-JVM) e
 `deploy/hub/src/test/java/io/loyaltyhub/hub/` (`TestbookPlt{Bus,HubConfig}Test`, `TestbookPlt{Api,Contract,FreeProfile}IT`).
 
