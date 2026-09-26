@@ -88,4 +88,13 @@ public class MembersController {
     public MemberView anonymize(@PathVariable String id, @RequestBody(required = false) AnonymizeRequest request) {
         return service.anonymize(id, request == null ? null : request.confirm());
     }
+
+    /**
+     * Risoluzione a lotti dei soprannomi per il BFF (F2-EVT-02, docs/18 §3.4).
+     * Sola lettura, nessun ruolo richiesto (chiamato server-side dal BFF).
+     */
+    @PostMapping("/nicknames")
+    public NicknamesResponse nicknames(@RequestBody NicknamesRequest request) {
+        return service.nicknames(request);
+    }
 }

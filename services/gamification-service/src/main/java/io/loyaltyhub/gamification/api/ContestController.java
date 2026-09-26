@@ -170,8 +170,12 @@ public class ContestController {
 
     @GetMapping("/contests/{id}/winners")
     @Transactional(readOnly = true)
-    public List<PlayRepository.Winner> winners(@PathVariable String id) {
-        return plays.winners(admin.get(id).id());
+    public List<PlayRepository.Winner> winners(@PathVariable String id, @RequestParam(required = false, defaultValue = "") String resolve) {
+        List<PlayRepository.Winner> items = plays.winners(admin.get(id).id());
+        if ("ids".equals(resolve)) {
+            items = items.stream().map(w -> new PlayRepository.Winner(w.playId(), w.memberId(), w.memberId(), w.prizeCode(), w.prizeName(), w.prizeType(), w.playedAt(), w.deliveryStatus(), w.deliveryNote())).toList();
+        }
+        return items;
     }
 
     @GetMapping(value = "/contests/{id}/winners.csv", produces = "text/csv")

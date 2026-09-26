@@ -20,6 +20,10 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
   const target = new URL(`${serviceBaseUrl(service)}/${(path ?? []).join("/")}`);
   target.search = req.nextUrl.search;
 
+  if (service === "gamification") {
+    target.searchParams.delete("resolve");
+  }
+
   const persona = parsePersona((await cookies()).get(PERSONA_COOKIE)?.value);
   const correlationId = req.headers.get("x-correlation-id") ?? ulid();
 

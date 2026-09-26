@@ -41,24 +41,26 @@ public class PortalLeaderboardsController {
 
     @GetMapping
     @Transactional(readOnly = true)
-    public List<PortalLeaderboard> list(@RequestParam String memberId) {
-        return leaderboards.findActive().stream().map(l -> view(l, memberId)).toList();
+    public List<PortalLeaderboard> list(@RequestParam String memberId,
+                                        @RequestParam(required = false, defaultValue = "") String resolve) {
+        return leaderboards.findActive().stream().map(l -> view(l, memberId, "ids".equals(resolve))).toList();
     }
 
     @GetMapping("/{code}")
     @Transactional(readOnly = true)
-    public PortalLeaderboard one(@PathVariable String code, @RequestParam String memberId) {
+    public PortalLeaderboard one(@PathVariable String code, @RequestParam String memberId,
+                                 @RequestParam(required = false, defaultValue = "") String resolve) {
         Leaderboard l = service.get(code);
         if (!"ACTIVE".equals(l.status())) {
             throw LhException.notFound("Classifica non disponibile: " + code);
         }
-        return view(l, memberId);
+        return view(l, memberId, "ids".equals(resolve));
     }
 
-    private PortalLeaderboard view(Leaderboard l, String memberId) {
+    private PortalLeaderboard view(Leaderboard l, String memberId, boolean resolveIds) {
         List<LeaderboardRepository.Ranked> all = leaderboards.ranking(l.id(), service.currentPeriod(l), 0);
         List<Entry> top = all.stream().limit(l.topN())
-                .map(r -> new Entry(r.rank(), r.nickname() == null ? "Socio Aurora" : r.nickname(), r.score(), r.memberId().equals(memberId)))
+                .map(r -> new Entry(r.rank(), resolveIds ? r.memberId() : (r.nickname() == null ? "Socio Aurora" : r.nickname()), r.score(), r.memberId().equals(memberId)))
                 .toList();
         Me me = all.stream().filter(r -> r.memberId().equals(memberId)).findFirst().map(r -> new Me(r.rank(), r.score())).orElse(null);
         return new PortalLeaderboard(l.code(), l.name(), l.metric(), l.period(), service.currentPeriod(l), l.topN(), top, me, all.size());

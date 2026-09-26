@@ -66,7 +66,8 @@ public class LeaderboardsController {
     @GetMapping("/{code}/ranking")
     @Transactional(readOnly = true)
     public Ranking ranking(@PathVariable String code, @RequestParam(required = false) String periodKey,
-                           @RequestParam(defaultValue = "0") int limit) {
+                           @RequestParam(defaultValue = "0") int limit,
+                           @RequestParam(required = false, defaultValue = "") String resolve) {
         Leaderboard l = service.get(code);
         String current = service.currentPeriod(l);
         String key = periodKey == null || periodKey.isBlank() ? current : periodKey;
@@ -74,7 +75,11 @@ public class LeaderboardsController {
         if (!periods.contains(current)) {
             periods.addFirst(current);
         }
-        return new Ranking(l.code(), l.name(), l.metric(), l.period(), key, current, periods, l.topN(),
-                leaderboards.ranking(l.id(), key, limit > 0 ? limit : l.topN()));
+        boolean resolveIds = "ids".equals(resolve);
+        List<LeaderboardRepository.Ranked> items = leaderboards.ranking(l.id(), key, limit > 0 ? limit : l.topN());
+        if (resolveIds) {
+            items = items.stream().map(r -> new LeaderboardRepository.Ranked(r.rank(), r.memberId(), r.memberId(), r.score(), r.reachedAt())).toList();
+        }
+        return new Ranking(l.code(), l.name(), l.metric(), l.period(), key, current, periods, l.topN(), items);
     }
 }

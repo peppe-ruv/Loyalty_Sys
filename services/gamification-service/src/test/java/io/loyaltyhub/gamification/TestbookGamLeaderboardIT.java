@@ -259,6 +259,21 @@ class TestbookGamLeaderboardIT extends TestbookGamBase {
     }
 
     @Test
+    @DisplayName("[TB-GAM-LDB-025] portale con resolve=ids: restituisce memberId in nickname")
+    void portalResolveIds() {
+        String code = board("TB-GAM-LDB-025", "PTS_EARNED", "MONTH", 10, null);
+        String me = member("ACTIVE");
+        String other = member("ACTIVE");
+        earned(other, "PTS", 200, T);
+        earned(me, "PTS", 100, T.plusSeconds(1));
+        CLOCK.set(T.plusSeconds(3600));
+        JsonNode p = ok("GET", "/v1/portal/leaderboards/" + code + "?memberId=" + me + "&resolve=ids", null, null, 200);
+        assertThat(p.path("top").size()).isEqualTo(2);
+        assertThat(p.path("top").get(0).path("nickname").asString()).isEqualTo(other);
+        assertThat(p.path("top").get(1).path("nickname").asString()).isEqualTo(me);
+    }
+
+    @Test
     @DisplayName("[TB-GAM-LDB-023] classifica INACTIVE: non accumula punteggi")
     void inactiveBoard() {
         String code = board("TB-GAM-LDB-023", "PTS_EARNED", "MONTH", 10, null);

@@ -145,3 +145,11 @@ it("[TB-WEB-PRX-015] servizio sconosciuto → 404 UNKNOWN_SERVICE, nessuna chiam
   expect(await res.json()).toEqual({ type: "UNKNOWN_SERVICE", service: "payments" });
   expect(calls).toHaveLength(0);
 });
+
+it("[TB-WEB-PRX-016] proxy generico spoglia query parameter 'resolve' per gamification", async () => {
+  process.env.LH_SVC_GAMIFICATION_URL = "http://gamification.test";
+  const res = await GET(get("http://localhost/api/lh/gamification/v1/portal/leaderboards?resolve=ids&other=test"), ctx("gamification", ["v1", "portal", "leaderboards"]));
+  expect(res.status).toBe(200);
+  expect(calls[0].url).toBe("http://gamification.test/v1/portal/leaderboards?other=test");
+  delete process.env.LH_SVC_GAMIFICATION_URL;
+});

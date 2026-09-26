@@ -36,6 +36,10 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import io.loyaltyhub.member.api.NicknamesRequest;
+import io.loyaltyhub.member.api.NicknamesResponse;
+import io.loyaltyhub.common.privacy.PersonalData;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -304,6 +308,22 @@ public class MemberService {
                 "Membro " + id + " anonimizzato: dati personali rimossi",
                 Map.of("status", m.status().name()), Map.of("status", MemberStatus.ANONYMIZED.name()));
         return MemberView.of(updated, projections.findByMemberId(id).orElse(null));
+    }
+
+    public NicknamesResponse nicknames(NicknamesRequest request) {
+        if (request.memberIds() == null || request.memberIds().isEmpty() || request.memberIds().size() > 200) {
+            throw LhException.validation("TOO_MANY_IDS", "I memberIds devono essere tra 1 e 200.");
+        }
+        List<Member> byIds = members.findByIds(request.memberIds());
+        List<NicknamesResponse.Item> items = new ArrayList<>();
+        for (Member m : byIds) {
+            if (m.status() == MemberStatus.ANONYMIZED) {
+                items.add(new NicknamesResponse.Item(m.id(), PersonalData.PLACEHOLDER));
+            } else {
+                items.add(new NicknamesResponse.Item(m.id(), m.nickname()));
+            }
+        }
+        return new NicknamesResponse(items);
     }
 
     // ---------- interni ----------

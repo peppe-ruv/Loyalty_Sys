@@ -136,6 +136,14 @@ public class MemberRepository {
                 .param(TextArrays.literal(ids)).query(String.class).list();
     }
 
+    public List<Member> findByIds(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return jdbc.sql("SELECT * FROM member WHERE id = ANY(?::text[])")
+                .param(TextArrays.literal(ids)).query(MemberRepository::map).list();
+    }
+
     public List<Member> search(String q, MemberStatus status, String tier, int limit, int offset) {
         return search(q, status, tier, null, limit, offset);
     }

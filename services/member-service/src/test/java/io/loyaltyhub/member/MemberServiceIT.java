@@ -83,6 +83,32 @@ class MemberServiceIT {
     }
 
     @Test
+    void nicknamesBatch() {
+        // Nessun ID → 400 (qui il test helper intercetta il body e non solleva l'eccezione se ci si aspetta 400, o lo solleva se aspettato e la macro non fa quello)
+        // Ma il test dice che post torna un JsonNode. post() verifica il codice di stato internamente (assertEqual a expected).
+        try {
+            post("/v1/members/nicknames", Map.of("memberIds", List.of()), 400);
+            fail("Atteso errore TOO_MANY_IDS");
+        } catch (RestClientResponseException e) {
+            assertThat(e.getStatusCode().value()).isEqualTo(422);
+            assertThat(e.getResponseBodyAsString()).contains("TOO_MANY_IDS");
+        }
+
+        // Risoluzione MBR-000001 (esistente, attivo), MBR-000012 (esistente, anonimizzato) e un ID inesistente
+        JsonNode res = post("/v1/members/nicknames", Map.of("memberIds", List.of("MBR-000001", "MBR-000012", "NOT-FOUND")), 200);
+        assertThat(res.path("items").size()).isEqualTo(2); // "NOT-FOUND" non restituito (è così per il DB)
+
+        String n1 = null;
+        String n12 = null;
+        for (JsonNode item : res.path("items")) {
+            if ("MBR-000001".equals(item.path("memberId").asText())) n1 = item.path("nickname").asText();
+            if ("MBR-000012".equals(item.path("memberId").asText())) n12 = item.path("nickname").asText();
+        }
+        assertThat(n1).isNotNull().isNotEqualTo("Membro anonimo");
+        assertThat(n12).isEqualTo("Membro anonimo");
+    }
+
+    @Test
     void searchFiltersByTierStatusAndQuery() {
         assertThat(get("/v1/members?tier=GOLD").path("page").path("totalItems").asInt()).isEqualTo(3);
         assertThat(get("/v1/members?status=BLOCKED").path("page").path("totalItems").asInt()).isEqualTo(1);
