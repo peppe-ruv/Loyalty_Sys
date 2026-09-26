@@ -12,10 +12,80 @@ Non conosce i saldi: il controllo del saldo è del wallet. Il campo `reachable` 
 | `reward_category` | `code` PK, `name`, `icon`, `sort_order` |
 | `reward_band` | `code` PK (`F1`…`F5`), `name`, `points_threshold` UQ, `color`, `sort_order` |
 | `reward` | `id`, `code` UQ, `name`, `description`, `terms`, `image_url`, `type` (`PHYSICAL, COUPON, DIGITAL, DONATION, EXPERIENCE`), `category_code`, `band_code`, `fulfilment` (`AUTO_COUPON, MANUAL, INSTANT`), `coupon_pool_id` null, `stock_total` null = illimitato, `stock_remaining`, `per_member_limit` null, `eligible_tiers text[]`, `eligible_segments text[]`, `valid_from`, `valid_to`, `status` (ciclo §3.6 di `docs/03`), `version`, `created_by`, `updated_at` |
-| `coupon_pool` | `id`, `code` UQ, `name`, `prefix`, `validity_days`, `total`, `available` |
-| `coupon` | `code` PK, `pool_id`, `status` (`AVAILABLE, ISSUED, USED, EXPIRED, VOID`), `member_id`, `reward_code`, `origin` (`REDEMPTION, CAMPAIGN`), `redemption_id`, `effect_id` UQ null, `issued_at`, `expires_at`, `used_at` |
+| `coupon_pool` | `id`, `code` UQ, `name`, `prefix`, `validity_days`, `seed` (generazione deterministica dei codici), `created_at`. Disponibili e totali si contano da `coupon` per stato (V2 ha rimosso `total` e `available`) |
+| `coupon` | `code` PK, `pool_id`, `status` (`AVAILABLE, ISSUED, USED, EXPIRED, VOID`), `member_id`, `reward_code`, `origin` (`REDEMPTION, CAMPAIGN`), `redemption_id`, `effect_id` UQ null, `issued_at`, `expires_at`, `used_at`, `voided_at`, `created_at` |
 | `redemption` | `id` (ULID), `member_id`, `reward_code`, `reward_name`, `points_cost`, `status` (`PENDING, CONFIRMED, FULFILLED, REJECTED, CANCELLED`), `reject_reason`, `needs_attention bool`, `coupon_code`, `fulfilment_note`, `shipping jsonb`, `correlation_id`, `requested_at`, `confirmed_at`, `closed_at`, `actor` |
+| `redemption_history` | `id`, `redemption_id` FK, `status`, `note`, `actor`, `at`: cronologia degli stati di una richiesta (`GET /v1/redemptions/{id}`) |
 | `reward_member_snapshot` | `member_id` PK, `status`, `tier_code`, `segments text[]`, `first_name`, `last_name`, `updated_at` (da fatti). Prefisso `reward_` per non collidere con `campaign.member_snapshot` nel search_path dell'hub (ADR-023) |
+
+Tracciato delle tabelle (docs/18 §3.12-bis, verificato sulle migrazioni `V1`–`V3`). Linee continue: vincolo `FOREIGN KEY` nella migrazione; tratteggiate: riferimento logico tenuto dal codice (richieste e coupon citano il premio per `code`, non per `id`). Delle tabelle comuni di lh-common (docs/06 §1) compare solo `approval_history`, che registra le transizioni dei premi (`entity_type = REWARD`, ciclo comune di docs/03 §3.6). Gli stati della richiesta e del coupon sono in docs/03 §5.
+
+```mermaid
+erDiagram
+  accTitle: Tabelle dello schema reward
+  accDescr: Il premio appartiene a una fascia, a una categoria facoltativa e a un pool di coupon facoltativo; il pool contiene i coupon; la richiesta premio cita il premio, ha la sua cronologia e può avere un coupon; lo snapshot del membro decide la visibilità.
+  reward_category {
+    text code PK
+  }
+  reward_band {
+    text code PK
+    bigint points_threshold UK
+  }
+  reward {
+    text id PK
+    text code UK
+    text category_code FK
+    text band_code FK
+    text coupon_pool_id FK
+    text status
+    bigint version
+  }
+  coupon_pool {
+    text id PK
+    text code UK
+  }
+  coupon {
+    text code PK
+    text pool_id FK
+    text status
+    text member_id
+    text reward_code "rif. reward.code"
+    text redemption_id "rif. redemption.id"
+    text effect_id UK
+  }
+  redemption {
+    text id PK
+    text member_id
+    text reward_code "rif. reward.code"
+    text status
+    text coupon_code "rif. coupon.code"
+  }
+  redemption_history {
+    text id PK
+    text redemption_id FK
+    text status
+  }
+  approval_history {
+    uuid id PK
+    text entity_type "REWARD"
+    text entity_id "rif. reward.id"
+    text to_status
+  }
+  reward_member_snapshot {
+    text member_id PK
+    text status
+    text tier_code
+  }
+  reward_band ||--o{ reward : "prezzo"
+  reward_category |o--o{ reward : "categoria"
+  coupon_pool |o--o{ reward : "pool AUTO_COUPON"
+  coupon_pool ||--o{ coupon : "codici"
+  reward ||..o{ redemption : "richiesto"
+  reward ||..o{ approval_history : "transizioni"
+  redemption ||--o{ redemption_history : "cronologia"
+  redemption |o..o| coupon : "coupon emesso"
+  reward_member_snapshot |o..o{ redemption : "richiedente"
+```
 
 ## 3. API
 ### Gestione
@@ -60,6 +130,22 @@ Errori di validazione immediata su `POST redemptions`: `422 REWARD_NOT_AVAILABLE
 | Consuma | `lh.facts.v1` | `wallet.points.spent`, `wallet.spend.rejected`, `member.registered/updated/status.changed`, `member.segment.entered/left`, `tier.upgraded/downgraded` |
 | Produce | `lh.facts.v1` | `reward.redemption.requested/confirmed/fulfilled/rejected/cancelled`, `coupon.issued`, `coupon.used`, `reward.status.changed` |
 | Produce | `lh.audit.v1` | scritture su catalogo, fasce, pool, evasioni, annulli |
+
+A sinistra i topic che reward consuma, a destra quelli su cui pubblica (tramite outbox, docs/04 §5). La saga di richiesta è in docs/04 §4.3.
+
+```mermaid
+flowchart LR
+  accTitle: Consumi e produzioni di reward-service
+  accDescr: reward consuma gli effetti coupon.issue e i fatti di spesa del wallet e su membri, segmenti e tier; pubblica i fatti delle richieste premio, dei coupon e di stato dei premi e le voci di audit.
+  TE(["lh.effects.v1"]) -->|"coupon.issue"| RWD["reward-service"]
+  TFI(["lh.facts.v1"]) -->|"wallet.points.spent, wallet.spend.rejected, member.*, member.segment.*, tier.*"| RWD
+  RWD -->|"reward.redemption.*, coupon.issued, coupon.used, reward.status.changed"| TFO(["lh.facts.v1"])
+  RWD -->|"catalogo, fasce, pool, evasioni, annulli"| TU(["lh.audit.v1"])
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef topic fill:#FEF3C7,stroke:#D97706,color:#78350F
+  class RWD svc
+  class TE,TFI,TFO,TU topic
+```
 
 ## 5. Regole
 Dominio in `docs/03 §5`. Note implementative:

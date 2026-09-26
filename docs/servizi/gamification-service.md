@@ -10,7 +10,7 @@ Non consegna i premi vinti: emette `contest.won`; la consegna avviene tramite po
 | Tabella | Colonne principali |
 |---|---|
 | `contest` | `id`, `code` UQ, `name`, `description`, `rules_text`, `mechanic` (`WHEEL, SCRATCH, BOX`), `start_at`, `end_at`, `free_play_daily bool`, `max_plays_per_member_per_day`, `max_wins_per_member` null, `distribution` (`UNIFORM, BUSINESS_HOURS`), `seed bigint`, `instants_generated_at`, `status`, `version` |
-| `prize` | `id`, `contest_id`, `code`, `name`, `type` (`POINTS, COUPON, PHYSICAL`), `points` null, `reward_code` null, `quantity_total`, `quantity_remaining`, `image_url`, `wheel_color`, `sort_order` |
+| `prize` | `id`, `contest_id`, `code`, `name`, `type` (`POINTS, COUPON, PHYSICAL`), `points` null, `reward_code` null, `quantity_total`, `quantity_remaining`, `image_url`, `wheel_color`, `sort_order` · UQ (`contest_id`,`code`) |
 | `winning_instant` | `id`, `contest_id`, `prize_id`, `instant_at`, `status` (`OPEN, CLAIMED, VOID`), `claimed_by`, `claimed_at`, `play_id`, `planted bool` · indice (`contest_id`,`status`,`instant_at`) |
 | `play_grant` | `id`, `member_id`, `contest_id`, `count`, `effect_id` UQ, `campaign_code`, `granted_at` |
 | `play` | `id` (ULID), `contest_id`, `member_id`, `kind` (`FREE_DAILY, CREDIT`), `outcome` (`WIN, LOSE`), `prize_id` null, `played_at`, `play_date` (`Europe/Rome`), `correlation_id`, `delivery_status` (`NA, PENDING, DELIVERED`), `delivery_note` |
@@ -20,7 +20,99 @@ Non consegna i premi vinti: emette `contest.won`; la consegna avviene tramite po
 | `member_badge` | (`member_id`,`badge_code`) PK, `origin`, `awarded_at`, `effect_id` UQ null |
 | `leaderboard` | `id`, `code` UQ, `name`, `metric` (`PTS_EARNED, STS_EARNED, ACTION_COUNT`), `action_types text[]`, `period` (`MONTH, EDITION, ALL_TIME`), `top_n`, `status` |
 | `leaderboard_score` | (`leaderboard_id`,`period_key`,`member_id`) PK, `score`, `reached_at` · indice per ranking |
-| `member_snapshot` | `member_id` PK, `nickname`, `status` |
+| `gamification_member_snapshot` | `member_id` PK, `nickname`, `status`, `updated_at`. Prefisso `gamification_` per non collidere con `campaign.member_snapshot` nel search_path dell'hub (ADR-023) |
+
+Tracciato delle tabelle (docs/18 §3.12-bis, verificato sulle migrazioni `V1`–`V2`). Linee continue: vincolo `FOREIGN KEY` nella migrazione; tratteggiate: riferimento logico tenuto dal codice (`winning_instant.play_id`, `achievement.badge_code`, i `member_id`). Delle tabelle comuni di lh-common (docs/06 §1) compare solo `approval_history`, che registra le transizioni dei concorsi (`entity_type = CONTEST`); il ciclo di vita del concorso è quello comune di docs/03 §3.6, quello degli istanti vincenti è in docs/03 §6.
+
+```mermaid
+erDiagram
+  accTitle: Tabelle dello schema gamification
+  accDescr: Il concorso ha premi in palio, istanti vincenti, crediti di gioco, giocate e storico delle transizioni; obiettivi, badge e classifiche hanno ciascuno le proprie righe per membro; lo snapshot del membro dà il soprannome a giocate e classifiche.
+  contest {
+    text id PK
+    text code UK
+    text status
+    bigint version
+  }
+  prize {
+    text id PK
+    text contest_id FK "UQ con code"
+    text code UK
+  }
+  winning_instant {
+    text id PK
+    text contest_id FK
+    text prize_id FK
+    text status
+    text play_id "rif. play.id"
+  }
+  play_grant {
+    text id PK
+    text contest_id FK
+    text member_id
+    text effect_id UK
+  }
+  play {
+    text id PK
+    text contest_id FK
+    text member_id
+    text prize_id FK "null se LOSE"
+    text delivery_status
+  }
+  approval_history {
+    uuid id PK
+    text entity_type "CONTEST"
+    text entity_id "rif. contest.id"
+    text to_status
+  }
+  achievement {
+    text id PK
+    text code UK
+    text badge_code "rif. badge.code"
+    text status
+  }
+  achievement_progress {
+    text achievement_id PK, FK
+    text member_id PK
+    text period_key PK
+  }
+  badge {
+    text code PK
+  }
+  member_badge {
+    text member_id PK
+    text badge_code PK, FK
+    text effect_id UK
+  }
+  leaderboard {
+    text id PK
+    text code UK
+    text status
+  }
+  leaderboard_score {
+    text leaderboard_id PK, FK
+    text period_key PK
+    text member_id PK
+  }
+  gamification_member_snapshot {
+    text member_id PK
+    text status
+  }
+  contest ||--o{ prize : "premi in palio"
+  contest ||--o{ winning_instant : "istanti"
+  prize ||--o{ winning_instant : "assegna"
+  contest ||--o{ play_grant : "crediti"
+  contest ||--o{ play : "giocate"
+  prize |o--o{ play : "vinto in"
+  play |o..o| winning_instant : "istante reclamato"
+  contest ||..o{ approval_history : "transizioni"
+  achievement ||--o{ achievement_progress : "progressi"
+  badge |o..o{ achievement : "badge del traguardo"
+  badge ||--o{ member_badge : "assegnato"
+  leaderboard ||--o{ leaderboard_score : "punteggi"
+  gamification_member_snapshot |o..o{ play : "giocatore"
+  gamification_member_snapshot |o..o{ leaderboard_score : "soprannome"
+```
 
 ## 3. API
 ### Gestione
@@ -62,6 +154,23 @@ Errori giocata: `422 CONTEST_NOT_LIVE`, `NO_PLAYS_AVAILABLE`, `DAILY_LIMIT_REACH
 | Consuma | `lh.facts.v1` | `member.registered/updated/status.changed`, `wallet.points.earned` |
 | Produce | `lh.facts.v1` | `contest.plays.granted`, `contest.played`, `contest.won`, `achievement.progressed`, `achievement.completed`, `badge.awarded`, `contest.status.changed` |
 | Produce | `lh.audit.v1` | scritture di configurazione, generazione istanti, istanti piantati, consegne |
+
+A sinistra i topic che gamification consuma, a destra quelli su cui pubblica (tramite outbox, docs/04 §5). La giocata arriva dal portale via HTTP (sequenza in docs/04 §4.4).
+
+```mermaid
+flowchart LR
+  accTitle: Consumi e produzioni di gamification-service
+  accDescr: gamification consuma tutte le azioni, gli effetti plays.grant e badge.award e i fatti su membri e punti accreditati; pubblica i fatti di concorsi, obiettivi e badge e le voci di audit.
+  TA(["lh.actions.v1"]) -->|"tutte: obiettivi, classifiche"| GAM["gamification-service"]
+  TE(["lh.effects.v1"]) -->|"plays.grant, badge.award"| GAM
+  TFI(["lh.facts.v1"]) -->|"member.registered/updated/status.changed, wallet.points.earned"| GAM
+  GAM -->|"contest.*, achievement.*, badge.awarded"| TFO(["lh.facts.v1"])
+  GAM -->|"configurazione, istanti, consegne"| TU(["lh.audit.v1"])
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef topic fill:#FEF3C7,stroke:#D97706,color:#78350F
+  class GAM svc
+  class TA,TE,TFI,TFO,TU topic
+```
 
 ## 5. Regole
 Dominio in `docs/03 §6, §8`. Note implementative:

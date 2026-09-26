@@ -16,6 +16,57 @@ Non applica gli effetti e non conosce i saldi.
 | `member_snapshot` | `member_id` PK, `status`, `tier_code`, `segments text[]`, `labels text[]`, `attributes jsonb`, `registered_at`, `birth_date` (solo dai fatti `:1`, rimossa con la `:1`), `birth_year`, `province` (M8.4, V4) |
 | `evaluation_log` | `action_id` PK, `member_id`, `action_type`, `action_time`, `evaluated_at`, `correlation_id`, `outcome` (`MATCHED, NO_MATCH, NO_MEMBER`), `results jsonb` |
 
+Tracciato delle tabelle (docs/18 §3.12-bis, verificato sulle migrazioni `V1`–`V4`). Le migrazioni di campaign non dichiarano vincoli `FOREIGN KEY`: tutte le relazioni sono logiche (linee tratteggiate) e le tiene il codice. Le tabelle comuni di lh-common (`outbox`, `processed_event`, `approval_history`, docs/06 §1) esistono in ogni schema; qui compare solo `approval_history`, che registra le transizioni delle campagne (`entity_type = CAMPAIGN`, docs/03 §3.6).
+
+```mermaid
+erDiagram
+  accTitle: Tabelle dello schema campaign
+  accDescr: La campagna ha contatori dei limiti per membro e periodo, un totale per campagna e lo storico delle transizioni; lo snapshot del membro è la chiave logica di contatori, storico delle azioni e registro delle valutazioni. Nessuna relazione ha un vincolo di chiave esterna.
+  campaign {
+    text id PK
+    text code UK
+    text status
+    bigint version
+  }
+  campaign_counter {
+    text campaign_id PK "rif. campaign.id"
+    text member_id PK
+    text period PK
+    text period_key PK
+  }
+  campaign_totals {
+    text campaign_id PK "rif. campaign.id"
+  }
+  approval_history {
+    uuid id PK
+    text entity_type "CAMPAIGN"
+    text entity_id "rif. campaign.id"
+    text to_status
+  }
+  member_snapshot {
+    text member_id PK
+    text status
+    text tier_code
+  }
+  member_action_counter {
+    text member_id PK
+    text action_type PK
+  }
+  evaluation_log {
+    text action_id PK
+    text member_id
+    text outcome
+  }
+  campaign ||..o{ campaign_counter : "limiti per periodo"
+  campaign ||..o| campaign_totals : "totali"
+  campaign ||..o{ approval_history : "transizioni"
+  member_snapshot ||..o{ campaign_counter : "per membro"
+  member_snapshot ||..o{ member_action_counter : "storico azioni"
+  member_snapshot |o..o{ evaluation_log : "valutazioni"
+```
+
+Dettaglio dello snapshot del membro (M8.4):
+
 ```mermaid
 erDiagram
   accTitle: Snapshot del membro nella campaign
@@ -63,6 +114,23 @@ erDiagram
 | Produce | `lh.effects.v1` | tutti gli `effect.*` |
 | Produce | `lh.facts.v1` | `campaign.evaluated`, `campaign.status.changed` |
 | Produce | `lh.audit.v1` | scritture da backoffice |
+
+A sinistra i topic che campaign consuma, a destra quelli su cui pubblica (sempre tramite outbox, docs/04 §5).
+
+```mermaid
+flowchart LR
+  accTitle: Consumi e produzioni di campaign-service
+  accDescr: campaign consuma tutte le azioni e i fatti su membri, tier, segmenti e punti accreditati; pubblica gli effetti, i fatti di valutazione e di stato delle campagne e le voci di audit.
+  TA(["lh.actions.v1"]) -->|"tutte le azioni"| CMP["campaign-service"]
+  TFI(["lh.facts.v1"]) -->|"member.*, member.segment.*, tier.*, wallet.points.earned"| CMP
+  CMP -->|"effect.*"| TE(["lh.effects.v1"])
+  CMP -->|"campaign.evaluated, campaign.status.changed"| TFO(["lh.facts.v1"])
+  CMP -->|"scritture da backoffice"| TU(["lh.audit.v1"])
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef topic fill:#FEF3C7,stroke:#D97706,color:#78350F
+  class CMP svc
+  class TA,TFI,TE,TFO,TU topic
+```
 
 ## 5. Regole
 - Algoritmo: `docs/03 §3.5`, senza deviazioni. Il motore è una classe pura `CampaignEngine.evaluate(action, memberSnapshot, campaigns, counters, clock)` testabile senza Spring.
