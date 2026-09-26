@@ -16,7 +16,7 @@
   <description>Starter condiviso: envelope CloudEvents, outbox/inbox, idempotenza, Kafka, errori RFC 9457, actor, seed loader (docs/06 §1).</description>
 
   <properties>
-    <networknt-json-schema.version>1.5.4</networknt-json-schema.version>
+    <networknt-json-schema.version>3.0.7</networknt-json-schema.version>
     <zonky-embedded-postgres.version>2.0.7</zonky-embedded-postgres.version>
   </properties>
 
