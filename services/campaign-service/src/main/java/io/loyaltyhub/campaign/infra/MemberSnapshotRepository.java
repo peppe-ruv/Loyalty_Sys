@@ -24,7 +24,7 @@ public class MemberSnapshotRepository {
     public Optional<MemberSnapshot> findById(String memberId) {
         return jdbc.sql("""
                         SELECT member_id, status, tier_code, segments, labels, attributes::text AS attributes,
-                               registered_at, birth_date
+                               registered_at, birth_date, birth_year, province
                         FROM member_snapshot WHERE member_id = ?
                         """)
                 .param(memberId)
@@ -33,7 +33,8 @@ public class MemberSnapshotRepository {
                         TextArrays.toList(rs.getArray("segments")), TextArrays.toList(rs.getArray("labels")),
                         json(rs.getString("attributes")),
                         rs.getTimestamp("registered_at") == null ? null : rs.getTimestamp("registered_at").toInstant(),
-                        rs.getObject("birth_date", LocalDate.class)))
+                        rs.getObject("birth_date", LocalDate.class),
+                        rs.getObject("birth_year", Integer.class), rs.getString("province")))
                 .optional();
     }
 
@@ -46,19 +47,29 @@ public class MemberSnapshotRepository {
 
     public void upsertIdentity(String memberId, String status, String tier, java.time.Instant registeredAt,
                                LocalDate birthDate, String attributesJson) {
+        upsertIdentity(memberId, status, tier, registeredAt, birthDate,
+                birthDate == null ? null : birthDate.getYear(), null, attributesJson);
+    }
+
+    /** Identità da {@code member.registered/updated} {@code :1} o {@code :2} (ADR-032): i campi assenti non cancellano. */
+    public void upsertIdentity(String memberId, String status, String tier, java.time.Instant registeredAt,
+                               LocalDate birthDate, Integer birthYear, String province, String attributesJson) {
         jdbc.sql("""
-                        INSERT INTO member_snapshot (member_id, status, tier_code, registered_at, birth_date, attributes)
-                        VALUES (?, ?, coalesce(?, 'BASE'), ?, ?, cast(coalesce(?, '{}') AS jsonb))
+                        INSERT INTO member_snapshot (member_id, status, tier_code, registered_at, birth_date, birth_year,
+                                                     province, attributes)
+                        VALUES (?, ?, coalesce(?, 'BASE'), ?, ?, ?, ?, cast(coalesce(?, '{}') AS jsonb))
                         ON CONFLICT (member_id) DO UPDATE SET
                           status = excluded.status,
                           tier_code = coalesce(excluded.tier_code, member_snapshot.tier_code),
                           registered_at = coalesce(excluded.registered_at, member_snapshot.registered_at),
                           birth_date = coalesce(excluded.birth_date, member_snapshot.birth_date),
+                          birth_year = coalesce(excluded.birth_year, member_snapshot.birth_year),
+                          province = coalesce(excluded.province, member_snapshot.province),
                           attributes = excluded.attributes
                         """)
                 .params(memberId, status, tier,
                         registeredAt == null ? null : java.sql.Timestamp.from(registeredAt),
-                        birthDate, attributesJson)
+                        birthDate, birthYear, province, attributesJson)
                 .update();
     }
 
@@ -104,7 +115,7 @@ public class MemberSnapshotRepository {
         jdbc.sql("""
                         INSERT INTO member_snapshot (member_id, status) VALUES (?, 'ANONYMIZED')
                         ON CONFLICT (member_id) DO UPDATE SET status = 'ANONYMIZED', birth_date = NULL,
-                          attributes = '{}'::jsonb
+                          birth_year = NULL, province = NULL, attributes = '{}'::jsonb
                         """)
                 .param(memberId).update();
     }

@@ -240,6 +240,8 @@ export function buildCatalog(input: CatalogInput): ConditionField[] {
     { path: "member.labels", label: "Etichette", space: "member", type: "list", hint: "es. ebill" },
     { path: "member.registeredDaysAgo", label: "Giorni dall'iscrizione", space: "member", type: "number" },
     { path: "member.age", label: "Età (anni)", space: "member", type: "number" },
+    // member.*:2 (ADR-032, M8.4): territorio come sigla di provincia; la città non viaggia più sul bus.
+    { path: "member.province", label: "Provincia (sigla)", space: "member", type: "string", hint: "es. TO" },
   );
   for (const a of input.attributes ?? []) out.push(attributeField(a));
   out.push(

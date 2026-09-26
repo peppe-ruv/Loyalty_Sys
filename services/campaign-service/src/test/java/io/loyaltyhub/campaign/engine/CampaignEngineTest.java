@@ -768,6 +768,32 @@ class CampaignEngineTest {
                 JSON.createObjectNode()), born, null).evaluate(adult25).pass()).isFalse();
     }
 
+    /**
+     * M8.4, ADR-032, Q-366: con {@code member.*:2} arriva solo l'anno di nascita; l'età è quella minima certa (anni
+     * compiuti di sicuro), l'ultimo giorno dell'anno il compleanno è certo passato. {@code member.province} dalla sigla.
+     */
+    @Test
+    void memberAgeAndProvinceFromBirthYear() {
+        MemberSnapshot v2 = new MemberSnapshot("MBR-000003", "ACTIVE", "SILVER", List.of(), List.of(),
+                JSON.createObjectNode(), Instant.parse("2024-01-01T00:00:00Z"), null, 2000, "TO");
+        JsonNode adult25 = JSON.readTree("{\"field\":\"member.age\",\"cmp\":\"gte\",\"value\":25}");
+        JsonNode age24 = JSON.readTree("{\"field\":\"member.age\",\"cmp\":\"eq\",\"value\":24}");
+        JsonNode turin = JSON.readTree("{\"field\":\"member.province\",\"cmp\":\"eq\",\"value\":\"TO\"}");
+        EvalAction midYear = action("purchase.completed", Instant.parse("2025-06-01T10:00:00Z"), JSON.createObjectNode());
+        // Nel 2025 un nato nel 2000 ha 24 o 25 anni: vale 24, l'età certa.
+        assertThat(new ConditionEvaluator(midYear, v2, null).evaluate(age24).pass()).isTrue();
+        assertThat(new ConditionEvaluator(midYear, v2, null).evaluate(adult25).pass()).isFalse();
+        // Il 31/12 a Roma i 25 anni sono certi.
+        assertThat(new ConditionEvaluator(action("purchase.completed", Instant.parse("2025-12-31T10:00:00Z"),
+                JSON.createObjectNode()), v2, null).evaluate(adult25).pass()).isTrue();
+        assertThat(new ConditionEvaluator(midYear, v2, null).evaluate(turin).pass()).isTrue();
+        // Senza anno né provincia: campo assente, la condizione non passa.
+        MemberSnapshot unknown = new MemberSnapshot("MBR-000004", "ACTIVE", "BASE", List.of(), List.of(),
+                JSON.createObjectNode(), Instant.parse("2024-01-01T00:00:00Z"), null, null, null);
+        assertThat(new ConditionEvaluator(midYear, unknown, null).evaluate(age24).pass()).isFalse();
+        assertThat(new ConditionEvaluator(midYear, unknown, null).evaluate(turin).pass()).isFalse();
+    }
+
     private EvalAction purchase(Instant t, double amount) {
         return action("purchase.completed", t, JSON.createObjectNode().put("amount", amount).put("currency", "EUR"));
     }
