@@ -50,3 +50,5 @@ TB-ING-PIP-048|tipo sconosciuto + tipo non ammesso dalla fonte + amount -1 + tim
 TB-ING-PIP-049|tipo non ammesso dalla fonte + amount -1 + time = adesso + 10 min + (fonte, id) già ACCEPTED + membro non in indice|N|N|N|S|S|S|S|S|N|202|REJECTED|TYPE_NOT_ALLOWED|REJECTED/TYPE_NOT_ALLOWED (vince tipo non ammesso dalla fonte)|ingestion §5 §5.3; ordine §5
 TB-ING-PIP-050|amount -1 + time = adesso + 10 min + (fonte, id) già ACCEPTED + membro non in indice|N|N|N|N|S|S|S|S|N|202|REJECTED|INVALID_DATA|REJECTED/INVALID_DATA (vince amount -1)|ingestion §5 §5.4; ordine §5
 TB-ING-PIP-051|time = adesso + 10 min + (fonte, id) già ACCEPTED + membro non in indice|N|N|N|N|N|S|S|S|N|202|REJECTED|INVALID_TIME|REJECTED/INVALID_TIME (vince time = adesso + 10 min)|ingestion §5 §5.5; ordine §5
+TB-ING-PIP-052|batch di 1000 eventi entro il timeout|N|N|N|N|N|N|N|N|N|200|-|-|200 OK con tutti accettati|F2-ING-01, M8.7
+TB-ING-PIP-053|import asincrono di CSV e NDJSON con errori parziali|N|N|N|N|N|N|N|N|N|202|-|-|Import concluso con errori su una sola riga, file processato in background|F2-ING-02, M8.7, BO-32

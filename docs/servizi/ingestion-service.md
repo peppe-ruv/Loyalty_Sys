@@ -16,6 +16,8 @@ Non valuta regole, non conosce punti o premi.
 | `internal_mapping` | `fact_type` PK, `action_type`, `enabled` |
 | `scenario` | `code` PK, `name`, `description`, `steps jsonb` |
 | `scenario_run` | `id`, `scenario_code`, `started_at`, `finished_at`, `status`, `steps_total`, `steps_done`, `actor` |
+| `import_job` | `id` PK (ULID interno), `kind` (`EVENTS`), `format` (`CSV`, `NDJSON`), `filename`, `status` (`QUEUED`, `RUNNING`, `DONE`, `FAILED`), `created_by`, `created_at`, `finished_at`, `rows_total`, `rows_accepted`, `rows_duplicate`, `rows_rejected`, `rows_unmatched`, `rows_failed` |
+| `import_row_result` | `job_id` PK, `row_number` PK, `status`, `code`, `detail`, `event_id` |
 
 Pulizia: `inbound_event` > 7 giorni (o oltre 20 000 righe: si eliminano le più vecchie).
 
@@ -25,10 +27,15 @@ Pulizia: `inbound_event` > 7 giorni (o oltre 20 000 righe: si eliminano le più 
 |---|---|---|
 | POST | `/v1/events` | corpo = CloudEvent. `202 {eventId, status, memberId?, rejectCode?}`. Errori di forma → `400` RFC 9457 (corpo assente o non JSON, attributo obbligatorio mancante, `data` non oggetto, `time` non RFC 3339); rifiuti di business → `202` con `status=REJECTED` (la fonte non deve ritentare). `source` = `urn:loyaltyhub:source:<codice>` con confronto esatto sul codice (un URN di servizio o estraneo non è una fonte → `SOURCE_DISABLED`); la forma breve senza `:` (`ecommerce`) è un errore di forma → `400` (Q-258: resta ammessa solo ai chiamanti interni — simulatore, scenari, transazioni) |
 | POST | `/v1/transactions` | `{source, orderId, memberRef, amount, currency, channel, items[], occurredAt}` → azione `purchase.completed` con `id = "txn-" + orderId` (P1). `source`, `orderId`, `memberRef` mancanti o `kind` sconosciuto → `400`; `amount`/`currency` mancanti → l'azione si costruisce senza e lo schema la respinge: `202 REJECTED/INVALID_DATA`, visibile in BO-26 (Q-269) |
+| POST | `/v1/events/batch` | corpo = `{ "events": [ ... ] }` (max 1000, oltre → `400 BATCH_TOO_LARGE`). `200 { items: [{ index, status, eventId, code, detail }], summary: {...} }` |
 
 ### Gestione (backoffice)
 | Metodo | Path | Note |
 |---|---|---|
+| POST | `/v1/imports` | Multipart upload `file` (NDJSON o CSV, max 10 000 righe e 5 MB), `kind=EVENTS`. `202` job asincrono in `import_job` (Q-365, Q-366, Q-367) |
+| GET | `/v1/imports` | Elenco paginato job |
+| GET | `/v1/imports/{id}` | Job e counters |
+| GET | `/v1/imports/{id}/rows` | Parametro opzionale `status` per filtrare le righe |
 | GET | `/v1/inbound-events` | filtri `status, source, type, memberId, from, to, q`: `from`/`to` istanti ISO-8601 su `received_at` (estremi inclusi, malformati → `400`); `q` testo cercato senza maiuscole in id evento, soggetto, membro, tipo, fonte, correlazione e dettaglio del rifiuto; `limit` (default 100, max 500). Risposta: array delle righe, più recenti prima |
 | GET | `/v1/inbound-events/counts` | conteggi per esito `{ACCEPTED, DUPLICATE, REJECTED, UNMATCHED}` con gli stessi filtri dell'elenco tranne `status` (schede di BO-26) |
 | GET | `/v1/inbound-events/{id}` | payload completo + `correlationId` per aprire il tracciato |
@@ -81,7 +88,40 @@ Scenari: i passi sono `{delayMs, memberId, type, data, source, note, at?}` (`at`
 
 Riferimento: `docs/18`. Le righe qui sotto sono segnaposto dell'adozione (M8.0): la fetta citata le rende normative aggiornando questa scheda.
 
-- **Ingresso batch e import file** (M8.7, F2-ING-01/02): `POST /v1/events/batch` fino a 1000 con esito per elemento; import file asincrono con rapporto (BO-32).
+- **Ingresso batch e import file** (M8.7, F2-ING-01/02): `POST /v1/events/batch` fino a 1000 con esito per elemento; import file asincrono con rapporto (BO-32). Implementati.
+
+```mermaid
+erDiagram
+  accTitle: Relazione import_job
+  accDescr: Le tabelle di import
+  import_job ||--o{ import_row_result : "contiene risultati riga"
+  import_job {
+    text id PK
+    text kind
+    text format
+    text filename
+    text status
+    int rows_total
+    int rows_accepted
+  }
+  import_row_result {
+    text job_id PK
+    int row_number PK
+    text status
+    text event_id
+  }
+```
+
+```mermaid
+stateDiagram-v2
+  accTitle: Ciclo di vita import_job
+  accDescr: Stati da accodato ad esito finale.
+  [*] --> QUEUED : Caricamento file
+  QUEUED --> RUNNING : Inizio elaborazione
+  RUNNING --> DONE : Tutte le righe completate
+  RUNNING --> FAILED : Errore critico (o riavvio, Q-366)
+  QUEUED --> FAILED : Riavvio (Q-366)
+```
 - **Identità delle fonti** (ADR-027, M8.2): client credentials per fonte (`private_key_jwt` o mTLS) al posto dell'ingresso aperto.
 - **Dati personali** (ADR-032, M8.4): `member_index.email_lower` resta solo per l'abbinamento; `inbound_event.payload` con dati personali ha retention breve.
 

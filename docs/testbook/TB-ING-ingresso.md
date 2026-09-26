@@ -1217,3 +1217,5 @@ la più conservativa, la voce lo dice e propone l'alternativa senza implementarl
 Voci nate dalle correzioni, senza righe AMBIGUO: Q-263 (`POST /v1/sources`, FON-003), Q-264 (ampiezza delle variazioni
 del simulatore, SIM-015), Q-271 (composizione dello storico demo, MON-010), Q-272 (semantica di `from`/`to`/`q`, MON-008/009).
 
+| TB-ING-PIP-052 | batch di 1000 eventi entro il timeout | 200 OK con tutti accettati | F2-ING-01, M8.7 | `BatchIngestionIT` |
+| TB-ING-PIP-053 | import asincrono di CSV e NDJSON con errori parziali | Import concluso con errori su una sola riga, file processato in background | F2-ING-02, M8.7, BO-32 | `ImportFileIT` |
