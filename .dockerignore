@@ -2,7 +2,6 @@
 .git/
 .github/
 docs/
-web/
 node_modules/
 **/target/
 **/node_modules/
@@ -14,3 +13,8 @@ node_modules/
 .idea/
 .vscode/
 .DS_Store
+
+# Explicit web ignores
+web/node_modules/
+web/.next/
+web/.env*
