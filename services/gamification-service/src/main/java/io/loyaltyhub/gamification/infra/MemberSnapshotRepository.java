@@ -25,13 +25,18 @@ public class MemberSnapshotRepository {
                 .optional();
     }
 
+    /**
+     * Inserisce o aggiorna lo snapshot. {@code nickname} o {@code status} {@code null} (campo assente, es. in
+     * {@code member.*:2}) non sovrascrivono il valore salvato; alla prima riga lo stato assente vale {@code ACTIVE}.
+     */
     public void upsert(String memberId, String nickname, String status) {
         jdbc.sql("""
-                        INSERT INTO gamification_member_snapshot (member_id, nickname, status) VALUES (?, ?, ?)
+                        INSERT INTO gamification_member_snapshot (member_id, nickname, status)
+                        VALUES (?, ?, COALESCE(CAST(? AS TEXT), 'ACTIVE'))
                         ON CONFLICT (member_id) DO UPDATE SET nickname = COALESCE(excluded.nickname, gamification_member_snapshot.nickname),
-                          status = excluded.status, updated_at = now()
+                          status = COALESCE(CAST(? AS TEXT), gamification_member_snapshot.status), updated_at = now()
                         """)
-                .params(memberId, nickname, status == null ? "ACTIVE" : status)
+                .params(memberId, nickname, status, status)
                 .update();
     }
 

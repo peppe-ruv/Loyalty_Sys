@@ -32,6 +32,7 @@ Non possiede saldi né tier (sono del wallet): li riflette.
 | PUT | `/v1/segments/{id}/members` | solo `STATIC`: sostituisce l'elenco |
 | GET/PUT | `/v1/attribute-definitions` | PUT sostituisce l'elenco; una chiave con valori sui membri non si toglie né cambia tipo (Q-93), e le sue opzioni non si restringono (né si introducono) se un valore presente ne resterebbe fuori (Q-306): `409 ATTRIBUTE_IN_USE` |
 | GET | `/v1/referral/overview` | totali: inviti, completati, tasso, top presentatori |
+| POST | `/v1/members/nicknames` | soprannomi a lotti per il BFF (Q-368, M8.4): `{memberIds: [..]}` da 1 a 200 id → `{items: [{memberId, nickname}]}`, una voce per id (senza doppioni, nell'ordine), `nickname` `null` se il membro non esiste o non ne ha, `Membro anonimo` se `ANONYMIZED`; oltre 200 id `400 TOO_MANY_IDS`, lista vuota `400 BAD_REQUEST` (errore sul campo `memberIds`). Sola lettura: nessun fatto né audit |
 
 ### Portale
 | Metodo | Path | Note |
@@ -75,6 +76,7 @@ Non possiede saldi né tier (sono del wallet): li riflette.
 Riferimento: `docs/18`. Le righe qui sotto sono segnaposto dell'adozione (M8.0): la fetta citata le rende normative aggiornando questa scheda.
 
 - **Dati personali fuori dal bus** (ADR-032, M8.4): `member.registered`/`member.updated` in versione `:2` con soli dati non identificativi (`birthYear`, `province`, `locale`, attributi `pii:false`), doppia lettura `:1`/`:2` (Q-346); modulo `delivery` con adattatori SMTP/WEBHOOK, unico proprietario dei contatti; cifratura a colonna di `email` e `phone` (F2-SEC-04).
+- **Soprannomi per classifiche e vincitori** (Q-368, M8.4 parte 2d): senza `nickname` sul bus, gamification espone solo i `memberId` (`resolve=ids`) e il BFF, lato server, chiede i soprannomi con `POST /v1/members/nicknames` (§3). Il browser del portale non riceve mai gli id degli altri membri. L'endpoint segue le altre letture del servizio (nessun `@RequiresRole`); nel profilo `enterprise` lo chiama solo il BFF con la propria identità (M8.2/M8.10).
 - **Identità** (ADR-027, M8.2): `member.external_id = sub` del token OIDC; nel portale il membro viene solo da `MemberPrincipal`.
 - **Attività del membro** (ADR-043, M8.12): tabella `member_activity_entry` (login da Keycloak, consensi, giocate, riscatti, azioni dal portale), in BO-03 (tab «Attività») e PT-18 «La mia attività»; lettura diretta da member-service (Q-356).
 - **Punteggi esterni** (ADR-045, M13.5): `attribute_definition.kind=SCORE` con validità; mai nel portale né in effetti negativi.

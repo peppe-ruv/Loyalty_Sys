@@ -252,6 +252,41 @@ class ContestIT {
         assertThat(status("POST", "/v1/plays/NOPE/delivery", "CARE:paolo", Map.of("status", "DELIVERED"))).isEqualTo(404);
     }
 
+    /**
+     * Q-368 (ADR-032, F2-EVT-02): con {@code resolve=ids} vincitori ed export portano il {@code memberId} senza il
+     * soprannome dello snapshot (lo inserisce il BFF da member-service); senza parametro la risposta non cambia.
+     */
+    @Test
+    void winnersResolveIdsOmitsTheSnapshotNickname() {
+        JsonNode plain = send("GET", "/v1/contests/IW-AUTUNNO/winners", "ANALYST:sara", null, 200);
+        JsonNode seeded = winnerOf(plain, "MBR-000010");
+        assertThat(seeded.path("nickname").asString()).as("risposta di sempre").isEqualTo("matt_r");
+
+        JsonNode ids = send("GET", "/v1/contests/IW-AUTUNNO/winners?resolve=ids", "ANALYST:sara", null, 200);
+        assertThat(ids.size()).isEqualTo(plain.size());
+        JsonNode resolved = winnerOf(ids, "MBR-000010");
+        assertThat(resolved.hasNonNull("nickname")).isFalse();
+        assertThat(resolved.path("prizeCode").asString()).isEqualTo(seeded.path("prizeCode").asString());
+        assertThat(ids.toString()).doesNotContain("matt_r");
+
+        String csv = RestClient.create("http://localhost:" + port).get().uri("/v1/contests/IW-AUTUNNO/winners.csv?resolve=ids")
+                .retrieve().body(String.class);
+        assertThat(csv).startsWith("playId,memberId,nickname,prizeCode");
+        assertThat(csv).contains(",MBR-000010,,").doesNotContain("matt_r");
+
+        assertThat(send("GET", "/v1/contests/IW-AUTUNNO/winners?resolve=names", "ANALYST:sara", null, 400)
+                .path("code").asString()).isEqualTo("BAD_REQUEST");
+    }
+
+    private static JsonNode winnerOf(JsonNode winners, String memberId) {
+        for (JsonNode w : winners) {
+            if (memberId.equals(w.path("memberId").asString())) {
+                return w;
+            }
+        }
+        throw new AssertionError("vincita di " + memberId + " assente: " + winners);
+    }
+
     // ---------- helper ----------
 
     /** M7.6: versione letta dall'editor (409 se superata) e *Duplica* in bozza con premi pieni e istanti da generare. */

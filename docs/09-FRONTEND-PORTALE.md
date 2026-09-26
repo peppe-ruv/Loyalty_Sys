@@ -114,6 +114,7 @@ Una voce non ancora realizzata non compare (stessa regola del backoffice).
 ### PT-10 — Classifica
 - **Dati**: `gamification GET /v1/portal/leaderboards`, `/v1/portal/leaderboards/{code}`.
 - **Layout**: selettore classifica (mese / edizione) · podio dei primi 3 · elenco top N con nickname, punteggio · **riga del membro sempre visibile** (fissata in basso se fuori dalla top N: "Sei 14°"). Solo nickname, mai nomi reali.
+- **Soprannomi (Fase 2, Q-368)**: il proxy `/api/lh` chiede a gamification la variante `resolve=ids`, inserisce lato server i soprannomi di member-service e al browser restituisce solo `{rank, nickname, score, isMe}` (`isMe` calcolato dal membro che chiede): mai i `memberId` degli altri membri. Se member-service non risponde la classifica resta visibile con `Giocatore <rank>` al posto del soprannome; stati *loading/empty/error/degraded* invariati.
 
 ### PT-11 — Porta un amico
 - **Dati**: `member GET /v1/portal/members/{id}/referral`.

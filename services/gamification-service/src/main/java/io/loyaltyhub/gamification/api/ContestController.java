@@ -170,17 +170,21 @@ public class ContestController {
 
     @GetMapping("/contests/{id}/winners")
     @Transactional(readOnly = true)
-    public List<PlayRepository.Winner> winners(@PathVariable String id) {
-        return plays.winners(admin.get(id).id());
+    public List<PlayRepository.Winner> winners(@PathVariable String id, @RequestParam(required = false) String resolve) {
+        boolean ids = Resolve.ids(resolve);
+        List<PlayRepository.Winner> winners = plays.winners(admin.get(id).id());
+        return ids ? winners.stream().map(PlayRepository.Winner::withoutNickname).toList() : winners;
     }
 
     @GetMapping(value = "/contests/{id}/winners.csv", produces = "text/csv")
     @Transactional(readOnly = true)
-    public ResponseEntity<String> winnersCsv(@PathVariable String id) {
+    public ResponseEntity<String> winnersCsv(@PathVariable String id, @RequestParam(required = false) String resolve) {
+        // Con resolve=ids (Q-368) la colonna nickname resta vuota: la riempie il BFF da member-service.
+        boolean ids = Resolve.ids(resolve);
         Contest c = admin.get(id);
         StringBuilder csv = new StringBuilder("playId,memberId,nickname,prizeCode,prizeName,prizeType,playedAt,deliveryStatus,deliveryNote\n");
         for (PlayRepository.Winner w : plays.winners(c.id())) {
-            csv.append(String.join(",", cell(w.playId()), cell(w.memberId()), cell(w.nickname()), cell(w.prizeCode()),
+            csv.append(String.join(",", cell(w.playId()), cell(w.memberId()), cell(ids ? null : w.nickname()), cell(w.prizeCode()),
                     cell(w.prizeName()), cell(w.prizeType()), cell(w.playedAt() == null ? null : w.playedAt().toString()),
                     cell(w.deliveryStatus()), cell(w.deliveryNote()))).append('\n');
         }

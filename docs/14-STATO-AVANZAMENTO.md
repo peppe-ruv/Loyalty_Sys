@@ -361,7 +361,7 @@ Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della 
 - [~] M8.1 — immagine unica a ruoli — _in revisione: PR #52_
 - [~] M8.2 — identità (Keycloak `idp`, BFF, OIDC) — _parte a (Keycloak `idp`, realm as code, IdP e LDAP di prova) in revisione: PR #57_
 - [ ] M8.3 — chart Helm e compose di riferimento
-- [~] M8.4 — PII fuori dal bus — _parte 1 (contratti `x-lh-pii`, `member.*:2`, test) in revisione: PR #50; parte 2a (campaign: età e provincia, doppia lettura) PR #53; parte 2c (reward: doppia lettura, note svuotate all'anonimizzazione) PR #72; parte 2e (engagement: doppia lettura) PR #59; parte 2f (insight: doppia lettura, `emailHash` in anonimizzazione) PR #58; resto della parte 2 (produttore, altri consumer, delivery, cifratura) da fare_
+- [~] M8.4 — PII fuori dal bus — _parte 1 (contratti `x-lh-pii`, `member.*:2`, test) in revisione: PR #50; parte 2a (campaign: età e provincia, doppia lettura) PR #53; parte 2c (reward: doppia lettura, note svuotate all'anonimizzazione) PR #72; parte 2e (engagement: doppia lettura) PR #59; parte 2f (insight: doppia lettura, `emailHash` in anonimizzazione) PR #58; parte 2d (soprannomi) PR #78; resto della parte 2 (produttore, altri consumer, delivery, cifratura) da fare_
 - [ ] M8.5 — sicurezza di piattaforma
 - [ ] M8.6 — osservabilità
 - [ ] M8.7 — ingresso batch e import file (BO-32)

@@ -30,11 +30,11 @@ Non consegna i premi vinti: emette `contest.won`; la consegna avviene tramite po
 | POST | `/v1/contests/{id}/transitions` | verso `LIVE` richiede istanti generati (`422 INSTANTS_NOT_GENERATED`) |
 | POST | `/v1/contests/{id}/instants/generate` | `{seed?}`; rigenera da zero; vietato da `LIVE` in poi (`409`); senza premi o con `BUSINESS_HOURS` senza ore 08–22 nel periodo → `422 CONTEST_INVALID` (Q-294) |
 | GET | `/v1/contests/{id}/instants` | **solo `ADMIN`/`LEGAL`** (altri `403`); filtri `status, prizeId`; + `GET …/instants/histogram` (conteggio per giorno, visibile ad `ADMIN`, `MARKETING` e `LEGAL`; `CARE`/`ANALYST` `403 FORBIDDEN_ROLE`, Q-303) |
-| GET | `/v1/contests/{id}/winners` · `…/winners.csv` | giocate `WIN` con membro, premio, stato consegna |
+| GET | `/v1/contests/{id}/winners` · `…/winners.csv` | giocate `WIN` con membro, premio, stato consegna; `?resolve=ids` (Q-368): senza il soprannome dello snapshot (colonna `nickname` vuota nel CSV), lo inserisce il BFF da member-service |
 | POST | `/v1/plays/{playId}/delivery` | `{status, note}` per premi `PHYSICAL` — `CARE/ADMIN` |
 | GET | `/v1/contests/{id}/stats` | giocate, vincite, tasso, premi residui, serie giornaliera |
 | GET/POST/PUT | `/v1/achievements`, `/v1/badges`, `/v1/leaderboards` | |
-| GET | `/v1/leaderboards/{code}/ranking?periodKey=&limit=` | |
+| GET | `/v1/leaderboards/{code}/ranking?periodKey=&limit=&resolve=` | `resolve=ids` (Q-368): voci con `memberId` senza soprannome, lo inserisce il BFF |
 | GET | `/v1/members/{memberId}/gamification` | riepilogo per Scheda 360°: crediti, giocate, vincite, progressi, badge, posizioni |
 | GET | `/v1/approvals` | concorsi `IN_REVIEW` |
 
@@ -46,7 +46,7 @@ Non consegna i premi vinti: emette `contest.won`; la consegna avviene tramite po
 | GET | `/v1/portal/contests/{code}/plays?memberId=` | storico giocate |
 | GET | `/v1/portal/achievements?memberId=` | `{code, name, description, icon, value, target, pct, periodKey, completedAt?, badge?}` |
 | GET | `/v1/portal/badges?memberId=` | ottenuti + da ottenere (in grigio) |
-| GET | `/v1/portal/leaderboards?memberId=` · `/v1/portal/leaderboards/{code}?memberId=` | `{top[] {rank, nickname, score, isMe}, me: {rank, score}}` |
+| GET | `/v1/portal/leaderboards?memberId=` · `/v1/portal/leaderboards/{code}?memberId=` | `{top[] {rank, nickname, score, isMe}, me: {rank, score}}`; con `resolve=ids` (Q-368, solo per il BFF) ogni voce porta `memberId` al posto di `nickname`. Il BFF (`/api/lh`) chiede sempre questa variante, inserisce i soprannomi di member-service e al browser restituisce solo `{rank, nickname, score, isMe}` (`Giocatore <rank>` se member-service non risponde). Un valore di `resolve` diverso da `ids` → `400` |
 
 Errori giocata: `422 CONTEST_NOT_LIVE`, `NO_PLAYS_AVAILABLE`, `DAILY_LIMIT_REACHED`, `MEMBER_NOT_ACTIVE`.
 
@@ -94,6 +94,8 @@ Riferimento: `docs/18`. Le righe qui sotto sono segnaposto dell'adozione (M8.0):
 
 - **Missioni e serie** (ADR-045, M13.7): tabella `mission` con passi e finestra relativa al membro; estensioni `STREAK` (tolleranza, congelamento, `achievement.streak.at_risk`); fatti `mission.started/progressed/completed/expired` e azione interna `mission.completed` (con riga in `producers.yaml`); BO-38, PT-19; limiti Q-364.
 - **Dati personali** (ADR-032, M8.4): `member_snapshot.nickname` resta solo se non identificativo (nickname pseudonimo).
+- **Doppia lettura `member.*:1`/`:2`** (ADR-032, Q-346, M8.4 parte 2d): lo snapshot legge il soprannome solo da `:1` (`dataschema` che finisce con `:1` o assente); da `:2` legge solo `status`. Un campo assente non sovrascrive il valore salvato (un membro nuovo da `:2` resta senza soprannome), nessun errore su `:2`.
+- **Soprannomi risolti dal BFF** (Q-368, M8.4 parte 2d): classifiche del portale, ranking e vincitori (anche CSV) accettano `resolve=ids`; il BFF chiede i soprannomi a member-service (`POST /v1/members/nicknames`) e li inserisce lato server. Le risposte senza parametro restano quelle di sempre (compatibilità all'indietro); `member_snapshot.nickname` si svuoterà con il contract di M10.
 
 **Classificazione `x-lh-class`** (`docs/18 §3.15`, F2-GRC-05; prima stesura M8.0, verificata e resa per colonna in M8.13). Tutto ciò che non è elencato è `INTERNAL`.
 - `PERSONAL`: `member_snapshot.nickname`, `play`/`winning_instant.claimed_by` per membro con data.

@@ -369,6 +369,8 @@ components:
       properties:
         isMe:
           type: boolean
+        memberId:
+          type: string
         nickname:
           type: string
         rank:
@@ -1338,6 +1340,11 @@ paths:
         required: true
         schema:
           type: string
+      - in: query
+        name: resolve
+        required: false
+        schema:
+          type: string
       responses:
         "200":
           content:
@@ -1357,6 +1364,11 @@ paths:
       - in: path
         name: id
         required: true
+        schema:
+          type: string
+      - in: query
+        name: resolve
+        required: false
         schema:
           type: string
       responses:
@@ -1466,6 +1478,11 @@ paths:
           default: 0
           format: int32
           type: integer
+      - in: query
+        name: resolve
+        required: false
+        schema:
+          type: string
       responses:
         "200":
           content:
@@ -1670,6 +1687,11 @@ paths:
         required: true
         schema:
           type: string
+      - in: query
+        name: resolve
+        required: false
+        schema:
+          type: string
       responses:
         "200":
           content:
@@ -1694,6 +1716,11 @@ paths:
       - in: query
         name: memberId
         required: true
+        schema:
+          type: string
+      - in: query
+        name: resolve
+        required: false
         schema:
           type: string
       responses:

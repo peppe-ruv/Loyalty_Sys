@@ -24,6 +24,7 @@ import java.util.List;
 /**
  * Gestione delle classifiche e anteprima del ranking (docs/servizi/gamification-service.md §3; BO-16). Il ranking di
  * gestione riporta anche il {@code memberId}: il backoffice affianca il nome reale (dal member-service) al nickname.
+ * Con {@code resolve=ids} (Q-368) le voci non portano il nickname dello snapshot: lo inserisce il BFF da member-service.
  */
 @RestController
 @RequestMapping("/v1/leaderboards")
@@ -66,7 +67,9 @@ public class LeaderboardsController {
     @GetMapping("/{code}/ranking")
     @Transactional(readOnly = true)
     public Ranking ranking(@PathVariable String code, @RequestParam(required = false) String periodKey,
-                           @RequestParam(defaultValue = "0") int limit) {
+                           @RequestParam(defaultValue = "0") int limit,
+                           @RequestParam(required = false) String resolve) {
+        boolean ids = Resolve.ids(resolve);
         Leaderboard l = service.get(code);
         String current = service.currentPeriod(l);
         String key = periodKey == null || periodKey.isBlank() ? current : periodKey;
@@ -74,7 +77,8 @@ public class LeaderboardsController {
         if (!periods.contains(current)) {
             periods.addFirst(current);
         }
+        List<LeaderboardRepository.Ranked> items = leaderboards.ranking(l.id(), key, limit > 0 ? limit : l.topN());
         return new Ranking(l.code(), l.name(), l.metric(), l.period(), key, current, periods, l.topN(),
-                leaderboards.ranking(l.id(), key, limit > 0 ? limit : l.topN()));
+                ids ? items.stream().map(LeaderboardRepository.Ranked::withoutNickname).toList() : items);
     }
 }

@@ -57,6 +57,18 @@ public class MembersController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
+    /**
+     * Soprannomi a lotti per il BFF (Q-368, ADR-032, F2-EVT-02): classifiche del portale ed export dei vincitori
+     * ricevono da gamification solo i {@code memberId}; il BFF chiede qui il nome da mostrare, lato server, e non
+     * inoltra mai al browser gli id degli altri membri. Da 1 a 200 id ({@code 400 TOO_MANY_IDS} oltre, {@code 400}
+     * con lista vuota). Sola lettura (POST solo per il corpo): come le altre letture del servizio, nessun ruolo
+     * richiesto e nessuna voce di audit.
+     */
+    @PostMapping("/nicknames")
+    public MemberNicknames.NicknamesResponse nicknames(@RequestBody MemberNicknames.NicknamesRequest request) {
+        return service.nicknames(request == null ? null : request.memberIds());
+    }
+
     @GetMapping("/{id}")
     public MemberView get(@PathVariable String id) {
         return service.get(id);

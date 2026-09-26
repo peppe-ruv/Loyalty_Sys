@@ -14,6 +14,11 @@ public class PlayRepository {
 
     public record Winner(String playId, String memberId, String nickname, String prizeCode, String prizeName, String prizeType,
                          Instant playedAt, String deliveryStatus, String deliveryNote) {
+
+        /** Stessa vincita senza il soprannome dello snapshot: variante {@code resolve=ids} per il BFF (Q-368). */
+        public Winner withoutNickname() {
+            return new Winner(playId, memberId, null, prizeCode, prizeName, prizeType, playedAt, deliveryStatus, deliveryNote);
+        }
     }
 
     public record DayStat(LocalDate day, long plays, long wins) {
