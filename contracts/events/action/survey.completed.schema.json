@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:action.survey.completed:1",
+  "title": "action.survey.completed — data (EVT-ACT-07, docs/05 §3, fonte partner)",
+  "type": "object",
+  "required": [
+    "surveyId"
+  ],
+  "properties": {
+    "surveyId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    }
+  }
+}

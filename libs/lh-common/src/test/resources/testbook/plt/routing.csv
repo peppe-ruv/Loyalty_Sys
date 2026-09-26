@@ -1,0 +1,19 @@
+id,descrizione,caso,atteso
+TB-PLT-IDM-001,type registrato: logica eseguita una volta dal suo handler,exact.first,true [E1] []
+TB-PLT-IDM-002,doppio invio dello stesso id: logica non rieseguita (RNF-03),exact.duplicate,false [E1]
+TB-PLT-IDM-003,due id diversi dello stesso type: entrambi elaborati,exact.twoIds,"[E1, E2]"
+TB-PLT-IDM-004,stesso id per due consumer diversi: ciascuno lo elabora,perConsumer,"true [E1, E1]"
+TB-PLT-IDM-005,type non gestito: ignorato senza errore e senza processed_event (docs/05 §1),unknown.ignored,false 0
+TB-PLT-IDM-006,type non gestito: il router non lo dichiara,unknown.handles,false
+TB-PLT-IDM-007,handler di famiglia io.loyaltyhub.action.* riceve un'azione senza handler esatto,family.catches,true [E3]
+TB-PLT-IDM-008,handler esatto prevale su quello di famiglia,family.exactWins,[E4] []
+TB-PLT-IDM-009,handler di famiglia non riceve altre famiglie,family.otherFamily,false
+TB-PLT-IDM-010,handler di famiglia non riceve un prefisso diverso (actionx),family.prefixOnly,false
+TB-PLT-IDM-011,type assente: ignorato,type.null,false 0
+TB-PLT-IDM-012,due handler per lo stesso type: avvio fallito,config.duplicateType,ERR:IllegalStateException
+TB-PLT-IDM-013,due handler per la stessa famiglia: avvio fallito,config.duplicateFamily,ERR:IllegalStateException
+TB-PLT-IDM-014,metrica lh_events_consumed_total per type (anche i duplicati; nessuna serie per i type ignorati),metrics.consumed,2.0 0
+TB-PLT-IDM-015,metrica lh_handler_seconds per type,metrics.handlerTime,1
+TB-PLT-IDM-016,errore della logica: propagato al contenitore (ritentativi e DLQ),logic.throws,ERR:IllegalStateException
+TB-PLT-IDM-017,contesto di log durante la logica: eventId eventType correlationId memberId (docs/06 §8),mdc.during,E11 io.loyaltyhub.action.purchase.completed CORR-1 MBR-000003
+TB-PLT-IDM-018,contesto di log ripulito dopo l'evento,mdc.after,true

@@ -192,8 +192,9 @@ public class CouponService {
     @Transactional(readOnly = true)
     public PageResponse<CouponView> coupons(String poolId, String status, String memberId, int page, int size) {
         CouponPool p = requirePool(poolId);
-        int s = Math.max(1, Math.min(size, MAX_PAGE_SIZE));
-        int n = Math.max(0, page);
+        io.loyaltyhub.common.web.PageParams paging = io.loyaltyhub.common.web.PageParams.of(page, size); // SPEC-GAP: Q-P1
+        int s = Math.min(paging.size(), MAX_PAGE_SIZE);
+        int n = paging.page();
         List<CouponView> items = coupons.search(p.id(), status, memberId, n, s).stream().map(c -> view(c, p)).toList();
         return PageResponse.of(items, n, s, coupons.count(p.id(), status, memberId));
     }

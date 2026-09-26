@@ -12,6 +12,7 @@ import java.time.Clock;
  * delle richieste è a parte ({@link RedemptionTimeoutJob}): fa parte della saga e gira anche in demo.
  */
 @Component
+@org.springframework.context.annotation.Lazy(false) // docs/06 §5: attivo anche con lazy-initialization (profilo free)
 @ConditionalOnProperty(name = "loyaltyhub.jobs.enabled", havingValue = "true")
 public class RewardJobs {
 

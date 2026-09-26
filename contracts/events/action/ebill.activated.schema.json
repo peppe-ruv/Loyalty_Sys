@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:action.ebill.activated:1",
+  "title": "action.ebill.activated — data (EVT-ACT-03, docs/05 §3, fonte billing)",
+  "type": "object",
+  "required": [
+    "contractId"
+  ],
+  "properties": {
+    "contractId": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

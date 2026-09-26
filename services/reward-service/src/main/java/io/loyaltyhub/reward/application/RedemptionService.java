@@ -380,8 +380,9 @@ public class RedemptionService {
     @Transactional(readOnly = true)
     public PageResponse<RedemptionView> search(String status, String fulfilment, String memberId, String rewardCode,
                                                Boolean needsAttention, Instant from, Instant to, int page, int size) {
-        int s = Math.max(1, Math.min(size, 100));
-        int p = Math.max(0, page);
+        io.loyaltyhub.common.web.PageParams paging = io.loyaltyhub.common.web.PageParams.of(page, size); // SPEC-GAP: Q-P1
+        int s = paging.size();
+        int p = paging.page();
         List<RedemptionView> items = redemptions.search(status, fulfilment, memberId, rewardCode, needsAttention, from, to, p, s)
                 .stream().map(r -> toView(r, null)).toList();
         return PageResponse.of(items, p, s,

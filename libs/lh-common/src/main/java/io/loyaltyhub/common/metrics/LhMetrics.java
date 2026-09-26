@@ -35,6 +35,20 @@ public class LhMetrics {
                 .record(nanos, TimeUnit.NANOSECONDS);
     }
 
+    /**
+     * Registra il gauge {@code lh_outbox_pending}: il valore è letto a ogni raccolta (nessun lavoro in background). Un
+     * errore di lettura (DB non raggiungibile) vale {@code NaN}, non un'eccezione della raccolta.
+     */
+    public void outboxPending(java.util.function.LongSupplier pending) {
+        io.micrometer.core.instrument.Gauge.builder("lh_outbox_pending", () -> {
+            try {
+                return pending.getAsLong();
+            } catch (RuntimeException e) {
+                return Double.NaN;
+            }
+        }).strongReference(true).register(registry);
+    }
+
     public MeterRegistry registry() {
         return registry;
     }

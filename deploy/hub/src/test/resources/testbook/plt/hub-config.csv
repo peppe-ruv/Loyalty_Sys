@@ -1,0 +1,24 @@
+id,descrizione,caso,atteso
+TB-PLT-HCF-001,hub su broker reale: i 5 topic (ADR-004),topics.names,lh.actions.v1 lh.effects.v1 lh.facts.v1 lh.audit.v1 lh.dlq.v1
+TB-PLT-HCF-002,hub su broker reale: 2 partizioni per topic (docs/05 §1),topics.partitions,2
+TB-PLT-HCF-003,hub su broker reale: 1 replica (broker singolo),topics.replicas,1
+TB-PLT-HCF-004,hub su broker reale: retention 3 giorni,topics.retention,259200000
+TB-PLT-HCF-005,topic dichiarati solo fuori dal profilo inproc (ADR-024),topics.profile,!inproc
+TB-PLT-HCF-006,ogni componente con @KafkaListener ha @Lazy(false) (docs/06 §5),lazy.listeners,nessuno
+TB-PLT-HCF-007,ogni componente con @Scheduled ha @Lazy(false) (docs/06 §5),lazy.schedulers,nessuno
+TB-PLT-HCF-008,ogni @Bean con metodi @Scheduled o @KafkaListener ha @Lazy(false),lazy.beanMethods,nessuno
+TB-PLT-FRE-001,profilo free presente in tutti gli 8 servizi (docs/06 §6),free:exists,presente
+TB-PLT-FRE-002,profilo free: virtual thread,free:spring.threads.virtual.enabled,true
+TB-PLT-FRE-003,profilo free: Tomcat threads.max=20,free:server.tomcat.threads.max,20
+TB-PLT-FRE-004,profilo free: inizializzazione lazy (docs/06 §6 docs/11 §6),free:spring.main.lazy-initialization,true
+TB-PLT-FRE-005,profilo free: JMX spento,free:spring.jmx.enabled,false
+TB-PLT-FRE-006,profilo free: log JSON (RNF-10),free:logging.structured.format.console,ecs
+TB-PLT-FRE-007,profilo free: Hikari max-lifetime 10 minuti (docs/11 §4),free:spring.datasource.hikari.max-lifetime,600000
+TB-PLT-FRE-008,profilo free: avvio anche col DB in risveglio (initialization-fail-timeout -1),free:spring.datasource.hikari.initialization-fail-timeout,-1
+TB-PLT-FRE-009,pool Hikari: maximum-pool-size 4 (docs/06 §4),base:spring.datasource.hikari.maximum-pool-size,4
+TB-PLT-FRE-010,pool Hikari: minimum-idle 0,base:spring.datasource.hikari.minimum-idle,0
+TB-PLT-FRE-011,pool Hikari: idle-timeout 60 s,base:spring.datasource.hikari.idle-timeout,60000
+TB-PLT-FRE-012,pool Hikari: connection-timeout 20 s,base:spring.datasource.hikari.connection-timeout,20000
+TB-PLT-FRE-013,sonde liveness e readiness accese in ogni servizio,base:management.endpoint.health.probes.enabled,true
+TB-PLT-FRE-014,bootstrap Kafka dall'ambiente,base:spring.kafka.bootstrap-servers,${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+TB-PLT-FRE-015,sicurezza Kafka dall'ambiente (KAFKA_SECURITY),base:loyaltyhub.kafka.security,${KAFKA_SECURITY:PLAINTEXT}

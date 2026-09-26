@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:action.newsletter.subscribed:1",
+  "title": "action.newsletter.subscribed — data (EVT-ACT-10, docs/05 §3, fonte crm)",
+  "type": "object",
+  "properties": {}
+}

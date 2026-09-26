@@ -13,6 +13,7 @@ import tools.jackson.databind.ObjectMapper;
 
 /** Consuma {@code lh.effects.v1} per engagement (docs/servizi/engagement-service.md §4): solo {@code message.send}. */
 @Component
+@org.springframework.context.annotation.Lazy(false) // docs/06 §5: attivo anche con lazy-initialization (profilo free)
 public class EffectsListener {
 
     private static final TypeReference<LhEvent<JsonNode>> EVENT_TYPE = new TypeReference<>() {

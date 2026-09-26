@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:action.member.birthday:1",
+  "title": "action.member.birthday — data (EVT-ACT-22, docs/05 §3, interna dal ponte su fact.member.birthday)",
+  "type": "object",
+  "properties": {
+    "age": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

@@ -1,0 +1,39 @@
+id,descrizione,caso,atteso
+TB-PLT-KCF-001,produttore: acks=all,producer.acks,all
+TB-PLT-KCF-002,produttore idempotente,producer.idempotence,true
+TB-PLT-KCF-003,produttore: chiave e valore stringa (CloudEvent JSON),producer.serializers,StringSerializer StringSerializer
+TB-PLT-KCF-004,produttore: bootstrap da configurazione,producer.bootstrap,broker.example:9092
+TB-PLT-KCF-005,consumatore: gruppo lh-<servizio>,consumer.group,lh-wallet
+TB-PLT-KCF-006,consumatore: servizio già prefissato lh- non raddoppia il prefisso,consumer.groupPrefixed,lh-hub
+TB-PLT-KCF-007,consumatore: auto.offset.reset=earliest (RNF-06),consumer.offsetReset,earliest
+TB-PLT-KCF-008,consumatore: commit automatico spento (ack manuale),consumer.autoCommit,false
+TB-PLT-KCF-009,consumatore: max.poll.records=50,consumer.maxPoll,50
+TB-PLT-KCF-010,consumatore: chiave e valore stringa,consumer.deserializers,StringDeserializer StringDeserializer
+TB-PLT-KCF-011,listener: concorrenza 2 (2 partizioni),container.concurrency,2
+TB-PLT-KCF-012,listener: ack MANUAL_IMMEDIATE dopo il commit DB,container.ackMode,MANUAL_IMMEDIATE
+TB-PLT-KCF-013,listener: avvio automatico acceso di default,container.autoStartupOn,true
+TB-PLT-KCF-014,listener: auto-startup=false rispettato (profilo inproc),container.autoStartupOff,false
+TB-PLT-KCF-015,ritardi di default 1 s e 5 s: 3 tentativi (Q-131),retry.default,"[1000, 5000]"
+TB-PLT-KCF-016,sequenza di backoff 1000 poi 5000 poi stop,retry.sequence,1000 5000 STOP
+TB-PLT-KCF-017,nessun ritardo configurato: stop subito (1 tentativo),retry.empty,STOP
+TB-PLT-KCF-018,ritardi assenti (null): stop subito,retry.null,STOP
+TB-PLT-KCF-019,sicurezza PLAINTEXT di default,security.plaintext,PLAINTEXT
+TB-PLT-KCF-020,SSL_PEM: protocollo SSL,security.sslPem.protocol,SSL
+TB-PLT-KCF-021,SSL_PEM: truststore e keystore di tipo PEM (nessun file su disco),security.sslPem.types,PEM PEM
+TB-PLT-KCF-022,SSL_PEM: CA certificato e chiave decodificati dal base64,security.sslPem.values,-----CA----- -----CERT----- -----KEY-----
+TB-PLT-KCF-023,SSL_PEM: base64 con spazi e a capo ai bordi accettato,security.sslPem.trimmed,CA
+TB-PLT-KCF-024,SSL_PEM: base64 assente o vuoto = PEM vuoto,security.sslPem.blank,[]
+TB-PLT-KCF-025,SASL_SSL SCRAM: modulo di login SCRAM,security.sasl.scram,"org.apache.kafka.common.security.scram.ScramLoginModule required username=""lh-user"" password=""s3gr3t0"";"
+TB-PLT-KCF-026,SASL_SSL PLAIN: modulo di login PLAIN,security.sasl.plain,"org.apache.kafka.common.security.plain.PlainLoginModule required username=""lh-user"" password=""s3gr3t0"";"
+TB-PLT-KCF-027,SASL_SSL: protocollo e meccanismo,security.sasl.protocol,SASL_SSL SCRAM-SHA-256
+TB-PLT-KCF-028,meccanismo SASL di default SCRAM-SHA-256,security.defaultMechanism,SCRAM-SHA-256
+TB-PLT-KCF-029,SASL_SSL con KAFKA_SSL_CA_B64: truststore PEM con la CA (docs/11 §3 ADR-025),security.sasl.truststore,PEM -----CA-----
+TB-PLT-KCF-030,topic creati solo nel profilo local,local.profile,local
+TB-PLT-KCF-031,profilo local: i 5 topic,local.names,lh.actions.v1 lh.effects.v1 lh.facts.v1 lh.audit.v1 lh.dlq.v1
+TB-PLT-KCF-032,profilo local: 2 partizioni per topic,local.partitions,2
+TB-PLT-KCF-033,profilo local: retention 3 giorni,local.retention,259200000
+TB-PLT-KCF-034,metrica lh_events_dlq_total per codice d'errore,metrics.dlq,1.0
+TB-PLT-HLT-001,salute kafka nel profilo inproc: UP in-process,health.inproc,UP in-process
+TB-PLT-HLT-002,salute kafka con broker irraggiungibile: DOWN senza eccezione,health.down,DOWN broker
+TB-PLT-HLT-003,salute kafka: describeCluster con timeout 3 s (docs/06 §8),health.timeout,≈3 s
+TB-PLT-HLT-004,salute kafka: esito in cache 30 s (docs/06 §8),health.cached,in cache

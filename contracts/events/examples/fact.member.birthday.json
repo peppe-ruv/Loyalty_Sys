@@ -1,0 +1,17 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZT9A1B2C3D4E5F6G7H8J9K",
+  "source": "urn:loyaltyhub:service:member",
+  "type": "io.loyaltyhub.fact.member.birthday",
+  "subject": "member:MBR-000002",
+  "time": "2026-09-24T06:00:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:fact.member.birthday:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZT9A1B2C3D4E5F6G7H8J9K",
+  "lhhop": 0,
+  "lhactor": "system",
+  "data": {
+    "age": 34
+  }
+}

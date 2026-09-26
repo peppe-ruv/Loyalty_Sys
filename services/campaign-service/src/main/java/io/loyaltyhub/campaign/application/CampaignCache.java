@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * per la valutazione, invalidate a ogni scrittura/transizione e comunque ricaricate ogni 30 s.
  */
 @Component
+@org.springframework.context.annotation.Lazy(false) // docs/06 §5: attivo anche con lazy-initialization (profilo free)
 public class CampaignCache {
 
     private final CampaignRepository repository;

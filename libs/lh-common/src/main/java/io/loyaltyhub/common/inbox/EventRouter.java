@@ -59,10 +59,30 @@ public class EventRouter {
         }
         metrics.eventConsumed(event.type());
         long start = System.nanoTime();
+        // Contesto dei log durante l'elaborazione (docs/06 §8, RNF-10): eventId, eventType, correlationId, memberId.
+        put(MDC_EVENT_ID, event.id());
+        put(MDC_EVENT_TYPE, event.type());
+        put(MDC_CORRELATION_ID, event.lhcorrelationid());
+        put(MDC_MEMBER_ID, event.memberId());
         try {
             return idempotent.handle(consumer, event, handler::handle);
         } finally {
             metrics.handlerTime(event.type(), System.nanoTime() - start);
+            org.slf4j.MDC.remove(MDC_EVENT_ID);
+            org.slf4j.MDC.remove(MDC_EVENT_TYPE);
+            org.slf4j.MDC.remove(MDC_CORRELATION_ID);
+            org.slf4j.MDC.remove(MDC_MEMBER_ID);
+        }
+    }
+
+    static final String MDC_EVENT_ID = "eventId";
+    static final String MDC_EVENT_TYPE = "eventType";
+    static final String MDC_CORRELATION_ID = "correlationId";
+    static final String MDC_MEMBER_ID = "memberId";
+
+    private static void put(String key, String value) {
+        if (value != null) {
+            org.slf4j.MDC.put(key, value);
         }
     }
 

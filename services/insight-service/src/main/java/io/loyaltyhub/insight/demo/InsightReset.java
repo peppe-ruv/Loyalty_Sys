@@ -8,6 +8,7 @@ import io.loyaltyhub.insight.infra.TopicStatRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.Ordered;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,8 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
  * si ripopolano da soli con i primi eventi. Nessun evento pre-caricato. Lo storico sintetico di
  * {@code metric_daily} è ricreato da {@link InsightSyntheticSeeder} (M2.4). Svuota anche audit e DLQ (M7.3).
  */
+// BO-30: «insight per primo, poi gli altri» — nel reset unico dell'hub (ADR-023) insight si azzera prima degli
+// altri servizi, così non cancella gli eventi che i loro reset pubblicano subito dopo.
 @Component
 @Profile("demo")
+@org.springframework.core.annotation.Order(Ordered.HIGHEST_PRECEDENCE)
 public class InsightReset implements DemoResettable {
 
     private static final Logger log = LoggerFactory.getLogger(InsightReset.class);

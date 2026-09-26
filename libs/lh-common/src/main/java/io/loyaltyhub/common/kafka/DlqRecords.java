@@ -6,6 +6,8 @@ import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.springframework.kafka.listener.ListenerExecutionFailedException;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Regole comuni dei messaggi in DLQ (docs/04 §5, docs/05 §1): codice errore, ritentabilità e header
@@ -33,25 +35,84 @@ public final class DlqRecords {
         return t;
     }
 
-    /** Codice errore del record DLQ: {@code LOOP_GUARD}, il codice di un errore non ritentabile, o il nome della classe. */
+    /**
+     * Errori deterministici: nessun ritentativo li farebbe riuscire (docs/04 §5: «errori non ritentabili (validazione,
+     * deserializzazione) diretti in DLQ»). Oltre alle eccezioni di lh-common: JSON illeggibile (Jackson 3 e 2) e gli
+     * errori che l'error handler di Spring Kafka non ritenta per default, così i due trasporti (Kafka e bus in-process,
+     * ADR-024) decidono allo stesso modo e {@code lh-attempts} dice il vero. Confronto per nome di classe (anche delle
+     * superclassi): nessuna dipendenza in più.
+     */
+    private static final List<String> NON_RETRYABLE_TYPES = List.of(
+            "tools.jackson.core.JacksonException",
+            "com.fasterxml.jackson.core.JacksonException",
+            "org.springframework.kafka.support.serializer.DeserializationException",
+            "org.springframework.messaging.converter.MessageConversionException",
+            "org.springframework.core.convert.ConversionException",
+            "org.springframework.messaging.handler.invocation.MethodArgumentResolutionException",
+            "java.lang.NoSuchMethodException",
+            "java.lang.ClassCastException",
+            "jakarta.validation.ValidationException");
+
+    /** Profondità massima della catena delle cause esaminata (difesa da cicli). */
+    private static final int MAX_CAUSES = 10;
+
+    /**
+     * Codice errore del record DLQ: {@code LOOP_GUARD}, il codice di un errore non ritentabile, o il nome della classe.
+     * SPEC-GAP: Q-P3 — la catena delle cause è esaminata: un {@link NonRetryableEventException} avvolto da un'altra
+     * eccezione conserva il suo codice.
+     */
     public static String errorCode(Throwable cause) {
-        if (cause instanceof LoopGuardException) {
-            return "LOOP_GUARD";
-        }
-        if (cause instanceof NonRetryableEventException nre) {
-            return nre.code();
+        for (Throwable t : causes(cause)) {
+            if (t instanceof LoopGuardException) {
+                return "LOOP_GUARD";
+            }
+            if (t instanceof NonRetryableEventException nre) {
+                return nre.code();
+            }
         }
         return cause.getClass().getSimpleName();
     }
 
     /** Un errore non ritentabile va subito in DLQ (docs/04 §5): nessun ritentativo lo farebbe riuscire. */
     public static boolean retryable(Throwable cause) {
-        return !(cause instanceof NonRetryableEventException || cause instanceof LoopGuardException);
+        for (Throwable t : causes(cause)) {
+            if (t instanceof NonRetryableEventException || t instanceof LoopGuardException || isA(t, NON_RETRYABLE_TYPES)) {
+                return false;
+            }
+        }
+        return true;
     }
 
-    /** Tentativi fatti prima della DLQ con la politica di lh-common: 1 per i non ritentabili, altrimenti {@link #MAX_ATTEMPTS}. */
+    /** Tentativi fatti prima della DLQ con la politica di default di lh-common (Q-131). */
     public static int attemptsFor(Throwable cause) {
-        return retryable(cause) ? MAX_ATTEMPTS : 1;
+        return attemptsFor(cause, MAX_ATTEMPTS);
+    }
+
+    /**
+     * Tentativi fatti prima della DLQ con {@code maxAttempts} tentativi configurati (ritardi di
+     * {@code loyaltyhub.consumer.retry-backoff-ms} + 1): 1 per i non ritentabili.
+     */
+    public static int attemptsFor(Throwable cause, int maxAttempts) {
+        return retryable(cause) ? Math.max(1, maxAttempts) : 1;
+    }
+
+    private static List<Throwable> causes(Throwable top) {
+        List<Throwable> out = new ArrayList<>();
+        Throwable t = top;
+        while (t != null && out.size() < MAX_CAUSES && !out.contains(t)) {
+            out.add(t);
+            t = t.getCause();
+        }
+        return out;
+    }
+
+    private static boolean isA(Throwable t, List<String> typeNames) {
+        for (Class<?> c = t.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            if (typeNames.contains(c.getName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

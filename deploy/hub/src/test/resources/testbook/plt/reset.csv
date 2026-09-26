@@ -1,0 +1,12 @@
+id,descrizione,caso,atteso
+TB-PLT-RST-001,reset: risposta OK con tutti i componenti e insight per primo (BO-30),response,"OK primo=insight componenti=[campaign, engagement, gamification, ingestion, insight, insight-synthetic, member, reward, wallet]"
+TB-PLT-RST-002,due reset consecutivi: stesso stato (ADR-015),twice,-
+TB-PLT-RST-003,attività dopo il seed (membro nuovo acquisto rettifica richiesta premio scenario giocata webhook tipo custom campagna premio contenuto edizione fonte) poi reset: di nuovo il seed,afterActivity,-
+TB-PLT-RST-004,dopo il reset stessi codici coupon e stessi istanti vincenti (docs/10 §1.3),codes,-
+TB-PLT-RST-005,dopo il reset i 12 membri di docs/10 §2 con i loro stati,members,MBR-000001=ACTIVE MBR-000002=ACTIVE MBR-000003=ACTIVE MBR-000004=ACTIVE MBR-000005=ACTIVE MBR-000006=ACTIVE MBR-000007=ACTIVE MBR-000008=BLOCKED MBR-000009=ACTIVE MBR-000010=ACTIVE MBR-000011=ACTIVE MBR-000012=ANONYMIZED
+TB-PLT-RST-006,audit RESET dopo il reset: una voce con l'attore (docs/06 §10),audit,1 ADMIN:marta.admin DEMO hub
+TB-PLT-RST-007,due reset concorrenti: entrambi 200 e stato del seed (Q-P7),concurrent,-
+TB-PLT-RST-008,dopo il reset nessuna riga dell'outbox resta da pubblicare,outbox,-
+TB-PLT-RST-009,dopo il reset la pipeline accredita un acquisto,pipeline,-
+TB-PLT-INF-002,GET /v1/demo/info dopo il reset: servizio profili versione conteggi e ultimo reset (docs/06 §10),info,"hub profili=[demo, inproc] versione=presente membri=12"
+TB-PLT-INF-003,GET /v1/demo/info da MARKETING: 403 (/v1/demo/** solo ADMIN),infoForbidden,403 FORBIDDEN_ROLE

@@ -18,6 +18,7 @@ import tools.jackson.databind.ObjectMapper;
  * sono ignorati qui, prima del router: niente regole, niente {@code processed_event}, nessun ciclo.
  */
 @Component
+@org.springframework.context.annotation.Lazy(false) // docs/06 §5: attivo anche con lazy-initialization (profilo free)
 public class FactsListener {
 
     private static final TypeReference<LhEvent<JsonNode>> EVENT_TYPE = new TypeReference<>() {

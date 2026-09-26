@@ -1,0 +1,26 @@
+id,descrizione,caso,atteso
+TB-PLT-REL-001,riga dell'outbox pubblicata sul topic della famiglia con chiave memberId e marcata,publish,topic=lh.effects.v1 chiave=memberId valore=envelope pubblicata=true
+TB-PLT-REL-002,header lh-* e content-type CloudEvents di un evento figlio,headersChild,lh-type=io.loyaltyhub.effect.points.grant lh-correlation-id=ok lh-causation-id=ok lh-hop=2 lh-actor=CARE:paolo.care content-type=application/cloudevents+json
+TB-PLT-REL-003,evento radice: niente header di causa né di attore,headersRoot,lh-causation-id=assente lh-actor=assente lh-hop=0
+TB-PLT-REL-004,audit su lh.audit.v1 con chiave entityType:entityId,audit,topic=lh.audit.v1 chiave=entityType:entityId
+TB-PLT-REL-005,transazione del cambiamento di stato annullata: nessuna riga e nessuna pubblicazione (RNF-05),rollback,outbox=0 ricevuti=0
+TB-PLT-REL-006,20 eventi dello stesso membro in una transazione: pubblicati nell'ordine di scrittura (RNF-04),orderOneTx,ordine=0..19
+TB-PLT-REL-007,15 eventi dello stesso membro in tre transazioni: ordine di scrittura,orderAcrossTx,ordine=0..14
+TB-PLT-REL-008,99 righe: tutte in un giro (lotto 100),batch99,dopo un giro=99 in attesa=0 dopo due giri in attesa=0
+TB-PLT-REL-009,100 righe: tutte in un giro,batch100,dopo un giro=100 in attesa=0 dopo due giri in attesa=0
+TB-PLT-REL-010,101 righe: 100 al primo giro e 1 al secondo,batch101,dopo un giro=100 in attesa=1 dopo due giri in attesa=0
+TB-PLT-REL-011,broker irraggiungibile: il relay fallisce e la riga resta in outbox (nessuna perdita),brokerDown,eccezione=OutboxPublishException in attesa=1
+TB-PLT-REL-012,broker di nuovo raggiungibile dopo due giri falliti: la riga parte una volta,brokerBack,in attesa=0 ricevuti=1
+TB-PLT-REL-013,guasto al terzo invio di 5: lotto annullato e ripubblicato; il consumer idempotente elabora ogni evento una volta e in ordine,midBatch,in attesa dopo il guasto=5 consegne=7 elaborati=0 1 2 3 4
+TB-PLT-REL-014,due relay concorrenti su 200 righe (SKIP LOCKED): ogni riga pubblicata una sola volta,twoRelays,in attesa=0 messaggi=200 distinti=200
+TB-PLT-REL-015,outbox vuota: giro senza errori,empty,in attesa=0
+TB-PLT-REL-016,lh_outbox_pending = righe da pubblicare (docs/06 §8),pendingGauge,prima=3.0 dopo=0.0
+TB-PLT-REL-017,lh_events_published_total per type,publishedMetric,lh_events_published_total=2.0
+TB-PLT-REL-018,riga pubblicata da 24 h e 1 min: cancellata dalla pulizia,outboxCleanOld,riga cancellata
+TB-PLT-REL-019,riga pubblicata da 23 h 59 min: conservata,outboxCleanRecent,riga conservata
+TB-PLT-REL-020,riga mai pubblicata da 10 giorni: conservata (mai persa),outboxCleanUnpublished,riga conservata
+TB-PLT-REL-021,processed_event di 14 giorni e 1 minuto: cancellato (RNF-07 docs/06 §4),processedOld,riga cancellata
+TB-PLT-REL-022,processed_event di 13 giorni e 23 ore: conservato,processedRecent,riga conservata
+TB-PLT-ITX-001,logica che fallisce dopo aver scritto l'effetto: processed_event e outbox annullati; il ritentativo li scrive una volta,idmRollback,dopo il guasto processed=0 outbox=0; dopo il ritentativo processed=1 outbox=1
+TB-PLT-ITX-002,doppia consegna in due transazioni: logica ed effetto una volta (RNF-03),idmDuplicate,"esiti=[true, false] effetti=1"
+TB-PLT-ITX-003,doppia consegna concorrente dello stesso evento: logica ed effetto una volta,idmConcurrent,eseguiti=1 effetti=1

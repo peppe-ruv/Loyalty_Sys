@@ -152,8 +152,9 @@ public class ContestController {
                                                                 @RequestParam(defaultValue = "0") int page,
                                                                 @RequestParam(defaultValue = "50") int size) {
         Contest c = admin.get(id);
-        int p = Math.max(0, page);
-        int s = Math.clamp(size, 1, 100);
+        io.loyaltyhub.common.web.PageParams paging = io.loyaltyhub.common.web.PageParams.of(page, size); // SPEC-GAP: Q-P1
+        int p = paging.page();
+        int s = paging.size();
         return PageResponse.of(instants.search(c.id(), status, prizeId, p, s), p, s, instants.count(c.id(), status, prizeId));
     }
 

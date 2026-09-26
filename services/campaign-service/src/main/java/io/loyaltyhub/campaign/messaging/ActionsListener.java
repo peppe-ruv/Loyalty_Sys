@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 /** Consuma {@code lh.actions.v1} → motore (docs/06 §5): deserializza, instrada, ack dopo il commit. */
 @Component
+@org.springframework.context.annotation.Lazy(false) // docs/06 §5: attivo anche con lazy-initialization (profilo free)
 public class ActionsListener {
 
     private static final TypeReference<LhEvent<JsonNode>> EVENT_TYPE = new TypeReference<>() {

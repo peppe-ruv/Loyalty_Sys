@@ -270,6 +270,11 @@ public class InboundEventRepository {
         return jdbc.sql("DELETE FROM inbound_event WHERE event_id LIKE ?").param(eventIdPrefix + "%").update();
     }
 
+    /** Reset demo (docs/06 §10): svuota il monitor ingressi, storico e ingressi reali, prima di ricaricare il seed. */
+    public int deleteAll() {
+        return jdbc.sql("DELETE FROM inbound_event").update();
+    }
+
     /**
      * Envelope canonico (già arricchito: {@code lhcorrelationid}, {@code lhhop}, subject normalizzato) dell'azione
      * accettata con questa (fonte, id): serve a <em>riprocessa</em> DLQ (docs/servizi/insight-service.md §5).

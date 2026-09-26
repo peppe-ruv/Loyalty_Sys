@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
  * idempotente; ack manuale dopo la scrittura (un errore non fa ack → l'error handler di lh-common ritenta).
  */
 @Component
+@org.springframework.context.annotation.Lazy(false) // docs/06 §5: attivo anche con lazy-initialization (profilo free)
 public class TopicListeners {
 
     private static final Logger log = LoggerFactory.getLogger(TopicListeners.class);

@@ -12,7 +12,7 @@ examples/<famiglia>.<nome>.json  un esempio valido per ogni type
 Il test di contratto `ContractsTest` (in `libs/lh-common`) verifica che ogni esempio validi contro l'envelope
 e contro lo schema del proprio `type`, e che ogni schema abbia un esempio.
 
-Copertura attuale: gli eventi di **M1** (core loop). Le famiglie si estendono con le milestone successive.
+Copertura: ogni `type` del catalogo di docs/05 §3–§6 (compresi i fatti `reward/contest.status.changed`) ha schema ed esempio; `action.member.birthday` e `fact.member.birthday` sono P2 (nessun produttore nel PoC). Verificato da `TestbookPltContractIT` (TB-PLT-CTR).
 
 > Nota (SPEC-GAP Q-42): docs/05 §9 cita `contracts/examples/`; qui si segue la struttura di `CLAUDE.md §3`
 > (`contracts/events/examples/`) mantenendo il nome file `<famiglia>.<nome>.json` di §9.

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:action.member.registered:1",
+  "title": "action.member.registered — data (EVT-ACT-20, docs/05 §3, interna dal ponte su fact.member.registered)",
+  "type": "object",
+  "properties": {
+    "channel": {
+      "type": "string"
+    },
+    "referred": {
+      "type": "boolean"
+    }
+  }
+}

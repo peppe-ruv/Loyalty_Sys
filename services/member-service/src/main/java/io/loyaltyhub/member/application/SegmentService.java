@@ -67,8 +67,9 @@ public class SegmentService {
 
     public PageResponse<SegmentView> list(String q, String type, String status, int page, int size) {
         List<SegmentView> all = segments.list(q, type, status).stream().map(SegmentView::of).toList();
-        int p = Math.max(page, 0);
-        int s = Math.min(Math.max(size, 1), 100);
+        io.loyaltyhub.common.web.PageParams paging = io.loyaltyhub.common.web.PageParams.of(page, size); // SPEC-GAP: Q-P1
+        int p = paging.page();
+        int s = paging.size();
         int from = Math.min(p * s, all.size());
         int to = Math.min(from + s, all.size());
         return PageResponse.of(all.subList(from, to), p, s, all.size());
@@ -80,8 +81,10 @@ public class SegmentService {
 
     public PageResponse<MemberSample> members(String idOrCode, int page, int size) {
         Segment seg = require(idOrCode);
-        int p = Math.max(page, 0);
-        int s = Math.min(Math.max(size, 1), 200);
+        // docs/06 §2: size massimo 100 anche per i membri di un segmento (prima 200). SPEC-GAP: Q-P1
+        io.loyaltyhub.common.web.PageParams paging = io.loyaltyhub.common.web.PageParams.of(page, size);
+        int p = paging.page();
+        int s = paging.size();
         List<MemberSample> items = segments.members(seg.id(), s, p * s).stream()
                 .map(r -> new MemberSample(r.memberId(), name(r.firstName(), r.lastName(), r.nickname(), r.memberId()),
                         r.tier(), r.status(), r.enteredAt()))

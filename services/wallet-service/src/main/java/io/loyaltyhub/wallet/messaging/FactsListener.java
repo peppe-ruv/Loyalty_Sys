@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
  * {@code wallet.*} prodotti dal servizio stesso non hanno handler: vengono ignorati (nessun loop).
  */
 @Component
+@org.springframework.context.annotation.Lazy(false) // docs/06 §5: attivo anche con lazy-initialization (profilo free)
 public class FactsListener {
 
     private static final TypeReference<LhEvent<JsonNode>> EVENT_TYPE = new TypeReference<>() {

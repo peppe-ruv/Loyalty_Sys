@@ -1,0 +1,15 @@
+id,descrizione,caso,atteso
+TB-PLT-BUS-001,fan-out: una copia a ogni gruppo consumer del topic,fanout,lh-wallet=1 lh-campaign=1
+TB-PLT-BUS-002,topic senza consumatori: pubblicazione senza errori (come Kafka),noSubscribers,nessun errore
+TB-PLT-BUS-003,50 record su due chiavi: consegna nell'ordine di pubblicazione,order,ordine di pubblicazione
+TB-PLT-BUS-004,header e chiave del record arrivano al consumatore,headers,io.loyaltyhub.fact.probe MBR-1
+TB-PLT-BUS-005,consegna asincrona fuori dalla transazione del relay,async,durante la pubblicazione=0 dopo=1
+TB-PLT-BUS-006,errore ritentabile: 3 tentativi poi DLQ (Q-131),retryable,tentativi=3 dlq=[lh-wallet:IllegalStateException:3:true]
+TB-PLT-BUS-007,errore non ritentabile: 1 tentativo e DLQ col suo codice,nonRetryable,tentativi=1 dlq=[lh-wallet:COUPON_POOL_EMPTY:1:false]
+TB-PLT-BUS-008,guardia anti-ciclo: 1 tentativo e DLQ LOOP_GUARD,loopGuard,tentativi=1 dlq=[lh-wallet:LOOP_GUARD:1:false]
+TB-PLT-BUS-009,JSON illeggibile: 1 tentativo e DLQ (docs/04 §5),json,tentativi=1 dlq=[lh-wallet:StreamReadException:1:false]
+TB-PLT-BUS-010,tre ritardi configurati: 4 tentativi e lh-attempts=4,backoff3,tentativi=4 dlq=[lh-wallet:IllegalStateException:4:true]
+TB-PLT-BUS-011,due guasti poi successo: nessuna DLQ,recovers,tentativi=3 dlq=[]
+TB-PLT-BUS-012,record DLQ: chiave valore e header originali più il topic d'origine,dlqRecord,chiave=MBR-9 valore=poison lh-type=io.loyaltyhub.fact.probe topic=lh.facts.v1
+TB-PLT-BUS-013,messaggio velenoso per un consumer: gli altri gruppi e i record successivi proseguono,otherContinues,campaign:poison wallet:next campaign:next
+TB-PLT-BUS-014,consumatore della DLQ che fallisce: nessun nuovo record DLQ (niente ciclo),dlqConsumerFails,tentativi del consumer DLQ=3 voci DLQ=1

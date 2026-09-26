@@ -182,7 +182,25 @@ Documento completo: [`docs/testbook/TB-INS-insight.md`](testbook/TB-INS-insight.
 - **Verifica a mutazione:** 11 mutazioni, tutte rilevate.
 
 ## 10quater. TB-PLT — Piattaforma
-_Da scrivere: outbox con Kafka giù, ritentativi e DLQ per tipo d'errore, conformità dei contratti evento, errori RFC 9457, reset idempotente, requisiti non funzionali._
+Documento completo: [`docs/testbook/TB-PLT-piattaforma.md`](testbook/TB-PLT-piattaforma.md) — 37 regole, 172 rami
+mappati, **563 righe** in 28 aree. Test: `libs/lh-common/src/test/java/io/loyaltyhub/common/testbook/`
+(`TestbookPlt{Envelope,Clock,Config,Dlq,Routing,Errors}Test`, `TestbookPltRelayIT` con Postgres e Kafka in-JVM) e
+`deploy/hub/src/test/java/io/loyaltyhub/hub/` (`TestbookPlt{Bus,HubConfig}Test`, `TestbookPlt{Api,Contract,FreeProfile}IT`).
+
+- **Coperto:** outbox con bus/Kafka giù e poi su (ordine per chiave, nessun doppione), ritentativi e DLQ per tipo
+  d'errore (`LOOP_GUARD`, 3 tentativi), conformità ai contratti di ogni `type` dichiarato (una riga per tipo), errori
+  RFC 9457 per famiglia, limiti della paginazione su ogni elenco, matrice dell'attore, reset demo idempotente e
+  concorrente, confini temporali di Roma, profilo free, variabili d'ambiente, requisiti non funzionali misurabili.
+- **Riduzioni dichiarate:** proprietà del profilo free × servizio 120 → 15 righe; ruoli e forme dell'intestazione solo
+  sull'endpoint ADMIN del reset (le altre guardie sono in TB-GOV).
+- **Divergenze trovate (108 righe, 22 cause):** 21 corrette nel codice (503 col database giù, errori di forma di Spring,
+  MDC, classificazione DLQ lungo le cause e `lh-attempts` veritiero, truststore SASL_SSL, cache della salute Kafka,
+  `@eom` con scostamenti, variabili d'ambiente di docs/11 §8 e readiness con db e kafka, `lh_outbox_pending`, pulizia di
+  `processed_event`, 400 per `size`/`page` non validi ovunque, ordine e completezza del reset, `GET /v1/demo/info`,
+  limite di 60 eventi/min per IP, 12 schemi di contratto mancanti, 2 partizioni nell'hub, profilo free completo e
+  listener `@Lazy(false)`); **1 aperta**: OpenAPI su `/v3/api-docs` (TB-PLT-HLR-008, serve springdoc: Q-P10).
+- **Scelte registrate:** Q-P1…Q-P11 (segnaposto, da rinumerare; tutte decise e conservative tranne Q-P10, aperta).
+- **Verifica a mutazione:** 12 mutazioni (una per classe di test), tutte rilevate.
 
 ## 11. Copertura
 

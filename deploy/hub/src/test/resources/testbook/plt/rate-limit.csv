@@ -1,0 +1,6 @@
+id,descrizione,ip,eventi,atteso
+TB-PLT-RLM-001,60 eventi in un minuto dallo stesso IP: tutti ammessi (docs/11 §11),203.0.113.10,60,accettati=60 limitati=0
+TB-PLT-RLM-002,61° evento nello stesso minuto dallo stesso IP: 429 RATE_LIMITED (Q-P8),203.0.113.10,1,accettati=0 limitati=1
+TB-PLT-RLM-003,un altro IP nello stesso minuto: ammesso,203.0.113.11,1,accettati=1 limitati=0
+TB-PLT-RLM-004,catena X-Forwarded-For: conta il primo indirizzo (il client),"203.0.113.12, 10.0.0.1",61,accettati=60 limitati=1
+TB-PLT-RLM-005,chiamate dalla stessa macchina senza X-Forwarded-For: esenti (Q-P8),-,61,accettati=61 limitati=0

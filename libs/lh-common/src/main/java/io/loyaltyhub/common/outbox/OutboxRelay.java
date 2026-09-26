@@ -40,6 +40,13 @@ public class OutboxRelay {
         this.mapper = mapper;
         this.metrics = metrics;
         this.batchSize = batchSize;
+        // lh_outbox_pending (docs/06 §8): righe ancora da pubblicare, lette alla raccolta della metrica.
+        metrics.outboxPending(this::pending);
+    }
+
+    /** Righe dell'outbox non ancora pubblicate (indice parziale {@code outbox_unpublished}). */
+    public long pending() {
+        return jdbc.sql("SELECT count(*) FROM outbox WHERE published_at IS NULL").query(Long.class).single();
     }
 
     @Scheduled(fixedDelayString = "${loyaltyhub.outbox.relay-interval-ms:500}")

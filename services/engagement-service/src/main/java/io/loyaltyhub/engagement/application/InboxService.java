@@ -34,7 +34,6 @@ import java.util.Optional;
 public class InboxService {
 
     private static final Logger log = LoggerFactory.getLogger(InboxService.class);
-    private static final int MAX_SIZE = 100;
 
     /** Voce del portale (PT-12). */
     public record PortalMessage(String id, String category, String title, String body, String icon, String linkTarget,
@@ -110,8 +109,9 @@ public class InboxService {
 
     @Transactional(readOnly = true)
     public PageResponse<InboxMessage> search(InboxRepository.Filter filter, int page, int size) {
-        int s = clampSize(size);
-        int p = Math.max(0, page);
+        io.loyaltyhub.common.web.PageParams paging = io.loyaltyhub.common.web.PageParams.of(page, size); // SPEC-GAP: Q-P1
+        int s = paging.size();
+        int p = paging.page();
         return PageResponse.of(inbox.search(filter, p, s), p, s, inbox.count(filter));
     }
 
@@ -121,8 +121,9 @@ public class InboxService {
     @Transactional(readOnly = true)
     public PageResponse<PortalMessage> portalInbox(String memberId, int page, int size) {
         String member = requireMember(memberId);
-        int s = clampSize(size);
-        int p = Math.max(0, page);
+        io.loyaltyhub.common.web.PageParams paging = io.loyaltyhub.common.web.PageParams.of(page, size); // SPEC-GAP: Q-P1
+        int s = paging.size();
+        int p = paging.page();
         InboxRepository.Filter f = new InboxRepository.Filter(member, null, "INAPP", null);
         List<PortalMessage> items = inbox.search(f, p, s).stream().map(PortalMessage::of).toList();
         return PageResponse.of(items, p, s, inbox.count(f));
@@ -155,9 +156,5 @@ public class InboxService {
             throw LhException.badRequest("Parametro memberId obbligatorio.");
         }
         return memberId.trim();
-    }
-
-    private static int clampSize(int size) {
-        return Math.max(1, Math.min(size, MAX_SIZE));
     }
 }

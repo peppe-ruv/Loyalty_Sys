@@ -12,6 +12,7 @@ import java.time.Clock;
  * {@code /v1/demo/jobs/close-contests}). Usano l'istante corrente come {@code asOf}; attore {@code system}.
  */
 @Component
+@org.springframework.context.annotation.Lazy(false) // docs/06 §5: attivo anche con lazy-initialization (profilo free)
 @ConditionalOnProperty(name = "loyaltyhub.jobs.enabled", havingValue = "true")
 public class GamificationJobs {
 

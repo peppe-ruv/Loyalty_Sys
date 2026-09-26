@@ -40,6 +40,12 @@ public final class LhKafkaSecurity {
                         : "org.apache.kafka.common.security.plain.PlainLoginModule";
                 props.put(SaslConfigs.SASL_JAAS_CONFIG, "%s required username=\"%s\" password=\"%s\";"
                         .formatted(module, sasl.getUsername(), sasl.getPassword()));
+                // docs/11 §3: SASL_SSL usa anche KAFKA_SSL_CA_B64 come truststore (ADR-025: ramo da completare col CA).
+                String ca = kafka.getSsl().getCaB64();
+                if (ca != null && !ca.isBlank()) {
+                    props.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, "PEM");
+                    props.put(SslConfigs.SSL_TRUSTSTORE_CERTIFICATES_CONFIG, decode(ca));
+                }
             }
         }
         return props;

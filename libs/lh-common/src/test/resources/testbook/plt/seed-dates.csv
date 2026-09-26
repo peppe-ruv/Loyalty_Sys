@@ -1,0 +1,60 @@
+id,descrizione,orologio,espressione,atteso
+TB-PLT-CLK-001,@now = istante corrente,2026-09-24T10:00:00Z,@now,2026-09-24T10:00:00Z
+TB-PLT-CLK-002,@today = oggi alle 00:00 di Roma (ora legale),2026-09-24T10:00:00Z,@today,2026-09-23T22:00:00Z
+TB-PLT-CLK-003,@today-20d,2026-09-24T10:00:00Z,@today-20d,2026-09-03T22:00:00Z
+TB-PLT-CLK-004,@now-3h,2026-09-24T10:00:00Z,@now-3h,2026-09-24T07:00:00Z
+TB-PLT-CLK-005,@today+2M attraversa il cambio d'ora: resta mezzanotte locale (CET),2026-09-24T10:00:00Z,@today+2M,2026-11-23T23:00:00Z
+TB-PLT-CLK-006,@today-1y,2026-09-24T10:00:00Z,@today-1y,2025-09-23T22:00:00Z
+TB-PLT-CLK-007,@som = primo del mese alle 00:00,2026-09-24T10:00:00Z,@som,2026-08-31T22:00:00Z
+TB-PLT-CLK-008,@eom = ultimo giorno del mese alle 23:59:59,2026-09-24T10:00:00Z,@eom,2026-09-30T21:59:59Z
+TB-PLT-CLK-009,@soy = 1 gennaio alle 00:00 (CET),2026-09-24T10:00:00Z,@soy,2025-12-31T23:00:00Z
+TB-PLT-CLK-010,@eoy = 31 dicembre alle 23:59:59 (CET),2026-09-24T10:00:00Z,@eoy,2026-12-31T22:59:59Z
+TB-PLT-CLK-011,@eom+1M da settembre (30 gg): fine di ottobre (31 gg) (Q-P5),2026-09-24T10:00:00Z,@eom+1M,2026-10-31T22:59:59Z
+TB-PLT-CLK-012,@eom+1M da febbraio 2027: fine di marzo (Q-P5),2027-02-10T10:00:00Z,@eom+1M,2027-03-31T21:59:59Z
+TB-PLT-CLK-013,@eom+1M da gennaio: fine di febbraio (non bisestile),2026-01-31T10:00:00Z,@eom+1M,2026-02-28T22:59:59Z
+TB-PLT-CLK-014,@eom-1M da marzo: fine di febbraio,2026-03-31T10:00:00Z,@eom-1M,2026-02-28T22:59:59Z
+TB-PLT-CLK-015,@som+1M,2026-09-24T10:00:00Z,@som+1M,2026-09-30T22:00:00Z
+TB-PLT-CLK-016,@soy+10M+29dT23:59 (offset multipli e ora del seed),2026-09-24T10:00:00Z,@soy+10M+29dT23:59,2026-11-30T22:59:00Z
+TB-PLT-CLK-017,@soy+11M+23dT23:59,2026-09-24T10:00:00Z,@soy+11M+23dT23:59,2026-12-24T22:59:00Z
+TB-PLT-CLK-018,@today-3dT18:45 (ora del giorno),2026-09-24T10:00:00Z,@today-3dT18:45,2026-09-21T16:45:00Z
+TB-PLT-CLK-019,@today-1d-2h (giorni poi ore),2026-09-24T10:00:00Z,@today-1d-2h,2026-09-22T20:00:00Z
+TB-PLT-CLK-020,@lastWeekday di giovedì = mercoledì,2026-09-24T10:00:00Z,@lastWeekday,2026-09-22T22:00:00Z
+TB-PLT-CLK-021,@lastWeekdayT10:30,2026-09-24T10:00:00Z,@lastWeekdayT10:30,2026-09-23T08:30:00Z
+TB-PLT-CLK-022,@lastWeekday di lunedì = venerdì,2026-09-28T10:00:00Z,@lastWeekday,2026-09-24T22:00:00Z
+TB-PLT-CLK-023,@lastWeekday di domenica = venerdì,2026-09-27T10:00:00Z,@lastWeekday,2026-09-24T22:00:00Z
+TB-PLT-CLK-024,@lastSaturday di giovedì,2026-09-24T10:00:00Z,@lastSaturday,2026-09-18T22:00:00Z
+TB-PLT-CLK-025,@lastSaturday di sabato = sabato precedente (strettamente prima di oggi),2026-09-26T10:00:00Z,@lastSaturday,2026-09-18T22:00:00Z
+TB-PLT-CLK-026,@lastSaturday di domenica = ieri,2026-09-27T10:00:00Z,@lastSaturday,2026-09-25T22:00:00Z
+TB-PLT-CLK-027,@lastSaturdayT10:05,2026-09-24T10:00:00Z,@lastSaturdayT10:05,2026-09-19T08:05:00Z
+TB-PLT-CLK-028,@lastSunday (giorno non in docs/10: esteso a ogni giorno; Q-P6),2026-09-24T10:00:00Z,@lastSunday,2026-09-19T22:00:00Z
+TB-PLT-CLK-029,@lastFunday: giorno sconosciuto,2026-09-24T10:00:00Z,@lastFunday,ERR:IllegalArgumentException
+TB-PLT-CLK-030,@tomorrow: parola chiave sconosciuta,2026-09-24T10:00:00Z,@tomorrow,ERR:IllegalArgumentException
+TB-PLT-CLK-031,@TODAY maiuscolo: sconosciuta,2026-09-24T10:00:00Z,@TODAY,ERR:IllegalArgumentException
+TB-PLT-CLK-032,@today+2x: unità sconosciuta,2026-09-24T10:00:00Z,@today+2x,ERR:IllegalArgumentException
+TB-PLT-CLK-033,@today+ senza numero,2026-09-24T10:00:00Z,@today+,ERR:IllegalArgumentException
+TB-PLT-CLK-034,espressione assente,2026-09-24T10:00:00Z,NULL,ERR:IllegalArgumentException
+TB-PLT-CLK-035,espressione vuota,2026-09-24T10:00:00Z,EMPTY,ERR:IllegalArgumentException
+TB-PLT-CLK-036,espressione di soli spazi,2026-09-24T10:00:00Z,SPACES,ERR:IllegalArgumentException
+TB-PLT-CLK-037,valore ISO-8601 senza @: letto così com'è,2026-09-24T10:00:00Z,2026-09-18T10:15:00Z,2026-09-18T10:15:00Z
+TB-PLT-CLK-038,data senza ora e senza @: non valida,2026-09-24T10:00:00Z,2026-09-18,ERR:DateTimeParseException
+TB-PLT-CLK-039,ora 24:00 non valida,2026-09-24T10:00:00Z,@todayT24:00,ERR:DateTimeException
+TB-PLT-CLK-040,minuti 60 non validi,2026-09-24T10:00:00Z,@todayT09:60,ERR:DateTimeException
+TB-PLT-CLK-041,ora con una cifra non riconosciuta,2026-09-24T10:00:00Z,@todayT9:30,ERR:IllegalArgumentException
+TB-PLT-CLK-042,alle 23:59:59 di Roma @today è ancora oggi,2026-09-24T21:59:59Z,@today,2026-09-23T22:00:00Z
+TB-PLT-CLK-043,alle 00:00:00 di Roma @today è il giorno dopo,2026-09-24T22:00:00Z,@today,2026-09-24T22:00:00Z
+TB-PLT-CLK-044,giorno del cambio d'ora di marzo: @today alle 00:00 CET,2026-03-29T00:30:00Z,@today,2026-03-28T23:00:00Z
+TB-PLT-CLK-045,cambio d'ora di marzo: @today+1d = 00:00 CEST del giorno dopo (giorno di 23 h),2026-03-29T00:30:00Z,@today+1d,2026-03-29T22:00:00Z
+TB-PLT-CLK-046,cambio d'ora di marzo: ora inesistente 02:30 spostata alle 03:30 CEST (Q-267),2026-03-29T00:30:00Z,@todayT02:30,2026-03-29T01:30:00Z
+TB-PLT-CLK-047,cambio d'ora di marzo: @now+1h dalle 01:30 CET,2026-03-29T00:30:00Z,@now+1h,2026-03-29T01:30:00Z
+TB-PLT-CLK-048,cambio d'ora di marzo: @now+1d mantiene l'ora locale (23 h dopo),2026-03-29T00:30:00Z,@now+1d,2026-03-29T23:30:00Z
+TB-PLT-CLK-049,cambio d'ora di ottobre: @today alle 00:00 CEST,2026-10-25T08:00:00Z,@today,2026-10-24T22:00:00Z
+TB-PLT-CLK-050,cambio d'ora di ottobre: ora doppia 02:30 = prima occorrenza CEST (Q-267),2026-10-25T08:00:00Z,@todayT02:30,2026-10-25T00:30:00Z
+TB-PLT-CLK-051,cambio d'ora di ottobre: @today+1d = 00:00 CET (giorno di 25 h),2026-10-25T08:00:00Z,@today+1d,2026-10-25T23:00:00Z
+TB-PLT-CLK-052,@eom a febbraio bisestile = 29 febbraio 23:59:59,2028-02-10T10:00:00Z,@eom,2028-02-29T22:59:59Z
+TB-PLT-CLK-053,@eom a febbraio non bisestile = 28 febbraio,2027-02-10T10:00:00Z,@eom,2027-02-28T22:59:59Z
+TB-PLT-CLK-054,dal 29 febbraio @today+1y = 28 febbraio,2028-02-29T10:00:00Z,@today+1y,2029-02-27T23:00:00Z
+TB-PLT-CLK-055,dal 29 febbraio @today-1d,2028-02-29T10:00:00Z,@today-1d,2028-02-27T23:00:00Z
+TB-PLT-CLK-056,dal 31 gennaio @today+1M = 28 febbraio,2026-01-31T10:00:00Z,@today+1M,2026-02-27T23:00:00Z
+TB-PLT-CLK-057,alle 00:30 del 1 gennaio a Roma @soy è l'anno nuovo,2025-12-31T23:30:00Z,@soy,2025-12-31T23:00:00Z
+TB-PLT-CLK-058,alle 00:30 del 1 gennaio a Roma @eoy è la fine dell'anno nuovo,2025-12-31T23:30:00Z,@eoy,2026-12-31T22:59:59Z
+TB-PLT-CLK-059,testo estraneo tra due scostamenti: non valido (Q-P5),2026-09-24T10:00:00Z,@today-1dx+2d,ERR:IllegalArgumentException

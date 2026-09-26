@@ -96,6 +96,9 @@ public class LhKafkaConfiguration {
     @Bean
     public DefaultErrorHandler lhErrorHandler(KafkaTemplate<String, String> template, LhMetrics metrics) {
         String dlq = props.getTopics().getDlq();
+        long[] backoffs = props.getConsumer().getRetryBackoffMs() == null
+                ? new long[0] : props.getConsumer().getRetryBackoffMs();
+        int maxAttempts = backoffs.length + 1;
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(template,
                 (record, ex) -> new TopicPartition(dlq, -1));
         recoverer.setHeadersFunction((record, ex) -> {
@@ -103,14 +106,19 @@ public class LhKafkaConfiguration {
             String group = ex instanceof ListenerExecutionFailedException lefe && lefe.getGroupId() != null
                     ? lefe.getGroupId() : consumerGroup();
             metrics.eventDlq(headerType(record), DlqRecords.errorCode(cause));
-            return DlqRecords.headers(record.topic(), group, cause, DlqRecords.attemptsFor(cause));
+            return DlqRecords.headers(record.topic(), group, cause, DlqRecords.attemptsFor(cause, maxAttempts));
         });
         // Ritardi configurabili (default 1 s, 5 s ⇒ 3 tentativi, docs/12 accettazione M0, SPEC-GAP: Q-131);
         // gli eventi non ritentabili vanno subito in DLQ.
-        DefaultErrorHandler handler = new DefaultErrorHandler(recoverer,
-                new SequenceBackOff(props.getConsumer().getRetryBackoffMs()));
+        SequenceBackOff retries = new SequenceBackOff(backoffs);
+        DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, retries);
         // LOOP_GUARD è deterministico come un errore di validazione (docs/04 §5): nessun ritentativo lo risolverebbe.
-        handler.addNotRetryableExceptions(NonRetryableEventException.class, LoopGuardException.class);
+        handler.addNotRetryableExceptions(NonRetryableEventException.class, LoopGuardException.class,
+                tools.jackson.core.JacksonException.class);
+        // Stessa classificazione del bus in-process (DlqRecords): un errore non ritentabile, anche se avvolto da
+        // un'altra eccezione, va subito in DLQ.
+        handler.setBackOffFunction((record, ex) -> DlqRecords.retryable(DlqRecords.unwrap(ex))
+                ? retries : new SequenceBackOff(new long[0]));
         return handler;
     }
 

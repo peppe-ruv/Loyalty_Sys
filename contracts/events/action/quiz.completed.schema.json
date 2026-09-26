@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:action.quiz.completed:1",
+  "title": "action.quiz.completed — data (EVT-ACT-08, docs/05 §3, fonte partner)",
+  "type": "object",
+  "required": [
+    "quizId",
+    "correctAnswers",
+    "totalQuestions"
+  ],
+  "properties": {
+    "quizId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "correctAnswers": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "totalQuestions": {
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

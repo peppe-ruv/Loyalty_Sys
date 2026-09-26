@@ -13,6 +13,7 @@ import tools.jackson.databind.ObjectMapper;
 
 /** Consuma {@code lh.effects.v1} per gamification (docs/servizi/gamification-service.md §4); i tipi senza handler si ignorano. */
 @Component
+@org.springframework.context.annotation.Lazy(false) // docs/06 §5: attivo anche con lazy-initialization (profilo free)
 public class EffectsListener {
 
     private static final TypeReference<LhEvent<JsonNode>> EVENT_TYPE = new TypeReference<>() {

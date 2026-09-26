@@ -121,8 +121,9 @@ public class MemberService {
 
     public PageResponse<MemberView> search(String q, String status, String tier, String segment, int page, int size) {
         MemberStatus st = parseStatusFilter(status);
-        int p = Math.max(page, 0);
-        int s = Math.min(Math.max(size, 1), 100);
+        io.loyaltyhub.common.web.PageParams paging = io.loyaltyhub.common.web.PageParams.of(page, size); // SPEC-GAP: Q-P1
+        int p = paging.page();
+        int s = paging.size();
         long total = members.count(q, st, tier, segment);
         List<MemberView> items = members.search(q, st, tier, segment, s, p * s).stream()
                 .map(m -> MemberView.of(m, projections.findByMemberId(m.id()).orElse(null)))

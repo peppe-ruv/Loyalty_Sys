@@ -31,6 +31,11 @@ public class EditionRepository {
                 .params(code, name, start, end, grace, status).update();
     }
 
+    /** Reset demo (docs/06 §10): le edizioni create da BO-08 dopo il seed non devono sopravvivere. */
+    public void deleteAll() {
+        jdbc.sql("DELETE FROM edition").update();
+    }
+
     public List<Edition> findAll() {
         return jdbc.sql("SELECT code, name, start_date, end_date, redemption_grace_until, status FROM edition ORDER BY start_date")
                 .query(EditionRepository::map)

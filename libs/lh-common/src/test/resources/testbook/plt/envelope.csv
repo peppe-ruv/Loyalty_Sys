@@ -1,0 +1,75 @@
+id,descrizione,caso,atteso
+TB-PLT-ENV-001,radice: specversion 1.0,root.specversion,1.0
+TB-PLT-ENV-002,radice: id ULID di 26 caratteri Crockford,root.idUlid,26:true
+TB-PLT-ENV-003,radice di un servizio: source urn:loyaltyhub:service:<servizio>,root.sourceService,urn:loyaltyhub:service:campaign
+TB-PLT-ENV-004,radice con fonte esplicita: source urn:loyaltyhub:source:<fonte>,root.sourceExplicit,urn:loyaltyhub:source:ecommerce
+TB-PLT-ENV-005,radice: time = istante dell'orologio (UTC),root.time,2026-09-24T10:00:00Z
+TB-PLT-ENV-006,radice: datacontenttype application/json,root.datacontenttype,application/json
+TB-PLT-ENV-007,dataschema di un'azione,root.dataschemaAction,urn:loyaltyhub:schema:action.purchase.completed:1
+TB-PLT-ENV-008,dataschema di un fatto,root.dataschemaFact,urn:loyaltyhub:schema:fact.wallet.points.earned:1
+TB-PLT-ENV-009,dataschema dell'audit,root.dataschemaAudit,urn:loyaltyhub:schema:audit.entry:1
+TB-PLT-ENV-010,radice: lhtenant aurora (ADR-013),root.tenant,aurora
+TB-PLT-ENV-011,radice: lhcorrelationid = id dell'azione radice,root.correlation,true
+TB-PLT-ENV-012,radice: lhcausationid assente,root.causation,null
+TB-PLT-ENV-013,radice: lhhop 0,root.hop,0
+TB-PLT-ENV-014,radice senza attore: lhactor assente (facoltativo),root.actorAbsent,null
+TB-PLT-ENV-015,radice da backoffice: lhactor RUOLO:username,root.actorPresent,MARKETING:luca.marketing
+TB-PLT-ENV-016,figlio: stessa correlazione del genitore,child.correlation,01J8ZK3A0000000000000CORR0
+TB-PLT-ENV-017,figlio: lhcausationid = id del genitore,child.causation,01J8ZK3V7Q2M9T4B6N8R0XWYCD
+TB-PLT-ENV-018,figlio (effetto o fatto): lhhop del genitore invariato (+1 solo al ponte),child.hop,2
+TB-PLT-ENV-019,figlio: stesso subject,child.subject,member:MBR-000003
+TB-PLT-ENV-020,figlio non contabile: time = istante di elaborazione,child.time,2026-09-24T10:00:00Z
+TB-PLT-ENV-021,accredito: time = time dell'azione radice (stessa data di business),child.sameBusinessTime,2026-09-18T10:15:00Z
+TB-PLT-ENV-022,figlio: lhactor propagato (docs/06 §1),child.actor,CARE:paolo.care
+TB-PLT-ENV-023,figlio: source = servizio che lo produce,child.source,urn:loyaltyhub:service:campaign
+TB-PLT-ENV-024,figlio: dataschema del proprio type,child.dataschema,urn:loyaltyhub:schema:effect.points.grant:1
+TB-PLT-ENV-025,figlio: nuovo id ULID diverso dal genitore,child.newId,true
+TB-PLT-ENV-026,genitore senza lhcorrelationid: correlazione = id del genitore,child.parentWithoutCorrelation,01J8ZK3V7Q2M9T4B6N8R0XWYCD
+TB-PLT-ENV-027,genitore senza lhhop: figlio con lhhop 0,child.parentWithoutHop,0
+TB-PLT-ENV-028,figlio per un altro membro (referral): subject del secondo membro,childForSubject.subject,member:MBR-000002
+TB-PLT-ENV-029,figlio per un altro membro: stessa correlazione,childForSubject.correlation,01J8ZK3A0000000000000CORR0
+TB-PLT-ENV-030,figlio per un altro membro: causa = genitore,childForSubject.causation,01J8ZK3V7Q2M9T4B6N8R0XWYCD
+TB-PLT-ENV-031,ponte: source urn:loyaltyhub:source:internal,bridge.source,urn:loyaltyhub:source:internal
+TB-PLT-ENV-032,ponte da fatto con lhhop 0: azione con lhhop 1,bridge.hop0,1
+TB-PLT-ENV-033,ponte da fatto con lhhop 2: azione con lhhop 3,bridge.hop2,3
+TB-PLT-ENV-034,ponte da fatto senza lhhop: azione con lhhop 1,bridge.hopNull,1
+TB-PLT-ENV-035,ponte: stesso time del fatto,bridge.time,2026-09-18T10:15:00Z
+TB-PLT-ENV-036,ponte: stesso subject del fatto,bridge.subject,member:MBR-000003
+TB-PLT-ENV-037,ponte: lhcausationid = id del fatto,bridge.causation,01J8ZK3V7Q2M9T4B6N8R0XWYCD
+TB-PLT-ENV-038,ponte: stessa correlazione del fatto,bridge.correlation,01J8ZK3A0000000000000CORR0
+TB-PLT-ENV-039,ponte: nuovo id ULID,bridge.newId,true
+TB-PLT-ENV-040,ponte: dataschema dell'azione generata,bridge.dataschema,urn:loyaltyhub:schema:action.tier.upgraded:1
+TB-PLT-ENV-041,ponte: lhactor del fatto propagato,bridge.actor,ADMIN:marta.admin
+TB-PLT-ENV-042,50 id nello stesso millisecondo: ULID distinti e crescenti,ulid.monotonic,true
+TB-PLT-ENV-043,JSON: attributi nulli omessi (lhcausationid e lhactor),json.nullsOmitted,true
+TB-PLT-ENV-044,JSON: time RFC 3339 UTC,json.timeRfc3339,2026-09-24T10:00:00Z
+TB-PLT-ENV-045,JSON: campi ed estensioni sconosciuti tollerati in lettura (docs/05 §9),json.unknownTolerated,io.loyaltyhub.action.app.login.daily
+TB-PLT-ENV-046,JSON: lhhop numerico,json.hopAsNumber,true
+TB-PLT-ENV-047,radice valida contro envelope.schema.json,schema.root,[]
+TB-PLT-ENV-048,figlio valido contro envelope.schema.json,schema.child,[]
+TB-PLT-ENV-049,azione del ponte valida contro envelope.schema.json,schema.bridge,[]
+TB-PLT-ENV-050,voce di audit valida contro envelope.schema.json,schema.audit,[]
+TB-PLT-TOP-001,famiglia ACTION su lh.actions.v1,topic.ACTION,lh.actions.v1
+TB-PLT-TOP-002,famiglia EFFECT su lh.effects.v1,topic.EFFECT,lh.effects.v1
+TB-PLT-TOP-003,famiglia FACT su lh.facts.v1,topic.FACT,lh.facts.v1
+TB-PLT-TOP-004,famiglia AUDIT su lh.audit.v1,topic.AUDIT,lh.audit.v1
+TB-PLT-TOP-005,esattamente 5 topic con i nomi di default (ADR-004),topic.all,lh.actions.v1 lh.effects.v1 lh.facts.v1 lh.audit.v1 lh.dlq.v1
+TB-PLT-TOP-006,topic DLQ lh.dlq.v1,topic.dlq,lh.dlq.v1
+TB-PLT-TOP-007,nome di topic da configurazione (loyaltyhub.topics.*),topic.custom,x.actions.v9
+TB-PLT-TOP-008,famiglia da type completo di azione,family.action,ACTION
+TB-PLT-TOP-009,famiglia dell'audit,family.audit,AUDIT
+TB-PLT-TOP-010,type breve: nessuna famiglia,family.short,null
+TB-PLT-TOP-011,famiglia sconosciuta (dlq): nessuna famiglia,family.unknown,null
+TB-PLT-TOP-012,type assente: nessuna famiglia,family.null,null
+TB-PLT-TOP-013,outbox di un type senza famiglia: rifiutato,writer.unknownFamily,ERR:IllegalArgumentException
+TB-PLT-TOP-014,outbox di un effetto: topic della famiglia e chiave memberId,writer.familyTopic,lh.effects.v1 MBR-000003
+TB-PLT-TOP-015,chiave di un evento di membro = memberId,key.member,MBR-000003
+TB-PLT-TOP-016,chiave di un fatto di configurazione = <entityType>:<id>,key.config,edition:E2026
+TB-PLT-TOP-017,fatto di configurazione: nessun memberId,key.memberId.config,null
+TB-PLT-TOP-018,audit su lh.audit.v1 con chiave entityType:entityId,audit.topicKey,lh.audit.v1 WALLET:MBR-000004
+TB-PLT-TOP-019,audit: type unico io.loyaltyhub.audit.entry,audit.type,io.loyaltyhub.audit.entry
+TB-PLT-TOP-020,audit da backoffice: lhactor dell'intestazione,audit.actorRequest,MARKETING:luca.marketing
+TB-PLT-TOP-021,audit senza intestazione: lhactor ANALYST:anonymous (mai assente),audit.actorAnonymous,ANALYST:anonymous
+TB-PLT-TOP-022,audit di un job: lhactor system,audit.actorJob,system
+TB-PLT-TOP-023,audit da codice comune: service = loyaltyhub.service,audit.service,wallet urn:loyaltyhub:service:wallet
+TB-PLT-TOP-024,audit: azioni ammesse (docs/05 §6),audit.actions,CREATE UPDATE DELETE TRANSITION ADJUST JOB RESET
