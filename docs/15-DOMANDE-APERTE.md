@@ -62,6 +62,9 @@ Domande nate con la specifica di Fase 2 (Appendice B di `docs/18`), registrate i
 | Q-363 | chi approva i premi sincronizzati | come i premi manuali, `LEGAL` | M13.6 | APERTA |
 | Q-364 | limite di passi per missione e di missioni attive per membro | 10 passi, 5 missioni | M13.7 | APERTA |
 | Q-366 | `member.age` quando da `member.*:2` arriva solo `birthYear` | età minima certa (anni compiuti di sicuro a quella data; il 31/12 l'età piena): prudente sui limiti d'età; con la data dai fatti `:1` resta esatta | M8.4 | APERTA |
+| Q-367 | soggetti `email:` in ingestion senza l'e-mail sul bus (`member.*:2`) | `emailHash` = HMAC-SHA256 dell'e-mail in minuscolo con `LH_PSEUDONYM_KEY` (solo member e ingestion); ingestion confronta l'hash | M8.4 | DECISA (proprietario, 2026-09-26) |
+| Q-368 | soprannome per classifiche del portale ed export dei vincitori senza `nickname` sul bus | gamification espone solo `memberId`; il BFF, lato server, chiede i soprannomi a member-service con un endpoint a lotti e li inserisce; il browser non vede id altrui | M8.4 | DECISA (proprietario, 2026-09-26) |
+| Q-369 | note libere dei riscatti all'anonimizzazione senza nomi sul bus | reward svuota le note libere dei riscatti del membro anonimizzato; restano stato ed esito | M8.4 | DECISA (proprietario, 2026-09-26) |
 
 ## SPEC-GAP segnalati durante lo sviluppo
 _(vuoto: l'agente aggiunge qui le voci `Q-40+` con file, riga, scelta fatta e motivo)_

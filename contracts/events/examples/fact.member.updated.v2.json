@@ -13,6 +13,7 @@
   "data": {
     "memberId": "MBR-000003",
     "externalId": "CRM-3003",
+    "emailHash": "21cebef191120423981adfc0ba20d56791dd828ae5fe4bf3c5ab840bcc9deacb",
     "status": "ACTIVE",
     "channel": "APP",
     "registeredAt": "2026-01-12T09:30:00Z",
