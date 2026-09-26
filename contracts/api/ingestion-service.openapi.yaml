@@ -1,5 +1,48 @@
 components:
   schemas:
+    BatchItem:
+      properties:
+        correlationId:
+          type: string
+        detail:
+          type: string
+        eventId:
+          type: string
+        index:
+          format: int32
+          type: integer
+        memberId:
+          type: string
+        rejectCode:
+          enum:
+          - SOURCE_DISABLED
+          - UNKNOWN_TYPE
+          - TYPE_NOT_ALLOWED
+          - INVALID_DATA
+          - INVALID_TIME
+          - MEMBER_NOT_ACTIVE
+          type: string
+        status:
+          enum:
+          - ACCEPTED
+          - DUPLICATE
+          - REJECTED
+          - UNMATCHED
+          - INVALID
+          type: string
+      type: object
+    BatchResult:
+      properties:
+        counts:
+          $ref: "#/components/schemas/OutcomeCounts"
+        items:
+          items:
+            $ref: "#/components/schemas/BatchItem"
+          type: array
+        total:
+          format: int32
+          type: integer
+      type: object
     EventTypeRequest:
       properties:
         category:
@@ -81,6 +124,90 @@ components:
           type: string
         status:
           type: string
+      type: object
+    ImportDetail:
+      properties:
+        job:
+          $ref: "#/components/schemas/ImportJob"
+        openUnmatched:
+          format: int64
+          type: integer
+      type: object
+    ImportJob:
+      properties:
+        attempts:
+          format: int32
+          type: integer
+        counts:
+          $ref: "#/components/schemas/OutcomeCounts"
+        createdAt:
+          format: date-time
+          type: string
+        createdBy:
+          type: string
+        defaultSource:
+          type: string
+        errorDetail:
+          type: string
+        fileName:
+          type: string
+        finishedAt:
+          format: date-time
+          type: string
+        format:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        rowsDone:
+          format: int32
+          type: integer
+        rowsTotal:
+          format: int32
+          type: integer
+        sha256:
+          type: string
+        sizeBytes:
+          format: int32
+          type: integer
+        startedAt:
+          format: date-time
+          type: string
+        status:
+          enum:
+          - QUEUED
+          - RUNNING
+          - DONE
+          - FAILED
+          type: string
+      type: object
+    ImportRowResult:
+      properties:
+        currentStatus:
+          type: string
+        detail:
+          type: string
+        eventId:
+          type: string
+        inboundEventId:
+          type: string
+        lineNumber:
+          format: int32
+          type: integer
+        outcome:
+          enum:
+          - ACCEPTED
+          - DUPLICATE
+          - REJECTED
+          - UNMATCHED
+          - INVALID
+          type: string
+        rejectCode:
+          type: string
+        rowNumber:
+          format: int32
+          type: integer
       type: object
     InboundDetail:
       properties:
@@ -299,6 +426,97 @@ components:
         name:
           type: string
       type: object
+    OutcomeCounts:
+      properties:
+        accepted:
+          format: int32
+          type: integer
+        duplicate:
+          format: int32
+          type: integer
+        invalid:
+          format: int32
+          type: integer
+        rejected:
+          format: int32
+          type: integer
+        unmatched:
+          format: int32
+          type: integer
+      type: object
+    PageInfo:
+      properties:
+        number:
+          format: int32
+          type: integer
+        size:
+          format: int32
+          type: integer
+        totalItems:
+          format: int64
+          type: integer
+        totalPages:
+          format: int32
+          type: integer
+      type: object
+    PageResponseImportJob:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ImportJob"
+          type: array
+        page:
+          $ref: "#/components/schemas/PageInfo"
+      type: object
+    PageResponseImportRowResult:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ImportRowResult"
+          type: array
+        page:
+          $ref: "#/components/schemas/PageInfo"
+      type: object
+    ProblemDetail:
+      properties:
+        detail:
+          type: string
+        instance:
+          format: uri
+          type: string
+        properties:
+          additionalProperties: {}
+          type: object
+        status:
+          format: int32
+          type: integer
+        title:
+          type: string
+        type:
+          format: uri
+          type: string
+      type: object
+    RetryResult:
+      properties:
+        accepted:
+          format: int32
+          type: integer
+        failed:
+          format: int32
+          type: integer
+        nextAfterRow:
+          format: int32
+          type: integer
+        rejected:
+          format: int32
+          type: integer
+        retried:
+          format: int32
+          type: integer
+        stillUnmatched:
+          format: int32
+          type: integer
+      type: object
     Scenario:
       properties:
         code:
@@ -413,7 +631,7 @@ paths:
       - scenarios
   /v1/demo/scenarios:
     get:
-      operationId: list_3
+      operationId: list_4
       responses:
         "200":
           content:
@@ -470,7 +688,7 @@ paths:
       - simulator
   /v1/event-types:
     get:
-      operationId: list
+      operationId: list_1
       responses:
         "200":
           content:
@@ -484,7 +702,7 @@ paths:
       tags:
       - event-types
     post:
-      operationId: create_1
+      operationId: create_2
       requestBody:
         content:
           application/json:
@@ -593,9 +811,245 @@ paths:
       summary: Ingest — events
       tags:
       - events
+  /v1/events/batch:
+    post:
+      operationId: ingestBatch
+      requestBody:
+        content:
+          application/cloudevents-batch+json:
+            schema:
+              items:
+                $ref: "#/components/schemas/InboundEventRequest"
+              maxItems: 1000
+              type: array
+          application/json:
+            schema:
+              items:
+                $ref: "#/components/schemas/InboundEventRequest"
+              maxItems: 1000
+              type: array
+        required: true
+      responses:
+        "202":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BatchResult"
+          description: Accepted
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Corpo non JSON o non array; corpo oltre il tetto in streaming
+        "413":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "BATCH_BODY_TOO_LARGE: corpo oltre il tetto in byte"
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "BATCH_EMPTY, BATCH_TOO_LARGE, BATCH_OVER_RATE_LIMIT (il batch da solo supera il limite di eventi al minuto: non ritentabile così com'è, va diviso)"
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "RATE_LIMITED: il batch starebbe nel limite ma la finestra corrente dell'indirizzo è piena (Retry-After)"
+      summary: Ingest batch
+      tags:
+      - events-batch
+  /v1/imports:
+    get:
+      operationId: list
+      parameters:
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 0
+          format: int32
+          type: integer
+      - in: query
+        name: size
+        required: false
+        schema:
+          default: 20
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageResponseImportJob"
+          description: OK
+      summary: List — imports
+      tags:
+      - imports
+    post:
+      operationId: create_1
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                file:
+                  format: binary
+                  type: string
+                kind:
+                  type: string
+                source:
+                  type: string
+              type: object
+      responses:
+        "202":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ImportJob"
+          description: Accepted
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "FORBIDDEN_ROLE: servono ADMIN o CARE"
+        "413":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: File oltre il tetto del contenitore (2 MB)
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "IMPORT_EMPTY, IMPORT_FILE_TOO_LARGE, IMPORT_FORMAT_UNSUPPORTED, IMPORT_FORMAT_MISMATCH, IMPORT_NOT_TEXT, IMPORT_INVALID, IMPORT_TOO_MANY_ROWS, IMPORT_KIND_NOT_SUPPORTED, IDEMPOTENCY_KEY_REUSED"
+      summary: Create — imports
+      tags:
+      - imports
+  /v1/imports/{id}:
+    get:
+      operationId: get_2
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ImportDetail"
+          description: OK
+      summary: Get — imports
+      tags:
+      - imports
+  /v1/imports/{id}/report.csv:
+    get:
+      operationId: report
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            text/csv:
+              schema:
+                type: string
+          description: "CSV con intestazione riga, linea, id_evento, esito, codice, dettaglio, esito_attuale"
+      summary: Report — imports
+      tags:
+      - imports
+  /v1/imports/{id}/retry-unmatched:
+    post:
+      operationId: retryUnmatched
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: afterRow
+        required: false
+        schema:
+          default: 0
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RetryResult"
+          description: OK
+      summary: Retry unmatched
+      tags:
+      - imports
+  /v1/imports/{id}/rows:
+    get:
+      operationId: rows
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: outcome
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 0
+          format: int32
+          type: integer
+      - in: query
+        name: size
+        required: false
+        schema:
+          default: 50
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageResponseImportRowResult"
+          description: OK
+      summary: Rows — imports
+      tags:
+      - imports
   /v1/inbound-events:
     get:
-      operationId: list_2
+      operationId: list_3
       parameters:
       - in: query
         name: status
@@ -762,7 +1216,7 @@ paths:
       - inbound-events
   /v1/internal-mappings:
     get:
-      operationId: list_1
+      operationId: list_2
       responses:
         "200":
           content:

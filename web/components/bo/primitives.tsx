@@ -33,6 +33,12 @@ const STATUS_TONE: Record<string, string> = {
   CONFIRMED: "bg-sky-100 text-sky-800",
   FULFILLED: "bg-emerald-100 text-emerald-800",
   CANCELLED: "bg-slate-200 text-slate-600",
+  // import file (BO-32) e righe non leggibili del rapporto
+  QUEUED: "bg-slate-100 text-slate-700",
+  RUNNING: "bg-sky-100 text-sky-800",
+  DONE: "bg-emerald-100 text-emerald-800",
+  FAILED: "bg-red-100 text-red-800",
+  INVALID: "bg-red-100 text-red-800",
   // coupon (BO-12)
   AVAILABLE: "bg-slate-100 text-slate-700",
   ISSUED: "bg-sky-100 text-sky-800",
