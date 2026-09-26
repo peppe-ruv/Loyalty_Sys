@@ -16,7 +16,7 @@
   <description>Fasce, categorie, premi, stock, richieste premio, pool e coupon (porta 8085, schema reward).</description>
 
   <properties>
-    <zonky-embedded-postgres.version>2.0.7</zonky-embedded-postgres.version>
+    <zonky-embedded-postgres.version>2.2.2</zonky-embedded-postgres.version>
   </properties>
 
   <dependencies>

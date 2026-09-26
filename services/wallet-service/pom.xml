@@ -16,7 +16,7 @@
   <description>Libro mastro dei punti a doppia valuta, lotti, tier ed edizioni (porta 8084, schema wallet).</description>
 
   <properties>
-    <zonky-embedded-postgres.version>2.0.7</zonky-embedded-postgres.version>
+    <zonky-embedded-postgres.version>2.2.2</zonky-embedded-postgres.version>
   </properties>
 
   <dependencies>
