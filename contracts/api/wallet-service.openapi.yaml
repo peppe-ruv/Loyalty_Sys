@@ -1,0 +1,964 @@
+components:
+  schemas:
+    ActivityItem:
+      properties:
+        amount:
+          format: int64
+          type: integer
+        breakdown:
+          type: string
+        currency:
+          type: string
+        direction:
+          type: string
+        expiresAt:
+          format: date-time
+          type: string
+        icon:
+          type: string
+        id:
+          type: string
+        occurredAt:
+          format: date-time
+          type: string
+        pending:
+          type: boolean
+        subtitle:
+          type: string
+        title:
+          type: string
+      type: object
+    AdjustmentRequest:
+      properties:
+        amount:
+          format: int64
+          type: integer
+        currency:
+          type: string
+        direction:
+          type: string
+        note:
+          type: string
+        reason:
+          type: string
+      type: object
+    AdjustmentResult:
+      properties:
+        balanceAfter:
+          format: int64
+          type: integer
+        ledgerEntryId:
+          type: string
+      type: object
+    Balance:
+      properties:
+        active:
+          format: int64
+          type: integer
+        lifetimeEarned:
+          format: int64
+          type: integer
+        lifetimeSpent:
+          format: int64
+          type: integer
+        pending:
+          format: int64
+          type: integer
+      type: object
+    ClosePreviewMember:
+      properties:
+        currentTier:
+          type: string
+        earnedTier:
+          type: string
+        memberId:
+          type: string
+        newTier:
+          type: string
+        outcome:
+          enum:
+          - RETAINED
+          - DOWNGRADED
+          - UNKNOWN_TIER
+          type: string
+        periodSts:
+          format: int64
+          type: integer
+      type: object
+    ClosePreviewResult:
+      properties:
+        members:
+          items:
+            $ref: "#/components/schemas/ClosePreviewMember"
+          type: array
+        summary:
+          $ref: "#/components/schemas/ClosePreviewSummary"
+      type: object
+    ClosePreviewSummary:
+      properties:
+        downgraded:
+          format: int32
+          type: integer
+        retained:
+          format: int32
+          type: integer
+        unknownTier:
+          format: int32
+          type: integer
+      type: object
+    CurrencyUpdateDto:
+      properties:
+        expiryPolicy:
+          $ref: "#/components/schemas/JsonNode"
+      type: object
+    CurrencyView:
+      properties:
+        code:
+          type: string
+        expiryPolicy:
+          $ref: "#/components/schemas/JsonNode"
+        name:
+          type: string
+        spendable:
+          type: boolean
+      type: object
+    Edition:
+      properties:
+        code:
+          type: string
+        endDate:
+          format: date
+          type: string
+        name:
+          type: string
+        redemptionGraceUntil:
+          format: date
+          type: string
+        startDate:
+          format: date
+          type: string
+        status:
+          type: string
+      type: object
+    EditionUpdate:
+      properties:
+        code:
+          type: string
+        endDate:
+          format: date
+          type: string
+        name:
+          type: string
+        redemptionGraceUntil:
+          format: date
+          type: string
+        startDate:
+          format: date
+          type: string
+      type: object
+    ExpiringSoon:
+      properties:
+        amount:
+          format: int64
+          type: integer
+        nextExpiryAt:
+          format: date-time
+          type: string
+        within30d:
+          type: boolean
+      type: object
+    JobOutcome:
+      properties:
+        amount:
+          format: int64
+          type: integer
+        lots:
+          format: int32
+          type: integer
+        members:
+          format: int32
+          type: integer
+      type: object
+    JsonNode:
+      properties:
+        array:
+          type: boolean
+        bigDecimal:
+          type: boolean
+        bigInteger:
+          type: boolean
+        binary:
+          type: boolean
+        boolean:
+          type: boolean
+        container:
+          type: boolean
+        double:
+          type: boolean
+        embeddedValue:
+          type: boolean
+        empty:
+          type: boolean
+        float:
+          type: boolean
+        floatingPointNumber:
+          type: boolean
+        int:
+          type: boolean
+        integralNumber:
+          type: boolean
+        long:
+          type: boolean
+        missingNode:
+          type: boolean
+        nodeType:
+          enum:
+          - ARRAY
+          - BINARY
+          - BOOLEAN
+          - MISSING
+          - "NULL"
+          - NUMBER
+          - OBJECT
+          - POJO
+          - STRING
+          type: string
+        "null":
+          type: boolean
+        number:
+          type: boolean
+        object:
+          type: boolean
+        pojo:
+          type: boolean
+        short:
+          type: boolean
+        string:
+          type: boolean
+        textual:
+          deprecated: true
+          type: boolean
+        valueNode:
+          type: boolean
+      type: object
+    KeepWarning:
+      properties:
+        missing:
+          format: int64
+          type: integer
+        tier:
+          type: string
+      type: object
+    LedgerEntryView:
+      properties:
+        actionId:
+          type: string
+        actor:
+          type: string
+        amount:
+          format: int64
+          type: integer
+        balanceAfter:
+          format: int64
+          type: integer
+        campaignCode:
+          type: string
+        currency:
+          type: string
+        description:
+          type: string
+        direction:
+          type: string
+        id:
+          type: string
+        memberId:
+          type: string
+        metadataJson:
+          type: string
+        occurredAt:
+          format: date-time
+          type: string
+        sourceType:
+          type: string
+        type:
+          type: string
+      type: object
+    LiabilityView:
+      properties:
+        asOf:
+          format: date-time
+          type: string
+        byExpiryMonth:
+          items:
+            $ref: "#/components/schemas/MonthAmount"
+          type: array
+        currency:
+          type: string
+        outstanding:
+          format: int64
+          type: integer
+        pending:
+          format: int64
+          type: integer
+      type: object
+    LotView:
+      properties:
+        amount:
+          format: int64
+          type: integer
+        availableAt:
+          format: date-time
+          type: string
+        currency:
+          type: string
+        earnedAt:
+          format: date-time
+          type: string
+        expiresAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        remaining:
+          format: int64
+          type: integer
+        status:
+          type: string
+      type: object
+    MonthAmount:
+      properties:
+        amount:
+          format: int64
+          type: integer
+        month:
+          type: string
+      type: object
+    NextTier:
+      properties:
+        code:
+          type: string
+        missing:
+          format: int64
+          type: integer
+        threshold:
+          format: int64
+          type: integer
+      type: object
+    PortalTier:
+      properties:
+        benefits:
+          items:
+            type: string
+          type: array
+        code:
+          type: string
+        color:
+          type: string
+        icon:
+          type: string
+        multiplier:
+          type: number
+        name:
+          type: string
+        rank:
+          format: int32
+          type: integer
+        threshold:
+          format: int64
+          type: integer
+        thresholdSts:
+          format: int64
+          type: integer
+      type: object
+    Tier:
+      properties:
+        benefits:
+          items:
+            type: string
+          type: array
+        code:
+          type: string
+        color:
+          type: string
+        icon:
+          type: string
+        multiplier:
+          type: number
+        name:
+          type: string
+        rank:
+          format: int32
+          type: integer
+        thresholdSts:
+          format: int64
+          type: integer
+      type: object
+    TierCount:
+      properties:
+        code:
+          type: string
+        members:
+          format: int64
+          type: integer
+        multiplier:
+          type: number
+        name:
+          type: string
+        rank:
+          format: int32
+          type: integer
+        threshold:
+          format: int64
+          type: integer
+      type: object
+    TierHistory:
+      properties:
+        at:
+          format: date-time
+          type: string
+        editionCode:
+          type: string
+        fromTier:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        memberId:
+          type: string
+        toTier:
+          type: string
+      type: object
+    TierUpdate:
+      properties:
+        benefits:
+          items:
+            type: string
+          type: array
+        color:
+          type: string
+        icon:
+          type: string
+        multiplier:
+          type: number
+        name:
+          type: string
+        thresholdSts:
+          format: int64
+          type: integer
+      type: object
+    TierView:
+      properties:
+        code:
+          type: string
+        keepWarning:
+          $ref: "#/components/schemas/KeepWarning"
+        multiplier:
+          type: number
+        name:
+          type: string
+        next:
+          $ref: "#/components/schemas/NextTier"
+        periodSts:
+          format: int64
+          type: integer
+        progressPct:
+          format: int32
+          type: integer
+        since:
+          format: date-time
+          type: string
+      type: object
+    WalletView:
+      properties:
+        balances:
+          additionalProperties:
+            $ref: "#/components/schemas/Balance"
+          type: object
+        expiringSoon:
+          $ref: "#/components/schemas/ExpiringSoon"
+        memberId:
+          type: string
+        tier:
+          $ref: "#/components/schemas/TierView"
+      type: object
+info:
+  description: "API HTTP di wallet-service (docs/06 §2). Generata da OpenApiExportIT (M8.8, docs/18 §3.6): non modificare a mano."
+  title: Loyalty Hub · wallet-service
+  version: v1
+openapi: 3.1.0
+paths:
+  /v1/currencies:
+    get:
+      operationId: list_1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/CurrencyView"
+                type: array
+          description: OK
+      summary: List — currencies
+      tags:
+      - currencies
+  /v1/currencies/{code}:
+    get:
+      operationId: get
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/CurrencyView"
+          description: OK
+      summary: Get — currencies
+      tags:
+      - currencies
+    put:
+      operationId: update_2
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CurrencyUpdateDto"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/CurrencyView"
+          description: OK
+      summary: Update — currencies
+      tags:
+      - currencies
+  /v1/demo/jobs/expire-points:
+    post:
+      operationId: expirePoints
+      parameters:
+      - in: query
+        name: asOf
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/JobOutcome"
+          description: OK
+      summary: Expire points
+      tags:
+      - wallet-jobs
+  /v1/demo/jobs/expiry-warnings:
+    post:
+      operationId: expiryWarnings
+      parameters:
+      - in: query
+        name: asOf
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/JobOutcome"
+          description: OK
+      summary: Expiry warnings
+      tags:
+      - wallet-jobs
+  /v1/demo/jobs/release-pending:
+    post:
+      operationId: releasePending
+      parameters:
+      - in: query
+        name: asOf
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/JobOutcome"
+          description: OK
+      summary: Release pending
+      tags:
+      - wallet-jobs
+  /v1/editions:
+    get:
+      operationId: list
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/Edition"
+                type: array
+          description: OK
+      summary: List — editions
+      tags:
+      - editions
+    post:
+      operationId: create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditionUpdate"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Edition"
+          description: OK
+      summary: Create — editions
+      tags:
+      - editions
+  /v1/editions/{code}:
+    put:
+      operationId: update_1
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditionUpdate"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Edition"
+          description: OK
+      summary: Update — editions
+      tags:
+      - editions
+  /v1/editions/{code}/close:
+    post:
+      operationId: close
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: dryRun
+        required: false
+        schema:
+          default: true
+          type: boolean
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ClosePreviewResult"
+          description: OK
+      summary: Close — editions
+      tags:
+      - editions
+  /v1/liability:
+    get:
+      operationId: liability
+      parameters:
+      - in: query
+        name: currency
+        required: false
+        schema:
+          default: PTS
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/LiabilityView"
+          description: OK
+      summary: Liability — liability
+      tags:
+      - liability
+  /v1/members/{memberId}/tier-history:
+    get:
+      operationId: tierHistory
+      parameters:
+      - in: path
+        name: memberId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/TierHistory"
+                type: array
+          description: OK
+      summary: Tier history
+      tags:
+      - tiers
+  /v1/portal/tiers:
+    get:
+      operationId: tiers_1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/PortalTier"
+                type: array
+          description: OK
+      summary: Tiers — portal wallets
+      tags:
+      - portal-wallets
+  /v1/portal/wallets/{memberId}:
+    get:
+      operationId: wallet_1
+      parameters:
+      - in: path
+        name: memberId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WalletView"
+          description: OK
+      summary: Wallet — portal wallets
+      tags:
+      - portal-wallets
+  /v1/portal/wallets/{memberId}/activity:
+    get:
+      operationId: activity
+      parameters:
+      - in: path
+        name: memberId
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: currency
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: size
+        required: false
+        schema:
+          default: 30
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+                type: array
+          description: OK
+      summary: Activity — portal activity
+      tags:
+      - portal-activity
+  /v1/tiers:
+    get:
+      operationId: tiers
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/Tier"
+                type: array
+          description: OK
+      summary: Tiers — wallets
+      tags:
+      - wallets
+  /v1/tiers/distribution:
+    get:
+      operationId: distribution
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/TierCount"
+                type: array
+          description: OK
+      summary: Distribution — tiers
+      tags:
+      - tiers
+  /v1/tiers/{code}:
+    put:
+      operationId: update
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TierUpdate"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Tier"
+          description: OK
+      summary: Update — tiers
+      tags:
+      - tiers
+  /v1/wallets/{memberId}:
+    get:
+      operationId: wallet
+      parameters:
+      - in: path
+        name: memberId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WalletView"
+          description: OK
+      summary: Wallet — wallets
+      tags:
+      - wallets
+  /v1/wallets/{memberId}/adjustments:
+    post:
+      operationId: adjust
+      parameters:
+      - in: path
+        name: memberId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdjustmentRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AdjustmentResult"
+          description: OK
+      summary: Adjust — wallets
+      tags:
+      - wallets
+  /v1/wallets/{memberId}/ledger:
+    get:
+      operationId: ledger
+      parameters:
+      - in: path
+        name: memberId
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: currency
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: type
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/LedgerEntryView"
+                type: array
+          description: OK
+      summary: Ledger — wallets
+      tags:
+      - wallets
+  /v1/wallets/{memberId}/lots:
+    get:
+      operationId: lots
+      parameters:
+      - in: path
+        name: memberId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/LotView"
+                type: array
+          description: OK
+      summary: Lots — wallets
+      tags:
+      - wallets

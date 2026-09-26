@@ -1,0 +1,895 @@
+components:
+  schemas:
+    EventTypeRequest:
+      properties:
+        category:
+          type: string
+        code:
+          type: string
+        dataSchema:
+          $ref: "#/components/schemas/JsonNode"
+        description:
+          type: string
+        enabled:
+          type: boolean
+        icon:
+          type: string
+        name:
+          type: string
+        sampleData:
+          $ref: "#/components/schemas/JsonNode"
+      type: object
+    EventTypeView:
+      properties:
+        category:
+          type: string
+        code:
+          type: string
+        dataSchema:
+          $ref: "#/components/schemas/JsonNode"
+        description:
+          type: string
+        enabled:
+          type: boolean
+        icon:
+          type: string
+        name:
+          type: string
+        origin:
+          type: string
+        sampleData:
+          $ref: "#/components/schemas/JsonNode"
+      type: object
+    Field:
+      properties:
+        enum:
+          items:
+            type: string
+          type: array
+        format:
+          type: string
+        path:
+          type: string
+        required:
+          type: boolean
+        type:
+          type: string
+      type: object
+    FireRequest:
+      properties:
+        count:
+          format: int32
+          type: integer
+        data:
+          $ref: "#/components/schemas/JsonNode"
+        memberId:
+          type: string
+        occurredAt:
+          type: string
+        source:
+          type: string
+        type:
+          type: string
+      type: object
+    FireResult:
+      properties:
+        correlationId:
+          type: string
+        eventId:
+          type: string
+        rejectCode:
+          type: string
+        status:
+          type: string
+      type: object
+    InboundDetail:
+      properties:
+        correlationId:
+          type: string
+        eventId:
+          type: string
+        eventTime:
+          format: date-time
+          type: string
+        id:
+          type: string
+        memberId:
+          type: string
+        origin:
+          type: string
+        payload:
+          $ref: "#/components/schemas/JsonNode"
+        receivedAt:
+          format: date-time
+          type: string
+        rejectCode:
+          type: string
+        rejectDetail:
+          type: string
+        resolution:
+          type: string
+        resolvedAt:
+          format: date-time
+          type: string
+        resolvedBy:
+          type: string
+        sourceCode:
+          type: string
+        status:
+          type: string
+        subject:
+          type: string
+        typeCode:
+          type: string
+      type: object
+    InboundEventRequest:
+      properties:
+        data:
+          $ref: "#/components/schemas/JsonNode"
+        id:
+          type: string
+        source:
+          type: string
+        specversion:
+          type: string
+        subject:
+          type: string
+        time:
+          type: string
+        type:
+          type: string
+      type: object
+    InboundRow:
+      properties:
+        correlationId:
+          type: string
+        eventId:
+          type: string
+        id:
+          type: string
+        memberId:
+          type: string
+        origin:
+          type: string
+        receivedAt:
+          format: date-time
+          type: string
+        rejectCode:
+          type: string
+        rejectDetail:
+          type: string
+        resolution:
+          type: string
+        resolvedAt:
+          format: date-time
+          type: string
+        resolvedBy:
+          type: string
+        sourceCode:
+          type: string
+        status:
+          type: string
+        subject:
+          type: string
+        typeCode:
+          type: string
+      type: object
+    IngestResult:
+      properties:
+        correlationId:
+          type: string
+        detail:
+          type: string
+        eventId:
+          type: string
+        memberId:
+          type: string
+        rejectCode:
+          enum:
+          - SOURCE_DISABLED
+          - UNKNOWN_TYPE
+          - TYPE_NOT_ALLOWED
+          - INVALID_DATA
+          - INVALID_TIME
+          - MEMBER_NOT_ACTIVE
+          type: string
+        status:
+          enum:
+          - ACCEPTED
+          - DUPLICATE
+          - REJECTED
+          - UNMATCHED
+          type: string
+      type: object
+    InternalMapping:
+      properties:
+        actionType:
+          type: string
+        enabled:
+          type: boolean
+        factType:
+          type: string
+      type: object
+    InternalMappingRequest:
+      properties:
+        enabled:
+          type: boolean
+      type: object
+    JsonNode:
+      properties:
+        array:
+          type: boolean
+        bigDecimal:
+          type: boolean
+        bigInteger:
+          type: boolean
+        binary:
+          type: boolean
+        boolean:
+          type: boolean
+        container:
+          type: boolean
+        double:
+          type: boolean
+        embeddedValue:
+          type: boolean
+        empty:
+          type: boolean
+        float:
+          type: boolean
+        floatingPointNumber:
+          type: boolean
+        int:
+          type: boolean
+        integralNumber:
+          type: boolean
+        long:
+          type: boolean
+        missingNode:
+          type: boolean
+        nodeType:
+          enum:
+          - ARRAY
+          - BINARY
+          - BOOLEAN
+          - MISSING
+          - "NULL"
+          - NUMBER
+          - OBJECT
+          - POJO
+          - STRING
+          type: string
+        "null":
+          type: boolean
+        number:
+          type: boolean
+        object:
+          type: boolean
+        pojo:
+          type: boolean
+        short:
+          type: boolean
+        string:
+          type: boolean
+        textual:
+          deprecated: true
+          type: boolean
+        valueNode:
+          type: boolean
+      type: object
+    MatchRequest:
+      properties:
+        memberId:
+          type: string
+      type: object
+    NewSourceRequest:
+      properties:
+        allowedTypes:
+          items:
+            type: string
+          type: array
+        code:
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+        kind:
+          type: string
+        name:
+          type: string
+      type: object
+    Scenario:
+      properties:
+        code:
+          type: string
+        description:
+          type: string
+        name:
+          type: string
+        protagonist:
+          type: string
+        steps:
+          $ref: "#/components/schemas/JsonNode"
+        watch:
+          type: string
+      type: object
+    ScenarioRun:
+      properties:
+        actor:
+          type: string
+        finishedAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        results:
+          $ref: "#/components/schemas/JsonNode"
+        scenarioCode:
+          type: string
+        startedAt:
+          format: date-time
+          type: string
+        status:
+          type: string
+        stepsDone:
+          format: int32
+          type: integer
+        stepsTotal:
+          format: int32
+          type: integer
+      type: object
+    Source:
+      properties:
+        allowedTypes:
+          items:
+            type: string
+          type: array
+        code:
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+        kind:
+          type: string
+        name:
+          type: string
+      type: object
+    SourceRequest:
+      properties:
+        allowedTypes:
+          items:
+            type: string
+          type: array
+        enabled:
+          type: boolean
+      type: object
+    TransactionRequest:
+      properties:
+        amount:
+          type: number
+        channel:
+          type: string
+        currency:
+          type: string
+        items:
+          $ref: "#/components/schemas/JsonNode"
+        kind:
+          type: string
+        memberRef:
+          type: string
+        occurredAt:
+          type: string
+        orderId:
+          type: string
+        source:
+          type: string
+      type: object
+info:
+  description: "API HTTP di ingestion-service (docs/06 §2). Generata da OpenApiExportIT (M8.8, docs/18 §3.6): non modificare a mano."
+  title: Loyalty Hub · ingestion-service
+  version: v1
+openapi: 3.1.0
+paths:
+  /v1/demo/scenario-runs/{runId}:
+    get:
+      operationId: runStatus
+      parameters:
+      - in: path
+        name: runId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ScenarioRun"
+          description: OK
+      summary: Run status
+      tags:
+      - scenarios
+  /v1/demo/scenarios:
+    get:
+      operationId: list_3
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/Scenario"
+                type: array
+          description: OK
+      summary: List — scenarios
+      tags:
+      - scenarios
+  /v1/demo/scenarios/{code}/run:
+    post:
+      operationId: run
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+          description: OK
+      summary: Run — scenarios
+      tags:
+      - scenarios
+  /v1/demo/simulator/fire:
+    post:
+      operationId: fire
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FireRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/FireResult"
+                type: array
+          description: OK
+      summary: Fire — simulator
+      tags:
+      - simulator
+  /v1/event-types:
+    get:
+      operationId: list
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/EventTypeView"
+                type: array
+          description: OK
+      summary: List — event types
+      tags:
+      - event-types
+    post:
+      operationId: create_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventTypeRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/EventTypeView"
+          description: Created
+      summary: Create — event types
+      tags:
+      - event-types
+  /v1/event-types/{code}:
+    get:
+      operationId: get
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/EventTypeView"
+          description: OK
+      summary: Get — event types
+      tags:
+      - event-types
+    put:
+      operationId: update_2
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventTypeRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/EventTypeView"
+          description: OK
+      summary: Update — event types
+      tags:
+      - event-types
+  /v1/event-types/{code}/fields:
+    get:
+      operationId: fields
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/Field"
+                type: array
+          description: OK
+      summary: Fields — event types
+      tags:
+      - event-types
+  /v1/events:
+    post:
+      operationId: ingest
+      parameters:
+      - in: header
+        name: X-LH-Reprocess
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/cloudevents+json:
+            schema:
+              $ref: "#/components/schemas/InboundEventRequest"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InboundEventRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/IngestResult"
+          description: OK
+      summary: Ingest — events
+      tags:
+      - events
+  /v1/inbound-events:
+    get:
+      operationId: list_2
+      parameters:
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: source
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: type
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: q
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/InboundRow"
+                type: array
+          description: OK
+      summary: List — inbound events
+      tags:
+      - inbound-events
+  /v1/inbound-events/counts:
+    get:
+      operationId: counts
+      parameters:
+      - in: query
+        name: source
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: type
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: q
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                additionalProperties:
+                  format: int64
+                  type: integer
+                type: object
+          description: OK
+      summary: Counts — inbound events
+      tags:
+      - inbound-events
+  /v1/inbound-events/{id}:
+    get:
+      operationId: get_1
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/InboundDetail"
+          description: OK
+      summary: Get — inbound events
+      tags:
+      - inbound-events
+  /v1/inbound-events/{id}/match:
+    post:
+      operationId: match
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/InboundDetail"
+          description: OK
+      summary: Match — inbound events
+      tags:
+      - inbound-events
+  /v1/inbound-events/{id}/retry:
+    post:
+      operationId: retry
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/InboundDetail"
+          description: OK
+      summary: Retry — inbound events
+      tags:
+      - inbound-events
+  /v1/internal-mappings:
+    get:
+      operationId: list_1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/InternalMapping"
+                type: array
+          description: OK
+      summary: List — internal mappings
+      tags:
+      - internal-mappings
+  /v1/internal-mappings/{factType}:
+    put:
+      operationId: update_1
+      parameters:
+      - in: path
+        name: factType
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InternalMappingRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/InternalMapping"
+          description: OK
+      summary: Update — internal mappings
+      tags:
+      - internal-mappings
+  /v1/sources:
+    get:
+      operationId: sources
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/Source"
+                type: array
+          description: OK
+      summary: Sources — registry
+      tags:
+      - registry
+    post:
+      operationId: create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewSourceRequest"
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Source"
+          description: Created
+      summary: Create — registry
+      tags:
+      - registry
+  /v1/sources/{code}:
+    get:
+      operationId: source
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Source"
+          description: OK
+      summary: Source — registry
+      tags:
+      - registry
+    put:
+      operationId: update
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SourceRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Source"
+          description: OK
+      summary: Update — registry
+      tags:
+      - registry
+  /v1/transactions:
+    post:
+      operationId: transaction
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/IngestResult"
+          description: OK
+      summary: Transaction — transactions
+      tags:
+      - transactions

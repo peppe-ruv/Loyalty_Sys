@@ -1,0 +1,1085 @@
+components:
+  schemas:
+    AuditRecord:
+      properties:
+        action:
+          type: string
+        actorName:
+          type: string
+        actorRole:
+          type: string
+        after:
+          $ref: "#/components/schemas/JsonNode"
+        at:
+          format: date-time
+          type: string
+        before:
+          $ref: "#/components/schemas/JsonNode"
+        correlationId:
+          type: string
+        entityId:
+          type: string
+        entityType:
+          type: string
+        eventId:
+          type: string
+        id:
+          type: string
+        service:
+          type: string
+        summary:
+          type: string
+      type: object
+    Breakdown:
+      properties:
+        dimension:
+          type: string
+        metric:
+          type: string
+        slices:
+          items:
+            $ref: "#/components/schemas/Slice"
+          type: array
+        total:
+          format: int64
+          type: integer
+      type: object
+    Delta:
+      properties:
+        abs:
+          format: int64
+          type: integer
+        pct:
+          format: double
+          type: number
+      type: object
+    Deltas:
+      properties:
+        actions:
+          $ref: "#/components/schemas/Delta"
+        membersActive30d:
+          $ref: "#/components/schemas/Delta"
+        plays:
+          $ref: "#/components/schemas/Delta"
+        pointsEarned:
+          $ref: "#/components/schemas/Delta"
+        pointsSpent:
+          $ref: "#/components/schemas/Delta"
+        redemptions:
+          $ref: "#/components/schemas/Delta"
+      type: object
+    DlqEntry:
+      properties:
+        attempts:
+          format: int32
+          type: integer
+        consumer:
+          type: string
+        correlationId:
+          type: string
+        errorClass:
+          type: string
+        errorCode:
+          type: string
+        errorMessage:
+          type: string
+        errorStack:
+          type: string
+        eventId:
+          type: string
+        family:
+          type: string
+        firstSeenAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        memberId:
+          type: string
+        originalTopic:
+          type: string
+        originalType:
+          type: string
+        payload:
+          $ref: "#/components/schemas/JsonNode"
+        reprocessable:
+          type: boolean
+        resolutionNote:
+          type: string
+        resolvedAt:
+          format: date-time
+          type: string
+        resolvedBy:
+          type: string
+        retryable:
+          type: boolean
+        shortType:
+          type: string
+        status:
+          type: string
+      type: object
+    EventDetail:
+      properties:
+        actor:
+          type: string
+        causationId:
+          type: string
+        correlationId:
+          type: string
+        errorCode:
+          type: string
+        eventId:
+          type: string
+        eventTime:
+          format: date-time
+          type: string
+        family:
+          type: string
+        hop:
+          format: int32
+          type: integer
+        memberId:
+          type: string
+        offset:
+          format: int64
+          type: integer
+        partition:
+          format: int32
+          type: integer
+        payload:
+          $ref: "#/components/schemas/JsonNode"
+        receivedAt:
+          format: date-time
+          type: string
+        shortType:
+          type: string
+        source:
+          type: string
+        topic:
+          type: string
+        type:
+          type: string
+      type: object
+    EventSummary:
+      properties:
+        actor:
+          type: string
+        correlationId:
+          type: string
+        errorCode:
+          type: string
+        eventId:
+          type: string
+        eventTime:
+          format: date-time
+          type: string
+        family:
+          type: string
+        hop:
+          format: int32
+          type: integer
+        memberId:
+          type: string
+        receivedAt:
+          format: date-time
+          type: string
+        shortType:
+          type: string
+        source:
+          type: string
+        topic:
+          type: string
+      type: object
+    JsonNode:
+      properties:
+        array:
+          type: boolean
+        bigDecimal:
+          type: boolean
+        bigInteger:
+          type: boolean
+        binary:
+          type: boolean
+        boolean:
+          type: boolean
+        container:
+          type: boolean
+        double:
+          type: boolean
+        embeddedValue:
+          type: boolean
+        empty:
+          type: boolean
+        float:
+          type: boolean
+        floatingPointNumber:
+          type: boolean
+        int:
+          type: boolean
+        integralNumber:
+          type: boolean
+        long:
+          type: boolean
+        missingNode:
+          type: boolean
+        nodeType:
+          enum:
+          - ARRAY
+          - BINARY
+          - BOOLEAN
+          - MISSING
+          - "NULL"
+          - NUMBER
+          - OBJECT
+          - POJO
+          - STRING
+          type: string
+        "null":
+          type: boolean
+        number:
+          type: boolean
+        object:
+          type: boolean
+        pojo:
+          type: boolean
+        short:
+          type: boolean
+        string:
+          type: boolean
+        textual:
+          deprecated: true
+          type: boolean
+        valueNode:
+          type: boolean
+      type: object
+    Outcome:
+      properties:
+        coupons:
+          format: int32
+          type: integer
+        dlq:
+          format: int32
+          type: integer
+        messages:
+          format: int32
+          type: integer
+        plays:
+          format: int32
+          type: integer
+        points:
+          items:
+            $ref: "#/components/schemas/PointAmount"
+          type: array
+        tierChange:
+          $ref: "#/components/schemas/TierChange"
+      type: object
+    Overview:
+      properties:
+        actions:
+          format: int64
+          type: integer
+        deltas:
+          $ref: "#/components/schemas/Deltas"
+        from:
+          format: date
+          type: string
+        membersActive30d:
+          format: int64
+          type: integer
+        membersNew:
+          format: int64
+          type: integer
+        membersTotal:
+          format: int64
+          type: integer
+        plays:
+          format: int64
+          type: integer
+        pointsEarned:
+          format: int64
+          type: integer
+        pointsExpired:
+          format: int64
+          type: integer
+        pointsSpent:
+          format: int64
+          type: integer
+        redemptions:
+          format: int64
+          type: integer
+        tierChanges:
+          format: int64
+          type: integer
+        to:
+          format: date
+          type: string
+        wins:
+          format: int64
+          type: integer
+      type: object
+    PageInfo:
+      properties:
+        number:
+          format: int32
+          type: integer
+        size:
+          format: int32
+          type: integer
+        totalItems:
+          format: int64
+          type: integer
+        totalPages:
+          format: int32
+          type: integer
+      type: object
+    PageResponseAuditRecord:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/AuditRecord"
+          type: array
+        page:
+          $ref: "#/components/schemas/PageInfo"
+      type: object
+    PageResponseDlqEntry:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/DlqEntry"
+          type: array
+        page:
+          $ref: "#/components/schemas/PageInfo"
+      type: object
+    PageResponseEventSummary:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/EventSummary"
+          type: array
+        page:
+          $ref: "#/components/schemas/PageInfo"
+      type: object
+    PageResponseTraceSummary:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/TraceSummary"
+          type: array
+        page:
+          $ref: "#/components/schemas/PageInfo"
+      type: object
+    PipelineStatus:
+      properties:
+        services:
+          items:
+            $ref: "#/components/schemas/ServiceStatus"
+          type: array
+        topics:
+          items:
+            $ref: "#/components/schemas/TopicStatus"
+          type: array
+      type: object
+    Point:
+      properties:
+        day:
+          format: date
+          type: string
+        synthetic:
+          type: boolean
+        value:
+          format: int64
+          type: integer
+      type: object
+    PointAmount:
+      properties:
+        amount:
+          format: int64
+          type: integer
+        currency:
+          type: string
+      type: object
+    ResolveRequest:
+      properties:
+        note:
+          type: string
+      type: object
+    ServiceStatus:
+      properties:
+        factsTotal:
+          format: int64
+          type: integer
+        lastEventId:
+          type: string
+        lastFactAt:
+          format: date-time
+          type: string
+        lastFactType:
+          type: string
+        service:
+          type: string
+      type: object
+    Slice:
+      properties:
+        dimValue:
+          type: string
+        value:
+          format: int64
+          type: integer
+      type: object
+    SseEmitter:
+      properties:
+        timeout:
+          format: int64
+          type: integer
+      type: object
+    TierChange:
+      properties:
+        from:
+          type: string
+        to:
+          type: string
+      type: object
+    TimeSeries:
+      properties:
+        granularity:
+          type: string
+        metric:
+          type: string
+        points:
+          items:
+            $ref: "#/components/schemas/Point"
+          type: array
+      type: object
+    TopicStatus:
+      properties:
+        count1h:
+          format: int64
+          type: integer
+        count24h:
+          format: int64
+          type: integer
+        countTotal:
+          format: int64
+          type: integer
+        lagMs:
+          format: int64
+          type: integer
+        lastEventAt:
+          format: date-time
+          type: string
+        lastOffsetByPartition:
+          type: string
+        lastReceivedAt:
+          format: date-time
+          type: string
+        topic:
+          type: string
+      type: object
+    Trace:
+      properties:
+        correlationId:
+          type: string
+        durationMs:
+          format: int64
+          type: integer
+        memberId:
+          type: string
+        nodes:
+          items:
+            $ref: "#/components/schemas/TraceNode"
+          type: array
+        outcome:
+          $ref: "#/components/schemas/Outcome"
+        startedAt:
+          format: date-time
+          type: string
+        status:
+          type: string
+      type: object
+    TraceNode:
+      properties:
+        eventId:
+          type: string
+        family:
+          type: string
+        offsetMs:
+          format: int64
+          type: integer
+        parentEventId:
+          type: string
+        service:
+          type: string
+        shortType:
+          type: string
+        summary:
+          type: string
+        time:
+          format: date-time
+          type: string
+      type: object
+    TraceSummary:
+      properties:
+        correlationId:
+          type: string
+        durationMs:
+          format: int64
+          type: integer
+        memberId:
+          type: string
+        outcomeSummary:
+          type: string
+        rootShortType:
+          type: string
+        startedAt:
+          format: date-time
+          type: string
+        status:
+          type: string
+      type: object
+info:
+  description: "API HTTP di insight-service (docs/06 §2). Generata da OpenApiExportIT (M8.8, docs/18 §3.6): non modificare a mano."
+  title: Loyalty Hub · insight-service
+  version: v1
+openapi: 3.1.0
+paths:
+  /v1/audit:
+    get:
+      operationId: list_3
+      parameters:
+      - in: query
+        name: actor
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: role
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: service
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: entityType
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: entityId
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: action
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          format: int32
+          type: integer
+      - in: query
+        name: size
+        required: false
+        schema:
+          format: int32
+          type: integer
+      - in: query
+        name: limit
+        required: false
+        schema:
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageResponseAuditRecord"
+          description: OK
+      summary: List — audit
+      tags:
+      - audit
+  /v1/audit/{id}:
+    get:
+      operationId: byId_1
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuditRecord"
+          description: OK
+      summary: By id
+      tags:
+      - audit
+  /v1/dlq:
+    get:
+      operationId: list_2
+      parameters:
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: consumer
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: errorCode
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          format: int32
+          type: integer
+      - in: query
+        name: size
+        required: false
+        schema:
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageResponseDlqEntry"
+          description: OK
+      summary: List — dlq
+      tags:
+      - dlq
+  /v1/dlq/{id}:
+    get:
+      operationId: get
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/DlqEntry"
+          description: OK
+      summary: Get — dlq
+      tags:
+      - dlq
+  /v1/dlq/{id}/discard:
+    post:
+      operationId: discard
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/DlqEntry"
+          description: OK
+      summary: Discard — dlq
+      tags:
+      - dlq
+  /v1/dlq/{id}/reprocess:
+    post:
+      operationId: reprocess
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/DlqEntry"
+          description: OK
+      summary: Reprocess — dlq
+      tags:
+      - dlq
+  /v1/events:
+    get:
+      operationId: list_1
+      parameters:
+      - in: query
+        name: topic
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: family
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: type
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: correlationId
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: source
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: q
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          format: int32
+          type: integer
+      - in: query
+        name: size
+        required: false
+        schema:
+          format: int32
+          type: integer
+      - in: query
+        name: limit
+        required: false
+        schema:
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageResponseEventSummary"
+          description: OK
+      summary: List — events
+      tags:
+      - events
+  /v1/events/{eventId}:
+    get:
+      operationId: byId
+      parameters:
+      - in: path
+        name: eventId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/EventDetail"
+          description: OK
+      summary: By id
+      tags:
+      - events
+  /v1/kpi/breakdown:
+    get:
+      operationId: breakdown
+      parameters:
+      - in: query
+        name: metric
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: dimension
+        required: false
+        schema:
+          default: source
+          type: string
+      - in: query
+        name: from
+        required: false
+        schema:
+          format: date
+          type: string
+      - in: query
+        name: to
+        required: false
+        schema:
+          format: date
+          type: string
+      - in: query
+        name: days
+        required: false
+        schema:
+          default: 30
+          format: int32
+          type: integer
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 5
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Breakdown"
+          description: OK
+      summary: Breakdown — kpi
+      tags:
+      - kpi
+  /v1/kpi/overview:
+    get:
+      operationId: overview
+      parameters:
+      - in: query
+        name: from
+        required: false
+        schema:
+          format: date
+          type: string
+      - in: query
+        name: to
+        required: false
+        schema:
+          format: date
+          type: string
+      - in: query
+        name: days
+        required: false
+        schema:
+          default: 30
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Overview"
+          description: OK
+      summary: Overview — kpi
+      tags:
+      - kpi
+  /v1/kpi/timeseries:
+    get:
+      operationId: timeseries
+      parameters:
+      - in: query
+        name: metric
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: from
+        required: false
+        schema:
+          format: date
+          type: string
+      - in: query
+        name: to
+        required: false
+        schema:
+          format: date
+          type: string
+      - in: query
+        name: days
+        required: false
+        schema:
+          default: 30
+          format: int32
+          type: integer
+      - in: query
+        name: granularity
+        required: false
+        schema:
+          default: day
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TimeSeries"
+          description: OK
+      summary: Timeseries — kpi
+      tags:
+      - kpi
+  /v1/pipeline/status:
+    get:
+      operationId: status
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PipelineStatus"
+          description: OK
+      summary: Status — pipeline
+      tags:
+      - pipeline
+  /v1/stream/events:
+    get:
+      operationId: events
+      parameters:
+      - in: query
+        name: topics
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: types
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: correlationId
+        required: false
+        schema:
+          type: string
+      - in: header
+        name: Last-Event-ID
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/SseEmitter"
+          description: OK
+      summary: Events — stream
+      tags:
+      - stream
+  /v1/traces:
+    get:
+      operationId: list
+      parameters:
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          format: int32
+          type: integer
+      - in: query
+        name: size
+        required: false
+        schema:
+          format: int32
+          type: integer
+      - in: query
+        name: limit
+        required: false
+        schema:
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageResponseTraceSummary"
+          description: OK
+      summary: List — traces
+      tags:
+      - traces
+  /v1/traces/{correlationId}:
+    get:
+      operationId: byCorrelation
+      parameters:
+      - in: path
+        name: correlationId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Trace"
+          description: OK
+      summary: By correlation
+      tags:
+      - traces

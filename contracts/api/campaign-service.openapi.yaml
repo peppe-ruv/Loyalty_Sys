@@ -1,0 +1,807 @@
+components:
+  schemas:
+    ActionEffect:
+      properties:
+        campaignCode:
+          type: string
+        effectId:
+          type: string
+        params:
+          $ref: "#/components/schemas/JsonNode"
+        type:
+          type: string
+      type: object
+    ActionInput:
+      properties:
+        data:
+          $ref: "#/components/schemas/JsonNode"
+        source:
+          type: string
+        time:
+          type: string
+        type:
+          type: string
+      type: object
+    ApprovalHistory:
+      properties:
+        action:
+          enum:
+          - SUBMIT
+          - APPROVE
+          - REJECT
+          - PUBLISH
+          - PAUSE
+          - RESUME
+          - END
+          - ARCHIVE
+          type: string
+        actor:
+          type: string
+        comment:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        entityId:
+          type: string
+        entityType:
+          type: string
+        fromStatus:
+          enum:
+          - DRAFT
+          - IN_REVIEW
+          - APPROVED
+          - LIVE
+          - PAUSED
+          - ENDED
+          - ARCHIVED
+          type: string
+        id:
+          format: uuid
+          type: string
+        toStatus:
+          enum:
+          - DRAFT
+          - IN_REVIEW
+          - APPROVED
+          - LIVE
+          - PAUSED
+          - ENDED
+          - ARCHIVED
+          type: string
+      type: object
+    Budget:
+      properties:
+        maxMatches:
+          format: int64
+          type: integer
+        maxPoints:
+          format: int64
+          type: integer
+        remainingMatches:
+          format: int64
+          type: integer
+        remainingPoints:
+          format: int64
+          type: integer
+      type: object
+    Campaign:
+      properties:
+        audience:
+          $ref: "#/components/schemas/JsonNode"
+        code:
+          type: string
+        conditions:
+          $ref: "#/components/schemas/JsonNode"
+        createdAt:
+          format: date-time
+          type: string
+        description:
+          type: string
+        effects:
+          $ref: "#/components/schemas/JsonNode"
+        exclusiveGroup:
+          type: string
+        icon:
+          type: string
+        id:
+          type: string
+        labels:
+          items:
+            type: string
+          type: array
+        limits:
+          $ref: "#/components/schemas/JsonNode"
+        memberDescription:
+          type: string
+        name:
+          type: string
+        priority:
+          format: int32
+          type: integer
+        requiresLegal:
+          type: boolean
+        schedule:
+          $ref: "#/components/schemas/JsonNode"
+        status:
+          enum:
+          - DRAFT
+          - IN_REVIEW
+          - APPROVED
+          - LIVE
+          - PAUSED
+          - ENDED
+          - ARCHIVED
+          type: string
+        system:
+          type: boolean
+        triggerActionTypes:
+          items:
+            type: string
+          type: array
+        updatedAt:
+          format: date-time
+          type: string
+        version:
+          format: int64
+          type: integer
+        visibleInPortal:
+          type: boolean
+      type: object
+    CampaignResult:
+      properties:
+        campaignCode:
+          type: string
+        campaignName:
+          type: string
+        effects:
+          items:
+            $ref: "#/components/schemas/EffectResult"
+          type: array
+        failedConditions:
+          items:
+            $ref: "#/components/schemas/FailedCondition"
+          type: array
+        matched:
+          type: boolean
+        reason:
+          enum:
+          - NOT_IN_SCHEDULE
+          - AUDIENCE
+          - CONDITION
+          - EXCLUSIVE
+          - LIMIT
+          - BUDGET
+          - EFFECT_NOT_SUPPORTED_YET
+          type: string
+      type: object
+    CampaignStats:
+      properties:
+        budget:
+          $ref: "#/components/schemas/Budget"
+        code:
+          type: string
+        daily:
+          items:
+            $ref: "#/components/schemas/DailyStat"
+          type: array
+        id:
+          type: string
+        matches:
+          format: int64
+          type: integer
+        name:
+          type: string
+        pointsDecided:
+          format: int64
+          type: integer
+        pointsGranted:
+          format: int64
+          type: integer
+        status:
+          type: string
+        uniqueMembers:
+          format: int64
+          type: integer
+      type: object
+    CampaignSummary:
+      properties:
+        audience:
+          $ref: "#/components/schemas/JsonNode"
+        budget:
+          $ref: "#/components/schemas/Budget"
+        code:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        priority:
+          format: int32
+          type: integer
+        status:
+          type: string
+        system:
+          type: boolean
+        totals:
+          $ref: "#/components/schemas/Totals"
+        triggerActionTypes:
+          items:
+            type: string
+          type: array
+        visibleInPortal:
+          type: boolean
+      type: object
+    CreateCampaignRequest:
+      properties:
+        audience:
+          $ref: "#/components/schemas/JsonNode"
+        code:
+          type: string
+        conditions:
+          $ref: "#/components/schemas/JsonNode"
+        description:
+          type: string
+        effects:
+          $ref: "#/components/schemas/JsonNode"
+        exclusiveGroup:
+          type: string
+        icon:
+          type: string
+        labels:
+          items:
+            type: string
+          type: array
+        limits:
+          $ref: "#/components/schemas/JsonNode"
+        memberDescription:
+          type: string
+        name:
+          type: string
+        priority:
+          format: int32
+          type: integer
+        requiresLegal:
+          type: boolean
+        schedule:
+          $ref: "#/components/schemas/JsonNode"
+        triggerActionTypes:
+          items:
+            type: string
+          type: array
+        version:
+          format: int64
+          type: integer
+        visibleInPortal:
+          type: boolean
+      type: object
+    DailyStat:
+      properties:
+        day:
+          format: date
+          type: string
+        matches:
+          format: int64
+          type: integer
+        points:
+          format: int64
+          type: integer
+      type: object
+    EffectResult:
+      properties:
+        amount:
+          format: int64
+          type: integer
+        currency:
+          type: string
+        type:
+          type: string
+      type: object
+    Evaluation:
+      properties:
+        actionEffects:
+          items:
+            $ref: "#/components/schemas/ActionEffect"
+          type: array
+        effects:
+          items:
+            $ref: "#/components/schemas/GrantedEffect"
+          type: array
+        outcome:
+          enum:
+          - MATCHED
+          - NO_MATCH
+          - NO_MEMBER
+          type: string
+        results:
+          items:
+            $ref: "#/components/schemas/CampaignResult"
+          type: array
+      type: object
+    EvaluationRow:
+      properties:
+        actionId:
+          type: string
+        actionTime:
+          format: date-time
+          type: string
+        actionType:
+          type: string
+        evaluatedAt:
+          format: date-time
+          type: string
+        memberId:
+          type: string
+        outcome:
+          type: string
+        resultsJson:
+          type: string
+      type: object
+    FailedCondition:
+      properties:
+        actual: {}
+        cmp:
+          type: string
+        field:
+          type: string
+        value: {}
+      type: object
+    GrantedEffect:
+      properties:
+        amount:
+          format: int64
+          type: integer
+        baseAmount:
+          format: int64
+          type: integer
+        campaignCode:
+          type: string
+        campaignMultiplier:
+          format: double
+          type: number
+        currency:
+          type: string
+        description:
+          type: string
+        effectId:
+          type: string
+        pendingDays:
+          format: int32
+          type: integer
+        tierMultiplierApplies:
+          type: boolean
+      type: object
+    JsonNode:
+      properties:
+        array:
+          type: boolean
+        bigDecimal:
+          type: boolean
+        bigInteger:
+          type: boolean
+        binary:
+          type: boolean
+        boolean:
+          type: boolean
+        container:
+          type: boolean
+        double:
+          type: boolean
+        embeddedValue:
+          type: boolean
+        empty:
+          type: boolean
+        float:
+          type: boolean
+        floatingPointNumber:
+          type: boolean
+        int:
+          type: boolean
+        integralNumber:
+          type: boolean
+        long:
+          type: boolean
+        missingNode:
+          type: boolean
+        nodeType:
+          enum:
+          - ARRAY
+          - BINARY
+          - BOOLEAN
+          - MISSING
+          - "NULL"
+          - NUMBER
+          - OBJECT
+          - POJO
+          - STRING
+          type: string
+        "null":
+          type: boolean
+        number:
+          type: boolean
+        object:
+          type: boolean
+        pojo:
+          type: boolean
+        short:
+          type: boolean
+        string:
+          type: boolean
+        textual:
+          deprecated: true
+          type: boolean
+        valueNode:
+          type: boolean
+      type: object
+    MemberLimit:
+      properties:
+        max:
+          format: int32
+          type: integer
+        period:
+          type: string
+      type: object
+    MemberOverride:
+      properties:
+        attributes:
+          $ref: "#/components/schemas/JsonNode"
+        segments:
+          items:
+            type: string
+          type: array
+        tier:
+          type: string
+      type: object
+    PortalCampaignView:
+      properties:
+        code:
+          type: string
+        endsAt:
+          type: string
+        icon:
+          type: string
+        memberDescription:
+          type: string
+        memberLimit:
+          $ref: "#/components/schemas/MemberLimit"
+        name:
+          type: string
+        rewardSummary:
+          type: string
+      type: object
+    SimulateRequest:
+      properties:
+        action:
+          $ref: "#/components/schemas/ActionInput"
+        campaignIds:
+          items:
+            type: string
+          type: array
+        memberId:
+          type: string
+        memberOverride:
+          $ref: "#/components/schemas/MemberOverride"
+      type: object
+    Totals:
+      properties:
+        matches:
+          format: int64
+          type: integer
+        pointsDecided:
+          format: int64
+          type: integer
+        pointsGranted:
+          format: int64
+          type: integer
+        uniqueMembers:
+          format: int64
+          type: integer
+      type: object
+    TransitionRequest:
+      properties:
+        action:
+          type: string
+        comment:
+          type: string
+      type: object
+info:
+  description: "API HTTP di campaign-service (docs/06 §2). Generata da OpenApiExportIT (M8.8, docs/18 §3.6): non modificare a mano."
+  title: Loyalty Hub · campaign-service
+  version: v1
+openapi: 3.1.0
+paths:
+  /v1/campaigns:
+    get:
+      operationId: list
+      parameters:
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: actionType
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: q
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/CampaignSummary"
+                type: array
+          description: OK
+      summary: List — campaigns
+      tags:
+      - campaigns
+    post:
+      operationId: create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCampaignRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Campaign"
+          description: OK
+      summary: Create — campaigns
+      tags:
+      - campaigns
+  /v1/campaigns/simulate:
+    post:
+      operationId: simulate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulateRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Evaluation"
+          description: OK
+      summary: Simulate — campaigns
+      tags:
+      - campaigns
+  /v1/campaigns/validate:
+    post:
+      operationId: validate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCampaignRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                additionalProperties: {}
+                type: object
+          description: OK
+      summary: Validate — campaigns
+      tags:
+      - campaigns
+  /v1/campaigns/{id}:
+    get:
+      operationId: get
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Campaign"
+          description: OK
+      summary: Get — campaigns
+      tags:
+      - campaigns
+    put:
+      operationId: update
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCampaignRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Campaign"
+          description: OK
+      summary: Update — campaigns
+      tags:
+      - campaigns
+  /v1/campaigns/{id}/approval-history:
+    get:
+      operationId: approvalHistory
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/ApprovalHistory"
+                type: array
+          description: OK
+      summary: Approval history
+      tags:
+      - campaigns
+  /v1/campaigns/{id}/duplicate:
+    post:
+      operationId: duplicate
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Campaign"
+          description: OK
+      summary: Duplicate — campaigns
+      tags:
+      - campaigns
+  /v1/campaigns/{id}/stats:
+    get:
+      operationId: stats
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/CampaignStats"
+          description: OK
+      summary: Stats — campaigns
+      tags:
+      - campaigns
+  /v1/campaigns/{id}/transitions:
+    post:
+      operationId: transition
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransitionRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Campaign"
+          description: OK
+      summary: Transition — campaigns
+      tags:
+      - campaigns
+  /v1/evaluations:
+    get:
+      operationId: list_2
+      parameters:
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: outcome
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 50
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/EvaluationRow"
+                type: array
+          description: OK
+      summary: List — evaluations
+      tags:
+      - evaluations
+  /v1/evaluations/{actionId}:
+    get:
+      operationId: get_1
+      parameters:
+      - in: path
+        name: actionId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: string
+          description: OK
+      summary: Get — evaluations
+      tags:
+      - evaluations
+  /v1/portal/campaigns:
+    get:
+      operationId: list_1
+      parameters:
+      - in: query
+        name: memberId
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: codes
+        required: false
+        schema:
+          items:
+            type: string
+          type: array
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/PortalCampaignView"
+                type: array
+          description: OK
+      summary: List — portal campaigns
+      tags:
+      - portal-campaigns

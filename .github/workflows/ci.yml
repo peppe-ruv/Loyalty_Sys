@@ -82,11 +82,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # check-api confronta con il merge-base del ramo base
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
       # Gate strutturale veloce; la validazione JSON Schema completa è in ContractsTest (job backend).
       - run: node scripts/check-contracts.mjs
+      # API HTTP (M8.8, docs/18 §3.6): solo modifiche compatibili rispetto al ramo base. Il drift tra codice e
+      # contracts/api/ lo verifica OpenApiExportIT nel job backend.
+      - run: npm --prefix scripts ci --omit=dev
+      - run: node --test scripts/check-api.test.mjs
+      - name: API compatibili col ramo base
+        env:
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: node scripts/check-api.mjs "--pr-labels=$PR_LABELS"
 
   docker:
     name: docker (solo main)
