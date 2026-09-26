@@ -24,37 +24,17 @@ public class RedemptionErasureRepository {
 
     // SPEC-GAP: Q-123 — l'indirizzo di spedizione (nome, via, città) è interamente personale: si cancella anche per le
     // richieste fisiche ancora da evadere (l'evasione di un membro anonimizzato non ha più un destinatario). Le note
-    // libere dell'operatore restano, con i nomi noti (nome/cognome dello snapshot) sostituiti da "Membro anonimo".
-    public void erase(String memberId, List<String> knownTokens) {
-        // Anche il nome scritto nell'indirizzo (può differire da quello anagrafico) si cerca poi nelle note.
-        List<String> names = jdbc.sql("""
-                        SELECT DISTINCT shipping ->> 'name' FROM redemption
-                        WHERE member_id = ? AND shipping IS NOT NULL AND shipping ->> 'name' IS NOT NULL
-                        """)
-                .param(memberId).query(String.class).list();
-        List<String> tokens = new java.util.ArrayList<>(knownTokens);
-        tokens.addAll(PersonalData.tokens(names));
+    // libere dell'operatore vengono interamente svuotate (Q-369).
+    public void erase(String memberId) {
         jdbc.sql("UPDATE redemption SET shipping = NULL WHERE member_id = ? AND shipping IS NOT NULL")
                 .param(memberId).update();
-        if (tokens.isEmpty()) {
-            return;
-        }
-        for (Note n : jdbc.sql("SELECT id, fulfilment_note AS note FROM redemption WHERE member_id = ? AND fulfilment_note IS NOT NULL")
-                .param(memberId).query((rs, i) -> new Note(rs.getString("id"), rs.getString("note"))).list()) {
-            String scrubbed = PersonalData.scrub(n.note(), tokens);
-            if (!scrubbed.equals(n.note())) {
-                jdbc.sql("UPDATE redemption SET fulfilment_note = ? WHERE id = ?").params(scrubbed, n.id()).update();
-            }
-        }
-        for (Note n : jdbc.sql("""
-                        SELECT h.id, h.note FROM redemption_history h JOIN redemption r ON r.id = h.redemption_id
-                        WHERE r.member_id = ? AND h.note IS NOT NULL
+        jdbc.sql("UPDATE redemption SET fulfilment_note = NULL WHERE member_id = ? AND fulfilment_note IS NOT NULL")
+                .param(memberId).update();
+        jdbc.sql("""
+                        UPDATE redemption_history SET note = NULL
+                        FROM redemption r
+                        WHERE r.id = redemption_history.redemption_id AND r.member_id = ? AND redemption_history.note IS NOT NULL
                         """)
-                .param(memberId).query((rs, i) -> new Note(rs.getString("id"), rs.getString("note"))).list()) {
-            String scrubbed = PersonalData.scrub(n.note(), tokens);
-            if (!scrubbed.equals(n.note())) {
-                jdbc.sql("UPDATE redemption_history SET note = ? WHERE id = ?").params(scrubbed, n.id()).update();
-            }
-        }
+                .param(memberId).update();
     }
 }
