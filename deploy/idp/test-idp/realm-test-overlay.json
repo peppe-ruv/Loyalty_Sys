@@ -1,0 +1,187 @@
+{
+  "_comment": "SOLO PROVA (F2-IAM-04). Non viene importato da --import-realm: lo applica deploy/idp/test-idp/apply-overlay.sh sul realm loyaltyhub gia' avviato. identityProviders e clients via partialImport (OVERWRITE), components via API components (partialImport non li supporta). I segnaposto ${LH_*} sono sostituiti dallo script, che fallisce se una variabile manca.",
+  "realm": "loyaltyhub",
+  "identityProviders": [
+    {
+      "alias": "test-idp",
+      "displayName": "IdP Aziendale",
+      "providerId": "oidc",
+      "enabled": true,
+      "firstBrokerLoginFlowAlias": "first broker login with link",
+      "config": {
+        "authorizationUrl": "${LH_TEST_IDP_AUTH_URL}",
+        "tokenUrl": "${LH_TEST_IDP_TOKEN_URL}",
+        "clientId": "loyaltyhub-broker",
+        "clientSecret": "${LH_TEST_IDP_SECRET}",
+        "userInfoUrl": "${LH_TEST_IDP_USERINFO_URL}",
+        "issuer": "${LH_TEST_IDP_ISSUER}",
+        "syncMode": "IMPORT"
+      }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "lh-ldap-test",
+      "name": "SOLO PROVA - verifica non interattiva della federazione LDAP",
+      "description": "Client di prova con direct access grants: mai in produzione. Il client web lo ha disattivato.",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${LH_LDAP_TEST_CLIENT_SECRET}",
+      "redirectUris": [],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "publicClient": false,
+      "fullScopeAllowed": true,
+      "protocol": "openid-connect",
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "email",
+        "roles",
+        "acr",
+        "web-origins",
+        "hub-audience",
+        "lh-roles-scope"
+      ],
+      "optionalClientScopes": []
+    }
+  ],
+  "components": {
+    "org.keycloak.storage.UserStorageProvider": [
+      {
+        "name": "ldap",
+        "providerId": "ldap",
+        "subComponents": {
+          "org.keycloak.storage.ldap.mappers.LDAPStorageMapper": [
+            {
+              "name": "username",
+              "providerId": "user-attribute-ldap-mapper",
+              "config": {
+                "ldap.attribute": [
+                  "uid"
+                ],
+                "is.mandatory.in.ldap": [
+                  "true"
+                ],
+                "user.model.attribute": [
+                  "username"
+                ],
+                "read.only": [
+                  "true"
+                ],
+                "always.read.value.from.ldap": [
+                  "false"
+                ]
+              }
+            },
+            {
+              "name": "email",
+              "providerId": "user-attribute-ldap-mapper",
+              "config": {
+                "ldap.attribute": [
+                  "mail"
+                ],
+                "is.mandatory.in.ldap": [
+                  "false"
+                ],
+                "user.model.attribute": [
+                  "email"
+                ],
+                "read.only": [
+                  "true"
+                ],
+                "always.read.value.from.ldap": [
+                  "true"
+                ]
+              }
+            }
+          ]
+        },
+        "config": {
+          "enabled": [
+            "true"
+          ],
+          "priority": [
+            "0"
+          ],
+          "vendor": [
+            "other"
+          ],
+          "connectionUrl": [
+            "ldap://ldap:389"
+          ],
+          "usersDn": [
+            "ou=users,dc=example,dc=org"
+          ],
+          "usernameLDAPAttribute": [
+            "uid"
+          ],
+          "rdnLDAPAttribute": [
+            "uid"
+          ],
+          "uuidLDAPAttribute": [
+            "entryUUID"
+          ],
+          "userObjectClasses": [
+            "inetOrgPerson, organizationalPerson"
+          ],
+          "authType": [
+            "simple"
+          ],
+          "bindDn": [
+            "cn=admin,dc=example,dc=org"
+          ],
+          "bindCredential": [
+            "${LH_LDAP_BIND_CREDENTIAL}"
+          ],
+          "searchScope": [
+            "1"
+          ],
+          "useTruststoreSpi": [
+            "always"
+          ],
+          "connectionPooling": [
+            "true"
+          ],
+          "pagination": [
+            "true"
+          ],
+          "allowKerberosAuthentication": [
+            "false"
+          ],
+          "useKerberosForPasswordAuthentication": [
+            "false"
+          ],
+          "importEnabled": [
+            "true"
+          ],
+          "batchSizeForSync": [
+            "1000"
+          ],
+          "fullSyncPeriod": [
+            "-1"
+          ],
+          "changedSyncPeriod": [
+            "-1"
+          ],
+          "cachePolicy": [
+            "DEFAULT"
+          ],
+          "editMode": [
+            "READ_ONLY"
+          ],
+          "syncRegistrations": [
+            "false"
+          ],
+          "trustEmail": [
+            "false"
+          ]
+        }
+      }
+    ]
+  }
+}

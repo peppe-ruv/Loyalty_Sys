@@ -1,0 +1,35 @@
+{
+  "id": "idp-test",
+  "realm": "idp-test",
+  "enabled": true,
+  "clients": [
+    {
+      "clientId": "loyaltyhub-broker",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${LH_TEST_IDP_SECRET}",
+      "redirectUris": [
+        "*"
+      ],
+      "standardFlowEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect"
+    }
+  ],
+  "users": [
+    {
+      "username": "testuser",
+      "enabled": true,
+      "email": "testuser@example.com",
+      "firstName": "Test",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "testpassword",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

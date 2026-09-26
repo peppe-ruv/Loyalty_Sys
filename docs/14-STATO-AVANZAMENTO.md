@@ -359,7 +359,7 @@ Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della 
 **Fette**
 - [~] M8.0 — adozione e governance (ADR 026–045, CLAUDE.md §7, docs, `.github/`, job `guard`) — _in revisione: PR #33 (dopo la preliminare #32, ADR-046)_
 - [ ] M8.1 — immagine unica a ruoli
-- [ ] M8.2 — identità (Keycloak `idp`, BFF, OIDC)
+- [~] M8.2 — identità (Keycloak `idp`, BFF, OIDC) — _parte a (Keycloak `idp`, realm as code, IdP e LDAP di prova) in revisione: PR #57_
 - [ ] M8.3 — chart Helm e compose di riferimento
 - [~] M8.4 — PII fuori dal bus — _parte 1 (contratti `x-lh-pii`, `member.*:2`, test) in revisione: PR #50; parte 2 (produttore, consumer, delivery, cifratura) da fare_
 - [ ] M8.5 — sicurezza di piattaforma
