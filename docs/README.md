@@ -24,6 +24,7 @@ Specifiche del PoC **Loyalty Hub**, scritte per essere eseguite da Claude Code. 
 | 15 | [Domande aperte](15-DOMANDE-APERTE.md) | Tutti | decisioni in sospeso e SPEC-GAP |
 | 16 | [Testbook funzionale](16-TESTBOOK-FUNZIONALE.md) | Tutti | casi di prova per regola × domini dei valori, oracolo = specifica |
 | 17 | [Epic e storie](17-EPIC-E-STORIE.md) | Tutti | epic, storie utente, foresta delle decisioni e copertura del testbook |
+| 18 | [Fase 2: piattaforma enterprise](18-FASE-2.md) | Tutti | decisioni, architettura target, catalogo `F2-*` e milestone M8–M15 del profilo `enterprise`; prompt di avvio in [prompts/fase2-kickoff.md](prompts/fase2-kickoff.md) |
 
 Alla radice: [`CLAUDE.md`](../CLAUDE.md) (regole per l'agente), [`README.md`](../README.md), [`COME-PARTIRE.md`](../COME-PARTIRE.md) (primi passi e primo prompt per Claude Code).
 
