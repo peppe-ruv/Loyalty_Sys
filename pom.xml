@@ -65,7 +65,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
-        <version>3.2.5</version>
+        <version>3.6.0</version>
         <!-- Rapporti JUnit col nome visualizzato dei casi ([TB-…] …), letto da scripts/testbook-report.mjs (docs/16 §1bis). -->
         <configuration>
           <statelessTestsetReporter implementation="org.apache.maven.plugin.surefire.extensions.junit5.JUnit5Xml30StatelessReporter">
