@@ -5,14 +5,17 @@ import java.util.List;
 
 /**
  * Lettore CSV secondo RFC 4180, un record alla volta (niente elenco di tutte le righe in memoria): campi tra virgolette
- * con {@code ""} per le virgolette e a capo ammessi, terminatori CRLF o LF, separatore scelto dal chiamante. Virgolette
- * aperte e mai chiuse a fine testo ⇒ {@link ImportFileException} {@code IMPORT_INVALID}.
+ * con {@code ""} per le virgolette e a capo ammessi, terminatori CRLF o LF, separatore scelto dal chiamante. Tiene la
+ * linea fisica dove comincia ogni record ({@link #recordLine()}). Virgolette aperte e mai chiuse a fine testo ⇒
+ * {@link ImportFileException} {@code IMPORT_INVALID}.
  */
 final class CsvReader {
 
     private final String text;
     private final char delimiter;
     private int pos;
+    private int line = 1;
+    private int recordLine;
 
     CsvReader(String text, char delimiter) {
         this.text = text;
@@ -31,12 +34,18 @@ final class CsvReader {
         return semicolons > commas ? ';' : ',';
     }
 
+    /** Linea fisica (da 1) dove comincia l'ultimo record restituito da {@link #next()}. */
+    int recordLine() {
+        return recordLine;
+    }
+
     /** Prossimo record (celle), {@code null} a fine testo. */
     List<String> next() {
         int n = text.length();
         if (pos >= n) {
             return null;
         }
+        recordLine = line;
         List<String> cells = new ArrayList<>();
         StringBuilder field = new StringBuilder();
         boolean quoted = false;
@@ -52,6 +61,9 @@ final class CsvReader {
                     }
                     quoted = false;
                 } else {
+                    if (c == '\n') {
+                        line++;
+                    }
                     field.append(c);
                 }
                 pos++;
@@ -66,6 +78,7 @@ final class CsvReader {
                 fieldStarted = false;
             } else if (c == '\r' || c == '\n') {
                 pos += c == '\r' && pos + 1 < n && text.charAt(pos + 1) == '\n' ? 2 : 1;
+                line++;
                 cells.add(field.toString());
                 return cells;
             } else {

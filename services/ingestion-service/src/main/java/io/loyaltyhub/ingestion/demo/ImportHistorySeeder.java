@@ -2,6 +2,7 @@ package io.loyaltyhub.ingestion.demo;
 
 import io.loyaltyhub.common.demo.SeedLoader;
 import io.loyaltyhub.common.ids.Ulid;
+import io.loyaltyhub.ingestion.domain.ImportFormat;
 import io.loyaltyhub.ingestion.domain.ImportParser;
 import io.loyaltyhub.ingestion.domain.ItemOutcome;
 import io.loyaltyhub.ingestion.domain.OutcomeCounts;
@@ -85,18 +86,25 @@ public class ImportHistorySeeder {
         Instant finishedAt = createdAt.plusSeconds(rows.size());
         String id = Ulid.next(Clock.fixed(createdAt, clock.getZone()));
         OutcomeCounts counts = OutcomeCounts.of(rows.stream().map(Row::outcome).toList());
-        imports.insertHistory(id, job.path("format").asString(), fileName, rows.size() * BYTES_PER_ROW,
-                ImportParser.sha256(job.toString().getBytes(StandardCharsets.UTF_8)), job.path("source").asString(null), counts, job.path("createdBy").asString(),
-                createdAt, finishedAt);
+        String format = job.path("format").asString();
+        imports.insertHistory(id, format, fileName, rows.size() * BYTES_PER_ROW,
+                ImportParser.sha256(job.toString().getBytes(StandardCharsets.UTF_8)), job.path("source").asString(null),
+                counts, job.path("createdBy").asString(), createdAt, finishedAt);
+        // Linea nel file: nel CSV la prima è l'intestazione, negli altri formati un evento per linea.
+        int headerLines = ImportFormat.CSV.name().equals(format) ? 1 : 0;
         for (Row r : rows) {
             if (r.outcome() == ItemOutcome.ACCEPTED) {
                 continue;
             }
+            int line = r.number() + headerLines;
             if (r.ref() == null) {
-                imports.insertRow(id, r.number(), null, r.outcome(), null, r.invalidDetail(), null);
+                imports.insertRow(id, new ImportRepository.NewRow(r.number(), line, null, r.outcome(), null,
+                        r.invalidDetail(), null));
             } else {
-                imports.insertRow(id, r.number(), r.eventId(), r.outcome(), r.ref().rejectCode(), r.ref().detail(),
-                        r.ref().id());
+                // Come il lavoratore: il dettaglio dei non abbinati resta solo nel monitor (contiene il soggetto).
+                String detail = r.outcome() == ItemOutcome.UNMATCHED ? null : r.ref().detail();
+                imports.insertRow(id, new ImportRepository.NewRow(r.number(), line, r.eventId(), r.outcome(),
+                        r.ref().rejectCode(), detail, r.ref().id()));
             }
         }
     }

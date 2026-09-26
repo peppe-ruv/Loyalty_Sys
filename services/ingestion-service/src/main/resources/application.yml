@@ -45,9 +45,14 @@ loyaltyhub:
       max-bytes: ${LH_IMPORT_MAX_BYTES:1048576}
       max-rows: ${LH_IMPORT_MAX_ROWS:10000}
       poll-interval-ms: 5000
+      poll-initial-delay-ms: 5000
       stale-after-ms: 120000
       max-attempts: 3
       retention-days: 7
+      retry-batch: 200
+    # Ingresso batch (F2-ING-01): tetto in byte del corpo JSON, prima di leggerlo.
+    batch:
+      max-bytes: ${LH_BATCH_MAX_BYTES:3145728}
 
 management:
   endpoints:

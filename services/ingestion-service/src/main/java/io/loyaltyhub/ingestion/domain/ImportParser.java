@@ -189,9 +189,10 @@ public final class ImportParser {
                 if (t == null) {
                     throw invalidJson();
                 }
+                int line = p.currentTokenLocation().getLineNr();
                 // Solo il sotto-albero dell'elemento (readTree del mapper vorrebbe un documento senza seguito).
                 JsonNode node = p.readValueAsTree();
-                if (!sink.accept(fromJson(++row, node, defaultSource))) {
+                if (!sink.accept(fromJson(++row, line, node, defaultSource))) {
                     return row;
                 }
             }
@@ -210,18 +211,20 @@ public final class ImportParser {
 
     private int readNdjson(String text, String defaultSource, Sink sink) {
         int row = 0;
+        int lineNumber = 0;
         Iterator<String> lines = text.lines().iterator();
         while (lines.hasNext()) {
             String line = lines.next();
+            lineNumber++;
             if (line.isBlank()) {
                 continue;
             }
             row++;
             ImportRecord record;
             try {
-                record = fromJson(row, mapper.readTree(line), defaultSource);
+                record = fromJson(row, lineNumber, mapper.readTree(line), defaultSource);
             } catch (JacksonException e) {
-                record = ImportRecord.invalid(row, null, "JSON non valido");
+                record = ImportRecord.invalid(row, lineNumber, null, "JSON non valido");
             }
             if (!sink.accept(record)) {
                 return row;
@@ -230,13 +233,13 @@ public final class ImportParser {
         return row;
     }
 
-    private static ImportRecord fromJson(int row, JsonNode node, String defaultSource) {
+    private static ImportRecord fromJson(int row, int line, JsonNode node, String defaultSource) {
         if (node == null || !node.isObject()) {
-            return ImportRecord.invalid(row, null, "l'elemento non è un oggetto JSON (CloudEvent)");
+            return ImportRecord.invalid(row, line, null, "l'elemento non è un oggetto JSON (CloudEvent)");
         }
         String specversion = attribute(node, "specversion");
         String source = attribute(node, "source");
-        return new ImportRecord(row,
+        return new ImportRecord(row, line,
                 specversion == null ? DEFAULT_SPECVERSION : specversion,
                 attribute(node, "id"),
                 source == null ? defaultSource : source,
@@ -259,7 +262,7 @@ public final class ImportParser {
         Map<String, Map<String, String>> typeCache = new HashMap<>();
         int row = 0;
         for (cells = nextNonBlank(reader); cells != null; cells = nextNonBlank(reader)) {
-            if (!sink.accept(csvRecord(++row, cells, header, defaultSource, types, typeCache))) {
+            if (!sink.accept(csvRecord(++row, reader.recordLine(), cells, header, defaultSource, types, typeCache))) {
                 return row;
             }
         }
@@ -321,11 +324,11 @@ public final class ImportParser {
         return new ImportFileException("IMPORT_INVALID", "Intestazione CSV non valida: " + why + ".");
     }
 
-    private ImportRecord csvRecord(int row, List<String> cells, Header h, String defaultSource, FieldTypes types,
-                                   Map<String, Map<String, String>> typeCache) {
+    private ImportRecord csvRecord(int row, int line, List<String> cells, Header h, String defaultSource,
+                                   FieldTypes types, Map<String, Map<String, String>> typeCache) {
         String id = blankToNull(cell(cells, h.fixed().get("id")));
         if (cells.size() != h.size()) {
-            return ImportRecord.invalid(row, id, "attese " + h.size() + " colonne, trovate " + cells.size());
+            return ImportRecord.invalid(row, line, id, "attese " + h.size() + " colonne, trovate " + cells.size());
         }
         String type = blankToNull(cell(cells, h.fixed().get("type")));
         ObjectNode data;
@@ -335,10 +338,10 @@ public final class ImportParser {
             try {
                 parsed = mapper.readTree(dataJson);
             } catch (JacksonException e) {
-                return ImportRecord.invalid(row, id, "colonna data: JSON non valido");
+                return ImportRecord.invalid(row, line, id, "colonna data: JSON non valido");
             }
             if (parsed == null || !parsed.isObject()) {
-                return ImportRecord.invalid(row, id, "colonna data: deve essere un oggetto JSON");
+                return ImportRecord.invalid(row, line, id, "colonna data: deve essere un oggetto JSON");
             }
             data = (ObjectNode) parsed;
         } else {
@@ -354,13 +357,13 @@ public final class ImportParser {
                 try {
                     data.set(f.getKey(), coerce(raw.strip(), fieldTypes.get(f.getKey())));
                 } catch (IllegalArgumentException e) {
-                    return ImportRecord.invalid(row, id, "data." + f.getKey() + ": " + e.getMessage());
+                    return ImportRecord.invalid(row, line, id, "data." + f.getKey() + ": " + e.getMessage());
                 }
             }
         }
         String specversion = blankToNull(cell(cells, h.fixed().get("specversion")));
         String source = blankToNull(cell(cells, h.fixed().get("source")));
-        return new ImportRecord(row,
+        return new ImportRecord(row, line,
                 specversion == null ? DEFAULT_SPECVERSION : specversion,
                 id,
                 source == null ? defaultSource : source,

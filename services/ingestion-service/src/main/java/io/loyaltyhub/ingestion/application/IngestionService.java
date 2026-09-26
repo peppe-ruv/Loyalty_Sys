@@ -11,6 +11,7 @@ import io.loyaltyhub.common.outbox.OutboxWriter;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.ingestion.api.InboundEventRequest;
 import io.loyaltyhub.ingestion.domain.CrossFieldRules;
+import io.loyaltyhub.ingestion.domain.EnvelopeLimits;
 import io.loyaltyhub.ingestion.domain.EventType;
 import io.loyaltyhub.ingestion.domain.Evaluation;
 import io.loyaltyhub.ingestion.domain.IngestResult;
@@ -162,8 +163,7 @@ public class IngestionService {
     public static void requireSourceUrn(InboundEventRequest request) {
         if (request != null && request.source() != null && !request.source().isBlank()
                 && request.source().indexOf(':') < 0) {
-            throw LhException.badRequest("source deve essere un URN " + LhSource.SOURCE_PREFIX + "<codice>: "
-                    + request.source());
+            throw LhException.badRequest("source deve essere un URN " + LhSource.SOURCE_PREFIX + "<codice>");
         }
     }
 
@@ -298,6 +298,17 @@ public class IngestionService {
         if (!r.data().isObject()) {
             throw LhException.badRequest("data deve essere un oggetto JSON");
         }
+        // Lunghezze e NUL (EnvelopeLimits): altrimenti la scrittura fallirebbe con un errore interno.
+        for (String[] attribute : new String[][]{{"id", r.id()}, {"source", r.source()}, {"type", r.type()},
+                {"subject", r.subject()}, {"time", r.time()}}) {
+            String problem = EnvelopeLimits.attributeProblem(attribute[0], attribute[1]);
+            if (problem != null) {
+                throw LhException.badRequest(problem);
+            }
+        }
+        if (EnvelopeLimits.containsNul(r.data())) {
+            throw LhException.badRequest("data contiene il carattere NUL, non ammesso");
+        }
     }
 
     private void require(String value, String field) {
@@ -310,7 +321,8 @@ public class IngestionService {
         try {
             return Instant.parse(time);
         } catch (DateTimeParseException e) {
-            throw LhException.badRequest("time non è un istante RFC 3339 valido: " + time);
+            // Il valore non si riporta: il dettaglio finisce nel rapporto degli import (Q-371).
+            throw LhException.badRequest("time non è un istante RFC 3339 valido");
         }
     }
 

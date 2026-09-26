@@ -8,9 +8,13 @@ import io.loyaltyhub.ingestion.application.ImportService;
 import io.loyaltyhub.ingestion.application.ImportWorker;
 import io.loyaltyhub.ingestion.domain.ImportJob;
 import io.loyaltyhub.ingestion.domain.ImportRowResult;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,11 +23,13 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
  * Import file asincrono con rapporto (F2-ING-02, BO-32, docs/18 §3.6; docs/servizi/ingestion-service.md §3).
@@ -48,10 +54,20 @@ public class ImportsController {
     /**
      * Carica un file (multipart, parte {@code file}) e lo mette in coda: {@code 202} con il lavoro in {@code QUEUED}.
      * Errori dell'intero file → {@code 422} ({@code IMPORT_EMPTY, IMPORT_FILE_TOO_LARGE, IMPORT_FORMAT_UNSUPPORTED,
-     * IMPORT_FORMAT_MISMATCH, IMPORT_NOT_TEXT, IMPORT_INVALID, IMPORT_TOO_MANY_ROWS, IMPORT_KIND_NOT_SUPPORTED}).
+     * IMPORT_FORMAT_MISMATCH, IMPORT_NOT_TEXT, IMPORT_INVALID, IMPORT_TOO_MANY_ROWS, IMPORT_KIND_NOT_SUPPORTED,
+     * IDEMPOTENCY_KEY_REUSED}).
      */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @RequiresRole({Role.ADMIN, Role.CARE})
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    @ApiResponse(responseCode = "403", description = "FORBIDDEN_ROLE: servono ADMIN o CARE",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "413", description = "File oltre il tetto del contenitore (2 MB)",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "422", description = "IMPORT_EMPTY, IMPORT_FILE_TOO_LARGE, IMPORT_FORMAT_UNSUPPORTED, "
+            + "IMPORT_FORMAT_MISMATCH, IMPORT_NOT_TEXT, IMPORT_INVALID, IMPORT_TOO_MANY_ROWS, IMPORT_KIND_NOT_SUPPORTED, "
+            + "IDEMPOTENCY_KEY_REUSED",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<ImportJob> create(
             @RequestPart(value = "file", required = false) MultipartFile file,
             @RequestPart(value = "kind", required = false) String kind,
@@ -59,7 +75,7 @@ public class ImportsController {
             @RequestHeader(value = IDEMPOTENCY_HEADER, required = false) String idempotencyKey) {
         if (file == null) {
             throw LhException.validation("IMPORT_EMPTY", "Allega un file (parte «file» del modulo).",
-                    java.util.List.of(new LhException.FieldError("file", "obbligatorio")));
+                    List.of(new LhException.FieldError("file", "obbligatorio")));
         }
         byte[] bytes;
         try {
@@ -98,6 +114,8 @@ public class ImportsController {
 
     /** Rapporto esiti scaricabile in CSV (celle neutralizzate come formule, nessun dato personale). */
     @GetMapping("/{id}/report.csv")
+    @ApiResponse(responseCode = "200", description = "CSV con intestazione riga, linea, id_evento, esito, codice, "
+            + "dettaglio, esito_attuale", content = @Content(mediaType = "text/csv", schema = @Schema(type = "string")))
     public ResponseEntity<String> report(@PathVariable String id) {
         String csv = imports.reportCsv(id);
         return ResponseEntity.ok()

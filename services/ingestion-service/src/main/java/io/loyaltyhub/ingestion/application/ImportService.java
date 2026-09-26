@@ -18,16 +18,21 @@ import io.loyaltyhub.ingestion.domain.ItemOutcome;
 import io.loyaltyhub.ingestion.domain.ReportCsv;
 import io.loyaltyhub.ingestion.infra.ImportRepository;
 import io.loyaltyhub.ingestion.infra.SourceRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Clock;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
@@ -50,9 +55,8 @@ public class ImportService {
     static final String ENTITY_TYPE = "import";
     private static final Pattern SOURCE_CODE = Pattern.compile("^[a-z][a-z0-9-]{1,39}$");
     private static final int MAX_KEY_LENGTH = 200;
-    private static final int MAX_DETAIL = 500;
-    /** Righe riprovate per chiamata di «Riprova non abbinati»: ognuna è una transazione, la richiesta resta breve. */
-    static final int RETRY_BATCH = 200;
+    static final int MAX_DETAIL = 500;
+    private static final Logger log = LoggerFactory.getLogger(ImportService.class);
     private static final String UNMATCHED_EXPORT_DETAIL = "Soggetto non abbinato a un membro (vedi il monitor ingressi)";
 
     /** Richiesta di import dal controller. */
@@ -64,8 +68,12 @@ public class ImportService {
     public record ImportDetail(ImportJob job, long openUnmatched) {
     }
 
-    /** Esito di «Riprova non abbinati»; {@code nextAfterRow} non nullo = restano righe dopo quella riga. */
-    public record RetryResult(int retried, int accepted, int stillUnmatched, int rejected, Integer nextAfterRow) {
+    /**
+     * Esito di «Riprova non abbinati»; {@code failed} = righe non riprovate per un errore imprevisto (restano da
+     * abbinare); {@code nextAfterRow} non nullo = restano righe dopo quella riga.
+     */
+    public record RetryResult(int retried, int accepted, int stillUnmatched, int rejected, int failed,
+                              Integer nextAfterRow) {
     }
 
     private final ImportRepository imports;
@@ -77,11 +85,15 @@ public class ImportService {
     private final Clock clock;
     private final int maxBytes;
     private final int maxRows;
+    /** Righe riprovate per chiamata di «Riprova non abbinati»: ognuna è una transazione, la richiesta resta breve. */
+    private final int retryBatch;
 
     public ImportService(ImportRepository imports, SourceRepository sources, ImportFieldTypes fieldTypes,
                          InboundResolutionService resolution, AuditPublisher audit, ObjectMapper mapper, Clock clock,
                          @Value("${loyaltyhub.ingestion.imports.max-bytes:1048576}") int maxBytes,
-                         @Value("${loyaltyhub.ingestion.imports.max-rows:10000}") int maxRows) {
+                         @Value("${loyaltyhub.ingestion.imports.max-rows:10000}") int maxRows,
+                         @Value("${loyaltyhub.ingestion.imports.retry-batch:200}") int retryBatch) {
+        this.retryBatch = Math.max(1, retryBatch);
         this.imports = imports;
         this.sources = sources;
         this.fieldTypes = fieldTypes;
@@ -111,14 +123,16 @@ public class ImportService {
             throw LhException.validation("IMPORT_INVALID", "Tipo di import non valido.",
                     List.of(new LhException.FieldError("kind", "ammesso: EVENTS")));
         }
+        String actor = ActorHolder.get().asActorString();
+        byte[] bytes = u.bytes() == null ? new byte[0] : u.bytes();
+        String sha256 = ImportParser.sha256(bytes);
         String key = idempotencyKey(u.idempotencyKey());
         if (key != null) {
-            var existing = imports.findByIdempotencyKey(key);
+            Optional<ImportJob> existing = imports.findByIdempotencyKey(actor, key);
             if (existing.isPresent()) {
-                return existing.get();
+                return sameRequest(existing.get(), sha256, kind, sourceCodeOf(u.source()));
             }
         }
-        byte[] bytes = u.bytes() == null ? new byte[0] : u.bytes();
         if (bytes.length == 0) {
             throw LhException.validation("IMPORT_EMPTY", "Il file è vuoto.",
                     List.of(new LhException.FieldError("file", "obbligatorio, non vuoto")));
@@ -166,12 +180,12 @@ public class ImportService {
         }
 
         String id = Ulid.next(clock);
-        String actor = ActorHolder.get().asActorString();
         boolean inserted = imports.insert(new ImportRepository.NewJob(id, kind, format.name(), fileName, bytes.length,
-                ImportParser.sha256(bytes), source, rows, text, key, actor, clock.instant()));
+                sha256, source, rows, text, key, actor, clock.instant()));
         if (!inserted) {
-            // Stessa Idempotency-Key arrivata in parallelo: vale il primo lavoro.
-            return imports.findByIdempotencyKey(key).orElseThrow();
+            // Stessa Idempotency-Key dello stesso autore arrivata in parallelo: vale il primo lavoro, se è la stessa
+            // richiesta (l'inserimento ha atteso il suo commit, quindi la lettura lo vede).
+            return sameRequest(imports.findByIdempotencyKey(actor, key).orElseThrow(), sha256, kind, source);
         }
         ImportJob job = imports.findById(id).orElseThrow();
         Map<String, Object> after = new LinkedHashMap<>();
@@ -188,13 +202,33 @@ public class ImportService {
         return job;
     }
 
-    private String defaultSource(String raw) {
+    /**
+     * Una {@code Idempotency-Key} già usata dallo stesso autore vale solo per la stessa richiesta (stesso file, tipo e
+     * fonte predefinita): allora restituisce il lavoro esistente; altrimenti {@code 422 IDEMPOTENCY_KEY_REUSED}, mai
+     * il vecchio lavoro in silenzio al posto del nuovo file.
+     */
+    private static ImportJob sameRequest(ImportJob existing, String sha256, String kind, String source) {
+        if (existing.sha256().equals(sha256) && existing.kind().equals(kind)
+                && Objects.equals(existing.defaultSource(), source)) {
+            return existing;
+        }
+        throw LhException.validation("IDEMPOTENCY_KEY_REUSED",
+                "Questa Idempotency-Key è già stata usata per un altro import (file, tipo o fonte diversi): usa una chiave nuova.");
+    }
+
+    /** Codice della fonte predefinita come arriva (URN o codice), senza verificarne l'esistenza. */
+    private static String sourceCodeOf(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
         }
         String code = raw.trim();
-        if (code.startsWith(LhSource.SOURCE_PREFIX)) {
-            code = code.substring(LhSource.SOURCE_PREFIX.length());
+        return code.startsWith(LhSource.SOURCE_PREFIX) ? code.substring(LhSource.SOURCE_PREFIX.length()) : code;
+    }
+
+    private String defaultSource(String raw) {
+        String code = sourceCodeOf(raw);
+        if (code == null) {
+            return null;
         }
         if (!SOURCE_CODE.matcher(code).matches() || sources.findByCode(code).isEmpty()) {
             throw LhException.validation("IMPORT_INVALID", "Fonte predefinita inesistente.",
@@ -249,12 +283,13 @@ public class ImportService {
      */
     public String reportCsv(String id) {
         job(id);
-        StringBuilder csv = new StringBuilder(ReportCsv.line(List.of("riga", "id_evento", "esito", "codice", "dettaglio",
-                "esito_attuale")));
+        StringBuilder csv = new StringBuilder(ReportCsv.line(List.of("riga", "linea", "id_evento", "esito", "codice",
+                "dettaglio", "esito_attuale")));
         imports.forEachRow(id, r -> {
             String detail = r.outcome() == ItemOutcome.UNMATCHED ? UNMATCHED_EXPORT_DETAIL : r.detail();
-            csv.append(ReportCsv.line(java.util.Arrays.asList(String.valueOf(r.rowNumber()), r.eventId(),
-                    r.outcome().name(), r.rejectCode(), detail, r.currentStatus())));
+            csv.append(ReportCsv.line(Arrays.asList(String.valueOf(r.rowNumber()),
+                    r.lineNumber() == null ? null : String.valueOf(r.lineNumber()), r.eventId(), r.outcome().name(),
+                    r.rejectCode(), detail, r.currentStatus())));
         });
         return csv.toString();
     }
@@ -262,8 +297,9 @@ public class ImportService {
     /**
      * «Riprova non abbinati» (BO-32, docs/18 §3.6): rivaluta le righe del monitor ingressi di questo import ancora
      * {@code UNMATCHED}, come <em>Riprova</em> di BO-26 (una transazione e una voce di audit per riga). Al più
-     * {@value #RETRY_BATCH} righe per chiamata, dopo la riga {@code afterRow}, perché la richiesta resti breve:
-     * {@code nextAfterRow} è il punto da cui continuare, {@code null} a fine elenco.
+     * {@code retry-batch} righe per chiamata, dopo la riga {@code afterRow}, perché la richiesta resti breve:
+     * {@code nextAfterRow} è il punto da cui continuare, {@code null} a fine elenco. Una riga già risolta nel frattempo
+     * si salta; una riga che fallisce per un errore imprevisto è contata in {@code failed} e il blocco prosegue.
      */
     public RetryResult retryUnmatched(String id, int afterRow) {
         job(id);
@@ -271,13 +307,18 @@ public class ImportService {
         int accepted = 0;
         int unmatched = 0;
         int rejected = 0;
-        List<ImportRepository.OpenUnmatched> batch = imports.openUnmatched(id, Math.max(afterRow, 0), RETRY_BATCH);
+        int failed = 0;
+        List<ImportRepository.OpenUnmatched> batch = imports.openUnmatched(id, Math.max(afterRow, 0), retryBatch);
         for (ImportRepository.OpenUnmatched row : batch) {
             String status;
             try {
                 status = resolution.retry(row.inboundEventId()).status();
             } catch (LhException e) {
                 continue; // risolta nel frattempo da un altro operatore o dall'abbinamento automatico
+            } catch (RuntimeException e) {
+                log.warn("Import {}: riprova della riga {} non riuscita: {}", id, row.rowNumber(), e.toString());
+                failed++;
+                continue;
             }
             retried++;
             switch (status) {
@@ -286,8 +327,8 @@ public class ImportService {
                 default -> rejected++;
             }
         }
-        Integer next = batch.size() < RETRY_BATCH ? null : batch.getLast().rowNumber();
-        return new RetryResult(retried, accepted, unmatched, rejected, next);
+        Integer next = batch.size() < retryBatch ? null : batch.getLast().rowNumber();
+        return new RetryResult(retried, accepted, unmatched, rejected, failed, next);
     }
 
     private ImportJob job(String id) {
@@ -307,8 +348,8 @@ public class ImportService {
         return o;
     }
 
-    static String truncate(String s) {
-        return s == null || s.length() <= MAX_DETAIL ? s : s.substring(0, MAX_DETAIL - 1) + "…";
+    static String truncate(String s, int max) {
+        return s == null || s.length() <= max ? s : s.substring(0, max - 1) + "…";
     }
 
     private static String human(long bytes) {

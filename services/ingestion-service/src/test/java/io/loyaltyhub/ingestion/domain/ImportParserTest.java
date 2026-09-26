@@ -6,6 +6,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -52,6 +53,13 @@ class ImportParserTest {
     }
 
     @Test
+    void jsonArrayElementsCarryTheirPhysicalLine() {
+        List<ImportRecord> rows = parse(ImportFormat.JSON, "[\n  {\"id\":\"a\"},\n\n  {\"id\":\"b\"}\n]", ECOM,
+                ImportParser.FieldTypes.NONE);
+        assertThat(rows).extracting(ImportRecord::line).containsExactly(2, 4);
+    }
+
+    @Test
     void jsonArrayWithTrailingContentIsInvalid() {
         assertThatThrownBy(() -> parse(ImportFormat.JSON, "[{\"id\":\"a\"}] [", ECOM, ImportParser.FieldTypes.NONE))
                 .isInstanceOfSatisfying(ImportFileException.class, e -> assertThat(e.code()).isEqualTo("IMPORT_INVALID"));
@@ -93,6 +101,7 @@ class ImportParserTest {
             assertThat(rows.getFirst().data().path("orderId").asString()).isEqualTo("ORD;\"2\"");
             assertThat(rows.get(1).data().path("orderId").asString()).isEqualTo("multi\nriga");
             assertThat(rows.get(1).row()).as("le righe vuote non contano").isEqualTo(2);
+            assertThat(rows).extracting(ImportRecord::line).as("linea fisica: la vuota conta").containsExactly(2, 4);
         }
 
         @Test
@@ -173,6 +182,7 @@ class ImportParserTest {
                     {"specversion":"1.0","id":7,"source":"urn:loyaltyhub:source:app","type":"app.login.daily","subject":"member:MBR-000002","time":"2026-09-25T10:00:00Z","data":{}}
                     """, ECOM, ImportParser.FieldTypes.NONE);
             assertThat(rows).extracting(ImportRecord::row).containsExactly(1, 2, 3, 4);
+            assertThat(rows).extracting(ImportRecord::line).containsExactly(1, 3, 4, 5);
             assertThat(rows.getFirst().source()).isEqualTo(ECOM);
             assertThat(rows.getFirst().specversion()).isEqualTo("1.0");
             assertThat(rows.getFirst().data().path("platform").asString()).isEqualTo("IOS");
@@ -260,7 +270,7 @@ class ImportParserTest {
             assertThat(ReportCsv.cell("a;b")).isEqualTo("\"a;b\"");
             assertThat(ReportCsv.cell("normale")).isEqualTo("normale");
             assertThat(ReportCsv.cell(null)).isEmpty();
-            assertThat(ReportCsv.line(java.util.Arrays.asList("1", null, "=x"))).isEqualTo("1,,'=x\n");
+            assertThat(ReportCsv.line(Arrays.asList("1", null, "=x"))).isEqualTo("1,,'=x\n");
         }
 
         @Test

@@ -4,6 +4,7 @@ import io.loyaltyhub.common.audit.AuditPublisher;
 import io.loyaltyhub.common.event.LhSource;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.ingestion.api.InboundEventRequest;
+import io.loyaltyhub.ingestion.domain.EnvelopeLimits;
 import io.loyaltyhub.ingestion.domain.ImportFileException;
 import io.loyaltyhub.ingestion.domain.ImportFormat;
 import io.loyaltyhub.ingestion.domain.ImportJob;
@@ -30,6 +31,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -38,14 +41,21 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * lo sveglia {@code POST /v1/imports} e, per la ripresa e per le altre istanze, un controllo periodico.
  * <p>
  * Ogni riga è una transazione: pipeline di {@code POST /v1/events} (origine {@code IMPORT}) + esito in
- * {@code import_row} + avanzamento del lavoro, così un arresto a metà riprende esattamente dalla riga successiva
- * ({@code rows_done}) senza contare due volte. Un lavoro fermo da più di {@code stale-after-ms} torna in lavorazione;
- * oltre {@code max-attempts} prese in carico diventa {@code FAILED}. A fine lavoro il file è cancellato e resta il
- * rapporto; audit {@code JOB} con i soli conteggi (docs/18 §3.16: «audit con conteggio e non con i valori»).
+ * {@code import_row} + avanzamento del lavoro solo se è ancora al punto atteso, così un arresto a metà riprende
+ * esattamente dalla riga successiva ({@code rows_done}) e due lavoratori sullo stesso lavoro non contano né pubblicano
+ * due volte (chi perde annulla la sua transazione, outbox compresa). Una riga che fallisce due volte per un errore
+ * imprevisto mentre il database risponde è una riga «velenosa»: si registra {@code INVALID} («errore interno») e il
+ * lavoro prosegue. Se non si riesce nemmeno a registrarla (database giù) il lavoro resta {@code RUNNING} e riprende
+ * quando il battito è più vecchio di {@code stale-after-ms}; oltre {@code max-attempts} prese in carico diventa
+ * {@code FAILED}. A fine lavoro il file è cancellato e resta il rapporto; audit {@code JOB} con i soli conteggi
+ * (docs/18 §3.16: «audit con conteggio e non con i valori»).
  */
 @Component
 @Lazy(false)
 public class ImportWorker {
+
+    /** Dettaglio di una riga non elaborabile per un errore interno (niente eccezione né valori nel rapporto). */
+    static final String INTERNAL_ERROR_DETAIL = "Errore interno: riga non elaborata; se serve, reinviala in un nuovo import";
 
     private static final Logger log = LoggerFactory.getLogger(ImportWorker.class);
 
@@ -85,7 +95,8 @@ public class ImportWorker {
     }
 
     /** Controllo periodico: lavori in coda arrivati ad altre istanze o fermi da riprendere. */
-    @Scheduled(fixedDelayString = "${loyaltyhub.ingestion.imports.poll-interval-ms:5000}", initialDelay = 5_000)
+    @Scheduled(fixedDelayString = "${loyaltyhub.ingestion.imports.poll-interval-ms:5000}",
+            initialDelayString = "${loyaltyhub.ingestion.imports.poll-initial-delay-ms:5000}")
     public void poll() {
         kick();
     }
@@ -99,26 +110,38 @@ public class ImportWorker {
         }
     }
 
-    /** Sveglia il lavoratore se è fermo; senza effetto se sta già lavorando. */
+    /**
+     * Sveglia il lavoratore se è fermo; senza effetto se sta già lavorando. Non lancia mai: dopo lo spegnimento il lavoro
+     * già salvato resta in coda per un'altra istanza o per il prossimo avvio (un {@code 202} già deciso non diventa
+     * {@code 500}).
+     */
     public void kick() {
         if (draining.compareAndSet(false, true)) {
             try {
-                executor.submit(this::drain);
-            } catch (RuntimeException e) {
+                executor.execute(this::drain);
+            } catch (RejectedExecutionException e) {
                 draining.set(false);
-                throw e;
+                log.info("Lavoratore import spento: i lavori in coda riprendono al prossimo avvio");
             }
         }
     }
 
+    /** Spegnimento ordinato: interrompe il thread e attende che la riga in corso si chiuda (o si annulli). */
     @PreDestroy
-    void stop() {
+    public void shutdown() {
         executor.shutdownNow();
+        try {
+            if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+                log.warn("Lavoratore import non terminato entro 10 s: il lavoro in corso riprende dal punto di ripresa");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void drain() {
         try {
-            while (true) {
+            while (!Thread.currentThread().isInterrupted()) {
                 Instant now = clock.instant();
                 Optional<ImportRepository.Claimed> claimed = imports.claim(now, now.minus(staleAfter));
                 if (claimed.isEmpty()) {
@@ -126,8 +149,12 @@ public class ImportWorker {
                 }
                 process(claimed.get());
             }
-        } catch (RuntimeException e) {
-            log.warn("Lavoratore import interrotto: {}", e.toString());
+        } catch (Throwable t) {
+            // Nulla si perde: il lavoro resta RUNNING e riprende dal punto di ripresa. Un Error si registra e si rilancia.
+            log.error("Lavoratore import interrotto", t);
+            if (t instanceof Error error) {
+                throw error;
+            }
         } finally {
             draining.set(false);
         }
@@ -162,11 +189,13 @@ public class ImportWorker {
         });
     }
 
+    /** Esito di una riga: ammessa, lavoro non più nostro, oppure errore imprevisto. */
+    private enum Step { ADVANCED, LOST, FAILED }
+
     /**
      * Riceve i record dal parser uno alla volta: salta quelli già elaborati ({@code rowsDone}) e porta ogni altro nella
-     * sua transazione. Si ferma (e il lavoro resta {@code RUNNING}, da riprendere) se il lavoro non è più suo o se una
-     * riga fallisce per un errore imprevisto (es. database): la riga è annullata e si riprende da lì quando il battito
-     * è vecchio, fino a {@code max-attempts}.
+     * sua transazione. Si ferma (e il lavoro resta {@code RUNNING}) se il lavoro non è più suo o se non riesce a
+     * registrare nemmeno l'esito di una riga velenosa.
      */
     private final class RowRunner implements ImportParser.Sink {
         private final ImportRepository.Claimed job;
@@ -179,31 +208,51 @@ public class ImportWorker {
 
         @Override
         public boolean accept(ImportRecord record) {
+            if (Thread.currentThread().isInterrupted()) {
+                stopped = true;
+                return false;
+            }
             int expectedDone = index++;
             if (expectedDone < job.rowsDone()) {
                 return true;
             }
-            Boolean advanced;
-            try {
-                advanced = tx.execute(status -> {
-                    boolean ok = processRow(job.id(), expectedDone, record);
-                    if (!ok) {
-                        status.setRollbackOnly();
-                    }
-                    return ok;
-                });
-            } catch (RuntimeException e) {
-                log.warn("Import {}: riga {} non elaborata, ripresa più tardi: {}", job.id(), record.row(), e.toString());
-                stopped = true;
-                return false;
+            Step step = attempt(() -> processRow(job.id(), expectedDone, record));
+            if (step == Step.FAILED) {
+                // Seconda prova: un errore transitorio (conflitto, connessione ripresa) passa; uno deterministico no.
+                step = attempt(() -> processRow(job.id(), expectedDone, record));
             }
-            if (!Boolean.TRUE.equals(advanced)) {
-                log.info("Import {}: preso in carico da un altro lavoratore o non più in lavorazione", job.id());
+            if (step == Step.FAILED) {
+                log.warn("Import {}: riga {} fallita due volte, registrata come non valida", job.id(), record.row());
+                step = attempt(() -> recordPoisonRow(job.id(), expectedDone, record));
+            }
+            if (step != Step.ADVANCED) {
+                log.info("Import {}: lavorazione sospesa alla riga {} ({})", job.id(), record.row(), step);
                 stopped = true;
                 return false;
             }
             return true;
         }
+
+        private Step attempt(RowWork work) {
+            try {
+                Boolean advanced = tx.execute(status -> {
+                    boolean ok = work.run();
+                    if (!ok) {
+                        status.setRollbackOnly();
+                    }
+                    return ok;
+                });
+                return Boolean.TRUE.equals(advanced) ? Step.ADVANCED : Step.LOST;
+            } catch (RuntimeException e) {
+                log.warn("Import {}: errore sulla riga: {}", job.id(), e.toString());
+                return Step.FAILED;
+            }
+        }
+    }
+
+    @FunctionalInterface
+    private interface RowWork {
+        boolean run();
     }
 
     /** Una riga: pipeline + esito + avanzamento, nella transazione del chiamante. {@code false} = lavoro non più nostro. */
@@ -226,16 +275,29 @@ public class ImportWorker {
                 IngestionService.Tracked tracked = ingestion.ingestTracked(request, IngestionService.ORIGIN_IMPORT);
                 outcome = ItemOutcome.of(tracked.result().status());
                 rejectCode = tracked.result().rejectCode() == null ? null : tracked.result().rejectCode().name();
-                detail = tracked.detail();
+                // Il dettaglio dei non abbinati contiene il soggetto: resta solo nel monitor (che l'anonimizzazione
+                // ripulisce) e il rapporto lo legge da lì.
+                detail = outcome == ItemOutcome.UNMATCHED ? null : tracked.detail();
                 inboundId = tracked.inboundId();
             }
         }
+        return advanceAndRecord(importId, expectedDone, record, outcome, rejectCode, detail, inboundId);
+    }
+
+    /** Riga velenosa: nessun ingresso, solo l'esito {@code INVALID} con il motivo generico, e si va avanti. */
+    private boolean recordPoisonRow(String importId, int expectedDone, ImportRecord record) {
+        return advanceAndRecord(importId, expectedDone, record, ItemOutcome.INVALID, null, INTERNAL_ERROR_DETAIL, null);
+    }
+
+    private boolean advanceAndRecord(String importId, int expectedDone, ImportRecord record, ItemOutcome outcome,
+                                     String rejectCode, String detail, String inboundId) {
         if (!imports.advance(importId, expectedDone, outcome, clock.instant())) {
             return false;
         }
         if (outcome != ItemOutcome.ACCEPTED) {
-            imports.insertRow(importId, record.row(), record.id(), outcome, rejectCode, ImportService.truncate(detail),
-                    inboundId);
+            imports.insertRow(importId, new ImportRepository.NewRow(record.row(), record.line(),
+                    ImportService.truncate(record.id(), EnvelopeLimits.MAX_ID), outcome, rejectCode,
+                    ImportService.truncate(detail, ImportService.MAX_DETAIL), inboundId));
         }
         return true;
     }

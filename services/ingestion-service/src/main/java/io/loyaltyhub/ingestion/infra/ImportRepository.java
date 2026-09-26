@@ -6,6 +6,7 @@ import io.loyaltyhub.ingestion.domain.ImportJob;
 import io.loyaltyhub.ingestion.domain.ImportRowResult;
 import io.loyaltyhub.ingestion.domain.ItemOutcome;
 import io.loyaltyhub.ingestion.domain.OutcomeCounts;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -15,6 +16,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
  * Persistenza degli import file (tabelle {@code import_job} e {@code import_row}, F2-ING-02, BO-32). SQL costante o
@@ -66,14 +68,17 @@ public class ImportRepository {
 
     // ================= lavori =================
 
-    /** Inserisce il lavoro in coda; {@code false} se la stessa {@code Idempotency-Key} esiste già (nessun doppione). */
+    /**
+     * Inserisce il lavoro in coda; {@code false} se lo stesso autore ha già usato la stessa {@code Idempotency-Key}
+     * (nessun doppione, anche con due richieste in parallelo: la seconda attende la prima sull'indice unico).
+     */
     public boolean insert(NewJob j) {
         return jdbc.sql("""
                         INSERT INTO import_job (id, kind, format, file_name, size_bytes, sha256, default_source, status,
                           rows_total, content, idempotency_key, created_by, created_at)
                         VALUES (:id, :kind, :format, :fileName, :size, :sha, :source, 'QUEUED', :rows, :content, :key,
                           :createdBy, :createdAt)
-                        ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
+                        ON CONFLICT (created_by, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
                         """)
                 .param("id", j.id()).param("kind", j.kind()).param("format", j.format())
                 .param("fileName", j.fileName()).param("size", j.sizeBytes()).param("sha", j.sha256())
@@ -83,9 +88,10 @@ public class ImportRepository {
                 .update() == 1;
     }
 
-    public Optional<ImportJob> findByIdempotencyKey(String key) {
-        return jdbc.sql("SELECT " + JOB_COLUMNS + " FROM import_job WHERE idempotency_key = :key")
-                .param("key", key).query(ImportRepository::mapJob).optional();
+    /** Lavoro dello stesso autore con questa {@code Idempotency-Key}. */
+    public Optional<ImportJob> findByIdempotencyKey(String createdBy, String key) {
+        return jdbc.sql("SELECT " + JOB_COLUMNS + " FROM import_job WHERE created_by = :createdBy AND idempotency_key = :key")
+                .param("createdBy", createdBy).param("key", key).query(ImportRepository::mapJob).optional();
     }
 
     public Optional<ImportJob> findById(String id) {
@@ -220,20 +226,35 @@ public class ImportRepository {
 
     // ================= righe =================
 
-    public void insertRow(String importId, int rowNumber, String eventId, ItemOutcome outcome, String rejectCode,
-                          String detail, String inboundEventId) {
+    /**
+     * Riga non accettata del rapporto. {@code detail} non contiene mai il soggetto: per {@code UNMATCHED} resta
+     * {@code null} e si legge da {@code inbound_event.reject_detail}, che l'anonimizzazione ripulisce.
+     */
+    public record NewRow(int rowNumber, Integer lineNumber, String eventId, ItemOutcome outcome, String rejectCode,
+                         String detail, String inboundEventId) {
+    }
+
+    public void insertRow(String importId, NewRow row) {
         jdbc.sql("""
-                        INSERT INTO import_row (import_id, row_number, event_id, outcome, reject_code, detail, inbound_event_id)
-                        VALUES (:importId, :row, :eventId, :outcome, :rejectCode, :detail, :inboundId)
+                        INSERT INTO import_row (import_id, row_number, line_number, event_id, outcome, reject_code, detail,
+                          inbound_event_id)
+                        VALUES (:importId, :row, :line, :eventId, :outcome, :rejectCode, :detail, :inboundId)
                         """)
-                .param("importId", importId).param("row", rowNumber).param("eventId", eventId)
-                .param("outcome", outcome.name()).param("rejectCode", rejectCode).param("detail", detail)
-                .param("inboundId", inboundEventId)
+                .param("importId", importId).param("row", row.rowNumber()).param("line", row.lineNumber())
+                .param("eventId", row.eventId()).param("outcome", row.outcome().name())
+                .param("rejectCode", row.rejectCode()).param("detail", row.detail())
+                .param("inboundId", row.inboundEventId())
                 .update();
     }
 
+    /**
+     * Dettaglio dei non abbinati dalla riga del monitor (con il soggetto finché l'anonimizzazione non lo toglie), degli
+     * altri dal rapporto; {@code current_status} = esito attuale nel monitor.
+     */
     private static final String ROW_SELECT = """
-            SELECT r.row_number, r.event_id, r.outcome, r.reject_code, r.detail, r.inbound_event_id, e.status AS current_status
+            SELECT r.row_number, r.line_number, r.event_id, r.outcome, r.reject_code,
+              CASE WHEN r.outcome = 'UNMATCHED' THEN e.reject_detail ELSE r.detail END AS detail,
+              r.inbound_event_id, e.status AS current_status
             FROM import_row r LEFT JOIN inbound_event e ON e.id = r.inbound_event_id
             """;
 
@@ -246,10 +267,10 @@ public class ImportRepository {
     }
 
     /** Tutte le righe non accettate del lavoro, in ordine di riga, una alla volta (rapporto CSV, senza elenco in memoria). */
-    public void forEachRow(String importId, java.util.function.Consumer<ImportRowResult> action) {
+    public void forEachRow(String importId, Consumer<ImportRowResult> action) {
         SqlWhere where = rowFilter(importId, null);
-        where.bind(jdbc.sql(ROW_SELECT + where.sql() + " ORDER BY r.row_number"))
-                .query((org.springframework.jdbc.core.RowCallbackHandler) rs -> action.accept(mapRow(rs, 0)));
+        RowCallbackHandler handler = rs -> action.accept(mapRow(rs, 0));
+        where.bind(jdbc.sql(ROW_SELECT + where.sql() + " ORDER BY r.row_number")).query(handler);
     }
 
     public long countRows(String importId, String outcome) {
@@ -302,7 +323,8 @@ public class ImportRepository {
     }
 
     private static ImportRowResult mapRow(ResultSet rs, int n) throws SQLException {
-        return new ImportRowResult(rs.getInt("row_number"), rs.getString("event_id"),
+        return new ImportRowResult(rs.getInt("row_number"), rs.getObject("line_number", Integer.class),
+                rs.getString("event_id"),
                 ItemOutcome.valueOf(rs.getString("outcome")), rs.getString("reject_code"), rs.getString("detail"),
                 rs.getString("inbound_event_id"), rs.getString("current_status"));
     }

@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS import_job (
   attempts         integer NOT NULL DEFAULT 0,          -- prese in carico dal lavoratore (ripresa dopo un arresto)
   error_detail     text,                                -- motivo di FAILED
   content          text,                                -- file UTF-8; NULL a lavoro concluso
-  idempotency_key  text,                                -- header Idempotency-Key facoltativo (Q-353, M8.10)
+  idempotency_key  text,                                -- header Idempotency-Key facoltativo, per autore (Q-353, M8.10)
   created_by       text NOT NULL,                       -- RUOLO:username
   created_at       timestamptz NOT NULL DEFAULT now(),
   started_at       timestamptz,
@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS import_job (
   heartbeat_at     timestamptz                          -- ultimo avanzamento del lavoratore
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS import_job_idempotency ON import_job (idempotency_key) WHERE idempotency_key IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS import_job_idempotency ON import_job (created_by, idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS import_job_created ON import_job (created_at DESC);
 CREATE INDEX IF NOT EXISTS import_job_pending ON import_job (created_at) WHERE status IN ('QUEUED', 'RUNNING');
 
@@ -38,10 +39,11 @@ CREATE INDEX IF NOT EXISTS import_job_pending ON import_job (created_at) WHERE s
 CREATE TABLE IF NOT EXISTS import_row (
   import_id         text NOT NULL REFERENCES import_job (id) ON DELETE CASCADE,
   row_number        integer NOT NULL,                   -- 1 = primo record dopo l'intestazione
+  line_number       integer,                            -- linea fisica del file dove comincia il record
   event_id          text,
   outcome           text NOT NULL,                      -- DUPLICATE | REJECTED | UNMATCHED | INVALID
   reject_code       text,
-  detail            text,
+  detail            text,                               -- mai il soggetto: per UNMATCHED si legge da inbound_event
   inbound_event_id  text,                               -- riga di inbound_event (BO-26); NULL per INVALID
   PRIMARY KEY (import_id, row_number)
 );
