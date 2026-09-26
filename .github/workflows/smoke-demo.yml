@@ -3,7 +3,8 @@ name: smoke-demo
 # Prova di fumo sulla demo online (docs/12 §4, DoD "demo online aggiornata e smoke.sh verde"). Solo manuale: scrive
 # un acquisto vero sui dati della demo (un accredito al membro scelto), quindi si lancia con consapevolezza.
 # Sveglia l'hub (piano gratuito: si addormenta dopo 15 minuti), poi esegue scripts/smoke.sh contro l'hub consolidato,
-# che espone ingestion e wallet sullo stesso indirizzo. Costo zero: solo minuti di Actions.
+# che espone ingestion e wallet sullo stesso indirizzo, e controlla l'OpenAPI su /v3/api-docs (ADR-026).
+# Costo zero: solo minuti di Actions.
 on:
   workflow_dispatch:
     inputs:
@@ -40,3 +41,17 @@ jobs:
           AMOUNT: ${{ inputs.amount }}
           DEADLINE_S: "15"
         run: bash scripts/smoke.sh
+      # OpenAPI dell'hub online (docs/06 §2, ADR-026): documento servito, ogni operazione con summary e un solo tag.
+      - name: OpenAPI su /v3/api-docs
+        run: |
+          curl -fsS --max-time 60 "$HUB_URL/v3/api-docs" -o api-docs.json
+          node -e '
+            const d = JSON.parse(require("fs").readFileSync("api-docs.json", "utf8"));
+            if (!d.openapi) throw new Error("manca il campo openapi");
+            const paths = Object.entries(d.paths || {});
+            const ops = paths.flatMap(([p, v]) => Object.entries(v).map(([m, o]) => ({ id: m.toUpperCase() + " " + p, o })));
+            const bad = ops.filter(({ o }) => !(o.summary || "").trim() || (o.tags || []).length !== 1).map(x => x.id);
+            console.log(`OpenAPI ${d.openapi}: ${paths.length} percorsi, ${ops.length} operazioni`);
+            if (paths.length <= 50) throw new Error(`troppo pochi percorsi: ${paths.length}`);
+            if (bad.length) throw new Error(`operazioni senza summary o con tag diverso da uno: ${bad.join(", ")}`);
+          '
