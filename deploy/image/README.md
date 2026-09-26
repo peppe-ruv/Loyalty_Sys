@@ -9,7 +9,7 @@ L'immagine unica raccoglie in un solo artefatto (`ghcr.io/loyaltyhub/loyaltyhub`
 | `LH_MODE` | `external` | Modalità d'uso, per ora supporta solo database e bus esterni al container. |
 | `LH_PROFILE`| `demo`, `enterprise` | Il profilo che viene passato al backend Java (es. profili Spring). |
 
-Supporta per ogni variabile anche l'uso del suffisso `_FILE` (es. `LH_PROFILE_FILE=/run/secrets/profile_file`).
+Supporta per ogni variabile anche l'uso del suffisso `_FILE` (es. `LH_PROFILE_FILE=/run/secrets/profile_file`). La variabile già impostata vince sul file; i file oltre 64 KiB si saltano con un avviso e `SSL_CERT_FILE` dell'immagine base (bundle CA) è escluso, perché come variabile supererebbe il limite di `execve` ("Argument list too long").
 
 ```mermaid
 flowchart TD

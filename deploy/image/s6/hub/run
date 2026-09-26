@@ -1,4 +1,4 @@
 #!/bin/sh
 PROFILE="${LH_PROFILE:-demo}"
 export SPRING_PROFILES_ACTIVE="${PROFILE}"
-exec java -jar /opt/lh/hub/hub.jar
+exec "${JAVA_HOME:-/usr/lib/jvm/default-jvm}/bin/java" -jar /opt/lh/hub/hub.jar

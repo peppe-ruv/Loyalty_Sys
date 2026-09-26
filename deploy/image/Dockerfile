@@ -41,6 +41,8 @@ RUN apk add --no-cache openjdk-25-jre openjdk-25-default-jvm nodejs-22 s6 tzdata
     && adduser -S -u 1000 -G lh lh
 
 ENV JAVA_HOME=/usr/lib/jvm/default-jvm
+# entrypoint.sh e s6/hub/run eseguono $JAVA_HOME/bin/java per percorso assoluto: se manca, fallisce la build.
+RUN test -x "$JAVA_HOME/bin/java" && "$JAVA_HOME/bin/java" -version
 
 # Configure directories
 RUN mkdir -p /opt/lh/hub /opt/lh/web /var/lib/lh /tmp /opt/lh/s6/hub /opt/lh/s6/web && \

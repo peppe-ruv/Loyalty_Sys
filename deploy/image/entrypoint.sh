@@ -2,14 +2,32 @@
 
 set -e
 
-# Carica secrets da variabili *_FILE
-for var in $(env | grep '_FILE=' | awk -F= '{print $1}'); do
+# Carica i segreti dalla convenzione *_FILE (VAR_FILE=/percorso -> VAR=contenuto del file).
+# - solo nomi validi che finiscono in _FILE, letti con printenv (niente eval del contenuto);
+# - VAR gia' impostata vince sul file;
+# - esclusi i *_FILE di sistema: l'immagine base Wolfi imposta SSL_CERT_FILE sul bundle CA (~220 KiB)
+#   e trasformarlo in SSL_CERT superava il limite di 128 KiB per variabile di execve
+#   ("exec: java: Argument list too long");
+# - un file oltre 64 KiB non e' un segreto: si salta con un avviso invece di rompere l'exec.
+LH_SECRET_MAX_BYTES=65536
+for var in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*_FILE\)=.*/\1/p'); do
+    case "$var" in
+        SSL_CERT_FILE) continue ;;
+    esac
     var_name="${var%_FILE}"
-    var_file=$(eval echo "\$$var")
-    if [ -f "$var_file" ]; then
-        export "$var_name"="$(cat "$var_file")"
+    [ -n "$var_name" ] || continue
+    printenv "$var_name" >/dev/null 2>&1 && continue
+    var_file="$(printenv "$var" 2>/dev/null)" || continue
+    [ -f "$var_file" ] || continue
+    if [ "$(wc -c < "$var_file" | tr -d ' ')" -gt "$LH_SECRET_MAX_BYTES" ]; then
+        echo "Avviso: $var punta a un file oltre $LH_SECRET_MAX_BYTES byte, $var_name non impostata." >&2
+        continue
     fi
+    export "$var_name=$(cat "$var_file")"
 done
+
+# JVM per percorso assoluto (verificato in build dal Dockerfile), senza dipendere dal PATH.
+JAVA_BIN="${JAVA_HOME:-/usr/lib/jvm/default-jvm}/bin/java"
 
 LH_MODE="${LH_MODE:-external}"
 
@@ -38,7 +56,7 @@ fi
 if [ "$ROLE" = "hub" ]; then
     PROFILE="${LH_PROFILE:-demo}"
     export SPRING_PROFILES_ACTIVE="${PROFILE}"
-    exec java -jar /opt/lh/hub/hub.jar
+    exec "$JAVA_BIN" -jar /opt/lh/hub/hub.jar
 elif [ "$ROLE" = "web" ]; then
     export NODE_ENV="production"
     export PORT="3000"
