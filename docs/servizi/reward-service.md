@@ -92,6 +92,8 @@ Riferimento: `docs/18`. Le righe qui sotto sono segnaposto dell'adozione (M8.0):
 
 - **Cataloghi esterni** (ADR-045, M13.6): `fulfilment=EXTERNAL`, `reward_provider` con adattatori generici, saga riserva → spesa → conferma con rilascio e rimborso automatico, sincronizzazione in `DRAFT`, stato `DEGRADED`; nuovo fatto `reward.redemption.refunded`.
 - **Dati personali** (ADR-032, M8.4): `reward_member_snapshot.first_name`/`last_name` escono dagli snapshot; i contatti per la spedizione li inoltra member-service.
+  - *Doppia lettura `:1`/`:2`* (Q-346, fino a M10; M8.4c): `member.registered/updated` in entrambe le versioni aggiornano solo stato (e livello e segmenti dai rispettivi fatti); `first_name`/`last_name` non si scrivono più da nessun evento (colonne deprecate, eliminate con il contract di M10; il seed demo le valorizza ancora).
+  - *Anonimizzazione* (Q-369): oltre all'indirizzo di spedizione si svuotano per intero le note libere dell'operatore (`redemption.fulfilment_note`, `redemption_history.note`); stato, esito e importi restano. Non servono più i nomi dello snapshot per ripulire le note.
 
 **Classificazione `x-lh-class`** (`docs/18 §3.15`, F2-GRC-05; prima stesura M8.0, verificata e resa per colonna in M8.13). Tutto ciò che non è elencato è `INTERNAL`.
 - `PERSONAL`: `redemption.shipping`, `reward_member_snapshot.first_name`, `last_name` (fino a M8.4).

@@ -65,26 +65,13 @@ public class MemberSnapshotHandler implements EventHandler {
                 }
             }
             default -> {
-                String ds = event.dataschema();
-                int version = 1;
-                if (ds != null && ds.endsWith(":2")) {
-                    version = 2;
-                }
-
+                // Doppia lettura member.*:1/:2 (ADR-032, Q-346): da M8.4 lo snapshot non riceve più nome e cognome da
+                // nessuna delle due versioni (colonne deprecate, restano fino al contract di M10); lo stato sì.
                 String status = "ACTIVE";
                 if (d.hasNonNull("status")) {
                     status = d.get("status").asString();
                 }
-
-                String firstName = null;
-                String lastName = null;
-
-                if (version == 1) {
-                    // M8.4 parte 2c: smettiamo di scrivere firstName e lastName per i nuovi eventi (coalesce li lascerà invariati)
-                    // Il db non verrà aggiornato con null.
-                }
-
-                members.upsertProfile(memberId, status, firstName, lastName);
+                members.upsertProfile(memberId, status, null, null);
             }
         }
         // Anonimizzazione (F-MBR-05, M7.5, Q-369): svuota interamente le note scritte dagli operatori.
