@@ -127,6 +127,22 @@ public class MemberRepository {
                 .params(TextArrays.literal(labels), id).update();
     }
 
+    /** Soprannome e stato dei membri dati (Q-368): solo le due colonne che servono, nessun altro dato personale. */
+    public record NicknameRow(String id, String nickname, MemberStatus status) {
+    }
+
+    /** Righe dei membri esistenti tra gli id dati, in un'unica query parametrica (regola 19). */
+    public List<NicknameRow> nicknames(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return jdbc.sql("SELECT id, nickname, status FROM member WHERE id = ANY(?::text[])")
+                .param(TextArrays.literal(ids))
+                .query((rs, n) -> new NicknameRow(rs.getString("id"), rs.getString("nickname"),
+                        MemberStatus.valueOf(rs.getString("status"))))
+                .list();
+    }
+
     /** Id esistenti tra quelli dati (validazione dei segmenti statici). */
     public List<String> existingIds(List<String> ids) {
         if (ids == null || ids.isEmpty()) {

@@ -11,6 +11,7 @@ import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.common.web.PageResponse;
 import io.loyaltyhub.member.api.Consents;
 import io.loyaltyhub.member.api.CreateMemberRequest;
+import io.loyaltyhub.member.api.MemberNicknames;
 import io.loyaltyhub.member.api.MemberView;
 import io.loyaltyhub.member.api.PortalProfileView;
 import io.loyaltyhub.member.api.StatusChangeRequest;
@@ -22,10 +23,12 @@ import io.loyaltyhub.member.domain.MemberAttributes;
 import io.loyaltyhub.member.domain.MemberProjection;
 import io.loyaltyhub.member.domain.MemberSnapshot;
 import io.loyaltyhub.member.domain.MemberStatus;
+import io.loyaltyhub.member.domain.Nicknames;
 import io.loyaltyhub.member.domain.ProfileRules;
 import io.loyaltyhub.member.infra.AttributeDefinitionRepository;
 import io.loyaltyhub.member.infra.MemberProjectionRepository;
 import io.loyaltyhub.member.infra.MemberRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -36,6 +39,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -108,6 +112,32 @@ public class MemberService {
     public MemberView get(String id) {
         Member m = members.findById(id).orElseThrow(() -> LhException.notFound("Membro non trovato: " + id));
         return MemberView.of(m, projections.findByMemberId(id).orElse(null));
+    }
+
+    /**
+     * Soprannomi a lotti per il BFF (Q-368, ADR-032): una voce per ogni id richiesto (senza doppioni, nell'ordine
+     * ricevuto), {@code nickname} {@code null} se il membro non esiste o non ne ha, segnaposto se {@code ANONYMIZED}.
+     * Sola lettura: nessun fatto, nessuna voce di audit.
+     */
+    public MemberNicknames.NicknamesResponse nicknames(List<String> memberIds) {
+        if (Nicknames.tooMany(memberIds)) {
+            throw new LhException(HttpStatus.BAD_REQUEST, "bad-request", "TOO_MANY_IDS",
+                    "Al massimo " + Nicknames.MAX_IDS + " id per richiesta (ricevuti " + memberIds.size() + ")",
+                    List.of(new LhException.FieldError("memberIds", "al massimo " + Nicknames.MAX_IDS + " elementi")));
+        }
+        List<String> ids = Nicknames.distinctIds(memberIds);
+        if (ids.isEmpty()) {
+            throw new LhException(HttpStatus.BAD_REQUEST, "bad-request", "BAD_REQUEST",
+                    "Serve almeno un id in memberIds",
+                    List.of(new LhException.FieldError("memberIds", "almeno un elemento")));
+        }
+        Map<String, String> shown = new HashMap<>();
+        for (MemberRepository.NicknameRow r : members.nicknames(ids)) {
+            shown.put(r.id(), Nicknames.shown(r.nickname(), r.status()));
+        }
+        return new MemberNicknames.NicknamesResponse(ids.stream()
+                .map(id -> new MemberNicknames.MemberNickname(id, shown.get(id)))
+                .toList());
     }
 
     /** Profilo per il portale (PT-08) con la completezza calcolata sui campi di docs/03 §2. */

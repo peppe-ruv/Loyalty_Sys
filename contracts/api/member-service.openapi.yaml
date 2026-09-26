@@ -119,6 +119,13 @@ components:
         valueNode:
           type: boolean
       type: object
+    MemberNickname:
+      properties:
+        memberId:
+          type: string
+        nickname:
+          type: string
+      type: object
     MemberSample:
       properties:
         enteredAt:
@@ -208,6 +215,20 @@ components:
         version:
           format: int64
           type: integer
+      type: object
+    NicknamesRequest:
+      properties:
+        memberIds:
+          items:
+            type: string
+          type: array
+      type: object
+    NicknamesResponse:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/MemberNickname"
+          type: array
       type: object
     Overview:
       properties:
@@ -699,6 +720,25 @@ paths:
                 $ref: "#/components/schemas/MemberView"
           description: OK
       summary: Create — members
+      tags:
+      - members
+  /v1/members/nicknames:
+    post:
+      operationId: nicknames
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NicknamesRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NicknamesResponse"
+          description: OK
+      summary: Nicknames — members
       tags:
       - members
   /v1/members/{id}:
