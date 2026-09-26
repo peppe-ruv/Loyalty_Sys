@@ -23,7 +23,7 @@ jobs:
           distribution: temurin
           java-version: "25"
           cache: maven
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
       - uses: actions/setup-node@v7
