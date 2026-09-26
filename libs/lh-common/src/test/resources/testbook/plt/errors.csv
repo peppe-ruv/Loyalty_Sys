@@ -1,0 +1,25 @@
+id,descrizione,metodo,percorso,contentType,corpo,attore,stato,tipo,codice,titolo,dettaglio,errori
+TB-PLT-ERR-001,400 parametri errati: bad-request,GET,/v1/probe/lh/badRequest,-,-,-,400,bad-request,BAD_REQUEST,Richiesta non valida,Parametro memberId obbligatorio.,-
+TB-PLT-ERR-002,403 ruolo non ammesso: forbidden-role,GET,/v1/probe/lh/forbidden,-,-,-,403,forbidden-role,FORBIDDEN_ROLE,Operazione non consentita,non può eseguire questa operazione,-
+TB-PLT-ERR-003,404 risorsa inesistente: not-found,GET,/v1/probe/lh/notFound,-,-,-,404,not-found,NOT_FOUND,Risorsa non trovata,Membro non trovato: MBR-999999,-
+TB-PLT-ERR-004,409 transizione non valida: conflict col codice specifico,GET,/v1/probe/lh/conflict,-,-,-,409,conflict,INVALID_TRANSITION,Conflitto,Transizione non ammessa,-
+TB-PLT-ERR-005,422 regola di business con errors[] di campo,GET,/v1/probe/lh/validation,-,-,-,422,validation,REWARD_OUT_OF_STOCK,Dati non validi,Il premio non è più disponibile,rewardCode:esaurito
+TB-PLT-ERR-006,422 senza campi: errors assente,GET,/v1/probe/lh/validationNoFields,-,-,-,422,validation,SHIPPING_REQUIRED,Dati non validi,Indirizzo di spedizione obbligatorio,-
+TB-PLT-ERR-007,410 risorsa non più utilizzabile: gone (titolo in italiano; Q-333),GET,/v1/probe/lh/gone,-,-,-,410,gone,COUPON_EXPIRED,Risorsa non più disponibile,Coupon scaduto,-
+TB-PLT-ERR-008,503 dipendenza non disponibile: dependency-unavailable,GET,/v1/probe/lh/dependency,-,-,-,503,dependency-unavailable,DEPENDENCY_UNAVAILABLE,Dipendenza non disponibile,Il servizio ingestion non risponde,-
+TB-PLT-ERR-009,500 eccezione imprevista: INTERNAL_ERROR senza dettagli interni,GET,/v1/probe/unexpected,-,-,-,500,internal,INTERNAL_ERROR,Errore interno,Si è verificato un errore imprevisto,-
+TB-PLT-ERR-010,database irraggiungibile: 503 dependency-unavailable (docs/06 §2),GET,/v1/probe/db-down,-,-,-,503,dependency-unavailable,DEPENDENCY_UNAVAILABLE,Dipendenza non disponibile,non raggiungibile,-
+TB-PLT-ERR-011,transazione non avviabile (DB giù): 503 dependency-unavailable,GET,/v1/probe/tx-down,-,-,-,503,dependency-unavailable,DEPENDENCY_UNAVAILABLE,Dipendenza non disponibile,non raggiungibile,-
+TB-PLT-ERR-012,JSON malformato: 400 senza il messaggio del parser,POST,/v1/probe/body,application/json,{n:,-,400,bad-request,BAD_REQUEST,Richiesta non valida,Corpo della richiesta assente o non leggibile,-
+TB-PLT-ERR-013,corpo assente: 400,POST,/v1/probe/body,application/json,-,-,400,bad-request,BAD_REQUEST,Richiesta non valida,Corpo della richiesta assente o non leggibile,-
+TB-PLT-ERR-014,campo del tipo sbagliato nel corpo: 400,POST,/v1/probe/body,application/json,"{""n"":""abc""}",-,400,bad-request,BAD_REQUEST,Richiesta non valida,Corpo della richiesta assente o non leggibile,-
+TB-PLT-ERR-015,parametro non convertibile: 400 col nome del parametro,GET,/v1/probe/param?n=abc,-,-,-,400,bad-request,BAD_REQUEST,Richiesta non valida,Parametro non valido: n,-
+TB-PLT-ERR-016,parametro obbligatorio assente: 400,GET,/v1/probe/param,-,-,-,400,bad-request,BAD_REQUEST,Richiesta non valida,Parametro obbligatorio assente: n,-
+TB-PLT-ERR-017,validazione dei campi: 422 VALIDATION con errors[] per campo,POST,/v1/probe/bean,-,-,-,422,validation,VALIDATION,Dati non validi,Uno o più campi non sono validi,n:deve essere maggiore di 0 label:obbligatorio
+TB-PLT-ERR-018,metodo non ammesso: 405 problem bad-request (Q-333),POST,/v1/probe/only-get,-,-,-,405,bad-request,BAD_REQUEST,Metodo non ammesso,Metodo POST non ammesso,-
+TB-PLT-ERR-019,tipo di contenuto non supportato: 415 problem bad-request (Q-333),POST,/v1/probe/body,text/plain,n=1,-,415,bad-request,BAD_REQUEST,Tipo di contenuto non supportato,Tipo di contenuto non supportato,-
+TB-PLT-ERR-020,scrittura senza intestazione (ANALYST:anonymous): 403,POST,/v1/probe/write,-,-,-,403,forbidden-role,FORBIDDEN_ROLE,Operazione non consentita,ANALYST,-
+TB-PLT-ERR-021,scrittura da MARKETING: ammessa,POST,/v1/probe/write,-,-,MARKETING:luca.marketing,200,-,-,-,-,-
+TB-PLT-ERR-022,endpoint ADMIN chiamato da CARE: 403 coi ruoli richiesti,POST,/v1/probe/admin,-,-,CARE:paolo.care,403,forbidden-role,FORBIDDEN_ROLE,Operazione non consentita,Serve uno dei ruoli [ADMIN],-
+TB-PLT-ERR-023,endpoint ADMIN chiamato da ADMIN: ammesso,POST,/v1/probe/admin,-,-,ADMIN:marta.admin,200,-,-,-,-,-
+TB-PLT-ERR-024,endpoint ADMIN con ruolo minuscolo: ANALYST quindi 403 (Q-298),POST,/v1/probe/admin,-,-,admin:marta.admin,403,forbidden-role,FORBIDDEN_ROLE,Operazione non consentita,ANALYST,-

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:action.tier.upgraded:1",
+  "title": "action.tier.upgraded — data (EVT-ACT-23, docs/05 §3, interna dal ponte su fact.tier.upgraded)",
+  "type": "object",
+  "required": [
+    "newTier"
+  ],
+  "properties": {
+    "previousTier": {
+      "type": "string"
+    },
+    "newTier": {
+      "type": "string"
+    }
+  }
+}

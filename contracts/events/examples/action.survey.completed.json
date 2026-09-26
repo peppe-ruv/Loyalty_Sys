@@ -1,0 +1,17 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZT05A1B2C3D4E5F6G7H8J9",
+  "source": "urn:loyaltyhub:source:partner",
+  "type": "io.loyaltyhub.action.survey.completed",
+  "subject": "member:MBR-000002",
+  "time": "2026-09-24T10:15:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:action.survey.completed:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZT05A1B2C3D4E5F6G7H8J9",
+  "lhhop": 0,
+  "data": {
+    "surveyId": "SRV-2025-09",
+    "score": 80
+  }
+}

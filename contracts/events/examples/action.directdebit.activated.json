@@ -1,0 +1,16 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZT03A1B2C3D4E5F6G7H8J9",
+  "source": "urn:loyaltyhub:source:billing",
+  "type": "io.loyaltyhub.action.directdebit.activated",
+  "subject": "member:MBR-000002",
+  "time": "2026-09-24T10:15:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:action.directdebit.activated:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZT03A1B2C3D4E5F6G7H8J9",
+  "lhhop": 0,
+  "data": {
+    "contractId": "CTR-77120"
+  }
+}

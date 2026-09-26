@@ -73,6 +73,12 @@ public class DemoSeeder implements ApplicationRunner, DemoResettable {
     @Override
     @Transactional
     public void resetToSeed() {
+        // docs/06 §10: il reset tronca le tabelle del servizio. Fonti, tipi (anche i custom creati da BO-09), ponte e
+        // scenari tornano esattamente al seed: prima erano solo aggiornati e le righe create dopo il seed restavano.
+        mappings.deleteAll();
+        types.deleteAll();
+        sources.deleteAll();
+        scenarios.deleteAll();
         seedSources();
         seedEventTypes();
         seedMembers();

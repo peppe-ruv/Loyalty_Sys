@@ -1,0 +1,39 @@
+id,descrizione,errore,campo,atteso
+TB-PLT-DLR-001,errore generico: codice = nome semplice della classe,state,code,IllegalStateException
+TB-PLT-DLR-002,errore generico: ritentabile,state,retryable,true
+TB-PLT-DLR-003,errore generico: 3 tentativi prima della DLQ (Q-131),state,attempts,3
+TB-PLT-DLR-004,errore non ritentabile: codice dichiarato,nonRetryable,code,COUPON_POOL_EMPTY
+TB-PLT-DLR-005,errore non ritentabile: nessun ritentativo,nonRetryable,retryable,false
+TB-PLT-DLR-006,errore non ritentabile: 1 tentativo,nonRetryable,attempts,1
+TB-PLT-DLR-007,guardia anti-ciclo: codice LOOP_GUARD (docs/05 §7),loopGuard,code,LOOP_GUARD
+TB-PLT-DLR-008,guardia anti-ciclo: non ritentabile,loopGuard,retryable,false
+TB-PLT-DLR-009,guardia anti-ciclo: 1 tentativo,loopGuard,attempts,1
+TB-PLT-DLR-010,JSON illeggibile (deserializzazione): non ritentabile (docs/04 §5),json,retryable,false
+TB-PLT-DLR-011,JSON illeggibile: 1 tentativo,json,attempts,1
+TB-PLT-DLR-012,DeserializationException di Spring Kafka: non ritentabile,deserialization,retryable,false
+TB-PLT-DLR-013,MessageConversionException: non ritentabile,conversion,retryable,false
+TB-PLT-DLR-014,ClassCastException: non ritentabile (come l'error handler Kafka),classCast,retryable,false
+TB-PLT-DLR-015,ConversionFailedException: non ritentabile,conversionFailed,retryable,false
+TB-PLT-DLR-016,database irraggiungibile: ritentabile (transitorio),dbDown,retryable,true
+TB-PLT-DLR-017,eccezione avvolta dal contenitore Kafka: vale quella interna,wrappedListener,code,INVALID_EFFECT
+TB-PLT-DLR-018,doppio involucro del contenitore: vale quella più interna,wrappedTwice,code,IllegalStateException
+TB-PLT-DLR-019,causa non ritentabile dentro un'altra eccezione: non ritentabile (Q-334),causeNonRetryable,retryable,false
+TB-PLT-DLR-020,causa non ritentabile dentro un'altra eccezione: codice della causa (Q-334),causeNonRetryable,code,TEMPLATE_NOT_FOUND
+TB-PLT-DLR-021,causa LOOP_GUARD dentro un'altra eccezione: LOOP_GUARD (Q-334),causeLoopGuard,code,LOOP_GUARD
+TB-PLT-DLR-022,causa JSON illeggibile dentro un'altra eccezione: non ritentabile (Q-334),causeJson,retryable,false
+TB-PLT-DLR-023,ritardi configurati 3: errore generico con 4 tentativi,state,attempts4,4
+TB-PLT-DLR-024,ritardi configurati 3: non ritentabile resta a 1 tentativo,nonRetryable,attempts4,1
+TB-PLT-DLR-025,header lh-* del record DLQ (docs/04 §5 + lh-error-code),state,headerNames,lh-error-code lh-original-topic lh-consumer lh-error-class lh-error-message lh-attempts lh-error-retryable lh-error-stack
+TB-PLT-DLR-026,lh-error-class = nome completo della classe,state,class,java.lang.IllegalStateException
+TB-PLT-DLR-027,lh-original-topic = topic d'origine,state,originalTopic,lh.facts.v1
+TB-PLT-DLR-028,lh-consumer = gruppo consumer,state,consumer,lh-wallet
+TB-PLT-DLR-029,lh-attempts = tentativi fatti,state,attemptsHeader,3
+TB-PLT-DLR-030,lh-error-retryable per un non ritentabile,nonRetryable,retryableHeader,false
+TB-PLT-DLR-031,messaggio assente: lh-error-message vuoto,nullMessage,message,""
+TB-PLT-DLR-032,messaggio di 1000 caratteri: intero,message1000,messageLength,1000
+TB-PLT-DLR-033,messaggio di 1001 caratteri: troncato a 1000 più «…»,message1001,messageLength,1001
+TB-PLT-DLR-034,stack di 40 frame: al più 12 frame,deepStack,stackFrames,12
+TB-PLT-DLR-035,stack di 40 frame: riga «... 28 altri»,deepStack,stackTail,... 28 altri
+TB-PLT-DLR-036,stack di 1 frame: nessuna riga di coda,shallowStack,stackTail,-
+TB-PLT-DLR-037,stack con causa: riga «Caused by:»,withCause,stackCause,Caused by: java.lang.IllegalArgumentException: interno
+TB-PLT-DLR-038,stack limitato a 4000 caratteri più «…»,deepStack,stackMax,true

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:action.directdebit.activated:1",
+  "title": "action.directdebit.activated — data (EVT-ACT-04, docs/05 §3, fonte billing)",
+  "type": "object",
+  "required": [
+    "contractId"
+  ],
+  "properties": {
+    "contractId": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

@@ -11,8 +11,8 @@ import org.springframework.kafka.core.KafkaAdmin;
 
 /**
  * Crea i 5 topic su un broker Kafka/Redpanda reale (docs/13 ADR-023). Fuori dal profilo {@code local}
- * i topic non esistono a priori: qui li dichiara la {@code KafkaAdmin}. Una sola partizione (broker singolo),
- * retention 3 giorni (docs/05 §1). I nomi sono quelli di {@link LoyaltyHubProperties} (ADR-004, i 5 topic fissi).
+ * i topic non esistono a priori: qui li dichiara la {@code KafkaAdmin}. Due partizioni come nel resto del modello
+ * (docs/05 §1, ADR-004; anche su un broker singolo: partizioni, non repliche), retention 3 giorni. I nomi sono quelli di {@link LoyaltyHubProperties} (ADR-004, i 5 topic fissi).
  * Spento nel profilo {@code inproc} (bus in-process, docs/13 ADR-024): senza broker non c'è nulla da creare.
  */
 @Configuration
@@ -23,7 +23,7 @@ public class HubKafkaTopics {
     public KafkaAdmin.NewTopics hubTopics(LoyaltyHubProperties props) {
         NewTopic[] topics = props.getTopics().all().stream()
                 .map(name -> TopicBuilder.name(name)
-                        .partitions(1)
+                        .partitions(2)
                         .replicas(1)
                         .config(TopicConfig.RETENTION_MS_CONFIG, String.valueOf(3L * 24 * 3600 * 1000))
                         .build())

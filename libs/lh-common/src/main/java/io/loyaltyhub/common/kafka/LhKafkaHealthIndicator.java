@@ -20,11 +20,16 @@ import java.util.concurrent.TimeUnit;
  */
 public class LhKafkaHealthIndicator implements HealthIndicator, AutoCloseable {
 
-    private static final int TIMEOUT_MS = 2000;
+    /** docs/06 §8: {@code describeCluster} con timeout 3 s. */
+    static final int TIMEOUT_MS = 3000;
+    /** docs/06 §8: esito in cache 30 s (un broker lento non rallenta ogni lettura di {@code /actuator/health}). */
+    static final long CACHE_NANOS = 30_000_000_000L;
 
     private final boolean inProcess;
     private final Map<String, Object> adminConfig;
     private volatile AdminClient admin;
+    private volatile Health cached;
+    private volatile long cachedAt;
 
     public LhKafkaHealthIndicator(boolean inProcess, Map<String, Object> adminConfig) {
         this.inProcess = inProcess;
@@ -36,6 +41,17 @@ public class LhKafkaHealthIndicator implements HealthIndicator, AutoCloseable {
         if (inProcess) {
             return Health.up().withDetail("mode", "in-process").build();
         }
+        Health last = cached;
+        if (last != null && System.nanoTime() - cachedAt < CACHE_NANOS) {
+            return last;
+        }
+        Health fresh = probe();
+        cached = fresh;
+        cachedAt = System.nanoTime();
+        return fresh;
+    }
+
+    private Health probe() {
         try {
             DescribeClusterResult cluster = admin().describeCluster();
             String clusterId = cluster.clusterId().get(TIMEOUT_MS, TimeUnit.MILLISECONDS);

@@ -1,1 +1,6 @@
-org.springframework.test.context.TestExecutionListener=io.loyaltyhub.common.testsupport.EmbeddedKafkaBrokersTestListener
+# Variabili d'ambiente della piattaforma (docs/11 §8) e default comuni di salute (docs/11 §6).
+org.springframework.boot.EnvironmentPostProcessor=\
+io.loyaltyhub.common.config.LhEnvironmentAliases
+# Solo test: letto da spring-test, mai caricato a runtime (broker del contesto in uso, docs/06 §9).
+org.springframework.test.context.TestExecutionListener=\
+io.loyaltyhub.common.testsupport.EmbeddedKafkaBrokersTestListener

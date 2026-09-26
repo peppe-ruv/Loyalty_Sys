@@ -114,6 +114,7 @@ public class LhCommonAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @org.springframework.context.annotation.Lazy(false) // docs/06 §5: lo scheduler parte anche con lazy-initialization
     public OutboxRelay outboxRelay(JdbcClient jdbc, KafkaTemplate<String, String> kafka, ObjectMapper mapper,
                                    LhMetrics metrics,
                                    org.springframework.core.env.Environment env) {
@@ -123,8 +124,18 @@ public class LhCommonAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @org.springframework.context.annotation.Lazy(false)
     public OutboxCleanup outboxCleanup(JdbcClient jdbc) {
         return new OutboxCleanup(jdbc);
+    }
+
+    /** Pulizia di {@code processed_event} oltre 14 giorni (RNF-07, docs/06 §4; SPEC-GAP: Q-335). */
+    @Bean
+    @ConditionalOnMissingBean
+    @org.springframework.context.annotation.Lazy(false)
+    public io.loyaltyhub.common.inbox.ProcessedEventCleanup processedEventCleanup(JdbcClient jdbc,
+            @Value("${loyaltyhub.processed-event.retention-days:14}") int retentionDays) {
+        return new io.loyaltyhub.common.inbox.ProcessedEventCleanup(jdbc, retentionDays);
     }
 
     @Bean
@@ -172,9 +183,12 @@ public class LhCommonAutoConfiguration {
     @ConditionalOnMissingBean
     public io.loyaltyhub.common.demo.DemoResetController demoResetController(
             List<io.loyaltyhub.common.demo.DemoResettable> resettables,
-            org.springframework.beans.factory.ObjectProvider<AuditPublisher> audit, LoyaltyHubProperties props) {
-        // Audit RESET con l'attore (docs/06 §10).
-        return new io.loyaltyhub.common.demo.DemoResetController(resettables, audit.getIfAvailable(), props.getService());
+            org.springframework.beans.factory.ObjectProvider<AuditPublisher> audit, LoyaltyHubProperties props,
+            org.springframework.core.env.Environment env, org.springframework.beans.factory.ObjectProvider<JdbcClient> jdbc,
+            Clock clock) {
+        // Audit RESET con l'attore (docs/06 §10); GET /v1/demo/info per BO-30.
+        return new io.loyaltyhub.common.demo.DemoResetController(resettables, audit.getIfAvailable(), props.getService(),
+                env, jdbc.getIfAvailable(), clock);
     }
 
     @Bean

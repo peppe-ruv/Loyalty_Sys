@@ -1,0 +1,6 @@
+id,descrizione,topic,valore,lhtype,consumer,atteso
+TB-PLT-BRT-001,fatto non JSON: il wallet lo manda in DLQ al primo tentativo (non ritentabile),lh.facts.v1,{non json {key},io.loyaltyhub.fact.member.updated,lh-wallet,lh-wallet:1:false
+TB-PLT-BRT-002,fatto non JSON: anche campaign in DLQ al primo tentativo e gli altri consumer proseguono,lh.facts.v1,{non json {key},io.loyaltyhub.fact.member.updated,lh-campaign,lh-campaign:1:false
+TB-PLT-BRT-003,effetto non JSON: DLQ del wallet al primo tentativo,lh.effects.v1,non json {key},io.loyaltyhub.effect.points.grant,lh-wallet,lh-wallet:1:false
+TB-PLT-BRT-004,azione JSON troncata: DLQ di campaign al primo tentativo,lh.actions.v1,"[1,""{key}""",io.loyaltyhub.action.purchase.completed,lh-campaign,lh-campaign:1:false
+TB-PLT-BRT-005,JSON valido senza type: ignorato senza errore né DLQ (docs/05 §1),lh.facts.v1,"{""foo"":""{key}""}",-,lh-wallet,

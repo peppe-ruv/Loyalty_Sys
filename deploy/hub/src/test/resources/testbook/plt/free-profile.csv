@@ -1,0 +1,4 @@
+id,descrizione,caso,atteso
+TB-PLT-FRP-001,avvio con inizializzazione lazy su broker Kafka reale: salute UP e kafka in modalità broker,health,UP kafka=UP broker
+TB-PLT-FRP-002,inizializzazione lazy: acquisto di 130 € di un SILVER diventa +162 PTS (listener e relay attivi),purchase,ACCEPTED +162
+TB-PLT-FRP-003,inizializzazione lazy: iscrizione dal portale e bonus di benvenuto (ponte interno e campagna),welcome,benvenuto=100

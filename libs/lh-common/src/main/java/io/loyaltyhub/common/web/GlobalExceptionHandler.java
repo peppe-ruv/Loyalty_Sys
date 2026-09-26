@@ -95,13 +95,54 @@ public class GlobalExceptionHandler {
         log.debug("Stream chiuso dal client: {}", ex.getMessage());
     }
 
+    /**
+     * Database non raggiungibile (connessione rifiutata, pool esaurito, DB serverless in risveglio): docs/06 §2 prevede
+     * {@code 503 dependency-unavailable}, non un errore interno. Il dettaglio non riporta il messaggio del driver.
+     */
+    @ExceptionHandler({org.springframework.dao.DataAccessResourceFailureException.class,
+            org.springframework.transaction.CannotCreateTransactionException.class})
+    public ResponseEntity<ProblemDetail> onDependencyDown(Exception ex, HttpServletRequest request) {
+        log.warn("Dipendenza non raggiungibile su {}: {}", request != null ? request.getRequestURI() : "?", ex.toString());
+        ProblemDetail pd = base(HttpStatus.SERVICE_UNAVAILABLE, "dependency-unavailable",
+                title(HttpStatus.SERVICE_UNAVAILABLE), "Database non raggiungibile: riprova tra poco", request);
+        pd.setProperty("code", "DEPENDENCY_UNAVAILABLE");
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(pd);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> onUnexpected(Exception ex, HttpServletRequest request) {
+        if (ex instanceof org.springframework.web.ErrorResponse er && er.getStatusCode().is4xxClientError()) {
+            return onClientError(er, request);
+        }
         log.error("Errore imprevisto su {}", request != null ? request.getRequestURI() : "?", ex);
         ProblemDetail pd = base(HttpStatus.INTERNAL_SERVER_ERROR, "internal", "Errore interno",
                 "Si è verificato un errore imprevisto", request);
         pd.setProperty("code", "INTERNAL_ERROR");
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(pd);
+    }
+
+    /**
+     * Errori di forma della richiesta segnalati da Spring MVC (metodo non ammesso, tipo di contenuto non supportato o non
+     * accettabile, intestazione obbligatoria assente…): restano errori del client con il loro stato HTTP, mai un 500.
+     * SPEC-GAP: Q-333 — docs/06 §2 non elenca 405/406/415: problem della famiglia {@code bad-request}, codice
+     * {@code BAD_REQUEST}, titolo e dettaglio in italiano.
+     */
+    private ResponseEntity<ProblemDetail> onClientError(org.springframework.web.ErrorResponse er, HttpServletRequest request) {
+        HttpStatus status = HttpStatus.valueOf(er.getStatusCode().value());
+        String detail = switch (status) {
+            case METHOD_NOT_ALLOWED -> "Metodo " + (request != null ? request.getMethod() : "") + " non ammesso su questo percorso";
+            case UNSUPPORTED_MEDIA_TYPE -> "Tipo di contenuto non supportato: usare application/json";
+            case NOT_ACCEPTABLE -> "Formato di risposta non disponibile: usare application/json";
+            case NOT_FOUND -> "Nessuna risorsa per questo percorso";
+            default -> "Richiesta non valida";
+        };
+        String suffix = status == HttpStatus.NOT_FOUND ? "not-found" : "bad-request";
+        String code = status == HttpStatus.NOT_FOUND ? "NOT_FOUND" : "BAD_REQUEST";
+        ProblemDetail pd = base(status, suffix, title(status), detail, request);
+        pd.setProperty("code", code);
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(status);
+        builder.headers(er.getHeaders());
+        return builder.body(pd);
     }
 
     private ProblemDetail base(HttpStatus status, String typeSuffix, String title, String detail, HttpServletRequest request) {
@@ -122,6 +163,11 @@ public class GlobalExceptionHandler {
             case CONFLICT -> "Conflitto";
             case UNPROCESSABLE_ENTITY -> "Dati non validi";
             case SERVICE_UNAVAILABLE -> "Dipendenza non disponibile";
+            case GONE -> "Risorsa non più disponibile";
+            case METHOD_NOT_ALLOWED -> "Metodo non ammesso";
+            case UNSUPPORTED_MEDIA_TYPE -> "Tipo di contenuto non supportato";
+            case NOT_ACCEPTABLE -> "Formato non accettabile";
+            case INTERNAL_SERVER_ERROR -> "Errore interno";
             default -> status.getReasonPhrase();
         };
     }

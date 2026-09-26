@@ -64,7 +64,9 @@ public class InboundHistorySeeder {
 
     /** Ricarica lo storico; da chiamare dopo fonti, tipi e indice membri. Ritorna il numero di righe. */
     public int reseed() {
-        inbound.deleteHistory(EVENT_ID_PREFIX);
+        // docs/06 §10, docs/10 §1.3: il reset tronca la tabella, non solo lo storico del seed (gli ingressi reali
+        // successivi al seed restavano nel monitor e nei conteggi dopo il reset).
+        inbound.deleteAll();
         int n = 0;
         for (JsonNode e : seed.readTree(FILE).path("events")) {
             insert(e);

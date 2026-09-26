@@ -1,0 +1,17 @@
+{
+  "specversion": "1.0",
+  "id": "01J8ZT04A1B2C3D4E5F6G7H8J9",
+  "source": "urn:loyaltyhub:source:app",
+  "type": "io.loyaltyhub.action.selfreading.submitted",
+  "subject": "member:MBR-000002",
+  "time": "2026-09-24T10:15:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "urn:loyaltyhub:schema:action.selfreading.submitted:1",
+  "lhtenant": "aurora",
+  "lhcorrelationid": "01J8ZT04A1B2C3D4E5F6G7H8J9",
+  "lhhop": 0,
+  "data": {
+    "meterId": "MTR-9931",
+    "reading": 14820
+  }
+}

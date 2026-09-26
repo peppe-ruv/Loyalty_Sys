@@ -1,0 +1,18 @@
+id,descrizione,intestazione,percorso,atteso
+TB-PLT-ACT-001,reset senza intestazione (ANALYST:anonymous): 403,ASSENTE,-,403
+TB-PLT-ACT-002,reset con intestazione vuota: 403,VUOTA,-,403
+TB-PLT-ACT-003,reset da ANALYST: 403,ANALYST:sara.analyst,-,403
+TB-PLT-ACT-004,reset da CARE: 403,CARE:paolo.care,-,403
+TB-PLT-ACT-005,reset da MARKETING: 403,MARKETING:luca.marketing,-,403
+TB-PLT-ACT-006,reset da LEGAL: 403,LEGAL:elena.legal,-,403
+TB-PLT-ACT-007,reset da ADMIN canonico: 200 e audit RESET con l'attore,ADMIN:marta.admin,-,200 ADMIN:marta.admin
+TB-PLT-ACT-008,ruolo minuscolo admin:marta.admin: ANALYST quindi 403 (Q-298),admin:marta.admin,-,403
+TB-PLT-ACT-009,ruolo senza username (ADMIN): 403 (Q-298),ADMIN,-,403
+TB-PLT-ACT-010,ADMIN: con username vuoto: 403,ADMIN:,-,403
+TB-PLT-ACT-011,:marta.admin senza ruolo: 403,:marta.admin,-,403
+TB-PLT-ACT-012,più di un due punti (ADMIN:marta:extra): 403,ADMIN:marta:extra,-,403
+TB-PLT-ACT-013,ruolo sconosciuto (PIRATA): 403 (Q-261),PIRATA:marta.admin,-,403
+TB-PLT-ACT-014,spazio dopo i due punti (ADMIN: marta.admin): 403,«ADMIN: marta.admin»,-,403
+TB-PLT-ACT-015,ADMIN con qualunque username: 200 e audit con quell'attore,ADMIN:ops.notturno,-,200 ADMIN:ops.notturno
+TB-PLT-ACT-016,portale senza intestazione: 200 (docs/06 §3),ASSENTE,/v1/portal/wallets/MBR-000002,200
+TB-PLT-ACT-017,portale con intestazione non valida: 200 (l'attore del portale è il membro),PIRATA:x,/v1/portal/wallets/MBR-000002,200

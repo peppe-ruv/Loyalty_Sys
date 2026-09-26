@@ -1,0 +1,3 @@
+id,descrizione,caso
+TB-PLT-NFR-001,latenza azione → movimento a servizi svegli su 10 azioni: p50 ≤ 3 s e p95 ≤ 8 s (RNF-02),latency
+TB-PLT-NFR-002,10 azioni ravvicinate dello stesso membro valutate nell'ordine d'ingresso (RNF-04),order

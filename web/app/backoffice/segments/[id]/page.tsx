@@ -61,15 +61,29 @@ function Editor({ initial }: { initial: Segment | null }) {
   const problems = mode === "builder" ? validateRows(builder) : {};
   const criteriaOk = mode === "builder" ? Object.keys(problems).length === 0 : parsed?.error == null;
 
-  // Elenco attuale di uno statico: si carica una volta e diventa lo stato del selettore.
-  const current = useLhQuery<Page<MemberSample>>("member", `/v1/segments/${initial?.id}/members`, { size: 200 }, { enabled: !!initial });
+  // Membri attuali (prima pagina, al più 100: docs/06 §2, Q-332).
+  const current = useLhQuery<Page<MemberSample>>("member", `/v1/segments/${initial?.id}/members`, { size: 100 }, { enabled: !!initial });
+  // Elenco completo di uno statico, pagina per pagina: diventa lo stato del selettore e il salvataggio lo sostituisce
+  // per intero, quindi non deve fermarsi alla prima pagina.
+  const staticMembers = useQuery({
+    queryKey: ["member", "segment-members-all", initial?.id],
+    enabled: initial?.type === "STATIC",
+    queryFn: async () => {
+      const ids: string[] = [];
+      for (let page = 0; ; page++) {
+        const p = await lhFetch<Page<MemberSample>>("member", `/v1/segments/${initial?.id}/members`, { query: { page, size: 100 } });
+        ids.push(...p.items.map((m) => m.memberId));
+        if (p.items.length === 0 || page + 1 >= p.page.totalPages) return ids;
+      }
+    },
+  });
   const [staticLoaded, setStaticLoaded] = useState(false);
   useEffect(() => {
-    if (initial?.type === "STATIC" && current.data && !staticLoaded) {
-      setMemberIds(current.data.items.map((m) => m.memberId));
+    if (initial?.type === "STATIC" && staticMembers.data && !staticLoaded) {
+      setMemberIds(staticMembers.data);
       setStaticLoaded(true);
     }
-  }, [initial?.type, current.data, staticLoaded]);
+  }, [initial?.type, staticMembers.data, staticLoaded]);
 
   const create = useLhMutation<Segment, SegmentRequest>("member", "POST", () => "/v1/segments", {
     onSuccess: (s) => router.replace(`/backoffice/segments/${s.code}`),
@@ -233,8 +247,8 @@ function Editor({ initial }: { initial: Segment | null }) {
               </Section>
             ) : (
               <Section title="Membri">
-                {initial && current.isLoading ? <p className="text-xs text-[var(--color-bo-ink-2)]">Caricamento dell&apos;elenco…</p> : null}
-                {initial && current.isError ? <DegradedBox service="member" onRetry={() => current.refetch()} /> : null}
+                {initial && staticMembers.isLoading ? <p className="text-xs text-[var(--color-bo-ink-2)]">Caricamento dell&apos;elenco…</p> : null}
+                {initial && staticMembers.isError ? <DegradedBox service="member" onRetry={() => staticMembers.refetch()} /> : null}
                 <StaticMembersPicker value={memberIds} onChange={setMemberIds} disabled={readOnly} />
               </Section>
             )}

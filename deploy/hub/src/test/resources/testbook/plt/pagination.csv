@@ -1,0 +1,61 @@
+id,descrizione,elenco,parametri,stato,atteso
+TB-PLT-PAG-001,membri (member): size=1 (minimo),/v1/members,size=1,200,size=1
+TB-PLT-PAG-002,membri (member): size=100 (massimo),/v1/members,size=100,200,size=100
+TB-PLT-PAG-003,membri (member): size=101 ridotta a 100,/v1/members,size=101,200,size=100
+TB-PLT-PAG-004,membri (member): size=0: 400 (Q-332),/v1/members,size=0,400,BAD_REQUEST
+TB-PLT-PAG-005,membri (member): page=-1: 400 (Q-332),/v1/members,page=-1,400,BAD_REQUEST
+TB-PLT-PAG-006,membri (member): senza parametri: pagina 0 e size di default ≤ 100,/v1/members,,200,default
+TB-PLT-PAG-007,segmenti (member): size=1 (minimo),/v1/segments,size=1,200,size=1
+TB-PLT-PAG-008,segmenti (member): size=100 (massimo),/v1/segments,size=100,200,size=100
+TB-PLT-PAG-009,segmenti (member): size=101 ridotta a 100,/v1/segments,size=101,200,size=100
+TB-PLT-PAG-010,segmenti (member): size=0: 400 (Q-332),/v1/segments,size=0,400,BAD_REQUEST
+TB-PLT-PAG-011,segmenti (member): page=-1: 400 (Q-332),/v1/segments,page=-1,400,BAD_REQUEST
+TB-PLT-PAG-012,segmenti (member): senza parametri: pagina 0 e size di default ≤ 100,/v1/segments,,200,default
+TB-PLT-PAG-013,membri di un segmento (member): size=1 (minimo),/v1/segments/SEG-DIGITAL/members,size=1,200,size=1
+TB-PLT-PAG-014,membri di un segmento (member): size=100 (massimo),/v1/segments/SEG-DIGITAL/members,size=100,200,size=100
+TB-PLT-PAG-015,membri di un segmento (member): size=101 ridotta a 100,/v1/segments/SEG-DIGITAL/members,size=101,200,size=100
+TB-PLT-PAG-016,membri di un segmento (member): size=0: 400 (Q-332),/v1/segments/SEG-DIGITAL/members,size=0,400,BAD_REQUEST
+TB-PLT-PAG-017,membri di un segmento (member): page=-1: 400 (Q-332),/v1/segments/SEG-DIGITAL/members,page=-1,400,BAD_REQUEST
+TB-PLT-PAG-018,membri di un segmento (member): senza parametri: pagina 0 e size di default ≤ 100,/v1/segments/SEG-DIGITAL/members,,200,default
+TB-PLT-PAG-019,richieste premio (reward): size=1 (minimo),/v1/redemptions,size=1,200,size=1
+TB-PLT-PAG-020,richieste premio (reward): size=100 (massimo),/v1/redemptions,size=100,200,size=100
+TB-PLT-PAG-021,richieste premio (reward): size=101 ridotta a 100,/v1/redemptions,size=101,200,size=100
+TB-PLT-PAG-022,richieste premio (reward): size=0: 400 (Q-332),/v1/redemptions,size=0,400,BAD_REQUEST
+TB-PLT-PAG-023,richieste premio (reward): page=-1: 400 (Q-332),/v1/redemptions,page=-1,400,BAD_REQUEST
+TB-PLT-PAG-024,richieste premio (reward): senza parametri: pagina 0 e size di default ≤ 100,/v1/redemptions,,200,default
+TB-PLT-PAG-025,coupon di un pool (reward): size=1 (minimo),/v1/coupon-pools/POOL-CAF/coupons,size=1,200,size=1
+TB-PLT-PAG-026,coupon di un pool (reward): size=100 (massimo),/v1/coupon-pools/POOL-CAF/coupons,size=100,200,size=100
+TB-PLT-PAG-027,coupon di un pool (reward): size=101 ridotta a 100,/v1/coupon-pools/POOL-CAF/coupons,size=101,200,size=100
+TB-PLT-PAG-028,coupon di un pool (reward): size=0: 400 (Q-332),/v1/coupon-pools/POOL-CAF/coupons,size=0,400,BAD_REQUEST
+TB-PLT-PAG-029,coupon di un pool (reward): page=-1: 400 (Q-332),/v1/coupon-pools/POOL-CAF/coupons,page=-1,400,BAD_REQUEST
+TB-PLT-PAG-030,coupon di un pool (reward): senza parametri: pagina 0 e size di default ≤ 100,/v1/coupon-pools/POOL-CAF/coupons,,200,default
+TB-PLT-PAG-031,registro messaggi (engagement): size=1 (minimo),/v1/messages,size=1,200,size=1
+TB-PLT-PAG-032,registro messaggi (engagement): size=100 (massimo),/v1/messages,size=100,200,size=100
+TB-PLT-PAG-033,registro messaggi (engagement): size=101 ridotta a 100,/v1/messages,size=101,200,size=100
+TB-PLT-PAG-034,registro messaggi (engagement): size=0: 400 (Q-332),/v1/messages,size=0,400,BAD_REQUEST
+TB-PLT-PAG-035,registro messaggi (engagement): page=-1: 400 (Q-332),/v1/messages,page=-1,400,BAD_REQUEST
+TB-PLT-PAG-036,registro messaggi (engagement): senza parametri: pagina 0 e size di default ≤ 100,/v1/messages,,200,default
+TB-PLT-PAG-037,inbox del portale (engagement): size=1 (minimo),/v1/portal/inbox?memberId=MBR-000002,size=1,200,size=1
+TB-PLT-PAG-038,inbox del portale (engagement): size=100 (massimo),/v1/portal/inbox?memberId=MBR-000002,size=100,200,size=100
+TB-PLT-PAG-039,inbox del portale (engagement): size=101 ridotta a 100,/v1/portal/inbox?memberId=MBR-000002,size=101,200,size=100
+TB-PLT-PAG-040,inbox del portale (engagement): size=0: 400 (Q-332),/v1/portal/inbox?memberId=MBR-000002,size=0,400,BAD_REQUEST
+TB-PLT-PAG-041,inbox del portale (engagement): page=-1: 400 (Q-332),/v1/portal/inbox?memberId=MBR-000002,page=-1,400,BAD_REQUEST
+TB-PLT-PAG-042,inbox del portale (engagement): senza parametri: pagina 0 e size di default ≤ 100,/v1/portal/inbox?memberId=MBR-000002,,200,default
+TB-PLT-PAG-043,consegne di un webhook (engagement): size=1 (minimo),/v1/webhooks/WH-CRM-DEMO/deliveries,size=1,200,size=1
+TB-PLT-PAG-044,consegne di un webhook (engagement): size=100 (massimo),/v1/webhooks/WH-CRM-DEMO/deliveries,size=100,200,size=100
+TB-PLT-PAG-045,consegne di un webhook (engagement): size=101 ridotta a 100,/v1/webhooks/WH-CRM-DEMO/deliveries,size=101,200,size=100
+TB-PLT-PAG-046,consegne di un webhook (engagement): size=0: 400 (Q-332),/v1/webhooks/WH-CRM-DEMO/deliveries,size=0,400,BAD_REQUEST
+TB-PLT-PAG-047,consegne di un webhook (engagement): page=-1: 400 (Q-332),/v1/webhooks/WH-CRM-DEMO/deliveries,page=-1,400,BAD_REQUEST
+TB-PLT-PAG-048,consegne di un webhook (engagement): senza parametri: pagina 0 e size di default ≤ 100,/v1/webhooks/WH-CRM-DEMO/deliveries,,200,default
+TB-PLT-PAG-049,istanti vincenti (gamification): size=1 (minimo),/v1/contests/IW-AUTUNNO/instants,size=1,200,size=1
+TB-PLT-PAG-050,istanti vincenti (gamification): size=100 (massimo),/v1/contests/IW-AUTUNNO/instants,size=100,200,size=100
+TB-PLT-PAG-051,istanti vincenti (gamification): size=101 ridotta a 100,/v1/contests/IW-AUTUNNO/instants,size=101,200,size=100
+TB-PLT-PAG-052,istanti vincenti (gamification): size=0: 400 (Q-332),/v1/contests/IW-AUTUNNO/instants,size=0,400,BAD_REQUEST
+TB-PLT-PAG-053,istanti vincenti (gamification): page=-1: 400 (Q-332),/v1/contests/IW-AUTUNNO/instants,page=-1,400,BAD_REQUEST
+TB-PLT-PAG-054,istanti vincenti (gamification): senza parametri: pagina 0 e size di default ≤ 100,/v1/contests/IW-AUTUNNO/instants,,200,default
+TB-PLT-PAG-055,event store (insight): size=1 (minimo),/v1/events,size=1,200,size=1
+TB-PLT-PAG-056,event store (insight): size=100 (massimo),/v1/events,size=100,200,size=100
+TB-PLT-PAG-057,event store (insight): size=101 ridotta a 100,/v1/events,size=101,200,size=100
+TB-PLT-PAG-058,event store (insight): size=0: 400 (Q-332),/v1/events,size=0,400,BAD_REQUEST
+TB-PLT-PAG-059,event store (insight): page=-1: 400 (Q-332),/v1/events,page=-1,400,BAD_REQUEST
+TB-PLT-PAG-060,event store (insight): senza parametri: pagina 0 e size di default ≤ 100,/v1/events,,200,default

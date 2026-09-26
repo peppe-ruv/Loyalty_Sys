@@ -44,7 +44,7 @@ public final class SeedDates {
         String keyword = readKeyword(body);
         String offsets = body.substring(keyword.length());
         ZonedDateTime base = base(keyword, rome);
-        base = applyOffsets(base, offsets);
+        base = applyOffsets(base, offsets, "eom".equals(keyword));
         if (timeOfDay != null) {
             base = base.withHour(timeOfDay.getHour()).withMinute(timeOfDay.getMinute()).withSecond(0).withNano(0);
         }
@@ -95,10 +95,18 @@ public final class SeedDates {
         return d;
     }
 
-    private static ZonedDateTime applyOffsets(ZonedDateTime base, String offsets) {
+    /**
+     * Applica gli scostamenti in ordine. SPEC-GAP: Q-336 — con {@code @eom} gli scostamenti in mesi o anni restano sulla
+     * fine del mese d'arrivo ({@code @eom+1M} = fine del mese successivo, docs/10 §1.2 «combinabili»), non sullo stesso
+     * numero di giorno (30 settembre + 1 mese = 31 ottobre, non 30).
+     */
+    private static ZonedDateTime applyOffsets(ZonedDateTime base, String offsets, boolean endOfMonth) {
         Matcher m = OFFSET.matcher(offsets);
         int consumed = 0;
         while (m.find()) {
+            if (m.start() != consumed) {
+                break;
+            }
             consumed = m.end();
             long n = Long.parseLong(m.group(1));
             base = switch (m.group(2)) {
@@ -108,6 +116,9 @@ public final class SeedDates {
                 case "y" -> base.plusYears(n);
                 default -> base;
             };
+            if (endOfMonth && (m.group(2).equals("M") || m.group(2).equals("y"))) {
+                base = base.withDayOfMonth(base.toLocalDate().lengthOfMonth());
+            }
         }
         if (consumed != offsets.length()) {
             throw new IllegalArgumentException("offset data non valido: '" + offsets + "'");

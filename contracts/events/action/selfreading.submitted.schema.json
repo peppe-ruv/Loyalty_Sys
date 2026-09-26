@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:action.selfreading.submitted:1",
+  "title": "action.selfreading.submitted — data (EVT-ACT-05, docs/05 §3, fonte app)",
+  "type": "object",
+  "required": [
+    "meterId",
+    "reading"
+  ],
+  "properties": {
+    "meterId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reading": {
+      "type": "number",
+      "minimum": 0
+    }
+  }
+}

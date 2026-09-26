@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:loyaltyhub:schema:fact.member.birthday:1",
+  "title": "fact.member.birthday — data (EVT-FACT-05, docs/05 §5; P2, nessun produttore nel PoC)",
+  "type": "object",
+  "properties": {
+    "age": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": true
+}

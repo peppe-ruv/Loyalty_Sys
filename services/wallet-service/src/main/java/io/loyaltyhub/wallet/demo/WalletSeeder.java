@@ -97,6 +97,9 @@ public class WalletSeeder implements ApplicationRunner, DemoResettable {
         ledger.deleteAll();
         wallets.deleteAll();
         memberTiers.deleteAll();
+        // docs/06 §10: livelli ed edizioni creati o chiusi dopo il seed (BO-07, BO-08) tornano esattamente al seed.
+        editions.deleteAll();
+        tiers.deleteAll();
 
         for (JsonNode c : seed.readTree("currencies.json")) {
             currencies.upsert(c.path("code").asString(), c.path("name").asString(),

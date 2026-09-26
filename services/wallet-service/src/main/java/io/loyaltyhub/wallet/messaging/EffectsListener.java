@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 /** Consuma {@code lh.effects.v1} → applicazione degli effetti punti (docs/06 §5). */
 @Component
+@org.springframework.context.annotation.Lazy(false) // docs/06 §5: attivo anche con lazy-initialization (profilo free)
 public class EffectsListener {
 
     private static final TypeReference<LhEvent<JsonNode>> EVENT_TYPE = new TypeReference<>() {

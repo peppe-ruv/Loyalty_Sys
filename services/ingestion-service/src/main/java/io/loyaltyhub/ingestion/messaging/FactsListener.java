@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
  * {@link ActionsListener}: un'eccezione non fa ack e l'error handler di lh-common ritenta e poi porta in DLQ.
  */
 @Component
+@org.springframework.context.annotation.Lazy(false) // docs/06 §5: attivo anche con lazy-initialization (profilo free)
 public class FactsListener {
 
     private static final TypeReference<LhEvent<JsonNode>> EVENT_TYPE = new TypeReference<>() {

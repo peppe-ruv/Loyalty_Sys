@@ -174,6 +174,8 @@ public class PointsLotRepository {
     }
 
     public void deleteAll() {
+        // Reset demo (docs/06 §10): i consumi FIFO appartengono ai lotti; restavano orfani dopo il reset.
+        jdbc.sql("DELETE FROM lot_consumption").update();
         jdbc.sql("DELETE FROM points_lot").update();
     }
 

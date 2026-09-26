@@ -1,11 +1,22 @@
-# Profilo `free` (docs/06 §6): tuning per 512 MB / 0.1 CPU.
-# NB: spring.main.lazy-initialization richiede @Lazy(false) su @KafkaListener e @Scheduled (docs/06 §5):
-# si attiva insieme a quell'irrobustimento al deploy (M1.8, Q-20). Qui restano i tuning sicuri.
+# Profilo `free` (docs/06 §6, docs/11 §4, §6): tuning per 512 MB / 0.1 CPU. Deploy demo = `demo,free`.
+# Inizializzazione lazy: listener Kafka e scheduler sono @Lazy(false) (docs/06 §5), quindi partono comunque.
 spring:
+  main:
+    lazy-initialization: true
   threads:
     virtual:
       enabled: true   # virtual thread (Java 25, ADR-005)
+  jmx:
+    enabled: false
+  datasource:
+    hikari:
+      max-lifetime: 600000
+      initialization-fail-timeout: -1   # il servizio parte anche col DB serverless in risveglio (docs/11 §4)
 server:
   tomcat:
     threads:
       max: 20
+logging:
+  structured:
+    format:
+      console: ecs   # log JSON con l'MDC: service, actor, eventId, eventType, correlationId, memberId (RNF-10)

@@ -46,9 +46,12 @@ public class CampaignSeeder implements ApplicationRunner, DemoResettable {
     private final ApprovalHistoryStore approvalHistory;
     private final Clock clock;
 
+    private final io.loyaltyhub.campaign.infra.EvaluationLogRepository evaluations;
+
     public CampaignSeeder(SeedLoader seed, ObjectMapper mapper, CampaignRepository campaigns,
                           MemberSnapshotRepository snapshots, CounterRepository counters,
-                          CampaignCache cache, ApprovalHistoryStore approvalHistory, Clock clock) {
+                          CampaignCache cache, ApprovalHistoryStore approvalHistory, Clock clock,
+                          io.loyaltyhub.campaign.infra.EvaluationLogRepository evaluations) {
         this.seed = seed;
         this.mapper = mapper;
         this.campaigns = campaigns;
@@ -57,6 +60,7 @@ public class CampaignSeeder implements ApplicationRunner, DemoResettable {
         this.cache = cache;
         this.approvalHistory = approvalHistory;
         this.clock = clock;
+        this.evaluations = evaluations;
     }
 
     @Override
@@ -73,6 +77,8 @@ public class CampaignSeeder implements ApplicationRunner, DemoResettable {
     @Transactional
     public void resetToSeed() {
         counters.deleteAll();
+        // docs/06 §10: il registro delle valutazioni fa parte dello stato del servizio (restava dopo il reset).
+        evaluations.deleteAll();
         approvalHistory.deleteAll(ApprovalPolicy.CAMPAIGN);
         campaigns.deleteAll();
         snapshots.deleteAll();

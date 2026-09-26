@@ -12,6 +12,7 @@ import java.time.Clock;
  * resta attivo anche in demo (spegnibile con {@code loyaltyhub.reward.redemption-timeout.enabled=false}).
  */
 @Component
+@org.springframework.context.annotation.Lazy(false) // docs/06 §5: attivo anche con lazy-initialization (profilo free)
 @ConditionalOnProperty(name = "loyaltyhub.reward.redemption-timeout.enabled", havingValue = "true", matchIfMissing = true)
 public class RedemptionTimeoutJob {
 

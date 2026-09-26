@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
  * Le metriche ({@code metric_daily}) sono illimitate. Job orario.
  */
 @Component
+@org.springframework.context.annotation.Lazy(false) // docs/06 §5: attivo anche con lazy-initialization (profilo free)
 public class RetentionJob {
 
     private static final Logger log = LoggerFactory.getLogger(RetentionJob.class);

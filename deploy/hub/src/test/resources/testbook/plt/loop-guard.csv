@@ -1,0 +1,7 @@
+id,descrizione,fatto,lhhop,atteso
+TB-PLT-LOP-001,fatto mappabile con lhhop 0: azione del ponte con lhhop 1,badge.awarded,0,azioni=[1] dlq=[]
+TB-PLT-LOP-002,fatto mappabile con lhhop 1: azione con lhhop 2,badge.awarded,1,azioni=[2] dlq=[]
+TB-PLT-LOP-003,fatto mappabile con lhhop 2: azione con lhhop 3 (ultimo ammesso),badge.awarded,2,azioni=[3] dlq=[]
+TB-PLT-LOP-004,fatto mappabile con lhhop 3: nessuna azione e DLQ LOOP_GUARD al primo tentativo (docs/05 §7),badge.awarded,3,azioni=[] dlq=[lh-ingestion:LOOP_GUARD:1]
+TB-PLT-LOP-005,fatto mappabile con lhhop 7: DLQ LOOP_GUARD,badge.awarded,7,azioni=[] dlq=[lh-ingestion:LOOP_GUARD:1]
+TB-PLT-LOP-006,fatto mai mappabile (wallet.points.earned) con lhhop 3: né azione né DLQ,wallet.points.earned,3,azioni=[] dlq=[]

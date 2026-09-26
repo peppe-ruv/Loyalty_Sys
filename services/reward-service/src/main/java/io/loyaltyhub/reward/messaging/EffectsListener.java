@@ -13,6 +13,7 @@ import tools.jackson.databind.ObjectMapper;
 
 /** Consuma {@code lh.effects.v1} → {@code coupon.issue} (docs/servizi/reward-service.md §4). Gli altri effetti non hanno handler. */
 @Component
+@org.springframework.context.annotation.Lazy(false) // docs/06 §5: attivo anche con lazy-initialization (profilo free)
 public class EffectsListener {
 
     private static final TypeReference<LhEvent<JsonNode>> EVENT_TYPE = new TypeReference<>() {

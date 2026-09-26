@@ -31,6 +31,11 @@ public class EvaluationLogRepository {
                 .update();
     }
 
+    /** Reset demo (docs/06 §10). */
+    public void deleteAll() {
+        jdbc.sql("DELETE FROM evaluation_log").update();
+    }
+
     public Optional<String> findResults(String actionId) {
         return jdbc.sql("SELECT results::text FROM evaluation_log WHERE action_id = ?")
                 .param(actionId).query(String.class).optional();

@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.Ordered;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,8 +29,10 @@ import java.util.Random;
  * (docs/10 §1.3). I dati reali del giorno si sommano a questi (UPSERT incrementale, docs §5).
  * Possiede interamente {@code metric_daily}: azzera e rigenera in un colpo solo, indipendente dall'ordine di reset.
  */
+// BO-30: subito dopo InsightReset, prima degli altri servizi.
 @Component
 @Profile("demo")
+@org.springframework.core.annotation.Order(Ordered.HIGHEST_PRECEDENCE + 1)
 public class InsightSyntheticSeeder implements ApplicationRunner, DemoResettable {
 
     private static final Logger log = LoggerFactory.getLogger(InsightSyntheticSeeder.class);

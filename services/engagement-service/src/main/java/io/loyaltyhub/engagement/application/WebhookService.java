@@ -183,8 +183,9 @@ public class WebhookService {
                 throw LhException.badRequest("Stato di consegna sconosciuto: " + status);
             }
         }
-        int p = Math.max(0, page);
-        int s = Math.clamp(size, 1, 100);
+        io.loyaltyhub.common.web.PageParams paging = io.loyaltyhub.common.web.PageParams.of(page, size); // SPEC-GAP: Q-332
+        int p = paging.page();
+        int s = paging.size();
         return PageResponse.of(deliveries.page(w.id(), status, p, s), p, s, deliveries.count(w.id(), status));
     }
 

@@ -1,0 +1,11 @@
+id,descrizione,metodo,percorso,attore,contentType,corpo,guasto,stato,tipo,codice
+TB-PLT-HER-001,percorso non mappato: 404 not-found,GET,/v1/percorso-inesistente,-,-,-,no,404,not-found,NOT_FOUND
+TB-PLT-HER-002,membro inesistente: 404 not-found,GET,/v1/members/MBR-999999,ADMIN:marta.admin,-,-,no,404,not-found,NOT_FOUND
+TB-PLT-HER-003,JSON malformato su un'API vera: 400 bad-request,POST,/v1/members,-,application/json,"{""firstName"":",no,400,bad-request,BAD_REQUEST
+TB-PLT-HER-004,parametro di query non numerico: 400,GET,/v1/members?page=abc,ADMIN:marta.admin,-,-,no,400,bad-request,BAD_REQUEST
+TB-PLT-HER-005,scrittura senza X-LH-Actor (ANALYST): 403 forbidden-role,POST,/v1/wallets/MBR-000002/adjustments,-,application/json,"{""currency"":""PTS"",""direction"":""CREDIT"",""amount"":10,""reason"":""GOODWILL"",""note"":""prova""}",no,403,forbidden-role,FORBIDDEN_ROLE
+TB-PLT-HER-006,transizione non valida (RESUME su LIVE): 409 conflict,POST,/v1/campaigns/CMP-SURVEY/transitions,MARKETING:luca.marketing,application/json,"{""action"":""RESUME""}",no,409,conflict,INVALID_TRANSITION
+TB-PLT-HER-007,regola di business violata: 422 validation col codice del servizio,POST,/v1/wallets/MBR-000002/adjustments,CARE:paolo.care,application/json,"{""currency"":""STS"",""direction"":""CREDIT"",""amount"":10,""reason"":""GOODWILL"",""note"":""prova""}",no,422,validation,CURRENCY_NOT_ADJUSTABLE
+TB-PLT-HER-008,errore imprevisto del database su una scrittura: 500 INTERNAL_ERROR senza dettagli,POST,/v1/members,-,application/json,"{""firstName"":""Prova"",""lastName"":""Errore"",""email"":""tb.plt.{tag}@example.org"",""channel"":""PORTAL""}",si,500,internal,INTERNAL_ERROR
+TB-PLT-HER-009,metodo non ammesso: 405 bad-request (Q-333),DELETE,/v1/members,ADMIN:marta.admin,-,-,no,405,bad-request,BAD_REQUEST
+TB-PLT-HER-010,tipo di contenuto non supportato: 415 bad-request (Q-333),POST,/v1/members,-,text/plain,nome=Prova,no,415,bad-request,BAD_REQUEST

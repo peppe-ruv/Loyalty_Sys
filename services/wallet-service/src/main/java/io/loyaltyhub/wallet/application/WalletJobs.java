@@ -12,6 +12,7 @@ import java.time.Clock;
  * in demo si lanciano a mano da BO-30 con una data di riferimento). Usano l'istante corrente come {@code asOf}.
  */
 @Component
+@org.springframework.context.annotation.Lazy(false) // docs/06 §5: attivo anche con lazy-initialization (profilo free)
 @ConditionalOnProperty(name = "loyaltyhub.jobs.enabled", havingValue = "true")
 public class WalletJobs {
 
