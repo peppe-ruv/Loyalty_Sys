@@ -35,8 +35,13 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
   headers.set("accept", "application/json");
   headers.set("x-lh-actor", actorHeader(persona));
   headers.set("x-correlation-id", correlationId);
+  // Import file (BO-32, Q-353): stessa chiave → stesso lavoro, anche se il browser ripete l'invio.
+  const idempotencyKey = req.headers.get("idempotency-key");
+  if (idempotencyKey) headers.set("idempotency-key", idempotencyKey);
 
   const hasBody = req.method !== "GET" && req.method !== "DELETE";
+  // Un file caricato (multipart, BO-32) passa com'è, byte per byte; il JSON resta testo.
+  const multipart = (contentType ?? "").toLowerCase().startsWith("multipart/");
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
@@ -44,7 +49,7 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
     const upstream = await fetch(target, {
       method: req.method,
       headers,
-      body: hasBody ? await req.text() : undefined,
+      body: hasBody ? (multipart ? await req.arrayBuffer() : await req.text()) : undefined,
       signal: controller.signal,
       cache: "no-store",
     });

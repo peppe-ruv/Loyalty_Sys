@@ -1,5 +1,48 @@
 components:
   schemas:
+    BatchItem:
+      properties:
+        correlationId:
+          type: string
+        detail:
+          type: string
+        eventId:
+          type: string
+        index:
+          format: int32
+          type: integer
+        memberId:
+          type: string
+        rejectCode:
+          enum:
+          - SOURCE_DISABLED
+          - UNKNOWN_TYPE
+          - TYPE_NOT_ALLOWED
+          - INVALID_DATA
+          - INVALID_TIME
+          - MEMBER_NOT_ACTIVE
+          type: string
+        status:
+          enum:
+          - ACCEPTED
+          - DUPLICATE
+          - REJECTED
+          - UNMATCHED
+          - INVALID
+          type: string
+      type: object
+    BatchResult:
+      properties:
+        counts:
+          $ref: "#/components/schemas/OutcomeCounts"
+        items:
+          items:
+            $ref: "#/components/schemas/BatchItem"
+          type: array
+        total:
+          format: int32
+          type: integer
+      type: object
     EventTypeRequest:
       properties:
         category:
@@ -81,6 +124,87 @@ components:
           type: string
         status:
           type: string
+      type: object
+    ImportDetail:
+      properties:
+        job:
+          $ref: "#/components/schemas/ImportJob"
+        openUnmatched:
+          format: int64
+          type: integer
+      type: object
+    ImportJob:
+      properties:
+        attempts:
+          format: int32
+          type: integer
+        counts:
+          $ref: "#/components/schemas/OutcomeCounts"
+        createdAt:
+          format: date-time
+          type: string
+        createdBy:
+          type: string
+        defaultSource:
+          type: string
+        errorDetail:
+          type: string
+        fileName:
+          type: string
+        finishedAt:
+          format: date-time
+          type: string
+        format:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        rowsDone:
+          format: int32
+          type: integer
+        rowsTotal:
+          format: int32
+          type: integer
+        sha256:
+          type: string
+        sizeBytes:
+          format: int32
+          type: integer
+        startedAt:
+          format: date-time
+          type: string
+        status:
+          enum:
+          - QUEUED
+          - RUNNING
+          - DONE
+          - FAILED
+          type: string
+      type: object
+    ImportRowResult:
+      properties:
+        currentStatus:
+          type: string
+        detail:
+          type: string
+        eventId:
+          type: string
+        inboundEventId:
+          type: string
+        outcome:
+          enum:
+          - ACCEPTED
+          - DUPLICATE
+          - REJECTED
+          - UNMATCHED
+          - INVALID
+          type: string
+        rejectCode:
+          type: string
+        rowNumber:
+          format: int32
+          type: integer
       type: object
     InboundDetail:
       properties:
@@ -299,6 +423,75 @@ components:
         name:
           type: string
       type: object
+    OutcomeCounts:
+      properties:
+        accepted:
+          format: int32
+          type: integer
+        duplicate:
+          format: int32
+          type: integer
+        invalid:
+          format: int32
+          type: integer
+        rejected:
+          format: int32
+          type: integer
+        unmatched:
+          format: int32
+          type: integer
+      type: object
+    PageInfo:
+      properties:
+        number:
+          format: int32
+          type: integer
+        size:
+          format: int32
+          type: integer
+        totalItems:
+          format: int64
+          type: integer
+        totalPages:
+          format: int32
+          type: integer
+      type: object
+    PageResponseImportJob:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ImportJob"
+          type: array
+        page:
+          $ref: "#/components/schemas/PageInfo"
+      type: object
+    PageResponseImportRowResult:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ImportRowResult"
+          type: array
+        page:
+          $ref: "#/components/schemas/PageInfo"
+      type: object
+    RetryResult:
+      properties:
+        accepted:
+          format: int32
+          type: integer
+        nextAfterRow:
+          format: int32
+          type: integer
+        rejected:
+          format: int32
+          type: integer
+        retried:
+          format: int32
+          type: integer
+        stillUnmatched:
+          format: int32
+          type: integer
+      type: object
     Scenario:
       properties:
         code:
@@ -413,7 +606,7 @@ paths:
       - scenarios
   /v1/demo/scenarios:
     get:
-      operationId: list_3
+      operationId: list_4
       responses:
         "200":
           content:
@@ -470,7 +663,7 @@ paths:
       - simulator
   /v1/event-types:
     get:
-      operationId: list
+      operationId: list_1
       responses:
         "200":
           content:
@@ -484,7 +677,7 @@ paths:
       tags:
       - event-types
     post:
-      operationId: create_1
+      operationId: create_2
       requestBody:
         content:
           application/json:
@@ -593,9 +786,203 @@ paths:
       summary: Ingest — events
       tags:
       - events
+  /v1/events/batch:
+    post:
+      operationId: ingestBatch
+      requestBody:
+        content:
+          application/cloudevents-batch+json:
+            schema:
+              items:
+                $ref: "#/components/schemas/InboundEventRequest"
+              maxItems: 1000
+              type: array
+          application/json:
+            schema:
+              items:
+                $ref: "#/components/schemas/InboundEventRequest"
+              maxItems: 1000
+              type: array
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BatchResult"
+          description: OK
+      summary: Ingest batch
+      tags:
+      - events
+  /v1/imports:
+    get:
+      operationId: list
+      parameters:
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 0
+          format: int32
+          type: integer
+      - in: query
+        name: size
+        required: false
+        schema:
+          default: 20
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageResponseImportJob"
+          description: OK
+      summary: List — imports
+      tags:
+      - imports
+    post:
+      operationId: create_1
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                file:
+                  format: binary
+                  type: string
+                kind:
+                  type: string
+                source:
+                  type: string
+              type: object
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ImportJob"
+          description: OK
+      summary: Create — imports
+      tags:
+      - imports
+  /v1/imports/{id}:
+    get:
+      operationId: get_2
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ImportDetail"
+          description: OK
+      summary: Get — imports
+      tags:
+      - imports
+  /v1/imports/{id}/report.csv:
+    get:
+      operationId: report
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: string
+          description: OK
+      summary: Report — imports
+      tags:
+      - imports
+  /v1/imports/{id}/retry-unmatched:
+    post:
+      operationId: retryUnmatched
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: afterRow
+        required: false
+        schema:
+          default: 0
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RetryResult"
+          description: OK
+      summary: Retry unmatched
+      tags:
+      - imports
+  /v1/imports/{id}/rows:
+    get:
+      operationId: rows
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: outcome
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 0
+          format: int32
+          type: integer
+      - in: query
+        name: size
+        required: false
+        schema:
+          default: 50
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageResponseImportRowResult"
+          description: OK
+      summary: Rows — imports
+      tags:
+      - imports
   /v1/inbound-events:
     get:
-      operationId: list_2
+      operationId: list_3
       parameters:
       - in: query
         name: status
@@ -762,7 +1149,7 @@ paths:
       - inbound-events
   /v1/internal-mappings:
     get:
-      operationId: list_1
+      operationId: list_2
       responses:
         "200":
           content:

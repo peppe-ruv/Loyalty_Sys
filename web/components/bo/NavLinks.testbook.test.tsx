@@ -6,7 +6,7 @@ import { NavLinks } from "./NavLinks";
 import { rows } from "@/test/testbook";
 
 // Testbook TB-WEB §NAV (voci per ruolo): docs/08 §2 "Tutte le personas leggono tutto" → la sidebar è la stessa per
-// ogni ruolo: 28 voci (docs/08 §1, M1–M7 realizzate).
+// ogni ruolo: 29 voci (docs/08 §1, M1–M7 realizzate più BO-32 di M8.7).
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/backoffice/members" }));
 
@@ -20,13 +20,13 @@ it.each(
   rows(
     (["ADMIN", "MARKETING", "LEGAL", "CARE", "ANALYST"] as Role[]).map((role, i) => ({
       id: `TB-WEB-NAV-0${48 + i}`,
-      desc: `sidebar per ${role} → 28 voci, tutte le schermate in lettura`,
+      desc: `sidebar per ${role} → 29 voci, tutte le schermate in lettura`,
       role,
     })),
   ),
 )("[%s] %s", (_id, _desc, { role }) => {
   renderWithProviders(<NavLinks />, role);
-  expect(screen.getAllByRole("link")).toHaveLength(28);
+  expect(screen.getAllByRole("link")).toHaveLength(29);
   expect(screen.getByRole("link", { name: /Approvazioni/ })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: /Console demo/ })).toBeInTheDocument();
 });

@@ -1,11 +1,12 @@
 package io.loyaltyhub.ingestion.api;
 
-import io.loyaltyhub.common.event.LhSource;
 import io.loyaltyhub.common.web.ActorHolder;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.ingestion.application.ActionReplayService;
+import io.loyaltyhub.ingestion.application.BatchIngestionService;
 import io.loyaltyhub.ingestion.application.IngestionService;
+import tools.jackson.databind.JsonNode;
 import io.loyaltyhub.ingestion.domain.IngestResult;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -35,10 +36,12 @@ public class EventsController {
 
     private final IngestionService ingestion;
     private final ActionReplayService replay;
+    private final BatchIngestionService batch;
 
-    public EventsController(IngestionService ingestion, ActionReplayService replay) {
+    public EventsController(IngestionService ingestion, ActionReplayService replay, BatchIngestionService batch) {
         this.ingestion = ingestion;
         this.replay = replay;
+        this.batch = batch;
     }
 
     @PostMapping(
@@ -46,13 +49,8 @@ public class EventsController {
             consumes = {"application/json", "application/cloudevents+json"})
     public ResponseEntity<IngestResult> ingest(@RequestBody InboundEventRequest request,
                                                @RequestHeader(value = REPROCESS_HEADER, required = false) String reprocess) {
-        // Q-258: una fonte esterna dichiara l'URN urn:loyaltyhub:source:<codice> (docs/05 §2); la forma breve resta
-        // ammessa solo ai chiamanti interni (simulatore, scenari, transazioni), che non passano da qui.
-        if (request != null && request.source() != null && !request.source().isBlank()
-                && request.source().indexOf(':') < 0) {
-            throw LhException.badRequest("source deve essere un URN " + LhSource.SOURCE_PREFIX + "<codice>: "
-                    + request.source());
-        }
+        // Q-258: una fonte esterna dichiara l'URN; la forma breve resta ai chiamanti interni, che non passano da qui.
+        IngestionService.requireSourceUrn(request);
         if (reprocess != null && !reprocess.isBlank()) {
             // Solo su comando umano di un ADMIN (docs/servizi/insight-service.md §3: reprocess ruolo ADMIN).
             if (ActorHolder.get().role() != Role.ADMIN) {
@@ -65,5 +63,20 @@ public class EventsController {
         }
         IngestResult result = ingestion.ingest(request);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(result);
+    }
+
+    /**
+     * Ingresso batch (F2-ING-01, docs/18 §3.6): array JSON di al più 1000 CloudEvent (modo <em>batched</em> di
+     * CloudEvents), {@code 202} con l'esito di ogni elemento nell'ordine ricevuto. Vedi {@link BatchIngestionService}.
+     */
+    @PostMapping(
+            path = "/events/batch",
+            consumes = {"application/json", "application/cloudevents-batch+json"})
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @io.swagger.v3.oas.annotations.media.Content(
+            array = @io.swagger.v3.oas.annotations.media.ArraySchema(
+                    maxItems = BatchIngestionService.MAX_EVENTS,
+                    schema = @io.swagger.v3.oas.annotations.media.Schema(implementation = InboundEventRequest.class))))
+    public ResponseEntity<BatchIngestionService.BatchResult> ingestBatch(@RequestBody JsonNode body) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(batch.ingest(body));
     }
 }

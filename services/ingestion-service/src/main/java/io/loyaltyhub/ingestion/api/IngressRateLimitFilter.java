@@ -44,8 +44,9 @@ public class IngressRateLimitFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String uri = request.getRequestURI();
+        // SPEC-GAP: Q-371 — un batch (F2-ING-01) conta come una richiesta nella stessa finestra degli ingressi singoli.
         return perMinute <= 0 || !"POST".equals(request.getMethod())
-                || !("/v1/events".equals(uri) || "/v1/transactions".equals(uri));
+                || !("/v1/events".equals(uri) || "/v1/transactions".equals(uri) || "/v1/events/batch".equals(uri));
     }
 
     @Override
