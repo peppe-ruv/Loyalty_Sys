@@ -61,6 +61,7 @@ Domande nate con la specifica di Fase 2 (Appendice B di `docs/18`), registrate i
 | Q-362 | formato del catalogo degli adattatori generici | mappatura JSONata | M13.6 | APERTA |
 | Q-363 | chi approva i premi sincronizzati | come i premi manuali, `LEGAL` | M13.6 | APERTA |
 | Q-364 | limite di passi per missione e di missioni attive per membro | 10 passi, 5 missioni | M13.7 | APERTA |
+| Q-366 | `member.age` quando da `member.*:2` arriva solo `birthYear` | età minima certa (anni compiuti di sicuro a quella data; il 31/12 l'età piena): prudente sui limiti d'età; con la data dai fatti `:1` resta esatta | M8.4 | APERTA |
 
 ## SPEC-GAP segnalati durante lo sviluppo
 _(vuoto: l'agente aggiunge qui le voci `Q-40+` con file, riga, scelta fatta e motivo)_

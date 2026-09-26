@@ -683,7 +683,8 @@ public class CampaignAdminService implements ApprovalSource {
                 : (base != null ? base.attributes() : mapper.createObjectNode());
         return new MemberSnapshot(id, "ACTIVE", tier, segments,
                 base != null ? base.labels() : List.of(), attributes,
-                base != null ? base.registeredAt() : clock.instant(), base != null ? base.birthDate() : null);
+                base != null ? base.registeredAt() : clock.instant(), base != null ? base.birthDate() : null,
+                base != null ? base.birthYear() : null, base != null ? base.province() : null);
     }
 
     private Instant parse(String time) {

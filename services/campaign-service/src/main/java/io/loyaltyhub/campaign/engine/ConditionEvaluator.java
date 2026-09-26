@@ -52,7 +52,8 @@ public final class ConditionEvaluator {
         @Override
         public TypedCast.Type declaredType(String field) {
             return switch (field) {
-                case "member.tier", "member.status", "context.source", "context.dayOfWeek" -> TypedCast.Type.STRING;
+                case "member.tier", "member.status", "member.province", "context.source", "context.dayOfWeek" ->
+                        TypedCast.Type.STRING;
                 case "member.age", "member.registeredDaysAgo", "context.hour", "history.actionCount",
                      "history.daysSinceLastAction" -> TypedCast.Type.NUMBER;
                 case "context.date" -> TypedCast.Type.DATE;
@@ -238,10 +239,11 @@ public final class ConditionEvaluator {
             case "status" -> member.status();
             case "segments" -> new ArrayList<Object>(member.segments());
             case "labels" -> new ArrayList<Object>(member.labels());
-            case "age" -> member.birthDate() == null ? ABSENT
-                    // Età al giorno di business dell'azione (Europe/Rome): stessa base di simulazione e macchina del
-                    // tempo, mai l'orologio di sistema (AUD-BE-02).
-                    : (double) member.birthDate().until(action.time().atZone(ROME).toLocalDate()).getYears();
+            // Età al giorno di business dell'azione (Europe/Rome): stessa base di simulazione e macchina del tempo,
+            // mai l'orologio di sistema (AUD-BE-02). Con la data (fatti :1) è esatta; con il solo anno (member.*:2,
+            // ADR-032) è l'età minima certa: anni compiuti di sicuro a quella data.
+            case "age" -> age(action.time().atZone(ROME).toLocalDate());
+            case "province" -> member.province() == null ? ABSENT : member.province();
             case "registeredDaysAgo" -> member.registeredAt() == null ? ABSENT
                     : (double) ChronoUnit.DAYS.between(member.registeredAt(), action.time());
             default -> {
@@ -251,6 +253,19 @@ public final class ConditionEvaluator {
                 yield ABSENT;
             }
         };
+    }
+
+    // SPEC-GAP: Q-366 — con il solo anno di nascita l'età vale gli anni compiuti di sicuro (prudente sui limiti d'età).
+    private Object age(java.time.LocalDate day) {
+        if (member.birthDate() != null) {
+            return (double) member.birthDate().until(day).getYears();
+        }
+        if (member.birthYear() == null) {
+            return ABSENT;
+        }
+        int years = day.getYear() - member.birthYear();
+        boolean lastDayOfYear = day.getMonthValue() == 12 && day.getDayOfMonth() == 31;
+        return (double) (lastDayOfYear ? years : years - 1);
     }
 
     private Object resolveContext(String path) {
