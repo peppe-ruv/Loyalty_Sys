@@ -10,12 +10,31 @@ import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlOrder;
+import io.loyaltyhub.common.sql.SqlWhere;
+
 import java.util.List;
 import java.util.Optional;
 
 /** Persistenza delle campagne (docs/servizi/campaign-service.md §2). I campi jsonb restano {@link JsonNode}. */
 @Repository
 public class CampaignRepository {
+
+    enum CampaignColumn implements SqlColumn {
+        STATUS("status"), CODE("code"), NAME("name"), PRIORITY("priority");
+
+        private final String sql;
+
+        CampaignColumn(String sql) {
+            this.sql = sql;
+        }
+
+        @Override
+        public String sql() {
+            return sql;
+        }
+    }
 
     private final JdbcClient jdbc;
     private final ObjectMapper mapper;
@@ -45,23 +64,24 @@ public class CampaignRepository {
     }
 
     public List<Campaign> search(String status, String actionType, String q) {
-        StringBuilder sql = new StringBuilder("SELECT " + COLS + " FROM campaign WHERE 1 = 1");
-        List<Object> args = new java.util.ArrayList<>();
-        if (status != null && !status.isBlank()) {
-            sql.append(" AND status = ?");
-            args.add(status.trim().toUpperCase());
-        }
+        SqlWhere where = new SqlWhere()
+                .when(status != null && !status.isBlank(), w -> w.eq(CampaignColumn.STATUS, status.trim().toUpperCase()))
+                .when(q != null && !q.isBlank(), w -> w.anyOf(a -> a.ilike(CampaignColumn.CODE, q.trim()).ilike(CampaignColumn.NAME, q.trim())));
+
+        String sql = "SELECT " + COLS + " FROM campaign";
+        sql += where.sql().isEmpty() ? " WHERE 1 = 1" : where.sql();
+
+        // SPEC-GAP: Q-386 (SqlWhere lacks ANY operator for arrays, fallback to string concat for actionType)
         if (actionType != null && !actionType.isBlank()) {
-            sql.append(" AND ? = ANY(trigger_action_types)");
-            args.add(actionType.trim());
+            sql += " AND :actionTypeParam = ANY(trigger_action_types)";
         }
-        if (q != null && !q.isBlank()) {
-            sql.append(" AND (code ILIKE ? OR name ILIKE ?)");
-            args.add("%" + q.trim() + "%");
-            args.add("%" + q.trim() + "%");
+        sql += SqlOrder.desc(CampaignColumn.PRIORITY).by(CampaignColumn.CODE, SqlOrder.Direction.ASC).sql();
+
+        var spec = where.bind(jdbc.sql(sql));
+        if (actionType != null && !actionType.isBlank()) {
+            spec = spec.param("actionTypeParam", actionType.trim());
         }
-        sql.append(" ORDER BY priority DESC, code");
-        return jdbc.sql(sql.toString()).params(args).query(this::map).list();
+        return spec.query(this::map).list();
     }
 
     public void insert(Campaign c) {

@@ -57,6 +57,12 @@ class CampaignServiceIT {
     private JsonSchemaValidator validator;
 
     @Autowired
+    private io.loyaltyhub.campaign.infra.CampaignRepository campaignRepository;
+
+    @Autowired
+    private io.loyaltyhub.campaign.infra.EvaluationLogRepository evaluationLogRepository;
+
+    @Autowired
     private io.loyaltyhub.campaign.application.CampaignAdminService admin;
 
     // Martedì e sabato di settembre 2026 (Europe/Rome).
@@ -75,6 +81,40 @@ class CampaignServiceIT {
     @AfterAll
     void tearDown() throws Exception {
         PG.close();
+    }
+
+    @Test
+    void campaignRepositorySearchAppliesFilters() {
+        List<io.loyaltyhub.campaign.domain.Campaign> found = campaignRepository.search("LIVE", "purchase.completed", "CMP-");
+        assertThat(found).isNotEmpty();
+        for (io.loyaltyhub.campaign.domain.Campaign c : found) {
+            assertThat(c.status().name()).isEqualTo("LIVE");
+            assertThat(c.triggerActionTypes()).contains("purchase.completed");
+            assertThat(c.code()).startsWith("CMP-");
+        }
+    }
+
+    @Test
+    void evaluationLogRepositorySearchAppliesFilters() {
+        evaluationLogRepository.save("ACT-TEST-1", "MBR-TEST-1", "purchase", java.time.Instant.now(), "corr-1", "MATCHED", "[]");
+        List<io.loyaltyhub.campaign.infra.EvaluationLogRepository.EvaluationRow> found = evaluationLogRepository.search("MBR-TEST-1", "MATCHED", 10);
+        assertThat(found).isNotEmpty();
+        for (io.loyaltyhub.campaign.infra.EvaluationLogRepository.EvaluationRow row : found) {
+            assertThat(row.memberId()).isEqualTo("MBR-TEST-1");
+            assertThat(row.outcome()).isEqualTo("MATCHED");
+        }
+    }
+
+    @Test
+    void campaignRepositorySearchSQLInjectionProtected() {
+        List<io.loyaltyhub.campaign.domain.Campaign> foundStatus = campaignRepository.search("DRAFT; DROP TABLE", null, null);
+        assertThat(foundStatus).isEmpty(); // Nessuna campagna con stato DRAFT; DROP TABLE, niente errore SQL
+
+        List<io.loyaltyhub.campaign.domain.Campaign> foundAction = campaignRepository.search(null, "'; DROP TABLE --", null);
+        assertThat(foundAction).isEmpty(); // Niente errore SQL, actionType viene trattato come stringa parametrizzata
+
+        List<io.loyaltyhub.campaign.domain.Campaign> foundQ = campaignRepository.search(null, null, "'; DROP TABLE --");
+        assertThat(foundQ).isEmpty(); // Niente errore SQL
     }
 
     @Test

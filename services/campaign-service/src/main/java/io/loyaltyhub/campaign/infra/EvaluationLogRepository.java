@@ -1,5 +1,8 @@
 package io.loyaltyhub.campaign.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlOrder;
+import io.loyaltyhub.common.sql.SqlWhere;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -10,6 +13,21 @@ import java.util.Optional;
 /** Registro delle valutazioni per la spiegabilità (docs/servizi/campaign-service.md §2). Pulizia > 30 giorni. */
 @Repository
 public class EvaluationLogRepository {
+
+    enum EvaluationLogColumn implements SqlColumn {
+        MEMBER_ID("member_id"), OUTCOME("outcome"), EVALUATED_AT("evaluated_at");
+
+        private final String sql;
+
+        EvaluationLogColumn(String sql) {
+            this.sql = sql;
+        }
+
+        @Override
+        public String sql() {
+            return sql;
+        }
+    }
 
     private final JdbcClient jdbc;
 
@@ -42,22 +60,15 @@ public class EvaluationLogRepository {
     }
 
     public List<EvaluationRow> search(String memberId, String outcome, int limit) {
-        StringBuilder sql = new StringBuilder("""
-                SELECT action_id, member_id, action_type, action_time, evaluated_at, outcome, results::text AS results
-                FROM evaluation_log WHERE 1 = 1
-                """);
-        List<Object> args = new java.util.ArrayList<>();
-        if (memberId != null && !memberId.isBlank()) {
-            sql.append(" AND member_id = ?");
-            args.add(memberId);
-        }
-        if (outcome != null && !outcome.isBlank()) {
-            sql.append(" AND outcome = ?");
-            args.add(outcome.trim().toUpperCase());
-        }
-        sql.append(" ORDER BY evaluated_at DESC LIMIT ?");
-        args.add(limit);
-        return jdbc.sql(sql.toString()).params(args)
+        SqlWhere where = new SqlWhere()
+                .when(memberId != null && !memberId.isBlank(), w -> w.eq(EvaluationLogColumn.MEMBER_ID, memberId))
+                .when(outcome != null && !outcome.isBlank(), w -> w.eq(EvaluationLogColumn.OUTCOME, outcome.trim().toUpperCase()));
+
+        String sql = "SELECT action_id, member_id, action_type, action_time, evaluated_at, outcome, results::text AS results FROM evaluation_log"
+                + where.sql() + SqlOrder.desc(EvaluationLogColumn.EVALUATED_AT).sql() + " LIMIT :limit";
+
+        return where.bind(jdbc.sql(sql))
+                .param("limit", limit)
                 .query((rs, n) -> new EvaluationRow(
                         rs.getString("action_id"), rs.getString("member_id"), rs.getString("action_type"),
                         rs.getTimestamp("action_time").toInstant(), rs.getTimestamp("evaluated_at").toInstant(),
