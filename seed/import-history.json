@@ -1,0 +1,35 @@
+{
+  "_note": "Storico degli import file (BO-32, F2-ING-02, docs/servizi/ingestion-service.md §6, docs/10 §8.2): due lavori conclusi le cui righe sono ingressi di inbound-history.json (stesso eventId e stesso esito), così il rapporto di BO-32 e il monitor ingressi (BO-26) raccontano la stessa storia; più una riga non leggibile per lavoro (INVALID, nessun ingresso). Data di caricamento e di fine, conteggi, codici e dettagli li calcola il seeder dalle righe di inbound_event; nessun file conservato, nessuna pubblicazione.",
+  "imports": [
+    {
+      "fileName": "ordini-ecommerce-ieri.csv",
+      "format": "CSV",
+      "source": "ecommerce",
+      "createdBy": "ADMIN:marta.admin",
+      "rows": [
+        {"eventId": "hist-ecom-0001", "status": "ACCEPTED"},
+        {"eventId": "hist-ecom-0001", "status": "DUPLICATE"},
+        {"eventId": "hist-ecom-0002", "status": "REJECTED"},
+        {"eventId": "hist-ecom-0003", "status": "REJECTED"},
+        {"eventId": "hist-ecom-0005", "status": "REJECTED"},
+        {"eventId": "hist-ecom-0006", "status": "REJECTED"},
+        {"eventId": "hist-ecom-0007", "status": "UNMATCHED"},
+        {"eventId": "hist-ecom-0008", "status": "UNMATCHED"},
+        {"invalid": "data.amount: atteso un numero"}
+      ]
+    },
+    {
+      "fileName": "iscrizioni-crm.ndjson",
+      "format": "NDJSON",
+      "source": "crm",
+      "createdBy": "CARE:paolo.care",
+      "rows": [
+        {"eventId": "hist-crm-0001", "status": "REJECTED"},
+        {"eventId": "hist-crm-0002", "status": "REJECTED"},
+        {"eventId": "hist-crm-0003", "status": "UNMATCHED"},
+        {"eventId": "hist-crm-0004", "status": "UNMATCHED"},
+        {"invalid": "JSON non valido"}
+      ]
+    }
+  ]
+}

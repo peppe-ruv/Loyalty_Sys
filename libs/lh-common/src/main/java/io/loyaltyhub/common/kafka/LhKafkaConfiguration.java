@@ -132,6 +132,10 @@ public class LhKafkaConfiguration {
         // un'altra eccezione, va subito in DLQ.
         handler.setBackOffFunction((record, ex) -> DlqRecords.retryable(DlqRecords.unwrap(ex))
                 ? retries : new SequenceBackOff(new long[0]));
+        // Un record recuperato in DLQ ha il suo offset confermato subito (ack MANUAL_IMMEDIATE): senza, l'offset resta
+        // fermo finché un record successivo della stessa partizione non è elaborato, e un ribilanciamento o un riavvio
+        // nel frattempo rifà l'intero ciclo e pubblica una seconda voce in DLQ (TB-PLT-DLK-010, -012, -013; ADR-008).
+        handler.setCommitRecovered(true);
         return handler;
     }
 

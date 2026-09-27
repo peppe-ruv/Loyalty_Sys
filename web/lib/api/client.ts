@@ -49,9 +49,11 @@ export async function lhFetch<T>(
   init?: RequestInit & { query?: Record<string, string | number | undefined> },
 ): Promise<T> {
   const { query, ...rest } = init ?? {};
+  // Un caricamento multipart (BO-32) lascia al browser il content-type con il boundary.
+  const multipart = typeof FormData !== "undefined" && rest.body instanceof FormData;
   const res = await fetch(url(service, path, query), {
     ...rest,
-    headers: { "content-type": "application/json", ...(rest.headers ?? {}) },
+    headers: multipart ? { ...(rest.headers ?? {}) } : { "content-type": "application/json", ...(rest.headers ?? {}) },
   });
   const text = await res.text();
   const body = text ? safeJson(text) : undefined;

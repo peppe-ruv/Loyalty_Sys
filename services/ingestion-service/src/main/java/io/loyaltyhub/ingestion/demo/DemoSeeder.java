@@ -44,11 +44,14 @@ public class DemoSeeder implements ApplicationRunner, DemoResettable {
     private final ScenarioRepository scenarios;
     private final ScenarioRunRepository scenarioRuns;
     private final InboundHistorySeeder inboundHistory;
+    private final ImportHistorySeeder importHistory;
 
     public DemoSeeder(SeedLoader seed, ObjectMapper mapper, SourceRepository sources,
                       EventTypeRepository types, MemberIndexRepository members,
                       InternalMappingRepository mappings, ScenarioRepository scenarios,
-                      ScenarioRunRepository scenarioRuns, InboundHistorySeeder inboundHistory) {
+                      ScenarioRunRepository scenarioRuns, InboundHistorySeeder inboundHistory,
+                      ImportHistorySeeder importHistory) {
+        this.importHistory = importHistory;
         this.seed = seed;
         this.mapper = mapper;
         this.sources = sources;
@@ -86,8 +89,10 @@ public class DemoSeeder implements ApplicationRunner, DemoResettable {
         seedScenarios();
         // Dopo fonti, tipi e indice membri: lo storico ne ricava membro e dettagli come la pipeline.
         int history = inboundHistory.reseed();
+        // Dopo lo storico del monitor: gli import demo (BO-32) citano le sue righe (docs/10 §8.2).
+        int importJobs = importHistory.reseed();
         log.info("Seed ingestion caricato (profilo demo): fonti, tipi azione, membri, ponte interno, scenari, "
-                + "{} ingressi di storico", history);
+                + "{} ingressi di storico, {} import", history, importJobs);
     }
 
     private void seedScenarios() {

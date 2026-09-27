@@ -26,7 +26,7 @@ Il PoC non ha login: **sono i dati a raccontare il prodotto**. Questo documento 
 | `wallets.json` | wallet | member (proiezione), campaign, reward (snapshot saldo/tier) |
 | `activity-history.json` | campaign | member (statistiche), gamification (progressi) |
 | `segments.json`, `attribute-definitions.json` | member | campaign, reward, engagement |
-| `sources.json`, `event-types.json`, `internal-mappings.json`, `scenarios.json`, `inbound-history.json` | ingestion | — |
+| `sources.json`, `event-types.json`, `internal-mappings.json`, `scenarios.json`, `inbound-history.json`, `import-history.json` | ingestion | — |
 | `campaigns.json` | campaign | — |
 | `tiers.json`, `currencies.json`, `editions.json` | wallet | campaign, reward, gamification (tier) |
 | `reward-categories.json`, `reward-bands.json`, `rewards.json`, `coupon-pools.json`, `redemptions.json` | reward | — |
@@ -204,6 +204,13 @@ Il flag `_poison` è onorato **solo** col profilo `demo` (campaign-service lanci
 - **REJECTED (14)**: ogni codice di rifiuto: `pos-legacy` sconosciuta (Q-129), tipi `ticket.opened`/`store.visit` inesistenti, tipo non ammesso dalla fonte, dati non validi (importo negativo, valuta mancante, voto 6, punteggio 120), istante fuori finestra, Roberto bloccato.
 - **UNMATCHED (10)**: clienti non ancora iscritti (`laura.conti@`, `pietro.sala@`, `CRM-131`, `CRM-142`, `MBR-000404`): da abbinare con *Abbina* o in automatico alla registrazione (F-ING-04).
 
+### 8.2 Storico degli import (`import-history.json`)
+Due lavori di import conclusi (ingestion §6, M8.7), **dove si vede**: BO-32 (elenco e rapporto pieni a demo appena accesa) e, per le righe, BO-26.
+- **`ordini-ecommerce-ieri.csv`** (fonte `ecommerce`, caricato da Marta): 9 righe — l'acquisto di Francesca accettato e il suo reinvio duplicato, quattro respinti (due con dati non validi, uno con istante fuori finestra, uno per membro non attivo), due non abbinati (`laura.conti@`, `MBR-000404`) e una riga non leggibile.
+- **`iscrizioni-crm.ndjson`** (fonte `crm`, caricato da Paolo): 5 righe — due respinti (tipo sconosciuto, tipo non ammesso), due iscrizioni alla newsletter non abbinate (`laura.conti@`, `pietro.sala@`) e una riga JSON non valida.
+
+Ogni riga con `eventId` è **lo stesso ingresso** di `inbound-history.json` (stesso id evento ed esito): il seeder ne riprende codice, dettaglio e riga del monitor, così *Riprova non abbinati* agisce sugli stessi `UNMATCHED` di BO-26 e i conteggi coincidono. Data di caricamento: due minuti prima del primo ingresso citato; nessun file conservato, nessuna pubblicazione.
+
 ## 9. Storico sintetico (`insight-synthetic.json`)
 Generatore con seme fisso per 90 giorni di `metric_daily` (`synthetic=true`): baseline per metrica (azioni/giorno 180 ± 25 %, PTS emessi 21.000, spesi 9.500, scaduti 600, richieste 14, giocate 95, vincite 11), stagionalità settimanale (+35 % sab–dom per gli acquisti), crescita lineare dei membri da 3.100 a 3.480, ripartizione per fonte (ecommerce 38 %, app 31 %, billing 14 %, crm 9 %, partner 8 %). I KPI "membri totali" del PoC sommano il sintetico ai 12 reali: l'origine è dichiarata in legenda.
 
@@ -222,3 +229,4 @@ Generatore con seme fisso per 90 giorni di `metric_daily` (`synthetic=true`): ba
 9. Nessuna stringa vietata (nomi di aziende reali, domini diversi da `example.org`).
 10. `event-types.json`: lo schema di `data` dei tipi con un contratto coincide con `contracts/events/action/<tipo>.schema.json` (precedenza 2); `sampleData` e passi di scenario non negativi hanno i campi obbligatori.
 11. `inbound-history.json` (storico di BO-26, ingestion §6): 40 righe `hist-*` degli ultimi 3 giorni con tutti gli esiti; gli `ACCEPTED` sono azioni di `activity-history.json` (stesso membro, tipo e istante) ammesse dalla fonte; i `DUPLICATE` reinviano un `ACCEPTED`; fonti, tipi e membri esistono salvo dove l'esito dichiara il contrario (`SOURCE_DISABLED`, `UNKNOWN_TYPE`, `UNMATCHED`).
+12. `import-history.json` (storico di BO-32, §8.2): formato `CSV`/`NDJSON`/`JSON`, fonte esistente, `createdBy` nella forma `RUOLO:username` con ruolo ADMIN o CARE; ogni riga è `{eventId, status}` di un ingresso di `inbound-history.json` della stessa fonte (usato una sola volta, i ripetuti in ordine) oppure `{invalid}` con il motivo; almeno una riga non accettata per lavoro.
