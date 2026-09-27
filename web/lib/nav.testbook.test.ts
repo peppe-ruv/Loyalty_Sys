@@ -34,6 +34,8 @@ const SPEC: { id: string; bo: string; group: string; label: string; href: string
   { id: "TB-WEB-NAV-026", bo: "BO-28", group: "Demo", label: "Simulatore eventi", href: "/backoffice/demo/simulator", m: 1 },
   { id: "TB-WEB-NAV-027", bo: "BO-29", group: "Demo", label: "Scenari", href: "/backoffice/demo/scenarios", m: 2 },
   { id: "TB-WEB-NAV-028", bo: "BO-30", group: "Demo", label: "Console demo", href: "/backoffice/demo/console", m: 1 },
+  // Fase 2 (docs/18 §5): BO-32 Import con M8.7.
+  { id: "TB-WEB-NAV-053", bo: "BO-32", group: "Osservabilità", label: "Import", href: "/backoffice/observe/imports", m: 8 },
 ];
 
 const findItem = (bo: string) => {
@@ -80,12 +82,14 @@ it("[TB-WEB-NAV-032] milestone 7 → tutte le 28 voci", () => {
   expect(ids(7)).toHaveLength(28);
 });
 
-it("[TB-WEB-NAV-033] milestone 8 (oltre l'ultima) → ancora le stesse 28 voci, nessuna in più", () => {
+it("[TB-WEB-NAV-033] milestone 8 (Fase 2, M8.7) → le 28 voci di Fase 1 più BO-32 Import: 29 voci", () => {
   expect(ids(8).sort()).toEqual(specIds(8));
+  expect(ids(8)).toHaveLength(29);
+  expect(ids(8)).toContain("BO-32");
 });
 
-it("[TB-WEB-NAV-034] sidebar di default (M1–M7 realizzate secondo docs/14) → tutte le 28 voci", () => {
-  expect(visibleNav().flatMap((g) => g.items.map((i) => i.id)).sort()).toEqual(specIds(7));
+it("[TB-WEB-NAV-034] sidebar di default (M1–M7 e M8.7 realizzate) → tutte le 29 voci", () => {
+  expect(visibleNav().flatMap((g) => g.items.map((i) => i.id)).sort()).toEqual(specIds(8));
 });
 
 // Voce attiva (docs/08 §1 "voce attiva con barra teal").

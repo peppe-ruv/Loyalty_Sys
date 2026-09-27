@@ -190,7 +190,8 @@ BO-08 — *Anteprima chiusura* senza gate, *Applica chiusura* dentro `program.co
 **Regole**
 - R1 (docs/08 §1, tabella) ogni voce ha gruppo, etichetta, ID, route e milestone (BO-03 e BO-06 sono pagine di dettaglio).
 - R2 (docs/08 §1) una voce la cui milestone non è realizzata **non compare** (mai pagine "in arrivo"); i gruppi vuoti
-  spariscono; docs/14: M1–M7 completate.
+  spariscono; docs/14: M1–M7 completate; in Fase 2 le voci M8 compaiono con la loro fetta (BO-32 *Import* con M8.7,
+  `REALIZED_MILESTONE = 8`).
 - R3 (docs/08 §1) voce attiva con barra teal: le sottopagine accendono la voce del loro elenco.
 - R4 (docs/08 §1) contatori su *Approvazioni* (oggetti `IN_REVIEW`), *Richieste premio* (da evadere + `needsAttention`),
   *DLQ* (`NEW`, API `OPEN` per Q-105).
@@ -204,7 +205,7 @@ BO-08 — *Anteprima chiusura* senza gate, *Applica chiusura* dentro `program.co
 | percorso | route esatta, sottopagina, prefisso più lungo, radice, percorso sconosciuto, prefisso senza «/», portale, voce non realizzata |
 | ruolo | i 5 ruoli |
 
-**Strategia**: una riga per voce della tabella di docs/08 §1 (28); valori limite della milestone (5 + default);
+**Strategia**: una riga per voce della tabella di docs/08 §1 (28 di Fase 1 + BO-32); valori limite della milestone (5 + default);
 classi del percorso (10); un caso per contatore (3); un caso per ruolo (5).
 
 **Rami del codice** (`lib/nav.ts`, `components/bo/NavLinks.tsx`): filtro per milestone (R2); gruppo vuoto tolto (R2);
@@ -246,8 +247,8 @@ Ramo senza specifica: un percorso `/backoffice/<qualunque>` senza voce propria a
 | TB-WEB-NAV-030 | milestone 1 | solo le 6 voci M1, i gruppi senza voci non compaiono | docs/08 §1 | `web/lib/nav.testbook.test.ts` |
 | TB-WEB-NAV-031 | milestone 6 (M7 − 1) | BO-21, BO-23, BO-27 assenti | docs/08 §1 | `web/lib/nav.testbook.test.ts` |
 | TB-WEB-NAV-032 | milestone 7 | tutte le 28 voci | docs/08 §1 | `web/lib/nav.testbook.test.ts` |
-| TB-WEB-NAV-033 | milestone 8 (oltre l'ultima) | ancora le stesse 28 voci, nessuna in più | docs/08 §1 | `web/lib/nav.testbook.test.ts` |
-| TB-WEB-NAV-034 | sidebar di default (M1–M7 realizzate secondo docs/14) | tutte le 28 voci | docs/08 §1 | `web/lib/nav.testbook.test.ts` |
+| TB-WEB-NAV-033 | milestone 8 (Fase 2, M8.7) | le 28 voci di Fase 1 più BO-32 *Import*: 29 voci | docs/08 §1 · docs/18 §5 | `web/lib/nav.testbook.test.ts` |
+| TB-WEB-NAV-034 | sidebar di default (M1–M7 e M8.7 realizzate) | tutte le 29 voci | docs/08 §1 | `web/lib/nav.testbook.test.ts` |
 | TB-WEB-NAV-035 | voce attiva per /backoffice/members (route esatta) | /backoffice/members | docs/08 §1 (voce attiva) | `web/lib/nav.testbook.test.ts` |
 | TB-WEB-NAV-036 | voce attiva per /backoffice/members/MBR-000002 (dettaglio BO-03 accende Membri) | /backoffice/members | docs/08 §1 (voce attiva) | `web/lib/nav.testbook.test.ts` |
 | TB-WEB-NAV-037 | voce attiva per /backoffice/rewards/bands (prefisso più lungo: Fasce, non Catalogo) | /backoffice/rewards/bands | docs/08 §1 (voce attiva) | `web/lib/nav.testbook.test.ts` |
@@ -261,11 +262,12 @@ Ramo senza specifica: un percorso `/backoffice/<qualunque>` senza voce propria a
 | TB-WEB-NAV-045 | contatore su Approvazioni (BO-21, oggetti IN_REVIEW) | ~~DIVERGENZA~~ risolta (§22) — contatore presente su *Approvazioni* | docs/08 §1 (contatori) | `web/lib/nav.testbook.test.ts` |
 | TB-WEB-NAV-046 | contatore su Richieste premio (BO-13) | contatore `redemptions` (da evadere + `needsAttention`) | docs/08 §1 (contatori) | `web/lib/nav.testbook.test.ts` |
 | TB-WEB-NAV-047 | contatore su DLQ (BO-27) | contatore `dlq` (voci nuove) | docs/08 §1 (contatori) · Q-105 | `web/lib/nav.testbook.test.ts` |
-| TB-WEB-NAV-048 | sidebar per ADMIN | 28 voci, tutte le schermate in lettura | docs/08 §2 («tutte le personas leggono tutto») · §1 | `web/components/bo/NavLinks.testbook.test.tsx` |
-| TB-WEB-NAV-049 | sidebar per MARKETING | 28 voci, tutte le schermate in lettura | docs/08 §2 («tutte le personas leggono tutto») · §1 | `web/components/bo/NavLinks.testbook.test.tsx` |
-| TB-WEB-NAV-050 | sidebar per LEGAL | 28 voci, tutte le schermate in lettura | docs/08 §2 («tutte le personas leggono tutto») · §1 | `web/components/bo/NavLinks.testbook.test.tsx` |
-| TB-WEB-NAV-051 | sidebar per CARE | 28 voci, tutte le schermate in lettura | docs/08 §2 («tutte le personas leggono tutto») · §1 | `web/components/bo/NavLinks.testbook.test.tsx` |
-| TB-WEB-NAV-052 | sidebar per ANALYST | 28 voci, tutte le schermate in lettura | docs/08 §2 («tutte le personas leggono tutto») · §1 | `web/components/bo/NavLinks.testbook.test.tsx` |
+| TB-WEB-NAV-048 | sidebar per ADMIN | 29 voci, tutte le schermate in lettura | docs/08 §2 («tutte le personas leggono tutto») · §1 | `web/components/bo/NavLinks.testbook.test.tsx` |
+| TB-WEB-NAV-049 | sidebar per MARKETING | 29 voci, tutte le schermate in lettura | docs/08 §2 («tutte le personas leggono tutto») · §1 | `web/components/bo/NavLinks.testbook.test.tsx` |
+| TB-WEB-NAV-050 | sidebar per LEGAL | 29 voci, tutte le schermate in lettura | docs/08 §2 («tutte le personas leggono tutto») · §1 | `web/components/bo/NavLinks.testbook.test.tsx` |
+| TB-WEB-NAV-051 | sidebar per CARE | 29 voci, tutte le schermate in lettura | docs/08 §2 («tutte le personas leggono tutto») · §1 | `web/components/bo/NavLinks.testbook.test.tsx` |
+| TB-WEB-NAV-052 | sidebar per ANALYST | 29 voci, tutte le schermate in lettura | docs/08 §2 («tutte le personas leggono tutto») · §1 | `web/components/bo/NavLinks.testbook.test.tsx` |
+| TB-WEB-NAV-053 | voce BO-32 | gruppo «Osservabilità», etichetta «Import», route /backoffice/observe/imports, milestone M8 | docs/08 §1 · docs/18 §5 (M8.7) | `web/lib/nav.testbook.test.ts` |
 
 
 ## 4. PERS — Identità simulata (cookie `lh_persona`, `X-LH-Actor`)

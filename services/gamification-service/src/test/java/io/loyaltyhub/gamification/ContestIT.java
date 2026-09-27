@@ -112,21 +112,43 @@ class ContestIT {
         long claimedTotal = claimed.path("page").path("totalItems").asLong();
         assertThat(claimedTotal).isEqualTo(142);
 
+        // Verifica che minuscolo corrisponda al maiuscolo
+        JsonNode claimedLower = send("GET", path + "?status=claimed&size=200", "LEGAL:elena", null, 200);
+        assertThat(claimedLower.path("page").path("totalItems").asLong()).isEqualTo(142);
+
         String firstPrizeId = all.path("items").get(0).path("prizeId").asString();
         JsonNode byPrize = send("GET", path + "?prizeId=" + firstPrizeId + "&size=200", "LEGAL:elena", null, 200);
         long byPrizeTotal = byPrize.path("page").path("totalItems").asLong();
         assertThat(byPrizeTotal).isGreaterThan(0).isLessThan(total);
 
+        long expectedByBoth = 0;
+        for (JsonNode item : send("GET", path + "?size=2000", "LEGAL:elena", null, 200).path("items")) {
+            if (item.path("prizeId").asString().equals(firstPrizeId) && "CLAIMED".equals(item.path("status").asString())) {
+                expectedByBoth++;
+            }
+        }
+
         JsonNode byBoth = send("GET", path + "?status=CLAIMED&prizeId=" + firstPrizeId + "&size=200", "LEGAL:elena", null, 200);
         long byBothTotal = byBoth.path("page").path("totalItems").asLong();
         assertThat(byBothTotal).isGreaterThanOrEqualTo(0).isLessThanOrEqualTo(byPrizeTotal);
 
-        // Verify SQL injection is prevented on filters
-        assertThat(send("GET", path + "?status=OPEN' OR '1'='1", "LEGAL:elena", null, 200).path("page").path("totalItems").asLong()).isEqualTo(0);
-        assertThat(send("GET", path + "?prizeId='; DROP TABLE winning_instant", "LEGAL:elena", null, 200).path("page").path("totalItems").asLong()).isEqualTo(0);
+        // Verifica ordinamento (instantAt, id) e paginazione indipendente
+        JsonNode page0 = send("GET", path + "?size=10&page=0", "LEGAL:elena", null, 200);
+        JsonNode page1 = send("GET", path + "?size=10&page=1", "LEGAL:elena", null, 200);
+        assertThat(page0.path("page").path("totalItems").asLong()).isEqualTo(total);
+        assertThat(page1.path("page").path("totalItems").asLong()).isEqualTo(total);
+        String lastItemPage0 = page0.path("items").get(9).path("id").asString();
+        String firstItemPage1 = page1.path("items").get(0).path("id").asString();
+        assertThat(lastItemPage0).isNotEqualTo(firstItemPage1);
+
+        // Verifica che tentativi di SQL injection siano trattati come valori
+        assertThat(send("GET", path + "?status=OPEN%27%20OR%20%271%27=%271", "LEGAL:elena", null, 200).path("page").path("totalItems").asLong()).isEqualTo(0);
+        assertThat(send("GET", path + "?prizeId=%27;%20DROP%20TABLE%20winning_instant", "LEGAL:elena", null, 200).path("page").path("totalItems").asLong()).isEqualTo(0);
+
+        // Verifica che la tabella esista ancora e non sia filtrata
+        assertThat(send("GET", path + "?size=200", "LEGAL:elena", null, 200).path("page").path("totalItems").asLong()).isEqualTo(total);
     }
 
-    @Test
     void instantsTableIsReservedToAdminAndLegal() {
         String path = "/v1/contests/IW-AUTUNNO/instants";
         assertThat(status("GET", path, "MARKETING:luca", null)).isEqualTo(403);

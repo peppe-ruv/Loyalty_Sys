@@ -43,6 +43,7 @@ const MATRIX: Record<Capability, Role[]> = {
   // Cassa simulata di BO-12: ogni ruolo operativo. `coupon.void` come redemption.handle (SPEC-GAP: Q-52).
   "coupon.use": ["ADMIN", "MARKETING", "LEGAL", "CARE"],
   "coupon.void": ["ADMIN", "CARE"],
+  // BO-26 riprova / abbina; BO-32 carica un import e riprova i suoi non abbinati (SPEC-GAP: Q-372).
   "inbound.handle": ["ADMIN", "CARE"],
   // BO-27 riprocessa / scarta (docs/08 §2, insight §3: ruolo ADMIN).
   "dlq.handle": ["ADMIN"],

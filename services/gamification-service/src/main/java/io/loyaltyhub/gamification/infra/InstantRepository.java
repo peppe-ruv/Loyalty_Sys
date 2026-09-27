@@ -27,6 +27,7 @@ public class InstantRepository {
     public record DayCount(LocalDate day, long total, long open, long claimed, long voided) {
     }
 
+    /** Colonne ammesse nei filtri degli istanti (regola 19, ADR-042). */
     enum InstantColumn implements SqlColumn {
         CONTEST_ID("w.contest_id"), STATUS("w.status"), PRIZE_ID("w.prize_id");
 
@@ -67,20 +68,21 @@ public class InstantRepository {
                 .update();
     }
 
-    public long count(String contestId, String status, String prizeId) {
-        SqlWhere where = new SqlWhere()
+    private static SqlWhere filters(String contestId, String status, String prizeId) {
+        return new SqlWhere()
                 .eq(InstantColumn.CONTEST_ID, contestId)
                 .when(status != null && !status.isBlank(), w -> w.eq(InstantColumn.STATUS, status.toUpperCase()))
                 .when(prizeId != null && !prizeId.isBlank(), w -> w.eq(InstantColumn.PRIZE_ID, prizeId));
+    }
+
+    public long count(String contestId, String status, String prizeId) {
+        SqlWhere where = filters(contestId, status, prizeId);
         return where.bind(jdbc.sql("SELECT count(*) FROM winning_instant w" + where.sql()))
                 .query(Long.class).single();
     }
 
     public List<InstantRow> search(String contestId, String status, String prizeId, int page, int size) {
-        SqlWhere where = new SqlWhere()
-                .eq(InstantColumn.CONTEST_ID, contestId)
-                .when(status != null && !status.isBlank(), w -> w.eq(InstantColumn.STATUS, status.toUpperCase()))
-                .when(prizeId != null && !prizeId.isBlank(), w -> w.eq(InstantColumn.PRIZE_ID, prizeId));
+        SqlWhere where = filters(contestId, status, prizeId);
         String sql = """
                 SELECT w.id, w.prize_id, p.code AS prize_code, p.name AS prize_name, w.instant_at, w.status, w.claimed_by,
                   w.claimed_at, w.play_id, w.planted
