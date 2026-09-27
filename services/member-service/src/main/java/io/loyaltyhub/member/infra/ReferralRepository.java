@@ -1,5 +1,8 @@
 package io.loyaltyhub.member.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlOrder;
+import io.loyaltyhub.common.sql.SqlWhere;
 import io.loyaltyhub.member.api.ReferralViews.ReferralLink;
 import io.loyaltyhub.member.api.ReferralViews.TopReferrer;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -73,7 +76,7 @@ public class ReferralRepository {
                 .list();
     }
 
-    enum ReferralColumn implements io.loyaltyhub.common.sql.SqlColumn {
+    enum ReferralColumn implements SqlColumn {
         REGISTERED_AT("e.registered_at"), ID("e.id"), REFERRED_BY("e.referred_by");
 
         private final String sql;
@@ -88,8 +91,8 @@ public class ReferralRepository {
         }
     }
 
-    private static final String DEFAULT_ORDER = io.loyaltyhub.common.sql.SqlOrder.desc(ReferralColumn.REGISTERED_AT)
-            .by(ReferralColumn.ID, io.loyaltyhub.common.sql.SqlOrder.Direction.DESC).sql();
+    private static final String DEFAULT_ORDER = SqlOrder.desc(ReferralColumn.REGISTERED_AT)
+            .by(ReferralColumn.ID, SqlOrder.Direction.DESC).sql();
 
     /** Legami più recenti (per registrazione dell'invitato), per la tabella di BO-17. */
     public List<ReferralLink> recentLinks(int limit) {
@@ -99,7 +102,7 @@ public class ReferralRepository {
 
     /** Invitati di un membro, dal più recente. */
     public List<ReferralLink> invitedBy(String referrerId) {
-        io.loyaltyhub.common.sql.SqlWhere where = new io.loyaltyhub.common.sql.SqlWhere()
+        SqlWhere where = new SqlWhere()
                 .eq(ReferralColumn.REFERRED_BY, referrerId);
         return where.bind(jdbc.sql(LINK_SELECT + where.sql() + DEFAULT_ORDER))
                 .query(ReferralRepository::mapLink).list();

@@ -1,5 +1,7 @@
 package io.loyaltyhub.member.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlWhere;
 import io.loyaltyhub.member.domain.Member;
 import io.loyaltyhub.member.domain.MemberStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -9,10 +11,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDate;
-import io.loyaltyhub.common.sql.SqlColumn;
-import io.loyaltyhub.common.sql.SqlWhere;
-
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -183,36 +181,35 @@ public class MemberRepository {
     /** Elenco filtrato anche per segmento (codice o id, docs §3 "filtri … segment"). */
     public List<Member> search(String q, MemberStatus status, String tier, String segment, int limit, int offset) {
         SqlWhere where = buildWhere(q, status, tier);
-        String sql = "SELECT m.* FROM member m LEFT JOIN member_projection p ON p.member_id = m.id" + where.sql();
-        sql = appendSegment(sql, segment);
+        String sql = "SELECT m.* FROM member m LEFT JOIN member_projection p ON p.member_id = m.id" + where.sql() + segmentSql(segment, where);
         sql += " ORDER BY m.id LIMIT :limit OFFSET :offset";
-        var spec = where.bind(jdbc.sql(sql))
+        return bindSegment(where.bind(jdbc.sql(sql)), segment)
                 .param("limit", limit)
-                .param("offset", offset);
-        if (segment != null && !segment.isBlank()) {
-            spec.param("segment", segment.trim());
-        }
-        return spec.query(MemberRepository::map).list();
+                .param("offset", offset)
+                .query(MemberRepository::map).list();
     }
 
     public long count(String q, MemberStatus status, String tier, String segment) {
         SqlWhere where = buildWhere(q, status, tier);
-        String sql = "SELECT count(*) FROM member m LEFT JOIN member_projection p ON p.member_id = m.id" + where.sql();
-        sql = appendSegment(sql, segment);
-        var spec = where.bind(jdbc.sql(sql));
-        if (segment != null && !segment.isBlank()) {
-            spec.param("segment", segment.trim());
-        }
-        return spec.query(Long.class).single();
+        String sql = "SELECT count(*) FROM member m LEFT JOIN member_projection p ON p.member_id = m.id" + where.sql() + segmentSql(segment, where);
+        return bindSegment(where.bind(jdbc.sql(sql)), segment)
+                .query(Long.class).single();
     }
 
-    private String appendSegment(String sql, String segment) {
+    private String segmentSql(String segment, SqlWhere where) {
         if (segment != null && !segment.isBlank()) {
-            String and = sql.contains(" WHERE ") ? " AND " : " WHERE ";
-            return sql + and + "EXISTS (SELECT 1 FROM segment_member sm JOIN segment s ON s.id = sm.segment_id"
+            String and = where.isEmpty() ? " WHERE " : " AND ";
+            return and + "EXISTS (SELECT 1 FROM segment_member sm JOIN segment s ON s.id = sm.segment_id"
                     + " WHERE sm.member_id = m.id AND (s.code = :segment OR s.id = :segment))";
         }
-        return sql;
+        return "";
+    }
+
+    private JdbcClient.StatementSpec bindSegment(JdbcClient.StatementSpec spec, String segment) {
+        if (segment != null && !segment.isBlank()) {
+            return spec.param("segment", segment.trim());
+        }
+        return spec;
     }
 
     private SqlWhere buildWhere(String q, MemberStatus status, String tier) {

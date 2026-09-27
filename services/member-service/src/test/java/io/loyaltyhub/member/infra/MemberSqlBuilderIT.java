@@ -2,86 +2,76 @@ package io.loyaltyhub.member.infra;
 
 import io.loyaltyhub.member.domain.Member;
 import io.loyaltyhub.member.domain.MemberStatus;
-import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.test.context.EmbeddedKafka;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@EmbeddedKafka(partitions = 1, topics = {"lh.actions.v1", "lh.effects.v1", "lh.facts.v1", "lh.audit.v1", "lh.dlq.v1"})
+@ActiveProfiles("demo")
 class MemberSqlBuilderIT {
 
-    private static EmbeddedPostgres pg;
-    private static JdbcClient jdbc;
-    private static MemberRepository repo;
+    private static final EmbeddedPostgres PG = startPg();
 
-    @BeforeAll
-    static void setUp() throws Exception {
-        pg = EmbeddedPostgres.builder().start();
-        jdbc = JdbcClient.create(pg.getPostgresDatabase());
-        repo = new MemberRepository(jdbc);
+    @Autowired
+    private MemberRepository repo;
 
-        jdbc.sql("""
-                CREATE SCHEMA IF NOT EXISTS member;
-                """).update();
-        jdbc.sql("SET search_path TO member;").update();
-        jdbc.sql("""
-                CREATE TABLE member (
-                    id text PRIMARY KEY,
-                    external_id text,
-                    first_name text,
-                    last_name text,
-                    nickname text,
-                    email text,
-                    phone text,
-                    birth_date date,
-                    gender text,
-                    city text,
-                    status text,
-                    channel text,
-                    registered_at timestamp,
-                    referral_code text,
-                    referred_by text,
-                    referral_completed_at timestamp,
-                    consents jsonb,
-                    attributes jsonb,
-                    labels text[],
-                    avatar_seed text,
-                    profile_completed_at timestamp,
-                    version bigint
-                );
-                CREATE TABLE member_projection (
-                    member_id text PRIMARY KEY,
-                    tier_code text
-                );
-                CREATE TABLE segment (
-                    id text PRIMARY KEY,
-                    code text
-                );
-                CREATE TABLE segment_member (
-                    segment_id text,
-                    member_id text
-                );
-                """).update();
+    @Autowired
+    private SegmentRepository segmentRepo;
 
-        // Insert dummy data
-        jdbc.sql("INSERT INTO member (id, first_name, email, status) VALUES ('MBR-01', 'Alice', 'alice@test.com', 'ACTIVE')").update();
-        jdbc.sql("INSERT INTO member_projection (member_id, tier_code) VALUES ('MBR-01', 'GOLD')").update();
+    @Autowired
+    private JdbcClient jdbc;
 
-        jdbc.sql("INSERT INTO member (id, first_name, email, status) VALUES ('MBR-02', 'Bob', 'bob@test.com', 'INACTIVE')").update();
-        jdbc.sql("INSERT INTO member_projection (member_id, tier_code) VALUES ('MBR-02', 'BASE')").update();
-
-        jdbc.sql("INSERT INTO member (id, first_name, email, status) VALUES ('MBR-03', 'Eve', 'eve@test.com', 'ACTIVE')").update();
+    @DynamicPropertySource
+    static void properties(DynamicPropertyRegistry registry) {
+        String base = PG.getJdbcUrl("postgres", "postgres");
+        registry.add("spring.datasource.url", () -> base + "&currentSchema=member");
+        registry.add("spring.datasource.username", () -> "postgres");
+        registry.add("spring.datasource.password", () -> "");
+        registry.add("spring.kafka.bootstrap-servers", () -> System.getProperty("spring.embedded.kafka.brokers"));
     }
 
-    @AfterAll
-    static void tearDown() throws Exception {
-        if (pg != null) {
-            pg.close();
+    private static EmbeddedPostgres startPg() {
+        try {
+            return EmbeddedPostgres.builder().start();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
+    }
+
+    @BeforeEach
+    void setUp() {
+        // Clear tables
+        jdbc.sql("DELETE FROM segment_member").update();
+        jdbc.sql("DELETE FROM member_projection").update();
+        jdbc.sql("DELETE FROM member_stats").update();
+        jdbc.sql("DELETE FROM member_activity_day").update();
+        repo.deleteAll();
+        segmentRepo.deleteAll();
+
+        // Insert dummy data
+        jdbc.sql("INSERT INTO member (id, first_name, last_name, nickname, email, status, version) VALUES ('MBR-01', 'Alice', 'Smith', 'Ally', 'alice@test.com', 'ACTIVE', 0)").update();
+        jdbc.sql("INSERT INTO member_projection (member_id, tier_code) VALUES ('MBR-01', 'GOLD') ON CONFLICT DO NOTHING").update();
+
+        jdbc.sql("INSERT INTO member (id, first_name, last_name, nickname, email, status, version) VALUES ('MBR-02', 'Bob', 'Jones', 'Bobby', 'bob_100%_real@test.com', 'INACTIVE', 0)").update();
+        jdbc.sql("INSERT INTO member_projection (member_id, tier_code) VALUES ('MBR-02', 'BASE') ON CONFLICT DO NOTHING").update();
+
+        jdbc.sql("INSERT INTO member (id, first_name, last_name, nickname, email, status, version) VALUES ('MBR-03', 'Eve', 'Brown', 'Evie', 'eve@test.com', 'ACTIVE', 0)").update();
+
+        jdbc.sql("INSERT INTO segment (id, code, name, type, status, member_count, version) VALUES ('SEG-01', 'GOLDEN', 'Golden members', 'STATIC', 'ACTIVE', 0, 0)").update();
+        jdbc.sql("INSERT INTO segment_member (segment_id, member_id) VALUES ('SEG-01', 'MBR-01')").update();
+        jdbc.sql("INSERT INTO segment_member (segment_id, member_id) VALUES ('SEG-01', 'MBR-03')").update();
     }
 
     @Test
@@ -92,11 +82,31 @@ class MemberSqlBuilderIT {
         List<Member> active = repo.search(null, MemberStatus.ACTIVE, null, null, 10, 0);
         assertThat(active).hasSize(2).extracting(Member::id).containsExactly("MBR-01", "MBR-03");
 
-        List<Member> gold = repo.search(null, null, "GOLD", null, 10, 0);
+        List<Member> gold = repo.search(null, null, " GOLD ", null, 10, 0);
         assertThat(gold).hasSize(1).extracting(Member::id).containsExactly("MBR-01");
 
-        List<Member> matchAlice = repo.search("alice", null, null, null, 10, 0);
-        assertThat(matchAlice).hasSize(1).extracting(Member::id).containsExactly("MBR-01");
+        // Literal match of '%' and '_' test
+        List<Member> matchBob = repo.search("100%_real", null, null, null, 10, 0);
+        assertThat(matchBob).hasSize(1).extracting(Member::id).containsExactly("MBR-02");
+
+        // Should NOT match everything by accident due to % being escaped
+        List<Member> matchNothing = repo.search("%", null, null, null, 10, 0);
+        assertThat(matchNothing).hasSize(1).extracting(Member::id).containsExactly("MBR-02");
+
+        List<Member> matchSegment = repo.search(null, null, null, "GOLDEN", 10, 0);
+        assertThat(matchSegment).hasSize(2).extracting(Member::id).containsExactly("MBR-01", "MBR-03");
+
+        List<Member> matchAllCombos = repo.search("alice", MemberStatus.ACTIVE, "GOLD", "GOLDEN", 10, 0);
+        assertThat(matchAllCombos).hasSize(1).extracting(Member::id).containsExactly("MBR-01");
+    }
+
+    @Test
+    void paginationWorksCorrectly() {
+        List<Member> page1 = repo.search(null, null, null, null, 2, 0);
+        assertThat(page1).hasSize(2).extracting(Member::id).containsExactly("MBR-01", "MBR-02");
+
+        List<Member> page2 = repo.search(null, null, null, null, 2, 2);
+        assertThat(page2).hasSize(1).extracting(Member::id).containsExactly("MBR-03");
     }
 
     @Test
@@ -109,14 +119,25 @@ class MemberSqlBuilderIT {
 
         long gold = repo.count(null, null, "GOLD", null);
         assertThat(gold).isEqualTo(1);
+
+        long segmentCount = repo.count("alice", MemberStatus.ACTIVE, "GOLD", "GOLDEN");
+        assertThat(segmentCount).isEqualTo(1);
     }
 
     @Test
     void sqlInjectionAttemptOnSearch() {
         // sql injection attempt via `q` string using ilike match
-        String maliciousQuery = "id; DROP TABLE member";
+        String maliciousQuery = "x' OR '1'='1";
         List<Member> result = repo.search(maliciousQuery, null, null, null, 10, 0);
         assertThat(result).isEmpty();
+
+        // sql injection attempt via tier
+        List<Member> resultTier = repo.search(null, null, "x' OR '1'='1", null, 10, 0);
+        assertThat(resultTier).isEmpty();
+
+        // sql injection attempt via segment
+        List<Member> resultSegment = repo.search(null, null, null, "x' OR '1'='1", 10, 0);
+        assertThat(resultSegment).isEmpty();
 
         // ensure the table is still alive
         assertThat(repo.count(null, null, null, null)).isEqualTo(3);

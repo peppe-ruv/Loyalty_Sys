@@ -1,5 +1,8 @@
 package io.loyaltyhub.member.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlOrder;
+import io.loyaltyhub.common.sql.SqlWhere;
 import io.loyaltyhub.member.domain.Segment;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -10,11 +13,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import io.loyaltyhub.common.sql.SqlColumn;
-import io.loyaltyhub.common.sql.SqlOrder;
-import io.loyaltyhub.common.sql.SqlWhere;
-
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;

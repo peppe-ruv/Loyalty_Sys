@@ -430,31 +430,14 @@ class TestbookPltRelayIT {
         broker.addTopics(topic);
         String key = "MBR-DLQ-" + SEQ.incrementAndGet() + "-" + System.nanoTime();
         String group = "lh-tb-" + SEQ.incrementAndGet();
-        LoyaltyHubProperties p = new LoyaltyHubProperties();
-        p.setService("tb");
-        p.getConsumer().setRetryBackoffMs(java.util.Arrays.stream(backoffs.split(" ")).mapToLong(Long::parseLong).toArray());
-        LhKafkaConfiguration cfg = new LhKafkaConfiguration(p, bootstrap);
+        LhKafkaConfiguration cfg = dlqConfiguration(backoffs);
         KafkaTemplate<String, String> dlqTemplate = cfg.kafkaTemplate(cfg.lhProducerFactory());
-        @SuppressWarnings("unchecked")
-        ConcurrentKafkaListenerContainerFactory<String, String> factory =
-                (ConcurrentKafkaListenerContainerFactory<String, String>) cfg.lhKafkaListenerContainerFactory(
-                        cfg.lhConsumerFactory(), cfg.lhErrorHandler(dlqTemplate, new LhMetrics(new SimpleMeterRegistry())), true);
-        ConcurrentMessageListenerContainer<String, String> container = factory.createContainer(topic);
-        container.getContainerProperties().setGroupId(group);
-        Map<String, AtomicInteger> invocations = new HashMap<>();
+        Map<String, AtomicInteger> invocations = new java.util.concurrent.ConcurrentHashMap<>();
         List<String> processed = java.util.Collections.synchronizedList(new ArrayList<>());
-        container.setupMessageListener((AcknowledgingMessageListener<String, String>) (record, ack) -> {
-            int n = invocations.computeIfAbsent(record.value(), k -> new AtomicInteger()).incrementAndGet();
-            if (record.value().startsWith("poison") && n <= failures) {
-                throw failure(error);
-            }
-            processed.add(record.value());
-            ack.acknowledge();
-        });
+        ConcurrentMessageListenerContainer<String, String> container =
+                dlqContainer(cfg, dlqTemplate, topic, group, error, failures, invocations, processed);
         container.start();
-        // Due consumer (concurrency 2) su due partizioni: se si invia prima che entrambi siano nel gruppo, il secondo
-        // ingresso ribilancia a metà dei ritentativi e il messaggio velenoso rifà l'intero ciclo (DLQ doppia).
-        org.springframework.kafka.test.utils.ContainerTestUtils.waitForAssignment(container, 2);
+        awaitStableAssignment(container);
         try {
             template.send(new ProducerRecord<>(topic, null, key, "poison", List.of(
                     new org.apache.kafka.common.header.internals.RecordHeader(LhHeaders.TYPE,
@@ -482,6 +465,99 @@ class TestbookPltRelayIT {
             container.stop();
             dlqTemplate.destroy();
         }
+    }
+
+    /**
+     * Un record velenoso già finito in DLQ non ci torna quando la sua partizione passa di mano (riavvio del consumer o
+     * ribilanciamento del gruppo) prima che un record successivo sposti l'offset: l'offset del record recuperato è
+     * confermato subito dopo la pubblicazione in DLQ (ADR-008, docs/04 §5). Il velenoso è l'ultimo della partizione
+     * quando il consumer si ferma; il successivo arriva solo dopo il riavvio.
+     */
+    @ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)
+    @CsvFileSource(resources = "/testbook/plt/dlq-kafka-riavvio.csv", numLinesToSkip = 1)
+    void dlqAfterRestart(String id, String description, String error, String backoffs, String expected) throws Exception {
+        String topic = "tb.plt.dlq." + SEQ.incrementAndGet();
+        broker.addTopics(topic);
+        String key = "MBR-DLQ-" + SEQ.incrementAndGet() + "-" + System.nanoTime();
+        String group = "lh-tb-" + SEQ.incrementAndGet();
+        LhKafkaConfiguration cfg = dlqConfiguration(backoffs);
+        KafkaTemplate<String, String> dlqTemplate = cfg.kafkaTemplate(cfg.lhProducerFactory());
+        Map<String, AtomicInteger> invocations = new java.util.concurrent.ConcurrentHashMap<>();
+        List<String> processed = java.util.Collections.synchronizedList(new ArrayList<>());
+        ConcurrentMessageListenerContainer<String, String> container =
+                dlqContainer(cfg, dlqTemplate, topic, group, error, 99, invocations, processed);
+        container.start();
+        awaitStableAssignment(container);
+        try {
+            template.send(topic, key, "poison").get();
+            List<ConsumerRecord<String, String>> before = pollAll(DLQ, key, 1, Duration.ofSeconds(20));
+            String got = "prima: invocazioni=" + invocations.getOrDefault("poison", new AtomicInteger()).get()
+                    + " dlq=" + before.size();
+            // La partizione passa di mano: il gruppo si svuota e si ricompone, come in un rilascio o in un ribilanciamento.
+            container.stop();
+            container.start();
+            awaitStableAssignment(container);
+            template.send(topic, key, "next").get();
+            long deadline = System.currentTimeMillis() + 20_000;
+            while (!processed.contains("next") && System.currentTimeMillis() < deadline) {
+                pause(50);
+            }
+            List<ConsumerRecord<String, String>> after = pollAll(DLQ, key, 1, Duration.ofSeconds(5));
+            got += " dopo il riavvio: invocazioni=" + invocations.getOrDefault("poison", new AtomicInteger()).get()
+                    + " dlq=" + after.size() + " successivo=" + (processed.contains("next") ? "elaborato" : "fermo");
+            assertThat(got).as("%s: %s", id, description).isEqualTo(expected);
+        } finally {
+            container.stop();
+            dlqTemplate.destroy();
+        }
+    }
+
+    private LhKafkaConfiguration dlqConfiguration(String backoffs) {
+        LoyaltyHubProperties p = new LoyaltyHubProperties();
+        p.setService("tb");
+        p.getConsumer().setRetryBackoffMs(java.util.Arrays.stream(backoffs.split(" ")).mapToLong(Long::parseLong).toArray());
+        return new LhKafkaConfiguration(p, bootstrap);
+    }
+
+    /** Il contenitore vero di lh-common (concorrenza 2, ack manuale, error handler con DLQ) con un listener di prova. */
+    private ConcurrentMessageListenerContainer<String, String> dlqContainer(LhKafkaConfiguration cfg,
+            KafkaTemplate<String, String> dlqTemplate, String topic, String group, String error, int failures,
+            Map<String, AtomicInteger> invocations, List<String> processed) {
+        @SuppressWarnings("unchecked")
+        ConcurrentKafkaListenerContainerFactory<String, String> factory =
+                (ConcurrentKafkaListenerContainerFactory<String, String>) cfg.lhKafkaListenerContainerFactory(
+                        cfg.lhConsumerFactory(), cfg.lhErrorHandler(dlqTemplate, new LhMetrics(new SimpleMeterRegistry())), true);
+        ConcurrentMessageListenerContainer<String, String> container = factory.createContainer(topic);
+        container.getContainerProperties().setGroupId(group);
+        container.setupMessageListener((AcknowledgingMessageListener<String, String>) (record, ack) -> {
+            int n = invocations.computeIfAbsent(record.value(), k -> new AtomicInteger()).incrementAndGet();
+            if (record.value().startsWith("poison") && n <= failures) {
+                throw failure(error);
+            }
+            processed.add(record.value());
+            ack.acknowledge();
+        });
+        return container;
+    }
+
+    /**
+     * Attende che il gruppo sia stabile: entrambi i consumer (concorrenza 2) hanno una partizione ciascuno. Contare le
+     * partizioni assegnate in totale non basta: il primo consumer entrato riceve da solo tutte e due le partizioni, e
+     * l'ingresso del secondo ribilancia il gruppo più tardi, magari a metà dei ritentativi (CI, TB-PLT-DLK-010).
+     */
+    private static void awaitStableAssignment(ConcurrentMessageListenerContainer<String, String> container) {
+        long deadline = System.currentTimeMillis() + 30_000;
+        while (System.currentTimeMillis() < deadline) {
+            var children = container.getContainers();
+            if (children.size() == 2 && children.stream().allMatch(c -> {
+                var assigned = c.getAssignedPartitions();
+                return assigned != null && assigned.size() == 1;
+            })) {
+                return;
+            }
+            pause(50);
+        }
+        throw new AssertionError("il gruppo non si è stabilizzato su due consumer con una partizione ciascuno");
     }
 
     private RuntimeException failure(String error) {
