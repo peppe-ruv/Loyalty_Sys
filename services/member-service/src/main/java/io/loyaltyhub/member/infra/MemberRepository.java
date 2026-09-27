@@ -9,6 +9,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDate;
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlWhere;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -160,54 +163,70 @@ public class MemberRepository {
         return count(q, status, tier, null);
     }
 
+    enum MemberColumn implements SqlColumn {
+        ID("m.id"), EXTERNAL_ID("m.external_id"), EMAIL("m.email"),
+        FIRST_NAME("m.first_name"), LAST_NAME("m.last_name"), NICKNAME("m.nickname"),
+        STATUS("m.status"), TIER_CODE("p.tier_code");
+
+        private final String sql;
+
+        MemberColumn(String sql) {
+            this.sql = sql;
+        }
+
+        @Override
+        public String sql() {
+            return sql;
+        }
+    }
+
     /** Elenco filtrato anche per segmento (codice o id, docs §3 "filtri … segment"). */
     public List<Member> search(String q, MemberStatus status, String tier, String segment, int limit, int offset) {
-        StringBuilder sql = new StringBuilder(
-                "SELECT m.* FROM member m LEFT JOIN member_projection p ON p.member_id = m.id WHERE 1 = 1");
-        List<Object> args = new ArrayList<>();
-        appendFilters(sql, args, q, status, tier);
-        appendSegment(sql, args, segment);
-        sql.append(" ORDER BY m.id LIMIT ? OFFSET ?");
-        args.add(limit);
-        args.add(offset);
-        return jdbc.sql(sql.toString()).params(args).query(MemberRepository::map).list();
+        SqlWhere where = buildWhere(q, status, tier);
+        String sql = "SELECT m.* FROM member m LEFT JOIN member_projection p ON p.member_id = m.id" + where.sql();
+        sql = appendSegment(sql, segment);
+        sql += " ORDER BY m.id LIMIT :limit OFFSET :offset";
+        var spec = where.bind(jdbc.sql(sql))
+                .param("limit", limit)
+                .param("offset", offset);
+        if (segment != null && !segment.isBlank()) {
+            spec.param("segment", segment.trim());
+        }
+        return spec.query(MemberRepository::map).list();
     }
 
     public long count(String q, MemberStatus status, String tier, String segment) {
-        StringBuilder sql = new StringBuilder(
-                "SELECT count(*) FROM member m LEFT JOIN member_projection p ON p.member_id = m.id WHERE 1 = 1");
-        List<Object> args = new ArrayList<>();
-        appendFilters(sql, args, q, status, tier);
-        appendSegment(sql, args, segment);
-        return jdbc.sql(sql.toString()).params(args).query(Long.class).single();
-    }
-
-    private void appendSegment(StringBuilder sql, List<Object> args, String segment) {
+        SqlWhere where = buildWhere(q, status, tier);
+        String sql = "SELECT count(*) FROM member m LEFT JOIN member_projection p ON p.member_id = m.id" + where.sql();
+        sql = appendSegment(sql, segment);
+        var spec = where.bind(jdbc.sql(sql));
         if (segment != null && !segment.isBlank()) {
-            sql.append(" AND EXISTS (SELECT 1 FROM segment_member sm JOIN segment s ON s.id = sm.segment_id"
-                    + " WHERE sm.member_id = m.id AND (s.code = ? OR s.id = ?))");
-            args.add(segment.trim());
-            args.add(segment.trim());
+            spec.param("segment", segment.trim());
         }
+        return spec.query(Long.class).single();
     }
 
-    private void appendFilters(StringBuilder sql, List<Object> args, String q, MemberStatus status, String tier) {
-        if (q != null && !q.isBlank()) {
-            sql.append(" AND (m.id ILIKE ? OR m.external_id ILIKE ? OR m.email ILIKE ?"
-                    + " OR m.first_name ILIKE ? OR m.last_name ILIKE ? OR m.nickname ILIKE ?)");
-            String like = "%" + q.trim() + "%";
-            for (int i = 0; i < 6; i++) {
-                args.add(like);
-            }
+    private String appendSegment(String sql, String segment) {
+        if (segment != null && !segment.isBlank()) {
+            String and = sql.contains(" WHERE ") ? " AND " : " WHERE ";
+            return sql + and + "EXISTS (SELECT 1 FROM segment_member sm JOIN segment s ON s.id = sm.segment_id"
+                    + " WHERE sm.member_id = m.id AND (s.code = :segment OR s.id = :segment))";
         }
-        if (status != null) {
-            sql.append(" AND m.status = ?");
-            args.add(status.name());
-        }
-        if (tier != null && !tier.isBlank()) {
-            sql.append(" AND p.tier_code = ?");
-            args.add(tier.trim().toUpperCase());
-        }
+        return sql;
+    }
+
+    private SqlWhere buildWhere(String q, MemberStatus status, String tier) {
+        return new SqlWhere()
+                .when(q != null && !q.isBlank(), w -> w.anyOf(a -> a
+                        .ilike(MemberColumn.ID, q.trim(), SqlWhere.Match.CONTAINS)
+                        .ilike(MemberColumn.EXTERNAL_ID, q.trim(), SqlWhere.Match.CONTAINS)
+                        .ilike(MemberColumn.EMAIL, q.trim(), SqlWhere.Match.CONTAINS)
+                        .ilike(MemberColumn.FIRST_NAME, q.trim(), SqlWhere.Match.CONTAINS)
+                        .ilike(MemberColumn.LAST_NAME, q.trim(), SqlWhere.Match.CONTAINS)
+                        .ilike(MemberColumn.NICKNAME, q.trim(), SqlWhere.Match.CONTAINS)
+                ))
+                .when(status != null, w -> w.eq(MemberColumn.STATUS, status.name()))
+                .when(tier != null && !tier.isBlank(), w -> w.eq(MemberColumn.TIER_CODE, tier.trim().toUpperCase()));
     }
 
     /** Membri in evidenza per il selettore demo (docs §3): quelli con una storia, esclusi gli anonimizzati. */

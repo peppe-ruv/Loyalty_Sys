@@ -10,6 +10,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlOrder;
+import io.loyaltyhub.common.sql.SqlWhere;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -40,24 +44,32 @@ public class SegmentRepository {
         this.mapper = mapper;
     }
 
+    enum SegmentColumn implements SqlColumn {
+        CODE("code"), NAME("name"), TYPE("type"), STATUS("status");
+
+        private final String sql;
+
+        SegmentColumn(String sql) {
+            this.sql = sql;
+        }
+
+        @Override
+        public String sql() {
+            return sql;
+        }
+    }
+
     public List<Segment> list(String q, String type, String status) {
-        StringBuilder sql = new StringBuilder("SELECT * FROM segment WHERE 1 = 1");
-        List<Object> args = new ArrayList<>();
-        if (q != null && !q.isBlank()) {
-            sql.append(" AND (code ILIKE ? OR name ILIKE ?)");
-            args.add("%" + q.trim() + "%");
-            args.add("%" + q.trim() + "%");
-        }
-        if (type != null && !type.isBlank()) {
-            sql.append(" AND type = ?");
-            args.add(type.trim().toUpperCase());
-        }
-        if (status != null && !status.isBlank()) {
-            sql.append(" AND status = ?");
-            args.add(status.trim().toUpperCase());
-        }
-        sql.append(" ORDER BY code");
-        return jdbc.sql(sql.toString()).params(args).query(this::map).list();
+        SqlWhere where = new SqlWhere()
+                .when(q != null && !q.isBlank(), w -> w.anyOf(a -> a
+                        .ilike(SegmentColumn.CODE, q.trim(), SqlWhere.Match.CONTAINS)
+                        .ilike(SegmentColumn.NAME, q.trim(), SqlWhere.Match.CONTAINS)
+                ))
+                .when(type != null && !type.isBlank(), w -> w.eq(SegmentColumn.TYPE, type.trim().toUpperCase()))
+                .when(status != null && !status.isBlank(), w -> w.eq(SegmentColumn.STATUS, status.trim().toUpperCase()));
+
+        String sql = "SELECT * FROM segment" + where.sql() + SqlOrder.asc(SegmentColumn.CODE).sql();
+        return where.bind(jdbc.sql(sql)).query(this::map).list();
     }
 
     public List<Segment> active() {
