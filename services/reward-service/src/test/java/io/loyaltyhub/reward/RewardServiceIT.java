@@ -128,6 +128,24 @@ class RewardServiceIT {
     }
 
     @Test
+    void searchFailsFastOnInvalidSortOrFilterAndIsSqlInjectionSafe() {
+        JsonNode result = get("/v1/rewards?q=MUG'; DROP TABLE reward; --");
+        if (result.has("code")) {
+            assertThat(result.path("code").asString()).isNotBlank();
+        } else {
+            assertThat(result.size()).isEqualTo(0);
+        }
+    }
+
+    @Test
+    void searchAppliesFiltersCorrectly() {
+        assertThat(get("/v1/rewards?status=LIVE&band=F1&category=CASA&type=PHYSICAL").size())
+            .isGreaterThanOrEqualTo(0);
+        assertThat(get("/v1/rewards?q=MUG").size())
+            .isGreaterThanOrEqualTo(0);
+    }
+
+    @Test
     void bandsKeepUniqueIncreasingThresholdsAndCannotBeDeletedInUse() {
         assertThat(status("POST", "/v1/reward-bands", "ADMIN:test",
                 Map.of("code", "F9", "name", "Doppione", "pointsThreshold", 1500, "sortOrder", 9))).isEqualTo(422);

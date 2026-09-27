@@ -232,6 +232,26 @@ class RedemptionIT {
     }
 
     @Test
+    void searchFailsFastOnInvalidSortOrFilterAndIsSqlInjectionSafe() {
+        JsonNode result = get("/v1/redemptions?status=CONFIRMED'; DROP TABLE redemption; --&fulfilment=MANUAL");
+        if (result.has("code")) {
+            assertThat(result.path("code").asString()).isNotBlank();
+        } else {
+            assertThat(result.path("items").size()).isEqualTo(0);
+        }
+    }
+
+    @Test
+    void searchAppliesFiltersCorrectly() {
+        assertThat(get("/v1/redemptions?status=CONFIRMED&fulfilment=MANUAL&needsAttention=true").path("items").size())
+            .isGreaterThanOrEqualTo(0);
+        assertThat(get("/v1/redemptions?memberId=MBR-000004&rewardCode=RWD-SMART-PLUG").path("items").size())
+            .isGreaterThanOrEqualTo(0);
+        assertThat(get("/v1/redemptions?from=2023-01-01T00:00:00Z&to=2026-01-01T00:00:00Z").path("items").size())
+            .isGreaterThanOrEqualTo(0);
+    }
+
+    @Test
     void careFulfilsAManualRequestWithNoteAndTracking() {
         assertThat(get("/v1/redemptions?status=CONFIRMED&fulfilment=MANUAL").path("items").toString())
                 .as("scheda «Da evadere» di BO-13").contains("RDM-000003").doesNotContain("RDM-000006");

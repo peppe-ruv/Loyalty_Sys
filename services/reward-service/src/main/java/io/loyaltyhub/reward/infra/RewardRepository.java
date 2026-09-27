@@ -1,5 +1,7 @@
 package io.loyaltyhub.reward.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlWhere;
 import io.loyaltyhub.reward.domain.Reward;
 import io.loyaltyhub.reward.domain.RewardStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -17,6 +19,22 @@ import java.util.Optional;
 @Repository
 public class RewardRepository {
 
+    enum RewardColumn implements SqlColumn {
+        STATUS("status"), BAND_CODE("band_code"), CATEGORY_CODE("category_code"),
+        TYPE("type"), CODE("code"), NAME("name");
+
+        private final String sql;
+
+        RewardColumn(String sql) {
+            this.sql = sql;
+        }
+
+        @Override
+        public String sql() {
+            return sql;
+        }
+    }
+
     private static final String COLUMNS = """
             id, code, name, description, terms, image_url, type, category_code, band_code, fulfilment, coupon_pool_id,
             stock_total, stock_remaining, per_member_limit, eligible_tiers, eligible_segments, valid_from, valid_to,
@@ -29,19 +47,15 @@ public class RewardRepository {
     }
 
     public List<Reward> search(String status, String band, String category, String type, String q) {
-        StringBuilder sql = new StringBuilder("SELECT " + COLUMNS + " FROM reward WHERE 1=1");
-        List<Object> params = new ArrayList<>();
-        if (status != null && !status.isBlank()) { sql.append(" AND status = ?"); params.add(status.toUpperCase()); }
-        if (band != null && !band.isBlank()) { sql.append(" AND band_code = ?"); params.add(band); }
-        if (category != null && !category.isBlank()) { sql.append(" AND category_code = ?"); params.add(category); }
-        if (type != null && !type.isBlank()) { sql.append(" AND type = ?"); params.add(type.toUpperCase()); }
-        if (q != null && !q.isBlank()) {
-            sql.append(" AND (code ILIKE ? OR name ILIKE ?)");
-            params.add("%" + q + "%");
-            params.add("%" + q + "%");
-        }
-        sql.append(" ORDER BY band_code, code");
-        return jdbc.sql(sql.toString()).params(params).query(RewardRepository::map).list();
+        SqlWhere where = new SqlWhere()
+                .when(status != null && !status.isBlank(), w -> w.eq(RewardColumn.STATUS, status.toUpperCase()))
+                .when(band != null && !band.isBlank(), w -> w.eq(RewardColumn.BAND_CODE, band))
+                .when(category != null && !category.isBlank(), w -> w.eq(RewardColumn.CATEGORY_CODE, category))
+                .when(type != null && !type.isBlank(), w -> w.eq(RewardColumn.TYPE, type.toUpperCase()))
+                .when(q != null && !q.isBlank(), w -> w.anyOf(or -> or.ilike(RewardColumn.CODE, q, SqlWhere.Match.CONTAINS).ilike(RewardColumn.NAME, q, SqlWhere.Match.CONTAINS)));
+
+        String sql = "SELECT " + COLUMNS + " FROM reward" + where.sql() + " ORDER BY band_code, code";
+        return where.bind(jdbc.sql(sql)).query(RewardRepository::map).list();
     }
 
     public List<Reward> findAll() {

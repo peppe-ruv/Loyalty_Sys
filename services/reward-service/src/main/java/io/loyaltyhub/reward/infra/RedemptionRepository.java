@@ -14,11 +14,30 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlWhere;
+
 import java.util.Optional;
 
 /** Richieste premio e loro cronologia (docs/servizi/reward-service.md §2). */
 @Repository
 public class RedemptionRepository {
+
+    enum RedemptionColumn implements SqlColumn {
+        STATUS("status"), MEMBER_ID("member_id"), REWARD_CODE("reward_code"),
+        NEEDS_ATTENTION("needs_attention"), REQUESTED_AT("requested_at");
+
+        private final String sql;
+
+        RedemptionColumn(String sql) {
+            this.sql = sql;
+        }
+
+        @Override
+        public String sql() {
+            return sql;
+        }
+    }
 
     private static final String COLUMNS = """
             id, member_id, reward_code, reward_name, points_cost, status, reject_reason, needs_attention, coupon_code,
@@ -120,19 +139,42 @@ public class RedemptionRepository {
 
     public List<Redemption> search(String status, String fulfilment, String memberId, String rewardCode,
                                    Boolean needsAttention, Instant from, Instant to, int page, int size) {
-        StringBuilder sql = new StringBuilder("SELECT " + COLUMNS + " FROM redemption WHERE 1=1");
-        List<Object> params = filters(sql, status, fulfilment, memberId, rewardCode, needsAttention, from, to);
-        sql.append(" ORDER BY requested_at DESC, id LIMIT ? OFFSET ?");
-        params.add(size);
-        params.add(page * size);
-        return jdbc.sql(sql.toString()).params(params).query(RedemptionRepository::map).list();
+        SqlWhere where = buildWhere(status, memberId, rewardCode, needsAttention, from, to);
+        String sql = "SELECT " + COLUMNS + " FROM redemption" + where.sql();
+
+        // SPEC-GAP: Q-377 — SqlWhere does not support subqueries, manually appending fulfilment subquery
+        if (fulfilment != null && !fulfilment.isBlank()) {
+            sql += (where.isEmpty() ? " WHERE " : " AND ") + "reward_code IN (SELECT code FROM reward WHERE fulfilment = :fulfilment)";
+        }
+
+        sql += " ORDER BY requested_at DESC, id LIMIT :limit OFFSET :offset";
+
+        var spec = where.bind(jdbc.sql(sql));
+        if (fulfilment != null && !fulfilment.isBlank()) {
+            spec = spec.param("fulfilment", fulfilment.toUpperCase());
+        }
+
+        return spec.param("limit", size)
+                   .param("offset", page * size)
+                   .query(RedemptionRepository::map).list();
     }
 
     public long count(String status, String fulfilment, String memberId, String rewardCode, Boolean needsAttention,
                       Instant from, Instant to) {
-        StringBuilder sql = new StringBuilder("SELECT count(*) FROM redemption WHERE 1=1");
-        List<Object> params = filters(sql, status, fulfilment, memberId, rewardCode, needsAttention, from, to);
-        return jdbc.sql(sql.toString()).params(params).query(Long.class).single();
+        SqlWhere where = buildWhere(status, memberId, rewardCode, needsAttention, from, to);
+        String sql = "SELECT count(*) FROM redemption" + where.sql();
+
+        // SPEC-GAP: Q-377 — SqlWhere does not support subqueries, manually appending fulfilment subquery
+        if (fulfilment != null && !fulfilment.isBlank()) {
+            sql += (where.isEmpty() ? " WHERE " : " AND ") + "reward_code IN (SELECT code FROM reward WHERE fulfilment = :fulfilment)";
+        }
+
+        var spec = where.bind(jdbc.sql(sql));
+        if (fulfilment != null && !fulfilment.isBlank()) {
+            spec = spec.param("fulfilment", fulfilment.toUpperCase());
+        }
+
+        return spec.query(Long.class).single();
     }
 
     /** Richieste ancora {@code PENDING} chieste prima di {@code before} (timeout della saga). */
@@ -172,11 +214,11 @@ public class RedemptionRepository {
 
     /**
      * Filtri comuni: {@code status} accetta più stati separati da virgola (schede di BO-13, es.
-     * {@code REJECTED,CANCELLED}); {@code fulfilment} filtra per modalità di evasione del premio.
+     * {@code REJECTED,CANCELLED}).
      */
-    private static List<Object> filters(StringBuilder sql, String status, String fulfilment, String memberId,
-                                        String rewardCode, Boolean needsAttention, Instant from, Instant to) {
-        List<Object> params = new ArrayList<>();
+    private static SqlWhere buildWhere(String status, String memberId, String rewardCode,
+                                       Boolean needsAttention, Instant from, Instant to) {
+        SqlWhere where = new SqlWhere();
         if (status != null && !status.isBlank()) {
             List<String> statuses = new ArrayList<>();
             for (String st : status.split(",")) {
@@ -184,34 +226,15 @@ public class RedemptionRepository {
                     statuses.add(st.trim().toUpperCase());
                 }
             }
-            sql.append(" AND status IN (").append(String.join(", ", Collections.nCopies(statuses.size(), "?"))).append(")");
-            params.addAll(statuses);
+            if (!statuses.isEmpty()) {
+                where.in(RedemptionColumn.STATUS, statuses);
+            }
         }
-        if (fulfilment != null && !fulfilment.isBlank()) {
-            sql.append(" AND reward_code IN (SELECT code FROM reward WHERE fulfilment = ?)");
-            params.add(fulfilment.toUpperCase());
-        }
-        if (memberId != null && !memberId.isBlank()) {
-            sql.append(" AND member_id = ?");
-            params.add(memberId);
-        }
-        if (rewardCode != null && !rewardCode.isBlank()) {
-            sql.append(" AND reward_code = ?");
-            params.add(rewardCode);
-        }
-        if (needsAttention != null) {
-            sql.append(" AND needs_attention = ?");
-            params.add(needsAttention);
-        }
-        if (from != null) {
-            sql.append(" AND requested_at >= ?");
-            params.add(ts(from));
-        }
-        if (to != null) {
-            sql.append(" AND requested_at < ?");
-            params.add(ts(to));
-        }
-        return params;
+        return where.when(memberId != null && !memberId.isBlank(), w -> w.eq(RedemptionColumn.MEMBER_ID, memberId))
+                .when(rewardCode != null && !rewardCode.isBlank(), w -> w.eq(RedemptionColumn.REWARD_CODE, rewardCode))
+                .when(needsAttention != null, w -> w.eq(RedemptionColumn.NEEDS_ATTENTION, needsAttention))
+                .when(from != null, w -> w.gte(RedemptionColumn.REQUESTED_AT, ts(from)))
+                .when(to != null, w -> w.lt(RedemptionColumn.REQUESTED_AT, ts(to)));
     }
 
     private static Timestamp ts(Instant i) {

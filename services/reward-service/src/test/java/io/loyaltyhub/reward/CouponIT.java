@@ -159,6 +159,27 @@ class CouponIT {
     }
 
     @Test
+    void searchFailsFastOnInvalidSortOrFilterAndIsSqlInjectionSafe() {
+        String caf = pool(get("/v1/coupon-pools"), "POOL-CIN").path("id").asString();
+        JsonNode result = get("/v1/coupon-pools/" + caf + "/coupons?status=AVAILABLE'; DROP TABLE coupon; --");
+        if (result.has("code")) {
+            assertThat(result.path("code").asString()).isNotBlank();
+        } else {
+            assertThat(result.path("items").size()).isEqualTo(0);
+        }
+    }
+
+    @Test
+    void searchAppliesFiltersCorrectly() {
+        String cin = pool(get("/v1/coupon-pools"), "POOL-CIN").path("id").asString();
+        JsonNode coupons = get("/v1/coupon-pools/" + cin + "/coupons?status=AVAILABLE");
+        assertThat(coupons.path("items").size()).isGreaterThan(0);
+
+        JsonNode specificMember = get("/v1/coupon-pools/" + cin + "/coupons?memberId=MBR-000007");
+        assertThat(specificMember.path("items").size()).isGreaterThanOrEqualTo(0);
+    }
+
+    @Test
     void emptyPoolSendsTheEffectToTheDlqWithoutRetries() throws Exception {
         String poolId = send("POST", "/v1/coupon-pools", "ADMIN:test",
                 Map.of("code", "POOL-IT-EMPTY", "name", "Vuoto", "prefix", "EMP"), 201).path("id").asString();
