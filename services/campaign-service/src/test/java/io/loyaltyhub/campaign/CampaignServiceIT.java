@@ -2,6 +2,11 @@ package io.loyaltyhub.campaign;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import io.loyaltyhub.campaign.domain.Campaign;
+import io.loyaltyhub.campaign.infra.CampaignRepository;
+import io.loyaltyhub.campaign.infra.EvaluationLogRepository;
+import io.loyaltyhub.campaign.infra.EvaluationLogRepository.EvaluationRow;
+import io.loyaltyhub.common.event.JsonSchemaValidator;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -13,12 +18,12 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
-import io.loyaltyhub.common.event.JsonSchemaValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -26,7 +31,10 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.RestClient;
 
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -57,6 +65,15 @@ class CampaignServiceIT {
     private JsonSchemaValidator validator;
 
     @Autowired
+    private CampaignRepository campaignRepository;
+
+    @Autowired
+    private EvaluationLogRepository evaluationLogRepository;
+
+    @Autowired
+    private JdbcClient jdbc;
+
+    @Autowired
     private io.loyaltyhub.campaign.application.CampaignAdminService admin;
 
     // Martedì e sabato di settembre 2026 (Europe/Rome).
@@ -75,6 +92,114 @@ class CampaignServiceIT {
     @AfterAll
     void tearDown() throws Exception {
         PG.close();
+    }
+
+    /**
+     * F2-SEC-10 (regola 19): l'elenco delle campagne sul builder SQL dà gli stessi risultati di prima, nell'ordine
+     * priorità decrescente e poi codice. Esiti esatti dai seed (docs/10); le campagne create dagli altri test di questa
+     * classe hanno trigger e nomi diversi e non entrano in questi elenchi.
+     */
+    @Test
+    void campaignSearchAppliesEachFilterInSeedOrder() {
+        // Stato + tipo di azione: CMP-BLACK-FRIDAY (IN_REVIEW, priorità 300) resta fuori.
+        assertThat(codes(campaignRepository.search("LIVE", "purchase.completed", null)))
+                .containsExactly("CMP-WEEKEND-X2", "CMP-GOLD-PURCHASE-PLAY", "CMP-PURCHASE-BASE");
+        // Valori ripuliti come prima: spazi tolti, stato in maiuscolo, q vuoto ignorato.
+        assertThat(codes(campaignRepository.search(" live ", " purchase.completed ", " ")))
+                .containsExactly("CMP-WEEKEND-X2", "CMP-GOLD-PURCHASE-PLAY", "CMP-PURCHASE-BASE");
+        // Solo tipo di azione: entra anche la campagna IN_REVIEW.
+        assertThat(codes(campaignRepository.search(null, "purchase.completed", null)))
+                .containsExactly("CMP-BLACK-FRIDAY", "CMP-WEEKEND-X2", "CMP-GOLD-PURCHASE-PLAY", "CMP-PURCHASE-BASE");
+        // q sul solo nome, sul solo codice e su entrambi in OR, senza distinzione tra maiuscole e minuscole.
+        assertThat(codes(campaignRepository.search(null, null, "punti doppi"))).containsExactly("CMP-WEEKEND-X2");
+        assertThat(codes(campaignRepository.search(null, null, "purchase-base"))).containsExactly("CMP-PURCHASE-BASE");
+        assertThat(codes(campaignRepository.search(null, null, "bonus")))
+                .containsExactly("CMP-BADGE-BONUS", "CMP-TIER-UP-BONUS", "CMP-WELCOME");
+        // Tutti i filtri insieme, in AND.
+        assertThat(codes(campaignRepository.search("LIVE", "purchase.completed", "punti")))
+                .containsExactly("CMP-WEEKEND-X2", "CMP-PURCHASE-BASE");
+        // Filtri vuoti = nessun filtro.
+        assertThat(codes(campaignRepository.search("", "", "")))
+                .containsExactlyInAnyOrderElementsOf(codes(campaignRepository.findAll()));
+    }
+
+    /**
+     * {@code q} è testo letterale: {@code %} e {@code _} non fanno da caratteri jolly (prima {@code q=%} restituiva
+     * tutte le campagne). È l'unico cambiamento di comportamento voluto dell'elenco. La campagna di prova resta DRAFT,
+     * con un trigger che nessun altro test usa, quindi il motore non la valuta.
+     */
+    @Test
+    void campaignSearchTreatsLikeWildcardsAsLiterals() {
+        assertThat(campaignRepository.search(null, null, "%")).isEmpty();
+        assertThat(campaignRepository.search(null, null, "_")).isEmpty();
+
+        send("POST", "/v1/campaigns", "MARKETING:giulia", Map.of(
+                "code", "CMP-IT-PCT", "name", "Sconto 50%_x", "triggerActionTypes", List.of("pct.probe"),
+                "effects", List.of(Map.of("type", "GRANT_POINTS", "currency", "PTS", "mode", "FIXED", "value", 1)),
+                "schedule", Map.of("startAt", "2026-01-01T00:00:00Z")), 201);
+
+        assertThat(codes(campaignRepository.search(null, null, "50%_"))).containsExactly("CMP-IT-PCT");
+        assertThat(codes(campaignRepository.search(null, null, "%"))).containsExactly("CMP-IT-PCT");
+        assertThat(codes(campaignRepository.search(null, null, "_"))).containsExactly("CMP-IT-PCT");
+        // Con i caratteri jolly attivi questi due troverebbero «Sconto 50%_x».
+        assertThat(campaignRepository.search(null, null, "50%x")).isEmpty();
+        assertThat(campaignRepository.search(null, null, "50_%")).isEmpty();
+    }
+
+    /**
+     * Regola 19 via HTTP: filtri ostili su {@code GET /v1/campaigns} restano valori legati (200, elenco vuoto, tabella
+     * intatta). La URI si compone da template perché RestClient ricodifica una stringa già codificata ({@code %25} →
+     * {@code %2525}) e il servizio riceverebbe un testo diverso.
+     */
+    @Test
+    void campaignListBindsHostileFiltersAsValues() {
+        long before = campaignCount();
+
+        assertThat(listCodes("/v1/campaigns?q={q}", "' OR 1=1 --")).isEmpty();
+        assertThat(listCodes("/v1/campaigns?q={q}", "x%' OR '1'='1")).isEmpty();
+        assertThat(listCodes("/v1/campaigns?status={status}", "LIVE'; DROP TABLE campaign;--")).isEmpty();
+        assertThat(listCodes("/v1/campaigns?actionType={type}", "purchase.completed' OR '1'='1")).isEmpty();
+
+        assertThat(campaignCount()).isEqualTo(before);
+        // Gli stessi parametri con valori legittimi arrivano così come sono.
+        assertThat(listCodes("/v1/campaigns?status={status}&actionType={type}&q={q}",
+                "LIVE", "purchase.completed", "punti"))
+                .containsExactly("CMP-WEEKEND-X2", "CMP-PURCHASE-BASE");
+    }
+
+    /**
+     * Registro valutazioni sul builder: filtri per membro ed esito, più recenti prima, a parità di istante
+     * {@code action_id} crescente. Righe proprie con {@code evaluated_at} fissato nel futuro, così sono le più recenti
+     * del registro anche senza filtro per membro; rimosse alla fine.
+     */
+    @Test
+    void evaluationLogSearchFiltersNewestFirstWithStableTieBreak() {
+        Instant t0 = Instant.parse("2099-01-01T00:00:00Z");
+        try {
+            logEvaluation("01EVLOG-A", "MBR-IT-LOG-1", "MATCHED", t0);
+            logEvaluation("01EVLOG-B", "MBR-IT-LOG-1", "NO_MATCH", t0.plusSeconds(60));
+            logEvaluation("01EVLOG-C", "MBR-IT-LOG-2", "MATCHED", t0.plusSeconds(120));
+            // Stesso istante: F inserita prima di E, l'ordine lo decide action_id.
+            logEvaluation("01EVLOG-F", "MBR-IT-LOG-3", "MATCHED", t0.plusSeconds(180));
+            logEvaluation("01EVLOG-E", "MBR-IT-LOG-3", "MATCHED", t0.plusSeconds(180));
+
+            assertThat(actionIds(evaluationLogRepository.search("MBR-IT-LOG-1", "MATCHED", 10)))
+                    .containsExactly("01EVLOG-A");
+            assertThat(actionIds(evaluationLogRepository.search("MBR-IT-LOG-1", " matched ", 10)))
+                    .containsExactly("01EVLOG-A");
+            assertThat(actionIds(evaluationLogRepository.search("MBR-IT-LOG-1", null, 10)))
+                    .containsExactly("01EVLOG-B", "01EVLOG-A");
+            assertThat(actionIds(evaluationLogRepository.search("MBR-IT-LOG-1", "", 1)))
+                    .containsExactly("01EVLOG-B");
+            assertThat(actionIds(evaluationLogRepository.search(null, "no_match", 1)))
+                    .containsExactly("01EVLOG-B");
+            assertThat(actionIds(evaluationLogRepository.search(null, "MATCHED", 4)))
+                    .containsExactly("01EVLOG-E", "01EVLOG-F", "01EVLOG-C", "01EVLOG-A");
+            assertThat(actionIds(evaluationLogRepository.search("MBR-IT-LOG-3", null, 1)))
+                    .containsExactly("01EVLOG-E");
+        } finally {
+            jdbc.sql("DELETE FROM evaluation_log WHERE member_id LIKE 'MBR-IT-LOG-%'").update();
+        }
     }
 
     @Test
@@ -681,6 +806,40 @@ class CampaignServiceIT {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static List<String> codes(List<Campaign> campaigns) {
+        return campaigns.stream().map(Campaign::code).toList();
+    }
+
+    private static List<String> actionIds(List<EvaluationRow> rows) {
+        return rows.stream().map(EvaluationRow::actionId).toList();
+    }
+
+    /** Codici dell'elenco {@code GET /v1/campaigns} (atteso 200); RestClient codifica le variabili del template. */
+    private List<String> listCodes(String uriTemplate, Object... vars) {
+        JsonNode list = client().get().uri(uriTemplate, vars).exchange((req, res) -> {
+            String text = new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8);
+            assertThat(res.getStatusCode().value()).as("GET " + uriTemplate + " → " + text).isEqualTo(200);
+            return mapper.readTree(text);
+        });
+        assertThat(list.isArray()).as("elenco JSON").isTrue();
+        List<String> codes = new ArrayList<>();
+        for (JsonNode c : list) {
+            codes.add(c.path("code").asString());
+        }
+        return codes;
+    }
+
+    private long campaignCount() {
+        return jdbc.sql("SELECT count(*) FROM campaign").query(Long.class).single();
+    }
+
+    /** Valutazione di prova scritta dal repository, con {@code evaluated_at} fissato per un ordine deterministico. */
+    private void logEvaluation(String actionId, String memberId, String outcome, Instant evaluatedAt) {
+        evaluationLogRepository.save(actionId, memberId, "log.probe", evaluatedAt, actionId, outcome, "[]");
+        jdbc.sql("UPDATE evaluation_log SET evaluated_at = ? WHERE action_id = ?")
+                .params(Timestamp.from(evaluatedAt), actionId).update();
     }
 
     private RestClient client() {
