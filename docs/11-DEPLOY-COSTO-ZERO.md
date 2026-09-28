@@ -143,6 +143,7 @@ services:
 | `KAFKA_BOOTSTRAP`, `KAFKA_SECURITY`, `KAFKA_SSL_*_B64` / `KAFKA_SASL_*` | servizi | Aiven; locale `localhost:9092`, `PLAINTEXT` |
 | `JAVA_OPTS` | servizi | §6 |
 | `LH_CONSUMER_RETRY_BACKOFF_MS` | servizi | `loyaltyhub.consumer.retry-backoff-ms` (default 1000,5000: 3 tentativi, vedi Q-131) |
+| `LH_KAFKA_CONSUMER_CONCURRENCY`, `LH_KAFKA_TOPIC_*`, `LH_KAFKA_<TOPIC>_RETENTION_MS`, `LH_KAFKA_TOPICS_*` | servizi, hub | concorrenza dei listener e forma dei 5 topic (F2-EVT-04); da non impostare in demo: i default restano 2 consumer, 2 partizioni, 1 replica, 3 giorni, topic esistenti non modificati (il Kafka gratuito può rifiutare `alterConfigs`). Elenco in `deploy/README.md` |
 | `LH_CORS_ALLOWED_ORIGINS` | **insight** | URL Vercel (+ `http://localhost:3000`); serve solo all'SSE |
 | `LH_JOBS_ENABLED` | servizi | `true`; `false` per spegnere gli scheduler |
 | `LH_APPROVAL_ENABLED` | campaign, reward, gamification, engagement | mappa `loyaltyhub.approval.enabled`; `false` fino a M7 |
@@ -150,6 +151,15 @@ services:
 | `NEXT_PUBLIC_LH_INSIGHT_URL` | **web** (browser) | URL pubblico di insight per l'SSE |
 | `NEXT_PUBLIC_REPO_URL` | web | link nel Demo Hub |
 | `LH_INGESTION_URL` | **insight** | solo per *riprocessa* DLQ (M7) |
+| `LH_PROFILE` | **web** (server) | assente o `demo`: identità simulata (docs/07 §4), nessuna variabile OIDC; `enterprise`: login OIDC obbligatorio (docs/07 §4-bis); qualunque altro valore ⇒ il web non parte (`INSECURE_CONFIG`) |
+| `LH_OIDC_ISSUER` | **web** (server), solo `enterprise` | emittente OIDC, es. `https://idp.example.org/realms/loyaltyhub`; `https` obbligatorio (`http` solo verso `localhost`) |
+| `LH_WEB_CLIENT_ID` | **web** (server), solo `enterprise` | client confidential del realm; predefinito `web` |
+| `LH_WEB_CLIENT_SECRET` / `LH_WEB_CLIENT_SECRET_FILE` | **web** (server), solo `enterprise` | segreto del client `web` (lo stesso passato all'IdP, `deploy/idp/README.md`); almeno 16 caratteri, niente segnaposto |
+| `LH_WEB_URL` | **web** (server), solo `enterprise` | origine pubblica del web senza percorso (redirect URI, controllo `Origin`, ritorno dal logout), la stessa di `LH_WEB_URL` dell'IdP; `https` obbligatorio (`http` solo per `localhost`) |
+| `LH_WEB_SESSION_KEY` / `LH_WEB_SESSION_KEY_FILE` | **web** (server), solo `enterprise` | 32 byte casuali in base64 (`openssl rand -base64 32`): cifratura delle sessioni e dello stato del login, token CSRF; cambiarla chiude tutte le sessioni |
+| `LH_WEB_SESSION_IDLE_SECONDS` | **web** (server), solo `enterprise` | inattività massima della sessione del BFF; predefinito `1800` (Q-354) |
+| `LH_WEB_SESSION_MAX_SECONDS` | **web** (server), solo `enterprise` | durata massima della sessione del BFF; predefinito `36000` (Q-354) |
+| `LH_WEB_SESSION_MAX_COUNT` | **web** (server), solo `enterprise` | sessioni tenute in memoria al massimo (esce la meno recente); predefinito `10000` (Q-409) |
 
 File `.env.example` alla radice e in `web/` con tutte le chiavi e nessun valore reale.
 
@@ -198,3 +208,6 @@ Nessun segreto in CI tranne, nel piano B, il deploy hook di Render.
 A partire da M8, la distribuzione enterprise viene generata dal file `deploy/image/Dockerfile` in un'unica immagine multi-arch pubblicata su GHCR (es. `ghcr.io/loyaltyhub/loyaltyhub`).
 L'immagine contiene sia l'hub (Java) sia l'interfaccia (Node.js) e instradata in base alla variabile `LH_ROLE`.
 Il deploy "a costo zero" (demo) continuerà a funzionare esattamente come descritto finché non vi sarà una transizione esplita. Vedi `deploy/image/README.md`.
+
+## 15. Chart Helm e compose di riferimento (Fase 2, M8.3)
+Il profilo `enterprise` si installa con il chart `deploy/helm/loyaltyhub` (Strimzi e CloudNativePG di default, servizi gestiti come valori, F2-DIST-02) o con `deploy/compose/reference.yml` (F2-DIST-03), dalla stessa immagine. Nulla cambia per la demo a costo zero di questo documento. Istruzioni, valori e limiti noti in `deploy/README.md`.

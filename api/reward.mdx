@@ -50,7 +50,7 @@ Il tipo di erogazione di un premio:
 
 Per approfondire il modello premi, consulta la pagina [Concetti: premi e gioco](/concetti/premi-e-gioco).
 
-## Endpoint di gestione (backoffice)
+## Gestione premi (backoffice)
 
 ### Categorie e fasce
 
@@ -66,7 +66,9 @@ Gestisci la struttura del catalogo premi.
 | `PUT` | `/v1/reward-bands/{id}` | Aggiorna una fascia esistente |
 | `DELETE` | `/v1/reward-bands/{id}` | Elimina una fascia (se non in uso) |
 
-> **Attenzione:** Le soglie delle fasce devono essere uniche e crescenti. Se provi a creare o aggiornare una fascia con soglia duplicata, ricevi `422 BAND_THRESHOLD_DUPLICATE`. Se provi a eliminare una fascia assegnata a uno o più premi, ricevi `409 BAND_IN_USE`.
+<Warning>
+  Le soglie delle fasce devono essere uniche e crescenti. Se provi a creare o aggiornare una fascia con soglia duplicata, ricevi `422 BAND_THRESHOLD_DUPLICATE`. Se provi a eliminare una fascia assegnata a uno o più premi, ricevi `409 BAND_IN_USE`.
+</Warning>
 
 ### Premi
 
@@ -80,7 +82,9 @@ Gestisci il catalogo premi con filtri e workflow di pubblicazione.
 | `POST` | `/v1/rewards/{id}/transitions` | Cambia stato del premio (`action`, `comment`) |
 | `POST` | `/v1/rewards/{id}/duplicate` | Duplica un premio esistente |
 
-> **Nota:** Un premio in stato `LIVE` ammette aggiornamenti limitati: solo `stock_total`, `valid_to` e `image_url`. Per modifiche più invasive, duplica il premio o riportalo in `DRAFT`.
+<Note>
+  Un premio in stato `LIVE` ammette aggiornamenti limitati: solo `stock_total`, `valid_to` e `image_url`. Per modifiche più invasive, duplica il premio o riportalo in `DRAFT`.
+</Note>
 
 Le transizioni di stato disponibili tramite `POST /v1/rewards/{id}/transitions` includono tipicamente: `PUBLISH` (da `DRAFT` a `LIVE`), `UNPUBLISH` (da `LIVE` a `DRAFT`), `ARCHIVE`.
 
@@ -106,7 +110,9 @@ Opera su singoli codici coupon.
 | `POST` | `/v1/coupons/{code}/use` | Marca un coupon come utilizzato |
 | `POST` | `/v1/coupons/{code}/void` | Annulla l'utilizzo di un coupon |
 
-> **Attenzione:** `POST /v1/coupons/{code}/use` restituisce `409 COUPON_ALREADY_USED` se il coupon è già stato utilizzato, `410 COUPON_EXPIRED` se scaduto, `404` se il codice non esiste.
+<Warning>
+  `POST /v1/coupons/{code}/use` restituisce `409 COUPON_ALREADY_USED` se il coupon è già stato utilizzato, `410 COUPON_EXPIRED` se scaduto, `404` se il codice non esiste.
+</Warning>
 
 ### Redemptions
 
@@ -119,7 +125,9 @@ Gestisci le richieste di premio dal backoffice.
 | `POST` | `/v1/redemptions/{id}/fulfil` | Completa manualmente una redemption (`note`, `tracking?`) |
 | `POST` | `/v1/redemptions/{id}/cancel` | Cancella una redemption (`reason`) |
 
-> **Nota:** `POST /v1/redemptions/{id}/fulfil` è disponibile solo per redemptions in stato `CONFIRMED` con `fulfilment: MANUAL`. Richiede il ruolo `CARE` o `ADMIN`. Usa `note` per annotazioni interne e `tracking` per il codice di tracciamento della spedizione.
+<Note>
+  `POST /v1/redemptions/{id}/fulfil` è disponibile solo per redemptions in stato `CONFIRMED` con `fulfilment: MANUAL`. Richiede il ruolo `CARE` o `ADMIN`. Usa `note` per annotazioni interne e `tracking` per il codice di tracciamento della spedizione.
+</Note>
 
 ### Statistiche
 
@@ -183,7 +191,7 @@ Il catalogo (`GET /v1/portal/catalog`) restituisce per ogni premio:
   </Accordion>
 </AccordionGroup>
 
-## Richiesta di un premio
+## Richiedi un premio
 
 Segui questi passaggi per richiedere un premio dal portale e osservare l'evoluzione della saga.
 
@@ -224,7 +232,9 @@ Segui questi passaggi per richiedere un premio dal portale e osservare l'evoluzi
     }
     ```
 
-    > **Nota:** Anche in caso di rifiuto di business (es. stock esaurito), il servizio risponde `202`. Lo stato finale `REJECTED` viene comunicato tramite evento Kafka.
+    <Note>
+      Anche in caso di rifiuto di business (es. stock esaurito), il servizio risponde `202`. Lo stato finale `REJECTED` viene comunicato tramite evento Kafka.
+    </Note>
   </Step>
   <Step title="Traccia l'evoluzione della saga">
     Usa il `correlationId` per seguire il flusso event-driven:

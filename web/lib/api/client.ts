@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import type { ServiceCode } from "./services";
+import { csrfHeaders } from "@/lib/auth/browser";
 
 // Client del proxy (docs/07 §3): il browser chiama sempre /api/lh/<service>/v1/...
 // Distingue l'errore "servizio addormentato" (503 SERVICE_ASLEEP) dagli errori applicativi (RFC 9457).
@@ -25,6 +26,11 @@ export class LhError extends Error {
     readonly correlationId: string | null = null,
   ) {
     super(detail || code);
+  }
+
+  /** Sessione del BFF assente o scaduta (profilo enterprise): la UI porta al login (app/providers.tsx). */
+  get unauthenticated(): boolean {
+    return this.status === 401 && this.code === "UNAUTHENTICATED";
   }
 }
 
@@ -51,9 +57,14 @@ export async function lhFetch<T>(
   const { query, ...rest } = init ?? {};
   // Un caricamento multipart (BO-32) lascia al browser il content-type con il boundary.
   const multipart = typeof FormData !== "undefined" && rest.body instanceof FormData;
+  // Profilo enterprise: le richieste che cambiano stato portano il token CSRF della sessione (docs/07 §4-bis);
+  // nel profilo demo il cookie non c'è e gli header restano quelli di sempre.
+  const csrf = csrfHeaders(rest.method);
   const res = await fetch(url(service, path, query), {
     ...rest,
-    headers: multipart ? { ...(rest.headers ?? {}) } : { "content-type": "application/json", ...(rest.headers ?? {}) },
+    headers: multipart
+      ? { ...csrf, ...(rest.headers ?? {}) }
+      : { "content-type": "application/json", ...csrf, ...(rest.headers ?? {}) },
   });
   const text = await res.text();
   const body = text ? safeJson(text) : undefined;
