@@ -98,7 +98,7 @@ services:
     image: provectuslabs/kafka-ui:v0.7.2@sha256:8f2ff02d64b0a7a2b71b6b3b3148b85f66d00ec20ad40c30bdcd415d46d31818
     container_name: lh-kafka-ui
     ports:
-      - "8090:8080"   # ispezione dei topic su http://localhost:8090
+      - "127.0.0.1:8090:8080"   # ispezione dei topic su http://localhost:8090, solo dall'host (Q-479)
     environment:
       KAFKA_CLUSTERS_0_NAME: "loyalty-hub-local"
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:29092"
@@ -181,7 +181,7 @@ services:
     entrypoint: *lh-require-env
     command: ["lh-require-env", "/container/tool/run", "--copy-service"]
     ports:
-      - "389:389"
+      - "127.0.0.1:389:389"   # solo dall'host (Q-480)
     environment:
       LDAP_ORGANISATION: "Example Org"
       LDAP_DOMAIN: "example.org"

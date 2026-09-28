@@ -13,7 +13,7 @@ docker compose -f deploy/docker-compose.yml --profile all up --build
 |---|---|---|
 | `kafka` | 9092 | KRaft nodo singolo; `auto.create.topics.enable=false` |
 | `postgres` | 5432 | DB `loyaltyhub`, volume `lh-postgres-data` |
-| `kafka-ui` | 8090 | ispezione topic su http://localhost:8090 |
+| `kafka-ui` | 8090 | ispezione topic su http://localhost:8090 (solo `127.0.0.1`, Q-479) |
 | 8 servizi + `web` | 8081–8088, 3000 | solo con `--profile all` |
 
 **I 5 topic** non sono creati dal broker: li crea il **profilo Spring `local`** (bean `NewTopic` di `lh-common`,
