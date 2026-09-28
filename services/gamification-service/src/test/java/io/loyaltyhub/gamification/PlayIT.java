@@ -1,5 +1,7 @@
 package io.loyaltyhub.gamification;
 
+import io.loyaltyhub.common.testsupport.ListenerGroups;
+import io.loyaltyhub.common.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -58,7 +60,7 @@ class PlayIT {
     @Value("${local.server.port}")
     private int port;
 
-    /** Topic dei fatti del contesto di test ({@link FactsTopic}). */
+    /** Topic dei fatti del contesto di test ({@link TopicReader}). */
     @Value("${loyaltyhub.topics.facts:lh.facts.v1}")
     private String factsTopicName;
 
@@ -135,7 +137,7 @@ class PlayIT {
         String grant = publishGrant("MBR-000003", "IW-IT-CAP", 3, "EFF-IT-CAP-1");
         String again = publishGrant("MBR-000003", "IW-IT-CAP", 3, "EFF-IT-CAP-1");
         // Entrambi gli eventi elaborati: il doppione di effectId, se passasse, sarebbe già nel DB e nell'outbox.
-        new FactsTopic(jdbc, mapper, factsTopicName).awaitConsumed(List.of(grant, again));
+        new TopicReader(jdbc, mapper, factsTopicName).awaitConsumed(List.of(grant, again));
         JsonNode c = awaitCredits("MBR-000003", "IW-IT-CAP", 1);
         assertThat(c.path("credits").asInt()).as("stesso effectId → un solo credito").isEqualTo(3);
         assertThat(jdbc.sql("SELECT count(*) FROM play_grant WHERE effect_id = 'EFF-IT-CAP-1'").query(Long.class).single()).isEqualTo(1);
@@ -245,10 +247,10 @@ class PlayIT {
 
     /**
      * Fatti pubblicati sul topic dei fatti dopo l'elaborazione degli eventi {@code consumedFirst} pubblicati dal test
-     * ({@link FactsTopic}); vuoto per i fatti delle giocate, nati nelle transazioni HTTP già concluse.
+     * ({@link TopicReader}); vuoto per i fatti delle giocate, nati nelle transazioni HTTP già concluse.
      */
     private List<JsonNode> factsFor(List<String> consumedFirst, String subject, String type) {
-        return new FactsTopic(jdbc, mapper, factsTopicName).published(consumedFirst, subject, type);
+        return new TopicReader(jdbc, mapper, factsTopicName).published(consumedFirst, subject, type);
     }
 
     private static long count(JsonNode plays, String outcome) {

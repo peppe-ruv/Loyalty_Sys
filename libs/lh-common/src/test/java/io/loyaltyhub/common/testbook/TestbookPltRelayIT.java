@@ -17,14 +17,14 @@ import io.loyaltyhub.common.metrics.LhMetrics;
 import io.loyaltyhub.common.outbox.OutboxCleanup;
 import io.loyaltyhub.common.outbox.OutboxRelay;
 import io.loyaltyhub.common.outbox.OutboxWriter;
+import io.loyaltyhub.common.testsupport.ListenerGroups;
+import io.loyaltyhub.common.testsupport.TopicReader;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
@@ -48,7 +48,6 @@ import tools.jackson.databind.ObjectMapper;
 import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -186,7 +185,7 @@ class TestbookPltRelayIT {
                     // la transazione del cambiamento di stato è annullata
                 }
                 tx.executeWithoutResult(s -> relay.publishBatch());
-                yield "outbox=" + rows(key) + " ricevuti=" + pollAll(EFFECTS, key, 1, Duration.ofSeconds(2)).size();
+                yield "outbox=" + rows(key) + " ricevuti=" + onTopic(EFFECTS, key).size();
             }
             case "orderOneTx" -> {
                 tx.executeWithoutResult(s -> {
@@ -195,7 +194,7 @@ class TestbookPltRelayIT {
                     }
                 });
                 tx.executeWithoutResult(s -> relay.publishBatch());
-                yield "ordine=" + seqs(pollAll(EFFECTS, key, 20, Duration.ofSeconds(20)));
+                yield "ordine=" + seqs(onTopic(EFFECTS, key));
             }
             case "orderAcrossTx" -> {
                 for (int t = 0; t < 3; t++) {
@@ -207,7 +206,7 @@ class TestbookPltRelayIT {
                     });
                 }
                 tx.executeWithoutResult(s -> relay.publishBatch());
-                yield "ordine=" + seqs(pollAll(EFFECTS, key, 15, Duration.ofSeconds(20)));
+                yield "ordine=" + seqs(onTopic(EFFECTS, key));
             }
             case "batch99", "batch100", "batch101" -> {
                 int n = Integer.parseInt(kase.substring(5));
@@ -249,7 +248,7 @@ class TestbookPltRelayIT {
                 }
                 dead.destroy();
                 tx.executeWithoutResult(s -> relay.publishBatch());
-                yield "in attesa=" + unpublished(key) + " ricevuti=" + pollAll(EFFECTS, key, 1, Duration.ofSeconds(10)).size();
+                yield "in attesa=" + unpublished(key) + " ricevuti=" + onTopic(EFFECTS, key).size();
             }
             case "midBatch" -> {
                 tx.executeWithoutResult(s -> {
@@ -276,7 +275,7 @@ class TestbookPltRelayIT {
                 long afterFailure = unpublished(key);
                 tx.executeWithoutResult(s -> flakyRelay.publishBatch());
                 flaky.destroy();
-                List<ConsumerRecord<String, String>> delivered = pollAll(EFFECTS, key, 7, Duration.ofSeconds(20));
+                List<ConsumerRecord<String, String>> delivered = onTopic(EFFECTS, key);
                 // Il consumer idempotente vede ogni evento una sola volta, nell'ordine di scrittura.
                 ProcessedEvents processed = new ProcessedEvents(jdbc);
                 IdempotentHandler idempotent = new IdempotentHandler(processed);
@@ -314,7 +313,7 @@ class TestbookPltRelayIT {
                 } finally {
                     pool.shutdownNow();
                 }
-                List<ConsumerRecord<String, String>> got = pollAll(EFFECTS, key, 200, Duration.ofSeconds(30));
+                List<ConsumerRecord<String, String>> got = onTopic(EFFECTS, key);
                 long distinct = got.stream().map(r -> mapper.readTree(r.value()).path("id").asString()).distinct().count();
                 yield "in attesa=" + unpublished(key) + " messaggi=" + got.size() + " distinti=" + distinct;
             }
@@ -447,7 +446,9 @@ class TestbookPltRelayIT {
             while (!processed.contains("next") && System.currentTimeMillis() < deadline) {
                 pause(50);
             }
-            List<ConsumerRecord<String, String>> deadLetters = pollAll(DLQ, key, 1, Duration.ofSeconds(5));
+            // Stessa chiave, stessa partizione: con "next" elaborato il velenoso è già stato recuperato (DLQ confermata
+            // dal broker prima del commit), quindi la lettura fino in fondo è esatta.
+            List<ConsumerRecord<String, String>> deadLetters = onTopic(DLQ, key);
             ConsumerRecord<String, String> dead = deadLetters.isEmpty() ? null : deadLetters.get(0);
             String got = "invocazioni=" + invocations.getOrDefault("poison", new AtomicInteger()).get()
                     + " dlq=" + (deadLetters.isEmpty() ? "no" : deadLetters.size() == 1 ? "si" : String.valueOf(deadLetters.size()));
@@ -489,8 +490,10 @@ class TestbookPltRelayIT {
         container.start();
         awaitStableAssignment(container);
         try {
-            template.send(topic, key, "poison").get();
-            List<ConsumerRecord<String, String>> before = pollAll(DLQ, key, 1, Duration.ofSeconds(20));
+            RecordMetadata poison = template.send(topic, key, "poison").get().getRecordMetadata();
+            // Barriera esatta: l'offset del velenoso è confermato solo dopo la pubblicazione in DLQ (commitRecovered).
+            ListenerGroups.awaitCommitted(bootstrap, group, List.of(poison));
+            List<ConsumerRecord<String, String>> before = onTopic(DLQ, key);
             String got = "prima: invocazioni=" + invocations.getOrDefault("poison", new AtomicInteger()).get()
                     + " dlq=" + before.size();
             // La partizione passa di mano: il gruppo si svuota e si ricompone, come in un rilascio o in un ribilanciamento.
@@ -502,7 +505,7 @@ class TestbookPltRelayIT {
             while (!processed.contains("next") && System.currentTimeMillis() < deadline) {
                 pause(50);
             }
-            List<ConsumerRecord<String, String>> after = pollAll(DLQ, key, 1, Duration.ofSeconds(5));
+            List<ConsumerRecord<String, String>> after = onTopic(DLQ, key);
             got += " dopo il riavvio: invocazioni=" + invocations.getOrDefault("poison", new AtomicInteger()).get()
                     + " dlq=" + after.size() + " successivo=" + (processed.contains("next") ? "elaborato" : "fermo");
             assertThat(got).as("%s: %s", id, description).isEqualTo(expected);
@@ -545,7 +548,10 @@ class TestbookPltRelayIT {
      * partizioni assegnate in totale non basta: il primo consumer entrato riceve da solo tutte e due le partizioni, e
      * l'ingresso del secondo ribilancia il gruppo più tardi, magari a metà dei ritentativi (CI, TB-PLT-DLK-010).
      */
-    private static void awaitStableAssignment(ConcurrentMessageListenerContainer<String, String> container) {
+    private void awaitStableAssignment(ConcurrentMessageListenerContainer<String, String> container) {
+        // Il coordinator vede il gruppo STABLE con entrambi i consumer e l'assegnazione applicata (ListenerGroups)...
+        ListenerGroups.awaitStable(bootstrap, List.of(container));
+        // ...e ciascuno ha una partizione.
         long deadline = System.currentTimeMillis() + 30_000;
         while (System.currentTimeMillis() < deadline) {
             var children = container.getContainers();
@@ -618,40 +624,18 @@ class TestbookPltRelayIT {
     }
 
     private ConsumerRecord<String, String> pollOne(String topic, String key) {
-        List<ConsumerRecord<String, String>> got = pollAll(topic, key, 1, Duration.ofSeconds(20));
+        List<ConsumerRecord<String, String>> got = onTopic(topic, key);
         assertThat(got).as("messaggio con chiave %s su %s", key, topic).isNotEmpty();
         return got.get(0);
     }
 
-    /** Legge dall'inizio del topic i record con quella chiave, fino a {@code expected} o allo scadere del tempo. */
-    private List<ConsumerRecord<String, String>> pollAll(String topic, String key, int expected, Duration timeout) {
-        List<ConsumerRecord<String, String>> out = new ArrayList<>();
-        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(Map.of(
-                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrap,
-                ConsumerConfig.GROUP_ID_CONFIG, "tb-reader-" + SEQ.incrementAndGet(),
-                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class))) {
-            consumer.subscribe(List.of(topic));
-            long deadline = System.currentTimeMillis() + timeout.toMillis();
-            while (out.size() < expected && System.currentTimeMillis() < deadline) {
-                for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(200))) {
-                    if (key.equals(r.key())) {
-                        out.add(r);
-                    }
-                }
-            }
-            // Nessun record in più oltre l'atteso (duplicati visibili): un ultimo giro breve.
-            long extra = System.currentTimeMillis() + 300;
-            while (System.currentTimeMillis() < extra) {
-                for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(100))) {
-                    if (key.equals(r.key())) {
-                        out.add(r);
-                    }
-                }
-            }
-        }
-        return out;
+    /**
+     * Tutti i record del topic con quella chiave, esatti ({@link TopicReader}): il relay ha già marcato le righe dopo
+     * l'ack (e l'outbox del topic è vuoto) oppure una barriera ha già atteso l'error handler, quindi il topic si legge
+     * dall'inizio fino in fondo, senza consumer group né finestra di tempo. Un doppione resta visibile.
+     */
+    private List<ConsumerRecord<String, String>> onTopic(String topic, String key) {
+        return new TopicReader(bootstrap, jdbc, mapper, topic).records(List.of(), r -> key.equals(r.key()));
     }
 
     private static String header(ConsumerRecord<String, String> r, String name) {
