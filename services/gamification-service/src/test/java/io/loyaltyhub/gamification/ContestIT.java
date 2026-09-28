@@ -7,10 +7,12 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -19,14 +21,18 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,6 +55,9 @@ class ContestIT {
 
     @Value("${local.server.port}")
     private int port;
+
+    @Autowired
+    private JdbcClient jdbc;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -108,6 +117,69 @@ class ContestIT {
         assertThat(status("GET", path, "ANALYST:sara", null)).isEqualTo(403);
         assertThat(send("GET", path + "?size=10", "LEGAL:elena", null, 200).path("page").path("totalItems").asLong()).isEqualTo(355);
         assertThat(send("GET", path + "?size=10", "ADMIN:test", null, 200).path("items").size()).isEqualTo(10);
+    }
+
+    /**
+     * F2-SEC-10 (ADR-042, regola 19): i filtri della tabella istanti passano dal builder SQL comune. Conteggi esatti
+     * dal seed, filtri in AND, stato indifferente alle maiuscole, paginazione su {@code (instant_at, id)}, valori
+     * con apici trattati come valori (nessuna riga in più, tabella intatta).
+     */
+    @Test
+    void instantsFiltersPagingAndInjectionAttempts() {
+        // IW-ESTATE (chiuso): 152 istanti = PTS-50 110 + PTS-100 40 + COOLBAG 2; 142 vinti, 10 annullati, 0 aperti.
+        String pts50 = prizeId("IW-ESTATE", "PTS-50");
+        String pts100 = prizeId("IW-ESTATE", "PTS-100");
+        String coolbag = prizeId("IW-ESTATE", "COOLBAG");
+        assertThat(instantsTotal("IW-ESTATE")).isEqualTo(152);
+        assertThat(instantsTotal("IW-ESTATE", "status", "CLAIMED")).isEqualTo(142);
+        assertThat(instantsTotal("IW-ESTATE", "status", "claimed")).as("stato in minuscolo").isEqualTo(142);
+        assertThat(instantsTotal("IW-ESTATE", "status", "VOID")).isEqualTo(10);
+        assertThat(instantsTotal("IW-ESTATE", "status", "OPEN")).isZero();
+        assertThat(instantsTotal("IW-ESTATE", "prizeId", pts50)).isEqualTo(110);
+        assertThat(instantsTotal("IW-ESTATE", "prizeId", pts100)).isEqualTo(40);
+        assertThat(instantsTotal("IW-ESTATE", "prizeId", coolbag)).isEqualTo(2);
+
+        // Stato + premio. Quanti PTS-50 cadono fra le 142 vincite dipende dal calendario: se la finestra del concorso
+        // (@today-85d..@today-24d) contiene un cambio d'ora, gli istanti generati dal seme cambiano (103 a fine
+        // settembre 2026, 101 dal 18 novembre al 18 gennaio). L'atteso esatto viene da una query SQL costante; le
+        // somme per stato e per premio tornano sui totali fissi del seed.
+        long claimedPts50 = instantsTotal("IW-ESTATE", "status", "CLAIMED", "prizeId", pts50);
+        long voidPts50 = instantsTotal("IW-ESTATE", "status", "VOID", "prizeId", pts50);
+        assertThat(claimedPts50).isEqualTo(instantRows("IW-ESTATE", "CLAIMED", "PTS-50"));
+        assertThat(voidPts50).isEqualTo(instantRows("IW-ESTATE", "VOID", "PTS-50"));
+        assertThat(claimedPts50 + voidPts50).as("PTS-50 vinti + annullati").isEqualTo(110);
+        assertThat(claimedPts50 + instantsTotal("IW-ESTATE", "status", "CLAIMED", "prizeId", pts100)
+                + instantsTotal("IW-ESTATE", "status", "CLAIMED", "prizeId", coolbag))
+                .as("vinti per premio = vinti").isEqualTo(142);
+        assertThat(instantsTotal("IW-ESTATE", "status", "OPEN", "prizeId", pts50)).isZero();
+
+        // IW-AUTUNNO (LIVE): 355 istanti, una sola vincita (PTS-50) dalle giocate del seed; PTS-50 ne ha 200.
+        String autunnoPts50 = prizeId("IW-AUTUNNO", "PTS-50");
+        assertThat(instantsTotal("IW-AUTUNNO", "status", "OPEN")).isEqualTo(354);
+        assertThat(instantsTotal("IW-AUTUNNO", "status", "CLAIMED", "prizeId", autunnoPts50)).isEqualTo(1);
+        assertThat(instantsTotal("IW-AUTUNNO", "status", "OPEN", "prizeId", autunnoPts50)).isEqualTo(199);
+
+        // Paginazione: pagine da 10 disgiunte, e pagina 0 + pagina 1 = prime 20 righe ordinate per (instant_at, id).
+        List<String> page0 = ids(instants("IW-ESTATE", "size", "10", "page", "0"));
+        List<String> page1 = ids(instants("IW-ESTATE", "size", "10", "page", "1"));
+        List<JsonNode> first20 = new ArrayList<>();
+        instants("IW-ESTATE", "size", "20").path("items").forEach(first20::add);
+        assertThat(page0).hasSize(10).doesNotContainAnyElementsOf(page1);
+        assertThat(page1).hasSize(10);
+        List<String> bothPages = new ArrayList<>(page0);
+        bothPages.addAll(page1);
+        assertThat(bothPages).isEqualTo(first20.stream().map(i -> i.path("id").asString()).toList());
+        assertThat(first20).isSortedAccordingTo(Comparator
+                .comparing((JsonNode i) -> Instant.parse(i.path("instantAt").asString()))
+                .thenComparing(i -> i.path("id").asString()));
+
+        // Iniezione: su un concorso con istanti aperti un OR sempre vero restituirebbe righe; qui nessuna.
+        JsonNode orTrue = instants("IW-AUTUNNO", "status", "OPEN' OR '1'='1");
+        assertThat(orTrue.path("page").path("totalItems").asLong()).isZero();
+        assertThat(orTrue.path("items").size()).isZero();
+        long rows = winningInstantRows();
+        assertThat(instantsTotal("IW-AUTUNNO", "prizeId", "'; DROP TABLE winning_instant; --")).isZero();
+        assertThat(winningInstantRows()).as("winning_instant intatta").isEqualTo(rows);
     }
 
     @Test
@@ -350,6 +422,57 @@ class ContestIT {
                 return out;
             }
         }
+    }
+
+    /**
+     * Pagina degli istanti vista da LEGAL; {@code params} sono coppie nome, valore. L'URI è codificato una volta sola:
+     * {@code RestClient.uri(String)} ricodificherebbe i {@code %} ({@code %27} → {@code %2527}) e il server non
+     * riceverebbe gli apici.
+     */
+    private JsonNode instants(String contest, String... params) {
+        StringJoiner query = new StringJoiner("&", "?", "").setEmptyValue("");
+        for (int i = 0; i < params.length; i += 2) {
+            query.add(params[i] + "=" + URLEncoder.encode(params[i + 1], StandardCharsets.UTF_8));
+        }
+        URI uri = URI.create("http://localhost:" + port + "/v1/contests/" + contest + "/instants" + query);
+        return RestClient.create().get().uri(uri).header("X-LH-Actor", "LEGAL:elena").exchange((req, res) -> {
+            String text = new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8);
+            assertThat(res.getStatusCode().value()).as("GET " + uri + " → " + text).isEqualTo(200);
+            return mapper.readTree(text);
+        });
+    }
+
+    private long instantsTotal(String contest, String... params) {
+        return instants(contest, params).path("page").path("totalItems").asLong();
+    }
+
+    private static List<String> ids(JsonNode page) {
+        List<String> out = new ArrayList<>();
+        page.path("items").forEach(i -> out.add(i.path("id").asString()));
+        return out;
+    }
+
+    private String prizeId(String contestCode, String prizeCode) {
+        for (JsonNode p : contest(contestCode).path("prizes")) {
+            if (prizeCode.equals(p.path("code").asString())) {
+                return p.path("id").asString();
+            }
+        }
+        throw new AssertionError("premio assente: " + prizeCode + " in " + contestCode);
+    }
+
+    /** Oracolo indipendente dal builder: SQL costante con parametri posizionali. */
+    private long instantRows(String contestCode, String status, String prizeCode) {
+        return jdbc.sql("""
+                        SELECT count(*) FROM winning_instant w
+                        JOIN contest c ON c.id = w.contest_id JOIN prize p ON p.id = w.prize_id
+                        WHERE c.code = ? AND w.status = ? AND p.code = ?
+                        """)
+                .params(contestCode, status, prizeCode).query(Long.class).single();
+    }
+
+    private long winningInstantRows() {
+        return jdbc.sql("SELECT count(*) FROM winning_instant").query(Long.class).single();
     }
 
     private static List<String> signature(List<JsonNode> instants) {
