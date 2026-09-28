@@ -99,13 +99,16 @@ public final class PersonalData {
     }
 
     /**
-     * Valori personali da cercare nel testo libero: i valori non vuoti di {@code values}. Scarta i segnaposto e i
-     * valori troppo corti; ordinati dal più lungo (il nome completo si sostituisce prima delle sue parti).
+     * Valori personali da cercare nel testo libero: i valori non vuoti di {@code values}. Scarta i valori troppo corti
+     * e quelli che sono parole del segnaposto («Membro», «anonimo», «Membro anonimo», senza distinguere maiuscole: il
+     * segnaposto non cresce a ogni anonimizzazione, Q-404); ordinati dal più lungo (il nome completo si sostituisce
+     * prima delle sue parti).
      */
     public static List<String> tokens(Collection<String> values) {
         Set<String> out = new LinkedHashSet<>();
         for (String v : values) {
-            if (notBlank(v) && v.trim().length() >= MIN_TOKEN && !PLACEHOLDER.equalsIgnoreCase(v.trim())) {
+            if (notBlank(v) && v.trim().length() >= MIN_TOKEN
+                    && PersonalTextScrubber.found(PLACEHOLDER, List.of(v.trim())).isEmpty()) {
                 out.add(v.trim());
             }
         }

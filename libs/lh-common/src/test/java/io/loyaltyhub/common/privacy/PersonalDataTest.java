@@ -176,4 +176,96 @@ class PersonalDataTest {
         assertThat(PersonalData.containsAny("Adamo e ANONYMIZED", List.of("Ada", "Anon"))).isFalse();
         assertThat(PersonalData.containsAny(null, List.of("Ada"))).isFalse();
     }
+
+    // ---------- Q-404, revisione: un dato del membro per intero non è mai sicuro ----------
+
+    private static final List<String> MARIO = PersonalData.tokens(List.of("Mario", "Rossi", "mario.rossi@example.test",
+            "3331234567", "CRM101", "RSSMRA80A01H501U"));
+
+    @Test
+    @DisplayName("Q-404: identificativi e codici che sono per intero un dato del membro si sostituiscono")
+    void wholeMemberValuesInSafeFieldsAreReplaced() {
+        JsonNode in = mapper.readTree("""
+                {"id":"CRM101","type":"io.loyaltyhub.source.purchase","source":"urn:loyaltyhub:source:pos",
+                 "lhactor":"mario.rossi@example.test","subject":"member:MBR-000003",
+                 "data":{"customerId":"CRM101","loginId":"MARIO.ROSSI@example.test","userId":"3331234567",
+                         "customerCode":"crm101","fiscalCode":"RSSMRA80A01H501U","channel":"3331234567",
+                         "customer":"CRM101","contact":"+393331234567","holderCode":"Mario",
+                         "nested":{"customer":{"id":"CRM101","source":"mario.rossi@example.test"}},
+                         "items":[{"sku":"CRM101"},{"sku":"CRM1010"}]}}""");
+        JsonNode out = PersonalData.redactAndScrub(in, MARIO);
+        JsonNode d = out.path("data");
+        for (String key : new String[]{"customerId", "loginId", "userId", "customerCode", "fiscalCode", "channel",
+                "customer", "contact", "holderCode"}) {
+            assertThat(d.path(key).asString()).as(key).isEqualTo(PersonalData.PLACEHOLDER);
+        }
+        assertThat(d.path("nested").path("customer").path("id").asString()).isEqualTo(PersonalData.PLACEHOLDER);
+        assertThat(d.path("nested").path("customer").path("source").asString()).isEqualTo(PersonalData.PLACEHOLDER);
+        assertThat(d.path("items").get(0).path("sku").asString()).isEqualTo(PersonalData.PLACEHOLDER);
+        assertThat(d.path("items").get(1).path("sku").asString()).as("un altro codice").isEqualTo("CRM1010");
+        assertThat(out.path("lhactor").asString()).isEqualTo(PersonalData.PLACEHOLDER);
+        assertThat(out.path("id").asString()).as("envelope alla radice: mai riscritto").isEqualTo("CRM101");
+        assertThat(out.path("source").asString()).isEqualTo("urn:loyaltyhub:source:pos");
+        assertThat(out.toString()).doesNotContain("mario.rossi").doesNotContain("3331234567")
+                .doesNotContain("RSSMRA80A01H501U");
+        assertThat(PersonalData.scrubAll(mapper.readTree("{\"customerId\":\"CRM101\"}"), MARIO).path("customerId")
+                .asString()).as("anche sulle righe di altre entità").isEqualTo(PersonalData.PLACEHOLDER);
+    }
+
+    @Test
+    @DisplayName("Q-404: stati e codici di dominio restano se il membro non li ha o li ha solo come nome")
+    void domainCodesStayWhenTheMemberHasThemOnlyAsAName() {
+        JsonNode in = mapper.readTree("""
+                {"type":"io.loyaltyhub.fact.wallet.points.adjusted","lhactor":"ADMIN:marta.admin",
+                 "data":{"memberId":"MBR-000003","status":"ACTIVE","previousStatus":"ACTIVE","tier":"GOLD",
+                         "reason":"TEST","note":"MEMBER_REQUEST","rewardCode":"RWD-TEST","level":"SILVER"}}""");
+        for (List<String> tokens : List.of(MARIO, PersonalData.nameTokens("Active", "Test", "Gold"),
+                PersonalData.nameTokens("ACTIVE", "Silver"))) {
+            JsonNode d = PersonalData.redactAndScrub(in, tokens).path("data");
+            assertThat(d.path("status").asString()).as("%s", tokens).isEqualTo("ACTIVE");
+            assertThat(d.path("previousStatus").asString()).as("%s", tokens).isEqualTo("ACTIVE");
+            assertThat(d.path("tier").asString()).as("%s", tokens).isEqualTo("GOLD");
+            assertThat(d.path("reason").asString()).as("%s", tokens).isEqualTo("TEST");
+            assertThat(d.path("note").asString()).as("%s", tokens).isEqualTo("MEMBER_REQUEST");
+            assertThat(d.path("rewardCode").asString()).as("%s", tokens).isEqualTo("RWD-TEST");
+            assertThat(d.path("level").asString()).as("%s", tokens).isEqualTo("SILVER");
+        }
+        assertThat(PersonalData.redactAndScrub(mapper.readTree("{\"data\":{\"level\":\"Ada\",\"tier\":\"Adamo\"}}"),
+                List.of("Ada")).path("data").path("level").asString()).as("un nome per intero in un campo di codice")
+                .isEqualTo(PersonalData.PLACEHOLDER);
+    }
+
+    @Test
+    @DisplayName("Q-404: telefono con il prefisso internazionale attaccato")
+    void phoneWithCountryPrefix() {
+        assertThat(PersonalData.scrub("Chiama +393331234567, 00393331234567, 393331234567 o 3331234567; non 12343331234567",
+                List.of("3331234567")))
+                .isEqualTo("Chiama Membro anonimo, Membro anonimo, Membro anonimo o Membro anonimo; non 12343331234567");
+        assertThat(PersonalData.scrub("Codice 1234567 e 91234567", List.of("1234567"))).as("meno di 8 cifre: nessun prefisso")
+                .isEqualTo("Codice Membro anonimo e 91234567");
+    }
+
+    @Test
+    @DisplayName("Q-404: scritture senza spazi (han, kana, thai): nessun confine di parola")
+    void scriptsWithoutSpaces() {
+        assertThat(PersonalData.scrub("王伟先生您好", List.of("王伟先"))).isEqualTo("Membro anonimo生您好");
+        assertThat(PersonalData.scrub("Adaさん、こんにちは。アダムさん", List.of("Ada")))
+                .isEqualTo("Membro anonimoさん、こんにちは。アダムさん");
+        assertThat(PersonalData.scrub("สวัสดีสมชายครับ", List.of("สมชาย"))).isEqualTo("สวัสดีMembro anonimoครับ");
+        assertThat(PersonalTextScrubber.found("王伟先生您好！", List.of("王伟先"))).as("la parola intera, per audit_mentions")
+                .containsExactly("王伟先生您好");
+    }
+
+    @Test
+    @DisplayName("Q-404: parole del segnaposto scartate, due anonimizzazioni danno lo stesso risultato")
+    void placeholderWordsAreNotTokensAndScrubIsIdempotent() {
+        assertThat(PersonalData.tokens(List.of("Membro", "anonimo", "ANONIMO", "membro anonimo", "Anna")))
+                .containsExactly("Anna");
+        List<String> tokens = PersonalData.nameTokens("Membro", "Anonimo", "membro.anonimo@example.test");
+        JsonNode in = mapper.readTree("""
+                {"note":"Scritto da Membro Anonimo (membro.anonimo@example.test)","status":"ACTIVE"}""");
+        JsonNode once = PersonalData.redactAndScrub(in, tokens);
+        assertThat(once.path("note").asString()).isEqualTo("Scritto da Membro Anonimo (Membro anonimo)");
+        assertThat(PersonalData.redactAndScrub(once, tokens)).isEqualTo(once);
+    }
 }

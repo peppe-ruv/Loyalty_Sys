@@ -85,6 +85,24 @@ class MemberErasureRepositoryIT {
     }
 
     @Test
+    @DisplayName("Q-404: nome «Ada» per intero in un campo di codice («level»): sostituito; ACTIVE e GOLD restano")
+    void wholeNameInACodedFieldIsReplaced() {
+        member("MBR-000903", "Ada");
+        delivery("DLV-903", "MBR-000903", """
+                {"specversion":"1.0","id":"EVT-LEVEL","type":"io.loyaltyhub.fact.member.updated",
+                 "source":"urn:loyaltyhub:service:member","subject":"member:MBR-000903",
+                 "data":{"memberId":"MBR-000903","level":"Ada","tier":"GOLD","status":"ACTIVE","channel":"ada"}}""");
+
+        repository.erase("MBR-000903");
+
+        JsonNode d = deliveryPayload("DLV-903").path("data");
+        assertThat(d.path("level").asString()).isEqualTo("Membro anonimo");
+        assertThat(d.path("tier").asString()).isEqualTo("GOLD");
+        assertThat(d.path("status").asString()).isEqualTo("ACTIVE");
+        assertThat(d.path("channel").asString()).as("nome con altre maiuscole: un codice").isEqualTo("ada");
+    }
+
+    @Test
     @DisplayName("nome «Ada»: sostituito come parola intera, «Adamo», ADA7 e il codice RWD-ADA restano")
     void nameInsideLongerWordsAndCodesIsKept() {
         member("MBR-000901", "Ada");

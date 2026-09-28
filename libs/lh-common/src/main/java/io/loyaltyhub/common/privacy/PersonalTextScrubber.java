@@ -22,15 +22,27 @@ import java.util.regex.Pattern;
  *   <li><strong>Solo parole intere</strong>: un valore si sostituisce con «Membro anonimo» solo se non è attaccato a
  *       lettere, segni diacritici o cifre (il trattino basso separa: «Ottavio_Q» si ripulisce). Testo e valori si
  *       confrontano in forma NFC e senza distinguere maiuscole. Un soprannome «Anon» o un nome «Zed» non toccano
- *       «ANONYMIZED» o «Zedda».</li>
+ *       «ANONYMIZED» o «Zedda». Le scritture senza spazi (han, hiragana, katakana, thai, lao, khmer, birmano) non
+ *       fanno da confine: «王伟先» si ripulisce in «王伟先生», «Ada» in «Adaさん». Un valore di sole cifre lungo almeno
+ *       8 (un telefono) si riconosce anche con il prefisso internazionale attaccato ({@code +39…}, {@code 0039…},
+ *       {@code 39…}).</li>
  *   <li><strong>Si salta solo ciò che è sicuro</strong>: i campi che portano identificativi, istanti e l'envelope
- *       ({@link #isFixed}) non si toccano mai; i campi di enumerazione e codice (stati, tipi, codici, azioni:
+ *       ({@link #isFixed}) non si riscrivono; i campi di enumerazione e codice (stati, tipi, codici, azioni:
  *       {@link #isCoded}) si conservano solo se il valore ha la forma di un codice ({@code ACTIVE},
  *       {@code member.status.changed}); ogni altro campo è testo libero e si ripulisce, compresi {@code reason} e
- *       {@code subject} ({@code email:<indirizzo>}, {@code external:<id>}). Nel testo libero resta intatto solo un
- *       valore che è per intero una costante in maiuscolo ({@code TEST}, {@code MEMBER_REQUEST}: i motivi enumerati
- *       di {@code wallet.points.adjusted}), anche se un soprannome ci coincide. Gli identificativi personali ({@code externalId},
- *       {@link PersonalData#KEYS}) e lo pseudonimo {@link PersonalData#EMAIL_HASH} non sono mai sicuri.</li>
+ *       {@code subject} ({@code email:<indirizzo>}, {@code external:<id>}). Nel testo libero resta intatto un valore
+ *       che è per intero una parola in maiuscolo con almeno una lettera ({@code TEST}, {@code MEMBER_REQUEST},
+ *       {@code GOODWILL}: {@link #isSafe}). Gli identificativi personali ({@code externalId}, {@link PersonalData#KEYS})
+ *       e lo pseudonimo {@link PersonalData#EMAIL_HASH} non sono mai sicuri.</li>
+ *   <li><strong>Un dato del membro per intero non è mai sicuro</strong> (revisione Q-404): un valore saltato come
+ *       sicuro che coincide per intero con un valore del membro diventa comunque «Membro anonimo»
+ *       ({@code "customerId":"CRM101"}, {@code "lhactor":"<e-mail>"}, {@code "level":"Ada"}). Il confronto non
+ *       distingue maiuscole per i valori identificativi (con una cifra o una chiocciola: e-mail, telefono, id esterno,
+ *       pseudonimo) e le distingue per i nomi, così un soprannome «Active» o «Test» non tocca {@code ACTIVE} o
+ *       {@code TEST}; nei campi di identificativo e di codice un nome non tocca mai un valore in maiuscolo (un
+ *       soprannome «ACTIVE» non corrompe uno stato). Fanno eccezione solo gli attributi dell'envelope CloudEvents
+ *       alla radice ({@code id}, {@code specversion}, {@code type}, {@code source}, {@code time},
+ *       {@code datacontenttype}, {@code dataschema}).</li>
  * </ul>
  * Toglie le chiavi personali come {@link PersonalData#redact}. Pura, senza accesso a DB.
  */
@@ -51,17 +63,33 @@ public final class PersonalTextScrubber {
     /** Suffissi dei campi di enumerazione e codice: {@code newStatus}, {@code eventType}, {@code rewardCode}. */
     private static final List<String> CODED_SUFFIXES = List.of("Status", "Type", "Code");
 
+    /** Attributi dell'envelope CloudEvents alla radice: mai riscritti, neppure se coincidono con un valore del membro. */
+    private static final Set<String> ENVELOPE = Set.of(
+            "id", "specversion", "datacontenttype", "dataschema", "time", "type", "source");
+
     /** Forma di un codice: una sola parola di lettere, cifre, punti, trattini, due punti e trattini bassi. */
     private static final Pattern CODE_VALUE = Pattern.compile("[\\p{L}\\p{N}_.:-]+");
 
     /**
-     * Valore che è per intero una costante in maiuscolo ({@code TEST}, {@code MEMBER_REQUEST}): conservato ovunque. Serve
-     * almeno una lettera: un valore di sole cifre (un telefono, un id esterno numerico) non è una costante.
+     * Valore che è per intero una parola in maiuscolo ({@code TEST}, {@code MEMBER_REQUEST}): conservato nel testo libero.
+     * Serve almeno una lettera: un valore di sole cifre (un telefono, un id esterno numerico) non lo è.
      */
     private static final Pattern CONSTANT = Pattern.compile("(?=[A-Z0-9_]*[A-Z])[A-Z0-9]+(?:_[A-Z0-9]+)*");
 
     /** Carattere di parola: lettera, segno diacritico o cifra. */
-    private static final String WORD = "[\\p{L}\\p{M}\\p{N}]";
+    private static final Pattern WORD = Pattern.compile("[\\p{L}\\p{M}\\p{N}]");
+
+    /** Scritture senza spazi tra le parole: non fanno da confine di parola. */
+    private static final String NON_SPACED =
+            "\\p{IsHan}\\p{IsHiragana}\\p{IsKatakana}\\p{IsThai}\\p{IsLao}\\p{IsKhmer}\\p{IsMyanmar}";
+
+    /** Carattere che, attaccato a un valore, lo rende parte di una parola più lunga. */
+    private static final String NEIGHBOR = "[\\p{L}\\p{M}\\p{N}&&[^" + NON_SPACED + "]]";
+
+    private static final Pattern NON_SPACED_CHAR = Pattern.compile("[" + NON_SPACED + "]");
+
+    /** Valore di sole cifre abbastanza lungo da essere un telefono: riconosciuto anche con il prefisso internazionale. */
+    private static final Pattern PHONE = Pattern.compile("\\d{8,}");
 
     private PersonalTextScrubber() {
     }
@@ -79,7 +107,10 @@ public final class PersonalTextScrubber {
         return key != null && !personal(key) && (CODED.contains(key) || hasSuffix(key, CODED_SUFFIXES));
     }
 
-    /** Il valore {@code value} del campo {@code key} resta com'è (identificativo, istante, codice, costante). */
+    /**
+     * Il valore {@code value} del campo {@code key} ha la forma di un valore sicuro (identificativo, istante, codice,
+     * costante). Nei documenti JSON vince comunque {@link #isMemberValue}: un dato del membro per intero si sostituisce.
+     */
     public static boolean isSafe(String key, String value) {
         if (isFixed(key)) {
             return true;
@@ -88,6 +119,36 @@ public final class PersonalTextScrubber {
             return false;
         }
         return isCoded(key) ? CODE_VALUE.matcher(value).matches() : CONSTANT.matcher(value).matches();
+    }
+
+    /**
+     * {@code value} coincide per intero con un valore del membro: senza distinguere maiuscole per i valori
+     * identificativi (con una cifra o una chiocciola; un telefono anche con il prefisso), con le stesse maiuscole per
+     * i nomi. Nei campi di identificativo e di codice ({@code key}) un nome non coincide mai con un valore in maiuscolo.
+     */
+    public static boolean isMemberValue(String key, String value, Collection<String> tokens) {
+        if (value == null || tokens == null) {
+            return false;
+        }
+        String v = nfc(value.trim());
+        if (v.isEmpty()) {
+            return false;
+        }
+        boolean structural = isFixed(key) || isCoded(key);
+        for (String t : tokens) {
+            if (t == null || t.isBlank()) {
+                continue;
+            }
+            String n = nfc(t.trim());
+            if (identifier(n)) {
+                if (word(n).matcher(v).matches()) {
+                    return true;
+                }
+            } else if (v.equals(n) && !(structural && CONSTANT.matcher(v).matches())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Sostituisce, senza distinguere maiuscole e solo come parola intera, ogni valore con «Membro anonimo». */
@@ -112,7 +173,9 @@ public final class PersonalTextScrubber {
 
     /**
      * I valori di {@code tokens} presenti come parole intere in {@code text}, così come vi compaiono (forma NFC): la
-     * prova, per {@code audit_redact}, che la voce riguarda il membro.
+     * prova, per {@code audit_redact}, che la voce riguarda il membro. Un valore trovato attaccato ad altre lettere
+     * (scritture senza spazi) o con il prefisso di un telefono si restituisce con la parola intera che lo contiene,
+     * così {@code audit_mentions} (V6 di insight, confini {@code [:alnum:]}) lo ritrova.
      */
     public static Set<String> found(String text, Collection<String> tokens) {
         Set<String> out = new LinkedHashSet<>();
@@ -126,7 +189,7 @@ public final class PersonalTextScrubber {
             }
             Matcher m = word(t).matcher(normalized);
             while (m.find()) {
-                out.add(m.group());
+                out.add(enclosingWord(normalized, m.start(), m.end()));
             }
         }
         return out;
@@ -142,33 +205,37 @@ public final class PersonalTextScrubber {
     /** Copia senza le chiavi personali e con {@link #scrub} sui valori non sicuri (righe del membro). */
     public static JsonNode redactAndScrub(JsonNode node, Collection<String> tokens) {
         JsonNode copy = PersonalData.redact(node);
-        return copy == null ? null : scrubStrings(copy, null, tokens);
+        return copy == null ? null : scrubStrings(copy, null, tokens, 0);
     }
 
     /** Copia con {@link #scrub} sui valori non sicuri, senza togliere chiavi (righe di altre entità). */
     public static JsonNode scrubAll(JsonNode node, Collection<String> tokens) {
-        return node == null ? null : scrubStrings(node.deepCopy(), null, tokens);
+        return node == null ? null : scrubStrings(node.deepCopy(), null, tokens, 0);
     }
 
-    private static JsonNode scrubStrings(JsonNode node, String key, Collection<String> tokens) {
+    private static JsonNode scrubStrings(JsonNode node, String key, Collection<String> tokens, int depth) {
         if (node instanceof ObjectNode obj) {
             List<String> names = new ArrayList<>();
             obj.properties().forEach(e -> names.add(e.getKey()));
             for (String name : names) {
-                obj.set(name, scrubStrings(obj.get(name), name, tokens));
+                obj.set(name, scrubStrings(obj.get(name), name, tokens, depth + 1));
             }
             return obj;
         }
         if (node instanceof ArrayNode arr) {
             for (int i = 0; i < arr.size(); i++) {
-                arr.set(i, scrubStrings(arr.get(i), key, tokens));
+                arr.set(i, scrubStrings(arr.get(i), key, tokens, depth + 1));
             }
             return arr;
         }
-        if (node != null && node.isString() && !isSafe(key, node.asString())) {
+        if (node != null && node.isString()) {
             String s = node.asString();
-            String scrubbed = scrub(s, tokens);
-            return scrubbed.equals(s) ? node : StringNode.valueOf(scrubbed);
+            if (!isSafe(key, s)) {
+                String scrubbed = scrub(s, tokens);
+                return scrubbed.equals(s) ? node : StringNode.valueOf(scrubbed);
+            }
+            boolean rootEnvelope = depth == 1 && ENVELOPE.contains(key);
+            return !rootEnvelope && isMemberValue(key, s, tokens) ? StringNode.valueOf(PersonalData.PLACEHOLDER) : node;
         }
         return node;
     }
@@ -187,8 +254,37 @@ public final class PersonalTextScrubber {
     }
 
     private static Pattern word(String token) {
-        return Pattern.compile("(?<!" + WORD + ")" + Pattern.quote(nfc(token.trim())) + "(?!" + WORD + ")",
-                Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+        String t = nfc(token.trim());
+        String left = nonSpaced(t.codePointAt(0)) ? "" : "(?<!" + NEIGHBOR + ")";
+        String right = nonSpaced(t.codePointBefore(t.length())) ? "" : "(?!" + NEIGHBOR + ")";
+        String prefix = PHONE.matcher(t).matches() ? "(?:(?:\\+|00)?\\d{1,3})?" : "";
+        return Pattern.compile(left + prefix + Pattern.quote(t) + right, Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+    }
+
+    /** Il tratto {@code [start, end)} esteso alle lettere, ai segni e alle cifre attaccati (la parola che lo contiene). */
+    private static String enclosingWord(String text, int start, int end) {
+        int s = start;
+        while (s > 0 && isWordChar(text.codePointBefore(s))) {
+            s -= Character.charCount(text.codePointBefore(s));
+        }
+        int e = end;
+        while (e < text.length() && isWordChar(text.codePointAt(e))) {
+            e += Character.charCount(text.codePointAt(e));
+        }
+        return text.substring(s, e);
+    }
+
+    private static boolean isWordChar(int codePoint) {
+        return WORD.matcher(Character.toString(codePoint)).matches();
+    }
+
+    private static boolean nonSpaced(int codePoint) {
+        return NON_SPACED_CHAR.matcher(Character.toString(codePoint)).matches();
+    }
+
+    /** Valore identificativo (e-mail, telefono, id esterno, pseudonimo): contiene una cifra o una chiocciola. */
+    private static boolean identifier(String token) {
+        return token.indexOf('@') >= 0 || token.chars().anyMatch(Character::isDigit);
     }
 
     private static String nfc(String s) {

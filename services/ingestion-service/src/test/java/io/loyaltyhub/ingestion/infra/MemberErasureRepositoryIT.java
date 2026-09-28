@@ -104,4 +104,38 @@ class MemberErasureRepositoryIT {
         assertThat(jdbc.sql("SELECT coalesce(external_id, '-') || ':' || coalesce(email_lower, '-') || ':' || status "
                 + "FROM member_index WHERE member_id = 'MBR-000902'").query(String.class).single()).isEqualTo("-:-:ANONYMIZED");
     }
+
+    @Test
+    @DisplayName("Q-404: id esterno ed e-mail per intero in campi di identificativo e codice: sostituiti, stati e codici restano")
+    void wholeMemberValuesInIdentifierAndCodeFieldsAreReplaced() {
+        jdbc.sql("INSERT INTO member_index (member_id, external_id, email_lower, status) VALUES (?, ?, ?, 'ACTIVE')")
+                .params("MBR-000904", "CRM101", "mario.rossi@example.test").update();
+        inbound("IN-4", "external:CRM101", null, "UNMATCHED", """
+                {"specversion":"1.0","id":"EVT-IN-4","type":"purchase","source":"urn:loyaltyhub:source:pos",
+                 "subject":"external:CRM101","lhactor":"mario.rossi@example.test",
+                 "data":{"customerId":"CRM101","loginId":"Mario.Rossi@example.test","customerCode":"crm101",
+                         "customer":"CRM101","channel":"CRM101","status":"PAID","reason":"TEST",
+                         "promoCode":"CRM1010","customerRef":{"id":"CRM101","source":"mario.rossi@example.test"}}}""",
+                "Membro non trovato per CRM101");
+
+        repository.erase("MBR-000904");
+
+        JsonNode p = payload("IN-4");
+        JsonNode d = p.path("data");
+        for (String key : new String[]{"customerId", "loginId", "customerCode", "customer", "channel"}) {
+            assertThat(d.path(key).asString()).as(key).isEqualTo("Membro anonimo");
+        }
+        assertThat(d.path("customerRef").path("id").asString()).isEqualTo("Membro anonimo");
+        assertThat(d.path("customerRef").path("source").asString()).isEqualTo("Membro anonimo");
+        assertThat(p.path("lhactor").asString()).isEqualTo("Membro anonimo");
+        assertThat(d.path("status").asString()).isEqualTo("PAID");
+        assertThat(d.path("reason").asString()).isEqualTo("TEST");
+        assertThat(d.path("promoCode").asString()).as("un altro codice").isEqualTo("CRM1010");
+        assertThat(p.path("id").asString()).isEqualTo("EVT-IN-4");
+        assertThat(p.toString()).doesNotContainIgnoringCase("mario.rossi").doesNotContain("\"CRM101\"");
+        assertThat(rejectDetail("IN-4")).isEqualTo("Membro non trovato per Membro anonimo");
+
+        repository.erase("MBR-000904");
+        assertThat(payload("IN-4")).as("idempotente").isEqualTo(p);
+    }
 }
