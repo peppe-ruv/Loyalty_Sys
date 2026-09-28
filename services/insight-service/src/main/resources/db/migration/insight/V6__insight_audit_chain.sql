@@ -349,14 +349,15 @@ END
 $$;
 
 -- Ancore all'inserimento: l'istante è sempre quello della transazione (un'ancora non si retrodata); le PURGE le scrive
--- solo il trigger dei DELETE, che ne fissa `entry_at`; le altre non hanno `entry_at`.
+-- solo il trigger dei DELETE, che ne fissa `entry_at` (flag e, per difesa in profondità, un INSERT annidato in un
+-- trigger: pg_trigger_depth() > 1, perché questo trigger vale già 1); le altre non hanno `entry_at`.
 CREATE OR REPLACE FUNCTION audit_anchor_guard_insert() RETURNS trigger
   LANGUAGE plpgsql SET search_path FROM CURRENT AS
 $$
 BEGIN
   NEW.anchored_at := now();
   IF NEW.kind = 'PURGE' THEN
-    IF current_setting('loyaltyhub.audit_purge_anchor', true) IS DISTINCT FROM 'on' THEN
+    IF current_setting('loyaltyhub.audit_purge_anchor', true) IS DISTINCT FROM 'on' OR pg_trigger_depth() < 2 THEN
       RAISE EXCEPTION 'audit_anchor: le ancore PURGE le scrive solo la cancellazione delle voci'
         USING ERRCODE = 'insufficient_privilege';
     END IF;

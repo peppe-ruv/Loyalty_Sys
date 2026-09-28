@@ -27,8 +27,9 @@ import java.util.regex.Pattern;
  *       ({@link #isFixed}) non si toccano mai; i campi di enumerazione e codice (stati, tipi, codici, azioni:
  *       {@link #isCoded}) si conservano solo se il valore ha la forma di un codice ({@code ACTIVE},
  *       {@code member.status.changed}); ogni altro campo è testo libero e si ripulisce, compresi {@code reason} e
- *       {@code subject} ({@code email:<indirizzo>}, {@code external:<id>}). Nel testo libero resta intatta solo una
- *       costante con trattino basso ({@code MEMBER_REQUEST}). Gli identificativi personali ({@code externalId},
+ *       {@code subject} ({@code email:<indirizzo>}, {@code external:<id>}). Nel testo libero resta intatto solo un
+ *       valore che è per intero una costante in maiuscolo ({@code TEST}, {@code MEMBER_REQUEST}: i motivi enumerati
+ *       di {@code wallet.points.adjusted}), anche se un soprannome ci coincide. Gli identificativi personali ({@code externalId},
  *       {@link PersonalData#KEYS}) non sono mai sicuri.</li>
  * </ul>
  * Toglie le chiavi personali come {@link PersonalData#redact}. Sostituisce, per insight, {@code PersonalData.scrub},
@@ -54,8 +55,8 @@ public final class PersonalTextScrubber {
     /** Forma di un codice: una sola parola di lettere, cifre, punti, trattini, due punti e trattini bassi. */
     private static final Pattern CODE_VALUE = Pattern.compile("[\\p{L}\\p{N}_.:-]+");
 
-    /** Costante in maiuscolo con almeno un trattino basso, conservata anche nel testo libero. */
-    private static final Pattern CONSTANT = Pattern.compile("[A-Z0-9]+(?:_[A-Z0-9]+)+");
+    /** Valore che è per intero una costante in maiuscolo ({@code TEST}, {@code MEMBER_REQUEST}): conservato ovunque. */
+    private static final Pattern CONSTANT = Pattern.compile("[A-Z0-9]+(?:_[A-Z0-9]+)*");
 
     /** Carattere di parola: lettera, segno diacritico o cifra. */
     private static final String WORD = "[\\p{L}\\p{M}\\p{N}]";

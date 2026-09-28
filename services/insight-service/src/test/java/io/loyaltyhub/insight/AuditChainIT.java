@@ -653,12 +653,16 @@ class AuditChainIT extends TestbookInsBase {
     void forgedPurgeAnchorIsRejected() {
         String service = uid("chn-forged-purge").toLowerCase();
         append(service, 3);
-        // Con le credenziali applicative e il flag alzato a mano: PURGE sulla voce 2, datata 1990.
-        asApplication(() -> {
+        String forge = "INSERT INTO audit_anchor (service, seq, entry_hash, kind, entry_at) "
+                + "VALUES (?, 2, ?, 'PURGE', timestamptz '1990-01-01')";
+        // Con le credenziali applicative e il flag alzato a mano: rifiutata, una PURGE nasce solo dentro il trigger.
+        assertRejected(() -> asApplication(() -> {
             jdbc.sql("SELECT set_config('loyaltyhub.audit_purge_anchor', 'on', true)").query(String.class).single();
-            jdbc.sql("INSERT INTO audit_anchor (service, seq, entry_hash, kind, entry_at) "
-                    + "VALUES (?, 2, ?, 'PURGE', timestamptz '1990-01-01')").params(service, entryHash(service, 2)).update();
-        });
+            jdbc.sql(forge).params(service, entryHash(service, 2)).update();
+        }));
+        assertThat(anchorKinds(service)).isEmpty();
+        // Da chi amministra il database (trigger spenti): PURGE sulla voce 2, datata 1990.
+        asDatabaseAdmin(() -> jdbc.sql(forge).params(service, entryHash(service, 2)).update());
         assertBroken(report(service), 2, "ANCHOR_MISMATCH"); // una voce cancellata non torna: la PURGE è falsa
         assertRejected(() -> jdbc.sql("DELETE FROM audit_entry WHERE service = ? AND seq <= 2").param(service).update());
         assertThat(seqs(service)).containsExactly(1L, 2L, 3L);

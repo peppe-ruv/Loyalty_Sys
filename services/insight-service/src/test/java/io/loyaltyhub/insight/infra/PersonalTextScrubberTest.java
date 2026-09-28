@@ -78,7 +78,7 @@ class PersonalTextScrubberTest {
             "rewardCode|RWD-ZED|true", "action|UPDATE|true", "currency|PTS|true",
             "status|Chiesto da Ottavio|false", "reason|FRAUD_SUSPECTED|true", "reason|Rimborso chiesto da Ottavio|false",
             "reason|Ottavio|false", "subject|email:ottavio@example.test|false", "subject|member:MBR-1|false",
-            "note|MEMBER_REQUEST|true", "externalId|EXT-00042|false", "emailHash|abc123hash|false"})
+            "note|MEMBER_REQUEST|true", "reason|TEST|true", "reason|GOODWILL|true", "reason|Test del cassiere|false", "externalId|EXT-00042|false", "emailHash|abc123hash|false"})
     @DisplayName("codici nei campi di codice e costanti: sicuri; testo libero, reason e subject: si ripuliscono")
     void safeValues(String key, String value, boolean safe) {
         assertThat(PersonalTextScrubber.isSafe(key, value)).isEqualTo(safe);
@@ -101,6 +101,17 @@ class PersonalTextScrubberTest {
         assertThat(out.path("lhactor").asString()).isEqualTo("ADMIN:active");
         assertThat(out.path("type").asString()).isEqualTo("io.loyaltyhub.fact.member.status.changed");
         assertThat(out.path("subject").asString()).isEqualTo("member:MBR-1");
+    }
+
+    @Test
+    @DisplayName("soprannome «Test»: il motivo enumerato TEST resta, il testo libero con il soprannome si ripulisce")
+    void nicknameEqualToAnEnumeratedReason() {
+        JsonNode fact = mapper.readTree("""
+                {"type":"io.loyaltyhub.fact.wallet.points.adjusted","subject":"member:MBR-1",
+                 "data":{"memberId":"MBR-1","reason":"TEST","note":"Rettifica chiesta da Test"}}""");
+        JsonNode out = PersonalTextScrubber.redactAndScrub(fact, List.of("Test"));
+        assertThat(out.path("data").path("reason").asString()).isEqualTo("TEST");
+        assertThat(out.path("data").path("note").asString()).isEqualTo("Rettifica chiesta da Membro anonimo");
     }
 
     @Test
