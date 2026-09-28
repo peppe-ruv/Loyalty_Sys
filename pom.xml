@@ -27,6 +27,26 @@
     <spring-boot.version>4.1.1</spring-boot.version>
     <!-- OpenAPI su /v3/api-docs (docs/06 §2, Q-341, ADR-046) -->
     <springdoc.version>3.1.1</springdoc.version>
+
+    <!--
+      Dipendenze con advisory noti (M8.10, ADR-044). Spring Boot 4.1.1 è l'ultima 4.1.x: le versioni corrette
+      si fissano qui, solo patch nella stessa linea. Il BOM è importato (non è il parent), quindi le sue proprietà
+      (tomcat.version, jackson-bom.version…) non si sovrascrivono: le versioni sotto valgono tramite le voci
+      esplicite o i BOM importati prima di spring-boot-dependencies in dependencyManagement.
+      Da togliere quando una 4.1.x del BOM porta versioni uguali o successive.
+      - Tomcat 11.0.24 -> 11.0.26: GHSA-9xv2-5v5q-p794 (CVE-2026-65905), GHSA-gcx9-497g-6cp6 (CVE-2026-65182),
+        GHSA-h3x4-894j-xpx5 (CVE-2026-68525), critiche, corrette da 11.0.25.
+      - Jackson 3.1.5 -> 3.1.7 e Jackson 2 2.21.5 -> 2.21.7: GHSA-q4xh-88c3-wmh7 (CVE-2026-68497, alta,
+        DoS su Duration/XMLGregorianCalendar) e GHSA-wjgm-6hv5-3cvf (CVE-2026-19032, moderata, Path),
+        corrette da 3.1.6 / 2.21.6.
+      - lz4-java 1.10.1 -> 1.11.4: non è nel BOM di Spring Boot, arriva a runtime da kafka-clients 4.2.1
+        (anche kafka-clients 4.3.1 dichiara 1.10.2). GHSA-xx22-p4ch-683r (CVE-2026-59949, moderata: XXHash JNI
+        senza controllo dei limiti), corretta da 1.11.1; API usata da kafka-clients invariata.
+    -->
+    <lh.tomcat.version>11.0.26</lh.tomcat.version>
+    <lh.jackson3.version>3.1.7</lh.jackson3.version>
+    <lh.jackson2.version>2.21.7</lh.jackson2.version>
+    <lh.lz4-java.version>1.11.4</lh.lz4-java.version>
   </properties>
 
   <modules>
@@ -44,6 +64,21 @@
 
   <dependencyManagement>
     <dependencies>
+      <!-- GHSA-q4xh-88c3-wmh7, GHSA-wjgm-6hv5-3cvf: BOM Jackson importati prima di quello di Spring Boot (vince il primo). -->
+      <dependency>
+        <groupId>tools.jackson</groupId>
+        <artifactId>jackson-bom</artifactId>
+        <version>${lh.jackson3.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>com.fasterxml.jackson</groupId>
+        <artifactId>jackson-bom</artifactId>
+        <version>${lh.jackson2.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
       <dependency>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-dependencies</artifactId>
@@ -55,6 +90,28 @@
         <groupId>org.springdoc</groupId>
         <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
         <version>${springdoc.version}</version>
+      </dependency>
+      <!-- GHSA-9xv2-5v5q-p794, GHSA-gcx9-497g-6cp6, GHSA-h3x4-894j-xpx5: Tomcat embedded usato da spring-boot-starter-tomcat. -->
+      <dependency>
+        <groupId>org.apache.tomcat.embed</groupId>
+        <artifactId>tomcat-embed-core</artifactId>
+        <version>${lh.tomcat.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.tomcat.embed</groupId>
+        <artifactId>tomcat-embed-el</artifactId>
+        <version>${lh.tomcat.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.tomcat.embed</groupId>
+        <artifactId>tomcat-embed-websocket</artifactId>
+        <version>${lh.tomcat.version}</version>
+      </dependency>
+      <!-- GHSA-xx22-p4ch-683r: lz4-java transitiva di kafka-clients. -->
+      <dependency>
+        <groupId>at.yawk.lz4</groupId>
+        <artifactId>lz4-java</artifactId>
+        <version>${lh.lz4-java.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
