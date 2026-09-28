@@ -104,11 +104,11 @@ Ingestion risolve il primo che trova nell'indice locale.
     La fonte è nota ma disabilitata in backoffice (Ingestion → Fonti). Riabilitala per accettare eventi.
   </Accordion>
 
-  <Accordion title="202 con status REJECTED e rejectCode TYPE_UNKNOWN">
-    Il `type` non è registrato tra i tipi azione. Registralo in backoffice (Ingestion → Tipi azione) con il relativo JSON Schema.
+  <Accordion title="202 con status REJECTED e rejectCode UNKNOWN_TYPE">
+    Il `type` non è registrato tra i tipi azione, è disabilitato oppure è un `type` completo fuori da `io.loyaltyhub.action.`. Registralo in backoffice (Ingestion → Tipi azione) con il relativo JSON Schema, oppure invia il nome breve.
   </Accordion>
 
-  <Accordion title="202 con status REJECTED e rejectCode SCHEMA_INVALID">
+  <Accordion title="202 con status REJECTED e rejectCode INVALID_DATA">
     Il payload `data` non rispetta il JSON Schema del tipo. La risposta indica il campo che ha fallito.
   </Accordion>
 

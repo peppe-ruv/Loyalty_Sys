@@ -31,6 +31,10 @@ import java.util.regex.Pattern;
  *       tipo di sistema: scelta la più restrittiva.</li>
  * </ul>
  * Codice dei custom: minuscolo a punti come i tipi di sistema ({@code meter.reading.sent}). SPEC-GAP: Q-89.
+ * Il primo segmento non può essere {@code io} né {@code loyaltyhub}: sono riservati ai {@code type} completi
+ * ({@code io.loyaltyhub.<famiglia>.<nome>}, docs/05 §2), e un codice che li imita uscirebbe dalla famiglia azioni.
+ * SPEC-GAP: Q-439. La creazione è atomica (inserimento solo se assente): di due creazioni concorrenti dello stesso
+ * codice una sola vince e lascia l'audit, l'altra riceve {@code 409 EVENT_TYPE_EXISTS} (Q-440).
  */
 @Service
 public class EventTypeService {
@@ -40,6 +44,12 @@ public class EventTypeService {
     }
 
     static final Pattern CODE = Pattern.compile("^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*){1,3}$");
+    /** Primi segmenti riservati ai {@code type} completi {@code io.loyaltyhub.<famiglia>.<nome>} (Q-439). */
+    static final Set<String> RESERVED_FIRST_SEGMENTS = Set.of("io", "loyaltyhub");
+    static final String CODE_FORMAT_MESSAGE =
+            "minuscolo a punti, da 2 a 4 parti (es. meter.reading.sent), al massimo 60 caratteri";
+    static final String CODE_RESERVED_MESSAGE = "la prima parte non può essere io né loyaltyhub: "
+            + "sono riservate ai type completi io.loyaltyhub.<famiglia>.<nome>";
     static final Set<String> CUSTOM_CATEGORIES = Set.of("TRANSACTION", "ENGAGEMENT", "SERVICE");
 
     private final EventTypeRepository types;
@@ -62,18 +72,19 @@ public class EventTypeService {
         }
         String code = req.code() == null ? "" : req.code().trim();
         List<LhException.FieldError> errors = new ArrayList<>();
-        if (code.length() > 60 || !CODE.matcher(code).matches()) {
-            errors.add(new LhException.FieldError("code",
-                    "minuscolo a punti, da 2 a 4 parti (es. meter.reading.sent), al massimo 60 caratteri"));
+        String codeProblem = codeProblem(code);
+        if (codeProblem != null) {
+            errors.add(new LhException.FieldError("code", codeProblem));
         }
         EventType draft = customDraft(code, req, errors);
         if (!errors.isEmpty()) {
             throw LhException.validation("EVENT_TYPE_INVALID", "Tipo azione non valido.", errors);
         }
-        if (types.findByCode(code).isPresent()) {
+        // Q-440: inserimento solo se assente, deciso dal database. Chi perde la gara riceve 409 senza sovrascrivere il
+        // vincitore e senza lasciare audit (l'eccezione annulla la transazione).
+        if (!types.insertIfAbsent(draft)) {
             throw LhException.conflict("EVENT_TYPE_EXISTS", "Esiste già un tipo azione " + code + ".");
         }
-        types.save(draft);
         audit.record("event_type", code, AuditEntry.Action.CREATE, "Creato il tipo azione custom " + code,
                 null, snapshot(draft));
         return draft;
@@ -124,6 +135,18 @@ public class EventTypeService {
         audit.record("event_type", code, AuditEntry.Action.UPDATE, "Modificato il tipo azione " + code,
                 snapshot(before), snapshot(after));
         return after;
+    }
+
+    /**
+     * Problema del codice di un nuovo tipo custom, {@code null} se valido: formato minuscolo a punti da 2 a 4 parti,
+     * al massimo 60 caratteri (Q-89), primo segmento diverso da {@code io} e {@code loyaltyhub} (Q-439).
+     */
+    static String codeProblem(String code) {
+        if (code == null || code.length() > 60 || !CODE.matcher(code).matches()) {
+            return CODE_FORMAT_MESSAGE;
+        }
+        String first = code.substring(0, code.indexOf('.'));
+        return RESERVED_FIRST_SEGMENTS.contains(first) ? CODE_RESERVED_MESSAGE : null;
     }
 
     private EventType customDraft(String code, EventTypeRequest req, List<LhException.FieldError> errors) {

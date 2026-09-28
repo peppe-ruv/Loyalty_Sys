@@ -20,6 +20,11 @@ public final class RejectDetails {
         return "Tipo azione sconosciuto o disabilitato: " + shortType;
     }
 
+    /** Type completo di un'altra famiglia (o di nessuna): non è un'azione premiante (Q-439). */
+    public static String outsideActionFamily(String type) {
+        return "Tipo fuori dalla famiglia azioni (io.loyaltyhub.action.): " + type;
+    }
+
     public static String typeNotAllowed(String sourceCode, String shortType) {
         return "Tipo non ammesso per la fonte " + sourceCode + ": " + shortType;
     }

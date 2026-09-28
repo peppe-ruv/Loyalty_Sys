@@ -59,3 +59,8 @@ TB-ING-ETY-057|ADMIN manda un nome vuoto a un tipo di sistema|s.nameBlank|ADMIN:
 TB-ING-ETY-058|campi di purchase.completed|f.system|-|200|-|-|data.amount number obbligatorio, data.channel enum, data.items[*].sku|ingestion §3 (fields); docs/03 §3.3
 TB-ING-ETY-059|campi di un tipo inesistente|f.notFound|-|404|NOT_FOUND|-|404|ingestion §3
 TB-ING-ETY-060|elenco dei tipi di sistema|l.system|-|200|-|-|i 19 tipi EVT-ACT del seed con origin SYSTEM|docs/10 §3; docs/05 §3
+TB-ING-ETY-061|codice con prima parte io (io.loyaltyhub.effect.x)|c.reservedIo|MARKETING:luca.marketing|422|EVENT_TYPE_INVALID|code|422 su code; nessun tipo e nessun audit|ingestion §3 (event-types); Q-439
+TB-ING-ETY-062|codice con prima parte loyaltyhub|c.reservedLoyaltyhub|MARKETING:luca.marketing|422|EVENT_TYPE_INVALID|code|422 su code; nessun tipo e nessun audit|ingestion §3 (event-types); Q-439
+TB-ING-ETY-063|prima parte che somiglia soltanto (iot)|c.lookalike|MARKETING:luca.marketing|201|-|-|201|ingestion §3 (event-types); Q-439
+TB-ING-ETY-064|creazione mentre un'altra transazione ha inserito lo stesso codice senza confermare|c.concurrent|MARKETING:luca.marketing|409|EVENT_TYPE_EXISTS|-|409 alla conferma dell'altra transazione; la riga resta la sua; nessuna voce di audit|ingestion §3 (event-types); Q-440
+TB-ING-ETY-065|azione con type completo di un'altra famiglia (io.loyaltyhub.effect.points.credited)|i.outsideFamily|-|202|-|-|REJECTED/UNKNOWN_TYPE fuori dalla famiglia azioni; nulla in outbox|ingestion §5.3; Q-439

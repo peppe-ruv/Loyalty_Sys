@@ -78,16 +78,16 @@ Ogni voce ha un identificativo `TOBE-nnn` e questi campi:
 | Quando farla | Quando il compose diventa un modo supportato di installare in produzione, e non solo un riferimento. |
 | Riferimenti | Q-392, Q-420, M8.3, M8.5 |
 
-### TOBE-005 — Controlli dei tipi azione personalizzati anche in ingestion
+### TOBE-005 — Controlli sui dati personali dei tipi azione anche in ingestion
 
 | Campo | Contenuto |
 |---|---|
-| Cosa | Rifiutare in `ingestion` (`POST` e `PUT /v1/event-types`) i campi e le chiavi d'esempio che fanno pensare a dati personali, e i codici con prima parte `io` o `loyaltyhub`, con lo stesso elenco usato dal backoffice. |
-| Perché non ora | La fetta M8.0r tocca solo il web; il controllo in ingestion è una fetta del servizio, con i suoi test di integrazione e la sua regola di errore (`422`). |
-| Workaround attivo | Il backoffice blocca il salvataggio in ogni percorso (BO-09 e la scorciatoia da BO-06): nomi ed etichette dei campi, chiavi dell'esempio, prefissi riservati. Scrive `x-lh-pii: false` su ogni campo e non riscrive uno schema che dichiara `x-lh-pii: true`. Il limite residuo è che una chiamata diretta a `POST /v1/event-types` con un token `MARKETING` o `ADMIN` salta questi controlli. |
-| Già predisposto | Le regole sono funzioni pure e testate (`web/lib/actiontypes/fields.ts` `looksPersonal`, `personalKeys`; `web/lib/actiontypes/code.ts` `isReservedCode`); la validazione del servizio passa già da un solo punto (`EventTypeService`), dove il controllo si aggiunge. |
+| Cosa | Rifiutare in `ingestion` (`POST` e `PUT /v1/event-types`) i campi e le chiavi d'esempio che fanno pensare a dati personali, con lo stesso elenco usato dal backoffice. I codici con prima parte `io` o `loyaltyhub` non fanno più parte di questa voce: `ingestion` li rifiuta già con `422` (Q-439, M8.0s). |
+| Perché non ora | La fetta M8.0r tocca solo il web e la fetta M8.0s porta in `ingestion` solo i prefissi riservati. Il controllo dei dati personali è una fetta del servizio, con i suoi test di integrazione e la sua regola di errore (`422`). |
+| Workaround attivo | Il backoffice blocca il salvataggio in ogni percorso (BO-09 e la scorciatoia da BO-06): nomi ed etichette dei campi, chiavi dell'esempio, prefissi riservati. Scrive `x-lh-pii: false` su ogni campo e non riscrive uno schema che dichiara `x-lh-pii: true`. `ingestion` rifiuta già i codici con prima parte `io` o `loyaltyhub` e ogni `type` in ingresso fuori da `io.loyaltyhub.action.` (Q-439). Il limite residuo è che una chiamata diretta a `POST` o `PUT /v1/event-types` con un token `MARKETING` o `ADMIN` salta i controlli sui dati personali. |
+| Già predisposto | Le regole sono funzioni pure e testate (`web/lib/actiontypes/fields.ts` `looksPersonal`, `personalKeys`); la validazione del servizio passa già da un solo punto (`EventTypeService`), dove M8.0s ha aggiunto il controllo dei prefissi (`codeProblem`) e dove si aggiunge quello dei dati personali. |
 | Quando farla | Prima di aprire `POST /v1/event-types` a integratori esterni o a strumenti diversi dal backoffice, oppure con la prossima fetta che tocca `ingestion`. |
-| Riferimenti | Q-430, Q-435, ADR-032, regola 10, M8.0r |
+| Riferimenti | Q-430, Q-435, Q-439, ADR-032, regola 10, M8.0r, M8.0s |
 
 ### TOBE-006 — Hash con chiave del contenuto dell'audit
 

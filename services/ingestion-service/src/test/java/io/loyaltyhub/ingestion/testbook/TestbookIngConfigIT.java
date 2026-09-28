@@ -12,6 +12,9 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -21,6 +24,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,6 +45,7 @@ class TestbookIngConfigIT extends TestbookIngHarness {
 
     @Autowired EventTypeRepository eventTypes;
     @Autowired ScenarioRepository scenarios;
+    @Autowired DataSource dataSource;
 
     private static String actorOf(String csv) {
         return csv == null || "-".equals(csv) ? null : csv;
@@ -79,6 +87,55 @@ class TestbookIngConfigIT extends TestbookIngHarness {
         Response r = create(body, ADMIN);
         assertThat(r.status()).as("creazione di appoggio (corpo: %s)", r.body()).isEqualTo(201);
         return body.path("code").asString();
+    }
+
+    /**
+     * Apre una transazione che inserisce il codice di {@code body} senza confermarlo, lancia la {@code POST} in
+     * parallelo, aspetta che resti in attesa del lock della riga ({@code pg_stat_activity}) e solo allora conferma.
+     * Con il vecchio controllo «esiste? poi upsert» la {@code POST} sovrascriveva la riga e rispondeva {@code 201}.
+     */
+    private Response createWhileAnotherInsertIsPending(ObjectNode body, String actor) {
+        String c = body.path("code").asString();
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try (Connection other = dataSource.getConnection()) {
+            other.setAutoCommit(false);
+            try (PreparedStatement ps = other.prepareStatement("""
+                    INSERT INTO event_type (code, name, origin, category, data_schema, sample_data, enabled)
+                    VALUES (?, 'Inserito da un''altra transazione', 'CUSTOM', 'SERVICE', '{"type":"object"}'::jsonb,
+                            '{}'::jsonb, true)
+                    """)) {
+                ps.setString(1, c);
+                ps.executeUpdate();
+            }
+            CompletableFuture<Response> pending = CompletableFuture.supplyAsync(() -> create(body, actor), pool);
+            try {
+                awaitLockWaitOnEventTypeInsert();
+                assertThat(pending).as("la POST attende la transazione concorrente").isNotDone();
+            } finally {
+                other.commit();
+            }
+            return pending.get(20, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    private void awaitLockWaitOnEventTypeInsert() throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 15_000;
+        while (System.currentTimeMillis() < deadline) {
+            long waiting = jdbc.sql("""
+                            SELECT count(*) FROM pg_stat_activity
+                            WHERE wait_event_type = 'Lock' AND query ILIKE '%INSERT INTO event_type%'
+                            """)
+                    .query(Long.class).single();
+            if (waiting > 0) {
+                return;
+            }
+            Thread.sleep(50);
+        }
+        throw new AssertionError("la creazione non è mai rimasta in attesa del lock della riga concorrente");
     }
 
     private Response sendType(String type, JsonNode data) {
@@ -132,6 +189,46 @@ class TestbookIngConfigIT extends TestbookIngHarness {
                 case "c.dupSystem" -> {
                     body.put("code", "purchase.completed");
                     r = create(body, actor);
+                }
+                case "c.reservedIo", "c.reservedLoyaltyhub", "c.lookalike" -> {
+                    int n = seq();
+                    String c = switch (kase) {
+                        case "c.reservedIo" -> "io.loyaltyhub.effect.tbety" + n;
+                        case "c.reservedLoyaltyhub" -> "loyaltyhub.tbety" + n + ".sent";
+                        default -> "iot.tbety" + n + ".read";
+                    };
+                    body.put("code", c);
+                    r = create(body, actor);
+                    if (http == 422) {
+                        after.add(() -> {
+                            assertThat(call("GET", "/v1/event-types/" + c, null, null).status()).isEqualTo(404);
+                            assertThat(audits("event_type:" + c)).isEmpty();
+                        });
+                    }
+                }
+                case "c.concurrent" -> {
+                    // Creazione concorrente dello stesso codice (Q-440), con interleaving deterministico: un'altra
+                    // transazione ha già inserito il codice e non ha confermato. La POST attende il lock della riga;
+                    // alla conferma riceve 409, non sovrascrive la riga dell'altra transazione e non lascia audit.
+                    r = createWhileAnotherInsertIsPending(body, actor);
+                    after.add(() -> {
+                        assertThat(call("GET", "/v1/event-types/" + typeCode, null, null).text("name"))
+                                .isEqualTo("Inserito da un'altra transazione");
+                        assertThat(audits("event_type:" + typeCode)).isEmpty();
+                    });
+                }
+                case "i.outsideFamily" -> {
+                    // Type completo fuori da io.loyaltyhub.action. (Q-439): rifiutato, mai pubblicato.
+                    String id = freshEventId();
+                    r = postEvent(event(id, "simulator", "io.loyaltyhub.effect.points.credited",
+                            "member:" + freshMember("ACTIVE").memberId(), Instant.now(), json("{}")));
+                    after.add(() -> {
+                        assertThat(r.text("status")).isEqualTo("REJECTED");
+                        assertThat(r.text("rejectCode")).isEqualTo("UNKNOWN_TYPE");
+                        assertThat(r.text("detail")).contains("fuori dalla famiglia azioni");
+                        assertThat(jdbc.sql("SELECT count(*) FROM outbox WHERE payload->>'id' = ?").param(id)
+                                .query(Long.class).single()).isZero();
+                    });
                 }
                 case "c.nameBlank", "c.name60", "c.name61" -> {
                     body.put("name", switch (kase) {
