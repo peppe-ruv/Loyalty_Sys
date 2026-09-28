@@ -41,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * docs/06 §10; docs/10 §9; F-INS-04.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "loyaltyhub.insight.retention.cron=-")
+        properties = {"loyaltyhub.insight.retention.cron=-", "loyaltyhub.insight.audit.anchor-cron=-"})
 @EmbeddedKafka(partitions = 1, topics = {"lh.actions.v1", "lh.effects.v1", "lh.facts.v1", "lh.audit.v1", "lh.dlq.v1"})
 @ActiveProfiles("demo")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -87,11 +87,13 @@ class TestbookInsStoreIT extends TestbookInsSupport {
         return id;
     }
 
+    /** Voce di audit nata {@code ageSql} fa: la tabella è in sola inserzione (V6), non la si invecchia con un UPDATE. */
     private String auditAged(String ageSql) {
         String id = uid("AUD-RET");
-        audits.insert(new AuditRecord(id, uid("EVT"), Instant.now(), "ADMIN", "ada.admin", "campaign", "CAMPAIGN",
+        Instant at = jdbc.sql("SELECT now() - cast(? AS interval)").param(ageSql)
+                .query(java.sql.Timestamp.class).single().toInstant();
+        audits.insert(new AuditRecord(id, uid("EVT"), at, "ADMIN", "ada.admin", "campaign", "CAMPAIGN",
                 "CMP-X", "UPDATE", "x", null, null, null));
-        jdbc.sql("UPDATE audit_entry SET at = now() - cast(? AS interval) WHERE id = ?").params(ageSql, id).update();
         return id;
     }
 
@@ -152,6 +154,51 @@ class TestbookInsStoreIT extends TestbookInsSupport {
         String a = auditAged(age);
         retention.purge();
         assertThat(audits.findById(a).isPresent()).isEqualTo(kept);
+    }
+
+    /** Righe scritte sul logger {@code logger} mentre {@code action} gira. */
+    private static List<ch.qos.logback.classic.spi.ILoggingEvent> logDuring(String logger, Runnable action) {
+        ch.qos.logback.classic.Logger l = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(logger);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        l.addAppender(appender);
+        try {
+            action.run();
+        } finally {
+            l.detachAppender(appender);
+        }
+        return appender.list;
+    }
+
+    @Test
+    @Order(3)
+    @DisplayName("[F2-GRC-07] retention dell'audit: l'ancora PURGE va anche nei log, fuori dal database")
+    void purgeAnchorIsLogged() {
+        clean();
+        String a = auditAged("200 days");
+        auditAged("1 day");
+        var lines = logDuring(io.loyaltyhub.insight.application.AuditAnchorLog.LOGGER, retention::purge);
+        assertThat(audits.findById(a)).isEmpty();
+        assertThat(lines).singleElement().satisfies(e -> assertThat(e.getFormattedMessage())
+                .matches("audit-anchor service=campaign seq=\\d+ entryHash=[0-9a-f]{64} kind=PURGE anchoredAt=\\S+"));
+    }
+
+    @Test
+    @Order(3)
+    @DisplayName("[F2-GRC-07, Q-402] retention ferma dietro una voce più recente: un WARN, non ripetuto a ogni giro")
+    void retentionStallIsWarnedOnce() {
+        clean();
+        auditAged("1 day");
+        String blocked = auditAged("200 days"); // segue una voce recente: resta
+        String logger = RetentionJob.class.getName();
+        var first = logDuring(logger, retention::purge);
+        assertThat(audits.findById(blocked)).isPresent();
+        assertThat(first).filteredOn(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN)
+                .singleElement().satisfies(e -> assertThat(e.getFormattedMessage())
+                        .contains("campaign").contains("1 voci scadute").contains("Q-402"));
+        var second = logDuring(logger, retention::purge);
+        assertThat(second).noneMatch(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN);
     }
 
     @Test

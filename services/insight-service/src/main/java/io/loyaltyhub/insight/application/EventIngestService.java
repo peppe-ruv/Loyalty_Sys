@@ -11,6 +11,7 @@ import io.loyaltyhub.common.time.BusinessCalendar;
 import io.loyaltyhub.insight.domain.AuditRecord;
 import io.loyaltyhub.insight.domain.DlqEntry;
 import io.loyaltyhub.insight.domain.StoredEvent;
+import io.loyaltyhub.insight.infra.AuditChainRepository;
 import io.loyaltyhub.insight.infra.AuditRepository;
 import io.loyaltyhub.insight.infra.DlqRepository;
 import io.loyaltyhub.insight.infra.EventStoreRepository;
@@ -43,6 +44,8 @@ import java.util.Locale;
 public class EventIngestService {
 
     private static final Logger log = LoggerFactory.getLogger(EventIngestService.class);
+    /** Azione riservata alle prove di anonimizzazione scritte dal database (V6). */
+    static final String REDACT_ACTION = "REDACT";
     private static final TypeReference<LhEvent<JsonNode>> EVENT_TYPE = new TypeReference<>() {
     };
 
@@ -157,7 +160,7 @@ public class EventIngestService {
             }
             // Anonimizzazione (F-MBR-05, M7.5): le copie del membro perdono i dati personali (anche questo evento).
             if ("FACT".equals(family) && event.memberId() != null && PersonalData.isAnonymization(event)) {
-                int rows = redaction.redact(event.memberId());
+                int rows = redaction.redact(event.memberId(), event.id(), event.lhcorrelationid());
                 log.info("Membro {} anonimizzato: {} copie ripulite", event.memberId(), rows);
             }
             liveHub.publish(new LiveEvent(event.id(), topic, family, shortType, event.memberId(),
@@ -268,13 +271,21 @@ public class EventIngestService {
             log.warn("Evento audit senza data, ignorato: {}", event.id());
             return;
         }
+        // Prove delle anonimizzazioni: le scrive solo il database (catena audit.redaction, azione REDACT, V6). Un evento del
+        // bus che le rivendica è rifiutato come un evento audit non valido: resta nell'event store, nessuna voce.
+        String service = data.path("service").asString("");
+        if (AuditChainRepository.REDACTION_SERVICE.equals(service) || REDACT_ACTION.equals(data.path("action").asString(""))) {
+            log.warn("Evento audit che rivendica le prove di anonimizzazione (servizio {}, azione {}), ignorato: {}",
+                    service, data.path("action").asString(""), event.id());
+            return;
+        }
         String actor = event.lhactor() == null ? "" : event.lhactor();
         int colon = actor.indexOf(':');
         String role = colon > 0 ? actor.substring(0, colon) : (actor.isBlank() ? null : actor);
         String name = colon >= 0 && colon < actor.length() - 1 ? actor.substring(colon + 1) : null;
         audits.insert(new AuditRecord(
                 Ulid.next(clock), event.id(), event.time(), role, name,
-                data.path("service").asString(""), data.path("entityType").asString(""),
+                service, data.path("entityType").asString(""),
                 data.path("entityId").asString(""), data.path("action").asString(""),
                 data.path("summary").asString(""), nodeOrNull(data.get("before")), nodeOrNull(data.get("after")),
                 event.lhcorrelationid()));

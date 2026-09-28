@@ -39,6 +39,9 @@ loyaltyhub:
       max-rows: 200000
       payload-max-bytes: 8192
       cron: "0 20 * * * *"
+    # Audit a catena di hash (F2-GRC-07): ancoraggio giornaliero della testa di ogni catena, in UTC.
+    audit:
+      anchor-cron: "0 5 0 * * *"
     # Riprocessa DLQ di un'azione → ingestion POST /v1/events (ADR-002 eccezione 1, docs/11 §8).
     ingestion-url: ${LH_INGESTION_URL:http://localhost:8081}
 

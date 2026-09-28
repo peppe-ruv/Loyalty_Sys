@@ -26,6 +26,11 @@ import java.util.Set;
  *   <li>Sulle righe di altre entità sostituisce solo i valori inequivocabili (e-mail, nome completo, telefono, id
  *       esterno), mai il solo nome di battesimo (potrebbe essere di un altro membro).</li>
  * </ol>
+ * La sostituzione è per parole intere e salta solo i valori sicuri ({@link PersonalTextScrubber}: identificativi, istanti,
+ * codici): un soprannome «Anon» o «Active» non corrompe {@code ANONYMIZED} né uno stato, mentre i testi liberi come
+ * {@code reason} e il {@code subject} {@code email:…} si ripuliscono. Ogni anonimizzazione prende per prima il blocco delle
+ * anonimizzazioni ({@code audit_redaction_lock()}, V6): due anonimizzazioni concorrenti si mettono in fila invece di
+ * bloccarsi a vicenda sulle stesse righe.
  * Doppia lettura {@code member.*:1}/{@code :2} (ADR-032, Q-346, docs/18 §3.4): le copie {@code :1} portano nome,
  * cognome, soprannome ed e-mail e si ripuliscono come sempre; le copie {@code :2} non li hanno (i campi assenti si
  * saltano) e portano {@code emailHash}, che sulle righe del membro si toglie e sulle altre si sostituisce come
@@ -64,8 +69,15 @@ public class MemberRedactionRepository {
         this.mapper = mapper;
     }
 
-    /** @return quante righe sono state riscritte (idempotente: alla seconda chiamata 0) */
-    public int redact(String memberId) {
+    /**
+     * Ripulisce le copie del membro anonimizzato dal fatto {@code anonymizationEventId} (già registrato nell'event store
+     * e riconosciuto con {@code PersonalData.isAnonymization}). Il fatto e la sua {@code correlationId} finiscono nelle
+     * prove REDACT delle voci di audit riscritte, così il tracciato dell'anonimizzazione le collega.
+     *
+     * @return quante righe sono state riscritte (idempotente: alla seconda chiamata 0)
+     */
+    public int redact(String memberId, String anonymizationEventId, String correlationId) {
+        jdbc.sql("SELECT audit_redaction_lock()").query(Boolean.class).single();
         Known known = known(memberId);
         int changed = 0;
 
@@ -90,12 +102,12 @@ public class MemberRedactionRepository {
 
         // 2. voci di audit.
         for (AuditRow a : auditRows("entity_id = ?", memberId)) {
-            changed += rewriteAudit(a, known.all(), true);
+            changed += rewriteAudit(memberId, anonymizationEventId, correlationId, a, known.all(), true);
         }
         for (String token : known.strong()) {
             for (AuditRow a : auditRows("entity_id <> ? AND (summary ILIKE ? OR before::text ILIKE ? OR after::text ILIKE ?)",
                     memberId, like(token), like(token), like(token))) {
-                changed += rewriteAudit(a, known.strong(), false);
+                changed += rewriteAudit(memberId, anonymizationEventId, correlationId, a, known.strong(), false);
             }
         }
 
@@ -104,8 +116,9 @@ public class MemberRedactionRepository {
                 .param(memberId)
                 .query((rs, n) -> new DlqRow(rs.getString("id"), rs.getString("payload"), rs.getString("error_message")))
                 .list()) {
-            String payload = json(stripPseudonyms(PersonalData.redactAndScrub(mapper.readTree(d.payload()), known.all())));
-            String message = PersonalData.scrub(d.errorMessage(), known.all());
+            String payload = json(stripPseudonyms(PersonalTextScrubber.redactAndScrub(mapper.readTree(d.payload()),
+                    known.all())));
+            String message = PersonalTextScrubber.scrub(d.errorMessage(), known.all());
             if (!Objects.equals(payload, normalize(d.payload())) || !Objects.equals(message, d.errorMessage())) {
                 jdbc.sql("UPDATE dlq_entry SET payload = cast(? AS jsonb), error_message = ? WHERE id = ?")
                         .params(payload, message, d.id()).update();
@@ -184,16 +197,27 @@ public class MemberRedactionRepository {
                 .list();
     }
 
-    private int rewriteAudit(AuditRow a, List<String> tokens, boolean stripKeys) {
-        String summary = PersonalData.scrub(a.summary(), tokens);
+    private int rewriteAudit(String memberId, String eventId, String correlationId, AuditRow a, List<String> tokens,
+                             boolean stripKeys) {
+        String summary = PersonalTextScrubber.scrub(a.summary(), tokens);
         String before = rewriteJson(a.before(), tokens, stripKeys);
         String after = rewriteJson(a.after(), tokens, stripKeys);
         if (Objects.equals(summary, a.summary()) && Objects.equals(before, normalize(a.before()))
                 && Objects.equals(after, normalize(a.after()))) {
             return 0;
         }
-        jdbc.sql("UPDATE audit_entry SET summary = ?, before = cast(? AS jsonb), after = cast(? AS jsonb) WHERE id = ?")
-                .params(summary, before, after, a.id()).update();
+        // audit_entry è in sola inserzione (ADR-043): si riscrivono solo i campi di contenuto, dalla funzione controllata
+        // audit_redact (V6), che verifica che il fatto di anonimizzazione sia un fatto del membro nell'event store e che la
+        // voce lo riguardi (sua, o che ne cita l'id o uno dei valori personali trovati qui, come parole intere e così come
+        // compaiono nella voce). La catena resta valida; la voce è marcata redacted_at e il database accoda una prova
+        // REDACT (catena audit.redaction) con membro, fatto e nuovo hash del contenuto, che la verifica esige.
+        // SPEC-GAP: Q-401 — ADR-043 vieta l'UPDATE, F-MBR-05 chiede di ripulire anche le copie dell'audit.
+        Set<String> found = new LinkedHashSet<>(PersonalTextScrubber.found(a.summary(), tokens));
+        found.addAll(PersonalTextScrubber.found(a.before() == null ? null : mapper.readTree(a.before()), tokens));
+        found.addAll(PersonalTextScrubber.found(a.after() == null ? null : mapper.readTree(a.after()), tokens));
+        jdbc.sql("SELECT audit_redact(?, ?, ?, ?, cast(? AS jsonb), cast(? AS jsonb), cast(? AS jsonb), ?)")
+                .params(memberId, eventId, a.id(), summary, before, after, mapper.writeValueAsString(found), correlationId)
+                .query(Boolean.class).single();
         return 1;
     }
 
@@ -203,9 +227,9 @@ public class MemberRedactionRepository {
         }
         JsonNode node = mapper.readTree(raw);
         if (stripKeys) {
-            return json(stripPseudonyms(PersonalData.redactAndScrub(node, tokens)));
+            return json(stripPseudonyms(PersonalTextScrubber.redactAndScrub(node, tokens)));
         }
-        return json(PersonalData.scrubAll(node, tokens));
+        return json(PersonalTextScrubber.scrubAll(node, tokens));
     }
 
     /** Toglie {@link #EMAIL_HASH} a ogni livello (oggetti e array) dalla copia già ripulita; {@code null} resta tale. */
