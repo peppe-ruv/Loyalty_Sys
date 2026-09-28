@@ -104,6 +104,24 @@ test('Le redirect URI non contengono wildcard assolute come http://* o *', () =>
   }
 });
 
+test('Client web: URI esatte del BFF per callback, ritorno dal logout e back-channel logout (Q-412)', () => {
+  const web = realm.clients.find(c => c.clientId === 'web');
+  assert.ok(web, 'Manca il client web');
+  // Percorsi del BFF (web/lib/auth/oidc.ts e route di web/app/api/auth): corrispondenza esatta, niente /* sull'origine.
+  const callback = (fs.readFileSync(path.join(ROOT, 'web/lib/auth/oidc.ts'), 'utf8')
+    .match(/export const CALLBACK_PATH = "([^"]+)"/) || [])[1];
+  assert.ok(callback, 'CALLBACK_PATH non trovato in web/lib/auth/oidc.ts');
+  for (const route of [callback, '/api/auth/backchannel-logout']) {
+    assert.ok(fs.existsSync(path.join(ROOT, 'web/app', route, 'route.ts')), `Route del BFF assente: ${route}`);
+  }
+  assert.deepEqual(web.redirectUris, [`\${LH_WEB_URL}${callback}`], 'redirectUris del client web');
+  // Ritorno dopo il logout: handleLogout (web/lib/auth/handlers.ts) usa la radice dell'origine pubblica.
+  assert.equal(web.attributes?.['post.logout.redirect.uris'], '${LH_WEB_URL}/', 'post.logout.redirect.uris del client web');
+  assert.equal(web.attributes?.['backchannel.logout.url'], '${LH_WEB_URL}/api/auth/backchannel-logout');
+  assert.equal(web.publicClient, false, 'il client web è confidential');
+  assert.equal(web.attributes?.['pkce.code.challenge.method'], 'S256');
+});
+
 test('Lifespan access token <= 300 secondi (5 minuti)', () => {
   // Keycloak export file uses accessTokenLifespan
   const lifespan = realm.accessTokenLifespan;

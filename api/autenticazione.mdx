@@ -57,7 +57,7 @@ Con `LH_PROFILE=enterprise` l'header `X-LH-Actor` non vale più: i servizi accet
 Finché i servizi non ricavano il membro dal token (`MemberPrincipal`, M8.10) il portale nel profilo `enterprise` non va esposto a membri reali: i controlli del BFF sono una difesa in più, non il controllo di proprietà (Q-410).
 </Warning>
 
-Variabili del web: `LH_OIDC_ISSUER`, `LH_WEB_CLIENT_ID`, `LH_WEB_CLIENT_SECRET`, `LH_WEB_URL`, `LH_WEB_SESSION_KEY` (anche da `*_FILE`). Se mancano o sono insicure il web non parte (`INSECURE_CONFIG`).
+Variabili del web: `LH_OIDC_ISSUER`, `LH_WEB_CLIENT_ID`, `LH_WEB_CLIENT_SECRET`, `LH_WEB_URL`, `LH_WEB_SESSION_KEY` (anche da `*_FILE`). Se mancano o sono insicure il web non parte (`INSECURE_CONFIG`). Il chart Helm e il compose di riferimento le impostano per te: vedi [Installazione enterprise](/operations/installazione-enterprise).
 
 ```mermaid
 sequenceDiagram

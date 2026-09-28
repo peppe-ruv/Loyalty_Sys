@@ -763,7 +763,7 @@
       "clientAuthenticatorType": "client-secret",
       "secret": "${LH_WEB_CLIENT_SECRET}",
       "redirectUris": [
-        "${LH_WEB_URL}/*"
+        "${LH_WEB_URL}/api/auth/callback"
       ],
       "webOrigins": [
         "+"
@@ -779,6 +779,7 @@
       "protocol": "openid-connect",
       "attributes": {
         "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "${LH_WEB_URL}/",
         "backchannel.logout.url": "${LH_WEB_URL}/api/auth/backchannel-logout",
         "backchannel.logout.session.required": "true"
       }
