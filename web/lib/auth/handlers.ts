@@ -103,7 +103,8 @@ export async function handleLogout(req: NextRequest, bff: Bff): Promise<NextResp
   let location = new URL("/", bff.cfg.publicUrl);
   if (current) {
     await bff.store.delete(current.id);
-    // Ritorno alla home del web: l'URI va ammesso nel client `web` del realm (SPEC-GAP: Q-412).
+    // Ritorno alla home del web: il client `web` del realm ammette esattamente `${LH_WEB_URL}/` come
+    // `post.logout.redirect.uris` (Q-412, M8.2d; verificato da scripts/check-realm.mjs).
     try {
       const endSession = await bff.oidc.endSessionUrl(current.session.tokens.idToken, new URL("/", bff.cfg.publicUrl).href);
       if (endSession) location = endSession;
