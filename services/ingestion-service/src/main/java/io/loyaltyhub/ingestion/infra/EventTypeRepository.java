@@ -42,7 +42,22 @@ public class EventTypeRepository {
                 .optional();
     }
 
-    /** Crea o sostituisce un tipo (gestione da BO-09): tutti i campi tranne {@code code}. */
+    /**
+     * Crea un tipo solo se il codice non esiste (Q-440): {@code true} se la riga è stata inserita, {@code false} se un
+     * tipo con lo stesso codice c'era già o è stato inserito da una transazione concorrente (che vince).
+     */
+    public boolean insertIfAbsent(EventType t) {
+        return jdbc.sql("""
+                        INSERT INTO event_type (code, name, description, origin, category, data_schema, sample_data, enabled, icon)
+                        VALUES (?, ?, ?, ?, ?, cast(? AS jsonb), cast(? AS jsonb), ?, ?)
+                        ON CONFLICT (code) DO NOTHING
+                        """)
+                .params(t.code(), t.name(), t.description(), t.origin(), t.category(), t.dataSchema(), t.sampleData(),
+                        t.enabled(), t.icon())
+                .update() == 1;
+    }
+
+    /** Crea o sostituisce un tipo (modifica da BO-09 con PUT, seed demo): tutti i campi tranne {@code code}. */
     public void save(EventType t) {
         jdbc.sql("""
                         INSERT INTO event_type (code, name, description, origin, category, data_schema, sample_data, enabled, icon)

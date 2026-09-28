@@ -1,6 +1,7 @@
 package io.loyaltyhub.ingestion.application;
 
 import io.loyaltyhub.common.event.LhEvent;
+import io.loyaltyhub.common.event.LhFamily;
 import io.loyaltyhub.common.event.LhSource;
 import io.loyaltyhub.common.outbox.OutboxWriter;
 import io.loyaltyhub.common.web.LhException;
@@ -61,6 +62,11 @@ public class ActionReplayService {
             return Optional.empty();
         }
         LhEvent<JsonNode> event = mapper.readValue(payload.get(), EVENT_TYPE);
+        if (event.family() != LhFamily.ACTION) {
+            // Q-439: una riga accettata prima della correzione con un type fuori dalla famiglia azioni non si
+            // ripubblica; passa dalla pipeline normale, che la rifiuta.
+            return Optional.empty();
+        }
         outbox.write(event);
         log.info("Azione {} ({}) ripubblicata su richiesta di riprocessa DLQ {}", event.id(), sourceCode, reprocessRef);
         return Optional.of(IngestResult.accepted(event.id(), event.memberId(), event.lhcorrelationid()));

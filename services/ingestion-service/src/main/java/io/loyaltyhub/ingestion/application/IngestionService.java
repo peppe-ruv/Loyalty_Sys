@@ -84,7 +84,12 @@ public class IngestionService {
         this.clock = clock;
     }
 
-    /** Ingest di un'azione esterna (origine {@code EXTERNAL}). */
+    /**
+     * Ingest di un'azione esterna (origine {@code EXTERNAL}). Transazionale anche qui: la chiamata interna a
+     * {@link #ingest(InboundEventRequest, String)} non passa dal proxy, e senza transazione la riga {@code ACCEPTED}
+     * resterebbe salvata anche se la scrittura in outbox fallisse (azione persa, Q-441).
+     */
+    @Transactional
     public IngestResult ingest(InboundEventRequest request) {
         return ingest(request, ORIGIN_EXTERNAL);
     }
@@ -193,7 +198,11 @@ public class IngestionService {
             return o.rejected(null, RejectCode.SOURCE_DISABLED, RejectDetails.sourceDisabled(sourceCode));
         }
 
-        // 3. tipo noto, abilitato e ammesso per la fonte.
+        // 3. tipo noto, abilitato e ammesso per la fonte. Un type completo fuori da io.loyaltyhub.action. non è
+        // un'azione: si rifiuta prima di cercarlo nel registro, così non può finire su un altro topic (Q-439).
+        if (!fullType.startsWith(LhFamily.ACTION.typePrefix())) {
+            return o.rejected(null, RejectCode.UNKNOWN_TYPE, RejectDetails.outsideActionFamily(request.type()));
+        }
         Optional<EventType> type = eventTypes.findByCode(shortType);
         if (type.isEmpty() || !type.get().enabled()) {
             return o.rejected(null, RejectCode.UNKNOWN_TYPE, RejectDetails.unknownType(shortType));
