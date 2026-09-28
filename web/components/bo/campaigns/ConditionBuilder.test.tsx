@@ -11,7 +11,7 @@ import { TriggerPicker } from "./TriggerPicker";
 const EVENT_TYPES = [
   { code: "purchase.completed", name: "Acquisto completato", origin: "SYSTEM", category: "TRANSACTION", icon: "shopping-cart", enabled: true, dataSchema: {}, sampleData: null },
   { code: "review.submitted", name: "Recensione inviata", origin: "SYSTEM", category: "ENGAGEMENT", icon: "star", enabled: true, dataSchema: {}, sampleData: null },
-  { code: "store.visit", name: "Visita in negozio", origin: "CUSTOM", category: "CUSTOM", icon: null, enabled: true, dataSchema: {}, sampleData: null },
+  { code: "store.visit", name: "Visita in negozio", origin: "CUSTOM", category: "ENGAGEMENT", icon: "map-pin", enabled: true, dataSchema: {}, sampleData: null },
   { code: "old.type", name: "Tipo spento", origin: "SYSTEM", category: "SERVICE", icon: null, enabled: false, dataSchema: null, sampleData: null },
 ];
 
@@ -69,13 +69,14 @@ function PickerHarness({ onChange }: { onChange: (v: string[]) => void }) {
 }
 
 describe("TriggerPicker", () => {
-  it("mostra i tipi abilitati per categoria, con la pill custom, e li seleziona", async () => {
+  it("mostra le azioni abilitate per categoria, con la pill «Personalizzata», e le seleziona", async () => {
     const onChange = vi.fn();
     wrap(<PickerHarness onChange={onChange} />);
     const custom = await screen.findByRole("checkbox", { name: /Visita in negozio/ });
-    expect(within(custom).getByText("custom")).toBeInTheDocument();
+    expect(within(custom).getByText("Personalizzata")).toBeInTheDocument();
     expect(screen.queryByRole("checkbox", { name: /Tipo spento/ })).toBeNull();
-    expect(screen.getByRole("group", { name: "Personalizzati" })).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Coinvolgimento" })).getByRole("checkbox", { name: /Visita in negozio/ })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Transazioni" })).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: /Acquisto completato/ })).toHaveAttribute("aria-checked", "true");
     fireEvent.click(custom);
     expect(onChange).toHaveBeenLastCalledWith(["purchase.completed", "store.visit"]);
