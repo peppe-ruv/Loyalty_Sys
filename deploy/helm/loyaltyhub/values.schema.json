@@ -41,6 +41,16 @@
         "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 }
       }
     },
+    "configMapRef": {
+      "type": "object",
+      "description": "Riferimento a una chiave di un ConfigMap esistente (dati pubblici, es. un certificato di CA).",
+      "additionalProperties": false,
+      "required": ["name", "key"],
+      "properties": {
+        "name": { "type": "string" },
+        "key": { "type": "string", "minLength": 1 }
+      }
+    },
     "retention": { "type": "integer", "minimum": -1, "not": { "const": 0 } },
     "notYetInImage": {
       "type": "object",
@@ -73,7 +83,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "web": { "type": "string", "pattern": "^https?://" },
+        "web": { "type": "string", "pattern": "^$|^https?://", "description": "Vuoto è rifiutato con un messaggio da loyaltyhub.validate." },
         "idp": { "type": "string", "pattern": "^https?://" },
         "cms": { "type": "string", "pattern": "^https?://" }
       }
@@ -149,6 +159,20 @@
             "resources": { "$ref": "#/definitions/resources" },
             "autoscaling": { "$ref": "#/definitions/autoscaling" },
             "pdb": { "$ref": "#/definitions/pdb" },
+            "bff": {
+              "type": "object",
+              "description": "BFF OIDC del web (F2-SEC-06), letto solo con global.profile=enterprise; limiti come web/lib/auth/config.ts.",
+              "additionalProperties": false,
+              "properties": {
+                "clientId": { "type": "string", "minLength": 1 },
+                "clientSecret": { "$ref": "#/definitions/secretRef" },
+                "sessionKey": { "$ref": "#/definitions/secretRef" },
+                "sessionIdleSeconds": { "type": "integer", "minimum": 60, "maximum": 86400 },
+                "sessionMaxSeconds": { "type": "integer", "minimum": 300, "maximum": 604800 },
+                "sessionMaxCount": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+                "issuerCaBundle": { "$ref": "#/definitions/configMapRef" }
+              }
+            },
             "extraEnv": { "type": "array" }
           }
         },

@@ -54,7 +54,7 @@ test('values.yaml non contiene segreti in chiaro: solo riferimenti {name, key} o
     .filter(([, l]) => !l.trimStart().startsWith('#'))
     .filter(([, l]) => {
       const m = l.match(/^\s*-?\s*([A-Za-z0-9]+)\s*:\s*(.*)$/);
-      if (!m || !/(password|secret|token|apikey)/i.test(m[1]) || /Name$/.test(m[1])) return false;
+      if (!m || !/(password|secret|token|apikey|sessionkey)/i.test(m[1]) || /Name$/.test(m[1])) return false;
       const value = m[2].trim();
       // Ammessi: vuoto (mappa annidata), riferimento {name, key}, elenco di nomi (pullSecrets: []).
       return value !== '' && !value.startsWith('{') && !value.startsWith('[') && !value.startsWith('#');
@@ -83,7 +83,7 @@ test('compose di riferimento: ruoli dell\'immagine unica, nessun segreto in chia
     assert.match(compose, new RegExp(`LH_ROLE: "${role}"`), `manca il ruolo ${role}`);
   }
   assert.match(compose, /LH_MODE: "external"/);
-  const secretLines = compose.split('\n').filter((l) => /^\s+[A-Z_]*(PASSWORD|SECRET)[A-Z_]*:\s/.test(l));
+  const secretLines = compose.split('\n').filter((l) => /^\s+[A-Z_]*(PASSWORD|SECRET|SESSION_KEY)[A-Z_]*:\s/.test(l));
   assert.ok(secretLines.length > 0);
   for (const l of secretLines) {
     assert.match(l, /:\s*"\$\{[A-Z_]+:-\}"\s*$/, `segreto non preso dall'ambiente: ${l.trim()}`);
@@ -100,9 +100,37 @@ test('compose di riferimento: ruoli dell\'immagine unica, nessun segreto in chia
   assert.match(compose, /KC_DB_USERNAME: "idp"/);
   assert.match(compose, /KC_DB_PASSWORD: "\$\{LH_IDP_DB_PASSWORD:-\}"/);
   assert.match(read('deploy/compose/postgres-init/10-idp.sh'), /CREATE ROLE idp LOGIN PASSWORD :'pw'/);
-  // Il web non riceve segreti né emittente finché il BFF non li legge (Q-393).
-  const web = compose.split(/\n  web:\n/)[1].split(/\n  [a-z]+:\n/)[0];
-  assert.doesNotMatch(web, /LH_WEB_CLIENT_SECRET|LH_OIDC_ISSUER|LH_WEB_URL/);
+  // BFF del web (F2-SEC-06, Q-412): stesso emittente dell'hub, stessa origine e stesso segreto del client `web` dati a
+  // Keycloak, chiave delle sessioni dall'ambiente; la guardia ferma il web con un emittente non https (Q-420).
+  const service = (name) => compose.split(new RegExp(`\\n  ${name}:\\n`))[1].split(/\n  [a-z]+:\n/)[0];
+  const envOf = (block, v) => (block.match(new RegExp(`^\\s+${v}: (.+)$`, 'm')) || [])[1];
+  const [web, hub, idp] = ['web', 'hub', 'idp'].map(service);
+  assert.ok(envOf(web, 'LH_OIDC_ISSUER'), 'LH_OIDC_ISSUER del web');
+  assert.equal(envOf(web, 'LH_OIDC_ISSUER'), envOf(hub, 'LH_OIDC_ISSUER'), 'emittente del web e dell\'hub');
+  assert.equal(envOf(web, 'LH_WEB_URL'), envOf(idp, 'LH_WEB_URL'), 'LH_WEB_URL del web e di Keycloak');
+  assert.equal(envOf(web, 'LH_WEB_CLIENT_SECRET'), envOf(idp, 'LH_WEB_CLIENT_SECRET'), 'segreto del client web');
+  assert.equal(envOf(web, 'LH_WEB_CLIENT_ID'), '"web"', 'client del realm');
+  assert.equal(envOf(web, 'LH_WEB_SESSION_KEY'), '"${LH_WEB_SESSION_KEY:-}"');
+  assert.match(web, /entrypoint: \*lh-web-oidc-guard\n\s+command: \["lh-web-oidc-guard", "\/opt\/lh\/entrypoint\.sh"\]/);
+});
+
+test('compose di riferimento: la guardia del web rifiuta un emittente non https solo nel profilo enterprise', () => {
+  const block = read(COMPOSE).split('x-lh-web-oidc-guard: &lh-web-oidc-guard\n')[1].split('\n\n')[0];
+  // Testo dello script come lo passa Compose: `$$` diventa `$`.
+  const script = block.split('  - |\n')[1].split('\n').map((l) => l.replace(/^ {4}/, '')).join('\n').replaceAll('$$', '$');
+  const run = (env) => spawnSync('sh', ['-c', script, 'lh-web-oidc-guard', 'printf', 'avviato'],
+    { encoding: 'utf8', env: { PATH: process.env.PATH, ...env } });
+  const loopback = 'http://localhost:8180/realms/loyaltyhub';
+  const tls = 'https://idp.example.org/realms/loyaltyhub';
+  for (const env of [{ LH_PROFILE: 'enterprise', LH_OIDC_ISSUER: loopback }, { LH_PROFILE: 'enterprise' },
+    { LH_PROFILE: 'enterprise', LH_OIDC_ISSUER: 'http://idp.example.org/realms/loyaltyhub' }]) {
+    const r = run(env);
+    assert.equal(r.status, 1, JSON.stringify(env));
+    assert.equal(r.stdout, '');
+    assert.match(r.stderr, /LH_IDP_PUBLIC_URL deve essere l'URL https/);
+  }
+  assert.equal(run({ LH_PROFILE: 'enterprise', LH_OIDC_ISSUER: tls }).stdout, 'avviato');
+  assert.equal(run({ LH_PROFILE: 'demo', LH_OIDC_ISSUER: loopback }).stdout, 'avviato');
 });
 
 test('entrypoint dell\'immagine: una variabile vuota non oscura <VAR>_FILE, una valorizzata vince', () => {
@@ -164,12 +192,44 @@ test('helm lint e helm template: valori di default, servizi gestiti, rifiuti', {
   assert.match(tpl.stdout, /jdbc:postgresql:\/\/lh-loyaltyhub-pg-rw:5432\/loyaltyhub\?sslmode=require/);
   assert.match(tpl.stdout, /- path: \/realms\/loyaltyhub\//);
   assert.doesNotMatch(tpl.stdout, /- path: \/realms\/\s/);
-  const webDeployment = tpl.stdout.split(/^---$/m)
-    .find((d) => /^kind: Deployment$/m.test(d) && /^  name: lh-loyaltyhub-web$/m.test(d));
+  const webDocs = (out) => out.split(/^---$/m).filter((d) => /^  name: lh-loyaltyhub-web$/m.test(d));
+  const webDeployment = webDocs(tpl.stdout).find((d) => /^kind: Deployment$/m.test(d));
   assert.ok(webDeployment, 'Deployment web');
-  assert.doesNotMatch(webDeployment, /LH_WEB_CLIENT_SECRET|LH_OIDC_ISSUER|secretKeyRef/,
-    'il web non riceve segreti né emittente finché non c\'è il BFF (Q-393)');
   assert.match(webDeployment, /livenessProbe:\s*\n\s*tcpSocket:/, 'liveness del web senza giro verso l\'hub');
+  // BFF OIDC (F2-SEC-06, Q-412): emittente dell'hub, origine pubblica, segreti solo da Secret, una replica (Q-409).
+  const env = (doc, name) => (doc.match(new RegExp(`- name: ${name}\\n\\s+(value: .+|valueFrom:\\n\\s+secretKeyRef: .+)`)) || [])[1];
+  assert.equal(env(webDeployment, 'LH_OIDC_ISSUER'), 'value: "https://idp.example.org/realms/loyaltyhub"');
+  const hubDeployment = tpl.stdout.split(/^---$/m)
+    .find((d) => /^kind: Deployment$/m.test(d) && /^  name: lh-loyaltyhub-hub$/m.test(d));
+  assert.equal(env(webDeployment, 'LH_OIDC_ISSUER'), env(hubDeployment, 'LH_OIDC_ISSUER'), 'stesso emittente dell\'hub');
+  assert.equal(env(webDeployment, 'LH_WEB_URL'), 'value: "https://loyalty.example.org"');
+  assert.equal(env(webDeployment, 'LH_WEB_CLIENT_ID'), 'value: "web"');
+  assert.equal(env(webDeployment, 'LH_WEB_CLIENT_SECRET'),
+    'valueFrom:\n                secretKeyRef: { name: lh-idp-clients, key: web-client-secret }', 'stesso Secret di Keycloak');
+  assert.equal(env(webDeployment, 'LH_WEB_SESSION_KEY'),
+    'valueFrom:\n                secretKeyRef: { name: lh-web-session, key: session-key }');
+  assert.doesNotMatch(webDeployment, /NODE_EXTRA_CA_CERTS/);
+  assert.match(webDeployment, /^  replicas: 1$/m);
+  assert.deepEqual(webDocs(tpl.stdout).map((d) => d.match(/^kind: (\S+)$/m)[1]).sort(), ['Deployment', 'Service'],
+    'web senza HPA né PDB nel profilo enterprise');
+  const idpDeployment = tpl.stdout.split(/^---$/m)
+    .find((d) => /^kind: Deployment$/m.test(d) && /^  name: lh-loyaltyhub-idp$/m.test(d));
+  assert.equal(env(idpDeployment, 'LH_WEB_URL'), env(webDeployment, 'LH_WEB_URL'), 'stessa origine nel realm');
+  // CA privata dell'emittente e segreto proprio del web (IdP aziendale).
+  const ca = template('roles.web.bff.issuerCaBundle.name=corp-ca', 'roles.web.bff.clientSecret.name=lh-web-oidc',
+    'publicUrls.web=https://loyalty.example.org/');
+  assert.equal(ca.status, 0, ca.stderr);
+  const caWeb = webDocs(ca.stdout).find((d) => /^kind: Deployment$/m.test(d));
+  assert.equal(env(caWeb, 'NODE_EXTRA_CA_CERTS'), 'value: /etc/lh/issuer-ca/ca.crt');
+  assert.match(caWeb, /- name: issuer-ca\n\s+configMap:\n\s+name: corp-ca\n\s+items:\n\s+- key: ca\.crt\n\s+path: ca\.crt/);
+  assert.match(caWeb, /mountPath: \/etc\/lh\/issuer-ca\n\s+readOnly: true/);
+  assert.match(env(caWeb, 'LH_WEB_CLIENT_SECRET'), /name: lh-web-oidc, key: web-client-secret/);
+  assert.equal(env(caWeb, 'LH_WEB_URL'), 'value: "https://loyalty.example.org"', 'barra finale tolta');
+  // Profilo demo: nessuna variabile del BFF, repliche e HPA liberi (niente sessioni).
+  const demo = template('global.profile=demo', 'roles.web.autoscaling.enabled=true', 'roles.web.autoscaling.maxReplicas=6');
+  assert.equal(demo.status, 0, demo.stderr);
+  assert.doesNotMatch(webDocs(demo.stdout).join('\n'), /LH_OIDC_ISSUER|LH_WEB_|secretKeyRef|NODE_EXTRA_CA_CERTS/);
+  assert.ok(webDocs(demo.stdout).some((d) => /^kind: HorizontalPodAutoscaler$/m.test(d)));
 
   const managed = ['postgres.mode=external', 'postgres.external.host=pg.example.internal', 'kafka.mode=external',
     'kafka.external.bootstrapServers=kafka.example.internal:9093', 'kafka.external.sasl.username.name=lh-kafka',
@@ -186,6 +246,24 @@ test('helm lint e helm template: valori di default, servizi gestiti, rifiuti', {
   refuses(/INSECURE_CONFIG: postgres\.external\.jdbcParams/, ...managed, 'postgres.external.jdbcParams=');
   refuses(/INSECURE_CONFIG: postgres\.external\.jdbcParams/, ...managed, 'postgres.external.jdbcParams=sslmode=prefer');
   refuses(/non può superare i broker/, 'kafka.topics.replicas=3', 'kafka.strimzi.replicas=1');
+  // Identità nel profilo enterprise (regola 22, F2-SEC-06, Q-409, Q-412).
+  refuses(/INSECURE_CONFIG: emittente OIDC "http:\/\/idp\.example\.org\/realms\/loyaltyhub" non https/,
+    'publicUrls.idp=http://idp.example.org');
+  refuses(/INSECURE_CONFIG: emittente OIDC/, 'oidc.issuer=http://localhost:8180/realms/loyaltyhub');
+  refuses(/INSECURE_CONFIG: publicUrls\.web/, 'publicUrls.web=http://loyalty.example.org');
+  refuses(/INSECURE_CONFIG: publicUrls\.web/, 'publicUrls.web=https://loyalty.example.org/portale');
+  refuses(/publicUrls\.web è obbligatorio/, 'publicUrls.web=');
+  refuses(/ingress\.hosts\.web/, 'publicUrls.web=https://altro.example.org');
+  refuses(/ingress\.hosts\.idp/, 'publicUrls.idp=https://altro-idp.example.org');
+  refuses(/roles\.web\.bff\.sessionKey\.name è obbligatorio/, 'roles.web.bff.sessionKey.name=');
+  refuses(/roles\.web\.bff\.clientSecret\.name è obbligatorio/, 'roles.idp.enabled=false',
+    'oidc.issuer=https://sso.example.org/realms/loyaltyhub');
+  refuses(/WEB_SINGLE_REPLICA/, 'roles.web.replicas=2');
+  refuses(/WEB_SINGLE_REPLICA/, 'roles.web.autoscaling.enabled=true', 'roles.web.autoscaling.maxReplicas=6');
+  refuses(/sessionIdleSeconds non può superare/, 'roles.web.bff.sessionIdleSeconds=40000');
+  refuses(/Additional property/, 'roles.web.bff.clientSecret.value=in-chiaro');
+  assert.equal(template('roles.idp.enabled=false', 'oidc.issuer=https://sso.example.org/realms/loyaltyhub',
+    'roles.web.bff.clientSecret.name=lh-web-oidc').status, 0);
   // Deroghe esplicite e documentate; il profilo demo non le richiede.
   assert.equal(template(...managed, 'kafka.external.security=PLAINTEXT', 'kafka.external.allowInsecure=true').status, 0);
   assert.equal(template(...managed, 'postgres.external.jdbcParams=', 'postgres.external.allowInsecure=true').status, 0);

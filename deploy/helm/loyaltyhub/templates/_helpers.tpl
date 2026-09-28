@@ -195,6 +195,12 @@ topologySpreadConstraints:
 {{- if and (eq .Values.global.profile "enterprise") (not .Values.roles.idp.enabled) (not .Values.oidc.issuer) -}}
 {{- fail "profilo enterprise senza ruolo idp: impostare oidc.issuer dell'IdP aziendale (ADR-027)" -}}
 {{- end -}}
+{{- if and (or .Values.roles.web.enabled .Values.roles.idp.enabled) (not .Values.publicUrls.web) -}}
+{{- fail "publicUrls.web è obbligatorio: origine pubblica del web (es. https://loyalty.example.org), LH_WEB_URL del BFF e base delle redirect URI del realm" -}}
+{{- end -}}
+{{- if eq .Values.global.profile "enterprise" -}}
+{{- include "loyaltyhub.validate.identity" . -}}
+{{- end -}}
 {{- $t := .Values.kafka.topics -}}
 {{- if lt (int $t.partitions) 1 -}}{{- fail "kafka.topics.partitions deve essere almeno 1" -}}{{- end -}}
 {{- if lt (int $t.replicas) 1 -}}{{- fail "kafka.topics.replicas deve essere almeno 1" -}}{{- end -}}
@@ -353,5 +359,59 @@ topologySpreadConstraints:
 {{- .Values.oidc.jwksUri -}}
 {{- else if .Values.roles.idp.enabled -}}
 {{- printf "http://%s-idp:%d/realms/%s/protocol/openid-connect/certs" (include "loyaltyhub.fullname" .) (int (include "loyaltyhub.port.idp" .)) .Values.global.realm -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Origine pubblica del web (LH_WEB_URL del BFF e del realm): senza barra finale, così `${LH_WEB_URL}/…` resta esatto. */}}
+{{- define "loyaltyhub.web.publicUrl" -}}
+{{- trimSuffix "/" .Values.publicUrls.web -}}
+{{- end -}}
+
+{{/* Segreto del client `web` per il BFF, come JSON {name, key}: il riferimento proprio del web oppure, con il ruolo idp,
+lo stesso Secret dato a Keycloak (i due valori devono coincidere). Vuoto se non c'è nessuno dei due. */}}
+{{- define "loyaltyhub.web.clientSecretRef" -}}
+{{- if .Values.roles.web.bff.clientSecret.name -}}
+{{- toJson .Values.roles.web.bff.clientSecret -}}
+{{- else if .Values.roles.idp.enabled -}}
+{{- toJson .Values.roles.idp.clientSecrets.web -}}
+{{- else -}}
+{{- toJson (dict "name" "" "key" "") -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Verifiche d'identità del profilo enterprise (ADR-027, regola 22, F2-SEC-06): emittente https, origine del web https
+senza percorso, host coerenti con l'Ingress, segreti del BFF presenti, una sola replica del web (Q-409, Q-419). */}}
+{{- define "loyaltyhub.validate.identity" -}}
+{{- $issuer := include "loyaltyhub.oidc.issuer" . -}}
+{{- if not (regexMatch "^https://[^/?#@\\s]+(/[^?#\\s]*)?$" $issuer) -}}
+{{- fail (printf "INSECURE_CONFIG: emittente OIDC %q non https nel profilo enterprise: il browser vi fa login e il BFF del web lo raggiunge con lo stesso URL; impostare publicUrls.idp (ruolo idp) o oidc.issuer con https:// (regola 22, Q-412)" $issuer) -}}
+{{- end -}}
+{{- if and .Values.roles.idp.enabled .Values.ingress.enabled -}}
+{{- $idpHost := (urlParse .Values.publicUrls.idp).hostname -}}
+{{- if ne $idpHost .Values.ingress.hosts.idp -}}
+{{- fail (printf "publicUrls.idp (host %s) e ingress.hosts.idp (%s) devono indicare lo stesso host: Keycloak si presenta con publicUrls.idp e l'Ingress serve solo ingress.hosts.idp" $idpHost .Values.ingress.hosts.idp) -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.roles.web.enabled -}}
+{{- $r := .Values.roles.web -}}
+{{- $webUrl := include "loyaltyhub.web.publicUrl" . -}}
+{{- if not (regexMatch "^https://[^/?#@\\s]+$" $webUrl) -}}
+{{- fail (printf "INSECURE_CONFIG: publicUrls.web %q deve essere un'origine https senza percorso (es. https://loyalty.example.org): è LH_WEB_URL del BFF, base delle redirect URI e del controllo Origin (regola 22)" .Values.publicUrls.web) -}}
+{{- end -}}
+{{- if and .Values.ingress.enabled (ne (urlParse $webUrl).hostname .Values.ingress.hosts.web) -}}
+{{- fail (printf "publicUrls.web (host %s) e ingress.hosts.web (%s) devono indicare lo stesso host: l'IdP rimanda il browser a publicUrls.web e l'Ingress serve solo ingress.hosts.web" (urlParse $webUrl).hostname .Values.ingress.hosts.web) -}}
+{{- end -}}
+{{- if not (include "loyaltyhub.web.clientSecretRef" . | fromJson).name -}}
+{{- fail "roles.web.bff.clientSecret.name è obbligatorio nel profilo enterprise senza ruolo idp: Secret con il segreto del client `web` registrato nell'IdP aziendale (F2-SEC-06)" -}}
+{{- end -}}
+{{- if not $r.bff.sessionKey.name -}}
+{{- fail "roles.web.bff.sessionKey.name è obbligatorio nel profilo enterprise: Secret con 32 byte casuali in base64 (openssl rand -base64 32), chiave delle sessioni del BFF (F2-SEC-06)" -}}
+{{- end -}}
+{{- if gt (int $r.bff.sessionIdleSeconds) (int $r.bff.sessionMaxSeconds) -}}
+{{- fail "roles.web.bff.sessionIdleSeconds non può superare roles.web.bff.sessionMaxSeconds" -}}
+{{- end -}}
+{{- if or (and $r.autoscaling.enabled (gt (int $r.autoscaling.maxReplicas) 1)) (and (not $r.autoscaling.enabled) (gt (int $r.replicas) 1)) -}}
+{{- fail "WEB_SINGLE_REPLICA: nel profilo enterprise il web gira con una sola replica, perché le sessioni del BFF stanno nella memoria del Pod (Q-409, Q-419): roles.web.replicas=1 e roles.web.autoscaling.enabled=false (o maxReplicas=1)" -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}

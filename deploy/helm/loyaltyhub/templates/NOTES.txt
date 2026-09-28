@@ -19,10 +19,18 @@ Partizioni: aumentarle rimappa le chiavi memberId e rompe l'ordine per membro de
 dopo aver svuotato i consumer (produttori fermi, lag 0) e con kafka.topics.allowPartitionIncrease=true, da rimettere
 a false subito dopo; senza, chart e hub rifiutano l'aumento. Non si possono diminuire.
 
+{{- if and (eq .Values.global.profile "enterprise") .Values.roles.web.enabled }}
+
+Login del web (BFF OIDC, F2-SEC-06): emittente {{ include "loyaltyhub.oidc.issuer" . }}, client {{ .Values.roles.web.bff.clientId }}.
+I Pod web devono risolvere e raggiungere l'emittente con questo URL (certificato di una CA pubblica, oppure
+roles.web.bff.issuerCaBundle); il Secret {{ .Values.roles.web.bff.sessionKey.name }} deve esistere prima dell'installazione.
+{{- end }}
+
 Limiti noti di questa versione (deploy/README.md):
 {{- if eq .Values.global.profile "enterprise" }}
-- portale e backoffice non funzionano ancora nel profilo enterprise: manca il BFF OIDC (F2-SEC-06) e l'hub rifiuta le
-  chiamate senza token (Q-393); per valutare usare global.profile=demo;
+- web con una sola replica: le sessioni del BFF stanno nella memoria del Pod e un riavvio le chiude, si rientra con
+  l'SSO dell'IdP (Q-409, Q-419);
+- portale da non esporre a membri reali finché M8.10 non lega il membro al token nei servizi (Q-410);
 {{- end }}
 - Kafka interno senza TLS fino a M8.5 (Q-375); nessuna NetworkPolicy fino a M8.5;
 - retention di facts e audit a 7 giorni finché M8.4 non toglie le PII dal bus (Q-373);

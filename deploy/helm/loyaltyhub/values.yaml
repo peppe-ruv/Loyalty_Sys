@@ -34,6 +34,8 @@ global:
 
 # URL pubblici (origini viste dal browser). Servono al realm (redirect URI, back-channel logout) e all'emittente OIDC.
 publicUrls:
+  # Origine del web senza percorso: diventa LH_WEB_URL del BFF e del realm. Nel profilo enterprise deve essere https e
+  # avere l'host di ingress.hosts.web (se l'Ingress è acceso), altrimenti il chart non si installa.
   web: https://loyalty.example.org
   idp: https://idp.example.org
   # Directus (ruolo cms, M10.2): usato solo come redirect URI del client `cms` nel realm.
@@ -42,7 +44,8 @@ publicUrls:
 # Identità dei servizi (ADR-027): resource server JWT con aud=hub.
 oidc:
   # Vuoto = <publicUrls.idp>/realms/<global.realm> (ruolo idp di questo chart). Con un IdP aziendale già compatibile
-  # si imposta qui l'emittente e si spegne roles.idp.
+  # si imposta qui l'emittente e si spegne roles.idp. Lo usano l'hub (claim `iss`) e il BFF del web (login), che lo
+  # raggiunge con questo stesso URL: nel profilo enterprise deve essere https (il chart rifiuta http).
   issuer: ""
   # Vuoto = JWKS del ruolo idp raggiunto dentro il cluster (nessun giro dall'Ingress).
   jwksUri: ""
@@ -106,21 +109,39 @@ roles:
   # ---- web: portale, backoffice, BFF (Next.js) ----
   web:
     enabled: true
-    replicas: 2
+    # SPEC-GAP: Q-409, Q-419 — le sessioni del BFF stanno nella memoria del Pod: nel profilo enterprise il chart
+    # rifiuta più di una replica (anche tramite HPA) finché non arriva lo store condiviso. Un riavvio o un
+    # aggiornamento chiude le sessioni: si rientra con l'SSO dell'IdP. Nel profilo demo (senza sessioni) si può scalare.
+    replicas: 1
     resources:
       requests: { cpu: 200m, memory: 384Mi }
       limits: { cpu: "1", memory: 768Mi }
     autoscaling:
-      enabled: true
-      minReplicas: 2
-      maxReplicas: 6
+      enabled: false
+      minReplicas: 1
+      maxReplicas: 1
       targetCPUUtilizationPercentage: 70
+    # Spento: con una sola replica minAvailable 1 bloccherebbe per sempre lo svuotamento dei nodi (kubectl drain).
     pdb:
-      enabled: true
+      enabled: false
       minAvailable: 1
-    # SPEC-GAP: Q-393 — il BFF OIDC (F2-SEC-06) non esiste ancora: il proxy /api/lh inoltra solo X-LH-Actor e l'hub
-    # in `enterprise` rifiuta ogni chiamata senza token. Finché non c'è il BFF il Pod web non riceve segreti né
-    # emittente (nessun lettore); con `global.profile=demo` il web funziona come in Fase 1.
+    # BFF OIDC (F2-SEC-06, ADR-027), letto solo con global.profile=enterprise. Emittente: oidc.issuer (lo stesso
+    # dell'hub); origine pubblica: publicUrls.web. Segreti solo come riferimenti a Secret esistenti.
+    bff:
+      clientId: web
+      # Segreto del client confidential `web`. Nome vuoto = lo stesso Secret dato a Keycloak
+      # (roles.idp.clientSecrets.web), perché i due valori devono coincidere. Obbligatorio con roles.idp.enabled=false.
+      clientSecret: { name: "", key: web-client-secret }
+      # OBBLIGATORIO: 32 byte casuali in base64 (openssl rand -base64 32). Cifra sessioni e stato del login e firma i
+      # token CSRF: cambiarla (con un riavvio del Pod) chiude tutte le sessioni.
+      sessionKey: { name: lh-web-session, key: session-key }
+      # Inattività e durata massima della sessione in secondi (Q-354, Q-413); sessioni in memoria al massimo (Q-409).
+      sessionIdleSeconds: 1800
+      sessionMaxSeconds: 36000
+      sessionMaxCount: 10000
+      # CA privata del certificato dell'emittente: ConfigMap con il PEM, montata come NODE_EXTRA_CA_CERTS. Nome vuoto =
+      # solo le CA pubbliche di Node. Il web verifica sempre il certificato dell'IdP.
+      issuerCaBundle: { name: "", key: ca.crt }
     extraEnv: []
 
   # ---- idp: Keycloak con il realm as code di deploy/idp/realm.json (ADR-027) ----
@@ -143,7 +164,8 @@ roles:
     pdb:
       enabled: true
       minAvailable: 1
-    # Secret esistenti. Chiavi del realm: tutte le variabili ${LH_*} di deploy/idp/realm.json.
+    # Secret esistenti. Chiavi del realm: tutte le variabili ${LH_*} di deploy/idp/realm.json. clientSecrets.web lo legge
+    # anche il web (BFF), salvo roles.web.bff.clientSecret.name.
     adminUsername: admin
     adminPassword: { name: lh-idp-admin, key: password }
     clientSecrets:
@@ -297,6 +319,7 @@ ingress:
   enabled: true
   className: ""
   annotations: {}
+  # Stessi host di publicUrls.web e publicUrls.idp: il browser e il BFF usano quegli URL.
   hosts:
     web: loyalty.example.org
     idp: idp.example.org

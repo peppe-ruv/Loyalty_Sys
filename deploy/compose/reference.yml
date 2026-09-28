@@ -7,19 +7,24 @@
 #   export LH_IMAGE=ghcr.io/<owner>/loyaltyhub:<versione>
 #   export LH_DB_PASSWORD=… LH_IDP_DB_PASSWORD=… LH_IDP_ADMIN_PASSWORD=…
 #   export LH_WEB_CLIENT_SECRET=… LH_WIDGETS_CLIENT_SECRET=… LH_CMS_CLIENT_SECRET=…
+#   export LH_WEB_SESSION_KEY="$(openssl rand -base64 32)"
+#   export LH_WEB_URL=https://loyalty.example.org LH_IDP_PUBLIC_URL=https://idp.example.org
 #   docker compose -f deploy/compose/reference.yml up -d
 #
 # Immagine: LH_IMAGE è obbligatoria (nessun default: un nome inventato non si scaricherebbe). La pipeline
 # .github/workflows/image.yml pubblica ghcr.io/<owner>/loyaltyhub solo sui tag git `v*`.
 # Segreti: nessun valore nel file. Le variabili hanno default vuoto; a runtime il container che ne ha bisogno rifiuta
-# di partire (x-lh-require-env, Postgres senza password o senza LH_IDP_DB_PASSWORD).
+# di partire (x-lh-require-env, Postgres senza password o senza LH_IDP_DB_PASSWORD, il web con INSECURE_CONFIG).
 # Rete: web e idp ascoltano solo su 127.0.0.1 dell'host (LH_BIND_ADDRESS) e parlano HTTP in chiaro: davanti serve un
 # reverse proxy con TLS (SPEC-GAP: Q-392, TLS end-to-end con M8.5). Variabili e scelte: deploy/README.md.
+# Login nel profilo enterprise (BFF OIDC, F2-SEC-06): il web chiama Keycloak con l'URL pubblico, lo stesso del browser,
+# e accetta solo https fuori da localhost; dentro il container web `localhost` è il container stesso. Quindi
+# LH_IDP_PUBLIC_URL (e LH_WEB_URL) sono gli URL https del reverse proxy, raggiungibili anche dai container web e idp
+# (SPEC-GAP: Q-420). Con i default in http il web non parte nel profilo enterprise (x-lh-web-oidc-guard).
 #
 # Ruolo idp: immagine ufficiale di Keycloak alla versione di deploy/docker-compose.yml finché l'immagine unica non
 # contiene Keycloak (SPEC-GAP: Q-374). Ruolo cms (Directus) con Redis e MinIO: arrivano con M10.2 (Q-374).
-# Portale e backoffice nel profilo enterprise: non funzionano finché non c'è il BFF OIDC (SPEC-GAP: Q-393); per
-# valutare, LH_PROFILE=demo LH_IDENTITY_MODE=header.
+# Per valutare con i dati fittizi senza reverse proxy: LH_PROFILE=demo LH_IDENTITY_MODE=header.
 name: loyaltyhub-reference
 
 # Guardia dei segreti obbligatori (POSIX sh, vale per l'immagine unica e per Keycloak). Il valore non viene stampato.
@@ -44,6 +49,22 @@ x-lh-require-env-or-file: &lh-require-env-or-file
       eval "val=\$${$$v:-}\$${$${v}_FILE:-}"
       if [ -z "$$val" ]; then echo "Variabile obbligatoria mancante: $$v (o $${v}_FILE)" >&2; exit 1; fi
     done
+    exec "$$@"
+
+# Guardia del ruolo web nel profilo enterprise (Q-412, Q-420): il BFF fa discovery, scambio del codice e rinnovo verso
+# LH_OIDC_ISSUER, lo stesso URL del browser. Il web ammette http solo verso localhost, che dal container non è Keycloak:
+# senza https il login non potrebbe funzionare, quindi il container si ferma subito con la causa. Segreti, formato
+# della chiave e origine li verifica il web stesso all'avvio (INSECURE_CONFIG, anche con <VAR>_FILE).
+x-lh-web-oidc-guard: &lh-web-oidc-guard
+  - /bin/sh
+  - -c
+  - |
+    if [ "$${LH_PROFILE:-}" = "enterprise" ]; then
+      case "$${LH_OIDC_ISSUER:-}" in
+        https://*) ;;
+        *) echo "LH_IDP_PUBLIC_URL deve essere l'URL https del reverse proxy davanti a Keycloak, raggiungibile anche dal container web (emittente attuale: $${LH_OIDC_ISSUER:-assente}; deploy/README.md, Q-420)" >&2; exit 1 ;;
+      esac
+    fi
     exec "$$@"
 
 # Sicurezza dei container (docs/18 §3.10 punto 10): non root, capability rimosse, niente nuovi privilegi.
@@ -204,7 +225,8 @@ services:
     tmpfs: ["/tmp", "/opt/lh/web/.next/cache:uid=1000,gid=1000"]
     ports:
       - "${LH_BIND_ADDRESS:-127.0.0.1}:3000:3000"
-    # SPEC-GAP: Q-393 — niente emittente né segreto del client `web` finché il BFF OIDC (F2-SEC-06) non li legge.
+    entrypoint: *lh-web-oidc-guard
+    command: ["lh-web-oidc-guard", "/opt/lh/entrypoint.sh"]
     environment:
       LH_ROLE: "web"
       LH_MODE: "external"
@@ -217,6 +239,18 @@ services:
       LH_SVC_GAMIFICATION_URL: "http://hub:8080"
       LH_SVC_ENGAGEMENT_URL: "http://hub:8080"
       LH_SVC_INSIGHT_URL: "http://hub:8080"
+      # BFF OIDC (F2-SEC-06, ADR-027), letto solo nel profilo enterprise: stesso emittente dell'hub, stessa origine e
+      # stesso segreto del client `web` dati a Keycloak (servizio idp). Nel profilo demo il web li ignora.
+      LH_OIDC_ISSUER: "${LH_IDP_PUBLIC_URL:-http://localhost:8180}/realms/loyaltyhub"
+      LH_WEB_CLIENT_ID: "web"
+      LH_WEB_CLIENT_SECRET: "${LH_WEB_CLIENT_SECRET:-}"
+      LH_WEB_URL: "${LH_WEB_URL:-http://localhost:3000}"
+      # 32 byte casuali in base64 (openssl rand -base64 32): cifra sessioni e stato del login; cambiarla le chiude.
+      LH_WEB_SESSION_KEY: "${LH_WEB_SESSION_KEY:-}"
+      # Vuote = default del web (inattività 30 min, massimo 10 h, 10 000 sessioni in memoria; Q-354, Q-409).
+      LH_WEB_SESSION_IDLE_SECONDS: "${LH_WEB_SESSION_IDLE_SECONDS:-}"
+      LH_WEB_SESSION_MAX_SECONDS: "${LH_WEB_SESSION_MAX_SECONDS:-}"
+      LH_WEB_SESSION_MAX_COUNT: "${LH_WEB_SESSION_MAX_COUNT:-}"
     healthcheck:
       test: ["CMD", "/opt/lh/healthcheck.sh"]
       interval: 15s
