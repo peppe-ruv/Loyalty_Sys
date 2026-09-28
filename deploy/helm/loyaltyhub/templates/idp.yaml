@@ -100,9 +100,10 @@ spec:
               value: "true"
             - name: KC_METRICS_ENABLED
               value: "true"
-            # Segnaposto di realm.json (deploy/idp/README.md): stessi nomi del servizio idp del compose.
+            # Segnaposto di realm.json (deploy/idp/README.md): stessi nomi del servizio idp del compose. LH_WEB_URL è
+            # lo stesso valore dato al BFF del web: redirect URI, ritorno dal logout e back-channel logout del client web.
             - name: LH_WEB_URL
-              value: {{ .Values.publicUrls.web | quote }}
+              value: {{ include "loyaltyhub.web.publicUrl" . | quote }}
             - name: LH_CMS_URL
               value: {{ .Values.publicUrls.cms | quote }}
             - name: LH_WEB_CLIENT_SECRET

@@ -21,7 +21,7 @@ Il servizio `idp` del compose passa a Keycloak tutte le variabili usate come seg
 | `LH_WEB_CLIENT_SECRET` | sì | — | segreto del client confidential `web` (BFF) |
 | `LH_WIDGETS_CLIENT_SECRET` | sì | — | segreto del client `widgets` |
 | `LH_CMS_CLIENT_SECRET` | sì | — | segreto del client `cms` (Directus) |
-| `LH_WEB_URL` | no | `http://localhost:3000` | origine del BFF: redirect URI e back-channel logout del client `web` |
+| `LH_WEB_URL` | no | `http://localhost:3000` | origine del BFF senza barra finale, la stessa data al web: redirect URI esatta `/api/auth/callback`, ritorno dopo il logout `/` e back-channel logout del client `web` |
 | `LH_CMS_URL` | no | `http://localhost:8055` | origine di Directus: redirect URI del client `cms` |
 | `LH_JOBS_JWKS_URL` | no | `http://localhost/jwks/lh-jobs.json` | JWKS del client `lh-jobs` (`private_key_jwt`) |
 | `LH_SOURCE_<FONTE>_JWKS_URL` | no | `http://localhost/jwks/<fonte>.json` | JWKS dei client fonte `crm`, `app`, `ecommerce`, `billing`, `partner`, `internal`, `simulator` |
@@ -88,7 +88,7 @@ Il broker verso `test-idp` richiede un login interattivo nel browser: è un pass
 node --test scripts/check-realm.mjs
 ```
 
-Controlla ruoli, assenza di segreti letterali (`secret`, `clientSecret`, `bindCredential`) in `realm.json` e nell'overlay, redirect URI senza wildcard assolute, durata dell'access token, `private_key_jwt` per i service account, che ogni client scope referenziato sia definito e che ogni segnaposto `${LH_*}` di `realm.json` sia passato al servizio `idp` del compose. Gira nel job `seed` della CI.
+Controlla ruoli, assenza di segreti letterali (`secret`, `clientSecret`, `bindCredential`) in `realm.json` e nell'overlay, redirect URI senza wildcard assolute, URI del client `web` uguali ai percorsi del BFF (callback, ritorno dopo il logout, back-channel logout), durata dell'access token, `private_key_jwt` per i service account, che ogni client scope referenziato sia definito e che ogni segnaposto `${LH_*}` di `realm.json` sia passato al servizio `idp` del compose. Gira nel job `seed` della CI.
 
 ## Diagrammi
 
