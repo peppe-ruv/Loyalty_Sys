@@ -1,5 +1,7 @@
 package io.loyaltyhub.reward.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlWhere;
 import io.loyaltyhub.reward.domain.Coupon;
 import io.loyaltyhub.reward.domain.CouponPool;
 import io.loyaltyhub.reward.domain.CouponStatus;
@@ -21,6 +23,21 @@ import java.util.Optional;
 /** Pool e codici coupon (docs/servizi/reward-service.md §2, §5). */
 @Repository
 public class CouponRepository {
+
+    enum CouponColumn implements SqlColumn {
+        POOL_ID("pool_id"), STATUS("status"), MEMBER_ID("member_id");
+
+        private final String sql;
+
+        CouponColumn(String sql) {
+            this.sql = sql;
+        }
+
+        @Override
+        public String sql() {
+            return sql;
+        }
+    }
 
     private static final String POOL_COLUMNS = "id, code, name, prefix, validity_days, seed, created_at";
     private static final String COUPON_COLUMNS = """
@@ -116,18 +133,28 @@ public class CouponRepository {
     }
 
     public long count(String poolId, String status, String memberId) {
-        StringBuilder sql = new StringBuilder("SELECT count(*) FROM coupon WHERE pool_id = ?");
-        List<Object> params = filters(sql, poolId, status, memberId);
-        return jdbc.sql(sql.toString()).params(params).query(Long.class).single();
+        SqlWhere where = buildWhere(poolId, status, memberId);
+        return where.bind(jdbc.sql("SELECT count(*) FROM coupon" + where.sql()))
+                .query(Long.class).single();
     }
 
     public List<Coupon> search(String poolId, String status, String memberId, int page, int size) {
-        StringBuilder sql = new StringBuilder("SELECT " + COUPON_COLUMNS + " FROM coupon WHERE pool_id = ?");
-        List<Object> params = filters(sql, poolId, status, memberId);
-        sql.append(" ORDER BY coalesce(issued_at, created_at) DESC, code LIMIT ? OFFSET ?");
-        params.add(size);
-        params.add(page * size);
-        return jdbc.sql(sql.toString()).params(params).query(CouponRepository::mapCoupon).list();
+        SqlWhere where = buildWhere(poolId, status, memberId);
+        String sql = "SELECT " + COUPON_COLUMNS + " FROM coupon" + where.sql()
+                + " ORDER BY coalesce(issued_at, created_at) DESC, code LIMIT :limit OFFSET :offset";
+        return where.bind(jdbc.sql(sql))
+                .param("limit", size)
+                .param("offset", page * size)
+                .query(CouponRepository::mapCoupon).list();
+    }
+
+    private static SqlWhere buildWhere(String poolId, String status, String memberId) {
+        return new SqlWhere()
+                .eq(CouponColumn.POOL_ID, poolId)
+                .when(status != null && !status.isBlank(),
+                        w -> w.eq(CouponColumn.STATUS, status.toUpperCase()))
+                .when(memberId != null && !memberId.isBlank(),
+                        w -> w.eq(CouponColumn.MEMBER_ID, memberId));
     }
 
     public List<Coupon> byMember(String memberId) {
@@ -192,20 +219,6 @@ public class CouponRepository {
     public void deleteAll() {
         jdbc.sql("DELETE FROM coupon").update();
         jdbc.sql("DELETE FROM coupon_pool").update();
-    }
-
-    private static List<Object> filters(StringBuilder sql, String poolId, String status, String memberId) {
-        List<Object> params = new ArrayList<>();
-        params.add(poolId);
-        if (status != null && !status.isBlank()) {
-            sql.append(" AND status = ?");
-            params.add(status.toUpperCase());
-        }
-        if (memberId != null && !memberId.isBlank()) {
-            sql.append(" AND member_id = ?");
-            params.add(memberId);
-        }
-        return params;
     }
 
     private static Timestamp ts(Instant i) {

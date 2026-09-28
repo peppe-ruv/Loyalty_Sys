@@ -7,19 +7,30 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.RestClient;
 
+import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -32,6 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @EmbeddedKafka(partitions = 1, topics = {"lh.effects.v1", "lh.facts.v1", "lh.audit.v1", "lh.dlq.v1"})
 @ActiveProfiles("demo")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class RewardServiceIT {
 
     private static final EmbeddedPostgres PG = startPg();
@@ -40,6 +52,9 @@ class RewardServiceIT {
 
     @Value("${local.server.port}")
     private int port;
+
+    @Autowired
+    private JdbcClient jdbc;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -127,6 +142,89 @@ class RewardServiceIT {
         assertThat(reward(get("/v1/portal/catalog?memberId=MBR-000007"), "RWD-EBIKE-RENT")).as("uscito: di nuovo escluso").isNull();
     }
 
+    // ---------- ricerca nel catalogo: builder SQL con colonne da allowlist (F2-SEC-10, ADR-042) ----------
+    // Questi test girano per primi (@Order) sul catalogo seminato da rewards.json: gli altri creano premi.
+
+    @Test
+    @Order(1)
+    void eachSearchFilterAloneReturnsExactlyTheSeededRewards() {
+        assertThat(rewardCodes(Map.of("status", "LIVE"))).containsExactly(
+                "RWD-COFFEE-5", "RWD-DONATION-TREE",
+                "RWD-BORRACCIA", "RWD-CINEMA-2", "RWD-SHOP-10",
+                "RWD-BILL-20", "RWD-POWERBANK", "RWD-SHOP-25",
+                "RWD-EBIKE-RENT", "RWD-SMART-PLUG",
+                "RWD-PLATINUM-EVENT", "RWD-WEEKEND");
+        assertThat(rewardCodes(Map.of("status", "draft"))).containsExactly("RWD-THERMOSTAT");
+        assertThat(rewardCodes(Map.of("status", "IN_REVIEW"))).containsExactly("RWD-GIFT-50");
+
+        assertThat(rewardCodes(Map.of("band", "F1"))).containsExactly("RWD-COFFEE-5", "RWD-DONATION-TREE");
+        assertThat(rewardCodes(Map.of("band", "F4")))
+                .containsExactly("RWD-EBIKE-RENT", "RWD-GIFT-50", "RWD-SMART-PLUG");
+        assertThat(rewardCodes(Map.of("band", "F5")))
+                .containsExactly("RWD-PLATINUM-EVENT", "RWD-THERMOSTAT", "RWD-WEEKEND");
+
+        assertThat(rewardCodes(Map.of("category", "CASA")))
+                .containsExactly("RWD-BILL-20", "RWD-POWERBANK", "RWD-SMART-PLUG", "RWD-THERMOSTAT");
+        assertThat(rewardCodes(Map.of("category", "SOLIDALE"))).containsExactly("RWD-DONATION-TREE");
+        assertThat(rewardCodes(Map.of("category", "ESPERIENZE"))).containsExactly("RWD-PLATINUM-EVENT", "RWD-WEEKEND");
+
+        assertThat(rewardCodes(Map.of("type", "physical")))
+                .containsExactly("RWD-BORRACCIA", "RWD-POWERBANK", "RWD-SMART-PLUG", "RWD-THERMOSTAT");
+        assertThat(rewardCodes(Map.of("type", "COUPON")))
+                .containsExactly("RWD-COFFEE-5", "RWD-CINEMA-2", "RWD-SHOP-10", "RWD-SHOP-25", "RWD-GIFT-50");
+        assertThat(rewardCodes(Map.of("type", "DIGITAL"))).containsExactly("RWD-BILL-20");
+
+        // q cerca, senza distinguere maiuscole e minuscole, nel codice OPPURE nel nome.
+        assertThat(rewardCodes(Map.of("q", "shop"))).containsExactly("RWD-SHOP-10", "RWD-SHOP-25");
+        assertThat(rewardCodes(Map.of("q", "donation"))).as("solo nel codice").containsExactly("RWD-DONATION-TREE");
+        assertThat(rewardCodes(Map.of("q", "COLAZIONE"))).as("solo nel nome").containsExactly("RWD-COFFEE-5");
+        assertThat(rewardCodes(Map.of("q", "buono")))
+                .containsExactly("RWD-COFFEE-5", "RWD-SHOP-10", "RWD-SHOP-25");
+        assertThat(rewardCodes(Map.of("q", "inesistente"))).isEmpty();
+
+        // Filtri combinati: in AND.
+        assertThat(rewardCodes(Map.of("status", "LIVE", "band", "F4")))
+                .containsExactly("RWD-EBIKE-RENT", "RWD-SMART-PLUG");
+        assertThat(rewardCodes(Map.of("category", "TEMPO", "type", "PHYSICAL"))).containsExactly("RWD-BORRACCIA");
+    }
+
+    @Test
+    @Order(2)
+    void searchTextIsMatchedLiterallyWithoutLikeWildcards() {
+        send("POST", "/v1/rewards", "MARKETING:giulia", Map.of("code", "RWD-IT-LITERAL",
+                "name", "Sconto 50% su_misura dell'Aurora", "type", "DIGITAL", "category", "SOLIDALE", "band", "F1",
+                "fulfilment", "MANUAL"), 201);
+
+        assertThat(rewardCodes(Map.of("q", "%"))).containsExactly("RWD-IT-LITERAL");
+        assertThat(rewardCodes(Map.of("q", "_"))).containsExactly("RWD-IT-LITERAL");
+        assertThat(rewardCodes(Map.of("q", "50%"))).containsExactly("RWD-IT-LITERAL");
+        assertThat(rewardCodes(Map.of("q", "dell'Aurora"))).containsExactly("RWD-IT-LITERAL");
+        // Come caratteri jolly questi troverebbero premi seminati (RWD-…, RWD-COFFEE-5) o il premio con «%».
+        assertThat(rewardCodes(Map.of("q", "R_D"))).isEmpty();
+        assertThat(rewardCodes(Map.of("q", "RWD%COFFEE"))).isEmpty();
+        assertThat(rewardCodes(Map.of("q", "\\"))).isEmpty();
+    }
+
+    @Test
+    @Order(3)
+    void injectionShapedFiltersFindNothingAndLeaveTheCatalogIntact() {
+        List<Map<String, String>> attempts = List.of(
+                Map.of("q", "MUG'; DROP TABLE reward; --"),
+                Map.of("q", "' OR '1'='1"),
+                Map.of("status", "LIVE' OR '1'='1"),
+                Map.of("band", "F1'; DELETE FROM reward; --"),
+                Map.of("category", "CASA' OR 1=1 --"),
+                Map.of("type", "COUPON') OR ('a'='a"));
+        for (Map<String, String> params : attempts) {
+            long before = rewardRows();
+            Reply reply = getReply("/v1/rewards", params);
+            assertThat(reply.status()).as(params.toString()).isEqualTo(200);
+            assertThat(reply.body().isArray()).as(params.toString()).isTrue();
+            assertThat(reply.body().size()).as(params.toString()).isZero();
+            assertThat(rewardRows()).as(params.toString()).isEqualTo(before);
+        }
+    }
+
     @Test
     void bandsKeepUniqueIncreasingThresholdsAndCannotBeDeletedInUse() {
         assertThat(status("POST", "/v1/reward-bands", "ADMIN:test",
@@ -194,6 +292,30 @@ class RewardServiceIT {
     }
 
     // ---------- helper ----------
+
+    private record Reply(int status, JsonNode body) {
+    }
+
+    private List<String> rewardCodes(Map<String, String> params) {
+        Reply reply = getReply("/v1/rewards", params);
+        assertThat(reply.status()).as("GET /v1/rewards " + params).isEqualTo(200);
+        List<String> codes = new ArrayList<>();
+        reply.body().forEach(r -> codes.add(r.path("code").asString()));
+        return codes;
+    }
+
+    /** GET con i parametri codificati per esteso (anche {@code %}, {@code +}, {@code '} e la barra rovesciata). */
+    private Reply getReply(String path, Map<String, String> params) {
+        StringJoiner query = new StringJoiner("&", "?", "").setEmptyValue("");
+        params.forEach((k, v) -> query.add(k + "=" + URLEncoder.encode(v, StandardCharsets.UTF_8)));
+        URI uri = URI.create("http://localhost:" + port + path + query);
+        return RestClient.create().get().uri(uri).exchange((req, res) ->
+                new Reply(res.getStatusCode().value(), mapper.readTree(res.getBody())));
+    }
+
+    private long rewardRows() {
+        return jdbc.sql("SELECT count(*) FROM reward").query(Long.class).single();
+    }
 
     private static JsonNode reward(JsonNode catalog, String code) {
         for (JsonNode band : catalog.path("bands")) {
