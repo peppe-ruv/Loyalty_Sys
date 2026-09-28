@@ -46,11 +46,11 @@ Questa pagina raccoglie gli errori più comuni che incontrerai lavorando su Loya
     La fonte è nota ma disabilitata. Nel backoffice vai in **Ingestion → Fonti** e riabilita la fonte.
   </Accordion>
 
-  <Accordion title="status REJECTED con rejectCode TYPE_UNKNOWN">
-    Il tipo azione non è registrato. Registralo nel backoffice in **Ingestion → Tipi azione** con nome, categoria e JSON Schema del payload `data`.
+  <Accordion title="status REJECTED con rejectCode UNKNOWN_TYPE">
+    Il tipo azione non è registrato, è disabilitato oppure il `type` completo è fuori da `io.loyaltyhub.action.`. Registralo nel backoffice in **Ingestion → Tipi azione** con nome, categoria e JSON Schema del payload `data`.
   </Accordion>
 
-  <Accordion title="status REJECTED con rejectCode SCHEMA_INVALID">
+  <Accordion title="status REJECTED con rejectCode INVALID_DATA">
     Il payload `data` non rispetta lo schema del tipo. La risposta indica il campo che ha fallito. Correggi il payload o aggiorna lo schema del tipo se il contratto è cambiato.
   </Accordion>
 
