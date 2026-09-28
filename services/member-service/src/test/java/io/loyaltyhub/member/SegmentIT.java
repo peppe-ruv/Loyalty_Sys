@@ -21,6 +21,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -60,6 +61,7 @@ class SegmentIT {
     private static final String ENTERED = "io.loyaltyhub.fact.member.segment.entered";
     private static final String LEFT = "io.loyaltyhub.fact.member.segment.left";
     private static final String MARKETING = "MARKETING:luca.marketing";
+    private static final String INJECTION = "x%' OR 1=1 --";
     private static final EmbeddedPostgres PG = startPg();
 
     private final ObjectMapper mapper = new ObjectMapper();
@@ -69,6 +71,9 @@ class SegmentIT {
 
     @Autowired
     private JsonSchemaValidator validator;
+
+    @Autowired
+    private JdbcClient jdbc;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -284,6 +289,25 @@ class SegmentIT {
         assertThat(get("/v1/members/MBR-000011").path("balancePts").asLong()).as("gli STS non toccano il saldo PTS").isEqualTo(before);
     }
 
+    /**
+     * Regola 19 (ADR-042) via HTTP: il testo arriva al servizio così com'è (template URI, niente doppia codifica), i
+     * caratteri jolly di {@code q} sono letterali e un tentativo di iniezione dà un elenco vuoto senza toccare i dati.
+     */
+    @Test
+    @Order(8)
+    void listTreatsQueryTextAsLiteralAndIgnoresInjection() {
+        assertThat(listTotal("q", "torino")).as("controllo: il template fa arrivare il testo").isEqualTo(1);
+        assertThat(listTotal("q", "%")).as("% letterale, nessun segmento lo contiene").isZero();
+        assertThat(listTotal("q", "_")).as("_ letterale, nessun segmento lo contiene").isZero();
+        assertThat(listTotal("q", "\\")).as("\\ letterale, nessun segmento lo contiene").isZero();
+
+        long before = segmentRows();
+        for (String param : List.of("q", "type", "status")) {
+            assertThat(listTotal(param, INJECTION)).as(param + " = " + INJECTION).isZero();
+        }
+        assertThat(segmentRows()).as("nessun effetto sulla tabella").isEqualTo(before);
+    }
+
     @Test
     @Order(99)
     void resetRestoresSeedMembershipsAndAnnouncesWhatChanged() {
@@ -309,6 +333,17 @@ class SegmentIT {
         List<String> out = new ArrayList<>();
         items.forEach(i -> out.add(i.path("memberId").asString()));
         return out;
+    }
+
+    /** {@code GET /v1/segments?<param>=<value>}: il valore è una variabile di template, codificata una sola volta. */
+    private int listTotal(String param, String value) {
+        var res = client().get().uri("/v1/segments?{param}={value}", param, value).retrieve().toEntity(JsonNode.class);
+        assertThat(res.getStatusCode().value()).as(param + " = " + value).isEqualTo(200);
+        return res.getBody().path("page").path("totalItems").asInt(-1);
+    }
+
+    private long segmentRows() {
+        return jdbc.sql("SELECT count(*) FROM segment").query(Long.class).single();
     }
 
     private JsonNode get(String path) {
