@@ -143,6 +143,7 @@ services:
 | `KAFKA_BOOTSTRAP`, `KAFKA_SECURITY`, `KAFKA_SSL_*_B64` / `KAFKA_SASL_*` | servizi | Aiven; locale `localhost:9092`, `PLAINTEXT` |
 | `JAVA_OPTS` | servizi | §6 |
 | `LH_CONSUMER_RETRY_BACKOFF_MS` | servizi | `loyaltyhub.consumer.retry-backoff-ms` (default 1000,5000: 3 tentativi, vedi Q-131) |
+| `LH_KAFKA_CONSUMER_CONCURRENCY`, `LH_KAFKA_TOPIC_*`, `LH_KAFKA_<TOPIC>_RETENTION_MS`, `LH_KAFKA_TOPICS_*` | servizi, hub | concorrenza dei listener e forma dei 5 topic (F2-EVT-04); da non impostare in demo: i default restano 2 consumer, 2 partizioni, 1 replica, 3 giorni, topic esistenti non modificati (il Kafka gratuito può rifiutare `alterConfigs`). Elenco in `deploy/README.md` |
 | `LH_CORS_ALLOWED_ORIGINS` | **insight** | URL Vercel (+ `http://localhost:3000`); serve solo all'SSE |
 | `LH_JOBS_ENABLED` | servizi | `true`; `false` per spegnere gli scheduler |
 | `LH_APPROVAL_ENABLED` | campaign, reward, gamification, engagement | mappa `loyaltyhub.approval.enabled`; `false` fino a M7 |
@@ -198,3 +199,6 @@ Nessun segreto in CI tranne, nel piano B, il deploy hook di Render.
 A partire da M8, la distribuzione enterprise viene generata dal file `deploy/image/Dockerfile` in un'unica immagine multi-arch pubblicata su GHCR (es. `ghcr.io/loyaltyhub/loyaltyhub`).
 L'immagine contiene sia l'hub (Java) sia l'interfaccia (Node.js) e instradata in base alla variabile `LH_ROLE`.
 Il deploy "a costo zero" (demo) continuerà a funzionare esattamente come descritto finché non vi sarà una transizione esplita. Vedi `deploy/image/README.md`.
+
+## 15. Chart Helm e compose di riferimento (Fase 2, M8.3)
+Il profilo `enterprise` si installa con il chart `deploy/helm/loyaltyhub` (Strimzi e CloudNativePG di default, servizi gestiti come valori, F2-DIST-02) o con `deploy/compose/reference.yml` (F2-DIST-03), dalla stessa immagine. Nulla cambia per la demo a costo zero di questo documento. Istruzioni, valori e limiti noti in `deploy/README.md`.

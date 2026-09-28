@@ -4,7 +4,8 @@ set -e
 
 # Carica i segreti dalla convenzione *_FILE (VAR_FILE=/percorso -> VAR=contenuto del file).
 # - solo nomi validi che finiscono in _FILE, letti con printenv (niente eval del contenuto);
-# - VAR gia' impostata vince sul file;
+# - VAR gia' impostata e non vuota vince sul file; VAR vuota conta come assente (un compose che scrive
+#   VAR: "${X:-}" non deve oscurare VAR_FILE, M8.3);
 # - esclusi i *_FILE di sistema: l'immagine base Wolfi imposta SSL_CERT_FILE sul bundle CA (~220 KiB)
 #   e trasformarlo in SSL_CERT superava il limite di 128 KiB per variabile di execve
 #   ("exec: java: Argument list too long");
@@ -16,7 +17,7 @@ for var in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*_FILE\)=.*/\1/p'); do
     esac
     var_name="${var%_FILE}"
     [ -n "$var_name" ] || continue
-    printenv "$var_name" >/dev/null 2>&1 && continue
+    [ -n "$(printenv "$var_name" 2>/dev/null)" ] && continue
     var_file="$(printenv "$var" 2>/dev/null)" || continue
     [ -f "$var_file" ] || continue
     if [ "$(wc -c < "$var_file" | tr -d ' ')" -gt "$LH_SECRET_MAX_BYTES" ]; then

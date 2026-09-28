@@ -1,0 +1,404 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Valori del chart loyaltyhub (F2-DIST-02, M8.3)",
+  "description": "Tipi e valori ammessi; le regole che dipendono da più valori (profilo enterprise, repliche, partizioni) sono in templates/_helpers.tpl (loyaltyhub.validate).",
+  "type": "object",
+  "additionalProperties": false,
+  "definitions": {
+    "secretRef": {
+      "type": "object",
+      "description": "Riferimento a una chiave di un Secret esistente (mai un valore in chiaro).",
+      "additionalProperties": false,
+      "required": ["name", "key"],
+      "properties": {
+        "name": { "type": "string" },
+        "key": { "type": "string", "minLength": 1 }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "required": ["requests", "limits"],
+      "properties": {
+        "requests": { "type": "object", "required": ["cpu", "memory"] },
+        "limits": { "type": "object", "required": ["cpu", "memory"] }
+      }
+    },
+    "pdb": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minAvailable": { "type": ["integer", "string"] }
+      }
+    },
+    "autoscaling": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minReplicas": { "type": "integer", "minimum": 1 },
+        "maxReplicas": { "type": "integer", "minimum": 1 },
+        "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 }
+      }
+    },
+    "retention": { "type": "integer", "minimum": -1, "not": { "const": 0 } },
+    "notYetInImage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "enabled": { "type": "boolean" } }
+    }
+  },
+  "properties": {
+    "nameOverride": { "type": "string" },
+    "fullnameOverride": { "type": "string" },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string", "description": "Obbligatorio all'installazione (es. ghcr.io/<owner>/loyaltyhub)." },
+        "tag": { "type": "string", "description": "Obbligatorio all'installazione: versione pubblicata (v*) o digest sha256." },
+        "pullPolicy": { "type": "string", "enum": ["", "Always", "IfNotPresent", "Never"] },
+        "pullSecrets": { "type": "array" }
+      }
+    },
+    "global": {
+      "type": "object",
+      "properties": {
+        "profile": { "type": "string", "description": "enterprise | demo (verificato con messaggio in loyaltyhub.validate)" },
+        "mode": { "type": "string", "description": "solo external (verificato con messaggio in loyaltyhub.validate)" },
+        "realm": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" }
+      }
+    },
+    "publicUrls": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "web": { "type": "string", "pattern": "^https?://" },
+        "idp": { "type": "string", "pattern": "^https?://" },
+        "cms": { "type": "string", "pattern": "^https?://" }
+      }
+    },
+    "oidc": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "issuer": { "type": "string" },
+        "jwksUri": { "type": "string" },
+        "audience": { "type": "string", "minLength": 1 }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" },
+        "annotations": { "type": "object" }
+      }
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "required": ["runAsNonRoot", "seccompProfile"],
+      "properties": { "runAsNonRoot": { "const": true } }
+    },
+    "containerSecurityContext": {
+      "type": "object",
+      "required": ["allowPrivilegeEscalation", "capabilities"],
+      "properties": {
+        "allowPrivilegeEscalation": { "const": false },
+        "privileged": { "const": false }
+      }
+    },
+    "commonLabels": { "type": "object" },
+    "podAnnotations": { "type": "object" },
+    "nodeSelector": { "type": "object" },
+    "tolerations": { "type": "array" },
+    "topologySpread": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "topologyKey": { "type": "string" },
+        "whenUnsatisfiable": { "type": "string", "enum": ["ScheduleAnyway", "DoNotSchedule"] }
+      }
+    },
+    "roles": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hub": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "replicas": { "type": "integer", "minimum": 1 },
+            "services": { "type": "string" },
+            "javaToolOptions": { "type": "string" },
+            "resources": { "$ref": "#/definitions/resources" },
+            "autoscaling": { "$ref": "#/definitions/autoscaling" },
+            "pdb": { "$ref": "#/definitions/pdb" },
+            "extraEnv": { "type": "array" }
+          }
+        },
+        "web": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "replicas": { "type": "integer", "minimum": 1 },
+            "resources": { "$ref": "#/definitions/resources" },
+            "autoscaling": { "$ref": "#/definitions/autoscaling" },
+            "pdb": { "$ref": "#/definitions/pdb" },
+            "extraEnv": { "type": "array" }
+          }
+        },
+        "idp": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "replicas": { "type": "integer", "minimum": 1 },
+            "image": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            },
+            "readOnlyRootFilesystem": { "type": "boolean" },
+            "resources": { "$ref": "#/definitions/resources" },
+            "pdb": { "$ref": "#/definitions/pdb" },
+            "adminUsername": { "type": "string", "minLength": 1 },
+            "adminPassword": { "$ref": "#/definitions/secretRef" },
+            "clientSecrets": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["web", "widgets", "cms"],
+              "properties": {
+                "web": { "$ref": "#/definitions/secretRef" },
+                "widgets": { "$ref": "#/definitions/secretRef" },
+                "cms": { "$ref": "#/definitions/secretRef" }
+              }
+            },
+            "jwks": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "jobs": { "type": "string" },
+                "sources": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "crm": { "type": "string" },
+                    "app": { "type": "string" },
+                    "ecommerce": { "type": "string" },
+                    "billing": { "type": "string" },
+                    "partner": { "type": "string" },
+                    "internal": { "type": "string" },
+                    "simulator": { "type": "string" }
+                  }
+                }
+              }
+            },
+            "extraEnv": { "type": "array" }
+          }
+        },
+        "cms": { "$ref": "#/definitions/notYetInImage" },
+        "jobs": { "$ref": "#/definitions/notYetInImage" }
+      }
+    },
+    "migrations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "backoffLimit": { "type": "integer", "minimum": 0 },
+        "activeDeadlineSeconds": { "type": "integer", "minimum": 1 },
+        "ttlSecondsAfterFinished": { "type": "integer", "minimum": 0 },
+        "resources": { "$ref": "#/definitions/resources" }
+      }
+    },
+    "postgres": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string", "enum": ["cloudnativepg", "external"] },
+        "database": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$" },
+        "cloudnativepg": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "clusterName": { "type": "string" },
+            "instances": { "type": "integer", "minimum": 1 },
+            "imageName": { "type": "string" },
+            "storage": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": { "size": { "type": "string" }, "storageClass": { "type": "string" } }
+            },
+            "resources": { "$ref": "#/definitions/resources" },
+            "owner": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$" },
+            "idp": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "database": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$" },
+                "owner": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$" },
+                "credentialsSecretName": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        },
+        "external": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "host": { "type": "string" },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "jdbcParams": { "type": "string" },
+            "allowInsecure": { "type": "boolean" },
+            "credentials": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "username": { "$ref": "#/definitions/secretRef" },
+                "password": { "$ref": "#/definitions/secretRef" }
+              }
+            },
+            "idp": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "database": { "type": "string" },
+                "username": { "$ref": "#/definitions/secretRef" },
+                "password": { "$ref": "#/definitions/secretRef" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "kafka": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string", "enum": ["strimzi", "external"] },
+        "topics": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "partitions": { "type": "integer", "minimum": 1 },
+            "replicas": { "type": "integer", "minimum": 1 },
+            "minInsyncReplicas": { "type": "integer", "minimum": 1 },
+            "retentionMs": { "$ref": "#/definitions/retention" },
+            "retentionMsByTopic": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "actions": { "$ref": "#/definitions/retention" },
+                "effects": { "$ref": "#/definitions/retention" },
+                "facts": { "$ref": "#/definitions/retention" },
+                "audit": { "$ref": "#/definitions/retention" },
+                "dlq": { "$ref": "#/definitions/retention" }
+              }
+            },
+            "modifyConfigs": { "type": "boolean" },
+            "allowPartitionIncrease": { "type": "boolean" }
+          }
+        },
+        "consumer": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "concurrency": { "type": "integer", "minimum": 1 } }
+        },
+        "strimzi": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "apiVersion": { "type": "string", "pattern": "^kafka\\.strimzi\\.io/" },
+            "clusterName": { "type": "string" },
+            "version": { "type": "string" },
+            "replicas": { "type": "integer", "minimum": 1 },
+            "storage": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "size": { "type": "string" },
+                "storageClass": { "type": "string" },
+                "deleteClaim": { "type": "boolean" }
+              }
+            },
+            "resources": { "$ref": "#/definitions/resources" },
+            "listener": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": { "type": "string" },
+                "port": { "type": "integer" },
+                "tls": { "type": "boolean" }
+              }
+            }
+          }
+        },
+        "external": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bootstrapServers": { "type": "string" },
+            "security": { "type": "string", "enum": ["PLAINTEXT", "SSL_PEM", "SASL_SSL"] },
+            "allowInsecure": { "type": "boolean" },
+            "createTopics": { "type": "boolean" },
+            "sasl": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "mechanism": { "type": "string", "enum": ["SCRAM-SHA-256", "SCRAM-SHA-512", "PLAIN"] },
+                "username": { "$ref": "#/definitions/secretRef" },
+                "password": { "$ref": "#/definitions/secretRef" }
+              }
+            },
+            "ssl": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "caB64": { "$ref": "#/definitions/secretRef" },
+                "certB64": { "$ref": "#/definitions/secretRef" },
+                "keyB64": { "$ref": "#/definitions/secretRef" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "className": { "type": "string" },
+        "annotations": { "type": "object" },
+        "hosts": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "web": { "type": "string" }, "idp": { "type": "string" } }
+        },
+        "tls": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "enabled": { "type": "boolean" }, "secretName": { "type": "string" } }
+        }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "host": { "type": "string" },
+        "parentRefs": { "type": "array" }
+      }
+    }
+  }
+}
