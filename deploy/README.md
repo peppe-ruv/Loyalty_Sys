@@ -40,17 +40,18 @@ Nel cluster ogni ruolo dell'immagine è un Deployment con repliche sparse tra le
 ruolo `web` (portale e backoffice) e alle pagine di login di `idp`; l'hub non è esposto: lo chiama il web dentro il
 cluster, e le API per fonti e widget passeranno dal gateway di M8.5 (oggi un segnaposto spento). Postgres e Kafka sono
 gestiti dagli operatori di default oppure, cambiando due valori, sono servizi gestiti fuori dal cluster. Nel profilo
-`enterprise` la chiamata web → hub non porta ancora un token: arriverà con il BFF OIDC (F2-SEC-06, Q-393).
+`enterprise` il web fa da BFF (F2-SEC-06): fa login su `idp` con lo stesso URL pubblico del browser, quindi passando
+dall'Ingress, e chiama l'hub con l'access token dell'utente.
 
 ```mermaid
 flowchart TB
   accTitle: Topologia del chart Helm in un cluster multi-zona
-  accDescr: L'Ingress porta il browser al ruolo web e al login del ruolo idp; web chiama hub dentro il cluster, con il token solo quando esisterà il BFF; hub usa Postgres di CloudNativePG e i 5 topic di Kafka gestiti da Strimzi; il Job di migrazione aggiorna gli schemi prima dei nuovi Pod; con i valori per servizi gestiti Postgres e Kafka stanno fuori dal cluster.
+  accDescr: L'Ingress porta il browser al ruolo web e al login del ruolo idp; il web, con una sola replica nel profilo enterprise, fa login su idp con l'URL pubblico dell'emittente passando dall'Ingress e chiama hub dentro il cluster con l'access token; hub usa Postgres di CloudNativePG e i 5 topic di Kafka gestiti da Strimzi; il Job di migrazione aggiorna gli schemi prima dei nuovi Pod; con i valori per servizi gestiti Postgres e Kafka stanno fuori dal cluster.
   USR[Browser di membri e operatori]
   ING[Ingress con TLS]
   GW[Gateway, segnaposto fino a M8.5]
   subgraph K8S["Namespace loyaltyhub, repliche su più zone"]
-    WEB[web: portale e backoffice]
+    WEB[web: portale, backoffice e BFF, 1 replica]
     HUB[hub: moduli Java con HPA]
     IDP[idp: Keycloak con realm as code]
     MIG[Job delle migrazioni Flyway]
@@ -62,7 +63,8 @@ flowchart TB
   ING --> WEB
   ING --> IDP
   GW -.-> HUB
-  WEB -->|HTTP, token dal BFF F2-SEC-06| HUB
+  WEB -.->|OIDC con l'URL pubblico dell'emittente, TLS| ING
+  WEB -->|HTTP con access token| HUB
   HUB -->|TLS| PG
   HUB <--> KF
   IDP -->|TLS| PG
@@ -90,14 +92,14 @@ flowchart TB
 | Servizi gestiti | `postgres.mode=external` e `kafka.mode=external` (ADR-026): nessuna risorsa degli operatori, URL e credenziali dai valori |
 | Migrazioni | Job `…-migrate` con la stessa immagine: esegue solo Flyway (`io.loyaltyhub.hub.HubMigrate` dal jar dell'hub, non è un nuovo ruolo) e termina; stessi `nodeSelector`, `tolerations` e sicurezza dell'hub. Hook `pre-upgrade` sempre; al primo install `pre-install` con Postgres esterno e `post-install` con CloudNativePG, perché il cluster nasce con la release. L'hub all'avvio rifà le stesse migrazioni: Flyway prende un lock, le due esecuzioni non si pestano (ADR-038) |
 | Esposizione | Ingress per `web` e, per `idp`, solo `/realms/<realm>/` e `/resources/`: la console di amministrazione e il realm `master` (con il suo endpoint dei token) restano fuori; `gateway.enabled` crea un `HTTPRoute` verso l'hub (`/v1/`) agganciato a un Gateway esistente, segnaposto di M8.5 |
-| Identità | `idp` importa `files/realm.json`, copia di `deploy/idp/realm.json` verificata da `scripts/check-helm.mjs` (Helm non legge file fuori dal chart); tutti i segnaposto `${LH_*}` del realm sono passati come variabili; l'hub valida i token (`LH_OIDC_ISSUER` pubblico, JWKS letto dentro il cluster, `aud=hub`). Il Pod `web` non riceve segreto né emittente finché il BFF non li legge (Q-393) |
+| Identità | `idp` importa `files/realm.json`, copia di `deploy/idp/realm.json` verificata da `scripts/check-helm.mjs` (Helm non legge file fuori dal chart); tutti i segnaposto `${LH_*}` del realm sono passati come variabili; l'hub valida i token (`LH_OIDC_ISSUER` pubblico, JWKS letto dentro il cluster, `aud=hub`). Nel profilo `enterprise` il Pod `web` riceve la configurazione del BFF: vedi *Configurare il login del web* |
 | Sicurezza | Pod Security `restricted`: non root (uid 1000), `seccompProfile: RuntimeDefault`, niente escalation, capability rimosse, token del service account non montato, filesystem in sola lettura con `emptyDir` per `/tmp` (e per la cache di Next.js) — tranne `idp`, vedi Q-374. **Nessuna NetworkPolicy** fino a M8.5 (deny-by-default e mTLS di mesh): il traffico nel namespace non è filtrato |
 | Profilo `enterprise` (regola 22) | il chart **rifiuta** Kafka esterno `PLAINTEXT` e Postgres esterno senza `sslmode=require`, `verify-ca` o `verify-full`; la deroga è esplicita (`kafka.external.allowInsecure`, `postgres.external.allowInsecure`), solo per reti già cifrate. Con CloudNativePG l'URL JDBC esige TLS (`sslmode=require`; `verify-full` con la CA del cluster in M8.5) |
 | Segreti | nessun valore nel chart: ogni credenziale è `{name, key}` di un Secret esistente; CloudNativePG genera da sé `<cluster>-app` |
 | Porte | fisse, non valori: hub 8080 e web 3000 (le impone `deploy/image/entrypoint.sh`), Keycloak 8080 e gestione 9000; `scripts/check-helm.mjs` verifica che chart, compose ed entrypoint coincidano |
 | Sonde | hub: liveness e readiness di Actuator; web: liveness sulla porta (`tcpSocket`), readiness su `/api/demo/status`, che interroga l'hub e non deve far riavviare il web quando l'hub è lento; idp: `/health/*` sulla porta di gestione |
-| Risorse | requests e limits per ogni ruolo e per il Job; HPA su CPU per `hub` (2–6) e `web` (2–6); PDB `minAvailable: 1` |
-| Valori | `values.schema.json` rifiuta chiavi sconosciute (un refuso non passa in silenzio) e tipi sbagliati; `templates/_helpers.tpl` (`loyaltyhub.validate`) le regole fra più valori: profilo diverso da `enterprise`/`demo`, `global.mode=embedded`, `enterprise` senza `idp` né `oidc.issuer`, partizioni o ISR impossibili, repliche dei topic oltre i broker di Strimzi, chiavi di retention sconosciute, aumento di partizioni non confermato |
+| Risorse | requests e limits per ogni ruolo e per il Job; HPA su CPU per `hub` (2–6); PDB `minAvailable: 1` per `hub` e `idp`. `web` ha **una sola replica**, senza HPA né PDB: le sessioni del BFF stanno nella memoria del Pod e nel profilo `enterprise` il chart rifiuta più repliche (Q-409, Q-419). Nel profilo `demo`, senza sessioni, `web` si può scalare |
+| Valori | `values.schema.json` rifiuta chiavi sconosciute (un refuso non passa in silenzio) e tipi sbagliati; `templates/_helpers.tpl` (`loyaltyhub.validate`) le regole fra più valori: profilo diverso da `enterprise`/`demo`, `global.mode=embedded`, `enterprise` senza `idp` né `oidc.issuer`, partizioni o ISR impossibili, repliche dei topic oltre i broker di Strimzi, chiavi di retention sconosciute, aumento di partizioni non confermato; nel profilo `enterprise` anche emittente OIDC o `publicUrls.web` non `https`, `publicUrls.web` con un percorso o con un host diverso dall'Ingress, Secret del BFF non indicati, più di una replica del web (vedi *Configurare il login del web*) |
 
 ### Installazione con Helm
 
@@ -119,6 +121,8 @@ kubectl create secret generic lh-idp-clients \
   --from-literal=cms-client-secret="$(openssl rand -hex 32)"
 kubectl create secret generic lh-idp-db --type=kubernetes.io/basic-auth \
   --from-literal=username=idp --from-literal=password="$(openssl rand -base64 24)"
+# chiave delle sessioni del BFF del web: 32 byte casuali in base64 (profilo enterprise)
+kubectl create secret generic lh-web-session --from-literal=session-key="$(openssl rand -base64 32)"
 
 # 3. chart: immagine pubblicata (obbligatoria), host e URL pubblici propri. Il primo avvio di Kafka, Postgres e
 #    Keycloak richiede alcuni minuti: --wait con un margine ampio, altrimenti Helm segna fallita un'installazione sana.
@@ -143,6 +147,53 @@ helm install lh deploy/helm/loyaltyhub --wait --timeout 15m \
 Con Postgres esterno servono i Secret `lh-db` (`username`, `password`) e `lh-idp-db`, e i database `loyaltyhub` e
 `idp` già creati.
 
+### Configurare il login del web (BFF OIDC, F2-SEC-06)
+
+Nel profilo `enterprise` il web è il client OIDC confidential `web` del realm: fa il login, tiene i token lato server e
+dà al browser solo un cookie di sessione (ADR-027). Senza una configurazione completa e sicura il web non parte
+(`INSECURE_CONFIG`, regola 22). Chart e compose gli passano queste variabili; nel profilo `demo` non ne passano
+nessuna.
+
+| Variabile del web | Chart | Compose di riferimento |
+|---|---|---|
+| `LH_OIDC_ISSUER` | `oidc.issuer`; vuoto = `<publicUrls.idp>/realms/<global.realm>`, lo stesso dell'hub | `${LH_IDP_PUBLIC_URL}/realms/loyaltyhub`, lo stesso dell'hub |
+| `LH_WEB_CLIENT_ID` | `roles.web.bff.clientId` (`web`) | `web` |
+| `LH_WEB_CLIENT_SECRET` | Secret di `roles.web.bff.clientSecret`; nome vuoto = `roles.idp.clientSecrets.web`, lo stesso di Keycloak | `LH_WEB_CLIENT_SECRET`, la stessa variabile di `idp` |
+| `LH_WEB_URL` | `publicUrls.web` senza barra finale, lo stesso valore dato a Keycloak | `LH_WEB_URL`, la stessa variabile di `idp` |
+| `LH_WEB_SESSION_KEY` | Secret di `roles.web.bff.sessionKey` (default `lh-web-session`, chiave `session-key`) | `LH_WEB_SESSION_KEY` |
+| `LH_WEB_SESSION_IDLE_SECONDS`, `LH_WEB_SESSION_MAX_SECONDS`, `LH_WEB_SESSION_MAX_COUNT` | `roles.web.bff.sessionIdleSeconds` (1800), `sessionMaxSeconds` (36000), `sessionMaxCount` (10000) | stesse variabili; vuote = default del web |
+| `NODE_EXTRA_CA_CERTS` | ConfigMap di `roles.web.bff.issuerCaBundle`, montato in sola lettura | file di override con il certificato montato |
+
+Nel chart i segreti arrivano solo come riferimenti a Secret esistenti (`secretKeyRef`), mai come valori. Il web accetta
+anche `LH_WEB_CLIENT_SECRET_FILE` e `LH_WEB_SESSION_KEY_FILE`.
+
+Il chart rifiuta di installarsi nel profilo `enterprise` quando:
+
+- l'emittente non è `https` (`INSECURE_CONFIG: emittente OIDC …`): il browser vi fa login e il BFF lo chiama;
+- `publicUrls.web` non è un'origine `https` senza percorso, o ha un host diverso da `ingress.hosts.web` (lo stesso
+  vale per `publicUrls.idp` e `ingress.hosts.idp`);
+- manca il Secret della chiave delle sessioni, o quello del client `web` quando il ruolo `idp` è spento;
+- `roles.web.replicas` è maggiore di 1, o l'HPA del web può superare una replica (`WEB_SINGLE_REPLICA`, Q-409, Q-419).
+
+**Raggiungere l'emittente.** Il BFF chiama l'emittente (discovery, scambio del codice, rinnovo, chiavi) con l'URL
+pubblico, lo stesso del browser: la discovery rifiuta un emittente diverso da quello chiesto. Quindi i Pod `web`
+devono risolvere `publicUrls.idp` e raggiungere l'Ingress, e il certificato dell'Ingress deve essere firmato da una CA
+che Node riconosce. Con una CA interna crea un ConfigMap con il certificato PEM e indicalo in
+`roles.web.bff.issuerCaBundle`:
+
+```bash
+# CA interna che firma il certificato di idp.example.org
+kubectl create configmap lh-issuer-ca --from-file=ca.crt=./ca-interna.pem
+helm upgrade lh deploy/helm/loyaltyhub --reuse-values --set roles.web.bff.issuerCaBundle.name=lh-issuer-ca
+```
+
+Keycloak, a sua volta, chiama il back-channel logout su `publicUrls.web` (Q-421).
+
+**Realm già importato.** Keycloak importa `realm.json` solo al primo avvio. Su un realm esistente modifica a mano il
+client `web` nella console: aggiungi la *post logout redirect URI* `<LH_WEB_URL>/` (senza, Keycloak rifiuta il ritorno
+al web dopo il logout) e sostituisci la redirect URI `<LH_WEB_URL>/*` con quella esatta
+`<LH_WEB_URL>/api/auth/callback`.
+
 ### Compose di riferimento
 
 `deploy/compose/reference.yml`: `postgres` 17, `kafka` KRaft (un broker), `migrate` (Flyway una volta sola, come il
@@ -156,8 +207,11 @@ altre macchine va messo davanti un reverse proxy con TLS (Q-392).
 export LH_IMAGE=ghcr.io/<owner>/loyaltyhub:<versione>
 export LH_DB_PASSWORD=… LH_IDP_DB_PASSWORD=… LH_IDP_ADMIN_PASSWORD=…
 export LH_WEB_CLIENT_SECRET=… LH_WIDGETS_CLIENT_SECRET=… LH_CMS_CLIENT_SECRET=…
+# profilo enterprise: chiave delle sessioni del BFF e URL https del reverse proxy (vedi sotto)
+export LH_WEB_SESSION_KEY="$(openssl rand -base64 32)"
+export LH_WEB_URL=https://loyalty.example.org LH_IDP_PUBLIC_URL=https://idp.example.org
 docker compose -f deploy/compose/reference.yml up -d
-# valutazione con i dati fittizi (seed, X-LH-Actor): LH_PROFILE=demo LH_IDENTITY_MODE=header
+# valutazione con i dati fittizi (seed, X-LH-Actor), senza reverse proxy: LH_PROFILE=demo LH_IDENTITY_MODE=header
 ```
 
 | Variabile | Default | Uso |
@@ -166,15 +220,33 @@ docker compose -f deploy/compose/reference.yml up -d
 | `LH_PROFILE`, `LH_IDENTITY_MODE` | `enterprise`, `oidc` | `demo` + `header` solo per valutare |
 | `LH_DB_PASSWORD` | — (obbligatoria) | superutente `loyaltyhub` di Postgres, usato da `migrate` e `hub` |
 | `LH_IDP_DB_PASSWORD` | — (obbligatoria) | ruolo `idp` di Postgres, usato solo da Keycloak |
-| `LH_IDP_ADMIN_PASSWORD`, `LH_*_CLIENT_SECRET` | — (obbligatorie) | come in `deploy/idp/README.md` |
+| `LH_IDP_ADMIN_PASSWORD`, `LH_*_CLIENT_SECRET` | — (obbligatorie) | come in `deploy/idp/README.md`; `LH_WEB_CLIENT_SECRET` va anche al web |
+| `LH_WEB_SESSION_KEY` | — (obbligatoria in `enterprise`) | chiave delle sessioni del BFF: 32 byte casuali in base64 (`openssl rand -base64 32`) |
+| `LH_WEB_SESSION_IDLE_SECONDS`, `LH_WEB_SESSION_MAX_SECONDS`, `LH_WEB_SESSION_MAX_COUNT` | vuote (default del web: 1800, 36000, 10000) | inattività, durata massima e numero delle sessioni del BFF |
 | `LH_BIND_ADDRESS` | `127.0.0.1` | indirizzo dell'host su cui pubblicare `web` e `idp` |
-| `LH_IDP_PUBLIC_URL`, `LH_WEB_URL`, `LH_CMS_URL` | `http://localhost:8180`, `:3000`, `:8055` | emittente OIDC e redirect del realm |
+| `LH_IDP_PUBLIC_URL`, `LH_WEB_URL`, `LH_CMS_URL` | `http://localhost:8180`, `:3000`, `:8055` | emittente OIDC e redirect del realm; nel profilo `enterprise` gli URL `https` del reverse proxy, senza barra finale |
 | `LH_KAFKA_TOPIC_PARTITIONS`, `LH_KAFKA_CONSUMER_CONCURRENCY` | 12, 2 | forma dei topic e concorrenza (F2-EVT-04) |
 | `LH_KAFKA_TOPICS_ALLOW_PARTITION_INCREASE` | `false` | vedi *Aumentare le partizioni* |
 
 I segreti mancanti fermano il container che li usa (`Variabile obbligatoria mancante: …`) prima che faccia qualcosa:
-Postgres non inizializza il volume senza entrambe le password. Solo `hub` accetta anche `<VAR>_FILE` (lo legge
-l'entrypoint dell'immagine, per cui una variabile vuota non oscura il file); `migrate` e Keycloak no.
+Postgres non inizializza il volume senza entrambe le password. Il web li controlla da sé all'avvio e, nel profilo
+`enterprise`, si ferma con `INSECURE_CONFIG` elencando ogni problema (segreto corto o segnaposto, chiave che non vale
+32 byte, URL non validi). `hub` e `web` accettano anche `<VAR>_FILE` (lo legge l'entrypoint dell'immagine, per cui
+una variabile vuota non oscura il file); `migrate` e Keycloak no.
+
+**Login nel profilo `enterprise` (Q-420).** Il BFF chiama Keycloak con l'URL pubblico dell'emittente, lo stesso del
+browser, e accetta `http` solo verso `localhost`: dentro il container `web`, però, `localhost` è il container stesso.
+Per questo il login funziona solo dietro un reverse proxy con TLS:
+
+1. Metti il reverse proxy davanti a `web` (porta 3000) e `idp` (porta 8180) e imposta `LH_WEB_URL` e
+   `LH_IDP_PUBLIC_URL` sui suoi URL `https`. Con gli URL `http` di default il web si ferma subito con
+   `LH_IDP_PUBLIC_URL deve essere l'URL https del reverse proxy…` (guardia `x-lh-web-oidc-guard`).
+2. Verifica che i container raggiungano quegli URL: `web` chiama `LH_IDP_PUBLIC_URL` e `idp` chiama
+   `<LH_WEB_URL>/api/auth/backchannel-logout`. Se i nomi esistono solo nel file hosts dell'host, aggiungili ai container
+   con `extra_hosts` in un file di override (per esempio `idp.example.org:host-gateway`), con il proxy in ascolto anche
+   sull'interfaccia del bridge di Docker.
+3. Usa un certificato di una CA pubblica, oppure monta la CA interna con un file di override: `NODE_EXTRA_CA_CERTS`
+   per il web e il truststore di Keycloak (`KC_TRUSTSTORE_PATHS`) per il back-channel logout.
 
 ### Partizioni, concorrenza e retention (F2-EVT-04, ADR-028)
 
@@ -210,11 +282,17 @@ diminuire.
 
 ### Limiti noti (domande aperte)
 
-- **Q-393** — nel profilo `enterprise` portale e backoffice non funzionano ancora: il proxy `/api/lh` inoltra solo
-  `X-LH-Actor` e l'hub rifiuta le chiamate senza token finché non c'è il BFF OIDC (F2-SEC-06, M8.2). Per valutare si
-  usa `global.profile=demo` (chart) o `LH_PROFILE=demo LH_IDENTITY_MODE=header` (compose).
-- **Q-392** — il compose di riferimento parla HTTP in chiaro (web e Keycloak, compresa la console `/admin`): porte solo
-  su `127.0.0.1` e reverse proxy con TLS davanti per altri accessi; TLS fino ai container con M8.5.
+- **Q-409, Q-419** — le sessioni del BFF stanno nella memoria del Pod `web`: nel profilo `enterprise` il web ha una
+  sola replica, senza HPA né PDB, e un riavvio o un aggiornamento chiude le sessioni (si rientra con l'SSO dell'IdP),
+  finché non arriva lo store condiviso.
+- **Q-410** — il portale nel profilo `enterprise` non va esposto a membri reali finché M8.10 non lega il membro al
+  token nei servizi (`MemberPrincipal`).
+- **Q-392, Q-420** — il compose di riferimento parla HTTP in chiaro (web e Keycloak, compresa la console `/admin`):
+  porte solo su `127.0.0.1` e reverse proxy con TLS davanti per altri accessi; nel profilo `enterprise` il login
+  funziona solo dietro quel proxy. TLS fino ai container con M8.5.
+- **Q-421** — Keycloak chiama il back-channel logout sull'URL pubblico del web, passando dall'Ingress; il chart non
+  configura un truststore di Keycloak per una CA interna. Se la chiamata fallisce, la sessione del BFF dà accesso al
+  più fino alla scadenza dell'access token (5 minuti): al rinnovo l'IdP la rifiuta e il BFF la chiude.
 - **Q-373** — ADR-028 vuole `facts` e `audit` a 365 giorni, lecito solo senza PII sul bus (ADR-032). Finché M8.4 non
   pubblica solo `member.*:2` e l'audit mascherato, il default è 7 giorni; `kafka.topics.retentionMsByTopic` lo alza.
 - **Q-374** — l'immagine unica non contiene ancora Keycloak né Directus: `idp` usa l'immagine ufficiale di Keycloak
