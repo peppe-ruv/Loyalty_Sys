@@ -3,12 +3,14 @@ package io.loyaltyhub.testsupport;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.MemberDescription;
+import org.apache.kafka.clients.admin.OffsetSpec;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.GroupState;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.RetriableException;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 import org.springframework.kafka.listener.MessageListenerContainer;
@@ -170,6 +172,85 @@ public final class ListenerGroups {
         } catch (ExecutionException e) {
             throw new AssertionError("offset del gruppo " + group + " non leggibili dal broker embedded", e);
         }
+    }
+
+    /**
+     * Barriera di quiete per catene di eventi tra più servizi (es. l'hub: membro → campagna → wallet), dove gli id degli
+     * eventi intermedi non sono noti al test: ritorna quando, nello stesso giro, (1) ogni gruppo dei listener registrati ha
+     * confermato l'offset fino alla fine di ogni partizione dei suoi topic, (2) nell'outbox non resta nessuna riga da
+     * pubblicare e (3) la fine dei topic non si è mossa nel frattempo. Un record in elaborazione non è ancora confermato
+     * (condizione 1); i suoi effetti sono nell'outbox prima della conferma (stessa transazione del listener, ack dopo il
+     * commit), quindi se l'outbox è vuoto sono già sui topic e avrebbero spostato la fine (condizione 3). Broker da
+     * {@code spring.embedded.kafka.brokers}; {@code jdbc} vede l'outbox del servizio (o dell'hub).
+     */
+    public static void awaitQuiescent(KafkaListenerEndpointRegistry registry, JdbcClient jdbc) {
+        Map<String, Set<String>> topicsByGroup = topicsByGroup(registry.getListenerContainers());
+        Set<String> allTopics = new TreeSet<>();
+        topicsByGroup.values().forEach(allTopics::addAll);
+        try (Admin admin = admin(null)) {
+            long deadline = System.nanoTime() + TIMEOUT.toNanos();
+            String reason;
+            while ((reason = notQuiescent(admin, jdbc, topicsByGroup, allTopics, deadline)) != null) {
+                if (System.nanoTime() > deadline) {
+                    throw new AssertionError("sistema non quieto dopo " + TIMEOUT.toSeconds() + " s: " + reason);
+                }
+                Thread.sleep(100);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("attesa interrotta", e);
+        } catch (ExecutionException e) {
+            throw new AssertionError("offset non leggibili dal broker embedded", e);
+        }
+    }
+
+    /** {@code null} se quieto, altrimenti il motivo osservato. */
+    private static String notQuiescent(Admin admin, JdbcClient jdbc, Map<String, Set<String>> topicsByGroup,
+                                       Set<String> allTopics, long deadline)
+            throws ExecutionException, InterruptedException {
+        try {
+            Map<TopicPartition, Long> end = endOffsets(admin, allTopics, deadline);
+            for (Map.Entry<String, Set<String>> entry : topicsByGroup.entrySet()) {
+                Map<TopicPartition, OffsetAndMetadata> committed = admin.listConsumerGroupOffsets(entry.getKey())
+                        .partitionsToOffsetAndMetadata().get(remainingMillis(deadline), TimeUnit.MILLISECONDS);
+                for (Map.Entry<TopicPartition, Long> e : end.entrySet()) {
+                    if (!entry.getValue().contains(e.getKey().topic()) || e.getValue() == 0) {
+                        continue;
+                    }
+                    OffsetAndMetadata c = committed.get(e.getKey());
+                    if (c == null || c.offset() < e.getValue()) {
+                        return entry.getKey() + " su " + e.getKey() + ": confermato " + (c == null ? "nulla" : c.offset())
+                                + ", fine " + e.getValue();
+                    }
+                }
+            }
+            long pending = jdbc.sql("SELECT count(*) FROM outbox WHERE published_at IS NULL").query(Long.class).single();
+            if (pending > 0) {
+                return "outbox: " + pending + " righe da pubblicare";
+            }
+            Map<TopicPartition, Long> after = endOffsets(admin, allTopics, deadline);
+            return after.equals(end) ? null : "nuovi record pubblicati durante il controllo";
+        } catch (TimeoutException e) {
+            return "il broker non ha risposto entro il tetto";
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof RetriableException retriable) {
+                return "il broker non è ancora pronto: " + retriable;
+            }
+            throw e;
+        }
+    }
+
+    private static Map<TopicPartition, Long> endOffsets(Admin admin, Set<String> topics, long deadline)
+            throws ExecutionException, InterruptedException, TimeoutException {
+        Map<TopicPartition, OffsetSpec> latest = new HashMap<>();
+        for (TopicDescription d : admin.describeTopics(topics).allTopicNames()
+                .get(remainingMillis(deadline), TimeUnit.MILLISECONDS).values()) {
+            d.partitions().forEach(p -> latest.put(new TopicPartition(d.name(), p.partition()), OffsetSpec.latest()));
+        }
+        Map<TopicPartition, Long> end = new TreeMap<>(java.util.Comparator.comparing(TopicPartition::toString));
+        admin.listOffsets(latest).all().get(remainingMillis(deadline), TimeUnit.MILLISECONDS)
+                .forEach((tp, info) -> end.put(tp, info.offset()));
+        return end;
     }
 
     private static Map<String, Set<String>> topicsByGroup(Collection<? extends MessageListenerContainer> containers) {

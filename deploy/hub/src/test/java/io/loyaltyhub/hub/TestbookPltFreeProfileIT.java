@@ -1,15 +1,20 @@
 package io.loyaltyhub.hub;
 
 import io.loyaltyhub.ingestion.domain.ScenarioTime;
+import io.loyaltyhub.testsupport.ListenerGroups;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -42,10 +47,26 @@ class TestbookPltFreeProfileIT {
     @Value("${local.server.port}")
     private int port;
 
+    @Autowired
+    private KafkaListenerEndpointRegistry listeners;
+
+    @Autowired
+    private JdbcClient jdbc;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         TestbookE2eSupportIT.datasource(registry, PG);
         registry.add("spring.kafka.bootstrap-servers", () -> System.getProperty("spring.embedded.kafka.brokers"));
+    }
+
+    /**
+     * I casi partono solo con i gruppi di tutti i servizi dell'hub stabili e con le partizioni assegnate: sul broker
+     * incorporato appena avviato i gruppi si formano in più giri (NOT_COORDINATOR, ribilanciamenti dei ritardatari) e il
+     * tempo speso lì consumava la finestra di 30 s dei casi ({@link ListenerGroups}).
+     */
+    @BeforeAll
+    void waitForListenerGroups() {
+        ListenerGroups.awaitStable(listeners);
     }
 
     @AfterAll
@@ -71,12 +92,10 @@ class TestbookPltFreeProfileIT {
                                 "subject", "member:MBR-000002", "time", weekday,
                                 "data", Map.of("orderId", "ORD-TBPLT-FREE", "amount", 130, "currency", "EUR", "channel", "ONLINE")))
                         .retrieve().body(JsonNode.class);
-                long deadline = System.currentTimeMillis() + 30_000;
+                // Barriera di quiete: ingestion → campagna → wallet hanno elaborato tutto e l'outbox è vuoto; il saldo
+                // letto ora è quello finale (un accredito in più resterebbe visibile).
+                ListenerGroups.awaitQuiescent(listeners, jdbc);
                 long now = pts("MBR-000002");
-                while (now != before + 162 && System.currentTimeMillis() < deadline) {
-                    pause();
-                    now = pts("MBR-000002");
-                }
                 yield accepted.path("status").asString() + " +" + (now - before);
             }
             case "welcome" -> {
@@ -84,12 +103,9 @@ class TestbookPltFreeProfileIT {
                         .body(Map.of("firstName", "Libera", "lastName", "Prova", "email", "tb.plt.free." + System.nanoTime()
                                 + "@example.org", "channel", "PORTAL")).retrieve().body(JsonNode.class);
                 String id2 = m.path("id").asString();
-                long deadline = System.currentTimeMillis() + 30_000;
-                long points = 0;
-                while (points == 0 && System.currentTimeMillis() < deadline) {
-                    pause();
-                    points = walletPtsOrZero(id2);
-                }
+                // Barriera di quiete: member.registered → ponte di ingestion → campagna → wallet elaborati, outbox vuoto.
+                ListenerGroups.awaitQuiescent(listeners, jdbc);
+                long points = walletPtsOrZero(id2);
                 yield "benvenuto=" + points;
             }
             default -> throw new IllegalArgumentException(kase);
@@ -113,13 +129,5 @@ class TestbookPltFreeProfileIT {
     private long walletPtsOrZero(String memberId) {
         JsonNode w = get("/v1/portal/wallets/" + memberId);
         return w.path("balances").path("PTS").path("active").asLong(0);
-    }
-
-    private static void pause() {
-        try {
-            Thread.sleep(250);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 }

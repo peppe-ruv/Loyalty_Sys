@@ -6,8 +6,10 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 
 import tools.jackson.databind.JsonNode;
+import io.loyaltyhub.testsupport.ListenerGroups;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +17,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -50,6 +53,9 @@ class HubEndToEndIT {
     @Autowired
     private JdbcClient jdbc;
 
+    @Autowired
+    private KafkaListenerEndpointRegistry listeners;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -58,6 +64,16 @@ class HubEndToEndIT {
         registry.add("spring.datasource.username", () -> "postgres");
         registry.add("spring.datasource.password", () -> "");
         registry.add("spring.kafka.bootstrap-servers", () -> System.getProperty("spring.embedded.kafka.brokers"));
+    }
+
+    /**
+     * I casi partono solo con i gruppi di tutti i servizi dell'hub stabili e con le partizioni assegnate
+     * ({@link ListenerGroups}): altrimenti la formazione dei gruppi sul broker incorporato (NOT_COORDINATOR, ribilanciamenti
+     * dei ritardatari) consuma le attese dei casi.
+     */
+    @BeforeAll
+    void waitForListenerGroups() {
+        ListenerGroups.awaitStable(listeners);
     }
 
     @AfterAll
