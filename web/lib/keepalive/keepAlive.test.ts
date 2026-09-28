@@ -1,12 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { createKeepAlive, KEEPALIVE_IDLE_LIMIT_MS, KEEPALIVE_INTERVAL_MS, type KeepAlive } from "./keepAlive";
 
 const MIN = 60_000;
 
 describe("keepalive/createKeepAlive (F-DEMO-07)", () => {
   let visible: boolean;
-  let wake: ReturnType<typeof vi.fn>;
-  let onIdleChange: ReturnType<typeof vi.fn>;
+  let wake: Mock<() => void>;
+  let onIdleChange: Mock<(idle: boolean) => void>;
   let ka: KeepAlive;
 
   beforeEach(() => {
