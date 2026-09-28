@@ -1,16 +1,15 @@
 package io.loyaltyhub.gamification.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlWhere;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
-
-import io.loyaltyhub.common.sql.SqlColumn;
-import io.loyaltyhub.common.sql.SqlWhere;
+import java.util.Locale;
 
 /** Istanti vincenti (docs/03 §6; F-IW-03). */
 @Repository
@@ -71,7 +70,8 @@ public class InstantRepository {
     private static SqlWhere filters(String contestId, String status, String prizeId) {
         return new SqlWhere()
                 .eq(InstantColumn.CONTEST_ID, contestId)
-                .when(status != null && !status.isBlank(), w -> w.eq(InstantColumn.STATUS, status.toUpperCase()))
+                .when(status != null && !status.isBlank(),
+                        w -> w.eq(InstantColumn.STATUS, status.toUpperCase(Locale.ROOT)))
                 .when(prizeId != null && !prizeId.isBlank(), w -> w.eq(InstantColumn.PRIZE_ID, prizeId));
     }
 

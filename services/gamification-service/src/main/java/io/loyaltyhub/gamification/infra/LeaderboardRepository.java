@@ -93,7 +93,9 @@ public class LeaderboardRepository {
                 JOIN gamification_member_snapshot m ON m.member_id = s.member_id AND m.status = 'ACTIVE'
                 WHERE s.leaderboard_id = :leaderboardId AND s.period_key = :periodKey AND s.score > 0
                 ORDER BY rank""" + (limit > 0 ? " LIMIT :limit" : "");
-        JdbcClient.StatementSpec spec = jdbc.sql(sql).param("leaderboardId", leaderboardId).param("periodKey", periodKey);
+        JdbcClient.StatementSpec spec = jdbc.sql(sql)
+                .param("leaderboardId", leaderboardId)
+                .param("periodKey", periodKey);
         if (limit > 0) {
             spec = spec.param("limit", limit);
         }
