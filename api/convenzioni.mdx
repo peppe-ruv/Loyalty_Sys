@@ -27,7 +27,9 @@ La risposta contiene sempre `content`, `page`, `size`, `totalElements`, `totalPa
 }
 ```
 
-> **Nota:** un `size` superiore a 100 restituisce `400 VALIDATION_ERROR`. Riduci la dimensione della pagina.
+<Note>
+  Un `size` superiore a 100 restituisce `400 VALIDATION_ERROR`. Riduci la dimensione della pagina.
+</Note>
 
 ## Formato errori
 
@@ -49,14 +51,14 @@ I codici piu comuni:
 
 | HTTP | Code | Quando |
 | --- | --- | --- |
-| 400 | `VALIDATION_ERROR` | Payload malformato o vincoli violati. |
-| 401 | `UNAUTHENTICATED` | Header `X-LH-Actor` mancante. |
-| 403 | `FORBIDDEN` | Ruolo non autorizzato. |
-| 404 | `NOT_FOUND` | Risorsa inesistente. |
-| 409 | `CONFLICT` | Stato incompatibile (es. campagna gia pubblicata). |
-| 422 | `BUSINESS_RULE` | Regola di dominio violata (es. saldo insufficiente). |
-| 429 | `RATE_LIMITED` | Superata la soglia richieste per minuto. |
-| 500 | `INTERNAL_ERROR` | Errore inatteso, tracciato in DLQ. |
+| `400` | `VALIDATION_ERROR` | Payload malformato o vincoli violati. |
+| `401` | `UNAUTHENTICATED` | Header `X-LH-Actor` mancante. |
+| `403` | `FORBIDDEN` | Ruolo non autorizzato. |
+| `404` | `NOT_FOUND` | Risorsa inesistente. |
+| `409` | `CONFLICT` | Stato incompatibile (es. campagna gia pubblicata). |
+| `422` | `BUSINESS_RULE` | Regola di dominio violata (es. saldo insufficiente). |
+| `429` | `RATE_LIMITED` | Superata la soglia richieste per minuto. |
+| `500` | `INTERNAL_ERROR` | Errore inatteso, tracciato in DLQ. |
 
 ## Versioning
 
@@ -114,7 +116,7 @@ Il rate limit demo e globale per attore.
 
 | Canale | Soglia |
 | --- | --- |
-| Portal (utente finale) | 60 richieste/min |
+| Portale (membro finale) | 60 richieste/min |
 | Backoffice | 300 richieste/min |
 | Ingestion `/v1/actions` | 1000 richieste/min |
 

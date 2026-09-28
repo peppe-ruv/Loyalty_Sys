@@ -6,16 +6,18 @@ description: "Autentica le chiamate API di Loyalty Hub con l'header X-LH-Actor. 
 
 Loyalty Hub usa un modello di autenticazione demo semplice basato sull'header HTTP `X-LH-Actor`. Ogni chiamata identifica l'attore (username) che la esegue. Il servizio ricava il ruolo dalla persona e applica il controllo di autorizzazione sull'endpoint.
 
-## Header richiesto
+## Aggiungi l'header X-LH-Actor
 
 Aggiungi l'header a ogni richiesta ai servizi di backoffice.
 
-```bash
+```bash Esempio header
 curl http://localhost:8083/backoffice/campaigns \
   -H "X-LH-Actor: luca.marketing"
 ```
 
-> **Nota:** gli endpoint del portale cliente (`/portal/...`) e di Ingestion (`/v1/actions`) accettano richieste senza header in modalita demo. In produzione tutti i canali richiedono un token OAuth o JWT emesso dal gateway.
+<Note>
+  Gli endpoint del portale (`/portal/...`) e di Ingestion (`/v1/actions`) accettano richieste senza header in modalita demo. In produzione tutti i canali richiedono un token OAuth 2.0 emesso dal gateway.
+</Note>
 
 ## Personas disponibili
 
@@ -26,7 +28,7 @@ Il seed dell'ambiente demo carica cinque personas con ruoli diversi.
 | `marta.admin` | ADMIN | Accesso completo a ogni servizio e a operazioni distruttive. |
 | `luca.marketing` | MARKETING | Crea e pubblica campagne, template e concorsi. |
 | `elena.legal` | LEGAL | Approva contenuti e gestisce clausole di privacy. |
-| `paolo.care` | CARE | Consulta clienti, crea aggiustamenti punti manuali. |
+| `paolo.care` | CARE | Consulta membri, crea aggiustamenti punti manuali. |
 | `sara.analyst` | ANALYST | Legge KPI, esporta report, consulta DLQ. |
 
 ## Ruoli e permessi

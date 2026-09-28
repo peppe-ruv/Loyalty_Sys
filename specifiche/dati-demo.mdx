@@ -1,223 +1,214 @@
 ---
-title: "Dati demo: 12 membri e catalogo pre-caricati Club Aurora"
-sidebarTitle: "Dati Demo"
-description: "Personas, membri, campagne, premi, concorsi e contenuti pre-caricati in Loyalty Hub per raccontare il prodotto senza login."
+title: "Piano di sviluppo: milestone M0-M7 della PoC"
+sidebarTitle: "Piano Sviluppo"
+description: "Piano incrementale di Loyalty Hub in milestone M0-M7 con obiettivi, servizi coinvolti e deliverable per ogni tappa."
 ---
 
-Loyalty Hub non ha login: sono i dati a raccontare il prodotto. Il brand fittizio è **Club Aurora** (tenant `aurora`), programma fedeltà di una multiutility immaginaria. In questa pagina trovi le personas del backoffice, i 12 membri di esempio, il catalogo di campagne, premi, concorsi e contenuti pre-caricati, e come rigenerare tutto in modo idempotente.
-
-I dati vivono in `seed/*.json` alla radice del monorepo: una sola cartella letta da tutti i servizi, così la coerenza è garantita per costruzione (il membro `MBR-000004` è lo stesso in member, wallet, campaign, reward).
+Il piano di sviluppo della Proof of Concept (PoC) di Loyalty Hub suddivide il lavoro in otto milestone incrementali, da M0 a M7. Ogni tappa aggiunge funzionalita, integra nuovi microservizi e rilascia deliverable verificabili. In questa pagina trovi gli obiettivi di ogni milestone, i servizi attivati, i risultati attesi e le dipendenze fra i componenti.
 
 <Note>
-  Le date nei seed sono espressioni relative (`@today`, `@today-20d`, `@lastSaturday`) risolte al caricamento. La demo è sempre "fresca": concorso in corso, punti in scadenza tra 12 giorni, campagne attive.
+  Le milestone sono progettate per essere dimostrabili in ambienti di staging. Ogni tappa include test automatici e una revisione con le personas di riferimento.
 </Note>
 
-## Personas del backoffice
+## Milestone
 
-Cinque personas coprono l'intera matrice permessi. Ogni persona ha una riga "cosa posso fare" nel selettore in alto.
+<Steps>
+  <Step title="M0 - Setup e fondazioni">
+    **Obiettivo:** preparare l'ambiente di sviluppo, il repository condiviso e la pipeline di build.
 
-| Login | Nome | Ruolo | Riassunto |
-| --- | --- | --- | --- |
-| `marta.admin` | Marta Villa | `ADMIN` | Configura il programma, approva override, gestisce demo. |
-| `luca.marketing` | Luca Serra | `MARKETING` | Crea campagne, premi e contenuti; li invia in revisione. |
-| `elena.legal` | Elena Riva | `LEGAL` | Approva o rifiuta oggetti con `requiresLegal`. |
-| `paolo.care` | Paolo Neri | `CARE` | Gestisce membri, richieste premio, consegne, rimborsi. |
-| `sara.analyst` | Sara Longo | `ANALYST` | Consulta insight e audit; nessuna scrittura. |
+    **Servizi coinvolti:** nessuno servizio di business; solo infrastruttura di base.
 
-Vedi [Backoffice - Matrice permessi](/specifiche/frontend-backoffice) per il dettaglio delle capacità.
+    **Deliverable principali:**
 
-## Membri di esempio
+    - Repository Git strutturato per 8 microservizi (porte 8081-8088)
+    - Docker Compose locale con Postgres 16, Kafka (5 topic) e ZooKeeper
+    - Pipeline CI con build, test unitari e lint
+    - Documentazione iniziale delle API e degli eventi CloudEvents
+    - Configurazione base di Spring Boot 4 e Java 25 per ogni servizio
+  </Step>
+  <Step title="M1 - Ingestion e member">
+    **Obiettivo:** raccogliere le prime azioni utente e gestire l'anagrafica dei membri.
 
-Dodici membri, ognuno con una storia da raccontare. ID `MBR-00000n`, e-mail su `example.org`, nickname per le classifiche.
+    **Servizi coinvolti:** ingestion (8081), member (8082)
 
-| ID | Nome | Stato | Tier | PTS | STS ediz. | Storia |
-| --- | --- | --- | --- | --: | --: | --- |
-| 000001 | Anna Rossi | ACTIVE | BASE | 100 | 0 | Iscritta ieri: solo bonus benvenuto. |
-| 000002 | Marco Bianchi | ACTIVE | SILVER | 1.850 | 1.420 | Cliente tipo: compra online, ha invitato Elisa. |
-| 000003 | Giulia Ferri | ACTIVE | SILVER | 3.240 | 2.880 | A 120 STS da GOLD, ideale per il tier-up. |
-| 000004 | Davide Russo | ACTIVE | GOLD | 12.300 | 4.100 | Ha punti da spendere e 2 coupon attivi. |
-| 000005 | Francesca Romano | ACTIVE | PLATINUM | 28.750 | 9.600 | La cliente migliore, vede i premi riservati. |
-| 000006 | Stefano Galli | ACTIVE | GOLD | 5.400 | 650 | GOLD dall'anno scorso, quest'anno poco attivo. |
-| 000007 | Chiara Marino | ACTIVE | SILVER | 2.400 | 1.150 | 1.900 punti in scadenza entro 30 giorni. |
-| 000008 | Roberto Costa | BLOCKED | BASE | 320 | 40 | Profilo sospeso, per testare i rifiuti. |
-| 000009 | Elisa Fontana | ACTIVE | BASE | 300 | 0 | Invitata da Marco, non ha ancora comprato. |
-| 000010 | Matteo Ricci | ACTIVE | SILVER | 1.120 | 1.060 | Ha 3 giocate da usare su `IW-AUTUNNO`. |
-| 000011 | Sofia Greco | ACTIVE | GOLD | 6.900 | 3.350 | Ha richiesto la borraccia, in attesa di spedizione. |
-| 000012 | Alessandro Conti | ANONYMIZED | BASE | 0 | 0 | Riga anonimizzata, movimenti conservati. |
+    **Deliverable principali:**
 
-Vincoli notevoli: **GOLD + PLATINUM = 4** (Davide, Francesca, Stefano, Sofia). Ogni membro `ACTIVE` ha 8-25 movimenti storici negli ultimi 120 giorni, con Σ lotti attivi = saldo PTS.
+    - Endpoint REST per l'invio di azioni in formato CloudEvents 1.0
+    - Topic Kafka `lh.actions.v1` attivo con producer e consumer
+    - CRUD anagrafica membro con persistenza su Postgres
+    - Extension `lhcorrelationid`, `lhcausationid`, `lhtenant` popolate
+    - Schermate backoffice BO-01 (dashboard) e BO-02 (lista membri)
+    - Schermata portal PT-01 (registrazione membro)
+  </Step>
+  <Step title="M2 - Wallet e transazioni">
+    **Obiettivo:** assegnare punti ai membri e tracciare i movimenti del wallet.
 
-## Programma: livelli, valute, segmenti
+    **Servizi coinvolti:** wallet (8084), member (8082), ingestion (8081)
 
-<AccordionGroup>
-  <Accordion title="Livelli (tiers.json)">
-    Quattro livelli con moltiplicatore PTS crescente:
+    **Deliverable principali:**
 
-    | Tier | Soglia STS | Moltiplicatore | Materiale |
-    | --- | --: | --: | --- |
-    | BASE | 0 | ×1,00 | carta |
-    | SILVER | 1.000 | ×1,25 | argento spazzolato |
-    | GOLD | 3.000 | ×1,50 | oro |
-    | PLATINUM | 7.000 | ×2,00 | platino |
+    - Topic Kafka `lh.effects.v1` per eventi di accredito e addebito
+    - API di consultazione saldo e storico transazioni
+    - Regole base di assegnazione punti legate alle azioni ricevute
+    - Schermate backoffice BO-03 (wallet membri) e BO-04 (transazioni)
+    - Schermata portal PT-02 (saldo e storico personale)
+    - Test di integrazione fra ingestion, member e wallet
+  </Step>
+  <Step title="M3 - Campaign e reward">
+    **Obiettivo:** creare campagne di fidelizzazione e gestire i premi riscattabili.
 
-    Vantaggi testuali 2-4 per livello (es. GOLD: "Premi riservati", "1 giocata bonus sugli acquisti ≥ 50 €", "Assistenza prioritaria").
-  </Accordion>
+    **Servizi coinvolti:** campaign (8083), reward (8085), wallet (8084), member (8082)
 
-  <Accordion title="Valute e edizioni">
-    - **PTS**: valuta spendibile, policy `ROLLING_MONTHS` 12 mesi, arrotondamento a fine mese.
-    - **STS**: valuta di status, non spendibile, azzerata a chiusura edizione.
+    **Deliverable principali:**
 
-    **Edizioni**: anno scorso `CLOSED`, anno corrente `ACTIVE`, prossimo `PLANNED`.
-  </Accordion>
+    - CRUD campagne con condizioni, target e periodo di validita
+    - Catalogo premi con costo in punti e disponibilita
+    - Flusso di riscatto premio con aggiornamento wallet in transazione
+    - Topic Kafka `lh.facts.v1` per eventi di completamento campagna
+    - Schermate backoffice BO-05 (campagne), BO-06 (premi) e BO-07 (riscatti)
+    - Schermata portal PT-03 (catalogo premi) e PT-04 (riscatto)
+  </Step>
+  <Step title="M4 - Gamification">
+    **Obiettivo:** introdurre livelli, badge e classifiche per aumentare il coinvolgimento.
 
-  <Accordion title="Segmenti (segments.json)">
-    | Codice | Tipo | Criterio | Membri attesi |
-    | --- | --- | --- | --- |
-    | `SEG-DIGITAL` | DYNAMIC | etichetta `ebill` e `directdebit` | Davide, Francesca, Sofia |
-    | `SEG-NOT-EBILL` | DYNAMIC | senza etichetta `ebill` | Anna, Marco, Giulia, Chiara, Elisa, Matteo, Stefano |
-    | `SEG-AT-RISK` | DYNAMIC | `lastActivityDaysAgo > 45` | Stefano |
-    | `SEG-TORINO` | DYNAMIC | `city = "Torino"` | 4 membri |
-    | `SEG-VIP-EVENT` | STATIC | elenco manuale | Francesca, Davide |
-  </Accordion>
-</AccordionGroup>
+    **Servizi coinvolti:** gamification (8086), campaign (8083), wallet (8084), member (8082)
 
-## Campagne pre-caricate
+    **Deliverable principali:**
 
-Le 20 campagne coprono benvenuto, acquisti, contenuti digitali, referral, gioco e stagionalità. Estratto delle principali:
+    - Sistema di livelli con regole di progressione
+    - Assegnazione badge automatica in base a azioni e traguardi
+    - Classifiche personali e di gruppo
+    - Topic Kafka `lh.audit.v1` per tracciare assegnazioni badge e livelli
+    - Schermate backoffice BO-08 (badge), BO-09 (livelli) e BO-10 (classifiche)
+    - Schermate portal PT-05 (profilo gamification) e PT-06 (classifica)
+  </Step>
+  <Step title="M5 - Engagement">
+    **Obiettivo:** gestire comunicazioni personalizzate e notifiche verso i membri.
 
-| Codice | Stato | Trigger | Effetti | Portale |
-| --- | --- | --- | --- | :-: |
-| `CMP-WELCOME` | LIVE | `member.registered` | 100 PTS | ✓ |
-| `CMP-PURCHASE-BASE` | LIVE | `purchase.completed` | 1 PTS/€ + 1 STS/€ | ✓ |
-| `CMP-WEEKEND-X2` | LIVE | `purchase.completed` (sab-dom) | `MULTIPLIER ×2` su PTS | ✓ |
-| `CMP-EBILL` | LIVE | `ebill.activated` | 300 PTS + 150 STS | ✓ |
-| `CMP-DIRECT-DEBIT` | LIVE | `directdebit.activated` | 400 PTS + 200 STS | ✓ |
-| `CMP-APP-DAILY` | LIVE | `app.login.daily` | 5 PTS | ✓ |
-| `CMP-REFERRAL-REFERRER` | LIVE | `referral.completed` (REFERRER) | 500 PTS + 250 STS | ✓ |
-| `CMP-BIRTHDAY` | LIVE | `member.birthday` | 250 PTS + messaggio | ✓ |
-| `CMP-GOLD-PURCHASE-PLAY` | LIVE | `purchase.completed` ≥ 50 € (GOLD+) | 1 giocata `IW-AUTUNNO` | ✓ |
-| `CMP-BLACK-FRIDAY` | IN_REVIEW | `purchase.completed` (27-30 nov) | `MULTIPLIER ×3`, budget 250.000 | ✓ |
-| `CMP-REVIEW` | PAUSED | `review.submitted` | 30 PTS | ✓ |
+    **Servizi coinvolti:** engagement (8087), gamification (8086), campaign (8083), member (8082)
 
-`CMP-BLACK-FRIDAY` è inviata in revisione da `luca.marketing`: popola BO-21 per `elena.legal`.
+    **Deliverable principali:**
 
-**Esempio canonico di calcolo**: Giulia (SILVER ×1,25), acquisto 130 € feriale → `CMP-PURCHASE-BASE`: `floor(130 × 1,25) = 162 PTS` + `130 STS` → STS 3.010 ≥ 3.000 → `tier.upgraded` GOLD → `CMP-TIER-UP-BONUS` **+500 PTS**.
+    - Motore di segmentazione membri per campagne
+    - Invio notifiche push, email e in-app tramite template
+    - Tracking apertura e interazione
+    - Topic Kafka `lh.effects.v1` per eventi di notifica inviata
+    - Schermate backoffice BO-11 (segmenti), BO-12 (template) e BO-13 (report invii)
+    - Schermata portal PT-07 (centro notifiche)
+  </Step>
+  <Step title="M6 - Insight e audit">
+    **Obiettivo:** fornire dashboard analitiche e tracciabilita completa degli eventi.
 
-## Catalogo premi
+    **Servizi coinvolti:** insight (8088), engagement (8087), gamification (8086), wallet (8084), member (8082)
 
-**Fasce** F1 500, F2 1.500, F3 3.000, F4 6.000, F5 12.000. **Categorie**: Casa & energia, Tempo libero, Mobilità, Solidarietà, Esperienze.
+    **Deliverable principali:**
 
-| Codice | Nome | Tipo | Fascia | Stock | Visibilità |
-| --- | --- | --- | --- | --- | --- |
-| `RWD-COFFEE-5` | Buono colazione 5 € | COUPON | F1 | pool 500 | tutti |
-| `RWD-DONATION-TREE` | Pianta un albero | DONATION | F1 | illimitato | tutti |
-| `RWD-SHOP-10` | Buono shopping 10 € | COUPON | F2 | pool 300 | tutti |
-| `RWD-BORRACCIA` | Borraccia termica Aurora | PHYSICAL | F2 | 150 | tutti |
-| `RWD-POWERBANK` | Powerbank solare | PHYSICAL | F3 | **0 esaurito** | tutti |
-| `RWD-SHOP-25` | Buono shopping 25 € | COUPON | F3 | **9 in esaurimento** | tutti |
-| `RWD-BILL-20` | Sconto 20 € in bolletta | DIGITAL | F3 | 1.000 (max 2/membro) | tutti |
-| `RWD-EBIKE-RENT` | Weekend in e-bike | EXPERIENCE | F4 | 40 | `SEG-TORINO` |
-| `RWD-WEEKEND` | Weekend benessere per 2 | EXPERIENCE | F5 | 25 | GOLD, PLATINUM |
-| `RWD-PLATINUM-EVENT` | Serata evento riservata | EXPERIENCE | F5 | 20 | PLATINUM |
-| `RWD-GIFT-50` | Gift card 50 € | COUPON | F4 | pool 100 | IN_REVIEW |
+    - Aggregazione dati per metriche di business (attivazione, churn, LTV)
+    - Dashboard in tempo reale con filtri per tenant e periodo
+    - Ricerca full-text su audit log con extension `lhactor` e `lhhop`
+    - Topic Kafka `lh.dlq.v1` per gestione errori e retry
+    - Schermate backoffice BO-14 (dashboard insight) e BO-15 (audit log)
+    - Schermata portal PT-08 (report personale)
+  </Step>
+  <Step title="M7 - Hardening e rilascio">
+    **Obiettivo:** consolidare la PoC con sicurezza, performance e documentazione per il go-live.
 
-## Concorsi, obiettivi e classifiche
+    **Servizi coinvolti:** tutti i servizi (8081-8088), frontend Next.js 14
 
-<AccordionGroup>
-  <Accordion title="Concorsi instant win">
-    | Codice | Nome | Meccanica | Stato | Montepremi |
-    | --- | --- | --- | --- | --- |
-    | `IW-AUTUNNO` | Ruota d'Autunno | WHEEL | LIVE | 200 × 50 PTS · 100 × 100 PTS · 50 × coupon `RWD-COFFEE-5` · 5 × Powerbank |
-    | `IW-NATALE` | Gratta e vinci di Natale | SCRATCH | IN_REVIEW | 300 × 100 PTS · 60 × `RWD-SHOP-10` · 3 × Weekend benessere |
-    | `IW-ESTATE` | Pacchi d'Estate | GIFT | ENDED | Storico chiuso: 142 vincite |
+    **Deliverable principali:**
 
-    `IW-AUTUNNO` ha 355 istanti generati con distribuzione `BUSINESS_HOURS` e seme `20260901`. Gli istanti con orario già passato e non reclamati restano `OPEN`: la prima giocata della demo tende a vincere (è voluto).
-  </Accordion>
+    - Autenticazione e autorizzazione per tutte le personas (`marta.admin`, `luca.marketing`, `elena.legal`, `paolo.care`, `sara.analyst`)
+    - Rate limiting, idempotenza e gestione concorrenza su wallet
+    - Test end-to-end su tutte le schermate backoffice (BO-01..BO-30) e portal (PT-01..PT-14)
+    - Documentazione operativa e runbook
+    - Deploy su ambiente di staging con dati di demo
+    - Revisione finale con tutte le personas e approvazione PoC
+  </Step>
+</Steps>
 
-  <Accordion title="Obiettivi e badge">
-    | Codice | Nome | Metrica | Traguardo | Badge |
-    | --- | --- | --- | --- | --- |
-    | `ACH-FIRST-PURCHASE` | Primo acquisto | COUNT | 1 EVER | `BDG-FIRST` Rompighiaccio |
-    | `ACH-3-PURCHASES-MONTH` | Tris del mese | COUNT | 3 MONTH | `BDG-TRIS` |
-    | `ACH-STREAK-7` | Sette giorni di fila | STREAK | 7 EVER | `BDG-STREAK` Costanza |
-    | `ACH-DIGITAL` | Tutto digitale | DISTINCT_TYPES | 2 EVER | `BDG-DIGITAL` Zero carta |
-    | `ACH-SELF-READER` | Letturista | COUNT | 6 EDITION | `BDG-READER` |
-    | `ACH-BIG-SPENDER` | Grande spesa | SUM (importo) | 1.000 EDITION | `BDG-SPENDER` |
+## Dipendenze fra servizi
 
-    Progressi seed: Marco `ACH-DIGITAL` 0/2, Giulia `ACH-3-PURCHASES-MONTH` 2/3, Matteo `ACH-STREAK-7` 5/7, Francesca ha tutti i badge, Anna nessuno.
-  </Accordion>
+I microservizi si attivano in sequenza secondo il grafo delle dipendenze funzionali. Ogni servizio consuma eventi dai servizi a monte e pubblica eventi per quelli a valle.
 
-  <Accordion title="Classifiche">
-    - `LDB-MONTH-PTS`: PTS guadagnati nel mese, top 10.
-    - `LDB-EDITION-STS`: STS dell'edizione, top 10.
-
-    Punteggi per tutti i membri attivi + 15 nickname di fantasia per riempire le top 10.
-  </Accordion>
-</AccordionGroup>
-
-## Contenuti e messaggi
-
-Cards, popup e banner popolano il portale in tempo reale:
-
-| Codice | Tipo | Posizione | Titolo | Pubblico |
-| --- | --- | --- | --- | --- |
-| `CNT-HERO-AUTUNNO` | CARD | HOME_HERO | "Gira la Ruota d'Autunno" | tutti |
-| `CNT-EBILL` | CARD | HOME_GRID | "Passa alla bolletta digitale: +300 punti" | `SEG-NOT-EBILL` |
-| `CNT-FRIEND` | CARD | HOME_GRID | "Porta un amico, vincete in due" | tutti |
-| `POP-WELCOME` | POPUP |  | "Benvenuto nel Club Aurora" | iscritti \< 7 giorni |
-| `POP-WEEKEND` | POPUP |  | "Questo weekend i punti valgono doppio" | tutti, sab-dom |
-| `BNR-CATALOG` | BANNER | CATALOG_TOP | "Nuovi premi in fascia 1.500" | tutti |
-
-Ci sono 11 template messaggio `MSG-*` con segnaposto (`"Hai guadagnato {{amount}} punti con {{campaignName}}"`), 11 regole di notifica e 3-8 messaggi in inbox per membro coerenti coi movimenti.
-
-## Scenari guidati
-
-`scenarios.json` contiene 9 scenari pronti da eseguire da BO-29. I più significativi:
-
-| Codice | Protagonista | Cosa mostra |
-| --- | --- | --- |
-| `SCN-ONBOARDING` | Anna | Login, completa profilo, primo acquisto: catena di azioni interne fino al badge |
-| `SCN-TIER-UP` | Giulia | Acquisto 130 € feriale → +162 PTS → GOLD → bonus 500 → tris del mese |
-| `SCN-DIGITAL` | Marco | Attiva ebill + directdebit → badge `Zero carta` → +100 |
-| `SCN-REFERRAL` | Elisa (+Marco) | Primo acquisto di Elisa premia entrambi |
-| `SCN-WEEKEND-BURST` | 6 membri | 12 acquisti in 20 s per vedere volume e moltiplicatore ×2 |
-| `SCN-DUPLICATE` | Marco | Stesso evento due volte: `DUPLICATE`, un solo accredito |
-| `SCN-BAD-EVENT` |  | Rifiuti: `INVALID_DATA`, `SOURCE_DISABLED`, `UNMATCHED`, `MEMBER_NOT_ACTIVE` |
-| `SCN-POISON` | Marco | Consumer fallisce 3 volte → messaggio in DLQ |
-
-## Reset e ricarica
-
-I dati sono idempotenti. Per ripartire pulito:
-
-```bash Reset dati demo
-# Reset totale su tutti i servizi
-curl -X POST http://localhost:8090/api/lh/ingestion/v1/demo/reset
-
-# Oppure dal backoffice: BO-30 Console demo -> Reset dati
+```text
+ingestion (8081)
+    |
+    v
+member (8082)  <--  ingestion (registrazione e aggiornamenti)
+    |
+    v
+wallet (8084)  <--  member (saldo iniziale), ingestion (azioni)
+    |
+    v
+campaign (8083)  <--  member (targeting), wallet (verifica saldo)
+    |
+    v
+reward (8085)  <--  campaign (campagne attive), wallet (debito punti)
+    |
+    v
+gamification (8086)  <--  member, wallet, reward (traguardi)
+    |
+    v
+engagement (8087)  <--  gamification, campaign (trigger)
+    |
+    v
+insight (8088)  <--  tutti i servizi (eventi su lh.facts.v1 e lh.audit.v1)
 ```
 
-Semi fissi garantiscono che codici coupon, istanti vincenti e storico sintetico siano riproducibili.
+<Note>
+  Il servizio ingestion e il punto di ingresso unico per tutte le azioni esterne. Nessun altro servizio e esposto direttamente ai clienti per l'invio di eventi.
+</Note>
 
 <Warning>
-  Il reset cancella tutti i movimenti aggiunti dopo l'ultimo caricamento. Fai il reset solo negli ambienti demo; non lanciarlo in produzione o su tenant reali.
+  Il wallet (8084) e un servizio critico per la concorrenza. Ogni operazione di accredito o addebito deve essere idempotente e protetta da race condition. Verifica sempre la presenza di `lhcorrelationid` prima di processare un evento.
 </Warning>
+
+## Definition of Done
+
+Ogni milestone e considerata completa quando soddisfa tutti i criteri cross-cutting elencati di seguito.
+
+### Qualita del codice
+
+- Copertura test unitari almeno al 70% per ogni servizio
+- Test di integrazione per ogni flusso end-to-end attivato nella milestone
+- Nessuna vulnerabilita critica segnalata da dependency check
+- Code review approvata da almeno un reviewer
+
+### Eventi e tracciabilita
+
+- Tutti gli eventi CloudEvents 1.0 pubblicati con le extension obbligatorie: `lhcorrelationid`, `lhcausationid`, `lhhop`, `lhactor`, `lhschemaversion`, `lhtenant`
+- Ogni evento e scritto sul topic `lh.audit.v1` con timestamp e outcome
+- Messaggi non processabili instradati su `lh.dlq.v1` con motivo del fallimento
+
+### Documentazione e UX
+
+- API documentate con OpenAPI 3.0 e esempi di request/response
+- Schermate backoffice e portal verificate con le personas di riferimento
+- Test di usabilita superati per i flussi principali (registrazione, riscatto, consultazione)
+
+### Operativita
+
+- Servizi deployabili con Docker Compose in meno di 5 minuti
+- Health check attivi su tutti i servizi (endpoint `/actuator/health`)
+- Log strutturati in formato JSON con correlation id
+- Metriche Prometheus esposte per monitoraggio
 
 ## Prossimi passi
 
 <CardGroup cols={2}>
-  <Card title="Quickstart" icon="rocket" href="/getting-started/quickstart">
-    Avvia l'ambiente locale e carica i dati demo in 5 minuti.
+  <Card title="Architettura dei servizi" icon="server" href="/specifiche/architettura">
+    Esplora i dettagli dei 8 microservizi, le loro responsabilita e le porte esposte.
   </Card>
 
-  <Card title="Tour della demo" icon="compass" href="/getting-started/tour-demo">
-    Percorso guidato per esplorare backoffice e portale con questi dati.
+  <Card title="Eventi CloudEvents" icon="bolt" href="/specifiche/eventi">
+    Scopri il formato degli eventi, le extension custom e i 5 topic Kafka utilizzati.
   </Card>
 
-  <Card title="Backoffice" icon="gauge" href="/specifiche/frontend-backoffice">
-    Le schermate dove i dati diventano operativi.
+  <Card title="Personas e ruoli" icon="users" href="/specifiche/personas">
+    Consulta le 5 personas definite per la PoC e i permessi associati a ciascun ruolo.
   </Card>
 
-  <Card title="Modello dominio" icon="database" href="/specifiche/modello-di-dominio">
-    Il modello ER che regge questi seed.
+  <Card title="Schermate frontend" icon="layout" href="/specifiche/frontend">
+    Visualizza le 30 schermate backoffice e le 14 schermate portal del frontend Next.js 14.
   </Card>
 </CardGroup>

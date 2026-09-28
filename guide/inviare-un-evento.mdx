@@ -1,5 +1,5 @@
 ---
-title: "inviare-un-evento"
+title: "Come inviare un evento a Loyalty Hub"
 sidebarTitle: "Inviare un evento"
 description: "Guida pratica per inviare un CloudEvent all'API di ingestion-service: formato, autenticazione, deduplica e gestione degli errori."
 ---
@@ -10,7 +10,7 @@ Ogni integrazione con Loyalty Hub inizia da qui: come mandare un evento e cosa a
 
 Ti serve:
 
-- Lo stack in esecuzione (vedi [Quickstart](getting-started/quickstart)).
+- Lo stack in esecuzione (vedi [Quickstart](/getting-started/quickstart)).
 - L'indirizzo del servizio di ingestione (in locale: `http://localhost:8081`).
 - Un membro esistente. In demo puoi usare `MBR-000003` (Silvia Rossi).
 
@@ -49,7 +49,9 @@ Il corpo è un CloudEvent 1.0 JSON. In ingresso i campi obbligatori sono: `specv
     }
     ```
 
-    > **Nota:** `id` è la chiave di deduplica insieme a `source`. Se rimandi lo stesso `id` da `ecommerce`, l'evento non viene rielaborato.
+    `id` è la chiave di deduplica insieme a `source`. Se rimandi lo stesso `id` da `ecommerce`, l'evento non viene rielaborato.
+
+    `id` è la chiave di deduplica insieme a `source`. Se rimandi lo stesso `id` da `ecommerce`, l'evento non viene rielaborato.
   </Step>
   <Step title="Invia con curl">
     ```bash
@@ -81,7 +83,7 @@ Il corpo è un CloudEvent 1.0 JSON. In ingresso i campi obbligatori sono: `specv
   </Step>
 </Steps>
 
-## Formati alternativi di `subject`
+## Leggere le alternative del `subject`
 
 Puoi identificare il membro in tre modi:
 
@@ -94,7 +96,7 @@ Ingestion risolve il primo che trova nell'indice locale.
 ## Errori comuni
 
 <AccordionGroup>
-  <Accordion title="400 - Envelope non valido">
+  <Accordion title="400 - eenvelope non valido">
     Manca un campo obbligatorio del CloudEvent (per esempio `specversion` o `type`), oppure il JSON è malformato. Controlla il corpo e i campi obbligatori elencati sopra.
   </Accordion>
 

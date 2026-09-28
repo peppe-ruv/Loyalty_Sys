@@ -6,16 +6,16 @@ description: "Avvia l'intero stack Loyalty Hub sul tuo computer con Docker Compo
 
 Questa pagina ti guida nell'avvio locale dell'intero stack Loyalty Hub. Al termine avrai otto microservizi, Kafka, Postgres e il portale web in esecuzione sul tuo computer.
 
-## Prerequisiti
+## Requisiti
 
 - Docker Desktop 4.x o Docker Engine 24+.
 - Docker Compose v2.
 - 8 GB di RAM liberi.
-- Porte libere: 5432, 9092, 8080-8088, 3000.
+- Porte libere: `5432`, `9092`, `8080-8088`, `3000`.
 
 Vedi anche la [checklist completa dei prerequisiti](/getting-started/prerequisiti).
 
-## Avvio rapido
+## Avvia lo stack
 
 <Steps>
   <Step title="Clona il repository">
@@ -25,7 +25,7 @@ Vedi anche la [checklist completa dei prerequisiti](/getting-started/prerequisit
     ```
   </Step>
   <Step title="Avvia lo stack completo">
-    Il profilo `all` include ogni servizio, il broker Kafka, Postgres e il frontend.
+    Il profilo `all` avvia ogni servizio, il broker Kafka, Postgres e il frontend.
 
     ```bash Avvio completo
     docker compose -f deploy/docker-compose.yml --profile all up --build
@@ -33,7 +33,7 @@ Vedi anche la [checklist completa dei prerequisiti](/getting-started/prerequisit
 
     La prima esecuzione scarica le immagini e costruisce i JAR. Attendi circa 3-5 minuti.
   </Step>
-  <Step title="Verifica lo stato">
+  <Step title="Verifica lo stato dei servizi">
     Ogni servizio espone `/actuator/health`.
 
     ```bash Health check
@@ -44,11 +44,11 @@ Vedi anche la [checklist completa dei prerequisiti](/getting-started/prerequisit
 
     Tutti i servizi devono restituire `UP`.
   </Step>
-  <Step title="Apri il portale">
+  <Step title="Apri il portale web">
     Naviga su [http://localhost:3000](http://localhost:3000) per usare l'interfaccia web demo (backoffice su `/backoffice`, portale su `/portal`).
 
     <Tip>
-      In alternativa, la stessa app è già online su [loyalty-hub-web.vercel.app](https://loyalty-hub-web.vercel.app/): utile per far provare la demo senza avviare nulla.
+      La stessa app e gia online su [loyalty-hub-web.vercel.app](https://loyalty-hub-web.vercel.app/): utile per far provare la demo senza avviare nulla.
     </Tip>
   </Step>
 </Steps>
@@ -81,13 +81,13 @@ docker compose -f deploy/docker-compose.yml down
 docker compose -f deploy/docker-compose.yml down -v
 ```
 
-```bash Rileggere i log di un servizio
+```bash Leggi i log di un servizio
 docker compose -f deploy/docker-compose.yml logs -f ingestion-service
 ```
 
 ## Dati di seed
 
-All'avvio, il servizio Member carica cinque personas demo e un centinaio di clienti fittizi. Le personas hanno saldi punti e tier pre-assegnati per testare scenari realistici.
+All'avvio, il servizio Member carica cinque personas demo e un centinaio di membro fittizi. Le personas hanno saldi punti e tier pre-assegnati per testare scenari realistici.
 
 > **Nota:** per rifare il seed dopo un reset, riavvia con `--profile all up --build` senza `-v`. Il volume dati Postgres si ricrea e i seed girano automaticamente.
 

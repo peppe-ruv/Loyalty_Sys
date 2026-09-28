@@ -4,7 +4,7 @@ sidebarTitle: "Member"
 description: "API reference del member-service (porta 8082). Gestisci anagrafica membri, attributi, etichette, segmenti statici e dinamici, referral e proiezioni di saldo e tier per elenchi."
 ---
 
-Il member-service gestisce l'anagrafica dei membri, i loro attributi personalizzati, le etichette, i segmenti di pubblico e il programma referral. Non possiede i saldi: riflette i dati di wallet e tier attraverso proiezioni aggiornate dai fatti, cosi puoi consultare il profilo completo senza chiamare piu servizi.
+Il member-service gestisce l'anagrafica dei membri, i loro attributi personalizzati, le etichette, i segmenti di pubblico e il programma referral. Non possiede i saldi. Riflette i dati di wallet e tier attraverso proiezioni aggiornate dai fatti. Consulta il profilo completo senza chiamare piu servizi.
 
 ## Base URL
 
@@ -27,7 +27,7 @@ Un membro ha i seguenti campi principali:
 - **attributes**: oggetto JSON libero per attributi personalizzati
 - **labels**: array di testo (`text[]`)
 - **referral_code**: codice univoco di 8 caratteri
-- **referred_by**: ID del membro che ha invitato questo utente
+- **referred_by**: ID del membro che ha invitato questo membro
 - **version**: numero di versione per ottimistic locking
 
 ### Proiezione saldo e tier
@@ -42,9 +42,13 @@ Per comodita nei risultati di elenco, il member-service include proiezioni aggio
 
 > **Nota:** questi valori sono proiezioni eventualmente consistenti. Per il saldo autoritativo, consulta il wallet-service.
 
-## Endpoint di gestione membri
+## Gestione membri
 
 ### Elenca membri
+
+```http
+GET /v1/members
+```
 
 ```text
 GET /v1/members
@@ -303,7 +307,7 @@ Restituisce gli invitati del membro con il loro stato.
 }
 ```
 
-## Endpoint segmenti
+## Gestione segmenti
 
 ### Elenca segmenti
 
@@ -450,7 +454,7 @@ Sostituisce l'intero elenco dei membri di un segmento **STATIC**. I membri prece
 
 > **Attenzione:** questo endpoint e disponibile solo per segmenti di tipo `STATIC`.
 
-## Endpoint attributi
+## Gestione attributi
 
 ### Elenca definizioni attributi
 
@@ -512,7 +516,7 @@ Sostituisce l'intero set di definizioni degli attributi.
 ]
 ```
 
-## Endpoint referral
+## Gestione referral
 
 ### Panoramica referral
 

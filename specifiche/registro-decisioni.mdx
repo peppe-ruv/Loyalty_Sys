@@ -71,7 +71,7 @@ Ogni ADR nel progetto segue una struttura standardizzata per garantire chiarezza
   <Accordion title="ADR-008 - Pattern CQRS per servizio insight">
     **Stato:** Approvato
 
-    **Sintesi:** Adozione del pattern CQRS (Command Query Responsibility Segregation) per il microservizio insight (porta 8088). I dati analitici sono mantenuti in un modello di lettura ottimizzato separato dal modello di scrittura transazionale. Questo consente query complesse sui dati di loyalty senza impattare le performance dei sistemi operazionali. Il modello di lettura viene popolato in modo asincrono tramite eventi Kafka.
+    **Sintesi:** Adozione del pattern CQRS (Command Query Responsibility Segregation) per il microservizio insight (porta 8088). I dati analitici sono mantenuti in un modello di lettura ottimizzato separato dal modello di scrittura transazionale. Questo consente query complesse sui dati di loyalty senza impattare le performance dei sistemi operativi. Il modello di lettura viene popolato in modo asincrono tramite eventi Kafka.
   </Accordion>
 
   <Accordion title="ADR-009 - API REST sincrone per operazioni CRUD">
@@ -137,7 +137,7 @@ Ogni ADR nel progetto segue una struttura standardizzata per garantire chiarezza
   <Accordion title="ADR-019 - Versioning API con URL path">
     **Stato:** Approvato
 
-    **Sintesi:** Scelta del versioning delle API tramite URL path (`/v1/`, `/v2/`) invece che tramite header o content negotiation. Questa convenzione è immediatamente visibile, facile da documentare e compatibile con tutti i client HTTP. Le versioni deprecate vengono mantenute per almeno 6 mesi con avvisi di sunset nel header `Deprecation`.
+    **Sintesi:** Scelta del versioning delle API tramite URL path (`/v1/`, `/v2/`) invece che tramite header e content negotiation. Questa convenzione è immediatamente visibile, facile da documentare e compatibile con tutti i client HTTP. Le versioni deprecate vengono mantenute per almeno 6 mesi con avvisi di sunset nel header `Deprecation`.
   </Accordion>
 
   <Accordion title="ADR-020 - Gestione configurazione esternalizzata">

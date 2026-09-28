@@ -1,10 +1,10 @@
 ---
-title: "troubleshooting"
+title: "Troubleshooting: errori comuni di Loyalty Hub e come risolverli"
 sidebarTitle: "Troubleshooting"
-description: "Soluzioni ai problemi più frequenti di Loyalty Hub in locale e in cloud: avvio Docker, ingestion, Kafka, Neon, Render e DLQ."
+description: "Soluzioni ai problemi piu frequenti di Loyalty Hub in locale e in cloud: avvio Docker, ingestion, Kafka, Neon, Render e DLQ."
 ---
 
-Questa pagina raccoglie gli errori più comuni che incontrerai lavorando su Loyalty Hub, in locale e sul deploy pubblico, con le azioni concrete per risolverli.
+Questa pagina raccoglie gli errori piu comuni che incontrerai lavorando su Loyalty Hub, in locale e sul deploy pubblico, con le azioni concrete per risolverli.
 
 ## Avvio locale (Docker Compose)
 
@@ -16,17 +16,17 @@ Questa pagina raccoglie gli errori più comuni che incontrerai lavorando su Loya
     - Porte occupate. Verifica con `lsof -i :<porta>` (macOS/Linux) e libera la porta o cambia mapping.
     - Immagine non ricompilata dopo una modifica. Ricostruisci con `--build`.
 
-    ```bash
+    ```bash Leggi i log
     docker compose -f deploy/docker-compose.yml logs <servizio>
     ```
   </Accordion>
 
   <Accordion title="Errore Flyway all'avvio: 'schema does not exist'">
-    Il servizio deve creare il proprio schema. Controlla che nelle env ci sia `SPRING_FLYWAY_CREATE_SCHEMAS=true` (già impostato di default). Se hai un DB Postgres esterno, l'utente deve avere il permesso di creare schemi.
+    Il servizio crea il proprio schema. Verifica che nelle variabili ambiente ci sia `SPRING_FLYWAY_CREATE_SCHEMAS=true` (gia impostato di default). Se usi un DB Postgres esterno, l'utente del DB deve avere il permesso di creare schemi.
   </Accordion>
 
   <Accordion title="I topic Kafka non esistono">
-    In locale i 5 topic sono creati dai bean `NewTopic` di `lh-common` al primo avvio di un servizio. Se stai usando Aiven Free, vanno **creati a mano** dalla console (vedi [Deploy a costo zero](operations/deploy-costo-zero)).
+    In locale i 5 topic vengono creati dai bean `NewTopic` di `lh-common` al primo avvio di un servizio. Se usi Aiven Free, creali a mano dalla console (vedi [Deploy a costo zero](/operations/deploy-costo-zero)).
   </Accordion>
 
   <Accordion title="Nessun evento arriva a valle">
@@ -35,7 +35,7 @@ Questa pagina raccoglie gli errori più comuni che incontrerai lavorando su Loya
     1. `ingestion-service` risponde `202 ACCEPTED` alla `POST /v1/events`.
     2. Nel Kafka UI ([http://localhost:8090](http://localhost:8090)) vedi il messaggio in `lh.actions.v1`.
     3. `campaign-service` ha almeno una campagna `LIVE` con quel trigger.
-    4. Le condizioni della campagna sono soddisfatte: usa **Simula** per verificare.
+    4. Le condizioni della campagna sono soddisfatte: usa _Simula_ per verificarlo.
   </Accordion>
 </AccordionGroup>
 
@@ -43,26 +43,26 @@ Questa pagina raccoglie gli errori più comuni che incontrerai lavorando su Loya
 
 <AccordionGroup>
   <Accordion title="status REJECTED con rejectCode SOURCE_DISABLED">
-    La fonte è nota ma disabilitata. In backoffice → **Ingestion → Fonti**, riabilita la fonte.
+    La fonte e nota ma disabilitata. Nel backoffice, vai a _Ingestion -> Fonti_ e riabilita la fonte.
   </Accordion>
 
   <Accordion title="status REJECTED con rejectCode TYPE_UNKNOWN">
-    Il tipo azione non è registrato. Registralo in backoffice → **Ingestion → Tipi azione** con nome, categoria e JSON Schema del payload `data`.
+    Il tipo azione non e registrato. Registralo nel backoffice, alla voce _Ingestion -> Tipi azione_, con nome, categoria e JSON Schema del payload `data`.
   </Accordion>
 
   <Accordion title="status REJECTED con rejectCode SCHEMA_INVALID">
-    Il payload `data` non rispetta lo schema del tipo. La risposta include il campo che ha fallito. Correggi il payload o aggiorna lo schema del tipo se il contratto è cambiato.
+    Il payload `data` non rispetta lo schema del tipo. La risposta indica il campo che ha fallito. Correggi il payload o aggiorna lo schema del tipo se il contratto e cambiato.
   </Accordion>
 
   <Accordion title="status UNMATCHED (membro sconosciuto)">
-    Il `subject` non è risolvibile nell'indice locale di ingestion. Puoi:
+    Ingestion non trova il `subject` nella mappa locale. Due opzioni:
 
-    - Abbinare l'evento manualmente da **Ingestion → Monitor** con `POST /v1/inbound-events/{id}/match`.
-    - Attendere la registrazione del membro: l'evento verrà riprocessato automaticamente al match.
+    - Abbina l'evento manualmente da _Ingestion -> Monitor_ con `POST /v1/inbound-events/{id}/match`.
+    - Attendi la registrazione del membro: il sistema riprocessa l'evento automaticamente al match.
   </Accordion>
 
   <Accordion title="Loop di eventi (lhhop > 3)">
-    Il ponte interno (fatti → azioni) è stato configurato in modo circolare. Il messaggio finisce in DLQ con causa `LOOP_GUARD`. Controlla i mapping in **Ingestion → Ponte interno** e disabilita il ciclo.
+    Hai configurato il ponte interno (fatti -> azioni) in modo circolare. Il messaggio finisce in DLQ con causa `LOOP_GUARD`. Controlla i mapping in _Ingestion -> Ponte interno_ e disabilita il ciclo.
   </Accordion>
 </AccordionGroup>
 
@@ -70,11 +70,11 @@ Questa pagina raccoglie gli errori più comuni che incontrerai lavorando su Loya
 
 <AccordionGroup>
   <Accordion title="La campagna non scatta anche se le condizioni sembrano vere">
-    Vai al **Registro valutazioni** e cerca l'`actionId`. Il motore ti dice il motivo: `NOT_LIVE` (campagna in bozza o fuori calendario), `AUDIENCE` (pubblico non soddisfatto), `CONDITION` (condizione fallita, con dettaglio del campo), `LIMIT`, `BUDGET`, `EXCLUSIVE`.
+    Vai al _Registro valutazioni_ e cerca l'`actionId`. Il motore indica il motivo: `NOT_LIVE` (campagna in bozza o fuori calendario), `AUDIENCE` (pubblico non soddisfatto), `CONDITION` (condizione fallita, con dettaglio del campo), `LIMIT`, `BUDGET`, `EXCLUSIVE`.
   </Accordion>
 
   <Accordion title="'CAMPAIGN_LIVE_LOCKED' quando salvo una campagna LIVE">
-    Una campagna `LIVE` accetta modifica solo dei campi sicuri (descrizione, priorità, calendario di fine). Per cambiare condizioni o effetti mettila in `PAUSED`, oppure duplicala in `DRAFT`.
+    Una campagna `LIVE` accetta solo la modifica dei campi sicuri (descrizione, priorita, calendario di fine). Per cambiare condizioni o effetti mettila in `PAUSED`, oppure duplicala in `DRAFT`.
   </Accordion>
 </AccordionGroup>
 
@@ -82,15 +82,15 @@ Questa pagina raccoglie gli errori più comuni che incontrerai lavorando su Loya
 
 <AccordionGroup>
   <Accordion title="INSUFFICIENT_BALANCE su una rettifica">
-    La rettifica in `DEBIT` supera il saldo attivo. Controlla `GET /v1/wallets/{memberId}`. Se serve, prima riaccredita, poi effettua la rettifica.
+    La rettifica in `DEBIT` supera il saldo attivo. Controlla `GET /v1/wallets/{memberId}`. Se serve, riaccredita prima ed effettua poi la rettifica.
   </Accordion>
 
   <Accordion title="Il tier del membro non sale">
-    Il tier si calcola sui punti `STS` maturati nell'edizione corrente. Verifica:
+    Il motore calcola il tier sui punti `STS` maturati nell'edizione corrente. Verifica che:
 
-    - Che la campagna eroghi anche `STS` oltre a `PTS`.
-    - Che il membro sia in stato `ACTIVE` (i `BLOCKED` non accumulano).
-    - Che le soglie tier siano crescenti col rank in **Wallet → Tier**.
+    - la campagna eroghi anche `STS` oltre a `PTS`.
+    - il membro sia in stato `ACTIVE` (i `BLOCKED` non accumulano).
+    - le soglie tier siano crescenti con il rank in _Wallet -> Tier_.
   </Accordion>
 
   <Accordion title="TIER_THRESHOLDS_NOT_MONOTONIC">
@@ -102,15 +102,15 @@ Questa pagina raccoglie gli errori più comuni che incontrerai lavorando su Loya
 
 <AccordionGroup>
   <Accordion title="Aiven Kafka DOWN nella Demo Hub">
-    Il broker è sospeso per inattività. Console Aiven → servizio → **Power on**. I dati nel DB restano; solo gli eventi Kafka più vecchi di 3 giorni si perdono (irrilevante: lo stato di verità è Postgres).
+    Il broker e sospeso per inattivita. Vai nella console Aiven, seleziona il servizio e premi _Power on_. I dati nel DB restano. Gli eventi Kafka piu vecchi di 3 giorni si perdono: lo stato di verita e Postgres.
   </Accordion>
 
   <Accordion title="Neon suspended / connection timeout al primo hit">
-    Neon scala a zero dopo 5 minuti. Il primo hit dopo la sospensione impiega qualche secondo per il resume. Hikari è configurato con `initialization-fail-timeout=-1`: il servizio parte anche mentre il DB si sveglia.
+    Neon scala a zero dopo 5 minuti. Il primo hit dopo la sospensione impiega qualche secondo per il resume. Hikari e configurato con `initialization-fail-timeout=-1`: il servizio parte anche mentre il DB si sveglia.
   </Accordion>
 
-  <Accordion title="Render 502 dopo 15 minuti di inattività">
-    Il servizio dormiva. Il primo hit lo sveglia e restituisce 502 finché non è UP (in genere 30-60 s). L'hub gestisce lo stato con la funzione "Accendi la demo" che pinga tutti i servizi.
+  <Accordion title="Render 502 dopo 15 minuti di inattivita">
+    Il servizio dormiva. Il primo hit lo sveglia e restituisce 502 finche non e UP (in genere 30-60 s). L'hub gestisce lo stato con la funzione _Accendi la demo_ che pinga tutti i servizi.
   </Accordion>
 
   <Accordion title="Superato il budget di 750 ore Render">
@@ -120,23 +120,23 @@ Questa pagina raccoglie gli errori più comuni che incontrerai lavorando su Loya
 
 ## DLQ
 
-Un messaggio in `lh.dlq.v1` significa che dopo le retry in-process non è stato possibile processarlo.
+Un messaggio in `lh.dlq.v1` significa che le retry in-process non sono riuscite a processarlo.
 
 <Steps>
-  <Step title="Ispeziona">
-    In backoffice **Osservabilità → DLQ** vedi elenco con causa (`SCHEMA_INVALID`, `LOOP_GUARD`, `RUNTIME_ERROR`, ecc.) e payload originale.
+  <Step title="Ispeziona la coda">
+    Nel backoffice, vai a _Osservabilita -> DLQ_. Vedi l'elenco con causa (`SCHEMA_INVALID`, `LOOP_GUARD`, `RUNTIME_ERROR`, ecc.) e payload originale.
   </Step>
   <Step title="Correggi la causa">
     Aggiorna la configurazione (fonte, tipo, mapping, campagna) o rilascia un fix del servizio.
   </Step>
-  <Step title="Ritenta">
-    Clicca **Riprova** oppure `POST /v1/dlq/{id}/retry`. Il messaggio viene ripubblicato con lo stesso `id`, così l'idempotenza fa il suo lavoro.
+  <Step title="Riprova l'elaborazione">
+    Clicca _Riprova_ oppure invia `POST /v1/dlq/{id}/retry`. Il sistema ripubblica il messaggio con lo stesso `id`: l'idempotenza fa il resto.
   </Step>
 </Steps>
 
 ## Dove cercare aiuto
 
 - **Log del servizio:** ogni microservizio scrive su stdout in formato JSON strutturato con `correlationId`.
-- **Tracciato end-to-end:** in `insight-service`, `/v1/traces/{correlationId}` restituisce l'intera catena azione → effetti → fatti.
-- **Audit:** ogni scrittura da backoffice è tracciata in `lh.audit.v1` con attore, entità e diff.
-- **Specifiche originali:** in [Specifiche principali](/docs/README) trovi la fonte di verità sulle regole di dominio.
+- **Tracciato end-to-end:** in `insight-service`, `GET /v1/traces/{correlationId}` restituisce l'intera catena azione -> effetti -> fatti.
+- **Audit:** ogni scrittura dal backoffice e tracciata in `lh.audit.v1` con attore, entita e diff.
+- **Specifiche originali:** in [Specifiche principali](/docs/README) trovi la fonte di verita sulle regole di dominio.

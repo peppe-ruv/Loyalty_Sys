@@ -24,7 +24,7 @@ Il dominio campagne si articola in queste entità principali:
 - **Evaluation log**: registro delle valutazioni con esito `MATCHED`, `NO_MATCH`, `NO_MEMBER` e ogni condizione fallita con `field`, `cmp`, `value`, `actual`. Retention 30 giorni.
 - **Member snapshot**: proiezione locale di stato, tier, segmenti, etichette e attributi del membro (aggiornata dai fatti su `lh.facts.v1`).
 
-## Endpoint di gestione
+## Gestione campagGestione campagne
 
 ### GET /v1/campaigns
 
@@ -142,7 +142,7 @@ Simula l'esito di una campagna senza scrivere.
 
 Totali della campagna più serie giornaliera dei 30 giorni precedenti.
 
-## Endpoint valutazioni
+## Valutazioni
 
 ### GET /v1/evaluations
 
@@ -186,7 +186,7 @@ Dettaglio di una valutazione con la lista completa delle campagne considerate, q
 }
 ```
 
-## Endpoint approvazioni e metadati
+## AApprovazioni e metadati
 
 ### GET /v1/approvals
 
