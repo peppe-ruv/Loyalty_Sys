@@ -10,6 +10,7 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import io.loyaltyhub.gamification.infra.LeaderboardRepository;
 import io.loyaltyhub.gamification.infra.MemberSnapshotRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -63,6 +64,9 @@ class LeaderboardIT {
     private MemberSnapshotRepository snapshots;
 
     @Autowired
+    private LeaderboardRepository leaderboards;
+
+    @Autowired
     private JdbcClient jdbc;
 
     @DynamicPropertySource
@@ -95,8 +99,23 @@ class LeaderboardIT {
         assertThat(sts.path("me").isNull() || sts.path("me").isMissingNode()).as("Anna non ha STS").isTrue();
 
         JsonNode bo = get("/v1/leaderboards/LDB-MONTH-PTS/ranking");
+        // F2-SEC-10: LIMIT legato come parametro. Senza ?limit il backoffice usa il topN della classifica (10, con 9
+        // partecipanti attivi); ?limit=1 tronca al primo.
+        JsonNode boLimit = get("/v1/leaderboards/LDB-MONTH-PTS/ranking?limit=1");
+        assertThat(boLimit.path("items").size()).isEqualTo(1);
+        assertThat(boLimit.path("items").get(0).path("memberId").asString()).isEqualTo("MBR-000005");
+        assertThat(bo.path("items").size()).isEqualTo(9);
         assertThat(bo.path("items").get(0).path("memberId").asString()).isEqualTo("MBR-000005");
         assertThat(bo.path("periods").get(0).asString()).isEqualTo(bo.path("currentPeriodKey").asString());
+
+        // Nel repository limit ≤ 0 significa nessun LIMIT (il ramo del portale, participants = 9 sopra); un limite
+        // positivo prende le prime righe dello stesso ordine.
+        String boardId = leaderboards.find("LDB-MONTH-PTS").orElseThrow().id();
+        String periodKey = bo.path("currentPeriodKey").asString();
+        List<LeaderboardRepository.Ranked> all = leaderboards.ranking(boardId, periodKey, 0);
+        assertThat(all).hasSize(9);
+        assertThat(leaderboards.ranking(boardId, periodKey, -1)).isEqualTo(all);
+        assertThat(leaderboards.ranking(boardId, periodKey, 3)).isEqualTo(all.subList(0, 3));
     }
 
     @Test
