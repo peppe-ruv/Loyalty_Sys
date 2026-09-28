@@ -37,7 +37,7 @@ web/
 ```
 
 ## 3. Proxy e accesso ai servizi
-- Il browser chiama **sempre** `/api/lh/<service>/v1/...`; il route handler inoltra a `LH_SVC_<SERVICE>_URL` (es. `LH_SVC_WALLET_URL`), copia metodo, query, corpo, e **aggiunge** `X-LH-Actor` leggendo il cookie persona, `X-Correlation-Id` (nuovo ULID se assente). Timeout 25 s. Niente CORS sui servizi per le chiamate REST.
+- Il browser chiama **sempre** `/api/lh/<service>/v1/...`; il route handler inoltra a `LH_SVC_<SERVICE>_URL` (es. `LH_SVC_WALLET_URL`), copia metodo, query, corpo, e **aggiunge** `X-LH-Actor` leggendo il cookie persona (profilo `demo`) oppure `Authorization: Bearer` dalla sessione del BFF (profilo `enterprise`, §4-bis), `X-Correlation-Id` (nuovo ULID se assente). Dal browser passano solo `content-type` e `idempotency-key` (`lib/api/proxyHeaders.ts`): mai `Authorization`, `X-LH-Actor` o cookie. Timeout 25 s. Niente CORS sui servizi per le chiamate REST.
 - Eccezione: **SSE** va diretto a `NEXT_PUBLIC_LH_INSIGHT_URL/v1/stream/events` (le funzioni serverless non reggono connessioni lunghe). Se l'SSE fallisce 3 volte → **polling** di `/v1/events?from=<ultimo>` ogni 3 s, con indicatore "live ridotto".
 - `503/502/504` o errore di rete dal proxy → risposta `{type: "SERVICE_ASLEEP", service}`: l'UI mostra lo stato *degraded* (§6) e innesca `wake`.
 
@@ -46,6 +46,71 @@ web/
 - **Selettore persona** sempre visibile: nel backoffice in alto a destra (avatar con iniziali + ruolo in chiaro); nel portale dentro il tray demo (PT-14). Cambiare persona invalida tutta la cache di Query.
 - I permessi (`lib/persona/permissions.ts`, matrice in `docs/08 §2`) **nascondono o disabilitano** le azioni; il backend le rifiuta comunque con `403` (`@RequiresRole`). Un'azione disabilitata mostra in tooltip il ruolo richiesto.
 - Banner fisso in fondo al Demo Hub: "Ambiente dimostrativo: dati fittizi, nessuna autenticazione".
+
+## 4-bis. Identità reale nel profilo `enterprise`: BFF con sessione lato server (M8.2, ADR-027)
+Vale solo con `LH_PROFILE=enterprise`; senza, tutto il §4 resta com'è (la demo ospitata non cambia). Il server Next è il client OIDC **confidential** `web` del realm (`deploy/idp/realm.json`) e fa da *Backend-for-Frontend* (docs/18 §3.2). Codice in `web/lib/auth/`.
+
+- **Configurazione** (variabili in `docs/11 §8`): `LH_OIDC_ISSUER`, `LH_WEB_CLIENT_ID` (predefinito `web`), `LH_WEB_CLIENT_SECRET`, `LH_WEB_URL`, `LH_WEB_SESSION_KEY` (32 byte casuali in base64); i segreti anche da `*_FILE`. Configurazione assente o insicura (segreto corto o segnaposto, chiave non casuale, `http` fuori da `localhost`, `LH_PROFILE` sconosciuto) ⇒ il server **non parte** (`INSECURE_CONFIG`, `instrumentation.ts`) e, se ci arriva comunque, ogni richiesta autenticata risponde `500 INSECURE_CONFIG`: mai un ripiego sul demo (regola 22).
+- **Login**: `GET /api/auth/login?returnTo=/percorso` → Authorization Code con PKCE `S256`, `state` e `nonce`; lo stato del login viaggia in un cookie `__Host-lh_auth` cifrato (AES-256-GCM, 10 minuti). `returnTo` è accettato solo come percorso relativo della stessa origine, fuori da `/api` (niente open redirect); altrimenti `/`. `GET /api/auth/callback` verifica `state` e `iss`, scambia il codice, valida l'ID token (firma, `iss`, `aud`, scadenza, `nonce`) e apre una sessione **nuova** (l'eventuale sessione precedente del browser si chiude: niente session fixation). Errori → `/auth/error?reason=expired|denied|rejected|idp_unavailable` con «Riprova».
+- **Sessione**: nel browser solo `__Host-lh_session` (id opaco da 256 bit, `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`) e `__Host-lh_csrf` (leggibile dal JavaScript, per l'header CSRF). Token (access, refresh, ID) solo lato server, nello store delle sessioni cifrato con una chiave derivata da `LH_WEB_SESSION_KEY` e legato all'id; l'id stesso è conservato come impronta SHA-256. Inattività 30 minuti e durata massima 10 ore (`LH_WEB_SESSION_IDLE_SECONDS`, `LH_WEB_SESSION_MAX_SECONDS`, Q-354). Store in memoria per una replica (Q-409).
+- **Rinnovo**: trasparente, 30 s prima della scadenza dell'access token (5 minuti nel realm), con il refresh token a rotazione; **un solo rinnovo per sessione** anche con molte richieste parallele (con la rotazione, due rinnovi in gara farebbero revocare la sessione dall'IdP). Refresh token rifiutato ⇒ sessione chiusa e `401`; IdP irraggiungibile ⇒ `503 IDP_UNAVAILABLE`, la sessione resta.
+- **Proxy `/api/lh`**: senza sessione ⇒ `401 {code: "UNAUTHENTICATED"}` e la UI (`app/providers.tsx`) porta al login riportando alla pagina corrente; con sessione ⇒ `Authorization: Bearer <access token>` aggiunto lato server; risposte `Cache-Control: private, no-store`. Un account di solo membro chiama solo `/v1/portal/**` (`403 FORBIDDEN_ROLE` altrove). Sulle API del portale **il membro viene solo dal token** (regole 6-bis e 18): `memberId` tolto dalla query e dal primo livello del corpo JSON, `memberId` nel percorso (`/v1/portal/wallets/{id}`, `/v1/portal/members/{id}`) ⇒ `403 MEMBER_FROM_TOKEN` (Q-410).
+- **CSRF**: su ogni richiesta che cambia stato (`POST`, `PUT`, `PATCH`, `DELETE`) verso `/api/lh` e `/api/auth/logout`: `Sec-Fetch-Site` (se presente) = `same-origin`, `Origin` = origine di `LH_WEB_URL`, header `X-LH-CSRF` = HMAC dell'id di sessione (lo aggiunge `lhFetch` dal cookie `__Host-lh_csrf`). Errore ⇒ `403 CSRF_REJECTED`.
+- **Logout**: «Esci» nella barra del backoffice e del portale → `POST /api/auth/logout` chiude la sessione del BFF e restituisce l'URL di logout dell'IdP con `id_token_hint` (RP-initiated logout), aperto a tutta finestra. **Back-channel logout**: l'IdP chiama `POST /api/auth/backchannel-logout` con un logout token firmato (verificati firma dal JWKS, `iss`, `aud=web`, `iat` recente, `exp`, `jti` non già visto, evento di back-channel logout, niente `nonce`); il BFF chiude le sessioni con quel `sid` o, senza `sid`, tutte quelle del `sub` (deprovisioning, docs/18 §3.15).
+- **UI**: backoffice e portale senza sessione mostrano «Accesso in corso…» e vanno al login; un account del tipo sbagliato (membro nel backoffice, operatore nel portale) vede «Accesso non consentito» con «Esci». Nome e ruolo mostrati vengono dai claim (`preferred_username`, `name`, `lh_roles` con la regola di Q-365); selettore persona, tray demo del portale e `POST /api/persona` non esistono.
+
+```mermaid
+sequenceDiagram
+  accTitle: Login, chiamate e logout attraverso il BFF
+  accDescr: Il web avvia il login OIDC con PKCE, state e nonce, apre una sessione lato server e dà al browser solo cookie opachi; ogni chiamata ai servizi passa dal proxy con controllo CSRF e access token rinnovato una volta sola; il logout avviato dall'utente e quello inviato dall'IdP chiudono la sessione.
+  autonumber
+  actor B as Browser
+  participant W as web (BFF)
+  participant K as idp (Keycloak)
+  participant S as Servizi
+  B->>W: GET /backoffice senza sessione
+  W-->>B: pagina «Accesso in corso…»
+  B->>W: GET /api/auth/login?returnTo=/backoffice
+  W-->>B: 303 verso Keycloak con code_challenge, state, nonce e cookie __Host-lh_auth cifrato
+  B->>K: login (MFA per gli operatori)
+  K-->>B: redirect a /api/auth/callback con code, state, iss
+  B->>W: callback con cookie __Host-lh_auth
+  W->>K: scambio del codice con code_verifier e segreto del client
+  K-->>W: access token, refresh token, ID token
+  W->>W: ID token validato, sessione nuova cifrata nello store
+  W-->>B: 303 a /backoffice con __Host-lh_session HttpOnly e __Host-lh_csrf
+  B->>W: POST /api/lh/... con cookie, Origin e X-LH-CSRF
+  opt access token in scadenza
+    W->>K: refresh token (un solo rinnovo per sessione)
+    K-->>W: nuovo access token e refresh token ruotato
+  end
+  W->>S: stessa richiesta con Authorization Bearer, senza memberId del browser sul portale
+  S-->>W: risposta
+  W-->>B: risposta, Cache-Control private no-store
+  alt logout dall'interfaccia
+    B->>W: POST /api/auth/logout con X-LH-CSRF
+    W-->>B: URL di logout dell'IdP con id_token_hint, cookie cancellati
+  else logout o disattivazione nell'IdP
+    K->>W: POST /api/auth/backchannel-logout con logout token firmato
+    W->>W: chiude le sessioni con quel sid o sub
+  end
+```
+
+```mermaid
+stateDiagram-v2
+  accTitle: Ciclo di vita di una sessione del BFF
+  accDescr: Una sessione nasce dalla callback del login, resta attiva finché è usata entro il limite di inattività e la durata massima, rinnova l'access token con il refresh token e si chiude per logout, back-channel logout, refresh token rifiutato o scadenza.
+  [*] --> Attiva: callback del login valida
+  Attiva --> InRinnovo: access token entro 30 s dalla scadenza
+  InRinnovo --> Attiva: nuovo access token e refresh token ruotato
+  InRinnovo --> Attiva: IdP irraggiungibile, 503 e nuovo tentativo alla richiesta dopo
+  InRinnovo --> Chiusa: refresh token rifiutato
+  Attiva --> Chiusa: Esci, logout RP-initiated
+  Attiva --> Chiusa: back-channel logout per sid o sub
+  Attiva --> Chiusa: inattività oltre 30 min o durata oltre 10 h
+  Attiva --> Chiusa: tetto di sessioni, esce la meno recente
+  Chiusa --> [*]
+```
 
 ## 5. Direzione visiva
 Due caratteri distinti, stessa famiglia tipografica di base. Evitare: gradienti viola generici, card tutte uguali con ombra, eyebrow in maiuscolo ovunque, Inter di default, palette crema/terracotta.

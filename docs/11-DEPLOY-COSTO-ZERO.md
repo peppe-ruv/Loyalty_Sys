@@ -150,6 +150,15 @@ services:
 | `NEXT_PUBLIC_LH_INSIGHT_URL` | **web** (browser) | URL pubblico di insight per l'SSE |
 | `NEXT_PUBLIC_REPO_URL` | web | link nel Demo Hub |
 | `LH_INGESTION_URL` | **insight** | solo per *riprocessa* DLQ (M7) |
+| `LH_PROFILE` | **web** (server) | assente o `demo`: identità simulata (docs/07 §4), nessuna variabile OIDC; `enterprise`: login OIDC obbligatorio (docs/07 §4-bis); qualunque altro valore ⇒ il web non parte (`INSECURE_CONFIG`) |
+| `LH_OIDC_ISSUER` | **web** (server), solo `enterprise` | emittente OIDC, es. `https://idp.example.org/realms/loyaltyhub`; `https` obbligatorio (`http` solo verso `localhost`) |
+| `LH_WEB_CLIENT_ID` | **web** (server), solo `enterprise` | client confidential del realm; predefinito `web` |
+| `LH_WEB_CLIENT_SECRET` / `LH_WEB_CLIENT_SECRET_FILE` | **web** (server), solo `enterprise` | segreto del client `web` (lo stesso passato all'IdP, `deploy/idp/README.md`); almeno 16 caratteri, niente segnaposto |
+| `LH_WEB_URL` | **web** (server), solo `enterprise` | origine pubblica del web senza percorso (redirect URI, controllo `Origin`, ritorno dal logout), la stessa di `LH_WEB_URL` dell'IdP; `https` obbligatorio (`http` solo per `localhost`) |
+| `LH_WEB_SESSION_KEY` / `LH_WEB_SESSION_KEY_FILE` | **web** (server), solo `enterprise` | 32 byte casuali in base64 (`openssl rand -base64 32`): cifratura delle sessioni e dello stato del login, token CSRF; cambiarla chiude tutte le sessioni |
+| `LH_WEB_SESSION_IDLE_SECONDS` | **web** (server), solo `enterprise` | inattività massima della sessione del BFF; predefinito `1800` (Q-354) |
+| `LH_WEB_SESSION_MAX_SECONDS` | **web** (server), solo `enterprise` | durata massima della sessione del BFF; predefinito `36000` (Q-354) |
+| `LH_WEB_SESSION_MAX_COUNT` | **web** (server), solo `enterprise` | sessioni tenute in memoria al massimo (esce la meno recente); predefinito `10000` (Q-409) |
 
 File `.env.example` alla radice e in `web/` con tutte le chiavi e nessun valore reale.
 
