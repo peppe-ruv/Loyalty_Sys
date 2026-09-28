@@ -1,13 +1,11 @@
 package io.loyaltyhub.gamification;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -59,8 +58,15 @@ class PlayIT {
     @Value("${local.server.port}")
     private int port;
 
+    /** Topic dei fatti del contesto di test ({@link FactsTopic}). */
+    @Value("${loyaltyhub.topics.facts:lh.facts.v1}")
+    private String factsTopicName;
+
     @Autowired
     private JdbcClient jdbc;
+
+    @Autowired
+    private KafkaListenerEndpointRegistry listeners;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -70,6 +76,12 @@ class PlayIT {
         registry.add("spring.datasource.password", () -> "");
         registry.add("spring.kafka.bootstrap-servers", () -> System.getProperty("spring.embedded.kafka.brokers"));
         registry.add("spring.datasource.hikari.maximum-pool-size", () -> "20");
+    }
+
+    /** Si pubblica solo a gruppo {@code lh-gamification} stabile, con le partizioni assegnate ({@link ListenerGroups}). */
+    @BeforeAll
+    void waitForListenerGroup() {
+        ListenerGroups.awaitStable(listeners);
     }
 
     @AfterAll
@@ -120,15 +132,18 @@ class PlayIT {
     @Test
     void grantIsIdempotentAndDailyLimitHolds() throws Exception {
         String id = createLive("IW-IT-CAP", 5, false, 1);
-        publishGrant("MBR-000003", "IW-IT-CAP", 3, "EFF-IT-CAP-1");
-        publishGrant("MBR-000003", "IW-IT-CAP", 3, "EFF-IT-CAP-1");
+        String grant = publishGrant("MBR-000003", "IW-IT-CAP", 3, "EFF-IT-CAP-1");
+        String again = publishGrant("MBR-000003", "IW-IT-CAP", 3, "EFF-IT-CAP-1");
+        // Entrambi gli eventi elaborati: il doppione di effectId, se passasse, sarebbe già nel DB e nell'outbox.
+        new FactsTopic(jdbc, mapper, factsTopicName).awaitConsumed(List.of(grant, again));
         JsonNode c = awaitCredits("MBR-000003", "IW-IT-CAP", 1);
         assertThat(c.path("credits").asInt()).as("stesso effectId → un solo credito").isEqualTo(3);
         assertThat(jdbc.sql("SELECT count(*) FROM play_grant WHERE effect_id = 'EFF-IT-CAP-1'").query(Long.class).single()).isEqualTo(1);
 
         play("IW-IT-CAP", "MBR-000003", 200);
         assertThat(play("IW-IT-CAP", "MBR-000003", 422).path("code").asString()).isEqualTo("DAILY_LIMIT_REACHED");
-        assertThat(factsFor("member:MBR-000003", "io.loyaltyhub.fact.contest.plays.granted")).hasSize(1);
+        assertThat(factsFor(List.of(grant, again), "member:MBR-000003", "io.loyaltyhub.fact.contest.plays.granted"))
+                .hasSize(1);
         assertThat(id).isNotBlank();
     }
 
@@ -162,11 +177,11 @@ class PlayIT {
         String correlation = wins.get(0).path("correlationId").asString();
         String winnerSubject = "member:" + jdbc.sql("SELECT member_id FROM play WHERE contest_id = ? AND outcome = 'WIN'")
                 .param(id).query(String.class).single();
-        List<JsonNode> won = factsFor(winnerSubject, "io.loyaltyhub.fact.contest.won");
+        List<JsonNode> won = factsFor(List.of(), winnerSubject, "io.loyaltyhub.fact.contest.won");
         assertThat(won).hasSize(1);
         assertThat(won.get(0).path("lhcorrelationid").asString()).isEqualTo(correlation);
         assertThat(won.get(0).path("data").path("points").asLong()).isEqualTo(10);
-        assertThat(factsFor(winnerSubject, "io.loyaltyhub.fact.contest.played")).hasSize(1);
+        assertThat(factsFor(List.of(), winnerSubject, "io.loyaltyhub.fact.contest.played")).hasSize(1);
     }
 
     // ---------- helper ----------
@@ -212,7 +227,8 @@ class PlayIT {
         throw new AssertionError("crediti non arrivati per " + memberId);
     }
 
-    private void publishGrant(String memberId, String contestCode, int count, String effectId) throws Exception {
+    /** Pubblica un effetto {@code plays.grant} e ne restituisce l'id evento. */
+    private String publishGrant(String memberId, String contestCode, int count, String effectId) throws Exception {
         String id = "EVT-" + UUID.randomUUID();
         Map<String, Object> event = Map.of("specversion", "1.0", "id", id, "source", "urn:loyaltyhub:service:campaign",
                 "type", "io.loyaltyhub.effect.plays.grant", "subject", "member:" + memberId,
@@ -224,28 +240,15 @@ class PlayIT {
                 "key.serializer", StringSerializer.class, "value.serializer", StringSerializer.class))) {
             producer.send(new ProducerRecord<>("lh.effects.v1", memberId, mapper.writeValueAsString(event))).get();
         }
+        return id;
     }
 
-    private List<JsonNode> factsFor(String subject, String type) {
-        List<JsonNode> out = new ArrayList<>();
-        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(Map.of(
-                "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
-                "group.id", "play-it-" + UUID.randomUUID(), "auto.offset.reset", "earliest",
-                "key.deserializer", StringDeserializer.class, "value.deserializer", StringDeserializer.class))) {
-            consumer.subscribe(List.of("lh.facts.v1"));
-            long deadline = System.currentTimeMillis() + 10_000;
-            long quietUntil = 0;
-            while (System.currentTimeMillis() < deadline && (out.isEmpty() || System.currentTimeMillis() < quietUntil)) {
-                for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                    JsonNode e = mapper.readTree(r.value());
-                    if (subject.equals(e.path("subject").asString()) && type.equals(e.path("type").asString())) {
-                        out.add(e);
-                        quietUntil = System.currentTimeMillis() + 2_000;
-                    }
-                }
-            }
-        }
-        return out;
+    /**
+     * Fatti pubblicati sul topic dei fatti dopo l'elaborazione degli eventi {@code consumedFirst} pubblicati dal test
+     * ({@link FactsTopic}); vuoto per i fatti delle giocate, nati nelle transazioni HTTP già concluse.
+     */
+    private List<JsonNode> factsFor(List<String> consumedFirst, String subject, String type) {
+        return new FactsTopic(jdbc, mapper, factsTopicName).published(consumedFirst, subject, type);
     }
 
     private static long count(JsonNode plays, String outcome) {
