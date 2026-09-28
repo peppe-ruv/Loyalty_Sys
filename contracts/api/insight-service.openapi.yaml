@@ -13,6 +13,8 @@ components:
           type: integer
         detail:
           type: string
+        expectedAnchor:
+          $ref: "#/components/schemas/ExpectedAnchor"
         firstSeq:
           format: int64
           type: integer
@@ -29,6 +31,7 @@ components:
           - MISSING_ENTRY
           - PREV_HASH_MISMATCH
           - CONTENT_ALTERED
+          - REDACTION_UNRECORDED
           - ENTRY_ALTERED
           - ANCHOR_MISMATCH
           - TAIL_MISSING
@@ -249,6 +252,25 @@ components:
           type: string
         topic:
           type: string
+      type: object
+    ExpectedAnchor:
+      properties:
+        entryHash:
+          type: string
+        purgedAt:
+          format: date-time
+          type: string
+        result:
+          enum:
+          - MATCH
+          - MISMATCH
+          - MISSING
+          - PURGED
+          - UNCHECKED
+          type: string
+        seq:
+          format: int64
+          type: integer
       type: object
     JsonNode:
       properties:
@@ -680,6 +702,17 @@ paths:
       parameters:
       - in: query
         name: service
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: seq
+        required: false
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: hash
         required: false
         schema:
           type: string

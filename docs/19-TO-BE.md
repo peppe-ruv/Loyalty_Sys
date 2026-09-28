@@ -51,10 +51,10 @@ Ogni voce ha un identificativo `TOBE-nnn` e questi campi:
 |---|---|
 | Cosa | Firmare ogni giorno l'ultimo hash della catena dell'audit ed esportarlo su uno storage immutabile (S3 Object Lock o volume WORM). |
 | Perché non ora | Richiede infrastruttura nuova (bucket con blocco degli oggetti, gestione delle chiavi di firma) che la PoC a costo zero non ha. |
-| Workaround attivo | La catena di hash per servizio rileva ogni modifica o cancellazione fatta fuori dalle funzioni ammesse, e `GET /v1/audit/verify` la controlla su richiesta. Il limite residuo è che gli ancoraggi restano nello stesso database: chi ha accesso da superutente può riscrivere catena e ancoraggi insieme. |
-| Già predisposto | La catena di hash per servizio, la verifica e gli ancoraggi giornalieri nella tabella `audit_anchor` (fetta M8.12a). L'esportazione si aggiunge come nuovo consumatore degli ancoraggi. |
+| Workaround attivo | Ogni ancoraggio giornaliero (`DAILY`) e ogni ancora della retention (`PURGE`) finisce anche nei log della piattaforma, fuori dal database: una riga `audit-anchor` sul logger dedicato `io.loyaltyhub.audit.anchor`, senza dati personali. `GET /v1/audit/verify?service=&seq=&hash=` confronta la catena con un'ancora copiata dai log e dice se coincide, se è stata riscritta, se le voci mancano o quando la retention le ha cancellate (fetta M8.12a, testato in `AuditChainIT`). Così una riscrittura coerente di catena e ancore fatta con le credenziali del database si vede. Il limite residuo è che i log non sono firmati né immutabili: chi può riscrivere anche i log della piattaforma non lascia traccia. |
+| Già predisposto | La catena di hash per servizio, la verifica e gli ancoraggi giornalieri nella tabella `audit_anchor` (fetta M8.12a). L'esportazione si aggiunge come nuovo consumatore degli ancoraggi (`AuditAnchorJob`, `AuditAnchorLog`); la verifica accetta già un'ancora esterna. |
 | Quando farla | Con il primo cliente che chiede evidenze di audit opponibili a terzi, oppure con il pacchetto di conformità di M12.6. |
-| Riferimenti | Q-400, ADR-043, F2-GRC-07, M8.12, M12.6 |
+| Riferimenti | Q-400, Q-403, ADR-043, F2-GRC-07, M8.12, M12.6 |
 
 ### TOBE-003 — Truststore per una CA interna nel logout di Keycloak
 

@@ -456,34 +456,46 @@ I tracciati ricostruiscono la catena causale di un evento end-to-end, mostrando 
 | --- | --- | --- |
 | GET | `/v1/audit/verify` | Ricalcola la catena di hash dell'audit e dice, per servizio, se regge o dove si interrompe (ruolo `ADMIN`) |
 
-L'audit è a prova di manomissione (F2-GRC-07, ADR-043, ADR-044): ogni voce di un servizio porta l'hash della precedente, calcolato dal database all'inserimento, e la tabella è in sola inserzione. La retention cancella solo la parte più vecchia di ogni catena e lascia un'ancora a cui la prima voce rimasta si aggancia; un job giornaliero verifica il tratto nuovo e registra un'ancora sulla testa. La verifica ricalcola tutto in modo indipendente dal database: una voce alterata è indicata con la sua posizione, una riscrittura coerente dopo un'ancora è rivelata dall'ancora.
+Ogni voce di audit di un servizio porta l'hash della precedente, calcolato dal database all'inserimento (F2-GRC-07, ADR-043, ADR-044). Usa questo endpoint per scoprire se l'audit è stato modificato dopo la scrittura.
+
+La verifica ricalcola tutto in modo indipendente dal database e rileva:
+
+- una voce modificata, tolta o riscritta per errore o da un difetto dell'applicazione, con la sua posizione;
+- un'alterazione diretta nel database che non rifaccia in modo coerente catena, testa e ancore;
+- una riscrittura coerente fatta dopo un'ancora, se l'ancora è nel database o se la ricopi dai log.
+
+Le voci ripulite dall'anonimizzazione di un membro restano valide solo se il database ha registrato la loro prova `REDACT` (voce del servizio `insight`, senza dati personali). La retention cancella solo la parte più vecchia di ogni catena, mai voci con meno di 180 giorni, e lascia un'ancora `PURGE` a cui la prima voce rimasta si aggancia.
 
 ```mermaid
 flowchart LR
   accTitle: Catena di hash dell'audit e sua verifica
-  accDescr: Ogni voce di audit di un servizio porta l'hash della precedente a partire dalla genesi; la retention lascia un'ancora sull'ultima voce cancellata; il job giornaliero verifica il tratto nuovo e ancora la testa; la verifica ricalcola la catena e la confronta con testa e ancore.
+  accDescr: Ogni voce di audit di un servizio porta l'hash della precedente a partire dalla genesi; la retention lascia un'ancora PURGE; il job giornaliero verifica il tratto nuovo, ancora la testa e scrive l'ancora nei log; la verifica ricalcola la catena e la confronta con testa, ancore e un'ancora copiata dai log.
   GEN(["genesi"]) --> E1["voce 1"]
   E1 -->|hash| E2["voce 2"]
   E2 -->|hash| E3["voce 3"]
   E3 --- HEAD[("testa")]
   RET["retention"] -->|ancora PURGE| ANC[("ancore")]
   JOB["job giornaliero"] -->|ancora DAILY se la catena regge| ANC
+  JOB -->|riga audit-anchor| LOG(["log della piattaforma"])
   VER["GET /v1/audit/verify"] -.->|ricalcola| E3
   VER -.-> HEAD
   VER -.-> ANC
+  LOG -.->|"service, seq, hash"| VER
   classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
   classDef store fill:#F1F5F9,stroke:#475569,color:#0F172A
   classDef ext fill:#FFFFFF,stroke:#94A3B8,stroke-dasharray:4 2,color:#334155
   class RET,JOB,VER svc
   class HEAD,ANC store
-  class GEN ext
+  class GEN,LOG ext
 ```
 
 **Parametri query:**
 
 | Parametro | Tipo | Descrizione |
 | --- | --- | --- |
-| `service` | string | Solo la catena di questo servizio (404 se non ne ha una) |
+| `service` | string | Solo la catena di questo servizio (404 se il servizio non ha lasciato traccia) |
+| `seq` | int | Posizione di un'ancora copiata dai log; richiede `service` e `hash` |
+| `hash` | string | Hash SHA-256 (64 cifre esadecimali) della stessa ancora |
 
 **Risposta** (200 anche con una catena interrotta: l'esito è il dato):
 
@@ -509,7 +521,35 @@ flowchart LR
 }
 ```
 
-Motivi (`reason`): `GENESIS_MISMATCH`, `UNANCHORED_START`, `MISSING_ENTRY`, `PREV_HASH_MISMATCH`, `CONTENT_ALTERED`, `ENTRY_ALTERED`, `ANCHOR_MISMATCH`, `TAIL_MISSING`, `HEAD_MISMATCH`. Le voci ripulite dall'anonimizzazione di un membro restano valide e sono contate in `redacted`. La forma canonica degli hash è definita nella scheda del servizio (`docs/servizi/insight-service.md` §5).
+Motivi (`reason`): `GENESIS_MISMATCH`, `UNANCHORED_START`, `MISSING_ENTRY`, `PREV_HASH_MISMATCH`, `CONTENT_ALTERED`, `REDACTION_UNRECORDED`, `ENTRY_ALTERED`, `ANCHOR_MISMATCH`, `TAIL_MISSING`, `HEAD_MISMATCH`. La forma canonica degli hash è definita nella scheda del servizio (`docs/servizi/insight-service.md` §5).
+
+#### Confrontare la catena con un'ancora dei log
+
+Il job giornaliero e la retention scrivono ogni ancora anche nei log della piattaforma, sul logger `io.loyaltyhub.audit.anchor`. Chi ha solo l'accesso al database non può riscrivere anche i log.
+
+1. Cerca nei log una riga come questa:
+
+   ```text
+   audit-anchor service=campaign seq=128 entryHash=3f0c…e91a kind=DAILY anchoredAt=2026-09-28T00:05:00.412Z
+   ```
+
+2. Copia `service`, `seq` ed `entryHash` nella verifica:
+
+   ```bash
+   # Confronta la catena di campaign con l'ancora copiata dai log (ruolo ADMIN)
+   curl -H "X-LH-Actor: ADMIN:marta.admin" \
+     "http://localhost:8088/v1/audit/verify?service=campaign&seq=128&hash=<entryHash>"
+   ```
+
+3. Leggi `expectedAnchor.result`: `MATCH` (la catena contiene quella voce), `MISMATCH` (catena riscritta dopo l'ancora), `MISSING` (le voci ancorate non ci sono più), `PURGED` (voce cancellata dalla retention il giorno `purgedAt`), `UNCHECKED` (la catena si interrompe prima).
+
+<Warning>
+  Con `PURGED`, confronta `purgedAt` con la data della riga di log: se sono passati meno di 180 giorni, le voci sono state cancellate prima del tempo.
+</Warning>
+
+<Note>
+  Cosa la verifica non basta a provare, finché la firma e l'esportazione immutabile delle ancore non arrivano (Q-400, TOBE-002): chi ha le credenziali applicative del database può riscrivere il contenuto di una voce lasciando una prova `REDACT`, cancellare la parte iniziale di una catena lasciando un'ancora `PURGE`, oppure riscrivere catena, testa e ancore in modo coerente. Nei primi due casi la traccia resta nell'audit; in tutti e tre lo rivela il confronto con un'ancora dei log.
+</Note>
 
 ## DLQ (Dead Letter Queue)
 
