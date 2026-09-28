@@ -98,8 +98,8 @@ flowchart TB
 | Segreti | nessun valore nel chart: ogni credenziale è `{name, key}` di un Secret esistente; CloudNativePG genera da sé `<cluster>-app` |
 | Porte | fisse, non valori: hub 8080 e web 3000 (le impone `deploy/image/entrypoint.sh`), Keycloak 8080 e gestione 9000; `scripts/check-helm.mjs` verifica che chart, compose ed entrypoint coincidano |
 | Sonde | hub: liveness e readiness di Actuator; web: liveness sulla porta (`tcpSocket`), readiness su `/api/demo/status`, che interroga l'hub e non deve far riavviare il web quando l'hub è lento; idp: `/health/*` sulla porta di gestione |
-| Risorse | requests e limits per ogni ruolo e per il Job; HPA su CPU per `hub` (2–6); PDB `minAvailable: 1` per `hub` e `idp`. `web` ha **una sola replica**, senza HPA né PDB: le sessioni del BFF stanno nella memoria del Pod e nel profilo `enterprise` il chart rifiuta più repliche (Q-409, Q-419). Nel profilo `demo`, senza sessioni, `web` si può scalare |
-| Valori | `values.schema.json` rifiuta chiavi sconosciute (un refuso non passa in silenzio) e tipi sbagliati; `templates/_helpers.tpl` (`loyaltyhub.validate`) le regole fra più valori: profilo diverso da `enterprise`/`demo`, `global.mode=embedded`, `enterprise` senza `idp` né `oidc.issuer`, partizioni o ISR impossibili, repliche dei topic oltre i broker di Strimzi, chiavi di retention sconosciute, aumento di partizioni non confermato; nel profilo `enterprise` anche emittente OIDC o `publicUrls.web` non `https`, `publicUrls.web` con un percorso o con un host diverso dall'Ingress, Secret del BFF non indicati, più di una replica del web (vedi *Configurare il login del web*) |
+| Risorse | requests e limits per ogni ruolo e per il Job; HPA su CPU per `hub` (2–6); PDB `minAvailable: 1` per `hub` e `idp`. `web` ha **una sola replica**, senza HPA né PDB: le sessioni del BFF stanno nella memoria del Pod e nel profilo `enterprise` il chart rifiuta più repliche e il PDB (Q-409, Q-419). Nel profilo `demo`, senza sessioni, `web` si può scalare |
+| Valori | `values.schema.json` rifiuta chiavi sconosciute (un refuso non passa in silenzio) e tipi sbagliati; `templates/_helpers.tpl` (`loyaltyhub.validate`) le regole fra più valori: profilo diverso da `enterprise`/`demo`, `global.mode=embedded`, `enterprise` senza `idp` né `oidc.issuer`, partizioni o ISR impossibili, repliche dei topic oltre i broker di Strimzi, chiavi di retention sconosciute, aumento di partizioni non confermato; nel profilo `enterprise` anche emittente OIDC o `publicUrls.web` non `https`, `publicUrls.web` con un percorso o con un host diverso dall'Ingress, emittente o client del BFF diversi da quelli del ruolo `idp`, Secret del BFF non indicati, più di una replica o un PDB del web (vedi *Configurare il login del web*) |
 
 ### Installazione con Helm
 
@@ -159,7 +159,7 @@ nessuna.
 | `LH_OIDC_ISSUER` | `oidc.issuer`; vuoto = `<publicUrls.idp>/realms/<global.realm>`, lo stesso dell'hub | `${LH_IDP_PUBLIC_URL}/realms/loyaltyhub`, lo stesso dell'hub |
 | `LH_WEB_CLIENT_ID` | `roles.web.bff.clientId` (`web`) | `web` |
 | `LH_WEB_CLIENT_SECRET` | Secret di `roles.web.bff.clientSecret`; nome vuoto = `roles.idp.clientSecrets.web`, lo stesso di Keycloak | `LH_WEB_CLIENT_SECRET`, la stessa variabile di `idp` |
-| `LH_WEB_URL` | `publicUrls.web` senza barra finale, lo stesso valore dato a Keycloak | `LH_WEB_URL`, la stessa variabile di `idp` |
+| `LH_WEB_URL` | `publicUrls.web` nella forma che ne ricava il web (senza barra finale, host in minuscolo, senza `:443`), lo stesso valore dato a Keycloak | `LH_WEB_URL`, la stessa variabile di `idp` |
 | `LH_WEB_SESSION_KEY` | Secret di `roles.web.bff.sessionKey` (default `lh-web-session`, chiave `session-key`) | `LH_WEB_SESSION_KEY` |
 | `LH_WEB_SESSION_IDLE_SECONDS`, `LH_WEB_SESSION_MAX_SECONDS`, `LH_WEB_SESSION_MAX_COUNT` | `roles.web.bff.sessionIdleSeconds` (1800), `sessionMaxSeconds` (36000), `sessionMaxCount` (10000) | stesse variabili; vuote = default del web |
 | `NODE_EXTRA_CA_CERTS` | ConfigMap di `roles.web.bff.issuerCaBundle`, montato in sola lettura | file di override con il certificato montato |
@@ -170,10 +170,13 @@ anche `LH_WEB_CLIENT_SECRET_FILE` e `LH_WEB_SESSION_KEY_FILE`.
 Il chart rifiuta di installarsi nel profilo `enterprise` quando:
 
 - l'emittente non è `https` (`INSECURE_CONFIG: emittente OIDC …`): il browser vi fa login e il BFF lo chiama;
-- `publicUrls.web` non è un'origine `https` senza percorso, o ha un host diverso da `ingress.hosts.web` (lo stesso
-  vale per `publicUrls.idp` e `ingress.hosts.idp`);
+- con il ruolo `idp`, `oidc.issuer` è impostato ma diverso da `<publicUrls.idp>/realms/<global.realm>`, oppure
+  `roles.web.bff.clientId` non è il client del realm che riceve `LH_WEB_CLIENT_SECRET` (`web`);
+- `publicUrls.web` non è un'origine `https` senza percorso, anche con il web spento se c'è il ruolo `idp` (il realm la
+  usa), o ha un host diverso da `ingress.hosts.web` (lo stesso vale per `publicUrls.idp` e `ingress.hosts.idp`);
 - manca il Secret della chiave delle sessioni, o quello del client `web` quando il ruolo `idp` è spento;
-- `roles.web.replicas` è maggiore di 1, o l'HPA del web può superare una replica (`WEB_SINGLE_REPLICA`, Q-409, Q-419).
+- `roles.web.replicas` è maggiore di 1, l'HPA del web può superare una replica o il PDB del web è acceso
+  (`WEB_SINGLE_REPLICA`, Q-409, Q-419).
 
 **Raggiungere l'emittente.** Il BFF chiama l'emittente (discovery, scambio del codice, rinnovo, chiavi) con l'URL
 pubblico, lo stesso del browser: la discovery rifiuta un emittente diverso da quello chiesto. Quindi i Pod `web`
@@ -239,8 +242,9 @@ browser, e accetta `http` solo verso `localhost`: dentro il container `web`, per
 Per questo il login funziona solo dietro un reverse proxy con TLS:
 
 1. Metti il reverse proxy davanti a `web` (porta 3000) e `idp` (porta 8180) e imposta `LH_WEB_URL` e
-   `LH_IDP_PUBLIC_URL` sui suoi URL `https`. Con gli URL `http` di default il web si ferma subito con
-   `LH_IDP_PUBLIC_URL deve essere l'URL https del reverse proxy…` (guardia `x-lh-web-oidc-guard`).
+   `LH_IDP_PUBLIC_URL` sui suoi URL `https`, senza percorso né barra finale: Keycloak confronta alla lettera la
+   redirect URI e l'emittente, e una barra in più darebbe `//`. Con gli URL `http` di default, o con una forma
+   diversa, il web si ferma subito e dice quale variabile correggere (guardia `x-lh-web-oidc-guard`).
 2. Verifica che i container raggiungano quegli URL: `web` chiama `LH_IDP_PUBLIC_URL` e `idp` chiama
    `<LH_WEB_URL>/api/auth/backchannel-logout`. Se i nomi esistono solo nel file hosts dell'host, aggiungili ai container
    con `extra_hosts` in un file di override (per esempio `idp.example.org:host-gateway`), con il proxy in ascolto anche

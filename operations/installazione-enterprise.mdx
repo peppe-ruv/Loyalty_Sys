@@ -67,14 +67,9 @@ flowchart TB
 
 Nel profilo `enterprise` il web fa il login OIDC come client confidential `web` e tiene le sessioni lato server (BFF, vedi [Autenticazione](/api/autenticazione)). Gli servono due segreti: il segreto del client `web`, lo stesso che riceve Keycloak, e una chiave di 32 byte casuali che cifra le sessioni. Se mancano o sono deboli, il web non parte (`INSECURE_CONFIG`). Per generarli ti serve `openssl`.
 
-Con Helm crea i Secret prima di installare il chart:
+Con Helm il segreto del client `web` è la chiave `web-client-secret` del Secret `lh-idp-clients`, che crei insieme agli altri Secret dell'installazione ([passo 2 di deploy/README.md](https://github.com/peppe-ruv/loyalty_sys/blob/main/deploy/README.md#installazione-con-helm)): lo leggono sia Keycloak sia il web. In più crea la chiave delle sessioni prima di installare il chart:
 
 ```bash
-# Segreto del client `web`: lo leggono Keycloak e il web (roles.idp.clientSecrets.web)
-kubectl create secret generic lh-idp-clients \
-  --from-literal=web-client-secret="$(openssl rand -hex 32)" \
-  --from-literal=widgets-client-secret="$(openssl rand -hex 32)" \
-  --from-literal=cms-client-secret="$(openssl rand -hex 32)"
 # Chiave delle sessioni del BFF: 32 byte casuali in base64 (roles.web.bff.sessionKey)
 kubectl create secret generic lh-web-session --from-literal=session-key="$(openssl rand -base64 32)"
 ```
