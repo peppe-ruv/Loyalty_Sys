@@ -22,6 +22,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * secondi, per non saturare il Kafka gratuito. Oltre il limite: {@code 429} {@code application/problem+json} con
  * {@code code} {@code RATE_LIMITED} e {@code Retry-After}.
  *
+ * <p>Il batch ({@code POST /v1/events/batch}, F2-ING-01) non passa dal filtro: il controller, letto il corpo, conta nella
+ * stessa finestra un evento per elemento ({@link #admitEvents}), tutti o nessuno (SPEC-GAP: Q-371). Un batch che da
+ * solo supera il limite al minuto non potrebbe mai passare: è {@code tooMany}, e il controller lo rifiuta senza
+ * {@code Retry-After} invece di un {@code 429} da ritentare all'infinito.
+ *
  * <p>SPEC-GAP: Q-339 — l'indirizzo è il primo di {@code X-Forwarded-For} (la demo sta dietro il proxy di Render e di
  * Vercel), altrimenti quello della connessione; le chiamate dalla stessa macchina (loopback: simulatore e scenari
  * interni, riprocessa DLQ di insight nell'hub, test e prova di fumo in locale) sono esenti. {@code 0} spegne il limite.
@@ -56,8 +61,7 @@ public class IngressRateLimitFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);
             return;
         }
-        long now = clock.millis();
-        long retryAfterMs = admit(ip, now);
+        long retryAfterMs = admit(ip, 1, clock.millis());
         if (retryAfterMs < 0) {
             chain.doFilter(request, response);
             return;
@@ -72,8 +76,40 @@ public class IngressRateLimitFilter extends OncePerRequestFilter {
                 "code":"RATE_LIMITED","instance":"%s"}""".formatted(perMinute, request.getRequestURI()));
     }
 
-    /** Registra la richiesta se c'è posto nella finestra; altrimenti i millisecondi da attendere. */
-    private long admit(String ip, long now) {
+    /**
+     * Esito di {@link #admitEvents}: ammesso; oppure da ritentare tra {@code retryAfterMs}; oppure {@code tooMany}, mai
+     * ammissibile così com'è ({@code retryAfterMs} = 0).
+     */
+    public record Admission(boolean admitted, long retryAfterMs, boolean tooMany) {
+        static final Admission OK = new Admission(true, 0, false);
+    }
+
+    /** Limite al minuto per indirizzo (0 = spento). */
+    public int perMinute() {
+        return perMinute;
+    }
+
+    /**
+     * Conta {@code events} eventi della richiesta nella finestra del suo indirizzo, tutti o nessuno. Esenti come il
+     * filtro: limite spento e chiamate dalla stessa macchina. Più eventi del limite al minuto ⇒ {@code tooMany}.
+     */
+    public Admission admitEvents(HttpServletRequest request, int events) {
+        String ip = clientIp(request);
+        if (perMinute <= 0 || isLoopback(ip) || events <= 0) {
+            return Admission.OK;
+        }
+        if (events > perMinute) {
+            return new Admission(false, 0, true);
+        }
+        long retryAfterMs = admit(ip, events, clock.millis());
+        return retryAfterMs < 0 ? Admission.OK : new Admission(false, retryAfterMs, false);
+    }
+
+    /**
+     * Registra {@code weight} eventi se c'è posto nella finestra; altrimenti i millisecondi da attendere perché se ne
+     * liberino abbastanza.
+     */
+    private long admit(String ip, int weight, long now) {
         if (hits.size() > MAX_TRACKED) {
             hits.entrySet().removeIf(e -> {
                 synchronized (e.getValue()) {
@@ -87,10 +123,14 @@ public class IngressRateLimitFilter extends OncePerRequestFilter {
             while (!window.isEmpty() && now - window.peekFirst() >= WINDOW_MS) {
                 window.pollFirst();
             }
-            if (window.size() >= perMinute) {
-                return WINDOW_MS - (now - window.peekFirst());
+            int excess = window.size() + weight - perMinute;
+            if (excess > 0) {
+                long freedAt = window.stream().skip(excess - 1L).findFirst().orElse(now);
+                return WINDOW_MS - (now - freedAt);
             }
-            window.addLast(now);
+            for (int i = 0; i < weight; i++) {
+                window.addLast(now);
+            }
             return -1;
         }
     }

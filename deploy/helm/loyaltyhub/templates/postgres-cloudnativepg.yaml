@@ -1,0 +1,57 @@
+{{- /*
+Postgres con CloudNativePG (default, ADR-026). L'operatore è un prerequisito (deploy/README.md): qui solo le risorse.
+Un cluster HA (primaria + repliche in zone diverse), database applicativo con owner e Secret <cluster>-app generato
+dall'operatore; database e ruolo separati per Keycloak. Ruoli owner/app per servizio: M8.5.
+*/ -}}
+{{- if eq .Values.postgres.mode "cloudnativepg" }}
+{{- $c := .Values.postgres.cloudnativepg }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "loyaltyhub.pg.clusterName" . }}
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "postgres") | nindent 4 }}
+spec:
+  instances: {{ $c.instances }}
+  {{- with $c.imageName }}
+  imageName: {{ . }}
+  {{- end }}
+  primaryUpdateStrategy: unsupervised
+  bootstrap:
+    initdb:
+      database: {{ .Values.postgres.database }}
+      owner: {{ $c.owner }}
+  {{- if .Values.roles.idp.enabled }}
+  managed:
+    roles:
+      - name: {{ $c.idp.owner }}
+        ensure: present
+        login: true
+        # Secret kubernetes.io/basic-auth creato prima dell'install (nessuna password nel chart).
+        passwordSecret:
+          name: {{ $c.idp.credentialsSecretName }}
+  {{- end }}
+  storage:
+    size: {{ $c.storage.size }}
+    {{- with $c.storage.storageClass }}
+    storageClass: {{ . }}
+    {{- end }}
+  resources:
+    {{- toYaml $c.resources | nindent 4 }}
+  affinity:
+    topologyKey: {{ .Values.topologySpread.topologyKey }}
+{{- if .Values.roles.idp.enabled }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: {{ include "loyaltyhub.pg.clusterName" . }}-{{ $c.idp.database }}
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "postgres") | nindent 4 }}
+spec:
+  cluster:
+    name: {{ include "loyaltyhub.pg.clusterName" . }}
+  name: {{ $c.idp.database }}
+  owner: {{ $c.idp.owner }}
+{{- end }}
+{{- end }}

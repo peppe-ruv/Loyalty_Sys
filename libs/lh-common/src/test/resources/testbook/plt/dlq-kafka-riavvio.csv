@@ -1,0 +1,3 @@
+id,descrizione,errore,ritardi,atteso
+TB-PLT-DLK-012,errore ritentabile in DLQ poi riavvio del consumer prima di un altro record: nessun nuovo ciclo e nessuna seconda DLQ,state,50 50,prima: invocazioni=3 dlq=1 dopo il riavvio: invocazioni=3 dlq=1 successivo=elaborato
+TB-PLT-DLK-013,errore non ritentabile in DLQ poi riavvio del consumer prima di un altro record: nessuna seconda DLQ,nonRetryable,50 50,prima: invocazioni=1 dlq=1 dopo il riavvio: invocazioni=1 dlq=1 successivo=elaborato

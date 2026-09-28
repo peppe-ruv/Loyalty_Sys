@@ -9,11 +9,12 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.env.Environment;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
-import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
@@ -23,7 +24,6 @@ import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.listener.ListenerExecutionFailedException;
-import org.apache.kafka.common.config.TopicConfig;
 import org.springframework.kafka.config.KafkaListenerContainerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 
@@ -33,6 +33,7 @@ import java.util.Map;
 /**
  * Configurazione Kafka condivisa (docs/06 §5): produttore idempotente, consumatore ad ack manuale,
  * error handler con 3 tentativi → DLQ {@code lh.dlq.v1}, e i 5 topic creati solo col profilo {@code local}.
+ * Concorrenza dei listener e forma dei topic da {@link LoyaltyHubProperties} (F2-EVT-04).
  */
 @Configuration(proxyBeanMethods = false)
 @org.springframework.kafka.annotation.EnableKafka
@@ -65,13 +66,25 @@ public class LhKafkaConfiguration {
         return new KafkaTemplate<>(pf);
     }
 
-    /** Admin per creare i topic dai bean NewTopic (profilo local) con la sicurezza configurata. */
+    /**
+     * Admin per creare i topic dai bean NewTopic (profilo local, hub su broker reale) con la sicurezza configurata. Con
+     * {@code modify-configs} (default: acceso solo nel profilo {@code enterprise}) applica anche ai topic esistenti le
+     * configurazioni cambiate, per esempio la retention (F2-EVT-04).
+     */
     @Bean
     @ConditionalOnMissingBean
-    public KafkaAdmin kafkaAdmin() {
+    public KafkaAdmin kafkaAdmin(Environment environment) {
         Map<String, Object> cfg = new HashMap<>(LhKafkaSecurity.properties(props.getKafka()));
         cfg.put(org.apache.kafka.clients.admin.AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        return new KafkaAdmin(cfg);
+        KafkaAdmin admin = new KafkaAdmin(cfg);
+        admin.setModifyTopicConfigs(modifyTopicConfigs(props, environment));
+        return admin;
+    }
+
+    /** {@code modify-configs} esplicito, altrimenti acceso solo nel profilo {@code enterprise}. */
+    public static boolean modifyTopicConfigs(LoyaltyHubProperties props, Environment environment) {
+        Boolean explicit = props.getTopicSettings().getModifyConfigs();
+        return explicit != null ? explicit : environment.matchesProfiles("enterprise");
     }
 
     @Bean
@@ -119,6 +132,10 @@ public class LhKafkaConfiguration {
         // un'altra eccezione, va subito in DLQ.
         handler.setBackOffFunction((record, ex) -> DlqRecords.retryable(DlqRecords.unwrap(ex))
                 ? retries : new SequenceBackOff(new long[0]));
+        // Un record recuperato in DLQ ha il suo offset confermato subito (ack MANUAL_IMMEDIATE): senza, l'offset resta
+        // fermo finché un record successivo della stessa partizione non è elaborato, e un ribilanciamento o un riavvio
+        // nel frattempo rifà l'intero ciclo e pubblica una seconda voce in DLQ (TB-PLT-DLK-010, -012, -013; ADR-008).
+        handler.setCommitRecovered(true);
         return handler;
     }
 
@@ -130,7 +147,8 @@ public class LhKafkaConfiguration {
         ConcurrentKafkaListenerContainerFactory<String, String> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(cf);
-        factory.setConcurrency(2);
+        // Consumer per listener configurabili (F2-EVT-04, ADR-028): default 2 come le partizioni di Fase 1.
+        factory.setConcurrency(LhTopics.concurrency(props));
         factory.setCommonErrorHandler(errorHandler);
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
         // Il fattore custom non eredita spring.kafka.listener.auto-startup (vale solo per quello di Boot):
@@ -140,7 +158,8 @@ public class LhKafkaConfiguration {
         return factory;
     }
 
-    // --- Topic locali (solo profilo local): 5 topic × 2 partizioni, retention 3 giorni (docs/05 §1) ---
+    // --- Topic locali (solo profilo local): per default 5 topic × 2 partizioni, retention 3 giorni (docs/05 §1);
+    //     forma configurabile con loyaltyhub.topic-settings.* (F2-EVT-04) ---
 
     @Configuration(proxyBeanMethods = false)
     @Profile("local")
@@ -153,15 +172,19 @@ public class LhKafkaConfiguration {
         }
 
         @Bean
+        @ConditionalOnProperty(prefix = "loyaltyhub.topic-settings", name = "create", havingValue = "true",
+                matchIfMissing = true)
         KafkaAdmin.NewTopics lhTopics() {
-            var topics = props.getTopics().all().stream()
-                    .map(name -> TopicBuilder.name(name)
-                            .partitions(2)
-                            .replicas(1)
-                            .config(TopicConfig.RETENTION_MS_CONFIG, String.valueOf(3L * 24 * 3600 * 1000))
-                            .build())
-                    .toArray(org.apache.kafka.clients.admin.NewTopic[]::new);
-            return new KafkaAdmin.NewTopics(topics);
+            return new KafkaAdmin.NewTopics(LhTopics.newTopics(props));
+        }
+
+        /** Rifiuta un aumento di partizioni non autorizzato prima che KafkaAdmin lo applichi (F2-EVT-04). */
+        @Bean
+        @org.springframework.context.annotation.Lazy(false)
+        @ConditionalOnProperty(prefix = "loyaltyhub.topic-settings", name = "create", havingValue = "true",
+                matchIfMissing = true)
+        LhTopicPartitionGuard lhTopicPartitionGuard(KafkaAdmin kafkaAdmin) {
+            return new LhTopicPartitionGuard(props, kafkaAdmin);
         }
     }
 

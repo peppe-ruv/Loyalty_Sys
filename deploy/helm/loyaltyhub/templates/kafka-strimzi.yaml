@@ -1,0 +1,84 @@
+{{- /*
+Kafka con Strimzi (default, ADR-026): KRaft con un pool di nodi controller+broker, 3 repliche, RF 3 e
+min.insync.replicas 2 (ADR-036). L'operatore è un prerequisito (deploy/README.md). I 5 topic sono KafkaTopic con i
+nomi di sempre (ADR-004, ADR-028): cambiano solo partizioni, repliche e retention (F2-EVT-04).
+*/ -}}
+{{- if eq .Values.kafka.mode "strimzi" }}
+{{- $s := .Values.kafka.strimzi }}
+{{- $t := .Values.kafka.topics }}
+{{- $cluster := include "loyaltyhub.kafka.clusterName" . }}
+apiVersion: {{ $s.apiVersion }}
+kind: KafkaNodePool
+metadata:
+  name: {{ $cluster }}-dual
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "kafka") | nindent 4 }}
+    strimzi.io/cluster: {{ $cluster }}
+spec:
+  replicas: {{ $s.replicas }}
+  roles:
+    - controller
+    - broker
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: {{ $s.storage.size }}
+        {{- with $s.storage.storageClass }}
+        class: {{ . }}
+        {{- end }}
+        deleteClaim: {{ $s.storage.deleteClaim }}
+        kraftMetadata: shared
+  resources:
+    {{- toYaml $s.resources | nindent 4 }}
+---
+apiVersion: {{ $s.apiVersion }}
+kind: Kafka
+metadata:
+  name: {{ $cluster }}
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "kafka") | nindent 4 }}
+  annotations:
+    strimzi.io/node-pools: enabled
+    strimzi.io/kraft: enabled
+spec:
+  kafka:
+    {{- with $s.version }}
+    version: {{ . }}
+    {{- end }}
+    listeners:
+      # SPEC-GAP: Q-375 — listener interno senza TLS né autenticazione fino a M8.5 (mTLS, principal e ACL).
+      - name: {{ $s.listener.name }}
+        port: {{ $s.listener.port }}
+        type: internal
+        tls: {{ $s.listener.tls }}
+    rack:
+      topologyKey: {{ .Values.topologySpread.topologyKey }}
+    config:
+      auto.create.topics.enable: false
+      default.replication.factor: {{ $t.replicas }}
+      min.insync.replicas: {{ $t.minInsyncReplicas }}
+      offsets.topic.replication.factor: {{ $t.replicas }}
+      transaction.state.log.replication.factor: {{ $t.replicas }}
+      transaction.state.log.min.isr: {{ $t.minInsyncReplicas }}
+  entityOperator:
+    topicOperator: {}
+{{- range $key, $name := dict "actions" "lh.actions.v1" "effects" "lh.effects.v1" "facts" "lh.facts.v1" "audit" "lh.audit.v1" "dlq" "lh.dlq.v1" }}
+---
+apiVersion: {{ $s.apiVersion }}
+kind: KafkaTopic
+metadata:
+  name: {{ $cluster }}-{{ $key }}
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "kafka") | nindent 4 }}
+    strimzi.io/cluster: {{ $cluster }}
+spec:
+  topicName: {{ $name }}
+  partitions: {{ $t.partitions }}
+  replicas: {{ $t.replicas }}
+  config:
+    retention.ms: {{ default $t.retentionMs (index $t.retentionMsByTopic $key) | int64 }}
+    min.insync.replicas: {{ $t.minInsyncReplicas }}
+{{- end }}
+{{- end }}
