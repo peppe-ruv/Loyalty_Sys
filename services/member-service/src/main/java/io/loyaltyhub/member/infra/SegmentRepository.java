@@ -42,6 +42,7 @@ public class SegmentRepository {
         this.mapper = mapper;
     }
 
+    /** Colonne ammesse nei filtri e nell'ordinamento di {@link #list} (regola 19, ADR-042). */
     enum SegmentColumn implements SqlColumn {
         CODE("code"), NAME("name"), TYPE("type"), STATUS("status");
 
@@ -57,17 +58,28 @@ public class SegmentRepository {
         }
     }
 
-    public List<Segment> list(String q, String type, String status) {
-        SqlWhere where = new SqlWhere()
-                .when(q != null && !q.isBlank(), w -> w.anyOf(a -> a
-                        .ilike(SegmentColumn.CODE, q.trim(), SqlWhere.Match.CONTAINS)
-                        .ilike(SegmentColumn.NAME, q.trim(), SqlWhere.Match.CONTAINS)
-                ))
-                .when(type != null && !type.isBlank(), w -> w.eq(SegmentColumn.TYPE, type.trim().toUpperCase()))
-                .when(status != null && !status.isBlank(), w -> w.eq(SegmentColumn.STATUS, status.trim().toUpperCase()));
+    /** Testo SQL costante dell'elenco: vi si accodano solo {@link SqlWhere#sql()} e {@link #LIST_ORDER}. */
+    private static final String LIST_SELECT = "SELECT * FROM segment";
 
-        String sql = "SELECT * FROM segment" + where.sql() + SqlOrder.asc(SegmentColumn.CODE).sql();
-        return where.bind(jdbc.sql(sql)).query(this::map).list();
+    /** Ordinamento costante dell'elenco, per codice come prima del builder. */
+    private static final String LIST_ORDER = SqlOrder.asc(SegmentColumn.CODE).sql();
+
+    /**
+     * Elenco filtrato: {@code q} è un testo letterale cercato in codice e nome ({@code %}, {@code _} e {@code \} non
+     * sono caratteri jolly); tipo e stato per uguaglianza.
+     */
+    public List<Segment> list(String q, String type, String status) {
+        boolean hasText = q != null && !q.isBlank();
+        String text = hasText ? q.trim() : null;
+        SqlWhere where = new SqlWhere()
+                .when(hasText, w -> w.anyOf(a -> a
+                        .ilike(SegmentColumn.CODE, text, SqlWhere.Match.CONTAINS)
+                        .ilike(SegmentColumn.NAME, text, SqlWhere.Match.CONTAINS)))
+                .when(type != null && !type.isBlank(),
+                        w -> w.eq(SegmentColumn.TYPE, type.trim().toUpperCase()))
+                .when(status != null && !status.isBlank(),
+                        w -> w.eq(SegmentColumn.STATUS, status.trim().toUpperCase()));
+        return where.bind(jdbc.sql(LIST_SELECT + where.sql() + LIST_ORDER)).query(this::map).list();
     }
 
     public List<Segment> active() {

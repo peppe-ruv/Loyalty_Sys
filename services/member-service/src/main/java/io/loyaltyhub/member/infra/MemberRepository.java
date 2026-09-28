@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -161,6 +162,7 @@ public class MemberRepository {
         return count(q, status, tier, null);
     }
 
+    /** Colonne ammesse nei filtri di {@link #search}/{@link #count} (regola 19, ADR-042). */
     enum MemberColumn implements SqlColumn {
         ID("m.id"), EXTERNAL_ID("m.external_id"), EMAIL("m.email"),
         FIRST_NAME("m.first_name"), LAST_NAME("m.last_name"), NICKNAME("m.nickname"),
@@ -178,52 +180,68 @@ public class MemberRepository {
         }
     }
 
+    /**
+     * Testo SQL costante dell'elenco (regola 19, docs/18 §3.10 punto 4): il filtro per segmento (codice o id) è
+     * sempre presente e sempre legato, e {@code :segment} nullo lo disattiva. Dopo la base si accodano solo
+     * {@link SqlWhere#andSql()} e l'ordinamento costante {@link #SEARCH_PAGE}.
+     */
+    private static final String SEARCH_SELECT = """
+            SELECT m.* FROM member m LEFT JOIN member_projection p ON p.member_id = m.id
+            WHERE (CAST(:segment AS text) IS NULL OR EXISTS (
+                SELECT 1 FROM segment_member sm JOIN segment s ON s.id = sm.segment_id
+                WHERE sm.member_id = m.id AND (s.code = :segment OR s.id = :segment)))
+            """;
+
+    /** Come {@link #SEARCH_SELECT}, per il totale: vi si accoda solo {@link SqlWhere#andSql()}. */
+    private static final String COUNT_SELECT = """
+            SELECT count(*) FROM member m LEFT JOIN member_projection p ON p.member_id = m.id
+            WHERE (CAST(:segment AS text) IS NULL OR EXISTS (
+                SELECT 1 FROM segment_member sm JOIN segment s ON s.id = sm.segment_id
+                WHERE sm.member_id = m.id AND (s.code = :segment OR s.id = :segment)))
+            """;
+
+    private static final String SEARCH_PAGE = " ORDER BY m.id LIMIT :limit OFFSET :offset";
+
     /** Elenco filtrato anche per segmento (codice o id, docs §3 "filtri … segment"). */
     public List<Member> search(String q, MemberStatus status, String tier, String segment, int limit, int offset) {
-        SqlWhere where = buildWhere(q, status, tier);
-        String sql = "SELECT m.* FROM member m LEFT JOIN member_projection p ON p.member_id = m.id" + where.sql() + segmentSql(segment, where);
-        sql += " ORDER BY m.id LIMIT :limit OFFSET :offset";
-        return bindSegment(where.bind(jdbc.sql(sql)), segment)
+        SqlWhere where = filters(q, status, tier);
+        return where.bind(jdbc.sql(SEARCH_SELECT + where.andSql() + SEARCH_PAGE))
+                .param("segment", segmentOrNull(segment), Types.VARCHAR)
                 .param("limit", limit)
                 .param("offset", offset)
                 .query(MemberRepository::map).list();
     }
 
     public long count(String q, MemberStatus status, String tier, String segment) {
-        SqlWhere where = buildWhere(q, status, tier);
-        String sql = "SELECT count(*) FROM member m LEFT JOIN member_projection p ON p.member_id = m.id" + where.sql() + segmentSql(segment, where);
-        return bindSegment(where.bind(jdbc.sql(sql)), segment)
+        SqlWhere where = filters(q, status, tier);
+        return where.bind(jdbc.sql(COUNT_SELECT + where.andSql()))
+                .param("segment", segmentOrNull(segment), Types.VARCHAR)
                 .query(Long.class).single();
     }
 
-    private String segmentSql(String segment, SqlWhere where) {
-        if (segment != null && !segment.isBlank()) {
-            String and = where.isEmpty() ? " WHERE " : " AND ";
-            return and + "EXISTS (SELECT 1 FROM segment_member sm JOIN segment s ON s.id = sm.segment_id"
-                    + " WHERE sm.member_id = m.id AND (s.code = :segment OR s.id = :segment))";
-        }
-        return "";
+    /** Segmento ripulito, oppure {@code null} (nessun filtro) se assente o vuoto. */
+    private static String segmentOrNull(String segment) {
+        return segment == null || segment.isBlank() ? null : segment.trim();
     }
 
-    private JdbcClient.StatementSpec bindSegment(JdbcClient.StatementSpec spec, String segment) {
-        if (segment != null && !segment.isBlank()) {
-            return spec.param("segment", segment.trim());
-        }
-        return spec;
-    }
-
-    private SqlWhere buildWhere(String q, MemberStatus status, String tier) {
+    /**
+     * Filtri facoltativi: {@code q} è un testo letterale cercato in id, id esterno, e-mail, nome, cognome e soprannome
+     * ({@code %}, {@code _} e {@code \} non sono caratteri jolly); stato e tier per uguaglianza.
+     */
+    private static SqlWhere filters(String q, MemberStatus status, String tier) {
+        boolean hasText = q != null && !q.isBlank();
+        String text = hasText ? q.trim() : null;
         return new SqlWhere()
-                .when(q != null && !q.isBlank(), w -> w.anyOf(a -> a
-                        .ilike(MemberColumn.ID, q.trim(), SqlWhere.Match.CONTAINS)
-                        .ilike(MemberColumn.EXTERNAL_ID, q.trim(), SqlWhere.Match.CONTAINS)
-                        .ilike(MemberColumn.EMAIL, q.trim(), SqlWhere.Match.CONTAINS)
-                        .ilike(MemberColumn.FIRST_NAME, q.trim(), SqlWhere.Match.CONTAINS)
-                        .ilike(MemberColumn.LAST_NAME, q.trim(), SqlWhere.Match.CONTAINS)
-                        .ilike(MemberColumn.NICKNAME, q.trim(), SqlWhere.Match.CONTAINS)
-                ))
+                .when(hasText, w -> w.anyOf(a -> a
+                        .ilike(MemberColumn.ID, text, SqlWhere.Match.CONTAINS)
+                        .ilike(MemberColumn.EXTERNAL_ID, text, SqlWhere.Match.CONTAINS)
+                        .ilike(MemberColumn.EMAIL, text, SqlWhere.Match.CONTAINS)
+                        .ilike(MemberColumn.FIRST_NAME, text, SqlWhere.Match.CONTAINS)
+                        .ilike(MemberColumn.LAST_NAME, text, SqlWhere.Match.CONTAINS)
+                        .ilike(MemberColumn.NICKNAME, text, SqlWhere.Match.CONTAINS)))
                 .when(status != null, w -> w.eq(MemberColumn.STATUS, status.name()))
-                .when(tier != null && !tier.isBlank(), w -> w.eq(MemberColumn.TIER_CODE, tier.trim().toUpperCase()));
+                .when(tier != null && !tier.isBlank(),
+                        w -> w.eq(MemberColumn.TIER_CODE, tier.trim().toUpperCase()));
     }
 
     /** Membri in evidenza per il selettore demo (docs §3): quelli con una storia, esclusi gli anonimizzati. */
