@@ -15,7 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Reset demo di insight (docs/servizi/insight-service.md §6): svuota l'event store e le statistiche per topic;
  * si ripopolano da soli con i primi eventi. Nessun evento pre-caricato. Lo storico sintetico di
- * {@code metric_daily} è ricreato da {@link InsightSyntheticSeeder} (M2.4). Svuota anche audit e DLQ (M7.3).
+ * {@code metric_daily} è ricreato da {@link InsightSyntheticSeeder} (M2.4). Svuota anche audit e DLQ (M7.3); per
+ * l'audit anche teste e ancore delle catene di hash, che nella demo ripartono dalla genesi (F2-GRC-07).
  */
 // BO-30: «insight per primo, poi gli altri» — nel reset unico dell'hub (ADR-023) insight si azzera prima degli
 // altri servizi, così non cancella gli eventi che i loro reset pubblicano subito dopo.

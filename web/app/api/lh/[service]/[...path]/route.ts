@@ -4,7 +4,7 @@ import { isServiceCode, serviceBaseUrl } from "@/lib/api/services";
 import { actorHeader, parsePersona, PERSONA_COOKIE } from "@/lib/persona/cookie";
 import { ulid } from "@/lib/ids";
 import { fetchNicknames, nicknameRoute, resolveNicknames } from "@/lib/api/memberNicknames";
-import { DOWNLOAD_HEADERS, MAX_PROXY_BODY_BYTES, isCsvDownload, readCappedBody } from "@/lib/api/proxyBody";
+import { DOWNLOAD_HEADERS, MAX_PROXY_BODY_BYTES, isCsvDownload, readCappedBody, upstreamAccept } from "@/lib/api/proxyBody";
 import { correlationIdFrom, upstreamHeaders, type UpstreamIdentity } from "@/lib/api/proxyHeaders";
 import { upstreamUrl } from "@/lib/api/proxyPath";
 import { problem, resolveBff } from "@/lib/auth/bff";
@@ -24,6 +24,8 @@ import { authorizeProxy } from "@/lib/auth/proxyAuth";
 export const dynamic = "force-dynamic";
 
 const TIMEOUT_MS = 25_000;
+/** Stati che per HTTP non hanno corpo: la risposta al browser si costruisce con corpo `null`. */
+const NULL_BODY_STATUSES = new Set([204, 205, 304]);
 
 async function handle(req: NextRequest, ctx: { params: Promise<{ service: string; path: string[] }> }) {
   const { service, path } = await ctx.params;
@@ -58,9 +60,10 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
 
   const correlationId = correlationIdFrom(req.headers) ?? ulid();
   const contentType = req.headers.get("content-type");
-  const headers = upstreamHeaders(req.headers, identity, correlationId);
+  const headers = upstreamHeaders(req.headers, identity, correlationId, upstreamAccept(path ?? []));
 
-  const hasBody = req.method !== "GET" && req.method !== "DELETE";
+  // GET e HEAD non hanno corpo: `fetch` rifiuterebbe anche un corpo vuoto (TypeError ⇒ finto 503 SERVICE_ASLEEP).
+  const hasBody = req.method !== "GET" && req.method !== "HEAD" && req.method !== "DELETE";
   // Corpo con un tetto (lib/api/proxyBody.ts): oltre, 413 senza chiamare il servizio. Un file caricato (multipart,
   // BO-32) passa com'è, byte per byte; il JSON resta testo.
   let body: string | Uint8Array<ArrayBuffer> | undefined;
@@ -108,9 +111,15 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
       return NextResponse.json({ type: "SERVICE_ASLEEP", service }, { status: 503 });
     }
 
-    let text = await upstream.text();
+    // Risposte senza corpo: HEAD e 204/205/304. `new NextResponse("", { status: 204 })` lancia anche con corpo vuoto
+    // e il catch sotto lo trasformerebbe in un finto 503 SERVICE_ASLEEP.
+    const isHead = req.method === "HEAD";
+    const noBody = isHead || NULL_BODY_STATUSES.has(upstream.status);
+    let text: string | null = null;
+    if (noBody) await upstream.body?.cancel();
+    else text = await upstream.text();
     let degraded = false;
-    if (nicknames && upstream.status === 200) {
+    if (nicknames && upstream.status === 200 && text !== null) {
       // Stessa identità della richiesta. In enterprise il memberId del portale è stato tolto sopra: nessuna riga
       // «tua» evidenziata e, con un token di solo membro, soprannomi degradati (SPEC-GAP: Q-411).
       const forward = { ...identity, "x-correlation-id": correlationId };
@@ -123,6 +132,9 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
     const res = new NextResponse(text, { status: upstream.status });
     const ct = upstream.headers.get("content-type");
     if (ct) res.headers.set("content-type", ct);
+    // HEAD: la lunghezza che avrebbe il GET, solo se il proxy non riscrive il corpo (coi soprannomi cambierebbe).
+    const length = upstream.headers.get("content-length");
+    if (isHead && !nicknames && length) res.headers.set("content-length", length);
     // File CSV scaricati (vincitori BO-14, rapporto import BO-32): nome del file e nosniff arrivano al browser.
     if (isCsvDownload(path ?? [])) {
       for (const name of DOWNLOAD_HEADERS) {
@@ -145,6 +157,8 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
 }
 
 export const GET = handle;
+// HEAD inoltrato come HEAD (docs/07 §3: si copia il metodo); Spring MVC risponde a HEAD su ogni mappatura GET.
+export const HEAD = handle;
 export const POST = handle;
 export const PUT = handle;
 export const PATCH = handle;

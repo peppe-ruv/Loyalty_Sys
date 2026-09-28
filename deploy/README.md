@@ -284,6 +284,25 @@ hub), attendere lag 0 su tutti i gruppi di consumer, applicare con `LH_KAFKA_TOP
 (chart: `kafka.topics.allowPartitionIncrease=true`), riportarla a `false` subito dopo. Le partizioni non si possono
 diminuire.
 
+### Ancore dell'audit nei log (F2-GRC-07, ADR-043)
+
+Ogni giorno insight verifica la catena di hash dell'audit e scrive l'ultimo hash di ogni servizio sul logger
+`io.loyaltyhub.audit.anchor` (standard output del Pod o del container, righe `audit-anchor service=… seq=… entryHash=…`,
+senza dati personali); la retention dell'audit fa lo stesso con le ancore `PURGE`. Queste righe sono l'unica prova
+fuori dal database: con `GET /v1/audit/verify?service=&seq=&hash=` confronti la catena con una riga copiata dai log e
+scopri una riscrittura fatta con le credenziali del database.
+
+- Instrada quel logger verso un archivio durevole, fuori dal cluster o dall'host del database e con accesso separato:
+  il raccoglitore di log della piattaforma basta, purché conservi le righe almeno quanto l'audit (180 giorni o più).
+- Nel profilo `enterprise` insight rifiuta di partire (`INSECURE_CONFIG`) se il job è spento
+  (`LOYALTYHUB_INSIGHT_AUDIT_ANCHORCRON=-`) o se il logger scrive sotto INFO
+  (`LOGGING_LEVEL_IO_LOYALTYHUB_AUDIT_ANCHOR=WARN` o più alto). Nel profilo `demo` avvisa soltanto.
+- Confronta ogni tanto una riga recente con la verifica: `PURGED` con un `purgedAt` precedente alla riga di log, o una
+  verifica completa che non elenca più un servizio presente nei log, sono alterazioni da indagare.
+
+I log non sono firmati né immutabili: la firma e l'esportazione su archivio immutabile sono TOBE-002 in
+`docs/19-TO-BE.md`.
+
 ### Limiti noti (domande aperte)
 
 - **Q-409, Q-419** — le sessioni del BFF stanno nella memoria del Pod `web`: nel profilo `enterprise` il web ha una
@@ -304,6 +323,9 @@ diminuire.
   Redis e MinIO arrivano con M10.2.
 - **Q-375** — Kafka interno senza TLS né autenticazione fino a M8.5 (mTLS di mesh, principal per modulo, ACL).
 - Nessuna NetworkPolicy fino a M8.5.
+- **Q-400, Q-403** — chi ha le credenziali applicative del database può ancora riscrivere o svuotare l'audit di insight
+  (le funzioni controllate e i ruoli separati arrivano con la migrazione di contract, dopo M8.5): lo rivela solo il
+  confronto con le ancore nei log (*Ancore dell'audit nei log*).
 
 ### Verifica
 

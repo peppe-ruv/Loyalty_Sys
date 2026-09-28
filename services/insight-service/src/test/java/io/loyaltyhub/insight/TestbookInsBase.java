@@ -35,12 +35,13 @@ import java.util.concurrent.atomic.AtomicReference;
  * annotazioni e stessa sorgente di proprietà ⇒ un solo contesto Spring in cache per tutte le classi che la estendono
  * (EmbeddedKafka + Postgres Zonky, profilo {@code demo}). L'orologio dell'applicazione è {@link TestbookClock} (ogni
  * caso lo imposta e lo rilascia). Ingestion è uno stub HTTP che risponde come sceglie il caso (riprocessa DLQ, ADR-002
- * eccezione 1). Il job di retention è spento (si prova in {@code TestbookInsStoreIT}, con un contesto proprio).
+ * eccezione 1). Il job di retention è spento (si prova in {@code TestbookInsStoreIT}, con un contesto proprio), come
+ * quello di ancoraggio dell'audit (i casi lo invocano quando serve, {@code AuditChainIT}).
  * Ogni caso usa identificativi propri: nessuna dipendenza dallo stato mutabile di altri casi.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         classes = {InsightApplication.class, TestbookInsBase.ClockConfig.class},
-        properties = "loyaltyhub.insight.retention.cron=-")
+        properties = {"loyaltyhub.insight.retention.cron=-", "loyaltyhub.insight.audit.anchor-cron=-"})
 @EmbeddedKafka(partitions = 1, topics = {"lh.actions.v1", "lh.effects.v1", "lh.facts.v1", "lh.audit.v1", "lh.dlq.v1"})
 @ActiveProfiles("demo")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi, type Mock } from "vitest";
 import { createKeepAlive, type KeepAlive } from "./keepAlive";
 
 // Testbook TB-WEB §KA: keep-alive gentile (docs/07 §8, F-DEMO-07): ogni 4 min chiama il risveglio SOLO se la scheda è
@@ -6,7 +6,7 @@ import { createKeepAlive, type KeepAlive } from "./keepAlive";
 
 const MIN = 60_000;
 let visible: boolean;
-let wake: ReturnType<typeof vi.fn>;
+let wake: Mock<() => void>;
 let ka: KeepAlive;
 
 beforeEach(() => {

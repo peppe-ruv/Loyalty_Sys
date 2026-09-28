@@ -15,11 +15,20 @@ export function correlationIdFrom(incoming: Headers): string | null {
 
 export type UpstreamIdentity = { "x-lh-actor": string } | { authorization: string };
 
-export function upstreamHeaders(incoming: Headers, identity: UpstreamIdentity, correlationId: string): Headers {
+/**
+ * `accept` è deciso dal server, mai copiato dal browser: `application/json` per le API, il tipo del file per un
+ * download (`upstreamAccept` in lib/api/proxyBody.ts), altrimenti Spring risponde 406 a un endpoint `produces`.
+ */
+export function upstreamHeaders(
+  incoming: Headers,
+  identity: UpstreamIdentity,
+  correlationId: string,
+  accept = "application/json",
+): Headers {
   const headers = new Headers();
   const contentType = incoming.get("content-type");
   if (contentType) headers.set("content-type", contentType);
-  headers.set("accept", "application/json");
+  headers.set("accept", accept);
   for (const [name, value] of Object.entries(identity)) headers.set(name, value);
   headers.set("x-correlation-id", correlationId);
   // Import file (BO-32, Q-353): stessa chiave → stesso lavoro, anche se il browser ripete l'invio.
