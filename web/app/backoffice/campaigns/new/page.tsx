@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Braces, ListTree } from "lucide-react";
 import { lhFetch, LhError, useLhQuery } from "@/lib/api/client";
 import type { Campaign, EventType } from "@/lib/api/types";
 import type { CampaignDraft, EffectSpec } from "@/lib/campaign/describe";
 import { emptyGroup, fromJson, parseConditionsText, toJson, toJsonText, validateTree, type UiGroup } from "@/lib/campaign/conditions";
+import { conditionUsesAmount, dropAmountExample, effectUsesAmount, hasAmountExample } from "@/lib/campaign/amount";
+import { isActionCode } from "@/lib/actiontypes/code";
 import { Card, CardBody } from "@/components/ui/card";
 import { PageHeader } from "@/components/bo/primitives";
 import { GeneratedSentence } from "@/components/bo/GeneratedSentence";
@@ -21,7 +23,9 @@ import { cn } from "@/lib/cn";
 // BO-06 Nuova campagna (docs/08 §BO-06): editor con frase generata dal vivo. Salva come DRAFT (POST).
 // "2 Quando" sceglie i trigger fra i tipi azione di ingestion (anche custom, BO-09) e le fonti ammesse (Q-208: regola
 // context.source alla radice delle condizioni, default tutte); "4 Se" è il ConditionBuilder con
-// vista JSON alternativa. Gli altri blocchi restano in JSON.
+// vista JSON alternativa. Gli altri blocchi restano in JSON. `?trigger=<codice>` precompila il trigger (BO-09 *Crea una
+// campagna con questa azione*); da «2 · Quando» si crea una nuova azione senza lasciare la pagina. Se un trigger scelto
+// non ha Importo ma la bozza lo usa (condizione d'esempio o effetto «per importo»), «2 · Quando» avvisa. SPEC-GAP: Q-432.
 const DEFAULT_CONDITIONS = { op: "all", rules: [{ field: "data.amount", cmp: "gte", value: 1 }] };
 const DEFAULTS = {
   audience: '{ "all": true }',
@@ -33,12 +37,15 @@ const DEFAULTS = {
 export default function NewCampaignPage() {
   const router = useRouter();
   const canEdit = useCan("object.edit");
+  const requestedTrigger = useSearchParams().get("trigger");
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [memberDescription, setMemberDescription] = useState("");
   const [priority, setPriority] = useState(100);
   const [visibleInPortal, setVisibleInPortal] = useState(true);
-  const [triggers, setTriggers] = useState<string[]>(["purchase.completed"]);
+  const [triggers, setTriggers] = useState<string[]>(() => [
+    requestedTrigger && isActionCode(requestedTrigger) ? requestedTrigger : "purchase.completed",
+  ]);
   const [sources, setSources] = useState<string[]>([]);
   const [json, setJson] = useState(DEFAULTS);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +65,10 @@ export default function NewCampaignPage() {
     [eventTypes.data],
   );
   const conditions = useMemo(() => toJson(condTree), [condTree]);
+  // La bozza parte da `data.amount ≥ 1` e da un effetto «per importo»: un'azione senza importo non li soddisfa.
+  const condAmount = useMemo(() => conditionUsesAmount(condTree), [condTree]);
+  const effectAmount = effectUsesAmount(json.effects);
+  const canDropExample = useMemo(() => hasAmountExample(condTree), [condTree]);
   const condProblems = useMemo(() => validateTree(condTree, catalog.catalog), [condTree, catalog.catalog]);
 
   const draft: CampaignDraft = useMemo(() => {
@@ -176,10 +187,17 @@ export default function NewCampaignPage() {
             <CardBody className="space-y-3 pt-4">
               <h3 className="text-sm font-semibold">2 · Quando</h3>
               <p className="text-xs text-[var(--color-bo-ink-2)]">Tipi azione che fanno scattare la campagna (uno o più).</p>
-              <TriggerPicker value={triggers} onChange={setTriggers} disabled={!canEdit} />
+              <TriggerPicker
+                value={triggers}
+                onChange={setTriggers}
+                disabled={!canEdit}
+                conditionUsesAmount={condAmount}
+                effectUsesAmount={effectAmount}
+                onDropAmountExample={canDropExample ? () => setCondTree(dropAmountExample) : undefined}
+              />
               <div>
                 <p className="mb-1 text-xs font-medium">Fonti ammesse</p>
-                <SourcesPicker value={sources} onChange={setSources} disabled={!canEdit} />
+                <SourcesPicker value={sources} onChange={setSources} disabled={!canEdit} triggers={triggers} actionLabels={actionLabels} />
               </div>
             </CardBody>
           </Card>

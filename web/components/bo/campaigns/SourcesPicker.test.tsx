@@ -32,6 +32,34 @@ it("clic su una fonte la aggiunge; clic di nuovo la toglie", () => {
   expect(onChange).toHaveBeenLastCalledWith([]);
 });
 
+it("avvisa quando una fonte scelta non accetta un trigger (Q-437)", () => {
+  useLhQuery.mockReturnValue({
+    isLoading: false,
+    isError: false,
+    data: [
+      { code: "app", name: "App", enabled: true, allowedTypes: ["purchase.completed"] },
+      { code: "simulator", name: "Simulatore", enabled: true, allowedTypes: [] },
+    ],
+    refetch: vi.fn(),
+  });
+  const { rerender } = render(
+    <SourcesPicker
+      value={["app"]}
+      onChange={vi.fn()}
+      triggers={["purchase.completed", "store.visited"]}
+      actionLabels={{ "store.visited": "Visita in negozio" }}
+    />,
+  );
+  // App accetta ancora gli acquisti: la campagna scatta da App, ma non per le visite.
+  expect(screen.getByText("La fonte App non accetta «Visita in negozio»: per questa azione la campagna non scatterà da App.")).toBeInTheDocument();
+  expect(screen.queryByText(/non scatterà mai/)).toBeNull();
+  expect(screen.queryByText(/non accetta «purchase.completed»/)).toBeNull();
+  rerender(<SourcesPicker value={["app"]} onChange={vi.fn()} triggers={["store.visited"]} />);
+  expect(screen.getByText("La fonte App non accetta nessuna delle azioni scelte: da App questa campagna non scatterà mai.")).toBeInTheDocument();
+  rerender(<SourcesPicker value={["simulator"]} onChange={vi.fn()} triggers={["store.visited"]} />);
+  expect(screen.queryByText(/non accetta/)).toBeNull();
+});
+
 it("ingestion addormentato → campo di testo con i codici (degraded)", () => {
   useLhQuery.mockReturnValue({ isLoading: false, isError: true, error: new Error("down"), data: undefined, refetch: vi.fn() });
   const onChange = vi.fn();

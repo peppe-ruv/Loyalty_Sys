@@ -38,6 +38,7 @@
             "pages": [
               "guide/inviare-un-evento",
               "guide/creare-una-campagna",
+              "guide/creare-un-azione",
               "guide/gestire-i-premi",
               "guide/simulare-uno-scenario",
               "guide/osservare-il-sistema"
