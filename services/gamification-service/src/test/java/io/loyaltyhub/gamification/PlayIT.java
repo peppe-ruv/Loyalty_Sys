@@ -5,6 +5,7 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -59,6 +61,9 @@ class PlayIT {
     @Autowired
     private JdbcClient jdbc;
 
+    @Autowired
+    private KafkaListenerEndpointRegistry listeners;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -67,6 +72,12 @@ class PlayIT {
         registry.add("spring.datasource.password", () -> "");
         registry.add("spring.kafka.bootstrap-servers", () -> System.getProperty("spring.embedded.kafka.brokers"));
         registry.add("spring.datasource.hikari.maximum-pool-size", () -> "20");
+    }
+
+    /** Si pubblica solo a gruppo {@code lh-gamification} stabile, con le partizioni assegnate ({@link ListenerGroups}). */
+    @BeforeAll
+    void waitForListenerGroup() {
+        ListenerGroups.awaitStable(listeners);
     }
 
     @AfterAll
@@ -117,8 +128,10 @@ class PlayIT {
     @Test
     void grantIsIdempotentAndDailyLimitHolds() throws Exception {
         String id = createLive("IW-IT-CAP", 5, false, 1);
-        publishGrant("MBR-000003", "IW-IT-CAP", 3, "EFF-IT-CAP-1");
-        publishGrant("MBR-000003", "IW-IT-CAP", 3, "EFF-IT-CAP-1");
+        String grant = publishGrant("MBR-000003", "IW-IT-CAP", 3, "EFF-IT-CAP-1");
+        String again = publishGrant("MBR-000003", "IW-IT-CAP", 3, "EFF-IT-CAP-1");
+        // Entrambi gli eventi elaborati: il doppione di effectId, se passasse, sarebbe già nel DB e nell'outbox.
+        FactsTopic.awaitConsumed(jdbc, List.of(grant, again));
         JsonNode c = awaitCredits("MBR-000003", "IW-IT-CAP", 1);
         assertThat(c.path("credits").asInt()).as("stesso effectId → un solo credito").isEqualTo(3);
         assertThat(jdbc.sql("SELECT count(*) FROM play_grant WHERE effect_id = 'EFF-IT-CAP-1'").query(Long.class).single()).isEqualTo(1);
@@ -209,7 +222,8 @@ class PlayIT {
         throw new AssertionError("crediti non arrivati per " + memberId);
     }
 
-    private void publishGrant(String memberId, String contestCode, int count, String effectId) throws Exception {
+    /** Pubblica un effetto {@code plays.grant} e ne restituisce l'id evento. */
+    private String publishGrant(String memberId, String contestCode, int count, String effectId) throws Exception {
         String id = "EVT-" + UUID.randomUUID();
         Map<String, Object> event = Map.of("specversion", "1.0", "id", id, "source", "urn:loyaltyhub:service:campaign",
                 "type", "io.loyaltyhub.effect.plays.grant", "subject", "member:" + memberId,
@@ -221,11 +235,12 @@ class PlayIT {
                 "key.serializer", StringSerializer.class, "value.serializer", StringSerializer.class))) {
             producer.send(new ProducerRecord<>("lh.effects.v1", memberId, mapper.writeValueAsString(event))).get();
         }
+        return id;
     }
 
-    /** Fatti su {@code lh.facts.v1} senza consumer group: nessuna attesa del group coordinator ({@link FactsTopic}). */
+    /** Fatti pubblicati su {@code lh.facts.v1}: outbox svuotato, poi topic letto fino in fondo ({@link FactsTopic}). */
     private List<JsonNode> factsFor(String subject, String type) {
-        return FactsTopic.await(mapper, subject, type, 1);
+        return FactsTopic.published(jdbc, mapper, subject, type);
     }
 
     private static long count(JsonNode plays, String outcome) {

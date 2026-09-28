@@ -166,9 +166,9 @@ class DemoToolsIT {
         throw new AssertionError("istante assente: " + instantId);
     }
 
-    /** Fatti su {@code lh.facts.v1} senza consumer group: nessuna attesa del group coordinator ({@link FactsTopic}). */
+    /** Fatti pubblicati su {@code lh.facts.v1}: outbox svuotato, poi topic letto fino in fondo ({@link FactsTopic}). */
     private List<JsonNode> factsFor(String subject, String type) {
-        return FactsTopic.await(mapper, subject, type, 1);
+        return FactsTopic.published(jdbc, mapper, subject, type);
     }
 
     private JsonNode contest(String code) {
