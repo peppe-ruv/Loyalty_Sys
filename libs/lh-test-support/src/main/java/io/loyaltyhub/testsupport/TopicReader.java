@@ -1,4 +1,4 @@
-package io.loyaltyhub.common.testsupport;
+package io.loyaltyhub.testsupport;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -18,9 +18,9 @@ import java.util.Objects;
 import java.util.function.Predicate;
 
 /**
- * Record pubblicati su un topic, letti da un test d'integrazione (docs/06 §9) senza finestre di tempo. Solo test: sta nel
- * jar principale di lh-common, come {@link EmbeddedKafkaBrokersTestListener}, perché ogni modulo la trovi sul proprio
- * classpath di test (usa solo dipendenze già di compilazione).
+ * Record pubblicati su un topic, letti da un test d'integrazione (docs/06 §9) senza finestre di tempo. Solo test: modulo
+ * {@code lh-test-support}, dichiarato con scope {@code test} da lh-common e dai servizi, quindi fuori dai jar di
+ * produzione.
  * <p>
  * Ogni lettura procede in tre passi, ciascuno con un tetto ({@link #TIMEOUT}) e un errore che riporta lo stato osservato:
  * <ol>

@@ -2,7 +2,7 @@ package io.loyaltyhub.wallet;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
-import io.loyaltyhub.common.testsupport.TopicReader;
+import io.loyaltyhub.testsupport.TopicReader;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.wallet.application.EditionService;
 import io.loyaltyhub.wallet.domain.Edition;

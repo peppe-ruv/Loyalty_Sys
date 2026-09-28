@@ -1,4 +1,4 @@
-package io.loyaltyhub.common.testsupport;
+package io.loyaltyhub.testsupport;
 
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
@@ -31,9 +31,8 @@ import java.util.concurrent.TimeoutException;
 
 /**
  * Attese deterministiche sui consumer group dei listener Kafka di un servizio, per i test d'integrazione (docs/06 §9).
- * Solo test: nessun codice di produzione la usa; sta nel jar principale di lh-common, come
- * {@link EmbeddedKafkaBrokersTestListener}, perché ogni modulo la trovi sul proprio classpath di test senza un artefatto
- * in più (usa solo dipendenze già di compilazione: kafka-clients e spring-kafka).
+ * Solo test: modulo {@code lh-test-support}, dichiarato con scope {@code test} da lh-common e dai servizi, quindi fuori
+ * dai jar di produzione.
  * <ul>
  *   <li>{@link #awaitStable} — da chiamare prima di pubblicare gli eventi che il test si aspetta elaborati: ogni consumer
  *       di ogni container è membro del suo gruppo, il gruppo è {@code STABLE} per il coordinator, ogni partizione dei

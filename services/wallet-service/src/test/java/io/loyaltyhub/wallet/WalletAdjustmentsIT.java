@@ -2,7 +2,7 @@ package io.loyaltyhub.wallet;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
-import io.loyaltyhub.common.testsupport.TopicReader;
+import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import io.loyaltyhub.wallet.api.WalletsController.AdjustmentRequest;

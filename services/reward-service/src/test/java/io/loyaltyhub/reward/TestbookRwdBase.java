@@ -1,7 +1,7 @@
 package io.loyaltyhub.reward;
 
-import io.loyaltyhub.common.testsupport.ListenerGroups;
-import io.loyaltyhub.common.testsupport.TopicReader;
+import io.loyaltyhub.testsupport.ListenerGroups;
+import io.loyaltyhub.testsupport.TopicReader;
 import io.loyaltyhub.reward.infra.MemberSnapshotRepository;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.apache.kafka.clients.consumer.ConsumerRecord;

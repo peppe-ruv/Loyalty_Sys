@@ -1,7 +1,7 @@
 package io.loyaltyhub.engagement;
 
 import io.loyaltyhub.common.event.JsonSchemaValidator;
-import io.loyaltyhub.common.testsupport.TopicReader;
+import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;

@@ -1,7 +1,7 @@
 package io.loyaltyhub.ingestion.testbook;
 
 import io.loyaltyhub.common.event.JsonSchemaValidator;
-import io.loyaltyhub.common.testsupport.TopicReader;
+import io.loyaltyhub.testsupport.TopicReader;
 import io.loyaltyhub.ingestion.domain.EventType;
 import io.loyaltyhub.ingestion.infra.EventTypeRepository;
 import io.loyaltyhub.ingestion.infra.MemberErasureRepository;

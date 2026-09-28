@@ -1,7 +1,7 @@
 package io.loyaltyhub.engagement;
 
-import io.loyaltyhub.common.testsupport.ListenerGroups;
-import io.loyaltyhub.common.testsupport.TopicReader;
+import io.loyaltyhub.testsupport.ListenerGroups;
+import io.loyaltyhub.testsupport.TopicReader;
 import io.loyaltyhub.engagement.TestbookApi.Resp;
 import io.loyaltyhub.engagement.application.ContentService;
 import io.loyaltyhub.engagement.application.EngagementJobs;

@@ -1,6 +1,6 @@
 package io.loyaltyhub.gamification;
 
-import io.loyaltyhub.common.testsupport.TopicReader;
+import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.MethodOrderer;

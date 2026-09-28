@@ -50,6 +50,7 @@
   </properties>
 
   <modules>
+    <module>libs/lh-test-support</module>
     <module>libs/lh-common</module>
     <module>services/ingestion-service</module>
     <module>services/member-service</module>
