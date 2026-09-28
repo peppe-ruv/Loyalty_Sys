@@ -52,6 +52,7 @@ Notazione endpoint: `<servizio> <METODO> <path>` = chiamata a `/api/lh/<servizio
 | | Tracciati | BO-25 | `/observe/traces`, `/observe/traces/[correlationId]` | M2 |
 | | Monitor ingressi | BO-26 | `/observe/inbound` | M1 |
 | | DLQ | BO-27 | `/observe/dlq` | M7 |
+| | Import | BO-32 | `/observe/imports` | M8 (M8.7) |
 | Demo | Simulatore eventi | BO-28 | `/demo/simulator` | M1 |
 | | Scenari | BO-29 | `/demo/scenarios` | M2 |
 | | Console demo | BO-30 | `/demo/console` | M1 (job M3) |
@@ -79,7 +80,7 @@ Tutte le personas **leggono tutto**, con una sola eccezione (istanti vincenti). 
 | `redemption.handle` — evadi, annulla con rimborso ● | ✓ | — | — | ✓ | — |
 | `delivery.handle` — consegna vincite fisiche ● | ✓ | — | — | ✓ | — |
 | `coupon.void` — annulla codice | ✓ | — | — | ✓ | — |
-| `inbound.handle` — riprova, abbina ingressi | ✓ | — | — | ✓ | — |
+| `inbound.handle` — riprova, abbina ingressi; carica un import e riprova i suoi non abbinati (BO-32, Q-372) | ✓ | — | — | ✓ | — |
 | `webhook.write` | ✓ | — | — | — | — |
 | `dlq.handle` — riprocessa / scarta ● | ✓ | — | — | — | — |
 | `demo.simulate` — simulatore e scenari ● | ✓ | ✓ | ✓ | ✓ | — |
@@ -301,3 +302,10 @@ Formato: **Scopo** · **Dati** · **Layout** · **Azioni** (ruolo) · **Note**. 
 - **Reset dati** ● — *Ripristina tutto* (insight per primo, poi gli altri in parallelo; esito per servizio; conferma digitando `RESET`) oppure per singolo servizio, con avviso sulle incoerenze temporanee.
 - **Macchina del tempo** ● — job con **data di riferimento** `asOf`: scadenza punti, preavviso scadenze, rilascio punti in attesa (wallet) · ricalcolo segmenti, compleanni (member) · scadenza coupon, timeout richieste (reward) · chiusura concorsi (gamification) · collegamento alla chiusura edizione (BO-08). Ogni job mostra l'esito ("scaduti 1.900 PTS per 1 membro").
 - **Limiti dell'ambiente gratuito** — promemoria leggibile dei vincoli (`docs/11 §1`).
+
+### BO-32 — Import (Fase 2, M8.7)
+- **Scopo**: caricare un file di eventi e seguirne l'esito riga per riga. Feature `F2-ING-02` (docs/18 §3.6, §5).
+- **Dati**: `ingestion POST /v1/imports` (multipart, header `Idempotency-Key`), `GET /v1/imports`, `/v1/imports/{id}`, `/v1/imports/{id}/rows`, `/v1/imports/{id}/report.csv`, `POST /v1/imports/{id}/retry-unmatched`; `GET /v1/sources` per la fonte predefinita.
+- **Layout**: riquadro di caricamento (file `.csv`, `.ndjson`, `.jsonl`, `.json` fino a 1 MB; fonte predefinita facoltativa; *Carica*) con l'aiuto «Formato del file» (colonne CSV); tabella dei lavori, più recenti prima: caricato, file (formato, dimensione), fonte, stato (`QUEUED/RUNNING/DONE/FAILED` con barra di avanzamento e righe elaborate), esiti (accettate, duplicate, respinte, non abbinate, non valide), autore; si aggiorna da sola ogni 3 s finché un lavoro è attivo. Dettaglio in foglio laterale (`?i=<id>`): cinque conteggi, motivo del fallimento, *Scarica rapporto CSV*, *Riprova non abbinati* con il numero di righe ancora `UNMATCHED`, tabella delle righe non accettate filtrabile per esito con pulsanti a due stati (`aria-pressed`): riga e linea del file, id evento, esito e codice, dettaglio, esito attuale con *Monitor →* verso BO-26.
+- **Azioni**: *Carica* e *Riprova non abbinati* ● (`inbound.handle`: ADMIN, CARE; disabilitati con il ruolo richiesto per gli altri, Q-372). Il file è controllato anche prima dell'invio (estensione, vuoto, dimensione); gli errori `422` del servizio (`IMPORT_*`) compaiono sotto il modulo con il loro `detail`.
+- **Note**: le righe accettate sono solo contate (si vedono in BO-26 e BO-25); il rapporto CSV neutralizza le formule e non contiene il soggetto dei non abbinati. Stati della vista come `docs/07 §6` (scheletro, vuoto con invito a caricare, errore con correlazione, *degraded* con riprova automatica).

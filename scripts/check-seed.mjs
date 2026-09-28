@@ -835,6 +835,43 @@ if (Array.isArray(templatesSeed)) {
   }
 }
 
+// Storico degli import (BO-32, docs/10 §8.2, M8.7): ogni riga con eventId è un ingresso di inbound-history.json della
+// stessa fonte con lo stesso esito, usato una volta sola (il seeder ci aggancia rapporto e «Riprova non abbinati»);
+// le righe `invalid` hanno il motivo; formato, fonte e autore esistono.
+{
+  const imports = readSeed("import-history.json");
+  if (imports) {
+    const W = "import-history.json";
+    const hist = readSeed("inbound-history.json")?.events ?? [];
+    const sources = new Set((readSeed("sources.json") ?? []).map((x) => x.code));
+    const available = new Map();
+    for (const e of hist) {
+      const k = `${e.source}|${e.eventId}|${e.status}`;
+      available.set(k, (available.get(k) ?? 0) + 1);
+    }
+    const jobs = imports.imports ?? [];
+    if (jobs.length === 0) errors.push(`${W}: nessun import (BO-32 deve essere piena a demo appena accesa)`);
+    for (const job of jobs) {
+      const w = `${W}: ${job.fileName}`;
+      if (!["CSV", "NDJSON", "JSON"].includes(job.format)) errors.push(`${w}: formato non valido ${job.format}`);
+      if (!sources.has(job.source)) errors.push(`${w}: fonte inesistente ${job.source}`);
+      if (!/^(ADMIN|CARE):[a-z]+\.[a-z]+$/.test(job.createdBy ?? "")) errors.push(`${w}: createdBy non valido (RUOLO:username, ADMIN o CARE)`);
+      const rows = job.rows ?? [];
+      if (!rows.some((r) => r.invalid || r.status !== "ACCEPTED")) errors.push(`${w}: nessuna riga non accettata (rapporto vuoto)`);
+      for (const r of rows) {
+        if (r.invalid !== undefined) {
+          if (!String(r.invalid).trim()) errors.push(`${w}: riga invalid senza motivo`);
+          continue;
+        }
+        const k = `${job.source}|${r.eventId}|${r.status}`;
+        const left = available.get(k) ?? 0;
+        if (left === 0) errors.push(`${w}: ${r.eventId}/${r.status} non è (più) un ingresso di inbound-history.json della fonte ${job.source}`);
+        else available.set(k, left - 1);
+      }
+    }
+  }
+}
+
 for (const w of warnings) console.warn(`⚠ ${w}`);
 if (errors.length > 0) {
   for (const e of errors) console.error(`✗ ${e}`);

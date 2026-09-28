@@ -11,6 +11,7 @@ import io.loyaltyhub.common.outbox.OutboxWriter;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.ingestion.api.InboundEventRequest;
 import io.loyaltyhub.ingestion.domain.CrossFieldRules;
+import io.loyaltyhub.ingestion.domain.EnvelopeLimits;
 import io.loyaltyhub.ingestion.domain.EventType;
 import io.loyaltyhub.ingestion.domain.Evaluation;
 import io.loyaltyhub.ingestion.domain.IngestResult;
@@ -53,8 +54,10 @@ public class IngestionService {
 
     private static final Duration MAX_FUTURE = Duration.ofMinutes(5);
     private static final Duration MAX_PAST = Duration.ofDays(30);
-    private static final String ORIGIN_EXTERNAL = "EXTERNAL";
+    public static final String ORIGIN_EXTERNAL = "EXTERNAL";
     public static final String ORIGIN_SIMULATOR = "SIMULATOR";
+    /** Righe di un import file (F2-ING-02, BO-32): stessa pipeline, origine distinta nel monitor ingressi. */
+    public static final String ORIGIN_IMPORT = "IMPORT";
     /** Dettaglio salvato sulle righe {@code DUPLICATE} (BO-26 lo mostra nel dettaglio). */
     public static final String DUPLICATE_DETAIL = RejectDetails.DUPLICATE;
 
@@ -89,30 +92,78 @@ public class IngestionService {
     /** Ingest attraverso la pipeline con un'origine esplicita (es. {@code SIMULATOR} per scenari e simulatore). */
     @Transactional
     public IngestResult ingest(InboundEventRequest request, String origin) {
+        return ingestTracked(request, origin).result();
+    }
+
+    /**
+     * Esito di un ingresso con la riga di {@code inbound_event} scritta ({@code inboundId}, BO-26) e il dettaglio
+     * dell'esito anche per i non abbinati: lo usano l'ingresso batch e l'import file (F2-ING-01/02) per il rapporto
+     * per elemento.
+     */
+    public record Tracked(IngestResult result, String inboundId, String detail) {
+    }
+
+    /**
+     * Come {@link #ingest(InboundEventRequest, String)} ma restituisce anche la riga del monitor. Una forma non valida
+     * lancia {@code 400} prima di scrivere: chi elabora più elementi nella stessa transazione la controlla prima con
+     * {@link #checkExternalForm} (un'eccezione che attraversa questo metodo segna la transazione da annullare).
+     */
+    @Transactional
+    public Tracked ingestTracked(InboundEventRequest request, String origin) {
         Evaluation ev = evaluate(request, null);
+        String inboundId = Ulid.next(clock);
         switch (ev.status()) {
             case DUPLICATE, REJECTED, UNMATCHED -> {
                 // docs/servizi/ingestion-service.md §5: "al primo fallimento si salva inbound_event con l'esito" — anche
                 // il duplicato (docs/12: SCN-DUPLICATE → BO-26 mostra DUPLICATE). Nulla va sul topic.
-                inbound.saveOutcome(Ulid.next(clock), ev.eventId(), ev.sourceCode(), ev.typeCode(), ev.subject(),
+                inbound.saveOutcome(inboundId, ev.eventId(), ev.sourceCode(), ev.typeCode(), ev.subject(),
                         ev.memberId(), ev.time(), ev.status(), ev.rejectCode(), ev.detail(), serialize(ev.event()),
                         ev.correlationId(), origin);
-                return ev.toResult();
+                return new Tracked(ev.toResult(), inboundId, ev.detail());
             }
             default -> {
                 // 8. arricchimento → outbox → ACCEPTED.
-                boolean inserted = inbound.insertAccepted(Ulid.next(clock), ev.eventId(), ev.sourceCode(), ev.typeCode(),
+                boolean inserted = inbound.insertAccepted(inboundId, ev.eventId(), ev.sourceCode(), ev.typeCode(),
                         ev.event().subject(), ev.memberId(), ev.time(), serialize(ev.event()), ev.correlationId(), origin);
                 if (!inserted) {
                     // Gara concorrente sullo stesso (fonte, id): trattata come duplicato, nessuna doppia pubblicazione.
-                    inbound.saveOutcome(Ulid.next(clock), ev.eventId(), ev.sourceCode(), ev.typeCode(), ev.subject(),
+                    String duplicateId = Ulid.next(clock);
+                    inbound.saveOutcome(duplicateId, ev.eventId(), ev.sourceCode(), ev.typeCode(), ev.subject(),
                             ev.memberId(), ev.time(), InboundStatus.DUPLICATE, null, DUPLICATE_DETAIL,
                             serialize(ev.event()), ev.correlationId(), origin);
-                    return IngestResult.duplicate(ev.eventId(), ev.memberId(), ev.correlationId());
+                    return new Tracked(IngestResult.duplicate(ev.eventId(), ev.memberId(), ev.correlationId()),
+                            duplicateId, DUPLICATE_DETAIL);
                 }
                 outbox.write(ev.event());
-                return ev.toResult();
+                return new Tracked(ev.toResult(), inboundId, null);
             }
+        }
+    }
+
+    /**
+     * Forma di un evento da una fonte esterna (passo 1 della pipeline più Q-258), senza scrivere nulla e senza
+     * transazione: {@code 400} se l'envelope non è valido o se {@code source} non è un URN
+     * {@code urn:loyaltyhub:source:<codice>}. L'ingresso batch e l'import lo chiamano prima di
+     * {@link #ingestTracked} e trasformano l'errore in un esito {@code INVALID} dell'elemento, invece di far fallire
+     * tutta la richiesta o la transazione della riga.
+     */
+    public void checkExternalForm(InboundEventRequest request) {
+        if (request == null) {
+            throw LhException.badRequest("Evento assente");
+        }
+        requireSourceUrn(request);
+        validateForm(request);
+        parseTime(request.time());
+    }
+
+    /**
+     * Q-258: una fonte esterna dichiara l'URN {@code urn:loyaltyhub:source:<codice>} (docs/05 §2); la forma breve senza
+     * {@code :} resta ammessa solo ai chiamanti interni (simulatore, scenari, transazioni) → qui {@code 400}.
+     */
+    public static void requireSourceUrn(InboundEventRequest request) {
+        if (request != null && request.source() != null && !request.source().isBlank()
+                && request.source().indexOf(':') < 0) {
+            throw LhException.badRequest("source deve essere un URN " + LhSource.SOURCE_PREFIX + "<codice>");
         }
     }
 
@@ -247,6 +298,17 @@ public class IngestionService {
         if (!r.data().isObject()) {
             throw LhException.badRequest("data deve essere un oggetto JSON");
         }
+        // Lunghezze e NUL (EnvelopeLimits): altrimenti la scrittura fallirebbe con un errore interno.
+        for (String[] attribute : new String[][]{{"id", r.id()}, {"source", r.source()}, {"type", r.type()},
+                {"subject", r.subject()}, {"time", r.time()}}) {
+            String problem = EnvelopeLimits.attributeProblem(attribute[0], attribute[1]);
+            if (problem != null) {
+                throw LhException.badRequest(problem);
+            }
+        }
+        if (EnvelopeLimits.containsNul(r.data())) {
+            throw LhException.badRequest("data contiene il carattere NUL, non ammesso");
+        }
     }
 
     private void require(String value, String field) {
@@ -259,7 +321,8 @@ public class IngestionService {
         try {
             return Instant.parse(time);
         } catch (DateTimeParseException e) {
-            throw LhException.badRequest("time non è un istante RFC 3339 valido: " + time);
+            // Il valore non si riporta: il dettaglio finisce nel rapporto degli import (Q-371).
+            throw LhException.badRequest("time non è un istante RFC 3339 valido");
         }
     }
 

@@ -31,6 +31,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import io.loyaltyhub.campaign.domain.Campaign;
+import io.loyaltyhub.campaign.infra.CampaignRepository;
+import io.loyaltyhub.campaign.infra.EvaluationLogRepository;
+import io.loyaltyhub.campaign.infra.EvaluationLogRepository.EvaluationRow;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -57,10 +62,10 @@ class CampaignServiceIT {
     private JsonSchemaValidator validator;
 
     @Autowired
-    private io.loyaltyhub.campaign.infra.CampaignRepository campaignRepository;
+    private CampaignRepository campaignRepository;
 
     @Autowired
-    private io.loyaltyhub.campaign.infra.EvaluationLogRepository evaluationLogRepository;
+    private EvaluationLogRepository evaluationLogRepository;
 
     @Autowired
     private io.loyaltyhub.campaign.application.CampaignAdminService admin;
@@ -85,36 +90,61 @@ class CampaignServiceIT {
 
     @Test
     void campaignRepositorySearchAppliesFilters() {
-        List<io.loyaltyhub.campaign.domain.Campaign> found = campaignRepository.search("LIVE", "purchase.completed", "CMP-");
-        assertThat(found).isNotEmpty();
-        for (io.loyaltyhub.campaign.domain.Campaign c : found) {
-            assertThat(c.status().name()).isEqualTo("LIVE");
-            assertThat(c.triggerActionTypes()).contains("purchase.completed");
-            assertThat(c.code()).startsWith("CMP-");
-        }
+        // Assert exact matches to ensure the 'q' filter hasn't dropped conditions or widened scope
+        List<String> livePurchaseBase = campaignRepository.search("LIVE", "purchase.completed", null)
+                .stream().map(Campaign::code).toList();
+        assertThat(livePurchaseBase).containsExactly("CMP-WEEKEND-X2", "CMP-GOLD-PURCHASE-PLAY", "CMP-PURCHASE-BASE");
+
+        List<String> qWeekend = campaignRepository.search(null, null, "weekend")
+                .stream().map(Campaign::code).toList();
+        assertThat(qWeekend).containsExactly("CMP-WEEKEND-X2");
+
+        List<String> qPurchaseBase = campaignRepository.search(null, null, "purchase-base")
+                .stream().map(Campaign::code).toList();
+        assertThat(qPurchaseBase).containsExactly("CMP-PURCHASE-BASE");
     }
 
     @Test
     void evaluationLogRepositorySearchAppliesFilters() {
         evaluationLogRepository.save("ACT-TEST-1", "MBR-TEST-1", "purchase", java.time.Instant.now(), "corr-1", "MATCHED", "[]");
-        List<io.loyaltyhub.campaign.infra.EvaluationLogRepository.EvaluationRow> found = evaluationLogRepository.search("MBR-TEST-1", "MATCHED", 10);
-        assertThat(found).isNotEmpty();
-        for (io.loyaltyhub.campaign.infra.EvaluationLogRepository.EvaluationRow row : found) {
-            assertThat(row.memberId()).isEqualTo("MBR-TEST-1");
-            assertThat(row.outcome()).isEqualTo("MATCHED");
-        }
+        evaluationLogRepository.save("ACT-TEST-2", "MBR-TEST-1", "purchase", java.time.Instant.now(), "corr-2", "NO_MATCH", "[]");
+        evaluationLogRepository.save("ACT-TEST-3", "MBR-TEST-2", "purchase", java.time.Instant.now(), "corr-3", "MATCHED", "[]");
+
+        List<String> m1Matched = evaluationLogRepository.search("MBR-TEST-1", "MATCHED", 10).stream()
+                .map(EvaluationRow::actionId).toList();
+        assertThat(m1Matched).containsExactly("ACT-TEST-1");
+
+        List<String> m1All = evaluationLogRepository.search("MBR-TEST-1", null, 10).stream()
+                .map(EvaluationRow::actionId).toList();
+        assertThat(m1All).containsExactlyInAnyOrder("ACT-TEST-1", "ACT-TEST-2");
+
+        List<String> m1Limit1 = evaluationLogRepository.search("MBR-TEST-1", null, 1).stream()
+                .map(EvaluationRow::actionId).toList();
+        assertThat(m1Limit1).hasSize(1);
     }
 
     @Test
-    void campaignRepositorySearchSQLInjectionProtected() {
-        List<io.loyaltyhub.campaign.domain.Campaign> foundStatus = campaignRepository.search("DRAFT; DROP TABLE", null, null);
+    void campaignRepositorySearchSQLInjectionProtectedAndIlikeEscaping() {
+        List<Campaign> foundStatus = campaignRepository.search("DRAFT; DROP TABLE", null, null);
         assertThat(foundStatus).isEmpty(); // Nessuna campagna con stato DRAFT; DROP TABLE, niente errore SQL
 
-        List<io.loyaltyhub.campaign.domain.Campaign> foundAction = campaignRepository.search(null, "'; DROP TABLE --", null);
+        List<Campaign> foundAction = campaignRepository.search(null, "'; DROP TABLE --", null);
         assertThat(foundAction).isEmpty(); // Niente errore SQL, actionType viene trattato come stringa parametrizzata
 
-        List<io.loyaltyhub.campaign.domain.Campaign> foundQ = campaignRepository.search(null, null, "'; DROP TABLE --");
+        List<Campaign> foundQ = campaignRepository.search(null, null, "'; DROP TABLE --");
         assertThat(foundQ).isEmpty(); // Niente errore SQL
+
+        // Verifica che % e _ in q non vengano trattati come wildcards ma come letterali
+        assertThat(campaignRepository.search(null, null, "%")).isEmpty();
+        assertThat(campaignRepository.search(null, null, "_")).isEmpty();
+
+        // Cerca campagna fittizia con percentuale
+        campaignRepository.insert(new Campaign("TEST_PCT", "CMP-PCT", "Sconto 50%_x", "desc", "mem_desc", "icon",
+                List.of("purchase.completed"), mapper.createObjectNode(), mapper.createObjectNode(), mapper.createObjectNode(), mapper.createObjectNode(), mapper.createObjectNode(),
+                100, null, true, false, false, List.of(), io.loyaltyhub.campaign.domain.CampaignStatus.LIVE, 1L, java.time.Instant.now(), java.time.Instant.now()));
+        List<Campaign> pctFound = campaignRepository.search(null, null, "50%_");
+        assertThat(pctFound).hasSize(1);
+        assertThat(pctFound.get(0).name()).isEqualTo("Sconto 50%_x");
     }
 
     @Test

@@ -1,14 +1,15 @@
 package io.loyaltyhub.campaign.infra;
 
-import io.loyaltyhub.common.sql.SqlColumn;
-import io.loyaltyhub.common.sql.SqlOrder;
-import io.loyaltyhub.common.sql.SqlWhere;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlOrder;
+import io.loyaltyhub.common.sql.SqlWhere;
 
 /** Registro delle valutazioni per la spiegabilità (docs/servizi/campaign-service.md §2). Pulizia > 30 giorni. */
 @Repository

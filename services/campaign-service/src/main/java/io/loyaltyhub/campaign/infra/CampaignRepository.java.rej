@@ -1,0 +1,15 @@
+--- services/campaign-service/src/main/java/io/loyaltyhub/campaign/infra/CampaignRepository.java
++++ services/campaign-service/src/main/java/io/loyaltyhub/campaign/infra/CampaignRepository.java
+@@ -10,9 +10,8 @@
+ import java.sql.ResultSet;
+ import java.sql.SQLException;
+ import java.time.Instant;
+-import io.loyaltyhub.common.sql.SqlColumn;
+-import io.loyaltyhub.common.sql.SqlOrder;
+-import io.loyaltyhub.common.sql.SqlWhere;
+-
+ import java.util.List;
+ import java.util.Optional;
++import io.loyaltyhub.common.sql.SqlColumn;
++import io.loyaltyhub.common.sql.SqlOrder;
++import io.loyaltyhub.common.sql.SqlWhere;

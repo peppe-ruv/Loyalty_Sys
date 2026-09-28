@@ -5,8 +5,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import tools.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -32,6 +34,21 @@ public final class SchemaFields {
         }
         // jsonb non conserva l'ordine delle chiavi: ordine alfabetico per il costruttore di condizioni.
         out.sort(java.util.Comparator.comparing(Field::path));
+        return out;
+    }
+
+    /**
+     * Tipo JSON Schema dei soli campi di primo livello di {@code data} ({@code amount → number}): serve all'import CSV
+     * (F2-ING-02) per convertire le colonne {@code data.<campo>}. Schema assente o senza {@code properties} → vuoto.
+     */
+    public static Map<String, String> topLevelTypes(JsonNode schema) {
+        Map<String, String> out = new HashMap<>();
+        JsonNode props = schema == null ? null : schema.get("properties");
+        if (props != null && props.isObject()) {
+            for (var e : props.properties()) {
+                out.put(e.getKey(), typeOf(e.getValue()));
+            }
+        }
         return out;
     }
 

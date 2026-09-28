@@ -10,12 +10,12 @@ import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+
 import io.loyaltyhub.common.sql.SqlColumn;
 import io.loyaltyhub.common.sql.SqlOrder;
 import io.loyaltyhub.common.sql.SqlWhere;
-
-import java.util.List;
-import java.util.Optional;
 
 /** Persistenza delle campagne (docs/servizi/campaign-service.md §2). I campi jsonb restano {@link JsonNode}. */
 @Repository
@@ -63,25 +63,19 @@ public class CampaignRepository {
         return jdbc.sql("SELECT " + COLS + " FROM campaign WHERE code = ?").param(code).query(this::map).optional();
     }
 
+    private static final String SEARCH = "SELECT " + COLS + " FROM campaign"
+            + " WHERE (CAST(:actionType AS text) IS NULL OR CAST(:actionType AS text) = ANY(trigger_action_types))";
+
     public List<Campaign> search(String status, String actionType, String q) {
         SqlWhere where = new SqlWhere()
                 .when(status != null && !status.isBlank(), w -> w.eq(CampaignColumn.STATUS, status.trim().toUpperCase()))
                 .when(q != null && !q.isBlank(), w -> w.anyOf(a -> a.ilike(CampaignColumn.CODE, q.trim()).ilike(CampaignColumn.NAME, q.trim())));
 
-        String sql = "SELECT " + COLS + " FROM campaign";
-        sql += where.sql().isEmpty() ? " WHERE 1 = 1" : where.sql();
+        String orderSql = SqlOrder.desc(CampaignColumn.PRIORITY).by(CampaignColumn.CODE, SqlOrder.Direction.ASC).sql();
 
-        // SPEC-GAP: Q-386 (SqlWhere lacks ANY operator for arrays, fallback to string concat for actionType)
-        if (actionType != null && !actionType.isBlank()) {
-            sql += " AND :actionTypeParam = ANY(trigger_action_types)";
-        }
-        sql += SqlOrder.desc(CampaignColumn.PRIORITY).by(CampaignColumn.CODE, SqlOrder.Direction.ASC).sql();
-
-        var spec = where.bind(jdbc.sql(sql));
-        if (actionType != null && !actionType.isBlank()) {
-            spec = spec.param("actionTypeParam", actionType.trim());
-        }
-        return spec.query(this::map).list();
+        return where.bind(jdbc.sql(SEARCH + where.andSql() + orderSql))
+                .param("actionType", actionType == null || actionType.isBlank() ? null : actionType.trim())
+                .query(this::map).list();
     }
 
     public void insert(Campaign c) {

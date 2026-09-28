@@ -4,6 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.ingestion.application.IngestionService;
+import io.loyaltyhub.ingestion.domain.EnvelopeLimits;
 import io.loyaltyhub.ingestion.domain.IngestResult;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +31,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/v1")
 public class TransactionsController {
+
+    private static final String PURCHASE_PREFIX = "txn-";
+    private static final String RETURN_PREFIX = "txn-return-";
+    /**
+     * L'id dell'evento è {@code prefisso + orderId}: il limite vale per il prefisso più lungo, così un ordine e il suo
+     * reso stanno entrambi in {@link EnvelopeLimits#MAX_ID}.
+     */
+    static final int MAX_ORDER_ID = EnvelopeLimits.MAX_ID - RETURN_PREFIX.length();
 
     private final IngestionService ingestion;
     private final ObjectMapper mapper;
@@ -67,7 +76,7 @@ public class TransactionsController {
 
         InboundEventRequest event = new InboundEventRequest(
                 "1.0",
-                (isReturn ? "txn-return-" : "txn-") + t.orderId(),
+                (isReturn ? RETURN_PREFIX : PURCHASE_PREFIX) + t.orderId(),
                 t.source(),
                 isReturn ? "purchase.returned" : "purchase.completed",
                 t.memberRef(),
@@ -86,6 +95,11 @@ public class TransactionsController {
         if (blank(t.memberRef())) missing.add("memberRef");
         if (!missing.isEmpty()) {
             throw LhException.badRequest("Campi obbligatori mancanti: " + String.join(", ", missing));
+        }
+        // Senza questo controllo un orderId troppo lungo sarebbe segnalato come «id troppo lungo» dalla pipeline.
+        String orderIdProblem = EnvelopeLimits.textProblem("orderId", t.orderId(), MAX_ORDER_ID);
+        if (orderIdProblem != null) {
+            throw LhException.badRequest(orderIdProblem + ".");
         }
         if (t.kind() != null && !t.kind().equalsIgnoreCase("PURCHASE") && !t.kind().equalsIgnoreCase("RETURN")) {
             throw LhException.badRequest("kind deve essere PURCHASE o RETURN.");

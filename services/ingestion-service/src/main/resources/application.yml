@@ -25,6 +25,12 @@ spring:
     default-property-inclusion: non_null
     deserialization:
       fail-on-unknown-properties: false
+  servlet:
+    multipart:
+      # Tetto del contenitore sopra il limite applicativo (imports.max-bytes): fino a 2 MB il servizio risponde con il
+      # suo 422 IMPORT_FILE_TOO_LARGE, oltre con 413 (F2-ING-02).
+      max-file-size: 2MB
+      max-request-size: 3MB
 
 server:
   port: ${PORT:8081}
@@ -33,6 +39,20 @@ loyaltyhub:
   service: ingestion
   kafka:
     security: ${KAFKA_SECURITY:PLAINTEXT}
+  ingestion:
+    # Import file (F2-ING-02, BO-32; SPEC-GAP Q-371): limiti e lavoratore in background.
+    imports:
+      max-bytes: ${LH_IMPORT_MAX_BYTES:1048576}
+      max-rows: ${LH_IMPORT_MAX_ROWS:10000}
+      poll-interval-ms: 5000
+      poll-initial-delay-ms: 5000
+      stale-after-ms: 120000
+      max-attempts: 3
+      retention-days: 7
+      retry-batch: 200
+    # Ingresso batch (F2-ING-01): tetto in byte del corpo JSON, prima di leggerlo.
+    batch:
+      max-bytes: ${LH_BATCH_MAX_BYTES:3145728}
 
 management:
   endpoints:
