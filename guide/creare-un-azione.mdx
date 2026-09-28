@@ -1,0 +1,134 @@
+---
+title: "Creare un'azione personalizzata"
+sidebarTitle: "Creare un'azione"
+description: "Crea nel backoffice un'azione che il programma ancora non conosce, rendila ricevibile dalle tue fonti e usala subito in una campagna."
+---
+
+Un'azione è qualcosa che un membro fa e che un tuo sistema comunica a Loyalty Hub: un acquisto, una visita, una recensione. Le campagne ascoltano le azioni e decidono quando premiarle. Questa guida ti mostra come creare un'azione che il programma non ha ancora, come renderla ricevibile dai tuoi sistemi e come usarla in una campagna.
+
+## Perché creare un'azione
+
+Le azioni di sistema coprono i casi più comuni: acquisti, resi, recensioni, questionari, autoletture. Crea un'azione personalizzata quando il tuo programma premia un gesto che manca, per esempio una visita in negozio o la partecipazione a un evento.
+
+Un'azione collega tre elementi:
+
+- la **fonte**, cioè il sistema che la invia (app, e-commerce, casse, partner);
+- l'**azione**, con le informazioni che la accompagnano (per esempio il codice del negozio);
+- la **campagna**, che la ascolta nella sezione «Quando», ne controlla i dettagli in «Se» e assegna punti o premi in «Allora».
+
+```mermaid
+flowchart LR
+  accTitle: Percorso di un'azione personalizzata
+  accDescr: Una fonte esterna invia l'azione solo se la ammette; il simulatore la accetta sempre. L'azione arriva alla campagna, che la ascolta in Quando, ne controlla i dettagli in Se e assegna punti o premi in Allora.
+  F["Fonte esterna<br/>(app, e-commerce)"] -->|"solo se la ammette"| A["Azione<br/>visita.negozio"]
+  S["Simulatore"] -->|"accetta tutte le azioni"| A
+  A --> Q["Campagna · Quando"]
+  Q --> SE["Se · dettagli dell'azione"]
+  SE --> AL["Allora · punti o premi"]
+  AL --> M["Membro<br/>vede il premio nel portale"]
+```
+
+## Prerequisiti
+
+- Stack in esecuzione o demo ospitata accesa: vedi [Quickstart](/getting-started/quickstart).
+- Una persona del backoffice con ruolo `MARKETING` o `ADMIN`. Solo `ADMIN` abilita un'azione sulle fonti esterne.
+- Il nome del gesto da premiare e le informazioni che il tuo sistema può inviare insieme a esso.
+
+## Quickstart
+
+Crea l'azione «Visita in negozio» e premiala con una campagna.
+
+<Steps>
+  <Step title="Apri Azioni e fonti">
+    Nel backoffice vai a **Programma → Azioni e fonti**. Il riquadro «Come funziona» riassume il percorso Fonte → Azione → Campagna → Punti e premi.
+  </Step>
+  <Step title="Parti da un modello">
+    Fai clic su **Nuova azione**. In «Parti da un modello» scegli **Visita in negozio**. L'editor compila nome, categoria, icona, codice `store.visited` e le informazioni `storeId` (obbligatoria) e `visitDate`.
+
+    Se scegli un modello che esiste già come azione di sistema, per esempio **Acquisto**, l'editor ti propone **Usa quella esistente**: evita i doppioni.
+  </Step>
+  <Step title="Controlla il codice">
+    Nella sezione **2 · Codice tecnico** l'elenco dei controlli deve essere tutto verde. Il riquadro sotto mostra che cosa invieranno i tuoi sistemi: `type = store.visited` oppure `io.loyaltyhub.action.store.visited`.
+  </Step>
+  <Step title="Crea l'azione">
+    Fai clic su **Crea l'azione**. Il dettaglio mostra la tabella «Da dove può arrivare»: per ora l'azione arriva solo dal simulatore.
+  </Step>
+  <Step title="Abilitala su una fonte (ADMIN)">
+    Come `ADMIN`, nella tabella «Da dove può arrivare» fai clic su **Abilita** accanto alla fonte, per esempio **App mobile**. In alternativa, abilitala già nella sezione **5 · Da dove può arrivare** dell'editor, prima di crearla.
+  </Step>
+  <Step title="Provala e usala in una campagna">
+    Fai clic su **Prova nel simulatore** per inviare un'azione d'esempio. Poi fai clic su **Crea una campagna con questa azione**: la nuova campagna parte con `store.visited` già in «Quando».
+
+    La bozza parte dalla condizione d'esempio `data.amount ≥ 1` e da un effetto «per importo», ma «Visita in negozio» non ha l'Importo. Un avviso in «2 · Quando» te lo segnala: fai clic su **Togli la condizione d'esempio** e, nella sezione **5 · Allora**, cambia l'effetto in un numero fisso di punti (`"mode": "FIXED"`).
+  </Step>
+</Steps>
+
+<Warning>
+Dopo il salvataggio il codice non si può cambiare e l'azione non si può eliminare, solo disattivare. Controlla il codice prima di fare clic su **Crea l'azione**.
+</Warning>
+
+## Scegliere le informazioni dell'azione
+
+Nella sezione **3 · Informazioni che arrivano con l'azione** scrivi un'etichetta in italiano, per esempio «Codice negozio»: l'editor propone il nome tecnico (`storeId`). Per scegliere che cosa includere, rispondi a quattro domande:
+
+1. **Come riconosco questa azione?** Aggiungi un identificativo obbligatorio, come `orderId`, `eventId` o `storeId`.
+2. **C'è un importo su cui calcolare i punti?** Aggiungi il campo standard «Importo» (`amount`), obbligatorio.
+3. **Vuoi premiare in modo diverso per canale, negozio o tipo?** Usa un «Elenco di valori», per esempio `ONLINE, STORE, APP`.
+4. **Serve sapere quando è successo?** Aggiungi una «Data».
+
+I campi standard (`amount`, `currency`, `channel`, `orderId`, `productId`, `storeId`) usano gli stessi nomi delle azioni di sistema. Così la condizione `data.amount ≥ 1` e l'effetto «per importo» funzionano anche con la tua azione.
+
+<Note>
+Se manca un'informazione obbligatoria, il programma scarta l'azione. La trovi nel backoffice in **Osservabilità → Monitor ingressi**, tra i «Respinti», con il codice `INVALID_DATA`. Rendi obbligatorio solo ciò che il tuo sistema invia sempre.
+</Note>
+
+<Note>
+I dati personali non viaggiano nelle azioni. L'editor rifiuta nomi, etichette e chiavi dell'esempio come `email`, `telefono` o «Codice fiscale»: il membro è già identificato dall'azione.
+</Note>
+
+La sezione **4 · Esempio e anteprima** mostra l'evento che invierà il tuo sistema e come la campagna vedrà ogni informazione. L'esempio si aggiorna da solo finché non lo modifichi a mano. Il JSON Schema generato è sotto **Avanzate (per sviluppatori)**.
+
+## Esempi d'uso pratico
+
+### Creare un'azione mentre scrivi una campagna
+
+1. In **Campagne → Nuova campagna**, sezione **2 · Quando**, cerca l'azione che ti serve.
+2. Se non c'è, fai clic su **Crea «…» come nuova azione** oppure su **+ Crea una nuova azione** in fondo all'elenco.
+3. L'editor si apre in un foglio laterale: la bozza della campagna resta com'è. I link verso il simulatore e verso Azioni e fonti si aprono in una nuova scheda per lo stesso motivo.
+4. Fai clic su **Crea l'azione**. L'azione entra subito tra i trigger della campagna.
+
+<Note>
+La nuova campagna parte dalla condizione d'esempio `data.amount ≥ 1` e da un effetto «per importo». Se un trigger scelto non ha l'Importo, un avviso te lo ricorda: fai clic su **Togli la condizione d'esempio** e correggi l'effetto nella sezione **5 · Allora**. Il pulsante toglie solo la condizione d'esempio, non quelle su Importo che hai aggiunto tu.
+</Note>
+
+### Inviare l'azione dal tuo sistema
+
+Quando l'azione è abilitata sulla fonte, invia un CloudEvent a `POST /v1/events` come descritto in [Inviare un evento](/guide/inviare-un-evento):
+
+```json Evento di esempio
+{
+  "specversion": "1.0",
+  "id": "visit-2026-09-28-0001",
+  "source": "urn:loyaltyhub:source:app",
+  "type": "store.visited",
+  "subject": "member:MBR-000003",
+  "time": "2026-09-28T10:15:00Z",
+  "data": { "storeId": "NEG-001", "visitDate": "2026-09-28" }
+}
+```
+
+<Warning>
+Se la fonte non ammette l'azione, il programma rifiuta l'evento con `TYPE_NOT_ALLOWED`. Nella sezione **2 · Quando** di una campagna, un avviso segnala le fonti ammesse che non accettano un trigger scelto.
+</Warning>
+
+### Cambiare le azioni ammesse da una fonte (ADMIN)
+
+Nella scheda **Fonti** fai clic su **Modifica azioni ammesse** e spunta le azioni. L'elenco si salva sempre completo. La scelta «Tutte le azioni, anche quelle create in futuro» apre la fonte a qualunque azione: usala solo per sistemi di cui ti fidi del tutto.
+
+Solo le fonti esterne hanno un elenco da modificare: il ponte interno e il simulatore accettano sempre tutte le azioni. Le azioni generate dal programma, come «Presentazione di un amico», non si offrono alle fonti esterne. Se un altro amministratore ha cambiato l'elenco mentre lo modificavi, l'editor te lo dice prima di salvare.
+
+La scheda mostra anche, per ogni fonte, quante azioni sono arrivate nelle ultime 24 ore e quando è arrivata l'ultima.
+
+<Note>
+Nella demo il ripristino dei dati elimina le azioni personalizzate. Ricreale dopo un ripristino.
+</Note>
