@@ -29,7 +29,7 @@
     <springdoc.version>3.1.1</springdoc.version>
 
     <!--
-      Dipendenze con advisory noti (M8.10, ADR-044). Spring Boot 4.1.1 è l'ultima 4.1.x: le versioni corrette
+      Dipendenze con advisory noti (M8.0, ADR-044). Spring Boot 4.1.1 è l'ultima 4.1.x: le versioni corrette
       si fissano qui, solo patch nella stessa linea. Il BOM è importato (non è il parent), quindi le sue proprietà
       (tomcat.version, jackson-bom.version…) non si sovrascrivono: le versioni sotto valgono tramite le voci
       esplicite o i BOM importati prima di spring-boot-dependencies in dependencyManagement.
@@ -105,6 +105,27 @@
       <dependency>
         <groupId>org.apache.tomcat.embed</groupId>
         <artifactId>tomcat-embed-websocket</artifactId>
+        <version>${lh.tomcat.version}</version>
+      </dependency>
+      <!-- Oggi fuori dal classpath: allineati perché un'aggiunta futura non mescoli due versioni di Tomcat. -->
+      <dependency>
+        <groupId>org.apache.tomcat.embed</groupId>
+        <artifactId>tomcat-embed-jasper</artifactId>
+        <version>${lh.tomcat.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.tomcat</groupId>
+        <artifactId>tomcat-jdbc</artifactId>
+        <version>${lh.tomcat.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.tomcat</groupId>
+        <artifactId>tomcat-annotations-api</artifactId>
+        <version>${lh.tomcat.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.tomcat</groupId>
+        <artifactId>tomcat-jsp-api</artifactId>
         <version>${lh.tomcat.version}</version>
       </dependency>
       <!-- GHSA-xx22-p4ch-683r: lz4-java transitiva di kafka-clients. -->
