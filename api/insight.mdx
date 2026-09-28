@@ -458,13 +458,14 @@ I tracciati ricostruiscono la catena causale di un evento end-to-end, mostrando 
 
 Ogni voce di audit di un servizio porta l'hash della precedente, calcolato dal database all'inserimento (F2-GRC-07, ADR-043, ADR-044). Usa questo endpoint per scoprire se l'audit è stato modificato dopo la scrittura.
 
-La verifica ricalcola tutto in modo indipendente dal database e rileva:
+La verifica ricalcola tutto in modo indipendente dal database e rileva, che si tratti di un errore dell'applicazione, di un difetto della versione precedente o di un'alterazione diretta nel database:
 
-- una voce modificata, tolta o riscritta per errore o da un difetto dell'applicazione, con la sua posizione;
-- un'alterazione diretta nel database che non rifaccia in modo coerente catena, testa e ancore;
+- una voce modificata o tolta in mezzo alla catena, con la sua posizione;
+- voci iniziali tolte senza un'ancora `PURGE`, o cancellate quando avevano meno dell'età minima (`PURGE_TOO_RECENT`);
+- un contenuto riscritto senza la sua prova `REDACT` o diverso da quello registrato dalla prova;
 - una riscrittura coerente fatta dopo un'ancora, se l'ancora è nel database o se la ricopi dai log.
 
-Le voci ripulite dall'anonimizzazione di un membro restano valide solo se il database ha registrato la loro prova `REDACT` (voce del servizio `insight`, senza dati personali). La retention cancella solo la parte più vecchia di ogni catena, mai voci con meno di 180 giorni, e lascia un'ancora `PURGE` a cui la prima voce rimasta si aggancia.
+Le voci ripulite dall'anonimizzazione di un membro restano valide solo se il database ha registrato la loro prova `REDACT` (voce della catena riservata `audit.redaction`, senza dati personali). La retention di insight (`audit_purge_before`) cancella solo la parte più vecchia di ogni catena, mai voci con meno di 180 giorni, e lascia un'ancora `PURGE` a cui la prima voce rimasta si aggancia; una cancellazione fatta per altre vie e di voci più giovani la verifica la segnala come `PURGE_TOO_RECENT`.
 
 ```mermaid
 flowchart LR
@@ -521,7 +522,7 @@ flowchart LR
 }
 ```
 
-Motivi (`reason`): `GENESIS_MISMATCH`, `UNANCHORED_START`, `MISSING_ENTRY`, `PREV_HASH_MISMATCH`, `CONTENT_ALTERED`, `REDACTION_UNRECORDED`, `ENTRY_ALTERED`, `ANCHOR_MISMATCH`, `TAIL_MISSING`, `HEAD_MISMATCH`. La forma canonica degli hash è definita nella scheda del servizio (`docs/servizi/insight-service.md` §5).
+Motivi (`reason`): `GENESIS_MISMATCH`, `UNANCHORED_START`, `PURGE_TOO_RECENT`, `MISSING_ENTRY`, `PREV_HASH_MISMATCH`, `CONTENT_ALTERED`, `REDACTION_UNRECORDED`, `ENTRY_ALTERED`, `ANCHOR_MISMATCH`, `TAIL_MISSING`, `HEAD_MISMATCH`. La forma canonica degli hash è definita nella scheda del servizio (`docs/servizi/insight-service.md` §5).
 
 #### Confrontare la catena con un'ancora dei log
 
@@ -541,14 +542,14 @@ Il job giornaliero e la retention scrivono ogni ancora anche nei log della piatt
      "http://localhost:8088/v1/audit/verify?service=campaign&seq=128&hash=<entryHash>"
    ```
 
-3. Leggi `expectedAnchor.result`: `MATCH` (la catena contiene quella voce), `MISMATCH` (catena riscritta dopo l'ancora), `MISSING` (le voci ancorate non ci sono più), `PURGED` (voce cancellata dalla retention il giorno `purgedAt`), `UNCHECKED` (la catena si interrompe prima).
+3. Leggi `expectedAnchor.result`: `MATCH` (la catena contiene ancora quella voce), `MISMATCH` (catena riscritta dopo l'ancora), `MISSING` (le voci ancorate non ci sono più), `PURGED` (voce cancellata con la parte iniziale della catena il giorno `purgedAt`: una voce cancellata non è mai `MATCH`), `UNCHECKED` (la catena si interrompe prima).
 
 <Warning>
-  Con `PURGED`, confronta `purgedAt` con la data della riga di log: se sono passati meno di 180 giorni, le voci sono state cancellate prima del tempo.
+  Con `PURGED`, confronta `purgedAt` con la data della riga di log: se sono passati meno di 180 giorni, le voci sono state cancellate prima del tempo; se `purgedAt` è precedente alla riga di log, le ancore sono state alterate. Anche una verifica completa vuota va confrontata con le ancore nei log.
 </Warning>
 
 <Note>
-  Cosa la verifica non basta a provare, finché la firma e l'esportazione immutabile delle ancore non arrivano (Q-400, TOBE-002): chi ha le credenziali applicative del database può riscrivere il contenuto di una voce lasciando una prova `REDACT`, cancellare la parte iniziale di una catena lasciando un'ancora `PURGE`, oppure riscrivere catena, testa e ancore in modo coerente. Nei primi due casi la traccia resta nell'audit; in tutti e tre lo rivela il confronto con un'ancora dei log.
+  Cosa la verifica non basta a provare, finché la firma e l'esportazione immutabile delle ancore non arrivano (Q-400, TOBE-002): chi ha le credenziali applicative del database può riscrivere il contenuto di una voce lasciando una prova `REDACT` (e falsificarne l'attribuzione), cancellare catene o svuotare l'audit con `audit_reset()`, oppure riscrivere catena, testa e ancore in modo coerente, perché i controlli del database usano impostazioni che quelle credenziali possono alzare. La prova `REDACT` resta nell'audit e va rivista; le cancellazioni e le riscritture le rivela il confronto con un'ancora dei log.
 </Note>
 
 ## DLQ (Dead Letter Queue)

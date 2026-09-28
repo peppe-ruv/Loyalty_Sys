@@ -28,6 +28,7 @@ components:
           enum:
           - GENESIS_MISMATCH
           - UNANCHORED_START
+          - PURGE_TOO_RECENT
           - MISSING_ENTRY
           - PREV_HASH_MISMATCH
           - CONTENT_ALTERED

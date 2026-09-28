@@ -51,8 +51,8 @@ Ogni voce ha un identificativo `TOBE-nnn` e questi campi:
 |---|---|
 | Cosa | Firmare ogni giorno l'ultimo hash della catena dell'audit ed esportarlo su uno storage immutabile (S3 Object Lock o volume WORM). |
 | Perché non ora | Richiede infrastruttura nuova (bucket con blocco degli oggetti, gestione delle chiavi di firma) che la PoC a costo zero non ha. |
-| Workaround attivo | Ogni ancoraggio giornaliero (`DAILY`) e ogni ancora della retention (`PURGE`) finisce anche nei log della piattaforma, fuori dal database: una riga `audit-anchor` sul logger dedicato `io.loyaltyhub.audit.anchor`, senza dati personali. `GET /v1/audit/verify?service=&seq=&hash=` confronta la catena con un'ancora copiata dai log e dice se coincide, se è stata riscritta, se le voci mancano o quando la retention le ha cancellate (fetta M8.12a, testato in `AuditChainIT`). Così una riscrittura coerente di catena e ancore fatta con le credenziali del database si vede. Il limite residuo è che i log non sono firmati né immutabili: chi può riscrivere anche i log della piattaforma non lascia traccia. |
-| Già predisposto | La catena di hash per servizio, la verifica e gli ancoraggi giornalieri nella tabella `audit_anchor` (fetta M8.12a). L'esportazione si aggiunge come nuovo consumatore degli ancoraggi (`AuditAnchorJob`, `AuditAnchorLog`); la verifica accetta già un'ancora esterna. |
+| Workaround attivo | Ogni ancoraggio giornaliero (`DAILY`) e ogni ancora della retention (`PURGE`) finisce anche nei log della piattaforma, fuori dal database: una riga `audit-anchor` sul logger dedicato `io.loyaltyhub.audit.anchor`, senza dati personali. `GET /v1/audit/verify?service=&seq=&hash=` confronta la catena con un'ancora copiata dai log e dice se coincide, se è stata riscritta, se le voci mancano o quando sono state cancellate; una voce cancellata non risulta mai presente (fetta M8.12a, testato in `AuditChainIT`). Il database fissa da sé l'istante di ogni ancora e crea le ancore `PURGE` solo quando cancella voci, con l'età della voce più recente cancellata: una cancellazione di voci più giovani di 180 giorni la verifica la segnala. Nel profilo `enterprise` insight rifiuta di partire con il job delle ancore spento o con quel logger sotto INFO; `deploy/README.md` dice all'installatore di instradarlo verso un archivio durevole. Così una riscrittura coerente di catena e ancore fatta con le credenziali del database si vede. Il limite residuo è che i log non sono firmati né immutabili: chi può riscrivere anche i log della piattaforma non lascia traccia; e fino alla contract di Q-403 chi ha le credenziali applicative può ancora alzare i controlli di sessione delle funzioni dell'audit. |
+| Già predisposto | La catena di hash per servizio, la verifica e gli ancoraggi giornalieri nella tabella `audit_anchor` (fetta M8.12a). L'esportazione si aggiunge come nuovo consumatore degli ancoraggi (`AuditAnchorJob`, `AuditAnchorLog`); la verifica accetta già un'ancora esterna; il controllo di avvio `AuditAnchorGuard` è il punto in cui rendere obbligatoria l'esportazione. |
 | Quando farla | Con il primo cliente che chiede evidenze di audit opponibili a terzi, oppure con il pacchetto di conformità di M12.6. |
 | Riferimenti | Q-400, Q-403, ADR-043, F2-GRC-07, M8.12, M12.6 |
 
@@ -77,6 +77,17 @@ Ogni voce ha un identificativo `TOBE-nnn` e questi campi:
 | Già predisposto | Il controllo `x-lh-web-oidc-guard` ferma il web se l'emittente non è `https`; i passi del proxy sono in `deploy/README.md`. |
 | Quando farla | Quando il compose diventa un modo supportato di installare in produzione, e non solo un riferimento. |
 | Riferimenti | Q-392, Q-420, M8.3, M8.5 |
+
+### TOBE-005 — Hash con chiave del contenuto dell'audit
+
+| Campo | Contenuto |
+|---|---|
+| Cosa | Calcolare `content_hash` delle voci dell'audit con un HMAC e una chiave gestita (secret manager, rotazione con versione della chiave nella forma canonica), invece che con uno SHA-256 senza chiave. |
+| Perché non ora | Serve una chiave che il database non conosce e che la verifica sa ritrovare anche dopo una rotazione: nella PoC non c'è un secret manager, e una chiave nella configurazione del servizio non proteggerebbe da chi ha già le credenziali. Cambiare l'hash cambia anche la forma canonica, quindi la versione dell'algoritmo di ogni voce. |
+| Workaround attivo | L'anonimizzazione riscrive sintesi e diff delle voci, ma l'hash del contenuto originale resta nella voce per tenere la catena. Chi legge il database può confermare un contenuto che indovina (per esempio «Aggiornato » più un nome), non leggerlo. Per non moltiplicare i punti di conferma, la prova `REDACT` non porta più l'hash del contenuto precedente, solo quello nuovo, e l'API dell'audit non restituisce l'hash del contenuto delle voci. Il limite residuo è la conferma per tentativi di un dato già anonimizzato da parte di chi ha accesso in lettura al database o ai backup. |
+| Già predisposto | La forma canonica porta la versione nelle etichette (`lh.audit.content.v1`, `lh.audit.entry.v1`) e ha un verificatore indipendente in Java (`AuditHashChain`), da cui parte una `v2` con HMAC. Manca ancora una colonna che dica la versione di ogni voce, così che `v1` e `v2` convivano nella stessa catena. |
+| Quando farla | Con il primo cliente che conserva l'audit per più tempo del dato del membro, o prima di esporre backup del database a terzi. |
+| Riferimenti | Q-401, Q-403, ADR-043, F2-GRC-07, M8.12 |
 
 ## Voci chiuse
 
