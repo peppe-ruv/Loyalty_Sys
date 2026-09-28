@@ -44,6 +44,11 @@ public record AuditChainReport(
         GENESIS_MISMATCH,
         /** Mancano voci iniziali senza un'ancora PURGE che lo giustifichi (cancellazione fuori dalla retention). */
         UNANCHORED_START,
+        /**
+         * Un'ancora PURGE registra la cancellazione di voci più giovani dell'età minima dell'audit: nessuna retention lo
+         * fa (difetto della versione precedente o dell'applicazione, o cancellazione intenzionale).
+         */
+        PURGE_TOO_RECENT,
         /** Manca una voce in mezzo alla catena (numerazione non contigua). */
         MISSING_ENTRY,
         /** {@code prev_hash} non è l'hash della voce precedente (o dell'ancora a cui la catena si aggancia). */
@@ -67,11 +72,14 @@ public record AuditChainReport(
      *
      * @param seq       posizione indicata
      * @param entryHash hash indicato
-     * @param result    {@code MATCH}: la catena contiene quella voce con quell'hash; {@code MISMATCH}: la voce (o il
-     *                  collegamento con la successiva) ha un altro hash; {@code MISSING}: la catena non arriva più a
-     *                  quella posizione; {@code PURGED}: la voce è stata cancellata dalla retention e non si può
-     *                  confrontare ({@code purgedAt} dice quando); {@code UNCHECKED}: la catena si interrompe prima
-     * @param purgedAt  quando la retention ha cancellato la voce (ancora PURGE che la copre); solo con {@code PURGED}
+     * @param result    {@code MATCH}: la catena contiene ancora quella voce con quell'hash; {@code MISMATCH}: la voce (o
+     *                  il collegamento con la voce rimasta successiva, o la testa) ha un altro hash; {@code MISSING}: la
+     *                  catena non arriva più a quella posizione; {@code PURGED}: la voce non c'è più perché cancellata
+     *                  dalla parte iniziale della catena ({@code purgedAt} dice quando; se l'hash si può ancora
+     *                  confrontare con la voce successiva e non coincide, l'esito è {@code MISMATCH}); {@code UNCHECKED}:
+     *                  la catena si interrompe prima
+     * @param purgedAt  quando la voce è stata cancellata (ancora PURGE che la copre); solo con {@code PURGED}. Un
+     *                  istante precedente alla riga di log dell'ancora indica un'alterazione
      */
     public record ExpectedAnchor(long seq, String entryHash, Result result, Instant purgedAt) {
 

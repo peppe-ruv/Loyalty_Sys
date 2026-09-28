@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -23,8 +24,11 @@ import java.util.Optional;
 @Repository
 public class AuditChainRepository {
 
-    /** Servizio della catena che raccoglie le prove REDACT delle anonimizzazioni (V6). */
-    public static final String REDACTION_SERVICE = "insight";
+    /**
+     * Catena riservata che raccoglie le prove REDACT delle anonimizzazioni (V6): la scrive solo il database, un evento del
+     * bus che la rivendica è rifiutato.
+     */
+    public static final String REDACTION_SERVICE = "audit.redaction";
 
     private static final String LINK_COLUMNS = """
             service, seq, prev_hash, id, event_id, at, actor_role, actor_name, entity_type, entity_id, action,
@@ -91,7 +95,7 @@ public class AuditChainRepository {
     /** Tutte le ancore del servizio, in ordine di {@code seq}. */
     public List<AuditAnchor> anchors(String service) {
         return jdbc.sql("""
-                        SELECT service, seq, entry_hash, kind, anchored_at FROM audit_anchor
+                        SELECT service, seq, entry_hash, kind, anchored_at, entry_at FROM audit_anchor
                         WHERE service = ? ORDER BY seq, id
                         """)
                 .param(service).query(AuditChainRepository::anchor).list();
@@ -105,7 +109,7 @@ public class AuditChainRepository {
         return jdbc.sql("""
                         INSERT INTO audit_anchor (service, seq, entry_hash, kind) VALUES (?, ?, ?, ?)
                         ON CONFLICT (service, seq, kind) DO NOTHING
-                        RETURNING service, seq, entry_hash, kind, anchored_at
+                        RETURNING service, seq, entry_hash, kind, anchored_at, entry_at
                         """)
                 .params(head.service(), head.seq(), head.entryHash(), kind)
                 .query(AuditChainRepository::anchor).optional();
@@ -132,15 +136,16 @@ public class AuditChainRepository {
             }
 
             @Override
-            public Optional<Instant> retainedFrom() {
-                Optional<Instant> first = jdbc.sql("SELECT at FROM audit_entry WHERE service = ? ORDER BY seq LIMIT 1")
-                        .param(REDACTION_SERVICE).query(Timestamp.class).optional().map(Timestamp::toInstant);
-                if (first.isPresent()) {
-                    return first;
-                }
-                return head(REDACTION_SERVICE).filter(h -> h.seq() > 0).map(h -> Instant.MAX);
+            public Instant evidenceKeptSince() {
+                return jdbc.sql("SELECT now() - make_interval(days => audit_min_retention_days())")
+                        .query(Timestamp.class).single().toInstant();
             }
         };
+    }
+
+    /** Età minima dell'audit, dal database ({@code audit_min_retention_days()}, V6). */
+    public Duration minRetention() {
+        return Duration.ofDays(jdbc.sql("SELECT audit_min_retention_days()").query(Integer.class).single());
     }
 
     private static Long longOrNull(String value) {
@@ -156,8 +161,10 @@ public class AuditChainRepository {
     }
 
     static AuditAnchor anchor(ResultSet rs, int n) throws SQLException {
+        Timestamp entryAt = rs.getTimestamp("entry_at");
         return new AuditAnchor(rs.getString("service"), rs.getLong("seq"), rs.getString("entry_hash"),
-                rs.getString("kind"), rs.getTimestamp("anchored_at").toInstant());
+                rs.getString("kind"), rs.getTimestamp("anchored_at").toInstant(),
+                entryAt == null ? null : entryAt.toInstant());
     }
 
     private static AuditChainLink link(ResultSet rs, int n) throws SQLException {

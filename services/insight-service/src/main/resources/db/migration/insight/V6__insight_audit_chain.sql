@@ -13,24 +13,33 @@
 -- `before::text`/`after::text`: resa testuale di jsonb (chiavi ordinate per lunghezza e poi per byte, senza duplicati,
 -- separatori ", " e ": ", numeri come memorizzati). `seq` in decimale; hash esadecimali minuscoli; genesi = 64 zeri.
 --
+-- Prove delle anonimizzazioni. Ogni riscrittura del contenuto di una voce accoda una voce REDACT nella catena riservata
+-- `audit.redaction`, che scrive solo il database (un evento del bus che la rivendica è rifiutato: EventIngestService e il
+-- trigger di accodamento).
+--
 -- Fase expand (ADR-038, regola 14). Durante un aggiornamento senza fermo la versione precedente di insight gira sullo
 -- schema V6 e scrive `audit_entry` come prima. Perciò questa migrazione ammette anche senza flag:
 --   - l'INSERT (la catena la calcola comunque il trigger);
 --   - l'UPDATE dei soli campi di contenuto (summary, before, after): l'anonimizzazione di F-MBR-05. I campi della voce e
---     della catena restano congelati, la voce è marcata `redacted_at` e il trigger accoda una voce di prova REDACT
---     (servizio `insight`) con il nuovo hash del contenuto;
+--     della catena restano congelati, la voce è marcata `redacted_at` e il trigger accoda la prova REDACT;
 --   - il DELETE della sola parte iniziale di ogni catena (retention e reset della demo della versione precedente): il
---     trigger sul risultato lascia un'ancora PURGE sull'ultima voce cancellata di ogni servizio.
+--     trigger sul risultato lascia un'ancora PURGE sull'ultima voce cancellata di ogni servizio, con l'istante della
+--     voce più recente cancellata (`entry_at`); la verifica segnala una cancellazione di voci più giovani dell'età minima
+--     (PURGE_TOO_RECENT). Un DELETE che svuota tutta la tabella fuori dalla retention è un reset: via anche teste e ancore.
+--     Il DELETE per età della versione precedente è rifiutato quando una voce scaduta segue una più recente (lascerebbe
+--     un buco, Q-402): nessun dato perso, il job della versione precedente riprova al giro successivo e il rilascio
+--     porta la retention nuova, che cancella solo la parte iniziale.
 -- Il codice nuovo passa già dalle funzioni controllate, che alzano un flag locale alla transazione
 -- (`loyaltyhub.audit_write`). La migrazione di contract (Q-403, con i ruoli owner/app di M8.5) renderà obbligatori i
 -- flag, porrà un'età minima nel trigger dei DELETE e toglierà UPDATE e DELETE al ruolo applicativo.
 -- SPEC-GAP: Q-403 — fino ad allora chi ha le credenziali applicative del database può riscrivere il contenuto di una
--- voce (lasciando una prova REDACT) o cancellare la parte iniziale di una catena (lasciando un'ancora PURGE).
+-- voce (lasciando una prova REDACT) o cancellare la parte iniziale di una catena (lasciando un'ancora PURGE che la
+-- verifica segnala se le voci erano giovani); i flag sono impostazioni di sessione che quelle credenziali possono alzare.
 --
 -- Costo della migrazione. Tutto in una transazione: `ADD COLUMN` prende un lock ACCESS EXCLUSIVE su `audit_entry` (le
 -- colonne sono senza default: nessuna riscrittura della tabella), il riempimento è un ciclo per riga (un UPDATE e due
--- SHA-256 per voce), `SET NOT NULL` scandisce la tabella una volta e l'indice unico (service, seq) una volta. Con la
--- retention di 180 giorni l'audit resta nell'ordine delle decine di migliaia di righe: pochi secondi, ben dentro
+-- SHA-256 per voce), `SET NOT NULL` scandisce la tabella una volta e l'indice unico (service, seq) una volta. Misurato
+-- su PostgreSQL 14 in-process sotto carico elevato: 20 000 voci ≈ 12 s, 50 000 ≈ 27 s; dentro
 -- `migrations.activeDeadlineSeconds` (1200 s) del chart. Durante la migrazione gli inserimenti nell'audit attendono.
 
 -- ---------- 1. colonne e tabelle ----------
@@ -52,15 +61,17 @@ CREATE TABLE IF NOT EXISTS audit_chain_head (
 );
 
 -- Ancore: punti della catena registrati a parte. DAILY = job giornaliero dopo una verifica (anche nei log, fuori dal
--- database); PURGE = ultima voce cancellata dalla retention, a cui la prima voce rimasta si aggancia; BACKFILL = stato
--- delle voci esistenti a questa migrazione. Una sola ancora per (servizio, seq, tipo): più repliche non la duplicano.
+-- database); PURGE = ultima voce cancellata, a cui la prima voce rimasta si aggancia, con `entry_at` = istante della
+-- voce più recente cancellata; BACKFILL = stato delle voci esistenti a questa migrazione. Una sola ancora per
+-- (servizio, seq, tipo): più repliche non la duplicano.
 CREATE TABLE IF NOT EXISTS audit_anchor (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   service     text NOT NULL,
   seq         bigint NOT NULL,
   entry_hash  text NOT NULL,
   kind        text NOT NULL CHECK (kind IN ('DAILY', 'PURGE', 'BACKFILL')),
-  anchored_at timestamptz NOT NULL DEFAULT now()
+  anchored_at timestamptz NOT NULL DEFAULT now(),
+  entry_at    timestamptz
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_audit_anchor ON audit_anchor (service, seq, kind);
 
@@ -154,6 +165,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_audit_entry_chain ON audit_entry (service, 
 -- concluso. Caso trascurabile: lo stesso event_id inserito in contemporanea sotto due servizi diversi (un evento porta
 -- un solo `service`) farebbe avanzare la testa del secondo prima che ON CONFLICT scarti la riga; la verifica lo
 -- segnalerebbe come voce mancante in coda.
+-- La catena `audit.redaction` e l'azione REDACT sono riservate alle prove scritte da `audit_entry_record_redaction`.
 
 CREATE OR REPLACE FUNCTION audit_entry_chain() RETURNS trigger
   LANGUAGE plpgsql SET search_path FROM CURRENT AS
@@ -164,6 +176,11 @@ DECLARE
 BEGIN
   IF NEW.service IS NULL THEN
     RAISE EXCEPTION 'audit_entry.service è obbligatorio' USING ERRCODE = 'not_null_violation';
+  END IF;
+  IF (NEW.service = 'audit.redaction' OR NEW.action = 'REDACT')
+     AND current_setting('loyaltyhub.audit_redaction_evidence', true) IS DISTINCT FROM 'on' THEN
+    RAISE EXCEPTION 'audit_entry: le prove REDACT (catena audit.redaction) le scrive solo il database'
+      USING ERRCODE = 'insufficient_privilege';
   END IF;
   PERFORM set_config('loyaltyhub.audit_chain', 'on', true);
   INSERT INTO audit_chain_head (service, seq, entry_hash) VALUES (NEW.service, 0, repeat('0', 64))
@@ -221,49 +238,68 @@ BEGIN
 END
 $$;
 
--- Dopo ogni riscrittura del contenuto: una voce di prova REDACT nella catena del servizio `insight`, con l'hash del
--- contenuto prima e dopo e il membro indicato da `audit_redact` (assente se la riscrittura non è passata da lì, per
--- esempio dalla versione precedente di insight). La verifica esige questa prova per ogni voce riscritta.
+-- Dopo ogni riscrittura del contenuto: una prova REDACT nella catena riservata `audit.redaction`, con l'hash del nuovo
+-- contenuto e, se la riscrittura passa da `audit_redact`, il membro, il fatto di anonimizzazione e la correlazione.
+-- Senza dati personali e senza l'hash del contenuto precedente (Q-401). La verifica esige questa prova per ogni voce
+-- riscritta. `at` = `redacted_at` della voce (stessa transazione).
 CREATE OR REPLACE FUNCTION audit_entry_record_redaction() RETURNS trigger
   LANGUAGE plpgsql SET search_path FROM CURRENT AS
 $$
 DECLARE
   member text := nullif(current_setting('loyaltyhub.audit_redact_member', true), '');
+  fact text := nullif(current_setting('loyaltyhub.audit_redact_event', true), '');
   correlation text := nullif(current_setting('loyaltyhub.audit_redact_correlation', true), '');
   evidence_id text := 'redact-' || gen_random_uuid()::text;
 BEGIN
+  PERFORM set_config('loyaltyhub.audit_redaction_evidence', 'on', true);
   INSERT INTO audit_entry (id, event_id, at, actor_role, actor_name, service, entity_type, entity_id, action, summary,
                            before, after, correlation_id)
-  VALUES (evidence_id, evidence_id, now(), 'system', 'insight', 'insight', 'AUDIT_ENTRY', NEW.id, 'REDACT',
+  VALUES (evidence_id, evidence_id, now(), 'system', 'insight', 'audit.redaction', 'AUDIT_ENTRY', NEW.id, 'REDACT',
           'Anonimizzata la voce di audit ' || NEW.service || ' n. ' || NEW.seq
             || CASE WHEN member IS NULL THEN ' (membro non indicato)' ELSE ' del membro ' || member END,
-          jsonb_build_object('contentHash', audit_content_hash(OLD.summary, OLD.before, OLD.after)),
+          NULL,
           jsonb_build_object('contentHash', audit_content_hash(NEW.summary, NEW.before, NEW.after),
-                             'memberId', member, 'service', NEW.service, 'seq', NEW.seq),
+                             'memberId', member, 'eventId', fact, 'service', NEW.service, 'seq', NEW.seq),
           correlation);
+  PERFORM set_config('loyaltyhub.audit_redaction_evidence', '', true);
   RETURN NULL;
 END
 $$;
 
 -- Dopo un DELETE: le voci cancellate sono la parte iniziale di ogni catena (nessuna voce rimasta le precede), e
--- l'ultima cancellata di ogni servizio diventa un'ancora PURGE, qualunque codice abbia cancellato.
+-- l'ultima cancellata di ogni servizio diventa un'ancora PURGE con l'istante della voce più recente cancellata
+-- (`entry_at`), qualunque codice abbia cancellato. Una tabella svuotata del tutto fuori dalla retention è un reset
+-- (reset della demo, anche della versione precedente): via anche teste e ancore, le catene ripartono dalla genesi.
 CREATE OR REPLACE FUNCTION audit_entry_after_delete() RETURNS trigger
   LANGUAGE plpgsql SET search_path FROM CURRENT AS
 $$
+DECLARE
+  write_flag text := coalesce(current_setting('loyaltyhub.audit_write', true), '');
 BEGIN
   IF EXISTS (SELECT 1 FROM purged p JOIN audit_entry r ON r.service = p.service AND r.seq < p.seq) THEN
     RAISE EXCEPTION 'audit_entry: si cancella solo la parte iniziale di ogni catena'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
-  INSERT INTO audit_anchor (service, seq, entry_hash, kind)
-  SELECT DISTINCT ON (p.service) p.service, p.seq, p.entry_hash, 'PURGE'
-    FROM purged p ORDER BY p.service, p.seq DESC
+  IF write_flag <> 'purge' AND NOT EXISTS (SELECT 1 FROM audit_entry) THEN
+    PERFORM set_config('loyaltyhub.audit_write', 'reset', true);
+    DELETE FROM audit_anchor;
+    DELETE FROM audit_chain_head;
+    PERFORM set_config('loyaltyhub.audit_write', write_flag, true);
+    RETURN NULL;
+  END IF;
+  PERFORM set_config('loyaltyhub.audit_purge_anchor', 'on', true);
+  INSERT INTO audit_anchor (service, seq, entry_hash, kind, entry_at)
+  SELECT DISTINCT ON (p.service) p.service, p.seq, p.entry_hash, 'PURGE', newest.at
+    FROM purged p
+    JOIN (SELECT q.service, max(q.at) AS at FROM purged q GROUP BY q.service) newest ON newest.service = p.service
+   ORDER BY p.service, p.seq DESC
   ON CONFLICT (service, seq, kind) DO NOTHING;
+  PERFORM set_config('loyaltyhub.audit_purge_anchor', '', true);
   RETURN NULL;
 END
 $$;
 
--- Testa: la scrive solo il trigger di accodamento; la cancella solo il reset della demo.
+-- Testa: la scrive solo il trigger di accodamento; la cancella solo il reset.
 CREATE OR REPLACE FUNCTION audit_chain_head_guard() RETURNS trigger
   LANGUAGE plpgsql SET search_path FROM CURRENT AS
 $$
@@ -279,7 +315,26 @@ BEGIN
 END
 $$;
 
--- Ancore: nessuna modifica, cancellazione solo dal reset della demo.
+-- Ancore all'inserimento: l'istante è sempre quello della transazione (un'ancora non si retrodata); le PURGE le scrive
+-- solo il trigger dei DELETE, che ne fissa `entry_at`; le altre non hanno `entry_at`.
+CREATE OR REPLACE FUNCTION audit_anchor_guard_insert() RETURNS trigger
+  LANGUAGE plpgsql SET search_path FROM CURRENT AS
+$$
+BEGIN
+  NEW.anchored_at := now();
+  IF NEW.kind = 'PURGE' THEN
+    IF current_setting('loyaltyhub.audit_purge_anchor', true) IS DISTINCT FROM 'on' THEN
+      RAISE EXCEPTION 'audit_anchor: le ancore PURGE le scrive solo la cancellazione delle voci'
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
+  ELSE
+    NEW.entry_at := NULL;
+  END IF;
+  RETURN NEW;
+END
+$$;
+
+-- Ancore: nessuna modifica, cancellazione solo dal reset.
 CREATE OR REPLACE FUNCTION audit_anchor_guard_delete() RETURNS trigger
   LANGUAGE plpgsql SET search_path FROM CURRENT AS
 $$
@@ -316,6 +371,9 @@ DROP TRIGGER IF EXISTS audit_chain_head_no_truncate ON audit_chain_head;
 CREATE TRIGGER audit_chain_head_no_truncate BEFORE TRUNCATE ON audit_chain_head
   FOR EACH STATEMENT EXECUTE FUNCTION audit_reject_write();
 
+DROP TRIGGER IF EXISTS audit_anchor_guard_insert ON audit_anchor;
+CREATE TRIGGER audit_anchor_guard_insert BEFORE INSERT ON audit_anchor
+  FOR EACH ROW EXECUTE FUNCTION audit_anchor_guard_insert();
 DROP TRIGGER IF EXISTS audit_anchor_no_update ON audit_anchor;
 CREATE TRIGGER audit_anchor_no_update BEFORE UPDATE ON audit_anchor
   FOR EACH STATEMENT EXECUTE FUNCTION audit_reject_write();
@@ -328,12 +386,30 @@ CREATE TRIGGER audit_anchor_no_truncate BEFORE TRUNCATE ON audit_anchor
 
 -- ---------- 6. percorsi controllati del codice nuovo ----------
 
--- Anonimizzazione di una voce per conto di un membro (MemberRedactionRepository, F-MBR-05). Condizioni: il membro è
--- anonimizzato (il fatto che lo porta in ANONYMIZED è nell'event store: insight lo registra prima di ripulire) e la
--- voce lo riguarda (è sua, oppure ne cita l'id o uno dei valori personali `p_tokens` che insight conosce). La prova
--- REDACT porta il membro e la correlazione del fatto di anonimizzazione.
-CREATE OR REPLACE FUNCTION audit_redact(p_member_id text, p_id text, p_summary text, p_before jsonb, p_after jsonb,
-                                        p_tokens jsonb DEFAULT '[]'::jsonb, p_correlation_id text DEFAULT NULL)
+-- Blocco delle anonimizzazioni: la testa della catena `audit.redaction`, presa per prima da ogni anonimizzazione
+-- (MemberRedactionRepository e audit_redact). Due anonimizzazioni concorrenti che toccano le stesse righe si mettono in
+-- fila invece di bloccarsi a vicenda (ordine dei lock sempre uguale).
+CREATE OR REPLACE FUNCTION audit_redaction_lock() RETURNS boolean
+  LANGUAGE plpgsql SET search_path FROM CURRENT AS
+$$
+BEGIN
+  PERFORM set_config('loyaltyhub.audit_chain', 'on', true);
+  INSERT INTO audit_chain_head (service, seq, entry_hash) VALUES ('audit.redaction', 0, repeat('0', 64))
+    ON CONFLICT (service) DO NOTHING;
+  PERFORM set_config('loyaltyhub.audit_chain', '', true);
+  PERFORM 1 FROM audit_chain_head h WHERE h.service = 'audit.redaction' FOR UPDATE;
+  RETURN true;
+END
+$$;
+
+-- Anonimizzazione di una voce per conto di un membro (MemberRedactionRepository, F-MBR-05). Condizioni: il fatto di
+-- anonimizzazione `p_event_id` è nell'event store come fatto del membro (lo stato ANONYMIZED lo ha già verificato
+-- insight all'ingest, prima di ripulire le copie, che possono riscrivere il payload); la voce riguarda il membro (è sua,
+-- oppure ne cita l'id o uno dei valori personali `p_tokens` di almeno 3 caratteri). La prova REDACT porta membro, fatto
+-- e correlazione. Sono condizioni contro gli errori, non contro chi ha le credenziali applicative (Q-401).
+CREATE OR REPLACE FUNCTION audit_redact(p_member_id text, p_event_id text, p_id text, p_summary text, p_before jsonb,
+                                        p_after jsonb, p_tokens jsonb DEFAULT '[]'::jsonb,
+                                        p_correlation_id text DEFAULT NULL)
   RETURNS boolean
   LANGUAGE plpgsql SET search_path FROM CURRENT AS
 $$
@@ -342,15 +418,15 @@ DECLARE
   target_text   text;
   n             integer;
 BEGIN
-  IF coalesce(p_member_id, '') = '' THEN
-    RAISE EXCEPTION 'audit_redact: membro obbligatorio' USING ERRCODE = 'insufficient_privilege';
+  IF coalesce(btrim(p_member_id), '') = '' OR coalesce(btrim(p_event_id), '') = '' THEN
+    RAISE EXCEPTION 'audit_redact: membro e fatto di anonimizzazione obbligatori' USING ERRCODE = 'insufficient_privilege';
   END IF;
+  PERFORM audit_redaction_lock();
   IF NOT EXISTS (
       SELECT 1 FROM event_store e
-       WHERE e.member_id = p_member_id AND e.family = 'FACT'
-         AND ((e.short_type = 'member.status.changed' AND e.payload -> 'data' ->> 'newStatus' = 'ANONYMIZED')
-           OR (e.short_type IN ('member.registered', 'member.updated') AND e.payload -> 'data' ->> 'status' = 'ANONYMIZED'))) THEN
-    RAISE EXCEPTION 'audit_redact: il membro % non risulta anonimizzato', p_member_id
+       WHERE e.event_id = p_event_id AND e.member_id = p_member_id AND e.family = 'FACT'
+         AND e.short_type IN ('member.status.changed', 'member.registered', 'member.updated')) THEN
+    RAISE EXCEPTION 'audit_redact: % non è un fatto di member-service del membro %', p_event_id, p_member_id
       USING ERRCODE = 'insufficient_privilege';
   END IF;
   SELECT a.entity_id, lower(coalesce(a.summary, '') || ' ' || coalesce(a.before::text, '') || ' ' || coalesce(a.after::text, ''))
@@ -362,16 +438,18 @@ BEGIN
   IF target_entity IS DISTINCT FROM p_member_id
      AND strpos(target_text, lower(p_member_id)) = 0
      AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements_text(coalesce(p_tokens, '[]'::jsonb)) t(v)
-                      WHERE length(t.v) > 0 AND strpos(target_text, lower(t.v)) > 0) THEN
+                      WHERE length(btrim(t.v)) >= 3 AND strpos(target_text, lower(btrim(t.v))) > 0) THEN
     RAISE EXCEPTION 'audit_redact: la voce % non riguarda il membro %', p_id, p_member_id
       USING ERRCODE = 'insufficient_privilege';
   END IF;
   PERFORM set_config('loyaltyhub.audit_write', 'redact', true);
   PERFORM set_config('loyaltyhub.audit_redact_member', p_member_id, true);
+  PERFORM set_config('loyaltyhub.audit_redact_event', p_event_id, true);
   PERFORM set_config('loyaltyhub.audit_redact_correlation', coalesce(p_correlation_id, ''), true);
   UPDATE audit_entry SET summary = p_summary, before = p_before, after = p_after WHERE id = p_id;
   GET DIAGNOSTICS n = ROW_COUNT;
   PERFORM set_config('loyaltyhub.audit_redact_correlation', '', true);
+  PERFORM set_config('loyaltyhub.audit_redact_event', '', true);
   PERFORM set_config('loyaltyhub.audit_redact_member', '', true);
   PERFORM set_config('loyaltyhub.audit_write', '', true);
   RETURN n > 0;
@@ -408,7 +486,9 @@ BEGIN
 END
 $$;
 
--- Reset della demo (InsightReset, solo profilo demo): la demo riparte dalla genesi, teste e ancore comprese.
+-- Reset della demo (InsightReset). Nel profilo demo la chiama solo il reset; con le credenziali applicative è
+-- invocabile in ogni profilo finché la contract di Q-403 non la toglie al ruolo applicativo: una verifica completa vuota
+-- va confrontata con le ancore nei log. La demo riparte dalla genesi, teste e ancore comprese.
 CREATE OR REPLACE FUNCTION audit_reset() RETURNS integer
   LANGUAGE plpgsql SET search_path FROM CURRENT AS
 $$

@@ -6,6 +6,7 @@ import io.loyaltyhub.insight.domain.AuditChainReport.Status;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -119,14 +120,14 @@ class AuditChainWalkTest {
         String after = "{\"seq\": " + target.seq() + ", \"service\": \"" + target.service() + "\", \"memberId\": \"MBR-1\", "
                 + "\"contentHash\": \"" + contentHash + "\"}";
         String summary = "Anonimizzata la voce di audit " + target.service() + " n. " + target.seq();
-        AuditChainLink l = new AuditChainLink("insight", 40, "a".repeat(64), "redact-1", "redact-1", REDACTED_AT,
+        AuditChainLink l = new AuditChainLink("audit.redaction", 40, "a".repeat(64), "redact-1", "redact-1", REDACTED_AT,
                 "system", "insight", "AUDIT_ENTRY", target.id(), "REDACT", null, summary, null, after,
                 AuditHashChain.contentHash(summary, null, after), null, null);
         return new RedactionEvidence(withEntryHash(l, AuditHashChain.entryHash(l)), target.service(), target.seq(),
                 contentHash, "MBR-1");
     }
 
-    private static RedactionLookup lookup(Map<String, RedactionEvidence> byEntry, Instant retainedFrom) {
+    private static RedactionLookup lookup(Map<String, RedactionEvidence> byEntry, Instant keptSince) {
         return new RedactionLookup() {
             @Override
             public Optional<RedactionEvidence> latest(String entryId) {
@@ -134,8 +135,8 @@ class AuditChainWalkTest {
             }
 
             @Override
-            public Optional<Instant> retainedFrom() {
-                return Optional.ofNullable(retainedFrom);
+            public Instant evidenceKeptSince() {
+                return keptSince;
             }
         };
     }
@@ -170,7 +171,7 @@ class AuditChainWalkTest {
     }
 
     @Test
-    @DisplayName("prova REDACT già cancellata dalla retention (anonimizzazione più vecchia della catena insight): valida")
+    @DisplayName("prova REDACT mancante per un'anonimizzazione più vecchia dell'età minima (retention): valida")
     void redactionEvidencePurged() {
         List<AuditChainLink> c = redactedChain();
         RedactionLookup l = lookup(Map.of(), REDACTED_AT.plusSeconds(1));
@@ -444,13 +445,15 @@ class AuditChainWalkTest {
     }
 
     @Test
-    @DisplayName("ancora indicata sull'ultima voce cancellata: confrontata con il prev_hash della prima voce rimasta")
+    @DisplayName("ancora indicata sull'ultima voce cancellata: PURGED se coincide con il prev_hash della prima rimasta")
     void expectedAnchorAtTheRetentionBoundary() {
         List<AuditChainLink> c = chain(6);
         AuditAnchor purge = anchor(c.get(2), AuditAnchor.PURGE);
         AuditChainReport ok = walkExpecting(new ArrayList<>(c.subList(3, 6)), headOf(c), List.of(purge),
                 external(3, c.get(2).entryHash()));
-        assertThat(ok.expectedAnchor().result()).isEqualTo(ExpectedAnchor.Result.MATCH);
+        assertThat(ok.ok()).as(ok.detail()).isTrue();
+        assertThat(ok.expectedAnchor().result()).as("la voce 3 non c'è più: mai MATCH").isEqualTo(ExpectedAnchor.Result.PURGED);
+        assertThat(ok.expectedAnchor().purgedAt()).isEqualTo(purge.anchoredAt());
         AuditChainReport ko = walkExpecting(new ArrayList<>(c.subList(3, 6)), headOf(c), List.of(purge),
                 external(3, "9".repeat(64)));
         assertBroken(ko, 3, Reason.ANCHOR_MISMATCH);
@@ -464,5 +467,49 @@ class AuditChainWalkTest {
         AuditChainReport r = walkExpecting(c, headOf(c), List.of(), external(4, c.get(3).entryHash()));
         assertBroken(r, 2, Reason.CONTENT_ALTERED);
         assertThat(r.expectedAnchor().result()).isEqualTo(ExpectedAnchor.Result.UNCHECKED);
+    }
+
+    @Test
+    @DisplayName("catena svuotata: l'ancora indicata sulla testa è PURGED se coincide, MISMATCH se no")
+    void expectedAnchorOnAnEmptiedChain() {
+        List<AuditChainLink> c = chain(4);
+        AuditAnchor purge = anchor(c.getLast(), AuditAnchor.PURGE);
+        AuditChainReport same = walkExpecting(List.of(), headOf(c), List.of(purge), external(4, c.getLast().entryHash()));
+        assertThat(same.ok()).as(same.detail()).isTrue();
+        assertThat(same.expectedAnchor().result()).isEqualTo(ExpectedAnchor.Result.PURGED);
+        AuditChainReport other = walkExpecting(List.of(), headOf(c), List.of(purge), external(4, "7".repeat(64)));
+        assertBroken(other, 4, Reason.ANCHOR_MISMATCH);
+        assertThat(other.expectedAnchor().result()).isEqualTo(ExpectedAnchor.Result.MISMATCH);
+    }
+
+    // ---------- cancellazioni troppo recenti ----------
+
+    private static final Duration MIN = Duration.ofDays(180);
+    private static final Instant PURGED_ON = Instant.parse("2026-09-28T00:20:00Z");
+
+    private static AuditAnchor purge(AuditChainLink last, Instant newestDeleted) {
+        return new AuditAnchor(SVC, last.seq(), last.entryHash(), AuditAnchor.PURGE, PURGED_ON, newestDeleted);
+    }
+
+    @Test
+    @DisplayName("ancora PURGE di voci più vecchie dell'età minima: retention regolare")
+    void purgeOfOldEntriesIsFine() {
+        List<AuditChainLink> c = chain(5);
+        AuditAnchor p = purge(c.get(1), PURGED_ON.minus(MIN).minusSeconds(1));
+        AuditChainReport r = walk(new AuditChainWalk(SVC, headOf(c), List.of(p), RedactionLookup.NONE, null, MIN),
+                new ArrayList<>(c.subList(2, 5)));
+        assertThat(r.ok()).as(r.detail()).isTrue();
+    }
+
+    @Test
+    @DisplayName("ancora PURGE di voci più giovani dell'età minima: PURGE_TOO_RECENT sulla voce dell'ancora")
+    void purgeOfRecentEntriesIsFlagged() {
+        List<AuditChainLink> c = chain(5);
+        AuditAnchor p = purge(c.get(1), PURGED_ON.minus(Duration.ofDays(3)));
+        assertBroken(walk(new AuditChainWalk(SVC, headOf(c), List.of(p), RedactionLookup.NONE, null, MIN),
+                new ArrayList<>(c.subList(2, 5))), 2, Reason.PURGE_TOO_RECENT);
+        AuditAnchor all = purge(c.getLast(), PURGED_ON.minus(Duration.ofDays(3)));
+        assertBroken(walk(new AuditChainWalk(SVC, headOf(c), List.of(all), RedactionLookup.NONE, null, MIN), List.of()),
+                5, Reason.PURGE_TOO_RECENT);
     }
 }

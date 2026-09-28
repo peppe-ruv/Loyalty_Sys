@@ -1,10 +1,10 @@
 package io.loyaltyhub.insight.domain;
 
 /**
- * Prova di un'anonimizzazione: la voce REDACT che il database accoda nella catena del servizio {@code insight} ogni
+ * Prova di un'anonimizzazione: la voce REDACT che il database accoda nella catena riservata {@code audit.redaction} ogni
  * volta che il contenuto di una voce di audit viene riscritto (V6, F2-GRC-07, SPEC-GAP: Q-401). Porta la voce riscritta
  * ({@code targetService}, {@code targetSeq}), l'hash del contenuto dopo la riscrittura e, se la riscrittura è passata da
- * {@code audit_redact}, il membro anonimizzato.
+ * {@code audit_redact}, il membro anonimizzato e il fatto di anonimizzazione.
  *
  * @param link          la voce REDACT così come è memorizzata (per ricalcolarne gli hash)
  * @param targetService servizio della voce riscritta ({@code after.service})

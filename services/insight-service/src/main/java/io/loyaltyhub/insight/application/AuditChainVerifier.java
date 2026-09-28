@@ -82,7 +82,8 @@ public class AuditChainVerifier {
 
     private AuditChainReport walk(String service, AuditChainHead head, AuditAnchor startAfter,
                                   RedactionLookup redactions, AuditAnchor expected) {
-        AuditChainWalk walk = new AuditChainWalk(service, head, chain.anchors(service), redactions, expected);
+        AuditChainWalk walk = new AuditChainWalk(service, head, chain.anchors(service), redactions, expected,
+                chain.minRetention());
         long cursor = 0;
         if (startAfter != null) {
             walk.startingAfter(startAfter);

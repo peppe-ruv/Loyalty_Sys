@@ -163,7 +163,7 @@ class AuditChainMigrationIT {
                 .params("Rettifica Membro anonimo", "{\"b\": 1}", null, "01J8Z0000000000000000000W2").update();
         assertThat(updated).isEqualTo(1);
         assertThat(jdbc.sql("""
-                        SELECT count(*) FROM audit_entry WHERE service = 'insight' AND action = 'REDACT'
+                        SELECT count(*) FROM audit_entry WHERE service = 'audit.redaction' AND action = 'REDACT'
                           AND entity_id = '01J8Z0000000000000000000W2' AND after ->> 'memberId' IS NULL
                         """).query(Long.class).single()).as("prova REDACT senza membro").isEqualTo(1);
         AuditVerification afterRedaction = verify();
@@ -182,9 +182,25 @@ class AuditChainMigrationIT {
         }
         int purged = jdbc.sql("DELETE FROM audit_entry WHERE at < now() - make_interval(days => ?)").param(180).update();
         assertThat(purged).isEqualTo(3);
-        assertThat(jdbc.sql("SELECT kind || ':' || seq FROM audit_anchor WHERE service = 'reward'").query(String.class)
-                .list()).containsExactly("PURGE:3");
+        assertThat(jdbc.sql("SELECT kind || ':' || seq || ':' || (entry_at = timestamptz '1990-03-01') FROM audit_anchor "
+                + "WHERE service = 'reward'").query(String.class).list()).containsExactly("PURGE:3:true");
         assertThat(verify().status()).isEqualTo(AuditChainReport.Status.OK);
+
+        // Retention della versione precedente quando una voce scaduta segue una più recente (Q-402): il DELETE per età
+        // lascerebbe un buco ed è rifiutato; nessuna voce persa, il job riprova al giro successivo.
+        jdbc.sql("""
+                        INSERT INTO audit_entry (id, event_id, at, actor_role, actor_name, service, entity_type,
+                                                 entity_id, action, summary)
+                        VALUES ('01J1000000000000000000000A', 'EVT-STALL-A', now(), 'ADMIN', 'marta.admin', 'gamification',
+                                'CONTEST', 'CNT-1', 'UPDATE', 'Recente'),
+                               ('01J1000000000000000000000B', 'EVT-STALL-B', timestamptz '1990-01-01', 'ADMIN',
+                                'marta.admin', 'gamification', 'CONTEST', 'CNT-1', 'UPDATE', 'Vecchia ma successiva')
+                        """).update();
+        Throwable stalled = org.assertj.core.api.Assertions.catchThrowable(() ->
+                jdbc.sql("DELETE FROM audit_entry WHERE at < now() - make_interval(days => ?)").param(180).update());
+        assertThat(stalled).as("DELETE per età con una voce scaduta dopo una recente").isNotNull();
+        assertThat(jdbc.sql("SELECT count(*) FROM audit_entry WHERE service = 'gamification'").query(Long.class).single())
+                .isEqualTo(2);
 
         // Reset della demo di InsightReset fino a V5: tutte le tabelle svuotate con DELETE, in una transazione.
         new TransactionTemplate(new DataSourceTransactionManager(ds)).executeWithoutResult(s -> {
@@ -194,10 +210,14 @@ class AuditChainMigrationIT {
             jdbc.sql("DELETE FROM dlq_entry").update();
         });
         assertThat(jdbc.sql("SELECT count(*) FROM audit_entry").query(Long.class).single()).isZero();
+        // Tabella svuotata fuori dalla retention = reset: via anche teste e ancore, come con il reset nuovo.
+        assertThat(jdbc.sql("SELECT (SELECT count(*) FROM audit_anchor) + (SELECT count(*) FROM audit_chain_head)")
+                .query(Long.class).single()).isZero();
         AuditVerification afterReset = verify();
         assertThat(afterReset.status()).as(afterReset.toString()).isEqualTo(AuditChainReport.Status.OK);
+        assertThat(afterReset.services()).isEmpty();
 
-        // Le voci successive proseguono le catene dalla testa.
+        // Le voci successive ripartono dalla genesi.
         jdbc.sql("""
                         INSERT INTO audit_entry (id, event_id, at, actor_role, actor_name, service, entity_type,
                                                  entity_id, action, summary)
@@ -205,7 +225,37 @@ class AuditChainMigrationIT {
                                 'CAMPAIGN', 'CMP-1', 'RESET', 'Reset')
                         """).update();
         assertThat(jdbc.sql("SELECT seq FROM audit_entry WHERE id = '01J8Z0000000000000000000C9'").query(Long.class)
-                .single()).isEqualTo(5);
+                .single()).isEqualTo(1);
         assertThat(verify().status()).isEqualTo(AuditChainReport.Status.OK);
+    }
+
+    /**
+     * Revisione P16: la prova REDACT di una riscrittura recente cancellata togliendo la parte iniziale della catena
+     * {@code audit.redaction} (DELETE senza flag, ammesso in fase expand). La verifica lo segnala due volte: la voce
+     * riscritta non ha più prova (la retention non cancella prove più giovani dell'età minima) e la cancellazione era di
+     * voci giovani. Qui, con un database proprio, perché la catena delle prove è comune a tutti i servizi.
+     */
+    @Test
+    @Order(5)
+    @DisplayName("prova REDACT cancellata: REDACTION_UNRECORDED sulla voce, PURGE_TOO_RECENT sulla catena delle prove")
+    void erasedRedactionEvidenceIsDetected() {
+        for (int i = 1; i <= 3; i++) {
+            jdbc.sql("""
+                            INSERT INTO audit_entry (id, event_id, at, actor_role, actor_name, service, entity_type,
+                                                     entity_id, action, summary)
+                            VALUES (?, ?, now(), 'ADMIN', 'marta.admin', 'engagement', 'CONTENT', 'CNT-1', 'UPDATE', ?)
+                            """).params("01J2000000000000000000000" + i, "EVT-E" + i, "Voce " + i).update();
+        }
+        jdbc.sql("UPDATE audit_entry SET summary = 'riscritta' WHERE id = '01J20000000000000000000002'").update();
+        assertThat(verify().status()).isEqualTo(AuditChainReport.Status.OK);
+
+        jdbc.sql("DELETE FROM audit_entry WHERE service = 'audit.redaction'").update();
+        AuditVerification v = verify();
+        assertThat(v.services()).filteredOn(r -> r.service().equals("engagement")).singleElement().satisfies(r -> {
+            assertThat(r.reason()).isEqualTo(AuditChainReport.Reason.REDACTION_UNRECORDED);
+            assertThat(r.brokenSeq()).isEqualTo(2);
+        });
+        assertThat(v.services()).filteredOn(r -> r.service().equals("audit.redaction")).singleElement()
+                .satisfies(r -> assertThat(r.reason()).isEqualTo(AuditChainReport.Reason.PURGE_TOO_RECENT));
     }
 }
