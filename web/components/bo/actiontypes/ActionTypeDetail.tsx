@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { lhFetch, LhError, useLhQuery } from "@/lib/api/client";
+import { LhError, useLhQuery } from "@/lib/api/client";
 import type { CampaignSummary } from "@/lib/api/types";
 import { QueryState } from "@/components/bo/QueryState";
 import { CodeText } from "@/components/bo/primitives";
@@ -11,7 +11,16 @@ import { Can, useCan } from "@/components/bo/Can";
 import { categoryLabel, ORIGIN_LABEL, type ActionField, type ActionType } from "@/lib/actiontypes/types";
 import { campaignImpact, describeField } from "@/lib/actiontypes/schema";
 import { integratorTypes } from "@/lib/actiontypes/code";
-import { externalSourcesFor, reachOf, withAllowedType, withoutAllowedType, type SourceRow } from "@/lib/actiontypes/sources";
+import {
+  externalSourcesFor,
+  isEditableSource,
+  isProgramGenerated,
+  reachFor,
+  withAllowedType,
+  withoutAllowedType,
+  type SourceRow,
+} from "@/lib/actiontypes/sources";
+import { addAllowedType, removeAllowedType } from "@/lib/actiontypes/source-writes";
 import { actionIcon } from "@/lib/icons/action-icons";
 import { it } from "@/lib/i18n/it";
 import { cn } from "@/lib/cn";
@@ -21,13 +30,15 @@ const t = it.actions.detail;
 /**
  * Dettaglio di un'azione (docs/08 §BO-09): informazioni (percorso · tipo · obbligatorio · enum) come le vede il
  * costruttore di condizioni, esempio, **«Da dove può arrivare»** con una riga per fonte e, per ADMIN, *Abilita* sulle
- * fonti che non la accettano (Q-433), campagne che la usano con i link, *Crea una campagna con questa azione*, *Prova*.
+ * fonti esterne accese che non la accettano (Q-433), campagne che la usano con i link, *Crea una campagna con questa
+ * azione*, *Prova*. Un'azione generata dal programma (categoria `INTERNAL`) non si abilita su nessuna fonte esterna.
+ * Ogni scrittura rilegge la fonte e manda l'elenco completo.
  */
 export function ActionTypeDetail({
   type,
   sources,
   campaigns,
-  justCreated = false,
+  created = null,
   onEdit,
 }: {
   type: ActionType;
@@ -35,8 +46,8 @@ export function ActionTypeDetail({
   sources: SourceRow[] | null;
   /** `null` = campagne non disponibili. */
   campaigns: CampaignSummary[] | null;
-  /** Appena creata: avviso sulle fonti e scorciatoia verso il simulatore. */
-  justCreated?: boolean;
+  /** Appena creata: avviso sulle fonti e fonti su cui l'abilitazione chiesta non è riuscita. */
+  created?: { failedOn: string[] } | null;
   onEdit: () => void;
 }) {
   const qc = useQueryClient();
@@ -46,16 +57,22 @@ export function ActionTypeDetail({
   const [error, setError] = useState<string | null>(null);
   const Icon = actionIcon(type.icon);
   const props = (type.dataSchema?.properties ?? {}) as Record<string, { title?: unknown }>;
-  const onlySimulator = sources != null && type.category !== "INTERNAL" && externalSourcesFor(type.code, sources).length === 0;
+  const programGenerated = isProgramGenerated(type);
+  const onlySimulator = sources != null && !programGenerated && externalSourcesFor(type.code, sources).length === 0;
   const impact = campaigns ? campaignImpact(type.code, campaigns) : null;
   const integrator = integratorTypes(type.code);
 
-  // Azioni ammesse di una fonte: sempre l'elenco completo, mai un elenco vuoto per sbaglio (Q-433).
-  async function putAllowed(source: SourceRow, allowedTypes: string[]) {
+  // Azioni ammesse di una fonte: si rilegge la fonte e si manda sempre l'elenco completo, mai un elenco vuoto per
+  // sbaglio (Q-433).
+  async function changeAllowed(source: SourceRow, add: boolean) {
     setBusy(source.code);
     setError(null);
     try {
-      await lhFetch("ingestion", `/v1/sources/${source.code}`, { method: "PUT", body: JSON.stringify({ allowedTypes }) });
+      if (add) await addAllowedType(source.code, type.code);
+      else {
+        const result = await removeAllowedType(source.code, type.code);
+        if (!result.ok && result.blocked === "LAST_TYPE") setError(t.removeLast);
+      }
       await qc.invalidateQueries({ queryKey: ["ingestion"] });
     } catch (e) {
       const err = e as LhError;
@@ -76,7 +93,7 @@ export function ActionTypeDetail({
       </div>
       {type.description ? <p className="text-[var(--color-bo-ink-2)]">{type.description}</p> : null}
 
-      {justCreated ? (
+      {created ? (
         <div role="status" className="space-y-1 rounded border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-900">
           <p className="font-medium">{t.created(type.name)}</p>
           {onlySimulator ? <p>{t.onlySimulatorBanner}</p> : null}
@@ -86,19 +103,26 @@ export function ActionTypeDetail({
           {t.onlySimulatorBanner}
         </p>
       ) : null}
+      {created && created.failedOn.length > 0 ? (
+        <p role="alert" className="rounded border border-red-200 bg-red-50 p-2 text-xs text-red-800">
+          {it.actions.editor.sourcesFailed(created.failedOn.join(", "))}
+        </p>
+      ) : null}
 
       <section aria-labelledby="atd-reach">
-        <h4 id="atd-reach" className="mb-1 font-semibold">
+        <h3 id="atd-reach" className="mb-1 font-semibold">
           {t.reach}
-        </h4>
-        <p className="mb-2 text-xs text-[var(--color-bo-ink-2)]">{t.reachHint}</p>
+        </h3>
+        <p className="mb-2 text-xs text-[var(--color-bo-ink-2)]">{programGenerated ? t.programGenerated : t.reachHint}</p>
         {sources == null ? (
           <p className="text-xs text-[var(--color-bo-ink-2)]">{t.sourcesUnavailable}</p>
         ) : (
           <table className="w-full text-xs">
             <tbody>
-              {reachOf(type.code, sources).map(({ source, status }) => {
-                const add = withAllowedType(source, type.code);
+              {reachFor(type, sources).map(({ source, status }) => {
+                // Solo fonti esterne accese e azioni che non genera il programma.
+                const editable = canConfig && isEditableSource(source) && status !== "PROGRAM" && status !== "OFF";
+                const add = editable ? withAllowedType(source, type.code) : null;
                 const remove = withoutAllowedType(source, type.code);
                 return (
                   <tr key={source.code} className="border-t border-[var(--color-bo-border)] align-top">
@@ -114,11 +138,11 @@ export function ActionTypeDetail({
                       {t.reachStatus[status]}
                     </td>
                     <td className="py-1 text-right">
-                      {canConfig && source.kind === "HTTP" && add ? (
+                      {add ? (
                         <button
                           type="button"
                           disabled={busy === source.code}
-                          onClick={() => putAllowed(source, add)}
+                          onClick={() => changeAllowed(source, true)}
                           title={t.enableOnHint}
                           aria-label={`${t.enableOn}: ${source.name}`}
                           className="rounded border border-[var(--color-bo-border)] px-2 py-0.5 disabled:opacity-50"
@@ -126,12 +150,12 @@ export function ActionTypeDetail({
                           {t.enableOn}
                         </button>
                       ) : null}
-                      {canConfig && source.kind === "HTTP" && status === "ACCEPTS" ? (
+                      {editable && status === "ACCEPTS" ? (
                         "allowedTypes" in remove ? (
                           <button
                             type="button"
                             disabled={busy === source.code}
-                            onClick={() => putAllowed(source, remove.allowedTypes)}
+                            onClick={() => changeAllowed(source, false)}
                             aria-label={`${t.remove}: ${source.name}`}
                             className="rounded border border-[var(--color-bo-border)] px-2 py-0.5 disabled:opacity-50"
                           >
@@ -156,7 +180,7 @@ export function ActionTypeDetail({
       </section>
 
       <section>
-        <h4 className="mb-1 font-semibold">{t.fields}</h4>
+        <h3 className="mb-1 font-semibold">{t.fields}</h3>
         <QueryState query={fields} service="ingestion" isEmpty={(d) => d.length === 0} emptyTitle={t.fieldsEmpty} skeletonRows={3}>
           {(d) => (
             <table className="w-full text-xs">
@@ -180,14 +204,14 @@ export function ActionTypeDetail({
       </section>
 
       <section>
-        <h4 className="mb-1 font-semibold">{t.sample}</h4>
+        <h3 className="mb-1 font-semibold">{t.sample}</h3>
         <pre className="max-h-48 overflow-auto rounded bg-[var(--color-bo-bg)] p-2 font-mono text-xs">
           {JSON.stringify(type.sampleData ?? {}, null, 2)}
         </pre>
       </section>
 
       <section>
-        <h4 className="mb-1 font-semibold">{t.usedBy}</h4>
+        <h3 className="mb-1 font-semibold">{t.usedBy}</h3>
         {impact == null ? (
           <p className="text-xs text-[var(--color-bo-ink-2)]">{t.usedByUnavailable}</p>
         ) : impact.using.length === 0 ? (
@@ -199,7 +223,7 @@ export function ActionTypeDetail({
                 <Link href={`/backoffice/campaigns/${c.id}`} className="underline">
                   {c.name}
                 </Link>{" "}
-                <span className="text-[var(--color-bo-ink-2)]">({c.status})</span>
+                <span className="text-[var(--color-bo-ink-2)]">({t.campaignStatus[c.status] ?? c.status})</span>
               </li>
             ))}
           </ul>

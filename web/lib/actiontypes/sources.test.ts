@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   externalSourcesFor,
+  isEditableSource,
+  isProgramGenerated,
   planAllowedTypes,
+  sourcesToEnable,
   reachOf,
   sourceAccepts,
   unreachableTriggers,
@@ -74,14 +77,43 @@ describe("aggiornare le azioni ammesse", () => {
 });
 
 describe("fonti ammesse di una campagna (Q-437)", () => {
-  it("segnala le fonti scelte che non accettano un trigger", () => {
+  it("segnala per fonte i trigger che non accetta, e se non ne accetta nessuno", () => {
     const out = unreachableTriggers(["app", "ecommerce"], ["purchase.completed", "review.submitted"], SOURCES);
-    expect(out.map((o) => `${o.source.code}:${o.trigger}`)).toEqual(["app:review.submitted"]);
+    expect(out.map((o) => `${o.source.code}:${o.triggers.join("+")}:${o.none}`)).toEqual(["app:review.submitted:false"]);
+    const none = unreachableTriggers(["app"], ["review.submitted", "store.visited"], SOURCES);
+    expect(none).toEqual([expect.objectContaining({ triggers: ["review.submitted", "store.visited"], none: true })]);
   });
 
   it("nessuna fonte scelta = tutte, nessun avviso; fonti sconosciute ignorate", () => {
     expect(unreachableTriggers([], ["store.visited"], SOURCES)).toEqual([]);
     expect(unreachableTriggers(["sparita"], ["store.visited"], SOURCES)).toEqual([]);
     expect(unreachableTriggers(["simulator"], ["store.visited"], SOURCES)).toEqual([]);
+  });
+});
+
+describe("abilitazione subito dalla sezione 5 (Q-433)", () => {
+  const opts = { canConfigSources: true, isNew: true, code: "store.visited", category: "ENGAGEMENT" };
+
+  it("ADMIN: solo le fonti esterne spuntate che non la accettano già", () => {
+    const out = sourcesToEnable(["app", "simulator", "ecommerce"], SOURCES, opts);
+    expect(out.map((s) => s.code)).toEqual(["app", "ecommerce"]);
+    expect(sourcesToEnable(["app"], SOURCES, { ...opts, code: "purchase.completed" })).toEqual([]);
+  });
+
+  it("MARKETING non scrive mai sulle fonti, anche con caselle spuntate", () => {
+    expect(sourcesToEnable(["app", "ecommerce"], SOURCES, { ...opts, canConfigSources: false })).toEqual([]);
+  });
+
+  it("niente da abilitare per un'azione esistente o generata dal programma", () => {
+    expect(sourcesToEnable(["app"], SOURCES, { ...opts, isNew: false })).toEqual([]);
+    expect(sourcesToEnable(["app"], SOURCES, { ...opts, category: "INTERNAL" })).toEqual([]);
+    expect(isProgramGenerated({ category: "INTERNAL" })).toBe(true);
+    expect(isProgramGenerated({ category: "ENGAGEMENT" })).toBe(false);
+  });
+
+  it("solo le fonti esterne si modificano dalla UI", () => {
+    expect(isEditableSource(src("app"))).toBe(true);
+    expect(isEditableSource(src("internal"))).toBe(false);
+    expect(isEditableSource(src("simulator"))).toBe(false);
   });
 });

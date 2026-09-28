@@ -3,11 +3,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PersonaProvider } from "@/components/bo/PersonaContext";
 import type { Role } from "@/lib/persona/personas";
 
-export function renderWithProviders(ui: React.ReactNode, role: Role = "ADMIN") {
+export function renderWithProviders(ui: React.ReactNode, role: Role = "ADMIN", mode: "demo" | "enterprise" = "demo") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <PersonaProvider value={{ username: "test.user", displayName: "Test User", role }}>
+      <PersonaProvider value={{ username: "test.user", displayName: "Test User", role, mode }}>
         {ui}
       </PersonaProvider>
     </QueryClientProvider>

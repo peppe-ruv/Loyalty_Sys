@@ -8,12 +8,14 @@ import { lhFetch, LhError, useLhQuery } from "@/lib/api/client";
 import type { CampaignSummary } from "@/lib/api/types";
 import { INPUT } from "@/components/bo/FormBits";
 import { useCan } from "@/components/bo/Can";
+import { useIsDemo } from "@/components/bo/PersonaContext";
 import { useSideSheet } from "@/components/bo/SideSheet";
 import { IconPicker } from "@/components/bo/actiontypes/IconPicker";
 import { CATEGORY_LABEL, CUSTOM_CATEGORIES, type ActionType, type ActionTypeRequest } from "@/lib/actiontypes/types";
 import {
   campaignImpact,
   emptyRow,
+  isBlankRow,
   KIND_LABEL,
   optionsOf,
   rowErrors,
@@ -31,9 +33,17 @@ import {
   systemNamespaceClash,
   VERB_CHOICES,
 } from "@/lib/actiontypes/code";
-import { STANDARD_FIELDS, standardRow, technicalName } from "@/lib/actiontypes/fields";
+import { personalKeys, STANDARD_FIELDS, standardRow, technicalName } from "@/lib/actiontypes/fields";
 import { ACTION_TEMPLATES, applyTemplate, duplicateFrom } from "@/lib/actiontypes/templates";
-import { reachOf, withAllowedType, type SourceRow } from "@/lib/actiontypes/sources";
+import {
+  externalSourcesFor,
+  isEditableSource,
+  isProgramGenerated,
+  reachFor,
+  sourcesToEnable,
+  type SourceRow,
+} from "@/lib/actiontypes/sources";
+import { addAllowedType } from "@/lib/actiontypes/source-writes";
 import { it } from "@/lib/i18n/it";
 import { cn } from "@/lib/cn";
 
@@ -44,17 +54,18 @@ interface UiRow extends FieldRow {
   key: number;
   /** Nome tecnico scritto a mano: l'etichetta non lo cambia più. */
   manual: boolean;
-  /** L'operatore ha lasciato il campo: gli errori si mostrano solo da qui in poi. */
-  touched: boolean;
 }
 
 let nextKey = 1;
-const uiRow = (r: FieldRow, manual = true): UiRow => ({ ...r, key: nextKey++, manual, touched: false });
+const uiRow = (r: FieldRow, manual = true): UiRow => ({ ...r, key: nextKey++, manual });
 
 export interface SavedInfo {
   /** Fonti su cui l'azione è stata abilitata subito (solo ADMIN, sezione 5). */
   enabledOn: string[];
+  /** Fonti spuntate su cui l'abilitazione non è riuscita: chi riceve l'azione lo deve dire. */
   failedOn: string[];
+  /** Dopo il salvataggio nessuna fonte esterna accesa la accetta (stessa regola dell'elenco e del dettaglio). */
+  onlySimulator: boolean;
 }
 
 /**
@@ -84,6 +95,7 @@ export function ActionTypeEditor({
 }) {
   const qc = useQueryClient();
   const sheet = useSideSheet();
+  const isDemo = useIsDemo();
   const canConfigSources = useCan("program.config");
   const isNew = initial == null;
   const isSystem = initial?.origin === "SYSTEM";
@@ -120,22 +132,30 @@ export function ActionTypeEditor({
   const takenBy = isNew && code ? allTypes.find((x) => x.code === code) : undefined;
   const clash = isNew && code ? systemNamespaceClash(code, allTypes) : null;
 
-  // Uno schema non piatto (creato fuori da questo editor) si modifica solo come JSON: qui lo si conserva com'è.
+  // Uno schema non piatto o con regole che le righe perderebbero (creato fuori da questo editor) si modifica solo come
+  // JSON: qui lo si conserva com'è.
   const rowsEditable = !isSystem && initialRows != null;
+  // Le righe ancora vuote (nome, etichetta e spiegazione) non contano: né nello schema né tra gli errori.
+  const filledRows = useMemo(() => rows.filter((r) => !isBlankRow(r)), [rows]);
   const errors = rowsEditable ? rowErrors(rows) : {};
-  const schema = rowsEditable ? rowsToSchema(rows) : (initial?.dataSchema ?? null);
-  const autoSample = useMemo(() => JSON.stringify(sampleFromRows(rows), null, 2), [rows]);
+  const blockingErrors = Object.keys(errors).filter((i) => !isBlankRow(rows[Number(i)]));
+  const schema = rowsEditable ? rowsToSchema(filledRows) : (initial?.dataSchema ?? null);
+  const autoSample = useMemo(() => JSON.stringify(sampleFromRows(filledRows), null, 2), [filledRows]);
   const sampleText = editedSample ?? autoSample;
   const sampleParsed = parseObject(sampleText);
+  // SPEC-GAP: Q-435 — anche le chiavi dell'esempio scritto a mano non portano dati personali.
+  const samplePersonal = !isSystem && sampleParsed ? personalKeys(sampleParsed) : [];
 
   const missing = [
     !name.trim() && t.missingItems.name,
     isNew && !codeOk && t.missingItems.code,
-    rowsEditable && rows.length === 0 && t.missingItems.rows,
-    Object.keys(errors).length > 0 && t.missingItems.rowErrors,
+    rowsEditable && filledRows.length === 0 && t.missingItems.rows,
+    blockingErrors.length > 0 && t.missingItems.rowErrors,
     !isSystem && sampleParsed === undefined && t.missingItems.sample,
+    samplePersonal.length > 0 && t.missingItems.samplePersonal,
   ].filter(Boolean) as string[];
-  const blocked = busy || missing.length > 0;
+  // Finché l'elenco delle azioni non è arrivato, l'unicità del codice non si può controllare.
+  const blocked = busy || missing.length > 0 || (isNew && types.isLoading);
 
   // Modifiche non salvate: il foglio chiede conferma prima di chiudersi (Q-432).
   // Il codice proposto non conta: cambia da solo quando arriva l'elenco delle azioni.
@@ -153,7 +173,8 @@ export function ActionTypeEditor({
   const disabling = !!initial?.enabled && !enabled;
 
   const sourceList = sources.data ?? [];
-  const externalPickable = sourceList.filter((s) => s.kind === "HTTP" && s.allowedTypes.length > 0);
+  const programGenerated = isProgramGenerated({ category });
+  const externalPickable = sourceList.filter((s) => isEditableSource(s) && s.allowedTypes.length > 0);
 
   function updateRow(key: number, patch: Partial<UiRow>) {
     setRows((rs) =>
@@ -227,25 +248,25 @@ export function ActionTypeEditor({
       setBusy(false);
       return;
     }
-    // Sezione 5 (solo ADMIN): abilitazione subito sulle fonti scelte, con l'elenco completo di ciascuna (Q-433).
+    // Sezione 5 (solo ADMIN): abilitazione subito sulle fonti scelte. Ogni fonte si rilegge prima della `PUT`, che
+    // manda sempre l'elenco completo (Q-433).
     const enabledOn: string[] = [];
     const failedOn: string[] = [];
-    if (isNew && canConfigSources) {
-      for (const code of picked) {
-        const source = sourceList.find((s) => s.code === code);
-        const next = source ? withAllowedType(source, saved.code) : null;
-        if (!source || !next) continue;
-        try {
-          await lhFetch("ingestion", `/v1/sources/${source.code}`, { method: "PUT", body: JSON.stringify({ allowedTypes: next }) });
-          enabledOn.push(source.name);
-        } catch {
-          failedOn.push(source.name);
-        }
+    const targets = sourcesToEnable(picked, sourceList, { canConfigSources, isNew, code: saved.code, category: saved.category });
+    for (const source of targets) {
+      try {
+        await addAllowedType(source.code, saved.code);
+        enabledOn.push(source.name);
+      } catch {
+        failedOn.push(source.name);
       }
     }
     await qc.invalidateQueries({ queryKey: ["ingestion"] });
+    // L'invalidazione rilegge le fonti: il «solo simulatore» si calcola come nell'elenco e nel dettaglio.
+    const fresh = qc.getQueryData<SourceRow[]>(["ingestion", "/v1/sources", {}]) ?? sourceList;
+    const acceptsNow = externalSourcesFor(saved.code, fresh).length > 0 || enabledOn.length > 0;
     setBusy(false);
-    onSaved(saved, { enabledOn, failedOn });
+    onSaved(saved, { enabledOn, failedOn, onlySimulator: !isProgramGenerated(saved) && !acceptsNow });
   }
 
   const fieldError = (f: string) => error?.errors?.find((e) => e.field === f)?.message;
@@ -256,7 +277,7 @@ export function ActionTypeEditor({
   return (
     <div className="space-y-5">
       {isSystem ? <p className="rounded bg-[var(--color-bo-bg)] p-2 text-xs text-[var(--color-bo-ink-2)]">{t.systemNotice}</p> : null}
-      {isNew ? <p className="text-xs text-[var(--color-bo-ink-2)]">{t.demoNotice}</p> : null}
+      {isNew && isDemo ? <p className="text-xs text-[var(--color-bo-ink-2)]">{t.demoNotice}</p> : null}
 
       <nav aria-label={t.sections} className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
         {(
@@ -418,13 +439,18 @@ export function ActionTypeEditor({
               {codeMode === "auto" ? t.s2.customize : t.s2.useSuggested}
             </button>
             <ul id="ate-code-checks" aria-label={t.s2.label} className="space-y-0.5 text-xs">
-              {checks.map((c) => (
-                <li key={c.key} className={cn("flex items-center gap-1", c.ok ? "text-emerald-800" : "text-[var(--color-bo-ink-2)]")}>
-                  {c.ok ? <CheckCircle2 className="size-3.5" aria-hidden /> : <Circle className="size-3.5" aria-hidden />}
-                  <span>{t.s2.checks[c.key]}</span>
-                  <span className="sr-only">: {c.ok ? t.s2.checkOk : t.s2.checkKo}</span>
-                </li>
-              ))}
+              {checks.map((c) => {
+                // L'unicità si verifica sull'elenco delle azioni: finché non arriva resta «in verifica».
+                const pending = c.key === "unique" && types.isLoading;
+                const ok = c.ok && !pending;
+                return (
+                  <li key={c.key} className={cn("flex items-center gap-1", ok ? "text-emerald-800" : "text-[var(--color-bo-ink-2)]")}>
+                    {ok ? <CheckCircle2 className="size-3.5" aria-hidden /> : <Circle className="size-3.5" aria-hidden />}
+                    <span>{t.s2.checks[c.key]}</span>
+                    <span className="sr-only">: {pending ? t.s2.checkPending : ok ? t.s2.checkOk : t.s2.checkKo}</span>
+                  </li>
+                );
+              })}
             </ul>
             {takenBy ? <p className="text-xs text-red-700">{t.s2.taken(takenBy.name)}</p> : null}
             {clash ? <p className="text-xs text-amber-800">{t.s2.namespace(clash)}</p> : null}
@@ -459,7 +485,8 @@ export function ActionTypeEditor({
               <ol className="space-y-3">
                 {rows.map((r, i) => {
                   const err = errors[i];
-                  const showErr = err && (r.touched || r.name !== "" || (r.label ?? "") !== "");
+                  // Una riga ancora vuota non è un errore: non conta finché non la compili.
+                  const showErr = err && !isBlankRow(r);
                   return (
                     <li key={r.key} className="space-y-2 rounded border border-[var(--color-bo-border)] p-2">
                       <div className="grid gap-2 sm:grid-cols-2">
@@ -468,7 +495,6 @@ export function ActionTypeEditor({
                           <input
                             value={r.label ?? ""}
                             onChange={(e) => updateRow(r.key, { label: e.target.value })}
-                            onBlur={() => updateRow(r.key, { touched: true })}
                             placeholder={t.s3.labelPlaceholder}
                             className={INPUT}
                             aria-label={`${t.s3.label} ${i + 1}`}
@@ -479,7 +505,6 @@ export function ActionTypeEditor({
                           <input
                             value={r.name}
                             onChange={(e) => updateRow(r.key, { name: e.target.value.trim(), manual: true })}
-                            onBlur={() => updateRow(r.key, { touched: true })}
                             className={`${INPUT} font-mono`}
                             aria-label={`${t.s3.technicalName} ${i + 1}`}
                             aria-invalid={!!showErr}
@@ -581,9 +606,9 @@ export function ActionTypeEditor({
 
       {!isSystem ? (
         <EditorSection id="ate-s4" title={t.s4.title} guide={t.s4.guide}>
-          <div>
-            <p className="mb-1 text-xs font-medium">{t.s4.system}</p>
-            <pre className="max-h-56 overflow-auto rounded bg-[var(--color-bo-bg)] p-2 font-mono text-xs" aria-label={t.s4.system}>
+          <figure>
+            <figcaption className="mb-1 text-xs font-medium">{t.s4.system}</figcaption>
+            <pre className="max-h-56 overflow-auto rounded bg-[var(--color-bo-bg)] p-2 font-mono text-xs">
               {JSON.stringify(
                 {
                   specversion: "1.0",
@@ -598,14 +623,14 @@ export function ActionTypeEditor({
                 2,
               )}
             </pre>
-          </div>
+          </figure>
           <div>
             <p className="mb-1 text-xs font-medium">{t.s4.campaign}</p>
-            {rows.length === 0 || !rowsEditable ? (
+            {filledRows.length === 0 || !rowsEditable ? (
               <p className="text-xs text-[var(--color-bo-ink-2)]">{t.s4.campaignEmpty}</p>
             ) : (
               <ul className="space-y-0.5 text-xs">
-                {rows
+                {filledRows
                   .filter((r) => r.name)
                   .map((r) => (
                     <li key={r.key}>
@@ -642,20 +667,30 @@ export function ActionTypeEditor({
             </div>
           </details>
           {sampleParsed === undefined ? <p className="text-xs text-red-700">{t.s4.sampleInvalid}</p> : null}
+          {samplePersonal.length > 0 ? (
+            <p role="alert" className="text-xs text-red-700">
+              {t.s4.samplePersonal(samplePersonal.join(", "))}
+            </p>
+          ) : null}
           {fieldError("sampleData") ? <p className="text-xs text-red-700">{fieldError("sampleData")}</p> : null}
           {fieldError("dataSchema") ? <p className="text-xs text-red-700">{fieldError("dataSchema")}</p> : null}
         </EditorSection>
       ) : null}
 
       <EditorSection id="ate-s5" title={t.s5.title} guide={t.s5.guide}>
-        {sources.isError ? (
+        {sources.isLoading ? (
+          <p role="status" className="text-xs text-[var(--color-bo-ink-2)]">
+            {t.s5.loading}
+          </p>
+        ) : sources.isError ? (
           <p className="text-xs text-[var(--color-bo-ink-2)]">{it.actions.detail.sourcesUnavailable}</p>
         ) : sourceList.length === 0 ? (
           <p className="text-xs text-[var(--color-bo-ink-2)]">{t.s5.noExternal}</p>
         ) : (
           <ul className="space-y-1 text-xs">
-            {reachOf(code || "\u0000", sourceList).map(({ source, status }) => {
-              const pickable = isNew && canConfigSources && externalPickable.includes(source);
+            {programGenerated ? <li className="text-[var(--color-bo-ink-2)]">{it.actions.detail.programGenerated}</li> : null}
+            {reachFor({ code: code || "\u0000", category }, sourceList).map(({ source, status }) => {
+              const pickable = isNew && canConfigSources && !programGenerated && externalPickable.includes(source);
               return (
                 <li key={source.code} className="flex flex-wrap items-center justify-between gap-2">
                   {pickable ? (
@@ -733,9 +768,9 @@ function EditorSection({ id, title, guide, children }: { id: string; title: stri
   return (
     <section id={id} aria-labelledby={`${id}-title`} className="grid gap-3 border-t border-[var(--color-bo-border)] pt-3 sm:grid-cols-[minmax(0,1fr)_170px]">
       <div className="min-w-0 space-y-3">
-        <h4 id={`${id}-title`} className="text-sm font-semibold">
+        <h3 id={`${id}-title`} className="text-sm font-semibold">
           {title}
-        </h4>
+        </h3>
         {children}
       </div>
       <aside aria-label={`${it.actions.editor.guide}: ${title}`} className="rounded bg-[var(--color-bo-bg)] p-2 text-xs text-[var(--color-bo-ink-2)]">

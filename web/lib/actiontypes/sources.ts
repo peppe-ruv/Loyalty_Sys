@@ -42,6 +42,21 @@ export function reachOf(code: string, sources: SourceRow[]): SourceReach[] {
     }));
 }
 
+/** Stato mostrato in «Da dove può arrivare»: come `reachOf`, più `PROGRAM` per un'azione generata dal programma. */
+export type ReachStatus = SourceStatus | "PROGRAM";
+
+/**
+ * «Da dove può arrivare» di un'azione: per un'azione generata dal programma le fonti esterne dicono `PROGRAM` (non la
+ * inviano e non si abilitano), le interne restano come sono.
+ */
+export function reachFor(type: { code: string; category: string | null }, sources: SourceRow[]): { source: SourceRow; status: ReachStatus }[] {
+  const program = isProgramGenerated(type);
+  return reachOf(type.code, sources).map(({ source, status }) => ({
+    source,
+    status: program && isEditableSource(source) ? "PROGRAM" : status,
+  }));
+}
+
 /** Fonti esterne accese che accettano l'azione: vuoto = arriva solo dal simulatore (o dal ponte interno). */
 export function externalSourcesFor(code: string, sources: SourceRow[]): SourceRow[] {
   return sources.filter((s) => s.kind === "HTTP" && s.enabled && sourceAccepts(s, code));
@@ -84,19 +99,48 @@ export function planAllowedTypes(
 }
 
 /**
- * Fonti ammesse di una campagna che non accettano un trigger scelto (Q-437): da quella fonte la campagna non scatterà
- * mai per quell'azione. Nessuna fonte ammessa = tutte, nessun avviso.
+ * Fonti ammesse di una campagna che non accettano uno o più trigger scelti (Q-437), una voce per fonte. `none` = la
+ * fonte non accetta nessun trigger: da lì la campagna non scatterà mai; altrimenti non scatterà solo per i trigger
+ * elencati. Nessuna fonte ammessa = tutte, nessun avviso.
  */
 export function unreachableTriggers(
   allowedSources: string[],
   triggers: string[],
   sources: SourceRow[],
-): { source: SourceRow; trigger: string }[] {
-  const out: { source: SourceRow; trigger: string }[] = [];
+): { source: SourceRow; triggers: string[]; none: boolean }[] {
+  const out: { source: SourceRow; triggers: string[]; none: boolean }[] = [];
   for (const code of allowedSources) {
     const s = sources.find((x) => x.code === code);
     if (!s) continue;
-    for (const t of triggers) if (!sourceAccepts(s, t)) out.push({ source: s, trigger: t });
+    const refused = triggers.filter((t) => !sourceAccepts(s, t));
+    if (refused.length > 0) out.push({ source: s, triggers: refused, none: refused.length === triggers.length });
   }
   return out;
+}
+
+/**
+ * Azione generata dal programma (categoria `INTERNAL`: arriva dal ponte interno, M3.5). Non si abilita su una fonte
+ * esterna: un sistema esterno potrebbe altrimenti inviare fatti come `referral.completed` o `tier.upgraded`.
+ */
+export function isProgramGenerated(type: { category: string | null }): boolean {
+  return type.category === "INTERNAL";
+}
+
+/** Fonte modificabile dalla UI: solo le esterne. Il ponte interno e il simulatore accettano sempre tutte le azioni. */
+export function isEditableSource(source: Pick<SourceRow, "kind">): boolean {
+  return source.kind === "HTTP";
+}
+
+/**
+ * Fonti su cui abilitare subito una nuova azione (sezione 5 dell'editor, Q-433). Vuoto se chi salva non ha
+ * `program.config` (MARKETING non scrive mai sulle fonti, qualunque cosa sia stata spuntata), se l'azione non è nuova
+ * o se è generata dal programma; solo fonti esterne che non la accettano già.
+ */
+export function sourcesToEnable(
+  picked: string[],
+  sources: SourceRow[],
+  opts: { canConfigSources: boolean; isNew: boolean; code: string; category: string | null },
+): SourceRow[] {
+  if (!opts.canConfigSources || !opts.isNew || isProgramGenerated(opts)) return [];
+  return sources.filter((s) => picked.includes(s.code) && isEditableSource(s) && withAllowedType(s, opts.code) != null);
 }

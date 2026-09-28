@@ -6,7 +6,9 @@ import { Braces, ListTree } from "lucide-react";
 import { lhFetch, LhError, useLhQuery } from "@/lib/api/client";
 import type { Campaign, EventType } from "@/lib/api/types";
 import type { CampaignDraft, EffectSpec } from "@/lib/campaign/describe";
-import { emptyGroup, fromJson, leaves, parseConditionsText, removeNode, toJson, toJsonText, validateTree, type UiGroup } from "@/lib/campaign/conditions";
+import { emptyGroup, fromJson, parseConditionsText, toJson, toJsonText, validateTree, type UiGroup } from "@/lib/campaign/conditions";
+import { conditionUsesAmount, dropAmountExample, effectUsesAmount, hasAmountExample } from "@/lib/campaign/amount";
+import { isActionCode } from "@/lib/actiontypes/code";
 import { Card, CardBody } from "@/components/ui/card";
 import { PageHeader } from "@/components/bo/primitives";
 import { GeneratedSentence } from "@/components/bo/GeneratedSentence";
@@ -22,7 +24,8 @@ import { cn } from "@/lib/cn";
 // "2 Quando" sceglie i trigger fra i tipi azione di ingestion (anche custom, BO-09) e le fonti ammesse (Q-208: regola
 // context.source alla radice delle condizioni, default tutte); "4 Se" è il ConditionBuilder con
 // vista JSON alternativa. Gli altri blocchi restano in JSON. `?trigger=<codice>` precompila il trigger (BO-09 *Crea una
-// campagna con questa azione*); da «2 · Quando» si crea una nuova azione senza lasciare la pagina. SPEC-GAP: Q-432.
+// campagna con questa azione*); da «2 · Quando» si crea una nuova azione senza lasciare la pagina. Se un trigger scelto
+// non ha Importo ma la bozza lo usa (condizione d'esempio o effetto «per importo»), «2 · Quando» avvisa. SPEC-GAP: Q-432.
 const DEFAULT_CONDITIONS = { op: "all", rules: [{ field: "data.amount", cmp: "gte", value: 1 }] };
 const DEFAULTS = {
   audience: '{ "all": true }',
@@ -41,7 +44,7 @@ export default function NewCampaignPage() {
   const [priority, setPriority] = useState(100);
   const [visibleInPortal, setVisibleInPortal] = useState(true);
   const [triggers, setTriggers] = useState<string[]>(() => [
-    requestedTrigger && isTriggerCode(requestedTrigger) ? requestedTrigger : "purchase.completed",
+    requestedTrigger && isActionCode(requestedTrigger) ? requestedTrigger : "purchase.completed",
   ]);
   const [sources, setSources] = useState<string[]>([]);
   const [json, setJson] = useState(DEFAULTS);
@@ -63,12 +66,9 @@ export default function NewCampaignPage() {
   );
   const conditions = useMemo(() => toJson(condTree), [condTree]);
   // La bozza parte da `data.amount ≥ 1` e da un effetto «per importo»: un'azione senza importo non li soddisfa.
-  const draftUsesAmount = useMemo(
-    () => leaves(condTree).some((l) => l.field === "data.amount") || json.effects.includes("data.amount"),
-    [condTree, json.effects],
-  );
-  const dropAmountExample = () =>
-    setCondTree((tree) => leaves(tree).filter((l) => l.field === "data.amount").reduce((acc, l) => removeNode(acc, l.id), tree));
+  const condAmount = useMemo(() => conditionUsesAmount(condTree), [condTree]);
+  const effectAmount = effectUsesAmount(json.effects);
+  const canDropExample = useMemo(() => hasAmountExample(condTree), [condTree]);
   const condProblems = useMemo(() => validateTree(condTree, catalog.catalog), [condTree, catalog.catalog]);
 
   const draft: CampaignDraft = useMemo(() => {
@@ -191,8 +191,9 @@ export default function NewCampaignPage() {
                 value={triggers}
                 onChange={setTriggers}
                 disabled={!canEdit}
-                draftUsesAmount={draftUsesAmount}
-                onDropAmountExample={dropAmountExample}
+                conditionUsesAmount={condAmount}
+                effectUsesAmount={effectAmount}
+                onDropAmountExample={canDropExample ? () => setCondTree(dropAmountExample) : undefined}
               />
               <div>
                 <p className="mb-1 text-xs font-medium">Fonti ammesse</p>
@@ -313,11 +314,6 @@ function sectionTitle(k: string): string {
     schedule: "7 · Calendario (JSON)",
   };
   return map[k] ?? k;
-}
-
-/** Codice passato da `?trigger=`: solo la forma breve di un'azione (minuscolo a punti, 2–4 parti), altrimenti si ignora. */
-function isTriggerCode(code: string): boolean {
-  return code.length <= 60 && /^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*){1,3}$/.test(code);
 }
 
 function parse(text: string): unknown {

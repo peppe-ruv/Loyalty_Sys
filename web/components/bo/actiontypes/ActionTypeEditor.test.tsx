@@ -67,6 +67,7 @@ const CAMPAIGNS = [
 ];
 
 let calls: { url: string; method: string; body: unknown }[];
+let failSourcePut: boolean;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -74,6 +75,7 @@ function json(body: unknown, status = 200) {
 
 beforeEach(() => {
   calls = [];
+  failSourcePut = false;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -83,8 +85,11 @@ beforeEach(() => {
       if (method !== "GET") calls.push({ url, method, body });
       if (method === "POST" && url.includes("/v1/event-types")) return json({ ...body, origin: "CUSTOM" }, 201);
       if (method === "PUT" && url.includes("/v1/event-types/")) return json({ ...CUSTOM, ...body });
-      if (method === "PUT" && url.includes("/v1/sources/")) return json({ ...SOURCES[0], ...body });
+      if (method === "PUT" && url.includes("/v1/sources/"))
+        return failSourcePut ? json({ code: "ERROR", detail: "Errore" }, 500) : json({ ...SOURCES[0], ...body });
       if (url.includes("ingestion/v1/event-types")) return json([...SYSTEM, CUSTOM]);
+      const one = url.match(/ingestion\/v1\/sources\/([a-z]+)/);
+      if (one) return json(SOURCES.find((x) => x.code === one[1]));
       if (url.includes("ingestion/v1/sources")) return json(SOURCES);
       if (url.includes("campaign/v1/campaigns")) return json(CAMPAIGNS);
       return json([]);
@@ -93,12 +98,17 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-function renderEditor(props: Partial<Parameters<typeof ActionTypeEditor>[0]> = {}, role: Role = "MARKETING") {
+function renderEditor(
+  props: Partial<Parameters<typeof ActionTypeEditor>[0]> = {},
+  role: Role = "MARKETING",
+  mode: "demo" | "enterprise" = "demo",
+) {
   const onSaved = vi.fn();
   const onUseExisting = vi.fn();
   renderWithProviders(
     <ActionTypeEditor initial={null} onSaved={onSaved} onCancel={vi.fn()} onUseExisting={onUseExisting} {...props} />,
     role,
+    mode,
   );
   return { onSaved, onUseExisting };
 }
@@ -106,13 +116,60 @@ function renderEditor(props: Partial<Parameters<typeof ActionTypeEditor>[0]> = {
 const createButton = () => screen.getByRole("button", { name: "Crea l'azione" });
 
 describe("ActionTypeEditor: nuova azione", () => {
-  it("*Crea* disattivato dice che cosa manca; nessun errore rosso sulla riga vuota prima di toccarla", async () => {
+  it("*Crea* disattivato dice che cosa manca; la riga vuota chiede un'informazione, senza errori rossi", async () => {
     renderEditor();
     await screen.findByText(/Per salvare manca:/);
     expect(createButton()).toBeDisabled();
-    expect(screen.getByText(/il nome · un codice valido · informazioni corrette/)).toBeInTheDocument();
+    expect(screen.getByText(/il nome · un codice valido · almeno un'informazione/)).toBeInTheDocument();
+    expect(screen.queryByText(/informazioni corrette/)).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByText(/il codice non si può cambiare e l'azione non si può eliminare/)).toBeInTheDocument();
+    expect(screen.getByText("In demo, il ripristino dei dati elimina le azioni personalizzate.")).toBeInTheDocument();
+  });
+
+  it("nel profilo enterprise non compare la nota sul ripristino della demo", async () => {
+    renderEditor({}, "MARKETING", "enterprise");
+    await screen.findByText(/Per salvare manca:/);
+    expect(screen.queryByText(/In demo, il ripristino dei dati/)).toBeNull();
+  });
+
+  it("una riga vuota in più non blocca il salvataggio e non finisce nello schema", async () => {
+    const { onSaved } = renderEditor();
+    fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Visita in fiera" } });
+    fireEvent.change(screen.getByLabelText("Etichetta 1"), { target: { value: "Codice fiera" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi un'informazione" }));
+    await waitFor(() => expect(createButton()).not.toBeDisabled());
+    fireEvent.click(createButton());
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(Object.keys((calls[0].body as { dataSchema: { properties: object } }).dataSchema.properties)).toEqual(["codiceFiera"]);
+  });
+
+  it("finché l'elenco delle azioni non arriva, l'unicità del codice resta «in verifica» e *Crea* è spento", async () => {
+    renderEditor();
+    fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Visita in fiera" } });
+    fireEvent.change(screen.getByLabelText("Etichetta 1"), { target: { value: "Codice fiera" } });
+    const unique = within(screen.getByRole("list", { name: "Codice" })).getByText("Non già usato da un'altra azione").parentElement!;
+    expect(unique).toHaveTextContent("in verifica");
+    expect(createButton()).toBeDisabled();
+    await waitFor(() => expect(unique).toHaveTextContent("rispettato"));
+    expect(createButton()).not.toBeDisabled();
+  });
+
+  it("sezione 5: stato di caricamento distinto dallo stato vuoto", async () => {
+    renderEditor();
+    expect(screen.getByText("Caricamento delle fonti…")).toBeInTheDocument();
+    expect(screen.queryByText("Nessuna fonte esterna configurata.")).toBeNull();
+    expect(await screen.findByText("App mobile")).toBeInTheDocument();
+  });
+
+  it("l'esempio scritto a mano non può portare dati personali", async () => {
+    renderEditor();
+    fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Visita in fiera" } });
+    fireEvent.change(screen.getByLabelText("Etichetta 1"), { target: { value: "Codice fiera" } });
+    fireEvent.change(screen.getByLabelText("Esempio in JSON"), { target: { value: '{"codiceFiera":"F1","email":"x@y.it"}' } });
+    expect(await screen.findByText(/L'esempio contiene chiavi che fanno pensare a dati personali \(email\)/)).toBeInTheDocument();
+    expect(screen.getByText(/un esempio senza dati personali/)).toBeInTheDocument();
+    expect(createButton()).toBeDisabled();
   });
 
   it("propone il codice dal nome e mostra i controlli e l'anteprima per l'integratore", async () => {
@@ -122,7 +179,7 @@ describe("ActionTypeEditor: nuova azione", () => {
     expect(screen.getByText("type = partecipazione.evento")).toBeInTheDocument();
     expect(screen.getByText("io.loyaltyhub.action.partecipazione.evento")).toBeInTheDocument();
     const checks = screen.getByRole("list", { name: "Codice" });
-    expect(within(checks).getAllByText(": rispettato")).toHaveLength(5);
+    await waitFor(() => expect(within(checks).getAllByText(": rispettato")).toHaveLength(5));
   });
 
   it("un nome di una parola chiede «Che cosa è successo?»", async () => {
@@ -149,7 +206,7 @@ describe("ActionTypeEditor: nuova azione", () => {
   it("blocca i nomi che fanno pensare a dati personali", async () => {
     renderEditor();
     fireEvent.change(screen.getByLabelText("Etichetta 1"), { target: { value: "Email del membro" } });
-    expect(await screen.findByText("I dati personali non viaggiano nelle azioni: usa l'identificativo del membro.")).toBeInTheDocument();
+    expect(await screen.findByText("I dati personali non viaggiano nelle azioni: il membro è già identificato dall'azione.")).toBeInTheDocument();
   });
 
   it("un modello che esiste già propone «Usa quella esistente»", async () => {
@@ -187,7 +244,9 @@ describe("ActionTypeEditor: nuova azione", () => {
     await waitFor(() => expect(createButton()).not.toBeDisabled());
     fireEvent.click(createButton());
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
+
     expect(calls.filter((c) => c.url.includes("/v1/sources/"))).toEqual([]);
+    expect(onSaved.mock.calls[0][1]).toEqual({ enabledOn: [], failedOn: [], onlySimulator: true });
     expect(calls[0].body).toMatchObject({ code: "visita.fiera", enabled: true, category: "ENGAGEMENT", icon: "zap" });
   });
 
@@ -200,7 +259,19 @@ describe("ActionTypeEditor: nuova azione", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
     const put = calls.find((c) => c.url.includes("/v1/sources/app"));
     expect(put?.body).toEqual({ allowedTypes: ["purchase.completed", "visita.fiera"] });
-    expect(onSaved.mock.calls[0][1]).toEqual({ enabledOn: ["App mobile"], failedOn: [] });
+    expect(onSaved.mock.calls[0][1]).toEqual({ enabledOn: ["App mobile"], failedOn: [], onlySimulator: false });
+  });
+
+  it("ADMIN: se la PUT sulla fonte fallisce, l'azione è creata e la fonte finisce in failedOn", async () => {
+    failSourcePut = true;
+    const { onSaved } = renderEditor({}, "ADMIN");
+    fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Visita in fiera" } });
+    fireEvent.change(screen.getByLabelText("Etichetta 1"), { target: { value: "Codice fiera" } });
+    fireEvent.click(await screen.findByRole("checkbox", { name: "App mobile" }));
+    await waitFor(() => expect(createButton()).not.toBeDisabled());
+    fireEvent.click(createButton());
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(onSaved.mock.calls[0][1]).toEqual({ enabledOn: [], failedOn: ["App mobile"], onlySimulator: true });
   });
 
   it("dirty: segnala le modifiche al contenitore", async () => {
@@ -240,13 +311,47 @@ describe("ActionTypeEditor: modifica", () => {
   it("disattivare un'azione usata spiega le conseguenze", async () => {
     renderEditor({ initial: CUSTOM });
     fireEvent.click(screen.getByRole("checkbox", { name: "Abilitata" }));
-    expect(await screen.findByText(/Se disattivi l'azione, quelle in arrivo verranno scartate/)).toBeInTheDocument();
+    expect(await screen.findByText(/Se disattivi l'azione, il programma scarta quelle in arrivo/)).toBeInTheDocument();
+  });
+
+  it("uno schema con regole che l'editor non gestisce (x-lh-pii: true, minimum) si conserva intero", async () => {
+    const strict: ActionType = {
+      ...CUSTOM,
+      dataSchema: {
+        type: "object",
+        properties: { storeId: { type: "string", minLength: 3, "x-lh-pii": false }, score: { type: "number", minimum: 0, "x-lh-pii": true } },
+      },
+    };
+    const { onSaved } = renderEditor({ initial: strict });
+    expect(screen.getByText(/regole che l'editor non gestisce/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Etichetta 1")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Visita al negozio" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect((calls.find((c) => c.method === "PUT")!.body as { dataSchema: unknown }).dataSchema).toEqual(strict.dataSchema);
   });
 
   it("un'icona fuori elenco resta visibile con un avviso", async () => {
     renderEditor({ initial: { ...CUSTOM, icon: "log-out" } });
     expect(screen.getByText(/Questa icona non è disponibile e viene mostrata come ⚡/)).toBeInTheDocument();
     expect(screen.getByRole("radiogroup").querySelectorAll('[aria-checked="true"]')).toHaveLength(0);
+  });
+
+  it("griglia delle icone: Giù e Su si spostano di una riga (8 colonne), Fine va all'ultima", async () => {
+    renderEditor({ initial: { ...CUSTOM, icon: "shopping-cart" } });
+    const radios = () => screen.getAllByRole("radio");
+    const first = radios()[0];
+    expect(first).toHaveAttribute("aria-checked", "true");
+    fireEvent.keyDown(first, { key: "ArrowDown" });
+    expect(radios()[8]).toHaveAttribute("aria-checked", "true");
+    expect(document.activeElement).toBe(radios()[8]);
+    fireEvent.keyDown(radios()[8], { key: "ArrowUp" });
+    expect(radios()[0]).toHaveAttribute("aria-checked", "true");
+    fireEvent.keyDown(radios()[0], { key: "End" });
+    const last = radios()[radios().length - 1];
+    expect(last).toHaveAttribute("aria-checked", "true");
+    expect(document.activeElement).toBe(last);
+    expect(screen.getByRole("radiogroup", { name: "Icona" })).toBeInTheDocument();
   });
 
   it("griglia delle icone: frecce, Home e Fine scelgono e spostano il focus", async () => {

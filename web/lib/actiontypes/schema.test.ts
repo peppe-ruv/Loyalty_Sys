@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   campaignImpact,
-  campaignsUsing,
   describeField,
+  emptyRow,
   flatRows,
-  isValidCode,
+  isBlankRow,
   ROW_ERROR,
   rowErrors,
   rowsToSchema,
@@ -80,7 +80,7 @@ describe("editor a righe dei tipi custom", () => {
       5: ROW_ERROR.personal,
     });
     expect(ROW_ERROR.name).toMatch(/codiceNegozio/);
-    expect(ROW_ERROR.personal).toBe("I dati personali non viaggiano nelle azioni: usa l'identificativo del membro.");
+    expect(ROW_ERROR.personal).toBe("I dati personali non viaggiano nelle azioni: il membro è già identificato dall'azione.");
   });
 
   it("propone dati d'esempio coerenti, con i valori tipici dei campi standard", () => {
@@ -93,11 +93,26 @@ describe("editor a righe dei tipi custom", () => {
     ).toEqual({ amount: 25.5, storeId: "NEG-001" });
   });
 
-  it("valida il codice e conta le campagne che lo usano", () => {
-    expect(isValidCode("meter.reading.sent")).toBe(true);
-    expect(isValidCode("meter")).toBe(false);
-    expect(isValidCode("Meter.Read")).toBe(false);
-    expect(campaignsUsing("a.b", [{ code: "C1", triggerActionTypes: ["a.b"] }, { code: "C2", triggerActionTypes: [] }])).toEqual(["C1"]);
+  it("uno schema con regole che le righe perderebbero resta intero (solo JSON)", () => {
+    const withMinimum = { type: "object", properties: { amount: { type: "number", minimum: 0, "x-lh-pii": false } } };
+    expect(schemaToRows(withMinimum)).toBeNull();
+    expect(flatRows(withMinimum).lossy).toEqual(["amount"]);
+    const personal = { type: "object", properties: { email: { type: "string", "x-lh-pii": true } } };
+    expect(schemaToRows(personal)).toBeNull();
+    const closed = { type: "object", additionalProperties: false, properties: { storeId: { type: "string" } } };
+    expect(schemaToRows(closed)).toBeNull();
+    const otherFormat = { type: "object", properties: { at: { type: "string", format: "date-time" } } };
+    expect(schemaToRows(otherFormat)).toBeNull();
+    // Ciò che l'editor stesso scrive resta modificabile a righe.
+    const own = { $schema: "https://json-schema.org/draft/2020-12/schema", type: "object", required: ["storeId"], properties: { storeId: { type: "string", title: "Codice negozio", description: "Punto vendita", "x-lh-pii": false } } };
+    expect(schemaToRows(own)).toEqual([{ name: "storeId", kind: "string", required: true, options: "", label: "Codice negozio", description: "Punto vendita" }]);
+  });
+
+  it("una riga vuota non conta", () => {
+    expect(isBlankRow(emptyRow())).toBe(true);
+    expect(isBlankRow({ ...emptyRow(), label: "Codice" })).toBe(false);
+    expect(isBlankRow({ ...emptyRow(), description: "x" })).toBe(false);
+    expect(isBlankRow({ ...emptyRow(), name: "a" })).toBe(false);
   });
 
   it("impatto: campagne che usano l'azione e quante sono attive (Q-436)", () => {

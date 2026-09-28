@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ArrowRight, ChevronDown, ChevronRight } from "lucide-react";
+import { useIsDemo } from "@/components/bo/PersonaContext";
 import { it } from "@/lib/i18n/it";
 
 const t = it.actions.how;
@@ -27,10 +28,12 @@ function writeOpen(open: boolean) {
 
 /**
  * Riquadro richiudibile «Come funziona» di BO-09 (docs/08 §BO-09): Fonte → Azione → Campagna (Quando · Se · Allora) →
- * Punti e premi. Aperto la prima volta, poi come l'ha lasciato l'operatore (`localStorage` in `try/catch`).
- * SPEC-GAP: Q-438.
+ * Punti e premi. Aperto la prima volta, poi come l'ha lasciato l'operatore (`localStorage` in `try/catch`). Il corpo
+ * resta nel DOM (attributo `hidden`), così `aria-controls` punta sempre a un elemento. La nota sul ripristino dei dati
+ * compare solo nel profilo `demo`. SPEC-GAP: Q-438.
  */
 export function HowItWorks() {
+  const isDemo = useIsDemo();
   const [open, setOpen] = useState(true);
 
   useEffect(() => {
@@ -53,25 +56,23 @@ export function HowItWorks() {
           <span className="sr-only">: {open ? t.hide : t.show}</span>
         </button>
       </h2>
-      {open ? (
-        <div id="bo09-how-body" className="mt-2 space-y-3 text-sm">
-          <p className="text-[var(--color-bo-ink-2)]">{t.intro}</p>
-          <ol aria-label={t.diagramLabel} className="grid gap-2 sm:grid-cols-4">
-            {t.steps.map((s, i) => (
-              <li key={s.title} className="relative rounded border border-[var(--color-bo-border)] bg-[var(--color-bo-bg)] p-2 text-xs">
-                <p className="font-semibold text-[var(--color-bo-ink)]">
-                  {i + 1}. {s.title}
-                </p>
-                <p className="text-[var(--color-bo-ink-2)]">{s.text}</p>
-                {i < t.steps.length - 1 ? (
-                  <ArrowRight className="absolute -right-3 top-1/2 hidden size-4 -translate-y-1/2 text-[var(--color-bo-ink-2)] sm:block" aria-hidden />
-                ) : null}
-              </li>
-            ))}
-          </ol>
-          <p className="text-xs text-[var(--color-bo-ink-2)]">{t.demo}</p>
-        </div>
-      ) : null}
+      <div id="bo09-how-body" hidden={!open} className="mt-2 space-y-3 text-sm">
+        <p className="text-[var(--color-bo-ink-2)]">{t.intro}</p>
+        <ol aria-label={t.diagramLabel} className="grid gap-2 sm:grid-cols-4">
+          {t.steps.map((s, i) => (
+            <li key={s.title} className="relative rounded border border-[var(--color-bo-border)] bg-[var(--color-bo-bg)] p-2 text-xs">
+              <p className="font-semibold text-[var(--color-bo-ink)]">
+                {i + 1}. {s.title}
+              </p>
+              <p className="text-[var(--color-bo-ink-2)]">{s.text}</p>
+              {i < t.steps.length - 1 ? (
+                <ArrowRight className="absolute -right-3 top-1/2 hidden size-4 -translate-y-1/2 text-[var(--color-bo-ink-2)] sm:block" aria-hidden />
+              ) : null}
+            </li>
+          ))}
+        </ol>
+        {isDemo ? <p className="text-xs text-[var(--color-bo-ink-2)]">{t.demo}</p> : null}
+      </div>
     </section>
   );
 }

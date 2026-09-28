@@ -3,7 +3,7 @@
 import { useId, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { INPUT } from "@/components/bo/FormBits";
-import { actionIcon, isKnownActionIcon, searchActionIcons } from "@/lib/icons/action-icons";
+import { actionIcon, actionIconLabel, isKnownActionIcon, searchActionIcons } from "@/lib/icons/action-icons";
 import { it as t } from "@/lib/i18n/it";
 import { cn } from "@/lib/cn";
 
@@ -11,6 +11,7 @@ import { cn } from "@/lib/cn";
 // Accessibile come gruppo di opzioni (`role="radiogroup"`): Tab entra sull'icona scelta, le frecce si spostano e
 // scelgono, Home/Fine vanno agli estremi. Un valore fuori elenco resta visibile con un avviso.
 
+/** Colonne della griglia, uguali a ogni larghezza: Su e Giù si spostano di una riga esatta. */
 const COLUMNS = 8;
 
 export function IconPicker({
@@ -28,6 +29,7 @@ export function IconPicker({
   const choices = useMemo(() => searchActionIcons(query), [query]);
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   const labelId = useId();
+  const gridHintId = useId();
   const unknown = !!value && !isKnownActionIcon(value);
   const Current = actionIcon(value);
   const selectedIndex = choices.findIndex((c) => c.name === value);
@@ -59,7 +61,7 @@ export function IconPicker({
         </span>
         <span className="inline-flex items-center gap-1 rounded border border-[var(--color-bo-border)] px-1.5 py-0.5 text-xs">
           <Current className="size-4" aria-hidden />
-          <span className="font-mono">{value || "—"}</span>
+          <span>{actionIconLabel(value) ?? (value || "—")}</span>
         </span>
       </div>
       {unknown ? (
@@ -79,13 +81,17 @@ export function IconPicker({
           className={cn(INPUT, "pl-8")}
         />
       </label>
+      <span id={gridHintId} className="sr-only">
+        {t.actions.editor.iconGrid}
+      </span>
       {choices.length === 0 ? (
         <p className="text-xs text-[var(--color-bo-ink-2)]">{t.actions.editor.iconNone}</p>
       ) : (
         <div
           role="radiogroup"
-          aria-label={`${label}: ${t.actions.editor.iconGrid.toLowerCase()}`}
-          className="grid max-h-44 grid-cols-6 gap-1 overflow-y-auto p-0.5 sm:grid-cols-8"
+          aria-labelledby={labelId}
+          aria-describedby={gridHintId}
+          className="grid max-h-44 grid-cols-8 gap-1 overflow-y-auto p-0.5"
         >
           {choices.map((c, i) => {
             const selected = c.name === value;

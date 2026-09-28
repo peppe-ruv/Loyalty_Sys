@@ -17,6 +17,8 @@ vi.mock("next/navigation", () => ({
 type Row = Record<string, unknown>;
 let types: Row[];
 let posted: Row[];
+let sourcePuts: { url: string; body: unknown }[];
+let failSourcePut: boolean;
 
 const BASE: Row[] = [
   { code: "purchase.completed", name: "Acquisto completato", origin: "SYSTEM", category: "TRANSACTION", icon: "shopping-cart", enabled: true, dataSchema: { type: "object", properties: { amount: { type: "number" } } }, sampleData: null },
@@ -34,6 +36,8 @@ function json(body: unknown, status = 200) {
 beforeEach(() => {
   types = [...BASE];
   posted = [];
+  sourcePuts = [];
+  failSourcePut = false;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -45,7 +49,13 @@ beforeEach(() => {
         types = [...types, created];
         return json(created, 201);
       }
+      if (url.includes("/v1/sources/") && init?.method === "PUT") {
+        sourcePuts.push({ url, body: JSON.parse(String(init.body)) });
+        return failSourcePut ? json({ code: "ERROR", detail: "Errore" }, 500) : json({});
+      }
       if (url.includes("ingestion/v1/event-types")) return json(types);
+      const one = url.match(/ingestion\/v1\/sources\/([a-z]+)/);
+      if (one) return json(SOURCES.find((x) => x.code === one[1]));
       if (url.includes("ingestion/v1/sources")) return json(SOURCES);
       return json([]);
     }),
@@ -53,8 +63,20 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-function Harness({ onChange, draftUsesAmount = true, onDrop }: { onChange: (v: string[]) => void; draftUsesAmount?: boolean; onDrop?: () => void }) {
-  const [value, setValue] = useState<string[]>(["purchase.completed"]);
+function Harness({
+  onChange,
+  conditionUsesAmount = true,
+  effectUsesAmount = false,
+  onDrop,
+  initial = ["purchase.completed"],
+}: {
+  onChange: (v: string[]) => void;
+  conditionUsesAmount?: boolean;
+  effectUsesAmount?: boolean;
+  onDrop?: () => void;
+  initial?: string[];
+}) {
+  const [value, setValue] = useState<string[]>(initial);
   return (
     <TriggerPicker
       value={value}
@@ -62,7 +84,8 @@ function Harness({ onChange, draftUsesAmount = true, onDrop }: { onChange: (v: s
         setValue(v);
         onChange(v);
       }}
-      draftUsesAmount={draftUsesAmount}
+      conditionUsesAmount={conditionUsesAmount}
+      effectUsesAmount={effectUsesAmount}
       onDropAmountExample={onDrop}
     />
   );
@@ -96,16 +119,81 @@ describe("TriggerPicker: crea una nuova azione", () => {
     });
     expect(await screen.findByText("Visita al punto vendita è stata creata e aggiunta a Quando.")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).toBeNull();
-    const warning = screen.getByText(/non ha un Importo/);
+    // MARKETING non abilita fonti: l'azione arriva solo dal simulatore, e il banner lo dice.
+    expect(screen.getByText(/Per ora questa azione arriva solo dal simulatore/)).toBeInTheDocument();
+    const warning = screen.getByText(/«Visita al punto vendita» non ha un Importo/);
     expect(warning).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Togli la condizione d'esempio" }));
     expect(onDrop).toHaveBeenCalled();
+  });
+
+  it("il link al simulatore si apre in una nuova scheda: la bozza della campagna resta aperta", async () => {
+    renderPicker();
+    fireEvent.click(await screen.findByRole("button", { name: "+ Crea una nuova azione" }));
+    const sheet = await screen.findByRole("dialog", { name: "Nuova azione" });
+    fireEvent.change(within(sheet).getByLabelText("Nome"), { target: { value: "Visita in fiera" } });
+    fireEvent.change(within(sheet).getByLabelText("Etichetta 1"), { target: { value: "Codice fiera" } });
+    await waitFor(() => expect(within(sheet).getByRole("button", { name: "Crea l'azione" })).not.toBeDisabled());
+    fireEvent.click(within(sheet).getByRole("button", { name: "Crea l'azione" }));
+    const link = await screen.findByRole("link", { name: /Prova nel simulatore/ });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("href", "/backoffice/demo/simulator?type=visita.fiera");
+    expect(link).toHaveTextContent("(si apre in una nuova scheda)");
+  });
+
+  it("ADMIN: se abilitare la nuova azione su una fonte non riesce, lo dice", async () => {
+    failSourcePut = true;
+    renderPicker("ADMIN");
+    fireEvent.click(await screen.findByRole("button", { name: "+ Crea una nuova azione" }));
+    const sheet = await screen.findByRole("dialog");
+    fireEvent.change(within(sheet).getByLabelText("Nome"), { target: { value: "Visita in fiera" } });
+    fireEvent.change(within(sheet).getByLabelText("Etichetta 1"), { target: { value: "Codice fiera" } });
+    fireEvent.click(await within(sheet).findByRole("checkbox", { name: "App mobile" }));
+    await waitFor(() => expect(within(sheet).getByRole("button", { name: "Crea l'azione" })).not.toBeDisabled());
+    fireEvent.click(within(sheet).getByRole("button", { name: "Crea l'azione" }));
+    expect(await screen.findByText(/Non è stato possibile abilitarla su: App mobile/)).toHaveAttribute("role", "alert");
+    expect(sourcePuts).toEqual([{ url: expect.stringContaining("/v1/sources/app"), body: { allowedTypes: ["purchase.completed", "visita.fiera"] } }]);
+    expect(screen.getByText(/arriva solo dal simulatore/)).toBeInTheDocument();
+  });
+
+  it("«Usa quella esistente» da un modello aggiunge l'azione di sistema ai trigger", async () => {
+    const onChange = renderPicker("MARKETING", { initial: [] });
+    fireEvent.click(await screen.findByRole("button", { name: "+ Crea una nuova azione" }));
+    const sheet = await screen.findByRole("dialog");
+    const template = within(sheet).getByLabelText("Parti da un modello");
+    await waitFor(() => expect(template).not.toBeDisabled());
+    fireEvent.change(template, { target: { value: "purchase" } });
+    fireEvent.click(within(sheet).getByRole("button", { name: "Usa quella esistente" }));
+    expect(onChange).toHaveBeenLastCalledWith(["purchase.completed"]);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("avvisa subito se un trigger scelto non ha Importo e la bozza lo usa (anche senza creare nulla)", async () => {
+    renderPicker("MARKETING", { initial: ["review.submitted"], effectUsesAmount: true, onDrop: vi.fn() });
+    const alert = await screen.findByText(/«Recensione inviata» non ha un Importo/);
+    expect(alert.closest("[role=alert]")).toHaveTextContent("sezione 5 · Allora");
+    expect(screen.getByRole("button", { name: "Togli la condizione d'esempio" })).toBeInTheDocument();
+  });
+
+  it("senza la condizione d'esempio resta solo il richiamo all'effetto, senza pulsante", async () => {
+    renderPicker("MARKETING", { initial: ["review.submitted"], conditionUsesAmount: false, effectUsesAmount: true });
+    expect(await screen.findByText(/non ha un Importo/)).toBeInTheDocument();
+    expect(screen.queryByText(/sezione 4 · Se/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Togli la condizione d'esempio" })).toBeNull();
+  });
+
+  it("nessun avviso sull'Importo quando i trigger ce l'hanno o la bozza non lo usa", async () => {
+    renderPicker("MARKETING", { effectUsesAmount: true });
+    await screen.findByRole("checkbox", { name: /Acquisto completato/ });
+    expect(screen.queryByText(/non ha un Importo/)).toBeNull();
   });
 
   it("dalla ricerca senza risultati: «Crea «…» come nuova azione» con il nome già scritto", async () => {
     renderPicker();
     fireEvent.change(await screen.findByPlaceholderText(/Cerca per nome o codice/), { target: { value: "Degustazione vini" } });
     fireEvent.click(screen.getByRole("button", { name: "Crea «Degustazione vini» come nuova azione" }));
+    // Una sola proposta di creazione quando la ricerca non trova nulla.
+    expect(screen.queryByText("Non trovi l'azione che ti serve?")).toBeNull();
     const sheet = await screen.findByRole("dialog");
     expect(within(sheet).getByLabelText("Nome")).toHaveValue("Degustazione vini");
     expect(within(sheet).getByText("degustazione.vini")).toBeInTheDocument();
@@ -122,7 +210,10 @@ describe("TriggerPicker: crea una nuova azione", () => {
     renderPicker();
     expect(await screen.findByText("Nessuna azione abilitata")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "+ Crea una nuova azione" })).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "Azioni e fonti" })[0]).toHaveAttribute("href", "/backoffice/program/actions");
+    const manage = screen.getByRole("link", { name: /Gestisci in Azioni e fonti/ });
+    expect(manage).toHaveAttribute("href", "/backoffice/program/actions");
+    expect(manage).toHaveAttribute("target", "_blank");
+    expect(screen.getAllByRole("link", { name: /Azioni e fonti/ }).every((l) => l.getAttribute("target") === "_blank")).toBe(true);
   });
 
   it("«Aggiorna» rilegge le azioni create in un'altra scheda", async () => {

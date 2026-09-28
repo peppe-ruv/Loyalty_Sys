@@ -130,9 +130,14 @@ export function codeChecks(code: string, taken: Iterable<string> = []): CodeChec
   ];
 }
 
+/** Forma del servizio (EventTypeService, Q-89): minuscolo a punti, da 2 a 4 parti, al massimo 60 caratteri. */
+export function isActionCode(code: string): boolean {
+  return code.length <= CODE_MAX_LENGTH && CODE_PATTERN.test(code);
+}
+
 /** Il codice rispetta la regola del servizio e quelle, più severe, della UI. */
 export function isAcceptableCode(code: string, taken: Iterable<string> = []): boolean {
-  return CODE_PATTERN.test(code) && codeChecks(code, taken).every((c) => c.ok);
+  return isActionCode(code) && codeChecks(code, taken).every((c) => c.ok);
 }
 
 /** Prima parte `io` o `loyaltyhub` (Q-430). */

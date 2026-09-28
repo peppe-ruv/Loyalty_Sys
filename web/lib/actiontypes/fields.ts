@@ -51,7 +51,7 @@ export function standardField(name: string): StandardField | undefined {
 export function foldWords(text: string): string[] {
   return text
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
@@ -113,6 +113,21 @@ const PERSONAL_TOKENS = new Set([
   "birthday",
   "dob",
   "ssn",
+  "cf",
+  "piva",
+  "partitaiva",
+  "nominativo",
+  "mobile",
+  "residenza",
+  "domicilio",
+  "civico",
+  "cap",
+  "citta",
+  "geolocalizzazione",
+  "latitudine",
+  "longitudine",
+  "latitude",
+  "longitude",
 ]);
 
 /** Coppie di parole che insieme indicano un dato personale. */
@@ -150,6 +165,22 @@ export function looksPersonal(text: string): boolean {
   const hasName = words.includes("nome") || words.includes("name");
   if (hasName && (words.length === 1 || words.some((w) => PERSON_WORDS.has(w)))) return true;
   return false;
+}
+
+/** Chiavi di un esempio (`sampleData`, anche annidate) che fanno pensare a dati personali. SPEC-GAP: Q-435. */
+export function personalKeys(value: unknown): string[] {
+  const out: string[] = [];
+  const visit = (v: unknown) => {
+    if (Array.isArray(v)) v.forEach(visit);
+    else if (v && typeof v === "object") {
+      for (const [k, child] of Object.entries(v)) {
+        if (looksPersonal(k)) out.push(k);
+        visit(child);
+      }
+    }
+  };
+  visit(value);
+  return out;
 }
 
 /** Riga pronta per un campo standard. */

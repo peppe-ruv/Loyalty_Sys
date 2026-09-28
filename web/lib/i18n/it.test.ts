@@ -1,5 +1,11 @@
 import { describe, expect, it as test } from "vitest";
 import { it } from "./it";
+import { STANDARD_FIELDS } from "@/lib/actiontypes/fields";
+import { ACTION_TEMPLATES } from "@/lib/actiontypes/templates";
+import { VERB_CHOICES } from "@/lib/actiontypes/code";
+import { KIND_LABEL, ROW_ERROR } from "@/lib/actiontypes/schema";
+import { CATEGORY_LABEL, ORIGIN_LABEL, SOURCE_KIND_LABEL } from "@/lib/actiontypes/types";
+import { ACTION_ICONS } from "@/lib/icons/action-icons";
 
 // Testi di BO-09 e della scorciatoia da BO-06 (Q-438): tutti in `lib/i18n/it.ts`, non vuoti, e il partecipante al
 // programma si chiama «membro» (AGENTS.md), mai «socio», «cliente» o «utente».
@@ -36,6 +42,27 @@ describe("dizionario di Azioni e fonti", () => {
 
   test("«membro», mai «socio», «cliente» o «utente»", () => {
     for (const [path, s] of all) expect(s, path).not.toMatch(/\b(soci[oa]?|client[ei]|utent[ei])\b/i);
+  });
+
+  test("anche i testi fuori dal dizionario (campi standard, modelli, icone, etichette) dicono «membro»", () => {
+    // Finché M11 non sposta ogni testo nel dizionario, il controllo copre anche le tabelle dei moduli di BO-09.
+    const extra = strings(
+      {
+        STANDARD_FIELDS,
+        ACTION_TEMPLATES,
+        VERB_CHOICES,
+        ROW_ERROR,
+        KIND_LABEL,
+        icons: ACTION_ICONS.map((i) => [i.label, i.keywords ?? ""]),
+        CATEGORY_LABEL,
+        ORIGIN_LABEL,
+        SOURCE_KIND_LABEL,
+      },
+      "moduli",
+      [],
+    );
+    expect(extra.length).toBeGreaterThan(100);
+    for (const [path, s] of extra) expect(s, path).not.toMatch(/\b(soci[oa]?|client[ei]|utent[ei])\b/i);
   });
 
   test("niente gergo tecnico nella spiegazione del ponte (resta sotto «Dettagli tecnici»)", () => {

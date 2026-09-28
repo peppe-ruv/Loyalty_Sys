@@ -50,8 +50,12 @@ it("avvisa quando una fonte scelta non accetta un trigger (Q-437)", () => {
       actionLabels={{ "store.visited": "Visita in negozio" }}
     />,
   );
-  expect(screen.getByText("La fonte App non accetta «Visita in negozio»: da App questa campagna non scatterà mai.")).toBeInTheDocument();
+  // App accetta ancora gli acquisti: la campagna scatta da App, ma non per le visite.
+  expect(screen.getByText("La fonte App non accetta «Visita in negozio»: per questa azione la campagna non scatterà da App.")).toBeInTheDocument();
+  expect(screen.queryByText(/non scatterà mai/)).toBeNull();
   expect(screen.queryByText(/non accetta «purchase.completed»/)).toBeNull();
+  rerender(<SourcesPicker value={["app"]} onChange={vi.fn()} triggers={["store.visited"]} />);
+  expect(screen.getByText("La fonte App non accetta nessuna delle azioni scelte: da App questa campagna non scatterà mai.")).toBeInTheDocument();
   rerender(<SourcesPicker value={["simulator"]} onChange={vi.fn()} triggers={["store.visited"]} />);
   expect(screen.queryByText(/non accetta/)).toBeNull();
 });

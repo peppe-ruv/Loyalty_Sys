@@ -42,8 +42,13 @@ export const ROW_ERROR = {
   name: "Il nome tecnico può contenere solo lettere e numeri, senza spazi, e deve iniziare con una minuscola (es. codiceNegozio).",
   duplicate: "C'è già un'informazione con questo nome tecnico.",
   options: "Indica almeno un valore ammesso, separando i valori con una virgola.",
-  personal: "I dati personali non viaggiano nelle azioni: usa l'identificativo del membro.",
+  personal: "I dati personali non viaggiano nelle azioni: il membro è già identificato dall'azione.",
 } as const;
+
+/** Riga ancora da compilare: nome tecnico, etichetta e spiegazione vuoti. */
+export function isBlankRow(row: FieldRow): boolean {
+  return !row.name && !(row.label ?? "").trim() && !(row.description ?? "").trim();
+}
 
 /** Errori per riga (indice → messaggio). Vuoto = righe valide. */
 export function rowErrors(rows: FieldRow[]): Record<number, string> {
@@ -87,22 +92,39 @@ export function rowsToSchema(rows: FieldRow[]): Record<string, unknown> {
   };
 }
 
-/** Righe da uno schema piatto (i tipi custom creati qui); campi annidati o non riconosciuti → `null`. */
+/**
+ * Righe da uno schema piatto (i tipi custom creati qui). Campi annidati o con parole chiave che l'editor non sa
+ * riscrivere (`minimum`, `pattern`, `x-lh-pii: true`…) → `null`: lo schema si conserva com'è, senza perdite.
+ */
 export function schemaToRows(schema: Record<string, unknown> | null): FieldRow[] | null {
-  const { rows, skipped } = flatRows(schema);
-  return rows == null || skipped.length > 0 ? null : rows;
+  const { rows, skipped, lossy } = flatRows(schema);
+  return rows == null || skipped.length > 0 || lossy.length > 0 ? null : rows;
+}
+
+/** Parole chiave di un campo che le righe dell'editor riscrivono tali e quali. */
+const ROW_KEYWORDS = new Set(["type", "format", "enum", "title", "description", "x-lh-pii"]);
+/** Parole chiave dello schema radice che `rowsToSchema` riscrive. */
+const ROOT_KEYWORDS = new Set(["$schema", "type", "required", "properties"]);
+
+/** Il campo ha parole chiave che una riga perderebbe, oppure dichiara un dato personale. */
+function isLossy(p: Record<string, unknown>): boolean {
+  if (Object.keys(p).some((k) => !ROW_KEYWORDS.has(k))) return true;
+  if ("x-lh-pii" in p && p["x-lh-pii"] !== false) return true;
+  return "format" in p && p.format !== "date";
 }
 
 /**
- * Righe dei campi piatti di uno schema e nomi dei campi saltati (oggetti, elenchi): serve a *Duplica da un'azione
- * esistente*, che copia ciò che l'editor sa rappresentare (per esempio `purchase.completed` senza `items`).
+ * Righe dei campi piatti di uno schema, campi saltati (oggetti, elenchi) e campi che una riga riscriverebbe perdendo
+ * qualcosa (`lossy`). *Duplica da un'azione esistente* copia ciò che l'editor sa rappresentare (per esempio
+ * `purchase.completed` senza `items` e senza `minimum`); la modifica di un'azione esistente invece no.
  */
-export function flatRows(schema: Record<string, unknown> | null): { rows: FieldRow[] | null; skipped: string[] } {
-  if (!schema || schema.type !== "object") return { rows: null, skipped: [] };
+export function flatRows(schema: Record<string, unknown> | null): { rows: FieldRow[] | null; skipped: string[]; lossy: string[] } {
+  if (!schema || schema.type !== "object") return { rows: null, skipped: [], lossy: [] };
   const props = (schema.properties ?? {}) as Record<string, Record<string, unknown>>;
   const required = new Set((schema.required as string[] | undefined) ?? []);
   const rows: FieldRow[] = [];
   const skipped: string[] = [];
+  const lossy: string[] = Object.keys(schema).some((k) => !ROOT_KEYWORDS.has(k)) ? ["(schema)"] : [];
   for (const [name, p] of Object.entries(props)) {
     let kind: FieldKind;
     if (Array.isArray(p.enum)) kind = "enum";
@@ -112,6 +134,7 @@ export function flatRows(schema: Record<string, unknown> | null): { rows: FieldR
       skipped.push(name);
       continue;
     }
+    if (isLossy(p)) lossy.push(name);
     rows.push({
       name,
       kind,
@@ -121,7 +144,7 @@ export function flatRows(schema: Record<string, unknown> | null): { rows: FieldR
       description: typeof p.description === "string" ? p.description : "",
     });
   }
-  return { rows, skipped };
+  return { rows, skipped, lossy };
 }
 
 /** `data` d'esempio per il simulatore (BO-28): un valore plausibile per ogni riga. */
@@ -166,16 +189,6 @@ const TYPE_IT: Record<string, string> = {
   array: "elenco",
   object: "oggetto",
 };
-
-/** Codice di un tipo custom: minuscolo a punti, 2–4 parti (come i tipi di sistema). SPEC-GAP: Q-89. */
-export function isValidCode(code: string): boolean {
-  return code.length <= 60 && /^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*){1,3}$/.test(code);
-}
-
-/** Campagne che usano il tipo come trigger ("usato da n campagne"). */
-export function campaignsUsing(code: string, campaigns: { code: string; triggerActionTypes?: string[] | null }[]): string[] {
-  return campaigns.filter((c) => (c.triggerActionTypes ?? []).includes(code)).map((c) => c.code);
-}
 
 export interface CampaignRef {
   id: string;

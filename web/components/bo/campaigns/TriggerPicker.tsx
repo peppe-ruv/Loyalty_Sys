@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Plus, RefreshCw, Search, X, type LucideIcon } from "lucide-react";
+import { Plus, RefreshCw, Search, X } from "lucide-react";
 import { useLhQuery } from "@/lib/api/client";
 import type { EventType } from "@/lib/api/types";
 import type { ActionType } from "@/lib/actiontypes/types";
@@ -20,17 +20,13 @@ import { cn } from "@/lib/cn";
 // `ingestion GET /v1/event-types`, raggruppate per categoria, multi-scelta con icona, ricerca e pill «Personalizzata».
 // Scorciatoia verso BO-09 (Q-432): *+ Crea una nuova azione*, *Crea «ricerca» come nuova azione* e l'azione dello stato
 // vuoto aprono l'editor di BO-09 in un foglio laterale dentro la campagna, così la bozza non si perde; al salvataggio
-// l'azione entra nei trigger. *Aggiorna* rilegge le azioni create in un'altra scheda (niente refetch al focus).
-// SPEC-GAP: Q-432.
+// l'azione entra nei trigger. I link verso altre schermate (simulatore, Azioni e fonti) si aprono in una nuova scheda
+// per lo stesso motivo. *Aggiorna* rilegge le azioni create in un'altra scheda (niente refetch al focus).
+// Se un trigger scelto non ha `amount` ma la bozza lo usa (condizione o effetto `PER_AMOUNT`), avviso. SPEC-GAP: Q-432.
 // Se ingestion dorme o risponde con errore si torna al campo di testo con i codici (stato degraded, docs/07 §6).
 
 const T = it.actions.picker;
 const ACTIONS_HREF = "/backoffice/program/actions";
-
-/** Icona di un'azione: il modulo condiviso con BO-09 (Q-431). */
-export function eventTypeIcon(icon: string | null | undefined): LucideIcon {
-  return actionIcon(icon);
-}
 
 /** Azioni abilitate filtrate dal testo e raggruppate per categoria (ordine fisso, poi alfabetico). */
 export function groupEventTypes(types: EventType[], query: string): { category: string; types: EventType[] }[] {
@@ -64,28 +60,41 @@ export function hasAmountField(type: Pick<ActionType, "dataSchema">): boolean {
 interface Created {
   name: string;
   code: string;
-  amountWarning: boolean;
   onlySimulator: boolean;
+  failedOn: string[];
+}
+
+/** Link verso un'altra schermata del backoffice: nuova scheda, così la bozza della campagna resta aperta (Q-432). */
+function NewTabLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link href={href} target="_blank" rel="noopener noreferrer" className="underline">
+      {children} <span className="opacity-80">{T.newTab}</span>
+    </Link>
+  );
 }
 
 export function TriggerPicker({
   value,
   onChange,
   disabled,
-  draftUsesAmount = false,
+  conditionUsesAmount = false,
+  effectUsesAmount = false,
   onDropAmountExample,
 }: {
   value: string[];
   onChange: (next: string[]) => void;
   disabled?: boolean;
-  /** La bozza usa ancora `data.amount` (condizione d'esempio o effetto `PER_AMOUNT`). */
-  draftUsesAmount?: boolean;
-  /** Toglie la condizione d'esempio `data.amount ≥ 1`. */
+  /** Le condizioni della bozza usano `data.amount`. */
+  conditionUsesAmount?: boolean;
+  /** Un effetto della bozza usa `data.amount` (`PER_AMOUNT`). */
+  effectUsesAmount?: boolean;
+  /** Toglie la condizione d'esempio `data.amount ≥ 1`; assente = non c'è più. */
   onDropAmountExample?: () => void;
 }) {
   const query = useLhQuery<EventType[]>("ingestion", "/v1/event-types");
   const canCreate = useCan("actiontype.custom");
   const [search, setSearch] = useState("");
+  const searchInput = useRef<HTMLInputElement>(null);
   const [creating, setCreating] = useState<{ name: string } | null>(null);
   const [dirty, setDirty] = useState(false);
   const [created, setCreated] = useState<Created | null>(null);
@@ -93,6 +102,14 @@ export function TriggerPicker({
   const types = useMemo(() => query.data ?? [], [query.data]);
   const byCode = useMemo(() => new Map(types.map((t) => [t.code, t])), [types]);
   const groups = useMemo(() => groupEventTypes(types, search), [types, search]);
+  // Trigger scelti senza Importo mentre la bozza lo usa: per quelle azioni la campagna non scatterebbe.
+  const withoutAmount = useMemo(
+    () =>
+      conditionUsesAmount || effectUsesAmount
+        ? value.map((c) => byCode.get(c)).filter((t): t is EventType => !!t && !hasAmountField(t))
+        : [],
+    [value, byCode, conditionUsesAmount, effectUsesAmount],
+  );
 
   const toggle = (code: string) => onChange(value.includes(code) ? value.filter((c) => c !== code) : [...value, code]);
   const add = (code: string) => onChange(value.includes(code) ? value : [...value, code]);
@@ -109,16 +126,18 @@ export function TriggerPicker({
     closeCreate();
     add(saved.code);
     setSearch("");
-    setCreated({
-      name: saved.name,
-      code: saved.code,
-      amountWarning: draftUsesAmount && !hasAmountField(saved),
-      onlySimulator: info.enabledOn.length === 0,
-    });
+    setCreated({ name: saved.name, code: saved.code, onlySimulator: info.onlySimulator, failedOn: info.failedOn });
   }
 
   const sheet = (
-    <SideSheet open={creating != null} title={T.sheetTitle} onClose={closeCreate} dirty={dirty}>
+    <SideSheet
+      open={creating != null}
+      title={T.sheetTitle}
+      onClose={closeCreate}
+      dirty={dirty}
+      confirmText={it.actions.sheet.confirmTextAction}
+      returnFocusRef={searchInput}
+    >
       {creating ? (
         <ActionTypeEditor
           initial={null}
@@ -138,7 +157,8 @@ export function TriggerPicker({
 
   if (query.isLoading) {
     return (
-      <div className="space-y-2" aria-busy="true" aria-label={T.loading}>
+      <div className="space-y-2" role="status" aria-busy="true">
+        <span className="sr-only">{T.loading}</span>
         <div className="h-8 animate-pulse rounded bg-slate-100" />
         <div className="grid gap-2 sm:grid-cols-2">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -178,16 +198,21 @@ export function TriggerPicker({
         <div role="status" className="space-y-1 rounded border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-900">
           <p className="font-medium">{T.created(created.name)}</p>
           {created.onlySimulator ? <p>{it.actions.detail.onlySimulatorBanner}</p> : null}
-          <Link href={`/backoffice/demo/simulator?type=${encodeURIComponent(created.code)}`} className="underline">
-            {it.actions.detail.tryIt}
-          </Link>
+          <NewTabLink href={`/backoffice/demo/simulator?type=${encodeURIComponent(created.code)}`}>{it.actions.detail.tryIt}</NewTabLink>
         </div>
       ) : null}
-      {created?.amountWarning && draftUsesAmount ? (
-        <div role="alert" className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
-          <p>{T.amountWarning(created.name)}</p>
-          {onDropAmountExample ? (
-            <button type="button" onClick={onDropAmountExample} className="mt-1 rounded border border-amber-400 px-2 py-0.5">
+      {created && created.failedOn.length > 0 ? (
+        <p role="alert" className="rounded border border-red-200 bg-red-50 p-2 text-xs text-red-800">
+          {it.actions.editor.sourcesFailed(created.failedOn.join(", "))}
+        </p>
+      ) : null}
+      {withoutAmount.length > 0 ? (
+        <div role="alert" className="space-y-1 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+          <p>{T.amountWarning(withoutAmount.map((t) => `«${t.name}»`).join(", "), withoutAmount.length)}</p>
+          {conditionUsesAmount ? <p>{T.amountCondition}</p> : null}
+          {effectUsesAmount ? <p>{T.amountEffect}</p> : null}
+          {conditionUsesAmount && onDropAmountExample && !disabled ? (
+            <button type="button" onClick={onDropAmountExample} className="rounded border border-amber-400 px-2 py-0.5">
               {T.dropExample}
             </button>
           ) : null}
@@ -195,20 +220,19 @@ export function TriggerPicker({
       ) : null}
       {unknown.length > 0 ? (
         <p className="text-xs text-amber-800">
-          {T.unknown(unknown.join(", "), unknown.length)}{" "}
-          <Link href={ACTIONS_HREF} className="underline">
-            {T.link}
-          </Link>
-          .
+          {T.unknown(unknown.join(", "), unknown.length)} <NewTabLink href={ACTIONS_HREF}>{T.link}</NewTabLink>.
         </p>
       ) : null}
       {enabledCount === 0 ? (
         <>
           <EmptyState
             title={T.emptyTitle}
-            hint={T.emptyHint}
-            action={canCreate && !disabled ? { label: T.create, onClick: () => openCreate() } : { label: T.manage, href: ACTIONS_HREF }}
+            hint={canCreate ? T.emptyHint : T.emptyHintNoCreate}
+            action={canCreate && !disabled ? { label: T.create, onClick: () => openCreate() } : undefined}
           />
+          <p className="text-xs">
+            <NewTabLink href={ACTIONS_HREF}>{T.manage}</NewTabLink>
+          </p>
           <FallbackInput value={value} onChange={onChange} disabled={disabled} />
         </>
       ) : (
@@ -218,6 +242,7 @@ export function TriggerPicker({
               <span className="sr-only">{T.searchLabel}</span>
               <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-[var(--color-bo-ink-2)]" aria-hidden />
               <input
+                ref={searchInput}
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -255,7 +280,7 @@ export function TriggerPicker({
                   <legend className="mb-1 text-xs font-medium uppercase tracking-wide text-[var(--color-bo-ink-2)]">{categoryLabel(g.category)}</legend>
                   <div className="grid gap-1.5 sm:grid-cols-2">
                     {g.types.map((t) => {
-                      const Icon = eventTypeIcon(t.icon);
+                      const Icon = actionIcon(t.icon);
                       const selected = value.includes(t.code);
                       return (
                         <button
@@ -287,7 +312,7 @@ export function TriggerPicker({
               ))}
             </div>
           )}
-          {!disabled ? (
+          {!disabled && groups.length > 0 ? (
             <Can capability="actiontype.custom">
               <p className="flex flex-wrap items-center gap-2 border-t border-[var(--color-bo-border)] pt-2 text-xs text-[var(--color-bo-ink-2)]">
                 {T.notFound}
@@ -325,7 +350,7 @@ function SelectedChips({
     <ul className="flex flex-wrap gap-1.5" aria-label={T.chosen}>
       {value.map((code) => {
         const t = byCode.get(code);
-        const Icon = eventTypeIcon(t?.icon);
+        const Icon = actionIcon(t?.icon);
         return (
           <li
             key={code}

@@ -39,7 +39,7 @@ export default async function BackofficeLayout({ children }: { children: React.R
     .join("");
 
   return (
-    <PersonaProvider value={{ username: persona.username, displayName: persona.displayName, role: persona.role }}>
+    <PersonaProvider value={{ username: persona.username, displayName: persona.displayName, role: persona.role, mode: viewer.mode }}>
       <div className="flex min-h-dvh">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">

@@ -5,6 +5,7 @@ import {
   dedupe,
   integratorTypes,
   isAcceptableCode,
+  isActionCode,
   isReservedCode,
   suggestCode,
   systemNamespaceClash,
@@ -96,6 +97,15 @@ describe("controlli del codice", () => {
     expect(isAcceptableCode("")).toBe(false);
     expect(isReservedCode("io.x")).toBe(true);
     expect(isReservedCode("iot.x")).toBe(false);
+  });
+
+  it("forma del servizio: minuscolo a punti, da 2 a 4 parti, al massimo 60 caratteri (Q-89)", () => {
+    expect(isActionCode("meter.reading.sent")).toBe(true);
+    expect(isActionCode("meter")).toBe(false);
+    expect(isActionCode("Meter.Read")).toBe(false);
+    expect(isActionCode("a.b.c.d.e")).toBe(false);
+    expect(isActionCode(`a.${"b".repeat(58)}`)).toBe(true);
+    expect(isActionCode(`a.${"b".repeat(59)}`)).toBe(false);
   });
 
   it("avvisa quando riusa lo spazio di nomi di un'azione di sistema", () => {

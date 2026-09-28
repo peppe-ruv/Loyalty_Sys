@@ -51,7 +51,7 @@ export const it = {
   // BO-09 «Azioni e fonti» e scorciatoia da BO-06 «2 · Quando» (docs/08 §BO-09, §BO-06; Q-429…Q-438).
   actions: {
     pageTitle: "Azioni e fonti",
-    pageSubtitle: "Che cosa fanno i membri, da quali sistemi arriva e che cosa genera il programma",
+    pageSubtitle: "Che cosa fanno i membri, da quali sistemi arrivano le azioni e che cosa genera il programma",
     tabs: { types: "Azioni", sources: "Fonti", bridge: "Azioni generate dal programma" },
     how: {
       title: "Come funziona",
@@ -105,12 +105,15 @@ export const it = {
       fieldsEmpty: "Nessuna informazione: l'azione arriva senza dettagli.",
       sample: "Esempio",
       reach: "Da dove può arrivare",
-      reachHint: "Solo le fonti accese che la accettano possono inviarla. Le altre la scartano (Monitor ingressi).",
+      reachHint: "Solo le fonti accese che la accettano possono inviarla. Le altre la scartano: la trovi nel Monitor ingressi tra i «Respinti».",
+      programGenerated:
+        "Generata dal programma: arriva dal ponte interno (scheda «Azioni generate dal programma»), mai da una fonte esterna.",
       reachStatus: {
         ACCEPTS: "Accetta",
         ALL: "Accetta tutte le azioni",
         NOT_ALLOWED: "Non accetta: serve un amministratore",
         OFF: "Spenta",
+        PROGRAM: "Non la invia: la genera il programma",
       },
       enableOn: "Abilita",
       enableOnHint: "Aggiunge l'azione all'elenco delle azioni ammesse dalla fonte.",
@@ -125,8 +128,19 @@ export const it = {
       tryIt: "Prova nel simulatore",
       edit: "Modifica",
       created: (name: string) => `«${name}» è stata creata.`,
+      campaignStatus: {
+        DRAFT: "bozza",
+        IN_REVIEW: "in revisione",
+        APPROVED: "approvata",
+        SCHEDULED: "programmata",
+        LIVE: "attiva",
+        PAUSED: "in pausa",
+        ENDED: "terminata",
+        REJECTED: "respinta",
+        ARCHIVED: "archiviata",
+      } as Record<string, string>,
       onlySimulatorBanner:
-        "Per ora questa azione arriva solo dal simulatore. Perché arrivi dai tuoi sistemi (es. App, E-commerce), un amministratore deve abilitarla sulla fonte in Azioni e fonti › Fonti.",
+        "Per ora questa azione arriva solo dal simulatore. Perché arrivi dai tuoi sistemi (es. App mobile, E-commerce), un amministratore deve abilitarla sulla fonte in Azioni e fonti › Fonti.",
       technical: "Dettagli tecnici",
       integrator: (short: string, full: string) => `I sistemi inviano type = ${short} (oppure ${full}).`,
     },
@@ -161,13 +175,12 @@ export const it = {
         category: "Categoria",
         icon: "Icona",
         enabled: "Abilitata",
-        enabledHint:
-          "Se la disattivi, le azioni in arrivo vengono scartate e non compare più tra le scelte delle campagne.",
+        enabledHint: "Se la disattivi, il programma scarta le azioni in arrivo e l'azione sparisce dalle scelte delle campagne.",
       },
       s2: {
         title: "2 · Codice tecnico",
         guide:
-          "Il codice è il nome con cui i tuoi sistemi ci invieranno questa azione. Lo proponiamo noi dal nome e puoi cambiarlo finché non salvi.",
+          "Il codice è il nome con cui i tuoi sistemi ci invieranno questa azione. Lo proponiamo noi dal nome e puoi cambiarlo finché non salvi. I codici di sistema sono in inglese, nella forma oggetto.participio (purchase.completed, review.submitted): se chi integra preferisce la stessa regola, usa «Personalizza codice».",
         label: "Codice",
         customize: "Personalizza codice",
         useSuggested: "Usa il codice proposto",
@@ -184,6 +197,7 @@ export const it = {
           reserved: "Non inizia con «io» o «loyaltyhub» (riservati)",
         },
         checkOk: "rispettato",
+        checkPending: "in verifica",
         checkKo: "da correggere",
         taken: (name: string) => `Questo codice è già usato da «${name}». Scegline un altro o usa l'azione esistente.`,
         namespace: (code: string) =>
@@ -212,7 +226,7 @@ export const it = {
           enum: "Elenco di valori: solo alcune scelte ammesse (es. APP, STORE).",
         },
         required:
-          "Obbligatorio: se manca, l'azione viene scartata e compare nel Monitor ingressi come «dati non validi». Facoltativo: può mancare.",
+          "Obbligatorio: se manca, il programma scarta l'azione, che compare nel Monitor ingressi tra i «Respinti» con il codice INVALID_DATA. Facoltativo: può mancare.",
         label: "Etichetta",
         labelPlaceholder: "es. Codice negozio",
         technicalName: "Nome tecnico",
@@ -226,7 +240,8 @@ export const it = {
         standard: "Aggiungi un campo standard",
         standardPlaceholder: "Campo standard…",
         none: "Nessuna informazione: aggiungine almeno una.",
-        nested: "Queste informazioni hanno elenchi o oggetti: si modificano solo come JSON, qui restano com'erano.",
+        nested:
+          "Queste informazioni hanno elenchi, oggetti o regole che l'editor non gestisce (per esempio un valore minimo): si modificano solo come JSON e qui restano com'erano.",
       },
       s4: {
         title: "4 · Esempio e anteprima",
@@ -247,6 +262,7 @@ export const it = {
         schema: "JSON Schema generato",
         sample: "Esempio in JSON",
         sampleInvalid: "JSON non valido: serve un oggetto tra parentesi graffe.",
+        samplePersonal: (keys: string) => `L'esempio contiene chiavi che fanno pensare a dati personali (${keys}): toglile.`,
         restore: "Ripristina esempio automatico",
         edited: "Esempio modificato a mano: non si aggiorna più da solo.",
       },
@@ -258,11 +274,12 @@ export const it = {
         notAdmin:
           "Dopo la creazione l'azione arriverà solo dal simulatore finché un amministratore non la abilita su una fonte esterna.",
         noExternal: "Nessuna fonte esterna configurata.",
+        loading: "Caricamento delle fonti…",
       },
       impact: (n: number, m: number) =>
         `Usata da ${n} campagn${n === 1 ? "a" : "e"} (${m} attiv${m === 1 ? "a" : "e"}): la modifica vale subito anche per loro.`,
       disableImpact: (n: number, m: number) =>
-        `Se disattivi l'azione, quelle in arrivo verranno scartate e non comparirà più tra le scelte delle campagne. È usata da ${n} campagn${n === 1 ? "a" : "e"} (${m} attiv${m === 1 ? "a" : "e"}).`,
+        `Se disattivi l'azione, il programma scarta quelle in arrivo e l'azione sparisce dalle scelte delle campagne. È usata da ${n} campagn${n === 1 ? "a" : "e"} (${m} attiv${m === 1 ? "a" : "e"}).`,
       missing: "Per salvare manca:",
       missingItems: {
         name: "il nome",
@@ -270,6 +287,7 @@ export const it = {
         rows: "almeno un'informazione",
         rowErrors: "informazioni corrette",
         sample: "un esempio valido",
+        samplePersonal: "un esempio senza dati personali",
       },
       create: "Crea l'azione",
       save: "Salva",
@@ -278,7 +296,7 @@ export const it = {
       exists: "Esiste già un'azione con questo codice: scegline un altro.",
       saveFailed: "Salvataggio non riuscito",
       sourcesFailed: (names: string) =>
-        `Azione creata, ma non è stato possibile abilitarla su: ${names}. Riprova dalla scheda Fonti.`,
+        `Non è stato possibile abilitarla su: ${names}. Riprova da «Da dove può arrivare» nel dettaglio dell'azione.`,
       unknownIcon: "Questa icona non è disponibile e viene mostrata come ⚡: scegline una.",
       iconSearch: "Cerca un'icona",
       iconGrid: "Icone disponibili",
@@ -286,7 +304,9 @@ export const it = {
     },
     sheet: {
       confirmTitle: "Chiudere senza salvare?",
-      confirmText: "Le modifiche all'azione andranno perse.",
+      confirmText: "Le modifiche andranno perse.",
+      confirmTextAction: "Le modifiche all'azione andranno perse.",
+      confirmTextSources: "Le modifiche all'elenco andranno perse.",
       confirmClose: "Chiudi senza salvare",
       confirmStay: "Continua a modificare",
     },
@@ -299,6 +319,15 @@ export const it = {
       allowed: "Azioni ammesse",
       allTypes: "tutte le azioni",
       state: "Stato",
+      volume: "Ultime 24 h",
+      volumeValue: (accepted: number, total: number) => `${total} (${accepted} accettate)`,
+      lastEvent: "Ultimo evento",
+      noEvents: "nessuno",
+      internalAllowed: "Sempre tutte: il ponte interno e il simulatore non si limitano.",
+      conflict: (list: string) =>
+        `L'elenco è cambiato mentre lo modificavi: ora la fonte ammette ${list}. Ricarica per partire dall'elenco aggiornato, oppure salva comunque il tuo.`,
+      conflictReload: "Ricarica l'elenco",
+      conflictSave: "Salva comunque",
       on: "Accesa",
       off: "Spenta",
       switchLabel: (name: string) => `Fonte ${name} accesa`,
@@ -316,6 +345,7 @@ export const it = {
       save: "Salva l'elenco",
       emptyTitle: "Nessuna fonte",
       emptyHint: "Le fonti arrivano con i dati del programma: ripristina i dati demo dalla Console demo.",
+      emptyHintEnterprise: "Le fonti arrivano con la configurazione del programma: controlla l'installazione del servizio ingestion.",
       emptyAction: "Apri la Console demo",
       failed: "Aggiornamento non riuscito",
     },
@@ -332,6 +362,8 @@ export const it = {
       off: "Spento",
       emptyTitle: "Nessuna azione generata dal programma",
       emptyHint: "Le corrispondenze fatto → azione arrivano con i dati del programma: ripristina i dati demo dalla Console demo.",
+      emptyHintEnterprise:
+        "Le corrispondenze fatto → azione arrivano con la configurazione del programma: controlla l'installazione del servizio ingestion.",
       emptyAction: "Apri la Console demo",
     },
     picker: {
@@ -345,7 +377,9 @@ export const it = {
       unknown: (list: string, n: number) =>
         `${list} non ${n === 1 ? "è" : "sono"} tra le azioni abilitate: la campagna non scatterà finché non ${n === 1 ? "viene abilitata" : "vengono abilitate"} in`,
       emptyTitle: "Nessuna azione abilitata",
-      emptyHint: "Abilita un'azione di sistema o creane una nuova; intanto puoi scrivere i codici a mano.",
+      emptyHint: "Crea una nuova azione, oppure chiedi a un amministratore di abilitarne una di sistema. Intanto puoi scrivere i codici a mano.",
+      emptyHintNoCreate: "Chiedi a un amministratore di abilitare un'azione di sistema. Intanto puoi scrivere i codici a mano.",
+      newTab: "(si apre in una nuova scheda)",
       noMatch: (q: string) => `Nessuna azione corrisponde a «${q}».`,
       searchLabel: "Cerca un'azione",
       searchPlaceholder: "Cerca per nome o codice…",
@@ -358,12 +392,16 @@ export const it = {
       retry: "Riprova",
       fallbackLabel: "Azioni che fanno scattare la campagna (codici separati da virgola)",
       manage: "Gestisci in Azioni e fonti",
-      amountWarning: (name: string) =>
-        `«${name}» non ha un Importo (data.amount), ma la campagna lo usa ancora nella condizione d'esempio o nell'effetto «per importo»: senza correzione non scatterà. Cambia le sezioni 4 · Se e 5 · Allora.`,
+      amountWarning: (names: string, n: number) =>
+        `${names} non ${n === 1 ? "ha" : "hanno"} un Importo (data.amount), ma la campagna lo usa ancora: senza correzione non scatterà per ${n === 1 ? "questa azione" : "queste azioni"}.`,
+      amountCondition: "Nella sezione 4 · Se c'è una condizione su Importo.",
+      amountEffect: "Nella sezione 5 · Allora l'effetto è «per importo» (PER_AMOUNT): cambialo in un numero fisso di punti (FIXED).",
       dropExample: "Togli la condizione d'esempio",
       sheetTitle: "Nuova azione",
       unreachable: (source: string, action: string) =>
-        `La fonte ${source} non accetta «${action}»: da ${source} questa campagna non scatterà mai.`,
+        `La fonte ${source} non accetta «${action}»: per questa azione la campagna non scatterà da ${source}.`,
+      unreachableAll: (source: string) =>
+        `La fonte ${source} non accetta nessuna delle azioni scelte: da ${source} questa campagna non scatterà mai.`,
     },
   },
 } as const;

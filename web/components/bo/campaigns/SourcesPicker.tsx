@@ -10,8 +10,8 @@ import { it } from "@/lib/i18n/it";
 // Fonti ammesse della campagna (docs/08 §BO-06 sezione "2 Quando", default tutte; Q-208): multi-scelta fra le fonti di
 // `ingestion GET /v1/sources`. Nessuna scelta = tutte le fonti. Il valore diventa la regola `context.source` alla
 // radice delle condizioni (`lib/campaign/sources.ts`). Se ingestion dorme si scrivono i codici separati da virgola.
-// Se una fonte scelta non accetta un trigger scelto, avviso: da quella fonte la campagna non scatterà mai.
-// SPEC-GAP: Q-437.
+// Se una fonte scelta non accetta un trigger scelto, avviso: per quell'azione la campagna non scatterà da quella fonte;
+// se non ne accetta nessuno, da quella fonte non scatterà mai. SPEC-GAP: Q-437.
 
 interface SourceRow {
   code: string;
@@ -94,11 +94,19 @@ export function SourcesPicker({
       <p className="text-xs text-[var(--color-bo-ink-2)]">
         {value.length === 0 ? "Tutte le fonti (nessuna scelta)." : `Solo le azioni che arrivano da: ${value.join(", ")}.`}
       </p>
-      {unreachable.map(({ source, trigger }) => (
-        <p key={`${source.code}-${trigger}`} className="text-xs text-amber-800">
-          {it.actions.picker.unreachable(source.name, actionLabels[trigger] ?? trigger)}
-        </p>
-      ))}
+      {unreachable.map(({ source, triggers: refused, none }) =>
+        none ? (
+          <p key={source.code} className="text-xs text-amber-800">
+            {it.actions.picker.unreachableAll(source.name)}
+          </p>
+        ) : (
+          refused.map((trigger) => (
+            <p key={`${source.code}-${trigger}`} className="text-xs text-amber-800">
+              {it.actions.picker.unreachable(source.name, actionLabels[trigger] ?? trigger)}
+            </p>
+          ))
+        ),
+      )}
     </div>
   );
 }

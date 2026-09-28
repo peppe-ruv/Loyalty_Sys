@@ -7,12 +7,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { lhFetch, useLhQuery, LhError } from "@/lib/api/client";
 import type { CampaignSummary } from "@/lib/api/types";
 import { categoryLabel, ORIGIN_LABEL, SOURCE_KIND_LABEL, type ActionType } from "@/lib/actiontypes/types";
-import { campaignsUsing } from "@/lib/actiontypes/schema";
-import { externalSourcesFor, type SourceRow } from "@/lib/actiontypes/sources";
+import { campaignImpact } from "@/lib/actiontypes/schema";
+import { externalSourcesFor, isEditableSource, isProgramGenerated, type SourceRow } from "@/lib/actiontypes/sources";
+import { outcomeCount, type InboundRow as InboundEvent, type OutcomeCounts } from "@/lib/inbound/inbound";
+import { formatRelative } from "@/lib/format/dates";
 import { actionIcon, actionIconLabel } from "@/lib/icons/action-icons";
 import { SideSheet } from "@/components/bo/SideSheet";
 import { ActionTypeDetail } from "@/components/bo/actiontypes/ActionTypeDetail";
-import { ActionTypeEditor } from "@/components/bo/actiontypes/ActionTypeEditor";
+import { ActionTypeEditor, type SavedInfo } from "@/components/bo/actiontypes/ActionTypeEditor";
 import { AllowedTypesEditor } from "@/components/bo/actiontypes/AllowedTypesEditor";
 import { HowItWorks } from "@/components/bo/actiontypes/HowItWorks";
 import { QueryState } from "@/components/bo/QueryState";
@@ -20,13 +22,16 @@ import { DataTable, type Column } from "@/components/bo/DataTable";
 import { Tabs } from "@/components/bo/Tabs";
 import { PageHeader, CodeText, EmptyState } from "@/components/bo/primitives";
 import { Can, useCan } from "@/components/bo/Can";
+import { useIsDemo } from "@/components/bo/PersonaContext";
 import { it } from "@/lib/i18n/it";
 import { cn } from "@/lib/cn";
 
 // BO-09 Azioni e fonti (docs/08 §BO-09; F-ING-05, F-ING-06). Riquadro «Come funziona»; scheda Azioni con icona, fonti
 // («solo simulatore» in ambra), dettaglio con «Da dove può arrivare» ed editor a sezioni numerate; scheda Fonti con
-// interruttore confermato e azioni ammesse modificabili da ADMIN (Q-433); scheda «Azioni generate dal programma»
-// (ponte interno fatto → azione, M3.5) spiegata in chiaro, con l'anti-loop sotto *Dettagli tecnici*.
+// volumi delle ultime 24 ore e ultimo evento (dal Monitor ingressi), interruttore confermato e azioni ammesse
+// modificabili da ADMIN solo sulle fonti esterne (Q-433); scheda «Azioni generate dal programma» (ponte interno
+// fatto → azione, M3.5) spiegata in chiaro, con l'anti-loop sotto *Dettagli tecnici*. Gli stati vuoti rimandano alla
+// Console demo solo nel profilo `demo`.
 
 const T = it.actions;
 
@@ -34,11 +39,6 @@ interface MappingRow {
   factType: string;
   actionType: string;
   enabled: boolean;
-}
-
-interface InboundRow {
-  id: string;
-  typeCode: string;
 }
 
 const TABS = [
@@ -68,7 +68,7 @@ function TypesTab() {
   const [q, setQ] = useState("");
   const [origin, setOrigin] = useState("");
   const [openCode, setOpenCode] = useState<string | null>(null);
-  const [justCreated, setJustCreated] = useState<string | null>(null);
+  const [justCreated, setJustCreated] = useState<{ code: string; failedOn: string[] } | null>(null);
   const [editing, setEditing] = useState<ActionType | "new" | null>(null);
   const [dirty, setDirty] = useState(false);
   const onDirtyChange = useCallback((d: boolean) => setDirty(d), []);
@@ -76,7 +76,7 @@ function TypesTab() {
   const types = query.data ?? [];
   // Il dettaglio legge sempre l'ultima versione dalla cache (dopo un *Abilita* o una modifica).
   const open = openCode ? (types.find((x) => x.code === openCode) ?? null) : null;
-  const usedBy = (code: string) => (campaigns.data ? campaignsUsing(code, campaigns.data) : null);
+  const usedBy = (code: string) => (campaigns.data ? campaignImpact(code, campaigns.data).using : null);
   const closeEditor = () => {
     setEditing(null);
     setDirty(false);
@@ -110,7 +110,7 @@ function TypesTab() {
         if (!sources.data) return <span className="text-xs">—</span>;
         const ext = externalSourcesFor(a.code, sources.data);
         if (ext.length) return <span className="text-xs">{ext.map((s) => s.name).join(", ")}</span>;
-        if (a.category === "INTERNAL") return <span className="text-xs text-[var(--color-bo-ink-2)]">{T.list.fromProgram}</span>;
+        if (isProgramGenerated(a)) return <span className="text-xs text-[var(--color-bo-ink-2)]">{T.list.fromProgram}</span>;
         return <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{T.list.onlySimulator}</span>;
       },
     },
@@ -202,7 +202,7 @@ function TypesTab() {
             type={open}
             sources={sources.data ?? null}
             campaigns={campaigns.data ?? null}
-            justCreated={justCreated === open.code}
+            created={justCreated?.code === open.code ? justCreated : null}
             onEdit={() => {
               setEditing(open);
               setOpenCode(null);
@@ -216,15 +216,16 @@ function TypesTab() {
         title={editing === "new" ? T.editor.titleNew : T.editor.titleEdit(editing?.name ?? "")}
         onClose={closeEditor}
         dirty={dirty}
+        confirmText={T.sheet.confirmTextAction}
       >
         {editing != null ? (
           <ActionTypeEditor
             key={editing === "new" ? "new" : editing.code}
             initial={editing === "new" ? null : editing}
             onDirtyChange={onDirtyChange}
-            onSaved={(saved) => {
+            onSaved={(saved, info: SavedInfo) => {
               closeEditor();
-              if (editing === "new") setJustCreated(saved.code);
+              if (editing === "new") setJustCreated({ code: saved.code, failedOn: info.failedOn });
               setOpenCode(saved.code);
             }}
             onUseExisting={(existing) => {
@@ -239,8 +240,29 @@ function TypesTab() {
   );
 }
 
+/** Ultime 24 ore di una fonte: totale e accettate (`GET /v1/inbound-events/counts`); «—» se il servizio non risponde. */
+function SourceVolume({ code, from }: { code: string; from: string }) {
+  const counts = useLhQuery<OutcomeCounts>("ingestion", "/v1/inbound-events/counts", { source: code, from });
+  if (counts.isLoading) return <span className="text-xs text-[var(--color-bo-ink-2)]">…</span>;
+  const total = outcomeCount("", counts.data);
+  if (counts.isError || total == null) return <span className="text-xs">—</span>;
+  return <span className="tabular-nums text-xs">{T.sources.volumeValue(outcomeCount("ACCEPTED", counts.data) ?? 0, total)}</span>;
+}
+
+/** Ultimo evento ricevuto da una fonte (`GET /v1/inbound-events?limit=1`), in tempo relativo. */
+function SourceLastEvent({ code }: { code: string }) {
+  const last = useLhQuery<InboundEvent[]>("ingestion", "/v1/inbound-events", { source: code, limit: 1 });
+  if (last.isLoading) return <span className="text-xs text-[var(--color-bo-ink-2)]">…</span>;
+  if (last.isError || !Array.isArray(last.data)) return <span className="text-xs">—</span>;
+  const at = last.data[0]?.receivedAt;
+  return <span className="text-xs">{at ? formatRelative(at) : T.sources.noEvents}</span>;
+}
+
 function SourcesTab() {
   const qc = useQueryClient();
+  const isDemo = useIsDemo();
+  // Finestra delle ultime 24 ore, fissata all'apertura della scheda (chiave stabile delle query).
+  const [from] = useState(() => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
   const query = useLhQuery<SourceRow[]>("ingestion", "/v1/sources");
   const types = useLhQuery<ActionType[]>("ingestion", "/v1/event-types");
   const [busy, setBusy] = useState<string | null>(null);
@@ -283,17 +305,23 @@ function SourcesTab() {
     {
       key: "allowed",
       header: T.sources.allowed,
-      render: (s) => (
-        <div className="space-y-1 text-xs">
-          <p>{s.allowedTypes.length ? s.allowedTypes.map((c) => names.get(c) ?? c).join(", ") : T.sources.allTypes}</p>
-          <Can capability="program.config" mode="disable">
-            <button type="button" onClick={() => setEditing(s)} className="underline" aria-label={`${T.sources.editAllowed}: ${s.name}`}>
-              {T.sources.editAllowed}
-            </button>
-          </Can>
-        </div>
-      ),
+      render: (s) =>
+        // Il ponte interno e il simulatore accettano sempre tutto: limitarli romperebbe il ponte e il simulatore.
+        isEditableSource(s) ? (
+          <div className="space-y-1 text-xs">
+            <p>{s.allowedTypes.length ? s.allowedTypes.map((c) => names.get(c) ?? c).join(", ") : T.sources.allTypes}</p>
+            <Can capability="program.config" mode="disable">
+              <button type="button" onClick={() => setEditing(s)} className="underline" aria-label={`${T.sources.editAllowed}: ${s.name}`}>
+                {T.sources.editAllowed}
+              </button>
+            </Can>
+          </div>
+        ) : (
+          <p className="text-xs text-[var(--color-bo-ink-2)]">{T.sources.internalAllowed}</p>
+        ),
     },
+    { key: "volume", header: T.sources.volume, className: "text-right", render: (s) => <SourceVolume code={s.code} from={from} /> },
+    { key: "last", header: T.sources.lastEvent, render: (s) => <SourceLastEvent code={s.code} /> },
     {
       key: "state",
       header: T.sources.state,
@@ -329,11 +357,11 @@ function SourcesTab() {
         <div role="alertdialog" aria-labelledby="bo09-off" className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
           <p id="bo09-off">{T.sources.confirmOff(confirmOff.name)}</p>
           <div className="mt-2 flex gap-2">
-            <button type="button" autoFocus onClick={() => setEnabled(confirmOff, false)} className="rounded bg-amber-700 px-3 py-1 text-xs font-medium text-white">
-              {T.sources.confirmOffYes}
-            </button>
-            <button type="button" onClick={() => setConfirmOff(null)} className="rounded border border-amber-400 px-3 py-1 text-xs">
+            <button type="button" autoFocus onClick={() => setConfirmOff(null)} className="rounded border border-amber-400 px-3 py-1 text-xs font-medium">
               {T.sources.confirmOffNo}
+            </button>
+            <button type="button" onClick={() => setEnabled(confirmOff, false)} className="rounded bg-amber-700 px-3 py-1 text-xs font-medium text-white">
+              {T.sources.confirmOffYes}
             </button>
           </div>
         </div>
@@ -344,8 +372,8 @@ function SourcesTab() {
         service="ingestion"
         isEmpty={(d) => d.length === 0}
         emptyTitle={T.sources.emptyTitle}
-        emptyHint={T.sources.emptyHint}
-        emptyAction={{ label: T.sources.emptyAction, href: "/backoffice/demo/console" }}
+        emptyHint={isDemo ? T.sources.emptyHint : T.sources.emptyHintEnterprise}
+        emptyAction={isDemo ? { label: T.sources.emptyAction, href: "/backoffice/demo/console" } : undefined}
       >
         {(d) => <DataTable columns={columns} rows={d} rowKey={(s) => s.code} />}
       </QueryState>
@@ -357,6 +385,7 @@ function SourcesTab() {
           setDirty(false);
         }}
         dirty={dirty}
+        confirmText={T.sheet.confirmTextSources}
       >
         {editing ? (
           <AllowedTypesEditor
@@ -377,10 +406,11 @@ function SourcesTab() {
 
 function BridgeTab() {
   const qc = useQueryClient();
+  const isDemo = useIsDemo();
   const query = useLhQuery<MappingRow[]>("ingestion", "/v1/internal-mappings");
   const types = useLhQuery<ActionType[]>("ingestion", "/v1/event-types");
   // Contatore: azioni generate dal ponte tra gli ultimi 500 ingressi con fonte `internal`.
-  const recent = useLhQuery<InboundRow[]>("ingestion", "/v1/inbound-events?source=internal&status=ACCEPTED&limit=500");
+  const recent = useLhQuery<Pick<InboundEvent, "id" | "typeCode">[]>("ingestion", "/v1/inbound-events?source=internal&status=ACCEPTED&limit=500");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const names = new Map((types.data ?? []).map((x) => [x.code, x.name]));
@@ -461,8 +491,8 @@ function BridgeTab() {
         service="ingestion"
         isEmpty={(d) => d.length === 0}
         emptyTitle={T.bridge.emptyTitle}
-        emptyHint={T.bridge.emptyHint}
-        emptyAction={{ label: T.bridge.emptyAction, href: "/backoffice/demo/console" }}
+        emptyHint={isDemo ? T.bridge.emptyHint : T.bridge.emptyHintEnterprise}
+        emptyAction={isDemo ? { label: T.bridge.emptyAction, href: "/backoffice/demo/console" } : undefined}
       >
         {(d) => <DataTable columns={columns} rows={d} rowKey={(m) => m.factType} />}
       </QueryState>

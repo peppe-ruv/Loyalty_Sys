@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { foldWords, looksPersonal, STANDARD_FIELDS, standardRow, technicalName } from "./fields";
+import { foldWords, looksPersonal, personalKeys, STANDARD_FIELDS, standardRow, technicalName } from "./fields";
 import { rowErrors } from "./schema";
 import eventTypes from "../../../seed/event-types.json";
 
@@ -68,8 +68,29 @@ describe("dati personali", () => {
     "Data di nascita",
     "birthDate",
     "iban",
+    "CAP di residenza",
+    "Cellulare (mobile)",
+    "cf",
+    "Partita IVA",
+    "Nominativo",
+    "Latitudine",
+    "Numero civico",
   ])("blocca «%s»", (text) => {
     expect(looksPersonal(text)).toBe(true);
+  });
+
+  it("ogni ramo del controllo conta da solo", () => {
+    // Solo la coppia «codice … fiscale» lo riconosce: nessuna parola da sola e nemmeno l'unione.
+    expect(looksPersonal("Codice fiscale del membro")).toBe(true);
+    // Solo l'unione delle parole («birthday») lo riconosce: nessuna coppia e nessuna parola da sola.
+    expect(looksPersonal("Birth day")).toBe(true);
+  });
+
+  it("chiavi personali in un esempio, anche annidate", () => {
+    expect(personalKeys({ storeId: "NEG-001", email: "x@y.it" })).toEqual(["email"]);
+    expect(personalKeys({ items: [{ sku: "A", telefono: "1" }], meta: { codiceFiscale: "X" } })).toEqual(["telefono", "codiceFiscale"]);
+    expect(personalKeys({ storeId: "NEG-001", amount: 1 })).toEqual([]);
+    expect(personalKeys(null)).toEqual([]);
   });
 
   it.each(["Nome prodotto", "prizeName", "rewardName", "storeId", "memberId", "amount", "Canale", "Data della visita", "newsletter"])(
