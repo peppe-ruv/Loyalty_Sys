@@ -49,3 +49,37 @@ updates:
       actions:
         patterns:
           - "*"
+
+  # Immagini base dei Dockerfile (tag leggibile + digest): Dependabot aggiorna tag e digest insieme.
+  - package-ecosystem: "docker"
+    directories:
+      - "/deploy/hub"
+      - "/deploy/image"
+      - "/services/*"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 1
+    groups:
+      docker-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      # Java segue la versione del parent POM (25, LTS) e Node il runtime della CI (22): niente major finché non cambiano.
+      - dependency-name: "eclipse-temurin"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+
+  # Immagini di deploy/docker-compose.yml (infrastruttura locale, Keycloak, LDAP di prova). deploy/compose/reference.yml
+  # e i values del chart non sono letti da Dependabot e si allineano a mano (SPEC-GAP: Q-483).
+  - package-ecosystem: "docker-compose"
+    directory: "/deploy"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 1
+    groups:
+      compose-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      # Una major di Postgres non legge il volume della precedente (serve pg_upgrade o dump e ripristino).
+      - dependency-name: "postgres"
+        update-types: ["version-update:semver-major"]

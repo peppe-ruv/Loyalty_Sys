@@ -44,8 +44,10 @@ x-lh-require-env: &lh-require-env
 
 services:
   # ---------- Infrastruttura (sempre disponibile) ----------
+  # Immagini con tag leggibile e digest: riproducibili, aggiornate da Dependabot (ecosistema docker-compose, ADR-047).
+  # Kafka resta sulla linea 3.9 (ultima patch) finché non si decide il passaggio a 4.x (SPEC-GAP: Q-481).
   kafka:
-    image: apache/kafka:3.9.1
+    image: apache/kafka:3.9.2@sha256:05b4616e0702ef2729327705d54ad6b50ea70b271c4b730fabd2320789fb7b02
     container_name: lh-kafka
     ports:
       - "9092:9092"   # accesso dall'host (es. servizi avviati con ./mvnw)
@@ -73,7 +75,7 @@ services:
       start_period: 20s
 
   postgres:
-    image: postgres:17
+    image: postgres:17.11@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f
     container_name: lh-postgres
     ports:
       - "5432:5432"
@@ -91,8 +93,9 @@ services:
       retries: 10
       start_period: 10s
 
+  # Solo sviluppo. Progetto non più mantenuto, con vulnerabilità note senza correzione (SPEC-GAP: Q-479).
   kafka-ui:
-    image: provectuslabs/kafka-ui:v0.7.2
+    image: provectuslabs/kafka-ui:v0.7.2@sha256:8f2ff02d64b0a7a2b71b6b3b3148b85f66d00ec20ad40c30bdcd415d46d31818
     container_name: lh-kafka-ui
     ports:
       - "8090:8080"   # ispezione dei topic su http://localhost:8090
@@ -169,9 +172,10 @@ services:
       - ./idp/test-idp/test-realm.json:/opt/keycloak/data/import/idp-test-realm.json:ro
 
   # Solo prova (F2-IAM-04): LDAP per la federazione. La password admin è la stessa che Keycloak
-  # usa come bindCredential (LH_LDAP_BIND_CREDENTIAL). Mai in produzione.
+  # usa come bindCredential (LH_LDAP_BIND_CREDENTIAL). Mai in produzione. Immagine non più mantenuta, con
+  # vulnerabilità note senza correzione (SPEC-GAP: Q-480).
   ldap:
-    image: osixia/openldap:1.5.0
+    image: osixia/openldap:1.5.0@sha256:18742e9c449c9c1afe129d3f2f3ee15fb34cc43e5f940a20f3399728f41d7c28
     container_name: lh-ldap
     profiles: ["idp-test"]
     entrypoint: *lh-require-env

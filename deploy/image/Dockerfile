@@ -1,7 +1,7 @@
 # Multi-stage Dockerfile for M8.1
 
 # ---- hub-build ----
-FROM eclipse-temurin:25-jdk AS hub-build
+FROM eclipse-temurin:25-jdk@sha256:119a3d18f160a3e7655a66034d0f43beee31cd7b3b9142d57a5de29772011de6 AS hub-build
 WORKDIR /src
 COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
@@ -14,7 +14,7 @@ COPY deploy/ deploy/
 RUN ./mvnw -q -pl deploy/hub -am -DskipTests package
 
 # ---- web-build ----
-FROM node:22-alpine AS web-build
+FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS web-build
 WORKDIR /src
 RUN npm install -g pnpm@10.33.0
 COPY web/package.json web/pnpm-lock.yaml* ./web/
@@ -27,7 +27,8 @@ RUN pnpm build
 RUN mkdir -p /src/web/public
 
 # ---- final ----
-FROM cgr.dev/chainguard/wolfi-base@sha256:08df5982c3d27e70a4ce1607e3bb9af09d746f8722cf135a7694afef879fc5a2
+# Tag leggibile e digest in ogni FROM: build riproducibile, Dependabot (ecosistema docker) aggiorna il digest.
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:08df5982c3d27e70a4ce1607e3bb9af09d746f8722cf135a7694afef879fc5a2
 
 USER root
 # We install required packages from wolfi package repository.
