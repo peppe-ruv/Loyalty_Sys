@@ -23,7 +23,7 @@ import java.util.TreeMap;
  *   <li><strong>Ogni voce</strong>: numerazione contigua; {@code prev_hash} = hash della precedente; hash del contenuto
  *       ricalcolato uguale a quello dell'inserimento oppure, per una voce anonimizzata, a quello registrato dalla sua
  *       prova REDACT (integra e riferita a questa voce); hash della voce ricalcolato uguale a quello memorizzato; ogni
- *       ancora della stessa posizione coincide.</li>
+ *       ancora della stessa posizione coincide, e nessuna è una PURGE (una voce cancellata non torna).</li>
  *   <li><strong>Fine</strong>: la testa registrata coincide con l'ultima voce e nessuna ancora punta oltre (coda
  *       troncata). Una catena senza voci è legittima solo se un'ancora PURGE copre la testa.</li>
  *   <li><strong>Cancellazioni</strong>: nessuna ancora PURGE registra la cancellazione di voci più giovani dell'età
@@ -260,6 +260,11 @@ public final class AuditChainWalk {
                 continue;
             }
             anchorsChecked++;
+            if (entryPresent && a.isPurge()) {
+                // Una PURGE la scrive solo la cancellazione della voce: se la voce c'è ancora, l'ancora è falsificata.
+                return fail(seq, Reason.ANCHOR_MISMATCH, "un'ancora PURGE registra la cancellazione della voce " + seq
+                        + ", che invece è conservata: ancora falsificata");
+            }
             if (!match) {
                 return fail(onMismatch == Reason.PREV_HASH_MISMATCH ? seq + 1 : seq, onMismatch,
                         "l'ancora " + a.kind() + " registrata per la voce " + seq + " ha un hash diverso: catena "

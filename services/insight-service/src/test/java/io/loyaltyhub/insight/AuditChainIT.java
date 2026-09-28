@@ -179,6 +179,12 @@ class AuditChainIT extends TestbookInsBase {
 
     /** Il fatto che porta {@code memberId} in ANONYMIZED, come insight lo registra nell'event store; il suo id. */
     private String anonymizationFact(String memberId) {
+        return anonymizationFact(memberId,
+                "{\"data\": {\"memberId\": \"" + memberId + "\", \"status\": \"ANONYMIZED\"}}");
+    }
+
+    /** Come {@link #anonymizationFact(String)}, con il payload registrato (per esempio troncato a 8 KB). */
+    private String anonymizationFact(String memberId, String payload) {
         String eventId = uid("EVT-ANON");
         jdbc.sql("""
                         INSERT INTO event_store (event_id, topic, family, type, short_type, source, member_id,
@@ -186,7 +192,7 @@ class AuditChainIT extends TestbookInsBase {
                         VALUES (?, 'lh.facts.v1', 'FACT', 'io.loyaltyhub.fact.member.updated', 'member.updated',
                                 'urn:loyaltyhub:service:member', ?, 0, 0, cast(? AS jsonb))
                         """)
-                .params(eventId, memberId, "{\"data\": {\"memberId\": \"" + memberId + "\", \"status\": \"ANONYMIZED\"}}")
+                .params(eventId, memberId, payload)
                 .update();
         return eventId;
     }
@@ -506,11 +512,23 @@ class AuditChainIT extends TestbookInsBase {
         // Un valore vuoto o troppo corto non basta a dire che la voce riguarda il membro.
         assertRejected(() -> jdbc.sql(call).params(member, fact, unrelated, "[\" \", \"ca\", \"\"]", "COR-X")
                 .query(Boolean.class).single());
+        // Revisione m-b: un valore conta solo come parola intera («ata» non è in «Modificata», «campagna» sì).
+        assertRejected(() -> jdbc.sql(call).params(member, fact, unrelated, "[\"ata\", \"Campagn\"]", "COR-X")
+                .query(Boolean.class).single());
         assertRejected(() -> jdbc.sql(call).params("", fact, own, "[]", "COR-X").query(Boolean.class).single());
         assertRejected(() -> jdbc.sql(call).params(member, "", own, "[]", "COR-X").query(Boolean.class).single());
         assertThat(jdbc.sql(call).params(member, fact, own, "[]", "COR-ANON").query(Boolean.class).single()).isTrue();
 
         assertThat(redactions(own)).singleElement().asString().startsWith(member + "|1|");
+        // Revisione m-e: il fatto conta per il suo id, non per il payload (troncato a 8 KB, senza lo stato); la voce di
+        // un'altra entità conta se cita un valore del membro come parola intera, anche con maiuscole diverse dal profilo.
+        String truncated = anonymizationFact(member, "{\"data\": {\"truncated\": true}}");
+        audits.insert(new AuditRecord(uid("AUD"), uid("EVT"), T, "CARE", "carla.care", service, "REDEMPTION", uid("RDM"),
+                "UPDATE", "Spedizione a OTTAVIO Quintilio", null, null, null));
+        String mentions = entryId(service, 3);
+        assertThat(jdbc.sql(call).params(member, truncated, mentions, "[\"OTTAVIO Quintilio\"]", "COR-T")
+                .query(Boolean.class).single()).isTrue();
+        assertThat(redactions(mentions)).singleElement().asString().startsWith(member + "|3|");
         assertThat(jdbc.sql("SELECT correlation_id || '|' || (after ->> 'eventId') || '|' || (before IS NULL) "
                         + "FROM audit_entry WHERE service = 'audit.redaction' AND entity_id = ?")
                 .param(own).query(String.class).single()).isEqualTo("COR-ANON|" + fact + "|true");
@@ -628,6 +646,23 @@ class AuditChainIT extends TestbookInsBase {
         asDatabaseAdmin(() -> jdbc.sql("DELETE FROM audit_anchor WHERE service = ? AND kind = 'PURGE'").param(service).update());
         JsonNode other = reportWith(service, 4, "a".repeat(64));
         assertThat(other.path("expectedAnchor").path("result").asString()).isEqualTo("MISMATCH");
+    }
+
+    @Test
+    @DisplayName("ancora PURGE falsificata prima della cancellazione: la verifica la segnala, il DELETE è rifiutato")
+    void forgedPurgeAnchorIsRejected() {
+        String service = uid("chn-forged-purge").toLowerCase();
+        append(service, 3);
+        // Con le credenziali applicative e il flag alzato a mano: PURGE sulla voce 2, datata 1990.
+        asApplication(() -> {
+            jdbc.sql("SELECT set_config('loyaltyhub.audit_purge_anchor', 'on', true)").query(String.class).single();
+            jdbc.sql("INSERT INTO audit_anchor (service, seq, entry_hash, kind, entry_at) "
+                    + "VALUES (?, 2, ?, 'PURGE', timestamptz '1990-01-01')").params(service, entryHash(service, 2)).update();
+        });
+        assertBroken(report(service), 2, "ANCHOR_MISMATCH"); // una voce cancellata non torna: la PURGE è falsa
+        assertRejected(() -> jdbc.sql("DELETE FROM audit_entry WHERE service = ? AND seq <= 2").param(service).update());
+        assertThat(seqs(service)).containsExactly(1L, 2L, 3L);
+        assertThat(anchorKinds(service)).containsExactly("PURGE:2");
     }
 
     // ---------- servizi spariti ----------
@@ -829,6 +864,95 @@ class AuditChainIT extends TestbookInsBase {
         JsonNode report = report(service);
         assertOk(report);
         assertThat(report.path("redacted").asLong()).isEqualTo(1);
+    }
+
+    /**
+     * Revisione P18: i testi liberi che un operatore scrive ({@code reason} di un cambio di stato, di una rettifica dei
+     * punti, del diff dell'audit) e il {@code subject} di un'azione ({@code email:…}, {@code external:…}) citano il membro:
+     * dopo l'anonimizzazione non devono più contenerne i dati.
+     */
+    @Test
+    @DisplayName("anonimizzazione: reason dei fatti e dell'audit e subject email/external ripuliti, stati intatti")
+    void anonymizationScrubsFreeTextReasonsAndSubjects() {
+        String service = uid("chn-p18").toLowerCase();
+        String memberId = uid("MBR-P18");
+        String email = "p18." + memberId.toLowerCase() + "@example.test";
+        String external = uid("EXT-P18");
+        Map<String, Object> profile = new LinkedHashMap<>();
+        profile.put("memberId", memberId);
+        profile.put("firstName", "Ottavio");
+        profile.put("lastName", "Quintilio");
+        profile.put("email", email);
+        profile.put("externalId", external);
+        profile.put("status", "ACTIVE");
+        publish("lh.facts.v1", envelope(uid("EVT-REG"), FACT + "member.registered", "urn:loyaltyhub:service:member",
+                "member:" + memberId, uid("COR"), null, T, profile));
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("service", service);
+        data.put("entityType", "MEMBER");
+        data.put("entityId", memberId);
+        data.put("action", "UPDATE");
+        data.put("summary", "Sospeso");
+        data.put("after", Map.of("status", "SUSPENDED", "reason", "Reclamo di Ottavio Quintilio (" + email + ")"));
+        ObjectNode audit = envelope(uid("EVT-AUD"), AUDIT_TYPE, "urn:loyaltyhub:service:member", "MEMBER:" + memberId,
+                uid("COR"), null, T.plusSeconds(1), data);
+        audit.put("lhactor", "CARE:carla.care");
+        publish("lh.audit.v1", audit);
+        String adjusted = uid("EVT-ADJ");
+        publish("lh.facts.v1", envelope(adjusted, FACT + "wallet.points.adjusted", "urn:loyaltyhub:service:wallet",
+                "member:" + memberId, uid("COR"), null, T.plusSeconds(2),
+                Map.of("memberId", memberId, "currency", "PTS", "amount", 10,
+                        "reason", "Rimborso chiesto da Ottavio Quintilio")));
+        String byEmail = uid("EVT-ACT");
+        publish("lh.actions.v1", envelope(byEmail, ACTION + "app.login.daily", "urn:loyaltyhub:source:app",
+                "email:" + email, uid("COR"), null, T.plusSeconds(3), Map.of("channel", "APP")));
+        String byExternal = uid("EVT-ACT");
+        publish("lh.actions.v1", envelope(byExternal, ACTION + "app.login.daily", "urn:loyaltyhub:source:app",
+                "external:" + external, uid("COR"), null, T.plusSeconds(3), Map.of("channel", "APP")));
+        for (String id : List.of(adjusted, byEmail, byExternal)) {
+            awaitStored(id);
+        }
+        await("voce di audit del membro", () -> seqs(service).size() == 1, 20_000);
+
+        Map<String, Object> change = new LinkedHashMap<>();
+        change.put("memberId", memberId);
+        change.put("previousStatus", "SUSPENDED");
+        change.put("newStatus", "ANONYMIZED");
+        change.put("reason", "Diritto all'oblio chiesto da Ottavio Quintilio via " + email);
+        String anonymization = uid("EVT-ANON");
+        publish("lh.facts.v1", envelope(anonymization, FACT + "member.status.changed", "urn:loyaltyhub:service:member",
+                "member:" + memberId, uid("COR-ANON"), null, T.plusSeconds(4), change));
+        await("voce di audit anonimizzata", () -> jdbc.sql(
+                        "SELECT count(*) FROM audit_entry WHERE service = ? AND redacted_at IS NOT NULL")
+                .param(service).query(Long.class).single() == 1, 20_000);
+
+        JsonNode fact = storedData(anonymization);
+        assertThat(fact.path("reason").asString()).isEqualTo("Diritto all'oblio chiesto da Membro anonimo via Membro anonimo");
+        assertThat(fact.path("previousStatus").asString() + ">" + fact.path("newStatus").asString())
+                .isEqualTo("SUSPENDED>ANONYMIZED");
+        assertThat(storedData(adjusted).path("reason").asString()).isEqualTo("Rimborso chiesto da Membro anonimo");
+        assertThat(storedData(adjusted).path("currency").asString()).isEqualTo("PTS");
+        assertThat(storedSubject(byEmail)).isEqualTo("email:Membro anonimo");
+        assertThat(storedSubject(byExternal)).isEqualTo("external:Membro anonimo");
+        JsonNode after = json.readTree(jdbc.sql("SELECT after::text FROM audit_entry WHERE service = ?").param(service)
+                .query(String.class).single());
+        assertThat(after.path("reason").asString()).isEqualTo("Reclamo di Membro anonimo (Membro anonimo)");
+        assertThat(after.path("status").asString()).isEqualTo("SUSPENDED");
+        String everything = String.join(" ", jdbc.sql("SELECT payload::text FROM event_store WHERE event_id IN (?, ?, ?, ?)")
+                .params(anonymization, adjusted, byEmail, byExternal).query(String.class).list());
+        assertThat(everything).doesNotContain("Ottavio").doesNotContain(email).doesNotContain(external);
+        assertOk(report(service));
+    }
+
+    private JsonNode storedData(String eventId) {
+        return json.readTree(jdbc.sql("SELECT payload -> 'data' FROM event_store WHERE event_id = ?").param(eventId)
+                .query(String.class).single());
+    }
+
+    private String storedSubject(String eventId) {
+        return jdbc.sql("SELECT payload ->> 'subject' FROM event_store WHERE event_id = ?").param(eventId)
+                .query(String.class).single();
     }
 
     @Test

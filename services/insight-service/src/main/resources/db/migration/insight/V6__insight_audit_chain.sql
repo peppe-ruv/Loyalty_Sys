@@ -25,10 +25,17 @@
 --   - il DELETE della sola parte iniziale di ogni catena (retention e reset della demo della versione precedente): il
 --     trigger sul risultato lascia un'ancora PURGE sull'ultima voce cancellata di ogni servizio, con l'istante della
 --     voce più recente cancellata (`entry_at`); la verifica segnala una cancellazione di voci più giovani dell'età minima
---     (PURGE_TOO_RECENT). Un DELETE che svuota tutta la tabella fuori dalla retention è un reset: via anche teste e ancore.
+--     (PURGE_TOO_RECENT). Una seq si cancella una volta sola: un'ancora PURGE già presente per quella posizione è
+--     falsificata e il DELETE è rifiutato. È un reset (via anche teste e ancore) solo il DELETE che svuota la tabella
+--     nella stessa transazione che ha svuotato l'event store: il reset della demo della versione precedente
+--     (InsightReset, @Transactional). La retention oraria della versione precedente, che su un'installazione ferma può
+--     svuotare la tabella, lascia invece le sue ancore PURGE.
 --     Il DELETE per età della versione precedente è rifiutato quando una voce scaduta segue una più recente (lascerebbe
 --     un buco, Q-402): nessun dato perso, il job della versione precedente riprova al giro successivo e il rilascio
 --     porta la retention nuova, che cancella solo la parte iniziale.
+--   Durante il rilascio l'UPDATE della versione precedente blocca prima la voce e poi la testa di `audit.redaction`,
+--   il codice nuovo prima la testa e poi la voce: due anonimizzazioni concorrenti delle due versioni possono andare in
+--   stallo reciproco. PostgreSQL ne annulla una, il consumer la riprova e passa (Q-403).
 -- Il codice nuovo passa già dalle funzioni controllate, che alzano un flag locale alla transazione
 -- (`loyaltyhub.audit_write`). La migrazione di contract (Q-403, con i ruoli owner/app di M8.5) renderà obbligatori i
 -- flag, porrà un'età minima nel trigger dei DELETE e toglierà UPDATE e DELETE al ruolo applicativo.
@@ -266,34 +273,60 @@ BEGIN
 END
 $$;
 
+-- Reset della demo della versione precedente (InsightReset, @Transactional): svuota l'event store e poi l'audit nella
+-- stessa transazione. Il trigger dell'event store lo annota nella transazione; la retention della versione precedente
+-- svuota l'event store in una transazione sua e non lo annota mai per l'audit.
+CREATE OR REPLACE FUNCTION audit_event_store_after_delete() RETURNS trigger
+  LANGUAGE plpgsql SET search_path FROM CURRENT AS
+$$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM event_store) THEN
+    PERFORM set_config('loyaltyhub.audit_demo_reset', 'on', true);
+  END IF;
+  RETURN NULL;
+END
+$$;
+
 -- Dopo un DELETE: le voci cancellate sono la parte iniziale di ogni catena (nessuna voce rimasta le precede), e
 -- l'ultima cancellata di ogni servizio diventa un'ancora PURGE con l'istante della voce più recente cancellata
--- (`entry_at`), qualunque codice abbia cancellato. Una tabella svuotata del tutto fuori dalla retention è un reset
--- (reset della demo, anche della versione precedente): via anche teste e ancore, le catene ripartono dalla genesi.
+-- (`entry_at`), qualunque codice abbia cancellato. Una posizione si cancella una volta sola: un'ancora PURGE già
+-- presente è falsificata e il DELETE è rifiutato. Una tabella svuotata del tutto nella stessa transazione dell'event
+-- store è il reset della demo della versione precedente: via anche teste e ancore, le catene ripartono dalla genesi.
 CREATE OR REPLACE FUNCTION audit_entry_after_delete() RETURNS trigger
   LANGUAGE plpgsql SET search_path FROM CURRENT AS
 $$
 DECLARE
   write_flag text := coalesce(current_setting('loyaltyhub.audit_write', true), '');
+  forged     record;
 BEGIN
   IF EXISTS (SELECT 1 FROM purged p JOIN audit_entry r ON r.service = p.service AND r.seq < p.seq) THEN
     RAISE EXCEPTION 'audit_entry: si cancella solo la parte iniziale di ogni catena'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
-  IF write_flag <> 'purge' AND NOT EXISTS (SELECT 1 FROM audit_entry) THEN
+  IF (write_flag = 'reset' OR (write_flag <> 'purge' AND current_setting('loyaltyhub.audit_demo_reset', true) = 'on'))
+     AND NOT EXISTS (SELECT 1 FROM audit_entry) THEN
     PERFORM set_config('loyaltyhub.audit_write', 'reset', true);
     DELETE FROM audit_anchor;
     DELETE FROM audit_chain_head;
     PERFORM set_config('loyaltyhub.audit_write', write_flag, true);
     RETURN NULL;
   END IF;
+  SELECT a.service, a.seq INTO forged
+    FROM audit_anchor a
+    JOIN (SELECT p.service, max(p.seq) AS seq FROM purged p GROUP BY p.service) d
+      ON d.service = a.service AND d.seq = a.seq
+   WHERE a.kind = 'PURGE'
+   LIMIT 1;
+  IF FOUND THEN
+    RAISE EXCEPTION 'audit_anchor: esiste già un''ancora PURGE per % n. % prima della cancellazione: ancora falsificata',
+      forged.service, forged.seq USING ERRCODE = 'insufficient_privilege';
+  END IF;
   PERFORM set_config('loyaltyhub.audit_purge_anchor', 'on', true);
   INSERT INTO audit_anchor (service, seq, entry_hash, kind, entry_at)
   SELECT DISTINCT ON (p.service) p.service, p.seq, p.entry_hash, 'PURGE', newest.at
     FROM purged p
     JOIN (SELECT q.service, max(q.at) AS at FROM purged q GROUP BY q.service) newest ON newest.service = p.service
-   ORDER BY p.service, p.seq DESC
-  ON CONFLICT (service, seq, kind) DO NOTHING;
+   ORDER BY p.service, p.seq DESC;
   PERFORM set_config('loyaltyhub.audit_purge_anchor', '', true);
   RETURN NULL;
 END
@@ -360,6 +393,9 @@ CREATE TRIGGER audit_entry_record_redaction AFTER UPDATE ON audit_entry
 DROP TRIGGER IF EXISTS audit_entry_after_delete ON audit_entry;
 CREATE TRIGGER audit_entry_after_delete AFTER DELETE ON audit_entry
   REFERENCING OLD TABLE AS purged FOR EACH STATEMENT EXECUTE FUNCTION audit_entry_after_delete();
+DROP TRIGGER IF EXISTS audit_event_store_after_delete ON event_store;
+CREATE TRIGGER audit_event_store_after_delete AFTER DELETE ON event_store
+  FOR EACH STATEMENT EXECUTE FUNCTION audit_event_store_after_delete();
 DROP TRIGGER IF EXISTS audit_entry_no_truncate ON audit_entry;
 CREATE TRIGGER audit_entry_no_truncate BEFORE TRUNCATE ON audit_entry
   FOR EACH STATEMENT EXECUTE FUNCTION audit_reject_write();
@@ -402,11 +438,24 @@ BEGIN
 END
 $$;
 
+-- Il testo contiene il valore come parola intera, in forma NFC: prima e dopo non c'è una lettera o una cifra
+-- ([:alnum:] del database), le stesse regole di PersonalTextScrubber (che passa i valori così come li ha trovati nella
+-- voce). Un valore di meno di 3 caratteri non conta.
+CREATE OR REPLACE FUNCTION audit_mentions(p_text text, p_value text) RETURNS boolean
+  LANGUAGE sql IMMUTABLE SET search_path FROM CURRENT AS
+$$
+  SELECT p_text IS NOT NULL AND p_value IS NOT NULL AND length(btrim(p_value)) >= 3
+     AND normalize(p_text, NFC) ~ ('(^|[^[:alnum:]])'
+         || regexp_replace(normalize(btrim(p_value), NFC), '([^[:alnum:][:space:]])', '\\\1', 'g')
+         || '($|[^[:alnum:]])')
+$$;
+
 -- Anonimizzazione di una voce per conto di un membro (MemberRedactionRepository, F-MBR-05). Condizioni: il fatto di
 -- anonimizzazione `p_event_id` è nell'event store come fatto del membro (lo stato ANONYMIZED lo ha già verificato
 -- insight all'ingest, prima di ripulire le copie, che possono riscrivere il payload); la voce riguarda il membro (è sua,
--- oppure ne cita l'id o uno dei valori personali `p_tokens` di almeno 3 caratteri). La prova REDACT porta membro, fatto
--- e correlazione. Sono condizioni contro gli errori, non contro chi ha le credenziali applicative (Q-401).
+-- oppure la sintesi o un valore testuale di `before`/`after` ne cita l'id o uno dei valori personali `p_tokens`, come
+-- parola intera: `audit_mentions`). La prova REDACT porta membro, fatto e correlazione. Sono condizioni contro gli
+-- errori, non contro chi ha le credenziali applicative (Q-401).
 CREATE OR REPLACE FUNCTION audit_redact(p_member_id text, p_event_id text, p_id text, p_summary text, p_before jsonb,
                                         p_after jsonb, p_tokens jsonb DEFAULT '[]'::jsonb,
                                         p_correlation_id text DEFAULT NULL)
@@ -415,7 +464,6 @@ CREATE OR REPLACE FUNCTION audit_redact(p_member_id text, p_event_id text, p_id 
 $$
 DECLARE
   target_entity text;
-  target_text   text;
   n             integer;
 BEGIN
   IF coalesce(btrim(p_member_id), '') = '' OR coalesce(btrim(p_event_id), '') = '' THEN
@@ -429,16 +477,26 @@ BEGIN
     RAISE EXCEPTION 'audit_redact: % non è un fatto di member-service del membro %', p_event_id, p_member_id
       USING ERRCODE = 'insufficient_privilege';
   END IF;
-  SELECT a.entity_id, lower(coalesce(a.summary, '') || ' ' || coalesce(a.before::text, '') || ' ' || coalesce(a.after::text, ''))
-    INTO target_entity, target_text
-    FROM audit_entry a WHERE a.id = p_id;
+  SELECT a.entity_id INTO target_entity FROM audit_entry a WHERE a.id = p_id;
   IF NOT FOUND THEN
     RETURN false;
   END IF;
-  IF target_entity IS DISTINCT FROM p_member_id
-     AND strpos(target_text, lower(p_member_id)) = 0
-     AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements_text(coalesce(p_tokens, '[]'::jsonb)) t(v)
-                      WHERE length(btrim(t.v)) >= 3 AND strpos(target_text, lower(btrim(t.v))) > 0) THEN
+  IF target_entity IS DISTINCT FROM p_member_id AND NOT EXISTS (
+      SELECT 1
+        FROM audit_entry a
+        CROSS JOIN LATERAL (
+              SELECT a.summary AS s
+              UNION ALL
+              SELECT v #>> '{}' FROM jsonb_path_query(coalesce(a.before, 'null'::jsonb),
+                                                     'lax $.** ? (@.type() == "string")') v
+              UNION ALL
+              SELECT v #>> '{}' FROM jsonb_path_query(coalesce(a.after, 'null'::jsonb),
+                                                     'lax $.** ? (@.type() == "string")') v) texts
+        CROSS JOIN LATERAL (
+              SELECT p_member_id AS w
+              UNION ALL
+              SELECT t.v FROM jsonb_array_elements_text(coalesce(p_tokens, '[]'::jsonb)) t(v)) words
+       WHERE a.id = p_id AND audit_mentions(texts.s, words.w)) THEN
     RAISE EXCEPTION 'audit_redact: la voce % non riguarda il membro %', p_id, p_member_id
       USING ERRCODE = 'insufficient_privilege';
   END IF;

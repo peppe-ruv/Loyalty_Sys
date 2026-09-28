@@ -26,8 +26,9 @@ import java.util.Set;
  *   <li>Sulle righe di altre entità sostituisce solo i valori inequivocabili (e-mail, nome completo, telefono, id
  *       esterno), mai il solo nome di battesimo (potrebbe essere di un altro membro).</li>
  * </ol>
- * La sostituzione è per parole intere e non tocca mai i valori strutturali ({@link PersonalTextScrubber}): un soprannome
- * «Anon» o «Active» non corrompe {@code ANONYMIZED} né uno stato. Ogni anonimizzazione prende per prima il blocco delle
+ * La sostituzione è per parole intere e salta solo i valori sicuri ({@link PersonalTextScrubber}: identificativi, istanti,
+ * codici): un soprannome «Anon» o «Active» non corrompe {@code ANONYMIZED} né uno stato, mentre i testi liberi come
+ * {@code reason} e il {@code subject} {@code email:…} si ripuliscono. Ogni anonimizzazione prende per prima il blocco delle
  * anonimizzazioni ({@code audit_redaction_lock()}, V6): due anonimizzazioni concorrenti si mettono in fila invece di
  * bloccarsi a vicenda sulle stesse righe.
  * Doppia lettura {@code member.*:1}/{@code :2} (ADR-032, Q-346, docs/18 §3.4): le copie {@code :1} portano nome,
@@ -207,12 +208,15 @@ public class MemberRedactionRepository {
         }
         // audit_entry è in sola inserzione (ADR-043): si riscrivono solo i campi di contenuto, dalla funzione controllata
         // audit_redact (V6), che verifica che il fatto di anonimizzazione sia un fatto del membro nell'event store e che la
-        // voce lo riguardi (sua, o che ne cita l'id o uno dei valori `tokens`). La catena resta valida; la voce è marcata
-        // redacted_at e il database accoda una prova REDACT (catena audit.redaction) con membro, fatto e nuovo hash del
-        // contenuto, che la verifica esige.
+        // voce lo riguardi (sua, o che ne cita l'id o uno dei valori personali trovati qui, come parole intere e così come
+        // compaiono nella voce). La catena resta valida; la voce è marcata redacted_at e il database accoda una prova
+        // REDACT (catena audit.redaction) con membro, fatto e nuovo hash del contenuto, che la verifica esige.
         // SPEC-GAP: Q-401 — ADR-043 vieta l'UPDATE, F-MBR-05 chiede di ripulire anche le copie dell'audit.
+        Set<String> found = new LinkedHashSet<>(PersonalTextScrubber.found(a.summary(), tokens));
+        found.addAll(PersonalTextScrubber.found(a.before() == null ? null : mapper.readTree(a.before()), tokens));
+        found.addAll(PersonalTextScrubber.found(a.after() == null ? null : mapper.readTree(a.after()), tokens));
         jdbc.sql("SELECT audit_redact(?, ?, ?, ?, cast(? AS jsonb), cast(? AS jsonb), cast(? AS jsonb), ?)")
-                .params(memberId, eventId, a.id(), summary, before, after, mapper.writeValueAsString(tokens), correlationId)
+                .params(memberId, eventId, a.id(), summary, before, after, mapper.writeValueAsString(found), correlationId)
                 .query(Boolean.class).single();
         return 1;
     }

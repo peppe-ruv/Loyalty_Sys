@@ -462,6 +462,7 @@ La verifica ricalcola tutto in modo indipendente dal database e rileva, che si t
 
 - una voce modificata o tolta in mezzo alla catena, con la sua posizione;
 - voci iniziali tolte senza un'ancora `PURGE`, o cancellate quando avevano meno dell'età minima (`PURGE_TOO_RECENT`);
+- un'ancora `PURGE` su una voce ancora conservata, cioè falsificata (`ANCHOR_MISMATCH`);
 - un contenuto riscritto senza la sua prova `REDACT` o diverso da quello registrato dalla prova;
 - una riscrittura coerente fatta dopo un'ancora, se l'ancora è nel database o se la ricopi dai log.
 

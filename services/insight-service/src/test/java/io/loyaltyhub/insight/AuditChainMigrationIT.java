@@ -258,4 +258,58 @@ class AuditChainMigrationIT {
         assertThat(v.services()).filteredOn(r -> r.service().equals("audit.redaction")).singleElement()
                 .satisfies(r -> assertThat(r.reason()).isEqualTo(AuditChainReport.Reason.PURGE_TOO_RECENT));
     }
+
+    /**
+     * Revisione m-c: su un'installazione ferma la retention oraria della versione precedente può svuotare tutta la tabella
+     * (ogni voce ha più di 180 giorni). Non è il reset della demo (l'event store non è stato svuotato nella stessa
+     * transazione): teste e ancore restano, l'ancora PURGE registra la cancellazione e l'ancora dei log risulta
+     * {@code PURGED}, non {@code MISMATCH} o {@code MISSING}. Lo stesso DELETE senza flag di voci recenti è segnalato.
+     */
+    @Test
+    @Order(6)
+    @DisplayName("tabella svuotata dalla retention della versione precedente: nessun reset, ancore conservate, PURGED")
+    void legacyRetentionEmptyingTheTableIsNotAReset() {
+        new TransactionTemplate(new DataSourceTransactionManager(ds)).executeWithoutResult(s -> {
+            jdbc.sql("DELETE FROM event_store").update();
+            jdbc.sql("DELETE FROM audit_entry").update();
+        });
+        for (int i = 1; i <= 3; i++) {
+            jdbc.sql("""
+                            INSERT INTO audit_entry (id, event_id, at, actor_role, actor_name, service, entity_type,
+                                                     entity_id, action, summary)
+                            VALUES (?, ?, cast(? AS timestamptz), 'ADMIN', 'marta.admin', 'quiet', 'CAMPAIGN', 'CMP-1',
+                                    'UPDATE', 'Vecchia')
+                            """).params("01J3000000000000000000000" + i, "EVT-Q" + i, "1990-0" + i + "-01T00:00:00Z").update();
+        }
+        String logged = jdbc.sql("SELECT entry_hash FROM audit_entry WHERE service = 'quiet' AND seq = 3")
+                .query(String.class).single();
+
+        assertThat(jdbc.sql("DELETE FROM audit_entry WHERE at < now() - make_interval(days => ?)").param(180).update())
+                .isEqualTo(3);
+        assertThat(jdbc.sql("SELECT count(*) FROM audit_entry").query(Long.class).single()).isZero();
+        assertThat(jdbc.sql("SELECT kind || ':' || seq FROM audit_anchor WHERE service = 'quiet'").query(String.class).list())
+                .containsExactly("PURGE:3");
+        assertThat(jdbc.sql("SELECT seq FROM audit_chain_head WHERE service = 'quiet'").query(Long.class).single())
+                .isEqualTo(3);
+        AuditVerification v = new AuditChainVerifier(new AuditChainRepository(jdbc), Clock.systemUTC())
+                .verify("quiet", new io.loyaltyhub.insight.domain.AuditAnchor("quiet", 3, logged,
+                        io.loyaltyhub.insight.domain.AuditAnchor.EXTERNAL, null));
+        assertThat(v.services()).singleElement().satisfies(r -> {
+            assertThat(r.status()).as(r.toString()).isEqualTo(AuditChainReport.Status.OK);
+            assertThat(r.expectedAnchor().result()).isEqualTo(AuditChainReport.ExpectedAnchor.Result.PURGED);
+        });
+
+        // Lo stesso DELETE senza flag, fuori dalla retention e di voci recenti (credenziali applicative): nessun reset.
+        jdbc.sql("""
+                        INSERT INTO audit_entry (id, event_id, at, actor_role, actor_name, service, entity_type,
+                                                 entity_id, action, summary)
+                        VALUES ('01J30000000000000000000009', 'EVT-Q9', now(), 'ADMIN', 'marta.admin', 'quiet', 'CAMPAIGN',
+                                'CMP-1', 'UPDATE', 'Recente')
+                        """).update();
+        jdbc.sql("DELETE FROM audit_entry").update();
+        assertThat(verify().services()).filteredOn(r -> r.service().equals("quiet")).singleElement().satisfies(r -> {
+            assertThat(r.reason()).isEqualTo(AuditChainReport.Reason.PURGE_TOO_RECENT);
+            assertThat(r.brokenSeq()).isEqualTo(4);
+        });
+    }
 }

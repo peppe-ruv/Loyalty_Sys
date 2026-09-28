@@ -3,17 +3,20 @@ package io.loyaltyhub.insight.infra;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.text.Normalizer;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Pulizia dei valori personali di un membro anonimizzato senza corrompere i valori strutturali (F-MBR-05, M8.12a,
- * revisione P9): parole intere soltanto, mai stati, tipi, codici, identificativi e campi dell'envelope.
+ * Pulizia dei valori personali di un membro anonimizzato senza corrompere i valori sicuri (F-MBR-05, M8.12a, revisioni
+ * P9 e P18): parole intere soltanto; si saltano identificativi, istanti, envelope e i codici nei campi di codice, mentre
+ * ogni testo libero (anche {@code reason} e {@code subject}) si ripulisce.
  */
 class PersonalTextScrubberTest {
 
@@ -38,21 +41,47 @@ class PersonalTextScrubberTest {
         assertThat(PersonalTextScrubber.scrub("xottavio.q@example.test", tokens)).isEqualTo("xottavio.q@example.test");
     }
 
-    @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"status", "newStatus", "previousStatus", "type", "eventType", "rewardCode", "code", "reason",
-            "memberId", "entityId", "id", "createdAt", "time", "source", "subject", "lhactor", "lhcorrelationid", "action",
-            "entityType", "currency"})
-    @DisplayName("campi strutturali: mai riscritti")
-    void structuralKeys(String key) {
-        assertThat(PersonalTextScrubber.isStructural(key)).isTrue();
+    @Test
+    @DisplayName("Unicode: forma NFC, segni diacritici parte della parola, trattino basso come separatore")
+    void unicodeAndUnderscore() {
+        String nfd = Normalizer.normalize("José Quintilio ha scritto", Normalizer.Form.NFD);
+        assertThat(PersonalTextScrubber.scrub(nfd, List.of("José"))).isEqualTo("Membro anonimo Quintilio ha scritto");
+        assertThat(PersonalTextScrubber.scrub(nfd, List.of("Jose"))).as("«Jose» non è una parola di «José»")
+                .isEqualTo(nfd);
+        assertThat(PersonalTextScrubber.scrub("Ottavio_Q | Ottavio99 | l'Ottavio | «Ottavio»", List.of("Ottavio")))
+                .isEqualTo("Membro anonimo_Q | Ottavio99 | l'Membro anonimo | «Membro anonimo»");
+        assertThat(PersonalTextScrubber.scrub("nessun valore", List.of("Ottavio"))).isSameAs("nessun valore");
+    }
+
+    @Test
+    @DisplayName("valori trovati: così come compaiono nella voce, per la prova di audit_redact")
+    void foundAsTheyAppear() {
+        JsonNode after = mapper.readTree("""
+                {"status":"SUSPENDED","reason":"Reclamo di OTTAVIO Quintilio","lines":[{"note":"per ottavio"}]}""");
+        assertThat(PersonalTextScrubber.found(after, List.of("Ottavio", "Anon")))
+                .containsExactlyInAnyOrder("OTTAVIO", "ottavio");
+        assertThat(PersonalTextScrubber.found("Anonimizzato ANONYMIZED", List.of("Anon"))).isEmpty();
     }
 
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"summary", "note", "name", "firstName", "nickname", "email", "externalId", "emailHash",
-            "message", "title"})
-    @DisplayName("campi di testo e identificativi personali: ripuliti")
-    void textKeys(String key) {
-        assertThat(PersonalTextScrubber.isStructural(key)).isFalse();
+    @ValueSource(strings = {"id", "time", "source", "type", "specversion", "dataschema", "memberId", "entityId",
+            "createdAt", "lhactor", "lhcorrelationid", "entityType", "service", "contentHash"})
+    @DisplayName("identificativi, istanti ed envelope: mai riscritti")
+    void fixedKeys(String key) {
+        assertThat(PersonalTextScrubber.isFixed(key)).isTrue();
+        assertThat(PersonalTextScrubber.isSafe(key, "Ottavio Quintilio")).isTrue();
+    }
+
+    @ParameterizedTest(name = "{0}={1} -> sicuro {2}")
+    @CsvSource(delimiter = '|', value = {
+            "status|ACTIVE|true", "newStatus|ANONYMIZED|true", "eventType|io.loyaltyhub.fact.member.updated|true",
+            "rewardCode|RWD-ZED|true", "action|UPDATE|true", "currency|PTS|true",
+            "status|Chiesto da Ottavio|false", "reason|FRAUD_SUSPECTED|true", "reason|Rimborso chiesto da Ottavio|false",
+            "reason|Ottavio|false", "subject|email:ottavio@example.test|false", "subject|member:MBR-1|false",
+            "note|MEMBER_REQUEST|true", "externalId|EXT-00042|false", "emailHash|abc123hash|false"})
+    @DisplayName("codici nei campi di codice e costanti: sicuri; testo libero, reason e subject: si ripuliscono")
+    void safeValues(String key, String value, boolean safe) {
+        assertThat(PersonalTextScrubber.isSafe(key, value)).isEqualTo(safe);
     }
 
     @Test
@@ -71,6 +100,22 @@ class PersonalTextScrubberTest {
         assertThat(d.has("nickname")).as("chiave personale tolta").isFalse();
         assertThat(out.path("lhactor").asString()).isEqualTo("ADMIN:active");
         assertThat(out.path("type").asString()).isEqualTo("io.loyaltyhub.fact.member.status.changed");
+        assertThat(out.path("subject").asString()).isEqualTo("member:MBR-1");
+    }
+
+    @Test
+    @DisplayName("P18: reason e subject con il nome o l'e-mail del membro si ripuliscono")
+    void freeTextReasonAndSubject() {
+        JsonNode fact = mapper.readTree("""
+                {"type":"io.loyaltyhub.fact.member.status.changed","subject":"email:ottavio.q@example.test",
+                 "data":{"memberId":"MBR-1","newStatus":"ANONYMIZED",
+                         "reason":"Diritto all'oblio chiesto da Ottavio Quintilio via ottavio.q@example.test"}}""");
+        JsonNode out = PersonalTextScrubber.redactAndScrub(fact,
+                List.of("ottavio.q@example.test", "Ottavio Quintilio", "Ottavio"));
+        assertThat(out.path("data").path("reason").asString())
+                .isEqualTo("Diritto all'oblio chiesto da Membro anonimo via Membro anonimo");
+        assertThat(out.path("subject").asString()).isEqualTo("email:Membro anonimo");
+        assertThat(out.path("data").path("newStatus").asString()).isEqualTo("ANONYMIZED");
     }
 
     @Test
@@ -78,12 +123,13 @@ class PersonalTextScrubberTest {
     void scrubAllKeepsStructure() {
         JsonNode row = mapper.readTree("""
                 {"rewardCode":"RWD-ZED","status":"CONFIRMED","lines":[{"label":"Spedire a Zed Quintilio","sku":"ZED"}],
-                 "emailHash":"abc123hash"}""");
-        JsonNode out = PersonalTextScrubber.scrubAll(row, List.of("Zed Quintilio", "abc123hash", "ZED"));
+                 "emailHash":"abc123hash","subject":"external:EXT-00042"}""");
+        JsonNode out = PersonalTextScrubber.scrubAll(row, List.of("Zed Quintilio", "abc123hash", "EXT-00042"));
         assertThat(out.path("rewardCode").asString()).isEqualTo("RWD-ZED");
         assertThat(out.path("status").asString()).isEqualTo("CONFIRMED");
         assertThat(out.path("lines").get(0).path("label").asString()).isEqualTo("Spedire a Membro anonimo");
         assertThat(out.path("emailHash").asString()).as("pseudonimo sostituito (Q-367)").isEqualTo("Membro anonimo");
+        assertThat(out.path("subject").asString()).isEqualTo("external:Membro anonimo");
         assertThat(row.path("lines").get(0).path("label").asString()).as("originale intatto").contains("Zed");
     }
 }

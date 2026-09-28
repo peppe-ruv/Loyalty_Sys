@@ -512,4 +512,13 @@ class AuditChainWalkTest {
         assertBroken(walk(new AuditChainWalk(SVC, headOf(c), List.of(all), RedactionLookup.NONE, null, MIN), List.of()),
                 5, Reason.PURGE_TOO_RECENT);
     }
+
+    @Test
+    @DisplayName("ancora PURGE su una voce ancora conservata (falsificata, anche datata 1990): ANCHOR_MISMATCH")
+    void purgeAnchorOnARetainedEntryIsForged() {
+        List<AuditChainLink> c = chain(5);
+        AuditAnchor forged = purge(c.get(1), Instant.parse("1990-01-01T00:00:00Z"));
+        assertBroken(walk(new AuditChainWalk(SVC, headOf(c), List.of(forged), RedactionLookup.NONE, null, MIN), c),
+                2, Reason.ANCHOR_MISMATCH);
+    }
 }
