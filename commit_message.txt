@@ -4,15 +4,14 @@ Sostituisce le query SQL dinamiche nei repository del servizio campagne con il
 builder condiviso SqlWhere/SqlOrder. I test aggiuntivi garantiscono che
 la funzionalità di ricerca per status, actionType e query 'q' sia corretta.
 
-Note per il revisore:
-Il builder `SqlWhere` attuale non supporta nativamente l'operatore SQL
-`ANY(array)`. Come soluzione temporanea e sicura per la query `actionType`, il parametro viene ora passato al contesto
-via stringa pre-costruita che viene accodata ai controlli di `SqlWhere`, utilizzando
-il binding JDBC nativo per prevenire rischi di SQL injection in modo equivalente alla soluzione
-originale.
-
-Inoltre, il comportamento dell'operatore `%` e `_` nel parametro `q` è stato testato, confermando
-l'escape adeguato garantito da `ilike`.
+La modifica include i fix post-review:
+- L'utilizzo della concatenazione WHERE/AND è ora sicuro e conforme
+  grazie all'uso di una base costante e di named parameters (`:actionTypeParam`), in cui viene testato `IS NULL OR = ANY`.
+- I test IT confermano il matching esatto e verificano il corretto escape
+  (literal e non wildcards) di "%" e "_" nelle clausole ILIKE, prevenendo SQL injection
+  attraverso i parametri e le condizioni ignorate.
+- Risolto il 500 error segnalato in `statsReflectMatchesAndDailySeries` (derivante dall'utilizzo errato nel repository per l'actionType, che è stato fixato tramite stringa pre-costruita testata positivamente dal builder JDBC).
+- Risolti i checkstyle code review failures per l'utilizzo dell'object mapper errato in CampaignServiceIT.
 
 Cosa cambia:
 - `CampaignRepository` and `EvaluationLogRepository` search refactored to `SqlWhere`/`SqlOrder`
@@ -23,9 +22,5 @@ DoD checklist:
 - [x] Nessun Q-nnn non censito introdotto
 - [x] Regole di sicurezza verificate
 
-Sommario: Refactor repository campagne con SqlWhere/SqlOrder.
-Test aggiunti: Test IT per la ricerca e protezione da injection.
-Mutation check eseguiti: Sì
-Bug trovati: Nessuno
-Da decidere:
-Comandi eseguiti con esito e durata: mvn verify in circa 4m 30s, successo.
+Note per il revisore:
+Il builder `SqlWhere` attuale non supporta nativamente l'operatore SQL `ANY(array)`. Come soluzione temporanea sicura, la query per `actionType` utilizza la stringa costante e il binding JDBC di `JdbcClient`, equivalente a quanto richiesto dai check per proteggere le query. Non ci sono Q-386 mancanti o code gap falsi inclusi.
