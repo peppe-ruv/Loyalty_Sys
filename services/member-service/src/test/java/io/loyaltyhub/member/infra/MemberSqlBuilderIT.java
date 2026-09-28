@@ -2,8 +2,11 @@ package io.loyaltyhub.member.infra;
 
 import io.loyaltyhub.member.domain.Member;
 import io.loyaltyhub.member.domain.MemberStatus;
+import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -11,18 +14,24 @@ import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Elenco e conteggio dei membri col builder SQL comune (regola 19, ADR-042, docs/18 §3.10 punto 4): filtri
+ * facoltativi, segmento per codice o id sempre legato, {@code q} letterale ({@code %}, {@code _}, {@code \} non sono
+ * caratteri jolly) e tentativi di iniezione senza effetto. Dati propri, non i seed.
+ */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @EmbeddedKafka(partitions = 1, topics = {"lh.actions.v1", "lh.effects.v1", "lh.facts.v1", "lh.audit.v1", "lh.dlq.v1"})
 @ActiveProfiles("demo")
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class MemberSqlBuilderIT {
 
     private static final EmbeddedPostgres PG = startPg();
+    private static final String INJECTION = "x%' OR 1=1 --";
 
     @Autowired
     private MemberRepository repo;
@@ -50,9 +59,14 @@ class MemberSqlBuilderIT {
         }
     }
 
+    @AfterAll
+    void tearDown() throws Exception {
+        PG.close();
+    }
+
     @BeforeEach
     void setUp() {
-        // Clear tables
+        // Via i seed del profilo demo: il test lavora su tre membri e un segmento propri.
         jdbc.sql("DELETE FROM segment_member").update();
         jdbc.sql("DELETE FROM member_projection").update();
         jdbc.sql("DELETE FROM member_stats").update();
@@ -60,89 +74,83 @@ class MemberSqlBuilderIT {
         repo.deleteAll();
         segmentRepo.deleteAll();
 
-        // Insert dummy data
-        jdbc.sql("INSERT INTO member (id, first_name, last_name, nickname, email, status, version) VALUES ('MBR-01', 'Alice', 'Smith', 'Ally', 'alice@test.com', 'ACTIVE', 0)").update();
-        jdbc.sql("INSERT INTO member_projection (member_id, tier_code) VALUES ('MBR-01', 'GOLD') ON CONFLICT DO NOTHING").update();
-
-        jdbc.sql("INSERT INTO member (id, first_name, last_name, nickname, email, status, version) VALUES ('MBR-02', 'Bob', 'Jones', 'Bobby', 'bob_100%_real@test.com', 'INACTIVE', 0)").update();
-        jdbc.sql("INSERT INTO member_projection (member_id, tier_code) VALUES ('MBR-02', 'BASE') ON CONFLICT DO NOTHING").update();
-
-        jdbc.sql("INSERT INTO member (id, first_name, last_name, nickname, email, status, version) VALUES ('MBR-03', 'Eve', 'Brown', 'Evie', 'eve@test.com', 'ACTIVE', 0)").update();
-
-        jdbc.sql("INSERT INTO segment (id, code, name, type, status, member_count, version) VALUES ('SEG-01', 'GOLDEN', 'Golden members', 'STATIC', 'ACTIVE', 0, 0)").update();
-        jdbc.sql("INSERT INTO segment_member (segment_id, member_id) VALUES ('SEG-01', 'MBR-01')").update();
-        jdbc.sql("INSERT INTO segment_member (segment_id, member_id) VALUES ('SEG-01', 'MBR-03')").update();
+        jdbc.sql("""
+                INSERT INTO member (id, first_name, last_name, nickname, email, status, version) VALUES
+                  ('MBR-01', 'Alice', 'Smith', 'Ally', 'alice@test.com', 'ACTIVE', 0),
+                  ('MBR-02', 'Bob', 'Jones', 'Bobby', 'bob_100%_real@test.com', 'INACTIVE', 0),
+                  ('MBR-03', 'Eve', 'Brown', 'Ev\\ie', 'eve@test.com', 'ACTIVE', 0)
+                """).update();
+        jdbc.sql("""
+                INSERT INTO member_projection (member_id, tier_code) VALUES ('MBR-01', 'GOLD'), ('MBR-02', 'BASE')
+                """).update();
+        jdbc.sql("""
+                INSERT INTO segment (id, code, name, type, status, member_count, version)
+                VALUES ('SEG-01', 'GOLDEN', 'Golden members', 'STATIC', 'ACTIVE', 0, 0)
+                """).update();
+        jdbc.sql("""
+                INSERT INTO segment_member (segment_id, member_id) VALUES ('SEG-01', 'MBR-01'), ('SEG-01', 'MBR-03')
+                """).update();
     }
 
     @Test
-    void searchFiltersWithSqlWhere() {
-        List<Member> all = repo.search(null, null, null, null, 10, 0);
-        assertThat(all).hasSize(3);
-
-        List<Member> active = repo.search(null, MemberStatus.ACTIVE, null, null, 10, 0);
-        assertThat(active).hasSize(2).extracting(Member::id).containsExactly("MBR-01", "MBR-03");
-
-        List<Member> gold = repo.search(null, null, " GOLD ", null, 10, 0);
-        assertThat(gold).hasSize(1).extracting(Member::id).containsExactly("MBR-01");
-
-        // Literal match of '%' and '_' test
-        List<Member> matchBob = repo.search("100%_real", null, null, null, 10, 0);
-        assertThat(matchBob).hasSize(1).extracting(Member::id).containsExactly("MBR-02");
-
-        // Should NOT match everything by accident due to % being escaped
-        List<Member> matchOnlyPercent = repo.search("%", null, null, null, 10, 0);
-        assertThat(matchOnlyPercent).hasSize(1).extracting(Member::id).containsExactly("MBR-02");
-
-        List<Member> matchOnlyUnderscore = repo.search("_", null, null, null, 10, 0);
-        assertThat(matchOnlyUnderscore).hasSize(1).extracting(Member::id).containsExactly("MBR-02");
-
-        List<Member> matchSegment = repo.search(null, null, null, "GOLDEN", 10, 0);
-        assertThat(matchSegment).hasSize(2).extracting(Member::id).containsExactly("MBR-01", "MBR-03");
-
-        List<Member> matchAllCombos = repo.search("alice", MemberStatus.ACTIVE, "GOLD", "GOLDEN", 10, 0);
-        assertThat(matchAllCombos).hasSize(1).extracting(Member::id).containsExactly("MBR-01");
+    void searchAppliesOptionalFilters() {
+        assertThat(ids(repo.search(null, null, null, null, 10, 0))).containsExactly("MBR-01", "MBR-02", "MBR-03");
+        assertThat(ids(repo.search("  ", null, null, "  ", 10, 0))).as("testi vuoti = nessun filtro")
+                .containsExactly("MBR-01", "MBR-02", "MBR-03");
+        assertThat(ids(repo.search(null, MemberStatus.ACTIVE, null, null, 10, 0))).containsExactly("MBR-01", "MBR-03");
+        assertThat(ids(repo.search(null, null, " gold ", null, 10, 0))).containsExactly("MBR-01");
+        assertThat(ids(repo.search(" ALI ", null, null, null, 10, 0))).as("ILIKE su testo ripulito")
+                .containsExactly("MBR-01");
+        assertThat(ids(repo.search("alice", MemberStatus.ACTIVE, "GOLD", "GOLDEN", 10, 0))).containsExactly("MBR-01");
+        assertThat(ids(repo.search("bob", MemberStatus.ACTIVE, null, null, 10, 0))).isEmpty();
     }
 
     @Test
-    void paginationWorksCorrectly() {
-        List<Member> page1 = repo.search(null, null, null, null, 2, 0);
-        assertThat(page1).hasSize(2).extracting(Member::id).containsExactly("MBR-01", "MBR-02");
-
-        List<Member> page2 = repo.search(null, null, null, null, 2, 2);
-        assertThat(page2).hasSize(1).extracting(Member::id).containsExactly("MBR-03");
+    void searchFiltersBySegmentCodeOrId() {
+        assertThat(ids(repo.search(null, null, null, "GOLDEN", 10, 0))).containsExactly("MBR-01", "MBR-03");
+        assertThat(ids(repo.search(null, null, null, " SEG-01 ", 10, 0))).containsExactly("MBR-01", "MBR-03");
+        assertThat(ids(repo.search(null, null, null, "SEG-99", 10, 0))).isEmpty();
+        assertThat(ids(repo.search("eve", null, null, "GOLDEN", 10, 0))).containsExactly("MBR-03");
     }
 
     @Test
-    void countFiltersWithSqlWhere() {
-        long all = repo.count(null, null, null, null);
-        assertThat(all).isEqualTo(3);
-
-        long active = repo.count(null, MemberStatus.ACTIVE, null, null);
-        assertThat(active).isEqualTo(2);
-
-        long gold = repo.count(null, null, "GOLD", null);
-        assertThat(gold).isEqualTo(1);
-
-        long segmentCount = repo.count("alice", MemberStatus.ACTIVE, "GOLD", "GOLDEN");
-        assertThat(segmentCount).isEqualTo(1);
+    void searchTreatsLikeWildcardsAsLiterals() {
+        assertThat(ids(repo.search("100%_real", null, null, null, 10, 0))).containsExactly("MBR-02");
+        assertThat(ids(repo.search("%", null, null, null, 10, 0))).containsExactly("MBR-02");
+        assertThat(ids(repo.search("_", null, null, null, 10, 0))).containsExactly("MBR-02");
+        assertThat(ids(repo.search("\\", null, null, null, 10, 0))).containsExactly("MBR-03");
+        assertThat(ids(repo.search("1_0", null, null, null, 10, 0))).as("_ non vale un carattere qualsiasi").isEmpty();
     }
 
     @Test
-    void sqlInjectionAttemptOnSearch() {
-        // sql injection attempt via `q` string using ilike match
-        String maliciousQuery = "x%' OR 1=1 --";
-        List<Member> result = repo.search(maliciousQuery, null, null, null, 10, 0);
-        assertThat(result).isEmpty();
+    void searchPaginatesInIdOrder() {
+        assertThat(ids(repo.search(null, null, null, null, 2, 0))).containsExactly("MBR-01", "MBR-02");
+        assertThat(ids(repo.search(null, null, null, null, 2, 2))).containsExactly("MBR-03");
+        assertThat(ids(repo.search(null, null, null, "GOLDEN", 1, 1))).containsExactly("MBR-03");
+    }
 
-        // sql injection attempt via tier
-        List<Member> resultTier = repo.search(null, null, "x%' OR 1=1 --", null, 10, 0);
-        assertThat(resultTier).isEmpty();
-
-        // sql injection attempt via segment
-        List<Member> resultSegment = repo.search(null, null, null, "x%' OR 1=1 --", 10, 0);
-        assertThat(resultSegment).isEmpty();
-
-        // ensure the table is still alive
+    @Test
+    void countMatchesSearchFilters() {
         assertThat(repo.count(null, null, null, null)).isEqualTo(3);
+        assertThat(repo.count(null, MemberStatus.ACTIVE, null, null)).isEqualTo(2);
+        assertThat(repo.count(null, null, "GOLD", null)).isEqualTo(1);
+        assertThat(repo.count(null, null, null, "GOLDEN")).isEqualTo(2);
+        assertThat(repo.count(null, null, null, "SEG-01")).isEqualTo(2);
+        assertThat(repo.count("%", null, null, null)).isEqualTo(1);
+        assertThat(repo.count("alice", MemberStatus.ACTIVE, "GOLD", "GOLDEN")).isEqualTo(1);
+    }
+
+    @Test
+    void injectionAttemptsFindNothingAndChangeNothing() {
+        assertThat(repo.search(INJECTION, null, null, null, 10, 0)).isEmpty();
+        assertThat(repo.search(null, null, INJECTION, null, 10, 0)).isEmpty();
+        assertThat(repo.search(null, null, null, INJECTION, 10, 0)).isEmpty();
+        assertThat(repo.count(INJECTION, null, INJECTION, INJECTION)).isZero();
+
+        assertThat(jdbc.sql("SELECT count(*) FROM member").query(Long.class).single()).isEqualTo(3);
+    }
+
+    private static List<String> ids(List<Member> members) {
+        return members.stream().map(Member::id).toList();
     }
 }

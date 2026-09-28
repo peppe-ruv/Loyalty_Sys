@@ -3,9 +3,9 @@ package io.loyaltyhub.member.infra;
 import io.loyaltyhub.member.domain.Segment;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -18,12 +18,19 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Elenco dei segmenti col builder SQL comune (regola 19, ADR-042, docs/18 §3.10 punto 4): filtri facoltativi,
+ * {@code q} letterale ({@code %}, {@code _}, {@code \} non sono caratteri jolly) e tentativi di iniezione senza
+ * effetto. Dati propri, non i seed.
+ */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @EmbeddedKafka(partitions = 1, topics = {"lh.actions.v1", "lh.effects.v1", "lh.facts.v1", "lh.audit.v1", "lh.dlq.v1"})
 @ActiveProfiles("demo")
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class SegmentSqlBuilderIT {
 
     private static final EmbeddedPostgres PG = startPg();
+    private static final String INJECTION = "x%' OR 1=1 --";
 
     @Autowired
     private SegmentRepository repo;
@@ -48,48 +55,54 @@ class SegmentSqlBuilderIT {
         }
     }
 
+    @AfterAll
+    void tearDown() throws Exception {
+        PG.close();
+    }
+
     @BeforeEach
     void setUp() {
+        // Via i seed del profilo demo: il test lavora su tre segmenti propri.
         jdbc.sql("DELETE FROM segment_member").update();
         repo.deleteAll();
 
-        // Insert dummy data
-        jdbc.sql("INSERT INTO segment (id, code, name, type, status, member_count, version) VALUES ('SEG-01', 'CODE-A', 'First Segment', 'DYNAMIC', 'ACTIVE', 0, 0)").update();
-        jdbc.sql("INSERT INTO segment (id, code, name, type, status, member_count, version) VALUES ('SEG-02', 'CODE-B', 'Second % _ Segment', 'STATIC', 'ARCHIVED', 0, 0)").update();
-        jdbc.sql("INSERT INTO segment (id, code, name, type, status, member_count, version) VALUES ('SEG-03', 'CODE-C', 'Third Seg', 'DYNAMIC', 'ACTIVE', 0, 0)").update();
+        jdbc.sql("""
+                INSERT INTO segment (id, code, name, type, status, member_count, version) VALUES
+                  ('SEG-01', 'CODE-A', 'First Segment', 'DYNAMIC', 'ACTIVE', 0, 0),
+                  ('SEG-02', 'CODE-B', 'Second % _ Segment', 'STATIC', 'ARCHIVED', 0, 0),
+                  ('SEG-03', 'CODE-C', 'Third \\ Seg', 'DYNAMIC', 'ACTIVE', 0, 0)
+                """).update();
     }
 
     @Test
-    void listFiltersWithSqlWhere() {
-        List<Segment> all = repo.list(null, null, null);
-        assertThat(all).hasSize(3);
-
-        List<Segment> active = repo.list(null, null, " ACTIVE ");
-        assertThat(active).hasSize(2).extracting(Segment::code).containsExactly("CODE-A", "CODE-C");
-
-        List<Segment> dynamic = repo.list(null, "DYNAMIC", null);
-        assertThat(dynamic).hasSize(2).extracting(Segment::code).containsExactly("CODE-A", "CODE-C");
-
-        List<Segment> matchFirst = repo.list("first", null, null);
-        assertThat(matchFirst).hasSize(1).extracting(Segment::code).containsExactly("CODE-A");
-
-        // Literal match of '%' and '_' test
-        List<Segment> matchPercent = repo.list("%", null, null);
-        assertThat(matchPercent).hasSize(1).extracting(Segment::code).containsExactly("CODE-B");
-
-        List<Segment> matchUnderscore = repo.list("_", null, null);
-        assertThat(matchUnderscore).hasSize(1).extracting(Segment::code).containsExactly("CODE-B");
+    void listAppliesOptionalFiltersInCodeOrder() {
+        assertThat(codes(repo.list(null, null, null))).containsExactly("CODE-A", "CODE-B", "CODE-C");
+        assertThat(codes(repo.list(" ", " ", " "))).as("testi vuoti = nessun filtro")
+                .containsExactly("CODE-A", "CODE-B", "CODE-C");
+        assertThat(codes(repo.list(null, null, " active "))).containsExactly("CODE-A", "CODE-C");
+        assertThat(codes(repo.list(null, "DYNAMIC", null))).containsExactly("CODE-A", "CODE-C");
+        assertThat(codes(repo.list(" FIRST ", null, null))).containsExactly("CODE-A");
+        assertThat(codes(repo.list("code-", "static", "archived"))).containsExactly("CODE-B");
     }
 
     @Test
-    void sqlInjectionAttemptOnList() {
-        String maliciousQuery = "x%' OR 1=1 --";
-        List<Segment> result = repo.list(maliciousQuery, null, null);
-        assertThat(result).isEmpty();
+    void listTreatsLikeWildcardsAsLiterals() {
+        assertThat(codes(repo.list("%", null, null))).containsExactly("CODE-B");
+        assertThat(codes(repo.list("_", null, null))).containsExactly("CODE-B");
+        assertThat(codes(repo.list("\\", null, null))).containsExactly("CODE-C");
+        assertThat(codes(repo.list("CODE_A", null, null))).as("_ non vale un carattere qualsiasi").isEmpty();
+    }
 
-        List<Segment> resultType = repo.list(null, maliciousQuery, null);
-        assertThat(resultType).isEmpty();
+    @Test
+    void injectionAttemptsFindNothingAndChangeNothing() {
+        assertThat(repo.list(INJECTION, null, null)).isEmpty();
+        assertThat(repo.list(null, INJECTION, null)).isEmpty();
+        assertThat(repo.list(null, null, INJECTION)).isEmpty();
 
-        assertThat(repo.list(null, null, null)).hasSize(3);
+        assertThat(jdbc.sql("SELECT count(*) FROM segment").query(Long.class).single()).isEqualTo(3);
+    }
+
+    private static List<String> codes(List<Segment> segments) {
+        return segments.stream().map(Segment::code).toList();
     }
 }
