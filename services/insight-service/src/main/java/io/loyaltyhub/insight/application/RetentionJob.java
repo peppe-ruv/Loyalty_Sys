@@ -10,8 +10,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * Retention (RNF-07, docs/servizi/insight-service.md §5): l'event store tiene gli eventi degli ultimi
- * {@code max-age-days} giorni o le {@code max-rows} righe più recenti (il minore); l'audit 180 giorni.
- * Le metriche ({@code metric_daily}) sono illimitate. Job orario.
+ * {@code max-age-days} giorni o le {@code max-rows} righe più recenti (il minore); l'audit 180 giorni, tagliando per
+ * ogni catena di hash solo la parte iniziale scaduta (F2-GRC-07, SPEC-GAP: Q-402). Le metriche ({@code metric_daily})
+ * sono illimitate. Job orario.
  */
 @Component
 @org.springframework.context.annotation.Lazy(false) // docs/06 §5: attivo anche con lazy-initialization (profilo free)

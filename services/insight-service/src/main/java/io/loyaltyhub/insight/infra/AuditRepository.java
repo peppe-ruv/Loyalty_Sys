@@ -17,6 +17,8 @@ import java.util.Optional;
 /**
  * Voci di audit (docs/servizi/insight-service.md §2, §3). Inserimento idempotente su {@code event_id}
  * ({@code ON CONFLICT DO NOTHING}); ricerca con filtri e dettaglio per {@code id}. Retention 180 giorni (§5).
+ * La tabella è in sola inserzione e ogni voce entra nella catena di hash del proprio servizio (V6, F2-GRC-07): la
+ * catena la calcola il trigger all'inserimento, retention e reset passano dalle funzioni controllate del database.
  */
 @Repository
 public class AuditRepository {
@@ -96,13 +98,25 @@ public class AuditRepository {
         return jdbc.sql(sql.toString()).params(args).query(Long.class).single();
     }
 
+    /**
+     * Retention (§5): cancella, per ogni catena, le voci più vecchie di {@code days} giorni che ne formano la parte
+     * iniziale (funzione {@code audit_purge_before}, V6). La tabella è in sola inserzione: un {@code DELETE} diretto è
+     * rifiutato dal database.
+     */
     public int deleteOlderThan(int days) {
-        return jdbc.sql("DELETE FROM audit_entry WHERE at < now() - make_interval(days => ?)")
-                .param(days).update();
+        return jdbc.sql("SELECT audit_purge_before(now() - make_interval(days => ?))")
+                .param(days).query(Integer.class).single();
     }
 
+    /** Come {@link #deleteOlderThan(int)} con una soglia esplicita: cancella solo voci con {@code at} precedente. */
+    public int deleteBefore(Instant threshold) {
+        return jdbc.sql("SELECT audit_purge_before(?)")
+                .param(Timestamp.from(threshold)).query(Integer.class).single();
+    }
+
+    /** Reset della demo (§6): voci, teste e ancore; le catene ripartono dalla genesi (funzione {@code audit_reset}). */
     public void deleteAll() {
-        jdbc.sql("DELETE FROM audit_entry").update();
+        jdbc.sql("SELECT audit_reset()").query(Integer.class).single();
     }
 
     private static void appendEq(StringBuilder sql, List<Object> args, String column, String value) {

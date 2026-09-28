@@ -1,5 +1,50 @@
 components:
   schemas:
+    AuditChainReport:
+      properties:
+        anchorsChecked:
+          format: int32
+          type: integer
+        brokenSeq:
+          format: int64
+          type: integer
+        checked:
+          format: int64
+          type: integer
+        detail:
+          type: string
+        firstSeq:
+          format: int64
+          type: integer
+        headSeq:
+          format: int64
+          type: integer
+        lastSeq:
+          format: int64
+          type: integer
+        reason:
+          enum:
+          - GENESIS_MISMATCH
+          - UNANCHORED_START
+          - MISSING_ENTRY
+          - PREV_HASH_MISMATCH
+          - CONTENT_ALTERED
+          - ENTRY_ALTERED
+          - ANCHOR_MISMATCH
+          - TAIL_MISSING
+          - HEAD_MISMATCH
+          type: string
+        redacted:
+          format: int64
+          type: integer
+        service:
+          type: string
+        status:
+          enum:
+          - OK
+          - BROKEN
+          type: string
+      type: object
     AuditRecord:
       properties:
         action:
@@ -28,6 +73,21 @@ components:
         service:
           type: string
         summary:
+          type: string
+      type: object
+    AuditVerification:
+      properties:
+        services:
+          items:
+            $ref: "#/components/schemas/AuditChainReport"
+          type: array
+        status:
+          enum:
+          - OK
+          - BROKEN
+          type: string
+        verifiedAt:
+          format: date-time
           type: string
       type: object
     Breakdown:
@@ -612,6 +672,25 @@ paths:
                 $ref: "#/components/schemas/PageResponseAuditRecord"
           description: OK
       summary: List — audit
+      tags:
+      - audit
+  /v1/audit/verify:
+    get:
+      operationId: verifyChain
+      parameters:
+      - in: query
+        name: service
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuditVerification"
+          description: OK
+      summary: Verify chain
       tags:
       - audit
   /v1/audit/{id}:

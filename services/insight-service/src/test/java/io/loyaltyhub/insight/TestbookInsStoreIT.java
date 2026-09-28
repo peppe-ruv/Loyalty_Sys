@@ -41,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * docs/06 §10; docs/10 §9; F-INS-04.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "loyaltyhub.insight.retention.cron=-")
+        properties = {"loyaltyhub.insight.retention.cron=-", "loyaltyhub.insight.audit.anchor-cron=-"})
 @EmbeddedKafka(partitions = 1, topics = {"lh.actions.v1", "lh.effects.v1", "lh.facts.v1", "lh.audit.v1", "lh.dlq.v1"})
 @ActiveProfiles("demo")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -87,11 +87,13 @@ class TestbookInsStoreIT extends TestbookInsSupport {
         return id;
     }
 
+    /** Voce di audit nata {@code ageSql} fa: la tabella è in sola inserzione (V6), non la si invecchia con un UPDATE. */
     private String auditAged(String ageSql) {
         String id = uid("AUD-RET");
-        audits.insert(new AuditRecord(id, uid("EVT"), Instant.now(), "ADMIN", "ada.admin", "campaign", "CAMPAIGN",
+        Instant at = jdbc.sql("SELECT now() - cast(? AS interval)").param(ageSql)
+                .query(java.sql.Timestamp.class).single().toInstant();
+        audits.insert(new AuditRecord(id, uid("EVT"), at, "ADMIN", "ada.admin", "campaign", "CAMPAIGN",
                 "CMP-X", "UPDATE", "x", null, null, null));
-        jdbc.sql("UPDATE audit_entry SET at = now() - cast(? AS interval) WHERE id = ?").params(ageSql, id).update();
         return id;
     }
 

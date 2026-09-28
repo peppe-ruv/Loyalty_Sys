@@ -192,8 +192,11 @@ public class MemberRedactionRepository {
                 && Objects.equals(after, normalize(a.after()))) {
             return 0;
         }
-        jdbc.sql("UPDATE audit_entry SET summary = ?, before = cast(? AS jsonb), after = cast(? AS jsonb) WHERE id = ?")
-                .params(summary, before, after, a.id()).update();
+        // audit_entry è in sola inserzione (ADR-043): la sola riscrittura ammessa è questa, dei campi di contenuto, dalla
+        // funzione controllata audit_redact (V6). La catena di hash resta valida e la voce è marcata redacted_at.
+        // SPEC-GAP: Q-401 — ADR-043 vieta l'UPDATE, F-MBR-05 chiede di ripulire anche le copie dell'audit.
+        jdbc.sql("SELECT audit_redact(?, ?, cast(? AS jsonb), cast(? AS jsonb))")
+                .params(a.id(), summary, before, after).query(Boolean.class).single();
         return 1;
     }
 

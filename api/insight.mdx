@@ -450,6 +450,67 @@ I tracciati ricostruiscono la catena causale di un evento end-to-end, mostrando 
 
 > **Nota:** Ogni scrittura nel backoffice emette un evento su `lh.audit.v1`. L'Insight service consuma questo topic e popola la tabella `audit_entry` con i dettagli delle modifiche.
 
+### Verifica della catena di audit
+
+| Metodo | Path | Descrizione |
+| --- | --- | --- |
+| GET | `/v1/audit/verify` | Ricalcola la catena di hash dell'audit e dice, per servizio, se regge o dove si interrompe (ruolo `ADMIN`) |
+
+L'audit è a prova di manomissione (F2-GRC-07, ADR-043, ADR-044): ogni voce di un servizio porta l'hash della precedente, calcolato dal database all'inserimento, e la tabella è in sola inserzione. La retention cancella solo la parte più vecchia di ogni catena e lascia un'ancora a cui la prima voce rimasta si aggancia; un job giornaliero verifica il tratto nuovo e registra un'ancora sulla testa. La verifica ricalcola tutto in modo indipendente dal database: una voce alterata è indicata con la sua posizione, una riscrittura coerente dopo un'ancora è rivelata dall'ancora.
+
+```mermaid
+flowchart LR
+  accTitle: Catena di hash dell'audit e sua verifica
+  accDescr: Ogni voce di audit di un servizio porta l'hash della precedente a partire dalla genesi; la retention lascia un'ancora sull'ultima voce cancellata; il job giornaliero verifica il tratto nuovo e ancora la testa; la verifica ricalcola la catena e la confronta con testa e ancore.
+  GEN(["genesi"]) --> E1["voce 1"]
+  E1 -->|hash| E2["voce 2"]
+  E2 -->|hash| E3["voce 3"]
+  E3 --- HEAD[("testa")]
+  RET["retention"] -->|ancora PURGE| ANC[("ancore")]
+  JOB["job giornaliero"] -->|ancora DAILY se la catena regge| ANC
+  VER["GET /v1/audit/verify"] -.->|ricalcola| E3
+  VER -.-> HEAD
+  VER -.-> ANC
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef store fill:#F1F5F9,stroke:#475569,color:#0F172A
+  classDef ext fill:#FFFFFF,stroke:#94A3B8,stroke-dasharray:4 2,color:#334155
+  class RET,JOB,VER svc
+  class HEAD,ANC store
+  class GEN ext
+```
+
+**Parametri query:**
+
+| Parametro | Tipo | Descrizione |
+| --- | --- | --- |
+| `service` | string | Solo la catena di questo servizio (404 se non ne ha una) |
+
+**Risposta** (200 anche con una catena interrotta: l'esito è il dato):
+
+```json Verifica della catena
+{
+  "verifiedAt": "2026-09-28T09:00:00Z",
+  "status": "BROKEN",
+  "services": [
+    {
+      "service": "campaign",
+      "status": "BROKEN",
+      "checked": 3,
+      "firstSeq": 1,
+      "lastSeq": 2,
+      "headSeq": 5,
+      "redacted": 0,
+      "anchorsChecked": 0,
+      "brokenSeq": 3,
+      "reason": "CONTENT_ALTERED",
+      "detail": "sintesi o diff della voce 3 non corrispondono all'hash del contenuto"
+    }
+  ]
+}
+```
+
+Motivi (`reason`): `GENESIS_MISMATCH`, `UNANCHORED_START`, `MISSING_ENTRY`, `PREV_HASH_MISMATCH`, `CONTENT_ALTERED`, `ENTRY_ALTERED`, `ANCHOR_MISMATCH`, `TAIL_MISSING`, `HEAD_MISMATCH`. Le voci ripulite dall'anonimizzazione di un membro restano valide e sono contate in `redacted`. La forma canonica degli hash è definita nella scheda del servizio (`docs/servizi/insight-service.md` §5).
+
 ## DLQ (Dead Letter Queue)
 
 ### Elenco DLQ
