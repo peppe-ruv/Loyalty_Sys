@@ -58,6 +58,16 @@ class AuditHashChainTest {
     }
 
     @Test
+    @DisplayName("contenuto jsonb: chiavi per lunghezza e poi per byte, \", \" e \": \", numeri come memorizzati")
+    void jsonbRenderingVector() {
+        // Resa di PostgreSQL di '{"aa": 2, "b": 1}'::jsonb e '{"x": 1.50}'::jsonb (provata su PostgreSQL da AuditChainIT).
+        assertThat(AuditHashChain.canonicalContent(null, "{\"b\": 1, \"aa\": 2}", "{\"x\": 1.50}"))
+                .isEqualTo("19:lh.audit.content.v1,~17:{\"b\": 1, \"aa\": 2},11:{\"x\": 1.50},");
+        assertThat(AuditHashChain.contentHash(null, "{\"b\": 1, \"aa\": 2}", "{\"x\": 1.50}"))
+                .isEqualTo("e9162b8a2548c34c384eba5423b2d17e8547c4dfcacb76d229e7610bcbb0e37e");
+    }
+
+    @Test
     @DisplayName("hash della voce: vettore di riferimento (campo NULL come ~, contenuto per hash)")
     void entryVector() {
         AuditChainLink l = link("b7ecdb81b4e4fa2519d73e610fb007f787db423ffe7fc92653fd5be71165cb36");

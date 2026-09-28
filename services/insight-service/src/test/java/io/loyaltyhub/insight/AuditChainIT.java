@@ -1,14 +1,23 @@
 package io.loyaltyhub.insight;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.loyaltyhub.insight.application.AuditAnchorJob;
+import io.loyaltyhub.insight.application.AuditAnchorLog;
+import io.loyaltyhub.insight.application.AuditRetentionGuard;
 import io.loyaltyhub.insight.domain.AuditAnchor;
+import io.loyaltyhub.insight.domain.AuditChainHead;
+import io.loyaltyhub.insight.domain.AuditHashChain;
 import io.loyaltyhub.insight.domain.AuditRecord;
+import io.loyaltyhub.insight.infra.AuditChainRepository;
 import io.loyaltyhub.insight.infra.AuditRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -27,27 +36,36 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 /**
- * Audit a prova di manomissione (F2-GRC-07 parte 1, ADR-043, ADR-044, docs/18 §3.15 punto 5, M8.12): catena di hash
- * per servizio calcolata all'inserimento, verifica ({@code GET /v1/audit/verify}), sola inserzione imposta dal
- * database, retention che lascia la catena verificabile, ancoraggio giornaliero, accodamenti concorrenti senza buchi,
- * anonimizzazione che non spezza la catena. Ogni caso usa servizi propri (il database è condiviso dal contesto).
- * Le alterazioni "da chi ha accesso al database" disattivano i trigger dentro una transazione, come farebbe chi ne ha
- * i privilegi: nessun'altra sessione vede la tabella senza protezione.
+ * Audit a catena di hash (F2-GRC-07 parte 1, ADR-043, ADR-044, ADR-038, docs/18 §3.15 punto 5, M8.12a): catena per
+ * servizio calcolata all'inserimento, verifica ({@code GET /v1/audit/verify}, anche contro un'ancora copiata dai log),
+ * scritture ammesse e rifiutate dal database nella fase expand, prove REDACT delle anonimizzazioni, retention che lascia
+ * la catena verificabile e non scende sotto l'età minima, ancoraggio giornaliero anche nei log, accodamenti concorrenti
+ * senza buchi. Ogni caso usa servizi propri (il database è condiviso dal contesto).
+ * <p>
+ * Due tipi di alterazione: «con le credenziali dell'applicazione» (SQL normale, i trigger restano attivi, i flag si
+ * possono alzare a mano) e «da chi amministra il database» (trigger spenti dentro una transazione: nessun'altra sessione
+ * vede le tabelle senza protezione).
  */
 class AuditChainIT extends TestbookInsBase {
 
     private static final Instant T = Instant.parse("2026-09-20T10:00:00.250001Z");
+    private static final Pattern ANCHOR_LINE =
+            Pattern.compile("audit-anchor service=(\\S+) seq=(\\d+) entryHash=([0-9a-f]{64}) kind=(\\w+) anchoredAt=(\\S+)");
 
     @Autowired
     private AuditRepository audits;
+
+    @Autowired
+    private AuditChainRepository chain;
 
     @Autowired
     private AuditAnchorJob anchorJob;
@@ -73,13 +91,22 @@ class AuditChainIT extends TestbookInsBase {
         }
     }
 
-    private Resp verifyCall(String service, String actor) {
-        return call("GET", "/v1/audit/verify" + (service == null ? "" : "?service=" + service), actor, null);
+    private Resp verifyCall(String query, String actor) {
+        return call("GET", "/v1/audit/verify" + (query == null ? "" : "?" + query), actor, null);
     }
 
     /** Esito della catena di {@code service} da {@code GET /v1/audit/verify} (ADMIN). */
     private JsonNode report(String service) {
-        Resp r = verifyCall(service, actor("ADMIN"));
+        return report("service=" + service, service);
+    }
+
+    /** Esito della catena di {@code service} confrontata con l'ancora {@code seq}/{@code hash}. */
+    private JsonNode reportWith(String service, long seq, String hash) {
+        return report("service=" + service + "&seq=" + seq + "&hash=" + hash, service);
+    }
+
+    private JsonNode report(String query, String service) {
+        Resp r = verifyCall(query, actor("ADMIN"));
         assertThat(r.status()).as(r.text()).isEqualTo(200);
         assertThat(r.body().path("services").size()).isEqualTo(1);
         JsonNode report = r.body().path("services").get(0);
@@ -108,18 +135,57 @@ class AuditChainIT extends TestbookInsBase {
         return jdbc.sql("SELECT seq FROM audit_chain_head WHERE service = ?").param(service).query(Long.class).single();
     }
 
+    private String entryHash(String service, long seq) {
+        return jdbc.sql("SELECT entry_hash FROM audit_entry WHERE service = ? AND seq = ?").params(service, seq)
+                .query(String.class).single();
+    }
+
+    private String entryId(String service, long seq) {
+        return jdbc.sql("SELECT id FROM audit_entry WHERE service = ? AND seq = ?").params(service, seq)
+                .query(String.class).single();
+    }
+
     private List<String> anchorKinds(String service) {
         return jdbc.sql("SELECT kind || ':' || seq FROM audit_anchor WHERE service = ? ORDER BY id").param(service)
                 .query(String.class).list();
     }
 
-    /** Scrittura di chi ha accesso diretto al database: trigger spenti solo dentro questa transazione. */
+    /** Prove REDACT della catena insight per la voce {@code entryId}: {@code memberId|seq|contentHash}. */
+    private List<String> redactions(String entryId) {
+        return jdbc.sql("""
+                        SELECT coalesce(after ->> 'memberId', '-') || '|' || (after ->> 'seq') || '|' || (after ->> 'contentHash')
+                        FROM audit_entry WHERE service = 'insight' AND action = 'REDACT' AND entity_id = ? ORDER BY seq
+                        """).param(entryId).query(String.class).list();
+    }
+
+    /** Chi amministra il database: trigger delle tre tabelle spenti solo dentro questa transazione. */
     private void asDatabaseAdmin(Runnable statements) {
         new TransactionTemplate(txManager).executeWithoutResult(s -> {
-            jdbc.sql("ALTER TABLE audit_entry DISABLE TRIGGER USER").update();
+            for (String table : List.of("audit_entry", "audit_chain_head", "audit_anchor")) {
+                jdbc.sql("ALTER TABLE " + table + " DISABLE TRIGGER USER").update();
+            }
             statements.run();
-            jdbc.sql("ALTER TABLE audit_entry ENABLE TRIGGER USER").update();
+            for (String table : List.of("audit_entry", "audit_chain_head", "audit_anchor")) {
+                jdbc.sql("ALTER TABLE " + table + " ENABLE TRIGGER USER").update();
+            }
         });
+    }
+
+    /** Chi ha le credenziali dell'applicazione: SQL normale in una transazione, trigger attivi. */
+    private void asApplication(Runnable statements) {
+        new TransactionTemplate(txManager).executeWithoutResult(s -> statements.run());
+    }
+
+    /** Il fatto che porta {@code memberId} in ANONYMIZED, come insight lo registra nell'event store. */
+    private void anonymizationFact(String memberId) {
+        jdbc.sql("""
+                        INSERT INTO event_store (event_id, topic, family, type, short_type, source, member_id,
+                                                 kafka_partition, kafka_offset, payload)
+                        VALUES (?, 'lh.facts.v1', 'FACT', 'io.loyaltyhub.fact.member.updated', 'member.updated',
+                                'urn:loyaltyhub:service:member', ?, 0, 0, cast(? AS jsonb))
+                        """)
+                .params(uid("EVT-ANON"), memberId, "{\"data\": {\"memberId\": \"" + memberId + "\", \"status\": \"ANONYMIZED\"}}")
+                .update();
     }
 
     private static String sqlState(Throwable t) {
@@ -135,6 +201,26 @@ class AuditChainIT extends TestbookInsBase {
         Throwable t = catchThrowable(write::run);
         assertThat(t).as("scrittura rifiutata").isNotNull();
         assertThat(sqlState(t)).as(String.valueOf(t)).isEqualTo("42501");
+    }
+
+    /** Righe {@code audit-anchor} scritte sul logger dedicato mentre {@code action} gira. */
+    private List<ILoggingEvent> anchorLogDuring(Runnable action) {
+        Logger logger = (Logger) LoggerFactory.getLogger(AuditAnchorLog.LOGGER);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            action.run();
+        } finally {
+            logger.detachAppender(appender);
+        }
+        return appender.list;
+    }
+
+    private static Matcher anchorLine(List<ILoggingEvent> lines, String service) {
+        return lines.stream().map(e -> ANCHOR_LINE.matcher(e.getFormattedMessage()))
+                .filter(m -> m.matches() && m.group(1).equals(service)).findFirst()
+                .orElseThrow(() -> new AssertionError("nessuna riga audit-anchor per " + service));
     }
 
     // ---------- catena all'ingest ----------
@@ -198,18 +284,38 @@ class AuditChainIT extends TestbookInsBase {
         assertOk(report(service));
     }
 
+    @Test
+    @DisplayName("forma canonica: resa jsonb di PostgreSQL e hash SQL uguali al vettore Java")
+    void jsonbRenderingMatchesTheCanonicalForm() {
+        assertThat(jdbc.sql("SELECT cast('{\"aa\": 2, \"b\": 1}' AS jsonb)::text").query(String.class).single())
+                .isEqualTo("{\"b\": 1, \"aa\": 2}");
+        assertThat(jdbc.sql("SELECT cast('{\"x\":1.50}' AS jsonb)::text").query(String.class).single())
+                .isEqualTo("{\"x\": 1.50}");
+        String sql = jdbc.sql("SELECT audit_content_hash(NULL, cast('{\"aa\":2,\"b\":1}' AS jsonb), cast('{\"x\":1.50}' AS jsonb))")
+                .query(String.class).single();
+        assertThat(sql).isEqualTo(AuditHashChain.contentHash(null, "{\"b\": 1, \"aa\": 2}", "{\"x\": 1.50}"))
+                .isEqualTo("e9162b8a2548c34c384eba5423b2d17e8547c4dfcacb76d229e7610bcbb0e37e");
+        assertThat(jdbc.sql("SELECT audit_min_retention_days()").query(Integer.class).single())
+                .as("stessa età minima nel database e nel controllo all'avvio").isEqualTo(AuditRetentionGuard.MIN_DAYS);
+    }
+
     // ---------- verifica ----------
 
     @Test
-    @DisplayName("verifica: solo ADMIN (SPEC-GAP Q-399); servizio senza catena 404; senza filtro tutte le catene")
+    @DisplayName("verifica: solo ADMIN (SPEC-GAP Q-399); 404 per un servizio sconosciuto; 400 per un'ancora incompleta")
     void verifyAccess() {
         String service = uid("chn-access").toLowerCase();
         append(service, 1);
         for (String who : new String[]{"MARKETING", "CARE", "LEGAL", "ANALYST", "NONE"}) {
-            Resp r = verifyCall(service, actor(who));
+            Resp r = verifyCall("service=" + service, actor(who));
             assertThat(r.status()).as(who + " " + r.text()).isEqualTo(403);
         }
-        assertThat(verifyCall("chn-sconosciuto", actor("ADMIN")).status()).isEqualTo(404);
+        assertThat(verifyCall("service=chn-sconosciuto", actor("ADMIN")).status()).isEqualTo(404);
+        for (String bad : new String[]{"seq=1&hash=" + "a".repeat(64), "service=" + service + "&seq=1",
+                "service=" + service + "&hash=" + "a".repeat(64), "service=" + service + "&seq=0&hash=" + "a".repeat(64),
+                "service=" + service + "&seq=1&hash=xyz"}) {
+            assertThat(verifyCall(bad, actor("ADMIN")).status()).as(bad).isEqualTo(400);
+        }
         Resp all = verifyCall(null, actor("ADMIN"));
         assertThat(all.status()).isEqualTo(200);
         assertThat(all.body().path("verifiedAt").asString()).isNotBlank();
@@ -224,6 +330,9 @@ class AuditChainIT extends TestbookInsBase {
                         3, "CONTENT_ALTERED"),
                 Arguments.of("stato dopo (jsonb)", "UPDATE audit_entry SET after = '{\"priority\": 1}' WHERE service = ? AND seq = 3",
                         3, "CONTENT_ALTERED"),
+                Arguments.of("sintesi marcata come anonimizzata, senza prova",
+                        "UPDATE audit_entry SET summary = 'Membro anonimo', redacted_at = now() WHERE service = ? AND seq = 3",
+                        3, "REDACTION_UNRECORDED"),
                 Arguments.of("attore", "UPDATE audit_entry SET actor_name = 'mallory' WHERE service = ? AND seq = 3",
                         3, "ENTRY_ALTERED"),
                 Arguments.of("istante", "UPDATE audit_entry SET at = at + interval '1 second' WHERE service = ? AND seq = 3",
@@ -232,7 +341,7 @@ class AuditChainIT extends TestbookInsBase {
                         3, "ENTRY_ALTERED"),
                 Arguments.of("voce in mezzo rimossa", "DELETE FROM audit_entry WHERE service = ? AND seq = 3",
                         3, "MISSING_ENTRY"),
-                Arguments.of("prima voce rimossa", "DELETE FROM audit_entry WHERE service = ? AND seq = 1",
+                Arguments.of("prima voce rimossa senza ancora", "DELETE FROM audit_entry WHERE service = ? AND seq = 1",
                         2, "UNANCHORED_START"),
                 Arguments.of("ultima voce rimossa", "DELETE FROM audit_entry WHERE service = ? AND seq = 5",
                         5, "TAIL_MISSING"),
@@ -241,7 +350,7 @@ class AuditChainIT extends TestbookInsBase {
     }
 
     @ParameterizedTest(name = "{0}")
-    @DisplayName("alterazione diretta nel database: la verifica indica la voce esatta e il motivo")
+    @DisplayName("alterazione da chi amministra il database: la verifica indica la voce esatta e il motivo")
     @MethodSource("tampering")
     void tamperingIsLocated(String what, String sql, long brokenSeq, String reason) {
         String service = uid("chn-tamper").toLowerCase();
@@ -252,19 +361,17 @@ class AuditChainIT extends TestbookInsBase {
     }
 
     @Test
-    @DisplayName("catena riscritta tutta in modo coerente dopo l'ancoraggio: la rivela l'ancora giornaliera")
+    @DisplayName("catena riscritta tutta in modo coerente dopo l'ancoraggio: la rivelano l'ancora nel database e quella nei log")
     void consistentRewriteIsCaughtByTheAnchor() {
         String service = uid("chn-rewrite").toLowerCase();
         append(service, 5);
-        List<AuditAnchor> anchored = anchorJob.anchor();
-        assertThat(anchored).anySatisfy(a -> {
-            assertThat(a.service()).isEqualTo(service);
-            assertThat(a.seq()).isEqualTo(5);
-            assertThat(a.kind()).isEqualTo(AuditAnchor.DAILY);
-        });
+        List<ILoggingEvent> logged = anchorLogDuring(anchorJob::anchor);
+        Matcher line = anchorLine(logged, service);
+        assertThat(line.group(2)).isEqualTo("5");
         assertThat(report(service).path("anchorsChecked").asInt()).isEqualTo(1);
 
-        // Chi ha accesso al database cambia la voce 3 e ricalcola gli hash di tutte le seguenti e della testa.
+        // Chi amministra il database cambia la voce 3, ricalcola gli hash di tutte le seguenti e della testa e cancella
+        // l'ancora giornaliera.
         asDatabaseAdmin(() -> {
             jdbc.sql("""
                             UPDATE audit_entry SET summary = 'Nessuna modifica',
@@ -286,44 +393,103 @@ class AuditChainIT extends TestbookInsBase {
                             WHERE h.service = ? AND e.service = h.service AND e.seq = h.seq""").param(service).update();
         });
         assertBroken(report(service), 5, "ANCHOR_MISMATCH");
+
+        asDatabaseAdmin(() -> jdbc.sql("DELETE FROM audit_anchor WHERE service = ?").param(service).update());
+        assertOk(report(service)); // nel database non resta nulla che lo riveli
+        JsonNode withLog = reportWith(service, Long.parseLong(line.group(2)), line.group(3));
+        assertBroken(withLog, 5, "ANCHOR_MISMATCH");
+        assertThat(withLog.path("expectedAnchor").path("result").asString()).isEqualTo("MISMATCH");
     }
 
-    // ---------- sola inserzione ----------
+    // ---------- scritture ammesse e rifiutate (fase expand) ----------
 
     @Test
-    @DisplayName("sola inserzione: UPDATE, DELETE e TRUNCATE rifiutati su audit_entry e audit_anchor (42501)")
-    void insertOnly() {
+    @DisplayName("rifiutati (42501): campi della voce e della catena, cancellazioni in mezzo, TRUNCATE, testa e ancore")
+    void writesRejected() {
         String service = uid("chn-insert-only").toLowerCase();
         append(service, 3);
         anchorJob.anchor();
         List<Long> before = seqs(service);
 
-        assertRejected(() -> jdbc.sql("UPDATE audit_entry SET summary = 'x' WHERE service = ?").param(service).update());
-        assertRejected(() -> jdbc.sql("DELETE FROM audit_entry WHERE service = ?").param(service).update());
+        assertRejected(() -> jdbc.sql("UPDATE audit_entry SET actor_name = 'mallory' WHERE service = ?").param(service).update());
+        assertRejected(() -> jdbc.sql("UPDATE audit_entry SET entry_hash = repeat('c', 64) WHERE service = ?").param(service).update());
+        assertRejected(() -> jdbc.sql("UPDATE audit_entry SET seq = seq + 100 WHERE service = ?").param(service).update());
+        assertRejected(() -> jdbc.sql("DELETE FROM audit_entry WHERE service = ? AND seq = 2").param(service).update());
         assertRejected(() -> jdbc.sql("TRUNCATE audit_entry").update());
+        assertRejected(() -> jdbc.sql("UPDATE audit_chain_head SET seq = 0 WHERE service = ?").param(service).update());
+        assertRejected(() -> jdbc.sql("DELETE FROM audit_chain_head WHERE service = ?").param(service).update());
+        assertRejected(() -> jdbc.sql("INSERT INTO audit_chain_head (service, seq, entry_hash) VALUES (?, 9, 'x')")
+                .param(uid("chn-fake")).update());
+        assertRejected(() -> jdbc.sql("TRUNCATE audit_chain_head").update());
         assertRejected(() -> jdbc.sql("UPDATE audit_anchor SET seq = 0 WHERE service = ?").param(service).update());
         assertRejected(() -> jdbc.sql("DELETE FROM audit_anchor WHERE service = ?").param(service).update());
         assertRejected(() -> jdbc.sql("TRUNCATE audit_anchor").update());
+        // Un UPDATE che tocca solo redacted_at non cambia nulla (lo decide il trigger).
+        jdbc.sql("UPDATE audit_entry SET redacted_at = now() WHERE service = ?").param(service).update();
+
         assertThat(seqs(service)).isEqualTo(before);
         assertThat(anchorKinds(service)).containsExactly("DAILY:3");
+        assertThat(jdbc.sql("SELECT count(*) FROM audit_entry WHERE service = ? AND redacted_at IS NOT NULL")
+                .param(service).query(Long.class).single()).isZero();
         assertOk(report(service));
     }
 
     @Test
-    @DisplayName("percorsi controllati usati male: l'anonimizzazione non cambia i campi della voce, la retention non buca")
-    void controlledPathsCannotBeAbused() {
-        String service = uid("chn-abuse").toLowerCase();
+    @DisplayName("il flag della testa non resta alzato: dopo un inserimento, nella stessa transazione, la testa è protetta")
+    void headFlagDoesNotLeak() {
+        String service = uid("chn-flag").toLowerCase();
+        append(service, 1);
+        assertRejected(() -> asApplication(() -> {
+            audits.insert(record(service, 2, T));
+            jdbc.sql("UPDATE audit_chain_head SET seq = 99 WHERE service = ?").param(service).update();
+        }));
+        assertThat(seqs(service)).containsExactly(1L);
+        assertOk(report(service));
+    }
+
+    @Test
+    @DisplayName("contenuto riscritto con un UPDATE semplice (versione precedente): ammesso, marcato, con prova REDACT senza membro")
+    void contentUpdateLeavesEvidence() {
+        String service = uid("chn-content").toLowerCase();
         append(service, 3);
-        TransactionTemplate tx = new TransactionTemplate(txManager);
-        assertRejected(() -> tx.executeWithoutResult(s -> {
-            jdbc.sql("SELECT set_config('loyaltyhub.audit_write', 'redact', true)").query(String.class).single();
-            jdbc.sql("UPDATE audit_entry SET actor_name = 'mallory' WHERE service = ? AND seq = 2").param(service).update();
-        }));
-        assertRejected(() -> tx.executeWithoutResult(s -> {
-            jdbc.sql("SELECT set_config('loyaltyhub.audit_write', 'purge', true)").query(String.class).single();
-            jdbc.sql("DELETE FROM audit_entry WHERE service = ? AND seq = 2").param(service).update();
-        }));
-        assertThat(seqs(service)).containsExactly(1L, 2L, 3L);
+        String id = entryId(service, 2);
+        assertThat(jdbc.sql("UPDATE audit_entry SET summary = ?, before = NULL WHERE id = ?")
+                .params("Membro anonimo", id).update()).isEqualTo(1);
+        String content = jdbc.sql("SELECT audit_content_hash(summary, before, after) FROM audit_entry WHERE id = ?")
+                .param(id).query(String.class).single();
+        assertThat(redactions(id)).containsExactly("-|2|" + content);
+        JsonNode report = report(service);
+        assertOk(report);
+        assertThat(report.path("redacted").asLong()).isEqualTo(1);
+        assertOk(report("insight"));
+
+        // La stessa voce alterata di nuovo da chi amministra il database: non corrisponde più alla sua prova.
+        asDatabaseAdmin(() -> jdbc.sql("UPDATE audit_entry SET summary = 'altro' WHERE id = ?").param(id).update());
+        assertBroken(report(service), 2, "CONTENT_ALTERED");
+    }
+
+    @Test
+    @DisplayName("audit_redact: solo per un membro anonimizzato e su voci che lo riguardano; la prova porta membro e correlazione")
+    void auditRedactPreconditions() {
+        String service = uid("chn-redact").toLowerCase();
+        String member = uid("MBR-RDX");
+        audits.insert(new AuditRecord(uid("AUD"), uid("EVT"), T, "CARE", "carla.care", service, "MEMBER", member,
+                "UPDATE", "Aggiornato Ottavio Quintilio", null, null, null));
+        append(service, 1); // voce di un'altra entità: non riguarda il membro
+        String own = entryId(service, 1);
+        String unrelated = entryId(service, 2);
+        String call = "SELECT audit_redact(?, ?, 'Aggiornato Membro anonimo', NULL, NULL, cast(? AS jsonb), ?)";
+
+        assertRejected(() -> jdbc.sql(call).params(member, own, "[]", "COR-X").query(Boolean.class).single());
+        anonymizationFact(member);
+        assertRejected(() -> jdbc.sql(call).params(member, unrelated, "[\"Ottavio Quintilio\"]", "COR-X")
+                .query(Boolean.class).single());
+        assertRejected(() -> jdbc.sql(call).params("", own, "[]", "COR-X").query(Boolean.class).single());
+        assertThat(jdbc.sql(call).params(member, own, "[]", "COR-ANON").query(Boolean.class).single()).isTrue();
+
+        assertThat(redactions(own)).singleElement().asString().startsWith(member + "|1|");
+        assertThat(jdbc.sql("SELECT correlation_id FROM audit_entry WHERE service = 'insight' AND entity_id = ?")
+                .param(own).query(String.class).single()).isEqualTo("COR-ANON");
         assertOk(report(service));
     }
 
@@ -338,12 +504,21 @@ class AuditChainIT extends TestbookInsBase {
         for (int i = 0; i < ats.length; i++) {
             audits.insert(record(service, i + 1, ats[i]));
         }
-        int purged = audits.deleteBefore(Instant.parse("2001-01-01T00:00:00Z"));
+        AuditRepository.Purge purge = audits.deleteBefore(Instant.parse("2001-01-01T00:00:00Z"));
 
         // La voce 4 (1992) è vecchia ma segue la 3, recente: resta finché non scade anche la 3 (la catena non si buca).
-        assertThat(purged).isGreaterThanOrEqualTo(2);
+        assertThat(purge.anchors()).anySatisfy(a -> {
+            assertThat(a.service()).isEqualTo(service);
+            assertThat(a.seq()).isEqualTo(2);
+            assertThat(a.kind()).isEqualTo(AuditAnchor.PURGE);
+        });
         assertThat(seqs(service)).containsExactly(3L, 4L);
         assertThat(anchorKinds(service)).containsExactly("PURGE:2");
+        assertThat(audits.retentionStalls(AuditRetentionGuard.MIN_DAYS)).anySatisfy(s -> {
+            assertThat(s.service()).isEqualTo(service);
+            assertThat(s.blockingSeq()).isEqualTo(3);
+            assertThat(s.expiredKept()).isEqualTo(1);
+        });
         JsonNode report = report(service);
         assertOk(report);
         assertThat(report.path("firstSeq").asLong()).isEqualTo(3);
@@ -373,17 +548,104 @@ class AuditChainIT extends TestbookInsBase {
         assertOk(report(service));
     }
 
+    @Test
+    @DisplayName("retention con una soglia nel futuro: limitata all'età minima, le voci recenti restano")
+    void purgeIsClampedToTheMinimumAge() {
+        String service = uid("chn-clamp").toLowerCase();
+        audits.insert(record(service, 1, Instant.parse("1990-01-01T00:00:00Z")));
+        append(service, 2);
+        jdbc.sql("SELECT count(*) FROM audit_purge_before(now() + interval '3650 days')").query(Long.class).single();
+        assertThat(seqs(service)).containsExactly(2L, 3L);
+        assertOk(report(service));
+    }
+
+    @Test
+    @DisplayName("DELETE senza flag della parte iniziale (versione precedente): ammesso con ancora PURGE; l'ancora dei log dice quando")
+    void flaglessPrefixDeleteLeavesAPurgeAnchor() {
+        String service = uid("chn-prefix").toLowerCase();
+        append(service, 4);
+        List<ILoggingEvent> logged = anchorLogDuring(anchorJob::anchor);
+        Matcher line = anchorLine(logged, service);
+
+        audits.insert(record(service, 5, T));
+        assertThat(jdbc.sql("DELETE FROM audit_entry WHERE service = ? AND seq <= 4").param(service).update()).isEqualTo(4);
+        assertThat(anchorKinds(service)).containsExactly("DAILY:4", "PURGE:4");
+        assertOk(report(service));
+        // Limite residuo della fase expand (Q-403): la catena regge, ma l'ancora dei log mostra che la voce ancorata oggi
+        // è già stata cancellata, prima dei 180 giorni.
+        JsonNode checked = reportWith(service, Long.parseLong(line.group(2)), line.group(3));
+        assertOk(checked);
+        assertThat(checked.path("expectedAnchor").path("result").asString()).isEqualTo("MATCH");
+        // Per una voce già cancellata la verifica non può confrontare l'hash: dice solo quando è stata cancellata.
+        JsonNode purged = reportWith(service, 2, "a".repeat(64));
+        assertThat(purged.path("expectedAnchor").path("result").asString()).isEqualTo("PURGED");
+        assertThat(purged.path("expectedAnchor").path("purgedAt").asString()).isNotBlank();
+    }
+
+    // ---------- servizi spariti ----------
+
+    @Test
+    @DisplayName("voci e testa cancellate con le credenziali dell'applicazione e catena rifatta: le ancore la rivelano")
+    void vanishedAndForgedChainIsReported() {
+        String service = uid("chn-vanish").toLowerCase();
+        append(service, 5);
+        anchorJob.anchor();
+        asApplication(() -> {
+            jdbc.sql("SELECT set_config('loyaltyhub.audit_chain', 'on', true)").query(String.class).single();
+            jdbc.sql("DELETE FROM audit_chain_head WHERE service = ?").param(service).update();
+            jdbc.sql("SELECT set_config('loyaltyhub.audit_chain', '', true)").query(String.class).single();
+            jdbc.sql("DELETE FROM audit_entry WHERE service = ?").param(service).update();
+        });
+        assertThat(seqs(service)).isEmpty();
+        assertBroken(report(service), 1, "TAIL_MISSING"); // testa sparita, restano le ancore della voce 5
+
+        append(service, 3); // catena rifatta dalla genesi
+        assertBroken(report(service), 4, "TAIL_MISSING");
+        Resp all = verifyCall(null, actor("ADMIN"));
+        List<String> broken = new ArrayList<>();
+        all.body().path("services").forEach(s -> {
+            if ("BROKEN".equals(s.path("status").asString())) {
+                broken.add(s.path("service").asString());
+            }
+        });
+        assertThat(broken).contains(service);
+        assertThat(all.body().path("status").asString()).isEqualTo("BROKEN");
+    }
+
+    @Test
+    @DisplayName("ancora dei log per un servizio di cui non resta nulla: BROKEN, non 404")
+    void expectedAnchorOnAnUnknownService() {
+        JsonNode r = reportWith("chn-mai-esistito", 3, "a".repeat(64));
+        assertBroken(r, 1, "TAIL_MISSING");
+        assertThat(r.path("expectedAnchor").path("result").asString()).isEqualTo("MISSING");
+    }
+
     // ---------- ancoraggio ----------
 
     @Test
-    @DisplayName("ancoraggio giornaliero: solo catene cresciute e verificate; una catena interrotta non si ancora")
+    @DisplayName("ancoraggio giornaliero: solo catene cresciute e verificate, riga nei log, una catena interrotta non si ancora")
     void dailyAnchoring() {
         String service = uid("chn-anchor").toLowerCase();
         append(service, 3);
-        anchorJob.anchor();
+        List<ILoggingEvent> logged = anchorLogDuring(anchorJob::anchor);
+        Matcher line = anchorLine(logged, service);
+        assertThat(line.group(2)).isEqualTo("3");
+        assertThat(line.group(3)).isEqualTo(entryHash(service, 3));
+        assertThat(line.group(4)).isEqualTo("DAILY");
+        ILoggingEvent event = logged.stream().filter(e -> e.getFormattedMessage().contains(service)).findFirst().orElseThrow();
+        assertThat(event.getKeyValuePairs()).extracting(kv -> kv.key)
+                .contains("service", "seq", "entryHash", "kind", "anchoredAt");
         assertThat(anchorKinds(service)).containsExactly("DAILY:3");
-        anchorJob.anchor();
+
+        JsonNode match = reportWith(service, 3, line.group(3));
+        assertOk(match);
+        assertThat(match.path("expectedAnchor").path("result").asString()).isEqualTo("MATCH");
+        assertBroken(reportWith(service, 3, "e".repeat(64)), 3, "ANCHOR_MISMATCH");
+
+        assertThat(anchorLogDuring(anchorJob::anchor)).noneMatch(e -> e.getFormattedMessage().contains(service));
         assertThat(anchorKinds(service)).as("nessuna voce nuova, nessuna ancora in più").containsExactly("DAILY:3");
+        assertThat(chain.insertAnchor(new AuditChainHead(service, 3, entryHash(service, 3)), AuditAnchor.DAILY))
+                .as("un'altra replica non duplica l'ancora").isEmpty();
 
         append(service, 2);
         anchorJob.anchor();
@@ -450,10 +712,11 @@ class AuditChainIT extends TestbookInsBase {
     // ---------- anonimizzazione ----------
 
     @Test
-    @DisplayName("anonimizzazione di un membro: le voci di audit sono ripulite, marcate e la catena regge")
+    @DisplayName("anonimizzazione di un membro: voci ripulite, prova REDACT con membro e correlazione, catene valide")
     void anonymizationKeepsTheChain() {
         String service = uid("chn-member").toLowerCase();
         String memberId = uid("MBR-CHN");
+        String anonCorrelation = uid("COR-ANON");
         Map<String, Object> profile = new LinkedHashMap<>();
         profile.put("memberId", memberId);
         profile.put("firstName", "Ottavio");
@@ -475,57 +738,45 @@ class AuditChainIT extends TestbookInsBase {
                 uid("COR"), null, T.plusSeconds(1), data);
         audit.put("lhactor", "CARE:carla.care");
         publish("lh.audit.v1", audit);
-        append(service, 1); // una voce di un'altra entità, non toccata
-        await("voce di audit del membro", () -> seqs(service).size() == 2, 20_000);
+        // Voce di un'altra entità che cita il membro per nome: ripulita anche questa (valore inequivocabile).
+        Map<String, Object> other = new LinkedHashMap<>(data);
+        other.put("entityType", "REDEMPTION");
+        other.put("entityId", uid("RDM"));
+        other.put("summary", "Spedizione a Ottavio Quintilio");
+        other.remove("before");
+        other.remove("after");
+        ObjectNode otherAudit = envelope(uid("EVT-CHN"), AUDIT_TYPE, "urn:loyaltyhub:service:reward", "REDEMPTION:x",
+                uid("COR"), null, T.plusSeconds(2), other);
+        otherAudit.put("lhactor", "CARE:carla.care");
+        publish("lh.audit.v1", otherAudit);
+        append(service, 1); // una voce che non lo riguarda, non toccata
+        await("voci di audit del membro", () -> seqs(service).size() == 3, 20_000);
 
         Map<String, Object> anonymized = new LinkedHashMap<>();
         anonymized.put("memberId", memberId);
         anonymized.put("status", "ANONYMIZED");
         publish("lh.facts.v1", envelope(uid("EVT-ANON"), FACT + "member.updated", "urn:loyaltyhub:service:member",
-                "member:" + memberId, uid("COR"), null, T.plusSeconds(2), anonymized));
-        await("voce di audit anonimizzata", () -> jdbc.sql(
+                "member:" + memberId, anonCorrelation, null, T.plusSeconds(3), anonymized));
+        await("voci di audit anonimizzate", () -> jdbc.sql(
                         "SELECT count(*) FROM audit_entry WHERE service = ? AND redacted_at IS NOT NULL")
-                .param(service).query(Long.class).single() == 1, 20_000);
+                .param(service).query(Long.class).single() == 2, 20_000);
 
-        String summary = jdbc.sql("SELECT summary || coalesce(before::text, '') || coalesce(after::text, '') "
-                + "FROM audit_entry WHERE service = ? AND entity_id = ?").params(service, memberId)
-                .query(String.class).single();
-        assertThat(summary).doesNotContain("Ottavio").doesNotContain("quintilio@");
+        String text = String.join(" ", jdbc.sql("SELECT summary || coalesce(before::text, '') || coalesce(after::text, '') "
+                + "FROM audit_entry WHERE service = ?").param(service).query(String.class).list());
+        assertThat(text).doesNotContain("Ottavio").doesNotContain("quintilio@");
+        for (String id : jdbc.sql("SELECT id FROM audit_entry WHERE service = ? AND redacted_at IS NOT NULL")
+                .param(service).query(String.class).list()) {
+            assertThat(redactions(id)).singleElement().asString().startsWith(memberId + "|");
+            assertThat(jdbc.sql("SELECT correlation_id FROM audit_entry WHERE service = 'insight' AND entity_id = ?")
+                    .param(id).query(String.class).single()).isEqualTo(anonCorrelation);
+        }
+        assertThat(String.join(" ", jdbc.sql("SELECT summary || after::text FROM audit_entry WHERE service = 'insight' "
+                + "AND action = 'REDACT' AND after ->> 'memberId' = ?").param(memberId).query(String.class).list()))
+                .as("le prove non contengono dati personali").doesNotContain("Ottavio").doesNotContain("@");
         JsonNode report = report(service);
         assertOk(report);
-        assertThat(report.path("redacted").asLong()).isEqualTo(1);
-        assertThat(report.path("checked").asLong()).isEqualTo(2);
-    }
-
-    @Test
-    @DisplayName("contenuto riscritto senza passare dall'anonimizzazione: non è una voce anonimizzata, è un'alterazione")
-    void rewriteOutsideRedactionIsTampering() {
-        String service = uid("chn-fake-redact").toLowerCase();
-        append(service, 2);
-        assertThat(jdbc.sql("SELECT audit_redact(id, 'Membro anonimo', NULL, NULL) FROM audit_entry "
-                + "WHERE service = ? AND seq = 1").param(service).query(Boolean.class).single()).isTrue();
-        JsonNode redacted = report(service);
-        assertOk(redacted);
-        assertThat(redacted.path("redacted").asLong()).isEqualTo(1);
-
-        asDatabaseAdmin(() -> jdbc.sql("UPDATE audit_entry SET summary = 'x' WHERE service = ? AND seq = 2")
-                .param(service).update());
-        assertBroken(report(service), 2, "CONTENT_ALTERED");
-    }
-
-    @Test
-    @DisplayName("una scrittura rifiutata non lascia la tabella senza protezione per la stessa sessione")
-    void flagDoesNotLeak() {
-        String service = uid("chn-flag").toLowerCase();
-        append(service, 2);
-        new TransactionTemplate(txManager).executeWithoutResult(s -> {
-            jdbc.sql("SELECT audit_redact(id, 'Membro anonimo', NULL, NULL) FROM audit_entry WHERE service = ? AND seq = 1")
-                    .param(service).query(Boolean.class).single();
-            // Dopo la funzione controllata, nella stessa transazione, un UPDATE qualsiasi resta vietato.
-            assertThatThrownBy(() -> jdbc.sql("UPDATE audit_entry SET summary = 'y' WHERE service = ? AND seq = 2")
-                    .param(service).update()).satisfies(t -> assertThat(sqlState(t)).isEqualTo("42501"));
-            s.setRollbackOnly();
-        });
-        assertOk(report(service));
+        assertThat(report.path("redacted").asLong()).isEqualTo(2);
+        assertThat(report.path("checked").asLong()).isEqualTo(3);
+        assertOk(report("insight"));
     }
 }

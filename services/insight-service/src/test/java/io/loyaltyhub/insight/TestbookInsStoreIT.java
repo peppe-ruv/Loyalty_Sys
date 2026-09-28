@@ -156,6 +156,51 @@ class TestbookInsStoreIT extends TestbookInsSupport {
         assertThat(audits.findById(a).isPresent()).isEqualTo(kept);
     }
 
+    /** Righe scritte sul logger {@code logger} mentre {@code action} gira. */
+    private static List<ch.qos.logback.classic.spi.ILoggingEvent> logDuring(String logger, Runnable action) {
+        ch.qos.logback.classic.Logger l = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(logger);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        l.addAppender(appender);
+        try {
+            action.run();
+        } finally {
+            l.detachAppender(appender);
+        }
+        return appender.list;
+    }
+
+    @Test
+    @Order(3)
+    @DisplayName("[F2-GRC-07] retention dell'audit: l'ancora PURGE va anche nei log, fuori dal database")
+    void purgeAnchorIsLogged() {
+        clean();
+        String a = auditAged("200 days");
+        auditAged("1 day");
+        var lines = logDuring(io.loyaltyhub.insight.application.AuditAnchorLog.LOGGER, retention::purge);
+        assertThat(audits.findById(a)).isEmpty();
+        assertThat(lines).singleElement().satisfies(e -> assertThat(e.getFormattedMessage())
+                .matches("audit-anchor service=campaign seq=\\d+ entryHash=[0-9a-f]{64} kind=PURGE anchoredAt=\\S+"));
+    }
+
+    @Test
+    @Order(3)
+    @DisplayName("[F2-GRC-07, Q-402] retention ferma dietro una voce più recente: un WARN, non ripetuto a ogni giro")
+    void retentionStallIsWarnedOnce() {
+        clean();
+        auditAged("1 day");
+        String blocked = auditAged("200 days"); // segue una voce recente: resta
+        String logger = RetentionJob.class.getName();
+        var first = logDuring(logger, retention::purge);
+        assertThat(audits.findById(blocked)).isPresent();
+        assertThat(first).filteredOn(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN)
+                .singleElement().satisfies(e -> assertThat(e.getFormattedMessage())
+                        .contains("campaign").contains("1 voci scadute").contains("Q-402"));
+        var second = logDuring(logger, retention::purge);
+        assertThat(second).noneMatch(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN);
+    }
+
     @Test
     @Order(4)
     @DisplayName("[TB-INS-RET-016] metric_daily illimitata: una metrica di 10 anni fa resta dopo la pulizia")

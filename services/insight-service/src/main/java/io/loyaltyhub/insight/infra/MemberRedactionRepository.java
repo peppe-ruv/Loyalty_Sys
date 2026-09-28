@@ -66,6 +66,16 @@ public class MemberRedactionRepository {
 
     /** @return quante righe sono state riscritte (idempotente: alla seconda chiamata 0) */
     public int redact(String memberId) {
+        return redact(memberId, null);
+    }
+
+    /**
+     * Come {@link #redact(String)}; {@code correlationId} (del fatto di anonimizzazione) finisce nelle prove REDACT delle
+     * voci di audit riscritte, così il tracciato dell'anonimizzazione le collega.
+     *
+     * @return quante righe sono state riscritte (idempotente: alla seconda chiamata 0)
+     */
+    public int redact(String memberId, String correlationId) {
         Known known = known(memberId);
         int changed = 0;
 
@@ -90,12 +100,12 @@ public class MemberRedactionRepository {
 
         // 2. voci di audit.
         for (AuditRow a : auditRows("entity_id = ?", memberId)) {
-            changed += rewriteAudit(a, known.all(), true);
+            changed += rewriteAudit(memberId, correlationId, a, known.all(), true);
         }
         for (String token : known.strong()) {
             for (AuditRow a : auditRows("entity_id <> ? AND (summary ILIKE ? OR before::text ILIKE ? OR after::text ILIKE ?)",
                     memberId, like(token), like(token), like(token))) {
-                changed += rewriteAudit(a, known.strong(), false);
+                changed += rewriteAudit(memberId, correlationId, a, known.strong(), false);
             }
         }
 
@@ -184,7 +194,7 @@ public class MemberRedactionRepository {
                 .list();
     }
 
-    private int rewriteAudit(AuditRow a, List<String> tokens, boolean stripKeys) {
+    private int rewriteAudit(String memberId, String correlationId, AuditRow a, List<String> tokens, boolean stripKeys) {
         String summary = PersonalData.scrub(a.summary(), tokens);
         String before = rewriteJson(a.before(), tokens, stripKeys);
         String after = rewriteJson(a.after(), tokens, stripKeys);
@@ -192,11 +202,14 @@ public class MemberRedactionRepository {
                 && Objects.equals(after, normalize(a.after()))) {
             return 0;
         }
-        // audit_entry è in sola inserzione (ADR-043): la sola riscrittura ammessa è questa, dei campi di contenuto, dalla
-        // funzione controllata audit_redact (V6). La catena di hash resta valida e la voce è marcata redacted_at.
+        // audit_entry è in sola inserzione (ADR-043): si riscrivono solo i campi di contenuto, dalla funzione controllata
+        // audit_redact (V6), che verifica che il membro sia anonimizzato e che la voce lo riguardi (sua, o che ne cita
+        // l'id o uno dei valori `tokens`). La catena resta valida; la voce è marcata redacted_at e il database accoda una
+        // prova REDACT (servizio insight) con il membro e il nuovo hash del contenuto, che la verifica esige.
         // SPEC-GAP: Q-401 — ADR-043 vieta l'UPDATE, F-MBR-05 chiede di ripulire anche le copie dell'audit.
-        jdbc.sql("SELECT audit_redact(?, ?, cast(? AS jsonb), cast(? AS jsonb))")
-                .params(a.id(), summary, before, after).query(Boolean.class).single();
+        jdbc.sql("SELECT audit_redact(?, ?, ?, cast(? AS jsonb), cast(? AS jsonb), cast(? AS jsonb), ?)")
+                .params(memberId, a.id(), summary, before, after, mapper.writeValueAsString(tokens), correlationId)
+                .query(Boolean.class).single();
         return 1;
     }
 

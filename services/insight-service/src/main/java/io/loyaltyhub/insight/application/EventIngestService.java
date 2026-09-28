@@ -157,7 +157,7 @@ public class EventIngestService {
             }
             // Anonimizzazione (F-MBR-05, M7.5): le copie del membro perdono i dati personali (anche questo evento).
             if ("FACT".equals(family) && event.memberId() != null && PersonalData.isAnonymization(event)) {
-                int rows = redaction.redact(event.memberId());
+                int rows = redaction.redact(event.memberId(), event.lhcorrelationid());
                 log.info("Membro {} anonimizzato: {} copie ripulite", event.memberId(), rows);
             }
             liveHub.publish(new LiveEvent(event.id(), topic, family, shortType, event.memberId(),

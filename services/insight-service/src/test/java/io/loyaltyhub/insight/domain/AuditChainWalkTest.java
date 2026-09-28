@@ -1,5 +1,6 @@
 package io.loyaltyhub.insight.domain;
 
+import io.loyaltyhub.insight.domain.AuditChainReport.ExpectedAnchor;
 import io.loyaltyhub.insight.domain.AuditChainReport.Reason;
 import io.loyaltyhub.insight.domain.AuditChainReport.Status;
 import org.junit.jupiter.api.DisplayName;
@@ -8,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -66,7 +69,10 @@ class AuditChainWalkTest {
     }
 
     private static AuditChainReport walk(List<AuditChainLink> links, AuditChainHead head, List<AuditAnchor> anchors) {
-        AuditChainWalk w = new AuditChainWalk(SVC, head, anchors);
+        return walk(new AuditChainWalk(SVC, head, anchors), links);
+    }
+
+    private static AuditChainReport walk(AuditChainWalk w, List<AuditChainLink> links) {
         for (AuditChainLink l : links) {
             if (!w.accept(l)) {
                 break;
@@ -104,14 +110,93 @@ class AuditChainWalkTest {
         assertBroken(walk(c, headOf(c), List.of()), 3, Reason.CONTENT_ALTERED);
     }
 
-    @Test
-    @DisplayName("contenuto riscritto dall'anonimizzazione (redacted_at): catena valida, voce contata come anonimizzata")
-    void redacted() {
+    // ---------- anonimizzazione e prove REDACT ----------
+
+    private static final Instant REDACTED_AT = Instant.parse("2026-09-10T12:00:00Z");
+
+    /** Prova REDACT integra (come la scrive il trigger) per la voce {@code target} riscritta in {@code content}. */
+    private static RedactionEvidence evidence(AuditChainLink target, String contentHash) {
+        String after = "{\"seq\": " + target.seq() + ", \"service\": \"" + target.service() + "\", \"memberId\": \"MBR-1\", "
+                + "\"contentHash\": \"" + contentHash + "\"}";
+        String summary = "Anonimizzata la voce di audit " + target.service() + " n. " + target.seq();
+        AuditChainLink l = new AuditChainLink("insight", 40, "a".repeat(64), "redact-1", "redact-1", REDACTED_AT,
+                "system", "insight", "AUDIT_ENTRY", target.id(), "REDACT", null, summary, null, after,
+                AuditHashChain.contentHash(summary, null, after), null, null);
+        return new RedactionEvidence(withEntryHash(l, AuditHashChain.entryHash(l)), target.service(), target.seq(),
+                contentHash, "MBR-1");
+    }
+
+    private static RedactionLookup lookup(Map<String, RedactionEvidence> byEntry, Instant retainedFrom) {
+        return new RedactionLookup() {
+            @Override
+            public Optional<RedactionEvidence> latest(String entryId) {
+                return Optional.ofNullable(byEntry.get(entryId));
+            }
+
+            @Override
+            public Optional<Instant> retainedFrom() {
+                return Optional.ofNullable(retainedFrom);
+            }
+        };
+    }
+
+    private static List<AuditChainLink> redactedChain() {
         List<AuditChainLink> c = chain(5);
-        c.set(2, withSummary(c.get(2), "Membro anonimo", Instant.now()));
-        AuditChainReport r = walk(c, headOf(c), List.of());
+        c.set(2, withSummary(c.get(2), "Membro anonimo", REDACTED_AT));
+        return c;
+    }
+
+    private static String currentContent(AuditChainLink l) {
+        return AuditHashChain.contentHash(l.summary(), l.beforeJson(), l.afterJson());
+    }
+
+    @Test
+    @DisplayName("contenuto riscritto dall'anonimizzazione con la sua prova REDACT: catena valida, voce contata")
+    void redactedWithEvidence() {
+        List<AuditChainLink> c = redactedChain();
+        RedactionLookup l = lookup(Map.of(c.get(2).id(), evidence(c.get(2), currentContent(c.get(2)))), Instant.EPOCH);
+        AuditChainReport r = walk(new AuditChainWalk(SVC, headOf(c), List.of(), l, null), c);
         assertThat(r.ok()).as(r.detail()).isTrue();
         assertThat(r.redacted()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("voce marcata anonimizzata senza prova REDACT: REDACTION_UNRECORDED")
+    void redactedWithoutEvidence() {
+        List<AuditChainLink> c = redactedChain();
+        assertBroken(walk(new AuditChainWalk(SVC, headOf(c), List.of(), lookup(Map.of(), Instant.EPOCH), null), c),
+                3, Reason.REDACTION_UNRECORDED);
+        assertBroken(walk(c, headOf(c), List.of()), 3, Reason.REDACTION_UNRECORDED);
+    }
+
+    @Test
+    @DisplayName("prova REDACT già cancellata dalla retention (anonimizzazione più vecchia della catena insight): valida")
+    void redactionEvidencePurged() {
+        List<AuditChainLink> c = redactedChain();
+        RedactionLookup l = lookup(Map.of(), REDACTED_AT.plusSeconds(1));
+        AuditChainReport r = walk(new AuditChainWalk(SVC, headOf(c), List.of(), l, null), c);
+        assertThat(r.ok()).as(r.detail()).isTrue();
+        assertThat(r.redacted()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("contenuto diverso da quello registrato dalla prova, o prova alterata o di un'altra voce: interruzione")
+    void redactionEvidenceMismatch() {
+        List<AuditChainLink> c = redactedChain();
+        AuditChainLink target = c.get(2);
+        RedactionLookup other = lookup(Map.of(target.id(), evidence(target, "f".repeat(64))), Instant.EPOCH);
+        assertBroken(walk(new AuditChainWalk(SVC, headOf(c), List.of(), other, null), c), 3, Reason.CONTENT_ALTERED);
+
+        RedactionEvidence good = evidence(target, currentContent(target));
+        RedactionEvidence tampered = new RedactionEvidence(withSummary(good.link(), "altro", null), good.targetService(),
+                good.targetSeq(), good.contentHash(), good.memberId());
+        assertBroken(walk(new AuditChainWalk(SVC, headOf(c), List.of(), lookup(Map.of(target.id(), tampered),
+                Instant.EPOCH), null), c), 3, Reason.CONTENT_ALTERED);
+
+        RedactionEvidence elsewhere = new RedactionEvidence(good.link(), good.targetService(), 99L, good.contentHash(),
+                good.memberId());
+        assertBroken(walk(new AuditChainWalk(SVC, headOf(c), List.of(), lookup(Map.of(target.id(), elsewhere),
+                Instant.EPOCH), null), c), 3, Reason.REDACTION_UNRECORDED);
     }
 
     @Test
@@ -259,8 +344,125 @@ class AuditChainWalkTest {
     @DisplayName("tratto successivo a un'ancora (job giornaliero): verificato agganciandosi all'ancora")
     void segmentAfterAnchor() {
         List<AuditChainLink> c = chain(6);
-        AuditChainReport r = walk(c.subList(3, 6), headOf(c), List.of(anchor(c.get(2), AuditAnchor.DAILY)));
+        AuditAnchor daily = anchor(c.get(2), AuditAnchor.DAILY);
+        AuditChainReport r = walk(new AuditChainWalk(SVC, headOf(c), List.of(daily)).startingAfter(daily), c.subList(3, 6));
         assertThat(r.ok()).as(r.detail()).isTrue();
         assertThat(r.checked()).isEqualTo(3);
+    }
+
+    // ---------- solo le ancore PURGE giustificano voci mancanti ----------
+
+    @Test
+    @DisplayName("voci iniziali mancanti con un'ancora DAILY (non PURGE) sulla precedente: UNANCHORED_START")
+    void dailyAnchorDoesNotJustifyAMissingPrefix() {
+        List<AuditChainLink> c = chain(5);
+        List<AuditChainLink> kept = new ArrayList<>(c.subList(2, 5));
+        assertBroken(walk(kept, headOf(c), List.of(anchor(c.get(1), AuditAnchor.DAILY))), 3, Reason.UNANCHORED_START);
+    }
+
+    @Test
+    @DisplayName("catena vuota con un'ancora DAILY (non PURGE) sulla testa: TAIL_MISSING")
+    void dailyAnchorDoesNotJustifyAnEmptyChain() {
+        List<AuditChainLink> c = chain(4);
+        assertBroken(walk(List.of(), headOf(c), List.of(anchor(c.getLast(), AuditAnchor.DAILY))), 4, Reason.TAIL_MISSING);
+    }
+
+    @Test
+    @DisplayName("voci e testa sparite, restano le ancore: TAIL_MISSING")
+    void onlyAnchorsLeft() {
+        List<AuditChainLink> c = chain(4);
+        assertBroken(walk(List.of(), null, List.of(anchor(c.getLast(), AuditAnchor.DAILY))), 1, Reason.TAIL_MISSING);
+    }
+
+    // ---------- ancora indicata (copiata dai log) ----------
+
+    private static AuditAnchor external(long seq, String hash) {
+        return new AuditAnchor(SVC, seq, hash, AuditAnchor.EXTERNAL, null);
+    }
+
+    private static AuditChainReport walkExpecting(List<AuditChainLink> links, AuditChainHead head,
+                                                  List<AuditAnchor> anchors, AuditAnchor expected) {
+        return walk(new AuditChainWalk(SVC, head, anchors, RedactionLookup.NONE, expected), links);
+    }
+
+    @Test
+    @DisplayName("ancora indicata presente con lo stesso hash: MATCH, catena OK")
+    void expectedAnchorMatches() {
+        List<AuditChainLink> c = chain(5);
+        AuditChainReport r = walkExpecting(c, headOf(c), List.of(), external(3, c.get(2).entryHash()));
+        assertThat(r.ok()).as(r.detail()).isTrue();
+        assertThat(r.expectedAnchor().result()).isEqualTo(ExpectedAnchor.Result.MATCH);
+        assertThat(r.anchorsChecked()).as("l'ancora indicata non conta tra quelle registrate").isZero();
+    }
+
+    @Test
+    @DisplayName("catena riscritta in modo coerente, senza ancore nel database: la rivela solo l'ancora dei log")
+    void expectedAnchorCatchesAConsistentRewrite() {
+        List<AuditChainLink> original = chain(5);
+        List<AuditChainLink> forged = new ArrayList<>(original.subList(0, 2));
+        String prev = forged.getLast().entryHash();
+        for (long seq = 3; seq <= 5; seq++) {
+            forged.add(seal(seq, prev, seq == 3 ? "Voce riscritta" : "Voce " + seq, "{\"n\": " + seq + "}", null));
+            prev = forged.getLast().entryHash();
+        }
+        assertThat(walk(forged, headOf(forged), List.of()).ok()).isTrue();
+        AuditChainReport r = walkExpecting(forged, headOf(forged), List.of(), external(4, original.get(3).entryHash()));
+        assertBroken(r, 4, Reason.ANCHOR_MISMATCH);
+        assertThat(r.expectedAnchor().result()).isEqualTo(ExpectedAnchor.Result.MISMATCH);
+    }
+
+    @Test
+    @DisplayName("ancora indicata oltre l'ultima voce (coda cancellata e testa riportata indietro): MISSING")
+    void expectedAnchorBeyondTheChain() {
+        List<AuditChainLink> c = chain(5);
+        List<AuditChainLink> kept = c.subList(0, 3);
+        AuditChainReport r = walkExpecting(kept, headOf(kept), List.of(), external(5, c.get(4).entryHash()));
+        assertBroken(r, 4, Reason.TAIL_MISSING);
+        assertThat(r.expectedAnchor().result()).isEqualTo(ExpectedAnchor.Result.MISSING);
+    }
+
+    @Test
+    @DisplayName("ancora indicata su una catena sparita del tutto: MISSING")
+    void expectedAnchorOnAVanishedChain() {
+        List<AuditChainLink> c = chain(5);
+        AuditChainReport r = walkExpecting(List.of(), null, List.of(), external(5, c.get(4).entryHash()));
+        assertBroken(r, 1, Reason.TAIL_MISSING);
+        assertThat(r.expectedAnchor().result()).isEqualTo(ExpectedAnchor.Result.MISSING);
+    }
+
+    @Test
+    @DisplayName("ancora indicata su una voce cancellata dalla retention: PURGED con l'istante della cancellazione")
+    void expectedAnchorPurged() {
+        List<AuditChainLink> c = chain(6);
+        Instant purgedAt = Instant.parse("2026-09-20T00:20:00Z");
+        AuditAnchor purge = new AuditAnchor(SVC, 3, c.get(2).entryHash(), AuditAnchor.PURGE, purgedAt);
+        AuditChainReport r = walkExpecting(new ArrayList<>(c.subList(3, 6)), headOf(c), List.of(purge),
+                external(2, c.get(1).entryHash()));
+        assertThat(r.ok()).as(r.detail()).isTrue();
+        assertThat(r.expectedAnchor().result()).isEqualTo(ExpectedAnchor.Result.PURGED);
+        assertThat(r.expectedAnchor().purgedAt()).isEqualTo(purgedAt);
+    }
+
+    @Test
+    @DisplayName("ancora indicata sull'ultima voce cancellata: confrontata con il prev_hash della prima voce rimasta")
+    void expectedAnchorAtTheRetentionBoundary() {
+        List<AuditChainLink> c = chain(6);
+        AuditAnchor purge = anchor(c.get(2), AuditAnchor.PURGE);
+        AuditChainReport ok = walkExpecting(new ArrayList<>(c.subList(3, 6)), headOf(c), List.of(purge),
+                external(3, c.get(2).entryHash()));
+        assertThat(ok.expectedAnchor().result()).isEqualTo(ExpectedAnchor.Result.MATCH);
+        AuditChainReport ko = walkExpecting(new ArrayList<>(c.subList(3, 6)), headOf(c), List.of(purge),
+                external(3, "9".repeat(64)));
+        assertBroken(ko, 3, Reason.ANCHOR_MISMATCH);
+    }
+
+    @Test
+    @DisplayName("catena interrotta prima dell'ancora indicata: UNCHECKED")
+    void expectedAnchorUnchecked() {
+        List<AuditChainLink> c = chain(5);
+        c.set(1, withSummary(c.get(1), "truccata", null));
+        AuditChainReport r = walkExpecting(c, headOf(c), List.of(), external(4, c.get(3).entryHash()));
+        assertBroken(r, 2, Reason.CONTENT_ALTERED);
+        assertThat(r.expectedAnchor().result()).isEqualTo(ExpectedAnchor.Result.UNCHECKED);
     }
 }

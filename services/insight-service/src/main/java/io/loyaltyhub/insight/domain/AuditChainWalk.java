@@ -1,12 +1,15 @@
 package io.loyaltyhub.insight.domain;
 
+import io.loyaltyhub.insight.domain.AuditChainReport.ExpectedAnchor;
 import io.loyaltyhub.insight.domain.AuditChainReport.Reason;
 import io.loyaltyhub.insight.domain.AuditChainReport.Status;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.TreeMap;
 
 /**
@@ -14,21 +17,25 @@ import java.util.TreeMap;
  * §5). Logica pura, senza database: {@code AuditChainVerifier} le passa le voci a pagine e raccoglie l'esito.
  * <ol>
  *   <li><strong>Inizio</strong>: la prima voce conservata ha {@code seq} 1 e parte dalla {@link AuditHashChain#GENESIS
- *       genesi}, oppure si aggancia a un'ancora registrata per {@code seq - 1} (tipicamente l'ancora {@code PURGE} della
- *       retention). Voci iniziali mancanti senza ancora = cancellazione fuori dal percorso controllato.</li>
- *   <li><strong>Ogni voce</strong>: numerazione contigua; {@code prev_hash} = hash della precedente; hash del
- *       contenuto ricalcolato uguale a quello memorizzato (salvo voci anonimizzate, contate a parte); hash della voce
- *       ricalcolato uguale a quello memorizzato; ogni ancora della stessa posizione coincide.</li>
+ *       genesi}, oppure si aggancia a un'ancora {@code PURGE} di {@code seq - 1} (la retention). Voci iniziali mancanti
+ *       senza ancora PURGE = cancellazione fuori dalla retention; un'ancora di altro tipo non basta.</li>
+ *   <li><strong>Ogni voce</strong>: numerazione contigua; {@code prev_hash} = hash della precedente; hash del contenuto
+ *       ricalcolato uguale a quello dell'inserimento oppure, per una voce anonimizzata, a quello registrato dalla sua
+ *       prova REDACT (integra e riferita a questa voce); hash della voce ricalcolato uguale a quello memorizzato; ogni
+ *       ancora della stessa posizione coincide.</li>
  *   <li><strong>Fine</strong>: la testa registrata coincide con l'ultima voce e nessuna ancora punta oltre (coda
- *       troncata).</li>
+ *       troncata). Una catena senza voci è legittima solo se un'ancora PURGE copre la testa.</li>
  * </ol>
- * Al primo errore la verifica del servizio si ferma: le voci successive non hanno più un riferimento affidabile.
+ * Un'ancora {@link AuditAnchor#EXTERNAL} (copiata dai log) si confronta come le altre, e il suo esito è riportato a
+ * parte ({@link ExpectedAnchor}). Al primo errore la verifica del servizio si ferma.
  */
 public final class AuditChainWalk {
 
     private final String service;
     private final AuditChainHead head;
-    private final TreeMap<Long, List<String>> anchors = new TreeMap<>();
+    private final RedactionLookup redactions;
+    private final AuditAnchor expected;
+    private final TreeMap<Long, List<AuditAnchor>> anchors = new TreeMap<>();
 
     private long checked;
     private long redacted;
@@ -36,18 +43,41 @@ public final class AuditChainWalk {
     private Long firstSeq;
     private Long lastSeq;
     private String lastHash;
+    private ExpectedAnchor.Result expectedOutcome;
+    private AuditAnchor segmentStart;
     private AuditChainReport broken;
 
     /**
-     * @param head    testa registrata della catena; {@code null} se manca
-     * @param anchors tutte le ancore del servizio (anche quelle di voci già cancellate dalla retention)
+     * @param head       testa registrata della catena; {@code null} se manca
+     * @param anchors    tutte le ancore registrate del servizio (anche quelle di voci già cancellate dalla retention)
+     * @param redactions dove cercare le prove REDACT delle voci anonimizzate
+     * @param expected   ancora indicata da chi verifica (tipo {@link AuditAnchor#EXTERNAL}); {@code null} se nessuna
      */
-    public AuditChainWalk(String service, AuditChainHead head, Collection<AuditAnchor> anchors) {
+    public AuditChainWalk(String service, AuditChainHead head, Collection<AuditAnchor> anchors,
+                          RedactionLookup redactions, AuditAnchor expected) {
         this.service = service;
         this.head = head;
+        this.redactions = redactions;
+        this.expected = expected;
         for (AuditAnchor a : anchors) {
-            this.anchors.computeIfAbsent(a.seq(), k -> new ArrayList<>()).add(a.entryHash());
+            this.anchors.computeIfAbsent(a.seq(), k -> new ArrayList<>()).add(a);
         }
+        if (expected != null) {
+            this.anchors.computeIfAbsent(expected.seq(), k -> new ArrayList<>()).add(expected);
+        }
+    }
+
+    public AuditChainWalk(String service, AuditChainHead head, Collection<AuditAnchor> anchors) {
+        this(service, head, anchors, RedactionLookup.NONE, null);
+    }
+
+    /**
+     * Verifica solo il tratto successivo a un'ancora già verificata (job di ancoraggio): la voce {@code seq + 1} può
+     * agganciarsi a quest'ancora anche se non è di tipo PURGE.
+     */
+    public AuditChainWalk startingAfter(AuditAnchor verified) {
+        this.segmentStart = verified;
+        return this;
     }
 
     /**
@@ -67,10 +97,10 @@ public final class AuditChainWalk {
                 return false;
             }
         } else {
-            long expected = lastSeq + 1;
-            if (seq != expected) {
-                return fail(expected, Reason.MISSING_ENTRY,
-                        "manca la voce " + expected + ": dopo la " + lastSeq + " viene la " + seq);
+            long expectedSeq = lastSeq + 1;
+            if (seq != expectedSeq) {
+                return fail(expectedSeq, Reason.MISSING_ENTRY,
+                        "manca la voce " + expectedSeq + ": dopo la " + lastSeq + " viene la " + seq);
             }
             if (!Objects.equals(link.prevHash(), lastHash)) {
                 return fail(seq, Reason.PREV_HASH_MISMATCH,
@@ -78,24 +108,14 @@ public final class AuditChainWalk {
                                 + " (alterata la voce " + lastSeq + " o il collegamento)");
             }
         }
-        String content = AuditHashChain.contentHash(link.summary(), link.beforeJson(), link.afterJson());
-        if (!content.equals(link.contentHash())) {
-            if (link.redactedAt() == null) {
-                return fail(seq, Reason.CONTENT_ALTERED,
-                        "sintesi o diff della voce " + seq + " non corrispondono all'hash del contenuto");
-            }
-            redacted++;
+        if (!checkContent(link)) {
+            return false;
         }
         if (!AuditHashChain.entryHash(link).equals(link.entryHash())) {
-            return fail(seq, Reason.ENTRY_ALTERED,
-                    "i campi della voce " + seq + " non corrispondono al suo hash");
+            return fail(seq, Reason.ENTRY_ALTERED, "i campi della voce " + seq + " non corrispondono al suo hash");
         }
-        for (String anchored : anchors.getOrDefault(seq, List.of())) {
-            anchorsChecked++;
-            if (!anchored.equals(link.entryHash())) {
-                return fail(seq, Reason.ANCHOR_MISMATCH,
-                        "l'ancora registrata per la voce " + seq + " ha un hash diverso: catena riscritta dopo l'ancoraggio");
-            }
+        if (!compareAnchors(seq, link.entryHash(), Reason.ANCHOR_MISMATCH)) {
+            return false;
         }
         lastSeq = seq;
         lastHash = link.entryHash();
@@ -121,37 +141,24 @@ public final class AuditChainWalk {
             return report(lastSeq, Reason.HEAD_MISMATCH,
                     "la testa (voce " + head.seq() + ") non coincide con l'ultima voce " + lastSeq);
         }
-        if (!anchors.isEmpty() && anchors.lastKey() > lastSeq) {
-            return report(lastSeq + 1, Reason.TAIL_MISSING,
-                    "un'ancora registra la voce " + anchors.lastKey() + " ma l'ultima presente è la " + lastSeq);
-        }
-        return new AuditChainReport(service, Status.OK, checked, firstSeq, lastSeq, head.seq(), redacted,
-                anchorsChecked, null, null, null);
+        AuditChainReport beyond = anchorsBeyond(lastSeq);
+        return beyond != null ? beyond : ok();
     }
 
-    /** Nessuna voce conservata: legittimo solo se tutto è stato cancellato dalla retention (ancora sulla testa). */
+    /** Nessuna voce conservata: legittimo solo se la retention ha cancellato tutto (ancora PURGE sulla testa). */
     private AuditChainReport finishEmpty() {
         long headSeq = head == null ? 0 : head.seq();
         if (headSeq > 0) {
-            List<String> atHead = anchors.getOrDefault(headSeq, List.of());
-            if (atHead.isEmpty()) {
+            if (!compareAnchors(headSeq, head.entryHash(), Reason.HEAD_MISMATCH)) {
+                return broken;
+            }
+            if (anchors.getOrDefault(headSeq, List.of()).stream().noneMatch(AuditAnchor::isPurge)) {
                 return report(headSeq, Reason.TAIL_MISSING,
                         "nessuna voce conservata e nessuna ancora di retention per la testa (voce " + headSeq + ")");
             }
-            for (String anchored : atHead) {
-                anchorsChecked++;
-                if (!anchored.equals(head.entryHash())) {
-                    return report(headSeq, Reason.HEAD_MISMATCH,
-                            "la testa non coincide con l'ancora registrata per la voce " + headSeq);
-                }
-            }
         }
-        if (!anchors.isEmpty() && anchors.lastKey() > headSeq) {
-            return report(headSeq + 1, Reason.TAIL_MISSING,
-                    "un'ancora registra la voce " + anchors.lastKey() + " oltre la testa (voce " + headSeq + ")");
-        }
-        return new AuditChainReport(service, Status.OK, checked, null, null, head == null ? null : head.seq(),
-                redacted, anchorsChecked, null, null, null);
+        AuditChainReport beyond = anchorsBeyond(headSeq);
+        return beyond != null ? beyond : ok();
     }
 
     private boolean checkStart(AuditChainLink link) {
@@ -162,19 +169,95 @@ public final class AuditChainWalk {
             }
             return true;
         }
-        List<String> start = anchors.getOrDefault(seq - 1, List.of());
-        if (start.isEmpty()) {
-            return fail(seq, Reason.UNANCHORED_START,
-                    "le voci fino alla " + (seq - 1) + " mancano e nessuna ancora di retention lo giustifica");
+        if (!compareAnchors(seq - 1, link.prevHash(), Reason.PREV_HASH_MISMATCH)) {
+            return false;
         }
-        for (String anchored : start) {
-            anchorsChecked++;
-            if (!anchored.equals(link.prevHash())) {
+        if (segmentStart != null && segmentStart.seq() == seq - 1) {
+            if (!segmentStart.entryHash().equals(link.prevHash())) {
                 return fail(seq, Reason.PREV_HASH_MISMATCH,
-                        "la voce " + seq + " non si aggancia all'ancora registrata per la voce " + (seq - 1));
+                        "la voce " + seq + " non si aggancia all'ultima ancora verificata (voce " + (seq - 1) + ")");
+            }
+            return true;
+        }
+        if (anchors.getOrDefault(seq - 1, List.of()).stream().noneMatch(AuditAnchor::isPurge)) {
+            return fail(seq, Reason.UNANCHORED_START,
+                    "le voci fino alla " + (seq - 1) + " mancano e nessuna ancora di retention (PURGE) lo giustifica");
+        }
+        return true;
+    }
+
+    /** Contenuto: uguale all'inserimento, oppure riscritto dall'anonimizzazione con una prova REDACT coerente. */
+    private boolean checkContent(AuditChainLink link) {
+        long seq = link.seq();
+        String content = AuditHashChain.contentHash(link.summary(), link.beforeJson(), link.afterJson());
+        if (content.equals(link.contentHash())) {
+            return true;
+        }
+        if (link.redactedAt() == null) {
+            return fail(seq, Reason.CONTENT_ALTERED,
+                    "sintesi o diff della voce " + seq + " non corrispondono all'hash del contenuto");
+        }
+        Optional<RedactionEvidence> evidence = redactions.latest(link.id());
+        if (evidence.isPresent()) {
+            RedactionEvidence e = evidence.get();
+            if (!e.intact()) {
+                return fail(seq, Reason.CONTENT_ALTERED,
+                        "la prova di anonimizzazione della voce " + seq + " (insight n. " + e.link().seq() + ") è alterata");
+            }
+            if (!service.equals(e.targetService()) || e.targetSeq() == null || e.targetSeq() != seq) {
+                return fail(seq, Reason.REDACTION_UNRECORDED,
+                        "la prova di anonimizzazione trovata per la voce " + seq + " riguarda un'altra voce");
+            }
+            if (!content.equals(e.contentHash())) {
+                return fail(seq, Reason.CONTENT_ALTERED, "il contenuto della voce " + seq
+                        + " non è quello registrato dalla sua anonimizzazione (insight n. " + e.link().seq() + ")");
+            }
+        } else {
+            Optional<Instant> retainedFrom = redactions.retainedFrom();
+            if (retainedFrom.isEmpty() || !link.redactedAt().isBefore(retainedFrom.get())) {
+                return fail(seq, Reason.REDACTION_UNRECORDED,
+                        "il contenuto della voce " + seq + " è stato riscritto senza una prova di anonimizzazione");
+            }
+            // Prova più vecchia della prima voce rimasta della catena insight: cancellata dalla retention.
+        }
+        redacted++;
+        return true;
+    }
+
+    /** Confronta le ancore della posizione {@code seq} con {@code hash}; un'ancora esterna ha un esito a parte. */
+    private boolean compareAnchors(long seq, String hash, Reason onMismatch) {
+        for (AuditAnchor a : anchors.getOrDefault(seq, List.of())) {
+            boolean match = a.entryHash().equals(hash);
+            if (a.isExternal()) {
+                expectedOutcome = match ? ExpectedAnchor.Result.MATCH : ExpectedAnchor.Result.MISMATCH;
+                if (!match) {
+                    return fail(seq, Reason.ANCHOR_MISMATCH,
+                            "l'ancora indicata per la voce " + seq + " ha un hash diverso da quello della catena");
+                }
+                continue;
+            }
+            anchorsChecked++;
+            if (!match) {
+                return fail(onMismatch == Reason.PREV_HASH_MISMATCH ? seq + 1 : seq, onMismatch,
+                        "l'ancora " + a.kind() + " registrata per la voce " + seq + " ha un hash diverso: catena "
+                                + "riscritta dopo l'ancoraggio");
             }
         }
         return true;
+    }
+
+    /** Un'ancora oltre l'ultima posizione presente: voci finali cancellate. */
+    private AuditChainReport anchorsBeyond(long last) {
+        if (anchors.isEmpty() || anchors.lastKey() <= last) {
+            return null;
+        }
+        long beyond = anchors.lastKey();
+        boolean onlyExternal = anchors.get(beyond).stream().allMatch(AuditAnchor::isExternal);
+        if (expected != null && expected.seq() > last) {
+            expectedOutcome = ExpectedAnchor.Result.MISSING;
+        }
+        return report(last + 1, Reason.TAIL_MISSING, (onlyExternal ? "l'ancora indicata" : "un'ancora registrata")
+                + " riguarda la voce " + beyond + " ma la catena arriva alla " + last);
     }
 
     private boolean fail(long seq, Reason reason, String detail) {
@@ -182,8 +265,33 @@ public final class AuditChainWalk {
         return false;
     }
 
+    private AuditChainReport ok() {
+        return new AuditChainReport(service, Status.OK, checked, firstSeq, lastSeq, head == null ? null : head.seq(),
+                redacted, anchorsChecked, null, null, null, expectedResult());
+    }
+
     private AuditChainReport report(long seq, Reason reason, String detail) {
         return new AuditChainReport(service, Status.BROKEN, checked, firstSeq, lastSeq,
-                head == null ? null : head.seq(), redacted, anchorsChecked, seq, reason, detail);
+                head == null ? null : head.seq(), redacted, anchorsChecked, seq, reason, detail, expectedResult());
+    }
+
+    /** Esito dell'ancora indicata: confrontata, oltre la catena, già cancellata dalla retention o non raggiunta. */
+    private ExpectedAnchor expectedResult() {
+        if (expected == null) {
+            return null;
+        }
+        ExpectedAnchor.Result result = expectedOutcome;
+        if (result == null) {
+            long retainedStart = firstSeq != null ? firstSeq : (head == null ? 1 : head.seq() + 1);
+            result = expected.seq() < retainedStart - 1 || (firstSeq == null && expected.seq() < retainedStart)
+                    ? ExpectedAnchor.Result.PURGED : ExpectedAnchor.Result.UNCHECKED;
+        }
+        Instant purgedAt = null;
+        if (result == ExpectedAnchor.Result.PURGED) {
+            purgedAt = anchors.tailMap(expected.seq(), true).values().stream().flatMap(List::stream)
+                    .filter(AuditAnchor::isPurge).map(AuditAnchor::anchoredAt).filter(Objects::nonNull)
+                    .findFirst().orElse(null);
+        }
+        return new ExpectedAnchor(expected.seq(), expected.entryHash(), result, purgedAt);
     }
 }

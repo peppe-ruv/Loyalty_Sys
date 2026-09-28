@@ -15,7 +15,9 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.SimpleDriverDataSource;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.util.List;
@@ -145,5 +147,65 @@ class AuditChainMigrationIT {
                                                                       'audit_reset', 'audit_redact')
                         """).query(String.class).list();
         assertThat(configs).hasSize(4).allSatisfy(c -> assertThat(c).contains("search_path=").contains("insight"));
+    }
+
+    /**
+     * Aggiornamento senza fermo (ADR-038, regola 14): la versione precedente di insight gira sullo schema V6 finché il
+     * rilascio non è completo. Le sue tre scritture sull'audit, testuali come in V5, devono riuscire e lasciare le catene
+     * verificabili: anonimizzazione (UPDATE diretto), retention (DELETE per età) e reset della demo (DELETE di tutto).
+     */
+    @Test
+    @Order(4)
+    @DisplayName("versione precedente su V6: anonimizzazione, retention e reset riescono e la catena resta verificabile")
+    void previousVersionKeepsWorking() {
+        // Anonimizzazione di M7.5 (MemberRedactionRepository fino a V5).
+        int updated = jdbc.sql("UPDATE audit_entry SET summary = ?, before = cast(? AS jsonb), after = cast(? AS jsonb) WHERE id = ?")
+                .params("Rettifica Membro anonimo", "{\"b\": 1}", null, "01J8Z0000000000000000000W2").update();
+        assertThat(updated).isEqualTo(1);
+        assertThat(jdbc.sql("""
+                        SELECT count(*) FROM audit_entry WHERE service = 'insight' AND action = 'REDACT'
+                          AND entity_id = '01J8Z0000000000000000000W2' AND after ->> 'memberId' IS NULL
+                        """).query(Long.class).single()).as("prova REDACT senza membro").isEqualTo(1);
+        AuditVerification afterRedaction = verify();
+        assertThat(afterRedaction.status()).as(afterRedaction.toString()).isEqualTo(AuditChainReport.Status.OK);
+        assertThat(afterRedaction.services()).filteredOn(r -> r.service().equals("wallet"))
+                .singleElement().satisfies(r -> assertThat(r.redacted()).isEqualTo(1));
+
+        // Retention di RetentionJob fino a V5: DELETE diretto per età, 180 giorni.
+        for (int i = 1; i <= 3; i++) {
+            jdbc.sql("""
+                            INSERT INTO audit_entry (id, event_id, at, actor_role, actor_name, service, entity_type,
+                                                     entity_id, action, summary)
+                            VALUES (?, ?, cast(? AS timestamptz), 'ADMIN', 'marta.admin', 'reward', 'REWARD', 'RWD-1',
+                                    'UPDATE', 'Vecchia')
+                            """).params("01J0000000000000000000000" + i, "EVT-OLD-" + i, "1990-0" + i + "-01T00:00:00Z").update();
+        }
+        int purged = jdbc.sql("DELETE FROM audit_entry WHERE at < now() - make_interval(days => ?)").param(180).update();
+        assertThat(purged).isEqualTo(3);
+        assertThat(jdbc.sql("SELECT kind || ':' || seq FROM audit_anchor WHERE service = 'reward'").query(String.class)
+                .list()).containsExactly("PURGE:3");
+        assertThat(verify().status()).isEqualTo(AuditChainReport.Status.OK);
+
+        // Reset della demo di InsightReset fino a V5: tutte le tabelle svuotate con DELETE, in una transazione.
+        new TransactionTemplate(new DataSourceTransactionManager(ds)).executeWithoutResult(s -> {
+            jdbc.sql("DELETE FROM event_store").update();
+            jdbc.sql("DELETE FROM topic_stat").update();
+            jdbc.sql("DELETE FROM audit_entry").update();
+            jdbc.sql("DELETE FROM dlq_entry").update();
+        });
+        assertThat(jdbc.sql("SELECT count(*) FROM audit_entry").query(Long.class).single()).isZero();
+        AuditVerification afterReset = verify();
+        assertThat(afterReset.status()).as(afterReset.toString()).isEqualTo(AuditChainReport.Status.OK);
+
+        // Le voci successive proseguono le catene dalla testa.
+        jdbc.sql("""
+                        INSERT INTO audit_entry (id, event_id, at, actor_role, actor_name, service, entity_type,
+                                                 entity_id, action, summary)
+                        VALUES ('01J8Z0000000000000000000C9', 'EVT-C9', now(), 'ADMIN', 'marta.admin', 'campaign',
+                                'CAMPAIGN', 'CMP-1', 'RESET', 'Reset')
+                        """).update();
+        assertThat(jdbc.sql("SELECT seq FROM audit_entry WHERE id = '01J8Z0000000000000000000C9'").query(Long.class)
+                .single()).isEqualTo(5);
+        assertThat(verify().status()).isEqualTo(AuditChainReport.Status.OK);
     }
 }
