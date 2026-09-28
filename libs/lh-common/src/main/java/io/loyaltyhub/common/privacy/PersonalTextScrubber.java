@@ -24,8 +24,8 @@ import java.util.regex.Pattern;
  *       confrontano in forma NFC e senza distinguere maiuscole. Un soprannome «Anon» o un nome «Zed» non toccano
  *       «ANONYMIZED» o «Zedda». Le scritture senza spazi (han, hiragana, katakana, thai, lao, khmer, birmano) non
  *       fanno da confine: «王伟先» si ripulisce in «王伟先生», «Ada» in «Adaさん». Un valore di sole cifre lungo almeno
- *       8 (un telefono) si riconosce anche con il prefisso internazionale attaccato ({@code +39…}, {@code 0039…},
- *       {@code 39…}).</li>
+ *       8 (un telefono) si riconosce anche con un prefisso internazionale attaccato: da 1 a 3 cifre, con {@code +} o
+ *       {@code 00} facoltativi davanti ({@code +39…}, {@code 0039…}, {@code 39…}, {@code 123…}).</li>
  *   <li><strong>Si salta solo ciò che è sicuro</strong>: i campi che portano identificativi, istanti e l'envelope
  *       ({@link #isFixed}) non si riscrivono; i campi di enumerazione e codice (stati, tipi, codici, azioni:
  *       {@link #isCoded}) si conservano solo se il valore ha la forma di un codice ({@code ACTIVE},
@@ -40,9 +40,11 @@ import java.util.regex.Pattern;
  *       distingue maiuscole per i valori identificativi (con una cifra o una chiocciola: e-mail, telefono, id esterno,
  *       pseudonimo) e le distingue per i nomi, così un soprannome «Active» o «Test» non tocca {@code ACTIVE} o
  *       {@code TEST}; nei campi di identificativo e di codice un nome non tocca mai un valore in maiuscolo (un
- *       soprannome «ACTIVE» non corrompe uno stato). Fanno eccezione solo gli attributi dell'envelope CloudEvents
- *       alla radice ({@code id}, {@code specversion}, {@code type}, {@code source}, {@code time},
- *       {@code datacontenttype}, {@code dataschema}).</li>
+ *       soprannome «ACTIVE» non corrompe uno stato). Dentro un valore sicuro più lungo si ripuliscono, come parole
+ *       intere, le e-mail e gli identificativi con lettere e cifre insieme ({@code ORD-CRM101}, {@code web:<e-mail>},
+ *       {@code CRM101_2026}); un valore di sole cifre solo per intero, un nome mai. Fanno eccezione solo gli attributi
+ *       dell'envelope CloudEvents alla radice ({@code id}, {@code specversion}, {@code type}, {@code source},
+ *       {@code time}, {@code datacontenttype}, {@code dataschema}).</li>
  * </ul>
  * Toglie le chiavi personali come {@link PersonalData#redact}. Pura, senza accesso a DB.
  */
@@ -234,8 +236,14 @@ public final class PersonalTextScrubber {
                 String scrubbed = scrub(s, tokens);
                 return scrubbed.equals(s) ? node : StringNode.valueOf(scrubbed);
             }
-            boolean rootEnvelope = depth == 1 && ENVELOPE.contains(key);
-            return !rootEnvelope && isMemberValue(key, s, tokens) ? StringNode.valueOf(PersonalData.PLACEHOLDER) : node;
+            if (depth == 1 && ENVELOPE.contains(key)) {
+                return node;
+            }
+            if (isMemberValue(key, s, tokens)) {
+                return StringNode.valueOf(PersonalData.PLACEHOLDER);
+            }
+            String scrubbed = scrub(s, embeddable(tokens));
+            return scrubbed.equals(s) ? node : StringNode.valueOf(scrubbed);
         }
         return node;
     }
@@ -280,6 +288,29 @@ public final class PersonalTextScrubber {
 
     private static boolean nonSpaced(int codePoint) {
         return NON_SPACED_CHAR.matcher(Character.toString(codePoint)).matches();
+    }
+
+    /**
+     * Valori riconoscibili anche dentro un valore sicuro più lungo ({@code ORD-CRM101}, {@code web:<e-mail>}): le e-mail
+     * e gli identificativi con lettere e cifre insieme. Un valore di sole cifre si confronta solo per intero (non tocca
+     * {@code MBR-000123}, {@code RWD-10234} o un UUID), un nome mai.
+     */
+    private static List<String> embeddable(Collection<String> tokens) {
+        List<String> out = new ArrayList<>();
+        if (tokens == null) {
+            return out;
+        }
+        for (String t : tokens) {
+            if (t == null || t.isBlank()) {
+                continue;
+            }
+            String n = t.trim();
+            if (n.indexOf('@') >= 0
+                    || (n.chars().anyMatch(Character::isDigit) && n.chars().anyMatch(Character::isLetter))) {
+                out.add(t);
+            }
+        }
+        return out;
     }
 
     /** Valore identificativo (e-mail, telefono, id esterno, pseudonimo): contiene una cifra o una chiocciola. */

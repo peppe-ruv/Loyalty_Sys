@@ -138,4 +138,37 @@ class MemberErasureRepositoryIT {
         repository.erase("MBR-000904");
         assertThat(payload("IN-4")).as("idempotente").isEqualTo(p);
     }
+
+    @Test
+    @DisplayName("Q-404: id esterno ed e-mail dentro identificativi e codici più lunghi: ripuliti; id di sole cifre solo per intero")
+    void memberIdentifiersInsideLongerCodesAreScrubbed() {
+        jdbc.sql("INSERT INTO member_index (member_id, external_id, email_lower, status) VALUES (?, ?, ?, 'ACTIVE')")
+                .params("MBR-000905", "CRM505", "ada.bianchi@example.test").update();
+        jdbc.sql("INSERT INTO member_index (member_id, external_id, email_lower, status) VALUES (?, ?, NULL, 'ACTIVE')")
+                .params("MBR-000906", "10234").update();
+        inbound("IN-5", "member:MBR-000905", "MBR-000905", "ACCEPTED", """
+                {"specversion":"1.0","id":"EVT-IN-5","type":"purchase","source":"urn:loyaltyhub:source:pos",
+                 "subject":"member:MBR-000905",
+                 "data":{"orderId":"ORD-CRM505","cardCode":"CARD-CRM505-A","loginId":"web:ada.bianchi@example.test",
+                         "ref":"CRM505_2026","customer":{"id":"u/CRM505"},"promoCode":"CRM5050","status":"PAID"}}""",
+                null);
+        inbound("IN-6", "member:MBR-000906", "MBR-000906", "ACCEPTED", """
+                {"specversion":"1.0","id":"EVT-IN-6","type":"purchase","source":"urn:loyaltyhub:source:pos",
+                 "subject":"member:MBR-000906","data":{"rewardCode":"RWD-10234","customerId":"10234"}}""", null);
+
+        repository.erase("MBR-000905");
+        repository.erase("MBR-000906");
+
+        JsonNode d = payload("IN-5").path("data");
+        assertThat(d.path("orderId").asString()).isEqualTo("ORD-Membro anonimo");
+        assertThat(d.path("cardCode").asString()).isEqualTo("CARD-Membro anonimo-A");
+        assertThat(d.path("loginId").asString()).isEqualTo("web:Membro anonimo");
+        assertThat(d.path("ref").asString()).isEqualTo("Membro anonimo_2026");
+        assertThat(d.path("customer").path("id").asString()).isEqualTo("u/Membro anonimo");
+        assertThat(d.path("promoCode").asString()).as("un altro codice").isEqualTo("CRM5050");
+        assertThat(d.path("status").asString()).isEqualTo("PAID");
+        JsonNode n = payload("IN-6").path("data");
+        assertThat(n.path("rewardCode").asString()).as("id esterno di sole cifre: solo per intero").isEqualTo("RWD-10234");
+        assertThat(n.path("customerId").asString()).isEqualTo("Membro anonimo");
+    }
 }

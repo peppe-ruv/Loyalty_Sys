@@ -213,6 +213,41 @@ class PersonalDataTest {
     }
 
     @Test
+    @DisplayName("Q-404: e-mail e id esterno con lettere e cifre si ripuliscono anche dentro identificativi e codici")
+    void memberIdentifiersInsideLongerSafeValuesAreScrubbed() {
+        JsonNode in = mapper.readTree("""
+                {"id":"EVT-CRM101","lhcorrelationid":"cor-CRM101",
+                 "data":{"orderId":"ORD-CRM101","cardCode":"CARD-CRM101-A","rewardCode":"RWD-CRM101",
+                         "loginId":"web:mario.rossi@example.test","ref":"CRM101_2026","nested":{"id":"u/CRM101"},
+                         "promoCode":"CRM1010","status":"ACTIVE","memberId":"MBR-000003"}}""");
+        JsonNode out = PersonalData.redactAndScrub(in, MARIO);
+        JsonNode d = out.path("data");
+        assertThat(d.path("orderId").asString()).isEqualTo("ORD-Membro anonimo");
+        assertThat(d.path("cardCode").asString()).isEqualTo("CARD-Membro anonimo-A");
+        assertThat(d.path("rewardCode").asString()).isEqualTo("RWD-Membro anonimo");
+        assertThat(d.path("loginId").asString()).isEqualTo("web:Membro anonimo");
+        assertThat(d.path("ref").asString()).isEqualTo("Membro anonimo_2026");
+        assertThat(d.path("nested").path("id").asString()).isEqualTo("u/Membro anonimo");
+        assertThat(out.path("lhcorrelationid").asString()).isEqualTo("cor-Membro anonimo");
+        assertThat(out.path("id").asString()).as("envelope alla radice: mai riscritto").isEqualTo("EVT-CRM101");
+        assertThat(d.path("promoCode").asString()).as("un altro codice").isEqualTo("CRM1010");
+        assertThat(d.path("status").asString()).isEqualTo("ACTIVE");
+        assertThat(d.path("memberId").asString()).isEqualTo("MBR-000003");
+
+        JsonNode numeric = PersonalData.redactAndScrub(mapper.readTree("""
+                {"data":{"rewardCode":"RWD-10234","memberId":"MBR-010234","orderId":"ORD-10234","customerId":"10234",
+                         "rewardId":"7f1c10234-aa","level":"Ada"}}"""), PersonalData.tokens(List.of("10234", "Ada")))
+                .path("data");
+        assertThat(numeric.path("rewardCode").asString()).as("id esterno di sole cifre: solo per intero")
+                .isEqualTo("RWD-10234");
+        assertThat(numeric.path("memberId").asString()).isEqualTo("MBR-010234");
+        assertThat(numeric.path("orderId").asString()).as("limite dichiarato in Q-404").isEqualTo("ORD-10234");
+        assertThat(numeric.path("rewardId").asString()).isEqualTo("7f1c10234-aa");
+        assertThat(numeric.path("customerId").asString()).isEqualTo(PersonalData.PLACEHOLDER);
+        assertThat(numeric.path("level").asString()).isEqualTo(PersonalData.PLACEHOLDER);
+    }
+
+    @Test
     @DisplayName("Q-404: stati e codici di dominio restano se il membro non li ha o li ha solo come nome")
     void domainCodesStayWhenTheMemberHasThemOnlyAsAName() {
         JsonNode in = mapper.readTree("""
