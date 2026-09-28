@@ -35,11 +35,17 @@ public class HubDatabase implements BeanFactoryPostProcessor, EnvironmentAware, 
 
     @Override
     public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) {
-        SimpleDriverDataSource ds = new SimpleDriverDataSource(
-                new Driver(),
-                env.getProperty("spring.datasource.url", "jdbc:postgresql://localhost:5432/loyaltyhub"),
+        migrate(env.getProperty("spring.datasource.url", "jdbc:postgresql://localhost:5432/loyaltyhub"),
                 env.getProperty("spring.datasource.username", "loyaltyhub"),
                 env.getProperty("spring.datasource.password", "loyaltyhub"));
+    }
+
+    /**
+     * Migrazioni di tutti gli schemi dell'hub. Usata all'avvio e dal Job di migrazione del chart ({@link HubMigrate},
+     * F2-DIST-02): Flyway prende un lock sul database, quindi due esecuzioni concorrenti non si pestano (ADR-038).
+     */
+    static void migrate(String url, String username, String password) {
+        SimpleDriverDataSource ds = new SimpleDriverDataSource(new Driver(), url, username, password);
         for (String schema : SCHEMAS) {
             Flyway.configure()
                     .dataSource(ds)

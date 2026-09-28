@@ -1,0 +1,315 @@
+# Loyalty Hub — valori del chart (F2-DIST-02, F2-EVT-04, M8.3; docs/18 §3.1, §3.3, §3.11; ADR-026, ADR-028, ADR-037).
+#
+# Regole di questo file:
+# - nessun segreto in chiaro: ogni credenziale è un riferimento {name, key} a un Secret che esiste già nel namespace
+#   (creato a mano, da External Secrets in M8.5 o dall'operatore: CloudNativePG genera <cluster>-app da solo);
+# - un Deployment per ruolo dell'immagine unica (LH_ROLE); `cms` e `jobs` non sono ancora nell'immagine e il chart
+#   rifiuta di abilitarli;
+# - Strimzi e CloudNativePG sono il default (kafka.mode=strimzi, postgres.mode=cloudnativepg) e sono PREREQUISITI:
+#   gli operatori si installano prima, a livello di cluster (deploy/README.md); questo chart crea solo le risorse
+#   personalizzate. Con kafka.mode=external / postgres.mode=external si usano servizi gestiti.
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  # OBBLIGATORI (il chart non si installa senza): immagine unica multi-arch (ADR-037) e versione.
+  # La pipeline .github/workflows/image.yml pubblica ghcr.io/<owner>/loyaltyhub solo sui tag git `v*`
+  # (es. repository: ghcr.io/<owner>/loyaltyhub, tag: v0.7.0), oppure un registro interno con la stessa immagine.
+  # Nessun default: un nome inventato finirebbe in ImagePullBackOff.
+  repository: ""
+  tag: ""
+  # Vuoto = IfNotPresent (Always se il tag è `latest`, sconsigliato).
+  pullPolicy: ""
+  pullSecrets: []
+
+global:
+  # LH_PROFILE: `enterprise` (OIDC obbligatorio, ADR-027) oppure `demo` (seed, X-LH-Actor; solo valutazione).
+  profile: enterprise
+  # LH_MODE: nel chart solo `external` (Postgres e Kafka fuori dal container). `embedded` è l'appliance a un solo
+  # container, non HA (ADR-037), e non si installa con Helm.
+  mode: external
+  # Nome del realm di deploy/idp/realm.json.
+  realm: loyaltyhub
+
+# URL pubblici (origini viste dal browser). Servono al realm (redirect URI, back-channel logout) e all'emittente OIDC.
+publicUrls:
+  web: https://loyalty.example.org
+  idp: https://idp.example.org
+  # Directus (ruolo cms, M10.2): usato solo come redirect URI del client `cms` nel realm.
+  cms: https://cms.example.org
+
+# Identità dei servizi (ADR-027): resource server JWT con aud=hub.
+oidc:
+  # Vuoto = <publicUrls.idp>/realms/<global.realm> (ruolo idp di questo chart). Con un IdP aziendale già compatibile
+  # si imposta qui l'emittente e si spegne roles.idp.
+  issuer: ""
+  # Vuoto = JWKS del ruolo idp raggiunto dentro il cluster (nessun giro dall'Ingress).
+  jwksUri: ""
+  audience: hub
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# Sicurezza dei Pod compatibile con Pod Security `restricted` (docs/18 §3.10 punto 10).
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities:
+    drop: ["ALL"]
+
+commonLabels: {}
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+# Repliche sparse tra zone (multi-AZ, ADR-036).
+topologySpread:
+  enabled: true
+  topologyKey: topology.kubernetes.io/zone
+  whenUnsatisfiable: ScheduleAnyway
+
+roles:
+  # Porte fisse, non configurabili: le impone l'immagine unica (hub 8080 e web 3000, deploy/image/entrypoint.sh)
+  # e Keycloak (8080 HTTP, 9000 gestione). Sono definite una volta sola in templates/_helpers.tpl.
+  # ---- hub: tutti i moduli Java (ingestion, member, campaign, wallet, insight, reward, gamification, engagement) ----
+  hub:
+    enabled: true
+    replicas: 2
+    # LH_SERVICES: per ora solo vuoto o `all` (l'immagine rifiuta selezioni parziali, SPEC-GAP Q-376 del M8.1):
+    # un solo Deployment hub con tutti i moduli; i Deployment per modulo arrivano con la selezione dei moduli.
+    services: ""
+    javaToolOptions: "-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
+    resources:
+      requests: { cpu: 500m, memory: 1Gi }
+      limits: { cpu: "2", memory: 2Gi }
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      # Con 12 partizioni e concorrenza 2, 6 repliche usano tutte le partizioni (F2-EVT-04).
+      maxReplicas: 6
+      targetCPUUtilizationPercentage: 70
+    pdb:
+      enabled: true
+      minAvailable: 1
+    extraEnv: []
+
+  # ---- web: portale, backoffice, BFF (Next.js) ----
+  web:
+    enabled: true
+    replicas: 2
+    resources:
+      requests: { cpu: 200m, memory: 384Mi }
+      limits: { cpu: "1", memory: 768Mi }
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 6
+      targetCPUUtilizationPercentage: 70
+    pdb:
+      enabled: true
+      minAvailable: 1
+    # SPEC-GAP: Q-393 — il BFF OIDC (F2-SEC-06) non esiste ancora: il proxy /api/lh inoltra solo X-LH-Actor e l'hub
+    # in `enterprise` rifiuta ogni chiamata senza token. Finché non c'è il BFF il Pod web non riceve segreti né
+    # emittente (nessun lettore); con `global.profile=demo` il web funziona come in Fase 1.
+    extraEnv: []
+
+  # ---- idp: Keycloak con il realm as code di deploy/idp/realm.json (ADR-027) ----
+  idp:
+    enabled: true
+    replicas: 2
+    # SPEC-GAP: Q-374 — l'immagine unica non contiene ancora Keycloak (/opt/lh/idp, ADR-037): il ruolo idp usa
+    # l'immagine ufficiale di Keycloak alla stessa versione bloccata di deploy/docker-compose.yml. Quando l'immagine
+    # unica avrà il ruolo idp basterà `image: {}` per usare quella.
+    image:
+      repository: quay.io/keycloak/keycloak
+      tag: "26.7.4"
+      pullPolicy: IfNotPresent
+    # Keycloak ricompila la propria configurazione all'avvio (`kc.sh start` senza --optimized) e scrive nella sua
+    # cartella: niente filesystem in sola lettura finché l'immagine non porta una build ottimizzata (Q-374).
+    readOnlyRootFilesystem: false
+    resources:
+      requests: { cpu: 500m, memory: 1Gi }
+      limits: { cpu: "2", memory: 1536Mi }
+    pdb:
+      enabled: true
+      minAvailable: 1
+    # Secret esistenti. Chiavi del realm: tutte le variabili ${LH_*} di deploy/idp/realm.json.
+    adminUsername: admin
+    adminPassword: { name: lh-idp-admin, key: password }
+    clientSecrets:
+      web: { name: lh-idp-clients, key: web-client-secret }
+      widgets: { name: lh-idp-clients, key: widgets-client-secret }
+      cms: { name: lh-idp-clients, key: cms-client-secret }
+    # JWKS dei client private_key_jwt (fonti e job). Finché non puntano al JWKS reale, l'autenticazione di quel
+    # client fallisce (fail-closed, deploy/idp/README.md).
+    jwks:
+      jobs: ""
+      sources:
+        crm: ""
+        app: ""
+        ecommerce: ""
+        billing: ""
+        partner: ""
+        internal: ""
+        simulator: ""
+    extraEnv: []
+
+  # ---- cms (Directus, M10.2) e jobs (client credentials, M8.2+): non ancora nell'immagine ----
+  cms:
+    enabled: false
+  jobs:
+    enabled: false
+
+# Migrazioni Flyway come Job (ADR-038, expand/contract). Hook pre-upgrade sempre; al primo install pre-install con
+# Postgres esterno (esiste già) e post-install con CloudNativePG (il cluster nasce con la release). I Pod dell'hub
+# eseguono comunque le stesse migrazioni all'avvio: Flyway usa un lock, quindi non si pestano. Il Job usa nodeSelector,
+# tolerations e sicurezza comuni, come i Pod dell'hub.
+migrations:
+  enabled: true
+  backoffLimit: 6
+  activeDeadlineSeconds: 1200
+  ttlSecondsAfterFinished: 3600
+  resources:
+    requests: { cpu: 200m, memory: 512Mi }
+    limits: { cpu: "1", memory: 1Gi }
+
+# ---- Postgres ----
+postgres:
+  # cloudnativepg | external
+  mode: cloudnativepg
+  database: loyaltyhub
+  cloudnativepg:
+    # Vuoto = <fullname>-pg
+    clusterName: ""
+    instances: 3
+    # Vuoto = immagine di default dell'operatore.
+    imageName: ""
+    storage:
+      size: 20Gi
+      storageClass: ""
+    resources:
+      requests: { cpu: 500m, memory: 1Gi }
+      limits: { cpu: "2", memory: 2Gi }
+    # L'operatore genera il Secret <cluster>-app (username, password) per l'owner del database applicativo.
+    owner: loyaltyhub
+    # Database e ruolo di Keycloak (ruolo idp): Secret di tipo kubernetes.io/basic-auth da creare prima.
+    idp:
+      database: idp
+      owner: idp
+      credentialsSecretName: lh-idp-db
+  external:
+    host: ""
+    port: 5432
+    # Parametri JDBC aggiunti all'URL (es. sslmode=verify-full&sslrootcert=...). M8.5 rende verify-full il default.
+    # Con global.profile=enterprise devono contenere sslmode=require, verify-ca o verify-full (regola 22): altrimenti
+    # il chart non si installa, salvo allowInsecure=true (solo reti già cifrate, es. collegamento privato del
+    # fornitore; la scelta resta nelle note del rilascio).
+    jdbcParams: "sslmode=require"
+    allowInsecure: false
+    credentials:
+      username: { name: lh-db, key: username }
+      password: { name: lh-db, key: password }
+    idp:
+      database: idp
+      username: { name: lh-idp-db, key: username }
+      password: { name: lh-idp-db, key: password }
+
+# ---- Kafka ----
+kafka:
+  # strimzi | external
+  mode: strimzi
+  # Forma dei 5 topic (i nomi non cambiano mai, ADR-028) e concorrenza dei consumer (F2-EVT-04).
+  topics:
+    partitions: 12
+    replicas: 3
+    minInsyncReplicas: 2
+    # 7 giorni per actions, effects e dlq.
+    retentionMs: 604800000
+    # SPEC-GAP: Q-373 — ADR-028 vuole facts e audit a 365 giorni (31536000000), possibile solo senza PII sul bus
+    # (ADR-032). Finché M8.4 non pubblica solo member.*:2 e l'audit mascherato, il default resta 7 giorni.
+    retentionMsByTopic:
+      facts: 604800000
+      audit: 604800000
+    # Applica ai topic esistenti retention e min.insync.replicas cambiati (LH_KAFKA_TOPICS_MODIFY_CONFIGS). Vale quando
+    # l'hub crea i topic (kafka.mode=external); con Strimzi li applica l'operatore dai KafkaTopic.
+    modifyConfigs: true
+    # Aumentare le partizioni rimappa le chiavi memberId: gli eventi in volo di uno stesso membro possono essere
+    # consumati fuori ordine. Il chart (KafkaTopic esistenti) e l'hub (topic esistenti) rifiutano l'aumento finché
+    # questo valore è false. Procedura: fermare i produttori, attendere lag 0, installare con true, poi rimetterlo a
+    # false. Le partizioni non si possono diminuire.
+    allowPartitionIncrease: false
+  consumer:
+    # Consumer per listener in ogni Pod dell'hub. Si scala prima con le repliche (HPA), poi con questo valore.
+    concurrency: 2
+  strimzi:
+    # Versione dell'API delle risorse Strimzi installate nel cluster.
+    apiVersion: kafka.strimzi.io/v1beta2
+    # Vuoto = <fullname>-kafka
+    clusterName: ""
+    # Vuoto = versione di default dell'operatore.
+    version: ""
+    replicas: 3
+    storage:
+      size: 20Gi
+      storageClass: ""
+      deleteClaim: false
+    resources:
+      requests: { cpu: 500m, memory: 2Gi }
+      limits: { cpu: "2", memory: 4Gi }
+    # SPEC-GAP: Q-375 — listener interno senza TLS né autenticazione finché M8.5 non porta mTLS di mesh, principal
+    # Kafka per modulo e ACL (docs/18 §3.10): il chart lo dichiara e lo rende esplicito.
+    listener:
+      name: plain
+      port: 9092
+      tls: false
+  external:
+    bootstrapServers: ""
+    # PLAINTEXT | SSL_PEM | SASL_SSL (docs/06 §5, ADR-025). Con global.profile=enterprise PLAINTEXT è rifiutato
+    # (regola 22), salvo allowInsecure=true (solo reti già cifrate; la scelta resta nelle note del rilascio).
+    security: SASL_SSL
+    allowInsecure: false
+    # L'hub crea i 5 topic con la forma di kafka.topics; false se li crea chi amministra il Kafka gestito.
+    createTopics: true
+    # Riferimenti ai Secret (i PEM sono base64 come in docs/11 §8); lasciare name vuoto per le chiavi non usate.
+    sasl:
+      mechanism: SCRAM-SHA-256
+      username: { name: "", key: username }
+      password: { name: "", key: password }
+    ssl:
+      caB64: { name: "", key: ca-b64 }
+      certB64: { name: "", key: cert-b64 }
+      keyB64: { name: "", key: key-b64 }
+
+# ---- Esposizione ----
+# Nessuna NetworkPolicy in questa versione: il traffico dentro il namespace non è filtrato finché M8.5 non porta la
+# network policy deny-by-default e l'mTLS di mesh (docs/18 §3.10). Chi installa ora può applicare le proprie.
+ingress:
+  enabled: true
+  className: ""
+  annotations: {}
+  hosts:
+    web: loyalty.example.org
+    idp: idp.example.org
+  tls:
+    enabled: true
+    # Secret TLS esistente (o creato da cert-manager tramite annotations).
+    secretName: lh-tls
+
+# Segnaposto del gateway (M8.5: JWT, rate limit, CORS, header; docs/18 §3.10). Spento: con enabled=true crea solo un
+# HTTPRoute (Gateway API) verso l'hub per le API pubbliche (fonti e widget), agganciato a un Gateway esistente.
+gateway:
+  enabled: false
+  host: api.example.org
+  parentRefs: []
+  #  - name: lh-gateway
+  #    namespace: gateway-system
