@@ -1,6 +1,5 @@
-package io.loyaltyhub.insight.infra;
+package io.loyaltyhub.common.privacy;
 
-import io.loyaltyhub.common.privacy.PersonalData;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -16,8 +15,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Pulizia dei valori personali noti di un membro anonimizzato nelle copie di insight (F-MBR-05, M7.5), senza mai
- * corrompere valori strutturali (M8.12a, revisioni P9 e P18).
+ * Pulizia dei valori personali noti di un membro anonimizzato nei testi e nei payload conservati da ogni servizio
+ * (F-MBR-05, M7.5), senza mai corrompere valori strutturali (M8.12a, revisioni P9 e P18; comune a tutti i servizi da
+ * Q-404: {@link PersonalData#scrub}, {@link PersonalData#redactAndScrub} e {@link PersonalData#scrubAll} la usano).
  * <ul>
  *   <li><strong>Solo parole intere</strong>: un valore si sostituisce con «Membro anonimo» solo se non è attaccato a
  *       lettere, segni diacritici o cifre (il trattino basso separa: «Ottavio_Q» si ripulisce). Testo e valori si
@@ -30,10 +30,9 @@ import java.util.regex.Pattern;
  *       {@code subject} ({@code email:<indirizzo>}, {@code external:<id>}). Nel testo libero resta intatto solo un
  *       valore che è per intero una costante in maiuscolo ({@code TEST}, {@code MEMBER_REQUEST}: i motivi enumerati
  *       di {@code wallet.points.adjusted}), anche se un soprannome ci coincide. Gli identificativi personali ({@code externalId},
- *       {@link PersonalData#KEYS}) non sono mai sicuri.</li>
+ *       {@link PersonalData#KEYS}) e lo pseudonimo {@link PersonalData#EMAIL_HASH} non sono mai sicuri.</li>
  * </ul>
- * Toglie le chiavi personali come {@link PersonalData#redact}. Sostituisce, per insight, {@code PersonalData.scrub},
- * che confronta sottostringhe: la stessa correzione per engagement e ingestion è la domanda Q-404.
+ * Toglie le chiavi personali come {@link PersonalData#redact}. Pura, senza accesso a DB.
  */
 public final class PersonalTextScrubber {
 
@@ -197,7 +196,7 @@ public final class PersonalTextScrubber {
     }
 
     private static boolean personal(String key) {
-        return PersonalData.KEYS.contains(key) || MemberRedactionRepository.EMAIL_HASH.equals(key);
+        return PersonalData.KEYS.contains(key) || PersonalData.EMAIL_HASH.equals(key);
     }
 
     private static boolean hasSuffix(String key, List<String> suffixes) {
