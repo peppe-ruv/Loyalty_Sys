@@ -146,7 +146,7 @@ export function ActionTypeEditor({
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
 
-  // Impatto (Q-436): schema cambiato o azione disattivata mentre delle campagne la usano.
+  // Impatto: schema cambiato o azione disattivata mentre delle campagne la usano. SPEC-GAP: Q-436.
   const impact = !isNew && campaigns.data ? campaignImpact(initial.code, campaigns.data) : null;
   const baseSchema = useMemo(() => (initialRows ? JSON.stringify(rowsToSchema(initialRows)) : null), [initialRows]);
   const schemaChanged = rowsEditable && baseSchema !== JSON.stringify(schema);

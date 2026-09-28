@@ -13,7 +13,7 @@ const t = it.actions.sources;
 /**
  * Azioni ammesse da una fonte (BO-09 scheda Fonti, solo `program.config`; Q-433). Si invia sempre l'elenco completo
  * con `PUT /v1/sources/{code}`; «Tutte le azioni» (`[]`) è una scelta esplicita con avviso, mai l'effetto di togliere
- * l'ultima casella.
+ * l'ultima casella. SPEC-GAP: Q-433.
  */
 export function AllowedTypesEditor({
   source,

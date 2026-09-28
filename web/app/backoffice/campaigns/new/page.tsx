@@ -22,7 +22,7 @@ import { cn } from "@/lib/cn";
 // "2 Quando" sceglie i trigger fra i tipi azione di ingestion (anche custom, BO-09) e le fonti ammesse (Q-208: regola
 // context.source alla radice delle condizioni, default tutte); "4 Se" è il ConditionBuilder con
 // vista JSON alternativa. Gli altri blocchi restano in JSON. `?trigger=<codice>` precompila il trigger (BO-09 *Crea una
-// campagna con questa azione*); da «2 · Quando» si crea una nuova azione senza lasciare la pagina (Q-432).
+// campagna con questa azione*); da «2 · Quando» si crea una nuova azione senza lasciare la pagina. SPEC-GAP: Q-432.
 const DEFAULT_CONDITIONS = { op: "all", rules: [{ field: "data.amount", cmp: "gte", value: 1 }] };
 const DEFAULTS = {
   audience: '{ "all": true }',

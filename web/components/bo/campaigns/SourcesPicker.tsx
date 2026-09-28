@@ -10,7 +10,8 @@ import { it } from "@/lib/i18n/it";
 // Fonti ammesse della campagna (docs/08 §BO-06 sezione "2 Quando", default tutte; Q-208): multi-scelta fra le fonti di
 // `ingestion GET /v1/sources`. Nessuna scelta = tutte le fonti. Il valore diventa la regola `context.source` alla
 // radice delle condizioni (`lib/campaign/sources.ts`). Se ingestion dorme si scrivono i codici separati da virgola.
-// Se una fonte scelta non accetta un trigger scelto, avviso: da quella fonte la campagna non scatterà mai (Q-437).
+// Se una fonte scelta non accetta un trigger scelto, avviso: da quella fonte la campagna non scatterà mai.
+// SPEC-GAP: Q-437.
 
 interface SourceRow {
   code: string;

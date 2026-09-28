@@ -27,7 +27,8 @@ function writeOpen(open: boolean) {
 
 /**
  * Riquadro richiudibile «Come funziona» di BO-09 (docs/08 §BO-09): Fonte → Azione → Campagna (Quando · Se · Allora) →
- * Punti e premi. Aperto la prima volta, poi come l'ha lasciato l'operatore (`localStorage` in `try/catch`, Q-438).
+ * Punti e premi. Aperto la prima volta, poi come l'ha lasciato l'operatore (`localStorage` in `try/catch`).
+ * SPEC-GAP: Q-438.
  */
 export function HowItWorks() {
   const [open, setOpen] = useState(true);

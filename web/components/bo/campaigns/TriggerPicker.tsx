@@ -21,6 +21,7 @@ import { cn } from "@/lib/cn";
 // Scorciatoia verso BO-09 (Q-432): *+ Crea una nuova azione*, *Crea «ricerca» come nuova azione* e l'azione dello stato
 // vuoto aprono l'editor di BO-09 in un foglio laterale dentro la campagna, così la bozza non si perde; al salvataggio
 // l'azione entra nei trigger. *Aggiorna* rilegge le azioni create in un'altra scheda (niente refetch al focus).
+// SPEC-GAP: Q-432.
 // Se ingestion dorme o risponde con errore si torna al campo di testo con i codici (stato degraded, docs/07 §6).
 
 const T = it.actions.picker;

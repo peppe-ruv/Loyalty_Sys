@@ -7,7 +7,7 @@ import { it as t } from "@/lib/i18n/it";
 // Foglio laterale del backoffice (docs/08 §1: "i dettagli che non meritano una pagina si aprono in un foglio
 // laterale, 640 px"). Esc o clic sul fondo chiudono; il focus va al foglio all'apertura e torna dov'era alla chiusura.
 // Con `dirty` (per esempio un editor con modifiche non salvate) la chiusura chiede conferma dentro il foglio (BO-06
-// «2 · Quando», BO-09; Q-432): la bozza della pagina sotto non si perde per un Esc di troppo.
+// «2 · Quando», BO-09): la bozza della pagina sotto non si perde per un Esc di troppo. SPEC-GAP: Q-432.
 
 interface SideSheetApi {
   /** Chiusura richiesta dal contenuto (es. *Annulla*): passa dalla stessa conferma di Esc e del fondo. */
