@@ -11,7 +11,7 @@ La modifica include i fix post-review:
   (literal e non wildcards) di "%" e "_" nelle clausole ILIKE, prevenendo SQL injection
   attraverso i parametri e le condizioni ignorate.
 - Risolto il 500 error segnalato in `statsReflectMatchesAndDailySeries` (derivante dall'utilizzo errato nel repository per l'actionType, che è stato fixato tramite stringa pre-costruita testata positivamente dal builder JDBC).
-- Risolti i checkstyle code review failures per l'utilizzo dell'object mapper errato in CampaignServiceIT.
+- Fix checkstyle (validator non accessibile, uso esplicito di ObjectMapper per la deserializzazione JSON nei test).
 
 Cosa cambia:
 - `CampaignRepository` and `EvaluationLogRepository` search refactored to `SqlWhere`/`SqlOrder`
