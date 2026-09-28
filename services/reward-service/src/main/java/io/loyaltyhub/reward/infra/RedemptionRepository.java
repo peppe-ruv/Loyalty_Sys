@@ -140,41 +140,21 @@ public class RedemptionRepository {
     public List<Redemption> search(String status, String fulfilment, String memberId, String rewardCode,
                                    Boolean needsAttention, Instant from, Instant to, int page, int size) {
         SqlWhere where = buildWhere(status, memberId, rewardCode, needsAttention, from, to);
-        String sql = "SELECT " + COLUMNS + " FROM redemption" + where.sql();
-
-        // SPEC-GAP: Q-377 — SqlWhere does not support subqueries, manually appending fulfilment subquery
-        if (fulfilment != null && !fulfilment.isBlank()) {
-            sql += (where.isEmpty() ? " WHERE " : " AND ") + "reward_code IN (SELECT code FROM reward WHERE fulfilment = :fulfilment)";
-        }
-
-        sql += " ORDER BY requested_at DESC, id LIMIT :limit OFFSET :offset";
-
-        var spec = where.bind(jdbc.sql(sql));
-        if (fulfilment != null && !fulfilment.isBlank()) {
-            spec = spec.param("fulfilment", fulfilment.toUpperCase());
-        }
-
-        return spec.param("limit", size)
-                   .param("offset", page * size)
-                   .query(RedemptionRepository::map).list();
+        String sql = "SELECT " + COLUMNS + " FROM redemption WHERE (cast(:fulfilment AS text) IS NULL OR reward_code IN (SELECT code FROM reward WHERE fulfilment = :fulfilment))" + where.andSql() + " ORDER BY requested_at DESC, id LIMIT :limit OFFSET :offset";
+        return where.bind(jdbc.sql(sql))
+                .param("fulfilment", fulfilment != null && !fulfilment.isBlank() ? fulfilment.toUpperCase() : null)
+                .param("limit", size)
+                .param("offset", page * size)
+                .query(RedemptionRepository::map).list();
     }
 
     public long count(String status, String fulfilment, String memberId, String rewardCode, Boolean needsAttention,
                       Instant from, Instant to) {
         SqlWhere where = buildWhere(status, memberId, rewardCode, needsAttention, from, to);
-        String sql = "SELECT count(*) FROM redemption" + where.sql();
-
-        // SPEC-GAP: Q-377 — SqlWhere does not support subqueries, manually appending fulfilment subquery
-        if (fulfilment != null && !fulfilment.isBlank()) {
-            sql += (where.isEmpty() ? " WHERE " : " AND ") + "reward_code IN (SELECT code FROM reward WHERE fulfilment = :fulfilment)";
-        }
-
-        var spec = where.bind(jdbc.sql(sql));
-        if (fulfilment != null && !fulfilment.isBlank()) {
-            spec = spec.param("fulfilment", fulfilment.toUpperCase());
-        }
-
-        return spec.query(Long.class).single();
+        String sql = "SELECT count(*) FROM redemption WHERE (cast(:fulfilment AS text) IS NULL OR reward_code IN (SELECT code FROM reward WHERE fulfilment = :fulfilment))" + where.andSql();
+        return where.bind(jdbc.sql(sql))
+                .param("fulfilment", fulfilment != null && !fulfilment.isBlank() ? fulfilment.toUpperCase() : null)
+                .query(Long.class).single();
     }
 
     /** Richieste ancora {@code PENDING} chieste prima di {@code before} (timeout della saga). */
@@ -226,9 +206,7 @@ public class RedemptionRepository {
                     statuses.add(st.trim().toUpperCase());
                 }
             }
-            if (!statuses.isEmpty()) {
-                where.in(RedemptionColumn.STATUS, statuses);
-            }
+            where.in(RedemptionColumn.STATUS, statuses);
         }
         return where.when(memberId != null && !memberId.isBlank(), w -> w.eq(RedemptionColumn.MEMBER_ID, memberId))
                 .when(rewardCode != null && !rewardCode.isBlank(), w -> w.eq(RedemptionColumn.REWARD_CODE, rewardCode))

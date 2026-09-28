@@ -232,23 +232,38 @@ class RedemptionIT {
     }
 
     @Test
-    void searchFailsFastOnInvalidSortOrFilterAndIsSqlInjectionSafe() {
-        JsonNode result = get("/v1/redemptions?status=CONFIRMED'; DROP TABLE redemption; --&fulfilment=MANUAL");
-        if (result.has("code")) {
-            assertThat(result.path("code").asString()).isNotBlank();
-        } else {
-            assertThat(result.path("items").size()).isEqualTo(0);
-        }
+    void searchAndCountFiltersPreventInjectionAndWorkAsExpected() {
+        int statusCode = RestClient.create("http://localhost:" + port).get()
+                .uri("/v1/redemptions?status=CONFIRMED').-")
+                .header("X-LH-Actor", "ADMIN:test").exchange((req, res) -> res.getStatusCode().value());
+        assertThat(statusCode).isEqualTo(200);
+
+        // Verify counts against demo seed.
+        JsonNode page = get("/v1/redemptions?status=CONFIRMED&fulfilment=MANUAL&needsAttention=true");
+        assertThat(page.path("page").path("totalItems").asInt()).isEqualTo(0);
+
+        JsonNode page2 = get("/v1/redemptions?memberId=MBR-000005&rewardCode=RWD-SMART-PLUG");
+        assertThat(page2.path("page").path("totalItems").asInt()).isEqualTo(1);
+
+        JsonNode page3 = get("/v1/redemptions?from=2020-01-01T00:00:00Z&to=2099-01-01T00:00:00Z");
+        assertThat(page3.path("page").path("totalItems").asInt()).isGreaterThan(0);
+
+        JsonNode emptyList = get("/v1/redemptions?status=,");
+        assertThat(emptyList.path("page").path("totalItems").asLong()).isEqualTo(0);
+
+        JsonNode p1 = get("/v1/redemptions?size=2&page=0");
+        JsonNode p2 = get("/v1/redemptions?size=2&page=1");
+        assertThat(p1.path("items").get(0).path("id").asString()).isNotEqualTo(p2.path("items").get(0).path("id").asString());
+
+        long before = countAll();
+        RestClient.create("http://localhost:" + port).get()
+                .uri("/v1/redemptions?status=CONFIRMED'; DROP TABLE redemption; --")
+                .header("X-LH-Actor", "ADMIN:test").exchange((req, res) -> res.getStatusCode().value());
+        assertThat(countAll()).isEqualTo(before);
     }
 
-    @Test
-    void searchAppliesFiltersCorrectly() {
-        assertThat(get("/v1/redemptions?status=CONFIRMED&fulfilment=MANUAL&needsAttention=true").path("items").size())
-            .isGreaterThanOrEqualTo(0);
-        assertThat(get("/v1/redemptions?memberId=MBR-000004&rewardCode=RWD-SMART-PLUG").path("items").size())
-            .isGreaterThanOrEqualTo(0);
-        assertThat(get("/v1/redemptions?from=2023-01-01T00:00:00Z&to=2026-01-01T00:00:00Z").path("items").size())
-            .isGreaterThanOrEqualTo(0);
+    private long countAll() {
+        return get("/v1/redemptions").path("page").path("totalItems").asLong();
     }
 
     @Test

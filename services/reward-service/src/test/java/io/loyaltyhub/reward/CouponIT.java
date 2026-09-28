@@ -159,24 +159,28 @@ class CouponIT {
     }
 
     @Test
-    void searchFailsFastOnInvalidSortOrFilterAndIsSqlInjectionSafe() {
-        String caf = pool(get("/v1/coupon-pools"), "POOL-CIN").path("id").asString();
-        JsonNode result = get("/v1/coupon-pools/" + caf + "/coupons?status=AVAILABLE'; DROP TABLE coupon; --");
-        if (result.has("code")) {
-            assertThat(result.path("code").asString()).isNotBlank();
-        } else {
-            assertThat(result.path("items").size()).isEqualTo(0);
-        }
-    }
-
-    @Test
-    void searchAppliesFiltersCorrectly() {
+    void searchAndCountFiltersPreventInjectionAndWorkAsExpected() {
         String cin = pool(get("/v1/coupon-pools"), "POOL-CIN").path("id").asString();
+        assertThat(status("GET", "/v1/coupon-pools/" + cin + "/coupons?status=AVAILABLE').-", "ADMIN:test", null)).isEqualTo(200);
+
         JsonNode coupons = get("/v1/coupon-pools/" + cin + "/coupons?status=AVAILABLE");
-        assertThat(coupons.path("items").size()).isGreaterThan(0);
+        long totalAv = coupons.path("page").path("totalItems").asLong();
+        assertThat(totalAv).isGreaterThan(0);
 
         JsonNode specificMember = get("/v1/coupon-pools/" + cin + "/coupons?memberId=MBR-000007");
-        assertThat(specificMember.path("items").size()).isGreaterThanOrEqualTo(0);
+        assertThat(specificMember.path("page").path("totalItems").asLong()).isEqualTo(1);
+
+        JsonNode p1 = get("/v1/coupon-pools/" + cin + "/coupons?size=2&page=0");
+        JsonNode p2 = get("/v1/coupon-pools/" + cin + "/coupons?size=2&page=1");
+        assertThat(p1.path("items").get(0).path("code").asString()).isNotEqualTo(p2.path("items").get(0).path("code").asString());
+
+        long before = countAll(cin);
+        status("GET", "/v1/coupon-pools/" + cin + "/coupons?status=AVAILABLE'; DROP TABLE coupon; --", "ADMIN:test", null);
+        assertThat(countAll(cin)).isEqualTo(before);
+    }
+
+    private long countAll(String poolId) {
+        return get("/v1/coupon-pools/" + poolId + "/coupons").path("page").path("totalItems").asLong();
     }
 
     @Test
