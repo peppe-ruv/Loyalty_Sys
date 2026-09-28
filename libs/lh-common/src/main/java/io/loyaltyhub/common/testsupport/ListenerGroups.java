@@ -8,6 +8,7 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.GroupState;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.RetriableException;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 import org.springframework.kafka.listener.MessageListenerContainer;
@@ -152,6 +153,11 @@ public final class ListenerGroups {
                     }
                 } catch (TimeoutException e) {
                     // il broker non ha risposto entro il tetto: il controllo sotto chiude l'attesa
+                } catch (ExecutionException e) {
+                    if (!(e.getCause() instanceof RetriableException)) {
+                        throw e;
+                    }
+                    // coordinator in caricamento o metadati non ancora propagati: stato transitorio, si riprova
                 }
                 if (System.nanoTime() > deadline) {
                     throw new AssertionError("gruppo " + group + ": offset non confermati dopo " + TIMEOUT.toSeconds()
@@ -222,6 +228,12 @@ public final class ListenerGroups {
                     .get(remainingMillis(deadline), TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
             return "il broker non ha descritto topic e gruppi entro il tetto";
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof RetriableException retriable) {
+                // Topic appena creato non ancora nei metadati, coordinator in caricamento: stato transitorio, si riprova.
+                return "il broker non è ancora pronto: " + retriable;
+            }
+            throw e;
         }
         for (Map.Entry<String, Set<String>> entry : topicsByGroup.entrySet()) {
             String group = entry.getKey();
