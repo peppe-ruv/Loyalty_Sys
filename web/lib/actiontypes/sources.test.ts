@@ -12,12 +12,12 @@ import {
   withoutAllowedType,
   type SourceRow,
 } from "./sources";
-import seedSources from "../../../seed/sources.json";
+import { readSeed } from "@/test/seed";
 
 // Azioni ammesse dalle fonti (BO-09, BO-06; Q-433, Q-437). `PUT /v1/sources/{code}` sostituisce l'elenco: la UI manda
 // sempre l'elenco completo e non trasforma mai un elenco pieno in `[]` («tutte le azioni») senza una scelta esplicita.
 
-const SOURCES = seedSources as SourceRow[];
+const SOURCES = readSeed<SourceRow[]>("sources.json");
 const src = (code: string) => SOURCES.find((s) => s.code === code)!;
 
 describe("da dove può arrivare un'azione", () => {

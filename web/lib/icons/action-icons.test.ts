@@ -9,7 +9,9 @@ import {
   searchActionIcons,
   SEED_ACTION_ICONS,
 } from "./action-icons";
-import seedTypes from "../../../seed/event-types.json";
+import { readSeed } from "@/test/seed";
+
+const seedTypes = readSeed<{ icon?: string }[]>("event-types.json");
 
 // Elenco chiuso delle icone delle azioni (BO-09, BO-06; Q-431). Ogni nome deve esistere nella versione installata di
 // lucide-react e corrispondere al componente importato; ogni icona del seed deve restare nell'elenco.
@@ -41,7 +43,7 @@ describe("icone delle azioni", () => {
   });
 
   it("contiene tutte le icone del seed e le icone curate della proposta", () => {
-    const seedIcons = new Set((seedTypes as { icon?: string }[]).map((t) => t.icon).filter(Boolean) as string[]);
+    const seedIcons = new Set(seedTypes.map((t) => t.icon).filter(Boolean) as string[]);
     for (const icon of seedIcons) expect(isKnownActionIcon(icon), icon).toBe(true);
     expect([...SEED_ACTION_ICONS].sort()).toEqual([...seedIcons].sort());
     for (const icon of ["map-pin", "store", "calendar", "ticket", "qr-code", "handshake", "heart", "thumbs-up", "message-square", "camera", "leaf", "recycle", "log-in"]) {

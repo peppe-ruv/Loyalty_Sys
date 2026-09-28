@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { foldWords, looksPersonal, personalKeys, STANDARD_FIELDS, standardRow, technicalName } from "./fields";
 import { rowErrors } from "./schema";
-import eventTypes from "../../../seed/event-types.json";
+import { readSeed } from "@/test/seed";
+
+const eventTypes = readSeed<unknown[]>("event-types.json");
 
 // Guida ai campi (BO-09 sezione 3; Q-434) e blocco dei dati personali (regola 10, ADR-032; Q-435).
 

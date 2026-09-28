@@ -4,11 +4,11 @@ import { isAcceptableCode } from "./code";
 import { rowErrors, rowsToSchema } from "./schema";
 import { isKnownActionIcon } from "@/lib/icons/action-icons";
 import type { ActionType } from "./types";
-import seedTypes from "../../../seed/event-types.json";
+import { readSeed } from "@/test/seed";
 
 // «Parti da un modello» e «Duplica da un'azione esistente» (BO-09 sezione 3; Q-434).
 
-const SEED = seedTypes as unknown as ActionType[];
+const SEED = readSeed<ActionType[]>("event-types.json");
 const template = (key: string) => ACTION_TEMPLATES.find((t) => t.key === key)!;
 
 describe("modelli", () => {
