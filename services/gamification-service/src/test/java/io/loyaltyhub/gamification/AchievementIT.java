@@ -1,19 +1,20 @@
 package io.loyaltyhub.gamification;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -23,7 +24,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,8 +49,21 @@ class AchievementIT {
 
     private final ObjectMapper mapper = new ObjectMapper();
 
+    /** Eventi pubblicati dal test su Kafka: {@link #facts} attende che il servizio li abbia elaborati tutti. */
+    private final List<String> published = new ArrayList<>();
+
     @Value("${local.server.port}")
     private int port;
+
+    /** Topic dei fatti del contesto di test ({@link FactsTopic}). */
+    @Value("${loyaltyhub.topics.facts:lh.facts.v1}")
+    private String factsTopicName;
+
+    @Autowired
+    private JdbcClient jdbc;
+
+    @Autowired
+    private KafkaListenerEndpointRegistry listeners;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -59,6 +72,12 @@ class AchievementIT {
         registry.add("spring.datasource.username", () -> "postgres");
         registry.add("spring.datasource.password", () -> "");
         registry.add("spring.kafka.bootstrap-servers", () -> System.getProperty("spring.embedded.kafka.brokers"));
+    }
+
+    /** Si pubblica solo a gruppo {@code lh-gamification} stabile, con le partizioni assegnate ({@link ListenerGroups}). */
+    @BeforeAll
+    void waitForListenerGroup() {
+        ListenerGroups.awaitStable(listeners);
     }
 
     @AfterAll
@@ -193,29 +212,17 @@ class AchievementIT {
                 "key.serializer", StringSerializer.class, "value.serializer", StringSerializer.class))) {
             producer.send(new ProducerRecord<>(topic, key, mapper.writeValueAsString(event))).get();
         }
+        published.add((String) event.get("id"));
     }
 
-    /** Fatti del soggetto e tipo indicati; attende finché per 3 s non ne arrivano di nuovi (max 15 s). */
+    /**
+     * Fatti del soggetto e tipo indicati, esatti: prima il servizio deve aver elaborato ogni evento pubblicato dal test
+     * ({@code processed_event}), poi il topic si legge fino in fondo a outbox svuotato ({@link FactsTopic}). Nessuna
+     * finestra di tempo: un fatto in più (doppione, membro bloccato) resta visibile.
+     */
     private List<JsonNode> facts(String subject, String type, Predicate<JsonNode> filter) {
-        List<JsonNode> out = new ArrayList<>();
-        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(Map.of(
-                "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
-                "group.id", "ach-it-" + UUID.randomUUID(), "auto.offset.reset", "earliest",
-                "key.deserializer", StringDeserializer.class, "value.deserializer", StringDeserializer.class))) {
-            consumer.subscribe(List.of("lh.facts.v1"));
-            long deadline = System.currentTimeMillis() + 15_000;
-            long quietUntil = System.currentTimeMillis() + 5_000;
-            while (System.currentTimeMillis() < deadline && System.currentTimeMillis() < quietUntil) {
-                for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                    JsonNode e = mapper.readTree(r.value());
-                    if (subject.equals(e.path("subject").asString()) && type.equals(e.path("type").asString()) && filter.test(e)) {
-                        out.add(e);
-                        quietUntil = System.currentTimeMillis() + 3_000;
-                    }
-                }
-            }
-        }
-        return out;
+        return new FactsTopic(jdbc, mapper, factsTopicName).published(published,
+                e -> subject.equals(e.path("subject").asString()) && type.equals(e.path("type").asString()) && filter.test(e));
     }
 
     private JsonNode get(String path) {

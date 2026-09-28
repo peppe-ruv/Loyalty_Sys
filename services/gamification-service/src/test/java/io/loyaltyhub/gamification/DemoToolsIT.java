@@ -1,9 +1,6 @@
 package io.loyaltyhub.gamification;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -28,10 +25,8 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -55,6 +50,10 @@ class DemoToolsIT {
 
     @Value("${local.server.port}")
     private int port;
+
+    /** Topic dei fatti del contesto di test ({@link FactsTopic}). */
+    @Value("${loyaltyhub.topics.facts:lh.facts.v1}")
+    private String factsTopicName;
 
     @Autowired
     private JdbcClient jdbc;
@@ -171,26 +170,12 @@ class DemoToolsIT {
         throw new AssertionError("istante assente: " + instantId);
     }
 
+    /**
+     * Fatti pubblicati sul topic dei fatti ({@link FactsTopic}). Nessun evento da attendere: il fatto nasce nella
+     * transazione della chiamata HTTP, già conclusa quando la risposta arriva.
+     */
     private List<JsonNode> factsFor(String subject, String type) {
-        List<JsonNode> out = new ArrayList<>();
-        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(Map.of(
-                "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
-                "group.id", "demo-tools-it-" + UUID.randomUUID(), "auto.offset.reset", "earliest",
-                "key.deserializer", StringDeserializer.class, "value.deserializer", StringDeserializer.class))) {
-            consumer.subscribe(List.of("lh.facts.v1"));
-            long deadline = System.currentTimeMillis() + 10_000;
-            long quietUntil = 0;
-            while (System.currentTimeMillis() < deadline && (out.isEmpty() || System.currentTimeMillis() < quietUntil)) {
-                for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                    JsonNode e = mapper.readTree(r.value());
-                    if (subject.equals(e.path("subject").asString()) && type.equals(e.path("type").asString())) {
-                        out.add(e);
-                        quietUntil = System.currentTimeMillis() + 2_000;
-                    }
-                }
-            }
-        }
-        return out;
+        return new FactsTopic(jdbc, mapper, factsTopicName).published(List.of(), subject, type);
     }
 
     private JsonNode contest(String code) {

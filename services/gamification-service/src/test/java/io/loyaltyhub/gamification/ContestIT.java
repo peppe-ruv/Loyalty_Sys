@@ -1,9 +1,6 @@
 package io.loyaltyhub.gamification;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -33,7 +30,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -55,6 +51,10 @@ class ContestIT {
 
     @Value("${local.server.port}")
     private int port;
+
+    /** Topic dei fatti del contesto di test ({@link FactsTopic}). */
+    @Value("${loyaltyhub.topics.facts:lh.facts.v1}")
+    private String factsTopicName;
 
     @Autowired
     private JdbcClient jdbc;
@@ -479,24 +479,14 @@ class ContestIT {
         return instants.stream().map(i -> i.path("prizeCode").asString() + "@" + i.path("instantAt").asString()).toList();
     }
 
+    /**
+     * Tipi dei fatti del soggetto pubblicati sul topic dei fatti ({@link FactsTopic}). Nessun evento da attendere: i
+     * fatti nascono nelle transazioni delle chiamate HTTP, già concluse.
+     */
     private List<String> factTypesFor(String subject) {
-        List<String> types = new ArrayList<>();
-        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(Map.of(
-                "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
-                "group.id", "contest-it-" + UUID.randomUUID(), "auto.offset.reset", "earliest",
-                "key.deserializer", StringDeserializer.class, "value.deserializer", StringDeserializer.class))) {
-            consumer.subscribe(List.of("lh.facts.v1"));
-            long deadline = System.currentTimeMillis() + 15_000;
-            while (System.currentTimeMillis() < deadline && types.isEmpty()) {
-                for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(500))) {
-                    JsonNode e = mapper.readTree(r.value());
-                    if (subject.equals(e.path("subject").asString())) {
-                        types.add(e.path("type").asString());
-                    }
-                }
-            }
-        }
-        return types;
+        return new FactsTopic(jdbc, mapper, factsTopicName)
+                .published(List.of(), e -> subject.equals(e.path("subject").asString())).stream()
+                .map(e -> e.path("type").asString()).toList();
     }
 
     private JsonNode get(String path) {
