@@ -53,7 +53,7 @@ Il testbook è eseguibile per intero con un comando e produce un rapporto riga p
 | Agente regolamento (Fase 2) | `TB-AST` | assistant | docs/18 §3.9, ADR-035 · F2-AST-* | pianificata — M14 |
 
 ## 3. TB-ING — Ingresso eventi
-Documento completo: [`docs/testbook/TB-ING-ingresso.md`](testbook/TB-ING-ingresso.md) — 28 regole, 111 rami mappati,
+Documento completo: [`docs/testbook/TB-ING-ingresso.md`](testbook/TB-ING-ingresso.md) — 28 regole, 114 rami mappati,
 **690 righe** in 18 aree. Test: `services/ingestion-service/src/test/java/io/loyaltyhub/ingestion/testbook/`
 (`TestbookIngPipelineIT`, `TestbookIngResolutionIT`, `TestbookIngConfigIT`, `TestbookIngScenarioTimeTest`), dati in `testbook/ing/*.csv`.
 

@@ -305,7 +305,12 @@ class EventTypeCodeSafetyIT {
         assertThat(auditCount(code, "CREATE")).as("il perdente non lascia audit").isZero();
     }
 
-    /** Due POST concorrenti dello stesso codice, più volte: sempre un 201 e un 409, la riga è quella del 201. */
+    /**
+     * Controllo di fumo: due POST concorrenti dello stesso codice, più volte; sempre un 201 e un 409, la riga è quella
+     * del 201. Non è la guardia della regressione di Q-440, perché due richieste servite una dopo l'altra passavano
+     * anche con il vecchio codice: la guardia deterministica è
+     * {@link #createWaitingOnAConcurrentInsertGets409AndDoesNotOverwrite()}.
+     */
     @Test
     void twoConcurrentCreatesYieldOne201AndOne409() throws Exception {
         ExecutorService pool = Executors.newFixedThreadPool(2);

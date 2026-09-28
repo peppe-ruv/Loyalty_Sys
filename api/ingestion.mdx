@@ -26,7 +26,7 @@ Ogni evento che arriva all'ingestion attraversa 8 fasi. Se una fase fallisce, il
     Il campo `source` deve corrispondere a una fonte registrata e abilitata nel backoffice. Se la fonte è disabilitata o non esiste, ritorna `202` con `rejectCode: SOURCE_DISABLED`.
   </Step>
   <Step title="Tipo noto, abilitato, ammesso per la fonte">
-    Il campo `type` deve corrispondere a un tipo evento esistente, abilitato e associato alla fonte. Un `type` breve diventa `io.loyaltyhub.action.<type>`. Se il tipo è sconosciuto, ritorna `UNKNOWN_TYPE`. Un `type` completo fuori da `io.loyaltyhub.action.` ritorna `UNKNOWN_TYPE` con il motivo «Tipo fuori dalla famiglia azioni» e non viene mai pubblicato. Se la fonte non può emettere quel tipo, ritorna `TYPE_NOT_ALLOWED`.
+    Il campo `type` deve corrispondere a un tipo evento esistente, abilitato e associato alla fonte. Un `type` breve diventa `io.loyaltyhub.action.<type>`. Un codice creato prima di Q-439 che inizia con `io.loyaltyhub.` si invia solo nella forma completa `io.loyaltyhub.action.<codice>`. Se il tipo è sconosciuto, ritorna `UNKNOWN_TYPE`. Un `type` completo fuori da `io.loyaltyhub.action.` ritorna `UNKNOWN_TYPE` con il motivo «Tipo fuori dalla famiglia azioni» e non viene mai pubblicato. Se la fonte non può emettere quel tipo, ritorna `TYPE_NOT_ALLOWED`.
   </Step>
   <Step title="Data valido contro JSON Schema">
     Il campo `data` viene validato contro lo schema JSON del tipo evento. Se i dati non rispettano lo schema, ritorna `INVALID_DATA`.
@@ -309,7 +309,7 @@ Se il codice non rispetta le regole, ricevi `422 EVENT_TYPE_INVALID` con l'error
 }
 ```
 
-`dataSchema` è obbligatorio e deve essere un JSON Schema 2020-12 con `"type": "object"`. `sampleData` deve rispettare lo schema; se lo ometti vale `{}`.
+`dataSchema` è obbligatorio e deve essere un JSON Schema 2020-12 con `"type": "object"`. `sampleData` deve rispettare lo schema. Se lo ometti vale `{}`, che è valido solo se lo schema non ha campi obbligatori.
 
 ### GET /v1/event-types/{code}/fields
 
