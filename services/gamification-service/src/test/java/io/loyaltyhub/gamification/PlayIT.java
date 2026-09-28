@@ -58,6 +58,10 @@ class PlayIT {
     @Value("${local.server.port}")
     private int port;
 
+    /** Topic dei fatti del contesto di test ({@link FactsTopic}). */
+    @Value("${loyaltyhub.topics.facts:lh.facts.v1}")
+    private String factsTopicName;
+
     @Autowired
     private JdbcClient jdbc;
 
@@ -131,14 +135,15 @@ class PlayIT {
         String grant = publishGrant("MBR-000003", "IW-IT-CAP", 3, "EFF-IT-CAP-1");
         String again = publishGrant("MBR-000003", "IW-IT-CAP", 3, "EFF-IT-CAP-1");
         // Entrambi gli eventi elaborati: il doppione di effectId, se passasse, sarebbe già nel DB e nell'outbox.
-        FactsTopic.awaitConsumed(jdbc, List.of(grant, again));
+        new FactsTopic(jdbc, mapper, factsTopicName).awaitConsumed(List.of(grant, again));
         JsonNode c = awaitCredits("MBR-000003", "IW-IT-CAP", 1);
         assertThat(c.path("credits").asInt()).as("stesso effectId → un solo credito").isEqualTo(3);
         assertThat(jdbc.sql("SELECT count(*) FROM play_grant WHERE effect_id = 'EFF-IT-CAP-1'").query(Long.class).single()).isEqualTo(1);
 
         play("IW-IT-CAP", "MBR-000003", 200);
         assertThat(play("IW-IT-CAP", "MBR-000003", 422).path("code").asString()).isEqualTo("DAILY_LIMIT_REACHED");
-        assertThat(factsFor("member:MBR-000003", "io.loyaltyhub.fact.contest.plays.granted")).hasSize(1);
+        assertThat(factsFor(List.of(grant, again), "member:MBR-000003", "io.loyaltyhub.fact.contest.plays.granted"))
+                .hasSize(1);
         assertThat(id).isNotBlank();
     }
 
@@ -172,11 +177,11 @@ class PlayIT {
         String correlation = wins.get(0).path("correlationId").asString();
         String winnerSubject = "member:" + jdbc.sql("SELECT member_id FROM play WHERE contest_id = ? AND outcome = 'WIN'")
                 .param(id).query(String.class).single();
-        List<JsonNode> won = factsFor(winnerSubject, "io.loyaltyhub.fact.contest.won");
+        List<JsonNode> won = factsFor(List.of(), winnerSubject, "io.loyaltyhub.fact.contest.won");
         assertThat(won).hasSize(1);
         assertThat(won.get(0).path("lhcorrelationid").asString()).isEqualTo(correlation);
         assertThat(won.get(0).path("data").path("points").asLong()).isEqualTo(10);
-        assertThat(factsFor(winnerSubject, "io.loyaltyhub.fact.contest.played")).hasSize(1);
+        assertThat(factsFor(List.of(), winnerSubject, "io.loyaltyhub.fact.contest.played")).hasSize(1);
     }
 
     // ---------- helper ----------
@@ -238,9 +243,12 @@ class PlayIT {
         return id;
     }
 
-    /** Fatti pubblicati su {@code lh.facts.v1}: outbox svuotato, poi topic letto fino in fondo ({@link FactsTopic}). */
-    private List<JsonNode> factsFor(String subject, String type) {
-        return FactsTopic.published(jdbc, mapper, subject, type);
+    /**
+     * Fatti pubblicati sul topic dei fatti dopo l'elaborazione degli eventi {@code consumedFirst} pubblicati dal test
+     * ({@link FactsTopic}); vuoto per i fatti delle giocate, nati nelle transazioni HTTP già concluse.
+     */
+    private List<JsonNode> factsFor(List<String> consumedFirst, String subject, String type) {
+        return new FactsTopic(jdbc, mapper, factsTopicName).published(consumedFirst, subject, type);
     }
 
     private static long count(JsonNode plays, String outcome) {

@@ -55,6 +55,10 @@ class AchievementIT {
     @Value("${local.server.port}")
     private int port;
 
+    /** Topic dei fatti del contesto di test ({@link FactsTopic}). */
+    @Value("${loyaltyhub.topics.facts:lh.facts.v1}")
+    private String factsTopicName;
+
     @Autowired
     private JdbcClient jdbc;
 
@@ -217,8 +221,7 @@ class AchievementIT {
      * finestra di tempo: un fatto in più (doppione, membro bloccato) resta visibile.
      */
     private List<JsonNode> facts(String subject, String type, Predicate<JsonNode> filter) {
-        FactsTopic.awaitConsumed(jdbc, published);
-        return FactsTopic.published(jdbc, mapper,
+        return new FactsTopic(jdbc, mapper, factsTopicName).published(published,
                 e -> subject.equals(e.path("subject").asString()) && type.equals(e.path("type").asString()) && filter.test(e));
     }
 

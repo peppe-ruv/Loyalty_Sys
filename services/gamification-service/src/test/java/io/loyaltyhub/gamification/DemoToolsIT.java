@@ -51,6 +51,10 @@ class DemoToolsIT {
     @Value("${local.server.port}")
     private int port;
 
+    /** Topic dei fatti del contesto di test ({@link FactsTopic}). */
+    @Value("${loyaltyhub.topics.facts:lh.facts.v1}")
+    private String factsTopicName;
+
     @Autowired
     private JdbcClient jdbc;
 
@@ -166,9 +170,12 @@ class DemoToolsIT {
         throw new AssertionError("istante assente: " + instantId);
     }
 
-    /** Fatti pubblicati su {@code lh.facts.v1}: outbox svuotato, poi topic letto fino in fondo ({@link FactsTopic}). */
+    /**
+     * Fatti pubblicati sul topic dei fatti ({@link FactsTopic}). Nessun evento da attendere: il fatto nasce nella
+     * transazione della chiamata HTTP, già conclusa quando la risposta arriva.
+     */
     private List<JsonNode> factsFor(String subject, String type) {
-        return FactsTopic.published(jdbc, mapper, subject, type);
+        return new FactsTopic(jdbc, mapper, factsTopicName).published(List.of(), subject, type);
     }
 
     private JsonNode contest(String code) {

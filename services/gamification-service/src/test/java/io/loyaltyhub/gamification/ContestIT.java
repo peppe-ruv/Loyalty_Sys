@@ -52,6 +52,10 @@ class ContestIT {
     @Value("${local.server.port}")
     private int port;
 
+    /** Topic dei fatti del contesto di test ({@link FactsTopic}). */
+    @Value("${loyaltyhub.topics.facts:lh.facts.v1}")
+    private String factsTopicName;
+
     @Autowired
     private JdbcClient jdbc;
 
@@ -475,9 +479,13 @@ class ContestIT {
         return instants.stream().map(i -> i.path("prizeCode").asString() + "@" + i.path("instantAt").asString()).toList();
     }
 
-    /** Tipi dei fatti del soggetto pubblicati su {@code lh.facts.v1}, senza consumer group ({@link FactsTopic}). */
+    /**
+     * Tipi dei fatti del soggetto pubblicati sul topic dei fatti ({@link FactsTopic}). Nessun evento da attendere: i
+     * fatti nascono nelle transazioni delle chiamate HTTP, già concluse.
+     */
     private List<String> factTypesFor(String subject) {
-        return FactsTopic.published(jdbc, mapper, e -> subject.equals(e.path("subject").asString())).stream()
+        return new FactsTopic(jdbc, mapper, factsTopicName)
+                .published(List.of(), e -> subject.equals(e.path("subject").asString())).stream()
                 .map(e -> e.path("type").asString()).toList();
     }
 

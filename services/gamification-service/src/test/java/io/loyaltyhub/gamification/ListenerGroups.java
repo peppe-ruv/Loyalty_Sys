@@ -21,6 +21,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Attesa deterministica che i listener Kafka del servizio siano pronti a consumare (docs/06 §9), da chiamare prima di
@@ -60,7 +62,7 @@ final class ListenerGroups {
         try (Admin admin = Admin.create(Map.of("bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers")))) {
             long deadline = System.nanoTime() + TIMEOUT.toNanos();
             String reason;
-            while ((reason = notReady(admin, containers, topicsByGroup)) != null) {
+            while ((reason = notReady(admin, containers, topicsByGroup, deadline)) != null) {
                 if (System.nanoTime() > deadline) {
                     throw new AssertionError("listener Kafka non pronti dopo " + TIMEOUT.toSeconds() + " s: " + reason);
                 }
@@ -74,9 +76,13 @@ final class ListenerGroups {
         }
     }
 
-    /** {@code null} se pronti, altrimenti il motivo osservato. */
+    /**
+     * {@code null} se pronti, altrimenti il motivo osservato. Ogni chiamata all'{@link Admin} aspetta al più il tempo
+     * che resta fino a {@code deadline}: un giro non può sforare il tetto complessivo.
+     */
     private static String notReady(Admin admin, Collection<MessageListenerContainer> containers,
-                                   Map<String, Set<String>> topicsByGroup) throws ExecutionException, InterruptedException {
+                                   Map<String, Set<String>> topicsByGroup, long deadline)
+            throws ExecutionException, InterruptedException {
         // Lato container: per gruppo, clientId del consumer → partizioni già applicate.
         Map<String, Map<String, Set<TopicPartition>>> applied = new TreeMap<>();
         for (MessageListenerContainer c : containers) {
@@ -94,14 +100,26 @@ final class ListenerGroups {
                 if (byClient == null || byClient.isEmpty()) {
                     return c.getListenerId() + ": consumer non ancora creato";
                 }
-                byClient.forEach((client, tps) -> applied.computeIfAbsent(c.getGroupId(), g -> new TreeMap<>())
-                        .put(client, tps == null ? Set.of() : new HashSet<>(tps)));
+                for (Map.Entry<String, Collection<TopicPartition>> e : byClient.entrySet()) {
+                    Set<TopicPartition> tps = e.getValue() == null ? Set.of() : new HashSet<>(e.getValue());
+                    if (applied.computeIfAbsent(c.getGroupId(), g -> new TreeMap<>()).put(e.getKey(), tps) != null) {
+                        throw new AssertionError("clientId " + e.getKey() + " usato da più consumer del gruppo "
+                                + c.getGroupId() + ": lo stato del gruppo non si può verificare per consumer");
+                    }
+                }
             }
         }
         Set<String> allTopics = new TreeSet<>();
         topicsByGroup.values().forEach(allTopics::addAll);
-        Map<String, TopicDescription> topics = admin.describeTopics(allTopics).allTopicNames().get();
-        Map<String, ConsumerGroupDescription> groups = admin.describeConsumerGroups(topicsByGroup.keySet()).all().get();
+        Map<String, TopicDescription> topics;
+        Map<String, ConsumerGroupDescription> groups;
+        try {
+            topics = admin.describeTopics(allTopics).allTopicNames().get(remainingMillis(deadline), TimeUnit.MILLISECONDS);
+            groups = admin.describeConsumerGroups(topicsByGroup.keySet()).all()
+                    .get(remainingMillis(deadline), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            return "il broker non ha descritto topic e gruppi entro il tetto";
+        }
         for (Map.Entry<String, Set<String>> entry : topicsByGroup.entrySet()) {
             String group = entry.getKey();
             ConsumerGroupDescription description = groups.get(group);
@@ -110,7 +128,10 @@ final class ListenerGroups {
             }
             Map<String, Set<TopicPartition>> byCoordinator = new HashMap<>();
             for (MemberDescription m : description.members()) {
-                byCoordinator.put(m.clientId(), m.assignment().topicPartitions());
+                if (byCoordinator.put(m.clientId(), m.assignment().topicPartitions()) != null) {
+                    throw new AssertionError("il coordinator riporta più membri del gruppo " + group + " con clientId "
+                            + m.clientId() + ": lo stato del gruppo non si può verificare per consumer");
+                }
             }
             Set<TopicPartition> covered = new HashSet<>();
             for (Map.Entry<String, Set<TopicPartition>> consumer : applied.get(group).entrySet()) {
@@ -134,5 +155,10 @@ final class ListenerGroups {
             }
         }
         return null;
+    }
+
+    /** Millisecondi rimasti fino a {@code deadline} ({@link System#nanoTime()}), almeno 1. */
+    private static long remainingMillis(long deadline) {
+        return Math.max(1, TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime()));
     }
 }
