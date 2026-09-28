@@ -1,11 +1,8 @@
 package io.loyaltyhub.gamification;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -226,26 +223,9 @@ class PlayIT {
         }
     }
 
+    /** Fatti su {@code lh.facts.v1} senza consumer group: nessuna attesa del group coordinator ({@link FactsTopic}). */
     private List<JsonNode> factsFor(String subject, String type) {
-        List<JsonNode> out = new ArrayList<>();
-        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(Map.of(
-                "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
-                "group.id", "play-it-" + UUID.randomUUID(), "auto.offset.reset", "earliest",
-                "key.deserializer", StringDeserializer.class, "value.deserializer", StringDeserializer.class))) {
-            consumer.subscribe(List.of("lh.facts.v1"));
-            long deadline = System.currentTimeMillis() + 10_000;
-            long quietUntil = 0;
-            while (System.currentTimeMillis() < deadline && (out.isEmpty() || System.currentTimeMillis() < quietUntil)) {
-                for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                    JsonNode e = mapper.readTree(r.value());
-                    if (subject.equals(e.path("subject").asString()) && type.equals(e.path("type").asString())) {
-                        out.add(e);
-                        quietUntil = System.currentTimeMillis() + 2_000;
-                    }
-                }
-            }
-        }
-        return out;
+        return FactsTopic.await(mapper, subject, type, 1);
     }
 
     private static long count(JsonNode plays, String outcome) {
