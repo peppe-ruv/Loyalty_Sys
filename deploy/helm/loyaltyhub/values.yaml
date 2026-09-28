@@ -121,7 +121,8 @@ roles:
       minReplicas: 1
       maxReplicas: 1
       targetCPUUtilizationPercentage: 70
-    # Spento: con una sola replica minAvailable 1 bloccherebbe per sempre lo svuotamento dei nodi (kubectl drain).
+    # Spento: con una sola replica minAvailable 1 bloccherebbe per sempre lo svuotamento dei nodi (kubectl drain); nel
+    # profilo enterprise il chart rifiuta di accenderlo (Q-419).
     pdb:
       enabled: false
       minAvailable: 1

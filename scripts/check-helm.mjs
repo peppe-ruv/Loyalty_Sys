@@ -114,7 +114,7 @@ test('compose di riferimento: ruoli dell\'immagine unica, nessun segreto in chia
   assert.match(web, /entrypoint: \*lh-web-oidc-guard\n\s+command: \["lh-web-oidc-guard", "\/opt\/lh\/entrypoint\.sh"\]/);
 });
 
-test('compose di riferimento: la guardia del web rifiuta un emittente non https solo nel profilo enterprise', () => {
+test('compose di riferimento: la guardia del web rifiuta emittente e origine non https o malformati, solo in enterprise', () => {
   const block = read(COMPOSE).split('x-lh-web-oidc-guard: &lh-web-oidc-guard\n')[1].split('\n\n')[0];
   // Testo dello script come lo passa Compose: `$$` diventa `$`.
   const script = block.split('  - |\n')[1].split('\n').map((l) => l.replace(/^ {4}/, '')).join('\n').replaceAll('$$', '$');
@@ -122,15 +122,34 @@ test('compose di riferimento: la guardia del web rifiuta un emittente non https 
     { encoding: 'utf8', env: { PATH: process.env.PATH, ...env } });
   const loopback = 'http://localhost:8180/realms/loyaltyhub';
   const tls = 'https://idp.example.org/realms/loyaltyhub';
-  for (const env of [{ LH_PROFILE: 'enterprise', LH_OIDC_ISSUER: loopback }, { LH_PROFILE: 'enterprise' },
-    { LH_PROFILE: 'enterprise', LH_OIDC_ISSUER: 'http://idp.example.org/realms/loyaltyhub' }]) {
-    const r = run(env);
+  const web = 'https://loyalty.example.org';
+  const refused = (env, message) => {
+    const r = run({ LH_PROFILE: 'enterprise', ...env });
     assert.equal(r.status, 1, JSON.stringify(env));
-    assert.equal(r.stdout, '');
-    assert.match(r.stderr, /LH_IDP_PUBLIC_URL deve essere l'URL https/);
+    assert.equal(r.stdout, '', JSON.stringify(env));
+    assert.match(r.stderr, message, JSON.stringify(env));
+  };
+  const badIssuer = /LH_IDP_PUBLIC_URL deve essere l'URL https/;
+  const badWeb = /LH_WEB_URL deve essere l'origine https/;
+  // Emittente: https://<host>[:porta]/realms/<realm>, senza `//` (LH_IDP_PUBLIC_URL con barra finale) né percorsi.
+  for (const iss of [loopback, 'http://idp.example.org/realms/loyaltyhub', undefined, 'https://idp.example.org//realms/loyaltyhub',
+    'https://idp.example.org/realms/loyaltyhub/', 'https://idp.example.org/auth/realms/loyaltyhub', 'https://idp.example.org/realms/',
+    'https://user@idp.example.org/realms/loyaltyhub', 'https:///realms/loyaltyhub']) {
+    refused({ LH_OIDC_ISSUER: iss, LH_WEB_URL: web }, badIssuer);
   }
-  assert.equal(run({ LH_PROFILE: 'enterprise', LH_OIDC_ISSUER: tls }).stdout, 'avviato');
-  assert.equal(run({ LH_PROFILE: 'demo', LH_OIDC_ISSUER: loopback }).stdout, 'avviato');
+  // Origine del web: https, senza percorso né barra finale (Keycloak confronta ${LH_WEB_URL}/api/auth/callback).
+  for (const origin of ['http://localhost:3000', undefined, 'https://loyalty.example.org/', 'https://loyalty.example.org/app',
+    'https://']) {
+    refused({ LH_OIDC_ISSUER: tls, LH_WEB_URL: origin }, badWeb);
+  }
+  // Entrambi sbagliati: entrambe le cause in un solo avvio.
+  const both = run({ LH_PROFILE: 'enterprise', LH_OIDC_ISSUER: loopback, LH_WEB_URL: 'http://localhost:3000' });
+  assert.match(both.stderr, badIssuer);
+  assert.match(both.stderr, badWeb);
+  assert.equal(run({ LH_PROFILE: 'enterprise', LH_OIDC_ISSUER: tls, LH_WEB_URL: web }).stdout, 'avviato');
+  assert.equal(run({ LH_PROFILE: 'enterprise', LH_OIDC_ISSUER: 'https://idp.example.org:8443/realms/loyaltyhub',
+    LH_WEB_URL: 'https://loyalty.example.org:8443' }).stdout, 'avviato');
+  assert.equal(run({ LH_PROFILE: 'demo', LH_OIDC_ISSUER: loopback, LH_WEB_URL: 'http://localhost:3000' }).stdout, 'avviato');
 });
 
 test('entrypoint dell\'immagine: una variabile vuota non oscura <VAR>_FILE, una valorizzata vince', () => {
@@ -225,6 +244,14 @@ test('helm lint e helm template: valori di default, servizi gestiti, rifiuti', {
   assert.match(caWeb, /mountPath: \/etc\/lh\/issuer-ca\n\s+readOnly: true/);
   assert.match(env(caWeb, 'LH_WEB_CLIENT_SECRET'), /name: lh-web-oidc, key: web-client-secret/);
   assert.equal(env(caWeb, 'LH_WEB_URL'), 'value: "https://loyalty.example.org"', 'barra finale tolta');
+  // Origine normalizzata come la ricava il BFF (new URL): host minuscolo, niente :443. Keycloak confronta alla lettera.
+  const norm = template('publicUrls.web=https://Loyalty.Example.ORG:443/');
+  assert.equal(norm.status, 0, norm.stderr);
+  const deployment = (out, name) => out.split(/^---$/m)
+    .find((d) => /^kind: Deployment$/m.test(d) && new RegExp(`^  name: ${name}$`, 'm').test(d));
+  for (const role of ['web', 'idp']) {
+    assert.equal(env(deployment(norm.stdout, `lh-loyaltyhub-${role}`), 'LH_WEB_URL'), 'value: "https://loyalty.example.org"', role);
+  }
   // Profilo demo: nessuna variabile del BFF, repliche e HPA liberi (niente sessioni).
   const demo = template('global.profile=demo', 'roles.web.autoscaling.enabled=true', 'roles.web.autoscaling.maxReplicas=6');
   assert.equal(demo.status, 0, demo.stderr);
@@ -246,7 +273,7 @@ test('helm lint e helm template: valori di default, servizi gestiti, rifiuti', {
   refuses(/INSECURE_CONFIG: postgres\.external\.jdbcParams/, ...managed, 'postgres.external.jdbcParams=');
   refuses(/INSECURE_CONFIG: postgres\.external\.jdbcParams/, ...managed, 'postgres.external.jdbcParams=sslmode=prefer');
   refuses(/non può superare i broker/, 'kafka.topics.replicas=3', 'kafka.strimzi.replicas=1');
-  // Identità nel profilo enterprise (regola 22, F2-SEC-06, Q-409, Q-412).
+  // Identità nel profilo enterprise (regola 22, F2-SEC-06, Q-409, Q-419, Q-420).
   refuses(/INSECURE_CONFIG: emittente OIDC "http:\/\/idp\.example\.org\/realms\/loyaltyhub" non https/,
     'publicUrls.idp=http://idp.example.org');
   refuses(/INSECURE_CONFIG: emittente OIDC/, 'oidc.issuer=http://localhost:8180/realms/loyaltyhub');
@@ -262,8 +289,20 @@ test('helm lint e helm template: valori di default, servizi gestiti, rifiuti', {
   refuses(/WEB_SINGLE_REPLICA/, 'roles.web.autoscaling.enabled=true', 'roles.web.autoscaling.maxReplicas=6');
   refuses(/sessionIdleSeconds non può superare/, 'roles.web.bff.sessionIdleSeconds=40000');
   refuses(/Additional property/, 'roles.web.bff.clientSecret.value=in-chiaro');
+  refuses(/WEB_SINGLE_REPLICA: roles\.web\.pdb\.enabled .*kubectl drain.*Q-419/, 'roles.web.pdb.enabled=true');
+  // Con il ruolo idp: emittente e client del BFF sono quelli di Keycloak e del realm.
+  refuses(/oidc\.issuer "https:\/\/sso\.example\.org\/realms\/loyaltyhub" diverso dall'emittente del ruolo idp/,
+    'oidc.issuer=https://sso.example.org/realms/loyaltyhub');
+  refuses(/roles\.web\.bff\.clientId "portale" non è il client del BFF nel realm del ruolo idp \("web"/,
+    'roles.web.bff.clientId=portale');
+  // Il realm usa publicUrls.web anche con il web spento.
+  refuses(/INSECURE_CONFIG: publicUrls\.web/, 'roles.web.enabled=false', 'publicUrls.web=http://loyalty.example.org');
+  assert.equal(template('oidc.issuer=https://idp.example.org/realms/loyaltyhub').status, 0, 'oidc.issuer uguale a quello di idp');
+  // IdP aziendale (ruolo idp spento): emittente e client propri.
   assert.equal(template('roles.idp.enabled=false', 'oidc.issuer=https://sso.example.org/realms/loyaltyhub',
-    'roles.web.bff.clientSecret.name=lh-web-oidc').status, 0);
+    'roles.web.bff.clientSecret.name=lh-web-oidc', 'roles.web.bff.clientId=portale').status, 0);
+  // Profilo demo: nessuna di queste verifiche (niente BFF).
+  assert.equal(template('global.profile=demo', 'roles.web.pdb.enabled=true', 'roles.web.bff.clientId=portale').status, 0);
   // Deroghe esplicite e documentate; il profilo demo non le richiede.
   assert.equal(template(...managed, 'kafka.external.security=PLAINTEXT', 'kafka.external.allowInsecure=true').status, 0);
   assert.equal(template(...managed, 'postgres.external.jdbcParams=', 'postgres.external.allowInsecure=true').status, 0);

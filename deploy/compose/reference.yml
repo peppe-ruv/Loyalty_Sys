@@ -51,19 +51,37 @@ x-lh-require-env-or-file: &lh-require-env-or-file
     done
     exec "$$@"
 
-# Guardia del ruolo web nel profilo enterprise (Q-412, Q-420): il BFF fa discovery, scambio del codice e rinnovo verso
-# LH_OIDC_ISSUER, lo stesso URL del browser. Il web ammette http solo verso localhost, che dal container non è Keycloak:
-# senza https il login non potrebbe funzionare, quindi il container si ferma subito con la causa. Segreti, formato
-# della chiave e origine li verifica il web stesso all'avvio (INSECURE_CONFIG, anche con <VAR>_FILE).
+# Guardia del ruolo web nel profilo enterprise (regola 22, Q-420): il BFF fa discovery, scambio del codice e rinnovo
+# verso LH_OIDC_ISSUER, lo stesso URL del browser. Il web ammette http solo verso localhost, che dal container non è
+# Keycloak: senza https il login non potrebbe funzionare, quindi il container si ferma subito con la causa. Forma
+# esatta: l'emittente è https://<host>[:porta]/realms/<realm> e LH_WEB_URL un'origine https senza percorso né barra
+# finale, perché Keycloak confronta alla lettera ${LH_WEB_URL}/api/auth/callback e il suo emittente (una barra in più
+# darebbe `//`). Segreti e formato della chiave li verifica il web stesso all'avvio (INSECURE_CONFIG, anche con
+# <VAR>_FILE). Solo builtin di sh: nessun comando esterno nell'immagine.
 x-lh-web-oidc-guard: &lh-web-oidc-guard
   - /bin/sh
   - -c
   - |
     if [ "$${LH_PROFILE:-}" = "enterprise" ]; then
-      case "$${LH_OIDC_ISSUER:-}" in
-        https://*) ;;
-        *) echo "LH_IDP_PUBLIC_URL deve essere l'URL https del reverse proxy davanti a Keycloak, raggiungibile anche dal container web (emittente attuale: $${LH_OIDC_ISSUER:-assente}; deploy/README.md, Q-420)" >&2; exit 1 ;;
-      esac
+      ko=0
+      iss="$${LH_OIDC_ISSUER:-}"; rest="$${iss#https://}"; host="$${rest%%/*}"; path="$${rest#"$$host"}"
+      bad=0
+      case "$$iss" in https://?*) ;; *) bad=1 ;; esac
+      case "$$host" in ''|*[!A-Za-z0-9.:-]*) bad=1 ;; esac
+      # Tolto /realms/ resta il solo nome del realm: ogni altra forma (`//`, percorso, barra finale) lascia una barra.
+      case "$${path#/realms/}" in ''|*[!A-Za-z0-9_-]*) bad=1 ;; esac
+      if [ "$$bad" = 1 ]; then
+        echo "LH_IDP_PUBLIC_URL deve essere l'URL https del reverse proxy davanti a Keycloak, senza percorso né barra finale, raggiungibile anche dal container web: l'emittente deve valere https://<host>[:porta]/realms/<realm> (attuale: $${iss:-assente}; deploy/README.md, Q-420)" >&2
+        ko=1
+      fi
+      web="$${LH_WEB_URL:-}"; bad=0
+      case "$$web" in https://?*) ;; *) bad=1 ;; esac
+      case "$${web#https://}" in ''|*[!A-Za-z0-9.:-]*) bad=1 ;; esac
+      if [ "$$bad" = 1 ]; then
+        echo "LH_WEB_URL deve essere l'origine https del reverse proxy davanti al web, senza percorso né barra finale, es. https://loyalty.example.org (attuale: $${web:-assente}; deploy/README.md, Q-420)" >&2
+        ko=1
+      fi
+      [ "$$ko" = 0 ] || exit 1
     fi
     exec "$$@"
 

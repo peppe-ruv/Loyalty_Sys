@@ -362,9 +362,16 @@ topologySpreadConstraints:
 {{- end -}}
 {{- end -}}
 
-{{/* Origine pubblica del web (LH_WEB_URL del BFF e del realm): senza barra finale, così `${LH_WEB_URL}/…` resta esatto. */}}
+{{/* Origine pubblica del web (LH_WEB_URL del BFF e del realm), nella stessa forma che ne ricava il BFF con `new URL()`:
+senza barra finale, schema e host in minuscolo, senza porta di default (:443, :80). Keycloak confronta alla lettera
+`${LH_WEB_URL}/api/auth/callback` con la redirect URI del BFF: una forma diversa farebbe fallire il login in silenzio. */}}
 {{- define "loyaltyhub.web.publicUrl" -}}
-{{- trimSuffix "/" .Values.publicUrls.web -}}
+{{- $u := trimSuffix "/" .Values.publicUrls.web -}}
+{{- if regexMatch "^(?i)https?://[^/?#@\\s]+$" $u -}}
+{{- $u = lower $u -}}
+{{- $u = hasPrefix "https://" $u | ternary (trimSuffix ":443" $u) (trimSuffix ":80" $u) -}}
+{{- end -}}
+{{- $u -}}
 {{- end -}}
 
 {{/* Segreto del client `web` per il BFF, come JSON {name, key}: il riferimento proprio del web oppure, con il ruolo idp,
@@ -379,27 +386,45 @@ lo stesso Secret dato a Keycloak (i due valori devono coincidere). Vuoto se non 
 {{- end -}}
 {{- end -}}
 
-{{/* Verifiche d'identità del profilo enterprise (ADR-027, regola 22, F2-SEC-06): emittente https, origine del web https
-senza percorso, host coerenti con l'Ingress, segreti del BFF presenti, una sola replica del web (Q-409, Q-419). */}}
+{{/* Verifiche d'identità del profilo enterprise (ADR-027, regola 22, F2-SEC-06): emittente https e, con il ruolo idp,
+proprio quello di Keycloak; origine del web https senza percorso (la usa anche il realm); host coerenti con l'Ingress;
+client e segreti del BFF; una sola replica del web, senza PDB (Q-409, Q-419). */}}
 {{- define "loyaltyhub.validate.identity" -}}
 {{- $issuer := include "loyaltyhub.oidc.issuer" . -}}
 {{- if not (regexMatch "^https://[^/?#@\\s]+(/[^?#\\s]*)?$" $issuer) -}}
-{{- fail (printf "INSECURE_CONFIG: emittente OIDC %q non https nel profilo enterprise: il browser vi fa login e il BFF del web lo raggiunge con lo stesso URL; impostare publicUrls.idp (ruolo idp) o oidc.issuer con https:// (regola 22, Q-412)" $issuer) -}}
+{{- fail (printf "INSECURE_CONFIG: emittente OIDC %q non https nel profilo enterprise: il browser vi fa login e il BFF del web lo raggiunge con lo stesso URL; impostare publicUrls.idp (ruolo idp) o oidc.issuer con https:// (regola 22, Q-420)" $issuer) -}}
 {{- end -}}
-{{- if and .Values.roles.idp.enabled .Values.ingress.enabled -}}
+{{- if .Values.roles.idp.enabled -}}
+{{- $idpIssuer := printf "%s/realms/%s" (trimSuffix "/" .Values.publicUrls.idp) .Values.global.realm -}}
+{{- if and .Values.oidc.issuer (ne .Values.oidc.issuer $idpIssuer) -}}
+{{- fail (printf "oidc.issuer %q diverso dall'emittente del ruolo idp %q: Keycloak firma i token con <publicUrls.idp>/realms/<global.realm> e hub e BFF li rifiuterebbero; lasciare oidc.issuer vuoto, oppure spegnere roles.idp per un IdP aziendale (ADR-027)" .Values.oidc.issuer $idpIssuer) -}}
+{{- end -}}
+{{- if .Values.ingress.enabled -}}
 {{- $idpHost := (urlParse .Values.publicUrls.idp).hostname -}}
 {{- if ne $idpHost .Values.ingress.hosts.idp -}}
 {{- fail (printf "publicUrls.idp (host %s) e ingress.hosts.idp (%s) devono indicare lo stesso host: Keycloak si presenta con publicUrls.idp e l'Ingress serve solo ingress.hosts.idp" $idpHost .Values.ingress.hosts.idp) -}}
 {{- end -}}
 {{- end -}}
+{{- end -}}
+{{- $webUrl := include "loyaltyhub.web.publicUrl" . -}}
+{{- /* Anche con il web spento: il realm del ruolo idp costruisce redirect e back-channel da LH_WEB_URL. */ -}}
+{{- if and (or .Values.roles.web.enabled .Values.roles.idp.enabled) (not (regexMatch "^https://[^/?#@\\s]+$" $webUrl)) -}}
+{{- fail (printf "INSECURE_CONFIG: publicUrls.web %q deve essere un'origine https senza percorso (es. https://loyalty.example.org): è LH_WEB_URL del BFF e del realm, base delle redirect URI e del controllo Origin (regola 22)" .Values.publicUrls.web) -}}
+{{- end -}}
 {{- if .Values.roles.web.enabled -}}
 {{- $r := .Values.roles.web -}}
-{{- $webUrl := include "loyaltyhub.web.publicUrl" . -}}
-{{- if not (regexMatch "^https://[^/?#@\\s]+$" $webUrl) -}}
-{{- fail (printf "INSECURE_CONFIG: publicUrls.web %q deve essere un'origine https senza percorso (es. https://loyalty.example.org): è LH_WEB_URL del BFF, base delle redirect URI e del controllo Origin (regola 22)" .Values.publicUrls.web) -}}
-{{- end -}}
 {{- if and .Values.ingress.enabled (ne (urlParse $webUrl).hostname .Values.ingress.hosts.web) -}}
 {{- fail (printf "publicUrls.web (host %s) e ingress.hosts.web (%s) devono indicare lo stesso host: l'IdP rimanda il browser a publicUrls.web e l'Ingress serve solo ingress.hosts.web" (urlParse $webUrl).hostname .Values.ingress.hosts.web) -}}
+{{- end -}}
+{{- if .Values.roles.idp.enabled -}}
+{{- /* Il client del BFF nel realm è quello che riceve LH_WEB_CLIENT_SECRET (files/realm.json). */ -}}
+{{- $realmClient := "" -}}
+{{- range (.Files.Get "files/realm.json" | fromJson).clients -}}
+{{- if eq (toString .secret) "${LH_WEB_CLIENT_SECRET}" -}}{{- $realmClient = .clientId -}}{{- end -}}
+{{- end -}}
+{{- if ne $r.bff.clientId $realmClient -}}
+{{- fail (printf "roles.web.bff.clientId %q non è il client del BFF nel realm del ruolo idp (%q, files/realm.json): con un altro client il login fallisce" $r.bff.clientId $realmClient) -}}
+{{- end -}}
 {{- end -}}
 {{- if not (include "loyaltyhub.web.clientSecretRef" . | fromJson).name -}}
 {{- fail "roles.web.bff.clientSecret.name è obbligatorio nel profilo enterprise senza ruolo idp: Secret con il segreto del client `web` registrato nell'IdP aziendale (F2-SEC-06)" -}}
@@ -412,6 +437,9 @@ senza percorso, host coerenti con l'Ingress, segreti del BFF presenti, una sola 
 {{- end -}}
 {{- if or (and $r.autoscaling.enabled (gt (int $r.autoscaling.maxReplicas) 1)) (and (not $r.autoscaling.enabled) (gt (int $r.replicas) 1)) -}}
 {{- fail "WEB_SINGLE_REPLICA: nel profilo enterprise il web gira con una sola replica, perché le sessioni del BFF stanno nella memoria del Pod (Q-409, Q-419): roles.web.replicas=1 e roles.web.autoscaling.enabled=false (o maxReplicas=1)" -}}
+{{- end -}}
+{{- if $r.pdb.enabled -}}
+{{- fail "WEB_SINGLE_REPLICA: roles.web.pdb.enabled con una sola replica del web blocca lo svuotamento dei nodi (kubectl drain) senza proteggere nulla; nel profilo enterprise lasciarlo spento (Q-419)" -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
