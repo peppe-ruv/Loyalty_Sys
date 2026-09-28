@@ -5,12 +5,15 @@ import { fetchNicknames, nicknameRoute, resolveNicknames } from "./memberNicknam
 // BFF dei soprannomi (Q-368, ADR-032, F2-EVT-02): percorsi intercettati, chiamata a member-service, degradato.
 
 describe("nicknameRoute", () => {
-  it("solo GET su gamification, sui percorsi di classifiche e vincitori", () => {
+  it("solo GET o HEAD su gamification, sui percorsi di classifiche e vincitori", () => {
     expect(nicknameRoute("gamification", "GET", ["v1", "portal", "leaderboards"])).toBe("portal-leaderboards");
     expect(nicknameRoute("gamification", "GET", ["v1", "portal", "leaderboards", "LDB-MONTH-PTS"])).toBe("portal-leaderboards");
     expect(nicknameRoute("gamification", "GET", ["v1", "leaderboards", "LDB-MONTH-PTS", "ranking"])).toBe("bo-ranking");
     expect(nicknameRoute("gamification", "GET", ["v1", "contests", "CNT-1", "winners"])).toBe("winners");
     expect(nicknameRoute("gamification", "GET", ["v1", "contests", "CNT-1", "winners.csv"])).toBe("winners-csv");
+    // HEAD chiede al servizio la stessa cosa del GET (resolve=ids); il corpo non c'è e non si riscrive.
+    expect(nicknameRoute("gamification", "HEAD", ["v1", "contests", "CNT-1", "winners.csv"])).toBe("winners-csv");
+    expect(nicknameRoute("gamification", "HEAD", ["v1", "leaderboards", "LDB-MONTH-PTS", "ranking"])).toBe("bo-ranking");
     expect(nicknameRoute("gamification", "POST", ["v1", "portal", "leaderboards"])).toBeNull();
     expect(nicknameRoute("wallet", "GET", ["v1", "portal", "leaderboards"])).toBeNull();
     expect(nicknameRoute("gamification", "GET", ["v1", "leaderboards"])).toBeNull();

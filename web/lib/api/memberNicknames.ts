@@ -23,9 +23,12 @@ const NICKNAMES_TIMEOUT_MS = 5_000;
 /** Percorsi di gamification che il BFF completa coi soprannomi. */
 export type NicknameRoute = "portal-leaderboards" | "bo-ranking" | "winners" | "winners-csv";
 
-/** Il percorso (solo GET su gamification) da completare coi soprannomi, oppure `null` per il proxy normale. */
+/**
+ * Il percorso (GET o HEAD su gamification) da completare coi soprannomi, oppure `null` per il proxy normale. HEAD chiede
+ * al servizio la stessa cosa del GET (`resolve=ids`); il proxy non riscrive il corpo, che per HEAD non c'è.
+ */
 export function nicknameRoute(service: string, method: string, path: readonly string[]): NicknameRoute | null {
-  if (service !== "gamification" || method !== "GET" || path[0] !== "v1") return null;
+  if (service !== "gamification" || (method !== "GET" && method !== "HEAD") || path[0] !== "v1") return null;
   if (path[1] === "portal" && path[2] === "leaderboards" && (path.length === 3 || path.length === 4)) return "portal-leaderboards";
   if (path.length !== 4) return null;
   if (path[1] === "leaderboards" && path[3] === "ranking") return "bo-ranking";
