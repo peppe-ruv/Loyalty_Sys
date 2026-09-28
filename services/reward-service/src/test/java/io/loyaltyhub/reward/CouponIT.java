@@ -9,12 +9,17 @@ import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -23,13 +28,17 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -42,6 +51,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @EmbeddedKafka(partitions = 1, topics = {"lh.effects.v1", "lh.facts.v1", "lh.audit.v1", "lh.dlq.v1"})
 @ActiveProfiles("demo")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class CouponIT {
 
     private static final EmbeddedPostgres PG = startPg();
@@ -50,6 +60,9 @@ class CouponIT {
 
     @Value("${local.server.port}")
     private int port;
+
+    @Autowired
+    private JdbcClient jdbc;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -158,29 +171,81 @@ class CouponIT {
                 .isEqualTo("COUPON_EXPIRED");
     }
 
+    // ---------- ricerca dei codici: builder SQL con colonne da allowlist (F2-SEC-10, ADR-042) ----------
+    // Questi test girano per primi (@Order) sui pool seminati e non scrivono nulla: gli altri test emettono, usano e
+    // annullano codici e fanno reset. POOL-CIN: 220 codici; lo storico seminato (redemptions.json) ne ha emessi 3
+    // (RDM-000002 ISSUED, RDM-000017 EXPIRED, RDM-000023 ISSUED). POOL-SHP25: 150 codici, 141 consumati.
+
     @Test
-    void searchAndCountFiltersPreventInjectionAndWorkAsExpected() {
+    @Order(1)
+    void eachSearchFilterAloneReturnsExactlyTheSeededCodes() {
         String cin = pool(get("/v1/coupon-pools"), "POOL-CIN").path("id").asString();
-        assertThat(status("GET", "/v1/coupon-pools/" + cin + "/coupons?status=AVAILABLE').-", "ADMIN:test", null)).isEqualTo(200);
+        String caf = pool(get("/v1/coupon-pools"), "POOL-CAF").path("id").asString();
+        String shp25 = pool(get("/v1/coupon-pools"), "POOL-SHP25").path("id").asString();
+        String cinDavide = couponOf("RDM-000002");
+        String cinExpired = couponOf("RDM-000017");
+        String cinIssued = couponOf("RDM-000023");
 
-        JsonNode coupons = get("/v1/coupon-pools/" + cin + "/coupons?status=AVAILABLE");
-        long totalAv = coupons.path("page").path("totalItems").asLong();
-        assertThat(totalAv).isGreaterThan(0);
+        // Solo il pool: tutti e soli i suoi codici.
+        JsonNode all = couponPage(cin, Map.of("size", "100"));
+        assertThat(all.path("page").path("totalItems").asLong()).isEqualTo(220);
+        assertThat(all.path("items").size()).isEqualTo(100);
+        all.path("items").forEach(c -> {
+            assertThat(c.path("code").asString()).startsWith("CIN-");
+            assertThat(c.path("poolId").asString()).isEqualTo(cin);
+        });
+        assertThat(total(shp25, Map.of())).isEqualTo(150);
 
-        JsonNode specificMember = get("/v1/coupon-pools/" + cin + "/coupons?memberId=MBR-000007");
-        assertThat(specificMember.path("page").path("totalItems").asLong()).isEqualTo(1);
+        // Stato.
+        assertThat(total(cin, Map.of("status", "AVAILABLE"))).isEqualTo(217);
+        assertThat(couponCodes(cin, Map.of("status", "issued"))).containsExactlyInAnyOrder(cinDavide, cinIssued);
+        assertThat(couponCodes(cin, Map.of("status", "EXPIRED"))).containsExactly(cinExpired);
+        assertThat(couponCodes(cin, Map.of("status", "USED"))).isEmpty();
+        assertThat(total(shp25, Map.of("status", "USED"))).isEqualTo(141);
+        assertThat(total(shp25, Map.of("status", "AVAILABLE"))).isEqualTo(9);
 
-        JsonNode p1 = get("/v1/coupon-pools/" + cin + "/coupons?size=2&page=0");
-        JsonNode p2 = get("/v1/coupon-pools/" + cin + "/coupons?size=2&page=1");
-        assertThat(p1.path("items").get(0).path("code").asString()).isNotEqualTo(p2.path("items").get(0).path("code").asString());
-
-        long before = countAll(cin);
-        status("GET", "/v1/coupon-pools/" + cin + "/coupons?status=AVAILABLE'; DROP TABLE coupon; --", "ADMIN:test", null);
-        assertThat(countAll(cin)).isEqualTo(before);
+        // Membro, sempre dentro il pool del percorso.
+        assertThat(couponCodes(cin, Map.of("memberId", "MBR-000004"))).containsExactly(cinDavide);
+        assertThat(couponCodes(cin, Map.of("memberId", "MBR-000007"))).containsExactly(cinExpired);
+        assertThat(couponCodes(caf, Map.of("memberId", "MBR-000004"))).containsExactly(couponOf("RDM-000001"));
+        assertThat(couponCodes(caf, Map.of("memberId", "MBR-000007"))).as("coupon di un altro pool").isEmpty();
+        assertThat(couponCodes(cin, Map.of("status", "ISSUED", "memberId", "MBR-000007"))).isEmpty();
     }
 
-    private long countAll(String poolId) {
-        return get("/v1/coupon-pools/" + poolId + "/coupons").path("page").path("totalItems").asLong();
+    @Test
+    @Order(2)
+    void pagesAreDisjointAndFollowTheStableOrder() {
+        String cin = pool(get("/v1/coupon-pools"), "POOL-CIN").path("id").asString();
+        List<String> page0 = couponCodes(cin, Map.of("size", "2", "page", "0"));
+        List<String> page1 = couponCodes(cin, Map.of("size", "2", "page", "1"));
+        List<String> firstFour = couponCodes(cin, Map.of("size", "4", "page", "0"));
+
+        assertThat(page0).hasSize(2).doesNotContainAnyElementsOf(page1);
+        assertThat(page1).hasSize(2);
+        List<String> joined = new ArrayList<>(page0);
+        joined.addAll(page1);
+        assertThat(joined).isEqualTo(firstFour);
+    }
+
+    @Test
+    @Order(3)
+    void injectionShapedFiltersFindNothingAndLeaveTheTableIntact() {
+        String cin = pool(get("/v1/coupon-pools"), "POOL-CIN").path("id").asString();
+        List<Map<String, String>> attempts = List.of(
+                Map.of("status", "AVAILABLE').-"),
+                Map.of("status", "AVAILABLE'; DROP TABLE coupon; --"),
+                Map.of("status", "AVAILABLE' OR '1'='1"),
+                Map.of("memberId", "MBR-000007' OR '1'='1"),
+                Map.of("memberId", "x'; DELETE FROM coupon; --"));
+        for (Map<String, String> params : attempts) {
+            long before = couponRows();
+            Reply reply = getReply("/v1/coupon-pools/" + cin + "/coupons", params);
+            assertThat(reply.status()).as(params.toString()).isEqualTo(200);
+            assertThat(reply.body().path("items").isArray()).as(params.toString()).isTrue();
+            assertThat(reply.body().path("items").size()).as(params.toString()).isZero();
+            assertThat(reply.body().path("page").path("totalItems").asLong()).as(params.toString()).isZero();
+            assertThat(couponRows()).as(params.toString()).isEqualTo(before);
+        }
     }
 
     @Test
@@ -215,6 +280,51 @@ class CouponIT {
     }
 
     // ---------- helper ----------
+
+    private record Reply(int status, JsonNode body) {
+    }
+
+    private String couponOf(String redemptionId) {
+        String code = get("/v1/redemptions/" + redemptionId).path("couponCode").asString();
+        assertThat(code).as("coupon di " + redemptionId).isNotBlank();
+        return code;
+    }
+
+    private JsonNode couponPage(String poolId, Map<String, String> params) {
+        Reply reply = getReply("/v1/coupon-pools/" + poolId + "/coupons", params);
+        assertThat(reply.status()).as("GET coupons " + params).isEqualTo(200);
+        return reply.body();
+    }
+
+    private long total(String poolId, Map<String, String> params) {
+        return couponPage(poolId, params).path("page").path("totalItems").asLong();
+    }
+
+    /** Codici della pagina (al più 100); senza {@code page} verifica anche che {@code totalItems} sia coerente. */
+    private List<String> couponCodes(String poolId, Map<String, String> filters) {
+        Map<String, String> params = new LinkedHashMap<>(filters);
+        params.putIfAbsent("size", "100");
+        JsonNode page = couponPage(poolId, params);
+        List<String> codes = new ArrayList<>();
+        page.path("items").forEach(c -> codes.add(c.path("code").asString()));
+        if (!params.containsKey("page")) {
+            assertThat(page.path("page").path("totalItems").asLong()).as("count " + params).isEqualTo(codes.size());
+        }
+        return codes;
+    }
+
+    /** GET con i parametri codificati per esteso (anche {@code %}, {@code +} e {@code '}). */
+    private Reply getReply(String path, Map<String, String> params) {
+        StringJoiner query = new StringJoiner("&", "?", "").setEmptyValue("");
+        params.forEach((k, v) -> query.add(k + "=" + URLEncoder.encode(v, StandardCharsets.UTF_8)));
+        URI uri = URI.create("http://localhost:" + port + path + query);
+        return RestClient.create().get().uri(uri).exchange((req, res) ->
+                new Reply(res.getStatusCode().value(), mapper.readTree(res.getBody())));
+    }
+
+    private long couponRows() {
+        return jdbc.sql("SELECT count(*) FROM coupon").query(Long.class).single();
+    }
 
     private static JsonNode pool(JsonNode pools, String code) {
         for (JsonNode p : pools) {
