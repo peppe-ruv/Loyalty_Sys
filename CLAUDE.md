@@ -31,8 +31,10 @@ Piattaforma loyalty **open source ed event-driven**: microservizi Spring Boot + 
 | Deploy, env, Docker, CI | `docs/11-DEPLOY-COSTO-ZERO.md` |
 | Sapere cosa fare adesso | `docs/12-PIANO-DI-SVILUPPO.md` + `docs/14-STATO-AVANZAMENTO.md` |
 | Capire il perché di una scelta | `docs/13-REGISTRO-DECISIONI.md` |
+| Sapere quali migliorie sono rimandate oltre la PoC | `docs/19-TO-BE.md` |
 | Lavorare una fetta di Fase 2 (M8–M15) | `docs/18-FASE-2.md` (§3 architettura, §4 catalogo `F2-*`, §5 schermate, §6 milestone) + `docs/prompts/fase2-kickoff.md` |
 | Toccare blocchi, pagine, meccaniche del portale | `registry/` (Element Registry, da M10.1) + `docs/18 §3.5` |
+| Scrivere o modificare documentazione (`docs/`, pagine Mintlify `.mdx`) | `AGENTS.md` |
 
 ## 3. Struttura del repo
 
@@ -153,7 +155,7 @@ Fonte: `docs/18-FASE-2.md §7`; dopo M8.0 le ADR 026–045 di `docs/13` vincono 
 - **14. Aggiornabile senza fermo.** Ogni migrazione è expand/contract; ogni fetta lascia funzionante la versione precedente dei consumer (ADR-038).
 - **15. L'agente propone, non decide.** Solo `DRAFT`, con evidenze; `LEGAL` approva.
 - **16. Solo pull request verso `main`.** Una fetta = un ramo = una PR con gli ID nel titolo; niente push diretti, niente force push; auto-merge a controlli verdi; le ADR si aggiungono, non si modificano (ADR-041, ADR-047).
-- **17. Documentare con un diagramma.** Ogni fetta che introduce o cambia un concetto, un flusso o un ciclo di vita aggiorna la pagina Mintlify corrispondente con un diagramma Mermaid conforme a §3.12; le specifiche in `site/` non si scrivono a mano (ADR-040).
+- **17. Documentare con un diagramma.** Ogni fetta che introduce o cambia un concetto, un flusso o un ciclo di vita aggiorna la pagina Mintlify corrispondente con un diagramma Mermaid conforme a §3.12; le specifiche in `site/` non si scrivono a mano (ADR-040); testo e pagine seguono la guida di stile `AGENTS.md`.
 - **18. Zero trust.** Ogni chiamata, anche tra moduli, porta un'identità verificata: token per l'HTTP, principal e firma per il bus, ruolo per il database. Nessun endpoint senza `@RequiresRole` o `@PublicEndpoint`; nel portale il membro viene solo dal token (ADR-042).
 - **19. SQL solo parametrico.** Testo SQL costante o costruito dal builder comune con colonne da allowlist; mai input nel testo SQL (ADR-042).
 - **20. Nessun segreto nel codice, nei log o nel browser.** Token solo lato server (BFF), segreti dal secret manager, log senza dati personali né credenziali.
@@ -161,6 +163,8 @@ Fonte: `docs/18-FASE-2.md §7`; dopo M8.0 le ADR 026–045 di `docs/13` vincono 
 - **22. Nessuno approva se stesso; il prodotto non parte insicuro.** Chi sottomette non approva; le operazioni sensibili hanno doppio controllo configurabile; il profilo `enterprise` rifiuta configurazioni insicure invece di avvisare; ogni funzione nuova dichiara in `docs/compliance/iso27001-annex-a.md` quali controlli tocca e quale evidenza produce (ADR-044).
 
 - **23. I punteggi modulano, non negano.** Un attributo `kind=SCORE` viene da fuori, ha una validità e scaduto è assente; può ampliare un'offerta, mai escludere da un premio dovuto o comparire in un effetto negativo; non è mai visibile al membro (ADR-045). Un fornitore di premi esterno è una destinazione di rete dichiarata e un responsabile del trattamento nel registro.
+
+- **24. La PoC prima di tutto, e funzionante.** Una miglioria di codice o di sicurezza che la PoC non può sostenere (infrastruttura, costi, complessità) non blocca la fetta, ma non la lascia nemmeno a metà: la fetta consegna il **miglior workaround sostenibile**, cioè la soluzione più vicina al requisito che regge con i vincoli di oggi (costo zero, 512 MB, nessun componente nuovo senza ADR), implementata e testata, non solo annunciata. Poi si predispone il punto di estensione, si dichiara il limite residuo dove lo legge chi installa (in `enterprise` con rifiuto, regola 22) e si registra una voce `TOBE-nnn` in `docs/19-TO-BE.md` con motivo, workaround attivo, predisposizione e condizione di attivazione. Nel registro va solo ciò che il workaround lascia scoperto.
 *Definizione di fatto* integrata: (6) OpenAPI rigenerata e `check-contracts` verde; (7) `registry:build` senza drift quando si tocca un blocco; (8) axe verde sulla matrice `e2e-pr` per le schermate toccate; (9) messaggi in entrambe le lingue da M11 in poi; (10) pagina Mintlify aggiornata con diagramma e job `docs` verde; (11) PR con gli ID nel titolo e auto-merge attivo; `docs/14` aggiornato dalla PR di stato cumulativa (ADR-047); (17-bis) chi tocca una migrazione aggiorna l'`erDiagram` della scheda servizio, chi aggiunge o cambia uno stato aggiorna il relativo `stateDiagram-v2`, chi aggiunge una fonte o un tipo ammesso in ingestion aggiorna il diagramma di mapping fonte→saldo (§3.12-bis); (21) una voce di audit verificata in `GET /v1/audit` per ogni scrittura di configurazione introdotta dalla fetta, con attore reale e nessun `UPDATE` possibile.
 
 *Fermati e chiedi* integrato: nuovo endpoint `@PublicEndpoint`, nuova destinazione di rete in uscita, nuovo produttore per un `type` in `producers.yaml`, nuovo ruolo dell'immagine, nuova collezione Directus fuori dal Registry, nuovo campo `pii:true` in qualunque schema, nuovo provider LLM cloud, qualunque cosa che renda il portale dipendente da Directus a runtime, una nuova scrittura di configurazione che non produce una voce di audit, una nuova esportazione di dati personali, un'impostazione che in `enterprise` può restare insicura, un nuovo adattatore verso un fornitore di premi, un uso di `SCORE` fuori dalle condizioni di campagna e dai segmenti → STOP → ADR o Q in `docs/15`.

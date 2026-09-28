@@ -1,10 +1,10 @@
 ---
-title: "deploy-costo-zero"
+title: "Deploy della demo pubblica a costo zero"
 sidebarTitle: "Deploy a costo zero"
 description: "Pubblica Loyalty Hub online usando Vercel, Render, Neon e Aiven nei rispettivi piani gratuiti. Passi, limiti e strategia di risparmio."
 ---
 
-Loyalty Hub è progettato per una demo pubblica che, da spenta, costa zero. Questa pagina spiega quali fornitori usa, come mettere in opera lo stack e quali limiti tenere a mente.
+Loyalty Hub è progettato per una demo pubblica che, da spenta, costa zero. Questa guida ti mostra quali fornitori usa, come mettere in opera lo stack e quali limiti tenere a mente.
 
 ## Prima di iniziare
 
@@ -12,13 +12,15 @@ Loyalty Hub è progettato per una demo pubblica che, da spenta, costa zero. Ques
 - Account gratuiti su Vercel, Render, Neon e Aiven.
 - Docker in locale per il primo smoke test.
 
-> **Nota:** I limiti dei piani gratuiti cambiano nel tempo. Verifica sempre le condizioni aggiornate dei fornitori prima del go-live.
+<Note>
+  I limiti dei piani gratuiti cambiano nel tempo. Verifica sempre le condizioni aggiornate dei fornitori prima del go-live.
+</Note>
 
 ## Mappa dei fornitori
 
 | Componente | Fornitore | Limiti principali |
 | --- | --- | --- |
-| Frontend `web` (Next.js) | Vercel Hobby | Uso non commerciale, no connessioni serverless lunghe. |
+| Frontend `web` (Next.js) | Vercel Hobby | Uso non commerciale, nessuna connessione serverless lunga. |
 | 8 microservizi Spring Boot | Render Free Web Service | 512 MB RAM, sospensione dopo 15 min, 750 ore-istanza/mese. |
 | PostgreSQL | Neon Free | 0,5 GB, 100 CU-ore/mese, scale-to-zero dopo 5 min. |
 | Kafka | Aiven Free | 5 topic × 2 partizioni, retention 3 giorni, si spegne per inattività. |
@@ -30,11 +32,11 @@ Loyalty Hub è progettato per una demo pubblica che, da spenta, costa zero. Ques
 - Neon: circa 400 ore di DB acceso al mese senza keep-alive esterno.
 - Aiven: esattamente 5 topic, quelli di Loyalty Hub. Nessun topic aggiuntivo consentito.
 
-## Ordine di messa in opera
+## Metti in opera lo stack
 
 <Steps>
-  <Step title="Aiven Kafka (manuale)">
-    Console Aiven, crea servizio Kafka Free in regione europea. Crea a mano i 5 topic con 2 partizioni:
+  <Step title="Configura Aiven Kafka">
+    Nella console Aiven, crea un servizio Kafka Free in regione europea. Crea a mano i 5 topic con 2 partizioni:
 
     - `lh.actions.v1`
     - `lh.effects.v1`
@@ -42,35 +44,39 @@ Loyalty Hub è progettato per una demo pubblica che, da spenta, costa zero. Ques
     - `lh.audit.v1`
     - `lh.dlq.v1`
 
-    Scarica `ca.pem`, `service.cert`, `service.key`. Codifica in base64 e crea i segreti `KAFKA_SSL_CA_B64`, `KAFKA_SSL_CERT_B64`, `KAFKA_SSL_KEY_B64`. Aggiungi `KAFKA_SECURITY=SSL_PEM` e `KAFKA_BOOTSTRAP=<host>:<porta>`.
+    Scarica `ca.pem`, `service.cert`, `service.key`. Codifica in Base64 e crea i segreti `KAFKA_SSL_CA_B64`, `KAFKA_SSL_CERT_B64`, `KAFKA_SSL_KEY_B64`. Aggiungi `KAFKA_SECURITY=SSL_PEM` e `KAFKA_BOOTSTRAP=<host>:<porta>`.
 
-    > **Nota:** Se la chiave è PKCS#1 converti con `openssl pkcs8 -topk8 -nocrypt -in service.key -out service.pk8.key`.
+    <Note>
+      Se la chiave è PKCS#1, convertila con `openssl pkcs8 -topk8 -nocrypt -in service.key -out service.pk8.key`.
+    </Note>
   </Step>
-  <Step title="Neon Postgres">
+  <Step title="Crea il database Neon">
     Crea progetto e database. Prendi due URL: pooled (`-pooler` nell'host) per l'app in `DB_URL`, diretto per Flyway in `DB_URL_DIRECT`. Entrambi con `sslmode=require`. Non creare schemi a mano: li crea Flyway.
 
-    > **Nota:** Nel pool a transazione niente `SET` di sessione né advisory lock di sessione. Usa `prepareThreshold=0` nel JDBC URL.
+    <Note>
+      Nel pool a transazione non usare `SET` di sessione né advisory lock di sessione. Aggiungi `prepareThreshold=0` nel JDBC URL.
+    </Note>
   </Step>
-  <Step title="Render (Blueprint)">
+  <Step title="Deploy su Render">
     Crea Blueprint dal `render.yaml`. Configura il gruppo variabili `lh-shared` con i valori dei passi precedenti. Deploya prima i servizi del core loop (`ingestion`, `member`, `campaign`, `wallet`), poi gli altri.
   </Step>
-  <Step title="Vercel (frontend)">
-    Nuovo progetto con root `web/`. Variabili ambiente con gli URL `<servizio>.onrender.com`. Aggiorna `LH_CORS_ALLOWED_ORIGINS` di `insight-service` con l'URL Vercel finale e ridistribuisci `insight`.
+  <Step title="Deploy su Vercel">
+    Crea un nuovo progetto con root `web/`. Aggiungi le variabili ambiente con gli URL `<servizio>.onrender.com`. Aggiorna `LH_CORS_ALLOWED_ORIGINS` di `insight-service` con l'URL Vercel finale e ridistribuisci `insight`.
   </Step>
-  <Step title="Smoke test">
-    ```bash
+  <Step title="Esegui lo smoke test">
+    ```bash Smoke test
     bash scripts/smoke.sh https://<web>.vercel.app
     ```
 
-    Verde = pronto per condividere l'URL.
+    Se l'esito è verde, la demo è pronta: condividi l'URL.
   </Step>
 </Steps>
 
-## Accendere e spegnere
+## Accendi e spegni la demo
 
-- **Accensione:** l'hub ha un endpoint di wake che pinga i servizi Render dormienti e sveglia Neon. Pochi minuti e tutto è UP.
+- **Accensione:** l'hub ha un endpoint di wake che pinga i servizi Render dormienti e sveglia Neon. Dopo pochi minuti tutto è `UP`.
 - **Sospensione:** senza traffico, Render sospende i servizi dopo 15 minuti e Neon scala a zero dopo 5. Il costo torna a zero.
-- **Kafka:** Aiven Free si spegne per inattività prolungata. Va riacceso a mano dalla console quando l'hub segnala Kafka `DOWN` oltre 2 minuti.
+- **Kafka:** Aiven Free si spegne per inattività prolungata. Riaccendilo a mano dalla console quando l'hub segnala Kafka `DOWN` per più di 2 minuti.
 
 ## Cosa NON fare
 
@@ -80,4 +86,4 @@ Loyalty Hub è progettato per una demo pubblica che, da spenta, costa zero. Ques
 
 ## Prossimo passo
 
-Se qualcosa non funziona, vai a [Troubleshooting](operations/troubleshooting).
+Se qualcosa non funziona, vai a [Troubleshooting](/operations/troubleshooting).

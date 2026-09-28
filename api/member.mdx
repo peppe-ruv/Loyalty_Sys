@@ -4,7 +4,7 @@ sidebarTitle: "Member"
 description: "API reference del member-service (porta 8082). Gestisci anagrafica membri, attributi, etichette, segmenti statici e dinamici, referral e proiezioni di saldo e tier per elenchi."
 ---
 
-Il member-service gestisce l'anagrafica dei membri, i loro attributi personalizzati, le etichette, i segmenti di pubblico e il programma referral. Non possiede i saldi: riflette i dati di wallet e tier attraverso proiezioni aggiornate dai fatti, cosi puoi consultare il profilo completo senza chiamare piu servizi.
+Il member-service gestisce l'anagrafica dei membri, i loro attributi personalizzati, le etichette, i segmenti di pubblico e il programma referral. Non possiede i saldi: riflette i dati di wallet e tier attraverso proiezioni aggiornate dai fatti, così puoi consultare il profilo completo senza chiamare più servizi.
 
 ## Base URL
 
@@ -27,12 +27,12 @@ Un membro ha i seguenti campi principali:
 - **attributes**: oggetto JSON libero per attributi personalizzati
 - **labels**: array di testo (`text[]`)
 - **referral_code**: codice univoco di 8 caratteri
-- **referred_by**: ID del membro che ha invitato questo utente
+- **referred_by**: ID del membro che ha invitato questo membro
 - **version**: numero di versione per ottimistic locking
 
 ### Proiezione saldo e tier
 
-Per comodita nei risultati di elenco, il member-service include proiezioni aggiornate:
+Per comodità nei risultati di elenco, il member-service include proiezioni aggiornate:
 
 - **tier_code**: codice del tier attuale
 - **period_sts**: punti nel periodo di qualifica
@@ -40,9 +40,11 @@ Per comodita nei risultati di elenco, il member-service include proiezioni aggio
 - **pending_pts**: punti in sospeso
 - **lifetime_earned_pts**: punti totali guadagnati nel tempo
 
-> **Nota:** questi valori sono proiezioni eventualmente consistenti. Per il saldo autoritativo, consulta il wallet-service.
+<Note>
+  Questi valori sono proiezioni eventualmente consistenti. Per il saldo autoritativo, consulta il wallet-service.
+</Note>
 
-## Endpoint di gestione membri
+## Gestione membri
 
 ### Elenca membri
 
@@ -140,7 +142,9 @@ Crea un nuovo membro. Se fornisci un `referralCode` valido, il membro viene coll
 }
 ```
 
-> **Attenzione:** se il `referralCode` non esiste, ricevi `422 REFERRAL_CODE_INVALID`. Se usi il tuo stesso codice, ricevi `422 REFERRAL_SELF`.
+<Warning>
+  Se il `referralCode` non esiste, ricevi `422 REFERRAL_CODE_INVALID`. Se usi il tuo stesso codice, ricevi `422 REFERRAL_SELF`.
+</Warning>
 
 ### Recupera un membro
 
@@ -210,7 +214,9 @@ Aggiornamento parziale. Includi solo i campi che vuoi modificare e la `version` 
 
 **Risposta 200:** restituisce il membro aggiornato con `version` incrementata.
 
-> **Attenzione:** se la versione non corrisponde, ricevi `409 CONCURRENT_MODIFICATION`.
+<Warning>
+  Se la versione non corrisponde, ricevi `409 CONCURRENT_MODIFICATION`.
+</Warning>
 
 ### Cambia stato
 
@@ -247,7 +253,9 @@ Operazione irreversibile. Rimuove i dati personali e rende il profilo anonimo.
 }
 ```
 
-> **Attenzione:** l'anonimizzazione e permanente. Il membro mantiene l'ID e lo storico transazionale, ma nome, email, telefono e altri dati personali vengono cancellati. Richiede la conferma esplicita con l'ID del membro.
+<Warning>
+  L'anonimizzazione è permanente. Il membro mantiene l'ID e lo storico transazionale, ma nome, email, telefono e altri dati personali vengono cancellati. Richiede la conferma esplicita con l'ID del membro.
+</Warning>
 
 ### Segmenti di un membro
 
@@ -303,7 +311,7 @@ Restituisce gli invitati del membro con il loro stato.
 }
 ```
 
-## Endpoint segmenti
+## Gestione segmenti
 
 ### Elenca segmenti
 
@@ -428,7 +436,9 @@ Forza il ricalcolo di un segmento dinamico. Restituisce le variazioni.
 }
 ```
 
-> **Nota:** i segmenti dinamici vengono ricalcolati automaticamente ogni 15 minuti se ci sono state variazioni rilevanti nei dati.
+<Note>
+  I segmenti dinamici vengono ricalcolati automaticamente ogni 15 minuti se ci sono state variazioni rilevanti nei dati.
+</Note>
 
 ### Sostituisci membri di un segmento statico
 
@@ -448,9 +458,11 @@ Sostituisce l'intero elenco dei membri di un segmento **STATIC**. I membri prece
 
 **Risposta 200:** restituisce il segmento aggiornato con il nuovo conteggio.
 
-> **Attenzione:** questo endpoint e disponibile solo per segmenti di tipo `STATIC`.
+<Warning>
+  Questo endpoint è disponibile solo per segmenti di tipo `STATIC`.
+</Warning>
 
-## Endpoint attributi
+## Gestione attributi
 
 ### Elenca definizioni attributi
 
@@ -512,7 +524,7 @@ Sostituisce l'intero set di definizioni degli attributi.
 ]
 ```
 
-## Endpoint referral
+## Gestione referral
 
 ### Panoramica referral
 
@@ -586,7 +598,9 @@ Restituisce il profilo del membro per il portale Next.js, inclusa la completezza
 }
 ```
 
-> **Nota:** il campo `profileCompleteness` indica la percentuale di completamento e i campi mancanti. Quando il membro completa tutti i campi richiesti con una PATCH, viene emesso l'evento `member.profile.completed`.
+<Note>
+  Il campo `profileCompleteness` indica la percentuale di completamento e i campi mancanti. Quando il membro completa tutti i campi richiesti con una PATCH, viene emesso l'evento `member.profile.completed`.
+</Note>
 
 ### Aggiorna profilo portale
 
@@ -703,7 +717,9 @@ Simula l'elaborazione dei compleanni per una data specifica. Utile per testare c
 }
 ```
 
-> **Nota:** il parametro `asOf` e opzionale. Se omesso, usa la data corrente.
+<Note>
+  Il parametro `asOf` è opzionale. Se omesso, usa la data corrente.
+</Note>
 
 ## Regole importanti
 
@@ -723,7 +739,7 @@ L'evento `member.profile.completed` viene emesso alla prima PATCH che valorizza 
 
 - Codice inesistente: `422 REFERRAL_CODE_INVALID`
 - Uso del proprio codice: `422 REFERRAL_SELF`
-- Un membro puo essere referrato solo una volta: il campo `referred_by` e immutabile dopo la creazione
+- Un membro può essere referrato solo una volta: il campo `referred_by` è immutabile dopo la creazione
 
 ### Segmenti dinamici
 
