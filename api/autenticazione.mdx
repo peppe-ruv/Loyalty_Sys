@@ -43,6 +43,50 @@ Ogni endpoint dei servizi dichiara i ruoli ammessi. La tabella riassume le regol
 | Insight | `GET /backoffice/kpi/**` | ADMIN, ANALYST |
 | DLQ | `POST /backoffice/dlq/{id}/replay` | ADMIN |
 
+## Profilo enterprise: accesso dal browser con il BFF
+
+Con `LH_PROFILE=enterprise` l'header `X-LH-Actor` non vale più: i servizi accettano solo un access token OIDC (`Authorization: Bearer`, audience `hub`). Portale e backoffice non vedono mai il token: il server web fa da **Backend-for-Frontend** (BFF), client confidential `web` del realm Keycloak.
+
+- **Login**: `GET /api/auth/login?returnTo=/percorso` avvia Authorization Code con PKCE `S256`, `state` e `nonce`; `returnTo` vale solo come percorso della stessa origine.
+- **Sessione**: il browser riceve solo il cookie opaco `__Host-lh_session` (`HttpOnly`, `Secure`, `SameSite=Lax`) e `__Host-lh_csrf`; token cifrati lato server, rinnovati in modo trasparente con il refresh token a rotazione.
+- **Chiamate**: il browser chiama `/api/lh/<servizio>/v1/...`; il BFF aggiunge `Authorization: Bearer` e scarta ogni `Authorization`, `X-LH-Actor` o cookie arrivati dal browser. Sulle API `/v1/portal/**` il membro viene solo dal token: un `memberId` scelto dal browser non arriva al servizio.
+- **CSRF**: ogni `POST`, `PUT`, `PATCH`, `DELETE` porta l'header `X-LH-CSRF` e un `Origin` della stessa origine.
+- **Logout**: `POST /api/auth/logout` chiude la sessione e porta al logout di Keycloak; Keycloak chiama `POST /api/auth/backchannel-logout` quando la sessione finisce lì (utente disattivato, logout altrove).
+
+Variabili del web: `LH_OIDC_ISSUER`, `LH_WEB_CLIENT_ID`, `LH_WEB_CLIENT_SECRET`, `LH_WEB_URL`, `LH_WEB_SESSION_KEY` (anche da `*_FILE`). Se mancano o sono insicure il web non parte (`INSECURE_CONFIG`).
+
+```mermaid
+sequenceDiagram
+  accTitle: Accesso al portale e al backoffice con il BFF
+  accDescr: Il browser fa login su Keycloak attraverso il web, che tiene i token lato server e dà al browser solo un cookie di sessione; ogni chiamata ai servizi passa dal web, che aggiunge l'access token e controlla la provenienza.
+  autonumber
+  actor B as Browser
+  participant W as web (BFF)
+  participant K as Keycloak
+  participant S as Servizi
+  B->>W: GET /api/auth/login
+  W-->>B: redirect a Keycloak con PKCE, state e nonce
+  B->>K: login
+  K-->>B: redirect a /api/auth/callback con il codice
+  B->>W: codice di autorizzazione
+  W->>K: scambio del codice come client confidential
+  K-->>W: access token, refresh token, ID token
+  W-->>B: cookie __Host-lh_session, nessun token
+  B->>W: POST /api/lh/... con cookie, Origin e X-LH-CSRF
+  W->>S: stessa richiesta con Authorization Bearer
+  S-->>W: risposta
+  W-->>B: risposta
+```
+
+| Codice | Quando |
+| --- | --- |
+| `401 UNAUTHENTICATED` | sessione assente o scaduta: l'interfaccia torna al login e poi alla pagina di partenza |
+| `403 CSRF_REJECTED` | richiesta che cambia stato senza `X-LH-CSRF` valido o da un'altra origine |
+| `403 MEMBER_FROM_TOKEN` | `memberId` nel percorso di un'API del portale |
+| `403 FORBIDDEN_ROLE` | account di solo membro fuori dalle API del portale |
+| `503 IDP_UNAVAILABLE` | Keycloak non risponde durante il rinnovo del token |
+| `500 INSECURE_CONFIG` | web in `enterprise` senza configurazione OIDC completa e sicura |
+
 ## Errori di autenticazione
 
 <AccordionGroup>
