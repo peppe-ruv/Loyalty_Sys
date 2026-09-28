@@ -1,0 +1,5 @@
+# Valori minimi per `helm lint` e `helm template` in CI e in scripts/check-helm.mjs: l'immagine è obbligatoria e non
+# ha default. Non è un esempio d'installazione (vedi deploy/README.md).
+image:
+  repository: ghcr.io/example/loyaltyhub
+  tag: v0.0.0-ci

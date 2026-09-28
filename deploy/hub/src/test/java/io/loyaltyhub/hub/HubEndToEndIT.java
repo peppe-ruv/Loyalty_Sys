@@ -35,7 +35,9 @@ import static org.assertj.core.api.Assertions.assertThat;
         classes = HubApplication.class,
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = "spring.config.name=hub")
-@EmbeddedKafka(partitions = 1, topics = {"lh.actions.v1", "lh.effects.v1", "lh.facts.v1", "lh.audit.v1", "lh.dlq.v1"})
+// 2 partizioni come la forma di default dell'hub (docs/05 §1): con 1 l'hub le aumentava in silenzio all'avvio, oggi
+// lo rifiuta senza conferma esplicita (F2-EVT-04, LhTopicPartitionGuard). Stato effettivo del test invariato.
+@EmbeddedKafka(partitions = 2, topics = {"lh.actions.v1", "lh.effects.v1", "lh.facts.v1", "lh.audit.v1", "lh.dlq.v1"})
 @ActiveProfiles("demo")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class HubEndToEndIT {

@@ -3,11 +3,15 @@ package io.loyaltyhub.common.kafka;
 import io.loyaltyhub.common.event.LhFamily;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-/** Configurazione {@code loyaltyhub.*}: nomi dei topic e sicurezza Kafka (docs/05 §1, docs/06 §5). */
+/**
+ * Configurazione {@code loyaltyhub.*}: nomi dei topic e sicurezza Kafka (docs/05 §1, docs/06 §5); concorrenza dei
+ * listener e forma dei topic (partizioni, repliche, retention) configurabili (F2-EVT-04, ADR-028).
+ */
 @ConfigurationProperties(prefix = "loyaltyhub")
 public class LoyaltyHubProperties {
 
     private final Topics topics = new Topics();
+    private final TopicSettings topicSettings = new TopicSettings();
     private final Kafka kafka = new Kafka();
     private final Consumer consumer = new Consumer();
     /** Nome del servizio (usato come {@code source} degli eventi e nei log). */
@@ -15,6 +19,10 @@ public class LoyaltyHubProperties {
 
     public Topics getTopics() {
         return topics;
+    }
+
+    public TopicSettings getTopicSettings() {
+        return topicSettings;
     }
 
     public Consumer getConsumer() {
@@ -93,6 +101,114 @@ public class LoyaltyHubProperties {
 
         public java.util.List<String> all() {
             return java.util.List.of(actions, effects, facts, audit, dlq);
+        }
+
+        /**
+         * I 5 topic per chiave logica ({@code actions}, {@code effects}, {@code facts}, {@code audit}, {@code dlq}),
+         * nell'ordine di {@link #all()}: la chiave resta la stessa anche se il nome del topic è configurato.
+         */
+        public java.util.Map<String, String> byKey() {
+            java.util.Map<String, String> out = new java.util.LinkedHashMap<>();
+            out.put("actions", actions);
+            out.put("effects", effects);
+            out.put("facts", facts);
+            out.put("audit", audit);
+            out.put("dlq", dlq);
+            return out;
+        }
+    }
+
+    /**
+     * Forma dei 5 topic quando è l'applicazione a dichiararli (profilo {@code local} e hub su broker reale): partizioni,
+     * repliche, retention e {@code min.insync.replicas} (F2-EVT-04, ADR-028). I default sono quelli di Fase 1 (2
+     * partizioni, 1 replica, 3 giorni: docs/05 §1, ADR-004); nel profilo {@code enterprise} li fissano il chart e il
+     * compose di riferimento. Con {@code create=false} l'applicazione non dichiara i topic: li gestisce l'operatore
+     * (i {@code KafkaTopic} di Strimzi) o chi amministra il Kafka gestito.
+     */
+    public static class TopicSettings {
+        private boolean create = true;
+        private int partitions = 2;
+        private short replicas = 1;
+        private long retentionMs = 3L * 24 * 3600 * 1000;
+        /** Assente = default del broker. */
+        private Integer minInsyncReplicas;
+        /** Retention per chiave logica ({@code facts}, {@code audit}…); una chiave assente usa {@link #retentionMs}. */
+        private java.util.Map<String, Long> retentionMsByTopic = new java.util.LinkedHashMap<>();
+        /**
+         * Applica ai topic già esistenti le configurazioni cambiate (retention, {@code min.insync.replicas}). Assente =
+         * acceso nel profilo {@code enterprise}, spento altrimenti: il Kafka gratuito della demo può rifiutare
+         * {@code alterConfigs} (ADR-025).
+         */
+        private Boolean modifyConfigs;
+        /**
+         * Consente di aumentare le partizioni di un topic esistente. Spento: aumentare le partizioni rimappa le chiavi
+         * {@code memberId} e rompe l'ordine per membro degli eventi in volo; si accende solo dopo aver svuotato i
+         * consumer (lag 0, produttori fermi).
+         */
+        private boolean allowPartitionIncrease;
+
+        public Boolean getModifyConfigs() {
+            return modifyConfigs;
+        }
+
+        public void setModifyConfigs(Boolean modifyConfigs) {
+            this.modifyConfigs = modifyConfigs;
+        }
+
+        public boolean isAllowPartitionIncrease() {
+            return allowPartitionIncrease;
+        }
+
+        public void setAllowPartitionIncrease(boolean allowPartitionIncrease) {
+            this.allowPartitionIncrease = allowPartitionIncrease;
+        }
+
+        public boolean isCreate() {
+            return create;
+        }
+
+        public void setCreate(boolean create) {
+            this.create = create;
+        }
+
+        public int getPartitions() {
+            return partitions;
+        }
+
+        public void setPartitions(int partitions) {
+            this.partitions = partitions;
+        }
+
+        public short getReplicas() {
+            return replicas;
+        }
+
+        public void setReplicas(short replicas) {
+            this.replicas = replicas;
+        }
+
+        public long getRetentionMs() {
+            return retentionMs;
+        }
+
+        public void setRetentionMs(long retentionMs) {
+            this.retentionMs = retentionMs;
+        }
+
+        public Integer getMinInsyncReplicas() {
+            return minInsyncReplicas;
+        }
+
+        public void setMinInsyncReplicas(Integer minInsyncReplicas) {
+            this.minInsyncReplicas = minInsyncReplicas;
+        }
+
+        public java.util.Map<String, Long> getRetentionMsByTopic() {
+            return retentionMsByTopic;
+        }
+
+        public void setRetentionMsByTopic(java.util.Map<String, Long> retentionMsByTopic) {
+            this.retentionMsByTopic = retentionMsByTopic == null ? new java.util.LinkedHashMap<>() : retentionMsByTopic;
         }
     }
 
@@ -190,6 +306,19 @@ public class LoyaltyHubProperties {
          * tentativi), quindi 1 s e 5 s. SPEC-GAP: Q-131
          */
         private long[] retryBackoffMs = new long[]{1000L, 5000L};
+        /**
+         * Consumer di ogni {@code @KafkaListener} (F2-EVT-04, ADR-028). Default 2, come le partizioni di Fase 1: oltre il
+         * numero di partizioni i consumer in più restano inattivi.
+         */
+        private int concurrency = 2;
+
+        public int getConcurrency() {
+            return concurrency;
+        }
+
+        public void setConcurrency(int concurrency) {
+            this.concurrency = concurrency;
+        }
 
         public long[] getRetryBackoffMs() {
             return retryBackoffMs;

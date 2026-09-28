@@ -15,7 +15,8 @@ import java.util.Map;
 
 /**
  * Variabili d'ambiente della piattaforma (docs/11 §8, docs/06 §5) lette da ogni servizio e dall'hub, senza ripeterle nei
- * {@code application.yml}: {@code LH_CONSUMER_RETRY_BACKOFF_MS}, {@code LH_JOBS_ENABLED}, {@code LH_APPROVAL_ENABLED},
+ * {@code application.yml}: {@code LH_CONSUMER_RETRY_BACKOFF_MS}, {@code LH_KAFKA_*} (partizioni, concorrenza e
+ * retention, F2-EVT-04), {@code LH_JOBS_ENABLED}, {@code LH_APPROVAL_ENABLED},
  * {@code KAFKA_*}, {@code DB_USER}, {@code DB_URL_DIRECT}. Ogni variabile valorizzata diventa la proprietà
  * {@code loyaltyhub.*}/{@code spring.*} corrispondente, con la precedenza dell'ambiente (sopra la configurazione del
  * servizio). Un nome alternativo già usato dal servizio ({@code DB_USERNAME}, {@code SPRING_KAFKA_BOOTSTRAP_SERVERS},
@@ -38,6 +39,20 @@ public class LhEnvironmentAliases implements EnvironmentPostProcessor, Ordered {
 
     private static final List<Alias> ALIASES = List.of(
             new Alias("LH_CONSUMER_RETRY_BACKOFF_MS", "loyaltyhub.consumer.retry-backoff-ms"),
+            // Partizioni, concorrenza e retention (F2-EVT-04, ADR-028): i nomi dei 5 topic non cambiano.
+            new Alias("LH_KAFKA_CONSUMER_CONCURRENCY", "loyaltyhub.consumer.concurrency"),
+            new Alias("LH_KAFKA_TOPICS_CREATE", "loyaltyhub.topic-settings.create"),
+            new Alias("LH_KAFKA_TOPICS_MODIFY_CONFIGS", "loyaltyhub.topic-settings.modify-configs"),
+            new Alias("LH_KAFKA_TOPICS_ALLOW_PARTITION_INCREASE", "loyaltyhub.topic-settings.allow-partition-increase"),
+            new Alias("LH_KAFKA_TOPIC_PARTITIONS", "loyaltyhub.topic-settings.partitions"),
+            new Alias("LH_KAFKA_TOPIC_REPLICAS", "loyaltyhub.topic-settings.replicas"),
+            new Alias("LH_KAFKA_TOPIC_MIN_INSYNC_REPLICAS", "loyaltyhub.topic-settings.min-insync-replicas"),
+            new Alias("LH_KAFKA_TOPIC_RETENTION_MS", "loyaltyhub.topic-settings.retention-ms"),
+            new Alias("LH_KAFKA_ACTIONS_RETENTION_MS", "loyaltyhub.topic-settings.retention-ms-by-topic.actions"),
+            new Alias("LH_KAFKA_EFFECTS_RETENTION_MS", "loyaltyhub.topic-settings.retention-ms-by-topic.effects"),
+            new Alias("LH_KAFKA_FACTS_RETENTION_MS", "loyaltyhub.topic-settings.retention-ms-by-topic.facts"),
+            new Alias("LH_KAFKA_AUDIT_RETENTION_MS", "loyaltyhub.topic-settings.retention-ms-by-topic.audit"),
+            new Alias("LH_KAFKA_DLQ_RETENTION_MS", "loyaltyhub.topic-settings.retention-ms-by-topic.dlq"),
             new Alias("LH_JOBS_ENABLED", "loyaltyhub.jobs.enabled"),
             new Alias("LH_APPROVAL_ENABLED", "loyaltyhub.approval.enabled"),
             new Alias("LH_IDENTITY_MODE", "loyaltyhub.identity.mode"),
