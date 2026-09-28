@@ -7,19 +7,20 @@ import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhEventTypes;
 import io.loyaltyhub.common.event.LhHeaders;
 import io.loyaltyhub.common.ids.Ulid;
+import io.loyaltyhub.common.testsupport.ListenerGroups;
+import io.loyaltyhub.common.testsupport.TopicReader;
 import io.loyaltyhub.ingestion.domain.MemberRef;
 import io.loyaltyhub.ingestion.infra.InboundEventRepository;
 import io.loyaltyhub.ingestion.infra.InternalMappingRepository;
 import io.loyaltyhub.ingestion.infra.MemberIndexRepository;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -28,6 +29,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -35,7 +37,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.RestClient;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -89,6 +90,13 @@ class InternalBridgeIT {
     @Autowired private InboundEventRepository inbound;
     @Autowired private MemberIndexRepository members;
     @Autowired private JdbcClient jdbc;
+    @Autowired private KafkaListenerEndpointRegistry listeners;
+
+    /** Si pubblica solo a gruppo {@code lh-ingestion} stabile, con le partizioni assegnate ({@link ListenerGroups}). */
+    @BeforeAll
+    void waitForListenerGroup() {
+        ListenerGroups.awaitStable(listeners);
+    }
 
     @BeforeEach
     void mappingsAsSeed() {
@@ -102,9 +110,9 @@ class InternalBridgeIT {
         String memberId = "MBR-000002";
         LhEvent<JsonNode> fact = fact(LhEventTypes.Fact.TIER_UPGRADED, memberId, 0,
                 Map.of("previousTier", "SILVER", "newTier", "GOLD"));
-        try (KafkaConsumer<String, String> actions = consumer("lh.actions.v1")) {
+        {
             publish(fact);
-            ConsumerRecord<String, String> rec = poll(actions, r -> r.value().contains(fact.id()));
+            ConsumerRecord<String, String> rec = first(actions(List.of(fact.id()), r -> r.value().contains(fact.id())));
             assertThat(rec).as("azione ponte su lh.actions.v1").isNotNull();
             assertThat(rec.key()).isEqualTo(memberId);
 
@@ -126,11 +134,14 @@ class InternalBridgeIT {
     @Test
     void sameFactTwiceProducesOneAction() throws Exception {
         LhEvent<JsonNode> fact = fact(LhEventTypes.Fact.TIER_UPGRADED, "MBR-000003", 0, Map.of("newTier", "SILVER"));
-        try (KafkaConsumer<String, String> actions = consumer("lh.actions.v1")) {
-            publish(fact);
-            publish(fact);
-            assertThat(poll(actions, r -> r.value().contains(fact.id()))).isNotNull();
-            assertThat(poll(actions, r -> r.value().contains(fact.id()), Duration.ofSeconds(4))).isNull();
+        {
+            RecordMetadata first = publish(fact);
+            RecordMetadata again = publish(fact);
+            // Barriera esatta anche per il doppione (stesso id, niente processed_event nuovo): offset confermati.
+            ListenerGroups.awaitCommitted(listeners, List.of(first, again));
+            List<ConsumerRecord<String, String>> bridged = actions(List.of(fact.id()), r -> r.value().contains(fact.id()));
+            assertThat(bridged).as("azione ponte").isNotEmpty();
+            assertThat(bridged).as("una sola azione malgrado il doppio invio").hasSize(1);
         }
     }
 
@@ -138,10 +149,10 @@ class InternalBridgeIT {
     void disabledMappingConsumesFactWithoutAction() throws Exception {
         mappings.upsert("fact.tier.upgraded", "tier.upgraded", false);
         LhEvent<JsonNode> fact = fact(LhEventTypes.Fact.TIER_UPGRADED, "MBR-000004", 0, Map.of("newTier", "GOLD"));
-        try (KafkaConsumer<String, String> actions = consumer("lh.actions.v1")) {
+        {
             publish(fact);
             waitFor(() -> processed(fact.id()) == 1);
-            assertThat(poll(actions, r -> r.value().contains(fact.id()), Duration.ofSeconds(3))).isNull();
+            assertThat(first(actions(List.of(fact.id()), r -> r.value().contains(fact.id())))).isNull();
         }
     }
 
@@ -158,13 +169,15 @@ class InternalBridgeIT {
     @Test
     void hopThreeGoesToDlqWithLoopGuard() throws Exception {
         LhEvent<JsonNode> fact = fact(LhEventTypes.Fact.TIER_UPGRADED, "MBR-000005", 3, Map.of("newTier", "GOLD"));
-        try (KafkaConsumer<String, String> dlq = consumer("lh.dlq.v1");
-             KafkaConsumer<String, String> actions = consumer("lh.actions.v1")) {
-            publish(fact);
-            ConsumerRecord<String, String> rec = poll(dlq, r -> r.value().contains(fact.id()), Duration.ofSeconds(30));
+        {
+            RecordMetadata sent = publish(fact);
+            // Il record finito in DLQ non scrive processed_event: la barriera è l'offset confermato dopo la DLQ.
+            ListenerGroups.awaitCommitted(listeners, List.of(sent));
+            ConsumerRecord<String, String> rec = first(new TopicReader(jdbc, mapper, "lh.dlq.v1")
+                    .records(List.of(), r -> r.value().contains(fact.id())));
             assertThat(rec).as("record DLQ").isNotNull();
             assertThat(new String(rec.headers().lastHeader(LhHeaders.ERROR_CODE).value())).isEqualTo("LOOP_GUARD");
-            assertThat(poll(actions, r -> r.value().contains(fact.id()), Duration.ofSeconds(2))).isNull();
+            assertThat(first(actions(List.of(), r -> r.value().contains(fact.id())))).isNull();
         }
     }
 
@@ -213,11 +226,11 @@ class InternalBridgeIT {
                 LhEvent.TENANT, "COR-" + id, null, hop, null, mapper.valueToTree(data));
     }
 
-    private void publish(LhEvent<JsonNode> event) throws Exception {
+    private RecordMetadata publish(LhEvent<JsonNode> event) throws Exception {
         try (KafkaProducer<String, String> producer = new KafkaProducer<>(Map.of(
                 "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
                 "key.serializer", StringSerializer.class, "value.serializer", StringSerializer.class))) {
-            producer.send(new ProducerRecord<>("lh.facts.v1", event.subject().substring("member:".length()),
+            return producer.send(new ProducerRecord<>("lh.facts.v1", event.subject().substring("member:".length()),
                     mapper.writeValueAsString(event))).get();
         }
     }
@@ -226,33 +239,19 @@ class InternalBridgeIT {
         return jdbc.sql("SELECT count(*) FROM processed_event WHERE event_id = ?").param(eventId).query(Long.class).single();
     }
 
-    private KafkaConsumer<String, String> consumer(String topic) {
-        KafkaConsumer<String, String> c = new KafkaConsumer<>(Map.of(
-                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, System.getProperty("spring.embedded.kafka.brokers"),
-                ConsumerConfig.GROUP_ID_CONFIG, "it-" + topic + "-" + System.nanoTime(),
-                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class));
-        c.subscribe(List.of(topic));
-        return c;
+    /**
+     * Azioni su {@code lh.actions.v1} che soddisfano {@code match}, esatte ({@link TopicReader}): prima il servizio deve
+     * aver elaborato {@code consumedFirst} ({@code processed_event}), poi il topic si legge fino in fondo a outbox
+     * svuotato, senza consumer group né finestra di tempo. Un doppione resta visibile, un'azione assente è davvero assente.
+     */
+    private List<ConsumerRecord<String, String>> actions(List<String> consumedFirst,
+                                                         Predicate<ConsumerRecord<String, String>> match) {
+        return new TopicReader(jdbc, mapper, "lh.actions.v1").records(consumedFirst, match);
     }
 
-    private ConsumerRecord<String, String> poll(KafkaConsumer<String, String> consumer,
-                                                Predicate<ConsumerRecord<String, String>> match) {
-        return poll(consumer, match, Duration.ofSeconds(15));
-    }
-
-    private ConsumerRecord<String, String> poll(KafkaConsumer<String, String> consumer,
-                                                Predicate<ConsumerRecord<String, String>> match, Duration timeout) {
-        long deadline = System.currentTimeMillis() + timeout.toMillis();
-        while (System.currentTimeMillis() < deadline) {
-            for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                if (match.test(r)) {
-                    return r;
-                }
-            }
-        }
-        return null;
+    /** Il primo record nell'ordine del topic, {@code null} se non ce n'è. */
+    private static ConsumerRecord<String, String> first(List<ConsumerRecord<String, String>> records) {
+        return records.isEmpty() ? null : records.getFirst();
     }
 
     private static void waitFor(BooleanSupplier condition) throws InterruptedException {

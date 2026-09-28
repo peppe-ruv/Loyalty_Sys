@@ -575,7 +575,7 @@ class TestbookRwdCatalogIT extends TestbookRwdBase {
         JsonNode rw = reward("APPROVED", Map.of());
         String code = rw.path("code").asString();
         call("POST", "/v1/rewards/" + rw.path("id").asString() + "/transitions", "MARKETING:testbook", Map.of("action", "PUBLISH"));
-        JsonNode fact = tap().await("lh.facts.v1", r -> "io.loyaltyhub.fact.reward.status.changed".equals(r.event().path("type").asString())
+        JsonNode fact = await("lh.facts.v1", List.of(), r -> "io.loyaltyhub.fact.reward.status.changed".equals(r.event().path("type").asString())
                 && code.equals(r.event().path("data").path("rewardCode").asString())
                 && "LIVE".equals(r.event().path("data").path("newStatus").asString())).event();
         assertThat(fact.path("data").path("previousStatus").asString()).isEqualTo("APPROVED");

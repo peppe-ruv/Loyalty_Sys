@@ -1,13 +1,13 @@
 package io.loyaltyhub.reward;
 
+import io.loyaltyhub.common.testsupport.ListenerGroups;
+import io.loyaltyhub.common.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -19,6 +19,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -64,6 +65,12 @@ class RedemptionIT {
     @Autowired
     private JdbcClient jdbc;
 
+    @Autowired
+    private KafkaListenerEndpointRegistry listeners;
+
+    /** Fatti del wallet pubblicati dal test: {@link #awaitFact} attende che il servizio li abbia elaborati tutti. */
+    private final List<String> published = new java.util.concurrent.CopyOnWriteArrayList<>();
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -73,6 +80,12 @@ class RedemptionIT {
         registry.add("spring.kafka.bootstrap-servers", () -> System.getProperty("spring.embedded.kafka.brokers"));
         // Il job del timeout lo lanciamo a mano con asOf: quello schedulato non deve interferire.
         registry.add("loyaltyhub.reward.redemption-timeout.enabled", () -> "false");
+    }
+
+    /** Si pubblica solo a gruppo {@code lh-reward} stabile, con le partizioni assegnate ({@link ListenerGroups}). */
+    @BeforeAll
+    void waitForListenerGroup() {
+        ListenerGroups.awaitStable(listeners);
     }
 
     @AfterAll
@@ -112,12 +125,10 @@ class RedemptionIT {
         assertThat(confirmed.path("lhcausationid").asString()).isEqualTo(spentId);
 
         // Rielaborazione della spesa (nuovo messaggio, stessa richiesta): nessun secondo coupon.
-        publishWalletFact(requested, "io.loyaltyhub.fact.wallet.points.spent",
+        String again = publishWalletFact(requested, "io.loyaltyhub.fact.wallet.points.spent",
                 Map.of("ledgerEntryId", "LE-" + id, "currency", "PTS", "amount", 1500, "balanceAfter", 10800, "redemptionId", id));
-        dl = System.currentTimeMillis() + 1500;
-        while (System.currentTimeMillis() < dl) {
-            Thread.sleep(100);
-        }
+        // Barriera esatta: il messaggio è elaborato (processed_event), un secondo coupon non può più arrivare.
+        facts().awaitConsumed(List.of(again));
         long coupons = 0;
         for (JsonNode c : get("/v1/portal/coupons?memberId=MBR-000004")) {
             if (id.equals(get("/v1/coupons/" + c.path("code").asString()).path("redemptionId").asString())) {
@@ -377,14 +388,10 @@ class RedemptionIT {
         assertThat(cancelled.path("status").asString()).isEqualTo("CANCELLED");
         assertThat(reward("RWD-SMART-PLUG").path("stockRemaining").asInt()).isEqualTo(stock);
 
-        JsonNode fact = null;
-        long deadline = System.currentTimeMillis() + 10_000;
-        while (fact == null && System.currentTimeMillis() < deadline) {
-            JsonNode f = awaitFact("io.loyaltyhub.fact.reward.redemption.cancelled", id);
-            if (f.path("data").path("refund").asBoolean()) {
-                fact = f;
-            }
-        }
+        // L'annullo ha fatto commit: i fatti di annullo della richiesta sono tutti sul topic, si cerca quello col rimborso.
+        JsonNode fact = facts().published(published, e -> e.path("type").asString().equals("io.loyaltyhub.fact.reward.redemption.cancelled")
+                        && e.path("data").path("redemptionId").asString().equals(id) && e.path("data").path("refund").asBoolean())
+                .stream().findFirst().orElse(null);
         assertThat(fact).isNotNull();
         assertThat(fact.path("lhactor").asString()).isEqualTo("CARE:anna.care");
         assertThat(send("POST", "/v1/redemptions/" + id + "/cancel", "CARE:anna.care", Map.of("reason", "di nuovo"), 409)
@@ -472,23 +479,19 @@ class RedemptionIT {
         throw new AssertionError("richiesta " + id + " non " + status + ": " + r);
     }
 
+    /**
+     * Il primo fatto del tipo per la richiesta, esatto ({@link TopicReader}): prima il servizio deve aver elaborato ogni
+     * fatto del wallet pubblicato dal test ({@code processed_event}), poi {@code lh.facts.v1} si legge fino in fondo a
+     * outbox svuotato, senza consumer group. I fatti delle chiamate HTTP e dei job nascono in transazioni già concluse.
+     */
     private JsonNode awaitFact(String type, String redemptionId) {
-        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(Map.of(
-                "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
-                "group.id", "it-" + System.nanoTime(), "auto.offset.reset", "earliest",
-                "key.deserializer", StringDeserializer.class, "value.deserializer", StringDeserializer.class))) {
-            consumer.subscribe(List.of("lh.facts.v1"));
-            long deadline = System.currentTimeMillis() + 15_000;
-            while (System.currentTimeMillis() < deadline) {
-                for (ConsumerRecord<String, String> rec : consumer.poll(Duration.ofMillis(300))) {
-                    JsonNode e = mapper.readTree(rec.value());
-                    if (e.path("type").asString().equals(type) && e.path("data").path("redemptionId").asString().equals(redemptionId)) {
-                        return e;
-                    }
-                }
-            }
-        }
-        throw new AssertionError("nessun " + type + " per " + redemptionId);
+        return facts().published(published, e -> e.path("type").asString().equals(type)
+                        && e.path("data").path("redemptionId").asString().equals(redemptionId))
+                .stream().findFirst().orElseThrow(() -> new AssertionError("nessun " + type + " per " + redemptionId));
+    }
+
+    private TopicReader facts() {
+        return new TopicReader(jdbc, mapper, "lh.facts.v1");
     }
 
     /** Pubblica un fatto del wallet come figlio di {@code parent} (stessa correlazione), come farebbe il wallet vero. */
@@ -504,6 +507,7 @@ class RedemptionIT {
             producer.send(new ProducerRecord<>("lh.facts.v1", parent.path("subject").asString().replace("member:", ""),
                     mapper.writeValueAsString(event))).get();
         }
+        published.add(id);
         return id;
     }
 

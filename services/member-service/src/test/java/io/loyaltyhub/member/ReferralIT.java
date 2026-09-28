@@ -2,21 +2,24 @@ package io.loyaltyhub.member;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import io.loyaltyhub.common.testsupport.ListenerGroups;
+import io.loyaltyhub.common.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -24,7 +27,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -55,6 +57,12 @@ class ReferralIT {
     @Value("${local.server.port}")
     private int port;
 
+    @Autowired
+    private JdbcClient jdbc;
+
+    @Autowired
+    private KafkaListenerEndpointRegistry listeners;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -62,6 +70,12 @@ class ReferralIT {
         registry.add("spring.datasource.username", () -> "postgres");
         registry.add("spring.datasource.password", () -> "");
         registry.add("spring.kafka.bootstrap-servers", () -> System.getProperty("spring.embedded.kafka.brokers"));
+    }
+
+    /** Si pubblica solo a gruppo {@code lh-member} stabile, con le partizioni assegnate ({@link ListenerGroups}). */
+    @BeforeAll
+    void waitForListenerGroup() {
+        ListenerGroups.awaitStable(listeners);
     }
 
     @AfterAll
@@ -74,11 +88,7 @@ class ReferralIT {
     void firstQualifyingPurchaseCompletesReferralOnce() {
         String first = publishAction("purchase.completed", "MBR-000009", Map.of("orderId", "ORD-REF-1", "amount", 45));
 
-        List<JsonNode> facts;
-        try (KafkaConsumer<String, String> consumer = consumer("ref-check")) {
-            consumer.subscribe(List.of(FACTS));
-            facts = collect(consumer, r -> REFERRAL.equals(readJson(r.value()).path("type").asString()), 2);
-        }
+        List<JsonNode> facts = collect(List.of(first), r -> REFERRAL.equals(readJson(r.value()).path("type").asString()));
         assertThat(facts).hasSize(2);
         Map<String, JsonNode> byRole = new HashMap<>();
         for (JsonNode f : facts) {
@@ -94,10 +104,9 @@ class ReferralIT {
                 .isEqualTo(byRole.get("REFEREE").path("lhcorrelationid").asString());
 
         // Secondo acquisto: il legame è già completato, nessun altro fatto.
-        publishAction("purchase.completed", "MBR-000009", Map.of("orderId", "ORD-REF-2", "amount", 20));
-        try (KafkaConsumer<String, String> consumer = consumer("ref-check-2")) {
-            consumer.subscribe(List.of(FACTS));
-            List<JsonNode> all = collect(consumer, r -> REFERRAL.equals(readJson(r.value()).path("type").asString()), 3);
+        String second = publishAction("purchase.completed", "MBR-000009", Map.of("orderId", "ORD-REF-2", "amount", 20));
+        {
+            List<JsonNode> all = collect(List.of(second), r -> REFERRAL.equals(readJson(r.value()).path("type").asString()));
             assertThat(all).as("nessun terzo referral.completed").hasSize(2);
         }
 
@@ -157,10 +166,9 @@ class ReferralIT {
         patch("/v1/portal/members/MBR-000001",
                 Map.of("version", after.path("version").asLong(), "consents", Map.of("profiling", true)));
 
-        try (KafkaConsumer<String, String> consumer = consumer("profile-check")) {
-            consumer.subscribe(List.of(FACTS));
-            List<JsonNode> all = collect(consumer, r -> r.key().equals("MBR-000001") && readJson(r.value())
-                    .path("type").asString().equals("io.loyaltyhub.fact.member.profile.completed"), 2);
+        {
+            List<JsonNode> all = collect(List.of(), r -> r.key().equals("MBR-000001") && readJson(r.value())
+                    .path("type").asString().equals("io.loyaltyhub.fact.member.profile.completed"));
             assertThat(all).as("member.profile.completed una sola volta").hasSize(1);
         }
         assertThat(get("/v1/portal/members/MBR-000001").path("consents").path("profiling").asBoolean()).isTrue();
@@ -205,18 +213,15 @@ class ReferralIT {
         return id;
     }
 
-    /** Raccoglie i record che combaciano finché ne arrivano {@code max} o scadono 10 s dall'ultimo trovato. */
-    private List<JsonNode> collect(KafkaConsumer<String, String> consumer,
-                                   Predicate<ConsumerRecord<String, String>> match, int max) {
+    /**
+     * Fatti su {@code lh.facts.v1} che soddisfano {@code match}, esatti ({@link TopicReader}): prima il servizio deve aver
+     * elaborato {@code consumedFirst} ({@code processed_event}; vuoto per i fatti di chiamate HTTP già concluse), poi il
+     * topic si legge fino in fondo a outbox svuotato. Un fatto in più resta visibile, uno assente è davvero assente.
+     */
+    private List<JsonNode> collect(List<String> consumedFirst, Predicate<ConsumerRecord<String, String>> match) {
         List<JsonNode> out = new ArrayList<>();
-        long deadline = System.currentTimeMillis() + 15_000;
-        while (System.currentTimeMillis() < deadline && out.size() < max) {
-            for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                if (match.test(r)) {
-                    out.add(readJson(r.value()));
-                    deadline = System.currentTimeMillis() + 6_000;
-                }
-            }
+        for (ConsumerRecord<String, String> r : new TopicReader(jdbc, mapper, FACTS).records(consumedFirst, match)) {
+            out.add(readJson(r.value()));
         }
         return out;
     }
@@ -229,15 +234,6 @@ class ReferralIT {
             assertThat(e.getStatusCode().value()).isEqualTo(status);
             assertThat(e.getResponseBodyAs(JsonNode.class).path("code").asString()).isEqualTo(code);
         }
-    }
-
-    private KafkaConsumer<String, String> consumer(String group) {
-        return new KafkaConsumer<>(Map.of(
-                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, System.getProperty("spring.embedded.kafka.brokers"),
-                ConsumerConfig.GROUP_ID_CONFIG, group,
-                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class));
     }
 
     private JsonNode readJson(String value) {

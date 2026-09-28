@@ -7,15 +7,16 @@ import io.loyaltyhub.campaign.infra.CampaignRepository;
 import io.loyaltyhub.campaign.infra.EvaluationLogRepository;
 import io.loyaltyhub.campaign.infra.EvaluationLogRepository.EvaluationRow;
 import io.loyaltyhub.common.event.JsonSchemaValidator;
+import io.loyaltyhub.common.testsupport.ListenerGroups;
+import io.loyaltyhub.common.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +25,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -32,7 +34,6 @@ import org.springframework.web.client.RestClient;
 
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -76,6 +77,9 @@ class CampaignServiceIT {
     @Autowired
     private io.loyaltyhub.campaign.application.CampaignAdminService admin;
 
+    @Autowired
+    private KafkaListenerEndpointRegistry listeners;
+
     // Martedì e sabato di settembre 2026 (Europe/Rome).
     private static final String TUESDAY = "2026-09-15T09:00:00Z";
     private static final String SATURDAY = "2026-09-19T09:00:00Z";
@@ -87,6 +91,12 @@ class CampaignServiceIT {
         registry.add("spring.datasource.username", () -> "postgres");
         registry.add("spring.datasource.password", () -> "");
         registry.add("spring.kafka.bootstrap-servers", () -> System.getProperty("spring.embedded.kafka.brokers"));
+    }
+
+    /** Si pubblica solo a gruppo {@code lh-campaign} stabile, con le partizioni assegnate ({@link ListenerGroups}). */
+    @BeforeAll
+    void waitForListenerGroup() {
+        ListenerGroups.awaitStable(listeners);
     }
 
     @AfterAll
@@ -208,18 +218,12 @@ class CampaignServiceIT {
         publishAction(id, "purchase.completed", "MBR-000003", TUESDAY,
                 Map.of("orderId", "ORD-1", "amount", 130, "currency", "EUR"));
 
-        try (KafkaConsumer<String, String> consumer = consumer("wd")) {
-            consumer.subscribe(List.of(EFFECTS));
-            JsonNode pts = effect(consumer, id, "PTS");
-            assertThat(pts.path("baseAmount").asLong()).isEqualTo(130);
-            assertThat(pts.path("campaignMultiplier").asDouble()).isEqualTo(1.0);
-            assertThat(pts.path("amount").asLong()).isEqualTo(130);
-            assertThat(pts.path("tierMultiplierApplies").asBoolean()).isTrue();
-        }
-        try (KafkaConsumer<String, String> consumer = consumer("wd2")) {
-            consumer.subscribe(List.of(EFFECTS));
-            assertThat(effect(consumer, id, "STS").path("amount").asLong()).isEqualTo(130);
-        }
+        JsonNode pts = effect(id, "PTS");
+        assertThat(pts.path("baseAmount").asLong()).isEqualTo(130);
+        assertThat(pts.path("campaignMultiplier").asDouble()).isEqualTo(1.0);
+        assertThat(pts.path("amount").asLong()).isEqualTo(130);
+        assertThat(pts.path("tierMultiplierApplies").asBoolean()).isTrue();
+        assertThat(effect(id, "STS").path("amount").asLong()).isEqualTo(130);
     }
 
     @Test
@@ -228,12 +232,9 @@ class CampaignServiceIT {
         publishAction(id, "purchase.completed", "MBR-000007", SATURDAY,
                 Map.of("orderId", "ORD-2", "amount", 130, "currency", "EUR"));
 
-        try (KafkaConsumer<String, String> consumer = consumer("we")) {
-            consumer.subscribe(List.of(EFFECTS));
-            JsonNode pts = effect(consumer, id, "PTS");
-            assertThat(pts.path("campaignMultiplier").asDouble()).isEqualTo(2.0);
-            assertThat(pts.path("amount").asLong()).isEqualTo(260);
-        }
+        JsonNode pts = effect(id, "PTS");
+        assertThat(pts.path("campaignMultiplier").asDouble()).isEqualTo(2.0);
+        assertThat(pts.path("amount").asLong()).isEqualTo(260);
     }
 
     @Test
@@ -254,13 +255,12 @@ class CampaignServiceIT {
         String id = "01BDAY01";
         publishAction(id, "member.birthday", "MBR-000004", TUESDAY, Map.of());
 
-        try (KafkaConsumer<String, String> consumer = consumer("bday")) {
-            consumer.subscribe(List.of(EFFECTS));
-            ConsumerRecord<String, String> rec = poll(consumer, r -> {
+        {
+            ConsumerRecord<String, String> rec = first(effects(List.of(id), r -> {
                 JsonNode e = readJson(r.value());
                 return e.path("type").asString().equals("io.loyaltyhub.effect.message.send")
                         && e.path("data").path("actionId").asString().equals(id);
-            });
+            }));
             assertThat(rec).as("effetto message.send da CMP-BIRTHDAY").isNotNull();
             assertThat(rec.key()).isEqualTo("MBR-000004");
             JsonNode event = readJson(rec.value());
@@ -281,12 +281,9 @@ class CampaignServiceIT {
             assertThat(validator.validate("it-envelope", envelope, event.toString())).isEmpty();
             assertThat(validator.validate("it-message-send", schema, data.toString())).isEmpty();
         }
-        try (KafkaConsumer<String, String> consumer = consumer("bday-pts")) {
-            consumer.subscribe(List.of(EFFECTS));
-            JsonNode pts = effect(consumer, id, "PTS");
-            assertThat(pts.path("amount").asLong()).isEqualTo(250);
-            assertThat(pts.path("campaignCode").asString()).isEqualTo("CMP-BIRTHDAY");
-        }
+        JsonNode pts = effect(id, "PTS");
+        assertThat(pts.path("amount").asLong()).isEqualTo(250);
+        assertThat(pts.path("campaignCode").asString()).isEqualTo("CMP-BIRTHDAY");
         List<JsonNode> rows = pollEvaluations("MBR-000004", 1);
         assertThat(rows.get(0).path("outcome").asString()).isEqualTo("MATCHED");
         assertThat(rows.get(0).path("resultsJson").asString()).contains("SEND_MESSAGE").doesNotContain("EFFECT_NOT_SUPPORTED_YET");
@@ -315,47 +312,31 @@ class CampaignServiceIT {
     @Test
     void surveyGrantsPointsAndAPlay() {
         publishAction("01SURVEY01", "survey.completed", "MBR-000003", TUESDAY, Map.of("surveyId", "SRV-1"));
-        try (KafkaConsumer<String, String> consumer = consumer("plays")) {
-            consumer.subscribe(List.of(EFFECTS));
-            JsonNode plays = null;
-            long deadline = System.currentTimeMillis() + 15_000;
-            while (plays == null && System.currentTimeMillis() < deadline) {
-                for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                    JsonNode e = readJson(r.value());
-                    if (r.key().equals("MBR-000003") && e.path("type").asString().equals("io.loyaltyhub.effect.plays.grant")) {
-                        plays = e.path("data");
-                    }
-                }
-            }
-            assertThat(plays).as("effetto plays.grant da CMP-SURVEY").isNotNull();
-            assertThat(plays.path("contestCode").asString()).isEqualTo("IW-AUTUNNO");
-            assertThat(plays.path("count").asInt()).isEqualTo(1);
-            assertThat(plays.path("campaignCode").asString()).isEqualTo("CMP-SURVEY");
-            assertThat(plays.path("effectId").asString()).hasSize(26);
-        }
+        // Come prima vince l'ultimo plays.grant del membro letto: quello dell'azione appena elaborata.
+        List<ConsumerRecord<String, String>> grants = effects(List.of("01SURVEY01"), r -> r.key().equals("MBR-000003")
+                && readJson(r.value()).path("type").asString().equals("io.loyaltyhub.effect.plays.grant"));
+        JsonNode plays = grants.isEmpty() ? null : readJson(grants.getLast().value()).path("data");
+        assertThat(plays).as("effetto plays.grant da CMP-SURVEY").isNotNull();
+        assertThat(plays.path("contestCode").asString()).isEqualTo("IW-AUTUNNO");
+        assertThat(plays.path("count").asInt()).isEqualTo(1);
+        assertThat(plays.path("campaignCode").asString()).isEqualTo("CMP-SURVEY");
+        assertThat(plays.path("effectId").asString()).hasSize(26);
     }
 
     @Test
     void duplicateActionProducesEffectsOnce() {
         String id = "01DUP01";
-        publishAction(id, "ebill.activated", "MBR-000002", TUESDAY, Map.of("contractId", "CTR-1"));
-        publishAction(id, "ebill.activated", "MBR-000002", TUESDAY, Map.of("contractId", "CTR-1"));
+        RecordMetadata first = publishAction(id, "ebill.activated", "MBR-000002", TUESDAY, Map.of("contractId", "CTR-1"));
+        RecordMetadata again = publishAction(id, "ebill.activated", "MBR-000002", TUESDAY, Map.of("contractId", "CTR-1"));
 
-        try (KafkaConsumer<String, String> consumer = consumer("dup")) {
-            consumer.subscribe(List.of(EFFECTS));
-            int count = 0;
-            long deadline = System.currentTimeMillis() + 8_000;
-            while (System.currentTimeMillis() < deadline) {
-                for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                    JsonNode d = readJson(r.value()).path("data");
-                    if (r.key().equals("MBR-000002") && d.path("currency").asString().equals("PTS")
-                            && d.path("campaignCode").asString().equals("CMP-EBILL")) {
-                        count++;
-                    }
-                }
-            }
-            assertThat(count).as("un solo accredito PTS malgrado il doppio invio").isEqualTo(1);
-        }
+        // Barriera esatta anche per il doppione (stesso id, niente processed_event nuovo): offset confermati oltre i due invii.
+        ListenerGroups.awaitCommitted(listeners, List.of(first, again));
+        int count = effects(List.of(id), r -> {
+            JsonNode d = readJson(r.value()).path("data");
+            return r.key().equals("MBR-000002") && d.path("currency").asString().equals("PTS")
+                    && d.path("campaignCode").asString().equals("CMP-EBILL");
+        }).size();
+        assertThat(count).as("un solo accredito PTS malgrado il doppio invio").isEqualTo(1);
     }
 
     @Test
@@ -574,15 +555,15 @@ class CampaignServiceIT {
         assertThat(admin.endExpired(java.time.Instant.parse(endAt))).isZero();
         assertThat(send("GET", "/v1/campaigns/" + live, "ANALYST:sara", null, 200).path("status").asString()).isEqualTo("LIVE");
 
-        try (KafkaConsumer<String, String> consumer = consumer("end-job")) {
-            consumer.subscribe(List.of("lh.facts.v1"));
+        {
             assertThat(admin.endExpired(java.time.Instant.parse("2020-01-31T23:00:01Z"))).isEqualTo(2);
-            ConsumerRecord<String, String> fact = poll(consumer, r -> {
+            // Il job ha già fatto commit: basta leggere lh.facts.v1 fino in fondo a outbox svuotato.
+            ConsumerRecord<String, String> fact = first(new TopicReader(jdbc, mapper, "lh.facts.v1").records(List.of(), r -> {
                 JsonNode e = readJson(r.value());
                 return e.path("type").asString().equals("io.loyaltyhub.fact.campaign.status.changed")
                         && e.path("data").path("campaignCode").asString().equals("CMP-IT-END-PAUSED")
                         && e.path("data").path("newStatus").asString().equals("ENDED");
-            });
+            }));
             assertThat(fact).as("campaign.status.changed della fine automatica").isNotNull();
             JsonNode event = readJson(fact.value());
             assertThat(event.path("data").path("previousStatus").asString()).isEqualTo("PAUSED");
@@ -712,11 +693,12 @@ class CampaignServiceIT {
         return stats;
     }
 
-    private JsonNode effect(KafkaConsumer<String, String> consumer, String actionId, String currency) {
-        ConsumerRecord<String, String> rec = poll(consumer, r -> {
+    /** Effetto {@code currency} dell'azione {@code actionId}, letto dopo che il motore l'ha elaborata. */
+    private JsonNode effect(String actionId, String currency) {
+        ConsumerRecord<String, String> rec = first(effects(List.of(actionId), r -> {
             JsonNode d = readJson(r.value()).path("data");
             return d.path("actionId").asString().equals(actionId) && d.path("currency").asString().equals(currency);
-        });
+        }));
         assertThat(rec).as("effetto " + currency + " per " + actionId).isNotNull();
         return readJson(rec.value()).path("data");
     }
@@ -779,7 +761,7 @@ class CampaignServiceIT {
         return r.path("matched").asBoolean() ? "MATCHED" : r.path("reason").asString();
     }
 
-    private void publishFact(String type, String memberId, Map<String, Object> data) {
+    private RecordMetadata publishFact(String type, String memberId, Map<String, Object> data) {
         String id = "fact-" + System.nanoTime();
         Map<String, Object> event = Map.of(
                 "specversion", "1.0", "id", id, "source", "urn:loyaltyhub:service:member",
@@ -788,13 +770,13 @@ class CampaignServiceIT {
         try (KafkaProducer<String, String> producer = new KafkaProducer<>(Map.of(
                 "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
                 "key.serializer", StringSerializer.class, "value.serializer", StringSerializer.class))) {
-            producer.send(new ProducerRecord<>("lh.facts.v1", memberId, mapper.writeValueAsString(event))).get();
+            return producer.send(new ProducerRecord<>("lh.facts.v1", memberId, mapper.writeValueAsString(event))).get();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    private void publishAction(String id, String shortType, String memberId, String time, Map<String, Object> data) {
+    private RecordMetadata publishAction(String id, String shortType, String memberId, String time, Map<String, Object> data) {
         Map<String, Object> event = Map.of(
                 "specversion", "1.0", "id", id, "source", "urn:loyaltyhub:source:ecommerce",
                 "type", "io.loyaltyhub.action." + shortType, "subject", "member:" + memberId,
@@ -802,7 +784,7 @@ class CampaignServiceIT {
         try (KafkaProducer<String, String> producer = new KafkaProducer<>(Map.of(
                 "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
                 "key.serializer", StringSerializer.class, "value.serializer", StringSerializer.class))) {
-            producer.send(new ProducerRecord<>("lh.actions.v1", memberId, mapper.writeValueAsString(event))).get();
+            return producer.send(new ProducerRecord<>("lh.actions.v1", memberId, mapper.writeValueAsString(event))).get();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -846,26 +828,19 @@ class CampaignServiceIT {
         return RestClient.create("http://localhost:" + port);
     }
 
-    private KafkaConsumer<String, String> consumer(String group) {
-        return new KafkaConsumer<>(Map.of(
-                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, System.getProperty("spring.embedded.kafka.brokers"),
-                ConsumerConfig.GROUP_ID_CONFIG, group,
-                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class));
+    /**
+     * Effetti su {@code lh.effects.v1} che soddisfano {@code match}, esatti ({@link TopicReader}): prima il motore deve
+     * aver elaborato le azioni {@code consumedFirst} ({@code processed_event}), poi il topic si legge fino in fondo a
+     * outbox svuotato. Nessuna finestra di tempo: un doppione resta visibile, un effetto assente è davvero assente.
+     */
+    private List<ConsumerRecord<String, String>> effects(List<String> consumedFirst,
+                                                         Predicate<ConsumerRecord<String, String>> match) {
+        return new TopicReader(jdbc, mapper, EFFECTS).records(consumedFirst, match);
     }
 
-    private ConsumerRecord<String, String> poll(KafkaConsumer<String, String> consumer,
-                                                Predicate<ConsumerRecord<String, String>> match) {
-        long deadline = System.currentTimeMillis() + 15_000;
-        while (System.currentTimeMillis() < deadline) {
-            for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                if (match.test(r)) {
-                    return r;
-                }
-            }
-        }
-        return null;
+    /** Il primo record nell'ordine del topic, {@code null} se non ce n'è. */
+    private static ConsumerRecord<String, String> first(List<ConsumerRecord<String, String>> records) {
+        return records.isEmpty() ? null : records.getFirst();
     }
 
     private JsonNode readJson(String value) {

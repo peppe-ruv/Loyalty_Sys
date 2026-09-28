@@ -3,18 +3,18 @@ package io.loyaltyhub.ingestion;
 import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhEventTypes;
 import io.loyaltyhub.common.ids.Ulid;
+import io.loyaltyhub.common.testsupport.ListenerGroups;
+import io.loyaltyhub.common.testsupport.TopicReader;
 import io.loyaltyhub.ingestion.domain.Source;
 import io.loyaltyhub.ingestion.infra.MemberIndexRepository;
 import io.loyaltyhub.ingestion.infra.SourceRepository;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -31,7 +32,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -79,6 +79,13 @@ class UnmatchedResolutionIT {
     @Autowired private MemberIndexRepository members;
     @Autowired private SourceRepository sources;
     @Autowired private JdbcClient jdbc;
+    @Autowired private KafkaListenerEndpointRegistry listeners;
+
+    /** Si pubblica solo a gruppo {@code lh-ingestion} stabile, con le partizioni assegnate ({@link ListenerGroups}). */
+    @BeforeAll
+    void waitForListenerGroup() {
+        ListenerGroups.awaitStable(listeners);
+    }
 
     // ---------- abbina (manuale) ----------
 
@@ -90,8 +97,7 @@ class UnmatchedResolutionIT {
                 .isEqualTo("UNMATCHED");
         String rowId = rowIdOf(eventId);
 
-        try (KafkaConsumer<String, String> actions = consumer("lh.actions.v1");
-             KafkaConsumer<String, String> audit = consumer("lh.audit.v1")) {
+        {
             // Sola lettura e ruoli senza inbound.handle → 403.
             assertThat(call("POST", "/v1/inbound-events/" + rowId + "/match", "ANALYST:anna", Map.of("memberId", memberId)).status)
                     .isEqualTo(403);
@@ -116,7 +122,8 @@ class UnmatchedResolutionIT {
             assertThat(retry.status).isEqualTo(409);
             assertThat(retry.body.path("code").asString()).isEqualTo("INBOUND_NOT_RETRYABLE");
 
-            List<JsonNode> published = collect(actions, r -> r.value().contains(eventId), Duration.ofSeconds(6));
+            // Le chiamate hanno risposto: nessun evento da attendere, il topic si legge fino in fondo a outbox svuotato.
+            List<JsonNode> published = collect("lh.actions.v1", List.of(), r -> r.value().contains(eventId));
             assertThat(published).as("una sola azione pubblicata").hasSize(1);
             JsonNode action = published.getFirst();
             assertThat(action.path("id").asString()).isEqualTo(eventId);
@@ -124,7 +131,7 @@ class UnmatchedResolutionIT {
             assertThat(action.path("lhcorrelationid").asString()).isEqualTo(eventId);
             assertThat(action.path("lhhop").asInt()).isZero();
 
-            ConsumerRecord<String, String> entry = poll(audit, r -> r.key().equals("inbound_event:" + rowId), Duration.ofSeconds(15));
+            ConsumerRecord<String, String> entry = first("lh.audit.v1", List.of(), r -> r.key().equals("inbound_event:" + rowId));
             assertThat(entry).as("voce di audit dell'abbinamento").isNotNull();
             JsonNode e = mapper.readTree(entry.value());
             assertThat(e.path("lhactor").asString()).isEqualTo("CARE:carla.care");
@@ -169,7 +176,7 @@ class UnmatchedResolutionIT {
         assertThat(first.path("rejectCode").asString()).isEqualTo("SOURCE_DISABLED");
         String rowId = rowIdOf(eventId);
 
-        try (KafkaConsumer<String, String> actions = consumer("lh.actions.v1")) {
+        {
             // Fonte ancora disabilitata: resta respinto (stesso esito), nulla pubblicato.
             Response still = call("POST", "/v1/inbound-events/" + rowId + "/retry", "CARE:carla.care", null);
             assertThat(still.status).isEqualTo(200);
@@ -189,7 +196,7 @@ class UnmatchedResolutionIT {
             assertThat(postEvent(purchase(eventId, "member:" + memberId, sourceCode)).path("status").asString())
                     .isEqualTo("DUPLICATE");
 
-            List<JsonNode> published = collect(actions, r -> r.value().contains(eventId), Duration.ofSeconds(6));
+            List<JsonNode> published = collect("lh.actions.v1", List.of(), r -> r.value().contains(eventId));
             assertThat(published).as("una sola azione malgrado i tentativi").hasSize(1);
             assertThat(published.getFirst().path("source").asString()).isEqualTo("urn:loyaltyhub:source:" + sourceCode);
         }
@@ -217,7 +224,7 @@ class UnmatchedResolutionIT {
         assertThat(postEvent(purchase(eventId, "email:" + email, "ecommerce")).path("status").asString()).isEqualTo("UNMATCHED");
         String rowId = rowIdOf(eventId);
 
-        try (KafkaConsumer<String, String> actions = consumer("lh.actions.v1")) {
+        {
             LhEvent<JsonNode> registered = fact(LhEventTypes.Fact.MEMBER_REGISTERED, memberId,
                     Map.of("email", email.toLowerCase(), "externalId", "CRM-IT-" + n, "status", "ACTIVE"));
             publish(registered);
@@ -236,8 +243,9 @@ class UnmatchedResolutionIT {
             publish(again);
             waitFor(() -> processed(again.id()) == 1);
 
-            List<JsonNode> published = collect(actions,
-                    r -> r.value().contains(eventId) && r.value().contains("purchase.completed"), Duration.ofSeconds(6));
+            // Barriera esatta: il secondo member.registered (stessa partizione) è elaborato dopo la riconsegna del primo.
+            List<JsonNode> published = collect("lh.actions.v1", List.of(registered.id(), again.id()),
+                    r -> r.value().contains(eventId) && r.value().contains("purchase.completed"));
             assertThat(published).as("una sola azione per l'evento abbinato").hasSize(1);
             assertThat(published.getFirst().path("subject").asString()).isEqualTo("member:" + memberId);
         }
@@ -384,41 +392,29 @@ class UnmatchedResolutionIT {
         }
     }
 
-    private KafkaConsumer<String, String> consumer(String topic) {
-        KafkaConsumer<String, String> c = new KafkaConsumer<>(Map.of(
-                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, System.getProperty("spring.embedded.kafka.brokers"),
-                ConsumerConfig.GROUP_ID_CONFIG, "it-unmatched-" + topic + "-" + System.nanoTime(),
-                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class));
-        c.subscribe(List.of(topic));
-        return c;
+    /**
+     * Record di {@code topic} che soddisfano {@code match}, esatti ({@link TopicReader}): prima il servizio deve aver
+     * elaborato {@code consumedFirst} ({@code processed_event}), poi il topic si legge fino in fondo a outbox svuotato,
+     * senza consumer group né finestra di tempo. Un doppione resta visibile, un record assente è davvero assente.
+     */
+    private List<ConsumerRecord<String, String>> records(String topic, List<String> consumedFirst,
+                                                         Predicate<ConsumerRecord<String, String>> match) {
+        return new TopicReader(jdbc, mapper, topic).records(consumedFirst, match);
     }
 
-    private ConsumerRecord<String, String> poll(KafkaConsumer<String, String> consumer,
-                                                Predicate<ConsumerRecord<String, String>> match, Duration timeout) {
-        long deadline = System.currentTimeMillis() + timeout.toMillis();
-        while (System.currentTimeMillis() < deadline) {
-            for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                if (match.test(r)) {
-                    return r;
-                }
-            }
-        }
-        return null;
+    /** Il primo record che soddisfa {@code match} nell'ordine del topic, {@code null} se non ce n'è. */
+    private ConsumerRecord<String, String> first(String topic, List<String> consumedFirst,
+                                                 Predicate<ConsumerRecord<String, String>> match) {
+        List<ConsumerRecord<String, String>> found = records(topic, consumedFirst, match);
+        return found.isEmpty() ? null : found.getFirst();
     }
 
-    /** Tutti i record che soddisfano {@code match} entro {@code window} (per contare le pubblicazioni). */
-    private List<JsonNode> collect(KafkaConsumer<String, String> consumer,
-                                   Predicate<ConsumerRecord<String, String>> match, Duration window) {
+    /** Tutti i record che soddisfano {@code match}, come eventi (per contare le pubblicazioni). */
+    private List<JsonNode> collect(String topic, List<String> consumedFirst,
+                                   Predicate<ConsumerRecord<String, String>> match) {
         List<JsonNode> out = new ArrayList<>();
-        long deadline = System.currentTimeMillis() + window.toMillis();
-        while (System.currentTimeMillis() < deadline) {
-            for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                if (match.test(r)) {
-                    out.add(mapper.readTree(r.value()));
-                }
-            }
+        for (ConsumerRecord<String, String> r : records(topic, consumedFirst, match)) {
+            out.add(mapper.readTree(r.value()));
         }
         return out;
     }

@@ -1,5 +1,7 @@
 package io.loyaltyhub.engagement;
 
+import io.loyaltyhub.common.testsupport.ListenerGroups;
+import io.loyaltyhub.common.testsupport.TopicReader;
 import io.loyaltyhub.engagement.TestbookApi.Resp;
 import io.loyaltyhub.engagement.application.ContentService;
 import io.loyaltyhub.engagement.application.EngagementJobs;
@@ -7,6 +9,7 @@ import io.loyaltyhub.engagement.application.WebhookService;
 import io.loyaltyhub.engagement.infra.InboxRepository;
 import io.loyaltyhub.engagement.infra.PopupViewRepository;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -86,6 +90,9 @@ class TestbookEngMessagingIT {
     @Autowired
     private WebhookService webhooks;
 
+    @Autowired
+    private KafkaListenerEndpointRegistry listeners;
+
     private TestbookApi api;
     private final AtomicInteger seq = new AtomicInteger();
 
@@ -101,6 +108,8 @@ class TestbookEngMessagingIT {
 
     @BeforeAll
     void setUp() {
+        // Si pubblica solo a gruppo lh-engagement stabile, con le partizioni assegnate (ListenerGroups).
+        ListenerGroups.awaitStable(listeners);
         api = new TestbookApi(port, jdbc);
         template("MSG-TB-RUL", "INAPP", "Regola {{data.kind}}", "Ciao {{member.firstName}}");
         rule("NR-TB-NONE-ON", RUL_TYPES.get("NONE/ON"), null, true);
@@ -367,13 +376,14 @@ class TestbookEngMessagingIT {
         String tpl = template(code("MSG"), "INAPP", "Sentinella", "Testo");
         String m = member("ACTIVE", "Anna");
         String bad = eventId();
-        api.publish(EFFECTS, m, TestbookApi.event(bad, SEND, m, Map.of("effectId", "EFF-" + bad, "templateCode", "MSG-NON-ESISTE")));
+        RecordMetadata badSent = api.publish(EFFECTS, m,
+                TestbookApi.event(bad, SEND, m, Map.of("effectId", "EFF-" + bad, "templateCode", "MSG-NON-ESISTE")));
         String ok = eventId();
         api.publish(EFFECTS, m, TestbookApi.event(ok, SEND, m, Map.of("effectId", "EFF-" + ok, "templateCode", tpl)));
         api.awaitProcessed(ok);
         assertThat(messages(m, "EFF-" + bad)).isZero();
         assertThat(messages(m, "EFF-" + ok)).isEqualTo(1);
-        assertThat(dlqErrorCode(bad)).isEqualTo("TEMPLATE_NOT_FOUND");
+        assertThat(dlqErrorCode(badSent, bad)).isEqualTo("TEMPLATE_NOT_FOUND");
     }
 
     @Test
@@ -384,8 +394,8 @@ class TestbookEngMessagingIT {
         String bad = eventId();
         Map<String, Object> e = TestbookApi.event(bad, SEND, "X", Map.of("effectId", "EFF-" + bad, "templateCode", tpl));
         e.put("subject", "campaign:CMP-TB");
-        api.publish(EFFECTS, "CMP-TB", e);
-        assertThat(dlqErrorCode(bad)).isEqualTo("INVALID_EFFECT");
+        RecordMetadata badSent = api.publish(EFFECTS, "CMP-TB", e);
+        assertThat(dlqErrorCode(badSent, bad)).isEqualTo("INVALID_EFFECT");
         assertThat(api.count("SELECT count(*) FROM inbox_message WHERE source_event_id = ?", "EFF-" + bad)).isZero();
     }
 
@@ -1019,25 +1029,20 @@ class TestbookEngMessagingIT {
                 .query((rs, n) -> TestbookApi.MAPPER.readTree(rs.getString("p"))).list();
     }
 
-    /** Codice d'errore ({@code lh-error-code}) del record in DLQ per l'evento, atteso con scadenza. */
-    private String dlqErrorCode(String eventId) {
-        try (org.apache.kafka.clients.consumer.KafkaConsumer<String, String> consumer = new org.apache.kafka.clients.consumer.KafkaConsumer<>(
-                Map.of("bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
-                        "group.id", "tb-eng-dlq-" + java.util.UUID.randomUUID(), "auto.offset.reset", "earliest",
-                        "key.deserializer", org.apache.kafka.common.serialization.StringDeserializer.class,
-                        "value.deserializer", org.apache.kafka.common.serialization.StringDeserializer.class))) {
-            consumer.subscribe(List.of("lh.dlq.v1"));
-            long deadline = System.currentTimeMillis() + 20_000;
-            while (System.currentTimeMillis() < deadline) {
-                for (var r : consumer.poll(Duration.ofMillis(300))) {
-                    if (r.value() != null && r.value().contains(eventId)) {
-                        var h = r.headers().lastHeader("lh-error-code");
-                        return h == null ? null : new String(h.value(), java.nio.charset.StandardCharsets.UTF_8);
-                    }
-                }
-            }
+    /**
+     * Codice d'errore ({@code lh-error-code}) del record in DLQ per l'evento. Barriera esatta: il gruppo ha confermato
+     * l'offset oltre il record pubblicato (dopo la pubblicazione in DLQ, {@code commitRecovered}), poi {@code lh.dlq.v1} si
+     * legge fino in fondo senza consumer group ({@link TopicReader}).
+     */
+    private String dlqErrorCode(RecordMetadata sent, String eventId) {
+        ListenerGroups.awaitCommitted(listeners, List.of(sent));
+        var dead = new TopicReader(jdbc, TestbookApi.MAPPER, "lh.dlq.v1")
+                .records(List.of(), r -> r.value() != null && r.value().contains(eventId));
+        if (dead.isEmpty()) {
+            throw new AssertionError("nessun record in DLQ per " + eventId);
         }
-        throw new AssertionError("nessun record in DLQ per " + eventId);
+        var h = dead.getFirst().headers().lastHeader("lh-error-code");
+        return h == null ? null : new String(h.value(), java.nio.charset.StandardCharsets.UTF_8);
     }
 
     private void publishAndWait(String memberId, String type, Map<String, Object> data) {

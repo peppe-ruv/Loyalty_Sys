@@ -495,8 +495,8 @@ class TestbookRwdSagaIT extends TestbookRwdBase {
         String eventId = publishFact(type, memberId, null, Map.of("redemptionId", unknown, "reason", "INSUFFICIENT_BALANCE",
                 "currency", "PTS", "amount", 500));
         awaitProcessed(eventId);
-        drainOutbox();
-        assertThat(tap().matching("lh.dlq.v1", r -> r.event().toString().contains(eventId))).isEmpty();
+        // Elaborato con successo (processed_event): nessuna DLQ possibile; lh.dlq.v1 letto fino in fondo.
+        assertThat(matching("lh.dlq.v1", List.of(eventId), r -> r.event().toString().contains(eventId))).isEmpty();
         assertThat(send("GET", "/v1/redemptions/" + unknown, null, null).status()).isEqualTo(404);
     }
 

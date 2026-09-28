@@ -1,10 +1,8 @@
 package io.loyaltyhub.ingestion;
 
+import io.loyaltyhub.common.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -20,9 +18,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
-import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -160,31 +156,17 @@ abstract class ImportsItSupport {
         return event;
     }
 
-    protected List<ConsumerRecord<String, String>> drain(String group, Predicate<ConsumerRecord<String, String>> match) {
-        return drain(group, ACTIONS, match);
+    protected List<ConsumerRecord<String, String>> drain(Predicate<ConsumerRecord<String, String>> match) {
+        return drain(ACTIONS, match);
     }
 
-    /** Tutti i record del topic che soddisfano {@code match}, leggendo il topic dall'inizio per 8 secondi. */
-    protected List<ConsumerRecord<String, String>> drain(String group, String topic,
-                                                       Predicate<ConsumerRecord<String, String>> match) {
-        List<ConsumerRecord<String, String>> out = new ArrayList<>();
-        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(Map.of(
-                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, System.getProperty("spring.embedded.kafka.brokers"),
-                ConsumerConfig.GROUP_ID_CONFIG, group,
-                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class))) {
-            consumer.subscribe(List.of(topic));
-            long deadline = System.currentTimeMillis() + 8_000;
-            while (System.currentTimeMillis() < deadline) {
-                for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                    if (match.test(r)) {
-                        out.add(r);
-                    }
-                }
-            }
-        }
-        return out;
+    /**
+     * Tutti i record del topic che soddisfano {@code match}, esatti ({@link TopicReader}): le chiamate e i lavori
+     * attesi dal test hanno già fatto commit, quindi basta leggere il topic dall'inizio fino in fondo a outbox svuotato,
+     * senza consumer group né finestra di tempo. Un doppione resta visibile, un record assente è davvero assente.
+     */
+    protected List<ConsumerRecord<String, String>> drain(String topic, Predicate<ConsumerRecord<String, String>> match) {
+        return new TopicReader(jdbc, mapper, topic).records(List.of(), match);
     }
 
     protected JsonNode readJson(String value) {

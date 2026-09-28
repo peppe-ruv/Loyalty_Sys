@@ -1,13 +1,14 @@
 package io.loyaltyhub.reward;
 
+import io.loyaltyhub.common.testsupport.ListenerGroups;
+import io.loyaltyhub.common.testsupport.TopicReader;
 import io.loyaltyhub.reward.infra.MemberSnapshotRepository;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.header.Header;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,9 +37,11 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -68,7 +71,9 @@ abstract class TestbookRwdBase {
     static final Map<String, Object> ADDRESS = Map.of("name", "Membro Test", "street", "Via Roma 1", "city", "Torino", "zip", "10100");
 
     private static final AtomicInteger SEQ = new AtomicInteger();
-    private static volatile Tap tap;
+
+    /** Record pubblicati dai casi per id dell'evento, per la barriera sugli offset ({@link #awaitHandled}). */
+    private final Map<String, List<RecordMetadata>> sent = new ConcurrentHashMap<>();
 
     final ObjectMapper mapper = new ObjectMapper();
 
@@ -87,13 +92,14 @@ abstract class TestbookRwdBase {
     /**
      * I due listener di reward (effetti e fatti) stanno nello stesso gruppo {@code lh-reward}: se un caso pubblica
      * prima che entrambi siano entrati, l'ingresso del secondo ribilancia il gruppo a metà elaborazione e un effetto
-     * non ritentabile finisce due volte in DLQ (TB-RWD-EFF-004…007). Si parte solo a gruppo stabile.
+     * non ritentabile finisce due volte in DLQ (TB-RWD-EFF-004…007). Si parte solo a gruppo stabile: ogni consumer dei
+     * container è membro, il coordinator lo vede {@code STABLE} e ogni container ha applicato la sua assegnazione
+     * ({@link ListenerGroups}; {@code ContainerTestUtils.waitForAssignment} si sbloccava al primo consumer assegnato,
+     * prima del ribilanciamento dei ritardatari).
      */
     @org.junit.jupiter.api.BeforeAll
     void waitForListenerAssignments() {
-        for (var container : listeners.getListenerContainers()) {
-            org.springframework.kafka.test.utils.ContainerTestUtils.waitForAssignment(container, 1);
-        }
+        ListenerGroups.awaitStable(listeners);
     }
 
     @DynamicPropertySource
@@ -300,11 +306,12 @@ abstract class TestbookRwdBase {
         return eventId;
     }
 
-    void produce(String topic, String key, Object event) {
+    void produce(String topic, String key, Map<String, Object> event) {
         try (KafkaProducer<String, String> producer = new KafkaProducer<>(Map.of(
                 "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
                 "key.serializer", StringSerializer.class, "value.serializer", StringSerializer.class))) {
-            producer.send(new ProducerRecord<>(topic, key, mapper.writeValueAsString(event))).get();
+            RecordMetadata record = producer.send(new ProducerRecord<>(topic, key, mapper.writeValueAsString(event))).get();
+            sent.computeIfAbsent(String.valueOf(event.get("id")), id -> new CopyOnWriteArrayList<>()).add(record);
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
@@ -324,76 +331,55 @@ abstract class TestbookRwdBase {
         throw new AssertionError("evento non elaborato: " + eventId);
     }
 
-    /** Record ricevuti su {@code lh.facts.v1} e {@code lh.dlq.v1} da un consumer unico per l'intera esecuzione. */
-    static Tap tap() {
-        if (tap == null) {
-            synchronized (TestbookRwdBase.class) {
-                if (tap == null) {
-                    tap = new Tap();
-                }
-            }
+    /**
+     * Barriera di elaborazione per ogni invio dell'evento {@code eventId} (anche un doppione con lo stesso id, un effetto
+     * finito in DLQ): il gruppo {@code lh-reward} ha confermato l'offset oltre ciascuno ({@link ListenerGroups}).
+     */
+    void awaitHandled(String eventId) {
+        List<RecordMetadata> records = sent.get(eventId);
+        if (records == null) {
+            throw new AssertionError("evento mai pubblicato dal caso: " + eventId);
         }
-        return tap;
+        ListenerGroups.awaitCommitted(listeners, records);
     }
 
     record Rec(String topic, JsonNode event, Map<String, String> headers) {
     }
 
-    static final class Tap {
-        final List<Rec> records = new CopyOnWriteArrayList<>();
-        private final ObjectMapper om = new ObjectMapper();
-
-        Tap() {
-            Thread t = new Thread(this::run, "testbook-rwd-tap");
-            t.setDaemon(true);
-            t.start();
-        }
-
-        private void run() {
-            try (KafkaConsumer<String, String> c = new KafkaConsumer<>(Map.of(
-                    "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
-                    "group.id", "testbook-rwd-" + System.nanoTime(), "auto.offset.reset", "earliest",
-                    "key.deserializer", StringDeserializer.class, "value.deserializer", StringDeserializer.class))) {
-                c.subscribe(List.of("lh.facts.v1", "lh.dlq.v1"));
-                while (true) {
-                    for (ConsumerRecord<String, String> r : c.poll(Duration.ofMillis(100))) {
-                        Map<String, String> h = new LinkedHashMap<>();
-                        for (Header header : r.headers()) {
-                            h.put(header.key(), header.value() == null ? null : new String(header.value(), StandardCharsets.UTF_8));
-                        }
-                        JsonNode e;
-                        try {
-                            e = om.readTree(r.value());
-                        } catch (Exception ex) {
-                            e = om.createObjectNode().put("raw", r.value());
-                        }
-                        records.add(new Rec(r.topic(), e, h));
-                    }
-                }
+    /**
+     * Record di {@code topic} che soddisfano {@code p}, esatti ({@link TopicReader}): prima il servizio deve aver
+     * elaborato {@code consumedFirst} ({@code processed_event}; vuoto per chiamate HTTP concluse o dopo
+     * {@link #awaitHandled}), poi il topic si legge dall'inizio fino in fondo a outbox svuotato, senza consumer group né
+     * finestra di tempo. Un doppione resta visibile, un record assente è davvero assente.
+     */
+    List<Rec> matching(String topic, Collection<String> consumedFirst, Predicate<Rec> p) {
+        List<Rec> out = new ArrayList<>();
+        for (ConsumerRecord<String, String> r : new TopicReader(jdbc, mapper, topic).records(consumedFirst, r -> true)) {
+            Map<String, String> h = new LinkedHashMap<>();
+            for (Header header : r.headers()) {
+                h.put(header.key(), header.value() == null ? null : new String(header.value(), StandardCharsets.UTF_8));
+            }
+            JsonNode e;
+            try {
+                e = mapper.readTree(r.value());
+            } catch (Exception ex) {
+                e = mapper.createObjectNode().put("raw", r.value());
+            }
+            Rec rec = new Rec(r.topic(), e, h);
+            if (p.test(rec)) {
+                out.add(rec);
             }
         }
+        return out;
+    }
 
-        List<Rec> matching(String topic, Predicate<Rec> p) {
-            List<Rec> out = new ArrayList<>();
-            for (Rec r : records) {
-                if (r.topic().equals(topic) && p.test(r)) {
-                    out.add(r);
-                }
-            }
-            return out;
-        }
-
-        Rec await(String topic, Predicate<Rec> p) {
-            long deadline = System.currentTimeMillis() + 15_000;
-            while (System.currentTimeMillis() < deadline) {
-                List<Rec> m = matching(topic, p);
-                if (!m.isEmpty()) {
-                    return m.get(0);
-                }
-                pause(20);
-            }
+    /** Il primo record di {@link #matching}; fallisce se non ce n'è. */
+    Rec await(String topic, Collection<String> consumedFirst, Predicate<Rec> p) {
+        List<Rec> m = matching(topic, consumedFirst, p);
+        if (m.isEmpty()) {
             throw new AssertionError("nessun record su " + topic + " che soddisfi la condizione");
         }
+        return m.get(0);
     }
 
     /**
@@ -428,22 +414,8 @@ abstract class TestbookRwdBase {
     }
 
     JsonNode awaitFact(String type, String redemptionId) {
-        return tap().await("lh.facts.v1", r -> type.equals(r.event().path("type").asString())
+        return await("lh.facts.v1", List.of(), r -> type.equals(r.event().path("type").asString())
                 && redemptionId.equals(r.event().path("data").path("redemptionId").asString())).event();
-    }
-
-    /** Attende che l'outbox sia vuoto (tutti i fatti scritti finora sono su Kafka) e che il tap li abbia letti. */
-    void drainOutbox() {
-        long deadline = System.currentTimeMillis() + 15_000;
-        while (System.currentTimeMillis() < deadline) {
-            long pending = jdbc.sql("SELECT count(*) FROM outbox WHERE published_at IS NULL").query(Long.class).single();
-            if (pending == 0) {
-                pause(250);
-                return;
-            }
-            pause(50);
-        }
-        throw new AssertionError("outbox non svuotato");
     }
 
     // ---------- HTTP ----------

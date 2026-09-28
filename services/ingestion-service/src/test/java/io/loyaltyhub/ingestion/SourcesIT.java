@@ -1,16 +1,16 @@
 package io.loyaltyhub.ingestion;
 
+import io.loyaltyhub.common.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -19,7 +19,6 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -46,6 +45,9 @@ class SourcesIT {
     @Value("${local.server.port}")
     private int port;
 
+    @Autowired
+    private JdbcClient jdbc;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -71,12 +73,11 @@ class SourcesIT {
 
         assertThat(send("POST", "/v1/events", null, purchase("SRC-ON-1"), 202).path("status").asString()).isEqualTo("ACCEPTED");
 
-        try (KafkaConsumer<String, String> audit = consumer("sources-audit")) {
-            audit.subscribe(List.of("lh.audit.v1"));
+        {
             JsonNode updated = send("PUT", "/v1/sources/ecommerce", ADMIN, off, 200);
             assertThat(updated.path("enabled").asBoolean()).isFalse();
             assertThat(updated.path("allowedTypes").toString()).contains("purchase.completed");
-            ConsumerRecord<String, String> entry = poll(audit, r -> r.key().equals("source:ecommerce"));
+            ConsumerRecord<String, String> entry = firstAudit(r -> r.key().equals("source:ecommerce"));
             assertThat(entry).as("voce di audit della fonte").isNotNull();
             assertThat(entry.value()).contains("ADMIN:marta.admin", "Disabilitata la fonte ecommerce");
         }
@@ -150,26 +151,13 @@ class SourcesIT {
         });
     }
 
-    private KafkaConsumer<String, String> consumer(String group) {
-        return new KafkaConsumer<>(Map.of(
-                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, System.getProperty("spring.embedded.kafka.brokers"),
-                ConsumerConfig.GROUP_ID_CONFIG, group,
-                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class));
-    }
-
-    private static ConsumerRecord<String, String> poll(KafkaConsumer<String, String> consumer,
-                                                       java.util.function.Predicate<ConsumerRecord<String, String>> match) {
-        long deadline = System.currentTimeMillis() + 15_000;
-        while (System.currentTimeMillis() < deadline) {
-            for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                if (match.test(r)) {
-                    return r;
-                }
-            }
-        }
-        return null;
+    /**
+     * La prima voce di {@code lh.audit.v1} che soddisfa {@code match}, esatta ({@link TopicReader}): la chiamata ha già
+     * risposto, quindi basta leggere il topic fino in fondo a outbox svuotato. {@code null} se non ce n'è.
+     */
+    private ConsumerRecord<String, String> firstAudit(java.util.function.Predicate<ConsumerRecord<String, String>> match) {
+        List<ConsumerRecord<String, String>> found = new TopicReader(jdbc, mapper, "lh.audit.v1").records(List.of(), match);
+        return found.isEmpty() ? null : found.getFirst();
     }
 
     private static EmbeddedPostgres startPg() {

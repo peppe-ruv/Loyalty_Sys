@@ -99,7 +99,7 @@ class ImportsIT extends ImportsItSupport {
         assertThat(inboundCount("batch-unm-1")).isEqualTo(1);
         assertThat(inboundCount("batch-inv-1")).isZero();
 
-        List<ConsumerRecord<String, String>> published = drain("batch-check", r -> r.value().contains("\"batch-"));
+        List<ConsumerRecord<String, String>> published = drain(r -> r.value().contains("\"batch-"));
         assertThat(published).extracting(ConsumerRecord::key).containsExactly("MBR-000002");
         assertThat(readJson(published.getFirst().value()).path("id").asString()).isEqualTo("batch-ok-1");
     }
@@ -167,7 +167,7 @@ class ImportsIT extends ImportsItSupport {
         assertThat(inbound.path("origin").asString()).isEqualTo("IMPORT");
 
         // Pubblicato una sola volta, con la fonte predefinita del lavoro.
-        List<ConsumerRecord<String, String>> published = drain("import-check", r -> r.value().contains("\"imp-"));
+        List<ConsumerRecord<String, String>> published = drain(r -> r.value().contains("\"imp-"));
         assertThat(published).hasSize(1);
         JsonNode action = readJson(published.getFirst().value());
         assertThat(action.path("id").asString()).isEqualTo("imp-ok-1");
@@ -175,7 +175,7 @@ class ImportsIT extends ImportsItSupport {
         assertThat(action.path("data").path("amount").asInt()).isEqualTo(130);
 
         // Audit: caricamento con l'attore reale e fine lavoro come job, solo conteggi (mai il contenuto).
-        List<ConsumerRecord<String, String>> audit = drain("import-audit", "lh.audit.v1", r -> r.key().equals("import:" + id));
+        List<ConsumerRecord<String, String>> audit = drain("lh.audit.v1", r -> r.key().equals("import:" + id));
         assertThat(audit).hasSize(2);
         JsonNode createdEntry = readJson(audit.getFirst().value());
         assertThat(createdEntry.path("lhactor").asString()).isEqualTo(ADMIN);
@@ -237,7 +237,7 @@ class ImportsIT extends ImportsItSupport {
         assertThat(rows.path("items").get(0).path("outcome").asString()).as("esito all'import").isEqualTo("UNMATCHED");
         assertThat(rows.path("items").get(0).path("currentStatus").asString()).as("esito attuale").isEqualTo("ACCEPTED");
 
-        List<ConsumerRecord<String, String>> published = drain("retry-check", r -> r.value().contains("\"retry-unm-"));
+        List<ConsumerRecord<String, String>> published = drain(r -> r.value().contains("\"retry-unm-"));
         assertThat(published).extracting(ConsumerRecord::key).containsExactly("MBR-990001");
     }
 
@@ -299,7 +299,7 @@ class ImportsIT extends ImportsItSupport {
         JsonNode counts = awaitFinished(again).path("job").path("counts");
         assertThat(counts.path("accepted").asInt()).isZero();
         assertThat(counts.path("duplicate").asInt()).isEqualTo(1);
-        assertThat(drain("idem-check", r -> r.value().contains("\"idem-1\""))).hasSize(1);
+        assertThat(drain(r -> r.value().contains("\"idem-1\""))).hasSize(1);
     }
 
     @Test

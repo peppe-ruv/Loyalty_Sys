@@ -1,13 +1,11 @@
 package io.loyaltyhub.ingestion.testbook;
 
 import io.loyaltyhub.common.event.JsonSchemaValidator;
+import io.loyaltyhub.common.testsupport.TopicReader;
 import io.loyaltyhub.ingestion.domain.EventType;
 import io.loyaltyhub.ingestion.infra.EventTypeRepository;
 import io.loyaltyhub.ingestion.infra.MemberErasureRepository;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
 import io.loyaltyhub.ingestion.testbook.TestbookIngRows.Row;
@@ -582,9 +580,9 @@ class TestbookIngPipelineIT extends TestbookIngHarness {
             case "kafka" -> {
                 CLOCK.set(null);
                 ev.put("time", Instant.now().toString());
-                try (KafkaConsumer<String, String> consumer = consumer()) {
+                {
                     assertOutcome(postEvent(ev), id, "ACCEPTED", "-");
-                    ConsumerRecord<String, String> rec = poll(consumer, id, Duration.ofSeconds(15));
+                    ConsumerRecord<String, String> rec = actionOnTopic(id);
                     assertThat(rec).as("record su lh.actions.v1 entro 15 s").isNotNull();
                     assertThat(rec.key()).isEqualTo(m.memberId());
                     assertThat(json(rec.value()).path("lhhop").asInt(-1)).isZero();
@@ -598,27 +596,14 @@ class TestbookIngPipelineIT extends TestbookIngHarness {
         return Files.readString(Path.of("../../contracts/events", file), StandardCharsets.UTF_8);
     }
 
-    private KafkaConsumer<String, String> consumer() {
-        KafkaConsumer<String, String> c = new KafkaConsumer<>(Map.of(
-                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, System.getProperty("spring.embedded.kafka.brokers"),
-                ConsumerConfig.GROUP_ID_CONFIG, "tb-ing-" + System.nanoTime(),
-                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class));
-        c.subscribe(List.of(ACTIONS));
-        return c;
-    }
-
-    private static ConsumerRecord<String, String> poll(KafkaConsumer<String, String> c, String id, Duration timeout) {
-        long deadline = System.currentTimeMillis() + timeout.toMillis();
-        while (System.currentTimeMillis() < deadline) {
-            for (ConsumerRecord<String, String> r : c.poll(Duration.ofMillis(300))) {
-                if (r.value().contains(id)) {
-                    return r;
-                }
-            }
-        }
-        return null;
+    /**
+     * Il primo record di {@code lh.actions.v1} con l'id, esatto ({@link TopicReader}): la chiamata ha già risposto, quindi
+     * basta leggere il topic fino in fondo a outbox svuotato, senza consumer group. {@code null} se non ce n'è.
+     */
+    private ConsumerRecord<String, String> actionOnTopic(String id) {
+        List<ConsumerRecord<String, String>> found = new TopicReader(jdbc, mapper, ACTIONS)
+                .records(List.of(), r -> r.value().contains(id));
+        return found.isEmpty() ? null : found.getFirst();
     }
 
     // ---------- MON: monitor ingressi ----------
