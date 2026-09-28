@@ -8,7 +8,7 @@ Questa guida ti porta da un repository clonato a un ciclo azione → punti visib
 
 ## Prima di iniziare
 
-Verifica di aver completato i [Prerequisiti](getting-started/prerequisiti). Ti serve JDK 25, Docker e il repository clonato.
+Verifica di aver completato i [Prerequisiti](/getting-started/prerequisiti). Ti serve JDK 25, Docker e il repository clonato.
 
 ## Avvia lo stack
 
@@ -22,7 +22,9 @@ Verifica di aver completato i [Prerequisiti](getting-started/prerequisiti). Ti s
 
     Il primo avvio compila le immagini Docker e può richiedere qualche minuto. Le esecuzioni successive sono molto più rapide grazie alla cache.
 
-    > **Nota:** Se preferisci avviare solo Kafka, Postgres e Kafka UI (ad esempio per eseguire i servizi da IDE), ometti `--profile all` ed elenca esplicitamente i container di infrastruttura.
+    <Note>
+      Se preferisci avviare solo Kafka, Postgres e Kafka UI (ad esempio per eseguire i servizi da IDE), ometti `--profile all` ed elenca esplicitamente i container di infrastruttura.
+    </Note>
   </Step>
   <Step title="Controlla che tutto sia UP">
     In un altro terminale:
@@ -93,7 +95,7 @@ Il flusso in cinque passi:
 4. `member-service` e gli altri aggiornano le proprie proiezioni.
 5. Il portale legge i dati aggiornati e mostra il nuovo saldo.
 
-Per capire in dettaglio ognuno di questi passi vai a [Concetti chiave](concetti/panoramica).
+Per capire in dettaglio ognuno di questi passi vai a [Concetti chiave](/concetti/panoramica).
 
 ## Ferma lo stack
 
@@ -108,11 +110,11 @@ Aggiungi `-v` per rimuovere anche il volume dati di Postgres (utile per ripartir
 ## Prossimi passi
 
 <CardGroup cols={2}>
-  <Card title="Tour della demo" icon="compass" href="getting-started/tour-demo">
+  <Card title="Tour della demo" icon="compass" href="/getting-started/tour-demo">
     Esplora backoffice e portale con le persone preconfigurate.
   </Card>
 
-  <Card title="Crea una campagna" icon="pencil" href="guide/creare-una-campagna">
+  <Card title="Crea una campagna" icon="pencil" href="/guide/creare-una-campagna">
     Configura la prima campagna dal backoffice e osservala scattare.
   </Card>
 </CardGroup>

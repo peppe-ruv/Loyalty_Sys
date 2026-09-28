@@ -1,0 +1,2 @@
+{{- /* Nessuna risorsa: fa fallire install e template se i valori non sono supportati o sono insicuri. */ -}}
+{{- include "loyaltyhub.validate" . -}}

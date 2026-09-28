@@ -1,0 +1,23 @@
+apiVersion: v2
+name: loyaltyhub
+description: >-
+  Loyalty Hub, profilo enterprise (F2-DIST-02, ADR-026, ADR-037): un Deployment per ruolo dell'immagine unica,
+  Kafka con Strimzi e Postgres con CloudNativePG di default (operatori come prerequisiti), servizi gestiti come
+  valori alternativi, migrazioni come Job, Ingress e segnaposto del gateway.
+type: application
+# Versione del chart (semver, ADR-038). appVersion è solo informativa: l'immagine si sceglie sempre con image.repository
+# e image.tag, obbligatori. .github/workflows/image.yml pubblica ghcr.io/<owner>/loyaltyhub solo sui tag git `v*`
+# (sulle PR costruisce l'immagine senza pubblicarla).
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.29.0-0"
+home: https://github.com/peppe-ruv/Loyalty_Sys
+sources:
+  - https://github.com/peppe-ruv/Loyalty_Sys/tree/main/deploy/helm/loyaltyhub
+keywords:
+  - loyalty
+  - kafka
+  - postgres
+annotations:
+  loyaltyhub.io/spec: "F2-DIST-02, F2-EVT-04, M8.3"
+  loyaltyhub.io/prerequisites: "Strimzi (kafka.mode=strimzi), CloudNativePG (postgres.mode=cloudnativepg)"

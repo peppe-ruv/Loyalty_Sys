@@ -48,6 +48,7 @@
             "pages": [
               "operations/avvio-locale",
               "operations/deploy-costo-zero",
+              "operations/installazione-enterprise",
               "operations/troubleshooting"
             ]
           }

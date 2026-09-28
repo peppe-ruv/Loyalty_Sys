@@ -13,10 +13,12 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -46,11 +48,15 @@ class MemberServiceIT {
 
     private static final String FACTS = "lh.facts.v1";
     private static final EmbeddedPostgres PG = startPg();
+    private static final String INJECTION = "x%' OR 1=1 --";
 
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Value("${local.server.port}")
     private int port;
+
+    @Autowired
+    private JdbcClient jdbc;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -87,6 +93,23 @@ class MemberServiceIT {
         assertThat(get("/v1/members?tier=GOLD").path("page").path("totalItems").asInt()).isEqualTo(3);
         assertThat(get("/v1/members?status=BLOCKED").path("page").path("totalItems").asInt()).isEqualTo(1);
         assertThat(get("/v1/members?q=marco").path("page").path("totalItems").asInt()).isEqualTo(1);
+    }
+
+    /**
+     * Regola 19 (ADR-042) via HTTP: il testo arriva al servizio così com'è (template URI, niente doppia codifica), i
+     * caratteri jolly di {@code q} sono letterali e un tentativo di iniezione dà un elenco vuoto senza toccare i dati.
+     */
+    @Test
+    void searchTreatsQueryTextAsLiteralAndIgnoresInjection() {
+        assertThat(searchTotal("q", "marco")).as("controllo: il template fa arrivare il testo").isEqualTo(1);
+        assertThat(searchTotal("q", "%")).as("% letterale, nessun membro lo contiene").isZero();
+        assertThat(searchTotal("q", "\\")).as("\\ letterale, nessun membro lo contiene").isZero();
+
+        long before = memberRows();
+        for (String param : List.of("q", "tier", "segment")) {
+            assertThat(searchTotal(param, INJECTION)).as(param + " = " + INJECTION).isZero();
+        }
+        assertThat(memberRows()).as("nessun effetto sulla tabella").isEqualTo(before);
     }
 
     @Test
@@ -274,6 +297,18 @@ class MemberServiceIT {
         JsonNode patched = send("PATCH", "/v1/members/MBR-000007", "ADMIN:marta.admin",
                 Map.of("attributes", Map.of("contractType", "DUAL")), 200);
         assertThat(patched.path("attributes").path("contractType").asString()).isEqualTo("DUAL");
+    }
+
+    /** {@code GET /v1/members?<param>=<value>}: il valore è una variabile di template, codificata una sola volta. */
+    private int searchTotal(String param, String value) {
+        ResponseEntity<JsonNode> res = client().get().uri("/v1/members?{param}={value}", param, value)
+                .retrieve().toEntity(JsonNode.class);
+        assertThat(res.getStatusCode().value()).as(param + " = " + value).isEqualTo(200);
+        return res.getBody().path("page").path("totalItems").asInt(-1);
+    }
+
+    private long memberRows() {
+        return jdbc.sql("SELECT count(*) FROM member").query(Long.class).single();
     }
 
     private JsonNode get(String path) {

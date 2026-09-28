@@ -25,7 +25,7 @@ Il dominio wallet si articola in queste entità principali:
 - **Tier**: livelli `BASE`, `SILVER`, `GOLD`, `PLATINUM`. Ogni tier ha una soglia minima di STS e un moltiplicatore che amplifica gli accrediti PTS. Il tier `BASE` ha soglia fissa a 0.
 - **Edition**: periodo annuale del programma con `start_date`, `end_date` e `redemption_grace_until`. Stati: `PLANNED`, `ACTIVE`, `CLOSED`. Alla chiusura si ricalcolano i tier e si azzerano gli STS.
 
-## Endpoint di gestione
+## Gestione wallet
 
 ### GET /v1/wallets/{memberId}
 
@@ -150,7 +150,9 @@ Elenca i lotti non esauriti del membro, ordinati per scadenza crescente (i primi
 
 Crea un aggiustamento manuale sul wallet di un membro. Richiede il ruolo `CARE` o `ADMIN`.
 
-> **Attenzione:** Gli aggiustamenti manuali vengono tracciati su `lh.audit.v1` e sono visibili nel registro come `GOODWILL`, `CORRECTION`, `COMPLAINT` o `TEST`.
+<Warning>
+  Gli aggiustamenti manuali vengono tracciati su `lh.audit.v1` e sono visibili nel registro come `GOODWILL`, `CORRECTION`, `COMPLAINT` o `TEST`.
+</Warning>
 
 **Body**
 
@@ -325,7 +327,9 @@ Chiude un'edizione attiva e avvia il ricalcolo tier. Richiede il ruolo `ADMIN`.
 }
 ```
 
-> **Nota:** Con `dryRun=false` l'operazione è irreversibile. I tier vengono ricalcolati e gli STS azzerati per la nuova edizione.
+<Note>
+  Con `dryRun=false` l'operazione è irreversibile. I tier vengono ricalcolati e gli STS azzerati per la nuova edizione.
+</Note>
 
 ### GET /v1/liability
 

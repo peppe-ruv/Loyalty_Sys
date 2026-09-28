@@ -4,7 +4,7 @@ sidebarTitle: "Introduzione"
 description: "Loyalty Hub è una piattaforma modulare per programmi fedeltà: eventi, punti, tier, premi e gamification, orchestrati da Kafka."
 ---
 
-Loyalty Hub è la piattaforma che trasforma qualunque comportamento del cliente, un acquisto, una registrazione, un aggiornamento di profilo, in **punti, livelli, premi e giochi**. Ogni evento entra dalla porta di ingestione, viene valutato dalle campagne che hai configurato in backoffice, e produce ricompense che il membro vede immediatamente nel portale.
+Loyalty Hub è la piattaforma che trasforma qualunque comportamento del membro, un acquisto, una registrazione, un aggiornamento di profilo, in **punti, livelli, premi e giochi**. Ogni evento entra dalla porta di ingestione, viene valutato dalle campagne che hai configurato in backoffice, e produce ricompense che il membro vede immediatamente nel portale.
 
 <CardGroup cols={2}>
   <Card title="Prova la demo online" icon="globe" href="https://loyalty-hub-web.vercel.app/">
@@ -35,7 +35,7 @@ Loyalty Hub è la piattaforma che trasforma qualunque comportamento del cliente,
 ## Cosa fa
 
 - **Ingestione eventi**: normalizza qualunque azione in un [CloudEvent](/concetti/eventi-kafka), la valida e la pubblica su Kafka.
-- **Motore campagne**: valuta ogni azione contro le regole configurate e produce effetti (accredito punti, coupon, badge).
+- **Motore campagne**: valuta ogni azione contro le campagne configurate e produce effetti (accredito punti, coupon, badge).
 - **Wallet**: gestisce due valute (`PTS` spendibile, `STS` per il tier), con lotti FIFO, scadenze e rettifiche.
 - **Premi**: catalogo a fasce, pool di coupon, saga di spesa con compensazione.
 - **Gioco**: concorsi instant win a istanti pre-generati, obiettivi, badge, classifiche.

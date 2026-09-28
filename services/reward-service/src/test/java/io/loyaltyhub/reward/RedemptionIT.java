@@ -8,12 +8,17 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -22,12 +27,16 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,6 +50,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @EmbeddedKafka(partitions = 1, topics = {"lh.effects.v1", "lh.facts.v1", "lh.audit.v1", "lh.dlq.v1"})
 @ActiveProfiles("demo")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class RedemptionIT {
 
     private static final EmbeddedPostgres PG = startPg();
@@ -50,6 +60,9 @@ class RedemptionIT {
 
     @Value("${local.server.port}")
     private int port;
+
+    @Autowired
+    private JdbcClient jdbc;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -231,6 +244,103 @@ class RedemptionIT {
         assertThat(issued).as("i 2 coupon di Davide").isGreaterThanOrEqualTo(2);
     }
 
+    // ---------- ricerca BO-13: builder SQL con colonne da allowlist (F2-SEC-10, ADR-042) ----------
+    // Questi test girano per primi (@Order) sullo storico seminato da redemptions.json e non scrivono nulla:
+    // gli altri test creano ed evadono richieste. Ordine atteso: requested_at DESC, id.
+
+    @Test
+    @Order(1)
+    void eachSearchFilterAloneReturnsExactlyTheSeededRequests() {
+        assertThat(redemptionIds(Map.of())).hasSize(24);
+        assertThat(redemptionIds(Map.of("status", "FULFILLED"))).containsExactly(
+                "RDM-000021", "RDM-000011", "RDM-000023", "RDM-000001", "RDM-000016", "RDM-000009", "RDM-000014",
+                "RDM-000008", "RDM-000012", "RDM-000019", "RDM-000007", "RDM-000022", "RDM-000010", "RDM-000015",
+                "RDM-000002", "RDM-000017");
+        assertThat(redemptionIds(Map.of("status", "confirmed"))).containsExactly("RDM-000006", "RDM-000003");
+        assertThat(redemptionIds(Map.of("status", "REJECTED")))
+                .containsExactly("RDM-000013", "RDM-000020", "RDM-000024", "RDM-000005");
+        assertThat(redemptionIds(Map.of("status", "REJECTED, cancelled"))).as("più stati separati da virgola")
+                .containsExactly("RDM-000013", "RDM-000020", "RDM-000018", "RDM-000024", "RDM-000004", "RDM-000005");
+        assertThat(redemptionIds(Map.of("status", "PENDING"))).isEmpty();
+
+        assertThat(redemptionIds(Map.of("rewardCode", "RWD-COFFEE-5"))).containsExactly(
+                "RDM-000013", "RDM-000018", "RDM-000011", "RDM-000001", "RDM-000024", "RDM-000022");
+        assertThat(redemptionIds(Map.of("memberId", "MBR-000005")))
+                .containsExactly("RDM-000021", "RDM-000004", "RDM-000008", "RDM-000007");
+        assertThat(redemptionIds(Map.of("needsAttention", "true"))).containsExactly("RDM-000006");
+        assertThat(redemptionIds(Map.of("needsAttention", "false"))).hasSize(23).doesNotContain("RDM-000006");
+
+        // fulfilment: modalità di evasione del premio (sottoquery su reward), senza distinguere maiuscole e minuscole.
+        List<String> manual = List.of("RDM-000003", "RDM-000016", "RDM-000004", "RDM-000019", "RDM-000007",
+                "RDM-000010", "RDM-000015");
+        assertThat(redemptionIds(Map.of("fulfilment", "MANUAL"))).containsExactlyElementsOf(manual);
+        assertThat(redemptionIds(Map.of("fulfilment", "manual"))).containsExactlyElementsOf(manual);
+        assertThat(redemptionIds(Map.of("fulfilment", "INSTANT")))
+                .containsExactly("RDM-000021", "RDM-000009", "RDM-000012");
+        assertThat(redemptionIds(Map.of("fulfilment", "AUTO_COUPON"))).containsExactly(
+                "RDM-000006", "RDM-000013", "RDM-000020", "RDM-000018", "RDM-000011", "RDM-000023", "RDM-000001",
+                "RDM-000024", "RDM-000014", "RDM-000008", "RDM-000022", "RDM-000005", "RDM-000002", "RDM-000017");
+
+        // Filtri combinati: in AND, anche con la base costante del filtro per evasione.
+        assertThat(redemptionIds(Map.of("status", "CONFIRMED", "fulfilment", "MANUAL"))).containsExactly("RDM-000003");
+        assertThat(redemptionIds(Map.of("memberId", "MBR-000005", "rewardCode", "RWD-SMART-PLUG")))
+                .containsExactly("RDM-000004");
+    }
+
+    @Test
+    @Order(2)
+    void dateRangeIncludesFromAndExcludesTo() {
+        String day20 = get("/v1/redemptions/RDM-000001").path("requestedAt").asString();
+        String day12 = get("/v1/redemptions/RDM-000018").path("requestedAt").asString();
+        String day111 = get("/v1/redemptions/RDM-000002").path("requestedAt").asString();
+        String day130 = get("/v1/redemptions/RDM-000017").path("requestedAt").asString();
+
+        assertThat(redemptionIds(Map.of("from", day20, "to", day12))).as("from incluso, to escluso")
+                .containsExactly("RDM-000011", "RDM-000023", "RDM-000001");
+        assertThat(redemptionIds(Map.of("from", day12))).as("solo from, incluso").containsExactly(
+                "RDM-000006", "RDM-000003", "RDM-000013", "RDM-000021", "RDM-000020", "RDM-000018");
+        assertThat(redemptionIds(Map.of("to", day111))).as("solo to, escluso").containsExactly("RDM-000017");
+        assertThat(redemptionIds(Map.of("to", day130))).as("to uguale alla più vecchia: esclusa").isEmpty();
+        assertThat(redemptionIds(Map.of("from", day12, "to", day12))).as("intervallo vuoto").isEmpty();
+    }
+
+    @Test
+    @Order(3)
+    void pagesAreDisjointAndFollowTheStableOrder() {
+        List<String> page0 = redemptionIds(Map.of("size", "2", "page", "0"));
+        List<String> page1 = redemptionIds(Map.of("size", "2", "page", "1"));
+        List<String> firstFour = redemptionIds(Map.of("size", "4", "page", "0"));
+
+        assertThat(page0).hasSize(2).doesNotContainAnyElementsOf(page1);
+        assertThat(page1).hasSize(2);
+        List<String> joined = new ArrayList<>(page0);
+        joined.addAll(page1);
+        assertThat(joined).isEqualTo(firstFour);
+        assertThat(firstFour).containsExactly("RDM-000006", "RDM-000003", "RDM-000013", "RDM-000021");
+    }
+
+    @Test
+    @Order(4)
+    void injectionShapedFiltersFindNothingAndLeaveTheTableIntact() {
+        List<Map<String, String>> attempts = List.of(
+                Map.of("status", "CONFIRMED'; DROP TABLE redemption; --"),
+                Map.of("status", "CONFIRMED').-"),
+                Map.of("status", "FULFILLED' OR '1'='1"),
+                Map.of("memberId", "MBR-000005' OR '1'='1"),
+                Map.of("rewardCode", "RWD-COFFEE-5'; DELETE FROM redemption; --"),
+                Map.of("fulfilment", "MANUAL') OR ('a'='a"),
+                Map.of("status", ","));
+        for (Map<String, String> params : attempts) {
+            long before = redemptionRows();
+            Reply reply = getReply("/v1/redemptions", params);
+            assertThat(reply.status()).as(params.toString()).isEqualTo(200);
+            assertThat(reply.body().path("items").isArray()).as(params.toString()).isTrue();
+            assertThat(reply.body().path("items").size()).as(params.toString()).isZero();
+            assertThat(reply.body().path("page").path("totalItems").asLong()).as(params.toString()).isZero();
+            assertThat(redemptionRows()).as(params.toString()).isEqualTo(before);
+        }
+    }
+
     @Test
     void careFulfilsAManualRequestWithNoteAndTracking() {
         assertThat(get("/v1/redemptions?status=CONFIRMED&fulfilment=MANUAL").path("items").toString())
@@ -295,6 +405,37 @@ class RedemptionIT {
     }
 
     // ---------- helper ----------
+
+    private record Reply(int status, JsonNode body) {
+    }
+
+    /** Id della pagina (al più 100); senza {@code page} verifica anche che {@code totalItems} sia coerente. */
+    private List<String> redemptionIds(Map<String, String> filters) {
+        Map<String, String> params = new LinkedHashMap<>(filters);
+        params.putIfAbsent("size", "100");
+        Reply reply = getReply("/v1/redemptions", params);
+        assertThat(reply.status()).as("GET /v1/redemptions " + params).isEqualTo(200);
+        List<String> ids = new ArrayList<>();
+        reply.body().path("items").forEach(r -> ids.add(r.path("id").asString()));
+        if (!params.containsKey("page")) {
+            assertThat(reply.body().path("page").path("totalItems").asLong()).as("count " + params)
+                    .isEqualTo(ids.size());
+        }
+        return ids;
+    }
+
+    /** GET con i parametri codificati per esteso (anche {@code %}, {@code +} e {@code '}). */
+    private Reply getReply(String path, Map<String, String> params) {
+        StringJoiner query = new StringJoiner("&", "?", "").setEmptyValue("");
+        params.forEach((k, v) -> query.add(k + "=" + URLEncoder.encode(v, StandardCharsets.UTF_8)));
+        URI uri = URI.create("http://localhost:" + port + path + query);
+        return RestClient.create().get().uri(uri).exchange((req, res) ->
+                new Reply(res.getStatusCode().value(), mapper.readTree(res.getBody())));
+    }
+
+    private long redemptionRows() {
+        return jdbc.sql("SELECT count(*) FROM redemption").query(Long.class).single();
+    }
 
     private JsonNode request(String memberId, String rewardCode, Object shipping, int expected) {
         Map<String, Object> body = shipping == null

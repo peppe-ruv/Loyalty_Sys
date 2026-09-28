@@ -18,6 +18,7 @@
 * [15 — Domande aperte](15-DOMANDE-APERTE.md)
 * [16 — Testbook funzionale](16-TESTBOOK-FUNZIONALE.md)
 * [17 — Epic, storie utente e foresta delle decisioni](17-EPIC-E-STORIE.md)
+* [19 — Registro to-be: migliorie rimandate oltre la PoC](19-TO-BE.md)
 * [audit](audit/README.md)
   * [Audit di Conformità Architetturale del Backend (Settembre 2026)](audit/2026-09-audit-backend.md)
 * [servizi](servizi/README.md)

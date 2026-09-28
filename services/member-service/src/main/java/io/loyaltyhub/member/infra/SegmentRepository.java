@@ -1,5 +1,8 @@
 package io.loyaltyhub.member.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlOrder;
+import io.loyaltyhub.common.sql.SqlWhere;
 import io.loyaltyhub.member.domain.Segment;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -10,7 +13,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,24 +42,44 @@ public class SegmentRepository {
         this.mapper = mapper;
     }
 
+    /** Colonne ammesse nei filtri e nell'ordinamento di {@link #list} (regola 19, ADR-042). */
+    enum SegmentColumn implements SqlColumn {
+        CODE("code"), NAME("name"), TYPE("type"), STATUS("status");
+
+        private final String sql;
+
+        SegmentColumn(String sql) {
+            this.sql = sql;
+        }
+
+        @Override
+        public String sql() {
+            return sql;
+        }
+    }
+
+    /** Testo SQL costante dell'elenco: vi si accodano solo {@link SqlWhere#sql()} e {@link #LIST_ORDER}. */
+    private static final String LIST_SELECT = "SELECT * FROM segment";
+
+    /** Ordinamento costante dell'elenco, per codice come prima del builder. */
+    private static final String LIST_ORDER = SqlOrder.asc(SegmentColumn.CODE).sql();
+
+    /**
+     * Elenco filtrato: {@code q} è un testo letterale cercato in codice e nome ({@code %}, {@code _} e {@code \} non
+     * sono caratteri jolly); tipo e stato per uguaglianza.
+     */
     public List<Segment> list(String q, String type, String status) {
-        StringBuilder sql = new StringBuilder("SELECT * FROM segment WHERE 1 = 1");
-        List<Object> args = new ArrayList<>();
-        if (q != null && !q.isBlank()) {
-            sql.append(" AND (code ILIKE ? OR name ILIKE ?)");
-            args.add("%" + q.trim() + "%");
-            args.add("%" + q.trim() + "%");
-        }
-        if (type != null && !type.isBlank()) {
-            sql.append(" AND type = ?");
-            args.add(type.trim().toUpperCase());
-        }
-        if (status != null && !status.isBlank()) {
-            sql.append(" AND status = ?");
-            args.add(status.trim().toUpperCase());
-        }
-        sql.append(" ORDER BY code");
-        return jdbc.sql(sql.toString()).params(args).query(this::map).list();
+        boolean hasText = q != null && !q.isBlank();
+        String text = hasText ? q.trim() : null;
+        SqlWhere where = new SqlWhere()
+                .when(hasText, w -> w.anyOf(a -> a
+                        .ilike(SegmentColumn.CODE, text, SqlWhere.Match.CONTAINS)
+                        .ilike(SegmentColumn.NAME, text, SqlWhere.Match.CONTAINS)))
+                .when(type != null && !type.isBlank(),
+                        w -> w.eq(SegmentColumn.TYPE, type.trim().toUpperCase()))
+                .when(status != null && !status.isBlank(),
+                        w -> w.eq(SegmentColumn.STATUS, status.trim().toUpperCase()));
+        return where.bind(jdbc.sql(LIST_SELECT + where.sql() + LIST_ORDER)).query(this::map).list();
     }
 
     public List<Segment> active() {

@@ -1,0 +1,63 @@
+{{- /* Esposizione: web (portale, backoffice, BFF) e idp (login). L'hub non è esposto: lo chiama il BFF dentro il
+cluster; le API per fonti e widget passeranno dal gateway (gateway.yaml, M8.5). */ -}}
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "loyaltyhub.fullname" . }}
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $) | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - secretName: {{ .Values.ingress.tls.secretName }}
+      hosts:
+        {{- if .Values.roles.web.enabled }}
+        - {{ .Values.ingress.hosts.web | quote }}
+        {{- end }}
+        {{- if .Values.roles.idp.enabled }}
+        - {{ .Values.ingress.hosts.idp | quote }}
+        {{- end }}
+  {{- end }}
+  rules:
+    {{- if .Values.roles.web.enabled }}
+    - host: {{ .Values.ingress.hosts.web | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "loyaltyhub.fullname" . }}-web
+                port:
+                  name: http
+    {{- end }}
+    {{- if .Values.roles.idp.enabled }}
+    - host: {{ .Values.ingress.hosts.idp | quote }}
+      http:
+        paths:
+          # Solo il realm dell'installazione e le risorse statiche del login: console di amministrazione e realm
+          # `master` (endpoint dei token compreso) restano fuori (docs/18 §3.10 punto 1).
+          - path: /realms/{{ .Values.global.realm }}/
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "loyaltyhub.fullname" . }}-idp
+                port:
+                  name: http
+          - path: /resources/
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "loyaltyhub.fullname" . }}-idp
+                port:
+                  name: http
+    {{- end }}
+{{- end }}
