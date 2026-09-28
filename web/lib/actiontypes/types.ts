@@ -37,9 +37,28 @@ export interface ActionTypeRequest {
 
 export const CUSTOM_CATEGORIES = ["ENGAGEMENT", "SERVICE", "TRANSACTION"] as const;
 
+/** Etichette delle categorie: un'unica tabella per BO-09 e BO-06 (docs/08 §BO-09). */
 export const CATEGORY_LABEL: Record<string, string> = {
   TRANSACTION: "Transazioni",
   ENGAGEMENT: "Coinvolgimento",
-  SERVICE: "Servizio",
-  INTERNAL: "Interni (ponte)",
+  SERVICE: "Servizi",
+  INTERNAL: "Generate dal programma",
+};
+
+/** Ordine dei gruppi nella scelta dei trigger. */
+export const CATEGORY_ORDER = ["TRANSACTION", "SERVICE", "ENGAGEMENT", "INTERNAL"] as const;
+
+export function categoryLabel(category: string | null | undefined): string {
+  if (!category) return "Altro";
+  return CATEGORY_LABEL[category] ?? category.charAt(0) + category.slice(1).toLowerCase();
+}
+
+export const ORIGIN_LABEL: Record<ActionTypeOrigin, string> = {
+  SYSTEM: "Di sistema",
+  CUSTOM: "Personalizzata",
+};
+
+export const SOURCE_KIND_LABEL: Record<string, string> = {
+  HTTP: "Esterna (HTTP)",
+  INTERNAL: "Interna",
 };
