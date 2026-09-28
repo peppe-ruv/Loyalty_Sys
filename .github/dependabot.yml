@@ -83,3 +83,9 @@ updates:
       # Una major di Postgres non legge il volume della precedente (serve pg_upgrade o dump e ripristino).
       - dependency-name: "postgres"
         update-types: ["version-update:semver-major"]
+      # Kafka 4.x è un salto di major da decidere (Q-481): niente PR automatica che occupi l'unico posto.
+      - dependency-name: "apache/kafka"
+        update-types: ["version-update:semver-major"]
+      # Una major di Keycloak tocca il realm as code (deploy/idp): si aggiorna con una fetta dedicata.
+      - dependency-name: "quay.io/keycloak/keycloak"
+        update-types: ["version-update:semver-major"]

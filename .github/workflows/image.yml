@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'deploy/image/**'
+      - 'deploy/docker-compose.yml'
       - '.github/workflows/image.yml'
       - 'web/**'
       - 'deploy/hub/**'
