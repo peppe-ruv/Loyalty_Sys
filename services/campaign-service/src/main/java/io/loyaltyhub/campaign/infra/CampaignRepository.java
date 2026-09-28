@@ -4,23 +4,24 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.campaign.domain.Campaign;
 import io.loyaltyhub.campaign.domain.CampaignStatus;
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlOrder;
+import io.loyaltyhub.common.sql.SqlWhere;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-
-import io.loyaltyhub.common.sql.SqlColumn;
-import io.loyaltyhub.common.sql.SqlOrder;
-import io.loyaltyhub.common.sql.SqlWhere;
 
 /** Persistenza delle campagne (docs/servizi/campaign-service.md §2). I campi jsonb restano {@link JsonNode}. */
 @Repository
 public class CampaignRepository {
 
+    /** Colonne ammesse nei filtri e nell'ordinamento di {@link #search} (regola 19, ADR-042). */
     enum CampaignColumn implements SqlColumn {
         STATUS("status"), CODE("code"), NAME("name"), PRIORITY("priority");
 
@@ -63,19 +64,40 @@ public class CampaignRepository {
         return jdbc.sql("SELECT " + COLS + " FROM campaign WHERE code = ?").param(code).query(this::map).optional();
     }
 
-    private static final String SEARCH = "SELECT " + COLS + " FROM campaign"
-            + " WHERE (CAST(:actionType AS text) IS NULL OR CAST(:actionType AS text) = ANY(trigger_action_types))";
+    /**
+     * Testo SQL costante dell'elenco (regola 19, docs/18 §3.10 punto 4): il filtro per tipo di azione è sempre presente
+     * e sempre legato, e {@code :actionType} nullo lo disattiva. Vi si accodano solo {@link SqlWhere#andSql()} e
+     * l'ordinamento di {@link #searchOrder()}.
+     */
+    private static final String SEARCH = "SELECT " + COLS + """
+            FROM campaign
+            WHERE (CAST(:actionType AS text) IS NULL OR CAST(:actionType AS text) = ANY(trigger_action_types))
+            """;
 
+    /**
+     * Elenco filtrato ({@code GET /v1/campaigns}, docs §3). Filtri facoltativi, ignorati se assenti o vuoti: stato per
+     * uguaglianza (ripulito e in maiuscolo), tipo di azione tra i {@code trigger_action_types} (ripulito), {@code q}
+     * come testo letterale contenuto nel codice o nel nome, senza distinzione tra maiuscole e minuscole ({@code %},
+     * {@code _} e {@code \} non sono caratteri jolly). Ordine: priorità decrescente, poi codice.
+     */
     public List<Campaign> search(String status, String actionType, String q) {
         SqlWhere where = new SqlWhere()
-                .when(status != null && !status.isBlank(), w -> w.eq(CampaignColumn.STATUS, status.trim().toUpperCase()))
-                .when(q != null && !q.isBlank(), w -> w.anyOf(a -> a.ilike(CampaignColumn.CODE, q.trim()).ilike(CampaignColumn.NAME, q.trim())));
-
-        String orderSql = SqlOrder.desc(CampaignColumn.PRIORITY).by(CampaignColumn.CODE, SqlOrder.Direction.ASC).sql();
-
-        return where.bind(jdbc.sql(SEARCH + where.andSql() + orderSql))
-                .param("actionType", actionType == null || actionType.isBlank() ? null : actionType.trim())
+                .when(present(status), w -> w.eq(CampaignColumn.STATUS, status.trim().toUpperCase()))
+                .when(present(q), w -> w.anyOf(any -> any
+                        .ilike(CampaignColumn.CODE, q.trim())
+                        .ilike(CampaignColumn.NAME, q.trim())));
+        return where.bind(jdbc.sql(SEARCH + where.andSql() + searchOrder().sql()))
+                .param("actionType", present(actionType) ? actionType.trim() : null, Types.VARCHAR)
                 .query(this::map).list();
+    }
+
+    /** Ordinamento dell'elenco, nuovo a ogni chiamata perché {@link SqlOrder} è mutabile. */
+    private static SqlOrder searchOrder() {
+        return SqlOrder.desc(CampaignColumn.PRIORITY).by(CampaignColumn.CODE, SqlOrder.Direction.ASC);
+    }
+
+    private static boolean present(String value) {
+        return value != null && !value.isBlank();
     }
 
     public void insert(Campaign c) {

@@ -1,5 +1,8 @@
 package io.loyaltyhub.campaign.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlOrder;
+import io.loyaltyhub.common.sql.SqlWhere;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -7,16 +10,13 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
-import io.loyaltyhub.common.sql.SqlColumn;
-import io.loyaltyhub.common.sql.SqlOrder;
-import io.loyaltyhub.common.sql.SqlWhere;
-
 /** Registro delle valutazioni per la spiegabilità (docs/servizi/campaign-service.md §2). Pulizia > 30 giorni. */
 @Repository
 public class EvaluationLogRepository {
 
+    /** Colonne ammesse nei filtri e nell'ordinamento di {@link #search} (regola 19, ADR-042). */
     enum EvaluationLogColumn implements SqlColumn {
-        MEMBER_ID("member_id"), OUTCOME("outcome"), EVALUATED_AT("evaluated_at");
+        MEMBER_ID("member_id"), OUTCOME("outcome"), EVALUATED_AT("evaluated_at"), ACTION_ID("action_id");
 
         private final String sql;
 
@@ -60,21 +60,42 @@ public class EvaluationLogRepository {
                 .param(actionId).query(String.class).optional();
     }
 
+    /**
+     * Testo SQL costante del registro (regola 19, docs/18 §3.10 punto 4): vi si accodano solo {@link SqlWhere#sql()},
+     * l'ordinamento di {@link #searchOrder()} e il limite legato {@code :limit}.
+     */
+    private static final String SEARCH = """
+            SELECT action_id, member_id, action_type, action_time, evaluated_at, outcome, results::text AS results
+            FROM evaluation_log
+            """;
+
+    /**
+     * Valutazioni più recenti prima ({@code GET /v1/evaluations}, docs §3). Filtri facoltativi, ignorati se assenti o
+     * vuoti: membro per uguaglianza, esito per uguaglianza (ripulito e in maiuscolo). A parità di {@code evaluated_at}
+     * vale {@code action_id} crescente, così {@code limit} taglia sempre le stesse righe; parametri e forma della
+     * risposta non cambiano.
+     */
     public List<EvaluationRow> search(String memberId, String outcome, int limit) {
         SqlWhere where = new SqlWhere()
-                .when(memberId != null && !memberId.isBlank(), w -> w.eq(EvaluationLogColumn.MEMBER_ID, memberId))
-                .when(outcome != null && !outcome.isBlank(), w -> w.eq(EvaluationLogColumn.OUTCOME, outcome.trim().toUpperCase()));
-
-        String sql = "SELECT action_id, member_id, action_type, action_time, evaluated_at, outcome, results::text AS results FROM evaluation_log"
-                + where.sql() + SqlOrder.desc(EvaluationLogColumn.EVALUATED_AT).sql() + " LIMIT :limit";
-
-        return where.bind(jdbc.sql(sql))
+                .when(present(memberId), w -> w.eq(EvaluationLogColumn.MEMBER_ID, memberId))
+                .when(present(outcome), w -> w.eq(EvaluationLogColumn.OUTCOME, outcome.trim().toUpperCase()));
+        return where.bind(jdbc.sql(SEARCH + where.sql() + searchOrder().sql() + " LIMIT :limit"))
                 .param("limit", limit)
                 .query((rs, n) -> new EvaluationRow(
                         rs.getString("action_id"), rs.getString("member_id"), rs.getString("action_type"),
                         rs.getTimestamp("action_time").toInstant(), rs.getTimestamp("evaluated_at").toInstant(),
                         rs.getString("outcome"), rs.getString("results")))
                 .list();
+    }
+
+    /** Ordinamento del registro, nuovo a ogni chiamata perché {@link SqlOrder} è mutabile. */
+    private static SqlOrder searchOrder() {
+        return SqlOrder.desc(EvaluationLogColumn.EVALUATED_AT)
+                .by(EvaluationLogColumn.ACTION_ID, SqlOrder.Direction.ASC);
+    }
+
+    private static boolean present(String value) {
+        return value != null && !value.isBlank();
     }
 
     /**
