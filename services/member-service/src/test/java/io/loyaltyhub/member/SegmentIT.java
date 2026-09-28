@@ -261,6 +261,11 @@ class SegmentIT {
         JsonNode again = send(HttpMethod.POST, "/v1/demo/jobs/refresh-segments", "ADMIN:marta.admin", null, 200);
         assertThat(again.path("entered").asInt()).as("solo differenze").isZero();
         assertThat(again.path("left").asInt()).isZero();
+
+        // HTTP Injection
+        JsonNode injectionSearch = get("/v1/segments?q=x%25%27%20OR%201%3D1%20--");
+        assertThat(injectionSearch.path("page").path("totalItems").asInt()).isEqualTo(0);
+
         // Macchina del tempo: fra 60 giorni anche Marco (attivo oggi) supera i 45 giorni senza attività.
         JsonNode future = send(HttpMethod.POST, "/v1/demo/jobs/refresh-segments?asOf=" + java.time.LocalDate.now().plusDays(60),
                 "ADMIN:marta.admin", null, 200);

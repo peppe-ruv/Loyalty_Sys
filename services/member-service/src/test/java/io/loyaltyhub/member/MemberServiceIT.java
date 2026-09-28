@@ -204,6 +204,13 @@ class MemberServiceIT {
     // ---------- helper ----------
 
     @Test
+    void searchFiltersLiteralMatchesOfSqlJollyCharactersAndDoesNotFailOnInjection() {
+        // HTTP Injection search
+        JsonNode injectionSearch = get("/v1/members?q=x%25%27%20OR%201%3D1%20--");
+        assertThat(injectionSearch.path("page").path("totalItems").asInt()).isEqualTo(0);
+    }
+
+    @Test
     void attributesAndLabelsAreValidatedAndTravelInTheSnapshot() {
         JsonNode defs = get("/v1/attribute-definitions");
         assertThat(defs).hasSize(4);

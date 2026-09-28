@@ -55,7 +55,7 @@ class SegmentSqlBuilderIT {
 
         // Insert dummy data
         jdbc.sql("INSERT INTO segment (id, code, name, type, status, member_count, version) VALUES ('SEG-01', 'CODE-A', 'First Segment', 'DYNAMIC', 'ACTIVE', 0, 0)").update();
-        jdbc.sql("INSERT INTO segment (id, code, name, type, status, member_count, version) VALUES ('SEG-02', 'CODE-B', 'Second % Segment', 'STATIC', 'ARCHIVED', 0, 0)").update();
+        jdbc.sql("INSERT INTO segment (id, code, name, type, status, member_count, version) VALUES ('SEG-02', 'CODE-B', 'Second % _ Segment', 'STATIC', 'ARCHIVED', 0, 0)").update();
         jdbc.sql("INSERT INTO segment (id, code, name, type, status, member_count, version) VALUES ('SEG-03', 'CODE-C', 'Third Seg', 'DYNAMIC', 'ACTIVE', 0, 0)").update();
     }
 
@@ -73,14 +73,17 @@ class SegmentSqlBuilderIT {
         List<Segment> matchFirst = repo.list("first", null, null);
         assertThat(matchFirst).hasSize(1).extracting(Segment::code).containsExactly("CODE-A");
 
-        // Literal match of '%' test
+        // Literal match of '%' and '_' test
         List<Segment> matchPercent = repo.list("%", null, null);
         assertThat(matchPercent).hasSize(1).extracting(Segment::code).containsExactly("CODE-B");
+
+        List<Segment> matchUnderscore = repo.list("_", null, null);
+        assertThat(matchUnderscore).hasSize(1).extracting(Segment::code).containsExactly("CODE-B");
     }
 
     @Test
     void sqlInjectionAttemptOnList() {
-        String maliciousQuery = "x' OR '1'='1";
+        String maliciousQuery = "x%' OR 1=1 --";
         List<Segment> result = repo.list(maliciousQuery, null, null);
         assertThat(result).isEmpty();
 

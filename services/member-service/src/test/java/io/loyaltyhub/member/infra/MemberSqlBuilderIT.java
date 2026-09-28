@@ -90,8 +90,11 @@ class MemberSqlBuilderIT {
         assertThat(matchBob).hasSize(1).extracting(Member::id).containsExactly("MBR-02");
 
         // Should NOT match everything by accident due to % being escaped
-        List<Member> matchNothing = repo.search("%", null, null, null, 10, 0);
-        assertThat(matchNothing).hasSize(1).extracting(Member::id).containsExactly("MBR-02");
+        List<Member> matchOnlyPercent = repo.search("%", null, null, null, 10, 0);
+        assertThat(matchOnlyPercent).hasSize(1).extracting(Member::id).containsExactly("MBR-02");
+
+        List<Member> matchOnlyUnderscore = repo.search("_", null, null, null, 10, 0);
+        assertThat(matchOnlyUnderscore).hasSize(1).extracting(Member::id).containsExactly("MBR-02");
 
         List<Member> matchSegment = repo.search(null, null, null, "GOLDEN", 10, 0);
         assertThat(matchSegment).hasSize(2).extracting(Member::id).containsExactly("MBR-01", "MBR-03");
@@ -127,16 +130,16 @@ class MemberSqlBuilderIT {
     @Test
     void sqlInjectionAttemptOnSearch() {
         // sql injection attempt via `q` string using ilike match
-        String maliciousQuery = "x' OR '1'='1";
+        String maliciousQuery = "x%' OR 1=1 --";
         List<Member> result = repo.search(maliciousQuery, null, null, null, 10, 0);
         assertThat(result).isEmpty();
 
         // sql injection attempt via tier
-        List<Member> resultTier = repo.search(null, null, "x' OR '1'='1", null, 10, 0);
+        List<Member> resultTier = repo.search(null, null, "x%' OR 1=1 --", null, 10, 0);
         assertThat(resultTier).isEmpty();
 
         // sql injection attempt via segment
-        List<Member> resultSegment = repo.search(null, null, null, "x' OR '1'='1", 10, 0);
+        List<Member> resultSegment = repo.search(null, null, null, "x%' OR 1=1 --", 10, 0);
         assertThat(resultSegment).isEmpty();
 
         // ensure the table is still alive

@@ -1,8 +1,5 @@
 package io.loyaltyhub.member.infra;
 
-import io.loyaltyhub.common.sql.SqlColumn;
-import io.loyaltyhub.common.sql.SqlOrder;
-import io.loyaltyhub.common.sql.SqlWhere;
 import io.loyaltyhub.member.api.ReferralViews.ReferralLink;
 import io.loyaltyhub.member.api.ReferralViews.TopReferrer;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -76,36 +73,16 @@ public class ReferralRepository {
                 .list();
     }
 
-    enum ReferralColumn implements SqlColumn {
-        REGISTERED_AT("e.registered_at"), ID("e.id"), REFERRED_BY("e.referred_by");
-
-        private final String sql;
-
-        ReferralColumn(String sql) {
-            this.sql = sql;
-        }
-
-        @Override
-        public String sql() {
-            return sql;
-        }
-    }
-
-    private static final String DEFAULT_ORDER = SqlOrder.desc(ReferralColumn.REGISTERED_AT)
-            .by(ReferralColumn.ID, SqlOrder.Direction.DESC).sql();
-
     /** Legami più recenti (per registrazione dell'invitato), per la tabella di BO-17. */
     public List<ReferralLink> recentLinks(int limit) {
-        return jdbc.sql(LINK_SELECT + DEFAULT_ORDER + " LIMIT :limit")
-                .param("limit", limit).query(ReferralRepository::mapLink).list();
+        return jdbc.sql(LINK_SELECT + " ORDER BY e.registered_at DESC, e.id DESC LIMIT ?")
+                .param(limit).query(ReferralRepository::mapLink).list();
     }
 
     /** Invitati di un membro, dal più recente. */
     public List<ReferralLink> invitedBy(String referrerId) {
-        SqlWhere where = new SqlWhere()
-                .eq(ReferralColumn.REFERRED_BY, referrerId);
-        return where.bind(jdbc.sql(LINK_SELECT + where.sql() + DEFAULT_ORDER))
-                .query(ReferralRepository::mapLink).list();
+        return jdbc.sql(LINK_SELECT + " WHERE e.referred_by = ? ORDER BY e.registered_at DESC, e.id DESC")
+                .param(referrerId).query(ReferralRepository::mapLink).list();
     }
 
     private static ReferralLink mapLink(ResultSet rs, int n) throws SQLException {
