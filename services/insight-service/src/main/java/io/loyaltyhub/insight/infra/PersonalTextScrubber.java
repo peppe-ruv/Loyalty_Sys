@@ -55,8 +55,11 @@ public final class PersonalTextScrubber {
     /** Forma di un codice: una sola parola di lettere, cifre, punti, trattini, due punti e trattini bassi. */
     private static final Pattern CODE_VALUE = Pattern.compile("[\\p{L}\\p{N}_.:-]+");
 
-    /** Valore che è per intero una costante in maiuscolo ({@code TEST}, {@code MEMBER_REQUEST}): conservato ovunque. */
-    private static final Pattern CONSTANT = Pattern.compile("[A-Z0-9]+(?:_[A-Z0-9]+)*");
+    /**
+     * Valore che è per intero una costante in maiuscolo ({@code TEST}, {@code MEMBER_REQUEST}): conservato ovunque. Serve
+     * almeno una lettera: un valore di sole cifre (un telefono, un id esterno numerico) non è una costante.
+     */
+    private static final Pattern CONSTANT = Pattern.compile("(?=[A-Z0-9_]*[A-Z])[A-Z0-9]+(?:_[A-Z0-9]+)*");
 
     /** Carattere di parola: lettera, segno diacritico o cifra. */
     private static final String WORD = "[\\p{L}\\p{M}\\p{N}]";

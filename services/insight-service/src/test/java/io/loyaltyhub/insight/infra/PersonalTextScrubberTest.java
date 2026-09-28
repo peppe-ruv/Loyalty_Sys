@@ -78,7 +78,7 @@ class PersonalTextScrubberTest {
             "rewardCode|RWD-ZED|true", "action|UPDATE|true", "currency|PTS|true",
             "status|Chiesto da Ottavio|false", "reason|FRAUD_SUSPECTED|true", "reason|Rimborso chiesto da Ottavio|false",
             "reason|Ottavio|false", "subject|email:ottavio@example.test|false", "subject|member:MBR-1|false",
-            "note|MEMBER_REQUEST|true", "reason|TEST|true", "reason|GOODWILL|true", "reason|Test del cassiere|false", "externalId|EXT-00042|false", "emailHash|abc123hash|false"})
+            "note|MEMBER_REQUEST|true", "reason|TEST|true", "reason|GOODWILL|true", "note|3331234567|false", "reason|12345|false", "reason|Test del cassiere|false", "externalId|EXT-00042|false", "emailHash|abc123hash|false"})
     @DisplayName("codici nei campi di codice e costanti: sicuri; testo libero, reason e subject: si ripuliscono")
     void safeValues(String key, String value, boolean safe) {
         assertThat(PersonalTextScrubber.isSafe(key, value)).isEqualTo(safe);
@@ -112,6 +112,17 @@ class PersonalTextScrubberTest {
         JsonNode out = PersonalTextScrubber.redactAndScrub(fact, List.of("Test"));
         assertThat(out.path("data").path("reason").asString()).isEqualTo("TEST");
         assertThat(out.path("data").path("note").asString()).isEqualTo("Rettifica chiesta da Membro anonimo");
+    }
+
+    @Test
+    @DisplayName("valore di sole cifre uguale a un dato del membro (telefono, id esterno numerico): si ripulisce")
+    void digitsOnlyValueIsNotAConstant() {
+        JsonNode row = mapper.readTree("""
+                {"contact":"3331234567","reason":"GOODWILL","ref":"TEST"}""");
+        JsonNode out = PersonalTextScrubber.scrubAll(row, List.of("3331234567", "Test", "Goodwill"));
+        assertThat(out.path("contact").asString()).isEqualTo("Membro anonimo");
+        assertThat(out.path("reason").asString()).isEqualTo("GOODWILL");
+        assertThat(out.path("ref").asString()).isEqualTo("TEST");
     }
 
     @Test
