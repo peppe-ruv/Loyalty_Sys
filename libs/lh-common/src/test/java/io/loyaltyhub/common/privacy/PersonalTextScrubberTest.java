@@ -1,4 +1,4 @@
-package io.loyaltyhub.insight.infra;
+package io.loyaltyhub.common.privacy;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,7 +16,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Pulizia dei valori personali di un membro anonimizzato senza corrompere i valori sicuri (F-MBR-05, M8.12a, revisioni
  * P9 e P18): parole intere soltanto; si saltano identificativi, istanti, envelope e i codici nei campi di codice, mentre
- * ogni testo libero (anche {@code reason} e {@code subject}) si ripulisce.
+ * ogni testo libero (anche {@code reason} e {@code subject}) si ripulisce. Spostato da insight in lh-common con la
+ * classe (Q-404): la stessa regola vale per engagement, ingestion e insight.
  */
 class PersonalTextScrubberTest {
 

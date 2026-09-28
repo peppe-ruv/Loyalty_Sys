@@ -18,6 +18,8 @@ import java.util.List;
  *   <li>consegne webhook: il CloudEvent conservato perde i campi personali e viene rifirmato col segreto del webhook,
  *       così un ritento resta verificabile dal destinatario.</li>
  * </ul>
+ * Il nome si sostituisce solo come parola intera e mai negli identificativi, negli stati e nei codici del CloudEvent
+ * ({@link PersonalData#scrub}, Q-404): un nome «Ada» non tocca «Adamo», un nome «Anon» non tocca {@code ANONYMIZED}.
  */
 @Repository
 public class MemberErasureRepository {

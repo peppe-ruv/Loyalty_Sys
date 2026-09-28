@@ -14,7 +14,9 @@ import java.util.Locale;
 /**
  * Anonimizzazione di un membro in ingestion (F-MBR-05, M7.5): cancella e-mail e identificativo esterno da
  * {@code member_index} e ripulisce le righe di {@code inbound_event} che lo riguardano (subject {@code email:…}/
- * {@code external:…} e payload conservato). Le righe restano: sono i movimenti in ingresso.
+ * {@code external:…} e payload conservato). Le righe restano: sono i movimenti in ingresso. E-mail e id esterno si
+ * sostituiscono solo come parole intere e mai negli identificativi, negli stati e nei codici ({@link PersonalData#scrub},
+ * Q-404): l'id esterno {@code CRM-10} non tocca {@code CRM-101}.
  */
 @Repository
 public class MemberErasureRepository {
