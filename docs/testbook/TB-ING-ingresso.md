@@ -895,7 +895,7 @@ Codice: `EventTypeService#create/#update/#customDraft`, `EventTypesController`, 
 
 | Ingresso | Classi |
 |---|---|
-| `code` | 2, 3, 4 parti · 1 e 5 parti · maiuscole/`_` · maiuscola interna · cifra iniziale · 60/61 caratteri · vuoto · già esistente (custom, di sistema) |
+| `code` | 2, 3, 4 parti · 1 e 5 parti · maiuscole/`_` · maiuscola interna · cifra iniziale · 60/61 caratteri · vuoto · già esistente (custom, di sistema) · prima parte riservata (`io`, `loyaltyhub`) o solo somigliante (`iot`) · creazione simultanea |
 | `name` | valido · vuoto · 60/61 caratteri |
 | `category` | TRANSACTION, ENGAGEMENT, SERVICE · INTERNAL · sconosciuta · assente |
 | `dataSchema` / `sampleData` | schema oggetto · assente · `array` · non conforme al meta-schema · esempio che viola lo schema · esempio assente |
@@ -969,6 +969,11 @@ categoria ammessa una volta); ruoli uno per riga. Modifica: origine × campo (ta
 | TB-ING-ETY-058 | campi di purchase.completed | data.amount number obbligatorio, data.channel enum, data.items[*].sku | ingestion §3 (fields); docs/03 §3.3 | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-059 | campi di un tipo inesistente | 404 | ingestion §3 | `TestbookIngConfigIT#ety` |
 | TB-ING-ETY-060 | elenco dei tipi di sistema | i 19 tipi EVT-ACT del seed con origin SYSTEM | docs/10 §3; docs/05 §3 | `TestbookIngConfigIT#ety` |
+| TB-ING-ETY-061 | codice con prima parte `io` (`io.loyaltyhub.effect.x`) | 422 `EVENT_TYPE_INVALID` su `code`; nessun tipo e nessun audit | ingestion §3 (event-types); Q-439 | `TestbookIngConfigIT#ety`; `EventTypeCodeSafetyIT` |
+| TB-ING-ETY-062 | codice con prima parte `loyaltyhub` | 422 `EVENT_TYPE_INVALID` su `code`; nessun tipo e nessun audit | ingestion §3 (event-types); Q-439 | `TestbookIngConfigIT#ety`; `EventTypeCodeSafetyIT` |
+| TB-ING-ETY-063 | prima parte che somiglia soltanto (`iot`) | 201 | ingestion §3 (event-types); Q-439 | `TestbookIngConfigIT#ety`; `EventTypeCodeSafetyIT` |
+| TB-ING-ETY-064 | due creazioni simultanee dello stesso codice | una 201 e una 409 `EVENT_TYPE_EXISTS`; una sola voce di audit `CREATE` | ingestion §3 (event-types); Q-440 | `TestbookIngConfigIT#ety`; `EventTypeCodeSafetyIT` |
+| TB-ING-ETY-065 | azione con `type` completo di un'altra famiglia (`io.loyaltyhub.effect.points.credited`) | `REJECTED/UNKNOWN_TYPE` con il motivo «Tipo fuori dalla famiglia azioni»; nulla in outbox | ingestion §5.3; Q-439 | `TestbookIngConfigIT#ety`; `EventTypeCodeSafetyIT` |
 
 ### 3.15 TXN — `POST /v1/transactions` (F-ING-07)
 
@@ -1141,8 +1146,8 @@ anomalia di calendario una volta.
 | Regole inventariate | 28 (R-01…R-28) |
 | Rami del codice mappati | 111: `IngestionService` 27, `Source#allows` 2, `InboundResolution` 5, `InboundResolutionService` 14, `EventTypeService` 21, `TransactionsController` 11, `SimulatorController` 5, `ScenarioService` 8, `ScenarioTime` 6, monitor (`InboundEventsController`/`InboundEventRepository`) 6, guardie `@RequiresRole` 6 |
 | Fuori da questo file | ponte fatti → azioni e `LOOP_GUARD` (`FactsHandler#bridge`), `PUT /v1/internal-mappings` e riprocessa DLQ (`X-LH-Reprocess`, `ActionReplayService`): foresta docs/17 ING-09, ING-10, ING-15, ING-16 |
-| Righe del testbook | 685 |
-| Righe per area | FRM 29, PIP 51, SRC 70, FON 4, TYP 11, SCH 148, TIM 26, DUP 12, MBR 39, ACC 10, MON 11, RES 56, AUT 60, ETY 60, TXN 28, SIM 19, SCN 26, SCT 25 |
+| Righe del testbook | 690 |
+| Righe per area | FRM 29, PIP 51, SRC 70, FON 4, TYP 11, SCH 148, TIM 26, DUP 12, MBR 39, ACC 10, MON 11, RES 56, AUT 60, ETY 65, TXN 28, SIM 19, SCN 26, SCT 25 |
 | Combinazioni ridotte | PIP (512 ⇒ 51: singoli + coppie + catene), RES (> 64 ⇒ 4 tabelle indipendenti: 14 + 10 + 20 + 12), SCH (guasto singolo per campo e limite, 148), ETY (guasto singolo + origine × campo), TXN, SIM (guasto singolo) |
 | Tabelle complete | SRC fonte × tipo (55), MBR forma × stato (30), AUT forma × età × stato × fatto (48), RES ruolo × azione (14), RES stato × azione (10) |
 | Rami senza specifica | 17 (§2), 48 righe Q-In (18 voci in docs/15, §6) |

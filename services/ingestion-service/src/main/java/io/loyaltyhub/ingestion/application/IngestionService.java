@@ -198,8 +198,9 @@ public class IngestionService {
             return o.rejected(null, RejectCode.SOURCE_DISABLED, RejectDetails.sourceDisabled(sourceCode));
         }
 
-        // 3. tipo noto, abilitato e ammesso per la fonte. Un type completo fuori da io.loyaltyhub.action. non è
-        // un'azione: si rifiuta prima di cercarlo nel registro, così non può finire su un altro topic (Q-439).
+        // 3. tipo noto, abilitato e ammesso per la fonte. SPEC-GAP: Q-439. Un type completo fuori da
+        // io.loyaltyhub.action. non è un'azione: si rifiuta prima di cercarlo nel registro, così non può finire su un
+        // altro topic.
         if (!fullType.startsWith(LhFamily.ACTION.typePrefix())) {
             return o.rejected(null, RejectCode.UNKNOWN_TYPE, RejectDetails.outsideActionFamily(request.type()));
         }

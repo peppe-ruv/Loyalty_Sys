@@ -48,8 +48,8 @@ public class EventTypeService {
     static final Set<String> RESERVED_FIRST_SEGMENTS = Set.of("io", "loyaltyhub");
     static final String CODE_FORMAT_MESSAGE =
             "minuscolo a punti, da 2 a 4 parti (es. meter.reading.sent), al massimo 60 caratteri";
-    static final String CODE_RESERVED_MESSAGE =
-            "non può iniziare con io o loyaltyhub: sono riservati ai type completi io.loyaltyhub.<famiglia>.<nome>";
+    static final String CODE_RESERVED_MESSAGE = "la prima parte non può essere io né loyaltyhub: "
+            + "sono riservate ai type completi io.loyaltyhub.<famiglia>.<nome>";
     static final Set<String> CUSTOM_CATEGORIES = Set.of("TRANSACTION", "ENGAGEMENT", "SERVICE");
 
     private final EventTypeRepository types;

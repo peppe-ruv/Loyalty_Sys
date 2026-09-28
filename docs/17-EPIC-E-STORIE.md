@@ -256,14 +256,16 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
 #### US-E01-12 · Tipi azione custom
 *Come* MARKETING, *voglio* creare un nuovo tipo azione con i suoi campi, *così che* possa premiarlo con una campagna senza rilasciare codice.
 - **Contesto reale**: arriva un nuovo servizio «lettura contatore via smart meter»: Luca crea `meter.reading.sent` con `meterId` obbligatorio.
-- **Tocca**: F-ING-06 · BO-09, BO-06, BO-28 · `POST/PUT /v1/event-types`, `GET …/fields` · ING-17, ING-18 · Q-89 · docs/12 M6.
-- **Decisioni**: codice minuscolo a punti 2–4 parti ≤ 60 · nome ≤ 60 · categoria TRANSACTION/ENGAGEMENT/SERVICE · schema `object` · esempio valido → altrimenti 422 `EVENT_TYPE_INVALID` · duplicato → 409 `EVENT_TYPE_EXISTS` · codice diverso in modifica → 422 `EVENT_TYPE_IMMUTABLE_FIELD` · tipo di sistema: solo ADMIN (altri 403), solo nome/descrizione/icona/abilitazione (altrimenti 422 `EVENT_TYPE_SYSTEM_LOCKED`).
+- **Tocca**: F-ING-06 · BO-09, BO-06, BO-28 · `POST/PUT /v1/event-types`, `GET …/fields` · ING-17, ING-18 · Q-89, Q-439, Q-440 · docs/12 M6.
+- **Decisioni**: codice minuscolo a punti 2–4 parti ≤ 60, prima parte diversa da `io` e `loyaltyhub` (Q-439) · nome ≤ 60 · categoria TRANSACTION/ENGAGEMENT/SERVICE · schema `object` · esempio valido → altrimenti 422 `EVENT_TYPE_INVALID` · duplicato, anche da una creazione simultanea, → 409 `EVENT_TYPE_EXISTS` senza sovrascrivere e senza audit (creazione atomica, Q-440) · codice diverso in modifica → 422 `EVENT_TYPE_IMMUTABLE_FIELD` · tipo di sistema: solo ADMIN (altri 403), solo nome/descrizione/icona/abilitazione (altrimenti 422 `EVENT_TYPE_SYSTEM_LOCKED`).
 - **Criteri**:
   1. Dato un tipo custom creato da BO-09, allora è inviabile da BO-28, selezionabile in BO-06 con i suoi campi e produce punti senza ridistribuire nulla (docs/12 M6).
   2. ✗ Dato il codice `Meter_Reading`, allora 422 con errore sul campo `code`.
   3. ✗ Dato MARKETING che modifica `purchase.completed`, allora 403; dato ADMIN che ne cambia lo schema, allora 422 `EVENT_TYPE_SYSTEM_LOCKED`.
   4. Dato ADMIN che disabilita un tipo, allora i nuovi eventi di quel tipo sono `UNKNOWN_TYPE`.
-- **Testbook**: TB-ING (da coprire).
+  5. ✗ Dato il codice `io.loyaltyhub.effect.x`, allora 422 `EVENT_TYPE_INVALID` sul campo `code`; `iot.sensor.read` resta ammesso (Q-439).
+  6. Date due creazioni simultanee dello stesso codice, allora una riceve 201 e l'altra 409 `EVENT_TYPE_EXISTS`, con una sola voce di audit `CREATE` (Q-440).
+- **Testbook**: TB-ING-ETY-006, 047, 051, 053 (criteri 2–4) · TB-ING-ETY-061…064 (criteri 5 e 6) · criterio 1 da coprire.
 
 #### US-E01-13 · Monitor ingressi
 *Come* ANALYST o CARE, *voglio* vedere ogni evento ricevuto con esito, codice e payload, *così che* possa rispondere a «perché non ho i punti?».
@@ -1785,9 +1787,9 @@ Inventario dei punti di decisione **ricavato dal codice** (`services/*/src/main`
 | `EDITION_OVERLAP` | 422 | wallet `EditionService` | wallet §3, docs/03 §4.4 | US-E04-11 |
 | `EMAIL_TAKEN` | 409 | member `MemberService` | docs/03 §2 | US-E02-01, US-E02-02, US-E10-08 |
 | `ENABLED_REQUIRED` | 422 | ingestion `InternalMappingsController` | nessuna | US-E01-10 |
-| `EVENT_TYPE_EXISTS` | 409 | ingestion `EventTypeService` | Q-89 | US-E01-12 |
+| `EVENT_TYPE_EXISTS` | 409 | ingestion `EventTypeService` | Q-89, Q-440 | US-E01-12 |
 | `EVENT_TYPE_IMMUTABLE_FIELD` | 422 | ingestion `EventTypeService` | ingestion §3 | US-E01-12 |
-| `EVENT_TYPE_INVALID` | 422 | ingestion `EventTypeService` | Q-89 | US-E01-12 |
+| `EVENT_TYPE_INVALID` | 422 | ingestion `EventTypeService` | Q-89, Q-439 | US-E01-12 |
 | `EVENT_TYPE_SYSTEM_LOCKED` | 422 | ingestion `EventTypeService` | ingestion §3 | US-E01-12 |
 | `INBOUND_NOT_RETRYABLE` | 409 | ingestion `InboundResolutionService` | ingestion §3, Q-114 | US-E01-07 |
 | `INBOUND_NOT_UNMATCHED` | 409 | ingestion `InboundResolutionService` | ingestion §3 | US-E01-07 |
@@ -1876,7 +1878,7 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | ↳ | 400: `time` non RFC 3339 | ingestion §5.1 | US-E01-02 | TB-ING |
 | ING-02 passo 2 fonte | `REJECTED/SOURCE_DISABLED`: fonte inesistente (anche `pos-legacy`, Q-129) | ingestion §5.2, Q-129 | US-E01-03 | TB-ING |
 | ↳ | `REJECTED/SOURCE_DISABLED`: fonte disabilitata | F-ING-05 | US-E01-03 | TB-ING |
-| ING-03 passo 3 tipo | `REJECTED/UNKNOWN_TYPE`: tipo inesistente o disabilitato | ingestion §5.3 | US-E01-03 | TB-ING |
+| ING-03 passo 3 tipo | `REJECTED/UNKNOWN_TYPE`: tipo inesistente o disabilitato, o `type` completo fuori da `io.loyaltyhub.action.` (Q-439) | ingestion §5.3 | US-E01-03 | TB-ING |
 | ↳ | `REJECTED/TYPE_NOT_ALLOWED`: `allowed_types` non vuoto e senza il tipo | ingestion §5.3 | US-E01-03 | TB-ING |
 | ↳ | `allowed_types` vuoto ⇒ tutti i tipi ammessi | ingestion §2 | US-E01-03 | TB-ING |
 | ING-04 passo 4 schema | `REJECTED/INVALID_DATA` con gli errori dello schema nel dettaglio | ingestion §5.4 | US-E01-03 | TB-ING |
@@ -1926,8 +1928,8 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | ↳ | 422 `ENABLED_REQUIRED` | nessuna | US-E01-10 | TB-ING |
 | ↳ | 404 mappatura inesistente | nessuna | US-E01-10 | TB-ING |
 | ↳ | abilitata/disabilitata + audit `UPDATE` | F-ING-08 | US-E01-10 | TB-ING |
-| ING-17 `EventTypeService#create` | 422 `EVENT_TYPE_INVALID` (corpo mancante; codice non `a.b[.c[.d]]` o > 60; nome; categoria ∉ TRANSACTION/ENGAGEMENT/SERVICE; schema non `object`; `sampleData` non valido) | Q-89 | US-E01-12 | TB-ING |
-| ↳ | 409 `EVENT_TYPE_EXISTS` | Q-89 | US-E01-12 | TB-ING |
+| ING-17 `EventTypeService#create` | 422 `EVENT_TYPE_INVALID` (corpo mancante; codice non `a.b[.c[.d]]` o > 60; prima parte `io` o `loyaltyhub`, Q-439; nome; categoria ∉ TRANSACTION/ENGAGEMENT/SERVICE; schema non `object`; `sampleData` non valido) | Q-89 | US-E01-12 | TB-ING |
+| ↳ | 409 `EVENT_TYPE_EXISTS`, anche per una creazione simultanea (inserimento solo se assente) | Q-89, Q-440 | US-E01-12 | TB-ING |
 | ↳ | tipo `CUSTOM` creato + audit | F-ING-06 | US-E01-12 | TB-ING |
 | ING-18 `EventTypeService#update` | 404 | ingestion §3 | US-E01-12 | TB-ING |
 | ↳ | 422 `EVENT_TYPE_IMMUTABLE_FIELD` (codice diverso) | ingestion §3 | US-E01-12 | TB-ING |

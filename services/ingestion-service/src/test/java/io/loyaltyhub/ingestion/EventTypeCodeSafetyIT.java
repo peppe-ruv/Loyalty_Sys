@@ -124,6 +124,36 @@ class EventTypeCodeSafetyIT {
     }
 
     /**
+     * Un custom con codice riservato creato prima della correzione resta utilizzabile solo dentro la famiglia azioni
+     * (Q-439): {@code io.old.custom} anche in forma breve, perché diventa {@code io.loyaltyhub.action.io.old.custom};
+     * {@code io.loyaltyhub.effect.kept} solo in forma completa {@code io.loyaltyhub.action.<codice>}. In ogni caso
+     * l'azione si pubblica su {@code lh.actions.v1} e mai su un altro topic.
+     */
+    @Test
+    void legacyReservedCodesStayInsideTheActionFamily() {
+        insertLegacyType("io.old.custom");
+        insertLegacyType("io.loyaltyhub.effect.kept");
+
+        for (String type : List.of("io.old.custom", "io.loyaltyhub.action.io.old.custom",
+                "io.loyaltyhub.action.io.loyaltyhub.effect.kept")) {
+            JsonNode result = send("POST", "/v1/events", null, inbound(type), 202);
+            assertThat(result.path("status").asString()).as(type + " → " + result).isEqualTo("ACCEPTED");
+        }
+        assertThat(outboxRows("io.loyaltyhub.action.io.old.custom", "lh.actions.v1")).isEqualTo(2);
+        assertThat(outboxRows("io.loyaltyhub.action.io.loyaltyhub.effect.kept", "lh.actions.v1")).isEqualTo(1);
+        assertThat(jdbc.sql("""
+                        SELECT count(*) FROM outbox
+                        WHERE (type LIKE '%io.old.custom' OR type LIKE '%effect.kept') AND topic <> 'lh.actions.v1'
+                        """).query(Long.class).single())
+                .as("nessuna pubblicazione fuori da lh.actions.v1").isZero();
+
+        // La forma breve di un codice io.loyaltyhub.* è un type completo fuori famiglia: rifiutata.
+        JsonNode shortForm = send("POST", "/v1/events", null, inbound("io.loyaltyhub.effect.kept"), 202);
+        assertThat(shortForm.path("rejectCode").asString()).isEqualTo("UNKNOWN_TYPE");
+        assertThat(outboxRows("io.loyaltyhub.effect.kept")).isZero();
+    }
+
+    /**
      * Riprocessa DLQ di una riga {@code ACCEPTED} salvata prima della correzione con un type fuori famiglia: non si
      * ripubblica l'envelope salvato; la richiesta passa dalla pipeline, che la rifiuta.
      */
@@ -215,11 +245,29 @@ class EventTypeCodeSafetyIT {
             assertThat(send("GET", "/v1/event-types/" + code, null, null, 200).path("name").asString())
                     .as(code).isEqualTo(nameBefore);
         }
-        for (String code : system) {
+        // Ogni tipo di sistema abilitato, con i dati di esempio del registro, in forma breve e completa: nessuno è
+        // scambiato per un type fuori famiglia o sconosciuto (un filtro di famiglia troppo largo fallirebbe qui).
+        List<Map<String, Object>> enabledSystem = jdbc.sql("""
+                        SELECT code, sample_data::text AS sample FROM event_type
+                        WHERE origin = 'SYSTEM' AND enabled ORDER BY code
+                        """)
+                .query().listOfRows();
+        assertThat(enabledSystem).isNotEmpty();
+        for (Map<String, Object> row : enabledSystem) {
+            String code = (String) row.get("code");
+            Object sample = row.get("sample") == null ? Map.of() : mapper.readTree((String) row.get("sample"));
             for (String type : List.of(code, "io.loyaltyhub.action." + code)) {
-                JsonNode result = send("POST", "/v1/events", null, inbound(type), 202);
-                assertThat(result.path("detail").asString("")).as(type).doesNotContain("fuori dalla famiglia");
+                Map<String, Object> event = new java.util.HashMap<>(inbound(type));
+                event.put("data", sample);
+                JsonNode result = send("POST", "/v1/events", null, event, 202);
+                assertThat(result.path("rejectCode").asString("")).as(type + " → " + result)
+                        .isNotEqualTo("UNKNOWN_TYPE");
             }
+        }
+        // Un tipo rappresentativo è accettato in entrambe le forme.
+        for (String type : List.of("app.login.daily", "io.loyaltyhub.action.app.login.daily")) {
+            assertThat(send("POST", "/v1/events", null, inbound(type), 202).path("status").asString())
+                    .as(type).isEqualTo("ACCEPTED");
         }
     }
 
@@ -328,6 +376,11 @@ class EventTypeCodeSafetyIT {
 
     private long outboxRows(String type) {
         return jdbc.sql("SELECT count(*) FROM outbox WHERE type = ?").param(type).query(Long.class).single();
+    }
+
+    private long outboxRows(String type, String topic) {
+        return jdbc.sql("SELECT count(*) FROM outbox WHERE type = ? AND topic = ?").params(type, topic)
+                .query(Long.class).single();
     }
 
     private long auditCount(String code, String action) {

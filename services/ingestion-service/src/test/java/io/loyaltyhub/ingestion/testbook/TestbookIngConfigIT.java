@@ -133,6 +133,60 @@ class TestbookIngConfigIT extends TestbookIngHarness {
                     body.put("code", "purchase.completed");
                     r = create(body, actor);
                 }
+                case "c.reservedIo", "c.reservedLoyaltyhub", "c.lookalike" -> {
+                    int n = seq();
+                    String c = switch (kase) {
+                        case "c.reservedIo" -> "io.loyaltyhub.effect.tbety" + n;
+                        case "c.reservedLoyaltyhub" -> "loyaltyhub.tbety" + n + ".sent";
+                        default -> "iot.tbety" + n + ".read";
+                    };
+                    body.put("code", c);
+                    r = create(body, actor);
+                    if (http == 422) {
+                        after.add(() -> {
+                            assertThat(call("GET", "/v1/event-types/" + c, null, null).status()).isEqualTo(404);
+                            assertThat(audits("event_type:" + c)).isEmpty();
+                        });
+                    }
+                }
+                case "c.concurrent" -> {
+                    // Due creazioni simultanee dello stesso codice (Q-440): una 201, l'altra 409 senza audit.
+                    java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+                    List<java.util.concurrent.CompletableFuture<Response>> both = new ArrayList<>();
+                    for (String who : List.of(actor, "ADMIN:marta.admin")) {
+                        ObjectNode copy = body.deepCopy();
+                        both.add(java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                            try {
+                                start.await();
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                throw new IllegalStateException(e);
+                            }
+                            return create(copy, who);
+                        }));
+                    }
+                    start.countDown();
+                    Response first = both.get(0).join(), second = both.get(1).join();
+                    Response winner = first.status() == 201 ? first : second;
+                    r = winner == first ? second : first;
+                    after.add(() -> {
+                        assertThat(winner.status()).isEqualTo(201);
+                        assertThat(audits("event_type:" + typeCode)).hasSize(1);
+                    });
+                }
+                case "i.outsideFamily" -> {
+                    // Type completo fuori da io.loyaltyhub.action. (Q-439): rifiutato, mai pubblicato.
+                    String id = freshEventId();
+                    r = postEvent(event(id, "simulator", "io.loyaltyhub.effect.points.credited",
+                            "member:" + freshMember("ACTIVE").memberId(), Instant.now(), json("{}")));
+                    after.add(() -> {
+                        assertThat(r.text("status")).isEqualTo("REJECTED");
+                        assertThat(r.text("rejectCode")).isEqualTo("UNKNOWN_TYPE");
+                        assertThat(r.text("detail")).contains("fuori dalla famiglia azioni");
+                        assertThat(jdbc.sql("SELECT count(*) FROM outbox WHERE payload->>'id' = ?").param(id)
+                                .query(Long.class).single()).isZero();
+                    });
+                }
                 case "c.nameBlank", "c.name60", "c.name61" -> {
                     body.put("name", switch (kase) {
                         case "c.nameBlank" -> "   ";

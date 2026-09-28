@@ -33,7 +33,7 @@ Il testbook è eseguibile per intero con un comando e produce un rapporto riga p
 
 | Dominio | Sezione | Servizi | Specifiche principali | Stato |
 |---|---|---|---|---|
-| Ingresso eventi | [§3](#3-tb-ing--ingresso-eventi) | ingestion | docs/servizi/ingestion-service.md §3, §5 · F-ING-* · contracts/events/action | **eseguibile** — 685 righe |
+| Ingresso eventi | [§3](#3-tb-ing--ingresso-eventi) | ingestion | docs/servizi/ingestion-service.md §3, §5 · F-ING-* · contracts/events/action | **eseguibile** — 690 righe |
 | Campagne | [§4](#4-tb-cmp--campagne) | campaign | docs/03 §3 · docs/servizi/campaign-service.md · F-CMP-* | **eseguibile** — 638 righe |
 | Wallet e livelli | [§5](#5-tb-wal--wallet-e-livelli) | wallet | docs/03 §4 · docs/servizi/wallet-service.md · F-WAL-*, F-TIER-* | **eseguibile** — 373 righe |
 | Premi e coupon | [§6](#6-tb-rwd--premi-e-coupon) | reward (+ wallet) | docs/servizi/reward-service.md · F-RWD-*, F-CPN-* | **eseguibile** — 567 righe |
@@ -54,7 +54,7 @@ Il testbook è eseguibile per intero con un comando e produce un rapporto riga p
 
 ## 3. TB-ING — Ingresso eventi
 Documento completo: [`docs/testbook/TB-ING-ingresso.md`](testbook/TB-ING-ingresso.md) — 28 regole, 111 rami mappati,
-**685 righe** in 18 aree. Test: `services/ingestion-service/src/test/java/io/loyaltyhub/ingestion/testbook/`
+**690 righe** in 18 aree. Test: `services/ingestion-service/src/test/java/io/loyaltyhub/ingestion/testbook/`
 (`TestbookIngPipelineIT`, `TestbookIngResolutionIT`, `TestbookIngConfigIT`, `TestbookIngScenarioTimeTest`), dati in `testbook/ing/*.csv`.
 
 - **Ordine della pipeline provato** (forma → fonte → tipo → dati → tempo → dedup → membro): 51 righe PIP con ogni guasto da

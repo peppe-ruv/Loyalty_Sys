@@ -63,8 +63,8 @@ public class ActionReplayService {
         }
         LhEvent<JsonNode> event = mapper.readValue(payload.get(), EVENT_TYPE);
         if (event.family() != LhFamily.ACTION) {
-            // Q-439: una riga accettata prima della correzione con un type fuori dalla famiglia azioni non si
-            // ripubblica; passa dalla pipeline normale, che la rifiuta.
+            // SPEC-GAP: Q-439. Una riga accettata prima della correzione con un type fuori dalla famiglia azioni non
+            // si ripubblica; passa dalla pipeline normale, che la rifiuta.
             return Optional.empty();
         }
         outbox.write(event);
