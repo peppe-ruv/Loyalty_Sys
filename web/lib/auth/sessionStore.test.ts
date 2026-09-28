@@ -63,6 +63,31 @@ describe("InMemorySessionStore", () => {
     expect(store.size).toBe(0);
   });
 
+  it("blob spostato su un'altra sessione (AAD = impronta dell'id): non si apre", async () => {
+    const { store } = setup();
+    const a = await store.create(user({ sub: "a", username: "a" }), { ...TOKENS, accessToken: "AT-A" });
+    const b = await store.create(user({ sub: "b", username: "b" }), { ...TOKENS, accessToken: "AT-B" });
+    const entries = [...(store as unknown as { entries: Map<string, { blob: string }> }).entries.values()];
+    // Se l'AAD fosse ignorato, la sessione b restituirebbe l'identità e i token di a.
+    entries[1].blob = entries[0].blob;
+    expect(await store.get(b)).toBeNull();
+    expect((await store.get(a))?.tokens.accessToken).toBe("AT-A");
+  });
+
+  it("tetto per account: esce la sessione più vecchia dello stesso sub, le altre persone restano", async () => {
+    let now = 1_000_000;
+    const store = new InMemorySessionStore({ masterKey: MASTER, idleSeconds: 1800, maxSeconds: 36000, maxSessions: 5, maxSessionsPerSubject: 2, now: () => now });
+    const others = [await store.create(user({ sub: "x" }), TOKENS), await store.create(user({ sub: "y" }), TOKENS)];
+    const first = await store.create(user({ sub: "abuso" }), TOKENS);
+    const second = await store.create(user({ sub: "abuso" }), TOKENS);
+    now += 1;
+    for (let i = 0; i < 20; i++) await store.create(user({ sub: "abuso" }), TOKENS);
+    expect(await store.get(first)).toBeNull();
+    expect(await store.get(second)).toBeNull();
+    for (const id of others) expect(await store.get(id)).not.toBeNull();
+    expect(store.size).toBe(4);
+  });
+
   it("inattività: l'uso rinnova, oltre il limite la sessione scade", async () => {
     const { store, advance } = setup({ idle: 1800 });
     const id = await store.create(user(), TOKENS);

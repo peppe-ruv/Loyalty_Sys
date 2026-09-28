@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 
 // Configurazione del BFF (ADR-027, docs/18 §3.2, CLAUDE.md regole 6-bis, 20, 22). SOLO LATO SERVER.
@@ -15,6 +16,11 @@ export interface DemoAuthConfig {
 
 export interface EnterpriseAuthConfig {
   mode: "enterprise";
+  /**
+   * Impronta SHA-256 delle variabili lette: identifica la configurazione tra istanze diverse dello stesso modulo
+   * (Next carica config.ts in più copie, una per i route handler e una per i layout RSC). Mai l'identità dell'oggetto.
+   */
+  fingerprint: string;
   /** Emittente OIDC (`LH_OIDC_ISSUER`): discovery in `<issuer>/.well-known/openid-configuration`. */
   issuer: URL;
   clientId: string;
@@ -119,8 +125,12 @@ export function parseAuthConfig(env: Env, readFile: (path: string) => string = r
   if (problems.length || !issuer || !publicUrl || clientSecret === null || sessionKey === null) {
     throw new InsecureConfigError(problems.length ? problems : ["configurazione OIDC incompleta"]);
   }
+  const fingerprint = createHash("sha256")
+    .update(JSON.stringify([issuer.href, clientId, clientSecret, publicUrl.href, sessionKey.toString("base64"), idleSeconds, maxSeconds, maxSessions]))
+    .digest("base64url");
   return {
     mode: "enterprise",
+    fingerprint,
     issuer,
     clientId,
     clientSecret,
@@ -133,14 +143,22 @@ export function parseAuthConfig(env: Env, readFile: (path: string) => string = r
   };
 }
 
-let cached: { key: string; value: AuthConfig } | { key: string; error: InsecureConfigError } | null = null;
+type Cached = { key: string; value: AuthConfig } | { key: string; error: InsecureConfigError };
+// Cache sul processo, non sul modulo: Next carica questo file in più istanze (route handler, layout RSC) e ognuna
+// avrebbe la sua copia. Chiave e contenuto sono confrontati per valore.
+const CACHE_KEY = Symbol.for("io.loyaltyhub.web.authConfig");
+type CacheHolder = { [CACHE_KEY]?: Cached };
 
 /**
  * Configurazione corrente da `process.env`, rivalutata solo se cambia una delle variabili lette (i file `*_FILE` si
  * leggono una volta). Lancia `InsecureConfigError` nel profilo enterprise mal configurato.
  */
 export function getAuthConfig(env: Env = process.env): AuthConfig {
-  const key = WATCHED.map((name) => `${name}=${env[name] ?? ""}`).join("\n");
+  const holder = globalThis as CacheHolder;
+  const key = createHash("sha256")
+    .update(WATCHED.map((name) => `${name}=${env[name] ?? ""}`).join("\n"))
+    .digest("base64url");
+  let cached = holder[CACHE_KEY];
   if (!cached || cached.key !== key) {
     try {
       cached = { key, value: parseAuthConfig(env) };
@@ -148,6 +166,7 @@ export function getAuthConfig(env: Env = process.env): AuthConfig {
       if (!(err instanceof InsecureConfigError)) throw err;
       cached = { key, error: err };
     }
+    holder[CACHE_KEY] = cached;
   }
   if ("error" in cached) throw cached.error;
   return cached.value;

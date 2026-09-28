@@ -2,7 +2,8 @@
 import { describe, expect, it } from "vitest";
 import { checkCsrf, checkOrigin, csrfTokenFor } from "./csrf";
 import { deriveKey } from "./crypto";
-import { hasMemberIdInPath, isPortalPath, stripMemberBody, stripMemberQuery } from "./memberScope";
+import { checkPortalBody, hasMemberIdInPath, hasMemberIdInQuery, isPortalPath } from "./memberScope";
+import { safeSegments, upstreamUrl } from "@/lib/api/proxyPath";
 import { safeReturnTo } from "./returnTo";
 import { effectiveRole, rolesFromClaim, sessionKind } from "./roles";
 import { csrfHeaders, loginHref, readCsrfToken } from "./browser";
@@ -117,17 +118,76 @@ describe("membro solo dal token (API del portale)", () => {
     expect(hasMemberIdInPath(["v1", "members", "MBR-000002"])).toBe(false);
   });
 
-  it("memberId tolto dalla query in ogni grafia, gli altri parametri restano", () => {
-    const params = new URLSearchParams("memberId=MBR-9&size=3&MEMBERID=MBR-8&memberid=MBR-7&codes=A,B");
-    expect(stripMemberQuery(params).toString()).toBe("size=3&codes=A%2CB");
+  it.each(["memberId=MBR-9", "size=3&MEMBERID=MBR-8", "memberid=MBR-7", "member%49d=MBR-6", "memberId=", "a=1&memberId=x&memberId=y"])(
+    "memberId in query riconosciuto: %s",
+    (query) => {
+      expect(hasMemberIdInQuery(new URLSearchParams(query))).toBe(true);
+    },
+  );
+
+  it("query senza memberId", () => {
+    expect(hasMemberIdInQuery(new URLSearchParams("size=3&codes=A,B&member=1&memberIds=x"))).toBe(false);
   });
 
-  it("memberId tolto dal primo livello del corpo JSON, anche scritto con escape", () => {
-    expect(JSON.parse(stripMemberBody('{"memberId":"MBR-9","rewardCode":"RWD-1"}'))).toEqual({ rewardCode: "RWD-1" });
-    expect(JSON.parse(stripMemberBody('{"member\\u0049d":"MBR-9","x":1}'))).toEqual({ x: 1 });
-    expect(stripMemberBody('{"rewardCode":"RWD-1"}')).toBe('{"rewardCode":"RWD-1"}');
-    expect(stripMemberBody("non json")).toBe("non json");
-    expect(stripMemberBody('[{"memberId":"MBR-9"}]')).toBe('[{"memberId":"MBR-9"}]');
+  const json = (text: string) => new TextEncoder().encode(text);
+  it.each([
+    ["corpo vuoto (azioni senza corpo)", null, "", null],
+    ["oggetto JSON pulito", "application/json", '{"rewardCode":"RWD-1"}', null],
+    ["JSON con charset", "application/json; charset=utf-8", '{"a":1}', null],
+    ["memberId in testa", "application/json", '{"memberId":"MBR-9","rewardCode":"RWD-1"}', "MEMBER_FROM_TOKEN"],
+    ["memberId scritto con escape", "application/json", '{"member\\u0049d":"MBR-9"}', "MEMBER_FROM_TOKEN"],
+    ["memberId annidato", "application/json", '{"x":{"y":[{"MemberID":"MBR-9"}]}}', "MEMBER_FROM_TOKEN"],
+    ["JSON con testo in coda", "application/json", '{"a":1} {"memberId":"MBR-9"}', "INVALID_BODY"],
+    ["JSON non valido", "application/json", "non json", "INVALID_BODY"],
+    ["array JSON", "application/json", '[{"a":1}]', "INVALID_BODY"],
+    ["valore JSON non oggetto", "application/json", '"MBR-9"', "INVALID_BODY"],
+    ["form urlencoded", "application/x-www-form-urlencoded", "memberId=MBR-9", "UNSUPPORTED_MEDIA_TYPE"],
+    ["multipart", "multipart/form-data; boundary=x", '--x\r\nContent-Disposition: form-data; name="memberId"\r\n\r\nMBR-9\r\n--x--', "UNSUPPORTED_MEDIA_TYPE"],
+    ["testo semplice", "text/plain", '{"memberId":"MBR-9"}', "UNSUPPORTED_MEDIA_TYPE"],
+    ["content-type assente", null, '{"memberId":"MBR-9"}', "UNSUPPORTED_MEDIA_TYPE"],
+  ])("corpo del portale: %s", (_, contentType, text, code) => {
+    expect(checkPortalBody(contentType, json(text))?.code ?? null).toBe(code);
+  });
+
+  it("byte UTF-8 non validi e annidamento patologico: 400, mai un 500", () => {
+    expect(checkPortalBody("application/json", new Uint8Array([0x7b, 0xff, 0x7d]))?.code).toBe("INVALID_BODY");
+    const deep = `${'{"a":'.repeat(20000)}1${"}".repeat(20000)}`;
+    expect(["INVALID_BODY", undefined]).toContain(checkPortalBody("application/json", json(deep))?.code);
+  });
+});
+
+describe("percorso inoltrato (profilo enterprise)", () => {
+  const BASE = "http://wallet.test";
+  it.each([
+    [["v1", "portal", "tiers"], "http://wallet.test/v1/portal/tiers"],
+    [["v1", "contests", "CNT-1", "winners.csv"], "http://wallet.test/v1/contests/CNT-1/winners.csv"],
+    [["v1", "members", "MBR-000002"], "http://wallet.test/v1/members/MBR-000002"],
+  ])("ammesso %j", (path, expected) => {
+    expect(safeSegments(path)).toBe(true);
+    expect(upstreamUrl(BASE, path)?.href).toBe(expected);
+  });
+
+  it("base con prefisso di percorso conservato", () => {
+    expect(upstreamUrl("http://gw.test/lh/", ["v1", "portal", "tiers"])?.href).toBe("http://gw.test/lh/v1/portal/tiers");
+  });
+
+  it.each([
+    ["parametro di matrice", ["v1", "portal", "wallets;x", "MBR-9"]],
+    ["punto-punto decodificato", ["v1", "portal", "x", "..", "wallets", "MBR-9"]],
+    ["punto-punto dopo portal", ["v1", "portal", "..", "members", "MBR-9"]],
+    ["barra decodificata da %2F", ["v1", "portal", "x/../wallets", "MBR-9"]],
+    ["barra rovesciata", ["v1", "portal", "x\\..\\wallets"]],
+    ["punto singolo", ["v1", "portal", ".", "tiers"]],
+    ["percento residuo (doppia codifica)", ["v1", "portal", "%2e%2e", "wallets"]],
+    ["segmento vuoto", ["v1", "portal", "", "tiers"]],
+    ["punto interrogativo", ["v1", "portal", "tiers?memberId=MBR-9"]],
+    ["cancelletto", ["v1", "portal", "tiers#x"]],
+    ["spazio", ["v1", "portal", "ti ers"]],
+    ["carattere non ASCII", ["v1", "portal", "tièrs"]],
+    ["nessun segmento", []],
+  ])("rifiutato: %s", (_, path) => {
+    expect(safeSegments(path)).toBe(false);
+    expect(upstreamUrl(BASE, path)).toBeNull();
   });
 });
 

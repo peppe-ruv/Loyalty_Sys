@@ -19,6 +19,32 @@ export interface LogoutTarget {
   exp: number;
 }
 
+/** Le chiavi dell'IdP non si possono scaricare adesso (rete, timeout, risposta non valida): errore ritentabile. */
+export class LogoutKeysUnavailableError extends Error {
+  constructor(cause: unknown) {
+    super("chiavi dell'IdP non disponibili", { cause });
+    this.name = "LogoutKeysUnavailableError";
+  }
+}
+
+/**
+ * Risolutore di chiavi che distingue «chiave sconosciuta» (token non valido, 400) da «chiavi non scaricabili»
+ * (condizione temporanea, 503): senza questa distinzione un IdP irraggiungibile farebbe scartare logout legittimi.
+ */
+export function resilientKeys(keys: JWTVerifyGetKey): JWTVerifyGetKey {
+  return async (header, token) => {
+    try {
+      return await keys(header, token);
+    } catch (err) {
+      const code = (err as { code?: unknown } | null)?.code;
+      if (code === "ERR_JWKS_NO_MATCHING_KEY" || code === "ERR_JWKS_MULTIPLE_MATCHING_KEYS" || code === "ERR_JOSE_NOT_SUPPORTED") {
+        throw err;
+      }
+      throw new LogoutKeysUnavailableError(err);
+    }
+  };
+}
+
 export class InvalidLogoutTokenError extends Error {
   constructor(reason: string) {
     super(`logout token non valido: ${reason}`);
@@ -49,6 +75,7 @@ export async function verifyLogoutToken(token: string, checks: LogoutTokenChecks
       currentDate: checks.now === undefined ? undefined : new Date(checks.now * 1000),
     }));
   } catch (err) {
+    if (err instanceof LogoutKeysUnavailableError) throw err;
     throw new InvalidLogoutTokenError(err instanceof Error ? err.message : "firma o claim");
   }
   // Tipo esplicito (§2.4): se presente deve essere `logout+jwt`; un ID token o un access token non valgono come logout.

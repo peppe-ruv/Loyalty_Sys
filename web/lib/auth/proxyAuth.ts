@@ -3,7 +3,7 @@ import { problem, type Bff } from "./bff";
 import { SESSION_COOKIE } from "./cookies";
 import { checkCsrf } from "./csrf";
 import { csrfRejected } from "./handlers";
-import { hasMemberIdInPath, isPortalPath } from "./memberScope";
+import { hasMemberIdInPath, hasMemberIdInQuery, isPortalPath } from "./memberScope";
 import { freshSession, IdpUnavailableError } from "./refresh";
 
 // Identità delle chiamate del proxy /api/lh nel profilo enterprise (ADR-027, ADR-042, docs/18 §3.2 e §3.10).
@@ -38,6 +38,12 @@ export async function authorizeProxy(req: NextRequest, path: readonly string[], 
   // Difesa in profondità: i servizi rifiutano comunque (403) un token di solo membro fuori da /v1/portal/**.
   if (session.user.kind === "member" && !portal) {
     return { ok: false, response: problem(403, "FORBIDDEN_ROLE", "Operazione non consentita", "Un membro può usare solo le funzioni del portale.") };
+  }
+  if (portal && hasMemberIdInQuery(req.nextUrl.searchParams)) {
+    return {
+      ok: false,
+      response: problem(400, "MEMBER_FROM_TOKEN", "Richiesta non valida", "Il membro si ricava dall'accesso, non dai parametri della richiesta."),
+    };
   }
   if (hasMemberIdInPath(path)) {
     return {

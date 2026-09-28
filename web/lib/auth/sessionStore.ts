@@ -8,7 +8,11 @@ import type { SessionKind } from "./roles";
 // qui c'è l'interfaccia e un'implementazione in memoria per una sola replica.
 // SPEC-GAP: Q-409 (store su database condiviso tra repliche, con lock del rinnovo).
 
-/** Identità mostrata dal web; niente dati che non servano a UI e logout. */
+/**
+ * Identità mostrata dal web; niente dati che non servano a UI e logout. Fissata al login: un cambio di ruoli nell'IdP
+ * si vede nella UI solo al login successivo. Serve solo a mostrare o nascondere azioni: l'autorizzazione vera la fanno
+ * i servizi sui claim dell'access token, che si rinnova ogni 5 minuti (Q-409).
+ */
 export interface SessionUser {
   /** `sub` del token: il membro o l'operatore per l'IdP. */
   sub: string;
@@ -55,6 +59,11 @@ export interface InMemorySessionStoreOptions {
   idleSeconds: number;
   maxSeconds: number;
   maxSessions: number;
+  /**
+   * Sessioni per lo stesso `sub` (browser o dispositivi): oltre, esce la sua meno recente. Così un solo account che
+   * ripete il login non può spingere fuori dal tetto globale le sessioni di tutti gli altri. Predefinito 10.
+   */
+  maxSessionsPerSubject?: number;
   /** Orologio in secondi epoch (iniettabile nei test). */
   now?: () => number;
 }
@@ -85,6 +94,7 @@ export class InMemorySessionStore implements SessionStore {
 
   async create(user: SessionUser, tokens: SessionTokens): Promise<string> {
     this.sweep();
+    this.makeRoomFor(user.sub);
     const id = randomId();
     const handle = digest(id);
     const now = this.now();
@@ -164,6 +174,13 @@ export class InMemorySessionStore implements SessionStore {
 
   private expired(entry: Entry, now: number): boolean {
     return now - entry.lastSeenAt > this.options.idleSeconds || now - entry.createdAt > this.options.maxSeconds;
+  }
+
+  /** Toglie le sessioni meno recenti di `sub` finché ne resta posto per una nuova (la `Map` è in ordine d'uso). */
+  private makeRoomFor(sub: string): void {
+    const cap = this.options.maxSessionsPerSubject ?? 10;
+    const mine = [...this.entries].filter(([, entry]) => entry.sub === sub).map(([handle]) => handle);
+    for (let i = 0; i <= mine.length - cap; i++) this.entries.delete(mine[i]);
   }
 
   private sweep(): void {

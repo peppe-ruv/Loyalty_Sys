@@ -226,28 +226,94 @@ describe("profilo enterprise", () => {
   });
 
   describe("portale: membro solo dal token", () => {
-    it("memberId tolto dalla query, gli altri parametri restano", async () => {
+    it("richiesta pulita: inoltrata con i parametri com'erano", async () => {
       const { cookie } = await login(MEMBER);
-      await GET(
-        new NextRequest(`${ORIGIN}/api/lh/reward/v1/portal/coupons?memberId=MBR-000009&size=5`, { headers: { cookie } }),
+      const res = await GET(
+        new NextRequest(`${ORIGIN}/api/lh/reward/v1/portal/coupons?size=5`, { headers: { cookie } }),
         ctx("reward", ["v1", "portal", "coupons"]),
       );
+      expect(res.status).toBe(200);
       expect(seen[0].url).toBe("http://reward.test/v1/portal/coupons?size=5");
       expect(sentHeaders().authorization).toBe("Bearer AT-kc-2");
     });
 
-    it("memberId tolto dal corpo JSON", async () => {
+    it.each(["memberId=MBR-000009&size=5", "MEMBERID=MBR-000009", "member%49d=MBR-000009", "size=5&memberId="])(
+      "memberId in query (%s): 400 MEMBER_FROM_TOKEN, niente pulizia silenziosa, servizio non chiamato",
+      async (query) => {
+        const { cookie } = await login(MEMBER);
+        const res = await GET(
+          new NextRequest(`${ORIGIN}/api/lh/reward/v1/portal/coupons?${query}`, { headers: { cookie } }),
+          ctx("reward", ["v1", "portal", "coupons"]),
+        );
+        expect(res.status).toBe(400);
+        expect((await res.json()).code).toBe("MEMBER_FROM_TOKEN");
+        expect(seen).toHaveLength(0);
+      },
+    );
+
+    async function portalPost(contentType: string | null, body: string) {
       const { cookie, csrf } = await login(MEMBER);
-      const res = await POST(
-        new NextRequest(`${ORIGIN}/api/lh/reward/v1/portal/redemptions`, {
-          method: "POST",
-          headers: { cookie, origin: ORIGIN, "x-lh-csrf": csrf, "content-type": "application/json" },
-          body: JSON.stringify({ memberId: "MBR-000009", rewardCode: "RWD-1" }),
-        }),
+      const headers: Record<string, string> = { cookie, origin: ORIGIN, "x-lh-csrf": csrf };
+      if (contentType) headers["content-type"] = contentType;
+      return POST(
+        new NextRequest(`${ORIGIN}/api/lh/reward/v1/portal/redemptions`, { method: "POST", headers, body }),
         ctx("reward", ["v1", "portal", "redemptions"]),
       );
+    }
+
+    it("corpo JSON pulito: inoltrato identico", async () => {
+      const res = await portalPost("application/json", '{"rewardCode":"RWD-1"}');
       expect(res.status).toBe(200);
-      expect(JSON.parse(seen[0].init.body as string)).toEqual({ rewardCode: "RWD-1" });
+      expect(seen[0].init.body).toBe('{"rewardCode":"RWD-1"}');
+    });
+
+    it("POST senza corpo (es. annulla un riscatto): inoltrato", async () => {
+      const res = await portalPost("application/json", "");
+      expect(res.status).toBe(200);
+    });
+
+    it.each([
+      ["memberId nel JSON", "application/json", '{"memberId":"MBR-000009","rewardCode":"RWD-1"}', 400, "MEMBER_FROM_TOKEN"],
+      ["memberId con escape", "application/json", '{"member\\u0049d":"MBR-000009"}', 400, "MEMBER_FROM_TOKEN"],
+      ["memberId annidato", "application/json", '{"r":{"memberId":"MBR-000009"}}', 400, "MEMBER_FROM_TOKEN"],
+      ["JSON con testo in coda", "application/json", '{"rewardCode":"RWD-1"}&memberId=MBR-000009', 400, "INVALID_BODY"],
+      ["due oggetti JSON", "application/json", '{"a":1}{"memberId":"MBR-000009"}', 400, "INVALID_BODY"],
+      ["array JSON", "application/json", '[{"memberId":"MBR-000009"}]', 400, "INVALID_BODY"],
+      ["form urlencoded", "application/x-www-form-urlencoded", "memberId=MBR-000009&rewardCode=RWD-1", 415, "UNSUPPORTED_MEDIA_TYPE"],
+      ["multipart", "multipart/form-data; boundary=b", '--b\r\nContent-Disposition: form-data; name="memberId"\r\n\r\nMBR-000009\r\n--b--\r\n', 415, "UNSUPPORTED_MEDIA_TYPE"],
+      ["text/plain", "text/plain", '{"memberId":"MBR-000009"}', 415, "UNSUPPORTED_MEDIA_TYPE"],
+    ])("corpo con %s: %i %s, servizio non chiamato", async (_, contentType, body, status, code) => {
+      const res = await portalPost(contentType, body);
+      expect(res.status).toBe(status);
+      expect((await res.json()).code).toBe(code);
+      expect(seen).toHaveLength(0);
+    });
+
+    // Next passa i segmenti già decodificati (`%2F` → `/`, `%2e%2e` → `..`); si provano sia i valori decodificati sia
+    // quelli grezzi, e il servizio non deve mai essere chiamato.
+    it.each([
+      ["parametro di matrice", ["v1", "portal", "wallets;x", "MBR-000009"]],
+      ["punto-punto dopo un segmento", ["v1", "portal", "x", "..", "wallets", "MBR-000009"]],
+      ["punto-punto subito dopo portal (fuori dal portale)", ["v1", "portal", "..", "members", "MBR-000009"]],
+      ["%2F decodificato dentro un segmento", ["v1", "portal", "x/../wallets", "MBR-000009"]],
+      ["%2e%2e decodificato", ["v1", "portal", "x", "..", "..", "members", "MBR-000009"]],
+      ["%2e%2e non decodificato", ["v1", "portal", "%2e%2e", "members", "MBR-000009"]],
+      ["x%2F..%2Fwallets non decodificato", ["v1", "portal", "x%2F..%2Fwallets", "MBR-000009"]],
+      ["barra rovesciata", ["v1", "portal", "x\\..\\wallets", "MBR-000009"]],
+      ["segmento vuoto", ["v1", "portal", "", "wallets", "MBR-000009"]],
+      ["punto", ["v1", "portal", ".", "tiers"]],
+    ])("percorso con %s: 400 INVALID_PATH anche prima della sessione", async (_, path) => {
+      const { cookie } = await login(MEMBER);
+      const res = await GET(new NextRequest(`${ORIGIN}/api/lh/wallet/v1/portal/tiers`, { headers: { cookie } }), ctx("wallet", path));
+      expect(res.status).toBe(400);
+      expect((await res.json()).code).toBe("INVALID_PATH");
+      expect(seen).toHaveLength(0);
+    });
+
+    it("percorso non valido anche per un operatore e senza sessione: 400, nessuna chiamata", async () => {
+      const res = await GET(new NextRequest(`${ORIGIN}/api/lh/member/x`), ctx("member", ["v1", "members", "..", "..", "actuator"]));
+      expect(res.status).toBe(400);
+      expect(seen).toHaveLength(0);
     });
 
     it("memberId nel percorso: 403 MEMBER_FROM_TOKEN, servizio non chiamato", async () => {
@@ -271,6 +337,27 @@ describe("profilo enterprise", () => {
       expect((await res.json()).code).toBe("FORBIDDEN_ROLE");
       expect(seen).toHaveLength(0);
     });
+  });
+
+  it.each([
+    ["ULID", "01JCORRELAZIONE0000000000", true],
+    ["UUID", "0b6c1a52-7f3e-4b8e-9a5d-2f0c9e1d4a77", true],
+    ["con spazi e a capo", "x\r\nX-LH-Actor: ADMIN:attaccante", false],
+    ["troppo lungo", "a".repeat(65), false],
+    ["caratteri non ammessi", "<script>", false],
+  ])("X-Correlation-Id %s: inoltrato solo se ha forma sicura", async (_, value, kept) => {
+    const { cookie } = await login(OPERATOR);
+    const headers = new Headers({ cookie });
+    try {
+      headers.set("x-correlation-id", value);
+    } catch {
+      return; // un valore che nemmeno un client HTTP può mandare
+    }
+    const res = await GET(new NextRequest(`${ORIGIN}/api/lh/wallet/v1/tiers`, { headers }), ctx("wallet", ["v1", "tiers"]));
+    const sent = sentHeaders()["x-correlation-id"];
+    if (kept) expect(sent).toBe(value);
+    else expect(sent).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+    expect(res.headers.get("x-correlation-id")).toBe(sent);
   });
 
   it("la persona simulata non esiste in enterprise", async () => {

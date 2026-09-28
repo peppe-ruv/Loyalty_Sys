@@ -6,7 +6,7 @@ import { createBff, type Bff } from "./bff";
 import { parseAuthConfig, type EnterpriseAuthConfig } from "./config";
 import { csrfTokenFor } from "./csrf";
 import { handleBackchannelLogout, handleCallback, handleLogin, handleLogout, userFromClaims } from "./handlers";
-import { BACKCHANNEL_LOGOUT_EVENT } from "./logoutToken";
+import { BACKCHANNEL_LOGOUT_EVENT, resilientKeys } from "./logoutToken";
 import { LoginRejectedError, type LoginChecks, type OidcClient, type TokenSet } from "./oidc";
 
 // Endpoint /api/auth/* con un IdP finto (nessuna rete): login con PKCE/state/nonce in cookie cifrato, callback con
@@ -196,33 +196,55 @@ describe("POST /api/auth/logout", () => {
     return { id, cookie: `__Host-lh_session=${id}`, token: csrfTokenFor(id, bff.csrfKey) };
   }
 
-  it("con Origin e token CSRF: sessione chiusa, cookie cancellati, URL di logout dell'IdP con id_token_hint", async () => {
-    const { id, cookie, token } = await withSession();
-    const res = await handleLogout(
-      new NextRequest(`${ORIGIN}/api/auth/logout`, { method: "POST", headers: { cookie, origin: ORIGIN, "sec-fetch-site": "same-origin", "x-lh-csrf": token } }),
+  const form = (fields: Record<string, string>) => new URLSearchParams(fields).toString();
+  const logout = (headers: Record<string, string>, body = "") =>
+    handleLogout(
+      new NextRequest(`${ORIGIN}/api/auth/logout`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", ...headers },
+        body,
+      }),
       bff,
     );
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ redirectTo: `${ISSUER}/logout?id_token_hint=ID-TOKEN-1&post_logout_redirect_uri=${encodeURIComponent(`${ORIGIN}/`)}` });
+
+  it("modulo con Origin e token CSRF: sessione chiusa, cookie cancellati, 303 lato server verso il logout dell'IdP", async () => {
+    const { id, cookie, token } = await withSession();
+    const res = await logout({ cookie, origin: ORIGIN, "sec-fetch-site": "same-origin" }, form({ csrf: token }));
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe(`${ISSUER}/logout?id_token_hint=ID-TOKEN-1&post_logout_redirect_uri=${encodeURIComponent(`${ORIGIN}/`)}`);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    // Nessun corpo leggibile dal JavaScript: l'ID token viaggia solo nell'header Location verso l'IdP.
+    expect(await res.text()).not.toContain("ID-TOKEN-1");
     expect(await bff.store.get(id)).toBeNull();
     expect(cookieOf(res, "__Host-lh_session")).toMatch(/Expires=Thu, 01 Jan 1970.*Secure; HttpOnly/);
     expect(cookieOf(res, "__Host-lh_csrf")).toMatch(/Expires=Thu, 01 Jan 1970/);
   });
 
   it.each([
-    ["senza token CSRF", { origin: ORIGIN }],
-    ["da un altro sito", { origin: "https://attaccante.example", "x-lh-csrf": "x" }],
-  ])("%s: 403 CSRF_REJECTED e sessione intatta", async (_, headers) => {
-    const { id, cookie } = await withSession();
-    const res = await handleLogout(new NextRequest(`${ORIGIN}/api/auth/logout`, { method: "POST", headers: { cookie, ...headers } }), bff);
-    expect(res.status).toBe(403);
-    expect((await res.json()).code).toBe("CSRF_REJECTED");
+    ["senza token CSRF", { origin: ORIGIN }, ""],
+    ["token sbagliato", { origin: ORIGIN }, "csrf=abc"],
+    ["da un altro sito", { origin: "https://attaccante.example" }, "csrf=TOKEN"],
+    ["Sec-Fetch-Site cross-site", { origin: ORIGIN, "sec-fetch-site": "cross-site" }, "csrf=TOKEN"],
+  ])("%s: 303 verso /auth/error e sessione intatta", async (_, headers, body) => {
+    const { id, cookie, token } = await withSession();
+    const res = await logout({ cookie, ...headers }, body.replace("TOKEN", token));
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe(`${ORIGIN}/auth/error?reason=logout_failed&returnTo=%2F`);
     expect(await bff.store.get(id)).not.toBeNull();
+    expect(cookieOf(res, "__Host-lh_session")).toBeUndefined();
+  });
+
+  it("il token CSRF vale anche come header (client che non usa il modulo)", async () => {
+    const { id, cookie, token } = await withSession();
+    const res = await logout({ cookie, origin: ORIGIN, "x-lh-csrf": token });
+    expect(res.status).toBe(303);
+    expect(await bff.store.get(id)).toBeNull();
   });
 
   it("senza sessione: nessun errore, ritorno alla pagina iniziale", async () => {
-    const res = await handleLogout(new NextRequest(`${ORIGIN}/api/auth/logout`, { method: "POST", headers: { origin: ORIGIN } }), bff);
-    expect(await res.json()).toEqual({ redirectTo: "/" });
+    const res = await logout({ origin: ORIGIN });
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe(`${ORIGIN}/`);
   });
 });
 
@@ -274,6 +296,28 @@ describe("POST /api/auth/backchannel-logout", () => {
     const res = await send();
     expect(res.status).toBe(400);
     expect(await bff.store.get(id)).not.toBeNull();
+  });
+
+  it("JWKS non scaricabile durante la verifica (rete, timeout): 503 ritentabile, nessuna sessione chiusa", async () => {
+    const failing = resilientKeys(async () => {
+      throw new TypeError("fetch failed");
+    });
+    oidc.logoutVerification.mockResolvedValueOnce({ issuer: ISSUER, keys: failing });
+    vi.spyOn(console, "error").mockImplementationOnce(() => undefined);
+    const id = await bff.store.create(userFromClaims(TOKENS.claims)!, { accessToken: "a", accessExpiresAt: 0, refreshToken: null, idToken: "i" });
+    const res = await post(`logout_token=${await logoutToken()}`);
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toBe("temporarily_unavailable");
+    expect(await bff.store.get(id)).not.toBeNull();
+  });
+
+  it("chiave sconosciuta (kid non nel JWKS): 400, non 503", async () => {
+    const other = await generateKeyPair("ES256");
+    const token = await new SignJWT({ iss: ISSUER, aud: "web", iat: now(), exp: now() + 120, jti: "j-x", sid: "s", events: { [BACKCHANNEL_LOGOUT_EVENT]: {} } })
+      .setProtectedHeader({ alg: "ES256", kid: "sconosciuta" })
+      .sign(other.privateKey);
+    oidc.logoutVerification.mockResolvedValueOnce({ issuer: ISSUER, keys: resilientKeys(jwks) });
+    expect((await post(`logout_token=${token}`)).status).toBe(400);
   });
 
   it("chiavi dell'IdP non disponibili: 503", async () => {

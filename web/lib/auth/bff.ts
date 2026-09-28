@@ -22,7 +22,7 @@ export interface Bff {
 }
 
 const GLOBAL_KEY = Symbol.for("io.loyaltyhub.web.bff");
-type Holder = { [GLOBAL_KEY]?: { cfg: EnterpriseAuthConfig; bff: Bff } };
+type Holder = { [GLOBAL_KEY]?: { fingerprint: string; bff: Bff } };
 
 export function createBff(cfg: EnterpriseAuthConfig, overrides: Partial<Omit<Bff, "cfg">> = {}): Bff {
   return {
@@ -43,13 +43,18 @@ export function createBff(cfg: EnterpriseAuthConfig, overrides: Partial<Omit<Bff
   };
 }
 
-/** BFF del processo per la configurazione corrente (ricreato solo se la configurazione cambia). */
+/**
+ * BFF del processo per la configurazione corrente, ricreato solo se la configurazione cambia DAVVERO: il confronto è
+ * sull'impronta dei valori, mai sull'identità dell'oggetto. Next carica config.ts in più istanze (route handler e
+ * layout RSC ricevono oggetti diversi con gli stessi valori): confrontare gli oggetti sostituiva il BFF, e con lui lo
+ * store in memoria, a ogni render di pagina, chiudendo tutte le sessioni.
+ */
 export function bffFor(cfg: EnterpriseAuthConfig): Bff {
   const holder = globalThis as Holder;
   const current = holder[GLOBAL_KEY];
-  if (current && current.cfg === cfg) return current.bff;
+  if (current && current.fingerprint === cfg.fingerprint) return current.bff;
   const bff = createBff(cfg);
-  holder[GLOBAL_KEY] = { cfg, bff };
+  holder[GLOBAL_KEY] = { fingerprint: cfg.fingerprint, bff };
   return bff;
 }
 

@@ -1,6 +1,7 @@
 import * as client from "openid-client";
 import { createRemoteJWKSet, type JWTVerifyGetKey } from "jose";
 import type { EnterpriseAuthConfig } from "./config";
+import { resilientKeys } from "./logoutToken";
 
 // Client OIDC del BFF (ADR-027, docs/18 §3.2): client confidential `web`, Authorization Code + PKCE (S256) + state +
 // nonce, rinnovo con refresh token a rotazione, logout avviato dal BFF con `id_token_hint`. SOLO LATO SERVER.
@@ -140,7 +141,8 @@ export function createOidcClient(cfg: EnterpriseAuthConfig): OidcClient {
       if (!jwks) {
         if (!metadata.jwks_uri) throw new Error("l'IdP non pubblica jwks_uri");
         // Cache delle chiavi con rinnovo su `kid` sconosciuto (rotazione delle chiavi dell'IdP), gestita da jose.
-        jwks = createRemoteJWKSet(new URL(metadata.jwks_uri), { timeoutDuration: HTTP_TIMEOUT_SECONDS * 1000 });
+        // Un JWKS non scaricabile è ritentabile (503), una chiave sconosciuta no (400): resilientKeys li distingue.
+        jwks = resilientKeys(createRemoteJWKSet(new URL(metadata.jwks_uri), { timeoutDuration: HTTP_TIMEOUT_SECONDS * 1000 }));
       }
       return { issuer: metadata.issuer, keys: jwks };
     },
@@ -150,7 +152,9 @@ export function createOidcClient(cfg: EnterpriseAuthConfig): OidcClient {
 /** IdP irraggiungibile o in errore interno (rete, timeout, 5xx): condizione temporanea, non un rifiuto. */
 export function isUnavailable(err: unknown): boolean {
   if (err instanceof client.ResponseBodyError) return err.status >= 500;
-  if (err instanceof TypeError) return true; // fetch: rete, DNS, TLS
+  // fetch rifiutato per rete, DNS o TLS: un TypeError SENZA `code`. Gli errori di protocollo o di configurazione di
+  // oauth4webapi/openid-client sono anch'essi TypeError ma con un `code` (`ERR_INVALID_ARG_TYPE`…): non temporanei.
+  if (err instanceof TypeError) return typeof (err as { code?: unknown }).code !== "string";
   // Risposta non conforme (es. pagina HTML di un proxy con 502): oauth4webapi mette la Response in `cause`.
   if (err instanceof Error && err.cause instanceof Response) return err.cause.status >= 500;
   return err instanceof Error && (err.name === "AbortError" || err.name === "TimeoutError");

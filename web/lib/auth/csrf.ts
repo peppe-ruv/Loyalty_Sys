@@ -39,12 +39,14 @@ export function checkCsrf(
   req: { method: string; headers: Headers },
   expectedOrigin: string,
   session: { id: string; csrfKey: Buffer } | null,
+  /** Token da un campo di modulo (logout a pagina intera, dove non si può aggiungere un header); vince sull'header. */
+  formToken: string | null = null,
 ): CsrfFailure | null {
   if (isSafeMethod(req.method)) return null;
   const origin = checkOrigin(req.headers, expectedOrigin);
   if (origin) return origin;
   if (!session) return null;
-  const sent = req.headers.get(CSRF_HEADER);
+  const sent = formToken ?? req.headers.get(CSRF_HEADER);
   if (!sent || !safeEqual(sent, csrfTokenFor(session.id, session.csrfKey))) return "TOKEN";
   return null;
 }

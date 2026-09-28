@@ -5,7 +5,9 @@ import type { Session, SessionStore } from "./sessionStore";
 // Single-flight per sessione: più richieste parallele della stessa pagina con il token in scadenza fanno UN solo
 // rinnovo e aspettano lo stesso esito. Con la rotazione (Keycloak `revokeRefreshToken`, `refreshTokenMaxReuse=0`)
 // due rinnovi in gara farebbero revocare la sessione dall'IdP: il single-flight lo impedisce nella replica.
-// SPEC-GAP: Q-409 (con più repliche serve un lock nello store condiviso).
+// SPEC-GAP: Q-409 (con più repliche serve un lock nello store condiviso). Uno store su database dovrà anche rileggere
+// la sessione DENTRO il rinnovo esclusivo (o aggiornarla con compare-and-set sulla versione del refresh token): un'altra
+// replica potrebbe averla già ruotata, e riusare il refresh token vecchio farebbe revocare la sessione dall'IdP.
 
 /** Margine prima della scadenza entro cui si rinnova (orologi non allineati, latenza verso i servizi). */
 export const REFRESH_SKEW_SECONDS = 30;

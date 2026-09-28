@@ -19,6 +19,10 @@ const REASONS: Record<string, { title: string; detail: string }> = {
     title: "Accesso non riuscito",
     detail: "La risposta del fornitore di identità non è valida. Riprova; se succede ancora, contatta l'amministratore.",
   },
+  logout_failed: {
+    title: "Uscita non riuscita",
+    detail: "La richiesta di uscita non è stata riconosciuta: ricarica la pagina e premi di nuovo «Esci».",
+  },
   idp_unavailable: {
     title: "Servizio di accesso non raggiungibile",
     detail: "Il fornitore di identità non risponde. Riprova tra qualche istante.",

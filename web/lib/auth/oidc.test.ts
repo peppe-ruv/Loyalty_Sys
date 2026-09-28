@@ -149,6 +149,18 @@ describe("createOidcClient", () => {
     expect(isUnavailable(err)).toBe(true);
   });
 
+  it("isUnavailable: solo rete, timeout e 5xx; errori di protocollo (TypeError con code) no", () => {
+    expect(isUnavailable(new TypeError("fetch failed"))).toBe(true);
+    expect(isUnavailable(Object.assign(new Error("timeout"), { name: "TimeoutError" }))).toBe(true);
+    expect(isUnavailable(Object.assign(new TypeError('"response" must be an instance of Response'), { code: "ERR_INVALID_ARG_TYPE" }))).toBe(false);
+    expect(isUnavailable(new Error("id_token non valido"))).toBe(false);
+  });
+
+  it("rinnovo con risposta non conforme (errore di protocollo): sessione da chiudere, non 503", async () => {
+    tokenResponse = () => Response.json({ token_type: "Bearer" }); // manca access_token
+    await expect(oidc.refresh("RT-1")).rejects.toBeInstanceOf(RefreshRejectedError);
+  });
+
   it("logout: end_session_endpoint con id_token_hint, client_id e ritorno alla home", async () => {
     const url = await oidc.endSessionUrl("ID-HINT", `${ORIGIN}/`);
     expect(url?.origin + url!.pathname).toBe(DISCOVERY.end_session_endpoint);

@@ -4,6 +4,15 @@
 // - profilo demo: `x-lh-actor` dal cookie persona (identità simulata, invariata dalla Fase 1);
 // - profilo enterprise: `authorization: Bearer <access token>` dalla sessione del BFF (ADR-027).
 
+/** Id di correlazione accettato dal browser: ULID, UUID o simili; altrimenti il proxy ne genera uno nuovo. */
+const CORRELATION_ID = /^[A-Za-z0-9-]{1,64}$/;
+
+/** `X-Correlation-Id` del browser se ha una forma sicura (niente testo arbitrario nei log e verso i servizi). */
+export function correlationIdFrom(incoming: Headers): string | null {
+  const sent = incoming.get("x-correlation-id");
+  return sent !== null && CORRELATION_ID.test(sent) ? sent : null;
+}
+
 export type UpstreamIdentity = { "x-lh-actor": string } | { authorization: string };
 
 export function upstreamHeaders(incoming: Headers, identity: UpstreamIdentity, correlationId: string): Headers {

@@ -5,9 +5,10 @@ import { actorHeader, parsePersona, PERSONA_COOKIE } from "@/lib/persona/cookie"
 import { ulid } from "@/lib/ids";
 import { fetchNicknames, nicknameRoute, resolveNicknames } from "@/lib/api/memberNicknames";
 import { DOWNLOAD_HEADERS, MAX_PROXY_BODY_BYTES, isCsvDownload, readCappedBody } from "@/lib/api/proxyBody";
-import { upstreamHeaders, type UpstreamIdentity } from "@/lib/api/proxyHeaders";
-import { resolveBff } from "@/lib/auth/bff";
-import { stripMemberBody, stripMemberQuery } from "@/lib/auth/memberScope";
+import { correlationIdFrom, upstreamHeaders, type UpstreamIdentity } from "@/lib/api/proxyHeaders";
+import { upstreamUrl } from "@/lib/api/proxyPath";
+import { problem, resolveBff } from "@/lib/auth/bff";
+import { checkPortalBody } from "@/lib/auth/memberScope";
 import { authorizeProxy } from "@/lib/auth/proxyAuth";
 
 // Proxy verso i microservizi (docs/07 §3): il browser chiama SEMPRE /api/lh/<service>/v1/...
@@ -33,25 +34,29 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
   const resolved = resolveBff();
   if (resolved.mode === "error") return resolved.response;
 
-  const target = new URL(`${serviceBaseUrl(service)}/${(path ?? []).join("/")}`);
+  let target: URL;
   let identity: UpstreamIdentity;
-  // API del portale in enterprise: nessun memberId scelto dal browser, né in query né nel corpo JSON.
+  // API del portale in enterprise: nessun memberId scelto dal browser (query e percorso in authorizeProxy, corpo sotto).
   let memberFromToken = false;
   if (resolved.mode === "enterprise") {
+    // Percorso a valle identico a quello chiesto: niente `..`, `%2F`, `;` o segmenti vuoti (lib/api/proxyPath.ts).
+    const safe = upstreamUrl(serviceBaseUrl(service), path ?? []);
+    if (!safe) return problem(400, "INVALID_PATH", "Percorso non valido", "L'indirizzo della richiesta contiene caratteri non ammessi.");
+    target = safe;
     const auth = await authorizeProxy(req, path ?? [], resolved.bff);
     if (!auth.ok) return auth.response;
     identity = { authorization: auth.authorization };
     memberFromToken = auth.portal;
-    target.search = memberFromToken ? stripMemberQuery(req.nextUrl.searchParams).toString() : req.nextUrl.search;
   } else {
+    target = new URL(`${serviceBaseUrl(service)}/${(path ?? []).join("/")}`);
     const persona = parsePersona((await cookies()).get(PERSONA_COOKIE)?.value);
     identity = { "x-lh-actor": actorHeader(persona) };
-    target.search = req.nextUrl.search;
   }
+  target.search = req.nextUrl.search;
   const nicknames = nicknameRoute(service, req.method, path ?? []);
   if (nicknames) target.searchParams.set("resolve", "ids");
 
-  const correlationId = req.headers.get("x-correlation-id") ?? ulid();
+  const correlationId = correlationIdFrom(req.headers) ?? ulid();
   const contentType = req.headers.get("content-type");
   const headers = upstreamHeaders(req.headers, identity, correlationId);
 
@@ -79,9 +84,12 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
         { status: 413 },
       );
     }
+    if (memberFromToken) {
+      const rejected = checkPortalBody(contentType, bytes);
+      if (rejected) return problem(rejected.status, rejected.code, "Richiesta non valida", rejected.detail);
+    }
     const multipart = (contentType ?? "").toLowerCase().startsWith("multipart/");
     body = multipart ? bytes : new TextDecoder().decode(bytes);
-    if (memberFromToken && typeof body === "string") body = stripMemberBody(body);
   }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
