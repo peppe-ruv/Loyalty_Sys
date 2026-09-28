@@ -14,7 +14,7 @@ http://localhost:8086
 
 ## Modello concorsi
 
-Un concorso instant win si compone di quattro entita principali:
+Un concorso instant win si compone di quattro entità principali:
 
 - **Contest**: il concorso vero e proprio. Campi chiave:
   - `mechanic`: `WHEEL`, `SCRATCH` o `BOX` (determina l'esperienza utente nel portale)
@@ -23,20 +23,22 @@ Un concorso instant win si compone di quattro entita principali:
   - `distribution`: `UNIFORM` (istanti distribuiti uniformemente) o `BUSINESS_HOURS` (ricampionamento fuori fascia 08:00-22:00)
   - `seed`: seme numerico per il generatore determinista degli istanti
 - **Prize**: il premio associato al concorso. Tipi:
-  - `POINTS`: punti fedelta
+  - `POINTS`: punti fedeltà
   - `COUPON`: coupon digitale
   - `PHYSICAL`: premio fisico (richiede consegna manuale)
   - `quantity_total` e `quantity_remaining`: tracciamento scorte
 - **Winning instant**: l'istante vincita pre-generato. Stati:
   - `OPEN`: disponibile per essere vinto
-  - `CLAIMED`: gia assegnato a un membro
+  - `CLAIMED`: già assegnato a un membro
   - `VOID`: annullato o scaduto
   - `instant_at`: timestamp preciso in cui l'istante diventa vincibile
 - **Play**: la singola giocata effettuata da un membro. Traccia crediti utilizzati, esito e riferimento all'istante eventualmente vinto.
 
-> **Nota:** I concorsi partono in stato `DRAFT`. Per attivarli (`LIVE`) e necessario prima generare gli istanti vincita. Una volta in `LIVE`, la generazione e bloccata per garantire l'immutabilita del piano premi.
+<Note>
+  I concorsi partono in stato `DRAFT`. Per attivarli (`LIVE`) è necessario prima generare gli istanti vincita. Una volta in `LIVE`, la generazione è bloccata per garantire l'immutabilità del piano premi.
+</Note>
 
-## Endpoint di gestione: Concorsi
+## Gestione concorsi
 
 ### CRUD concorsi
 
@@ -149,7 +151,7 @@ X-LH-Actor: marta.admin
 }
 ```
 
-Il parametro `seed` e opzionale: se omesso, il servizio ne genera uno casuale. La generazione e vietata una volta che il concorso e in stato `LIVE` o successivo. Il servizio risponde `409 CONFLICT` in caso di tentativo successivo:
+Il parametro `seed` è opzionale: se omesso, il servizio ne genera uno casuale. La generazione è vietata una volta che il concorso è in stato `LIVE` o successivo. Il servizio risponde `409 CONFLICT` in caso di tentativo successivo:
 
 ```json Errore 409
 {
@@ -166,7 +168,9 @@ Host: localhost:8086
 X-LH-Actor: elena.legal
 ```
 
-> **Attenzione:** L'elenco degli istanti e riservato ai ruoli `ADMIN` e `LEGAL`. Altri attori ricevono `403 FORBIDDEN` per prevenire la lettura del piano premi.
+<Warning>
+  L'elenco degli istanti è riservato ai ruoli `ADMIN` e `LEGAL`. Altri attori ricevono `403 FORBIDDEN` per prevenire la lettura del piano premi.
+</Warning>
 
 Filtri disponibili: `status` (`OPEN`, `CLAIMED`, `VOID`), `prizeId`.
 
@@ -207,7 +211,9 @@ X-LH-Actor: paolo.care
 }
 ```
 
-> **Nota:** L'endpoint di consegna e riservato ai ruoli `CARE` e `ADMIN`. I campi `status` accettano valori come `PENDING`, `SHIPPED`, `DELIVERED`.
+<Note>
+  L'endpoint di consegna è riservato ai ruoli `CARE` e `ADMIN`. I campi `status` accettano valori come `PENDING`, `SHIPPED`, `DELIVERED`.
+</Note>
 
 ### Statistiche concorso
 
@@ -219,7 +225,7 @@ X-LH-Actor: sara.analyst
 
 Restituisce metriche aggregate: giocate totali, giocate giornaliere, vincite per premio, tasso di conversione, crediti consumati.
 
-## Endpoint di gestione: Achievement, Badge, Leaderboard
+## Gestione achievement, badge e leaderboard
 
 ### Achievement (obiettivi)
 
@@ -295,7 +301,7 @@ Elenco delle operazioni in attesa di approvazione legale (creazione concorsi con
 
 ## Endpoint portale
 
-Gli endpoint portale sono ottimizzati per l'esperienza utente del membro nel frontend Next.js. Non espongono mai dati sensibili come quantita residue o dettagli degli istanti.
+Gli endpoint portale sono ottimizzati per l'esperienza utente del membro nel frontend Next.js. Non espongono mai dati sensibili come quantità residue o dettagli degli istanti.
 
 ### Concorsi disponibili
 
@@ -320,7 +326,9 @@ Restituisce solo concorsi in stato `LIVE`. Per ogni concorso:
 }
 ```
 
-> **Nota:** Il campo `playsAvailable` indica quante giocate rimangono oggi al membro (gratuite + crediti). Non viene mai esposta la quantita residua dei premi.
+<Note>
+  Il campo `playsAvailable` indica quante giocate rimangono oggi al membro (gratuite + crediti). Non viene mai esposta la quantità residua dei premi.
+</Note>
 
 ### Giocata
 
@@ -334,7 +342,7 @@ Content-Type: application/json
 }
 ```
 
-Il endpoint e **sincrono** e restituisce immediatamente l'esito:
+L'endpoint è **sincrono** e restituisce immediatamente l'esito:
 
 ```json Risposta 200
 {
@@ -352,7 +360,9 @@ Il endpoint e **sincrono** e restituisce immediatamente l'esito:
 
 Valori di `outcome`: `WIN`, `LOSS`, `FREE_PLAY`.
 
-> **Attenzione:** La consegna effettiva del premio (accredito punti, emissione coupon) avviene in modo asincrono attraverso il ponte eventi. Il membro vede l'esito immediato, ma il premio potrebbe richiedere qualche secondo per essere disponibile nel wallet.
+<Warning>
+  La consegna effettiva del premio (accredito punti, emissione coupon) avviene in modo asincrono attraverso il ponte eventi. Il membro vede l'esito immediato, ma il premio potrebbe richiedere qualche secondo per essere disponibile nel wallet.
+</Warning>
 
 ### Storico giocate
 
@@ -455,7 +465,7 @@ Forza la transizione a `CLOSED` di tutti i concorsi scaduti entro la data specif
 
 <AccordionGroup>
   <Accordion title="422 CONTEST_NOT_LIVE">
-    Il concorso non e in stato `LIVE`. Verifica che sia stato attivato tramite transizione e che la data corrente rientri nel periodo di validita (`startAt` / `endAt`).
+    Il concorso non è in stato `LIVE`. Verifica che sia stato attivato tramite transizione e che la data corrente rientri nel periodo di validità (`startAt` / `endAt`).
   </Accordion>
 
   <Accordion title="422 NO_PLAYS_AVAILABLE">
@@ -463,11 +473,11 @@ Forza la transizione a `CLOSED` di tutti i concorsi scaduti entro la data specif
   </Accordion>
 
   <Accordion title="422 DAILY_LIMIT_REACHED">
-    Il membro ha raggiunto il limite giornaliero massimo configurato (`maxPlaysPerMemberPerDay`), indipendentemente dalla disponibilita di crediti. Attendi il reset giornaliero.
+    Il membro ha raggiunto il limite giornaliero massimo configurato (`maxPlaysPerMemberPerDay`), indipendentemente dalla disponibilità di crediti. Attendi il reset giornaliero.
   </Accordion>
 
   <Accordion title="422 MEMBER_NOT_ACTIVE">
-    Il membro non e in stato attivo. Verifica nel member-service che il profilo sia `ACTIVE` e non `SUSPENDED` o `CLOSED`.
+    Il membro non è in stato attivo. Verifica nel member-service che il profilo sia `ACTIVE` e non `SUSPENDED` o `CLOSED`.
   </Accordion>
 </AccordionGroup>
 
@@ -481,7 +491,7 @@ Forza la transizione a `CLOSED` di tutti i concorsi scaduti entro la data specif
     Il servizio acquisisce un **lock advisory Postgres** sulla coppia `(memberId, contestId)` per prevenire giocate concorrenti dello stesso membro sullo stesso concorso.
   </Step>
   <Step title="Valutazione crediti">
-    Il servizio verifica prima la disponibilita di giocate gratuite giornaliere (`freePlayDaily`). Se esaurite, controlla i crediti del membro nel wallet-service.
+    Il servizio verifica prima la disponibilità di giocate gratuite giornaliere (`freePlayDaily`). Se esaurite, controlla i crediti del membro nel wallet-service.
   </Step>
   <Step title="Registrazione giocata">
     Inserisce una riga `play` con stato `PENDING` e decrementa il credito appropriato (gratuito o wallet).
@@ -490,7 +500,7 @@ Forza la transizione a `CLOSED` di tutti i concorsi scaduti entro la data specif
     Esegue `SELECT ... FOR UPDATE SKIP LOCKED` sulla tabella `winning_instant` per trovare il primo istante `OPEN` con `instant_at <= now()`. Se trovato, lo marca `CLAIMED` e associa il `playId`.
   </Step>
   <Step title="Decremento premio">
-    Se l'istante e stato vinto, decrementa `quantity_remaining` del premio associato.
+    Se l'istante è stato vinto, decrementa `quantity_remaining` del premio associato.
   </Step>
   <Step title="Emissione eventi">
     Scrive nell'outbox:
@@ -510,14 +520,16 @@ Forza la transizione a `CLOSED` di tutti i concorsi scaduti entro la data specif
 
 ## Determinismo degli istanti
 
-La generazione degli istanti vincita e completamente deterministica: con gli stessi parametri e lo stesso seed, si ottengono sempre gli stessi istanti.
+La generazione degli istanti vincita è completamente deterministica: con gli stessi parametri e lo stesso seed, si ottengono sempre gli stessi istanti.
 
 Il servizio utilizza `SplittableRandom(seed)` di Java per generare i timestamp. Per ogni premio, in ordine di `sort_order`, crea `quantity_total` istanti distribuiti nell'intervallo `startAt`-`endAt`:
 
 - **Distribuzione `UNIFORM`**: gli istanti sono distribuiti uniformemente nell'intero arco temporale.
 - **Distribuzione `BUSINESS_HOURS`**: gli istanti generati fuori dalla fascia 08:00-22:00 vengono ricampionati casualmente all'interno della fascia oraria lavorativa, garantendo che le vincite avvengano prevalentemente in orari di traffico utente.
 
-> **Nota:** Utilizza sempre lo stesso seed in ambienti di test per ottenere risultati riproducibili. In produzione, lascia che il servizio generi un seed casuale.
+<Note>
+  Utilizza sempre lo stesso seed in ambienti di test per ottenere risultati riproducibili. In produzione, lascia che il servizio generi un seed casuale.
+</Note>
 
 ## Eventi Kafka
 
@@ -573,4 +585,4 @@ Tutti gli eventi seguono l'envelope CloudEvent 1.0 con le estensioni Loyalty Hub
 
 - Approfondisci il flusso completo di premi e gioco nella pagina dedicata ai [concetti di premi e gioco](/concetti/premi-e-gioco)
 - Scopri come le campagne di sistema gestiscono la consegna dei premi vinti nelle [API Campaign](/api/campaign)
-- Consulta le [API Wallet](/api/wallet) per il tracciamento dei crediti e dei punti fedelta
+- Consulta le [API Wallet](/api/wallet) per il tracciamento dei crediti e dei punti fedeltà

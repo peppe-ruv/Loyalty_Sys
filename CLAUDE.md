@@ -33,6 +33,7 @@ Piattaforma loyalty **open source ed event-driven**: microservizi Spring Boot + 
 | Capire il perché di una scelta | `docs/13-REGISTRO-DECISIONI.md` |
 | Lavorare una fetta di Fase 2 (M8–M15) | `docs/18-FASE-2.md` (§3 architettura, §4 catalogo `F2-*`, §5 schermate, §6 milestone) + `docs/prompts/fase2-kickoff.md` |
 | Toccare blocchi, pagine, meccaniche del portale | `registry/` (Element Registry, da M10.1) + `docs/18 §3.5` |
+| Scrivere o modificare documentazione (`docs/`, pagine Mintlify `.mdx`) | `AGENTS.md` |
 
 ## 3. Struttura del repo
 
@@ -153,7 +154,7 @@ Fonte: `docs/18-FASE-2.md §7`; dopo M8.0 le ADR 026–045 di `docs/13` vincono 
 - **14. Aggiornabile senza fermo.** Ogni migrazione è expand/contract; ogni fetta lascia funzionante la versione precedente dei consumer (ADR-038).
 - **15. L'agente propone, non decide.** Solo `DRAFT`, con evidenze; `LEGAL` approva.
 - **16. Solo pull request verso `main`.** Una fetta = un ramo = una PR con gli ID nel titolo; niente push diretti, niente force push; auto-merge a controlli verdi; le ADR si aggiungono, non si modificano (ADR-041, ADR-047).
-- **17. Documentare con un diagramma.** Ogni fetta che introduce o cambia un concetto, un flusso o un ciclo di vita aggiorna la pagina Mintlify corrispondente con un diagramma Mermaid conforme a §3.12; le specifiche in `site/` non si scrivono a mano (ADR-040).
+- **17. Documentare con un diagramma.** Ogni fetta che introduce o cambia un concetto, un flusso o un ciclo di vita aggiorna la pagina Mintlify corrispondente con un diagramma Mermaid conforme a §3.12; le specifiche in `site/` non si scrivono a mano (ADR-040); testo e pagine seguono la guida di stile `AGENTS.md`.
 - **18. Zero trust.** Ogni chiamata, anche tra moduli, porta un'identità verificata: token per l'HTTP, principal e firma per il bus, ruolo per il database. Nessun endpoint senza `@RequiresRole` o `@PublicEndpoint`; nel portale il membro viene solo dal token (ADR-042).
 - **19. SQL solo parametrico.** Testo SQL costante o costruito dal builder comune con colonne da allowlist; mai input nel testo SQL (ADR-042).
 - **20. Nessun segreto nel codice, nei log o nel browser.** Token solo lato server (BFF), segreti dal secret manager, log senza dati personali né credenziali.
