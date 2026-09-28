@@ -8,7 +8,7 @@ type: application
 # Versione del chart (semver, ADR-038). appVersion è solo informativa: l'immagine si sceglie sempre con image.repository
 # e image.tag, obbligatori. .github/workflows/image.yml pubblica ghcr.io/<owner>/loyaltyhub solo sui tag git `v*`
 # (sulle PR costruisce l'immagine senza pubblicarla).
-version: 0.1.0
+version: 0.2.0
 appVersion: "0.1.0"
 kubeVersion: ">=1.29.0-0"
 home: https://github.com/peppe-ruv/Loyalty_Sys
@@ -19,5 +19,5 @@ keywords:
   - kafka
   - postgres
 annotations:
-  loyaltyhub.io/spec: "F2-DIST-02, F2-EVT-04, M8.3"
+  loyaltyhub.io/spec: "F2-DIST-02, F2-EVT-04, F2-SEC-06, M8.3, M8.2d"
   loyaltyhub.io/prerequisites: "Strimzi (kafka.mode=strimzi), CloudNativePG (postgres.mode=cloudnativepg)"
