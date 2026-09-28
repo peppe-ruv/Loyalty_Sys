@@ -5,9 +5,17 @@ import { actorHeader, parsePersona, PERSONA_COOKIE } from "@/lib/persona/cookie"
 import { ulid } from "@/lib/ids";
 import { fetchNicknames, nicknameRoute, resolveNicknames } from "@/lib/api/memberNicknames";
 import { DOWNLOAD_HEADERS, MAX_PROXY_BODY_BYTES, isCsvDownload, readCappedBody } from "@/lib/api/proxyBody";
+import { upstreamHeaders, type UpstreamIdentity } from "@/lib/api/proxyHeaders";
+import { resolveBff } from "@/lib/auth/bff";
+import { stripMemberBody, stripMemberQuery } from "@/lib/auth/memberScope";
+import { authorizeProxy } from "@/lib/auth/proxyAuth";
 
 // Proxy verso i microservizi (docs/07 §3): il browser chiama SEMPRE /api/lh/<service>/v1/...
-// Copiamo metodo/query/corpo e aggiungiamo X-LH-Actor (dal cookie persona) e X-Correlation-Id.
+// Copiamo metodo/query/corpo e aggiungiamo l'identità e X-Correlation-Id (elenco chiuso: lib/api/proxyHeaders.ts).
+// - Profilo demo: X-LH-Actor dal cookie persona, come in Fase 1.
+// - Profilo enterprise (BFF, ADR-027, docs/07 §4-bis): sessione dal cookie `__Host-lh_session`, controllo CSRF sulle
+//   richieste che cambiano stato, `Authorization: Bearer` aggiunto lato server; sulle API del portale il membro viene
+//   solo dal token (lib/auth/memberScope.ts). Profilo enterprise mal configurato ⇒ 500 INSECURE_CONFIG, mai il demo.
 // Soprannomi (Q-368, ADR-032): classifiche del portale, ranking e vincitori del backoffice si chiedono a gamification
 // con `resolve=ids` e si completano qui, lato server, coi soprannomi di member-service (lib/api/memberNicknames.ts):
 // al browser del portale non arrivano mai i memberId degli altri membri.
@@ -22,23 +30,30 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
     return NextResponse.json({ type: "UNKNOWN_SERVICE", service }, { status: 404 });
   }
 
+  const resolved = resolveBff();
+  if (resolved.mode === "error") return resolved.response;
+
   const target = new URL(`${serviceBaseUrl(service)}/${(path ?? []).join("/")}`);
-  target.search = req.nextUrl.search;
+  let identity: UpstreamIdentity;
+  // API del portale in enterprise: nessun memberId scelto dal browser, né in query né nel corpo JSON.
+  let memberFromToken = false;
+  if (resolved.mode === "enterprise") {
+    const auth = await authorizeProxy(req, path ?? [], resolved.bff);
+    if (!auth.ok) return auth.response;
+    identity = { authorization: auth.authorization };
+    memberFromToken = auth.portal;
+    target.search = memberFromToken ? stripMemberQuery(req.nextUrl.searchParams).toString() : req.nextUrl.search;
+  } else {
+    const persona = parsePersona((await cookies()).get(PERSONA_COOKIE)?.value);
+    identity = { "x-lh-actor": actorHeader(persona) };
+    target.search = req.nextUrl.search;
+  }
   const nicknames = nicknameRoute(service, req.method, path ?? []);
   if (nicknames) target.searchParams.set("resolve", "ids");
 
-  const persona = parsePersona((await cookies()).get(PERSONA_COOKIE)?.value);
   const correlationId = req.headers.get("x-correlation-id") ?? ulid();
-
-  const headers = new Headers();
   const contentType = req.headers.get("content-type");
-  if (contentType) headers.set("content-type", contentType);
-  headers.set("accept", "application/json");
-  headers.set("x-lh-actor", actorHeader(persona));
-  headers.set("x-correlation-id", correlationId);
-  // Import file (BO-32, Q-353): stessa chiave → stesso lavoro, anche se il browser ripete l'invio.
-  const idempotencyKey = req.headers.get("idempotency-key");
-  if (idempotencyKey) headers.set("idempotency-key", idempotencyKey);
+  const headers = upstreamHeaders(req.headers, identity, correlationId);
 
   const hasBody = req.method !== "GET" && req.method !== "DELETE";
   // Corpo con un tetto (lib/api/proxyBody.ts): oltre, 413 senza chiamare il servizio. Un file caricato (multipart,
@@ -66,6 +81,7 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
     }
     const multipart = (contentType ?? "").toLowerCase().startsWith("multipart/");
     body = multipart ? bytes : new TextDecoder().decode(bytes);
+    if (memberFromToken && typeof body === "string") body = stripMemberBody(body);
   }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -87,12 +103,14 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
     let text = await upstream.text();
     let degraded = false;
     if (nicknames && upstream.status === 200) {
-      const forward = { "x-lh-actor": headers.get("x-lh-actor") ?? "", "x-correlation-id": correlationId };
-      const resolved = await resolveNicknames(nicknames, text, req.nextUrl.searchParams.get("memberId"), (ids) => fetchNicknames(ids, forward));
+      // Stessa identità della richiesta. In enterprise il memberId del portale è stato tolto sopra: nessuna riga
+      // «tua» evidenziata e, con un token di solo membro, soprannomi degradati (SPEC-GAP: Q-411).
+      const forward = { ...identity, "x-correlation-id": correlationId };
+      const withNames = await resolveNicknames(nicknames, text, target.searchParams.get("memberId"), (ids) => fetchNicknames(ids, forward));
       // Corpo di gamification inatteso: niente inoltro (potrebbe contenere id altrui).
-      if (!resolved) return NextResponse.json({ type: "UPSTREAM_INVALID", service }, { status: 502 });
-      text = resolved.body;
-      degraded = resolved.degraded;
+      if (!withNames) return NextResponse.json({ type: "UPSTREAM_INVALID", service }, { status: 502 });
+      text = withNames.body;
+      degraded = withNames.degraded;
     }
     const res = new NextResponse(text, { status: upstream.status });
     const ct = upstream.headers.get("content-type");
@@ -107,6 +125,8 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
     // member-service non disponibile: soprannomi segnaposto, la pagina resta utilizzabile.
     if (degraded) res.headers.set("x-lh-degraded", "nicknames");
     res.headers.set("x-correlation-id", correlationId);
+    // Dati personali dietro una sessione: mai in una cache condivisa (solo enterprise; la demo resta com'era).
+    if (resolved.mode === "enterprise") res.headers.set("cache-control", "private, no-store");
     return res;
   } catch {
     // Timeout o errore di rete: trattato come servizio addormentato.

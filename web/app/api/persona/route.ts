@@ -6,11 +6,14 @@ import {
   type Persona,
 } from "@/lib/persona/cookie";
 import { backofficePersonaFromUsername } from "@/lib/persona/cookie";
+import { isEnterprise } from "@/lib/auth/config";
 
 // Cambio persona (docs/07 §4): scrive il cookie lh_persona. Nessuna login, solo identità simulata.
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  // Nel profilo enterprise l'identità viene solo dalla sessione OIDC (regola 6-bis): la persona simulata non esiste.
+  if (isEnterprise()) return NextResponse.json({ error: "PERSONA_DISABLED" }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as {
     kind?: string;
     memberId?: string;

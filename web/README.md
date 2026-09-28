@@ -16,5 +16,10 @@ arrivano da M1 (docs/08, docs/09): una voce di menu compare solo quando la sua m
 
 Env: `LH_SVC_<SERVICE>_URL` per ogni servizio (default `http://localhost:<porta>`).
 
+**M8.2 (BFF, profilo `enterprise`):** con `LH_PROFILE=enterprise` il web è il client OIDC confidential `web`
+(`lib/auth/`, `app/api/auth/*`): login con PKCE, sessione lato server con cookie `__Host-lh_session`, token mai nel
+browser, CSRF, rinnovo trasparente, back-channel logout. Variabili in `.env.example` e `docs/11 §8`, comportamento in
+`docs/07 §4-bis`. Senza `LH_PROFILE` (o con `demo`) tutto resta come sopra.
+
 > `web/playground/` è un placeholder statico separato per sbloccare il vecchio progetto Vercel
 > `loyalty-hub-playground`; il deploy del web vero si configura a M1.8 (docs/11).

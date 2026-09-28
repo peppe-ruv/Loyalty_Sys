@@ -2,7 +2,11 @@ import { cookies } from "next/headers";
 import { KeepAlive } from "@/components/shared/KeepAlive";
 import { Sidebar } from "@/components/bo/Sidebar";
 import { MobileNav } from "@/components/bo/MobileNav";
-import { PersonaProvider } from "@/components/bo/PersonaContext";
+import { PersonaProvider, type BoPersona } from "@/components/bo/PersonaContext";
+import { AccessDenied } from "@/components/shared/auth/AccessDenied";
+import { LoginRedirect } from "@/components/shared/auth/LoginRedirect";
+import { LogoutButton } from "@/components/shared/auth/LogoutButton";
+import { getViewer } from "@/lib/auth/viewer";
 import { PERSONA_COOKIE, parsePersona } from "@/lib/persona/cookie";
 import {
   DEFAULT_BACKOFFICE_USERNAME,
@@ -10,14 +14,25 @@ import {
 } from "@/lib/persona/personas";
 
 // Shell del backoffice (docs/08 §1): sidebar a gruppi + barra alta con la persona corrente.
+// Profilo demo: persona simulata dal cookie lh_persona. Profilo enterprise (docs/07 §4-bis): operatore della sessione
+// OIDC del BFF, con «Esci»; senza sessione si va al login, un account solo membro non entra.
 export default async function BackofficeLayout({ children }: { children: React.ReactNode }) {
-  const raw = (await cookies()).get(PERSONA_COOKIE)?.value;
-  const parsed = parsePersona(raw);
-  const username = parsed?.kind === "BO" ? parsed.username : DEFAULT_BACKOFFICE_USERNAME;
-  const found = findBackofficePersona(username) ?? findBackofficePersona(DEFAULT_BACKOFFICE_USERNAME)!;
-  // Q-186 DECISA: il ruolo mostrato e usato da can() è quello che il proxy manda in X-LH-Actor (dal cookie, già
-  // ricondotto ad ANALYST se fuori elenco), non quello ricavato dallo username.
-  const persona = parsed?.kind === "BO" ? { ...found, role: parsed.role } : found;
+  const viewer = await getViewer();
+  let persona: BoPersona;
+  if (viewer.mode === "enterprise") {
+    if (!viewer.user) return <LoginRedirect area="backoffice" />;
+    if (viewer.user.kind === "member") {
+      return (
+        <AccessDenied
+          title="Accesso al backoffice non consentito"
+          detail="Questo account è di un membro del programma: esci e accedi con un account operatore."
+        />
+      );
+    }
+    persona = { username: viewer.user.username, displayName: viewer.user.name ?? viewer.user.username, role: viewer.user.role };
+  } else {
+    persona = await demoPersona();
+  }
   const initials = persona.displayName
     .split(" ")
     .map((w) => w[0])
@@ -42,6 +57,7 @@ export default async function BackofficeLayout({ children }: { children: React.R
                 <div className="text-sm font-medium">{persona.displayName}</div>
                 <div className="text-xs text-[var(--color-bo-ink-2)]">{persona.role}</div>
               </div>
+              {viewer.mode === "enterprise" ? <LogoutButton /> : null}
             </div>
           </header>
           <main className="mx-auto w-full max-w-[1440px] flex-1 p-6">{children}</main>
@@ -50,4 +66,15 @@ export default async function BackofficeLayout({ children }: { children: React.R
       </div>
     </PersonaProvider>
   );
+}
+
+/** Persona simulata del profilo demo (docs/07 §4), invariata dalla Fase 1. */
+async function demoPersona(): Promise<BoPersona> {
+  const raw = (await cookies()).get(PERSONA_COOKIE)?.value;
+  const parsed = parsePersona(raw);
+  const username = parsed?.kind === "BO" ? parsed.username : DEFAULT_BACKOFFICE_USERNAME;
+  const found = findBackofficePersona(username) ?? findBackofficePersona(DEFAULT_BACKOFFICE_USERNAME)!;
+  // Q-186 DECISA: il ruolo mostrato e usato da can() è quello che il proxy manda in X-LH-Actor (dal cookie, già
+  // ricondotto ad ANALYST se fuori elenco), non quello ricavato dallo username.
+  return parsed?.kind === "BO" ? { ...found, role: parsed.role } : found;
 }

@@ -1,0 +1,20 @@
+// Header che il proxy /api/lh manda ai servizi (docs/07 §3). Elenco CHIUSO: dal browser passano solo `content-type`
+// e `idempotency-key` (import file BO-32, Q-353); l'identità la aggiunge il server. Nessun `Authorization`,
+// `X-LH-Actor`, cookie o altro header scelto dal client arriva mai ai servizi (CLAUDE.md regole 18 e 20).
+// - profilo demo: `x-lh-actor` dal cookie persona (identità simulata, invariata dalla Fase 1);
+// - profilo enterprise: `authorization: Bearer <access token>` dalla sessione del BFF (ADR-027).
+
+export type UpstreamIdentity = { "x-lh-actor": string } | { authorization: string };
+
+export function upstreamHeaders(incoming: Headers, identity: UpstreamIdentity, correlationId: string): Headers {
+  const headers = new Headers();
+  const contentType = incoming.get("content-type");
+  if (contentType) headers.set("content-type", contentType);
+  headers.set("accept", "application/json");
+  for (const [name, value] of Object.entries(identity)) headers.set(name, value);
+  headers.set("x-correlation-id", correlationId);
+  // Import file (BO-32, Q-353): stessa chiave → stesso lavoro, anche se il browser ripete l'invio.
+  const idempotencyKey = incoming.get("idempotency-key");
+  if (idempotencyKey) headers.set("idempotency-key", idempotencyKey);
+  return headers;
+}

@@ -20,12 +20,13 @@ const TABS = [
   { href: "/portal/profile", label: "Io", dot: "profile", also: ["/portal/activity", "/portal/achievements"] },
 ];
 
-export function PortalShell({ children }: { children: React.ReactNode }) {
+export function PortalShell({ children, demo = true }: { children: React.ReactNode; demo?: boolean }) {
   return (
     <PendingProvider>
       <div className="pb-24">{children}</div>
       <TabBar />
-      <DemoTray />
+      {/* Il tray demo (cambio membro, azioni simulate) esiste solo nel profilo demo (regola 6-bis). */}
+      {demo ? <DemoTray /> : null}
     </PendingProvider>
   );
 }
