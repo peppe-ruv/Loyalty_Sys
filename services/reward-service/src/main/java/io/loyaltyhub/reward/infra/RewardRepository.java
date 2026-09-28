@@ -11,7 +11,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -52,8 +51,9 @@ public class RewardRepository {
                 .when(band != null && !band.isBlank(), w -> w.eq(RewardColumn.BAND_CODE, band))
                 .when(category != null && !category.isBlank(), w -> w.eq(RewardColumn.CATEGORY_CODE, category))
                 .when(type != null && !type.isBlank(), w -> w.eq(RewardColumn.TYPE, type.toUpperCase()))
-                .when(q != null && !q.isBlank(), w -> w.anyOf(or -> or.ilike(RewardColumn.CODE, q, SqlWhere.Match.CONTAINS).ilike(RewardColumn.NAME, q, SqlWhere.Match.CONTAINS)));
-
+                .when(q != null && !q.isBlank(), w -> w.anyOf(or -> or
+                        .ilike(RewardColumn.CODE, q)
+                        .ilike(RewardColumn.NAME, q)));
         String sql = "SELECT " + COLUMNS + " FROM reward" + where.sql() + " ORDER BY band_code, code";
         return where.bind(jdbc.sql(sql)).query(RewardRepository::map).list();
     }

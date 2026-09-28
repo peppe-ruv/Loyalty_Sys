@@ -1,5 +1,7 @@
 package io.loyaltyhub.reward.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlWhere;
 import io.loyaltyhub.reward.domain.Redemption;
 import io.loyaltyhub.reward.domain.RedemptionStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -10,13 +12,9 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import io.loyaltyhub.common.sql.SqlColumn;
-import io.loyaltyhub.common.sql.SqlWhere;
-
 import java.util.Optional;
 
 /** Richieste premio e loro cronologia (docs/servizi/reward-service.md §2). */
@@ -42,6 +40,15 @@ public class RedemptionRepository {
     private static final String COLUMNS = """
             id, member_id, reward_code, reward_name, points_cost, status, reject_reason, needs_attention, coupon_code,
             fulfilment_note, shipping::text AS shipping, correlation_id, requested_at, confirmed_at, closed_at, actor""";
+
+    /**
+     * Base costante di {@link #search} e {@link #count}: filtro per modalità di evasione del premio
+     * ({@code :fulfilment} nullo = nessun filtro). I filtri dinamici si accodano con {@link SqlWhere#andSql()}.
+     */
+    private static final String FROM_BY_FULFILMENT = """
+            FROM redemption
+            WHERE (cast(:fulfilment AS text) IS NULL
+                   OR reward_code IN (SELECT code FROM reward WHERE fulfilment = :fulfilment))""";
 
     private final JdbcClient jdbc;
 
@@ -140,9 +147,10 @@ public class RedemptionRepository {
     public List<Redemption> search(String status, String fulfilment, String memberId, String rewardCode,
                                    Boolean needsAttention, Instant from, Instant to, int page, int size) {
         SqlWhere where = buildWhere(status, memberId, rewardCode, needsAttention, from, to);
-        String sql = "SELECT " + COLUMNS + " FROM redemption WHERE (cast(:fulfilment AS text) IS NULL OR reward_code IN (SELECT code FROM reward WHERE fulfilment = :fulfilment))" + where.andSql() + " ORDER BY requested_at DESC, id LIMIT :limit OFFSET :offset";
+        String sql = "SELECT " + COLUMNS + " " + FROM_BY_FULFILMENT + where.andSql()
+                + " ORDER BY requested_at DESC, id LIMIT :limit OFFSET :offset";
         return where.bind(jdbc.sql(sql))
-                .param("fulfilment", fulfilment != null && !fulfilment.isBlank() ? fulfilment.toUpperCase() : null)
+                .param("fulfilment", fulfilmentOrNull(fulfilment))
                 .param("limit", size)
                 .param("offset", page * size)
                 .query(RedemptionRepository::map).list();
@@ -151,9 +159,9 @@ public class RedemptionRepository {
     public long count(String status, String fulfilment, String memberId, String rewardCode, Boolean needsAttention,
                       Instant from, Instant to) {
         SqlWhere where = buildWhere(status, memberId, rewardCode, needsAttention, from, to);
-        String sql = "SELECT count(*) FROM redemption WHERE (cast(:fulfilment AS text) IS NULL OR reward_code IN (SELECT code FROM reward WHERE fulfilment = :fulfilment))" + where.andSql();
+        String sql = "SELECT count(*) " + FROM_BY_FULFILMENT + where.andSql();
         return where.bind(jdbc.sql(sql))
-                .param("fulfilment", fulfilment != null && !fulfilment.isBlank() ? fulfilment.toUpperCase() : null)
+                .param("fulfilment", fulfilmentOrNull(fulfilment))
                 .query(Long.class).single();
     }
 
@@ -208,11 +216,19 @@ public class RedemptionRepository {
             }
             where.in(RedemptionColumn.STATUS, statuses);
         }
-        return where.when(memberId != null && !memberId.isBlank(), w -> w.eq(RedemptionColumn.MEMBER_ID, memberId))
-                .when(rewardCode != null && !rewardCode.isBlank(), w -> w.eq(RedemptionColumn.REWARD_CODE, rewardCode))
+        return where
+                .when(memberId != null && !memberId.isBlank(),
+                        w -> w.eq(RedemptionColumn.MEMBER_ID, memberId))
+                .when(rewardCode != null && !rewardCode.isBlank(),
+                        w -> w.eq(RedemptionColumn.REWARD_CODE, rewardCode))
                 .when(needsAttention != null, w -> w.eq(RedemptionColumn.NEEDS_ATTENTION, needsAttention))
                 .when(from != null, w -> w.gte(RedemptionColumn.REQUESTED_AT, ts(from)))
                 .when(to != null, w -> w.lt(RedemptionColumn.REQUESTED_AT, ts(to)));
+    }
+
+    /** Modalità di evasione in maiuscolo, o {@code null} se assente (nessun filtro in {@link #FROM_BY_FULFILMENT}). */
+    private static String fulfilmentOrNull(String fulfilment) {
+        return fulfilment == null || fulfilment.isBlank() ? null : fulfilment.toUpperCase();
     }
 
     private static Timestamp ts(Instant i) {

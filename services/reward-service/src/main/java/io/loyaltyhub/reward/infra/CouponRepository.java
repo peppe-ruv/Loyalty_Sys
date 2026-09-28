@@ -1,5 +1,7 @@
 package io.loyaltyhub.reward.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlWhere;
 import io.loyaltyhub.reward.domain.Coupon;
 import io.loyaltyhub.reward.domain.CouponPool;
 import io.loyaltyhub.reward.domain.CouponStatus;
@@ -16,9 +18,6 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import io.loyaltyhub.common.sql.SqlColumn;
-import io.loyaltyhub.common.sql.SqlWhere;
-
 import java.util.Optional;
 
 /** Pool e codici coupon (docs/servizi/reward-service.md §2, §5). */
@@ -141,8 +140,8 @@ public class CouponRepository {
 
     public List<Coupon> search(String poolId, String status, String memberId, int page, int size) {
         SqlWhere where = buildWhere(poolId, status, memberId);
-        String sql = "SELECT " + COUPON_COLUMNS + " FROM coupon" + where.sql() +
-                     " ORDER BY coalesce(issued_at, created_at) DESC, code LIMIT :limit OFFSET :offset";
+        String sql = "SELECT " + COUPON_COLUMNS + " FROM coupon" + where.sql()
+                + " ORDER BY coalesce(issued_at, created_at) DESC, code LIMIT :limit OFFSET :offset";
         return where.bind(jdbc.sql(sql))
                 .param("limit", size)
                 .param("offset", page * size)
