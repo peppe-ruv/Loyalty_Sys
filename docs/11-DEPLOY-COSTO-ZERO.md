@@ -160,6 +160,7 @@ services:
 | `LH_WEB_SESSION_IDLE_SECONDS` | **web** (server), solo `enterprise` | inattività massima della sessione del BFF; predefinito `1800` (Q-354) |
 | `LH_WEB_SESSION_MAX_SECONDS` | **web** (server), solo `enterprise` | durata massima della sessione del BFF; predefinito `36000` (Q-354) |
 | `LH_WEB_SESSION_MAX_COUNT` | **web** (server), solo `enterprise` | sessioni tenute in memoria al massimo (esce la meno recente); predefinito `10000` (Q-409) |
+| `NODE_EXTRA_CA_CERTS` | **web** (server), solo `enterprise` | certificato PEM della CA interna che firma l'emittente, aggiunto alle CA pubbliche di Node; nel chart da `roles.web.bff.issuerCaBundle` |
 
 File `.env.example` alla radice e in `web/` con tutte le chiavi e nessun valore reale.
 
@@ -210,4 +211,4 @@ L'immagine contiene sia l'hub (Java) sia l'interfaccia (Node.js) e instradata in
 Il deploy "a costo zero" (demo) continuerà a funzionare esattamente come descritto finché non vi sarà una transizione esplita. Vedi `deploy/image/README.md`.
 
 ## 15. Chart Helm e compose di riferimento (Fase 2, M8.3)
-Il profilo `enterprise` si installa con il chart `deploy/helm/loyaltyhub` (Strimzi e CloudNativePG di default, servizi gestiti come valori, F2-DIST-02) o con `deploy/compose/reference.yml` (F2-DIST-03), dalla stessa immagine. Nulla cambia per la demo a costo zero di questo documento. Istruzioni, valori e limiti noti in `deploy/README.md`.
+Il profilo `enterprise` si installa con il chart `deploy/helm/loyaltyhub` (Strimzi e CloudNativePG di default, servizi gestiti come valori, F2-DIST-02) o con `deploy/compose/reference.yml` (F2-DIST-03), dalla stessa immagine. Nulla cambia per la demo a costo zero di questo documento. Chart e compose passano al web le variabili `enterprise` di §8 (M8.2d): segreti solo da Secret (chart) o dall'ambiente (compose), emittente `https` raggiungibile dal web con l'URL del browser, una sola replica del web finché le sessioni del BFF stanno in memoria (Q-409, Q-419). Istruzioni, valori e limiti noti in `deploy/README.md`.

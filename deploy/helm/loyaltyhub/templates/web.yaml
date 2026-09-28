@@ -2,6 +2,8 @@
 {{- if .Values.roles.web.enabled }}
 {{- $r := .Values.roles.web }}
 {{- $hub := printf "http://%s-hub:%d" (include "loyaltyhub.fullname" .) (int (include "loyaltyhub.port.hub" .)) }}
+{{- $enterprise := eq .Values.global.profile "enterprise" }}
+{{- $issuerCa := and $enterprise $r.bff.issuerCaBundle.name }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -52,8 +54,35 @@ spec:
             - name: LH_SVC_{{ $svc }}_URL
               value: {{ $hub | quote }}
             {{- end }}
-            # SPEC-GAP: Q-393 — niente emittente né segreto del client `web` finché il BFF OIDC (F2-SEC-06) non li
-            # legge: il proxy inoltra solo X-LH-Actor e in `enterprise` l'hub risponde 401 (limite noto).
+            {{- if $enterprise }}
+            {{- $clientSecret := include "loyaltyhub.web.clientSecretRef" . | fromJson }}
+            # BFF OIDC (F2-SEC-06, ADR-027): stesso emittente dell'hub, raggiunto con l'URL pubblico (lo stesso del
+            # browser, come vuole la discovery); segreti solo da Secret. Valori verificati dal web all'avvio
+            # (INSECURE_CONFIG) e dal chart (loyaltyhub.validate.identity).
+            - name: LH_OIDC_ISSUER
+              value: {{ include "loyaltyhub.oidc.issuer" . | quote }}
+            - name: LH_WEB_CLIENT_ID
+              value: {{ $r.bff.clientId | quote }}
+            - name: LH_WEB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: {{ $clientSecret.name }}, key: {{ $clientSecret.key }} }
+            - name: LH_WEB_URL
+              value: {{ include "loyaltyhub.web.publicUrl" . | quote }}
+            - name: LH_WEB_SESSION_KEY
+              valueFrom:
+                secretKeyRef: { name: {{ $r.bff.sessionKey.name }}, key: {{ $r.bff.sessionKey.key }} }
+            - name: LH_WEB_SESSION_IDLE_SECONDS
+              value: {{ $r.bff.sessionIdleSeconds | int64 | quote }}
+            - name: LH_WEB_SESSION_MAX_SECONDS
+              value: {{ $r.bff.sessionMaxSeconds | int64 | quote }}
+            - name: LH_WEB_SESSION_MAX_COUNT
+              value: {{ $r.bff.sessionMaxCount | int64 | quote }}
+            {{- if $issuerCa }}
+            # CA privata dell'emittente, aggiunta alle CA pubbliche di Node: il certificato dell'IdP resta verificato.
+            - name: NODE_EXTRA_CA_CERTS
+              value: /etc/lh/issuer-ca/ca.crt
+            {{- end }}
+            {{- end }}
             {{- with $r.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -76,11 +105,24 @@ spec:
             # Cache di Next.js (immagini, ISR): l'unico percorso scritto dal server, il resto è in sola lettura.
             - name: next-cache
               mountPath: /opt/lh/web/.next/cache
+            {{- if $issuerCa }}
+            - name: issuer-ca
+              mountPath: /etc/lh/issuer-ca
+              readOnly: true
+            {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
         - name: next-cache
           emptyDir: {}
+        {{- if $issuerCa }}
+        - name: issuer-ca
+          configMap:
+            name: {{ $r.bff.issuerCaBundle.name }}
+            items:
+              - key: {{ $r.bff.issuerCaBundle.key }}
+                path: ca.crt
+        {{- end }}
 ---
 apiVersion: v1
 kind: Service

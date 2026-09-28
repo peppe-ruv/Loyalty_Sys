@@ -8,6 +8,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -19,7 +20,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.kafka.test.EmbeddedKafkaKraftBroker;
 
+import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -69,7 +72,7 @@ class TopicEvolutionIT {
     @Test
     void changedRetentionIsAppliedOnlyWithModifyConfigs() throws Exception {
         runner("ret", "local").run(ctx -> assertThat(ctx).hasNotFailed());
-        assertThat(retention("ret.facts")).isEqualTo(THREE_DAYS);
+        assertThat(retentionOnceSettled("ret.facts", THREE_DAYS)).isEqualTo(THREE_DAYS);
 
         // Default fuori da enterprise: spento, la retention nuova non arriva al topic esistente (comportamento di oggi).
         runner("ret", "local", "loyaltyhub.topic-settings.retention-ms-by-topic.facts=" + YEAR)
@@ -79,7 +82,7 @@ class TopicEvolutionIT {
         // Profilo enterprise: acceso senza configurazione esplicita.
         runner("ret", "local,enterprise", "loyaltyhub.topic-settings.retention-ms-by-topic.facts=" + YEAR)
                 .run(ctx -> assertThat(ctx).hasNotFailed());
-        assertThat(retention("ret.facts")).isEqualTo(YEAR);
+        assertThat(retentionOnceSettled("ret.facts", YEAR)).isEqualTo(YEAR);
         assertThat(retention("ret.actions")).isEqualTo(THREE_DAYS);
 
         // Spento in modo esplicito anche in enterprise.
@@ -92,7 +95,7 @@ class TopicEvolutionIT {
     @Test
     void partitionIncreaseNeedsAnExplicitAcknowledgement() throws Exception {
         runner("par", "local").run(ctx -> assertThat(ctx).hasNotFailed());
-        assertThat(partitions("par.facts")).isEqualTo(2);
+        assertThat(partitionsOnceSettled("par.facts", 2)).isEqualTo(2);
 
         runner("par", "local", "loyaltyhub.topic-settings.partitions=4").run(ctx -> {
             assertThat(ctx).hasFailed();
@@ -103,7 +106,7 @@ class TopicEvolutionIT {
 
         runner("par", "local", "loyaltyhub.topic-settings.partitions=4",
                 "loyaltyhub.topic-settings.allow-partition-increase=true").run(ctx -> assertThat(ctx).hasNotFailed());
-        assertThat(partitions("par.facts")).isEqualTo(4);
+        assertThat(partitionsOnceSettled("par.facts", 4)).isEqualTo(4);
 
         // Stessa forma di prima: nessun aumento, avvio normale anche senza conferma.
         runner("par", "local", "loyaltyhub.topic-settings.partitions=4").run(ctx -> assertThat(ctx).hasNotFailed());
@@ -116,6 +119,44 @@ class TopicEvolutionIT {
             assertThat(ctx).doesNotHaveBean(LhTopicPartitionGuard.class);
             assertThat(ctx.getBeansOfType(org.springframework.kafka.core.KafkaAdmin.NewTopics.class)).isEmpty();
         });
+    }
+
+    /**
+     * In KRaft il controller conferma la creazione di un topic o la modifica della configurazione prima che il broker
+     * aggiorni i propri metadati, e le letture dell'Admin passano dal broker. Subito dopo l'avvio il topic può quindi
+     * risultare sconosciuto o mostrare ancora il valore precedente: queste letture attendono (al massimo 15 s) che il
+     * broker converga sul valore atteso e, se non converge, restituiscono l'ultimo valore letto, così l'asserzione
+     * fallisce con il valore vero.
+     */
+    private long retentionOnceSettled(String topic, long expected) throws Exception {
+        return settled(() -> retention(topic), expected);
+    }
+
+    private int partitionsOnceSettled(String topic, int expected) throws Exception {
+        return settled(() -> partitions(topic), expected);
+    }
+
+    private static <T> T settled(Read<T> read, T expected) throws Exception {
+        long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
+        while (true) {
+            try {
+                T value = read.get();
+                if (expected.equals(value) || System.nanoTime() > deadline) {
+                    return value;
+                }
+            } catch (ExecutionException e) {
+                // Topic non ancora nei metadati del broker (UnknownTopicOrPartitionException): si riprova.
+                if (!(e.getCause() instanceof UnknownTopicOrPartitionException) || System.nanoTime() > deadline) {
+                    throw e;
+                }
+            }
+            Thread.sleep(100);
+        }
+    }
+
+    @FunctionalInterface
+    private interface Read<T> {
+        T get() throws Exception;
     }
 
     private long retention(String topic) throws Exception {
