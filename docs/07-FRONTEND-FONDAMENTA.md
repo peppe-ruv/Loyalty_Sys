@@ -37,7 +37,7 @@ web/
 ```
 
 ## 3. Proxy e accesso ai servizi
-- Il browser chiama **sempre** `/api/lh/<service>/v1/...`; il route handler inoltra a `LH_SVC_<SERVICE>_URL` (es. `LH_SVC_WALLET_URL`), copia metodo, query, corpo, e **aggiunge** `X-LH-Actor` leggendo il cookie persona (profilo `demo`) oppure `Authorization: Bearer` dalla sessione del BFF (profilo `enterprise`, §4-bis), `X-Correlation-Id` (nuovo ULID se assente). Dal browser passano solo `content-type` e `idempotency-key` (`lib/api/proxyHeaders.ts`): mai `Authorization`, `X-LH-Actor` o cookie. Timeout 25 s. Niente CORS sui servizi per le chiamate REST.
+- Il browser chiama **sempre** `/api/lh/<service>/v1/...`; il route handler inoltra a `LH_SVC_<SERVICE>_URL` (es. `LH_SVC_WALLET_URL`), copia metodo, query, corpo, e **aggiunge** `X-LH-Actor` leggendo il cookie persona (profilo `demo`) oppure `Authorization: Bearer` dalla sessione del BFF (profilo `enterprise`, §4-bis), `X-Correlation-Id` (nuovo ULID se assente). Dal browser passano solo `content-type` e `idempotency-key` (`lib/api/proxyHeaders.ts`): mai `Authorization`, `X-LH-Actor` o cookie. `Accept` lo decide il proxy: `application/json`, oppure `text/csv, application/problem+json` per i file `….csv` (vincitori BO-14, rapporto import BO-32). `HEAD` si inoltra come `HEAD`, senza corpo come `GET`. Timeout 25 s. Niente CORS sui servizi per le chiamate REST.
 - Eccezione: **SSE** va diretto a `NEXT_PUBLIC_LH_INSIGHT_URL/v1/stream/events` (le funzioni serverless non reggono connessioni lunghe). Se l'SSE fallisce 3 volte → **polling** di `/v1/events?from=<ultimo>` ogni 3 s, con indicatore "live ridotto".
 - `503/502/504` o errore di rete dal proxy → risposta `{type: "SERVICE_ASLEEP", service}`: l'UI mostra lo stato *degraded* (§6) e innesca `wake`.
 

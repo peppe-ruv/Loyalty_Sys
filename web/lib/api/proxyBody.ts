@@ -42,3 +42,12 @@ export const DOWNLOAD_HEADERS = ["content-disposition", "x-content-type-options"
 export function isCsvDownload(path: string[]): boolean {
   return (path[path.length - 1] ?? "").toLowerCase().endsWith(".csv");
 }
+
+/**
+ * `Accept` verso il servizio. Un CSV scaricabile chiede `text/csv` (i vincitori sono mappati con
+ * `produces = "text/csv"`: con `application/json` Spring risponde 406) e ammette `application/problem+json` per gli
+ * errori (RFC 9457, docs/06 §2); ogni altra API resta `application/json`.
+ */
+export function upstreamAccept(path: string[]): string {
+  return isCsvDownload(path) ? "text/csv, application/problem+json" : "application/json";
+}

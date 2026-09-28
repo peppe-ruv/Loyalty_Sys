@@ -4,7 +4,7 @@ import { isServiceCode, serviceBaseUrl } from "@/lib/api/services";
 import { actorHeader, parsePersona, PERSONA_COOKIE } from "@/lib/persona/cookie";
 import { ulid } from "@/lib/ids";
 import { fetchNicknames, nicknameRoute, resolveNicknames } from "@/lib/api/memberNicknames";
-import { DOWNLOAD_HEADERS, MAX_PROXY_BODY_BYTES, isCsvDownload, readCappedBody } from "@/lib/api/proxyBody";
+import { DOWNLOAD_HEADERS, MAX_PROXY_BODY_BYTES, isCsvDownload, readCappedBody, upstreamAccept } from "@/lib/api/proxyBody";
 import { correlationIdFrom, upstreamHeaders, type UpstreamIdentity } from "@/lib/api/proxyHeaders";
 import { upstreamUrl } from "@/lib/api/proxyPath";
 import { problem, resolveBff } from "@/lib/auth/bff";
@@ -58,9 +58,10 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
 
   const correlationId = correlationIdFrom(req.headers) ?? ulid();
   const contentType = req.headers.get("content-type");
-  const headers = upstreamHeaders(req.headers, identity, correlationId);
+  const headers = upstreamHeaders(req.headers, identity, correlationId, upstreamAccept(path ?? []));
 
-  const hasBody = req.method !== "GET" && req.method !== "DELETE";
+  // GET e HEAD non hanno corpo: `fetch` rifiuterebbe anche un corpo vuoto (TypeError ⇒ finto 503 SERVICE_ASLEEP).
+  const hasBody = req.method !== "GET" && req.method !== "HEAD" && req.method !== "DELETE";
   // Corpo con un tetto (lib/api/proxyBody.ts): oltre, 413 senza chiamare il servizio. Un file caricato (multipart,
   // BO-32) passa com'è, byte per byte; il JSON resta testo.
   let body: string | Uint8Array<ArrayBuffer> | undefined;
@@ -145,6 +146,8 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
 }
 
 export const GET = handle;
+// HEAD inoltrato come HEAD (docs/07 §3: si copia il metodo); Spring MVC risponde a HEAD su ogni mappatura GET.
+export const HEAD = handle;
 export const POST = handle;
 export const PUT = handle;
 export const PATCH = handle;
