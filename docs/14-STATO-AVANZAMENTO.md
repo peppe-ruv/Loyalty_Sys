@@ -16,7 +16,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M5 — Gioco | ✅ completata | 2026-09-24 | 2026-09-24 | ☑ | M5.1–M5.7 implementate; criteri di accettazione verdi con test automatici + E2E n. 3 con Playwright su servizio locale; `smoke.sh` verde sulla demo online |
 | M6 — Contenuti | ✅ completata | 2026-09-24 | 2026-09-24 | ☑ | M6.0–M6.7 chiuse (engagement: template, regole, inbox, `message.send`; contenuti per posizionamento, BO-18; pop-up e frequenze; card vincita; PT-12, BO-19, `SEND_MESSAGE`; tema a runtime, BO-20; segmenti statici e dinamici, BO-04; tipi azione custom, attributi personalizzati, costruttore di condizioni) — accettazione verde (il webhook è arrivato con M7.2); demo online verde |
 | M7 — Governance | ✅ completata | 2026-09-24 | 2026-09-24 | ☑ | M7.1–M7.6 chiuse (approvazioni per ruolo con policy e storico, BO-21; webhook firmati con ritenti, BO-23; DLQ con riprocessa/scarta, BO-27; eventi non abbinati con abbina e riprova, BO-26; anonimizzazione propagata, BO-03; versioni e duplica) — accettazione anonimizzazione verde (`HubAnonymizationIT`); smoke online verde |
-| M8 — Fondazioni enterprise | in corso | 2026-09-26 | | ☐ | Fase 2 (`docs/18 §6`); M8.0, M8.1, M8.3, M8.7, M8.8 chiuse; M8.2, M8.4, M8.9, M8.10, M8.11 in parte; M8.12 e il BFF di M8.2 in lavorazione; builder SQL negli altri servizi (M8.10) in revisione |
+| M8 — Fondazioni enterprise | in corso | 2026-09-26 | | ☐ | Fase 2 (`docs/18 §6`); M8.0, M8.1, M8.3, M8.7, M8.8 chiuse; M8.2, M8.4, M8.9, M8.10, M8.11, M8.12 in parte; M8.5, M8.6, M8.13 da fare |
 | M9 — Qualità | [ ] | | | ☐ | Fase 2 (`docs/18 §6`) |
 | M10 — Esperienza data-driven | [ ] | | | ☐ | Fase 2 (`docs/18 §6`) |
 | M11 — Multilingua | [ ] | | | ☐ | Fase 2 (`docs/18 §6`) |
@@ -25,7 +25,7 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 | M14 — Agente regolamento | [ ] | | | ☐ | Fase 2 (`docs/18 §6`) |
 | M15 — Esercizio | [ ] | | | ☐ | Fase 2 (`docs/18 §6`) |
 
-**Prossima fetta da lavorare:** in lavorazione M8.2 parte c (BFF con sessione e login OIDC), M8.12 parte a (audit a catena di hash) e l'adozione del builder SQL in member, campaign, reward e gamification (M8.10, PR #89, #91, #93, #94); poi il resto di M8.4 (produttore `:2`, `delivery`, cifratura), M8.10 (deny by default), M8.5 e M8.6. Flusso: una fetta = una PR con auto-merge; questa pagina si aggiorna con la PR di stato cumulativa (ADR-047).
+**Prossima fetta da lavorare:** il resto di M8.2 (membro dal token e `member.external_id = sub`, passkey e MFA degli operatori, client credentials per fonti e job, token exchange per i widget), di M8.10 (deny by default e `MemberPrincipal`, che sbloccano il portale `enterprise` di Q-410; builder SQL in engagement, insight e nel resto di ingestion; firma dei messaggi), di M8.12 (bridge Directus e Keycloak, attività del membro, retention a 400 giorni) e di M8.4 (produttore `:2`, `delivery`, cifratura); poi M8.5, M8.6 e M8.13. Flusso: una fetta = una PR con auto-merge; questa pagina si aggiorna con la PR di stato cumulativa (ADR-047).
 
 **Ambiente demo** (ADR-023 + ADR-024: deployable consolidato `hub` senza broker)
 
@@ -79,8 +79,8 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 - [x] `F-ING-01` Ricezione CloudEvents (P0)
 - [x] `F-ING-02` Deduplica (P0)
 - [x] `F-ING-03` Risoluzione membro (P0)
-- [x] `F-ING-05` Registro fonti (P0) — _motore: allow-list per fonte; CRUD backoffice in M1.6+_
-- [x] `F-ING-06` Tipi azione e schemi (P0) — _M1 tipi di sistema; M6.7 custom da BO-09 con editor dei campi, `/fields` per il costruttore di condizioni, attivi senza rilascio_
+- [x] `F-ING-05` Registro fonti (P0) — _motore: allow-list per fonte; CRUD backoffice in M1.6+; scheda «Fonti» guidata di BO-09 con azioni ammesse modificabili da `ADMIN` #108_
+- [x] `F-ING-06` Tipi azione e schemi (P0) — _M1 tipi di sistema; M6.7 custom da BO-09 con editor dei campi, `/fields` per il costruttore di condizioni, attivi senza rilascio; BO-09 guidata e creazione di un'azione da BO-06 «2 · Quando» #108; prefissi riservati `io` e `loyaltyhub`, creazione atomica con `409` e ingresso transazionale #109 (Q-439, Q-440, Q-441)_
 - [x] `F-ING-09` Monitor ingressi (P0) — _API `/v1/inbound-events` (lettura) + BO-26; retry/match in M7_
 - [x] `F-MBR-01` Anagrafica membro (P0)
 - [x] `F-MBR-02` Scheda 360° (P0) — _BO-03 M1: panoramica/movimenti/azioni; altre schede in M4/M5/M6_
@@ -357,39 +357,39 @@ Checklist **viva**: la aggiorna chi chiude una fetta (persona o agente), nello s
 Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della sua PR (`[x] M8.k — … (#nn)`); le spunte le aggiorna la PR di stato cumulativa dopo i merge, non la fetta (ADR-047).
 
 **Fette**
-- [x] M8.0 — adozione e governance (ADR 026–045, CLAUDE.md §7, docs, `.github/`, job `guard`) — #33 (dopo la preliminare #32, ADR-046); seguiti: gruppi Dependabot #56, testbook compatibili con MDX #77, attesa dello snapshot in campaign #73, flusso CI per aree e auto-merge (ADR-047) #80, json-schema-validator 3 #82, azioni aggiornate #85, ID unici delle domande nel `guard` #86, DLQ una sola volta dopo un ribilanciamento #90, TypeScript 6 #92
+- [x] M8.0 — adozione e governance (ADR 026–045, CLAUDE.md §7, docs, `.github/`, job `guard`) — #33 (dopo la preliminare #32, ADR-046); seguiti: gruppi Dependabot #56, testbook compatibili con MDX #77, attesa dello snapshot in campaign #73, flusso CI per aree e auto-merge (ADR-047) #80, json-schema-validator 3 #82, azioni aggiornate #85, ID unici delle domande nel `guard` #86, DLQ una sola volta dopo un ribilanciamento #90, TypeScript 6 #92, vitest 3 #101, registro TO-BE `docs/19` #102 e regola 24 «La PoC prima di tutto» #103, IT di gamification deterministici su Kafka #107
 - [x] M8.1 — immagine unica a ruoli — #52; seguito: hub su 8080 e smoke dell'immagine sulle PR #84
-- [~] M8.2 — identità (Keycloak `idp`, BFF, OIDC) — _parte a (Keycloak `idp`, realm as code, IdP e LDAP di prova) #57; parte b (resource server JWT, `ActorContext` dal token nel profilo `enterprise`) #51; BFF con sessione, login dei membri via OIDC, client credentials e token exchange da fare_
-- [x] M8.3 — chart Helm e compose di riferimento — #95 (chart con Strimzi e CloudNativePG, compose di riferimento, forma dei topic e concorrenza configurabili, Job di migrazione; `check-helm` in CI). Resta per l'accettazione di M8: `helm install` su kind in CI; limiti dichiarati Q-373, Q-375, Q-392, Q-393
+- [~] M8.2 — identità (Keycloak `idp`, BFF, OIDC) — _parte a (Keycloak `idp`, realm as code, IdP e LDAP di prova) #57; parte b (resource server JWT, `ActorContext` dal token nel profilo `enterprise`) #51; parte c (BFF del web: sessione lato server cifrata, login OIDC con PKCE, rinnovo, CSRF, logout RP-initiated e back-channel) #99; parte d (login OIDC del web nel chart e nel compose, rifiuti in `enterprise`) #104. Da fare: membro dal token e `member.external_id = sub` (il portale `enterprise` non si espone prima di M8.10, Q-410), passkey e MFA degli operatori, client credentials per fonti e job, token exchange per i widget. Limiti dichiarati: Q-409, Q-419, Q-420, Q-421 (TOBE-001, TOBE-003, TOBE-004)_
+- [x] M8.3 — chart Helm e compose di riferimento — #95 (chart con Strimzi e CloudNativePG, compose di riferimento, forma dei topic e concorrenza configurabili, Job di migrazione; `check-helm` in CI); seguito: `TopicEvolutionIT` attende i metadati KRaft #105. Resta per l'accettazione di M8: `helm install` su kind in CI; limiti dichiarati Q-373, Q-375, Q-392 (Q-393 superata da #99 e #104)
 - [~] M8.4 — PII fuori dal bus — _unite: parte 1 (contratti `x-lh-pii`, `member.*:2`, test) #50; doppia lettura in campaign (età e provincia) #53, reward (note svuotate all'anonimizzazione) #72, engagement #59, insight (`emailHash` in anonimizzazione) #58; soprannomi risolti dal BFF #78. Da fare: produttore `member.*:2`, altri consumer, modulo `delivery`, cifratura dei contatti_
 - [ ] M8.5 — sicurezza di piattaforma
 - [ ] M8.6 — osservabilità
 - [x] M8.7 — ingresso batch e import file (BO-32) — #88 (la bozza #75 chiusa senza merge)
 - [x] M8.8 — OpenAPI generata e verificata (`contracts/api/`) — #76
-- [~] M8.9 — documentazione Mintlify (`site/`) — _diagrammi di Fase 1 conformi (accTitle/accDescr) #54; `erDiagram` e diagrammi di stato delle schede servizio #83, coerenza con codice e migrazioni #87; diagramma di mapping fonte→saldo, `site/`, `docs-sync`, job `docs` da fare_
-- [~] M8.10 — sicurezza applicativa — _parte 1 (builder SQL con allowlist, adozione nel wallet) #61; adozione in member, campaign, reward, gamification in revisione (#91, #94, #93, #89); regole Semgrep, firma dei messaggi, deny by default da fare_
+- [~] M8.9 — documentazione Mintlify (`site/`) — _diagrammi di Fase 1 conformi (accTitle/accDescr) #54; `erDiagram` e diagrammi di stato delle schede servizio #83, coerenza con codice e migrazioni #87; guida di stile `AGENTS.md` e pagine Mintlify ripulite dopo la bozza #97, in #98; diagramma di mapping fonte→saldo, `site/`, `docs-sync`, job `docs` da fare_
+- [~] M8.10 — sicurezza applicativa — _parte 1 (builder SQL con allowlist, adozione nel wallet) #61; adozione in member #91, reward #93, gamification #89, campaign #94; adozione in engagement, insight e nel resto di ingestion, regole Semgrep, firma dei messaggi, deny by default da fare_
 - [~] M8.11 — verifica di sicurezza — _parte 1 (threat model STRIDE, tabella ASVS 5.0 L2, `SECURITY.md`) #60; job `security`, ArchUnit, Schemathesis, ZAP, `TB-SEC` da fare_
-- [~] M8.12 — audit unificato — _parte a (catena di hash, verifica, sola inserzione) in lavorazione_
+- [~] M8.12 — audit unificato — _parte a (catena di hash per servizio, sola inserzione imposta dal database, `GET /v1/audit/verify`, ancora giornaliera anche sul logger `io.loyaltyhub.audit.anchor`, prove `REDACT` nell'anonimizzazione) #106. Da fare: bridge Directus e Keycloak verso `audit_entry`, attività del membro (BO-03 estesa, PT-18), retention a 400 giorni. Limiti dichiarati: Q-400…Q-404 (TOBE-002, TOBE-006)_
 - [ ] M8.13 — governo di accessi e dati
 
 **Feature `F2-*` (catalogo `docs/18 §4`)**
 - [x] `F2-DIST-01` Immagine unica multi-arch con ruoli e modalità (P0, M8.1) — #52
-- [x] `F2-DIST-02` Chart Helm con operatori di default, valori per servizi gestiti (P0, M8.3) — #95
-- [x] `F2-DIST-03` Compose di riferimento (ruoli + infra open source) (P0, M8.3) — #95
+- [x] `F2-DIST-02` Chart Helm con operatori di default, valori per servizi gestiti (P0, M8.3) — #95; login OIDC del web #104
+- [x] `F2-DIST-03` Compose di riferimento (ruoli + infra open source) (P0, M8.3) — #95; login OIDC del web #104
 - [ ] `F2-DIST-08` Rilascio firmato: SBOM, cosign, note di sicurezza, percorso N−1 → N (P0, M8.5, M12.4)
 - [x] `F2-IAM-01` Keycloak ruolo `idp`, realm as code (P0, M8.2) — #57
 - [x] `F2-IAM-02` Servizi resource server JWT; `ActorContext` dal token (P0, M8.2) — #51
-- [ ] `F2-IAM-03` Login e registrazione membri via OIDC; `member.external_id = sub` (P0, M8.2)
+- [~] `F2-IAM-03` Login e registrazione membri via OIDC; `member.external_id = sub` (P0, M8.2) — _login OIDC tramite il BFF #99, #104; registrazione dei membri, `member.external_id = sub` e membro dal token nei servizi (Q-410) da fare_
 - [~] `F2-IAM-04` Broker verso IdP aziendale e federazione LDAP (documentati e provati) (P0, M8.2) — _IdP e LDAP di prova nel realm #57; prova automatica da fare_
 - [ ] `F2-SEC-01` Gateway con JWT, rate limit, CORS per widget, header di sicurezza (P0, M8.5)
 - [ ] `F2-SEC-02` Mesh mTLS, network policy, ACL Kafka, ruoli DB per servizio (owner/app), External Secrets, Pod Security `restricted` (P0, M8.5)
 - [ ] `F2-SEC-03` Supply chain in CI (SBOM, scansione, firma, CodeQL, secret scanning, IaC) (P0, M8.5)
 - [ ] `F2-SEC-04` Cifratura a colonna dei contatti nel member-service (P0, M8.4)
-- [ ] `F2-SEC-06` BFF con sessione server-side, CSRF, back-channel logout, passkey, MFA operatori (P0, M8.2)
+- [~] `F2-SEC-06` BFF con sessione server-side, CSRF, back-channel logout, passkey, MFA operatori (P0, M8.2) — _sessione lato server, CSRF, logout RP-initiated e back-channel #99; collegamento nel chart e nel compose #104; passkey e MFA degli operatori da fare_
 - [ ] `F2-SEC-07` Client credentials per fonti e job; token exchange per i widget (P0, M8.2)
 - [ ] `F2-SEC-08` Messaggi firmati sul bus con elenco dei produttori ammessi e validazione in consumo (P0, M8.10)
 - [ ] `F2-SEC-09` Deny by default (`@RequiresRole`/`@PublicEndpoint`), `MemberPrincipal` nel portale, DTO espliciti (P0, M8.10)
-- [~] `F2-SEC-10` Builder SQL con allowlist, regole Semgrep, limiti di input, template senza logica, sanitizzazione contenuti (P0, M8.10) — _builder SQL e adozione nel wallet #61_
+- [~] `F2-SEC-10` Builder SQL con allowlist, regole Semgrep, limiti di input, template senza logica, sanitizzazione contenuti (P0, M8.10) — _builder SQL e adozione nel wallet #61; member #91, reward #93, gamification #89, campaign #94; engagement, insight, resto di ingestion, regole Semgrep, limiti di input, template senza logica e sanitizzazione da fare_
 - [ ] `F2-SEC-11` Difesa SSRF, `Idempotency-Key`, rate limit per membro, controlli sui file caricati (P0, M8.10)
 - [~] `F2-SEC-12` Verifica continua: ArchUnit, Semgrep, Schemathesis, ZAP, `TB-SEC`, tabella ASVS, `SECURITY.md` (P0, M8.11) — _tabella ASVS e `SECURITY.md` #60_
 - [ ] `F2-SEC-13` Bridge audit Directus → `audit_entry` (`POST /v1/audit/external` su experience-service, HMAC) (P0, M8.12)
@@ -399,19 +399,19 @@ Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della 
 - [ ] `F2-GRC-04` Deprovisioning dall'IdP, revisione periodica degli accessi (BO-34), break-glass (P0, M8.13)
 - [ ] `F2-GRC-05` Classificazione `x-lh-class`, registro dei trattamenti, retention per categoria con rapporto, esportazioni controllate (P0, M8.13)
 - [ ] `F2-GRC-06` `erasure_log` riapplicato al ripristino, crypto-shredding dei contatti, `lh data mask`, `lh decommission` (P0, M8.13, M12.6)
-- [ ] `F2-GRC-07` Audit a catena di hash con ancoraggio immutabile, export OCSF, `lh forensics export`, prova di ripristino mensile (P0, M8.12, M12.6)
+- [~] `F2-GRC-07` Audit a catena di hash con ancoraggio immutabile, export OCSF, `lh forensics export`, prova di ripristino mensile (P0, M8.12, M12.6) — _catena di hash, sola inserzione e verifica #106, con le ancore anche nei log (workaround di TOBE-002); ancoraggio firmato su archivio immutabile (Q-400), export OCSF, `lh forensics export` e prova di ripristino mensile da fare_
 - [ ] `F2-GRC-09` Identità propria degli agenti (GitHub App) e approvazione obbligatoria delle PR prima di v1.0 (P0, M8.0, M12.4)
 - [~] `F2-EVT-01` Contratti con `x-lh-pii`, test che vieta PII sul bus, compat check contro ultimo tag (P0, M8.4) — _`x-lh-pii` e test #50; confronto con l'ultimo tag da fare_
 - [~] `F2-EVT-02` `member.registered/updated` `:2` senza PII; doppia lettura (P0, M8.4) — _contratto `:2` #50; doppia lettura in campaign #53, reward #72, engagement #59, insight #58, gamification #78; produttore `:2` da fare_
 - [ ] `F2-EVT-03` Modulo `delivery` nel member-service con adattatori SMTP/WEBHOOK (P0, M8.4)
-- [~] `F2-EVT-04` Partizioni e concorrenza configurabili; retention lunga (P0, M8.3) — _partizioni, repliche, concorrenza e retention configurabili #95; retention lunga su facts/audit dopo M8.4 (Q-373)_
+- [~] `F2-EVT-04` Partizioni e concorrenza configurabili; retention lunga (P0, M8.3) — _partizioni, repliche, concorrenza e retention configurabili #95, test stabile su KRaft #105; retention lunga su facts/audit dopo M8.4 (Q-373)_
 - [x] `F2-ING-01` `POST /v1/events/batch` fino a 1000 (P0, M8.7) — #88
 - [x] `F2-ING-02` Import file asincrono con rapporto (BO-32) (P0, M8.7) — #88
 - [x] `F2-API-01` OpenAPI generata e verificata; `contracts/api/` (P0, M8.8) — #76
 - [ ] `F2-OBS-01` OTel → Prometheus/Loki/Tempo/Grafana nel chart, dashboard SLO (P0, M8.6)
 - [~] `F2-GOV-01` Ruleset `main-protetto`, impostazioni del repo, `CODEOWNERS`, modello di PR, Dependabot (P0, M8.0) — _file del repository #33, #56; flusso con auto-merge #80; applicazione del ruleset da confermare dal proprietario_
 - [x] `F2-GOV-02` Controllo `guard` (ADR solo in aggiunta, ID seed invariati) (P0, M8.0) — #33
-- [ ] `F2-DOC-01` Mintlify unico sito: `site/`, dismissione GitBook e `docs_v2/` (P0, M8.9)
+- [~] `F2-DOC-01` Mintlify unico sito: `site/`, dismissione GitBook e `docs_v2/` (P0, M8.9) — _guida di stile `AGENTS.md` e pagine Mintlify ripulite #98; `site/`, dismissione di GitBook e `docs_v2/` da fare_
 - [ ] `F2-DOC-02` Specifiche ed eventi generati (`docs-sync`), riferimento API da OpenAPI (P0, M8.9)
 - [~] `F2-DOC-03` Catalogo minimo dei diagrammi Mermaid e controllo `check-mermaid` (P0, M8.9) — _diagrammi di Fase 1 conformi e `check-mermaid` #54, #33_
 - [~] `F2-DOC-05` `erDiagram` per scheda servizio, `stateDiagram-v2` per ogni ciclo di vita, mapping fonte→azione→effetto→saldo (§3.12-bis) (P0, M8.9) — _`erDiagram` e diagrammi di stato #83, #87; mapping fonte→saldo da fare_
@@ -426,6 +426,7 @@ Specifica: `docs/18 §6 M8`. Da Fase 2 ogni fetta si spunta con il numero della 
 
 | Data | Fetta | Esito | Commit | Domande aperte create | Note per la prossima sessione |
 |---|---|---|---|---|---|
+| 2026-09-28 | Stato cumulativo M8 dopo M8.12a e M8.10 (ADR-047) | ✅ solo documentazione; stato ricavato dalle PR unite su `main` (#89, #91, #93, #94, #98, #99, #101–#109) | (questa PR) | — | Nessuna milestone chiusa. Avanzano M8.2 (BFF #99, collegamento nel chart e nel compose #104), M8.10 (builder SQL in member, reward, gamification, campaign), M8.12 (parte a #106) e M8.9 (#98); in parte F2-IAM-03, F2-SEC-06, F2-GRC-07, F2-DOC-01. Seguiti di M8.0 (#101, #102, #103, #107) e M8.3 (#105); BO-09 guidata (#108) e codici riservati dei tipi azione (#109) annotati su F-ING-05 e F-ING-06. Prossime: resto di M8.2, M8.10 e M8.12. |
 | 2026-09-28 | Stato cumulativo M8 (ADR-047) | ✅ solo documentazione; stato ricavato dalle PR unite su `main` (#80, #82–#88, #90, #92, #95) | (questa PR) | Q-389 registrata (riferita da #87) | Spuntate M8.3 (#95), M8.7 (#88), F2-DIST-02/03, F2-ING-01/02; seguiti di M8.0 e M8.1; parti di M8.9, F2-EVT-04, F2-DOC-05. In revisione: builder SQL #89, #91, #93, #94. In lavorazione: M8.2c BFF, M8.12a catena di audit. |
 | 2026-09-26 | Stato cumulativo M8 (ADR-047) | ✅ solo documentazione; stato ricavato dalle PR unite su `main` | (questa PR) | — | Spuntate M8.0 (#32, #33), M8.1 (#52), M8.8 (#76), F2-DIST-01, F2-IAM-01/02, F2-API-01, F2-GOV-02; parti di M8.2, M8.4, M8.9, M8.10, M8.11 con i numeri delle PR unite. Da ADR-047 le fette non toccano più questa pagina. |
 | 2026-09-26 | M8.0h · campaign, attesa dello snapshot | ✅ `./mvnw -pl services/campaign-service verify` verde (4251 test); `TestbookPltFreeProfileIT` e `TestbookE2eJourneysIT` verdi in locale | PR #73 | — (Q-169 aggiornata) | Corregge TB-PLT-FRP-003 intermittente su main dopo #50: l'azione del ponte `member.registered` precedeva lo snapshot al ribilanciamento e il bonus di benvenuto andava perso. Il consumer delle azioni rilegge lo snapshot dopo 0,5/1/2 s, poi `NO_MEMBER` (campaign §5). |
