@@ -4,7 +4,7 @@ sidebarTitle: "Ingestion"
 description: "API reference completa del servizio ingestion di Loyalty Hub. Riceve eventi CloudEvent, li valida, deduplica, risolve il membro e produce sul topic lh.actions.v1."
 ---
 
-Il servizio ingestion di Loyalty Hub e l'unica porta di ingresso per le azioni premianti. Riceve eventi CloudEvent 1.0, li sottopone a una pipeline di validazione in 8 fasi, risolve l'identita del membro e, se tutto e valido, pubblica l'azione sul topic Kafka `lh.actions.v1`. Gestisce anche il ponte interno fatti→azioni, il simulatore demo e il backoffice di monitoraggio e configurazione.
+Il servizio ingestion di Loyalty Hub è l'unica porta di ingresso per le azioni premianti. Riceve eventi CloudEvent 1.0, li sottopone a una pipeline di validazione in 8 fasi, risolve l'identità del membro e, se tutto è valido, pubblica l'azione sul topic Kafka `lh.actions.v1`. Gestisce anche il ponte interno fatti→azioni, il simulatore demo e il backoffice di monitoraggio e configurazione.
 
 ## Base URL
 
@@ -20,32 +20,34 @@ Ogni evento che arriva all'ingestion attraversa 8 fasi. Se una fase fallisce, il
 
 <Steps>
   <Step title="Envelope valido">
-    Il body deve essere un CloudEvent 1.0 valido con almeno `specversion`, `type`, `source`, `id` e `time`. Se mancano campi obbligatori o il formato e errato, ritorna `400 Bad Request`.
+    Il body deve essere un CloudEvent 1.0 valido con almeno `specversion`, `type`, `source`, `id` e `time`. Se mancano campi obbligatori o il formato è errato, ritorna `400 Bad Request`.
   </Step>
   <Step title="Fonte esistente e abilitata">
-    Il campo `source` deve corrispondere a una fonte registrata e abilitata nel backoffice. Se la fonte e disabilitata o non esiste, ritorna `202` con `rejectCode: SOURCE_DISABLED`.
+    Il campo `source` deve corrispondere a una fonte registrata e abilitata nel backoffice. Se la fonte è disabilitata o non esiste, ritorna `202` con `rejectCode: SOURCE_DISABLED`.
   </Step>
   <Step title="Tipo noto, abilitato, ammesso per la fonte">
-    Il campo `type` deve corrispondere a un tipo evento esistente, abilitato e associato alla fonte. Se il tipo e sconosciuto, ritorna `TYPE_UNKNOWN`. Se la fonte non puo emettere quel tipo, ritorna `TYPE_NOT_ALLOWED`.
+    Il campo `type` deve corrispondere a un tipo evento esistente, abilitato e associato alla fonte. Se il tipo è sconosciuto, ritorna `TYPE_UNKNOWN`. Se la fonte non può emettere quel tipo, ritorna `TYPE_NOT_ALLOWED`.
   </Step>
   <Step title="Data valido contro JSON Schema">
     Il campo `data` viene validato contro lo schema JSON del tipo evento. Se i dati non rispettano lo schema, ritorna `INVALID_DATA`.
   </Step>
   <Step title="Time nel range valido">
-    Il campo `time` non deve essere nel futuro di piu di 5 minuti ne nel passato di piu di 30 giorni. Se e fuori range, ritorna `INVALID_TIME`.
+    Il campo `time` non deve essere nel futuro di più di 5 minuti né nel passato di più di 30 giorni. Se è fuori range, ritorna `INVALID_TIME`.
   </Step>
   <Step title="Dedup (source, id)">
-    La coppia (`source`, `id`) deve essere unica. Se esiste gia un evento con la stessa coppia, ritorna `DUPLICATE`.
+    La coppia (`source`, `id`) deve essere unica. Se esiste già un evento con la stessa coppia, ritorna `DUPLICATE`.
   </Step>
   <Step title="Risoluzione membro">
-    Il campo `subject` viene interpretato come riferimento al membro nei formati `member:<id>`, `external:<x>` o `email:<x>`. Se non trova corrispondenza, ritorna `UNMATCHED`. Se il membro esiste ma non e attivo, ritorna `MEMBER_NOT_ACTIVE`.
+    Il campo `subject` viene interpretato come riferimento al membro nei formati `member:<id>`, `external:<x>` o `email:<x>`. Se non trova corrispondenza, ritorna `UNMATCHED`. Se il membro esiste ma non è attivo, ritorna `MEMBER_NOT_ACTIVE`.
   </Step>
   <Step title="Arricchimento e pubblicazione">
     L'evento viene arricchito con estensioni `lh*` (correlation, causation, hop, actor, schema version), il `subject` viene normalizzato a `member:<id>`, e l'azione viene scritta nell'outbox per la pubblicazione su `lh.actions.v1`. Stato finale: `ACCEPTED`.
   </Step>
 </Steps>
 
-> **Nota:** Anche in caso di rifiuto di business, l'ingestion risponde sempre `202 Accepted`. Questo evita che la fonte ritenti l'invio per errori non transitori.
+<Note>
+  Anche in caso di rifiuto di business, l'ingestion risponde sempre `202 Accepted`. Questo evita che la fonte ritenti l'invio per errori non transitori.
+</Note>
 
 ## Endpoint di ingresso
 
@@ -222,9 +224,11 @@ Restituisce il dettaglio completo di un evento, incluso il payload originale e l
 
 ### POST /v1/inbound-events/{id}/retry
 
-Riprocessa un evento nello stato `REJECTED` o `UNMATCHED`. Utile quando la causa del rifiuto e stata corretta (fonte riabilitata, schema aggiornato, membro creato).
+Riprocessa un evento nello stato `REJECTED` o `UNMATCHED`. Utile quando la causa del rifiuto è stata corretta (fonte riabilitata, schema aggiornato, membro creato).
 
-> **Attenzione:** Il retry e consentito solo per eventi in stato `REJECTED` o `UNMATCHED`. Gli eventi `ACCEPTED` o `DUPLICATE` non possono essere ripetuti.
+<Warning>
+  Il retry è consentito solo per eventi in stato `REJECTED` o `UNMATCHED`. Gli eventi `ACCEPTED` o `DUPLICATE` non possono essere ripetuti.
+</Warning>
 
 ### POST /v1/inbound-events/{id}/match
 
@@ -309,7 +313,7 @@ Restituisce i campi del payload `data` in formato piatto, utili per il costrutto
 | `GET` | `/v1/internal-mappings` | Elenca le regole di mapping |
 | `PUT` | `/v1/internal-mappings` | Aggiorna le regole di mapping |
 
-Questo endpoint configura il ponte fatti→azioni. Vedi la sezione dedicata piu avanti per i dettagli.
+Questo endpoint configura il ponte fatti→azioni. Vedi la sezione dedicata più avanti per i dettagli.
 
 ## Demo: simulatore
 
@@ -317,14 +321,14 @@ Il simulatore permette di generare eventi di test senza bisogno di una fonte est
 
 | Metodo | Path | Descrizione |
 | --- | --- | --- |
-| `POST` | `/v1/demo/simulator/fire` | Genera uno o piu eventi di test |
+| `POST` | `/v1/demo/simulator/fire` | Genera uno o più eventi di test |
 | `GET` | `/v1/demo/scenarios` | Elenca gli scenari demo predefiniti |
 | `POST` | `/v1/demo/scenarios/{code}/run` | Avvia uno scenario demo |
 | `GET` | `/v1/demo/scenario-runs/{runId}` | Stato di un run scenario |
 
 ### POST /v1/demo/simulator/fire
 
-Genera uno o piu eventi di test per un membro specifico.
+Genera uno o più eventi di test per un membro specifico.
 
 **Body di esempio:**
 
@@ -381,7 +385,7 @@ Quando un evento viene rifiutato, la risposta contiene un `rejectCode` che indic
   </Accordion>
 
   <Accordion title="TYPE_NOT_ALLOWED">
-    La fonte non e autorizzata a emettere eventi di questo tipo. Verifica le associazioni fonte-tipo nel backoffice.
+    La fonte non è autorizzata a emettere eventi di questo tipo. Verifica le associazioni fonte-tipo nel backoffice.
   </Accordion>
 
   <Accordion title="INVALID_DATA">
@@ -389,11 +393,11 @@ Quando un evento viene rifiutato, la risposta contiene un `rejectCode` che indic
   </Accordion>
 
   <Accordion title="INVALID_TIME">
-    Il campo `time` e fuori dal range valido: non puo essere nel futuro di piu di 5 minuti ne nel passato di piu di 30 giorni.
+    Il campo `time` è fuori dal range valido: non può essere nel futuro di più di 5 minuti né nel passato di più di 30 giorni.
   </Accordion>
 
   <Accordion title="DUPLICATE">
-    Esiste gia un evento con la stessa coppia (`source`, `id`). Ogni evento deve avere un `id` univoco per fonte.
+    Esiste già un evento con la stessa coppia (`source`, `id`). Ogni evento deve avere un `id` univoco per fonte.
   </Accordion>
 
   <Accordion title="UNMATCHED">
@@ -401,7 +405,7 @@ Quando un evento viene rifiutato, la risposta contiene un `rejectCode` che indic
   </Accordion>
 
   <Accordion title="MEMBER_NOT_ACTIVE">
-    Il membro corrispondente al `subject` esiste ma non e in stato attivo. Verifica lo stato del membro nel backoffice.
+    Il membro corrispondente al `subject` esiste ma non è in stato attivo. Verifica lo stato del membro nel backoffice.
   </Accordion>
 </AccordionGroup>
 
@@ -409,14 +413,16 @@ Quando un evento viene rifiutato, la risposta contiene un `rejectCode` che indic
 
 L'ingestion gestisce anche un ponte interno che converte eventi di dominio ("fatti") in azioni premianti. Questo meccanismo permette ai microservizi interni di emettere eventi di business che vengono automaticamente tradotti in azioni valutabili dalle campagne.
 
-Il flusso e il seguente:
+Il flusso è il seguente:
 
 1. Un microservizio interno pubblica un fatto su `lh.facts.v1` (es. `member.tier_changed`).
 2. L'ingestion consuma il fatto e lo confronta con le regole di mapping configurate in `/v1/internal-mappings`.
 3. Se esiste una regola corrispondente, il fatto viene trasformato in un'azione (es. `tier.upgraded`) e reinserita nella pipeline.
 4. L'azione risultante viene pubblicata su `lh.actions.v1`.
 
-> **Attenzione:** Per prevenire loop infiniti, l'ingestion controlla l'estensione `lhhop`. Se il valore supera 3, l'evento viene scartato e inviato alla dead letter queue con codice `LOOP_GUARD`.
+<Warning>
+  Per prevenire loop infiniti, l'ingestion controlla l'estensione `lhhop`. Se il valore supera 3, l'evento viene scartato e inviato alla dead letter queue con codice `LOOP_GUARD`.
+</Warning>
 
 **Esempio di regola di mapping:**
 
