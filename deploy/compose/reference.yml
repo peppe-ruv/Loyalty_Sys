@@ -29,7 +29,8 @@
 # Osservabilità (F2-OBS-01, M8.6a; profilo `observability`, spento di default): collector OpenTelemetry, Prometheus 3 e
 # Grafana con la dashboard SLO e le regole del chart (deploy/helm/loyaltyhub/files/observability, un solo file per i due).
 # Variabili: LH_OTEL_METRICS_ENABLED (true perché l'hub invii le metriche), LH_GRAFANA_ADMIN_PASSWORD (obbligatoria),
-# LH_GRAFANA_ADMIN_USER (default admin), LH_PROMETHEUS_RETENTION (default 15d). Grafana su http://127.0.0.1:3001.
+# LH_GRAFANA_ADMIN_USER (default admin), LH_PROMETHEUS_RETENTION (default 31d: i riquadri a 30 giorni della dashboard
+# hanno bisogno di almeno 30 giorni di dati). Grafana su http://127.0.0.1:3001.
 #   LH_OTEL_METRICS_ENABLED=true LH_GRAFANA_ADMIN_PASSWORD=… docker compose -f deploy/compose/reference.yml --profile observability up -d
 name: loyaltyhub-reference
 
@@ -382,7 +383,7 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
-      - "--storage.tsdb.retention.time=${LH_PROMETHEUS_RETENTION:-15d}"
+      - "--storage.tsdb.retention.time=${LH_PROMETHEUS_RETENTION:-31d}"
       - --web.enable-otlp-receiver
     volumes:
       - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -419,6 +420,13 @@ services:
       GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
       GF_SECURITY_DISABLE_GRAVATAR: "true"
       GF_NEWS_NEWS_FEED_ENABLED: "false"
+      # Niente scambi con grafana.com (verificato su conf/defaults.ini di Grafana 13.2.3): senza queste quattro Grafana
+      # scarica la chiave di firma dei plugin (all'avvio e ogni 10 giorni), interroga il catalogo dei plugin e lascia
+      # a chiunque pubblicare uno snapshot di una dashboard su snapshots.raintank.io, cioè le metriche di produzione.
+      GF_PLUGINS_PUBLIC_KEY_RETRIEVAL_DISABLED: "true"
+      GF_PLUGINS_PLUGIN_ADMIN_ENABLED: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"
     volumes:
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ../helm/loyaltyhub/files/observability/dashboards:/etc/lh/dashboards:ro

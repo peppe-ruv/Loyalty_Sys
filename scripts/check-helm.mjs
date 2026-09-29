@@ -502,6 +502,11 @@ test('osservabilità: hub.yml spegne OTLP di default, in secondi, con i bucket d
   const hub = read('deploy/hub/src/main/resources/hub.yml');
   assert.ok(hub.includes('enabled: ${LH_OTEL_METRICS_ENABLED:false}'), 'esportazione OTLP spenta di default');
   assert.ok(hub.includes('base-time-unit: seconds'), 'base in secondi: le regole e la dashboard leggono *_seconds_*');
+  // Le OTEL_* standard (iniettate da operatori o webhook di piattaforma) non comandano l'hub: Boot le mappa in una fonte
+  // con precedenza su hub.yml e accenderebbero l'invio, aggirando INSECURE_CONFIG, con temporalità delta e un altro `job`.
+  assert.ok(hub.includes('map-environment-variables: false'), 'OTEL_* non devono aggirare LH_OTEL_* e i controlli del chart (ADR-044, regola 22)');
+  assert.ok(hub.includes('"[service.name]": hub'), 'service.name fissato: OTEL_SERVICE_NAME cambierebbe il job e ogni regola');
+  assert.ok(hub.includes('aggregation-temporality: cumulative'), 'temporalità cumulativa: rate() e increase() la richiedono');
   const slo = (hub.match(/"\[http\.server\.requests\]": (.+)/) || [])[1];
   assert.ok(slo, 'bucket di http.server.requests');
   const bounds = slo.split(',').map((b) => b.trim());
@@ -549,9 +554,22 @@ test('osservabilità: regole SLO e allarmi coprono portale, giocata e azione →
     'LoyaltyHubTelemetryAbsent']) assert.ok(named.has(a), a);
   assert.match(named.get('LoyaltyHubMessageRejected').expr, /SIGNATURE_INVALID\|PRODUCER_NOT_ALLOWED/);
   // Un contatore Micrometer nasce alla prima occorrenza con valore 1: increase() da solo non la vede, quindi gli allarmi
-  // sui contatori DLQ contano anche le serie nate nella finestra (provato con promtool test rules).
-  assert.match(named.get('LoyaltyHubDlqMessages').expr, /increase\(.*\[10m\]\)\) > 0 or .* unless lh_events_dlq_total\{[^ ]+\} offset 10m\) > 0$/);
-  assert.match(named.get('LoyaltyHubMessageRejected').expr, /increase\(.*\[5m\]\)\) > 0 or .* unless lh_events_dlq_total\{[^ ]+\} offset 5m\) > 0$/);
+  // sui contatori DLQ contano anche le serie nate nella finestra (`unless … offset`); ma dopo un buco di telemetria più
+  // lungo della finestra i contatori vecchi riapparirebbero «nuovi»: si contano solo le istanze che già riportavano a
+  // `offset` o partite da meno della finestra (provato con `promtool test rules`, ci/slo-rules.test.yaml).
+  const firstSeen = (window, seconds) => new RegExp(
+    `^sum by \\(job, errorCode\\) \\(increase\\(lh_events_dlq_total\\{[^ ]+\\}\\[${window}\\]\\)\\) > 0 or `
+    + `sum by \\(job, errorCode\\) \\(\\(lh_events_dlq_total\\{[^ ]+\\} unless lh_events_dlq_total\\{[^ ]+\\} offset ${window}\\) `
+    + `and on \\(job, instance\\) \\(process_uptime_seconds\\{[^ ]+\\} < ${seconds} or process_uptime_seconds\\{[^ ]+\\} offset ${window}\\)\\) > 0$`);
+  assert.match(named.get('LoyaltyHubDlqMessages').expr, firstSeen('10m', 600));
+  assert.match(named.get('LoyaltyHubMessageRejected').expr, firstSeen('5m', 300));
+  // Telemetria assente per installazione: con più installazioni su uno stesso Prometheus (Q-527) absent_over_time() da solo
+  // scatterebbe solo se tacessero tutte; `unless` sulle finestre di 1 h e 10 min vale per ogni `job`, absent_over_time il caso globale.
+  const up = `process_uptime_seconds{${SEL}}`;
+  assert.equal(named.get('LoyaltyHubTelemetryAbsent').expr,
+    `(max by (job) (max_over_time(${up}[1h])) unless max by (job) (max_over_time(${up}[10m]))) or absent_over_time(${up}[10m])`);
+  assert.equal(named.get('LoyaltyHubTelemetryAbsent').for, '5m');
+  assert.match(named.get('LoyaltyHubTelemetryAbsent').annotations.description, /\{\{ \$labels\.job \}\}/);
   assert.match(named.get('LoyaltyHubAuthFailureSpike').expr, /status=~"401\|403"/);
   for (const r of allRules(rules).filter((x) => x.alert)) {
     assert.ok(r.annotations?.summary && r.annotations?.description, `annotazioni di ${r.alert}`);
@@ -618,6 +636,13 @@ test('osservabilità: il compose di riferimento ha il profilo observability con 
     'GF_AUTH_ANONYMOUS_ENABLED', 'GF_USERS_ALLOW_SIGN_UP', 'GF_NEWS_NEWS_FEED_ENABLED']) {
     assert.equal(composeEnv(grafana, v), '"false"', v);
   }
+  // Gli altri contatti con grafana.com (default di Grafana 13, conf/defaults.ini): chiave di firma dei plugin (all'avvio e
+  // ogni 10 giorni), catalogo dei plugin, plugin preinstallati, snapshot pubblicabili su snapshots.raintank.io (le metriche
+  // di produzione potrebbero uscire). Senza queste il «nessuna comunicazione verso Grafana Labs» della documentazione è falso.
+  for (const v of ['GF_PLUGINS_PUBLIC_KEY_RETRIEVAL_DISABLED', 'GF_PLUGINS_PREINSTALL_DISABLED']) assert.equal(composeEnv(grafana, v), '"true"', v);
+  for (const v of ['GF_PLUGINS_PLUGIN_ADMIN_ENABLED', 'GF_SNAPSHOTS_EXTERNAL_ENABLED']) assert.equal(composeEnv(grafana, v), '"false"', v);
+  // La dashboard ha riquadri a 30 giorni: la conservazione di Prometheus non può essere più corta.
+  assert.match(prometheus, /--storage\.tsdb\.retention\.time=\$\{LH_PROMETHEUS_RETENTION:-31d\}/, 'retention predefinita di almeno 30 giorni');
   assert.match(grafana, /^ {6}- "\$\{LH_BIND_ADDRESS:-127\.0\.0\.1\}:3001:3000"$/m, 'porta di Grafana solo su LH_BIND_ADDRESS');
   assert.doesNotMatch(otelcol + prometheus, /^\s+ports:/m, 'collector e Prometheus senza porte sull\'host');
   assert.match(prometheus, /^ {6}- --web\.enable-otlp-receiver$/m);
@@ -768,6 +793,11 @@ test('osservabilità: il chart rifiuta destinazioni mancanti, malformate o in ht
   obsRefuses(/non è un URL http\(s\) valido/, 'observability.prometheus.otlpEndpoint=https://utente@prom.example.org/api/v1/otlp');
   obsRefuses(/observability\.serviceNamespace: Does not match pattern/, 'observability.serviceNamespace=clubaurora');
   obsRefuses(/Additional property/, 'observability.prometheus.bearerToken.value=in-chiaro');
+  // Una replica con il PDB (minAvailable 1) blocca `kubectl drain` senza proteggere nulla: come WEB_SINGLE_REPLICA per il web.
+  obsRefuses(/COLLECTOR_SINGLE_REPLICA/, 'observability.collector.replicas=1');
+  const single = obsTemplate('observability.collector.replicas=1', 'observability.collector.pdb.enabled=false');
+  assert.equal(single.status, 0, single.stderr);
+  assert.doesNotMatch(single.stdout, /kind: PodDisruptionBudget\nmetadata:\n\s+name: lh-loyaltyhub-otel-collector/);
   // Ammesse: deroga esplicita, http dentro il cluster (nome, <ns>.svc, <ns>.svc.cluster.local) e https.
   for (const ok of ['http://prometheus:9090/api/v1/otlp', 'http://p.monitoring.svc:9090/api/v1/otlp',
     'http://p.monitoring.svc.cluster.local:9090/api/v1/otlp', 'https://prom.example.org/api/v1/otlp']) {
@@ -782,6 +812,19 @@ test('osservabilità: il chart rifiuta destinazioni mancanti, malformate o in ht
   assert.equal(demo.status, 0, demo.stderr);
   obsRefuses(/otlpEndpoint è obbligatorio/, 'global.profile=demo', 'observability.prometheus.otlpEndpoint=');
 });
+
+// Le regole si provano anche con promtool (Prometheus 3): sintassi e casi di ci/slo-rules.test.yaml. Facoltativo: se non è
+// nel PATH la prova è saltata (il job `helm` di ci.yml non lo installa ancora: seguito, dopo lo sblocco di .github).
+const promtool = spawnSync('promtool', ['--version'], { encoding: 'utf8' });
+const hasPromtool = promtool.status === 0;
+
+test('osservabilità: promtool accetta le regole e i casi di prova passano (buco di telemetria, prima occorrenza, per installazione)',
+  { skip: !hasPromtool && 'promtool non installato' }, () => {
+    const check = spawnSync('promtool', ['check', 'rules', path.join(ROOT, RULES)], { encoding: 'utf8' });
+    assert.equal(check.status, 0, check.stdout + check.stderr);
+    const run = spawnSync('promtool', ['test', 'rules', path.join(CHART, 'ci/slo-rules.test.yaml')], { encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stdout + run.stderr);
+  });
 
 const kubeconform = spawnSync('kubeconform', ['-v'], { encoding: 'utf8' });
 const hasKubeconform = kubeconform.status === 0;

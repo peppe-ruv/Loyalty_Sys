@@ -16,8 +16,8 @@ Login (Keycloak):     {{ .Values.publicUrls.idp }}/realms/{{ .Values.global.real
 
 Osservabilità (F2-OBS-01, M8.6a): l'hub invia le metriche in OTLP a {{ include "loyaltyhub.otelCollector.name" . }}:{{ include "loyaltyhub.port.otlpHttp" . }},
 che le inoltra a {{ .Values.observability.prometheus.otlpEndpoint }} (job "{{ .Values.observability.serviceNamespace }}/hub").
-- dashboard "Loyalty Hub — SLO": ConfigMap {{ include "loyaltyhub.fullname" . }}-grafana-dashboards{{ if not .Values.observability.grafana.dashboards.enabled }} (spenta: observability.grafana.dashboards.enabled){{ end }}, per il sidecar dei dashboard di Grafana;
-- regole SLO e allarmi: {{ if .Values.observability.prometheusRule.enabled }}PrometheusRule {{ include "loyaltyhub.fullname" . }}-slo{{ else }}files/observability/slo-rules.json da caricare nel proprio Prometheus (o observability.prometheusRule.enabled=true con il Prometheus Operator){{ end }};
+- dashboard "Loyalty Hub — SLO": ConfigMap {{ include "loyaltyhub.fullname" . }}-grafana-dashboards{{ if not .Values.observability.grafana.dashboards.enabled }} (spenta: observability.grafana.dashboards.enabled){{ end }}, per il sidecar dei dashboard di Grafana (che deve guardare il namespace della release: searchNamespace);
+- regole SLO e allarmi: {{ if .Values.observability.prometheusRule.enabled }}PrometheusRule {{ include "loyaltyhub.fullname" . }}-slo (le sue etichette, observability.prometheusRule.labels, devono combaciare con il ruleSelector del tuo Prometheus: con kube-prometheus-stack serve release=<release dello stack>){{ else }}files/observability/slo-rules.json da caricare nel proprio Prometheus (o observability.prometheusRule.enabled=true con il Prometheus Operator){{ end }};
 - Prometheus deve avere il ricevitore OTLP (--web.enable-otlp-receiver, Prometheus 3 o successivo) e una finestra
   out-of-order di almeno 30 minuti (deploy/README.md).
 {{- end }}
@@ -44,6 +44,5 @@ Limiti noti di questa versione (deploy/README.md):
 {{- end }}
 - Kafka interno senza TLS fino a M8.5 (Q-375); nessuna NetworkPolicy fino a M8.5{{ if .Values.observability.enabled }}, salvo quella del collector{{ end }};
 - retention di facts e audit a 7 giorni finché M8.4 non toglie le PII dal bus (Q-373);
-- ruolo idp con l'immagine ufficiale di Keycloak (Q-374).{{- if .Values.observability.enabled }}
-- telemetria hub → collector senza TLS fino a M8.5 (Q-521); solo metriche: tracce e log arrivano con M8.6b (Q-526).
-{{- end }}
+- ruolo idp con l'immagine ufficiale di Keycloak (Q-374){{ if .Values.observability.enabled }};
+- telemetria hub → collector senza TLS fino a M8.5 (Q-521); solo metriche: tracce e log arrivano con M8.6b (Q-526).{{ else }}.{{ end }}

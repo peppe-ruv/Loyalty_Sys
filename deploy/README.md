@@ -361,15 +361,20 @@ con un diagramma nella pagina «Osservabilità» della documentazione (`operatio
   `http_server_requests_seconds_count`) e `storage.tsdb.out_of_order_time_window` di almeno 30 minuti. Con il
   Prometheus Operator sono i campi equivalenti della risorsa `Prometheus`: verifica i nomi nella tua versione
   dell'operatore.
-- Grafana con il sidecar dei dashboard (legge i ConfigMap con l'etichetta `grafana_dashboard`).
+- Grafana con il sidecar dei dashboard (legge i ConfigMap con l'etichetta `grafana_dashboard`): il sidecar deve guardare
+  il namespace della release (`sidecar.dashboards.searchNamespace` nel chart di Grafana), altrimenti il ConfigMap non si carica.
 - Le regole: con il Prometheus Operator `observability.prometheusRule.enabled=true` crea la `PrometheusRule`; senza,
   carica `files/observability/slo-rules.json` come file di regole del tuo Prometheus (è JSON, valido per Prometheus).
+  Le etichette della `PrometheusRule` devono combaciare con il `ruleSelector` del tuo Prometheus: con kube-prometheus-stack
+  (`ruleSelectorNilUsesHelmValues=true`) l'operatore carica solo le regole con `release: <release dello stack>` e ignora le
+  altre in silenzio, quindi `--set observability.prometheusRule.labels.release=<release di kube-prometheus-stack>`.
 
 ```bash
 helm upgrade --install lh deploy/helm/loyaltyhub … \
   --set observability.enabled=true \
   --set observability.prometheus.otlpEndpoint=http://prometheus-operated.monitoring.svc:9090/api/v1/otlp \
-  --set observability.prometheusRule.enabled=true
+  --set observability.prometheusRule.enabled=true \
+  --set observability.prometheusRule.labels.release=<release di kube-prometheus-stack>
 ```
 
 `otlpEndpoint` è obbligatorio, **senza `/v1/metrics`** (lo aggiunge il collector). Nel profilo `enterprise` è `https`,
@@ -384,7 +389,7 @@ della release sulla porta 4318 (Q-521).
 
 **Compose di riferimento.** Il profilo `observability` aggiunge `otelcol`, `prometheus` e `grafana` (immagini fissate
 per tag e digest). Collector e Prometheus non hanno porte sull'host; Grafana è su `http://127.0.0.1:3001` (solo su
-`LH_BIND_ADDRESS`), con la password obbligatoria, senza accesso anonimo e senza comunicazioni verso Grafana Labs (Q-528):
+`LH_BIND_ADDRESS`), con la password obbligatoria, senza accesso anonimo e senza comunicazioni verso Grafana Labs (statistiche, aggiornamenti, chiave di firma e catalogo dei plugin, snapshot esterni: Q-528):
 
 ```bash
 LH_OTEL_METRICS_ENABLED=true LH_GRAFANA_ADMIN_PASSWORD=… \
@@ -396,13 +401,14 @@ LH_OTEL_METRICS_ENABLED=true LH_GRAFANA_ADMIN_PASSWORD=… \
 | `LH_OTEL_METRICS_ENABLED` | `false` | l'hub invia le metriche al servizio `otelcol` |
 | `LH_GRAFANA_ADMIN_PASSWORD` | — (obbligatoria con il profilo) | password dell'amministratore locale di Grafana |
 | `LH_GRAFANA_ADMIN_USER` | `admin` | utente amministratore |
-| `LH_PROMETHEUS_RETENTION` | `15d` | conservazione delle serie in Prometheus |
+| `LH_PROMETHEUS_RETENTION` | `31d` | conservazione delle serie in Prometheus (i riquadri della dashboard a 30 giorni ne richiedono almeno 30) |
 | `LH_OTEL_SERVICE_NAMESPACE` | `loyaltyhub` | secondo pezzo del `job` (`<valore>/hub`) |
 
 **Cosa misura** (ADR-036): disponibilità del portale (99,9 %), giocata p99 sotto 500 ms e tempo azione → punti p95
 sotto 5 s (metrica `lh_action_to_points_seconds` di insight, Q-523, Q-524), con il consumo del budget d'errore e allarmi
-a burn rate veloce e lento; allarmi su DLQ, firma non valida o produttore non ammesso, picchi di 401 e 403, arretrato
-dell'outbox e telemetria assente. RPO 15 min e RTO 1 h non si misurano dall'applicazione: li prova il ripristino
+a burn rate veloce e lento; allarmi su DLQ, firma non valida o produttore non ammesso (pronto per la firma dei messaggi, M8.10: oggi nessun codice
+produce `SIGNATURE_INVALID` né `PRODUCER_NOT_ALLOWED`), picchi di 401 e 403, arretrato dell'outbox e telemetria assente
+(per installazione, se più ne condividono un Prometheus). RPO 15 min e RTO 1 h non si misurano dall'applicazione: li prova il ripristino
 (M15.2, Q-525).
 
 ### Limiti noti (domande aperte)
@@ -454,7 +460,7 @@ LH_IMAGE=ghcr.io/example/loyaltyhub:ci docker compose -f deploy/compose/referenc
 LH_IMAGE=ghcr.io/example/loyaltyhub:ci docker compose -f deploy/compose/reference.yml --profile observability config -q
 ```
 
-`check-helm` prova anche lo scenario con l'osservabilità accesa (`ci/observability-values.yaml`): risorse rese, rifiuti, regole e dashboard contro il codice, compose e `kubeconform` con gli schemi dei CRD (con `CI=true` anche `kubeconform` è obbligatorio). In CI lo fa il job `helm` di `.github/workflows/ci.yml` (helm e kubeconform a versione fissa), solo quando cambiano
+`check-helm` prova anche lo scenario con l'osservabilità accesa (`ci/observability-values.yaml`): risorse rese, rifiuti, regole e dashboard contro il codice, compose e `kubeconform` con gli schemi dei CRD (con `CI=true` anche `kubeconform` è obbligatorio). Con `promtool` (Prometheus 3) nel PATH esegue anche `promtool check rules` e `promtool test rules` sui casi di `ci/slo-rules.test.yaml` (buco di telemetria, prima occorrenza di un contatore, telemetria assente per installazione); il job `helm` non lo installa ancora, quindi in CI quella prova è saltata. In CI lo fa il job `helm` di `.github/workflows/ci.yml` (helm e kubeconform a versione fissa), solo quando cambiano
 chart, compose, immagine, realm, lo smoke, la verifica o i workflow, e sempre su `main`.
 
 ### Installazione provata in CI (kind)

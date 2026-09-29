@@ -515,6 +515,10 @@ in enterprise, cifrata o dentro il cluster (regola 22, ADR-044); il profilo demo
 {{- if and (eq .Values.global.profile "enterprise") (hasPrefix "http://" $ep) (not $p.allowInsecure) (not (regexMatch "^http://[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?\\.svc(\\.cluster\\.local)?)?(:[0-9]+)?(/[^?#\\s]*)?$" $ep)) -}}
 {{- fail (printf "INSECURE_CONFIG: observability.prometheus.otlpEndpoint %q in http fuori dal cluster nel profilo enterprise: usare https, un Service del cluster (<nome> o <nome>.<namespace>.svc) oppure observability.prometheus.allowInsecure=true solo su una rete già cifrata (regola 22, Q-521)" $ep) -}}
 {{- end -}}
+{{- $c := .Values.observability.collector -}}
+{{- if and $c.pdb.enabled (lt (int $c.replicas) 2) -}}
+{{- fail "COLLECTOR_SINGLE_REPLICA: observability.collector.pdb.enabled con una sola replica del collector blocca lo svuotamento dei nodi (kubectl drain) senza proteggere nulla: usare observability.collector.replicas=2 (default) o spegnere observability.collector.pdb.enabled" -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 

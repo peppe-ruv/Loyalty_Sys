@@ -84,7 +84,15 @@ management:
         aggregation-temporality: cumulative
   opentelemetry:
     enabled: ${LH_OTEL_METRICS_ENABLED:false}
+    # Le variabili OTEL_* standard (iniettate per esempio dall'OpenTelemetry Operator o da webhook di piattaforma)
+    # non devono comandare l'hub: Boot le mappa in una fonte con precedenza su questo file e con
+    # OTEL_METRICS_EXPORTER, OTEL_EXPORTER_OTLP_ENDPOINT o ..._TEMPORALITY_PREFERENCE=delta accenderebbero l'invio,
+    # aggirerebbero il controllo INSECURE_CONFIG del chart e romperebbero rate() e increase() (ADR-044, regola 22,
+    # SPEC-GAP: Q-520). Solo LH_OTEL_* configura l'esportazione; service.name è fissato qui perché OTEL_SERVICE_NAME
+    # cambierebbe l'etichetta `job` e con essa ogni regola e riquadro.
+    map-environment-variables: false
     resource-attributes:
+      "[service.name]": hub
       "[service.namespace]": ${LH_OTEL_SERVICE_NAMESPACE:loyaltyhub}
       "[service.instance.id]": ${LH_OTEL_INSTANCE_ID:${HOSTNAME:hub}}
   metrics:

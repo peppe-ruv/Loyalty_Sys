@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -39,6 +40,10 @@ import static org.assertj.core.api.Assertions.assertThat;
         properties = "spring.config.name=hub")
 @ActiveProfiles({"demo", "inproc"})
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+// Il ricevitore finto si ferma in @AfterAll: senza chiudere il contesto (che Spring tiene in cache) il registro OTLP
+// continuerebbe a pubblicare ogni secondo su una porta chiusa (WARN "Failed to publish metrics") per il resto
+// dell'esecuzione di failsafe. Con @DirtiesContext si chiude a fine classe: al più un ultimo invio alla chiusura.
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class HubOtlpMetricsIT {
 
     private static final EmbeddedPostgres PG = startPg();

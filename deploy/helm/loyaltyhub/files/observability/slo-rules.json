@@ -164,7 +164,7 @@
       "rules": [
         {
           "alert": "LoyaltyHubDlqMessages",
-          "expr": "sum by (job, errorCode) (increase(lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\"}[10m])) > 0 or sum by (job, errorCode) (lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\"} unless lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\"} offset 10m) > 0",
+          "expr": "sum by (job, errorCode) (increase(lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\"}[10m])) > 0 or sum by (job, errorCode) ((lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\"} unless lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\"} offset 10m) and on (job, instance) (process_uptime_seconds{job=~\"loyaltyhub[^/]*/hub\"} < 600 or process_uptime_seconds{job=~\"loyaltyhub[^/]*/hub\"} offset 10m)) > 0",
           "labels": {
             "severity": "warning"
           },
@@ -175,7 +175,7 @@
         },
         {
           "alert": "LoyaltyHubMessageRejected",
-          "expr": "sum by (job, errorCode) (increase(lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\",errorCode=~\"SIGNATURE_INVALID|PRODUCER_NOT_ALLOWED\"}[5m])) > 0 or sum by (job, errorCode) (lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\",errorCode=~\"SIGNATURE_INVALID|PRODUCER_NOT_ALLOWED\"} unless lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\",errorCode=~\"SIGNATURE_INVALID|PRODUCER_NOT_ALLOWED\"} offset 5m) > 0",
+          "expr": "sum by (job, errorCode) (increase(lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\",errorCode=~\"SIGNATURE_INVALID|PRODUCER_NOT_ALLOWED\"}[5m])) > 0 or sum by (job, errorCode) ((lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\",errorCode=~\"SIGNATURE_INVALID|PRODUCER_NOT_ALLOWED\"} unless lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\",errorCode=~\"SIGNATURE_INVALID|PRODUCER_NOT_ALLOWED\"} offset 5m) and on (job, instance) (process_uptime_seconds{job=~\"loyaltyhub[^/]*/hub\"} < 300 or process_uptime_seconds{job=~\"loyaltyhub[^/]*/hub\"} offset 5m)) > 0",
           "labels": {
             "severity": "critical"
           },
@@ -210,14 +210,14 @@
         },
         {
           "alert": "LoyaltyHubTelemetryAbsent",
-          "expr": "absent_over_time(process_uptime_seconds{job=~\"loyaltyhub[^/]*/hub\"}[10m])",
+          "expr": "(max by (job) (max_over_time(process_uptime_seconds{job=~\"loyaltyhub[^/]*/hub\"}[1h])) unless max by (job) (max_over_time(process_uptime_seconds{job=~\"loyaltyhub[^/]*/hub\"}[10m]))) or absent_over_time(process_uptime_seconds{job=~\"loyaltyhub[^/]*/hub\"}[10m])",
           "for": "5m",
           "labels": {
             "severity": "warning"
           },
           "annotations": {
-            "summary": "Nessuna metrica dall'hub da 10 minuti",
-            "description": "Prometheus non riceve più le metriche dell'hub: hub fermo, collector o ricevitore OTLP non raggiungibili, oppure osservabilità spenta. Dashboard e allarmi SLO sono ciechi."
+            "summary": "Nessuna metrica dall'hub da 10 minuti{{ if $labels.job }} su {{ $labels.job }}{{ end }}",
+            "description": "Prometheus non riceve più le metriche dell'hub{{ if $labels.job }} di {{ $labels.job }}{{ else }} di nessuna installazione{{ end }}: hub fermo, collector o ricevitore OTLP non raggiungibili, oppure osservabilità spenta. Dashboard e allarmi SLO sono ciechi. Con più installazioni sullo stesso Prometheus l'allarme è per installazione (job) e resta attivo per un'ora dall'ultima metrica ricevuta."
           }
         }
       ]

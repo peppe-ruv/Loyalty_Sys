@@ -61,12 +61,12 @@ Le regole stanno in un solo file, `deploy/helm/loyaltyhub/files/observability/sl
 | `LoyaltyHubPlayLatencyBurnRateFast` e `…Slow` | più dell'1 % delle giocate supera 500 ms a ritmo insostenibile | critica e avviso |
 | `LoyaltyHubActionToPointsBurnRateFast` e `…Slow` | più del 5 % degli accrediti supera 5 s a ritmo insostenibile | critica e avviso |
 | `LoyaltyHubDlqMessages` | messaggi nella coda degli errori negli ultimi 10 minuti, per codice d'errore | avviso |
-| `LoyaltyHubMessageRejected` | eventi rifiutati per `SIGNATURE_INVALID` o `PRODUCER_NOT_ALLOWED` | critica |
+| `LoyaltyHubMessageRejected` | eventi rifiutati per `SIGNATURE_INVALID` o `PRODUCER_NOT_ALLOWED` (pronto per la firma dei messaggi, M8.10: oggi nessun codice produce questi codici d'errore) | critica |
 | `LoyaltyHubAuthFailureSpike` | più di una risposta 401 o 403 al secondo per 10 minuti | avviso |
 | `LoyaltyHubOutboxBacklog` | più di 1000 eventi in attesa di pubblicazione per 10 minuti | avviso |
-| `LoyaltyHubTelemetryAbsent` | nessuna metrica dall'hub da 10 minuti | avviso |
+| `LoyaltyHubTelemetryAbsent` | nessuna metrica dall'hub da 10 minuti, per installazione (`job`) | avviso |
 
-Gli allarmi sulla coda degli errori vedono anche la prima occorrenza di un codice d'errore mai visto prima: un contatore nasce con valore 1 e un semplice aumento su una finestra non la noterebbe. L'instradamento degli allarmi (Alertmanager, SIEM) è dell'adottante; l'esportazione verso un SIEM arriva con M8.6b.
+Gli allarmi sulla coda degli errori vedono anche la prima occorrenza di un codice d'errore mai visto prima: un contatore nasce con valore 1 e un semplice aumento su una finestra non la noterebbe. Contano però solo le istanze che già riportavano dieci minuti prima o partite da poco, così un buco di telemetria (collector o Prometheus fermi) non fa riscattare l'allarme per contatori vecchi. L'allarme di telemetria assente scatta per ogni installazione che tace, anche se altre sullo stesso Prometheus continuano a riportare, e resta attivo per un'ora dall'ultima metrica ricevuta. L'instradamento degli allarmi (Alertmanager, SIEM) è dell'adottante; l'esportazione verso un SIEM arriva con M8.6b.
 
 ## Attivarla nel chart
 
@@ -76,8 +76,11 @@ Servono Prometheus 3 o successivo con il ricevitore OTLP (`--web.enable-otlp-rec
 helm upgrade --install lh deploy/helm/loyaltyhub … \
   --set observability.enabled=true \
   --set observability.prometheus.otlpEndpoint=http://prometheus-operated.monitoring.svc:9090/api/v1/otlp \
-  --set observability.prometheusRule.enabled=true
+  --set observability.prometheusRule.enabled=true \
+  --set observability.prometheusRule.labels.release=<release di kube-prometheus-stack>
 ```
+
+Con il Prometheus Operator, le etichette della `PrometheusRule` devono combaciare con il `ruleSelector` del tuo Prometheus: con kube-prometheus-stack (`ruleSelectorNilUsesHelmValues=true`) l'operatore carica solo le regole con `release: <release dello stack>` e ignora le altre in silenzio, per questo l'esempio sopra imposta `observability.prometheusRule.labels.release`. Il sidecar dei dashboard di Grafana deve guardare il namespace della release (`searchNamespace`), altrimenti la dashboard non si carica.
 
 Il chart aggiunge il collector (Deployment con due repliche, Service, PDB e una NetworkPolicy che ammette solo i Pod `hub` sulla porta 4318), la dashboard come ConfigMap per il sidecar di Grafana e, se richiesta e con i CRD del Prometheus Operator, la `PrometheusRule`. Nel profilo `enterprise` la destinazione deve essere `https`, oppure `http` verso un Service del cluster; altrimenti il chart si ferma con `INSECURE_CONFIG`, salvo deroga esplicita (`observability.prometheus.allowInsecure`). Il token e la CA di Prometheus arrivano solo da un Secret e da un ConfigMap esistenti.
 
@@ -88,13 +91,14 @@ LH_OTEL_METRICS_ENABLED=true LH_GRAFANA_ADMIN_PASSWORD=… \
   docker compose -f deploy/compose/reference.yml --profile observability up -d
 ```
 
-Il profilo `observability` aggiunge il collector, Prometheus e Grafana, con la dashboard e le regole già caricate. Collector e Prometheus non hanno porte pubblicate; Grafana risponde su `http://127.0.0.1:3001` con la password scelta e senza accesso anonimo.
+Il profilo `observability` aggiunge il collector, Prometheus e Grafana, con la dashboard e le regole già caricate. Collector e Prometheus non hanno porte pubblicate; Grafana risponde su `http://127.0.0.1:3001` con la password scelta e senza accesso anonimo. Prometheus conserva 31 giorni di serie (`LH_PROMETHEUS_RETENTION`), perché i riquadri a 30 giorni della dashboard ne hanno bisogno.
 
 ## Dati personali e destinazioni (ADR-044)
 
 - Le etichette sono tecniche: tipo di evento, codice d'errore, metodo e stato HTTP, e `uri` come modello del percorso (`/v1/portal/contests/{code}/play`), mai un identificativo di membro.
 - Non si esportano tracce né log.
-- Non esiste una destinazione di default: con l'osservabilità spenta, o senza l'URL scelto, non esce nulla. Grafana nel compose non contatta Grafana Labs.
+- Non esiste una destinazione di default: con l'osservabilità spenta, o senza l'URL scelto, non esce nulla. Grafana nel compose non contatta Grafana Labs: né statistiche, aggiornamenti o feed di notizie, né la chiave di firma e il catalogo dei plugin, né gli snapshot esterni delle dashboard.
+- Le variabili `OTEL_*` standard dell'ambiente non comandano l'hub: l'esportazione si configura solo con `LH_OTEL_*`, così un webhook di piattaforma non può accenderla né cambiarne la destinazione. Nel profilo `enterprise` l'hub rifiuta all'avvio anche una destinazione `http` fuori dal cluster.
 - Il ricevitore del collector non autentica: fino a M8.5 (mTLS di mesh) lo protegge la NetworkPolicy.
 
 ## Cosa arriva con M8.6b

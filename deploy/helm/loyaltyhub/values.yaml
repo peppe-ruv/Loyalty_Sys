@@ -381,6 +381,8 @@ observability:
     bearerToken: { name: "", key: token }
     caBundle: { name: "", key: ca.crt }
   grafana:
+    # Il sidecar dei dashboard di Grafana deve guardare il namespace della release (sidecar.dashboards.searchNamespace
+    # del chart di Grafana: di default vede solo il proprio), altrimenti il ConfigMap non viene caricato.
     dashboards:
       enabled: true
       labels: { grafana_dashboard: "1" }
@@ -388,4 +390,8 @@ observability:
   prometheusRule:
     # Richiede i CRD del Prometheus Operator (monitoring.coreos.com/v1).
     enabled: false
+    # Le etichette devono combaciare con il ruleSelector del tuo Prometheus: con kube-prometheus-stack
+    # (ruleSelectorNilUsesHelmValues=true) l'operatore carica solo le PrometheusRule con `release: <release dello stack>`,
+    # e senza quell'etichetta regole e allarmi vengono ignorati in silenzio.
+    # Es. --set observability.prometheusRule.labels.release=<release di kube-prometheus-stack>
     labels: {}

@@ -176,8 +176,8 @@ Nelle modalità in un solo processo (`LH_ROLE=all`, `embedded`) B2, B4 e B5 rest
 | S | Un Pod qualsiasi invia metriche false al collector (il ricevitore OTLP non autentica) | NetworkPolicy: solo i Pod `hub` della release sulla porta 4318; mTLS di mesh (Q-521) | 🟡 NetworkPolicy (M8.6a) · ⏳ mTLS M8.5 |
 | T | Metriche alterate in transito verso Prometheus | `https`, oppure `http` solo verso un Service del cluster; nel profilo `enterprise` il chart rifiuta il resto (`INSECURE_CONFIG`) salvo deroga esplicita | 🟡 M8.6a |
 | R | Non si sa quali soglie e allarmi erano attivi | regole e dashboard versionate nel chart e nel repository, cambiate solo con una PR | 🟡 M8.6a |
-| I | Dati personali nella telemetria, o telemetria verso una destinazione non voluta | solo etichette tecniche (`uri` è il modello del percorso), nessuna traccia né log esportati, nessuna destinazione di default, Grafana senza comunicazioni verso l'esterno | 🟡 M8.6a |
-| D | Collector o Prometheus fermi | invio asincrono: i campioni si perdono ma le richieste non ne risentono; `memory_limiter`, due repliche e PDB per il collector; allarme `LoyaltyHubTelemetryAbsent` | 🟡 M8.6a |
+| I | Dati personali nella telemetria, o telemetria verso una destinazione non voluta | solo etichette tecniche (`uri` è il modello del percorso), nessuna traccia né log esportati, nessuna destinazione di default, le `OTEL_*` dell'ambiente ignorate (`map-environment-variables=false`: un webhook di piattaforma non accende l'invio), l'hub in `enterprise` rifiuta `http` fuori dal cluster, Grafana senza comunicazioni verso l'esterno (nemmeno chiave dei plugin, catalogo e snapshot esterni) | 🟡 M8.6a |
+| D | Collector o Prometheus fermi | invio asincrono: i campioni si perdono ma le richieste non ne risentono; `memory_limiter`, due repliche e PDB per il collector; allarme `LoyaltyHubTelemetryAbsent` per installazione | 🟡 M8.6a |
 | E | Furto delle credenziali verso Prometheus | il token bearer arriva solo da un Secret, come variabile d'ambiente del collector: mai nel ConfigMap né nei values | 🟡 M8.6a |
 
 ## 3. Rischi accettati nel profilo `demo`
