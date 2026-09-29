@@ -84,11 +84,11 @@ Percorsi relativi a `libs/lh-common/src/main/java/io/loyaltyhub/common/` e `serv
 | B-02 | `web/ActorContext.java:17` senza `:` o `:` in testa/coda → ruolo dal testo intero, username `anonymous` | senza specifica | ACT-010, ACT-011, ACT-013 |
 | B-03 | `web/ActorContext.java:22` username vuoto → `anonymous` | senza specifica | ACT-012 |
 | B-04 | `web/Role.java:12-18` ruolo assente/sconosciuto → `ANALYST`; `trim` + maiuscole | R-01; lettura permissiva senza specifica | ACT-007…009 |
-| B-05 | `web/EndpointAccessInterceptor.java:40-46` gestore non `HandlerMethod` o controller di un framework → passa | non raggiungibile per le API | — |
-| B-06 | `web/EndpointAccessInterceptor.java:47-62` dichiarazione di metodo, poi di classe; `@PublicEndpoint` con motivo → passa; assente o motivo vuoto → 403 `ENDPOINT_NOT_DECLARED` | R-02 | GRD-001…005, GRD-026…040 |
-| B-07 | `web/EndpointAccessInterceptor.java:67` ADMIN passa sempre dove c'è `@RequiresRole` | R-02, R-03 | GRD (ADMIN) |
-| B-08 | `web/EndpointAccessInterceptor.java:71-76` annotazione vuota → tutti tranne ANALYST | R-02 | GRD-006…010 |
-| B-09 | `web/EndpointAccessInterceptor.java:78-81` ruolo nell'elenco, altrimenti 403 `FORBIDDEN_ROLE` | R-02, R-03 | GRD-011…025 |
+| B-05 | `web/EndpointAccessInterceptor.java` gestore non `HandlerMethod`, dispatch `ASYNC` o controller di un framework (`org.springframework.boot.`, `org.springframework.web.servlet.`, `org.springdoc.`) → passa | il ramo del framework è raggiunto da `/error` e `/v3/api-docs`; il dispatch `ASYNC` e il gestore non `HandlerMethod` non hanno endpoint dedicati | `EndpointAccessInterceptorTest` (`frameworkHandlersAndNonMethodHandlersAreOutOfScope`, `asyncDispatchIsNotCheckedAgain`, `controllerInAnotherSpringPackageIsDeniedWhenUndeclared`) |
+| B-06 | `web/EndpointAccessInterceptor.java:75-85, 92-100` dichiarazione di metodo, poi di classe; `@PublicEndpoint` con motivo → passa; assente o motivo vuoto → 403 `ENDPOINT_NOT_DECLARED` | R-02 | GRD-001…005, GRD-026…040 |
+| B-07 | `web/EndpointAccessInterceptor.java:105` ADMIN passa sempre dove c'è `@RequiresRole` | R-02, R-03 | GRD (ADMIN) |
+| B-08 | `web/EndpointAccessInterceptor.java:109-114` annotazione vuota → tutti tranne ANALYST | R-02 | GRD-006…010 |
+| B-09 | `web/EndpointAccessInterceptor.java:116-119` ruolo nell'elenco, altrimenti 403 `FORBIDDEN_ROLE` | R-02, R-03 | GRD-011…025 |
 | B-10 | `approval/GovernedTransitions.java:26-28` `trim` + maiuscole; sconosciuta/vuota/assente → 422 `INVALID_ACTION` | R-04 (codice e permissività senza specifica) | PRS |
 | B-11 | `approval/GovernedTransitions.java:35-38` decisione con ruolo ≠ approvatore (default LEGAL) e ≠ ADMIN → 403 | R-08 | ROL-006…015, ROL-041…050 |
 | B-12 | `approval/GovernedTransitions.java:40-41` altre azioni con ruolo ≠ ADMIN/MARKETING → 403 | R-09 | ROL-001…005, ROL-016…040, ROL-053…055 |
@@ -1461,7 +1461,7 @@ Nessuna divergenza nelle aree di `lh-common` a logica pura (ACT, GRD, PRS, SMR, 
 | Misura | Valore |
 |---|---|
 | Regole inventariate | 33 (R-01…R-33) |
-| Rami del codice mappati | 61 (B-01…B-61); non raggiungibili senza concorrenza o per le API: B-05, B-30, esaurimento dei codici di B-60, `REFERRAL_SELF` |
+| Rami del codice mappati | 61 (B-01…B-61); non raggiungibili senza concorrenza o per le API: B-30, esaurimento dei codici di B-60, `REFERRAL_SELF` |
 | Rami senza specifica | 18 (B-02, B-03, B-04, B-10, B-13, B-25, B-26, B-28, B-33, B-36, B-37, B-38, B-50, B-51, B-54, B-59, B-60, B-61) → righe AMBIGUO |
 | Regole senza codice | 0 (lo storico delle transizioni dei contenuti, R-13 per i contenuti, c'è da D-04) |
 | Righe | 988 — ACT 14, GRD 40, PRS 16, SMR 56, SMN 10, SMF 56, ROL 60, CMT 14, OVR 22, POL 44, MST 41, MRL 80, ANO 47, ATV 70, ATD 29, ATU 14, CRT 118, CRV 27, SEG 30, REF 23, ENT 47, APQ 8, MAT 100, EFF 17, ANX 5 |

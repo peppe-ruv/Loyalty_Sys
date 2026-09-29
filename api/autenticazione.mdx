@@ -48,7 +48,7 @@ Ogni endpoint dei servizi dichiara i ruoli ammessi. La tabella riassume le regol
 Ogni endpoint dei servizi dichiara chi può chiamarlo. Così un endpoint nuovo non nasce aperto per dimenticanza: se la dichiarazione manca, il servizio rifiuta la chiamata a tutti, anche a `ADMIN`.
 
 - **`@RequiresRole`** elenca i ruoli ammessi. Le letture elencano tutti i ruoli, `ANALYST` compreso: nel profilo `demo` una chiamata senza `X-LH-Actor` vale `ANALYST:anonymous` e legge come prima.
-- **`@PublicEndpoint`** toglie il controllo di ruolo e porta sempre un motivo. Oggi lo usa solo `GET /` dell'hub, la pagina di stato. Nel profilo `enterprise` il token resta comunque obbligatorio.
+- **`@PublicEndpoint`** toglie il controllo di ruolo e porta sempre un motivo. Oggi nessun endpoint di produzione lo usa: un endpoint pubblico nuovo richiede una decisione (domanda o ADR) prima del codice. Nel profilo `enterprise` il token resta comunque obbligatorio.
 - **Nessuna dichiarazione**: il servizio risponde `403` con `code` `ENDPOINT_NOT_DECLARED`. È un errore del codice, e la build lo blocca prima con un test ArchUnit.
 
 ```mermaid
@@ -67,7 +67,7 @@ flowchart LR
   class REQ ext
 ```
 
-Le regole complete sono in [Convenzioni backend](/specifiche/convenzioni-backend).
+Le regole complete sono nel paragrafo 3.2 di [Convenzioni backend](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/06-CONVENZIONI-BACKEND.md) su GitHub.
 
 ## Profilo enterprise: accesso dal browser con il BFF
 
