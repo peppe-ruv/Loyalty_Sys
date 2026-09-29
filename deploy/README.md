@@ -247,6 +247,7 @@ nuovi privilegi. Keycloak usa un ruolo Postgres proprio (`idp`, proprietario del
 `postgres-init/10-idp.sh`), non il superutente dell'hub. Sull'host sono pubblicati solo `web` (3000) e `idp` (8180), e
 solo su `127.0.0.1`: parlano HTTP in chiaro e sulla porta di `idp` c'è anche la console `/admin`. Per l'accesso da
 altre macchine va messo davanti un reverse proxy con TLS (Q-392).
+Il profilo facoltativo `observability` aggiunge collector, Prometheus e Grafana (*Osservabilità*, sotto).
 
 ```bash
 export LH_IMAGE=ghcr.io/<owner>/loyaltyhub:<versione>
@@ -345,6 +346,65 @@ scopri una riscrittura fatta con le credenziali del database.
 I log non sono firmati né immutabili: la firma e l'esportazione su archivio immutabile sono TOBE-002 in
 `docs/19-TO-BE.md`.
 
+### Osservabilità (F2-OBS-01, M8.6a)
+
+Spenta di default: nessuna telemetria esce senza un URL scelto da chi installa (ADR-044). Solo metriche; tracce e log
+arrivano con M8.6b (Q-526). L'hub le invia in OTLP HTTP a un collector OpenTelemetry (push, Q-520) che le inoltra al
+ricevitore OTLP di Prometheus; la dashboard «Loyalty Hub — SLO» e le regole con gli allarmi sono file del repository
+(`deploy/helm/loyaltyhub/files/observability/`), gli stessi per chart e compose. Il percorso e le regole sono spiegati
+con un diagramma nella pagina «Osservabilità» della documentazione (`operations/osservabilita`).
+
+**Prerequisiti del chart** (Prometheus e Grafana sono dell'adottante, come gli operatori: Q-522):
+
+- Prometheus 3 o successivo con il ricevitore OTLP (`--web.enable-otlp-receiver`), `otlp.translation_strategy:
+  UnderscoreEscapingWithSuffixes` (i nomi delle metriche che regole e dashboard leggono, come
+  `http_server_requests_seconds_count`) e `storage.tsdb.out_of_order_time_window` di almeno 30 minuti. Con il
+  Prometheus Operator sono i campi equivalenti della risorsa `Prometheus`: verifica i nomi nella tua versione
+  dell'operatore.
+- Grafana con il sidecar dei dashboard (legge i ConfigMap con l'etichetta `grafana_dashboard`).
+- Le regole: con il Prometheus Operator `observability.prometheusRule.enabled=true` crea la `PrometheusRule`; senza,
+  carica `files/observability/slo-rules.json` come file di regole del tuo Prometheus (è JSON, valido per Prometheus).
+
+```bash
+helm upgrade --install lh deploy/helm/loyaltyhub … \
+  --set observability.enabled=true \
+  --set observability.prometheus.otlpEndpoint=http://prometheus-operated.monitoring.svc:9090/api/v1/otlp \
+  --set observability.prometheusRule.enabled=true
+```
+
+`otlpEndpoint` è obbligatorio, **senza `/v1/metrics`** (lo aggiunge il collector). Nel profilo `enterprise` è `https`,
+oppure `http` solo verso un Service del cluster (`<nome>`, `<nome>.<namespace>.svc`); altrimenti il chart si ferma con
+`INSECURE_CONFIG` (regola 22), salvo `observability.prometheus.allowInsecure=true` su una rete già cifrata. Un bearer
+token (`observability.prometheus.bearerToken.name`, chiave `token`) e una CA privata
+(`observability.prometheus.caBundle.name`, chiave `ca.crt`) arrivano solo da Secret e ConfigMap esistenti. Il `job`
+in Prometheus è `<observability.serviceNamespace>/hub`: il valore deve iniziare con `loyaltyhub` (regole e dashboard
+selezionano `job=~"loyaltyhub[^/]*/hub"`) e va cambiato, uno per installazione, se più installazioni condividono un
+Prometheus (Q-527). Il ricevitore del collector non autentica: la NetworkPolicy del chart ammette solo i Pod `hub`
+della release sulla porta 4318 (Q-521).
+
+**Compose di riferimento.** Il profilo `observability` aggiunge `otelcol`, `prometheus` e `grafana` (immagini fissate
+per tag e digest). Collector e Prometheus non hanno porte sull'host; Grafana è su `http://127.0.0.1:3001` (solo su
+`LH_BIND_ADDRESS`), con la password obbligatoria, senza accesso anonimo e senza comunicazioni verso Grafana Labs (Q-528):
+
+```bash
+LH_OTEL_METRICS_ENABLED=true LH_GRAFANA_ADMIN_PASSWORD=… \
+  docker compose -f deploy/compose/reference.yml --profile observability up -d
+```
+
+| Variabile (compose) | Default | Uso |
+|---|---|---|
+| `LH_OTEL_METRICS_ENABLED` | `false` | l'hub invia le metriche al servizio `otelcol` |
+| `LH_GRAFANA_ADMIN_PASSWORD` | — (obbligatoria con il profilo) | password dell'amministratore locale di Grafana |
+| `LH_GRAFANA_ADMIN_USER` | `admin` | utente amministratore |
+| `LH_PROMETHEUS_RETENTION` | `15d` | conservazione delle serie in Prometheus |
+| `LH_OTEL_SERVICE_NAMESPACE` | `loyaltyhub` | secondo pezzo del `job` (`<valore>/hub`) |
+
+**Cosa misura** (ADR-036): disponibilità del portale (99,9 %), giocata p99 sotto 500 ms e tempo azione → punti p95
+sotto 5 s (metrica `lh_action_to_points_seconds` di insight, Q-523, Q-524), con il consumo del budget d'errore e allarmi
+a burn rate veloce e lento; allarmi su DLQ, firma non valida o produttore non ammesso, picchi di 401 e 403, arretrato
+dell'outbox e telemetria assente. RPO 15 min e RTO 1 h non si misurano dall'applicazione: li prova il ripristino
+(M15.2, Q-525).
+
 ### Limiti noti (domande aperte)
 
 - **Q-409, Q-419** — le sessioni del BFF stanno nella memoria del Pod `web`: nel profilo `enterprise` il web ha una
@@ -368,7 +428,16 @@ I log non sono firmati né immutabili: la firma e l'esportazione su archivio imm
   mano (*Fonti di ingestion: un client per fonte*, TOBE-009).
 - **Q-491** — il job `helm install (kind)` prova il chart nel profilo `demo`: login OIDC del web, token delle fonti e
   Ingress con TLS del profilo `enterprise` non passano ancora da un'installazione reale in CI (TOBE-008).
-- Nessuna NetworkPolicy fino a M8.5.
+- Nessuna NetworkPolicy fino a M8.5, salvo quella del collector dell'osservabilità (con `observability.enabled`).
+- **Q-521** — con l'osservabilità accesa il traffico hub → collector è in chiaro dentro il cluster e il ricevitore OTLP
+  non autentica: lo protegge solo la NetworkPolicy (Pod `hub` della release sulla 4318) finché M8.5 non porta l'mTLS
+  di mesh. Le sonde del kubelet arrivano dal nodo: se il CNI le blocca, spegni
+  `observability.collector.networkPolicy.enabled`.
+- **Q-524** — gli SLI del portale e della giocata sono misurati dall'hub (risposte 5xx e latenza di
+  `http.server.requests`): non includono rete, Ingress né il BFF del web, e un hub irraggiungibile lo segnala solo
+  l'allarme `LoyaltyHubTelemetryAbsent`.
+- **Q-526** — solo metriche: tracce (Tempo), log (Loki), strumentazione del web e di Keycloak, metriche di Strimzi e
+  CloudNativePG, KEDA, login OIDC di Grafana, Alertmanager e SIEM arrivano con M8.6b.
 - **Q-400, Q-403** — chi ha le credenziali applicative del database può ancora riscrivere o svuotare l'audit di insight
   (le funzioni controllate e i ruoli separati arrivano con la migrazione di contract, dopo M8.5): lo rivela solo il
   confronto con le ancore nei log (*Ancore dell'audit nei log*).
@@ -382,9 +451,10 @@ helm template lh deploy/helm/loyaltyhub --kube-version 1.31.0 -f deploy/helm/loy
   | kubeconform -strict -summary -schema-location default \
       -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 LH_IMAGE=ghcr.io/example/loyaltyhub:ci docker compose -f deploy/compose/reference.yml config -q
+LH_IMAGE=ghcr.io/example/loyaltyhub:ci docker compose -f deploy/compose/reference.yml --profile observability config -q
 ```
 
-In CI lo fa il job `helm` di `.github/workflows/ci.yml` (helm e kubeconform a versione fissa), solo quando cambiano
+`check-helm` prova anche lo scenario con l'osservabilità accesa (`ci/observability-values.yaml`): risorse rese, rifiuti, regole e dashboard contro il codice, compose e `kubeconform` con gli schemi dei CRD (con `CI=true` anche `kubeconform` è obbligatorio). In CI lo fa il job `helm` di `.github/workflows/ci.yml` (helm e kubeconform a versione fissa), solo quando cambiano
 chart, compose, immagine, realm, lo smoke, la verifica o i workflow, e sempre su `main`.
 
 ### Installazione provata in CI (kind)

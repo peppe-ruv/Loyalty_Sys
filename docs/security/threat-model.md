@@ -11,7 +11,7 @@ Questo documento elenca, per ogni **confine di fiducia** del Loyalty Hub, le min
 ```mermaid
 flowchart LR
   accTitle: Confini di fiducia del Loyalty Hub
-  accDescr: Nove confini numerati da B1 a B9. Browser, app ospiti, sistemi fonte e operatori entrano dal gateway o dalle console; il BFF chiama i moduli con il token dell'utente; i moduli si parlano solo via Kafka con messaggi firmati, usano ciascuno il proprio schema Postgres e chiamano all'esterno solo destinazioni dichiarate; la catena di fornitura produce l'immagine.
+  accDescr: Dieci confini numerati da B1 a B10. Browser, app ospiti, sistemi fonte e operatori entrano dal gateway o dalle console; il BFF chiama i moduli con il token dell'utente; i moduli si parlano solo via Kafka con messaggi firmati, usano ciascuno il proprio schema Postgres e chiamano all'esterno solo destinazioni dichiarate; i moduli inviano metriche tecniche al collector OpenTelemetry, a Prometheus e a Grafana di chi installa; la catena di fornitura produce l'immagine.
   subgraph EXT[Esterno]
     B[Browser membro e operatore]
     H[App ospite con widget]
@@ -28,6 +28,7 @@ flowchart LR
   KF{{Kafka: 5 topic}}
   OUT[Destinazioni in uscita: webhook, SMTP, LLM, fornitori premi]
   SC[Catena di fornitura: dipendenze, CI, immagine]
+  OBS[Collector OTel, Prometheus e Grafana]
   B -->|B1| WEB
   H -->|B8| SVC
   SRC -->|B3| SVC
@@ -37,6 +38,7 @@ flowchart LR
   SVC <-->|B4| KF
   SVC -->|B5| PG
   SVC -->|B7| OUT
+  SVC -->|B10| OBS
   SC -.->|B9| HUB
   classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
   classDef store fill:#F1F5F9,stroke:#475569,color:#0F172A
@@ -45,7 +47,7 @@ flowchart LR
   class WEB,SVC,CMS,IDP svc
   class PG store
   class KF topic
-  class B,H,SRC,OP,OUT,SC ext
+  class B,H,SRC,OP,OUT,SC,OBS ext
 ```
 
 | Confine | Da → a | Dati che lo attraversano | Identità richiesta (`enterprise`) |
@@ -59,6 +61,7 @@ flowchart LR
 | B7 | Modulo → destinazioni in uscita | notifiche, contatti per la consegna, prompt | destinazione dichiarata; HMAC sui webhook |
 | B8 | App ospite → widget API | dati del solo membro del token | token scambiato (RFC 8693), scope `widgets` |
 | B9 | Catena di fornitura → immagine | codice, dipendenze, immagine | revisione della PR, firma cosign, SBOM |
+| B10 | Moduli hub → collector OpenTelemetry → Prometheus di chi installa | metriche tecniche, nessun dato personale | nessuna fino a M8.5 (NetworkPolicy sul collector); token bearer facoltativo verso Prometheus |
 
 Nelle modalità in un solo processo (`LH_ROLE=all`, `embedded`) B2, B4 e B5 restano confini logici: il bus in-process esegue la stessa firma e la stessa verifica, e l'isolamento dei moduli è verificato da ArchUnit (`docs/18 §3.10` punto 1).
 
@@ -165,6 +168,17 @@ Nelle modalità in un solo processo (`LH_ROLE=all`, `embedded`) B2, B4 e B5 rest
 | T | Codice non revisionato su `main` | Solo PR verso `main`, ruleset `main-protetto`, job `guard`, revisione umana delle PR degli agenti (ADR-041, ADR-044) | ✅ PR e `guard` · ⏳ identità propria degli agenti (F2-GRC-09) |
 | I | Segreti nel repository o nei log | Nessun segreto nel codice (regola 20); secret scanning con push protection; log senza dati personali né credenziali | ✅ regola · ✅ gitleaks nel job `security` (M8.11b) · ⏳ secret scanning con push protection: impostazione del repository, la abilita il proprietario (Q-506) |
 | R | Non si sa quale commit ha prodotto un'immagine | Provenienza SLSA livello 3 nel pacchetto di rilascio (F2-GRC-08) | ⏳ M12.4 |
+
+### B10 — Moduli hub → collector OpenTelemetry → Prometheus (M8.6a)
+
+| STRIDE | Minaccia | Contromisura | Stato |
+|---|---|---|---|
+| S | Un Pod qualsiasi invia metriche false al collector (il ricevitore OTLP non autentica) | NetworkPolicy: solo i Pod `hub` della release sulla porta 4318; mTLS di mesh (Q-521) | 🟡 NetworkPolicy (M8.6a) · ⏳ mTLS M8.5 |
+| T | Metriche alterate in transito verso Prometheus | `https`, oppure `http` solo verso un Service del cluster; nel profilo `enterprise` il chart rifiuta il resto (`INSECURE_CONFIG`) salvo deroga esplicita | 🟡 M8.6a |
+| R | Non si sa quali soglie e allarmi erano attivi | regole e dashboard versionate nel chart e nel repository, cambiate solo con una PR | 🟡 M8.6a |
+| I | Dati personali nella telemetria, o telemetria verso una destinazione non voluta | solo etichette tecniche (`uri` è il modello del percorso), nessuna traccia né log esportati, nessuna destinazione di default, Grafana senza comunicazioni verso l'esterno | 🟡 M8.6a |
+| D | Collector o Prometheus fermi | invio asincrono: i campioni si perdono ma le richieste non ne risentono; `memory_limiter`, due repliche e PDB per il collector; allarme `LoyaltyHubTelemetryAbsent` | 🟡 M8.6a |
+| E | Furto delle credenziali verso Prometheus | il token bearer arriva solo da un Secret, come variabile d'ambiente del collector: mai nel ConfigMap né nei values | 🟡 M8.6a |
 
 ## 3. Rischi accettati nel profilo `demo`
 
