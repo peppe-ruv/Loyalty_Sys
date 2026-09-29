@@ -17,6 +17,8 @@ docker compose -f deploy/docker-compose.yml --profile all up --build
 | 8 servizi | build di `services/<nome>/Dockerfile` | 8081–8088 | solo con `--profile all` |
 | `web` | build di `deploy/image/Dockerfile` (`loyaltyhub:local`), `LH_ROLE=web` | 3000 | solo con `--profile all`; la build compila anche l'hub (Q-484) |
 
+Le immagini dei servizi e dell'hub (`deploy/hub/Dockerfile`) girano come utente non root con `uid`/`gid` 10001 (Q-504, F2-SEC-02).
+
 Le immagini di terze parti hanno tag e digest (Keycloak solo il tag, Q-482). Kafka, Postgres e Keycloak hanno la stessa
 versione anche nel compose di riferimento e nei values del chart: Dependabot aggiorna solo questo file e
 `scripts/check-helm.mjs` fa fallire il job `helm` finché gli altri due non sono allineati. Il job è obbligatorio
