@@ -163,6 +163,7 @@ services:
 | `LH_WEB_SESSION_MAX_SECONDS` | **web** (server), solo `enterprise` | durata massima della sessione del BFF; predefinito `36000` (Q-354) |
 | `LH_WEB_SESSION_MAX_COUNT` | **web** (server), solo `enterprise` | sessioni tenute in memoria al massimo (esce la meno recente); predefinito `10000` (Q-409) |
 | `NODE_EXTRA_CA_CERTS` | **web** (server), solo `enterprise` | certificato PEM della CA interna che firma l'emittente, aggiunto alle CA pubbliche di Node; nel chart da `roles.web.bff.issuerCaBundle` |
+| `LH_SUBJECT_KEY` / `LH_SUBJECT_KEY_FILE` | **hub** (server), obbligatoria in `enterprise` e con `LH_IDENTITY_MODE=oidc`, non usata in `demo` con `header` | chiave dello pseudonimo `subjectRef` (ADR-048, Q-552): almeno 32 byte casuali in base64 (`openssl rand -base64 32`), distinta da `LH_PSEUDONYM_KEY`; chiave assente, corta o non base64 ⇒ l'hub non parte (`INSECURE_CONFIG`, senza stampare il valore); cambiarla scollega i token dai membri, vedi §16. Nel chart da `roles.hub.subjectKey` (Secret), nel compose dall'ambiente |
 
 File `.env.example` alla radice e in `web/` con tutte le chiavi e nessun valore reale.
 
@@ -185,6 +186,9 @@ Limiti di memoria nel compose (`mem_limit: 512m`, `cpus: 0.5`) per scoprire pres
 | `contracts` | valida `contracts/examples/*` contro gli schemi |
 | `docker` (solo su `main`, path-filter) | build delle immagini toccate (senza push, salvo piano B) |
 | `e2e` (manuale, `workflow_dispatch`) | `docker compose --profile all up` + Playwright + `smoke.sh` |
+
+Fuori da `ci.yml`: `testbook.yml` (notturno) e `security-nightly.yml` (notturno, manuale e sulle PR che lo toccano: fuzzing Schemathesis e ZAP API scan, consultivo, `docs/security/dast.md`).
+
 Nessun segreto in CI tranne, nel piano B, il deploy hook di Render.
 
 ## 11. Sicurezza di una demo senza login
@@ -214,4 +218,30 @@ L'immagine contiene sia l'hub (Java) sia l'interfaccia (Node.js) e instradata in
 Il deploy "a costo zero" (demo) continuerà a funzionare esattamente come descritto finché non vi sarà una transizione esplita. Vedi `deploy/image/README.md`.
 
 ## 15. Chart Helm e compose di riferimento (Fase 2, M8.3)
-Il profilo `enterprise` si installa con il chart `deploy/helm/loyaltyhub` (Strimzi e CloudNativePG di default, servizi gestiti come valori, F2-DIST-02) o con `deploy/compose/reference.yml` (F2-DIST-03), dalla stessa immagine. Nulla cambia per la demo a costo zero di questo documento. Chart e compose passano al web le variabili `enterprise` di §8 (M8.2d): segreti solo da Secret (chart) o dall'ambiente (compose), emittente `https` raggiungibile dal web con l'URL del browser, una sola replica del web finché le sessioni del BFF stanno in memoria (Q-409, Q-419). Con `kafka.mode=strimzi` il chart scrive le risorse con l'API `kafka.strimzi.io/v1` e richiede Strimzi 0.51 o successivo (Q-490). Il job `helm install (kind)` di `ci.yml`, consultivo, installa il chart su un cluster kind ed esegue lo smoke attraverso il gateway (profilo `demo`, Q-491). Istruzioni, valori e limiti noti in `deploy/README.md`. Osservabilità (M8.6a, F2-OBS-01): spenta di default; chart (`observability.*`) e compose (profilo `observability`) portano il collector OpenTelemetry, la dashboard SLO e le regole (Prometheus e Grafana sono prerequisiti del chart e servizi del compose); le metriche escono in push solo verso l'URL scelto da chi installa (ADR-044, Q-520, Q-522). Nulla cambia per la demo a costo zero.
+Il profilo `enterprise` si installa con il chart `deploy/helm/loyaltyhub` (Strimzi e CloudNativePG di default, servizi gestiti come valori, F2-DIST-02) o con `deploy/compose/reference.yml` (F2-DIST-03), dalla stessa immagine. Nulla cambia per la demo a costo zero di questo documento. Chart e compose passano al web le variabili `enterprise` di §8 (M8.2d): segreti solo da Secret (chart) o dall'ambiente (compose), emittente `https` raggiungibile dal web con l'URL del browser, una sola replica del web finché le sessioni del BFF stanno in memoria (Q-409, Q-419). Con `kafka.mode=strimzi` il chart scrive le risorse con l'API `kafka.strimzi.io/v1` e richiede Strimzi 0.51 o successivo (Q-490). Il job `helm install (kind)` di `ci.yml`, consultivo, installa il chart su un cluster kind ed esegue lo smoke attraverso il gateway (profilo `demo`, Q-491). Istruzioni, valori e limiti noti in `deploy/README.md`. Osservabilità (M8.6a, F2-OBS-01): spenta di default; chart (`observability.*`) e compose (profilo `observability`) portano il collector OpenTelemetry, la dashboard SLO e le regole (Prometheus e Grafana sono prerequisiti del chart e servizi del compose); le metriche escono in push solo verso l'URL scelto da chi installa (ADR-044, Q-520, Q-522). Nulla cambia per la demo a costo zero. Chiave dello pseudonimo del membro (F2-SEC-09, ADR-048, Q-552): chart e compose passano `LH_SUBJECT_KEY` all'hub del profilo `enterprise`, mai nella demo (§16).
+
+## 16. Chiave dello pseudonimo del membro — `LH_SUBJECT_KEY` (Fase 2, F2-SEC-09, ADR-048, Q-552)
+**Che cos'è.** Nel profilo `enterprise` il membro del portale viene solo dal token OIDC. member-service lega la coppia (`iss`, `sub`) al membro e sul bus pubblica soltanto `subjectRef`, l'HMAC-SHA256 esadecimale (64 caratteri) di `iss` e `sub` calcolato con questa chiave (`docs/06 §3.4`): il `sub` è un dato personale e non lascia mai member-service (ADR-032). Ogni servizio del portale calcola lo stesso HMAC dal token e lo cerca nella propria proiezione locale, senza chiamate sincrone. La chiave è quindi un segreto: chi la conosce può ricostruire i `subjectRef` di chi conosce `iss` e `sub`. È dedicata e distinta da `LH_PSEUDONYM_KEY` (Q-367): non si riusa e non si condivide con altri moduli o ambienti.
+
+**Dove serve.** Solo all'hub (ruolo `hub`, tutti i moduli condividono la stessa chiave) nel profilo `enterprise`. Non serve al web, a Keycloak né al Job delle migrazioni. Nel profilo `demo` non serve e non viene passata: l'identità è simulata con `memberId` o `X-LH-Member` (regola 6-bis).
+
+**Come si genera e si custodisce.** 32 byte casuali in base64 (la forma standard e quella URL-safe sono accettate; sotto i 32 byte decodificati l'hub rifiuta l'avvio):
+
+```bash
+openssl rand -base64 32
+```
+
+Si genera una volta per installazione e si conserva nel secret manager di chi installa (regola 20): mai in un repository, in un `values.yaml`, in un log o nel browser. Va tenuta anche fuori dai backup non cifrati. Il chart e il compose non contengono nessun valore, nemmeno di esempio.
+
+- **Chart Helm.** `roles.hub.subjectKey` è un riferimento `{name, key}` a un Secret esistente (default `lh-subject-key`, chiave `subject-key`), letto dall'hub come `LH_SUBJECT_KEY` con `secretKeyRef`. Nel profilo `enterprise` un nome o una chiave vuoti, di soli spazi o nulli fanno fallire `helm install` e `helm template` con `INSECURE_CONFIG: roles.hub.subjectKey…` (regola 22), e così una voce `LH_SUBJECT_KEY` o `LH_SUBJECT_KEY_FILE` in `roles.hub.extraEnv`, che porterebbe un valore in chiaro nel chart; con `global.profile=demo` il chart non passa la variabile. Il chart non legge il contenuto del Secret: forma e lunghezza le verifica l'hub all'avvio. Non può nemmeno sapere se il Secret esiste: con un Secret inesistente `helm install` riesce e il Pod dell'hub resta in `CreateContainerConfigError` finché non lo si crea.
+
+  ```bash
+  kubectl create secret generic lh-subject-key --from-literal=subject-key="$(openssl rand -base64 32)"
+  ```
+- **Compose di riferimento.** `LH_SUBJECT_KEY` viene dall'ambiente (o da `LH_SUBJECT_KEY_FILE`, come le altre chiavi dell'hub); con `LH_PROFILE=enterprise` o `LH_IDENTITY_MODE=oidc` (entrambi i default) il container `hub` si ferma subito con `Variabile obbligatoria mancante: LH_SUBJECT_KEY (o LH_SUBJECT_KEY_FILE)`; non serve con `LH_PROFILE=demo LH_IDENTITY_MODE=header`. Il profilo `demo` con identità `oidc` la richiede perché l'hub la esige ogni volta che l'identità è oidc e ci sono endpoint del portale. Non usa `${VAR:?}`, che pretenderebbe la chiave anche per la demo: la guardia è a runtime, come per le altre chiavi.
+
+  ```bash
+  export LH_SUBJECT_KEY="$(openssl rand -base64 32)"
+  ```
+
+**Rotazione: cambiare la chiave non ricollega nulla.** `subjectRef` è una funzione della chiave. Se la chiave cambia, ogni HMAC calcolato da un token diventa diverso da quello salvato in `member_identity` e nelle proiezioni dei servizi: nessun token si risolve più nel proprio membro (404 o 409 secondo la lookup) e nessun processo ricollega da solo i riferimenti vecchi a quelli nuovi, perché il `sub` non è nelle proiezioni degli altri servizi (member-service conserva `iss` e `sub` in `member_identity`: il ricalcolo è possibile solo lì, con il job futuro). La continuità di `subjectRef` si spezza per tutti i membri già registrati, anche se i `memberId`, i saldi e i dati restano intatti. Vale lo stesso per la perdita della chiave: equivale a una rotazione. Durante un rilascio progressivo con due chiavi diverse le repliche non concordano sul membro di uno stesso token. Il ricalcolo e la ripubblicazione dei `subjectRef` sono un job di member-service **non ancora disponibile** (fuori da M8.10f, Q-552): finché non esiste, la chiave si tratta come immutabile, con una copia di riserva nel secret manager, e un cambio è una migrazione pianificata (finestra di manutenzione, ricalcolo, ripubblicazione), non un'operazione di routine. A differenza della chiave delle sessioni del BFF (`LH_WEB_SESSION_KEY`), il cui cambio chiude solo le sessioni aperte, qui il danno è sui dati.

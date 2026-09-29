@@ -1,0 +1,47 @@
+# Configurazione di Schemathesis 4.28.0 per il fuzzing notturno delle API (docs/18 §3.10 p.12, F2-SEC-12, ADR-042,
+# M8.11c). Si legge con `schemathesis --config-file .dast/schemathesis.toml run …` dalla radice del repository:
+# i percorsi sono relativi alla radice. Le regole (cosa blocca, baseline con scadenza) sono in docs/security/dast.md.
+#
+# Le chiavi di primo livello stanno prima di ogni tabella, come vuole TOML. L'intestazione dell'identità sta qui e
+# non nella riga di comando (`-H`): le opzioni della CLI prevalgono sulle impostazioni per operazione.
+
+# Identità simulata del profilo demo: ADMIN passa tutte le guardie e raggiunge ogni operazione.
+headers = { "X-LH-Actor" = "ADMIN:lh-dast" }   # SPEC-GAP: Q-531, profilo demo (in enterprise serve un token OIDC: M9)
+
+# Esiti già visti e accettati: ogni voce ha scadenza, motivo e ticket (scripts/security-dast.mjs baseline-check).
+baseline = ".dast/schemathesis-baseline.json"
+
+workers = 2
+request-timeout = 30
+continue-on-failure = true
+
+[checks]
+# Solo il controllo che blocca il job: un 5xx è sempre un difetto (docs/18 «sì su 5xx»). Gli altri controlli
+# (conformità di stato, di schema, di content type…) misurano la qualità dell'OpenAPI e non sono un gate di sicurezza.
+enabled = false
+not_a_server_error.enabled = true              # SPEC-GAP: Q-535, «sì su 5xx»
+
+[generation]
+# Niente database di esempi tra un'esecuzione e l'altra: ogni notte parte da zero e il risultato dipende dal solo seme.
+# `allow-x00` resta al valore predefinito (true): il byte NUL è un input ostile che vogliamo provare.
+database = "none"
+
+[cache]
+enabled = false
+
+# L'ingresso è limitato a 60 eventi al minuto per IP (docs/11 §11): il fuzzing resta sotto il limite, altrimenti
+# misurerebbe solo i 429. Anche POST /v1/events/batch conta nella stessa finestra un evento per elemento
+# (IngressRateLimitFilter.admitEvents): ha perciò una frequenza propria e bassa, ma un batch con più elementi consuma
+# più di una richiesta; se la finestra si esaurisce le altre due operazioni ricevono 429, con perdita di copertura
+# (non di sicurezza: un 429 non è un 5xx). Q-536.
+[[operations]]
+include-name = "POST /v1/events"
+rate-limit = "25/m"                            # SPEC-GAP: Q-536
+
+[[operations]]
+include-name = "POST /v1/transactions"
+rate-limit = "25/m"
+
+[[operations]]
+include-name = "POST /v1/events/batch"
+rate-limit = "5/m"                             # SPEC-GAP: Q-536, la finestra è condivisa

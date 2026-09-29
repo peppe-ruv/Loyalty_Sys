@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const REALM_PATH = path.join(ROOT, 'deploy/idp/realm.json');
 const OVERLAY_PATH = path.join(ROOT, 'deploy/idp/test-idp/realm-test-overlay.json');
+const APPLY_OVERLAY_PATH = path.join(ROOT, 'deploy/idp/test-idp/apply-overlay.sh');
 const COMPOSE_PATH = path.join(ROOT, 'deploy/docker-compose.yml');
 const PLACEHOLDER = /^\$\{[A-Z0-9_]+\}$/;
 const SECRET_KEYS = new Set(['secret', 'clientSecret', 'bindCredential']);
@@ -265,6 +266,43 @@ test('Nessun segreto letterale (secret, clientSecret, bindCredential) in realm.j
         `${path.relative(ROOT, file)} ${where}: valore letterale, usare un segnaposto \${VAR}`);
     }
   }
+});
+
+// L'overlay di prova (solo prova, F2-IAM-04) non è importato da Keycloak: lo applica apply-overlay.sh, che sostituisce
+// i segnaposto solo per le variabili di OVERLAY_VARS e si ferma davanti a qualunque altro ${...} o a una variabile
+// mancante. Una variabile nell'overlay e non nell'elenco (o il contrario) si scoprirebbe solo applicando l'overlay.
+test('Ogni segnaposto ${LH_*} dell\'overlay di prova è in OVERLAY_VARS di apply-overlay.sh, e viceversa', () => {
+  const overlayVars = new Set([...fs.readFileSync(OVERLAY_PATH, 'utf8').matchAll(/\$\{([A-Z0-9_]+)\}/g)].map(m => m[1]));
+  const list = fs.readFileSync(APPLY_OVERLAY_PATH, 'utf8').match(/^OVERLAY_VARS=\(\n([\s\S]*?)^\)/m);
+  assert.ok(list, 'OVERLAY_VARS non trovato in apply-overlay.sh');
+  const scriptVars = new Set(list[1].split('\n').map(l => l.trim()).filter(Boolean));
+  assert.deepEqual([...overlayVars].sort(), [...scriptVars].sort(), 'segnaposto dell\'overlay e OVERLAY_VARS di apply-overlay.sh devono coincidere');
+});
+
+// Il membro di prova (Q-557, ADR-048 decisione 11) è l'utente con cui verify.sh controlla il token di un membro
+// registrato: ruolo predefinito del realm (il cui composito è MEMBER) e nient'altro, e-mail non verificata, nessuna
+// azione richiesta (senza SMTP la verifica dell'e-mail bloccherebbe il grant password). Un utente creato con
+// partialImport non riceve il ruolo predefinito da solo (verificato con Keycloak 26.7.4), quindi lo dichiara.
+// La password segue la convenzione dell'overlay: segnaposto sostituito da apply-overlay.sh, mai un valore nel file.
+test('Overlay di prova: il membro di prova è come un membro registrato e le sue credenziali sono segnaposti (Q-557)', () => {
+  const overlay = JSON.parse(fs.readFileSync(OVERLAY_PATH, 'utf8'));
+  const users = overlay.users ?? [];
+  assert.ok(users.length > 0, 'L\'overlay non ha utenti: manca il membro di prova che verify.sh usa');
+  for (const u of users) {
+    for (const c of u.credentials ?? []) {
+      assert.ok(typeof c.value === 'string' && PLACEHOLDER.test(c.value),
+        `overlay, utente ${u.username}: password letterale, usare un segnaposto \${VAR} (nessun segreto nel repository)`);
+      assert.equal(c.temporary, false, `overlay, utente ${u.username}: la password di prova non è temporanea (il grant password fallirebbe)`);
+    }
+  }
+  const member = users.find(u => u.username === 'testmember');
+  assert.ok(member, 'Manca l\'utente testmember (il membro di prova di verify.sh)');
+  assert.equal(member.enabled, true);
+  assert.equal(member.emailVerified, false, 'emailVerified deve essere false, dichiarato: senza SMTP l\'e-mail non è mai verificata (Q-557)');
+  assert.deepEqual(member.realmRoles, [DEFAULT_ROLE], 'Il membro di prova ha solo il ruolo predefinito, come un account registrato: MEMBER gli arriva dal composito');
+  assert.ok(!member.serviceAccountClientId, 'Il membro di prova non è un\'utenza di servizio');
+  assert.deepEqual(member.requiredActions ?? [], [], 'Nessuna azione richiesta (VERIFY_EMAIL, UPDATE_PASSWORD…): il grant password non riuscirebbe');
+  assert.equal(users.filter(u => u.username === 'testmember').length, 1);
 });
 
 test('Ogni segnaposto ${LH_*} di realm.json è passato al servizio idp nel compose', () => {
