@@ -54,7 +54,6 @@ public class MemberPrincipals {
     public static final String MEMBER_HEADER = "X-LH-Member";
 
     private static final Pattern DEMO_MEMBER = Pattern.compile("^MBR-[0-9]{6}$");
-    private static final Pattern INDEX_SUFFIX = Pattern.compile("\\[[^\\]]*\\]$");
     /** {@code WebDataBinder.DEFAULT_FIELD_DEFAULT_PREFIX}: {@code !campo=valore} è il valore di default del campo. */
     private static final char BINDER_DEFAULT_PREFIX = '!';
     /** {@code WebDataBinder.DEFAULT_FIELD_MARKER_PREFIX}: {@code _campo} è il marcatore del campo. */
@@ -282,12 +281,37 @@ public class MemberPrincipals {
         if (name == null) {
             return false;
         }
-        String last = name.substring(name.lastIndexOf('.') + 1);
-        last = INDEX_SUFFIX.matcher(last).replaceFirst("");
-        while (!last.isEmpty() && (last.charAt(0) == BINDER_DEFAULT_PREFIX || last.charAt(0) == BINDER_MARKER_PREFIX)) {
-            last = last.substring(1);
+        // Il nome arriva dalla richiesta (parametri, campi form): niente espressioni regolari, ogni passo è lineare nella
+        // lunghezza (una sola scansione all'indietro per suffisso, una in avanti per i prefissi, senza copie intermedie).
+        int start = name.lastIndexOf('.') + 1;
+        int end = withoutIndexSuffixes(name, start, name.length());
+        while (start < end && (name.charAt(start) == BINDER_DEFAULT_PREFIX || name.charAt(start) == BINDER_MARKER_PREFIX)) {
+            start++;
         }
-        return last.replace("-", "").replace("_", "").toLowerCase(Locale.ROOT).equals("memberid");
+        return name.substring(start, end).replace("-", "").replace("_", "").toLowerCase(Locale.ROOT).equals("memberid");
+    }
+
+    /**
+     * L'estremo finale (escluso) di {@code name[start, end)} senza i suffissi d'indice {@code [...]} in coda, anche ripetuti
+     * ({@code memberId[0][1]}): un suffisso è un {@code [} seguito da caratteri diversi da {@code ]} e da un {@code ]}
+     * finale, e comincia dal primo {@code [} dopo l'ultimo {@code ]} precedente (come {@code \[[^\]]*\]$}, ma senza
+     * backtracking: i tratti scanditi di due suffissi diversi non si sovrappongono, quindi il costo è {@code O(end - start)}).
+     */
+    private static int withoutIndexSuffixes(String name, int start, int end) {
+        int e = end;
+        while (e > start && name.charAt(e - 1) == ']') {
+            int open = -1;
+            for (int i = e - 2; i >= start && name.charAt(i) != ']'; i--) {
+                if (name.charAt(i) == '[') {
+                    open = i;
+                }
+            }
+            if (open < 0) {
+                break;
+            }
+            e = open;
+        }
+        return e;
     }
 
     @SuppressWarnings("unchecked")

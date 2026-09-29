@@ -4,8 +4,11 @@ import io.loyaltyhub.common.web.MemberPrincipal.Origin;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 /**
  * {@link MemberPrincipal}: matrice modo × metodo (Q-410, Q-553, ADR-048). In demo gli errori sono identici a quelli di
@@ -147,16 +150,47 @@ class MemberPrincipalTest {
     @DisplayName("isMemberIdName: qualunque grafia, anche come ultimo segmento di un percorso di proprietà")
     void memberIdNames() {
         for (String yes : new String[] {"memberId", "MEMBERID", "memberid", "member_id", "Member-Id", "filter.memberId",
-                "items[0].memberId", "a.b.MEMBER_ID", "memberId[]",
+                "items[0].memberId", "items[0][1].memberId", "a.b.MEMBER_ID", "memberId[]", "memberId[3]", "MEMBER_ID[x]",
+                // più suffissi d'indice in coda e un « [ » dentro l'indice: si tolgono tutti
+                "memberId[0][1]", "memberId[][]", "memberId[a[b]", "filter.memberId[0][1]",
                 // prefissi del binder di Spring: !campo (valore di default) e _campo (marcatore), anche annidati
                 "!memberId", "!member_id", "!MEMBER-ID", "_memberId", "!_memberId", "_!memberId", "!filter.memberId",
-                "filter.!memberId", "!items[0].memberId", "!memberId[]"}) {
+                "filter.!memberId", "!items[0].memberId", "!memberId[]", "!memberId[0]", "_!memberId[0][1]"}) {
             assertThat(MemberPrincipals.isMemberIdName(yes)).as(yes).isTrue();
         }
         for (String no : new String[] {"member", "memberIds", "id", "ownerMemberId2", "", "memberIdentity", "codes", "!", "_",
-                "!member", "!memberIds", "!id", "!codes"}) {
+                "!member", "!memberIds", "!id", "!codes", "xmemberId", "memberIdx", "memberIds[0]", "memberId[0]x", "memberId[",
+                "memberId]", "memberId[0]]", "[memberId]", "[memberId", "member[0]Id", "items[0].id", "items[0]", "[]", "[", "]"}) {
             assertThat(MemberPrincipals.isMemberIdName(no)).as(no).isFalse();
         }
         assertThat(MemberPrincipals.isMemberIdName(null)).isFalse();
+    }
+
+    /**
+     * Il nome di un parametro arriva dalla richiesta e non ha un limite di lunghezza: la sua analisi è lineare (nessuna
+     * espressione regolare con backtracking), quindi una sequenza di {@code [} o di suffissi non rallenta il servizio.
+     */
+    @Test
+    @DisplayName("isMemberIdName: nomi patologici molto lunghi si risolvono subito e con l'esito giusto")
+    void memberIdNamesAreLinear() {
+        int n = 100_000;
+        Duration limit = Duration.ofSeconds(1);
+        String brackets = "[".repeat(n);
+        assertThat(assertTimeoutPreemptively(limit, () -> MemberPrincipals.isMemberIdName(brackets + "memberId"))).isFalse();
+        assertThat(assertTimeoutPreemptively(limit, () -> MemberPrincipals.isMemberIdName("memberId" + brackets))).isFalse();
+        assertThat(assertTimeoutPreemptively(limit, () -> MemberPrincipals.isMemberIdName(brackets))).isFalse();
+        // Nessun « ] » in coda dopo tante « [ » (il caso peggiore della vecchia regex) e un « ] » finale che le chiude.
+        assertThat(assertTimeoutPreemptively(limit, () -> MemberPrincipals.isMemberIdName(brackets + "memberId]"))).isFalse();
+        assertThat(assertTimeoutPreemptively(limit, () -> MemberPrincipals.isMemberIdName("memberId" + brackets + "]"))).isTrue();
+        assertThat(assertTimeoutPreemptively(limit, () -> MemberPrincipals.isMemberIdName(brackets + "]"))).isFalse();
+        // Suffissi ripetuti, chiusure senza aperture, prefissi del binder e trattini ripetuti.
+        assertThat(assertTimeoutPreemptively(limit, () -> MemberPrincipals.isMemberIdName("memberId" + "[]".repeat(n)))).isTrue();
+        assertThat(assertTimeoutPreemptively(limit, () -> MemberPrincipals.isMemberIdName("memberId" + "]".repeat(n)))).isFalse();
+        assertThat(assertTimeoutPreemptively(limit, () -> MemberPrincipals.isMemberIdName("[]".repeat(n) + "memberId"))).isFalse();
+        assertThat(assertTimeoutPreemptively(limit, () -> MemberPrincipals.isMemberIdName("!".repeat(n) + "memberId"))).isTrue();
+        assertThat(assertTimeoutPreemptively(limit, () -> MemberPrincipals.isMemberIdName("_".repeat(n) + "memberId[0]"))).isTrue();
+        assertThat(assertTimeoutPreemptively(limit, () -> MemberPrincipals.isMemberIdName("!".repeat(n)))).isFalse();
+        assertThat(assertTimeoutPreemptively(limit, () -> MemberPrincipals.isMemberIdName("a.".repeat(n) + "memberId"))).isTrue();
+        assertThat(assertTimeoutPreemptively(limit, () -> MemberPrincipals.isMemberIdName("member" + "-".repeat(n) + "Id"))).isTrue();
     }
 }

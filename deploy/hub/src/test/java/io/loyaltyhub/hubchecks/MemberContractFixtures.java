@@ -17,7 +17,12 @@ import org.springframework.web.bind.annotation.RestController;
  * Controller di prova di {@code MemberContractChecksTest}. Stanno in un package fratello di {@code io.loyaltyhub.hub}, non
  * sotto di esso: l'hub scandisce {@code io.loyaltyhub.hub} anche nei test e un {@code @RestController} con gli stessi percorsi dei
  * servizi manderebbe in errore la mappatura degli IT dell'hub (Ambiguous mapping).
+ *
+ * <p>Di questi handler contano solo il percorso, le annotazioni e i parametri (li legge {@code MemberContractChecks}
+ * per riflessione): non vengono mai chiamati e non riflettono mai i dati della richiesta, quindi rispondono con una
+ * costante e i parametri restano inutilizzati di proposito.
  */
+@SuppressWarnings("unused")
 public final class MemberContractFixtures {
 
     private MemberContractFixtures() {
@@ -29,14 +34,14 @@ public final class MemberContractFixtures {
         @GetMapping("/v1/portal/me/wallet")
         @MemberEndpoint
         public String wallet(MemberPrincipal principal, @RequestParam("currency") String currency) {
-            return principal.idOrNull() + currency;
+            return "ok";
         }
 
         @GetMapping("/v1/portal/wallets/{memberId}")
         @Deprecated
         @MemberEndpoint(demoPathVariable = "memberId")
         public String legacy(MemberPrincipal principal) {
-            return principal.idOrNull();
+            return "ok";
         }
 
         @GetMapping("/v1/portal/theme")
@@ -51,19 +56,19 @@ public final class MemberContractFixtures {
         @GetMapping("/v1/portal/coupons")
         @MemberEndpoint
         public String implicit(@RequestParam String memberId, MemberPrincipal principal) {
-            return memberId + principal.idOrNull();
+            return "ok";
         }
 
         @GetMapping("/v1/portal/plain")
         @MemberEndpoint
         public String plain(String member_id, MemberPrincipal principal) {
-            return member_id + principal.idOrNull();
+            return "ok";
         }
 
         @GetMapping("/v1/portal/path/{memberId}")
         @MemberEndpoint
         public String path(@PathVariable String memberId, MemberPrincipal principal) {
-            return memberId + principal.idOrNull();
+            return "ok";
         }
     }
 
@@ -72,7 +77,7 @@ public final class MemberContractFixtures {
         @GetMapping("/v1/portal/explicit")
         @MemberEndpoint
         public String explicit(@RequestParam("owner") String memberId, MemberPrincipal principal) {
-            return memberId + principal.idOrNull();
+            return "ok";
         }
     }
 
@@ -129,7 +134,7 @@ public final class MemberContractFixtures {
         @GetMapping("/v1/portal/bound-model")
         @MemberEndpoint
         public String annotated(@ModelAttribute Query query, MemberPrincipal principal) {
-            return query.code() + principal.idOrNull();
+            return "ok";
         }
     }
 
@@ -138,7 +143,7 @@ public final class MemberContractFixtures {
         @GetMapping("/v1/portal/bound-record")
         @MemberEndpoint
         public String record(Query query, MemberPrincipal principal) {
-            return query.code() + principal.idOrNull();
+            return "ok";
         }
     }
 
@@ -147,13 +152,13 @@ public final class MemberContractFixtures {
         @GetMapping("/v1/portal/bound-bean")
         @MemberEndpoint
         public String bean(QueryBean query, MemberPrincipal principal) {
-            return query.getCode() + principal.idOrNull();
+            return "ok";
         }
 
         @GetMapping("/v1/portal/bound-ctor")
         @MemberEndpoint
         public String ctor(QueryCtor query, MemberPrincipal principal) {
-            return query.memberIdValue() + principal.idOrNull();
+            return "ok";
         }
     }
 
@@ -162,13 +167,13 @@ public final class MemberContractFixtures {
         @GetMapping("/v1/portal/bound-nested")
         @MemberEndpoint
         public String nested(Outer outer, MemberPrincipal principal) {
-            return outer.code() + principal.idOrNull();
+            return "ok";
         }
 
         @GetMapping("/v1/portal/bound-list")
         @MemberEndpoint
         public String list(@ModelAttribute InList list, MemberPrincipal principal) {
-            return list.items() + principal.idOrNull();
+            return "ok";
         }
     }
 
@@ -179,19 +184,19 @@ public final class MemberContractFixtures {
         @MemberEndpoint
         public String clean(NoMemberId query, MemberPrincipal principal, jakarta.servlet.http.HttpServletRequest request,
                             java.util.Locale locale, java.util.Map<String, Object> model) {
-            return query.code() + principal.idOrNull();
+            return "ok";
         }
 
         @PostMapping("/v1/portal/bound-body")
         @MemberEndpoint
         public String body(@RequestBody Query body, MemberPrincipal principal) {
-            return body.code() + principal.idOrNull();
+            return "ok";
         }
 
         @PostMapping("/v1/portal/bound-header")
         @MemberEndpoint
         public String other(@RequestHeader("X-Trace") String trace, MemberPrincipal principal) {
-            return trace + principal.idOrNull();
+            return "ok";
         }
     }
 
@@ -201,7 +206,7 @@ public final class MemberContractFixtures {
         @GetMapping("/v1/portal/bound-backoffice")
         @RequiresRole({Role.ADMIN, Role.ANALYST})
         public String backoffice(Query query) {
-            return query.code();
+            return "ok";
         }
     }
 
@@ -210,7 +215,7 @@ public final class MemberContractFixtures {
         @GetMapping("/v1/portal/legacy/{memberId}")
         @MemberEndpoint(demoPathVariable = "memberId")
         public String legacy(MemberPrincipal principal) {
-            return principal.idOrNull();
+            return "ok";
         }
     }
 
@@ -219,7 +224,7 @@ public final class MemberContractFixtures {
         @PostMapping("/v1/wallets/me")
         @MemberEndpoint
         public String outside(MemberPrincipal principal) {
-            return principal.idOrNull();
+            return "ok";
         }
     }
 
@@ -228,7 +233,7 @@ public final class MemberContractFixtures {
         @GetMapping("/v1/portal/legacy-backoffice/{memberId}")
         @RequiresRole({Role.ADMIN, Role.ANALYST})
         public String plain(@PathVariable String memberId) {
-            return memberId;
+            return "ok";
         }
     }
 }
