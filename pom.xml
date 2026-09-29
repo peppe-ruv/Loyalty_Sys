@@ -44,9 +44,9 @@
         senza controllo dei limiti), corretta da 1.11.1; API usata da kafka-clients invariata.
     -->
     <lh.tomcat.version>11.0.26</lh.tomcat.version>
-    <lh.jackson3.version>3.1.7</lh.jackson3.version>
-    <lh.jackson2.version>2.21.7</lh.jackson2.version>
-    <lh.lz4-java.version>1.11.4</lh.lz4-java.version>
+    <lh.jackson3.version>3.2.3</lh.jackson3.version>
+    <lh.jackson2.version>2.22.3</lh.jackson2.version>
+    <lh.lz4-java.version>1.12.0</lh.lz4-java.version>
   </properties>
 
   <modules>
