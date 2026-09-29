@@ -140,6 +140,50 @@ Il web chiama Keycloak con lo stesso URL del browser. Nel compose di riferimento
 Cambiare la chiave delle sessioni chiude tutte le sessioni aperte. Dopo la rotazione riavvia il web, per esempio con `kubectl rollout restart deployment/lh-loyaltyhub-web`.
 </Tip>
 
+## Crea la chiave dello pseudonimo del membro
+
+Nel profilo `enterprise` il portale ricava il membro solo dal token OIDC. member-service lega la coppia (`iss`, `sub`) al membro e sul bus pubblica soltanto `subjectRef`, un HMAC-SHA256 di quella coppia calcolato con la chiave `LH_SUBJECT_KEY`; ogni servizio del portale calcola lo stesso valore dal token e lo cerca nella propria copia locale. Il `sub` è un dato personale e non lascia mai member-service.
+
+```mermaid
+flowchart LR
+  accTitle: Dal token OIDC al membro con la chiave dello pseudonimo
+  accDescr: La chiave LH_SUBJECT_KEY sta in un Secret e arriva solo all'hub. member-service calcola subjectRef dal legame iss e sub e lo pubblica sul topic dei fatti senza il sub; ogni servizio del portale lo proietta nella propria tabella e, per ogni richiesta, calcola lo stesso valore dal token per trovare il membro. Se la chiave manca o è corta, l'hub non parte.
+  SEC[(Secret con LH_SUBJECT_KEY)]
+  TOK[Token OIDC con iss e sub]
+  MEM[member-service: legame iss e sub]
+  BUS{{lh.facts.v1: solo subjectRef}}
+  PRJ[Servizi del portale: proiezione locale]
+  REQ[Richiesta del membro]
+  SEC -->|solo l'hub, almeno 32 byte| MEM
+  SEC -->|stessa chiave| PRJ
+  TOK --> MEM
+  MEM -->|HMAC di iss e sub| BUS
+  BUS --> PRJ
+  TOK --> REQ
+  REQ -->|HMAC dal token, ricerca locale| PRJ
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef secret fill:#FEF2F2,stroke:#DC2626,color:#7F1D1D
+  class MEM,PRJ,REQ svc
+  class SEC secret
+```
+
+Genera la chiave con `openssl rand -base64 32` (almeno 32 byte in base64) e non riusarla per altro. Con Helm crea il Secret prima di installare; il chart lo passa all'hub come `LH_SUBJECT_KEY` solo nel profilo `enterprise`, e senza riferimento `helm install` non procede (`INSECURE_CONFIG`):
+
+```bash
+# Chiave dello pseudonimo del membro (roles.hub.subjectKey)
+kubectl create secret generic lh-subject-key --from-literal=subject-key="$(openssl rand -base64 32)"
+```
+
+Con il compose di riferimento esporta la variabile prima di `docker compose up`; con `LH_PROFILE=enterprise` l'hub non parte senza:
+
+```bash
+export LH_SUBJECT_KEY="$(openssl rand -base64 32)"
+```
+
+<Warning>
+Non cambiare questa chiave dopo che i membri si sono registrati. Cambiarla non ricollega nulla: i riferimenti già salvati non corrispondono più a quelli calcolati dai token, ogni token smette di risolversi nel proprio membro e nessun processo li ricollega da solo. Il job di member-service che ricalcola e ripubblica i riferimenti non esiste ancora: finché non c'è, tieni una copia della chiave nel secret manager, perché perderla equivale a cambiarla.
+</Warning>
+
 ## Partizioni, concorrenza e retention
 
 I cinque topic mantengono sempre gli stessi nomi. Variano partizioni (12 nel chart), repliche (3), `min.insync.replicas` (2), retention per topic e numero di consumer per listener, tramite le variabili `LH_KAFKA_*` o i valori del chart. Senza configurazione valgono i default della demo: 2 partizioni, 1 replica, 3 giorni.

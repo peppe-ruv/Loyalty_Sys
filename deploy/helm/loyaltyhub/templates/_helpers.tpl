@@ -414,6 +414,14 @@ client e segreti del BFF; una sola replica del web, senza PDB (Q-409, Q-419). */
 {{- end -}}
 {{- end -}}
 {{- end -}}
+{{- /* Chiave dello pseudonimo subjectRef (F2-SEC-09, ADR-048, Q-552): senza il riferimento l'hub non legherebbe i token ai
+membri e in enterprise rifiuterebbe l'avvio (INSECURE_CONFIG, regola 22): meglio fermarsi già a `helm install`. Il
+contenuto del Secret (base64, almeno 32 byte) lo verifica l'hub all'avvio; il chart non lo legge mai. */ -}}
+{{- if .Values.roles.hub.enabled -}}
+{{- if or (not .Values.roles.hub.subjectKey.name) (not .Values.roles.hub.subjectKey.key) -}}
+{{- fail "INSECURE_CONFIG: roles.hub.subjectKey.name e .key sono obbligatori nel profilo enterprise: riferimento a un Secret con LH_SUBJECT_KEY, la chiave dello pseudonimo subjectRef che lega il token OIDC al membro (almeno 32 byte casuali in base64: openssl rand -base64 32; ADR-048, Q-552, regola 22)" -}}
+{{- end -}}
+{{- end -}}
 {{- $webUrl := include "loyaltyhub.web.publicUrl" . -}}
 {{- /* Anche con il web spento: il realm del ruolo idp costruisce redirect e back-channel da LH_WEB_URL. */ -}}
 {{- if and (or .Values.roles.web.enabled .Values.roles.idp.enabled) (not (regexMatch "^https://[^/?#@\\s]+$" $webUrl)) -}}

@@ -103,11 +103,11 @@ flowchart TB
 | Identità | `idp` importa `files/realm.json`, copia di `deploy/idp/realm.json` verificata da `scripts/check-helm.mjs` (Helm non legge file fuori dal chart); tutti i segnaposto `${LH_*}` del realm sono passati come variabili; l'hub valida i token (`LH_OIDC_ISSUER` pubblico, JWKS letto dentro il cluster, `aud=hub`). Nel profilo `enterprise` il Pod `web` riceve la configurazione del BFF: vedi *Configurare il login del web* |
 | Sicurezza | Pod Security `restricted`: non root (uid 1000), `seccompProfile: RuntimeDefault`, niente escalation, capability rimosse, token del service account non montato, filesystem in sola lettura con `emptyDir` per `/tmp` (e per la cache di Next.js) — tranne `idp`, vedi Q-374. **Nessuna NetworkPolicy** fino a M8.5 (deny-by-default e mTLS di mesh): il traffico nel namespace non è filtrato |
 | Profilo `enterprise` (regola 22) | il chart **rifiuta** Kafka esterno `PLAINTEXT` e Postgres esterno senza `sslmode=require`, `verify-ca` o `verify-full`; la deroga è esplicita (`kafka.external.allowInsecure`, `postgres.external.allowInsecure`), solo per reti già cifrate. Con CloudNativePG l'URL JDBC esige TLS (`sslmode=require`; `verify-full` con la CA del cluster in M8.5) |
-| Segreti | nessun valore nel chart: ogni credenziale è `{name, key}` di un Secret esistente; CloudNativePG genera da sé `<cluster>-app` |
+| Segreti | nessun valore nel chart: ogni credenziale è `{name, key}` di un Secret esistente (nel profilo `enterprise` anche `roles.hub.subjectKey`, la chiave dello pseudonimo del membro); CloudNativePG genera da sé `<cluster>-app` |
 | Porte | fisse, non valori: hub 8080 e web 3000 (le impone `deploy/image/entrypoint.sh`), Keycloak 8080 e gestione 9000; `scripts/check-helm.mjs` verifica che chart, compose ed entrypoint coincidano |
 | Sonde | hub: liveness e readiness di Actuator; web: liveness sulla porta (`tcpSocket`), readiness su `/api/demo/status`, che interroga l'hub e non deve far riavviare il web quando l'hub è lento; idp: `/health/*` sulla porta di gestione |
 | Risorse | requests e limits per ogni ruolo e per il Job; HPA su CPU per `hub` (2–6); PDB `minAvailable: 1` per `hub` e `idp`. `web` ha **una sola replica**, senza HPA né PDB: le sessioni del BFF stanno nella memoria del Pod e nel profilo `enterprise` il chart rifiuta più repliche e il PDB (Q-409, Q-419). Nel profilo `demo`, senza sessioni, `web` si può scalare |
-| Valori | `values.schema.json` rifiuta chiavi sconosciute (un refuso non passa in silenzio) e tipi sbagliati; `templates/_helpers.tpl` (`loyaltyhub.validate`) le regole fra più valori: profilo diverso da `enterprise`/`demo`, `global.mode=embedded`, `enterprise` senza `idp` né `oidc.issuer`, partizioni o ISR impossibili, repliche dei topic oltre i broker di Strimzi, chiavi di retention sconosciute, aumento di partizioni non confermato; nel profilo `enterprise` anche emittente OIDC o `publicUrls.web` non `https`, `publicUrls.web` con un percorso o con un host diverso dall'Ingress, emittente o client del BFF diversi da quelli del ruolo `idp`, Secret del BFF non indicati, più di una replica o un PDB del web (vedi *Configurare il login del web*) |
+| Valori | `values.schema.json` rifiuta chiavi sconosciute (un refuso non passa in silenzio) e tipi sbagliati; `templates/_helpers.tpl` (`loyaltyhub.validate`) le regole fra più valori: profilo diverso da `enterprise`/`demo`, `global.mode=embedded`, `enterprise` senza `idp` né `oidc.issuer`, partizioni o ISR impossibili, repliche dei topic oltre i broker di Strimzi, chiavi di retention sconosciute, aumento di partizioni non confermato; nel profilo `enterprise` anche emittente OIDC o `publicUrls.web` non `https`, `publicUrls.web` con un percorso o con un host diverso dall'Ingress, emittente o client del BFF diversi da quelli del ruolo `idp`, Secret del BFF non indicati, più di una replica o un PDB del web (vedi *Configurare il login del web*), riferimento `roles.hub.subjectKey` vuoto (vedi *Chiave dello pseudonimo del membro*) |
 
 ### Installazione con Helm
 
@@ -134,6 +134,9 @@ kubectl create secret generic lh-idp-db --type=kubernetes.io/basic-auth \
   --from-literal=username=idp --from-literal=password="$(openssl rand -base64 24)"
 # chiave delle sessioni del BFF del web: 32 byte casuali in base64 (profilo enterprise)
 kubectl create secret generic lh-web-session --from-literal=session-key="$(openssl rand -base64 32)"
+# chiave dello pseudonimo del membro (LH_SUBJECT_KEY, profilo enterprise): 32 byte casuali in base64. Conservala: non
+# cambiarla dopo la prima registrazione di un membro (vedi «Chiave dello pseudonimo del membro»)
+kubectl create secret generic lh-subject-key --from-literal=subject-key="$(openssl rand -base64 32)"
 
 # 3. chart: immagine pubblicata (obbligatoria), host e URL pubblici propri. Con Strimzi 1.1 o 1.2 aggiungi
 #    --set kafka.strimzi.version=4.2.1 per restare sulla linea dei client. Il primo avvio di Kafka, Postgres e
@@ -209,6 +212,27 @@ client `web` nella console: aggiungi la *post logout redirect URI* `<LH_WEB_URL>
 al web dopo il logout) e sostituisci la redirect URI `<LH_WEB_URL>/*` con quella esatta
 `<LH_WEB_URL>/api/auth/callback`.
 
+### Chiave dello pseudonimo del membro (`LH_SUBJECT_KEY`, F2-SEC-09, ADR-048, Q-552)
+
+Nel profilo `enterprise` il portale ricava il membro dal token OIDC. member-service lega `(iss, sub)` al membro e sul bus
+pubblica solo `subjectRef`, l'HMAC-SHA256 di `iss` e `sub` con questa chiave: il `sub`, un dato personale, non esce da
+member-service (ADR-032). La chiave serve solo all'hub, ed è un segreto distinto da `LH_PSEUDONYM_KEY`. Regole in
+`docs/11 §16`.
+
+- **Forma.** 32 byte casuali in base64, `openssl rand -base64 32`. Assente, corta o non base64: l'hub non parte
+  (`INSECURE_CONFIG`, regola 22; il valore non viene mai stampato).
+- **Chart.** `roles.hub.subjectKey` è `{name, key}` di un Secret esistente (default `lh-subject-key`, chiave
+  `subject-key`, creato al passo 2), passato all'hub con `secretKeyRef`. Nel profilo `enterprise` un nome o una chiave
+  vuoti fanno fallire `helm install` e `helm template` (`INSECURE_CONFIG: roles.hub.subjectKey…`); con
+  `global.profile=demo` il chart non passa la variabile e il Secret non serve. Il chart non legge il contenuto del Secret.
+- **Compose.** `LH_SUBJECT_KEY` (o `LH_SUBJECT_KEY_FILE`) dall'ambiente: con `LH_PROFILE=enterprise`, il default, il
+  container `hub` si ferma con `Variabile obbligatoria mancante: LH_SUBJECT_KEY`; con `LH_PROFILE=demo` non serve.
+- **Rotazione: non ricollega nulla.** `subjectRef` dipende dalla chiave. Cambiarla scollega ogni token dal proprio
+  membro (i `memberId` e i saldi restano, ma le lookup rispondono `404` o `409`) e nessun processo ricollega da solo i
+  riferimenti vecchi ai nuovi. Il job di member-service che ricalcola e ripubblica non esiste ancora (fuori da
+  M8.10f): finché non c'è, la chiave si tratta come immutabile e se ne tiene una copia nel secret manager; perderla
+  equivale a ruotarla.
+
 ### Fonti di ingestion: un client per fonte (F2-SEC-07, F2-IAM-02, Q-492)
 
 Le fonti che inviano azioni a `ingestion` (`POST /v1/events`, `/v1/events/batch`, `/v1/transactions`) si autenticano come
@@ -256,8 +280,9 @@ Il profilo facoltativo `observability` aggiunge collector, Prometheus e Grafana 
 export LH_IMAGE=ghcr.io/<owner>/loyaltyhub:<versione>
 export LH_DB_PASSWORD=… LH_IDP_DB_PASSWORD=… LH_IDP_ADMIN_PASSWORD=…
 export LH_WEB_CLIENT_SECRET=… LH_WIDGETS_CLIENT_SECRET=… LH_CMS_CLIENT_SECRET=…
-# profilo enterprise: chiave delle sessioni del BFF e URL https del reverse proxy (vedi sotto)
+# profilo enterprise: chiave delle sessioni del BFF, chiave dello pseudonimo del membro e URL https del reverse proxy (vedi sotto)
 export LH_WEB_SESSION_KEY="$(openssl rand -base64 32)"
+export LH_SUBJECT_KEY="$(openssl rand -base64 32)"
 export LH_WEB_URL=https://loyalty.example.org LH_IDP_PUBLIC_URL=https://idp.example.org
 docker compose -f deploy/compose/reference.yml up -d
 # valutazione con i dati fittizi (seed, X-LH-Actor), senza reverse proxy: LH_PROFILE=demo LH_IDENTITY_MODE=header
@@ -271,6 +296,7 @@ docker compose -f deploy/compose/reference.yml up -d
 | `LH_IDP_DB_PASSWORD` | — (obbligatoria) | ruolo `idp` di Postgres, usato solo da Keycloak |
 | `LH_IDP_ADMIN_PASSWORD`, `LH_*_CLIENT_SECRET` | — (obbligatorie) | come in `deploy/idp/README.md`; `LH_WEB_CLIENT_SECRET` va anche al web |
 | `LH_WEB_SESSION_KEY` | — (obbligatoria in `enterprise`) | chiave delle sessioni del BFF: 32 byte casuali in base64 (`openssl rand -base64 32`) |
+| `LH_SUBJECT_KEY` | — (obbligatoria in `enterprise`, non serve in `demo`) | chiave dello pseudonimo `subjectRef` del membro, solo per l'hub: 32 byte casuali in base64; cambiarla scollega i token dai membri (*Chiave dello pseudonimo del membro*) |
 | `LH_WEB_SESSION_IDLE_SECONDS`, `LH_WEB_SESSION_MAX_SECONDS`, `LH_WEB_SESSION_MAX_COUNT` | vuote (default del web: 1800, 36000, 10000) | inattività, durata massima e numero delle sessioni del BFF |
 | `LH_BIND_ADDRESS` | `127.0.0.1` | indirizzo dell'host su cui pubblicare `web` e `idp` |
 | `LH_IDP_PUBLIC_URL`, `LH_WEB_URL`, `LH_CMS_URL` | `http://localhost:8180`, `:3000`, `:8055` | emittente OIDC e redirect del realm; nel profilo `enterprise` gli URL `https` del reverse proxy, senza barra finale |
@@ -278,7 +304,8 @@ docker compose -f deploy/compose/reference.yml up -d
 | `LH_KAFKA_TOPICS_ALLOW_PARTITION_INCREASE` | `false` | vedi *Aumentare le partizioni* |
 
 I segreti mancanti fermano il container che li usa (`Variabile obbligatoria mancante: …`) prima che faccia qualcosa:
-Postgres non inizializza il volume senza entrambe le password. Il web li controlla da sé all'avvio e, nel profilo
+Postgres non inizializza il volume senza entrambe le password; l'hub, nel solo profilo `enterprise`, anche senza
+`LH_SUBJECT_KEY`. Il web li controlla da sé all'avvio e, nel profilo
 `enterprise`, si ferma con `INSECURE_CONFIG` elencando ogni problema (segreto corto o segnaposto, chiave che non vale
 32 byte, URL non validi). `hub` e `web` accettano anche `<VAR>_FILE` (lo legge l'entrypoint dell'immagine, per cui
 una variabile vuota non oscura il file); `migrate` e Keycloak no.

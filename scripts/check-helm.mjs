@@ -55,7 +55,7 @@ test('values.yaml non contiene segreti in chiaro: solo riferimenti {name, key} o
     .filter(([, l]) => !l.trimStart().startsWith('#'))
     .filter(([, l]) => {
       const m = l.match(/^\s*-?\s*([A-Za-z0-9]+)\s*:\s*(.*)$/);
-      if (!m || !/(password|secret|token|apikey|sessionkey)/i.test(m[1]) || /Name$/.test(m[1])) return false;
+      if (!m || !/(password|secret|token|apikey|sessionkey|subjectkey)/i.test(m[1]) || /Name$/.test(m[1])) return false;
       const value = m[2].trim();
       // Ammessi: vuoto (mappa annidata), riferimento {name, key}, elenco di nomi (pullSecrets: []).
       return value !== '' && !value.startsWith('{') && !value.startsWith('[') && !value.startsWith('#');
@@ -84,7 +84,7 @@ test('compose di riferimento: ruoli dell\'immagine unica, nessun segreto in chia
     assert.match(compose, new RegExp(`LH_ROLE: "${role}"`), `manca il ruolo ${role}`);
   }
   assert.match(compose, /LH_MODE: "external"/);
-  const secretLines = compose.split('\n').filter((l) => /^\s+[A-Z_]*(PASSWORD|SECRET|SESSION_KEY)[A-Z_]*:\s/.test(l));
+  const secretLines = compose.split('\n').filter((l) => /^\s+[A-Z_]*(PASSWORD|SECRET|SESSION_KEY|SUBJECT_KEY)[A-Z_]*:\s/.test(l));
   assert.ok(secretLines.length > 0);
   for (const l of secretLines) {
     assert.match(l, /:\s*"\$\{[A-Z_]+:-\}"\s*$/, `segreto non preso dall'ambiente: ${l.trim()}`);
@@ -112,6 +112,12 @@ test('compose di riferimento: ruoli dell\'immagine unica, nessun segreto in chia
   assert.equal(envOf(web, 'LH_WEB_CLIENT_SECRET'), envOf(idp, 'LH_WEB_CLIENT_SECRET'), 'segreto del client web');
   assert.equal(envOf(web, 'LH_WEB_CLIENT_ID'), '"web"', 'client del realm');
   assert.equal(envOf(web, 'LH_WEB_SESSION_KEY'), '"${LH_WEB_SESSION_KEY:-}"');
+  // Chiave dello pseudonimo subjectRef (F2-SEC-09, ADR-048, Q-552): solo l'hub, dall'ambiente, richiesta in enterprise.
+  assert.equal(envOf(hub, 'LH_SUBJECT_KEY'), '"${LH_SUBJECT_KEY:-}"');
+  assert.equal(envOf(hub, 'LH_REQUIRED_ENV_ENTERPRISE'), '"LH_SUBJECT_KEY"');
+  assert.equal(envOf(web, 'LH_SUBJECT_KEY'), undefined, 'il web non vede la chiave dello pseudonimo');
+  assert.equal(envOf(idp, 'LH_SUBJECT_KEY'), undefined, 'Keycloak non vede la chiave dello pseudonimo');
+  assert.doesNotMatch(service('migrate'), /SUBJECT_KEY/, 'le migrazioni non usano la chiave dello pseudonimo');
   assert.match(web, /entrypoint: \*lh-web-oidc-guard\n\s+command: \["lh-web-oidc-guard", "\/opt\/lh\/entrypoint\.sh"\]/);
 });
 
@@ -151,6 +157,38 @@ test('compose di riferimento: la guardia del web rifiuta emittente e origine non
   assert.equal(run({ LH_PROFILE: 'enterprise', LH_OIDC_ISSUER: 'https://idp.example.org:8443/realms/loyaltyhub',
     LH_WEB_URL: 'https://loyalty.example.org:8443' }).stdout, 'avviato');
   assert.equal(run({ LH_PROFILE: 'demo', LH_OIDC_ISSUER: loopback, LH_WEB_URL: 'http://localhost:3000' }).stdout, 'avviato');
+});
+
+test('compose di riferimento: l\'hub richiede LH_SUBJECT_KEY (o LH_SUBJECT_KEY_FILE) solo in enterprise, senza stamparla', () => {
+  const block = read(COMPOSE).split('x-lh-require-env-or-file: &lh-require-env-or-file\n')[1].split('\n\n')[0];
+  const script = block.split('  - |\n')[1].split('\n').map((l) => l.replace(/^ {4}/, '')).join('\n').replaceAll('$$', '$');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lh-subject-'));
+  const keyFile = path.join(dir, 'subject-key');
+  const secret = 'chiave-di-prova-da-non-stampare';
+  fs.writeFileSync(keyFile, secret);
+  const base = { DB_PASSWORD: 'x', LH_REQUIRED_ENV: 'DB_PASSWORD', LH_REQUIRED_ENV_ENTERPRISE: 'LH_SUBJECT_KEY' };
+  const run = (env) => spawnSync('sh', ['-c', script, 'lh-require-env', 'printf', 'avviato'],
+    { encoding: 'utf8', env: { PATH: process.env.PATH, ...base, ...env } });
+  // Enterprise senza chiave (assente o vuota): il container si ferma e dice quale variabile manca.
+  for (const env of [{ LH_PROFILE: 'enterprise' }, { LH_PROFILE: 'enterprise', LH_SUBJECT_KEY: '' }]) {
+    const r = run(env);
+    assert.equal(r.status, 1, JSON.stringify(env));
+    assert.equal(r.stdout, '');
+    assert.match(r.stderr, /Variabile obbligatoria mancante: LH_SUBJECT_KEY \(o LH_SUBJECT_KEY_FILE\)/);
+  }
+  // Con la chiave, dall'ambiente o da file (una variabile vuota non oscura il file); il valore non compare mai.
+  for (const env of [{ LH_SUBJECT_KEY: secret }, { LH_SUBJECT_KEY_FILE: keyFile }, { LH_SUBJECT_KEY: '', LH_SUBJECT_KEY_FILE: keyFile }]) {
+    const r = run({ LH_PROFILE: 'enterprise', ...env });
+    assert.equal(r.stdout, 'avviato', JSON.stringify(env));
+    assert.doesNotMatch(r.stdout + r.stderr, new RegExp(secret));
+  }
+  // Demo (e profilo assente): la chiave non serve; le altre variabili obbligatorie restano tali.
+  assert.equal(run({ LH_PROFILE: 'demo' }).stdout, 'avviato');
+  assert.equal(run({}).stdout, 'avviato');
+  const noDb = run({ LH_PROFILE: 'demo', DB_PASSWORD: '' });
+  assert.equal(noDb.status, 1);
+  assert.match(noDb.stderr, /Variabile obbligatoria mancante: DB_PASSWORD/);
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('entrypoint dell\'immagine: una variabile vuota non oscura <VAR>_FILE, una valorizzata vince', () => {
@@ -423,6 +461,32 @@ test('helm lint e helm template: valori di default, servizi gestiti, rifiuti', {
   refuses(/ingress\.hosts\.web/, 'publicUrls.web=https://altro.example.org');
   refuses(/ingress\.hosts\.idp/, 'publicUrls.idp=https://altro-idp.example.org');
   refuses(/roles\.web\.bff\.sessionKey\.name è obbligatorio/, 'roles.web.bff.sessionKey.name=');
+  // Chiave dello pseudonimo subjectRef (F2-SEC-09, ADR-048, Q-552, regola 22): solo l'hub, solo enterprise, solo da Secret.
+  assert.equal(env(hubDeployment, 'LH_SUBJECT_KEY'),
+    'valueFrom:\n                secretKeyRef: { name: lh-subject-key, key: subject-key }');
+  const ownKey = template('roles.hub.subjectKey.name=lh-pseudonyms', 'roles.hub.subjectKey.key=subject');
+  assert.equal(ownKey.status, 0, ownKey.stderr);
+  assert.equal(env(deployment(ownKey.stdout, 'lh-loyaltyhub-hub'), 'LH_SUBJECT_KEY'),
+    'valueFrom:\n                secretKeyRef: { name: lh-pseudonyms, key: subject }');
+  const notHub = tpl.stdout.split(/^---$/m).filter((d) => /LH_SUBJECT_KEY/.test(d));
+  assert.equal(notHub.length, 1, 'LH_SUBJECT_KEY solo nel Deployment dell\'hub (né web, né idp, né Job di migrazione)');
+  assert.doesNotMatch(tpl.stdout, /LH_SUBJECT_KEY\s*\n\s+value:/, 'mai un valore in chiaro');
+  refuses(/INSECURE_CONFIG: roles\.hub\.subjectKey\.name e \.key sono obbligatori.*openssl rand -base64 32.*Q-552/, 'roles.hub.subjectKey.name=');
+  refuses(/roles\.hub\.subjectKey\.key: String length must be greater than or equal to 1/, 'roles.hub.subjectKey.key=');
+  refuses(/Additional property value is not allowed/, 'roles.hub.subjectKey.value=in-chiaro');
+  // Anche con --skip-schema-validation la verifica sta nel chart.
+  for (const blank of ['roles.hub.subjectKey.name=', 'roles.hub.subjectKey.key=']) {
+    const skipSchema = spawnSync('helm', ['template', 'lh', CHART, '--kube-version', '1.31.0', '-f', CI_VALUES,
+      '--skip-schema-validation', '--set', blank], { encoding: 'utf8' });
+    assert.notEqual(skipSchema.status, 0, blank);
+    assert.match(skipSchema.stderr, /INSECURE_CONFIG: roles\.hub\.subjectKey/, blank);
+  }
+  // Profilo demo (e hub spento): nessuna variabile, nessun riferimento a un Secret che potrebbe non esistere.
+  const demoHub = template('global.profile=demo', 'roles.hub.subjectKey.name=');
+  assert.equal(demoHub.status, 0, demoHub.stderr);
+  assert.doesNotMatch(demoHub.stdout, /LH_SUBJECT_KEY|lh-subject-key/);
+  const noHub = template('roles.hub.enabled=false', 'roles.hub.subjectKey.name=');
+  assert.equal(noHub.status, 0, noHub.stderr);
   refuses(/roles\.web\.bff\.clientSecret\.name è obbligatorio/, 'roles.idp.enabled=false',
     'oidc.issuer=https://sso.example.org/realms/loyaltyhub');
   refuses(/WEB_SINGLE_REPLICA/, 'roles.web.replicas=2');

@@ -147,6 +147,7 @@
             "resources": { "$ref": "#/definitions/resources" },
             "autoscaling": { "$ref": "#/definitions/autoscaling" },
             "pdb": { "$ref": "#/definitions/pdb" },
+            "subjectKey": { "$ref": "#/definitions/secretRef" },
             "extraEnv": { "type": "array" }
           }
         },
