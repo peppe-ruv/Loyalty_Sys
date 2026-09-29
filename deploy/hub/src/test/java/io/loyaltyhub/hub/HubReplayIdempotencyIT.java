@@ -74,7 +74,6 @@ class HubReplayIdempotencyIT {
     /** Topic privato del test: nessun servizio lo ascolta; serve da barriera FIFO sul thread di consegna del bus. */
     private static final String BARRIER_TOPIC = "lh.test.replay-barrier";
     /** Finestra di quiete: 6 giri del relay dell'outbox (500 ms) senza alcuna scrittura. */
-    private static final long QUIET_WINDOW_MS = 3_000;
 
     /**
      * Tabelle di business che il traffico deve modificare: la fotografia le copre (tutte le tabelle degli schemi) e
@@ -248,14 +247,13 @@ class HubReplayIdempotencyIT {
     // ---------- quiete ----------
 
     /**
-     * Quiete: nessuna scrittura su outbox, event_store, processed_event e DLQ per {@link #QUIET_WINDOW_MS}, nessuna riga
+     * Quiete: nessuna scrittura su outbox, event_store, processed_event e DLQ tra due barriere consecutive, nessuna riga
      * dell'outbox da pubblicare e il bus ha consegnato tutto ciò che aveva in coda (barriera FIFO).
      */
     private void awaitQuiescence(String phase) {
         long deadline = System.currentTimeMillis() + 90_000;
         List<Long> previous = counters();
         while (System.currentTimeMillis() < deadline) {
-            sleep(QUIET_WINDOW_MS);
             barrier();
             List<Long> current = counters();
             if (current.equals(previous) && current.get(2) == 0) {

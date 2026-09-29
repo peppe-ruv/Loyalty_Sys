@@ -99,7 +99,6 @@ class HubScenariosIT {
     private static final long RUN_TIMEOUT_MS = 60_000;
     private static final long EFFECT_TIMEOUT_MS = 30_000;
     /** Quiete: 2 giri del relay dell'outbox (500 ms) senza scritture. */
-    private static final long QUIET_WINDOW_MS = 1_000;
     private static final String BARRIER_TOPIC = "lh.test.scenarios-barrier";
 
     @Value("${local.server.port}")
@@ -907,14 +906,13 @@ class HubScenariosIT {
     // =====================================================================================================
 
     /**
-     * Nessuna scrittura su outbox, event_store, processed_event e DLQ per {@link #QUIET_WINDOW_MS}, nessuna riga
+     * Nessuna scrittura su outbox, event_store, processed_event e DLQ tra due barriere consecutive, nessuna riga
      * dell'outbox da pubblicare e il bus ha consegnato tutto ciò che aveva in coda (barriera FIFO).
      */
     private void awaitQuiescence(String phase) {
         long deadline = System.currentTimeMillis() + 60_000;
         List<Long> previous = counters();
         while (System.currentTimeMillis() < deadline) {
-            sleep(QUIET_WINDOW_MS);
             barrier();
             List<Long> current = counters();
             if (current.equals(previous) && current.get(2) == 0) {

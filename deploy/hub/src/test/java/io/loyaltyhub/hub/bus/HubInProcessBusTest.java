@@ -2,6 +2,7 @@ package io.loyaltyhub.hub.bus;
 
 import io.loyaltyhub.common.event.LhHeaders;
 import io.loyaltyhub.common.kafka.NonRetryableEventException;
+import io.loyaltyhub.hub.HubQuiet;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.Test;
@@ -65,7 +66,8 @@ class HubInProcessBusTest {
             while (dlqDeliveries.get() < 3 && System.currentTimeMillis() < deadline) {
                 Thread.sleep(50);
             }
-            Thread.sleep(700);
+            // Barriera FIFO sul thread di consegna (niente attesa fissa): nessuna consegna può più arrivare.
+            HubQuiet.barrier(bus);
             assertThat(attempts.get()).as("non ritentabile: un solo tentativo").isEqualTo(1);
             assertThat(dlqDeliveries.get()).as("3 tentativi sul record DLQ, poi scartato").isEqualTo(3);
         }
