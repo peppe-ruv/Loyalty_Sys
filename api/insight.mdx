@@ -141,7 +141,7 @@ source.onerror = (err) => {
 | `source` | string | Filtro per sorgente |
 | `from` | string (ISO 8601) | Inizio intervallo temporale |
 | `to` | string (ISO 8601) | Fine intervallo temporale |
-| `q` | string | Ricerca testuale nel payload |
+| `q` | string | Ricerca testuale letterale nel payload, senza distinzione tra maiuscole e minuscole: `%`, `_` e `\` non sono caratteri jolly |
 | `page` | int | Pagina (0-based, default 0) |
 | `size` | int | Dimensione pagina (max 100, default 20) |
 

@@ -86,7 +86,7 @@ Dominio **TB-INS** del testbook (`docs/16`, §10ter): event store, flusso live S
 | `MetricRepository` | incremento, sintetico, totale, serie, top N, ultimo valore | R-14, R-16, R-17 |
 | `KpiController` | `metric` obbligatorio (assente ⇒ 500 dal gestore comune), `granularity` diverso da `week` ⇒ day | R-17 (**divergenza**) |
 | `AuditController` / `AuditRepository` | `limit` in [1, 200], `page`; filtri per uguaglianza; `from/to` inclusi; istanti non ISO ⇒ 400; 404 | R-21, R-04 (**divergenza**) |
-| `EventsController` / `EventStoreRepository` | `limit` in [1, 200]; famiglia in maiuscolo; `q` ILIKE sul payload; 404; 400 | R-03, R-04 (**divergenza**) |
+| `EventsController` / `EventStoreRepository` | `limit` in [1, 200]; famiglia in maiuscolo; `q` ILIKE letterale sul payload (`%`, `_` e `\` non sono caratteri jolly); 404; 400 | R-03, R-04 (**divergenza**) |
 | `PipelineController` / `TopicStatRepository` | conteggio totale, `GREATEST` sull'ultimo evento, offset per partizione | R-26 (**divergenza**: volumi 1 h/24 h, ritardo, per servizio assenti) |
 | `RetentionJob` + repository | per età (`<`), per numero (`OFFSET`), audit per età | R-27 (**divergenza**: troncamento 8 KB assente) |
 | `InsightReset`, `InsightSyntheticSeeder` | svuotamento; generatore con seme; ripartizioni col resto al primo | R-18, R-28 (**divergenza**: metriche e RESET) |
