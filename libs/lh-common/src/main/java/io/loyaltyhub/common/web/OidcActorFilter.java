@@ -21,7 +21,10 @@ import java.util.List;
  * {@link ActorFilter}. Ogni richiesta porta {@code Authorization: Bearer}; il token è verificato da {@link JwtDecoder}
  * (firma dal JWKS dell'IdP, {@code iss}, {@code aud=hub}, scadenza) e alimenta {@link ActorHolder} e l'MDC.
  * L'header {@code X-LH-Actor} è ignorato. Token assente o non valido ⇒ 401 RFC 9457 senza dettagli sul motivo.
- * Un token di solo membro ({@code MEMBER}) vale soltanto su {@code /v1/portal/**}; altrove ⇒ 403.
+ * Un token di solo membro ({@code MEMBER}) vale soltanto su {@code /v1/portal/**}; altrove ⇒ 403. Il suo attore è
+ * {@code member:-} ({@link ActorContext#member}, Q-556): mai il {@code preferred_username} né l'e-mail (regola 20); il
+ * membro lo risolve {@link EndpointAccessInterceptor} per gli handler {@link MemberEndpoint}, e un token di membro
+ * raggiunge solo quelli o le letture {@code @RequiresRole(members = true)} (Q-410, ADR-048).
  * Un token di sola fonte ({@code SOURCE}, Q-492) vale soltanto sull'ingresso di ingestion ({@link #SOURCE_INGRESS_PATHS});
  * altrove, compresi {@code /actuator/metrics}, {@code /actuator/prometheus} e {@code /v3/api-docs}, ⇒ 403.
  * Restano liberi solo i probe {@code /actuator/health} e {@code /actuator/info}.
@@ -31,6 +34,13 @@ public class OidcActorFilter extends OncePerRequestFilter {
 
     /** Attributo di richiesta con il {@code sub} di un membro autenticato (usato da {@code MemberPrincipal}, M8.10). */
     public static final String MEMBER_SUBJECT_ATTRIBUTE = "io.loyaltyhub.member.sub";
+
+    /**
+     * Attributo di richiesta con emittente e soggetto del token di un membro ({@link MemberTokenClaims}, mascherato nei
+     * log). Solo per un token di solo membro non {@code SOURCE}; lo legge {@link MemberPrincipals}. Assente per un
+     * operatore, per un token misto e per una fonte: chi non è solo un membro non agisce mai come membro (Q-554).
+     */
+    public static final String MEMBER_TOKEN_ATTRIBUTE = "io.loyaltyhub.member.token";
 
     static final String MEMBER_ROLE = "MEMBER";
 
@@ -79,6 +89,18 @@ public class OidcActorFilter extends OncePerRequestFilter {
                 return;
             }
             request.setAttribute(MEMBER_SUBJECT_ATTRIBUTE, jwt.getSubject());
+            if (actor.role() != Role.SOURCE) {
+                String issuer = jwt.getClaimAsString("iss");
+                String subject = jwt.getSubject();
+                if (issuer == null || issuer.isBlank() || subject == null || subject.isBlank()) {
+                    // Un token di membro senza emittente o soggetto non identifica nessuno: non è un token valido.
+                    reject(response, 401, "unauthorized", "UNAUTHORIZED", "Serve un access token valido.", request);
+                    return;
+                }
+                request.setAttribute(MEMBER_TOKEN_ATTRIBUTE, new MemberTokenClaims(issuer, subject));
+                // Q-556: l'attore di un membro è member:<id>; finché non è risolto member:-, mai il preferred_username.
+                actor = ActorContext.member(null);
+            }
         }
         if (actor.role() == Role.SOURCE && !SOURCE_INGRESS_PATHS.contains(path)) {
             reject(response, 403, "forbidden-role", "FORBIDDEN_ROLE", "Il token di una fonte vale solo per l'ingresso.",

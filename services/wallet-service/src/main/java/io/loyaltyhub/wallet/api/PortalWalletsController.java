@@ -42,7 +42,7 @@ public class PortalWalletsController {
     }
 
     @GetMapping("/tiers")
-    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
+    @RequiresRole(value = {Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST}, members = true) // Q-410: uguale per tutti
     public List<PortalTier> tiers() {
         return query.tierScale().stream().map(PortalTier::of).toList();
     }

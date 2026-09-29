@@ -27,6 +27,13 @@ import java.util.Locale;
 @ConditionalOnClass(OperationCustomizer.class)
 public class OpenApiConventions {
 
+    static {
+        // Il membro del token non è un parametro dell'API: MemberPrincipal e MemberSubject li risolve l'interceptor e non
+        // devono comparire in nessun contratto (Q-410, ADR-048, regola 12: un meccanismo demo non si pubblica).
+        org.springdoc.core.utils.SpringDocUtils.getConfig().addRequestWrapperToIgnore(MemberPrincipal.class,
+                MemberSubject.class);
+    }
+
     @Bean
     @ConditionalOnMissingBean(OpenAPI.class)
     OpenAPI loyaltyHubOpenApi(@Value("${spring.application.name:loyalty-hub}") String application) {

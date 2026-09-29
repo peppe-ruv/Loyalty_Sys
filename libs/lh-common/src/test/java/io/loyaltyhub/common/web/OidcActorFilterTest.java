@@ -76,6 +76,80 @@ class OidcActorFilterTest {
     }
 
     @Test
+    @DisplayName("[Q-556] token di solo membro: attore member:- (mai il preferred_username), claims solo per lui, MDC senza l'e-mail")
+    void memberTokenActorIsMemberDash() throws Exception {
+        JWTClaimsSet claims = new JWTClaimsSet.Builder(claims("mario", List.of("MEMBER"), "hub", ISSUER, 300))
+                .claim("email", "mario.rossi@example.test").build();
+        AtomicReference<String> mdc = new AtomicReference<>();
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/v1/portal/me/wallet");
+        req.addHeader("Authorization", "Bearer " + token(claims));
+        AtomicReference<ActorContext> seen = new AtomicReference<>();
+        filter.doFilter(req, new MockHttpServletResponse(), (rq, rs) -> {
+            seen.set(ActorHolder.get());
+            mdc.set(org.slf4j.MDC.get("actor"));
+        });
+        assertThat(seen.get().member()).isTrue();
+        assertThat(seen.get().role()).isEqualTo(Role.ANALYST);
+        assertThat(seen.get().asActorString()).isEqualTo("member:-");
+        assertThat(mdc.get()).isEqualTo("member:-");
+        assertThat(seen.get().toString() + mdc.get()).doesNotContain("mario").doesNotContain("example.test");
+        // Emittente e soggetto per il solo MemberPrincipals; mai stampati.
+        Object attribute = req.getAttribute(OidcActorFilter.MEMBER_TOKEN_ATTRIBUTE);
+        assertThat(attribute).isEqualTo(new MemberTokenClaims(ISSUER, "sub-mario"));
+        assertThat(attribute.toString()).doesNotContain("sub-mario").doesNotContain(ISSUER);
+        assertThat(org.slf4j.MDC.get("actor")).as("MDC ripulito").isNull();
+    }
+
+    @Test
+    @DisplayName("[Q-554] operatore, token misto (MEMBER + operatore) e fonte: nessun attributo dei claims del membro; l'attore resta quello del token")
+    void onlyAMemberOnlyTokenCarriesMemberClaims() throws Exception {
+        Result operator = call("/v1/portal/campaigns", token(claims("paolo.care", List.of("CARE"), "hub", ISSUER, 300)), null);
+        assertThat(operator.request.getAttribute(OidcActorFilter.MEMBER_TOKEN_ATTRIBUTE)).isNull();
+        assertThat(operator.actor.get()).isEqualTo(new ActorContext(Role.CARE, "paolo.care"));
+        assertThat(operator.actor.get().member()).isFalse();
+
+        Result mixed = call("/v1/portal/campaigns",
+                token(claims("paolo.care", List.of("MEMBER", "CARE"), "hub", ISSUER, 300)), null);
+        assertThat(mixed.status).isEqualTo(200);
+        assertThat(mixed.request.getAttribute(OidcActorFilter.MEMBER_TOKEN_ATTRIBUTE)).isNull();
+        assertThat(mixed.request.getAttribute(OidcActorFilter.MEMBER_SUBJECT_ATTRIBUTE)).isNull();
+        assertThat(mixed.actor.get()).isEqualTo(new ActorContext(Role.CARE, "paolo.care"));
+
+        Result source = call("/v1/events", token(sourceClaims("service-account-src-crm", "src-crm", List.of("SOURCE"))), null);
+        assertThat(source.request.getAttribute(OidcActorFilter.MEMBER_TOKEN_ATTRIBUTE)).isNull();
+        assertThat(source.actor.get().member()).isFalse();
+    }
+
+    @Test
+    @DisplayName("[Q-554] MEMBER+SOURCE resta 403 anche sul portale: fromToken restituisce SOURCE e SOURCE vale solo sull'ingresso")
+    void memberPlusSourceIsRefusedOnThePortalToo() throws Exception {
+        String both = token(sourceClaims("service-account-src-crm", "src-crm", List.of("MEMBER", "SOURCE")));
+        Result portal = call("/v1/portal/me/wallet", both, null);
+        assertThat(portal.status).isEqualTo(403);
+        assertThat(portal.response.getContentAsString()).contains("\"code\":\"FORBIDDEN_ROLE\"");
+        assertThat(portal.actor.get()).as("la catena non è raggiunta").isNull();
+        assertThat(portal.request.getAttribute(OidcActorFilter.MEMBER_TOKEN_ATTRIBUTE)).isNull();
+    }
+
+    @Test
+    @DisplayName("un token di membro senza soggetto non identifica nessuno: 401, mai un membro senza nome")
+    void memberTokenWithoutSubjectIsUnauthorized() throws Exception {
+        Instant now = Instant.now();
+        JWTClaimsSet noSub = new JWTClaimsSet.Builder().issuer(ISSUER).audience("hub")
+                .issueTime(Date.from(now.minusSeconds(60))).expirationTime(Date.from(now.plusSeconds(300)))
+                .claim("lh_roles", List.of("MEMBER")).build();
+        Result r = call("/v1/portal/me/wallet", token(noSub), null);
+        assertThat(r.status).isEqualTo(401);
+        assertThat(r.actor.get()).isNull();
+    }
+
+    @Test
+    @DisplayName("il costruttore del filtro non cambia: servizio, decoder, claim dei ruoli")
+    void constructorIsUnchanged() {
+        assertThat(new OidcActorFilter("member", decoder(), "lh_roles")).isNotNull();
+    }
+
+    @Test
     @DisplayName("probe di salute senza token")
     void probesArePublic() throws Exception {
         assertThat(call("/actuator/health", null, null).status).isEqualTo(200);
