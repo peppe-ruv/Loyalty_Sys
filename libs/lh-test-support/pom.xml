@@ -14,8 +14,13 @@
   <artifactId>lh-test-support</artifactId>
   <packaging>jar</packaging>
   <description>Solo test: letture esatte dei topic Kafka e attese sui consumer group dei listener per gli IT dei moduli
-    (docs/06 §9); regole ArchUnit comuni (deny by default, F2-SEC-09). Si dichiara con scope test: non entra nei jar dei
-    servizi.</description>
+    (docs/06 §9); regole ArchUnit comuni (deny by default, F2-SEC-09); token OIDC RS256 di prova (Q-410). Si dichiara con
+    scope test: non entra nei jar dei servizi.</description>
+
+  <properties>
+    <!-- La versione che spring-security-oauth2-jose (Boot 4.1.1) porta in lh-common: da tenere allineata. -->
+    <nimbus-jose-jwt.version>10.9.1</nimbus-jose-jwt.version>
+  </properties>
 
   <!-- Nessuna dipendenza da lh-common (che lo usa nei propri IT): solo ciò che serve alle classi, versioni dalla BOM
        di Spring Boot importata dal parent. Le regole ArchUnit nominano le annotazioni di lh-common per nome. -->
@@ -36,6 +41,15 @@
     <dependency>
       <groupId>com.tngtech.archunit</groupId>
       <artifactId>archunit</artifactId>
+    </dependency>
+    <!-- OidcTestTokens (token RS256 veri per gli IT del membro dal token, Q-410): solo Nimbus, come il decoder dei servizi
+         (spring-security-oauth2-jose porta la stessa libreria: qui `provided`, chi usa i token la ha già da lh-common).
+         Non è nel BOM di Spring Boot: versione allineata a quella che lh-common riceve da spring-security-oauth2-jose. -->
+    <dependency>
+      <groupId>com.nimbusds</groupId>
+      <artifactId>nimbus-jose-jwt</artifactId>
+      <version>${nimbus-jose-jwt.version}</version>
+      <scope>provided</scope>
     </dependency>
   </dependencies>
 

@@ -70,6 +70,51 @@ public class LhException extends RuntimeException {
                 "L'endpoint non dichiara chi può chiamarlo ed è rifiutato (deny by default).", null);
     }
 
+    /** Secondi di {@code Retry-After} per {@code 409 MEMBER_NOT_LINKED} (il fatto {@code member.registered} sta per arrivare). */
+    public static final int MEMBER_NOT_LINKED_RETRY_AFTER_SECONDS = 2;
+
+    /**
+     * Il membro è quello del token e la richiesta ne indica uno (Q-553, D6, ADR-048). {@code path = false}: un
+     * {@code memberId} in query, in un campo form, nel corpo o in {@code X-LH-Member} ⇒ 400; {@code path = true}: un id nel
+     * percorso (legacy) ⇒ 403. Il valore ricevuto non si riporta nel dettaglio, neppure se è il proprio.
+     */
+    public static LhException memberFromToken(boolean path) {
+        return new LhException(path ? HttpStatus.FORBIDDEN : HttpStatus.BAD_REQUEST, "member-from-token",
+                "MEMBER_FROM_TOKEN", path
+                        ? "Il membro è quello del token: l'identificativo non va indicato nel percorso."
+                        : "Il membro è quello del token: non indicare memberId nella richiesta.", null);
+    }
+
+    /**
+     * 403: la funzione è del membro autenticato e il chiamante non lo è (un operatore, anche con il ruolo {@code MEMBER}
+     * tra i suoi, Q-554); un operatore non agisce mai come membro.
+     */
+    public static LhException memberRequired() {
+        return new LhException(HttpStatus.FORBIDDEN, "member-required", "MEMBER_REQUIRED",
+                "Questa funzione è riservata al membro autenticato.", null);
+    }
+
+    /** 404: il {@code sub} del token non ha un membro (solo member-service, fonte autorevole): serve la registrazione. */
+    public static LhException memberNotRegistered() {
+        return new LhException(HttpStatus.NOT_FOUND, "member-not-registered", "MEMBER_NOT_REGISTERED",
+                "Nessun membro registrato per questo account: completa la registrazione.", null);
+    }
+
+    /**
+     * 409: il {@code sub} del token non è ancora legato a un membro in questo servizio (il fatto di registrazione non è
+     * ancora arrivato): ritentare dopo {@code Retry-After} ({@link #MEMBER_NOT_LINKED_RETRY_AFTER_SECONDS}).
+     */
+    public static LhException memberNotLinked() {
+        return new LhException(HttpStatus.CONFLICT, "member-not-linked", "MEMBER_NOT_LINKED",
+                "Il membro non è ancora collegato a questo servizio: riprova tra poco.", null);
+    }
+
+    /** 400 (solo demo): le fonti del membro (parametro, header, percorso, corpo) indicano membri diversi. */
+    public static LhException memberMismatch() {
+        return new LhException(HttpStatus.BAD_REQUEST, "member-mismatch", "MEMBER_MISMATCH",
+                "Le indicazioni del membro nella richiesta non coincidono.", null);
+    }
+
     public static LhException notFound(String detail) {
         return new LhException(HttpStatus.NOT_FOUND, "not-found", "NOT_FOUND", detail, null);
     }
