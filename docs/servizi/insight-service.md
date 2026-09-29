@@ -90,7 +90,7 @@ Metriche (`metric`): `actions` (dim `source`, `type`), `points_earned`/`points_s
 | Metodo | Path | Note |
 |---|---|---|
 | GET | `/v1/stream/events` | **SSE** (`text/event-stream`); parametri `topics, memberId, types, correlationId`; evento `lh-event` con `{eventId, topic, family, shortType, memberId, correlationId, time, summary}`; `heartbeat` ogni 15 s; `Last-Event-ID` → rinvio degli ultimi ≤ 200 persi; CORS da `LH_CORS_ALLOWED_ORIGINS` |
-| GET | `/v1/events` | filtri `topic, family, type, memberId, correlationId, source, from, to, q` (testo nel payload) |
+| GET | `/v1/events` | filtri `topic, family, type, memberId, correlationId, source, from, to, q` (testo letterale nel payload, senza distinguere maiuscole: `%`, `_` e `\` non sono caratteri jolly, M8.10) |
 | GET | `/v1/events/{eventId}` | payload completo |
 | GET | `/v1/traces/{correlationId}` | `{correlationId, memberId, startedAt, durationMs, status (COMPLETE/IN_PROGRESS/FAILED), nodes[] {eventId, family, shortType, service, time, offsetMs, parentEventId, summary}, outcome: {points[] {currency, amount}, tierChange?, messages, coupons, plays, dlq}}` |
 | GET | `/v1/traces?memberId=&from=&to=` | ultimi tracciati (uno per `correlationId`) |

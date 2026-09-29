@@ -1,5 +1,8 @@
 package io.loyaltyhub.insight.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlOrder;
+import io.loyaltyhub.common.sql.SqlWhere;
 import io.loyaltyhub.insight.domain.DlqEntry;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -10,8 +13,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Clock;
-import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,6 +23,37 @@ import java.util.Optional;
  */
 @Repository
 public class DlqRepository {
+
+    /** Colonne ammesse nei filtri e nell'ordinamento di {@link #search}/{@link #count} (regola 19, ADR-042). */
+    enum DlqColumn implements SqlColumn {
+        STATUS("status"), CONSUMER("consumer"), ERROR_CODE("error_code"), FIRST_SEEN_AT("first_seen_at"), ID("id");
+
+        private final String sql;
+
+        DlqColumn(String sql) {
+            this.sql = sql;
+        }
+
+        @Override
+        public String sql() {
+            return sql;
+        }
+    }
+
+    /**
+     * Testo SQL costante dell'elenco (regola 19, docs/18 §3.10 punto 4): vi si accodano solo {@link SqlWhere#sql()},
+     * l'ordinamento costante {@link #SEARCH_ORDER} e la pagina legata {@link #SEARCH_PAGE}.
+     */
+    static final String SEARCH_SELECT = "SELECT * FROM dlq_entry";
+
+    /** Come {@link #SEARCH_SELECT}, per il totale: vi si accoda solo {@link SqlWhere#sql()}. */
+    static final String COUNT_SELECT = "SELECT count(*) FROM dlq_entry";
+
+    /** Dalla voce più recente, a parità di istante per id decrescente (come prima del builder). */
+    static final String SEARCH_ORDER = SqlOrder.desc(DlqColumn.FIRST_SEEN_AT)
+            .by(DlqColumn.ID, SqlOrder.Direction.DESC).sql();
+
+    static final String SEARCH_PAGE = " LIMIT :limit OFFSET :offset";
 
     private final JdbcClient jdbc;
     private final ObjectMapper mapper;
@@ -57,18 +89,16 @@ public class DlqRepository {
 
     /** Elenco filtrato (docs §3), dalla voce più recente. */
     public List<DlqEntry> search(String status, String consumer, String errorCode, int limit, int offset) {
-        StringBuilder sql = new StringBuilder("SELECT * FROM dlq_entry WHERE 1=1");
-        List<Object> args = filters(sql, status, consumer, errorCode);
-        sql.append(" ORDER BY first_seen_at DESC, id DESC LIMIT ? OFFSET ?");
-        args.add(limit);
-        args.add(offset);
-        return jdbc.sql(sql.toString()).params(args).query(this::map).list();
+        SqlWhere where = filters(status, consumer, errorCode);
+        return where.bind(jdbc.sql(SEARCH_SELECT + where.sql() + SEARCH_ORDER + SEARCH_PAGE))
+                .param("limit", limit)
+                .param("offset", offset)
+                .query(this::map).list();
     }
 
     public long count(String status, String consumer, String errorCode) {
-        StringBuilder sql = new StringBuilder("SELECT count(*) FROM dlq_entry WHERE 1=1");
-        List<Object> args = filters(sql, status, consumer, errorCode);
-        return jdbc.sql(sql.toString()).params(args).query(Long.class).single();
+        SqlWhere where = filters(status, consumer, errorCode);
+        return where.bind(jdbc.sql(COUNT_SELECT + where.sql())).query(Long.class).single();
     }
 
     /** Voci di un tracciato (per lo stato {@code FAILED} e i nodi DLQ del tracciato). */
@@ -96,19 +126,21 @@ public class DlqRepository {
         jdbc.sql("DELETE FROM dlq_entry").update();
     }
 
-    private static List<Object> filters(StringBuilder sql, String status, String consumer, String errorCode) {
-        List<Object> args = new ArrayList<>();
-        appendEq(sql, args, "status", status == null ? null : status.trim().toUpperCase());
-        appendEq(sql, args, "consumer", consumer);
-        appendEq(sql, args, "error_code", errorCode);
-        return args;
+    /**
+     * Filtri facoltativi per uguaglianza, ignorati se assenti o vuoti; ogni valore è ripulito una volta sola (spazi
+     * esterni tolti, lo stato anche in maiuscolo) e arriva al database solo come parametro.
+     */
+    static SqlWhere filters(String status, String consumer, String errorCode) {
+        String cleanStatus = clean(status);
+        return new SqlWhere()
+                .eqIfPresent(DlqColumn.STATUS, cleanStatus == null ? null : cleanStatus.toUpperCase())
+                .eqIfPresent(DlqColumn.CONSUMER, clean(consumer))
+                .eqIfPresent(DlqColumn.ERROR_CODE, clean(errorCode));
     }
 
-    private static void appendEq(StringBuilder sql, List<Object> args, String col, String value) {
-        if (value != null && !value.isBlank()) {
-            sql.append(" AND ").append(col).append(" = ?");
-            args.add(value.trim());
-        }
+    /** Valore senza spazi esterni, oppure {@code null} (nessun filtro) se assente o vuoto. */
+    private static String clean(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private String json(JsonNode node) {
