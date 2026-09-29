@@ -204,12 +204,25 @@ jobs:
           sudo install -m 0755 "${tmp}/gitleaks" /usr/local/bin/gitleaks
           rm -rf "${tmp}"
           gitleaks version
+      - uses: actions/setup-java@v6
+        id: java
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - name: Repository Maven locale (POM per Trivy)
+        # Trivy ricostruisce l'albero delle dipendenze dai POM di ~/.m2. Con la cache del job backend (stessa chiave) è già
+        # tutto lì; se manca, lo risolve Maven (con i suoi tentativi), non Trivy: le richieste di Trivy a Maven Central
+        # prendono 429 dagli IP condivisi dei runner.
+        if: ${{ !cancelled() && steps.java.outputs.cache-hit != 'true' }}
+        run: ./mvnw -B -q -ntp dependency:resolve
       - name: Dipendenze (Trivy, Maven, pnpm, npm)
         if: ${{ !cancelled() }}
-        # Risolve le dipendenze transitive di Maven da Maven Central. --ignore-unfixed: senza correzione disponibile non
-        # si blocca; con correzione disponibile sì (aggiornare in patch, o accettare in .trivyignore.yaml con scadenza).
+        # --offline-scan: nessuna richiesta a Maven Central durante la scansione, i POM vengono da ~/.m2 (passo sopra).
+        # --ignore-unfixed: senza correzione disponibile non si blocca; con correzione disponibile sì (aggiornare in patch,
+        # o accettare in .trivyignore.yaml con scadenza).
         run: |
-          trivy fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --include-dev-deps \
+          trivy fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --include-dev-deps --offline-scan \
             --ignorefile .trivyignore.yaml --exit-code 1 --no-progress \
             --skip-dirs '**/node_modules' --skip-dirs '**/target' .
       - name: IaC (chart Helm, compose, Dockerfile)
