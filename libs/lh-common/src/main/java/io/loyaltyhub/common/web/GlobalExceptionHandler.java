@@ -82,6 +82,28 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(pd);
     }
 
+    /**
+     * Parametri di query illeggibili per il contenitore (Q-532 causa (a), F2-SEC-12): un parametro senza nome
+     * ({@code ?=x}, {@code ?&=x}), una codifica percentuale non valida ({@code ?q=%zz}), troppi parametri. Tomcat
+     * rende inutilizzabile l'intera mappa dei parametri e lancia {@code InvalidParameterException} al primo
+     * {@code getParameter*}: un {@code @RequestParam}, oppure il controllo del {@code memberId} in
+     * {@link MemberPrincipals}. È un errore di forma del client → 400, non 500 (docs/06 §2).
+     *
+     * <p><strong>Fail closed, per scelta.</strong> Il parametro non si ignora: dove serve al controllo del membro
+     * (regole 6-bis, 18, 22) un parametro illeggibile non può nascondere un {@code memberId}, quindi la richiesta è
+     * rifiutata prima del controller e {@link MemberPrincipals} lascia propagare l'eccezione (non la cattura). Il
+     * messaggio di Tomcat riporta il pezzo di query rifiutato (può contenere dati personali): non entra né nella risposta
+     * né nel log, che riporta solo il percorso.
+     */
+    @ExceptionHandler(org.apache.tomcat.util.http.InvalidParameterException.class)
+    public ResponseEntity<ProblemDetail> onInvalidParameters(HttpServletRequest request) {
+        log.debug("Parametri di richiesta non leggibili su {}", request != null ? request.getRequestURI() : "?");
+        ProblemDetail pd = base(HttpStatus.BAD_REQUEST, "bad-request", title(HttpStatus.BAD_REQUEST),
+                "Parametri di query non validi: nome assente o codifica non valida", request);
+        pd.setProperty("code", "BAD_REQUEST");
+        return ResponseEntity.badRequest().body(pd);
+    }
+
     @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
     public ResponseEntity<ProblemDetail> onNoResource(
             org.springframework.web.servlet.resource.NoResourceFoundException ex, HttpServletRequest request) {

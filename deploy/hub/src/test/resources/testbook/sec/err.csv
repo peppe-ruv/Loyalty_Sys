@@ -6,3 +6,4 @@ TB-SEC-ERR-004,metodo non ammesso: 405 senza dettagli interni,DELETE,/v1/campaig
 TB-SEC-ERR-005,tipo di contenuto non supportato: 415 senza dettagli interni,POST,/v1/members,ADMIN:marta.admin,text/plain,x,415,-
 TB-SEC-ERR-006,byte NUL nella query: nessuna fuga di dettagli,GET,/v1/members?q=a%00b,ADMIN:marta.admin,-,-,qualsiasi,-
 TB-SEC-ERR-007,byte NUL nel percorso: nessuna fuga di dettagli,GET,/v1/members/a%00b,ADMIN:marta.admin,-,-,qualsiasi,-
+TB-SEC-ERR-008,parametro di query senza nome (`?=x`): 400 senza dettagli interni (Q-532 causa a),GET,/v1/members?=x,ADMIN:marta.admin,-,-,400,-
