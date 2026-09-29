@@ -65,6 +65,16 @@
       <version>0.1.0-SNAPSHOT</version>
     </dependency>
 
+    <!-- Osservabilità (F2-OBS-01, M8.6a, ADR-012): metriche Micrometer in OTLP verso il collector del chart o del compose di riferimento. Spento di default (hub.yml): la demo ospitata non invia nulla. spring-boot-opentelemetry porta OpenTelemetryProperties (attributi della risorsa), richieste dall'esportatore OTLP di Boot 4; niente tracciamento né esportatori di tracce e log (M8.6b, Q-526). Q-520 -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-opentelemetry</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-otlp</artifactId>
+    </dependency>
+
     <!-- ==================== TEST ==================== -->
     <dependency>
       <groupId>org.springframework.boot</groupId>

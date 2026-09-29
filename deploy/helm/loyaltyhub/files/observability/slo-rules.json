@@ -1,0 +1,226 @@
+{
+  "groups": [
+    {
+      "name": "loyaltyhub-slo-portal",
+      "interval": "30s",
+      "rules": [
+        {
+          "record": "loyaltyhub:slo_portal_availability:error_ratio_rate5m",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_count{job=~\"loyaltyhub[^/]*/hub\",uri=~\"/v1/portal/.+\",status=~\"5..\"}[5m])) / sum by (job) (rate(http_server_requests_seconds_count{job=~\"loyaltyhub[^/]*/hub\",uri=~\"/v1/portal/.+\"}[5m]))"
+        },
+        {
+          "record": "loyaltyhub:slo_portal_availability:error_ratio_rate30m",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_count{job=~\"loyaltyhub[^/]*/hub\",uri=~\"/v1/portal/.+\",status=~\"5..\"}[30m])) / sum by (job) (rate(http_server_requests_seconds_count{job=~\"loyaltyhub[^/]*/hub\",uri=~\"/v1/portal/.+\"}[30m]))"
+        },
+        {
+          "record": "loyaltyhub:slo_portal_availability:error_ratio_rate1h",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_count{job=~\"loyaltyhub[^/]*/hub\",uri=~\"/v1/portal/.+\",status=~\"5..\"}[1h])) / sum by (job) (rate(http_server_requests_seconds_count{job=~\"loyaltyhub[^/]*/hub\",uri=~\"/v1/portal/.+\"}[1h]))"
+        },
+        {
+          "record": "loyaltyhub:slo_portal_availability:error_ratio_rate6h",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_count{job=~\"loyaltyhub[^/]*/hub\",uri=~\"/v1/portal/.+\",status=~\"5..\"}[6h])) / sum by (job) (rate(http_server_requests_seconds_count{job=~\"loyaltyhub[^/]*/hub\",uri=~\"/v1/portal/.+\"}[6h]))"
+        }
+      ]
+    },
+    {
+      "name": "loyaltyhub-slo-play",
+      "interval": "30s",
+      "rules": [
+        {
+          "record": "loyaltyhub:slo_play_latency:error_ratio_rate5m",
+          "expr": "1 - (sum by (job) (rate(http_server_requests_seconds_bucket{job=~\"loyaltyhub[^/]*/hub\",method=\"POST\",uri=\"/v1/portal/contests/{code}/play\",le=~\"0[.]50*\"}[5m])) / sum by (job) (rate(http_server_requests_seconds_count{job=~\"loyaltyhub[^/]*/hub\",method=\"POST\",uri=\"/v1/portal/contests/{code}/play\"}[5m])))"
+        },
+        {
+          "record": "loyaltyhub:slo_play_latency:error_ratio_rate30m",
+          "expr": "1 - (sum by (job) (rate(http_server_requests_seconds_bucket{job=~\"loyaltyhub[^/]*/hub\",method=\"POST\",uri=\"/v1/portal/contests/{code}/play\",le=~\"0[.]50*\"}[30m])) / sum by (job) (rate(http_server_requests_seconds_count{job=~\"loyaltyhub[^/]*/hub\",method=\"POST\",uri=\"/v1/portal/contests/{code}/play\"}[30m])))"
+        },
+        {
+          "record": "loyaltyhub:slo_play_latency:error_ratio_rate1h",
+          "expr": "1 - (sum by (job) (rate(http_server_requests_seconds_bucket{job=~\"loyaltyhub[^/]*/hub\",method=\"POST\",uri=\"/v1/portal/contests/{code}/play\",le=~\"0[.]50*\"}[1h])) / sum by (job) (rate(http_server_requests_seconds_count{job=~\"loyaltyhub[^/]*/hub\",method=\"POST\",uri=\"/v1/portal/contests/{code}/play\"}[1h])))"
+        },
+        {
+          "record": "loyaltyhub:slo_play_latency:error_ratio_rate6h",
+          "expr": "1 - (sum by (job) (rate(http_server_requests_seconds_bucket{job=~\"loyaltyhub[^/]*/hub\",method=\"POST\",uri=\"/v1/portal/contests/{code}/play\",le=~\"0[.]50*\"}[6h])) / sum by (job) (rate(http_server_requests_seconds_count{job=~\"loyaltyhub[^/]*/hub\",method=\"POST\",uri=\"/v1/portal/contests/{code}/play\"}[6h])))"
+        },
+        {
+          "record": "loyaltyhub:play_latency_seconds:p99_rate5m",
+          "expr": "histogram_quantile(0.99, sum by (job, le) (rate(http_server_requests_seconds_bucket{job=~\"loyaltyhub[^/]*/hub\",method=\"POST\",uri=\"/v1/portal/contests/{code}/play\"}[5m])))"
+        }
+      ]
+    },
+    {
+      "name": "loyaltyhub-slo-points",
+      "interval": "30s",
+      "rules": [
+        {
+          "record": "loyaltyhub:slo_action_to_points:error_ratio_rate5m",
+          "expr": "1 - (sum by (job) (rate(lh_action_to_points_seconds_bucket{job=~\"loyaltyhub[^/]*/hub\",le=~\"5|5[.]0+\"}[5m])) / sum by (job) (rate(lh_action_to_points_seconds_count{job=~\"loyaltyhub[^/]*/hub\"}[5m])))"
+        },
+        {
+          "record": "loyaltyhub:slo_action_to_points:error_ratio_rate30m",
+          "expr": "1 - (sum by (job) (rate(lh_action_to_points_seconds_bucket{job=~\"loyaltyhub[^/]*/hub\",le=~\"5|5[.]0+\"}[30m])) / sum by (job) (rate(lh_action_to_points_seconds_count{job=~\"loyaltyhub[^/]*/hub\"}[30m])))"
+        },
+        {
+          "record": "loyaltyhub:slo_action_to_points:error_ratio_rate1h",
+          "expr": "1 - (sum by (job) (rate(lh_action_to_points_seconds_bucket{job=~\"loyaltyhub[^/]*/hub\",le=~\"5|5[.]0+\"}[1h])) / sum by (job) (rate(lh_action_to_points_seconds_count{job=~\"loyaltyhub[^/]*/hub\"}[1h])))"
+        },
+        {
+          "record": "loyaltyhub:slo_action_to_points:error_ratio_rate6h",
+          "expr": "1 - (sum by (job) (rate(lh_action_to_points_seconds_bucket{job=~\"loyaltyhub[^/]*/hub\",le=~\"5|5[.]0+\"}[6h])) / sum by (job) (rate(lh_action_to_points_seconds_count{job=~\"loyaltyhub[^/]*/hub\"}[6h])))"
+        },
+        {
+          "record": "loyaltyhub:action_to_points_seconds:p95_rate5m",
+          "expr": "histogram_quantile(0.95, sum by (job, le) (rate(lh_action_to_points_seconds_bucket{job=~\"loyaltyhub[^/]*/hub\"}[5m])))"
+        }
+      ]
+    },
+    {
+      "name": "loyaltyhub-slo-alerts",
+      "interval": "30s",
+      "rules": [
+        {
+          "alert": "LoyaltyHubPortalAvailabilityBurnRateFast",
+          "expr": "loyaltyhub:slo_portal_availability:error_ratio_rate1h > (14.4 * 0.001) and loyaltyhub:slo_portal_availability:error_ratio_rate5m > (14.4 * 0.001)",
+          "for": "2m",
+          "labels": {
+            "severity": "critical",
+            "slo": "portal-availability"
+          },
+          "annotations": {
+            "summary": "Budget d'errore consumato in fretta: disponibilità del portale (veloce) su {{ $labels.job }}",
+            "description": "obiettivo: 99,9 % di risposte non 5xx sulle API del portale (ADR-036). Ritmo di consumo oltre 14,4 volte il budget (quota di risposte 5xx: {{ $value | humanizePercentage }} su 1 ora) su {{ $labels.job }}. Dashboard: Loyalty Hub — SLO."
+          }
+        },
+        {
+          "alert": "LoyaltyHubPortalAvailabilityBurnRateSlow",
+          "expr": "loyaltyhub:slo_portal_availability:error_ratio_rate6h > (6 * 0.001) and loyaltyhub:slo_portal_availability:error_ratio_rate30m > (6 * 0.001)",
+          "for": "15m",
+          "labels": {
+            "severity": "warning",
+            "slo": "portal-availability"
+          },
+          "annotations": {
+            "summary": "Budget d'errore consumato in fretta: disponibilità del portale (lento) su {{ $labels.job }}",
+            "description": "obiettivo: 99,9 % di risposte non 5xx sulle API del portale (ADR-036). Ritmo di consumo oltre 6 volte il budget (quota di risposte 5xx: {{ $value | humanizePercentage }} su 6 ore) su {{ $labels.job }}. Dashboard: Loyalty Hub — SLO."
+          }
+        },
+        {
+          "alert": "LoyaltyHubPlayLatencyBurnRateFast",
+          "expr": "loyaltyhub:slo_play_latency:error_ratio_rate1h > (14.4 * 0.01) and loyaltyhub:slo_play_latency:error_ratio_rate5m > (14.4 * 0.01)",
+          "for": "2m",
+          "labels": {
+            "severity": "critical",
+            "slo": "play-latency"
+          },
+          "annotations": {
+            "summary": "Budget d'errore consumato in fretta: latenza della giocata (veloce) su {{ $labels.job }}",
+            "description": "obiettivo: giocata p99 sotto 500 ms (ADR-036), cioè al più l'1 % delle giocate oltre 500 ms. Ritmo di consumo oltre 14,4 volte il budget (quota di giocate oltre 500 ms: {{ $value | humanizePercentage }} su 1 ora) su {{ $labels.job }}. Dashboard: Loyalty Hub — SLO."
+          }
+        },
+        {
+          "alert": "LoyaltyHubPlayLatencyBurnRateSlow",
+          "expr": "loyaltyhub:slo_play_latency:error_ratio_rate6h > (6 * 0.01) and loyaltyhub:slo_play_latency:error_ratio_rate30m > (6 * 0.01)",
+          "for": "15m",
+          "labels": {
+            "severity": "warning",
+            "slo": "play-latency"
+          },
+          "annotations": {
+            "summary": "Budget d'errore consumato in fretta: latenza della giocata (lento) su {{ $labels.job }}",
+            "description": "obiettivo: giocata p99 sotto 500 ms (ADR-036), cioè al più l'1 % delle giocate oltre 500 ms. Ritmo di consumo oltre 6 volte il budget (quota di giocate oltre 500 ms: {{ $value | humanizePercentage }} su 6 ore) su {{ $labels.job }}. Dashboard: Loyalty Hub — SLO."
+          }
+        },
+        {
+          "alert": "LoyaltyHubActionToPointsBurnRateFast",
+          "expr": "loyaltyhub:slo_action_to_points:error_ratio_rate1h > (14.4 * 0.05) and loyaltyhub:slo_action_to_points:error_ratio_rate5m > (14.4 * 0.05)",
+          "for": "2m",
+          "labels": {
+            "severity": "critical",
+            "slo": "action-to-points"
+          },
+          "annotations": {
+            "summary": "Budget d'errore consumato in fretta: tempo azione → punti (veloce) su {{ $labels.job }}",
+            "description": "obiettivo: azione → punti p95 sotto 5 s (ADR-036), cioè al più il 5 % degli accrediti oltre 5 s. Ritmo di consumo oltre 14,4 volte il budget (quota di accrediti oltre 5 s: {{ $value | humanizePercentage }} su 1 ora) su {{ $labels.job }}. Dashboard: Loyalty Hub — SLO."
+          }
+        },
+        {
+          "alert": "LoyaltyHubActionToPointsBurnRateSlow",
+          "expr": "loyaltyhub:slo_action_to_points:error_ratio_rate6h > (6 * 0.05) and loyaltyhub:slo_action_to_points:error_ratio_rate30m > (6 * 0.05)",
+          "for": "15m",
+          "labels": {
+            "severity": "warning",
+            "slo": "action-to-points"
+          },
+          "annotations": {
+            "summary": "Budget d'errore consumato in fretta: tempo azione → punti (lento) su {{ $labels.job }}",
+            "description": "obiettivo: azione → punti p95 sotto 5 s (ADR-036), cioè al più il 5 % degli accrediti oltre 5 s. Ritmo di consumo oltre 6 volte il budget (quota di accrediti oltre 5 s: {{ $value | humanizePercentage }} su 6 ore) su {{ $labels.job }}. Dashboard: Loyalty Hub — SLO."
+          }
+        }
+      ]
+    },
+    {
+      "name": "loyaltyhub-operations",
+      "interval": "30s",
+      "rules": [
+        {
+          "alert": "LoyaltyHubDlqMessages",
+          "expr": "sum by (job, errorCode) (increase(lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\"}[10m])) > 0 or sum by (job, errorCode) ((lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\"} unless lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\"} offset 10m) and on (job, instance) (process_uptime_seconds{job=~\"loyaltyhub[^/]*/hub\"} < 600 or process_uptime_seconds{job=~\"loyaltyhub[^/]*/hub\"} offset 10m)) > 0",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Messaggi in coda degli errori (DLQ) su {{ $labels.job }}",
+            "description": "Codice d'errore {{ $labels.errorCode }}: {{ $value }} messaggi negli ultimi 10 minuti. Vedere il backoffice, sezione DLQ (BO-27)."
+          }
+        },
+        {
+          "alert": "LoyaltyHubMessageRejected",
+          "expr": "sum by (job, errorCode) (increase(lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\",errorCode=~\"SIGNATURE_INVALID|PRODUCER_NOT_ALLOWED\"}[5m])) > 0 or sum by (job, errorCode) ((lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\",errorCode=~\"SIGNATURE_INVALID|PRODUCER_NOT_ALLOWED\"} unless lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\",errorCode=~\"SIGNATURE_INVALID|PRODUCER_NOT_ALLOWED\"} offset 5m) and on (job, instance) (process_uptime_seconds{job=~\"loyaltyhub[^/]*/hub\"} < 300 or process_uptime_seconds{job=~\"loyaltyhub[^/]*/hub\"} offset 5m)) > 0",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "Evento rifiutato per firma o produttore ({{ $labels.errorCode }}) su {{ $labels.job }}",
+            "description": "Un evento con firma non valida o da un produttore non ammesso è finito in DLQ ({{ $value }} negli ultimi 5 minuti): possibile tentativo di falsificazione sul bus (docs/18 §3.10 punto 11)."
+          }
+        },
+        {
+          "alert": "LoyaltyHubAuthFailureSpike",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_count{job=~\"loyaltyhub[^/]*/hub\",status=~\"401|403\"}[5m])) > 1",
+          "for": "10m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Picco di risposte 401 e 403 su {{ $labels.job }}",
+            "description": "Più di una risposta 401 o 403 al secondo per 10 minuti ({{ $value | humanize }}/s): token scaduti, client mal configurati o tentativi di accesso non autorizzato."
+          }
+        },
+        {
+          "alert": "LoyaltyHubOutboxBacklog",
+          "expr": "max by (job) (lh_outbox_pending{job=~\"loyaltyhub[^/]*/hub\"}) > 1000",
+          "for": "10m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Coda dell'outbox in crescita su {{ $labels.job }}",
+            "description": "Più di 1000 eventi in attesa di pubblicazione per 10 minuti ({{ $value }}): Kafka non raggiungibile o publisher lento."
+          }
+        },
+        {
+          "alert": "LoyaltyHubTelemetryAbsent",
+          "expr": "(max by (job) (max_over_time(process_uptime_seconds{job=~\"loyaltyhub[^/]*/hub\"}[1h])) unless max by (job) (max_over_time(process_uptime_seconds{job=~\"loyaltyhub[^/]*/hub\"}[10m]))) or absent_over_time(process_uptime_seconds{job=~\"loyaltyhub[^/]*/hub\"}[10m])",
+          "for": "5m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Nessuna metrica dall'hub da 10 minuti{{ if $labels.job }} su {{ $labels.job }}{{ end }}",
+            "description": "Prometheus non riceve più le metriche dell'hub{{ if $labels.job }} di {{ $labels.job }}{{ else }} di nessuna installazione{{ end }}: hub fermo, collector o ricevitore OTLP non raggiungibili, oppure osservabilità spenta. Dashboard e allarmi SLO sono ciechi. Con più installazioni sullo stesso Prometheus l'allarme è per installazione (job) e resta attivo per un'ora dall'ultima metrica ricevuta."
+          }
+        }
+      ]
+    }
+  ]
+}
