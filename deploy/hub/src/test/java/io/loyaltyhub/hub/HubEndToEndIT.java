@@ -1,5 +1,7 @@
 package io.loyaltyhub.hub;
 
+import io.loyaltyhub.testsupport.SourceActors;
+
 import io.loyaltyhub.ingestion.domain.ScenarioTime;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -95,7 +97,7 @@ class HubEndToEndIT {
                 "type", "purchase.completed", "subject", "member:MBR-000002", "time", weekday,
                 "data", Map.of("orderId", "ORD-HUB-1", "amount", 130, "currency", "EUR", "channel", "ONLINE"));
         JsonNode accepted = client().post().uri("/v1/events")
-                .contentType(MediaType.APPLICATION_JSON).body(event).retrieve().body(JsonNode.class);
+                .contentType(MediaType.APPLICATION_JSON).header("X-LH-Actor", SourceActors.forBody(event)).body(event).retrieve().body(JsonNode.class);
         assertThat(accepted.path("status").asString()).isEqualTo("ACCEPTED");
 
         assertThat(awaitPts("MBR-000002"))
@@ -277,7 +279,8 @@ class HubEndToEndIT {
         for (String type : new String[]{"ebill.activated", "directdebit.activated"}) {
             Map<String, Object> event = Map.of("specversion", "1.0", "id", "hub-digital-" + type, "source", "urn:loyaltyhub:source:billing",
                     "type", type, "subject", "member:MBR-000002", "time", weekday, "data", Map.of("contractId", "CTR-HUB-1"));
-            client().post().uri("/v1/events").contentType(MediaType.APPLICATION_JSON).body(event).retrieve().body(JsonNode.class);
+            client().post().uri("/v1/events").contentType(MediaType.APPLICATION_JSON)
+                .header("X-LH-Actor", SourceActors.forBody(event)).body(event).retrieve().body(JsonNode.class);
         }
         quiet(); // azioni → obiettivo → badge → ponte → campagna → wallet: tutta la catena elaborata
         boolean bonus = false;

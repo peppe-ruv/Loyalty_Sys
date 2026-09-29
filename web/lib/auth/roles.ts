@@ -5,6 +5,8 @@ import type { Role } from "@/lib/persona/personas";
 // ruolo; più ruoli operatore diversi o nessuno ⇒ `ANALYST` (sola lettura), mai l'unione dei poteri. Serve solo a
 // nascondere o disabilitare le azioni: l'autorizzazione vera resta nei servizi (`@RequiresRole`).
 
+// `SOURCE` (utenza di integrazione di una fonte di ingestion, Q-492) non è una persona del backoffice: non è tra questi
+// ruoli e non compare in nessuna scelta di persona. Un token con il solo `SOURCE` vale `ANALYST` nel web.
 const OPERATOR_ROLES: readonly Role[] = ["ADMIN", "MARKETING", "LEGAL", "CARE", "ANALYST"];
 export const MEMBER_ROLE = "MEMBER";
 

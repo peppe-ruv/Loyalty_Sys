@@ -86,6 +86,8 @@ erDiagram
 
 ## 3. API
 ### Ingresso (fonti esterne)
+**Autenticazione delle fonti** (M8.2f, F2-SEC-07, F2-IAM-02, Q-492): i tre endpoint di questa tabella accettano solo il ruolo `SOURCE` (più `ADMIN`, per gli strumenti demo e il backoffice). `SOURCE` è l'utenza di integrazione di una fonte, con **client credentials `private_key_jwt`** e **un client per fonte**: il client della fonte `<codice>` è `src-<codice>` (`client_id` ⇔ `source` del registro fonti, docs/18 §3.10). Il `source` dichiarato da ogni evento, elemento di batch o transazione deve coincidere con il codice del client; altrimenti `403 SOURCE_MISMATCH` (problem+json, `code` `SOURCE_MISMATCH`) e nulla è salvato né pubblicato. In un batch un solo elemento con un'altra fonte respinge l'intera richiesta; un elemento senza `source` resta `INVALID`. `ADMIN` non è soggetto al controllo. Ogni altro ruolo, anche `ANALYST` o nessun attore, riceve `403 FORBIDDEN_ROLE`. Nel profilo `demo` l'identità è `X-LH-Actor: SOURCE:src-<codice>`; in `enterprise` un access token del client (`lh_roles` con `SOURCE`, `azp` = `src-<codice>`). Vedi docs/06 §3.3.
+
 | Metodo | Path | Note |
 |---|---|---|
 | POST | `/v1/events` | corpo = CloudEvent. `202 {eventId, status, memberId?, rejectCode?}`. Errori di forma → `400` RFC 9457 (corpo assente o non JSON, attributo obbligatorio mancante, `data` non oggetto, `time` non RFC 3339); rifiuti di business → `202` con `status=REJECTED` (la fonte non deve ritentare). `source` = `urn:loyaltyhub:source:<codice>` con confronto esatto sul codice (un URN di servizio o estraneo non è una fonte → `SOURCE_DISABLED`); la forma breve senza `:` (`ecommerce`) è un errore di forma → `400` (Q-258: resta ammessa solo ai chiamanti interni — simulatore, scenari, transazioni) |
@@ -133,6 +135,7 @@ erDiagram
 
 ## 5. Regole
 Pipeline di accettazione, in ordine; al primo fallimento si salva `inbound_event` con l'esito e ci si ferma:
+0. identità (prima della pipeline, Q-492): ruolo `SOURCE` o `ADMIN` (altrimenti `403 FORBIDDEN_ROLE`); per `SOURCE`, il `source` dichiarato è quello del client `src-<codice>` (altrimenti `403 SOURCE_MISMATCH`, nulla salvato né pubblicato). Una forma non valida (per esempio `source` assente o in forma breve) resta un `400`, non un `SOURCE_MISMATCH`;
 1. forma envelope valida (altrimenti `400`, nulla salvato): attributi obbligatori, `data` oggetto, `time` RFC 3339, e (M8.7, Q-371) `id` ≤ 256, `source` e `type` ≤ 200, `subject` ≤ 512, `time` ≤ 64 caratteri, nessun carattere NUL negli attributi né in `data` (PostgreSQL non li memorizzerebbe: senza il controllo sarebbe un errore interno). I messaggi non riportano il valore;
 2. fonte esistente e abilitata → altrimenti `REJECTED/SOURCE_DISABLED`;
 3. tipo nella famiglia azioni, noto e abilitato, ammesso per la fonte → `UNKNOWN_TYPE` / `TYPE_NOT_ALLOWED`. Un `type` breve diventa `io.loyaltyhub.action.<type>` (un codice creato prima di Q-439 che inizia con `io.loyaltyhub.` si invia solo nella forma completa `io.loyaltyhub.action.<codice>`); un `type` completo fuori da `io.loyaltyhub.action.` (un effetto, un fatto o nessuna famiglia) è `UNKNOWN_TYPE` con il motivo «Tipo fuori dalla famiglia azioni», prima di cercarlo nel registro, così non finisce mai su un altro topic (Q-439). Per lo stesso motivo il riprocessa DLQ (`X-LH-Reprocess`) non ripubblica una riga `ACCEPTED` fuori famiglia: la richiesta passa dalla pipeline;
@@ -196,7 +199,7 @@ Scenari: i passi sono `{delayMs, memberId, type, data, source, note, at?}` (`at`
 Riferimento: `docs/18`. Le righe qui sotto sono segnaposto dell'adozione (M8.0): la fetta citata le rende normative aggiornando questa scheda.
 
 - **Ingresso batch e import file** (M8.7, F2-ING-01/02): fatto, vedi §2, §3 e §5 (`POST /v1/events/batch`, `/v1/imports*`, BO-32). Restano fuori: sorgente S3 e `kind=ATTRIBUTES` (Q-370), `Idempotency-Key` obbligatoria (M8.10, Q-353), antivirus sui file caricati (M8.10, docs/18 §3.10 punto 8).
-- **Identità delle fonti** (ADR-027, M8.2): client credentials per fonte (`private_key_jwt` o mTLS) al posto dell'ingresso aperto.
+- **Identità delle fonti** (ADR-027, M8.2, M8.2f): fatto con client credentials `private_key_jwt`, un client `src-<codice>` per fonte e il ruolo `SOURCE` (§3, docs/06 §3.3, Q-492); resta fuori mTLS. Una fonte creata a runtime da BO-09 non ha ancora un client nel realm: procedura manuale in `deploy/README.md` (Q-494, TOBE-009).
 - **Dati personali** (ADR-032, M8.4): `member_index.email_lower` resta solo per l'abbinamento; `inbound_event.payload` con dati personali ha retention breve.
 
 **Classificazione `x-lh-class`** (`docs/18 §3.15`, F2-GRC-05; prima stesura M8.0, verificata e resa per colonna in M8.13). Tutto ciò che non è elencato è `INTERNAL`.

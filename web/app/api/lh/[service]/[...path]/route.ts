@@ -9,6 +9,7 @@ import { correlationIdFrom, upstreamHeaders, type UpstreamIdentity } from "@/lib
 import { upstreamUrl } from "@/lib/api/proxyPath";
 import { problem, resolveBff } from "@/lib/auth/bff";
 import { checkPortalBody } from "@/lib/auth/memberScope";
+import { demoSourceActor } from "@/lib/api/demoSource";
 import { authorizeProxy } from "@/lib/auth/proxyAuth";
 
 // Proxy verso i microservizi (docs/07 §3): il browser chiama SEMPRE /api/lh/<service>/v1/...
@@ -93,6 +94,12 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
     }
     const multipart = (contentType ?? "").toLowerCase().startsWith("multipart/");
     body = multipart ? bytes : new TextDecoder().decode(bytes);
+  }
+  // Profilo demo, Q-492: l'ingresso delle azioni accetta solo il ruolo SOURCE; il pannello demo del portale invia
+  // «dalla fonte» che l'evento dichiara, con l'identità simulata `SOURCE:src-<codice>` (lib/api/demoSource.ts).
+  if (resolved.mode !== "enterprise") {
+    const source = demoSourceActor(service, req.method, path ?? [], typeof body === "string" ? body : undefined);
+    if (source) headers.set("x-lh-actor", source);
   }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);

@@ -1,5 +1,7 @@
 package io.loyaltyhub.hub;
 
+import io.loyaltyhub.testsupport.SourceActors;
+
 import io.loyaltyhub.hub.bus.HubInProcessBus;
 import io.loyaltyhub.ingestion.domain.ScenarioTime;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
@@ -707,6 +709,7 @@ class HubConcurrencyIT {
     }
 
     private Resp call(HttpMethod method, String uri, String actor, Object body) {
+        actor = SourceActors.actorFor(method.name(), uri, actor, body); // Q-492: l'ingresso vuole SOURCE:src-<fonte>
         RestClient.RequestBodySpec spec = client().method(method).uri(uri);
         if (actor != null) {
             spec = spec.header("X-LH-Actor", actor);

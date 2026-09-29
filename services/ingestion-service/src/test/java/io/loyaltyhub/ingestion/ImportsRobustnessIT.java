@@ -1,5 +1,6 @@
 package io.loyaltyhub.ingestion;
 
+import io.loyaltyhub.testsupport.SourceActors;
 import io.loyaltyhub.common.audit.AuditPublisher;
 import io.loyaltyhub.ingestion.api.InboundEventRequest;
 import io.loyaltyhub.ingestion.application.ImportFieldTypes;
@@ -466,7 +467,7 @@ class ImportsRobustnessIT extends ImportsItSupport {
             batch.add(Map.of("id", "rl-" + ip + "-" + i + "-" + System.nanoTime()));
         }
         return client().post().uri("/v1/events/batch").contentType(MediaType.APPLICATION_JSON)
-                .header("X-Forwarded-For", ip).body(batch)
+                .header("X-Forwarded-For", ip).header("X-LH-Actor", SourceActors.FALLBACK).body(batch)
                 .exchange((req, res) -> {
                     String text = new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8);
                     assertThat(res.getStatusCode().value()).as(text).isEqualTo(expected);

@@ -14,7 +14,7 @@ risoluzione del membro, deduplica, eventi non abbinati (riprova, abbina, abbinam
   (registro in §5).
 - **Esecuzione.** CSV in `services/ingestion-service/src/test/resources/testbook/ing/` (separatore `|`, prima colonna `id`),
   un caso dinamico `[<ID>] <descrizione>` per riga (`TestbookIngRows`); classi `TestbookIngPipelineIT`,
-  `TestbookIngResolutionIT`, `TestbookIngConfigIT` (un solo contesto Spring condiviso, `TestbookIngHarness`: Postgres
+  `TestbookIngResolutionIT`, `TestbookIngConfigIT`, `TestbookIngIamIT` (un solo contesto Spring condiviso, `TestbookIngHarness`: Postgres
   in-process, EmbeddedKafka, orologio del servizio regolabile) e `TestbookIngScenarioTimeTest` (unit). Id freschi per ogni
   caso (eventi, membri, fonti, tipi); pubblicazioni contate sulle righe `outbox` di `lh.actions.v1`, in modo sincrono.
   `bash scripts/testbook.sh` → `target/testbook/rapporto.md`.
@@ -41,7 +41,7 @@ risoluzione del membro, deduplica, eventi non abbinati (riprova, abbina, abbinam
 | R-16 | Abbina un `UNMATCHED` a `{memberId}` | §3; F-ING-04; Q-118 | `#match` 104-126 | RES |
 | R-17 | abbinamento automatico alla registrazione (7 g, 100, solo external/email, solo ACCEPTED) | F-ING-04; Q-115; Q-116; Q-119 | `#autoMatch` 140-163; `FactsHandler#updateMemberIndex` | AUT |
 | R-18 | audit di riprova/abbina (`TRANSITION`) e dell'automatico (job) | Q-117; F-AUD-01 | `#auditResolution` 211-233 | RES, AUT |
-| R-19 | guardie di ruolo (inbound.handle, actiontype.custom, SYSTEM solo ADMIN, demo.simulate; ingresso senza guardia) | docs/08 §2; docs/06 §3; Q-89 | `@RequiresRole`; `EventTypeService` 101-103 | RES, ETY, SIM, SCN, ACC, TXN |
+| R-19 | guardie di ruolo (inbound.handle, actiontype.custom, SYSTEM solo ADMIN, demo.simulate; ingresso solo `SOURCE` e `ADMIN`, Q-492) | docs/08 §2; docs/06 §3; Q-89; Q-492 | `@RequiresRole`; `EventTypeService` 101-103 | RES, ETY, SIM, SCN, ACC, TXN, IAM |
 | R-20 | tipi CUSTOM: tutto tranne `code`; formato del codice e categorie | §3; F-ING-06; Q-89 | `EventTypeService#create/#customDraft` 58-160 | ETY |
 | R-21 | tipi SYSTEM: solo name, description, enabled, icon | §3 | `EventTypeService#update` 84-124 | ETY |
 | R-22 | campi `data.*` dello schema per il costruttore di condizioni | §3; BO-06 | `SchemaFields` | ETY |
@@ -51,6 +51,7 @@ risoluzione del membro, deduplica, eventi non abbinati (riprova, abbina, abbinam
 | R-26 | esecutore scenari: ritardo ≤ 10 s, expect, avanzamento, origine, `{run}` | §3, §5; docs/10 §8; Q-129; Q-130 | `ScenarioService` 71-139 | SCN |
 | R-27 | espressioni `at` di docs/10 §1 su Europe/Rome | docs/10 §1, §8 | `ScenarioTime#resolve` 24-47 | SCT |
 | R-28 | pulizia di `inbound_event` oltre 7 giorni / 20 000 righe | §2 | — | — |
+| R-29 | identità delle fonti: ruolo `SOURCE`, client `src-<codice>` ⇔ `source` dichiarato, altrimenti `403 SOURCE_MISMATCH`; `SOURCE` solo sull'ingresso; `ADMIN` non è soggetto al legame | docs/18 §3.2, §3.10; docs/06 §3.3; ingestion §3; Q-492 | `SourceBinding`; `EventsController`, `EventsBatchController`, `TransactionsController` | IAM |
 
 ## 2. Rami del codice senza specifica e regole non implementate
 
@@ -684,7 +685,7 @@ aggiunge ingestion); outbox su `lh.actions.v1` con chiave `memberId` (ingestion 
 | TB-ING-ACC-006 | subject sulla riga di un ingresso accettato | Q-259: la riga ACCEPTED porta il subject normalizzato member:&lt;id&gt; (per riprova/abbina Q-118 conserva invece l'originale) | ingestion §2; Q-118 | `TestbookIngPipelineIT#acc` |
 | TB-ING-ACC-007 | attributi lh* inviati dalla fonte | ignorati: lhhop 0, lhcorrelationid = id, lhtenant aurora | docs/05 §2 (gli lh* li aggiunge ingestion) | `TestbookIngPipelineIT#acc` |
 | TB-ING-ACC-008 | conformità ai contratti | envelope valido per envelope.schema.json, data valido per purchase.completed.schema.json | docs/05 §2; contracts/events | `TestbookIngPipelineIT#acc` |
-| TB-ING-ACC-009 | nessuna guardia di ruolo sull'ingresso | X-LH-Actor ANALYST → 202 ACCEPTED | docs/06 §3 (solo scritture da backoffice); docs/17 ING-22 | `TestbookIngPipelineIT#acc` |
+| TB-ING-ACC-009 | ingresso non aperto a ANALYST (Q-492) | X-LH-Actor ANALYST → 403 FORBIDDEN_ROLE, nulla salvato né pubblicato | docs/06 §3.2; Q-492 | `TestbookIngPipelineIT#acc` |
 | TB-ING-ACC-010 | record reale su Kafka | record su lh.actions.v1 con chiave memberId e lhhop 0 entro 15 s | ingestion §7; docs/12 M0 | `TestbookIngPipelineIT#acc` |
 
 ### 3.11 MON — Monitor ingressi (F-ING-09, BO-26)
@@ -1024,7 +1025,7 @@ la transazione; mappatura verificata sull'envelope pubblicato.
 | TB-ING-TXN-025 | channel e items assenti | data senza channel né items | ingestion §3 (POST /v1/transactions); F-ING-07 | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-026 | channel KIOSK | REJECTED/INVALID_DATA | contracts purchase.completed (enum) | `TestbookIngConfigIT#txn` |
 | TB-ING-TXN-027 | riga con quantity -1 | REJECTED/INVALID_DATA | contracts purchase.completed | `TestbookIngConfigIT#txn` |
-| TB-ING-TXN-028 | nessuna guardia di ruolo (ANALYST) | 202 ACCEPTED | docs/06 §3; docs/17 ING-22 | `TestbookIngConfigIT#txn` |
+| TB-ING-TXN-028 | ingresso non aperto a ANALYST (Q-492) | 403 FORBIDDEN_ROLE, nulla salvato né pubblicato | docs/06 §3.2; Q-492 | `TestbookIngConfigIT#txn` |
 
 ### 3.16 SIM — Simulatore (F-DEMO-03, BO-28)
 
@@ -1142,15 +1143,64 @@ anomalia di calendario una volta.
 | TB-ING-SCT-024 | giorno sconosciuto @lastFoodayT10:00 · at `@lastFoodayT10:00` · adesso `2026-09-24T15:00` (Roma) | errore (espressione non valida) | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
 | TB-ING-SCT-025 | orario non valido @lastWeekdayT25:00 · at `@lastWeekdayT25:00` · adesso `2026-09-24T15:00` (Roma) | errore (espressione non valida) | docs/10 §1 (espressioni di data, Europe/Rome); docs/10 §8 | `TestbookIngScenarioTimeTest#sct` |
 
+### 3.19 IAM — Identità delle fonti (F2-SEC-07, F2-IAM-02, Q-492)
+
+**Regola.** L'ingresso (`POST /v1/events`, `/v1/events/batch`, `/v1/transactions`) accetta solo il ruolo `SOURCE` (più `ADMIN`
+per regola dell'intercettore). Il client della fonte `<codice>` è `src-<codice>` (`client_id` ⇔ `source` del registro): il
+`source` dichiarato da ogni evento, elemento di batch o transazione deve essere il codice del client, altrimenti `403
+SOURCE_MISMATCH` (nulla salvato né pubblicato; in un batch un solo elemento respinge tutta la richiesta). Ogni altro
+ruolo, anche `ANALYST` o nessun attore, riceve `403 FORBIDDEN_ROLE`; una forma non valida resta un `400`; `SOURCE` non
+raggiunge nessun altro endpoint. Nel profilo `demo` l'identità è `X-LH-Actor: SOURCE:src-<codice>`; con un token vero
+(profilo `enterprise`) la prova è `SourceAuthOidcIT`. Codice: `SourceBinding`, `EventsController`,
+`EventsBatchController`, `TransactionsController`, `EndpointAccessInterceptor`.
+
+Strategia: dominio a più dimensioni (forma del client × fonte dichiarata × ruolo × endpoint) ridotto a decisioni
+indipendenti: fonte dichiarata (propria, altra, forma alterata) per `SOURCE`; ruolo diverso da `SOURCE` (5 classi) per gli
+eventi; le stesse decisioni su batch e transazioni; ogni altro endpoint (7 aree) per `SOURCE`.
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-ING-IAM-001 | evento della propria fonte (SOURCE:src-<fonte>) | 202 ACCEPTED, una pubblicazione | docs/18 §3.10; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-002 | evento con la fonte di un altro client | 403 SOURCE_MISMATCH, nulla salvato né pubblicato | docs/18 §3.10; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-003 | client SOURCE senza prefisso src- | 403 SOURCE_MISMATCH, nulla salvato né pubblicato | Q-492 (client_id = src-<codice>) | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-004 | client SOURCE che è solo il prefisso (src-) | 403 SOURCE_MISMATCH, nulla salvato né pubblicato | Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-005 | URN con un suffisso oltre il codice della propria fonte | 403 SOURCE_MISMATCH: il confronto è esatto sul codice | Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-006 | codice della propria fonte in maiuscolo | 403 SOURCE_MISMATCH: confronto esatto, maiuscole comprese | Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-007 | ADMIN invia per una fonte qualunque | 202 ACCEPTED (nessun legame con il client) | docs/06 §3; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-008 | ruolo MARKETING | 403 FORBIDDEN_ROLE, nulla salvato né pubblicato | docs/06 §3.2; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-009 | ruolo LEGAL | 403 FORBIDDEN_ROLE, nulla salvato né pubblicato | docs/06 §3.2; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-010 | ruolo CARE | 403 FORBIDDEN_ROLE, nulla salvato né pubblicato | docs/06 §3.2; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-011 | ruolo ANALYST | 403 FORBIDDEN_ROLE, nulla salvato né pubblicato | docs/06 §3.2; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-012 | senza X-LH-Actor (anonimo) | 403 FORBIDDEN_ROLE, nulla salvato né pubblicato | docs/06 §3.2; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-013 | source in forma breve dichiarata da una fonte | 400 (la forma viene prima dell'identità), nulla salvato | Q-258; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-014 | evento senza source da una fonte | 400 (errore di forma, non un SOURCE_MISMATCH), nulla salvato | ingestion §5.1; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-015 | batch di sole azioni della propria fonte | 202, ogni elemento ACCEPTED | docs/18 §3.10; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-016 | batch con un elemento di un'altra fonte | 403 SOURCE_MISMATCH per l'intera richiesta, nessun elemento salvato né pubblicato | Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-017 | batch con un elemento senza source | 202: l'elemento senza source è INVALID, gli altri elaborati | ingestion §3 (batch); Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-018 | batch di ADMIN con fonti diverse | 202, ogni elemento ACCEPTED | docs/06 §3; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-019 | batch anonimo | 403 FORBIDDEN_ROLE, nulla salvato né pubblicato | docs/06 §3.2; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-020 | transazione della propria fonte | 202 ACCEPTED, una pubblicazione | docs/18 §3.10; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-021 | transazione con la fonte di un altro client | 403 SOURCE_MISMATCH, nulla salvato né pubblicato | Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-022 | transazione di ADMIN per una fonte qualunque | 202 ACCEPTED | docs/06 §3; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-023 | transazione anonima | 403 FORBIDDEN_ROLE, nulla salvato né pubblicato | docs/06 §3.2; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-024 | transazione con ANALYST | 403 FORBIDDEN_ROLE, nulla salvato né pubblicato | docs/06 §3.2; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-025 | SOURCE con l'header X-LH-Reprocess | 403 FORBIDDEN_ROLE, nessuna ripubblicazione | insight §3 (riprocessa: solo ADMIN); Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-026 | SOURCE: lettura del registro fonti | 403 FORBIDDEN_ROLE | docs/06 §3.2; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-027 | SOURCE: modifica di una fonte | 403 FORBIDDEN_ROLE | docs/06 §3.2; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-028 | SOURCE: monitor ingressi | 403 FORBIDDEN_ROLE | docs/06 §3.2; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-029 | SOURCE: tipi azione | 403 FORBIDDEN_ROLE | docs/06 §3.2; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-030 | SOURCE: simulatore | 403 FORBIDDEN_ROLE | docs/06 §3.2; Q-492 | `TestbookIngIamIT#iam` |
+| TB-ING-IAM-031 | SOURCE: scenari | 403 FORBIDDEN_ROLE | docs/06 §3.2; Q-492 | `TestbookIngIamIT#iam` |
+
 ## 4. Copertura
 
 | Voce | Valore |
 |---|---|
-| Regole inventariate | 28 (R-01…R-28) |
+| Regole inventariate | 29 (R-01…R-29) |
 | Rami del codice mappati | 114: `IngestionService` 28, `Source#allows` 2, `InboundResolution` 5, `InboundResolutionService` 14, `EventTypeService` 23, `TransactionsController` 11, `SimulatorController` 5, `ScenarioService` 8, `ScenarioTime` 6, monitor (`InboundEventsController`/`InboundEventRepository`) 6, guardie `@RequiresRole` 6 |
 | Fuori da questo file | ponte fatti → azioni e `LOOP_GUARD` (`FactsHandler#bridge`), `PUT /v1/internal-mappings` e riprocessa DLQ (`X-LH-Reprocess`, `ActionReplayService`, compreso il rifiuto di una riga fuori dalla famiglia azioni di Q-439): foresta docs/17 ING-09, ING-10, ING-15, ING-16 |
-| Righe del testbook | 690 |
-| Righe per area | FRM 29, PIP 51, SRC 70, FON 4, TYP 11, SCH 148, TIM 26, DUP 12, MBR 39, ACC 10, MON 11, RES 56, AUT 60, ETY 65, TXN 28, SIM 19, SCN 26, SCT 25 |
+| Righe del testbook | 721 |
+| Righe per area | FRM 29, PIP 51, SRC 70, FON 4, TYP 11, SCH 148, TIM 26, DUP 12, MBR 39, ACC 10, MON 11, RES 56, AUT 60, ETY 65, TXN 28, SIM 19, SCN 26, SCT 25, IAM 31 |
 | Combinazioni ridotte | PIP (512 ⇒ 51: singoli + coppie + catene), RES (> 64 ⇒ 4 tabelle indipendenti: 14 + 10 + 20 + 12), SCH (guasto singolo per campo e limite, 148), ETY (guasto singolo + origine × campo), TXN, SIM (guasto singolo) |
 | Tabelle complete | SRC fonte × tipo (55), MBR forma × stato (30), AUT forma × età × stato × fatto (48), RES ruolo × azione (14), RES stato × azione (10) |
 | Rami senza specifica | 20 (§2), 48 righe Q-In (18 voci in docs/15, §6) |

@@ -15,7 +15,7 @@ curl http://localhost:8083/backoffice/campaigns \
   -H "X-LH-Actor: luca.marketing"
 ```
 
-> **Nota:** gli endpoint del portale cliente (`/portal/...`) e di Ingestion (`/v1/actions`) accettano richieste senza header in modalita demo. In produzione tutti i canali richiedono un token OAuth o JWT emesso dal gateway.
+> **Nota:** gli endpoint del portale cliente (`/portal/...`) accettano richieste senza header in modalità demo. L'ingresso delle azioni (`POST /v1/events`, `POST /v1/events/batch`, `POST /v1/transactions`) no: vuole l'identità di una fonte (vedi [Fonti di ingestion](#fonti-di-ingestion-il-ruolo-source)). In produzione tutti i canali richiedono un token OIDC.
 
 ## Personas disponibili
 
@@ -68,6 +68,72 @@ flowchart LR
 ```
 
 Le regole complete sono nel paragrafo 3.2 di [Convenzioni backend](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/06-CONVENZIONI-BACKEND.md) su GitHub.
+
+## Fonti di ingestion: il ruolo SOURCE
+
+Una fonte è un sistema che invia azioni al programma, come un e-commerce o un CRM. Non è una persona: si autentica come **utenza di integrazione** con il ruolo `SOURCE`, e ogni fonte ha **un proprio client** e una propria chiave. Così il programma sa quale fonte ha inviato un'azione e può fermare una sola fonte senza toccare le altre.
+
+- **Il client di una fonte si chiama `src-<codice>`.** La fonte `ecommerce` usa il client `src-ecommerce`.
+- **`SOURCE` arriva solo all'ingresso.** Apre `POST /v1/events`, `POST /v1/events/batch` e `POST /v1/transactions`. Ogni altro endpoint risponde `403 FORBIDDEN_ROLE`, e `ADMIN` continua a passare ovunque.
+- **Una fonte invia solo per sé.** Il `source` di ogni evento deve essere quello del proprio client. Se non lo è, il servizio risponde `403` con `code` `SOURCE_MISMATCH` e non salva né pubblica nulla. In un batch basta un elemento di un'altra fonte per respingere l'intera richiesta.
+
+```mermaid
+sequenceDiagram
+  accTitle: Autenticazione di una fonte di ingestion
+  accDescr: La fonte firma un'asserzione con la propria chiave privata e chiede a Keycloak un token con client credentials private_key_jwt; Keycloak verifica la firma con il JWKS registrato per il client src-codice ed emette un token con il ruolo SOURCE. La fonte chiama ingestion con il token; ingestion controlla il ruolo e che il source dichiarato coincida con il client, poi accetta o risponde 403 SOURCE_MISMATCH.
+  autonumber
+  participant F as Fonte (client src-codice)
+  participant K as Keycloak
+  participant I as ingestion
+  F->>F: firma l'asserzione con la propria chiave privata
+  F->>K: client credentials con private_key_jwt
+  K->>K: verifica la firma con il JWKS registrato per il client
+  K-->>F: access token con lh_roles SOURCE e azp src-codice
+  F->>I: POST /v1/events con Authorization Bearer
+  I->>I: controlla il ruolo SOURCE
+  alt il source dichiarato è quello del client
+    I-->>F: 202 con l'esito dell'azione
+  else il source dichiarato è di un'altra fonte
+    I-->>F: 403 SOURCE_MISMATCH, nulla salvato
+  end
+```
+
+### Nel profilo demo
+
+Non serve alcun login: dichiara la fonte con l'header `X-LH-Actor` nella forma `SOURCE:src-<codice>`.
+
+```bash
+# Invia un evento come la fonte ecommerce (profilo demo)
+curl -X POST http://localhost:8081/v1/events \
+  -H "Content-Type: application/cloudevents+json" \
+  -H "X-LH-Actor: SOURCE:src-ecommerce" \
+  -d @evento.json
+```
+
+<Warning>
+Senza header, o con un ruolo diverso da `SOURCE` e `ADMIN`, l'ingresso risponde `403 FORBIDDEN_ROLE`. Se il `source` dell'evento non è quello del client, risponde `403 SOURCE_MISMATCH`.
+</Warning>
+
+### Nel profilo enterprise
+
+L'header `X-LH-Actor` è ignorato: la fonte ottiene un access token con il flusso client credentials e lo invia come `Authorization: Bearer`. L'autenticazione del client è `private_key_jwt`: la fonte firma un'asserzione con la propria chiave privata, e nel realm è registrato solo il JWKS con la chiave pubblica. Nessuna chiave o segreto sta nel repository.
+
+```bash
+# 1. Ottieni un access token (sostituisci l'URL del realm e l'asserzione firmata dalla tua chiave privata)
+TOKEN=$(curl -s -X POST "https://idp.example.org/realms/loyaltyhub/protocol/openid-connect/token" \
+  -d "grant_type=client_credentials" \
+  -d "client_id=src-ecommerce" \
+  -d "client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer" \
+  -d "client_assertion=$CLIENT_ASSERTION" | jq -r .access_token)
+
+# 2. Invia l'evento con il token
+curl -X POST https://hub.example.org/v1/events \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/cloudevents+json" \
+  -d @evento.json
+```
+
+Ogni fonte del seed ha già il suo client `src-<codice>` nel realm. Per una fonte che aggiungi dopo l'installazione, l'amministratore crea il client a mano: la procedura è in [Installazione enterprise](/operations/installazione-enterprise).
 
 ## Profilo enterprise: accesso dal browser con il BFF
 
@@ -133,6 +199,10 @@ sequenceDiagram
 
   <Accordion title="403 ENDPOINT_NOT_DECLARED">
     L'endpoint non dichiara `@RequiresRole` né `@PublicEndpoint` ed è rifiutato a tutti. Non dipende dal chiamante: segnala l'endpoint a chi mantiene il servizio.
+  </Accordion>
+
+  <Accordion title="403 SOURCE_MISMATCH">
+    Una fonte ha dichiarato nel `source` un codice diverso da quello del proprio client `src-<codice>`. Correggi il `source` dell'evento, oppure usa il client della fonte per cui invii. Nulla è stato salvato.
   </Accordion>
 
   <Accordion title="404 ACTOR_NOT_FOUND">

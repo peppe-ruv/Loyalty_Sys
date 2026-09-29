@@ -87,8 +87,8 @@ Percorsi relativi a `libs/lh-common/src/main/java/io/loyaltyhub/common/` e `serv
 | B-05 | `web/EndpointAccessInterceptor.java` gestore non `HandlerMethod`, dispatch `ASYNC` o controller di un framework (`org.springframework.boot.`, `org.springframework.web.servlet.`, `org.springdoc.`) → passa | il ramo del framework è raggiunto da `/error` e `/v3/api-docs`; il dispatch `ASYNC` e il gestore non `HandlerMethod` non hanno endpoint dedicati | `EndpointAccessInterceptorTest` (`frameworkHandlersAndNonMethodHandlersAreOutOfScope`, `asyncDispatchIsNotCheckedAgain`, `controllerInAnotherSpringPackageIsDeniedWhenUndeclared`) |
 | B-06 | `web/EndpointAccessInterceptor.java:75-85, 92-100` dichiarazione di metodo, poi di classe; `@PublicEndpoint` con motivo → passa; assente o motivo vuoto → 403 `ENDPOINT_NOT_DECLARED` | R-02 | GRD-001…005, GRD-026…040 |
 | B-07 | `web/EndpointAccessInterceptor.java:105` ADMIN passa sempre dove c'è `@RequiresRole` | R-02, R-03 | GRD (ADMIN) |
-| B-08 | `web/EndpointAccessInterceptor.java:109-114` annotazione vuota → tutti tranne ANALYST | R-02 | GRD-006…010 |
-| B-09 | `web/EndpointAccessInterceptor.java:116-119` ruolo nell'elenco, altrimenti 403 `FORBIDDEN_ROLE` | R-02, R-03 | GRD-011…025 |
+| B-08 | `web/EndpointAccessInterceptor.java:109-114` annotazione vuota → tutti tranne ANALYST e SOURCE (ruolo di integrazione, Q-492) | R-02 | GRD-006…010, GRD-042 |
+| B-09 | `web/EndpointAccessInterceptor.java:116-119` ruolo nell'elenco, altrimenti 403 `FORBIDDEN_ROLE`; `SOURCE` passa solo dove è elencato | R-02, R-03 | GRD-011…025, GRD-043…060 |
 | B-10 | `approval/GovernedTransitions.java:26-28` `trim` + maiuscole; sconosciuta/vuota/assente → 422 `INVALID_ACTION` | R-04 (codice e permissività senza specifica) | PRS |
 | B-11 | `approval/GovernedTransitions.java:35-38` decisione con ruolo ≠ approvatore (default LEGAL) e ≠ ADMIN → 403 | R-08 | ROL-006…015, ROL-041…050 |
 | B-12 | `approval/GovernedTransitions.java:40-41` altre azioni con ruolo ≠ ADMIN/MARKETING → 403 | R-09 | ROL-001…005, ROL-016…040, ROL-053…055 |
@@ -166,10 +166,14 @@ risposta attuale è la più conservativa: ruolo sconosciuto ⇒ ANALYST, sola le
 | TB-GOV-ACT-012 | `X-LH-Actor` = `"CARE: "` | `ANALYST:anonymous` (Q-298 DECISA) | docs/06 §3 | `TestbookGovActorTest#parse` |
 | TB-GOV-ACT-013 | `X-LH-Actor` = `":paolo"` | `ANALYST:paolo` (Q-298 DECISA) | docs/06 §3 | `TestbookGovActorTest#parse` |
 | TB-GOV-ACT-014 | `X-LH-Actor` = `"ADMIN:marta:extra"` | `ANALYST:marta:extra` (Q-298 DECISA) | docs/06 §3 | `TestbookGovActorTest#parse` |
+| TB-GOV-ACT-015 | `X-LH-Actor` = `"SOURCE:src-crm"` (ruolo di integrazione) | `SOURCE:src-crm` | docs/06 §3, §3.3 · Q-492 | `TestbookGovActorTest#parse` |
+| TB-GOV-ACT-016 | `X-LH-Actor` = `"source:src-crm"` | `ANALYST:src-crm` (Q-298 DECISA) | docs/06 §3 · Q-298 | `TestbookGovActorTest#parse` |
+| TB-GOV-ACT-017 | `X-LH-Actor` = `"SOURCE:"` | `ANALYST:anonymous` (Q-298 DECISA) | docs/06 §3 · Q-298 | `TestbookGovActorTest#parse` |
 
 ### 3.2 Guardia `@RequiresRole` e deny by default (`EndpointAccessInterceptor`)
 Domini: variante dell'annotazione (assente, vuota, un ruolo, due ruoli, solo ADMIN, sulla classe, `@PublicEndpoint` con
-motivo, `@PublicEndpoint` con motivo vuoto) × ruolo (5). Prodotto 8 × 5 = 40 ≤ 64 ⇒ **tabella completa**.
+motivo, `@PublicEndpoint` con motivo vuoto, e dal 2026-09-29 `@RequiresRole(SOURCE)` dell'ingresso delle fonti e i cinque ruoli
+delle letture aperte) × ruolo (6, con `SOURCE`, Q-492). Prodotto 10 × 6 = 60 ≤ 64 ⇒ **tabella completa**.
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -213,6 +217,26 @@ motivo, `@PublicEndpoint` con motivo vuoto) × ruolo (5). Prodotto 8 × 5 = 40 �
 | TB-GOV-GRD-038 | `@PublicEndpoint` con motivo vuoto, attore LEGAL | 403 `ENDPOINT_NOT_DECLARED` | docs/06 §3.2 (deny by default, F2-SEC-09) | `TestbookGovActorTest#guard` |
 | TB-GOV-GRD-039 | `@PublicEndpoint` con motivo vuoto, attore CARE | 403 `ENDPOINT_NOT_DECLARED` | docs/06 §3.2 (deny by default, F2-SEC-09) | `TestbookGovActorTest#guard` |
 | TB-GOV-GRD-040 | `@PublicEndpoint` con motivo vuoto, attore ANALYST | 403 `ENDPOINT_NOT_DECLARED` | docs/06 §3.2 (deny by default, F2-SEC-09) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-041 | nessuna annotazione, attore SOURCE | 403 `ENDPOINT_NOT_DECLARED` | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-042 | `@RequiresRole` vuoto (regola «scrittura»), attore SOURCE | 403 `FORBIDDEN_ROLE` | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-043 | `@RequiresRole(MARKETING)`, attore SOURCE | 403 `FORBIDDEN_ROLE` | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-044 | `@RequiresRole(ADMIN, CARE)`, attore SOURCE | 403 `FORBIDDEN_ROLE` | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-045 | `@RequiresRole(ADMIN)`, attore SOURCE | 403 `FORBIDDEN_ROLE` | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-046 | `@RequiresRole(LEGAL)` sulla classe, attore SOURCE | 403 `FORBIDDEN_ROLE` | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-047 | `@PublicEndpoint` con motivo, attore SOURCE | passa | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-048 | `@PublicEndpoint` con motivo vuoto, attore SOURCE | 403 `ENDPOINT_NOT_DECLARED` | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-049 | `@RequiresRole(SOURCE)` (ingresso delle fonti), attore ADMIN | passa | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-050 | `@RequiresRole(SOURCE)` (ingresso delle fonti), attore MARKETING | 403 `FORBIDDEN_ROLE` | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-051 | `@RequiresRole(SOURCE)` (ingresso delle fonti), attore LEGAL | 403 `FORBIDDEN_ROLE` | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-052 | `@RequiresRole(SOURCE)` (ingresso delle fonti), attore CARE | 403 `FORBIDDEN_ROLE` | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-053 | `@RequiresRole(SOURCE)` (ingresso delle fonti), attore ANALYST | 403 `FORBIDDEN_ROLE` | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-054 | `@RequiresRole(SOURCE)` (ingresso delle fonti), attore SOURCE | passa | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-055 | `@RequiresRole` con i cinque ruoli (lettura aperta), attore ADMIN | passa | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-056 | `@RequiresRole` con i cinque ruoli (lettura aperta), attore MARKETING | passa | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-057 | `@RequiresRole` con i cinque ruoli (lettura aperta), attore LEGAL | passa | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-058 | `@RequiresRole` con i cinque ruoli (lettura aperta), attore CARE | passa | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-059 | `@RequiresRole` con i cinque ruoli (lettura aperta), attore ANALYST | passa | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-060 | `@RequiresRole` con i cinque ruoli (lettura aperta), attore SOURCE | 403 `FORBIDDEN_ROLE` | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
 
 ## 4. Azioni del ciclo di vita (`GovernedTransitions.parse`)
 Domini: ogni valore dell'enum (8) + classi non valide (minuscolo, maiuscole miste, spazi, `ACTIVATE`, sconosciuta, quasi
@@ -1464,9 +1488,9 @@ Nessuna divergenza nelle aree di `lh-common` a logica pura (ACT, GRD, PRS, SMR, 
 | Rami del codice mappati | 61 (B-01…B-61); non raggiungibili senza concorrenza o per le API: B-30, esaurimento dei codici di B-60, `REFERRAL_SELF` |
 | Rami senza specifica | 18 (B-02, B-03, B-04, B-10, B-13, B-25, B-26, B-28, B-33, B-36, B-37, B-38, B-50, B-51, B-54, B-59, B-60, B-61) → righe AMBIGUO |
 | Regole senza codice | 0 (lo storico delle transizioni dei contenuti, R-13 per i contenuti, c'è da D-04) |
-| Righe | 988 — ACT 14, GRD 40, PRS 16, SMR 56, SMN 10, SMF 56, ROL 60, CMT 14, OVR 22, POL 44, MST 41, MRL 80, ANO 47, ATV 70, ATD 29, ATU 14, CRT 118, CRV 27, SEG 30, REF 23, ENT 47, APQ 8, MAT 100, EFF 17, ANX 5 |
+| Righe | 1011 — ACT 17, GRD 60, PRS 16, SMR 56, SMN 10, SMF 56, ROL 60, CMT 14, OVR 22, POL 44, MST 41, MRL 80, ANO 47, ATV 70, ATD 29, ATU 14, CRT 118, CRV 27, SEG 30, REF 23, ENT 47, APQ 8, MAT 100, EFF 17, ANX 5 |
 | di cui AMBIGUO | 132 (§13; CRT-045…048, 051, 052, 055, 056 e CRV-025 decise da Q-215), registrate in `docs/15` (Q-298…Q-310 e domande già aperte) |
-| Tabelle complete | GRD 8 × 5; SMR e SMF 7 × 8; ROL 8 × 5 (+ 2 × 5, 1 × 5); OVR 2 × 2 × 5; POL campagna 2 × 2 × 7 e scheda 4 × 2; MST 4 × 8; MRL 13 × 6; ATV 4 × 16; CRT 14 × 4 e assente × 14; MAT 20 × 5; EFF 4 × 4 |
+| Tabelle complete | GRD 10 × 6; SMR e SMF 7 × 8; ROL 8 × 5 (+ 2 × 5, 1 × 5); OVR 2 × 2 × 5; POL campagna 2 × 2 × 7 e scheda 4 × 2; MST 4 × 8; MRL 13 × 6; ATV 4 × 16; CRT 14 × 4 e assente × 14; MAT 20 × 5; EFF 4 × 4 |
 | Riduzioni | stato × azione × ruolo × policy (560) → SMR + SMF (112) + SMN (10: le celle in cui la regola entra nel ramo, 46 identiche a SMR) + ROL (60), perché ruolo e stato sono controlli indipendenti e in sequenza, più 5 righe di precedenza; per tipo di oggetto (3 × 56) → 12 verifiche di cablaggio per tipo nell'hub (la logica è la stessa `GovernedTransitions`); policy spenta nell'hub → nessun contesto dedicato (stesso bean, tabelle SMF/ROL); tabella dei contenuti → TB-ENG; ACT, PRS, ANO, ATD, CRV, SEG → ogni classe non valida da sola sul caso valido (guasto singolo) |
 | Divergenze | 4 cause, 12 righe: D-01 (8), D-02 (2), D-03 (1, risolta da `main`), D-04 (1) → tutte risolte, 0 righe rosse |
 

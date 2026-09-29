@@ -26,4 +26,4 @@ TB-ING-TXN-024|memberRef sconosciuto|unknownMember|202|UNMATCHED|-|UNMATCHED|F-I
 TB-ING-TXN-025|channel e items assenti|minimal|202|ACCEPTED|-|data senza channel né items|ingestion §3 (POST /v1/transactions); F-ING-07
 TB-ING-TXN-026|channel KIOSK|badChannel|202|REJECTED|INVALID_DATA|REJECTED/INVALID_DATA|contracts purchase.completed (enum)
 TB-ING-TXN-027|riga con quantity -1|badItem|202|REJECTED|INVALID_DATA|REJECTED/INVALID_DATA|contracts purchase.completed
-TB-ING-TXN-028|nessuna guardia di ruolo (ANALYST)|noGuard|202|ACCEPTED|-|202 ACCEPTED|docs/06 §3; docs/17 ING-22
+TB-ING-TXN-028|ingresso non aperto a ANALYST (Q-492)|noGuard|403|-|FORBIDDEN_ROLE|403 FORBIDDEN_ROLE, nulla salvato né pubblicato|docs/06 §3.2; Q-492

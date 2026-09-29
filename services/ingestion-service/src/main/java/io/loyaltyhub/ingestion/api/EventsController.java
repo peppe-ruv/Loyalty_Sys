@@ -6,6 +6,7 @@ import io.loyaltyhub.common.web.RequiresRole;
 import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.ingestion.application.ActionReplayService;
 import io.loyaltyhub.ingestion.application.IngestionService;
+import io.loyaltyhub.ingestion.application.SourceBinding;
 import io.loyaltyhub.ingestion.domain.IngestResult;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -44,12 +45,14 @@ public class EventsController {
     @PostMapping(
             path = "/events",
             consumes = {"application/json", "application/cloudevents+json"})
-    // SPEC-GAP: Q-492 — ingresso delle fonti aperto a ogni ruolo come nel PoC; ruolo SOURCE in M8.2f (deciso, Q-492).
-    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
+    // Q-492: ingresso delle fonti solo per il ruolo SOURCE (utenza di integrazione, client src-<codice>); ADMIN passa
+    // per regola dell'interceptor. La fonte dichiarata deve coincidere con il client (SourceBinding).
+    @RequiresRole(Role.SOURCE)
     public ResponseEntity<IngestResult> ingest(@RequestBody InboundEventRequest request,
                                                @RequestHeader(value = REPROCESS_HEADER, required = false) String reprocess) {
         // Q-258: una fonte esterna dichiara l'URN; la forma breve resta ai chiamanti interni, che non passano da qui.
         IngestionService.requireSourceUrn(request);
+        SourceBinding.requireMatch(ActorHolder.get(), request.source());
         if (reprocess != null && !reprocess.isBlank()) {
             // Solo su comando umano di un ADMIN (docs/servizi/insight-service.md §3: reprocess ruolo ADMIN).
             if (ActorHolder.get().role() != Role.ADMIN) {

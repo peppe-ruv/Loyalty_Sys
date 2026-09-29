@@ -54,6 +54,14 @@ public class LhException extends RuntimeException {
     }
 
     /**
+     * 403: una fonte autenticata dichiara un {@code source} diverso dal proprio client ({@code src-<codice>}); nulla è
+     * salvato né pubblicato (Q-492, docs/06 §3.2). Il valore dichiarato dal chiamante non si riporta nel dettaglio.
+     */
+    public static LhException sourceMismatch(String detail) {
+        return new LhException(HttpStatus.FORBIDDEN, "source-mismatch", "SOURCE_MISMATCH", detail, null);
+    }
+
+    /**
      * 403: l'endpoint non dichiara chi può chiamarlo ({@link RequiresRole} o {@link PublicEndpoint}) ed è rifiutato
      * a tutti (deny by default, F2-SEC-09). È un errore del codice, non del chiamante.
      */

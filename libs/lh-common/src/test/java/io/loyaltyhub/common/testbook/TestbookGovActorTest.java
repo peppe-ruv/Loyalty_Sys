@@ -75,6 +75,14 @@ class TestbookGovActorTest {
         public void admin() {
         }
 
+        @RequiresRole({Role.SOURCE})
+        public void source() {
+        }
+
+        @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
+        public void read_all() {
+        }
+
         @PublicEndpoint(reason = "sonda del testbook")
         public void open() {
         }

@@ -1,5 +1,7 @@
 package io.loyaltyhub.hub;
 
+import io.loyaltyhub.testsupport.SourceActors;
+
 import io.loyaltyhub.hub.bus.HubInProcessBus;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.AfterAll;
@@ -68,7 +70,8 @@ class HubEngagementIT {
                 "specversion", "1.0", "id", "hub-engagement-01", "source", "urn:loyaltyhub:source:ecommerce",
                 "type", "purchase.completed", "subject", "member:MBR-000002", "time", "2026-09-15T10:00:00Z",
                 "data", Map.of("orderId", "ORD-ENG-1", "amount", 130, "currency", "EUR", "channel", "ONLINE"));
-        client().post().uri("/v1/events").contentType(MediaType.APPLICATION_JSON).body(event).retrieve().body(JsonNode.class);
+        client().post().uri("/v1/events").contentType(MediaType.APPLICATION_JSON)
+                .header("X-LH-Actor", SourceActors.forBody(event)).body(event).retrieve().body(JsonNode.class);
 
         JsonNode message = awaitInbox("MBR-000002", m -> m.path("title").asString().equals("Hai guadagnato 162 punti"));
         assertThat(message.path("body").asString()).contains("Marco");

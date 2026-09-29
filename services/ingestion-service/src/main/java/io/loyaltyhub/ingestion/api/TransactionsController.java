@@ -1,11 +1,13 @@
 package io.loyaltyhub.ingestion.api;
 
+import io.loyaltyhub.common.web.ActorHolder;
 import io.loyaltyhub.common.web.RequiresRole;
 import io.loyaltyhub.common.web.Role;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.ingestion.application.IngestionService;
+import io.loyaltyhub.ingestion.application.SourceBinding;
 import io.loyaltyhub.ingestion.domain.EnvelopeLimits;
 import io.loyaltyhub.ingestion.domain.IngestResult;
 import org.springframework.http.HttpStatus;
@@ -53,10 +55,12 @@ public class TransactionsController {
     }
 
     @PostMapping("/transactions")
-    // SPEC-GAP: Q-492 — ingresso delle fonti aperto a ogni ruolo come nel PoC; ruolo SOURCE in M8.2f (deciso, Q-492).
-    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
+    // Q-492: ingresso delle fonti solo per il ruolo SOURCE (utenza di integrazione, client src-<codice>); ADMIN passa
+    // per regola dell'interceptor. La fonte dichiarata deve coincidere con il client (SourceBinding).
+    @RequiresRole(Role.SOURCE)
     public ResponseEntity<IngestResult> transaction(@RequestBody TransactionRequest t) {
         requireForm(t);
+        SourceBinding.requireMatch(ActorHolder.get(), t.source());
         boolean isReturn = "RETURN".equalsIgnoreCase(t.kind());
 
         // Q-269: amount/currency mancanti non sono un errore di forma: l'azione si costruisce senza e lo schema del

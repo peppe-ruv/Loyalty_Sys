@@ -54,7 +54,24 @@ Ogni evento che arriva all'ingestion attraversa 8 fasi. Se una fase fallisce, il
 | Metodo | Path | Descrizione |
 | --- | --- | --- |
 | `POST` | `/v1/events` | Riceve un CloudEvent e lo instrada nella pipeline |
+| `POST` | `/v1/events/batch` | Riceve fino a 1000 CloudEvent e restituisce l'esito di ciascuno |
 | `POST` | `/v1/transactions` | Riceve una transazione commerciale e genera un evento `purchase.completed` |
+
+### Autenticazione della fonte
+
+Questi tre endpoint accettano solo il ruolo `SOURCE` (e `ADMIN`). Ogni fonte usa il proprio client `src-<codice>` e può inviare solo azioni con il proprio `source`.
+
+| Profilo | Come ti identifichi |
+| --- | --- |
+| `demo` | Header `X-LH-Actor: SOURCE:src-<codice>`, per esempio `SOURCE:src-ecommerce`. |
+| `enterprise` | `Authorization: Bearer <token>` di un client credentials `private_key_jwt` con il ruolo `SOURCE`. |
+
+| Risposta | Quando |
+| --- | --- |
+| `403` `FORBIDDEN_ROLE` | L'attore non è `SOURCE` né `ADMIN`, o manca l'header nel profilo demo. |
+| `403` `SOURCE_MISMATCH` | Il `source` dichiarato non è quello del client. Nulla è salvato né pubblicato. In un batch un solo elemento di un'altra fonte respinge l'intera richiesta. |
+
+Per il flusso completo con il token vedi [Autenticazione](/api/autenticazione#fonti-di-ingestion-il-ruolo-source).
 
 ### POST /v1/events
 
@@ -66,7 +83,7 @@ Riceve un evento CloudEvent 1.0 nel formato `application/cloudevents+json`. E l'
 POST /v1/events HTTP/1.1
 Host: localhost:8081
 Content-Type: application/cloudevents+json
-X-LH-Actor: marta.admin
+X-LH-Actor: SOURCE:src-ecommerce
 ```
 
 **Body di esempio:**
@@ -75,7 +92,7 @@ X-LH-Actor: marta.admin
 {
   "specversion": "1.0",
   "type": "purchase.completed",
-  "source": "ecommerce",
+  "source": "urn:loyaltyhub:source:ecommerce",
   "id": "evt-2024-001",
   "time": "2024-01-15T14:30:00Z",
   "subject": "external:CUST-12345",
@@ -132,7 +149,7 @@ Endpoint semplificato per transazioni commerciali. Converte automaticamente il p
 POST /v1/transactions HTTP/1.1
 Host: localhost:8081
 Content-Type: application/json
-X-LH-Actor: marta.admin
+X-LH-Actor: SOURCE:src-ecommerce
 ```
 
 **Body di esempio:**

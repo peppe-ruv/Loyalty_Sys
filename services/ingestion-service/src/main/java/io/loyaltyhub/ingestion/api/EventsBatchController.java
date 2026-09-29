@@ -1,10 +1,12 @@
 package io.loyaltyhub.ingestion.api;
 
+import io.loyaltyhub.common.web.ActorHolder;
 import io.loyaltyhub.common.web.GlobalExceptionHandler;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.common.web.RequiresRole;
 import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.ingestion.application.BatchIngestionService;
+import io.loyaltyhub.ingestion.application.SourceBinding;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -65,6 +67,9 @@ public class EventsBatchController {
             schema = @Schema(implementation = InboundEventRequest.class))))
     @ApiResponse(responseCode = "400", description = "Corpo non JSON o non array; corpo oltre il tetto in streaming",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "403", description = "FORBIDDEN_ROLE: serve il ruolo SOURCE (o ADMIN); SOURCE_MISMATCH: un"
+            + " elemento dichiara una fonte diversa dal client src-<codice>, l'intero batch è respinto e nulla è salvato",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(responseCode = "413", description = "BATCH_BODY_TOO_LARGE: corpo oltre il tetto in byte",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(responseCode = "422", description = "BATCH_EMPTY, BATCH_TOO_LARGE, BATCH_OVER_RATE_LIMIT (il batch da solo"
@@ -73,12 +78,15 @@ public class EventsBatchController {
     @ApiResponse(responseCode = "429", description = "RATE_LIMITED: il batch starebbe nel limite ma la finestra"
             + " corrente dell'indirizzo è piena (Retry-After)",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
-    // SPEC-GAP: Q-492 — ingresso delle fonti aperto a ogni ruolo come nel PoC; ruolo SOURCE in M8.2f (deciso, Q-492).
-    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
+    // Q-492: ingresso delle fonti solo per il ruolo SOURCE (utenza di integrazione, client src-<codice>); ADMIN passa
+    // per regola dell'interceptor. La fonte dichiarata deve coincidere con il client (SourceBinding).
+    @RequiresRole(Role.SOURCE)
     public ResponseEntity<BatchIngestionService.BatchResult> ingestBatch(HttpEntity<JsonNode> request,
                                                                         HttpServletRequest http) {
         JsonNode body = request.getBody();
         int events = BatchIngestionService.requireBatch(body);
+        // Q-492: un solo elemento di un'altra fonte respinge l'intero batch, prima del limite di frequenza e di ogni scrittura.
+        SourceBinding.requireMatchAll(ActorHolder.get(), body);
         IngressRateLimitFilter.Admission admission = rateLimit.admitEvents(http, events);
         if (admission.tooMany()) {
             throw LhException.validation("BATCH_OVER_RATE_LIMIT", "Un batch di " + events + " eventi supera il limite di "

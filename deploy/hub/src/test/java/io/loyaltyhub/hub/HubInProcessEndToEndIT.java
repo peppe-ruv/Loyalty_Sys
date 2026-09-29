@@ -1,5 +1,7 @@
 package io.loyaltyhub.hub;
 
+import io.loyaltyhub.testsupport.SourceActors;
+
 import tools.jackson.databind.JsonNode;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.AfterAll;
@@ -62,7 +64,7 @@ class HubInProcessEndToEndIT {
                 "time", "2026-09-15T10:00:00Z",
                 "data", Map.of("orderId", "ORD-INPROC-1", "amount", 130, "currency", "EUR", "channel", "ONLINE"));
         JsonNode accepted = client().post().uri("/v1/events")
-                .contentType(MediaType.APPLICATION_JSON).body(event).retrieve().body(JsonNode.class);
+                .contentType(MediaType.APPLICATION_JSON).header("X-LH-Actor", SourceActors.forBody(event)).body(event).retrieve().body(JsonNode.class);
         assertThat(accepted.path("status").asString()).isEqualTo("ACCEPTED");
 
         long deadline = System.currentTimeMillis() + 25_000;

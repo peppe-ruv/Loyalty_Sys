@@ -1,0 +1,32 @@
+id|descrizione|caso|atteso|rif
+TB-ING-IAM-001|evento della propria fonte (SOURCE:src-<fonte>)|own|202 ACCEPTED, una pubblicazione|docs/18 §3.10; Q-492
+TB-ING-IAM-002|evento con la fonte di un altro client|other|403 SOURCE_MISMATCH, nulla salvato né pubblicato|docs/18 §3.10; Q-492
+TB-ING-IAM-003|client SOURCE senza prefisso src-|noPrefix|403 SOURCE_MISMATCH, nulla salvato né pubblicato|Q-492 (client_id = src-<codice>)
+TB-ING-IAM-004|client SOURCE che è solo il prefisso (src-)|onlyPrefix|403 SOURCE_MISMATCH, nulla salvato né pubblicato|Q-492
+TB-ING-IAM-005|URN con un suffisso oltre il codice della propria fonte|suffix|403 SOURCE_MISMATCH: il confronto è esatto sul codice|Q-492
+TB-ING-IAM-006|codice della propria fonte in maiuscolo|upper|403 SOURCE_MISMATCH: confronto esatto, maiuscole comprese|Q-492
+TB-ING-IAM-007|ADMIN invia per una fonte qualunque|adminAny|202 ACCEPTED (nessun legame con il client)|docs/06 §3; Q-492
+TB-ING-IAM-008|ruolo MARKETING|role:MARKETING|403 FORBIDDEN_ROLE, nulla salvato né pubblicato|docs/06 §3.2; Q-492
+TB-ING-IAM-009|ruolo LEGAL|role:LEGAL|403 FORBIDDEN_ROLE, nulla salvato né pubblicato|docs/06 §3.2; Q-492
+TB-ING-IAM-010|ruolo CARE|role:CARE|403 FORBIDDEN_ROLE, nulla salvato né pubblicato|docs/06 §3.2; Q-492
+TB-ING-IAM-011|ruolo ANALYST|role:ANALYST|403 FORBIDDEN_ROLE, nulla salvato né pubblicato|docs/06 §3.2; Q-492
+TB-ING-IAM-012|senza X-LH-Actor (anonimo)|role:NONE|403 FORBIDDEN_ROLE, nulla salvato né pubblicato|docs/06 §3.2; Q-492
+TB-ING-IAM-013|source in forma breve dichiarata da una fonte|short|400 (la forma viene prima dell'identità), nulla salvato|Q-258; Q-492
+TB-ING-IAM-014|evento senza source da una fonte|noSource|400 (errore di forma, non un SOURCE_MISMATCH), nulla salvato|ingestion §5.1; Q-492
+TB-ING-IAM-015|batch di sole azioni della propria fonte|batchOwn|202, ogni elemento ACCEPTED|docs/18 §3.10; Q-492
+TB-ING-IAM-016|batch con un elemento di un'altra fonte|batchMixed|403 SOURCE_MISMATCH per l'intera richiesta, nessun elemento salvato né pubblicato|Q-492
+TB-ING-IAM-017|batch con un elemento senza source|batchNoSource|202: l'elemento senza source è INVALID, gli altri elaborati|ingestion §3 (batch); Q-492
+TB-ING-IAM-018|batch di ADMIN con fonti diverse|batchAdmin|202, ogni elemento ACCEPTED|docs/06 §3; Q-492
+TB-ING-IAM-019|batch anonimo|batchAnonymous|403 FORBIDDEN_ROLE, nulla salvato né pubblicato|docs/06 §3.2; Q-492
+TB-ING-IAM-020|transazione della propria fonte|txnOwn|202 ACCEPTED, una pubblicazione|docs/18 §3.10; Q-492
+TB-ING-IAM-021|transazione con la fonte di un altro client|txnOther|403 SOURCE_MISMATCH, nulla salvato né pubblicato|Q-492
+TB-ING-IAM-022|transazione di ADMIN per una fonte qualunque|txnAdmin|202 ACCEPTED|docs/06 §3; Q-492
+TB-ING-IAM-023|transazione anonima|txnAnonymous|403 FORBIDDEN_ROLE, nulla salvato né pubblicato|docs/06 §3.2; Q-492
+TB-ING-IAM-024|transazione con ANALYST|txnAnalyst|403 FORBIDDEN_ROLE, nulla salvato né pubblicato|docs/06 §3.2; Q-492
+TB-ING-IAM-025|SOURCE con l'header X-LH-Reprocess|reprocess|403 FORBIDDEN_ROLE, nessuna ripubblicazione|insight §3 (riprocessa: solo ADMIN); Q-492
+TB-ING-IAM-026|SOURCE: lettura del registro fonti|reach:GET:/v1/sources|403 FORBIDDEN_ROLE|docs/06 §3.2; Q-492
+TB-ING-IAM-027|SOURCE: modifica di una fonte|reach:PUT:/v1/sources/ecommerce|403 FORBIDDEN_ROLE|docs/06 §3.2; Q-492
+TB-ING-IAM-028|SOURCE: monitor ingressi|reach:GET:/v1/inbound-events|403 FORBIDDEN_ROLE|docs/06 §3.2; Q-492
+TB-ING-IAM-029|SOURCE: tipi azione|reach:GET:/v1/event-types|403 FORBIDDEN_ROLE|docs/06 §3.2; Q-492
+TB-ING-IAM-030|SOURCE: simulatore|reach:POST:/v1/demo/simulator/fire|403 FORBIDDEN_ROLE|docs/06 §3.2; Q-492
+TB-ING-IAM-031|SOURCE: scenari|reach:GET:/v1/demo/scenarios|403 FORBIDDEN_ROLE|docs/06 §3.2; Q-492

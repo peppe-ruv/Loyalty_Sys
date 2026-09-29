@@ -5,6 +5,7 @@ Questa directory contiene la configurazione as-code dell'Identity Provider per i
 ## Contenuto
 
 - `realm.json`: export del realm `loyaltyhub` con client, ruoli, client scope (quelli standard di Keycloak 26 più `hub-audience` e `lh-roles-scope`), flussi e utenti senza password. I valori variabili sono segnaposto `${LH_*}` che Keycloak sostituisce con le variabili d'ambiente all'import.
+- Fonti di ingestion (Q-492): un client confidential `src-<codice>` per ogni fonte di `seed/sources.json` (`private_key_jwt`, solo service account, JWKS da `LH_SOURCE_<FONTE>_JWKS_URL`, nessun segreto) e l'utenza di servizio `service-account-src-<codice>` con il solo ruolo realm `SOURCE`, incluso nel claim `lh_roles`. Il ruolo `SOURCE` non è una persona: non lo riceve nessun utente demo. Per una fonte creata dopo l'installazione vedi `deploy/README.md` (Q-494).
 - `bootstrap.sh`: imposta le password temporanee degli operatori demo dopo l'avvio.
 - `test-idp/` (**solo prova**, F2-IAM-04): IdP OIDC secondario (`test-realm.json`), LDAP (`ldap-seed.ldif`), overlay del realm (`realm-test-overlay.json`), lo script che lo applica (`apply-overlay.sh`) e la verifica (`verify.sh`).
 
@@ -24,7 +25,7 @@ Il servizio `idp` del compose passa a Keycloak tutte le variabili usate come seg
 | `LH_WEB_URL` | no | `http://localhost:3000` | origine del BFF senza barra finale, la stessa data al web: redirect URI esatta `/api/auth/callback`, ritorno dopo il logout `/` e back-channel logout del client `web` |
 | `LH_CMS_URL` | no | `http://localhost:8055` | origine di Directus: redirect URI del client `cms` |
 | `LH_JOBS_JWKS_URL` | no | `http://localhost/jwks/lh-jobs.json` | JWKS del client `lh-jobs` (`private_key_jwt`) |
-| `LH_SOURCE_<FONTE>_JWKS_URL` | no | `http://localhost/jwks/<fonte>.json` | JWKS dei client fonte `crm`, `app`, `ecommerce`, `billing`, `partner`, `internal`, `simulator` |
+| `LH_SOURCE_<FONTE>_JWKS_URL` | no | `http://localhost/jwks/<fonte>.json` | JWKS del client fonte `src-<fonte>` (`crm`, `app`, `ecommerce`, `billing`, `partner`, `internal`, `simulator`); la chiave pubblica della fonte si registra qui, all'installazione |
 
 Keycloak valida gli URL all'import: un segnaposto non sostituito (es. `${LH_WEB_URL}/…`) fa fallire l'avvio con `Backchannel logout URL is not a valid URL` o `JWKS URL is not a valid URL`. I default JWKS sono segnaposto sintatticamente validi: finché non puntano al JWKS reale della fonte, l'autenticazione `private_key_jwt` di quel client fallisce (fail-closed).
 
@@ -88,7 +89,7 @@ Il broker verso `test-idp` richiede un login interattivo nel browser: è un pass
 node --test scripts/check-realm.mjs
 ```
 
-Controlla ruoli, assenza di segreti letterali (`secret`, `clientSecret`, `bindCredential`) in `realm.json` e nell'overlay, redirect URI senza wildcard assolute, URI del client `web` uguali ai percorsi del BFF (callback, ritorno dopo il logout, back-channel logout), durata dell'access token, `private_key_jwt` per i service account, che ogni client scope referenziato sia definito e che ogni segnaposto `${LH_*}` di `realm.json` sia passato al servizio `idp` del compose. Gira nel job `seed` della CI.
+Controlla ruoli (compreso `SOURCE`), un client `src-<codice>` per ogni fonte del seed con impostazioni e utenza di servizio (solo `SOURCE`), assenza di segreti letterali (`secret`, `clientSecret`, `bindCredential`) in `realm.json` e nell'overlay, redirect URI senza wildcard assolute, URI del client `web` uguali ai percorsi del BFF (callback, ritorno dopo il logout, back-channel logout), durata dell'access token, `private_key_jwt` per i service account, che ogni client scope referenziato sia definito e che ogni segnaposto `${LH_*}` di `realm.json` sia passato al servizio `idp` del compose. Gira nel job `seed` della CI.
 
 ## Diagrammi
 

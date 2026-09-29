@@ -36,9 +36,9 @@ test('Caricamento realm.json', () => {
   assert.ok(realm, 'Impossibile fare il parse del JSON');
 });
 
-test('Tutti i 6 ruoli (ADMIN, MARKETING, LEGAL, CARE, ANALYST, MEMBER) sono presenti', () => {
+test('Tutti i 7 ruoli (ADMIN, MARKETING, LEGAL, CARE, ANALYST, MEMBER, SOURCE) sono presenti', () => {
   const roles = realm.roles.realm.map(r => r.name);
-  const required = ['ADMIN', 'MARKETING', 'LEGAL', 'CARE', 'ANALYST', 'MEMBER'];
+  const required = ['ADMIN', 'MARKETING', 'LEGAL', 'CARE', 'ANALYST', 'MEMBER', 'SOURCE'];
   required.forEach(req => {
     assert.ok(roles.includes(req), `Manca il ruolo: ${req}`);
   });
@@ -90,6 +90,83 @@ test('I client di tipo service-account usano private_key_jwt (client-jwt)', () =
             }
         });
     }
+});
+
+// Fonti di ingestion (Q-492, F2-SEC-07, F2-IAM-02, docs/18 §3.2 e §3.10): un client credentials con private_key_jwt per
+// fonte, `client_id` = `src-<codice>` del registro fonti (seed/sources.json), utenza di servizio con il solo ruolo SOURCE.
+const SEED_SOURCES = () => JSON.parse(fs.readFileSync(path.join(ROOT, 'seed/sources.json'), 'utf8')).map(s => s.code);
+const SOURCE_PREFIX = 'src-';
+
+test('Il prefisso dei client di fonte del realm è lo stesso del codice (ActorContext.SOURCE_CLIENT_PREFIX)', () => {
+  const java = fs.readFileSync(path.join(ROOT, 'libs/lh-common/src/main/java/io/loyaltyhub/common/web/ActorContext.java'), 'utf8');
+  const prefix = (java.match(/SOURCE_CLIENT_PREFIX = "([^"]+)"/) || [])[1];
+  assert.equal(prefix, SOURCE_PREFIX, 'ActorContext.SOURCE_CLIENT_PREFIX diverso dal prefisso dei client del realm');
+});
+
+test('Ogni fonte del seed ha un client src-<codice>: confidential, private_key_jwt, solo service account, senza segreto', () => {
+  const codes = SEED_SOURCES();
+  assert.ok(codes.length > 0, 'seed/sources.json vuoto');
+  for (const code of codes) {
+    const id = `${SOURCE_PREFIX}${code}`;
+    const client = realm.clients.find(c => c.clientId === id);
+    assert.ok(client, `Manca il client ${id} per la fonte ${code}`);
+    assert.equal(client.enabled, true, `${id} disabilitato`);
+    assert.equal(client.publicClient, false, `${id} deve essere confidential`);
+    assert.equal(client.bearerOnly, false, `${id}`);
+    assert.equal(client.serviceAccountsEnabled, true, `${id}: serviceAccountsEnabled`);
+    assert.equal(client.standardFlowEnabled, false, `${id}: standardFlowEnabled`);
+    assert.equal(client.implicitFlowEnabled, false, `${id}: implicitFlowEnabled`);
+    assert.equal(client.directAccessGrantsEnabled, false, `${id}: directAccessGrantsEnabled`);
+    assert.equal(client.clientAuthenticatorType, 'client-jwt', `${id}: private_key_jwt`);
+    assert.ok(!('secret' in client), `${id}: nessun segreto (né chiavi né certificati) nel repository`);
+    assert.deepEqual(client.redirectUris ?? [], [], `${id}: nessuna redirect URI`);
+    // La chiave pubblica della fonte si registra all'installazione: JWKS da segnaposto, mai un certificato nel file.
+    assert.equal(client.attributes?.['use.jwks.url'], 'true', `${id}: use.jwks.url`);
+    assert.match(client.attributes?.['jwks.url'] ?? '', PLACEHOLDER, `${id}: jwks.url deve essere un segnaposto \${'{LH_…}'}`);
+    assert.ok(!('jwt.credential.certificate' in (client.attributes ?? {})), `${id}: nessun certificato letterale`);
+    // Audience `hub` e claim `lh_roles` arrivano dai client scope predefiniti del realm: il client non li sostituisce.
+    for (const scope of ['hub-audience', 'lh-roles-scope']) {
+      assert.ok((realm.defaultDefaultClientScopes ?? []).includes(scope), `${scope} non è tra gli scope predefiniti del realm`);
+      if (client.defaultClientScopes) assert.ok(client.defaultClientScopes.includes(scope), `${id}: manca lo scope ${scope}`);
+    }
+  }
+});
+
+test('Nessun client di fonte senza prefisso o fuori dal registro fonti: src-<codice> ⇔ fonte del seed', () => {
+  const codes = new Set(SEED_SOURCES());
+  for (const c of realm.clients) {
+    if (c.clientId.startsWith(SOURCE_PREFIX)) {
+      assert.ok(codes.has(c.clientId.slice(SOURCE_PREFIX.length)), `Il client ${c.clientId} non corrisponde a nessuna fonte del seed`);
+    } else {
+      assert.ok(!codes.has(c.clientId), `Il client ${c.clientId} usa il codice della fonte senza il prefisso ${SOURCE_PREFIX}`);
+    }
+  }
+});
+
+test('Il ruolo SOURCE è solo delle utenze di servizio dei client src-<codice>, e queste hanno solo SOURCE', () => {
+  const users = realm.users ?? [];
+  for (const code of SEED_SOURCES()) {
+    const id = `${SOURCE_PREFIX}${code}`;
+    const account = users.find(u => u.serviceAccountClientId === id);
+    assert.ok(account, `Manca l'utenza di servizio del client ${id}`);
+    assert.equal(account.username, `service-account-${id}`);
+    assert.equal(account.enabled, true);
+    assert.deepEqual(account.realmRoles, ['SOURCE'], `${id}: l'utenza di servizio ha solo il ruolo SOURCE`);
+    assert.ok(!account.credentials?.length, `${id}: nessuna credenziale sull'utenza di servizio`);
+    assert.ok(!account.clientRoles || Object.keys(account.clientRoles).length === 0, `${id}: nessun ruolo di client`);
+    assert.ok(!account.groups?.length, `${id}: nessun gruppo`);
+  }
+  for (const u of users) {
+    const isSourceAccount = String(u.serviceAccountClientId ?? '').startsWith(SOURCE_PREFIX);
+    if (!isSourceAccount) {
+      assert.ok(!(u.realmRoles ?? []).includes('SOURCE'), `L'utente ${u.username} non è una fonte e non deve avere il ruolo SOURCE (mai una persona del backoffice)`);
+    }
+  }
+  // SOURCE non entra in ruoli compositi né in gruppi.
+  for (const r of realm.roles.realm) {
+    assert.ok(!(r.composites?.realm ?? []).includes('SOURCE'), `Il ruolo ${r.name} non deve contenere SOURCE`);
+  }
+  assert.ok(!(realm.groups ?? []).length || !JSON.stringify(realm.groups).includes('SOURCE'), 'SOURCE non va assegnato a gruppi');
 });
 
 test('Le redirect URI non contengono wildcard assolute come http://* o *', () => {

@@ -1,5 +1,7 @@
 package io.loyaltyhub.hub;
 
+import io.loyaltyhub.testsupport.SourceActors;
+
 import io.loyaltyhub.common.event.LhHeaders;
 import io.loyaltyhub.hub.bus.HubInProcessBus;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
@@ -228,6 +230,7 @@ abstract class TestbookE2eSupportIT {
     }
 
     Resp send(String method, String path, String actor, Object body) {
+        actor = SourceActors.actorFor(method, path, actor, body); // Q-492: l'ingresso vuole SOURCE:src-<fonte>
         var spec = RestClient.create("http://localhost:" + port).method(HttpMethod.valueOf(method)).uri(path);
         if (actor != null) {
             spec = spec.header("X-LH-Actor", actor);

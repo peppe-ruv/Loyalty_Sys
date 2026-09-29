@@ -42,6 +42,7 @@ components:
           - MARKETING
           - LEGAL
           - ADMIN
+          - SOURCE
           type: string
         entityType:
           type: string

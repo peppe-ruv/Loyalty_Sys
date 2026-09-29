@@ -1,5 +1,6 @@
 package io.loyaltyhub.ingestion;
 
+import io.loyaltyhub.testsupport.SourceActors;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.testsupport.TopicReader;
@@ -358,7 +359,7 @@ class IngestionPipelineIT {
                 "time", Instant.now().toString()); // manca data
         try {
             client().post().uri("/v1/events").contentType(MediaType.APPLICATION_JSON)
-                    .body(bad).retrieve().toEntity(JsonNode.class);
+                    .header("X-LH-Actor", SourceActors.forBody(bad)).body(bad).retrieve().toEntity(JsonNode.class);
             fail("atteso 400");
         } catch (RestClientResponseException e) {
             assertThat(e.getStatusCode().value()).isEqualTo(400);
@@ -375,7 +376,8 @@ class IngestionPipelineIT {
     }
 
     private JsonNode postTransaction(Map<String, Object> txn, int expectedStatus) {
-        return client().post().uri("/v1/transactions").contentType(MediaType.APPLICATION_JSON).body(txn)
+        return client().post().uri("/v1/transactions").contentType(MediaType.APPLICATION_JSON)
+                .header("X-LH-Actor", SourceActors.forBody(txn)).body(txn)
                 .exchange((req, res) -> {
                     assertThat(res.getStatusCode().value()).isEqualTo(expectedStatus);
                     return mapper.readTree(res.getBody());
@@ -384,7 +386,8 @@ class IngestionPipelineIT {
 
     private JsonNode post(Map<String, Object> event, int expectedStatus) {
         ResponseEntity<JsonNode> response = client().post().uri("/v1/events")
-                .contentType(MediaType.APPLICATION_JSON).body(event).retrieve().toEntity(JsonNode.class);
+                .contentType(MediaType.APPLICATION_JSON).header("X-LH-Actor", SourceActors.forBody(event)).body(event)
+                .retrieve().toEntity(JsonNode.class);
         assertThat(response.getStatusCode().value()).isEqualTo(expectedStatus);
         return response.getBody();
     }

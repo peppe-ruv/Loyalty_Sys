@@ -37,6 +37,10 @@
         "description": "Membro iscritto"
       },
       {
+        "name": "SOURCE",
+        "description": "Utenza di integrazione di una fonte di ingestion (non una persona)"
+      },
+      {
         "name": "MFA_REQUIRED_ROLE",
         "description": "Triggers Conditional MFA"
       }
@@ -838,8 +842,8 @@
       }
     },
     {
-      "clientId": "crm",
-      "name": "Source crm",
+      "clientId": "src-crm",
+      "name": "Fonte crm",
       "enabled": true,
       "clientAuthenticatorType": "client-jwt",
       "redirectUris": [],
@@ -852,12 +856,14 @@
       "publicClient": false,
       "protocol": "openid-connect",
       "attributes": {
+        "use.jwks.url": "true",
         "jwks.url": "${LH_SOURCE_CRM_JWKS_URL}"
-      }
+      },
+      "description": "Client credentials con private_key_jwt della fonte 'crm' di ingestion: client_id = src-<codice>, un client per fonte (docs/18 §3.10). Nessuna chiave nel repository: il JWKS della fonte si registra all'installazione."
     },
     {
-      "clientId": "app",
-      "name": "Source app",
+      "clientId": "src-app",
+      "name": "Fonte app",
       "enabled": true,
       "clientAuthenticatorType": "client-jwt",
       "redirectUris": [],
@@ -870,12 +876,14 @@
       "publicClient": false,
       "protocol": "openid-connect",
       "attributes": {
+        "use.jwks.url": "true",
         "jwks.url": "${LH_SOURCE_APP_JWKS_URL}"
-      }
+      },
+      "description": "Client credentials con private_key_jwt della fonte 'app' di ingestion: client_id = src-<codice>, un client per fonte (docs/18 §3.10). Nessuna chiave nel repository: il JWKS della fonte si registra all'installazione."
     },
     {
-      "clientId": "ecommerce",
-      "name": "Source ecommerce",
+      "clientId": "src-ecommerce",
+      "name": "Fonte ecommerce",
       "enabled": true,
       "clientAuthenticatorType": "client-jwt",
       "redirectUris": [],
@@ -888,12 +896,14 @@
       "publicClient": false,
       "protocol": "openid-connect",
       "attributes": {
+        "use.jwks.url": "true",
         "jwks.url": "${LH_SOURCE_ECOMMERCE_JWKS_URL}"
-      }
+      },
+      "description": "Client credentials con private_key_jwt della fonte 'ecommerce' di ingestion: client_id = src-<codice>, un client per fonte (docs/18 §3.10). Nessuna chiave nel repository: il JWKS della fonte si registra all'installazione."
     },
     {
-      "clientId": "billing",
-      "name": "Source billing",
+      "clientId": "src-billing",
+      "name": "Fonte billing",
       "enabled": true,
       "clientAuthenticatorType": "client-jwt",
       "redirectUris": [],
@@ -906,12 +916,14 @@
       "publicClient": false,
       "protocol": "openid-connect",
       "attributes": {
+        "use.jwks.url": "true",
         "jwks.url": "${LH_SOURCE_BILLING_JWKS_URL}"
-      }
+      },
+      "description": "Client credentials con private_key_jwt della fonte 'billing' di ingestion: client_id = src-<codice>, un client per fonte (docs/18 §3.10). Nessuna chiave nel repository: il JWKS della fonte si registra all'installazione."
     },
     {
-      "clientId": "partner",
-      "name": "Source partner",
+      "clientId": "src-partner",
+      "name": "Fonte partner",
       "enabled": true,
       "clientAuthenticatorType": "client-jwt",
       "redirectUris": [],
@@ -924,12 +936,14 @@
       "publicClient": false,
       "protocol": "openid-connect",
       "attributes": {
+        "use.jwks.url": "true",
         "jwks.url": "${LH_SOURCE_PARTNER_JWKS_URL}"
-      }
+      },
+      "description": "Client credentials con private_key_jwt della fonte 'partner' di ingestion: client_id = src-<codice>, un client per fonte (docs/18 §3.10). Nessuna chiave nel repository: il JWKS della fonte si registra all'installazione."
     },
     {
-      "clientId": "internal",
-      "name": "Source internal",
+      "clientId": "src-internal",
+      "name": "Fonte internal",
       "enabled": true,
       "clientAuthenticatorType": "client-jwt",
       "redirectUris": [],
@@ -942,12 +956,14 @@
       "publicClient": false,
       "protocol": "openid-connect",
       "attributes": {
+        "use.jwks.url": "true",
         "jwks.url": "${LH_SOURCE_INTERNAL_JWKS_URL}"
-      }
+      },
+      "description": "Client credentials con private_key_jwt della fonte 'internal' di ingestion: client_id = src-<codice>, un client per fonte (docs/18 §3.10). Nessuna chiave nel repository: il JWKS della fonte si registra all'installazione."
     },
     {
-      "clientId": "simulator",
-      "name": "Source simulator",
+      "clientId": "src-simulator",
+      "name": "Fonte simulator",
       "enabled": true,
       "clientAuthenticatorType": "client-jwt",
       "redirectUris": [],
@@ -960,8 +976,10 @@
       "publicClient": false,
       "protocol": "openid-connect",
       "attributes": {
+        "use.jwks.url": "true",
         "jwks.url": "${LH_SOURCE_SIMULATOR_JWKS_URL}"
-      }
+      },
+      "description": "Client credentials con private_key_jwt della fonte 'simulator' di ingestion: client_id = src-<codice>, un client per fonte (docs/18 §3.10). Nessuna chiave nel repository: il JWKS della fonte si registra all'installazione."
     }
   ],
   "users": [
@@ -1018,6 +1036,62 @@
       ],
       "requiredActions": [
         "UPDATE_PASSWORD"
+      ]
+    },
+    {
+      "username": "service-account-src-crm",
+      "enabled": true,
+      "serviceAccountClientId": "src-crm",
+      "realmRoles": [
+        "SOURCE"
+      ]
+    },
+    {
+      "username": "service-account-src-app",
+      "enabled": true,
+      "serviceAccountClientId": "src-app",
+      "realmRoles": [
+        "SOURCE"
+      ]
+    },
+    {
+      "username": "service-account-src-ecommerce",
+      "enabled": true,
+      "serviceAccountClientId": "src-ecommerce",
+      "realmRoles": [
+        "SOURCE"
+      ]
+    },
+    {
+      "username": "service-account-src-billing",
+      "enabled": true,
+      "serviceAccountClientId": "src-billing",
+      "realmRoles": [
+        "SOURCE"
+      ]
+    },
+    {
+      "username": "service-account-src-partner",
+      "enabled": true,
+      "serviceAccountClientId": "src-partner",
+      "realmRoles": [
+        "SOURCE"
+      ]
+    },
+    {
+      "username": "service-account-src-internal",
+      "enabled": true,
+      "serviceAccountClientId": "src-internal",
+      "realmRoles": [
+        "SOURCE"
+      ]
+    },
+    {
+      "username": "service-account-src-simulator",
+      "enabled": true,
+      "serviceAccountClientId": "src-simulator",
+      "realmRoles": [
+        "SOURCE"
       ]
     }
   ],

@@ -842,6 +842,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
           description: Corpo non JSON o non array; corpo oltre il tetto in streaming
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "FORBIDDEN_ROLE: serve il ruolo SOURCE (o ADMIN); SOURCE_MISMATCH: un elemento dichiara una fonte diversa dal client src-<codice>, l'intero batch è respinto e nulla è salvato"
         "413":
           content:
             application/problem+json:

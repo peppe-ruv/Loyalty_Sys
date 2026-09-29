@@ -64,7 +64,7 @@ public class OidcActorFilter extends OncePerRequestFilter {
             return;
         }
         List<String> roles = jwt.hasClaim(rolesClaim) ? jwt.getClaimAsStringList(rolesClaim) : List.of();
-        ActorContext actor = ActorContext.fromToken(roles, username(jwt));
+        ActorContext actor = ActorContext.fromToken(roles, username(jwt), clientId(jwt));
         boolean memberOnly = roles.contains(MEMBER_ROLE) && roles.stream().noneMatch(OidcActorFilter::isOperatorRole);
         if (memberOnly) {
             if (!path.startsWith("/v1/portal/")) {
@@ -113,6 +113,17 @@ public class OidcActorFilter extends OncePerRequestFilter {
             }
         }
         return jwt.getSubject();
+    }
+
+    /** Client del token: {@code azp}, poi {@code client_id} (nome dell'attore {@code SOURCE}, Q-492). */
+    private static String clientId(Jwt jwt) {
+        for (String claim : List.of("azp", "client_id")) {
+            String value = jwt.getClaimAsString(claim);
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private static void reject(HttpServletResponse response, int status, String type, String code, String detail,

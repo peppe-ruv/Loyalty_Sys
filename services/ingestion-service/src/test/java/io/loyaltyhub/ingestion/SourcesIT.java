@@ -1,5 +1,6 @@
 package io.loyaltyhub.ingestion;
 
+import io.loyaltyhub.testsupport.SourceActors;
 import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -136,6 +137,7 @@ class SourcesIT {
     }
 
     private JsonNode send(String method, String path, String actor, Object body, int expected) {
+        actor = SourceActors.actorFor(method, path, actor, body); // Q-492: l'ingresso vuole SOURCE:src-<fonte>
         var spec = RestClient.create("http://localhost:" + port).method(org.springframework.http.HttpMethod.valueOf(method))
                 .uri(path);
         if (actor != null) {

@@ -1,5 +1,6 @@
 package io.loyaltyhub.ingestion;
 
+import io.loyaltyhub.testsupport.SourceActors;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -440,6 +441,7 @@ class EventTypeCodeSafetyIT {
     }
 
     private int status(String method, String path, String actor, Object body) {
+        actor = SourceActors.actorFor(method, path, actor, body); // Q-492: l'ingresso vuole SOURCE:src-<fonte>
         var spec = RestClient.create("http://localhost:" + port).method(org.springframework.http.HttpMethod.valueOf(method))
                 .uri(path);
         if (actor != null) {
@@ -452,6 +454,7 @@ class EventTypeCodeSafetyIT {
     }
 
     private JsonNode send(String method, String path, String actor, Object body, int expected) {
+        actor = SourceActors.actorFor(method, path, actor, body); // Q-492: l'ingresso vuole SOURCE:src-<fonte>
         var spec = RestClient.create("http://localhost:" + port).method(org.springframework.http.HttpMethod.valueOf(method))
                 .uri(path);
         if (actor != null) {

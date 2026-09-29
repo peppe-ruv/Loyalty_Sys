@@ -7,6 +7,11 @@
 #   scripts/smoke.sh                       # locale (compose): ingestion :8081, wallet :8084
 #   MEMBER=MBR-000003 scripts/smoke.sh
 #   BASE_INGESTION=https://… BASE_WALLET=https://… scripts/smoke.sh
+#
+# Identità (Q-492): l'ingresso delle azioni vuole il ruolo SOURCE e la fonte dichiarata deve essere quella del client
+# `src-<codice>`. Nel profilo demo (predefinito) lo smoke invia come la fonte `ecommerce` con
+# `X-LH-Actor: SOURCE:src-ecommerce`; SOURCE_CODE sceglie un'altra fonte. Con un access token del client
+# (`TOKEN=…`, profilo enterprise) invia `Authorization: Bearer` e non l'header demo.
 set -euo pipefail
 
 MEMBER="${MEMBER:-MBR-000003}"           # SILVER: 130 € → 162 PTS (×1,25)
@@ -14,6 +19,14 @@ AMOUNT="${AMOUNT:-130}"
 DEADLINE_S="${DEADLINE_S:-15}"
 BASE_INGESTION="${BASE_INGESTION:-http://localhost:8081}"
 BASE_WALLET="${BASE_WALLET:-http://localhost:8084}"
+SOURCE_CODE="${SOURCE_CODE:-ecommerce}"   # fonte dichiarata nell'evento e client src-<codice> che lo invia
+TOKEN="${TOKEN:-}"                         # access token del client src-<codice> (enterprise); vuoto = identità demo
+
+if [ -n "$TOKEN" ]; then
+  identity=(-H "Authorization: Bearer $TOKEN")
+else
+  identity=(-H "X-LH-Actor: SOURCE:src-$SOURCE_CODE")
+fi
 
 # Estrae un campo annidato (es. "balances.PTS.active") dal JSON su stdin, senza jq.
 json_field() {
@@ -36,12 +49,12 @@ echo "saldo iniziale: $before PTS"
 event_id="smoke-$(date +%s)-$RANDOM"
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 payload=$(cat <<JSON
-{"specversion":"1.0","id":"$event_id","source":"urn:loyaltyhub:source:ecommerce","type":"purchase.completed","subject":"member:$MEMBER","time":"$now","data":{"orderId":"ORD-$event_id","amount":$AMOUNT,"currency":"EUR","channel":"ONLINE"}}
+{"specversion":"1.0","id":"$event_id","source":"urn:loyaltyhub:source:$SOURCE_CODE","type":"purchase.completed","subject":"member:$MEMBER","time":"$now","data":{"orderId":"ORD-$event_id","amount":$AMOUNT,"currency":"EUR","channel":"ONLINE"}}
 JSON
 )
 
 status=$(curl -fsS --max-time 8 -X POST "$BASE_INGESTION/v1/events" \
-  -H "content-type: application/json" -d "$payload" | json_field "status")
+  -H "content-type: application/json" "${identity[@]}" -d "$payload" | json_field "status")
 echo "ingestion: $status"
 if [ "$status" != "ACCEPTED" ]; then
   echo "✗ l'azione non è stata accettata (status=$status)." >&2
