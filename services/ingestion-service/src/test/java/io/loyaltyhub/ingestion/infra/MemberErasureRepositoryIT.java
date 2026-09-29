@@ -171,4 +171,27 @@ class MemberErasureRepositoryIT {
         assertThat(n.path("rewardCode").asString()).as("id esterno di sole cifre: solo per intero").isEqualTo("RWD-10234");
         assertThat(n.path("customerId").asString()).isEqualTo("Membro anonimo");
     }
+
+    @Test
+    @DisplayName("regola 19: righe per membro, e-mail (senza maiuscole) o id esterno con SQL costante; chiavi nulle non abbinano")
+    void rowsAreSelectedByConstantSqlWithNullableSubjects() {
+        jdbc.sql("INSERT INTO member_index (member_id, external_id, email_lower, status) VALUES (?, NULL, ?, 'ACTIVE')")
+                .params("MBR-000907", "eva.verdi@example.test").update();
+        inbound("IN-7", "email:Eva.Verdi@Example.test", null, "UNMATCHED", """
+                {"specversion":"1.0","id":"EVT-IN-7","type":"purchase","subject":"email:Eva.Verdi@Example.test"}""",
+                "Membro non trovato per eva.verdi@example.test");
+        inbound("IN-8", "email:altra@example.test", null, "UNMATCHED", """
+                {"specversion":"1.0","id":"EVT-IN-8","type":"purchase","subject":"email:altra@example.test"}""", null);
+        inbound("IN-9", "member:MBR-000908", "MBR-000908", "ACCEPTED", """
+                {"specversion":"1.0","id":"EVT-IN-9","type":"purchase","subject":"member:MBR-000908"}""", null);
+
+        repository.erase("MBR-000907");
+        repository.erase("MBR-000908"); // nessuna riga nell'indice: e-mail e id esterno nulli, solo member_id
+
+        assertThat(subject("IN-7")).as("e-mail abbinata senza maiuscole").isEqualTo("member:MBR-000907");
+        assertThat(rejectDetail("IN-7")).isEqualTo("Membro non trovato per Membro anonimo");
+        assertThat(subject("IN-8")).as("un'altra e-mail: non toccata").isEqualTo("email:altra@example.test");
+        assertThat(subject("IN-9")).isEqualTo("member:MBR-000908");
+        assertThat(payload("IN-8").path("subject").asString()).isEqualTo("email:altra@example.test");
+    }
 }
