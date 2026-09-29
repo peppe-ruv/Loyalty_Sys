@@ -62,6 +62,11 @@ loyaltyhub:
   # processo, quindi il default è la porta locale del server web (nota solo dopo l'avvio; letta a ogni chiamata).
   insight:
     ingestion-url: ${LH_INGESTION_URL:http://localhost:${local.server.port:${server.port:8080}}}
+  # Identità (ADR-027): modalità e emittente OIDC arrivano da LH_IDENTITY_MODE e LH_OIDC_* (LhEnvironmentAliases). La chiave
+  # dello pseudonimo subjectRef del membro dal token (Q-552, ADR-048) è base64, almeno 32 byte: solo in `oidc` con gli
+  # endpoint del membro, altrimenti l'avvio fallisce (INSECURE_CONFIG); il profilo demo non la usa. Mai un valore qui.
+  identity:
+    subject-key: ${LH_SUBJECT_KEY:}
 
 management:
   endpoints:

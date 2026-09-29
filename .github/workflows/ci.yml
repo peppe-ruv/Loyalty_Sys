@@ -555,12 +555,18 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0   # check-api confronta con il merge-base del ramo base
+          # Storia completa con rami e tag: check-api confronta con il merge-base del ramo base, check-contracts con l'ultimo tag `v<numero>` e col merge-base (fetch-depth: 0 scarica anche i tag).
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
-      # Gate strutturale veloce; la validazione JSON Schema completa è in ContractsTest (job backend).
-      - run: node scripts/check-contracts.mjs
+      # Contratti evento (docs/05 §9, ADR-028, F2-EVT-01, M8.4): gate strutturale e compatibilità con l'ultimo tag `v<numero>` e col merge-base,
+      # senza dipendenze npm. La validazione JSON Schema completa è in ContractsTest (job backend).
+      - run: node --test scripts/contracts-compat.test.mjs
+      - name: Contratti evento compatibili con l'ultimo tag e col ramo base
+        env:
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: node scripts/check-contracts.mjs "--pr-labels=$PR_LABELS"
       # API HTTP (M8.8, docs/18 §3.6): solo modifiche compatibili rispetto al ramo base. Il drift tra codice e
       # contracts/api/ lo verifica OpenApiExportIT nel job backend.
       - run: npm --prefix scripts ci --omit=dev

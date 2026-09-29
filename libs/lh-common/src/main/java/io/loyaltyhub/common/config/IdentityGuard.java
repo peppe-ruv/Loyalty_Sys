@@ -1,5 +1,6 @@
 package io.loyaltyhub.common.config;
 
+import io.loyaltyhub.common.identity.SubjectRef;
 import io.loyaltyhub.common.web.IdentityMode;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
@@ -9,6 +10,8 @@ import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtValidators;
+
+import java.util.Base64;
 
 /**
  * Configurazione dell'identità (ADR-027, ADR-044, CLAUDE.md regole 6-bis e 22): il profilo {@code enterprise} non
@@ -33,6 +36,52 @@ public final class IdentityGuard {
                     + "(loyaltyhub.identity.issuer-uri / LH_OIDC_ISSUER).");
         }
         return mode;
+    }
+
+    /** Proprietà con la chiave dello pseudonimo del soggetto ({@code LH_SUBJECT_KEY}, base64, almeno 32 byte; Q-552). */
+    public static final String SUBJECT_KEY_PROPERTY = "loyaltyhub.identity.subject-key";
+
+    /**
+     * La chiave dello pseudonimo {@code subjectRef} ({@code LH_SUBJECT_KEY}), decodificata; {@code null} se non
+     * configurata. Se è configurata ma non è base64 valido o è più corta di {@value SubjectRef#MIN_KEY_BYTES} byte, l'avvio
+     * fallisce con {@code INSECURE_CONFIG} (regola 22, ADR-044); il messaggio non riporta mai il valore (regola 20).
+     */
+    public static byte[] subjectKey(Environment env) {
+        String raw = env.getProperty(SUBJECT_KEY_PROPERTY, "").trim();
+        if (raw.isEmpty()) {
+            return null;
+        }
+        byte[] key;
+        try {
+            key = Base64.getDecoder().decode(raw);
+        } catch (IllegalArgumentException standard) {
+            try {
+                key = Base64.getUrlDecoder().decode(raw);
+            } catch (IllegalArgumentException url) {
+                throw new IllegalStateException("INSECURE_CONFIG: LH_SUBJECT_KEY non è base64 valido (serve una chiave "
+                        + "casuale di almeno " + SubjectRef.MIN_KEY_BYTES + " byte in base64).");
+            }
+        }
+        if (key.length < SubjectRef.MIN_KEY_BYTES) {
+            throw new IllegalStateException("INSECURE_CONFIG: LH_SUBJECT_KEY è più corta di " + SubjectRef.MIN_KEY_BYTES
+                    + " byte (serve una chiave casuale in base64).");
+        }
+        return key;
+    }
+
+    /**
+     * Come {@link #subjectKey(Environment)}, ma la chiave è obbligatoria: con {@code oidc} e almeno un handler
+     * {@code @MemberEndpoint} una chiave assente o corta fa fallire l'avvio con {@code INSECURE_CONFIG} (Q-552, ADR-048,
+     * regola 22). Il profilo {@code demo} non ne usa: {@code X-LH-Member} e {@code memberId} esplicito bastano.
+     */
+    public static byte[] requireSubjectKey(Environment env) {
+        byte[] key = subjectKey(env);
+        if (key == null) {
+            throw new IllegalStateException("INSECURE_CONFIG: gli endpoint del membro nel profilo oidc richiedono "
+                    + "loyaltyhub.identity.subject-key (LH_SUBJECT_KEY, base64, almeno " + SubjectRef.MIN_KEY_BYTES
+                    + " byte): senza, il token non si lega al membro.");
+        }
+        return key;
     }
 
     static IdentityMode mode(String value) {

@@ -121,8 +121,8 @@ d'integrazione `TestbookGam*IT` con un solo contesto), dati in `testbook/gam/*.c
 - **Verifica a mutazione:** 11 mutazioni, tutte rilevate.
 
 ## 8. TB-GOV — Governance e membri
-Documento completo: [`docs/testbook/TB-GOV-governance.md`](testbook/TB-GOV-governance.md) — 33 regole, 61 rami mappati,
-**988 righe** in 25 aree. Test: `libs/lh-common/src/test/java/io/loyaltyhub/common/testbook/` (attore, transizioni, policy),
+Documento completo: [`docs/testbook/TB-GOV-governance.md`](testbook/TB-GOV-governance.md) — 34 regole, 69 rami mappati,
+**1104 righe** in 26 aree. Test: `libs/lh-common/src/test/java/io/loyaltyhub/common/testbook/` (attore, transizioni, policy, membro dal token),
 `services/member-service/src/test/java/io/loyaltyhub/member/testbook/` (criteri dei segmenti, attributi, `TestbookGovMemberIT`),
 `deploy/hub/src/test/java/io/loyaltyhub/hub/TestbookGovHubIT.java` (righe tra servizi).
 
