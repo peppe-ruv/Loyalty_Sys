@@ -130,6 +130,60 @@ test('escape MDX fuori dal codice inline', () => {
   assert.equal(escapeMdx('nessun carattere speciale'), 'nessun carattere speciale');
 });
 
+// Compilatore MDX opzionale: se @mdx-js/mdx e remark-gfm non sono installati (nessuna dipendenza aggiunta a
+// scripts/package.json) i test che lo usano si saltano e restano le asserzioni sulle stringhe esatte.
+let mdx = null;
+try {
+  const [{ compile }, gfm] = await Promise.all([import('@mdx-js/mdx'), import('remark-gfm')]);
+  mdx = { compile, gfm: gfm.default };
+} catch { /* dipendenze non installate */ }
+const noMdx = mdx ? false : '@mdx-js/mdx / remark-gfm non installati';
+
+/** Colonne di ogni riga di una tabella GFM secondo il parser (il compile MDX deve riuscire). */
+async function tableColumns(md) {
+  const [{ unified }, { default: parse }, { default: remarkMdx }] = await Promise.all([
+    import('unified'), import('remark-parse'), import('remark-mdx'),
+  ]);
+  await mdx.compile(md, { remarkPlugins: [mdx.gfm] });
+  const tree = unified().use(parse).use(remarkMdx).use(mdx.gfm).parse(md);
+  const text = (n) => (n.children ? n.children.map(text).join('') : (n.value ?? ''));
+  return tree.children[0].children.map((r) => ({ n: r.children.length, cells: r.children.map(text) }));
+}
+
+test('escape MDX: la barra rovesciata si raddoppia fuori dal codice, prima di `<`, `{`, `}`', () => {
+  assert.equal(escapeMdx('a\\{b'), 'a\\\\\\{b'); // a\\\{b: barra letterale + graffa escapata
+  assert.equal(escapeMdx('abc\\'), 'abc\\\\');
+  assert.equal(escapeMdx('\\<b'), '\\\\&lt;b');
+  assert.equal(escapeMdx('x\\|y'), 'x\\\\|y');
+  assert.equal(escapeMdx('percorso `C:\\dir\\{x}` e \\{y\\}'), 'percorso `C:\\dir\\{x}` e \\\\\\{y\\\\\\}');
+  assert.equal(escapeMdx('senza barre: {a} <b>'), 'senza barre: \\{a\\} &lt;b>');
+});
+
+test('escape MDX (celle): `\\` e `|` in un solo passaggio, anche dentro il codice inline', () => {
+  const c = { cell: true };
+  assert.equal(escapeMdx('x\\|y', c), 'x\\\\\\|y');
+  assert.equal(escapeMdx('a|b', c), 'a\\|b');
+  assert.equal(escapeMdx('abc\\', c), 'abc\\\\');
+  assert.equal(escapeMdx('valore {x}\r\nnuova riga', c), 'valore \\{x\\} nuova riga');
+  assert.equal(escapeMdx('`a|b` e `a\\|b` e `C:\\dir`', c), '`a\\|b` e `a\\\\\\|b` e `C:\\dir`');
+  // il testo già escapato non viene toccato una seconda volta: `\{` non esiste nell'input, lo produce l'escape
+  assert.equal(escapeMdx('{a}|{b}', c), '\\{a\\}\\|\\{b\\}');
+});
+
+test('MDX compila e le tabelle mantengono le colonne con barre rovesciate e pipe', { skip: noMdx }, async () => {
+  const inputs = ['a\\{b', 'x\\|y', 'x\\\\|y', 'abc\\', '\\<b', '`a\\|b` e `C:\\dir`', '`a|b` | c', '{a}|{b}\\'];
+  for (const raw of inputs) {
+    await mdx.compile(escapeMdx(raw), { remarkPlugins: [mdx.gfm] });
+    const rows = await tableColumns(`| A | B |\n|---|---|\n| ${escapeMdx(raw, { cell: true })} | z |\n`);
+    assert.deepEqual(rows.map((r) => r.n), [2, 2], `colonne rotte per ${JSON.stringify(raw)}`);
+    assert.equal(rows[1].cells[1], 'z');
+  }
+  // il testo visibile è quello scritto: nessuna barra persa né aggiunta fuori dal codice
+  assert.equal((await tableColumns(`| A | B |\n|---|---|\n| ${escapeMdx('x\\|y', { cell: true })} | z |\n`))[1].cells[0], 'x\\|y');
+  assert.equal((await tableColumns(`| A | B |\n|---|---|\n| ${escapeMdx('a\\{b', { cell: true })} | z |\n`))[1].cells[0], 'a\\{b');
+  assert.equal((await tableColumns(`| A | B |\n|---|---|\n| ${escapeMdx('abc\\', { cell: true })} | z |\n`))[1].cells[0], 'abc\\');
+});
+
 test('link: docs verso Mintlify, il resto verso GitHub', () => {
   assert.equal(rewriteLinks('[TB](16-TESTBOOK-FUNZIONALE.md#metodo)'), '[TB](/specifiche/testbook-funzionale#metodo)');
   assert.equal(rewriteLinks('[seed](../seed/members.json)'), '[seed](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/seed/members.json)');

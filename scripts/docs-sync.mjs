@@ -155,10 +155,24 @@ function splitCode(text) {
   return parts;
 }
 
-/** Escape per MDX fuori dal codice inline: `<` diventa `&lt;`, le graffe si proteggono. */
-export function escapeMdx(text) {
+/**
+ * Escape per MDX fuori dal codice inline, in un solo passaggio (nessun doppio escape): la barra rovesciata
+ * diventa `\\` (altrimenti `a\{b` si leggerebbe come barra escapata seguita da `{` libera), `<` diventa `&lt;`,
+ * le graffe si proteggono. Con `{ cell: true }` il testo è il contenuto di una cella di tabella GFM: `|` diventa
+ * `\|` (anche dentro il codice inline, dove GFM lo richiede) e gli a capo diventano spazi. Dentro il codice
+ * inline le barre rovesciate restano intatte, salvo quelle che precedono una `|` in una cella: lì `\|` varrebbe
+ * `|`, quindi si raddoppiano per non spezzare la riga (GFM non sa rappresentare un `\|` letterale in un codice
+ * di cella: il render mostra una barra in più, ma le colonne restano corrette).
+ */
+export function escapeMdx(text, { cell = false } = {}) {
+  const outside = { '\\': '\\\\', '<': '&lt;', '{': '\\{', '}': '\\}', '|': cell ? '\\|' : '|' };
+  const flat = (s) => (cell ? s.replace(/\r?\n/g, ' ') : s);
   return splitCode(String(text))
-    .map((p) => (p.code ? p.s : p.s.replace(/</g, '&lt;').replace(/\{/g, '\\{').replace(/\}/g, '\\}')))
+    .map((p) => {
+      if (!p.code) return flat(p.s).replace(/[\\<{}|]/g, (c) => outside[c]);
+      if (!cell) return p.s;
+      return flat(p.s).replace(/\\*\|/g, (m) => `${'\\'.repeat(2 * (m.length - 1))}\\|`);
+    })
     .join('');
 }
 
@@ -801,7 +815,7 @@ export function epicSlug(epic) {
 }
 
 /** Testo della storia: escape MDX, link alle altre storie e alle pull request (#nn). */
-function prose(text, storyIndex) {
+function prose(text, storyIndex, opts) {
   const linked = mapText(String(text), (s) =>
     s
       .replace(/US-(E\d{2}|F2-[A-Z0-9]+)-(\d{2})/g, (id) => {
@@ -809,7 +823,7 @@ function prose(text, storyIndex) {
         return target ? `[${id}](${target})` : id;
       })
       .replace(/(?<![\w/&#])#(\d{1,4})\b/g, (all, n) => prLink(n)));
-  return rewriteLinks(escapeMdx(linked));
+  return rewriteLinks(escapeMdx(linked, opts));
 }
 
 /** Parole chiave del criterio in grassetto: Dato, quando, allora. */
@@ -819,11 +833,12 @@ function criterion(text, storyIndex) {
   return cap(prose(bold, storyIndex));
 }
 
-const cell = (s) => String(s).replace(/\|/g, '\\|').replace(/\n/g, ' ');
+/** Opzioni di `escapeMdx` per il contenuto di una cella di tabella GFM (`\\`, `|`, `<`, `{`, `}` in un solo passaggio). */
+const CELL = { cell: true };
 
 function checklist(title, items, storyIndex) {
   const out = [`| ${title} | Esito | Evidenza |`, '|---|---|---|'];
-  for (const i of items) out.push(`| ${i.id} ${i.label} | ${ICON[i.status]} | ${cell(prose(i.evidence, storyIndex))} |`);
+  for (const i of items) out.push(`| ${i.id} ${i.label} | ${ICON[i.status]} | ${prose(i.evidence, storyIndex, CELL)} |`);
   return out.join('\n');
 }
 
@@ -930,13 +945,13 @@ function epicTable(epics, evsByEpic, storyIndex) {
   for (const e of epics) {
     const evs = evsByEpic.get(e.id);
     if (!evs.length) {
-      out.push(`| ${e.id} ${escapeMdx(e.name)} | ${prose(e.goal, storyIndex)} | — | — | — |`);
+      out.push(`| ${e.id} ${escapeMdx(e.name, CELL)} | ${prose(e.goal, storyIndex, CELL)} | — | — | — |`);
       continue;
     }
     const c = counts(evs);
     for (const k of Object.keys(tot)) tot[k] += c[k];
     const n = c.out ? `${c.total} (${c.out} fuori perimetro)` : `${c.total}`;
-    out.push(`| [${e.id} ${escapeMdx(e.name)}](${PAGE_BASE}/${epicSlug(e)}) | ${prose(e.goal, storyIndex)} | ${n} | ${c.ready} | ${c.done} |`);
+    out.push(`| [${e.id} ${escapeMdx(e.name, CELL)}](${PAGE_BASE}/${epicSlug(e)}) | ${prose(e.goal, storyIndex, CELL)} | ${n} | ${c.ready} | ${c.done} |`);
   }
   out.push(`| **Totale** | | **${tot.total}** | **${tot.ready}** | **${tot.done}** |`);
   return { table: out.join('\n'), tot };
