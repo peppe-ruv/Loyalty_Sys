@@ -30,7 +30,12 @@ public class GlobalExceptionHandler {
         if (!ex.errors().isEmpty()) {
             pd.setProperty("errors", ex.errors());
         }
-        return ResponseEntity.status(ex.status()).body(pd);
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(ex.status());
+        if ("MEMBER_NOT_LINKED".equals(ex.code())) {
+            // Q-553: il legame arriva col fatto member.registered; il client ritenta (docs/06 §2).
+            builder.header("Retry-After", String.valueOf(LhException.MEMBER_NOT_LINKED_RETRY_AFTER_SECONDS));
+        }
+        return builder.body(pd);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

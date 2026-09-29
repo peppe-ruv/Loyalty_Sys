@@ -68,6 +68,56 @@ class LhCommonAutoConfigurationIT {
                 });
     }
 
+    private ApplicationContextRunner runner(String... extra) {
+        java.util.List<String> props = new java.util.ArrayList<>(java.util.List.of(
+                "loyaltyhub.service=wallet",
+                "loyaltyhub.outbox.relay-interval-ms=3600000",
+                "spring.kafka.bootstrap-servers=localhost:9092"));
+        props.addAll(java.util.List.of(extra));
+        return new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(LhCommonAutoConfiguration.class))
+                .withUserConfiguration(CollaboratorsConfig.class)
+                .withPropertyValues(props.toArray(String[]::new));
+    }
+
+    /** Il membro dal token (Q-410, ADR-048): i bean ci sono in ogni profilo; la chiave conta solo in oidc. */
+    @Test
+    void wiresTheMemberFromTheTokenInTheDemoProfile() {
+        runner().run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).hasSingleBean(io.loyaltyhub.common.web.MemberPrincipals.class);
+            assertThat(context).hasSingleBean(io.loyaltyhub.common.web.MemberBodyAdvice.class);
+            assertThat(context).hasSingleBean(io.loyaltyhub.common.web.MemberEndpointGuard.class);
+            assertThat(context.getBean(io.loyaltyhub.common.web.MemberPrincipals.class).mode())
+                    .isEqualTo(io.loyaltyhub.common.web.IdentityMode.HEADER);
+        });
+        // In demo la chiave, anche se malformata, non si legge.
+        runner("loyaltyhub.identity.subject-key=non-base64!!").run(context -> assertThat(context).hasNotFailed());
+    }
+
+    @Test
+    void oidcNeedsAStrongSubjectKeyWhenOneIsConfigured() {
+        String issuer = "loyaltyhub.identity.issuer-uri=https://idp.example.test/realms/loyaltyhub";
+        String good = java.util.Base64.getEncoder().encodeToString(new byte[32]);
+        runner("loyaltyhub.identity.mode=oidc", issuer, "loyaltyhub.identity.subject-key=" + good).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(io.loyaltyhub.common.web.MemberPrincipals.class).mode())
+                    .isEqualTo(io.loyaltyhub.common.web.IdentityMode.OIDC);
+        });
+        // Chiave corta o non base64: l'avvio fallisce con INSECURE_CONFIG, mai un avviso (regola 22).
+        String shortKey = java.util.Base64.getEncoder().encodeToString(new byte[16]);
+        runner("loyaltyhub.identity.mode=oidc", issuer, "loyaltyhub.identity.subject-key=" + shortKey).run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).hasStackTraceContaining("INSECURE_CONFIG");
+        });
+        runner("loyaltyhub.identity.mode=oidc", issuer, "loyaltyhub.identity.subject-key=non-base64!!").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).hasStackTraceContaining("INSECURE_CONFIG");
+        });
+        // Nessun endpoint del membro (l'hub di oggi in enterprise): senza chiave si avvia.
+        runner("loyaltyhub.identity.mode=oidc", issuer).run(context -> assertThat(context).hasNotFailed());
+    }
+
     @Configuration(proxyBeanMethods = false)
     static class CollaboratorsConfig {
         @Bean

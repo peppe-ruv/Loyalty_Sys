@@ -52,6 +52,15 @@ public final class PersonalData {
      */
     public static final String EMAIL_HASH = "emailHash";
 
+    /**
+     * Pseudonimo del legame account↔membro in {@code member.registered/updated} (Q-552, ADR-048): HMAC-SHA256 di
+     * {@code (iss, sub)} con {@code LH_SUBJECT_KEY} ({@link io.loyaltyhub.common.identity.SubjectRef}). Stesso regime di
+     * {@link #EMAIL_HASH}: non è in {@link #KEYS} (non si toglie a ogni profondità: nell'envelope {@code subject} è un
+     * altro attributo), il suo valore non è mai sicuro per {@link PersonalTextScrubber} e chi conserva i fatti lo toglie
+     * esplicitamente all'anonimizzazione (insight).
+     */
+    public static final String SUBJECT_REF = "subjectRef";
+
     /** Lunghezza minima di un valore da cercare nel testo libero (evita di cancellare sillabe comuni). */
     static final int MIN_TOKEN = 3;
 

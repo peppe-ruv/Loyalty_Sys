@@ -269,6 +269,31 @@ class EndpointAccessInterceptorTest {
     }
 
     @Test
+    void resolveReportsTheMemberDeclarationAndItsConflicts() throws Exception {
+        // La terza dichiarazione (Q-410, ADR-048): valida da sola, mai insieme a @RequiresRole o @PublicEndpoint.
+        HandlerMethod member = new HandlerMethod(new MemberTestSupport.Portal(),
+                MemberTestSupport.Portal.class.getMethod("required", MemberPrincipal.class));
+        EndpointAccessInterceptor.Declaration declaration = EndpointAccessInterceptor.resolve(member);
+        assertThat(declaration.member()).isNotNull();
+        assertThat(declaration.member().value()).isEqualTo(MemberEndpoint.Mode.REQUIRED);
+        assertThat(declaration.role()).isNull();
+        assertThat(declaration.valid()).isTrue();
+        assertThat(declaration.conflicting()).isFalse();
+
+        HandlerMethod combined = new HandlerMethod(new MemberTestSupport.Portal(),
+                MemberTestSupport.Portal.class.getMethod("combined", MemberPrincipal.class));
+        assertThat(EndpointAccessInterceptor.resolve(combined).conflicting()).isTrue();
+        assertThat(EndpointAccessInterceptor.resolve(combined).valid()).isFalse();
+
+        HandlerMethod membersRead = new HandlerMethod(new MemberTestSupport.Portal(),
+                MemberTestSupport.Portal.class.getMethod("theme"));
+        assertThat(EndpointAccessInterceptor.resolve(membersRead).role().members()).isTrue();
+        // Il vecchio costruttore a due componenti resta valido e senza il membro.
+        assertThat(new EndpointAccessInterceptor.Declaration(null, null).valid()).isFalse();
+        assertThat(new EndpointAccessInterceptor.Declaration(null, null).member()).isNull();
+    }
+
+    @Test
     void sourceReachesOnlyWhatListsItAndNeverTheWriteRuleOrTheReadLists() throws Exception {
         String source = "SOURCE:src-crm";
         // Ingresso della fonte: SOURCE e ADMIN passano, gli altri (anche senza attore) no.
