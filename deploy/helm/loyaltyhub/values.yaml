@@ -104,6 +104,14 @@ roles:
     pdb:
       enabled: true
       minAvailable: 1
+    # OBBLIGATORIO nel profilo enterprise (LH_SUBJECT_KEY, F2-SEC-09, ADR-048, Q-552): chiave dello pseudonimo `subjectRef`,
+    # l'HMAC-SHA256 di (iss, sub) che lega il token OIDC al membro e sul bus sostituisce il `sub`, un dato personale
+    # (ADR-032). Riferimento a un Secret esistente, mai un valore: almeno 32 byte casuali in base64
+    # (openssl rand -base64 32); distinta da LH_PSEUDONYM_KEY. Con una chiave assente, corta o non base64 l'hub non parte
+    # (INSECURE_CONFIG). Da scegliere una volta per installazione e conservare: cambiarla scollega ogni token dal proprio
+    # membro e spezza la continuità di subjectRef nelle proiezioni, che nessuno ricollega da solo (rotazione: Q-552,
+    # docs/11 §16). Nel profilo demo non serve e il chart non la passa.
+    subjectKey: { name: lh-subject-key, key: subject-key }
     extraEnv: []
 
   # ---- web: portale, backoffice, BFF (Next.js) ----

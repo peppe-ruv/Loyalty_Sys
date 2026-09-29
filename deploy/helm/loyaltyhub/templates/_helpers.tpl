@@ -414,6 +414,22 @@ client e segreti del BFF; una sola replica del web, senza PDB (Q-409, Q-419). */
 {{- end -}}
 {{- end -}}
 {{- end -}}
+{{- /* Chiave dello pseudonimo subjectRef (F2-SEC-09, ADR-048, Q-552): senza il riferimento l'hub non legherebbe i token ai
+membri e in enterprise rifiuterebbe l'avvio (INSECURE_CONFIG, regola 22): meglio fermarsi già a `helm install`. Il
+contenuto del Secret (base64, almeno 32 byte) lo verifica l'hub all'avvio; il chart non lo legge mai. */ -}}
+{{- if .Values.roles.hub.enabled -}}
+{{- /* Anche nome nullo o di soli spazi, e subjectKey nullo (--set roles.hub.subjectKey=null): stesso messaggio, non un errore di template. */ -}}
+{{- $sk := .Values.roles.hub.subjectKey | default dict -}}
+{{- if or (not (trim (toString ($sk.name | default "")))) (not (trim (toString ($sk.key | default "")))) -}}
+{{- fail "INSECURE_CONFIG: roles.hub.subjectKey.name e .key sono obbligatori nel profilo enterprise: riferimento a un Secret con LH_SUBJECT_KEY, la chiave dello pseudonimo subjectRef che lega il token OIDC al membro (almeno 32 byte casuali in base64: openssl rand -base64 32; ADR-048, Q-552, regola 22)" -}}
+{{- end -}}
+{{- /* La chiave arriva solo da roles.hub.subjectKey (Secret): una voce di extraEnv con lo stesso nome, dopo quella del chart, la sostituirebbe con un valore in chiaro. */ -}}
+{{- range .Values.roles.hub.extraEnv -}}
+{{- if and (kindIs "map" .) (has (toString .name) (list "LH_SUBJECT_KEY" "LH_SUBJECT_KEY_FILE")) -}}
+{{- fail "INSECURE_CONFIG: LH_SUBJECT_KEY solo da roles.hub.subjectKey (Secret), non da roles.hub.extraEnv: un valore in chiaro nel chart finirebbe nei values, nella cronologia di Helm e nei manifest (regola 20, ADR-048, Q-552)" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 {{- $webUrl := include "loyaltyhub.web.publicUrl" . -}}
 {{- /* Anche con il web spento: il realm del ruolo idp costruisce redirect e back-channel da LH_WEB_URL. */ -}}
 {{- if and (or .Values.roles.web.enabled .Values.roles.idp.enabled) (not (regexMatch "^https://[^/?#@\\s]+$" $webUrl)) -}}
