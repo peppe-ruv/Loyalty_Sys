@@ -96,6 +96,15 @@ public class EventStoreRepository {
         return rows > 0;
     }
 
+    /**
+     * Secondi dalla registrazione in insight dell'azione radice {@code actionId} (SLI azione → punti, M8.6a, Q-523);
+     * vuoto se l'azione non è nell'event store (o non è una azione). Testo SQL costante (regola 19, ADR-042).
+     */
+    public Optional<Double> secondsSinceAction(String actionId) {
+        return jdbc.sql("SELECT EXTRACT(EPOCH FROM (clock_timestamp() - received_at))::float8 FROM event_store WHERE event_id = ? AND family = 'ACTION'")
+                .param(actionId).query(Double.class).optional();
+    }
+
     public Optional<StoredEvent> findById(String eventId) {
         return jdbc.sql("SELECT * FROM event_store WHERE event_id = ?").param(eventId)
                 .query(EventStoreRepository::map).optional();

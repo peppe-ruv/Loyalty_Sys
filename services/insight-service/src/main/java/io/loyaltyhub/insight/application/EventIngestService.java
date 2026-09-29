@@ -5,6 +5,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhFamily;
+import io.loyaltyhub.common.event.LhEventTypes;
 import io.loyaltyhub.common.event.LhHeaders;
 import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.common.time.BusinessCalendar;
@@ -58,16 +59,18 @@ public class EventIngestService {
     private final ObjectMapper mapper;
     private final MemberRedactionRepository redaction;
     private final Clock clock;
+    private final ActionToPointsSli actionToPointsSli;
     private final int payloadMaxBytes;
 
     public EventIngestService(EventStoreRepository events, TopicStatRepository topicStats,
                               MetricRepository metrics, AuditRepository audits, DlqRepository dlq,
                               LiveEventHub liveHub, ObjectMapper mapper, MemberRedactionRepository redaction,
-                              Clock clock,
+                              Clock clock, ActionToPointsSli actionToPointsSli,
                               @Value("${loyaltyhub.insight.retention.payload-max-bytes:8192}") int payloadMaxBytes) {
         this.payloadMaxBytes = payloadMaxBytes;
         this.redaction = redaction;
         this.clock = clock;
+        this.actionToPointsSli = actionToPointsSli;
         this.events = events;
         this.topicStats = topicStats;
         this.metrics = metrics;
@@ -155,6 +158,9 @@ public class EventIngestService {
                 topicStats.recordFact(producer, clock.instant(), shortType, event.id());
             }
             updateMetrics(family, shortType, event, stored);
+            if ("FACT".equals(family) && LhEventTypes.Fact.WALLET_POINTS_EARNED.equals(type)) {
+                actionToPointsSli.onPointsEarned(event.lhcorrelationid());
+            }
             if ("AUDIT".equals(family)) {
                 recordAudit(event);
             }
