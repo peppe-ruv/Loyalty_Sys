@@ -11,6 +11,8 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
+
 /** Consuma {@code lh.actions.v1} → motore (docs/06 §5): deserializza, instrada, ack dopo il commit. */
 @Component
 @org.springframework.context.annotation.Lazy(false) // docs/06 §5: attivo anche con lazy-initialization (profilo free)
@@ -33,19 +35,21 @@ public class ActionsListener {
     @KafkaListener(
             groupId = "lh-campaign",
             topics = "${loyaltyhub.topics.actions:lh.actions.v1}",
-            containerFactory = "lhKafkaListenerContainerFactory")
+            containerFactory = "lhKafkaListenerContainerFactory",
+            containerPostProcessor = ActionsContainerTuning.BEAN_NAME)
     public void onAction(ConsumerRecord<String, String> record, Acknowledgment ack) {
         LhEvent<JsonNode> event = mapper.readValue(record.value(), EVENT_TYPE);
         // campaign §5: il fatto member.registered può essere in arrivo. Niente sleep qui (Q-489): il nack mette in pausa
         // le partizioni e lascia il consumer nel poll, così un ribilanciamento di lh-campaign può dare al consumer dei
         // fatti le sue partizioni mentre questa azione aspetta.
-        java.time.Duration retry = snapshotAwait.retryDelay(
-                record.topic() + "-" + record.partition() + "@" + record.offset(), event.memberId());
+        String recordKey = record.topic() + "-" + record.partition() + "@" + record.offset();
+        Duration retry = snapshotAwait.retryDelay(recordKey, event.memberId());
         if (retry != null) {
             ack.nack(retry);
             return;
         }
         router.route(event);
         ack.acknowledge();
+        snapshotAwait.done(recordKey);
     }
 }

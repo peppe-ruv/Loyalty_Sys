@@ -1,5 +1,6 @@
 package io.loyaltyhub.campaign;
 
+import io.loyaltyhub.campaign.messaging.MemberSnapshotAwait;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
@@ -66,6 +67,9 @@ class MemberSnapshotRebalanceIT {
     @Autowired
     private JdbcClient jdbc;
 
+    @Autowired
+    private MemberSnapshotAwait snapshotAwait;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -100,26 +104,68 @@ class MemberSnapshotRebalanceIT {
                 "lhcorrelationid", actionId, "lhhop", 0,
                 "data", Map.of("memberId", memberId, "status", "ACTIVE", "channel", "PORTAL", "registeredAt", now,
                         "labels", List.of(), "attributes", Map.of())));
-        publish(ACTIONS, memberId, Map.of(
-                "specversion", "1.0", "id", actionId, "source", "urn:loyaltyhub:source:internal",
-                "type", "io.loyaltyhub.action.member.registered", "subject", "member:" + memberId, "time", now,
-                "lhcorrelationid", actionId, "lhhop", 1, "data", Map.of("channel", "PORTAL", "referred", false)));
-        // Il consumer delle azioni (partizione assegnata, in long poll) riceve l'azione in pochi millisecondi e inizia ad
-        // attendere lo snapshot: 0,5 + 1 + 2 s di tentativi. L'ingresso del listener dei fatti cade dentro quell'attesa.
-        Thread.sleep(300);
+        int waitingBefore = snapshotAwait.pendingCount();
+        publishAction(actionId, memberId, now);
+        // Segnale esplicito: il consumer delle azioni ha ricevuto l'azione e ha iniziato ad attendere lo snapshot
+        // (0,5 + 1 + 2 s di tentativi). L'ingresso del listener dei fatti cade dentro quell'attesa.
+        awaitCondition(() -> snapshotAwait.pendingCount() > waitingBefore, "attesa dello snapshot iniziata");
         factsContainer().start();
 
-        long deadline = System.currentTimeMillis() + 20_000;
-        Optional<String> outcome = Optional.empty();
-        while (outcome.isEmpty() && System.currentTimeMillis() < deadline) {
-            Thread.sleep(100);
-            outcome = jdbc.sql("SELECT outcome FROM evaluation_log WHERE action_id = ?")
-                    .param(actionId).query(String.class).optional();
-        }
+        Optional<String> outcome = awaitOutcome(actionId, 20_000);
         assertThat(outcome).as("valutazione dell'azione %s del membro %s", actionId, memberId).contains("MATCHED");
         String results = jdbc.sql("SELECT results::text FROM evaluation_log WHERE action_id = ?")
                 .param(actionId).query(String.class).single();
         assertThat(results).contains("CMP-WELCOME");
+    }
+
+    /**
+     * Tempi reali dell'attesa (Q-489): senza snapshot la valutazione registra {@code NO_MEMBER} dopo la somma dei ritardi
+     * (0,5 + 1 + 2 s = 3,5 s) più la risoluzione del {@code pollTimeout} del container delle azioni (250 ms per ritardo),
+     * non dopo ~15 s come con il {@code pollTimeout} di default (5 s per ritardo).
+     */
+    @Test
+    void unknownMemberIsEvaluatedAsNoMemberAfterAboutThreeAndAHalfSeconds() throws Exception {
+        String memberId = "MBR-IT-NOM-" + System.nanoTime();
+        String actionId = "act-nom-" + System.nanoTime();
+
+        long start = System.nanoTime();
+        publishAction(actionId, memberId, Instant.now().toString());
+        Optional<String> outcome = awaitOutcome(actionId, 30_000);
+        long elapsedMs = (System.nanoTime() - start) / 1_000_000;
+
+        assertThat(outcome).contains("NO_MEMBER");
+        assertThat(elapsedMs).as("ms fino a NO_MEMBER").isBetween(3_500L, 6_000L);
+        assertThat(jdbc.sql("SELECT count(*) FROM evaluation_log WHERE action_id = ?").param(actionId)
+                .query(Long.class).single()).isEqualTo(1L);
+    }
+
+    private void publishAction(String actionId, String memberId, String time) throws Exception {
+        publish(ACTIONS, memberId, Map.of(
+                "specversion", "1.0", "id", actionId, "source", "urn:loyaltyhub:source:internal",
+                "type", "io.loyaltyhub.action.member.registered", "subject", "member:" + memberId, "time", time,
+                "lhcorrelationid", actionId, "lhhop", 1, "data", Map.of("channel", "PORTAL", "referred", false)));
+    }
+
+    private Optional<String> awaitOutcome(String actionId, long timeoutMs) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        Optional<String> outcome = Optional.empty();
+        while (outcome.isEmpty() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50);
+            outcome = jdbc.sql("SELECT outcome FROM evaluation_log WHERE action_id = ?")
+                    .param(actionId).query(String.class).optional();
+        }
+        return outcome;
+    }
+
+    private static void awaitCondition(java.util.function.BooleanSupplier condition, String what)
+            throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 10_000;
+        while (!condition.getAsBoolean()) {
+            if (System.currentTimeMillis() > deadline) {
+                throw new AssertionError("non avvenuto entro 10 s: " + what);
+            }
+            Thread.sleep(10);
+        }
     }
 
     private MessageListenerContainer factsContainer() {

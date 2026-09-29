@@ -264,7 +264,7 @@ sequenceDiagram
 ```
 
 <Note>
-  Se lo snapshot manca ancora dopo il terzo tentativo, la valutazione registra `NO_MEMBER` senza DLQ. I tentativi si contano per record; dopo una ridistribuzione la riconsegna può tardare fino a un `pollTimeout` (5 s).
+  Se lo snapshot manca ancora dopo il terzo tentativo, e comunque non prima di 3,5 s dalla prima consegna, la valutazione registra `NO_MEMBER` senza DLQ: circa 3,5–4,5 s in tutto. Il container delle azioni interroga il broker ogni 250 ms (`loyaltyhub.engine.actions-poll-timeout-ms`) perché riprende un record in attesa solo tra due interrogazioni: con il valore predefinito di 5 s ogni ritardo durerebbe circa 5 s.
 </Note>
 
 ## Validazioni salvataggio (422)
