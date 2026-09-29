@@ -32,7 +32,7 @@ Ogni passo dopo il primo gira anche se uno precedente è fallito (`if: ${{ !canc
 
 Il job è **consultivo**: non è tra i controlli obbligatori del ruleset `main-protetto` (`scripts/setup-branch-protection.sh`). Il proprietario lo rende obbligatorio quando si dimostra stabile (Q-500, ADR-047).
 
-Restano fuori da questo job, e stanno in M8.11 o M8.5a: CodeQL, Schemathesis, ZAP, il testbook `TB-SEC`, le immagini, l'SBOM e la firma.
+Restano fuori da questo job: Schemathesis, ZAP e il testbook `TB-SEC`, che stanno in [dast.md](dast.md) (M8.11c); CodeQL (M8.11); le immagini, l'SBOM e la firma (M8.5a, [supply-chain.md](supply-chain.md)).
 
 ## Versioni e installazione
 

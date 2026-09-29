@@ -87,7 +87,7 @@ Nelle modalità in un solo processo (`LH_ROLE=all`, `embedded`) B2, B4 e B5 rest
 | R | Un operatore nega una modifica di configurazione | Ogni scrittura di configurazione produce una voce in `audit_entry` con l'attore reale dal token, sola-inserzione (regola 21, ADR-043) | ✅ attore da header · ⏳ attore da token M8.2, catena di hash M8.12 |
 | I | BOLA: il portale legge un membro qualunque passando `memberId` in query | Le API `/v1/portal/*` ricavano il membro da `MemberPrincipal`, mai da path, query o corpo (F2-SEC-09) | ⚠️ oggi aperto · ⏳ M8.10 |
 | I | Letture del backoffice senza ruolo | Deny by default: ogni endpoint con `@RequiresRole` o `@PublicEndpoint` motivato; test ArchUnit che fallisce altrimenti | 🟡 deny by default attivo in ogni profilo (M8.10e): ogni endpoint dichiara l'accesso, verificato dalla build; l'ingresso delle fonti è solo `SOURCE` (Q-492 chiusa, M8.2f); residui: scritture ancora aperte ad `ANALYST` (Q-493), membro dal token nel portale (Q-410) · ⏳ M8.11 |
-| I | Errori che rivelano stack trace o SQL | Errori RFC 9457 senza dettagli interni | ✅ |
+| I | Errori che rivelano stack trace o SQL | Errori RFC 9457 senza dettagli interni | ✅ · verificato da `TB-SEC-ERR` e dallo ZAP notturno (M8.11c) |
 | D | Richieste molto grandi o costose (paginazione illimitata, filtri) | Limiti di input e di pagina; rate limit per membro su giocate, riscatti, registrazioni | ✅ limiti di pagina · ⏳ rate limit M8.10 |
 | E | Un ruolo operativo esegue azioni riservate ad `ADMIN` | Ruoli dal claim `lh_roles` con risoluzione conservativa (Q-365); controllo di proprietà dove il ruolo non basta | 🟡 PR #51 · ⏳ M8.10 |
 | E | Auto-approvazione di una campagna o di un premio | Regola `SELF_APPROVAL_FORBIDDEN`; doppio controllo configurabile sulle operazioni sensibili (F2-GRC-03) | ⏳ M8.13 |
@@ -123,7 +123,7 @@ Nelle modalità in un solo processo (`LH_ROLE=all`, `embedded`) B2, B4 e B5 rest
 | STRIDE | Minaccia | Contromisura | Stato |
 |---|---|---|---|
 | S | Credenziali del database condivise tra servizi | Ruolo per servizio (*owner* per le migrazioni, *app* per l'esercizio), credenziali brevi | ⏳ M8.5 |
-| T | Iniezione SQL | SQL solo parametrico; builder `SqlWhere`/`SqlOrder` con colonne da enum; regola Semgrep e query CodeQL in CI (regola 19, F2-SEC-10) | ✅ SQL parametrico, builder e regole Semgrep nel job `security` ([ci-security](ci-security.md), consultivo, M8.11b) · ⏳ query CodeQL (M8.11) |
+| T | Iniezione SQL | SQL solo parametrico; builder `SqlWhere`/`SqlOrder` con colonne da enum; regola Semgrep e query CodeQL in CI (regola 19, F2-SEC-10) | ✅ SQL parametrico, builder e regole Semgrep nel job `security` ([ci-security](ci-security.md), consultivo, M8.11b) · ⏳ query CodeQL (M8.11) · fuzzing Schemathesis e ZAP notturni, `TB-SEC-FUZ` ([dast](dast.md), M8.11c) |
 | T | Modifica dell'audit da parte dell'applicazione | `audit_entry` sola-inserzione, nessun `GRANT UPDATE` al ruolo *app* | ⏳ M8.12 |
 | R | Modifica dell'audit da parte di chi ha accesso al database | Catena di hash con ancoraggio immutabile e `lh audit verify` (F2-GRC-07) | ⏳ M8.12 |
 | I | Un servizio legge lo schema di un altro | `GRANT` sul solo schema proprio; nessuna query tra schemi (regola §5) | ✅ convenzione · ⏳ `GRANT` M8.5 |
