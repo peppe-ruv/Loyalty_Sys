@@ -3,42 +3,6 @@
   "schemathesis_version": "4.28.0",
   "entries": [
     {
-      "id": "4b7caa",
-      "operation": "GET /v1/approvals",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "bd17bd",
-      "operation": "GET /v1/audit",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "83f9a3",
-      "operation": "GET /v1/audit/verify",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
       "id": "0f1e4c",
       "operation": "GET /v1/campaigns",
       "check": "not_a_server_error",
@@ -47,43 +11,7 @@
       "first_seen": "2026-09-29",
       "last_seen": "2026-09-29",
       "expires": "2026-10-29",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400. Verificato anche con un byte NUL in `q` (`PSQLException 0x00`, riga TB-SEC-FUZ-012 di TB-SEC).",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "538f5f",
-      "operation": "GET /v1/contents",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "982ecb",
-      "operation": "GET /v1/contents/preview",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "f57e51",
-      "operation": "GET /v1/contests",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
+      "reason": "causa verificata alla riproduzione: byte NUL (`\\u0000`) nel parametro di ricerca `q`; `PSQLException: invalid byte sequence for encoding UTF8: 0x00`, 500 invece di 400 (riga TB-SEC-FUZ-012 di TB-SEC, saltata per la divergenza Q-532). La voce nasceva per il parametro di query senza nome, corretto da fase2/fix-q532a-parametro-senza-nome, e resta per questa causa",
       "ticket": "Q-532"
     },
     {
@@ -99,66 +27,6 @@
       "ticket": "Q-532"
     },
     {
-      "id": "cee49a",
-      "operation": "GET /v1/contests/{id}/winners",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "549864",
-      "operation": "GET /v1/contests/{id}/winners.csv",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "b28c61",
-      "operation": "GET /v1/coupon-pools/{id}/coupons",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "731f8a",
-      "operation": "GET /v1/dlq",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400 Nel log compare anche `OFFSET must not be negative` sullo stesso percorso (page fuori scala).",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "c9e7c7",
-      "operation": "GET /v1/evaluations",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
       "id": "4c4663",
       "operation": "GET /v1/events",
       "check": "not_a_server_error",
@@ -167,115 +35,7 @@
       "first_seen": "2026-09-29",
       "last_seen": "2026-09-29",
       "expires": "2026-10-29",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400. Verificato anche con un byte NUL in `q` (`PSQLException 0x00`, riga TB-SEC-FUZ-028 di TB-SEC).",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "c0aea5",
-      "operation": "GET /v1/imports",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "6e3e2c",
-      "operation": "GET /v1/imports/{id}/rows",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "be8e65",
-      "operation": "GET /v1/inbound-events",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "4e6f18",
-      "operation": "GET /v1/inbound-events/counts",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "77d548",
-      "operation": "GET /v1/kpi/breakdown",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "fa3ab6",
-      "operation": "GET /v1/kpi/overview",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "5f2bda",
-      "operation": "GET /v1/kpi/timeseries",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "ed673b",
-      "operation": "GET /v1/leaderboards/{code}/ranking",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "64e7c7",
-      "operation": "GET /v1/liability",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
+      "reason": "causa verificata alla riproduzione: byte NUL (`\\u0000`) nel parametro di ricerca `q`; `PSQLException: invalid byte sequence for encoding UTF8: 0x00`, 500 invece di 400 (riga TB-SEC-FUZ-028 di TB-SEC, saltata per la divergenza Q-532). La voce nasceva per il parametro di query senza nome, corretto da fase2/fix-q532a-parametro-senza-nome, e resta per questa causa",
       "ticket": "Q-532"
     },
     {
@@ -291,66 +51,6 @@
       "ticket": "Q-532"
     },
     {
-      "id": "53c7e6",
-      "operation": "GET /v1/message-templates",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "4cdfa8",
-      "operation": "GET /v1/messages",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "869dcc",
-      "operation": "GET /v1/notification-rules",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "d1779d",
-      "operation": "GET /v1/portal/achievements",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "f926a8",
-      "operation": "GET /v1/portal/badges",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
       "id": "b1a8f9",
       "operation": "GET /v1/portal/campaigns",
       "check": "not_a_server_error",
@@ -360,174 +60,6 @@
       "last_seen": "2026-09-29",
       "expires": "2026-12-28",
       "reason": "causa verificata alla riproduzione: byte NUL (`\\u0000`) in un parametro o in un campo di testo; `PSQLException: invalid byte sequence for encoding UTF8: 0x00`, 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "50e466",
-      "operation": "GET /v1/portal/catalog",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "fa99b2",
-      "operation": "GET /v1/portal/content",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "4cba63",
-      "operation": "GET /v1/portal/contests",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "96e95b",
-      "operation": "GET /v1/portal/contests/{code}/plays",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "c0b790",
-      "operation": "GET /v1/portal/coupons",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "b025a9",
-      "operation": "GET /v1/portal/inbox",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "0cbafd",
-      "operation": "GET /v1/portal/inbox/unread-count",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "4ba5e1",
-      "operation": "GET /v1/portal/leaderboards",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "47c336",
-      "operation": "GET /v1/portal/leaderboards/{code}",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "fc7da5",
-      "operation": "GET /v1/portal/popups/next",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "9b7f2b",
-      "operation": "GET /v1/portal/redemptions",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "74be1d",
-      "operation": "GET /v1/portal/redemptions/{id}",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "6227e7",
-      "operation": "GET /v1/portal/rewards/{code}",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "c2da00",
-      "operation": "GET /v1/portal/wallets/{memberId}/activity",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
       "ticket": "Q-532"
     },
     {
@@ -551,7 +83,7 @@
       "first_seen": "2026-09-29",
       "last_seen": "2026-09-29",
       "expires": "2026-10-29",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400. Verificato anche con un byte NUL in `q` (`PSQLException 0x00`, riga TB-SEC-FUZ-020 di TB-SEC).",
+      "reason": "causa verificata alla riproduzione: byte NUL (`\\u0000`) nel parametro di ricerca `q`; `PSQLException: invalid byte sequence for encoding UTF8: 0x00`, 500 invece di 400 (riga TB-SEC-FUZ-020 di TB-SEC, saltata per la divergenza Q-532). La voce nasceva per il parametro di query senza nome, corretto da fase2/fix-q532a-parametro-senza-nome, e resta per questa causa",
       "ticket": "Q-532"
     },
     {
@@ -576,42 +108,6 @@
       "last_seen": "2026-09-29",
       "expires": "2026-12-28",
       "reason": "causa verificata alla riproduzione: `page=2147483646` fa andare in overflow `page * size`; `PSQLException: OFFSET must not be negative` diventa `DataIntegrityViolationException` e il risultato è 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "91d9ea",
-      "operation": "GET /v1/traces",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400 Nel log compare anche `OFFSET must not be negative` sullo stesso percorso (page fuori scala).",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "f747b8",
-      "operation": "GET /v1/wallets/{memberId}/ledger",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "7b1c9e",
-      "operation": "GET /v1/webhooks/{id}/deliveries",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
       "ticket": "Q-532"
     },
     {
@@ -723,18 +219,6 @@
       "ticket": "Q-532"
     },
     {
-      "id": "31586f",
-      "operation": "POST /v1/editions/{code}/close",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
       "id": "9ac40b",
       "operation": "POST /v1/imports",
       "check": "not_a_server_error",
@@ -744,18 +228,6 @@
       "last_seen": "2026-09-29",
       "expires": "2026-12-28",
       "reason": "causa verificata alla riproduzione: corpo multipart troncato o con un nome di file contenente NUL; `FileUploadException` e `InvalidFileNameException` di Tomcat non sono mappate, 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "4d6bf6",
-      "operation": "POST /v1/imports/{id}/retry-unmatched",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
       "ticket": "Q-532"
     },
     {
@@ -795,30 +267,6 @@
       "ticket": "Q-532"
     },
     {
-      "id": "375c8e",
-      "operation": "POST /v1/portal/inbox/read-all",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "8caef5",
-      "operation": "POST /v1/portal/inbox/{id}/read",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
-      "ticket": "Q-532"
-    },
-    {
       "id": "66beb8",
       "operation": "POST /v1/portal/redemptions",
       "check": "not_a_server_error",
@@ -828,18 +276,6 @@
       "last_seen": "2026-09-29",
       "expires": "2026-12-28",
       "reason": "causa verificata alla riproduzione: byte NUL (`\\u0000`) in un oggetto JSON del corpo (`shipping`) salvato in una colonna jsonb; `PSQLException: unsupported Unicode escape sequence`, 500 invece di 400 (stessa famiglia del byte NUL: non è rifiutato prima del database)",
-      "ticket": "Q-532"
-    },
-    {
-      "id": "c2bc9c",
-      "operation": "POST /v1/portal/redemptions/{id}/cancel",
-      "check": "not_a_server_error",
-      "failure": "ServerError",
-      "signature": "500",
-      "first_seen": "2026-09-29",
-      "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400",
       "ticket": "Q-532"
     },
     {

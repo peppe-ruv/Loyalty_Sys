@@ -240,4 +240,64 @@ class MemberPrincipalsTest {
         assertThat(new MemberPrincipals(IdentityMode.OIDC, KEY, List.of()).hasSubjectKey()).isTrue();
         assertThat(new MemberPrincipals(IdentityMode.OIDC, new byte[31], List.of()).hasSubjectKey()).isFalse();
     }
+    /**
+     * Una richiesta i cui parametri il contenitore non sa leggere (Tomcat: {@code ?=x}). Come Tomcat 11, lancia solo alla
+     * <em>prima</em> lettura dei parametri; dalla seconda restituisce la mappa parziale costruita prima del pezzo
+     * rifiutato (qui vuota), quindi chi catturasse la prima eccezione vedrebbe «nessun memberId».
+     */
+    private static MockHttpServletRequest unreadableParameters() {
+        java.util.concurrent.atomic.AtomicBoolean thrown = new java.util.concurrent.atomic.AtomicBoolean();
+        return new MockHttpServletRequest() {
+            @Override
+            public java.util.Map<String, String[]> getParameterMap() {
+                if (thrown.compareAndSet(false, true)) {
+                    throw new org.apache.tomcat.util.http.InvalidParameterException("Invalid chunk [=x] ignored");
+                }
+                return java.util.Map.of();
+            }
+
+            @Override
+            public String getParameter(String name) {
+                if (thrown.compareAndSet(false, true)) {
+                    throw new org.apache.tomcat.util.http.InvalidParameterException("Invalid chunk [=x] ignored");
+                }
+                return null;
+            }
+        };
+    }
+
+    @Test
+    @DisplayName("Q-532: parametri illeggibili ⇒ hasMemberIdParameter lascia salire l'eccezione, mai false (fail closed)")
+    void unreadableParametersNeverMeanNoMemberId() throws Exception {
+        assertThatThrownBy(() -> MemberPrincipals.hasMemberIdParameter(unreadableParameters()))
+                .isInstanceOf(org.apache.tomcat.util.http.InvalidParameterException.class);
+        // il vincolo documentato: dopo la prima eccezione la mappa è parziale, per questo nessuno deve catturarla
+        MockHttpServletRequest caught = unreadableParameters();
+        assertThatThrownBy(() -> MemberPrincipals.hasMemberIdParameter(caught))
+                .isInstanceOf(org.apache.tomcat.util.http.InvalidParameterException.class);
+        assertThat(MemberPrincipals.hasMemberIdParameter(caught)).isFalse();
+        // i due risolutori la lasciano salire prima di impostare qualunque principal
+        HandlerMethod required = handler(new MemberTestSupport.Portal(), "required");
+        for (MemberPrincipals principals : List.of(new MemberPrincipals(IdentityMode.OIDC, KEY, List.of()),
+                MemberPrincipals.header())) {
+            MockHttpServletRequest request = unreadableParameters();
+            assertThatThrownBy(() -> new EndpointAccessInterceptor(principals).preHandle(request,
+                    new org.springframework.mock.web.MockHttpServletResponse(), required))
+                    .isInstanceOf(org.apache.tomcat.util.http.InvalidParameterException.class);
+            assertThat(request.getAttribute(MemberPrincipal.ATTRIBUTE)).isNull();
+        }
+    }
+
+    @Test
+    @DisplayName("Q-532: memberId riconosciuto in ogni grafia, come prima (isMemberIdName invariato)")
+    void memberIdNamesAreUnchanged() {
+        for (String name : List.of("memberId", "MEMBERID", "member_id", "MEMBER-ID", "filter.memberId", "items[0].memberId",
+                "!memberId", "_memberId", "memberId[0][1]")) {
+            assertThat(MemberPrincipals.isMemberIdName(name)).as(name).isTrue();
+        }
+        // il nome vuoto, o nullo, non è memberId (e non deve mai essere un caso speciale che apre o chiude)
+        for (String name : new String[] {"", " ", "=", "member", "ids", "memberIdx", null}) {
+            assertThat(MemberPrincipals.isMemberIdName(name)).as(String.valueOf(name)).isFalse();
+        }
+    }
 }

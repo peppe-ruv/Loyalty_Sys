@@ -259,7 +259,17 @@ public class MemberPrincipals {
         MDC.put("actor", actor.asActorString());
     }
 
-    /** Vero se la richiesta ha un parametro (query o campo form) {@code memberId} in qualunque grafia. */
+    /**
+     * Vero se la richiesta ha un parametro (query o campo form) {@code memberId} in qualunque grafia.
+     *
+     * <p>Se il contenitore non riesce a leggere i parametri (per esempio {@code ?=x}, un parametro senza nome) lancia
+     * un'eccezione e la lascia salire, <strong>mai</strong> {@code false}: un parametro illeggibile non è la prova che
+     * manchi un {@code memberId}, e la richiesta si rifiuta con 400 ({@link GlobalExceptionHandler}, Q-532).
+     *
+     * <p>Tomcat lancia <strong>una sola volta</strong> per richiesta, poi {@code getParameter*} restituisce la mappa
+     * parziale: nessun componente deve catturare {@code InvalidParameterException} prima di
+     * {@link GlobalExceptionHandler}, o vedrebbe una mappa senza il {@code memberId} che c'era.
+     */
     static boolean hasMemberIdParameter(HttpServletRequest request) {
         for (String name : request.getParameterMap().keySet()) {
             if (isMemberIdName(name)) {
