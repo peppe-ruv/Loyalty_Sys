@@ -1,12 +1,15 @@
 package io.loyaltyhub.hub;
 
+import io.loyaltyhub.hub.bus.HubInProcessBus;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -39,6 +42,12 @@ class HubEngagementIT {
     @Value("${local.server.port}")
     private int port;
 
+    @Autowired
+    private HubInProcessBus bus;
+
+    @Autowired
+    private JdbcClient jdbc;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -64,7 +73,8 @@ class HubEngagementIT {
         JsonNode message = awaitInbox("MBR-000002", m -> m.path("title").asString().equals("Hai guadagnato 162 punti"));
         assertThat(message.path("body").asString()).contains("Marco");
         assertThat(message.path("read").asBoolean()).isFalse();
-        sleep(2_000); // lascia arrivare l'eventuale notifica degli STS
+        // Quiete dell'hub (barriera sul bus, niente attesa fissa): l'eventuale notifica degli STS sarebbe già arrivata.
+        HubQuiet.await(bus, jdbc);
         List<String> titles = titles("MBR-000002");
         assertThat(titles).as("una sola notifica: gli STS non ne producono").containsOnlyOnce("Hai guadagnato 162 punti")
                 .doesNotContain("Hai guadagnato 130 punti");

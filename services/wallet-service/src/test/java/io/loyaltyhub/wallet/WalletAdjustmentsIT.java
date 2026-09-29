@@ -2,11 +2,9 @@ package io.loyaltyhub.wallet;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import io.loyaltyhub.wallet.api.WalletsController.AdjustmentRequest;
 import io.loyaltyhub.wallet.application.WalletService.AdjustmentResult;
 import io.loyaltyhub.wallet.application.WalletService;
@@ -37,7 +35,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -75,8 +72,9 @@ class WalletAdjustmentsIT {
     private JdbcClient jdbc;
 
     private RestClient rest;
-    private KafkaConsumer<String, String> consumerFacts;
-    private KafkaConsumer<String, String> consumerAudit;
+    /** Lettori di fatti e audit aperti prima di ogni test: vedono solo ciò che il test pubblica ({@link TopicReader}). */
+    private TopicReader.Tail consumerFacts;
+    private TopicReader.Tail consumerAudit;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -100,28 +98,10 @@ class WalletAdjustmentsIT {
     void setUp() {
         rest = RestClient.builder().baseUrl("http://localhost:" + port).build();
 
-        Map<String, Object> props = Map.of(
-            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, System.getProperty("spring.embedded.kafka.brokers"),
-            ConsumerConfig.GROUP_ID_CONFIG, "test-adj-" + System.nanoTime(),
-            ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-            ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-            ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        consumerFacts = new KafkaConsumer<>(props);
-        consumerFacts.subscribe(List.of(FACTS));
-        // clear backlog
-        while (!consumerFacts.poll(Duration.ofMillis(100)).isEmpty()) {}
-
-        Map<String, Object> propsAudit = Map.of(
-            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, System.getProperty("spring.embedded.kafka.brokers"),
-            ConsumerConfig.GROUP_ID_CONFIG, "test-audit-" + System.nanoTime(),
-            ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-            ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-            ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-
-        consumerAudit = new KafkaConsumer<>(propsAudit);
-        consumerAudit.subscribe(List.of(AUDIT));
-        // clear backlog
-        while (!consumerAudit.poll(Duration.ofMillis(100)).isEmpty()) {}
+        // Solo i record pubblicati da qui in poi: fine dei topic osservata a outbox svuotato, senza consumer group (il
+        // vecchio "svuota l'arretrato" con subscribe si fermava al primo poll vuoto, prima di avere le partizioni).
+        consumerFacts = new TopicReader(jdbc, mapper, FACTS).tail(true);
+        consumerAudit = new TopicReader(jdbc, mapper, AUDIT).tail(true);
     }
 
     @AfterEach
@@ -170,13 +150,9 @@ class WalletAdjustmentsIT {
         assertThat(activeLotsSum).isGreaterThanOrEqualTo(200);
 
         // Check Fact
-        ConsumerRecord<String, String> factRecord = null;
-        for (int i=0; i<10; i++) {
-            for (ConsumerRecord<String, String> r : consumerFacts.poll(Duration.ofMillis(500))) {
-                if (r.value().contains("io.loyaltyhub.fact.wallet.points.adjusted")) factRecord = r;
-            }
-            if (factRecord != null) break;
-        }
+        // La rettifica ha fatto commit: il topic si legge fino in fondo a outbox svuotato.
+        ConsumerRecord<String, String> factRecord = consumerFacts.records(List.of(),
+                r -> r.value().contains("io.loyaltyhub.fact.wallet.points.adjusted")).stream().findFirst().orElse(null);
         assertThat(factRecord).isNotNull();
         JsonNode factNode = mapper.readTree(factRecord.value());
         assertThat(factNode.get("type").asText()).isEqualTo("io.loyaltyhub.fact.wallet.points.adjusted");
@@ -184,13 +160,8 @@ class WalletAdjustmentsIT {
         assertThat(factNode.get("data").get("direction").asText()).isEqualTo("CREDIT");
 
         // Check Audit
-        ConsumerRecord<String, String> auditRecord = null;
-        for (int i=0; i<10; i++) {
-            for (ConsumerRecord<String, String> r : consumerAudit.poll(Duration.ofMillis(500))) {
-                if (r.value().contains("io.loyaltyhub.audit.entry") && r.value().contains("ADJUST")) auditRecord = r;
-            }
-            if (auditRecord != null) break;
-        }
+        ConsumerRecord<String, String> auditRecord = consumerAudit.records(List.of(),
+                r -> r.value().contains("io.loyaltyhub.audit.entry") && r.value().contains("ADJUST")).stream().findFirst().orElse(null);
         assertThat(auditRecord).isNotNull();
         JsonNode auditNode = mapper.readTree(auditRecord.value());
         assertThat(auditNode.get("type").asText()).isEqualTo("io.loyaltyhub.audit.entry");

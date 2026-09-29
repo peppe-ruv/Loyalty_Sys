@@ -2,29 +2,23 @@ package io.loyaltyhub.wallet;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import io.loyaltyhub.testsupport.TopicReader;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.wallet.application.EditionService;
 import io.loyaltyhub.wallet.domain.Edition;
 import io.loyaltyhub.wallet.infra.EditionRepository;
 import io.loyaltyhub.wallet.infra.MemberTierRepository;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.serialization.StringDeserializer;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 
-import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -66,25 +60,8 @@ class EditionCloseIT {
     @Autowired
     private ObjectMapper mapper;
 
-    private KafkaConsumer<String, String> consumer;
-
-    @BeforeEach
-    void setup() {
-        consumer = new KafkaConsumer<>(Map.of(
-                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, System.getProperty("spring.embedded.kafka.brokers"),
-                ConsumerConfig.GROUP_ID_CONFIG, "edition-close-it-" + System.currentTimeMillis(),
-                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class));
-        consumer.subscribe(List.of("lh.facts.v1"));
-    }
-
-    @AfterEach
-    void tearDown() {
-        if (consumer != null) {
-            consumer.close();
-        }
-    }
+    @Autowired
+    private JdbcClient jdbc;
 
     @Test
     void testEditionCloseApply() {
@@ -136,27 +113,13 @@ class EditionCloseIT {
                 .satisfies(e -> assertThat(((LhException) e).code()).isEqualTo("EDITION_ALREADY_CLOSED"));
     }
 
-    /** Fatti già letti dal consumer: la chiusura li pubblica insieme, un solo poll può contenerne più d'uno. */
-    private final List<JsonNode> seen = new java.util.ArrayList<>();
-
+    /**
+     * Il primo fatto del tipo con dati che soddisfano {@code dataMatch}, esatto ({@link TopicReader}): la chiusura ha già
+     * fatto commit, quindi {@code lh.facts.v1} si legge fino in fondo a outbox svuotato. {@code null} se non c'è.
+     */
     private JsonNode awaitFact(String type, Predicate<JsonNode> dataMatch) {
-        long deadline = System.currentTimeMillis() + 15_000;
-        while (true) {
-            for (JsonNode e : seen) {
-                if (e.path("type").asString().equals(type) && dataMatch.test(e.path("data"))) {
-                    return e.path("data");
-                }
-            }
-            if (System.currentTimeMillis() >= deadline) {
-                return null;
-            }
-            for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                try {
-                    seen.add(mapper.readTree(r.value()));
-                } catch (Exception ex) {
-                    // record non JSON: ignorato
-                }
-            }
-        }
+        return new TopicReader(jdbc, mapper, "lh.facts.v1")
+                .published(List.of(), e -> e.path("type").asString().equals(type) && dataMatch.test(e.path("data")))
+                .stream().findFirst().map(e -> e.path("data")).orElse(null);
     }
 }

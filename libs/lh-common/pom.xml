@@ -92,6 +92,13 @@
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- Letture esatte dei topic e attese sui listener negli IT (TopicReader, ListenerGroups; docs/06 §9). -->
+    <dependency>
+      <groupId>io.loyaltyhub</groupId>
+      <artifactId>lh-test-support</artifactId>
+      <version>0.1.0-SNAPSHOT</version>
+      <scope>test</scope>
+    </dependency>
     <!-- Kafka in-JVM (EmbeddedKafkaBroker): niente Docker (SPEC-GAP Q-40). Scope provided: serve anche a
          testsupport.EmbeddedKafkaBrokersTestListener (main), che gira solo sul classpath di test dei moduli. -->
     <dependency>

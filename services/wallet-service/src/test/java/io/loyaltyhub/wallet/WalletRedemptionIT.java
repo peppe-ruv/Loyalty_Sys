@@ -1,17 +1,20 @@
 package io.loyaltyhub.wallet;
 
+import io.loyaltyhub.testsupport.ListenerGroups;
+import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -46,6 +49,15 @@ class WalletRedemptionIT {
     @Value("${local.server.port}")
     private int port;
 
+    @Autowired
+    private JdbcClient jdbc;
+
+    @Autowired
+    private KafkaListenerEndpointRegistry listeners;
+
+    /** Eventi pubblicati dal test su Kafka: {@link #awaitFact} attende che il servizio li abbia elaborati tutti. */
+    private final List<String> published = new java.util.concurrent.CopyOnWriteArrayList<>();
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -53,6 +65,12 @@ class WalletRedemptionIT {
         registry.add("spring.datasource.username", () -> "postgres");
         registry.add("spring.datasource.password", () -> "");
         registry.add("spring.kafka.bootstrap-servers", () -> System.getProperty("spring.embedded.kafka.brokers"));
+    }
+
+    /** Si pubblica solo a gruppo {@code lh-wallet} stabile, con le partizioni assegnate ({@link ListenerGroups}). */
+    @BeforeAll
+    void waitForListenerGroup() {
+        ListenerGroups.awaitStable(listeners);
     }
 
     @AfterAll
@@ -80,12 +98,8 @@ class WalletRedemptionIT {
         assertThat(ledger.toString()).contains("SPEND");
 
         // Stessa richiesta rielaborata (nuovo messaggio): nessuna seconda spesa.
-        publishRequested(m, "RDM-IT-FIFO", 1500);
-        long deadline = System.currentTimeMillis() + 1500;
-        while (System.currentTimeMillis() < deadline) {
-            if (balance(m) != 700) break;
-            Thread.sleep(100);
-        }
+        // Barriera esatta: il messaggio è elaborato (processed_event), poi il saldo non può più cambiare per lui.
+        facts().awaitConsumed(List.of(publishRequested(m, "RDM-IT-FIFO", 1500)));
         assertThat(balance(m)).isEqualTo(700);
 
         // Annullo con rimborso (docs/03 §4.2): un lotto NUOVO da 1 500 con scadenza max(scadenza più lontana dei lotti
@@ -100,12 +114,7 @@ class WalletRedemptionIT {
                 .isAfter(java.time.Instant.now().plus(Duration.ofDays(30)));
         assertThat(lotExpiry(m, 1500)).isEqualTo(marchExpiry);
 
-        publishCancelled(m, "RDM-IT-FIFO", 1500, true);
-        deadline = System.currentTimeMillis() + 1500;
-        while (System.currentTimeMillis() < deadline) {
-            if (balance(m) != 2200) break;
-            Thread.sleep(100);
-        }
+        facts().awaitConsumed(List.of(publishCancelled(m, "RDM-IT-FIFO", 1500, true)));
         assertThat(balance(m)).as("rimborso idempotente").isEqualTo(2200);
     }
 
@@ -127,13 +136,10 @@ class WalletRedemptionIT {
     @Test
     void cancellationWithoutRefundOrWithoutSpendChangesNothing() throws Exception {
         long before = balance("MBR-000009");
-        publishCancelled("MBR-000009", "RDM-IT-NEVER-SPENT", 500, true);
-        publishCancelled("MBR-000009", "RDM-IT-NO-REFUND", 500, false);
-        long deadline = System.currentTimeMillis() + 1500;
-        while (System.currentTimeMillis() < deadline) {
-            if (balance("MBR-000009") != before) break;
-            Thread.sleep(100);
-        }
+        String neverSpent = publishCancelled("MBR-000009", "RDM-IT-NEVER-SPENT", 500, true);
+        String noRefund = publishCancelled("MBR-000009", "RDM-IT-NO-REFUND", 500, false);
+        // Barriera esatta: entrambi i messaggi sono elaborati (processed_event), il saldo non può più cambiare per loro.
+        facts().awaitConsumed(List.of(neverSpent, noRefund));
         assertThat(balance("MBR-000009")).isEqualTo(before);
     }
 
@@ -175,23 +181,18 @@ class WalletRedemptionIT {
         assertThat(balance(memberId)).isEqualTo(expected);
     }
 
+    /**
+     * Il primo fatto del tipo con dati che soddisfano {@code dataMatch}, esatto ({@link TopicReader}): prima il servizio
+     * deve aver elaborato ogni evento pubblicato dal test ({@code processed_event}), poi {@code lh.facts.v1} si legge
+     * fino in fondo a outbox svuotato, senza consumer group.
+     */
     private JsonNode awaitFact(String type, Predicate<JsonNode> dataMatch) {
-        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(Map.of(
-                "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
-                "group.id", "it-" + System.nanoTime(), "auto.offset.reset", "earliest",
-                "key.deserializer", StringDeserializer.class, "value.deserializer", StringDeserializer.class))) {
-            consumer.subscribe(List.of("lh.facts.v1"));
-            long deadline = System.currentTimeMillis() + 15_000;
-            while (System.currentTimeMillis() < deadline) {
-                for (ConsumerRecord<String, String> rec : consumer.poll(Duration.ofMillis(300))) {
-                    JsonNode e = mapper.readTree(rec.value());
-                    if (e.path("type").asString().equals(type) && dataMatch.test(e.path("data"))) {
-                        return e;
-                    }
-                }
-            }
-        }
-        throw new AssertionError("nessun " + type);
+        return facts().published(published, e -> e.path("type").asString().equals(type) && dataMatch.test(e.path("data")))
+                .stream().findFirst().orElseThrow(() -> new AssertionError("nessun " + type));
+    }
+
+    private TopicReader facts() {
+        return new TopicReader(jdbc, mapper, "lh.facts.v1");
     }
 
     private void grant(String memberId, String effectId, long amount, String time) {
@@ -203,27 +204,31 @@ class WalletRedemptionIT {
                 "subject", "member:" + memberId, "time", time, "lhcorrelationid", "ACT-" + effectId, "lhhop", 0, "data", data));
     }
 
-    private void publishRequested(String memberId, String redemptionId, long cost) {
-        send("lh.facts.v1", memberId, Map.of("specversion", "1.0", "id", "REQ-" + redemptionId + "-" + System.nanoTime(),
+    private String publishRequested(String memberId, String redemptionId, long cost) {
+        return send("lh.facts.v1", memberId, Map.of("specversion", "1.0", "id", "REQ-" + redemptionId + "-" + System.nanoTime(),
                 "source", "urn:loyaltyhub:service:reward", "type", "io.loyaltyhub.fact.reward.redemption.requested",
                 "subject", "member:" + memberId, "time", "2026-09-20T10:00:00Z", "lhcorrelationid", "REQ-" + redemptionId,
                 "lhhop", 0, "data", Map.of("redemptionId", redemptionId, "rewardCode", "RWD-IT", "rewardName", "Premio di prova",
                         "currency", "PTS", "pointsCost", cost)));
     }
 
-    private void publishCancelled(String memberId, String redemptionId, long cost, boolean refund) {
-        send("lh.facts.v1", memberId, Map.of("specversion", "1.0", "id", "CAN-" + redemptionId + "-" + System.nanoTime(),
+    private String publishCancelled(String memberId, String redemptionId, long cost, boolean refund) {
+        return send("lh.facts.v1", memberId, Map.of("specversion", "1.0", "id", "CAN-" + redemptionId + "-" + System.nanoTime(),
                 "source", "urn:loyaltyhub:service:reward", "type", "io.loyaltyhub.fact.reward.redemption.cancelled",
                 "subject", "member:" + memberId, "time", "2026-09-20T10:05:00Z", "lhcorrelationid", "REQ-" + redemptionId,
                 "lhhop", 0, "data", Map.of("redemptionId", redemptionId, "reason", "CUSTOMER_REQUEST", "refund", refund,
                         "pointsCost", cost)));
     }
 
-    private void send(String topic, String key, Map<String, Object> event) {
+    /** Pubblica e ritorna l'id dell'evento, registrato tra quelli da attendere. */
+    private String send(String topic, String key, Map<String, Object> event) {
         try (KafkaProducer<String, String> producer = new KafkaProducer<>(Map.of(
                 "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
                 "key.serializer", StringSerializer.class, "value.serializer", StringSerializer.class))) {
             producer.send(new ProducerRecord<>(topic, key, mapper.writeValueAsString(event))).get();
+            String id = (String) event.get("id");
+            published.add(id);
+            return id;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

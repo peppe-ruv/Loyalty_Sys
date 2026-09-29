@@ -1,6 +1,7 @@
 package io.loyaltyhub.hub;
 
 import io.loyaltyhub.common.event.JsonSchemaValidator;
+import io.loyaltyhub.hub.bus.HubInProcessBus;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,9 @@ public class HubContractConformanceIT {
 
     @Autowired
     private DataSource dataSource;
+
+    @Autowired
+    private HubInProcessBus bus;
 
     @Autowired
     private ObjectMapper mapper;
@@ -170,16 +174,11 @@ public class HubContractConformanceIT {
             post("/v1/dlq/" + dlqId + "/reprocess", "ADMIN:test", null);
         }
 
-        // Attende che insight.event_store smetta di crescere (tutti gli eventi a valle registrati).
+        // Quiete dell'hub (barriera sul bus, niente finestra di stabilità): tutti gli eventi a valle sono registrati.
         JdbcClient jdbc = JdbcClient.create(dataSource);
-        long[] last = {-1};
-        await("event_store stabile", () -> {
-            long n = jdbc.sql("SELECT count(*) FROM event_store").query(Long.class).single();
-            boolean stable = n > 0 && n == last[0];
-            last[0] = n;
-            sleep(750);
-            return stable;
-        });
+        HubQuiet.await(bus, jdbc);
+        assertThat(jdbc.sql("SELECT count(*) FROM event_store").query(Long.class).single()).as("event_store non vuoto")
+                .isPositive();
         List<String> payloads = jdbc.sql("SELECT payload::text FROM event_store").query(String.class).list();
 
         String rootDir = Paths.get("../../contracts/events").toAbsolutePath().normalize().toString();

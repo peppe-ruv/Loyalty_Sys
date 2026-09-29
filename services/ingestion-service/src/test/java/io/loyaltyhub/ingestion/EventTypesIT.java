@@ -1,16 +1,16 @@
 package io.loyaltyhub.ingestion;
 
+import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -19,7 +19,6 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +44,9 @@ class EventTypesIT {
 
     @Value("${local.server.port}")
     private int port;
+
+    @Autowired
+    private JdbcClient jdbc;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -99,13 +101,12 @@ class EventTypesIT {
         JsonNode fields = send("GET", "/v1/event-types/meter.reading.sent/fields", null, null, 200);
         assertThat(fields.toString()).contains("data.reading", "data.channel");
 
-        try (KafkaConsumer<String, String> consumer = consumer("event-types-it")) {
-            consumer.subscribe(List.of("lh.actions.v1"));
+        {
             JsonNode fired = send("POST", "/v1/demo/simulator/fire", MARKETING,
                     Map.of("memberId", "MBR-000002", "type", "meter.reading.sent"), 200);
             assertThat(fired.get(0).path("status").asString()).isEqualTo("ACCEPTED");
             String eventId = fired.get(0).path("eventId").asString();
-            JsonNode published = awaitAction(consumer, eventId);
+            JsonNode published = awaitAction(eventId);
             assertThat(published.path("type").asString()).isEqualTo("io.loyaltyhub.action.meter.reading.sent");
             // data assente → sample_data con piccole variazioni casuali (ingestion §3): reading 1234 ± 10 %.
             assertThat(published.path("data").path("reading").asInt()).isBetween(1110, 1358);
@@ -205,26 +206,17 @@ class EventTypesIT {
         return out;
     }
 
-    private JsonNode awaitAction(KafkaConsumer<String, String> consumer, String eventId) {
-        long deadline = System.currentTimeMillis() + 15_000;
-        while (System.currentTimeMillis() < deadline) {
-            for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                JsonNode e = mapper.readTree(r.value());
-                if (r.value().contains(eventId)) {
-                    return e;
-                }
-            }
+    /**
+     * L'azione pubblicata per l'evento, esatta ({@link TopicReader}): la chiamata al simulatore ha già risposto, quindi
+     * basta leggere {@code lh.actions.v1} fino in fondo a outbox svuotato, senza consumer group.
+     */
+    private JsonNode awaitAction(String eventId) {
+        List<ConsumerRecord<String, String>> found = new TopicReader(jdbc, mapper, "lh.actions.v1")
+                .records(List.of(), r -> r.value().contains(eventId));
+        if (found.isEmpty()) {
+            throw new AssertionError("azione non pubblicata: " + eventId);
         }
-        throw new AssertionError("azione non pubblicata: " + eventId);
-    }
-
-    private KafkaConsumer<String, String> consumer(String group) {
-        return new KafkaConsumer<>(Map.of(
-                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, System.getProperty("spring.embedded.kafka.brokers"),
-                ConsumerConfig.GROUP_ID_CONFIG, group,
-                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class));
+        return mapper.readTree(found.getFirst().value());
     }
 
     private static EmbeddedPostgres startPg() {

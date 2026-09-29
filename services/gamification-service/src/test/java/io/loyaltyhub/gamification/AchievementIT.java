@@ -1,5 +1,7 @@
 package io.loyaltyhub.gamification;
 
+import io.loyaltyhub.testsupport.ListenerGroups;
+import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -55,7 +57,7 @@ class AchievementIT {
     @Value("${local.server.port}")
     private int port;
 
-    /** Topic dei fatti del contesto di test ({@link FactsTopic}). */
+    /** Topic dei fatti del contesto di test ({@link TopicReader}). */
     @Value("${loyaltyhub.topics.facts:lh.facts.v1}")
     private String factsTopicName;
 
@@ -217,11 +219,11 @@ class AchievementIT {
 
     /**
      * Fatti del soggetto e tipo indicati, esatti: prima il servizio deve aver elaborato ogni evento pubblicato dal test
-     * ({@code processed_event}), poi il topic si legge fino in fondo a outbox svuotato ({@link FactsTopic}). Nessuna
+     * ({@code processed_event}), poi il topic si legge fino in fondo a outbox svuotato ({@link TopicReader}). Nessuna
      * finestra di tempo: un fatto in più (doppione, membro bloccato) resta visibile.
      */
     private List<JsonNode> facts(String subject, String type, Predicate<JsonNode> filter) {
-        return new FactsTopic(jdbc, mapper, factsTopicName).published(published,
+        return new TopicReader(jdbc, mapper, factsTopicName).published(published,
                 e -> subject.equals(e.path("subject").asString()) && type.equals(e.path("type").asString()) && filter.test(e));
     }
 

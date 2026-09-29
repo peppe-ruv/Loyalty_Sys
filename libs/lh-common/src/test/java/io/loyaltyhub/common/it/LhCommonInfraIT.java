@@ -14,13 +14,14 @@ import io.loyaltyhub.common.kafka.LoyaltyHubProperties;
 import io.loyaltyhub.common.metrics.LhMetrics;
 import io.loyaltyhub.common.outbox.OutboxRelay;
 import io.loyaltyhub.common.outbox.OutboxWriter;
+import io.loyaltyhub.testsupport.ListenerGroups;
+import io.loyaltyhub.testsupport.TopicReader;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.flywaydb.core.Flyway;
@@ -42,7 +43,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
 import java.time.Clock;
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -133,9 +133,8 @@ class LhCommonInfraIT {
         // così SELECT ... FOR UPDATE e UPDATE condividono la stessa connessione.
         tx.executeWithoutResult(s -> relay.publishBatch());
 
-        try (KafkaConsumer<String, String> consumer = consumer("relay-test")) {
-            consumer.subscribe(List.of(ACTIONS));
-            ConsumerRecord<String, String> rec = poll(consumer, r -> r.key().equals("MBR-000003"));
+        {
+            ConsumerRecord<String, String> rec = first(ACTIONS, r -> r.key().equals("MBR-000003"));
             assertThat(rec).as("messaggio pubblicato sul topic").isNotNull();
             assertThat(rec.key()).isEqualTo("MBR-000003");
             assertThat(header(rec, LhHeaders.TYPE)).isEqualTo(LhEventTypes.Action.PURCHASE_COMPLETED);
@@ -155,17 +154,10 @@ class LhCommonInfraIT {
             }
         });
         tx.executeWithoutResult(s -> relay.publishBatch());
+        // Il relay ha già marcato le righe dopo l'ack: il topic si legge fino in fondo, tutti i record della chiave.
         List<Integer> seen = new java.util.ArrayList<>();
-        try (KafkaConsumer<String, String> consumer = consumer("order-test")) {
-            consumer.subscribe(List.of(EFFECTS));
-            long deadline = System.currentTimeMillis() + 10_000;
-            while (seen.size() < 20 && System.currentTimeMillis() < deadline) {
-                for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(300))) {
-                    if ("MBR-ORDER".equals(r.key())) {
-                        seen.add(mapper.readTree(r.value()).path("data").path("seq").asInt());
-                    }
-                }
-            }
+        for (ConsumerRecord<String, String> r : records(EFFECTS, r -> "MBR-ORDER".equals(r.key()))) {
+            seen.add(mapper.readTree(r.value()).path("data").path("seq").asInt());
         }
         assertThat(seen).containsExactlyElementsOf(java.util.stream.IntStream.range(0, 20).boxed().toList());
     }
@@ -187,10 +179,7 @@ class LhCommonInfraIT {
         // Al ritorno del broker, la stessa riga viene finalmente pubblicata: nessuna perdita.
         tx.executeWithoutResult(s -> relay.publishBatch());
         assertThat(unpublishedForKey("MBR-000009")).isZero();
-        try (KafkaConsumer<String, String> consumer = consumer("noloss-test")) {
-            consumer.subscribe(List.of(ACTIONS));
-            assertThat(poll(consumer, r -> r.key().equals("MBR-000009"))).isNotNull();
-        }
+        assertThat(first(ACTIONS, r -> r.key().equals("MBR-000009"))).isNotNull();
     }
 
     @Test
@@ -239,11 +228,14 @@ class LhCommonInfraIT {
         container.setCommonErrorHandler(errorHandler);
         container.start();
         try {
-            template.send(DLQ_INPUT, "MBR-000007", "{\"type\":\"boom\"}").get();
+            // Si pubblica solo col consumer membro del gruppo stabile, partizione applicata (ListenerGroups).
+            ListenerGroups.awaitStable(bootstrap, List.of(container));
+            RecordMetadata sent = template.send(DLQ_INPUT, "MBR-000007", "{\"type\":\"boom\"}").get().getRecordMetadata();
+            // Barriera esatta: l'offset è confermato solo dopo i tentativi e la pubblicazione in DLQ.
+            ListenerGroups.awaitCommitted(bootstrap, "dlq-test", List.of(sent));
 
-            try (KafkaConsumer<String, String> consumer = consumer("dlq-reader")) {
-                consumer.subscribe(List.of(DLQ));
-                ConsumerRecord<String, String> dead = poll(consumer, r -> r.key().equals("MBR-000007"));
+            {
+                ConsumerRecord<String, String> dead = first(DLQ, r -> r.key().equals("MBR-000007"));
                 assertThat(dead).as("messaggio finito in DLQ").isNotNull();
                 assertThat(header(dead, LhHeaders.ERROR_CODE)).isEqualTo("IllegalStateException");
                 // Header DLQ di docs/04 §5 (letti da insight per BO-27).
@@ -300,27 +292,19 @@ class LhCommonInfraIT {
                 ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class));
     }
 
-    private KafkaConsumer<String, String> consumer(String group) {
-        return new KafkaConsumer<>(Map.of(
-                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrap,
-                ConsumerConfig.GROUP_ID_CONFIG, group,
-                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class));
+    /**
+     * Record di {@code topic} che soddisfano {@code match}, esatti ({@link TopicReader}): il relay e l'error handler
+     * hanno già finito (chiamate sincrone o barriera sugli offset), quindi basta leggere il topic dall'inizio fino in
+     * fondo, senza consumer group né finestra di tempo.
+     */
+    private List<ConsumerRecord<String, String>> records(String topic, Predicate<ConsumerRecord<String, String>> match) {
+        return new TopicReader(bootstrap, jdbc, mapper, topic).records(List.of(), match);
     }
 
-    private ConsumerRecord<String, String> poll(KafkaConsumer<String, String> consumer,
-                                                Predicate<ConsumerRecord<String, String>> match) {
-        long deadline = System.currentTimeMillis() + 20_000;
-        while (System.currentTimeMillis() < deadline) {
-            ConsumerRecords<String, String> recs = consumer.poll(Duration.ofMillis(500));
-            for (ConsumerRecord<String, String> r : recs) {
-                if (match.test(r)) {
-                    return r;
-                }
-            }
-        }
-        return null;
+    /** Il primo record che soddisfa {@code match} nell'ordine del topic, {@code null} se non ce n'è. */
+    private ConsumerRecord<String, String> first(String topic, Predicate<ConsumerRecord<String, String>> match) {
+        List<ConsumerRecord<String, String>> found = records(topic, match);
+        return found.isEmpty() ? null : found.getFirst();
     }
 
     private String header(ConsumerRecord<String, String> rec, String name) {

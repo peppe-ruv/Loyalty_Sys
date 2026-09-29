@@ -1,5 +1,6 @@
 package io.loyaltyhub.gamification;
 
+import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -52,7 +53,7 @@ class ContestIT {
     @Value("${local.server.port}")
     private int port;
 
-    /** Topic dei fatti del contesto di test ({@link FactsTopic}). */
+    /** Topic dei fatti del contesto di test ({@link TopicReader}). */
     @Value("${loyaltyhub.topics.facts:lh.facts.v1}")
     private String factsTopicName;
 
@@ -480,11 +481,11 @@ class ContestIT {
     }
 
     /**
-     * Tipi dei fatti del soggetto pubblicati sul topic dei fatti ({@link FactsTopic}). Nessun evento da attendere: i
+     * Tipi dei fatti del soggetto pubblicati sul topic dei fatti ({@link TopicReader}). Nessun evento da attendere: i
      * fatti nascono nelle transazioni delle chiamate HTTP, già concluse.
      */
     private List<String> factTypesFor(String subject) {
-        return new FactsTopic(jdbc, mapper, factsTopicName)
+        return new TopicReader(jdbc, mapper, factsTopicName)
                 .published(List.of(), e -> subject.equals(e.path("subject").asString())).stream()
                 .map(e -> e.path("type").asString()).toList();
     }

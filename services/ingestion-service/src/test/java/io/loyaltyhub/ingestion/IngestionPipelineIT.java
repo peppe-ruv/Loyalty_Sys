@@ -2,19 +2,18 @@ package io.loyaltyhub.ingestion;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -53,6 +52,9 @@ class IngestionPipelineIT {
     @Value("${local.server.port}")
     private int port;
 
+    @Autowired
+    private JdbcClient jdbc;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -78,9 +80,8 @@ class IngestionPipelineIT {
         assertThat(body.path("eventId").asString()).isEqualTo("01K0AAAAAAAAAAAAAAAAAAAA01");
         assertThat(body.path("memberId").asString()).isEqualTo("MBR-000002");
 
-        try (KafkaConsumer<String, String> consumer = consumer("accept-check")) {
-            consumer.subscribe(List.of(ACTIONS));
-            ConsumerRecord<String, String> rec = poll(consumer, r -> r.key().equals("MBR-000002"));
+        {
+            ConsumerRecord<String, String> rec = first(actions(r -> r.key().equals("MBR-000002")));
             assertThat(rec).as("azione pubblicata sul topic").isNotNull();
             JsonNode published = readJson(rec.value());
             assertThat(published.path("type").asString()).isEqualTo("io.loyaltyhub.action.purchase.completed");
@@ -113,9 +114,8 @@ class IngestionPipelineIT {
         assertThat(first.path("memberId").asString()).isEqualTo("MBR-000007");
         assertThat(postTransaction(txn, 202).path("status").asString()).isEqualTo("DUPLICATE");
 
-        try (KafkaConsumer<String, String> consumer = consumer("txn-check")) {
-            consumer.subscribe(List.of(ACTIONS));
-            ConsumerRecord<String, String> rec = poll(consumer, r -> r.value().contains("txn-ORD-77001"));
+        {
+            ConsumerRecord<String, String> rec = first(actions(r -> r.value().contains("txn-ORD-77001")));
             assertThat(rec).as("azione della transazione").isNotNull();
             JsonNode published = readJson(rec.value());
             assertThat(published.path("type").asString()).isEqualTo("io.loyaltyhub.action.purchase.completed");
@@ -149,20 +149,9 @@ class IngestionPipelineIT {
         assertThat(first.path("status").asString()).isEqualTo("ACCEPTED");
         assertThat(second.path("status").asString()).isEqualTo("DUPLICATE");
 
-        try (KafkaConsumer<String, String> consumer = consumer("dup-check")) {
-            consumer.subscribe(List.of(ACTIONS));
-            int count = 0;
-            long deadline = System.currentTimeMillis() + 8_000;
-            while (System.currentTimeMillis() < deadline) {
-                ConsumerRecords<String, String> recs = consumer.poll(Duration.ofMillis(400));
-                for (ConsumerRecord<String, String> r : recs) {
-                    if (r.key().equals("MBR-000005")) {
-                        count++;
-                    }
-                }
-            }
-            assertThat(count).as("un solo record malgrado il doppio invio").isEqualTo(1);
-        }
+        // Le due risposte sono arrivate: tutto ciò che la pipeline ha scritto è nell'outbox, il topic letto fino in fondo.
+        int count = actions(r -> r.key().equals("MBR-000005")).size();
+        assertThat(count).as("un solo record malgrado il doppio invio").isEqualTo(1);
     }
 
     // ---------- riprocessa DLQ (M7.3, ADR-002 eccezione 1) ----------
@@ -184,16 +173,10 @@ class IngestionPipelineIT {
         // Senza l'header resta la dedup.
         assertThat(post(event, 202).path("status").asString()).isEqualTo("DUPLICATE");
 
-        try (KafkaConsumer<String, String> consumer = consumer("reprocess-check")) {
-            consumer.subscribe(List.of(ACTIONS));
+        {
             List<JsonNode> copies = new java.util.ArrayList<>();
-            long deadline = System.currentTimeMillis() + 10_000;
-            while (System.currentTimeMillis() < deadline && copies.size() < 2) {
-                for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                    if (r.value().contains(id)) {
-                        copies.add(readJson(r.value()));
-                    }
-                }
+            for (ConsumerRecord<String, String> r : actions(r -> r.value().contains(id))) {
+                copies.add(readJson(r.value()));
             }
             assertThat(copies).as("l'originale e la ripubblicazione").hasSize(2);
             assertThat(copies.get(1).path("id").asString()).isEqualTo(id);
@@ -431,26 +414,18 @@ class IngestionPipelineIT {
         return event;
     }
 
-    private KafkaConsumer<String, String> consumer(String group) {
-        return new KafkaConsumer<>(Map.of(
-                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, System.getProperty("spring.embedded.kafka.brokers"),
-                ConsumerConfig.GROUP_ID_CONFIG, group,
-                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class));
+    /**
+     * Azioni pubblicate su {@code lh.actions.v1} che soddisfano {@code match}, esatte ({@link TopicReader}): nascono
+     * nelle transazioni HTTP già concluse, quindi basta leggere il topic fino in fondo a outbox svuotato, senza consumer
+     * group. Un doppione resta visibile, un record assente è davvero assente.
+     */
+    private List<ConsumerRecord<String, String>> actions(Predicate<ConsumerRecord<String, String>> match) {
+        return new TopicReader(jdbc, mapper, ACTIONS).records(List.of(), match);
     }
 
-    private ConsumerRecord<String, String> poll(KafkaConsumer<String, String> consumer,
-                                                Predicate<ConsumerRecord<String, String>> match) {
-        long deadline = System.currentTimeMillis() + 15_000;
-        while (System.currentTimeMillis() < deadline) {
-            for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                if (match.test(r)) {
-                    return r;
-                }
-            }
-        }
-        return null;
+    /** Il primo record nell'ordine del topic, {@code null} se non ce n'è. */
+    private static ConsumerRecord<String, String> first(List<ConsumerRecord<String, String>> records) {
+        return records.isEmpty() ? null : records.getFirst();
     }
 
     private JsonNode readJson(String value) {

@@ -207,6 +207,8 @@ Fino a M7 la proprietà `loyaltyhub.approval.enabled=false` consente `DRAFT → 
 
 Copertura: nessuna soglia numerica; **obbligatorio** un test per ogni regola numerata in `docs/03` e per ogni handler. I test non dipendono dai seed (creano i propri dati), tranne lo smoke.
 
+IT su Kafka senza attese a tempo: il modulo `libs/lh-test-support` (`io.loyaltyhub.testsupport`) offre `TopicReader` (lettura di un topic senza consumer group, fino alla fine osservata, dopo la barriera `processed_event` e a outbox svuotato) e `ListenerGroups` (`awaitStable` prima di pubblicare, `awaitCommitted` per doppioni, type ignorati e DLQ, `awaitQuiescent` per catene tra servizi). Un'assenza o un "esattamente uno" si verifica dopo una barriera di elaborazione, mai dopo una finestra di tempo. Il modulo si dichiara **solo con scope `test`**: non entra mai in un jar di produzione.
+
 ## 10. Endpoint demo comuni
 
 | Metodo | Path | Effetto |

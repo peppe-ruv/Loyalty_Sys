@@ -1,12 +1,10 @@
 package io.loyaltyhub.engagement;
 
 import io.loyaltyhub.common.event.JsonSchemaValidator;
+import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -27,13 +25,11 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.function.Predicate;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -146,7 +142,7 @@ class ContentIT {
         assertThat(copy.path("status").asString()).isEqualTo("DRAFT");
         assertThat(copy.path("title").asString()).isEqualTo("Ciclo di vita (copia)");
 
-        List<JsonNode> facts = facts("content:CNT-IT-LIFE", "io.loyaltyhub.fact.content.status.changed", 5);
+        List<JsonNode> facts = facts("content:CNT-IT-LIFE", "io.loyaltyhub.fact.content.status.changed");
         assertThat(facts).extracting(f -> f.path("data").path("newStatus").asString())
                 .containsExactly("LIVE", "PAUSED", "LIVE", "ENDED", "ARCHIVED");
         String envelope = new ClassPathResource("contracts/events/envelope.schema.json").getContentAsString(StandardCharsets.UTF_8);
@@ -318,24 +314,12 @@ class ContentIT {
 
     // ---------- helper ----------
 
-    private List<JsonNode> facts(String subject, String type, int expected) {
-        List<JsonNode> out = new ArrayList<>();
-        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(Map.of(
-                "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
-                "group.id", "content-it-" + UUID.randomUUID(), "auto.offset.reset", "earliest",
-                "key.deserializer", StringDeserializer.class, "value.deserializer", StringDeserializer.class))) {
-            consumer.subscribe(List.of("lh.facts.v1"));
-            long deadline = System.currentTimeMillis() + 15_000;
-            while (System.currentTimeMillis() < deadline && out.size() < expected) {
-                for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                    JsonNode e = mapper.readTree(r.value());
-                    if (subject.equals(e.path("subject").asString()) && type.equals(e.path("type").asString())) {
-                        out.add(e);
-                    }
-                }
-            }
-        }
-        return out;
+    /**
+     * Fatti del soggetto e tipo indicati, esatti ({@link TopicReader}): nascono nelle transazioni HTTP già concluse,
+     * quindi basta leggere {@code lh.facts.v1} fino in fondo a outbox svuotato. Un fatto in più resta visibile.
+     */
+    private List<JsonNode> facts(String subject, String type) {
+        return new TopicReader(jdbc, mapper, "lh.facts.v1").published(List.of(), subject, type);
     }
 
     private static List<String> fields(JsonNode problem) {

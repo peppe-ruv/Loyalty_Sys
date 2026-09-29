@@ -37,10 +37,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -98,9 +94,6 @@ class HubScenariosIT {
 
     private static final long RUN_TIMEOUT_MS = 60_000;
     private static final long EFFECT_TIMEOUT_MS = 30_000;
-    /** Quiete: 2 giri del relay dell'outbox (500 ms) senza scritture. */
-    private static final long QUIET_WINDOW_MS = 1_000;
-    private static final String BARRIER_TOPIC = "lh.test.scenarios-barrier";
 
     @Value("${local.server.port}")
     private int port;
@@ -113,8 +106,6 @@ class HubScenariosIT {
 
     @Autowired
     private HubInProcessBus bus;
-
-    private final Map<String, CountDownLatch> barriers = new ConcurrentHashMap<>();
 
     private Map<String, JsonNode> scenarios;
     private Map<String, JsonNode> campaigns;
@@ -143,12 +134,6 @@ class HubScenariosIT {
         assertThat(planned).as("ogni scenario di seed/scenarios.json è eseguito (uno nuovo va aggiunto a questo test)")
                 .containsExactlyInAnyOrderElementsOf(scenarios.keySet());
 
-        bus.subscribe(BARRIER_TOPIC, "lh-test-barrier", r -> {
-            CountDownLatch latch = barriers.remove(r.key());
-            if (latch != null) {
-                latch.countDown();
-            }
-        });
         awaitQuiescence("avvio");
 
         List<Result> results = new ArrayList<>();
@@ -907,44 +892,11 @@ class HubScenariosIT {
     // =====================================================================================================
 
     /**
-     * Nessuna scrittura su outbox, event_store, processed_event e DLQ per {@link #QUIET_WINDOW_MS}, nessuna riga
-     * dell'outbox da pubblicare e il bus ha consegnato tutto ciò che aveva in coda (barriera FIFO).
+     * Quiete dell'hub ({@link HubQuiet}): barriere FIFO sul bus e conteggi di outbox, event_store, processed_event e DLQ
+     * fermi per due intervalli consecutivi con l'outbox vuoto; niente finestra di tempo.
      */
     private void awaitQuiescence(String phase) {
-        long deadline = System.currentTimeMillis() + 60_000;
-        List<Long> previous = counters();
-        while (System.currentTimeMillis() < deadline) {
-            sleep(QUIET_WINDOW_MS);
-            barrier();
-            List<Long> current = counters();
-            if (current.equals(previous) && current.get(2) == 0) {
-                return;
-            }
-            previous = current;
-        }
-        throw new AssertionError("Sistema non a riposo entro 60 s (" + phase + "): " + previous);
-    }
-
-    private List<Long> counters() {
-        return List.of(
-                count("SELECT count(*) FROM insight.event_store"),
-                count("SELECT count(*) FROM outbox"),
-                count("SELECT count(*) FROM outbox WHERE published_at IS NULL"),
-                count("SELECT count(*) FROM processed_event"),
-                count("SELECT count(*) FROM insight.dlq_entry"));
-    }
-
-    private void barrier() {
-        String id = UUID.randomUUID().toString();
-        CountDownLatch latch = new CountDownLatch(1);
-        barriers.put(id, latch);
-        bus.publish(new ProducerRecord<>(BARRIER_TOPIC, id, "{}"));
-        try {
-            assertThat(latch.await(60, TimeUnit.SECONDS)).as("barriera del bus in-process").isTrue();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new AssertionError(e);
-        }
+        HubQuiet.await(bus, jdbc, phase);
     }
 
     private long count(String sql) {

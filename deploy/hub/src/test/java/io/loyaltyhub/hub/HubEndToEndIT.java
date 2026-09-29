@@ -6,8 +6,10 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 
 import tools.jackson.databind.JsonNode;
+import io.loyaltyhub.testsupport.ListenerGroups;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +17,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -50,6 +53,9 @@ class HubEndToEndIT {
     @Autowired
     private JdbcClient jdbc;
 
+    @Autowired
+    private KafkaListenerEndpointRegistry listeners;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -58,6 +64,16 @@ class HubEndToEndIT {
         registry.add("spring.datasource.username", () -> "postgres");
         registry.add("spring.datasource.password", () -> "");
         registry.add("spring.kafka.bootstrap-servers", () -> System.getProperty("spring.embedded.kafka.brokers"));
+    }
+
+    /**
+     * I casi partono solo con i gruppi di tutti i servizi dell'hub stabili e con le partizioni assegnate
+     * ({@link ListenerGroups}): altrimenti la formazione dei gruppi sul broker incorporato (NOT_COORDINATOR, ribilanciamenti
+     * dei ritardatari) consuma le attese dei casi.
+     */
+    @BeforeAll
+    void waitForListenerGroups() {
+        ListenerGroups.awaitStable(listeners);
     }
 
     @AfterAll
@@ -82,17 +98,13 @@ class HubEndToEndIT {
                 .contentType(MediaType.APPLICATION_JSON).body(event).retrieve().body(JsonNode.class);
         assertThat(accepted.path("status").asString()).isEqualTo("ACCEPTED");
 
-        assertThat(awaitPts("MBR-000002", before + 162))
+        assertThat(awaitPts("MBR-000002"))
                 .as("acquisto 130€ SILVER → +162 PTS attraverso ingestion→campaign→wallet").isEqualTo(before + 162);
 
         // M5.5: wallet.points.earned alimenta la classifica del mese dell'accredito (+162 rispetto a prima dell'acquisto).
         long expected = scoreBefore + 162;
-        long deadline = System.currentTimeMillis() + 15_000;
+        quiet(); // anche gamification ha elaborato wallet.points.earned
         long score = monthScore("MBR-000002", weekday);
-        while (score != expected && System.currentTimeMillis() < deadline) {
-            sleep();
-            score = monthScore("MBR-000002", weekday);
-        }
         assertThat(score).as("classifica PTS del mese").isEqualTo(expected);
     }
 
@@ -128,7 +140,7 @@ class HubEndToEndIT {
 
         // Esatto: i 162 PTS usano il moltiplicatore SILVER anche se l'accredito STS dello stesso acquisto fa salire a
         // GOLD (l'outbox pubblica nell'ordine di scrittura; con l'ordine casuale arrivavano 195 PTS).
-        assertThat(awaitPts("MBR-000003", before + 162 + 500 + 100)).as("acquisto + bonus di livello + bonus badge")
+        assertThat(awaitPts("MBR-000003")).as("acquisto + bonus di livello + bonus badge")
                 .isEqualTo(before + 762);
         JsonNode wallet = client().get().uri("/v1/portal/wallets/MBR-000003").retrieve().body(JsonNode.class);
         assertThat(wallet.path("tier").path("code").asString()).isEqualTo("GOLD");
@@ -242,7 +254,7 @@ class HubEndToEndIT {
                 .header("X-LH-Actor", "CARE:anna.care").contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("reason", "Articolo danneggiato in magazzino")).retrieve().body(JsonNode.class);
         assertThat(cancelled.path("status").asString()).isEqualTo("CANCELLED");
-        assertThat(awaitPts("MBR-000011", before + 1500)).as("rimborso dal wallet").isEqualTo(before + 1500);
+        assertThat(awaitPts("MBR-000011")).as("rimborso dal wallet").isEqualTo(before + 1500);
         assertThat(stockOf("RWD-BORRACCIA")).as("stock ripristinato").isEqualTo(stock + 1);
 
         JsonNode lots = client().get().uri("/v1/wallets/MBR-000011/lots").retrieve().body(JsonNode.class);
@@ -267,17 +279,12 @@ class HubEndToEndIT {
                     "type", type, "subject", "member:MBR-000002", "time", weekday, "data", Map.of("contractId", "CTR-HUB-1"));
             client().post().uri("/v1/events").contentType(MediaType.APPLICATION_JSON).body(event).retrieve().body(JsonNode.class);
         }
-        long deadline = System.currentTimeMillis() + 30_000;
+        quiet(); // azioni → obiettivo → badge → ponte → campagna → wallet: tutta la catena elaborata
         boolean bonus = false;
-        while (!bonus && System.currentTimeMillis() < deadline) {
-            JsonNode ledger = client().get().uri("/v1/wallets/MBR-000002/ledger").retrieve().body(JsonNode.class);
-            for (JsonNode e : ledger.path("items").isMissingNode() ? ledger : ledger.path("items")) {
-                if ("CMP-BADGE-BONUS".equals(e.path("campaignCode").asString()) && e.path("amount").asLong() == 100) {
-                    bonus = true;
-                }
-            }
-            if (!bonus) {
-                sleep();
+        JsonNode ledger = client().get().uri("/v1/wallets/MBR-000002/ledger").retrieve().body(JsonNode.class);
+        for (JsonNode e : ledger.path("items").isMissingNode() ? ledger : ledger.path("items")) {
+            if ("CMP-BADGE-BONUS".equals(e.path("campaignCode").asString()) && e.path("amount").asLong() == 100) {
+                bonus = true;
             }
         }
         assertThat(bonus).as("CMP-BADGE-BONUS +100 PTS dal badge.awarded").isTrue();
@@ -307,22 +314,20 @@ class HubEndToEndIT {
         assertThat(referral.path("completedCount").asInt()).isEqualTo(1);
     }
 
-    /** Somma degli accrediti di una campagna nel libro mastro del membro, attesa finché compare (0 se mai). */
+    /**
+     * Somma degli accrediti di una campagna nel libro mastro del membro, letta a sistema quieto (0 se mai): un accredito
+     * arrivato dopo il primo resta nella somma.
+     */
     private long awaitLedger(String memberId, String campaignCode, String currency) {
-        long deadline = System.currentTimeMillis() + 30_000;
-        while (true) {
-            long sum = 0;
-            JsonNode ledger = client().get().uri("/v1/wallets/" + memberId + "/ledger?size=100").retrieve().body(JsonNode.class);
-            for (JsonNode e : ledger.path("items").isMissingNode() ? ledger : ledger.path("items")) {
-                if (campaignCode.equals(e.path("campaignCode").asString()) && currency.equals(e.path("currency").asString())) {
-                    sum += e.path("amount").asLong();
-                }
+        quiet();
+        long sum = 0;
+        JsonNode ledger = client().get().uri("/v1/wallets/" + memberId + "/ledger?size=100").retrieve().body(JsonNode.class);
+        for (JsonNode e : ledger.path("items").isMissingNode() ? ledger : ledger.path("items")) {
+            if (campaignCode.equals(e.path("campaignCode").asString()) && currency.equals(e.path("currency").asString())) {
+                sum += e.path("amount").asLong();
             }
-            if (sum > 0 || System.currentTimeMillis() > deadline) {
-                return sum;
-            }
-            sleep();
         }
+        return sum;
     }
 
     // ---------- accettazione M5 (docs/12) ----------
@@ -338,7 +343,7 @@ class HubEndToEndIT {
         for (JsonNode step : run.path("results")) {
             assertThat(step.path("status").asString()).as(step.path("type").asString()).isEqualTo("ACCEPTED");
         }
-        assertThat(awaitPts("MBR-000001", before + 279)).as("5 + 150 + 24 + 100").isEqualTo(before + 279);
+        assertThat(awaitPts("MBR-000001")).as("5 + 150 + 24 + 100").isEqualTo(before + 279);
 
         String purchase = run.path("results").get(2).path("correlationId").asString();
         JsonNode trace = awaitTrace(purchase, t -> t.path("nodes").toString().contains("+100 PTS"));
@@ -396,7 +401,7 @@ class HubEndToEndIT {
         JsonNode win = play("MBR-000009");
         assertThat(win.path("outcome").asString()).isEqualTo("WIN");
         assertThat(win.path("prize").path("code").asString()).isEqualTo("PTS-50");
-        assertThat(awaitPts("MBR-000009", before + 50)).as("50 punti vinti, senza moltiplicatore di livello").isEqualTo(before + 50);
+        assertThat(awaitPts("MBR-000009")).as("50 punti vinti, senza moltiplicatore di livello").isEqualTo(before + 50);
 
         JsonNode trace = awaitTrace(win.path("correlationId").asString(), t -> t.toString().contains("wallet.points.earned"));
         String nodes = trace.path("nodes").toString();
@@ -414,16 +419,11 @@ class HubEndToEndIT {
         onlyOpenInstant("COFFEE");
         JsonNode coupon = play("MBR-000006");
         assertThat(coupon.path("prize").path("rewardCode").asString()).isEqualTo("RWD-COFFEE-5");
-        long deadline = System.currentTimeMillis() + 30_000;
+        quiet(); // vincita → campagna → coupon.issue → reward: tutta la catena elaborata
         JsonNode issued = null;
-        while (issued == null && System.currentTimeMillis() < deadline) {
-            for (JsonNode c : client().get().uri("/v1/portal/coupons?memberId=MBR-000006").retrieve().body(JsonNode.class)) {
-                if ("RWD-COFFEE-5".equals(c.path("rewardCode").asString()) && "CAMPAIGN".equals(c.path("origin").asString())) {
-                    issued = c;
-                }
-            }
-            if (issued == null) {
-                sleep();
+        for (JsonNode c : client().get().uri("/v1/portal/coupons?memberId=MBR-000006").retrieve().body(JsonNode.class)) {
+            if ("RWD-COFFEE-5".equals(c.path("rewardCode").asString()) && "CAMPAIGN".equals(c.path("origin").asString())) {
+                issued = c;
             }
         }
         assertThat(issued).as("coupon della vincita emesso a Stefano").isNotNull();
@@ -471,14 +471,18 @@ class HubEndToEndIT {
         throw new AssertionError("premio assente: " + rewardCode);
     }
 
-    private long awaitPts(String memberId, long expected) {
-        long deadline = System.currentTimeMillis() + 30_000;
-        long value = walletPts(memberId);
-        while (value != expected && System.currentTimeMillis() < deadline) {
-            sleep();
-            value = walletPts(memberId);
-        }
-        return value;
+    /** Saldo PTS letto a sistema quieto ({@link #quiet}): il valore finale, un accredito in più resta visibile. */
+    private long awaitPts(String memberId) {
+        quiet();
+        return walletPts(memberId);
+    }
+
+    /**
+     * Barriera di quiete sull'hub ({@link ListenerGroups#awaitQuiescent}): ogni gruppo ha confermato l'offset fino alla fine
+     * dei suoi topic e l'outbox è vuoto, quindi la catena tra i servizi è elaborata per intero. Niente finestra di tempo.
+     */
+    private void quiet() {
+        ListenerGroups.awaitQuiescent(listeners, jdbc);
     }
 
     private JsonNode awaitRunDone(String runId) {

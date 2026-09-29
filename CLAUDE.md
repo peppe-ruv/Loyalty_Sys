@@ -44,6 +44,7 @@ docs/                  specifiche (fonte di verità)
 contracts/events/      JSON Schema degli eventi + examples/
 seed/                  dati demo canonici (JSON), letti dai servizi
 libs/lh-common/        starter condiviso (envelope, outbox, idempotenza, errori, actor, seed loader)
+libs/lh-test-support/  helper degli IT Kafka (TopicReader, ListenerGroups): solo scope test, mai nel jar di produzione (docs/06 §9)
 services/<nome>/       8 microservizi Spring Boot (un Dockerfile ciascuno)
 services/experience-service   ex engagement, composizione versionata (Fase 2, M10.3)
 services/assistant-service    agente regolamento (Fase 2, M14.1)

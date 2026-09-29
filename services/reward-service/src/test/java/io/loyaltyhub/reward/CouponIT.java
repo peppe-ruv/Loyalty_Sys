@@ -1,14 +1,16 @@
 package io.loyaltyhub.reward;
 
+import io.loyaltyhub.testsupport.ListenerGroups;
+import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.header.Header;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -20,6 +22,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -31,7 +34,6 @@ import tools.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -64,6 +66,9 @@ class CouponIT {
     @Autowired
     private JdbcClient jdbc;
 
+    @Autowired
+    private KafkaListenerEndpointRegistry listeners;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -71,6 +76,12 @@ class CouponIT {
         registry.add("spring.datasource.username", () -> "postgres");
         registry.add("spring.datasource.password", () -> "");
         registry.add("spring.kafka.bootstrap-servers", () -> System.getProperty("spring.embedded.kafka.brokers"));
+    }
+
+    /** Si pubblica solo a gruppo {@code lh-reward} stabile, con le partizioni assegnate ({@link ListenerGroups}). */
+    @BeforeAll
+    void waitForListenerGroup() {
+        ListenerGroups.awaitStable(listeners);
     }
 
     @AfterAll
@@ -135,12 +146,9 @@ class CouponIT {
         assertThat(coupon.path("rewardName").asString()).isEqualTo("Buono colazione 5 €");
 
         // Stesso effectId in un nuovo messaggio (id diverso): nessun secondo coupon.
-        publishEffect("MBR-000003", effectId, "RWD-COFFEE-5");
-        long deadline = System.currentTimeMillis() + 1500;
-        while (System.currentTimeMillis() < deadline) {
-            if (countFor("MBR-000003", "RWD-COFFEE-5") != 1) break;
-            Thread.sleep(100);
-        }
+        RecordMetadata again = publishEffect("MBR-000003", effectId, "RWD-COFFEE-5");
+        // Barriera esatta: il secondo messaggio è elaborato (offset confermato), un secondo coupon non può più arrivare.
+        ListenerGroups.awaitCommitted(listeners, List.of(again));
         assertThat(countFor("MBR-000003", "RWD-COFFEE-5")).isEqualTo(1);
 
         assertThat(send("POST", "/v1/coupons/" + code + "/use", "CARE:paolo", null, 200).path("status").asString()).isEqualTo("USED");
@@ -255,24 +263,19 @@ class CouponIT {
         send("POST", "/v1/rewards", "ADMIN:test", Map.of("code", "RWD-IT-EMPTY", "name", "Buono vuoto", "type", "COUPON",
                 "band", "F1", "fulfilment", "AUTO_COUPON", "couponPoolId", poolId), 201);
 
-        try (KafkaConsumer<String, String> dlq = new KafkaConsumer<>(Map.of(
-                "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
-                "group.id", "it-dlq-" + System.nanoTime(), "auto.offset.reset", "earliest",
-                "key.deserializer", StringDeserializer.class, "value.deserializer", StringDeserializer.class))) {
-            dlq.subscribe(List.of("lh.dlq.v1"));
+        {
             String effectId = "EFF-IT-EMPTY-" + System.nanoTime();
-            publishEffect("MBR-000002", effectId, "RWD-IT-EMPTY");
+            RecordMetadata sent = publishEffect("MBR-000002", effectId, "RWD-IT-EMPTY");
+            // Barriera esatta: l'offset è confermato solo dopo la pubblicazione in DLQ (commitRecovered); poi lh.dlq.v1 si
+            // legge fino in fondo, senza consumer group né finestra: una seconda copia resterebbe visibile.
+            ListenerGroups.awaitCommitted(listeners, List.of(sent));
             String code = null;
             int copies = 0;
-            long deadline = System.currentTimeMillis() + 20_000;
-            while (System.currentTimeMillis() < deadline && code == null) {
-                for (ConsumerRecord<String, String> r : dlq.poll(Duration.ofMillis(500))) {
-                    if (r.value().contains(effectId)) {
-                        copies++;
-                        Header h = r.headers().lastHeader("lh-error-code");
-                        code = h == null ? "" : new String(h.value(), StandardCharsets.UTF_8);
-                    }
-                }
+            for (ConsumerRecord<String, String> r : new TopicReader(jdbc, mapper, "lh.dlq.v1")
+                    .records(List.of(), r -> r.value().contains(effectId))) {
+                copies++;
+                Header h = r.headers().lastHeader("lh-error-code");
+                code = h == null ? "" : new String(h.value(), StandardCharsets.UTF_8);
             }
             assertThat(code).isEqualTo("COUPON_POOL_EMPTY");
             assertThat(copies).isEqualTo(1);
@@ -397,7 +400,7 @@ class CouponIT {
         });
     }
 
-    private void publishEffect(String memberId, String effectId, String rewardCode) throws Exception {
+    private RecordMetadata publishEffect(String memberId, String effectId, String rewardCode) throws Exception {
         String id = "EVT-" + System.nanoTime();
         Map<String, Object> event = Map.of("specversion", "1.0", "id", id, "source", "urn:loyaltyhub:service:campaign",
                 "type", "io.loyaltyhub.effect.coupon.issue", "subject", "member:" + memberId,
@@ -407,7 +410,7 @@ class CouponIT {
         try (KafkaProducer<String, String> producer = new KafkaProducer<>(Map.of(
                 "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
                 "key.serializer", StringSerializer.class, "value.serializer", StringSerializer.class))) {
-            producer.send(new ProducerRecord<>("lh.effects.v1", memberId, mapper.writeValueAsString(event))).get();
+            return producer.send(new ProducerRecord<>("lh.effects.v1", memberId, mapper.writeValueAsString(event))).get();
         }
     }
 

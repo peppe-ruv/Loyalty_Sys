@@ -1,15 +1,14 @@
 package io.loyaltyhub.member;
 
 import io.loyaltyhub.common.event.JsonSchemaValidator;
+import io.loyaltyhub.testsupport.ListenerGroups;
+import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -22,6 +21,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -32,7 +32,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -75,6 +74,12 @@ class SegmentIT {
     @Autowired
     private JdbcClient jdbc;
 
+    @Autowired
+    private KafkaListenerEndpointRegistry listeners;
+
+    /** Eventi pubblicati dal test su Kafka: {@link #facts} attende che il servizio li abbia elaborati tutti. */
+    private final List<String> published = new java.util.concurrent.CopyOnWriteArrayList<>();
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -82,6 +87,12 @@ class SegmentIT {
         registry.add("spring.datasource.username", () -> "postgres");
         registry.add("spring.datasource.password", () -> "");
         registry.add("spring.kafka.bootstrap-servers", () -> System.getProperty("spring.embedded.kafka.brokers"));
+    }
+
+    /** Si pubblica solo a gruppo {@code lh-member} stabile, con le partizioni assegnate ({@link ListenerGroups}). */
+    @BeforeAll
+    void waitForListenerGroup() {
+        ListenerGroups.awaitStable(listeners);
     }
 
     @AfterAll
@@ -113,7 +124,7 @@ class SegmentIT {
 
         // Dopo il seed ogni appartenenza è annunciata: gli snapshot degli altri servizi la conoscono (Q-81).
         List<JsonNode> entered = facts(r -> ENTERED.equals(r.path("type").asString())
-                && "SEG-DIGITAL".equals(r.path("data").path("segmentCode").asString()), 3);
+                && "SEG-DIGITAL".equals(r.path("data").path("segmentCode").asString()));
         assertThat(entered).extracting(f -> f.path("subject").asString())
                 .contains("member:MBR-000004", "member:MBR-000005", "member:MBR-000011");
     }
@@ -167,7 +178,7 @@ class SegmentIT {
         assertThat(created.path("memberCount").asInt()).isEqualTo(4); // Marco, Giulia, Chiara, Matteo
         assertThat(created.path("createdBy").asString()).isEqualTo(MARKETING);
         List<JsonNode> entered = facts(r -> ENTERED.equals(r.path("type").asString())
-                && "SEG-SILVER".equals(r.path("data").path("segmentCode").asString()), 4);
+                && "SEG-SILVER".equals(r.path("data").path("segmentCode").asString()));
         assertThat(entered).hasSize(4);
         String envelope = resource("contracts/events/envelope.schema.json");
         String enteredSchema = resource("contracts/events/fact/member.segment.entered.schema.json");
@@ -185,7 +196,7 @@ class SegmentIT {
                         Map.of("field", "member.city", "cmp", "eq", "value", "Milano")))), 200);
         assertThat(updated.path("memberCount").asInt()).isEqualTo(1);
         List<JsonNode> left = facts(r -> LEFT.equals(r.path("type").asString())
-                && "SEG-SILVER".equals(r.path("data").path("segmentCode").asString()), 3);
+                && "SEG-SILVER".equals(r.path("data").path("segmentCode").asString()));
         assertThat(left).extracting(f -> f.path("subject").asString())
                 .containsExactlyInAnyOrder("member:MBR-000003", "member:MBR-000007", "member:MBR-000010");
         String leftSchema = resource("contracts/events/fact/member.segment.left.schema.json");
@@ -205,7 +216,7 @@ class SegmentIT {
         assertThat(archived.path("status").asString()).isEqualTo("ARCHIVED");
         assertThat(archived.path("memberCount").asInt()).isZero();
         assertThat(facts(r -> LEFT.equals(r.path("type").asString()) && "member:MBR-000002".equals(r.path("subject").asString())
-                && "SEG-SILVER".equals(r.path("data").path("segmentCode").asString()), 1)).hasSize(1);
+                && "SEG-SILVER".equals(r.path("data").path("segmentCode").asString()))).hasSize(1);
         assertThat(error(HttpMethod.POST, "/v1/segments/SEG-SILVER/refresh", MARKETING, null).getStatusCode().value()).isEqualTo(409);
     }
 
@@ -247,7 +258,7 @@ class SegmentIT {
         }
         assertThat(labels).containsExactly("ebill", "directdebit");
         List<JsonNode> updated = facts(r -> "io.loyaltyhub.fact.member.updated".equals(r.path("type").asString())
-                && "member:MBR-000002".equals(r.path("subject").asString()), 2);
+                && "member:MBR-000002".equals(r.path("subject").asString()));
         assertThat(updated).hasSize(2);
         assertThat(updated.get(1).path("data").path("labels").toString()).contains("ebill", "directdebit");
         assertThat(updated.get(0).path("lhcausationid").asString()).as("nello stesso tracciato dell'azione").isNotBlank();
@@ -259,9 +270,9 @@ class SegmentIT {
         assertThat(job.path("left").asInt()).isEqualTo(1);
         assertThat(ids(get("/v1/segments/SEG-DIGITAL/members").path("items"))).contains("MBR-000002");
         assertThat(facts(r -> ENTERED.equals(r.path("type").asString()) && "member:MBR-000002".equals(r.path("subject").asString())
-                && "SEG-DIGITAL".equals(r.path("data").path("segmentCode").asString()), 1)).hasSize(1);
+                && "SEG-DIGITAL".equals(r.path("data").path("segmentCode").asString()))).hasSize(1);
         assertThat(facts(r -> LEFT.equals(r.path("type").asString()) && "member:MBR-000002".equals(r.path("subject").asString())
-                && "SEG-NOT-EBILL".equals(r.path("data").path("segmentCode").asString()), 1)).hasSize(1);
+                && "SEG-NOT-EBILL".equals(r.path("data").path("segmentCode").asString()))).hasSize(1);
 
         JsonNode again = send(HttpMethod.POST, "/v1/demo/jobs/refresh-segments", "ADMIN:marta.admin", null, 200);
         assertThat(again.path("entered").asInt()).as("solo differenze").isZero();
@@ -317,9 +328,9 @@ class SegmentIT {
         assertThat(ids(get("/v1/segments/SEG-DIGITAL/members").path("items"))).containsExactly("MBR-000004", "MBR-000005", "MBR-000011");
         // Marco non è più digitale (etichette del seed): `left` per SEG-DIGITAL; SEG-PANEL (non nei seed) sparisce.
         assertThat(facts(r -> LEFT.equals(r.path("type").asString()) && "member:MBR-000002".equals(r.path("subject").asString())
-                && "SEG-DIGITAL".equals(r.path("data").path("segmentCode").asString()), 1)).hasSize(1);
+                && "SEG-DIGITAL".equals(r.path("data").path("segmentCode").asString()))).hasSize(1);
         assertThat(facts(r -> LEFT.equals(r.path("type").asString())
-                && "SEG-PANEL".equals(r.path("data").path("segmentCode").asString()), 2)).hasSize(2);
+                && "SEG-PANEL".equals(r.path("data").path("segmentCode").asString()))).hasSize(2);
         assertThat(get("/v1/members/MBR-000002").path("labels").size()).isZero();
     }
 
@@ -385,38 +396,18 @@ class SegmentIT {
         }
     }
 
-    /** Fatti che soddisfano {@code match}: legge dall'inizio finché ne trova {@code expected} (o 15 s). */
-    private List<JsonNode> facts(Predicate<JsonNode> match, int expected) {
-        List<JsonNode> out = new ArrayList<>();
-        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(Map.of(
-                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, System.getProperty("spring.embedded.kafka.brokers"),
-                ConsumerConfig.GROUP_ID_CONFIG, "seg-it-" + System.nanoTime(),
-                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class))) {
-            consumer.subscribe(List.of(FACTS));
-            long deadline = System.currentTimeMillis() + 15_000;
-            while (System.currentTimeMillis() < deadline && out.size() < expected) {
-                for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                    JsonNode e = mapper.readTree(r.value());
-                    if (match.test(e)) {
-                        out.add(e);
-                    }
-                }
-            }
-            // un giro in più: scova eventuali fatti oltre l'atteso
-            for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(800))) {
-                JsonNode e = mapper.readTree(r.value());
-                if (match.test(e)) {
-                    out.add(e);
-                }
-            }
-        }
-        return out;
+    /**
+     * Fatti che soddisfano {@code match}, esatti ({@link TopicReader}): prima il servizio deve aver elaborato ogni evento
+     * pubblicato dal test ({@code processed_event}), poi {@code lh.facts.v1} si legge dall'inizio fino in fondo a outbox
+     * svuotato. Nessuna finestra di tempo: un fatto oltre l'atteso resta visibile.
+     */
+    private List<JsonNode> facts(Predicate<JsonNode> match) {
+        return new TopicReader(jdbc, mapper, FACTS).published(published, match);
     }
 
     private void publishAction(String shortType, String memberId, Map<String, Object> data) {
         String id = "seg-it-" + System.nanoTime();
+        published.add(id);
         publish(ACTIONS, memberId, Map.of("specversion", "1.0", "id", id, "source", "urn:loyaltyhub:source:billing",
                 "type", "io.loyaltyhub.action." + shortType, "subject", "member:" + memberId, "time", Instant.now().toString(),
                 "lhcorrelationid", id, "lhhop", 0, "data", data));
@@ -424,6 +415,7 @@ class SegmentIT {
 
     private void publishFact(String type, String memberId, Map<String, Object> data) {
         String id = "seg-it-" + System.nanoTime();
+        published.add(id);
         publish(FACTS, memberId, Map.of("specversion", "1.0", "id", id, "source", "urn:loyaltyhub:service:wallet",
                 "type", type, "subject", "member:" + memberId, "time", Instant.now().toString(),
                 "lhcorrelationid", id, "lhhop", 0, "data", data));

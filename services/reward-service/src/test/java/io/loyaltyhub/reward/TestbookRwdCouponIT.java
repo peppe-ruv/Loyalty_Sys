@@ -332,7 +332,7 @@ class TestbookRwdCouponIT extends TestbookRwdBase {
         Issued i = issue(T0, 30, 1);
         CLOCK.set(T0.plus(Duration.ofDays(1)));
         call("POST", "/v1/coupons/" + i.code() + "/use", "CARE:testbook.care", null);
-        JsonNode fact = tap().await("lh.facts.v1", r -> "io.loyaltyhub.fact.coupon.used".equals(r.event().path("type").asString())
+        JsonNode fact = await("lh.facts.v1", List.of(), r -> "io.loyaltyhub.fact.coupon.used".equals(r.event().path("type").asString())
                 && i.code().equals(r.event().path("data").path("couponCode").asString())).event();
         assertThat(fact.path("data").path("rewardCode").asString()).isEqualTo(i.rewardCode());
         assertThat(fact.path("lhactor").asString()).isEqualTo("CARE:testbook.care");
@@ -421,7 +421,7 @@ class TestbookRwdCouponIT extends TestbookRwdBase {
         assertThat(c.path("origin").asString()).isEqualTo("CAMPAIGN");
         String code = c.path("code").asString();
         assertThat(jdbc.sql("SELECT effect_id FROM coupon WHERE code = ?").param(code).query(String.class).single()).isEqualTo(effectId);
-        JsonNode fact = tap().await("lh.facts.v1", r -> "io.loyaltyhub.fact.coupon.issued".equals(r.event().path("type").asString())
+        JsonNode fact = await("lh.facts.v1", List.of(eventId), r -> "io.loyaltyhub.fact.coupon.issued".equals(r.event().path("type").asString())
                 && code.equals(r.event().path("data").path("couponCode").asString())).event();
         assertThat(fact.path("lhcausationid").asString()).isEqualTo(eventId);
         assertThat(fact.path("data").path("origin").asString()).isEqualTo("CAMPAIGN");
@@ -458,11 +458,12 @@ class TestbookRwdCouponIT extends TestbookRwdBase {
         String effectId = fresh("EFF");
         String eventId = fresh("01TBDLQ");
         publishCouponIssue(eventId, "NOSUBJECT".equals(kind) ? null : "member:" + s.memberId(), effectData(effectId, rewardCode));
-        Rec dlq = tap().await("lh.dlq.v1", r -> r.event().toString().contains(effectId));
+        // L'effetto finito in DLQ non scrive processed_event: la barriera è l'offset confermato dopo la DLQ.
+        awaitHandled(eventId);
+        Rec dlq = await("lh.dlq.v1", List.of(), r -> r.event().toString().contains(effectId));
         assertThat(dlq.headers().get("lh-error-code")).isEqualTo(errorCode);
         // una sola copia: errore non ritentabile
-        drainOutbox();
-        assertThat(tap().matching("lh.dlq.v1", r -> r.event().toString().contains(effectId))).hasSize(1);
+        assertThat(matching("lh.dlq.v1", List.of(), r -> r.event().toString().contains(effectId))).hasSize(1);
         assertThat(memberCoupons(s.memberId()).size()).isZero();
     }
 

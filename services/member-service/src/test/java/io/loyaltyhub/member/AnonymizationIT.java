@@ -1,17 +1,17 @@
 package io.loyaltyhub.member;
 
+import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -20,7 +20,6 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +45,9 @@ class AnonymizationIT {
 
     @Value("${local.server.port}")
     private int port;
+
+    @Autowired
+    private JdbcClient jdbc;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -76,8 +78,7 @@ class AnonymizationIT {
         assertThat(send("POST", "/v1/members/" + id + "/anonymize", ADMIN, Map.of("confirm", "MBR-000001"), 422)
                 .path("code").asString()).isEqualTo("CONFIRM_MISMATCH");
 
-        try (KafkaConsumer<String, String> consumer = consumer("anon-check")) {
-            consumer.subscribe(List.of("lh.facts.v1", "lh.audit.v1"));
+        {
             JsonNode anonymized = send("POST", "/v1/members/" + id + "/anonymize", ADMIN, Map.of("confirm", id), 200);
             assertThat(anonymized.path("status").asString()).isEqualTo("ANONYMIZED");
             assertThat(anonymized.path("nickname").asString()).isEqualTo("Membro anonimo");
@@ -87,7 +88,7 @@ class AnonymizationIT {
             assertThat(anonymized.path("attributes").size()).as("attributi cancellati").isZero();
             assertThat(anonymized.path("labels").toString()).contains("vip");
 
-            List<JsonNode> facts = collect(consumer, id, 3);
+            List<JsonNode> facts = collect(id);
             List<String> types = facts.stream().map(f -> f.path("type").asString()).toList();
             assertThat(types).as("stato poi snapshot, più l'audit")
                     .containsSubsequence("io.loyaltyhub.fact.member.status.changed", "io.loyaltyhub.fact.member.updated")
@@ -139,11 +140,15 @@ class AnonymizationIT {
 
     // ---------- helper ----------
 
-    private List<JsonNode> collect(KafkaConsumer<String, String> consumer, String memberId, int atLeast) {
+    /**
+     * Fatti e voci di audit dell'anonimizzazione del membro, esatti ({@link TopicReader}): nascono nelle chiamate HTTP
+     * già concluse, quindi {@code lh.facts.v1} e poi {@code lh.audit.v1} si leggono fino in fondo a outbox svuotato. Ogni
+     * topic resta nel suo ordine; un fatto in più resta visibile.
+     */
+    private List<JsonNode> collect(String memberId) {
         List<JsonNode> out = new ArrayList<>();
-        long deadline = System.currentTimeMillis() + 15_000;
-        while (System.currentTimeMillis() < deadline && out.size() < atLeast) {
-            for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
+        for (String topic : List.of("lh.facts.v1", "lh.audit.v1")) {
+            for (ConsumerRecord<String, String> r : new TopicReader(jdbc, mapper, topic).records(List.of(), r -> true)) {
                 JsonNode e = mapper.readTree(r.value());
                 String type = e.path("type").asString();
                 boolean mine = memberId.equals(r.key()) || e.path("data").path("entityId").asString().equals(memberId);
@@ -171,15 +176,6 @@ class AnonymizationIT {
             assertThat(res.getStatusCode().value()).as(method + " " + path + " → " + text).isEqualTo(expected);
             return text.isBlank() ? mapper.createObjectNode() : mapper.readTree(text);
         });
-    }
-
-    private KafkaConsumer<String, String> consumer(String group) {
-        return new KafkaConsumer<>(Map.of(
-                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, System.getProperty("spring.embedded.kafka.brokers"),
-                ConsumerConfig.GROUP_ID_CONFIG, group,
-                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class));
     }
 
     private static EmbeddedPostgres startPg() {

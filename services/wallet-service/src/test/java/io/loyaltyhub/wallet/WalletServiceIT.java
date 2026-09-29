@@ -2,30 +2,31 @@ package io.loyaltyhub.wallet;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import io.loyaltyhub.testsupport.ListenerGroups;
+import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.serialization.StringSerializer;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.wallet.application.TierAdminService;
 import io.loyaltyhub.wallet.application.WalletService;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.RestClient;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +60,15 @@ class WalletServiceIT {
     @Autowired
     private TierAdminService tierAdmin;
 
+    @Autowired
+    private JdbcClient jdbc;
+
+    @Autowired
+    private KafkaListenerEndpointRegistry listeners;
+
+    /** Eventi pubblicati dal test su Kafka: ogni lettura dei fatti attende che il servizio li abbia elaborati tutti. */
+    private final List<String> published = new java.util.concurrent.CopyOnWriteArrayList<>();
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -66,6 +76,12 @@ class WalletServiceIT {
         registry.add("spring.datasource.username", () -> "postgres");
         registry.add("spring.datasource.password", () -> "");
         registry.add("spring.kafka.bootstrap-servers", () -> System.getProperty("spring.embedded.kafka.brokers"));
+    }
+
+    /** Si pubblica solo a gruppo {@code lh-wallet} stabile, con le partizioni assegnate ({@link ListenerGroups}). */
+    @BeforeAll
+    void waitForListenerGroup() {
+        ListenerGroups.awaitStable(listeners);
     }
 
     @AfterAll
@@ -114,12 +130,13 @@ class WalletServiceIT {
     @Test
     void sameEffectIdIsIdempotent() {
         long before = balance("MBR-000005", "PTS");
-        publishGrant("EFF-DUP-01", "MBR-000005", "PTS", 100, false, "CMP-WELCOME");
-        publishGrant("EFF-DUP-01", "MBR-000005", "PTS", 100, false, "CMP-WELCOME");
+        RecordMetadata first = publishGrant("EFF-DUP-01", "MBR-000005", "PTS", 100, false, "CMP-WELCOME");
+        RecordMetadata again = publishGrant("EFF-DUP-01", "MBR-000005", "PTS", 100, false, "CMP-WELCOME");
 
         awaitEarned("EFF-DUP-01");
-        // Attende ed è certo che un secondo accredito non avvenga: il saldo cresce di 100 una sola volta.
-        sleep();
+        // Entrambi i messaggi sono elaborati (il doppione non scrive processed_event: offset confermati), quindi un
+        // secondo accredito non può più arrivare: il saldo cresce di 100 una sola volta.
+        ListenerGroups.awaitCommitted(listeners, List.of(first, again));
         assertThat(balance("MBR-000005", "PTS")).isEqualTo(before + 100);
     }
 
@@ -332,41 +349,38 @@ class WalletServiceIT {
     }
 
     private JsonNode awaitEarned(String effectId) {
-        try (KafkaConsumer<String, String> consumer = consumer("earn-" + effectId)) {
-            consumer.subscribe(List.of(FACTS));
-            ConsumerRecord<String, String> rec = poll(consumer, r -> {
-                JsonNode e = readJson(r.value());
-                return e.path("type").asString().equals("io.loyaltyhub.fact.wallet.points.earned")
-                        && e.path("data").path("effectId").asString().equals(effectId);
-            });
-            assertThat(rec).as("fatto wallet.points.earned per " + effectId).isNotNull();
-            return readJson(rec.value()).path("data");
-        }
+        JsonNode e = firstFact(ev -> ev.path("type").asString().equals("io.loyaltyhub.fact.wallet.points.earned")
+                && ev.path("data").path("effectId").asString().equals(effectId));
+        assertThat(e).as("fatto wallet.points.earned per " + effectId).isNotNull();
+        return e.path("data");
     }
 
     private JsonNode awaitFact(String type, Predicate<JsonNode> dataMatch) {
-        try (KafkaConsumer<String, String> consumer = consumer("fact-" + type + "-" + System.nanoTime())) {
-            consumer.subscribe(List.of(FACTS));
-            ConsumerRecord<String, String> rec = poll(consumer, r -> {
-                JsonNode e = readJson(r.value());
-                return e.path("type").asString().equals(type) && dataMatch.test(e.path("data"));
-            });
-            return rec == null ? null : readJson(rec.value()).path("data");
-        }
+        JsonNode e = firstFact(ev -> ev.path("type").asString().equals(type) && dataMatch.test(ev.path("data")));
+        return e == null ? null : e.path("data");
     }
 
-    private void publishGrant(String effectId, String memberId, String currency, long amount,
+    /**
+     * Il primo fatto che soddisfa {@code match}, esatto ({@link TopicReader}): prima il servizio deve aver elaborato
+     * ogni effetto pubblicato dal test ({@code processed_event}), poi {@code lh.facts.v1} si legge fino in fondo a outbox
+     * svuotato, senza consumer group. I fatti dei job chiamati dal test nascono in transazioni già concluse.
+     */
+    private JsonNode firstFact(Predicate<JsonNode> match) {
+        return new TopicReader(jdbc, mapper, FACTS).published(published, match).stream().findFirst().orElse(null);
+    }
+
+    private RecordMetadata publishGrant(String effectId, String memberId, String currency, long amount,
                              boolean tierApplies, String campaignCode) {
-        publishGrant(effectId, memberId, currency, amount, tierApplies, campaignCode, 0);
+        return publishGrant(effectId, memberId, currency, amount, tierApplies, campaignCode, 0);
     }
 
-    private void publishGrant(String effectId, String memberId, String currency, long amount,
+    private RecordMetadata publishGrant(String effectId, String memberId, String currency, long amount,
                              boolean tierApplies, String campaignCode, int pendingDays) {
-        publishGrant(effectId, memberId, currency, amount, tierApplies, campaignCode, pendingDays,
+        return publishGrant(effectId, memberId, currency, amount, tierApplies, campaignCode, pendingDays,
                 "2026-09-15T10:15:00Z");
     }
 
-    private void publishGrant(String effectId, String memberId, String currency, long amount,
+    private RecordMetadata publishGrant(String effectId, String memberId, String currency, long amount,
                              boolean tierApplies, String campaignCode, int pendingDays, String time) {
         Map<String, Object> data = Map.of(
                 "effectId", effectId, "campaignCode", campaignCode, "actionId", "ACT-" + effectId,
@@ -380,7 +394,9 @@ class WalletServiceIT {
         try (KafkaProducer<String, String> producer = new KafkaProducer<>(Map.of(
                 "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
                 "key.serializer", StringSerializer.class, "value.serializer", StringSerializer.class))) {
-            producer.send(new ProducerRecord<>("lh.effects.v1", memberId, mapper.writeValueAsString(event))).get();
+            RecordMetadata sent = producer.send(new ProducerRecord<>("lh.effects.v1", memberId, mapper.writeValueAsString(event))).get();
+            published.add("EV-" + effectId);
+            return sent;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -390,39 +406,8 @@ class WalletServiceIT {
         return RestClient.create("http://localhost:" + port);
     }
 
-    private KafkaConsumer<String, String> consumer(String group) {
-        return new KafkaConsumer<>(Map.of(
-                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, System.getProperty("spring.embedded.kafka.brokers"),
-                ConsumerConfig.GROUP_ID_CONFIG, group,
-                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class));
-    }
-
-    private ConsumerRecord<String, String> poll(KafkaConsumer<String, String> consumer,
-                                                Predicate<ConsumerRecord<String, String>> match) {
-        long deadline = System.currentTimeMillis() + 15_000;
-        while (System.currentTimeMillis() < deadline) {
-            for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                if (match.test(r)) {
-                    return r;
-                }
-            }
-        }
-        return null;
-    }
-
     private JsonNode readJson(String value) {
         return mapper.readTree(value);
-    }
-
-    /** Attesa fissa per provare che qualcosa NON accade (accredito duplicato): non va accorciata. */
-    private static void sleep() {
-        try {
-            Thread.sleep(2000);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 
     private static EmbeddedPostgres startPg() {

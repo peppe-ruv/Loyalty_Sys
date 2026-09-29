@@ -4,11 +4,12 @@ import com.sun.net.httpserver.HttpServer;
 import io.loyaltyhub.engagement.application.WebhookDispatcher;
 import io.loyaltyhub.engagement.domain.WebhookSignature;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
+import io.loyaltyhub.testsupport.ListenerGroups;
+import io.loyaltyhub.testsupport.TopicReader;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -20,6 +21,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -85,6 +87,9 @@ class WebhookIT {
     @Autowired
     private JdbcClient jdbc;
 
+    @Autowired
+    private KafkaListenerEndpointRegistry listeners;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -95,6 +100,12 @@ class WebhookIT {
         registry.add("loyaltyhub.webhooks.allow-http-localhost", () -> "true");
         registry.add("loyaltyhub.webhooks.block-private-addresses", () -> "false");
         registry.add("loyaltyhub.webhooks.dispatcher.enabled", () -> "false");
+    }
+
+    /** Si pubblica solo a gruppo {@code lh-engagement} stabile, con le partizioni assegnate ({@link ListenerGroups}). */
+    @BeforeAll
+    void waitForListenerGroup() {
+        ListenerGroups.awaitStable(listeners);
     }
 
     @BeforeAll
@@ -192,18 +203,20 @@ class WebhookIT {
         String eventId = "it-wh-" + UUID.randomUUID();
         Map<String, Object> event = fact(eventId, "io.loyaltyhub.fact.wallet.points.earned", "MBR-000002",
                 Map.of("ledgerEntryId", "LED-IT-1", "currency", "PTS", "amount", 162, "balanceAfter", 2012));
-        publish(event);
-        publish(event); // doppio invio
-        publish(fact("it-wh-" + UUID.randomUUID(), "io.loyaltyhub.fact.badge.awarded", "MBR-000002",
-                Map.of("badgeCode", "BDG-TRIS", "origin", "ACHIEVEMENT"))); // tipo non sottoscritto
-        publish(fact("it-wh-" + UUID.randomUUID(), "io.loyaltyhub.fact.message.delivered", "MBR-000002",
-                Map.of("templateCode", "MSG-WELCOME"))); // mai consegnato
+        List<RecordMetadata> sent = new ArrayList<>();
+        sent.add(publish(event));
+        sent.add(publish(event)); // doppio invio
+        sent.add(publish(fact("it-wh-" + UUID.randomUUID(), "io.loyaltyhub.fact.badge.awarded", "MBR-000002",
+                Map.of("badgeCode", "BDG-TRIS", "origin", "ACHIEVEMENT")))); // tipo non sottoscritto
+        sent.add(publish(fact("it-wh-" + UUID.randomUUID(), "io.loyaltyhub.fact.message.delivered", "MBR-000002",
+                Map.of("templateCode", "MSG-WELCOME")))); // mai consegnato
 
         JsonNode delivery = awaitDelivery("WH-IT-FACT", eventId);
         assertThat(delivery.path("status").asString()).isEqualTo("PENDING");
         assertThat(delivery.path("attempt").asInt()).isZero();
         assertThat(delivery.path("memberId").asString()).isEqualTo("MBR-000002");
-        Thread.sleep(1_500); // lascia elaborare gli altri tre fatti
+        // Gli altri tre fatti sono elaborati (doppione e message.delivered non scrivono processed_event): offset confermati.
+        ListenerGroups.awaitCommitted(listeners, sent);
         assertThat(get("/v1/webhooks/WH-IT-FACT/deliveries").path("page").path("totalItems").asInt())
                 .as("una sola consegna: doppione, tipo non sottoscritto e message.delivered esclusi").isEqualTo(1);
         assertThat(received(delivery.path("id").asString())).as("nessun HTTP dal consumer").isEmpty();
@@ -398,23 +411,14 @@ class WebhookIT {
         throw new AssertionError("evento non elaborato: " + eventId);
     }
 
+    /**
+     * Voci di audit del soggetto su {@code lh.audit.v1}, esatte ({@link TopicReader}): nascono nelle transazioni HTTP
+     * già concluse, quindi basta leggere il topic fino in fondo a outbox svuotato.
+     */
     private List<String> audit(String subject) {
-        List<String> out = new ArrayList<>();
-        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(Map.of(
-                "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
-                "group.id", "webhook-it-" + UUID.randomUUID(), "auto.offset.reset", "earliest",
-                "key.deserializer", StringDeserializer.class, "value.deserializer", StringDeserializer.class))) {
-            consumer.subscribe(List.of("lh.audit.v1"));
-            long deadline = System.currentTimeMillis() + 15_000;
-            while (System.currentTimeMillis() < deadline && out.isEmpty()) {
-                for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                    if (subject.equals(mapper.readTree(r.value()).path("subject").asString())) {
-                        out.add(r.value());
-                    }
-                }
-            }
-        }
-        return out;
+        return new TopicReader(jdbc, mapper, "lh.audit.v1")
+                .records(List.of(), r -> subject.equals(mapper.readTree(r.value()).path("subject").asString()))
+                .stream().map(ConsumerRecord::value).toList();
     }
 
     private static Map<String, Object> fact(String id, String type, String memberId, Map<String, Object> data) {
@@ -423,12 +427,12 @@ class WebhookIT {
                 "lhtenant", "aurora", "lhcorrelationid", id, "data", data);
     }
 
-    private void publish(Map<String, Object> event) throws Exception {
+    private RecordMetadata publish(Map<String, Object> event) throws Exception {
         try (KafkaProducer<String, String> producer = new KafkaProducer<>(Map.of(
                 "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
                 "key.serializer", StringSerializer.class, "value.serializer", StringSerializer.class))) {
             String subject = String.valueOf(event.get("subject"));
-            producer.send(new ProducerRecord<>("lh.facts.v1", subject.substring("member:".length()),
+            return producer.send(new ProducerRecord<>("lh.facts.v1", subject.substring("member:".length()),
                     mapper.writeValueAsString(event))).get();
         }
     }

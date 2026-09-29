@@ -2,13 +2,14 @@ package io.loyaltyhub.engagement;
 
 import io.loyaltyhub.common.event.JsonSchemaValidator;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
+import io.loyaltyhub.testsupport.ListenerGroups;
+import io.loyaltyhub.testsupport.TopicReader;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -27,7 +29,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -65,6 +66,9 @@ class EngagementIT {
     @Autowired
     private JsonSchemaValidator validator;
 
+    @Autowired
+    private KafkaListenerEndpointRegistry listeners;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -72,6 +76,12 @@ class EngagementIT {
         registry.add("spring.datasource.username", () -> "postgres");
         registry.add("spring.datasource.password", () -> "");
         registry.add("spring.kafka.bootstrap-servers", () -> System.getProperty("spring.embedded.kafka.brokers"));
+    }
+
+    /** Si pubblica solo a gruppo {@code lh-engagement} stabile, con le partizioni assegnate ({@link ListenerGroups}). */
+    @BeforeAll
+    void waitForListenerGroup() {
+        ListenerGroups.awaitStable(listeners);
     }
 
     @AfterAll
@@ -115,20 +125,25 @@ class EngagementIT {
     void pointsEarnedBecomesOneMessageEvenWhenReprocessed() throws Exception {
         String id = "EVT-EARN-" + UUID.randomUUID();
         Map<String, Object> pts = earned(id, "MBR-000003", "PTS", 162);
-        publish("lh.facts.v1", "MBR-000003", pts);
+        List<RecordMetadata> sent = new ArrayList<>();
+        sent.add(publish("lh.facts.v1", "MBR-000003", pts));
         // Lo stesso acquisto produce anche l'accredito STS: nessun messaggio (condizione data.currency = PTS).
-        publish("lh.facts.v1", "MBR-000003", earned("EVT-EARN-STS-" + UUID.randomUUID(), "MBR-000003", "STS", 130));
+        String sts = "EVT-EARN-STS-" + UUID.randomUUID();
+        sent.add(publish("lh.facts.v1", "MBR-000003", earned(sts, "MBR-000003", "STS", 130)));
         JsonNode message = awaitMessage("MBR-000003", m -> id.equals(m.path("sourceEventId").asString()));
         assertThat(message.path("title").asString()).isEqualTo("Hai guadagnato 162 punti");
         assertThat(message.path("body").asString()).contains("Giulia");
         assertThat(message.path("templateCode").asString()).isEqualTo("MSG-POINTS-EARNED");
         assertThat(message.path("sourceType").asString()).isEqualTo("wallet.points.earned");
 
-        publish("lh.facts.v1", "MBR-000003", pts); // doppio invio: processed_event
+        sent.add(publish("lh.facts.v1", "MBR-000003", pts)); // doppio invio: processed_event
         jdbc.sql("DELETE FROM processed_event WHERE consumer = 'lh-engagement' AND event_id = ?").param(id).update();
-        publish("lh.facts.v1", "MBR-000003", pts); // rielaborazione vera: vince la terna unica
+        sent.add(publish("lh.facts.v1", "MBR-000003", pts)); // rielaborazione vera: vince la terna unica
         awaitProcessed(id);
-        List<JsonNode> delivered = factsFor("member:MBR-000003", DELIVERED, e -> id.equals(e.path("lhcausationid").asString()));
+        // Barriera esatta anche per i doppioni (stesso id, niente processed_event nuovo): offset confermati oltre i 4 invii.
+        ListenerGroups.awaitCommitted(listeners, sent);
+        List<JsonNode> delivered = factsFor(List.of(id, sts), "member:MBR-000003", DELIVERED,
+                e -> id.equals(e.path("lhcausationid").asString()));
         assertThat(delivered).as("un solo message.delivered per l'evento").hasSize(1);
         assertThat(count("SELECT count(*) FROM inbox_message WHERE source_event_id = ?", id)).isEqualTo(1);
         assertThat(get("/v1/messages?memberId=MBR-000003&templateCode=MSG-POINTS-EARNED").path("items").toString())
@@ -154,7 +169,8 @@ class EngagementIT {
         assertThat(message.path("sourceEventId").asString()).as("deduplica sull'effectId").isEqualTo("EFF-" + id);
         assertThat(message.path("channel").asString()).isEqualTo("INAPP");
 
-        List<JsonNode> delivered = factsFor("member:MBR-000004", DELIVERED, e -> id.equals(e.path("lhcausationid").asString()));
+        List<JsonNode> delivered = factsFor(List.of(id), "member:MBR-000004", DELIVERED,
+                e -> id.equals(e.path("lhcausationid").asString()));
         assertThat(delivered).hasSize(1);
         assertThat(delivered.get(0).path("data").path("templateCode").asString()).isEqualTo("MSG-BIRTHDAY");
         assertThat(delivered.get(0).path("lhcorrelationid").asString()).isEqualTo("CORR-" + id);
@@ -176,7 +192,8 @@ class EngagementIT {
         awaitMessage("MBR-000005", m -> sentinel.equals(m.path("sourceEventId").asString()));
         assertThat(count("SELECT count(*) FROM inbox_message WHERE member_id = ?", "MBR-000005")).isEqualTo(before + 1);
         assertThat(count("SELECT count(*) FROM processed_event WHERE event_id = ?", loopId)).as("ignorato prima del router").isZero();
-        assertThat(factsFor("member:MBR-000005", DELIVERED, e -> loopId.equals(e.path("lhcausationid").asString()))).isEmpty();
+        assertThat(factsFor(List.of(sentinel), "member:MBR-000005", DELIVERED,
+                e -> loopId.equals(e.path("lhcausationid").asString()))).isEmpty();
 
         JsonNode problem = send("POST", "/v1/notification-rules", "ADMIN:marta.admin",
                 Map.of("factType", "message.delivered", "templateCode", "MSG-BADGE"), 422);
@@ -324,11 +341,11 @@ class EngagementIT {
                 "data", Map.of("role", role, "counterpartMemberId", counterpart, "qualifyingActionId", "ACT-" + id));
     }
 
-    private void publish(String topic, String key, Map<String, Object> event) throws Exception {
+    private RecordMetadata publish(String topic, String key, Map<String, Object> event) throws Exception {
         try (KafkaProducer<String, String> producer = new KafkaProducer<>(Map.of(
                 "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
                 "key.serializer", StringSerializer.class, "value.serializer", StringSerializer.class))) {
-            producer.send(new ProducerRecord<>(topic, key, mapper.writeValueAsString(event))).get();
+            return producer.send(new ProducerRecord<>(topic, key, mapper.writeValueAsString(event))).get();
         }
     }
 
@@ -356,26 +373,14 @@ class EngagementIT {
         throw new AssertionError("evento non elaborato: " + eventId);
     }
 
-    private List<JsonNode> factsFor(String subject, String type, Predicate<JsonNode> match) {
-        List<JsonNode> out = new ArrayList<>();
-        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(Map.of(
-                "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
-                "group.id", "engagement-it-" + UUID.randomUUID(), "auto.offset.reset", "earliest",
-                "key.deserializer", StringDeserializer.class, "value.deserializer", StringDeserializer.class))) {
-            consumer.subscribe(List.of("lh.facts.v1"));
-            long deadline = System.currentTimeMillis() + 10_000;
-            long quietUntil = 0;
-            while (System.currentTimeMillis() < deadline && (out.isEmpty() || System.currentTimeMillis() < quietUntil)) {
-                for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                    JsonNode e = mapper.readTree(r.value());
-                    if (subject.equals(e.path("subject").asString()) && type.equals(e.path("type").asString()) && match.test(e)) {
-                        out.add(e);
-                        quietUntil = System.currentTimeMillis() + 3_000;
-                    }
-                }
-            }
-        }
-        return out;
+    /**
+     * Fatti del soggetto e tipo indicati, esatti ({@link TopicReader}): prima il servizio deve aver elaborato
+     * {@code consumedFirst} ({@code processed_event}), poi {@code lh.facts.v1} si legge fino in fondo a outbox svuotato.
+     * Nessuna finestra di tempo: un doppione resta visibile, un fatto assente è davvero assente.
+     */
+    private List<JsonNode> factsFor(List<String> consumedFirst, String subject, String type, Predicate<JsonNode> match) {
+        return new TopicReader(jdbc, mapper, "lh.facts.v1").published(consumedFirst,
+                e -> subject.equals(e.path("subject").asString()) && type.equals(e.path("type").asString()) && match.test(e));
     }
 
     /** Il fatto realmente prodotto rispetta envelope e schema di contratto (docs/05 §9). */

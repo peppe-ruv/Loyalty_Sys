@@ -2,15 +2,15 @@ package io.loyaltyhub.member;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import io.loyaltyhub.testsupport.ListenerGroups;
+import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +19,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -26,7 +27,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +58,9 @@ class MemberServiceIT {
     @Autowired
     private JdbcClient jdbc;
 
+    @Autowired
+    private KafkaListenerEndpointRegistry listeners;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -65,6 +68,12 @@ class MemberServiceIT {
         registry.add("spring.datasource.username", () -> "postgres");
         registry.add("spring.datasource.password", () -> "");
         registry.add("spring.kafka.bootstrap-servers", () -> System.getProperty("spring.embedded.kafka.brokers"));
+    }
+
+    /** Si pubblica solo a gruppo {@code lh-member} stabile, con le partizioni assegnate ({@link ListenerGroups}). */
+    @BeforeAll
+    void waitForListenerGroup() {
+        ListenerGroups.awaitStable(listeners);
     }
 
     @AfterAll
@@ -123,10 +132,8 @@ class MemberServiceIT {
         assertThat(created.path("referralCode").asString()).hasSize(8);
         assertThat(created.path("tier").asString()).isEqualTo("BASE");
 
-        try (KafkaConsumer<String, String> consumer = consumer("reg-check")) {
-            consumer.subscribe(List.of(FACTS));
-            ConsumerRecord<String, String> rec = poll(consumer,
-                    r -> r.key().equals(id) && readJson(r.value()).path("type").asString()
+        {
+            ConsumerRecord<String, String> rec = first(                    r -> r.key().equals(id) && readJson(r.value()).path("type").asString()
                             .equals("io.loyaltyhub.fact.member.registered"));
             assertThat(rec).as("fatto member.registered pubblicato").isNotNull();
             JsonNode data = readJson(rec.value()).path("data");
@@ -143,10 +150,8 @@ class MemberServiceIT {
         assertThat(updated.path("version").asInt()).isEqualTo(1);
         assertThat(updated.path("city").asString()).isEqualTo("Torino");
 
-        try (KafkaConsumer<String, String> consumer = consumer("upd-check")) {
-            consumer.subscribe(List.of(FACTS));
-            ConsumerRecord<String, String> rec = poll(consumer,
-                    r -> r.key().equals("MBR-000001") && readJson(r.value()).path("type").asString()
+        {
+            ConsumerRecord<String, String> rec = first(                    r -> r.key().equals("MBR-000001") && readJson(r.value()).path("type").asString()
                             .equals("io.loyaltyhub.fact.member.updated"));
             assertThat(rec).as("fatto member.updated pubblicato").isNotNull();
         }
@@ -195,10 +200,8 @@ class MemberServiceIT {
                 .retrieve().body(JsonNode.class);
         assertThat(changed.path("status").asString()).isEqualTo("BLOCKED");
 
-        try (KafkaConsumer<String, String> consumer = consumer("status-check")) {
-            consumer.subscribe(List.of(FACTS));
-            ConsumerRecord<String, String> rec = poll(consumer,
-                    r -> r.key().equals("MBR-000010") && readJson(r.value()).path("type").asString()
+        {
+            ConsumerRecord<String, String> rec = first(                    r -> r.key().equals("MBR-000010") && readJson(r.value()).path("type").asString()
                             .equals("io.loyaltyhub.fact.member.status.changed"));
             assertThat(rec).as("fatto member.status.changed pubblicato").isNotNull();
             JsonNode data = readJson(rec.value()).path("data");
@@ -247,8 +250,7 @@ class MemberServiceIT {
         Map<String, Object> attrs = new java.util.HashMap<>();
         attrs.put("householdSize", 4);
         attrs.put("hasGasContract", null);
-        try (KafkaConsumer<String, String> consumer = consumer("attr-check")) {
-            consumer.subscribe(List.of(FACTS));
+        {
             JsonNode updated = send("PATCH", "/v1/members/MBR-000010", "CARE:paolo.care",
                     Map.of("attributes", attrs, "labels", List.of("VIP ", "vip", "newsletter")), 200);
             assertThat(updated.path("attributes").path("householdSize").asInt()).isEqualTo(4);
@@ -256,8 +258,7 @@ class MemberServiceIT {
             assertThat(updated.path("attributes").path("preferredChannel").asString()).isEqualTo("APP");
             assertThat(updated.path("labels").toString()).isEqualTo("[\"vip\",\"newsletter\"]");
 
-            ConsumerRecord<String, String> rec = poll(consumer,
-                    r -> r.key().equals("MBR-000010") && readJson(r.value()).path("type").asString()
+            ConsumerRecord<String, String> rec = first(                    r -> r.key().equals("MBR-000010") && readJson(r.value()).path("type").asString()
                             .equals("io.loyaltyhub.fact.member.updated")
                             && readJson(r.value()).path("data").path("attributes").path("householdSize").asInt() == 4);
             assertThat(rec).as("member.updated con gli attributi").isNotNull();
@@ -370,26 +371,14 @@ class MemberServiceIT {
         }
     }
 
-    private KafkaConsumer<String, String> consumer(String group) {
-        return new KafkaConsumer<>(Map.of(
-                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, System.getProperty("spring.embedded.kafka.brokers"),
-                ConsumerConfig.GROUP_ID_CONFIG, group,
-                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class));
-    }
-
-    private ConsumerRecord<String, String> poll(KafkaConsumer<String, String> consumer,
-                                                Predicate<ConsumerRecord<String, String>> match) {
-        long deadline = System.currentTimeMillis() + 15_000;
-        while (System.currentTimeMillis() < deadline) {
-            for (ConsumerRecord<String, String> r : consumer.poll(Duration.ofMillis(400))) {
-                if (match.test(r)) {
-                    return r;
-                }
-            }
-        }
-        return null;
+    /**
+     * Il primo fatto su {@code lh.facts.v1} che soddisfa {@code match}, esatto ({@link TopicReader}): i fatti nascono
+     * nelle chiamate HTTP già concluse, quindi basta leggere il topic fino in fondo a outbox svuotato, senza consumer
+     * group. {@code null} se non ce n'è.
+     */
+    private ConsumerRecord<String, String> first(Predicate<ConsumerRecord<String, String>> match) {
+        List<ConsumerRecord<String, String>> found = new TopicReader(jdbc, mapper, FACTS).records(List.of(), match);
+        return found.isEmpty() ? null : found.getFirst();
     }
 
     private JsonNode readJson(String value) {

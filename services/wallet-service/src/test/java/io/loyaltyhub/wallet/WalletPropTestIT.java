@@ -2,15 +2,14 @@ package io.loyaltyhub.wallet;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import io.loyaltyhub.testsupport.ListenerGroups;
+import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +18,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -60,6 +61,12 @@ class WalletPropTestIT {
     @Autowired
     private MutableClock mutableClock;
 
+    @Autowired
+    private JdbcClient jdbc;
+
+    @Autowired
+    private KafkaListenerEndpointRegistry listeners;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -69,8 +76,17 @@ class WalletPropTestIT {
         registry.add("spring.kafka.bootstrap-servers", () -> System.getProperty("spring.embedded.kafka.brokers"));
     }
 
+    /** Si pubblica solo a gruppo {@code lh-wallet} stabile, con le partizioni assegnate ({@link ListenerGroups}). */
+    @BeforeAll
+    void waitForListenerGroup() {
+        ListenerGroups.awaitStable(listeners);
+    }
+
     @AfterAll
     void tearDown() throws Exception {
+        if (facts != null) {
+            facts.close();
+        }
         PG.close();
     }
 
@@ -287,9 +303,9 @@ class WalletPropTestIT {
                 stepDesc = "GRANT_PTS " + amount;
 
                 model.grantPts(effectId, amount, time, expiresAt);
-                publishGrant(effectId, memberId, "PTS", amount, false, 0, time.toString());
+                String event = publishGrant(effectId, memberId, "PTS", amount, false, 0, time.toString());
 
-                awaitFact("io.loyaltyhub.fact.wallet.points.earned", d -> d.path("effectId").asString().equals(effectId));
+                awaitFact(event, "io.loyaltyhub.fact.wallet.points.earned", d -> d.path("effectId").asString().equals(effectId));
 
             } else if (opType < 55) { // 15% GRANT STS
                 long amount = random.nextInt(500) + 1;
@@ -298,9 +314,9 @@ class WalletPropTestIT {
                 stepDesc = "GRANT_STS " + amount;
 
                 model.grantSts(effectId, amount, time);
-                publishGrant(effectId, memberId, "STS", amount, false, 0, time.toString());
+                String event = publishGrant(effectId, memberId, "STS", amount, false, 0, time.toString());
 
-                awaitFact("io.loyaltyhub.fact.wallet.points.earned", d -> d.path("effectId").asString().equals(effectId));
+                awaitFact(event, "io.loyaltyhub.fact.wallet.points.earned", d -> d.path("effectId").asString().equals(effectId));
 
             } else if (opType < 70) { // 15% SPEND
                 long amount = random.nextInt((int) Math.max(1, model.activeBalance("PTS") + 100)) + 1;
@@ -308,12 +324,12 @@ class WalletPropTestIT {
                 stepDesc = "SPEND " + amount;
 
                 boolean couldSpend = model.spend(amount);
-                publishRequested(memberId, redemptionId, amount, mutableClock.instant());
+                String event = publishRequested(memberId, redemptionId, amount, mutableClock.instant());
 
                 if (couldSpend) {
-                    awaitFact("io.loyaltyhub.fact.wallet.points.spent", d -> d.path("redemptionId").asString().equals(redemptionId));
+                    awaitFact(event, "io.loyaltyhub.fact.wallet.points.spent", d -> d.path("redemptionId").asString().equals(redemptionId));
                 } else {
-                    awaitFact("io.loyaltyhub.fact.wallet.spend.rejected", d -> d.path("redemptionId").asString().equals(redemptionId));
+                    awaitFact(event, "io.loyaltyhub.fact.wallet.spend.rejected", d -> d.path("redemptionId").asString().equals(redemptionId));
                 }
 
             } else if (opType < 75) { // 5% ADJUST_CREDIT PTS
@@ -458,21 +474,21 @@ class WalletPropTestIT {
         ));
     }
 
-    private void publishGrant(String effectId, String memberId, String currency, long amount,
+    private String publishGrant(String effectId, String memberId, String currency, long amount,
                              boolean tierApplies, int pendingDays, String time) {
         Map<String, Object> data = Map.of(
                 "effectId", effectId, "campaignCode", "CMP-PROP", "actionId", "ACT-" + effectId,
                 "actionType", "purchase.completed", "currency", currency, "baseAmount", amount,
                 "campaignMultiplier", 1.0, "amount", amount, "tierMultiplierApplies", tierApplies,
                 "pendingDays", pendingDays);
-        send("lh.effects.v1", memberId, Map.of(
+        return send("lh.effects.v1", memberId, Map.of(
                 "specversion", "1.0", "id", "EV-" + effectId, "source", "urn:loyaltyhub:service:campaign",
                 "type", "io.loyaltyhub.effect.points.grant", "subject", "member:" + memberId,
                 "time", time, "lhcorrelationid", "ACT-" + effectId, "lhhop", 0, "data", data));
     }
 
-    private void publishRequested(String memberId, String redemptionId, long cost, Instant time) {
-        send("lh.facts.v1", memberId, Map.of(
+    private String publishRequested(String memberId, String redemptionId, long cost, Instant time) {
+        return send("lh.facts.v1", memberId, Map.of(
             "specversion", "1.0", "id", "REQ-" + redemptionId + "-" + System.nanoTime(),
             "source", "urn:loyaltyhub:service:reward", "type", "io.loyaltyhub.fact.reward.redemption.requested",
             "subject", "member:" + memberId, "time", time.toString(), "lhcorrelationid", "REQ-" + redemptionId,
@@ -481,11 +497,13 @@ class WalletPropTestIT {
         ));
     }
 
-    private void send(String topic, String key, Map<String, Object> event) {
+    /** Pubblica e ritorna l'id dell'evento. */
+    private String send(String topic, String key, Map<String, Object> event) {
         try (KafkaProducer<String, String> producer = new KafkaProducer<>(Map.of(
                 "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
                 "key.serializer", StringSerializer.class, "value.serializer", StringSerializer.class))) {
             producer.send(new ProducerRecord<>(topic, key, mapper.writeValueAsString(event))).get();
+            return (String) event.get("id");
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -495,35 +513,23 @@ class WalletPropTestIT {
         return RestClient.create("http://localhost:" + port);
     }
 
-    /** Consumer unico sui fatti: i record già letti restano in memoria, così ogni attesa non rilegge il topic. */
-    private KafkaConsumer<String, String> factsConsumer;
-    private final List<JsonNode> seenFacts = new ArrayList<>();
+    /**
+     * Lettore unico dei fatti ({@link TopicReader.Tail}, senza consumer group): ogni attesa riprende da dove era arrivata
+     * la precedente e i fatti già letti restano in memoria, così il topic non si rilegge a ogni operazione.
+     */
+    private TopicReader.Tail facts;
 
-    private JsonNode awaitFact(String type, Predicate<JsonNode> dataMatch) {
-        try {
-            if (factsConsumer == null) {
-                factsConsumer = new KafkaConsumer<>(Map.of(
-                        "bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
-                        "group.id", "prop-it-" + System.nanoTime(), "auto.offset.reset", "earliest",
-                        "key.deserializer", StringDeserializer.class, "value.deserializer", StringDeserializer.class));
-                factsConsumer.subscribe(List.of("lh.facts.v1"));
-            }
-            for (JsonNode e : seenFacts) {
-                if (e.path("type").asString().equals(type) && dataMatch.test(e.path("data"))) return e;
-            }
-            long deadline = System.currentTimeMillis() + 15_000;
-            while (System.currentTimeMillis() < deadline) {
-                for (ConsumerRecord<String, String> rec : factsConsumer.poll(Duration.ofMillis(100))) {
-                    JsonNode e = mapper.readTree(rec.value());
-                    seenFacts.add(e);
-                    if (e.path("type").asString().equals(type) && dataMatch.test(e.path("data"))) {
-                        return e;
-                    }
-                }
-            }
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
+    /**
+     * Il primo fatto del tipo con dati che soddisfano {@code dataMatch}, esatto: prima il servizio deve aver elaborato
+     * l'evento {@code consumedFirst} ({@code processed_event}, stessa transazione del fatto), poi il topic si legge fino
+     * in fondo a outbox svuotato.
+     */
+    private JsonNode awaitFact(String consumedFirst, String type, Predicate<JsonNode> dataMatch) {
+        if (facts == null) {
+            facts = new TopicReader(jdbc, mapper, "lh.facts.v1").tail(false);
         }
-        throw new AssertionError("nessun " + type);
+        return facts.published(List.of(consumedFirst),
+                        e -> e.path("type").asString().equals(type) && dataMatch.test(e.path("data")))
+                .stream().findFirst().orElseThrow(() -> new AssertionError("nessun " + type));
     }
 }

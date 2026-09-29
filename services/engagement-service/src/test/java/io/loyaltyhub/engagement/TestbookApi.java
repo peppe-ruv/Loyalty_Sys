@@ -2,6 +2,7 @@ package io.loyaltyhub.engagement;
 
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -97,13 +98,14 @@ public final class TestbookApi implements AutoCloseable {
         return e;
     }
 
-    public void publish(String topic, String key, Map<String, Object> event) {
+    /** Pubblica e attende l'ack del broker; il record confermato serve alle barriere di elaborazione. */
+    public RecordMetadata publish(String topic, String key, Map<String, Object> event) {
         if (producer == null) {
             producer = new KafkaProducer<>(Map.of("bootstrap.servers", System.getProperty("spring.embedded.kafka.brokers"),
                     "key.serializer", StringSerializer.class, "value.serializer", StringSerializer.class));
         }
         try {
-            producer.send(new ProducerRecord<>(topic, key, MAPPER.writeValueAsString(event))).get();
+            return producer.send(new ProducerRecord<>(topic, key, MAPPER.writeValueAsString(event))).get();
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
