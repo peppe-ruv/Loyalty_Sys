@@ -5,8 +5,7 @@ import { rows } from "@/test/testbook";
 
 // Testbook TB-WEB §PRX (PRX-037…043): identità del proxy verso i servizi (docs/07 §3, ADR-048, Q-555).
 // La parte che passa dal route handler è in `app/api/lh/[service]/[...path]/route.member.testbook.test.ts`.
-// SPEC-GAP: Q-560 - PRX-039 fotografa il ripiego MBR-000002 per la persona BO (Q-555); se Giuseppe sceglie (A) di Q-560
-// l'atteso diventa il solo `x-lh-actor`.
+// Q-560 (A): con una persona da operatore (BO) il proxy non manda `x-lh-member`; senza cookie vale il ripiego MBR-000002.
 
 const MEMBER: Persona = { kind: "MEMBER", memberId: "MBR-000005" };
 const BO: Persona = { kind: "BO", username: "paolo.care", role: "CARE" };
@@ -14,7 +13,7 @@ const BO: Persona = { kind: "BO", username: "paolo.care", role: "CARE" };
 it.each(rows([
   { id: "TB-WEB-PRX-037", desc: "persona MEMBER", persona: MEMBER as Persona | null, expected: { "x-lh-actor": "ANALYST:anonymous", "x-lh-member": "MBR-000005" } },
   { id: "TB-WEB-PRX-038", desc: "nessuna persona → membro di default", persona: null as Persona | null, expected: { "x-lh-actor": "ANALYST:anonymous", "x-lh-member": "MBR-000002" } },
-  { id: "TB-WEB-PRX-039", desc: "persona BO → attore BO e membro di default", persona: BO as Persona | null, expected: { "x-lh-actor": "CARE:paolo.care", "x-lh-member": "MBR-000002" } },
+  { id: "TB-WEB-PRX-039", desc: "persona BO → solo attore BO, nessun membro (Q-560)", persona: BO as Persona | null, expected: { "x-lh-actor": "CARE:paolo.care" } },
 ]))("[%s] demoIdentity su /v1/portal/**: %s", (_id, _desc, { persona, expected }) => {
   expect(demoIdentity(persona, ["v1", "portal", "campaigns"])).toEqual(expected);
 });
