@@ -73,7 +73,7 @@ public class EventsBatchController {
     @ApiResponse(responseCode = "429", description = "RATE_LIMITED: il batch starebbe nel limite ma la finestra"
             + " corrente dell'indirizzo è piena (Retry-After)",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
-    // SPEC-GAP: Q-492 — ingresso delle fonti aperto a ogni ruolo come nel PoC; il ruolo delle fonti è da decidere.
+    // SPEC-GAP: Q-492 — ingresso delle fonti aperto a ogni ruolo come nel PoC; ruolo SOURCE in M8.2f (deciso, Q-492).
     @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public ResponseEntity<BatchIngestionService.BatchResult> ingestBatch(HttpEntity<JsonNode> request,
                                                                         HttpServletRequest http) {

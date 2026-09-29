@@ -5,6 +5,7 @@ import com.tngtech.archunit.core.domain.JavaAnnotation;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.domain.JavaMethod;
+import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.core.domain.properties.HasAnnotations;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -13,16 +14,24 @@ import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
-import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 
 /**
  * Deny by default verificato dalla build (F2-SEC-09, ADR-042, CLAUDE.md regola 18, docs/18 §3.10 punto 3 e §3.11):
- * ogni metodo mappato di un controller dichiara chi può chiamarlo con {@code @RequiresRole} o
- * {@code @PublicEndpoint(reason = "…")}, sul metodo o sulla classe.
+ * ogni handler di un controller dichiara chi può chiamarlo con {@code @RequiresRole} o
+ * {@code @PublicEndpoint(reason = "…")}, sul metodo o sulla classe. La regola replica ciò che applica
+ * {@code EndpointAccessInterceptor}: un handler è un metodo con una mappatura di Spring MVC dichiarata sul metodo
+ * stesso, su una superclasse (anche non controller) o su un'interfaccia che il controller implementa; la dichiarazione
+ * vale se sta su quel metodo (o sul metodo che lo sovrascrive), oppure sulla classe, sulle sue superclassi o
+ * interfacce.
  *
- * <p>Ogni modulo con controller lo applica con un test di poche righe:
+ * <p>Ogni modulo con controller la applica con un test di poche righe:
  * <pre>{@code
  * @Test
  * void everyEndpointDeclaresAccess() {
@@ -31,13 +40,12 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
  * }</pre>
  *
  * <p>Le annotazioni di {@code lh-common} si nominano per nome, perché questo modulo non dipende da {@code lh-common}
- * (che lo usa nei propri test). Una dichiarazione è un'annotazione segnata con {@code @EndpointAccess}: la regola
- * accetta anche le dichiarazioni future (per esempio quella del membro dal token, Q-410) senza cambiare qui.
+ * (che lo usa nei propri test). Sono accettate <strong>solo</strong> {@code @RequiresRole} e {@code @PublicEndpoint}
+ * (con motivo non vuoto): un'annotazione qualunque segnata {@code @EndpointAccess} non basta, perché l'interceptor non
+ * la applicherebbe e l'endpoint sarebbe rifiutato a runtime.
  */
 public final class EndpointAccessRules {
 
-    /** Meta-annotazione che segna una dichiarazione di accesso. */
-    public static final String ENDPOINT_ACCESS = "io.loyaltyhub.common.web.EndpointAccess";
     public static final String REQUIRES_ROLE = "io.loyaltyhub.common.web.RequiresRole";
     public static final String PUBLIC_ENDPOINT = "io.loyaltyhub.common.web.PublicEndpoint";
 
@@ -60,70 +68,105 @@ public final class EndpointAccessRules {
     }
 
     /**
-     * Ogni metodo annotato con una mappatura di Spring MVC ({@code @GetMapping}, {@code @PostMapping}…, anche come
-     * meta-annotazione) in una classe {@code @Controller} o {@code @RestController} dichiara l'accesso; un
-     * {@code @PublicEndpoint} ha un motivo non vuoto; lo stesso elemento non porta sia {@code @RequiresRole} sia
-     * {@code @PublicEndpoint}. Fallisce anche se non trova nessun endpoint (package sbagliato).
+     * Ogni classe concreta {@code @Controller}/{@code @RestController} (anche per ereditarietà) ha, per ogni suo
+     * handler (metodi propri, ereditati da superclassi e dichiarati da interfacce, con mappatura anche come
+     * meta-annotazione), una dichiarazione valida; un {@code @PublicEndpoint} ha un motivo non vuoto; lo stesso
+     * elemento non porta sia {@code @RequiresRole} sia {@code @PublicEndpoint}. Fallisce anche se non trova nessun
+     * controller (package sbagliato).
      */
     public static ArchRule rule() {
-        return methods()
-                .that(annotated(REQUEST_MAPPING))
-                .and().areDeclaredInClassesThat(controller())
-                .should(declareAccess())
+        return classes()
+                .that(controller())
+                .should(declareAccessOnEveryHandler())
                 .because("deny by default: ogni endpoint dichiara @RequiresRole o @PublicEndpoint con un motivo"
                         + " (F2-SEC-09, ADR-042, docs/06 §3.2)");
     }
 
-    private static DescribedPredicate<HasAnnotations<?>> annotated(String type) {
-        return new DescribedPredicate<>("are annotated or meta-annotated with @" + simple(type)) {
-            @Override
-            public boolean test(HasAnnotations<?> element) {
-                return element.isAnnotatedWith(type) || element.isMetaAnnotatedWith(type);
-            }
-        };
-    }
-
     private static DescribedPredicate<JavaClass> controller() {
-        return new DescribedPredicate<>("are controllers") {
+        return new DescribedPredicate<>("are concrete controllers") {
             @Override
             public boolean test(JavaClass c) {
-                return c.isAnnotatedWith(CONTROLLER) || c.isMetaAnnotatedWith(CONTROLLER);
+                if (c.isInterface() || c.getModifiers().contains(JavaModifier.ABSTRACT)) {
+                    return false;
+                }
+                return hierarchy(c).stream()
+                        .anyMatch(t -> metaOrDirect(t, CONTROLLER) || metaOrDirect(t, REQUEST_MAPPING));
             }
         };
     }
 
-    private static ArchCondition<JavaMethod> declareAccess() {
-        return new ArchCondition<>("declare @RequiresRole or @PublicEndpoint(reason) on the method or its class") {
+    private static ArchCondition<JavaClass> declareAccessOnEveryHandler() {
+        return new ArchCondition<>("declare @RequiresRole or @PublicEndpoint(reason) on every handler or its class") {
             @Override
-            public void check(JavaMethod method, ConditionEvents events) {
-                String where = method.getFullName();
-                String methodProblem = problem(method);
-                if (methodProblem != null) {
-                    events.add(SimpleConditionEvent.violated(method, where + ": " + methodProblem));
-                    return;
+            public void check(JavaClass controller, ConditionEvents events) {
+                Map<String, List<JavaMethod>> chains = new LinkedHashMap<>();
+                for (JavaMethod m : controller.getAllMethods()) {
+                    chains.computeIfAbsent(signature(m), k -> new ArrayList<>()).add(m);
                 }
-                if (declares(method)) {
-                    events.add(SimpleConditionEvent.satisfied(method, where + " dichiara l'accesso"));
-                    return;
+                for (List<JavaMethod> chain : chains.values()) {
+                    Optional<JavaMethod> mapped = chain.stream().filter(m -> metaOrDirect(m, REQUEST_MAPPING)).findFirst();
+                    if (mapped.isEmpty()) {
+                        continue;
+                    }
+                    JavaMethod first = mapped.get();
+                    String where = first.getFullName()
+                            + (first.getOwner().equals(controller) ? "" : " (ereditato da " + controller.getName() + ")");
+                    evaluate(controller, chain, where, events);
                 }
-                String classProblem = problem(method.getOwner());
-                if (classProblem != null) {
-                    events.add(SimpleConditionEvent.violated(method, where + " (classe): " + classProblem));
-                    return;
-                }
-                if (declares(method.getOwner())) {
-                    events.add(SimpleConditionEvent.satisfied(method, where + " eredita l'accesso dalla classe"));
-                    return;
-                }
-                events.add(SimpleConditionEvent.violated(method, where
-                        + " non dichiara @RequiresRole né @PublicEndpoint (sul metodo o sulla classe)"));
             }
         };
     }
 
-    /** Una dichiarazione di accesso: un'annotazione segnata con {@code @EndpointAccess}. */
+    private static void evaluate(JavaClass controller, List<JavaMethod> chain, String where, ConditionEvents events) {
+        for (JavaMethod m : chain) {
+            String problem = problem(m);
+            if (problem != null) {
+                events.add(SimpleConditionEvent.violated(controller, where + ": " + problem));
+                return;
+            }
+        }
+        if (chain.stream().anyMatch(EndpointAccessRules::declares)) {
+            events.add(SimpleConditionEvent.satisfied(controller, where + " dichiara l'accesso"));
+            return;
+        }
+        List<JavaClass> types = hierarchy(controller);
+        for (JavaClass type : types) {
+            String problem = problem(type);
+            if (problem != null) {
+                events.add(SimpleConditionEvent.violated(controller,
+                        where + " (classe " + type.getName() + "): " + problem));
+                return;
+            }
+        }
+        if (types.stream().anyMatch(EndpointAccessRules::declares)) {
+            events.add(SimpleConditionEvent.satisfied(controller, where + " eredita l'accesso dalla classe"));
+            return;
+        }
+        events.add(SimpleConditionEvent.violated(controller, where
+                + " non dichiara @RequiresRole né @PublicEndpoint (sul metodo o sulla classe)"));
+    }
+
+    /** La classe, le sue superclassi e le interfacce (come cerca {@code findMergedAnnotation} sulla classe). */
+    private static List<JavaClass> hierarchy(JavaClass c) {
+        List<JavaClass> all = new ArrayList<>();
+        all.add(c);
+        all.addAll(c.getAllRawSuperclasses());
+        all.addAll(c.getAllRawInterfaces());
+        return all;
+    }
+
+    /** Nome e tipi dei parametri: chiave di un metodo lungo la gerarchia (sovrascritture incluse). */
+    private static String signature(JavaMethod m) {
+        return m.getName() + m.getRawParameterTypes().stream().map(JavaClass::getName).toList();
+    }
+
+    private static boolean metaOrDirect(HasAnnotations<?> element, String type) {
+        return element.isAnnotatedWith(type) || element.isMetaAnnotatedWith(type);
+    }
+
+    /** Una dichiarazione valida per l'interceptor: solo {@code @RequiresRole} o {@code @PublicEndpoint} diretti. */
     private static boolean declares(HasAnnotations<?> element) {
-        return element.isMetaAnnotatedWith(ENDPOINT_ACCESS);
+        return element.isAnnotatedWith(REQUIRES_ROLE) || element.isAnnotatedWith(PUBLIC_ENDPOINT);
     }
 
     /** Problema di una dichiarazione su un elemento, o {@code null}. */
@@ -140,9 +183,5 @@ public final class EndpointAccessRules {
             }
         }
         return null;
-    }
-
-    private static String simple(String type) {
-        return type.substring(type.lastIndexOf('.') + 1);
     }
 }

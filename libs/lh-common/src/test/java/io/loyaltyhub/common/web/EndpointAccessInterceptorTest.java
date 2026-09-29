@@ -1,21 +1,23 @@
 package io.loyaltyhub.common.web;
 
+import jakarta.servlet.DispatcherType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.data.rest.fake.FakeRestController;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.util.AntPathMatcher;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.servlet.i18n.SessionLocaleResolver;
 
 import java.util.Map;
 
@@ -202,12 +204,51 @@ class EndpointAccessInterceptorTest {
     @Test
     void frameworkHandlersAndNonMethodHandlersAreOutOfScope() throws Exception {
         EndpointAccessInterceptor interceptor = new EndpointAccessInterceptor();
-        HandlerMethod framework = new HandlerMethod(new AntPathMatcher(), "isPattern", String.class);
+        HandlerMethod framework = new HandlerMethod(new SessionLocaleResolver(), "hashCode");
         assertThat(interceptor.preHandle(new MockHttpServletRequest(), new MockHttpServletResponse(), framework)).isTrue();
         assertThat(interceptor.preHandle(new MockHttpServletRequest(), new MockHttpServletResponse(), new Object()))
                 .isTrue();
         HandlerMethod ours = new HandlerMethod(new Probe(), "undeclared", String.class);
         assertThatThrownBy(() -> interceptor.preHandle(new MockHttpServletRequest(), new MockHttpServletResponse(), ours))
                 .isInstanceOfSatisfying(LhException.class, e -> assertThat(e.code()).isEqualTo("ENDPOINT_NOT_DECLARED"));
+    }
+
+    @Test
+    void onlyTheNarrowFrameworkPackagesAreExempt() {
+        assertThat(EndpointAccessInterceptor.isFramework(SessionLocaleResolver.class)).isTrue();
+        assertThat(EndpointAccessInterceptor.isFramework(org.springframework.util.AntPathMatcher.class)).isFalse();
+        assertThat(EndpointAccessInterceptor.isFramework(FakeRestController.class)).isFalse();
+    }
+
+    @Test
+    void controllerInAnotherSpringPackageIsDeniedWhenUndeclared() throws Exception {
+        EndpointAccessInterceptor interceptor = new EndpointAccessInterceptor();
+        HandlerMethod fake = new HandlerMethod(new FakeRestController(), "undeclared");
+        assertThatThrownBy(() -> interceptor.preHandle(new MockHttpServletRequest(), new MockHttpServletResponse(), fake))
+                .isInstanceOfSatisfying(LhException.class, e -> assertThat(e.code()).isEqualTo("ENDPOINT_NOT_DECLARED"));
+    }
+
+    @Test
+    void asyncDispatchIsNotCheckedAgain() throws Exception {
+        EndpointAccessInterceptor interceptor = new EndpointAccessInterceptor();
+        HandlerMethod undeclared = new HandlerMethod(new Probe(), "undeclared", String.class);
+        MockHttpServletRequest async = new MockHttpServletRequest();
+        async.setDispatcherType(DispatcherType.ASYNC);
+        assertThat(interceptor.preHandle(async, new MockHttpServletResponse(), undeclared)).isTrue();
+        // La richiesta iniziale (REQUEST) resta rifiutata.
+        MockHttpServletRequest initial = new MockHttpServletRequest();
+        assertThat(initial.getDispatcherType()).isEqualTo(DispatcherType.REQUEST);
+        assertThatThrownBy(() -> interceptor.preHandle(initial, new MockHttpServletResponse(), undeclared))
+                .isInstanceOf(LhException.class);
+    }
+
+    @Test
+    void resolveReportsTheEffectiveDeclaration() throws Exception {
+        assertThat(EndpointAccessInterceptor.resolve(new HandlerMethod(new Probe(), "undeclared", String.class)).valid())
+                .isFalse();
+        assertThat(EndpointAccessInterceptor.resolve(new HandlerMethod(new Probe(), "blank")).valid()).isFalse();
+        assertThat(EndpointAccessInterceptor.resolve(new HandlerMethod(new Probe(), "open")).valid()).isTrue();
+        assertThat(EndpointAccessInterceptor.resolve(new HandlerMethod(new Probe(), "read")).role()).isNotNull();
+        assertThat(EndpointAccessInterceptor.resolve(new HandlerMethod(new OpenClass(), "inherited")).valid()).isTrue();
     }
 }

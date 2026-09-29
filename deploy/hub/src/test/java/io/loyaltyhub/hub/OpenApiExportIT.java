@@ -1,5 +1,6 @@
 package io.loyaltyhub.hub;
 
+import io.loyaltyhub.common.web.EndpointAccessInterceptor;
 import io.swagger.v3.oas.models.Operation;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.AfterAll;
@@ -212,6 +213,30 @@ class OpenApiExportIT {
             fail("OpenAPI cambiata: rigenera con `" + REGENERATE + "`, rivedi il diff e versionalo.\n  - "
                     + String.join("\n  - ", drift));
         }
+    }
+
+    /**
+     * Deny by default sul contesto reale (F2-SEC-09, ADR-042): ogni handler registrato che non è di un framework
+     * risolve una dichiarazione valida con la stessa logica dell'interceptor
+     * ({@link EndpointAccessInterceptor#resolve}). Complementare alla regola ArchUnit, che lavora sulle classi.
+     */
+    @Test
+    void everyRegisteredHandlerResolvesAValidAccessDeclaration() {
+        List<String> undeclared = new ArrayList<>();
+        int checked = 0;
+        for (RequestMappingHandlerMapping mapping : context.getBeansOfType(RequestMappingHandlerMapping.class).values()) {
+            for (HandlerMethod handler : mapping.getHandlerMethods().values()) {
+                if (EndpointAccessInterceptor.isFramework(handler.getBeanType())) {
+                    continue;
+                }
+                checked++;
+                if (!EndpointAccessInterceptor.resolve(handler).valid()) {
+                    undeclared.add(handler.getBeanType().getName() + "#" + handler.getMethod().getName());
+                }
+            }
+        }
+        assertThat(undeclared).as("handler senza @RequiresRole né @PublicEndpoint con motivo").isEmpty();
+        assertThat(checked).as("handler di prodotto controllati").isGreaterThan(150);
     }
 
     // ================= composizione dei file =================

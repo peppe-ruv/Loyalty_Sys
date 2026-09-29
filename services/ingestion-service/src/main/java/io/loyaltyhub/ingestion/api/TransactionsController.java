@@ -53,7 +53,7 @@ public class TransactionsController {
     }
 
     @PostMapping("/transactions")
-    // SPEC-GAP: Q-492 — ingresso delle fonti aperto a ogni ruolo come nel PoC; il ruolo delle fonti è da decidere.
+    // SPEC-GAP: Q-492 — ingresso delle fonti aperto a ogni ruolo come nel PoC; ruolo SOURCE in M8.2f (deciso, Q-492).
     @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public ResponseEntity<IngestResult> transaction(@RequestBody TransactionRequest t) {
         requireForm(t);
