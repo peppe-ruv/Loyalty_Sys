@@ -3,6 +3,8 @@
   "realm": "loyaltyhub",
   "displayName": "Loyalty Hub",
   "enabled": true,
+  "registrationAllowed": true,
+  "verifyEmail": false,
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 36000,
   "accessTokenLifespan": 300,
@@ -10,6 +12,13 @@
   "refreshTokenMaxReuse": 0,
   "eventsEnabled": true,
   "adminEventsEnabled": true,
+  "defaultRole": {
+    "name": "default-roles-loyaltyhub",
+    "description": "${role_default-roles}",
+    "composite": true,
+    "clientRole": false,
+    "containerId": "loyaltyhub"
+  },
   "roles": {
     "realm": [
       {
@@ -43,6 +52,16 @@
       {
         "name": "MFA_REQUIRED_ROLE",
         "description": "Triggers Conditional MFA"
+      },
+      {
+        "name": "default-roles-loyaltyhub",
+        "description": "${role_default-roles}",
+        "composite": true,
+        "composites": {
+          "realm": [
+            "MEMBER"
+          ]
+        }
       }
     ],
     "client": {}
@@ -998,6 +1017,12 @@
       "requiredActions": [
         "UPDATE_PASSWORD"
       ]
+    },
+    {
+      "username": "service-account-lh-jobs",
+      "enabled": true,
+      "serviceAccountClientId": "lh-jobs",
+      "realmRoles": []
     },
     {
       "username": "service-account-src-crm",
