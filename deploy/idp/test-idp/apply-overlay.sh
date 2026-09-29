@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SOLO PROVA (F2-IAM-04, ADR-027). Applica realm-test-overlay.json al realm `loyaltyhub` gia' avviato:
-#   - broker `test-idp` e client di prova `lh-ldap-test`: POST /admin/realms/loyaltyhub/partialImport
-#     con ifResourceExists=OVERWRITE;
+#   - broker `test-idp`, client di prova `lh-ldap-test` e utente membro di prova `testmember`:
+#     POST /admin/realms/loyaltyhub/partialImport con ifResourceExists=OVERWRITE;
 #   - federazione LDAP (components): API /components, perche' partialImport non gestisce i componenti.
 #     Il provider `ldap` esistente viene rimosso e ricreato (stessa semantica di OVERWRITE).
 #
@@ -28,6 +28,7 @@ OVERLAY_VARS=(
   LH_TEST_IDP_SECRET
   LH_LDAP_BIND_CREDENTIAL
   LH_LDAP_TEST_CLIENT_SECRET
+  LH_MEMBER_TEST_PASSWORD
 )
 
 if [ -z "${ADMIN_PASSWORD}" ]; then
@@ -75,7 +76,8 @@ doc.pop("_comment", None)
 doc = sub(doc)
 partial = {"ifResourceExists": "OVERWRITE",
            "identityProviders": doc.get("identityProviders", []),
-           "clients": doc.get("clients", [])}
+           "clients": doc.get("clients", []),
+           "users": doc.get("users", [])}
 json.dump(partial, open(os.path.join(work, "partial.json"), "w"))
 json.dump(doc.get("components", {}), open(os.path.join(work, "components.json"), "w"))
 PY
@@ -93,8 +95,8 @@ TOKEN="$(curl -sS -f -X POST "${KEYCLOAK_URL}/realms/master/protocol/openid-conn
 AUTH=(-H "Authorization: Bearer ${TOKEN}")
 ADMIN="${KEYCLOAK_URL}/admin/realms/${REALM}"
 
-# 3. Broker e client di prova.
-echo "partialImport (OVERWRITE) di identityProviders e clients..."
+# 3. Broker, client e utente di prova.
+echo "partialImport (OVERWRITE) di identityProviders, clients e users..."
 HTTP_CODE="$(curl -sS -o "$WORK/partial-result.json" -w '%{http_code}' -X POST "${ADMIN}/partialImport" \
   "${AUTH[@]}" -H 'Content-Type: application/json' --data-binary "@$WORK/partial.json")"
 if [ "$HTTP_CODE" != "200" ]; then
