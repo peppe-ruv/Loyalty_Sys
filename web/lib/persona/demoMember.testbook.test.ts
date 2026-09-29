@@ -11,10 +11,15 @@ import { rows } from "@/test/testbook";
 it.each(rows([
   { id: "TB-WEB-PERS-036", desc: "persona MEMBER → il suo id", persona: { kind: "MEMBER", memberId: "MBR-000007" } as Persona | null, expected: "MBR-000007" },
   { id: "TB-WEB-PERS-037", desc: "nessuna persona → MBR-000002", persona: null as Persona | null, expected: "MBR-000002" },
-  { id: "TB-WEB-PERS-038", desc: "persona BO → MBR-000002", persona: { kind: "BO", username: "marta.admin", role: "ADMIN" } as Persona | null, expected: "MBR-000002" },
 ]))("[%s] demoPortalMember: %s", (_id, _desc, { persona, expected }) => {
   expect(demoPortalMember(persona)).toBe(expected);
   expect(demoMemberHeader(persona)).toBe(expected);
+});
+
+it("[TB-WEB-PERS-038] persona BO: il portale mostra MBR-000002 (interfaccia) ma nessun X-LH-Member (Q-560)", () => {
+  const bo: Persona = { kind: "BO", username: "marta.admin", role: "ADMIN" };
+  expect(demoPortalMember(bo)).toBe("MBR-000002");
+  expect(demoMemberHeader(bo)).toBeNull();
 });
 
 it("[TB-WEB-PERS-039] demoPortalMember non valida l'id del cookie (il portale si comporta come prima), demoMemberHeader sì", () => {

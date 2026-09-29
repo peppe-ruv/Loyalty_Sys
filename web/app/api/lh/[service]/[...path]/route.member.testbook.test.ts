@@ -9,8 +9,8 @@ import type { SessionUser } from "@/lib/auth/sessionStore";
 import { rows } from "@/test/testbook";
 
 // Testbook TB-WEB §PRX (PRX-016…036 e 044): `X-LH-Member` verso i servizi (docs/07 §3, docs/06 §3.4, ADR-048, Q-555).
-// Profilo demo: solo sulle API del portale (`/v1/portal/**`), col membro attivo della persona (ripiego MBR-000002),
-// mai quello scelto dal browser. Profilo enterprise: mai (il membro viene dal token, regole 6-bis e 18).
+// Profilo demo: solo sulle API del portale (`/v1/portal/**`), col membro della persona MEMBER (ripiego MBR-000002 senza
+// cookie), mai quello scelto dal browser e mai con una persona di backoffice (Q-560, ADR-048 punto 6). Profilo enterprise: mai (il membro viene dal token, regole 6-bis e 18).
 
 let personaCookie: string | undefined;
 vi.mock("next/headers", () => ({
@@ -25,7 +25,7 @@ const ENTERPRISE_ENV = {
   LH_WEB_URL: ORIGIN,
   LH_WEB_SESSION_KEY: Buffer.from(Array.from({ length: 32 }, (_, i) => 200 - i)).toString("base64"),
 };
-const SERVICE_ENV = ["LH_SVC_WALLET_URL", "LH_SVC_REWARD_URL", "LH_SVC_MEMBER_URL", "LH_SVC_GAMIFICATION_URL"];
+const SERVICE_ENV = ["LH_SVC_CAMPAIGN_URL", "LH_SVC_WALLET_URL", "LH_SVC_REWARD_URL", "LH_SVC_MEMBER_URL", "LH_SVC_GAMIFICATION_URL"];
 
 const BOARD = {
   code: "LDB-MONTH-PTS",
@@ -44,6 +44,7 @@ let seen: { url: string; init: RequestInit }[];
 beforeEach(() => {
   seen = [];
   personaCookie = undefined;
+  process.env.LH_SVC_CAMPAIGN_URL = "http://campaign.test";
   process.env.LH_SVC_WALLET_URL = "http://wallet.test";
   process.env.LH_SVC_REWARD_URL = "http://reward.test";
   process.env.LH_SVC_MEMBER_URL = "http://member.test";
@@ -88,15 +89,40 @@ describe("profilo demo", () => {
   });
 
   it.each(rows([
-    { id: "TB-WEB-PRX-017", desc: "cookie assente", cookie: undefined as string | undefined, actor: "ANALYST:anonymous" },
-    { id: "TB-WEB-PRX-018", desc: "cookie non valido", cookie: "non-json" as string | undefined, actor: "ANALYST:anonymous" },
-    { id: "TB-WEB-PRX-019", desc: "persona del backoffice (CARE)", cookie: enc({ kind: "BO", username: "paolo.care", role: "CARE" }) as string | undefined, actor: "CARE:paolo.care" },
-  ]))("[%s] API del portale, %s → X-LH-Member = membro di default MBR-000002", async (_id, _desc, { cookie, actor }) => {
-    // Il portale mostra lo stesso membro con questi cookie (app/portal/layout.tsx, lib/persona/demoMember.ts).
+    { id: "TB-WEB-PRX-017", desc: "cookie assente", cookie: undefined as string | undefined },
+    { id: "TB-WEB-PRX-018", desc: "cookie non valido", cookie: "non-json" as string | undefined },
+  ]))("[%s] API del portale, %s → X-LH-Member = membro di default MBR-000002", async (_id, _desc, { cookie }) => {
+    // Il portale mostra lo stesso membro a un visitatore anonimo (app/portal/layout.tsx, lib/persona/demoMember.ts).
     personaCookie = cookie;
     await GET(walletReq(), ctx("wallet", WALLET));
     expect(sent().get("x-lh-member")).toBe("MBR-000002");
-    expect(sent().get("x-lh-actor")).toBe(actor);
+    expect(sent().get("x-lh-actor")).toBe("ANALYST:anonymous");
+  });
+
+  it("[TB-WEB-PRX-019] API del portale con persona del backoffice (CARE) → nessun X-LH-Member, X-LH-Actor della persona (Q-560)", async () => {
+    // Un operatore non agisce mai come membro (ADR-048 punto 6): il portale aperto da BO mostra MBR-000002 ma lavora col
+    // `memberId` esplicito, il proxy non gli presta un'identità di membro.
+    personaCookie = enc({ kind: "BO", username: "paolo.care", role: "CARE" });
+    await GET(walletReq(), ctx("wallet", WALLET));
+    expect(seen).toHaveLength(1);
+    expect(sent().has("x-lh-member")).toBe(false);
+    expect(sent().get("x-lh-actor")).toBe("CARE:paolo.care");
+  });
+
+  it("[TB-WEB-PRX-045] BO-17: /v1/portal/campaigns?codes= con persona BO → nessun X-LH-Member (vista generica), query inoltrata", async () => {
+    personaCookie = enc({ kind: "BO", username: "marta.admin", role: "ADMIN" });
+    const res = await GET(
+      new NextRequest("http://web.test/api/lh/campaign/v1/portal/campaigns?codes=CMP-REFERRAL-01,CMP-REFERRAL-02", {
+        headers: { "x-lh-member": "MBR-000009" },
+      }),
+      ctx("campaign", ["v1", "portal", "campaigns"]),
+    );
+    expect(res.status).toBe(200);
+    expect(seen).toHaveLength(1);
+    expect(seen[0].url).toBe("http://campaign.test/v1/portal/campaigns?codes=CMP-REFERRAL-01,CMP-REFERRAL-02");
+    expect(sent().has("x-lh-member")).toBe(false);
+    expect(JSON.stringify([...sent()])).not.toMatch(/MBR-/);
+    expect(sent().get("x-lh-actor")).toBe("ADMIN:marta.admin");
   });
 
   it("[TB-WEB-PRX-020] POST del portale: header presente, memberId di query e corpo inoltrati come prima", async () => {
