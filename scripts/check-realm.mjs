@@ -30,6 +30,11 @@ function secretValues(node, at = '$', out = []) {
 
 let realm;
 
+// Ruolo predefinito del realm (composito assegnato a ogni utente creato dopo l'import): l'entry di `roles.realm` con il
+// nome indicato da `defaultRole`. Solo questa porta i composti nell'import di Keycloak (vedi il test sul ruolo MEMBER).
+const DEFAULT_ROLE = 'default-roles-loyaltyhub';
+const defaultRoleEntry = () => realm.roles.realm.find(r => r.name === DEFAULT_ROLE);
+
 test('Caricamento realm.json', () => {
   assert.ok(fs.existsSync(REALM_PATH), 'Il file realm.json non esiste in deploy/idp/');
   realm = JSON.parse(fs.readFileSync(REALM_PATH, 'utf8'));
@@ -183,6 +188,7 @@ test('Il ruolo SOURCE è solo delle utenze di servizio dei client src-<codice>, 
   }
   // Né tra i ruoli predefiniti: li avrebbe ogni utente del realm.
   assert.ok(!(realm.defaultRole?.composites?.realm ?? []).includes('SOURCE'), 'SOURCE non deve essere nel ruolo predefinito del realm');
+  assert.ok(!(defaultRoleEntry()?.composites?.realm ?? []).includes('SOURCE'), 'SOURCE non deve essere nel composito di default-roles-loyaltyhub (roles.realm)');
   assert.ok(!(realm.groups ?? []).length || !JSON.stringify(realm.groups).includes('SOURCE'), 'SOURCE non va assegnato a gruppi');
 });
 
@@ -268,4 +274,69 @@ test('Ogni segnaposto ${LH_*} di realm.json è passato al servizio idp nel compo
   assert.ok(block, 'Servizio idp non trovato in deploy/docker-compose.yml');
   const missing = [...vars].filter(v => !new RegExp(`^\\s+${v}:`, 'm').test(block[1]));
   assert.deepEqual(missing, [], `Variabili non passate a idp (Keycloak lascerebbe il segnaposto e l'avvio fallisce): ${missing.join(', ')}`);
+});
+
+// Auto-registrazione dei membri (Q-557, D10, ADR-048, F2-IAM-03, docs/09 PT-16): registrazione aperta, senza verifica
+// dell'e-mail. La verifica richiederebbe un `smtpServer`, cioè una nuova destinazione di rete in uscita (CLAUDE.md
+// §7 «Fermati e chiedi»): si abilita solo con un'ADR, dopo il modulo `delivery` (M8.4). Senza verifica `email_verified`
+// resta falso e nessun collegamento tra un account e un membro può fondarsi sull'e-mail (Q-558).
+test('Registrazione aperta ai membri, senza verifica dell\'e-mail e senza SMTP (Q-557)', () => {
+  assert.equal(realm.registrationAllowed, true, 'registrationAllowed deve essere true: sblocca PT-16 (auto-registrazione dei membri)');
+  assert.ok('verifyEmail' in realm, 'verifyEmail deve essere dichiarato in modo esplicito (default di Keycloak implicito = decisione nascosta)');
+  assert.equal(realm.verifyEmail, false, 'verifyEmail: true richiede un smtpServer (nuova destinazione di rete): serve un\'ADR (Q-557)');
+  const smtp = realm.smtpServer;
+  assert.ok(smtp === undefined || (typeof smtp === 'object' && smtp !== null && Object.keys(smtp).length === 0),
+    'smtpServer non deve essere configurato nel realm: nuova destinazione di rete in uscita, serve un\'ADR (CLAUDE.md §7, Q-557)');
+  // Un'azione richiesta di default «Verify Email» farebbe la stessa cosa a ogni nuovo utente, senza SMTP li bloccherebbe.
+  for (const a of realm.requiredActions ?? []) {
+    if (a.alias === 'VERIFY_EMAIL' || a.providerId === 'VERIFY_EMAIL') {
+      assert.ok(!(a.enabled && a.defaultAction), 'VERIFY_EMAIL non deve essere un\'azione richiesta di default (serve SMTP)');
+    }
+  }
+});
+
+// Il ruolo predefinito. Verificato con l'import reale di Keycloak 26.7.4 (kc.sh import + export):
+//  - i composti valgono solo se stanno nell'entry di `roles.realm`; quelli dentro `defaultRole` sono ignorati in silenzio;
+//  - senza `defaultRole` l'entry di `roles.realm` con lo stesso nome fa creare a Keycloak un secondo ruolo
+//    `default-roles-loyaltyhub-1` come ruolo predefinito, e MEMBER non arriva a nessuno;
+//  - `offline_access`, `uma_authorization` e i ruoli del client `account` li aggiunge Keycloak da sé all'import;
+//  - gli utenti del file NON ricevono il ruolo predefinito (solo i `realmRoles` che elencano); lo ricevono gli utenti
+//    creati dopo (registrazione, console di amministrazione, federazione LDAP) e le utenze di servizio create da Keycloak.
+test('MEMBER è nel composito del ruolo predefinito, e solo lui (Q-557)', () => {
+  assert.equal(realm.defaultRole?.name, DEFAULT_ROLE, 'defaultRole deve nominare default-roles-loyaltyhub (senza, Keycloak crea default-roles-loyaltyhub-1)');
+  assert.ok(!('composites' in realm.defaultRole), 'defaultRole non porta composites: Keycloak li ignora, valgono quelli di roles.realm');
+  const entry = defaultRoleEntry();
+  assert.ok(entry, `Manca l'entry ${DEFAULT_ROLE} in roles.realm: senza, MEMBER non entra nel composito`);
+  assert.equal(entry.composite, true);
+  // Solo MEMBER: offline_access, uma_authorization e i ruoli di account li aggiunge Keycloak (non vanno ripetuti qui).
+  assert.deepEqual(entry.composites?.realm, ['MEMBER'], 'Il composito di default-roles-loyaltyhub nel file è solo MEMBER');
+  assert.ok(!entry.composites?.client || Object.keys(entry.composites.client).length === 0, 'Nessun ruolo di client nel composito del file');
+  // Ogni utente creato dopo l'import lo riceve: nessun ruolo operatore, MFA o SOURCE tra i predefiniti.
+  const NOT_DEFAULT = ['ADMIN', 'MARKETING', 'LEGAL', 'CARE', 'ANALYST', 'SOURCE', 'MFA_REQUIRED_ROLE'];
+  for (const r of NOT_DEFAULT) {
+    assert.ok(!(entry.composites?.realm ?? []).includes(r), `${r} non deve essere tra i ruoli predefiniti (lo avrebbe ogni membro registrato)`);
+  }
+  // Il nome del ruolo predefinito non è assegnato ad altri ruoli come composito (né MEMBER lo contiene: niente cicli).
+  for (const r of realm.roles.realm) {
+    if (r.name !== DEFAULT_ROLE) assert.ok(!(r.composites?.realm ?? []).includes(DEFAULT_ROLE), `${r.name} non deve contenere ${DEFAULT_ROLE}`);
+  }
+  // Il ruolo MEMBER esiste ed è definito una sola volta.
+  assert.equal(realm.roles.realm.filter(r => r.name === 'MEMBER').length, 1);
+});
+
+// Un client con service account non dichiarato tra gli `users` riceve da Keycloak un'utenza creata «come un utente
+// qualunque», quindi con il ruolo predefinito: dopo Q-557 avrebbe MEMBER (un job o una fonte non è un membro).
+// Dichiararla con `realmRoles` esplicito (anche vuoto) evita il ruolo predefinito: verificato con l'import reale.
+test('Ogni client con service account ha la sua utenza nel file, con ruoli espliciti e mai quelli predefiniti (Q-557)', () => {
+  const accountClients = (realm.clients ?? []).filter(c => c.serviceAccountsEnabled);
+  assert.ok(accountClients.length > 0, 'nessun client con service account: il controllo non verifica nulla');
+  for (const c of accountClients) {
+    const account = (realm.users ?? []).find(u => u.serviceAccountClientId === c.clientId);
+    assert.ok(account, `Manca l'utenza di servizio di ${c.clientId}: Keycloak la creerebbe con il ruolo predefinito (quindi con MEMBER)`);
+    assert.equal(account.username, `service-account-${c.clientId}`);
+    assert.ok(Array.isArray(account.realmRoles), `${c.clientId}: realmRoles esplicito (anche vuoto)`);
+    for (const forbidden of ['MEMBER', DEFAULT_ROLE]) {
+      assert.ok(!account.realmRoles.includes(forbidden), `${c.clientId}: l'utenza di servizio non deve avere ${forbidden}`);
+    }
+  }
 });
