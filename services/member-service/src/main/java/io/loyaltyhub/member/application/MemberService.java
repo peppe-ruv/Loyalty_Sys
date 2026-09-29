@@ -7,28 +7,38 @@ import io.loyaltyhub.common.event.LhEventFactory;
 import io.loyaltyhub.common.event.LhEventTypes;
 import io.loyaltyhub.common.ids.Codes;
 import io.loyaltyhub.common.outbox.OutboxWriter;
+import io.loyaltyhub.common.web.ActorContext;
+import io.loyaltyhub.common.web.ActorHolder;
 import io.loyaltyhub.common.web.LhException;
+import io.loyaltyhub.common.web.MemberSubject;
 import io.loyaltyhub.common.web.PageResponse;
 import io.loyaltyhub.member.api.Consents;
 import io.loyaltyhub.member.api.CreateMemberRequest;
 import io.loyaltyhub.member.api.MemberNicknames;
 import io.loyaltyhub.member.api.MemberView;
 import io.loyaltyhub.member.api.PortalProfileView;
+import io.loyaltyhub.member.api.PortalRegistrationRequest;
 import io.loyaltyhub.member.api.StatusChangeRequest;
 import io.loyaltyhub.member.api.UpdateMemberRequest;
 import io.loyaltyhub.member.domain.ActionLabels;
 import io.loyaltyhub.member.domain.Anonymization;
 import io.loyaltyhub.member.domain.Member;
 import io.loyaltyhub.member.domain.MemberAttributes;
+import io.loyaltyhub.member.domain.MemberIdentity;
 import io.loyaltyhub.member.domain.MemberProjection;
 import io.loyaltyhub.member.domain.MemberSnapshot;
 import io.loyaltyhub.member.domain.MemberStatus;
 import io.loyaltyhub.member.domain.Nicknames;
 import io.loyaltyhub.member.domain.ProfileRules;
 import io.loyaltyhub.member.infra.AttributeDefinitionRepository;
+import io.loyaltyhub.member.infra.MemberIdentityRepository;
 import io.loyaltyhub.member.infra.MemberProjectionRepository;
 import io.loyaltyhub.member.infra.MemberRepository;
+import org.slf4j.MDC;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -67,11 +77,14 @@ public class MemberService {
     private final ObjectMapper mapper;
     private final SegmentChangeTracker segmentChanges;
     private final AttributeDefinitionRepository attributeDefinitions;
+    private final MemberIdentityRepository identities;
+    private final TransactionTemplate transaction;
 
     public MemberService(MemberRepository members, MemberProjectionRepository projections,
                          LhEventFactory events, OutboxWriter outbox, AuditPublisher audit, Clock clock,
                          ObjectMapper mapper, SegmentChangeTracker segmentChanges,
-                         AttributeDefinitionRepository attributeDefinitions) {
+                         AttributeDefinitionRepository attributeDefinitions, MemberIdentityRepository identities,
+                         PlatformTransactionManager transactionManager) {
         this.members = members;
         this.projections = projections;
         this.events = events;
@@ -81,6 +94,8 @@ public class MemberService {
         this.mapper = mapper;
         this.segmentChanges = segmentChanges;
         this.attributeDefinitions = attributeDefinitions;
+        this.identities = identities;
+        this.transaction = new TransactionTemplate(transactionManager);
     }
 
     /**
@@ -103,7 +118,7 @@ public class MemberService {
         }
         members.updateLabels(id, labels);
         Member updated = members.findById(id).orElseThrow();
-        outbox.write(events.childOf(action, LhEventTypes.Fact.MEMBER_UPDATED, MemberSnapshot.of(updated, tierOf(id))));
+        outbox.write(events.childOf(action, LhEventTypes.Fact.MEMBER_UPDATED, MemberSnapshot.of(updated, tierOf(id), subjectRefOf(id))));
         segmentChanges.markChanged();
     }
 
@@ -144,7 +159,7 @@ public class MemberService {
     public PortalProfileView portalProfile(String id) {
         Member m = members.findById(id).orElseThrow(() -> LhException.notFound("Membro non trovato: " + id));
         List<String> missing = ProfileRules.missingFields(m);
-        return new PortalProfileView(m.id(), m.firstName(), m.lastName(), m.nickname(), m.email(), m.phone(),
+        return new PortalProfileView(m.id(), m.status().name(), m.firstName(), m.lastName(), m.nickname(), m.email(), m.phone(),
                 m.birthDate(), m.city(), consentsOf(m), m.referralCode(), m.version(),
                 new PortalProfileView.Completeness(missing.isEmpty(), missing));
     }
@@ -165,6 +180,63 @@ public class MemberService {
 
     @Transactional
     public MemberView create(CreateMemberRequest r) {
+        Member m = insertMember(r, null, false);
+        return MemberView.of(m, MemberProjection.base(m.id()));
+    }
+
+    /** Esito della registrazione dal portale: il profilo e se il membro è stato creato ora ({@code 201}) o c'era già ({@code 200}). */
+    public record PortalRegistration(PortalProfileView profile, boolean created) {
+    }
+
+    /**
+     * Registrazione dal portale (PT-16, F-MBR-06, F2-IAM-03, Q-157, ADR-048). In {@code enterprise} il {@link MemberSubject}
+     * porta l'account del token ({@code issuer}, {@code subject}, {@code subjectRef}): una sola transazione inserisce il
+     * membro e il legame {@code member_identity} e scrive in outbox {@code member.registered} con {@code subjectRef} (mai il
+     * {@code sub}). Idempotente su {@code (issuer, subject)}: un account già legato riceve il proprio profilo ({@code 200}) e
+     * nessun secondo fatto; una corsa sull'indice unico si risolve rileggendo il legame. In {@code demo} (nessun token) crea
+     * un nuovo membro senza legame, come {@code POST /v1/members}. Id, canale ({@code PORTAL}) e stato ({@code ACTIVE}) li
+     * assegna il servizio; l'audit {@code CREATE} ha attore {@code member:<nuovo id>} (Q-556).
+     */
+    public PortalRegistration registerFromPortal(MemberSubject subject, PortalRegistrationRequest request) {
+        if (subject.isDemo()) {
+            Member created = transaction.execute(tx -> insertMember(request.toCreate(), null, true));
+            return new PortalRegistration(portalProfile(Objects.requireNonNull(created).id()), true);
+        }
+        if (subject.linked()) {
+            return new PortalRegistration(portalProfile(subject.linkedMemberId()), false);
+        }
+        try {
+            Member created = transaction.execute(tx -> insertMember(request.toCreate(), subject, true));
+            return new PortalRegistration(portalProfile(Objects.requireNonNull(created).id()), true);
+        } catch (DuplicateKeyException e) {
+            return existingOrElse(subject, e);
+        } catch (LhException e) {
+            if (!"EMAIL_TAKEN".equals(e.code())) {
+                throw e;
+            }
+            return existingOrElse(subject, e);
+        }
+    }
+
+    /**
+     * Corsa tra due richieste dello stesso account: l'altra ha inserito membro e legame tra la lookup del token e il
+     * nostro inserimento (indice unico su {@code (issuer, subject)} o e-mail già usata da lei). La nostra transazione è
+     * annullata (nessun membro, nessun fatto): se il legame c'è ora si risponde col membro esistente ({@code 200}), altrimenti
+     * l'errore era vero (l'e-mail è di un altro membro).
+     */
+    private PortalRegistration existingOrElse(MemberSubject subject, RuntimeException original) {
+        return identities.memberIdBySubjectRef(subject.subjectRef())
+                .map(id -> new PortalRegistration(portalProfile(id), false))
+                .orElseThrow(() -> original instanceof LhException lh ? lh
+                        : LhException.conflict("EMAIL_TAKEN", "E-mail già registrata"));
+    }
+
+    /**
+     * Inserisce un membro con la sua proiezione, il legame opzionale, il fatto {@code member.registered} e l'audit
+     * {@code CREATE}. Va chiamato in una transazione. Con {@code actAsMember} l'attore del resto della richiesta è il
+     * nuovo membro ({@code member:<id>}, Q-556): l'audit è un'azione del membro sul proprio profilo.
+     */
+    private Member insertMember(CreateMemberRequest r, MemberSubject link, boolean actAsMember) {
         if (r.email() == null || r.email().isBlank()) {
             throw LhException.badRequest("email è obbligatoria");
         }
@@ -174,25 +246,33 @@ public class MemberService {
         String referredBy = resolveReferral(r.referralCode());
 
         String id = members.nextId();
+        if (actAsMember) {
+            ActorContext actor = ActorContext.member(id);
+            ActorHolder.set(actor);
+            MDC.put("actor", actor.asActorString());
+        }
         Instant now = clock.instant();
         String nickname = r.nickname() != null && !r.nickname().isBlank()
                 ? r.nickname() : defaultNickname(r.firstName(), r.lastName());
         Member m = new Member(
                 id, null, r.firstName(), r.lastName(), nickname, r.email(), r.phone(),
                 null, r.gender(), r.city(), MemberStatus.ACTIVE,
-                r.channel() != null ? r.channel() : "PORTAL", now,
+                r.channel() != null ? r.channel() : CreateMemberRequest.PORTAL_CHANNEL, now,
                 uniqueReferralCode(), referredBy, null,
                 (r.consents() != null ? r.consents().over(Consents.NONE) : Consents.NONE).toJson(),
                 "{}", List.of(), nickname, null, 0);
         members.insert(m);
         projections.upsert(id, "BASE", 0, 0, 0, 0);
+        if (link != null) {
+            identities.insert(new MemberIdentity(id, link.issuer(), link.subject(), link.subjectRef(), now));
+        }
 
         publish(LhEventTypes.Fact.MEMBER_REGISTERED, m, "BASE");
         audit.record("MEMBER", id, AuditEntry.Action.CREATE,
                 "Creato membro " + m.displayName() + " (" + orEmpty(m.email()) + ")",
                 null, Map.of("firstName", orEmpty(m.firstName()), "lastName", orEmpty(m.lastName()),
                         "email", orEmpty(m.email()), "status", m.status().name(), "channel", orEmpty(m.channel())));
-        return MemberView.of(m, MemberProjection.base(id));
+        return m;
     }
 
     @Transactional
@@ -323,6 +403,10 @@ public class MemberService {
             throw LhException.conflict("VERSION_CONFLICT", "Modifica concorrente sul membro " + id);
         }
         segmentChanges.markChanged(); // gli anonimizzati escono dai segmenti dinamici al prossimo ricalcolo
+        // Il legame con l'account si cancella nella stessa transazione (D11, Q-558): /me/profile dà 404 e una nuova
+        // registrazione crea un nuovo membro. Lo snapshot che segue non porta subjectRef; per i consumer vale la lapide
+        // dell'anonimizzazione (MemberSubjectRules).
+        identities.deleteByMemberId(id);
 
         Member updated = members.findById(id).orElseThrow();
         outbox.write(events.newRoot(LhEventTypes.Fact.MEMBER_STATUS_CHANGED, "member:" + id,
@@ -347,8 +431,13 @@ public class MemberService {
     }
 
     private void publish(String factType, Member m, String tier) {
-        LhEvent<MemberSnapshot> fact = events.newRoot(factType, "member:" + m.id(), MemberSnapshot.of(m, tier));
+        LhEvent<MemberSnapshot> fact = events.newRoot(factType, "member:" + m.id(), MemberSnapshot.of(m, tier, subjectRefOf(m.id())));
         outbox.write(fact);
+    }
+
+    /** Pseudonimo del legame account↔membro da portare nello snapshot (Q-552), {@code null} se il membro non è legato. */
+    private String subjectRefOf(String id) {
+        return identities.subjectRefOf(id).orElse(null);
     }
 
     private String tierOf(String id) {

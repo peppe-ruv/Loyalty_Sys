@@ -1,0 +1,36 @@
+id,descrizione,scenario,expected
+TB-GOV-MID-001,registrazione di un account nuovo (profilo enterprise),REG_NEW,201
+TB-GOV-MID-002,stesso account di nuovo: il membro esistente,REG_AGAIN,200
+TB-GOV-MID-003,externalId/status/channel nel corpo ignorati: canale PORTAL e stato ACTIVE del servizio,REG_IGNORED_FIELDS,201:PORTAL:ACTIVE:noext
+TB-GOV-MID-004,registrazione con memberId in query,REG_QUERY,400:MEMBER_FROM_TOKEN
+TB-GOV-MID-005,registrazione con X-LH-Member,REG_HEADER,400:MEMBER_FROM_TOKEN
+TB-GOV-MID-006,registrazione con il token di ADMIN,REG_ADMIN,403:MEMBER_REQUIRED
+TB-GOV-MID-007,registrazione con il token di CARE,REG_CARE,403:MEMBER_REQUIRED
+TB-GOV-MID-008,registrazione con un token misto MEMBER+CARE,REG_MIXED,403:MEMBER_REQUIRED
+TB-GOV-MID-009,registrazione con un token MEMBER+SOURCE,REG_SOURCE,403
+TB-GOV-MID-010,registrazione senza token,REG_NO_TOKEN,401:UNAUTHORIZED
+TB-GOV-MID-011,registrazione con token scaduto,REG_EXPIRED,401:UNAUTHORIZED
+TB-GOV-MID-012,registrazione con token firmato da un'altra chiave,REG_FOREIGN,401:UNAUTHORIZED
+TB-GOV-MID-013,registrazione senza e-mail,REG_NO_EMAIL,400:BAD_REQUEST
+TB-GOV-MID-014,registrazione con l'e-mail di un altro membro,REG_EMAIL_TAKEN,409:EMAIL_TAKEN
+TB-GOV-MID-015,registrazione con un codice invito inesistente,REG_BAD_REFERRAL,422:REFERRAL_CODE_INVALID
+TB-GOV-MID-016,GET /me/profile di un account registrato,ME_PROFILE,200:own
+TB-GOV-MID-017,GET /me/referral di un account registrato,ME_REFERRAL,200
+TB-GOV-MID-018,GET /me/profile di un account non registrato,ME_UNREGISTERED,404:MEMBER_NOT_REGISTERED
+TB-GOV-MID-019,GET /me/profile con memberId di un altro in query,ME_QUERY_OTHER,400:MEMBER_FROM_TOKEN
+TB-GOV-MID-020,GET /me/profile con il proprio memberId in query,ME_QUERY_OWN,400:MEMBER_FROM_TOKEN
+TB-GOV-MID-021,GET /me/profile con MEMBERID in maiuscolo,ME_QUERY_UPPER,400:MEMBER_FROM_TOKEN
+TB-GOV-MID-022,GET /me/profile con X-LH-Member di un altro,ME_HEADER_OTHER,400:MEMBER_FROM_TOKEN
+TB-GOV-MID-023,percorso legacy /portal/members/{id} con l'id di un altro,LEGACY_OTHER,403:MEMBER_FROM_TOKEN
+TB-GOV-MID-024,percorso legacy /portal/members/{id} con il proprio id,LEGACY_OWN,403:MEMBER_FROM_TOKEN
+TB-GOV-MID-025,percorso legacy del referral con l'id di un altro,LEGACY_REFERRAL_OTHER,403:MEMBER_FROM_TOKEN
+TB-GOV-MID-026,PATCH legacy /portal/members/{id} con l'id di un altro,LEGACY_PATCH_OTHER,403:MEMBER_FROM_TOKEN
+TB-GOV-MID-027,PATCH /me/profile del titolare,ME_PATCH,200:own
+TB-GOV-MID-028,PATCH /me/profile con memberId di un altro in query,ME_PATCH_QUERY_OTHER,400:MEMBER_FROM_TOKEN
+TB-GOV-MID-029,GET /me/profile con il token di ADMIN,ME_ADMIN,403:MEMBER_REQUIRED
+TB-GOV-MID-030,GET /me/profile con un token misto MEMBER+CARE,ME_MIXED,403:MEMBER_REQUIRED
+TB-GOV-MID-031,token di un membro su GET /v1/members (backoffice),BO_LIST,403:FORBIDDEN_ROLE
+TB-GOV-MID-032,token di un membro su POST /v1/members (backoffice),BO_CREATE,403:FORBIDDEN_ROLE
+TB-GOV-MID-033,GET /me/profile senza token,ME_NO_TOKEN,401:UNAUTHORIZED
+TB-GOV-MID-034,GET /me/profile dopo l'anonimizzazione del membro,ANON_PROFILE,404:MEMBER_NOT_REGISTERED
+TB-GOV-MID-035,registrazione dello stesso account dopo l'anonimizzazione: un nuovo membro,ANON_REREGISTER,201:newid

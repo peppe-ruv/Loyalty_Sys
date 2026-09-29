@@ -127,6 +127,47 @@ class AnonymizationIT {
                 "firstName", "Altra", "lastName", "Persona", "email", "ottone.brambillaschi@example.org"), 201);
     }
 
+    /**
+     * M8.2 (F2-IAM-03, Q-551, D11, ADR-048): il legame con l'account si cancella con l'anonimizzazione, nella stessa
+     * transazione, e lo snapshot che segue non porta più lo pseudonimo; il {@code sub} non compare mai nei fatti né
+     * nell'audit. Il percorso completo con token (404 su {@code /me/profile}, nuova registrazione) è in
+     * {@link PortalMeOidcIT}.
+     */
+    @Test
+    void anonymizeDeletesTheAccountLinkAndDropsSubjectRef() {
+        String id = send("POST", "/v1/members", "CARE:paolo.care", Map.of(
+                "firstName", "Livia", "lastName", "Tornatore", "email", "livia.tornatore@example.org"), 201)
+                .path("id").asString();
+        String ref = "ab".repeat(32);
+        jdbc.sql("INSERT INTO member_identity (member_id, issuer, subject, subject_ref) VALUES (?, ?, ?, ?)")
+                .params(id, "https://idp.example.test/realms/loyaltyhub", "sub-livia-riservato", ref).update();
+
+        send("PATCH", "/v1/members/" + id, "CARE:paolo.care", Map.of("city", "Lodi"), 200);
+        List<JsonNode> before = updates(id);
+        assertThat(before.get(before.size() - 1).path("data").path("subjectRef").asString())
+                .as("ogni member.updated di un membro legato rinfresca il legame").isEqualTo(ref);
+
+        send("POST", "/v1/members/" + id + "/anonymize", ADMIN, Map.of("confirm", id), 200);
+        assertThat(jdbc.sql("SELECT count(*) FROM member_identity WHERE member_id = ?").param(id).query(Long.class).single())
+                .isZero();
+        List<JsonNode> after = updates(id);
+        JsonNode last = after.get(after.size() - 1).path("data");
+        assertThat(last.path("status").asString()).isEqualTo("ANONYMIZED");
+        assertThat(last.hasNonNull("subjectRef")).as("lo snapshot anonimizzato non porta il legame").isFalse();
+        for (String topic : List.of("lh.facts.v1", "lh.audit.v1")) {
+            for (ConsumerRecord<String, String> r : new TopicReader(jdbc, mapper, topic).records(List.of(), x -> true)) {
+                if (r.value().contains(id)) {
+                    assertThat(r.value()).as("il sub non lascia il servizio").doesNotContain("sub-livia-riservato");
+                }
+            }
+        }
+    }
+
+    private List<JsonNode> updates(String memberId) {
+        return new TopicReader(jdbc, mapper, "lh.facts.v1")
+                .published(List.of(), "member:" + memberId, "io.loyaltyhub.fact.member.updated");
+    }
+
     @Test
     void seededAnonymizedMemberFollowsTheSameRule() {
         JsonNode m = send("GET", "/v1/members/MBR-000012", null, null, 200);
