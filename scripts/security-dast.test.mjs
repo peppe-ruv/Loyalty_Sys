@@ -235,6 +235,12 @@ test("fuzz-summary: caso normale", () => {
   assert.match(markdown, /\| platform \| 4\/5 \| 0 \| 1 \| 0 \| 2 \| 4242 \|/);
 });
 
+test("fuzz-summary: il seme a 128 bit non si arrotonda", () => {
+  const dir = fuzzFixture({ x: null });
+  write(join(dir, "x", "report.json"), JSON.stringify(report()).replace('"seed":4242', '"seed":274882502930418739200283524385777523844'));
+  assert.match(summarizeFuzz(dir).markdown, /\| 274882502930418739200283524385777523844 \|/);
+});
+
 test("fuzz-summary: tested 0 fallisce", () => {
   const dir = fuzzFixture({ "member-service": report({ operations: { selected: 12, tested: 0, errored: 12 } }) });
   const { problems } = summarizeFuzz(dir);

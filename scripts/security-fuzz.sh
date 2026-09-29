@@ -53,7 +53,13 @@ rm -rf "$OUT"
 mkdir -p "$OUT/specs"
 status=0
 
-node scripts/security-dast.mjs baseline-check .dast/schemathesis-baseline.json || exit 1
+# Con LH_FUZZ_BASELINE_UPDATE=1 la baseline può contenere voci appena registrate e non ancora annotate: qui è un avviso;
+# in ogni altra esecuzione una voce senza scadenza, motivo e ticket fa fallire il job.
+if [ "$UPDATE" = "1" ]; then
+  node scripts/security-dast.mjs baseline-check .dast/schemathesis-baseline.json || echo "::warning::baseline con voci da annotare"
+else
+  node scripts/security-dast.mjs baseline-check .dast/schemathesis-baseline.json || exit 1
+fi
 node scripts/security-dast.mjs prepare --out "$OUT/specs" || exit 1
 
 for spec in "$OUT"/specs/*.openapi.json; do
@@ -76,9 +82,10 @@ for spec in "$OUT"/specs/*.openapi.json; do
   case "$rc" in
     0) ;;
     1)
-      # 1 = almeno un difetto fuori baseline. Con LH_FUZZ_BASELINE_UPDATE=1 lo scopo è proprio registrarli.
+      # 1 = almeno un difetto fuori baseline (5xx) oppure errori di rete o timeout: il riepilogo distingue i due casi.
+      # Con LH_FUZZ_BASELINE_UPDATE=1 lo scopo è proprio registrare i difetti.
       if [ "$UPDATE" != "1" ]; then
-        echo "::error::$name: 5xx fuori baseline (vedi il rapporto in $OUT/$name)"
+        echo "::error::$name: 5xx fuori baseline o errori di rete e timeout (vedi il rapporto in $OUT/$name)"
         status=1
       fi
       ;;

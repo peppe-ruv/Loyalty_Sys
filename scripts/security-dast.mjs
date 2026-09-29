@@ -241,13 +241,17 @@ export function summarizeFuzz(dir) {
       continue;
     }
     let report;
+    let text;
     try {
-      report = JSON.parse(readFileSync(file, "utf8"));
+      text = readFileSync(file, "utf8");
+      report = JSON.parse(text);
     } catch (e) {
       problems.push(`${name}: rapporto illeggibile (${e.message})`);
       rows.push(`| ${name} | rapporto illeggibile | | | | | |`);
       continue;
     }
+    // Il seme di Schemathesis è un intero di ~128 bit: JSON.parse lo arrotonderebbe, quindi lo si legge come testo.
+    const seed = text.match(/"seed"\s*:\s*(-?\d+)/)?.[1] ?? "—";
     const ops = report.operations ?? {};
     const tested = Number(ops.tested ?? 0);
     const selected = Number(ops.selected ?? 0);
@@ -257,7 +261,7 @@ export function summarizeFuzz(dir) {
     const known = baseline ? Number(baseline.known ?? 0) : 0;
     const expired = Array.isArray(baseline?.expired_ids) ? baseline.expired_ids.length : 0;
     const errorCount = sum(report.errors, "count");
-    rows.push(`| ${name} | ${tested}/${selected} | ${newFailures} | ${known} | ${expired} | ${errorCount} | ${report.seed ?? "—"} |`);
+    rows.push(`| ${name} | ${tested}/${selected} | ${newFailures} | ${known} | ${expired} | ${errorCount} | ${seed} |`);
   }
   const markdown = [
     "### Fuzzing API (Schemathesis)",
