@@ -1,0 +1,620 @@
+---
+title: "E04 · Wallet, livelli ed edizioni"
+sidebarTitle: "E04 Wallet, livelli ed edizioni"
+description: "E04 Wallet, livelli ed edizioni: punti a doppia valuta, lotti e scadenze, tier annuali con discesa morbida. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: punti a doppia valuta, lotti e scadenze, tier annuali con discesa morbida.
+
+**Attori**: sistema, CARE, ADMIN, membro · **Feature**: F-WAL-01…09, F-TIER-01…06 · **Schermate**: BO-03, BO-07, BO-08, BO-30, PT-01, PT-07, PT-08 · **Servizi**: wallet · **Testbook**: TB-WAL
+
+Questa epica ha 16 storie: 15 pronte secondo la Definition of Ready, 15 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-e04-01" />
+
+## US-E04-01 · Accredito dei punti decisi dal motore
+
+> *Come* membro, *voglio* che i punti arrivino nel mio saldo con il vantaggio del mio livello, *così che* essere GOLD valga qualcosa.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: Marco SILVER riceve 130 PTS base → 162 PTS.
+
+**Tocca**: F-WAL-01…03, F-TIER-03 · `points.grant` → `wallet.points.earned` · WAL-01, WAL-03 · PT-07 (scomposizione).
+
+**Decisioni**: effectId già visto → nulla · wallet assente → creato al volo · moltiplicatore solo PTS con `tierMultiplierApplies` (floor) · ≤ 0 → nulla · lotto con scadenza `ROLLING_MONTHS` 12 a fine mese (Rome) · stato del membro non verificato.
+
+**Criteri di accettazione**
+
+1. **Dato** PTS 130 con `tierMultiplierApplies` per un SILVER, **allora** `EARN 162`, `metadata.baseAmount=130`, lotto con scadenza a fine mese +12 (wallet §7).
+2. **Dato** lo stesso `effectId` due volte, **allora** un solo movimento (wallet §7).
+3. **Dato** un effetto per un membro senza wallet, **allora** wallet e tier BASE creati e accredito eseguito.
+4. **Dato** un guadagno il 31 gennaio alle 23:30 UTC, **allora** la scadenza è fine febbraio **dell'anno dopo** calcolata sul giorno di Roma (1 febbraio → fine febbraio+12).
+
+**Testbook**: TB-WAL (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-WAL-01, F-TIER-03, PT-07 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WAL (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-07 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-WAL-01, F-WAL-02, F-WAL-03, F-TIER-03 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 191 righe sulle feature o schermate della storia in TB-WAL, 191 eseguite: TB-WAL-GRT-001, TB-WAL-GRT-002, TB-WAL-GRT-003 e altri 188 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e04-02" />
+
+## US-E04-02 · Punti in attesa e rilascio
+
+> *Come* azienda, *voglio* accreditare alcuni punti «in attesa» per N giorni (periodo di reso), *così che* non si spendano punti di acquisti poi annullati.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-WAL-05 · PT-07 («in attesa» + data di rilascio) · WAL-01, WAL-04, WAL-19 · `POST /v1/demo/jobs/release-pending?asOf=`.
+
+**Decisioni**: `pendingDays > 0` → lotto PENDING, saldo in attesa · job/`asOf` → ACTIVE + `RELEASE` + `wallet.points.released` · STS rilasciati → verifica salita.
+
+**Criteri di accettazione**
+
+1. **Dato** un accredito con `pendingDays=14`, **allora** saldo attivo invariato, «in attesa» +N, `wallet.points.earned` con `pending=true`.
+2. **Dato** il job con `asOf` = +14 gg, **allora** lotto ACTIVE e saldo aumentato; con `asOf` = +13 gg nulla.
+3. **Dato** STS pending rilasciati che superano la soglia, **allora** `tier.upgraded` (nuova correlazione).
+
+**Testbook**: TB-WAL (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-WAL-05, PT-07 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WAL (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-07 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-WAL-05 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 135 righe sulle feature o schermate della storia in TB-WAL, 135 eseguite: TB-WAL-GRT-001, TB-WAL-GRT-002, TB-WAL-GRT-003 e altri 132 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e04-03" />
+
+## US-E04-03 · Salita di livello immediata
+
+> *Come* membro, *voglio* salire di livello appena supero la soglia, *così che* ne goda subito.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: Giulia (2 880 STS) compra 130 € → 3 010 STS → GOLD.
+
+**Tocca**: F-TIER-02 · WAL-01, WAL-02 · EVT-FACT-28 → ponte → `CMP-TIER-UP-BONUS`.
+
+**Decisioni**: dopo ogni accredito STS: tier più alto con soglia ≤ `periodSts`; rank maggiore → salita (anche di più livelli), storico `UPGRADE`, `tier.upgraded`; altrimenti nulla.
+
+**Criteri di accettazione**
+
+1. **Dato** Giulia + 130 STS, **allora** `tier.upgraded` SILVER→GOLD nello stesso commit (wallet §7).
+2. **Dato** un BASE che riceve 7 000 STS in un colpo, **allora** sale direttamente a PLATINUM (un solo fatto).
+3. **Dato** un GOLD che riceve STS senza superare 7 000, **allora** nessun fatto.
+4. **Dato** la salita, **allora** i PTS della **stessa** azione usano il moltiplicatore del tier precedente perché nel seed l'effetto PTS precede quello STS (Giulia: 162 PTS, docs/10 §4); con l'ordine inverso userebbero il nuovo tier — dipendenza dall'ordine degli effetti senza specifica (WAL-01).
+
+**Testbook**: TB-WAL (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-TIER-02, EVT-FACT-28 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WAL (con righe), TB-E2E (le sue righe citano la storia) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-TIER-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 8 righe legate alla storia, 8 eseguite dai test: TB-E2E-TIER-001, TB-E2E-TIER-002, TB-E2E-TIER-003, TB-E2E-TIER-004 e altri 4; 19 righe sulle feature o schermate della storia in TB-WAL, 19 eseguite: TB-WAL-TUP-001, TB-WAL-TUP-002, TB-WAL-TUP-003 e altri 16 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e04-04" />
+
+## US-E04-04 · Scadenza dei punti
+
+> *Come* azienda, *voglio* far scadere i lotti arrivati a scadenza, *così che* la passività resti sotto controllo.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: i 1 900 PTS di Chiara scadono tra 12 giorni.
+
+**Tocca**: F-WAL-06 · BO-30 (macchina del tempo) · `POST /v1/demo/jobs/expire-points?asOf=` · WAL-05, WAL-19.
+
+**Decisioni**: lotti ACTIVE con `expiresAt ≤ asOf` → EXPIRED + `wallet.points.expired` · un movimento `EXPIRE` per membro/valuta col totale.
+
+**Criteri di accettazione**
+
+1. **Dato** il job con `asOf` = +31 gg, **allora** Chiara perde 1 900 PTS (`EXPIRE`), fatto `wallet.points.expired`, saldo aggiornato nel portale (docs/12 M3).
+2. **Dato** `asOf` = +11 gg, **allora** nulla scade.
+3. **Dato** due lotti scaduti dello stesso membro, **allora** un solo movimento `EXPIRE` e un solo fatto col totale (`lotId` solo se il lotto è uno).
+
+**Testbook**: TB-WAL (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-WAL-06, BO-30 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WAL (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-30 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-WAL-06 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 25 righe sulle feature o schermate della storia in TB-WAL, 25 eseguite: TB-WAL-EXP-001, TB-WAL-EXP-002, TB-WAL-EXP-003 e altri 22 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e04-05" />
+
+## US-E04-05 · Preavviso di scadenza
+
+> *Come* membro, *voglio* essere avvisato un mese prima che i punti scadano, *così che* li usi.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-WAL-06 · PT-01 (avviso), PT-12 (MSG-POINTS-EXPIRING) · `POST /v1/demo/jobs/expiry-warnings?asOf=` · WAL-06.
+
+**Criteri di accettazione**
+
+1. **Dato** il lotto di Chiara in scadenza entro 30 gg, **allora** `wallet.points.expiring` e un messaggio in inbox.
+2. **Dato** il job rilanciato, **allora** nessun secondo preavviso per lo stesso lotto.
+
+**Testbook**: TB-WAL (da coprire) · TB-ENG per il messaggio.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-WAL-06, PT-01, PT-12 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WAL (con righe), TB-ENG (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-01, PT-12 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-WAL-06 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 59 righe sulle feature o schermate della storia in TB-ENG, TB-WAL, 59 eseguite: TB-ENG-IBX-001, TB-ENG-IBX-002, TB-ENG-IBX-003 e altri 56 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e04-06" />
+
+## US-E04-06 · Rettifica manuale motivata
+
+> *Come* operatore CARE, *voglio* accreditare o addebitare punti con un motivo e una nota, *così che* risolva un reclamo lasciando traccia.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: Davide lamenta un acquisto non accreditato: Paolo accredita 200 PTS «GOODWILL» con nota.
+
+**Tocca**: F-WAL-07 · BO-03 (*Rettifica punti*) · `POST /v1/wallets/{id}/adjustments` · WAL-07, WAL-20 · Q-45, Q-46, Q-127.
+
+**Decisioni**: ordine: valuta ≠ PTS → 422 `CURRENCY_NOT_ADJUSTABLE` · importo ≤ 0 → 422 `INVALID_AMOUNT` · nota &lt; 10 → 422 `NOTE_TOO_SHORT` · motivo ∉ \{GOODWILL, CORRECTION, COMPLAINT, TEST\} → 422 `INVALID_REASON` · direzione → 422 `INVALID_DIRECTION` · anonimizzato → 409 · addebito oltre saldo → 422 `INSUFFICIENT_BALANCE` · ok → movimento, lotto o consumo FIFO, `wallet.points.adjusted`, audit · ruoli CARE, ADMIN.
+
+**Criteri di accettazione**
+
+1. **Dato** un accredito di 200 PTS GOODWILL con nota valida, **allora** `ADJUST_CREDIT`, audit con saldo prima/dopo, riga evidenziata in BO-03.
+2. ✗ **Dato** un addebito oltre il saldo, **allora** 422 `INSUFFICIENT_BALANCE`; senza nota → 422 (wallet §7).
+3. ✗ **Dato** MARKETING, **allora** 403; dato STS, **allora** 422 (Q-46).
+4. ✗ **Dato** il motivo `FRAUD` (docs/03 §4.2), **allora** 422 `INVALID_REASON` (Q-45).
+
+**Testbook**: TB-WAL (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-WAL-07, BO-03 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 3 criteri ✗ per 403, 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-WAL (con righe) |
+| R6 Dipendenze e domande | ✅ | 3 aperte con default in uso (SPEC-GAP): Q-45, Q-46, Q-127 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-03 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-WAL-07 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 140 righe sulle feature o schermate della storia in TB-WAL, 140 eseguite: TB-WAL-JOB-001, TB-WAL-JOB-002, TB-WAL-JOB-003 e altri 137 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e04-07" />
+
+## US-E04-07 · Spesa dei punti per un premio (lato wallet)
+
+> *Come* wallet, *voglio* spendere tutto o niente consumando prima i lotti in scadenza, *così che* il membro non perda punti inutilmente.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-WAL-04, F-WAL-08 · `reward.redemption.requested` → `wallet.points.spent` / `wallet.spend.rejected` · WAL-08, WAL-09.
+
+**Decisioni**: richiesta già spesa → nulla · membro non ACTIVE → `MEMBER_NOT_ACTIVE` · saldo &lt; costo → `INSUFFICIENT_BALANCE` (nessun movimento) · ok → `SPEND` + FIFO.
+
+**Criteri di accettazione**
+
+1. **Dato** lotti [500 scad. ott, 800 scad. dic, 900 scad. mar] e spesa 1 500, **allora** consumati 500 + 800 + 200 con `lot_consumption` coerente (wallet §7).
+2. ✗ **Dato** una spesa oltre il saldo, **allora** nessun movimento e `wallet.spend.rejected` con `available` (wallet §7).
+3. **Dato** lo stesso `reward.redemption.requested` rielaborato, **allora** una sola spesa.
+4. **Dato** lotti senza scadenza, **allora** consumati per ultimi.
+
+**Testbook**: TB-WAL (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-WAL-04, F-WAL-08 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-WAL (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-WAL-04, F-WAL-08 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 35 righe sulle feature o schermate della storia in TB-WAL, 35 eseguite: TB-WAL-SPD-001, TB-WAL-SPD-002, TB-WAL-SPD-003 e altri 32 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e04-08" />
+
+## US-E04-08 · Rimborso di una richiesta annullata
+
+> *Come* membro, *voglio* riavere i punti se la richiesta è annullata, *così che* non paghi un premio che non ricevo.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-RWD-07, F-WAL-08 · `reward.redemption.cancelled (refund=true)` → `wallet.points.refunded` · WAL-10 · docs/03 §4.2 (supera Q-54).
+
+**Decisioni**: `refund ≠ true` → nulla · nessuna spesa → nulla · già rimborsata → nulla · tutto l'importo in un lotto nuovo con scadenza `max(scadenza più lontana dei lotti consumati, oggi + 30 gg)` (lotto consumato senza scadenza → nessuna scadenza; nessun consumo registrato → oggi + 30 gg).
+
+**Criteri di accettazione**
+
+1. **Dato** un annullo CONFIRMED, **allora** `REFUND` di pari importo e `wallet.points.refunded` (reward §7).
+2. **Dato** un annullo del membro in PENDING (`refund=false`), **allora** nessun movimento.
+3. **Dato** un lotto d'origine scaduto nel frattempo, **allora** il lotto di rimborso scade a max(originaria più lontana, oggi + 30 gg); i lotti d'origine restano consumati.
+
+**Testbook**: TB-WAL (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-RWD-07, F-WAL-08, docs/03 §4.2 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WAL (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 decisa o superata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-RWD-07, F-WAL-08 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 11 righe sulle feature o schermate della storia in TB-WAL, 11 eseguite: TB-WAL-REF-001, TB-WAL-REF-002, TB-WAL-REF-003 e altri 8 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e04-09" />
+
+## US-E04-09 · Configurare i livelli
+
+> *Come* ADMIN, *voglio* cambiare soglie, moltiplicatori, vantaggi e colori dei livelli, *così che* il programma evolva.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-TIER-01 · BO-07 · `PUT /v1/tiers/{code}` · WAL-12, WAL-20.
+
+**Criteri di accettazione**
+
+1. **Dato** GOLD a 3 500, **allora** la tessera e la barra di progresso lo riflettono in PT-01/PT-08.
+2. ✗ **Dato** SILVER a 3 500 (≥ GOLD), **allora** 422 `TIER_THRESHOLDS_NOT_MONOTONIC`; BASE ≠ 0 idem.
+3. ✗ **Dato** moltiplicatore 0, **allora** 422 `TIER_MULTIPLIER_INVALID`; MARKETING → 403.
+
+**Testbook**: TB-WAL (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-TIER-01, BO-07 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 403, 422 |
+| R5 Dominio di testbook | ✅ | TB-WAL (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-07 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-TIER-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 48 righe sulle feature o schermate della storia in TB-WAL, 48 eseguite: TB-WAL-TUP-001, TB-WAL-TUP-002, TB-WAL-TUP-003 e altri 45 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e04-10" />
+
+## US-E04-10 · Valute e politica di scadenza
+
+> *Come* ADMIN, *voglio* scegliere come scadono i PTS (mesi mobili, fine edizione + tolleranza, mai), *così che* la regola sia chiara ai membri.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-WAL-03 · BO-08 (scheda `currencies`, esempio calcolato) · `PUT /v1/currencies/{code}` · WAL-03, WAL-13 · Q-47.
+
+**Criteri di accettazione**
+
+1. **Dato** `ROLLING_MONTHS 6`, **allora** i **nuovi** lotti scadono a fine mese +6; i vecchi restano.
+2. ✗ **Dato** 0 o 61 mesi, `graceDays` negativo o tipo sconosciuto, **allora** 422 `INVALID_EXPIRY_POLICY`.
+3. **Dato** `END_OF_EDITION_PLUS_GRACE`, **allora** scadenza = fine giorno di `redemptionGraceUntil`; se nessuna edizione copre la data, il lotto non scade (Q-47).
+
+**Testbook**: TB-WAL (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-WAL-03, BO-08 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 422 |
+| R5 Dominio di testbook | ✅ | TB-WAL (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 decisa o superata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-08 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-WAL-03 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 165 righe sulle feature o schermate della storia in TB-WAL, 165 eseguite: TB-WAL-GRT-001, TB-WAL-GRT-002, TB-WAL-GRT-003 e altri 162 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e04-11" />
+
+## US-E04-11 · Edizioni del programma
+
+> *Come* ADMIN, *voglio* definire le edizioni annuali senza sovrapposizioni, *così che* tier e scadenze abbiano un calendario certo.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: docs/03 §4.4 · BO-08 (scheda `editions`) · `POST/PUT /v1/editions` · WAL-14.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** campi mancanti, **allora** 422 `EDITION_FIELD_REQUIRED`; codice esistente 409; inizio dopo fine 422 `EDITION_DATES_INVALID`; sovrapposizione 422 `EDITION_OVERLAP`.
+2. **Dato** l'anno prossimo PLANNED, **allora** compare nella linea del tempo.
+
+**Testbook**: TB-WAL (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | docs/03 §4.4, BO-08 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-WAL (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-08 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-TIER-04 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 79 righe sulle feature o schermate della storia in TB-WAL, 79 eseguite: TB-WAL-POL-014, TB-WAL-CLR-001, TB-WAL-CLR-002 e altri 76 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e04-12" />
+
+## US-E04-12 · Anteprima di chiusura edizione
+
+> *Come* ADMIN (o chiunque in lettura), *voglio* vedere chi resta e chi scende prima di chiudere l'anno, *così che* non ci siano sorprese.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: a dicembre Marta apre l'anteprima: Stefano (GOLD, 650 STS) scenderebbe a SILVER.
+
+**Tocca**: F-TIER-05 · BO-08 · `POST /v1/editions/{code}/close?dryRun=true` · WAL-15…17.
+
+**Decisioni**: `earned` da `periodSts`; pavimento = livello attuale − 1; nuovo = il più alto; mai salita; esito RETAINED/DOWNGRADED; nessuna scrittura; ogni ruolo.
+
+**Criteri di accettazione**
+
+1. **Dato** Stefano, **allora** `earnedTier=BASE`, `newTier=SILVER`, `DOWNGRADED` (wallet §7).
+2. **Dato** un PLATINUM con 0 STS, **allora** GOLD (scende di uno solo).
+3. **Dato** un SILVER con 3 500 STS nell'edizione (salita mancata per un errore), **allora** resta SILVER (mai salita in chiusura).
+4. **Dato** ANALYST, **allora** l'anteprima è consentita.
+
+**Testbook**: TB-WAL (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-TIER-05, BO-08 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WAL (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-08 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-TIER-05 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 46 righe sulle feature o schermate della storia in TB-WAL, 46 eseguite: TB-WAL-POL-014, TB-WAL-ECL-001, TB-WAL-ECL-002 e altri 43 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e04-13" />
+
+## US-E04-13 · Applicare la chiusura dell'edizione
+
+> *Come* ADMIN, *voglio* chiudere l'edizione applicando la discesa morbida, *così che* il nuovo anno parta con i livelli giusti e gli STS azzerati.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-TIER-04 · BO-08 (*Applica chiusura*, digitazione del codice) · WAL-15, WAL-16 · EVT-FACT-29…31 · Q-48.
+
+**Decisioni**: ruolo ≠ ADMIN → 403 · già CLOSED → 422 · non ACTIVE → 422 · membri ACTIVE a pagine · fatti per membro + `edition.closed` · `periodSts=0` · prossima PLANNED → ACTIVE (nessuna PLANNED → nessuna attiva).
+
+**Criteri di accettazione**
+
+1. **Dato** l'applicazione, **allora** i fatti `tier.*` scorrono nel rail e `edition.closed {retained, downgraded}`.
+2. ✗ **Dato** una seconda chiusura, **allora** 422 `EDITION_ALREADY_CLOSED`; LEGAL → 403.
+3. **Dato** un accredito STS durante la chiusura, **allora** conta per una sola edizione (Q-48).
+4. **Dato** nessuna edizione PLANNED, **allora** dopo la chiusura nessuna è ACTIVE (ramo senza specifica).
+5. **Dato** un membro BLOCKED, **allora** non è toccato dalla chiusura.
+
+**Testbook**: TB-WAL (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-TIER-04, BO-08, EVT-FACT-29 |
+| R3 Criteri di accettazione | ✅ | 5 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 403, 422 |
+| R5 Dominio di testbook | ✅ | TB-WAL (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-48 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-08 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-TIER-04 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 79 righe sulle feature o schermate della storia in TB-WAL, 79 eseguite: TB-WAL-POL-014, TB-WAL-CLR-001, TB-WAL-CLR-002 e altri 76 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e04-14" />
+
+## US-E04-14 · Saldo, progresso e passività
+
+> *Come* membro, *voglio* vedere saldo, punti in scadenza e quanto mi manca al prossimo livello; *come* ANALYST, la passività per mese.
+
+**DoR**: ⬜ non pronta (R1) · **DoD**: ⬜ non fatta (D3)
+
+**Tocca**: F-WAL-01, F-WAL-09 · PT-01, PT-08, BO-01, BO-08 · `GET /v1/wallets/{id}`, `/v1/liability`, `/v1/tiers/distribution` · WAL-18.
+
+**Criteri di accettazione**
+
+1. **Dato** Giulia, **allora** `next.code=GOLD`, `missing=120`.
+2. **Dato** Francesca PLATINUM, **allora** nessun prossimo livello e «livello più alto».
+3. **Dato** Chiara, **allora** `expiringSoon.amount=1 900`.
+4. ⛔ **Dato** ottobre e un GOLD con `periodSts` sotto 3 000, **allora** `keepWarning {tier, missing}`: oggi assente.
+
+**Testbook**: TB-WAL (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ⬜ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-WAL-01, F-WAL-09, PT-01, PT-08, BO-01, BO-08 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WAL (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-01, PT-08, BO-01, BO-08 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-WAL-01, F-WAL-09 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 206 righe sulle feature o schermate della storia in TB-WAL, 206 eseguite: TB-WAL-GRT-001, TB-WAL-GRT-002, TB-WAL-GRT-003 e altri 203 |
+| D3 Nessuno scostamento aperto | ⬜ | 1 marcatore ⛔ (regola senza codice) |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e04-15" />
+
+## US-E04-15 · Storico livelli
+
+> *Come* operatore CARE, *voglio* vedere quando e perché un membro è salito o sceso, *così che* risponda ai reclami sul livello.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-TIER-06 · BO-03 (scheda `tiers`) · `GET /v1/members/{id}/tier-history` · WAL-21.
+
+**Criteri di accettazione**
+
+1. **Dato** la salita di Giulia e la chiusura, **allora** righe `UPGRADE` e `RETAIN/DOWNGRADE` con edizione.
+
+**Testbook**: TB-WAL (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-TIER-06, BO-03 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WAL (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-03 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-TIER-06 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 73 righe sulle feature o schermate della storia in TB-WAL, 73 eseguite: TB-WAL-TUP-001, TB-WAL-TUP-002, TB-WAL-TUP-003 e altri 70 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e04-16" />
+
+## US-E04-16 · Il wallet segue iscrizione e stato del membro
+
+> *Come* wallet, *voglio* creare i conti all'iscrizione e conoscere lo stato del membro, *così che* possa rifiutare la spesa di un sospeso.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: WAL-11, WAL-08 · EVT-FACT-01, EVT-FACT-03.
+
+**Criteri di accettazione**
+
+1. **Dato** `member.registered`, **allora** wallet PTS/STS a zero e tier BASE; riconsegna → nessun doppione.
+2. **Dato** `member.status.changed` a BLOCKED, **allora** la spesa successiva è `wallet.spend.rejected (MEMBER_NOT_ACTIVE)`.
+
+**Testbook**: TB-WAL (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | EVT-FACT-01, EVT-FACT-03 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WAL (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-WAL-01, F-WAL-08 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 143 righe sulle feature o schermate della storia in TB-WAL, 143 eseguite: TB-WAL-GRT-001, TB-WAL-GRT-002, TB-WAL-GRT-003 e altri 140 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

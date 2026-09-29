@@ -1,0 +1,486 @@
+---
+title: "E08 · Governance"
+sidebarTitle: "E08 Governance"
+description: "E08 Governance: approvazioni per policy, ruoli, audit, webhook, DLQ. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: approvazioni per policy, ruoli, audit, webhook, DLQ.
+
+**Attori**: LEGAL, MARKETING, ADMIN, ricevitori · **Feature**: F-APR-01…03, F-AUD-01, F-WBH-01, F-INS-05 · **Schermate**: BO-21, BO-22, BO-23, BO-27 · **Servizi**: tutti, lh-common, engagement, insight · **Testbook**: TB-GOV, TB-ENG
+
+Questa epica ha 13 storie: 11 pronte secondo la Definition of Ready, 10 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-e08-01" />
+
+## US-E08-01 · Revisione e approvazione LEGAL
+
+> *Come* LEGAL, *voglio* approvare concorsi, premi e campagne sopra soglia prima che vadano online, *così che* l'azienda sia tutelata.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: `IW-NATALE` e `CMP-BLACK-FRIDAY` sono in revisione da ieri; Elena li apre in BO-21.
+
+**Tocca**: F-APR-01, F-APR-02, F-RWD-08 · BO-21, `LifecycleBar` · `POST /v1/<risorsa>/{id}/transitions` · CMN-04, CMN-05, CMN-07, CMP-23, RWD-23, GAM-07 · Q-08.
+
+**Decisioni**: policy: CONTEST, REWARD sempre LEGAL; CAMPAIGN se `requiresLegal` o budget > 100 000; CONTENT mai · `SUBMIT` DRAFT→IN_REVIEW · `APPROVE` → APPROVED · `PUBLISH` → LIVE · approvazione spenta: `SUBMIT` pubblica direttamente.
+
+**Criteri di accettazione**
+
+1. **Dato** `luca.marketing`, **allora** non può portare un concorso a LIVE: solo *Invia in revisione*; `elena.legal` approva con commento; storico e audit visibili (docs/12 M7).
+2. **Dato** una campagna con budget 100 001, **allora** serve LEGAL; con 100 000 no.
+3. **Dato** `loyaltyhub.approval.enabled=false`, **allora** `SUBMIT` da DRAFT porta a LIVE.
+
+**Testbook**: TB-GOV (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-APR-01, F-APR-02, F-RWD-08, BO-21 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-08 |
+| R7 Dati demo | ✅ | in seed/: CMP-BLACK-FRIDAY, IW-NATALE |
+| R8 Stati dell'interfaccia | ✅ | BO-21 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-APR-01, F-APR-02, F-RWD-08 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 92 righe sulle feature o schermate della storia in TB-GOV, 92 eseguite: TB-GOV-POL-001, TB-GOV-POL-002, TB-GOV-POL-003 e altri 89 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e08-02" />
+
+## US-E08-02 · Rifiutare con un commento
+
+> *Come* LEGAL, *voglio* rifiutare motivando, *così che* MARKETING sappia cosa correggere.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-APR-01 · CMN-05.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** un rifiuto senza commento, **allora** 422 `REJECT_COMMENT_REQUIRED` (docs/12 M7); con commento → DRAFT e commento nello storico.
+
+**Testbook**: TB-GOV (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-APR-01 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 422 |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-APR-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 47 righe sulle feature o schermate della storia in TB-GOV, 47 eseguite: TB-GOV-ENT-001, TB-GOV-ENT-002, TB-GOV-ENT-003 e altri 44 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e08-03" />
+
+## US-E08-03 · Transizioni non ammesse
+
+> *Come* sistema, *voglio* rifiutare ogni transizione non prevista, *così che* il ciclo di vita resti coerente.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D2)
+
+**Tocca**: docs/03 §3.6 · CMN-03, CMN-05, ENG-06.
+
+**Decisioni**: azione sconosciuta → 422 `INVALID_ACTION` · `PUBLISH` da DRAFT con approvazione richiesta → 409 `APPROVAL_REQUIRED` · ogni altra coppia non in tabella → 409 `INVALID_TRANSITION`.
+
+**Criteri di accettazione**
+
+1. Tabella completa stato × azione (7 × 8) per campagne, premi e concorsi, più la tabella ridotta dei contenuti; ✗ es. `RESUME` da LIVE → 409; `ARCHIVE` da LIVE → 409; `FOO` → 422.
+
+**Testbook**: TB-GOV (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | docs/03 §3.6 |
+| R3 Criteri di accettazione | ⬜ | criteri senza la forma Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-APR-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: 47 righe sulle feature o schermate della storia in TB-GOV, 47 eseguite: TB-GOV-ENT-001, TB-GOV-ENT-002, TB-GOV-ENT-003 e altri 44 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e08-04" />
+
+## US-E08-04 · Chi può fare quale transizione
+
+> *Come* ADMIN, *voglio* che solo MARKETING/ADMIN gestiscano il ciclo di vita e solo LEGAL/ADMIN approvino, con l'override di ADMIN tracciato, *così che* la separazione dei compiti sia garantita.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: docs/08 §2 (`object.edit`, `object.approve`) · CMN-04, CMN-06, CMP-30, RWD-25, GAM-21.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** MARKETING che approva, **allora** 403; LEGAL che pubblica, **allora** 403; CARE qualunque transizione, 403.
+2. **Dato** ADMIN che approva al posto di LEGAL, **allora** consentito e audit «[override ADMIN]».
+
+**Testbook**: TB-GOV (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | docs/08 §2 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 403 |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-APR-01, F-APR-02 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 91 righe sulle feature o schermate della storia in TB-GOV, 91 eseguite: TB-GOV-POL-001, TB-GOV-POL-002, TB-GOV-POL-003 e altri 88 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e08-05" />
+
+## US-E08-05 · Casella approvazioni unica
+
+> *Come* LEGAL, *voglio* una sola lista di ciò che attende me, anche se un servizio dorme, *così che* non dimentichi nulla.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-APR-03 · BO-21 · `GET /v1/approvals`, `?submittedBy=`, `/v1/approvals/policy` · WEB-11 · Q-96.
+
+**Criteri di accettazione**
+
+1. **Dato** il seed, **allora** `elena.legal` vede `CMP-BLACK-FRIDAY`, `IW-NATALE`, `RWD-GIFT-50`; `luca.marketing` li vede in *Inviate da me*.
+2. **Dato** gamification addormentato, **allora** le voci degli altri servizi restano e la fonte è *degraded*.
+
+**Testbook**: TB-GOV (API) · TB-WEB.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-APR-03, BO-21 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe), TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-96 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-21 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-APR-03 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 8 righe legate alla storia, 8 eseguite dai test: TB-GOV-APQ-001, TB-GOV-APQ-002, TB-GOV-APQ-003, TB-GOV-APQ-004 e altri 4; 134 righe sulle feature o schermate della storia in TB-GOV, TB-WEB, 117 eseguite: TB-GOV-POL-001, TB-GOV-POL-002, TB-GOV-POL-003 e altri 114 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e08-06" />
+
+## US-E08-06 · Identità simulata e matrice dei permessi
+
+> *Come* presentatore, *voglio* cambiare persona e vedere cambiare ciò che posso fare, e il backend deve rifiutare comunque, *così che* la demo mostri una governance credibile senza login.
+
+**DoR**: ⬜ non pronta (R4) · **DoD**: ⬜ non fatta (D3)
+
+**Tocca**: docs/06 §3, docs/08 §2 · CMN-01, CMN-02, WEB-01, WEB-02 · tutte le righe «Guardie» di §5.
+
+**Criteri di accettazione**
+
+1. **Dato** nessun header, **allora** `ANALYST:anonymous` e ogni scrittura 403.
+2. **Dato** `X-LH-Actor: ADMINISTRATOR:x`, **allora** ruolo sconosciuto ⇒ ANALYST.
+3. **Dato** ogni capacità di docs/08 §2 × 5 ruoli, **allora** UI e API concordano (●: 403 lato server).
+4. **Dato** ANALYST che chiama `POST /v1/campaigns` o `PATCH /v1/members/{id}`, **allora** 403; ⚠ `POST /v1/members` resta senza guardia (serve anche alla registrazione dal portale).
+
+**Testbook**: TB-GOV (API) · TB-WEB (UI).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | docs/06 §3, docs/08 §2 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ⬜ | risposte d'errore (403) senza criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe), TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-DEMO-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 14 righe legate alla storia, 14 eseguite dai test: TB-GOV-ACT-001, TB-GOV-ACT-002, TB-GOV-ACT-003, TB-GOV-ACT-004 e altri 10 |
+| D3 Nessuno scostamento aperto | ⬜ | 1 marcatore ⚠ (divergenza) |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e08-07" />
+
+## US-E08-07 · Audit di ogni scrittura
+
+> *Come* ANALYST, *voglio* sapere chi ha cambiato cosa e quando, con prima/dopo, *così che* ogni decisione sia tracciabile.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-AUD-01 · BO-22 · `lh.audit.v1` → insight `GET /v1/audit` · INS-04, INS-08, CMN-06 · Q-109, Q-117.
+
+**Criteri di accettazione**
+
+1. **Dato** una modifica di campagna da BO-06, **allora** riga in BO-22 con diff e attore `MARKETING:luca.marketing` (docs/12 M2).
+2. **Dato** un job o un reset, **allora** azione `JOB`/`RESET` con attore `system`/ADMIN.
+3. **Dato** filtri per ruolo e periodo, **allora** solo le righe pertinenti; ✗ data non valida → 400.
+
+**Testbook**: scoperta (nessun dominio TB prevede F-AUD-01; proposta TB-INS o estensione di TB-GOV).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-AUD-01, BO-22 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 400 |
+| R5 Dominio di testbook | ✅ | TB-INS (con righe), TB-GOV (con righe) |
+| R6 Dipendenze e domande | ✅ | 2 aperte con default in uso (SPEC-GAP): Q-109, Q-117 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-22 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-AUD-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 405 righe sulle feature o schermate della storia in TB-GOV, TB-INS, 405 eseguite: TB-GOV-MST-001, TB-GOV-MST-002, TB-GOV-MST-003 e altri 402 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e08-08" />
+
+## US-E08-08 · Configurare un webhook in uscita
+
+> *Come* ADMIN, *voglio* abbonare un sistema esterno ad alcuni tipi di fatto, *così che* riceva gli aggiornamenti senza interrogare.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: il CRM vuole sapere quando un membro sale di livello.
+
+**Tocca**: F-WBH-01 · BO-23 · `POST/PUT/DELETE /v1/webhooks` · ENG-17, ENG-18, ENG-24 · Q-97, Q-99.
+
+**Criteri di accettazione**
+
+1. **Dato** un webhook `https://crm.example.org/hook` su `tier.upgraded`, **allora** creato e il `secret` compare una sola volta.
+2. ✗ **Dato** `http://example.org`, `https://10.0.0.5/…`, `https://intranet.local`, un tipo `message.delivered` o nessun tipo, **allora** 422 `WEBHOOK_INVALID` con il campo.
+3. ✗ **Dato** MARKETING, **allora** 403.
+
+**Testbook**: TB-ENG (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-WBH-01, BO-23 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 403, 422 |
+| R5 Dominio di testbook | ✅ | TB-ENG (con righe) |
+| R6 Dipendenze e domande | ✅ | 2 aperte con default in uso (SPEC-GAP): Q-97, Q-99 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-23 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-WBH-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 91 righe sulle feature o schermate della storia in TB-ENG, 91 eseguite: TB-ENG-AUDT-001, TB-ENG-AUDT-002, TB-ENG-AUDT-003 e altri 88 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e08-09" />
+
+## US-E08-09 · Consegna firmata e ritentativi
+
+> *Come* sistema ricevente, *voglio* ricevere il CloudEvent firmato e, se sono giù, essere ritentato, *così che* non perda eventi e possa verificarne l'autenticità.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-WBH-01 · ENG-19, ENG-20, ENG-22, ENG-23 · `deploy/webhook-receiver/` · Q-98, Q-100, Q-101.
+
+**Criteri di accettazione**
+
+1. **Dato** un endpoint che risponde 500, **allora** 3 ritentativi a 1, 5, 15 min e stato finale `GAVE_UP`; firma verificabile (engagement §7, docs/12 M7).
+2. **Dato** un 302, **allora** fallimento (niente redirect).
+3. **Dato** un webhook disabilitato, **allora** nessuna consegna.
+4. **Dato** *Invia evento di prova*, **allora** consegna con l'esempio del contratto e 201.
+
+**Testbook**: TB-ENG (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-WBH-01 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-ENG (con righe) |
+| R6 Dipendenze e domande | ✅ | 3 aperte con default in uso (SPEC-GAP): Q-98, Q-100, Q-101 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-WBH-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 49 righe sulle feature o schermate della storia in TB-ENG, 49 eseguite: TB-ENG-WSIG-001, TB-ENG-WSIG-002, TB-ENG-WSIG-003 e altri 46 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e08-10" />
+
+## US-E08-10 · Riprovare una consegna
+
+> *Come* ADMIN, *voglio* ritentare a mano una consegna fallita, *così che* recuperi dopo che il ricevente è tornato su.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: BO-23 (*Ritenta*) · `POST /v1/webhook-deliveries/{id}/retry` · ENG-21 · Q-98.
+
+**Criteri di accettazione**
+
+1. **Dato** una `GAVE_UP` e il ricevente di nuovo su, **allora** *Riprova* → `OK` (docs/12 M7).
+2. ✗ **Dato** una consegna `OK` o `PENDING`, **allora** 409 `DELIVERY_NOT_RETRYABLE`; un tentativo in corso → 409 `DELIVERY_BUSY`.
+3. **Dato** *Riprova* fallito dopo `GAVE_UP`, **allora** resta `GAVE_UP` senza nuovo ciclo.
+
+**Testbook**: TB-ENG (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | BO-23 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 409 |
+| R5 Dominio di testbook | ✅ | TB-ENG (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-98 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-23 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-WBH-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 91 righe sulle feature o schermate della storia in TB-ENG, 91 eseguite: TB-ENG-AUDT-001, TB-ENG-AUDT-002, TB-ENG-AUDT-003 e altri 88 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e08-11" />
+
+## US-E08-11 · Riprocessare un messaggio in DLQ
+
+> *Come* ADMIN, *voglio* riprocessare un'azione finita in DLQ dopo aver risolto la causa, *così che* il membro ottenga i suoi punti.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: `SCN-POISON` manda un'azione di Marco in DLQ; dopo la verifica Marta la riprocessa.
+
+**Tocca**: F-INS-05 · BO-27 · `POST /v1/dlq/{id}/reprocess` → ingestion `POST /v1/events` con `X-LH-Reprocess` · INS-01, ING-09, ING-10, CMP-18, WEB-10 · Q-104…Q-111.
+
+**Decisioni**: voce non OPEN → 409 `DLQ_NOT_OPEN` · non azione → 409 `NOT_REPROCESSABLE` · ingestion non accetta → 409 `REPROCESS_REJECTED` · ingestion irraggiungibile → 503 · ok → REPROCESSED + audit · solo ADMIN (anche lato ingestion).
+
+**Criteri di accettazione**
+
+1. **Dato** `SCN-POISON`, **allora** voce DLQ con `errorCode=DEMO_POISON`, tracciato `FAILED` (insight §7).
+2. **Dato** *Riprocessa*, **allora** ingestion ripubblica la stessa azione (stesso id), i consumer che l'avevano già elaborata la saltano e la voce è `REPROCESSED`; il tracciato non è più FAILED (Q-106).
+3. ✗ **Dato** un effetto in DLQ, **allora** 409 `NOT_REPROCESSABLE`; una seconda riprocessa → 409 `DLQ_NOT_OPEN`.
+4. ✗ **Dato** CARE, **allora** 403 (anche con `X-LH-Reprocess` diretto su ingestion).
+
+**Testbook**: scoperta (insight non ha dominio TB; il lato ingestion in TB-ING).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-INS-05, BO-27 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 403, 409 |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe), TB-INS (proposto in §7, con righe) |
+| R6 Dipendenze e domande | ✅ | 3 aperte con default in uso (SPEC-GAP): Q-104, Q-106, Q-111 |
+| R7 Dati demo | ✅ | in seed/: SCN-POISON |
+| R8 Stati dell'interfaccia | ✅ | BO-27 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-INS-05 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 42 righe sulle feature o schermate della storia in TB-INS, 42 eseguite: TB-INS-DLS-001, TB-INS-DLS-002, TB-INS-DLS-003 e altri 39 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e08-12" />
+
+## US-E08-12 · Scartare un messaggio in DLQ
+
+> *Come* ADMIN, *voglio* scartare con una nota un messaggio non recuperabile, *così che* la coda resti pulita e la decisione tracciata.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-INS-05 · BO-27 · `POST /v1/dlq/{id}/discard` · INS-02, WEB-10 · Q-107, Q-109, Q-110.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** una nota vuota, **allora** 422 `NOTE_REQUIRED`; voce già chiusa → 409; ok → `DISCARDED`, audit, tracciato ancora FAILED (Q-106).
+
+**Testbook**: scoperta.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-INS-05, BO-27 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-INS (proposto in §7, con righe) |
+| R6 Dipendenze e domande | ✅ | 4 aperte con default in uso (SPEC-GAP): Q-106, Q-107, Q-109, Q-110 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-27 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-INS-05 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 42 righe sulle feature o schermate della storia in TB-INS, 42 eseguite: TB-INS-DLS-001, TB-INS-DLS-002, TB-INS-DLS-003 e altri 39 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e08-13" />
+
+## US-E08-13 · Due operatori sulla stessa configurazione
+
+> *Come* operatore, *voglio* essere avvisato se qualcun altro ha modificato lo stesso oggetto nel frattempo, *così che* non sovrascriva il suo lavoro senza saperlo.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2)
+
+**Tocca**: docs/06 §4, Q-112 · `VERSION_CONFLICT` su campagne, premi, concorsi, contenuti, template, regole, tema, webhook, membri, segmenti · BO `EditorPage` (dialogo «ricarica / sovrascrivi»).
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** due `PUT` con la stessa `version`, **allora** il secondo 409 `VERSION_CONFLICT` e nessuna modifica persa; la UI propone ricarica/sovrascrivi.
+
+**Testbook**: TB-GOV (da coprire) + una riga per dominio proprietario.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | docs/06 §4 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 409 |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-112 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | 🔎 da verificare | nessuna feature F- o F2- nella storia |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

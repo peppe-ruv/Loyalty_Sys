@@ -1,0 +1,653 @@
+---
+title: "E05 · Premi e coupon"
+sidebarTitle: "E05 Premi e coupon"
+description: "E05 Premi e coupon: catalogo a fasce, richiesta premio in saga, coupon ed evasione. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: catalogo a fasce, richiesta premio in saga, coupon ed evasione.
+
+**Attori**: membro, MARKETING, LEGAL, CARE, sistema · **Feature**: F-RWD-01…08, F-CPN-01…03 · **Schermate**: BO-10…13, PT-03, PT-04, PT-13 · **Servizi**: reward (+ wallet) · **Testbook**: TB-RWD
+
+Questa epica ha 17 storie: 17 pronte secondo la Definition of Ready, 15 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-e05-01" />
+
+## US-E05-01 · Creare e mantenere un premio
+
+> *Come* MARKETING, *voglio* inserire un premio con tipo, fascia, stock, limite per membro, visibilità ed evasione, *così che* compaia nel catalogo dopo l'approvazione.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D3)
+
+**Contesto reale**: Luca prepara «Termostato smart» (F5, 30 pezzi, evasione manuale); a campagna in corso aumenta lo stock.
+
+**Tocca**: F-RWD-01, F-RWD-03, F-RWD-04, F-RWD-08 · BO-10 · `POST/PUT /v1/rewards`, `…/duplicate`, `…/transitions` · RWD-19, RWD-20, RWD-23, RWD-25.
+
+**Decisioni**: codice mancante → 400 · duplicato → 409 `CODE_TAKEN` · nome/tipo/evasione/fascia/categoria/`AUTO_COUPON` solo COUPON/stock &lt; 0/limite &lt; 1/`validTo ≤ validFrom` → 422 `REWARD_INVALID` · modifica: DRAFT/PAUSED tutto; LIVE solo stock totale, `validTo`, immagine (altrimenti 409 `REWARD_LIVE_LOCKED`); IN_REVIEW/APPROVED/ENDED/ARCHIVED → 409 `REWARD_NOT_EDITABLE` · codice → 409 · versione → 409 · approvazione LEGAL sempre ([US-E08-01](/specifiche/backlog/e08-governance#us-e08-01)).
+
+**Criteri di accettazione**
+
+1. **Dato** un premio COUPON con evasione `AUTO_COUPON` e pool, **allora** 201 in DRAFT con audit.
+2. ✗ **Dato** `AUTO_COUPON` su un premio PHYSICAL, **allora** 422 `REWARD_INVALID`.
+3. **Dato** un LIVE, **quando** porto lo stock da 150 a 200, **allora** il residuo cresce di 50; quando cambio fascia, **allora** 409 `REWARD_LIVE_LOCKED`.
+4. ✗ **Dato** un premio IN_REVIEW, **allora** 409 `REWARD_NOT_EDITABLE` (⚠ reward §3 cita lo stato `REJECTED`, ora rimpiazzato dal ritorno in DRAFT).
+5. **Dato** *Duplica*, **allora** copia `-COPY` in DRAFT.
+
+**Testbook**: TB-RWD (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-RWD-01, F-RWD-03, F-RWD-04, F-RWD-08, BO-10 |
+| R3 Criteri di accettazione | ✅ | 5 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 400, 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-RWD (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-10 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-RWD-01, F-RWD-03, F-RWD-04, F-RWD-08 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 242 righe sulle feature o schermate della storia in TB-RWD, 242 eseguite: TB-RWD-VIS-001, TB-RWD-VIS-002, TB-RWD-VIS-003 e altri 239 |
+| D3 Nessuno scostamento aperto | ⬜ | 1 marcatore ⚠ (divergenza) |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e05-02" />
+
+## US-E05-02 · Fasce premi: una soglia, un prezzo
+
+> *Come* MARKETING, *voglio* raggruppare i premi in fasce con soglie crescenti, *così che* il costo sia chiaro e il membro veda cosa può raggiungere.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-RWD-02 · BO-11 · `POST/PUT/DELETE /v1/reward-bands` · RWD-21.
+
+**Criteri di accettazione**
+
+1. **Dato** F2 portata da 1 500 a 1 600, **allora** il costo dei premi di F2 diventa 1 600 (BO-11 mostra l'impatto prima di salvare).
+2. ✗ **Dato** una soglia uguale a un'altra fascia, **allora** 422 `BAND_THRESHOLD_DUPLICATE`.
+3. ✗ **Dato** l'eliminazione di F1 con premi, **allora** 409 `BAND_IN_USE`.
+
+**Testbook**: TB-RWD (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-RWD-02, BO-11 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-RWD (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-11 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-RWD-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 29 righe legate alla storia, 29 eseguite dai test: TB-RWD-BND-001, TB-RWD-BND-002, TB-RWD-BND-003, TB-RWD-BND-004 e altri 25 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e05-03" />
+
+## US-E05-03 · Categorie
+
+> *Come* MARKETING, *voglio* gestire le categorie del catalogo, *così che* il portale le usi come filtro.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-RWD-01 · BO-10 · `POST/PUT /v1/reward-categories` · RWD-22.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** una categoria senza codice o nome, **allora** 422 `CATEGORY_INVALID`; dato un premio con categoria inesistente, **allora** 422 `REWARD_INVALID`.
+
+**Testbook**: TB-RWD (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-RWD-01, BO-10 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 422 |
+| R5 Dominio di testbook | ✅ | TB-RWD (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-10 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-RWD-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 116 righe sulle feature o schermate della storia in TB-RWD, 116 eseguite: TB-RWD-VIS-001, TB-RWD-VIS-002, TB-RWD-VIS-003 e altri 113 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e05-04" />
+
+## US-E05-04 · Il catalogo che vedo io
+
+> *Come* membro, *voglio* vedere i premi per fascia con cosa posso richiedere, cosa è esaurito, riservato o già richiesto, *così che* scelga senza tentativi a vuoto.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: Davide (GOLD, 12 300 PTS) vede il weekend benessere; Giulia (SILVER) lo vede col lucchetto; Francesca vede la serata PLATINUM.
+
+**Tocca**: F-RWD-01…04 · PT-03, PT-04 · `GET /v1/portal/catalog`, `/v1/portal/rewards/{code}` · RWD-18, WEB-08.
+
+**Decisioni**: `stockState` AVAILABLE / LOW (&lt; 10 %) / SOLD_OUT · tier non ammesso → visibile con `lockedByTier` · fuori segmento → escluso · `perMemberLimitReached` · raggiungibilità calcolata dal frontend (saldo).
+
+**Criteri di accettazione**
+
+1. **Dato** `RWD-WEEKEND` per un SILVER, **allora** compare con `lockedByTier {GOLD, PLATINUM}` e «Riservato a GOLD e PLATINUM» (reward §7).
+2. **Dato** `RWD-SHOP-25` con 9 residui su 150, **allora** «Ultimi pezzi»; `RWD-POWERBANK` «Esaurito».
+3. **Dato** `RWD-EBIKE-RENT` riservato a SEG-TORINO, **allora** solo Davide lo vede (Q-83).
+4. **Dato** Anna (100 PTS), **allora** la fascia F1 mostra «ti mancano 400 punti».
+
+**Testbook**: TB-RWD (API) · TB-WEB (PT-03/04).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-RWD-01, PT-03, PT-04 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-RWD (con righe), TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-83 |
+| R7 Dati demo | ✅ | in seed/: RWD-EBIKE-RENT, RWD-SHOP-25, RWD-WEEKEND, SEG-TORINO |
+| R8 Stati dell'interfaccia | ✅ | PT-03, PT-04 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-RWD-01, F-RWD-02, F-RWD-03, F-RWD-04 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 226 righe sulle feature o schermate della storia in TB-RWD, TB-WEB, 178 eseguite: TB-RWD-VIS-001, TB-RWD-VIS-002, TB-RWD-VIS-003 e altri 175 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e05-05" />
+
+## US-E05-05 · Richiedere un premio: controlli immediati
+
+> *Come* membro, *voglio* sapere subito se non posso richiedere un premio, *così che* non aspetti una conferma che non arriverà.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: due membri richiedono l'ultimo pezzo nello stesso istante; un membro dimentica l'indirizzo per un premio fisico.
+
+**Tocca**: F-RWD-03, F-RWD-05 · PT-04 · `POST /v1/portal/redemptions` · RWD-01 · EVT-FACT-40.
+
+**Decisioni**: ordine: 400 dati mancanti → `MEMBER_NOT_ACTIVE` → `REWARD_NOT_AVAILABLE` (non LIVE, fuori validità, fuori segmento, inesistente) → `TIER_NOT_ELIGIBLE` → `SHIPPING_REQUIRED` → `MEMBER_LIMIT_REACHED` → `REWARD_SOLD_OUT` (decremento atomico) → 202 PENDING. Il saldo **non** è controllato qui.
+
+**Criteri di accettazione**
+
+1. **Dato** Davide e `RWD-SHOP-10`, **allora** 202 `{redemptionId, status: PENDING, correlationId}`, stock −1.
+2. ✗ **Dato** `stock_remaining=1` e due richieste concorrenti, **allora** una PENDING e l'altra 422 `REWARD_SOLD_OUT` (reward §7).
+3. ✗ **Dato** `RWD-WEEKEND` per un SILVER, **allora** 422 `TIER_NOT_ELIGIBLE` (reward §7).
+4. ✗ **Dato** `RWD-BILL-20` richiesto la terza volta (max 2), **allora** 422 `MEMBER_LIMIT_REACHED`.
+5. ✗ **Dato** `RWD-BORRACCIA` senza spedizione, **allora** 422 `SHIPPING_REQUIRED`; Roberto (BLOCKED) → 422 `MEMBER_NOT_ACTIVE`.
+6. ✗ **Dato** `RWD-THERMOSTAT` (DRAFT), **allora** 422 `REWARD_NOT_AVAILABLE`.
+
+**Testbook**: TB-RWD (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-RWD-03, F-RWD-05, PT-04, EVT-FACT-40 |
+| R3 Criteri di accettazione | ✅ | 6 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 5 criteri ✗ per 400, 422 |
+| R5 Dominio di testbook | ✅ | TB-RWD (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: RWD-SHOP-10 |
+| R8 Stati dell'interfaccia | ✅ | PT-04 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-RWD-03, F-RWD-05 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 19 righe legate alla storia, 19 eseguite dai test: TB-RWD-ORD-001, TB-RWD-ORD-002, TB-RWD-ORD-003, TB-RWD-ORD-004 e altri 15; 108 righe sulle feature o schermate della storia in TB-RWD, 108 eseguite: TB-RWD-VIS-001, TB-RWD-VIS-002, TB-RWD-VIS-003 e altri 105 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e05-06" />
+
+## US-E05-06 · Conferma ed evasione automatica
+
+> *Come* membro, *voglio* ricevere subito il codice del buono dopo la richiesta, *così che* lo usi in negozio.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: Davide richiede il buono shopping 10 € e vede il codice in pochi secondi.
+
+**Tocca**: F-RWD-05, F-RWD-06, F-CPN-02 · `wallet.points.spent` → `reward.redemption.confirmed` → `coupon.issued` → `reward.redemption.fulfilled` · RWD-02, RWD-03, RWD-15 · ponte → `action.reward.redeemed`.
+
+**Decisioni**: richiesta sconosciuta → ignorata · PENDING → CONFIRMED + evasione (AUTO_COUPON → coupon; INSTANT → FULFILLED; MANUAL → resta CONFIRMED) · già CONFIRMED/FULFILLED → nulla.
+
+**Criteri di accettazione**
+
+1. **Dato** Davide e `RWD-SHOP-10` (1 500 PTS), **allora** entro 10 s `FULFILLED` con coupon, saldo −1 500, stock −1 (reward §7).
+2. **Dato** `wallet.points.spent` rielaborato, **allora** nessun secondo coupon (reward §7).
+3. **Dato** `RWD-DONATION-TREE` (INSTANT), **allora** FULFILLED senza codice.
+4. **Dato** `reward.redemption.confirmed`, **allora** il ponte genera `action.reward.redeemed` nello stesso tracciato.
+
+**Testbook**: TB-RWD (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-RWD-05, F-RWD-06, F-CPN-02 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-RWD (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: RWD-DONATION-TREE, RWD-SHOP-10 |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-RWD-05, F-RWD-06, F-CPN-02 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 30 righe legate alla storia, 30 eseguite dai test: TB-RWD-FUL-001, TB-RWD-FUL-002, TB-RWD-FUL-003, TB-RWD-FUL-004 e altri 26; 175 righe sulle feature o schermate della storia in TB-RWD, 175 eseguite: TB-RWD-SAG-001, TB-RWD-SAG-002, TB-RWD-SAG-003 e altri 172 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e05-07" />
+
+## US-E05-07 · Il wallet rifiuta la spesa
+
+> *Come* membro, *voglio* sapere che la richiesta non è andata per saldo insufficiente, senza addebiti, *così che* capisca cosa fare.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2)
+
+**Tocca**: F-RWD-05 · `wallet.spend.rejected` → `reward.redemption.rejected` · RWD-04, WAL-08 · MSG-REWARD-REJECTED.
+
+**Criteri di accettazione**
+
+1. **Dato** Anna (100 PTS) e `RWD-COFFEE-5`, **allora** 202, poi `REJECTED (INSUFFICIENT_BALANCE)`, stock invariato (reward §7).
+2. **Dato** un rifiuto per una richiesta già chiusa o sconosciuta, **allora** ignorato (nessuna DLQ).
+
+**Testbook**: TB-RWD (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-RWD-05 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-RWD (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: RWD-COFFEE-5 |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-RWD-05 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e05-08" />
+
+## US-E05-08 · Timeout della saga e compensazione
+
+> *Come* azienda, *voglio* che una richiesta non resti in attesa per sempre se il wallet dorme, e che una spesa arrivata tardi venga rimborsata, *così che* stock e punti restino coerenti.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: il wallet si addormenta durante la richiesta di Davide; si sveglia dopo 12 minuti.
+
+**Tocca**: F-RWD-05 · RWD-02, RWD-05, RWD-24 · `POST /v1/demo/jobs/timeout-redemptions?asOf=` · Q-55.
+
+**Decisioni**: PENDING > 10 min → `REJECTED (TIMEOUT)` + stock · spesa arrivata dopo → `reward.redemption.cancelled (LATE_SPEND, refund=true)` → rimborso.
+
+**Criteri di accettazione**
+
+1. **Dato** wallet fermo durante la richiesta, **allora** PENDING e poi CONFIRMED al riavvio se entro 10 min, altrimenti `REJECTED (TIMEOUT)` con stock ripristinato (docs/12 M4).
+2. **Dato** la spesa arrivata dopo il timeout, **allora** cancellazione con rimborso e saldo tornato al valore iniziale.
+3. **Dato** `asOf` = +9 min, **allora** nessun timeout.
+
+**Testbook**: TB-RWD (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-RWD-05 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-RWD (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-55 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-RWD-05 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 8 righe legate alla storia, 8 eseguite dai test: TB-RWD-TMO-001, TB-RWD-TMO-002, TB-RWD-TMO-003, TB-RWD-TMO-004 e altri 4 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e05-09" />
+
+## US-E05-09 · Il membro annulla mentre è in conferma
+
+> *Come* membro, *voglio* annullare una richiesta finché è in conferma, *così che* rimedi a un errore.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: docs/03 §5 (PENDING → CANCELLED) · PT-13 · `POST /v1/portal/redemptions/{id}/cancel` · RWD-06, RWD-02.
+
+**Criteri di accettazione**
+
+1. **Dato** una PENDING, **allora** CANCELLED (`MEMBER`), stock +1, nessun rimborso da fare.
+2. ✗ **Dato** una CONFIRMED, **allora** 409 `REDEMPTION_NOT_CANCELLABLE`; richiesta di un altro membro → 404.
+3. **Dato** la spesa del wallet arrivata subito dopo l'annullo, **allora** `cancelled (LATE_SPEND, refund=true)` e rimborso.
+
+**Testbook**: TB-RWD (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | docs/03 §5, PT-13 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 404, 409 |
+| R5 Dominio di testbook | ✅ | TB-RWD (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-13 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-RWD-05 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 30 righe legate alla storia, 30 eseguite dai test: TB-RWD-FUL-001, TB-RWD-FUL-002, TB-RWD-FUL-003, TB-RWD-FUL-004 e altri 26; 75 righe sulle feature o schermate della storia in TB-RWD, 75 eseguite: TB-RWD-SAG-001, TB-RWD-SAG-002, TB-RWD-SAG-003 e altri 72 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e05-10" />
+
+## US-E05-10 · Evasione manuale di un premio fisico
+
+> *Come* operatore CARE, *voglio* segnare come spedito un premio fisico con nota e tracking, *così che* il membro sappia che è in arrivo.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: la borraccia di Sofia è in coda da due giorni.
+
+**Tocca**: F-RWD-06 · BO-13 · `POST /v1/redemptions/{id}/fulfil` · RWD-07, RWD-25 · MSG-REWARD-READY.
+
+**Criteri di accettazione**
+
+1. **Dato** la richiesta di Sofia, **quando** segno spedito con nota e tracking, **allora** FULFILLED, `fulfilled {note}`, messaggio in PT-12, audit.
+2. ✗ **Dato** una richiesta di un premio COUPON o non CONFIRMED, **allora** 409 `REDEMPTION_NOT_FULFILLABLE`; senza nota 422 `NOTE_REQUIRED`.
+3. ✗ **Dato** MARKETING, **allora** 403.
+
+**Testbook**: TB-RWD (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-RWD-06, BO-13 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 403, 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-RWD (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-13 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-RWD-06 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 120 righe sulle feature o schermate della storia in TB-RWD, 120 eseguite: TB-RWD-SAG-001, TB-RWD-SAG-002, TB-RWD-SAG-003 e altri 117 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e05-11" />
+
+## US-E05-11 · Annullo con rimborso da backoffice
+
+> *Come* operatore CARE, *voglio* annullare una richiesta confermata e restituire i punti, *così che* gestisca un premio non più disponibile.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-RWD-07 · BO-13 · `POST /v1/redemptions/{id}/cancel` · RWD-08, WAL-10.
+
+**Criteri di accettazione**
+
+1. **Dato** una CONFIRMED con coupon, **allora** CANCELLED, coupon VOID, stock +1, `wallet.points.refunded` (reward §7).
+2. ✗ **Dato** una FULFILLED o PENDING, **allora** 409 `REDEMPTION_NOT_CANCELLABLE`; motivo vuoto → 422 `REASON_REQUIRED`.
+3. **Dato** l'annullo, **allora** BO-13 mostra «in elaborazione» finché arriva il rimborso.
+
+**Testbook**: TB-RWD (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-RWD-07, BO-13 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-RWD (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-13 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-RWD-07 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 120 righe sulle feature o schermate della storia in TB-RWD, 120 eseguite: TB-RWD-SAG-001, TB-RWD-SAG-002, TB-RWD-SAG-003 e altri 117 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e05-12" />
+
+## US-E05-12 · Pool esaurito: richieste da verificare
+
+> *Come* operatore CARE, *voglio* vedere le richieste confermate senza codice e ritentarle dopo aver generato nuovi codici, *così che* nessuno resti senza premio.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: docs/03 §5 (`needsAttention`) · BO-13 (*Da verificare*) · `POST /v1/redemptions/{id}/retry-fulfilment` · RWD-03, RWD-09, RWD-15.
+
+**Criteri di accettazione**
+
+1. **Dato** un pool vuoto, **allora** la richiesta resta CONFIRMED con `needsAttention` e nessun `fulfilled`.
+2. **Dato** nuovi codici e *Ritenta*, **allora** FULFILLED col coupon.
+3. ✗ **Dato** *Ritenta* col pool ancora vuoto, **allora** 409 `COUPON_POOL_EMPTY`; su una richiesta senza flag → 409 `REDEMPTION_NOT_RETRYABLE`.
+4. **Dato** un premio AUTO_COUPON senza pool configurato, **allora** anche lui `needsAttention` (ramo senza specifica).
+
+**Testbook**: TB-RWD (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | docs/03 §5, BO-13 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 409 |
+| R5 Dominio di testbook | ✅ | TB-RWD (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-13 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-RWD-06, F-CPN-02 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 205 righe sulle feature o schermate della storia in TB-RWD, 205 eseguite: TB-RWD-SAG-001, TB-RWD-SAG-002, TB-RWD-SAG-003 e altri 202 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e05-13" />
+
+## US-E05-13 · Pool di coupon: crea, genera, importa
+
+> *Come* MARKETING, *voglio* creare un pool, generare codici o importare quelli del partner, *così che* i premi coupon siano evadibili.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-CPN-01 · BO-12 · `POST /v1/coupon-pools`, `…/generate`, `…/import` · RWD-12…14.
+
+**Criteri di accettazione**
+
+1. **Dato** 100 codici generati con prefisso `CAF`, **allora** formato `CAF-XXXX-XXXX` in `A-Z2-9`.
+2. ✗ **Dato** 5 001 codici, **allora** 422 `COUPON_COUNT_INVALID`; prefisso `caf!` 422 `COUPON_PREFIX_INVALID`; validità 0 → 422.
+3. **Dato** un import con 3 duplicati, **allora** `{imported, skipped[3]}`; import vuoto → 422 `COUPON_IMPORT_EMPTY`.
+
+**Testbook**: TB-RWD (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CPN-01, BO-12 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 422 |
+| R5 Dominio di testbook | ✅ | TB-RWD (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-12 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CPN-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 76 righe sulle feature o schermate della storia in TB-RWD, 76 eseguite: TB-RWD-CPN-001, TB-RWD-CPN-002, TB-RWD-CPN-003 e altri 73 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e05-14" />
+
+## US-E05-14 · Usare un coupon alla cassa
+
+> *Come* cassiere (simulato), *voglio* verificare e bruciare un codice, *così che* non sia usato due volte.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-CPN-03 · BO-12 (cassa simulata), PT-13 · `POST /v1/coupons/{code}/use` · RWD-10 · Q-52.
+
+**Criteri di accettazione**
+
+1. **Dato** un codice ISSUED valido, **allora** USED e `coupon.used`.
+2. ✗ **Dato** lo stesso codice due volte, **allora** la seconda 409 `COUPON_ALREADY_USED` (reward §7).
+3. ✗ **Dato** il coupon di Davide dopo la scadenza, **allora** 410 `COUPON_EXPIRED` anche prima del job; codice AVAILABLE → 409 `COUPON_NOT_ISSUED`; VOID → 409; inesistente → 404.
+4. ✗ **Dato** ANALYST, **allora** 403.
+
+**Testbook**: TB-RWD (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CPN-03, BO-12, PT-13 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 3 criteri ✗ per 403, 404, 409, 410 |
+| R5 Dominio di testbook | ✅ | TB-RWD (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-52 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-12, PT-13 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CPN-03 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 196 righe sulle feature o schermate della storia in TB-RWD, 196 eseguite: TB-RWD-SAG-001, TB-RWD-SAG-002, TB-RWD-SAG-003 e altri 193 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e05-15" />
+
+## US-E05-15 · Annullare un codice
+
+> *Come* operatore CARE, *voglio* annullare un codice emesso per errore, *così che* non sia più spendibile.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: BO-12 (*Annulla*) · `POST /v1/coupons/{code}/void` · RWD-11 · Q-52.
+
+**Criteri di accettazione**
+
+1. **Dato** un ISSUED, **allora** VOID + audit; ✗ USED → 409 `COUPON_ALREADY_USED`; VOID → 409 `COUPON_VOID`; MARKETING → 403.
+
+**Testbook**: TB-RWD (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | BO-12 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 403, 409 |
+| R5 Dominio di testbook | ✅ | TB-RWD (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-52 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-12 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CPN-03 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 147 righe sulle feature o schermate della storia in TB-RWD, 147 eseguite: TB-RWD-FUL-001, TB-RWD-FUL-002, TB-RWD-FUL-003 e altri 144 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e05-16" />
+
+## US-E05-16 · Coupon regalati da una campagna
+
+> *Come* MARKETING, *voglio* che una campagna o una vincita emetta un coupon, *così che* il premio arrivi senza richiesta.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: Matteo vince un buono colazione alla Ruota d'Autunno.
+
+**Tocca**: F-CPN-02, F-IW-06 · effetto `coupon.issue` · RWD-16 · MSG-COUPON-GIFT.
+
+**Decisioni**: `effectId` già usato → nulla · premio sconosciuto → DLQ `REWARD_NOT_FOUND` · senza pool → DLQ `COUPON_POOL_MISSING` · pool vuoto → DLQ `COUPON_POOL_EMPTY` · ok → coupon `CAMPAIGN`.
+
+**Criteri di accettazione**
+
+1. **Dato** una vincita coupon, **allora** `coupon.issued (origin=CAMPAIGN)`, messaggio «regalo» e coupon in PT-13.
+2. ✗ **Dato** il pool vuoto, **allora** voce DLQ non ritentabile e tracciato FAILED.
+3. **Dato** l'effetto riconsegnato, **allora** nessun secondo coupon.
+
+**Testbook**: TB-RWD (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CPN-02, F-IW-06 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-RWD (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CPN-02, F-IW-06 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 115 righe sulle feature o schermate della storia in TB-RWD, 115 eseguite: TB-RWD-FUL-001, TB-RWD-FUL-002, TB-RWD-FUL-003 e altri 112 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e05-17" />
+
+## US-E05-17 · Scadenza dei coupon
+
+> *Come* azienda, *voglio* che i coupon non usati scadano, *così che* il portale mostri lo stato vero.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-CPN-02 · RWD-17, RWD-24 · `POST /v1/demo/jobs/expire-coupons?asOf=`.
+
+**Criteri di accettazione**
+
+1. **Dato** il secondo coupon di Davide e `asOf` = +10 gg, **allora** EXPIRED; in PT-13 in fondo, attenuato «scaduto».
+
+**Testbook**: TB-RWD (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CPN-02 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-RWD (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CPN-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 76 righe legate alla storia, 76 eseguite dai test: TB-RWD-CPN-001, TB-RWD-CPN-002, TB-RWD-CPN-003, TB-RWD-CPN-004 e altri 72; 39 righe sulle feature o schermate della storia in TB-RWD, 39 eseguite: TB-RWD-FUL-001, TB-RWD-FUL-002, TB-RWD-FUL-003 e altri 36 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

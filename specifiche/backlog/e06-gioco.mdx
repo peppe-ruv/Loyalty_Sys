@@ -1,0 +1,670 @@
+---
+title: "E06 · Gioco"
+sidebarTitle: "E06 Gioco"
+description: "E06 Gioco: instant win certificabile, obiettivi, badge, classifiche, referral. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: instant win certificabile, obiettivi, badge, classifiche, referral.
+
+**Attori**: membro, MARKETING, LEGAL, CARE, ADMIN · **Feature**: F-IW-01…08, F-ACH-01…03, F-LDB-01, F-REF-01…02 · **Schermate**: BO-14…17, PT-05, PT-06, PT-09, PT-10, PT-11 · **Servizi**: gamification, member · **Testbook**: TB-GAM
+
+Questa epica ha 18 storie: 18 pronte secondo la Definition of Ready, 17 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-e06-01" />
+
+## US-E06-01 · Creare un concorso e il suo montepremi
+
+> *Come* MARKETING, *voglio* configurare un instant win con meccanica, periodo, giocata gratuita, limiti e premi, *così che* possa inviarlo a LEGAL.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-IW-01, F-IW-02 · BO-14 · `POST/PUT /v1/contests`, `…/duplicate` · GAM-05, GAM-06, GAM-12, GAM-21 · Q-56, Q-113.
+
+**Decisioni**: codice non valido → 422 `CONTEST_INVALID` · duplicato → 409 · codice → 409 `CODE_IMMUTABLE` · ENDED/ARCHIVED → 409 `CONTEST_NOT_EDITABLE` · LIVE/PAUSED: solo nome, descrizione, `endAt` (docs/03 §3.6, istanti invariati); premi/inizio/istanti/regole/regolamento → 409 `CONTEST_LIVE_LOCKED` · prima di LIVE: cambiare premi/periodo/distribuzione/seme cancella gli istanti · versione → 409.
+
+**Criteri di accettazione**
+
+1. **Dato** un concorso in DRAFT con istanti generati, **quando** cambio il periodo, **allora** gli istanti vanno rigenerati.
+2. ✗ **Dato** IW-AUTUNNO LIVE, **quando** cambio un premio, **allora** 409 `CONTEST_LIVE_LOCKED` (anche per il regolamento); nome, descrizione e proroga di `endAt` sono ammessi.
+3. **Dato** *Duplica*, **allora** `<code>-COPY-1` in DRAFT, premi a quantità piena, istanti da generare.
+
+**Testbook**: TB-GAM (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-IW-01, F-IW-02, BO-14 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-GAM (con righe) |
+| R6 Dipendenze e domande | ✅ | 2 aperte con default in uso (SPEC-GAP): Q-56, Q-113 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-14 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-IW-01, F-IW-02 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 295 righe sulle feature o schermate della storia in TB-GAM, 295 eseguite: TB-GAM-PLY-001, TB-GAM-PLY-002, TB-GAM-PLY-003 e altri 292 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e06-02" />
+
+## US-E06-02 · Generare gli istanti vincenti con un seme
+
+> *Come* LEGAL, *voglio* che gli istanti vincenti siano pre-generati con un seme riproducibile e immutabili dopo l'avvio, *così che* l'assegnazione sia verificabile.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-IW-03 · BO-14 (scheda `instants`) · `POST /v1/contests/{id}/instants/generate` · GAM-04, GAM-08.
+
+**Criteri di accettazione**
+
+1. **Dato** il seme 42 due volte, **allora** identico elenco di istanti; 355 istanti per IW-AUTUNNO (gamification §7).
+2. **Dato** `BUSINESS_HOURS`, **allora** nessun istante fuori 08–22 ora di Roma (anche nei giorni del cambio d'ora).
+3. ✗ **Dato** un concorso LIVE, **allora** 409 `INSTANTS_LOCKED`; senza premi 422 `CONTEST_INVALID`.
+4. ✗ **Dato** un periodo di un'ora di notte con `BUSINESS_HOURS`, **allora** errore (nessun orario valido; ramo senza specifica).
+
+**Testbook**: TB-GAM (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-IW-03, BO-14 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-GAM (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-14 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-IW-03 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 326 righe sulle feature o schermate della storia in TB-GAM, 326 eseguite: TB-GAM-PRZ-001, TB-GAM-PRZ-002, TB-GAM-PRZ-003 e altri 323 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e06-03" />
+
+## US-E06-03 · Chi può vedere gli istanti
+
+> *Come* LEGAL o ADMIN, *voglio* vedere la tabella degli istanti; *come* MARKETING, solo l'istogramma, *così che* chi configura non conosca i momenti vincenti.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-IW-07 · BO-14 · `GET /v1/contests/{id}/instants`, `…/histogram` · GAM-21 · docs/08 §2 `instants.view`.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** MARKETING, **allora** 403 sugli istanti e l'istogramma visibile (gamification §7); LEGAL vede la tabella (Playwright di docs/12 §4).
+
+**Testbook**: TB-GAM (API) · TB-WEB (Forbidden).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-IW-07, BO-14, docs/08 §2 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 403 |
+| R5 Dominio di testbook | ✅ | TB-GAM (con righe), TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-14 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-IW-07 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 198 righe sulle feature o schermate della storia in TB-GAM, TB-WEB, 198 eseguite: TB-GAM-PRZ-001, TB-GAM-PRZ-002, TB-GAM-PRZ-003 e altri 195 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e06-04" />
+
+## US-E06-04 · Pubblicare un concorso
+
+> *Come* MARKETING, *voglio* pubblicare il concorso approvato, *così che* i membri giochino; il sistema deve impedirlo senza istanti.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-IW-01 · BO-14, BO-21 · `POST /v1/contests/{id}/transitions` · GAM-07, CMN-04…07.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** *Pubblica* senza istanti, **allora** 422 `INSTANTS_NOT_GENERATED` con il collegamento alla scheda istanti.
+2. ✗ **Dato** *Pubblica* da DRAFT con approvazione attiva, **allora** 409 `APPROVAL_REQUIRED` (serve LEGAL, [US-E08-01](/specifiche/backlog/e08-governance#us-e08-01)).
+
+**Testbook**: TB-GAM (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-IW-01, BO-14, BO-21 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-GAM (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-14, BO-21 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-IW-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 295 righe sulle feature o schermate della storia in TB-GAM, 295 eseguite: TB-GAM-PLY-001, TB-GAM-PLY-002, TB-GAM-PLY-003 e altri 292 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e06-05" />
+
+## US-E06-05 · Giocare: esiti e rifiuti
+
+> *Come* membro, *voglio* giocare e sapere subito se ho vinto, *così che* il gioco sia divertente e onesto.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: Matteo gioca la gratuita del giorno, poi due crediti; alle 23:59 finisce le giocate e riprova alle 00:01.
+
+**Tocca**: F-IW-04 · PT-05, PT-06 · `POST /v1/portal/contests/{code}/play` · GAM-01, GAM-02, WEB-14 · EVT-FACT-51/52.
+
+**Decisioni**: ordine: `MEMBER_REQUIRED` → 404 → `MEMBER_NOT_ACTIVE` → `CONTEST_NOT_LIVE` (stato o periodo) → `DAILY_LIMIT_REACHED` → `NO_PLAYS_AVAILABLE` · prima la gratuita poi i crediti · `maxWinsPerMember` raggiunto → LOSE · claim → WIN o LOSE.
+
+**Criteri di accettazione**
+
+1. **Dato** Matteo con gratuita e crediti, **allora** la prima giocata è `FREE_DAILY`, le successive `CREDIT`; la risposta è sincrona con `playsAvailable`.
+2. ✗ **Dato** una seconda giocata gratuita nello stesso giorno senza crediti, **allora** 422 `NO_PLAYS_AVAILABLE` (gamification §7).
+3. **Dato** la giocata alle 00:01 ora di Roma, **allora** la gratuita è di nuovo disponibile (giorno di Roma, non UTC).
+4. ✗ **Dato** 5 giocate oggi su IW-AUTUNNO, **allora** la sesta 422 `DAILY_LIMIT_REACHED` anche con crediti.
+5. ✗ **Dato** un concorso con `endAt` passato ma ancora LIVE (job non girato), **allora** 422 `CONTEST_NOT_LIVE`.
+6. ✗ **Dato** Roberto, **allora** 422 `MEMBER_NOT_ACTIVE`.
+
+**Testbook**: TB-GAM (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-IW-04, PT-05, PT-06, EVT-FACT-51 |
+| R3 Criteri di accettazione | ✅ | 6 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 4 criteri ✗ per 404, 422 |
+| R5 Dominio di testbook | ✅ | TB-GAM (con righe), TB-E2E (le sue righe citano la storia) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-05, PT-06 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-IW-04 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 7 righe legate alla storia, 7 eseguite dai test: TB-E2E-IW-001, TB-E2E-IW-002, TB-E2E-IW-003, TB-E2E-IW-004 e altri 3; 80 righe sulle feature o schermate della storia in TB-GAM, 80 eseguite: TB-GAM-PLY-001, TB-GAM-PLY-002, TB-GAM-PLY-003 e altri 77 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e06-06" />
+
+## US-E06-06 · Guadagnare giocate
+
+> *Come* membro, *voglio* ricevere giocate da campagne (sondaggio, acquisto GOLD ≥ 50 €), *così che* giochi di più.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-IW-05 · effetto `plays.grant` · GAM-02, GAM-13 · EVT-FACT-50.
+
+**Criteri di accettazione**
+
+1. **Dato** `survey.completed`, **allora** +1 credito e `contest.plays.granted`; riconsegna → nessun credito in più.
+2. ✗ **Dato** un `plays.grant` verso un concorso inesistente, **allora** DLQ `CONTEST_NOT_FOUND`.
+
+**Testbook**: TB-GAM (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-IW-05, EVT-FACT-50 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-GAM (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-IW-05 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 57 righe sulle feature o schermate della storia in TB-GAM, 57 eseguite: TB-GAM-CRD-001, TB-GAM-CRD-002, TB-GAM-CRD-003 e altri 54 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e06-07" />
+
+## US-E06-07 · Nessuna vincita doppia sotto carico
+
+> *Come* LEGAL, *voglio* che un istante vincente sia assegnato a una sola giocata anche con molti giocatori contemporanei, *così che* il montepremi sia rispettato.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-IW-04 · GAM-03 · docs/06 §9 (concorrenza).
+
+**Criteri di accettazione**
+
+1. **Dato** 50 giocate concorrenti con un solo istante scaduto, **allora** esattamente 1 WIN (gamification §7).
+2. **Dato** due richieste simultanee dello stesso membro, **allora** non superano i crediti disponibili (lock per membro+concorso).
+
+**Testbook**: TB-GAM (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-IW-04, docs/06 §9 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-GAM (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-IW-04 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 80 righe sulle feature o schermate della storia in TB-GAM, 80 eseguite: TB-GAM-PLY-001, TB-GAM-PLY-002, TB-GAM-PLY-003 e altri 77 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e06-08" />
+
+## US-E06-08 · Consegna della vincita
+
+> *Come* membro vincitore, *voglio* ricevere il premio (punti, coupon o fisico), *così che* la vincita sia reale.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: Matteo vince 50 punti; un altro membro vince il powerbank e l'assistenza lo spedisce.
+
+**Tocca**: F-IW-06, F-IW-07 · `contest.won` → ponte → `instantwin.won` → `CMP-IW-PRIZE-POINTS/COUPON` · BO-14 (*Aggiorna consegna*) · `POST /v1/plays/{playId}/delivery` · GAM-01, GAM-11, CMP-14.
+
+**Criteri di accettazione**
+
+1. **Dato** una vincita di punti, **allora** entro 10 s il tracciato mostra `contest.won → action.instantwin.won → campaign.evaluated → points.grant → wallet.points.earned` (gamification §7).
+2. **Dato** una vincita PHYSICAL, **allora** consegna PENDING; CARE la porta a DELIVERED con nota.
+3. ✗ **Dato** *Aggiorna consegna* su una vincita di punti, **allora** 409 `DELIVERY_NOT_APPLICABLE`; stato `SHIPPED` → 422 `DELIVERY_STATUS_INVALID`; MARKETING → 403.
+
+**Testbook**: TB-GAM (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-IW-06, F-IW-07, BO-14 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 403, 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-GAM (con righe), TB-E2E (le sue righe citano la storia) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-14 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-IW-06, F-IW-07 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 7 righe legate alla storia, 7 eseguite dai test: TB-E2E-IW-001, TB-E2E-IW-002, TB-E2E-IW-003, TB-E2E-IW-004 e altri 3; 218 righe sulle feature o schermate della storia in TB-GAM, 218 eseguite: TB-GAM-CLM-001, TB-GAM-CLM-002, TB-GAM-CLM-003 e altri 215 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e06-09" />
+
+## US-E06-09 · Piantare un istante per la demo
+
+> *Come* operatore demo, *voglio* garantire che la prossima giocata vinca il premio scelto, *così che* la demo non dipenda dal caso.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-IW-08 · BO-14, BO-30 · `POST /v1/demo/contests/{id}/plant-instant` · GAM-09 · Q-62.
+
+**Criteri di accettazione**
+
+1. **Dato** *Pianta un istante* su 50 punti e poi una giocata di Matteo, **allora** WIN di **quel** premio anche se esistono istanti maturi di altri premi (Q-62), montepremi invariato.
+2. ✗ **Dato** un concorso non LIVE, **allora** 409 `CONTEST_NOT_LIVE`; premio di un altro concorso → 422 `PRIZE_NOT_FOUND`; nessun istante aperto per quel premio → 422 `NO_OPEN_INSTANT`; MARKETING → 403.
+
+**Testbook**: TB-GAM (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-IW-08, BO-14, BO-30 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 403, 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-GAM (con righe), TB-E2E (le sue righe citano la storia) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-62 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-14, BO-30 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-IW-08 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 7 righe legate alla storia, 7 eseguite dai test: TB-E2E-IW-001, TB-E2E-IW-002, TB-E2E-IW-003, TB-E2E-IW-004 e altri 3; 169 righe sulle feature o schermate della storia in TB-GAM, 169 eseguite: TB-GAM-PRZ-001, TB-GAM-PRZ-002, TB-GAM-PRZ-003 e altri 166 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e06-10" />
+
+## US-E06-10 · Fine del concorso
+
+> *Come* LEGAL, *voglio* che alla fine del periodo gli istanti non assegnati siano annullati e il concorso chiuso, *così che* il verbale sia completo.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-IW-01 · GAM-10, GAM-20 · `POST /v1/demo/jobs/close-contests?asOf=`.
+
+**Criteri di accettazione**
+
+1. **Dato** IW-AUTUNNO e `asOf` = +41 gg, **allora** ENDED e istanti OPEN → VOID.
+2. **Dato** un concorso PAUSED scaduto, **allora** non viene chiuso (ramo senza specifica).
+
+**Testbook**: TB-GAM (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-IW-01 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-GAM (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: IW-AUTUNNO |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-IW-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 170 righe sulle feature o schermate della storia in TB-GAM, 170 eseguite: TB-GAM-PLY-001, TB-GAM-PLY-002, TB-GAM-PLY-003 e altri 167 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e06-11" />
+
+## US-E06-11 · Vincitori, statistiche ed export
+
+> *Come* LEGAL, *voglio* l'elenco dei vincitori con stato di consegna ed export CSV, *così che* prepari il verbale.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-IW-07 · BO-14 (schede `winners`, `stats`) · `GET …/winners`, `…/winners.csv`, `…/stats`.
+
+**Criteri di accettazione**
+
+1. **Dato** IW-ESTATE, **allora** le 142 vincite storiche (Q-58) e il CSV con le stesse righe; tasso di vincita per giorno.
+
+**Testbook**: TB-GAM (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-IW-07, BO-14 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-GAM (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-58 |
+| R7 Dati demo | ✅ | in seed/: IW-ESTATE |
+| R8 Stati dell'interfaccia | ✅ | BO-14 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-IW-07 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 197 righe sulle feature o schermate della storia in TB-GAM, 197 eseguite: TB-GAM-PRZ-001, TB-GAM-PRZ-002, TB-GAM-PRZ-003 e altri 194 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e06-12" />
+
+## US-E06-12 · Configurare obiettivi e badge
+
+> *Come* MARKETING, *voglio* definire obiettivi (metrica, traguardo, periodo, ripetibilità) collegati a badge, *così che* il comportamento ripetuto sia premiato.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-ACH-01, F-ACH-03 · BO-15 · `POST/PUT /v1/achievements`, `/v1/badges` · GAM-17.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** una metrica sconosciuta o un traguardo ≤ 0, **allora** 422 `ACHIEVEMENT_INVALID`; badge senza nome 422 `BADGE_INVALID`; codice duplicato 409; LEGAL → 403.
+
+**Testbook**: TB-GAM (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-ACH-01, F-ACH-03, BO-15 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 403, 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-GAM (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-15 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-ACH-01, F-ACH-03 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 177 righe sulle feature o schermate della storia in TB-GAM, 177 eseguite: TB-GAM-PER-001, TB-GAM-PER-002, TB-GAM-PER-003 e altri 174 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e06-13" />
+
+## US-E06-13 · Progresso degli obiettivi
+
+> *Come* membro, *voglio* vedere il progresso verso un obiettivo e completarlo una volta sola (o una volta per periodo), *così che* sappia quanto manca.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D3)
+
+**Contesto reale**: Giulia a 2/3 acquisti del mese; Matteo a 5/7 giorni di login; Marco completa «Tutto digitale».
+
+**Tocca**: F-ACH-01, F-ACH-02 · PT-09, PT-01 (obiettivo più vicino) · GAM-15, GAM-16 · Q-59.
+
+**Decisioni**: membro non ACTIVE → ignorato · filtro · non ripetibile già completato → saltato · `achievement.progressed` solo al cambio · COUNT/SUM/DISTINCT_TYPES/STREAK · periodo MONTH/EDITION (⚠ DAY/WEEK trattati come EVER) · azioni interne solo se elencate.
+
+**Criteri di accettazione**
+
+1. **Dato** 3 acquisti nel mese, **allora** `ACH-3-PURCHASES-MONTH` completato una volta; il 4° non riemette (gamification §7).
+2. **Dato** login il 1°, 2° e 4° giorno, **allora** la serie riparte da 1 il 4°.
+3. **Dato** SUM su 45,90 €, **allora** +45.
+4. ⚠ Dato un obiettivo con periodo `WEEK`, **allora** oggi il progresso non si azzera a fine settimana.
+
+**Testbook**: TB-GAM (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-ACH-01, F-ACH-02, PT-09, PT-01 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-GAM (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-59 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-09, PT-01 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-ACH-01, F-ACH-02 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 177 righe sulle feature o schermate della storia in TB-GAM, 177 eseguite: TB-GAM-PER-001, TB-GAM-PER-002, TB-GAM-PER-003 e altri 174 |
+| D3 Nessuno scostamento aperto | ⬜ | 2 marcatori ⚠ (divergenza) |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e06-14" />
+
+## US-E06-14 · Badge
+
+> *Come* membro, *voglio* collezionare badge (da obiettivi o da campagne) e ottenere il bonus collegato, *così che* abbia un riconoscimento visibile.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-ACH-03 · PT-09 · effetto `badge.award`, fatto `badge.awarded` → ponte → `CMP-BADGE-BONUS` · GAM-14.
+
+**Criteri di accettazione**
+
+1. **Dato** `ebill.activated` + `directdebit.activated`, **allora** `ACH-DIGITAL` completato, badge assegnato, `badge.awarded` rientra come azione e `CMP-BADGE-BONUS` accredita 100 PTS (gamification §7).
+2. **Dato** un badge già posseduto, **allora** nessun secondo fatto né bonus.
+3. ✗ **Dato** un badge inesistente in un effetto, **allora** DLQ `BADGE_NOT_FOUND`.
+
+**Testbook**: TB-GAM (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-ACH-03, PT-09 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-GAM (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-09 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-ACH-03 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 48 righe sulle feature o schermate della storia in TB-GAM, 48 eseguite: TB-GAM-PRG-001, TB-GAM-PRG-002, TB-GAM-PRG-003 e altri 45 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e06-15" />
+
+## US-E06-15 · Classifiche
+
+> *Come* membro, *voglio* vedere la mia posizione in classifica con i nickname, *così che* competa senza esporre il mio nome.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-LDB-01 · BO-16, PT-10 · GAM-18 · Q-60.
+
+**Decisioni**: punteggi PTS/STS da `wallet.points.earned` (importo effettivo) o conteggio azioni · solo ACTIVE nel ranking · parimerito: chi prima · configurazione: 422 `LEADERBOARD_INVALID`, metrica/periodo non modificabili (409 `LEADERBOARD_LOCKED`).
+
+**Criteri di accettazione**
+
+1. **Dato** Roberto BLOCKED con punteggio alto, **allora** escluso dal ranking (Q-60).
+2. **Dato** due membri a pari punti, **allora** prima chi li ha raggiunti prima.
+3. **Dato** il portale, **allora** solo nickname; in BO-16 nickname e nome reale affiancati.
+4. ✗ **Dato** un cambio di metrica, **allora** 409 `LEADERBOARD_LOCKED`; top N 60 → 422.
+
+**Testbook**: TB-GAM (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-LDB-01, BO-16, PT-10 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-GAM (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-60 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-16, PT-10 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-LDB-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 62 righe sulle feature o schermate della storia in TB-GAM, 62 eseguite: TB-GAM-LDB-001, TB-GAM-LDB-002, TB-GAM-LDB-003 e altri 59 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e06-16" />
+
+## US-E06-16 · Registrarsi con il codice di un amico
+
+> *Come* nuovo membro invitato, *voglio* inserire il codice dell'amico alla registrazione, *così che* entrambi otteniamo il premio al mio primo acquisto.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-REF-01 · PT-08 (`/portal/join?ref=`), BO-02 · MBR-05, MBR-06 · Q-61.
+
+**Criteri di accettazione**
+
+1. **Dato** il codice di Marco, **allora** il legame è creato (invitante unico, non modificabile).
+2. ✗ **Dato** un codice inesistente o di un membro non ACTIVE, **allora** 422 `REFERRAL_CODE_INVALID` sul campo e nessun membro creato.
+3. **Dato** `REFERRAL_SELF` (member §5), **allora** non è raggiungibile alla registrazione (il codice nasce col membro).
+
+**Testbook**: TB-GAM (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-REF-01, PT-08, BO-02 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 422 |
+| R5 Dominio di testbook | ✅ | TB-GAM (con righe), TB-E2E (le sue righe citano la storia) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-61 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-08, BO-02 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-REF-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 9 righe legate alla storia, 9 eseguite dai test: TB-E2E-REG-001, TB-E2E-REG-002, TB-E2E-REG-003, TB-E2E-REG-004 e altri 5; 4 righe sulle feature o schermate della storia in TB-GAM, 4 eseguite: TB-GAM-REF-001, TB-GAM-REF-002, TB-GAM-REF-003 e altri 1 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e06-17" />
+
+## US-E06-17 · Completamento del referral
+
+> *Come* invitante, *voglio* ricevere il premio quando l'amico fa il primo acquisto, *così che* valga la pena invitare.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: Elisa (invitata da Marco) compra 45 €.
+
+**Tocca**: F-REF-02 · MBR-09 · EVT-FACT-08 → ponte → `CMP-REFERRAL-REFERRER/REFEREE`.
+
+**Criteri di accettazione**
+
+1. **Dato** Elisa al primo `purchase.completed`, **allora** due `referral.completed` con ruoli opposti e nessun altro ai successivi acquisti (member §7).
+2. **Dato** `SCN-REFERRAL`, **allora** Marco +500 PTS / +250 STS, Elisa +200 PTS.
+3. **Dato** l'undicesimo referral di Marco nell'edizione, **allora** `CMP-REFERRAL-REFERRER` è `LIMIT`.
+
+**Testbook**: TB-GAM (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-REF-02, EVT-FACT-08 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-GAM (con righe), TB-E2E (le sue righe citano la storia) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: SCN-REFERRAL |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-REF-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 6 righe legate alla storia, 6 eseguite dai test: TB-E2E-REF-001, TB-E2E-REF-002, TB-E2E-REF-003, TB-E2E-REF-004 e altri 2; 4 righe sulle feature o schermate della storia in TB-GAM, 4 eseguite: TB-GAM-REF-001, TB-GAM-REF-002, TB-GAM-REF-003 e altri 1 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e06-18" />
+
+## US-E06-18 · Panoramica referral
+
+> *Come* MARKETING, *voglio* vedere inviti, completati, tasso e top presentatori; *come* membro, i miei invitati, *così che* misuri il passaparola.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-REF-01/02 · BO-17, PT-11 · `GET /v1/referral/overview`, `/v1/members/{id}/referrals`, `/v1/portal/members/{id}/referral` · WEB-17 · Q-61.
+
+**Criteri di accettazione**
+
+1. **Dato** Marco, **allora** Elisa «iscritta» prima e «premio ottenuto» dopo il suo acquisto; «n di 10 inviti premiati» conta l'anno solare (Q-61).
+
+**Testbook**: TB-GAM (API) · TB-WEB.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-REF-01, BO-17, PT-11 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-GAM (con righe), TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-61 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-17, PT-11 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-REF-01, F-REF-02 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 5 righe sulle feature o schermate della storia in TB-GAM, TB-WEB, 5 eseguite: TB-GAM-REF-001, TB-GAM-REF-002, TB-GAM-REF-003 e altri 2 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

@@ -1,0 +1,294 @@
+---
+title: "E-F2-DIST · Distribuzione"
+sidebarTitle: "E-F2-DIST Distribuzione"
+description: "E-F2-DIST Distribuzione: un'azienda installa e aggiorna il prodotto da una sola immagine. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: un'azienda installa e aggiorna il prodotto da una sola immagine.
+
+**Attori**: installatore, ADMIN · **Feature**: F2-DIST-* · **Schermate**: HUB-02 · **Servizi**: tutti · **Testbook**: TB-DIST
+
+Questa epica ha 7 storie: 5 pronte secondo la Definition of Ready, 1 fatta secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-f2-dist-01" />
+
+## US-F2-DIST-01 · Immagine unica a ruoli
+
+> *Come* chi installa il prodotto, *voglio* una sola immagine multi-arch che avvia il ruolo scelto con `LH_ROLE` e `LH_MODE`, *così che* appliance, compose e Kubernetes usino lo stesso artefatto.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2)
+
+**Contesto reale**: il team IT di un'azienda che valuta il programma demo «Club Aurora» avvia prima `LH_ROLE=hub` verso il Postgres e il Kafka del compose, poi separa `web` e `idp` in container distinti.
+
+**Tocca**: F2-DIST-01 · ADR-037 · docs/18 §3.1 · `deploy/image/` · M8.1.
+
+**Decisioni**: `LH_ROLE` ∈ `all, hub, web, cms, idp, jobs` · `LH_SERVICES` vale col ruolo `hub` · `LH_MODE=embedded|external` · il profilo `demo` ospitato di Fase 1 è `LH_ROLE=hub LH_MODE=external LH_PROFILE=demo`, senza artefatti separati.
+
+**Criteri di accettazione**
+
+1. **Dato** l'immagine con `LH_MODE=external` verso Postgres e Kafka del compose, **quando** avvio i ruoli, **allora** sono tutti `UP`, le migrazioni sono applicate e lo smoke di Fase 1 è verde (docs/18 §6 M8, senza la parte «con login OIDC reale», che appartiene a [US-F2-IAM-03](/specifiche/backlog/e-f2-iam-identita#us-f2-iam-03)).
+2. **Dato** `LH_ROLE=hub` con una `PORT` ereditata dall'ambiente, **allora** l'hub risponde comunque su 8080 e lo smoke dell'immagine sulla PR è verde ([#84](https://github.com/peppe-ruv/Loyalty_Sys/pull/84)).
+3. **Dato** il container avviato, **allora** gira come utente non root, con filesystem in sola lettura e un healthcheck per ruolo (docs/18 §3.1, M8.1).
+4. **Dato** il servizio `web` del compose locale, **allora** parte dalla stessa immagine con `LH_ROLE=web` ([#122](https://github.com/peppe-ruv/Loyalty_Sys/pull/122)).
+
+**Testbook**: TB-DIST (dominio senza righe) · prove automatiche: `.github/workflows/image.yml`.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-DIST-01, ADR-037, docs/18 §3.1 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-DIST (dominio senza righe), 1 prova automatica |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F2-DIST-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#52](https://github.com/peppe-ruv/Loyalty_Sys/pull/52), [#113](https://github.com/peppe-ruv/Loyalty_Sys/pull/113), [#120](https://github.com/peppe-ruv/Loyalty_Sys/pull/120), [#122](https://github.com/peppe-ruv/Loyalty_Sys/pull/122) |
+| D2 Criteri provati | ⬜ | prove automatiche: image.yml (nessun job citato esiste in questo workflow: non è una prova) |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-dist-02" />
+
+## US-F2-DIST-02 · Chart Helm con operatori di default
+
+> *Come* chi installa su Kubernetes, *voglio* un chart con un Deployment per ruolo e operatori di default per Postgres e Kafka, *così che* un'installazione parta con un comando e usi i servizi gestiti quando li ho.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2, D3)
+
+**Contesto reale**: l'azienda installa «Club Aurora» su un cluster di prova con Strimzi e CloudNativePG, poi in produzione imposta `postgres.mode=external` verso il database gestito.
+
+**Tocca**: F2-DIST-02 · ADR-026, ADR-036, ADR-037 · docs/18 §3.1 · `deploy/helm/loyaltyhub` · M8.3.
+
+**Decisioni**: un Deployment per ruolo (`hub`, `web`, `idp`) · Strimzi e CloudNativePG di default, `postgres.mode` e `kafka.mode=external` per i servizi gestiti · migrazioni Flyway come Job · il chart non accetta i ruoli `cms` e `jobs`, la modalità `embedded` e forme dei topic impossibili · risorse Strimzi su `kafka.strimzi.io/v1` (Strimzi 0.51 o successivo).
+
+**Criteri di accettazione**
+
+1. **Dato** un cluster kind in CI, **quando** eseguo `helm install`, **allora** i pod di tutti i ruoli sono `Ready`, Strimzi e CloudNativePG sono provisionati e lo smoke è verde attraverso il gateway (docs/18 §6 M8, [#127](https://github.com/peppe-ruv/Loyalty_Sys/pull/127)).
+2. ✗ **Dato** un valore che chiede il ruolo `cms`, il ruolo `jobs` o la modalità `embedded`, **allora** il rendering del chart fallisce ([#95](https://github.com/peppe-ruv/Loyalty_Sys/pull/95)).
+3. ✗ **Dato** l'API Strimzi `v1beta2`, **allora** il chart la rifiuta ([#127](https://github.com/peppe-ruv/Loyalty_Sys/pull/127)).
+4. **Dato** ogni Pod del chart, **allora** ha sicurezza `restricted`, requests e limits e soli riferimenti a Secret esistenti, verificati da `check-helm` ([#95](https://github.com/peppe-ruv/Loyalty_Sys/pull/95)).
+5. **Dato** il profilo `enterprise`, **quando** installo su kind, **allora** pod `Ready` e smoke verde: ⚠ residuo dichiarato (Q-491, TOBE-008).
+
+**Testbook**: TB-DIST (dominio senza righe) · prove automatiche: `scripts/check-helm.mjs`, `.github/workflows/ci.yml` (job `helm install (kind)`).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-DIST-02, ADR-026, ADR-036, ADR-037, docs/18 §3.1 |
+| R3 Criteri di accettazione | ✅ | 5 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ |
+| R5 Dominio di testbook | ✅ | TB-DIST (dominio senza righe), job helm install (kind), 2 prove automatiche |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-491 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F2-DIST-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#95](https://github.com/peppe-ruv/Loyalty_Sys/pull/95), [#104](https://github.com/peppe-ruv/Loyalty_Sys/pull/104), [#127](https://github.com/peppe-ruv/Loyalty_Sys/pull/127) |
+| D2 Criteri provati | ⬜ | un criterio dichiara un residuo o una prova da fare: le prove citate non lo coprono; evidenza: prove automatiche: [check-helm.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/check-helm.mjs), [ci.yml](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/.github/workflows/ci.yml) (job helm install (kind)) |
+| D3 Nessuno scostamento aperto | ⬜ | 1 marcatore ⚠ (divergenza) |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-dist-03" />
+
+## US-F2-DIST-03 · Compose di riferimento
+
+> *Come* chi installa senza Kubernetes, *voglio* un compose con i ruoli in container separati e l'infrastruttura open source, *così che* provi un'installazione vicina alla produzione su una sola macchina.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: un sistemista prova «Club Aurora» su una macchina virtuale con `deploy/compose/reference.yml` prima di scegliere il chart.
+
+**Tocca**: F2-DIST-03 · ADR-037 · docs/18 §3.1 · `deploy/compose/reference.yml` · M8.3.
+
+**Decisioni**: servizi `postgres`, `kafka` (KRaft), `migrate`, `hub`, `web`, `idp` dall'immagine unica · sola lettura, nessuna capability, segreti obbligatori · healthcheck espliciti con `depends_on` sullo stato sano · stesse immagini di Kafka, Postgres e Keycloak del chart e del compose locale, con tag e digest.
+
+**Criteri di accettazione**
+
+1. **Dato** il compose di riferimento, **quando** lo avvio, **allora** `hub`, `web` e `idp` diventano sani solo dopo Postgres, Kafka e le migrazioni ([#95](https://github.com/peppe-ruv/Loyalty_Sys/pull/95)).
+2. ✗ **Dato** un segreto obbligatorio non impostato, **allora** il compose non parte ([#95](https://github.com/peppe-ruv/Loyalty_Sys/pull/95)).
+3. **Dato** il chart, il compose di riferimento e il compose locale, **allora** le immagini di Kafka, Postgres e Keycloak coincidono, verificate da `check-helm` ([#113](https://github.com/peppe-ruv/Loyalty_Sys/pull/113), [#122](https://github.com/peppe-ruv/Loyalty_Sys/pull/122)).
+
+**Testbook**: TB-DIST (dominio senza righe) · prove automatiche: `scripts/check-helm.mjs`.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-DIST-03, ADR-037, docs/18 §3.1 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-DIST (dominio senza righe), 1 prova automatica |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F2-DIST-03 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#95](https://github.com/peppe-ruv/Loyalty_Sys/pull/95), [#104](https://github.com/peppe-ruv/Loyalty_Sys/pull/104), [#113](https://github.com/peppe-ruv/Loyalty_Sys/pull/113), [#122](https://github.com/peppe-ruv/Loyalty_Sys/pull/122) |
+| D2 Criteri provati | ✅ | prove automatiche: [check-helm.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/check-helm.mjs) |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-dist-04" />
+
+## US-F2-DIST-04 · Modalità embedded
+
+> *Come* chi valuta il prodotto, *voglio* avviare tutto in un solo container con un volume, *così che* lo provi senza installare Postgres né Kafka.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: un responsabile marketing prova «Club Aurora» sul portatile con `docker run -p 8080:8080 -v lh-data:/var/lib/lh`.
+
+**Tocca**: F2-DIST-04 · ADR-037, ADR-024 · docs/18 §3.1 · M12.1.
+
+**Decisioni**: `LH_MODE=embedded` = Postgres in-process con tre database (`lh`, `cms`, `idp`), bus in-process, asset sul volume `/var/lib/lh` · solo valutazione e piccoli programmi: non è HA e lo dichiara (regola 8-bis).
+
+**Criteri di accettazione**
+
+1. **Dato** `docker run -p 8080:8080 -v lh-data:/var/lib/lh` con l'immagine di una versione, **allora** entro 3 minuti il wizard è raggiungibile, il programma «Club Aurora» è importabile e lo smoke è verde (docs/18 §6 M12).
+2. **Dato** `lh backup` e poi `lh restore` su un'installazione pulita, **allora** i dati sono gli stessi (test in CI, docs/18 §6 M12).
+
+**Testbook**: TB-DIST (da scrivere con M12).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-DIST-04, ADR-037, ADR-024, docs/18 §3.1 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-DIST (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-DIST-04 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-dist-05" />
+
+## US-F2-DIST-05 · CLI `lh`
+
+> *Come* chi gestisce l'installazione, *voglio* una CLI con `init`, `doctor`, `migrate`, `config validate`, `backup` e `restore`, *così che* le operazioni ricorrenti siano comandi ripetibili e non procedure a mano.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: prima di aggiornare «Club Aurora», il sistemista esegue `lh doctor`, poi `lh backup`, poi `lh migrate`.
+
+**Tocca**: F2-DIST-05 · ADR-037, ADR-038 · docs/18 §3.1, §3.15 · M12.2.
+
+**Decisioni**: comandi `init`, `doctor`, `migrate`, `config validate`, `package import/export`, `backup`, `restore`, `a11y-report` (docs/18 §3.1).
+
+**Criteri di accettazione**
+
+1. **Dato** `lh backup` e poi `lh restore` su un'installazione pulita, **allora** i dati sono gli stessi (test in CI, docs/18 §6 M12).
+2. **Dato** un backup precedente a un'anonimizzazione, **quando** eseguo `lh restore`, **allora** il registro delle cancellazioni è riapplicato e i dati di quel membro non tornano (docs/18 §3.15 punto 4).
+3. Gli altri comandi: criteri da scrivere con la fetta.
+
+**Testbook**: TB-DIST (da scrivere con M12).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-DIST-05, ADR-037, ADR-038, docs/18 §3.1 |
+| R3 Criteri di accettazione | ⬜ | 2 criteri Dato/Quando/Allora, altri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-DIST (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-DIST-05 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-dist-06" />
+
+## US-F2-DIST-06 · Wizard di primo avvio
+
+> *Come* chi installa, *voglio* un wizard al primo avvio che crea l'amministratore e il programma e, se voglio, importa un package, *così che* il prodotto sia usabile senza modificare file di configurazione.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: dopo il `docker run`, l'installatore apre il browser, crea l'account dell'amministratore e importa il package «Club Aurora».
+
+**Tocca**: F2-DIST-06 · ADR-037 · docs/18 §3.1 · M12.3.
+
+**Decisioni**: amministratore, programma, lingue, profilo e package facoltativo; segreti generati e stampati una sola volta (M12.3).
+
+**Criteri di accettazione**
+
+1. **Dato** un'installazione `embedded` appena avviata, **allora** entro 3 minuti il wizard è raggiungibile e il programma «Club Aurora» è importabile (docs/18 §6 M12).
+2. Gli altri passi del wizard: criteri da scrivere con la fetta.
+
+**Testbook**: TB-DIST (da scrivere con M12).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-DIST-06, ADR-037, docs/18 §3.1 |
+| R3 Criteri di accettazione | ⬜ | 1 criterio Dato/Quando/Allora, altri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-DIST (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-DIST-06 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-dist-08" />
+
+## US-F2-DIST-08 · Rilascio firmato e aggiornamento N−1 → N
+
+> *Come* chi installa, *voglio* immagini firmate con SBOM, note di sicurezza e un percorso di aggiornamento garantito, *così che* verifichi cosa installo e aggiorni senza sorprese.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: prima di aggiornare «Club Aurora» alla versione successiva, il team sicurezza dell'azienda verifica la firma cosign e lo SBOM dell'immagine.
+
+**Tocca**: F2-DIST-08 · ADR-038 · docs/18 §3.10 punto 10, §3.15 punto 6 · M8.5, M12.4, M12.5.
+
+**Decisioni**: semver, changelog, note di sicurezza, chart pubblicato in OCI, immagini per tag (M12.4) · aggiornamento N−1 → N con dati e verifica delle invarianti (M12.5).
+
+**Criteri di accettazione**
+
+1. **Dato** un rilascio, **allora** la pipeline produce un'immagine firmata con SBOM e la scansione non trova CVE alte (docs/18 §6 M8).
+2. **Dato** l'aggiornamento dalla versione precedente su Helm, **allora** il portale non si ferma: expand/contract verificato (docs/18 §6 M12).
+3. **Dato** il rilascio v1.0, **allora** ha SBOM, VEX e provenienza SLSA verificabile (docs/18 §6 M12).
+
+**Testbook**: TB-DIST (da scrivere con M8.5 e M12).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-DIST-08, ADR-038, docs/18 §3.10 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-DIST (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-DIST-08 (da fare) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

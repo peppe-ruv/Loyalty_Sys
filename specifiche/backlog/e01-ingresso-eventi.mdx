@@ -1,0 +1,568 @@
+---
+title: "E01 · Ingresso eventi"
+sidebarTitle: "E01 Ingresso eventi"
+description: "E01 Ingresso eventi: ogni fatto del cliente diventa un'azione canonica, una sola volta, per il membro giusto. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: ogni fatto del cliente diventa un'azione canonica, una sola volta, per il membro giusto.
+
+**Attori**: fonti, CARE, ADMIN, MARKETING · **Feature**: F-ING-01…10 · **Schermate**: BO-09, BO-26 · **Servizi**: ingestion · **Testbook**: TB-ING
+
+Questa epica ha 14 storie, di cui 1 fuori perimetro: 12 pronte secondo la Definition of Ready, 10 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-e01-01" />
+
+## US-E01-01 · Una fonte invia un'azione valida
+
+> *Come* sistema e-commerce, *voglio* inviare l'ordine appena pagato come CloudEvent, *così che* il cliente riceva i punti senza che io conosca le regole del programma.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: sabato sera Marco paga online 130 €; l'e-commerce invia `purchase.completed` con `subject=email:Marco.Bianchi@example.org` e `type` breve.
+
+**Tocca**: F-ING-01, F-ING-03 · `POST /v1/events` · EVT-ACT-01 su `lh.actions.v1` · BO-26 · ING-01…ING-08, ING-22.
+
+**Decisioni**: tipo breve o completo → normalizzato · subject `member:`/`external:`/`email:` (e-mail senza maiuscole) → `member:<id>` · esito `ACCEPTED` → 202 `{eventId, status, memberId}`, `lhhop=0`, `lhcorrelationid=id`, chiave Kafka = memberId.
+
+**Criteri di accettazione**
+
+1. **Dato** un evento valido per MBR-000002, **quando** lo invio, **allora** 202 `ACCEPTED` e un record su `lh.actions.v1` con chiave `MBR-000002` e `lhhop=0` (ingestion §7).
+2. **Dato** `subject=email:MARCO.BIANCHI@example.org`, **allora** l'evento è attribuito a MBR-000002; con `external:CRM-102` idem.
+3. **Dato** `type=purchase.completed` oppure `io.loyaltyhub.action.purchase.completed`, **allora** esito identico e `type` pubblicato in forma completa.
+4. **Dato** un evento accettato, **allora** la riga BO-26 ha `origin=EXTERNAL`, membro risolto e collegamento al tracciato.
+
+**Testbook**: TB-ING (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-ING-01, F-ING-03, EVT-ACT-01, BO-26 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: MBR-000002 |
+| R8 Stati dell'interfaccia | ✅ | BO-26 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-ING-01, F-ING-03 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 49 righe legate alla storia, 49 eseguite dai test: TB-ING-MBR-001, TB-ING-MBR-002, TB-ING-MBR-003, TB-ING-MBR-004 e altri 45; 93 righe sulle feature o schermate della storia in TB-ING, 93 eseguite: TB-ING-FRM-001, TB-ING-FRM-002, TB-ING-FRM-003 e altri 90 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e01-02" />
+
+## US-E01-02 · Un evento malformato viene respinto senza traccia
+
+> *Come* integratore di una nuova fonte, *voglio* un 400 chiaro quando l'envelope è sbagliato, *così che* corregga l'integrazione prima di andare in produzione.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: il partner dei sondaggi manda `time` come «24/09/2026» o dimentica `data`.
+
+**Tocca**: F-ING-01 · `POST /v1/events` · ING-01 · errori RFC 9457.
+
+**Decisioni**: passo 1 della pipeline → 400 per `specversion` ≠ `1.0`, campo obbligatorio vuoto (`id, source, type, subject, time`), `data` nullo, `time` non RFC 3339; nulla salvato, nulla pubblicato.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** `specversion: "0.3"`, **allora** 400 `BAD_REQUEST` e nessuna riga in BO-26.
+2. ✗ **Dato** un evento senza `subject` (o con `subject` di soli spazi), **allora** 400 con il campo indicato nel `detail`.
+3. ✗ **Dato** `data: null`, **allora** 400; dato `time: "24/09/2026"`, **allora** 400.
+4. **Dato** un corpo con `content-type: application/cloudevents+json`, **allora** è accettato come `application/json`.
+
+**Testbook**: TB-ING (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-ING-01 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 3 criteri ✗ per 400 |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-ING-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 29 righe sulle feature o schermate della storia in TB-ING, 29 eseguite: TB-ING-FRM-001, TB-ING-FRM-002, TB-ING-FRM-003 e altri 26 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e01-03" />
+
+## US-E01-03 · Rifiuti di business (fonte, tipo, dati, tempo)
+
+> *Come* responsabile delle integrazioni, *voglio* che un evento non ammissibile sia registrato come `REJECTED` con un codice, *così che* la fonte non ritenti e io veda il motivo in BO-26.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: un vecchio POS (`pos-legacy`) continua a inviare; un'app manda `amount` negativo; un batch notturno rimanda ordini di 40 giorni fa; un'azione arriva con l'orologio del client avanti di 10 minuti.
+
+**Tocca**: F-ING-01, F-ING-05, F-ING-06 · ING-02…ING-05, ING-23 · `SCN-BAD-EVENT` · Q-129.
+
+**Decisioni**: ordine fisso, primo fallimento vince: fonte inesistente/spenta → `SOURCE_DISABLED` · tipo inesistente/spento → `UNKNOWN_TYPE` · tipo non ammesso dalla fonte (elenco non vuoto) → `TYPE_NOT_ALLOWED` · `data` contro schema → `INVALID_DATA` · `time` > +5 min o &lt; −30 gg → `INVALID_TIME`. Tutti 202 con `status=REJECTED`.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** `source=pos-legacy`, **allora** 202 `REJECTED/SOURCE_DISABLED` e riga in BO-26 (Q-129).
+2. ✗ **Dato** `purchase.completed` senza `data.amount`, **allora** `REJECTED/INVALID_DATA` con il campo indicato (ingestion §7).
+3. ✗ **Dato** `time` = adesso + 6 min, **allora** `INVALID_TIME`; dato adesso + 5 min esatti, **allora** prosegue.
+4. ✗ **Dato** un evento con fonte spenta **e** dati non validi, **allora** il codice è `SOURCE_DISABLED` (ordine della pipeline).
+5. **Dato** un tipo senza JSON Schema, **allora** il passo 4 non respinge (ramo senza specifica, ING-04).
+
+**Testbook**: TB-ING (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-ING-01, F-ING-05, F-ING-06 |
+| R3 Criteri di accettazione | ✅ | 5 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 4 criteri ✗ |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-129 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-ING-01, F-ING-05, F-ING-06 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#108](https://github.com/peppe-ruv/Loyalty_Sys/pull/108), [#109](https://github.com/peppe-ruv/Loyalty_Sys/pull/109) |
+| D2 Criteri provati | ✅ | 88 righe legate alla storia, 88 eseguite dai test: TB-ING-PIP-001, TB-ING-PIP-002, TB-ING-PIP-003, TB-ING-PIP-004 e altri 84; 224 righe sulle feature o schermate della storia in TB-ING, 224 eseguite: TB-ING-FRM-001, TB-ING-FRM-002, TB-ING-FRM-003 e altri 221 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e01-04" />
+
+## US-E01-04 · Deduplica: lo stesso evento non paga due volte
+
+> *Come* membro, *voglio* che un ordine rinviato dalla fonte non mi dia punti doppi, *così che* il saldo sia giusto; *come* azienda, *voglio* non pagare due volte.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: l'e-commerce va in timeout sulla risposta e ritenta lo stesso evento dopo 30 s; due repliche dell'integrazione inviano lo stesso id nello stesso istante.
+
+**Tocca**: F-ING-02 · ING-06 · `SCN-DUPLICATE` (Q-130) · RNF-03.
+
+**Decisioni**: esiste un `ACCEPTED` con stessa fonte+id → `DUPLICATE` (riga salvata, nulla sul topic) · un precedente `REJECTED/UNMATCHED` non blocca · gara sull'insert → `DUPLICATE`.
+
+**Criteri di accettazione**
+
+1. **Dato** lo stesso `source`+`id` inviato due volte, **allora** la seconda risposta è 202 `DUPLICATE` e su Kafka c'è un solo record (docs/12 M0).
+2. **Dato** lo stesso `id` da due fonti diverse, **allora** entrambi `ACCEPTED`.
+3. **Dato** un primo invio `REJECTED/INVALID_DATA` e un secondo corretto con lo stesso id, **allora** il secondo è `ACCEPTED`.
+4. **Dato** due invii concorrenti, **allora** esattamente un `ACCEPTED` e un `DUPLICATE`.
+5. **Dato** `SCN-DUPLICATE` eseguito due volte, **allora** ogni esecuzione ha un `ACCEPTED` e un `DUPLICATE` (Q-130).
+
+**Testbook**: TB-ING (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-ING-02, RNF-03 |
+| R3 Criteri di accettazione | ✅ | 5 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-130 |
+| R7 Dati demo | ✅ | in seed/: SCN-DUPLICATE |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-ING-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 38 righe legate alla storia, 38 eseguite dai test: TB-ING-DUP-001, TB-ING-DUP-002, TB-ING-DUP-003, TB-ING-DUP-004 e altri 34; 135 righe sulle feature o schermate della storia in TB-ING, 135 eseguite: TB-ING-PIP-001, TB-ING-PIP-002, TB-ING-PIP-003 e altri 132 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e01-05" />
+
+## US-E01-05 · Membro sconosciuto o non attivo
+
+> *Come* responsabile del programma, *voglio* che gli eventi di un cliente non iscritto vengano parcheggiati e quelli di un membro sospeso respinti, *così che* nessuno accumuli fuori regola ma nessun evento vada perso.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: un cliente acquista in negozio prima di iscriversi; l'assistenza ha sospeso Roberto (BLOCKED) che continua a comprare; un membro anonimizzato riceve ancora eventi dal CRM.
+
+**Tocca**: F-ING-03, F-ING-04, F-MBR-04 · ING-07 · Q-128.
+
+**Decisioni**: membro non trovato → `UNMATCHED` · stato ≠ ACTIVE → `REJECTED/MEMBER_NOT_ACTIVE` · anonimizzato: `member:` → `MEMBER_NOT_ACTIVE`, `email:`/`external:` → `UNMATCHED` (Q-128) · subject senza prefisso o con prefisso sconosciuto → `UNMATCHED` (Q-255).
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** Roberto (MBR-000008, BLOCKED), **quando** invio un acquisto, **allora** `REJECTED/MEMBER_NOT_ACTIVE`, niente sul topic, riga in BO-26 (docs/12 M1).
+2. **Dato** `subject=external:CRM-999` inesistente, **allora** `UNMATCHED` (parcheggiato).
+3. ✗ **Dato** MBR-000012 (ANONYMIZED) con `member:MBR-000012`, **allora** `MEMBER_NOT_ACTIVE`.
+4. **Dato** un membro INACTIVE, **allora** `MEMBER_NOT_ACTIVE`.
+5. **Dato** `subject=MBR-000002` (senza prefisso), **allora** `UNMATCHED`, recuperabile con *Abbina* (Q-255).
+
+**Testbook**: TB-ING (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-ING-03, F-ING-04, F-MBR-04 |
+| R3 Criteri di accettazione | ✅ | 5 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 decisa o superata; 1 aperta con default in uso (SPEC-GAP): Q-128 |
+| R7 Dati demo | ✅ | in seed/: MBR-000002 |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-ING-03, F-ING-04, F-MBR-04 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 39 righe legate alla storia, 39 eseguite dai test: TB-ING-MBR-001, TB-ING-MBR-002, TB-ING-MBR-003, TB-ING-MBR-004 e altri 35; 205 righe sulle feature o schermate della storia in TB-ING, 205 eseguite: TB-ING-PIP-001, TB-ING-PIP-002, TB-ING-PIP-003 e altri 202 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e01-06" />
+
+## US-E01-06 · Abbinamento automatico alla registrazione
+
+> *Come* nuovo iscritto, *voglio* ritrovare i punti degli acquisti fatti prima di iscrivermi (ultimi giorni), *così che* l'iscrizione non mi faccia perdere nulla.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D3)
+
+**Contesto reale**: martedì Luca compra con la carta fedeltà ma non è ancora nel programma (`external:CRM-200`); giovedì si registra con quell'externalId.
+
+**Tocca**: F-ING-04 · `member.registered` · ING-13, ING-14 · Q-115, Q-116, Q-119 · CMP-01 (⛔ ritentativo NO_MEMBER).
+
+**Decisioni**: solo a `member.registered` e solo subject `external:`/`email:` (mai `member:`) · finestra 7 gg, max 100 righe · riga già risolta → saltata · esito ACCEPTED per quel membro → `AUTO_MATCH` + outbox · altro esito → riga resta `UNMATCHED`.
+
+**Criteri di accettazione**
+
+1. **Dato** un `UNMATCHED` di 3 giorni fa con `external:CRM-200`, **quando** si registra il membro con quell'externalId, **allora** la riga diventa `ACCEPTED` (risoluzione `AUTO_MATCH`, audit come job) e l'azione arriva al motore.
+2. ✗ **Dato** un `UNMATCHED` di 8 giorni fa, **allora** resta `UNMATCHED`.
+3. ✗ **Dato** un `UNMATCHED` con `member:MBR-000099`, **allora** non si abbina mai automaticamente.
+4. ✗ **Dato** un evento parcheggiato la cui fonte nel frattempo è stata spenta, **allora** la riga resta `UNMATCHED` (Q-116).
+5. **Dato** il fatto `member.registered` riconsegnato, **allora** nessuna seconda pubblicazione.
+6. ⛔ **Dato** un'azione accettata prima che lo snapshot del membro arrivi al motore, **allora** oggi è `NO_MEMBER` subito (campaign §5 chiede 3 ritentativi).
+
+**Testbook**: TB-ING (da coprire); il punto 6 in TB-CMP.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-ING-04 |
+| R3 Criteri di accettazione | ✅ | 6 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 3 criteri ✗ |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe), TB-CMP (con righe), TB-E2E (le sue righe citano la storia) |
+| R6 Dipendenze e domande | ✅ | 3 aperte con default in uso (SPEC-GAP): Q-115, Q-116, Q-119 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-ING-04 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 69 righe legate alla storia, 69 eseguite dai test: TB-E2E-REG-001, TB-E2E-REG-002, TB-E2E-REG-003, TB-E2E-REG-004 e altri 65; 174 righe sulle feature o schermate della storia in TB-ING, 174 eseguite: TB-ING-PIP-001, TB-ING-PIP-002, TB-ING-PIP-003 e altri 171 |
+| D3 Nessuno scostamento aperto | ⬜ | 2 marcatori ⛔ (regola senza codice) |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e01-07" />
+
+## US-E01-07 · L'assistenza riprova o abbina un ingresso
+
+> *Come* operatore CARE, *voglio* riprovare un evento respinto dopo aver corretto la causa, o abbinare a mano un evento non abbinato, *così che* il cliente ottenga i punti che gli spettano.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: un cliente chiama: «ho comprato ieri ma non ho punti»; in BO-26 l'evento è `UNMATCHED` perché la cassa ha usato un'e-mail vecchia.
+
+**Tocca**: F-ING-04, F-ING-09 · BO-26 · `POST /v1/inbound-events/{id}/retry|match` · ING-11, ING-12, ING-22, WEB-09 · Q-114, Q-117, Q-118.
+
+**Decisioni**: *Riprova* solo `REJECTED/UNMATCHED` (altri → 409 `INBOUND_NOT_RETRYABLE`) · *Abbina* solo `UNMATCHED` (409 `INBOUND_NOT_UNMATCHED`) · `memberId` vuoto → 422 `MEMBER_REQUIRED` · inesistente → 422 `MEMBER_NOT_FOUND` · non attivo → 422 `MEMBER_NOT_ACTIVE` · rivalutazione ACCEPTED → riga aggiornata + outbox · altro esito → nuovo esito sulla stessa riga · accettato altrove → `DUPLICATE` · audit `TRANSITION` · ruoli ADMIN, CARE.
+
+**Criteri di accettazione**
+
+1. **Dato** un `UNMATCHED`, **quando** CARE lo abbina a MBR-000002, **allora** la riga diventa `ACCEPTED` (`MANUAL_MATCH`), l'azione arriva al motore con lo **stesso** id e compare una voce di audit.
+2. ✗ **Dato** un `ACCEPTED`, **quando** riprovo, **allora** 409 `INBOUND_NOT_RETRYABLE` e nessuna ripubblicazione.
+3. ✗ **Dato** l'abbinamento a Roberto (BLOCKED), **allora** 422 `MEMBER_NOT_ACTIVE`.
+4. ✗ **Dato** un `REJECTED/SOURCE_DISABLED` riprovato con la fonte ancora spenta, **allora** la riga resta `REJECTED` con lo stesso codice.
+5. ✗ **Dato** MARKETING o ANALYST, **allora** i pulsanti sono disabilitati e l'API risponde 403.
+6. **Dato** due *Riprova* concorrenti, **allora** una sola pubblicazione.
+
+**Testbook**: TB-ING (da coprire); pulsanti in TB-WEB.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-ING-04, F-ING-09, BO-26 |
+| R3 Criteri di accettazione | ✅ | 6 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 4 criteri ✗ per 403, 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe), TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | 3 aperte con default in uso (SPEC-GAP): Q-114, Q-117, Q-118 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-26 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-ING-04, F-ING-09 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 56 righe legate alla storia, 56 eseguite dai test: TB-ING-RES-001, TB-ING-RES-002, TB-ING-RES-003, TB-ING-RES-004 e altri 52; 202 righe sulle feature o schermate della storia in TB-ING, TB-WEB, 202 eseguite: TB-ING-PIP-001, TB-ING-PIP-002, TB-ING-PIP-003 e altri 199 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e01-08" />
+
+## US-E01-08 · Transazioni d'acquisto e resi
+
+> *Come* sistema di cassa, *voglio* inviare un ordine con le righe (e il reso) senza costruire un CloudEvent, *così che* l'integrazione sia semplice.
+
+**DoR**: ⬜ non pronta (R4) · **DoD**: ✅ fatta
+
+**Contesto reale**: il gestionale del negozio chiude lo scontrino e chiama `POST /v1/transactions`; tre giorni dopo il cliente rende la merce.
+
+**Tocca**: F-ING-07, F-CMP-14 (P2) · ING-19 · Q-49.
+
+**Decisioni**: 400 corpo o campi mancanti (`source`, `orderId`, `memberRef`) · `amount`/`currency` mancanti → `202 REJECTED/INVALID_DATA` dello schema, visibile in BO-26 (Q-269) · `kind` ∉ PURCHASE/RETURN → 400 · PURCHASE → `purchase.completed`, `id=txn-<orderId>` · RETURN → `purchase.returned`, `id=txn-return-<orderId>` · poi la pipeline normale.
+
+**Criteri di accettazione**
+
+1. **Dato** un ordine ORD-1 per `external:CRM-102`, **allora** 202 `ACCEPTED` con `eventId=txn-ORD-1`.
+2. **Dato** lo stesso ordine rinviato, **allora** `DUPLICATE` (id deterministico).
+3. **Dato** un ordine senza `currency`, **allora** `REJECTED/INVALID_DATA` (Q-269); dato `kind=REFUND`, **allora** 400.
+4. **Dato** un reso, **allora** `purchase.returned` accettato ma nessuno storno di punti (F-CMP-14 fuori perimetro, [US-E03-18](/specifiche/backlog/e03-campagne-e-motore-regole#us-e03-18)).
+
+**Testbook**: TB-ING (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-ING-07, F-CMP-14 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ⬜ | risposte d'errore (400) senza criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 decisa o superata; 1 aperta con default in uso (SPEC-GAP): Q-49 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-ING-07 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 28 righe legate alla storia, 28 eseguite dai test: TB-ING-TXN-001, TB-ING-TXN-002, TB-ING-TXN-003, TB-ING-TXN-004 e altri 24 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e01-09" />
+
+## US-E01-09 · Ponte interno: i fatti diventano azioni
+
+> *Come* responsabile marketing, *voglio* premiare accadimenti interni (salita di livello, vincita, badge, referral, premio riscattato) con le stesse campagne, *così che* tutto sia «un'azione premiante».
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2)
+
+**Contesto reale**: Giulia sale a GOLD; il fatto `tier.upgraded` rientra come azione e `CMP-TIER-UP-BONUS` le dà 500 PTS, nello stesso tracciato.
+
+**Tocca**: F-ING-08, F-IW-06 · ING-15 · docs/05 §7 · EVT-ACT-20…28 · `LOOP_GUARD`.
+
+**Decisioni**: solo i 9 fatti mappabili · mappatura spenta → nessuna azione · `lhhop+1 > 3` → DLQ `LOOP_GUARD` · azione con nuovo id, `source=internal`, stesso subject/time/correlazione, causazione = fatto, hop + 1 · nessun controllo sullo stato del membro (lo fa il motore).
+
+**Criteri di accettazione**
+
+1. **Dato** il fatto `tier.upgraded`, **allora** compare `action.tier.upgraded` con `source=…:internal`, stesso `lhcorrelationid`, `lhhop=1` (ingestion §7).
+2. ✗ **Dato** un fatto mappato con `lhhop=3`, **allora** l'azione non è pubblicata e c'è un record DLQ `LOOP_GUARD` (ingestion §7, docs/12 M3).
+3. **Dato** il ponte `contest.won` spento da BO-09, **allora** la vincita non consegna punti (nessuna azione) e il fatto è comunque consumato.
+4. **Dato** `SCN-TIER-UP`, **allora** nel tracciato c'è **un solo albero** (docs/12 M3).
+
+**Testbook**: TB-ING (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-ING-08, F-IW-06, docs/05 §7, EVT-ACT-20 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: CMP-TIER-UP-BONUS, SCN-TIER-UP |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-ING-08, F-IW-06 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e01-10" />
+
+## US-E01-10 · L'amministratore governa il ponte
+
+> *Come* ADMIN, *voglio* accendere o spegnere una mappatura fatto → azione, *così che* possa fermare un premio interno che crea problemi senza rilasciare codice.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: una campagna sui badge sta pagando troppo: Marta spegne `badge.awarded → action.badge.awarded`.
+
+**Tocca**: F-ING-08 · BO-09 (scheda *Ponte*) · `PUT /v1/internal-mappings/{factType}` · ING-16, ING-22.
+
+**Decisioni**: famiglia vietata (`wallet.points.*`, `wallet.spend.*`, `campaign.*`, `message.*`, `*.status.changed`) → 422 `INTERNAL_MAPPING_FORBIDDEN` · `enabled` assente → 422 `ENABLED_REQUIRED` · inesistente → 404 · ok → audit · solo ADMIN.
+
+**Criteri di accettazione**
+
+1. **Dato** ADMIN che spegne `badge.awarded`, **allora** `GET /v1/internal-mappings` lo mostra spento e c'è una voce di audit.
+2. ✗ **Dato** `PUT …/fact.wallet.points.earned`, **allora** 422 `INTERNAL_MAPPING_FORBIDDEN`.
+3. ✗ **Dato** MARKETING, **allora** 403.
+
+**Testbook**: TB-ING (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-ING-08, BO-09 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 403, 404, 422 |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-09 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-ING-08 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 1 riga sulle feature o schermate della storia in TB-ING, 1 eseguita: TB-ING-FON-002 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e01-11" />
+
+## US-E01-11 · Gestione delle fonti ⛔
+
+> *Come* ADMIN, *voglio* disabilitare una fonte o restringerne i tipi ammessi da BO-09, *così che* un sistema che invia dati errati venga fermato subito.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D3)
+
+**Contesto reale**: il partner dei sondaggi invia duplicati a raffica: Marta spegne `partner`.
+
+**Tocca**: F-ING-05 · BO-09 (scheda *Fonti*, interruttore) · ING-02, ING-03, ING-22 (`PUT /v1/sources/{code}`; ⛔ `POST /v1/sources` assente).
+
+**Decisioni**: fonte spenta → `SOURCE_DISABLED`; tipi ammessi → `TYPE_NOT_ALLOWED`; `PUT /v1/sources/{code}` `{enabled?, allowedTypes?}` solo ADMIN (`program.config`), audit `UPDATE`; corpo vuoto o tipo sconosciuto → 422 `SOURCE_INVALID`; fonte inesistente → 404.
+
+**Criteri di accettazione**
+
+1. **Dato** ADMIN, **quando** spegne una fonte da BO-09, **allora** gli eventi successivi sono `REJECTED/SOURCE_DISABLED`.
+2. ✗ **Dato** MARKETING, **allora** la modifica è negata (403).
+3. ⛔ **Dato** ADMIN, **quando** vuole aggiungere una fonte nuova, **allora** oggi non può (`POST /v1/sources` assente).
+
+**Testbook**: TB-ING (da coprire; 3 in divergenza finché l'API manca).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-ING-05, BO-09 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 403, 404, 422 |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-09 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-ING-05 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 4 righe legate alla storia, 4 eseguite dai test: TB-ING-FON-001, TB-ING-FON-002, TB-ING-FON-003, TB-ING-FON-004; 121 righe sulle feature o schermate della storia in TB-ING, 121 eseguite: TB-ING-PIP-001, TB-ING-PIP-002, TB-ING-PIP-003 e altri 118 |
+| D3 Nessuno scostamento aperto | ⬜ | 3 marcatori ⛔ (regola senza codice) |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e01-12" />
+
+## US-E01-12 · Tipi azione custom
+
+> *Come* MARKETING, *voglio* creare un nuovo tipo azione con i suoi campi, *così che* possa premiarlo con una campagna senza rilasciare codice.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: arriva un nuovo servizio «lettura contatore via smart meter»: Luca crea `meter.reading.sent` con `meterId` obbligatorio.
+
+**Tocca**: F-ING-06 · BO-09, BO-06, BO-28 · `POST/PUT /v1/event-types`, `GET …/fields` · ING-17, ING-18 · Q-89, Q-439, Q-440 · docs/12 M6.
+
+**Decisioni**: codice minuscolo a punti 2–4 parti ≤ 60, prima parte diversa da `io` e `loyaltyhub` (Q-439) · nome ≤ 60 · categoria TRANSACTION/ENGAGEMENT/SERVICE · schema `object` · esempio valido → altrimenti 422 `EVENT_TYPE_INVALID` · duplicato, anche da una creazione simultanea, → 409 `EVENT_TYPE_EXISTS` senza sovrascrivere e senza audit (creazione atomica, Q-440) · codice diverso in modifica → 422 `EVENT_TYPE_IMMUTABLE_FIELD` · tipo di sistema: solo ADMIN (altri 403), solo nome/descrizione/icona/abilitazione (altrimenti 422 `EVENT_TYPE_SYSTEM_LOCKED`).
+
+**Criteri di accettazione**
+
+1. **Dato** un tipo custom creato da BO-09, **allora** è inviabile da BO-28, selezionabile in BO-06 con i suoi campi e produce punti senza ridistribuire nulla (docs/12 M6).
+2. ✗ **Dato** il codice `Meter_Reading`, **allora** 422 con errore sul campo `code`.
+3. ✗ **Dato** MARKETING che modifica `purchase.completed`, **allora** 403; dato ADMIN che ne cambia lo schema, **allora** 422 `EVENT_TYPE_SYSTEM_LOCKED`.
+4. **Dato** ADMIN che disabilita un tipo, **allora** i nuovi eventi di quel tipo sono `UNKNOWN_TYPE`.
+5. ✗ **Dato** il codice `io.loyaltyhub.effect.x`, **allora** 422 `EVENT_TYPE_INVALID` sul campo `code`; `iot.sensor.read` resta ammesso (Q-439).
+6. **Date** due creazioni simultanee dello stesso codice, **allora** una riceve 201 e l'altra 409 `EVENT_TYPE_EXISTS`, con una sola voce di audit `CREATE` (Q-440).
+
+**Testbook**: TB-ING-ETY-006, 047, 051, 053 (criteri 2–4) · TB-ING-ETY-061…064 (criteri 5 e 6) · criterio 1 da coprire.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-ING-06, BO-09, BO-06, BO-28 |
+| R3 Criteri di accettazione | ✅ | 6 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 3 criteri ✗ per 403, 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe) |
+| R6 Dipendenze e domande | ✅ | 3 aperte con default in uso (SPEC-GAP): Q-89, Q-439, Q-440 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-09, BO-06, BO-28 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-ING-06 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#108](https://github.com/peppe-ruv/Loyalty_Sys/pull/108), [#109](https://github.com/peppe-ruv/Loyalty_Sys/pull/109) |
+| D2 Criteri provati | ✅ | 65 righe legate alla storia, 65 eseguite dai test: TB-ING-ETY-001, TB-ING-ETY-002, TB-ING-ETY-003, TB-ING-ETY-004 e altri 61; 87 righe sulle feature o schermate della storia in TB-ING, 87 eseguite: TB-ING-FON-002, TB-ING-TYP-001, TB-ING-TYP-002 e altri 84 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e01-13" />
+
+## US-E01-13 · Monitor ingressi
+
+> *Come* ANALYST o CARE, *voglio* vedere ogni evento ricevuto con esito, codice e payload, *così che* possa rispondere a «perché non ho i punti?».
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: dopo `SCN-BAD-EVENT` si apre BO-26 e si leggono i 4 esiti negativi.
+
+**Tocca**: F-ING-09 · BO-26 · `GET /v1/inbound-events`, `/counts`, `/{id}` · ING-23.
+
+**Decisioni**: schede per esito (`ACCEPTED, DUPLICATE, REJECTED, UNMATCHED`) con conteggi · filtri `status, source, type, memberId, from, to, q` · dettaglio con errori di schema e `TraceLink` se accettato.
+
+**Criteri di accettazione**
+
+1. **Dato** `SCN-BAD-EVENT`, **allora** BO-26 mostra `INVALID_DATA`, `SOURCE_DISABLED`, `UNMATCHED`, `MEMBER_NOT_ACTIVE` (docs/10 §8).
+2. **Dato** un filtro per membro, **allora** solo le righe di quel membro; conteggi coerenti col filtro.
+3. **Dato** un `REJECTED/INVALID_DATA`, **allora** il dettaglio elenca gli errori dello schema campo per campo.
+
+**Testbook**: TB-ING (API) · TB-WEB (schermata).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-ING-09, BO-26 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe), TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: SCN-BAD-EVENT |
+| R8 Stati dell'interfaccia | ✅ | BO-26 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-ING-09 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 82 righe sulle feature o schermate della storia in TB-ING, TB-WEB, 82 eseguite: TB-ING-DUP-001, TB-ING-DUP-002, TB-ING-DUP-003 e altri 79 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e01-14" />
+
+## US-E01-14 · Invio batch — fuori perimetro PoC
+
+> *Come* sistema che esporta di notte, *voglio* inviare fino a 100 eventi in una chiamata con esito per elemento.
+
+**Stato**: fuori perimetro della PoC, senza DoR né DoD.
+
+**Tocca**: F-ING-10 (P2) — nessun endpoint `POST /v1/events/batch`.
+
+**Criteri di accettazione**
+
+1. Nessuno nel PoC; al passaggio a P1 derivare i criteri da [US-E01-01](/specifiche/backlog/e01-ingresso-eventi#us-e01-01)…05 per elemento.
+
+**Testbook**: fuori perimetro PoC.
