@@ -99,6 +99,8 @@ class EngagementSqlFiltersTest {
                 WebhookDeliveryRepository.DeliveryColumn.class)).allSatisfy(c -> assertThat(c.isEnum()).isTrue());
     }
 
+    // Filo d'inciampo contro le regressioni, non prova di sicurezza: non vede una concatenazione con "+"
+    // né classi fuori da *Repository.java. La garanzia viene dal builder e dai test sul testo SQL qui sopra.
     @Test
     void repositoriesDoNotAssembleSqlByHand() throws IOException {
         // Guardia di regressione: niente WHERE/AND scelti a mano né testo SQL composto con append/format.

@@ -104,7 +104,7 @@ class EngagementSqlBuilderIT {
         pg.close();
     }
 
-    // ---------- contenuti (BO-20): ordine per stato, priorità DESC, codice ----------
+    // ---------- contenuti (BO-18): ordine per stato, priorità DESC, codice ----------
 
     @Test
     void contentFiltersAloneAndCombinedKeepTheStatusPriorityOrder() {

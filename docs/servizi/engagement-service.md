@@ -89,7 +89,7 @@ erDiagram
 ### Gestione
 | Metodo | Path | Note |
 |---|---|---|
-| GET/POST/PUT | `/v1/contents`, `/v1/contents/{id}` | filtri `kind, placement, status, q`; PUT su `LIVE` o `PAUSED` → solo campi sicuri (titolo, testo, immagine, priorità, `endAt`; docs/03 §3.6, Q-174), altrimenti `409 CONTENT_LIVE_LOCKED`; PUT su `ENDED` o `ARCHIVED` → `409 CONTENT_NOT_EDITABLE` (Q-174) |
+| GET/POST/PUT | `/v1/contents`, `/v1/contents/{id}` | filtri `kind, placement, status, q` (`q`: testo letterale in titolo o codice, senza distinzione tra maiuscole e minuscole; `%`, `_` e `\` non sono caratteri jolly, M8.10); PUT su `LIVE` o `PAUSED` → solo campi sicuri (titolo, testo, immagine, priorità, `endAt`; docs/03 §3.6, Q-174), altrimenti `409 CONTENT_LIVE_LOCKED`; PUT su `ENDED` o `ARCHIVED` → `409 CONTENT_NOT_EDITABLE` (Q-174) |
 | POST | `/v1/contents/{id}/transitions` | `CONTENT` non richiede approvazione (`DRAFT → LIVE` diretto) |
 | GET | `/v1/contents/{id}/approval-history` | storico delle transizioni (`approval_history`, `entity_type = CONTENT`: chi, quando, da/verso; docs/03 §3.6, docs/06 §7), dal più recente |
 | POST | `/v1/contents/{id}/duplicate` | |
