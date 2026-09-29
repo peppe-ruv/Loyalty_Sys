@@ -169,6 +169,9 @@ class OpenApiExportIT {
         }
         assertThat(operations).as("operazioni documentate").isGreaterThan(50);
         specs.put(PORTAL, portal(specs));
+        // Il membro dal token nel contratto generato (Q-410, ADR-048): si attiva per gli handler @MemberEndpoint.
+        assertThat(MemberContractChecks.contractProblems(specs.get(PORTAL), MemberContractChecks.memberOperations(handlerMethods())))
+                .as("contratto del portale e membro dal token").isEmpty();
 
         Map<String, String> generated = render(specs);
         Path dir = repoRoot().resolve("contracts").resolve("api");
@@ -237,6 +240,28 @@ class OpenApiExportIT {
         }
         assertThat(undeclared).as("handler senza @RequiresRole né @PublicEndpoint con motivo").isEmpty();
         assertThat(checked).as("handler di prodotto controllati").isGreaterThan(150);
+    }
+
+    /**
+     * Il membro dal token sui handler registrati (Q-410, ADR-048): ciò che ArchUnit non vede, cioè i nomi impliciti dei
+     * parametri ({@code @RequestParam String memberId}, con i nomi a runtime di {@code -parameters}); {@code demoPathVariable}
+     * solo su handler deprecati; ogni {@code @MemberEndpoint} sotto {@code /v1/portal/}. Si attiva da solo per controller:
+     * vale per ogni handler {@code @MemberEndpoint}. La configurazione all'avvio la verifica anche
+     * {@code MemberEndpointGuard}.
+     */
+    @Test
+    void memberEndpointsNeverBindTheMemberFromTheRequest() {
+        assertThat(MemberContractChecks.handlerProblems(handlerMethods()))
+                .as("handler del membro che legano memberId dalla richiesta").isEmpty();
+    }
+
+    /** Tutti i handler registrati, con la loro mappatura. */
+    private Map<org.springframework.web.servlet.mvc.method.RequestMappingInfo, HandlerMethod> handlerMethods() {
+        Map<org.springframework.web.servlet.mvc.method.RequestMappingInfo, HandlerMethod> all = new java.util.LinkedHashMap<>();
+        for (RequestMappingHandlerMapping mapping : context.getBeansOfType(RequestMappingHandlerMapping.class).values()) {
+            all.putAll(mapping.getHandlerMethods());
+        }
+        return all;
     }
 
     // ================= composizione dei file =================

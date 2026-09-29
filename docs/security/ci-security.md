@@ -98,12 +98,12 @@ CodeQL (M8.11) copre il flusso dei dati tra metodi e classi.
 
 ## 2. Dipendenze
 
-Trivy legge `pom.xml` (le dipendenze transitive dai POM del repository Maven locale `~/.m2`, ripristinato dalla cache del job `backend` o risolto da `./mvnw dependency:resolve`; `--offline-scan` evita le richieste di Trivy a Maven Central, che dagli IP condivisi dei runner rispondeva 429), `web/pnpm-lock.yaml` e `scripts/package-lock.json`, anche le dipendenze di sviluppo (`--include-dev-deps`). Blocca le vulnerabilità HIGH e CRITICAL per le quali esiste una versione corretta (`--ignore-unfixed`).
+Trivy legge `pom.xml` (le dipendenze transitive dai POM del repository Maven locale `~/.m2`, ripristinato dalla cache del job `backend` o risolto da `./mvnw test-compile` nel reactor; `--offline-scan` evita le richieste di Trivy a Maven Central, che dagli IP condivisi dei runner rispondeva 429), `web/pnpm-lock.yaml` e `scripts/package-lock.json`, anche le dipendenze di sviluppo (`--include-dev-deps`). Blocca le vulnerabilità HIGH e CRITICAL per le quali esiste una versione corretta (`--ignore-unfixed`).
 
 Stato all'ultima verifica (2026-09-29, Trivy 0.74.0): nessuna vulnerabilità HIGH o CRITICAL, né con `--ignore-unfixed` né senza.
 
 ```bash
-# Dipendenze, come fa il job (serve trivy nel PATH; prima ./mvnw -q dependency:resolve se ~/.m2 è vuoto)
+# Dipendenze, come fa il job (serve trivy nel PATH; prima ./mvnw -q test-compile se ~/.m2 è vuoto)
 trivy fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --include-dev-deps --offline-scan \
   --ignorefile .trivyignore.yaml --exit-code 1 --no-progress \
   --skip-dirs '**/node_modules' --skip-dirs '**/target' .
@@ -119,7 +119,7 @@ trivy fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --include-dev
 `scripts/security-iac.sh` fa quattro cose:
 
 1. **Prova i controlli del progetto.** Scansiona `.trivy/tests/compose-violazioni.yml`, che viola di proposito le regole, e fallisce se Trivy non le segnala tutte (6 volte `LH-DC-0001`, 5 volte `LH-DC-0002`); la stessa fixture contiene i casi che non devono segnalare (`127.0.0.1::8080`, `[::1]`, `host_ip: 127.0.0.1`). Un controllo che non segnala mai nulla è un controllo rotto.
-2. **Rende il chart** con `helm template` negli stessi tre scenari del job `helm` (valori di CI con gateway, valori di `kind`, servizi gestiti esterni) e lo scansiona.
+2. **Rende il chart** con `helm template` in quattro scenari (i tre del job `helm`: valori di CI con gateway, valori di `kind`, servizi gestiti esterni; e osservabilità accesa, `ci/observability-values.yaml`, con il collector OpenTelemetry, la sua NetworkPolicy e la PrometheusRule) e lo scansiona.
 3. **Scansiona `deploy/`**: compose di riferimento (`deploy/compose/reference.yml`), compose locale (`deploy/docker-compose.yml`) e `deploy/image/Dockerfile`. Resta fuori `deploy/helm` (già reso al punto 2); `deploy/hub` ha il passo 4.
 4. **Scansiona i Dockerfile di Fase 1** (`deploy/hub/Dockerfile` e `services/*/Dockerfile`), uno per cartella, in modo bloccante solo se hanno un'istruzione `USER` (vedi «Dockerfile di Fase 1»).
 

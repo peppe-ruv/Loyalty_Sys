@@ -7,10 +7,35 @@ import java.util.regex.Pattern;
  * Attore della richiesta, dall'header {@code X-LH-Actor: <RUOLO>:<username>} (docs/06 §3); per una fonte
  * {@code SOURCE:<client-id>} (per esempio {@code SOURCE:src-crm}, Q-492).
  * Assente ⇒ {@code ANALYST:anonymous} (sola lettura). Disponibile per la richiesta via {@link ActorHolder}.
+ *
+ * <p>Un <em>membro</em> ({@code member = true}, Q-556, ADR-048) è l'attore delle azioni del portale: ruolo
+ * {@code ANALYST} (sola lettura di backoffice, {@link Role} non cambia) e forma canonica {@code member:<id>}
+ * ({@link #asActorString()}, docs/05, docs/06 §3), oppure {@code member:-} finché il membro non è risolto. Lo username di
+ * un membro è il suo {@code memberId}, mai il {@code preferred_username} del token né un'e-mail (regola 20). Un header
+ * {@code X-LH-Actor} non può produrre un membro: lo costruiscono solo {@link OidcActorFilter} e
+ * {@link EndpointAccessInterceptor}.
+ *
+ * @param member vero per l'attore di un membro del portale
  */
-public record ActorContext(Role role, String username) {
+public record ActorContext(Role role, String username, boolean member) {
 
     public static final ActorContext ANONYMOUS = new ActorContext(Role.ANALYST, "anonymous");
+
+    /** Segnaposto dell'id del membro prima della risoluzione ({@code member:-}). */
+    public static final String UNRESOLVED_MEMBER = "-";
+
+    /** Attore non membro (come prima di Q-556). */
+    public ActorContext(Role role, String username) {
+        this(role, username, false);
+    }
+
+    /**
+     * L'attore di un membro del portale: {@code ANALYST} (sola lettura) con username l'id del membro, o {@code -} se
+     * non ancora risolto ({@code null} o vuoto).
+     */
+    public static ActorContext member(String memberId) {
+        return new ActorContext(Role.ANALYST, memberId == null || memberId.isBlank() ? UNRESOLVED_MEMBER : memberId, true);
+    }
 
     /** Forma canonica: ruolo in maiuscolo, un solo {@code :}, username non vuoto e senza spazi ai bordi. */
     private static final Pattern CANONICAL = Pattern.compile("^([A-Z]+):([^:\\s](?:[^:]*[^:\\s])?)$");
@@ -94,8 +119,11 @@ public record ActorContext(Role role, String username) {
         return null;
     }
 
-    /** Forma canonica {@code RUOLO:username} usata in audit ed eventi ({@code lhactor}). */
+    /**
+     * Forma canonica usata in audit ed eventi ({@code lhactor}): {@code RUOLO:username}; per un membro
+     * {@code member:<memberId>} (o {@code member:-} prima della risoluzione, Q-556).
+     */
     public String asActorString() {
-        return role.name() + ":" + username;
+        return member ? "member:" + username : role.name() + ":" + username;
     }
 }

@@ -59,6 +59,8 @@ public class LhEnvironmentAliases implements EnvironmentPostProcessor, Ordered {
             new Alias("LH_OIDC_ISSUER", "loyaltyhub.identity.issuer-uri"),
             new Alias("LH_OIDC_JWKS_URI", "loyaltyhub.identity.jwk-set-uri"),
             new Alias("LH_OIDC_AUDIENCE", "loyaltyhub.identity.audience"),
+            // Chiave dello pseudonimo subjectRef del legame account↔membro (Q-552, ADR-048): base64, almeno 32 byte.
+            new Alias("LH_SUBJECT_KEY", IdentityGuard.SUBJECT_KEY_PROPERTY),
             new Alias("KAFKA_SECURITY", "loyaltyhub.kafka.security"),
             new Alias("KAFKA_SSL_CA_B64", "loyaltyhub.kafka.ssl.ca-b64"),
             new Alias("KAFKA_SSL_CERT_B64", "loyaltyhub.kafka.ssl.cert-b64"),
