@@ -147,6 +147,52 @@ In ingresso dalle fonti esterne sono obbligatori solo `specversion`, `id`, `sour
 - **Consumer tolleranti:** un consumer che riceve un `type` che non gli interessa **lo ignora senza errore** e senza scrivere `processed_event`.
 - **Nomi tipi:** dalle fonti esterne accetti anche nomi brevi (`purchase.completed`); ingestion li normalizza a nome completo prima di pubblicare.
 
+## Evoluzione dei contratti
+
+Gli schemi in `contracts/events/` sono il contratto pubblico del bus: un consumer già in esecuzione, o un evento trattenuto su un topic, deve restare valido. Un contratto quindi **si estende, non si rompe**: si aggiungono proprietà facoltative (i consumer ignorano i campi sconosciuti) oppure si crea una versione nuova `<nome>.v<n>.schema.json` con `dataschema …:<n>`, con una doppia lettura temporanea (docs/05 §9).
+
+A ogni pull request `check-contracts` confronta ogni schema con lo stesso file nell'ultimo tag di rilascio (`v<numero>`, per esempio `v0.7.0`) e con il punto in cui la PR si è staccata da `main`.
+
+```mermaid
+flowchart TD
+  accTitle: Controllo di compatibilità dei contratti evento
+  accDescr: A ogni pull request check-contracts confronta gli schemi di contracts/events con l'ultimo tag di rilascio e con il merge-base di main. Se nessun tag contiene i contratti si confronta solo con il merge-base e compare un avviso. Schemi nuovi, versioni nuove e proprietà facoltative passano; valori di enum aggiunti o vincoli tolti sono solo segnalati e non bloccano. Rimozioni, rinomine, restrizioni, allargamenti di tipo, parole chiave non interpretate cambiate e declassamenti di x-lh-pii bloccano la PR, salvo che siano già su main e la PR non li cambi ancora, o che la PR porti la label decisione.
+  PR["Pull request"] --> CC{{"check-contracts"}}
+  CC --> TAG{"Ultimo tag di rilascio con contracts/events?"}
+  TAG -->|"no: avviso Q-540, solo il merge-base"| CMP
+  TAG -->|"sì: tag e merge-base"| CMP["Confronto schema per schema"]
+  CMP -->|"schema nuovo, versione nuova, proprietà facoltativa"| OK["Verde"]
+  CMP -->|"valore di enum aggiunto, vincolo tolto"| WARN["Segnalato, non blocca (Q-541)"]
+  WARN --> OK
+  CMP -->|"rimozione, rinomina, restrizione, tipo allargato, parola chiave non interpretata, x-lh-pii declassato"| MAIN{"Già su main e non cambiata dalla PR?"}
+  MAIN -->|"sì, accettata in una PR precedente"| OK
+  MAIN -->|"no"| LAB{"Label decisione sulla PR?"}
+  LAB -->|"sì"| DEC["Segnalata, non blocca: ADR e versione nuova"]
+  LAB -->|"no"| KO["Rosso: la PR non si unisce"]
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef store fill:#F1F5F9,stroke:#475569,color:#0F172A
+  classDef ext fill:#FFFFFF,stroke:#94A3B8,stroke-dasharray:4 2,color:#334155
+  classDef human fill:#ECFDF5,stroke:#059669,color:#064E3B
+  class CC,CMP svc
+  class PR ext
+  class LAB,DEC human
+```
+
+Il diagramma si legge dall'alto: il confronto è sempre col merge-base e, se esiste un tag di rilascio che contiene già i contratti, anche con quel tag. Se una differenza è incompatibile, la PR resta rossa a meno che quella rottura sia già su `main` (l'ha accettata una PR precedente) e la PR non la cambi ancora, o che la PR porti la label `decisione`. Nel primo caso il controllo non la segnala di nuovo come errore, nel secondo la segnala senza bloccare. Una PR non può rompere nemmeno ciò che è stato aggiunto a `main` dopo il tag.
+
+| Passa | Blocca |
+|---|---|
+| Schemi e versioni nuove | Schema rimosso o rinominato, `$id` cambiato |
+| Proprietà facoltativa nuova, anche in schema chiuso | Proprietà rimossa, campo reso o non più obbligatorio |
+| Annotazioni (`title`, `description`, `x-lh-superseded-by`) | Tipo ristretto, allargato (anche a `null`) o tolto; `format`/`pattern` cambiati |
+| Allargamenti di valore, segnalati (Q-139, Q-541) | Restrizioni (valore di `enum` tolto; vincoli introdotti o più stretti; schema chiuso) |
+| | Schema riaperto o `x-lh-pii` da `true` a `false` (ADR-032) |
+| | Parole chiave che il confronto non sa interpretare, se cambiano (`oneOf`, `allOf`, `$ref`, `if`…) |
+
+<Note>
+  Un cambio incompatibile è una decisione, non un refactor: serve un'ADR, una versione nuova con `:<n+1>` (per esempio `member.registered:2`) e la label `decisione` sulla PR. Una rottura già entrata su `main` non blocca le PR successive, purché non la cambino ancora (Q-542). Oggi l'unico tag di rilascio raggiungibile, `v0.6.0`, è un tag storico del bundle UX e non contiene `contracts/events/`: finché il proprietario non pubblica un tag con i contratti, il confronto è solo col merge-base di `main`, con un avviso (Q-540), e la garanzia «rispetto all'ultimo tag» non è ancora provata. Attenzione: un tag `v*` avvia anche la pubblicazione dell'immagine (scansione, firma, push), quindi è un rilascio vero. In locale: `node scripts/check-contracts.mjs [--baseline=<ref>] [--base=<ref>]`, per esempio con un commit o un tag precedente come riferimento.
+</Note>
+
 ## Prossimo passo
 
 Per gli endpoint REST esposti dai servizi vai a [API](reference/api).
