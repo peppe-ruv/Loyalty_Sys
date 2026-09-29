@@ -1,5 +1,5 @@
 {
-  "_comment": "SOLO PROVA (F2-IAM-04). Non viene importato da --import-realm: lo applica deploy/idp/test-idp/apply-overlay.sh sul realm loyaltyhub gia' avviato. identityProviders e clients via partialImport (OVERWRITE), components via API components (partialImport non li supporta). I segnaposto ${LH_*} sono sostituiti dallo script, che fallisce se una variabile manca.",
+  "_comment": "SOLO PROVA (F2-IAM-04, F2-IAM-03). Non viene importato da --import-realm: lo applica deploy/idp/test-idp/apply-overlay.sh sul realm loyaltyhub gia' avviato. identityProviders, clients e users via partialImport (OVERWRITE), components via API components (partialImport non li supporta). I segnaposto ${LH_*} sono sostituiti dallo script, che fallisce se una variabile manca. L'utente testmember e' il membro di prova di verify.sh (Q-557): un utente creato con partialImport non riceve il ruolo predefinito da solo, quindi lo dichiara come lo riceve un account registrato (default-roles-loyaltyhub, il cui composito e' MEMBER); la password e' un segnaposto come ogni altra credenziale dell'overlay.",
   "realm": "loyaltyhub",
   "identityProviders": [
     {
@@ -48,6 +48,26 @@
         "lh-roles-scope"
       ],
       "optionalClientScopes": []
+    }
+  ],
+  "users": [
+    {
+      "username": "testmember",
+      "enabled": true,
+      "email": "testmember@example.org",
+      "emailVerified": false,
+      "firstName": "Test",
+      "lastName": "Member",
+      "realmRoles": [
+        "default-roles-loyaltyhub"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${LH_MEMBER_TEST_PASSWORD}",
+          "temporary": false
+        }
+      ]
     }
   ],
   "components": {
