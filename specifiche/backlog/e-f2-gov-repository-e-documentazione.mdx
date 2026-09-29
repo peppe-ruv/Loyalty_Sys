@@ -1,0 +1,290 @@
+---
+title: "E-F2-GOV · Repository e documentazione"
+sidebarTitle: "E-F2-GOV Repository e documentazione"
+description: "E-F2-GOV Repository e documentazione: main sempre verde e rilasciabile, documentazione allineata al codice. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: `main` sempre verde e rilasciabile, documentazione allineata al codice.
+
+**Attori**: proprietario, agenti · **Feature**: F2-GOV-*, F2-DOC-* · **Schermate**: — · **Servizi**: — · **Testbook**: guard, docs
+
+Questa epica ha 7 storie: 6 pronte secondo la Definition of Ready, 1 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-f2-gov-01" />
+
+## US-F2-GOV-01 · `main` protetto e impostazioni del repository
+
+> *Come* proprietario del repository, *voglio* che `main` accetti solo pull request con i controlli verdi, unite con squash, *così che* resti verde e rilasciabile anche con più agenti in parallelo.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2)
+
+**Contesto reale**: un agente prova a fare push diretto su `main`; il ruleset lo rifiuta e l'agente apre una pull request.
+
+**Tocca**: F2-GOV-01 · ADR-041, ADR-047 · docs/18 §3.13 · `scripts/setup-branch-protection.sh`, `.github/CODEOWNERS`, `.github/pull_request_template.md`, `.github/dependabot.yml` · M8.0 · regola 16.
+
+**Decisioni**: solo pull request, controlli obbligatori (`backend (Java 25)`, `web (Next.js)`, `seed`, `contracts`, `guard`, `helm (chart e compose)`), storia lineare, niente force push · approvazioni a 0 finché il proprietario è l'unico maintainer · auto-merge con squash (ADR-047) · Dependabot per Maven, npm, GitHub Actions, Docker e Docker Compose.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** un push diretto su `main`, **allora** è rifiutato (docs/18 §6 M8).
+2. **Dato** una pull request con i controlli obbligatori verdi, **allora** si unisce da sola con squash (ADR-047, [#80](https://github.com/peppe-ruv/Loyalty_Sys/pull/80)).
+3. **Dato** il ruleset `main-protetto`, **allora** il proprietario lo applica con `scripts/setup-branch-protection.sh` (applicato il 2026-09-29, docs/14).
+
+**Testbook**: job `guard` (il ruleset non ha una prova automatica nel repository).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-GOV-01, ADR-041, ADR-047, docs/18 §3.13 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | job guard |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F2-GOV-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#33](https://github.com/peppe-ruv/Loyalty_Sys/pull/33), [#56](https://github.com/peppe-ruv/Loyalty_Sys/pull/56), [#80](https://github.com/peppe-ruv/Loyalty_Sys/pull/80), [#113](https://github.com/peppe-ruv/Loyalty_Sys/pull/113), [#122](https://github.com/peppe-ruv/Loyalty_Sys/pull/122) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-gov-02" />
+
+## US-F2-GOV-02 · Controllo `guard`
+
+> *Come* proprietario del repository, *voglio* un controllo che rifiuti le modifiche alle ADR accettate e agli ID dei seed, *così che* le decisioni si superino con una nuova ADR e non si riscrivano.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: una pull request prova a correggere il testo di ADR-027; il job `guard` fallisce.
+
+**Tocca**: F2-GOV-02 · ADR-041, ADR-047 · docs/18 §3.13 · `scripts/check-adr-append-only.mjs`, `scripts/check-questions.mjs` · M8.0.
+
+**Decisioni**: ammesse le nuove ADR e la riga «Superata da ADR-nnn» · gli ID di `seed/` cambiano solo con la label `decisione` · gli ID `Q-nnn` di docs/15 sono unici ([#86](https://github.com/peppe-ruv/Loyalty_Sys/pull/86)).
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** una pull request che modifica il testo di un'ADR esistente, **allora** `guard` fallisce (docs/18 §6 M8).
+2. ✗ **Dato** una pull request che cambia un ID di `seed/` senza la label `decisione`, **allora** `guard` fallisce (docs/18 §3.13).
+3. ✗ **Dato** due domande con lo stesso `Q-nnn` in docs/15, **allora** `guard` fallisce ([#86](https://github.com/peppe-ruv/Loyalty_Sys/pull/86)).
+
+**Testbook**: job `guard` · prove automatiche: `scripts/check-adr-append-only.mjs`, `scripts/check-questions.test.mjs`.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-GOV-02, ADR-041, ADR-047, docs/18 §3.13 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 3 criteri ✗ |
+| R5 Dominio di testbook | ✅ | job guard, 2 prove automatiche |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F2-GOV-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#33](https://github.com/peppe-ruv/Loyalty_Sys/pull/33) |
+| D2 Criteri provati | ✅ | prove automatiche: [check-adr-append-only.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/check-adr-append-only.mjs), [check-questions.test.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/check-questions.test.mjs) |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-doc-01" />
+
+## US-F2-DOC-01 · Mintlify come unico sito
+
+> *Come* lettore della documentazione, *voglio* un solo sito con tutte le pagine, *così che* non trovi copie diverse della stessa informazione.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: un nuovo sviluppatore cerca come si installa «Club Aurora» e trova una sola pagina, su Mintlify.
+
+**Tocca**: F2-DOC-01 · ADR-040 · docs/18 §3.12 · `docs.json`, `AGENTS.md` · M8.9 · regola 17.
+
+**Decisioni**: GitBook (`gitbook-docs.yaml`, `docs/SUMMARY.md`) e `docs_v2/` dismessi · pagine e `docs.json` in `site/` · guida di stile `AGENTS.md` ([#98](https://github.com/peppe-ruv/Loyalty_Sys/pull/98)).
+
+**Criteri di accettazione**
+
+1. **Dato** il sito pubblicato da `main`, **allora** mostra Specifiche, Eventi e Riferimento API generati (docs/18 §6 M8).
+2. **Dato** il repository, **allora** non contiene più `gitbook-docs.yaml`, `docs/SUMMARY.md` né `docs_v2/` (docs/18 §3.12).
+3. **Dato** ogni pagina del sito, **allora** il frontmatter ha `title` e `description` (docs/18 §3.12).
+
+**Testbook**: job `docs` (da creare con M8.9).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-DOC-01, ADR-040, docs/18 §3.12 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | job docs |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-DOC-01 (in corso); PR [#98](https://github.com/peppe-ruv/Loyalty_Sys/pull/98) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-doc-02" />
+
+## US-F2-DOC-02 · Specifiche generate con `docs-sync`
+
+> *Come* lettore della documentazione, *voglio* che le pagine delle specifiche, degli eventi e dell'API derivino dai file sorgente, *così che* il sito non resti indietro rispetto al codice.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1)
+
+**Contesto reale**: il proprietario del progetto cerca nel sito le storie del backlog nel formato delle cerimonie agile e le trova, una pagina per epic, con lo stato di DoR e DoD.
+
+**Tocca**: F2-DOC-02 · ADR-040 · docs/18 §3.12 · `scripts/docs-sync.mjs` · M8.9.
+
+**Decisioni**: `scripts/docs-sync.mjs` genera le pagine da `docs/` (frontmatter, escape di `<` e `{`, link riscritti) e nessuno le modifica a mano · una pagina per famiglia di eventi da `contracts/events/` · riferimento API da `contracts/api/` con la voce `openapi` di `docs.json` · prima parte (M8.9b): il backlog, con DoR e DoD calcolate (§4.0).
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** una pagina generata diversa da quella committata, **allora** `node scripts/docs-sync.mjs --check` fallisce nel job `guard` (M8.9b).
+2. **Dato** il backlog di docs/17, **allora** il sito ha una pagina indice e una pagina per epic con ogni storia, la sua DoR e la sua DoD (M8.9b).
+3. Specifiche di `docs/`, pagine degli eventi e riferimento API: criteri da scrivere con la fetta.
+
+**Testbook**: job `guard` · prove automatiche: `scripts/docs-sync.test.mjs`.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-DOC-02, ADR-040, docs/18 §3.12 |
+| R3 Criteri di accettazione | ⬜ | 2 criteri Dato/Quando/Allora, altri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | job guard, 1 prova automatica |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-DOC-02 (da fare) |
+| D2 Criteri provati | ✅ | prove automatiche: [docs-sync.test.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/docs-sync.test.mjs) |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-doc-03" />
+
+## US-F2-DOC-03 · Catalogo dei diagrammi e `check-mermaid`
+
+> *Come* lettore della documentazione, *voglio* che ogni concetto abbia un diagramma valido e accessibile, *così che* capisca un flusso senza ricostruirlo dalla prosa.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1)
+
+**Contesto reale**: un nuovo sviluppatore legge la pagina dei premi e trova la sequenza della saga di riscatto.
+
+**Tocca**: F2-DOC-03 · ADR-040 · docs/18 §3.12 · `scripts/check-mermaid.mjs` · M8.9 · regola 17.
+
+**Decisioni**: catalogo minimo dei diagrammi di docs/18 §3.12 · ogni diagramma con `accTitle` e `accDescr`, al più circa 15 nodi, palette `classDef` standard · niente immagini di diagrammi.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** un blocco Mermaid con sintassi non valida o senza `accTitle` e `accDescr`, **allora** `check-mermaid` fallisce (docs/18 §3.12).
+2. **Dato** ogni pagina del catalogo minimo, **allora** ha il suo diagramma (docs/18 §6 M8).
+
+**Testbook**: job `docs` · prove automatiche: `scripts/check-mermaid.mjs`.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-DOC-03, ADR-040, docs/18 §3.12 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | job docs, 1 prova automatica |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-DOC-03 (in corso); PR [#54](https://github.com/peppe-ruv/Loyalty_Sys/pull/54) |
+| D2 Criteri provati | ✅ | prove automatiche: [check-mermaid.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/check-mermaid.mjs) |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-doc-04" />
+
+## US-F2-DOC-04 · Documentazione in inglese
+
+> *Come* lettore di lingua inglese, *voglio* le sezioni principali del sito in inglese, *così che* valuti e installi il prodotto.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: un'azienda estera valuta «Club Aurora» e legge in inglese l'introduzione e le guide.
+
+**Tocca**: F2-DOC-04 · ADR-033, ADR-040 · docs/18 §3.12 · M11.6.
+
+**Decisioni**: `navigation.languages` in `docs.json` · inglese per Introduzione, Concetti, Guide e Operazioni · `docs/` resta in italiano.
+
+**Criteri di accettazione**
+
+1. **Dato** il sito, **allora** ha la versione inglese delle sezioni Introduzione, Concetti, Guide e Operazioni (docs/18 §6 M11).
+
+**Testbook**: job `docs` (da creare con M8.9).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-DOC-04, ADR-033, ADR-040, docs/18 §3.12 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | job docs |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-DOC-04 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-doc-05" />
+
+## US-F2-DOC-05 · Tabelle, stati e percorso dalla fonte al saldo
+
+> *Come* nuovo sviluppatore, *voglio* un `erDiagram` per ogni scheda servizio, un diagramma di stato per ogni ciclo di vita e il percorso dalla fonte al saldo, *così che* non debba ricostruire a mente lo schema e il flusso.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1)
+
+**Contesto reale**: arriva un evento dalla fonte `ecommerce` per Marco; il diagramma mostra fonte, tipo ammesso, campagna, effetto e saldo.
+
+**Tocca**: F2-DOC-05 · ADR-040 · docs/18 §3.12-bis · `docs/servizi/` · M8.9 · regola 17.
+
+**Decisioni**: `erDiagram` sotto la tabella testuale di §2 di ogni scheda servizio · `stateDiagram-v2` nella pagina del concetto · flowchart fonte → tipo ammesso → campagna → effetto → saldo nella pagina degli eventi · chi tocca una migrazione, uno stato o una fonte aggiorna il diagramma (17-bis).
+
+**Criteri di accettazione**
+
+1. **Dato** ogni scheda di `docs/servizi/`, **allora** ha un `erDiagram` delle proprie tabelle ([#83](https://github.com/peppe-ruv/Loyalty_Sys/pull/83), [#87](https://github.com/peppe-ruv/Loyalty_Sys/pull/87)).
+2. **Dato** ogni entità con un ciclo di vita dichiarato, **allora** ha un `stateDiagram-v2` ([#83](https://github.com/peppe-ruv/Loyalty_Sys/pull/83)).
+3. **Dato** la pagina degli eventi, **allora** ha il diagramma dalla fonte al saldo (docs/18 §3.12-bis).
+
+**Testbook**: job `docs` · prove automatiche: `scripts/check-mermaid.mjs`.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-DOC-05, ADR-040, docs/18 §3.12-bis |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | job docs, 1 prova automatica |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-DOC-05 (in corso); PR [#83](https://github.com/peppe-ruv/Loyalty_Sys/pull/83), [#87](https://github.com/peppe-ruv/Loyalty_Sys/pull/87) |
+| D2 Criteri provati | ✅ | prove automatiche: [check-mermaid.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/check-mermaid.mjs) |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

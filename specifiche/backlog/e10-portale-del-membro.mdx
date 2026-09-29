@@ -1,0 +1,580 @@
+---
+title: "E10 · Portale del membro"
+sidebarTitle: "E10 Portale del membro"
+description: "E10 Portale del membro: percorsi reali del cliente finale, end-to-end tra servizi. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: percorsi reali del cliente finale, end-to-end tra servizi.
+
+**Attori**: membro · **Feature**: F-MBR-06, F-MBR-07 + tutte le feature visibili nel portale · **Schermate**: PT-01…PT-14 · **Servizi**: web + tutti · **Testbook**: TB-WEB (+ TB-E2E proposto)
+
+Questa epica ha 16 storie: 15 pronte secondo la Definition of Ready, 11 fatte secondo la Definition of Done, 1 da verificare. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-e10-01" />
+
+## US-E10-01 · Home: quanto ho, a che punto sono, cosa posso fare
+
+> *Come* membro, *voglio* vedere tessera, saldo, progresso di livello, scadenze, contenuti e azioni rapide, *così che* in un colpo d'occhio sappia cosa fare.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D3)
+
+**Tocca**: F-WAL-01, F-TIER-02, F-WAL-06, F-CNT-01/02 · PT-01 · WAL-18, ENG-01…04, WEB-07.
+
+**Criteri di accettazione**
+
+1. **Dato** Giulia, **allora** «Ti mancano 120 punti status per GOLD»; Francesca «Hai raggiunto il livello più alto».
+2. **Dato** Chiara, **allora** «1.900 punti scadono il …» con link a PT-03; Anna nessun avviso.
+3. **Dato** un membro con giocate, **allora** pallino su *Gioca* e numero nell'azione rapida.
+4. ⛔ **Dato** ottobre e un GOLD sotto soglia, **allora** avviso di mantenimento (dipende da `keepWarning`, [US-E04-14](/specifiche/backlog/e04-wallet-livelli-ed-edizioni#us-e04-14)).
+
+**Testbook**: TB-WEB (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-WAL-01, F-TIER-02, F-WAL-06, F-CNT-01, PT-01 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-01 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-WAL-01, F-TIER-02, F-WAL-06, F-CNT-01, F-CNT-02 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 13 righe sulle feature o schermate della storia in TB-WEB, 13 eseguite: TB-WEB-HOME-001, TB-WEB-HOME-002, TB-WEB-HOME-003 e altri 10 |
+| D3 Nessuno scostamento aperto | ⬜ | 1 marcatore ⛔ (regola senza codice) |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e10-02" />
+
+## US-E10-02 · Il saldo non mente
+
+> *Come* membro, *voglio* vedere «in arrivo…» subito dopo un'azione e il saldo cambiare solo quando i punti sono davvero accreditati, *così che* non veda numeri falsi.
+
+**DoR**: ✅ pronta · **DoD**: 🔎 da verificare
+
+**Tocca**: docs/07 §7, docs/09 §2 · PT-01, PT-07, PT-14 · WEB-07.
+
+**Criteri di accettazione**
+
+1. **Dato** un acquisto da PT-14, **allora** compare «in arrivo…», poi il saldo sale con count-up; nessun aggiornamento ottimistico (docs/12 M1).
+2. **Dato** 20 s senza fatto atteso, **allora** «Ci sta mettendo più del solito» con collegamento al tracciato.
+3. **Dato** una voce DLQ sullo stesso `correlationId`, **allora** errore con la causa.
+
+**Testbook**: TB-WEB (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | docs/07 §7, docs/09 §2, PT-01, PT-07, PT-14 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-01, PT-07, PT-14 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | 🔎 da verificare | nessuna feature F- o F2- nella storia |
+| D2 Criteri provati | ✅ | 13 righe sulle feature o schermate della storia in TB-WEB, 13 eseguite: TB-WEB-HOME-001, TB-WEB-HOME-002, TB-WEB-HOME-003 e altri 10 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e10-03" />
+
+## US-E10-03 · Percorso: acquisto → punti → nuovo livello → bonus → notifica
+
+> *Come* Giulia, *voglio* che il mio acquisto mi porti a GOLD e mi dia il bonus e la notifica, *così che* senta il valore del programma.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: `SCN-TIER-UP` (acquisto 130 € l'ultimo giorno feriale alle 10:30).
+
+**Tocca**: ING ([US-E01-01](/specifiche/backlog/e01-ingresso-eventi#us-e01-01)) → CMP ([US-E03-04](/specifiche/backlog/e03-campagne-e-motore-regole#us-e03-04)) → WAL ([US-E04-01](/specifiche/backlog/e04-wallet-livelli-ed-edizioni#us-e04-01), [US-E04-03](/specifiche/backlog/e04-wallet-livelli-ed-edizioni#us-e04-03)) → ING ponte ([US-E01-09](/specifiche/backlog/e01-ingresso-eventi#us-e01-09)) → CMP `CMP-TIER-UP-BONUS` → WAL → GAM (`ACH-3-PURCHASES-MONTH`, [US-E06-13](/specifiche/backlog/e06-gioco#us-e06-13)) → ENG (MSG-TIER-UP, MSG-POINTS-EARNED) → PT-01/PT-12 · E2E n. 1 di docs/09 §4.
+
+**Criteri di accettazione**
+
+1. **Dato** l'acquisto, **allora** +162 PTS e +130 STS, `tier.upgraded` a GOLD, azione interna `lhhop=1`, +500 PTS di bonus, obiettivo del mese completato con badge e bonus, messaggi in PT-12 — tutto in **un** tracciato.
+2. **Dato** il portale aperto come Giulia, **allora** la tessera si capovolge su GOLD e il saldo fa count-up.
+3. **Dato** lo scenario rieseguito lo stesso giorno, **allora** `CMP-PURCHASE-BASE` conta il limite 3/giorno e nessun secondo tier-up.
+
+**Testbook**: scoperta (serve TB-E2E; i singoli passi sono in TB-ING/CMP/WAL/GAM/ENG).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | PT-01, PT-12, docs/09 §4. |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-E2E (con righe), TB-ING (con righe), TB-CMP (con righe), TB-WAL (con righe) e altri 2 |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: SCN-TIER-UP |
+| R8 Stati dell'interfaccia | ✅ | PT-01, PT-12 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-04, F-TIER-02, F-ING-08, F-ACH-02, F-MSG-01 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 8 righe legate alla storia, 8 eseguite dai test: TB-E2E-TIER-001, TB-E2E-TIER-002, TB-E2E-TIER-003, TB-E2E-TIER-004 e altri 4; 263 righe sulle feature o schermate della storia in TB-CMP, TB-E2E, TB-ENG, TB-GAM, TB-WAL, 263 eseguite: TB-CMP-PTS-001, TB-CMP-PTS-002, TB-CMP-PTS-003 e altri 260 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e10-04" />
+
+## US-E10-04 · Percorso: premio con coupon
+
+> *Come* Davide, *voglio* richiedere un buono e vederne subito il codice, *così che* lo usi.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: PT-03 → PT-04 → reward ([US-E05-05](/specifiche/backlog/e05-premi-e-coupon#us-e05-05), [US-E05-06](/specifiche/backlog/e05-premi-e-coupon#us-e05-06)) → wallet ([US-E04-07](/specifiche/backlog/e04-wallet-livelli-ed-edizioni#us-e04-07)) → PT-13 · E2E n. 2 di docs/09 §4.
+
+**Criteri di accettazione**
+
+1. **Dato** `RWD-COFFEE-5`, **allora** foglio con saldo prima → dopo, attesa, codice in grande con scadenza, coupon in PT-13, saldo diminuito.
+2. **Dato** BO-25, **allora** il tracciato della saga è leggibile: richiesta → spesa → conferma → coupon → messaggio (docs/12 M4).
+
+**Testbook**: scoperta (TB-E2E).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | PT-03, PT-04, PT-13, docs/09 §4. |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-E2E (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: RWD-COFFEE-5 |
+| R8 Stati dell'interfaccia | ✅ | PT-03, PT-04, PT-13 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-RWD-05, F-RWD-06, F-CPN-02 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 10 righe legate alla storia, 10 eseguite dai test: TB-E2E-CPN-001, TB-E2E-CPN-002, TB-E2E-CPN-003, TB-E2E-CPN-004 e altri 6; 1 riga sulle feature o schermate della storia in TB-E2E, 1 eseguita: TB-E2E-IW-003 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e10-05" />
+
+## US-E10-05 · Percorso: premio fisico spedito
+
+> *Come* Sofia, *voglio* richiedere la borraccia con l'indirizzo e sapere quando è spedita, *così che* la aspetti.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: PT-04 (form spedizione) → reward (CONFIRMED) → BO-13 CARE ([US-E05-10](/specifiche/backlog/e05-premi-e-coupon#us-e05-10)) → MSG-REWARD-READY → PT-13 «spedita».
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** la richiesta senza indirizzo, **allora** errore sul foglio (`SHIPPING_REQUIRED`).
+2. **Dato** la richiesta, **allora** «Ti avviseremo alla spedizione»; dopo l'evasione di CARE, notifica e stato «spedita».
+
+**Testbook**: scoperta (TB-E2E).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | PT-04, BO-13, PT-13 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-E2E (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-04, BO-13, PT-13 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-RWD-05, F-RWD-06 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 10 righe legate alla storia, 10 eseguite dai test: TB-E2E-CPN-001, TB-E2E-CPN-002, TB-E2E-CPN-003, TB-E2E-CPN-004 e altri 6 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e10-06" />
+
+## US-E10-06 · Percorso: punti non sufficienti
+
+> *Come* Anna, *voglio* sapere perché la richiesta non è andata, senza addebiti, *così che* non mi senta presa in giro.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: PT-04 (blocco preventivo «Ti mancano N punti», WEB-08) → richiesta via API → `wallet.spend.rejected` → `REJECTED` → MSG-REWARD-REJECTED → PT-13 «Punti non sufficienti».
+
+**Criteri di accettazione**
+
+1. **Dato** Anna su `RWD-COFFEE-5`, **allora** la barra d'azione mostra «Ti mancano 400 punti» e non consente la richiesta.
+2. **Dato** la richiesta forzata via API, **allora** 202 e poi `REJECTED (INSUFFICIENT_BALANCE)`, stock invariato, messaggio.
+
+**Testbook**: scoperta (TB-E2E); il blocco UI in TB-WEB.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | PT-04, PT-13 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-E2E (con righe), TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: RWD-COFFEE-5 |
+| R8 Stati dell'interfaccia | ✅ | PT-04, PT-13 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-RWD-05, F-WAL-08 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 10 righe legate alla storia, 10 eseguite dai test: TB-E2E-CPN-001, TB-E2E-CPN-002, TB-E2E-CPN-003, TB-E2E-CPN-004 e altri 6; 55 righe sulle feature o schermate della storia in TB-WEB, 19 eseguite: TB-WEB-RWD-058, TB-WEB-RWD-059, TB-WEB-RWD-060 e altri 16 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e10-07" />
+
+## US-E10-07 · Percorso: vincita garantita alla ruota
+
+> *Come* Matteo, *voglio* girare la ruota, vincere e vedere arrivare i punti, *così che* il gioco sia emozionante.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: BO-14 *Pianta un istante* ([US-E06-09](/specifiche/backlog/e06-gioco#us-e06-09)) → PT-06 *Gira* → WIN → `WinCard` → ponte → `CMP-IW-PRIZE-POINTS` → wallet → PT-01 · E2E n. 3 di docs/09 §4.
+
+**Criteri di accettazione**
+
+1. **Dato** l'istante piantato, **allora** la ruota si ferma sullo spicchio vinto, coriandoli (salvo `prefers-reduced-motion`), card vincita, «I punti stanno arrivando…», poi saldo +50.
+2. **Dato** una seconda giocata, **allora** LOSE con «riprova domani» e giocate rimaste.
+
+**Testbook**: scoperta (TB-E2E); animazione e stati in TB-WEB.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | BO-14, PT-06, PT-01, docs/09 §4. |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-E2E (con righe), TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-14, PT-06, PT-01 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-IW-04, F-IW-06, F-IW-08, F-CNT-03 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 7 righe legate alla storia, 7 eseguite dai test: TB-E2E-IW-001, TB-E2E-IW-002, TB-E2E-IW-003, TB-E2E-IW-004 e altri 3; 14 righe sulle feature o schermate della storia in TB-WEB, 14 eseguite: TB-WEB-NAV-012, TB-WEB-HOME-001, TB-WEB-HOME-002 e altri 11 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e10-08" />
+
+## US-E10-08 · Iscrizione dal portale
+
+> *Come* visitatore invitato da un amico, *voglio* iscrivermi con pochi campi e ricevere subito il benvenuto, *così che* inizi a partecipare.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-MBR-06, F-REF-01 · PT-08 `/portal/join?ref=`, HUB-01 · `POST /v1/members` · MBR-01, MBR-05, WEB-17 · `CMP-WELCOME`, `POP-WELCOME`.
+
+**Criteri di accettazione**
+
+1. **Dato** il form valido, **allora** il nuovo membro diventa la persona attiva, PT-01 con pop-up di benvenuto e «+100 punti in arrivo…».
+2. ✗ **Dato** un codice amico non valido, **allora** errore sul campo e nessun membro creato; e-mail già usata → errore sul campo.
+
+**Testbook**: TB-GOV (API) · TB-WEB (form).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-MBR-06, F-REF-01, PT-08, HUB-01 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe), TB-WEB (con righe), TB-E2E (le sue righe citano la storia) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-08, HUB-01 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-MBR-06, F-REF-01 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 9 righe legate alla storia, 9 eseguite dai test: TB-E2E-REG-001, TB-E2E-REG-002, TB-E2E-REG-003, TB-E2E-REG-004 e altri 5; 60 righe sulle feature o schermate della storia in TB-GOV, TB-WEB, 36 eseguite: TB-GOV-REF-001, TB-GOV-REF-002, TB-GOV-REF-003 e altri 33 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e10-09" />
+
+## US-E10-09 · Completare il profilo
+
+> *Come* membro, *voglio* completare il profilo e ricevere il premio una volta, *così che* sia ricompensato per i dati che condivido.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-MBR-07 · PT-08 · `PATCH /v1/portal/members/{id}` · MBR-02, MBR-08 · `CMP-PROFILE` · Q-63.
+
+**Criteri di accettazione**
+
+1. **Dato** Anna che inserisce la città (ultimo campo mancante), **allora** `member.profile.completed`; se `SCN-ONBOARDING` non ha già pagato, +150 PTS.
+2. **Dato** un secondo salvataggio completo, **allora** nessun secondo fatto.
+3. **Dato** il profilo, **allora** indicatore di completezza con i campi mancanti.
+
+**Testbook**: TB-GOV (API) · TB-WEB.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-MBR-07, PT-08 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe), TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-63 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-08 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-MBR-07 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 2 righe sulle feature o schermate della storia in TB-WEB, 2 eseguite: TB-WEB-HOME-020, TB-WEB-HOME-021 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e10-10" />
+
+## US-E10-10 · Attività e scomposizione dei movimenti
+
+> *Come* membro, *voglio* capire ogni movimento («130 punti base × 1,25 SILVER = 162»), *così che* mi fidi del conto.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2)
+
+**Tocca**: F-WAL-02, F-TIER-03 · PT-07 · `GET /v1/portal/wallets/{id}/activity` · WAL-21.
+
+**Criteri di accettazione**
+
+1. **Dato** l'acquisto di Marco, **allora** «Acquisto online», +162 verde, dettaglio con scomposizione e scadenza del lotto; filtri guadagnati/spesi/scaduti/status.
+
+**Testbook**: TB-WEB (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-WAL-02, F-TIER-03, PT-07 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-07 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-WAL-02, F-TIER-03 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e10-11" />
+
+## US-E10-11 · Portale di un membro sospeso
+
+> *Come* membro sospeso, *voglio* poter consultare ma sapere che non posso accumulare o richiedere, *così che* capisca la mia situazione.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2)
+
+**Tocca**: docs/09 §2 · PT-* · [US-E02-04](/specifiche/backlog/e02-membri-e-segmenti#us-e02-04).
+
+**Criteri di accettazione**
+
+1. **Dato** Roberto, **allora** banda «Il tuo profilo è sospeso…», pulsanti di richiesta e gioco disabilitati; MBR-000012 non selezionabile.
+
+**Testbook**: TB-WEB (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | docs/09 §2 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-MBR-04 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e10-12" />
+
+## US-E10-12 · Un servizio che dorme non rompe il portale
+
+> *Come* membro, *voglio* che il portale resti usabile anche se un pezzo sta ripartendo, *così che* non veda una pagina d'errore.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2)
+
+**Tocca**: docs/07 §6, docs/09 §2 · WEB-03 · RNF-06.
+
+**Criteri di accettazione**
+
+1. **Dato** wallet fermo, **allora** PT-01 mostra la sezione saldo *degraded* (ultimo saldo noto «aggiornato alle …») e il resto funziona; al riavvio l'arretrato è elaborato e il saldo è corretto (docs/12 M1).
+2. **Dato** reward fermo, **allora** solo PT-03 degrada con «Stiamo recuperando i tuoi premi…».
+
+**Testbook**: TB-WEB (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | docs/07 §6, docs/09 §2, RNF-06 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | 🔎 da verificare | nessuna feature F- o F2- nella storia |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e10-13" />
+
+## US-E10-13 · Percorso: punti in scadenza
+
+> *Come* Chiara, *voglio* essere avvisata, e se non spendo vedere la scadenza nel conto e ricevere il messaggio, *così che* capisca cosa è successo.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: PT-01 (avviso) → BO-30 preavvisi ([US-E04-05](/specifiche/backlog/e04-wallet-livelli-ed-edizioni#us-e04-05)) → PT-12 → BO-30 scadenze `asOf=+31d` ([US-E04-04](/specifiche/backlog/e04-wallet-livelli-ed-edizioni#us-e04-04)) → PT-07 riga rossa.
+
+**Criteri di accettazione**
+
+1. **Dato** la sequenza, **allora** avviso, messaggio di preavviso, `EXPIRE 1 900`, saldo nel portale 500.
+
+**Testbook**: scoperta (TB-E2E).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | PT-01, BO-30, PT-12, PT-07 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-E2E (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-01, BO-30, PT-12, PT-07 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-WAL-06 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 5 righe legate alla storia, 5 eseguite dai test: TB-E2E-EXP-001, TB-E2E-EXP-002, TB-E2E-EXP-003, TB-E2E-EXP-004 e altri 1 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e10-14" />
+
+## US-E10-14 · Percorso: cliente che diventa digitale
+
+> *Come* Marco, *voglio* attivare bolletta digitale e domiciliazione e ricevere punti, badge e bonus, e vedere contenuti diversi, *così che* il programma riconosca il mio passaggio.
+
+**DoR**: ⬜ non pronta (R4) · **DoD**: ✅ fatta
+
+**Contesto reale**: `SCN-DIGITAL`.
+
+**Tocca**: ING → CMP (`CMP-EBILL`, `CMP-DIRECT-DEBIT`) → WAL → GAM (`ACH-DIGITAL`, badge) → ponte → `CMP-BADGE-BONUS` → MBR (etichette Q-80, segmento SEG-DIGITAL al ricalcolo) → ENG (contenuti per segmento).
+
+**Criteri di accettazione**
+
+1. **Dato** lo scenario, **allora** +300/+150 e +400/+200, badge «Zero carta», +100 PTS.
+2. **Dato** il ricalcolo dei segmenti, **allora** Marco entra in SEG-DIGITAL, esce da SEG-NOT-EBILL e vede «Grazie per essere digitale» al posto di «Passa alla bolletta digitale» (docs/12 M6).
+3. **Dato** lo scenario ripetuto, **allora** `LIMIT` su entrambe le campagne (1 / sempre) e nessun secondo badge.
+
+**Testbook**: scoperta (TB-E2E).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CMP-04, F-ACH-03, F-SEG-03, F-CNT-01 (dalla matrice di §6.1) |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ⬜ | risposte d'errore (400) senza criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-E2E (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-80 |
+| R7 Dati demo | ✅ | in seed/: SCN-DIGITAL |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-04, F-ACH-03, F-SEG-03, F-CNT-01 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 4 righe legate alla storia, 4 eseguite dai test: TB-E2E-DIG-001, TB-E2E-DIG-002, TB-E2E-DIG-003, TB-E2E-DIG-004 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e10-15" />
+
+## US-E10-15 · Percorso: porta un amico
+
+> *Come* Marco ed Elisa, *vogliamo* essere premiati entrambi al primo acquisto di Elisa, *così che* invitare convenga.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: PT-11 (codice, link `/portal/join?ref=`) → [US-E06-16](/specifiche/backlog/e06-gioco#us-e06-16) → [US-E06-17](/specifiche/backlog/e06-gioco#us-e06-17) → PT-11 stato «premio ottenuto».
+
+**Criteri di accettazione**
+
+1. **Dato** `SCN-REFERRAL`, **allora** Marco +500/+250 STS, Elisa +200, messaggio a Marco (MSG-REFERRAL-DONE); il secondo acquisto di Elisa non genera altri referral.
+
+**Testbook**: scoperta (TB-E2E).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | PT-11 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-E2E (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: SCN-REFERRAL |
+| R8 Stati dell'interfaccia | ✅ | PT-11 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-REF-01, F-REF-02 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 6 righe legate alla storia, 6 eseguite dai test: TB-E2E-REF-001, TB-E2E-REF-002, TB-E2E-REF-003, TB-E2E-REF-004 e altri 2; 9 righe sulle feature o schermate della storia in TB-E2E, 9 eseguite: TB-E2E-REG-001, TB-E2E-REG-002, TB-E2E-REG-003 e altri 6 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e10-16" />
+
+## US-E10-16 · Percorso: primo giorno di un nuovo iscritto
+
+> *Come* Anna, *voglio* accumulare subito con login, profilo e primo acquisto e vedere la catena di premi, *così che* mi appassioni al programma.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: `SCN-ONBOARDING`.
+
+**Tocca**: ING → CMP (`CMP-APP-DAILY`, `CMP-PROFILE`, `CMP-PURCHASE-BASE`) → GAM (`ACH-FIRST-PURCHASE` → `BDG-FIRST`) → ponte → `CMP-BADGE-BONUS` · Q-63.
+
+**Criteri di accettazione**
+
+1. **Dato** lo scenario, **allora** +5, +150, punti dell'acquisto, badge «Rompighiaccio» e +100 in **un solo tracciato** per il passo d'acquisto (docs/12 M5); il profilo di Anna resta incompleto in PT-08 (Q-63).
+
+**Testbook**: scoperta (TB-E2E).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CMP-04, F-MBR-07, F-ACH-03 (dalla matrice di §6.1) |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-E2E (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-63 |
+| R7 Dati demo | ✅ | in seed/: SCN-ONBOARDING |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-04, F-MBR-07, F-ACH-03 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 4 righe legate alla storia, 4 eseguite dai test: TB-E2E-ONB-001, TB-E2E-ONB-002, TB-E2E-SMK-001, TB-E2E-SMK-002 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

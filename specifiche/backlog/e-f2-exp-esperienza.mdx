@@ -1,0 +1,402 @@
+---
+title: "E-F2-EXP · Esperienza"
+sidebarTitle: "E-F2-EXP Esperienza"
+description: "E-F2-EXP Esperienza: il marketing compone pagine e blocchi senza rilascio, il portale non dipende dal CMS. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: il marketing compone pagine e blocchi senza rilascio, il portale non dipende dal CMS.
+
+**Attori**: MARKETING, membro · **Feature**: F2-EXP-*, F2-DS-*, F2-API-* · **Schermate**: BO-31, PT-15, PT-17 · **Servizi**: experience, web, `cms` · **Testbook**: TB-EXP
+
+Questa epica ha 10 storie: 9 pronte secondo la Definition of Ready, 1 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-f2-api-01" />
+
+## US-F2-API-01 · OpenAPI generata e verificata
+
+> *Come* sviluppatore di un'app dell'adottante, *voglio* un contratto OpenAPI per ogni servizio, generato dal codice e verificato a ogni pull request, *così che* generi un client e sappia quando un cambio mi rompe.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: il team dell'app mobile di «Club Aurora» genera il client del portale da `contracts/api/portal.openapi.yaml`.
+
+**Tocca**: F2-API-01 · ADR-046 · docs/18 §3.6 · `contracts/api/` · M8.8 · regola 12.
+
+**Decisioni**: un gruppo springdoc per servizio, più `platform` e `portal` (unione di `/v1/portal/**`) · YAML deterministico · una differenza tra generato e versionato fa fallire il test · `check-api` contro il merge-base: rimozioni, restrizioni nella richiesta e garanzie perse nella risposta sono rotture.
+
+**Criteri di accettazione**
+
+1. **Dato** l'hub avviato, **allora** `OpenApiExportIT` produce `contracts/api/*.openapi.yaml` identici a quelli versionati; una differenza fa fallire il test ([#76](https://github.com/peppe-ruv/Loyalty_Sys/pull/76)).
+2. ✗ **Dato** una pull request che rimuove un'operazione o restringe una richiesta, **allora** `check-api` fallisce nel job `contracts` ([#76](https://github.com/peppe-ruv/Loyalty_Sys/pull/76)).
+
+**Testbook**: TB-EXP (dominio senza righe) · prove automatiche: `deploy/hub/src/test/java/io/loyaltyhub/hub/OpenApiExportIT.java`, `scripts/check-api.test.mjs`.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-API-01, ADR-046, docs/18 §3.6 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-EXP (dominio senza righe), 2 prove automatiche |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F2-API-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#76](https://github.com/peppe-ruv/Loyalty_Sys/pull/76) |
+| D2 Criteri provati | ✅ | prove automatiche: [OpenApiExportIT.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/deploy/hub/src/test/java/io/loyaltyhub/hub/OpenApiExportIT.java), [check-api.test.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/check-api.test.mjs) |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-api-02" />
+
+## US-F2-API-02 · Widget kit
+
+> *Come* sviluppatore di un'app dell'adottante, *voglio* web component del programma da incorporare con il token del membro che usa la mia app, *così che* mostri saldo, catalogo e giochi senza rifare l'interfaccia.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: l'app di «Club Aurora» mostra a Marco il saldo con `<lh-balance>` e la ruota del concorso IW-AUTUNNO con `<lh-game>`.
+
+**Tocca**: F2-API-02 · ADR-029 · docs/18 §3.6 · `widgets/` · M10.6 · regola 12.
+
+**Decisioni**: `<lh-member-card>`, `<lh-balance>`, `<lh-earn-list>`, `<lh-catalog>`, `<lh-game>`, `<lh-inbox>` · token da `tokenProvider` o da attributo, tenuto in memoria · tema con le custom properties del design system · stessi renderer dei blocchi del Registry.
+
+**Criteri di accettazione**
+
+1. **Dato** `<lh-game>` incorporato in `widgets/example.html`, **allora** gioca con un token reale (docs/18 §6 M10).
+
+**Testbook**: TB-EXP (da scrivere con M10.6).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-API-02, ADR-029, docs/18 §3.6 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-EXP (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: IW-AUTUNNO |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-API-02 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-exp-01" />
+
+## US-F2-EXP-01 · Element Registry
+
+> *Come* MARKETING, *voglio* che ogni blocco disponibile nasca da un manifesto unico, *così che* CMS, portale e documentazione conoscano gli stessi blocchi senza divergere.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: la piattaforma di «Club Aurora» riceve un nuovo tipo di blocco; Directus, tipi TypeScript e documentazione si aggiornano con un comando.
+
+**Tocca**: F2-EXP-01 · ADR-029 · docs/18 §3.5 · `registry/elements.yaml` · M10.1 · regola 11.
+
+**Decisioni**: per ogni tipo `kind`, `props`, `renderer`, `dataSources`, `paRequired`, `wcag` e `sinceRegistryVersion` · `pnpm registry:build` genera lo snapshot di Directus, i tipi TypeScript e la documentazione · la CI fallisce se il generato differisce dal committato.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** uno snapshot committato diverso da quello generato, **allora** la CI fallisce (drift check, docs/18 §6 M10).
+
+**Testbook**: TB-EXP (da scrivere con M10.1).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-EXP-01, ADR-029, docs/18 §3.5 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-EXP (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-EXP-01 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-exp-02" />
+
+## US-F2-EXP-02 · Directus nell'immagine
+
+> *Come* MARKETING, *voglio* comporre pagine e contenuti in Directus con il mio account aziendale, *così che* cambi il portale senza un rilascio.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: Luca entra in Directus con SSO e aggiunge un blocco ruota scegliendo il concorso da `ref_contests`.
+
+**Tocca**: F2-EXP-02 · ADR-030 · docs/18 §3.5 · ruolo `cms` · M10.2.
+
+**Decisioni**: versione bloccata, snapshot generato dal Registry, SSO OIDC, ruoli `Editor`, `Marketing` e `Publisher` dal claim · collezioni `ref_*` in sola lettura alimentate dai fatti `*.status.changed` tramite webhook firmato · estensioni compilate · database `cms`.
+
+**Criteri di accettazione**
+
+1. **Dato** una seconda ruota su un secondo concorso creata in Directus da `luca.marketing`, **allora** è visibile nel portale alla pubblicazione, senza rilascio (docs/18 §6 M10).
+
+**Testbook**: TB-EXP (da scrivere con M10.2).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-EXP-02, ADR-030, docs/18 §3.5 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-EXP (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-EXP-02 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-exp-03" />
+
+## US-F2-EXP-03 · Composizione versionata in experience-service
+
+> *Come* MARKETING, *voglio* che ogni pubblicazione crei una versione immutabile, validata e ripristinabile, *così che* un errore si annulli in un clic e il portale non dipenda dal CMS.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: Luca pubblica una home di «Club Aurora» con un blocco sbagliato e torna alla versione precedente da BO-31.
+
+**Tocca**: F2-EXP-03 · ADR-031 · docs/18 §3.5 · BO-31 · `POST /v1/cms/notify`, `POST /v1/cms/sync`, `GET /v1/portal/pages/{slug}` · M10.3.
+
+**Decisioni**: notify-and-pull con segreto condiviso e token a scope minimo · validazione sul Registry e sulle regole del profilo · `composition_version` `DRAFT → ACTIVE → PREVIOUS`, rollback = riattivare `PREVIOUS` · rinomina `engagement → experience` con doppia lettura dei consumer group.
+
+**Criteri di accettazione**
+
+1. **Dato** Directus spento, **allora** il portale serve la composizione attiva (docs/18 §6 M10).
+2. **Dato** una versione attiva, **quando** scelgo il ripristino, **allora** la precedente torna attiva in un clic (docs/18 §6 M10).
+3. ✗ **Dato** una composizione non valida, **allora** `422` con il codice e il blocco da correggere, e nessuna nuova versione (docs/18 §3.5).
+4. ✗ **Dato** un blocco che riferisce un oggetto inesistente o non pubblicabile, **allora** il validatore rifiuta la pubblicazione (docs/18 §3.5).
+
+**Testbook**: TB-EXP (da scrivere con M10.3).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-EXP-03, ADR-031, docs/18 §3.5, BO-31 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 422 |
+| R5 Dominio di testbook | ✅ | TB-EXP (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-31 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-EXP-03 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-exp-04" />
+
+## US-F2-EXP-04 · Portale reso dalla composizione
+
+> *Come* membro, *voglio* che le pagine del portale siano composte dai blocchi pubblicati, *così che* veda sempre i contenuti aggiornati dal marketing.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: Matteo apre la pagina «Gioca» e trova la nuova ruota pubblicata ieri.
+
+**Tocca**: F2-EXP-04 · ADR-029, ADR-031 · docs/18 §3.5 · PT-15 · `GET /v1/portal/pages/{slug}` · M10.4.
+
+**Decisioni**: set chiuso di M10: pagine `home`, `earn`, `rewards`, `play`, `activity`, `profile`, `page`; blocchi e strutturali di docs/18 §3.5 · blocchi già filtrati e con i dati del membro dal token.
+
+**Criteri di accettazione**
+
+1. **Dato** ogni blocco del set chiuso, **allora** passa axe su tutta la matrice (docs/18 §6 M10).
+2. **Dato** Directus spento, **allora** il portale serve la composizione attiva (docs/18 §6 M10).
+
+**Testbook**: TB-EXP (da scrivere con M10.4).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-EXP-04, ADR-029, ADR-031, docs/18 §3.5, PT-15 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-EXP (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-15 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-EXP-04 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-exp-05" />
+
+## US-F2-EXP-05 · «Usato in» e oggetti LIVE non esposti
+
+> *Come* MARKETING, *voglio* vedere dove sono usati un concorso, una campagna o un premio e sapere se un oggetto `LIVE` non è esposto da nessun blocco, *così che* nessuna entità resti senza lettore.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: Luca porta a `LIVE` il concorso IW-AUTUNNO ma dimentica di metterlo in una pagina; BO-14 lo avvisa.
+
+**Tocca**: F2-EXP-05 · ADR-029 · docs/18 §3.5, §5 · BO-14, BO-06, BO-11, BO-31 · `block_reference` · M10.5 · regola 2.
+
+**Decisioni**: riquadro «Usato in» da `block_reference` e avviso «LIVE ma non esposto» in BO-14, BO-06 e BO-11 (docs/18 §5).
+
+**Criteri di accettazione**
+
+1. **Dato** un oggetto riferito da uno o più blocchi, **allora** il riquadro «Usato in» li elenca (docs/18 §3.5, §5).
+2. **Dato** un oggetto `LIVE` che nessun blocco riferisce, **allora** la scheda mostra l'avviso «LIVE ma non esposto» (docs/18 §3.5, §5).
+
+**Testbook**: TB-EXP (da scrivere con M10.5).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-EXP-05, ADR-029, docs/18 §3.5, BO-14, BO-06, BO-11 e altri 1 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-EXP (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: IW-AUTUNNO |
+| R8 Stati dell'interfaccia | ✅ | BO-14, BO-06, BO-11, BO-31 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-EXP-05 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-ds-01" />
+
+## US-F2-DS-01 · Token a tre livelli e profili
+
+> *Come* responsabile dell'accessibilità, *voglio* un design system a token con i profili `brand` e `pa` e il tema dal CMS, *così che* il marchio cambi senza violare contrasti e vincoli.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: un ente pubblico che adotta il prodotto passa il portale dal profilo `brand` di «Club Aurora» al profilo `pa`.
+
+**Tocca**: F2-DS-01 · ADR-039 · docs/18 §3.7 · M10.4.
+
+**Decisioni**: token `primitive`, `semantic` e `component`; il tema modifica solo i semantici · nel profilo `pa` font e palette del Design System .italia vincolati · `THEME_CONTRAST_TOO_LOW` esteso a tutti i token semantici.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** un tema con contrasto insufficiente su un token semantico, **allora** è rifiutato con `THEME_CONTRAST_TOO_LOW` (docs/18 §3.7).
+2. Profili e tema dal CMS: criteri da scrivere con la fetta.
+
+**Testbook**: TB-EXP (da scrivere con M10.4).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-DS-01, ADR-039, docs/18 §3.7 |
+| R3 Criteri di accettazione | ⬜ | 1 criterio Dato/Quando/Allora, altri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-EXP (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-DS-01 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-ds-02" />
+
+## US-F2-DS-02 · Blocchi strutturali e validatore di conformità
+
+> *Come* responsabile dell'accessibilità di un ente pubblico, *voglio* che il portale `pa` non si pubblichi senza i blocchi obbligatori, *così che* resti conforme alle linee guida AgID.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: l'ente prova a pubblicare la home senza il footer istituzionale.
+
+**Tocca**: F2-DS-02 · ADR-039 · docs/18 §3.7 · M10.4 · regola 13.
+
+**Decisioni**: strutturali obbligatori nel profilo `pa`: header a tre fasce, footer istituzionale, dichiarazione di accessibilità, note legali, breadcrumb, skip link, cookie bar, selettore della lingua · il validatore controlla blocchi obbligatori, un solo H1, testi alternativi, contrasto, collegamenti del footer e lingue complete · errori `422` con codice (`COMPOSITION_PA_BLOCK_MISSING`, …).
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** il profilo `pa` senza footer istituzionale, **allora** la pubblicazione è rifiutata con `422` (docs/18 §6 M10).
+2. ✗ **Dato** una pagina con due H1 o un'immagine senza testo alternativo, **allora** il validatore la rifiuta (docs/18 §3.7).
+
+**Testbook**: TB-EXP (da scrivere con M10.4).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-DS-02, ADR-039, docs/18 §3.7 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 422 |
+| R5 Dominio di testbook | ✅ | TB-EXP (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-DS-02 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-ds-03" />
+
+## US-F2-DS-03 · Accessibilità verificata
+
+> *Come* membro che usa un lettore di schermo, *voglio* che portale, widget, backoffice e pagine di login rispettino WCAG 2.1 AA, *così che* partecipi al programma come tutti.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: un membro di «Club Aurora» usa la ruota solo da tastiera con un lettore di schermo.
+
+**Tocca**: F2-DS-03 · ADR-039 · docs/18 §3.7 · `lh a11y-report` · M9.3, M12.2.
+
+**Decisioni**: ogni tipo del Registry dichiara i criteri WCAG coperti e il meccanismo · `game`: pulsante «Gioca» equivalente, esito annunciato con `aria-live`, animazioni sotto `prefers-reduced-motion` · `lh a11y-report` produce i dati della dichiarazione di accessibilità.
+
+**Criteri di accettazione**
+
+1. **Dato** la matrice dei dispositivi, **allora** nessuna violazione axe di livello *serious* o *critical* (docs/18 §6 M9).
+2. **Dato** ogni blocco del set chiuso, **allora** passa axe su tutta la matrice (docs/18 §6 M10).
+
+**Testbook**: TB-EXP (da scrivere con M9.3).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-DS-03, ADR-039, docs/18 §3.7 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-EXP (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-DS-03 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

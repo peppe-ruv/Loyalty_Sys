@@ -6,7 +6,8 @@ Catalogo di **tutte** le epic e le storie utente che si possono associare alle d
 
 - **Catena di tracciabilità**: `F-…` (docs/02) → **storia** `US-Enn-nn` → schermate `BO-/PT-/HUB-`, API, eventi `EVT-…` → **decisioni** (regola → rami, con codici d'errore) → **nodo della foresta** (§5, dal codice) → **riga di testbook** `TB-<DOM>-NNN`.
 - **Oracolo = la specifica** (come in docs/16): i criteri di accettazione derivano da docs/02–10, docs/servizi, docs/12 e dalle decisioni `Q-nn` di docs/15. La foresta (§5) nasce dal **codice** e serve a due cose: (a) rendere esaustivo l'elenco dei rami; (b) far emergere i **rami senza specifica** e le **regole non implementate**.
-- **Stato di copertura** (§6): `coperta` = esistono righe TB · `pianificata` = il dominio TB esiste ma le righe non sono scritte · `scoperta` = nessun dominio TB la coprirebbe · `fuori perimetro PoC` = feature P2 (docs/01 §4). Alla data di questo documento docs/16 non contiene ancora righe (tutte le sezioni sono «In revisione») e `docs/testbook/` non esiste: nessuna storia è quindi `coperta`.
+- **Stato di copertura** (§6): `coperta` = esistono righe TB · `pianificata` = il dominio TB esiste ma le righe non sono scritte · `scoperta` = nessun dominio TB la coprirebbe · `fuori perimetro PoC` = feature P2 (docs/01 §4). La matrice di §6 è la fotografia della stesura, quando `docs/testbook/` non esisteva ancora; lo stato attuale di ogni storia (DoR e DoD con le evidenze, comprese le righe TB) lo calcola `scripts/docs-sync.mjs` secondo §4.0 e lo pubblica nelle pagine Mintlify del backlog.
+- **Pagine generate**: le pagine Mintlify `specifiche/backlog` (indice) e `specifiche/backlog/<epic>` (una per epic) derivano da questo file con `node scripts/docs-sync.mjs`; non si modificano a mano. Il job `guard` esegue `node scripts/docs-sync.mjs --check` e fallisce se le pagine committate non coincidono con quelle generate.
 - **Manutenzione**: nuova feature o nuova schermata → nuova storia (o criterio) qui; nuovo `LhException`, nuovo enum di esito, nuovo `@RequiresRole` o nuovo job → nuova riga in §5 (i comandi per rifare l'inventario sono in §5.0); nuove righe TB → aggiornare la colonna *Testbook* della storia e la matrice §6. Un ramo che resta senza storia va in §6.3.
 - Convenzioni: `Dato/Quando/Allora` = criterio di accettazione; «SPEC-GAP» = scelta registrata in docs/15; «⚠ divergenza» = il codice non segue la specifica (va in docs/16 §12 quando la riga TB esiste); «⛔ non implementata» = regola di specifica senza codice.
 
@@ -113,6 +114,36 @@ Il presentatore (in pratica `marta.admin` + un membro scelto) che accende la dem
 ## 4. Storie utente
 
 Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** (feature, schermate, API, eventi, nodi della foresta §5) · **Decisioni** (regola → rami/esiti) · **Criteri** (Dato/Quando/Allora; i negativi sono marcati ✗) · **Testbook**. Tutti i tempi di business sono in Europe/Rome.
+
+### 4.0 Definition of Ready e Definition of Done
+
+Ogni storia, di Fase 1 e di Fase 2, passa due cancelli. Una storia entra in una fetta solo quando è **pronta** (*Definition of Ready*, DoR) ed esce dal backlog solo quando è **fatta** (*Definition of Done*, DoD). Le voci derivano dal contratto di esecuzione di `CLAUDE.md §6` e `§7` e dalle regole di lavoro del repository.
+
+Lo stato non si scrive a mano nelle storie: lo calcola `scripts/docs-sync.mjs` dai campi della storia e dalle evidenze del repository, voce per voce, e lo pubblica nelle pagine Mintlify del backlog. Una voce che lo script non sa verificare compare come «da verificare»: nella DoR non blocca la storia, nella DoD la lascia «da verificare» finché l'evidenza non c'è. Una storia *fuori perimetro PoC* non ha DoR né DoD.
+
+> **Nota:** la DoD di una storia non sostituisce la *Definizione di fatto* della fetta. La fetta resta responsabile dei controlli della sua pull request (voce D4); la storia raccoglie le evidenze che restano nel repository dopo il merge.
+
+**Definition of Ready** — la storia è pronta quando tutte le voci sono soddisfatte:
+
+| Voce | Cosa chiede | Come si verifica |
+|---|---|---|
+| R1 Forma | la frase *Come … voglio … così che …* | campi della storia |
+| R2 Specifica | almeno un riferimento di specifica nel campo *Tocca* o, per le storie di Fase 1, nella colonna *Feature* di §6.1: un ID `F-`, `F2-`, `RNF-`, `BO-`, `PT-`, `HUB-`, `EVT-`, `ADR-` o una sezione `docs/NN §n` | campi della storia, §6.1 |
+| R3 Criteri | almeno un criterio *Dato/Quando/Allora*; un criterio «da scrivere con la fetta» rende la storia non pronta | campi della storia |
+| R4 Negativi | se la storia prevede risposte d'errore HTTP 4xx (nelle *Decisioni* o nell'esito di un criterio), almeno un criterio negativo ✗ | campi della storia |
+| R5 Testbook | un dominio `TB-<DOM>` (docs/16 §2) o un job di verifica nel campo *Testbook*, un dominio proposto per la storia in §7, oppure righe `TB-*` che citano la storia; «scoperta» senza dominio non basta | campi della storia, §7, `docs/testbook/` |
+| R6 Dipendenze e domande | ogni `Q-nnn` citata esiste in docs/15 ed è decisa, superata o ha un default in uso (marcato `SPEC-GAP`) | docs/15 |
+| R7 Dati demo | gli ID dei dati demo citati nel *Contesto reale* e nelle precondizioni (*Dato …*) dei criteri positivi (`MBR-`, `CMP-`, `RWD-`, `SCN-`, `IW-`, …) esistono in `seed/`; se la storia non ne cita, la voce è da verificare | `seed/` |
+| R8 Stati dell'interfaccia | ogni schermata toccata (`BO-`, `PT-`, `HUB-`) è specificata in docs/08, docs/09 o docs/18 §5, dove valgono gli stati *loading / empty / error / degraded* di docs/07 §6 | docs/07–09, docs/18 |
+
+**Definition of Done** — la storia è fatta quando le voci D1–D3 sono soddisfatte; D4 resta sulla pull request della fetta:
+
+| Voce | Cosa chiede | Come si verifica |
+|---|---|---|
+| D1 Feature completate | ogni `F-` e `F2-` della storia è spuntata `[x]` in docs/14 (DoD 1 e 4); per Fase 2 con il numero della pull request (DoD 11) | docs/14 |
+| D2 Criteri provati | righe `TB-*` legate alla storia (la citano nella riga, nel titolo della sezione o nella regola del testbook a cui appartengono, oppure il campo *Testbook* le nomina) o, nel dominio della storia, alle sue feature e schermate, eseguite da test automatici (ID presente nei sorgenti dei test); in alternativa le prove automatiche indicate nel campo *Testbook*, se i file esistono | docs/16, `docs/testbook/`, sorgenti dei test |
+| D3 Nessuno scostamento aperto | nessuna regola ⛔ non implementata e nessuna ⚠ divergenza nella storia (DoD 5) | campi della storia |
+| D4 Controlli della fetta | build e test verdi, `check-seed` (DoD 2); stati dell'interfaccia (DoD 3); OpenAPI e `check-contracts` (DoD 6); `registry:build` senza drift (DoD 7); axe sulla matrice `e2e-pr` (DoD 8); messaggi in due lingue da M11 (DoD 9); pagina Mintlify con diagramma e diagrammi di dati e stati aggiornati (DoD 10, 17-bis); voce di audit per ogni scrittura di configurazione (DoD 21) | da verificare sulla pull request della fetta |
 
 ### E01 — Ingresso eventi
 
@@ -1644,77 +1675,705 @@ Formato: *Come … voglio … così che …* · **Contesto reale** · **Tocca** 
 - **Criteri**: RSS ≤ 450 MB dopo 2 min; azione → movimento p50 ≤ 3 s, p95 ≤ 8 s; contrasto AA, focus visibile, tastiera, `prefers-reduced-motion`; portale ≥ 360 px; log JSON con `eventId`, `correlationId`, `memberId`.
 - **Testbook**: scoperta (non funzionale).
 
-### Fase 2 — storie principali (una per feature P0)
+### Fase 2 — storie delle feature P0
 
-Adozione M8.0 (`docs/18` Appendice B punto 9): una storia per ogni feature P0 del catalogo `docs/18 §4`, in forma breve. I criteri *Dato/Quando/Allora* sono quelli di accettazione della milestone (`docs/18 §6`) e si scrivono per esteso con la fetta che implementa la feature; le P1 (M13–M15) hanno la loro epic ma le storie nascono con la milestone.
+Adozione M8.0 (`docs/18` Appendice B punto 9): una storia per ogni feature P0 del catalogo `docs/18 §4`, raggruppate per epic di §3; gli ID `US-F2-…` restano quelli dell'adozione. I criteri vengono dall'accettazione della milestone (`docs/18 §6`), dall'architettura (`docs/18 §3`) e, per le feature già consegnate, da ciò che le pull request unite hanno fatto davvero (il numero `#nn` indica la PR). Dove la specifica non dà ancora un criterio, la storia lo dichiara «da scrivere con la fetta» e resta non pronta (§4.0, R3). Le storie delle feature P1 (M13–M15) nascono con la loro milestone: le epic E-F2-ECO e E-F2-AST per ora non ne hanno. Il brand è sempre quello demo «Club Aurora» e i dati sono solo quelli fittizi di `seed/`.
 
-| Storia | Come … voglio … | Epic | Feature | Milestone | TB | Stato |
-|---|---|---|---|---|---|---|
-| US-F2-DIST-01 | *Come* chi installa *voglio*: immagine unica multi-arch con ruoli e modalità | E-F2-DIST | `F2-DIST-01` | M8.1 | TB-DIST | pianificata |
-| US-F2-DIST-02 | *Come* chi installa *voglio*: chart Helm con operatori di default, valori per servizi gestiti | E-F2-DIST | `F2-DIST-02` | M8.3 | TB-DIST | pianificata |
-| US-F2-DIST-03 | *Come* chi installa *voglio*: compose di riferimento (ruoli + infra open source) | E-F2-DIST | `F2-DIST-03` | M8.3 | TB-DIST | pianificata |
-| US-F2-DIST-04 | *Come* chi installa *voglio*: modalità `embedded` (Postgres in-process, bus in-process, volume) | E-F2-DIST | `F2-DIST-04` | M12.1 | TB-DIST | pianificata |
-| US-F2-DIST-05 | *Come* chi installa *voglio*: cLI `lh` (init, doctor, migrate, config validate, backup, restore) | E-F2-DIST | `F2-DIST-05` | M12.2 | TB-DIST | pianificata |
-| US-F2-DIST-06 | *Come* chi installa *voglio*: wizard di primo avvio (admin, programma, package) | E-F2-DIST | `F2-DIST-06` | M12.3 | TB-DIST | pianificata |
-| US-F2-DIST-08 | *Come* chi installa *voglio*: rilascio firmato: SBOM, cosign, note di sicurezza, percorso N−1 → N | E-F2-DIST | `F2-DIST-08` | M8.5, M12.4 | TB-DIST | pianificata |
-| US-F2-IAM-01 | *Come* operatore o membro *voglio*: keycloak ruolo `idp`, realm as code | E-F2-IAM | `F2-IAM-01` | M8.2 | TB-IAM | pianificata |
-| US-F2-IAM-02 | *Come* operatore o membro *voglio*: servizi resource server JWT; `ActorContext` dal token | E-F2-IAM | `F2-IAM-02` | M8.2 | TB-IAM | pianificata |
-| US-F2-IAM-03 | *Come* operatore o membro *voglio*: login e registrazione membri via OIDC; `member.external_id = sub` | E-F2-IAM | `F2-IAM-03` | M8.2 | TB-IAM | pianificata |
-| US-F2-IAM-04 | *Come* operatore o membro *voglio*: broker verso IdP aziendale e federazione LDAP (documentati e provati) | E-F2-IAM | `F2-IAM-04` | M8.2 | TB-IAM | pianificata |
-| US-F2-SEC-01 | *Come* responsabile della sicurezza dell'adottante *voglio*: gateway con JWT, rate limit, CORS per widget, header di sicurezza | E-F2-SEC | `F2-SEC-01` | M8.5 | TB-SEC | pianificata |
-| US-F2-SEC-02 | *Come* responsabile della sicurezza dell'adottante *voglio*: mesh mTLS, network policy, ACL Kafka, ruoli DB per servizio (owner/app), External Secrets, Pod Security `restricted` | E-F2-SEC | `F2-SEC-02` | M8.5 | TB-SEC | pianificata |
-| US-F2-SEC-03 | *Come* responsabile della sicurezza dell'adottante *voglio*: supply chain in CI (SBOM, scansione, firma, CodeQL, secret scanning, IaC) | E-F2-SEC | `F2-SEC-03` | M8.5 | TB-SEC | pianificata |
-| US-F2-SEC-04 | *Come* responsabile della sicurezza dell'adottante *voglio*: cifratura a colonna dei contatti nel member-service | E-F2-SEC | `F2-SEC-04` | M8.4 | TB-SEC | pianificata |
-| US-F2-SEC-06 | *Come* responsabile della sicurezza dell'adottante *voglio*: bFF con sessione server-side, CSRF, back-channel logout, passkey, MFA operatori | E-F2-SEC | `F2-SEC-06` | M8.2 | TB-SEC | pianificata |
-| US-F2-SEC-07 | *Come* responsabile della sicurezza dell'adottante *voglio*: client credentials per fonti e job; token exchange per i widget | E-F2-SEC | `F2-SEC-07` | M8.2 | TB-SEC | pianificata |
-| US-F2-SEC-08 | *Come* responsabile della sicurezza dell'adottante *voglio*: messaggi firmati sul bus con elenco dei produttori ammessi e validazione in consumo | E-F2-SEC | `F2-SEC-08` | M8.10 | TB-SEC | pianificata |
-| US-F2-SEC-09 | *Come* responsabile della sicurezza dell'adottante *voglio*: deny by default (`@RequiresRole`/`@PublicEndpoint`), `MemberPrincipal` nel portale, DTO espliciti | E-F2-SEC | `F2-SEC-09` | M8.10 | TB-SEC | pianificata |
-| US-F2-SEC-10 | *Come* responsabile della sicurezza dell'adottante *voglio*: builder SQL con allowlist, regole Semgrep, limiti di input, template senza logica, sanitizzazione contenuti | E-F2-SEC | `F2-SEC-10` | M8.10 | TB-SEC | pianificata |
-| US-F2-SEC-11 | *Come* responsabile della sicurezza dell'adottante *voglio*: difesa SSRF, `Idempotency-Key`, rate limit per membro, controlli sui file caricati | E-F2-SEC | `F2-SEC-11` | M8.10 | TB-SEC | pianificata |
-| US-F2-SEC-12 | *Come* responsabile della sicurezza dell'adottante *voglio*: verifica continua: ArchUnit, Semgrep, Schemathesis, ZAP, `TB-SEC`, tabella ASVS, `SECURITY.md` | E-F2-SEC | `F2-SEC-12` | M8.11 | TB-SEC | pianificata |
-| US-F2-SEC-13 | *Come* responsabile della sicurezza dell'adottante *voglio*: bridge audit Directus → `audit_entry` (`POST /v1/audit/external` su experience-service, HMAC) | E-F2-SEC | `F2-SEC-13` | M8.12 | TB-SEC | pianificata |
-| US-F2-SEC-14 | *Come* responsabile della sicurezza dell'adottante *voglio*: bridge audit Keycloak → `audit_entry` (admin events + user events, event listener SPI) | E-F2-SEC | `F2-SEC-14` | M8.12 | TB-SEC | pianificata |
-| US-F2-SEC-15 | *Come* responsabile della sicurezza dell'adottante *voglio*: attività del membro (`member_activity_entry`, BO-03 estesa, portale PT-18 «La mia attività»), retention audit 400 giorni, sola-inserzione | E-F2-SEC | `F2-SEC-15` | M8.12 | TB-SEC | pianificata |
-| US-F2-GRC-01 | *Come* responsabile della conformità dell'adottante *voglio*: mappa Annex A 2022 con responsabilità condivisa, mappe ISO 27701, GDPR, NIS2 | E-F2-GRC | `F2-GRC-01` | M12.6 | TB-GRC | pianificata |
-| US-F2-GRC-02 | *Come* responsabile della conformità dell'adottante *voglio*: rifiuto all'avvio con configurazione insicura, `lh doctor --security`, nessuna telemetria in uscita | E-F2-GRC | `F2-GRC-02` | M12.6 | TB-GRC | pianificata |
-| US-F2-GRC-03 | *Come* responsabile della conformità dell'adottante *voglio*: quattro occhi: niente auto-approvazione, operazioni sensibili con doppio controllo configurabile | E-F2-GRC | `F2-GRC-03` | M8.13 | TB-GRC | pianificata |
-| US-F2-GRC-04 | *Come* responsabile della conformità dell'adottante *voglio*: deprovisioning dall'IdP, revisione periodica degli accessi (BO-34), break-glass | E-F2-GRC | `F2-GRC-04` | M8.13 | TB-GRC | pianificata |
-| US-F2-GRC-05 | *Come* responsabile della conformità dell'adottante *voglio*: classificazione `x-lh-class`, registro dei trattamenti, retention per categoria con rapporto, esportazioni controllate | E-F2-GRC | `F2-GRC-05` | M8.13 | TB-GRC | pianificata |
-| US-F2-GRC-06 | *Come* responsabile della conformità dell'adottante *voglio*: `erasure_log` riapplicato al ripristino, crypto-shredding dei contatti, `lh data mask`, `lh decommission` | E-F2-GRC | `F2-GRC-06` | M8.13, M12.6 | TB-GRC | pianificata |
-| US-F2-GRC-07 | *Come* responsabile della conformità dell'adottante *voglio*: audit a catena di hash con ancoraggio immutabile, export OCSF, `lh forensics export`, prova di ripristino mensile | E-F2-GRC | `F2-GRC-07` | M8.12, M12.6 | TB-GRC | pianificata |
-| US-F2-GRC-08 | *Come* responsabile della conformità dell'adottante *voglio*: pacchetto di rilascio: SBOM, VEX, SLSA L3, report; SLA vulnerabilità, processo CRA, politica LTS, rapporto licenze | E-F2-GRC | `F2-GRC-08` | M12.4, M12.6 | TB-GRC | pianificata |
-| US-F2-GRC-09 | *Come* responsabile della conformità dell'adottante *voglio*: identità propria degli agenti (GitHub App) e approvazione obbligatoria delle PR prima di v1.0 | E-F2-GRC | `F2-GRC-09` | M8.0, M12.4 | TB-GRC | pianificata |
-| US-F2-EVT-01 | *Come* DPO dell'adottante *voglio*: contratti con `x-lh-pii`, test che vieta PII sul bus, compat check contro ultimo tag | E-F2-EVT | `F2-EVT-01` | M8.4 | TB-SEC | pianificata |
-| US-F2-EVT-02 | *Come* DPO dell'adottante *voglio*: `member.registered/updated` `:2` senza PII; doppia lettura | E-F2-EVT | `F2-EVT-02` | M8.4 | TB-SEC | pianificata |
-| US-F2-EVT-03 | *Come* DPO dell'adottante *voglio*: modulo `delivery` nel member-service con adattatori SMTP/WEBHOOK | E-F2-EVT | `F2-EVT-03` | M8.4 | TB-SEC | pianificata |
-| US-F2-EVT-04 | *Come* DPO dell'adottante *voglio*: partizioni e concorrenza configurabili; retention lunga | E-F2-EVT | `F2-EVT-04` | M8.3 | TB-SEC | pianificata |
-| US-F2-ING-01 | *Come* integratore di una fonte *voglio*: `POST /v1/events/batch` fino a 1000 | E-F2-EVT | `F2-ING-01` | M8.7 | TB-ING | pianificata |
-| US-F2-ING-02 | *Come* integratore di una fonte *voglio*: import file asincrono con rapporto (BO-32) | E-F2-EVT | `F2-ING-02` | M8.7 | TB-ING | pianificata |
-| US-F2-API-01 | *Come* sviluppatore di un'app dell'adottante *voglio*: openAPI generata e verificata; `contracts/api/` | E-F2-EXP | `F2-API-01` | M8.8 | TB-EXP | pianificata |
-| US-F2-API-02 | *Come* sviluppatore di un'app dell'adottante *voglio*: widget kit web components | E-F2-EXP | `F2-API-02` | M10.6 | TB-EXP | pianificata |
-| US-F2-OBS-01 | *Come* operatore *voglio*: oTel → Prometheus/Loki/Tempo/Grafana nel chart, dashboard SLO | E-F2-OPS | `F2-OBS-01` | M8.6 | — | pianificata |
-| US-F2-QA-01 | *Come* proprietario del prodotto *voglio*: harness `e2e/`, journey DSL, invarianti | E-F2-QA | `F2-QA-01` | M9.1–M9.2 | TB-E2E | pianificata |
-| US-F2-QA-02 | *Come* proprietario del prodotto *voglio*: matrice device, screenshot, axe/pa11y | E-F2-QA | `F2-QA-02` | M9.3 | TB-E2E | pianificata |
-| US-F2-QA-03 | *Come* proprietario del prodotto *voglio*: carico k6 con profili 100k–2M membri | E-F2-QA | `F2-QA-03` | M9.4 | TB-E2E | pianificata |
-| US-F2-QA-04 | *Come* proprietario del prodotto *voglio*: test di installazione (3 tagli) e di aggiornamento N−1 → N | E-F2-QA | `F2-QA-04` | M9.5, M12.5 | TB-E2E | pianificata |
-| US-F2-EXP-01 | *Come* MARKETING *voglio*: element Registry con generazione e drift check | E-F2-EXP | `F2-EXP-01` | M10.1 | TB-EXP | pianificata |
-| US-F2-EXP-02 | *Come* MARKETING *voglio*: directus nell'immagine: schema generato, SSO, ruoli, `ref_*`, estensioni | E-F2-EXP | `F2-EXP-02` | M10.2 | TB-EXP | pianificata |
-| US-F2-EXP-03 | *Come* MARKETING *voglio*: `experience-service`: composizione versionata, notify-and-pull, validatore, rollback | E-F2-EXP | `F2-EXP-03` | M10.3 | TB-EXP | pianificata |
-| US-F2-EXP-04 | *Come* MARKETING *voglio*: renderer del portale su composizione (set chiuso) + `GET /v1/portal/pages` | E-F2-EXP | `F2-EXP-04` | M10.4 | TB-EXP | pianificata |
-| US-F2-EXP-05 | *Come* MARKETING *voglio*: «Usato in» e avviso oggetto LIVE non esposto (BO-14/06/11, BO-31) | E-F2-EXP | `F2-EXP-05` | M10.5 | TB-EXP | pianificata |
-| US-F2-DS-01 | *Come* responsabile dell'accessibilità *voglio*: token a tre livelli, profili `brand`/`pa`, tema dal CMS | E-F2-EXP | `F2-DS-01` | M10.4 | TB-EXP | pianificata |
-| US-F2-DS-02 | *Come* responsabile dell'accessibilità *voglio*: blocchi strutturali AgID e validatore di conformità | E-F2-EXP | `F2-DS-02` | M10.4 | TB-EXP | pianificata |
-| US-F2-DS-03 | *Come* responsabile dell'accessibilità *voglio*: accessibilità WCAG 2.1 AA verificata + `lh a11y-report` | E-F2-EXP | `F2-DS-03` | M9.3, M12.2 | TB-EXP | pianificata |
-| US-F2-I18N-01 | *Come* membro *voglio*: uI multilingua con prefisso URL, lint, formati | E-F2-I18N | `F2-I18N-01` | M11.1–M11.3 | TB-I18N | pianificata |
-| US-F2-I18N-02 | *Come* membro *voglio*: `MessageSource` backend, `LhException` a chiavi | E-F2-I18N | `F2-I18N-02` | M11.4 | TB-I18N | pianificata |
-| US-F2-I18N-03 | *Come* membro *voglio*: `LocalizedText`, `member.locale`, inbox nella lingua del membro, seed EN | E-F2-I18N | `F2-I18N-03` | M11.5 | TB-I18N | pianificata |
-| US-F2-GOV-01 | *Come* proprietario del repository *voglio*: ruleset `main-protetto`, impostazioni del repo, `CODEOWNERS`, modello di PR, Dependabot | E-F2-GOV | `F2-GOV-01` | M8.0 | guard | pianificata |
-| US-F2-GOV-02 | *Come* proprietario del repository *voglio*: controllo `guard` (ADR solo in aggiunta, ID seed invariati) | E-F2-GOV | `F2-GOV-02` | M8.0 | guard | pianificata |
-| US-F2-DOC-01 | *Come* lettore della documentazione *voglio*: mintlify unico sito: `site/`, dismissione GitBook e `docs_v2/` | E-F2-GOV | `F2-DOC-01` | M8.9 | docs | pianificata |
-| US-F2-DOC-02 | *Come* lettore della documentazione *voglio*: specifiche ed eventi generati (`docs-sync`), riferimento API da OpenAPI | E-F2-GOV | `F2-DOC-02` | M8.9 | docs | pianificata |
-| US-F2-DOC-03 | *Come* lettore della documentazione *voglio*: catalogo minimo dei diagrammi Mermaid e controllo `check-mermaid` | E-F2-GOV | `F2-DOC-03` | M8.9 | docs | pianificata |
-| US-F2-DOC-04 | *Come* lettore della documentazione *voglio*: documentazione in inglese (`navigation.languages`) | E-F2-GOV | `F2-DOC-04` | M11.6 | docs | pianificata |
-| US-F2-DOC-05 | *Come* lettore della documentazione *voglio*: `erDiagram` per scheda servizio, `stateDiagram-v2` per ogni ciclo di vita, mapping fonte→azione→effetto→saldo (§3.12-bis) | E-F2-GOV | `F2-DOC-05` | M8.9 | docs | pianificata |
+### E-F2-DIST — Distribuzione
+
+#### US-F2-DIST-01 · Immagine unica a ruoli
+*Come* chi installa il prodotto, *voglio* una sola immagine multi-arch che avvia il ruolo scelto con `LH_ROLE` e `LH_MODE`, *così che* appliance, compose e Kubernetes usino lo stesso artefatto.
+- **Contesto reale**: il team IT di un'azienda che valuta il programma demo «Club Aurora» avvia prima `LH_ROLE=hub` verso il Postgres e il Kafka del compose, poi separa `web` e `idp` in container distinti.
+- **Tocca**: F2-DIST-01 · ADR-037 · docs/18 §3.1 · `deploy/image/` · M8.1.
+- **Decisioni**: `LH_ROLE` ∈ `all, hub, web, cms, idp, jobs` · `LH_SERVICES` vale col ruolo `hub` · `LH_MODE=embedded|external` · il profilo `demo` ospitato di Fase 1 è `LH_ROLE=hub LH_MODE=external LH_PROFILE=demo`, senza artefatti separati.
+- **Criteri**:
+  1. Dato l'immagine con `LH_MODE=external` verso Postgres e Kafka del compose, quando avvio i ruoli, allora sono tutti `UP`, le migrazioni sono applicate e lo smoke di Fase 1 è verde (docs/18 §6 M8).
+  2. Dato `LH_ROLE=hub` con una `PORT` ereditata dall'ambiente, allora l'hub risponde comunque su 8080 e lo smoke dell'immagine sulla PR è verde (#84).
+  3. Dato il container avviato, allora gira come utente non root, con filesystem in sola lettura e un healthcheck per ruolo (docs/18 §3.1, M8.1).
+  4. Dato il servizio `web` del compose locale, allora parte dalla stessa immagine con `LH_ROLE=web` (#122).
+- **Testbook**: TB-DIST (dominio senza righe) · prove automatiche: `.github/workflows/image.yml`.
+
+#### US-F2-DIST-02 · Chart Helm con operatori di default
+*Come* chi installa su Kubernetes, *voglio* un chart con un Deployment per ruolo e operatori di default per Postgres e Kafka, *così che* un'installazione parta con un comando e usi i servizi gestiti quando li ho.
+- **Contesto reale**: l'azienda installa «Club Aurora» su un cluster di prova con Strimzi e CloudNativePG, poi in produzione imposta `postgres.mode=external` verso il database gestito.
+- **Tocca**: F2-DIST-02 · ADR-026, ADR-036, ADR-037 · docs/18 §3.1 · `deploy/helm/loyaltyhub` · M8.3.
+- **Decisioni**: un Deployment per ruolo (`hub`, `web`, `idp`) · Strimzi e CloudNativePG di default, `postgres.mode` e `kafka.mode=external` per i servizi gestiti · migrazioni Flyway come Job · il chart non accetta i ruoli `cms` e `jobs`, la modalità `embedded` e forme dei topic impossibili · risorse Strimzi su `kafka.strimzi.io/v1` (Strimzi 0.51 o successivo).
+- **Criteri**:
+  1. Dato un cluster kind in CI, quando eseguo `helm install`, allora i pod di tutti i ruoli sono `Ready`, Strimzi e CloudNativePG sono provisionati e lo smoke è verde attraverso il gateway (docs/18 §6 M8, #127).
+  2. ✗ Dato un valore che chiede il ruolo `cms`, il ruolo `jobs` o la modalità `embedded`, allora il rendering del chart fallisce (#95).
+  3. ✗ Dato l'API Strimzi `v1beta2`, allora il chart la rifiuta (#127).
+  4. Dato ogni Pod del chart, allora ha sicurezza `restricted`, requests e limits e soli riferimenti a Secret esistenti, verificati da `check-helm` (#95).
+  5. Dato il profilo `enterprise`, quando installo su kind, allora pod `Ready` e smoke verde: residuo dichiarato (Q-491, TOBE-008).
+- **Testbook**: TB-DIST (dominio senza righe) · prove automatiche: `scripts/check-helm.mjs`, `.github/workflows/ci.yml` (job `helm install (kind)`).
+
+#### US-F2-DIST-03 · Compose di riferimento
+*Come* chi installa senza Kubernetes, *voglio* un compose con i ruoli in container separati e l'infrastruttura open source, *così che* provi un'installazione vicina alla produzione su una sola macchina.
+- **Contesto reale**: un sistemista prova «Club Aurora» su una macchina virtuale con `deploy/compose/reference.yml` prima di scegliere il chart.
+- **Tocca**: F2-DIST-03 · ADR-037 · docs/18 §3.1 · `deploy/compose/reference.yml` · M8.3.
+- **Decisioni**: servizi `postgres`, `kafka` (KRaft), `migrate`, `hub`, `web`, `idp` dall'immagine unica · sola lettura, nessuna capability, segreti obbligatori · healthcheck espliciti con `depends_on` sullo stato sano · stesse immagini di Kafka, Postgres e Keycloak del chart e del compose locale, con tag e digest.
+- **Criteri**:
+  1. Dato il compose di riferimento, quando lo avvio, allora `hub`, `web` e `idp` diventano sani solo dopo Postgres, Kafka e le migrazioni (#95).
+  2. ✗ Dato un segreto obbligatorio non impostato, allora il compose non parte (#95).
+  3. Dato il chart, il compose di riferimento e il compose locale, allora le immagini di Kafka, Postgres e Keycloak coincidono, verificate da `check-helm` (#113, #122).
+- **Testbook**: TB-DIST (dominio senza righe) · prove automatiche: `scripts/check-helm.mjs`.
+
+#### US-F2-DIST-04 · Modalità embedded
+*Come* chi valuta il prodotto, *voglio* avviare tutto in un solo container con un volume, *così che* lo provi senza installare Postgres né Kafka.
+- **Contesto reale**: un responsabile marketing prova «Club Aurora» sul portatile con `docker run -p 8080:8080 -v lh-data:/var/lib/lh`.
+- **Tocca**: F2-DIST-04 · ADR-037, ADR-024 · docs/18 §3.1 · M12.1.
+- **Decisioni**: `LH_MODE=embedded` = Postgres in-process con tre database (`lh`, `cms`, `idp`), bus in-process, asset sul volume `/var/lib/lh` · solo valutazione e piccoli programmi: non è HA e lo dichiara (regola 8-bis).
+- **Criteri**:
+  1. Dato `docker run -p 8080:8080 -v lh-data:/var/lib/lh` con l'immagine di una versione, allora entro 3 minuti il wizard è raggiungibile, il programma «Club Aurora» è importabile e lo smoke è verde (docs/18 §6 M12).
+  2. Dato `lh backup` e poi `lh restore` su un'installazione pulita, allora i dati sono gli stessi (test in CI, docs/18 §6 M12).
+- **Testbook**: TB-DIST (da scrivere con M12).
+
+#### US-F2-DIST-05 · CLI `lh`
+*Come* chi gestisce l'installazione, *voglio* una CLI con `init`, `doctor`, `migrate`, `config validate`, `backup` e `restore`, *così che* le operazioni ricorrenti siano comandi ripetibili e non procedure a mano.
+- **Contesto reale**: prima di aggiornare «Club Aurora», il sistemista esegue `lh doctor`, poi `lh backup`, poi `lh migrate`.
+- **Tocca**: F2-DIST-05 · ADR-037, ADR-038 · docs/18 §3.1, §3.15 · M12.2.
+- **Decisioni**: comandi `init`, `doctor`, `migrate`, `config validate`, `package import/export`, `backup`, `restore`, `a11y-report` (docs/18 §3.1).
+- **Criteri**:
+  1. Dato `lh backup` e poi `lh restore` su un'installazione pulita, allora i dati sono gli stessi (test in CI, docs/18 §6 M12).
+  2. Dato un backup precedente a un'anonimizzazione, quando eseguo `lh restore`, allora il registro delle cancellazioni è riapplicato e i dati di quel membro non tornano (docs/18 §3.15 punto 4).
+  3. Gli altri comandi: criteri da scrivere con la fetta.
+- **Testbook**: TB-DIST (da scrivere con M12).
+
+#### US-F2-DIST-06 · Wizard di primo avvio
+*Come* chi installa, *voglio* un wizard al primo avvio che crea l'amministratore e il programma e, se voglio, importa un package, *così che* il prodotto sia usabile senza modificare file di configurazione.
+- **Contesto reale**: dopo il `docker run`, l'installatore apre il browser, crea l'account dell'amministratore e importa il package «Club Aurora».
+- **Tocca**: F2-DIST-06 · ADR-037 · docs/18 §3.1 · M12.3.
+- **Decisioni**: amministratore, programma, lingue, profilo e package facoltativo; segreti generati e stampati una sola volta (M12.3).
+- **Criteri**:
+  1. Dato un'installazione `embedded` appena avviata, allora entro 3 minuti il wizard è raggiungibile e il programma «Club Aurora» è importabile (docs/18 §6 M12).
+  2. Gli altri passi del wizard: criteri da scrivere con la fetta.
+- **Testbook**: TB-DIST (da scrivere con M12).
+
+#### US-F2-DIST-08 · Rilascio firmato e aggiornamento N−1 → N
+*Come* chi installa, *voglio* immagini firmate con SBOM, note di sicurezza e un percorso di aggiornamento garantito, *così che* verifichi cosa installo e aggiorni senza sorprese.
+- **Contesto reale**: prima di aggiornare «Club Aurora» alla versione successiva, il team sicurezza dell'azienda verifica la firma cosign e lo SBOM dell'immagine.
+- **Tocca**: F2-DIST-08 · ADR-038 · docs/18 §3.10 punto 10, §3.15 punto 6 · M8.5, M12.4, M12.5.
+- **Decisioni**: semver, changelog, note di sicurezza, chart pubblicato in OCI, immagini per tag (M12.4) · aggiornamento N−1 → N con dati e verifica delle invarianti (M12.5).
+- **Criteri**:
+  1. Dato un rilascio, allora la pipeline produce un'immagine firmata con SBOM e la scansione non trova CVE alte (docs/18 §6 M8).
+  2. Dato l'aggiornamento dalla versione precedente su Helm, allora il portale non si ferma: expand/contract verificato (docs/18 §6 M12).
+  3. Dato il rilascio v1.0, allora ha SBOM, VEX e provenienza SLSA verificabile (docs/18 §6 M12).
+- **Testbook**: TB-DIST (da scrivere con M8.5 e M12).
+
+### E-F2-IAM — Identità
+
+#### US-F2-IAM-01 · Keycloak come ruolo `idp` con realm as code
+*Come* amministratore della piattaforma, *voglio* un Keycloak nel ruolo `idp` configurato da un realm versionato, *così che* client, ruoli e flussi di accesso siano gli stessi in ogni installazione e si rivedano in una pull request.
+- **Contesto reale**: l'azienda di «Club Aurora» avvia `idp` al primo avvio; il realm crea i client `web`, `widgets` e `cms` e i ruoli degli operatori.
+- **Tocca**: F2-IAM-01 · ADR-027 · docs/18 §3.2 · `deploy/idp/realm.json` · M8.2.
+- **Decisioni**: client `web` confidential (Authorization Code + PKCE), `widgets` solo per il token exchange, un client credentials per fonte e per job, `cms`, audience `hub` · ruoli `ADMIN, MARKETING, LEGAL, CARE, ANALYST, MEMBER` nel claim `lh_roles` · import al primo avvio, aggiornamento con `lh migrate idp` · MFA obbligatoria per i ruoli del backoffice (docs/18 §3.2).
+- **Criteri**:
+  1. Dato `deploy/idp/realm.json`, allora contiene i client e i ruoli di docs/18 §3.2 e la copia usata dal chart è identica, verificata da `check-helm` (#57, #95).
+  2. Dato un token emesso dal realm, allora porta i ruoli nel claim `lh_roles` e l'audience `hub` (docs/18 §3.2).
+- **Testbook**: TB-IAM (dominio senza righe) · prove automatiche: `scripts/check-realm.mjs`.
+
+#### US-F2-IAM-02 · Servizi come resource server JWT
+*Come* responsabile della sicurezza dell'adottante, *voglio* che ogni servizio verifichi il token e ricavi l'attore dai suoi claim, *così che* nel profilo `enterprise` nessuno possa dichiararsi un altro con un header.
+- **Contesto reale**: in `enterprise` Elena (LEGAL) apre la casella delle approvazioni; l'header `X-LH-Actor` che arriva con la richiesta non conta.
+- **Tocca**: F2-IAM-02 · ADR-027, ADR-044 · docs/18 §3.2 · docs/06 §3.1 · `OidcActorFilter`, `IdentityGuard` · M8.2 · Q-365.
+- **Decisioni**: `LH_IDENTITY_MODE=header` (solo `demo`) oppure `oidc` · con `oidc` il Bearer è verificato su firma, scadenza, `iss` e `aud=hub`, e `X-LH-Actor` è ignorato; stesso 401 per ogni errore · ruoli da `lh_roles`: `ADMIN` vince, un solo ruolo operatore vale quel ruolo, più ruoli o nessuno valgono `ANALYST` (SPEC-GAP Q-365) · un token con il solo ruolo `MEMBER` vale solo su `/v1/portal/**` · `IdentityGuard`: il profilo `enterprise` con identità da header o senza emittente non parte (`INSECURE_CONFIG`).
+- **Criteri**:
+  1. Dato un token valido di `elena.legal`, allora `ActorContext` vale `LEGAL` dal claim e l'header `X-LH-Actor` non conta (#51).
+  2. ✗ Dato un token scaduto, con firma errata o con `iss` o `aud` diversi, allora 401, identico per ogni caso (#51).
+  3. ✗ Dato il profilo `enterprise` con identità da header o senza emittente, allora il servizio non parte (`INSECURE_CONFIG`, regola 22, #51).
+  4. ✗ Dato un token con il solo ruolo `MEMBER`, quando chiama un'API fuori da `/v1/portal/**`, allora la richiesta non è autorizzata (#51).
+  5. ✗ Dato `luca.marketing` autenticato con Keycloak, quando prova a portare un concorso a `LIVE`, allora è rifiutato come in M7.1 (docs/18 §6 M8).
+  6. Dato il profilo `demo`, allora il comportamento non cambia: `TestbookPltApiIT` verde (#51).
+- **Testbook**: TB-IAM (dominio senza righe) · prove automatiche: `libs/lh-common/src/test/java/io/loyaltyhub/common/web/OidcActorFilterTest.java`, `libs/lh-common/src/test/java/io/loyaltyhub/common/config/IdentityGuardTest.java`.
+
+#### US-F2-IAM-03 · Accesso e registrazione dei membri con OIDC
+*Come* membro, *voglio* accedere e registrarmi al portale con il mio account, *così che* nessuno veda i miei punti fingendosi me.
+- **Contesto reale**: Marco apre dal telefono il portale di «Club Aurora», accede con la passkey e vede solo il proprio saldo.
+- **Tocca**: F2-IAM-03 · ADR-027, ADR-042 · docs/18 §3.2, §3.10 punto 3 · PT-16 · M8.2 · Q-410.
+- **Decisioni**: account Keycloak più record in member-service legato da `member.external_id = sub` · il `memberId` non arriva mai dai parametri della richiesta, solo dal token · l'accesso passa dal BFF (US-F2-SEC-06).
+- **Criteri**:
+  1. Dato un membro non autenticato che apre il portale `enterprise`, allora è rediretto al login OIDC e torna al portale con la sessione del BFF (#99, #104).
+  2. ✗ Dato un membro autenticato, quando chiama `/v1/portal/*` con l'id di un altro membro, allora vede solo i propri dati (parametro ignorato o `400`) (docs/18 §6 M8).
+  3. Dato un nuovo membro che si registra da PT-16, allora nasce il record in member-service con `external_id = sub` (docs/18 §3.2, Q-410).
+- **Testbook**: TB-IAM (dominio senza righe) · prove automatiche: `web/lib/auth/oidc.test.ts`.
+
+#### US-F2-IAM-04 · Broker verso l'IdP aziendale e federazione LDAP
+*Come* amministratore di sistema dell'azienda, *voglio* che gli operatori entrino con le credenziali aziendali, *così che* non esistano account paralleli da gestire e revocare a mano.
+- **Contesto reale**: Paolo (CARE) accede al backoffice di «Club Aurora» con l'account del dominio aziendale e riceve il ruolo dal suo gruppo.
+- **Tocca**: F2-IAM-04 · ADR-027 · docs/18 §3.2, §3.15 punto 3 · `deploy/idp/test-idp` · M8.2 · Q-480.
+- **Decisioni**: `idp` fa da broker verso l'IdP aziendale (OIDC o SAML) e da federazione LDAP · chi ha già un OIDC compatibile non avvia `idp` e imposta `LH_OIDC_ISSUER` · IdP e LDAP di prova solo nel profilo `idp-test`, porta LDAP solo su `127.0.0.1` (Q-480).
+- **Criteri**:
+  1. Dato un utente dell'IdP aziendale di prova, quando accede al backoffice tramite il broker, allora entra con il ruolo derivato dai suoi gruppi (docs/18 §3.2, §3.15 punto 3).
+  2. Dato un utente della directory LDAP di prova, quando accede, allora è riconosciuto tramite la federazione (docs/18 §3.2).
+- **Testbook**: TB-IAM (prova automatica da scrivere).
+
+#### US-F2-SEC-06 · BFF con sessione lato server
+*Come* membro o operatore, *voglio* che il browser tenga solo un cookie di sessione e mai i token, *così che* uno script nella pagina non possa rubare il mio accesso.
+- **Contesto reale**: Sara (ANALYST) apre il backoffice di «Club Aurora» nel profilo `enterprise`; il browser conserva solo `__Host-lh_session`.
+- **Tocca**: F2-SEC-06 · ADR-027, ADR-042, ADR-044 · docs/18 §3.2 · docs/07 §4-bis · M8.2 · Q-409.
+- **Decisioni**: Authorization Code con PKCE S256, `state` e `nonce` · sessione opaca `__Host-lh_session` (`HttpOnly`, `Secure`, `SameSite=Lax`), token cifrati lato server con AES-256-GCM (in memoria, Q-409) · rinnovo trasparente con refresh token a rotazione · CSRF: `Sec-Fetch-Site`, `Origin` e `X-LH-CSRF` · logout RP-initiated e back-channel · configurazione assente o insicura: il server non parte (`INSECURE_CONFIG`).
+- **Criteri**:
+  1. Dato un login riuscito, allora il browser riceve solo il cookie `__Host-lh_session` e nessun token OAuth è visibile al JavaScript (docs/18 §6 M8, #99).
+  2. ✗ Dato una richiesta non idempotente senza `X-LH-CSRF` valido o da un'altra origine, allora è rifiutata (#99).
+  3. Dato un logout token back-channel verificato, allora la sessione nel BFF si chiude (#99).
+  4. ✗ Dato il profilo `enterprise` con configurazione OIDC assente o insicura, allora il ruolo `web` non parte (`INSECURE_CONFIG`, #99).
+  5. Dato un access token scaduto, allora il BFF lo rinnova in modo trasparente, una sola volta per sessione (#99).
+  6. Passkey per i membri e MFA per gli operatori: criteri da scrivere con la fetta.
+- **Testbook**: TB-IAM (dominio senza righe) · prove automatiche: `web/lib/auth/sessionStore.test.ts`, `web/lib/auth/bff.modules.test.ts`, `web/app/api/lh/[service]/[...path]/route.bff.test.ts`.
+
+#### US-F2-SEC-07 · Client credentials per fonti e job, token exchange per i widget
+*Come* integratore di una fonte, *voglio* autenticarmi con un client dedicato e non con una chiave statica, *così che* ogni fonte invii solo i tipi che le sono ammessi e si possa revocare da sola.
+- **Contesto reale**: l'e-commerce di «Club Aurora» invia gli ordini con il client `ecommerce`; l'app mobile scambia il proprio token per mostrare a Marco il widget del saldo.
+- **Tocca**: F2-SEC-07 · ADR-027, ADR-042 · docs/18 §3.2, §3.10 punto 1 · M8.2.
+- **Decisioni**: client credentials con `private_key_jwt` o mTLS, un client per fonte collegato al registro fonti (`source` ⇔ `client_id`) · job con client credentials e scope del solo job · widget: token exchange RFC 8693 con audience e scope limitati ai widget e al solo membro, DPoP facoltativo.
+- **Criteri**: da scrivere con la fetta.
+- **Testbook**: TB-IAM (da scrivere con M8.2).
+
+### E-F2-SEC — Sicurezza
+
+#### US-F2-SEC-01 · Gateway con JWT, rate limit, CORS e header
+*Come* responsabile della sicurezza dell'adottante, *voglio* un gateway unico davanti ai servizi che verifica il token, limita il traffico e imposta gli header di sicurezza, *così che* nessuna richiesta raggiunga un modulo senza filtro.
+- **Contesto reale**: l'app mobile di «Club Aurora» incorpora i widget; il gateway accetta solo l'origine registrata dell'app e limita le chiamate per client e IP.
+- **Tocca**: F2-SEC-01 · ADR-042 · docs/18 §3.10 punti 1, 5 e 7 · M8.5.
+- **Decisioni**: TLS, JWT, rate limit per client e IP · CORS esplicito per l'origine registrata dei widget · CSP con nonce e `strict-dynamic`, `frame-ancestors 'none'`, HSTS, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, COOP e CORP.
+- **Criteri**:
+  1. Dato `helm install` su kind, allora lo smoke passa attraverso il gateway (docs/18 §6 M8, #127).
+  2. Verifica del JWT, rate limit, CORS e header: criteri da scrivere con la fetta.
+- **Testbook**: TB-SEC (da scrivere con M8.5).
+
+#### US-F2-SEC-02 · Isolamento di rete, bus e database
+*Come* responsabile della sicurezza dell'adottante, *voglio* mTLS tra i pod, network policy, ACL su Kafka, un ruolo di database per servizio e segreti da un secret manager, *così che* la compromissione di un modulo non dia accesso al resto.
+- **Contesto reale**: in produzione il modulo wallet di «Club Aurora» scrive solo nel proprio schema e riceve solo dai chiamanti previsti.
+- **Tocca**: F2-SEC-02 · ADR-042 · docs/18 §3.10 punti 1, 4, 9 e 10 · M8.5.
+- **Decisioni**: mesh mTLS (Linkerd di default nel chart) · network policy *deny by default* · principal Kafka per modulo con ACL per topic · ruolo *owner* solo per il Job di migrazione e ruolo *app* con sola DML sul proprio schema · External Secrets e convenzione `*_FILE` · Pod Security `restricted`.
+- **Criteri**: da scrivere con la fetta.
+- **Testbook**: TB-SEC (da scrivere con M8.5).
+
+#### US-F2-SEC-03 · Supply chain in CI
+*Come* responsabile della sicurezza dell'adottante, *voglio* che ogni build produca lo SBOM, scansioni dipendenze, immagini, IaC e segreti e firmi l'immagine, *così che* una vulnerabilità nota non arrivi in produzione a mia insaputa.
+- **Contesto reale**: una dipendenza di «Club Aurora» riceve una CVE alta; il job `security` della pull request fallisce.
+- **Tocca**: F2-SEC-03 · ADR-038, ADR-042 · docs/18 §3.10 punto 12, §3.13 · M8.5.
+- **Decisioni**: SBOM, Trivy, cosign, CodeQL, IaC (kube-linter o Checkov), secret scanning con push protection · job `security` tra i controlli obbligatori (docs/18 §3.13).
+- **Criteri**:
+  1. Dato una pull request, allora il job `security` scansiona dipendenze, immagini, IaC e segreti e blocca sulle vulnerabilità alte (docs/18 §3.10 punto 12).
+  2. Dato un rilascio, allora l'immagine è firmata, ha lo SBOM e la scansione non trova CVE alte (docs/18 §6 M8).
+- **Testbook**: TB-SEC (da scrivere con M8.5).
+
+#### US-F2-SEC-04 · Contatti cifrati nel member-service
+*Come* DPO dell'adottante, *voglio* che e-mail e telefono dei membri siano cifrati a colonna, *così che* una copia del database non esponga i contatti.
+- **Contesto reale**: un backup di «Club Aurora» finisce per errore su un disco condiviso; le e-mail di Marco e di Giulia non sono leggibili.
+- **Tocca**: F2-SEC-04 · ADR-032, ADR-042 · docs/18 §3.4, §3.10 punto 9, §3.15 punto 4 · M8.4.
+- **Decisioni**: AES-GCM con chiave derivata, chiave master in KMS o `LH_MASTER_KEY` · crypto-shredding facoltativo con chiave per membro (US-F2-GRC-06).
+- **Criteri**: da scrivere con la fetta.
+- **Testbook**: TB-SEC (da scrivere con M8.4).
+
+#### US-F2-SEC-08 · Messaggi firmati sul bus
+*Come* responsabile della sicurezza dell'adottante, *voglio* che ogni messaggio sul bus sia firmato dal modulo che lo produce e verificato da chi lo consuma, *così che* un modulo compromesso non possa pubblicare punti o vincite.
+- **Contesto reale**: un modulo di «Club Aurora» diverso dal wallet prova a pubblicare `wallet.points.earned` per Marco.
+- **Tocca**: F2-SEC-08 · ADR-042 · docs/18 §3.10 punto 2 · `contracts/events/producers.yaml` · M8.10.
+- **Decisioni**: firma JWS *detached* Ed25519 negli header `lhsig` e `lhkid`, chiave per modulo con rotazione · `producers.yaml` elenca il produttore ammesso per ogni `type` · il consumer verifica firma e produttore prima dell'idempotenza · errore: DLQ con `SIGNATURE_INVALID` o `PRODUCER_NOT_ALLOWED` e allarme · `data` validato contro lo schema anche in consumo · stessa firma nel bus in-process.
+- **Criteri**:
+  1. ✗ Dato un messaggio pubblicato da un modulo non ammesso per quel `type`, allora va in DLQ con `PRODUCER_NOT_ALLOWED` e scatta l'allarme (docs/18 §6 M8).
+  2. ✗ Dato un messaggio con firma non valida, allora va in DLQ con `SIGNATURE_INVALID` (docs/18 §3.10 punto 2).
+  3. Dato `LH_ROLE=all` o la modalità `embedded`, allora il bus in-process esegue la stessa firma e la stessa verifica (docs/18 §3.10 punto 1).
+- **Testbook**: TB-SEC (da scrivere con M8.10).
+
+#### US-F2-SEC-09 · Deny by default e membro dal token
+*Come* responsabile della sicurezza dell'adottante, *voglio* che ogni endpoint dichiari chi può chiamarlo e che il portale ricavi il membro solo dal token, *così che* nessuno legga i dati di un altro membro cambiando un parametro.
+- **Contesto reale**: in `enterprise` Marco chiama l'API del saldo con l'id di Giulia (MBR-000003).
+- **Tocca**: F2-SEC-09 · ADR-042 · docs/18 §3.10 punto 3 · `@RequiresRole`, `@PublicEndpoint`, `MemberPrincipal` · M8.10 · regola 18.
+- **Decisioni**: ogni metodo di `@RestController` ha `@RequiresRole` oppure `@PublicEndpoint` con motivazione, verificato da ArchUnit · le API `/v1/portal/*` ricavano il membro da `MemberPrincipal`, mai da percorso, query o corpo · nessun *mass assignment*: solo record DTO espliciti, `status`, `version` e `createdBy` non legabili.
+- **Criteri**:
+  1. ✗ Dato un endpoint senza `@RequiresRole` né `@PublicEndpoint`, allora la build è rossa (docs/18 §6 M8).
+  2. ✗ Dato una chiamata a `/v1/portal/*` con il token di un membro e l'id di un altro, allora risponde con i dati del solo titolare (parametro ignorato o `400`) (docs/18 §6 M8).
+  3. ✗ Dato un corpo che contiene `status`, `version` o `createdBy`, allora quei campi non sono legati (docs/18 §3.10 punto 3).
+- **Testbook**: TB-SEC (da scrivere con M8.10).
+
+#### US-F2-SEC-10 · SQL solo parametrico e input limitato
+*Come* responsabile della sicurezza dell'adottante, *voglio* che nessun testo SQL sia costruito dall'input e che ogni ingresso abbia limiti, *così che* un'iniezione o un payload enorme non abbiano effetto.
+- **Contesto reale**: il campo di ricerca dei membri nel backoffice di «Club Aurora» riceve `' OR 1=1 --`; l'ordinamento chiede una colonna inesistente.
+- **Tocca**: F2-SEC-10 · ADR-042 · docs/18 §3.10 punti 4 e 5 · `SqlWhere`, `SqlOrder` · M8.10 · regola 19.
+- **Decisioni**: solo `JdbcClient` con parametri · builder `SqlWhere` e `SqlOrder` con colonne da allowlist · regola Semgrep su `.sql(` con argomento non costante · limiti Jackson e Bean Validation su ogni DTO · template dei messaggi senza logica · contenuti del CMS sanitizzati alla pubblicazione.
+- **Criteri**:
+  1. Dato ogni servizio, allora nessun testo SQL è composto a mano: filtri e ordinamenti passano dal builder con colonne da allowlist (#61, #89, #91, #93, #94, #125, #126, #128).
+  2. ✗ Dato un payload di iniezione SQL dal fuzzing Schemathesis, allora nessun `5xx` e nessun effetto (docs/18 §6 M8).
+  3. Regole Semgrep, limiti di input, template senza logica e sanitizzazione: criteri da scrivere con la fetta.
+- **Testbook**: TB-SEC (dominio senza righe) · prove automatiche: `libs/lh-common/src/test/java/io/loyaltyhub/common/sql/SqlBuilderTest.java`.
+
+#### US-F2-SEC-11 · Richieste in uscita, idempotenza, rate limit e file caricati
+*Come* responsabile della sicurezza dell'adottante, *voglio* difese contro richieste in uscita verso reti interne, doppi addebiti e file malevoli, *così che* un errore di configurazione o un client abusivo non danneggino il programma.
+- **Contesto reale**: un operatore di «Club Aurora» configura per errore un webhook verso `http://169.254.169.254`; l'app di Davide ritenta un riscatto dopo un timeout.
+- **Tocca**: F2-SEC-11 · ADR-042 · docs/18 §3.10 punti 6, 7 e 8 · M8.10.
+- **Decisioni**: destinazioni dei webhook risolte e rifiutate se private, loopback o link-local, senza seguire redirect · `Idempotency-Key` obbligatoria sulle POST che spendono o assegnano valore, conservata 24 ore · rate limit per membro su giocate, riscatti, registrazioni e login · file: dimensione massima, tipo reale, antivirus, conservazione fuori dalla radice web.
+- **Criteri**:
+  1. ✗ Dato un webhook verso `http://169.254.169.254`, allora è rifiutato (docs/18 §6 M8).
+  2. Dato un secondo riscatto con la stessa `Idempotency-Key`, allora stesso esito e nessun doppio addebito (docs/18 §6 M8).
+  3. Rate limit per membro e controlli sui file caricati: criteri da scrivere con la fetta.
+- **Testbook**: TB-SEC (da scrivere con M8.10).
+
+#### US-F2-SEC-12 · Verifica continua della sicurezza
+*Come* responsabile della sicurezza dell'adottante, *voglio* che ArchUnit, Semgrep, Schemathesis, ZAP e il testbook `TB-SEC` girino in CI, *così che* la conformità la verifichi il software e non una checklist.
+- **Contesto reale**: prima di ogni rilascio di «Club Aurora» il job `security` notturno esegue il fuzzing e la scansione ZAP sulle OpenAPI.
+- **Tocca**: F2-SEC-12 · ADR-042 · docs/18 §3.10 punto 12 · `docs/security/asvs.md`, `docs/security/threat-model.md`, `SECURITY.md` · M8.11 · regola 13.
+- **Decisioni**: controlli della tabella di docs/18 §3.10 punto 12: ArchUnit in `./mvnw verify`; Semgrep, CodeQL, Schemathesis, ZAP e Trivy nel job `security`; `TB-SEC` in `e2e/` · threat model STRIDE, tabella ASVS 5.0 L2 e `SECURITY.md` (#60).
+- **Criteri**:
+  1. Dato il repository, allora esistono `docs/security/threat-model.md`, `docs/security/asvs.md` e `SECURITY.md` con la procedura di segnalazione (#60).
+  2. ✗ Dato un `5xx` dal fuzzing Schemathesis o un risultato alto di ZAP, allora il job `security` notturno fallisce (docs/18 §3.10 punto 12).
+  3. Job `security` obbligatorio e righe `TB-SEC`: criteri da scrivere con la fetta.
+- **Testbook**: TB-SEC (da scrivere con M8.11).
+
+#### US-F2-SEC-13 · Audit delle modifiche fatte in Directus
+*Come* responsabile della conformità dell'adottante, *voglio* che ogni modifica fatta in Directus finisca nello stesso registro di audit del backoffice, *così che* sappia chi ha cambiato una pagina del portale.
+- **Contesto reale**: Luca (MARKETING) pubblica in Directus la pagina della seconda ruota di «Club Aurora».
+- **Tocca**: F2-SEC-13 · ADR-043 · docs/18 §3.14 punto 1 · `POST /v1/audit/external` (experience-service) · M8.12 · regola 21.
+- **Decisioni**: un Flow di Directus su `items.create`, `items.update` e `items.delete` delle collezioni di composizione e contenuto chiama `POST /v1/audit/external` con l'HMAC dello stesso segreto di `/v1/cms/notify` · voce con `service=cms` ed `entity_type` uguale alla collezione · la pubblicazione di una composizione è una voce con `action=PUBLISH`.
+- **Criteri**:
+  1. Dato una pagina pubblicata in Directus da `luca.marketing`, allora `GET /v1/audit` mostra una voce con `service=cms` e l'attore reale dal claim OIDC, non «directus» (docs/18 §6 M8).
+  2. Dato una composizione pubblicata, allora compare una voce con `action=PUBLISH` (docs/18 §3.14 punto 1).
+- **Testbook**: TB-SEC (da scrivere con M8.12).
+
+#### US-F2-SEC-14 · Audit delle modifiche fatte in Keycloak
+*Come* responsabile della conformità dell'adottante, *voglio* che i cambi di utenti e ruoli fatti in Keycloak compaiano nel registro di audit, *così che* un cambio di privilegi non resti nei log interni dell'IdP.
+- **Contesto reale**: Marta (ADMIN) assegna a Paolo il ruolo `CARE` dalla console di Keycloak.
+- **Tocca**: F2-SEC-14 · ADR-043 · docs/18 §3.14 punto 2 · M8.12 · regola 21.
+- **Decisioni**: event listener SPI che chiama `POST /v1/audit/external` · eventi utente legati al membro con `external_id = sub`; admin events con `service=idp` e nessun dato del membro · solo eventi di cambiamento: creazione e cancellazione di utenti, cambio di ruolo, reset della password, abilitazione MFA, blocco dell'account.
+- **Criteri**:
+  1. Dato un cambio di ruolo in Keycloak, allora `GET /v1/audit` mostra una voce con `service=idp` (docs/18 §6 M8).
+  2. Dato un login riuscito, allora non produce una voce di audit: appartiene all'attività del membro (docs/18 §3.14 punto 2).
+- **Testbook**: TB-SEC (da scrivere con M8.12).
+
+#### US-F2-SEC-15 · La mia attività e retention dell'audit
+*Come* membro, *voglio* vedere in una pagina i miei accessi, consensi, giocate e riscatti, *così che* sappia cosa è successo al mio account senza chiedere all'assistenza.
+- **Contesto reale**: Sofia (MBR-000011) apre «La mia attività» nel portale di «Club Aurora» e trova il riscatto della borraccia; Paolo (CARE) vede la stessa cronologia in BO-03.
+- **Tocca**: F2-SEC-15 · ADR-043 · docs/18 §3.14 punti 3 e 4 · PT-18 · BO-03 · `member_activity_entry` · M8.12.
+- **Decisioni**: `member_activity_entry` in member-service con `kind` `LOGIN`, `CONSENT_CHANGED`, `REDEMPTION`, `PLAY`, `PROFILE_UPDATED`, `DATA_EXPORT_REQUESTED` · alimentata dagli eventi utente di Keycloak, dai fatti del bus e dalle azioni del membro nel portale · sola inserzione, cancellata all'anonimizzazione · `audit_entry` conservata 400 giorni, sola inserzione anche lato database.
+- **Criteri**:
+  1. Dato un membro autenticato su PT-18, allora vede login, consensi, giocate e riscatti propri e nessun dato di altri membri (docs/18 §6 M8).
+  2. Dato `CARE` su BO-03, allora vede la stessa cronologia del membro (docs/18 §6 M8).
+  3. ✗ Dato il ruolo applicativo di insight, allora nessun `UPDATE` è possibile su `audit_entry`, solo `INSERT`, verificato sui privilegi del database (docs/18 §6 M8; sola inserzione imposta dal database in #106).
+  4. Dato la retention dell'audit, allora le voci restano 400 giorni (docs/18 §3.14 punto 4).
+- **Testbook**: TB-SEC (dominio senza righe) · prove automatiche: `services/insight-service/src/test/java/io/loyaltyhub/insight/AuditChainIT.java`.
+
+### E-F2-GRC — Governo e conformità
+
+#### US-F2-GRC-01 · Mappa Annex A e responsabilità condivisa
+*Come* responsabile della conformità dell'adottante, *voglio* una mappa dei 93 controlli dell'Annex A con responsabilità ed evidenze, *così che* la alleghi alla mia Dichiarazione di Applicabilità.
+- **Contesto reale**: l'azienda di «Club Aurora», certificata ISO/IEC 27001, prepara l'audit di sorveglianza e deve dichiarare quali controlli copre il prodotto.
+- **Tocca**: F2-GRC-01 · ADR-044 · docs/18 §3.15 punto 1 · `docs/compliance/iso27001-annex-a.md` · M12.6 · regola 22.
+- **Decisioni**: per ogni controllo, responsabilità *Prodotto*, *Adottante* o *Condivisa*, funzione del prodotto ed evidenza prodotta · mappe verso ISO/IEC 27701, GDPR art. 30, 32 e 33 e NIS2 · i controlli A.6 e A.7 sono dell'adottante e la mappa lo dichiara.
+- **Criteri**:
+  1. Dato ogni controllo dell'Annex A, allora ha responsabilità ed evidenza dichiarate (docs/18 §6 M12).
+  2. Dato una funzione nuova, allora dichiara nella mappa i controlli che tocca e l'evidenza che produce (regola 22).
+- **Testbook**: TB-GRC (da scrivere con M12.6).
+
+#### US-F2-GRC-02 · Sicuro per impostazione
+*Come* responsabile della sicurezza dell'adottante, *voglio* che il profilo `enterprise` si rifiuti di partire con una configurazione insicura, *così che* un errore di installazione non diventi una vulnerabilità.
+- **Contesto reale**: un installatore dimentica di cambiare un segreto di default prima di avviare «Club Aurora» in produzione.
+- **Tocca**: F2-GRC-02 · ADR-044 · docs/18 §3.15 punto 2 · `lh doctor --security` · M12.6 · regola 22.
+- **Decisioni**: `INSECURE_CONFIG` con segreti di default o vuoti, TLS spento verso database o bus, `X-LH-Actor` abilitato, `/v1/demo/**` attivi, account amministrativi senza MFA, console di Directus o Keycloak esposte senza allowlist, telemetria in uscita · già applicato all'identità dei servizi (#51) e al BFF (#99) · il profilo `demo` non parte su un database con membri non di seed.
+- **Criteri**:
+  1. ✗ Dato `LH_PROFILE=enterprise` con un segreto di default, allora non si avvia (`INSECURE_CONFIG`, docs/18 §6 M12).
+  2. Dato `lh doctor --security`, allora produce lo stesso controllo come rapporto firmato (docs/18 §3.15 punto 2).
+  3. ✗ Dato il profilo `demo` su un database con membri non di seed, allora non si avvia (docs/18 §3.15 punto 2).
+- **Testbook**: TB-GRC (da scrivere con M12.6).
+
+#### US-F2-GRC-03 · Quattro occhi
+*Come* responsabile della conformità dell'adottante, *voglio* che chi sottomette un oggetto non possa approvarlo e che le operazioni sensibili abbiano un doppio controllo configurabile, *così che* nessuno approvi se stesso.
+- **Contesto reale**: Marta (ADMIN) sottomette un concorso di «Club Aurora» e prova ad approvarlo subito dopo.
+- **Tocca**: F2-GRC-03 · ADR-044 · docs/18 §3.15 punto 3 · docs/06 §7 · M8.13 · regola 22.
+- **Decisioni**: `422 SELF_APPROVAL_FORBIDDEN`, anche per `ADMIN` · doppio controllo configurabile su rettifiche di punti sopra soglia, chiusura di edizione, modifica di ruoli, esportazioni di dati personali e cambio della scala dei livelli.
+- **Criteri**:
+  1. ✗ Dato un `ADMIN` che ha sottomesso un concorso, quando prova ad approvarlo, allora `422 SELF_APPROVAL_FORBIDDEN` (docs/18 §6 M8).
+  2. Doppio controllo sulle operazioni sensibili: criteri da scrivere con la fetta.
+- **Testbook**: TB-GRC (da scrivere con M8.13).
+
+#### US-F2-GRC-04 · Ciclo di vita delle utenze e revisione degli accessi
+*Come* responsabile della sicurezza dell'adottante, *voglio* che un operatore disabilitato nell'IdP perda l'accesso e che gli accessi si rivedano con regolarità, *così che* nessun ex collaboratore resti nel backoffice.
+- **Contesto reale**: un operatore CARE lascia l'azienda di «Club Aurora»; l'IT lo disabilita nella directory aziendale.
+- **Tocca**: F2-GRC-04 · ADR-044 · docs/18 §3.15 punto 3 · BO-34 · M8.13.
+- **Decisioni**: provisioning e deprovisioning dall'IdP aziendale (SCIM o federazione con gruppi → ruoli) · back-channel logout del BFF · BO-34 con operatori, ruoli, ultimo accesso, MFA e account inattivi; ricertificazione trimestrale esportabile · break-glass con credenziali sigillate, allarme e voce di audit con motivo.
+- **Criteri**:
+  1. ✗ Dato un operatore disabilitato nell'IdP, allora non ha più accesso entro la scadenza dell'access token (docs/18 §6 M8).
+  2. BO-34 e break-glass: criteri da scrivere con la fetta.
+- **Testbook**: TB-GRC (da scrivere con M8.13).
+
+#### US-F2-GRC-05 · Classificazione, retention ed esportazioni controllate
+*Come* DPO dell'adottante, *voglio* dati classificati, retention per categoria ed esportazioni con permesso e motivo, *così che* produca il registro dei trattamenti e dimostri le cancellazioni.
+- **Contesto reale**: Sara (ANALYST) vuole esportare i membri di un segmento di «Club Aurora» per un'analisi esterna.
+- **Tocca**: F2-GRC-05 · ADR-044 · docs/18 §3.15 punto 4 · M8.13.
+- **Decisioni**: `x-lh-class` (`PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, `PERSONAL`) per colonna · registro dei trattamenti con `lh compliance ropa` · retention per categoria entro i minimi del prodotto (audit almeno 365 giorni) con rapporto di cancellazione · esportazioni con permesso `DATA_EXPORT`, motivo, limite di righe e voce di audit con il filtro usato.
+- **Criteri**:
+  1. ✗ Dato un'esportazione senza permesso `DATA_EXPORT` o senza motivo, allora è rifiutata (docs/18 §6 M8).
+  2. Classificazione e retention per categoria: criteri da scrivere con la fetta.
+- **Testbook**: TB-GRC (da scrivere con M8.13).
+
+#### US-F2-GRC-06 · Cancellazioni che sopravvivono al ripristino
+*Come* DPO dell'adottante, *voglio* che un membro anonimizzato resti anonimo anche dopo il ripristino di un backup, *così che* il diritto all'oblio valga davvero.
+- **Contesto reale**: un membro di «Club Aurora» ottiene l'oblio; una settimana dopo l'IT ripristina un backup di dieci giorni prima.
+- **Tocca**: F2-GRC-06 · ADR-044 · docs/18 §3.15 punto 4 · M8.13, M12.6.
+- **Decisioni**: `erasure_log` (solo `memberId` e data) conservato fuori dai backup ordinari e riapplicato da `lh restore` prima di riaprire il servizio · crypto-shredding: chiave per membro distrutta all'anonimizzazione · `lh data mask` per le copie non di produzione · `lh decommission` con attestato di cancellazione.
+- **Criteri**:
+  1. Dato un ripristino da un backup precedente a un'anonimizzazione, allora i dati di quel membro non tornano (docs/18 §6 M8).
+  2. Crypto-shredding, `lh data mask` e `lh decommission`: criteri da scrivere con la fetta.
+- **Testbook**: TB-GRC (da scrivere con M8.13).
+
+#### US-F2-GRC-07 · Audit a prova di manomissione
+*Come* auditor dell'adottante, *voglio* un registro di audit a catena di hash con ancore immutabili, *così che* una voce alterata direttamente nel database venga scoperta.
+- **Contesto reale**: durante l'audit di «Club Aurora» qualcuno modifica a mano una voce di `audit_entry`; la verifica lo segnala.
+- **Tocca**: F2-GRC-07 · ADR-043, ADR-044 · docs/18 §3.15 punto 5 · `GET /v1/audit/verify` · M8.12, M12.6 · Q-399, Q-400, Q-401, Q-402, Q-404.
+- **Decisioni**: catena per servizio (`seq`, `prev_hash`, `content_hash`, `entry_hash`) calcolata dal trigger all'inserimento · `UPDATE`, `DELETE` e `TRUNCATE` rifiutati dal database, salvo le funzioni controllate di anonimizzazione (Q-401), retention (Q-402) e reset della demo · `GET /v1/audit/verify` solo `ADMIN` (Q-399) · ancora giornaliera anche sul logger `io.loyaltyhub.audit.anchor` (TOBE-002); firma ed export su archivio immutabile da decidere (Q-400).
+- **Criteri**:
+  1. ✗ Dato una voce alterata direttamente nel database, quando eseguo la verifica, allora la catena segnala la prima voce non valida e il motivo (#106; `lh audit verify` in docs/18 §6 M8).
+  2. ✗ Dato un `UPDATE`, un `DELETE` o un `TRUNCATE` su `audit_entry` dal ruolo applicativo, allora il database lo rifiuta (#106).
+  3. Dato un'anonimizzazione, allora le prove `REDACT` restano coerenti con l'anonimizzazione a parola intera (#114, Q-404).
+  4. Export OCSF, `lh forensics export` e prova di ripristino mensile: criteri da scrivere con la fetta.
+- **Testbook**: TB-GRC (dominio senza righe) · prove automatiche: `services/insight-service/src/test/java/io/loyaltyhub/insight/AuditChainIT.java`, `services/insight-service/src/test/java/io/loyaltyhub/insight/domain/AuditChainWalkTest.java`.
+
+#### US-F2-GRC-08 · Pacchetto di rilascio per l'adottante
+*Come* responsabile della sicurezza dell'adottante, *voglio* per ogni rilascio SBOM, VEX, provenienza SLSA, report e politiche di supporto, *così che* valuti il fornitore come chiede la mia certificazione.
+- **Contesto reale**: l'ufficio acquisti dell'azienda di «Club Aurora» chiede le evidenze di sviluppo sicuro prima del rinnovo.
+- **Tocca**: F2-GRC-08 · ADR-038, ADR-044 · docs/18 §3.15 punto 6 · M12.4, M12.6.
+- **Decisioni**: SBOM CycloneDX, VEX, SLSA livello 3, firme cosign, report di SAST e DAST · `SECURITY.md` con i tempi di risposta (critica 7 giorni, alta 30) · processo di segnalazione per il Cyber Resilience Act · versioni LTS con fine vita · rapporto delle licenze.
+- **Criteri**:
+  1. Dato il rilascio v1.0, allora ha SBOM, VEX e provenienza SLSA verificabile (docs/18 §6 M12).
+  2. Politiche di supporto, gestione delle vulnerabilità e licenze: criteri da scrivere con la fetta.
+- **Testbook**: TB-GRC (da scrivere con M12).
+
+#### US-F2-GRC-09 · Quattro occhi sulle pull request degli agenti
+*Come* auditor dell'adottante, *voglio* che il codice scritto dagli agenti sia approvato da una persona prima del rilascio, *così che* lo sviluppo del prodotto abbia una revisione reale.
+- **Contesto reale**: un agente apre una pull request verso `main` con un'identità propria; il proprietario del progetto la approva.
+- **Tocca**: F2-GRC-09 · ADR-041, ADR-044 · docs/18 §3.13, §3.15 punto 6 · M8.0, M12.4.
+- **Decisioni**: gli agenti aprono le pull request con un'identità propria (GitHub App) · approvazioni richieste da 0 a 1 prima di v1.0.
+- **Criteri**:
+  1. Dato il rilascio v1.0, allora tutte le sue pull request sono approvate da una persona diversa dall'autore (docs/18 §6 M12).
+- **Testbook**: TB-GRC (da scrivere con M12.4).
+
+### E-F2-EVT — Eventi e ingresso
+
+#### US-F2-EVT-01 · Nessun dato personale sul bus
+*Come* DPO dell'adottante, *voglio* che ogni campo degli eventi dichiari se è personale e che un test ne impedisca la pubblicazione, *così che* il bus e la sua retention lunga non diventino un archivio di dati personali.
+- **Contesto reale**: uno sviluppatore aggiunge per errore l'e-mail di Marco a un fatto di «Club Aurora»; la build fallisce.
+- **Tocca**: F2-EVT-01 · ADR-032 · docs/18 §3.3, §3.4 · `contracts/events/` · M8.4 · regola 10.
+- **Decisioni**: `x-lh-pii: true|false` su ogni campo · un test di contratto fallisce se un campo `pii:true` compare in un evento pubblicato · `check-contracts` confronta gli schemi con l'ultimo tag e fallisce su rimozioni, rinomine e restrizioni.
+- **Criteri**:
+  1. Dato ogni schema di `contracts/events/`, allora ogni campo dichiara `x-lh-pii` (#50).
+  2. ✗ Dato un evento pubblicato con un campo `pii:true`, allora il test di contratto fallisce (docs/18 §6 M8, #50).
+  3. ✗ Dato uno schema che rimuove, rinomina o restringe un campo rispetto all'ultimo tag, allora `check-contracts` fallisce (docs/18 §3.3).
+- **Testbook**: TB-SEC (dominio senza righe) · prove automatiche: `libs/lh-common/src/test/java/io/loyaltyhub/common/contracts/ContractsTest.java`.
+
+#### US-F2-EVT-02 · Fatti del membro senza dati personali
+*Come* DPO dell'adottante, *voglio* che i fatti del membro viaggino senza nome, e-mail e data di nascita e che i consumer leggano entrambe le versioni durante il passaggio, *così che* si migri senza fermo.
+- **Contesto reale**: Giulia aggiorna il profilo; il fatto `member.updated:2` porta `birthYear` e `province` ma non l'e-mail.
+- **Tocca**: F2-EVT-02 · ADR-032, ADR-038 · docs/18 §3.4 · EVT-FACT-01, EVT-FACT-02 · M8.4 · Q-346, Q-367, Q-368.
+- **Decisioni**: restano `memberId`, `externalId`, `status`, `channel`, `registeredAt`, `locale`, `birthYear`, `province`, `referralCode`, `referredBy`, `labels`, `attributes` (solo `pii=false`) ed `emailHash` (Q-367) · escono `firstName`, `lastName`, `nickname`, `email`, `birthDate`, `city` · doppia lettura nei consumer, poi rimozione della `:1` (Q-346) · soprannomi risolti dal BFF (Q-368).
+- **Criteri**:
+  1. Dato i contratti `member.registered:2` e `member.updated:2`, allora non contengono campi `pii:true` (#50).
+  2. Dato un fatto `:1` o `:2`, allora campaign, reward, engagement, insight e gamification leggono entrambe le versioni (#53, #72, #59, #58, #78).
+  3. Dato una condizione su età o provincia, allora campaign la valuta da `birthYear` e `province` (#53).
+  4. Dato member-service, allora pubblica `member.registered:2` e `member.updated:2` (docs/18 §3.4).
+- **Testbook**: TB-SEC (dominio senza righe) · prove automatiche: `libs/lh-common/src/test/java/io/loyaltyhub/common/contracts/ContractsTest.java`.
+
+#### US-F2-EVT-03 · Consegna esterna dal member-service
+*Come* DPO dell'adottante, *voglio* che e-mail e webhook verso i canali esterni partano solo dal member-service, *così che* i contatti restino nell'unico servizio che li possiede.
+- **Contesto reale**: la regola di notifica «punti guadagnati» di «Club Aurora» deve raggiungere Marco anche per e-mail.
+- **Tocca**: F2-EVT-03 · ADR-032 · docs/18 §3.4 · BO-19 · M8.4.
+- **Decisioni**: modulo `delivery` nel member-service che consuma `message.send` · adattatori `SMTP` e `WEBHOOK`, `PUSH` predisposto · `EMAIL_FAKE` resta nel profilo `demo` · produce `message.delivered` con l'esito · BO-19 mostra gli esiti per canale.
+- **Criteri**: da scrivere con la fetta.
+- **Testbook**: TB-SEC (da scrivere con M8.4).
+
+#### US-F2-EVT-04 · Partizioni, concorrenza e retention configurabili
+*Come* chi esercisce il prodotto, *voglio* scegliere partizioni, repliche, concorrenza e retention dei cinque topic, *così che* il programma scali senza topic nuovi.
+- **Contesto reale**: con due milioni di membri, l'IT di «Club Aurora» porta i topic a 12 partizioni e alza la concorrenza dei consumer.
+- **Tocca**: F2-EVT-04 · ADR-028 · docs/18 §3.3 · M8.3 · regola 5-bis · Q-373.
+- **Decisioni**: variabili `LH_KAFKA_*` per partizioni, repliche, min ISR, retention per topic e concorrenza dei listener; default di Fase 1 e nomi invariati · in `enterprise` default di 12 partizioni con chiave `memberId` · retention lunga di `facts` e `audit` (365 giorni) solo dopo M8.4 (Q-373).
+- **Criteri**:
+  1. Dato le variabili `LH_KAFKA_*` impostate, allora i cinque topic nascono con la forma configurata e con gli stessi nomi (#95).
+  2. Dato un topic esistente, quando aumento le partizioni, allora serve una conferma esplicita; una retention cambiata si applica solo modificando la configurazione del topic (#95, #105).
+  3. ✗ Dato una forma dei topic impossibile, allora il rendering del chart fallisce (#95).
+  4. Retention lunga di `facts` e `audit`: criteri da scrivere con la fetta (Q-373).
+- **Testbook**: TB-SEC (dominio senza righe) · prove automatiche: `libs/lh-common/src/test/java/io/loyaltyhub/common/it/TopicEvolutionIT.java`, `libs/lh-common/src/test/java/io/loyaltyhub/common/kafka/KafkaScalingSettingsTest.java`.
+
+#### US-F2-ING-01 · Ingresso batch
+*Come* integratore di una fonte, *voglio* inviare fino a 1000 eventi in una chiamata con un esito per elemento, *così che* un'esportazione notturna non richieda mille richieste.
+- **Contesto reale**: il sistema di fatturazione di «Club Aurora» invia ogni notte le bollette pagate del giorno.
+- **Tocca**: F2-ING-01 (ex F-ING-10) · docs/18 §3.6 · `POST /v1/events/batch` · M8.7.
+- **Decisioni**: stessa pipeline di `POST /v1/events`, una transazione per elemento (deduplica, non abbinati, outbox) · `INVALID` per gli errori di forma · `422 BATCH_EMPTY` e `422 BATCH_TOO_LARGE` · mai un `500` dopo elementi già confermati (#88).
+- **Criteri**:
+  1. Dato un batch di 1000 eventi, allora è accettato con un esito per elemento in meno di 10 s in locale (docs/18 §6 M8).
+  2. ✗ Dato un batch vuoto o con più di 1000 elementi, allora `422 BATCH_EMPTY` o `422 BATCH_TOO_LARGE` (#88).
+  3. ✗ Dato un elemento con envelope malformato, allora quell'elemento è `INVALID` e gli altri proseguono (#88).
+  4. Dato un elemento già accettato, allora il suo esito è `DUPLICATE` come in `POST /v1/events` (US-E01-04, #88).
+- **Testbook**: TB-ING · prove automatiche: `services/ingestion-service/src/test/java/io/loyaltyhub/ingestion/ImportsIT.java`.
+
+#### US-F2-ING-02 · Import di file asincrono con rapporto
+*Come* operatore CARE, *voglio* caricare un file di eventi e seguirne l'elaborazione con un rapporto per esito, *così che* un recupero massivo non richieda uno sviluppatore.
+- **Contesto reale**: dopo un guasto della cassa, Paolo carica da BO-32 il CSV con le transazioni di una giornata dei negozi «Club Aurora».
+- **Tocca**: F2-ING-02 · docs/18 §3.6 · BO-32 · `POST /v1/imports` · M8.7.
+- **Decisioni**: CSV, NDJSON o JSON fino a 1 MiB e 10 000 righe, estensione e tipo in allowlist, UTF-8 · `422 IMPORT_*` sui controlli del file · `Idempotency-Key` per autore, legata a file, tipo e fonte (`422 IDEMPOTENCY_KEY_REUSED`) · una transazione per riga con punto di ripresa · rapporto CSV con formule neutralizzate e senza il soggetto dei non abbinati · *Riprova non abbinati* a blocchi · audit con i soli conteggi (#88).
+- **Criteri**:
+  1. Dato un file di 10 000 righe, allora l'import termina con il rapporto per esito: accettate, duplicate, respinte, non abbinate, non valide (docs/18 §6 M8).
+  2. ✗ Dato un file oltre 1 MiB, con estensione non ammessa o non in UTF-8, allora `422` con un codice `IMPORT_*` (#88).
+  3. ✗ Dato la stessa `Idempotency-Key` con un file diverso, allora `422 IDEMPOTENCY_KEY_REUSED` (#88).
+  4. Dato righe `UNMATCHED`, quando CARE sceglie *Riprova non abbinati*, allora sono rivalutate a blocchi (#88).
+  5. Dato il rapporto CSV, allora le formule sono neutralizzate e il soggetto dei non abbinati non compare (#88).
+- **Testbook**: TB-ING · prove automatiche: `services/ingestion-service/src/test/java/io/loyaltyhub/ingestion/ImportsIT.java`, `services/ingestion-service/src/test/java/io/loyaltyhub/ingestion/ImportsRobustnessIT.java`, `web/app/backoffice/observe/imports/page.test.tsx`.
+
+### E-F2-EXP — Esperienza
+
+#### US-F2-API-01 · OpenAPI generata e verificata
+*Come* sviluppatore di un'app dell'adottante, *voglio* un contratto OpenAPI per ogni servizio, generato dal codice e verificato a ogni pull request, *così che* generi un client e sappia quando un cambio mi rompe.
+- **Contesto reale**: il team dell'app mobile di «Club Aurora» genera il client del portale da `contracts/api/portal.openapi.yaml`.
+- **Tocca**: F2-API-01 · ADR-046 · docs/18 §3.6 · `contracts/api/` · M8.8 · regola 12.
+- **Decisioni**: un gruppo springdoc per servizio, più `platform` e `portal` (unione di `/v1/portal/**`) · YAML deterministico · una differenza tra generato e versionato fa fallire il test · `check-api` contro il merge-base: rimozioni, restrizioni nella richiesta e garanzie perse nella risposta sono rotture.
+- **Criteri**:
+  1. Dato l'hub avviato, allora `OpenApiExportIT` produce `contracts/api/*.openapi.yaml` identici a quelli versionati; una differenza fa fallire il test (#76).
+  2. ✗ Dato una pull request che rimuove un'operazione o restringe una richiesta, allora `check-api` fallisce nel job `contracts` (#76).
+- **Testbook**: TB-EXP (dominio senza righe) · prove automatiche: `deploy/hub/src/test/java/io/loyaltyhub/hub/OpenApiExportIT.java`, `scripts/check-api.test.mjs`.
+
+#### US-F2-API-02 · Widget kit
+*Come* sviluppatore di un'app dell'adottante, *voglio* web component del programma da incorporare con il token del membro che usa la mia app, *così che* mostri saldo, catalogo e giochi senza rifare l'interfaccia.
+- **Contesto reale**: l'app di «Club Aurora» mostra a Marco il saldo con `<lh-balance>` e la ruota del concorso IW-AUTUNNO con `<lh-game>`.
+- **Tocca**: F2-API-02 · ADR-029 · docs/18 §3.6 · `widgets/` · M10.6 · regola 12.
+- **Decisioni**: `<lh-member-card>`, `<lh-balance>`, `<lh-earn-list>`, `<lh-catalog>`, `<lh-game>`, `<lh-inbox>` · token da `tokenProvider` o da attributo, tenuto in memoria · tema con le custom properties del design system · stessi renderer dei blocchi del Registry.
+- **Criteri**:
+  1. Dato `<lh-game>` incorporato in `widgets/example.html`, allora gioca con un token reale (docs/18 §6 M10).
+- **Testbook**: TB-EXP (da scrivere con M10.6).
+
+#### US-F2-EXP-01 · Element Registry
+*Come* MARKETING, *voglio* che ogni blocco disponibile nasca da un manifesto unico, *così che* CMS, portale e documentazione conoscano gli stessi blocchi senza divergere.
+- **Contesto reale**: la piattaforma di «Club Aurora» riceve un nuovo tipo di blocco; Directus, tipi TypeScript e documentazione si aggiornano con un comando.
+- **Tocca**: F2-EXP-01 · ADR-029 · docs/18 §3.5 · `registry/elements.yaml` · M10.1 · regola 11.
+- **Decisioni**: per ogni tipo `kind`, `props`, `renderer`, `dataSources`, `paRequired`, `wcag` e `sinceRegistryVersion` · `pnpm registry:build` genera lo snapshot di Directus, i tipi TypeScript e la documentazione · la CI fallisce se il generato differisce dal committato.
+- **Criteri**:
+  1. ✗ Dato uno snapshot committato diverso da quello generato, allora la CI fallisce (drift check, docs/18 §6 M10).
+- **Testbook**: TB-EXP (da scrivere con M10.1).
+
+#### US-F2-EXP-02 · Directus nell'immagine
+*Come* MARKETING, *voglio* comporre pagine e contenuti in Directus con il mio account aziendale, *così che* cambi il portale senza un rilascio.
+- **Contesto reale**: Luca entra in Directus con SSO e aggiunge un blocco ruota scegliendo il concorso da `ref_contests`.
+- **Tocca**: F2-EXP-02 · ADR-030 · docs/18 §3.5 · ruolo `cms` · M10.2.
+- **Decisioni**: versione bloccata, snapshot generato dal Registry, SSO OIDC, ruoli `Editor`, `Marketing` e `Publisher` dal claim · collezioni `ref_*` in sola lettura alimentate dai fatti `*.status.changed` tramite webhook firmato · estensioni compilate · database `cms`.
+- **Criteri**:
+  1. Dato una seconda ruota su un secondo concorso creata in Directus da `luca.marketing`, allora è visibile nel portale alla pubblicazione, senza rilascio (docs/18 §6 M10).
+- **Testbook**: TB-EXP (da scrivere con M10.2).
+
+#### US-F2-EXP-03 · Composizione versionata in experience-service
+*Come* MARKETING, *voglio* che ogni pubblicazione crei una versione immutabile, validata e ripristinabile, *così che* un errore si annulli in un clic e il portale non dipenda dal CMS.
+- **Contesto reale**: Luca pubblica una home di «Club Aurora» con un blocco sbagliato e torna alla versione precedente da BO-31.
+- **Tocca**: F2-EXP-03 · ADR-031 · docs/18 §3.5 · BO-31 · `POST /v1/cms/notify`, `POST /v1/cms/sync`, `GET /v1/portal/pages/{slug}` · M10.3.
+- **Decisioni**: notify-and-pull con segreto condiviso e token a scope minimo · validazione sul Registry e sulle regole del profilo · `composition_version` `DRAFT → ACTIVE → PREVIOUS`, rollback = riattivare `PREVIOUS` · rinomina `engagement → experience` con doppia lettura dei consumer group.
+- **Criteri**:
+  1. Dato Directus spento, allora il portale serve la composizione attiva (docs/18 §6 M10).
+  2. Dato una versione attiva, quando scelgo il ripristino, allora la precedente torna attiva in un clic (docs/18 §6 M10).
+  3. ✗ Dato una composizione non valida, allora `422` con il codice e il blocco da correggere, e nessuna nuova versione (docs/18 §3.5).
+  4. ✗ Dato un blocco che riferisce un oggetto inesistente o non pubblicabile, allora il validatore rifiuta la pubblicazione (docs/18 §3.5).
+- **Testbook**: TB-EXP (da scrivere con M10.3).
+
+#### US-F2-EXP-04 · Portale reso dalla composizione
+*Come* membro, *voglio* che le pagine del portale siano composte dai blocchi pubblicati, *così che* veda sempre i contenuti aggiornati dal marketing.
+- **Contesto reale**: Matteo apre la pagina «Gioca» e trova la nuova ruota pubblicata ieri.
+- **Tocca**: F2-EXP-04 · ADR-029, ADR-031 · docs/18 §3.5 · PT-15 · `GET /v1/portal/pages/{slug}` · M10.4.
+- **Decisioni**: set chiuso di M10: pagine `home`, `earn`, `rewards`, `play`, `activity`, `profile`, `page`; blocchi e strutturali di docs/18 §3.5 · blocchi già filtrati e con i dati del membro dal token.
+- **Criteri**:
+  1. Dato ogni blocco del set chiuso, allora passa axe su tutta la matrice (docs/18 §6 M10).
+  2. Dato Directus spento, allora il portale serve la composizione attiva (docs/18 §6 M10).
+- **Testbook**: TB-EXP (da scrivere con M10.4).
+
+#### US-F2-EXP-05 · «Usato in» e oggetti LIVE non esposti
+*Come* MARKETING, *voglio* vedere dove sono usati un concorso, una campagna o un premio e sapere se un oggetto `LIVE` non è esposto da nessun blocco, *così che* nessuna entità resti senza lettore.
+- **Contesto reale**: Luca porta a `LIVE` il concorso IW-AUTUNNO ma dimentica di metterlo in una pagina; BO-14 lo avvisa.
+- **Tocca**: F2-EXP-05 · ADR-029 · docs/18 §3.5, §5 · BO-14, BO-06, BO-11, BO-31 · `block_reference` · M10.5 · regola 2.
+- **Decisioni**: riquadro «Usato in» da `block_reference` e avviso «LIVE ma non esposto» in BO-14, BO-06 e BO-11 (docs/18 §5).
+- **Criteri**:
+  1. Dato un oggetto riferito da uno o più blocchi, allora il riquadro «Usato in» li elenca (docs/18 §3.5, §5).
+  2. Dato un oggetto `LIVE` che nessun blocco riferisce, allora la scheda mostra l'avviso «LIVE ma non esposto» (docs/18 §3.5, §5).
+- **Testbook**: TB-EXP (da scrivere con M10.5).
+
+#### US-F2-DS-01 · Token a tre livelli e profili
+*Come* responsabile dell'accessibilità, *voglio* un design system a token con i profili `brand` e `pa` e il tema dal CMS, *così che* il marchio cambi senza violare contrasti e vincoli.
+- **Contesto reale**: un ente pubblico che adotta il prodotto passa il portale dal profilo `brand` di «Club Aurora» al profilo `pa`.
+- **Tocca**: F2-DS-01 · ADR-039 · docs/18 §3.7 · M10.4.
+- **Decisioni**: token `primitive`, `semantic` e `component`; il tema modifica solo i semantici · nel profilo `pa` font e palette del Design System .italia vincolati · `THEME_CONTRAST_TOO_LOW` esteso a tutti i token semantici.
+- **Criteri**:
+  1. ✗ Dato un tema con contrasto insufficiente su un token semantico, allora è rifiutato con `THEME_CONTRAST_TOO_LOW` (docs/18 §3.7).
+  2. Profili e tema dal CMS: criteri da scrivere con la fetta.
+- **Testbook**: TB-EXP (da scrivere con M10.4).
+
+#### US-F2-DS-02 · Blocchi strutturali e validatore di conformità
+*Come* responsabile dell'accessibilità di un ente pubblico, *voglio* che il portale `pa` non si pubblichi senza i blocchi obbligatori, *così che* resti conforme alle linee guida AgID.
+- **Contesto reale**: l'ente prova a pubblicare la home senza il footer istituzionale.
+- **Tocca**: F2-DS-02 · ADR-039 · docs/18 §3.7 · M10.4 · regola 13.
+- **Decisioni**: strutturali obbligatori nel profilo `pa`: header a tre fasce, footer istituzionale, dichiarazione di accessibilità, note legali, breadcrumb, skip link, cookie bar, selettore della lingua · il validatore controlla blocchi obbligatori, un solo H1, testi alternativi, contrasto, collegamenti del footer e lingue complete · errori `422` con codice (`COMPOSITION_PA_BLOCK_MISSING`, …).
+- **Criteri**:
+  1. ✗ Dato il profilo `pa` senza footer istituzionale, allora la pubblicazione è rifiutata con `422` (docs/18 §6 M10).
+  2. ✗ Dato una pagina con due H1 o un'immagine senza testo alternativo, allora il validatore la rifiuta (docs/18 §3.7).
+- **Testbook**: TB-EXP (da scrivere con M10.4).
+
+#### US-F2-DS-03 · Accessibilità verificata
+*Come* membro che usa un lettore di schermo, *voglio* che portale, widget, backoffice e pagine di login rispettino WCAG 2.1 AA, *così che* partecipi al programma come tutti.
+- **Contesto reale**: un membro di «Club Aurora» usa la ruota solo da tastiera con un lettore di schermo.
+- **Tocca**: F2-DS-03 · ADR-039 · docs/18 §3.7 · `lh a11y-report` · M9.3, M12.2.
+- **Decisioni**: ogni tipo del Registry dichiara i criteri WCAG coperti e il meccanismo · `game`: pulsante «Gioca» equivalente, esito annunciato con `aria-live`, animazioni sotto `prefers-reduced-motion` · `lh a11y-report` produce i dati della dichiarazione di accessibilità.
+- **Criteri**:
+  1. Dato la matrice dei dispositivi, allora nessuna violazione axe di livello *serious* o *critical* (docs/18 §6 M9).
+  2. Dato ogni blocco del set chiuso, allora passa axe su tutta la matrice (docs/18 §6 M10).
+- **Testbook**: TB-EXP (da scrivere con M9.3).
+
+### E-F2-I18N — Multilingua
+
+#### US-F2-I18N-01 · Interfaccia multilingua
+*Come* membro, *voglio* usare il portale nella mia lingua con un indirizzo che la indica, *così che* condivida un link nella lingua giusta.
+- **Contesto reale**: un membro di lingua inglese apre `/en/portal` di «Club Aurora».
+- **Tocca**: F2-I18N-01 · ADR-033 · docs/18 §3.8 · PT-17 · M11.1–M11.3.
+- **Decisioni**: `next-intl` con il segmento `/[locale]` e messaggi `web/messages/{it,en}.json` · regola ESLint `no-literal-string` in `app/` e `components/` · formati per lingua, fuso sempre Europe/Rome · redirect da `/portal` alla lingua preferita o a quella di default.
+- **Criteri**:
+  1. ✗ Dato una stringa letterale in `app/` o `components/`, allora il lint fallisce (docs/18 §6 M11).
+  2. Dato `/en/portal`, allora è completo senza fallback mancanti: `i18n:coverage` al 100 % (docs/18 §6 M11).
+- **Testbook**: TB-I18N (da scrivere con M11).
+
+#### US-F2-I18N-02 · Errori del backend nella lingua del membro
+*Come* membro, *voglio* messaggi d'errore nella mia lingua, *così che* capisca perché un'operazione non è riuscita.
+- **Contesto reale**: un membro di lingua inglese prova a riscattare un premio di «Club Aurora» senza punti sufficienti.
+- **Tocca**: F2-I18N-02 · ADR-033 · docs/18 §3.8 · M11.4.
+- **Decisioni**: `MessageSource` in `lh-common` · `LhException` con chiave e argomenti · `Accept-Language` inoltrato dal proxy · i `code` restano il contratto.
+- **Criteri**:
+  1. ✗ Dato una richiesta con `Accept-Language: en` che fallisce con `422`, allora il `detail` è in inglese e il `code` non cambia (docs/18 §6 M11, §3.8).
+- **Testbook**: TB-I18N (da scrivere con M11).
+
+#### US-F2-I18N-03 · Contenuti nella lingua del membro
+*Come* membro, *voglio* ricevere premi, campagne e messaggi nella mia lingua, *così che* il programma mi parli come la mia app.
+- **Contesto reale**: Francesca imposta l'inglese in PT-08; il messaggio per il nuovo livello le arriva in inglese.
+- **Tocca**: F2-I18N-03 · ADR-033 · docs/18 §3.8 · PT-08 · M11.5.
+- **Decisioni**: `LocalizedText` (jsonb) sulle entità elencate in docs/18 §3.8 · le API `/v1/portal/*` risolvono `name` dalla lingua richiesta con fallback alla lingua di default; le API di gestione espongono `nameI18n` · `member.locale` nel fatto `member.updated:2` · seed in italiano e in inglese, `check-seed` per lingua.
+- **Criteri**:
+  1. Dato un membro con `locale=en`, allora riceve l'inbox in inglese (docs/18 §6 M11).
+  2. ✗ Dato un seed senza la traduzione inglese di un testo, allora `check-seed` fallisce (docs/18 §3.8).
+- **Testbook**: TB-I18N (da scrivere con M11).
+
+### E-F2-QA — Qualità
+
+#### US-F2-QA-01 · Journey end-to-end con invarianti
+*Come* proprietario del prodotto, *voglio* journey automatiche che attraversano il sistema e controllano le invarianti dopo ogni ciclo, *così che* un rilascio non rompa i percorsi dei membri.
+- **Contesto reale**: la journey «anno di un membro» porta Giulia da SILVER a GOLD, le fa riscattare un premio e chiude l'edizione, controllando i saldi a ogni ciclo.
+- **Tocca**: F2-QA-01 · ADR-034 · docs/18 §6 M9 · `e2e/` · M9.1–M9.2.
+- **Decisioni**: Playwright, client API tipizzato dall'OpenAPI, personas, macchina del tempo · stack di CI: immagine con `LH_ROLE=all LH_MODE=external`, Postgres e Kafka · journey lunghe: anno di un membro, concorso completo, saga dei premi con annulli, edizione · fuzz journey con seme.
+- **Criteri**:
+  1. Dato ogni ciclo di ogni journey, allora le invarianti sono verdi: Σ lotti = saldo, Σ mesi della passività = punti in circolazione, stock ≤ totale, ogni `contest.won` con tracciato completo senza DLQ, nessun doppione in inbox, una voce di audit per ogni scrittura del backoffice (docs/18 §6 M9).
+  2. Dato il job `e2e-pr`, allora dura meno di 15 minuti (docs/18 §6 M9).
+- **Testbook**: TB-E2E.
+
+#### US-F2-QA-02 · Matrice di dispositivi e accessibilità
+*Come* proprietario del prodotto, *voglio* provare portale e backoffice su più browser e dispositivi con screenshot e controlli di accessibilità, *così che* un difetto visivo o di accessibilità emerga prima del rilascio.
+- **Contesto reale**: Anna usa il portale di «Club Aurora» su un iPhone 15; un cambio di stile rompe la tessera solo su WebKit.
+- **Tocca**: F2-QA-02 · ADR-034, ADR-039 · docs/18 §6 M9 · M9.3.
+- **Decisioni**: progetti `desktop-chromium`, `desktop-firefox`, `desktop-webkit`, `bo-narrow`, `iPad Pro 11`, `iPhone 15`, `Pixel 7` · screenshot di riferimento con maschere · axe e pa11y · percorsi da tastiera.
+- **Criteri**:
+  1. Dato la matrice completa, allora nessuna violazione axe di livello *serious* o *critical* (docs/18 §6 M9).
+- **Testbook**: TB-E2E.
+
+#### US-F2-QA-03 · Carico con profili di membri
+*Come* proprietario del prodotto, *voglio* prove di carico su ingresso azioni, giocate e riscatti con 100 000 e 2 000 000 di membri, *così che* sappia se il prodotto regge gli obiettivi di servizio.
+- **Contesto reale**: prima di una campagna di «Club Aurora» per il fine settimana di saldi, il team misura le giocate concorrenti.
+- **Tocca**: F2-QA-03 · ADR-034, ADR-036 · docs/18 §3.11, §6 M9 · M9.4.
+- **Decisioni**: k6 su ingresso azioni, giocate concorrenti e riscatti · soglie SLO di docs/18 §3.11: azione → punti p95 < 5 s, giocata p99 < 500 ms.
+- **Criteri**:
+  1. Dato il profilo da 100 000 membri, allora k6 resta entro gli SLO (docs/18 §6 M9).
+- **Testbook**: TB-E2E.
+
+#### US-F2-QA-04 · Test di installazione e di aggiornamento
+*Come* proprietario del prodotto, *voglio* provare in CI i tagli di installazione e l'aggiornamento dalla versione precedente con dati, *così che* chi installa o aggiorna non scopra i problemi per primo.
+- **Contesto reale**: prima del rilascio, la CI installa «Club Aurora» con Helm e aggiorna un'installazione che ha i dati della versione precedente.
+- **Tocca**: F2-QA-04 · ADR-034, ADR-038 · docs/18 §6 M9, M12 · M9.5, M12.5 · regola 14.
+- **Decisioni**: test di installazione dei tagli disponibili (M9.5) · aggiornamento N−1 → N con dati e verifica delle invarianti (M12.5).
+- **Criteri**:
+  1. Dato `helm install` su kind, allora pod `Ready` e smoke verde (docs/18 §6 M8, #127).
+  2. Dato un'installazione Helm della versione precedente con dati, quando la aggiorno, allora il portale non si ferma e le invarianti restano verdi (docs/18 §6 M12).
+- **Testbook**: TB-E2E · prove automatiche: `.github/workflows/ci.yml` (job `helm install (kind)`).
+
+### E-F2-OPS — Osservabilità ed esercizio
+
+#### US-F2-OBS-01 · Osservabilità con OpenTelemetry e dashboard SLO
+*Come* operatore, *voglio* metriche, log e tracce di tutti i ruoli in Prometheus, Loki, Tempo e Grafana con dashboard SLO, *così che* veda subito se il programma rispetta gli obiettivi di servizio.
+- **Contesto reale**: durante un picco di giocate, l'operatore di «Club Aurora» controlla la latenza p99 delle giocate nella dashboard SLO.
+- **Tocca**: F2-OBS-01 · ADR-036 · docs/18 §3.10 punto 11, §3.11 · M8.6.
+- **Decisioni**: OTel in tutti i ruoli · values per Prometheus, Loki, Tempo e Grafana nel chart · obiettivi di docs/18 §3.11: portale 99,9 %, azione → punti p95 < 5 s, giocata p99 < 500 ms, RPO 15 min, RTO 1 h.
+- **Criteri**: da scrivere con la fetta.
+- **Testbook**: nessun dominio (da proporre con la fetta).
+
+### E-F2-GOV — Repository e documentazione
+
+#### US-F2-GOV-01 · `main` protetto e impostazioni del repository
+*Come* proprietario del repository, *voglio* che `main` accetti solo pull request con i controlli verdi, unite con squash, *così che* resti verde e rilasciabile anche con più agenti in parallelo.
+- **Contesto reale**: un agente prova a fare push diretto su `main`; il ruleset lo rifiuta e l'agente apre una pull request.
+- **Tocca**: F2-GOV-01 · ADR-041, ADR-047 · docs/18 §3.13 · `scripts/setup-branch-protection.sh`, `.github/CODEOWNERS`, `.github/pull_request_template.md`, `.github/dependabot.yml` · M8.0 · regola 16.
+- **Decisioni**: solo pull request, controlli obbligatori (`backend (Java 25)`, `web (Next.js)`, `seed`, `contracts`, `guard`, `helm (chart e compose)`), storia lineare, niente force push · approvazioni a 0 finché il proprietario è l'unico maintainer · auto-merge con squash (ADR-047) · Dependabot per Maven, npm, GitHub Actions, Docker e Docker Compose.
+- **Criteri**:
+  1. ✗ Dato un push diretto su `main`, allora è rifiutato (docs/18 §6 M8).
+  2. Dato una pull request con i controlli obbligatori verdi, allora si unisce da sola con squash (ADR-047, #80).
+  3. Dato il ruleset `main-protetto`, allora il proprietario lo applica con `scripts/setup-branch-protection.sh` (applicato il 2026-09-29, docs/14).
+- **Testbook**: job `guard` (il ruleset non ha una prova automatica nel repository).
+
+#### US-F2-GOV-02 · Controllo `guard`
+*Come* proprietario del repository, *voglio* un controllo che rifiuti le modifiche alle ADR accettate e agli ID dei seed, *così che* le decisioni si superino con una nuova ADR e non si riscrivano.
+- **Contesto reale**: una pull request prova a correggere il testo di ADR-027; il job `guard` fallisce.
+- **Tocca**: F2-GOV-02 · ADR-041, ADR-047 · docs/18 §3.13 · `scripts/check-adr-append-only.mjs`, `scripts/check-questions.mjs` · M8.0.
+- **Decisioni**: ammesse le nuove ADR e la riga «Superata da ADR-nnn» · gli ID di `seed/` cambiano solo con la label `decisione` · gli ID `Q-nnn` di docs/15 sono unici (#86).
+- **Criteri**:
+  1. ✗ Dato una pull request che modifica il testo di un'ADR esistente, allora `guard` fallisce (docs/18 §6 M8).
+  2. ✗ Dato una pull request che cambia un ID di `seed/` senza la label `decisione`, allora `guard` fallisce (docs/18 §3.13).
+  3. ✗ Dato due domande con lo stesso `Q-nnn` in docs/15, allora `guard` fallisce (#86).
+- **Testbook**: job `guard` · prove automatiche: `scripts/check-adr-append-only.mjs`, `scripts/check-questions.test.mjs`.
+
+#### US-F2-DOC-01 · Mintlify come unico sito
+*Come* lettore della documentazione, *voglio* un solo sito con tutte le pagine, *così che* non trovi copie diverse della stessa informazione.
+- **Contesto reale**: un nuovo sviluppatore cerca come si installa «Club Aurora» e trova una sola pagina, su Mintlify.
+- **Tocca**: F2-DOC-01 · ADR-040 · docs/18 §3.12 · `docs.json`, `AGENTS.md` · M8.9 · regola 17.
+- **Decisioni**: GitBook (`gitbook-docs.yaml`, `docs/SUMMARY.md`) e `docs_v2/` dismessi · pagine e `docs.json` in `site/` · guida di stile `AGENTS.md` (#98).
+- **Criteri**:
+  1. Dato il sito pubblicato da `main`, allora mostra Specifiche, Eventi e Riferimento API generati (docs/18 §6 M8).
+  2. Dato il repository, allora non contiene più `gitbook-docs.yaml`, `docs/SUMMARY.md` né `docs_v2/` (docs/18 §3.12).
+  3. Dato ogni pagina del sito, allora il frontmatter ha `title` e `description` (docs/18 §3.12).
+- **Testbook**: job `docs` (da creare con M8.9).
+
+#### US-F2-DOC-02 · Specifiche generate con `docs-sync`
+*Come* lettore della documentazione, *voglio* che le pagine delle specifiche, degli eventi e dell'API derivino dai file sorgente, *così che* il sito non resti indietro rispetto al codice.
+- **Contesto reale**: il proprietario del progetto cerca nel sito le storie del backlog nel formato delle cerimonie agile e le trova, una pagina per epic, con lo stato di DoR e DoD.
+- **Tocca**: F2-DOC-02 · ADR-040 · docs/18 §3.12 · `scripts/docs-sync.mjs` · M8.9.
+- **Decisioni**: `scripts/docs-sync.mjs` genera le pagine da `docs/` (frontmatter, escape di `<` e `{`, link riscritti) e nessuno le modifica a mano · una pagina per famiglia di eventi da `contracts/events/` · riferimento API da `contracts/api/` con la voce `openapi` di `docs.json` · prima parte (M8.9b): il backlog, con DoR e DoD calcolate (§4.0).
+- **Criteri**:
+  1. ✗ Dato una pagina generata diversa da quella committata, allora `node scripts/docs-sync.mjs --check` fallisce nel job `guard` (M8.9b).
+  2. Dato il backlog di docs/17, allora il sito ha una pagina indice e una pagina per epic con ogni storia, la sua DoR e la sua DoD (M8.9b).
+  3. Specifiche di `docs/`, pagine degli eventi e riferimento API: criteri da scrivere con la fetta.
+- **Testbook**: job `guard` · prove automatiche: `scripts/docs-sync.test.mjs`.
+
+#### US-F2-DOC-03 · Catalogo dei diagrammi e `check-mermaid`
+*Come* lettore della documentazione, *voglio* che ogni concetto abbia un diagramma valido e accessibile, *così che* capisca un flusso senza ricostruirlo dalla prosa.
+- **Contesto reale**: un nuovo sviluppatore legge la pagina dei premi e trova la sequenza della saga di riscatto.
+- **Tocca**: F2-DOC-03 · ADR-040 · docs/18 §3.12 · `scripts/check-mermaid.mjs` · M8.9 · regola 17.
+- **Decisioni**: catalogo minimo dei diagrammi di docs/18 §3.12 · ogni diagramma con `accTitle` e `accDescr`, al più circa 15 nodi, palette `classDef` standard · niente immagini di diagrammi.
+- **Criteri**:
+  1. ✗ Dato un blocco Mermaid con sintassi non valida o senza `accTitle` e `accDescr`, allora `check-mermaid` fallisce (docs/18 §3.12).
+  2. Dato ogni pagina del catalogo minimo, allora ha il suo diagramma (docs/18 §6 M8).
+- **Testbook**: job `docs` · prove automatiche: `scripts/check-mermaid.mjs`.
+
+#### US-F2-DOC-04 · Documentazione in inglese
+*Come* lettore di lingua inglese, *voglio* le sezioni principali del sito in inglese, *così che* valuti e installi il prodotto.
+- **Contesto reale**: un'azienda estera valuta «Club Aurora» e legge in inglese l'introduzione e le guide.
+- **Tocca**: F2-DOC-04 · ADR-033, ADR-040 · docs/18 §3.12 · M11.6.
+- **Decisioni**: `navigation.languages` in `docs.json` · inglese per Introduzione, Concetti, Guide e Operazioni · `docs/` resta in italiano.
+- **Criteri**:
+  1. Dato il sito, allora ha la versione inglese delle sezioni Introduzione, Concetti, Guide e Operazioni (docs/18 §6 M11).
+- **Testbook**: job `docs` (da creare con M8.9).
+
+#### US-F2-DOC-05 · Tabelle, stati e percorso dalla fonte al saldo
+*Come* nuovo sviluppatore, *voglio* un `erDiagram` per ogni scheda servizio, un diagramma di stato per ogni ciclo di vita e il percorso dalla fonte al saldo, *così che* non debba ricostruire a mente lo schema e il flusso.
+- **Contesto reale**: arriva un evento dalla fonte `ecommerce` per Marco; il diagramma mostra fonte, tipo ammesso, campagna, effetto e saldo.
+- **Tocca**: F2-DOC-05 · ADR-040 · docs/18 §3.12-bis · `docs/servizi/` · M8.9 · regola 17.
+- **Decisioni**: `erDiagram` sotto la tabella testuale di §2 di ogni scheda servizio · `stateDiagram-v2` nella pagina del concetto · flowchart fonte → tipo ammesso → campagna → effetto → saldo nella pagina degli eventi · chi tocca una migrazione, uno stato o una fonte aggiorna il diagramma (17-bis).
+- **Criteri**:
+  1. Dato ogni scheda di `docs/servizi/`, allora ha un `erDiagram` delle proprie tabelle (#83, #87).
+  2. Dato ogni entità con un ciclo di vita dichiarato, allora ha un `stateDiagram-v2` (#83).
+  3. Dato la pagina degli eventi, allora ha il diagramma dalla fonte al saldo (docs/18 §3.12-bis).
+- **Testbook**: job `docs` · prove automatiche: `scripts/check-mermaid.mjs`.
 
 ## 5. Foresta delle decisioni
 
@@ -2572,7 +3231,7 @@ Regole di conteggio: *nodo* = riga con identificativo (`ING-01`…); *foglia* = 
 
 ## 6. Matrice di copertura
 
-Stato alla data del documento: docs/16 non ha ancora righe `TB-*` e `docs/testbook/` non esiste, quindi nessuna storia è `coperta`. `pianificata` = il dominio indicato esiste in docs/16 §2; `scoperta` = nessun dominio lo prevede; `fuori perimetro PoC` = feature P2.
+Fotografia della stesura (Fase 1), quando docs/16 non aveva ancora righe `TB-*` e `docs/testbook/` non esisteva: per questo nessuna storia risulta `coperta`. Da allora i domini hanno righe eseguibili; la copertura attuale, storia per storia, è la voce D2 della DoD calcolata da `scripts/docs-sync.mjs` (§4.0) e pubblicata nelle pagine del backlog. `pianificata` = il dominio indicato esiste in docs/16 §2; `scoperta` = nessun dominio lo prevede; `fuori perimetro PoC` = feature P2.
 
 ### 6.1 Storia → feature → dominio → stato
 

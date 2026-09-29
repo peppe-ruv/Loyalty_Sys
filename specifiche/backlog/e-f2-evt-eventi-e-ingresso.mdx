@@ -1,0 +1,256 @@
+---
+title: "E-F2-EVT · Eventi e ingresso"
+sidebarTitle: "E-F2-EVT Eventi e ingresso"
+description: "E-F2-EVT Eventi e ingresso: nessun dato personale sul bus; ingressi massivi con esito per elemento. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: nessun dato personale sul bus; ingressi massivi con esito per elemento.
+
+**Attori**: sistema, fonti, CARE · **Feature**: F2-EVT-*, F2-ING-* · **Schermate**: BO-19, BO-32 · **Servizi**: member, ingestion, tutti · **Testbook**: TB-ING, TB-SEC
+
+Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 2 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-f2-evt-01" />
+
+## US-F2-EVT-01 · Nessun dato personale sul bus
+
+> *Come* DPO dell'adottante, *voglio* che ogni campo degli eventi dichiari se è personale e che un test ne impedisca la pubblicazione, *così che* il bus e la sua retention lunga non diventino un archivio di dati personali.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1)
+
+**Contesto reale**: uno sviluppatore aggiunge per errore l'e-mail di Marco a un fatto di «Club Aurora»; la build fallisce.
+
+**Tocca**: F2-EVT-01 · ADR-032 · docs/18 §3.3, §3.4 · `contracts/events/` · M8.4 · regola 10.
+
+**Decisioni**: `x-lh-pii: true|false` su ogni campo · un test di contratto fallisce se un campo `pii:true` compare in un evento pubblicato · `check-contracts` confronta gli schemi con l'ultimo tag e fallisce su rimozioni, rinomine e restrizioni.
+
+**Criteri di accettazione**
+
+1. **Dato** ogni schema di `contracts/events/`, **allora** ogni campo dichiara `x-lh-pii` ([#50](https://github.com/peppe-ruv/Loyalty_Sys/pull/50)).
+2. ✗ **Dato** un evento pubblicato con un campo `pii:true`, **allora** il test di contratto fallisce (docs/18 §6 M8, [#50](https://github.com/peppe-ruv/Loyalty_Sys/pull/50)).
+3. ✗ **Dato** uno schema che rimuove, rinomina o restringe un campo rispetto all'ultimo tag, **allora** `check-contracts` fallisce (docs/18 §3.3).
+
+**Testbook**: TB-SEC (dominio senza righe) · prove automatiche: `libs/lh-common/src/test/java/io/loyaltyhub/common/contracts/ContractsTest.java`.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-EVT-01, ADR-032, docs/18 §3.3 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ |
+| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe), 1 prova automatica |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-EVT-01 (in corso); PR [#50](https://github.com/peppe-ruv/Loyalty_Sys/pull/50) |
+| D2 Criteri provati | ✅ | prove automatiche: [ContractsTest.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/contracts/ContractsTest.java) |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-evt-02" />
+
+## US-F2-EVT-02 · Fatti del membro senza dati personali
+
+> *Come* DPO dell'adottante, *voglio* che i fatti del membro viaggino senza nome, e-mail e data di nascita e che i consumer leggano entrambe le versioni durante il passaggio, *così che* si migri senza fermo.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1)
+
+**Contesto reale**: Giulia aggiorna il profilo; il fatto `member.updated:2` porta `birthYear` e `province` ma non l'e-mail.
+
+**Tocca**: F2-EVT-02 · ADR-032, ADR-038 · docs/18 §3.4 · EVT-FACT-01, EVT-FACT-02 · M8.4 · Q-346, Q-367, Q-368.
+
+**Decisioni**: restano `memberId`, `externalId`, `status`, `channel`, `registeredAt`, `locale`, `birthYear`, `province`, `referralCode`, `referredBy`, `labels`, `attributes` (solo `pii=false`) ed `emailHash` (Q-367) · escono `firstName`, `lastName`, `nickname`, `email`, `birthDate`, `city` · doppia lettura nei consumer, poi rimozione della `:1` (Q-346) · soprannomi risolti dal BFF (Q-368).
+
+**Criteri di accettazione**
+
+1. **Dato** i contratti `member.registered:2` e `member.updated:2`, **allora** non contengono campi `pii:true` ([#50](https://github.com/peppe-ruv/Loyalty_Sys/pull/50)).
+2. **Dato** un fatto `:1` o `:2`, **allora** campaign, reward, engagement, insight e gamification leggono entrambe le versioni ([#53](https://github.com/peppe-ruv/Loyalty_Sys/pull/53), [#72](https://github.com/peppe-ruv/Loyalty_Sys/pull/72), [#59](https://github.com/peppe-ruv/Loyalty_Sys/pull/59), [#58](https://github.com/peppe-ruv/Loyalty_Sys/pull/58), [#78](https://github.com/peppe-ruv/Loyalty_Sys/pull/78)).
+3. **Dato** una condizione su età o provincia, **allora** campaign la valuta da `birthYear` e `province` ([#53](https://github.com/peppe-ruv/Loyalty_Sys/pull/53)).
+4. **Dato** member-service, **allora** pubblica `member.registered:2` e `member.updated:2` (docs/18 §3.4).
+
+**Testbook**: TB-SEC (dominio senza righe) · prove automatiche: `libs/lh-common/src/test/java/io/loyaltyhub/common/contracts/ContractsTest.java`.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-EVT-02, ADR-032, ADR-038, docs/18 §3.4, EVT-FACT-01, EVT-FACT-02 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe), 1 prova automatica |
+| R6 Dipendenze e domande | ✅ | 2 decise o superate; 1 aperta con default in uso (SPEC-GAP): Q-346 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-EVT-02 (in corso); PR [#50](https://github.com/peppe-ruv/Loyalty_Sys/pull/50), [#53](https://github.com/peppe-ruv/Loyalty_Sys/pull/53), [#58](https://github.com/peppe-ruv/Loyalty_Sys/pull/58), [#59](https://github.com/peppe-ruv/Loyalty_Sys/pull/59), [#72](https://github.com/peppe-ruv/Loyalty_Sys/pull/72), [#78](https://github.com/peppe-ruv/Loyalty_Sys/pull/78) |
+| D2 Criteri provati | ✅ | prove automatiche: [ContractsTest.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/contracts/ContractsTest.java) |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-evt-03" />
+
+## US-F2-EVT-03 · Consegna esterna dal member-service
+
+> *Come* DPO dell'adottante, *voglio* che e-mail e webhook verso i canali esterni partano solo dal member-service, *così che* i contatti restino nell'unico servizio che li possiede.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: la regola di notifica «punti guadagnati» di «Club Aurora» deve raggiungere Marco anche per e-mail.
+
+**Tocca**: F2-EVT-03 · ADR-032 · docs/18 §3.4 · BO-19 · M8.4.
+
+**Decisioni**: modulo `delivery` nel member-service che consuma `message.send` · adattatori `SMTP` e `WEBHOOK`, `PUSH` predisposto · `EMAIL_FAKE` resta nel profilo `demo` · produce `message.delivered` con l'esito · BO-19 mostra gli esiti per canale.
+
+**Criteri di accettazione**
+
+1. Da scrivere con la fetta.
+
+**Testbook**: TB-SEC (da scrivere con M8.4).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-EVT-03, ADR-032, docs/18 §3.4, BO-19 |
+| R3 Criteri di accettazione | ⬜ | criteri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-19 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-EVT-03 (da fare) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-evt-04" />
+
+## US-F2-EVT-04 · Partizioni, concorrenza e retention configurabili
+
+> *Come* chi esercisce il prodotto, *voglio* scegliere partizioni, repliche, concorrenza e retention dei cinque topic, *così che* il programma scali senza topic nuovi.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1)
+
+**Contesto reale**: con due milioni di membri, l'IT di «Club Aurora» porta i topic a 12 partizioni e alza la concorrenza dei consumer.
+
+**Tocca**: F2-EVT-04 · ADR-028 · docs/18 §3.3 · M8.3 · regola 5-bis · Q-373.
+
+**Decisioni**: variabili `LH_KAFKA_*` per partizioni, repliche, min ISR, retention per topic e concorrenza dei listener; default di Fase 1 e nomi invariati · in `enterprise` default di 12 partizioni con chiave `memberId` · retention lunga di `facts` e `audit` (365 giorni) solo dopo M8.4 (Q-373).
+
+**Criteri di accettazione**
+
+1. **Dato** le variabili `LH_KAFKA_*` impostate, **allora** i cinque topic nascono con la forma configurata e con gli stessi nomi ([#95](https://github.com/peppe-ruv/Loyalty_Sys/pull/95)).
+2. **Dato** un topic esistente, **quando** aumento le partizioni, **allora** serve una conferma esplicita; una retention cambiata si applica solo modificando la configurazione del topic ([#95](https://github.com/peppe-ruv/Loyalty_Sys/pull/95), [#105](https://github.com/peppe-ruv/Loyalty_Sys/pull/105)).
+3. ✗ **Dato** una forma dei topic impossibile, **allora** il rendering del chart fallisce ([#95](https://github.com/peppe-ruv/Loyalty_Sys/pull/95)).
+4. Retention lunga di `facts` e `audit`: criteri da scrivere con la fetta (Q-373).
+
+**Testbook**: TB-SEC (dominio senza righe) · prove automatiche: `libs/lh-common/src/test/java/io/loyaltyhub/common/it/TopicEvolutionIT.java`, `libs/lh-common/src/test/java/io/loyaltyhub/common/kafka/KafkaScalingSettingsTest.java`.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-EVT-04, ADR-028, docs/18 §3.3 |
+| R3 Criteri di accettazione | ⬜ | 3 criteri Dato/Quando/Allora, altri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe), 2 prove automatiche |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-373 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-EVT-04 (in corso); PR [#95](https://github.com/peppe-ruv/Loyalty_Sys/pull/95), [#105](https://github.com/peppe-ruv/Loyalty_Sys/pull/105) |
+| D2 Criteri provati | ✅ | prove automatiche: [TopicEvolutionIT.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/it/TopicEvolutionIT.java), [KafkaScalingSettingsTest.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/kafka/KafkaScalingSettingsTest.java) |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-ing-01" />
+
+## US-F2-ING-01 · Ingresso batch
+
+> *Come* integratore di una fonte, *voglio* inviare fino a 1000 eventi in una chiamata con un esito per elemento, *così che* un'esportazione notturna non richieda mille richieste.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: il sistema di fatturazione di «Club Aurora» invia ogni notte le bollette pagate del giorno.
+
+**Tocca**: F2-ING-01 (ex F-ING-10) · docs/18 §3.6 · `POST /v1/events/batch` · M8.7.
+
+**Decisioni**: stessa pipeline di `POST /v1/events`, una transazione per elemento (deduplica, non abbinati, outbox) · `INVALID` per gli errori di forma · `422 BATCH_EMPTY` e `422 BATCH_TOO_LARGE` · mai un `500` dopo elementi già confermati ([#88](https://github.com/peppe-ruv/Loyalty_Sys/pull/88)).
+
+**Criteri di accettazione**
+
+1. **Dato** un batch di 1000 eventi, **allora** è accettato con un esito per elemento in meno di 10 s in locale (docs/18 §6 M8).
+2. ✗ **Dato** un batch vuoto o con più di 1000 elementi, **allora** `422 BATCH_EMPTY` o `422 BATCH_TOO_LARGE` ([#88](https://github.com/peppe-ruv/Loyalty_Sys/pull/88)).
+3. ✗ **Dato** un elemento con envelope malformato, **allora** quell'elemento è `INVALID` e gli altri proseguono ([#88](https://github.com/peppe-ruv/Loyalty_Sys/pull/88)).
+4. **Dato** un elemento già accettato, **allora** il suo esito è `DUPLICATE` come in `POST /v1/events` ([US-E01-04](/specifiche/backlog/e01-ingresso-eventi#us-e01-04), [#88](https://github.com/peppe-ruv/Loyalty_Sys/pull/88)).
+
+**Testbook**: TB-ING · prove automatiche: `services/ingestion-service/src/test/java/io/loyaltyhub/ingestion/ImportsIT.java`.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-ING-01, F-ING-10, docs/18 §3.6 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 422 |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe), 1 prova automatica |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F2-ING-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#88](https://github.com/peppe-ruv/Loyalty_Sys/pull/88) |
+| D2 Criteri provati | ✅ | prove automatiche: [ImportsIT.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/services/ingestion-service/src/test/java/io/loyaltyhub/ingestion/ImportsIT.java) |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-ing-02" />
+
+## US-F2-ING-02 · Import di file asincrono con rapporto
+
+> *Come* operatore CARE, *voglio* caricare un file di eventi e seguirne l'elaborazione con un rapporto per esito, *così che* un recupero massivo non richieda uno sviluppatore.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: dopo un guasto della cassa, Paolo carica da BO-32 il CSV con le transazioni di una giornata dei negozi «Club Aurora».
+
+**Tocca**: F2-ING-02 · docs/18 §3.6 · BO-32 · `POST /v1/imports` · M8.7.
+
+**Decisioni**: CSV, NDJSON o JSON fino a 1 MiB e 10 000 righe, estensione e tipo in allowlist, UTF-8 · `422 IMPORT_*` sui controlli del file · `Idempotency-Key` per autore, legata a file, tipo e fonte (`422 IDEMPOTENCY_KEY_REUSED`) · una transazione per riga con punto di ripresa · rapporto CSV con formule neutralizzate e senza il soggetto dei non abbinati · *Riprova non abbinati* a blocchi · audit con i soli conteggi ([#88](https://github.com/peppe-ruv/Loyalty_Sys/pull/88)).
+
+**Criteri di accettazione**
+
+1. **Dato** un file di 10 000 righe, **allora** l'import termina con il rapporto per esito: accettate, duplicate, respinte, non abbinate, non valide (docs/18 §6 M8).
+2. ✗ **Dato** un file oltre 1 MiB, con estensione non ammessa o non in UTF-8, **allora** `422` con un codice `IMPORT_*` ([#88](https://github.com/peppe-ruv/Loyalty_Sys/pull/88)).
+3. ✗ **Dato** la stessa `Idempotency-Key` con un file diverso, **allora** `422 IDEMPOTENCY_KEY_REUSED` ([#88](https://github.com/peppe-ruv/Loyalty_Sys/pull/88)).
+4. **Dato** righe `UNMATCHED`, **quando** CARE sceglie *Riprova non abbinati*, **allora** sono rivalutate a blocchi ([#88](https://github.com/peppe-ruv/Loyalty_Sys/pull/88)).
+5. **Dato** il rapporto CSV, **allora** le formule sono neutralizzate e il soggetto dei non abbinati non compare ([#88](https://github.com/peppe-ruv/Loyalty_Sys/pull/88)).
+
+**Testbook**: TB-ING · prove automatiche: `services/ingestion-service/src/test/java/io/loyaltyhub/ingestion/ImportsIT.java`, `services/ingestion-service/src/test/java/io/loyaltyhub/ingestion/ImportsRobustnessIT.java`, `web/app/backoffice/observe/imports/page.test.tsx`.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-ING-02, docs/18 §3.6, BO-32 |
+| R3 Criteri di accettazione | ✅ | 5 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 422 |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe), 3 prove automatiche |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-32 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F2-ING-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#88](https://github.com/peppe-ruv/Loyalty_Sys/pull/88) |
+| D2 Criteri provati | ✅ | prove automatiche: [ImportsIT.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/services/ingestion-service/src/test/java/io/loyaltyhub/ingestion/ImportsIT.java), [ImportsRobustnessIT.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/services/ingestion-service/src/test/java/io/loyaltyhub/ingestion/ImportsRobustnessIT.java), [page.test.tsx](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/web/app/backoffice/observe/imports/page.test.tsx) |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

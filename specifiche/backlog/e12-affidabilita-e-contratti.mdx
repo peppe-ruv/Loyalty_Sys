@@ -1,0 +1,285 @@
+---
+title: "E12 · Affidabilità e contratti"
+sidebarTitle: "E12 Affidabilità e contratti"
+description: "E12 Affidabilità e contratti: nessuna perdita, nessun doppio effetto, ordine per membro, contratti stabili. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: nessuna perdita, nessun doppio effetto, ordine per membro, contratti stabili.
+
+**Attori**: sistema · **Feature**: RNF-01…10 (docs/02 §2) · **Schermate**: — · **Servizi**: lh-common, tutti · **Testbook**: (nessuno: parziale nei domini)
+
+Questa epica ha 8 storie: 6 pronte secondo la Definition of Ready, 0 fatte secondo la Definition of Done, 2 da verificare. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-e12-01" />
+
+## US-E12-01 · Nessun evento perso
+
+> *Come* azienda, *voglio* che ogni scrittura che produce eventi li pubblichi prima o poi anche se Kafka è giù, *così che* nessun punto vada perso.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2)
+
+**Tocca**: RNF-05, ADR-008 · CMN-11, CMP-17.
+
+**Criteri di accettazione**
+
+1. **Dato** Kafka irraggiungibile durante una scrittura, **allora** la riga resta in outbox ed è pubblicata al ritorno (docs/12 M0).
+
+**Testbook**: scoperta (lh-common non ha dominio TB).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | RNF-05, ADR-008 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-PLT (proposto in §7, con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | 🔎 da verificare | nessuna feature F- o F2- nella storia |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e12-02" />
+
+## US-E12-02 · Rielaborare non cambia lo stato
+
+> *Come* azienda, *voglio* che la riconsegna di un evento a qualunque consumer non produca effetti doppi, *così che* riavvii e ritentativi siano sicuri.
+
+**DoR**: ✅ pronta · **DoD**: 🔎 da verificare
+
+**Tocca**: RNF-03 · CMN-08, CMN-09 e i rami di idempotenza di ogni servizio (ING-14, CMP-15, WAL-01, WAL-08, WAL-10, RWD-02, RWD-16, GAM-13, GAM-14, ENG-10, INS-04).
+
+**Criteri di accettazione**
+
+1. **Dato** ogni handler, **allora** doppio invio = stesso stato (docs/06 §9); un `type` non gestito è ignorato senza `processed_event`.
+
+**Testbook**: TB-ING/CMP/WAL/RWD/GAM/ENG (una riga «doppio invio» per consumer, da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | RNF-03 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe), TB-CMP (con righe), TB-WAL (con righe), TB-RWD (con righe) e altri 3 |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | 🔎 da verificare | nessuna feature F- o F2- nella storia |
+| D2 Criteri provati | ✅ | 17 righe legate alla storia, 17 eseguite dai test: TB-E2E-RED-001, TB-E2E-RED-002, TB-E2E-RED-003, TB-E2E-RED-004 e altri 13 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e12-03" />
+
+## US-E12-03 · Messaggi velenosi in DLQ
+
+> *Come* azienda, *voglio* che un messaggio che fa fallire un consumer venga ritentato se ha senso e poi messo da parte, *così che* non blocchi gli altri.
+
+**DoR**: ✅ pronta · **DoD**: 🔎 da verificare
+
+**Tocca**: docs/04 §5 · CMN-10 · §5.1 bis.
+
+**Criteri di accettazione**
+
+1. **Dato** un consumer che lancia sempre eccezione, **allora** dopo 3 tentativi il messaggio è su `lh.dlq.v1` con `errorCode` e il consumer prosegue (docs/12 M0); un errore non ritentabile va in DLQ al primo tentativo.
+
+**Testbook**: scoperta.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | docs/04 §5 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-PLT (proposto in §7, con righe), TB-E2E (le sue righe citano la storia) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | 🔎 da verificare | nessuna feature F- o F2- nella storia |
+| D2 Criteri provati | ✅ | 5 righe legate alla storia, 5 eseguite dai test: TB-E2E-FAIL-001, TB-E2E-FAIL-002, TB-E2E-FAIL-003, TB-E2E-FAIL-004 e altri 1 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e12-04" />
+
+## US-E12-04 · Ordine per membro e concorrenza
+
+> *Come* azienda, *voglio* che gli eventi di uno stesso membro siano elaborati in ordine e che le risorse condivise (saldo, stock, istanti, contatori) reggano la concorrenza, *così che* non ci siano saldi negativi o premi doppi.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D3)
+
+**Tocca**: RNF-04 · chiave Kafka = memberId · WAL (lock di riga), RWD-01 (`UPDATE … WHERE stock_remaining > 0`), GAM-03 (`SKIP LOCKED`), CMP-17 (⚠ contatori letti e poi incrementati).
+
+**Criteri di accettazione**
+
+1. **Dato** 20 giocate parallele, **allora** una vincita per istante; dato richieste concorrenti sull'ultimo pezzo, **allora** una sola PENDING; dato due azioni dello stesso membro in partizioni diverse (non deve accadere), **allora** i limiti potrebbero essere superati — da coprire come caso limite.
+
+**Testbook**: TB-WAL/RWD/GAM/CMP (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | RNF-04 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WAL (con righe), TB-RWD (con righe), TB-GAM (con righe), TB-CMP (con righe) e altri 1 |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | 🔎 da verificare | nessuna feature F- o F2- nella storia |
+| D2 Criteri provati | ✅ | 4 righe legate alla storia, 4 eseguite dai test: TB-E2E-CON-001, TB-E2E-CON-002, TB-E2E-CON-003, TB-E2E-CON-004 |
+| D3 Nessuno scostamento aperto | ⬜ | 1 marcatore ⚠ (divergenza) |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e12-05" />
+
+## US-E12-05 · Risveglio dopo il sonno
+
+> *Come* azienda, *voglio* che un servizio addormentato recuperi l'arretrato al risveglio, *così che* il free tier non costi dati.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2)
+
+**Tocca**: RNF-06 · `auto.offset.reset=earliest` · Q-25.
+
+**Criteri di accettazione**
+
+1. **Dato** wallet fermo per 10 minuti con 5 accrediti in coda, **allora** al risveglio 5 movimenti; oltre 3 giorni (retention) il reset riallinea (Q-25).
+
+**Testbook**: scoperta.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | RNF-06 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-PLT (proposto in §7, con righe) |
+| R6 Dipendenze e domande | ✅ | 1 decisa o superata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | 🔎 da verificare | nessuna feature F- o F2- nella storia |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e12-06" />
+
+## US-E12-06 · Contratti evento stabili
+
+> *Come* sviluppatore di un servizio, *voglio* che gli eventi rispettino gli schemi e che i consumer tollerino campi nuovi, *così che* i servizi evolvano indipendentemente.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2)
+
+**Tocca**: docs/05 §9 · `contracts/events/` · Q-53, Q-139.
+
+**Criteri di accettazione**
+
+1. **Dato** ogni esempio, **allora** valida contro lo schema; dato ogni produttore, **allora** l'evento prodotto valida; dato un campo sconosciuto, **allora** il consumer non fallisce.
+
+**Testbook**: scoperta (test di contratto fuori dai domini funzionali).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | docs/05 §9 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-PLT (proposto in §7, con righe) |
+| R6 Dipendenze e domande | ✅ | 1 decisa o superata; 1 aperta con default in uso (SPEC-GAP): Q-53 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | 🔎 da verificare | nessuna feature F- o F2- nella storia |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e12-07" />
+
+## US-E12-07 · Errori comprensibili
+
+> *Come* frontend e come integratore, *voglio* errori RFC 9457 con `code` stabile e `detail` in italiano, *così che* li mostri all'utente e li gestisca nel codice.
+
+**DoR**: ⬜ non pronta (R4) · **DoD**: ⬜ non fatta (D2)
+
+**Tocca**: docs/06 §2 · CMN-12 · §5.1.
+
+**Criteri di accettazione**
+
+1. **Dato** ogni codice di §5.1, **allora** `type` `urn:loyaltyhub:problem:<suffix>`, `status`, `code`, `detail` italiano; i 422 di campo hanno `errors[]` mappati sui campi del form (docs/07 §6); percorso inesistente → 404; eccezione imprevista → 500 `INTERNAL_ERROR` senza dettagli interni.
+
+**Testbook**: TB-ING/CMP/WAL/RWD/GAM/GOV/ENG (per i propri codici) · TB-WEB (stato *Error*/*Validation*).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | docs/06 §2 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ⬜ | risposte d'errore (404, 422) senza criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe), TB-CMP (con righe), TB-WAL (con righe), TB-RWD (con righe) e altri 4 |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | 🔎 da verificare | nessuna feature F- o F2- nella storia |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e12-08" />
+
+## US-E12-08 · Requisiti non funzionali della demo gratuita
+
+> *Come* titolare del progetto, *voglio* che ogni servizio stia in 512 MB, che la pipeline sia veloce e che l'interfaccia sia accessibile e responsive, *così che* la demo funzioni sul free tier e per tutti.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D2)
+
+**Tocca**: RNF-01, RNF-02, RNF-08, RNF-09, RNF-10.
+
+**Criteri di accettazione**
+
+1. RSS ≤ 450 MB dopo 2 min; azione → movimento p50 ≤ 3 s, p95 ≤ 8 s; contrasto AA, focus visibile, tastiera, `prefers-reduced-motion`; portale ≥ 360 px; log JSON con `eventId`, `correlationId`, `memberId`.
+
+**Testbook**: scoperta (non funzionale).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | RNF-01, RNF-02, RNF-08, RNF-09, RNF-10 |
+| R3 Criteri di accettazione | ⬜ | criteri senza la forma Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-PLT (proposto in §7, con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | 🔎 da verificare | nessuna feature F- o F2- nella storia |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

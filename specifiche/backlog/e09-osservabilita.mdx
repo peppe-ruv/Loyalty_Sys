@@ -1,0 +1,263 @@
+---
+title: "E09 · Osservabilità"
+sidebarTitle: "E09 Osservabilità"
+description: "E09 Osservabilità: vedere l'architettura: flusso live, tracciati, KPI, stato pipeline. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: vedere l'architettura: flusso live, tracciati, KPI, stato pipeline.
+
+**Attori**: ANALYST, tutti · **Feature**: F-INS-01…04, F-INS-06 · **Schermate**: BO-01, BO-24, BO-25, rail · **Servizi**: insight · **Testbook**: (nessuno: TB-WEB solo lato client)
+
+Questa epica ha 7 storie: 6 pronte secondo la Definition of Ready, 5 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-e09-01" />
+
+## US-E09-01 · Flusso eventi live
+
+> *Come* chiunque guardi la demo, *voglio* vedere in tempo reale gli eventi che attraversano i 5 topic, colorati e filtrabili, *così che* l'architettura a eventi sia visibile.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-INS-01 · BO-24, rail eventi · SSE `GET /v1/stream/events` · INS-05, WEB-06, CMN-12 · Q-26.
+
+**Decisioni**: filtri `topics, memberId, types, correlationId` · heartbeat 15 s · `Last-Event-ID` → ultimi ≤ 200 · client lento o chiuso → disconnesso senza errore · lato web: 3 fallimenti → polling 3 s «live ridotto».
+
+**Criteri di accettazione**
+
+1. **Dato** un acquisto dal simulatore, **allora** entro 3 s almeno 4 messaggi SSE (`action`, `campaign.evaluated`, `points.grant`, `wallet.points.earned`) con lo stesso `correlationId` (insight §7, docs/12 M2).
+2. **Dato** una riconnessione con `Last-Event-ID`, **allora** nessun evento perso tra i due collegamenti (test con 20 eventi) (insight §7).
+3. **Dato** l'SSE interrotto, **allora** dopo 3 tentativi la UI passa a polling e lo dichiara (docs/12 M2).
+
+**Testbook**: TB-WEB (lato client, da coprire); lato server scoperto.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-INS-01, BO-24 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-26 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-24 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-INS-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 1 riga sulle feature o schermate della storia in TB-WEB, 1 eseguita: TB-WEB-NAV-022 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e09-02" />
+
+## US-E09-02 · Stato della pipeline
+
+> *Come* ADMIN, *voglio* vedere per ogni topic l'ultimo evento e i volumi 1 h/24 h, *così che* capisca se qualcosa si è fermato.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-INS-06 · BO-24 (striscia pipeline) · `GET /v1/pipeline/status`.
+
+**Criteri di accettazione**
+
+1. **Dato** 12 azioni di `SCN-WEEKEND-BURST`, **allora** `lh.actions.v1` conta +12 nell'ultima ora e l'ultimo evento è recente.
+
+**Testbook**: scoperta.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-INS-06, BO-24 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-INS (proposto in §7, con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: SCN-WEEKEND-BURST |
+| R8 Stati dell'interfaccia | ✅ | BO-24 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-INS-06 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 25 righe sulle feature o schermate della storia in TB-INS, 25 eseguite: TB-INS-PIP-001, TB-INS-PIP-002, TB-INS-PIP-003 e altri 22 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e09-03" />
+
+## US-E09-03 · Tracciato di un'azione
+
+> *Come* operatore CARE, *voglio* vedere la catena completa di un'azione (valutazione, effetti, fatti, messaggi) con i tempi, *così che* spieghi al cliente cosa è successo.
+
+**DoR**: ⬜ non pronta (R4) · **DoD**: ✅ fatta
+
+**Tocca**: F-INS-02 · BO-25, `TraceLink` ovunque · `GET /v1/traces/{correlationId}` · INS-03 · Q-106.
+
+**Decisioni**: albero per causazione · `FAILED` se c'è una voce DLQ OPEN/DISCARDED · `COMPLETE` dopo 5 s di quiete · altrimenti `IN_PROGRESS` · correlazione sconosciuta → `IN_PROGRESS` vuoto (non 404).
+
+**Criteri di accettazione**
+
+1. **Dato** lo scenario SILVER 130 €, **allora** radice = azione, `durationMs > 0`, `outcome.points = [{PTS,162},{STS,130}]` (insight §7).
+2. **Dato** `SCN-POISON`, **allora** `FAILED` (insight §7); dopo *Riprocessa*, non più `FAILED`.
+3. **Dato** `SCN-TIER-UP`, **allora** un solo albero con azione interna e bonus (docs/12 M3).
+4. **Dato** un `correlationId` inesistente, **allora** risposta vuota `IN_PROGRESS` (ramo senza specifica: valutare 404).
+
+**Testbook**: scoperta.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-INS-02, BO-25 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ⬜ | risposte d'errore (404) senza criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-INS (proposto in §7, con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-106 |
+| R7 Dati demo | ✅ | in seed/: SCN-POISON, SCN-TIER-UP |
+| R8 Stati dell'interfaccia | ✅ | BO-25 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-INS-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 36 righe legate alla storia, 36 eseguite dai test: TB-INS-TST-001, TB-INS-TST-002, TB-INS-TST-003, TB-INS-TST-004 e altri 32; 49 righe sulle feature o schermate della storia in TB-INS, 49 eseguite: TB-INS-TTR-001, TB-INS-TTR-002, TB-INS-TTR-003 e altri 46 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e09-04" />
+
+## US-E09-04 · Dashboard KPI con storico dimostrativo
+
+> *Come* direttore marketing, *voglio* KPI e serie storiche piene anche a demo appena accesa, *così che* valuti il programma in un colpo d'occhio.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-INS-03, F-INS-04, F-WAL-09 · BO-01 · `GET /v1/kpi/overview|timeseries|breakdown`, wallet `/v1/liability`, `/v1/tiers/distribution` · INS-04, INS-07.
+
+**Criteri di accettazione**
+
+1. **Dato** un reset, **allora** serie di 90 giorni non vuote con `synthetic=true` e legenda «storico dimostrativo» (insight §7).
+2. **Dato** un evento duplicato sul topic, **allora** una sola riga nell'event store e metriche non raddoppiate (insight §7).
+3. **Dato** un acquisto reale oggi, **allora** si somma al dato sintetico del giorno.
+
+**Testbook**: scoperta.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-INS-03, F-INS-04, F-WAL-09, BO-01 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-INS (proposto in §7, con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-01 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-INS-03, F-INS-04, F-WAL-09 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 51 righe sulle feature o schermate della storia in TB-INS, 51 eseguite: TB-INS-KOV-001, TB-INS-KOV-002, TB-INS-KOV-003 e altri 48 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e09-05" />
+
+## US-E09-05 · Linea del tempo del membro ⛔
+
+> *Come* operatore CARE, *voglio* vedere nella Scheda 360° gli eventi del membro raggruppati per tracciato, *così che* ricostruisca la sua storia recente.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2, D3)
+
+**Tocca**: F-MBR-02 · BO-03 (scheda `timeline`) · insight `GET /v1/members/{memberId}/timeline` (⛔ assente, INS-08).
+
+**Criteri di accettazione**
+
+1. ⛔ **Dato** Giulia dopo `SCN-TIER-UP`, **allora** la scheda mostra un gruppo per tracciato: oggi l'endpoint non esiste.
+
+**Testbook**: scoperta.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-MBR-02, BO-03 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-INS (proposto in §7, con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: SCN-TIER-UP |
+| R8 Stati dell'interfaccia | ✅ | BO-03 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-MBR-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ⬜ | 3 marcatori ⛔ (regola senza codice) |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e09-06" />
+
+## US-E09-06 · Conservazione e pulizia dei dati
+
+> *Come* responsabile dei costi, *voglio* che log e tabelle tecniche si puliscano da sole, *così che* il database gratuito non si riempia (≤ 300 MB).
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2, D3)
+
+**Tocca**: RNF-07 · INS-06, CMN-11, ENG-23, CMP-29, OutboxCleanup.
+
+**Criteri di accettazione**
+
+1. **Dato** eventi più vecchi di 14 giorni, **allora** rimossi dall'event store; audit oltre 180 gg rimosso; outbox pubblicati oltre 24 h rimossi.
+2. ⛔ **Dato** `processed_event` > 14 gg, `inbound_event` > 7 gg (o > 20 000 righe) ed `evaluation_log` > 30 gg, **allora** la specifica chiede la pulizia: oggi nessun job.
+
+**Testbook**: scoperta.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | RNF-07 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-INS (proposto in §7, con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | 🔎 da verificare | nessuna feature F- o F2- nella storia |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ⬜ | 1 marcatore ⛔ (regola senza codice) |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e09-07" />
+
+## US-E09-07 · Cercare eventi
+
+> *Come* ANALYST, *voglio* cercare eventi per tipo, membro, correlazione, testo e periodo, *così che* indaghi un'anomalia.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-INS-01 · BO-24 (dettaglio), BO-25 · `GET /v1/events`, `/{eventId}` · INS-08.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** `from` non valido, **allora** 400; evento inesistente → 404; ricerca `q=ORD-88213` trova l'azione e i suoi figli.
+
+**Testbook**: scoperta.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-INS-01, BO-24, BO-25 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 400, 404 |
+| R5 Dominio di testbook | ✅ | TB-INS (proposto in §7, con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-24, BO-25 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-INS-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 58 righe sulle feature o schermate della storia in TB-INS, 58 eseguite: TB-INS-TTR-001, TB-INS-TTR-002, TB-INS-TTR-003 e altri 55 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

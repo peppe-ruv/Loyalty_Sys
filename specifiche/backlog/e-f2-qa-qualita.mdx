@@ -1,0 +1,167 @@
+---
+title: "E-F2-QA · Qualità"
+sidebarTitle: "E-F2-QA Qualità"
+description: "E-F2-QA Qualità: ogni rilascio è provato su journey, matrice e carico. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: ogni rilascio è provato su journey, matrice e carico.
+
+**Attori**: sistema · **Feature**: F2-QA-* · **Schermate**: — · **Servizi**: e2e · **Testbook**: TB-E2E
+
+Questa epica ha 4 storie: 4 pronte secondo la Definition of Ready, 0 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-f2-qa-01" />
+
+## US-F2-QA-01 · Journey end-to-end con invarianti
+
+> *Come* proprietario del prodotto, *voglio* journey automatiche che attraversano il sistema e controllano le invarianti dopo ogni ciclo, *così che* un rilascio non rompa i percorsi dei membri.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: la journey «anno di un membro» porta Giulia da SILVER a GOLD, le fa riscattare un premio e chiude l'edizione, controllando i saldi a ogni ciclo.
+
+**Tocca**: F2-QA-01 · ADR-034 · docs/18 §6 M9 · `e2e/` · M9.1–M9.2.
+
+**Decisioni**: Playwright, client API tipizzato dall'OpenAPI, personas, macchina del tempo · stack di CI: immagine con `LH_ROLE=all LH_MODE=external`, Postgres e Kafka · journey lunghe: anno di un membro, concorso completo, saga dei premi con annulli, edizione · fuzz journey con seme.
+
+**Criteri di accettazione**
+
+1. **Dato** ogni ciclo di ogni journey, **allora** le invarianti sono verdi: Σ lotti = saldo, Σ mesi della passività = punti in circolazione, stock ≤ totale, ogni `contest.won` con tracciato completo senza DLQ, nessun doppione in inbox, una voce di audit per ogni scrittura del backoffice (docs/18 §6 M9).
+2. **Dato** il job `e2e-pr`, **allora** dura meno di 15 minuti (docs/18 §6 M9).
+
+**Testbook**: TB-E2E.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-QA-01, ADR-034, docs/18 §6 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-E2E (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-QA-01 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-qa-02" />
+
+## US-F2-QA-02 · Matrice di dispositivi e accessibilità
+
+> *Come* proprietario del prodotto, *voglio* provare portale e backoffice su più browser e dispositivi con screenshot e controlli di accessibilità, *così che* un difetto visivo o di accessibilità emerga prima del rilascio.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: Anna usa il portale di «Club Aurora» su un iPhone 15; un cambio di stile rompe la tessera solo su WebKit.
+
+**Tocca**: F2-QA-02 · ADR-034, ADR-039 · docs/18 §6 M9 · M9.3.
+
+**Decisioni**: progetti `desktop-chromium`, `desktop-firefox`, `desktop-webkit`, `bo-narrow`, `iPad Pro 11`, `iPhone 15`, `Pixel 7` · screenshot di riferimento con maschere · axe e pa11y · percorsi da tastiera.
+
+**Criteri di accettazione**
+
+1. **Dato** la matrice completa, **allora** nessuna violazione axe di livello *serious* o *critical* (docs/18 §6 M9).
+
+**Testbook**: TB-E2E.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-QA-02, ADR-034, ADR-039, docs/18 §6 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-E2E (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-QA-02 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-qa-03" />
+
+## US-F2-QA-03 · Carico con profili di membri
+
+> *Come* proprietario del prodotto, *voglio* prove di carico su ingresso azioni, giocate e riscatti con 100 000 e 2 000 000 di membri, *così che* sappia se il prodotto regge gli obiettivi di servizio.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: prima di una campagna di «Club Aurora» per il fine settimana di saldi, il team misura le giocate concorrenti.
+
+**Tocca**: F2-QA-03 · ADR-034, ADR-036 · docs/18 §3.11, §6 M9 · M9.4.
+
+**Decisioni**: k6 su ingresso azioni, giocate concorrenti e riscatti · soglie SLO di docs/18 §3.11: azione → punti p95 &lt; 5 s, giocata p99 &lt; 500 ms.
+
+**Criteri di accettazione**
+
+1. **Dato** il profilo da 100 000 membri, **allora** k6 resta entro gli SLO (docs/18 §6 M9).
+
+**Testbook**: TB-E2E.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-QA-03, ADR-034, ADR-036, docs/18 §3.11 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-E2E (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-QA-03 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-qa-04" />
+
+## US-F2-QA-04 · Test di installazione e di aggiornamento
+
+> *Come* proprietario del prodotto, *voglio* provare in CI i tagli di installazione e l'aggiornamento dalla versione precedente con dati, *così che* chi installa o aggiorna non scopra i problemi per primo.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1)
+
+**Contesto reale**: prima del rilascio, la CI installa «Club Aurora» con Helm e aggiorna un'installazione che ha i dati della versione precedente.
+
+**Tocca**: F2-QA-04 · ADR-034, ADR-038 · docs/18 §6 M9, M12 · M9.5, M12.5 · regola 14.
+
+**Decisioni**: test di installazione dei tagli disponibili (M9.5) · aggiornamento N−1 → N con dati e verifica delle invarianti (M12.5).
+
+**Criteri di accettazione**
+
+1. **Dato** `helm install` su kind, **allora** pod `Ready` e smoke verde (docs/18 §6 M8, [#127](https://github.com/peppe-ruv/Loyalty_Sys/pull/127)).
+2. **Dato** un'installazione Helm della versione precedente con dati, **quando** la aggiorno, **allora** il portale non si ferma e le invarianti restano verdi (docs/18 §6 M12).
+
+**Testbook**: TB-E2E · prove automatiche: `.github/workflows/ci.yml` (job `helm install (kind)`).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-QA-04, ADR-034, ADR-038, docs/18 §6 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-E2E (con righe), job helm install (kind), 1 prova automatica |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-QA-04 (assente da docs/14) |
+| D2 Criteri provati | ✅ | prove automatiche: [ci.yml](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/.github/workflows/ci.yml) |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

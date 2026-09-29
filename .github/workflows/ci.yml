@@ -131,6 +131,9 @@ jobs:
       # ID unici in docs/15: due fette parallele non possono registrare lo stesso Q-nnn (ADR-047).
       - name: Domande aperte con ID unici
         run: node --test scripts/check-questions.test.mjs && node scripts/check-questions.mjs
+      # Pagine Mintlify del backlog generate da docs/17 con DoR e DoD calcolate (M8.9b, ADR-040).
+      - name: Pagine generate allineate (docs-sync)
+        run: node --test scripts/docs-sync.test.mjs && node scripts/docs-sync.mjs --check
 
   web:
     name: web (Next.js)

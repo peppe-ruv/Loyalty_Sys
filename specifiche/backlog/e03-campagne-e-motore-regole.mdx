@@ -1,0 +1,722 @@
+---
+title: "E03 · Campagne e motore regole"
+sidebarTitle: "E03 Campagne e motore regole"
+description: "E03 Campagne e motore regole: regole configurabili, spiegabili, simulabili, con limiti e budget. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: regole configurabili, spiegabili, simulabili, con limiti e budget.
+
+**Attori**: MARKETING, LEGAL, membro · **Feature**: F-CMP-01…14 · **Schermate**: BO-05, BO-06, BO-03 (azioni), BO-25, PT-02 · **Servizi**: campaign · **Testbook**: TB-CMP
+
+Questa epica ha 19 storie, di cui 1 fuori perimetro: 18 pronte secondo la Definition of Ready, 15 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-e03-01" />
+
+## US-E03-01 · Creare una campagna in bozza
+
+> *Come* MARKETING, *voglio* creare una campagna con trigger, pubblico, condizioni, effetti, limiti e calendario, *così che* la provi prima di pubblicarla.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: Luca prepara «Autolettura: +50 punti al mese».
+
+**Tocca**: F-CMP-01 · BO-05, BO-06 · `POST /v1/campaigns`, `POST /v1/campaigns/validate` · CMP-19, CMP-20, CMP-30.
+
+**Decisioni**: nessun trigger / nessun effetto / `MULTIPLIER.factor` ∉ [1.1, 5] / `GRANT_PLAYS` senza concorso / `SEND_MESSAGE` senza template o `params` non oggetto / `endAt ≤ startAt` → 422 `CAMPAIGN_INVALID` · codice mancante → 400 · duplicato → 409 `CODE_TAKEN` · creata `DRAFT`, priorità 100, pubblico «tutti».
+
+**Criteri di accettazione**
+
+1. **Dato** una campagna valida, **allora** 201 in `DRAFT` con audit `CREATE` (attore `MARKETING:luca.marketing`).
+2. ✗ **Dato** `MULTIPLIER` con fattore 6, **allora** 422 con il messaggio sul fattore; `validate` restituisce `{valid:false, errors[]}` senza salvare.
+3. ✗ **Dato** un codice già usato, **allora** 409 `CODE_TAKEN`.
+4. ✗ **Dato** ANALYST, **allora** il pulsante non c'è e l'API risponde 403 `FORBIDDEN_ROLE` (`object.edit` = ADMIN, MARKETING).
+
+**Testbook**: TB-CMP (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CMP-01, BO-05, BO-06 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 3 criteri ✗ per 400, 403, 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-CMP (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-05, BO-06 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#73](https://github.com/peppe-ruv/Loyalty_Sys/pull/73), [#116](https://github.com/peppe-ruv/Loyalty_Sys/pull/116) |
+| D2 Criteri provati | ✅ | 174 righe sulle feature o schermate della storia in TB-CMP, 174 eseguite: TB-CMP-TRG-001, TB-CMP-TRG-002, TB-CMP-TRG-003 e altri 171 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e03-02" />
+
+## US-E03-02 · Modificare una campagna in base allo stato
+
+> *Come* MARKETING, *voglio* poter cambiare nome, priorità o data di fine di una campagna attiva ma non le sue regole, *così che* i membri non vedano cambiare le condizioni in corsa.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: `CMP-PURCHASE-BASE` è LIVE; Luca vuole allungarla di un mese e, per errore, prova a cambiare anche la soglia.
+
+**Tocca**: F-CMP-01, F-CMP-02 · BO-06 (`LifecycleBar`, campi in sola lettura) · `PUT /v1/campaigns/{id}` · CMP-21 · Q-51, Q-112.
+
+**Decisioni**: codice → 409 `CODE_IMMUTABLE` · ENDED/ARCHIVED → 409 `CAMPAIGN_NOT_EDITABLE` · LIVE/PAUSED: trigger, pubblico, condizioni, effetti, limiti, `startAt`, gruppo, visibilità, etichette → 409 `CAMPAIGN_LIVE_LOCKED`; nome, descrizioni, icona, priorità, `endAt` ammessi · versione → 409.
+
+**Criteri di accettazione**
+
+1. **Dato** una LIVE, **quando** cambio `endAt` e nome, **allora** 200, cache ricaricata e audit con diff prima/dopo (docs/12 M2).
+2. ✗ **Dato** una LIVE, **quando** cambio le condizioni, **allora** 409 `CAMPAIGN_LIVE_LOCKED` sia da UI sia da API (docs/12 M3).
+3. ✗ **Dato** una PAUSED, **allora** stesse regole della LIVE (Q-51); dato una ENDED, **allora** 409 `CAMPAIGN_NOT_EDITABLE`.
+
+**Testbook**: TB-CMP (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CMP-01, F-CMP-02, BO-06 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 409 |
+| R5 Dominio di testbook | ✅ | TB-CMP (con righe) |
+| R6 Dipendenze e domande | ✅ | 2 aperte con default in uso (SPEC-GAP): Q-51, Q-112 |
+| R7 Dati demo | ✅ | in seed/: CMP-PURCHASE-BASE |
+| R8 Stati dell'interfaccia | ✅ | BO-06 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-01, F-CMP-02 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#73](https://github.com/peppe-ruv/Loyalty_Sys/pull/73), [#116](https://github.com/peppe-ruv/Loyalty_Sys/pull/116) |
+| D2 Criteri provati | ✅ | 254 righe sulle feature o schermate della storia in TB-CMP, 254 eseguite: TB-CMP-TRG-001, TB-CMP-TRG-002, TB-CMP-TRG-003 e altri 251 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e03-03" />
+
+## US-E03-03 · Pubblicare, mettere in pausa, terminare
+
+> *Come* MARKETING, *voglio* pubblicare una campagna (o inviarla in revisione se la policy lo chiede), metterla in pausa e terminarla, *così che* il motore la valuti solo quando deve.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: `CMP-REVIEW` va in pausa per una promozione concorrente; a fine stagione si termina e si archivia.
+
+**Tocca**: F-CMP-02 · BO-05, BO-06 · `POST /v1/campaigns/{id}/transitions` · CMP-23, CMP-29, CMN-04…07 · EVT-FACT-11.
+
+**Decisioni**: vedi macchina a stati ([US-E08-01](/specifiche/backlog/e08-governance#us-e08-01)/03) · `ACTIVATE` = `PUBLISH` · policy CAMPAIGN (LEGAL se `requiresLegal` o budget > 100 000) · cache ricaricata subito · `campaign.status.changed`.
+
+**Criteri di accettazione**
+
+1. **Dato** una DRAFT senza vincoli di policy, **quando** *Pubblica*, **allora** LIVE e la prossima azione la valuta (senza attendere 30 s).
+2. **Dato** una LIVE messa in pausa, **allora** le azioni successive non la considerano.
+3. ✗ **Dato** *Pubblica* su una DRAFT con `requiresLegal`, **allora** 409 `APPROVAL_REQUIRED`.
+
+**Testbook**: TB-CMP (da coprire); macchina a stati in TB-GOV.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CMP-02, BO-05, BO-06, EVT-FACT-11 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 409 |
+| R5 Dominio di testbook | ✅ | TB-CMP (con righe), TB-GOV (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: CMP-REVIEW |
+| R8 Stati dell'interfaccia | ✅ | BO-05, BO-06 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 245 righe sulle feature o schermate della storia in TB-CMP, TB-GOV, 245 eseguite: TB-CMP-CTX-023, TB-CMP-GRP-001, TB-CMP-GRP-002 e altri 242 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e03-04" />
+
+## US-E03-04 · Un'azione fa scattare una campagna
+
+> *Come* membro, *voglio* ricevere i punti previsti dalla campagna quando faccio l'azione, *così che* il programma mantenga la promessa.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: martedì Marco (SILVER) compra 130 €.
+
+**Tocca**: F-CMP-03…05 · `lh.actions.v1` → `lh.effects.v1` · CMP-02…05, CMP-11, CMP-12, CMP-17 · EVT-EFF-01, EVT-FACT-10.
+
+**Decisioni**: candidate LIVE con trigger · ordine priorità/codice · calendario · pubblico · condizioni · limiti · effetti · `MATCHED`.
+
+**Criteri di accettazione**
+
+1. **Dato** Marco SILVER e 130 € di martedì, **allora** due `points.grant`: PTS 130 con `tierMultiplierApplies`, STS 130; log `MATCHED` (campaign §7).
+2. **Dato** lo stesso evento, **allora** il ledger ha `EARN 162 PTS` e `EARN 130 STS` con `campaignCode=CMP-PURCHASE-BASE` e lo stesso `correlationId` entro 8 s p95 (docs/12 M1).
+3. **Dato** `campaign.evaluated`, **allora** `matched[]` contiene la campagna con gli effetti e `skipped[]` le altre col motivo.
+
+**Testbook**: TB-CMP (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CMP-03, EVT-EFF-01, EVT-FACT-10 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-CMP (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-03, F-CMP-04, F-CMP-05 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 182 righe sulle feature o schermate della storia in TB-CMP, 182 eseguite: TB-CMP-GRP-001, TB-CMP-GRP-002, TB-CMP-GRP-003 e altri 179 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e03-05" />
+
+## US-E03-05 · Perché la campagna non è scattata?
+
+> *Come* operatore CARE, *voglio* vedere per ogni azione il motivo per cui ogni campagna non è scattata, *così che* risponda al cliente senza aprire un ticket tecnico.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D3)
+
+**Contesto reale**: «ho attivato la bolletta digitale ma non ho i 300 punti»: in BO-03 `CMP-EBILL` risulta `LIMIT` (già ottenuta).
+
+**Tocca**: F-CMP-06, F-CMP-09 · BO-03 (scheda `actions`), BO-25 («Perché») · CMP-01, CMP-03…11, CMP-31.
+
+**Decisioni**: `NO_MEMBER` (snapshot assente o membro non attivo) · `NOT_IN_SCHEDULE` · `AUDIENCE` · `CONDITION` (+ foglie fallite con valore osservato) · `EXCLUSIVE` · `EFFECT_NOT_SUPPORTED_YET` · `LIMIT` · `BUDGET` · `NO_MATCH` se nessuna scatta.
+
+**Criteri di accettazione**
+
+1. **Dato** `app.login.daily` due volte nello stesso giorno, **allora** la seconda è `skipped` con `LIMIT` (campaign §7).
+2. **Dato** un acquisto di 30 € di un GOLD, **allora** `CMP-GOLD-PURCHASE-PLAY` è `CONDITION` con `data.amount gte 50 · actual 30`.
+3. **Dato** un acquisto di un SILVER, **allora** `CMP-GOLD-PURCHASE-PLAY` è `AUDIENCE`.
+4. **Dato** un acquisto di martedì, **allora** `CMP-WEEKEND-X2` è `CONDITION` (`context.dayOfWeek`); ⚠ docs/12 M1 lo descrive come «condizione di calendario» e F-CMP-09 prevede `NOT_LIVE`, che il motore non emette.
+5. ⚠ Dato il quarto acquisto del giorno, **allora** `reason=LIMIT` (docs/12 M1 scrive `MEMBER_LIMIT_REACHED`: da allineare come Q-50).
+
+**Testbook**: TB-CMP (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CMP-06, F-CMP-09, BO-03, BO-25 |
+| R3 Criteri di accettazione | ✅ | 5 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-CMP (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-50 |
+| R7 Dati demo | ✅ | in seed/: CMP-EBILL |
+| R8 Stati dell'interfaccia | ✅ | BO-03, BO-25 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-06, F-CMP-09 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 68 righe sulle feature o schermate della storia in TB-CMP, 68 eseguite: TB-CMP-AUD-001, TB-CMP-AUD-002, TB-CMP-AUD-003 e altri 65 |
+| D3 Nessuno scostamento aperto | ⬜ | 2 marcatori ⚠ (divergenza) |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e03-06" />
+
+## US-E03-06 · Condizioni su dati, membro, contesto e storico
+
+> *Come* MARKETING, *voglio* costruire condizioni annidate su campi dell'azione, del membro, del contesto e dello storico, *così che* premi solo i comportamenti giusti.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: «acquisto online ≥ 50 € in categoria casa, non per chi ha già 5 acquisti dello stesso tipo».
+
+**Tocca**: F-CMP-03 · BO-06 (`ConditionBuilder`) · CMP-16, CMP-17, WEB-15 · Q-90, Q-91, Q-92.
+
+**Decisioni**: `all/any/not` (op ignoto → `all`; `not` = «non tutte vere») · campo assente → falso tranne `nexists` · array: basta un elemento · tipi incompatibili → falso · `context.*` in Rome · `history.actionCount` conta le precedenti · `context.source` = URN completo della fonte (anche in simulazione).
+
+**Criteri di accettazione**
+
+1. **Dato** `data.items[*].category eq casa` con due righe di cui una «casa», **allora** vero.
+2. **Dato** un campo assente con `gte`, **allora** foglia falsa e nessuna eccezione (campaign §7); con `nexists` vero.
+3. **Dato** `context.hour` alle 23:30 UTC di un giorno d'estate, **allora** vale 1 (ora di Roma) e `context.date` è il giorno dopo.
+4. **Dato** `context.source eq urn:loyaltyhub:source:ecommerce`, **allora** simulazione (anche con `source: "ecommerce"`, normalizzato in URN) e valutazione reale danno lo stesso esito.
+5. **Dato** un gruppo NESSUNA con 2 regole, **allora** BO-06 avvisa (Q-90).
+
+**Testbook**: TB-CMP (da coprire); costruttore in TB-WEB.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CMP-03, BO-06 |
+| R3 Criteri di accettazione | ✅ | 5 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-CMP (con righe), TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 decisa o superata; 2 aperte con default in uso (SPEC-GAP): Q-90, Q-92 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-06 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-03 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 315 righe sulle feature o schermate della storia in TB-CMP, TB-WEB, 302 eseguite: TB-CMP-CTX-023, TB-CMP-GRP-001, TB-CMP-GRP-002 e altri 299 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e03-07" />
+
+## US-E03-07 · Quanti punti: modi di GRANT_POINTS
+
+> *Come* MARKETING, *voglio* dare punti fissi, per importo, da un campo o da una tabella, con minimo e massimo, *così che* ogni regola commerciale sia esprimibile.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: «1 punto ogni euro», «bonus livello da tabella», «punti dal premio vinto».
+
+**Tocca**: F-CMP-04 · CMP-12 · Q-44.
+
+**Decisioni**: FIXED · PER_AMOUNT `rounding(amount/unitStep) × value` (FLOOR/CEIL/ROUND, metà esatta per difetto: Q-227; `unitStep ≤ 0` → 422 al salvataggio e campagna scartata nel motore: Q-228; campo non numerico → scartato) · FROM_FIELD intero (decimale → scartato) · LOOKUP (campo o chiave assenti → scartato) · `min`/`max` · ≤ 0 → scartato.
+
+**Criteri di accettazione**
+
+1. **Dato** PER_AMOUNT FLOOR su 64,90 €, **allora** 64; con CEIL 65; con ROUND 65.
+2. **Dato** `CMP-TIER-UP-BONUS` e `newTier=GOLD`, **allora** 500; con un tier assente dalla tabella, **allora** nessun effetto.
+3. ✗ **Dato** FROM_FIELD con `data.points=50.5`, **allora** effetto scartato (Q-44).
+4. **Dato** `max=100` e calcolo 130, **allora** 100.
+
+**Testbook**: TB-CMP (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CMP-04 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 422 |
+| R5 Dominio di testbook | ✅ | TB-CMP (con righe) |
+| R6 Dipendenze e domande | ✅ | 2 decise o superate; 1 aperta con default in uso (SPEC-GAP): Q-44 |
+| R7 Dati demo | ✅ | in seed/: CMP-TIER-UP-BONUS |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-04 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 85 righe sulle feature o schermate della storia in TB-CMP, 85 eseguite: TB-CMP-PTS-001, TB-CMP-PTS-002, TB-CMP-PTS-003 e altri 82 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e03-08" />
+
+## US-E03-08 · Moltiplicatori, priorità, gruppi esclusivi
+
+> *Come* MARKETING, *voglio* raddoppiare i punti nel weekend e far vincere una sola campagna in un gruppo, *così che* le promozioni si combinino in modo prevedibile.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: sabato Giulia compra 130 €: base ×2 weekend × 1,25 SILVER; a Black Friday ×3 non deve cumularsi con altri ×.
+
+**Tocca**: F-CMP-07 · CMP-02, CMP-06, CMP-13 · Q-50.
+
+**Decisioni**: `MULTIPLIER` agisce sui `GRANT_POINTS` delle **altre** campagne della stessa valuta (tutti o per etichetta) · prodotto, tetto 5, floor · gruppo esclusivo: vince la prima per priorità/codice, le altre `EXCLUSIVE`.
+
+**Criteri di accettazione**
+
+1. **Dato** 130 € di sabato per un SILVER, **allora** `campaignMultiplier=2`, PTS 325 = floor(130 × 2 × 1,25), STS 130 (docs/12 M1).
+2. **Dato** due moltiplicatori ×3 e ×2 sulla stessa azione, **allora** fattore 5 (tetto).
+3. **Dato** due campagne nello stesso gruppo, **allora** scatta solo quella a priorità più alta; l'altra `EXCLUSIVE` (docs/12 M3, Q-50).
+4. **Dato** un moltiplicatore sugli STS, **allora** non tocca i PTS.
+
+**Testbook**: TB-CMP (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CMP-07 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-CMP (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-50 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-07 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 45 righe sulle feature o schermate della storia in TB-CMP, 45 eseguite: TB-CMP-MUL-001, TB-CMP-MUL-002, TB-CMP-MUL-003 e altri 42 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e03-09" />
+
+## US-E03-09 · Limiti per membro e budget
+
+> *Come* responsabile del budget, *voglio* limitare quante volte un membro ottiene un premio e quanto spende una campagna in totale, *così che* i costi siano sotto controllo.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: `CMP-APP-DAILY` 1/giorno; `CMP-BLACK-FRIDAY` budget 250 000; un membro fa l'ultimo acquisto alle 23:59 e il successivo alle 00:01.
+
+**Tocca**: F-CMP-05 · CMP-08…10, CMP-17, CMN-14 · RNF-04.
+
+**Decisioni**: conteggio del periodo (DAY/WEEK/MONTH/EDITION/ALWAYS in Rome sul `time` dell'azione) ≥ max → `LIMIT` · punti decisi ≥ `maxPoints` o attivazioni ≥ `maxMatches` → `BUDGET` · punti decisi dalla campagna per il membro ≥ `perMemberPoints` → `LIMIT` · meno di `cooldownMinutes` dall'ultimo match del membro (sul `time` di business) → `LIMIT` (Q-165).
+
+**Criteri di accettazione**
+
+1. **Dato** 3 acquisti in un giorno, **allora** il quarto `LIMIT` e nessun movimento (docs/12 M1).
+2. **Dato** un acquisto alle 23:59 e uno alle 00:01 ora di Roma, **allora** periodi DAY diversi (non UTC).
+3. **Dato** un budget di 1 000 già a 990, **allora** l'attivazione successiva scatta con l'accredito ridotto a 10 (Q-237) e quella dopo è `BUDGET`.
+4. **Dato** `cooldownMinutes=60` e due azioni a 10 minuti, **allora** la seconda è `LIMIT`.
+5. **Dato** `perMemberPoints=500`, **allora** raggiunti 500 punti le attivazioni successive sono `LIMIT` (l'ultima sotto il tetto si riduce al residuo, Q-237).
+
+**Testbook**: TB-CMP (4–5: TB-CMP-SIM-015, TB-CMP-SIM-021).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CMP-05, RNF-04 |
+| R3 Criteri di accettazione | ✅ | 5 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-CMP (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 decisa o superata; 1 aperta con default in uso (SPEC-GAP): Q-165 |
+| R7 Dati demo | ✅ | in seed/: CMP-APP-DAILY, CMP-BLACK-FRIDAY |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-05 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 2 righe legate alla storia, 2 eseguite dai test: TB-CMP-SIM-015, TB-CMP-SIM-021; 72 righe sulle feature o schermate della storia in TB-CMP, 72 eseguite: TB-CMP-LIM-001, TB-CMP-LIM-002, TB-CMP-LIM-003 e altri 69 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e03-10" />
+
+## US-E03-10 · Effetti non monetari: giocate, coupon, badge, messaggi
+
+> *Come* MARKETING, *voglio* che una campagna dia giocate, coupon, badge o un messaggio, *così che* il programma premi anche senza punti.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: `CMP-SURVEY` dà 80 PTS + 1 giocata; `CMP-IW-PRIZE-COUPON` emette il coupon vinto.
+
+**Tocca**: F-CMP-04 · CMP-07, CMP-14 · EVT-EFF-02…05 · DLQ `CONTEST_NOT_FOUND`, `REWARD_NOT_FOUND`, `BADGE_NOT_FOUND`, `TEMPLATE_NOT_FOUND`.
+
+**Decisioni**: parametri mancanti → campagna `EFFECT_NOT_SUPPORTED_YET` · `ISSUE_COUPON` con codice da campo assente → nessun effetto · esistenza di concorsi/premi/template non verificabile: l'errore emerge a valle in DLQ.
+
+**Criteri di accettazione**
+
+1. **Dato** `survey.completed` di Matteo, **allora** `points.grant` 80 e `plays.grant` 1 su IW-AUTUNNO; in PT-05 +1 giocata.
+2. ✗ **Dato** un `GRANT_PLAYS` verso un concorso inesistente, **allora** voce DLQ `CONTEST_NOT_FOUND` e tracciato `FAILED`.
+3. ✗ **Dato** un `SEND_MESSAGE` senza `templateCode` in una campagna seminata a mano, **allora** `EFFECT_NOT_SUPPORTED_YET` e nessun punto «a metà» (Q-73).
+
+**Testbook**: TB-CMP (da coprire) · TB-GAM/TB-RWD/TB-ENG per il lato consumatore.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CMP-04, EVT-EFF-02 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ |
+| R5 Dominio di testbook | ✅ | TB-CMP (con righe), TB-GAM (con righe), TB-RWD (con righe), TB-ENG (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-73 |
+| R7 Dati demo | ✅ | in seed/: CMP-IW-PRIZE-COUPON, CMP-SURVEY |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-04 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 85 righe sulle feature o schermate della storia in TB-CMP, 85 eseguite: TB-CMP-PTS-001, TB-CMP-PTS-002, TB-CMP-PTS-003 e altri 82 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e03-11" />
+
+## US-E03-11 · Simulare prima di pubblicare
+
+> *Come* MARKETING, *voglio* provare una bozza su un membro (reale o ipotetico) e un'azione di prova, *così che* veda cosa succederebbe senza scrivere nulla.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: Luca verifica che Black Friday ×3 non scatti di martedì.
+
+**Tocca**: F-CMP-08 · BO-06 (pannello *Simulazione*), BO-28 (*Anteprima*) · `POST /v1/campaigns/simulate` · CMP-24.
+
+**Decisioni**: `action.type` mancante o `time` non valido → 400 · `campaignIds` → anche bozze · `memberOverride` · limiti solo letti · nessuna scrittura.
+
+**Criteri di accettazione**
+
+1. **Dato** `CMP-WEEKEND-X2` e un evento di martedì, **allora** non scatta con la condizione marcata ✗ e nessun evento emesso (docs/12 M1).
+2. **Dato** `ebill.activated` per un membro che l'ha già ottenuta, **allora** `matched=false, reason=LIMIT`, nessuna scrittura (campaign §7).
+3. **Dato** un profilo ipotetico GOLD, **allora** il pubblico è valutato col tier ipotetico.
+4. **Dato** 10 simulazioni, **allora** contatori e registro invariati.
+
+**Testbook**: TB-CMP (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CMP-08, BO-06, BO-28 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 400 |
+| R5 Dominio di testbook | ✅ | TB-CMP (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-06, BO-28 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-08 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 163 righe sulle feature o schermate della storia in TB-CMP, 163 eseguite: TB-CMP-CTX-023, TB-CMP-GRP-001, TB-CMP-GRP-002 e altri 160 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e03-12" />
+
+## US-E03-12 · Registro delle valutazioni
+
+> *Come* ANALYST, *voglio* consultare l'esito per campagna di ogni azione, *così che* possa spiegare ogni movimento.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2)
+
+**Tocca**: F-CMP-09 · `GET /v1/evaluations`, `/{actionId}` · BO-03, BO-25 · CMP-17.
+
+**Criteri di accettazione**
+
+1. **Dato** un'azione valutata, **allora** `GET /v1/evaluations/{actionId}` restituisce `outcome` e `results` con motivi e foglie fallite.
+2. ✗ **Dato** un `actionId` inesistente, **allora** 404.
+
+**Testbook**: TB-CMP (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CMP-09, BO-03, BO-25 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 404 |
+| R5 Dominio di testbook | ✅ | TB-CMP (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-03, BO-25 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-09 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e03-13" />
+
+## US-E03-13 · Statistiche e budget residuo
+
+> *Come* MARKETING, *voglio* vedere attivazioni, membri unici, punti decisi/erogati e budget residuo, *così che* sappia se la campagna rende.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2)
+
+**Tocca**: F-CMP-10 · BO-05 · `GET /v1/campaigns/{id}/stats` · CMP-17, CMP-27, CMP-28.
+
+**Criteri di accettazione**
+
+1. **Dato** 3 attivazioni per 2 membri, **allora** `matches=3`, `uniqueMembers=2`.
+2. **Dato** `wallet.points.earned` con moltiplicatore di tier, **allora** `pointsGranted` > `pointsDecided`.
+3. **Dato** una campagna senza limiti globali, **allora** `budget=null`.
+
+**Testbook**: TB-CMP (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CMP-10, BO-05 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-CMP (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-05 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-10 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e03-14" />
+
+## US-E03-14 · «Come guadagnare» nel portale
+
+> *Come* membro, *voglio* vedere le campagne attive per me con il premio e quante volte posso ancora ottenerlo, *così che* sappia cosa fare.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-CMP-11 · PT-02 · `GET /v1/portal/campaigns` · CMP-25.
+
+**Criteri di accettazione**
+
+1. **Dato** Marco, **allora** vede `CMP-EBILL` «+300 punti» e `CMP-APP-DAILY` con «1 di 1 oggi» dopo il login.
+2. **Dato** un SILVER, **allora** non vede `CMP-GOLD-PURCHASE-PLAY` (pubblico).
+3. **Dato** una campagna con `visible_in_portal=false`, **allora** non compare.
+
+**Testbook**: TB-CMP (API) · TB-WEB (schermata).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CMP-11, PT-02 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-CMP (con righe), TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-02 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-11 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 1 riga sulle feature o schermate della storia in TB-WEB, 1 eseguita: TB-WEB-DESC-036 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e03-15" />
+
+## US-E03-15 · Campagne di sistema
+
+> *Come* ADMIN, *voglio* che le campagne che consegnano i premi dei concorsi non si possano archiviare, *così che* le vincite siano sempre consegnate.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-CMP-12 · BO-05 (lucchetto) · CMP-23 · `SYSTEM_LOCKED`.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** `CMP-IW-PRIZE-POINTS`, **quando** *Archivia*, **allora** 409 `SYSTEM_LOCKED`.
+2. **Dato** una vincita di 50 punti, **allora** `CMP-IW-PRIZE-POINTS` accredita 50 PTS senza moltiplicatore.
+
+**Testbook**: TB-CMP (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CMP-12, BO-05 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 409 |
+| R5 Dominio di testbook | ✅ | TB-CMP (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-05 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-12 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 10 righe sulle feature o schermate della storia in TB-CMP, 10 eseguite: TB-CMP-LCX-001, TB-CMP-LCX-002, TB-CMP-LCX-003 e altri 7 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e03-16" />
+
+## US-E03-16 · Duplicare una campagna
+
+> *Come* MARKETING, *voglio* duplicare una campagna attiva per cambiarne le regole, *così che* non tocchi quella in corso.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-CMP-13 · `POST /v1/campaigns/{id}/duplicate` · CMP-22.
+
+**Criteri di accettazione**
+
+1. **Dato** `CMP-PURCHASE-BASE`, **allora** copia `CMP-PURCHASE-BASE-COPY-1` in DRAFT; una seconda copia `-COPY-2`.
+2. **Dato** una campagna di sistema, **allora** la copia non è di sistema.
+
+**Testbook**: TB-CMP (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CMP-13 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-CMP (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: CMP-PURCHASE-BASE |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-13 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 20 righe sulle feature o schermate della storia in TB-CMP, 20 eseguite: TB-CMP-POL-001, TB-CMP-POL-002, TB-CMP-POL-003 e altri 17 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e03-17" />
+
+## US-E03-17 · Doppia consegna di un'azione
+
+> *Come* azienda, *voglio* che la riconsegna della stessa azione da Kafka non produca effetti doppi, *così che* un riavvio non regali punti.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: RNF-03 · CMP-15, CMN-09 · `effectId`.
+
+**Criteri di accettazione**
+
+1. **Dato** la stessa azione consegnata due volte, **allora** un solo insieme di effetti in outbox e contatori incrementati una volta (campaign §7).
+2. **Dato** lo stesso `actionId`, **allora** gli `effectId` sono sempre gli stessi (sha256 troncato).
+
+**Testbook**: TB-CMP (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | RNF-03 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-CMP (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-04 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 85 righe sulle feature o schermate della storia in TB-CMP, 85 eseguite: TB-CMP-PTS-001, TB-CMP-PTS-002, TB-CMP-PTS-003 e altri 82 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e03-18" />
+
+## US-E03-18 · Storno su reso — fuori perimetro PoC
+
+> *Come* azienda, *voglio* togliere i punti di un acquisto reso. F-CMP-14 (P2): `purchase.returned` è accettato ([US-E01-08](/specifiche/backlog/e01-ingresso-eventi#us-e01-08)) ma nessuna campagna né il wallet stornano.
+
+**Stato**: fuori perimetro della PoC, senza DoR né DoD.
+
+**Testbook**: fuori perimetro PoC.
+
+<a id="us-e03-19" />
+
+## US-E03-19 · Una campagna a tempo finisce da sola
+
+> *Come* MARKETING, *voglio* che una campagna con data di fine passi a ENDED quando la data è superata, *così che* elenchi e portale non la mostrino più come attiva.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: `CMP-BLACK-FRIDAY` finisce il 30 novembre.
+
+**Tocca**: F-CMP-02 · campaign §5 («job ogni minuto») · CMP-03, CMP-29.
+
+**Criteri di accettazione**
+
+1. **Dato** una LIVE con `endAt` superato, **allora** le azioni successive sono `NOT_IN_SCHEDULE` (oggi vero).
+2. **Dato** lo stesso caso, **allora** entro un minuto lo stato diventa `ENDED` con `campaign.status.changed` (job con `loyaltyhub.jobs.enabled`; esattamente a `endAt` resta `LIVE`).
+
+**Testbook**: TB-CMP (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CMP-02 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-CMP (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: CMP-BLACK-FRIDAY |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CMP-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 137 righe sulle feature o schermate della storia in TB-CMP, 137 eseguite: TB-CMP-SCH-001, TB-CMP-SCH-002, TB-CMP-SCH-003 e altri 134 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

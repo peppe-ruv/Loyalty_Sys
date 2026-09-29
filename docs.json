@@ -86,8 +86,45 @@
               "specifiche/registro-decisioni",
               "specifiche/domande-aperte",
               "specifiche/testbook-funzionale",
-              "specifiche/backlog",
               "specifiche/fase-2"
+            ]
+          },
+          {
+            "group": "Backlog",
+            "pages": [
+              "specifiche/backlog",
+              {
+                "group": "Fase 1",
+                "pages": [
+                  "specifiche/backlog/e01-ingresso-eventi",
+                  "specifiche/backlog/e02-membri-e-segmenti",
+                  "specifiche/backlog/e03-campagne-e-motore-regole",
+                  "specifiche/backlog/e04-wallet-livelli-ed-edizioni",
+                  "specifiche/backlog/e05-premi-e-coupon",
+                  "specifiche/backlog/e06-gioco",
+                  "specifiche/backlog/e07-contenuti-messaggi-tema",
+                  "specifiche/backlog/e08-governance",
+                  "specifiche/backlog/e09-osservabilita",
+                  "specifiche/backlog/e10-portale-del-membro",
+                  "specifiche/backlog/e11-demo-e-ambiente",
+                  "specifiche/backlog/e12-affidabilita-e-contratti"
+                ]
+              },
+              {
+                "group": "Fase 2",
+                "pages": [
+                  "specifiche/backlog/e-f2-dist-distribuzione",
+                  "specifiche/backlog/e-f2-iam-identita",
+                  "specifiche/backlog/e-f2-sec-sicurezza",
+                  "specifiche/backlog/e-f2-grc-governo-e-conformita",
+                  "specifiche/backlog/e-f2-evt-eventi-e-ingresso",
+                  "specifiche/backlog/e-f2-exp-esperienza",
+                  "specifiche/backlog/e-f2-i18n-multilingua",
+                  "specifiche/backlog/e-f2-qa-qualita",
+                  "specifiche/backlog/e-f2-ops-osservabilita-ed-esercizio",
+                  "specifiche/backlog/e-f2-gov-repository-e-documentazione"
+                ]
+              }
             ]
           }
         ]

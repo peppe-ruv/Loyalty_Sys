@@ -1,0 +1,492 @@
+---
+title: "E02 · Membri e segmenti"
+sidebarTitle: "E02 Membri e segmenti"
+description: "E02 Membri e segmenti: anagrafica affidabile, stati, privacy, segmenti usati da campagne/premi/contenuti. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: anagrafica affidabile, stati, privacy, segmenti usati da campagne/premi/contenuti.
+
+**Attori**: CARE, ADMIN, MARKETING · **Feature**: F-MBR-01…05, 08, F-SEG-01…03 · **Schermate**: BO-02, BO-03, BO-04 · **Servizi**: member (+ tutti per gli snapshot) · **Testbook**: TB-GOV
+
+Questa epica ha 13 storie, di cui 1 fuori perimetro: 12 pronte secondo la Definition of Ready, 9 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-e02-01" />
+
+## US-E02-01 · L'assistenza iscrive un membro da backoffice
+
+> *Come* operatore CARE, *voglio* iscrivere un cliente al telefono, *così che* possa iniziare subito ad accumulare.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D3)
+
+**Contesto reale**: un cliente chiama il servizio clienti e chiede di aderire; Paolo lo registra da BO-02.
+
+**Tocca**: F-MBR-01 · BO-02 · `POST /v1/members` · EVT-FACT-01 → wallet, ingestion, campaign, … · MBR-01, MBR-20 · CMP-WELCOME.
+
+**Decisioni**: e-mail obbligatoria (400) · e-mail duplicata → 409 `EMAIL_TAKEN` · codice amico facoltativo ([US-E06-16](/specifiche/backlog/e06-gioco#us-e06-16)) · stato ACTIVE, nickname «Nome I.», canale default · `member.registered` con snapshot completo · ⚠ nessuna guardia di ruolo sull'endpoint.
+
+**Criteri di accettazione**
+
+1. **Dato** un nuovo membro creato, **allora** esiste il fatto `member.registered` con snapshot completo e `referralCode` di 8 caratteri (member §7).
+2. **Dato** il fatto, **allora** il wallet crea PTS/STS e tier BASE, e `CMP-WELCOME` accredita 100 PTS; in BO-02 la riga resta «in elaborazione» fino al bonus.
+3. ✗ **Dato** un'e-mail già registrata, **allora** 409 `EMAIL_TAKEN` sul campo.
+4. ✗ **Dato** ANALYST o MARKETING, **allora** il pulsante *Nuovo membro* non è disponibile; ⚠ l'API oggi accetta comunque (docs/08 §2 `member.write` = ADMIN, CARE).
+
+**Testbook**: TB-GOV (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-MBR-01, BO-02, EVT-FACT-01 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 400, 409 |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-02 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-MBR-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 3 righe sulle feature o schermate della storia in TB-GOV, 3 eseguite: TB-GOV-MST-039, TB-GOV-MST-041, TB-GOV-ANO-043 |
+| D3 Nessuno scostamento aperto | ⬜ | 2 marcatori ⚠ (divergenza) |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e02-02" />
+
+## US-E02-02 · Correggere l'anagrafica
+
+> *Come* operatore CARE, *voglio* correggere e-mail, telefono, attributi ed etichette, *così che* il profilo resti affidabile per segmenti e comunicazioni.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: Francesca cambia e-mail; due operatori aprono la stessa scheda.
+
+**Tocca**: F-MBR-01, F-MBR-03 · BO-03 · `PATCH /v1/members/{id}` · MBR-02 · EVT-FACT-02.
+
+**Decisioni**: 404 · anonimizzato → 409 `MEMBER_ANONYMIZED` · versione superata → 409 `VERSION_CONFLICT` · e-mail già usata → 409 `EMAIL_TAKEN` · attributi/etichette non validi → 422 `MEMBER_INVALID` · primo profilo completo → `member.profile.completed` · `member.updated` con snapshot completo.
+
+**Criteri di accettazione**
+
+1. **Dato** un PATCH valido, **allora** `member.updated` porta lo snapshot completo e gli altri servizi lo sovrascrivono (member §5).
+2. ✗ **Dato** due PATCH con la stessa `version`, **allora** il secondo 409 e il dialogo «ricarica / sovrascrivi».
+3. ✗ **Dato** un attributo `householdSize: "tanti"`, **allora** 422 `MEMBER_INVALID` sul campo.
+4. ✗ **Dato** un membro anonimizzato, **allora** 409 e campi in sola lettura.
+5. ✗ **Dato** MARKETING, LEGAL o ANALYST, **allora** il PATCH di gestione è 403 `FORBIDDEN_ROLE` (`member.write` = ADMIN, CARE); il profilo dal portale passa da `PATCH /v1/portal/members/{id}`.
+
+**Testbook**: TB-GOV (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-MBR-01, F-MBR-03, BO-03, EVT-FACT-02 |
+| R3 Criteri di accettazione | ✅ | 5 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 4 criteri ✗ per 403, 404, 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-03 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-MBR-01, F-MBR-03 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 107 righe sulle feature o schermate della storia in TB-GOV, 107 eseguite: TB-GOV-MST-039, TB-GOV-MST-041, TB-GOV-ANO-043 e altri 104 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e02-03" />
+
+## US-E02-03 · Trovare un membro
+
+> *Come* operatore, *voglio* cercare per nome, e-mail, ID o externalId e filtrare per stato, tier, etichetta, segmento, *così che* trovi il cliente in pochi secondi.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-MBR-01 · BO-02, ⌘K · `GET /v1/members` · MBR-07.
+
+**Criteri di accettazione**
+
+1. **Dato** `q=CRM-104`, **allora** Davide; dato `q=rossi`, **allora** Anna (ricerca senza maiuscole).
+2. **Dato** `tier=GOLD`, **allora** Davide, Stefano, Sofia; `status=BLOCKED` → Roberto.
+3. ✗ **Dato** `status=SOSPESO`, **allora** 400.
+4. **Dato** MBR-000012, **allora** la riga è «Membro anonimo» in corsivo grigio.
+
+**Testbook**: TB-GOV (API) · TB-WEB (lista).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-MBR-01, BO-02 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 400 |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe), TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: MBR-000012 |
+| R8 Stati dell'interfaccia | ✅ | BO-02 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-MBR-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 4 righe sulle feature o schermate della storia in TB-GOV, TB-WEB, 4 eseguite: TB-GOV-MST-039, TB-GOV-MST-041, TB-GOV-ANO-043 e altri 1 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e02-04" />
+
+## US-E02-04 · Bloccare, sbloccare, disattivare
+
+> *Come* operatore CARE, *voglio* sospendere un membro sospetto di frode, *così che* non accumuli né spenda finché non si chiarisce.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: segnalazione di abuso su Roberto: viene bloccato; un mese dopo, sbloccato. Un altro cliente chiede di uscire dal programma: disattivato.
+
+**Tocca**: F-MBR-04 · BO-03 · `POST /v1/members/{id}/status` · MBR-03, MBR-20, WEB-12 · ING-07, WAL-08, RWD-01, GAM-01 · Q-137, Q-138.
+
+**Decisioni**: destinazione ∉ \{ACTIVE, INACTIVE, BLOCKED\} → 400 · stesso stato → nessun effetto · anonimizzato → 409 · cambio → `member.status.changed` + audit · effetti a valle: ingresso `REJECTED/MEMBER_NOT_ACTIVE`, spesa `wallet.spend.rejected (MEMBER_NOT_ACTIVE)`, giocata 422, richiesta premio 422 · solo ADMIN, CARE · INACTIVE: nessuna voce di menu (Q-137).
+
+**Criteri di accettazione**
+
+1. **Dato** Marco bloccato, **quando** arriva un acquisto, **allora** `REJECTED/MEMBER_NOT_ACTIVE`; il saldo resta intatto.
+2. **Dato** Marco sbloccato, **allora** il successivo acquisto è accettato e paga.
+3. ✗ **Dato** MARKETING, **allora** 403.
+4. ✗ **Dato** `status=ANONYMIZED` via questo endpoint, **allora** 400.
+5. **Dato** un cambio senza motivo, **allora** il fatto ha `reason` vuoto (Q-138).
+
+**Testbook**: TB-GOV (da coprire); effetti a valle in TB-ING/TB-WAL/TB-RWD/TB-GAM.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-MBR-04, BO-03 |
+| R3 Criteri di accettazione | ✅ | 5 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 400, 403, 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe), TB-ING (con righe), TB-WAL (con righe), TB-RWD (con righe) e altri 1 |
+| R6 Dipendenze e domande | ✅ | 2 aperte con default in uso (SPEC-GAP): Q-137, Q-138 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-03 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-MBR-04 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 113 righe sulle feature o schermate della storia in TB-GAM, TB-GOV, TB-WAL, 113 eseguite: TB-GAM-RPT-005, TB-GOV-MST-001, TB-GOV-MST-002 e altri 110 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e02-05" />
+
+## US-E02-05 · Diritto all'oblio: anonimizzazione
+
+> *Come* ADMIN, *voglio* anonimizzare un membro che lo chiede, *così che* nessun servizio esponga più i suoi dati personali ma i conti restino.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: richiesta GDPR di cancellazione; Marta anonimizza dopo aver digitato l'ID.
+
+**Tocca**: F-MBR-05 · BO-03 · `POST /v1/members/{id}/anonymize` · MBR-04, ING-14, CMP-26, ENG-08, GAM-19 · Q-120…Q-128 · docs/12 M7.5.
+
+**Decisioni**: conferma ≠ ID → 422 `CONFIRM_MISMATCH` · già anonimizzato → 409 · versione → 409 · segnaposto nel nickname, dati personali null, attributi e consensi cancellati · propagazione: indice ingestion, snapshot, messaggi già resi (Q-125), note di consegna (Q-124), spedizioni (Q-123), copie in insight (Q-126) · dopo: rettifiche 409 (Q-127), eventi `UNMATCHED`/`MEMBER_NOT_ACTIVE` (Q-128), nessun messaggio (Q-70) · solo ADMIN.
+
+**Criteri di accettazione**
+
+1. **Dato** un membro di prova anonimizzato, **allora** nessuna API di gestione espone più nome o e-mail e i movimenti restano (docs/12 M7).
+2. ✗ **Dato** `confirm` diverso dall'ID, **allora** 422 `CONFIRM_MISMATCH`.
+3. ✗ **Dato** CARE, **allora** 403.
+4. **Dato** un evento successivo con `email:` del membro, **allora** `UNMATCHED`; con `member:` → `MEMBER_NOT_ACTIVE`.
+5. **Dato** un fatto `wallet.points.earned` successivo, **allora** nessun messaggio in inbox.
+
+**Testbook**: TB-GOV (da coprire) + una riga per servizio che ripulisce.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-MBR-05, BO-03 |
+| R3 Criteri di accettazione | ✅ | 5 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 403, 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe), TB-E2E (le sue righe citano la storia) |
+| R6 Dipendenze e domande | ✅ | 8 aperte con default in uso (SPEC-GAP): Q-70, Q-120, Q-123, Q-124 e altri 4 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-03 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-MBR-05 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#114](https://github.com/peppe-ruv/Loyalty_Sys/pull/114) |
+| D2 Criteri provati | ✅ | 7 righe legate alla storia, 7 eseguite dai test: TB-E2E-ANO-001, TB-E2E-ANO-002, TB-E2E-ANO-003, TB-E2E-ANO-004 e altri 3; 50 righe sulle feature o schermate della storia in TB-GOV, 50 eseguite: TB-GOV-MST-004, TB-GOV-MST-012, TB-GOV-MST-020 e altri 47 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e02-06" />
+
+## US-E02-06 · Scheda 360° del membro
+
+> *Come* operatore CARE, *voglio* vedere tutto su un cliente in una pagina (anche se qualche servizio dorme), *così che* risolva un reclamo senza aprire dieci schermate.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D3)
+
+**Tocca**: F-MBR-02, F-WAL-02, F-TIER-06, F-CMP-09 · BO-03 (schede `overview, ledger, actions, rewards, game, messages, segments, timeline, tiers`) · INS-08 (⛔ timeline), ⛔ `GET /v1/members/{id}/gamification` assente.
+
+**Decisioni**: ogni scheda degrada da sola (`SERVICE_ASLEEP`) · azioni in base al ruolo.
+
+**Criteri di accettazione**
+
+1. **Dato** Giulia, **allora** intestazione con tessera GOLD/SILVER, «mancano N STS», avviso scadenze se presenti.
+2. **Dato** wallet addormentato, **allora** le schede wallet sono *degraded* e le altre funzionano.
+3. ⛔ **Dato** la scheda `timeline` o `game`, **allora** oggi manca l'endpoint di servizio (insight §3, gamification §3): da coprire come divergenza.
+
+**Testbook**: TB-WEB (da coprire) · TB-GOV per le API.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-MBR-02, F-WAL-02, F-TIER-06, F-CMP-09, BO-03 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WEB (con righe), TB-GOV (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-03 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-MBR-02, F-WAL-02, F-TIER-06, F-CMP-09 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 28 righe sulle feature o schermate della storia in TB-WEB, 28 eseguite: TB-WEB-NAV-036, TB-WEB-CONF-010, TB-WEB-CONF-011 e altri 25 |
+| D3 Nessuno scostamento aperto | ⬜ | 3 marcatori ⛔ (regola senza codice) |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e02-07" />
+
+## US-E02-07 · Attributi personalizzati ed etichette
+
+> *Come* MARKETING, *voglio* definire attributi tipizzati (es. `hasGasContract`) ed etichette, *così che* li usi in segmenti e condizioni.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: si aggiunge `preferredChannel` (APP/WEB/STORE); le attivazioni digitali mettono le etichette `ebill`/`directdebit`.
+
+**Tocca**: F-MBR-03 · BO-04 (definizioni, Q-94), BO-03 (valori) · `PUT /v1/attribute-definitions` · MBR-02, MBR-11, MBR-19 · Q-80, Q-93.
+
+**Decisioni**: definizione non valida → 422 `ATTRIBUTE_DEFINITION_INVALID` · togliere o cambiare tipo con valori presenti → 409 `ATTRIBUTE_IN_USE` · valore non conforme → 422 `MEMBER_INVALID` · etichette automatiche solo aggiunte.
+
+**Criteri di accettazione**
+
+1. **Dato** un nuovo attributo enum, **allora** compare nel `ConditionBuilder` di BO-06 e BO-04.
+2. ✗ **Dato** la rimozione di `city` mentre dei membri lo valorizzano, **allora** 409 `ATTRIBUTE_IN_USE`.
+3. **Dato** `ebill.activated` per Marco, **allora** etichetta `ebill` e `member.updated`; ripetuto → nessun cambio.
+
+**Testbook**: TB-GOV (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-MBR-03, BO-04, BO-03 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe) |
+| R6 Dipendenze e domande | ✅ | 3 aperte con default in uso (SPEC-GAP): Q-80, Q-93, Q-94 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-04, BO-03 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-MBR-03 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 104 righe sulle feature o schermate della storia in TB-GOV, 104 eseguite: TB-GOV-ATV-001, TB-GOV-ATV-002, TB-GOV-ATV-003 e altri 101 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e02-08" />
+
+## US-E02-08 · Segmento dinamico con anteprima
+
+> *Come* MARKETING, *voglio* definire un segmento con criteri e vedere subito quanti e quali membri include, *così che* indirizzi campagne, premi e contenuti.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: «clienti a rischio»: `lastActivityDaysAgo > 45` → Stefano; «GOLD e PLATINUM» → 4 membri.
+
+**Tocca**: F-SEG-02, F-SEG-03 · BO-04 · `POST /v1/segments/preview`, `POST /v1/segments`, `…/refresh` · MBR-13, MBR-15…17 · Q-85, Q-87.
+
+**Decisioni**: codice/nome/tipo/criteri non validi → 422 (`INVALID_CODE`, `NAME_REQUIRED`, `INVALID_TYPE`, `INVALID_CRITERIA`) · codice duplicato → 409 · criteri vuoti → nessun membro · ANONYMIZED esclusi · ricalcolo emette solo le differenze.
+
+**Criteri di accettazione**
+
+1. **Dato** `member.tier in [GOLD, PLATINUM]`, **allora** l'anteprima conta 4 (member §7).
+2. **Dato** *Ricalcola ora*, **allora** toast `{entered, left, total}` e i fatti `member.segment.entered/left` nel rail.
+3. **Dato** un secondo ricalcolo senza variazioni, **allora** `entered=0, left=0`.
+4. ✗ **Dato** criteri `{}`, **allora** 0 membri (Q-87).
+
+**Testbook**: TB-GOV (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-SEG-02, F-SEG-03, BO-04 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe) |
+| R6 Dipendenze e domande | ✅ | 2 aperte con default in uso (SPEC-GAP): Q-85, Q-87 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-04 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-SEG-02, F-SEG-03 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 5 righe sulle feature o schermate della storia in TB-GOV, 5 eseguite: TB-GOV-CRV-011, TB-GOV-SEG-005, TB-GOV-SEG-006 e altri 2 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e02-09" />
+
+## US-E02-09 · Segmento statico
+
+> *Come* MARKETING, *voglio* un elenco manuale di membri (es. invitati a un evento VIP), *così che* un premio o contenuto sia solo per loro.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-SEG-01 · BO-04 · `PUT /v1/segments/{id}/members` · MBR-13, MBR-15.
+
+**Criteri di accettazione**
+
+1. **Dato** SEG-VIP-EVENT con Francesca e Davide, **allora** solo loro sono membri; sostituire l'elenco emette `left`/`entered` per le differenze.
+2. ✗ **Dato** un ID inesistente nell'elenco, **allora** 422 `MEMBER_NOT_FOUND`.
+3. ✗ **Dato** l'elenco manuale su un segmento DYNAMIC, **allora** 409 `SEGMENT_NOT_STATIC`.
+
+**Testbook**: TB-GOV (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-SEG-01, BO-04 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: SEG-VIP-EVENT |
+| R8 Stati dell'interfaccia | ✅ | BO-04 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-SEG-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 3 righe sulle feature o schermate della storia in TB-GOV, 3 eseguite: TB-GOV-SEG-015, TB-GOV-SEG-016, TB-GOV-SEG-025 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e02-10" />
+
+## US-E02-10 · Modificare o archiviare un segmento
+
+> *Come* MARKETING, *voglio* modificare criteri e nome o archiviare un segmento superato, *così che* le regole che lo usano restino coerenti.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-SEG-02/03 · BO-04 · `PUT /v1/segments/{id}` · MBR-14, MBR-15 · Q-88.
+
+**Decisioni**: codice o tipo cambiati → 409 `SEGMENT_IMMUTABLE_FIELD` · stato ∉ ACTIVE/ARCHIVED → 422 `INVALID_STATUS` · archiviazione → `left` per tutti · archiviato: ricalcolo/elenco → 409 `SEGMENT_ARCHIVED` · versione → 409.
+
+**Criteri di accettazione**
+
+1. **Dato** SEG-AT-RISK archiviato, **allora** Stefano esce (`member.segment.left`) e `CMP-REVIEW` non lo vede più nel pubblico.
+2. ✗ **Dato** un cambio di tipo, **allora** 409.
+3. ✗ **Dato** *Ricalcola* su un archiviato, **allora** 409 `SEGMENT_ARCHIVED`.
+
+**Testbook**: TB-GOV (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-SEG-02, BO-04 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-88 |
+| R7 Dati demo | ✅ | in seed/: SEG-AT-RISK |
+| R8 Stati dell'interfaccia | ✅ | BO-04 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-SEG-02, F-SEG-03 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 5 righe sulle feature o schermate della storia in TB-GOV, 5 eseguite: TB-GOV-CRV-011, TB-GOV-SEG-005, TB-GOV-SEG-006 e altri 2 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e02-11" />
+
+## US-E02-11 · Ricalcolo periodico e dopo il reset
+
+> *Come* sistema, *voglio* ricalcolare i segmenti dinamici ogni 15 minuti solo se qualcosa è cambiato e riannunciare le appartenenze dopo un reset, *così che* gli snapshot degli altri servizi siano allineati.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-SEG-03 · MBR-16, MBR-18 · Q-81 · `POST /v1/demo/jobs/refresh-segments`.
+
+**Criteri di accettazione**
+
+1. **Dato** nessuna variazione in `member_stats`/`member_projection`, **allora** il job non ricalcola.
+2. **Dato** `SCN-DIGITAL` + ricalcolo, **allora** Marco entra in `SEG-DIGITAL` e un contenuto riservato gli compare (docs/12 M6).
+3. **Dato** un reset, **allora** `entered` per tutte le appartenenze, ripetuto dopo 15 s; i consumatori restano idempotenti.
+
+**Testbook**: TB-GOV (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-SEG-03 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-81 |
+| R7 Dati demo | ✅ | in seed/: SCN-DIGITAL |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-SEG-03 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 3 righe sulle feature o schermate della storia in TB-GOV, 3 eseguite: TB-GOV-SEG-006, TB-GOV-SEG-023, TB-GOV-SEG-024 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e02-12" />
+
+## US-E02-12 · Proiezione saldi/tier e statistiche di attività
+
+> *Come* member-service, *voglio* riflettere saldo, tier e attività di ogni membro, *così che* elenchi e segmenti non chiamino il wallet.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2)
+
+**Tocca**: MBR-10, MBR-12, CMP-26 · EVT-FACT-20…31.
+
+**Criteri di accettazione**
+
+1. **Dato** `wallet.points.earned` per un membro, **allora** `member_projection.balance_pts = balanceAfter` (member §7).
+2. **Dato** un'azione `internal`, **allora** `last_activity_at` e acquisti non cambiano (member §5).
+3. **Dato** un acquisto di 45 €, **allora** `purchases_amount_90d` +45.
+
+**Testbook**: TB-GOV (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | EVT-FACT-20 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-GOV (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-MBR-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e02-13" />
+
+## US-E02-13 · Compleanno — fuori perimetro PoC
+
+> *Come* membro, *voglio* un regalo per il compleanno. F-MBR-08 (P2): nessun job, nessun `member.birthday`; `CMP-BIRTHDAY` esiste nel seed ma non scatta mai.
+
+**Stato**: fuori perimetro della PoC, senza DoR né DoD.
+
+**Testbook**: fuori perimetro PoC.

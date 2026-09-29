@@ -1,0 +1,340 @@
+---
+title: "E11 · Demo e ambiente"
+sidebarTitle: "E11 Demo e ambiente"
+description: "E11 Demo e ambiente: accendere, raccontare, riportare a zero la demo senza interventi manuali. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: accendere, raccontare, riportare a zero la demo senza interventi manuali.
+
+**Attori**: operatore demo, ADMIN · **Feature**: F-DEMO-01…07 · **Schermate**: HUB-01, BO-28, BO-29, BO-30, PT-14 · **Servizi**: web, ingestion, tutti (`/v1/demo/**`) · **Testbook**: TB-WEB, TB-ING
+
+Questa epica ha 9 storie: 6 pronte secondo la Definition of Ready, 5 fatte secondo la Definition of Done, 1 da verificare. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-e11-01" />
+
+## US-E11-01 · Accendere la demo
+
+> *Come* presentatore, *voglio* accendere la demo da una pagina e vedere quando è pronta, *così che* non debba toccare i servizi.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-DEMO-01 · HUB-01 · `/api/demo/wake`, `/api/demo/status` · WEB-04 · Q-133…Q-135 · S3.
+
+**Criteri di accettazione**
+
+1. **Dato** servizi spenti, **allora** ogni tessera `DOWN/SLEEPING` senza errori in pagina (docs/12 M0).
+2. **Dato** *Accendi la demo*, **allora** le tessere passano da WAKING a UP con polling 3 s; gli ingressi si attivano con ingestion, member, campaign, wallet UP; stato ignoto → ingressi bloccati.
+3. **Dato** Kafka `DOWN` da più di 2 minuti, **allora** il riquadro con le istruzioni di riaccensione; `SLEEPING` non conta.
+4. **Dato** l'online, **allora** «Accendi la demo» porta 6/10 verdi e `smoke.sh` passa (docs/12 M1).
+
+**Testbook**: TB-WEB (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-DEMO-01, HUB-01 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | 2 aperte con default in uso (SPEC-GAP): Q-133, Q-135 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | HUB-01 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-DEMO-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 35 righe sulle feature o schermate della storia in TB-WEB, 11 eseguite: TB-WEB-HUB-017, TB-WEB-HUB-026, TB-WEB-HUB-027 e altri 8 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e11-02" />
+
+## US-E11-02 · Scegliere chi sono
+
+> *Come* presentatore, *voglio* impersonare un ruolo del backoffice o un membro del portale in un clic, *così che* mostri cosa vede ciascuno.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2)
+
+**Tocca**: F-DEMO-02 · selettore persona (BO), PT-14 · `GET /v1/demo/personas` · WEB-01, WEB-18 · Q-136.
+
+**Criteri di accettazione**
+
+1. **Dato** il cambio persona, **allora** cookie aggiornato, cache invalidata, permessi ricalcolati (MARKETING non vede la Console demo; LEGAL vede gli istanti — Playwright docs/12 §4).
+2. **Dato** un cookie illeggibile, **allora** default `marta.admin` / MBR-000002.
+3. **Dato** il seed, **allora** 11 membri selezionabili (MBR-000012 escluso, Q-136).
+4. **Dato** le personas mostrate, **allora** nomi e username sono quelli di docs/10 (§2.1).
+
+**Testbook**: TB-WEB (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-DEMO-02, PT-14 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-136 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-14 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-DEMO-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e11-03" />
+
+## US-E11-03 · Keep-alive gentile
+
+> *Come* titolare dell'account gratuito, *voglio* che i servizi restino svegli solo finché qualcuno guarda la demo, *così che* resti a costo zero.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-DEMO-07 · `useKeepAlive` · WEB-05 · Q-132 · ADR-014.
+
+**Criteri di accettazione**
+
+1. **Dato** la scheda visibile, **allora** `wake` ogni 4 min; scheda nascosta → nessun `wake`; 45 min senza interazione → fermo; nuova interazione → riparte senza sveglia immediata.
+
+**Testbook**: TB-WEB (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-DEMO-07, ADR-014 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-132 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-DEMO-07 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 6 righe sulle feature o schermate della storia in TB-WEB, 6 eseguite: TB-WEB-KA-001, TB-WEB-KA-002, TB-WEB-KA-003 e altri 3 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e11-04" />
+
+## US-E11-04 · Proxy verso i servizi
+
+> *Come* browser, *voglio* parlare con un solo indirizzo che aggiunge identità e correlazione e mi dice se un servizio dorme, *così che* l'interfaccia degradi con garbo.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2)
+
+**Tocca**: docs/07 §3 · `app/api/lh/[service]/[...path]` · WEB-03.
+
+**Criteri di accettazione**
+
+1. **Dato** 502/503/504 o rete giù, **allora** 503 `{type: SERVICE_ASLEEP, service}`; dato 25 s senza risposta, **allora** timeout; ogni chiamata porta `X-LH-Actor` dal cookie e `X-Correlation-Id`.
+
+**Testbook**: TB-WEB (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | docs/07 §3 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | 🔎 da verificare | nessuna feature F- o F2- nella storia |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e11-05" />
+
+## US-E11-05 · Simulatore di eventi
+
+> *Come* presentatore, *voglio* inviare un'azione vera per un membro e vederne il tracciato dal vivo, *così che* il pubblico veda la reazione del sistema.
+
+**DoR**: ⬜ non pronta (R4) · **DoD**: ✅ fatta
+
+**Tocca**: F-DEMO-03 · BO-28, PT-14 · `POST /v1/demo/simulator/fire` · ING-20, ING-22.
+
+**Decisioni**: ripetizioni 1…20 · fonte `simulator` · `data` dal `sample_data` · passa dalla pipeline normale (dedup, stato membro) · ruoli: tutti tranne ANALYST.
+
+**Criteri di accettazione**
+
+1. **Dato** *Acquisto 130 € (tier-up di Giulia)*, **allora** il tracciato si popola in tempo reale con il tier-up.
+2. **Dato** `count=50`, **allora** 20 eventi; dato ANALYST, **allora** 403.
+3. **Dato** la scorciatoia «Evento duplicato», **allora** il secondo è `DUPLICATE`.
+4. **Dato** un evento dal simulatore, **allora** la riga BO-26 ha origine `SIMULATOR`.
+
+**Testbook**: TB-ING (da coprire) · TB-WEB.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-DEMO-03, BO-28, PT-14 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ⬜ | risposte d'errore (403) senza criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe), TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-28, PT-14 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-DEMO-03 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 20 righe sulle feature o schermate della storia in TB-ING, TB-WEB, 20 eseguite: TB-ING-SIM-001, TB-ING-SIM-002, TB-ING-SIM-003 e altri 17 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e11-06" />
+
+## US-E11-06 · Scenari guidati
+
+> *Come* presentatore, *voglio* lanciare con un clic una storia (tier-up, onboarding, referral, eventi errati) e seguirne i passi, *così che* la demo sia ripetibile.
+
+**DoR**: ⬜ non pronta (R4) · **DoD**: ✅ fatta
+
+**Tocca**: F-DEMO-04 · BO-29 · `GET /v1/demo/scenarios`, `POST …/run`, `GET /v1/demo/scenario-runs/{id}` · ING-21 · Q-63, Q-129, Q-130.
+
+**Decisioni**: esecuzione asincrona (202 `runId`), ritardo per passo ≤ 10 s, `at` relativo a oggi, `expect` per i passi negativi, `{run}` nell'id · esito `DONE` o `FAILED` (eccezione) · scenario inesistente 404.
+
+**Criteri di accettazione**
+
+1. **Dato** `SCN-WEEKEND-BURST`, **allora** 12 azioni, avanzamento visibile, 12 valutazioni nell'event store (docs/12 M2).
+2. **Dato** `SCN-BAD-EVENT`, **allora** ogni passo ha l'esito atteso e l'esecuzione è `DONE`.
+3. **Dato** un passo con `at` malformato, **allora** esecuzione `FAILED` coi passi già fatti.
+4. **Dato** gli scenari del seed non descritti in docs/10 (`SCN-WEEKEND-ANNA`, `SCN-MIXED-DAY`, `SCN-REJECTS`), **allora** da documentare (seed senza specifica).
+
+**Testbook**: TB-ING (da coprire) · TB-WEB.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-DEMO-04, BO-29 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ⬜ | risposte d'errore (404) senza criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-ING (con righe), TB-WEB (con righe), TB-E2E (le sue righe citano la storia) |
+| R6 Dipendenze e domande | ✅ | 3 aperte con default in uso (SPEC-GAP): Q-63, Q-129, Q-130 |
+| R7 Dati demo | ✅ | in seed/: SCN-BAD-EVENT, SCN-MIXED-DAY, SCN-REJECTS, SCN-WEEKEND-ANNA, SCN-WEEKEND-BURST |
+| R8 Stati dell'interfaccia | ✅ | BO-29 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-DEMO-04 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 27 righe legate alla storia, 27 eseguite dai test: TB-E2E-TIER-001, TB-E2E-TIER-002, TB-E2E-TIER-003, TB-E2E-TIER-004 e altri 23; 1 riga sulle feature o schermate della storia in TB-WEB, 1 eseguita: TB-WEB-NAV-027 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e11-07" />
+
+## US-E11-07 · Riportare la demo allo stato iniziale
+
+> *Come* presentatore, *voglio* ripristinare tutti i dati con un comando, *così che* ogni demo parta dalla stessa storia.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D3)
+
+**Tocca**: F-DEMO-05 · BO-30 · `POST /v1/demo/reset` (ogni servizio) · CMN-13, CMN-14, INS-07, MBR-16, WEB-13 · ⛔ `GET /v1/demo/info`.
+
+**Decisioni**: solo ADMIN · conferma digitando `RESET` · insight per primo, poi gli altri in parallelo · seed con date relative, semi fissi · audit `RESET`.
+
+**Criteri di accettazione**
+
+1. **Dato** il reset, **allora** i 12 membri tornano allo stato di docs/10 e `check-seed` è verde (docs/12 M1).
+2. **Dato** due reset consecutivi, **allora** stesso stato (stessi codici coupon, stessi istanti).
+3. ✗ **Dato** MARKETING, **allora** 403; senza `RESET` digitato, pulsante disabilitato.
+4. ⛔ **Dato** BO-30, **allora** versione, profili, conteggi e ultimo reset per servizio da `/v1/demo/info`: endpoint assente.
+
+**Testbook**: scoperta (reset e seed non hanno dominio; la conferma UI in TB-WEB).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-DEMO-05, BO-30 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 403 |
+| R5 Dominio di testbook | ✅ | TB-WEB (con righe), TB-PLT (proposto in §7, con righe), TB-E2E (le sue righe citano la storia) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-30 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-DEMO-05 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 5 righe legate alla storia, 5 eseguite dai test: TB-E2E-RST-001, TB-E2E-RST-002, TB-E2E-RST-003, TB-E2E-RST-004 e altri 1; 22 righe sulle feature o schermate della storia in TB-PLT, TB-WEB, 22 eseguite: TB-PLT-INF-001, TB-PLT-RST-001, TB-PLT-RST-002 e altri 19 |
+| D3 Nessuno scostamento aperto | ⬜ | 2 marcatori ⛔ (regola senza codice) |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e11-08" />
+
+## US-E11-08 · Macchina del tempo
+
+> *Come* presentatore, *voglio* lanciare i job con una data di riferimento, *così che* mostri in un minuto cosa succede tra un mese.
+
+**DoR**: ⬜ non pronta (R4) · **DoD**: ✅ fatta
+
+**Tocca**: F-DEMO-06 · BO-30 · `/v1/demo/jobs/*` (wallet ×3, reward ×2, gamification, member, engagement) · WAL-04…06, RWD-05, RWD-17, GAM-10, MBR-16, ENG-23.
+
+**Criteri di accettazione**
+
+1. **Dato** `asOf`=+31 gg sulle scadenze, **allora** «scaduti 1.900 PTS per 1 membro»; ogni job solo ADMIN (403 altrimenti); ogni job mostra l'esito.
+
+**Testbook**: TB-WAL / TB-RWD / TB-GAM / TB-GOV (un job per dominio, da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-DEMO-06, BO-30 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ⬜ | risposte d'errore (403) senza criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-WAL (con righe), TB-RWD (con righe), TB-GAM (con righe), TB-GOV (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-30 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-DEMO-06 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 64 righe sulle feature o schermate della storia in TB-GAM, TB-RWD, TB-WAL, 64 eseguite: TB-GAM-END-001, TB-GAM-END-002, TB-GAM-END-003 e altri 61 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e11-09" />
+
+## US-E11-09 · Prova di fumo
+
+> *Come* CI e come presentatore, *voglio* uno script che provi che la pipeline è viva, *così che* sappia che la demo funziona prima di iniziare.
+
+**DoR**: ✅ pronta · **DoD**: 🔎 da verificare
+
+**Tocca**: `scripts/smoke.sh` · `SCN-SMOKE` · docs/12 §4.
+
+**Criteri di accettazione**
+
+1. **Dato** servizi svegli, **allora** +5 PTS a Marco entro 15 s; se il limite giornaliero è già scattato, in demo basta `campaign.evaluated` (scattata o `LIMIT`), in CI si fa prima il reset.
+
+**Testbook**: scoperta (TB-E2E).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | docs/12 §4. |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-E2E (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | 🔎 da verificare | nessuna feature F- o F2- nella storia |
+| D2 Criteri provati | ✅ | 27 righe legate alla storia, 27 eseguite dai test: TB-E2E-TIER-001, TB-E2E-TIER-002, TB-E2E-TIER-003, TB-E2E-TIER-004 e altri 23 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

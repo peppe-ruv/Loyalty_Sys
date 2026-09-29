@@ -1,0 +1,129 @@
+---
+title: "E-F2-I18N · Multilingua"
+sidebarTitle: "E-F2-I18N Multilingua"
+description: "E-F2-I18N Multilingua: il membro usa il programma nella sua lingua. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: il membro usa il programma nella sua lingua.
+
+**Attori**: membro, operatori · **Feature**: F2-I18N-* · **Schermate**: PT-17 · **Servizi**: web, tutti · **Testbook**: TB-I18N
+
+Questa epica ha 3 storie: 3 pronte secondo la Definition of Ready, 0 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-f2-i18n-01" />
+
+## US-F2-I18N-01 · Interfaccia multilingua
+
+> *Come* membro, *voglio* usare il portale nella mia lingua con un indirizzo che la indica, *così che* condivida un link nella lingua giusta.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: un membro di lingua inglese apre `/en/portal` di «Club Aurora».
+
+**Tocca**: F2-I18N-01 · ADR-033 · docs/18 §3.8 · PT-17 · M11.1–M11.3.
+
+**Decisioni**: `next-intl` con il segmento `/[locale]` e messaggi `web/messages/{it,en}.json` · regola ESLint `no-literal-string` in `app/` e `components/` · formati per lingua, fuso sempre Europe/Rome · redirect da `/portal` alla lingua preferita o a quella di default.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** una stringa letterale in `app/` o `components/`, **allora** il lint fallisce (docs/18 §6 M11).
+2. **Dato** `/en/portal`, **allora** è completo senza fallback mancanti: `i18n:coverage` al 100 % (docs/18 §6 M11).
+
+**Testbook**: TB-I18N (da scrivere con M11).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-I18N-01, ADR-033, docs/18 §3.8, PT-17 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-I18N (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-17 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-I18N-01 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-i18n-02" />
+
+## US-F2-I18N-02 · Errori del backend nella lingua del membro
+
+> *Come* membro, *voglio* messaggi d'errore nella mia lingua, *così che* capisca perché un'operazione non è riuscita.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: un membro di lingua inglese prova a riscattare un premio di «Club Aurora» senza punti sufficienti.
+
+**Tocca**: F2-I18N-02 · ADR-033 · docs/18 §3.8 · M11.4.
+
+**Decisioni**: `MessageSource` in `lh-common` · `LhException` con chiave e argomenti · `Accept-Language` inoltrato dal proxy · i `code` restano il contratto.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** una richiesta con `Accept-Language: en` che fallisce con `422`, **allora** il `detail` è in inglese e il `code` non cambia (docs/18 §6 M11, §3.8).
+
+**Testbook**: TB-I18N (da scrivere con M11).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-I18N-02, ADR-033, docs/18 §3.8 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-I18N (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-I18N-02 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-i18n-03" />
+
+## US-F2-I18N-03 · Contenuti nella lingua del membro
+
+> *Come* membro, *voglio* ricevere premi, campagne e messaggi nella mia lingua, *così che* il programma mi parli come la mia app.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: Francesca imposta l'inglese in PT-08; il messaggio per il nuovo livello le arriva in inglese.
+
+**Tocca**: F2-I18N-03 · ADR-033 · docs/18 §3.8 · PT-08 · M11.5.
+
+**Decisioni**: `LocalizedText` (jsonb) sulle entità elencate in docs/18 §3.8 · le API `/v1/portal/*` risolvono `name` dalla lingua richiesta con fallback alla lingua di default; le API di gestione espongono `nameI18n` · `member.locale` nel fatto `member.updated:2` · seed in italiano e in inglese, `check-seed` per lingua.
+
+**Criteri di accettazione**
+
+1. **Dato** un membro con `locale=en`, **allora** riceve l'inbox in inglese (docs/18 §6 M11).
+2. ✗ **Dato** un seed senza la traduzione inglese di un testo, **allora** `check-seed` fallisce (docs/18 §3.8).
+
+**Testbook**: TB-I18N (da scrivere con M11).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-I18N-03, ADR-033, docs/18 §3.8, PT-08 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-I18N (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-08 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-I18N-03 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
