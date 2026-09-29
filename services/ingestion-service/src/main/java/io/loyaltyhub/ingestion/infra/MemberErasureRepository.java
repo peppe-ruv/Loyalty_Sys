@@ -21,6 +21,15 @@ import java.util.Locale;
 @Repository
 public class MemberErasureRepository {
 
+    /**
+     * Righe del membro (regola 19, ADR-042): testo SQL costante, i subject {@code email:}/{@code external:} sono
+     * parametri legati e, se nulli, non corrispondono a nessuna riga ({@code lower(subject) = NULL} non è vero).
+     */
+    private static final String ROWS_OF_MEMBER = """
+            SELECT id, subject, payload::text AS payload, reject_detail FROM inbound_event
+            WHERE member_id = :memberId OR lower(subject) = :emailSubject OR lower(subject) = :externalSubject
+            """;
+
     private final JdbcClient jdbc;
     private final ObjectMapper mapper;
 
@@ -34,15 +43,6 @@ public class MemberErasureRepository {
 
     private record Row(String id, String subject, String payload, String rejectDetail) {
     }
-
-    /**
-     * Righe del membro (regola 19, ADR-042): testo SQL costante, i subject {@code email:}/{@code external:} sono
-     * parametri legati e, se nulli, non corrispondono a nessuna riga ({@code lower(subject) = NULL} non è vero).
-     */
-    private static final String ROWS_OF_MEMBER = """
-            SELECT id, subject, payload::text AS payload, reject_detail FROM inbound_event
-            WHERE member_id = :memberId OR lower(subject) = :emailSubject OR lower(subject) = :externalSubject
-            """;
 
     /** Idempotente: una seconda chiamata non trova più nulla da cambiare. */
     // SPEC-GAP: Q-128 — cancellati e-mail e id esterno dall'indice, un evento successivo che cita il membro per

@@ -9,8 +9,8 @@ import java.sql.SQLException;
 import java.util.Optional;
 
 /**
- * Indice membri per la risoluzione in ingresso (docs/servizi/ingestion-service.md §2, §5.7). Ogni query ha il testo SQL
- * costante nel punto di chiamata (regola 19, ADR-042).
+ * Indice membri per la risoluzione in ingresso (docs/servizi/ingestion-service.md §2, §5.7). Ogni query ha il
+ * testo SQL costante nel punto di chiamata (regola 19, ADR-042).
  */
 @Repository
 public class MemberIndexRepository {

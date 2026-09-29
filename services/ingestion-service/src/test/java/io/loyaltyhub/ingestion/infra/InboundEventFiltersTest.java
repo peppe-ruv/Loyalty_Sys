@@ -64,7 +64,8 @@ class InboundEventFiltersTest {
                 new Filter(null, null, null, null, Instant.parse("2026-09-30T00:00:00Z"), null));
         assertThat(onlyTo.sql()).isEqualTo(" WHERE received_at <= :w0");
 
-        SqlWhere statusAndQ = InboundEventRepository.filters("unmatched", new Filter(null, null, null, null, null, "ada"));
+        SqlWhere statusAndQ = InboundEventRepository.filters("unmatched",
+                new Filter(null, null, null, null, null, "ada"));
         assertThat(statusAndQ.sql()).startsWith(" WHERE status = :w0 AND (event_id ILIKE :w1");
         assertThat(statusAndQ.params()).containsEntry("w0", "UNMATCHED").containsEntry("w1", "%ada%");
     }

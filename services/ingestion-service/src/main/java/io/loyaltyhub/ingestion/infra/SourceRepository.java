@@ -62,9 +62,10 @@ public class SourceRepository {
     }
 
     /**
-     * Letterale {@code text[]} per il parametro legato {@code ?::text[]}: non entra mai nel testo SQL (regola 19). Ogni
-     * elemento è quotato con {@code \} e {@code "} neutralizzati, così un valore non può aprire elementi in più; i
-     * tipi ammessi sono comunque già codici di tipi azione esistenti ({@code SourceService}, {@code RegistryController}).
+     * Letterale {@code text[]} per il parametro legato {@code ?::text[]}: non entra mai nel testo SQL (regola 19).
+     * Ogni elemento è quotato con {@code \} e {@code "} neutralizzati, così un valore non può aprire elementi in
+     * più; i tipi ammessi sono comunque già codici di tipi azione esistenti ({@code SourceService},
+     * {@code RegistryController}).
      */
     static String arrayLiteral(List<String> values) {
         StringBuilder sb = new StringBuilder("{");

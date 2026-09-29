@@ -45,8 +45,9 @@ class InboundEventRepositorySqlIT {
         jdbc = JdbcClient.create(ds);
         repository = new InboundEventRepository(jdbc);
 
-        //       id      event_id        source  type                 subject                  member        min  status       correlation   reject_detail
-        inbound("IN-01", "EVT-Alpha-01", "pos", "purchase.completed", "member:MBR-000001", "MBR-000001", 0, "ACCEPTED", "COR-01", null);
+        // id, event_id, fonte, tipo, subject, membro, minuti dopo T0, esito, correlazione, dettaglio del rifiuto
+        inbound("IN-01", "EVT-Alpha-01", "pos", "purchase.completed", "member:MBR-000001", "MBR-000001", 0, "ACCEPTED",
+                "COR-01", null);
         inbound("IN-02", "EVT-Beta-02", "pos", "purchase.completed", "external:CRM-7", null, 1, "UNMATCHED", "COR-02",
                 "Membro non trovato");
         inbound("IN-03", "EVT-Gamma-03", "ecommerce", "review.posted", "member:MBR-000002", "MBR-000002", 2, "REJECTED",
@@ -146,13 +147,30 @@ class InboundEventRepositorySqlIT {
     void injectionHasNoEffect() {
         long before = rows();
         assertThat(ids(INJECTION, q(null))).isEmpty();
-        List<Filter> filters = List.of(new Filter(INJECTION, null, null, null, null, null),
-                new Filter(null, INJECTION, null, null, null, null), new Filter(null, null, INJECTION, null, null, null),
+        List<Filter> filters = List.of(
+                new Filter(INJECTION, null, null, null, null, null),
+                new Filter(null, INJECTION, null, null, null, null),
+                new Filter(null, null, INJECTION, null, null, null),
                 q(INJECTION), q("' OR ''='"), q("x'); DELETE FROM inbound_event; --"));
         for (Filter f : filters) {
             assertThat(ids(null, f)).as(f.toString()).isEmpty();
             assertThat(repository.countByStatus(f).values()).as(f.toString()).containsOnly(0L);
         }
         assertThat(rows()).as("nessun effetto sulla tabella").isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("letterale text[] dei tipi ammessi (SourceRepository): per Postgres un solo elemento, intatto")
+    void sourceArrayLiteralRoundTripsThroughPostgres() {
+        for (String value : List.of("a\\\",\"b", "purchase.completed", "x\\", "{\"}")) {
+            String literal = SourceRepository.arrayLiteral(List.of(value));
+            Map<String, Object> row = jdbc.sql("SELECT cardinality(?::text[]) AS n, (?::text[])[1] AS first")
+                    .params(literal, literal).query().singleRow();
+            assertThat(((Number) row.get("n")).intValue()).as(literal).isEqualTo(1);
+            assertThat(row.get("first")).as(literal).isEqualTo(value);
+        }
+        String two = SourceRepository.arrayLiteral(List.of("purchase.completed", "app.login"));
+        assertThat(jdbc.sql("SELECT array_to_string(?::text[], '|')").param(two).query(String.class).single())
+                .isEqualTo("purchase.completed|app.login");
     }
 }

@@ -173,7 +173,8 @@ class MemberErasureRepositoryIT {
     }
 
     @Test
-    @DisplayName("regola 19: righe per membro, e-mail (senza maiuscole) o id esterno con SQL costante; chiavi nulle non abbinano")
+    @DisplayName("regola 19: righe per membro, e-mail (senza maiuscole) o id esterno con SQL costante; "
+            + "chiavi nulle non abbinano")
     void rowsAreSelectedByConstantSqlWithNullableSubjects() {
         jdbc.sql("INSERT INTO member_index (member_id, external_id, email_lower, status) VALUES (?, NULL, ?, 'ACTIVE')")
                 .params("MBR-000907", "eva.verdi@example.test").update();
@@ -193,5 +194,31 @@ class MemberErasureRepositoryIT {
         assertThat(subject("IN-8")).as("un'altra e-mail: non toccata").isEqualTo("email:altra@example.test");
         assertThat(subject("IN-9")).isEqualTo("member:MBR-000908");
         assertThat(payload("IN-8").path("subject").asString()).isEqualTo("email:altra@example.test");
+    }
+
+    @Test
+    @DisplayName("regola 19: solo id esterno (e-mail nulla), riga abbinata per subject external: e ripulita")
+    void externalIdOnlyIsMatchedBySubjectWhenEmailIsNull() {
+        jdbc.sql("INSERT INTO member_index (member_id, external_id, email_lower, status) VALUES (?, ?, NULL, 'ACTIVE')")
+                .params("MBR-000909", "CRM-9").update();
+        inbound("IN-10", "external:CRM-9", null, "UNMATCHED", """
+                {"specversion":"1.0","id":"EVT-IN-10","type":"purchase","source":"urn:loyaltyhub:source:pos",
+                 "subject":"external:CRM-9","data":{"externalId":"CRM-9","status":"PAID"}}""",
+                "Membro non trovato per CRM-9");
+        inbound("IN-11", "external:CRM-99", null, "UNMATCHED", """
+                {"specversion":"1.0","id":"EVT-IN-11","type":"purchase","subject":"external:CRM-99"}""",
+                "Membro non trovato per CRM-99");
+
+        repository.erase("MBR-000909");
+
+        assertThat(subject("IN-10")).as("abbinata per :externalSubject con :emailSubject nullo")
+                .isEqualTo("member:MBR-000909");
+        JsonNode p = payload("IN-10");
+        assertThat(p.path("subject").asString()).isEqualTo("member:MBR-000909");
+        assertThat(p.path("data").has("externalId")).isFalse();
+        assertThat(p.path("data").path("status").asString()).isEqualTo("PAID");
+        assertThat(rejectDetail("IN-10")).isEqualTo("Membro non trovato per Membro anonimo");
+        assertThat(subject("IN-11")).as("un altro id esterno: non toccato").isEqualTo("external:CRM-99");
+        assertThat(rejectDetail("IN-11")).isEqualTo("Membro non trovato per CRM-99");
     }
 }

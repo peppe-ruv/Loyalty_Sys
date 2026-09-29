@@ -95,7 +95,7 @@ erDiagram
 ### Gestione (backoffice)
 | Metodo | Path | Note |
 |---|---|---|
-| GET | `/v1/inbound-events` | filtri `status, source, type, memberId, from, to, q`: `from`/`to` istanti ISO-8601 su `received_at` (estremi inclusi, malformati → `400`); `q` testo letterale (`%`, `_` e `\` non sono caratteri jolly) cercato senza maiuscole in id evento, soggetto, membro, tipo, fonte, correlazione e dettaglio del rifiuto; `limit` (default 100, max 500). Risposta: array delle righe, più recenti prima |
+| GET | `/v1/inbound-events` | filtri `status, source, type, memberId, from, to, q`: `from`/`to` istanti ISO-8601 su `received_at` (estremi inclusi, malformati → `400`); `q` testo cercato senza maiuscole, letterale come è sempre stato (`%`, `_` e `\` restano caratteri normali, non jolly), in id evento, soggetto, membro, tipo, fonte, correlazione e dettaglio del rifiuto; `limit` (default 100, max 500). Risposta: array delle righe, più recenti prima |
 | GET | `/v1/inbound-events/counts` | conteggi per esito `{ACCEPTED, DUPLICATE, REJECTED, UNMATCHED}` con gli stessi filtri dell'elenco tranne `status` (schede di BO-26) |
 | GET | `/v1/inbound-events/{id}` | payload completo + `correlationId` per aprire il tracciato |
 | POST | `/v1/inbound-events/{id}/retry` | solo `REJECTED`/`UNMATCHED`: rivaluta e, se valido, pubblica |
