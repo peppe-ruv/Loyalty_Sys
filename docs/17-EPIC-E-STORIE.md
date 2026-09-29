@@ -1792,12 +1792,12 @@ Adozione M8.0 (`docs/18` Appendice B punto 9): una storia per ogni feature P0 de
 #### US-F2-IAM-03 · Accesso e registrazione dei membri con OIDC
 *Come* membro, *voglio* accedere e registrarmi al portale con il mio account, *così che* nessuno veda i miei punti fingendosi me.
 - **Contesto reale**: Marco apre dal telefono il portale di «Club Aurora», accede con la passkey e vede solo il proprio saldo.
-- **Tocca**: F2-IAM-03 · ADR-027, ADR-042 · docs/18 §3.2, §3.10 punto 3 · PT-16 · M8.2 · Q-410.
-- **Decisioni**: account Keycloak più record in member-service legato da `member.external_id = sub` · il `memberId` non arriva mai dai parametri della richiesta, solo dal token · l'accesso passa dal BFF (US-F2-SEC-06).
+- **Tocca**: F2-IAM-03 · ADR-027, ADR-042, ADR-048 · docs/18 §3.2, §3.10 punto 3 · PT-16 · M8.2 · Q-410, Q-551.
+- **Decisioni**: account Keycloak più record in member-service legato dal token con la tabella `member_identity` (`issuer`, `subject`), mentre `external_id` resta l'id del CRM (ADR-048, Q-551) · registrazione aperta senza verifica dell'e-mail (Q-557) · il `memberId` non arriva mai dai parametri della richiesta, solo dal token · l'accesso passa dal BFF (US-F2-SEC-06).
 - **Criteri**:
   1. Dato un membro non autenticato che apre il portale `enterprise`, allora è rediretto al login OIDC e torna al portale con la sessione del BFF (#99, #104).
-  2. ✗ Dato un membro autenticato, quando chiama `/v1/portal/*` con l'id di un altro membro, allora vede solo i propri dati (parametro ignorato o `400`, Q-410) (docs/18 §6 M8).
-  3. Dato un nuovo membro che si registra da PT-16, allora nasce il record in member-service con `external_id = sub` (docs/18 §3.2, Q-410).
+  2. ✗ Dato un membro autenticato, quando chiama `/v1/portal/*` con l'id di un altro membro, allora non vede i dati dell'altro: `400 MEMBER_FROM_TOKEN` per query, corpo o header, `403` per il percorso, `404` per un oggetto altrui (Q-553, Q-410) (docs/18 §6 M8).
+  3. Dato un nuovo membro che si registra da PT-16, allora nasce il record in member-service, legato a `(iss, sub)` in `member_identity`, e un solo fatto `member.registered` con `subjectRef` e senza `sub` (docs/18 §3.2, Q-410, Q-551, Q-552).
 - **Testbook**: TB-IAM (dominio senza righe) · prove automatiche: `web/lib/auth/oidc.test.ts`.
 
 #### US-F2-IAM-04 · Broker verso l'IdP aziendale e federazione LDAP
@@ -1884,11 +1884,11 @@ Adozione M8.0 (`docs/18` Appendice B punto 9): una storia per ogni feature P0 de
 #### US-F2-SEC-09 · Deny by default e membro dal token
 *Come* responsabile della sicurezza dell'adottante, *voglio* che ogni endpoint dichiari chi può chiamarlo e che il portale ricavi il membro solo dal token, *così che* nessuno legga i dati di un altro membro cambiando un parametro.
 - **Contesto reale**: in `enterprise` Marco chiama l'API del saldo con l'id di Giulia (MBR-000003).
-- **Tocca**: F2-SEC-09 · ADR-042 · docs/18 §3.10 punto 3 · `@RequiresRole`, `@PublicEndpoint`, `MemberPrincipal` · M8.10 · regola 18.
-- **Decisioni**: ogni metodo di `@RestController` ha `@RequiresRole` oppure `@PublicEndpoint` con motivazione, verificato da ArchUnit · le API `/v1/portal/*` ricavano il membro da `MemberPrincipal`, mai da percorso, query o corpo · nessun *mass assignment*: solo record DTO espliciti, `status`, `version` e `createdBy` non legabili.
+- **Tocca**: F2-SEC-09 · ADR-042, ADR-048 · docs/18 §3.10 punto 3 · `@RequiresRole`, `@PublicEndpoint`, `@MemberEndpoint`, `MemberPrincipal` · M8.10 · regola 18 · Q-553.
+- **Decisioni**: ogni metodo di `@RestController` ha `@RequiresRole`, `@PublicEndpoint` con motivazione oppure `@MemberEndpoint` (elenco chiuso di tre, ADR-048), verificato da ArchUnit · le API `/v1/portal/*` ricavano il membro da `MemberPrincipal`, mai da percorso, query o corpo; i parametri legati, anche impliciti, e il contratto generato li controlla l'hub (`OpenApiExportIT`) · nessun *mass assignment*: solo record DTO espliciti, `status`, `version` e `createdBy` non legabili.
 - **Criteri**:
   1. ✗ Dato un endpoint senza `@RequiresRole` né `@PublicEndpoint`, allora la build è rossa (docs/18 §6 M8).
-  2. ✗ Dato una chiamata a `/v1/portal/*` con il token di un membro e l'id di un altro, allora risponde con i dati del solo titolare (parametro ignorato o `400`, Q-410) (docs/18 §6 M8).
+  2. ✗ Dato una chiamata a `/v1/portal/*` con il token di un membro e l'id di un altro, allora risponde `400 MEMBER_FROM_TOKEN` (query, corpo o header), `403` (percorso) o, per un oggetto altrui, `404`; senza alcun id, i dati del solo titolare (Q-553, Q-410) (docs/18 §6 M8).
   3. ✗ Dato un corpo che contiene `status`, `version` o `createdBy`, allora quei campi non sono legati (docs/18 §3.10 punto 3).
 - **Testbook**: TB-SEC (da scrivere con M8.10).
 
@@ -1939,7 +1939,7 @@ Adozione M8.0 (`docs/18` Appendice B punto 9): una storia per ogni feature P0 de
 *Come* responsabile della conformità dell'adottante, *voglio* che i cambi di utenti e ruoli fatti in Keycloak compaiano nel registro di audit, *così che* un cambio di privilegi non resti nei log interni dell'IdP.
 - **Contesto reale**: Marta (ADMIN) assegna a Paolo il ruolo `CARE` dalla console di Keycloak.
 - **Tocca**: F2-SEC-14 · ADR-043 · docs/18 §3.14 punto 2 · M8.12 · regola 21.
-- **Decisioni**: event listener SPI che chiama `POST /v1/audit/external` · eventi utente legati al membro con `external_id = sub`; admin events con `service=idp` e nessun dato del membro · solo eventi di cambiamento: creazione e cancellazione di utenti, cambio di ruolo, reset della password, abilitazione MFA, blocco dell'account.
+- **Decisioni**: event listener SPI che chiama `POST /v1/audit/external` · eventi utente legati al membro tramite `member_identity` (`issuer`, `subject`, ADR-048); admin events con `service=idp` e nessun dato del membro · solo eventi di cambiamento: creazione e cancellazione di utenti, cambio di ruolo, reset della password, abilitazione MFA, blocco dell'account.
 - **Criteri**:
   1. Dato un cambio di ruolo in Keycloak, allora `GET /v1/audit` mostra una voce con `service=idp` (docs/18 §6 M8).
   2. Dato un login riuscito, allora non produce una voce di audit: appartiene all'attività del membro (docs/18 §3.14 punto 2).
