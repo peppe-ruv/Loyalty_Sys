@@ -25,6 +25,7 @@ Obiettivo: una demo **pubblica, accendibile su richiesta, che da spenta costa ze
 2. **Neon** (connettore, §4) → `DB_URL`, `DB_URL_DIRECT`, `DB_USER`, `DB_PASSWORD`.
 3. **Render**: Blueprint da `render.yaml` (§7) → gruppo di variabili `lh-shared` compilato coi valori dei passi 1–2 → primo deploy dei 4 servizi del core loop (gli altri si aggiungono per milestone).
 4. **Vercel**: progetto con root `web/`, variabili §8 con gli URL `*.onrender.com`.
+   Il salto della build (*Ignored Build Step*) sta in `web/vercel.json` (`ignoreCommand`): si salta solo se nulla è cambiato in `web/`, `seed/`, `contracts/` o `registry/` rispetto all'ultimo deploy. Vercel clona il repository solo in parte: se il commit dell'ultimo deploy non è nel clone, il comando fa la build invece di fallire (senza questa guardia `git diff` esce con 128 e Vercel segna il deploy in errore).
 5. Aggiornare `LH_CORS_ALLOWED_ORIGINS` di insight con l'URL Vercel → ridistribuire insight.
 6. `bash scripts/smoke.sh https://<web>.vercel.app` → verde.
 
