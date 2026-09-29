@@ -230,10 +230,13 @@ Un amministratore di Keycloak, nel realm `loyaltyhub`:
 3. **Registra la chiave pubblica della fonte**: in *Keys* attiva *Use JWKS URL* e indica il JWKS della fonte, oppure
    importa il suo certificato. Non generare tu la chiave della fonte e non salvarla nel repository.
 4. **Assegna il ruolo**: in *Service accounts roles* assegna alla sola utenza di servizio il ruolo `SOURCE`, e nessun altro.
+   **Togli il ruolo predefinito** `default-roles-loyaltyhub` dalla stessa utenza: Keycloak lo assegna a ogni utenza creata
+   dopo l'import e contiene `MEMBER` (auto-registrazione dei membri, Q-557, ADR-048). Un token con `SOURCE` e `MEMBER`
+   vale come token di membro e l'ingresso eventi della fonte risponderebbe `403`.
 5. **Verifica l'audience**: in *Client scopes* devono esserci `hub-audience` e `lh-roles-scope` (sono quelli predefiniti
    del realm); un token del client ha `aud` con `hub`, `azp` = `src-<codice>` e `lh_roles` con `SOURCE`.
-6. **Prova** con un token del client: `POST /v1/events` con un evento della fonte risponde `202`; con il `source` di
-   un'altra fonte, `403 SOURCE_MISMATCH`.
+6. **Prova** con un token del client: `lh_roles` contiene `SOURCE` e non `MEMBER`; `POST /v1/events` con un evento della
+   fonte risponde `202`; con il `source` di un'altra fonte, `403 SOURCE_MISMATCH`.
 
 Ogni client creato così è una scrittura di configurazione dell'IdP: Keycloak la registra negli eventi di amministrazione
 (`adminEventsEnabled` è attivo nel realm); il loro inoltro ad `audit_entry` arriva con il bridge Keycloak → audit

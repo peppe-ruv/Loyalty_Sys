@@ -6,6 +6,7 @@ Questa directory contiene la configurazione as-code dell'Identity Provider per i
 
 - `realm.json`: export del realm `loyaltyhub` con client, ruoli, client scope (quelli standard di Keycloak 26 più `hub-audience` e `lh-roles-scope`), flussi e utenti senza password. I valori variabili sono segnaposto `${LH_*}` che Keycloak sostituisce con le variabili d'ambiente all'import.
 - Fonti di ingestion (Q-492): un client confidential `src-<codice>` per ogni fonte HTTP di `seed/sources.json`, non per le fonti `INTERNAL` (`internal`, `simulator`: non entrano da HTTP e non hanno chiavi da custodire) (`private_key_jwt`, solo service account, JWKS da `LH_SOURCE_<FONTE>_JWKS_URL`, nessun segreto) e l'utenza di servizio `service-account-src-<codice>` con il solo ruolo realm `SOURCE`, incluso nel claim `lh_roles`. Il ruolo `SOURCE` non è una persona: non lo riceve nessun utente demo. Per una fonte creata dopo l'installazione vedi `deploy/README.md` (Q-494).
+- Auto-registrazione dei membri (Q-557, ADR-048): `registrationAllowed: true`, `verifyEmail: false` dichiarato, nessun `smtpServer`, ruolo `MEMBER` nel composito del ruolo predefinito `default-roles-loyaltyhub`. L'utenza di servizio del client `lh-jobs` è dichiarata con `realmRoles: []` perché non erediti `MEMBER`. Vedi «Auto-registrazione dei membri».
 - `bootstrap.sh`: imposta le password temporanee degli operatori demo dopo l'avvio.
 - `test-idp/` (**solo prova**, F2-IAM-04): IdP OIDC secondario (`test-realm.json`), LDAP (`ldap-seed.ldif`), overlay del realm (`realm-test-overlay.json`), lo script che lo applica (`apply-overlay.sh`) e la verifica (`verify.sh`).
 
@@ -71,6 +72,44 @@ Poiché l'import viene saltato, un realm creato prima di M8.2f **non ha** il ruo
 
 Nessuna versione rilasciata contiene `realm.json` prima di M8.2f: la procedura serve solo a chi ha costruito l'IdP da `main` nel frattempo.
 
+### Realm già importato prima dell'auto-registrazione dei membri (aggiornamento, ADR-038)
+
+Poiché l'import viene saltato, un realm creato prima di Q-557 ha ancora `registrationAllowed: false`, nessun `MEMBER` tra i ruoli predefiniti e l'utenza di servizio di `lh-jobs` con il ruolo predefinito (l'ha creata Keycloak). Un aggiornamento di realm è una migrazione da gestire (ADR-038): fai questi passi con un amministratore del realm; sono idempotenti e vanno fatti **prima** di rilasciare i moduli che leggono `MEMBER` dal token. I comandi sono stati provati su Keycloak 26.7.4 partendo da un realm importato con il `realm.json` precedente.
+
+1. **Prepara il token di amministrazione e il prefisso delle chiamate** (la password dell'amministratore resta nell'ambiente, mai nella riga di comando):
+
+   ```bash
+   KC=http://localhost:8080 ; R="$KC/admin/realms/loyaltyhub"
+   TOKEN=$(curl -sS -f -X POST "$KC/realms/master/protocol/openid-connect/token" -d client_id=admin-cli -d grant_type=password \
+             -d username="${LH_IDP_ADMIN_USERNAME:-admin}" --data-urlencode "password=$LH_IDP_ADMIN_PASSWORD" | jq -r .access_token)
+   AUTH="Authorization: Bearer $TOKEN"
+   ```
+
+2. **Apri la registrazione, senza verifica dell'e-mail** (la `PUT` è parziale: cambia solo i campi indicati):
+
+   ```bash
+   curl -sS -f -X PUT "$R" -H "$AUTH" -H 'Content-Type: application/json' -d '{"registrationAllowed": true, "verifyEmail": false}'
+   ```
+
+3. **Aggiungi `MEMBER` al composito dei ruoli predefiniti**:
+
+   ```bash
+   MEMBER=$(curl -sS -f "$R/roles/MEMBER" -H "$AUTH" | jq -c '[{id, name}]')
+   curl -sS -f -X POST "$R/roles/default-roles-loyaltyhub/composites" -H "$AUTH" -H 'Content-Type: application/json' -d "$MEMBER"
+   ```
+
+   Ogni utente che ha già il ruolo predefinito (per esempio un operatore creato dalla console dopo l'import) riceve così anche `MEMBER`: il suo token diventa misto e vale come operatore, mai come membro (Q-554); nessun potere cambia.
+
+4. **Togli il ruolo predefinito all'utenza di servizio di `lh-jobs`** (un job non è un membro). Ripeti per ogni altra utenza `service-account-*` creata dalla console dopo l'import e senza ruoli applicativi; le utenze `service-account-src-*` hanno già solo `SOURCE`:
+
+   ```bash
+   ID=$(curl -sS -f "$R/users?username=service-account-lh-jobs&exact=true" -H "$AUTH" | jq -r '.[0].id')
+   DEFAULT=$(curl -sS -f "$R/roles/default-roles-loyaltyhub" -H "$AUTH" | jq -c '[{id, name}]')
+   curl -sS -f -X DELETE "$R/users/$ID/role-mappings/realm" -H "$AUTH" -H 'Content-Type: application/json' -d "$DEFAULT"
+   ```
+
+5. **Verifica**: la pagina di login del client `web` mostra «Registrati»; dopo una registrazione di prova l'access token ha `MEMBER` in `lh_roles` (elimina poi l'account di prova dalla console). Il realm non si reimporta: l'import salta un realm esistente.
+
 ### Inizializzazione password demo
 
 Il file `realm.json` non include credenziali per gli operatori demo: dopo l'avvio si assegnano password temporanee.
@@ -80,6 +119,46 @@ KC_BOOTSTRAP_ADMIN_PASSWORD="$LH_IDP_ADMIN_PASSWORD" ./deploy/idp/bootstrap.sh
 ```
 
 Lo script imposta una password temporanea (da `TEMP_PASS_*` o generata) ai 5 utenti demo `marta.admin`, `luca.marketing`, `elena.legal`, `paolo.care`, `sara.analyst`; Keycloak chiede di cambiarla al primo accesso.
+
+## Auto-registrazione dei membri (Q-557, F2-IAM-03)
+
+Il realm è aperto alla registrazione: la pagina di login mostra «Registrati» e il flusso `registration` predefinito di Keycloak (nome utente, e-mail, nome, cognome, password) crea l'account e riporta al client `web` già autenticato. Chi si registra riceve il solo ruolo `MEMBER` (più quelli tecnici di Keycloak) e con quel token può usare soltanto le funzioni del portale. Il legame tra l'account e il membro (`member_identity`) lo crea la registrazione dal portale, non l'IdP (ADR-048).
+
+| Impostazione di `realm.json` | Valore | Perché |
+|---|---|---|
+| `registrationAllowed` | `true` | sblocca PT-16 (auto-registrazione) senza componenti nuovi |
+| `verifyEmail` | `false`, dichiarato | la verifica richiede un `smtpServer`, cioè una nuova destinazione di rete in uscita: caso «Fermati e chiedi» di CLAUDE.md §7, serve un'ADR e non prima del modulo `delivery` (M8.4) |
+| `smtpServer` | assente | come sopra |
+| ruolo predefinito `default-roles-loyaltyhub` | `MEMBER` (Keycloak aggiunge `offline_access`, `uma_authorization` e i ruoli del client `account`) | ogni account creato dopo l'import diventa membro |
+
+```mermaid
+sequenceDiagram
+    accTitle: Auto-registrazione di un membro
+    accDescr: Il membro si registra nel modulo di Keycloak senza verifica dell'e-mail, riceve il ruolo predefinito MEMBER e il BFF ottiene un token con lh_roles che contiene MEMBER
+    actor Membro
+    participant NextJS as Next.js (BFF)
+    participant Keycloak as Keycloak (IdP)
+
+    Membro->>NextJS: Visita /portal (non autenticato)
+    NextJS->>Membro: Redirect a /api/auth/login
+    Membro->>Keycloak: Auth Request (PKCE), sceglie Registrati
+    Keycloak->>Membro: Modulo di registrazione
+    Membro->>Keycloak: Nome utente, e-mail, nome, cognome, password
+    Note over Keycloak: Nessuna verifica dell'e-mail e nessun SMTP<br/>L'account riceve default-roles-loyaltyhub, che contiene MEMBER
+    Keycloak->>NextJS: Redirect URI con Auth Code
+    NextJS->>Keycloak: Scambia Auth Code per token (backend-to-backend)
+    Keycloak-->>NextJS: Access token con aud hub e lh_roles con MEMBER
+    NextJS->>Membro: Cookie di sessione __Host- (HttpOnly, Secure)
+```
+
+Il token di un membro appena registrato (provato con un import reale su Keycloak 26.7.4) ha `aud` = `hub` e `account`, `preferred_username`, `email`, `email_verified: false` e `lh_roles` = `default-roles-loyaltyhub`, `offline_access`, `uma_authorization`, `MEMBER`. Per `OidcActorFilter` è un token di solo membro: `MEMBER` senza ruoli operatore.
+
+Da sapere:
+
+- **L'e-mail non è verificata.** `email_verified` resta `false` e non è una garanzia: nessun collegamento tra un account e un membro già esistente (CRM, import) può fondarsi sull'e-mail (Q-558). Per abilitare la verifica servono un'ADR, uno `smtpServer` e `verifyEmail: true`; `scripts/check-realm.mjs` la vieta finché non cambia insieme all'ADR.
+- **Chi riceve `MEMBER`.** Ogni account creato dopo l'import: registrazione, console di amministrazione, utenti federati da LDAP o dal broker senza ruoli mappati. Un operatore creato dalla console riceve `MEMBER` insieme al ruolo operatore: il token misto vale come operatore (Q-554). Non lo ricevono gli utenti elencati in `realm.json`, perché l'import assegna solo i `realmRoles` scritti (operatori demo e utenze `service-account-src-*`), né `service-account-lh-jobs`: un client con service account non dichiarato negli `users` ottiene da Keycloak un'utenza con il ruolo predefinito, quindi con `MEMBER`; dichiararla con `realmRoles: []` lo evita, e `scripts/check-realm.mjs` lo controlla per ogni client con service account.
+- **Il realm è condiviso** con il backoffice (`web`), con Directus (`cms`) e con i widget: un account registrato può autenticarsi su qualunque client del realm. `MEMBER` non dà nulla fuori dal portale, e la mappatura dei ruoli di Directus (M10.2) non deve concederlo. `bruteForceProtected` protegge gli accessi, non le registrazioni: Keycloak non ne limita la frequenza, e un limite va messo davanti all'IdP.
+- **Perché il file è fatto così.** Per l'import di Keycloak i composti del ruolo predefinito valgono solo nell'entry `default-roles-loyaltyhub` di `roles.realm`, e `defaultRole` deve nominarla: i `composites` scritti dentro `defaultRole` sono ignorati in silenzio, e senza `defaultRole` Keycloak crea un secondo ruolo `default-roles-loyaltyhub-1` come predefinito e `MEMBER` non arriva a nessuno (verificato con l'import reale; lo controlla `scripts/check-realm.mjs`).
 
 ## IdP e LDAP di prova (F2-IAM-04)
 
@@ -101,7 +180,7 @@ KC_BOOTSTRAP_ADMIN_PASSWORD="$LH_IDP_ADMIN_PASSWORD" ./deploy/idp/test-idp/apply
 ./deploy/idp/test-idp/verify.sh
 ```
 
-`verify.sh` ottiene un token per l'utente LDAP `testuser` con il client di prova `lh-ldap-test` (il client `web` di produzione ha i direct access grants disattivati), decodifica l'access token e verifica che `aud` contenga `hub`, che `preferred_username` sia `testuser` e che il claim `lh_roles` sia presente. Un utente LDAP senza ruoli applicativi mappati riceve in `lh_roles` solo i ruoli di default del realm (`default-roles-loyaltyhub`, `offline_access`, `uma_authorization`).
+`verify.sh` ottiene un token per l'utente LDAP `testuser` con il client di prova `lh-ldap-test` (il client `web` di produzione ha i direct access grants disattivati), decodifica l'access token e verifica che `aud` contenga `hub`, che `preferred_username` sia `testuser` e che il claim `lh_roles` sia presente. Un utente LDAP senza ruoli applicativi mappati riceve in `lh_roles` solo i ruoli di default del realm (`default-roles-loyaltyhub`, `offline_access`, `uma_authorization` e, dall'auto-registrazione dei membri, `MEMBER`).
 
 Il broker verso `test-idp` richiede un login interattivo nel browser: è un passo manuale descritto in fondo a `verify.sh`. F2-IAM-04 resta aperto finché non è eseguito e registrato.
 
@@ -111,7 +190,7 @@ Il broker verso `test-idp` richiede un login interattivo nel browser: è un pass
 node --test scripts/check-realm.mjs
 ```
 
-Controlla ruoli (compreso `SOURCE`), un client `src-<codice>` per ogni fonte del seed con impostazioni e utenza di servizio (solo `SOURCE`), assenza di segreti letterali (`secret`, `clientSecret`, `bindCredential`) in `realm.json` e nell'overlay, redirect URI senza wildcard assolute, URI del client `web` uguali ai percorsi del BFF (callback, ritorno dopo il logout, back-channel logout), durata dell'access token, `private_key_jwt` per i service account, che ogni client scope referenziato sia definito e che ogni segnaposto `${LH_*}` di `realm.json` sia passato al servizio `idp` del compose. Gira nel job `seed` della CI.
+Controlla ruoli (compreso `SOURCE`), un client `src-<codice>` per ogni fonte del seed con impostazioni e utenza di servizio (solo `SOURCE`), assenza di segreti letterali (`secret`, `clientSecret`, `bindCredential`) in `realm.json` e nell'overlay, redirect URI senza wildcard assolute, URI del client `web` uguali ai percorsi del BFF (callback, ritorno dopo il logout, back-channel logout), durata dell'access token, `private_key_jwt` per i service account, che ogni client scope referenziato sia definito, che ogni segnaposto `${LH_*}` di `realm.json` sia passato al servizio `idp` del compose, la registrazione aperta senza verifica dell'e-mail né `smtpServer` (Q-557), `MEMBER` come solo composito del ruolo predefinito (con `defaultRole` che lo nomina e nessun `SOURCE`, operatore o MFA tra i predefiniti) e un'utenza dichiarata, con ruoli espliciti e senza ruolo predefinito, per ogni client con service account. La copia del realm nel chart è verificata da `scripts/check-helm.mjs`. Gira nel job `seed` della CI.
 
 ## Diagrammi
 
