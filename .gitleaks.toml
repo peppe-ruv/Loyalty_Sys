@@ -1,0 +1,19 @@
+# Configurazione di gitleaks per il job `security` (.github/workflows/ci.yml, docs/security/ci-security.md).
+# Regola 20 di CLAUDE.md (ADR-042, F2-SEC-12): nessun segreto nel codice. Si estendono le regole predefinite; le
+# eccezioni sono solo per dati fittizi noti, ognuna con la giustificazione e limitata da percorso E valore.
+# Non mettere mai qui un segreto vero: se un segreto vero è finito nella storia, si ruota e si segnala (SECURITY.md).
+
+title = "Loyalty Hub"
+
+[extend]
+useDefault = true
+
+# Esempio di corpo di richiesta nella documentazione d'integrazione: `idempotencyKey` è l'identificativo di
+# deduplicazione scelto dal chiamante, non una credenziale; la regola generica lo scambia per una chiave d'API.
+[[allowlists]]
+description = "idempotencyKey negli esempi JSON della documentazione (identificativo di deduplicazione, non un segreto)"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^docs/.*\.md$''']
+regexTarget = "match"
+regexes = ['''(?i)"?idempotencyKey"?\s*[:=]\s*"[^"\s]{1,80}"''']
