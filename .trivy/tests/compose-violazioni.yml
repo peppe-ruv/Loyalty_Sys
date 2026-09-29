@@ -1,0 +1,53 @@
+# Fixture del controllo Compose (.trivy/checks): viola di proposito le regole LH-DC-0001 (6 volte) e LH-DC-0002 (5 volte).
+# Il job `security` verifica che Trivy le segnali (un controllo che non segnala nulla sarebbe un controllo rotto) e
+# non la considera nella scansione dei file veri. Non è un file Compose da avviare.
+services:
+  privilegiato:
+    image: example.org/x:1
+    privileged: true # LH-DC-0001
+  rete-host:
+    image: example.org/x:1
+    network_mode: host # LH-DC-0001
+  socket:
+    image: example.org/x:1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock # LH-DC-0001
+  capability:
+    image: example.org/x:1
+    cap_add: [SYS_ADMIN] # LH-DC-0001
+  senza-profilo:
+    image: example.org/x:1
+    security_opt: ["seccomp:unconfined"] # LH-DC-0001
+  radice:
+    image: example.org/x:1
+    user: "0:0" # LH-DC-0001
+  porta-aperta:
+    image: example.org/x:1
+    ports: ["8080:8080"] # LH-DC-0002
+  porta-jolly-v4:
+    image: example.org/x:1
+    ports: ["0.0.0.0:8083:8080"] # LH-DC-0002
+  porta-jolly-v6:
+    image: example.org/x:1
+    ports: ["[::]:8084:8080"] # LH-DC-0002
+  porta-default-aperto:
+    image: example.org/x:1
+    ports: ["${LH_BIND_ADDRESS:-0.0.0.0}:8085:8080"] # LH-DC-0002
+  porta-estesa-jolly:
+    image: example.org/x:1
+    ports:
+      - target: 8080
+        published: 8086
+        host_ip: 0.0.0.0 # LH-DC-0002
+  porta-solo-locale:
+    image: example.org/x:1
+    ports:
+      - "127.0.0.1:8081:8080"
+      - "${LH_BIND_ADDRESS:-127.0.0.1}:8082:8080"
+      - "127.0.0.1::8080" # porta dell'host scelta da Docker, comunque su loopback
+      - "[::1]:8087:8080"
+      - target: 8080
+        published: 8088
+        host_ip: 127.0.0.1
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
