@@ -240,17 +240,28 @@ class MemberPrincipalsTest {
         assertThat(new MemberPrincipals(IdentityMode.OIDC, KEY, List.of()).hasSubjectKey()).isTrue();
         assertThat(new MemberPrincipals(IdentityMode.OIDC, new byte[31], List.of()).hasSubjectKey()).isFalse();
     }
-    /** Una richiesta i cui parametri il contenitore non sa leggere (Tomcat: {@code ?=x}). */
+    /**
+     * Una richiesta i cui parametri il contenitore non sa leggere (Tomcat: {@code ?=x}). Come Tomcat 11, lancia solo alla
+     * <em>prima</em> lettura dei parametri; dalla seconda restituisce la mappa parziale costruita prima del pezzo
+     * rifiutato (qui vuota), quindi chi catturasse la prima eccezione vedrebbe «nessun memberId».
+     */
     private static MockHttpServletRequest unreadableParameters() {
+        java.util.concurrent.atomic.AtomicBoolean thrown = new java.util.concurrent.atomic.AtomicBoolean();
         return new MockHttpServletRequest() {
             @Override
             public java.util.Map<String, String[]> getParameterMap() {
-                throw new org.apache.tomcat.util.http.InvalidParameterException("Invalid chunk [=x] ignored");
+                if (thrown.compareAndSet(false, true)) {
+                    throw new org.apache.tomcat.util.http.InvalidParameterException("Invalid chunk [=x] ignored");
+                }
+                return java.util.Map.of();
             }
 
             @Override
             public String getParameter(String name) {
-                throw new org.apache.tomcat.util.http.InvalidParameterException("Invalid chunk [=x] ignored");
+                if (thrown.compareAndSet(false, true)) {
+                    throw new org.apache.tomcat.util.http.InvalidParameterException("Invalid chunk [=x] ignored");
+                }
+                return null;
             }
         };
     }
@@ -260,6 +271,11 @@ class MemberPrincipalsTest {
     void unreadableParametersNeverMeanNoMemberId() throws Exception {
         assertThatThrownBy(() -> MemberPrincipals.hasMemberIdParameter(unreadableParameters()))
                 .isInstanceOf(org.apache.tomcat.util.http.InvalidParameterException.class);
+        // il vincolo documentato: dopo la prima eccezione la mappa è parziale, per questo nessuno deve catturarla
+        MockHttpServletRequest caught = unreadableParameters();
+        assertThatThrownBy(() -> MemberPrincipals.hasMemberIdParameter(caught))
+                .isInstanceOf(org.apache.tomcat.util.http.InvalidParameterException.class);
+        assertThat(MemberPrincipals.hasMemberIdParameter(caught)).isFalse();
         // i due risolutori la lasciano salire prima di impostare qualunque principal
         HandlerMethod required = handler(new MemberTestSupport.Portal(), "required");
         for (MemberPrincipals principals : List.of(new MemberPrincipals(IdentityMode.OIDC, KEY, List.of()),

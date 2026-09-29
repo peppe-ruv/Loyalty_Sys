@@ -83,25 +83,38 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Parametri di query illeggibili per il contenitore (Q-532 causa (a), F2-SEC-12): un parametro senza nome
-     * ({@code ?=x}, {@code ?&=x}), una codifica percentuale non valida ({@code ?q=%zz}), troppi parametri. Tomcat
-     * rende inutilizzabile l'intera mappa dei parametri e lancia {@code InvalidParameterException} al primo
-     * {@code getParameter*}: un {@code @RequestParam}, oppure il controllo del {@code memberId} in
-     * {@link MemberPrincipals}. È un errore di forma del client → 400, non 500 (docs/06 §2).
+     * Parametri della richiesta illeggibili per il contenitore (Q-532 causa (a), F2-SEC-12): un parametro senza nome
+     * ({@code ?=x}, {@code ?&=x}), una codifica percentuale non valida ({@code ?q=%zz}), troppi parametri, in query o
+     * in un corpo {@code x-www-form-urlencoded}. Tomcat rende inutilizzabile l'intera mappa dei parametri e lancia
+     * {@code InvalidParameterException} al primo {@code getParameter*}: un {@code @RequestParam}, oppure il controllo
+     * del {@code memberId} in {@link MemberPrincipals}. È un errore di forma del client → 400, non 500 (docs/06 §2).
+     * Il codice dell'eccezione si rispetta: Tomcat usa 413 quando un corpo form o a blocchi è troppo grande, e la
+     * risposta è {@code 413}, non 400.
      *
      * <p><strong>Fail closed, per scelta.</strong> Il parametro non si ignora: dove serve al controllo del membro
      * (regole 6-bis, 18, 22) un parametro illeggibile non può nascondere un {@code memberId}, quindi la richiesta è
      * rifiutata prima del controller e {@link MemberPrincipals} lascia propagare l'eccezione (non la cattura). Il
-     * messaggio di Tomcat riporta il pezzo di query rifiutato (può contenere dati personali): non entra né nella risposta
+     * messaggio di Tomcat riporta il pezzo rifiutato (può contenere dati personali): non entra né nella risposta
      * né nel log, che riporta solo il percorso.
+     *
+     * <p><strong>Vincolo su chi viene dopo.</strong> Tomcat lancia una sola volta per richiesta: dal secondo
+     * {@code getParameter*} in poi restituisce la mappa parziale costruita prima del pezzo rifiutato. Nessun componente
+     * deve quindi catturare {@code InvalidParameterException} prima di questo handler: chi lo facesse vedrebbe una mappa
+     * parziale, senza un {@code memberId} che invece c'era.
      */
     @ExceptionHandler(org.apache.tomcat.util.http.InvalidParameterException.class)
-    public ResponseEntity<ProblemDetail> onInvalidParameters(HttpServletRequest request) {
-        log.debug("Parametri di richiesta non leggibili su {}", request != null ? request.getRequestURI() : "?");
-        ProblemDetail pd = base(HttpStatus.BAD_REQUEST, "bad-request", title(HttpStatus.BAD_REQUEST),
-                "Parametri di query non validi: nome assente o codifica non valida", request);
-        pd.setProperty("code", "BAD_REQUEST");
-        return ResponseEntity.badRequest().body(pd);
+    public ResponseEntity<ProblemDetail> onInvalidParameters(
+            org.apache.tomcat.util.http.InvalidParameterException ex, HttpServletRequest request) {
+        HttpStatus status = ex.getErrorCode() == HttpStatus.CONTENT_TOO_LARGE.value()
+                ? HttpStatus.CONTENT_TOO_LARGE : HttpStatus.BAD_REQUEST;
+        log.debug("Parametri di richiesta non leggibili su {} ({})", request != null ? request.getRequestURI() : "?",
+                status.value());
+        boolean tooLarge = status == HttpStatus.CONTENT_TOO_LARGE;
+        ProblemDetail pd = base(status, tooLarge ? "content-too-large" : "bad-request", title(status),
+                tooLarge ? "Corpo della richiesta troppo grande"
+                        : "Parametri della richiesta non validi: nome assente o codifica non valida", request);
+        pd.setProperty("code", tooLarge ? "CONTENT_TOO_LARGE" : "BAD_REQUEST");
+        return ResponseEntity.status(status).body(pd);
     }
 
     @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
@@ -193,6 +206,7 @@ public class GlobalExceptionHandler {
             case GONE -> "Risorsa non più disponibile";
             case METHOD_NOT_ALLOWED -> "Metodo non ammesso";
             case UNSUPPORTED_MEDIA_TYPE -> "Tipo di contenuto non supportato";
+            case CONTENT_TOO_LARGE -> "Contenuto troppo grande";
             case NOT_ACCEPTABLE -> "Formato non accettabile";
             case INTERNAL_SERVER_ERROR -> "Errore interno";
             default -> status.getReasonPhrase();

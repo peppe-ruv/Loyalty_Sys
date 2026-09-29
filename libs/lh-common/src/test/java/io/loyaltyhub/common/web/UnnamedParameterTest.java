@@ -109,6 +109,31 @@ class UnnamedParameterTest {
         assertThat(post(demo + "/v1/probe/submit?reason=ok", "ADMIN:tester").status()).isEqualTo(200);
     }
 
+    @ParameterizedTest(name = "[demo] POST form {0} → 400 bad-request")
+    @ValueSource(strings = {"reason=a&=x", "=x&reason=a", "reason=%zz"})
+    @DisplayName("lo stesso difetto in un corpo x-www-form-urlencoded: 400, con lo stesso dettaglio")
+    void unreadableFormBodyIs400(String form) throws IOException {
+        assertBadRequest(postForm(demo + "/v1/probe/submit", "ADMIN:tester", form));
+    }
+
+    @Test
+    @DisplayName("il codice dell'eccezione di Tomcat si rispetta: 413 per un corpo troppo grande, 400 negli altri casi")
+    void tooLargeBodyKeepsItsStatus() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        org.springframework.mock.web.MockHttpServletRequest request =
+                new org.springframework.mock.web.MockHttpServletRequest("POST", "/v1/probe/submit");
+        var tooLarge = handler.onInvalidParameters(
+                new org.apache.tomcat.util.http.InvalidParameterException("body too large", 413), request);
+        assertThat(tooLarge.getStatusCode().value()).isEqualTo(413);
+        assertThat(tooLarge.getBody().getProperties()).containsEntry("code", "CONTENT_TOO_LARGE");
+        assertThat(String.valueOf(tooLarge.getBody().getDetail())).doesNotContain("body too large");
+        var other = handler.onInvalidParameters(
+                new org.apache.tomcat.util.http.InvalidParameterException("Invalid chunk [=x] ignored"), request);
+        assertThat(other.getStatusCode().value()).isEqualTo(400);
+        assertThat(other.getBody().getProperties()).containsEntry("code", "BAD_REQUEST");
+        assertThat(String.valueOf(other.getBody().getDetail())).doesNotContain("=x");
+    }
+
     @Test
     @DisplayName("un handler che non legge i parametri non cambia: il parametro senza nome è ignorato (resta 200)")
     void handlerWithoutParametersIsUnchanged() throws IOException {
@@ -197,6 +222,7 @@ class UnnamedParameterTest {
         assertThat(r.contentType()).startsWith("application/problem+json");
         assertThat(r.body()).contains("\"type\":\"urn:loyaltyhub:problem:bad-request\"")
                 .contains("\"title\":\"Richiesta non valida\"")
+                .contains("\"detail\":\"Parametri della richiesta non validi: nome assente o codifica non valida\"")
                 .contains("\"code\":\"BAD_REQUEST\"")
                 .contains("\"status\":400");
     }
@@ -216,8 +242,17 @@ class UnnamedParameterTest {
         return call("POST", url, actor, null, Map.of());
     }
 
+    private static Response postForm(String url, String actor, String form) throws IOException {
+        return call("POST", url, actor, null, Map.of("Content-Type", "application/x-www-form-urlencoded"), form);
+    }
+
     private static Response call(String method, String url, String actor, String bearer, Map<String, String> extra)
             throws IOException {
+        return call(method, url, actor, bearer, extra, null);
+    }
+
+    private static Response call(String method, String url, String actor, String bearer, Map<String, String> extra,
+            String payload) throws IOException {
         // HttpURLConnection non riscrive la query: `?=x` e `%zz` arrivano a Tomcat come sono.
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         c.setRequestMethod(method);
@@ -230,6 +265,10 @@ class UnnamedParameterTest {
             c.setRequestProperty("Authorization", "Bearer " + bearer);
         }
         extra.forEach(c::setRequestProperty);
+        if (payload != null) {
+            c.setDoOutput(true);
+            c.getOutputStream().write(payload.getBytes(StandardCharsets.UTF_8));
+        }
         int status = c.getResponseCode();
         try (InputStream in = status >= 400 ? c.getErrorStream() : c.getInputStream()) {
             String body = in == null ? "" : new String(in.readAllBytes(), StandardCharsets.UTF_8);

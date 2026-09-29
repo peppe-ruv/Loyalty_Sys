@@ -46,7 +46,7 @@ Il testbook è eseguibile per intero con un comando e produce un rapporto riga p
 | Piattaforma | [§10quater](#10quater-tb-plt--piattaforma) | lh-common, hub | docs/04 · docs/05 · docs/06 · contracts/ | **eseguibile** — 565 righe |
 | Distribuzione (Fase 2) | `TB-DIST` | immagine, chart, compose, appliance, CLI, aggiornamento | docs/18 §3.1, ADR-026, 037, 038 · F2-DIST-* | pianificata — M8.1, M8.3, M12 |
 | Identità e accessi (Fase 2) | `TB-IAM` | Keycloak `idp`, BFF, resource server, client credentials | docs/18 §3.2, ADR-027 · F2-IAM-*, F2-SEC-06/07 | pianificata — M8.2 |
-| Sicurezza applicativa (Fase 2) | [§10sexies](#10sexies-tb-sec--sicurezza-applicativa-fase-2) | hub (tutti) | docs/18 §3.10, ADR-042 · F2-SEC-08…12 | **eseguibile** — 72 righe (M8.11c); BOLA, firme del bus, mass assignment e file pianificati con M8.10 |
+| Sicurezza applicativa (Fase 2) | [§10sexies](#10sexies-tb-sec--sicurezza-applicativa-fase-2) | hub (tutti) | docs/18 §3.10, ADR-042 · F2-SEC-08…12 | **eseguibile** — 71 righe (M8.11c); BOLA, firme del bus, mass assignment e file pianificati con M8.10 |
 | Governo e conformità (Fase 2) | `TB-GRC` | tutti, CLI | docs/18 §3.15, ADR-044 · F2-GRC-* | pianificata — M8.13, M12.6 |
 | Esperienza data-driven (Fase 2) | `TB-EXP` | experience, cms, web | docs/18 §3.5–3.7, ADR-029…031, 039 · F2-EXP-*, F2-DS-* | pianificata — M10 |
 | Multilingua (Fase 2) | `TB-I18N` | web, tutti | docs/18 §3.8, ADR-033 · F2-I18N-* | pianificata — M11 |
@@ -215,8 +215,8 @@ Nati con l'adozione di Fase 2 (M8.0, `docs/18` Appendice B punti 9 e 14): stesso
 
 ## 10sexies. TB-SEC — Sicurezza applicativa (Fase 2)
 Documento completo: [`docs/testbook/TB-SEC-sicurezza.md`](testbook/TB-SEC-sicurezza.md) — 3 regole (nessun `5xx`, nessun effetto
-dell'iniezione, nessuna fuga nelle risposte d'errore), **72 righe** in 2 aree: 64 di input ostili (tabella completa 8 bersagli × 8
-carichi) e 8 di errori. Test: `deploy/hub/src/test/java/io/loyaltyhub/hub/TestbookSecHubIT` (profili `demo, inproc`), dati in
+dell'iniezione, nessuna fuga nelle risposte d'errore), **71 righe** in 2 aree: 64 di input ostili (tabella completa 8 bersagli × 8
+carichi) e 7 di errori. Test: `deploy/hub/src/test/java/io/loyaltyhub/hub/TestbookSecHubIT` (profili `demo, inproc`), dati in
 `deploy/hub/src/test/resources/testbook/sec/`. Il fuzzing Schemathesis e lo ZAP API scan del workflow notturno `security-nightly`
 ([`docs/security/dast.md`](security/dast.md)) estendono le stesse regole a ogni operazione di `contracts/api`.
 

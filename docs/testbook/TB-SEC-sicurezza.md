@@ -18,7 +18,7 @@ Comando: `./mvnw -pl deploy/hub -am verify -Dit.test=TestbookSecHubIT` (circa un
 
 | Regola | Enunciato (sintesi) | Fonte | Righe |
 |---|---|---|---|
-| R-01 | Nessun input produce un `5xx`: SQL, NUL, valori enormi, percorsi e intestazioni ostili ricevono un errore del client o un esito normale, mai un errore del server | docs/18 §3.10 p.4, 5, 12 («sì su 5xx») · docs/12 M8 (accettazione) | FUZ (tutte), ERR-001…005, ERR-008 |
+| R-01 | Nessun input produce un `5xx`: SQL, NUL, valori enormi, percorsi e intestazioni ostili ricevono un errore del client o un esito normale, mai un errore del server | docs/18 §3.10 p.4, 5, 12 («sì su 5xx») · docs/12 M8 (accettazione) | FUZ (tutte), ERR-001…005 |
 | R-02 | Un'iniezione non ha effetto: le letture lasciano invariato lo stato (impronta identica prima e dopo), un filtro ostile non allarga il risultato (nessun record del seed contiene quei testi), i template e i campi non si valutano come espressioni (`${7*7}` non diventa `49`), nessuna intestazione iniettata compare nella risposta | docs/18 §3.10 p.4, 5 · ADR-042 | FUZ (tutte) |
 | R-03 | Le risposte d'errore non contengono stack trace né dettagli interni: nessun `trace`, `exception`, riga di stack (`at io.loyaltyhub`, `at org.`, `at java.`), classe di framework o driver (`org.springframework`, `org.postgresql`, `PSQLException`, `SQLSTATE`, `jdbc:`, `Hikari`), nome del contenitore (`Apache Tomcat`), percorso dell'immagine (`/opt/lh`) né testo SQL (`select … from`) | docs/18 §3.10 p.5 · docs/06 §2 | ERR (tutte), FUZ (tutte) |
 
@@ -33,7 +33,7 @@ Il workflow `security-nightly` prova le stesse regole su ogni operazione; le rig
 | ZAP, regola 6 (Path Traversal) | lettura di file fuori dalla radice (R-02) | FUZ-006, 014, 022, 030, 038, 046, 054, 062 |
 | ZAP, regola 40003 (CRLF Injection) | intestazioni iniettate nella risposta (R-02) | FUZ-007, 015, 023, 031, 039, 047, 055, 063 |
 | ZAP, regola 90035 e 90036 (Server-Side Template Injection) | valutazione di espressioni di template (R-02) | FUZ-008, 016, 024, 032, 040, 048, 056, 064 |
-| ZAP, regola 90022 (Application Error Disclosure) e 10023 (Information Disclosure, debug error messages) | stack trace e dettagli interni nelle risposte d'errore (R-03) | ERR-001…008 e ogni riga FUZ con esito d'errore |
+| ZAP, regola 90022 (Application Error Disclosure) e 10023 (Information Disclosure, debug error messages) | stack trace e dettagli interni nelle risposte d'errore (R-03) | ERR-001…007 e ogni riga FUZ con esito d'errore |
 
 ## 3. TB-SEC-FUZ — input ostili
 
@@ -134,7 +134,6 @@ Errori di forma e di percorso su API vere: la risposta ha lo stato della specifi
 | TB-SEC-ERR-005 | `POST /v1/members` | 415, senza fughe | R-03 · docs/06 §2; docs/18 §3.10 p.5; Q-333 | `TestbookSecHubIT#errorsWithoutLeaks` · `err.csv` |
 | TB-SEC-ERR-006 | `GET /v1/members?q=a%00b` | qualsiasi stato, senza fughe | R-03 · docs/06 §2; docs/18 §3.10 p.5 | `TestbookSecHubIT#errorsWithoutLeaks` · `err.csv` |
 | TB-SEC-ERR-007 | `GET /v1/members/a%00b` | qualsiasi stato, senza fughe | R-03 · docs/06 §2; docs/18 §3.10 p.5 | `TestbookSecHubIT#errorsWithoutLeaks` · `err.csv` |
-| TB-SEC-ERR-008 | `GET /v1/members?=x` | 400, senza fughe | R-01, R-03 · docs/06 §2; docs/18 §3.10 p.5, 12; Q-532 (a) | `TestbookSecHubIT#errorsWithoutLeaks` · `err.csv` |
 
 ## 5. Aree di `docs/18 §3.13` e dove si provano
 
