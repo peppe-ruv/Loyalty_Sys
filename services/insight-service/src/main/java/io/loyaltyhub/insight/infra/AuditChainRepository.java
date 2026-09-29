@@ -35,6 +35,30 @@ public class AuditChainRepository {
             correlation_id, summary, before::text AS before_json, after::text AS after_json, content_hash,
             entry_hash, redacted_at""";
 
+    /*
+     * Le due query che seguono uniscono solo costanti di compilazione (LINK_COLUMNS e text block): il testo SQL è fisso
+     * e i valori arrivano come parametri (regola 19, ADR-042).
+     */
+
+    /** Pagina di anelli di un servizio dopo un {@code seq}, in ordine di catena (paginazione a chiave). */
+    private static final String LINKS_PAGE = "SELECT " + LINK_COLUMNS + """
+
+            FROM audit_entry
+            WHERE service = ? AND seq > ?
+            ORDER BY seq
+            LIMIT ?
+            """;
+
+    /** Ultima prova REDACT che riguarda una voce, nella catena riservata {@link #REDACTION_SERVICE}. */
+    private static final String LATEST_REDACTION = "SELECT " + LINK_COLUMNS + """
+            , after ->> 'service' AS target_service, after ->> 'seq' AS target_seq,
+              after ->> 'contentHash' AS target_content_hash, after ->> 'memberId' AS member_id
+            FROM audit_entry
+            WHERE entity_type = 'AUDIT_ENTRY' AND entity_id = ? AND service = ? AND action = 'REDACT'
+            ORDER BY seq DESC
+            LIMIT 1
+            """;
+
     private final JdbcClient jdbc;
 
     public AuditChainRepository(JdbcClient jdbc) {
@@ -81,13 +105,7 @@ public class AuditChainRepository {
 
     /** Pagina di anelli del servizio con {@code seq > afterSeq}, in ordine di {@code seq} (paginazione a chiave). */
     public List<AuditChainLink> links(String service, long afterSeq, int limit) {
-        return jdbc.sql("SELECT " + LINK_COLUMNS + """
-
-                        FROM audit_entry
-                        WHERE service = ? AND seq > ?
-                        ORDER BY seq
-                        LIMIT ?
-                        """)
+        return jdbc.sql(LINKS_PAGE)
                 .params(service, afterSeq, limit)
                 .query(AuditChainRepository::link).list();
     }
@@ -120,14 +138,7 @@ public class AuditChainRepository {
         return new RedactionLookup() {
             @Override
             public Optional<RedactionEvidence> latest(String entryId) {
-                return jdbc.sql("SELECT " + LINK_COLUMNS + """
-                                , after ->> 'service' AS target_service, after ->> 'seq' AS target_seq,
-                                  after ->> 'contentHash' AS target_content_hash, after ->> 'memberId' AS member_id
-                                FROM audit_entry
-                                WHERE entity_type = 'AUDIT_ENTRY' AND entity_id = ? AND service = ? AND action = 'REDACT'
-                                ORDER BY seq DESC
-                                LIMIT 1
-                                """)
+                return jdbc.sql(LATEST_REDACTION)
                         .params(entryId, REDACTION_SERVICE)
                         .query((rs, n) -> new RedactionEvidence(link(rs, n), rs.getString("target_service"),
                                 longOrNull(rs.getString("target_seq")), rs.getString("target_content_hash"),

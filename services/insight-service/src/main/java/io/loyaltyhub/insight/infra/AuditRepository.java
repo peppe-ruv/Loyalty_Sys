@@ -2,6 +2,9 @@ package io.loyaltyhub.insight.infra;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlOrder;
+import io.loyaltyhub.common.sql.SqlWhere;
 import io.loyaltyhub.insight.domain.AuditAnchor;
 import io.loyaltyhub.insight.domain.AuditRecord;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -11,7 +14,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,6 +26,38 @@ import java.util.Optional;
  */
 @Repository
 public class AuditRepository {
+
+    /** Colonne ammesse nei filtri e nell'ordinamento di {@link #search}/{@link #count} (regola 19, ADR-042). */
+    enum AuditColumn implements SqlColumn {
+        ACTOR_NAME("actor_name"), ACTOR_ROLE("actor_role"), SERVICE("service"), ENTITY_TYPE("entity_type"),
+        ENTITY_ID("entity_id"), ACTION("action"), AT("at");
+
+        private final String sql;
+
+        AuditColumn(String sql) {
+            this.sql = sql;
+        }
+
+        @Override
+        public String sql() {
+            return sql;
+        }
+    }
+
+    /**
+     * Testo SQL costante dell'elenco (regola 19, docs/18 §3.10 punto 4): vi si accodano solo {@link SqlWhere#sql()},
+     * l'ordinamento costante {@link #SEARCH_ORDER} e la pagina legata {@link #SEARCH_PAGE}. Solo lettura: la tabella
+     * resta in sola inserzione (ADR-043).
+     */
+    static final String SEARCH_SELECT = "SELECT * FROM audit_entry";
+
+    /** Come {@link #SEARCH_SELECT}, per il totale: vi si accoda solo {@link SqlWhere#sql()}. */
+    static final String COUNT_SELECT = "SELECT count(*) FROM audit_entry";
+
+    /** Dalla voce più recente, come prima del builder. */
+    static final String SEARCH_ORDER = SqlOrder.desc(AuditColumn.AT).sql();
+
+    static final String SEARCH_PAGE = " LIMIT :limit OFFSET :offset";
 
     private final JdbcClient jdbc;
     private final ObjectMapper mapper;
@@ -57,47 +91,34 @@ public class AuditRepository {
     /** Ricerca con filtri opzionali (docs §3), ordinata dalla più recente. */
     public List<AuditRecord> search(String actor, String role, String service, String entityType,
                                     String entityId, String action, Instant from, Instant to, int limit, int offset) {
-        StringBuilder sql = new StringBuilder("SELECT * FROM audit_entry WHERE 1=1");
-        List<Object> args = new ArrayList<>();
-        appendEq(sql, args, "actor_name", actor);
-        appendEq(sql, args, "actor_role", role);
-        appendEq(sql, args, "service", service);
-        appendEq(sql, args, "entity_type", entityType);
-        appendEq(sql, args, "entity_id", entityId);
-        appendEq(sql, args, "action", action);
-        if (from != null) {
-            sql.append(" AND at >= ?");
-            args.add(Timestamp.from(from));
-        }
-        if (to != null) {
-            sql.append(" AND at <= ?");
-            args.add(Timestamp.from(to));
-        }
-        sql.append(" ORDER BY at DESC LIMIT ? OFFSET ?");
-        args.add(limit);
-        args.add(offset);
-        return jdbc.sql(sql.toString()).params(args).query(this::map).list();
+        SqlWhere where = filters(actor, role, service, entityType, entityId, action, from, to);
+        return where.bind(jdbc.sql(SEARCH_SELECT + where.sql() + SEARCH_ORDER + SEARCH_PAGE))
+                .param("limit", limit)
+                .param("offset", offset)
+                .query(this::map).list();
     }
 
     public long count(String actor, String role, String service, String entityType,
                       String entityId, String action, Instant from, Instant to) {
-        StringBuilder sql = new StringBuilder("SELECT count(*) FROM audit_entry WHERE 1=1");
-        List<Object> args = new ArrayList<>();
-        appendEq(sql, args, "actor_name", actor);
-        appendEq(sql, args, "actor_role", role);
-        appendEq(sql, args, "service", service);
-        appendEq(sql, args, "entity_type", entityType);
-        appendEq(sql, args, "entity_id", entityId);
-        appendEq(sql, args, "action", action);
-        if (from != null) {
-            sql.append(" AND at >= ?");
-            args.add(Timestamp.from(from));
-        }
-        if (to != null) {
-            sql.append(" AND at <= ?");
-            args.add(Timestamp.from(to));
-        }
-        return jdbc.sql(sql.toString()).params(args).query(Long.class).single();
+        SqlWhere where = filters(actor, role, service, entityType, entityId, action, from, to);
+        return where.bind(jdbc.sql(COUNT_SELECT + where.sql())).query(Long.class).single();
+    }
+
+    /**
+     * Filtri facoltativi per uguaglianza, ignorati se assenti o vuoti. I valori passano così come arrivano, senza
+     * togliere spazi, come prima del builder; l'intervallo {@code [from, to]} è su {@code at}, estremi inclusi.
+     */
+    static SqlWhere filters(String actor, String role, String service, String entityType, String entityId,
+                            String action, Instant from, Instant to) {
+        return new SqlWhere()
+                .eqIfPresent(AuditColumn.ACTOR_NAME, actor)
+                .eqIfPresent(AuditColumn.ACTOR_ROLE, role)
+                .eqIfPresent(AuditColumn.SERVICE, service)
+                .eqIfPresent(AuditColumn.ENTITY_TYPE, entityType)
+                .eqIfPresent(AuditColumn.ENTITY_ID, entityId)
+                .eqIfPresent(AuditColumn.ACTION, action)
+                .when(from != null, w -> w.gte(AuditColumn.AT, Timestamp.from(from)))
+                .when(to != null, w -> w.lte(AuditColumn.AT, Timestamp.from(to)));
     }
 
     /** Esito della retention dell'audit: voci cancellate e ancore PURGE lasciate (una per catena accorciata). */
@@ -166,13 +187,6 @@ public class AuditRepository {
     /** Reset della demo (§6): voci, teste e ancore; le catene ripartono dalla genesi (funzione {@code audit_reset}). */
     public void deleteAll() {
         jdbc.sql("SELECT audit_reset()").query(Integer.class).single();
-    }
-
-    private static void appendEq(StringBuilder sql, List<Object> args, String column, String value) {
-        if (value != null && !value.isBlank()) {
-            sql.append(" AND ").append(column).append(" = ?");
-            args.add(value);
-        }
     }
 
     private String json(JsonNode node) {

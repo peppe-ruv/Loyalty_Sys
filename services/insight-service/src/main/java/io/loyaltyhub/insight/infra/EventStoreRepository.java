@@ -1,5 +1,8 @@
 package io.loyaltyhub.insight.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlOrder;
+import io.loyaltyhub.common.sql.SqlWhere;
 import io.loyaltyhub.insight.domain.StoredEvent;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -8,7 +11,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +22,56 @@ import java.util.Optional;
  */
 @Repository
 public class EventStoreRepository {
+
+    /** Colonne ammesse nei filtri e nell'ordinamento di ricerca e tracciati (regola 19, ADR-042). */
+    enum EventColumn implements SqlColumn {
+        TOPIC("topic"), FAMILY("family"), SHORT_TYPE("short_type"), MEMBER_ID("member_id"),
+        CORRELATION_ID("correlation_id"), SOURCE("source"), RECEIVED_AT("received_at"),
+        /** Resa testuale del payload, per la ricerca libera {@code q}. */
+        PAYLOAD_TEXT("payload::text");
+
+        private final String sql;
+
+        EventColumn(String sql) {
+            this.sql = sql;
+        }
+
+        @Override
+        public String sql() {
+            return sql;
+        }
+    }
+
+    /**
+     * Testo SQL costante della ricerca (regola 19, docs/18 §3.10 punto 4): vi si accodano solo {@link SqlWhere#sql()},
+     * l'ordinamento costante {@link #SEARCH_ORDER} e la pagina legata {@link #PAGE}.
+     */
+    static final String SEARCH_SELECT = "SELECT * FROM event_store";
+
+    /** Come {@link #SEARCH_SELECT}, per il totale: vi si accoda solo {@link SqlWhere#sql()}. */
+    static final String COUNT_SELECT = "SELECT count(*) FROM event_store";
+
+    /** Dal più recente, come prima del builder. */
+    static final String SEARCH_ORDER = SqlOrder.desc(EventColumn.RECEIVED_AT).sql();
+
+    static final String PAGE = " LIMIT :limit OFFSET :offset";
+
+    /**
+     * Testo SQL costante dei tracciati: il {@code WHERE} costante esclude gli eventi senza tracciato e vi si accodano
+     * solo {@link SqlWhere#andSql()} e {@link #CORRELATIONS_PAGE}.
+     */
+    static final String CORRELATIONS_SELECT = "SELECT correlation_id FROM event_store WHERE correlation_id IS NOT NULL";
+
+    /** Come {@link #CORRELATIONS_SELECT}, per il totale: vi si accoda solo {@link SqlWhere#andSql()}. */
+    static final String CORRELATIONS_COUNT =
+            "SELECT count(DISTINCT correlation_id) FROM event_store WHERE correlation_id IS NOT NULL";
+
+    /**
+     * Un tracciato per riga, dal più recentemente osservato. {@code max(received_at)} è un aggregato, non una colonna
+     * dell'allowlist: resta testo costante.
+     */
+    static final String CORRELATIONS_PAGE =
+            " GROUP BY correlation_id ORDER BY max(received_at) DESC LIMIT :limit OFFSET :offset";
 
     private final JdbcClient jdbc;
 
@@ -53,51 +105,45 @@ public class EventStoreRepository {
     public List<StoredEvent> search(String topic, String family, String type, String memberId,
                                     String correlationId, String source, Instant from, Instant to,
                                     String q, int limit, int offset) {
-        List<Object> args = new ArrayList<>();
-        String where = where(args, topic, family, type, memberId, correlationId, source, from, to, q);
-        args.add(limit);
-        args.add(offset);
-        return jdbc.sql("SELECT * FROM event_store" + where + " ORDER BY received_at DESC LIMIT ? OFFSET ?")
-                .params(args).query(EventStoreRepository::map).list();
+        SqlWhere where = filters(topic, family, type, memberId, correlationId, source, from, to, q);
+        return where.bind(jdbc.sql(SEARCH_SELECT + where.sql() + SEARCH_ORDER + PAGE))
+                .param("limit", limit)
+                .param("offset", offset)
+                .query(EventStoreRepository::map).list();
     }
 
     /** Totale degli eventi che passano i filtri di {@link #search} ({@code page.totalItems}, docs/06 §2). */
     public long count(String topic, String family, String type, String memberId, String correlationId,
                       String source, Instant from, Instant to, String q) {
-        List<Object> args = new ArrayList<>();
-        String where = where(args, topic, family, type, memberId, correlationId, source, from, to, q);
-        return jdbc.sql("SELECT count(*) FROM event_store" + where).params(args).query(Long.class).single();
+        SqlWhere where = filters(topic, family, type, memberId, correlationId, source, from, to, q);
+        return where.bind(jdbc.sql(COUNT_SELECT + where.sql())).query(Long.class).single();
     }
 
-    private static String where(List<Object> args, String topic, String family, String type, String memberId,
-                                String correlationId, String source, Instant from, Instant to, String q) {
-        StringBuilder sql = new StringBuilder(" WHERE 1 = 1");
-        appendEq(sql, args, "topic", topic);
-        appendEq(sql, args, "family", family == null ? null : family.toUpperCase());
-        appendEq(sql, args, "short_type", type);
-        appendEq(sql, args, "member_id", memberId);
-        appendEq(sql, args, "correlation_id", correlationId);
-        appendEq(sql, args, "source", source);
-        if (from != null) {
-            sql.append(" AND received_at >= ?");
-            args.add(Timestamp.from(from));
-        }
-        if (to != null) {
-            sql.append(" AND received_at <= ?");
-            args.add(Timestamp.from(to));
-        }
-        if (q != null && !q.isBlank()) {
-            sql.append(" AND payload::text ILIKE ?");
-            args.add("%" + q.trim() + "%");
-        }
-        return sql.toString();
+    /**
+     * Filtri facoltativi della ricerca, ignorati se assenti o vuoti; ogni testo è ripulito una volta sola (spazi
+     * esterni tolti, la famiglia anche in maiuscolo). {@code q} è un testo letterale cercato nel payload senza
+     * distinguere maiuscole ({@code %}, {@code _} e {@code \} non sono caratteri jolly); l'intervallo
+     * {@code [from, to]} è su {@code received_at}, estremi inclusi.
+     */
+    static SqlWhere filters(String topic, String family, String type, String memberId, String correlationId,
+                            String source, Instant from, Instant to, String q) {
+        String cleanFamily = clean(family);
+        String text = clean(q);
+        return new SqlWhere()
+                .eqIfPresent(EventColumn.TOPIC, clean(topic))
+                .eqIfPresent(EventColumn.FAMILY, cleanFamily == null ? null : cleanFamily.toUpperCase())
+                .eqIfPresent(EventColumn.SHORT_TYPE, clean(type))
+                .eqIfPresent(EventColumn.MEMBER_ID, clean(memberId))
+                .eqIfPresent(EventColumn.CORRELATION_ID, clean(correlationId))
+                .eqIfPresent(EventColumn.SOURCE, clean(source))
+                .when(from != null, w -> w.gte(EventColumn.RECEIVED_AT, Timestamp.from(from)))
+                .when(to != null, w -> w.lte(EventColumn.RECEIVED_AT, Timestamp.from(to)))
+                .when(text != null, w -> w.ilike(EventColumn.PAYLOAD_TEXT, text, SqlWhere.Match.CONTAINS));
     }
 
-    private static void appendEq(StringBuilder sql, List<Object> args, String col, String value) {
-        if (value != null && !value.isBlank()) {
-            sql.append(" AND ").append(col).append(" = ?");
-            args.add(value.trim());
-        }
+    /** Valore senza spazi esterni, oppure {@code null} (nessun filtro) se assente o vuoto. */
+    private static String clean(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /** Tutti gli eventi di un tracciato, in ordine di osservazione (per costruire l'albero). */
@@ -108,21 +154,17 @@ public class EventStoreRepository {
 
     /** Gli ultimi correlationId osservati (uno per tracciato), opzionalmente per membro e intervallo, a pagine. */
     public List<String> recentCorrelationIds(String memberId, Instant from, Instant to, int limit, int offset) {
-        List<Object> args = new ArrayList<>();
-        String where = correlationWhere(args, memberId, from, to);
-        args.add(limit);
-        args.add(offset);
-        return jdbc.sql("SELECT correlation_id FROM event_store" + where
-                        + " GROUP BY correlation_id ORDER BY max(received_at) DESC LIMIT ? OFFSET ?")
-                .params(args).query(String.class).list();
+        SqlWhere where = correlationFilters(memberId, from, to);
+        return where.bind(jdbc.sql(CORRELATIONS_SELECT + where.andSql() + CORRELATIONS_PAGE))
+                .param("limit", limit)
+                .param("offset", offset)
+                .query(String.class).list();
     }
 
     /** Numero di tracciati distinti che passano i filtri di {@link #recentCorrelationIds}. */
     public long countCorrelationIds(String memberId, Instant from, Instant to) {
-        List<Object> args = new ArrayList<>();
-        String where = correlationWhere(args, memberId, from, to);
-        return jdbc.sql("SELECT count(DISTINCT correlation_id) FROM event_store" + where)
-                .params(args).query(Long.class).single();
+        SqlWhere where = correlationFilters(memberId, from, to);
+        return where.bind(jdbc.sql(CORRELATIONS_COUNT + where.andSql())).query(Long.class).single();
     }
 
     /**
@@ -141,21 +183,12 @@ public class EventStoreRepository {
         return out;
     }
 
-    private static String correlationWhere(List<Object> args, String memberId, Instant from, Instant to) {
-        StringBuilder sql = new StringBuilder(" WHERE correlation_id IS NOT NULL");
-        if (memberId != null && !memberId.isBlank()) {
-            sql.append(" AND member_id = ?");
-            args.add(memberId.trim());
-        }
-        if (from != null) {
-            sql.append(" AND received_at >= ?");
-            args.add(Timestamp.from(from));
-        }
-        if (to != null) {
-            sql.append(" AND received_at <= ?");
-            args.add(Timestamp.from(to));
-        }
-        return sql.toString();
+    /** Filtri facoltativi dei tracciati: membro ripulito una volta sola, intervallo su {@code received_at} incluso. */
+    static SqlWhere correlationFilters(String memberId, Instant from, Instant to) {
+        return new SqlWhere()
+                .eqIfPresent(EventColumn.MEMBER_ID, clean(memberId))
+                .when(from != null, w -> w.gte(EventColumn.RECEIVED_AT, Timestamp.from(from)))
+                .when(to != null, w -> w.lte(EventColumn.RECEIVED_AT, Timestamp.from(to)));
     }
 
     /** Retention per età (docs §5): elimina gli eventi più vecchi di N giorni. */

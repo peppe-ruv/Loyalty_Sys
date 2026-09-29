@@ -2,6 +2,7 @@ package io.loyaltyhub.insight.infra;
 
 import io.loyaltyhub.common.privacy.PersonalData;
 import io.loyaltyhub.common.privacy.PersonalTextScrubber;
+import io.loyaltyhub.common.sql.SqlWhere;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import tools.jackson.databind.JsonNode;
@@ -62,6 +63,21 @@ public class MemberRedactionRepository {
     private record DlqRow(String id, String payload, String errorMessage) {
     }
 
+    /** Voci di audit sull'entità membro (testo SQL costante, regola 19). */
+    private static final String AUDIT_OF_MEMBER = """
+            SELECT id, summary, before::text AS b, after::text AS a FROM audit_entry
+            WHERE entity_id = ?
+            """;
+
+    /**
+     * Voci di audit di altre entità che citano un valore inequivocabile del membro (testo SQL costante, regola 19): i
+     * tre {@code ILIKE} ricevono lo stesso modello di {@link #like(String)}.
+     */
+    private static final String AUDIT_MENTIONING_MEMBER = """
+            SELECT id, summary, before::text AS b, after::text AS a FROM audit_entry
+            WHERE entity_id <> ? AND (summary ILIKE ? OR before::text ILIKE ? OR after::text ILIKE ?)
+            """;
+
     private final JdbcClient jdbc;
     private final ObjectMapper mapper;
 
@@ -102,12 +118,12 @@ public class MemberRedactionRepository {
         }
 
         // 2. voci di audit.
-        for (AuditRow a : auditRows("entity_id = ?", memberId)) {
+        for (AuditRow a : auditRows(jdbc.sql(AUDIT_OF_MEMBER).param(memberId))) {
             changed += rewriteAudit(memberId, anonymizationEventId, correlationId, a, known.all(), true);
         }
         for (String token : known.strong()) {
-            for (AuditRow a : auditRows("entity_id <> ? AND (summary ILIKE ? OR before::text ILIKE ? OR after::text ILIKE ?)",
-                    memberId, like(token), like(token), like(token))) {
+            String like = like(token);
+            for (AuditRow a : auditRows(jdbc.sql(AUDIT_MENTIONING_MEMBER).params(memberId, like, like, like))) {
                 changed += rewriteAudit(memberId, anonymizationEventId, correlationId, a, known.strong(), false);
             }
         }
@@ -191,9 +207,8 @@ public class MemberRedactionRepository {
         return 1;
     }
 
-    private List<AuditRow> auditRows(String where, Object... args) {
-        return jdbc.sql("SELECT id, summary, before::text AS b, after::text AS a FROM audit_entry WHERE " + where)
-                .params(List.of(args))
+    private static List<AuditRow> auditRows(JdbcClient.StatementSpec statement) {
+        return statement
                 .query((rs, n) -> new AuditRow(rs.getString("id"), rs.getString("summary"), rs.getString("b"), rs.getString("a")))
                 .list();
     }
@@ -256,8 +271,12 @@ public class MemberRedactionRepository {
         return mapper.writeValueAsString(node);
     }
 
+    /**
+     * Modello {@code ILIKE} di un valore letterale: {@code %}, {@code _} e {@code \} neutralizzati con l'escape comune
+     * del builder ({@code \} è anche l'escape predefinito di PostgreSQL per {@code LIKE}).
+     */
     private static String like(String token) {
-        return "%" + token.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+        return "%" + SqlWhere.escapeLike(token) + "%";
     }
 
     private static String text(JsonNode d, String field) {
