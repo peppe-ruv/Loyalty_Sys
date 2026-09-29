@@ -1,0 +1,8 @@
+id,descrizione,metodo,percorso,attore,contentType,corpo,stato,divergenza
+TB-SEC-ERR-001,JSON troncato su una scrittura: 400 senza dettagli interni,POST,/v1/campaigns,ADMIN:marta.admin,application/json,"{""name"":",400,-
+TB-SEC-ERR-002,parametro di query non numerico: 400 senza dettagli interni,GET,/v1/members?page=abc,ADMIN:marta.admin,-,-,400,-
+TB-SEC-ERR-003,percorso inesistente: 404 senza dettagli interni,GET,/v1/non-esiste,-,-,-,404,-
+TB-SEC-ERR-004,metodo non ammesso: 405 senza dettagli interni,DELETE,/v1/campaigns,ADMIN:marta.admin,-,-,405,-
+TB-SEC-ERR-005,tipo di contenuto non supportato: 415 senza dettagli interni,POST,/v1/members,ADMIN:marta.admin,text/plain,x,415,-
+TB-SEC-ERR-006,byte NUL nella query: nessuna fuga di dettagli,GET,/v1/members?q=a%00b,ADMIN:marta.admin,-,-,qualsiasi,-
+TB-SEC-ERR-007,byte NUL nel percorso: nessuna fuga di dettagli,GET,/v1/members/a%00b,ADMIN:marta.admin,-,-,qualsiasi,-

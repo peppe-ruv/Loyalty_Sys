@@ -46,7 +46,7 @@ Il testbook è eseguibile per intero con un comando e produce un rapporto riga p
 | Piattaforma | [§10quater](#10quater-tb-plt--piattaforma) | lh-common, hub | docs/04 · docs/05 · docs/06 · contracts/ | **eseguibile** — 565 righe |
 | Distribuzione (Fase 2) | `TB-DIST` | immagine, chart, compose, appliance, CLI, aggiornamento | docs/18 §3.1, ADR-026, 037, 038 · F2-DIST-* | pianificata — M8.1, M8.3, M12 |
 | Identità e accessi (Fase 2) | `TB-IAM` | Keycloak `idp`, BFF, resource server, client credentials | docs/18 §3.2, ADR-027 · F2-IAM-*, F2-SEC-06/07 | pianificata — M8.2 |
-| Sicurezza applicativa (Fase 2) | `TB-SEC` | lh-common, tutti | docs/18 §3.10, ADR-042 · F2-SEC-08…12 | pianificata — M8.10, M8.11 |
+| Sicurezza applicativa (Fase 2) | [§10sexies](#10sexies-tb-sec--sicurezza-applicativa-fase-2) | hub (tutti) | docs/18 §3.10, ADR-042 · F2-SEC-08…12 | **eseguibile** — 71 righe (M8.11c); BOLA, firme del bus, mass assignment e file pianificati con M8.10 |
 | Governo e conformità (Fase 2) | `TB-GRC` | tutti, CLI | docs/18 §3.15, ADR-044 · F2-GRC-* | pianificata — M8.13, M12.6 |
 | Esperienza data-driven (Fase 2) | `TB-EXP` | experience, cms, web | docs/18 §3.5–3.7, ADR-029…031, 039 · F2-EXP-*, F2-DS-* | pianificata — M10 |
 | Multilingua (Fase 2) | `TB-I18N` | web, tutti | docs/18 §3.8, ADR-033 · F2-I18N-* | pianificata — M11 |
@@ -213,6 +213,28 @@ mappati, **565 righe** in 28 aree. Test: `libs/lh-common/src/test/java/io/loyalt
 
 Nati con l'adozione di Fase 2 (M8.0, `docs/18` Appendice B punti 9 e 14): stesso metodo di §1, righe `TB-<DOM>-NNN` in `docs/testbook/TB-<DOM>-*.md`, oracolo = `docs/18` e le ADR 026–045. Ogni dominio diventa *eseguibile* con le fette della sua milestone; fino ad allora non ha righe. `TB-SEC` è obbligatorio dalla fetta M8.11 (job `security`), `TB-GRC` dalla M8.13.
 
+## 10sexies. TB-SEC — Sicurezza applicativa (Fase 2)
+Documento completo: [`docs/testbook/TB-SEC-sicurezza.md`](testbook/TB-SEC-sicurezza.md) — 3 regole (nessun `5xx`, nessun effetto
+dell'iniezione, nessuna fuga nelle risposte d'errore), **71 righe** in 2 aree: 64 di input ostili (tabella completa 8 bersagli × 8
+carichi) e 7 di errori. Test: `deploy/hub/src/test/java/io/loyaltyhub/hub/TestbookSecHubIT` (profili `demo, inproc`), dati in
+`deploy/hub/src/test/resources/testbook/sec/`. Il fuzzing Schemathesis e lo ZAP API scan del workflow notturno `security-nightly`
+([`docs/security/dast.md`](security/dast.md)) estendono le stesse regole a ogni operazione di `contracts/api`.
+
+- **Coperto:** iniezione SQL (tautologia, istruzione impilata, `UNION`), byte NUL, 10 000 caratteri, path traversal, CRLF ed
+  espressioni di template sulle quattro ricerche `q` (membri, campagne, premi, eventi), sul dettaglio di un membro, sull'anteprima
+  dei template, sulla creazione di un membro e sull'ingresso di un evento; in lettura, impronta dello stato identica prima e dopo,
+  nessun risultato allargato dal filtro; errori di forma, di percorso, di metodo e di tipo di contenuto senza stack trace né dettagli
+  interni.
+- **Non coperto, pianificato con M8.10 e M8.10f:** BOLA sul portale (`/v1/portal/**` è in rifacimento), *mass assignment*, firme
+  del bus, limite per membro, `Idempotency-Key` e file caricati. BFLA, SSRF e limite per IP sono già in `TB-GOV`, `TB-ENG` e `TB-PLT`.
+- **Divergenze trovate (5 righe, 1 causa):** un byte NUL in `q` (membri, campagne, premi, eventi) o in `firstName` arriva a Postgres
+  e produce `500` (`PSQLException: invalid byte sequence for encoding "UTF8": 0x00`). La risposta non rivela nulla; è la regola «nessun
+  5xx» a non reggere. Non corrette in questa fetta (nessun codice di prodotto): le righe hanno `divergenza` = `Q-532` e sono
+  *saltate*, non tolte (Q-538); il registro è in §12.
+- **Scelte registrate:** Q-532 (difetti trovati dal fuzzing e loro cause) e Q-538 (righe con divergenza saltate); il resto
+  del workflow notturno in Q-530, Q-531, Q-533…Q-537.
+- **Verifica a mutazione:** 4 mutazioni locali (dettaglio dell'errore con `ex.toString()`, filtro dei membri allargato da un apice, template che valuta `${7*7}`, intestazione `X-Injected` nella risposta), tutte rilevate; dettaglio in `TB-SEC-sicurezza.md §7`.
+
 ## 11. Copertura
 
 | Dominio | Regole | Rami del codice mappati | Righe | Combinazioni ridotte | Divergenze aperte |
@@ -223,4 +245,8 @@ Nati con l'adozione di Fase 2 (M8.0, `docs/18` Appendice B punti 9 e 14): stesso
 
 | Riga | Specifica | Comportamento osservato | Causa (file:riga) | Esito |
 |---|---|---|---|---|
-| _nessuna registrata_ | | | | |
+| TB-SEC-FUZ-004 · D-1 | docs/18 §3.10 p.4, 5, 12: nessun 5xx a input ostili | `GET /v1/members?q=` con un byte NUL: `500 INTERNAL_ERROR` | `member-service` `MemberRepository.search` :206 (ILIKE con il testo di `q`); `PSQLException` `invalid byte sequence for encoding "UTF8": 0x00` | aperta, Q-532 (riga saltata, Q-538) |
+| TB-SEC-FUZ-012 · D-2 | idem | `GET /v1/campaigns?q=` con un byte NUL: `500` | `campaign-service` `CampaignRepository.search` :83; stessa `PSQLException` | aperta, Q-532 (riga saltata, Q-538) |
+| TB-SEC-FUZ-020 · D-3 | idem | `GET /v1/rewards?q=` con un byte NUL: `500` | `reward-service` `RewardRepository.search` :48; stessa `PSQLException` | aperta, Q-532 (riga saltata, Q-538) |
+| TB-SEC-FUZ-028 · D-4 | idem | `GET /v1/events?q=` con un byte NUL: `500` | `insight-service` `EventStoreRepository.search` :105 (`payload::text ILIKE`); stessa `PSQLException` | aperta, Q-532 (riga saltata, Q-538) |
+| TB-SEC-FUZ-052 · D-5 | idem | `POST /v1/members` con un byte NUL in `firstName`: `500` | `member-service` `MemberRepository` :61 (`INSERT INTO member`); stessa `PSQLException` | aperta, Q-532 (riga saltata, Q-538) |

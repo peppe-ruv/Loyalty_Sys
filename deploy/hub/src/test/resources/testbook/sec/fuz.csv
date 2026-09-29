@@ -1,0 +1,65 @@
+id,descrizione,bersaglio,carico,atteso,divergenza
+TB-SEC-FUZ-001,GET /v1/members?q= con tautologia SQL,members-q,SQL_TAUTOLOGIA,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-002,GET /v1/members?q= con istruzione SQL impilata,members-q,SQL_IMPILATA,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-003,GET /v1/members?q= con UNION SELECT,members-q,SQL_UNION,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-004,GET /v1/members?q= con byte NUL,members-q,NUL,NO_5XX+INVARIATO,Q-532
+TB-SEC-FUZ-005,GET /v1/members?q= con 10 000 caratteri,members-q,LUNGO_10K,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-006,GET /v1/members?q= con path traversal,members-q,TRAVERSAL,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-007,GET /v1/members?q= con CRLF e intestazione iniettata,members-q,CRLF,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-008,GET /v1/members?q= con espressioni di template,members-q,ESPRESSIONE,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-009,GET /v1/campaigns?q= con tautologia SQL,campaigns-q,SQL_TAUTOLOGIA,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-010,GET /v1/campaigns?q= con istruzione SQL impilata,campaigns-q,SQL_IMPILATA,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-011,GET /v1/campaigns?q= con UNION SELECT,campaigns-q,SQL_UNION,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-012,GET /v1/campaigns?q= con byte NUL,campaigns-q,NUL,NO_5XX+INVARIATO,Q-532
+TB-SEC-FUZ-013,GET /v1/campaigns?q= con 10 000 caratteri,campaigns-q,LUNGO_10K,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-014,GET /v1/campaigns?q= con path traversal,campaigns-q,TRAVERSAL,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-015,GET /v1/campaigns?q= con CRLF e intestazione iniettata,campaigns-q,CRLF,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-016,GET /v1/campaigns?q= con espressioni di template,campaigns-q,ESPRESSIONE,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-017,GET /v1/rewards?q= con tautologia SQL,rewards-q,SQL_TAUTOLOGIA,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-018,GET /v1/rewards?q= con istruzione SQL impilata,rewards-q,SQL_IMPILATA,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-019,GET /v1/rewards?q= con UNION SELECT,rewards-q,SQL_UNION,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-020,GET /v1/rewards?q= con byte NUL,rewards-q,NUL,NO_5XX+INVARIATO,Q-532
+TB-SEC-FUZ-021,GET /v1/rewards?q= con 10 000 caratteri,rewards-q,LUNGO_10K,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-022,GET /v1/rewards?q= con path traversal,rewards-q,TRAVERSAL,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-023,GET /v1/rewards?q= con CRLF e intestazione iniettata,rewards-q,CRLF,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-024,GET /v1/rewards?q= con espressioni di template,rewards-q,ESPRESSIONE,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-025,GET /v1/events?q= con tautologia SQL,events-q,SQL_TAUTOLOGIA,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-026,GET /v1/events?q= con istruzione SQL impilata,events-q,SQL_IMPILATA,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-027,GET /v1/events?q= con UNION SELECT,events-q,SQL_UNION,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-028,GET /v1/events?q= con byte NUL,events-q,NUL,NO_5XX+INVARIATO,Q-532
+TB-SEC-FUZ-029,GET /v1/events?q= con 10 000 caratteri,events-q,LUNGO_10K,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-030,GET /v1/events?q= con path traversal,events-q,TRAVERSAL,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-031,GET /v1/events?q= con CRLF e intestazione iniettata,events-q,CRLF,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-032,GET /v1/events?q= con espressioni di template,events-q,ESPRESSIONE,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-033,GET /v1/members/{id} con tautologia SQL,member-id,SQL_TAUTOLOGIA,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-034,GET /v1/members/{id} con istruzione SQL impilata,member-id,SQL_IMPILATA,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-035,GET /v1/members/{id} con UNION SELECT,member-id,SQL_UNION,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-036,GET /v1/members/{id} con byte NUL,member-id,NUL,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-037,GET /v1/members/{id} con 10 000 caratteri,member-id,LUNGO_10K,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-038,GET /v1/members/{id} con path traversal,member-id,TRAVERSAL,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-039,GET /v1/members/{id} con CRLF e intestazione iniettata,member-id,CRLF,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-040,GET /v1/members/{id} con espressioni di template,member-id,ESPRESSIONE,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-041,POST /v1/message-templates/MSG-POINTS-EARNED/render con tautologia SQL,render-tpl,SQL_TAUTOLOGIA,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-042,POST /v1/message-templates/MSG-POINTS-EARNED/render con istruzione SQL impilata,render-tpl,SQL_IMPILATA,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-043,POST /v1/message-templates/MSG-POINTS-EARNED/render con UNION SELECT,render-tpl,SQL_UNION,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-044,POST /v1/message-templates/MSG-POINTS-EARNED/render con byte NUL,render-tpl,NUL,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-045,POST /v1/message-templates/MSG-POINTS-EARNED/render con 10 000 caratteri,render-tpl,LUNGO_10K,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-046,POST /v1/message-templates/MSG-POINTS-EARNED/render con path traversal,render-tpl,TRAVERSAL,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-047,POST /v1/message-templates/MSG-POINTS-EARNED/render con CRLF e intestazione iniettata,render-tpl,CRLF,NO_5XX+INVARIATO,-
+TB-SEC-FUZ-048,POST /v1/message-templates/MSG-POINTS-EARNED/render con espressioni di template,render-tpl,ESPRESSIONE,NO_5XX+NON_VALUTATO,-
+TB-SEC-FUZ-049,POST /v1/members (firstName) con tautologia SQL,member-create,SQL_TAUTOLOGIA,NO_5XX,-
+TB-SEC-FUZ-050,POST /v1/members (firstName) con istruzione SQL impilata,member-create,SQL_IMPILATA,NO_5XX,-
+TB-SEC-FUZ-051,POST /v1/members (firstName) con UNION SELECT,member-create,SQL_UNION,NO_5XX,-
+TB-SEC-FUZ-052,POST /v1/members (firstName) con byte NUL,member-create,NUL,NO_5XX,Q-532
+TB-SEC-FUZ-053,POST /v1/members (firstName) con 10 000 caratteri,member-create,LUNGO_10K,NO_5XX,-
+TB-SEC-FUZ-054,POST /v1/members (firstName) con path traversal,member-create,TRAVERSAL,NO_5XX,-
+TB-SEC-FUZ-055,POST /v1/members (firstName) con CRLF e intestazione iniettata,member-create,CRLF,NO_5XX,-
+TB-SEC-FUZ-056,POST /v1/members (firstName) con espressioni di template,member-create,ESPRESSIONE,NO_5XX,-
+TB-SEC-FUZ-057,POST /v1/events (data.orderId) con tautologia SQL,ingest-data,SQL_TAUTOLOGIA,NO_5XX,-
+TB-SEC-FUZ-058,POST /v1/events (data.orderId) con istruzione SQL impilata,ingest-data,SQL_IMPILATA,NO_5XX,-
+TB-SEC-FUZ-059,POST /v1/events (data.orderId) con UNION SELECT,ingest-data,SQL_UNION,NO_5XX,-
+TB-SEC-FUZ-060,POST /v1/events (data.orderId) con byte NUL,ingest-data,NUL,NO_5XX,-
+TB-SEC-FUZ-061,POST /v1/events (data.orderId) con 10 000 caratteri,ingest-data,LUNGO_10K,NO_5XX,-
+TB-SEC-FUZ-062,POST /v1/events (data.orderId) con path traversal,ingest-data,TRAVERSAL,NO_5XX,-
+TB-SEC-FUZ-063,POST /v1/events (data.orderId) con CRLF e intestazione iniettata,ingest-data,CRLF,NO_5XX,-
+TB-SEC-FUZ-064,POST /v1/events (data.orderId) con espressioni di template,ingest-data,ESPRESSIONE,NO_5XX,-
