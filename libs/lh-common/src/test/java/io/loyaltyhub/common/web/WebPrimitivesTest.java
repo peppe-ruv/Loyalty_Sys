@@ -30,6 +30,28 @@ class WebPrimitivesTest {
     }
 
     @Test
+    void parsesSourceActorHeaderAndDerivesTheSourceCode() {
+        ActorContext a = ActorContext.parse("SOURCE:src-crm");
+        assertThat(a.role()).isEqualTo(Role.SOURCE);
+        assertThat(a.username()).isEqualTo("src-crm");
+        assertThat(a.asActorString()).isEqualTo("SOURCE:src-crm");
+        assertThat(a.sourceCode()).contains("crm");
+        assertThat(Role.SOURCE.isReadOnly()).isFalse();
+        assertThat(Role.SOURCE.isIntegration()).isTrue();
+        assertThat(Role.ADMIN.isIntegration()).isFalse();
+    }
+
+    @Test
+    void sourceCodeIsEmptyForAnythingButAPrefixedSourceClient() {
+        assertThat(ActorContext.parse("SOURCE:crm").sourceCode()).isEmpty();
+        assertThat(ActorContext.parse("SOURCE:src-").sourceCode()).isEmpty();
+        assertThat(ActorContext.parse("SOURCE:web").sourceCode()).isEmpty();
+        assertThat(ActorContext.parse("ADMIN:src-crm").sourceCode()).isEmpty();
+        assertThat(ActorContext.parse("source:src-crm").role()).isEqualTo(Role.ANALYST);
+        assertThat(ActorContext.ANONYMOUS.sourceCode()).isEmpty();
+    }
+
+    @Test
     void pageResponseComputesTotalPages() {
         PageResponse<String> page = PageResponse.of(List.of("a", "b"), 0, 20, 41);
         assertThat(page.page().totalPages()).isEqualTo(3);

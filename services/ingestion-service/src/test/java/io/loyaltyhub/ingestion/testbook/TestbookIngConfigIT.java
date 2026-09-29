@@ -669,9 +669,14 @@ class TestbookIngConfigIT extends TestbookIngHarness {
         }
         Response r = postTxn(body, actor);
         assertThat(r.status()).as("HTTP (corpo: %s)", r.body()).isEqualTo(http);
-        if (http == 400) {
-            assertThat(r.body().path("status").asInt()).isEqualTo(400);
+        if (http == 400 || http == 403) {
+            assertThat(r.body().path("status").asInt()).isEqualTo(http);
+            if (http == 403) {
+                // Q-492: l'ingresso non è aperto a ANALYST (solo SOURCE e ADMIN).
+                assertThat(r.text("code")).isEqualTo(code);
+            }
             assertThat(rowsByEventId("txn-" + orderId) + rowsByEventId("txn-return-" + orderId)).as("nulla salvato").isZero();
+            assertThat(publicationsById("txn-" + orderId)).as("nulla pubblicato").isZero();
             return;
         }
         assertThat(r.text("eventId")).isEqualTo(eventId);

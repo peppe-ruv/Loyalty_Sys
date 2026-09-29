@@ -1,5 +1,7 @@
 package io.loyaltyhub.hub;
 
+import io.loyaltyhub.testsupport.SourceActors;
+
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.TestInstance;
@@ -517,8 +519,8 @@ class TestbookGovHubIT {
 
     private Resp http(HttpMethod method, String path, String actor, Object body) {
         var spec = RestClient.create("http://localhost:" + port).method(method).uri(path);
-        String header = actor == null || "NONE".equals(actor) ? null
-                : actor.contains(":") ? actor : actor + ":tb." + actor.toLowerCase();
+        String header = actor == null || "NONE".equals(actor) ? SourceActors.actorFor(method.name(), path, null, body)
+                : actor.contains(":") ? actor : actor + ":tb." + actor.toLowerCase(); // Q-492: ingresso = SOURCE:src-<fonte>
         if (header != null) {
             spec = spec.header("X-LH-Actor", header);
         }

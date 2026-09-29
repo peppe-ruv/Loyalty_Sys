@@ -1,6 +1,7 @@
 package io.loyaltyhub.common.approval;
 
 import io.loyaltyhub.common.web.Role;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
 
@@ -22,7 +23,9 @@ public class ApprovalPolicy {
     public static final String CONTENT = "CONTENT";
 
     /** Riga della scheda {@code policy} di BO-21. */
-    public record PolicyRow(String entityType, String when, Role approverRole) {
+    public record PolicyRow(String entityType, String when,
+                            // SOURCE (utenza di integrazione, Q-492) non approva mai: fuori dal contratto (review M8.2f, N4).
+                            @Schema(allowableValues = {"ANALYST", "CARE", "MARKETING", "LEGAL", "ADMIN"}) Role approverRole) {
     }
 
     private final boolean enabled;

@@ -41,7 +41,7 @@ class EndpointAccessInterceptorTest {
 
     @BeforeEach
     void setUp() {
-        mvc = MockMvcBuilders.standaloneSetup(new Probe(), new OpenClass(), new AdminClass())
+        mvc = MockMvcBuilders.standaloneSetup(new Probe(), new OpenClass(), new AdminClass(), new Ingress())
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .addFilters(new ActorFilter("probe"))
                 .addInterceptors(new EndpointAccessInterceptor())
@@ -88,6 +88,22 @@ class EndpointAccessInterceptorTest {
         @RequiresRole(Role.ADMIN)
         @PublicEndpoint(reason = "ambiguo: vince il ruolo")
         public Map<String, Object> both() {
+            return Map.of("ok", true);
+        }
+    }
+
+    /** Ingresso di una fonte: solo SOURCE (ADMIN passa per regola). */
+    @RestController
+    public static class Ingress {
+        @PostMapping("/v1/probe/ingress")
+        @RequiresRole(Role.SOURCE)
+        public Map<String, Object> ingest() {
+            return Map.of("ok", true);
+        }
+
+        @PostMapping("/v1/probe/write")
+        @RequiresRole
+        public Map<String, Object> write() {
             return Map.of("ok", true);
         }
     }
@@ -250,5 +266,34 @@ class EndpointAccessInterceptorTest {
         assertThat(EndpointAccessInterceptor.resolve(new HandlerMethod(new Probe(), "open")).valid()).isTrue();
         assertThat(EndpointAccessInterceptor.resolve(new HandlerMethod(new Probe(), "read")).role()).isNotNull();
         assertThat(EndpointAccessInterceptor.resolve(new HandlerMethod(new OpenClass(), "inherited")).valid()).isTrue();
+    }
+
+    @Test
+    void sourceReachesOnlyWhatListsItAndNeverTheWriteRuleOrTheReadLists() throws Exception {
+        String source = "SOURCE:src-crm";
+        // Ingresso della fonte: SOURCE e ADMIN passano, gli altri (anche senza attore) no.
+        mvc.perform(post("/v1/probe/ingress").header(ActorFilter.HEADER, source)).andExpect(status().isOk());
+        mvc.perform(post("/v1/probe/ingress").header(ActorFilter.HEADER, "ADMIN:marta.admin")).andExpect(status().isOk());
+        for (String other : new String[] {null, "ANALYST:sara.analyst", "MARKETING:luca.marketing", "CARE:paolo.care"}) {
+            var req = post("/v1/probe/ingress");
+            mvc.perform(other == null ? req : req.header(ActorFilter.HEADER, other)).andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("FORBIDDEN_ROLE"));
+        }
+        // @RequiresRole vuoto (regola «scrittura»): mai SOURCE, come mai ANALYST.
+        mvc.perform(post("/v1/probe/write").header(ActorFilter.HEADER, source)).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN_ROLE"));
+        mvc.perform(post("/v1/probe/write").header(ActorFilter.HEADER, "CARE:paolo.care")).andExpect(status().isOk());
+        mvc.perform(post("/v1/probe/write").header(ActorFilter.HEADER, "ADMIN:marta.admin")).andExpect(status().isOk());
+        // Lettura a tutti i ruoli (elenco dei cinque): SOURCE non è tra i cinque.
+        mvc.perform(get("/v1/probe/read").header(ActorFilter.HEADER, source)).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN_ROLE"));
+        // Ruoli di ruolo singolo, di classe e ADMIN-only: SOURCE no.
+        mvc.perform(post("/v1/probe/care").header(ActorFilter.HEADER, source)).andExpect(status().isForbidden());
+        mvc.perform(get("/v1/probe/admin-class").header(ActorFilter.HEADER, source)).andExpect(status().isForbidden());
+        // Endpoint non dichiarato: 403 ENDPOINT_NOT_DECLARED per SOURCE come per tutti.
+        mvc.perform(get("/v1/probe/undeclared/x").header(ActorFilter.HEADER, source)).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ENDPOINT_NOT_DECLARED"));
+        // Un endpoint pubblico resta pubblico.
+        mvc.perform(get("/v1/probe/public").header(ActorFilter.HEADER, source)).andExpect(status().isOk());
     }
 }

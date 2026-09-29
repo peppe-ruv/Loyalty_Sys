@@ -107,8 +107,9 @@ public class EndpointAccessInterceptor implements HandlerInterceptor {
         }
         Role[] allowed = annotation.value();
         if (allowed.length == 0) {
-            // Regola "scrittura": qualunque ruolo tranne ANALYST.
-            if (role.isReadOnly()) {
+            // Regola "scrittura": qualunque ruolo operatore tranne ANALYST; SOURCE (integrazione, Q-492) arriva solo
+            // dove è elencato.
+            if (role.isReadOnly() || role.isIntegration()) {
                 throw LhException.forbiddenRole("Il ruolo " + role + " non può eseguire questa operazione");
             }
             return;

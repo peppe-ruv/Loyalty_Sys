@@ -1,5 +1,6 @@
 package io.loyaltyhub.ingestion.testbook;
 
+import io.loyaltyhub.testsupport.SourceActors;
 import io.loyaltyhub.common.event.JsonSchemaValidator;
 import io.loyaltyhub.testsupport.TopicReader;
 import io.loyaltyhub.ingestion.domain.EventType;
@@ -94,7 +95,7 @@ class TestbookIngPipelineIT extends TestbookIngHarness {
 
     private Response postWithContentType(ObjectNode e, String contentType) {
         return RestClient.create("http://localhost:" + port).method(HttpMethod.POST).uri("/v1/events")
-                .header("Content-Type", contentType).body(mapper.writeValueAsBytes(e))
+                .header("X-LH-Actor", SourceActors.forBody(e)).header("Content-Type", contentType).body(mapper.writeValueAsBytes(e))
                 .exchange((req, res) -> {
                     byte[] bytes = res.getBody().readAllBytes();
                     return new Response(res.getStatusCode().value(), mapper.readTree(bytes));
@@ -574,8 +575,12 @@ class TestbookIngPipelineIT extends TestbookIngHarness {
                         .isEmpty();
             }
             case "noGuard" -> {
+                // Q-492 (M8.2f): l'ingresso è delle fonti (SOURCE) e di ADMIN; ANALYST è rifiutato prima della pipeline.
                 Response r = call("POST", "/v1/events", "ANALYST:sara.analyst", ev);
-                assertOutcome(r, id, "ACCEPTED", "-");
+                assertThat(r.status()).as("HTTP (corpo: %s)", r.body()).isEqualTo(403);
+                assertThat(r.text("code")).isEqualTo("FORBIDDEN_ROLE");
+                assertThat(rowsByEventId(id)).as("nulla salvato").isZero();
+                assertThat(publicationsById(id)).as("nulla pubblicato").isZero();
             }
             case "kafka" -> {
                 CLOCK.set(null);

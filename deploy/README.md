@@ -209,6 +209,36 @@ client `web` nella console: aggiungi la *post logout redirect URI* `<LH_WEB_URL>
 al web dopo il logout) e sostituisci la redirect URI `<LH_WEB_URL>/*` con quella esatta
 `<LH_WEB_URL>/api/auth/callback`.
 
+### Fonti di ingestion: un client per fonte (F2-SEC-07, F2-IAM-02, Q-492)
+
+Le fonti che inviano azioni a `ingestion` (`POST /v1/events`, `/v1/events/batch`, `/v1/transactions`) si autenticano come
+utenze di integrazione con il ruolo `SOURCE`: client credentials con `private_key_jwt`, **un client per fonte**, con
+`client_id` = `src-<codice>` (il prefisso evita scontri con `web`, `widgets`, `cms`). Ingestion accetta un'azione solo
+se il suo `source` è quello del client (altrimenti `403 SOURCE_MISMATCH`). Il realm crea un client per ogni fonte del
+seed che arrivano da HTTP (`src-crm`, `src-app`, `src-ecommerce`, `src-billing`, `src-partner`), ciascuno con
+l'utenza di servizio `service-account-src-<codice>` che ha il solo ruolo `SOURCE` e l'audience `hub`. **Nel repository
+non c'è nessuna chiave né segreto**: la chiave pubblica di ogni fonte si registra all'installazione, con l'URL del suo
+JWKS (`LH_SOURCE_<FONTE>_JWKS_URL`, in Helm `roles.idp.jwks.sources.<fonte>`). Finché l'URL è il segnaposto, il client
+non autentica nessuno (fail-closed).
+
+**Procedura per una fonte creata a runtime** (da BO-09 dopo l'installazione: non ha ancora un client, Q-494, TOBE-009).
+Un amministratore di Keycloak, nel realm `loyaltyhub`:
+
+1. **Crea il client** `src-<codice>` (client OpenID Connect) con *Client authentication* attiva, *Service accounts roles*
+   attivo e tutti gli altri flussi disattivati (*Standard flow*, *Direct access grants*, *Implicit flow*).
+2. **Imposta l'autenticazione** in *Credentials* → *Client Authenticator* = *Signed JWT* (`private_key_jwt`).
+3. **Registra la chiave pubblica della fonte**: in *Keys* attiva *Use JWKS URL* e indica il JWKS della fonte, oppure
+   importa il suo certificato. Non generare tu la chiave della fonte e non salvarla nel repository.
+4. **Assegna il ruolo**: in *Service accounts roles* assegna alla sola utenza di servizio il ruolo `SOURCE`, e nessun altro.
+5. **Verifica l'audience**: in *Client scopes* devono esserci `hub-audience` e `lh-roles-scope` (sono quelli predefiniti
+   del realm); un token del client ha `aud` con `hub`, `azp` = `src-<codice>` e `lh_roles` con `SOURCE`.
+6. **Prova** con un token del client: `POST /v1/events` con un evento della fonte risponde `202`; con il `source` di
+   un'altra fonte, `403 SOURCE_MISMATCH`.
+
+Ogni client creato così è una scrittura di configurazione dell'IdP: Keycloak la registra negli eventi di amministrazione
+(`adminEventsEnabled` è attivo nel realm); il loro inoltro ad `audit_entry` arriva con il bridge Keycloak → audit
+(F2-SEC-14, M8.12, ADR-043).
+
 ### Compose di riferimento
 
 `deploy/compose/reference.yml`: `postgres` 17, `kafka` KRaft (un broker), `migrate` (Flyway una volta sola, come il
@@ -334,6 +364,8 @@ I log non sono firmati né immutabili: la firma e l'esportazione su archivio imm
   alla versione bloccata del compose di sviluppo (filesystem scrivibile, perché `kc.sh start` ricompila); `cms`,
   Redis e MinIO arrivano con M10.2.
 - **Q-375** — Kafka interno senza TLS né autenticazione fino a M8.5 (mTLS di mesh, principal per modulo, ACL).
+- **Q-494** — una fonte creata a runtime da BO-09 non hanno un client `src-<codice>` nel realm: l'amministratore lo crea a
+  mano (*Fonti di ingestion: un client per fonte*, TOBE-009).
 - **Q-491** — il job `helm install (kind)` prova il chart nel profilo `demo`: login OIDC del web, token delle fonti e
   Ingress con TLS del profilo `enterprise` non passano ancora da un'installazione reale in CI (TOBE-008).
 - Nessuna NetworkPolicy fino a M8.5.

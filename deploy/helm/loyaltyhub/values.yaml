@@ -185,8 +185,6 @@ roles:
         ecommerce: ""
         billing: ""
         partner: ""
-        internal: ""
-        simulator: ""
     extraEnv: []
 
   # ---- cms (Directus, M10.2) e jobs (client credentials, M8.2+): non ancora nell'immagine ----

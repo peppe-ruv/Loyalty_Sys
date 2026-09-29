@@ -7,5 +7,5 @@ TB-ING-ACC-005|riga del monitor|row|riga ACCEPTED, origin EXTERNAL, member_id, c
 TB-ING-ACC-006|subject sulla riga di un ingresso accettato|rowSubject|Q-259: la riga ACCEPTED porta il subject normalizzato member:<id> (per riprova/abbina Q-118 conserva invece l'originale)|ingestion §2; Q-118
 TB-ING-ACC-007|attributi lh* inviati dalla fonte|lhOverride|ignorati: lhhop 0, lhcorrelationid = id, lhtenant aurora|docs/05 §2 (gli lh* li aggiunge ingestion)
 TB-ING-ACC-008|conformità ai contratti|contract|envelope valido per envelope.schema.json, data valido per purchase.completed.schema.json|docs/05 §2; contracts/events
-TB-ING-ACC-009|nessuna guardia di ruolo sull'ingresso|noGuard|X-LH-Actor ANALYST → 202 ACCEPTED|docs/06 §3 (solo scritture da backoffice); docs/17 ING-22
+TB-ING-ACC-009|ingresso non aperto a ANALYST (Q-492)|noGuard|X-LH-Actor ANALYST → 403 FORBIDDEN_ROLE, nulla salvato né pubblicato|docs/06 §3.2; Q-492
 TB-ING-ACC-010|record reale su Kafka|kafka|record su lh.actions.v1 con chiave memberId e lhhop 0 entro 15 s|ingestion §7; docs/12 M0

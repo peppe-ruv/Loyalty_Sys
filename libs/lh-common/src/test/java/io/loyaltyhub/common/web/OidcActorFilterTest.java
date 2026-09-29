@@ -86,15 +86,102 @@ class OidcActorFilterTest {
     @Test
     @DisplayName("[Q-365] più ruoli: ADMIN vince; più ruoli operatore diversi o nessuno ⇒ sola lettura")
     void rolesFromToken() {
-        assertThat(ActorContext.fromToken(List.of("MARKETING", "ADMIN"), "a").role()).isEqualTo(Role.ADMIN);
-        assertThat(ActorContext.fromToken(List.of("LEGAL"), "a").role()).isEqualTo(Role.LEGAL);
-        assertThat(ActorContext.fromToken(List.of("MARKETING", "LEGAL"), "a").role()).isEqualTo(Role.ANALYST);
-        assertThat(ActorContext.fromToken(List.of("MEMBER"), "a").role()).isEqualTo(Role.ANALYST);
-        assertThat(ActorContext.fromToken(List.of("marketing"), "a").role()).isEqualTo(Role.ANALYST);
-        assertThat(ActorContext.fromToken(null, null)).isEqualTo(ActorContext.ANONYMOUS);
+        assertThat(ActorContext.fromToken(List.of("MARKETING", "ADMIN"), "a", null).role()).isEqualTo(Role.ADMIN);
+        assertThat(ActorContext.fromToken(List.of("LEGAL"), "a", null).role()).isEqualTo(Role.LEGAL);
+        assertThat(ActorContext.fromToken(List.of("MARKETING", "LEGAL"), "a", null).role()).isEqualTo(Role.ANALYST);
+        assertThat(ActorContext.fromToken(List.of("MEMBER"), "a", null).role()).isEqualTo(Role.ANALYST);
+        assertThat(ActorContext.fromToken(List.of("marketing"), "a", null).role()).isEqualTo(Role.ANALYST);
+        assertThat(ActorContext.fromToken(null, null, null)).isEqualTo(ActorContext.ANONYMOUS);
+    }
+
+    @Test
+    @DisplayName("[Q-492] token di una fonte: ruolo SOURCE, nome = client (azp), non lo username dell'utenza di servizio")
+    void sourceToken() throws Exception {
+        String src = token(sourceClaims("service-account-src-crm", "src-crm", List.of("SOURCE")));
+        Result r = call("/v1/events", src, "ADMIN:intruso");
+        assertThat(r.status).isEqualTo(200);
+        assertThat(r.actor.get()).isEqualTo(new ActorContext(Role.SOURCE, "src-crm"));
+        assertThat(r.actor.get().sourceCode()).contains("crm");
+        // Token di solo SOURCE: non è un token da membro, quindi nemmeno il vincolo di portale lo riguarda.
+        assertThat(r.request.getAttribute(OidcActorFilter.MEMBER_SUBJECT_ATTRIBUTE)).isNull();
+    }
+
+    @Test
+    @DisplayName("[Q-492] client_id al posto di azp; senza nessuno dei due il nome è anonymous e nessuna fonte è consentita")
+    void sourceTokenClientFallback() throws Exception {
+        JWTClaimsSet clientIdOnly = new JWTClaimsSet.Builder()
+                .issuer(ISSUER).subject("sub-x").audience("hub")
+                .issueTime(Date.from(Instant.now().minusSeconds(60))).expirationTime(Date.from(Instant.now().plusSeconds(300)))
+                .claim("client_id", "src-app").claim("lh_roles", List.of("SOURCE")).build();
+        assertThat(call("/v1/events", token(clientIdOnly), null).actor.get()).isEqualTo(new ActorContext(Role.SOURCE, "src-app"));
+        JWTClaimsSet none = new JWTClaimsSet.Builder()
+                .issuer(ISSUER).subject("sub-x").audience("hub")
+                .issueTime(Date.from(Instant.now().minusSeconds(60))).expirationTime(Date.from(Instant.now().plusSeconds(300)))
+                .claim("preferred_username", "service-account-src-crm").claim("lh_roles", List.of("SOURCE")).build();
+        ActorContext actor = call("/v1/events", token(none), null).actor.get();
+        assertThat(actor).isEqualTo(new ActorContext(Role.SOURCE, "anonymous"));
+        assertThat(actor.sourceCode()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("[Q-492] SOURCE con ruoli operatore: valgono i ruoli operatore, mai un'escalation; il client web non è una fonte")
+    void sourceNeverEscalates() {
+        assertThat(ActorContext.fromToken(List.of("SOURCE", "MARKETING"), "luca", "src-crm"))
+                .isEqualTo(new ActorContext(Role.MARKETING, "luca"));
+        assertThat(ActorContext.fromToken(List.of("SOURCE", "ADMIN"), "marta", "src-crm"))
+                .isEqualTo(new ActorContext(Role.ADMIN, "marta"));
+        assertThat(ActorContext.fromToken(List.of("SOURCE", "MARKETING", "LEGAL"), "x", "src-crm").role())
+                .isEqualTo(Role.ANALYST);
+        assertThat(ActorContext.fromToken(List.of("source"), "x", "src-crm").role()).isEqualTo(Role.ANALYST);
+        assertThat(ActorContext.fromToken(List.of("SOURCE", "MEMBER"), "x", "src-crm"))
+                .isEqualTo(new ActorContext(Role.SOURCE, "src-crm"));
+        // Un client che non è di fonte ha il ruolo ma nessun codice fonte: il legame con la fonte non passa.
+        assertThat(ActorContext.fromToken(List.of("SOURCE"), "x", "web").sourceCode()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("[Q-492] token di sola fonte: passa solo sui tre percorsi d'ingresso; attuatori, api-docs e ogni altro percorso 403")
+    void sourceReachesOnlyTheIngress() throws Exception {
+        String src = token(sourceClaims("service-account-src-crm", "src-crm", List.of("SOURCE")));
+        for (String path : List.of("/v1/events", "/v1/events/batch", "/v1/transactions")) {
+            assertThat(call(path, src, null).status).as(path).isEqualTo(200);
+        }
+        for (String path : List.of("/actuator/prometheus", "/actuator/metrics", "/actuator/env", "/v3/api-docs",
+                "/v1/campaigns", "/v1/portal/members/me/wallet", "/v1/events/", "/v1/events/x")) {
+            Result r = call(path, src, null);
+            assertThat(r.status).as(path).isEqualTo(403);
+            assertThat(r.response.getContentAsString()).contains("\"code\":\"FORBIDDEN_ROLE\"");
+            assertThat(r.actor.get()).as("la catena non è raggiunta: " + path).isNull();
+        }
+        // Le probe restano libere per tutti; un operatore non è toccato dalla guardia.
+        assertThat(call("/actuator/health", null, null).status).isEqualTo(200);
+        assertThat(call("/actuator/prometheus", token(claims("luca", List.of("ADMIN"), "hub", ISSUER, 300)), null).status)
+                .isEqualTo(200);
+    }
+
+    @Test
+    @DisplayName("[Q-492] MEMBER+SOURCE non sfugge al vincolo di portale: SOURCE non è un ruolo operatore")
+    void memberPlusSourceStaysMemberOnly() throws Exception {
+        String both = token(sourceClaims("service-account-src-crm", "src-crm", List.of("MEMBER", "SOURCE")));
+        assertThat(call("/v1/events", both, null).status).isEqualTo(403);
+        assertThat(call("/v1/campaigns", both, null).status).isEqualTo(403);
     }
 
     // ---- supporto ----
+
+    private static JWTClaimsSet sourceClaims(String username, String clientId, List<String> roles) {
+        Instant now = Instant.now();
+        return new JWTClaimsSet.Builder()
+                .issuer(ISSUER)
+                .subject("sub-" + clientId)
+                .audience("hub")
+                .issueTime(Date.from(now.minusSeconds(60)))
+                .expirationTime(Date.from(now.plusSeconds(300)))
+                .claim("preferred_username", username)
+                .claim("azp", clientId)
+                .claim("lh_roles", roles)
+                .build();
+    }
 
     private record Result(int status, AtomicReference<ActorContext> actor, MockHttpServletRequest request,
                           MockHttpServletResponse response) {

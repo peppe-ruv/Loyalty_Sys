@@ -70,7 +70,8 @@ interface PersonaView {
 }
 
 // Ogni azione entra dalla sua fonte reale (docs seed/sources.json): l'evento passa da /v1/events come una
-// qualsiasi azione esterna, non dal simulatore admin (che il portale — attore membro — non può chiamare).
+// qualsiasi azione esterna, non dal simulatore admin (che il portale — attore membro — non può chiamare). L'ingresso
+// vuole il ruolo SOURCE (Q-492): nel profilo demo il proxy presenta `SOURCE:src-<fonte>` (lib/api/demoSource.ts).
 const ACTIONS: { label: string; type: string; source: string; data: (amount: number) => Record<string, unknown> }[] = [
   { label: "Acquisto", type: "purchase.completed", source: "ecommerce", data: (a) => ({ orderId: "ORD-" + Date.now(), amount: a, currency: "EUR", channel: "ONLINE" }) },
   { label: "Accesso all'app", type: "app.login.daily", source: "app", data: () => ({ platform: "IOS" }) },
@@ -91,7 +92,7 @@ function DemoTray() {
   async function fire(type: string, source: string, data: Record<string, unknown>) {
     setBusy(true);
     try {
-      // Azione reale del membro dalla fonte esterna: /v1/events (pubblico), non il simulatore admin.
+      // Azione reale del membro dalla fonte esterna: /v1/events come fonte (SOURCE), non il simulatore admin.
       const res = await lhFetch<{ correlationId?: string }>("ingestion", "/v1/events", {
         method: "POST",
         body: JSON.stringify({

@@ -1,5 +1,7 @@
 package io.loyaltyhub.hub;
 
+import io.loyaltyhub.testsupport.SourceActors;
+
 import io.loyaltyhub.ingestion.domain.ScenarioTime;
 import io.loyaltyhub.insight.live.LiveEventHub;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
@@ -92,6 +94,7 @@ class TestbookInsHubIT {
     }
 
     private Resp call(String method, String path, String actor, Object body) {
+        actor = SourceActors.actorFor(method, path, actor, body); // Q-492: l'ingresso vuole SOURCE:src-<fonte>
         try {
             HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
                     .timeout(Duration.ofSeconds(40));

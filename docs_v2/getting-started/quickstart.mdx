@@ -48,6 +48,7 @@ Verifica di aver completato i [Prerequisiti](/docs_v2/getting-started/prerequisi
     # Invia un CloudEvent all'endpoint di ingestione.
     # source, id e type sono obbligatori; ingestion aggiunge lhtenant, lhhop, ecc.
     curl -X POST http://localhost:8081/v1/events \
+      -H "X-LH-Actor: SOURCE:src-ecommerce" \
       -H "Content-Type: application/cloudevents+json" \
       -d '{
         "specversion": "1.0",

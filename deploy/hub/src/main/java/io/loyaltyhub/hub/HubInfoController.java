@@ -30,7 +30,7 @@ public class HubInfoController {
                         "portalCampaigns", "/v1/portal/campaigns",
                         "portalCatalog", "/v1/portal/catalog?memberId=MBR-000003",
                         "members", "/v1/members",
-                        "sendDemoEvent", "POST /v1/events"),
+                        "sendDemoEvent", "POST /v1/events (X-LH-Actor: SOURCE:src-<codice>)"),
                 "services", List.of("ingestion", "member", "campaign", "wallet", "insight", "reward", "gamification"));
     }
 }

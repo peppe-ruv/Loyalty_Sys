@@ -55,6 +55,7 @@ Il corpo è un CloudEvent 1.0 JSON. In ingresso i campi obbligatori sono: `specv
     ```bash
     # Sostituisci l'URL con quello del tuo ambiente.
     curl -X POST http://localhost:8081/v1/events \
+      -H "X-LH-Actor: SOURCE:src-ecommerce" \
       -H "Content-Type: application/cloudevents+json" \
       -d @evento.json
     ```

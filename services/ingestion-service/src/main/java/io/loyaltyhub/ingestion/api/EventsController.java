@@ -6,13 +6,20 @@ import io.loyaltyhub.common.web.RequiresRole;
 import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.ingestion.application.ActionReplayService;
 import io.loyaltyhub.ingestion.application.IngestionService;
+import io.loyaltyhub.ingestion.application.SourceBinding;
 import io.loyaltyhub.ingestion.domain.IngestResult;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Optional;
@@ -44,12 +51,24 @@ public class EventsController {
     @PostMapping(
             path = "/events",
             consumes = {"application/json", "application/cloudevents+json"})
-    // SPEC-GAP: Q-492 — ingresso delle fonti aperto a ogni ruolo come nel PoC; ruolo SOURCE in M8.2f (deciso, Q-492).
-    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
+    // Q-492: ingresso delle fonti solo per il ruolo SOURCE (utenza di integrazione, client src-<codice>); ADMIN passa
+    // per regola dell'interceptor. La fonte dichiarata deve coincidere con il client (SourceBinding).
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    @ApiResponses({
+            @ApiResponse(responseCode = "202", description = "Esito dell'azione (un evento): status ACCEPTED, DUPLICATE o REJECTED (la fonte non ritenta su un rifiuto di business)",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = IngestResult.class))),
+            @ApiResponse(responseCode = "400", description = "Errore di forma: corpo non valido, source non in forma URN",
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "403", description = "FORBIDDEN_ROLE: serve il ruolo SOURCE (o ADMIN); SOURCE_MISMATCH: il source"
+                    + " dichiarato è diverso dal client src-<codice>, nulla è salvato né pubblicato",
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    @RequiresRole(Role.SOURCE)
     public ResponseEntity<IngestResult> ingest(@RequestBody InboundEventRequest request,
                                                @RequestHeader(value = REPROCESS_HEADER, required = false) String reprocess) {
         // Q-258: una fonte esterna dichiara l'URN; la forma breve resta ai chiamanti interni, che non passano da qui.
         IngestionService.requireSourceUrn(request);
+        SourceBinding.requireMatch(ActorHolder.get(), request.source());
         if (reprocess != null && !reprocess.isBlank()) {
             // Solo su comando umano di un ADMIN (docs/servizi/insight-service.md §3: reprocess ruolo ADMIN).
             if (ActorHolder.get().role() != Role.ADMIN) {

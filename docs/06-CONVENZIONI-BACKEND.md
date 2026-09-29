@@ -58,6 +58,7 @@ CREATE TABLE approval_history (
 |---|---|---|
 | 400 | `bad-request` | JSON malformato, parametri errati |
 | 403 | `forbidden-role` | il ruolo in `X-LH-Actor` non può eseguire l'azione |
+| 403 | `source-mismatch` | una fonte autenticata (ruolo `SOURCE`) dichiara un `source` diverso dal proprio client `src-<codice>` (`SOURCE_MISMATCH`, §3.3): nulla è salvato né pubblicato |
 | 403 | `endpoint-not-declared` | l'endpoint non dichiara `@RequiresRole` né `@PublicEndpoint` (`ENDPOINT_NOT_DECLARED`, §3.2): errore del codice, rifiutato a tutti |
 | 404 | `not-found` | risorsa inesistente |
 | 409 | `conflict` | transizione non valida, codice duplicato, modifica non ammessa su oggetto `LIVE` |
@@ -68,8 +69,9 @@ CREATE TABLE approval_history (
 
 ## 3. Identità simulata
 
-- Header `X-LH-Actor: <RUOLO>:<username>` (es. `MARKETING:luca.marketing`). Assente → `ANALYST:anonymous` (sola lettura). Vale solo la forma canonica (ruolo noto in maiuscolo, un solo `:`, username non vuoto e senza spazi ai bordi); ogni altra forma (ruolo sconosciuto o minuscolo, `LEGAL`, `CARE:`, `:paolo`, `ADMIN:a:b`…) vale `ANALYST` (Q-261, Q-298).
-- Controllo **minimo** lato servizio (annotazione `@RequiresRole`): scritture ⇒ ruolo ≠ `ANALYST`; `APPROVE/REJECT` ⇒ ruolo della policy o `ADMIN`; rettifiche punti ⇒ `CARE`/`ADMIN`; `/v1/demo/**` ⇒ `ADMIN`, con tre eccezioni: simulatore e avvio degli scenari (`POST /v1/demo/simulator/fire`, `POST /v1/demo/scenarios/{code}/run`: tutti tranne `ANALYST`) e le letture `GET /v1/demo/personas`, `GET /v1/demo/scenarios`, `GET /v1/demo/scenario-runs/{id}`, aperte a tutti i ruoli come prima. Le letture aperte elencano tutti i ruoli, `ANALYST` compreso (§3.2).
+- Ruoli: cinque persone del backoffice (`ADMIN`, `MARKETING`, `LEGAL`, `CARE`, `ANALYST`) e un ruolo di integrazione, `SOURCE` (§3.3): l'utenza di servizio di una fonte di ingestion, mai una persona; il web non lo offre tra le persone.
+- Header `X-LH-Actor: <RUOLO>:<username>` (es. `MARKETING:luca.marketing`; per una fonte `SOURCE:<client-id>`, es. `SOURCE:src-crm`). Assente → `ANALYST:anonymous` (sola lettura). Vale solo la forma canonica (ruolo noto in maiuscolo, un solo `:`, username non vuoto e senza spazi ai bordi); ogni altra forma (ruolo sconosciuto o minuscolo, `LEGAL`, `CARE:`, `:paolo`, `ADMIN:a:b`…) vale `ANALYST` (Q-261, Q-298).
+- Controllo **minimo** lato servizio (annotazione `@RequiresRole`): scritture ⇒ ruolo operatore ≠ `ANALYST` (`SOURCE` non è mai incluso: arriva solo dove è elencato, §3.3); `APPROVE/REJECT` ⇒ ruolo della policy o `ADMIN`; rettifiche punti ⇒ `CARE`/`ADMIN`; `/v1/demo/**` ⇒ `ADMIN`, con tre eccezioni: simulatore e avvio degli scenari (`POST /v1/demo/simulator/fire`, `POST /v1/demo/scenarios/{code}/run`: tutti tranne `ANALYST`) e le letture `GET /v1/demo/personas`, `GET /v1/demo/scenarios`, `GET /v1/demo/scenario-runs/{id}`, aperte a tutti i ruoli come prima. Le letture aperte elencano tutti i ruoli, `ANALYST` compreso (§3.2).
 - Gli endpoint `/v1/portal/**` non richiedono header; l'attore è `member:<memberId>`.
 - Ogni scrittura da backoffice pubblica un audit con l'attore.
 
@@ -77,7 +79,7 @@ CREATE TABLE approval_history (
 
 - `loyaltyhub.identity.mode` (`LH_IDENTITY_MODE`): `header` (default, solo profilo `demo`) oppure `oidc`. Con `oidc` il filtro `OidcActorFilter` sostituisce `ActorFilter`: ogni richiesta porta `Authorization: Bearer`; il token è verificato con il JWKS dell'emittente (`LH_OIDC_ISSUER`, `LH_OIDC_JWKS_URI`, default Keycloak `<issuer>/protocol/openid-connect/certs`): firma, scadenza, `iss` esatto, `aud` che contiene `hub` (`LH_OIDC_AUDIENCE`). `X-LH-Actor` è ignorato.
 - Token assente o non valido ⇒ `401` `unauthorized` con `WWW-Authenticate: Bearer`, sempre lo stesso corpo (nessun indizio sul motivo). Liberi solo `/actuator/health/**` e `/actuator/info`.
-- Ruoli dal claim `lh_roles`: `ADMIN` vince; un solo ruolo operatore vale quel ruolo; più ruoli operatore diversi o nessuno ⇒ `ANALYST` (Q-365). Username da `preferred_username`, poi `azp`, poi `sub`.
+- Ruoli dal claim `lh_roles`: `ADMIN` vince; un solo ruolo operatore vale quel ruolo; più ruoli operatore diversi o nessuno ⇒ `ANALYST` (Q-365). Username da `preferred_username`, poi `azp`, poi `sub`. `SOURCE` non è un ruolo operatore e non ne aumenta i poteri: un token con `SOURCE` e nessun ruolo operatore vale `SOURCE` e l'attore prende il nome del client (`azp`, poi `client_id`), non lo username dell'utenza di servizio; con ruoli operatore valgono questi (§3.3).
 - Un token di solo `MEMBER` vale soltanto su `/v1/portal/**` (altrimenti `403`); il `sub` è disponibile come attributo della richiesta per `MemberPrincipal` (M8.10).
 - Avvio: con il profilo `enterprise` e `mode` diverso da `oidc`, o `oidc` senza emittente, il servizio **non parte** (`INSECURE_CONFIG`, regola 22). L'autorizzazione resta `@RequiresRole`; niente catena di filtri di Spring Security (solo `spring-security-oauth2-jose` per decoder e validatori).
 
@@ -106,10 +108,10 @@ sequenceDiagram
 Ogni endpoint dichiara chi può chiamarlo. Un endpoint senza dichiarazione è rifiutato a tutti, in ogni profilo: così un controller nuovo non nasce aperto per dimenticanza (CLAUDE.md regola 18).
 
 - **Dichiara l'accesso su ogni metodo mappato** di un `@RestController`, sul metodo o sulla classe. La dichiarazione del metodo prevale su quella della classe.
-  - `@RequiresRole(...)`: semantica di §3, invariata. `ADMIN` passa sempre; un elenco vuoto vale la regola «scrittura».
+  - `@RequiresRole(...)`: semantica di §3. `ADMIN` passa sempre; un elenco vuoto vale la regola «scrittura» (ogni ruolo operatore tranne `ANALYST` e `SOURCE`).
   - `@PublicEndpoint(reason = "…")`: nessun controllo di ruolo. Il motivo è obbligatorio e non vuoto; un motivo vuoto vale come endpoint non dichiarato.
   - Se lo stesso elemento porta entrambe, vince `@RequiresRole` e la regola ArchUnit fallisce.
-- **Le letture aperte elencano tutti i ruoli**: `@RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})`. Tutte le personas leggono tutto (docs/08 §2) e nel profilo `demo` una richiesta senza `X-LH-Actor` vale `ANALYST:anonymous`, quindi l'accesso della demo non cambia. Non usare `@PublicEndpoint` per una lettura: nel profilo `enterprise` la stessa annotazione chiede un token con uno di quei ruoli. Le letture con un elenco più stretto restano tali: `GET /v1/demo/info` e `GET /v1/audit/verify` (`ADMIN`), `GET /v1/contests/{id}/instants` (`ADMIN`, `LEGAL`) e l'istogramma `GET /v1/contests/{id}/instants/histogram` (`ADMIN`, `MARKETING`, `LEGAL`).
+- **Le letture aperte elencano tutti i ruoli**: `@RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})`. Tutte le personas leggono tutto (docs/08 §2) e nel profilo `demo` una richiesta senza `X-LH-Actor` vale `ANALYST:anonymous`, quindi l'accesso della demo non cambia. Non usare `@PublicEndpoint` per una lettura: nel profilo `enterprise` la stessa annotazione chiede un token con uno di quei ruoli. I cinque ruoli non comprendono `SOURCE`: una fonte non legge nulla (§3.3). Le letture con un elenco più stretto restano tali: `GET /v1/demo/info` e `GET /v1/audit/verify` (`ADMIN`), `GET /v1/contests/{id}/instants` (`ADMIN`, `LEGAL`) e l'istogramma `GET /v1/contests/{id}/instants/histogram` (`ADMIN`, `MARKETING`, `LEGAL`).
 - **`@PublicEndpoint` toglie solo il controllo di ruolo.** Nel profilo `enterprise` il filtro OIDC chiede comunque un token valido (§3.1); aprire un endpoint senza token è un'altra decisione (Q-411). Oggi nessun endpoint di produzione usa `@PublicEndpoint` (nemmeno `GET /` dell'hub, che chiede un ruolo come le altre letture aperte): un nuovo `@PublicEndpoint` è un caso di *Fermati e chiedi* (CLAUDE.md §7) e richiede una Q o un'ADR in `docs/15`.
 - **Endpoint non dichiarato** ⇒ `403` `endpoint-not-declared`, `code` `ENDPOINT_NOT_DECLARED`, anche per `ADMIN`. Il log registra solo classe e metodo, mai percorso, parametri o attore.
 - **Fuori ambito**: i soli controller dei framework nei package `org.springframework.boot.`, `org.springframework.web.servlet.` e `org.springdoc.` (`/error` e `/v3/api-docs`), e gli endpoint di Actuator. Un controller in un altro package `org.springframework.*` (per esempio Spring Data REST) non è esentato. Nel profilo `enterprise` li protegge il filtro OIDC, tranne i probe. Il controllo gira sulla richiesta iniziale: un dispatch asincrono (`DispatcherType.ASYNC`) di una richiesta già autorizzata non si ricontrolla.
@@ -140,6 +142,17 @@ flowchart TD
   class CTRL svc
   class REQ ext
 ```
+
+### 3.3 Fonti di ingestion: ruolo `SOURCE` e client `src-<codice>` (M8.2f, F2-SEC-07, F2-IAM-02, ADR-042, Q-492)
+
+Le fonti esterne non si autenticano con una chiave statica: sono utenze di integrazione con **client credentials `private_key_jwt`**, **un client per fonte**, collegato al registro fonti di ingestion (`client_id` ⇔ `source`, docs/18 §3.2 e §3.10).
+
+- **Convenzione.** Il client della fonte `<codice>` è `src-<codice>` (il prefisso evita scontri con `web`, `widgets`, `cms`; nessuna modifica al database). `ActorContext.sourceCode()` ricava il codice dal client: senza prefisso `src-`, o con il solo prefisso, nessuna fonte è consentita.
+- **Ruolo `SOURCE`.** Il realm (`deploy/idp/realm.json`) ha un client confidential `src-<codice>` per ogni fonte del seed che arriva da HTTP (`kind=HTTP`), con l'utenza di servizio che ha il solo ruolo `SOURCE`, incluso nel claim `lh_roles` come gli altri. Le fonti `INTERNAL` (`internal`, il ponte dei fatti, e `simulator`) non entrano mai da HTTP e non hanno client: nessuna chiave da custodire per loro (minimo privilegio). Nessuna chiave o segreto nel repository: il JWKS di ogni fonte si registra all'installazione (`LH_SOURCE_<FONTE>_JWKS_URL`, `deploy/idp/README.md`).
+- **Cosa raggiunge.** Solo `POST /v1/events`, `POST /v1/events/batch` e `POST /v1/transactions` (`@RequiresRole(Role.SOURCE)`, `ADMIN` passa per regola). `SOURCE` non è nell'elenco dei cinque ruoli delle letture e non rientra nella regola «scrittura»: ogni altro endpoint risponde `403 FORBIDDEN_ROLE`. Il filtro `OidcActorFilter` lo garantisce anche fuori dai controller: un token di sola fonte vale solo sui tre percorsi d'ingresso, quindi `/actuator/metrics`, `/actuator/prometheus` e `/v3/api-docs` rispondono `403` (restano libere le sole probe `/actuator/health` e `/actuator/info`). Con `SOURCE` insieme a ruoli operatore valgono i ruoli operatore (mai un'escalation).
+- **Legame con la fonte.** Il `source` dichiarato da ogni evento (l'URN `urn:loyaltyhub:source:<codice>`) o dalla transazione deve coincidere con il codice del client dell'attore `SOURCE`, altrimenti `403 SOURCE_MISMATCH` prima di qualunque scrittura o pubblicazione. Il confronto è esatto sul codice. In un batch un solo elemento con un'altra fonte respinge l'intera richiesta; un elemento senza `source` resta un errore di forma dell'elemento (`INVALID`). `ADMIN` non è soggetto al controllo. Restano i controlli per fonte già esistenti (fonte abilitata, `allowedTypes`).
+- **Profilo `demo`.** Nessun login (regola 6): una fonte di prova invia `X-LH-Actor: SOURCE:src-<codice>`, per esempio `SOURCE:src-ecommerce` (lo fanno `scripts/smoke.sh` e il pannello demo del portale). Senza header o come `ANALYST` l'ingresso risponde `403`.
+- **Residuo.** Una fonte creata a runtime da BO-09 non ha ancora un client nel realm: si crea a mano (`deploy/README.md`, TOBE-009, Q-494).
 
 ## 4. Persistenza
 

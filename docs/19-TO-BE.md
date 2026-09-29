@@ -122,6 +122,17 @@ Ogni voce ha un identificativo `TOBE-nnn` e questi campi:
 | Quando farla | Con i journey di M9 (`e2e/`), che ottengono i token, o prima del primo rilascio del chart verso un'installazione reale. |
 | Riferimenti | Q-491, Q-490, ADR-026, ADR-027, F2-DIST-02, M8.3, M9 |
 
+### TOBE-009 — Client Keycloak creato con la fonte di ingestion
+
+| Campo | Contenuto |
+|---|---|
+| Cosa | Creare in automatico il client `src-<codice>` di Keycloak (client credentials `private_key_jwt`, utenza di servizio con il ruolo `SOURCE`) quando un amministratore aggiunge una fonte da BO-09, senza passare dalla console di Keycloak. |
+| Perché non ora | Ingestion dovrebbe chiamare l'API di amministrazione di Keycloak: una nuova destinazione di rete in uscita, con credenziali di amministrazione del realm in un servizio di dominio (CLAUDE.md §7, *Fermati e chiedi*). Serve un'ADR, e la scelta tra provisioning da ingestion e comando della CLI `lh` (M12.2) non è ancora fatta. |
+| Workaround attivo | Ogni fonte HTTP del seed ha già il suo client `src-<codice>` nel realm (`deploy/idp/realm.json`), con il solo ruolo `SOURCE`. Per una fonte creata a runtime l'amministratore esegue la procedura di `deploy/README.md`: crea il client `src-<codice>` con `private_key_jwt`, importa il JWKS o il certificato della fonte, assegna `SOURCE` all'utenza di servizio e verifica l'audience `hub`. Finché non lo fa la fonte non ha un'identità e in `enterprise` non può inviare azioni (fail-closed: nessun client, nessun token). Nel profilo `demo` non serve: basta `X-LH-Actor: SOURCE:src-<codice>`. |
+| Già predisposto | La convenzione `src-<codice>` ⇔ codice della fonte è in un solo punto (`ActorContext.SOURCE_CLIENT_PREFIX`) e `scripts/check-realm.mjs` la verifica sul realm; il legame client e fonte è controllato dal servizio (`SOURCE_MISMATCH`) senza dipendere da come il client è stato creato. |
+| Quando farla | Con la prima installazione in cui gli amministratori aggiungono fonti da BO-09 più spesso di quanto sia sostenibile a mano, o con la CLI `lh` (M12.2). |
+| Riferimenti | Q-494, Q-492, ADR-027, ADR-042, F2-SEC-07, F2-IAM-02, M8.2f, M12.2 |
+
 ### TOBE-010 — Pacchetto di rilascio dell'immagine: VEX, SLSA livello 3 e verifica all'ammissione
 
 | Campo | Contenuto |

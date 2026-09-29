@@ -1,5 +1,6 @@
 package io.loyaltyhub.ingestion.testbook;
 
+import io.loyaltyhub.testsupport.SourceActors;
 import io.loyaltyhub.ingestion.IngestionApplication;
 import io.loyaltyhub.ingestion.domain.Source;
 import io.loyaltyhub.ingestion.infra.MemberIndexRepository;
@@ -172,12 +173,26 @@ abstract class TestbookIngHarness {
         }
     }
 
+    /**
+     * Chiamata HTTP. Sui percorsi di ingresso delle fonti, senza un'identità esplicita, il test invia come la fonte che
+     * il corpo dichiara ({@code SOURCE:src-<fonte>}, Q-492); {@link #callAs} invia esattamente l'identità indicata.
+     */
     Response call(String method, String path, String actor, Object body) {
+        return callAs(method, path, SourceActors.actorFor(method, path, actor, body), body);
+    }
+
+    /** Chiamata con l'identità esatta indicata ({@code null} = nessun header {@code X-LH-Actor}). */
+    Response callAs(String method, String path, String actor, Object body) {
+        return callAs(method, path, actor, body, Map.of());
+    }
+
+    Response callAs(String method, String path, String actor, Object body, Map<String, String> headers) {
         RestClient.RequestBodySpec spec = RestClient.create("http://localhost:" + port)
                 .method(HttpMethod.valueOf(method)).uri(path);
         if (actor != null) {
             spec.header("X-LH-Actor", actor);
         }
+        headers.forEach(spec::header);
         if (body instanceof String raw) {
             spec.header("Content-Type", "application/json").body(raw.getBytes(StandardCharsets.UTF_8));
         } else if (body != null) {

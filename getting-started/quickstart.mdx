@@ -55,8 +55,10 @@ Verifica di aver completato i [Prerequisiti](/getting-started/prerequisiti). Ti 
     ```bash Invia una purchase.completed
     # Invia un CloudEvent all'endpoint di ingestione.
     # source, id e type sono obbligatori; ingestion aggiunge lhtenant, lhhop, ecc.
+    # L'header X-LH-Actor identifica la fonte (profilo demo): SOURCE:src-<codice>.
     curl -X POST http://localhost:8081/v1/events \
       -H "Content-Type: application/cloudevents+json" \
+      -H "X-LH-Actor: SOURCE:src-ecommerce" \
       -d '{
         "specversion": "1.0",
         "id": "quickstart-001",

@@ -1,5 +1,6 @@
 package io.loyaltyhub.ingestion;
 
+import io.loyaltyhub.testsupport.SourceActors;
 import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -109,6 +110,7 @@ abstract class ImportsItSupport {
     }
 
     protected JsonNode postJson(String path, Object body, String actor, int expected) {
+        actor = SourceActors.actorFor("POST", path, actor, body); // Q-492: l'ingresso vuole SOURCE:src-<fonte>
         RestClient.RequestBodySpec spec = client().post().uri(path).contentType(MediaType.APPLICATION_JSON);
         if (actor != null) {
             spec = spec.header("X-LH-Actor", actor);

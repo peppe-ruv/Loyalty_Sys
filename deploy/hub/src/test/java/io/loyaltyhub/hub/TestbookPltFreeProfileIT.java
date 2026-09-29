@@ -1,5 +1,7 @@
 package io.loyaltyhub.hub;
 
+import io.loyaltyhub.testsupport.SourceActors;
+
 import io.loyaltyhub.ingestion.domain.ScenarioTime;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.AfterAll;
@@ -66,7 +68,7 @@ class TestbookPltFreeProfileIT {
                 long before = pts("MBR-000002");
                 String weekday = ScenarioTime.resolve("@lastWeekdayT10:00", Instant.now()).toString();
                 JsonNode accepted = client().post().uri("/v1/events").contentType(MediaType.APPLICATION_JSON)
-                        .body(Map.of("specversion", "1.0", "id", "tb-plt-free-" + System.nanoTime(),
+                        .header("X-LH-Actor", SourceActors.of("ecommerce")).body(Map.of("specversion", "1.0", "id", "tb-plt-free-" + System.nanoTime(),
                                 "source", "urn:loyaltyhub:source:ecommerce", "type", "purchase.completed",
                                 "subject", "member:MBR-000002", "time", weekday,
                                 "data", Map.of("orderId", "ORD-TBPLT-FREE", "amount", 130, "currency", "EUR", "channel", "ONLINE")))

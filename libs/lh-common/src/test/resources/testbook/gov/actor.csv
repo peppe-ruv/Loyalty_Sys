@@ -13,3 +13,6 @@ TB-GOV-ACT-011,"`:` finale, username vuoto",CARE:,ANALYST,anonymous
 TB-GOV-ACT-012,username di soli spazi → ANALYST (Q-298),«CARE: »,ANALYST,anonymous
 TB-GOV-ACT-013,ruolo vuoto,:paolo,ANALYST,paolo
 TB-GOV-ACT-014,più di un `:` → ANALYST (Q-298),ADMIN:marta:extra,ANALYST,marta:extra
+TB-GOV-ACT-015,ruolo di integrazione SOURCE:<client-id> (Q-492),SOURCE:src-crm,SOURCE,src-crm
+TB-GOV-ACT-016,SOURCE in minuscolo → ANALYST (Q-298),source:src-crm,ANALYST,src-crm
+TB-GOV-ACT-017,SOURCE senza client id → ANALYST (Q-298),SOURCE:,ANALYST,anonymous

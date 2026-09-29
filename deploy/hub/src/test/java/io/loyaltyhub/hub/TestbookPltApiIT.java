@@ -1,5 +1,7 @@
 package io.loyaltyhub.hub;
 
+import io.loyaltyhub.testsupport.SourceActors;
+
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -433,7 +435,8 @@ class TestbookPltApiIT extends TestbookPltSupportIT {
                         {"specversion":"1.0","id":"tb-plt-rl-%s","source":"urn:loyaltyhub:source:app","type":"app.login.daily",
                          "subject":"member:MBR-999%s","time":"2026-09-24T08:00:00Z","data":{"platform":"WEB"}}
                         """.formatted(uniqueTag(), i % 10);
-                Raw r = raw("POST", "/v1/events", headers("Content-Type", "application/json", "X-Forwarded-For", ip), event);
+                Raw r = raw("POST", "/v1/events", headers("Content-Type", "application/json", "X-Forwarded-For", ip,
+                        "X-LH-Actor", SourceActors.forBody(event)), event);
                 statuses.add(r.status());
                 if (r.status() == 429) {
                     JsonNode p = r.json(mapper);

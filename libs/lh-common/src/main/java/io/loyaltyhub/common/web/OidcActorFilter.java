@@ -22,6 +22,8 @@ import java.util.List;
  * (firma dal JWKS dell'IdP, {@code iss}, {@code aud=hub}, scadenza) e alimenta {@link ActorHolder} e l'MDC.
  * L'header {@code X-LH-Actor} è ignorato. Token assente o non valido ⇒ 401 RFC 9457 senza dettagli sul motivo.
  * Un token di solo membro ({@code MEMBER}) vale soltanto su {@code /v1/portal/**}; altrove ⇒ 403.
+ * Un token di sola fonte ({@code SOURCE}, Q-492) vale soltanto sull'ingresso di ingestion ({@link #SOURCE_INGRESS_PATHS});
+ * altrove, compresi {@code /actuator/metrics}, {@code /actuator/prometheus} e {@code /v3/api-docs}, ⇒ 403.
  * Restano liberi solo i probe {@code /actuator/health} e {@code /actuator/info}.
  */
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
@@ -31,6 +33,10 @@ public class OidcActorFilter extends OncePerRequestFilter {
     public static final String MEMBER_SUBJECT_ATTRIBUTE = "io.loyaltyhub.member.sub";
 
     static final String MEMBER_ROLE = "MEMBER";
+
+    /** Unici percorsi raggiungibili con un token di sola fonte (ingresso eventi e transazioni, docs/06 §3.3). */
+    static final java.util.Set<String> SOURCE_INGRESS_PATHS =
+            java.util.Set.of("/v1/events", "/v1/events/batch", "/v1/transactions");
 
     private final String service;
     private final JwtDecoder decoder;
@@ -64,7 +70,7 @@ public class OidcActorFilter extends OncePerRequestFilter {
             return;
         }
         List<String> roles = jwt.hasClaim(rolesClaim) ? jwt.getClaimAsStringList(rolesClaim) : List.of();
-        ActorContext actor = ActorContext.fromToken(roles, username(jwt));
+        ActorContext actor = ActorContext.fromToken(roles, username(jwt), clientId(jwt));
         boolean memberOnly = roles.contains(MEMBER_ROLE) && roles.stream().noneMatch(OidcActorFilter::isOperatorRole);
         if (memberOnly) {
             if (!path.startsWith("/v1/portal/")) {
@@ -73,6 +79,11 @@ public class OidcActorFilter extends OncePerRequestFilter {
                 return;
             }
             request.setAttribute(MEMBER_SUBJECT_ATTRIBUTE, jwt.getSubject());
+        }
+        if (actor.role() == Role.SOURCE && !SOURCE_INGRESS_PATHS.contains(path)) {
+            reject(response, 403, "forbidden-role", "FORBIDDEN_ROLE", "Il token di una fonte vale solo per l'ingresso.",
+                    request);
+            return;
         }
         run(actor, request, response, chain);
     }
@@ -97,7 +108,8 @@ public class OidcActorFilter extends OncePerRequestFilter {
 
     private static boolean isOperatorRole(String name) {
         for (Role r : Role.values()) {
-            if (r.name().equals(name)) {
+            // SOURCE non è un ruolo operatore (Q-492): un token MEMBER+SOURCE resta di solo membro.
+            if (r != Role.SOURCE && r.name().equals(name)) {
                 return true;
             }
         }
@@ -113,6 +125,17 @@ public class OidcActorFilter extends OncePerRequestFilter {
             }
         }
         return jwt.getSubject();
+    }
+
+    /** Client del token: {@code azp}, poi {@code client_id} (nome dell'attore {@code SOURCE}, Q-492). */
+    private static String clientId(Jwt jwt) {
+        for (String claim : List.of("azp", "client_id")) {
+            String value = jwt.getClaimAsString(claim);
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private static void reject(HttpServletResponse response, int status, String type, String code, String detail,

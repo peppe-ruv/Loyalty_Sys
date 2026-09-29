@@ -58,8 +58,13 @@ Il corpo è un CloudEvent 1.0 JSON. In ingresso i campi obbligatori sono: `specv
     # Sostituisci l'URL con quello del tuo ambiente.
     curl -X POST http://localhost:8081/v1/events \
       -H "Content-Type: application/cloudevents+json" \
+      -H "X-LH-Actor: SOURCE:src-ecommerce" \
       -d @evento.json
     ```
+
+    <Note>
+      L'ingresso vuole l'identità di una fonte: nel profilo demo l'header `X-LH-Actor: SOURCE:src-<codice>`, dove `<codice>` è il `source` dell'evento. Con un `source` diverso ricevi `403 SOURCE_MISMATCH`. Nel profilo enterprise usa il token del client `src-<codice>`: vedi [Autenticazione](/api/autenticazione#fonti-di-ingestion-il-ruolo-source).
+    </Note>
   </Step>
   <Step title="Leggi la risposta">
     Risposta di successo (`202 Accepted`):
