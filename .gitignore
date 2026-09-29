@@ -29,3 +29,7 @@ Thumbs.db
 
 # worktree temporanei degli agenti paralleli (non fanno parte del repo)
 .claude/worktrees/
+
+# Esecuzioni locali di Schemathesis (M8.11c, docs/security/dast.md): esempi e cache, non fanno parte del repo
+.hypothesis/
+.schemathesis/
