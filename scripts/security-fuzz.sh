@@ -44,7 +44,7 @@ else
   # Docker: la rete del bersaglio non ha uscita (security-target.sh), l'immagine è fissata per digest.
   cmd=(docker run --rm --network "${LH_DAST_NETWORK:-lh-dast}" --user "$(id -u):$(id -g)"
     --cap-drop ALL --security-opt no-new-privileges:true
-    -e HOME=/tmp -e SCHEMATHESIS_COVERAGE=false
+    -e HOME=/tmp
     -v "$PWD:/work" -w /work "$SCHEMATHESIS_IMAGE")
   url="http://lh-hub:8080"
 fi

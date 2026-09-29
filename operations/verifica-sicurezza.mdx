@@ -38,6 +38,8 @@ Il fuzzing e lo ZAP sono **consultivi**: non sono tra i controlli obbligatori de
 
 Un difetto noto che non si corregge subito si accetta **per iscritto**: una voce nella baseline di Schemathesis (`.dast/schemathesis-baseline.json`) o nelle eccezioni di ZAP (`.dast/zap-exceptions.json`), sempre con una scadenza entro 90 giorni, un motivo (la causa verificata, in italiano) e il riferimento a una domanda aperta (`Q-nnn`) o a una voce del backlog (`TOBE-nnn`). Alla scadenza il difetto torna a far fallire il job, così non si dimentica. Nessuna eccezione senza scadenza, motivo e riferimento: gli script rifiutano una voce che non li ha.
 
+Una voce di baseline di Schemathesis copre **ogni `500` della stessa operazione**, non solo quello analizzato: finché resta, su quell'operazione il fuzzing non vede `5xx` nuovi e il minimo deterministico è il testbook `TB-SEC`. Per lo stesso motivo il job di fuzzing è atteso rosso finché le prime correzioni di Q-532 non arrivano; sulle pull request il suo esito è solo informativo.
+
 ## Riprodurre in locale
 
 Con Docker, come in CI:

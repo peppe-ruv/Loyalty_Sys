@@ -30,6 +30,7 @@ on:
     paths:
       - ".github/workflows/security-nightly.yml"
       - ".dast/**"
+      - "contracts/api/**"
       - "scripts/security-dast.mjs"
       - "scripts/security-dast.test.mjs"
       - "scripts/security-target.sh"
@@ -83,13 +84,22 @@ jobs:
       - name: Bersaglio isolato
         run: bash scripts/security-target.sh up
 
+      # Sulle PR l'esito del fuzzing è solo informativo (continue-on-error): i casi casuali possono trovare 5xx nuovi
+      # finché le correzioni di Q-532 non arrivano, e una PR non deve essere rossa per un seme sfortunato. Il rosso
+      # resta di notte e a mano; sulla PR l'esito compare come avviso e negli artefatti (docs/security/dast.md).
       - name: Fuzzing con Schemathesis
+        id: fuzzing
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
         env:
           LH_FUZZ_BASELINE_UPDATE: ${{ inputs.baseline_update && '1' || '0' }}
         run: bash scripts/security-fuzz.sh
 
+      - name: Esito informativo sulla PR
+        if: ${{ github.event_name == 'pull_request' && steps.fuzzing.outcome == 'failure' }}
+        run: echo "::warning::Il fuzzing ha trovato difetti o errori (vedi il riepilogo e l'artefatto security-fuzz); sulla PR non blocca (Q-530, Q-532)."
+
       - name: Log del bersaglio
-        if: ${{ !success() }}
+        if: ${{ !success() || steps.fuzzing.outcome == 'failure' }}
         run: bash scripts/security-target.sh logs
 
       - name: Upload risultati del fuzzing

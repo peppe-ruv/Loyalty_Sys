@@ -192,6 +192,12 @@ class TestbookSecHubIT extends TestbookPltSupportIT {
         assertThat(r.headers().firstValue("X-Injected")).as("intestazione iniettata: " + what).isEmpty();
     }
 
+    /** Il carico è arrivato all'applicazione: una scrittura respinta prima (401, 403, 404, 429) non prova nulla. */
+    private static void assertReachedApp(String id, Reply r) {
+        assertThat(r.status()).as("il carico arriva all'applicazione: " + id + " → " + r.describe())
+                .isNotIn(401, 403, 404, 429);
+    }
+
     // ================= @Order(1): letture ostili =================
 
     @TestFactory
@@ -222,6 +228,11 @@ class TestbookSecHubIT extends TestbookPltSupportIT {
             };
             assertSafe(row.id(), r);
 
+            if (LIST_TARGETS.contains(target) && token.startsWith("SQL_")) {
+                // Con l'identità ADMIN l'elenco risponde 200: un 401/403/429 vorrebbe dire che il carico non è arrivato
+                // al filtro e il controllo «non allargato» qui sotto sarebbe vuoto.
+                assertThat(r.status()).as("l'elenco risponde 200 al carico SQL: " + r.describe()).isEqualTo(200);
+            }
             if (LIST_TARGETS.contains(target) && r.status() == 200) {
                 // Nessun record del seed contiene questi testi: un elenco non vuoto vuol dire che il filtro è stato
                 // allargato (per esempio da un OR '1'='1' arrivato al testo SQL).
@@ -256,8 +267,9 @@ class TestbookSecHubIT extends TestbookPltSupportIT {
                 body.put("lastName", "Prova");
                 body.put("email", "tb-sec-" + tag + "@example.org");
                 body.put("channel", "PORTAL");
-                Reply r = http("POST", "/v1/members", null, "application/json", mapper.writeValueAsString(body));
+                Reply r = http("POST", "/v1/members", ADMIN, "application/json", mapper.writeValueAsString(body));
                 assertSafe(row.id(), r);
+                assertReachedApp(row.id(), r);
                 if (r.status() / 100 == 2) {
                     String id = mapper.readTree(r.body()).path("id").asString();
                     Reply back = http("GET", "/v1/members/" + enc(id), ADMIN, null, null);
@@ -281,6 +293,7 @@ class TestbookSecHubIT extends TestbookPltSupportIT {
                 event.put("data", data);
                 Reply r = http("POST", "/v1/events", SourceActors.FALLBACK, "application/json", mapper.writeValueAsString(event));
                 assertSafe(row.id(), r);
+                assertReachedApp(row.id(), r);
             }
             quiet();
         });

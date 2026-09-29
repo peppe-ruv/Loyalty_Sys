@@ -30,7 +30,10 @@ database = "none"
 enabled = false
 
 # L'ingresso è limitato a 60 eventi al minuto per IP (docs/11 §11): il fuzzing resta sotto il limite, altrimenti
-# misurerebbe solo i 429.
+# misurerebbe solo i 429. Anche POST /v1/events/batch conta nella stessa finestra un evento per elemento
+# (IngressRateLimitFilter.admitEvents): ha perciò una frequenza propria e bassa, ma un batch con più elementi consuma
+# più di una richiesta; se la finestra si esaurisce le altre due operazioni ricevono 429, con perdita di copertura
+# (non di sicurezza: un 429 non è un 5xx). Q-536.
 [[operations]]
 include-name = "POST /v1/events"
 rate-limit = "25/m"                            # SPEC-GAP: Q-536
@@ -38,3 +41,7 @@ rate-limit = "25/m"                            # SPEC-GAP: Q-536
 [[operations]]
 include-name = "POST /v1/transactions"
 rate-limit = "25/m"
+
+[[operations]]
+include-name = "POST /v1/events/batch"
+rate-limit = "5/m"                             # SPEC-GAP: Q-536, la finestra è condivisa

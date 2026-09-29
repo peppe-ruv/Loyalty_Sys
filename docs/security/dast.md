@@ -2,7 +2,7 @@
 
 > Fonte: `docs/18 §3.10` punto 12, ADR-042, ADR-044, F2-SEC-12. Consegnato da M8.11c. Le regole di Semgrep, Trivy e gitleaks a ogni PR sono in `docs/security/ci-security.md`; il contesto delle minacce in `docs/security/threat-model.md`; la tabella dei requisiti in `docs/security/asvs.md`; la mappa dei controlli ISO in `docs/compliance/iso27001-annex-a.md`; il testbook applicativo in `docs/testbook/TB-SEC-sicurezza.md`.
 
-Ogni notte, e a ogni pull request che tocca questi file, il workflow `.github/workflows/security-nightly.yml` costruisce l'immagine unica del commit, avvia l'hub in profilo `demo` in una rete Docker senza uscita e lo attacca con due strumenti, su ogni operazione di `contracts/api`: **Schemathesis** (fuzzing guidato dalle OpenAPI: input malevoli, confini, tipi sbagliati) e **ZAP** (API scan autenticato con l'identità demo). La conformità la verifica il software, non una checklist (regola 13 di `CLAUDE.md`).
+Ogni notte, e a ogni pull request che tocca questi file o `contracts/api/**`, il workflow `.github/workflows/security-nightly.yml` costruisce l'immagine unica del commit, avvia l'hub in profilo `demo` in una rete Docker senza uscita e lo attacca con due strumenti, su ogni operazione di `contracts/api`: **Schemathesis** (fuzzing guidato dalle OpenAPI: input malevoli, confini, tipi sbagliati) e **ZAP** (API scan autenticato con l'identità demo). La conformità la verifica il software, non una checklist (regola 13 di `CLAUDE.md`).
 
 Leggi questa pagina per sapere cosa prova ogni strumento, cosa fa fallire il job, come si accetta un difetto noto (con scadenza) e come si riproduce un esito in locale.
 
@@ -28,15 +28,17 @@ flowchart LR
 
 Il workflow ha due job indipendenti (`fuzz` e `zap`), ciascuno con il proprio bersaglio, così un guasto di uno strumento non nasconde l'esito dell'altro. Il workflow è **consultivo**: non è tra i controlli obbligatori del ruleset `main-protetto` (Q-530, come il job `security` con Q-500).
 
+**Il job `fuzz` è atteso rosso, per ora.** Le cause (2)…(7) di Q-532 continuano a produrre operazioni nuove a ogni seme, e l'esecuzione in CI differisce da quella locale (Kafka, limite di frequenza dell'ingresso non da loopback): finché le correzioni (a) e (c) di Q-532 non sono in `main`, quasi ogni notte il job fallirà per un `500` non ancora registrato. Non è un guasto dello strumento e non va ignorato: la causa si legge nel riepilogo e si registra come da «Registrare i 5xx trovati». Il conto delle **notti consecutive verdi** che Q-530 pone come condizione per renderlo obbligatorio **parte solo dopo** quelle correzioni. Sulle pull request l'esito del fuzzing è solo informativo (`continue-on-error`, con un avviso): la PR mostra che il job parte e chiude, non un rosso causato da un seme sfortunato; ZAP resta bloccante anche sulla PR.
+
 ## Controlli
 
 | Controllo | Strumento e versione | Cosa invia | Blocca su | Non blocca |
 |---|---|---|---|---|
-| Fuzzing delle API | Schemathesis 4.28.0, immagine `ghcr.io/schemathesis/schemathesis` fissata per digest | per ogni operazione di ogni specifica: parametri e corpi validi, non validi, ai confini (stringhe lunghe, NUL, caratteri di controllo, numeri estremi, parametri in più); identità `X-LH-Actor: ADMIN:lh-dast` | un `5xx` fuori dalla baseline con scadenza; una voce di baseline scaduta o non valida; errori di rete o timeout | qualunque `4xx`; la conformità delle risposte allo schema OpenAPI (controlli spenti, Q-535) |
+| Fuzzing delle API | Schemathesis 4.28.0, immagine `ghcr.io/schemathesis/schemathesis` fissata per digest | per ogni operazione di ogni specifica: parametri e corpi validi, non validi, ai confini (stringhe lunghe, NUL, caratteri di controllo, numeri estremi, parametri in più); identità `X-LH-Actor: ADMIN:lh-dast` | un `5xx` fuori dalla baseline con scadenza; una voce di baseline scaduta o non valida; errori di rete o timeout | qualunque `4xx`; la conformità delle risposte allo schema OpenAPI (controlli spenti, Q-535); un `5xx` su un'operazione che ha già una voce di baseline (vedi «Cosa copre una voce») |
 | DAST | ZAP 2.17.0 (`zap-api-scan.py`), immagine `ghcr.io/zaproxy/zaproxy` fissata per digest | importa l'OpenAPI e attacca ogni operazione con le regole attive di ZAP (iniezioni, path traversal, XSS, divulgazione di informazioni), con l'identità `ADMIN:lh-dast` | un avviso **High** con confidenza diversa da 0 non coperto da un'eccezione con scadenza | Medium, Low e Info; gli avvisi con confidenza 0 (falso positivo dichiarato da ZAP) |
 | Testbook | `TB-SEC-FUZ-001…064` e `TB-SEC-ERR-001…007` in `deploy/hub/.../TestbookSecHubIT` | gli stessi input ostili in forma deterministica: iniezione SQL, NUL, 10 000 caratteri, path traversal, CRLF, espressioni di template | a ogni `./mvnw verify` (non nel workflow notturno) | — |
 
-Il testbook è il minimo deterministico che gira a ogni build; il fuzzing e ZAP lo estendono a ogni operazione e a ogni parametro.
+Il testbook è il minimo deterministico che gira a ogni build; il fuzzing e ZAP lo estendono a ogni operazione e a ogni parametro. Sulle operazioni con una voce di baseline il fuzzing non vede 5xx nuovi: lì il testbook è l'unica rete (vedi «Cosa copre una voce»). La fase di copertura di Schemathesis resta attiva, in locale e in Docker (Q-535).
 
 ## Il bersaglio
 
@@ -45,7 +47,7 @@ Il testbook è il minimo deterministico che gira a ogni build; il fuzzing e ZAP 
 - **Immagine:** l'immagine unica costruita da `deploy/image/Dockerfile` (tag `lh-image:dast`), ruolo `hub`, con lo stesso ambiente della prova di avvio di `image.yml`. Kafka e Postgres sono quelli di `deploy/docker-compose.yml` (progetto `lh-dast`).
 - **Profilo `demo`, identità simulata (Q-531).** L'hub gira con i dati fittizi del seed (Club Aurora) e accetta `X-LH-Actor`; gli strumenti inviano `ADMIN:lh-dast`, che passa ogni guardia di ruolo e raggiunge quindi ogni operazione. Nel profilo `enterprise` l'identità viene dal token OIDC: un bersaglio `enterprise` (con l'IdP e un client di prova) arriva con lo stack di M9; fino ad allora il fuzzing prova la logica e la robustezza delle API, non la catena di autenticazione.
 - **Rete senza uscita (Q-534).** L'hub sta in una rete Docker creata con `--internal` (nessun instradamento verso l'esterno), e Kafka e Postgres del compose vi si aggiungono con i loro nomi (`kafka`, `postgres`): l'hub non ha quindi altra rete. Lo script **prova** l'isolamento invece di darlo per scontato: prova a raggiungere `https://github.com` dalla rete e, se ci riesce, fallisce con «rete del bersaglio non isolata». Anche gli strumenti girano in container su quella rete. Il database si distrugge a fine job (`down`), quindi nessun dato sopravvive e i rapporti non contengono dati personali reali: solo il seed fittizio.
-- **Limite di frequenza dell'ingresso (Q-536).** Da un indirizzo non locale `POST /v1/events` e `POST /v1/transactions` accettano 60 richieste al minuto per IP (`docs/11 §11`). Il fuzzing le invia a 25 al minuto ciascuna (`.dast/schemathesis.toml`), sotto il limite; altrimenti misurerebbe solo i `429`. Lo ZAP non ha un limite proprio: oltre soglia riceve `429` sulle due operazioni, che non sono un difetto.
+- **Limite di frequenza dell'ingresso (Q-536).** Da un indirizzo non locale `POST /v1/events` e `POST /v1/transactions` accettano 60 richieste al minuto per IP (`docs/11 §11`). Il fuzzing le invia a 25 al minuto ciascuna (`.dast/schemathesis.toml`), sotto il limite; altrimenti misurerebbe solo i `429`. Anche `POST /v1/events/batch` conta nella stessa finestra un evento per elemento: ha una frequenza propria di 5 al minuto, ma un batch con molti elementi può comunque esaurire la finestra e spingere le altre due operazioni a `429` (si perde copertura, non si nasconde un `5xx`). Lo ZAP non ha un limite proprio: oltre soglia riceve `429` sulle due operazioni, che non sono un difetto.
 - **Esclusioni (Q-533)** in `.dast/exclusions.json`, ciascuna con motivo e riferimento; `node scripts/security-dast.mjs prepare` fallisce se una esclusione non corrisponde più a nulla.
 
 | Esclusione | Perché |
@@ -60,7 +62,7 @@ Da `contracts/api` escono così 9 specifiche in JSON (8 servizi e la piattaforma
 
 **Job `fuzz` (Schemathesis).** Fallisce se, per almeno una specifica:
 
-- c'è un `5xx` che non è nella baseline, o la sua voce è scaduta (Schemathesis la tratta di nuovo come nuova);
+- c'è un `5xx` su un'operazione senza voce di baseline, o la sua voce è scaduta (Schemathesis la tratta di nuovo come nuova);
 - una voce della baseline non ha `expires` (entro 90 giorni), `reason` (almeno 10 caratteri) e `ticket` (`Q-nnn` o `TOBE-nnn`): lo dice `baseline-check`, prima di lanciare lo strumento;
 - ci sono errori o timeout (richiesta oltre 30 s, connessione caduta) o Schemathesis esce con un codice diverso da 0 e 1 (per esempio 2: configurazione non valida);
 - una specifica non prova alcuna operazione (`tested = 0`), oppure manca il rapporto;
@@ -98,7 +100,7 @@ stateDiagram-v2
 
 ### Registrare i 5xx trovati (`baseline_update`)
 
-Lo scopo della baseline è **fotografare** i difetti già noti, non nasconderne di nuovi. Il flusso:
+La baseline **fotografa** i difetti già noti; non distingue però un difetto nuovo dallo stesso `500` già registrato (vedi «Cosa copre una voce»). Il flusso:
 
 1. Avvia a mano il workflow con `baseline_update` a `true`. Lo script aggiunge alla baseline i `5xx` trovati e carica l'artefatto `security-fuzz`, che contiene anche `.dast/schemathesis-baseline.json` aggiornato.
 2. Scarica l'artefatto e per ogni voce nuova cerca la causa nel log del bersaglio (`security-target.sh logs`, o il log del job in caso di errore). Compila `expires`, `reason` e `ticket`; apri o aggiorna la Q (o la voce del backlog) che traccia la correzione.
@@ -106,9 +108,19 @@ Lo scopo della baseline è **fotografare** i difetti già noti, non nasconderne 
 
 Un'esecuzione a mano con `baseline_update` a `true` non sostituisce la revisione: la PR con le voci annotate è il punto in cui una persona decide che il difetto si può accettare.
 
+### Cosa copre una voce
+
+Una voce **non** copre «quel difetto»: copre **ogni `500` della stessa operazione**. Schemathesis 4.28.0 riconosce una voce per (operazione, controllo, classe del difetto, firma) e, per `not_a_server_error`, la firma è il solo codice di stato (`ServerError._unique_key` restituisce `str(status_code)`, in `schemathesis/baseline/model.py`). Finché una voce resta, su quell'operazione il fuzzing **non vede 5xx nuovi**, qualunque ne sia la causa: una nuova iniezione SQL che produce un `500` su `GET /v1/members`, `/v1/campaigns`, `/v1/rewards` o `/v1/events` comparirebbe come «già noto». Le 79 voci coprono 79 delle 219 operazioni provate, comprese le quattro ricerche libere `q` che sono i bersagli delle righe SQL del testbook. Il **minimo deterministico** su quelle operazioni è quindi `TB-SEC` (`TestbookSecHubIT`, a ogni `./mvnw verify`), non il fuzzing.
+
+Per questo:
+
+- le voci sulle quattro ricerche hanno scadenza a **30 giorni** (2026-10-29) invece di 90: tornano presto a far vedere i `5xx`;
+- la correzione (a) di Q-532 (`GlobalExceptionHandler`: `InvalidParameterException` → `400`) è **urgente**, perché toglie 50 voci in una volta e restituisce al fuzzing altrettante operazioni;
+- ogni voce tolta, per correzione, è una operazione che torna interamente coperta.
+
 ### Stato iniziale della baseline (Q-532)
 
-La prima esecuzione, contro l'hub in locale, ha trovato **79 operazioni che rispondono `500`** a input ostili (nessuna fuga di dettagli: la risposta è sempre il messaggio generico). Sono nella baseline con scadenza 2026-12-28, ciascuna con la causa verificata: 50 per un parametro di query senza nome (`?=x`), 8 per un `asOf` non valido nei job demo, 9 per un byte NUL, 6 per una `NullPointerException` su un corpo incompleto, 4 per un `page` fuori scala, 1 per la paginazione in memoria e 1 per un multipart troncato. Le cause, le correzioni proposte e l'ordine di resa sono in `docs/15` (Q-532). Non si corregge codice di prodotto in questa fetta.
+La prima esecuzione, contro l'hub in locale, ha trovato **79 operazioni che rispondono `500`** a input ostili (nessuna fuga di dettagli: la risposta è sempre il messaggio generico). Sono nella baseline con scadenza 2026-12-28 (2026-10-29 per le quattro ricerche libere), ciascuna con la causa verificata: 50 per un parametro di query senza nome (`?=x`), 8 per un `asOf` non valido nei job demo, 9 per un byte NUL, 6 per una `NullPointerException` su un corpo incompleto, 4 per un `page` fuori scala, 1 per la paginazione in memoria e 1 per un multipart troncato. Le cause, le correzioni proposte e l'ordine di resa sono in `docs/15` (Q-532). Non si corregge codice di prodotto in questa fetta.
 
 Schemathesis genera input diversi a ogni esecuzione (il seme è nel riepilogo) e la causa più diffusa tocca ogni operazione con parametri di query: una notte può quindi trovare un'operazione non ancora registrata e far fallire il job. Si tratta come sopra (`baseline_update`, causa, PR). Le operazioni della prima causa (parametro di query senza nome) sono complete, perché un controllo esaustivo (`?=x` su ogni operazione delle 9 specifiche) non ne trova altre; le altre cause possono ancora rivelare operazioni nuove. Correggere la prima causa di Q-532 le toglie tutte insieme.
 

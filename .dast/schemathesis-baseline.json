@@ -46,8 +46,8 @@
       "signature": "500",
       "first_seen": "2026-09-29",
       "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400 Verificato anche con un byte NUL in `q` (`PSQLException 0x00`, riga TB-SEC-FUZ-012 di TB-SEC).",
+      "expires": "2026-10-29",
+      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400. Verificato anche con un byte NUL in `q` (`PSQLException 0x00`, riga TB-SEC-FUZ-012 di TB-SEC).",
       "ticket": "Q-532"
     },
     {
@@ -166,8 +166,8 @@
       "signature": "500",
       "first_seen": "2026-09-29",
       "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400 Verificato anche con un byte NUL in `q` (`PSQLException 0x00`, riga TB-SEC-FUZ-028 di TB-SEC).",
+      "expires": "2026-10-29",
+      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400. Verificato anche con un byte NUL in `q` (`PSQLException 0x00`, riga TB-SEC-FUZ-028 di TB-SEC).",
       "ticket": "Q-532"
     },
     {
@@ -286,8 +286,8 @@
       "signature": "500",
       "first_seen": "2026-09-29",
       "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: `page=2147483646` fa andare in overflow `page * size`; `PSQLException: OFFSET must not be negative` diventa `DataIntegrityViolationException` e il risultato è 500 invece di 400 Verificato anche con un byte NUL in `q` (`PSQLException 0x00`, riga TB-SEC-FUZ-004 di TB-SEC).",
+      "expires": "2026-10-29",
+      "reason": "causa verificata alla riproduzione: `page=2147483646` fa andare in overflow `page * size`; `PSQLException: OFFSET must not be negative` diventa `DataIntegrityViolationException` e il risultato è 500 invece di 400. Verificato anche con un byte NUL in `q` (`PSQLException 0x00`, riga TB-SEC-FUZ-004 di TB-SEC).",
       "ticket": "Q-532"
     },
     {
@@ -550,8 +550,8 @@
       "signature": "500",
       "first_seen": "2026-09-29",
       "last_seen": "2026-09-29",
-      "expires": "2026-12-28",
-      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400 Verificato anche con un byte NUL in `q` (`PSQLException 0x00`, riga TB-SEC-FUZ-020 di TB-SEC).",
+      "expires": "2026-10-29",
+      "reason": "causa verificata alla riproduzione: query con un parametro senza nome (`?=x`); Tomcat lancia `InvalidParameterException` da `getParameterValues`, nessun handler la mappa e `GlobalExceptionHandler.onUnexpected` risponde 500 invece di 400. Verificato anche con un byte NUL in `q` (`PSQLException 0x00`, riga TB-SEC-FUZ-020 di TB-SEC).",
       "ticket": "Q-532"
     },
     {

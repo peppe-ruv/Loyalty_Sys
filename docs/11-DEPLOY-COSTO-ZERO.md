@@ -185,7 +185,9 @@ Limiti di memoria nel compose (`mem_limit: 512m`, `cpus: 0.5`) per scoprire pres
 | `contracts` | valida `contracts/examples/*` contro gli schemi |
 | `docker` (solo su `main`, path-filter) | build delle immagini toccate (senza push, salvo piano B) |
 | `e2e` (manuale, `workflow_dispatch`) | `docker compose --profile all up` + Playwright + `smoke.sh` |
+
 Fuori da `ci.yml`: `testbook.yml` (notturno) e `security-nightly.yml` (notturno, manuale e sulle PR che lo toccano: fuzzing Schemathesis e ZAP API scan, consultivo, `docs/security/dast.md`).
+
 Nessun segreto in CI tranne, nel piano B, il deploy hook di Render.
 
 ## 11. Sicurezza di una demo senza login
