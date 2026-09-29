@@ -186,8 +186,8 @@ Campi comuni in `data`: `effectId*, campaignCode*, actionId*, actionType*`.
 
 | ID | Nome | Produttore | `data` essenziale |
 |---|---|---|---|
-| EVT-FACT-01 | `member.registered` | member | snapshot completo: `memberId, firstName, lastName, nickname, email, externalId, status, channel, registeredAt, birthDate, city, referralCode, referredBy, attributes{}, labels[]` |
-| EVT-FACT-02 | `member.updated` | member | snapshot completo (come sopra) |
+| EVT-FACT-01 | `member.registered` | member | snapshot completo: `memberId, firstName, lastName, nickname, email, externalId, status, channel, registeredAt, birthDate, city, referralCode, referredBy, attributes{}, labels[]`; opzionale `subjectRef` (pseudonimo del legame token→membro, §10) |
+| EVT-FACT-02 | `member.updated` | member | snapshot completo (come sopra, `subjectRef` compreso) |
 | EVT-FACT-03 | `member.status.changed` | member | `previousStatus, newStatus, reason` |
 | EVT-FACT-04 | `member.profile.completed` | member | — |
 | EVT-FACT-05 | `member.birthday` | member | `age` |
@@ -261,11 +261,13 @@ Regole: nuovo `id`; `source = urn:loyaltyhub:source:internal`; stesso `subject`,
 | ingestion | — | — | `member.registered/updated/status.changed` (indice membri) · tipi del ponte |
 | member | tutte (statistiche attività, qualifica referral) | — | `tier.*`, `wallet.points.*` (proiezione saldi/tier) |
 | campaign | tutte | — | `member.*`, `member.segment.*`, `tier.*` (snapshot) · `wallet.points.earned` (budget effettivo) |
-| wallet | — | `points.grant` | `member.registered` (crea wallet + tier BASE) · `member.status.changed` · `reward.redemption.requested` · `reward.redemption.cancelled` |
+| wallet | — | `points.grant` | `member.registered` (crea wallet + tier BASE) · `member.updated` (solo `subjectRef`, ADR-048) · `member.status.changed` · `reward.redemption.requested` · `reward.redemption.cancelled` |
 | reward | — | `coupon.issue` | `wallet.points.spent` · `wallet.spend.rejected` · `member.*`, `tier.*`, `member.segment.*` (snapshot visibilità) |
 | gamification | tutte (obiettivi, classifiche a conteggio) | `plays.grant`, `badge.award` | `member.registered/updated` (nickname) · `wallet.points.earned` (classifiche a punti) |
 | engagement | — | `message.send` | tutti (regole di notifica, webhook) · snapshot membro per il pubblico dei contenuti |
 | insight | tutte | tutti | tutti (+ `lh.audit.v1`, `lh.dlq.v1`) |
+
+Da M8.10f (ADR-048) wallet, reward, gamification, engagement e campaign proiettano anche `subjectRef` da `member.registered` e `member.updated` nella propria tabella snapshot, per ricavare il membro dal token senza chiamate sincrone (`docs/06 §3.4`).
 
 ### 8.1 Dalla fonte al saldo: esempi dal seed
 
@@ -316,6 +318,7 @@ Aggiunte dell'adozione (M8.0, `docs/18`); diventano vincolanti con la fetta cita
 - **Firma dei messaggi** (ADR-042, M8.10): due header CloudEvents di estensione, `lhsig` (firma JWS *detached* Ed25519 di `data` e degli attributi principali) e `lhkid` (identificativo della chiave del modulo produttore, rotazione Q-352). Il consumer verifica firma e produttore prima dell'idempotenza.
 - **Produttori ammessi** (ADR-042, M8.10): `contracts/events/producers.yaml` elenca per ogni `type` il modulo che può produrlo, ricavato dalle tabelle §3–§6; un messaggio di un modulo non ammesso va in DLQ con `PRODUCER_NOT_ALLOWED`. Un nuovo produttore per un `type` è un caso di *Fermati e chiedi*.
 - **Dati personali fuori dal bus** (ADR-032, M8.4): ogni campo degli schemi porta `x-lh-pii: true|false`; `ContractsTest` e `check-contracts` ammettono un campo `pii:true` solo in una versione superata (`x-lh-superseded-by` verso una versione esistente). `member.registered`/`member.updated` `:2` escono senza `firstName`, `lastName`, `nickname`, `email`, `birthDate`, `city` e aggiungono `locale`, `birthYear`, `province` (sigla di due lettere, Q-344) ed `emailHash` (HMAC-SHA256 dell'e-mail con `LH_PSEUDONYM_KEY`, per i soggetti `email:` di ingestion, Q-367); `attributes` contiene solo attributi con `pii=false`; `additionalProperties: false`. Doppia lettura `:1`/`:2` nei consumer fino a M10 (Q-346), poi la `:1` si rimuove. Il passaggio del produttore e dei consumer alla `:2` è la seconda parte di M8.4.
+- **Legame token → membro** (ADR-048, Q-550, Q-552, M8.10f): `member.registered` e `member.updated`, in versione `:1` e `:2`, aggiungono il campo opzionale `subjectRef` (stringa di 64 caratteri esadecimali, `x-lh-pii: false`): HMAC-SHA256 di `len(iss):iss len(sub):sub` con `LH_SUBJECT_KEY` (base64, almeno 32 byte, distinta da `LH_PSEUDONYM_KEY`). Assente = legame invariato; `null` = legame rimosso; l'anonimizzazione lo cancella in ogni proiezione. Il `sub` non viaggia mai sul bus. Non si chiama `subject`: quel nome è già un attributo dell'envelope e, messo in `PersonalData.KEYS`, `PersonalData.redact` (che toglie le chiavi a ogni profondità) corromperebbe gli envelope conservati. `subjectRef` ha lo stesso regime di `emailHash`: non sta in `PersonalData.KEYS`, il suo valore non è mai «sicuro» per lo scrubber e insight lo toglie dalle righe del membro all'anonimizzazione. Nessun nuovo `type`, topic o produttore. Lo schema si aggiorna **prima** che member-service emetta il campo (con la validazione in consumo, F2-SEC-08, i `:2` con `additionalProperties: false` rifiuterebbero una proprietà sconosciuta) e il passaggio del produttore a `:2` (M8.4) lo porta con sé. Ogni servizio del portale lo proietta nella propria tabella snapshot (`docs/06 §3.4`).
 - **Compatibilità additiva** (ADR-028): `check-contracts` confronta gli schemi con l'ultimo tag verde e fallisce su rimozioni o rinomine.
 - **Nuovi `type` pianificati** (ADR-045, M13.4–M13.7; nascono con schema, esempio e riga in `producers.yaml` nella loro fetta):
 

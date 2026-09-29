@@ -98,12 +98,12 @@ CodeQL (M8.11) copre il flusso dei dati tra metodi e classi.
 
 ## 2. Dipendenze
 
-Trivy legge `pom.xml` (le dipendenze transitive dai POM del repository Maven locale `~/.m2`, ripristinato dalla cache del job `backend` o risolto da `./mvnw dependency:resolve`; `--offline-scan` evita le richieste di Trivy a Maven Central, che dagli IP condivisi dei runner rispondeva 429), `web/pnpm-lock.yaml` e `scripts/package-lock.json`, anche le dipendenze di sviluppo (`--include-dev-deps`). Blocca le vulnerabilità HIGH e CRITICAL per le quali esiste una versione corretta (`--ignore-unfixed`).
+Trivy legge `pom.xml` (le dipendenze transitive dai POM del repository Maven locale `~/.m2`, ripristinato dalla cache del job `backend` o risolto da `./mvnw test-compile` nel reactor; `--offline-scan` evita le richieste di Trivy a Maven Central, che dagli IP condivisi dei runner rispondeva 429), `web/pnpm-lock.yaml` e `scripts/package-lock.json`, anche le dipendenze di sviluppo (`--include-dev-deps`). Blocca le vulnerabilità HIGH e CRITICAL per le quali esiste una versione corretta (`--ignore-unfixed`).
 
 Stato all'ultima verifica (2026-09-29, Trivy 0.74.0): nessuna vulnerabilità HIGH o CRITICAL, né con `--ignore-unfixed` né senza.
 
 ```bash
-# Dipendenze, come fa il job (serve trivy nel PATH; prima ./mvnw -q dependency:resolve se ~/.m2 è vuoto)
+# Dipendenze, come fa il job (serve trivy nel PATH; prima ./mvnw -q test-compile se ~/.m2 è vuoto)
 trivy fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --include-dev-deps --offline-scan \
   --ignorefile .trivyignore.yaml --exit-code 1 --no-progress \
   --skip-dirs '**/node_modules' --skip-dirs '**/target' .
