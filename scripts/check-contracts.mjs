@@ -3,9 +3,19 @@
 // ogni esempio ha gli attributi d'envelope, un `type` con schema corrispondente, `dataschema` coerente,
 // gli audit hanno `lhactor`, e ogni schema di `data` ha un esempio. La validazione JSON Schema completa
 // vive nel test Java ContractsTest (job `backend`); qui diamo un segnale veloce senza dipendenze.
+// In più confronta ogni schema con lo stesso file nell'ultimo tag `v*` (ADR-028, F2-EVT-01, docs/18 §3.3, M8.4c):
+// proprietà facoltative e versioni nuove passano, rimozioni, restrizioni e declassamenti di x-lh-pii bloccano
+// (regole in scripts/contracts-compat.mjs).
+//
+// Uso:  node scripts/check-contracts.mjs [--baseline=<ref>] [--base=<ref>] [--pr-labels=a,b]
+//   --baseline   riferimento di confronto al posto dell'ultimo tag `v*` (per provare in locale)
+//   --base       ramo base per il merge-base (default origin/$GITHUB_BASE_REF in una PR, altrimenti origin/main): le
+//                rotture già presenti lì non bloccano di nuovo (Q-542)
+//   --pr-labels  con la label "decisione" le rotture nuove sono riportate ma non bloccano
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
+import { parseArgs, runCompat, formatReport } from "./contracts-compat.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const eventsDir = resolve(here, "..", "contracts", "events");
@@ -106,9 +116,17 @@ function walkSchemas(dir, family) {
 }
 walkSchemas(eventsDir, null);
 
+// Compatibilità con l'ultimo tag `v*` (ADR-028, F2-EVT-01). Senza tag, o con un tag senza contratti, il confronto è
+// saltato con un avviso (Q-540).
+const compat = runCompat({ root: resolve(here, ".."), ...parseArgs(process.argv.slice(2)) });
+const report = formatReport(compat, { github: process.env.GITHUB_ACTIONS === "true" });
+for (const line of report.out) console.log(line);
+for (const line of report.err) console.error(line);
+
 if (errors.length > 0) {
   for (const e of errors) console.error(`✗ ${e}`);
   console.error(`check-contracts: ${errors.length} errore/i.`);
   process.exit(1);
 }
 console.log(`check-contracts: ${examples.length} esempi coerenti con gli schemi.`);
+process.exit(compat.exitCode);
