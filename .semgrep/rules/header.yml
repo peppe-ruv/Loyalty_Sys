@@ -1,0 +1,122 @@
+rules:
+  # Iniezione negli header HTTP (CRLF, response splitting; ADR-042, F2-SEC-10, docs/18 §3.10 punto 2 e §3.10 «Header
+  # HTTP»). Regola euristica con taint: un valore che viene dalla richiesta (variabili di percorso, parametri, header,
+  # cookie, corpo) e arriva senza bonifica al nome o al valore di un header di risposta o di una richiesta in uscita.
+  # Bonifiche riconosciute: il builder `ContentDisposition` (quota e codifica il nome del file), la codifica URL, la
+  # conversione in numero e una funzione il cui nome dichiara la bonifica (`sanitize…`, `stripCrlf…`, `safeHeader…`).
+  # Le fixture di prova sono in .semgrep/tests/header.java (semgrep --test).
+  - id: lh-header-valore-da-richiesta
+    languages: [java]
+    severity: ERROR
+    mode: taint
+    message: >-
+      Valore derivato dalla richiesta usato in un header HTTP senza bonifica (ADR-042, F2-SEC-10, rischio di iniezione
+      CRLF): un CR/LF nel valore spezza la risposta. Usare ContentDisposition per i nomi di file, una costante o un
+      enum per i valori ammessi, oppure bonificare esplicitamente (rimozione di CR/LF, sanitize…).
+    metadata:
+      category: security
+      cwe: "CWE-113: Improper Neutralization of CRLF Sequences in HTTP Headers"
+      owasp: "A03:2021 Injection"
+      rule-ids: [ADR-042, F2-SEC-10]
+      references:
+        - docs/18-FASE-2.md
+        - docs/security/ci-security.md
+    paths:
+      exclude:
+        - "**/src/test/**"
+    pattern-sources:
+      # Parametri dei metodi di un controller annotati con l'input HTTP (gli usi nel corpo).
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., @PathVariable $T $X, ...) { ... }
+          - pattern: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., @PathVariable(...) $T $X, ...) { ... }
+          - pattern: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., @RequestParam $T $X, ...) { ... }
+          - pattern: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., @RequestParam(...) $T $X, ...) { ... }
+          - pattern: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., @RequestHeader $T $X, ...) { ... }
+          - pattern: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., @RequestHeader(...) $T $X, ...) { ... }
+          - pattern: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., @CookieValue(...) $T $X, ...) { ... }
+          - pattern: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., @RequestBody $T $X, ...) { ... }
+          - pattern: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., @RequestBody(...) $T $X, ...) { ... }
+          - pattern: $X
+      # API di HttpServletRequest.
+      - patterns:
+          - pattern-either:
+              - pattern: (HttpServletRequest $R).getHeader(...)
+              - pattern: (HttpServletRequest $R).getHeaders(...)
+              - pattern: (HttpServletRequest $R).getParameter(...)
+              - pattern: (HttpServletRequest $R).getParameterValues(...)
+              - pattern: (HttpServletRequest $R).getQueryString()
+              - pattern: (HttpServletRequest $R).getRequestURI()
+              - pattern: (HttpServletRequest $R).getPathInfo()
+              - pattern: (HttpServletRequest $R).getServerName()
+              - pattern: (HttpServletRequest $R).getCookies()
+    pattern-sanitizers:
+      # Il builder quota e codifica il nome del file.
+      - pattern: ContentDisposition.$M(...). ... .build()
+      - pattern: ContentDisposition.$M(...).build()
+      - pattern: URLEncoder.encode(...)
+      - pattern: UriUtils.encode(...)
+      - pattern: UriUtils.encodePath(...)
+      - pattern: Integer.parseInt(...)
+      - pattern: Long.parseLong(...)
+      - pattern: Integer.valueOf(...)
+      - pattern: Long.valueOf(...)
+      # Rimozione esplicita di CR/LF.
+      - patterns:
+          - pattern-either:
+              - pattern: $S.replaceAll($RE, ...)
+              - pattern: $S.replace($RE, ...)
+          - metavariable-regex:
+              metavariable: $RE
+              regex: (?s).*(\\r|\\n|\\u000d|\\u000a).*
+      # Funzione che dichiara la bonifica nel nome.
+      - patterns:
+          - pattern-either:
+              - pattern: $F(...)
+              - pattern: $X.$F(...)
+          - metavariable-regex:
+              metavariable: $F
+              regex: (?i)^(sanitize\w*|stripCrlf\w*|safeHeader\w*|neutralize\w*|encodeHeader\w*)$
+    pattern-sinks:
+      # Valore dell'header.
+      - patterns:
+          - pattern-either:
+              - pattern: (HttpServletResponse $R).setHeader($N, $V)
+              - pattern: (HttpServletResponse $R).addHeader($N, $V)
+              - pattern: (HttpHeaders $H).set($N, $V)
+              - pattern: (HttpHeaders $H).add($N, $V)
+              - pattern: $B.header($N, $V, ...)
+          - focus-metavariable: $V
+      # Nome dell'header.
+      - patterns:
+          - pattern-either:
+              - pattern: (HttpServletResponse $R).setHeader($N, $V)
+              - pattern: (HttpServletResponse $R).addHeader($N, $V)
+              - pattern: (HttpHeaders $H).set($N, $V)
+              - pattern: (HttpHeaders $H).add($N, $V)
+              - pattern: $B.header($N, $V, ...)
+          - focus-metavariable: $N

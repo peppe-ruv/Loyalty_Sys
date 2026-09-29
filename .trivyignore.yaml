@@ -1,0 +1,22 @@
+# Eccezioni della scansione Trivy del job `security` (.github/workflows/ci.yml, docs/security/ci-security.md).
+# Regole: ogni voce ha `statement` (la ragione), `expired_at` (a quella data la segnalazione torna e il job
+# fallisce, quindi la decisione va rivista) e il riferimento a docs/15 (Q-nnn) o docs/19 (TOBE-nnn). Niente eccezioni
+# senza scadenza. Le eccezioni con ambito su una risorsa precisa (non su un file) sono in `.trivy/ignore-policy.rego`.
+
+# Dipendenze (Maven, pnpm, npm): nessuna vulnerabilità HIGH o CRITICAL nota all'ultima verifica (2026-09-29, Trivy 0.74.0,
+# anche con --include-dev-deps e senza --ignore-unfixed). Una vulnerabilità nuova senza correzione disponibile non
+# blocca il job (--ignore-unfixed); una con correzione va aggiornata (patch) o accettata qui con scadenza e una Q.
+vulnerabilities: []
+
+misconfigurations:
+  # Compose locale di sviluppo (deploy/docker-compose.yml): pubblica le porte dei servizi su tutte le interfacce della
+  # macchina dello sviluppatore, senza indirizzo di ascolto (Kafka 9092, Postgres 5432, i servizi 8081-8088, il web
+  # 3000). È solo per sviluppo e demo locale, mai un'installazione: Kafka UI e l'LDAP di prova sono già su 127.0.0.1
+  # (Q-479, Q-480). Il compose di riferimento (deploy/compose/reference.yml) ascolta su ${LH_BIND_ADDRESS:-127.0.0.1} e
+  # non ha eccezioni. Da decidere se anche il locale passa a 127.0.0.1: Q-503.
+  - id: LH-DC-0002
+    paths:
+      - "docker-compose.yml"
+      - "**/docker-compose.yml"
+    statement: "Compose locale di sviluppo: porte su tutte le interfacce, solo per sviluppo (Q-503, Q-479, Q-480)"
+    expired_at: 2027-03-31

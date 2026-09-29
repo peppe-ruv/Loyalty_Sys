@@ -1,0 +1,37 @@
+rules:
+  # Iniezione di espressioni SpEL (ADR-042, F2-SEC-10; docs/18 §3.10 punto 5: template senza logica). Un'espressione
+  # SpEL arbitraria può invocare metodi e costruire oggetti: il testo passato al parser deve essere un letterale o una
+  # costante del codice, mai input, configurazione dell'operatore o testo composto a runtime.
+  # Le fixture di prova sono in .semgrep/tests/spel.java (semgrep --test).
+  - id: lh-spel-espressione-non-costante
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Espressione SpEL non costante passata al parser (ADR-042, F2-SEC-10, docs/18 §3.10 punto 5): il testo deve essere
+      un letterale o una costante `static final`; un'espressione composta a runtime o proveniente da input,
+      configurazione o database permette l'esecuzione di codice. Per i template usare la sostituzione di segnaposto
+      senza logica.
+    metadata:
+      category: security
+      cwe: "CWE-917: Improper Neutralization of Special Elements used in an Expression Language Statement"
+      owasp: "A03:2021 Injection"
+      rule-ids: [ADR-042, F2-SEC-10]
+      references:
+        - docs/18-FASE-2.md
+        - docs/security/ci-security.md
+    paths:
+      exclude:
+        - "**/src/test/**"
+    patterns:
+      - pattern-either:
+          - pattern: (ExpressionParser $P).parseExpression($ARG, ...)
+          - pattern: (SpelExpressionParser $P).parseExpression($ARG, ...)
+          - pattern: (SpelExpressionParser $P).parseRaw($ARG)
+          - pattern: (TemplateAwareExpressionParser $P).parseExpression($ARG, ...)
+          - pattern: new SpelExpressionParser(...).parseExpression($ARG, ...)
+          - pattern: new SpelExpressionParser(...).parseRaw($ARG)
+      - focus-metavariable: $ARG
+      # Ammessi soltanto: un solo letterale (anche blocco di testo) o `COSTANTE`/`Classe.COSTANTE`.
+      - metavariable-regex:
+          metavariable: $ARG
+          regex: (?s)^(?!(?:"(?:[^"\\\n]|\\.)*"|"""(?:(?!""").)*"""|(?:[A-Za-z0-9_]+\.)*[A-Z][A-Z0-9_]*)$)
