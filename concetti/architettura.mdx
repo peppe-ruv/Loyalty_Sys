@@ -19,6 +19,8 @@ Loyalty Hub è progettato attorno a poche regole rigide. Questa pagina le enunci
 
 ```mermaid
 flowchart LR
+  accTitle: Vista d'insieme dell'architettura di Loyalty Hub
+  accDescr: Le fonti esterne e il frontend web chiamano via REST i microservizi Spring Boot. Ingestion scrive sul topic actions, campaign su effects, i servizi di dominio su facts, tutti su audit, e i consumer leggono dai topic. I cinque topic Kafka alimentano anche il servizio insight. I servizi condividono un solo database Postgres con uno schema ciascuno.
   subgraph Client
     EXT["Fonti esterne\n(crm, app, ecommerce, billing, partner)"]
     WEB["web: Next.js\n(hub, backoffice, portale)"]

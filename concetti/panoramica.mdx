@@ -20,6 +20,8 @@ Ogni cosa che accade è un **evento** su Kafka. Non c'è un orchestratore: i ser
 
 ```mermaid
 flowchart LR
+  accTitle: I concetti di Loyalty Hub in una figura
+  accDescr: Le fonti esterne entrano da ingestion, che pubblica le azioni su lh.actions.v1 verso campaign. Campaign pubblica gli effetti su lh.effects.v1 verso wallet e li passa a reward, gamification ed engagement. Wallet e gamification pubblicano fatti su lh.facts.v1 che tornano in ingestion e chiudono il ciclo.
   SRC["Fonti esterne\n(crm, ecommerce, app)"] --> ING["ingestion"]
   ING -->|lh.actions.v1| CMP["campaign"]
   CMP -->|lh.effects.v1| WAL["wallet"]

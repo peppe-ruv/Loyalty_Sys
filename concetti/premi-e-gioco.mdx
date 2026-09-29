@@ -60,6 +60,8 @@ Una richiesta premio non è una scrittura semplice: coinvolge più servizi che d
 
 ```mermaid
 sequenceDiagram
+  accTitle: Saga coreografata della richiesta premio
+  accDescr: Il portale invia la richiesta a reward-service, che pubblica il fatto redemption.reserved. Wallet-service prenota i lotti in ordine FIFO e risponde con wallet.points.reserved. Reward conferma e assegna il coupon, poi pubblica redemption.confirmed e wallet consolida il debito. Senza saldo sufficiente la saga fallisce.
   participant Portale
   participant RWD as reward-service
   participant WAL as wallet-service
