@@ -11,7 +11,7 @@ Il backlog raccoglie le epiche e le storie utente del Loyalty Hub, di Fase 1 (la
 Usa queste pagine per sapere, storia per storia, se è **pronta** per entrare in una fetta (Definition of Ready) e se è **fatta** (Definition of Done). Lo stato non lo scrive nessuno a mano: lo calcola `scripts/docs-sync.mjs` dal sorgente [`docs/17-EPIC-E-STORIE.md`](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/17-EPIC-E-STORIE.md) e dalle evidenze del repository.
 
 <Note>
-  Oggi il backlog ha 227 storie: 190 pronte, 130 fatte, 4 con la DoD da verificare e 3 fuori perimetro della PoC. Le voci basate sulle evidenze del repository sono aggiornate all'ultimo refresh: commit `f69d808` del 2026-09-29.
+  Oggi il backlog ha 227 storie: 190 pronte, 130 fatte, 4 con la DoD da verificare e 3 fuori perimetro della PoC. Le voci basate sulle evidenze del repository sono aggiornate all'ultimo refresh: commit `4b3d594` del 2026-09-29.
 </Note>
 
 ## Dall'epica alla storia fatta
@@ -150,7 +150,7 @@ Quelle che dipendono dalle evidenze del repository stanno in uno snapshot commit
 - **D1**: le righe `[x]` di `docs/14` per ogni `F-` e `F2-` della storia e i numeri delle pull request sulla stessa riga. Una feature della sezione «Fuori PoC» non conta; in Fase 2 serve anche il numero della pull request.
 - **D2**: le righe `TB-*` di `docs/16` e `docs/testbook/` legate alla storia (la citano nella riga, nel titolo o nel testo della sezione, compresa la regola, o nella regola dell'inventario che copre la loro area, oppure il campo *Testbook* le nomina) o, nel dominio della storia, alle sue feature e schermate. Una riga conta come eseguita se il suo ID compare nei sorgenti dei test (`src/test/`, `*.test.ts`, `e2e/`). In alternativa valgono le prove citate nel campo *Testbook*: un file di test che esiste, uno script che un workflow invoca, un workflow insieme a un suo job che esiste. D2 non è mai soddisfatta se i criteri non sono pronti (R3) o se un criterio dichiara un residuo.
 
-Le pagine mostrano lo stato dell'ultimo refresh: commit `f69d808` del 2026-09-29.
+Le pagine mostrano lo stato dell'ultimo refresh: commit `4b3d594` del 2026-09-29.
 
 Per aggiornare le pagine, esegui:
 
