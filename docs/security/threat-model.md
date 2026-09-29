@@ -159,8 +159,8 @@ Nelle modalità in un solo processo (`LH_ROLE=all`, `embedded`) B2, B4 e B5 rest
 
 | STRIDE | Minaccia | Contromisura | Stato |
 |---|---|---|---|
-| T | Dipendenza compromessa o con vulnerabilità nota | Dependabot per `maven`, `npm`, `github-actions`; scansione Trivy di dipendenze, immagini e IaC; blocco sugli alti | ✅ Dependabot · ✅ Trivy su dipendenze e IaC nel job `security` (consultivo, M8.11b) · ⏳ immagini (M8.5) |
-| T | Immagine sostituita nel registry | Firma cosign, verifica all'ammissione (Kyverno, opzionale), SBOM CycloneDX per rilascio (F2-DIST-08) | ⏳ M8.5, M12.4 |
+| T | Dipendenza compromessa o con vulnerabilità nota | Dependabot per `maven`, `npm`, `github-actions`; scansione Trivy di dipendenze, immagini e IaC; blocco sugli alti | ✅ Dependabot · ✅ Trivy su dipendenze e IaC nel job `security` (consultivo, M8.11b) · ✅ immagini in `image.yml` (M8.5a, Q-513) |
+| T | Immagine sostituita nel registry | Firma cosign, verifica all'ammissione (Kyverno, opzionale), SBOM CycloneDX per rilascio (F2-DIST-08) | 🟡 M8.5a (firma, SBOM, provenienza sui tag; Kyverno e VEX in TOBE-010) |
 | T | Codice non revisionato su `main` | Solo PR verso `main`, ruleset `main-protetto`, job `guard`, revisione umana delle PR degli agenti (ADR-041, ADR-044) | ✅ PR e `guard` · ⏳ identità propria degli agenti (F2-GRC-09) |
 | I | Segreti nel repository o nei log | Nessun segreto nel codice (regola 20); secret scanning con push protection; log senza dati personali né credenziali | ✅ regola · ✅ gitleaks nel job `security` (M8.11b) · ⏳ secret scanning con push protection: impostazione del repository, la abilita il proprietario (Q-506) |
 | R | Non si sa quale commit ha prodotto un'immagine | Provenienza SLSA livello 3 nel pacchetto di rilascio (F2-GRC-08) | ⏳ M12.4 |

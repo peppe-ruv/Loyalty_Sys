@@ -375,3 +375,86 @@ Job di migrazione, broker e operatori.
 > **Nota:** il job è **consultivo**: non è nei controlli obbligatori del ruleset (`scripts/setup-branch-protection.sh`)
 > finché non si dimostra stabile. Usa il profilo `demo` perché lo smoke non ha un token OIDC: lo smoke nel profilo
 > `enterprise` resta aperto (Q-491, TOBE-008).
+
+---
+
+## Verificare l'immagine
+
+Ogni immagine pubblicata con un tag `v*` è firmata, ha un SBOM allegato e una provenienza della build. Verifica questi
+tre elementi prima di installare l'immagine con il chart o con il compose di riferimento. Il perché e il flusso completo
+sono in `docs/security/supply-chain.md`.
+
+### Prerequisiti
+
+- [cosign](https://docs.sigstore.dev/cosign/) 3.0 o successivo (la pipeline usa la 3.1.3, che scrive il nuovo formato di bundle Sigstore: la 2.x non lo verifica);
+- [GitHub CLI](https://cli.github.com/) (`gh`) per la provenienza;
+- `docker` con buildx e `jq`, per ricavare il digest di una piattaforma;
+- l'accesso in lettura all'immagine su GHCR (`docker login ghcr.io` se il pacchetto non è pubblico).
+
+Imposta cinque variabili: sostituisci i segnaposto con i valori del repository che ha pubblicato l'immagine.
+
+```bash
+export IMAGE=ghcr.io/<owner>/loyaltyhub        # come in image.repository del chart o LH_IMAGE del compose
+export VERSION=v0.7.0                          # il tag da installare
+export REPO=<owner>/<repository>               # il repository GitHub del workflow, con le maiuscole di GitHub
+export ISSUER=https://token.actions.githubusercontent.com
+export IDENTITY_RE="^https://github\.com/${REPO}/\.github/workflows/image\.yml@refs/tags/v.+$"
+```
+
+### Verifica la firma
+
+Esegui questo comando. Ha successo solo se l'immagine è firmata dal workflow `image.yml` di quel repository su un tag
+`v*`, senza chiavi da scambiare: l'identità è nel certificato di breve durata registrato nel log di
+trasparenza di Sigstore.
+
+```bash
+# Verifica la firma keyless dell'indice multi-arch; stampa il digest verificato
+cosign verify "$IMAGE:$VERSION" \
+  --certificate-identity-regexp "$IDENTITY_RE" \
+  --certificate-oidc-issuer "$ISSUER"
+```
+
+Per un'installazione ripetibile fissa il digest verificato al posto del tag (`image.tag=sha256:…` nel chart,
+`LH_IMAGE=$IMAGE@sha256:…` nel compose).
+
+### Verifica e scarica l'SBOM
+
+L'SBOM CycloneDX di ogni piattaforma è un'attestazione sul digest del manifest di quella piattaforma (Q-511), non
+sull'indice. Ricava il digest della piattaforma che usi, poi verifica l'attestazione ed estrai l'SBOM.
+
+```bash
+# Digest del manifest linux/amd64 (usa arm64 per le macchine ARM)
+DIGEST=$(docker buildx imagetools inspect --raw "$IMAGE:$VERSION" \
+  | jq -r '.manifests[] | select(.platform.os=="linux" and .platform.architecture=="amd64") | .digest')
+
+# Verifica l'attestazione e salva l'SBOM CycloneDX in un file
+cosign verify-attestation --type cyclonedx "$IMAGE@$DIGEST" \
+  --certificate-identity-regexp "$IDENTITY_RE" \
+  --certificate-oidc-issuer "$ISSUER" \
+  | head -n1 | jq -r '.payload | @base64d | fromjson | .predicate' > sbom-amd64.cdx.json
+```
+
+In alternativa scarica l'SBOM dall'esecuzione del workflow, senza verificare la firma: apri l'esecuzione del tag nella
+scheda *Actions* del repository e scarica l'artefatto `sbom-e-scansione-<tag>` (`sbom-amd64.cdx.json`,
+`sbom-arm64.cdx.json` e i rapporti di scansione `trivy-*.json`). Gli artefatti restano 90 giorni; l'attestazione nel
+registro resta finché esiste l'immagine.
+
+### Verifica la provenienza della build
+
+Questo comando controlla che la provenienza della build, firmata da GitHub, indichi il repository e il workflow attesi.
+
+```bash
+# Verifica l'attestazione di provenienza (SLSA) firmata da GitHub per questo repository
+gh attestation verify "oci://$IMAGE:$VERSION" --repo "$REPO"
+```
+
+### Errori comuni
+
+> **Attenzione:** se `cosign verify` risponde `no matching signatures`, controlla nell'ordine: (1) il tag è un tag di
+> rilascio `v*`, non `build-<commit>`, che è provvisorio e non si usa; (2) `REPO` ha le stesse maiuscole del
+> repository su GitHub, perché l'identità le distingue; (3) l'immagine non è stata copiata in un altro registro con uno
+> strumento che non copia le firme.
+
+> **Nota:** `cosign verify-attestation` sul tag, cioè sull'indice, non trova l'SBOM: l'attestazione è sul digest della
+> piattaforma. Il chart non porta ancora la verifica delle firme all'ammissione (Kyverno, docs/18 §3.11):
+> per ora la verifica si fa come sopra, prima dell'installazione. Q-511 e TOBE-010 dicono cosa manca.
