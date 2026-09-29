@@ -335,6 +335,27 @@ class InsightServiceIT {
         assertThat(storedV2.path("province").asString()).isEqualTo("PV");
         assertThat(storedV2.path("subjectRef").asString()).isEqualTo(subjectRef);
 
+        // Un secondo membro con lo stesso subjectRef (SPEC-GAP Q-558: la stessa persona che si ri-registra dopo
+        // un'anonimizzazione lo riceve identico): l'anonimizzazione di MBR-000902 non deve corrompere questa copia.
+        Map<String, Object> v2b = new LinkedHashMap<>(v2);
+        v2b.put("memberId", "MBR-000903");
+        v2b.put("emailHash", "b1946ac92492d2347c6235b4d2611184f0f3e2c4a4b9d7e2b1c5e2a0f6d3c8aa");
+        publish("lh.facts.v1", memberEnv("EVT-M3-REG", "registered", "MBR-000903", "COR-M12-B", 2, "2031-01-16", v2b));
+        awaitEvent("EVT-M3-REG", d -> d.path("subjectRef").asString("").equals(subjectRef));
+
+        // Il valore di subjectRef compare anche in testo libero nelle righe di MBR-000902 (voce di audit sull'entità).
+        Map<String, Object> audit = new LinkedHashMap<>();
+        audit.put("service", "member");
+        audit.put("entityType", "MEMBER");
+        audit.put("entityId", "MBR-000902");
+        audit.put("action", "UPDATE");
+        audit.put("summary", "Legame account " + subjectRef + " verificato");
+        audit.put("before", Map.of("note", "prima " + subjectRef));
+        audit.put("after", Map.of("note", "dopo " + subjectRef));
+        publish("lh.audit.v1", auditEnvelope("EVT-M2-AUD", "MEMBER:MBR-000902", "ADMIN:giuseppe", "COR-M12-AUD", audit));
+        JsonNode auditPage = awaitAudit("MBR-000902", 1);
+        assertThat(auditPage.path("items").size()).isGreaterThanOrEqualTo(1);
+
         // Anonimizzazione con member.updated:2 (status ANONYMIZED) per entrambi.
         Map<String, Object> anon1 = new LinkedHashMap<>();
         anon1.put("memberId", "MBR-000901");
@@ -360,6 +381,20 @@ class InsightServiceIT {
         assertThat(redactedV2.has("emailHash")).isFalse();
         assertThat(redactedV2.has("subjectRef")).isFalse();
         assertThat(redactedV2.toString()).doesNotContain(subjectRef);
+        // Testo libero delle righe del membro (audit sull'entità): il valore di subjectRef non sopravvive (ADR-048).
+        long deadline = System.currentTimeMillis() + 20_000;
+        String auditText = "";
+        while (System.currentTimeMillis() < deadline) {
+            auditText = awaitAudit("MBR-000902", 1).toString();
+            if (!auditText.contains(subjectRef)) {
+                break;
+            }
+            sleep();
+        }
+        assertThat(auditText).doesNotContain(subjectRef);
+        // Righe di altre entità: subjectRef non è un valore inequivocabile, la copia di MBR-000903 resta intatta.
+        assertThat(awaitEvent("EVT-M3-REG", d -> d.has("subjectRef")).path("subjectRef").asString())
+                .isEqualTo(subjectRef);
         // Il subject dell'envelope (member:<id>) resta com'è: l'anonimizzazione toglie solo i dati del membro.
         assertThat(storedSubject("EVT-M2-REG")).isEqualTo("member:MBR-000902");
         JsonNode redactedAnon = awaitEvent("EVT-M2-ANON", d -> !d.has("subjectRef"));
