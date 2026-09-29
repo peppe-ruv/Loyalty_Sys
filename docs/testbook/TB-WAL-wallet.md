@@ -15,6 +15,9 @@ Dominio **wallet** del testbook funzionale (`docs/16`): valute `PTS`/`STS`, libr
 | `TestbookWalAccrualIT` | integrazione (Spring, Postgres embedded, profilo `demo`) | `grants.csv`, `tier-upgrade.csv`, `release.csv`, `wallet-view.csv`, `keep-warning.csv`, `job-roles.csv`, `expiry-job.csv`, `warnings.csv` | GRT, TUP, REL, WVW, API, MBR, LIA, JOB, EXP, WRN |
 | `TestbookWalSpendIT` | integrazione | `spend.csv`, `adjustments.csv` | SPD, REF, ADJ |
 | `TestbookWalAdminIT` | integrazione (stato globale: valute, livelli, edizioni) | `currency-policy.csv`, `tier-admin.csv`, `edition-crud.csv`, `close-roles.csv` | CUR, TAD, EDN, ECL |
+| `TestbookWalMemberSubjectIT` | integrazione (profilo `demo`, fatti veri sul bus embedded; scenari di `MemberSubjectProjectionScenarios`, gli stessi di `WalletMemberSubjectProjectionIT`) | fatti costruiti dal test | MBP-001…014 |
+| `TestbookWalMemberPrincipalIT` | integrazione (`identity.mode=oidc`, token RS256 veri di `OidcTestTokens`; scenari di `PortalOidcScenarios`, gli stessi di `WalletPortalOidcIT`) | membri A, B, C legati da fatti veri | MBP-020…033 |
+| `TestbookWalMemberPrincipalDemoIT` | integrazione (profilo `demo`, membri del seed in sola lettura) | — | MBP-040…048 |
 
 I file sono in `services/wallet-service/src/test/{java/io/loyaltyhub/wallet/testbook, resources/testbook/wal}`. Ogni caso ha nome `[<ID>] <descrizione>`; una riga = un caso eseguito.
 
@@ -62,6 +65,8 @@ Convenzioni dei test d'integrazione:
 | R-30 | Passività per valuta: `outstanding`, `pending`, `byExpiryMonth[]` | F-WAL-09 · wallet §3 · BO-08 | LIA |
 | R-31 | `member.registered` crea i 2 wallet + `member_tier BASE`; `member.status.changed` aggiorna lo stato | wallet §4 | MBR |
 | R-32 | Audit su `lh.audit.v1`: rettifiche, modifiche a livelli/valute/edizioni, **job** | wallet §4 · docs/05 §6 · F-WAL-07 | ADJ, CUR-014, TAD-018, EDN-016, ECL-019, JOB-013 |
+| R-33 | Legame token↔membro (M8.10f, ADR-048): `member.registered` e `member.updated` (`:1` e `:2`) con `subjectRef` legano il membro in `member_tier` nella stessa transazione del wallet; assente = nessun effetto, `null` = slega, fatto più vecchio dell'ultimo aggiornamento o membro cancellato = nessun effetto, stesso pseudonimo su due membri = vince il più recente (parità: id maggiore), anonimizzazione = lapide definitiva che nessun replay ripristina | docs/06 §3.4 · docs/05 §5, §10 · Q-550, Q-552 · ADR-048 | MBP-001…014 |
+| R-34 | Portale con il membro dal token: `/v1/portal/me/wallet` e `/me/wallet/activity` (`@MemberEndpoint`); in `enterprise` `memberId` in query/form/header ⇒ 400 `MEMBER_FROM_TOKEN`, id nel percorso legacy ⇒ 403, operatore/misto/`MEMBER`+`SOURCE` ⇒ 403, `sub` senza legame o anonimizzato ⇒ 409 `MEMBER_NOT_LINKED` con `Retry-After: 2`, token di membro fuori dal portale ⇒ 403 `FORBIDDEN_ROLE`; livelli ed edizioni (`/v1/portal/editions`) aperti ai membri; in `demo` il membro è `memberId` o `X-LH-Member` e gli errori restano quelli di prima | docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-555 · ADR-048 | MBP-020…048 |
 
 ## 2. Rami del codice mappati sulle regole
 
@@ -161,12 +166,19 @@ Percorsi relativi a `services/wallet-service/src/main/java/io/loyaltyhub/wallet/
 | B-89 | `api/WalletJobsController.java:60` `asOf` assente → adesso | R-18 | JOB-012 |
 | B-90 | `WalletJobsController.java:63` `asOf` istante ISO | R-18 | REL, EXP, WRN |
 | B-91 | `WalletJobsController.java:66` `asOf` data pura → fine giornata a Roma | senza specifica | JOB-014 |
-| B-92 | `api/PortalActivityController.java:49` `pending` sempre `false` | R-28 (divergenza) | API-008 |
-| B-93 | `PortalActivityController.java:73-95` scomposizione | R-28 | API-009 |
-| B-94 | `PortalActivityController.java:42`, `api/WalletsController.java:55` limiti di pagina | senza specifica | — |
-| B-95 | `messaging/MemberLifecycleHandler.java:33` evento senza membro → nulla | senza specifica | — |
-| B-96 | `MemberLifecycleHandler.java:36` `member.registered` → 2 wallet + `BASE` | R-31 | MBR-001/002 |
-| B-97 | `MemberLifecycleHandler.java:38-41` `member.status.changed` (senza `newStatus` → `ACTIVE`) | R-31; default senza specifica | MBR-003 |
+| B-92 | `api/PortalActivityAssembler.java:40` `pending` dal lotto nato dal movimento | R-28 | API-008 |
+| B-93 | `PortalActivityAssembler.java:78` scomposizione | R-28 | API-009 |
+| B-94 | `PortalActivityAssembler.java:31`, `api/WalletsController.java:55` limiti di pagina | senza specifica | — |
+| B-95 | `messaging/MemberLifecycleHandler.java:38` evento senza membro → nulla | senza specifica | — |
+| B-96 | `MemberLifecycleHandler.java:42` `member.registered` → 2 wallet + `BASE` | R-31 | MBR-001/002 |
+| B-97 | `MemberLifecycleHandler.java:43-47` `member.status.changed` (senza `newStatus` → `ACTIVE`) | R-31; default senza specifica | MBR-003 |
+| B-98 | `application/MemberSubjectProjection.java` `apply`: `subjectRef` assente e nessuna anonimizzazione → nessun effetto | R-33 (Q-550) | MBP-004, 005 |
+| B-99 | `MemberSubjectProjection.apply`: `LINK`/`UNLINK`/`ERASE` secondo `MemberSubjectRules` (rilettura con `FOR UPDATE`, sorpasso dell'altro detentore) | R-33 (Q-550) | MBP-001…003, 006…011, 013 |
+| B-100 | `messaging/MemberLifecycleHandler.java:48-51` `member.updated`: nessun effetto sul wallet, solo il legame | R-33 | MBP-003 |
+| B-101 | `infra/WalletMemberSubjectLookup.java` legame assente → vuoto (non autorevole) ⇒ 409 `MEMBER_NOT_LINKED` | R-34 (Q-553) | MBP-014, 031, 032 |
+| B-102 | `api/PortalMeWalletController.java` `/v1/portal/me/wallet[/activity]` con `MemberPrincipal.requireParam()` | R-34 | MBP-020, 040…043, 045 |
+| B-103 | `api/PortalWalletsController.java`, `api/PortalActivityController.java` percorsi legacy `@Deprecated` con `demoPathVariable = "memberId"` | R-34 (Q-553) | MBP-025, 041, 042, 044, 047, 048 |
+| B-104 | `PortalWalletsController.editions` `/v1/portal/editions` (`members = true`) | R-34 | MBP-021, 048 |
 
 **Regole senza codice** (o implementate in modo diverso): `keepWarning` (R-26) · filtri `type`/`from`/`to` del libro mastro (R-27) · azione e attore esposti dal libro mastro (R-02/R-27) · `pending` ed `expiresAt` nell'attività del portale (R-28) · campo `threshold` della scala del portale (R-28) · audit dei job (R-32) · un solo `EXPIRE` per membro/valuta (R-16) · nuovo lotto di rimborso (R-15, sostituito da Q-54) · «la successiva» edizione `ACTIVE` (R-23). «Periodi contigui» (R-24) è imposto da Q-151 (EDN-007); «solo i membri ACTIVE accumulano» (docs/03 §2) è applicato dal wallet per `BLOCKED`/`ANONYMIZED` da Q-140 (GRT-049…051).
 
@@ -862,7 +874,7 @@ La specifica tace: ogni gruppo ha una voce in `docs/15` (Q-140…Q-156) e la rig
 
 Le righe restano rosse finché il codice non è corretto o una decisione in `docs/15` non cambia l'oracolo.
 
-**Stato**: corrette nel codice D-01, D-02 (`domain/ExpiryPolicy.java`: ultimo istante = 23:59:59.999999, precisione di `timestamptz`), D-04 (`application/WalletService.auditJob`: voce `JOB` a ogni esecuzione), D-05…D-07 (`keepWarning` in `api/WalletView.java` e `application/WalletQueryService.keepWarning`), D-08…D-10 (`infra/LedgerRepository.search`, `api/WalletsController.ledger`: filtri `type`, `from`, `to` e campi `actionId`, `actor`), D-11 (`api/PortalWalletsController.PortalTier`: `threshold`, con `thresholdSts` per compatibilità), D-12, D-13 (`api/PortalActivityController`: `pending` ed `expiresAt` dal lotto nato dal movimento, più `direction` e `icon`), D-18 (`application/EditionCloseBatchService.nextEdition`). Restano aperte D-03 e D-14…D-17 (in carico a una correzione separata).
+**Stato**: corrette nel codice D-01, D-02 (`domain/ExpiryPolicy.java`: ultimo istante = 23:59:59.999999, precisione di `timestamptz`), D-04 (`application/WalletService.auditJob`: voce `JOB` a ogni esecuzione), D-05…D-07 (`keepWarning` in `api/WalletView.java` e `application/WalletQueryService.keepWarning`), D-08…D-10 (`infra/LedgerRepository.search`, `api/WalletsController.ledger`: filtri `type`, `from`, `to` e campi `actionId`, `actor`), D-11 (`api/PortalWalletsController.PortalTier`: `threshold`, con `thresholdSts` per compatibilità), D-12, D-13 (`api/PortalActivityAssembler`, già `PortalActivityController`: `pending` ed `expiresAt` dal lotto nato dal movimento, più `direction` e `icon`), D-18 (`application/EditionCloseBatchService.nextEdition`). Restano aperte D-03 e D-14…D-17 (in carico a una correzione separata).
 
 | # | Riga | Specifica | Osservato | Causa (file:riga) |
 |---|---|---|---|---|
@@ -891,14 +903,76 @@ Nota su D-14…D-17: Q-54 (APERTA) registra la scelta implementata, ma la motiva
 
 | Voce | Valore |
 |---|---|
-| Regole inventariate | 32 (R-01…R-32) |
-| Rami del codice mappati | 97 (B-01…B-97) |
+| Regole inventariate | 34 (R-01…R-34) |
+| Rami del codice mappati | 104 (B-01…B-104) |
 | Rami senza specifica | 29 (B-03 trim, B-07, B-08, B-11 ordine, B-13, B-15, B-16, B-18, B-21, B-26 tempistica, B-33, B-34, B-40, B-46, B-47 default, B-49 tipo sconosciuto, B-50, B-64 anteprima, B-66, B-73, B-77, B-78, B-81, B-85, B-86 `progressPct`, B-91, B-94, B-95, B-97 default) — 17 provati da righe con scelta registrata (Q-140…Q-156); 12 non eseguiti (eventi o richieste fuori contratto, dati incoerenti, formula non specificata) |
 | Rami non raggiungibili | 3 (B-08 via HTTP, B-29, B-30) |
 | Regole non implementate o implementate diversamente | 11 (vedi fine §2) |
-| Righe del testbook | 373 |
-| Righe per area | POL 24 · CLR 33 · GRT 65 · TUP 19 · REL 5 · WVW 17 · API 11 · MBR 3 · LIA 7 · JOB 14 · EXP 16 · WRN 9 · SPD 24 · REF 11 · ADJ 43 · CUR 14 · TAD 18 · EDN 16 · ECL 24 |
+| Righe del testbook | 410 |
+| Righe per area | POL 24 · CLR 33 · GRT 65 · TUP 19 · REL 5 · WVW 17 · API 11 · MBR 3 · LIA 7 · JOB 14 · EXP 16 · WRN 9 · SPD 24 · REF 11 · ADJ 43 · CUR 14 · TAD 18 · EDN 16 · ECL 24 · MBP 37 |
 | Tabelle decisionali complete | GRT-001…048 (48 = 2 × 3 × 2 × 4), CLR-001…032 (32 = 4 × 8) |
 | Combinazioni ridotte | rettifiche: 48 combinazioni valide → 12 righe a coppie (ADJ-001…012) + 22 classi non valide da sole + 8 limiti da soli; accredito × stato del membro: 192 → 48 + 3 stati da soli; ruoli dei job: 7 × 3 → 7 + 2 + 2; chiusura in integrazione: rappresentanti per esito (tabella completa in §13) |
 | Righe con scelta registrata | 28 (§19, Q-140…Q-156) |
 | Divergenze | 18 righe (D-01…D-18), 11 cause distinte; 13 corrette, 5 aperte (D-03, D-14…D-17) |
+
+## 22. Il membro dal token e il legame `subjectRef` (M8.10f)
+
+**Regole**: R-33 (legame token↔membro), R-34 (portale con il membro solo dal token) — docs/06 §3.2, §3.4, docs/05 §5 e §10, Q-410, Q-550, Q-552, Q-553, Q-554, Q-555, ADR-048. Fatti `member.*` veri sul bus embedded (`lh.facts.v1`, chiave `memberId`), stato letto da `member_tier`; token OIDC veri firmati RS256 (`OidcTestTokens`), verificati da `OidcActorFilter` con gli stessi validatori dell'avvio, con `preferred_username` ed e-mail fittizi che non devono comparire mai in una risposta. Membri e soggetti fittizi per classe concreta (`MBR-9…`); istanti fissi `T1 < T2 < T3 < T4`.
+
+**Strategia**: proiezione — un caso per esito della decisione di `MemberSubjectRules` (assente, `null`, valore, fatto vecchio, sorpasso, parità, lapide) e per versione dello schema (`:1`, `:2`); API — un caso per famiglia di chiamante (membro legato, operatore, misto, `MEMBER`+`SOURCE`, senza token, token non valido) e per fonte del membro non ammessa (query, header, percorso). Il campo form non ha un caso proprio: il wallet non ha scritture del portale (POST ⇒ 405 prima dell'interceptor).
+
+### 22.1 Proiezione `subjectRef` → membro
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-WAL-MBP-001 | `member.registered:1` con `subjectRef` | membro legato; 2 wallet e livello creati nella stessa transazione | docs/06 §3.4 · Q-550 | `MemberSubjectProjectionScenarios#registeredV1LinksAndCreatesTheWallet` |
+| TB-WAL-MBP-002 | `member.registered:2` con `subjectRef` | membro legato | docs/05 §5 · Q-552 | `MemberSubjectProjectionScenarios#registeredV2Links` |
+| TB-WAL-MBP-003 | `member.updated:1` e `:2` su membri registrati senza `subjectRef` | entrambi legati | docs/06 §3.4 · Q-550 | `MemberSubjectProjectionScenarios#updatedLinks` |
+| TB-WAL-MBP-004 | `subjectRef` assente in un `member.updated` e in un `member.registered` | nessun effetto: il membro già legato resta legato, l'altro non lo diventa | docs/06 §3.4 (rilascio progressivo) | `MemberSubjectProjectionScenarios#absentClaimHasNoEffect` |
+| TB-WAL-MBP-005 | `subjectRef` che non ha la forma di uno pseudonimo (non 64 esadecimali) | nessun legame | docs/05 §5 | `MemberSubjectProjectionScenarios#malformedClaimHasNoEffect` |
+| TB-WAL-MBP-006 | `subjectRef: null` | legame rimosso; `subject_ref_at` = istante del fatto | docs/05 §5 | `MemberSubjectProjectionScenarios#nullClaimUnlinks` |
+| TB-WAL-MBP-007 | fatto più vecchio dell'ultimo aggiornamento del legame (altro pseudonimo, poi `null`); poi un fatto più recente | il vecchio non ri-lega né slega; il più recente vale | docs/06 §3.4 | `MemberSubjectProjectionScenarios#staleFactHasNoEffect` |
+| TB-WAL-MBP-008 | stesso pseudonimo su due membri: il secondo più recente; replay del vecchio; poi un fatto ancora più recente del vecchio | vince il più recente, il replay non lo riprende, il sorpasso è contato in `lh_member_subject_relinked_total` | docs/06 §3.4 | `MemberSubjectProjectionScenarios#newerRelinkWinsAndOldReplayDoesNot` |
+| TB-WAL-MBP-009 | stesso pseudonimo, stesso istante, id `…13` e `…12` | vince l'id maggiore | docs/06 §3.4 | `MemberSubjectProjectionScenarios#tieBreaksOnTheMemberId` |
+| TB-WAL-MBP-010 | `member.status.changed` → `ANONYMIZED`, poi replay di `registered` e `updated` (istante successivo) con lo stesso pseudonimo | nessun legame, `subject_erased`; la stessa persona che si registra come nuovo membro ottiene il legame | docs/06 §3.4 · docs/03 §2 | `MemberSubjectProjectionScenarios#anonymizationIsATombstone` |
+| TB-WAL-MBP-011 | `member.updated` con `status` `ANONYMIZED` | legame cancellato, lapide | docs/05 §5 | `MemberSubjectProjectionScenarios#anonymizedByUpdatedFact` |
+| TB-WAL-MBP-012 | lo stesso evento (stesso id) consegnato due volte | stesso stato, una sola riga | docs/06 §5 | `MemberSubjectProjectionScenarios#sameFactTwiceIsIdempotent` |
+| TB-WAL-MBP-013 | gestore del fatto chiamato in una transazione poi annullata | né wallet né riga né legame (partecipano alla transazione del chiamante) | docs/06 §5 | `MemberSubjectProjectionScenarios#walletAndLinkShareTheTransaction` |
+| TB-WAL-MBP-014 | pseudonimo mai visto | la lookup non trova il membro e non è autorevole | docs/06 §3.2 | `MemberSubjectProjectionScenarios#unknownRefIsNotLinked` |
+
+Righe eseguite due volte, da `WalletMemberSubjectProjectionIT` (ordinaria) e da `TestbookWalMemberSubjectIT` (testbook).
+
+### 22.2 API del portale con il membro dal token (`enterprise`)
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-WAL-MBP-020 | token di A; `GET /v1/portal/me/wallet`, `/me/wallet/activity`, `/portal/tiers`, `/portal/editions` (B ha altri dati) | 200 con i soli dati di A; l'id di B, l'e-mail e lo username del token non compaiono | docs/06 §3.4 · Q-410 | `PortalOidcScenarios#memberReadsOnlyOwnData` |
+| TB-WAL-MBP-021 | livelli ed edizioni con il token di un membro; poi con `?memberId=` | 200; con `memberId` 400 | docs/06 §3.2 · Q-410, Q-553 | `PortalOidcScenarios#readOnlyCatalogsAreOpenToMembers` |
+| TB-WAL-MBP-022 | `?memberId=B`, `?memberId=A`, `?MEMBERID=B`, `?member_id=B`, `?!memberId=B`, `?filter.memberId=B` su `/me/wallet` e `/me/wallet/activity` | 400 `MEMBER_FROM_TOKEN` (anche col proprio id); l'id ricevuto non è ripetuto | docs/06 §3.2 · Q-553 | `PortalOidcScenarios#memberIdInTheQueryIsRefused` |
+| TB-WAL-MBP-023 | POST con campo form `memberId=B` su `/v1/portal/me/wallet` | 4xx (405: nessuna scrittura del portale), mai 2xx né dati di B | docs/06 §3.2 · Q-553 | `PortalOidcScenarios#memberIdAsFormFieldIsNeverASource` |
+| TB-WAL-MBP-024 | `X-LH-Member: B` e `X-LH-Member: A` | 400 `MEMBER_FROM_TOKEN` | docs/06 §3.2 · Q-555 | `PortalOidcScenarios#demoMemberHeaderIsRefused` |
+| TB-WAL-MBP-025 | `/v1/portal/wallets/B[/activity]` e `/wallets/A[/activity]` | 403 `MEMBER_FROM_TOKEN`, nessun dato | docs/06 §3.2 · Q-553 | `PortalOidcScenarios#legacyPathsAreForbidden` |
+| TB-WAL-MBP-026 | token di un operatore `CARE` su `/me/wallet` e `/me/wallet/activity` | 403 `MEMBER_REQUIRED` | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#operatorIsNotAMember` |
+| TB-WAL-MBP-027 | token misto `MEMBER`+`CARE` | 403 `MEMBER_REQUIRED` | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#mixedTokenIsNotAMember` |
+| TB-WAL-MBP-028 | token `MEMBER`+`SOURCE` su `/me/wallet`, `/portal/tiers`, `/portal/editions` | 403 | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#memberPlusSourceIsForbidden` |
+| TB-WAL-MBP-029 | token di un membro su `/v1/wallets/{id}`, `/ledger`, `/v1/editions`, `/v1/tiers`, `/v1/currencies` | 403 `FORBIDDEN_ROLE` | docs/06 §3.2 · Q-410 | `PortalOidcScenarios#memberTokenCannotReachBackofficeReads` |
+| TB-WAL-MBP-030 | token di un membro con `X-LH-Actor: ADMIN:intruso` | l'header è ignorato: 403 `FORBIDDEN_ROLE` | ADR-027 | `PortalOidcScenarios#actorHeaderIsIgnored` |
+| TB-WAL-MBP-031 | `sub` non legato; poi arriva `member.registered` | 409 `MEMBER_NOT_LINKED` con `Retry-After: 2`; poi 200 col nuovo membro | docs/06 §3.2 · Q-550, Q-553 | `PortalOidcScenarios#unlinkedSubjectGets409UntilTheFactArrives` |
+| TB-WAL-MBP-032 | C anonimizzato; replay di `registered` e `updated` più recente | 409 `MEMBER_NOT_LINKED`; il replay non ri-lega | docs/06 §3.4 · Q-550 | `PortalOidcScenarios#anonymizedMemberIsUnlinkedForGood` |
+| TB-WAL-MBP-033 | nessun token; token scaduto; firmato con un'altra chiave; audience o emittente sbagliati | 401 | ADR-027 | `PortalOidcScenarios#invalidTokensAreUnauthorized` |
+
+Righe eseguite due volte, da `WalletPortalOidcIT` (ordinaria) e da `TestbookWalMemberPrincipalIT` (testbook).
+
+### 22.3 Profilo `demo` invariato
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-WAL-MBP-040 | `X-LH-Member: MBR-000002` con `X-LH-Actor: ANALYST:anonymous` su `/v1/portal/me/wallet` | 200; membro `MBR-000002`, livello `SILVER` | CLAUDE.md regola 6-bis · Q-555 | `TestbookWalMemberPrincipalDemoIT#headerResolvesTheMember` |
+| TB-WAL-MBP-041 | `/v1/portal/wallets/MBR-000002` (legacy) vs `/me/wallet` con l'header | stesso JSON; il legacy con l'header dello stesso membro è coerente | docs/06 §3.4 | `TestbookWalMemberPrincipalDemoIT#legacyPathMatchesTheNewOne` |
+| TB-WAL-MBP-042 | `/v1/portal/wallets/{id}/activity` vs `/me/wallet/activity` | stesso JSON | docs/06 §3.4 | `TestbookWalMemberPrincipalDemoIT#activityMatchesTheLegacyPath` |
+| TB-WAL-MBP-043 | `?memberId=MBR-000002` su `/me/wallet` | 200 (fonte valida in demo: smoke, hub, testbook) | CLAUDE.md regola 6-bis | `TestbookWalMemberPrincipalDemoIT#explicitQueryMemberIsStillAccepted` |
+| TB-WAL-MBP-044 | header `MBR-000003` e percorso `MBR-000002` | 400 `MEMBER_MISMATCH`, gli id non sono ripetuti nel detail | docs/06 §3.2 · Q-555 | `TestbookWalMemberPrincipalDemoIT#differentSourcesAreAMismatch` |
+| TB-WAL-MBP-045 | `/me/wallet` senza membro | 400 «Parametro obbligatorio assente: memberId» (come oggi) | docs/06 §3.4 | `TestbookWalMemberPrincipalDemoIT#missingMemberIsABadRequest` |
+| TB-WAL-MBP-046 | `X-LH-Member: non-un-membro` | 400 | docs/06 §3.2 · Q-555 | `TestbookWalMemberPrincipalDemoIT#malformedHeaderIsABadRequest` |
+| TB-WAL-MBP-047 | attore `SOURCE:src-ecommerce` su `/me/wallet` e sul legacy | 403 | docs/06 §3.1 · Q-492 | `TestbookWalMemberPrincipalDemoIT#sourceIsForbidden` |
+| TB-WAL-MBP-048 | `/v1/portal/editions` vs `/v1/editions`; wallet di un membro sconosciuto; `/v1/portal/tiers` | stessa lista; 404; 200 | docs/06 §2 | `TestbookWalMemberPrincipalDemoIT#editionsAliasAndUnknownMember` |
