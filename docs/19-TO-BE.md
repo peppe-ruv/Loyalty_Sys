@@ -100,6 +100,17 @@ Ogni voce ha un identificativo `TOBE-nnn` e questi campi:
 | Quando farla | Con il primo cliente che conserva l'audit per più tempo del dato del membro, o prima di esporre backup del database a terzi. |
 | Riferimenti | Q-401, Q-403, ADR-043, F2-GRC-07, M8.12 |
 
+### TOBE-007 — Keycloak senza vulnerabilità note e bloccato per digest
+
+| Campo | Contenuto |
+|---|---|
+| Cosa | Portare il ruolo `idp` a una versione di Keycloak che corregge le vulnerabilità note delle librerie incluse e fissarne l'immagine con tag e digest, come le altre immagini di terze parti. |
+| Perché non ora | Keycloak 26.7.4 è l'ultima versione pubblicata e nessuna patch corregge ancora `netty-handler` (CVE-2026-75595), `freemarker` (CVE-2026-84939), `bcprov-jdk18on` (CVE-2026-8763, CVE-2026-13506) e `pcre2` di UBI 9.8. Un'immagine derivata con le librerie sostituite uscirebbe dal supporto di Keycloak. Il digest non si può fissare perché `quay.io` non è raggiungibile dall'ambiente delle fette. |
+| Workaround attivo | Keycloak 26.7.4 con tag fisso nei due compose e nel chart. Dependabot propone le patch in `deploy/docker-compose.yml`; `scripts/check-helm.mjs` fa fallire il job `helm` finché compose di riferimento e values del chart non hanno lo stesso tag (Q-483). Nel compose di riferimento la porta di Keycloak è solo su `127.0.0.1`; nel chart l'Ingress espone solo `/realms/<realm>/` e `/resources/`, non la console di amministrazione. `mssql-jdbc` (CVE-2025-59250) non si carica con `KC_DB=postgres`. Il limite residuo sono le vulnerabilità delle librerie raggiungibili dal login finché non esce la patch. |
+| Già predisposto | Il tag è in un solo valore per file (`image` dei compose, `roles.idp.image.tag` del chart) e il controllo di coerenza rende l'aggiornamento un cambio di tre righe. Il ruolo `idp` dell'immagine unica (Q-374) potrà sostituire l'immagine ufficiale senza cambiare i values (`image: {}`). |
+| Quando farla | Appena esce una patch di Keycloak 26.x che corregge le vulnerabilità elencate, o con la prima fetta che gira in un ambiente che raggiunge `quay.io` (solo il digest). |
+| Riferimenti | Q-482, Q-483, Q-374, ADR-027, ADR-044, M8.2 |
+
 ## Voci chiuse
 
 Nessuna.

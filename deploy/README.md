@@ -5,16 +5,21 @@
 ```sh
 # solo infrastruttura (Kafka KRaft + Postgres 17 + Kafka UI)
 docker compose -f deploy/docker-compose.yml up -d kafka postgres kafka-ui
-# stack completo (8 servizi + web): richiede i Dockerfile dei servizi (da M0.5) e del web (da M0.6)
+# stack completo (8 servizi + web): Dockerfile di ogni servizio; il web dall'immagine unica deploy/image
 docker compose -f deploy/docker-compose.yml --profile all up --build
 ```
 
-| Servizio | Porta host | Note |
-|---|---|---|
-| `kafka` | 9092 | KRaft nodo singolo; `auto.create.topics.enable=false` |
-| `postgres` | 5432 | DB `loyaltyhub`, volume `lh-postgres-data` |
-| `kafka-ui` | 8090 | ispezione topic su http://localhost:8090 (solo `127.0.0.1`, Q-479) |
-| 8 servizi + `web` | 8081–8088, 3000 | solo con `--profile all` |
+| Servizio | Immagine | Porta host | Note |
+|---|---|---|---|
+| `kafka` | `apache/kafka:4.2.2` | 9092 | KRaft nodo singolo; `auto.create.topics.enable=false`; linea 4.2 come `kafka-clients` (Q-481) |
+| `postgres` | `postgres:17.11` | 5432 | DB `loyaltyhub`, volume `lh-postgres-data` |
+| `kafka-ui` | `kafbat/kafka-ui:v1.5.0` | 8090 | ispezione topic su http://localhost:8090 (solo `127.0.0.1`, Q-479) |
+| 8 servizi | build di `services/<nome>/Dockerfile` | 8081–8088 | solo con `--profile all` |
+| `web` | build di `deploy/image/Dockerfile` (`loyaltyhub:local`), `LH_ROLE=web` | 3000 | solo con `--profile all`; la build compila anche l'hub (Q-484) |
+
+Le immagini di terze parti hanno tag e digest (Keycloak solo il tag, Q-482). Kafka, Postgres e Keycloak hanno la stessa
+versione anche nel compose di riferimento e nei values del chart: Dependabot aggiorna solo questo file e
+`scripts/check-helm.mjs` fallisce finché gli altri due non sono allineati (Q-483).
 
 **I 5 topic** non sono creati dal broker: li crea il **profilo Spring `local`** (bean `NewTopic` di `lh-common`,
 2 partizioni) quando un servizio si avvia. Verificato da `LocalTopicsIT` (Kafka in-JVM, senza Docker).
@@ -88,7 +93,7 @@ flowchart TB
 |---|---|
 | Immagine | `image.repository` e `image.tag` **obbligatori**, senza default: `.github/workflows/image.yml` pubblica `ghcr.io/<owner>/loyaltyhub` solo sui tag git `v*`, e un nome inventato finirebbe in `ImagePullBackOff`. Il tag può essere un digest `sha256:…` |
 | Ruoli | un Deployment per ruolo: `hub` (tutti i moduli: `LH_SERVICES` accetta solo vuoto o `all`, Q-376 del M8.1), `web`, `idp`. `cms` e `jobs` non sono ancora nell'immagine: il chart **rifiuta** `roles.cms.enabled` e `roles.jobs.enabled` |
-| Operatori | **prerequisiti**, non sottochart: Strimzi e CloudNativePG hanno CRD e controller a livello di cluster, con un ciclo di vita diverso da quello dell'applicazione; il chart crea solo le risorse (`Kafka`, `KafkaNodePool`, 5 `KafkaTopic`, `Cluster`, `Database`) |
+| Operatori | **prerequisiti**, non sottochart: Strimzi e CloudNativePG hanno CRD e controller a livello di cluster, con un ciclo di vita diverso da quello dell'applicazione; il chart crea solo le risorse (`Kafka`, `KafkaNodePool`, 5 `KafkaTopic`, `Cluster`, `Database`). La versione di Kafka la sceglie l'operatore installato (`kafka.strimzi.version` vuoto): per la linea 4.2 dei compose e dei client serve Strimzi 0.51 o successivo (4.2.1 da 1.1.0); se la fissi, `scripts/check-helm.mjs` verifica che la linea coincida con i compose (Q-481, Q-483) |
 | Servizi gestiti | `postgres.mode=external` e `kafka.mode=external` (ADR-026): nessuna risorsa degli operatori, URL e credenziali dai valori |
 | Migrazioni | Job `…-migrate` con la stessa immagine: esegue solo Flyway (`io.loyaltyhub.hub.HubMigrate` dal jar dell'hub, non è un nuovo ruolo) e termina; stessi `nodeSelector`, `tolerations` e sicurezza dell'hub. Hook `pre-upgrade` sempre; al primo install `pre-install` con Postgres esterno e `post-install` con CloudNativePG, perché il cluster nasce con la release. L'hub all'avvio rifà le stesse migrazioni: Flyway prende un lock, le due esecuzioni non si pestano (ADR-038) |
 | Esposizione | Ingress per `web` e, per `idp`, solo `/realms/<realm>/` e `/resources/`: la console di amministrazione e il realm `master` (con il suo endpoint dei token) restano fuori; `gateway.enabled` crea un `HTTPRoute` verso l'hub (`/v1/`) agganciato a un Gateway esistente, segnaposto di M8.5 |

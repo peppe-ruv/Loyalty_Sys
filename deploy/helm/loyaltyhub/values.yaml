@@ -151,8 +151,9 @@ roles:
     replicas: 2
     # SPEC-GAP: Q-374 — l'immagine unica non contiene ancora Keycloak (/opt/lh/idp, ADR-037): il ruolo idp usa
     # l'immagine ufficiale di Keycloak alla stessa versione bloccata di deploy/docker-compose.yml. Quando l'immagine
-    # unica avrà il ruolo idp basterà `image: {}` per usare quella. Vulnerabilità note delle librerie incluse e
-    # versione allineata a mano (Dependabot non legge questo file): SPEC-GAP: Q-482, Q-483.
+    # unica avrà il ruolo idp basterà `image: {}` per usare quella. Vulnerabilità note delle librerie incluse: rischio
+    # residuo accettato (Q-482, TOBE-007). Dependabot non legge questo file: scripts/check-helm.mjs fallisce se il tag
+    # diverge da deploy/docker-compose.yml e da deploy/compose/reference.yml (Q-483).
     image:
       repository: quay.io/keycloak/keycloak
       tag: "26.7.4"
@@ -280,7 +281,8 @@ kafka:
     apiVersion: kafka.strimzi.io/v1beta2
     # Vuoto = <fullname>-kafka
     clusterName: ""
-    # Vuoto = versione di default dell'operatore.
+    # Vuoto = versione di default dell'operatore installato (Q-481): i compose usano Kafka 4.2.2, i client sono della
+    # serie 4.2. Per fissare la linea 4.2 serve un operatore che la supporti (Strimzi 0.51 o successivo; 4.2.1 da 1.1.0).
     version: ""
     replicas: 3
     storage:

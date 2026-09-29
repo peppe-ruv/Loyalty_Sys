@@ -19,6 +19,20 @@ updates:
           - "org.apache.maven.plugins:maven-failsafe-plugin"
       maven-minor-patch:
         update-types: ["minor", "patch"]
+    ignore:
+      # Override di sicurezza del pom padre (#112, ADR-044: proprietà lh.jackson3.version, lh.jackson2.version,
+      # lh.lz4-java.version): solo patch nella stessa linea, per non staccarsi da quella del BOM di Spring Boot 4.1.x.
+      # Si tolgono insieme agli override quando una 4.1.x del BOM porta versioni uguali o successive (pom.xml).
+      - dependency-name: "tools.jackson:jackson-bom"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "tools.jackson.*"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "com.fasterxml.jackson:jackson-bom"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "com.fasterxml.jackson.*"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "at.yawk.lz4:lz4-java"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/web"
@@ -70,7 +84,8 @@ updates:
         update-types: ["version-update:semver-major"]
 
   # Immagini di deploy/docker-compose.yml (infrastruttura locale, Keycloak, LDAP di prova). deploy/compose/reference.yml
-  # e i values del chart non sono letti da Dependabot e si allineano a mano (SPEC-GAP: Q-483).
+  # e i values del chart non sono letti da Dependabot e si allineano a mano: scripts/check-helm.mjs (job helm) fallisce
+  # finché Kafka, Postgres e Keycloak non hanno la stessa versione nei tre file (Q-483).
   - package-ecosystem: "docker-compose"
     directory: "/deploy"
     schedule:
@@ -83,7 +98,7 @@ updates:
       # Una major di Postgres non legge il volume della precedente (serve pg_upgrade o dump e ripristino).
       - dependency-name: "postgres"
         update-types: ["version-update:semver-major"]
-      # Kafka 4.x è un salto di major da decidere (Q-481): niente PR automatica che occupi l'unico posto.
+      # Kafka segue la major di kafka-clients (4.x, Q-481): una major nuova si valuta con una fetta, niente PR automatica.
       - dependency-name: "apache/kafka"
         update-types: ["version-update:semver-major"]
       # Una major di Keycloak tocca il realm as code (deploy/idp): si aggiorna con una fetta dedicata.

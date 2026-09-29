@@ -116,8 +116,8 @@ x-lh-db-env: &lh-db-env
 
 services:
   # ---------- Infrastruttura open source ----------
-  # Tag leggibile e digest, gli stessi di deploy/docker-compose.yml: Dependabot non legge questo file per nome
-  # (SPEC-GAP: Q-483), quindi si allineano a mano. Kafka resta sulla linea 3.9 (SPEC-GAP: Q-481).
+  # Tag leggibile e digest, gli stessi di deploy/docker-compose.yml: Dependabot non legge questo file per nome, quindi
+  # si allineano a mano e scripts/check-helm.mjs fallisce se le versioni divergono (Q-483). Kafka 4.2 (Q-481).
   postgres:
     image: postgres:17.11@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f
     restart: unless-stopped
@@ -145,7 +145,7 @@ services:
     cpus: 1
 
   kafka:
-    image: apache/kafka:3.9.2@sha256:05b4616e0702ef2729327705d54ad6b50ea70b271c4b730fabd2320789fb7b02
+    image: apache/kafka:4.2.2@sha256:1213eb3943d551e5ed1fca7a4e109001cee35770b66a02a0c37a8964efe09b69
     restart: unless-stopped
     environment:
       KAFKA_NODE_ID: 1
@@ -163,6 +163,9 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # Stato dei share group (Kafka 4.x): un solo broker, come per gli altri topic interni.
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: 1
     volumes:
       - lh-ref-kafka:/var/lib/kafka/data
     healthcheck:
@@ -284,7 +287,7 @@ services:
     cpus: 1
 
   # Keycloak con il realm as code di deploy/idp/realm.json (ADR-027). SPEC-GAP: Q-374. Vulnerabilità note nelle
-  # librerie incluse, senza una versione di Keycloak che le corregga (SPEC-GAP: Q-482).
+  # librerie incluse, senza una versione di Keycloak che le corregga: rischio residuo accettato (Q-482, TOBE-007).
   # Solo su 127.0.0.1 dell'host: anche la console /admin è su questa porta, in HTTP (Q-392).
   idp:
     <<: *lh-hardening
