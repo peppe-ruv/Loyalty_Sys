@@ -8,7 +8,7 @@ type: application
 # Versione del chart (semver, ADR-038). appVersion è solo informativa: l'immagine si sceglie sempre con image.repository
 # e image.tag, obbligatori. .github/workflows/image.yml pubblica ghcr.io/<owner>/loyaltyhub solo sui tag git `v*`
 # (sulle PR costruisce l'immagine senza pubblicarla).
-version: 0.3.0
+version: 0.4.0
 appVersion: "0.1.0"
 # Kubernetes 1.30 o successivo: il minimo di Strimzi 0.51 (Q-490).
 kubeVersion: ">=1.30.0-0"
@@ -20,5 +20,5 @@ keywords:
   - kafka
   - postgres
 annotations:
-  loyaltyhub.io/spec: "F2-DIST-02, F2-EVT-04, F2-SEC-06, M8.3, M8.2d, Q-490"
-  loyaltyhub.io/prerequisites: "Strimzi 0.51 o successivo, API kafka.strimzi.io/v1 (kafka.mode=strimzi); CloudNativePG 1.25 o successivo (postgres.mode=cloudnativepg)"
+  loyaltyhub.io/spec: "F2-DIST-02, F2-EVT-04, F2-SEC-06, M8.3, M8.2d, Q-490, F2-OBS-01, M8.6a"
+  loyaltyhub.io/prerequisites: "Strimzi 0.51 o successivo, API kafka.strimzi.io/v1 (kafka.mode=strimzi); CloudNativePG 1.25 o successivo (postgres.mode=cloudnativepg); con observability.enabled: Prometheus 3 o successivo con ricevitore OTLP e Grafana con sidecar dei dashboard (PrometheusRule solo con il Prometheus Operator)"
