@@ -103,7 +103,10 @@ public record MemberPrincipal(String memberId, Origin origin) {
     /**
      * Il membro della richiesta deve essere il proprietario dell'oggetto: con un membro presente e diverso da
      * {@code owner} ⇒ {@code 404 NOT_FOUND} (l'esistenza dell'oggetto di un altro membro non si rivela); senza membro
-     * (solo demo, dove l'id resta facoltativo) passa.
+     * in demo ({@link Origin#DEMO}, dove l'id resta facoltativo) passa. {@link Origin#NONE} (un operatore su un handler
+     * {@link MemberEndpoint.Mode#OPTIONAL}, solo {@code enterprise}) non è il proprietario di nulla: {@code 404}, così
+     * un controller che chiama {@code checkOwner} su un handler {@code OPTIONAL} non consegna a un operatore l'oggetto
+     * di un membro attraverso l'API del membro.
      */
     public void checkOwner(String owner) {
         checkOwner(owner, "Risorsa non trovata");
@@ -111,6 +114,9 @@ public record MemberPrincipal(String memberId, Origin origin) {
 
     /** Come {@link #checkOwner(String)} con il detail del {@code 404} scelto dal chiamante (in demo: quello di oggi). */
     public void checkOwner(String owner, String notFoundDetail) {
+        if (origin == Origin.NONE) {
+            throw LhException.notFound(notFoundDetail);
+        }
         if (memberId != null && !memberId.equals(owner)) {
             throw LhException.notFound(notFoundDetail);
         }

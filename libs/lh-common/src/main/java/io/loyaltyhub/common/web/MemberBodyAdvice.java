@@ -35,8 +35,16 @@ public class MemberBodyAdvice extends RequestBodyAdviceAdapter {
 
     private final IdentityMode mode;
 
+    /**
+     * @param mode la modalità di identità, mai {@code null}: una modalità mancante non ripiega su {@code demo}, dove
+     *             l'advice non fa nulla e un {@code memberId} nel corpo non sarebbe rifiutato (regole 6-bis e 22)
+     * @throws IllegalArgumentException se {@code mode} è {@code null}
+     */
     public MemberBodyAdvice(IdentityMode mode) {
-        this.mode = mode == null ? IdentityMode.HEADER : mode;
+        if (mode == null) {
+            throw new IllegalArgumentException("La modalità di identità è obbligatoria: nessun ripiego sul profilo demo");
+        }
+        this.mode = mode;
     }
 
     @Override

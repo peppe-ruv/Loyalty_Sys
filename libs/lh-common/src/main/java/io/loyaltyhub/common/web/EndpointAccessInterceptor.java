@@ -89,13 +89,26 @@ public class EndpointAccessInterceptor implements HandlerInterceptor {
 
     private final MemberPrincipals principals;
 
-    /** Con il membro nel profilo demo ({@code X-LH-Member} o {@code memberId} esplicito, senza lookup). */
+    /**
+     * Solo per il profilo demo e per i test: il membro da {@code X-LH-Member} o dal {@code memberId} esplicito, senza
+     * lookup né chiave ({@link MemberPrincipals#header()}). Non è il cablaggio di produzione, che passa da
+     * {@code LhCommonAutoConfiguration} con la modalità configurata; un interceptor costruito così non risolve mai un
+     * token di membro e {@link MemberPrincipals} rifiuta con {@code ENDPOINT_NOT_DECLARED} una richiesta che ne porta uno.
+     */
     public EndpointAccessInterceptor() {
         this(MemberPrincipals.header());
     }
 
+    /**
+     * @param principals il risolutore del membro, mai {@code null}: un valore mancante non ripiega sul risolutore demo
+     *                   (accetterebbe {@code X-LH-Member} e il {@code memberId} esplicito, regole 6-bis e 22)
+     * @throws IllegalArgumentException se {@code principals} è {@code null}
+     */
     public EndpointAccessInterceptor(MemberPrincipals principals) {
-        this.principals = principals == null ? MemberPrincipals.header() : principals;
+        if (principals == null) {
+            throw new IllegalArgumentException("Il risolutore del membro è obbligatorio: nessun ripiego sul profilo demo");
+        }
+        this.principals = principals;
     }
 
     @Override

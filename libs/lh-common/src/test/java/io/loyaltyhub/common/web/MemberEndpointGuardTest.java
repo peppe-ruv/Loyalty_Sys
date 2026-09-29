@@ -115,6 +115,24 @@ class MemberEndpointGuardTest {
     }
 
     @RestController
+    static class MembersReadWithoutAnalyst {
+        @GetMapping("/v1/portal/theme")
+        @RequiresRole(value = {Role.ADMIN, Role.CARE}, members = true)
+        public Map<String, Object> theme() {
+            return Map.of();
+        }
+    }
+
+    @RestController
+    static class MembersReadWithWriteRule {
+        @GetMapping("/v1/portal/theme")
+        @RequiresRole(members = true)
+        public Map<String, Object> theme() {
+            return Map.of();
+        }
+    }
+
+    @RestController
     static class MembersReadAnyVerb {
         @RequestMapping("/v1/portal/anything")
         @RequiresRole(value = {Role.ADMIN, Role.ANALYST}, members = true)
@@ -193,6 +211,15 @@ class MemberEndpointGuardTest {
         assertInsecure(guard(MemberPrincipals.header(), new MockEnvironment(), MembersReadUnderMe.class),
                 "mai sotto /v1/portal/me");
         assertInsecure(guard(MemberPrincipals.header(), new MockEnvironment(), MembersReadAnyVerb.class), "solo su GET");
+    }
+
+    @Test
+    @DisplayName("members = true senza ANALYST tra i ruoli (o con la regola «scrittura»): INSECURE_CONFIG, non un 403 a ogni membro a runtime")
+    void membersReadMustListAnalyst() {
+        assertInsecure(guard(MemberPrincipals.header(), new MockEnvironment(), MembersReadWithoutAnalyst.class),
+                "elenca ANALYST");
+        assertInsecure(guard(MemberPrincipals.header(), new MockEnvironment(), MembersReadWithWriteRule.class),
+                "elenca ANALYST");
     }
 
     @Test

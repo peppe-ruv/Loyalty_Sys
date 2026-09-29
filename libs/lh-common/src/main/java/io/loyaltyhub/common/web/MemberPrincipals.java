@@ -43,7 +43,8 @@ import java.util.regex.Pattern;
  * <p>{@code demo}: l'attore {@code SOURCE} ⇒ {@code 403 FORBIDDEN_ROLE}; le fonti del membro sono
  * {@code X-LH-Member} (forma {@code MBR-nnnnnn}, altrimenti 400), il parametro {@code memberId} e la variabile di
  * percorso legacy: due fonti diverse ⇒ {@code 400 MEMBER_MISMATCH}. L'id può mancare (la validazione resta dove è oggi,
- * quindi le risposte demo restano identiche); se c'è, l'attore diventa {@code member:<id>}.
+ * quindi le risposte demo restano identiche); se ha la forma {@code MBR-nnnnnn}, l'attore diventa
+ * {@code member:<id>} (un id di altra forma resta nel principal, ma non entra nell'attore né nell'MDC).
  */
 public class MemberPrincipals {
 
@@ -54,6 +55,10 @@ public class MemberPrincipals {
 
     private static final Pattern DEMO_MEMBER = Pattern.compile("^MBR-[0-9]{6}$");
     private static final Pattern INDEX_SUFFIX = Pattern.compile("\\[[^\\]]*\\]$");
+    /** {@code WebDataBinder.DEFAULT_FIELD_DEFAULT_PREFIX}: {@code !campo=valore} è il valore di default del campo. */
+    private static final char BINDER_DEFAULT_PREFIX = '!';
+    /** {@code WebDataBinder.DEFAULT_FIELD_MARKER_PREFIX}: {@code _campo} è il marcatore del campo. */
+    private static final char BINDER_MARKER_PREFIX = '_';
 
     private final IdentityMode mode;
     private final byte[] subjectKey;
@@ -61,9 +66,12 @@ public class MemberPrincipals {
     private volatile List<MemberSubjectLookup> lookups;
 
     /**
-     * @param mode       {@code HEADER} (demo) o {@code OIDC} (enterprise)
+     * @param mode       {@code HEADER} (demo) o {@code OIDC} (enterprise); mai {@code null}: una modalità mancante non
+     *                   ripiega sul risolutore demo, che accetta {@code X-LH-Member} e il {@code memberId} esplicito
+     *                   (regole 6-bis e 22)
      * @param subjectKey chiave dello pseudonimo (solo {@code oidc}; già verificata da {@code IdentityGuard})
      * @param lookups    le lookup dei moduli presenti nel processo (uno per servizio; tutti nell'hub)
+     * @throws IllegalArgumentException se {@code mode} è {@code null}
      */
     public MemberPrincipals(IdentityMode mode, byte[] subjectKey, Collection<? extends MemberSubjectLookup> lookups) {
         this(mode, subjectKey, () -> lookups == null ? List.of() : lookups);
@@ -72,10 +80,18 @@ public class MemberPrincipals {
     /**
      * Come sopra, con le lookup lette alla prima richiesta (i bean dei servizi non si creano mentre si raccolgono i
      * configuratori di Spring MVC).
+     *
+     * @throws IllegalArgumentException se {@code mode} o {@code lookupSource} sono {@code null}
      */
     public MemberPrincipals(IdentityMode mode, byte[] subjectKey,
                             Supplier<? extends Collection<? extends MemberSubjectLookup>> lookupSource) {
-        this.mode = mode == null ? IdentityMode.HEADER : mode;
+        if (mode == null) {
+            throw new IllegalArgumentException("La modalità di identità è obbligatoria: nessun ripiego sul profilo demo");
+        }
+        if (lookupSource == null) {
+            throw new IllegalArgumentException("La sorgente delle lookup è obbligatoria");
+        }
+        this.mode = mode;
         this.subjectKey = subjectKey == null ? null : subjectKey.clone();
         this.lookupSource = lookupSource;
     }
@@ -134,7 +150,7 @@ public class MemberPrincipals {
         if (mode == IdentityMode.OIDC) {
             bindToken(request, declaration, handler);
         } else {
-            bindDemo(request, declaration);
+            bindDemo(request, declaration, handler);
         }
     }
 
@@ -187,7 +203,15 @@ public class MemberPrincipals {
 
     // ---- demo: memberId esplicito o X-LH-Member ----
 
-    private void bindDemo(HttpServletRequest request, MemberEndpoint declaration) {
+    private void bindDemo(HttpServletRequest request, MemberEndpoint declaration, HandlerMethod handler) {
+        if (request.getAttribute(OidcActorFilter.MEMBER_TOKEN_ATTRIBUTE) != null || ActorHolder.get().member()) {
+            // Il risolutore demo non gira mai su una richiesta autenticata da un token di membro: accetterebbe
+            // X-LH-Member e il memberId esplicito (regole 6-bis e 22). Non si raggiunge con la configurazione di
+            // produzione (oidc ⇒ bindToken); chiude comunque, mai aperto.
+            log.error("Risolutore demo su una richiesta con token di membro su {}#{}: modalità di identità incoerente",
+                    handler.getBeanType().getName(), handler.getMethod().getName());
+            throw LhException.endpointNotDeclared();
+        }
         if (ActorHolder.get().role() == Role.SOURCE) {
             // Parità con le letture R5 di oggi: l'utenza di integrazione non usa il portale.
             throw LhException.forbiddenRole("Il ruolo SOURCE non può eseguire questa operazione");
@@ -219,7 +243,10 @@ public class MemberPrincipals {
         }
         String id = sources.isEmpty() ? null : sources.iterator().next();
         request.setAttribute(MemberPrincipal.ATTRIBUTE, MemberPrincipal.demo(id));
-        if (id != null) {
+        if (id != null && DEMO_MEMBER.matcher(id).matches()) {
+            // Solo un id della forma MBR-nnnnnn diventa l'attore e l'MDC: il memberId di query e il segmento di
+            // percorso arrivano non validati e non devono finire nei log né, da S5, nell'audit (lunghezza libera,
+            // caratteri di controllo). Il principal resta identico, così le risposte demo non cambiano.
             actAs(id);
         }
     }
@@ -246,7 +273,10 @@ public class MemberPrincipals {
     /**
      * Vero se {@code name} è {@code memberId} in qualunque grafia: senza distinguere maiuscole, con o senza {@code _} e
      * {@code -} ({@code member_id}, {@code MEMBER-ID}), anche come ultimo segmento di un percorso di proprietà
-     * ({@code filter.memberId}, {@code items[0].memberId}).
+     * ({@code filter.memberId}, {@code items[0].memberId}) e con i prefissi del binder di Spring: {@code !} (valore di
+     * default del campo, {@code WebDataBinder.DEFAULT_FIELD_DEFAULT_PREFIX}) e {@code _} (marcatore del campo,
+     * {@code DEFAULT_FIELD_MARKER_PREFIX}), che legano il campo {@code memberId} di un DTO senza che il nome coincida
+     * ({@code ?!memberId=MBR-…}).
      */
     public static boolean isMemberIdName(String name) {
         if (name == null) {
@@ -254,6 +284,9 @@ public class MemberPrincipals {
         }
         String last = name.substring(name.lastIndexOf('.') + 1);
         last = INDEX_SUFFIX.matcher(last).replaceFirst("");
+        while (!last.isEmpty() && (last.charAt(0) == BINDER_DEFAULT_PREFIX || last.charAt(0) == BINDER_MARKER_PREFIX)) {
+            last = last.substring(1);
+        }
         return last.replace("-", "").replace("_", "").toLowerCase(Locale.ROOT).equals("memberid");
     }
 

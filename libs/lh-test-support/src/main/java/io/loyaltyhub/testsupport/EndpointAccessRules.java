@@ -55,7 +55,8 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
  * solo {@code MemberSubject} per {@code REGISTRATION}) e l'handler lo usa; un handler del membro non lega
  * {@code memberId} né {@code X-LH-Member} con un nome esplicito ({@code @RequestParam}, {@code @PathVariable},
  * {@code @RequestHeader}, {@code @CookieValue}); {@code @RequiresRole(members = true)} è ammesso solo su {@code GET} sotto
- * {@code /v1/portal/}, non sotto {@code /v1/portal/me}. ArchUnit non conosce i nomi <em>impliciti</em> dei parametri
+ * {@code /v1/portal/}, non sotto {@code /v1/portal/me}, e con {@code ANALYST} tra i ruoli (l'attore di un membro è
+ * {@code ANALYST}). ArchUnit non conosce i nomi <em>impliciti</em> dei parametri
  * ({@code @RequestParam String memberId}): li copre il controllo dei handler registrati nell'hub ({@code OpenApiExportIT},
  * nomi a runtime con {@code -parameters}).
  *
@@ -238,7 +239,7 @@ public final class EndpointAccessRules {
             problems.addAll(memberEndpointProblems(handler, declaring));
         }
         if (declaring.isAnnotatedWith(REQUIRES_ROLE) && roleMembers(declaring)) {
-            problems.addAll(memberReadProblems(handler));
+            problems.addAll(memberReadProblems(handler, declaring));
         }
         if (!problems.isEmpty()) {
             for (String problem : problems) {
@@ -391,9 +392,17 @@ public final class EndpointAccessRules {
         return problems;
     }
 
-    /** {@code members = true} solo su {@code GET} sotto {@code /v1/portal/}, non sotto {@code /v1/portal/me}. */
-    private static List<String> memberReadProblems(Handler handler) {
+    /**
+     * {@code members = true} solo su {@code GET} sotto {@code /v1/portal/}, non sotto {@code /v1/portal/me}, con
+     * {@code ANALYST} tra i ruoli: l'attore di un membro è {@code ANALYST} (Q-556), e senza quel ruolo nella lista, o con la
+     * regola «scrittura» ({@code value} vuoto), la lettura risponde {@code 403} a ogni membro.
+     */
+    private static List<String> memberReadProblems(Handler handler, HasAnnotations<?> declaring) {
         List<String> problems = new ArrayList<>();
+        if (!roleNames(declaring).contains("ANALYST")) {
+            problems.add("@RequiresRole(members = true) elenca ANALYST tra i ruoli (il ruolo di un membro è ANALYST:"
+                    + " senza, risponde 403 a ogni membro)");
+        }
         List<String> verbs = verbs(handler);
         if (verbs.size() != 1 || !verbs.get(0).equals("GET")) {
             problems.add("@RequiresRole(members = true) è ammesso solo su GET");
@@ -447,6 +456,12 @@ public final class EndpointAccessRules {
             return "REQUIRED"; // il default di @MemberEndpoint
         }
         return value.toString().substring(value.toString().lastIndexOf('.') + 1);
+    }
+
+    /** I nomi dei ruoli di {@code @RequiresRole(value = …)}: vuoto per la regola «scrittura» ({@code value} assente). */
+    private static List<String> roleNames(HasAnnotations<?> declaring) {
+        Optional<? extends JavaAnnotation<?>> annotation = declaring.tryGetAnnotationOfType(REQUIRES_ROLE);
+        return annotation.isEmpty() ? List.of() : strings(annotation.get().get("value").orElse(null));
     }
 
     private static boolean roleMembers(HasAnnotations<?> declaring) {

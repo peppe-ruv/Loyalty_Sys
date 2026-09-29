@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
@@ -128,6 +129,10 @@ public final class MemberTestSupport {
     public record WriteRequest(String rewardCode, String memberId) {
     }
 
+    /** Parametri di una richiesta legati a un DTO, con un campo {@code memberId} (binder di Spring). */
+    public record BoundQuery(String memberId, String code) {
+    }
+
     /** Corpo con il membro annidato. */
     public record NestedRequest(String rewardCode, Inner shipping) {
         public record Inner(String city, String memberId) {
@@ -185,6 +190,19 @@ public final class MemberTestSupport {
         public Map<String, Object> write(@RequestBody WriteRequest body, MemberPrincipal principal) {
             Map<String, Object> out = seen(principal);
             out.put("id", principal.merge(body.memberId()));
+            return out;
+        }
+
+        /**
+         * Un DTO legato dalla richiesta (query o campo form) con un campo {@code memberId}: il binder di Spring lo lega
+         * anche con i prefissi {@code !} e {@code _}, senza che il nome del parametro coincida con {@code memberId}.
+         */
+        @RequestMapping(path = "/bound", method = {RequestMethod.GET, RequestMethod.POST})
+        @MemberEndpoint
+        public Map<String, Object> bound(BoundQuery query, MemberPrincipal principal) {
+            Map<String, Object> out = seen(principal);
+            out.put("boundMemberId", query.memberId());
+            out.put("code", query.code());
             return out;
         }
 

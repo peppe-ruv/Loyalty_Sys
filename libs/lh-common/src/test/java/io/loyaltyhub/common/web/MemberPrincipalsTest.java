@@ -190,10 +190,53 @@ class MemberPrincipalsTest {
     }
 
     @Test
-    @DisplayName("l'interceptor senza principals espliciti usa il profilo demo; con null vale come demo")
-    void defaultInterceptorIsDemo() {
+    @DisplayName("il risolutore demo non gira mai su una richiesta con un token di membro: 403 ENDPOINT_NOT_DECLARED, mai il memberId o X-LH-Member")
+    void demoNeverRunsOnATokenRequest() throws Exception {
+        HandlerMethod handler = handler(new MemberTestSupport.Portal(), "required");
+        // Il token di membro è già sulla richiesta (lo ha messo il filtro OIDC): un risolutore demo non lo ignora.
+        MockHttpServletRequest withToken = memberRequest(SUB_A);
+        withToken.addParameter("memberId", ID_B);
+        withToken.addHeader(MemberPrincipals.MEMBER_HEADER, ID_B);
+        assertThatThrownBy(() -> MemberPrincipals.header().bind(withToken, declaration(handler), handler))
+                .isInstanceOfSatisfying(LhException.class, e -> assertThat(e.code()).isEqualTo("ENDPOINT_NOT_DECLARED"));
+        assertThat(withToken.getAttribute(MemberPrincipal.ATTRIBUTE)).isNull();
+        // L'attore è già quello di un membro (nessun attributo sulla richiesta): stesso rifiuto.
+        ActorHolder.set(ActorContext.member(ID_A));
+        MockHttpServletRequest actorIsAMember = new MockHttpServletRequest("GET", "/v1/portal/required");
+        actorIsAMember.addParameter("memberId", ID_B);
+        assertThatThrownBy(() -> MemberPrincipals.header().bind(actorIsAMember, declaration(handler), handler))
+                .isInstanceOfSatisfying(LhException.class, e -> assertThat(e.code()).isEqualTo("ENDPOINT_NOT_DECLARED"));
+        assertThat(actorIsAMember.getAttribute(MemberPrincipal.ATTRIBUTE)).isNull();
+        // Vale anche per la registrazione demo.
+        HandlerMethod registration = new HandlerMethod(new MemberTestSupport.Portal(),
+                MemberTestSupport.Portal.class.getMethod("register", MemberSubject.class));
+        assertThatThrownBy(() -> MemberPrincipals.header().bind(memberRequest(SUB_A), declaration(registration), registration))
+                .isInstanceOfSatisfying(LhException.class, e -> assertThat(e.code()).isEqualTo("ENDPOINT_NOT_DECLARED"));
+    }
+
+    @Test
+    @DisplayName("l'interceptor senza argomenti (solo demo e test) rifiuta una richiesta con un token di membro; con null è un errore")
+    void noArgInterceptorDoesNotResolveATokenRequest() throws Exception {
+        HandlerMethod handler = handler(new MemberTestSupport.Portal(), "required");
+        MockHttpServletRequest withToken = memberRequest(SUB_A);
+        withToken.addParameter("memberId", ID_B);
+        assertThatThrownBy(() -> new EndpointAccessInterceptor()
+                .preHandle(withToken, new org.springframework.mock.web.MockHttpServletResponse(), handler))
+                .isInstanceOfSatisfying(LhException.class, e -> assertThat(e.code()).isEqualTo("ENDPOINT_NOT_DECLARED"));
+        assertThat(withToken.getAttribute(MemberPrincipal.ATTRIBUTE)).isNull();
+    }
+
+    @Test
+    @DisplayName("una modalità o un risolutore mancanti non ripiegano sul profilo demo: IllegalArgumentException, mai fail-open")
+    void nullConfigurationIsRefused() {
         assertThat(MemberPrincipals.header().mode()).isEqualTo(IdentityMode.HEADER);
-        assertThat(new MemberPrincipals(null, null, List.of()).mode()).isEqualTo(IdentityMode.HEADER);
+        assertThatThrownBy(() -> new MemberPrincipals(null, null, List.of())).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new MemberPrincipals(null, KEY, () -> List.of())).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new MemberPrincipals(IdentityMode.OIDC, KEY,
+                (java.util.function.Supplier<List<io.loyaltyhub.common.identity.MemberSubjectLookup>>) null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new EndpointAccessInterceptor(null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new MemberBodyAdvice(null)).isInstanceOf(IllegalArgumentException.class);
         assertThat(new MemberPrincipals(IdentityMode.OIDC, KEY, List.of()).hasSubjectKey()).isTrue();
         assertThat(new MemberPrincipals(IdentityMode.OIDC, new byte[31], List.of()).hasSubjectKey()).isFalse();
     }

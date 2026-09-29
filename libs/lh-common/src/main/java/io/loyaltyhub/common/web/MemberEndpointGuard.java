@@ -10,6 +10,7 @@ import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +23,8 @@ import java.util.Set;
  *   <li>ogni {@link MemberEndpoint} sta sotto {@value #PORTAL_PREFIX};</li>
  *   <li>ogni {@link MemberEndpoint#demoPathVariable()} compare nel pattern, e solo su un handler {@link Deprecated};</li>
  *   <li>ogni {@link RequiresRole#members()} {@code = true} è un {@code GET} sotto {@value #PORTAL_PREFIX}, non sotto
- *       {@value #ME_PREFIX} (dati uguali per tutti, mai dati di un membro);</li>
+ *       {@value #ME_PREFIX} (dati uguali per tutti, mai dati di un membro), e elenca {@link Role#ANALYST} (il ruolo
+ *       dell'attore di un membro: senza, risponderebbe 403 a ogni membro);</li>
  *   <li>in {@code oidc}: per ogni modulo con handler {@code REQUIRED} o {@code OPTIONAL} esiste esattamente una
  *       {@link MemberSubjectLookup}; dove c'è {@code REGISTRATION} una lookup autorevole; la chiave
  *       {@code LH_SUBJECT_KEY} è presente e lunga almeno 32 byte.</li>
@@ -68,7 +70,7 @@ public class MemberEndpointGuard implements SmartInitializingSingleton {
                     checkMemberEndpoint(declaration.member(), handler, patterns, where, oidc, problems);
                 }
                 if (declaration.role() != null && declaration.role().members()) {
-                    checkMemberRead(entry.getKey(), patterns, where, problems);
+                    checkMemberRead(declaration.role(), entry.getKey(), patterns, where, problems);
                 }
             }
         }
@@ -114,7 +116,12 @@ public class MemberEndpointGuard implements SmartInitializingSingleton {
         }
     }
 
-    private static void checkMemberRead(RequestMappingInfo info, Set<String> patterns, String where, Set<String> problems) {
+    private static void checkMemberRead(RequiresRole role, RequestMappingInfo info, Set<String> patterns, String where,
+                                        Set<String> problems) {
+        if (!Arrays.asList(role.value()).contains(Role.ANALYST)) {
+            // L'attore di un membro è ANALYST (Q-556): senza, la lettura risponde 403 a ogni membro.
+            problems.add(where + ": @RequiresRole(members = true) elenca ANALYST tra i ruoli");
+        }
         Set<RequestMethod> methods = info.getMethodsCondition().getMethods();
         if (methods.size() != 1 || !methods.contains(RequestMethod.GET)) {
             problems.add(where + ": @RequiresRole(members = true) solo su GET");

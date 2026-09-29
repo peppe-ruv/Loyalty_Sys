@@ -105,7 +105,10 @@ class MemberEndpointAccessTest {
     void memberIdInTheRequestIsRefused() throws Exception {
         String a = TOKENS.member(SUB_A);
         for (String query : new String[] {"memberId=" + ID_B, "memberId=" + ID_A, "MEMBERID=" + ID_B, "member_id=" + ID_B,
-                "Member-Id=" + ID_B, "memberId=", "filter.memberId=" + ID_B, "items[0].memberId=" + ID_B}) {
+                "Member-Id=" + ID_B, "memberId=", "filter.memberId=" + ID_B, "items[0].memberId=" + ID_B,
+                // prefissi del binder di Spring (WebDataBinder): !campo è il valore di default, _campo il marcatore
+                "!memberId=" + ID_B, "!memberId=" + ID_A, "!member_id=" + ID_B, "!MEMBERID=" + ID_B, "_memberId=" + ID_B,
+                "!filter.memberId=" + ID_B, "!items[0].memberId=" + ID_B}) {
             for (String path : new String[] {"/v1/portal/required", "/v1/portal/optional", "/v1/portal/theme",
                     "/v1/portal/backoffice-read", "/v1/portal/public", "/v1/portal/wallets/" + ID_A}) {
                 oidc.perform(bearer(get(path + "?" + query), a)).andExpect(status().isBadRequest())
@@ -117,9 +120,30 @@ class MemberEndpointAccessTest {
         oidc.perform(bearer(get("/v1/portal/theme").header(MemberPrincipals.MEMBER_HEADER, ID_A), a))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("MEMBER_FROM_TOKEN"));
         // Anche un campo form: Spring lo legherebbe come parametro.
-        oidc.perform(bearer(post("/v1/portal/write").contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .content("memberId=" + ID_B), a)).andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("MEMBER_FROM_TOKEN"));
+        for (String field : new String[] {"memberId=" + ID_B, "!memberId=" + ID_B, "_memberId=" + ID_B}) {
+            oidc.perform(bearer(post("/v1/portal/write").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .content(field), a)).andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("MEMBER_FROM_TOKEN"));
+        }
+    }
+
+    @Test
+    @DisplayName("[oidc] un DTO legato dalla richiesta non riceve il memberId dal binder: ?!memberId=… (query o campo form) ⇒ 400, mai 200 col DTO di un altro membro")
+    void binderPrefixesCannotBindAMemberIdOnADto() throws Exception {
+        String a = TOKENS.member(SUB_A);
+        // Controllo: senza memberId il DTO si lega e il membro è quello del token.
+        oidc.perform(bearer(get("/v1/portal/bound?code=x"), a)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.member").value(ID_A)).andExpect(jsonPath("$.code").value("x"))
+                .andExpect(jsonPath("$.boundMemberId").doesNotExist());
+        for (String pair : new String[] {"memberId=" + ID_B, "!memberId=" + ID_B, "!memberId=" + ID_A, "_memberId=" + ID_B,
+                "!member_id=" + ID_B, "!MEMBER-ID=" + ID_B}) {
+            oidc.perform(bearer(get("/v1/portal/bound?code=x&" + pair), a)).andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("MEMBER_FROM_TOKEN"))
+                    .andExpect(jsonPath("$.boundMemberId").doesNotExist());
+            oidc.perform(bearer(post("/v1/portal/bound").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .content("code=x&" + pair), a)).andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("MEMBER_FROM_TOKEN"));
+        }
     }
 
     @Test
@@ -332,6 +356,25 @@ class MemberEndpointAccessTest {
                 .andExpect(jsonPath("$.detail").value("Parametro obbligatorio assente: memberId"));
         demo.perform(get("/v1/portal/required-param?memberId=MBR-000003")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("MBR-000003"));
+    }
+
+    @Test
+    @DisplayName("[demo] solo un id MBR-nnnnnn diventa l'attore e l'MDC: un memberId di altra forma resta nel principal ma non entra nell'attore")
+    void demoOnlyAWellFormedIdBecomesTheActor() throws Exception {
+        for (String raw : new String[] {"x\ny", "MBR-000003\n", "MBR-3", "a".repeat(300), "member:MBR-000003", " MBR-000003"}) {
+            demo.perform(get("/v1/portal/required").param("memberId", raw)).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.origin").value("DEMO"))
+                    .andExpect(jsonPath("$.actor").value("ANALYST:anonymous"))
+                    .andExpect(jsonPath("$.mdc").value("ANALYST:anonymous"));
+        }
+        // Il principal non cambia: le risposte demo restano identiche a oggi.
+        demo.perform(get("/v1/portal/required").param("memberId", "x\ny")).andExpect(jsonPath("$.member").value("x\ny"));
+        // Anche la variabile di percorso legacy.
+        demo.perform(get("/v1/portal/wallets/{id}", "x\ny")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.actor").value("ANALYST:anonymous"))
+                .andExpect(jsonPath("$.mdc").value("ANALYST:anonymous"));
+        // Un id valido resta l'attore.
+        demo.perform(get("/v1/portal/required?memberId=MBR-000003")).andExpect(jsonPath("$.actor").value("member:MBR-000003"));
     }
 
     @Test

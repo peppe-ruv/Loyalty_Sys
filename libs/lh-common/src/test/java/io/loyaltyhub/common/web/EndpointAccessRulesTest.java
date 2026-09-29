@@ -472,6 +472,28 @@ class EndpointAccessRulesTest {
         }
     }
 
+    /** Senza ANALYST: l'attore di un membro è ANALYST, quindi la lettura risponderebbe 403 a ogni membro. */
+    @RestController
+    @RequestMapping("/v1/portal")
+    static class MembersReadWithoutAnalyst {
+        @GetMapping("/tiers")
+        @RequiresRole(value = {Role.ADMIN, Role.CARE}, members = true)
+        public String tiers() {
+            return "ok";
+        }
+    }
+
+    /** La regola «scrittura» ({@code value} vuoto) esclude ANALYST: nessun membro vi passa. */
+    @RestController
+    @RequestMapping("/v1/portal")
+    static class MembersReadWithWriteRule {
+        @GetMapping("/tiers")
+        @RequiresRole(members = true)
+        public String tiers() {
+            return "ok";
+        }
+    }
+
     @RestController
     @RequiresRole(value = {Role.ADMIN, Role.ANALYST}, members = true)
     static class MembersReadOnClassOutside {
@@ -645,6 +667,15 @@ class EndpointAccessRulesTest {
     @Test
     void implicitNamesAreNotVisibleToArchUnit() {
         assertThat(evaluate(BindsMemberIdImplicitly.class).hasViolation()).isFalse();
+    }
+
+    @Test
+    void membersReadListsAnalyst() {
+        assertThat(evaluate(MembersReadOk.class).hasViolation()).isFalse();
+        for (Class<?> fixture : new Class<?>[] {MembersReadWithoutAnalyst.class, MembersReadWithWriteRule.class}) {
+            assertThat(evaluate(fixture).getFailureReport().getDetails())
+                    .anySatisfy(d -> assertThat(d).contains("tiers()").contains("members = true").contains("ANALYST"));
+        }
     }
 
     @Test

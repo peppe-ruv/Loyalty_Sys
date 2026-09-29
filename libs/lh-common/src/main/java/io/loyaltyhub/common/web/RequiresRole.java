@@ -29,9 +29,12 @@ public @interface RequiresRole {
 
     /**
      * Lettura di programma aperta anche al token di un membro (Q-410, ADR-048): solo {@code GET} sotto
-     * {@code /v1/portal/} (non sotto {@code /v1/portal/me}), senza parametri legati alla richiesta e con {@code ANALYST}
-     * tra i ruoli; il controllo è di {@code EndpointAccessRules} (ArchUnit) e di {@code MemberEndpointGuard} (avvio).
-     * Un {@code memberId} nella richiesta di un membro resta un errore ({@code 400 MEMBER_FROM_TOKEN}).
+     * {@code /v1/portal/} (non sotto {@code /v1/portal/me}) e con {@link Role#ANALYST} tra i ruoli (l'attore di un membro
+     * è {@code ANALYST}: senza, o con {@code value} vuoto, risponderebbe {@code 403} a ogni membro). Li verificano
+     * {@code EndpointAccessRules} (ArchUnit) e {@code MemberEndpointGuard} (avvio). La lettura non ha parametri legati
+     * alla richiesta: lo verifica la regola del portale ({@code EndpointAccessRules.checkPortal}, opt-in per servizio
+     * dall'adozione del membro dal token, poi predefinita). Un {@code memberId} nella richiesta di un membro resta un
+     * errore ({@code 400 MEMBER_FROM_TOKEN}).
      */
     boolean members() default false;
 }

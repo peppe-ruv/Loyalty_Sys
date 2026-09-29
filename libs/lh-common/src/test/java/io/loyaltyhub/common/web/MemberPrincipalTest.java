@@ -87,15 +87,20 @@ class MemberPrincipalTest {
     }
 
     @Test
-    @DisplayName("checkOwner: un membro presente e diverso dal proprietario ⇒ 404 NOT_FOUND; il proprio o nessun membro (demo) passa")
+    @DisplayName("checkOwner: un membro presente e diverso dal proprietario ⇒ 404 NOT_FOUND; il proprio o nessun id in demo passa; NONE (operatore) mai")
     void checkOwner() {
         TOKEN.checkOwner("MBR-000101");
         DEMO_WITH_ID.checkOwner("MBR-000003");
         DEMO_NO_ID.checkOwner("MBR-000004"); // demo senza id: la proprietà resta facoltativa come oggi
-        NONE.checkOwner("MBR-000004");
         assertError(() -> TOKEN.checkOwner("MBR-000102"), 404, "NOT_FOUND");
         assertError(() -> TOKEN.checkOwner(null), 404, "NOT_FOUND");
         assertError(() -> DEMO_WITH_ID.checkOwner("MBR-000004"), 404, "NOT_FOUND");
+        // NONE (un operatore su un handler OPTIONAL, solo oidc) non è il proprietario di nulla: mai l'oggetto di un
+        // membro attraverso l'API del membro, nemmeno se l'owner è nullo.
+        assertError(() -> NONE.checkOwner("MBR-000004"), 404, "NOT_FOUND");
+        assertError(() -> NONE.checkOwner(null), 404, "NOT_FOUND");
+        assertThatThrownBy(() -> NONE.checkOwner("MBR-000004", "Richiesta non trovata"))
+                .isInstanceOfSatisfying(LhException.class, e -> assertThat(e.getMessage()).isEqualTo("Richiesta non trovata"));
         assertThatThrownBy(() -> TOKEN.checkOwner("MBR-000102", "Richiesta non trovata"))
                 .isInstanceOfSatisfying(LhException.class, e -> assertThat(e.getMessage()).isEqualTo("Richiesta non trovata"));
     }
@@ -142,10 +147,14 @@ class MemberPrincipalTest {
     @DisplayName("isMemberIdName: qualunque grafia, anche come ultimo segmento di un percorso di proprietà")
     void memberIdNames() {
         for (String yes : new String[] {"memberId", "MEMBERID", "memberid", "member_id", "Member-Id", "filter.memberId",
-                "items[0].memberId", "a.b.MEMBER_ID", "memberId[]"}) {
+                "items[0].memberId", "a.b.MEMBER_ID", "memberId[]",
+                // prefissi del binder di Spring: !campo (valore di default) e _campo (marcatore), anche annidati
+                "!memberId", "!member_id", "!MEMBER-ID", "_memberId", "!_memberId", "_!memberId", "!filter.memberId",
+                "filter.!memberId", "!items[0].memberId", "!memberId[]"}) {
             assertThat(MemberPrincipals.isMemberIdName(yes)).as(yes).isTrue();
         }
-        for (String no : new String[] {"member", "memberIds", "id", "ownerMemberId2", "", "memberIdentity", "codes"}) {
+        for (String no : new String[] {"member", "memberIds", "id", "ownerMemberId2", "", "memberIdentity", "codes", "!", "_",
+                "!member", "!memberIds", "!id", "!codes"}) {
             assertThat(MemberPrincipals.isMemberIdName(no)).as(no).isFalse();
         }
         assertThat(MemberPrincipals.isMemberIdName(null)).isFalse();
