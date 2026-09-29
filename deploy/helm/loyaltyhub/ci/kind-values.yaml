@@ -1,0 +1,87 @@
+# Valori del job `helm install (kind)` di .github/workflows/ci.yml (M8.3, Q-490): il chart installato su un cluster kind
+# con un solo nodo, su un runner di GitHub (4 vCPU, 16 GB). Non è un esempio d'installazione (vedi deploy/README.md):
+# un broker, un'istanza di Postgres e una replica per ruolo, con requests ridotte perché tutto entri nel nodo.
+#
+# Profilo `demo`: lo smoke (scripts/smoke.sh) invia un'azione e legge il saldo senza token, come nel compose.
+# SPEC-GAP: Q-491 — lo smoke nel profilo enterprise (token OIDC di una fonte) resta fuori dal job (TOBE-008).
+
+# Immagine costruita nel job da deploy/image/Dockerfile e caricata nel nodo con `kind load`: nessun pull.
+image:
+  repository: lh-image
+  tag: ci
+  pullPolicy: Never
+
+global:
+  profile: demo
+
+# Obbligatorio con i ruoli web e idp; nel profilo demo nessuno lo usa per il login.
+publicUrls:
+  web: https://loyalty.example.org
+
+# topologySpread resta quello di default: il job etichetta l'unico nodo con topology.kubernetes.io/zone, che la rack
+# awareness di Strimzi esige (senza, il container di init del broker esce con errore).
+
+roles:
+  hub:
+    replicas: 1
+    autoscaling:
+      enabled: false
+    pdb:
+      enabled: false
+    resources:
+      requests: { cpu: 250m, memory: 1Gi }
+      limits: { cpu: "2", memory: 2Gi }
+  web:
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { cpu: "1", memory: 768Mi }
+  idp:
+    replicas: 1
+    pdb:
+      enabled: false
+    resources:
+      requests: { cpu: 250m, memory: 768Mi }
+      limits: { cpu: "2", memory: 1536Mi }
+
+migrations:
+  resources:
+    requests: { cpu: 100m, memory: 512Mi }
+    limits: { cpu: "1", memory: 1Gi }
+
+postgres:
+  cloudnativepg:
+    instances: 1
+    # Stessa versione di Postgres dei compose (17.11): scripts/check-helm.mjs lo verifica (Q-483).
+    imageName: ghcr.io/cloudnative-pg/postgresql:17.11-system-trixie@sha256:c3f394a809ec4e5c8cc2962c2b3c4c8aab6744a721518614fe28800d008cfee2
+    storage:
+      size: 2Gi
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { cpu: "1", memory: 1Gi }
+
+kafka:
+  topics:
+    partitions: 3
+    replicas: 1
+    minInsyncReplicas: 1
+  strimzi:
+    # Linea 4.2 dei client e dei compose; Strimzi 1.2.0 supporta 4.2.0 e 4.2.1 (default 4.3.1). check-helm verifica la
+    # linea (Q-481, Q-483).
+    version: 4.2.1
+    replicas: 1
+    storage:
+      size: 2Gi
+      deleteClaim: true
+    resources:
+      requests: { cpu: 250m, memory: 1Gi }
+      limits: { cpu: "2", memory: 1536Mi }
+
+# Nessun Ingress controller nel cluster kind: le API /v1 passano dal gateway (Envoy Gateway installato dal job).
+ingress:
+  enabled: false
+
+gateway:
+  enabled: true
+  host: api.example.org
+  parentRefs:
+    - name: lh-gateway

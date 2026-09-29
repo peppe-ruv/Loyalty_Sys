@@ -188,6 +188,8 @@ test('porte dei ruoli allineate all\'immagine unica: hub 8080, web 3000 (deploy/
 // Kafka, Postgres e Keycloak devono avere la stessa versione ovunque compaiono; con due digest, anche lo stesso digest.
 const LOCAL_COMPOSE = 'deploy/docker-compose.yml';
 const VALUES = 'deploy/helm/loyaltyhub/values.yaml';
+// Valori del job `helm install (kind)`: Kafka di Strimzi e Postgres di CloudNativePG fissati sulle linee dei compose.
+const KIND_VALUES = 'deploy/helm/loyaltyhub/ci/kind-values.yaml';
 const SHARED_IMAGES = ['apache/kafka', 'postgres', 'quay.io/keycloak/keycloak'];
 
 /** `nome[:tag][@digest]` → { name, tag, digest }. Il tag segue l'ultimo `:` dopo l'ultima `/` (registro con porta). */
@@ -253,6 +255,7 @@ test('immagini condivise: stessa versione nei due compose e nei values del chart
     [LOCAL_COMPOSE]: composeImageRefs(read(LOCAL_COMPOSE)),
     [COMPOSE]: composeImageRefs(read(COMPOSE)),
     [VALUES]: valuesImageRefs(read(VALUES)),
+    [KIND_VALUES]: valuesImageRefs(read(KIND_VALUES)),
   };
   for (const name of SHARED_IMAGES) {
     for (const file of [LOCAL_COMPOSE, COMPOSE]) {
@@ -260,6 +263,9 @@ test('immagini condivise: stessa versione nei due compose e nei values del chart
     }
   }
   assert.ok(sources[VALUES].some((r) => r.name === 'quay.io/keycloak/keycloak'), `${VALUES}: manca l'immagine di Keycloak`);
+  // Il job kind fissa entrambe: senza, userebbe le versioni di default degli operatori (Kafka 4.3, Postgres 18).
+  const pinned = sources[KIND_VALUES].filter((r) => r.line || r.numeric).map((r) => r.name).sort();
+  assert.deepEqual(pinned, ['apache/kafka', 'postgres'], `${KIND_VALUES}: kafka.strimzi.version e postgres.cloudnativepg.imageName`);
   assert.deepEqual(sharedImageDrift(sources), [], 'allineare tag e digest a deploy/docker-compose.yml');
 });
 
@@ -280,7 +286,7 @@ test('immagini condivise: il controllo trova tag, digest e linee divergenti', ()
   const values = (tag, strimzi = '', cnpg = '') => valuesImageRefs(
     `roles:\n  idp:\n    image:\n      repository: quay.io/keycloak/keycloak\n      tag: "${tag}"\n`
     + `postgres:\n  cloudnativepg:\n    imageName: "${cnpg}"\n`
-    + `kafka:\n  strimzi:\n    apiVersion: kafka.strimzi.io/v1beta2\n    # commento\n    version: "${strimzi}"\n`);
+    + `kafka:\n  strimzi:\n    apiVersion: kafka.strimzi.io/v1\n    # commento\n    version: "${strimzi}"\n`);
   const same = {
     a: compose('apache/kafka:4.2.2@sha256:1', 'postgres:17.11@sha256:2'),
     b: compose('apache/kafka:4.2.2@sha256:1', 'postgres:17.11@sha256:2'),
@@ -328,6 +334,13 @@ test('helm lint e helm template: valori di default, servizi gestiti, rifiuti', {
   assert.equal(tpl.status, 0, tpl.stderr);
   const topics = [...tpl.stdout.matchAll(/topicName: (\S+)/g)].map((m) => m[1]).sort();
   assert.deepEqual(topics, [...TOPICS].sort());
+  // Risorse Strimzi con l'API v1 (Strimzi 0.51 o successivo, Q-490): niente v1beta2, niente annotazioni KRaft e node pool
+  // (ignorate da Strimzi 0.48).
+  const strimziDocs = tpl.stdout.split(/^---$/m).filter((d) => /^kind: (Kafka|KafkaNodePool|KafkaTopic)$/m.test(d));
+  assert.deepEqual(strimziDocs.map((d) => d.match(/^kind: (\S+)$/m)[1]).sort(),
+    ['Kafka', 'KafkaNodePool', ...Array(5).fill('KafkaTopic')]);
+  for (const d of strimziDocs) assert.match(d, /^apiVersion: kafka\.strimzi\.io\/v1$/m, d);
+  assert.doesNotMatch(tpl.stdout, /kafka\.strimzi\.io\/v1beta2|strimzi\.io\/(kraft|node-pools)/);
   assert.match(tpl.stdout, /jdbc:postgresql:\/\/lh-loyaltyhub-pg-rw:5432\/loyaltyhub\?sslmode=require/);
   assert.match(tpl.stdout, /- path: \/realms\/loyaltyhub\//);
   assert.doesNotMatch(tpl.stdout, /- path: \/realms\/\s/);
@@ -393,6 +406,12 @@ test('helm lint e helm template: valori di default, servizi gestiti, rifiuti', {
   refuses(/INSECURE_CONFIG: postgres\.external\.jdbcParams/, ...managed, 'postgres.external.jdbcParams=');
   refuses(/INSECURE_CONFIG: postgres\.external\.jdbcParams/, ...managed, 'postgres.external.jdbcParams=sslmode=prefer');
   refuses(/non può superare i broker/, 'kafka.topics.replicas=3', 'kafka.strimzi.replicas=1');
+  refuses(/kafka\.strimzi\.apiVersion/, 'kafka.strimzi.apiVersion=kafka.strimzi.io/v1beta2');
+  // Anche senza lo schema dei values il chart rifiuta v1beta2 con il motivo.
+  const noSchema = spawnSync('helm', ['template', 'lh', CHART, '--kube-version', '1.31.0', '-f', CI_VALUES,
+    '--skip-schema-validation', '--set', 'kafka.strimzi.apiVersion=kafka.strimzi.io/v1beta2'], { encoding: 'utf8' });
+  assert.notEqual(noSchema.status, 0);
+  assert.match(noSchema.stderr, /kafka\.strimzi\.io\/v1beta2 non è supportata.*Strimzi 0\.51 o successivo \(Q-490\)/);
   // Identità nel profilo enterprise (regola 22, F2-SEC-06, Q-409, Q-419, Q-420).
   refuses(/INSECURE_CONFIG: emittente OIDC "http:\/\/idp\.example\.org\/realms\/loyaltyhub" non https/,
     'publicUrls.idp=http://idp.example.org');
@@ -428,4 +447,27 @@ test('helm lint e helm template: valori di default, servizi gestiti, rifiuti', {
   assert.equal(template(...managed, 'postgres.external.jdbcParams=', 'postgres.external.allowInsecure=true').status, 0);
   assert.equal(template(...managed, 'global.profile=demo', 'kafka.external.security=PLAINTEXT',
     'postgres.external.jdbcParams=').status, 0);
+});
+
+test('valori del job kind: un broker, un\'istanza, profilo demo, API tramite il gateway', { skip: !hasHelm && 'helm non installato' }, () => {
+  const r = spawnSync('helm', ['template', 'lh', CHART, '--kube-version', '1.36.4', '-n', 'lh',
+    '-f', path.join(CHART, 'ci/kind-values.yaml')], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  const docs = r.stdout.split(/^---$/m);
+  const doc = (kind, name) => docs.find((d) => new RegExp(`^kind: ${kind}$`, 'm').test(d)
+    && new RegExp(`^  name: ${name}$`, 'm').test(d));
+  // I nomi che il job aspetta (kubectl wait, diagnostica).
+  assert.match(doc('Kafka', 'lh-loyaltyhub-kafka'), /^\s+version: 4\.2\.1$/m);
+  assert.match(doc('KafkaNodePool', 'lh-loyaltyhub-kafka-dual'), /^  replicas: 1$/m);
+  assert.match(doc('Cluster', 'lh-loyaltyhub-pg'), /^  instances: 1$/m);
+  assert.match(doc('HTTPRoute', 'lh-loyaltyhub-api'), /- name: lh-gateway[\s\S]*- "api\.example\.org"/);
+  for (const role of ['hub', 'web', 'idp']) {
+    const d = doc('Deployment', `lh-loyaltyhub-${role}`);
+    assert.ok(d, `Deployment ${role}`);
+    assert.match(d, /^  replicas: 1$/m, role);
+  }
+  // Immagine caricata con `kind load`: nessun pull.
+  assert.match(doc('Deployment', 'lh-loyaltyhub-hub'), /image: lh-image:ci\n\s+imagePullPolicy: Never/);
+  assert.doesNotMatch(r.stdout, /^kind: (Ingress|HorizontalPodAutoscaler|PodDisruptionBudget)$/m);
+  assert.match(r.stdout, /name: LH_PROFILE\n\s+value: "demo"/);
 });

@@ -2,7 +2,7 @@ Loyalty Hub {{ .Values.image.tag }} installato come "{{ .Release.Name }}" (profi
 
 Ruoli: {{ if .Values.roles.hub.enabled }}hub {{ end }}{{ if .Values.roles.web.enabled }}web {{ end }}{{ if .Values.roles.idp.enabled }}idp{{ end }}
 Postgres: {{ .Values.postgres.mode }}{{ if eq .Values.postgres.mode "cloudnativepg" }} (cluster {{ include "loyaltyhub.pg.clusterName" . }}, richiede l'operatore CloudNativePG){{ end }}
-Kafka: {{ .Values.kafka.mode }}{{ if eq .Values.kafka.mode "strimzi" }} (cluster {{ include "loyaltyhub.kafka.clusterName" . }}, richiede l'operatore Strimzi){{ end }}
+Kafka: {{ .Values.kafka.mode }}{{ if eq .Values.kafka.mode "strimzi" }} (cluster {{ include "loyaltyhub.kafka.clusterName" . }}, richiede l'operatore Strimzi 0.51 o successivo, API kafka.strimzi.io/v1){{ end }}
 Topic: 5 (lh.actions.v1, lh.effects.v1, lh.facts.v1, lh.audit.v1, lh.dlq.v1) x {{ .Values.kafka.topics.partitions }} partizioni, RF {{ .Values.kafka.topics.replicas }}
 
 {{- if .Values.ingress.enabled }}

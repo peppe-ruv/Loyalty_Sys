@@ -277,14 +277,17 @@ kafka:
     # Consumer per listener in ogni Pod dell'hub. Si scala prima con le repliche (HPA), poi con questo valore.
     concurrency: 2
   strimzi:
-    # Versione dell'API delle risorse Strimzi installate nel cluster. Il chart scrive le risorse in forma v1beta2, servita
-    # da Strimzi 0.46…0.51; Strimzi 1.0 o successivo serve solo l'API v1, non ancora supportata dal chart (Q-490).
-    apiVersion: kafka.strimzi.io/v1beta2
+    # API delle risorse Strimzi (Kafka, KafkaNodePool, KafkaTopic): solo kafka.strimzi.io/v1, servita da Strimzi 0.49 in
+    # poi e l'unica da Strimzi 1.0. Il chart richiede Strimzi 0.51 o successivo, la prima versione con la linea 4.2 di
+    # Kafka (Q-490); v1beta2 è rifiutata.
+    apiVersion: kafka.strimzi.io/v1
     # Vuoto = <fullname>-kafka
     clusterName: ""
     # Vuoto = versione di default dell'operatore installato (Q-481): i compose usano Kafka 4.2.2, i client sono della
-    # serie 4.2. Con l'API v1beta2 la linea 4.2 c'è solo in Strimzi 0.51 (Kafka 4.2.0, non il default); con operatori
-    # precedenti resta la loro versione di default (4.0 o 4.1), che i client 4.2 supportano.
+    # serie 4.2. Strimzi 0.51 e 1.0 hanno come default 4.2.0; Strimzi 1.1 e 1.2 supportano 4.2.0 e 4.2.1 ma hanno come
+    # default la linea 4.3 (1.2: 4.3.1), che i client 4.2 supportano. Per restare sulla linea dei client si fissa qui una
+    # patch 4.2 supportata dall'operatore (es. 4.2.1 con Strimzi 1.2); check-helm verifica che la linea sia quella dei
+    # compose.
     version: ""
     replicas: 3
     storage:

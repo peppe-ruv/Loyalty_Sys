@@ -1,7 +1,9 @@
 {{- /*
 Kafka con Strimzi (default, ADR-026): KRaft con un pool di nodi controller+broker, 3 repliche, RF 3 e
-min.insync.replicas 2 (ADR-036). L'operatore è un prerequisito (deploy/README.md). I 5 topic sono KafkaTopic con i
-nomi di sempre (ADR-004, ADR-028): cambiano solo partizioni, repliche e retention (F2-EVT-04).
+min.insync.replicas 2 (ADR-036). L'operatore è un prerequisito (deploy/README.md): Strimzi 0.51 o successivo, che
+serve l'API kafka.strimzi.io/v1 (Q-490). KRaft e node pool sono il comportamento di default da Strimzi 0.48: le
+annotazioni strimzi.io/kraft e strimzi.io/node-pools non servono più. I 5 topic sono KafkaTopic con i nomi di sempre
+(ADR-004, ADR-028): cambiano solo partizioni, repliche e retention (F2-EVT-04).
 */ -}}
 {{- if eq .Values.kafka.mode "strimzi" }}
 {{- $s := .Values.kafka.strimzi }}
@@ -39,9 +41,6 @@ metadata:
   name: {{ $cluster }}
   labels:
     {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "kafka") | nindent 4 }}
-  annotations:
-    strimzi.io/node-pools: enabled
-    strimzi.io/kraft: enabled
 spec:
   kafka:
     {{- with $s.version }}

@@ -53,11 +53,35 @@ flowchart TB
 
 - **Un Deployment per ruolo**: `hub` (tutti i moduli Java), `web`, `idp`. I ruoli `cms` e `jobs` non sono ancora nell'immagine e il chart rifiuta di abilitarli.
 - **Operatori di default, servizi gestiti come valori**: `postgres.mode` e `kafka.mode` valgono `cloudnativepg` e `strimzi`; con `external` il chart non crea risorse degli operatori.
+- **Strimzi 0.51 o successivo**: le risorse di Kafka usano l'API `kafka.strimzi.io/v1`, l'unica servita da Strimzi 1.x. Il broker ha la rack awareness sulla zona, quindi ogni nodo deve avere l'etichetta `topology.kubernetes.io/zone`. Con Strimzi 1.1 o 1.2 fissa `kafka.strimzi.version=4.2.1` per restare sulla linea 4.2 dei client.
 - **Immagine obbligatoria**: `image.repository` e `image.tag` non hanno default; si indica una versione pubblicata (tag `v*` del repository) o un digest.
 - **Migrazioni come Job**: stessa immagine, solo Flyway, prima dell'aggiornamento dei Pod (`pre-upgrade`).
 - **Sicurezza**: Pod Security `restricted`, filesystem in sola lettura, nessun token del service account, nessun segreto nei valori: solo riferimenti a Secret esistenti. Nel profilo `enterprise` Kafka e Postgres esterni senza cifratura sono rifiutati, salvo deroga esplicita, e l'emittente OIDC e l'origine del web devono essere `https`.
 - **Scala**: HPA e PDB su `hub`, partizioni e concorrenza dei consumer configurabili. Nel profilo `enterprise` il web ha una sola replica, perché le sessioni del BFF stanno nella memoria del Pod: il chart rifiuta di più.
 - **Installazione**: il primo avvio di Kafka, Postgres e Keycloak richiede alcuni minuti; si installa con `helm install … --wait --timeout 15m`.
+
+## Installazione provata in CI
+
+Il job `helm install (kind)` installa il chart su un cluster kind a ogni modifica di chart, compose, immagine o smoke. Il job è consultivo: non blocca il merge finché non si dimostra stabile. Usa il profilo `demo`, perché lo smoke non ha un token OIDC; il profilo `enterprise` resta da provare in un'installazione reale (Q-491).
+
+```mermaid
+flowchart LR
+  accTitle: Installazione del chart su kind in CI
+  accDescr: Il job costruisce l'immagine unica e la carica nel nodo kind, installa gli operatori Strimzi e CloudNativePG ed Envoy Gateway, installa il chart con i valori del job, attende Kafka, Postgres e i Pod dei ruoli pronti, poi esegue lo smoke attraverso il gateway fino all'hub.
+  IMG[Immagine unica costruita nel job] --> KIND[Nodo kind con zona e Pod Security restricted]
+  OPS[Strimzi 1.2, CloudNativePG 1.30, Envoy Gateway 1.9] --> KIND
+  KIND --> CHART[helm install con ci/kind-values.yaml]
+  CHART --> READY{Kafka, Postgres e Pod di hub, web, idp pronti}
+  READY --> SMOKE[scripts/smoke.sh]
+  SMOKE -->|Host api.example.org| GW[Gateway e HTTPRoute]
+  GW --> HUB[hub: azione accettata, saldo aggiornato]
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef ext fill:#FFFFFF,stroke:#94A3B8,stroke-dasharray:4 2,color:#334155
+  classDef check fill:#ECFDF5,stroke:#059669,color:#064E3B
+  class CHART,HUB svc
+  class IMG,OPS,KIND,GW ext
+  class READY,SMOKE check
+```
 
 ## Compose di riferimento
 

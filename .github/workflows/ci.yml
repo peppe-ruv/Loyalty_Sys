@@ -53,8 +53,9 @@ jobs:
           # Web: i test leggono anche i contratti evento (lib/messages/facts.test.ts).
           if grep -Eq '^(web/|contracts/events/|\.github/workflows/)' <<< "$files"; then web=true; else web=false; fi
           # Chart Helm e compose (M8.3): chart, compose di riferimento e locale (immagini condivise, Q-483), immagine
-          # (porte ed entrypoint), realm copiato nel chart, la verifica stessa e il workflow.
-          if grep -Eq '^(deploy/helm/|deploy/compose/|deploy/docker-compose\.yml$|deploy/image/|deploy/idp/realm\.json$|scripts/check-helm\.mjs$|\.github/workflows/)' <<< "$files"; then helm=true; else helm=false; fi
+          # (porte ed entrypoint), realm copiato nel chart, la verifica stessa e il workflow. Anche lo smoke, che il job
+          # `helm install (kind)` esegue attraverso il gateway.
+          if grep -Eq '^(deploy/helm/|deploy/compose/|deploy/docker-compose\.yml$|deploy/image/|deploy/idp/realm\.json$|scripts/check-helm\.mjs$|scripts/smoke\.sh$|\.github/workflows/)' <<< "$files"; then helm=true; else helm=false; fi
           echo "backend=$backend" >> "$GITHUB_OUTPUT"
           echo "web=$web" >> "$GITHUB_OUTPUT"
           echo "helm=$helm" >> "$GITHUB_OUTPUT"
@@ -168,9 +169,9 @@ jobs:
       # segnaposto passati al servizio idp del compose.
       - run: node --test scripts/check-realm.mjs
 
-  # Chart Helm e compose, di riferimento e locale (F2-DIST-02/03, M8.3, Q-483). Non è un controllo obbligatorio del
-  # ruleset: gira solo quando cambiano chart, compose, immagine o la verifica, e sempre su main. helm e kubeconform a
-  # versione fissa;
+  # Chart Helm e compose, di riferimento e locale (F2-DIST-02/03, M8.3, Q-483). Controllo obbligatorio del ruleset
+  # (scripts/setup-branch-protection.sh): gira quando cambiano chart, compose, immagine o la verifica, e sempre su main;
+  # saltato conta come superato. helm e kubeconform a versione fissa;
   # con CI=true scripts/check-helm.mjs fallisce se helm manca (nessuna prova saltata che conta come superata).
   helm:
     name: helm (chart e compose)
@@ -209,6 +210,10 @@ jobs:
             --set gateway.enabled=true --set 'gateway.parentRefs[0].name=gw' \
             | kubeconform -strict -summary -kubernetes-version "$KUBE_VERSION" \
                 -schema-location default -schema-location "$CRD_SCHEMAS" -
+          # Valori del job `helm install (kind)`: Strimzi v1, CloudNativePG e HTTPRoute.
+          helm template lh "$chart" --kube-version "$KUBE_VERSION" -n lh -f "$chart/ci/kind-values.yaml" \
+            | kubeconform -strict -summary -kubernetes-version "$KUBE_VERSION" \
+                -schema-location default -schema-location "$CRD_SCHEMAS" -
           helm template lh "$chart" --kube-version "$KUBE_VERSION" -f "$chart/ci/lint-values.yaml" \
             --set postgres.mode=external --set postgres.external.host=pg.example.internal \
             --set kafka.mode=external --set kafka.external.bootstrapServers=kafka.example.internal:9093 \
@@ -218,6 +223,202 @@ jobs:
         run: LH_IMAGE=ghcr.io/example/loyaltyhub:ci docker compose -f deploy/compose/reference.yml config -q
       - name: Compose locale valido (tutti i profili)
         run: docker compose -f deploy/docker-compose.yml --profile all --profile idp --profile idp-test config -q
+
+  # Installazione reale del chart (criterio di accettazione di M8, docs/18 §6; F2-DIST-02, Q-490): cluster kind a un
+  # nodo, operatori Strimzi e CloudNativePG, Envoy Gateway per la Gateway API, immagine unica costruita qui e caricata
+  # nel nodo. Attende Kafka, Postgres, i topic e i Pod di tutti i ruoli (hub, web, idp) Ready, poi esegue
+  # scripts/smoke.sh attraverso il gateway (HTTPRoute del chart). Profilo demo: lo smoke non ha un token OIDC
+  # (SPEC-GAP: Q-491, TOBE-008). Controllo consultivo: NON è nel ruleset (scripts/setup-branch-protection.sh) finché
+  # non si dimostra stabile. Versioni fisse; il nodo usa Kubernetes 1.36, supportato da Strimzi 1.2 (1.30 o
+  # successivo), CloudNativePG 1.30 (1.34–1.36) ed Envoy Gateway 1.9 (1.33–1.36).
+  helm-kind:
+    name: helm install (kind)
+    needs: changes
+    if: needs.changes.outputs.helm == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      HELM_VERSION: v3.18.4
+      KIND_VERSION: v0.33.0
+      KUBECTL_VERSION: v1.36.4
+      KIND_NODE_IMAGE: kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed
+      # Strimzi 1.2.0: solo API v1, Kafka 4.2.0…4.3.1 (il chart chiede 0.51 o successivo, Q-490).
+      STRIMZI_VERSION: 1.2.0
+      # Chart 0.29.1 = operatore CloudNativePG 1.30.1.
+      CNPG_CHART_VERSION: 0.29.1
+      ENVOY_GATEWAY_VERSION: v1.9.2
+      NS: lh
+      RELEASE: lh
+    steps:
+      # Build dell'immagine, nodo kind e immagini di Kafka, Postgres e Keycloak occupano gran parte del disco del runner:
+      # si tolgono i toolchain preinstallati che il job non usa.
+      - name: Spazio su disco
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v5
+        with:
+          version: ${{ env.HELM_VERSION }}
+      - uses: docker/setup-buildx-action@v4
+      # Stessa build di .github/workflows/image.yml (solo amd64, nessun push); l'immagine finisce nel Docker del runner.
+      - name: Immagine unica
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/image/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: lh-image:ci
+      - name: Cluster kind
+        uses: helm/kind-action@v1.15.0
+        with:
+          version: ${{ env.KIND_VERSION }}
+          kubectl_version: ${{ env.KUBECTL_VERSION }}
+          node_image: ${{ env.KIND_NODE_IMAGE }}
+          cluster_name: lh
+          wait: 120s
+      - name: Nodo, namespace e immagine
+        run: |
+          # La rack awareness di Strimzi (spec.kafka.rack) legge l'etichetta di zona del nodo: senza, il container di
+          # init del broker esce con errore. I nodi dei cloud ce l'hanno già.
+          kubectl label nodes --all topology.kubernetes.io/zone=zone-a
+          # Il chart dichiara Pod compatibili con Pod Security `restricted` (docs/18 §3.10): qui è imposto.
+          kubectl create namespace "$NS"
+          kubectl label namespace "$NS" pod-security.kubernetes.io/enforce=restricted
+          kind load docker-image lh-image:ci --name lh
+          # L'immagine ora è nel nodo: la cache di build non serve più.
+          docker buildx prune --all --force > /dev/null
+          df -h /
+      - name: Operatori (Strimzi, CloudNativePG) ed Envoy Gateway
+        run: |
+          # Come in deploy/README.md: Strimzi guarda tutti i namespace e genera Pod `restricted`.
+          helm install strimzi strimzi-kafka-operator --repo https://strimzi.io/charts/ --version "$STRIMZI_VERSION" \
+            -n strimzi --create-namespace --set watchAnyNamespace=true \
+            --set 'extraEnvs[0].name=STRIMZI_POD_SECURITY_PROVIDER_CLASS' --set 'extraEnvs[0].value=restricted' \
+            --wait --timeout 10m
+          helm install cnpg cloudnative-pg --repo https://cloudnative-pg.github.io/charts --version "$CNPG_CHART_VERSION" \
+            -n cnpg-system --create-namespace --wait --timeout 10m
+          # Envoy Gateway porta anche i CRD della Gateway API, che servono all'HTTPRoute del chart.
+          helm install eg oci://docker.io/envoyproxy/gateway-helm --version "$ENVOY_GATEWAY_VERSION" \
+            -n envoy-gateway-system --create-namespace --wait --timeout 10m
+          kubectl get crd kafkas.kafka.strimzi.io -o jsonpath='{range .spec.versions[*]}{.name} served={.served}{"\n"}{end}'
+      - name: Gateway
+        run: |
+          # Nessun LoadBalancer in kind: il Service di Envoy è ClusterIP e lo smoke lo raggiunge con un port-forward.
+          kubectl apply -f - <<EOF
+          apiVersion: gateway.envoyproxy.io/v1alpha1
+          kind: EnvoyProxy
+          metadata:
+            name: cluster-ip
+            namespace: envoy-gateway-system
+          spec:
+            provider:
+              type: Kubernetes
+              kubernetes:
+                envoyService:
+                  type: ClusterIP
+          ---
+          apiVersion: gateway.networking.k8s.io/v1
+          kind: GatewayClass
+          metadata:
+            name: eg
+          spec:
+            controllerName: gateway.envoyproxy.io/gatewayclass-controller
+            parametersRef:
+              group: gateway.envoyproxy.io
+              kind: EnvoyProxy
+              name: cluster-ip
+              namespace: envoy-gateway-system
+          ---
+          apiVersion: gateway.networking.k8s.io/v1
+          kind: Gateway
+          metadata:
+            name: lh-gateway
+            namespace: $NS
+          spec:
+            gatewayClassName: eg
+            listeners:
+              - name: http
+                protocol: HTTP
+                port: 80
+          EOF
+          kubectl -n "$NS" wait gateway/lh-gateway --for=condition=Programmed --timeout=5m
+      - name: Secret (generati nel job, mai stampati)
+        run: |
+          kubectl -n "$NS" create secret generic lh-idp-admin --from-literal=password="$(openssl rand -hex 24)"
+          kubectl -n "$NS" create secret generic lh-idp-clients \
+            --from-literal=web-client-secret="$(openssl rand -hex 32)" \
+            --from-literal=widgets-client-secret="$(openssl rand -hex 32)" \
+            --from-literal=cms-client-secret="$(openssl rand -hex 32)"
+          kubectl -n "$NS" create secret generic lh-idp-db --type=kubernetes.io/basic-auth \
+            --from-literal=username=idp --from-literal=password="$(openssl rand -hex 24)"
+      - name: helm install
+        run: |
+          # Senza --wait: Helm attende il Job di migrazione (hook post-install, che aspetta il Secret di CloudNativePG);
+          # Kafka, Postgres e Pod si attendono nei passi successivi, con messaggi più chiari.
+          helm install "$RELEASE" deploy/helm/loyaltyhub -n "$NS" -f deploy/helm/loyaltyhub/ci/kind-values.yaml \
+            --timeout 20m
+      - name: Strimzi e CloudNativePG provisionati
+        run: |
+          kubectl -n "$NS" wait "kafka/$RELEASE-loyaltyhub-kafka" --for=condition=Ready --timeout=15m
+          kubectl -n "$NS" wait kafkatopic --all --for=condition=Ready --timeout=5m
+          kubectl -n "$NS" wait "cluster.postgresql.cnpg.io/$RELEASE-loyaltyhub-pg" --for=condition=Ready --timeout=10m
+          kubectl -n "$NS" wait "database.postgresql.cnpg.io/$RELEASE-loyaltyhub-pg-idp" \
+            --for=jsonpath='{.status.applied}'=true --timeout=5m
+          kubectl -n "$NS" get kafka,kafkanodepool,kafkatopic,cluster.postgresql.cnpg.io,database.postgresql.cnpg.io
+      - name: Pod di tutti i ruoli Ready
+        run: |
+          for role in hub web idp; do
+            kubectl -n "$NS" rollout status "deployment/$RELEASE-loyaltyhub-$role" --timeout=15m
+          done
+          kubectl -n "$NS" wait pod --for=condition=Ready --timeout=5m \
+            -l "app.kubernetes.io/instance=$RELEASE,app.kubernetes.io/component in (hub,web,idp)"
+          kubectl -n "$NS" get pods -o wide
+      - name: Smoke attraverso il gateway
+        run: |
+          svc=$(kubectl -n envoy-gateway-system get svc -o jsonpath='{.items[0].metadata.name}' \
+            -l "gateway.envoyproxy.io/owning-gateway-namespace=$NS,gateway.envoyproxy.io/owning-gateway-name=lh-gateway")
+          kubectl -n envoy-gateway-system port-forward "service/$svc" 8888:80 > "$RUNNER_TEMP/port-forward.log" 2>&1 &
+          # smoke.sh usa gli URL pubblici delle API: curl apre la connessione verso il port-forward ma manda
+          # Host: api.example.org, l'host dell'HTTPRoute (gateway.host). Senza la route giusta Envoy risponde 404.
+          mkdir -p "$RUNNER_TEMP/curl"
+          echo 'connect-to = "api.example.org:80:127.0.0.1:8888"' > "$RUNNER_TEMP/curl/.curlrc"
+          export CURL_HOME="$RUNNER_TEMP/curl"
+          for _ in $(seq 1 30); do
+            if curl -fsS -o /dev/null --max-time 5 http://api.example.org/v1/portal/wallets/MBR-000003; then break; fi
+            sleep 2
+          done
+          BASE_INGESTION=http://api.example.org BASE_WALLET=http://api.example.org DEADLINE_S=60 bash scripts/smoke.sh
+      - name: Diagnostica
+        if: failure()
+        run: |
+          set +e
+          kubectl get nodes -o wide
+          kubectl get pods -A -o wide
+          kubectl get events -A --sort-by=.lastTimestamp | tail -n 150
+          kubectl -n "$NS" get kafka,kafkanodepool,kafkatopic,cluster.postgresql.cnpg.io,database.postgresql.cnpg.io,gateway,httproute \
+            -o yaml
+          kubectl -n "$NS" get jobs -o wide
+          kubectl -n "$NS" describe pods
+          for role in hub web idp; do
+            echo "::group::log $role"
+            kubectl -n "$NS" logs "deployment/$RELEASE-loyaltyhub-$role" --all-containers --tail=300
+            echo "::endgroup::"
+          done
+          echo "::group::log migrate"
+          kubectl -n "$NS" logs -l "app.kubernetes.io/component=migrate" --all-containers --tail=300 --prefix
+          echo "::endgroup::"
+          echo "::group::log Kafka"
+          kubectl -n "$NS" logs -l "strimzi.io/cluster=$RELEASE-loyaltyhub-kafka" --all-containers --tail=200 --prefix
+          echo "::endgroup::"
+          echo "::group::log operatori"
+          kubectl -n strimzi logs deployment/strimzi-cluster-operator --tail=300
+          kubectl -n cnpg-system logs -l app.kubernetes.io/name=cloudnative-pg --tail=300 --prefix
+          kubectl -n envoy-gateway-system logs deployment/envoy-gateway --tail=200
+          echo "::endgroup::"
+          cat "$RUNNER_TEMP/port-forward.log"
 
   contracts:
     name: contracts
