@@ -16,8 +16,9 @@
 # .github/workflows/image.yml pubblica ghcr.io/<owner>/loyaltyhub solo sui tag git `v*`.
 # Segreti: nessun valore nel file. Le variabili hanno default vuoto; a runtime il container che ne ha bisogno rifiuta
 # di partire (x-lh-require-env, Postgres senza password o senza LH_IDP_DB_PASSWORD, il web con INSECURE_CONFIG).
-# LH_SUBJECT_KEY (F2-SEC-09, ADR-048, Q-552) è obbligatoria solo per l'hub del profilo enterprise: chiave dello
-# pseudonimo subjectRef che lega il token OIDC al membro (base64, almeno 32 byte). Con LH_PROFILE=demo non serve.
+# LH_SUBJECT_KEY (F2-SEC-09, ADR-048, Q-552) è obbligatoria per l'hub con LH_PROFILE=enterprise o LH_IDENTITY_MODE=oidc
+# (il default): chiave dello pseudonimo subjectRef che lega il token OIDC al membro (base64, almeno 32 byte). Non serve
+# con LH_PROFILE=demo LH_IDENTITY_MODE=header.
 # Rete: web e idp ascoltano solo su 127.0.0.1 dell'host (LH_BIND_ADDRESS) e parlano HTTP in chiaro: davanti serve un
 # reverse proxy con TLS (SPEC-GAP: Q-392, TLS end-to-end con M8.5). Variabili e scelte: deploy/README.md.
 # Login nel profilo enterprise (BFF OIDC, F2-SEC-06): il web chiama Keycloak con l'URL pubblico, lo stesso del browser,
@@ -51,13 +52,14 @@ x-lh-require-env: &lh-require-env
 
 # Come sopra, ma accetta anche <VAR>_FILE: solo per i ruoli che partono da /opt/lh/entrypoint.sh, che legge la
 # convenzione *_FILE (una variabile vuota non oscura il file: deploy/image/README.md). LH_REQUIRED_ENV vale sempre;
-# LH_REQUIRED_ENV_ENTERPRISE solo con LH_PROFILE=enterprise (il profilo demo non usa quei segreti, regola 22).
+# LH_REQUIRED_ENV_OIDC solo con LH_PROFILE=enterprise o LH_IDENTITY_MODE=oidc (l'hub in modalità oidc ne ha bisogno
+# qualunque sia il profilo: il demo con identità simulata, header, non usa quei segreti; regola 22).
 x-lh-require-env-or-file: &lh-require-env-or-file
   - /bin/sh
   - -c
   - |
     required="$${LH_REQUIRED_ENV:-}"
-    if [ "$${LH_PROFILE:-}" = "enterprise" ]; then required="$$required $${LH_REQUIRED_ENV_ENTERPRISE:-}"; fi
+    if [ "$${LH_PROFILE:-}" = "enterprise" ] || [ "$${LH_IDENTITY_MODE:-}" = "oidc" ]; then required="$$required $${LH_REQUIRED_ENV_OIDC:-}"; fi
     for v in $$required; do
       eval "val=\$${$$v:-}\$${$${v}_FILE:-}"
       if [ -z "$$val" ]; then echo "Variabile obbligatoria mancante: $$v (o $${v}_FILE)" >&2; exit 1; fi
@@ -240,12 +242,12 @@ services:
       LH_OTEL_METRICS_URL: "http://otelcol:4318/v1/metrics"
       LH_OTEL_SERVICE_NAMESPACE: "${LH_OTEL_SERVICE_NAMESPACE:-loyaltyhub}"
       # Chiave dello pseudonimo subjectRef (ADR-048, Q-552): base64, almeno 32 byte (openssl rand -base64 32), distinta da
-      # ogni altra chiave. Obbligatoria nel profilo enterprise; cambiarla scollega ogni token dal proprio membro
+      # ogni altra chiave. Obbligatoria con profilo enterprise o identità oidc; cambiarla scollega ogni token dal proprio membro
       # (docs/11 §16). La forma la verifica l'hub all'avvio (INSECURE_CONFIG, senza stampare il valore).
       LH_SUBJECT_KEY: "${LH_SUBJECT_KEY:-}"
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
       LH_REQUIRED_ENV: "DB_PASSWORD"
-      LH_REQUIRED_ENV_ENTERPRISE: "LH_SUBJECT_KEY"
+      LH_REQUIRED_ENV_OIDC: "LH_SUBJECT_KEY"
     # Stesso controllo dell'HEALTHCHECK dell'immagine (per ruolo), reso esplicito per i depends_on.
     healthcheck:
       test: ["CMD", "/opt/lh/healthcheck.sh"]

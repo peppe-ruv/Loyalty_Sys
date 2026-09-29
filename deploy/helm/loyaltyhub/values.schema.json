@@ -147,7 +147,16 @@
             "resources": { "$ref": "#/definitions/resources" },
             "autoscaling": { "$ref": "#/definitions/autoscaling" },
             "pdb": { "$ref": "#/definitions/pdb" },
-            "subjectKey": { "$ref": "#/definitions/secretRef" },
+            "subjectKey": {
+              "type": "object",
+              "description": "Secret con LH_SUBJECT_KEY (mai un valore in chiaro): nome DNS-1123 e chiave non vuoti.",
+              "additionalProperties": false,
+              "required": ["name", "key"],
+              "properties": {
+                "name": { "type": "string", "minLength": 1, "maxLength": 253, "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$" },
+                "key": { "type": "string", "minLength": 1, "maxLength": 253, "pattern": "^[-._a-zA-Z0-9]+$" }
+              }
+            },
             "extraEnv": { "type": "array" }
           }
         },

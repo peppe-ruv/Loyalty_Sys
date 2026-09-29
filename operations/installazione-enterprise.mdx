@@ -167,14 +167,14 @@ flowchart LR
   class SEC secret
 ```
 
-Genera la chiave con `openssl rand -base64 32` (almeno 32 byte in base64) e non riusarla per altro. Con Helm crea il Secret prima di installare; il chart lo passa all'hub come `LH_SUBJECT_KEY` solo nel profilo `enterprise`, e senza riferimento `helm install` non procede (`INSECURE_CONFIG`):
+Genera la chiave con `openssl rand -base64 32` (almeno 32 byte in base64) e non riusarla per altro. Con Helm crea il Secret prima di installare; il chart lo passa all'hub come `LH_SUBJECT_KEY` solo nel profilo `enterprise`, e senza riferimento `helm install` non procede (`INSECURE_CONFIG`). Il chart non controlla che il Secret esista: se manca, l'installazione riesce e il Pod dell'hub resta in `CreateContainerConfigError`:
 
 ```bash
 # Chiave dello pseudonimo del membro (roles.hub.subjectKey)
 kubectl create secret generic lh-subject-key --from-literal=subject-key="$(openssl rand -base64 32)"
 ```
 
-Con il compose di riferimento esporta la variabile prima di `docker compose up`; con `LH_PROFILE=enterprise` l'hub non parte senza:
+Con il compose di riferimento esporta la variabile prima di `docker compose up`; con `LH_PROFILE=enterprise` o `LH_IDENTITY_MODE=oidc` (i default) l'hub non parte senza:
 
 ```bash
 export LH_SUBJECT_KEY="$(openssl rand -base64 32)"

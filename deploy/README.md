@@ -223,13 +223,18 @@ member-service (ADR-032). La chiave serve solo all'hub, ed è un segreto distint
   (`INSECURE_CONFIG`, regola 22; il valore non viene mai stampato).
 - **Chart.** `roles.hub.subjectKey` è `{name, key}` di un Secret esistente (default `lh-subject-key`, chiave
   `subject-key`, creato al passo 2), passato all'hub con `secretKeyRef`. Nel profilo `enterprise` un nome o una chiave
-  vuoti fanno fallire `helm install` e `helm template` (`INSECURE_CONFIG: roles.hub.subjectKey…`); con
-  `global.profile=demo` il chart non passa la variabile e il Secret non serve. Il chart non legge il contenuto del Secret.
-- **Compose.** `LH_SUBJECT_KEY` (o `LH_SUBJECT_KEY_FILE`) dall'ambiente: con `LH_PROFILE=enterprise`, il default, il
-  container `hub` si ferma con `Variabile obbligatoria mancante: LH_SUBJECT_KEY`; con `LH_PROFILE=demo` non serve.
+  vuoti, di soli spazi o nulli fanno fallire `helm install` e `helm template` (`INSECURE_CONFIG: roles.hub.subjectKey…`),
+  come una voce `LH_SUBJECT_KEY` o `LH_SUBJECT_KEY_FILE` in `roles.hub.extraEnv` (niente valori in chiaro); con
+  `global.profile=demo` il chart non passa la variabile e il Secret non serve. Il chart non legge il contenuto del Secret
+  né controlla che esista: con un Secret inesistente `helm install` riesce e il Pod dell'hub resta in
+  `CreateContainerConfigError`.
+- **Compose.** `LH_SUBJECT_KEY` (o `LH_SUBJECT_KEY_FILE`) dall'ambiente: con `LH_PROFILE=enterprise` o
+  `LH_IDENTITY_MODE=oidc` (entrambi i default) il container `hub` si ferma con
+  `Variabile obbligatoria mancante: LH_SUBJECT_KEY`; non serve con `LH_PROFILE=demo LH_IDENTITY_MODE=header`.
 - **Rotazione: non ricollega nulla.** `subjectRef` dipende dalla chiave. Cambiarla scollega ogni token dal proprio
   membro (i `memberId` e i saldi restano, ma le lookup rispondono `404` o `409`) e nessun processo ricollega da solo i
-  riferimenti vecchi ai nuovi. Il job di member-service che ricalcola e ripubblica non esiste ancora (fuori da
+  riferimenti vecchi ai nuovi (member-service conserva `iss` e `sub` in `member_identity`: il ricalcolo è possibile solo
+  lì). Il job di member-service che ricalcola e ripubblica non esiste ancora (fuori da
   M8.10f): finché non c'è, la chiave si tratta come immutabile e se ne tiene una copia nel secret manager; perderla
   equivale a ruotarla.
 
@@ -296,7 +301,7 @@ docker compose -f deploy/compose/reference.yml up -d
 | `LH_IDP_DB_PASSWORD` | — (obbligatoria) | ruolo `idp` di Postgres, usato solo da Keycloak |
 | `LH_IDP_ADMIN_PASSWORD`, `LH_*_CLIENT_SECRET` | — (obbligatorie) | come in `deploy/idp/README.md`; `LH_WEB_CLIENT_SECRET` va anche al web |
 | `LH_WEB_SESSION_KEY` | — (obbligatoria in `enterprise`) | chiave delle sessioni del BFF: 32 byte casuali in base64 (`openssl rand -base64 32`) |
-| `LH_SUBJECT_KEY` | — (obbligatoria in `enterprise`, non serve in `demo`) | chiave dello pseudonimo `subjectRef` del membro, solo per l'hub: 32 byte casuali in base64; cambiarla scollega i token dai membri (*Chiave dello pseudonimo del membro*) |
+| `LH_SUBJECT_KEY` | — (obbligatoria in `enterprise` e con `LH_IDENTITY_MODE=oidc`, non serve con `LH_PROFILE=demo LH_IDENTITY_MODE=header`) | chiave dello pseudonimo `subjectRef` del membro, solo per l'hub: 32 byte casuali in base64; cambiarla scollega i token dai membri (*Chiave dello pseudonimo del membro*) |
 | `LH_WEB_SESSION_IDLE_SECONDS`, `LH_WEB_SESSION_MAX_SECONDS`, `LH_WEB_SESSION_MAX_COUNT` | vuote (default del web: 1800, 36000, 10000) | inattività, durata massima e numero delle sessioni del BFF |
 | `LH_BIND_ADDRESS` | `127.0.0.1` | indirizzo dell'host su cui pubblicare `web` e `idp` |
 | `LH_IDP_PUBLIC_URL`, `LH_WEB_URL`, `LH_CMS_URL` | `http://localhost:8180`, `:3000`, `:8055` | emittente OIDC e redirect del realm; nel profilo `enterprise` gli URL `https` del reverse proxy, senza barra finale |
