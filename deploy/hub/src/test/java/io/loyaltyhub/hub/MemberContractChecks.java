@@ -3,14 +3,21 @@ package io.loyaltyhub.hub;
 import io.loyaltyhub.common.web.EndpointAccessInterceptor;
 import io.loyaltyhub.common.web.MemberEndpoint;
 import io.loyaltyhub.common.web.MemberPrincipal;
+import io.loyaltyhub.common.web.MemberPrincipals;
 import io.loyaltyhub.common.web.MemberSubject;
 import org.springframework.beans.BeanUtils;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.MatrixVariable;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestAttribute;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.SessionAttribute;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import tools.jackson.databind.JsonNode;
@@ -33,8 +40,14 @@ import java.util.Set;
  * {@link MemberEndpoint}; finché un servizio non ne ha, non controlla nulla.
  *
  * <p>Handler ({@link #handlerProblems}): nessun parametro risolto {@code memberId} (a qualunque grafia) su un handler
- * del membro; {@code demoPathVariable} solo su un handler {@link Deprecated}; ogni handler del membro sta sotto
+ * del membro, né un oggetto legato dalla richiesta ({@code @ModelAttribute} o un tipo non annotato) con una proprietà
+ * {@code memberId}, anche annidata: il binder di Spring la lega da query e form anche con i prefissi {@code !} e {@code _}
+ * ({@code ?!memberId=…}); {@code demoPathVariable} solo su un handler {@link Deprecated}; ogni handler del membro sta sotto
  * {@code /v1/portal/}.
+ *
+ * <p>Attivazione: per <em>operazione</em> {@link MemberEndpoint} ({@link #memberOperations}), non per controller: un
+ * handler di backoffice nello stesso controller non è controllato (scostamento dal progetto §3.5, da registrare in ADR-048 e
+ * docs/06 §3.2); il parametro di percorso {@code {id}} conta come id di un membro solo sotto {@code /members/}.
  *
  * <p>Contratto ({@link #contractProblems}): nessuna operazione sotto {@code /v1/portal/me} ha un parametro o una
  * proprietà di corpo {@code memberId}, a nessuna profondità; su un'operazione di un handler del membro un parametro di
@@ -54,12 +67,9 @@ final class MemberContractChecks {
     private MemberContractChecks() {
     }
 
+    /** {@code memberId} in qualunque grafia, anche con i prefissi del binder ({@code !}, {@code _}): una sola definizione. */
     static boolean isMemberIdName(String name) {
-        if (name == null) {
-            return false;
-        }
-        String last = name.substring(name.lastIndexOf('.') + 1);
-        return last.replace("-", "").replace("_", "").toLowerCase(Locale.ROOT).equals("memberid");
+        return MemberPrincipals.isMemberIdName(name);
     }
 
     // ================= handler registrati =================
@@ -109,6 +119,11 @@ final class MemberContractChecks {
                     problems.add(where + ": il parametro «" + bound + "» lega il memberId dalla richiesta: il membro viene "
                             + "solo dal MemberPrincipal");
                 }
+                for (String property : boundObjectMemberIds(parameter)) {
+                    problems.add(where + ": il parametro «" + parameter.getName() + "» (" + parameter.getType().getSimpleName()
+                            + ") lega dalla richiesta la proprietà memberId (" + property + "), anche con i prefissi del binder"
+                            + " (?!memberId=…): il membro viene solo dal MemberPrincipal");
+                }
             }
         }
         return problems;
@@ -146,6 +161,88 @@ final class MemberContractChecks {
         }
         // Non annotato: Spring lega per nome solo i tipi semplici (come un @RequestParam implicito).
         return parameter.getAnnotations().length == 0 && BeanUtils.isSimpleProperty(type) ? parameter.getName() : null;
+    }
+
+    /** Annotazioni che legano un parametro ad altro che al modello: con una di queste il parametro non è un oggetto del binder. */
+    private static final List<Class<? extends java.lang.annotation.Annotation>> NOT_A_MODEL_ATTRIBUTE = List.of(
+            RequestParam.class, PathVariable.class, RequestHeader.class, CookieValue.class, RequestBody.class,
+            RequestPart.class, RequestAttribute.class, SessionAttribute.class, MatrixVariable.class);
+    /** Tipi che il binder non popola dalla richiesta come oggetto di dominio: framework e librerie standard. */
+    private static final List<String> FRAMEWORK_TYPES = List.of("java.", "javax.", "jakarta.", "org.springframework.",
+            "tools.jackson.", "com.fasterxml.");
+    private static final int MAX_BOUND_DEPTH = 3;
+
+    /**
+     * Le proprietà {@code memberId} (in qualunque grafia) di un oggetto che Spring lega dalla richiesta: un parametro
+     * {@code @ModelAttribute}, oppure senza annotazioni di binding e di un tipo non semplice e non di framework (Spring lo
+     * tratta come {@code @ModelAttribute}). Il binder lega i campi di query e di form ({@code ?memberId=…}, {@code ?!memberId=…}
+     * per il valore di default, {@code ?_memberId=…} per il marcatore) alle componenti dei {@code record}, alle proprietà
+     * scrivibili dei bean e ai parametri del costruttore, anche annidati ({@code filter.memberId}, {@code items[0].memberId}).
+     * Un corpo ({@code @RequestBody}) non conta: lo controllano {@code MemberBodyAdvice} e il contratto generato.
+     */
+    static List<String> boundObjectMemberIds(Parameter parameter) {
+        Class<?> type = parameter.getType();
+        if (type == MemberPrincipal.class || type == MemberSubject.class || BeanUtils.isSimpleProperty(type)
+                || isFrameworkType(type)) {
+            return List.of();
+        }
+        boolean model = AnnotatedElementUtils.findMergedAnnotation(parameter, ModelAttribute.class) != null;
+        if (!model && NOT_A_MODEL_ATTRIBUTE.stream().anyMatch(a -> AnnotatedElementUtils.findMergedAnnotation(parameter, a) != null)) {
+            return List.of();
+        }
+        List<String> found = new ArrayList<>();
+        collectMemberIds(type, "", 0, new HashSet<>(), found);
+        return found;
+    }
+
+    private static boolean isFrameworkType(Class<?> type) {
+        return FRAMEWORK_TYPES.stream().anyMatch(type.getName()::startsWith);
+    }
+
+    private static void collectMemberIds(Class<?> type, String path, int depth, Set<Class<?>> visiting, List<String> found) {
+        if (depth > MAX_BOUND_DEPTH || BeanUtils.isSimpleProperty(type) || isFrameworkType(type) || !visiting.add(type)) {
+            return;
+        }
+        Map<String, java.lang.reflect.Type> properties = new java.util.LinkedHashMap<>();
+        if (type.isRecord()) {
+            for (java.lang.reflect.RecordComponent component : type.getRecordComponents()) {
+                properties.put(component.getName(), component.getGenericType());
+            }
+        } else {
+            for (java.beans.PropertyDescriptor descriptor : BeanUtils.getPropertyDescriptors(type)) {
+                if (descriptor.getWriteMethod() != null) {
+                    properties.put(descriptor.getName(), descriptor.getWriteMethod().getGenericParameterTypes()[0]);
+                }
+            }
+            for (java.lang.reflect.Constructor<?> constructor : type.getDeclaredConstructors()) {
+                for (Parameter parameter : constructor.getParameters()) {
+                    properties.putIfAbsent(parameter.getName(), parameter.getParameterizedType());
+                }
+            }
+        }
+        for (Map.Entry<String, java.lang.reflect.Type> property : properties.entrySet()) {
+            String at = path + property.getKey();
+            if (isMemberIdName(property.getKey())) {
+                found.add(at);
+            }
+            for (Class<?> nested : classesOf(property.getValue())) {
+                collectMemberIds(nested, at + ".", depth + 1, visiting, found);
+            }
+        }
+        visiting.remove(type);
+    }
+
+    /** Le classi raggiunte da un tipo: se stesso, l'elemento di un array, gli argomenti di un tipo generico ({@code List<Item>}). */
+    private static List<Class<?>> classesOf(java.lang.reflect.Type type) {
+        List<Class<?>> out = new ArrayList<>();
+        if (type instanceof Class<?> c) {
+            out.add(c.isArray() ? c.getComponentType() : c);
+        } else if (type instanceof java.lang.reflect.ParameterizedType p) {
+            for (java.lang.reflect.Type argument : p.getActualTypeArguments()) {
+                out.addAll(classesOf(argument));
+            }
+        }
+        return out;
     }
 
     private static Set<String> patterns(RequestMappingInfo info) {

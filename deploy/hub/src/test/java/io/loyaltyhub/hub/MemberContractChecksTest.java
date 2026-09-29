@@ -61,6 +61,40 @@ class MemberContractChecksTest {
     }
 
     @Test
+    @DisplayName("un oggetto legato dalla richiesta (@ModelAttribute, record, bean, costruttore, annidato, in un elenco) con memberId è un problema: il binder lega anche ?!memberId=")
+    void boundObjectsCarryingAMemberIdAreProblems() {
+        assertThat(MemberContractChecks.handlerProblems(handlers(MemberContractFixtures.BoundModelAttribute.class)))
+                .anySatisfy(p -> assertThat(p).contains("BoundModelAttribute#annotated").contains("Query").contains("memberId")
+                        .contains("?!memberId"));
+        assertThat(MemberContractChecks.handlerProblems(handlers(MemberContractFixtures.BoundUnannotatedRecord.class)))
+                .anySatisfy(p -> assertThat(p).contains("BoundUnannotatedRecord#record").contains("memberId"));
+        assertThat(MemberContractChecks.handlerProblems(handlers(MemberContractFixtures.BoundBean.class)))
+                .anySatisfy(p -> assertThat(p).contains("BoundBean#bean").contains("QueryBean").contains("memberId"))
+                .anySatisfy(p -> assertThat(p).contains("BoundBean#ctor").contains("member_id"));
+        assertThat(MemberContractChecks.handlerProblems(handlers(MemberContractFixtures.BoundNested.class)))
+                .anySatisfy(p -> assertThat(p).contains("BoundNested#nested").contains("filter.memberId"))
+                .anySatisfy(p -> assertThat(p).contains("BoundNested#list").contains("items.memberId"));
+    }
+
+    @Test
+    @DisplayName("oggetti senza memberId, un corpo, un header, i tipi di framework e i handler di backoffice non sono problemi")
+    void boundObjectsWithoutAMemberIdAreFine() {
+        assertThat(MemberContractChecks.handlerProblems(handlers(MemberContractFixtures.BoundObjectsWithoutMemberId.class))).isEmpty();
+        assertThat(MemberContractChecks.handlerProblems(handlers(MemberContractFixtures.BoundModelInBackoffice.class))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("isMemberIdName riconosce anche i prefissi del binder di Spring")
+    void memberIdNamesIncludeTheBinderPrefixes() {
+        for (String yes : new String[] {"memberId", "member_id", "!memberId", "_memberId", "!filter.memberId", "MEMBER-ID"}) {
+            assertThat(MemberContractChecks.isMemberIdName(yes)).as(yes).isTrue();
+        }
+        for (String no : new String[] {"member", "memberIds", "id", "!code", null}) {
+            assertThat(MemberContractChecks.isMemberIdName(no)).as(String.valueOf(no)).isFalse();
+        }
+    }
+
+    @Test
     @DisplayName("un nome esplicito diverso non lega memberId: nessun falso positivo")
     void explicitOtherNameIsFine() {
         assertThat(MemberContractChecks.handlerProblems(handlers(MemberContractFixtures.ExplicitNameIsAnotherThing.class))).isEmpty();
