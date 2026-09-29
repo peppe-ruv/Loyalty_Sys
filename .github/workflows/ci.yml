@@ -155,16 +155,15 @@ jobs:
   # .gitleaks.toml, `nosemgrep` con giustificazione). CONSULTIVO: non è nel ruleset (scripts/setup-branch-protection.sh);
   # il proprietario lo rende obbligatorio quando si dimostra stabile (ADR-047). Restano fuori da questo job: CodeQL,
   # Schemathesis e ZAP (M8.11, job notturno), le immagini e la firma (M8.5a, image.yml).
-  # Trivy e gitleaks si compilano con `go install` (modulo verificato dal checksum database di Go, come kubeconform nel
-  # job `helm`) e restano in cache: la prima esecuzione senza cache impiega alcuni minuti in più.
+  # Trivy si installa con l'azione locale .github/actions/setup-trivy (release ufficiale, SHA-256 verificato: versione e
+  # somma stanno in un solo posto, come nel job `build` di image.yml, Q-501). gitleaks si scarica dalla release
+  # fissata e se ne verifica lo SHA-256 nello stesso modo: niente toolchain Go, niente cache da invalidare.
   security:
     name: security
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       SEMGREP_VERSION: 1.178.0
-      TRIVY_VERSION: v0.74.0
-      GITLEAKS_VERSION: v8.30.1
       HELM_VERSION: v3.18.4
       SEMGREP_SEND_METRICS: "off"
       TRIVY_DISABLE_TELEMETRY: "true"
@@ -178,32 +177,35 @@ jobs:
       - name: Semgrep
         run: pip install "semgrep==${SEMGREP_VERSION}"
       - name: Regole del progetto (semgrep --test)
+        if: ${{ !cancelled() }}
         run: semgrep --test --config .semgrep/rules .semgrep/tests --metrics=off --disable-version-check
       - name: Semgrep sul codice (regole 19 e 20)
+        if: ${{ !cancelled() }}
         # --error: qualunque segnalazione fa fallire il job. Solo le regole del repository: nessun registro remoto.
         run: semgrep scan --config .semgrep/rules --metrics=off --disable-version-check --error libs services deploy
-      - uses: actions/setup-go@v7
-        with:
-          go-version: "1.26"
-          cache: false
       - uses: azure/setup-helm@v5
         with:
           version: ${{ env.HELM_VERSION }}
-      - name: Cache di Trivy e gitleaks
-        id: tools
-        uses: actions/cache@v5
-        with:
-          path: ~/go/bin
-          key: security-tools-${{ runner.os }}-trivy-${{ env.TRIVY_VERSION }}-gitleaks-${{ env.GITLEAKS_VERSION }}
-      - name: Trivy e gitleaks
-        if: steps.tools.outputs.cache-hit != 'true'
+      - uses: ./.github/actions/setup-trivy
+      - name: Installa gitleaks
+        # Release fissata con SHA-256 verificato (la riga di gitleaks_8.30.1_checksums.txt della release). Per aggiornare:
+        # cambia le due variabili. Nessuna azione di terze parti.
+        env:
+          GITLEAKS_VERSION: '8.30.1'
+          GITLEAKS_SHA256: '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb'
         run: |
-          # Trivy 0.7x richiede GOEXPERIMENT=jsonv2 (encoding/json/v2) per compilare.
-          GOEXPERIMENT=jsonv2 go install "github.com/aquasecurity/trivy/cmd/trivy@${TRIVY_VERSION}"
-          go install "github.com/zricethezav/gitleaks/v8@${GITLEAKS_VERSION}"
-      - name: Percorso degli strumenti
-        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          set -euo pipefail
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tmp="$(mktemp -d)"
+          curl -fsSL --retry 3 -o "${tmp}/${archive}" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
+          echo "${GITLEAKS_SHA256}  ${tmp}/${archive}" | sha256sum -c -
+          tar -xzf "${tmp}/${archive}" -C "${tmp}" gitleaks
+          sudo install -m 0755 "${tmp}/gitleaks" /usr/local/bin/gitleaks
+          rm -rf "${tmp}"
+          gitleaks version
       - name: Dipendenze (Trivy, Maven, pnpm, npm)
+        if: ${{ !cancelled() }}
         # Risolve le dipendenze transitive di Maven da Maven Central. --ignore-unfixed: senza correzione disponibile non
         # si blocca; con correzione disponibile sì (aggiornare in patch, o accettare in .trivyignore.yaml con scadenza).
         run: |
@@ -211,10 +213,13 @@ jobs:
             --ignorefile .trivyignore.yaml --exit-code 1 --no-progress \
             --skip-dirs '**/node_modules' --skip-dirs '**/target' .
       - name: IaC (chart Helm, compose, Dockerfile)
+        if: ${{ !cancelled() }}
         run: bash scripts/security-iac.sh
       - name: Segreti (gitleaks, storia intera)
-        # --redact: il valore del segreto non compare mai nel log. Eccezioni solo in .gitleaks.toml, con giustificazione.
-        run: gitleaks detect --source . --config .gitleaks.toml --redact --no-banner
+        if: ${{ !cancelled() }}
+        # --log-opts: tutta la storia raggiungibile da HEAD (fetch-depth: 0). --redact: il valore del segreto non compare
+        # mai nel log. Eccezioni solo in .gitleaks.toml, con giustificazione.
+        run: gitleaks git --config .gitleaks.toml --redact --no-banner --log-opts="--full-history HEAD" .
 
   web:
     name: web (Next.js)

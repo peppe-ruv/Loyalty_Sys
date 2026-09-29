@@ -36,8 +36,10 @@ services[name] := svc if {
 	is_service(svc)
 }
 
-# Forme ammesse: `127.0.0.1:80:80`, `${VAR:-127.0.0.1}:80:80`, `[::1]:80:80`, un indirizzo esplicito, oppure la forma
-# estesa con `host_ip`.
+# Forme ammesse: `127.0.0.1:80:80`, `127.0.0.1::80` (porta dell'host scelta da Docker, sempre su loopback),
+# `${VAR:-127.0.0.1}:80:80`, `[::1]:80:80`, un altro indirizzo esplicito, oppure la forma estesa con `host_ip`.
+# Sono pubbliche, quindi segnalate, anche le forme con indirizzo che vuol dire «tutte le interfacce»: `0.0.0.0:`,
+# `[::]:`, una variabile con default `0.0.0.0` o `::` e `host_ip: 0.0.0.0` o `::`.
 deny contains res if {
 	some name, svc in services
 	some port in svc.ports
@@ -48,12 +50,21 @@ deny contains res if {
 	)
 }
 
+# Forma estesa: `host_ip` presente e non jolly.
 port_has_address(port) if {
 	is_object(port)
-	object.get(port, "host_ip", "") != ""
+	host_ip := object.get(port, "host_ip", "")
+	host_ip != ""
+	not host_ip in {"0.0.0.0", "::", "[::]"}
 }
 
+# Forma breve: `<indirizzo>:<porta host, anche vuota>:<porta container>[/protocollo]`, con indirizzo non jolly.
 port_has_address(port) if {
 	is_string(port)
-	regex.match(`^(\$\{[^}]+\}|\[[0-9a-fA-F:]+\]|[0-9]{1,3}(\.[0-9]{1,3}){3}):[0-9-]+:[0-9-]+(/(tcp|udp))?$`, port)
+	regex.match(`^(\$\{[^}]+\}|\[[0-9a-fA-F:]+\]|[0-9]{1,3}(\.[0-9]{1,3}){3}):[0-9-]*:[0-9-]+(/(tcp|udp))?$`, port)
+	not wildcard_address(port)
 }
+
+wildcard_address(port) if regex.match(`^(0\.0\.0\.0|\[::\]):`, port)
+
+wildcard_address(port) if regex.match(`^\$\{[^}]*:?-(0\.0\.0\.0|\[::\]|::)\}:`, port)

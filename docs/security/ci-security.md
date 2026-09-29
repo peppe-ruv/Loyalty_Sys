@@ -23,10 +23,12 @@ flowchart LR
 
 | # | Controllo | Strumento | Cosa cerca | Blocca su |
 |---|---|---|---|---|
-| 1 | SAST | Semgrep con le regole in `.semgrep/rules` | violazioni delle regole 19 e 20 di `CLAUDE.md` | qualunque segnalazione |
+| 1 | SAST | Semgrep con le regole in `.semgrep/rules` | violazioni delle regole 19 e 20 di `CLAUDE.md` (ADR-042) | qualunque segnalazione |
 | 2 | Dipendenze | Trivy `fs` su `pom.xml`, `web/pnpm-lock.yaml`, `scripts/package-lock.json` | vulnerabilità note | HIGH e CRITICAL con correzione disponibile |
 | 3 | IaC | Trivy `config` con `scripts/security-iac.sh` | configurazioni insicure di chart, compose e Dockerfile | HIGH e CRITICAL |
 | 4 | Segreti | gitleaks sulla storia intera | credenziali nel codice o nella storia | qualunque segnalazione |
+
+Ogni passo dopo il primo gira anche se uno precedente è fallito (`if: ${{ !cancelled() }}`), così una PR vede subito tutti gli esiti e non uno alla volta.
 
 Il job è **consultivo**: non è tra i controlli obbligatori del ruleset `main-protetto` (`scripts/setup-branch-protection.sh`). Il proprietario lo rende obbligatorio quando si dimostra stabile (Q-500, ADR-047).
 
@@ -34,16 +36,16 @@ Restano fuori da questo job, e stanno in M8.11 o M8.5a: CodeQL, Schemathesis, ZA
 
 ## Versioni e installazione
 
-Le versioni sono fissate in `env` del job; aggiornale nello stesso punto.
+Le versioni sono fissate: Semgrep e Helm in `env` del job, Trivy nell'azione `.github/actions/setup-trivy`, gitleaks nel passo «Installa gitleaks» di `ci.yml`. Aggiornale nello stesso punto.
 
 | Strumento | Versione | Come si installa |
 |---|---|---|
 | Semgrep | 1.178.0 | `pip install semgrep==1.178.0`; nessun token, nessun registro remoto, `--metrics=off` |
-| Trivy | v0.74.0 | `GOEXPERIMENT=jsonv2 go install github.com/aquasecurity/trivy/cmd/trivy@v0.74.0`, in cache |
-| gitleaks | v8.30.1 | `go install github.com/zricethezav/gitleaks/v8@v8.30.1`, in cache |
+| Trivy | 0.74.0 | azione locale `.github/actions/setup-trivy`: release ufficiale con SHA-256 verificato, la stessa di `image.yml` |
+| gitleaks | 8.30.1 | release ufficiale `gitleaks_8.30.1_linux_x64.tar.gz` con SHA-256 verificato nel passo «Installa gitleaks» |
 | Helm | v3.18.4 | `azure/setup-helm`, come nel job `helm` |
 
-`go install` verifica il modulo con il checksum database di Go, come fa il job `helm` per kubeconform. La prima esecuzione senza cache compila Trivy e impiega alcuni minuti in più (Q-501). Le regole di Trivy per l'IaC sono quelle incorporate nella versione fissata (`--skip-check-update`): il risultato cambia solo se cambi la versione. Il database delle vulnerabilità si aggiorna a ogni esecuzione, per costruzione.
+Trivy e gitleaks si scaricano dalla release fissata e se ne verifica lo SHA-256 prima di installarli: nessuna azione di terze parti, nessuna toolchain Go, nessuna cache da invalidare (Q-501). Per aggiornare uno strumento cambia la versione e la somma (la riga del file `*_checksums.txt` della release) nello stesso punto. Le regole di Trivy per l'IaC sono quelle incorporate nella versione fissata (`--skip-check-update`): il risultato cambia solo se cambi la versione. Il database delle vulnerabilità si aggiorna a ogni esecuzione, per costruzione.
 
 ## 1. Semgrep e le regole del progetto
 
@@ -51,8 +53,9 @@ Le regole sono in `.semgrep/rules`, le fixture di prova in `.semgrep/tests`. Ogn
 
 | Regola | Regola di `CLAUDE.md` | Cosa segnala |
 |---|---|---|
-| `lh-sql-testo-da-input` | 19 (ADR-042, F2-SEC-10) | un parametro di metodo, o il risultato di `String.format`, `formatted`, `String.join`, `String.valueOf`, `concat` o `StringBuilder.toString()`, che arriva al testo SQL di `JdbcClient`, `JdbcTemplate`, `NamedParameterJdbcTemplate` o `Connection.prepareStatement`, anche attraverso variabili locali |
-| `lh-sql-operando-dinamico` | 19 | nell'argomento di `.sql(...)`, un operando di `+` che non è un letterale, una costante `static final` in MAIUSCOLO o una catena che finisce con `.sql()`/`.andSql()` del builder |
+| `lh-sql-testo-da-input` | 19 (ADR-042, F2-SEC-10) | un parametro di metodo, o il risultato di `String.format`, `formatted`, `String.join`, `String.valueOf`, `concat`, `new StringBuilder(...)`/`new StringBuffer(...)` o `x.append(...)` seguiti da `.toString()`, che arriva al testo SQL di `JdbcClient`, `JdbcTemplate`, `NamedParameterJdbcTemplate` o `Connection.prepareStatement`, anche attraverso variabili locali |
+| `lh-sql-operando-dinamico` | 19 | nell'argomento di `.sql(...)`, o nel primo argomento dei metodi di `JdbcTemplate`/`JdbcOperations`/`NamedParameter*`/`Connection` (`query`, `update`, `execute`, `queryForList`, `queryForObject`, `batchUpdate`, …), un operando di `+` che non è un letterale, una costante `static final` in MAIUSCOLO o una catena che finisce con `.sql()`/`.andSql()` del builder |
+| `lh-sql-variabile-concatenata` | 19 | una variabile locale `String`/`var` inizializzata con un `+` che ha un operando non costante e poi passata a `.sql(x)` |
 | `lh-jdbc-statement-vietato` | 19 | `java.sql.Statement`, `createStatement`, `execute`/`executeQuery`/`executeUpdate` con testo SQL |
 | `lh-spel-espressione-non-costante` | ADR-042 | `parseExpression` o `parseRaw` di un parser SpEL con un argomento che non è un letterale o una costante |
 | `lh-header-valore-da-richiesta` | ADR-042 | un valore che viene da `@PathVariable`, `@RequestParam`, `@RequestHeader`, `@CookieValue`, `@RequestBody` o da `HttpServletRequest` e arriva a `setHeader`, `addHeader`, `HttpHeaders.set/add` o `.header(...)` senza bonifica |
@@ -85,7 +88,9 @@ semgrep scan --config .semgrep/rules --metrics=off --disable-version-check --err
 
 Sono controlli sintattici e di flusso locale, non un'analisi completa (Q-505):
 
-- Una variabile locale costruita da un campo o da una lettura del database e passata da sola a `.sql(x)` non si vede. La regola guarda i parametri di metodo e le funzioni che costruiscono stringhe, e gli operandi di `+` dentro `.sql(...)`.
+- Una variabile locale costruita da una lettura del database (senza `+`) e passata da sola a `.sql(x)` non si vede. Le regole guardano i parametri di metodo, le funzioni che costruiscono stringhe, gli operandi di `+` dentro `.sql(...)` o nel primo argomento dei metodi di JDBC, e le variabili locali costruite con `+` poi passate a `.sql(x)`.
+- Falsi positivi: un operando che è un enum o un intero (mai input di un utente) è segnalato lo stesso, perché le regole guardano la forma e non il tipo. Preferisci una costante o il builder; se non è possibile, `// nosemgrep: <id-regola>` con la ragione sulla riga sopra (Q-505).
+- Le regole sono solo per Java. Il BFF web (TypeScript, `web/`) non è ancora scansionato da Semgrep: l'ambito di questa fetta sono le regole Java; del web il job controlla oggi solo le dipendenze (Trivy) e i segreti (gitleaks).
 - Le regole sugli header e sui log si basano sui nomi. Un segreto in una variabile chiamata `x` non si vede.
 - Il codice di test (`src/test`) non è scansionato: apre di proposito SQL dinamico e fixture.
 
@@ -111,18 +116,19 @@ trivy fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --include-dev
 
 ## 3. Infrastruttura come codice
 
-`scripts/security-iac.sh` fa tre cose:
+`scripts/security-iac.sh` fa quattro cose:
 
-1. **Prova i controlli del progetto.** Scansiona `.trivy/tests/compose-violazioni.yml`, che viola di proposito le regole, e fallisce se Trivy non le segnala tutte (6 volte `LH-DC-0001`, una volta `LH-DC-0002`). Un controllo che non segnala mai nulla è un controllo rotto.
+1. **Prova i controlli del progetto.** Scansiona `.trivy/tests/compose-violazioni.yml`, che viola di proposito le regole, e fallisce se Trivy non le segnala tutte (6 volte `LH-DC-0001`, 5 volte `LH-DC-0002`); la stessa fixture contiene i casi che non devono segnalare (`127.0.0.1::8080`, `[::1]`, `host_ip: 127.0.0.1`). Un controllo che non segnala mai nulla è un controllo rotto.
 2. **Rende il chart** con `helm template` negli stessi tre scenari del job `helm` (valori di CI con gateway, valori di `kind`, servizi gestiti esterni) e lo scansiona.
-3. **Scansiona `deploy/`**: compose di riferimento (`deploy/compose/reference.yml`), compose locale (`deploy/docker-compose.yml`) e `deploy/image/Dockerfile`. Restano fuori `deploy/helm` (già reso al punto 2) e `deploy/hub`, l'immagine della demo di Fase 1 (Q-504).
+3. **Scansiona `deploy/`**: compose di riferimento (`deploy/compose/reference.yml`), compose locale (`deploy/docker-compose.yml`) e `deploy/image/Dockerfile`. Resta fuori `deploy/helm` (già reso al punto 2); `deploy/hub` ha il passo 4.
+4. **Scansiona i Dockerfile di Fase 1** (`deploy/hub/Dockerfile` e `services/*/Dockerfile`), uno per cartella, in modo bloccante solo se hanno un'istruzione `USER` (vedi «Dockerfile di Fase 1»).
 
 Trivy non conosce Docker Compose. I controlli sul Compose sono del progetto e stanno in `.trivy/checks`, scritti in Rego e letti da Trivy come YAML generico:
 
 | ID | Cosa segnala | Gravità |
 |---|---|---|
 | `LH-DC-0001` | `privileged: true`, rete/PID/IPC dell'host, socket di Docker, capability pericolose (`SYS_ADMIN`, `NET_ADMIN`, `NET_RAW`, `ALL`…), profili seccomp/AppArmor disattivati, utente root | HIGH |
-| `LH-DC-0002` | porta pubblicata senza indirizzo di ascolto (`8080:8080`): ascolta su tutte le interfacce | HIGH |
+| `LH-DC-0002` | porta pubblicata senza indirizzo di ascolto (`8080:8080`) o con un indirizzo che vuol dire «tutte le interfacce» (`0.0.0.0:`, `[::]:`, `${VAR:-0.0.0.0}`, `host_ip: 0.0.0.0`); `127.0.0.1::8080` (porta dell'host scelta da Docker) resta su loopback e non segnala | HIGH |
 
 ```bash
 # Serve trivy e helm nel PATH (o TRIVY=/percorso/trivy HELM=/percorso/helm)
@@ -140,17 +146,19 @@ Ogni eccezione ha una scadenza: dopo quella data la segnalazione torna e il job 
 
 L'eccezione su `idp` ha un ambito preciso: la stessa segnalazione su `hub`, `web` o sulle migrazioni resta un errore.
 
-### Non scansionato
+### Dockerfile di Fase 1
 
-I `Dockerfile` di Fase 1 (`services/*/Dockerfile`, `deploy/hub/Dockerfile`) non hanno un'istruzione `USER` non root (Trivy `DS-0002`, HIGH). Sono le immagini della demo ospitata e non rientrano nella scansione finché la demo le usa (Q-504).
+Solo `deploy/hub/Dockerfile` sta dietro la demo ospitata su Render; i `services/*/Dockerfile` servono al compose. Finché un Dockerfile non ha un'istruzione `USER` non root (Trivy `DS-0002`, HIGH) lo script lo scansiona ma non blocca (`--exit-code 0`, con il messaggio «Q-504 in sospeso»); appena ha `USER`, la stessa scansione blocca (`--exit-code 1`). Q-504 è deciso (utente non root, M8.1c): quando M8.1c e questa fetta sono entrambe unite, la scansione diventa bloccante da sola, senza altre modifiche.
+
+Trivy stampa a volte una riga `ERROR ... Falling back to embedded checks` (o simile) quando non può scaricare le regole aggiornate: è innocua, perché lo script usa comunque le regole incorporate nella versione fissata (`--skip-check-update`).
 
 ## 4. Segreti
 
-gitleaks scansiona la storia intera (`fetch-depth: 0`) con le regole predefinite estese da `.gitleaks.toml`. Il flag `--redact` fa sì che il valore del segreto non compaia mai nel log.
+gitleaks (`gitleaks git`) scansiona tutta la storia raggiungibile da `HEAD` (`fetch-depth: 0` nel checkout e `--log-opts="--full-history HEAD"`, quindi ogni commit, anche di rami già uniti) con le regole predefinite estese da `.gitleaks.toml`. Il flag `--redact` fa sì che il valore del segreto non compaia mai nel log.
 
 ```bash
 # Segreti nella storia del repository, senza mostrarne il valore
-gitleaks detect --source . --config .gitleaks.toml --redact --no-banner
+gitleaks git --config .gitleaks.toml --redact --no-banner --log-opts="--full-history HEAD" .
 ```
 
 Le eccezioni in `.gitleaks.toml` riguardano solo dati fittizi noti, ognuna con la giustificazione e limitata da percorso **e** valore. Oggi ce n'è una: `idempotencyKey` negli esempi JSON di `docs/*.md`, che è un identificativo di deduplicazione e non una credenziale (Q-506).

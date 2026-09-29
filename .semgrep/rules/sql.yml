@@ -1,12 +1,18 @@
 rules:
   # Regola 19 di CLAUDE.md (ADR-042, F2-SEC-10; docs/06 «SQL dinamico: SqlWhere / SqlOrder»): il testo SQL è costante
-  # oppure composto dal builder di lh-common (`SqlWhere.sql()`/`andSql()`, `SqlOrder.sql()`) e da costanti. Due regole
+  # oppure composto dal builder di lh-common (`SqlWhere.sql()`/`andSql()`, `SqlOrder.sql()`) e da costanti. Tre regole
   # complementari, senza `nosemgrep` di comodo:
   #  - lh-sql-testo-da-input (taint): un parametro di metodo o il risultato di String.format/formatted/join/valueOf/
-  #    concat/toString di StringBuilder arriva al testo SQL, anche attraverso variabili locali;
-  #  - lh-sql-operando-dinamico (sintattica): nell'argomento di `.sql(...)` un `+` ha un operando che non è né un
-  #    letterale né una costante (`static final` in MAIUSCOLO) né il builder: variabile, campo, getter, chiamata.
+  #    concat/StringBuilder/StringBuffer.toString() arriva al testo SQL, anche attraverso variabili locali;
+  #  - lh-sql-operando-dinamico (sintattica): nell'argomento di `.sql(...)` o nel primo argomento dei metodi di
+  #    JdbcTemplate/JdbcOperations/NamedParameter*/Connection (query, update, execute, queryForList, ...) un `+` ha un
+  #    operando che non è né un letterale né una costante (`static final` in MAIUSCOLO) né il builder: variabile,
+  #    campo, getter, chiamata;
+  #  - lh-sql-variabile-concatenata (sintattica): una variabile locale String/var inizializzata con un `+` che ha un
+  #    operando non costante e poi passata a `.sql(x)`.
   # Le costanti, i blocchi di testo e gli operatori ternari con rami costanti non generano risultati.
+  # Falsi positivi noti: un operando che è un enum o un intero (mai input di un utente) è comunque segnalato; si
+  # sopprime con `// nosemgrep: <id-regola>` e la ragione in una riga (Q-505).
   # Le fixture di prova sono in .semgrep/tests/sql.java (semgrep --test).
   - id: lh-sql-testo-da-input
     languages: [java]
@@ -46,6 +52,9 @@ rules:
       - pattern: $S.concat(...)
       - pattern: (StringBuilder $B).toString()
       - pattern: (StringBuffer $B).toString()
+      - pattern: new StringBuilder(...).toString()
+      - pattern: new StringBuffer(...).toString()
+      - pattern: $B.append(...).toString()
     pattern-sanitizers:
       # Uscita del builder di lh-common: testo costruito solo da enum, valori come parametri con nome.
       - pattern: $B.sql()
@@ -84,15 +93,79 @@ rules:
     paths:
       exclude:
         - "**/src/test/**"
+    pattern-either:
+      # 1. JdbcClient: nell'argomento di `.sql(...)`.
+      - patterns:
+          - pattern-inside: $J.sql(...)
+          - pattern-either:
+              - pattern: $A + $OP
+              - pattern: $OP + $B
+          - focus-metavariable: $OP
+          # Non ammessi: variabile/parametro/campo in minuscolo, campo di un oggetto (`x.campo`, `this.campo`) e qualunque
+          # chiamata (`f(...)`, `x.g(...)`, `String.format(...)`), salvo una catena che termina con `.sql()`/`.andSql()`
+          # (builder). Ammessi: letterali, `COSTANTE`, `Classe.COSTANTE`, espressioni tra parentesi (ternari con rami
+          # costanti).
+          - metavariable-regex:
+              metavariable: $OP
+              regex: '(?s)^(?:[a-z_][A-Za-z0-9_]*|[A-Za-z_][A-Za-z0-9_.]*\.[a-z_][A-Za-z0-9_]*|(?!.*\.(?:sql|andSql)\(\)$)[A-Za-z_][A-Za-z0-9_.]*\(.*\))$'
+      # 2. JdbcTemplate/JdbcOperations/NamedParameter*/Connection: solo nel primo argomento (il testo SQL), non nei
+      #    parametri che seguono.
+      - patterns:
+          - pattern-either:
+              - pattern: (JdbcOperations $J).$M($SQL, ...)
+              - pattern: (JdbcTemplate $J).$M($SQL, ...)
+              - pattern: (NamedParameterJdbcOperations $J).$M($SQL, ...)
+              - pattern: (NamedParameterJdbcTemplate $J).$M($SQL, ...)
+              - pattern: (java.sql.Connection $J).$M($SQL, ...)
+          - metavariable-regex:
+              metavariable: $M
+              regex: '^(query|queryForObject|queryForList|queryForMap|queryForRowSet|queryForStream|queryForInt|queryForLong|update|batchUpdate|execute|call|prepareStatement|prepareCall)$'
+          - metavariable-pattern:
+              metavariable: $SQL
+              patterns:
+                - pattern-either:
+                    - pattern: $A + $OP
+                    - pattern: $OP + $B
+                - metavariable-regex:
+                    metavariable: $OP
+                    regex: '(?s)^(?:[a-z_][A-Za-z0-9_]*|[A-Za-z_][A-Za-z0-9_.]*\.[a-z_][A-Za-z0-9_]*|(?!.*\.(?:sql|andSql)\(\)$)[A-Za-z_][A-Za-z0-9_.]*\(.*\))$'
+
+  # Companion di lh-sql-testo-da-input: una variabile locale String inizializzata con una concatenazione (`+`) che ha un
+  # operando non costante e poi passata a `.sql(x)`. Il taint la vede solo se l'operando è un parametro di metodo; qui
+  # bastano un campo, un getter o una chiamata (Q-505). Segnala all'uso `.sql(x)`.
+  - id: lh-sql-variabile-concatenata
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Variabile locale costruita con `+` e un operando non costante, poi usata come testo SQL (regola 19, ADR-042,
+      F2-SEC-10): sono ammessi solo letterali, costanti `static final` in MAIUSCOLO e `sql()`/`andSql()` del builder
+      SqlWhere/SqlOrder di lh-common. I valori vanno come parametri (`?` o `:nome`); un identificatore va da un enum.
+    metadata:
+      category: security
+      cwe: "CWE-89: Improper Neutralization of Special Elements used in an SQL Command"
+      owasp: "A03:2021 Injection"
+      rule-ids: [regola-19, ADR-042, F2-SEC-10]
+      references:
+        - docs/06-CONVENZIONI-BACKEND.md
+        - docs/security/ci-security.md
+    paths:
+      exclude:
+        - "**/src/test/**"
     patterns:
-      - pattern-inside: $J.sql(...)
       - pattern-either:
-          - pattern: $A + $OP
-          - pattern: $OP + $B
-      - focus-metavariable: $OP
-      # Non ammessi: variabile/parametro/campo in minuscolo, campo di un oggetto (`x.campo`, `this.campo`) e qualunque
-      # chiamata (`f(...)`, `x.g(...)`, `String.format(...)`), salvo una catena che termina con `.sql()`/`.andSql()` (builder). Ammessi: letterali,
-      # `COSTANTE`, `Classe.COSTANTE`, espressioni tra parentesi (ternari con rami costanti).
+          - pattern-inside: |
+              String $Q = <... $A + $OP ...>;
+              ...
+          - pattern-inside: |
+              var $Q = <... $A + $OP ...>;
+              ...
+          - pattern-inside: |
+              String $Q = <... $OP + $B ...>;
+              ...
+          - pattern-inside: |
+              var $Q = <... $OP + $B ...>;
+              ...
+      - pattern: $J.sql($Q)
       - metavariable-regex:
           metavariable: $OP
-          regex: (?s)^(?:[a-z_][A-Za-z0-9_]*|[A-Za-z_][A-Za-z0-9_.]*\.[a-z_][A-Za-z0-9_]*|(?!.*\.(?:sql|andSql)\(\)$)[A-Za-z_][A-Za-z0-9_.]*\(.*\))$
+          regex: '(?s)^(?:[a-z_][A-Za-z0-9_]*|[A-Za-z_][A-Za-z0-9_.]*\.[a-z_][A-Za-z0-9_]*|(?!.*\.(?:sql|andSql)\(\)$)[A-Za-z_][A-Za-z0-9_.]*\(.*\))$'

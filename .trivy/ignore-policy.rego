@@ -14,6 +14,6 @@ default ignore := false
 # Scadenza: 2027-03-31.
 ignore if {
 	input.ID == "KSV-0014"
-	contains(input.Message, "Container 'idp' of Deployment")
+	regex.match(`^Container 'idp' of Deployment '[^']+-idp' `, input.Message)
 	time.now_ns() < time.parse_rfc3339_ns("2027-03-31T23:59:59Z")
 }

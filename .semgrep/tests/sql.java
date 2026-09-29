@@ -49,7 +49,7 @@ class SqlFixture {
 
     void builder(SqlWhere where, SqlOrder order, int size, int page) {
         String sql = "SELECT " + COLUMNS + " FROM reward" + where.sql() + order.sql() + " LIMIT :limit OFFSET :offset";
-        // ok: lh-sql-testo-da-input, lh-sql-operando-dinamico
+        // ok: lh-sql-testo-da-input, lh-sql-operando-dinamico, lh-sql-variabile-concatenata
         where.bind(jdbc.sql(sql)).param("limit", size).param("offset", page * size).query(String.class).list();
     }
 
@@ -75,15 +75,32 @@ class SqlFixture {
 
     void ternaryWithConstantBranches(int limit) {
         String sql = "SELECT 1 ORDER BY rank" + (limit > 0 ? " LIMIT :limit" : "");
-        // ok: lh-sql-testo-da-input, lh-sql-operando-dinamico
+        // ok: lh-sql-testo-da-input, lh-sql-operando-dinamico, lh-sql-variabile-concatenata
         jdbc.sql(sql).query(Long.class).list();
     }
 
     void templateConstant() {
         // ok: lh-sql-testo-da-input
         template.update("UPDATE outbox SET published_at = now() WHERE id = ?", "1");
-        // ok: lh-sql-testo-da-input
+        // ok: lh-sql-testo-da-input, lh-sql-operando-dinamico
         named.query("SELECT " + COLUMNS + " FROM reward", (rs, n) -> rs.getString(1));
+    }
+
+    void templateParamsAreNotSqlText(int a, int b) {
+        // ok: lh-sql-testo-da-input, lh-sql-operando-dinamico
+        template.update("UPDATE wallet SET points = ? WHERE id = ?", a + b, "1");
+    }
+
+    void localConstantConcatenation() {
+        String sql = "SELECT " + COLUMNS + " FROM reward" + ORDER;
+        // ok: lh-sql-testo-da-input, lh-sql-operando-dinamico, lh-sql-variabile-concatenata
+        jdbc.sql(sql).query(String.class).list();
+    }
+
+    void stringBuilderOnlyForNonSql() {
+        StringBuilder label = new StringBuilder("code-").append(1);
+        // ok: lh-sql-testo-da-input
+        jdbc.sql("SELECT 1 FROM reward WHERE code = ?").param(label.toString()).query(Long.class).list();
     }
 
     // ---- vietati -------------------------------------------------------------------------------------------------
@@ -105,7 +122,7 @@ class SqlFixture {
 
     void variableFromParameter(String column) {
         String sql = "SELECT " + column + " FROM reward";
-        // ruleid: lh-sql-testo-da-input
+        // ruleid: lh-sql-testo-da-input, lh-sql-variabile-concatenata
         jdbc.sql(sql).query(String.class).list();
     }
 
@@ -159,6 +176,66 @@ class SqlFixture {
     void prepareStatementWithParameter(Connection c, String sql) throws Exception {
         // ruleid: lh-sql-testo-da-input
         c.prepareStatement(sql);
+    }
+
+    void stringBuilderNew() {
+        // ruleid: lh-sql-testo-da-input
+        jdbc.sql(new StringBuilder("SELECT 1 FROM reward WHERE 1 = 1").append(" AND x = 1").toString()).query(Long.class).single();
+    }
+
+    void stringBufferNew() {
+        // ruleid: lh-sql-testo-da-input
+        jdbc.sql(new StringBuffer("SELECT 1 FROM reward").append(" WHERE x = 1").toString()).query(Long.class).single();
+    }
+
+    void appendChain() {
+        StringBuilder sb = new StringBuilder();
+        String sql = sb.append("SELECT 1 FROM reward").append(" WHERE 1 = 1").toString();
+        // ruleid: lh-sql-testo-da-input
+        jdbc.sql(sql).query(Long.class).single();
+    }
+
+    void templateConcatenatedParameter(String table) {
+        // ruleid: lh-sql-operando-dinamico, lh-sql-testo-da-input
+        template.queryForList("SELECT * FROM " + table, String.class);
+    }
+
+    void templateConcatenatedField() {
+        // ruleid: lh-sql-operando-dinamico
+        template.update("UPDATE reward SET " + instanceField + " = 1");
+    }
+
+    void templateConcatenatedCall(Dto dto) {
+        // ruleid: lh-sql-operando-dinamico, lh-sql-testo-da-input
+        template.batchUpdate("INSERT INTO t (a) VALUES (" + dto.filter() + ")", new Object[0][0], new int[0]);
+    }
+
+    void namedConcatenatedField() {
+        // ruleid: lh-sql-operando-dinamico
+        named.query("SELECT " + instanceField + " FROM reward", (rs, n) -> rs.getString(1));
+    }
+
+    void connectionConcatenatedField(Connection c) throws Exception {
+        // ruleid: lh-sql-operando-dinamico
+        c.prepareStatement("SELECT " + instanceField + " FROM reward");
+    }
+
+    void localConcatenatedField() {
+        String sql = "SELECT " + instanceField + " FROM reward";
+        // ruleid: lh-sql-variabile-concatenata
+        jdbc.sql(sql).query(String.class).list();
+    }
+
+    void localConcatenatedCall() {
+        var sql = columns() + " FROM reward";
+        // ruleid: lh-sql-variabile-concatenata
+        jdbc.sql(sql).query(String.class).list();
+    }
+
+    void localConcatenatedGetter(Dto dto) {
+        String sql = "SELECT 1 FROM reward WHERE " + dto.filter();
+        // ruleid: lh-sql-variabile-concatenata, lh-sql-testo-da-input
+        jdbc.sql(sql).query(Long.class).single();
     }
 
     private String columns() {
