@@ -1,5 +1,8 @@
 package io.loyaltyhub.engagement.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlOrder;
+import io.loyaltyhub.common.sql.SqlWhere;
 import io.loyaltyhub.engagement.domain.WebhookDelivery;
 import io.loyaltyhub.engagement.domain.WebhookRetry;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -9,7 +12,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,6 +35,32 @@ public class WebhookDeliveryRepository {
     private static final String COLUMNS = """
             id, webhook_id, event_id, fact_type, member_id, test, payload, signature, attempt, status, http_status,
             response_excerpt, error, duration_ms, next_attempt_at, last_attempt_at, created_at""";
+
+    /** Colonne ammesse nei filtri e nell'ordinamento di {@link #page}/{@link #count} (regola 19, ADR-042). */
+    enum DeliveryColumn implements SqlColumn {
+        ID("id"), WEBHOOK_ID("webhook_id"), STATUS("status"), CREATED_AT("created_at");
+
+        private final String sql;
+
+        DeliveryColumn(String sql) {
+            this.sql = sql;
+        }
+
+        @Override
+        public String sql() {
+            return sql;
+        }
+    }
+
+    /** Testo SQL costante dello storico: vi si accodano solo {@link SqlWhere#sql()} e {@link #PAGE_ORDER}. */
+    private static final String PAGE_SELECT = "SELECT " + COLUMNS + " FROM webhook_delivery";
+
+    /** Come {@link #PAGE_SELECT}, per il totale: vi si accoda solo {@link SqlWhere#sql()}. */
+    private static final String COUNT_SELECT = "SELECT count(*) FROM webhook_delivery";
+
+    /** Ordine costante: più recenti prima, spareggio su id; pagina legata ({@code :limit}, {@code :offset}). */
+    private static final String PAGE_ORDER = SqlOrder.desc(DeliveryColumn.CREATED_AT)
+            .by(DeliveryColumn.ID, SqlOrder.Direction.DESC).sql() + " LIMIT :limit OFFSET :offset";
 
     private final JdbcClient jdbc;
 
@@ -73,18 +101,16 @@ public class WebhookDeliveryRepository {
     }
 
     public List<WebhookDelivery> page(String webhookId, String status, int page, int size) {
-        List<Object> params = new ArrayList<>();
-        String where = where(webhookId, status, params);
-        params.add(size);
-        params.add((long) page * size);
-        return jdbc.sql("SELECT " + COLUMNS + " FROM webhook_delivery" + where + " ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?")
-                .params(params).query(WebhookDeliveryRepository::map).list();
+        SqlWhere where = filters(webhookId, status);
+        return where.bind(jdbc.sql(PAGE_SELECT + where.sql() + PAGE_ORDER))
+                .param("limit", size)
+                .param("offset", (long) page * size)
+                .query(WebhookDeliveryRepository::map).list();
     }
 
     public long count(String webhookId, String status) {
-        List<Object> params = new ArrayList<>();
-        String where = where(webhookId, status, params);
-        return jdbc.sql("SELECT count(*) FROM webhook_delivery" + where).params(params).query(Long.class).single();
+        SqlWhere where = filters(webhookId, status);
+        return where.bind(jdbc.sql(COUNT_SELECT + where.sql())).query(Long.class).single();
     }
 
     /**
@@ -149,17 +175,15 @@ public class WebhookDeliveryRepository {
         jdbc.sql("DELETE FROM webhook_delivery").update();
     }
 
-    private static String where(String webhookId, String status, List<Object> params) {
-        StringBuilder sql = new StringBuilder(" WHERE 1 = 1");
-        if (webhookId != null && !webhookId.isBlank()) {
-            sql.append(" AND webhook_id = ?");
-            params.add(webhookId);
-        }
-        if (status != null && !status.isBlank()) {
-            sql.append(" AND status = ?");
-            params.add(status.trim().toUpperCase());
-        }
-        return sql.toString();
+    /**
+     * Filtri facoltativi dello storico (regola 19, ADR-042): webhook (id interno, così com'è) e stato in maiuscolo, per
+     * uguaglianza; ogni valore diventa un parametro legato, mai testo SQL.
+     */
+    static SqlWhere filters(String webhookId, String status) {
+        return new SqlWhere()
+                .when(webhookId != null && !webhookId.isBlank(), w -> w.eq(DeliveryColumn.WEBHOOK_ID, webhookId))
+                .when(status != null && !status.isBlank(),
+                        w -> w.eq(DeliveryColumn.STATUS, status.trim().toUpperCase()));
     }
 
     private static Timestamp ts(Instant i) {

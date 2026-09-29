@@ -1,5 +1,8 @@
 package io.loyaltyhub.engagement.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlOrder;
+import io.loyaltyhub.common.sql.SqlWhere;
 import io.loyaltyhub.engagement.domain.NotificationRule;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -8,7 +11,6 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,6 +21,29 @@ public class RuleRepository {
     private static final String COLUMNS =
             "id, code, fact_type, condition::text AS condition, template_code, enabled, version, updated_at, updated_by";
 
+    /** Colonne ammesse nei filtri e nell'ordinamento di {@link #findAll} (regola 19, ADR-042). */
+    enum RuleColumn implements SqlColumn {
+        CODE("code"), FACT_TYPE("fact_type"), TEMPLATE_CODE("template_code");
+
+        private final String sql;
+
+        RuleColumn(String sql) {
+            this.sql = sql;
+        }
+
+        @Override
+        public String sql() {
+            return sql;
+        }
+    }
+
+    /** Testo SQL costante dell'elenco: vi si accodano solo {@link SqlWhere#sql()} e {@link #LIST_ORDER}. */
+    private static final String LIST_SELECT = "SELECT " + COLUMNS + " FROM notification_rule";
+
+    /** Ordinamento costante dell'elenco, per tipo di fatto e codice come prima del builder. */
+    private static final String LIST_ORDER = SqlOrder.asc(RuleColumn.FACT_TYPE)
+            .by(RuleColumn.CODE, SqlOrder.Direction.ASC).sql();
+
     private final JdbcClient jdbc;
     private final ObjectMapper mapper;
 
@@ -28,18 +53,20 @@ public class RuleRepository {
     }
 
     public List<NotificationRule> findAll(String factType, String templateCode) {
-        StringBuilder sql = new StringBuilder("SELECT " + COLUMNS + " FROM notification_rule WHERE 1 = 1");
-        List<Object> params = new ArrayList<>();
-        if (factType != null && !factType.isBlank()) {
-            sql.append(" AND fact_type = ?");
-            params.add(factType.trim());
-        }
-        if (templateCode != null && !templateCode.isBlank()) {
-            sql.append(" AND template_code = ?");
-            params.add(templateCode.trim().toUpperCase());
-        }
-        sql.append(" ORDER BY fact_type, code");
-        return jdbc.sql(sql.toString()).params(params).query(this::map).list();
+        SqlWhere where = filters(factType, templateCode);
+        return where.bind(jdbc.sql(LIST_SELECT + where.sql() + LIST_ORDER)).query(this::map).list();
+    }
+
+    /**
+     * Filtri facoltativi dell'elenco (regola 19, ADR-042): tipo di fatto così com'è (minuscolo, es.
+     * {@code member.tier.changed}) e template in maiuscolo, per uguaglianza; ogni valore diventa un parametro legato.
+     */
+    static SqlWhere filters(String factType, String templateCode) {
+        return new SqlWhere()
+                .when(factType != null && !factType.isBlank(),
+                        w -> w.eq(RuleColumn.FACT_TYPE, factType.trim()))
+                .when(templateCode != null && !templateCode.isBlank(),
+                        w -> w.eq(RuleColumn.TEMPLATE_CODE, templateCode.trim().toUpperCase()));
     }
 
     /** Regole attive per un tipo di fatto (forma breve), in ordine di codice: deterministico. */

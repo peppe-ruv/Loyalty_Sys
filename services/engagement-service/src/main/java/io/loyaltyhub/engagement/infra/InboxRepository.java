@@ -1,5 +1,8 @@
 package io.loyaltyhub.engagement.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlOrder;
+import io.loyaltyhub.common.sql.SqlWhere;
 import io.loyaltyhub.engagement.domain.InboxMessage;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -8,7 +11,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,6 +21,33 @@ public class InboxRepository {
     private static final String COLUMNS = """
             id, member_id, template_code, channel, title, body, icon, link_target, category, source_event_id, source_type,
             correlation_id, created_at, read_at""";
+
+    /** Colonne ammesse nei filtri e nell'ordinamento di {@link #search}/{@link #count} (regola 19, ADR-042). */
+    enum InboxColumn implements SqlColumn {
+        ID("id"), MEMBER_ID("member_id"), CATEGORY("category"), CHANNEL("channel"), TEMPLATE_CODE("template_code"),
+        CREATED_AT("created_at");
+
+        private final String sql;
+
+        InboxColumn(String sql) {
+            this.sql = sql;
+        }
+
+        @Override
+        public String sql() {
+            return sql;
+        }
+    }
+
+    /** Testo SQL costante del registro: vi si accodano solo {@link SqlWhere#sql()} e {@link #SEARCH_PAGE}. */
+    private static final String SEARCH_SELECT = "SELECT " + COLUMNS + " FROM inbox_message";
+
+    /** Come {@link #SEARCH_SELECT}, per il totale: vi si accoda solo {@link SqlWhere#sql()}. */
+    private static final String COUNT_SELECT = "SELECT count(*) FROM inbox_message";
+
+    /** Ordine costante: più recenti prima, spareggio su id; pagina legata ({@code :limit}, {@code :offset}). */
+    private static final String SEARCH_PAGE = SqlOrder.desc(InboxColumn.CREATED_AT)
+            .by(InboxColumn.ID, SqlOrder.Direction.DESC).sql() + " LIMIT :limit OFFSET :offset";
 
     /** Filtri del registro messaggi (BO-19, Scheda 360°); {@code null} = nessun filtro. */
     public record Filter(String memberId, String category, String channel, String templateCode) {
@@ -52,18 +81,16 @@ public class InboxRepository {
     }
 
     public List<InboxMessage> search(Filter f, int page, int size) {
-        List<Object> params = new ArrayList<>();
-        String where = where(f, params);
-        params.add(size);
-        params.add((long) page * size);
-        return jdbc.sql("SELECT " + COLUMNS + " FROM inbox_message" + where + " ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?")
-                .params(params).query(InboxRepository::map).list();
+        SqlWhere where = filters(f);
+        return where.bind(jdbc.sql(SEARCH_SELECT + where.sql() + SEARCH_PAGE))
+                .param("limit", size)
+                .param("offset", (long) page * size)
+                .query(InboxRepository::map).list();
     }
 
     public long count(Filter f) {
-        List<Object> params = new ArrayList<>();
-        String where = where(f, params);
-        return jdbc.sql("SELECT count(*) FROM inbox_message" + where).params(params).query(Long.class).single();
+        SqlWhere where = filters(f);
+        return where.bind(jdbc.sql(COUNT_SELECT + where.sql())).query(Long.class).single();
     }
 
     /** Non letti del canale {@code INAPP} (la campanella del portale). */
@@ -94,25 +121,21 @@ public class InboxRepository {
         jdbc.sql("DELETE FROM inbox_message").update();
     }
 
-    private static String where(Filter f, List<Object> params) {
-        StringBuilder sql = new StringBuilder(" WHERE 1 = 1");
-        if (f.memberId() != null && !f.memberId().isBlank()) {
-            sql.append(" AND member_id = ?");
-            params.add(f.memberId().trim());
-        }
-        if (f.category() != null && !f.category().isBlank()) {
-            sql.append(" AND category = ?");
-            params.add(f.category().trim().toUpperCase());
-        }
-        if (f.channel() != null && !f.channel().isBlank()) {
-            sql.append(" AND channel = ?");
-            params.add(f.channel().trim().toUpperCase());
-        }
-        if (f.templateCode() != null && !f.templateCode().isBlank()) {
-            sql.append(" AND template_code = ?");
-            params.add(f.templateCode().trim().toUpperCase());
-        }
-        return sql.toString();
+    /**
+     * Filtri facoltativi del registro (regola 19, ADR-042): membro così com'è, categoria, canale e template in
+     * maiuscolo, per uguaglianza; ogni valore diventa un parametro legato, mai testo SQL.
+     */
+    static SqlWhere filters(Filter f) {
+        return new SqlWhere()
+                .when(present(f.memberId()), w -> w.eq(InboxColumn.MEMBER_ID, f.memberId().trim()))
+                .when(present(f.category()), w -> w.eq(InboxColumn.CATEGORY, f.category().trim().toUpperCase()))
+                .when(present(f.channel()), w -> w.eq(InboxColumn.CHANNEL, f.channel().trim().toUpperCase()))
+                .when(present(f.templateCode()),
+                        w -> w.eq(InboxColumn.TEMPLATE_CODE, f.templateCode().trim().toUpperCase()));
+    }
+
+    private static boolean present(String v) {
+        return v != null && !v.isBlank();
     }
 
     private static Timestamp ts(Instant at) {

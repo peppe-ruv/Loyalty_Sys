@@ -1,5 +1,7 @@
 package io.loyaltyhub.engagement.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlWhere;
 import io.loyaltyhub.engagement.domain.ContentItem;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -10,7 +12,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,6 +24,29 @@ public class ContentRepository {
             audience::text AS audience, start_at, end_at, priority, frequency, dismissible, style::text AS style, status,
             version, updated_at""";
 
+    /** Colonne ammesse nei filtri di {@link #findAll} (regola 19, ADR-042). */
+    enum ContentColumn implements SqlColumn {
+        KIND("kind"), PLACEMENT("placement"), STATUS("status"), TITLE("title"), CODE("code");
+
+        private final String sql;
+
+        ContentColumn(String sql) {
+            this.sql = sql;
+        }
+
+        @Override
+        public String sql() {
+            return sql;
+        }
+    }
+
+    /** Testo SQL costante dell'elenco: vi si accodano solo {@link SqlWhere#sql()} e {@link #LIST_ORDER}. */
+    private static final String LIST_SELECT = "SELECT " + COLUMNS + " FROM content_item";
+
+    /** Ordinamento costante dell'elenco: vivi, in pausa, bozze e poi il resto; a parità priorità e codice. */
+    private static final String LIST_ORDER = " ORDER BY CASE status WHEN 'LIVE' THEN 0 WHEN 'PAUSED' THEN 1"
+            + " WHEN 'DRAFT' THEN 2 ELSE 3 END, priority DESC, code";
+
     private final JdbcClient jdbc;
     private final ObjectMapper mapper;
 
@@ -33,28 +57,24 @@ public class ContentRepository {
 
     /** Elenco della gestione con filtri opzionali; {@code q} cerca in titolo e codice. */
     public List<ContentItem> findAll(String kind, String placement, String status, String q) {
-        StringBuilder sql = new StringBuilder("SELECT " + COLUMNS + " FROM content_item WHERE 1 = 1");
-        List<Object> params = new ArrayList<>();
-        if (present(kind)) {
-            sql.append(" AND kind = ?");
-            params.add(kind.trim().toUpperCase());
-        }
-        if (present(placement)) {
-            sql.append(" AND placement = ?");
-            params.add(placement.trim().toUpperCase());
-        }
-        if (present(status)) {
-            sql.append(" AND status = ?");
-            params.add(status.trim().toUpperCase());
-        }
-        if (present(q)) {
-            sql.append(" AND (title ILIKE ? OR code ILIKE ?)");
-            String like = "%" + q.trim() + "%";
-            params.add(like);
-            params.add(like);
-        }
-        sql.append(" ORDER BY CASE status WHEN 'LIVE' THEN 0 WHEN 'PAUSED' THEN 1 WHEN 'DRAFT' THEN 2 ELSE 3 END, priority DESC, code");
-        return jdbc.sql(sql.toString()).params(params).query(this::map).list();
+        SqlWhere where = filters(kind, placement, status, q);
+        return where.bind(jdbc.sql(LIST_SELECT + where.sql() + LIST_ORDER)).query(this::map).list();
+    }
+
+    /**
+     * Filtri facoltativi dell'elenco (regola 19, ADR-042): tipo, posizionamento e stato per uguaglianza, in maiuscolo;
+     * {@code q} è un testo letterale cercato in titolo e codice ({@code %}, {@code _} e {@code \} non sono caratteri
+     * jolly). Ogni valore diventa un parametro legato, mai testo SQL.
+     */
+    static SqlWhere filters(String kind, String placement, String status, String q) {
+        String text = present(q) ? q.trim() : null;
+        return new SqlWhere()
+                .when(present(kind), w -> w.eq(ContentColumn.KIND, kind.trim().toUpperCase()))
+                .when(present(placement), w -> w.eq(ContentColumn.PLACEMENT, placement.trim().toUpperCase()))
+                .when(present(status), w -> w.eq(ContentColumn.STATUS, status.trim().toUpperCase()))
+                .when(text != null, w -> w.anyOf(a -> a
+                        .ilike(ContentColumn.TITLE, text, SqlWhere.Match.CONTAINS)
+                        .ilike(ContentColumn.CODE, text, SqlWhere.Match.CONTAINS)));
     }
 
     /** Candidati di un posizionamento, qualunque stato: la selezione decide e spiega le esclusioni. */
