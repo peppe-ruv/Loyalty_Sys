@@ -31,6 +31,7 @@ public class TiersController {
     }
 
     @GetMapping("/tiers/distribution")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<TierCount> distribution() {
         return tierAdmin.distribution();
     }
@@ -42,6 +43,7 @@ public class TiersController {
     }
 
     @GetMapping("/members/{memberId}/tier-history")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<TierHistory> tierHistory(@PathVariable String memberId) {
         return tierAdmin.history(memberId);
     }

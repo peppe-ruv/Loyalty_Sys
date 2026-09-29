@@ -53,6 +53,15 @@ public class LhException extends RuntimeException {
         return new LhException(HttpStatus.FORBIDDEN, "forbidden-role", "FORBIDDEN_ROLE", detail, null);
     }
 
+    /**
+     * 403: l'endpoint non dichiara chi può chiamarlo ({@link RequiresRole} o {@link PublicEndpoint}) ed è rifiutato
+     * a tutti (deny by default, F2-SEC-09). È un errore del codice, non del chiamante.
+     */
+    public static LhException endpointNotDeclared() {
+        return new LhException(HttpStatus.FORBIDDEN, "endpoint-not-declared", "ENDPOINT_NOT_DECLARED",
+                "L'endpoint non dichiara chi può chiamarlo ed è rifiutato (deny by default).", null);
+    }
+
     public static LhException notFound(String detail) {
         return new LhException(HttpStatus.NOT_FOUND, "not-found", "NOT_FOUND", detail, null);
     }

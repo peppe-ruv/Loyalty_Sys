@@ -2,6 +2,8 @@ package io.loyaltyhub.insight.api;
 
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.common.web.PageResponse;
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.insight.trace.Trace;
 import io.loyaltyhub.insight.trace.Trace.TraceSummary;
 import io.loyaltyhub.insight.trace.TraceService;
@@ -32,6 +34,7 @@ public class TracesController {
     }
 
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PageResponse<TraceSummary> list(
             @RequestParam(required = false) String memberId,
             @RequestParam(required = false) String from,
@@ -48,6 +51,7 @@ public class TracesController {
 
     /** Tracciato di un {@code correlationId}; 404 se non c'è ancora nessun evento né voce DLQ (Q-318). */
     @GetMapping("/{correlationId}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public Trace byCorrelation(@PathVariable String correlationId) {
         return traces.trace(correlationId)
                 .orElseThrow(() -> LhException.notFound("Tracciato non trovato: " + correlationId));

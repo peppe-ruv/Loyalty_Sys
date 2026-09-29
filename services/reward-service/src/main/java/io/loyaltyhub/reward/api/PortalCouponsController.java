@@ -1,6 +1,8 @@
 package io.loyaltyhub.reward.api;
 
 import io.loyaltyhub.common.web.LhException;
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.reward.application.CouponService;
 import io.loyaltyhub.reward.domain.CouponStatus;
 import io.loyaltyhub.reward.domain.Reward;
@@ -31,6 +33,7 @@ public class PortalCouponsController {
     }
 
     @GetMapping("/v1/portal/coupons")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<PortalCoupon> coupons(@RequestParam(required = false) String memberId) {
         if (memberId == null || memberId.isBlank()) {
             throw LhException.badRequest("memberId è obbligatorio");

@@ -1,6 +1,8 @@
 package io.loyaltyhub.wallet.api;
 
 import io.loyaltyhub.common.web.LhException;
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.wallet.infra.CurrencyRepository;
 import io.loyaltyhub.wallet.infra.LiabilityRepository;
 import io.loyaltyhub.wallet.infra.LiabilityRepository.MonthAmount;
@@ -41,6 +43,7 @@ public class LiabilityController {
     /** Totali e ripartizione dallo stesso snapshot: la somma per mese coincide con {@code outstanding}. */
     @GetMapping("/liability")
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public LiabilityView liability(@RequestParam(defaultValue = "PTS") String currency) {
         String code = currency.toUpperCase();
         if (currencies.findByCode(code).isEmpty()) {

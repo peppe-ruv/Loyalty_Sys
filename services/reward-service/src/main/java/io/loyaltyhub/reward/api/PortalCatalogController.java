@@ -1,5 +1,7 @@
 package io.loyaltyhub.reward.api;
 
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.reward.application.PortalCatalogService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,11 +21,13 @@ public class PortalCatalogController {
     }
 
     @GetMapping("/catalog")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PortalCatalogService.PortalCatalog catalog(@RequestParam(required = false) String memberId) {
         return portal.catalog(memberId);
     }
 
     @GetMapping("/rewards/{code}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PortalCatalogService.PortalRewardDetail reward(@PathVariable String code,
                                                          @RequestParam(required = false) String memberId) {
         return portal.detail(code, memberId);

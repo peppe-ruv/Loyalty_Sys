@@ -1,5 +1,7 @@
 package io.loyaltyhub.insight.api;
 
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.insight.live.LiveEventHub;
 import io.loyaltyhub.insight.live.LiveEventHub.Filter;
 import org.springframework.http.MediaType;
@@ -32,6 +34,7 @@ public class StreamController {
     }
 
     @GetMapping(path = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public SseEmitter events(
             @RequestParam(required = false) String topics,
             @RequestParam(required = false) String types,

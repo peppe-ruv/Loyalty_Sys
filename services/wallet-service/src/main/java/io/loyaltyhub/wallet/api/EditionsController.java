@@ -28,6 +28,7 @@ public class EditionsController {
     }
 
     @GetMapping("/editions")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<Edition> list() {
         return editionService.list();
     }
@@ -45,6 +46,7 @@ public class EditionsController {
     }
 
     @PostMapping("/editions/{code}/close")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public EditionService.ClosePreviewResult close(
             @PathVariable String code,
             @RequestParam(defaultValue = "true") boolean dryRun) {

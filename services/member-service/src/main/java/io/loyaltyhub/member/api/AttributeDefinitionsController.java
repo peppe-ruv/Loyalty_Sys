@@ -28,6 +28,7 @@ public class AttributeDefinitionsController {
     }
 
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<AttributeDefinition> list() {
         return service.list();
     }

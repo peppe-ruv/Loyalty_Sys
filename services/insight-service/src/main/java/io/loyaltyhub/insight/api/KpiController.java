@@ -1,5 +1,7 @@
 package io.loyaltyhub.insight.api;
 
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.insight.application.KpiService;
 import io.loyaltyhub.insight.application.KpiService.Breakdown;
 import io.loyaltyhub.insight.application.KpiService.Overview;
@@ -28,6 +30,7 @@ public class KpiController {
     }
 
     @GetMapping("/overview")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public Overview overview(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
@@ -36,6 +39,7 @@ public class KpiController {
     }
 
     @GetMapping("/timeseries")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public TimeSeries timeseries(
             @RequestParam String metric,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -47,6 +51,7 @@ public class KpiController {
     }
 
     @GetMapping("/breakdown")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public Breakdown breakdown(
             @RequestParam String metric,
             @RequestParam(defaultValue = "source") String dimension,

@@ -35,6 +35,7 @@ public class MembersController {
     }
 
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PageResponse<MemberView> list(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String status,
@@ -47,11 +48,14 @@ public class MembersController {
 
     /** Segmenti di appartenenza (scheda {@code segments} di BO-03, docs/08). */
     @GetMapping("/{id}/segments")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<SegmentViews.MemberSegmentView> segments(@PathVariable String id) {
         return segments.segmentsOf(id);
     }
 
     @PostMapping
+    // SPEC-GAP: Q-493 — aperta a ogni ruolo come nel PoC: la usa anche la registrazione dal portale.
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public ResponseEntity<MemberView> create(@RequestBody CreateMemberRequest request) {
         MemberView created = service.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
@@ -65,11 +69,13 @@ public class MembersController {
      * richiesto e nessuna voce di audit.
      */
     @PostMapping("/nicknames")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public MemberNicknames.NicknamesResponse nicknames(@RequestBody MemberNicknames.NicknamesRequest request) {
         return service.nicknames(request == null ? null : request.memberIds());
     }
 
     @GetMapping("/{id}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public MemberView get(@PathVariable String id) {
         return service.get(id);
     }

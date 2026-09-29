@@ -1,5 +1,6 @@
 package io.loyaltyhub.hub;
 
+import io.loyaltyhub.common.web.PublicEndpoint;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -15,6 +16,8 @@ import java.util.Map;
 public class HubInfoController {
 
     @GetMapping("/")
+    @PublicEndpoint(reason = "Pagina radice di stato del deployable: la apre il probe della piattaforma senza attore;"
+            + " testo fisso, nessun dato del programma né personale")
     public Map<String, Object> root() {
         return Map.of(
                 "service", "loyalty-hub",

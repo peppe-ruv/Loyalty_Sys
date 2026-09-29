@@ -1,5 +1,7 @@
 package io.loyaltyhub.engagement.api;
 
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.engagement.application.ContentService;
 import io.loyaltyhub.engagement.application.ContentService.ContentDisplay;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +28,7 @@ public class PortalContentController {
 
     @GetMapping
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<ContentDisplay> content(@RequestParam(required = false) String memberId,
                                         @RequestParam(required = false) String placement,
                                         @RequestParam(required = false) String prizeCode) {

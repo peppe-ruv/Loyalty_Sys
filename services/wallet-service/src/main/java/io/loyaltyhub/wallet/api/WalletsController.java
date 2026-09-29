@@ -45,6 +45,7 @@ public class WalletsController {
     }
 
     @GetMapping("/wallets/{memberId}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public WalletView wallet(@PathVariable String memberId) {
         return query.wallet(memberId);
     }
@@ -71,6 +72,7 @@ public class WalletsController {
      * inclusi); ordinamento {@code occurredAt desc}.
      */
     @GetMapping("/wallets/{memberId}/ledger")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<LedgerEntryView> ledger(
             @PathVariable String memberId,
             @RequestParam(required = false) String currency,
@@ -110,11 +112,13 @@ public class WalletsController {
     }
 
     @GetMapping("/wallets/{memberId}/lots")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<LotView> lots(@PathVariable String memberId) {
         return lots.findOpenByMember(memberId).stream().map(WalletsController::toView).toList();
     }
 
     @GetMapping("/tiers")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<Tier> tiers() {
         return query.tierScale();
     }

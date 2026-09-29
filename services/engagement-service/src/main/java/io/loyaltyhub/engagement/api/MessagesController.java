@@ -1,6 +1,8 @@
 package io.loyaltyhub.engagement.api;
 
 import io.loyaltyhub.common.web.PageResponse;
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.engagement.application.InboxService;
 import io.loyaltyhub.engagement.domain.InboxMessage;
 import io.loyaltyhub.engagement.infra.InboxRepository;
@@ -24,6 +26,7 @@ public class MessagesController {
     }
 
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PageResponse<InboxMessage> list(@RequestParam(required = false) String memberId,
                                            @RequestParam(required = false) String category,
                                            @RequestParam(required = false) String channel,

@@ -1,5 +1,7 @@
 package io.loyaltyhub.insight.api;
 
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.insight.infra.DlqRepository;
 import io.loyaltyhub.insight.infra.EventStoreRepository;
 import io.loyaltyhub.insight.infra.TopicStatRepository;
@@ -51,6 +53,7 @@ public class PipelineController {
     }
 
     @GetMapping("/status")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PipelineStatus status() {
         Duration hour = Duration.ofHours(1);
         Duration day = Duration.ofHours(24);

@@ -46,16 +46,19 @@ public class EventTypesController {
     }
 
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<EventTypeView> list() {
         return types.findAll().stream().map(this::view).toList();
     }
 
     @GetMapping("/{code}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public EventTypeView get(@PathVariable String code) {
         return view(find(code));
     }
 
     @GetMapping("/{code}/fields")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<SchemaFields.Field> fields(@PathVariable String code) {
         EventType t = find(code);
         return t.hasSchema() ? SchemaFields.of(mapper.readTree(t.dataSchema())) : List.of();

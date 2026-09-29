@@ -38,7 +38,7 @@ Il testbook è eseguibile per intero con un comando e produce un rapporto riga p
 | Wallet e livelli | [§5](#5-tb-wal--wallet-e-livelli) | wallet | docs/03 §4 · docs/servizi/wallet-service.md · F-WAL-*, F-TIER-* | **eseguibile** — 373 righe |
 | Premi e coupon | [§6](#6-tb-rwd--premi-e-coupon) | reward (+ wallet) | docs/servizi/reward-service.md · F-RWD-*, F-CPN-* | **eseguibile** — 567 righe |
 | Gioco | [§7](#7-tb-gam--gioco) | gamification | docs/servizi/gamification-service.md · F-IW-*, F-ACH-*, F-LDB-*, F-REF-* | **eseguibile** — 710 righe |
-| Governance e membri | [§8](#8-tb-gov--governance-e-membri) | tutti · member | docs/03 §3.6 · docs/06 §7 · docs/08 §2 · F-APR-*, F-MBR-*, F-SEG-* | **eseguibile** — 978 righe |
+| Governance e membri | [§8](#8-tb-gov--governance-e-membri) | tutti · member | docs/03 §3.6 · docs/06 §7 · docs/08 §2 · F-APR-*, F-MBR-*, F-SEG-* | **eseguibile** — 988 righe |
 | Engagement | [§9](#9-tb-eng--engagement) | engagement | docs/servizi/engagement-service.md · F-CNT-*, F-MSG-*, F-WBH-01 | **eseguibile** — 804 righe |
 | Interfaccia | [§10](#10-tb-web--interfaccia) | web | docs/07 · docs/08 · docs/09 | **eseguibile** — 741 righe |
 | Percorsi end-to-end | [§10bis](#10bis-tb-e2e--percorsi-end-to-end) | hub (tutti) | docs/17 E10 e percorsi tra servizi · docs/10 §8 | **eseguibile** — 114 righe |
@@ -122,7 +122,7 @@ d'integrazione `TestbookGam*IT` con un solo contesto), dati in `testbook/gam/*.c
 
 ## 8. TB-GOV — Governance e membri
 Documento completo: [`docs/testbook/TB-GOV-governance.md`](testbook/TB-GOV-governance.md) — 33 regole, 61 rami mappati,
-**978 righe** in 25 aree. Test: `libs/lh-common/src/test/java/io/loyaltyhub/common/testbook/` (attore, transizioni, policy),
+**988 righe** in 25 aree. Test: `libs/lh-common/src/test/java/io/loyaltyhub/common/testbook/` (attore, transizioni, policy),
 `services/member-service/src/test/java/io/loyaltyhub/member/testbook/` (criteri dei segmenti, attributi, `TestbookGovMemberIT`),
 `deploy/hub/src/test/java/io/loyaltyhub/hub/TestbookGovHubIT.java` (righe tra servizi).
 

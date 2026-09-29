@@ -40,6 +40,7 @@ public class MessageTemplatesController {
 
     @GetMapping
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<MessageTemplate> list(@RequestParam(required = false) String category,
                                       @RequestParam(required = false) String channel) {
         return templates.findAll(category, channel);
@@ -47,6 +48,7 @@ public class MessageTemplatesController {
 
     @GetMapping("/{code}")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public MessageTemplate get(@PathVariable String code) {
         return admin.get(code);
     }
@@ -65,6 +67,7 @@ public class MessageTemplatesController {
 
     /** {@code {sampleEvent}} → titolo e testo con i segnaposto risolti, più i percorsi non risolti. */
     @PostMapping("/{code}/render")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public RenderResult render(@PathVariable String code, @RequestBody(required = false) RenderRequest r) {
         return admin.render(code, r);
     }

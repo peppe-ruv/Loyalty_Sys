@@ -1,5 +1,7 @@
 package io.loyaltyhub.engagement.api;
 
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.engagement.application.ContentService;
 import io.loyaltyhub.engagement.application.ContentService.PopupView;
 import org.springframework.http.ResponseEntity;
@@ -31,11 +33,13 @@ public class PortalPopupsController {
 
     @GetMapping("/next")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public ResponseEntity<PopupView> next(@RequestParam(required = false) String memberId) {
         return service.nextPopup(memberId).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @PostMapping("/{id}/seen")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public ResponseEntity<Void> seen(@PathVariable String id, @RequestBody(required = false) SeenRequest r) {
         service.seen(id, r == null ? null : r.memberId(), r != null && Boolean.TRUE.equals(r.dismissed()));
         return ResponseEntity.noContent().build();

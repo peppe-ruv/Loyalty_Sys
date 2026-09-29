@@ -17,7 +17,7 @@ negli altri servizi, anonimizzazione, attributi personalizzati, segmenti. Serviz
 
 | Classe | Tipo | Dati (`src/test/resources/testbook/gov/`) | Aree |
 |---|---|---|---|
-| `libs/lh-common` · `TestbookGovActorTest` | unit: `ActorContext.parse`, `RequiresRoleInterceptor` | `actor.csv`, `guard.csv` | ACT, GRD |
+| `libs/lh-common` · `TestbookGovActorTest` | unit: `ActorContext.parse`, `EndpointAccessInterceptor` | `actor.csv`, `guard.csv` | ACT, GRD |
 | `libs/lh-common` · `TestbookGovTransitionsTest` | unit: `GovernedTransitions` (+ `ApprovalStateMachine`) | `parse.csv`, `sm-required.csv`, `sm-none.csv`, `sm-off.csv`, `roles.csv`, `comments.csv`, `override.csv` | PRS, SMR, SMN, SMF, ROL, CMT, OVR |
 | `libs/lh-common` · `TestbookGovPolicyTest` | unit: `ApprovalPolicy` | `policy.csv`, `policy-rows.csv` | POL |
 | `services/member-service` · `TestbookGovSegmentCriteriaTest` | unit: `SegmentCriteria` | `criteria.csv`, `criteria-validation.csv` | CRT, CRV |
@@ -40,7 +40,7 @@ vuoto, così che ogni riga misuri una sola decisione.
 | Regola | Enunciato (sintesi) | Fonte | Righe |
 |---|---|---|---|
 | R-01 | `X-LH-Actor: <RUOLO>:<username>`; assente → `ANALYST:anonymous` (sola lettura) | docs/06 §3 | ACT |
-| R-02 | Guardia minima `@RequiresRole`: ADMIN passa sempre; elenco di ruoli; annotazione vuota = scrittura (≠ ANALYST) | docs/06 §3 · docs/08 §2 | GRD |
+| R-02 | Guardia minima `@RequiresRole`: ADMIN passa sempre; elenco di ruoli; annotazione vuota = scrittura (≠ ANALYST); deny by default: senza `@RequiresRole` né `@PublicEndpoint` con motivo ⇒ 403 `ENDPOINT_NOT_DECLARED` per tutti (F2-SEC-09) | docs/06 §3, §3.2 · docs/08 §2 | GRD |
 | R-03 | Matrice capacità × ruolo: ● ⇒ il backend rifiuta con 403; il backend rifiuta ogni scrittura di ANALYST | docs/08 §2 | MAT, MRL |
 | R-04 | Azioni del ciclo di vita: `SUBMIT, APPROVE, REJECT, PUBLISH, PAUSE, RESUME, END, ARCHIVE` (enum `UPPER_SNAKE`) | docs/03 §3.6 · docs/06 §2 | PRS |
 | R-05 | Tabella delle transizioni; ogni altra coppia stato × azione ⇒ 409 `conflict` | docs/03 §3.6 · docs/06 §2 | SMR, SMN, SMF, ENT |
@@ -84,11 +84,11 @@ Percorsi relativi a `libs/lh-common/src/main/java/io/loyaltyhub/common/` e `serv
 | B-02 | `web/ActorContext.java:17` senza `:` o `:` in testa/coda → ruolo dal testo intero, username `anonymous` | senza specifica | ACT-010, ACT-011, ACT-013 |
 | B-03 | `web/ActorContext.java:22` username vuoto → `anonymous` | senza specifica | ACT-012 |
 | B-04 | `web/Role.java:12-18` ruolo assente/sconosciuto → `ANALYST`; `trim` + maiuscole | R-01; lettura permissiva senza specifica | ACT-007…009 |
-| B-05 | `web/RequiresRoleInterceptor.java:15` gestore non `HandlerMethod` → passa | non raggiungibile per le API | — |
-| B-06 | `web/RequiresRoleInterceptor.java:19-23` annotazione di metodo, poi di classe, assente → passa | R-02 | GRD-001…005, GRD-026…030 |
-| B-07 | `web/RequiresRoleInterceptor.java:26` ADMIN passa sempre | R-02, R-03 | GRD (ADMIN) |
-| B-08 | `web/RequiresRoleInterceptor.java:30-35` annotazione vuota → tutti tranne ANALYST | R-02 | GRD-006…010 |
-| B-09 | `web/RequiresRoleInterceptor.java:37-40` ruolo nell'elenco, altrimenti 403 `FORBIDDEN_ROLE` | R-02, R-03 | GRD-011…025 |
+| B-05 | `web/EndpointAccessInterceptor.java:40-46` gestore non `HandlerMethod` o controller di un framework → passa | non raggiungibile per le API | — |
+| B-06 | `web/EndpointAccessInterceptor.java:47-62` dichiarazione di metodo, poi di classe; `@PublicEndpoint` con motivo → passa; assente o motivo vuoto → 403 `ENDPOINT_NOT_DECLARED` | R-02 | GRD-001…005, GRD-026…040 |
+| B-07 | `web/EndpointAccessInterceptor.java:67` ADMIN passa sempre dove c'è `@RequiresRole` | R-02, R-03 | GRD (ADMIN) |
+| B-08 | `web/EndpointAccessInterceptor.java:71-76` annotazione vuota → tutti tranne ANALYST | R-02 | GRD-006…010 |
+| B-09 | `web/EndpointAccessInterceptor.java:78-81` ruolo nell'elenco, altrimenti 403 `FORBIDDEN_ROLE` | R-02, R-03 | GRD-011…025 |
 | B-10 | `approval/GovernedTransitions.java:26-28` `trim` + maiuscole; sconosciuta/vuota/assente → 422 `INVALID_ACTION` | R-04 (codice e permissività senza specifica) | PRS |
 | B-11 | `approval/GovernedTransitions.java:35-38` decisione con ruolo ≠ approvatore (default LEGAL) e ≠ ADMIN → 403 | R-08 | ROL-006…015, ROL-041…050 |
 | B-12 | `approval/GovernedTransitions.java:40-41` altre azioni con ruolo ≠ ADMIN/MARKETING → 403 | R-09 | ROL-001…005, ROL-016…040, ROL-053…055 |
@@ -167,17 +167,17 @@ risposta attuale è la più conservativa: ruolo sconosciuto ⇒ ANALYST, sola le
 | TB-GOV-ACT-013 | `X-LH-Actor` = `":paolo"` | `ANALYST:paolo` (Q-298 DECISA) | docs/06 §3 | `TestbookGovActorTest#parse` |
 | TB-GOV-ACT-014 | `X-LH-Actor` = `"ADMIN:marta:extra"` | `ANALYST:marta:extra` (Q-298 DECISA) | docs/06 §3 | `TestbookGovActorTest#parse` |
 
-### 3.2 Guardia `@RequiresRole` (`RequiresRoleInterceptor`)
-Domini: variante dell'annotazione (assente, vuota, un ruolo, due ruoli, solo ADMIN, sulla classe) × ruolo (5). Prodotto
-6 × 5 = 30 ≤ 64 ⇒ **tabella completa**.
+### 3.2 Guardia `@RequiresRole` e deny by default (`EndpointAccessInterceptor`)
+Domini: variante dell'annotazione (assente, vuota, un ruolo, due ruoli, solo ADMIN, sulla classe, `@PublicEndpoint` con
+motivo, `@PublicEndpoint` con motivo vuoto) × ruolo (5). Prodotto 8 × 5 = 40 ≤ 64 ⇒ **tabella completa**.
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
-| TB-GOV-GRD-001 | nessuna annotazione, attore ADMIN | passa | docs/06 §3 (letture libere) | `TestbookGovActorTest#guard` |
-| TB-GOV-GRD-002 | nessuna annotazione, attore MARKETING | passa | docs/06 §3 (letture libere) | `TestbookGovActorTest#guard` |
-| TB-GOV-GRD-003 | nessuna annotazione, attore LEGAL | passa | docs/06 §3 (letture libere) | `TestbookGovActorTest#guard` |
-| TB-GOV-GRD-004 | nessuna annotazione, attore CARE | passa | docs/06 §3 (letture libere) | `TestbookGovActorTest#guard` |
-| TB-GOV-GRD-005 | nessuna annotazione, attore ANALYST | passa | docs/06 §3 (letture libere) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-001 | nessuna annotazione, attore ADMIN | 403 `ENDPOINT_NOT_DECLARED` | docs/06 §3.2 (deny by default, F2-SEC-09) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-002 | nessuna annotazione, attore MARKETING | 403 `ENDPOINT_NOT_DECLARED` | docs/06 §3.2 (deny by default, F2-SEC-09) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-003 | nessuna annotazione, attore LEGAL | 403 `ENDPOINT_NOT_DECLARED` | docs/06 §3.2 (deny by default, F2-SEC-09) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-004 | nessuna annotazione, attore CARE | 403 `ENDPOINT_NOT_DECLARED` | docs/06 §3.2 (deny by default, F2-SEC-09) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-005 | nessuna annotazione, attore ANALYST | 403 `ENDPOINT_NOT_DECLARED` | docs/06 §3.2 (deny by default, F2-SEC-09) | `TestbookGovActorTest#guard` |
 | TB-GOV-GRD-006 | `@RequiresRole` vuota (regola «scrittura»), attore ADMIN | passa | docs/06 §3 · docs/08 §2 | `TestbookGovActorTest#guard` |
 | TB-GOV-GRD-007 | `@RequiresRole` vuota (regola «scrittura»), attore MARKETING | passa | docs/06 §3 · docs/08 §2 | `TestbookGovActorTest#guard` |
 | TB-GOV-GRD-008 | `@RequiresRole` vuota (regola «scrittura»), attore LEGAL | passa | docs/06 §3 · docs/08 §2 | `TestbookGovActorTest#guard` |
@@ -203,6 +203,16 @@ Domini: variante dell'annotazione (assente, vuota, un ruolo, due ruoli, solo ADM
 | TB-GOV-GRD-028 | `@RequiresRole(LEGAL)` sulla classe, attore LEGAL | passa | docs/06 §3 | `TestbookGovActorTest#guard` |
 | TB-GOV-GRD-029 | `@RequiresRole(LEGAL)` sulla classe, attore CARE | 403 `FORBIDDEN_ROLE` | docs/06 §3 | `TestbookGovActorTest#guard` |
 | TB-GOV-GRD-030 | `@RequiresRole(LEGAL)` sulla classe, attore ANALYST | 403 `FORBIDDEN_ROLE` | docs/06 §3 | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-031 | `@PublicEndpoint` con motivo, attore ADMIN | passa | docs/06 §3.2 (deny by default, F2-SEC-09) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-032 | `@PublicEndpoint` con motivo, attore MARKETING | passa | docs/06 §3.2 (deny by default, F2-SEC-09) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-033 | `@PublicEndpoint` con motivo, attore LEGAL | passa | docs/06 §3.2 (deny by default, F2-SEC-09) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-034 | `@PublicEndpoint` con motivo, attore CARE | passa | docs/06 §3.2 (deny by default, F2-SEC-09) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-035 | `@PublicEndpoint` con motivo, attore ANALYST | passa | docs/06 §3.2 (deny by default, F2-SEC-09) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-036 | `@PublicEndpoint` con motivo vuoto, attore ADMIN | 403 `ENDPOINT_NOT_DECLARED` | docs/06 §3.2 (deny by default, F2-SEC-09) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-037 | `@PublicEndpoint` con motivo vuoto, attore MARKETING | 403 `ENDPOINT_NOT_DECLARED` | docs/06 §3.2 (deny by default, F2-SEC-09) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-038 | `@PublicEndpoint` con motivo vuoto, attore LEGAL | 403 `ENDPOINT_NOT_DECLARED` | docs/06 §3.2 (deny by default, F2-SEC-09) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-039 | `@PublicEndpoint` con motivo vuoto, attore CARE | 403 `ENDPOINT_NOT_DECLARED` | docs/06 §3.2 (deny by default, F2-SEC-09) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-040 | `@PublicEndpoint` con motivo vuoto, attore ANALYST | 403 `ENDPOINT_NOT_DECLARED` | docs/06 §3.2 (deny by default, F2-SEC-09) | `TestbookGovActorTest#guard` |
 
 ## 4. Azioni del ciclo di vita (`GovernedTransitions.parse`)
 Domini: ogni valore dell'enum (8) + classi non valide (minuscolo, maiuscole miste, spazi, `ACTIVATE`, sconosciuta, quasi
@@ -1454,9 +1464,9 @@ Nessuna divergenza nelle aree di `lh-common` a logica pura (ACT, GRD, PRS, SMR, 
 | Rami del codice mappati | 61 (B-01…B-61); non raggiungibili senza concorrenza o per le API: B-05, B-30, esaurimento dei codici di B-60, `REFERRAL_SELF` |
 | Rami senza specifica | 18 (B-02, B-03, B-04, B-10, B-13, B-25, B-26, B-28, B-33, B-36, B-37, B-38, B-50, B-51, B-54, B-59, B-60, B-61) → righe AMBIGUO |
 | Regole senza codice | 0 (lo storico delle transizioni dei contenuti, R-13 per i contenuti, c'è da D-04) |
-| Righe | 978 — ACT 14, GRD 30, PRS 16, SMR 56, SMN 10, SMF 56, ROL 60, CMT 14, OVR 22, POL 44, MST 41, MRL 80, ANO 47, ATV 70, ATD 29, ATU 14, CRT 118, CRV 27, SEG 30, REF 23, ENT 47, APQ 8, MAT 100, EFF 17, ANX 5 |
+| Righe | 988 — ACT 14, GRD 40, PRS 16, SMR 56, SMN 10, SMF 56, ROL 60, CMT 14, OVR 22, POL 44, MST 41, MRL 80, ANO 47, ATV 70, ATD 29, ATU 14, CRT 118, CRV 27, SEG 30, REF 23, ENT 47, APQ 8, MAT 100, EFF 17, ANX 5 |
 | di cui AMBIGUO | 132 (§13; CRT-045…048, 051, 052, 055, 056 e CRV-025 decise da Q-215), registrate in `docs/15` (Q-298…Q-310 e domande già aperte) |
-| Tabelle complete | GRD 6 × 5; SMR e SMF 7 × 8; ROL 8 × 5 (+ 2 × 5, 1 × 5); OVR 2 × 2 × 5; POL campagna 2 × 2 × 7 e scheda 4 × 2; MST 4 × 8; MRL 13 × 6; ATV 4 × 16; CRT 14 × 4 e assente × 14; MAT 20 × 5; EFF 4 × 4 |
+| Tabelle complete | GRD 8 × 5; SMR e SMF 7 × 8; ROL 8 × 5 (+ 2 × 5, 1 × 5); OVR 2 × 2 × 5; POL campagna 2 × 2 × 7 e scheda 4 × 2; MST 4 × 8; MRL 13 × 6; ATV 4 × 16; CRT 14 × 4 e assente × 14; MAT 20 × 5; EFF 4 × 4 |
 | Riduzioni | stato × azione × ruolo × policy (560) → SMR + SMF (112) + SMN (10: le celle in cui la regola entra nel ramo, 46 identiche a SMR) + ROL (60), perché ruolo e stato sono controlli indipendenti e in sequenza, più 5 righe di precedenza; per tipo di oggetto (3 × 56) → 12 verifiche di cablaggio per tipo nell'hub (la logica è la stessa `GovernedTransitions`); policy spenta nell'hub → nessun contesto dedicato (stesso bean, tabelle SMF/ROL); tabella dei contenuti → TB-ENG; ACT, PRS, ANO, ATD, CRV, SEG → ogni classe non valida da sola sul caso valido (guasto singolo) |
 | Divergenze | 4 cause, 12 righe: D-01 (8), D-02 (2), D-03 (1, risolta da `main`), D-04 (1) → tutte risolte, 0 righe rosse |
 
@@ -1471,7 +1481,7 @@ Ogni classe Testbook ne rileva almeno una.
 
 | # | Mutazione (file) | Classe eseguita | Righe diventate rosse |
 |---|---|---|---|
-| G-01 | nessuna scorciatoia ADMIN nella guardia (lh-common `RequiresRoleInterceptor`) | `TestbookGovActorTest` | GRD-011 (MARKETING × ADMIN), GRD-026 (solo LEGAL × ADMIN) |
+| G-01 | nessuna scorciatoia ADMIN nella guardia (lh-common `EndpointAccessInterceptor`) | `TestbookGovActorTest` | GRD-011 (MARKETING × ADMIN), GRD-026 (solo LEGAL × ADMIN) |
 | G-02 | `PUBLISH` da DRAFT ammesso anche con approvazione richiesta (lh-common `GovernedTransitions#next`) | `TestbookGovTransitionsTest` | SMR-004 (DRAFT + PUBLISH ⇒ 409 `APPROVAL_REQUIRED`) |
 | G-03a | soglia del budget 100 000 → 100 001 nel valore di default (lh-common `LhCommonAutoConfiguration#approvalPolicy`) | `TestbookGovHubIT` | ENT-004 (campagna da 100 001 pubblicata da DRAFT), APQ-007 (scheda della policy) |
 | G-03b | soglia del budget spostata di 1 nel confronto (`ApprovalPolicy#forCampaign`: `> soglia + 1`) | `TestbookGovPolicyTest` | POL-006 (budget 100 001), POL-036 (soglia configurata 50 000, budget 50 001) |

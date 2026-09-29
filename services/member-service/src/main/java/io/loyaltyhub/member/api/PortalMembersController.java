@@ -1,5 +1,7 @@
 package io.loyaltyhub.member.api;
 
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.member.application.MemberService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -20,11 +22,13 @@ public class PortalMembersController {
     }
 
     @GetMapping("/{id}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PortalProfileView get(@PathVariable String id) {
         return service.portalProfile(id);
     }
 
     @PatchMapping("/{id}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PortalProfileView update(@PathVariable String id, @RequestBody PortalProfileRequest request) {
         service.update(id, request.toUpdate());
         return service.portalProfile(id);

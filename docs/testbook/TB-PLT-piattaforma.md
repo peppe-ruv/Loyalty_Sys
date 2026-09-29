@@ -47,7 +47,7 @@ misurabili. Metodo ed esecuzione: docs/16 §1 e §1bis.
 | R20 | Topic 5 × 2 con retention 3 giorni, creati solo nel profilo local | docs/05 §1; docs/11 §3 | `LhKafkaConfiguration.LocalTopics` | KCF |
 | R21 | Errori `application/problem+json` per famiglia, `code` stabile, `detail` italiano | docs/06 §2 | `GlobalExceptionHandler`, `LhException` | ERR, HER |
 | R22 | Elenchi `{items, page}`, `size` massimo 100 | docs/06 §2; Q-332 | `PageResponse`, `PageParams`, 7 servizi | PAG |
-| R23 | `X-LH-Actor` canonico, altrimenti ANALYST; `@RequiresRole` | docs/06 §3; Q-261; Q-298 | `ActorContext`, `ActorFilter`, `RequiresRoleInterceptor` | ERR, ACT |
+| R23 | `X-LH-Actor` canonico, altrimenti ANALYST; `@RequiresRole` | docs/06 §3; Q-261; Q-298 | `ActorContext`, `ActorFilter`, `EndpointAccessInterceptor` | ERR, ACT |
 | R24 | `/v1/demo/**` solo ADMIN; portale senza intestazione | docs/06 §3 | `DemoResetController`, controller del portale | ACT, INF |
 | R25 | Reset: tronca e ricarica i seed, idempotente, audit `RESET`, insight per primo | docs/06 §10; docs/10 §1.3; ADR-015; BO-30 | `DemoResetController`, `DemoResettable` di 8 servizi | RST |
 | R26 | `GET /v1/demo/info`: profili, versione, conteggi, ultimo reset | docs/06 §10; BO-30 | `DemoResetController#info` | INF |
@@ -86,7 +86,7 @@ innocuo (colonna «esito»).
 | `LhKafkaHealthIndicator` in-process · in cache · UP · DOWN | R17 | HLT | coperti |
 | `GlobalExceptionHandler` `LhException` con/senza `errors` · validazione · corpo illeggibile · parametro non convertibile · parametro assente · percorso non mappato · dipendenza giù · errore 4xx di Spring (404/altro) · SSE chiuso · imprevisto | R21 | ERR, HER | coperti; 500 `internal` e 410 `gone` senza specifica (decisi in Q-333); SSE chiuso senza corpo, senza specifica, coperto in TB-INS |
 | `PageParams#of` page < 0 · size < 1 · size > 100 · valido; `PageResponse#of` size ≤ 0 | R22 | PAG | coperti |
-| `ActorContext#parse` vuota · canonica nota · canonica ignota · non canonica; `RequiresRoleInterceptor` non handler · senza annotazione · ADMIN · annotazione vuota · ruolo elencato/no | R23 | ERR, ACT | coperti (parsing puro in TB-GOV ACT) |
+| `ActorContext#parse` vuota · canonica nota · canonica ignota · non canonica; `EndpointAccessInterceptor` non handler · senza annotazione (403 `ENDPOINT_NOT_DECLARED`) · ADMIN · annotazione vuota · ruolo elencato/no | R23 | ERR, ACT | coperti (parsing puro in TB-GOV ACT) |
 | `DemoResetController#reset` con/senza audit · serializzato; `#info` ambiente/JDBC assenti · versione da proprietà/jar/«sviluppo» | R24–R26 | RST, INF | coperti; «sviluppo» senza specifica (Q-338) |
 | `SeedDates#resolve` vuota · non `@` · suffisso ora · 9 parole chiave · `last<Giorno>` · scostamenti d/h/M/y · fine mese con M/y · testo estraneo | R27 | CLK | coperti; `last<qualunque giorno>` senza specifica (Q-337) |
 | `BusinessCalendar#periodKey` 6 periodi · `currentEditionCode` · `lastWeekday` | R28 | CAL | coperti |

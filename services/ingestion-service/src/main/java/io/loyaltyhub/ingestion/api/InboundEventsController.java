@@ -52,6 +52,7 @@ public class InboundEventsController {
     }
 
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<InboundRow> list(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String source,
@@ -69,6 +70,7 @@ public class InboundEventsController {
      * tranne l'esito, che è la dimensione del conteggio. Risposta {@code {ACCEPTED, DUPLICATE, REJECTED, UNMATCHED}}.
      */
     @GetMapping("/counts")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public Map<String, Long> counts(
             @RequestParam(required = false) String source,
             @RequestParam(required = false) String type,
@@ -97,6 +99,7 @@ public class InboundEventsController {
     }
 
     @GetMapping("/{id}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public InboundDetail get(@PathVariable String id) {
         return detail(id);
     }

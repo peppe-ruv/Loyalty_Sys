@@ -43,11 +43,13 @@ public class LeaderboardsController {
     }
 
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<Leaderboard> list() {
         return leaderboards.findAll();
     }
 
     @GetMapping("/{id}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public Leaderboard get(@PathVariable String id) {
         return service.get(id);
     }
@@ -66,6 +68,7 @@ public class LeaderboardsController {
 
     @GetMapping("/{code}/ranking")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public Ranking ranking(@PathVariable String code, @RequestParam(required = false) String periodKey,
                            @RequestParam(defaultValue = "0") int limit,
                            @RequestParam(required = false) String resolve) {

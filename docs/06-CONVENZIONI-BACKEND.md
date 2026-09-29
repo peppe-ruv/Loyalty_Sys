@@ -58,6 +58,7 @@ CREATE TABLE approval_history (
 |---|---|---|
 | 400 | `bad-request` | JSON malformato, parametri errati |
 | 403 | `forbidden-role` | il ruolo in `X-LH-Actor` non può eseguire l'azione |
+| 403 | `endpoint-not-declared` | l'endpoint non dichiara `@RequiresRole` né `@PublicEndpoint` (`ENDPOINT_NOT_DECLARED`, §3.2): errore del codice, rifiutato a tutti |
 | 404 | `not-found` | risorsa inesistente |
 | 409 | `conflict` | transizione non valida, codice duplicato, modifica non ammessa su oggetto `LIVE` |
 | 422 | `validation` | regola di business violata (`code` specifico, elencati nelle schede servizio) |
@@ -68,7 +69,7 @@ CREATE TABLE approval_history (
 ## 3. Identità simulata
 
 - Header `X-LH-Actor: <RUOLO>:<username>` (es. `MARKETING:luca.marketing`). Assente → `ANALYST:anonymous` (sola lettura). Vale solo la forma canonica (ruolo noto in maiuscolo, un solo `:`, username non vuoto e senza spazi ai bordi); ogni altra forma (ruolo sconosciuto o minuscolo, `LEGAL`, `CARE:`, `:paolo`, `ADMIN:a:b`…) vale `ANALYST` (Q-261, Q-298).
-- Controllo **minimo** lato servizio (annotazione `@RequiresRole`): scritture ⇒ ruolo ≠ `ANALYST`; `APPROVE/REJECT` ⇒ ruolo della policy o `ADMIN`; rettifiche punti ⇒ `CARE`/`ADMIN`; `/v1/demo/**` ⇒ `ADMIN` (eccetto simulatore e scenari: tutti tranne `ANALYST`).
+- Controllo **minimo** lato servizio (annotazione `@RequiresRole`): scritture ⇒ ruolo ≠ `ANALYST`; `APPROVE/REJECT` ⇒ ruolo della policy o `ADMIN`; rettifiche punti ⇒ `CARE`/`ADMIN`; `/v1/demo/**` ⇒ `ADMIN` (eccetto simulatore e scenari: tutti tranne `ANALYST`). Le letture elencano tutti i ruoli, `ANALYST` compreso (§3.2).
 - Gli endpoint `/v1/portal/**` non richiedono header; l'attore è `member:<memberId>`.
 - Ogni scrittura da backoffice pubblica un audit con l'attore.
 
@@ -83,7 +84,7 @@ CREATE TABLE approval_history (
 ```mermaid
 sequenceDiagram
   accTitle: Attore dal token nel profilo enterprise
-  accDescr: Il BFF chiama un servizio con l'access token; il filtro OIDC verifica firma, emittente, audience e scadenza, ricava l'attore dai ruoli del token e lascia l'autorizzazione a RequiresRole; un token non valido riceve 401.
+  accDescr: Il BFF chiama un servizio con l'access token; il filtro OIDC verifica firma, emittente, audience e scadenza, ricava l'attore dai ruoli del token e lascia l'autorizzazione a RequiresRole, con il deny by default; un token non valido riceve 401.
   autonumber
   participant W as web (BFF)
   participant F as OidcActorFilter
@@ -94,10 +95,50 @@ sequenceDiagram
   alt token valido: firma, iss, aud=hub, exp
     F->>F: ActorContext da lh_roles e preferred_username
     F->>C: richiesta con l'attore nel contesto
-    C-->>W: 200, oppure 403 se il ruolo non basta
+    C-->>W: 200, oppure 403 se il ruolo non basta o l'endpoint non è dichiarato
   else token assente o non valido
     F-->>W: 401 unauthorized, WWW-Authenticate Bearer
   end
+```
+
+### 3.2 Deny by default: `@RequiresRole` o `@PublicEndpoint` (M8.10, F2-SEC-09, ADR-042)
+
+Ogni endpoint dichiara chi può chiamarlo. Un endpoint senza dichiarazione è rifiutato a tutti, in ogni profilo: così un controller nuovo non nasce aperto per dimenticanza (CLAUDE.md regola 18).
+
+- **Dichiara l'accesso su ogni metodo mappato** di un `@RestController`, sul metodo o sulla classe. La dichiarazione del metodo prevale su quella della classe.
+  - `@RequiresRole(...)`: semantica di §3, invariata. `ADMIN` passa sempre; un elenco vuoto vale la regola «scrittura».
+  - `@PublicEndpoint(reason = "…")`: nessun controllo di ruolo. Il motivo è obbligatorio e non vuoto; un motivo vuoto vale come endpoint non dichiarato.
+  - Se lo stesso elemento porta entrambe, vince `@RequiresRole` e la regola ArchUnit fallisce.
+- **Le letture elencano tutti i ruoli**: `@RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})`. Tutte le personas leggono tutto (docs/08 §2) e nel profilo `demo` una richiesta senza `X-LH-Actor` vale `ANALYST:anonymous`, quindi l'accesso della demo non cambia. Non usare `@PublicEndpoint` per una lettura: nel profilo `enterprise` la stessa annotazione chiede un token con uno di quei ruoli.
+- **`@PublicEndpoint` toglie solo il controllo di ruolo.** Nel profilo `enterprise` il filtro OIDC chiede comunque un token valido (§3.1); aprire un endpoint senza token è un'altra decisione (Q-411). Un nuovo `@PublicEndpoint` è un caso di *Fermati e chiedi* (CLAUDE.md §7). Oggi c'è un solo `@PublicEndpoint`: `GET /` dell'hub, la pagina di stato che apre il probe della piattaforma.
+- **Endpoint non dichiarato** ⇒ `403` `endpoint-not-declared`, `code` `ENDPOINT_NOT_DECLARED`, anche per `ADMIN`. Il log registra solo classe e metodo, mai percorso, parametri o attore.
+- **Fuori ambito**: i controller dei framework (`org.springframework.*`, `org.springdoc.*`: pagina d'errore, OpenAPI) e gli endpoint di Actuator. Nel profilo `enterprise` li protegge il filtro OIDC, tranne i probe.
+- **Verifica di build.** `EndpointAccessRules` di `libs/lh-test-support` (ArchUnit) fallisce se un metodo mappato di un controller non ha la dichiarazione, se un `@PublicEndpoint` non ha motivo o se un elemento porta entrambe le annotazioni. Ogni modulo con controller la applica con `EndpointAccessArchTest`; nuovo modulo, nuovo test:
+
+  ```java
+  // Deny by default nel modulo wallet: fallisce la build se un endpoint non dichiara l'accesso
+  @Test
+  void everyEndpointDeclaresAccess() {
+      EndpointAccessRules.check("io.loyaltyhub.wallet");
+  }
+  ```
+
+- **Nuove dichiarazioni.** `@RequiresRole` e `@PublicEndpoint` portano la meta-annotazione `@EndpointAccess`. Una dichiarazione futura (per esempio il membro dal token per `/v1/portal/**`, Q-410) porta la stessa meta-annotazione e si applica in `EndpointAccessInterceptor`: finché l'interceptor non la conosce, l'endpoint resta rifiutato.
+
+```mermaid
+flowchart TD
+  accTitle: Deny by default sugli endpoint
+  accDescr: Per ogni richiesta a un controller del prodotto l'interceptor cerca la dichiarazione di accesso sul metodo e poi sulla classe; senza dichiarazione o con un motivo vuoto risponde 403 ENDPOINT_NOT_DECLARED; con RequiresRole controlla il ruolo dell'attore; con PublicEndpoint lascia passare.
+  REQ[Richiesta con attore dal filtro] --> DECL{Dichiarazione sul metodo o sulla classe}
+  DECL -->|nessuna o motivo vuoto| DENY[403 ENDPOINT_NOT_DECLARED]
+  DECL -->|RequiresRole| ROLE{Ruolo ammesso o ADMIN}
+  DECL -->|PublicEndpoint con motivo| CTRL[Controller]
+  ROLE -->|sì| CTRL
+  ROLE -->|no| FORB[403 FORBIDDEN_ROLE]
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef ext fill:#FFFFFF,stroke:#94A3B8,stroke-dasharray:4 2,color:#334155
+  class CTRL svc
+  class REQ ext
 ```
 
 ## 4. Persistenza
@@ -207,7 +248,7 @@ Fino a M7 la proprietà `loyaltyhub.approval.enabled=false` consente `DRAFT → 
 
 Copertura: nessuna soglia numerica; **obbligatorio** un test per ogni regola numerata in `docs/03` e per ogni handler. I test non dipendono dai seed (creano i propri dati), tranne lo smoke.
 
-IT su Kafka senza attese a tempo: il modulo `libs/lh-test-support` (`io.loyaltyhub.testsupport`) offre `TopicReader` (lettura di un topic senza consumer group, fino alla fine osservata, dopo la barriera `processed_event` e a outbox svuotato) e `ListenerGroups` (`awaitStable` prima di pubblicare, `awaitCommitted` per doppioni, type ignorati e DLQ, `awaitQuiescent` per catene tra servizi). Un'assenza o un "esattamente uno" si verifica dopo una barriera di elaborazione, mai dopo una finestra di tempo. Il modulo si dichiara **solo con scope `test`**: non entra mai in un jar di produzione.
+IT su Kafka senza attese a tempo: il modulo `libs/lh-test-support` (`io.loyaltyhub.testsupport`) offre `TopicReader` (lettura di un topic senza consumer group, fino alla fine osservata, dopo la barriera `processed_event` e a outbox svuotato) e `ListenerGroups` (`awaitStable` prima di pubblicare, `awaitCommitted` per doppioni, type ignorati e DLQ, `awaitQuiescent` per catene tra servizi). Un'assenza o un "esattamente uno" si verifica dopo una barriera di elaborazione, mai dopo una finestra di tempo. Lo stesso modulo offre `EndpointAccessRules`, la regola ArchUnit del deny by default (§3.2). Il modulo si dichiara **solo con scope `test`**: non entra mai in un jar di produzione.
 
 ## 10. Endpoint demo comuni
 
@@ -222,7 +263,7 @@ Gli altri endpoint demo (job, istanti piantati, scenari) sono nelle schede dei s
 
 Convenzioni introdotte dalla Fase 2 (`docs/18 §3.10`, ADR-042); diventano vincolanti con la fetta citata. Nel profilo `demo` restano valide le convenzioni di §3 finché la fetta non le sostituisce.
 
-- **Deny by default: `@RequiresRole` o `@PublicEndpoint`** (M8.10, F2-SEC-09). Ogni metodo di un `@RestController` dichiara `@RequiresRole(...)` oppure `@PublicEndpoint(reason = "…")` con una motivazione leggibile; un test ArchUnit fa fallire la build se manca. Un nuovo `@PublicEndpoint` è un caso di *Fermati e chiedi* (`CLAUDE.md §7`).
+- **Deny by default: `@RequiresRole` o `@PublicEndpoint`** (M8.10, F2-SEC-09). **Attivo in ogni profilo** (§3.2): ogni metodo di un `@RestController` dichiara `@RequiresRole(...)` oppure `@PublicEndpoint(reason = "…")` con una motivazione leggibile; senza dichiarazione l'endpoint risponde `403 ENDPOINT_NOT_DECLARED` e un test ArchUnit fa fallire la build. Un nuovo `@PublicEndpoint` è un caso di *Fermati e chiedi* (`CLAUDE.md §7`).
 - **`MemberPrincipal` nel portale** (M8.2/M8.10). Le API `/v1/portal/*` ricavano il membro solo dal token (`MemberPrincipal`); `memberId` da path, query o corpo è ignorato o rifiutato (`400`), mai usato (difesa da BOLA). Le API di gestione controllano la proprietà dell'oggetto dove il ruolo non basta.
 - **DTO espliciti.** I controller legano solo `record` DTO con Bean Validation, mai entità; `status`, `version`, `createdBy` e simili non sono legabili (niente *mass assignment*).
 - **SQL solo parametrico: `SqlWhere` / `SqlOrder`** (M8.10, F2-SEC-10). Solo `JdbcClient` con parametri; il testo SQL è costante oppure costruito dal builder comune di `lh-common`, che accetta colonne solo da enum/allowlist (filtri, ordinamenti, campi dei segmenti e degli attributi `jsonb`). Vietati `Statement`, `String.format`/`formatted` e concatenazione nel testo SQL; una regola Semgrep fallisce su `.sql(` con argomento non costante fuori dal builder.

@@ -2,8 +2,9 @@ package io.loyaltyhub.common.testbook;
 
 import io.loyaltyhub.common.web.ActorContext;
 import io.loyaltyhub.common.web.ActorHolder;
+import io.loyaltyhub.common.web.EndpointAccessInterceptor;
+import io.loyaltyhub.common.web.PublicEndpoint;
 import io.loyaltyhub.common.web.RequiresRole;
-import io.loyaltyhub.common.web.RequiresRoleInterceptor;
 import io.loyaltyhub.common.web.Role;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -18,8 +19,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * TB-GOV §3 — identità simulata (docs/06 §3): lettura di {@code X-LH-Actor} ({@link ActorContext#parse}) e guardia
- * {@link RequiresRole} applicata da {@link RequiresRoleInterceptor} (docs/08 §2: ADMIN passa sempre, annotazione
- * vuota = regola «scrittura», ANALYST mai).
+ * {@link RequiresRole} applicata da {@link EndpointAccessInterceptor} (docs/08 §2: ADMIN passa sempre, annotazione
+ * vuota = regola «scrittura», ANALYST mai); deny by default (F2-SEC-09): senza {@link RequiresRole} né
+ * {@link PublicEndpoint} con motivo l'endpoint è rifiutato a tutti, ADMIN compreso.
  */
 class TestbookGovActorTest {
 
@@ -44,9 +46,12 @@ class TestbookGovActorTest {
         String method = classLevel ? "write" : annotation.toLowerCase();
         HandlerMethod handler = new HandlerMethod(bean, bean.getClass().getMethod(method));
         ActorHolder.set(new ActorContext(Role.valueOf(role), "testbook"));
-        String got = outcome(() -> new RequiresRoleInterceptor()
+        String got = outcome(() -> new EndpointAccessInterceptor()
                 .preHandle(new MockHttpServletRequest(), new MockHttpServletResponse(), handler));
-        assertThat(got).as("%s: %s", id, description).isEqualTo(allowed ? "true" : "403:FORBIDDEN_ROLE");
+        // Deny by default: nessuna dichiarazione o motivo vuoto ⇒ ENDPOINT_NOT_DECLARED, altrimenti FORBIDDEN_ROLE.
+        String denied = "NONE".equals(annotation) || "OPEN_BLANK".equals(annotation)
+                ? "403:ENDPOINT_NOT_DECLARED" : "403:FORBIDDEN_ROLE";
+        assertThat(got).as("%s: %s", id, description).isEqualTo(allowed ? "true" : denied);
     }
 
     /** Endpoint fittizi, uno per variante di annotazione. */
@@ -68,6 +73,14 @@ class TestbookGovActorTest {
 
         @RequiresRole({Role.ADMIN})
         public void admin() {
+        }
+
+        @PublicEndpoint(reason = "sonda del testbook")
+        public void open() {
+        }
+
+        @PublicEndpoint(reason = " ")
+        public void open_blank() {
         }
     }
 

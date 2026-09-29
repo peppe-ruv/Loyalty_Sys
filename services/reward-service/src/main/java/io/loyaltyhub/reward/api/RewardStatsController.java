@@ -1,5 +1,7 @@
 package io.loyaltyhub.reward.api;
 
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.reward.domain.Reward;
 import io.loyaltyhub.reward.infra.RedemptionRepository;
 import io.loyaltyhub.reward.infra.RewardRepository;
@@ -35,6 +37,7 @@ public class RewardStatsController {
 
     @GetMapping("/v1/rewards/stats")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public RewardStats stats() {
         List<Reward> all = rewards.findAll();
         Map<String, Long> byStatus = new TreeMap<>();

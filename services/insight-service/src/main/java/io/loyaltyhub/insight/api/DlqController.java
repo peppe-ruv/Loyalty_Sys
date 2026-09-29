@@ -40,6 +40,7 @@ public class DlqController {
     }
 
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PageResponse<DlqEntry> list(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String consumer,
@@ -52,6 +53,7 @@ public class DlqController {
     }
 
     @GetMapping("/{id}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public DlqEntry get(@PathVariable String id) {
         return service.get(id);
     }

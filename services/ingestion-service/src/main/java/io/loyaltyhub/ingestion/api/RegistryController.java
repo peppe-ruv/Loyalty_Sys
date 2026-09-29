@@ -56,11 +56,13 @@ public class RegistryController {
     }
 
     @GetMapping("/sources")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<Source> sources() {
         return sources.findAll();
     }
 
     @GetMapping("/sources/{code}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public Source source(@PathVariable String code) {
         return sources.findByCode(code).orElseThrow(() -> LhException.notFound("Fonte non trovata: " + code));
     }
