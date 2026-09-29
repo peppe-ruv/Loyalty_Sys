@@ -14,8 +14,12 @@ RUN ./mvnw -q -pl services/campaign-service -am -DskipTests package
 
 # ---- run ----
 FROM eclipse-temurin:25-jre@sha256:8da0490fa9a3c26867012019565948eef0ee69438f5c75ac28146967bae984b5 AS run
+# Utente non root (Q-504, F2-SEC-02).
+RUN groupadd --system --gid 10001 lh \
+    && useradd --system --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin lh
 WORKDIR /app
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0 -XX:+UseSerialGC"
-COPY --from=build /src/services/campaign-service/target/campaign-service-*-boot.jar app.jar
+COPY --from=build --chown=10001:10001 /src/services/campaign-service/target/campaign-service-*-boot.jar app.jar
+USER 10001:10001
 EXPOSE 8083
 ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -76,6 +76,7 @@ USER lh
 ENV SPRING_PROFILES_ACTIVE=demo,free
 ENTRYPOINT ["sh","-c","exec java $JAVA_OPTS -jar wallet-service.jar"]
 ```
+Le immagini di Fase 1 (gli 8 servizi e l'hub consolidato della demo ospitata) girano come utente non root (`uid`/`gid` 10001, id numerici così che Kubernetes possa verificare `runAsNonRoot`; Q-504, F2-SEC-02, ADR-044). L'immagine unica di `deploy/image/Dockerfile` è non root dall'inizio, con `uid` 1000.
 Note: da Spring Boot 4.1 il jarmode `layertools` non esiste più → si usa `-Djarmode=tools … extract --layers`. `finalName` del jar = nome del modulo (nel parent POM). Un `.dockerignore` alla radice esclude `web/node_modules`, `**/target`, `.git`, `docs`.
 Ottimizzazione successiva (non in M1): cache AOT / CDS generata in build con un avvio di addestramento (`-XX:AOTCacheOutput`), attesa riduzione del tempo di avvio del 30–40 %.
 

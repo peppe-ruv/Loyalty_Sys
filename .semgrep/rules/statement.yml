@@ -1,0 +1,33 @@
+rules:
+  # Regola 19 di CLAUDE.md (ADR-042, F2-SEC-10): solo query parametriche. `java.sql.Statement` (e `createStatement`)
+  # esegue testo SQL senza parametri legati: vietato. Si usano `JdbcClient` con testo costante o del builder, oppure
+  # `PreparedStatement`/`NamedParameterJdbcTemplate` con parametri.
+  # Le fixture di prova sono in .semgrep/tests/statement.java (semgrep --test).
+  - id: lh-jdbc-statement-vietato
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Uso di java.sql.Statement (createStatement, execute/executeQuery/executeUpdate con testo SQL) vietato (regola 19,
+      ADR-042, F2-SEC-10): il testo SQL non ha parametri legati. Usare JdbcClient con testo costante o del builder
+      SqlWhere/SqlOrder, oppure PreparedStatement con parametri.
+    metadata:
+      category: security
+      cwe: "CWE-89: Improper Neutralization of Special Elements used in an SQL Command"
+      owasp: "A03:2021 Injection"
+      rule-ids: [regola-19, ADR-042, F2-SEC-10]
+      references:
+        - docs/06-CONVENZIONI-BACKEND.md
+        - docs/security/ci-security.md
+    paths:
+      exclude:
+        - "**/src/test/**"
+    pattern-either:
+      - pattern: import java.sql.Statement;
+      - pattern: $C.createStatement(...)
+      - pattern: java.sql.Statement $S;
+      - pattern: java.sql.Statement $S = $INIT;
+      - pattern: (Statement $S).execute($SQL)
+      - pattern: (Statement $S).executeQuery($SQL)
+      - pattern: (Statement $S).executeUpdate($SQL, ...)
+      - pattern: (Statement $S).executeLargeUpdate($SQL, ...)
+      - pattern: (Statement $S).addBatch($SQL)

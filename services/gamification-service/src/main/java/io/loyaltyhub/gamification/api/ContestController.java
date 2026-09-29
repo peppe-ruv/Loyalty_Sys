@@ -12,6 +12,7 @@ import io.loyaltyhub.gamification.domain.Prize;
 import io.loyaltyhub.gamification.infra.ContestRepository;
 import io.loyaltyhub.gamification.infra.InstantRepository;
 import io.loyaltyhub.gamification.infra.PlayRepository;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -194,7 +195,9 @@ public class ContestController {
                     cell(w.deliveryStatus()), cell(w.deliveryNote()))).append('\n');
         }
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + c.code().toLowerCase() + "-vincitori.csv\"")
+                // ContentDisposition quota e codifica il nome del file (F2-SEC-10, regola Semgrep lh-header-valore-da-richiesta).
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment().filename(c.code().toLowerCase() + "-vincitori.csv").build().toString())
                 .contentType(new MediaType("text", "csv", java.nio.charset.StandardCharsets.UTF_8))
                 .body(csv.toString());
     }

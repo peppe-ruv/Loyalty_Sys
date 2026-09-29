@@ -124,6 +124,9 @@ public class DemoResetController {
                         ORDER BY 1
                         """).query(String.class).list();
         for (String t : tables) {
+            // Giustificazione (regola 19, ADR-042): un nome di tabella non si può legare come parametro. `t` non è input:
+            // arriva già delimitato da quote_ident() dal catalogo del database (query costante qui sopra), solo profilo demo.
+            // nosemgrep: lh-sql-operando-dinamico
             out.put(t.replace("\"", ""), jdbc.sql("SELECT count(*) FROM " + t).query(Long.class).single());
         }
         return out;

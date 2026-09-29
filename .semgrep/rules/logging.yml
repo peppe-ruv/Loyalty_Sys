@@ -1,0 +1,44 @@
+rules:
+  # Regola 20 di CLAUDE.md (ADR-042, F2-SEC-10, F2-SEC-12): nessun segreto nei log. Regola euristica sui nomi: un
+  # argomento del logger (SLF4J, `log`/`LOG`/`logger`/`LOGGER`/`LoggerFactory.getLogger(...)`) il cui nome o la cui
+  # espressione contiene token, secret, password, authorization, apikey, chiavi private, credenziali, bearer, jwt o
+  # cookie. Sono ammessi i confronti con `null`, `isEmpty()`, `isBlank()` e `length()` (non rivelano il valore) e i
+  # letterali del messaggio. Per loggare comunque un riferimento usare un identificativo opaco (id del segreto,
+  # impronta troncata), non il valore.
+  # Le fixture di prova sono in .semgrep/tests/logging.java (semgrep --test).
+  - id: lh-log-segreto
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Possibile segreto nel log (regola 20, ADR-042, F2-SEC-10): l'argomento contiene un nome che indica token, secret,
+      password, Authorization, chiave o credenziale. I log non contengono credenziali né dati personali: registrare un
+      identificativo opaco o un'impronta troncata, oppure solo la presenza (`!= null`).
+    metadata:
+      category: security
+      cwe: "CWE-532: Insertion of Sensitive Information into Log File"
+      owasp: "A09:2021 Security Logging and Monitoring Failures"
+      rule-ids: [regola-20, ADR-042, F2-SEC-10]
+      references:
+        - docs/18-FASE-2.md
+        - docs/security/ci-security.md
+    paths:
+      exclude:
+        - "**/src/test/**"
+    patterns:
+      - pattern-either:
+          - pattern: $LOG.$LEVEL(..., $ARG, ...)
+          - pattern: $LOG.$LEVEL(..., <... $ARG + $X ...>, ...)
+          - pattern: $LOG.$LEVEL(..., <... $X + $ARG ...>, ...)
+      - metavariable-regex:
+          metavariable: $LEVEL
+          regex: ^(trace|debug|info|warn|error)$
+      - metavariable-regex:
+          metavariable: $LOG
+          regex: (?s)^(?:(?:this\.)?\w*(?:log|logger|LOG|LOGGER)|.*getLogger\(.*\))$
+      # L'argomento è un nome, un campo o una chiamata (non un letterale né un'espressione con operatori), nomina un
+      # segreto e non è un controllo di presenza (`x.isEmpty()`, `x.length()`…). I confronti con `null` hanno operatori
+      # e non corrispondono.
+      - metavariable-regex:
+          metavariable: $ARG
+          regex: (?is)^(?=[\w.$]+(?:\(.*\))?$)(?!.*\.(?:isEmpty|isBlank|length|size|hasText)\(\)$)(?=.*(?:token|secret|passw(?:or)?d|authoriz|api[_-]?key|private[_-]?key|master[_-]?key|credential|bearer|jwt|cookie)).*$
+      - focus-metavariable: $ARG

@@ -1,0 +1,14 @@
+# Esclusioni della scansione Semgrep del job `security` (.github/workflows/ci.yml, docs/security/ci-security.md).
+# Le regole del progetto sono in .semgrep/rules; il codice di produzione è tutto il resto in Java.
+
+# Test: le regole riguardano il codice di produzione (regole 19 e 20 di CLAUDE.md); i test aprono SQL dinamico e
+# fixture di proposito.
+**/src/test/
+
+# Fixture di prova delle regole (semgrep --test): violano le regole di proposito.
+.semgrep/tests/
+
+# Artefatti di build e dipendenze.
+**/target/
+node_modules/
+web/.next/
