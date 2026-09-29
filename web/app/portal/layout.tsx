@@ -8,7 +8,7 @@ import { LoginRedirect } from "@/components/shared/auth/LoginRedirect";
 import { LogoutButton } from "@/components/shared/auth/LogoutButton";
 import { getViewer } from "@/lib/auth/viewer";
 import { PERSONA_COOKIE, parsePersona } from "@/lib/persona/cookie";
-import { DEFAULT_MEMBER_ID } from "@/lib/persona/personas";
+import { demoPortalMember } from "@/lib/persona/demoMember";
 import { ThemeProvider } from "@/components/shared/ThemeContext";
 import { getPortalTheme } from "@/lib/theme/server";
 import { themeStyle } from "@/lib/theme/theme";
@@ -33,8 +33,8 @@ export default async function PortalLayout({ children }: { children: React.React
     }
     memberId = viewer.user.sub;
   } else {
-    const parsed = parsePersona((await cookies()).get(PERSONA_COOKIE)?.value);
-    memberId = parsed?.kind === "MEMBER" ? parsed.memberId : DEFAULT_MEMBER_ID;
+    // Stesso membro che il proxy manda ai servizi in X-LH-Member (lib/persona/demoMember.ts, Q-555).
+    memberId = demoPortalMember(parsePersona((await cookies()).get(PERSONA_COOKIE)?.value));
   }
   const theme = await getPortalTheme();
   const demo = viewer.mode === "demo";

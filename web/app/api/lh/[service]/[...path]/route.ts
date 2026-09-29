@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { isServiceCode, serviceBaseUrl } from "@/lib/api/services";
-import { actorHeader, parsePersona, PERSONA_COOKIE } from "@/lib/persona/cookie";
+import { parsePersona, PERSONA_COOKIE } from "@/lib/persona/cookie";
 import { ulid } from "@/lib/ids";
 import { fetchNicknames, nicknameRoute, resolveNicknames } from "@/lib/api/memberNicknames";
 import { DOWNLOAD_HEADERS, MAX_PROXY_BODY_BYTES, isCsvDownload, readCappedBody, upstreamAccept } from "@/lib/api/proxyBody";
-import { correlationIdFrom, upstreamHeaders, type UpstreamIdentity } from "@/lib/api/proxyHeaders";
+import { correlationIdFrom, demoIdentity, upstreamHeaders, withoutMember, type UpstreamIdentity } from "@/lib/api/proxyHeaders";
 import { upstreamUrl } from "@/lib/api/proxyPath";
 import { problem, resolveBff } from "@/lib/auth/bff";
 import { checkPortalBody } from "@/lib/auth/memberScope";
@@ -14,7 +14,8 @@ import { authorizeProxy } from "@/lib/auth/proxyAuth";
 
 // Proxy verso i microservizi (docs/07 §3): il browser chiama SEMPRE /api/lh/<service>/v1/...
 // Copiamo metodo/query/corpo e aggiungiamo l'identità e X-Correlation-Id (elenco chiuso: lib/api/proxyHeaders.ts).
-// - Profilo demo: X-LH-Actor dal cookie persona, come in Fase 1.
+// - Profilo demo: X-LH-Actor dal cookie persona, come in Fase 1; sulle sole API del portale (`/v1/portal/**`) anche
+//   X-LH-Member col membro attivo della persona (ADR-048, Q-555). Quello del browser non passa mai.
 // - Profilo enterprise (BFF, ADR-027, docs/07 §4-bis): sessione dal cookie `__Host-lh_session`, controllo CSRF sulle
 //   richieste che cambiano stato, `Authorization: Bearer` aggiunto lato server; sulle API del portale il membro viene
 //   solo dal token (lib/auth/memberScope.ts). Profilo enterprise mal configurato ⇒ 500 INSECURE_CONFIG, mai il demo.
@@ -52,8 +53,8 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
     memberFromToken = auth.portal;
   } else {
     target = new URL(`${serviceBaseUrl(service)}/${(path ?? []).join("/")}`);
-    const persona = parsePersona((await cookies()).get(PERSONA_COOKIE)?.value);
-    identity = { "x-lh-actor": actorHeader(persona) };
+    // `x-lh-actor` dalla persona e, solo su `/v1/portal/**`, `x-lh-member` col membro attivo (Q-555, lib/api/proxyHeaders.ts).
+    identity = demoIdentity(parsePersona((await cookies()).get(PERSONA_COOKIE)?.value), path ?? []);
   }
   target.search = req.nextUrl.search;
   const nicknames = nicknameRoute(service, req.method, path ?? []);
@@ -129,7 +130,8 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
     if (nicknames && upstream.status === 200 && text !== null) {
       // Stessa identità della richiesta. In enterprise il memberId del portale è stato tolto sopra: nessuna riga
       // «tua» evidenziata e, con un token di solo membro, soprannomi degradati (SPEC-GAP: Q-411).
-      const forward = { ...identity, "x-correlation-id": correlationId };
+      // Chiamata a member-service fatta dal proxy, non dal portale: mai `x-lh-member` (solo sulle API del portale).
+      const forward = { ...withoutMember(identity), "x-correlation-id": correlationId };
       const withNames = await resolveNicknames(nicknames, text, target.searchParams.get("memberId"), (ids) => fetchNicknames(ids, forward));
       // Corpo di gamification inatteso: niente inoltro (potrebbe contenere id altrui).
       if (!withNames) return NextResponse.json({ type: "UPSTREAM_INVALID", service }, { status: 502 });
