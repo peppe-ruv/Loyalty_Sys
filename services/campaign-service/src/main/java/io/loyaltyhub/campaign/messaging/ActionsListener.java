@@ -36,7 +36,15 @@ public class ActionsListener {
             containerFactory = "lhKafkaListenerContainerFactory")
     public void onAction(ConsumerRecord<String, String> record, Acknowledgment ack) {
         LhEvent<JsonNode> event = mapper.readValue(record.value(), EVENT_TYPE);
-        snapshotAwait.await(event.memberId()); // campaign §5: il fatto member.registered può essere in arrivo
+        // campaign §5: il fatto member.registered può essere in arrivo. Niente sleep qui (Q-489): il nack mette in pausa
+        // le partizioni e lascia il consumer nel poll, così un ribilanciamento di lh-campaign può dare al consumer dei
+        // fatti le sue partizioni mentre questa azione aspetta.
+        java.time.Duration retry = snapshotAwait.retryDelay(
+                record.topic() + "-" + record.partition() + "@" + record.offset(), event.memberId());
+        if (retry != null) {
+            ack.nack(retry);
+            return;
+        }
         router.route(event);
         ack.acknowledge();
     }

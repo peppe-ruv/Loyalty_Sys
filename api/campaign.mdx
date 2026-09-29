@@ -235,8 +235,37 @@ Vedi [Eventi e topic](/specifiche/eventi-e-topic) per il contratto completo.
 - **Algoritmo**: implementato senza deviazioni da `docs/03 §3.5`. Il motore è una classe pura `CampaignEngine.evaluate(action, memberSnapshot, campaigns, counters, clock)`, testabile senza Spring.
 - **Cache**: le campagne `LIVE` sono tenute in memoria, invalidata a ogni scrittura o transizione e ricaricata ogni 30 s.
 - **Fine automatica**: job al minuto porta a `ENDED` le `LIVE`/`PAUSED` con `schedule.endAt` superato.
-- **Rifiuti membro assente**: se lo snapshot manca, ritenta 3 volte (il fatto `member.registered` potrebbe essere in arrivo), poi `NO_MEMBER`.
+- **Rifiuti membro assente**: se lo snapshot manca, ritenta 3 volte (il fatto `member.registered` potrebbe essere in arrivo), poi `NO_MEMBER`. L'attesa non blocca il consumer: vedi sotto.
 - **Gruppi esclusivi**: al pareggio di priorità vince il `code` alfabetico più basso; le altre riportano `reason=EXCLUSIVE`.
+
+### Attesa dello snapshot di un nuovo membro
+
+Il bonus di benvenuto nasce dall'azione `member.registered` del ponte interno su `lh.actions.v1`, mentre lo snapshot del membro arriva dal fatto omonimo su `lh.facts.v1`. I due topic non hanno un ordine garantito, quindi l'azione può arrivare prima dello snapshot.
+
+I consumer di azioni e fatti stanno nello stesso gruppo `lh-campaign`. Quando un consumer entra nel gruppo (all'avvio o con una nuova istanza), Kafka ridistribuisce le partizioni solo dopo che tutti i membri sono tornati a interrogare il broker. Per questo il listener delle azioni non dorme: fa `nack` con il ritardo del tentativo (0,5 s, 1 s, 2 s, da `loyaltyhub.engine.member-wait-ms`), il container mette in pausa le partizioni e continua a interrogare il broker. La ridistribuzione si chiude, il fatto arriva e l'azione riconsegnata trova lo snapshot.
+
+```mermaid
+sequenceDiagram
+  accTitle: Attesa dello snapshot durante una ridistribuzione del gruppo lh-campaign
+  accDescr: L'azione member.registered arriva prima dello snapshot; il consumer delle azioni fa nack e resta nel poll, così la ridistribuzione assegna le partizioni dei fatti, lo snapshot viene scritto e l'azione riconsegnata fa scattare il bonus di benvenuto.
+  participant ACT as Consumer azioni
+  participant GRP as Gruppo lh-campaign
+  participant FCT as Consumer fatti
+  participant DB as member_snapshot
+  ACT->>DB: snapshot del membro?
+  DB-->>ACT: assente
+  ACT->>ACT: nack 0,5 s, partizioni in pausa
+  FCT->>GRP: entra nel gruppo
+  ACT->>GRP: resta nel poll e rientra
+  GRP-->>FCT: partizioni di lh.facts.v1
+  FCT->>DB: scrive lo snapshot da member.registered
+  ACT->>DB: riconsegna, snapshot presente
+  ACT->>ACT: valuta, CMP-WELCOME scatta
+```
+
+<Note>
+  Se lo snapshot manca ancora dopo il terzo tentativo, la valutazione registra `NO_MEMBER` senza DLQ. I tentativi si contano per record; dopo una ridistribuzione la riconsegna può tardare fino a un `pollTimeout` (5 s).
+</Note>
 
 ## Validazioni salvataggio (422)
 
