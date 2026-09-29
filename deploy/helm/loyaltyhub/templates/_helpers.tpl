@@ -178,11 +178,15 @@ topologySpreadConstraints:
 {{- fail "INSECURE_CONFIG: postgres.external.jdbcParams senza sslmode=require, verify-ca o verify-full nel profilo enterprise; oppure postgres.external.allowInsecure=true solo su una rete già cifrata (regola 22)" -}}
 {{- end -}}
 {{- end -}}
+{{- /* Anche con --skip-schema-validation: le risorse hanno la forma dell'API v1 (Q-490). */ -}}
+{{- if and (eq .Values.kafka.mode "strimzi") (ne .Values.kafka.strimzi.apiVersion "kafka.strimzi.io/v1") -}}
+{{- fail (printf "kafka.strimzi.apiVersion deve essere kafka.strimzi.io/v1 (%s non è supportata): il chart scrive le risorse Strimzi con l'API v1 e richiede Strimzi 0.51 o successivo (Q-490)" .Values.kafka.strimzi.apiVersion) -}}
+{{- end -}}
 {{- if and (eq .Values.kafka.mode "strimzi") (gt (int .Values.kafka.topics.replicas) (int .Values.kafka.strimzi.replicas)) -}}
 {{- fail (printf "kafka.topics.replicas (%d) non può superare i broker di kafka.strimzi.replicas (%d)" (int .Values.kafka.topics.replicas) (int .Values.kafka.strimzi.replicas)) -}}
 {{- end -}}
 {{- if eq .Values.kafka.mode "strimzi" -}}
-{{- /* Aumento di partizioni su KafkaTopic esistenti (lookup: vale in install/upgrade, non in `helm template`). */ -}}
+{{- /* Aumento di partizioni su KafkaTopic esistenti (lookup con l'API v1: vale in install/upgrade, non in `helm template`). */ -}}
 {{- $root := . -}}
 {{- $cluster := include "loyaltyhub.kafka.clusterName" . -}}
 {{- range $key := list "actions" "effects" "facts" "audit" "dlq" -}}

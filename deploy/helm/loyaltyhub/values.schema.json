@@ -341,7 +341,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "apiVersion": { "type": "string", "pattern": "^kafka\\.strimzi\\.io/" },
+            "apiVersion": { "type": "string", "enum": ["kafka.strimzi.io/v1"] },
             "clusterName": { "type": "string" },
             "version": { "type": "string" },
             "replicas": { "type": "integer", "minimum": 1 },

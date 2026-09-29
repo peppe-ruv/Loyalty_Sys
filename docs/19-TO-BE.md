@@ -111,6 +111,17 @@ Ogni voce ha un identificativo `TOBE-nnn` e questi campi:
 | Quando farla | Appena esce una patch di Keycloak 26.x che corregge le vulnerabilità elencate, o con la prima fetta che gira in un ambiente che raggiunge `quay.io` (solo il digest). |
 | Riferimenti | Q-482, Q-483, Q-374, ADR-027, ADR-044, M8.2 |
 
+### TOBE-008 — Installazione in CI anche nel profilo enterprise
+
+| Campo | Contenuto |
+|---|---|
+| Cosa | Far girare il job `helm install (kind)` anche nel profilo `enterprise`, il default del chart: login OIDC del web, token delle fonti per lo smoke, Ingress con TLS. |
+| Perché non ora | Lo smoke nel profilo `enterprise` ha bisogno di un token di una fonte (client `private_key_jwt` di Keycloak con un JWKS raggiungibile dal cluster) e il web di un emittente `https` raggiungibile con l'URL del browser, quindi di un Ingress controller e di una CA di prova nota a Node. Sono tre componenti in più nel job (server del JWKS, cert-manager, Ingress controller) e un cluster kind a un nodo li regge a fatica insieme a Kafka, Postgres e Keycloak. |
+| Workaround attivo | Il job installa il chart nel profilo `demo` con tutti i ruoli, Strimzi, CloudNativePG, Pod Security `restricted` e il gateway, ed esegue `scripts/smoke.sh` attraverso l'`HTTPRoute`. Le regole del profilo `enterprise` (emittente e origine `https`, Secret del BFF, una replica del web) le verifica `scripts/check-helm.mjs` sul rendering del chart, nel job `helm` obbligatorio. Restano fuori da un'installazione reale: login del web, validazione dei token nell'hub e Ingress. |
+| Già predisposto | I valori del job sono in un file solo (`deploy/helm/loyaltyhub/ci/kind-values.yaml`); il job crea già i Secret di Keycloak, e il ruolo `idp` parte e importa il realm. Per il profilo `enterprise` bastano `global.profile`, i Secret del BFF e i passi in più nel job. |
+| Quando farla | Con i journey di M9 (`e2e/`), che ottengono i token, o prima del primo rilascio del chart verso un'installazione reale. |
+| Riferimenti | Q-491, Q-490, ADR-026, ADR-027, F2-DIST-02, M8.3, M9 |
+
 ## Voci chiuse
 
 Nessuna.

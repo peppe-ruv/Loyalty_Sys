@@ -94,7 +94,7 @@ flowchart TB
 |---|---|
 | Immagine | `image.repository` e `image.tag` **obbligatori**, senza default: `.github/workflows/image.yml` pubblica `ghcr.io/<owner>/loyaltyhub` solo sui tag git `v*`, e un nome inventato finirebbe in `ImagePullBackOff`. Il tag può essere un digest `sha256:…` |
 | Ruoli | un Deployment per ruolo: `hub` (tutti i moduli: `LH_SERVICES` accetta solo vuoto o `all`, Q-376 del M8.1), `web`, `idp`. `cms` e `jobs` non sono ancora nell'immagine: il chart **rifiuta** `roles.cms.enabled` e `roles.jobs.enabled` |
-| Operatori | **prerequisiti**, non sottochart: Strimzi e CloudNativePG hanno CRD e controller a livello di cluster, con un ciclo di vita diverso da quello dell'applicazione; il chart crea solo le risorse (`Kafka`, `KafkaNodePool`, 5 `KafkaTopic`, `Cluster`, `Database`). Le risorse Strimzi usano l'API `kafka.strimzi.io/v1beta2`, servita da Strimzi 0.46…0.51: Strimzi 1.0 o successivo serve solo l'API `v1`, non ancora supportata dal chart (Q-490). La versione di Kafka la sceglie l'operatore installato (`kafka.strimzi.version` vuoto); con l'API `v1beta2` la linea 4.2 dei compose e dei client c'è solo in Strimzi 0.51 (`kafka.strimzi.version=4.2.0`). Se la fissi, `scripts/check-helm.mjs` verifica che la linea coincida con i compose (Q-481, Q-483) |
+| Operatori | **prerequisiti**, non sottochart: Strimzi e CloudNativePG hanno CRD e controller a livello di cluster, con un ciclo di vita diverso da quello dell'applicazione; il chart crea solo le risorse (`Kafka`, `KafkaNodePool`, 5 `KafkaTopic`, `Cluster`, `Database`). Le risorse Strimzi usano l'API `kafka.strimzi.io/v1` e il chart richiede **Strimzi 0.51 o successivo** (Q-490): 0.51 è l'ultima 0.x e la prima con la linea 4.2 di Kafka, e serve sia `v1` sia `v1beta2`; Strimzi 1.x serve solo `v1`. `kafka.strimzi.apiVersion` accetta solo `kafka.strimzi.io/v1`. La versione di Kafka la sceglie l'operatore installato (`kafka.strimzi.version` vuoto): 4.2.0 con Strimzi 0.51 e 1.0, la linea 4.3 con Strimzi 1.1 e 1.2, che i client 4.2 supportano. Per restare sulla linea dei compose e dei client fissa una patch 4.2 supportata dall'operatore (con Strimzi 1.2: `kafka.strimzi.version=4.2.1`); `scripts/check-helm.mjs` verifica che la linea coincida con i compose (Q-481, Q-483). Kafka ha la rack awareness sulla chiave di `topologySpread.topologyKey` (`topology.kubernetes.io/zone`): **i nodi devono avere quell'etichetta**, altrimenti il broker non parte |
 | Servizi gestiti | `postgres.mode=external` e `kafka.mode=external` (ADR-026): nessuna risorsa degli operatori, URL e credenziali dai valori |
 | Migrazioni | Job `…-migrate` con la stessa immagine: esegue solo Flyway (`io.loyaltyhub.hub.HubMigrate` dal jar dell'hub, non è un nuovo ruolo) e termina; stessi `nodeSelector`, `tolerations` e sicurezza dell'hub. Hook `pre-upgrade` sempre; al primo install `pre-install` con Postgres esterno e `post-install` con CloudNativePG, perché il cluster nasce con la release. L'hub all'avvio rifà le stesse migrazioni: Flyway prende un lock, le due esecuzioni non si pestano (ADR-038) |
 | Esposizione | Ingress per `web` e, per `idp`, solo `/realms/<realm>/` e `/resources/`: la console di amministrazione e il realm `master` (con il suo endpoint dei token) restano fuori; `gateway.enabled` crea un `HTTPRoute` verso l'hub (`/v1/`) agganciato a un Gateway esistente, segnaposto di M8.5 |
@@ -110,15 +110,17 @@ flowchart TB
 ### Installazione con Helm
 
 ```bash
-# 1. operatori (una volta per cluster; versioni e opzioni dalle rispettive documentazioni).
-#    Servono Strimzi con KRaft, KafkaNodePool e l'API v1beta2 (da 0.46 a 0.51: Strimzi 1.0 serve solo l'API v1, Q-490)
-#    e CloudNativePG con la risorsa Database (1.25 o successivo); Kubernetes 1.29 o successivo. Senza --version Helm
-#    installerebbe l'ultima Strimzi, che non serve più l'API v1beta2. Con Pod Security `restricted` sul namespace,
-#    Strimzi deve generare Pod conformi: STRIMZI_POD_SECURITY_PROVIDER_CLASS=restricted nell'operatore.
+# 1. operatori (una volta per cluster; opzioni dalle rispettive documentazioni). Servono Strimzi 0.51 o successivo
+#    (API kafka.strimzi.io/v1, Q-490) e CloudNativePG con la risorsa Database (1.25 o successivo); Kubernetes 1.30 o
+#    successivo. Le versioni qui sotto sono quelle provate dal job `helm install (kind)`. Con Pod Security `restricted`
+#    sul namespace, Strimzi deve generare Pod conformi: STRIMZI_POD_SECURITY_PROVIDER_CLASS=restricted nell'operatore.
 helm repo add strimzi https://strimzi.io/charts/
-helm install strimzi strimzi/strimzi-kafka-operator --version 0.51.0 -n strimzi --create-namespace --set watchAnyNamespace=true \
+helm install strimzi strimzi/strimzi-kafka-operator --version 1.2.0 -n strimzi --create-namespace --set watchAnyNamespace=true \
   --set 'extraEnvs[0].name=STRIMZI_POD_SECURITY_PROVIDER_CLASS' --set 'extraEnvs[0].value=restricted'
-helm repo add cnpg https://cloudnative-pg.github.io/charts && helm install cnpg cnpg/cloudnative-pg -n cnpg-system --create-namespace
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm install cnpg cnpg/cloudnative-pg --version 0.29.1 -n cnpg-system --create-namespace   # operatore 1.30.1
+# Rack awareness di Kafka: ogni nodo ha bisogno dell'etichetta di zona (i cloud la mettono da soli).
+kubectl get nodes -L topology.kubernetes.io/zone
 
 # 2. Secret (valori generati o dal secret manager; External Secrets in M8.5)
 kubectl create secret generic lh-idp-admin --from-literal=password="$(openssl rand -base64 24)"
@@ -131,7 +133,8 @@ kubectl create secret generic lh-idp-db --type=kubernetes.io/basic-auth \
 # chiave delle sessioni del BFF del web: 32 byte casuali in base64 (profilo enterprise)
 kubectl create secret generic lh-web-session --from-literal=session-key="$(openssl rand -base64 32)"
 
-# 3. chart: immagine pubblicata (obbligatoria), host e URL pubblici propri. Il primo avvio di Kafka, Postgres e
+# 3. chart: immagine pubblicata (obbligatoria), host e URL pubblici propri. Con Strimzi 1.1 o 1.2 aggiungi
+#    --set kafka.strimzi.version=4.2.1 per restare sulla linea dei client. Il primo avvio di Kafka, Postgres e
 #    Keycloak richiede alcuni minuti: --wait con un margine ampio, altrimenti Helm segna fallita un'installazione sana.
 helm install lh deploy/helm/loyaltyhub --wait --timeout 15m \
   --set image.repository=ghcr.io/<owner>/loyaltyhub --set image.tag=<versione, es. v0.7.0> \
@@ -329,6 +332,8 @@ I log non sono firmati né immutabili: la firma e l'esportazione su archivio imm
   alla versione bloccata del compose di sviluppo (filesystem scrivibile, perché `kc.sh start` ricompila); `cms`,
   Redis e MinIO arrivano con M10.2.
 - **Q-375** — Kafka interno senza TLS né autenticazione fino a M8.5 (mTLS di mesh, principal per modulo, ACL).
+- **Q-491** — il job `helm install (kind)` prova il chart nel profilo `demo`: login OIDC del web, token delle fonti e
+  Ingress con TLS del profilo `enterprise` non passano ancora da un'installazione reale in CI (TOBE-008).
 - Nessuna NetworkPolicy fino a M8.5.
 - **Q-400, Q-403** — chi ha le credenziali applicative del database può ancora riscrivere o svuotare l'audit di insight
   (le funzioni controllate e i ruoli separati arrivano con la migrazione di contract, dopo M8.5): lo rivela solo il
@@ -346,4 +351,27 @@ LH_IMAGE=ghcr.io/example/loyaltyhub:ci docker compose -f deploy/compose/referenc
 ```
 
 In CI lo fa il job `helm` di `.github/workflows/ci.yml` (helm e kubeconform a versione fissa), solo quando cambiano
-chart, compose, immagine, realm o la verifica, e sempre su `main`.
+chart, compose, immagine, realm, lo smoke, la verifica o i workflow, e sempre su `main`.
+
+### Installazione provata in CI (kind)
+
+Il job `helm install (kind)` di `.github/workflows/ci.yml` installa davvero il chart, con le stesse condizioni del job
+`helm`. È il criterio di accettazione di M8 in `docs/18 §6`. Il job:
+
+1. costruisce l'immagine unica da `deploy/image/Dockerfile` e la carica nel nodo di un cluster kind;
+2. etichetta il nodo con `topology.kubernetes.io/zone` e impone Pod Security `restricted` sul namespace `lh`;
+3. installa Strimzi 1.2.0, CloudNativePG 1.30.1 (chart 0.29.1) ed Envoy Gateway v1.9.2, poi crea un `Gateway`;
+4. crea i Secret con valori casuali e installa il chart con `ci/kind-values.yaml`: un broker, un'istanza di Postgres,
+   una replica per ruolo, profilo `demo`, `kafka.strimzi.version=4.2.1`, Postgres 17.11 e `gateway.enabled=true`;
+5. attende `Kafka`, `KafkaTopic`, `Cluster` e `Database` pronti e i Pod di `hub`, `web` e `idp` `Ready`;
+6. esegue `scripts/smoke.sh` attraverso il gateway: le API `/v1` passano dall'`HTTPRoute` del chart all'hub.
+
+Versioni fisse nel job: kind v0.33.0, nodo `kindest/node:v1.36.4` con digest, kubectl v1.36.4, Helm v3.18.4.
+`scripts/check-helm.mjs` verifica che `ci/kind-values.yaml` resti sulle linee di Kafka e Postgres dei compose.
+
+Se il job fallisce, il passo *Diagnostica* stampa Pod, eventi, stato delle risorse degli operatori e i log di ruoli,
+Job di migrazione, broker e operatori.
+
+> **Nota:** il job è **consultivo**: non è nei controlli obbligatori del ruleset (`scripts/setup-branch-protection.sh`)
+> finché non si dimostra stabile. Usa il profilo `demo` perché lo smoke non ha un token OIDC: lo smoke nel profilo
+> `enterprise` resta aperto (Q-491, TOBE-008).
