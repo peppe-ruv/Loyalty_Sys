@@ -1,0 +1,51 @@
+---
+title: "E-F2-OPS · Osservabilità ed esercizio"
+sidebarTitle: "E-F2-OPS Osservabilità ed esercizio"
+description: "E-F2-OPS Osservabilità ed esercizio: SLO misurati, ripristino provato. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: SLO misurati, ripristino provato.
+
+**Attori**: ADMIN, operatore · **Feature**: F2-OBS-01, F2-OPS-01 · **Schermate**: — · **Servizi**: tutti · **Testbook**: —
+
+Questa epica ha 1 storia: 0 pronte secondo la Definition of Ready, 0 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-f2-obs-01" />
+
+## US-F2-OBS-01 · Osservabilità con OpenTelemetry e dashboard SLO
+
+> *Come* operatore, *voglio* metriche, log e tracce di tutti i ruoli in Prometheus, Loki, Tempo e Grafana con dashboard SLO, *così che* veda subito se il programma rispetta gli obiettivi di servizio.
+
+**DoR**: ⬜ non pronta (R3, R5) · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: durante un picco di giocate, l'operatore di «Club Aurora» controlla la latenza p99 delle giocate nella dashboard SLO.
+
+**Tocca**: F2-OBS-01 · ADR-036 · docs/18 §3.10 punto 11, §3.11 · M8.6.
+
+**Decisioni**: OTel in tutti i ruoli · values per Prometheus, Loki, Tempo e Grafana nel chart · obiettivi di docs/18 §3.11: portale 99,9 %, azione → punti p95 &lt; 5 s, giocata p99 &lt; 500 ms, RPO 15 min, RTO 1 h.
+
+**Criteri di accettazione**
+
+1. Da scrivere con la fetta.
+
+**Testbook**: nessun dominio (da proporre con la fetta).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-OBS-01, ADR-036, docs/18 §3.10 |
+| R3 Criteri di accettazione | ⬜ | criteri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ⬜ | nessun dominio TB né job di verifica |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-OBS-01 (da fare) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

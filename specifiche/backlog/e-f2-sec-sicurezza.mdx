@@ -1,0 +1,486 @@
+---
+title: "E-F2-SEC · Sicurezza"
+sidebarTitle: "E-F2-SEC Sicurezza"
+description: "E-F2-SEC Sicurezza: nessuna chiamata senza identità e autorizzazione minima; controlli di build. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: nessuna chiamata senza identità e autorizzazione minima; controlli di build.
+
+**Attori**: sistema, attaccante interno (negativo) · **Feature**: F2-SEC-01…15 · **Schermate**: BO-03 (attività), PT-18 · **Servizi**: tutti, lh-common · **Testbook**: TB-SEC
+
+Questa epica ha 12 storie: 6 pronte secondo la Definition of Ready, 0 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-f2-sec-01" />
+
+## US-F2-SEC-01 · Gateway con JWT, rate limit, CORS e header
+
+> *Come* responsabile della sicurezza dell'adottante, *voglio* un gateway unico davanti ai servizi che verifica il token, limita il traffico e imposta gli header di sicurezza, *così che* nessuna richiesta raggiunga un modulo senza filtro.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: l'app mobile di «Club Aurora» incorpora i widget; il gateway accetta solo l'origine registrata dell'app e limita le chiamate per client e IP.
+
+**Tocca**: F2-SEC-01 · ADR-042 · docs/18 §3.10 punti 1, 5 e 7 · M8.5.
+
+**Decisioni**: TLS, JWT, rate limit per client e IP · CORS esplicito per l'origine registrata dei widget · CSP con nonce e `strict-dynamic`, `frame-ancestors 'none'`, HSTS, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, COOP e CORP.
+
+**Criteri di accettazione**
+
+1. **Dato** `helm install` su kind, **allora** lo smoke passa attraverso il gateway (docs/18 §6 M8, [#127](https://github.com/peppe-ruv/Loyalty_Sys/pull/127)).
+2. Verifica del JWT, rate limit, CORS e header: criteri da scrivere con la fetta.
+
+**Testbook**: TB-SEC (da scrivere con M8.5).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-SEC-01, ADR-042, docs/18 §3.10 |
+| R3 Criteri di accettazione | ⬜ | 1 criterio Dato/Quando/Allora, altri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-SEC-01 (da fare) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-sec-02" />
+
+## US-F2-SEC-02 · Isolamento di rete, bus e database
+
+> *Come* responsabile della sicurezza dell'adottante, *voglio* mTLS tra i pod, network policy, ACL su Kafka, un ruolo di database per servizio e segreti da un secret manager, *così che* la compromissione di un modulo non dia accesso al resto.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: in produzione il modulo wallet di «Club Aurora» scrive solo nel proprio schema e riceve solo dai chiamanti previsti.
+
+**Tocca**: F2-SEC-02 · ADR-042 · docs/18 §3.10 punti 1, 4, 9 e 10 · M8.5.
+
+**Decisioni**: mesh mTLS (Linkerd di default nel chart) · network policy *deny by default* · principal Kafka per modulo con ACL per topic · ruolo *owner* solo per il Job di migrazione e ruolo *app* con sola DML sul proprio schema · External Secrets e convenzione `*_FILE` · Pod Security `restricted`.
+
+**Criteri di accettazione**
+
+1. Da scrivere con la fetta.
+
+**Testbook**: TB-SEC (da scrivere con M8.5).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-SEC-02, ADR-042, docs/18 §3.10 |
+| R3 Criteri di accettazione | ⬜ | criteri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-SEC-02 (da fare) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-sec-03" />
+
+## US-F2-SEC-03 · Supply chain in CI
+
+> *Come* responsabile della sicurezza dell'adottante, *voglio* che ogni build produca lo SBOM, scansioni dipendenze, immagini, IaC e segreti e firmi l'immagine, *così che* una vulnerabilità nota non arrivi in produzione a mia insaputa.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: una dipendenza di «Club Aurora» riceve una CVE alta; il job `security` della pull request fallisce.
+
+**Tocca**: F2-SEC-03 · ADR-038, ADR-042 · docs/18 §3.10 punto 12, §3.13 · M8.5.
+
+**Decisioni**: SBOM, Trivy, cosign, CodeQL, IaC (kube-linter o Checkov), secret scanning con push protection · job `security` tra i controlli obbligatori (docs/18 §3.13).
+
+**Criteri di accettazione**
+
+1. **Dato** una pull request, **allora** il job `security` scansiona dipendenze, immagini, IaC e segreti e blocca sulle vulnerabilità alte (docs/18 §3.10 punto 12).
+2. **Dato** un rilascio, **allora** l'immagine è firmata, ha lo SBOM e la scansione non trova CVE alte (docs/18 §6 M8).
+
+**Testbook**: TB-SEC (da scrivere con M8.5).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-SEC-03, ADR-038, ADR-042, docs/18 §3.10 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-SEC-03 (da fare) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-sec-04" />
+
+## US-F2-SEC-04 · Contatti cifrati nel member-service
+
+> *Come* DPO dell'adottante, *voglio* che e-mail e telefono dei membri siano cifrati a colonna, *così che* una copia del database non esponga i contatti.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: un backup di «Club Aurora» finisce per errore su un disco condiviso; le e-mail di Marco e di Giulia non sono leggibili.
+
+**Tocca**: F2-SEC-04 · ADR-032, ADR-042 · docs/18 §3.4, §3.10 punto 9, §3.15 punto 4 · M8.4.
+
+**Decisioni**: AES-GCM con chiave derivata, chiave master in KMS o `LH_MASTER_KEY` · crypto-shredding facoltativo con chiave per membro ([US-F2-GRC-06](/specifiche/backlog/e-f2-grc-governo-e-conformita#us-f2-grc-06)).
+
+**Criteri di accettazione**
+
+1. Da scrivere con la fetta.
+
+**Testbook**: TB-SEC (da scrivere con M8.4).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-SEC-04, ADR-032, ADR-042, docs/18 §3.4 |
+| R3 Criteri di accettazione | ⬜ | criteri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-SEC-04 (da fare) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-sec-08" />
+
+## US-F2-SEC-08 · Messaggi firmati sul bus
+
+> *Come* responsabile della sicurezza dell'adottante, *voglio* che ogni messaggio sul bus sia firmato dal modulo che lo produce e verificato da chi lo consuma, *così che* un modulo compromesso non possa pubblicare punti o vincite.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: un modulo di «Club Aurora» diverso dal wallet prova a pubblicare `wallet.points.earned` per Marco.
+
+**Tocca**: F2-SEC-08 · ADR-042 · docs/18 §3.10 punto 2 · `contracts/events/producers.yaml` · M8.10.
+
+**Decisioni**: firma JWS *detached* Ed25519 negli header `lhsig` e `lhkid`, chiave per modulo con rotazione · `producers.yaml` elenca il produttore ammesso per ogni `type` · il consumer verifica firma e produttore prima dell'idempotenza · errore: DLQ con `SIGNATURE_INVALID` o `PRODUCER_NOT_ALLOWED` e allarme · `data` validato contro lo schema anche in consumo · stessa firma nel bus in-process.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** un messaggio pubblicato da un modulo non ammesso per quel `type`, **allora** va in DLQ con `PRODUCER_NOT_ALLOWED` e scatta l'allarme (docs/18 §6 M8).
+2. ✗ **Dato** un messaggio con firma non valida, **allora** va in DLQ con `SIGNATURE_INVALID` (docs/18 §3.10 punto 2).
+3. **Dato** `LH_ROLE=all` o la modalità `embedded`, **allora** il bus in-process esegue la stessa firma e la stessa verifica (docs/18 §3.10 punto 1).
+
+**Testbook**: TB-SEC (da scrivere con M8.10).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-SEC-08, ADR-042, docs/18 §3.10 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ |
+| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-SEC-08 (da fare) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-sec-09" />
+
+## US-F2-SEC-09 · Deny by default e membro dal token
+
+> *Come* responsabile della sicurezza dell'adottante, *voglio* che ogni endpoint dichiari chi può chiamarlo e che il portale ricavi il membro solo dal token, *così che* nessuno legga i dati di un altro membro cambiando un parametro.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: in `enterprise` Marco chiama l'API del saldo con l'id di Giulia (MBR-000003).
+
+**Tocca**: F2-SEC-09 · ADR-042 · docs/18 §3.10 punto 3 · `@RequiresRole`, `@PublicEndpoint`, `MemberPrincipal` · M8.10 · regola 18.
+
+**Decisioni**: ogni metodo di `@RestController` ha `@RequiresRole` oppure `@PublicEndpoint` con motivazione, verificato da ArchUnit · le API `/v1/portal/*` ricavano il membro da `MemberPrincipal`, mai da percorso, query o corpo · nessun *mass assignment*: solo record DTO espliciti, `status`, `version` e `createdBy` non legabili.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** un endpoint senza `@RequiresRole` né `@PublicEndpoint`, **allora** la build è rossa (docs/18 §6 M8).
+2. ✗ **Dato** una chiamata a `/v1/portal/*` con il token di un membro e l'id di un altro, **allora** risponde con i dati del solo titolare (parametro ignorato o `400`, Q-410) (docs/18 §6 M8).
+3. ✗ **Dato** un corpo che contiene `status`, `version` o `createdBy`, **allora** quei campi non sono legati (docs/18 §3.10 punto 3).
+
+**Testbook**: TB-SEC (da scrivere con M8.10).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-SEC-09, ADR-042, docs/18 §3.10 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 3 criteri ✗ per 400, 410 |
+| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-410 |
+| R7 Dati demo | ✅ | in seed/: MBR-000003 |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-SEC-09 (da fare) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-sec-10" />
+
+## US-F2-SEC-10 · SQL solo parametrico e input limitato
+
+> *Come* responsabile della sicurezza dell'adottante, *voglio* che nessun testo SQL sia costruito dall'input e che ogni ingresso abbia limiti, *così che* un'iniezione o un payload enorme non abbiano effetto.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: il campo di ricerca dei membri nel backoffice di «Club Aurora» riceve `' OR 1=1 --`; l'ordinamento chiede una colonna inesistente.
+
+**Tocca**: F2-SEC-10 · ADR-042 · docs/18 §3.10 punti 4 e 5 · `SqlWhere`, `SqlOrder` · M8.10 · regola 19.
+
+**Decisioni**: solo `JdbcClient` con parametri · builder `SqlWhere` e `SqlOrder` con colonne da allowlist · regola Semgrep su `.sql(` con argomento non costante · limiti Jackson e Bean Validation su ogni DTO · template dei messaggi senza logica · contenuti del CMS sanitizzati alla pubblicazione.
+
+**Criteri di accettazione**
+
+1. **Dato** ogni servizio, **allora** nessun testo SQL è composto a mano: filtri e ordinamenti passano dal builder con colonne da allowlist ([#61](https://github.com/peppe-ruv/Loyalty_Sys/pull/61), [#89](https://github.com/peppe-ruv/Loyalty_Sys/pull/89), [#91](https://github.com/peppe-ruv/Loyalty_Sys/pull/91), [#93](https://github.com/peppe-ruv/Loyalty_Sys/pull/93), [#94](https://github.com/peppe-ruv/Loyalty_Sys/pull/94), [#125](https://github.com/peppe-ruv/Loyalty_Sys/pull/125), [#126](https://github.com/peppe-ruv/Loyalty_Sys/pull/126), [#128](https://github.com/peppe-ruv/Loyalty_Sys/pull/128)).
+2. ✗ **Dato** un payload di iniezione SQL dal fuzzing Schemathesis, **allora** nessun `5xx` e nessun effetto (docs/18 §6 M8).
+3. Regole Semgrep, limiti di input, template senza logica e sanitizzazione: criteri da scrivere con la fetta.
+
+**Testbook**: TB-SEC (dominio senza righe) · prove automatiche: `libs/lh-common/src/test/java/io/loyaltyhub/common/sql/SqlBuilderTest.java`.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-SEC-10, ADR-042, docs/18 §3.10 |
+| R3 Criteri di accettazione | ⬜ | 2 criteri Dato/Quando/Allora, altri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe), 1 prova automatica |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-SEC-10 (in corso); PR [#61](https://github.com/peppe-ruv/Loyalty_Sys/pull/61), [#89](https://github.com/peppe-ruv/Loyalty_Sys/pull/89), [#91](https://github.com/peppe-ruv/Loyalty_Sys/pull/91), [#93](https://github.com/peppe-ruv/Loyalty_Sys/pull/93), [#94](https://github.com/peppe-ruv/Loyalty_Sys/pull/94), [#125](https://github.com/peppe-ruv/Loyalty_Sys/pull/125), [#126](https://github.com/peppe-ruv/Loyalty_Sys/pull/126), [#128](https://github.com/peppe-ruv/Loyalty_Sys/pull/128) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: prove automatiche: [SqlBuilderTest.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/sql/SqlBuilderTest.java) |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-sec-11" />
+
+## US-F2-SEC-11 · Richieste in uscita, idempotenza, rate limit e file caricati
+
+> *Come* responsabile della sicurezza dell'adottante, *voglio* difese contro richieste in uscita verso reti interne, doppi addebiti e file malevoli, *così che* un errore di configurazione o un client abusivo non danneggino il programma.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: un operatore di «Club Aurora» configura per errore un webhook verso `http://169.254.169.254`; l'app di Davide ritenta un riscatto dopo un timeout.
+
+**Tocca**: F2-SEC-11 · ADR-042 · docs/18 §3.10 punti 6, 7 e 8 · M8.10.
+
+**Decisioni**: destinazioni dei webhook risolte e rifiutate se private, loopback o link-local, senza seguire redirect · `Idempotency-Key` obbligatoria sulle POST che spendono o assegnano valore, conservata 24 ore · rate limit per membro su giocate, riscatti, registrazioni e login · file: dimensione massima, tipo reale, antivirus, conservazione fuori dalla radice web.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** un webhook verso `http://169.254.169.254`, **allora** è rifiutato (docs/18 §6 M8).
+2. **Dato** un secondo riscatto con la stessa `Idempotency-Key`, **allora** stesso esito e nessun doppio addebito (docs/18 §6 M8).
+3. Rate limit per membro e controlli sui file caricati: criteri da scrivere con la fetta.
+
+**Testbook**: TB-SEC (da scrivere con M8.10).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-SEC-11, ADR-042, docs/18 §3.10 |
+| R3 Criteri di accettazione | ⬜ | 2 criteri Dato/Quando/Allora, altri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-SEC-11 (da fare) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-sec-12" />
+
+## US-F2-SEC-12 · Verifica continua della sicurezza
+
+> *Come* responsabile della sicurezza dell'adottante, *voglio* che ArchUnit, Semgrep, Schemathesis, ZAP e il testbook `TB-SEC` girino in CI, *così che* la conformità la verifichi il software e non una checklist.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: prima di ogni rilascio di «Club Aurora» il job `security` notturno esegue il fuzzing e la scansione ZAP sulle OpenAPI.
+
+**Tocca**: F2-SEC-12 · ADR-042 · docs/18 §3.10 punto 12 · `docs/security/asvs.md`, `docs/security/threat-model.md`, `SECURITY.md` · M8.11 · regola 13.
+
+**Decisioni**: controlli della tabella di docs/18 §3.10 punto 12: ArchUnit in `./mvnw verify`; Semgrep, CodeQL, Schemathesis, ZAP e Trivy nel job `security`; `TB-SEC` in `e2e/` · threat model STRIDE, tabella ASVS 5.0 L2 e `SECURITY.md` ([#60](https://github.com/peppe-ruv/Loyalty_Sys/pull/60)).
+
+**Criteri di accettazione**
+
+1. **Dato** il repository, **allora** esistono `docs/security/threat-model.md`, `docs/security/asvs.md` e `SECURITY.md` con la procedura di segnalazione ([#60](https://github.com/peppe-ruv/Loyalty_Sys/pull/60)).
+2. ✗ **Dato** un `5xx` dal fuzzing Schemathesis o un risultato alto di ZAP, **allora** il job `security` notturno fallisce (docs/18 §3.10 punto 12).
+3. Job `security` obbligatorio e righe `TB-SEC`: criteri da scrivere con la fetta.
+
+**Testbook**: TB-SEC (da scrivere con M8.11).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-SEC-12, ADR-042, docs/18 §3.10 |
+| R3 Criteri di accettazione | ⬜ | 2 criteri Dato/Quando/Allora, altri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-SEC-12 (in corso) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-sec-13" />
+
+## US-F2-SEC-13 · Audit delle modifiche fatte in Directus
+
+> *Come* responsabile della conformità dell'adottante, *voglio* che ogni modifica fatta in Directus finisca nello stesso registro di audit del backoffice, *così che* sappia chi ha cambiato una pagina del portale.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: Luca (MARKETING) pubblica in Directus la pagina della seconda ruota di «Club Aurora».
+
+**Tocca**: F2-SEC-13 · ADR-043 · docs/18 §3.14 punto 1 · `POST /v1/audit/external` (experience-service) · M8.12 · regola 21.
+
+**Decisioni**: un Flow di Directus su `items.create`, `items.update` e `items.delete` delle collezioni di composizione e contenuto chiama `POST /v1/audit/external` con l'HMAC dello stesso segreto di `/v1/cms/notify` · voce con `service=cms` ed `entity_type` uguale alla collezione · la pubblicazione di una composizione è una voce con `action=PUBLISH`.
+
+**Criteri di accettazione**
+
+1. **Dato** una pagina pubblicata in Directus da `luca.marketing`, **allora** `GET /v1/audit` mostra una voce con `service=cms` e l'attore reale dal claim OIDC, non «directus» (docs/18 §6 M8).
+2. **Dato** una composizione pubblicata, **allora** compare una voce con `action=PUBLISH` (docs/18 §3.14 punto 1).
+
+**Testbook**: TB-SEC (da scrivere con M8.12).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-SEC-13, ADR-043, docs/18 §3.14 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-SEC-13 (da fare) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-sec-14" />
+
+## US-F2-SEC-14 · Audit delle modifiche fatte in Keycloak
+
+> *Come* responsabile della conformità dell'adottante, *voglio* che i cambi di utenti e ruoli fatti in Keycloak compaiano nel registro di audit, *così che* un cambio di privilegi non resti nei log interni dell'IdP.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: Marta (ADMIN) assegna a Paolo il ruolo `CARE` dalla console di Keycloak.
+
+**Tocca**: F2-SEC-14 · ADR-043 · docs/18 §3.14 punto 2 · M8.12 · regola 21.
+
+**Decisioni**: event listener SPI che chiama `POST /v1/audit/external` · eventi utente legati al membro con `external_id = sub`; admin events con `service=idp` e nessun dato del membro · solo eventi di cambiamento: creazione e cancellazione di utenti, cambio di ruolo, reset della password, abilitazione MFA, blocco dell'account.
+
+**Criteri di accettazione**
+
+1. **Dato** un cambio di ruolo in Keycloak, **allora** `GET /v1/audit` mostra una voce con `service=idp` (docs/18 §6 M8).
+2. **Dato** un login riuscito, **allora** non produce una voce di audit: appartiene all'attività del membro (docs/18 §3.14 punto 2).
+
+**Testbook**: TB-SEC (da scrivere con M8.12).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-SEC-14, ADR-043, docs/18 §3.14 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-SEC-14 (da fare) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-sec-15" />
+
+## US-F2-SEC-15 · La mia attività e retention dell'audit
+
+> *Come* membro, *voglio* vedere in una pagina i miei accessi, consensi, giocate e riscatti, *così che* sappia cosa è successo al mio account senza chiedere all'assistenza.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1)
+
+**Contesto reale**: Sofia (MBR-000011) apre «La mia attività» nel portale di «Club Aurora» e trova il riscatto della borraccia; Paolo (CARE) vede la stessa cronologia in BO-03.
+
+**Tocca**: F2-SEC-15 · ADR-043 · docs/18 §3.14 punti 3 e 4 · PT-18 · BO-03 · `member_activity_entry` · M8.12.
+
+**Decisioni**: `member_activity_entry` in member-service con `kind` `LOGIN`, `CONSENT_CHANGED`, `REDEMPTION`, `PLAY`, `PROFILE_UPDATED`, `DATA_EXPORT_REQUESTED` · alimentata dagli eventi utente di Keycloak, dai fatti del bus e dalle azioni del membro nel portale · sola inserzione, cancellata all'anonimizzazione · `audit_entry` conservata 400 giorni, sola inserzione anche lato database.
+
+**Criteri di accettazione**
+
+1. **Dato** un membro autenticato su PT-18, **allora** vede login, consensi, giocate e riscatti propri e nessun dato di altri membri (docs/18 §6 M8).
+2. **Dato** `CARE` su BO-03, **allora** vede la stessa cronologia del membro (docs/18 §6 M8).
+3. ✗ **Dato** il ruolo applicativo di insight, **allora** nessun `UPDATE` è possibile su `audit_entry`, solo `INSERT`, verificato sui privilegi del database (docs/18 §6 M8; sola inserzione imposta dal database in [#106](https://github.com/peppe-ruv/Loyalty_Sys/pull/106)).
+4. **Dato** la retention dell'audit, **allora** le voci restano 400 giorni (docs/18 §3.14 punto 4).
+
+**Testbook**: TB-SEC (dominio senza righe) · prove automatiche: `services/insight-service/src/test/java/io/loyaltyhub/insight/AuditChainIT.java`.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-SEC-15, ADR-043, docs/18 §3.14, PT-18, BO-03 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe), 1 prova automatica |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | ✅ | in seed/: MBR-000011 |
+| R8 Stati dell'interfaccia | ✅ | PT-18, BO-03 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-SEC-15 (da fare) |
+| D2 Criteri provati | ✅ | prove automatiche: [AuditChainIT.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/services/insight-service/src/test/java/io/loyaltyhub/insight/AuditChainIT.java) |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

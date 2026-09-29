@@ -1,0 +1,255 @@
+---
+title: "E-F2-IAM · Identità"
+sidebarTitle: "E-F2-IAM Identità"
+description: "E-F2-IAM Identità: persone e sistemi entrano con un'identità verificata, senza token nel browser. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: persone e sistemi entrano con un'identità verificata, senza token nel browser.
+
+**Attori**: operatori, membro, fonti, widget · **Feature**: F2-IAM-*, F2-SEC-06/07 · **Schermate**: PT-16 · **Servizi**: member, web, `idp` · **Testbook**: TB-IAM
+
+Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 1 fatta secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-f2-iam-01" />
+
+## US-F2-IAM-01 · Keycloak come ruolo `idp` con realm as code
+
+> *Come* amministratore della piattaforma, *voglio* un Keycloak nel ruolo `idp` configurato da un realm versionato, *così che* client, ruoli e flussi di accesso siano gli stessi in ogni installazione e si rivedano in una pull request.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Contesto reale**: l'azienda di «Club Aurora» avvia `idp` al primo avvio; il realm crea i client `web`, `widgets` e `cms` e i ruoli degli operatori.
+
+**Tocca**: F2-IAM-01 · ADR-027 · docs/18 §3.2 · `deploy/idp/realm.json` · M8.2.
+
+**Decisioni**: client `web` confidential (Authorization Code + PKCE), `widgets` solo per il token exchange, un client credentials per fonte e per job, `cms`, audience `hub` · ruoli `ADMIN, MARKETING, LEGAL, CARE, ANALYST, MEMBER` nel claim `lh_roles` · import al primo avvio, aggiornamento con `lh migrate idp` · MFA obbligatoria per i ruoli del backoffice (docs/18 §3.2).
+
+**Criteri di accettazione**
+
+1. **Dato** `deploy/idp/realm.json`, **allora** contiene i client e i ruoli di docs/18 §3.2 e la copia usata dal chart è identica, verificata da `check-helm` ([#57](https://github.com/peppe-ruv/Loyalty_Sys/pull/57), [#95](https://github.com/peppe-ruv/Loyalty_Sys/pull/95)).
+2. **Dato** un token emesso dal realm, **allora** porta i ruoli nel claim `lh_roles` e l'audience `hub` (docs/18 §3.2).
+
+**Testbook**: TB-IAM (dominio senza righe) · prove automatiche: `scripts/check-realm.mjs`.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-IAM-01, ADR-027, docs/18 §3.2 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-IAM (dominio senza righe), 1 prova automatica |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F2-IAM-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#57](https://github.com/peppe-ruv/Loyalty_Sys/pull/57) |
+| D2 Criteri provati | ✅ | prove automatiche: [check-realm.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/check-realm.mjs) |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-iam-02" />
+
+## US-F2-IAM-02 · Servizi come resource server JWT
+
+> *Come* responsabile della sicurezza dell'adottante, *voglio* che ogni servizio verifichi il token e ricavi l'attore dai suoi claim, *così che* nel profilo `enterprise` nessuno possa dichiararsi un altro con un header.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2, D3)
+
+**Contesto reale**: in `enterprise` Elena (LEGAL) apre la casella delle approvazioni; l'header `X-LH-Actor` che arriva con la richiesta non conta.
+
+**Tocca**: F2-IAM-02 · ADR-027, ADR-044 · docs/18 §3.2 · docs/06 §3.1 · `OidcActorFilter`, `IdentityGuard` · M8.2 · Q-365.
+
+**Decisioni**: `LH_IDENTITY_MODE=header` (solo `demo`) oppure `oidc` · con `oidc` il Bearer è verificato su firma, scadenza, `iss` e `aud=hub`, e `X-LH-Actor` è ignorato; stesso 401 per ogni errore · ruoli da `lh_roles`: `ADMIN` vince, un solo ruolo operatore vale quel ruolo, più ruoli o nessuno valgono `ANALYST` (SPEC-GAP Q-365) · un token con il solo ruolo `MEMBER` vale solo su `/v1/portal/**` · `IdentityGuard`: il profilo `enterprise` con identità da header o senza emittente non parte (`INSECURE_CONFIG`).
+
+**Criteri di accettazione**
+
+1. **Dato** un token valido di `elena.legal`, **allora** `ActorContext` vale `LEGAL` dal claim e l'header `X-LH-Actor` non conta ([#51](https://github.com/peppe-ruv/Loyalty_Sys/pull/51)).
+2. ✗ **Dato** un token scaduto, con firma errata o con `iss` o `aud` diversi, **allora** 401, identico per ogni caso ([#51](https://github.com/peppe-ruv/Loyalty_Sys/pull/51)).
+3. ✗ **Dato** il profilo `enterprise` con identità da header o senza emittente, **allora** il servizio non parte (`INSECURE_CONFIG`, regola 22, [#51](https://github.com/peppe-ruv/Loyalty_Sys/pull/51)).
+4. ✗ **Dato** un token con il solo ruolo `MEMBER`, **quando** chiama un'API fuori da `/v1/portal/**`, **allora** la richiesta non è autorizzata ([#51](https://github.com/peppe-ruv/Loyalty_Sys/pull/51)).
+5. ✗ **Dato** `luca.marketing` autenticato con Keycloak, **quando** prova a portare un concorso a `LIVE`, **allora** è rifiutato come in M7.1 (docs/18 §6 M8); ⚠ prova end to end da fare (oggi il filtro è provato solo con token di test).
+6. **Dato** il profilo `demo`, **allora** il comportamento non cambia: `TestbookPltApiIT` verde ([#51](https://github.com/peppe-ruv/Loyalty_Sys/pull/51)).
+
+**Testbook**: TB-IAM (dominio senza righe) · prove automatiche: `libs/lh-common/src/test/java/io/loyaltyhub/common/web/OidcActorFilterTest.java`, `libs/lh-common/src/test/java/io/loyaltyhub/common/config/IdentityGuardTest.java`.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-IAM-02, ADR-027, ADR-044, docs/18 §3.2, docs/06 §3.1 |
+| R3 Criteri di accettazione | ✅ | 6 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 4 criteri ✗ per 401 |
+| R5 Dominio di testbook | ✅ | TB-IAM (dominio senza righe), 2 prove automatiche |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-365 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F2-IAM-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#51](https://github.com/peppe-ruv/Loyalty_Sys/pull/51) |
+| D2 Criteri provati | ⬜ | un criterio dichiara un residuo o una prova da fare: le prove citate non lo coprono; evidenza: prove automatiche: [OidcActorFilterTest.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/web/OidcActorFilterTest.java), [IdentityGuardTest.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/config/IdentityGuardTest.java) |
+| D3 Nessuno scostamento aperto | ⬜ | 1 marcatore ⚠ (divergenza) |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-iam-03" />
+
+## US-F2-IAM-03 · Accesso e registrazione dei membri con OIDC
+
+> *Come* membro, *voglio* accedere e registrarmi al portale con il mio account, *così che* nessuno veda i miei punti fingendosi me.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1)
+
+**Contesto reale**: Marco apre dal telefono il portale di «Club Aurora», accede con la passkey e vede solo il proprio saldo.
+
+**Tocca**: F2-IAM-03 · ADR-027, ADR-042 · docs/18 §3.2, §3.10 punto 3 · PT-16 · M8.2 · Q-410.
+
+**Decisioni**: account Keycloak più record in member-service legato da `member.external_id = sub` · il `memberId` non arriva mai dai parametri della richiesta, solo dal token · l'accesso passa dal BFF ([US-F2-SEC-06](/specifiche/backlog/e-f2-iam-identita#us-f2-sec-06)).
+
+**Criteri di accettazione**
+
+1. **Dato** un membro non autenticato che apre il portale `enterprise`, **allora** è rediretto al login OIDC e torna al portale con la sessione del BFF ([#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99), [#104](https://github.com/peppe-ruv/Loyalty_Sys/pull/104)).
+2. ✗ **Dato** un membro autenticato, **quando** chiama `/v1/portal/*` con l'id di un altro membro, **allora** vede solo i propri dati (parametro ignorato o `400`, Q-410) (docs/18 §6 M8).
+3. **Dato** un nuovo membro che si registra da PT-16, **allora** nasce il record in member-service con `external_id = sub` (docs/18 §3.2, Q-410).
+
+**Testbook**: TB-IAM (dominio senza righe) · prove automatiche: `web/lib/auth/oidc.test.ts`.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-IAM-03, ADR-027, ADR-042, docs/18 §3.2, PT-16 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 400, 410 |
+| R5 Dominio di testbook | ✅ | TB-IAM (dominio senza righe), 1 prova automatica |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-410 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-16 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-IAM-03 (in corso); PR [#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99), [#104](https://github.com/peppe-ruv/Loyalty_Sys/pull/104) |
+| D2 Criteri provati | ✅ | prove automatiche: [oidc.test.ts](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/web/lib/auth/oidc.test.ts) |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-iam-04" />
+
+## US-F2-IAM-04 · Broker verso l'IdP aziendale e federazione LDAP
+
+> *Come* amministratore di sistema dell'azienda, *voglio* che gli operatori entrino con le credenziali aziendali, *così che* non esistano account paralleli da gestire e revocare a mano.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: Paolo (CARE) accede al backoffice di «Club Aurora» con l'account del dominio aziendale e riceve il ruolo dal suo gruppo.
+
+**Tocca**: F2-IAM-04 · ADR-027 · docs/18 §3.2, §3.15 punto 3 · `deploy/idp/test-idp` · M8.2 · Q-480.
+
+**Decisioni**: `idp` fa da broker verso l'IdP aziendale (OIDC o SAML) e da federazione LDAP · chi ha già un OIDC compatibile non avvia `idp` e imposta `LH_OIDC_ISSUER` · IdP e LDAP di prova solo nel profilo `idp-test`, porta LDAP solo su `127.0.0.1` (Q-480).
+
+**Criteri di accettazione**
+
+1. **Dato** un utente dell'IdP aziendale di prova, **quando** accede al backoffice tramite il broker, **allora** entra con il ruolo derivato dai suoi gruppi (docs/18 §3.2, §3.15 punto 3).
+2. **Dato** un utente della directory LDAP di prova, **quando** accede, **allora** è riconosciuto tramite la federazione (docs/18 §3.2).
+
+**Testbook**: TB-IAM (prova automatica da scrivere).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-IAM-04, ADR-027, docs/18 §3.2 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-IAM (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | 1 decisa o superata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-IAM-04 (in corso); PR [#57](https://github.com/peppe-ruv/Loyalty_Sys/pull/57), [#113](https://github.com/peppe-ruv/Loyalty_Sys/pull/113) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-sec-06" />
+
+## US-F2-SEC-06 · BFF con sessione lato server
+
+> *Come* membro o operatore, *voglio* che il browser tenga solo un cookie di sessione e mai i token, *così che* uno script nella pagina non possa rubare il mio accesso.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: Sara (ANALYST) apre il backoffice di «Club Aurora» nel profilo `enterprise`; il browser conserva solo `__Host-lh_session`.
+
+**Tocca**: F2-SEC-06 · ADR-027, ADR-042, ADR-044 · docs/18 §3.2 · docs/07 §4-bis · M8.2 · Q-409.
+
+**Decisioni**: Authorization Code con PKCE S256, `state` e `nonce` · sessione opaca `__Host-lh_session` (`HttpOnly`, `Secure`, `SameSite=Lax`), token cifrati lato server con AES-256-GCM (in memoria, Q-409) · rinnovo trasparente con refresh token a rotazione · CSRF: `Sec-Fetch-Site`, `Origin` e `X-LH-CSRF` · logout RP-initiated e back-channel · configurazione assente o insicura: il server non parte (`INSECURE_CONFIG`).
+
+**Criteri di accettazione**
+
+1. **Dato** un login riuscito, **allora** il browser riceve solo il cookie `__Host-lh_session` e nessun token OAuth è visibile al JavaScript (docs/18 §6 M8, [#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99)).
+2. ✗ **Dato** una richiesta non idempotente senza `X-LH-CSRF` valido o da un'altra origine, **allora** è rifiutata ([#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99)).
+3. **Dato** un logout token back-channel verificato, **allora** la sessione nel BFF si chiude ([#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99)).
+4. ✗ **Dato** il profilo `enterprise` con configurazione OIDC assente o insicura, **allora** il ruolo `web` non parte (`INSECURE_CONFIG`, [#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99)).
+5. **Dato** un access token scaduto, **allora** il BFF lo rinnova in modo trasparente, con un solo rinnovo anche per più richieste parallele della stessa sessione (single-flight nella replica, Q-409) ([#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99)).
+6. Passkey per i membri e MFA per gli operatori: criteri da scrivere con la fetta.
+
+**Testbook**: TB-IAM (dominio senza righe) · prove automatiche: `web/lib/auth/sessionStore.test.ts`, `web/lib/auth/bff.modules.test.ts`, `web/app/api/lh/[service]/[...path]/route.bff.test.ts`.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-SEC-06, ADR-027, ADR-042, ADR-044, docs/18 §3.2, docs/07 §4-bis |
+| R3 Criteri di accettazione | ⬜ | 5 criteri Dato/Quando/Allora, altri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 409 |
+| R5 Dominio di testbook | ✅ | TB-IAM (dominio senza righe), 3 prove automatiche |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-409 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-SEC-06 (in corso); PR [#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99), [#104](https://github.com/peppe-ruv/Loyalty_Sys/pull/104), [#111](https://github.com/peppe-ruv/Loyalty_Sys/pull/111) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: prove automatiche: [sessionStore.test.ts](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/web/lib/auth/sessionStore.test.ts), [bff.modules.test.ts](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/web/lib/auth/bff.modules.test.ts), [route.bff.test.ts](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/web/app/api/lh/%5Bservice%5D/%5B...path%5D/route.bff.test.ts) |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-sec-07" />
+
+## US-F2-SEC-07 · Client credentials per fonti e job, token exchange per i widget
+
+> *Come* integratore di una fonte, *voglio* autenticarmi con un client dedicato e non con una chiave statica, *così che* ogni fonte invii solo i tipi che le sono ammessi e si possa revocare da sola.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: l'e-commerce di «Club Aurora» invia gli ordini con il client `ecommerce`; l'app mobile scambia il proprio token per mostrare a Marco il widget del saldo.
+
+**Tocca**: F2-SEC-07 · ADR-027, ADR-042 · docs/18 §3.2, §3.10 punto 1 · M8.2.
+
+**Decisioni**: client credentials con `private_key_jwt` o mTLS, un client per fonte collegato al registro fonti (`source` ⇔ `client_id`) · job con client credentials e scope del solo job · widget: token exchange RFC 8693 con audience e scope limitati ai widget e al solo membro, DPoP facoltativo.
+
+**Criteri di accettazione**
+
+1. Da scrivere con la fetta.
+
+**Testbook**: TB-IAM (da scrivere con M8.2).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-SEC-07, ADR-027, ADR-042, docs/18 §3.2 |
+| R3 Criteri di accettazione | ⬜ | criteri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-IAM (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-SEC-07 (da fare) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

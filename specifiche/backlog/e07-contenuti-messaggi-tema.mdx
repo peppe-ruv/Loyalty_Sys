@@ -1,0 +1,446 @@
+---
+title: "E07 · Contenuti, messaggi, tema"
+sidebarTitle: "E07 Contenuti, messaggi, tema"
+description: "E07 Contenuti, messaggi, tema: il backoffice fa da CMS: card, pop-up, card vincita, inbox, tema a runtime. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: il backoffice fa da CMS: card, pop-up, card vincita, inbox, tema a runtime.
+
+**Attori**: MARKETING, membro, sistema · **Feature**: F-CNT-01…04, F-MSG-01…02, F-THM-01 · **Schermate**: BO-18, BO-19, BO-20, PT-01, PT-03, PT-05, PT-06, PT-12 · **Servizi**: engagement · **Testbook**: TB-ENG
+
+Questa epica ha 12 storie: 12 pronte secondo la Definition of Ready, 11 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-e07-01" />
+
+## US-E07-01 · Creare card, pop-up e banner
+
+> *Come* MARKETING, *voglio* creare contenuti per il portale con posizionamento, pubblico, calendario e CTA, *così che* il portale sia gestito dal backoffice.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-CNT-01, F-CNT-02 · BO-18 · `POST/PUT /v1/contents`, `…/duplicate` · ENG-05, ENG-24.
+
+**Criteri di accettazione**
+
+1. **Dato** una card HOME_GRID valida, **allora** 201 in DRAFT.
+2. ✗ **Dato** dati non validi, **allora** 422 `CONTENT_INVALID`; codice duplicato 409; cambiare `kind` 409 `KIND_IMMUTABLE`; contenuto ENDED/ARCHIVED 409 `CONTENT_NOT_EDITABLE`; versione 409.
+3. ✗ **Dato** CARE, **allora** 403.
+
+**Testbook**: TB-ENG (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CNT-01, F-CNT-02, BO-18 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 403, 409, 422 |
+| R5 Dominio di testbook | ✅ | TB-ENG (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-18 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CNT-01, F-CNT-02 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 61 righe legate alla storia, 61 eseguite dai test: TB-ENG-EDT-001, TB-ENG-EDT-002, TB-ENG-EDT-003, TB-ENG-EDT-004 e altri 57; 142 righe sulle feature o schermate della storia in TB-ENG, 142 eseguite: TB-ENG-SEL-001, TB-ENG-SEL-002, TB-ENG-SEL-003 e altri 139 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e07-02" />
+
+## US-E07-02 · Pubblicare un contenuto senza approvazione
+
+> *Come* MARKETING, *voglio* pubblicare subito un contenuto, *così che* reagisca in fretta.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-CNT-01 · BO-18 · `POST /v1/contents/{id}/transitions` · ENG-06, ENG-07, CMN-07.
+
+**Criteri di accettazione**
+
+1. **Dato** DRAFT → *Pubblica*, **allora** LIVE e `content.status.changed`.
+2. ✗ **Dato** `SUBMIT` o `APPROVE` su un contenuto, **allora** 409 `INVALID_TRANSITION`.
+3. **Dato** `endAt` passato, **allora** il job lo porta ENDED entro 10 min (con `jobs.enabled`).
+
+**Testbook**: TB-ENG (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CNT-01, BO-18 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 409 |
+| R5 Dominio di testbook | ✅ | TB-ENG (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-18 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CNT-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 153 righe sulle feature o schermate della storia in TB-ENG, 153 eseguite: TB-ENG-SEL-001, TB-ENG-SEL-002, TB-ENG-SEL-003 e altri 150 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e07-03" />
+
+## US-E07-03 · Cosa vede un membro in ogni posizione
+
+> *Come* membro, *voglio* vedere contenuti pertinenti (per livello, segmento, stato), *così che* il portale parli a me.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D3)
+
+**Contesto reale**: Anna vede «Passa alla bolletta digitale»; Davide no (è già digitale) ma vede «Grazie per essere digitale».
+
+**Tocca**: F-CNT-01 · PT-01, PT-03, PT-05 · `GET /v1/portal/content` · ENG-01…03 · Q-71, Q-72.
+
+**Decisioni**: LIVE ∧ calendario ∧ pubblico (⚠ tier, segmenti e stati in AND) · priorità decrescente · limite per posizione.
+
+**Criteri di accettazione**
+
+1. **Dato** un contenuto con `audience.tiers=[GOLD, PLATINUM]`, **allora** assente per Anna e presente per Davide (engagement §7).
+2. **Dato** più di 6 card HOME_GRID idonee, **allora** le 6 a priorità più alta.
+3. ⚠ Dato un pubblico con tier GOLD **e** segmento SEG-DIGITAL, **allora** serve soddisfare entrambi (come le campagne, Q-212).
+
+**Testbook**: TB-ENG (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CNT-01, PT-01, PT-03, PT-05 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-ENG (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 decisa o superata; 2 aperte con default in uso (SPEC-GAP): Q-71, Q-72 |
+| R7 Dati demo | ✅ | in seed/: SEG-DIGITAL |
+| R8 Stati dell'interfaccia | ✅ | PT-01, PT-03, PT-05 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CNT-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 48 righe legate alla storia, 48 eseguite dai test: TB-ENG-AUD-001, TB-ENG-AUD-002, TB-ENG-AUD-003, TB-ENG-AUD-004 e altri 44; 141 righe sulle feature o schermate della storia in TB-ENG, 141 eseguite: TB-ENG-SEL-001, TB-ENG-SEL-002, TB-ENG-SEL-003 e altri 138 |
+| D3 Nessuno scostamento aperto | ⬜ | 2 marcatori ⚠ (divergenza) |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e07-04" />
+
+## US-E07-04 · Un pop-up alla volta, con frequenza
+
+> *Come* membro, *voglio* al più un pop-up per visita e non rivedere quello già chiuso, *così che* il portale non sia invadente.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-CNT-02 · PT-01 · `GET /v1/portal/popups/next`, `POST …/seen` · ENG-04.
+
+**Criteri di accettazione**
+
+1. **Dato** `ONCE` visto e chiuso, **allora** non ricompare; `ONCE_PER_DAY` ricompare il giorno dopo (orologio iniettato, giorno di Roma) (engagement §7).
+2. **Dato** nessun pop-up idoneo, **allora** 204.
+3. **Dato** un errore di rendering prima di `seen`, **allora** il pop-up non è consumato.
+4. **Dato** `POP-WEEKEND` di martedì, **allora** escluso (`daysOfWeek`, Q-71).
+
+**Testbook**: TB-ENG (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CNT-02, PT-01 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-ENG (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-71 |
+| R7 Dati demo | ✅ | in seed/: POP-WEEKEND |
+| R8 Stati dell'interfaccia | ✅ | PT-01 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CNT-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 111 righe sulle feature o schermate della storia in TB-ENG, 111 eseguite: TB-ENG-POP-001, TB-ENG-POP-002, TB-ENG-POP-003 e altri 108 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e07-05" />
+
+## US-E07-05 · Anteprima per membro
+
+> *Come* MARKETING, *voglio* vedere cosa vede un membro e perché gli altri contenuti sono esclusi, *così che* verifichi il targeting.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-CNT-04 · BO-18 · `GET /v1/contents/preview` · ENG-01, ENG-04.
+
+**Criteri di accettazione**
+
+1. **Dato** Anna e HOME_GRID, **allora** i contenuti mostrati e per gli altri `NOT_IN_AUDIENCE`, `OUT_OF_SCHEDULE`, `NOT_LIVE` o `FREQUENCY`.
+
+**Testbook**: TB-ENG (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CNT-04, BO-18 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-ENG (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-18 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CNT-04 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 75 righe sulle feature o schermate della storia in TB-ENG, 75 eseguite: TB-ENG-SEL-001, TB-ENG-SEL-002, TB-ENG-SEL-003 e altri 72 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e07-06" />
+
+## US-E07-06 · Card di vincita
+
+> *Come* MARKETING, *voglio* una card specifica per ogni premio del concorso, *così che* il momento della vincita sia curato.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-CNT-03 · PT-06 · `GET /v1/portal/content?placement=WIN&prizeCode=`.
+
+**Criteri di accettazione**
+
+1. **Dato** una vincita di 50 punti, **allora** `WIN-POINTS-50`; premio senza card → fallback generico.
+
+**Testbook**: TB-ENG (API) · TB-WEB.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-CNT-03, PT-06 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-ENG (con righe), TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-06 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-CNT-03 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 73 righe sulle feature o schermate della storia in TB-ENG, 73 eseguite: TB-ENG-PRV-001, TB-ENG-PRV-002, TB-ENG-PRV-003 e altri 70 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e07-07" />
+
+## US-E07-07 · Template dei messaggi
+
+> *Come* MARKETING, *voglio* scrivere titolo e testo con segnaposto e vedere l'anteprima su un evento di esempio, *così che* i messaggi siano corretti.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-MSG-02 · BO-19 · `POST/PUT /v1/message-templates`, `…/render` · ENG-12, ENG-13, WEB-16 · Q-66, Q-74, Q-75.
+
+**Criteri di accettazione**
+
+1. **Dato** `{{data.amount|number}}` con 1500, **allora** «1.500».
+2. **Dato** un segnaposto inesistente, **allora** stringa vuota (e WARN), nessun errore.
+3. ✗ **Dato** un template senza titolo o con canale sconosciuto, **allora** 422 `TEMPLATE_INVALID`; link esterno rifiutato dall'editor (Q-74).
+
+**Testbook**: TB-ENG (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-MSG-02, BO-19 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 422 |
+| R5 Dominio di testbook | ✅ | TB-ENG (con righe) |
+| R6 Dipendenze e domande | ✅ | 3 aperte con default in uso (SPEC-GAP): Q-66, Q-74, Q-75 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-19 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-MSG-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 38 righe sulle feature o schermate della storia in TB-ENG, 38 eseguite: TB-ENG-TPV-001, TB-ENG-TPV-002, TB-ENG-TPV-003 e altri 35 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e07-08" />
+
+## US-E07-08 · Regole di notifica
+
+> *Come* MARKETING, *voglio* collegare un tipo di fatto (con condizione) a un template, *così che* i membri siano avvisati degli eventi importanti.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-MSG-01 · BO-19 · `POST/PUT /v1/notification-rules` · ENG-09, ENG-14 · Q-65.
+
+**Criteri di accettazione**
+
+1. **Dato** `wallet.points.earned` con condizione `data.currency = PTS`, **allora** un solo messaggio per acquisto (Q-65).
+2. ✗ **Dato** una regola su `message.delivered` o un fatto sconosciuto, **allora** 422 `RULE_INVALID`.
+3. **Dato** una regola disabilitata, **allora** nessun messaggio.
+
+**Testbook**: TB-ENG (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-MSG-01, BO-19 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 422 |
+| R5 Dominio di testbook | ✅ | TB-ENG (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-65 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-19 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-MSG-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 78 righe sulle feature o schermate della storia in TB-ENG, 78 eseguite: TB-ENG-TAD-001, TB-ENG-RND-001, TB-ENG-RND-002 e altri 75 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e07-09" />
+
+## US-E07-09 · Messaggi in inbox dai fatti
+
+> *Come* membro, *voglio* ricevere in-app i messaggi su punti, livello, premi, vincite e scadenze, *così che* non mi perda nulla.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-MSG-01 · PT-12, BO-19 (registro) · ENG-08…10 · Q-67, Q-70 · EVT-FACT-60.
+
+**Criteri di accettazione**
+
+1. **Dato** `wallet.points.earned` di 162 PTS, **allora** «Hai guadagnato 162 punti»; stesso evento rielaborato → nessun duplicato (engagement §7).
+2. **Dato** un membro BLOCKED, **allora** riceve il messaggio; ANONYMIZED no (Q-70).
+3. **Dato** un template `EMAIL_FAKE`, **allora** solo nel registro BO-19, non in inbox (Q-67).
+4. **Dato** `message.delivered`, **allora** nessuna regola lo considera (niente cicli).
+
+**Testbook**: TB-ENG (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-MSG-01, PT-12, BO-19, EVT-FACT-60 |
+| R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-ENG (con righe) |
+| R6 Dipendenze e domande | ✅ | 2 aperte con default in uso (SPEC-GAP): Q-67, Q-70 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-12, BO-19 specificate; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-MSG-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 94 righe sulle feature o schermate della storia in TB-ENG, 94 eseguite: TB-ENG-TAD-001, TB-ENG-RND-001, TB-ENG-RND-002 e altri 91 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e07-10" />
+
+## US-E07-10 · Messaggio deciso da una campagna
+
+> *Come* MARKETING, *voglio* che una campagna invii un messaggio con parametri, *così che* comunichi un'offerta al momento giusto.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-MSG-01, F-CMP-04 · effetto `message.send` · ENG-11 · Q-68.
+
+**Criteri di accettazione**
+
+1. **Dato** `CMP-BIRTHDAY` (se attivato) con `SEND_MESSAGE`, **allora** un messaggio per effetto (dedup `effectId`).
+2. ✗ **Dato** un template inesistente, **allora** DLQ `TEMPLATE_NOT_FOUND`.
+
+**Testbook**: TB-ENG (da coprire).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-MSG-01, F-CMP-04 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-ENG (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-68 |
+| R7 Dati demo | ✅ | in seed/: CMP-BIRTHDAY |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-MSG-01, F-CMP-04 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 60 righe sulle feature o schermate della storia in TB-ENG, 60 eseguite: TB-ENG-RUL-001, TB-ENG-RUL-002, TB-ENG-RUL-003 e altri 57 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e07-11" />
+
+## US-E07-11 · Leggere le notifiche
+
+> *Come* membro, *voglio* segnare come lette le notifiche e vedere il contatore, *così che* sappia cosa è nuovo.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-MSG-01 · PT-12, campanella · `GET /v1/portal/inbox`, `/unread-count`, `POST …/read`, `/read-all` · ENG-16 · Q-76.
+
+**Criteri di accettazione**
+
+1. **Dato** Marco con 3 non letti, **allora** campanella 3; *Segna tutte* → 0.
+2. ✗ **Dato** la lettura di un messaggio di un altro membro, **allora** 404.
+3. **Dato** un messaggio nato da un job, **allora** la campanella lo mostra entro 30 s (Q-76).
+
+**Testbook**: TB-ENG (API) · TB-WEB.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-MSG-01, PT-12 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 404 |
+| R5 Dominio di testbook | ✅ | TB-ENG (con righe), TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-76 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | PT-12 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-MSG-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 77 righe sulle feature o schermate della storia in TB-ENG, 77 eseguite: TB-ENG-RUL-001, TB-ENG-RUL-002, TB-ENG-RUL-003 e altri 74 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-e07-12" />
+
+## US-E07-12 · Tema del portale a runtime
+
+> *Come* MARKETING, *voglio* cambiare nome, logo e colori del portale con verifica del contrasto, *così che* il brand cambi senza rilascio e resti leggibile.
+
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
+
+**Tocca**: F-THM-01 · BO-20, tutto il portale · `PUT /v1/theme`, `GET /v1/portal/theme` · ENG-15 · Q-79.
+
+**Criteri di accettazione**
+
+1. **Dato** un nuovo `primary`, **allora** `GET /v1/portal/theme` lo restituisce e il portale cambia colore senza rebuild (engagement §7).
+2. ✗ **Dato** `primary` che con `night` ha contrasto &lt; 4,5:1, **allora** 422 `THEME_CONTRAST_TOO_LOW`; colore `rosso` → 422 `THEME_INVALID`.
+3. **Dato** engagement addormentato, **allora** il portale usa i colori di default.
+
+**Testbook**: TB-ENG (da coprire) · TB-WEB.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F-THM-01, BO-20 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 422 |
+| R5 Dominio di testbook | ✅ | TB-ENG (con righe), TB-WEB (con righe) |
+| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-79 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-20 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ✅ | F-THM-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
+| D2 Criteri provati | ✅ | 41 righe sulle feature o schermate della storia in TB-ENG, TB-WEB, 41 eseguite: TB-ENG-THM-001, TB-ENG-THM-002, TB-ENG-THM-003 e altri 38 |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

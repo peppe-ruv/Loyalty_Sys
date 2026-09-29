@@ -1,0 +1,366 @@
+---
+title: "E-F2-GRC · Governo e conformità"
+sidebarTitle: "E-F2-GRC Governo e conformità"
+description: "E-F2-GRC Governo e conformità: l'adottante certificato ISO 27001 integra il prodotto senza ricostruire evidenze. Storie utente con criteri di accettazione, Definition of Ready e Definition of Done."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da docs/17-EPIC-E-STORIE.md: non modificare a mano. */}
+
+**Obiettivo**: l'adottante certificato ISO 27001 integra il prodotto senza ricostruire evidenze.
+
+**Attori**: ADMIN, LEGAL, auditor · **Feature**: F2-GRC-* · **Schermate**: BO-34, BO-35 · **Servizi**: tutti, CLI · **Testbook**: TB-GRC
+
+Questa epica ha 9 storie: 3 pronte secondo la Definition of Ready, 0 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+
+<a id="us-f2-grc-01" />
+
+## US-F2-GRC-01 · Mappa Annex A e responsabilità condivisa
+
+> *Come* responsabile della conformità dell'adottante, *voglio* una mappa dei 93 controlli dell'Annex A con responsabilità ed evidenze, *così che* la alleghi alla mia Dichiarazione di Applicabilità.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: l'azienda di «Club Aurora», certificata ISO/IEC 27001, prepara l'audit di sorveglianza e deve dichiarare quali controlli copre il prodotto.
+
+**Tocca**: F2-GRC-01 · ADR-044 · docs/18 §3.15 punto 1 · `docs/compliance/iso27001-annex-a.md` · M12.6 · regola 22.
+
+**Decisioni**: per ogni controllo, responsabilità *Prodotto*, *Adottante* o *Condivisa*, funzione del prodotto ed evidenza prodotta · mappe verso ISO/IEC 27701, GDPR art. 30, 32 e 33 e NIS2 · i controlli A.6 e A.7 sono dell'adottante e la mappa lo dichiara.
+
+**Criteri di accettazione**
+
+1. **Dato** ogni controllo dell'Annex A, **allora** ha responsabilità ed evidenza dichiarate (docs/18 §6 M12).
+2. **Dato** una funzione nuova, **allora** dichiara nella mappa i controlli che tocca e l'evidenza che produce (regola 22).
+
+**Testbook**: TB-GRC (da scrivere con M12.6).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-GRC-01, ADR-044, docs/18 §3.15 |
+| R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-GRC (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-GRC-01 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-grc-02" />
+
+## US-F2-GRC-02 · Sicuro per impostazione
+
+> *Come* responsabile della sicurezza dell'adottante, *voglio* che il profilo `enterprise` si rifiuti di partire con una configurazione insicura, *così che* un errore di installazione non diventi una vulnerabilità.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: un installatore dimentica di cambiare un segreto di default prima di avviare «Club Aurora» in produzione.
+
+**Tocca**: F2-GRC-02 · ADR-044 · docs/18 §3.15 punto 2 · `lh doctor --security` · M12.6 · regola 22.
+
+**Decisioni**: `INSECURE_CONFIG` con segreti di default o vuoti, TLS spento verso database o bus, `X-LH-Actor` abilitato, `/v1/demo/**` attivi, account amministrativi senza MFA, console di Directus o Keycloak esposte senza allowlist, telemetria in uscita · già applicato all'identità dei servizi ([#51](https://github.com/peppe-ruv/Loyalty_Sys/pull/51)) e al BFF ([#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99)) · il profilo `demo` non parte su un database con membri non di seed.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** `LH_PROFILE=enterprise` con un segreto di default, **allora** non si avvia (`INSECURE_CONFIG`, docs/18 §6 M12).
+2. **Dato** `lh doctor --security`, **allora** produce lo stesso controllo come rapporto firmato (docs/18 §3.15 punto 2).
+3. ✗ **Dato** il profilo `demo` su un database con membri non di seed, **allora** non si avvia (docs/18 §3.15 punto 2).
+
+**Testbook**: TB-GRC (da scrivere con M12.6).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-GRC-02, ADR-044, docs/18 §3.15 |
+| R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | 2 criteri ✗ |
+| R5 Dominio di testbook | ✅ | TB-GRC (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-GRC-02 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-grc-03" />
+
+## US-F2-GRC-03 · Quattro occhi
+
+> *Come* responsabile della conformità dell'adottante, *voglio* che chi sottomette un oggetto non possa approvarlo e che le operazioni sensibili abbiano un doppio controllo configurabile, *così che* nessuno approvi se stesso.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: Marta (ADMIN) sottomette un concorso di «Club Aurora» e prova ad approvarlo subito dopo.
+
+**Tocca**: F2-GRC-03 · ADR-044 · docs/18 §3.15 punto 3 · docs/06 §7 · M8.13 · regola 22.
+
+**Decisioni**: `422 SELF_APPROVAL_FORBIDDEN`, anche per `ADMIN` · doppio controllo configurabile su rettifiche di punti sopra soglia, chiusura di edizione, modifica di ruoli, esportazioni di dati personali e cambio della scala dei livelli.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** un `ADMIN` che ha sottomesso un concorso, **quando** prova ad approvarlo, **allora** `422 SELF_APPROVAL_FORBIDDEN` (docs/18 §6 M8).
+2. Doppio controllo sulle operazioni sensibili: criteri da scrivere con la fetta.
+
+**Testbook**: TB-GRC (da scrivere con M8.13).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-GRC-03, ADR-044, docs/18 §3.15, docs/06 §7 |
+| R3 Criteri di accettazione | ⬜ | 1 criterio Dato/Quando/Allora, altri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 422 |
+| R5 Dominio di testbook | ✅ | TB-GRC (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-GRC-03 (da fare) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-grc-04" />
+
+## US-F2-GRC-04 · Ciclo di vita delle utenze e revisione degli accessi
+
+> *Come* responsabile della sicurezza dell'adottante, *voglio* che un operatore disabilitato nell'IdP perda l'accesso e che gli accessi si rivedano con regolarità, *così che* nessun ex collaboratore resti nel backoffice.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: un operatore CARE lascia l'azienda di «Club Aurora»; l'IT lo disabilita nella directory aziendale.
+
+**Tocca**: F2-GRC-04 · ADR-044 · docs/18 §3.15 punto 3 · BO-34 · M8.13.
+
+**Decisioni**: provisioning e deprovisioning dall'IdP aziendale (SCIM o federazione con gruppi → ruoli) · back-channel logout del BFF · BO-34 con operatori, ruoli, ultimo accesso, MFA e account inattivi; ricertificazione trimestrale esportabile · break-glass con credenziali sigillate, allarme e voce di audit con motivo.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** un operatore disabilitato nell'IdP, **allora** non ha più accesso entro la scadenza dell'access token (docs/18 §6 M8).
+2. BO-34 e break-glass: criteri da scrivere con la fetta.
+
+**Testbook**: TB-GRC (da scrivere con M8.13).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-GRC-04, ADR-044, docs/18 §3.15, BO-34 |
+| R3 Criteri di accettazione | ⬜ | 1 criterio Dato/Quando/Allora, altri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-GRC (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | BO-34 specificata; stati di docs/07 §6 |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-GRC-04 (da fare) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-grc-05" />
+
+## US-F2-GRC-05 · Classificazione, retention ed esportazioni controllate
+
+> *Come* DPO dell'adottante, *voglio* dati classificati, retention per categoria ed esportazioni con permesso e motivo, *così che* produca il registro dei trattamenti e dimostri le cancellazioni.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: Sara (ANALYST) vuole esportare i membri di un segmento di «Club Aurora» per un'analisi esterna.
+
+**Tocca**: F2-GRC-05 · ADR-044 · docs/18 §3.15 punto 4 · M8.13.
+
+**Decisioni**: `x-lh-class` (`PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, `PERSONAL`) per colonna · registro dei trattamenti con `lh compliance ropa` · retention per categoria entro i minimi del prodotto (audit almeno 365 giorni) con rapporto di cancellazione · esportazioni con permesso `DATA_EXPORT`, motivo, limite di righe e voce di audit con il filtro usato.
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** un'esportazione senza permesso `DATA_EXPORT` o senza motivo, **allora** è rifiutata (docs/18 §6 M8).
+2. Classificazione e retention per categoria: criteri da scrivere con la fetta.
+
+**Testbook**: TB-GRC (da scrivere con M8.13).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-GRC-05, ADR-044, docs/18 §3.15 |
+| R3 Criteri di accettazione | ⬜ | 1 criterio Dato/Quando/Allora, altri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | 1 criterio ✗ |
+| R5 Dominio di testbook | ✅ | TB-GRC (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-GRC-05 (da fare) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-grc-06" />
+
+## US-F2-GRC-06 · Cancellazioni che sopravvivono al ripristino
+
+> *Come* DPO dell'adottante, *voglio* che un membro anonimizzato resti anonimo anche dopo il ripristino di un backup, *così che* il diritto all'oblio valga davvero.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: un membro di «Club Aurora» ottiene l'oblio; una settimana dopo l'IT ripristina un backup di dieci giorni prima.
+
+**Tocca**: F2-GRC-06 · ADR-044 · docs/18 §3.15 punto 4 · M8.13, M12.6.
+
+**Decisioni**: `erasure_log` (solo `memberId` e data) conservato fuori dai backup ordinari e riapplicato da `lh restore` prima di riaprire il servizio · crypto-shredding: chiave per membro distrutta all'anonimizzazione · `lh data mask` per le copie non di produzione · `lh decommission` con attestato di cancellazione.
+
+**Criteri di accettazione**
+
+1. **Dato** un ripristino da un backup precedente a un'anonimizzazione, **allora** i dati di quel membro non tornano (docs/18 §6 M8).
+2. Crypto-shredding, `lh data mask` e `lh decommission`: criteri da scrivere con la fetta.
+
+**Testbook**: TB-GRC (da scrivere con M8.13).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-GRC-06, ADR-044, docs/18 §3.15 |
+| R3 Criteri di accettazione | ⬜ | 1 criterio Dato/Quando/Allora, altri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-GRC (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-GRC-06 (da fare) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-grc-07" />
+
+## US-F2-GRC-07 · Audit a prova di manomissione
+
+> *Come* auditor dell'adottante, *voglio* un registro di audit a catena di hash con ancore immutabili, *così che* una voce alterata direttamente nel database venga scoperta.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: durante l'audit di «Club Aurora» qualcuno modifica a mano una voce di `audit_entry`; la verifica lo segnala.
+
+**Tocca**: F2-GRC-07 · ADR-043, ADR-044 · docs/18 §3.15 punto 5 · `GET /v1/audit/verify` · M8.12, M12.6 · Q-399, Q-400, Q-401, Q-402, Q-404.
+
+**Decisioni**: catena per servizio (`seq`, `prev_hash`, `content_hash`, `entry_hash`) calcolata dal trigger all'inserimento · `UPDATE`, `DELETE` e `TRUNCATE` rifiutati dal database, salvo le funzioni controllate di anonimizzazione (Q-401), retention (Q-402) e reset della demo · `GET /v1/audit/verify` solo `ADMIN` (Q-399) · ancora giornaliera anche sul logger `io.loyaltyhub.audit.anchor` (TOBE-002); firma ed export su archivio immutabile da decidere (Q-400).
+
+**Criteri di accettazione**
+
+1. ✗ **Dato** una voce alterata direttamente nel database, **quando** eseguo la verifica, **allora** la catena segnala la prima voce non valida e il motivo ([#106](https://github.com/peppe-ruv/Loyalty_Sys/pull/106); `lh audit verify` in docs/18 §6 M8).
+2. ✗ **Dato** un `UPDATE`, un `DELETE` o un `TRUNCATE` su `audit_entry` dal ruolo applicativo, **allora** il database lo rifiuta ([#106](https://github.com/peppe-ruv/Loyalty_Sys/pull/106)).
+3. **Dato** un'anonimizzazione, **allora** le prove `REDACT` restano coerenti con l'anonimizzazione a parola intera ([#114](https://github.com/peppe-ruv/Loyalty_Sys/pull/114), Q-404).
+4. Export OCSF, `lh forensics export` e prova di ripristino mensile: criteri da scrivere con la fetta.
+
+**Testbook**: TB-GRC (dominio senza righe) · prove automatiche: `services/insight-service/src/test/java/io/loyaltyhub/insight/AuditChainIT.java`, `services/insight-service/src/test/java/io/loyaltyhub/insight/domain/AuditChainWalkTest.java`.
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-GRC-07, ADR-043, ADR-044, docs/18 §3.15 |
+| R3 Criteri di accettazione | ⬜ | 3 criteri Dato/Quando/Allora, altri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | 2 criteri ✗ per 400, 401, 402, 404 |
+| R5 Dominio di testbook | ✅ | TB-GRC (dominio senza righe), 2 prove automatiche |
+| R6 Dipendenze e domande | ✅ | 1 decisa o superata; 4 aperte con default in uso (SPEC-GAP): Q-399, Q-400, Q-401, Q-402 |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-GRC-07 (in corso); PR [#106](https://github.com/peppe-ruv/Loyalty_Sys/pull/106), [#114](https://github.com/peppe-ruv/Loyalty_Sys/pull/114) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: prove automatiche: [AuditChainIT.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/services/insight-service/src/test/java/io/loyaltyhub/insight/AuditChainIT.java), [AuditChainWalkTest.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/services/insight-service/src/test/java/io/loyaltyhub/insight/domain/AuditChainWalkTest.java) |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-grc-08" />
+
+## US-F2-GRC-08 · Pacchetto di rilascio per l'adottante
+
+> *Come* responsabile della sicurezza dell'adottante, *voglio* per ogni rilascio SBOM, VEX, provenienza SLSA, report e politiche di supporto, *così che* valuti il fornitore come chiede la mia certificazione.
+
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: l'ufficio acquisti dell'azienda di «Club Aurora» chiede le evidenze di sviluppo sicuro prima del rinnovo.
+
+**Tocca**: F2-GRC-08 · ADR-038, ADR-044 · docs/18 §3.15 punto 6 · M12.4, M12.6.
+
+**Decisioni**: SBOM CycloneDX, VEX, SLSA livello 3, firme cosign, report di SAST e DAST · `SECURITY.md` con i tempi di risposta (critica 7 giorni, alta 30) · processo di segnalazione per il Cyber Resilience Act · versioni LTS con fine vita · rapporto delle licenze.
+
+**Criteri di accettazione**
+
+1. **Dato** il rilascio v1.0, **allora** ha SBOM, VEX e provenienza SLSA verificabile (docs/18 §6 M12).
+2. Politiche di supporto, gestione delle vulnerabilità e licenze: criteri da scrivere con la fetta.
+
+**Testbook**: TB-GRC (da scrivere con M12).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-GRC-08, ADR-038, ADR-044, docs/18 §3.15 |
+| R3 Criteri di accettazione | ⬜ | 1 criterio Dato/Quando/Allora, altri da scrivere con la fetta |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-GRC (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-GRC-08 (assente da docs/14) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
+
+<a id="us-f2-grc-09" />
+
+## US-F2-GRC-09 · Quattro occhi sulle pull request degli agenti
+
+> *Come* auditor dell'adottante, *voglio* che il codice scritto dagli agenti sia approvato da una persona prima del rilascio, *così che* lo sviluppo del prodotto abbia una revisione reale.
+
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+
+**Contesto reale**: un agente apre una pull request verso `main` con un'identità propria; il proprietario del progetto la approva.
+
+**Tocca**: F2-GRC-09 · ADR-041, ADR-044 · docs/18 §3.13, §3.15 punto 6 · M8.0, M12.4.
+
+**Decisioni**: gli agenti aprono le pull request con un'identità propria (GitHub App) · approvazioni richieste da 0 a 1 prima di v1.0.
+
+**Criteri di accettazione**
+
+1. **Dato** il rilascio v1.0, **allora** tutte le sue pull request sono approvate da una persona diversa dall'autore (docs/18 §6 M12).
+
+**Testbook**: TB-GRC (da scrivere con M12.4).
+
+| Definition of Ready | Esito | Evidenza |
+|---|---|---|
+| R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
+| R2 ID di specifica | ✅ | F2-GRC-09, ADR-041, ADR-044, docs/18 §3.13 |
+| R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | TB-GRC (dominio senza righe) |
+| R6 Dipendenze e domande | ✅ | nessuna domanda citata |
+| R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
+| R8 Stati dell'interfaccia | ✅ | nessuna schermata |
+
+| Definition of Done | Esito | Evidenza |
+|---|---|---|
+| D1 Feature completate | ⬜ | F2-GRC-09 (da fare) |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
