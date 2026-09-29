@@ -35,6 +35,8 @@ import java.util.concurrent.atomic.AtomicLong;
  *       gli errori non ritentabili); poi il messaggio va sul topic DLQ con gli stessi header {@code lh-*} del
  *       recoverer Kafka ({@link DlqRecords}), così insight lo registra e BO-27 lo mostra anche nella demo ospitata.</li>
  *   <li><strong>Header</strong>: gli header del record prodotto arrivano ai consumatori (es. {@code lh-type}).</li>
+ *   <li><strong>Nack</strong>: un listener che chiama {@code Acknowledgment#nack(Duration)} riceve di nuovo lo stesso
+ *       record dopo quel ritardo, sullo stesso thread ({@link HubInProcessMessaging}); non conta come errore.</li>
  * </ul>
  */
 public class HubInProcessBus implements AutoCloseable {

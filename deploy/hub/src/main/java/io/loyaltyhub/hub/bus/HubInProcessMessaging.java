@@ -20,6 +20,7 @@ import org.springframework.util.ReflectionUtils;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -38,10 +39,6 @@ import java.util.concurrent.CompletableFuture;
 @Configuration(proxyBeanMethods = false)
 @Profile("inproc")
 public class HubInProcessMessaging {
-
-    /** Ack senza effetto: nel bus in-process la consegna è già "at-least-once" col ritentativo. */
-    private static final Acknowledgment NO_OP_ACK = () -> {
-    };
 
     @Bean
     public HubInProcessBus hubInProcessBus(
@@ -101,15 +98,32 @@ public class HubInProcessMessaging {
         }
     }
 
-    /** Invoca il metodo listener passando gli argomenti per tipo (ConsumerRecord / Acknowledgment). */
+    /**
+     * Invoca il metodo listener passando gli argomenti per tipo (ConsumerRecord / Acknowledgment). Se il listener chiede
+     * una riconsegna con {@code nack(Duration)} (es. campaign che attende lo snapshot del membro, Q-489), il bus attende
+     * quel ritardo sul proprio thread e reinvoca lo stesso record, come farebbe il container Kafka: l'ordine FIFO resta
+     * quello di prima (il record successivo parte solo dopo che questo è stato elaborato).
+     */
     private void invoke(Object bean, Method method, ConsumerRecord<String, String> record) throws Exception {
+        while (true) {
+            DeliveryAck ack = new DeliveryAck();
+            invokeOnce(bean, method, record, ack);
+            if (ack.nackSleep == null) {
+                return;
+            }
+            sleep(ack.nackSleep);
+        }
+    }
+
+    private static void invokeOnce(Object bean, Method method, ConsumerRecord<String, String> record,
+                                   Acknowledgment ack) throws Exception {
         Class<?>[] types = method.getParameterTypes();
         Object[] args = new Object[types.length];
         for (int i = 0; i < types.length; i++) {
             if (types[i].isAssignableFrom(ConsumerRecord.class)) {
                 args[i] = record;
             } else if (types[i].isAssignableFrom(Acknowledgment.class)) {
-                args[i] = NO_OP_ACK;
+                args[i] = ack;
             }
         }
         try {
@@ -120,6 +134,28 @@ public class HubInProcessMessaging {
                 throw ex; // il bus ritenta come farebbe l'error handler Kafka
             }
             throw new IllegalStateException(cause);
+        }
+    }
+
+    private static void sleep(Duration d) throws InterruptedException {
+        Thread.sleep(d.toMillis());
+    }
+
+    /**
+     * Ack di una consegna: {@code acknowledge()} è senza effetto (nel bus in-process la consegna è già
+     * "at-least-once" col ritentativo); {@code nack(Duration)} registra il ritardo della riconsegna.
+     */
+    static final class DeliveryAck implements Acknowledgment {
+
+        private Duration nackSleep;
+
+        @Override
+        public void acknowledge() {
+        }
+
+        @Override
+        public void nack(Duration sleep) {
+            this.nackSleep = sleep;
         }
     }
 }
