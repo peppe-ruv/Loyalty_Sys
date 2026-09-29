@@ -19,7 +19,8 @@ docker compose -f deploy/docker-compose.yml --profile all up --build
 
 Le immagini di terze parti hanno tag e digest (Keycloak solo il tag, Q-482). Kafka, Postgres e Keycloak hanno la stessa
 versione anche nel compose di riferimento e nei values del chart: Dependabot aggiorna solo questo file e
-`scripts/check-helm.mjs` fallisce finché gli altri due non sono allineati (Q-483).
+`scripts/check-helm.mjs` fa fallire il job `helm` finché gli altri due non sono allineati. Il job non è obbligatorio
+nel ruleset: la divergenza si vede sulla PR ma non blocca il merge (Q-483).
 
 **I 5 topic** non sono creati dal broker: li crea il **profilo Spring `local`** (bean `NewTopic` di `lh-common`,
 2 partizioni) quando un servizio si avvia. Verificato da `LocalTopicsIT` (Kafka in-JVM, senza Docker).
@@ -93,7 +94,7 @@ flowchart TB
 |---|---|
 | Immagine | `image.repository` e `image.tag` **obbligatori**, senza default: `.github/workflows/image.yml` pubblica `ghcr.io/<owner>/loyaltyhub` solo sui tag git `v*`, e un nome inventato finirebbe in `ImagePullBackOff`. Il tag può essere un digest `sha256:…` |
 | Ruoli | un Deployment per ruolo: `hub` (tutti i moduli: `LH_SERVICES` accetta solo vuoto o `all`, Q-376 del M8.1), `web`, `idp`. `cms` e `jobs` non sono ancora nell'immagine: il chart **rifiuta** `roles.cms.enabled` e `roles.jobs.enabled` |
-| Operatori | **prerequisiti**, non sottochart: Strimzi e CloudNativePG hanno CRD e controller a livello di cluster, con un ciclo di vita diverso da quello dell'applicazione; il chart crea solo le risorse (`Kafka`, `KafkaNodePool`, 5 `KafkaTopic`, `Cluster`, `Database`). La versione di Kafka la sceglie l'operatore installato (`kafka.strimzi.version` vuoto): per la linea 4.2 dei compose e dei client serve Strimzi 0.51 o successivo (4.2.1 da 1.1.0); se la fissi, `scripts/check-helm.mjs` verifica che la linea coincida con i compose (Q-481, Q-483) |
+| Operatori | **prerequisiti**, non sottochart: Strimzi e CloudNativePG hanno CRD e controller a livello di cluster, con un ciclo di vita diverso da quello dell'applicazione; il chart crea solo le risorse (`Kafka`, `KafkaNodePool`, 5 `KafkaTopic`, `Cluster`, `Database`). Le risorse Strimzi usano l'API `kafka.strimzi.io/v1beta2`, servita da Strimzi 0.46…0.51: Strimzi 1.0 o successivo serve solo l'API `v1`, non ancora supportata dal chart (Q-490). La versione di Kafka la sceglie l'operatore installato (`kafka.strimzi.version` vuoto); con l'API `v1beta2` la linea 4.2 dei compose e dei client c'è solo in Strimzi 0.51 (`kafka.strimzi.version=4.2.0`). Se la fissi, `scripts/check-helm.mjs` verifica che la linea coincida con i compose (Q-481, Q-483) |
 | Servizi gestiti | `postgres.mode=external` e `kafka.mode=external` (ADR-026): nessuna risorsa degli operatori, URL e credenziali dai valori |
 | Migrazioni | Job `…-migrate` con la stessa immagine: esegue solo Flyway (`io.loyaltyhub.hub.HubMigrate` dal jar dell'hub, non è un nuovo ruolo) e termina; stessi `nodeSelector`, `tolerations` e sicurezza dell'hub. Hook `pre-upgrade` sempre; al primo install `pre-install` con Postgres esterno e `post-install` con CloudNativePG, perché il cluster nasce con la release. L'hub all'avvio rifà le stesse migrazioni: Flyway prende un lock, le due esecuzioni non si pestano (ADR-038) |
 | Esposizione | Ingress per `web` e, per `idp`, solo `/realms/<realm>/` e `/resources/`: la console di amministrazione e il realm `master` (con il suo endpoint dei token) restano fuori; `gateway.enabled` crea un `HTTPRoute` verso l'hub (`/v1/`) agganciato a un Gateway esistente, segnaposto di M8.5 |
@@ -110,11 +111,12 @@ flowchart TB
 
 ```bash
 # 1. operatori (una volta per cluster; versioni e opzioni dalle rispettive documentazioni).
-#    Servono Strimzi con KRaft e KafkaNodePool (0.46 o successivo) e CloudNativePG con la risorsa Database (1.25 o
-#    successivo); Kubernetes 1.29 o successivo. Con Pod Security `restricted` sul namespace, Strimzi deve generare Pod
-#    conformi: STRIMZI_POD_SECURITY_PROVIDER_CLASS=restricted nell'operatore.
+#    Servono Strimzi con KRaft, KafkaNodePool e l'API v1beta2 (da 0.46 a 0.51: Strimzi 1.0 serve solo l'API v1, Q-490)
+#    e CloudNativePG con la risorsa Database (1.25 o successivo); Kubernetes 1.29 o successivo. Senza --version Helm
+#    installerebbe l'ultima Strimzi, che non serve più l'API v1beta2. Con Pod Security `restricted` sul namespace,
+#    Strimzi deve generare Pod conformi: STRIMZI_POD_SECURITY_PROVIDER_CLASS=restricted nell'operatore.
 helm repo add strimzi https://strimzi.io/charts/
-helm install strimzi strimzi/strimzi-kafka-operator -n strimzi --create-namespace --set watchAnyNamespace=true \
+helm install strimzi strimzi/strimzi-kafka-operator --version 0.51.0 -n strimzi --create-namespace --set watchAnyNamespace=true \
   --set 'extraEnvs[0].name=STRIMZI_POD_SECURITY_PROVIDER_CLASS' --set 'extraEnvs[0].value=restricted'
 helm repo add cnpg https://cloudnative-pg.github.io/charts && helm install cnpg cnpg/cloudnative-pg -n cnpg-system --create-namespace
 

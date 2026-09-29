@@ -117,7 +117,7 @@ x-lh-db-env: &lh-db-env
 services:
   # ---------- Infrastruttura open source ----------
   # Tag leggibile e digest, gli stessi di deploy/docker-compose.yml: Dependabot non legge questo file per nome, quindi
-  # si allineano a mano e scripts/check-helm.mjs fallisce se le versioni divergono (Q-483). Kafka 4.2 (Q-481).
+  # si allineano a mano e scripts/check-helm.mjs segnala le divergenze (Q-483). Kafka 4.2 (Q-481).
   postgres:
     image: postgres:17.11@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f
     restart: unless-stopped

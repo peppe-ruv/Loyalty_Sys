@@ -22,7 +22,8 @@ updates:
     ignore:
       # Override di sicurezza del pom padre (#112, ADR-044: proprietà lh.jackson3.version, lh.jackson2.version,
       # lh.lz4-java.version): solo patch nella stessa linea, per non staccarsi da quella del BOM di Spring Boot 4.1.x.
-      # Si tolgono insieme agli override quando una 4.1.x del BOM porta versioni uguali o successive (pom.xml).
+      # Si tolgono insieme agli override quando una 4.1.x del BOM porta versioni uguali o successive (pom.xml); da rivedere
+      # anche a ogni minor di Spring Boot (il BOM importato dopo gli override non li alza).
       - dependency-name: "tools.jackson:jackson-bom"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
       - dependency-name: "tools.jackson.*"
@@ -84,8 +85,9 @@ updates:
         update-types: ["version-update:semver-major"]
 
   # Immagini di deploy/docker-compose.yml (infrastruttura locale, Keycloak, LDAP di prova). deploy/compose/reference.yml
-  # e i values del chart non sono letti da Dependabot e si allineano a mano: scripts/check-helm.mjs (job helm) fallisce
-  # finché Kafka, Postgres e Keycloak non hanno la stessa versione nei tre file (Q-483).
+  # e i values del chart non sono letti da Dependabot e si allineano a mano: scripts/check-helm.mjs fa fallire il job helm
+  # finché Kafka, Postgres e Keycloak non hanno la stessa versione nei tre file; il job non è obbligatorio nel ruleset,
+  # quindi segnala ma non blocca il merge (Q-483).
   - package-ecosystem: "docker-compose"
     directory: "/deploy"
     schedule:
@@ -98,9 +100,12 @@ updates:
       # Una major di Postgres non legge il volume della precedente (serve pg_upgrade o dump e ripristino).
       - dependency-name: "postgres"
         update-types: ["version-update:semver-major"]
-      # Kafka segue la major di kafka-clients (4.x, Q-481): una major nuova si valuta con una fetta, niente PR automatica.
+      # Kafka segue la linea major.minor di kafka-clients (4.2, Q-481): la minor si alza con una fetta insieme ai client,
+      # quindi qui solo le patch: una 4.3 occuperebbe l'unico posto con una linea diversa da quella dei client.
       - dependency-name: "apache/kafka"
-        update-types: ["version-update:semver-major"]
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
       # Una major di Keycloak tocca il realm as code (deploy/idp): si aggiorna con una fetta dedicata.
       - dependency-name: "quay.io/keycloak/keycloak"
         update-types: ["version-update:semver-major"]
+      # Immagine unica costruita in locale dal servizio web (image: loyaltyhub:local, Q-484): non esiste in un registro.
+      - dependency-name: "loyaltyhub"

@@ -198,21 +198,23 @@ export function parseImageRef(ref) {
   return { name: hasTag ? nameTag.slice(0, colon) : nameTag, tag: hasTag ? nameTag.slice(colon + 1) : '', digest };
 }
 
-/** Immagini letterali di un file compose; l'immagine unica (`${LH_IMAGE…}`, interpolata) non conta. */
+/** Immagini letterali di un file compose (virgolette doppie, singole o nessuna; commento in coda ammesso); l'immagine
+ * unica (`${LH_IMAGE…}`, interpolata) non conta. */
 export function composeImageRefs(text) {
-  return [...text.matchAll(/^\s+image:\s*"?([^\s"#]+)"?\s*$/gm)].map((m) => m[1])
+  return [...text.matchAll(/^\s+image:\s*["']?([^\s"'#]+)["']?\s*(?:#.*)?$/gm)].map((m) => m[1])
     .filter((r) => !r.startsWith('${')).map(parseImageRef);
 }
 
-/** Immagini del chart legate a quelle dei compose: repository e tag, Kafka di Strimzi, immagine di CloudNativePG. */
+/** Immagini del chart legate a quelle dei compose: repository e tag (anche `tag@sha256:…`), Kafka di Strimzi, immagine
+ * di CloudNativePG. Virgolette doppie, singole o nessuna. */
 export function valuesImageRefs(text) {
-  const refs = [...text.matchAll(/^\s+repository: "?([^\s"#]+)"?\s*\n\s+tag: "?([^\s"#]+)"?/gm)]
-    .map((m) => ({ name: m[1], tag: m[2], digest: '' }));
+  const refs = [...text.matchAll(/^\s+repository: ["']?([^\s"'#]+)["']?\s*(?:#.*)?\n\s+tag: ["']?([^\s"'#]+)["']?/gm)]
+    .map((m) => parseImageRef(`${m[1]}:${m[2]}`));
   // Strimzi supporta solo alcune patch di Kafka: si confronta la linea major.minor. Vuoto = sceglie l'operatore.
-  const strimzi = (text.match(/^ {2}strimzi:\n(?: {4}.*\n|\s*#.*\n)*? {4}version: "?([^\s"#]*)"?/m) || [])[1];
+  const strimzi = (text.match(/^ {2}strimzi:\n(?: {4}.*\n|\s*#.*\n)*? {4}version: ["']?([^\s"'#]*)["']?/m) || [])[1];
   if (strimzi) refs.push({ name: 'apache/kafka', tag: strimzi, digest: '', line: true });
   // CloudNativePG ha immagini proprie di Postgres: si confronta la versione. Vuoto = immagine di default dell'operatore.
-  const cnpg = (text.match(/^\s+imageName: "?([^\s"#]*)"?/m) || [])[1];
+  const cnpg = (text.match(/^\s+imageName: ["']?([^\s"'#]*)["']?/m) || [])[1];
   if (cnpg) refs.push({ ...parseImageRef(cnpg), name: 'postgres', numeric: true });
   return refs;
 }
@@ -265,6 +267,14 @@ test('immagini condivise: il controllo trova tag, digest e linee divergenti', ()
   assert.deepEqual(parseImageRef('registry.example.org:5000/lh/kafka:4.2.2@sha256:abc'),
     { name: 'registry.example.org:5000/lh/kafka', tag: '4.2.2', digest: 'sha256:abc' });
   assert.deepEqual(parseImageRef('postgres'), { name: 'postgres', tag: '', digest: '' });
+  // Commento in coda e virgolette singole nei compose; `tag@digest` e virgolette singole nei values.
+  assert.deepEqual(composeImageRefs("  a:\n    image: apache/kafka:4.2.2 # nota\n  b:\n    image: 'postgres:17.11'\n"),
+    [{ name: 'apache/kafka', tag: '4.2.2', digest: '' }, { name: 'postgres', tag: '17.11', digest: '' }]);
+  assert.deepEqual(valuesImageRefs("    image:\n      repository: 'quay.io/keycloak/keycloak'\n      tag: '26.7.4@sha256:abc'\n"
+    + "kafka:\n  strimzi:\n    version: '4.2.1'\n"), [
+    { name: 'quay.io/keycloak/keycloak', tag: '26.7.4', digest: 'sha256:abc' },
+    { name: 'apache/kafka', tag: '4.2.1', digest: '', line: true },
+  ]);
   const compose = (kafka, pg) => composeImageRefs(
     `services:\n  kafka:\n    image: ${kafka}\n  pg:\n    image: "${pg}"\n  hub:\n    image: "\${LH_IMAGE:?obbligatoria}"\n`);
   const values = (tag, strimzi = '', cnpg = '') => valuesImageRefs(
