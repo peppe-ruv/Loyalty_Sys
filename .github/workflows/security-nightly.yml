@@ -1,0 +1,169 @@
+name: security-nightly
+
+# Verifica dinamica notturna delle API (docs/18 §3.10 punto 12, F2-SEC-12, ADR-042, M8.11c; docs/security/dast.md):
+# fuzzing con Schemathesis e ZAP API scan, autenticato con l'identità demo, sulle OpenAPI di contracts/api, contro l'hub
+# costruito da questo commit in una rete Docker senza uscita. Gira ogni notte, a mano e sulle pull request che toccano
+# questi file. Schemathesis blocca sui 5xx fuori da una baseline con scadenza, ZAP sugli avvisi High non eccettuati.
+#
+# È CONSULTIVO: non è tra i controlli obbligatori del ruleset `main-protetto` (Q-530, come il job `security` con Q-500).
+# SPEC-GAP: Q-530 — docs/18 dice «job security notturno»: è un workflow a sé perché gira di notte e a mano.
+# Schemathesis e ZAP sono strumenti di verifica in CI, non componenti del prodotto: non stanno nel chart né nel compose
+# (regola 8-bis non applicabile). Le versioni sono fissate per digest negli script che le usano (Q-537).
+on:
+  schedule:
+    - cron: "41 3 * * *"
+  workflow_dispatch:
+    inputs:
+      fuzz_max_time:
+        description: "Secondi di fuzzing per specifica"
+        type: string
+        default: "300"
+      zap_max_minutes:
+        description: "Minuti di ZAP per specifica"
+        type: string
+        default: "5"
+      baseline_update:
+        description: "Aggiunge alla baseline i 5xx trovati (scarica l'artefatto e annotali: docs/security/dast.md)"
+        type: boolean
+        default: false
+  pull_request:
+    paths:
+      - ".github/workflows/security-nightly.yml"
+      - ".dast/**"
+      - "contracts/api/**"
+      - "scripts/security-dast.mjs"
+      - "scripts/security-dast.test.mjs"
+      - "scripts/security-target.sh"
+      - "scripts/security-fuzz.sh"
+      - "scripts/security-zap.sh"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-nightly-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Sulle PR il tempo è ridotto: la PR della fetta deve solo dimostrare che i due job partono e chiudono.
+  LH_FUZZ_MAX_TIME: ${{ github.event_name == 'pull_request' && '60' || inputs.fuzz_max_time || '300' }}
+  LH_ZAP_MAX_MINUTES: ${{ github.event_name == 'pull_request' && '2' || inputs.zap_max_minutes || '5' }}
+
+jobs:
+  fuzz:
+    name: fuzzing API (Schemathesis)
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Dipendenze degli script
+        run: npm --prefix scripts ci --omit=dev
+
+      - name: Test degli script
+        run: node --test scripts/security-dast.test.mjs
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # L'immagine unica del commit (ruolo hub), come in image.yml; non si pubblica.
+      - name: Build image (linux/amd64)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/image/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: lh-image:dast
+
+      - name: Bersaglio isolato
+        run: bash scripts/security-target.sh up
+
+      # Sulle PR l'esito del fuzzing è solo informativo (continue-on-error): i casi casuali possono trovare 5xx nuovi
+      # finché le correzioni di Q-532 non arrivano, e una PR non deve essere rossa per un seme sfortunato. Il rosso
+      # resta di notte e a mano; sulla PR l'esito compare come avviso e negli artefatti (docs/security/dast.md).
+      - name: Fuzzing con Schemathesis
+        id: fuzzing
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
+        env:
+          LH_FUZZ_BASELINE_UPDATE: ${{ inputs.baseline_update && '1' || '0' }}
+        run: bash scripts/security-fuzz.sh
+
+      - name: Esito informativo sulla PR
+        if: ${{ github.event_name == 'pull_request' && steps.fuzzing.outcome == 'failure' }}
+        run: echo "::warning::Il fuzzing ha trovato difetti o errori (vedi il riepilogo e l'artefatto security-fuzz); sulla PR non blocca (Q-530, Q-532)."
+
+      - name: Log del bersaglio
+        if: ${{ !success() || steps.fuzzing.outcome == 'failure' }}
+        run: bash scripts/security-target.sh logs
+
+      - name: Upload risultati del fuzzing
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: security-fuzz
+          path: target/security/fuzz/
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Smonta il bersaglio
+        if: always()
+        run: bash scripts/security-target.sh down
+
+  zap:
+    name: DAST (ZAP API scan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Dipendenze degli script
+        run: npm --prefix scripts ci --omit=dev
+
+      - name: Test degli script
+        run: node --test scripts/security-dast.test.mjs
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image (linux/amd64)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/image/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: lh-image:dast
+
+      - name: Bersaglio isolato
+        run: bash scripts/security-target.sh up
+
+      - name: ZAP API scan
+        run: bash scripts/security-zap.sh
+
+      - name: Log del bersaglio
+        if: ${{ !success() }}
+        run: bash scripts/security-target.sh logs
+
+      - name: Upload risultati di ZAP
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: security-zap
+          path: target/security/zap/
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Smonta il bersaglio
+        if: always()
+        run: bash scripts/security-target.sh down
