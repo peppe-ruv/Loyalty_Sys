@@ -86,8 +86,8 @@ updates:
 
   # Immagini di deploy/docker-compose.yml (infrastruttura locale, Keycloak, LDAP di prova). deploy/compose/reference.yml
   # e i values del chart non sono letti da Dependabot e si allineano a mano: scripts/check-helm.mjs fa fallire il job helm
-  # finché Kafka, Postgres e Keycloak non hanno la stessa versione nei tre file; il job non è obbligatorio nel ruleset,
-  # quindi segnala ma non blocca il merge (Q-483).
+  # finché Kafka, Postgres e Keycloak non hanno la stessa versione nei tre file; il job è obbligatorio nel ruleset,
+  # quindi la PR non si unisce finché non sono allineati (Q-483).
   - package-ecosystem: "docker-compose"
     directory: "/deploy"
     schedule:

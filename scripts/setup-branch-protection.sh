@@ -5,7 +5,7 @@
 # Uso:
 #   scripts/setup-branch-protection.sh                 # applica su peppe-ruv/Loyalty_Sys
 #   scripts/setup-branch-protection.sh --dry-run       # stampa il payload senza applicarlo
-#   LH_REQUIRED_CHECKS="backend (Java 25)|web (Next.js)|seed|contracts|guard|docs" scripts/setup-branch-protection.sh
+#   LH_REQUIRED_CHECKS="backend (Java 25)|web (Next.js)|seed|contracts|guard|helm (chart e compose)|docs" scripts/setup-branch-protection.sh
 #
 # Variabili:
 #   LH_REPO               owner/repo (default peppe-ruv/Loyalty_Sys)
@@ -18,7 +18,7 @@ DRY_RUN=false
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
 
 REPO="${LH_REPO:-peppe-ruv/Loyalty_Sys}"
-CHECKS="${LH_REQUIRED_CHECKS:-backend (Java 25)|web (Next.js)|seed|contracts|guard}"
+CHECKS="${LH_REQUIRED_CHECKS:-backend (Java 25)|web (Next.js)|seed|contracts|guard|helm (chart e compose)}"
 APPROVALS="${LH_REQUIRED_APPROVALS:-0}"
 CODE_OWNERS="${LH_CODE_OWNER_REVIEW:-false}"
 

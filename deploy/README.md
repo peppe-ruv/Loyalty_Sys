@@ -19,8 +19,8 @@ docker compose -f deploy/docker-compose.yml --profile all up --build
 
 Le immagini di terze parti hanno tag e digest (Keycloak solo il tag, Q-482). Kafka, Postgres e Keycloak hanno la stessa
 versione anche nel compose di riferimento e nei values del chart: Dependabot aggiorna solo questo file e
-`scripts/check-helm.mjs` fa fallire il job `helm` finché gli altri due non sono allineati. Il job non è obbligatorio
-nel ruleset: la divergenza si vede sulla PR ma non blocca il merge (Q-483).
+`scripts/check-helm.mjs` fa fallire il job `helm` finché gli altri due non sono allineati. Il job è obbligatorio
+nel ruleset (`scripts/setup-branch-protection.sh`): una divergenza blocca il merge (Q-483).
 
 **I 5 topic** non sono creati dal broker: li crea il **profilo Spring `local`** (bean `NewTopic` di `lh-common`,
 2 partizioni) quando un servizio si avvia. Verificato da `LocalTopicsIT` (Kafka in-JVM, senza Docker).
