@@ -8,7 +8,7 @@ Questa directory contiene la configurazione as-code dell'Identity Provider per i
 - Fonti di ingestion (Q-492): un client confidential `src-<codice>` per ogni fonte HTTP di `seed/sources.json`, non per le fonti `INTERNAL` (`internal`, `simulator`: non entrano da HTTP e non hanno chiavi da custodire) (`private_key_jwt`, solo service account, JWKS da `LH_SOURCE_<FONTE>_JWKS_URL`, nessun segreto) e l'utenza di servizio `service-account-src-<codice>` con il solo ruolo realm `SOURCE`, incluso nel claim `lh_roles`. Il ruolo `SOURCE` non è una persona: non lo riceve nessun utente demo. Per una fonte creata dopo l'installazione vedi `deploy/README.md` (Q-494).
 - Auto-registrazione dei membri (Q-557, ADR-048): `registrationAllowed: true`, `verifyEmail: false` dichiarato, nessun `smtpServer`, ruolo `MEMBER` nel composito del ruolo predefinito `default-roles-loyaltyhub`. L'utenza di servizio del client `lh-jobs` è dichiarata con `realmRoles: []` perché non erediti `MEMBER`. Vedi «Auto-registrazione dei membri».
 - `bootstrap.sh`: imposta le password temporanee degli operatori demo dopo l'avvio.
-- `test-idp/` (**solo prova**, F2-IAM-04): IdP OIDC secondario (`test-realm.json`), LDAP (`ldap-seed.ldif`), overlay del realm (`realm-test-overlay.json`), lo script che lo applica (`apply-overlay.sh`) e la verifica (`verify.sh`).
+- `test-idp/` (**solo prova**, F2-IAM-04, F2-IAM-03): IdP OIDC secondario (`test-realm.json`), LDAP (`ldap-seed.ldif`), overlay del realm con il broker, il client di prova `lh-ldap-test` e il membro di prova `testmember` (`realm-test-overlay.json`), lo script che lo applica (`apply-overlay.sh`) e la verifica non interattiva della federazione e dei ruoli nei token (`verify.sh`).
 
 > Perché i client scope standard sono nel file: se un export contiene l'array `clientScopes`, Keycloak **non** crea i propri scope predefiniti (`profile`, `email`, `roles`, `basic`…). Senza di essi i token non avrebbero `preferred_username`, che `OidcActorFilter` di `libs/lh-common` usa come attore. `scripts/check-realm.mjs` verifica che ogni scope referenziato sia definito.
 
@@ -39,6 +39,7 @@ Solo per il profilo di prova `idp-test` (servizi `idp-test` e `ldap`, mai in pro
 | `LH_TEST_IDP_AUTH_URL`, `LH_TEST_IDP_TOKEN_URL`, `LH_TEST_IDP_USERINFO_URL`, `LH_TEST_IDP_ISSUER` | endpoint del realm `idp-test` usati dal broker; con `sslRequired=external` devono essere `https` o puntare a un host locale/privato (es. `http://idp-test:8080/…` nella rete compose) |
 | `LH_LDAP_BIND_CREDENTIAL` | password admin dell'LDAP di prova e `bindCredential` della federazione |
 | `LH_LDAP_TEST_CLIENT_SECRET` | segreto del client di prova `lh-ldap-test` |
+| `LH_MEMBER_TEST_PASSWORD` | password del membro di prova `testmember` (segnaposto dell'overlay, come le altre credenziali di prova) |
 
 ## Avvio locale
 
@@ -108,7 +109,7 @@ Poiché l'import viene saltato, un realm creato prima di Q-557 ha ancora `regist
    curl -sS -f -X DELETE "$R/users/$ID/role-mappings/realm" -H "$AUTH" -H 'Content-Type: application/json' -d "$DEFAULT"
    ```
 
-5. **Verifica**: la pagina di login del client `web` mostra «Registrati»; dopo una registrazione di prova l'access token ha `MEMBER` in `lh_roles` (elimina poi l'account di prova dalla console). Il realm non si reimporta: l'import salta un realm esistente.
+5. **Verifica**: la pagina di login del client `web` mostra «Registrati»; dopo una registrazione di prova l'access token ha `MEMBER` in `lh_roles` (elimina poi l'account di prova dalla console). Sul realm di prova lo stesso controllo, non interattivo, è `verify.sh member sources` (vedi «Verifica dei ruoli nei token»). Il realm non si reimporta: l'import salta un realm esistente.
 
 ### Inizializzazione password demo
 
@@ -164,25 +165,44 @@ Da sapere:
 
 `--import-realm` legge solo i file al primo livello della cartella di import e salta un realm già esistente, quindi l'overlay non si applica da solo. `apply-overlay.sh` lo applica al realm avviato:
 
-- broker `test-idp` e client di prova `lh-ldap-test` con `POST /admin/realms/loyaltyhub/partialImport` (`ifResourceExists: OVERWRITE`);
+- broker `test-idp`, client di prova `lh-ldap-test` e membro di prova `testmember` con `POST /admin/realms/loyaltyhub/partialImport` (`ifResourceExists: OVERWRITE`);
 - federazione LDAP con l'API `components` (il partial import non gestisce i componenti): il provider `ldap` esistente viene rimosso e ricreato, i mapper dell'overlay aggiornano quelli predefiniti.
 
 Le API admin non sostituiscono i segnaposto: lo fa lo script, solo per le variabili elencate, e si ferma se ne manca una. Lo script è idempotente.
 
 ```bash
-export LH_TEST_IDP_ADMIN_PASSWORD=… LH_TEST_IDP_SECRET=… LH_LDAP_BIND_CREDENTIAL=… LH_LDAP_TEST_CLIENT_SECRET=…
+export LH_TEST_IDP_ADMIN_PASSWORD=… LH_TEST_IDP_SECRET=… LH_LDAP_BIND_CREDENTIAL=… LH_LDAP_TEST_CLIENT_SECRET=… LH_MEMBER_TEST_PASSWORD=…
 export LH_TEST_IDP_AUTH_URL=http://localhost:8089/realms/idp-test/protocol/openid-connect/auth
 export LH_TEST_IDP_TOKEN_URL=http://idp-test:8080/realms/idp-test/protocol/openid-connect/token
 export LH_TEST_IDP_USERINFO_URL=http://idp-test:8080/realms/idp-test/protocol/openid-connect/userinfo
 export LH_TEST_IDP_ISSUER=http://localhost:8089/realms/idp-test
 docker compose -f deploy/docker-compose.yml --profile idp --profile idp-test up -d idp idp-test ldap
 KC_BOOTSTRAP_ADMIN_PASSWORD="$LH_IDP_ADMIN_PASSWORD" ./deploy/idp/test-idp/apply-overlay.sh
-./deploy/idp/test-idp/verify.sh
+KC_BOOTSTRAP_ADMIN_PASSWORD="$LH_IDP_ADMIN_PASSWORD" ./deploy/idp/test-idp/verify.sh
 ```
 
-`verify.sh` ottiene un token per l'utente LDAP `testuser` con il client di prova `lh-ldap-test` (il client `web` di produzione ha i direct access grants disattivati), decodifica l'access token e verifica che `aud` contenga `hub`, che `preferred_username` sia `testuser` e che il claim `lh_roles` sia presente. Un utente LDAP senza ruoli applicativi mappati riceve in `lh_roles` solo i ruoli di default del realm (`default-roles-loyaltyhub`, `offline_access`, `uma_authorization` e, dall'auto-registrazione dei membri, `MEMBER`).
+**Credenziali di prova.** Le password e i segreti dell'overlay sono segnaposto `${LH_*}` sostituiti da `apply-overlay.sh` dalle variabili d'ambiente (lo script si ferma se una manca e non stampa mai i valori); nel repository non c'è nessun valore, e `scripts/check-realm.mjs` verifica che ogni credenziale dell'overlay, compresa la password di `testmember`, sia un segnaposto e che i segnaposto dell'overlay coincidano con l'elenco `OVERLAY_VARS` di `apply-overlay.sh`. Fanno eccezione solo i due utenti fittizi `testuser` dei server di prova, con la password nel seed `ldap-seed.ldif` e in `test-realm.json` (dati di prova, non segreti).
 
-Il broker verso `test-idp` richiede un login interattivo nel browser: è un passo manuale descritto in fondo a `verify.sh`. F2-IAM-04 resta aperto finché non è eseguito e registrato.
+`verify.sh` esegue tre controlli, in quest'ordine, e si ferma al primo che fallisce (esce con 1). Si può scegliere quali con gli argomenti: `verify.sh member sources`.
+
+| Controllo | Cosa verifica | Variabili |
+|---|---|---|
+| `ldap` | Un token per l'utente LDAP `testuser` con il client di prova `lh-ldap-test` (il client `web` di produzione ha i direct access grants disattivati): `aud` contiene `hub`, `preferred_username` è `testuser`, il claim `lh_roles` è presente. Un utente LDAP senza ruoli applicativi mappati riceve in `lh_roles` solo i ruoli di default del realm (`default-roles-loyaltyhub`, `offline_access`, `uma_authorization` e, dall'auto-registrazione dei membri, `MEMBER`). | `LH_LDAP_TEST_CLIENT_SECRET` |
+| `member` | Il token di `testmember` (Q-557, ADR-048): `lh_roles` contiene `MEMBER` e nessun altro ruolo applicativo, `email_verified` è `false`. La stessa asserzione vale sul token vero del client di prova `lh-ldap-test` e sul token di esempio del client di produzione `web` (API admin, `evaluate-scopes`), così una deriva tra i due non passa inosservata. | `LH_LDAP_TEST_CLIENT_SECRET`, `LH_MEMBER_TEST_PASSWORD`, `KC_BOOTSTRAP_ADMIN_PASSWORD` (o `LH_IDP_ADMIN_PASSWORD`) |
+| `sources` | Un token `client_credentials` per ogni client `src-*` del realm: `lh_roles` è esattamente `["SOURCE"]`, quindi mai `MEMBER` né ruoli operatore (Q-557, Q-494, ADR-048). Per un client disabilitato, che non dà token, la stessa asserzione sul token di esempio della sua utenza di servizio. Stessa prova per l'utenza di servizio di `lh-jobs`: nessun `MEMBER` e nessun ruolo applicativo. Dopo il ripristino della chiave di prova, la stessa chiave deve essere rifiutata. | `KC_BOOTSTRAP_ADMIN_PASSWORD` (o `LH_IDP_ADMIN_PASSWORD`) |
+
+Il broker verso `test-idp` richiede un login interattivo nel browser: è un passo manuale descritto in fondo a `verify.sh` (stampato dal controllo `ldap`). F2-IAM-04 resta aperto finché non è eseguito e registrato.
+
+### Verifica dei ruoli nei token (F2-IAM-03, Q-557)
+
+I controlli `member` e `sources` fanno fallire con un messaggio esplicito (e uscita 1) ogni deriva che farebbe cambiare valore a un token nel portale o nell'ingestion: un ruolo operatore o `SOURCE` sul membro, `MEMBER` tolto dal composito del ruolo predefinito, `email_verified` diventato `true`, `MEMBER` (o altro) sull'utenza di servizio di una fonte.
+
+- **Il membro di prova.** `testmember` è nell'overlay con il solo ruolo predefinito `default-roles-loyaltyhub`, come un account registrato: un utente creato con `partialImport` non riceve il ruolo predefinito da solo (provato su Keycloak 26.7.4: senza `realmRoles` il token non ha `lh_roles`), quindi lo dichiara. `MEMBER` gli arriva dal composito del ruolo predefinito: il controllo prova che il realm importato lo contiene davvero.
+- **«Solo MEMBER».** Nel claim Keycloak espande il composito e aggiunge i propri ruoli tecnici: il token del membro ha `lh_roles` = `default-roles-loyaltyhub`, `offline_access`, `uma_authorization`, `MEMBER`, lo stesso di un account registrato. Il controllo `member` accetta quei tre ruoli tecnici e `MEMBER`; qualunque altro ruolo (operatore, `SOURCE`, `MFA_REQUIRED_ROLE`) e l'assenza di `MEMBER` sono un errore. Per le fonti l'uguaglianza è stretta: `["SOURCE"]` e nient'altro, perché le loro utenze non hanno ruoli predefiniti.
+- **Il token delle fonti.** I client `src-*` autenticano con `private_key_jwt` e il repository non ha le chiavi delle fonti. Il controllo `sources` genera quindi una coppia RSA usa-e-getta in una cartella temporanea (`0700`, cancellata all'uscita, mai nel repository), registra per pochi secondi la chiave pubblica come JWKS inline del client (solo gli attributi `use.jwks.url`, `use.jwks.string` e `jwks.string`, con un `PUT` parziale dell'API admin), firma l'asserzione, chiede il token e **ripristina subito gli attributi originali**. Il ripristino avviene anche se il controllo fallisce o viene interrotto (`INT`, `TERM`); se non riesce, lo script si ferma con un errore (uscita 1) e stampa cosa correggere a mano. Subito dopo il ripristino firma una seconda asserzione (nuovo `jti`) con la stessa chiave e pretende un rifiuto (`invalid_client`): se il token endpoint risponde 200 la chiave di prova è ancora fidata (cache delle chiavi non invalidata, ripristino parziale) e lo script esce con 1. I client si leggono dal realm (`clientId` che inizia per `src-`), non dal repository, quindi anche una fonte creata dopo l'installazione (Q-494) è controllata; un realm senza client `src-*` è un errore. Un client disabilitato non dà token, ma riabilitato emetterebbe i ruoli della sua utenza di servizio: `verify.sh` legge l'utenza (`service-account-user`) e ne calcola il token di esempio con `evaluate-scopes`, con la stessa asserzione (`["SOURCE"]` e nient'altro). Lo stesso vale per `lh-jobs`, il cui token di esempio non deve avere `MEMBER` né altri ruoli applicativi (ADR-048 decisione 11).
+- **Client di prova e client `web`.** `lh-ldap-test` elenca i propri scope nell'overlay, mentre `web` li eredita dal realm (`defaultDefaultClientScopes`): se i due si allontanano, un token vero del client di prova resterebbe verde mentre quello del portale cambia. Per questo `member` chiede a Keycloak anche il token di esempio di `web` per `testmember` (`GET /clients/{id}/evaluate-scopes/generate-example-access-token?scope=openid&userId=…`, con il token di amministrazione) e applica le stesse asserzioni; per questo `member` richiede anche le credenziali di amministrazione.
+- **Nessuna credenziale sulla riga di comando.** Le credenziali di amministrazione (nome utente e password codificati come form) e il token stanno in file `0600` nella cartella temporanea; il token si passa a `curl` con `-H @file` (serve curl 7.55 o successivo), quindi non compare negli argomenti dei processi leggibili da altri utenti.
+- **Solo sul realm di prova.** `sources` si rifiuta di girare se nel realm manca il client `lh-ldap-test`, cioè se l'overlay non è stato applicato: non registra chiavi di prova sui client di un realm che potrebbe servire fonti vere. Non va mai eseguito contro la produzione.
 
 ## Verifica statica
 
@@ -190,7 +210,7 @@ Il broker verso `test-idp` richiede un login interattivo nel browser: è un pass
 node --test scripts/check-realm.mjs
 ```
 
-Controlla ruoli (compreso `SOURCE`), un client `src-<codice>` per ogni fonte del seed con impostazioni e utenza di servizio (solo `SOURCE`), assenza di segreti letterali (`secret`, `clientSecret`, `bindCredential`) in `realm.json` e nell'overlay, redirect URI senza wildcard assolute, URI del client `web` uguali ai percorsi del BFF (callback, ritorno dopo il logout, back-channel logout), durata dell'access token, `private_key_jwt` per i service account, che ogni client scope referenziato sia definito, che ogni segnaposto `${LH_*}` di `realm.json` sia passato al servizio `idp` del compose, la registrazione aperta senza verifica dell'e-mail né `smtpServer` (Q-557), `MEMBER` come solo composito del ruolo predefinito (con `defaultRole` che lo nomina e nessun `SOURCE`, operatore o MFA tra i predefiniti) e un'utenza dichiarata, con ruoli espliciti e senza ruolo predefinito, per ogni client con service account. La copia del realm nel chart è verificata da `scripts/check-helm.mjs`. Gira nel job `seed` della CI.
+Controlla ruoli (compreso `SOURCE`), un client `src-<codice>` per ogni fonte del seed con impostazioni e utenza di servizio (solo `SOURCE`), assenza di segreti letterali (`secret`, `clientSecret`, `bindCredential`) in `realm.json` e nell'overlay, redirect URI senza wildcard assolute, URI del client `web` uguali ai percorsi del BFF (callback, ritorno dopo il logout, back-channel logout), durata dell'access token, `private_key_jwt` per i service account, che ogni client scope referenziato sia definito, che ogni segnaposto `${LH_*}` di `realm.json` sia passato al servizio `idp` del compose, la registrazione aperta senza verifica dell'e-mail né `smtpServer` (Q-557), `MEMBER` come solo composito del ruolo predefinito (con `defaultRole` che lo nomina e nessun `SOURCE`, operatore o MFA tra i predefiniti) e un'utenza dichiarata, con ruoli espliciti e senza ruolo predefinito, per ogni client con service account. Verifica anche l'overlay di prova: che ogni credenziale sia un segnaposto (compresa la password di `testmember`), che il membro di prova abbia il solo ruolo predefinito e l'e-mail non verificata e che i segnaposto dell'overlay coincidano con `OVERLAY_VARS` di `apply-overlay.sh`. La copia del realm nel chart è verificata da `scripts/check-helm.mjs`. Gira nel job `seed` della CI. `verify.sh` non gira in CI: ha bisogno di un Keycloak avviato con l'overlay (e dell'LDAP di prova per `ldap`).
 
 ## Diagrammi
 

@@ -1,0 +1,23 @@
+{
+  "specsSkipped": [
+    {
+      "file": "portal.openapi.yaml",
+      "reason": "unione dei percorsi /v1/portal/** già presenti nelle specifiche dei servizi",
+      "ref": "Q-533"
+    }
+  ],
+  "operations": [
+    {
+      "operation": "POST /v1/demo/reset",
+      "reason": "azzera e ricarica il seed: ripetuto dal fuzzing svuota lo stato e rallenta tutto; coperto da TB-PLT-RST",
+      "ref": "Q-533"
+    }
+  ],
+  "responseContentTypes": [
+    {
+      "contentType": "text/event-stream",
+      "reason": "flusso SSE: la connessione resta aperta per costruzione",
+      "ref": "Q-533"
+    }
+  ]
+}

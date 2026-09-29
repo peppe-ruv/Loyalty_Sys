@@ -65,6 +65,10 @@ spec:
             {{- end }}
             - name: LH_OIDC_AUDIENCE
               value: {{ .Values.oidc.audience | quote }}
+            {{- /* Chiave dello pseudonimo subjectRef (ADR-048, Q-552): solo enterprise, solo da Secret; mai nel demo. */}}
+            - name: LH_SUBJECT_KEY
+              valueFrom:
+                secretKeyRef: { name: {{ $r.subjectKey.name }}, key: {{ $r.subjectKey.key }} }
             {{- end }}
             {{- if .Values.observability.enabled }}
             {{- include "loyaltyhub.hubOtelEnv" . | nindent 12 }}

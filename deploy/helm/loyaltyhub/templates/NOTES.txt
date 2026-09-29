@@ -29,6 +29,13 @@ Partizioni: aumentarle rimappa le chiavi memberId e rompe l'ordine per membro de
 dopo aver svuotato i consumer (produttori fermi, lag 0) e con kafka.topics.allowPartitionIncrease=true, da rimettere
 a false subito dopo; senza, chart e hub rifiutano l'aumento. Non si possono diminuire.
 
+{{- if and (eq .Values.global.profile "enterprise") .Values.roles.hub.enabled }}
+
+Chiave dello pseudonimo del membro (LH_SUBJECT_KEY, ADR-048, Q-552): l'hub la legge dal Secret {{ .Values.roles.hub.subjectKey.name }}
+(chiave {{ .Values.roles.hub.subjectKey.key }}), che deve esistere prima dell'installazione: almeno 32 byte casuali in base64
+(openssl rand -base64 32). Conservala: cambiarla scollega ogni token dal proprio membro (docs/11 §16).
+{{- end }}
+
 {{- if and (eq .Values.global.profile "enterprise") .Values.roles.web.enabled }}
 
 Login del web (BFF OIDC, F2-SEC-06): emittente {{ include "loyaltyhub.oidc.issuer" . }}, client {{ .Values.roles.web.bff.clientId }}.
