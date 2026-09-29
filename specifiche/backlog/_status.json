@@ -1,7 +1,7 @@
 {
   "generatedBy": "node scripts/docs-sync.mjs --refresh",
-  "refreshedAt": "6e4f352",
-  "refreshedDate": "2026-09-30",
+  "refreshedAt": "50c8415",
+  "refreshedDate": "2026-09-29",
   "totals": {
     "stories": 227,
     "outOfScope": 3,
