@@ -41,12 +41,14 @@ public class WebhooksController {
 
     @GetMapping("/v1/webhooks")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<Webhook> list() {
         return service.list();
     }
 
     @GetMapping("/v1/webhooks/{id}")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public Webhook get(@PathVariable String id) {
         return service.get(id);
     }
@@ -73,6 +75,7 @@ public class WebhooksController {
     /** Registro consegne del webhook, dalla più recente; filtro {@code status}. */
     @GetMapping("/v1/webhooks/{id}/deliveries")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PageResponse<WebhookDelivery> deliveries(@PathVariable String id,
                                                     @RequestParam(required = false) String status,
                                                     @RequestParam(defaultValue = "0") int page,
@@ -89,6 +92,7 @@ public class WebhooksController {
 
     @GetMapping("/v1/webhook-deliveries/{id}")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public WebhookDelivery delivery(@PathVariable String id) {
         return service.delivery(id);
     }

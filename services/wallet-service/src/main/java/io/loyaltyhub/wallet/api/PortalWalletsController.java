@@ -1,5 +1,7 @@
 package io.loyaltyhub.wallet.api;
 
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.wallet.application.WalletQueryService;
 import io.loyaltyhub.wallet.domain.Tier;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,6 +24,7 @@ public class PortalWalletsController {
     }
 
     @GetMapping("/wallets/{memberId}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public WalletView wallet(@PathVariable String memberId) {
         return query.wallet(memberId);
     }
@@ -39,6 +42,7 @@ public class PortalWalletsController {
     }
 
     @GetMapping("/tiers")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<PortalTier> tiers() {
         return query.tierScale().stream().map(PortalTier::of).toList();
     }

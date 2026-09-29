@@ -35,6 +35,7 @@ public class CouponController {
     }
 
     @GetMapping("/coupon-pools")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<CouponService.PoolView> pools() {
         return coupons.pools();
     }
@@ -46,6 +47,7 @@ public class CouponController {
     }
 
     @GetMapping("/coupon-pools/{id}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public CouponService.PoolView pool(@PathVariable String id) {
         return coupons.pool(id);
     }
@@ -66,6 +68,7 @@ public class CouponController {
     }
 
     @GetMapping("/coupon-pools/{id}/coupons")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PageResponse<CouponService.CouponView> coupons(@PathVariable String id,
                                                           @RequestParam(required = false) String status,
                                                           @RequestParam(required = false) String memberId,
@@ -75,6 +78,7 @@ public class CouponController {
     }
 
     @GetMapping("/coupons/{code}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public CouponService.CouponView coupon(@PathVariable String code) {
         return coupons.get(code);
     }

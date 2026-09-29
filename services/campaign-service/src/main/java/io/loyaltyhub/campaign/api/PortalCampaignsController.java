@@ -1,6 +1,8 @@
 package io.loyaltyhub.campaign.api;
 
 import io.loyaltyhub.campaign.application.CampaignAdminService;
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -24,6 +26,7 @@ public class PortalCampaignsController {
      * elencate in "Guadagna", per spiegare un meccanismo coi valori reali (PT-11 referral).
      */
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<PortalCampaignView> list(@RequestParam(required = false) String memberId,
                                          @RequestParam(required = false) List<String> codes) {
         return service.portal(memberId, codes);

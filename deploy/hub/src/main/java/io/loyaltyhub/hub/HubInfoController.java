@@ -1,5 +1,7 @@
 package io.loyaltyhub.hub;
 
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -15,6 +17,7 @@ import java.util.Map;
 public class HubInfoController {
 
     @GetMapping("/")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public Map<String, Object> root() {
         return Map.of(
                 "service", "loyalty-hub",

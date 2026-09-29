@@ -1,5 +1,7 @@
 package io.loyaltyhub.common.approval;
 
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -29,6 +31,7 @@ public class ApprovalsController {
     }
 
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<ApprovalItem> approvals(@RequestParam(required = false) String submittedBy) {
         List<ApprovalItem> out = new ArrayList<>();
         sources.forEach(s -> out.addAll(s.approvals(submittedBy)));
@@ -36,6 +39,7 @@ public class ApprovalsController {
     }
 
     @GetMapping("/policy")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PolicyView policy() {
         return new PolicyView(policy.enabled(), policy.campaignBudgetThreshold(), policy.rows());
     }

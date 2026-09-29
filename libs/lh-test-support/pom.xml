@@ -14,10 +14,11 @@
   <artifactId>lh-test-support</artifactId>
   <packaging>jar</packaging>
   <description>Solo test: letture esatte dei topic Kafka e attese sui consumer group dei listener per gli IT dei moduli
-    (docs/06 §9). Si dichiara con scope test: non entra nei jar dei servizi.</description>
+    (docs/06 §9); regole ArchUnit comuni (deny by default, F2-SEC-09). Si dichiara con scope test: non entra nei jar dei
+    servizi.</description>
 
-  <!-- Nessuna dipendenza da lh-common (che lo usa nei propri IT): solo ciò che serve alle due classi, versioni dalla BOM
-       di Spring Boot importata dal parent. -->
+  <!-- Nessuna dipendenza da lh-common (che lo usa nei propri IT): solo ciò che serve alle classi, versioni dalla BOM
+       di Spring Boot importata dal parent. Le regole ArchUnit nominano le annotazioni di lh-common per nome. -->
   <dependencies>
     <dependency>
       <groupId>org.springframework.kafka</groupId>
@@ -30,6 +31,11 @@
     <dependency>
       <groupId>tools.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <!-- EndpointAccessRules (deny by default, F2-SEC-09); versione gestita nel parent. -->
+    <dependency>
+      <groupId>com.tngtech.archunit</groupId>
+      <artifactId>archunit</artifactId>
     </dependency>
   </dependencies>
 

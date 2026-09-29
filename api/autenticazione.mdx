@@ -43,6 +43,32 @@ Ogni endpoint dei servizi dichiara i ruoli ammessi. La tabella riassume le regol
 | Insight | `GET /backoffice/kpi/**` | ADMIN, ANALYST |
 | DLQ | `POST /backoffice/dlq/{id}/replay` | ADMIN |
 
+## Deny by default: ogni endpoint dichiara chi può chiamarlo
+
+Ogni endpoint dei servizi dichiara chi può chiamarlo. Così un endpoint nuovo non nasce aperto per dimenticanza: se la dichiarazione manca, il servizio rifiuta la chiamata a tutti, anche a `ADMIN`.
+
+- **`@RequiresRole`** elenca i ruoli ammessi. Le letture elencano tutti i ruoli, `ANALYST` compreso: nel profilo `demo` una chiamata senza `X-LH-Actor` vale `ANALYST:anonymous` e legge come prima.
+- **`@PublicEndpoint`** toglie il controllo di ruolo e porta sempre un motivo. Oggi nessun endpoint di produzione lo usa: un endpoint pubblico nuovo richiede una decisione (domanda o ADR) prima del codice. Nel profilo `enterprise` il token resta comunque obbligatorio.
+- **Nessuna dichiarazione**: il servizio risponde `403` con `code` `ENDPOINT_NOT_DECLARED`. È un errore del codice, e la build lo blocca prima con un test ArchUnit.
+
+```mermaid
+flowchart LR
+  accTitle: Controllo di accesso su un endpoint
+  accDescr: Il servizio cerca la dichiarazione di accesso sul metodo e poi sulla classe; senza dichiarazione risponde 403 ENDPOINT_NOT_DECLARED; con RequiresRole controlla il ruolo e risponde 403 FORBIDDEN_ROLE se non basta; con PublicEndpoint passa al controller.
+  REQ[Chiamata con attore] --> DECL{Dichiarazione}
+  DECL -->|nessuna| DENY[403 ENDPOINT_NOT_DECLARED]
+  DECL -->|RequiresRole| ROLE{Ruolo ammesso}
+  DECL -->|PublicEndpoint| CTRL[Controller]
+  ROLE -->|sì| CTRL
+  ROLE -->|no| FORB[403 FORBIDDEN_ROLE]
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef ext fill:#FFFFFF,stroke:#94A3B8,stroke-dasharray:4 2,color:#334155
+  class CTRL svc
+  class REQ ext
+```
+
+Le regole complete sono nel paragrafo 3.2 di [Convenzioni backend](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/06-CONVENZIONI-BACKEND.md) su GitHub.
+
 ## Profilo enterprise: accesso dal browser con il BFF
 
 Con `LH_PROFILE=enterprise` l'header `X-LH-Actor` non vale più: i servizi accettano solo un access token OIDC (`Authorization: Bearer`, audience `hub`). Portale e backoffice non vedono mai il token: il server web fa da **Backend-for-Frontend** (BFF), client confidential `web` del realm Keycloak.
@@ -103,6 +129,10 @@ sequenceDiagram
 
   <Accordion title="403 FORBIDDEN">
     L'attore esiste ma il suo ruolo non e ammesso sull'endpoint. Verifica la tabella dei permessi qui sopra o usa `marta.admin` per test rapidi.
+  </Accordion>
+
+  <Accordion title="403 ENDPOINT_NOT_DECLARED">
+    L'endpoint non dichiara `@RequiresRole` né `@PublicEndpoint` ed è rifiutato a tutti. Non dipende dal chiamante: segnala l'endpoint a chi mantiene il servizio.
   </Accordion>
 
   <Accordion title="404 ACTOR_NOT_FOUND">

@@ -1,6 +1,8 @@
 package io.loyaltyhub.engagement.api;
 
 import io.loyaltyhub.common.web.PageResponse;
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.engagement.application.InboxService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,6 +30,7 @@ public class PortalInboxController {
     }
 
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PageResponse<InboxService.PortalMessage> inbox(@RequestParam(required = false) String memberId,
                                                           @RequestParam(defaultValue = "0") int page,
                                                           @RequestParam(defaultValue = "20") int size) {
@@ -35,17 +38,20 @@ public class PortalInboxController {
     }
 
     @GetMapping("/unread-count")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public InboxService.UnreadCount unreadCount(@RequestParam(required = false) String memberId) {
         return inbox.unread(memberId);
     }
 
     @PostMapping("/{id}/read")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public InboxService.PortalMessage read(@PathVariable String id, @RequestParam(required = false) String memberId,
                                            @RequestBody(required = false) MemberRequest body) {
         return inbox.markRead(id, member(memberId, body));
     }
 
     @PostMapping("/read-all")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public InboxService.ReadAllOutcome readAll(@RequestParam(required = false) String memberId,
                                                @RequestBody(required = false) MemberRequest body) {
         return inbox.markAllRead(member(memberId, body));

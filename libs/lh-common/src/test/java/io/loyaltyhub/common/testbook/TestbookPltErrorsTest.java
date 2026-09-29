@@ -1,10 +1,10 @@
 package io.loyaltyhub.common.testbook;
 
 import io.loyaltyhub.common.web.ActorFilter;
+import io.loyaltyhub.common.web.EndpointAccessInterceptor;
 import io.loyaltyhub.common.web.GlobalExceptionHandler;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.common.web.RequiresRole;
-import io.loyaltyhub.common.web.RequiresRoleInterceptor;
 import io.loyaltyhub.common.web.Role;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
@@ -56,12 +56,13 @@ class TestbookPltErrorsTest {
         mvc = MockMvcBuilders.standaloneSetup(new Probe())
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .addFilters(new ActorFilter("probe"))
-                .addInterceptors(new RequiresRoleInterceptor())
+                .addInterceptors(new EndpointAccessInterceptor())
                 .build();
     }
 
-    /** Endpoint di prova: ognuno solleva un errore di una famiglia. */
+    /** Endpoint di prova: ognuno solleva un errore di una famiglia. Letture aperte a tutti i ruoli (deny by default). */
     @RestController
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public static class Probe {
         @GetMapping("/v1/probe/lh/{kind}")
         public Map<String, Object> lh(@PathVariable String kind) {

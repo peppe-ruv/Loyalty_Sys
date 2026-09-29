@@ -22,7 +22,7 @@ import io.loyaltyhub.common.outbox.OutboxWriter;
 import io.loyaltyhub.common.time.BusinessCalendar;
 import io.loyaltyhub.common.web.ActorFilter;
 import io.loyaltyhub.common.web.GlobalExceptionHandler;
-import io.loyaltyhub.common.web.RequiresRoleInterceptor;
+import io.loyaltyhub.common.web.EndpointAccessInterceptor;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.springframework.beans.factory.annotation.Value;
@@ -257,7 +257,7 @@ public class LhCommonAutoConfiguration {
         return new WebMvcConfigurer() {
             @Override
             public void addInterceptors(InterceptorRegistry registry) {
-                registry.addInterceptor(new RequiresRoleInterceptor());
+                registry.addInterceptor(new EndpointAccessInterceptor());
             }
         };
     }

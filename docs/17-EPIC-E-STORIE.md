@@ -2399,7 +2399,8 @@ Inventario dei punti di decisione **ricavato dal codice** (`services/*/src/main`
 | Codice | HTTP | Dove (servizio · classe) | Regola di specifica | Storie |
 |---|---|---|---|---|
 | `BAD_REQUEST` | 400 | tutti (envelope, parametri, JSON, filtri) | docs/06 §2 | US-E01-02, US-E01-08, US-E03-11, US-E12-07 |
-| `FORBIDDEN_ROLE` | 403 | lh-common `RequiresRoleInterceptor`, `GovernedTransitions`; ingestion `EventsController`, `EventTypeService`; wallet `EditionsController` | docs/06 §3, docs/08 §2 | US-E08-04, US-E08-06 |
+| `FORBIDDEN_ROLE` | 403 | lh-common `EndpointAccessInterceptor`, `GovernedTransitions`; ingestion `EventsController`, `EventTypeService`; wallet `EditionsController` | docs/06 §3, docs/08 §2 | US-E08-04, US-E08-06 |
+| `ENDPOINT_NOT_DECLARED` | 403 | lh-common `EndpointAccessInterceptor` (endpoint senza `@RequiresRole` né `@PublicEndpoint`) | docs/06 §3.2 (deny by default, F2-SEC-09) | US-E08-06 |
 | `NOT_FOUND` | 404 | tutti | docs/06 §2 | US-E12-07 (+ ogni storia di gestione) |
 | `VALIDATION` | 422 | lh-common (bean validation) | docs/06 §2 | US-E12-07 |
 | `DEPENDENCY_UNAVAILABLE` | 503 | insight `IngestionClient` | docs/06 §2 | US-E08-11 |
@@ -3123,7 +3124,7 @@ Codici **citati dalla specifica ma assenti dal codice**: `REFERRAL_SELF` (member
 | CMN-01 `ActorContext#parse` | header assente o vuoto ⇒ `ANALYST:anonymous` | docs/06 §3 | US-E08-06 | TB-GOV |
 | ↳ | senza `:` ⇒ ruolo dal testo, username `anonymous` | nessuna | US-E08-06 | TB-GOV |
 | ↳ | ruolo sconosciuto ⇒ `ANALYST`; username vuoto ⇒ `anonymous` | nessuna | US-E08-06 | TB-GOV |
-| CMN-02 `RequiresRoleInterceptor` | nessuna annotazione ⇒ passa | docs/06 §3 | US-E08-06 | TB-GOV |
+| CMN-02 `EndpointAccessInterceptor` | nessuna dichiarazione ⇒ 403 `ENDPOINT_NOT_DECLARED` (deny by default, F2-SEC-09) | docs/06 §3.2 | US-E08-06 | TB-GOV |
 | ↳ | `ADMIN` passa sempre | docs/06 §3 | US-E08-06 | TB-GOV |
 | ↳ | annotazione vuota ⇒ tutti tranne `ANALYST` | docs/06 §3 | US-E08-06 | TB-GOV |
 | ↳ | ruolo nell'elenco ⇒ passa; altrimenti 403 `FORBIDDEN_ROLE` | docs/08 §2 | US-E08-06 | TB-GOV |

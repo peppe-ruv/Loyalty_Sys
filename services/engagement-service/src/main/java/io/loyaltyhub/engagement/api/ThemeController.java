@@ -30,6 +30,7 @@ public class ThemeController {
 
     @GetMapping("/v1/theme")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public Theme get() {
         return service.get();
     }
@@ -42,6 +43,7 @@ public class ThemeController {
 
     @GetMapping("/v1/portal/theme")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public ResponseEntity<Theme> portal() {
         return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofSeconds(60)).cachePublic()).body(service.get());
     }

@@ -1,6 +1,8 @@
 package io.loyaltyhub.gamification.api;
 
 import io.loyaltyhub.common.web.LhException;
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.gamification.application.LeaderboardService;
 import io.loyaltyhub.gamification.domain.Leaderboard;
 import io.loyaltyhub.gamification.infra.LeaderboardRepository;
@@ -45,6 +47,7 @@ public class PortalLeaderboardsController {
 
     @GetMapping
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<PortalLeaderboard> list(@RequestParam String memberId, @RequestParam(required = false) String resolve) {
         boolean ids = Resolve.ids(resolve);
         return leaderboards.findActive().stream().map(l -> view(l, memberId, ids)).toList();
@@ -52,6 +55,7 @@ public class PortalLeaderboardsController {
 
     @GetMapping("/{code}")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PortalLeaderboard one(@PathVariable String code, @RequestParam String memberId,
                                  @RequestParam(required = false) String resolve) {
         boolean ids = Resolve.ids(resolve);

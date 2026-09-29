@@ -37,6 +37,7 @@ public class SegmentsController {
     }
 
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PageResponse<SegmentView> list(@RequestParam(required = false) String q,
                                           @RequestParam(required = false) String type,
                                           @RequestParam(required = false) String status,
@@ -46,6 +47,7 @@ public class SegmentsController {
     }
 
     @GetMapping("/{id}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public SegmentView get(@PathVariable String id) {
         return service.get(id);
     }
@@ -64,6 +66,7 @@ public class SegmentsController {
 
     /** Anteprima senza salvare: {@code {criteria}} → {@code {count, sample[10]}}. Lettura: ammessa a tutti. */
     @PostMapping("/preview")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PreviewResult preview(@RequestBody PreviewRequest request) {
         return service.preview(request.criteria());
     }
@@ -80,6 +83,7 @@ public class SegmentsController {
      * elenco da modificare di uno statico).
      */
     @GetMapping("/{id}/members")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PageResponse<MemberSample> members(@PathVariable String id,
                                               @RequestParam(defaultValue = "0") int page,
                                               @RequestParam(defaultValue = "50") int size) {

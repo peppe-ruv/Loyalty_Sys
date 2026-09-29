@@ -1,5 +1,7 @@
 package io.loyaltyhub.gamification.api;
 
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.gamification.domain.Achievement;
 import io.loyaltyhub.gamification.domain.AchievementRules;
 import io.loyaltyhub.gamification.infra.AchievementRepository;
@@ -52,6 +54,7 @@ public class PortalAchievementsController {
      */
     @GetMapping("/achievements")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<PortalAchievement> achievements(@RequestParam String memberId) {
         Instant now = clock.instant();
         Map<String, BadgeRepository.Badge> badgeByCode = badges.findAll().stream()
@@ -78,6 +81,7 @@ public class PortalAchievementsController {
 
     @GetMapping("/badges")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<PortalBadge> badges(@RequestParam String memberId) {
         Map<String, BadgeRepository.MemberBadge> owned = badges.memberBadges(memberId).stream()
                 .collect(Collectors.toMap(BadgeRepository.MemberBadge::badgeCode, Function.identity()));

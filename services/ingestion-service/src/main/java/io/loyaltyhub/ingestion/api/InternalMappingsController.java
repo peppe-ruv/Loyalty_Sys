@@ -40,6 +40,7 @@ public class InternalMappingsController {
     }
 
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<InternalMapping> list() {
         return mappings.findAll();
     }

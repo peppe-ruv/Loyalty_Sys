@@ -95,6 +95,7 @@ public class ImportsController {
 
     /** Elenco paginato ({@code {items, page}}, docs/06 §2), più recenti prima; filtro {@code status}. */
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PageResponse<ImportJob> list(@RequestParam(required = false) String status,
                                         @RequestParam(defaultValue = "0") int page,
                                         @RequestParam(defaultValue = "20") int size) {
@@ -103,12 +104,14 @@ public class ImportsController {
 
     /** Dettaglio: il lavoro e le righe {@code UNMATCHED} ancora da abbinare nel monitor ingressi. */
     @GetMapping("/{id}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public ImportService.ImportDetail get(@PathVariable String id) {
         return imports.get(importId(id));
     }
 
     /** Rapporto per riga (solo le righe non accettate), in ordine di riga; filtro {@code outcome}. */
     @GetMapping("/{id}/rows")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PageResponse<ImportRowResult> rows(@PathVariable String id,
                                               @RequestParam(required = false) String outcome,
                                               @RequestParam(defaultValue = "0") int page,
@@ -127,6 +130,7 @@ public class ImportsController {
     @GetMapping("/{id}/report.csv")
     @ApiResponse(responseCode = "200", description = "CSV con intestazione riga, linea, id_evento, esito, codice, "
             + "dettaglio, esito_attuale", content = @Content(mediaType = "text/csv", schema = @Schema(type = "string")))
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public ResponseEntity<byte[]> report(@PathVariable String id) {
         String jobId = importId(id);
         byte[] csv = imports.reportCsv(jobId).getBytes(StandardCharsets.UTF_8);

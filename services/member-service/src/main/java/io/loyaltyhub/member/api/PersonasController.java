@@ -1,5 +1,7 @@
 package io.loyaltyhub.member.api;
 
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.member.infra.MemberRepository;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,6 +21,7 @@ public class PersonasController {
     }
 
     @GetMapping("/personas")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<PersonaView> personas() {
         return members.personas();
     }

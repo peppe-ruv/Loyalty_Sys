@@ -1,6 +1,8 @@
 package io.loyaltyhub.reward.api;
 
 import io.loyaltyhub.common.web.LhException;
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.reward.application.RedemptionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -34,6 +36,7 @@ public class PortalRedemptionsController {
     }
 
     @PostMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public ResponseEntity<RedemptionService.RequestResult> request(@RequestBody RedemptionRequest r) {
         if (r == null) {
             throw LhException.badRequest("corpo della richiesta mancante");
@@ -42,6 +45,7 @@ public class PortalRedemptionsController {
     }
 
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<RedemptionService.RedemptionView> list(@RequestParam(required = false) String memberId) {
         if (memberId == null || memberId.isBlank()) {
             throw LhException.badRequest("memberId è obbligatorio");
@@ -50,6 +54,7 @@ public class PortalRedemptionsController {
     }
 
     @GetMapping("/{id}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public RedemptionService.RedemptionView get(@PathVariable String id, @RequestParam(required = false) String memberId) {
         RedemptionService.RedemptionView v = redemptions.view(id);
         if (memberId != null && !memberId.isBlank() && !memberId.equals(v.memberId())) {
@@ -59,6 +64,7 @@ public class PortalRedemptionsController {
     }
 
     @PostMapping("/{id}/cancel")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public RedemptionService.RedemptionView cancel(@PathVariable String id, @RequestParam(required = false) String memberId) {
         // Q-283 DECISA: identità esplicita del portale (CLAUDE.md §1.6), come GET /v1/portal/redemptions.
         if (memberId == null || memberId.isBlank()) {

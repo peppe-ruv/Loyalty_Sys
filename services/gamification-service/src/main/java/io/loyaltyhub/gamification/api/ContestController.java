@@ -87,6 +87,7 @@ public class ContestController {
 
     @GetMapping("/contests")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<ContestView> list(@RequestParam(required = false) String status) {
         Map<String, InstantRepository.Counts> counts = instants.countsByContest();
         Map<String, PlayRepository.Totals> totals = plays.totalsByContest();
@@ -103,6 +104,7 @@ public class ContestController {
 
     @GetMapping("/contests/{id}")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public ContestView get(@PathVariable String id) {
         return view(admin.get(id));
     }
@@ -133,6 +135,7 @@ public class ContestController {
 
     /** Storico delle transizioni (docs/03 §3.6: chi, quando, commento), dal più recente. */
     @GetMapping("/contests/{id}/approval-history")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<ApprovalHistory> approvalHistory(@PathVariable String id) {
         return admin.history(id);
     }
@@ -170,6 +173,7 @@ public class ContestController {
 
     @GetMapping("/contests/{id}/winners")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<PlayRepository.Winner> winners(@PathVariable String id, @RequestParam(required = false) String resolve) {
         boolean ids = Resolve.ids(resolve);
         List<PlayRepository.Winner> winners = plays.winners(admin.get(id).id());
@@ -178,6 +182,7 @@ public class ContestController {
 
     @GetMapping(value = "/contests/{id}/winners.csv", produces = "text/csv")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public ResponseEntity<String> winnersCsv(@PathVariable String id, @RequestParam(required = false) String resolve) {
         // Con resolve=ids (Q-368) la colonna nickname resta vuota: la riempie il BFF da member-service.
         boolean ids = Resolve.ids(resolve);
@@ -196,6 +201,7 @@ public class ContestController {
 
     @GetMapping("/contests/{id}/stats")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public ContestStats stats(@PathVariable String id) {
         Contest c = admin.get(id);
         PlayRepository.Totals t = plays.totals(c.id());

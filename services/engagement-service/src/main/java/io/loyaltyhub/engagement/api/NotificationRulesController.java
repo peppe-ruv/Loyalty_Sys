@@ -38,6 +38,7 @@ public class NotificationRulesController {
 
     @GetMapping
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<NotificationRule> list(@RequestParam(required = false) String factType,
                                        @RequestParam(required = false) String templateCode) {
         return rules.findAll(RuleAdminService.normalizeFactType(factType), templateCode);
@@ -45,6 +46,7 @@ public class NotificationRulesController {
 
     @GetMapping("/{id}")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public NotificationRule get(@PathVariable String id) {
         return admin.get(id);
     }

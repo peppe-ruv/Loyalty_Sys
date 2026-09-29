@@ -2,6 +2,7 @@ package io.loyaltyhub.ingestion.api;
 
 import io.loyaltyhub.common.web.ActorHolder;
 import io.loyaltyhub.common.web.LhException;
+import io.loyaltyhub.common.web.RequiresRole;
 import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.ingestion.application.ActionReplayService;
 import io.loyaltyhub.ingestion.application.IngestionService;
@@ -43,6 +44,8 @@ public class EventsController {
     @PostMapping(
             path = "/events",
             consumes = {"application/json", "application/cloudevents+json"})
+    // SPEC-GAP: Q-492 — ingresso delle fonti aperto a ogni ruolo come nel PoC; ruolo SOURCE in M8.2f (deciso, Q-492).
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public ResponseEntity<IngestResult> ingest(@RequestBody InboundEventRequest request,
                                                @RequestHeader(value = REPROCESS_HEADER, required = false) String reprocess) {
         // Q-258: una fonte esterna dichiara l'URN; la forma breve resta ai chiamanti interni, che non passano da qui.

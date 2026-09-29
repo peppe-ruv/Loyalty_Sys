@@ -32,6 +32,7 @@ public class CurrenciesController {
     public record CurrencyUpdateDto(JsonNode expiryPolicy) {}
 
     @GetMapping("/currencies")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<CurrencyView> list() {
         return currencyService.list().stream()
                 .map(this::toView)
@@ -39,6 +40,7 @@ public class CurrenciesController {
     }
 
     @GetMapping("/currencies/{code}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public CurrencyView get(@PathVariable String code) {
         return currencyService.list().stream()
                 .filter(c -> c.code().equals(code.toUpperCase()))

@@ -2,6 +2,8 @@ package io.loyaltyhub.campaign.api;
 
 import io.loyaltyhub.campaign.infra.EvaluationLogRepository;
 import io.loyaltyhub.common.web.LhException;
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,6 +24,7 @@ public class EvaluationsController {
     }
 
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<EvaluationLogRepository.EvaluationRow> list(
             @RequestParam(required = false) String memberId,
             @RequestParam(required = false) String outcome,
@@ -30,6 +33,7 @@ public class EvaluationsController {
     }
 
     @GetMapping("/{actionId}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public String get(@PathVariable String actionId) {
         return log.findResults(actionId)
                 .orElseThrow(() -> LhException.notFound("Valutazione non trovata: " + actionId));

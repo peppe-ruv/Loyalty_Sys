@@ -32,6 +32,7 @@ public class CampaignsController {
     }
 
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<CampaignSummary> list(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String actionType,
@@ -40,11 +41,13 @@ public class CampaignsController {
     }
 
     @GetMapping("/{id}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public Campaign get(@PathVariable String id) {
         return service.get(id);
     }
 
     @GetMapping("/{id}/stats")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public CampaignAdminService.CampaignStats stats(@PathVariable String id) {
         return service.stats(id);
     }
@@ -70,23 +73,27 @@ public class CampaignsController {
     }
 
     @PostMapping("/{id}/transitions")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public Campaign transition(@PathVariable String id, @RequestBody TransitionRequest request) {
         return service.transition(id, request);
     }
 
     /** Storico delle transizioni (docs/03 §3.6: chi, quando, commento), dal più recente. */
     @GetMapping("/{id}/approval-history")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<ApprovalHistory> approvalHistory(@PathVariable String id) {
         return service.history(id);
     }
 
     @PostMapping("/validate")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public Map<String, Object> validate(@RequestBody CreateCampaignRequest request) {
         List<String> errors = service.validate(request);
         return Map.of("valid", errors.isEmpty(), "errors", errors);
     }
 
     @PostMapping("/simulate")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public Evaluation simulate(@RequestBody SimulateRequest request) {
         return service.simulate(request);
     }

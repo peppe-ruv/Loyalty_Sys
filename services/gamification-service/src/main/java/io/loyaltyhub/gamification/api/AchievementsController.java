@@ -46,6 +46,7 @@ public class AchievementsController {
 
     @GetMapping("/achievements")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<AchievementView> list() {
         Map<String, AchievementRepository.Stats> stats = achievements.stats();
         return achievements.findAll().stream()
@@ -55,6 +56,7 @@ public class AchievementsController {
 
     @GetMapping("/achievements/{id}")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public AchievementView get(@PathVariable String id) {
         Achievement a = admin.get(id);
         return view(a, achievements.stats().getOrDefault(a.id(), AchievementRepository.Stats.NONE));
@@ -74,6 +76,7 @@ public class AchievementsController {
 
     @GetMapping("/badges")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<BadgeView> badges() {
         Map<String, Long> holders = badges.holders();
         List<Achievement> all = achievements.findAll();

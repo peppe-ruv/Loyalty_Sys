@@ -1,5 +1,7 @@
 package io.loyaltyhub.member.api;
 
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.member.api.ReferralViews.Overview;
 import io.loyaltyhub.member.api.ReferralViews.PortalReferral;
 import io.loyaltyhub.member.api.ReferralViews.ReferralLink;
@@ -21,16 +23,19 @@ public class ReferralController {
     }
 
     @GetMapping("/v1/referral/overview")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public Overview overview() {
         return service.overview();
     }
 
     @GetMapping("/v1/members/{id}/referrals")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<ReferralLink> referrals(@PathVariable String id) {
         return service.referralsOf(id);
     }
 
     @GetMapping("/v1/portal/members/{id}/referral")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PortalReferral portal(@PathVariable String id) {
         return service.portal(id);
     }

@@ -42,6 +42,7 @@ public class AuditController {
     }
 
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PageResponse<AuditRecord> list(
             @RequestParam(required = false) String actor,
             @RequestParam(required = false) String role,
@@ -91,6 +92,7 @@ public class AuditController {
     }
 
     @GetMapping("/{id}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public AuditRecord byId(@PathVariable String id) {
         return audits.findById(id).orElseThrow(() -> LhException.notFound("Voce di audit non trovata: " + id));
     }

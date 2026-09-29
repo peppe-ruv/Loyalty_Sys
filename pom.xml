@@ -27,6 +27,9 @@
     <spring-boot.version>4.1.1</spring-boot.version>
     <!-- OpenAPI su /v3/api-docs (docs/06 §2, Q-341, ADR-046) -->
     <springdoc.version>3.1.1</springdoc.version>
+    <!-- Regole di architettura nei test (deny by default, F2-SEC-09, ADR-042, docs/18 §3.11): libreria di test, solo
+         in lh-test-support, che i moduli dichiarano con scope test. -->
+    <archunit.version>1.5.1</archunit.version>
 
     <!--
       Dipendenze con advisory noti (M8.0, ADR-044). Spring Boot 4.1.1 è l'ultima 4.1.x: le versioni corrette
@@ -91,6 +94,11 @@
         <groupId>org.springdoc</groupId>
         <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
         <version>${springdoc.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.tngtech.archunit</groupId>
+        <artifactId>archunit</artifactId>
+        <version>${archunit.version}</version>
       </dependency>
       <!-- GHSA-9xv2-5v5q-p794, GHSA-gcx9-497g-6cp6, GHSA-h3x4-894j-xpx5: Tomcat embedded usato da spring-boot-starter-tomcat. -->
       <dependency>

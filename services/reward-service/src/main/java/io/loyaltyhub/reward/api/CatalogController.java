@@ -46,6 +46,7 @@ public class CatalogController {
     }
 
     @GetMapping("/reward-categories")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<Category> categories() {
         return catalog.categories();
     }
@@ -63,6 +64,7 @@ public class CatalogController {
     }
 
     @GetMapping("/reward-bands")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<Band> bands() {
         return catalog.bands();
     }
@@ -87,6 +89,7 @@ public class CatalogController {
     }
 
     @GetMapping("/rewards")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<Reward> rewards(@RequestParam(required = false) String status, @RequestParam(required = false) String band,
                                 @RequestParam(required = false) String category, @RequestParam(required = false) String type,
                                 @RequestParam(required = false) String q) {
@@ -94,6 +97,7 @@ public class CatalogController {
     }
 
     @GetMapping("/rewards/{id}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public Reward reward(@PathVariable String id) {
         return admin.get(id);
     }
@@ -118,6 +122,7 @@ public class CatalogController {
 
     /** Storico delle transizioni (docs/03 §3.6: chi, quando, commento), dal più recente. */
     @GetMapping("/rewards/{id}/approval-history")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<ApprovalHistory> approvalHistory(@PathVariable String id) {
         return admin.history(id);
     }

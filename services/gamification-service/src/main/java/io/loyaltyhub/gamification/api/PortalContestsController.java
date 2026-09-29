@@ -2,6 +2,8 @@ package io.loyaltyhub.gamification.api;
 
 import io.loyaltyhub.common.approval.ApprovalStatus;
 import io.loyaltyhub.common.time.BusinessCalendar;
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.gamification.application.PlayService;
 import io.loyaltyhub.gamification.domain.Contest;
 import io.loyaltyhub.gamification.infra.ContestRepository;
@@ -56,6 +58,7 @@ public class PortalContestsController {
 
     @GetMapping
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<PortalContest> live(@RequestParam String memberId) {
         Instant now = clock.instant();
         LocalDate today = LocalDate.ofInstant(now, BusinessCalendar.ZONE);
@@ -67,12 +70,14 @@ public class PortalContestsController {
     }
 
     @PostMapping("/{code}/play")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PlayService.PlayResult play(@PathVariable String code, @RequestBody PlayRequest r) {
         return playService.play(code, r == null ? null : r.memberId());
     }
 
     @GetMapping("/{code}/plays")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<PlayRepository.MemberPlay> plays(@PathVariable String code, @RequestParam String memberId,
                                                  @RequestParam(defaultValue = "10") int limit) {
         return playService.history(code, memberId, limit);

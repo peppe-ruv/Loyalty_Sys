@@ -1,5 +1,7 @@
 package io.loyaltyhub.wallet.api;
 
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.wallet.domain.LedgerEntry;
@@ -42,6 +44,7 @@ public class PortalActivityController {
     }
 
     @GetMapping("/{memberId}/activity")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<ActivityItem> activity(
             @PathVariable String memberId,
             @RequestParam(required = false) String currency,

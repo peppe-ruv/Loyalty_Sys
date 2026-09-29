@@ -33,6 +33,7 @@ public class ScenariosController {
     }
 
     @GetMapping("/scenarios")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<Scenario> list() {
         return scenarios.list();
     }
@@ -45,6 +46,7 @@ public class ScenariosController {
     }
 
     @GetMapping("/scenario-runs/{runId}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public ScenarioRun runStatus(@PathVariable String runId) {
         return scenarios.getRun(runId)
                 .orElseThrow(() -> LhException.notFound("Esecuzione non trovata: " + runId));

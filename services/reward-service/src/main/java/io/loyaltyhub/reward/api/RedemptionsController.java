@@ -35,6 +35,7 @@ public class RedemptionsController {
     }
 
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PageResponse<RedemptionService.RedemptionView> list(@RequestParam(required = false) String status,
                                                                @RequestParam(required = false) String fulfilment,
                                                                @RequestParam(required = false) String memberId,
@@ -48,6 +49,7 @@ public class RedemptionsController {
     }
 
     @GetMapping("/{id}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public RedemptionService.RedemptionView get(@PathVariable String id) {
         return redemptions.view(id);
     }

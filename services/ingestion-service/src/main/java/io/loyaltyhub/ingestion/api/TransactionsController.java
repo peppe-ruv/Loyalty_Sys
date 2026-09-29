@@ -1,5 +1,7 @@
 package io.loyaltyhub.ingestion.api;
 
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import io.loyaltyhub.common.web.LhException;
@@ -51,6 +53,8 @@ public class TransactionsController {
     }
 
     @PostMapping("/transactions")
+    // SPEC-GAP: Q-492 — ingresso delle fonti aperto a ogni ruolo come nel PoC; ruolo SOURCE in M8.2f (deciso, Q-492).
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public ResponseEntity<IngestResult> transaction(@RequestBody TransactionRequest t) {
         requireForm(t);
         boolean isReturn = "RETURN".equalsIgnoreCase(t.kind());

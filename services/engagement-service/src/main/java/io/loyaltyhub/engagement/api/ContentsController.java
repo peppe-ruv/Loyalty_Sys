@@ -40,6 +40,7 @@ public class ContentsController {
 
     @GetMapping
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<ContentItem> list(@RequestParam(required = false) String kind,
                                   @RequestParam(required = false) String placement,
                                   @RequestParam(required = false) String status,
@@ -50,12 +51,14 @@ public class ContentsController {
     /** Cosa vedrebbe quel membro adesso nel posizionamento, col motivo di esclusione degli altri contenuti. */
     @GetMapping("/preview")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public Preview preview(@RequestParam(required = false) String memberId, @RequestParam(required = false) String placement) {
         return service.preview(memberId, placement);
     }
 
     @GetMapping("/{id}")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public ContentItem get(@PathVariable String id) {
         return service.get(id);
     }
@@ -81,6 +84,7 @@ public class ContentsController {
     /** Storico delle transizioni (docs/03 §3.6, docs/06 §7), come campagne, premi e concorsi. */
     @GetMapping("/{id}/approval-history")
     @Transactional(readOnly = true)
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public List<ApprovalHistory> approvalHistory(@PathVariable String id) {
         return service.history(id);
     }

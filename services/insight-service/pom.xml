@@ -38,6 +38,13 @@
       <artifactId>spring-kafka-test</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- Regola ArchUnit del deny by default (EndpointAccessRules, F2-SEC-09; docs/06 §9). -->
+    <dependency>
+      <groupId>io.loyaltyhub</groupId>
+      <artifactId>lh-test-support</artifactId>
+      <version>0.1.0-SNAPSHOT</version>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>io.zonky.test</groupId>
       <artifactId>embedded-postgres</artifactId>

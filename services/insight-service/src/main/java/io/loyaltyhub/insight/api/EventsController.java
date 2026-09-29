@@ -1,5 +1,7 @@
 package io.loyaltyhub.insight.api;
 
+import io.loyaltyhub.common.web.RequiresRole;
+import io.loyaltyhub.common.web.Role;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.loyaltyhub.common.web.LhException;
@@ -45,6 +47,7 @@ public class EventsController {
     }
 
     @GetMapping
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public PageResponse<EventSummary> list(
             @RequestParam(required = false) String topic,
             @RequestParam(required = false) String family,
@@ -70,6 +73,7 @@ public class EventsController {
     }
 
     @GetMapping("/{eventId}")
+    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
     public EventDetail byId(@PathVariable String eventId) {
         StoredEvent e = events.findById(eventId)
                 .orElseThrow(() -> LhException.notFound("Evento non trovato: " + eventId));
