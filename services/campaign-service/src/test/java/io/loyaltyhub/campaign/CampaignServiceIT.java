@@ -312,10 +312,13 @@ class CampaignServiceIT {
     @Test
     void surveyGrantsPointsAndAPlay() {
         publishAction("01SURVEY01", "survey.completed", "MBR-000003", TUESDAY, Map.of("surveyId", "SRV-1"));
-        // Come prima vince l'ultimo plays.grant del membro letto: quello dell'azione appena elaborata.
-        List<ConsumerRecord<String, String>> grants = effects(List.of("01SURVEY01"), r -> r.key().equals("MBR-000003")
-                && readJson(r.value()).path("type").asString().equals("io.loyaltyhub.effect.plays.grant"));
-        JsonNode plays = grants.isEmpty() ? null : readJson(grants.getLast().value()).path("data");
+        // Il plays.grant di questa azione (data.actionId), non uno qualunque del membro sul topic.
+        List<ConsumerRecord<String, String>> grants = effects(List.of("01SURVEY01"), r -> {
+            JsonNode e = readJson(r.value());
+            return r.key().equals("MBR-000003") && e.path("type").asString().equals("io.loyaltyhub.effect.plays.grant")
+                    && e.path("data").path("actionId").asString().equals("01SURVEY01");
+        });
+        JsonNode plays = grants.isEmpty() ? null : readJson(grants.getFirst().value()).path("data");
         assertThat(plays).as("effetto plays.grant da CMP-SURVEY").isNotNull();
         assertThat(plays.path("contestCode").asString()).isEqualTo("IW-AUTUNNO");
         assertThat(plays.path("count").asInt()).isEqualTo(1);

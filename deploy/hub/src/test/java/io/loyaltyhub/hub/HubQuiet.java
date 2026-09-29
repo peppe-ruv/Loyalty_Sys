@@ -18,9 +18,12 @@ import java.util.concurrent.TimeUnit;
  * negli IT dell'hub (docs/06 §9): come {@code TestbookE2eSupportIT.quiet()}, senza finestra di tempo.
  * <p>
  * Il bus consegna su un solo thread FIFO: quando un record-barriera su un topic privato del test arriva, tutto ciò che
- * era in coda prima (ritentativi e DLQ compresi) è consegnato. Il sistema è quieto quando, tra due barriere
- * consecutive, l'outbox non ha righe da pubblicare e non cambiano i conteggi di outbox, {@code processed_event},
- * {@code insight.event_store} e {@code insight.dlq_entry}: nessun lavoro in corso né in arrivo dal relay.
+ * era in coda prima è consegnato. Il sistema è quieto quando, per <em>due intervalli consecutivi</em> tra barriere,
+ * l'outbox non ha righe da pubblicare e non cambiano i conteggi di outbox, {@code processed_event},
+ * {@code insight.event_store} e {@code insight.dlq_entry}. Un intervallo solo non basta: un record consegnato in
+ * quell'intervallo che fallisce non cambia nessun conteggio (la transazione è annullata) e il bus accoda il suo record
+ * DLQ <em>dopo</em> la barriera che chiude l'intervallo; nell'intervallo successivo insight scrive {@code dlq_entry}.
+ * Il primo conteggio si prende dopo una barriera, mai prima: un fallimento ancora in coda non passa per quiete.
  */
 public final class HubQuiet {
 
@@ -35,17 +38,25 @@ public final class HubQuiet {
 
     /** Ritorna quando l'hub è quieto; altrimenti fallisce allo scadere con gli ultimi conteggi osservati. */
     public static void await(HubInProcessBus bus, JdbcClient jdbc) {
+        await(bus, jdbc, "quiete");
+    }
+
+    /** Come {@link #await(HubInProcessBus, JdbcClient)}; {@code phase} compare nel messaggio d'errore. */
+    public static void await(HubInProcessBus bus, JdbcClient jdbc, String phase) {
         long deadline = System.currentTimeMillis() + TIMEOUT_MS;
-        List<Long> previous = List.of();
+        barrier(bus);
+        List<Long> previous = counters(jdbc);
+        int stable = 0;
         while (System.currentTimeMillis() < deadline) {
             barrier(bus);
             List<Long> current = counters(jdbc);
-            if (current.get(1) == 0 && current.equals(previous)) {
+            stable = current.get(1) == 0 && current.equals(previous) ? stable + 1 : 0;
+            if (stable == 2) {
                 return;
             }
             previous = current;
         }
-        throw new AssertionError("hub non quieto entro " + TIMEOUT_MS / 1000 + " s (outbox, da pubblicare, "
+        throw new AssertionError("hub non quieto entro " + TIMEOUT_MS / 1000 + " s (" + phase + "; outbox, da pubblicare, "
                 + "processed_event, event_store, dlq_entry): " + previous);
     }
 

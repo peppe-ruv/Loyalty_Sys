@@ -31,11 +31,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -71,9 +68,6 @@ class HubReplayIdempotencyIT {
     /** Topic riconsegnati: tutti tranne la DLQ (i suoi record non sono in event_store, docs Q-111). */
     private static final List<String> REPLAY_TOPICS = List.of("lh.actions.v1", "lh.effects.v1", "lh.facts.v1", "lh.audit.v1");
     private static final String DLQ_TOPIC = "lh.dlq.v1";
-    /** Topic privato del test: nessun servizio lo ascolta; serve da barriera FIFO sul thread di consegna del bus. */
-    private static final String BARRIER_TOPIC = "lh.test.replay-barrier";
-    /** Finestra di quiete: 6 giri del relay dell'outbox (500 ms) senza alcuna scrittura. */
 
     /**
      * Tabelle di business che il traffico deve modificare: la fotografia le copre (tutte le tabelle degli schemi) e
@@ -101,8 +95,6 @@ class HubReplayIdempotencyIT {
     @Autowired
     private HubInProcessBus bus;
 
-    private final Map<String, CountDownLatch> barriers = new ConcurrentHashMap<>();
-
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -119,12 +111,6 @@ class HubReplayIdempotencyIT {
     @Test
     void replayingEveryDeliveredMessageChangesNothing() throws Exception {
         long started = System.nanoTime();
-        bus.subscribe(BARRIER_TOPIC, "lh-test-barrier", r -> {
-            CountDownLatch latch = barriers.remove(r.key());
-            if (latch != null) {
-                latch.countDown();
-            }
-        });
 
         // 0. Stato di partenza (seed demo), a riposo.
         awaitQuiescence("avvio");
@@ -247,45 +233,11 @@ class HubReplayIdempotencyIT {
     // ---------- quiete ----------
 
     /**
-     * Quiete: nessuna scrittura su outbox, event_store, processed_event e DLQ tra due barriere consecutive, nessuna riga
-     * dell'outbox da pubblicare e il bus ha consegnato tutto ciò che aveva in coda (barriera FIFO).
+     * Quiete dell'hub ({@link HubQuiet}): barriere FIFO sul bus e conteggi di outbox, event_store, processed_event e DLQ
+     * fermi per due intervalli consecutivi con l'outbox vuoto; niente finestra di tempo.
      */
     private void awaitQuiescence(String phase) {
-        long deadline = System.currentTimeMillis() + 90_000;
-        List<Long> previous = counters();
-        while (System.currentTimeMillis() < deadline) {
-            barrier();
-            List<Long> current = counters();
-            if (current.equals(previous) && current.get(2) == 0) {
-                return;
-            }
-            previous = current;
-        }
-        throw new AssertionError("Sistema non a riposo entro 90 s (" + phase + "): " + previous);
-    }
-
-    /** event_store, outbox (totale), outbox da pubblicare, processed_event, dlq_entry. */
-    private List<Long> counters() {
-        return List.of(
-                count("SELECT count(*) FROM insight.event_store"),
-                count("SELECT count(*) FROM outbox"),
-                count("SELECT count(*) FROM outbox WHERE published_at IS NULL"),
-                count("SELECT count(*) FROM processed_event"),
-                count("SELECT count(*) FROM insight.dlq_entry"));
-    }
-
-    /** Il bus consegna su un solo thread FIFO: quando il record-barriera arriva, tutto ciò che lo precede è consegnato. */
-    private void barrier() {
-        String id = UUID.randomUUID().toString();
-        CountDownLatch latch = new CountDownLatch(1);
-        barriers.put(id, latch);
-        bus.publish(new ProducerRecord<>(BARRIER_TOPIC, id, "{}"));
-        try {
-            assertThat(latch.await(60, TimeUnit.SECONDS)).as("barriera del bus in-process").isTrue();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new AssertionError(e);
-        }
+        HubQuiet.await(bus, jdbc, phase);
     }
 
     // ---------- riconsegna ----------
