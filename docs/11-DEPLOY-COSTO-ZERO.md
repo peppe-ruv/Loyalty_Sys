@@ -167,10 +167,11 @@ File `.env.example` alla radice e in `web/` con tutte le chiavi e nessun valore 
 ## 9. Sviluppo locale — `deploy/docker-compose.yml`
 | Servizio | Immagine | Porta | Note |
 |---|---|---|---|
-| `kafka` | `apache/kafka` (KRaft, nodo singolo) | 9092 | `auto.create.topics.enable=false`; i topic li crea il profilo `local` (2 partizioni, come in demo) |
+| `kafka` | `apache/kafka:4.2.2` (KRaft, nodo singolo) | 9092 | `auto.create.topics.enable=false`; i topic li crea il profilo `local` (2 partizioni, come in demo); linea 4.2 come `kafka-clients` (Q-481) |
 | `postgres` | `postgres:17.11` | 5432 | DB `loyaltyhub`; volume nominato |
-| `kafka-ui` | `provectuslabs/kafka-ui` | **8090** | ispezione topic; porta solo su `127.0.0.1` (Q-479) |
-| 8 servizi + `web` | build locale | 8081–8088, 3000 | solo con `--profile all` |
+| `kafka-ui` | `kafbat/kafka-ui:v1.5.0` | **8090** | ispezione topic; porta solo su `127.0.0.1` (Q-479) |
+| 8 servizi | build locale (`services/<nome>/Dockerfile`) | 8081–8088 | solo con `--profile all` |
+| `web` | build dell'immagine unica (`deploy/image/Dockerfile`), `LH_ROLE=web` | 3000 | solo con `--profile all` (Q-484) |
 Limiti di memoria nel compose (`mem_limit: 512m`, `cpus: 0.5`) per scoprire presto i problemi del piano gratuito. `scripts/wake.sh <base-url-web>` e `scripts/smoke.sh` funzionano identici in locale e in demo.
 
 ## 10. CI — `.github/workflows/ci.yml`

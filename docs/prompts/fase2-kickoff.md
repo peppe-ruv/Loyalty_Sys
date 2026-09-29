@@ -61,7 +61,7 @@ M8.1–M8.4, se ce ne sono.
 2. Merge squash della PR.
 3. Eseguire `scripts/setup-branch-protection.sh` (prima `--dry-run`). Controlli obbligatori iniziali: `backend (Java 25)`, `web (Next.js)`, `seed`, `contracts`, `guard`.
 4. Verificare: `git push origin main` rifiutato; una PR di prova mostra i cinque controlli.
-5. Rilanciare lo script aggiungendo i controlli quando nascono: `security` (M8.5, esteso in M8.11 con Schemathesis e ZAP notturni), `docs` (M8.9), `e2e-pr` (M9), `registry` (M10.1). Esempio: `LH_REQUIRED_CHECKS="backend (Java 25)|web (Next.js)|seed|contracts|guard|docs" scripts/setup-branch-protection.sh`.
+5. Rilanciare lo script aggiungendo i controlli quando nascono: `security` (M8.5, esteso in M8.11 con Schemathesis e ZAP notturni), `docs` (M8.9), `e2e-pr` (M9), `registry` (M10.1). Esempio: `LH_REQUIRED_CHECKS="backend (Java 25)|web (Next.js)|seed|contracts|guard|helm (chart e compose)|docs" scripts/setup-branch-protection.sh`.
 
 ## 2. Prompt per ogni fetta (modello)
 

@@ -45,9 +45,10 @@ x-lh-require-env: &lh-require-env
 services:
   # ---------- Infrastruttura (sempre disponibile) ----------
   # Immagini con tag leggibile e digest: riproducibili, aggiornate da Dependabot (ecosistema docker-compose, ADR-047).
-  # Kafka resta sulla linea 3.9 (ultima patch) finché non si decide il passaggio a 4.x (SPEC-GAP: Q-481).
+  # Kafka, Postgres e Keycloak hanno la stessa versione in compose/reference.yml e nei values del chart: lo verifica
+  # scripts/check-helm.mjs (Q-483). Kafka segue la linea 4.2 di kafka-clients e del broker dei test (Q-481).
   kafka:
-    image: apache/kafka:3.9.2@sha256:05b4616e0702ef2729327705d54ad6b50ea70b271c4b730fabd2320789fb7b02
+    image: apache/kafka:4.2.2@sha256:1213eb3943d551e5ed1fca7a4e109001cee35770b66a02a0c37a8964efe09b69
     container_name: lh-kafka
     ports:
       - "9092:9092"   # accesso dall'host (es. servizi avviati con ./mvnw)
@@ -66,6 +67,10 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # Stato dei share group (Kafka 4.x): con le variabili KAFKA_* il file di default dell'immagine non si usa,
+      # quindi un solo broker va dichiarato anche qui.
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
@@ -93,9 +98,10 @@ services:
       retries: 10
       start_period: 10s
 
-  # Solo sviluppo. Progetto non più mantenuto, con vulnerabilità note senza correzione (SPEC-GAP: Q-479).
+  # Solo sviluppo, senza autenticazione. kafbat/kafka-ui è il fork mantenuto di provectuslabs/kafka-ui, con le stesse
+  # variabili; da Docker Hub, stesso digest di ghcr.io/kafbat/kafka-ui (Q-479).
   kafka-ui:
-    image: provectuslabs/kafka-ui:v0.7.2@sha256:8f2ff02d64b0a7a2b71b6b3b3148b85f66d00ec20ad40c30bdcd415d46d31818
+    image: kafbat/kafka-ui:v1.5.0@sha256:7cda86a33344160309fdb65146332e4da65db81a945614f2fe32e210803f6fd1
     container_name: lh-kafka-ui
     ports:
       - "127.0.0.1:8090:8080"   # ispezione dei topic su http://localhost:8090, solo dall'host (Q-479)
@@ -173,7 +179,7 @@ services:
 
   # Solo prova (F2-IAM-04): LDAP per la federazione. La password admin è la stessa che Keycloak
   # usa come bindCredential (LH_LDAP_BIND_CREDENTIAL). Mai in produzione. Immagine non più mantenuta, con
-  # vulnerabilità note senza correzione (SPEC-GAP: Q-480).
+  # vulnerabilità note senza correzione: rischio accettato solo per questo profilo, da sostituire con M8.2 (Q-480).
   ldap:
     image: osixia/openldap:1.5.0@sha256:18742e9c449c9c1afe129d3f2f3ee15fb34cc43e5f940a20f3399728f41d7c28
     container_name: lh-ldap
@@ -289,27 +295,38 @@ services:
       # Riprocessa DLQ di un'azione (M7.3, ADR-002 eccezione 1).
       LH_INGESTION_URL: "http://ingestion-service:8081"
 
+  # Web dall'immagine unica (deploy/image, ADR-037) con il solo ruolo web, come nel compose di riferimento e nel chart
+  # (Q-484). La build compila anche l'hub (stesso Dockerfile): il primo `up --build` è più lungo.
   web:
     build:
-      context: ../web
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: deploy/image/Dockerfile
+    image: loyaltyhub:local
     container_name: lh-web
     profiles: ["all"]
     restart: unless-stopped
     mem_limit: 512m
     cpus: 0.5
+    read_only: true
+    tmpfs: ["/tmp", "/opt/lh/web/.next/cache:uid=1000,gid=1000"]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     ports: ["3000:3000"]
     environment:
-      NODE_ENV: "production"
-      # Il proxy /api/lh del web raggiunge i servizi sulla rete compose (docs/07).
-      LH_INGESTION_URL: "http://ingestion-service:8081"
-      LH_MEMBER_URL: "http://member-service:8082"
-      LH_CAMPAIGN_URL: "http://campaign-service:8083"
-      LH_WALLET_URL: "http://wallet-service:8084"
-      LH_REWARD_URL: "http://reward-service:8085"
-      LH_GAMIFICATION_URL: "http://gamification-service:8086"
-      LH_ENGAGEMENT_URL: "http://engagement-service:8087"
-      LH_INSIGHT_URL: "http://insight-service:8088"
+      LH_ROLE: "web"
+      LH_MODE: "external"
+      LH_PROFILE: "demo"
+      # Il proxy /api/lh del web raggiunge i servizi sulla rete compose (docs/07, web/lib/api/services.ts).
+      LH_SVC_INGESTION_URL: "http://ingestion-service:8081"
+      LH_SVC_MEMBER_URL: "http://member-service:8082"
+      LH_SVC_CAMPAIGN_URL: "http://campaign-service:8083"
+      LH_SVC_WALLET_URL: "http://wallet-service:8084"
+      LH_SVC_REWARD_URL: "http://reward-service:8085"
+      LH_SVC_GAMIFICATION_URL: "http://gamification-service:8086"
+      LH_SVC_ENGAGEMENT_URL: "http://engagement-service:8087"
+      LH_SVC_INSIGHT_URL: "http://insight-service:8088"
     depends_on:
       - ingestion-service
       - member-service

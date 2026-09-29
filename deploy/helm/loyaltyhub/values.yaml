@@ -151,8 +151,9 @@ roles:
     replicas: 2
     # SPEC-GAP: Q-374 — l'immagine unica non contiene ancora Keycloak (/opt/lh/idp, ADR-037): il ruolo idp usa
     # l'immagine ufficiale di Keycloak alla stessa versione bloccata di deploy/docker-compose.yml. Quando l'immagine
-    # unica avrà il ruolo idp basterà `image: {}` per usare quella. Vulnerabilità note delle librerie incluse e
-    # versione allineata a mano (Dependabot non legge questo file): SPEC-GAP: Q-482, Q-483.
+    # unica avrà il ruolo idp basterà `image: {}` per usare quella. Vulnerabilità note delle librerie incluse: rischio
+    # residuo accettato (Q-482, TOBE-007). Dependabot non legge questo file: scripts/check-helm.mjs segnala se il tag
+    # diverge da deploy/docker-compose.yml e da deploy/compose/reference.yml (Q-483).
     image:
       repository: quay.io/keycloak/keycloak
       tag: "26.7.4"
@@ -276,11 +277,14 @@ kafka:
     # Consumer per listener in ogni Pod dell'hub. Si scala prima con le repliche (HPA), poi con questo valore.
     concurrency: 2
   strimzi:
-    # Versione dell'API delle risorse Strimzi installate nel cluster.
+    # Versione dell'API delle risorse Strimzi installate nel cluster. Il chart scrive le risorse in forma v1beta2, servita
+    # da Strimzi 0.46…0.51; Strimzi 1.0 o successivo serve solo l'API v1, non ancora supportata dal chart (Q-490).
     apiVersion: kafka.strimzi.io/v1beta2
     # Vuoto = <fullname>-kafka
     clusterName: ""
-    # Vuoto = versione di default dell'operatore.
+    # Vuoto = versione di default dell'operatore installato (Q-481): i compose usano Kafka 4.2.2, i client sono della
+    # serie 4.2. Con l'API v1beta2 la linea 4.2 c'è solo in Strimzi 0.51 (Kafka 4.2.0, non il default); con operatori
+    # precedenti resta la loro versione di default (4.0 o 4.1), che i client 4.2 supportano.
     version: ""
     replicas: 3
     storage:

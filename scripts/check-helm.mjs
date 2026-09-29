@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Verifica statica del chart Helm e del compose di riferimento (F2-DIST-02, F2-DIST-03, F2-EVT-04, M8.3).
+// Verifica statica del chart Helm e dei compose (F2-DIST-02, F2-DIST-03, F2-EVT-04, M8.3; immagini condivise: Q-483).
 // Uso: node --test scripts/check-helm.mjs   (nessuna dipendenza; con `helm` nel PATH esegue anche lint e template).
 // In CI (CI=true) helm è obbligatorio: senza, la prova fallisce invece di passare senza verificare nulla.
 import { test } from 'node:test';
@@ -181,6 +181,126 @@ test('porte dei ruoli allineate all\'immagine unica: hub 8080, web 3000 (deploy/
   assert.equal(svcUrls.length, 8);
   assert.ok(svcUrls.every((u) => u === `http://hub:${hubPort}`), `URL dei moduli nel compose: ${svcUrls}`);
   assert.match(compose, new RegExp(`:${webPort}:${webPort}"`), 'porta del web nel compose');
+});
+
+// ---- Immagini condivise (Q-483) ----
+// Dependabot aggiorna solo deploy/docker-compose.yml: compose di riferimento e values del chart si allineano a mano.
+// Kafka, Postgres e Keycloak devono avere la stessa versione ovunque compaiono; con due digest, anche lo stesso digest.
+const LOCAL_COMPOSE = 'deploy/docker-compose.yml';
+const VALUES = 'deploy/helm/loyaltyhub/values.yaml';
+const SHARED_IMAGES = ['apache/kafka', 'postgres', 'quay.io/keycloak/keycloak'];
+
+/** `nome[:tag][@digest]` → { name, tag, digest }. Il tag segue l'ultimo `:` dopo l'ultima `/` (registro con porta). */
+export function parseImageRef(ref) {
+  const [nameTag, digest = ''] = ref.split('@');
+  const colon = nameTag.lastIndexOf(':');
+  const hasTag = colon > nameTag.lastIndexOf('/');
+  return { name: hasTag ? nameTag.slice(0, colon) : nameTag, tag: hasTag ? nameTag.slice(colon + 1) : '', digest };
+}
+
+/** Immagini letterali di un file compose (virgolette doppie, singole o nessuna; commento in coda ammesso); l'immagine
+ * unica (`${LH_IMAGE…}`, interpolata) non conta. */
+export function composeImageRefs(text) {
+  return [...text.matchAll(/^\s+image:\s*["']?([^\s"'#]+)["']?\s*(?:#.*)?$/gm)].map((m) => m[1])
+    .filter((r) => !r.startsWith('${')).map(parseImageRef);
+}
+
+/** Immagini del chart legate a quelle dei compose: repository e tag (anche `tag@sha256:…`), Kafka di Strimzi, immagine
+ * di CloudNativePG. Virgolette doppie, singole o nessuna. */
+export function valuesImageRefs(text) {
+  const refs = [...text.matchAll(/^\s+repository: ["']?([^\s"'#]+)["']?\s*(?:#.*)?\n\s+tag: ["']?([^\s"'#]+)["']?/gm)]
+    .map((m) => parseImageRef(`${m[1]}:${m[2]}`));
+  // Strimzi supporta solo alcune patch di Kafka: si confronta la linea major.minor. Vuoto = sceglie l'operatore.
+  const strimzi = (text.match(/^ {2}strimzi:\n(?: {4}.*\n|\s*#.*\n)*? {4}version: ["']?([^\s"'#]*)["']?/m) || [])[1];
+  if (strimzi) refs.push({ name: 'apache/kafka', tag: strimzi, digest: '', line: true });
+  // CloudNativePG ha immagini proprie di Postgres: si confronta la versione. Vuoto = immagine di default dell'operatore.
+  const cnpg = (text.match(/^\s+imageName: ["']?([^\s"'#]*)["']?/m) || [])[1];
+  if (cnpg) refs.push({ ...parseImageRef(cnpg), name: 'postgres', numeric: true });
+  return refs;
+}
+
+const numericVersion = (tag) => (tag.match(/^\d+(?:\.\d+)*/) || [''])[0];
+const versionLine = (tag) => numericVersion(tag).split('.').slice(0, 2).join('.');
+
+/** Divergenze fra le fonti ({ file: [riferimenti] }) sulle immagini condivise; vuoto = tutto allineato. */
+export function sharedImageDrift(sources, shared = SHARED_IMAGES) {
+  const problems = [];
+  for (const name of shared) {
+    const found = Object.entries(sources)
+      .flatMap(([file, refs]) => refs.filter((r) => r.name === name).map((r) => ({ file, ...r })));
+    const ref = found.find((r) => !r.line && !r.numeric);
+    if (!ref) continue;
+    for (const r of found.filter((x) => x !== ref)) {
+      const at = `${name}: ${r.file} ha ${r.tag}${r.digest ? `@${r.digest}` : ''}, ${ref.file} ha ${ref.tag}`;
+      if (r.line) {
+        if (versionLine(r.tag) !== versionLine(ref.tag)) {
+          problems.push(`${at} (linea ${versionLine(r.tag)} invece di ${versionLine(ref.tag)})`);
+        }
+      } else if (r.numeric) {
+        if (numericVersion(r.tag) !== numericVersion(ref.tag)) problems.push(at);
+      } else if (r.tag !== ref.tag) {
+        problems.push(at);
+      } else if (r.digest && ref.digest && r.digest !== ref.digest) {
+        problems.push(`${name}: stesso tag ${r.tag} con digest diversi in ${ref.file} e ${r.file}`);
+      }
+    }
+  }
+  return problems;
+}
+
+test('immagini condivise: stessa versione nei due compose e nei values del chart (Q-483)', () => {
+  const sources = {
+    [LOCAL_COMPOSE]: composeImageRefs(read(LOCAL_COMPOSE)),
+    [COMPOSE]: composeImageRefs(read(COMPOSE)),
+    [VALUES]: valuesImageRefs(read(VALUES)),
+  };
+  for (const name of SHARED_IMAGES) {
+    for (const file of [LOCAL_COMPOSE, COMPOSE]) {
+      assert.ok(sources[file].some((r) => r.name === name && r.tag), `${file}: manca ${name} con un tag`);
+    }
+  }
+  assert.ok(sources[VALUES].some((r) => r.name === 'quay.io/keycloak/keycloak'), `${VALUES}: manca l'immagine di Keycloak`);
+  assert.deepEqual(sharedImageDrift(sources), [], 'allineare tag e digest a deploy/docker-compose.yml');
+});
+
+test('immagini condivise: il controllo trova tag, digest e linee divergenti', () => {
+  assert.deepEqual(parseImageRef('registry.example.org:5000/lh/kafka:4.2.2@sha256:abc'),
+    { name: 'registry.example.org:5000/lh/kafka', tag: '4.2.2', digest: 'sha256:abc' });
+  assert.deepEqual(parseImageRef('postgres'), { name: 'postgres', tag: '', digest: '' });
+  // Commento in coda e virgolette singole nei compose; `tag@digest` e virgolette singole nei values.
+  assert.deepEqual(composeImageRefs("  a:\n    image: apache/kafka:4.2.2 # nota\n  b:\n    image: 'postgres:17.11'\n"),
+    [{ name: 'apache/kafka', tag: '4.2.2', digest: '' }, { name: 'postgres', tag: '17.11', digest: '' }]);
+  assert.deepEqual(valuesImageRefs("    image:\n      repository: 'quay.io/keycloak/keycloak'\n      tag: '26.7.4@sha256:abc'\n"
+    + "kafka:\n  strimzi:\n    version: '4.2.1'\n"), [
+    { name: 'quay.io/keycloak/keycloak', tag: '26.7.4', digest: 'sha256:abc' },
+    { name: 'apache/kafka', tag: '4.2.1', digest: '', line: true },
+  ]);
+  const compose = (kafka, pg) => composeImageRefs(
+    `services:\n  kafka:\n    image: ${kafka}\n  pg:\n    image: "${pg}"\n  hub:\n    image: "\${LH_IMAGE:?obbligatoria}"\n`);
+  const values = (tag, strimzi = '', cnpg = '') => valuesImageRefs(
+    `roles:\n  idp:\n    image:\n      repository: quay.io/keycloak/keycloak\n      tag: "${tag}"\n`
+    + `postgres:\n  cloudnativepg:\n    imageName: "${cnpg}"\n`
+    + `kafka:\n  strimzi:\n    apiVersion: kafka.strimzi.io/v1beta2\n    # commento\n    version: "${strimzi}"\n`);
+  const same = {
+    a: compose('apache/kafka:4.2.2@sha256:1', 'postgres:17.11@sha256:2'),
+    b: compose('apache/kafka:4.2.2@sha256:1', 'postgres:17.11@sha256:2'),
+    v: values('26.7.4'),
+    k: [{ name: 'quay.io/keycloak/keycloak', tag: '26.7.4', digest: '' }],
+  };
+  assert.equal(same.a.length, 2, 'l\'immagine unica interpolata non conta');
+  assert.deepEqual(sharedImageDrift(same), []);
+  assert.match(sharedImageDrift({ ...same, b: compose('apache/kafka:3.9.2@sha256:1', 'postgres:17.11@sha256:2') })[0],
+    /^apache\/kafka: b ha 3\.9\.2/);
+  assert.match(sharedImageDrift({ ...same, b: compose('apache/kafka:4.2.2@sha256:9', 'postgres:17.11@sha256:2') })[0],
+    /stesso tag 4\.2\.2 con digest diversi/);
+  // Il riferimento è la prima fonte (nel controllo reale deploy/docker-compose.yml, quello aggiornato da Dependabot).
+  assert.deepEqual(sharedImageDrift({ ...same, v: values('26.7.5') }),
+    ['quay.io/keycloak/keycloak: k ha 26.7.4, v ha 26.7.5']);
+  // Strimzi: conta la linea (4.2.1 va con 4.2.2, 4.3.1 no); CloudNativePG: la versione di Postgres.
+  assert.deepEqual(sharedImageDrift({ ...same, v: values('26.7.4', '4.2.1', 'ghcr.io/cloudnative-pg/postgresql:17.11') }), []);
+  assert.match(sharedImageDrift({ ...same, v: values('26.7.4', '4.3.1') })[0], /linea 4\.3 invece di 4\.2/);
+  assert.match(sharedImageDrift({ ...same, v: values('26.7.4', '', 'ghcr.io/cloudnative-pg/postgresql:18.1') })[0],
+    /^postgres: v ha 18\.1/);
 });
 
 const helm = spawnSync('helm', ['version', '--short'], { encoding: 'utf8' });

@@ -32,6 +32,10 @@ Vedi anche la [checklist completa dei prerequisiti](/getting-started/prerequisit
     ```
 
     La prima esecuzione scarica le immagini e costruisce i JAR. Attendi circa 3-5 minuti.
+
+    <Note>
+      Il frontend usa l'immagine unica di Loyalty Hub (`deploy/image/Dockerfile`) con il ruolo `web`, la stessa del compose di riferimento e del chart. La sua build compila anche l'hub, quindi il primo avvio richiede qualche minuto in più.
+    </Note>
   </Step>
   <Step title="Verifica lo stato">
     Ogni servizio espone `/actuator/health`.
