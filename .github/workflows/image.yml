@@ -6,6 +6,7 @@ on:
       - 'deploy/image/**'
       - 'deploy/docker-compose.yml'
       - '.github/workflows/image.yml'
+      - '.github/actions/setup-trivy/**'
       - 'web/**'
       - 'deploy/hub/**'
       - 'services/**'
@@ -17,29 +18,24 @@ on:
     tags:
       - 'v*'
 
+# Privilegi minimi (F2-SEC-03): il default e' sola lettura; il job `release` chiede da solo quelli che gli servono
+# (scrittura su GHCR, token OIDC per la firma keyless, attestazioni). Sulle PR non c'e' push e non c'e' firma.
+permissions:
+  contents: read
+
 jobs:
+  # Sulle PR: costruisce l'immagine (solo amd64), ne genera l'SBOM CycloneDX, la scansiona con Trivy (blocca su
+  # HIGH/CRITICAL con correzione disponibile) e ne prova l'avvio. Non pubblica e non firma nulla.
   build:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
-      - name: Set up QEMU
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: docker/setup-qemu-action@v4
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Login to GitHub Container Registry
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build image (linux/amd64 only) on PR
-        if: github.event_name == 'pull_request'
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -49,13 +45,49 @@ jobs:
           load: true
           tags: lh-image:test
 
+      - name: Install Trivy
+        uses: ./.github/actions/setup-trivy
+
+      # SBOM CycloneDX dell'immagine costruita (pacchetti Wolfi, jar Java, node_modules del web).
+      - name: SBOM CycloneDX
+        run: |
+          trivy image --image-src docker --format cyclonedx --output sbom.cdx.json lh-image:test
+
+      # Rapporto completo (tutte le gravita', anche senza correzione) come evidenza; non blocca.
+      - name: Trivy report (tutte le vulnerabilita')
+        run: |
+          trivy image --image-src docker --scanners vuln \
+            --ignorefile deploy/image/.trivyignore.yaml \
+            --format json --output trivy-image.json --exit-code 0 --timeout 15m --no-progress \
+            lh-image:test
+
+      - name: Upload SBOM e rapporto Trivy
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: image-sbom-e-scansione
+          path: |
+            sbom.cdx.json
+            trivy-image.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      # Blocca su HIGH/CRITICAL con correzione disponibile, in pacchetti del sistema operativo e librerie
+      # (jar Java, node_modules). Le eccezioni accettate, con motivo e scadenza, sono in
+      # deploy/image/.trivyignore.yaml.
+      - name: Trivy gate (HIGH/CRITICAL con correzione)
+        run: |
+          trivy image --image-src docker --scanners vuln --pkg-types os,library \
+            --severity HIGH,CRITICAL --ignore-unfixed \
+            --ignorefile deploy/image/.trivyignore.yaml \
+            --exit-code 1 --timeout 15m --no-progress \
+            lh-image:test
+
       - name: Start Compose for Smoke Test
-        if: github.event_name == 'pull_request'
         run: |
           docker compose -f deploy/docker-compose.yml -p deploy up -d --wait kafka postgres
 
       - name: Smoke Run LH_ROLE=hub
-        if: github.event_name == 'pull_request'
         run: |
           docker run -d --name lh-hub \
             --network deploy_default \
@@ -88,7 +120,6 @@ jobs:
           exit 1
 
       - name: Smoke Run LH_ROLE=web
-        if: github.event_name == 'pull_request'
         run: |
           # Il web raggiunge l'hub del passo precedente (tutti i moduli su lh-hub:8080); lo stato aggregato
           # usa "UP"/"DOWN"/"SLEEPING" (web/lib/api/status.ts), quindi si attende almeno un "state":"UP".
@@ -122,7 +153,6 @@ jobs:
           exit 1
 
       - name: Check invalid modes and roles
-        if: github.event_name == 'pull_request'
         run: |
           # Test cms
           docker run --rm -e LH_ROLE=cms lh-image:test && exit 1 || echo "cms refused successfully"
@@ -133,12 +163,160 @@ jobs:
           # Test invalid module selection
           docker run --rm -e LH_ROLE=hub -e LH_SERVICES=invalid lh-image:test && exit 1 || echo "LH_SERVICES refused successfully"
 
-      - name: Build and Push Multi-arch on Tag
-        if: startsWith(github.ref, 'refs/tags/v')
+  # Sui tag `v*`: costruisce multi-arch e pubblica con un tag provvisorio, scansiona ogni piattaforma, e solo se
+  # la scansione e' pulita firma (cosign keyless), attesta SBOM e provenienza e mette i tag di rilascio.
+  # Sulle PR non gira: l'identita' OIDC e la scrittura su GHCR esistono solo qui (F2-SEC-03, ADR-038).
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # push su GHCR (immagine, firme e attestazioni)
+      id-token: write # token OIDC di GitHub per la firma keyless di Sigstore
+      attestations: write # provenienza della build (actions/attest-build-provenance)
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/loyaltyhub
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Trivy
+        uses: ./.github/actions/setup-trivy
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4.1.2
+        with:
+          cosign-release: 'v3.1.3'
+
+      # Solo un tag provvisorio (`build-<commit>`): `latest` e la versione arrivano dopo scansione e firma.
+      # provenance/sbom di BuildKit sono spenti di proposito: le attestazioni sono quelle dei passi seguenti
+      # (una sola via, firmata con l'OIDC di GitHub), e l'indice resta con le sole due piattaforme.
+      - name: Build and Push Multi-arch (tag provvisorio)
+        id: build
         uses: docker/build-push-action@v7
         with:
           context: .
           file: deploy/image/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/loyaltyhub:latest,ghcr.io/${{ github.repository_owner }}/loyaltyhub:${{ github.ref_name }}
+          provenance: false
+          sbom: false
+          tags: ${{ env.IMAGE }}:build-${{ github.sha }}
+
+      # Ogni piattaforma e' un manifest con il suo digest: SBOM e scansione descrivono quello.
+      - name: Digest delle piattaforme
+        id: platforms
+        env:
+          INDEX_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          docker buildx imagetools inspect --raw "${IMAGE}@${INDEX_DIGEST}" > index.json
+          for arch in amd64 arm64; do
+            d="$(jq -r --arg a "$arch" '.manifests[] | select(.platform.os=="linux" and .platform.architecture==$a) | .digest' index.json)"
+            test -n "$d" || { echo "Manifest linux/${arch} non trovato nell'indice"; exit 1; }
+            echo "${arch}=${d}" >> "$GITHUB_OUTPUT"
+            echo "linux/${arch}: ${d}"
+          done
+
+      - name: SBOM CycloneDX e scansione Trivy (per piattaforma)
+        env:
+          AMD64: ${{ steps.platforms.outputs.amd64 }}
+          ARM64: ${{ steps.platforms.outputs.arm64 }}
+        run: |
+          set -euo pipefail
+          for arch in amd64 arm64; do
+            digest_var="${arch^^}"
+            ref="${IMAGE}@${!digest_var}"
+            trivy image --image-src remote --format cyclonedx --output "sbom-${arch}.cdx.json" "$ref"
+            # Rapporto completo come evidenza; non blocca.
+            trivy image --image-src remote --scanners vuln \
+              --ignorefile deploy/image/.trivyignore.yaml \
+              --format json --output "trivy-${arch}.json" --exit-code 0 --timeout 15m --no-progress "$ref"
+          done
+          # Gate: HIGH/CRITICAL con correzione disponibile, su entrambe le piattaforme.
+          for arch in amd64 arm64; do
+            digest_var="${arch^^}"
+            trivy image --image-src remote --scanners vuln --pkg-types os,library \
+              --severity HIGH,CRITICAL --ignore-unfixed \
+              --ignorefile deploy/image/.trivyignore.yaml \
+              --exit-code 1 --timeout 15m --no-progress "${IMAGE}@${!digest_var}"
+          done
+
+      - name: Upload SBOM e rapporti Trivy
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom-e-scansione-${{ github.ref_name }}
+          path: |
+            sbom-*.cdx.json
+            trivy-*.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      # Firma keyless per digest: indice e ciascuna piattaforma. L'identita' e' il workflow di questo repository.
+      - name: Sign image (cosign keyless)
+        env:
+          INDEX_DIGEST: ${{ steps.build.outputs.digest }}
+          AMD64: ${{ steps.platforms.outputs.amd64 }}
+          ARM64: ${{ steps.platforms.outputs.arm64 }}
+        run: |
+          set -euo pipefail
+          cosign sign --yes "${IMAGE}@${INDEX_DIGEST}" "${IMAGE}@${AMD64}" "${IMAGE}@${ARM64}"
+
+      # L'SBOM di ogni piattaforma e' un'attestazione CycloneDX sul digest di quella piattaforma.
+      - name: Attest SBOM (cosign, CycloneDX)
+        env:
+          AMD64: ${{ steps.platforms.outputs.amd64 }}
+          ARM64: ${{ steps.platforms.outputs.arm64 }}
+        run: |
+          set -euo pipefail
+          cosign attest --yes --type cyclonedx --predicate sbom-amd64.cdx.json "${IMAGE}@${AMD64}"
+          cosign attest --yes --type cyclonedx --predicate sbom-arm64.cdx.json "${IMAGE}@${ARM64}"
+
+      # Provenienza SLSA della build, firmata con l'identita' OIDC del workflow e pubblicata nel registro.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      # Solo ora l'immagine prende i tag di rilascio: stesso indice, stesso digest, gia' firmato e attestato.
+      - name: Tag release (latest e versione)
+        env:
+          INDEX_DIGEST: ${{ steps.build.outputs.digest }}
+          VERSION_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          docker buildx imagetools create \
+            --tag "${IMAGE}:latest" --tag "${IMAGE}:${VERSION_TAG}" \
+            "${IMAGE}@${INDEX_DIGEST}"
+
+      # Prova finale, la stessa che fa chi installa (deploy/README.md, "Verificare l'immagine").
+      - name: Verify signatures and attestations
+        env:
+          VERSION_TAG: ${{ github.ref_name }}
+          AMD64: ${{ steps.platforms.outputs.amd64 }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/image.yml@${GITHUB_REF}"
+          issuer="https://token.actions.githubusercontent.com"
+          for ref in "${IMAGE}:${VERSION_TAG}" "${IMAGE}:latest"; do
+            cosign verify "$ref" --certificate-identity "$identity" --certificate-oidc-issuer "$issuer" > /dev/null
+          done
+          cosign verify-attestation --type cyclonedx "${IMAGE}@${AMD64}" \
+            --certificate-identity "$identity" --certificate-oidc-issuer "$issuer" > /dev/null
+          gh attestation verify "oci://${IMAGE}:${VERSION_TAG}" --repo "${GITHUB_REPOSITORY}"

@@ -1,0 +1,27 @@
+name: Installa Trivy
+description: >-
+  Installa il binario di Trivy alla versione fissata, dopo aver verificato lo SHA-256 del pacchetto.
+  Nessuna azione di terze parti: la versione e la somma di controllo stanno qui, in un solo posto
+  (F2-SEC-03, ADR-038). Per aggiornare: cambia le due variabili con la versione e la riga
+  `trivy_<versione>_Linux-64bit.tar.gz` di `trivy_<versione>_checksums.txt` della release.
+
+runs:
+  using: composite
+  steps:
+    - name: Scarica e verifica Trivy
+      shell: bash
+      env:
+        TRIVY_VERSION: '0.74.0'
+        # SHA-256 di trivy_0.74.0_Linux-64bit.tar.gz, uguale alla riga di trivy_0.74.0_checksums.txt della release.
+        TRIVY_SHA256: '2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a'
+      run: |
+        set -euo pipefail
+        archive="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+        tmp="$(mktemp -d)"
+        curl -fsSL --retry 3 -o "${tmp}/${archive}" \
+          "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/${archive}"
+        echo "${TRIVY_SHA256}  ${tmp}/${archive}" | sha256sum -c -
+        tar -xzf "${tmp}/${archive}" -C "${tmp}" trivy
+        sudo install -m 0755 "${tmp}/trivy" /usr/local/bin/trivy
+        rm -rf "${tmp}"
+        trivy --version
