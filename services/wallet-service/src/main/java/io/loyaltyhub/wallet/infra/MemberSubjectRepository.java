@@ -48,20 +48,39 @@ public class MemberSubjectRepository {
         jdbc.sql("UPDATE member_tier SET subject_ref = NULL WHERE member_id = ?").param(memberId).update();
     }
 
-    /** {@code subject_ref = r}, {@code subject_ref_at = at}. */
+    /**
+     * {@code subject_ref = r}, {@code subject_ref_at = at}. Con {@code at == null} (fatto senza {@code time}) l'istante
+     * del legame resta com'è: un fatto senza tempo non diventa mai il più recente (Q-550).
+     */
     public void link(String memberId, String subjectRef, Instant at) {
+        if (at == null) {
+            jdbc.sql("UPDATE member_tier SET subject_ref = ? WHERE member_id = ?").params(subjectRef, memberId).update();
+            return;
+        }
         jdbc.sql("UPDATE member_tier SET subject_ref = ?, subject_ref_at = ? WHERE member_id = ?")
                 .params(subjectRef, Timestamp.from(at), memberId).update();
     }
 
-    /** {@code subject_ref = NULL}, {@code subject_ref_at = at}. */
+    /** {@code subject_ref = NULL}, {@code subject_ref_at = at}; con {@code at == null} l'istante resta com'è. */
     public void unlink(String memberId, Instant at) {
+        if (at == null) {
+            jdbc.sql("UPDATE member_tier SET subject_ref = NULL WHERE member_id = ?").param(memberId).update();
+            return;
+        }
         jdbc.sql("UPDATE member_tier SET subject_ref = NULL, subject_ref_at = ? WHERE member_id = ?")
                 .params(Timestamp.from(at), memberId).update();
     }
 
-    /** Lapide definitiva dell'anonimizzazione: nessun legame, nessun replay lo ripristina. */
+    /**
+     * Lapide definitiva dell'anonimizzazione: nessun legame, nessun replay lo ripristina. Vale anche senza {@code time}
+     * (la cancellazione non aspetta un orologio); allora {@code subject_ref_at} resta com'è.
+     */
     public void erase(String memberId, Instant at) {
+        if (at == null) {
+            jdbc.sql("UPDATE member_tier SET subject_ref = NULL, subject_erased = true WHERE member_id = ?")
+                    .param(memberId).update();
+            return;
+        }
         jdbc.sql("UPDATE member_tier SET subject_ref = NULL, subject_erased = true, subject_ref_at = ? WHERE member_id = ?")
                 .params(Timestamp.from(at), memberId).update();
     }

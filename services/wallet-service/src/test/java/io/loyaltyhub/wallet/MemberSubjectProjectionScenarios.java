@@ -290,6 +290,24 @@ abstract class MemberSubjectProjectionScenarios {
     }
 
     @Test
+    @DisplayName("[TB-WAL-MBP-015] un fatto senza time non vale «adesso»: non sorpassa un detentore datato e non sposta subject_ref_at")
+    void factWithoutTimeIsConservative() {
+        publish(MemberFactsSupport.registered(id(15), ref("notime"), T2, 2));
+        // altro membro, stesso pseudonimo, senza time: non toglie il legame al detentore con tempo
+        publish(MemberFactsSupport.registered(id(16), ref("notime"), null, 2));
+        assertThat(lookup.memberId(ref("notime"))).contains(id(15));
+        assertThat(subjectRef(id(16))).isNull();
+        assertThat(refAt(id(16))).isNull();
+        // senza time nemmeno un altro pseudonimo sposta subject_ref_at del membro già legato
+        publish(MemberFactsSupport.updated(id(15), ref("notime-2"), null, 2));
+        assertThat(lookup.memberId(ref("notime-2"))).contains(id(15));
+        assertThat(refAt(id(15))).isEqualTo(Instant.parse(T2));
+        // e un fatto datato prima di quel tempo resta obsoleto
+        publish(MemberFactsSupport.updated(id(15), ref("notime-3"), T1, 2));
+        assertThat(lookup.memberId(ref("notime-3"))).isEmpty();
+    }
+
+    @Test
     @DisplayName("[TB-WAL-MBP-014] la lookup non conosce uno pseudonimo non legato")
     void unknownRefIsNotLinked() {
         assertThat(lookup.memberId(ref("mai-visto"))).isEmpty();

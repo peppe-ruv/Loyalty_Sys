@@ -185,8 +185,9 @@ abstract class PortalOidcScenarios {
     void memberIdAsFormFieldIsNeverASource() {
         Reply r = request(HttpMethod.POST, "/v1/portal/me/wallet", TOKENS.member(SUB_A), null,
                 MediaType.APPLICATION_FORM_URLENCODED, "memberId=" + B);
-        // POST non è una mappatura del wallet: 405 prima ancora dell'interceptor; in ogni caso mai 2xx né dati di B
-        assertThat(r.status).as(r.text).isBetween(400, 499);
+        // POST non è una mappatura del wallet: 405 prima ancora dell'interceptor. Il ramo «campo form ⇒ 400 MEMBER_FROM_TOKEN»
+        // qui non è raggiungibile (nessuna scrittura del portale); lo copre EndpointAccessInterceptorTest di lh-common.
+        assertThat(r.status).as(r.text).isEqualTo(405);
         assertThat(r.text).doesNotContain(B);
         assertThat(get("/v1/portal/me/wallet", TOKENS.member(SUB_B)).body.path("balances").path("PTS").path("active").asLong())
                 .isEqualTo(222);

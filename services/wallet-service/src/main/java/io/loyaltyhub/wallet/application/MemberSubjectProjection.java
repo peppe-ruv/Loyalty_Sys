@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 
-import java.time.Clock;
 import java.time.Instant;
 import java.util.Set;
 
@@ -26,15 +25,18 @@ public class MemberSubjectProjection {
 
     private final MemberSubjectRepository subjects;
     private final LhMetrics metrics;
-    private final Clock clock;
 
-    public MemberSubjectProjection(MemberSubjectRepository subjects, LhMetrics metrics, Clock clock) {
+    public MemberSubjectProjection(MemberSubjectRepository subjects, LhMetrics metrics) {
         this.subjects = subjects;
         this.metrics = metrics;
-        this.clock = clock;
     }
 
-    /** Applica il fatto; {@code memberId} è quello del subject dell'envelope. Idempotente: rigiocarlo non cambia nulla. */
+    /**
+     * Applica il fatto; {@code memberId} è quello del subject dell'envelope. Idempotente: rigiocarlo non cambia nulla.
+     * Concorrenza: due membri che reclamano lo stesso pseudonimo da partizioni diverse non si vedono (nessun detentore da
+     * bloccare): il secondo commit viola l'indice unico {@code wallet_member_subject_ref_uq}, l'eccezione è ritentabile
+     * (DlqRecords) e al nuovo tentativo le regole si rivalutano con il detentore ormai visibile.
+     */
     @Transactional
     public void apply(String memberId, LhEvent<JsonNode> event) {
         boolean anonymization = PersonalData.isAnonymization(event);
@@ -42,7 +44,9 @@ public class MemberSubjectProjection {
         if (!anonymization && claim.kind() == MemberSubjectRules.Claim.Kind.ABSENT) {
             return; // un member-service più vecchio non slega nessuno (regola 2 di MemberSubjectRules)
         }
-        Instant at = event.time() != null ? event.time() : clock.instant();
+        // Un fatto senza time non vale «adesso»: at resta null e MemberSubjectRules lo tratta con prudenza (salta il controllo
+        // di obsolescenza, non sorpassa mai un detentore datato); subject_ref_at non si sposta (Q-550).
+        Instant at = event.time();
         subjects.ensureRow(memberId, initialStatus(event.data()));
         MemberSubjectRules.Current current = subjects.lockCurrent(memberId).orElse(MemberSubjectRules.Current.fresh());
         MemberSubjectRules.Holder holder = null;
