@@ -168,8 +168,8 @@ File `.env.example` alla radice e in `web/` con tutte le chiavi e nessun valore 
 | Servizio | Immagine | Porta | Note |
 |---|---|---|---|
 | `kafka` | `apache/kafka` (KRaft, nodo singolo) | 9092 | `auto.create.topics.enable=false`; i topic li crea il profilo `local` (2 partizioni, come in demo) |
-| `postgres` | `postgres:17` | 5432 | DB `loyaltyhub`; volume nominato |
-| `kafka-ui` | `provectuslabs/kafka-ui` | **8090** | ispezione topic |
+| `postgres` | `postgres:17.11` | 5432 | DB `loyaltyhub`; volume nominato |
+| `kafka-ui` | `provectuslabs/kafka-ui` | **8090** | ispezione topic; porta solo su `127.0.0.1` (Q-479) |
 | 8 servizi + `web` | build locale | 8081–8088, 3000 | solo con `--profile all` |
 Limiti di memoria nel compose (`mem_limit: 512m`, `cpus: 0.5`) per scoprire presto i problemi del piano gratuito. `scripts/wake.sh <base-url-web>` e `scripts/smoke.sh` funzionano identici in locale e in demo.
 

@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'deploy/image/**'
+      - 'deploy/docker-compose.yml'
       - '.github/workflows/image.yml'
       - 'web/**'
       - 'deploy/hub/**'
@@ -71,7 +72,7 @@ jobs:
           # readinessState) non e' UP, quindi `curl -f` fallisce; un grep sul corpo troverebbe gia' "db" UP.
           # Esce subito se il container e' gia' terminato.
           for i in {1..30}; do
-            if docker run --rm --network deploy_default curlimages/curl -sf http://lh-hub:8080/actuator/health; then
+            if docker run --rm --network deploy_default curlimages/curl:8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777 -sf http://lh-hub:8080/actuator/health; then
                echo "Healthcheck passed"
                exit 0
             fi
@@ -106,7 +107,7 @@ jobs:
             lh-image:test
 
           for i in {1..10}; do
-            if docker run --rm --network deploy_default curlimages/curl -s http://lh-web:3000/api/demo/status | grep '"state":"UP"'; then
+            if docker run --rm --network deploy_default curlimages/curl:8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777 -s http://lh-web:3000/api/demo/status | grep '"state":"UP"'; then
                echo "Healthcheck passed"
                exit 0
             fi

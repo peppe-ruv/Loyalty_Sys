@@ -151,7 +151,8 @@ roles:
     replicas: 2
     # SPEC-GAP: Q-374 — l'immagine unica non contiene ancora Keycloak (/opt/lh/idp, ADR-037): il ruolo idp usa
     # l'immagine ufficiale di Keycloak alla stessa versione bloccata di deploy/docker-compose.yml. Quando l'immagine
-    # unica avrà il ruolo idp basterà `image: {}` per usare quella.
+    # unica avrà il ruolo idp basterà `image: {}` per usare quella. Vulnerabilità note delle librerie incluse e
+    # versione allineata a mano (Dependabot non legge questo file): SPEC-GAP: Q-482, Q-483.
     image:
       repository: quay.io/keycloak/keycloak
       tag: "26.7.4"
