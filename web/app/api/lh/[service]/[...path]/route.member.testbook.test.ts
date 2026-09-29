@@ -8,7 +8,7 @@ import { csrfTokenFor } from "@/lib/auth/csrf";
 import type { SessionUser } from "@/lib/auth/sessionStore";
 import { rows } from "@/test/testbook";
 
-// Testbook TB-WEB §PRX (PRX-016…027): `X-LH-Member` verso i servizi (docs/07 §3, docs/06 §3.4, ADR-048, Q-555).
+// Testbook TB-WEB §PRX (PRX-016…036 e 044): `X-LH-Member` verso i servizi (docs/07 §3, docs/06 §3.4, ADR-048, Q-555).
 // Profilo demo: solo sulle API del portale (`/v1/portal/**`), col membro attivo della persona (ripiego MBR-000002),
 // mai quello scelto dal browser. Profilo enterprise: mai (il membro viene dal token, regole 6-bis e 18).
 
@@ -165,6 +165,18 @@ describe("profilo demo", () => {
       ctx("member", ["v1", "members", "MBR-000009"]),
     );
     expect(sent().has("x-lh-member")).toBe(false);
+  });
+
+  it("[TB-WEB-PRX-044] percorso che esce dal portale con un segmento decodificato (`..%2Fmembers`) → nessun X-LH-Member", async () => {
+    personaCookie = enc({ kind: "MEMBER", memberId: "MBR-000005" });
+    const path = ["v1", "portal", "../members", "MBR-000009"]; // Next decodifica `..%2Fmembers` in un solo segmento
+    await GET(
+      new NextRequest("http://web.test/api/lh/member/v1/portal/..%2Fmembers/MBR-000009", { headers: { "x-lh-member": "MBR-000009" } }),
+      ctx("member", path),
+    );
+    expect(seen).toHaveLength(1);
+    expect(sent().has("x-lh-member")).toBe(false);
+    expect(sent().get("x-lh-actor")).toBe("ANALYST:anonymous");
   });
 
   it("[TB-WEB-PRX-032] soprannomi: gamification riceve X-LH-Member, la chiamata del proxy a member-service no", async () => {

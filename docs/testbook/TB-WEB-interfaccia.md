@@ -342,7 +342,7 @@ PERS-015).
 | TB-WEB-PERS-035 | corpo non valido (corpo non JSON) | AMBIGUO — 400 INVALID_PERSONA, nessun cookie | docs/07 §4 | `web/app/api/persona/route.testbook.test.ts` |
 | TB-WEB-PERS-036 | membro attivo con persona MEMBER `MBR-000007` | `MBR-000007` (anche come valore di `X-LH-Member`) | docs/07 §4 · Q-555 | `web/lib/persona/demoMember.testbook.test.ts` |
 | TB-WEB-PERS-037 | membro attivo senza persona (cookie assente o non valido) | `MBR-000002` | docs/07 §4 · Q-555 | `web/lib/persona/demoMember.testbook.test.ts` |
-| TB-WEB-PERS-038 | membro attivo con persona BO (backoffice che apre il portale) | `MBR-000002` | docs/07 §4 · Q-555 | `web/lib/persona/demoMember.testbook.test.ts` |
+| TB-WEB-PERS-038 | membro attivo con persona BO (backoffice che apre il portale) | `MBR-000002` (SPEC-GAP: Q-560, forse nessun ripiego per l'operatore) | docs/07 §4 · Q-555 | `web/lib/persona/demoMember.testbook.test.ts` |
 | TB-WEB-PERS-039 | id del cookie `MBR-7` (non valido) | il portale lo usa com'è (`MBR-7`, come prima), `X-LH-Member` non si invia | docs/07 §4 · docs/06 §3.4 | `web/lib/persona/demoMember.testbook.test.ts` |
 | TB-WEB-PERS-040 | id con meno di sei cifre (`MBR-00007`) | nessun `X-LH-Member` | docs/06 §3.4 (forma `MBR-nnnnnn`) | `web/lib/persona/demoMember.testbook.test.ts` |
 | TB-WEB-PERS-041 | id con più di sei cifre (`MBR-0000007`) | nessun `X-LH-Member` | docs/06 §3.4 | `web/lib/persona/demoMember.testbook.test.ts` |
@@ -352,6 +352,7 @@ PERS-015).
 | TB-WEB-PERS-045 | a capo in coda (`MBR-000007\n`) | nessun `X-LH-Member` | docs/06 §3.4 | `web/lib/persona/demoMember.testbook.test.ts` |
 | TB-WEB-PERS-046 | id vuoto | nessun `X-LH-Member` | docs/06 §3.4 | `web/lib/persona/demoMember.testbook.test.ts` |
 | TB-WEB-PERS-047 | forma valida `^MBR-[0-9]{6}$` | `MBR-000002`, `MBR-999999`, `MBR-000000` sì; non testo, `null`, numero, oggetto, elenco no | docs/06 §3.4 | `web/lib/persona/demoMember.testbook.test.ts` |
+| TB-WEB-PERS-048 | test statico su `web/app/portal/layout.tsx` | importa `demoPortalMember` da `@/lib/persona/demoMember`, lo chiama e non cita `DEFAULT_MEMBER_ID`: layout e proxy usano lo stesso helper | docs/07 §4 · Q-555 | `web/lib/persona/demoMember.testbook.test.ts` |
 
 
 ## 5. PRX — Proxy verso i servizi
@@ -401,7 +402,7 @@ timeout) → `SERVICE_ASLEEP` (R2); timer di 25 s (R1); `demoIdentity` portale /
 | TB-WEB-PRX-016 | demo, `GET /v1/portal/wallets/MBR-000005`, persona MEMBER `MBR-000005` | `X-LH-Member: MBR-000005`; `X-LH-Actor: ANALYST:anonymous`; percorso e query invariati | docs/07 §3 · docs/06 §3.4 · Q-555 | `web/app/api/lh/[service]/[...path]/route.member.testbook.test.ts` |
 | TB-WEB-PRX-017 | demo, API del portale, cookie persona assente | `X-LH-Member: MBR-000002` | docs/07 §3, §4 · Q-555 | `web/app/api/lh/[service]/[...path]/route.member.testbook.test.ts` |
 | TB-WEB-PRX-018 | demo, API del portale, cookie non valido | `X-LH-Member: MBR-000002` | docs/07 §3, §4 · Q-555 | `web/app/api/lh/[service]/[...path]/route.member.testbook.test.ts` |
-| TB-WEB-PRX-019 | demo, API del portale, persona BO (CARE, `paolo.care`) | `X-LH-Member: MBR-000002`; `X-LH-Actor: CARE:paolo.care` | docs/07 §3, §4 · Q-555 | `web/app/api/lh/[service]/[...path]/route.member.testbook.test.ts` |
+| TB-WEB-PRX-019 | demo, API del portale, persona BO (CARE, `paolo.care`) | `X-LH-Member: MBR-000002`; `X-LH-Actor: CARE:paolo.care` (SPEC-GAP: Q-560, con (A) niente `X-LH-Member`) | docs/07 §3, §4 · Q-555 | `web/app/api/lh/[service]/[...path]/route.member.testbook.test.ts` |
 | TB-WEB-PRX-020 | demo, `POST /v1/portal/redemptions?memberId=MBR-000005` con `memberId` nel corpo | header presente; query e corpo inoltrati come prima | docs/07 §3 · Q-555 | `web/app/api/lh/[service]/[...path]/route.member.testbook.test.ts` |
 | TB-WEB-PRX-021 | demo, percorso di gestione del wallet (`/v1/wallets/…`) | nessun `X-LH-Member` | docs/07 §3 · Q-555 | `web/app/api/lh/[service]/[...path]/route.member.testbook.test.ts` |
 | TB-WEB-PRX-022 | demo, percorso di gestione dei membri (`/v1/members/…`) | nessun `X-LH-Member` | docs/07 §3 · Q-555 | `web/app/api/lh/[service]/[...path]/route.member.testbook.test.ts` |
@@ -421,11 +422,12 @@ timeout) → `SERVICE_ASLEEP` (R2); timer di 25 s (R1); `demoIdentity` portale /
 | TB-WEB-PRX-036 | enterprise, classifica con soprannomi | nessuna chiamata a valle porta `X-LH-Member` | docs/07 §4-bis · regole 6-bis e 18 | `web/app/api/lh/[service]/[...path]/route.member.testbook.test.ts` |
 | TB-WEB-PRX-037 | `demoIdentity` su `/v1/portal/campaigns`, persona MEMBER `MBR-000005` | `x-lh-actor: ANALYST:anonymous`, `x-lh-member: MBR-000005` | docs/07 §3 · Q-555 | `web/lib/api/proxyHeaders.testbook.test.ts` |
 | TB-WEB-PRX-038 | `demoIdentity` su `/v1/portal/campaigns`, nessuna persona | `x-lh-actor: ANALYST:anonymous`, `x-lh-member: MBR-000002` | docs/07 §3, §4 · Q-555 | `web/lib/api/proxyHeaders.testbook.test.ts` |
-| TB-WEB-PRX-039 | `demoIdentity` su `/v1/portal/campaigns`, persona BO CARE | `x-lh-actor: CARE:paolo.care`, `x-lh-member: MBR-000002` | docs/07 §3, §4 · Q-555 | `web/lib/api/proxyHeaders.testbook.test.ts` |
+| TB-WEB-PRX-039 | `demoIdentity` su `/v1/portal/campaigns`, persona BO CARE | `x-lh-actor: CARE:paolo.care`, `x-lh-member: MBR-000002` (SPEC-GAP: Q-560, con (A) solo `x-lh-actor`) | docs/07 §3, §4 · Q-555 | `web/lib/api/proxyHeaders.testbook.test.ts` |
 | TB-WEB-PRX-040 | `demoIdentity` su percorsi non del portale (vuoto, `/v1`, `/v1/portal` senza sottopercorso, `/v1/portalx/…`, `/v1/members/portal`, `/v2/portal/…`, `/portal/v1/…`, `/health`) | solo `x-lh-actor` | docs/07 §3 · Q-555 | `web/lib/api/proxyHeaders.testbook.test.ts` |
-| TB-WEB-PRX-041 | `demoIdentity` con segmenti vuoti, `.` o `..` (es. `/v1/portal/../members/…`) | solo `x-lh-actor`: il proxy demo non normalizza, il percorso potrebbe non essere del portale | docs/07 §3 · Q-555 | `web/lib/api/proxyHeaders.testbook.test.ts` |
+| TB-WEB-PRX-041 | `demoIdentity` con segmenti fuori da `[A-Za-z0-9._~-]`, vuoti, `.` o `..` (es. `/v1/portal/../members/…`, `..%2Fmembers` decodificato, `%2e%2e`, `.%2E`, `x\..\members`, `a;b`) | solo `x-lh-actor`: Next decodifica i segmenti e `new URL` li normalizza, il percorso potrebbe non essere del portale | docs/07 §3 · Q-555 | `web/lib/api/proxyHeaders.testbook.test.ts` |
 | TB-WEB-PRX-042 | `upstreamHeaders` con `X-LH-Member` e `X-LH-Actor` del browser (anche ripetuti e in altre grafie) | non passano; vale solo l'identità del server (demo: `x-lh-member` suo; enterprise: né `x-lh-member` né `x-lh-actor`) | docs/07 §3 · regole 18 e 20 | `web/lib/api/proxyHeaders.testbook.test.ts` |
 | TB-WEB-PRX-043 | `withoutMember` | toglie solo `x-lh-member`; le identità senza restano com'erano | docs/07 §3 · Q-368 | `web/lib/api/proxyHeaders.testbook.test.ts` |
+| TB-WEB-PRX-044 | demo, `GET /api/lh/member/v1/portal/..%2Fmembers/MBR-000009` con `X-LH-Member` del browser, persona MEMBER `MBR-000005` | a valle nessun `X-LH-Member` (il percorso non conta come portale), `X-LH-Actor: ANALYST:anonymous` | docs/07 §3 · regole 18 e 20 | `web/app/api/lh/[service]/[...path]/route.member.testbook.test.ts` |
 
 
 ## 6. CLI — Client del proxy

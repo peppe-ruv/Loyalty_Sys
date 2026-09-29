@@ -16,6 +16,9 @@ export function isMemberId(value: unknown): value is string {
  * Membro con cui il portale demo lavora: quello della persona `MEMBER`; con una persona da operatore o senza cookie il
  * portale mostra il membro di default (`MBR-000002`). L'id è quello del cookie, senza validarlo: non cambia ciò che
  * il portale ha sempre fatto.
+ *
+ * SPEC-GAP: Q-560 - il ripiego per la persona BO (Q-555) e la vista generica per l'operatore (docs/06 §3.4, ADR-048
+ * punto 6, Q-554) non concordano su `/v1/portal/campaigns?codes=` di BO-17: vedi docs/15.
  */
 export function demoPortalMember(persona: Persona | null): string {
   return persona?.kind === "MEMBER" ? persona.memberId : DEFAULT_MEMBER_ID;

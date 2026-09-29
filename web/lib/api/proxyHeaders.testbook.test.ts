@@ -3,8 +3,10 @@ import { demoIdentity, upstreamHeaders, withoutMember } from "./proxyHeaders";
 import type { Persona } from "@/lib/persona/cookie";
 import { rows } from "@/test/testbook";
 
-// Testbook TB-WEB §PRX (PRX-037…041): identità del proxy verso i servizi (docs/07 §3, ADR-048, Q-555).
+// Testbook TB-WEB §PRX (PRX-037…043): identità del proxy verso i servizi (docs/07 §3, ADR-048, Q-555).
 // La parte che passa dal route handler è in `app/api/lh/[service]/[...path]/route.member.testbook.test.ts`.
+// SPEC-GAP: Q-560 - PRX-039 fotografa il ripiego MBR-000002 per la persona BO (Q-555); se Giuseppe sceglie (A) di Q-560
+// l'atteso diventa il solo `x-lh-actor`.
 
 const MEMBER: Persona = { kind: "MEMBER", memberId: "MBR-000005" };
 const BO: Persona = { kind: "BO", username: "paolo.care", role: "CARE" };
@@ -31,14 +33,20 @@ it("[TB-WEB-PRX-040] demoIdentity: percorsi che non sono API del portale → sol
   for (const path of notPortal) expect(demoIdentity(MEMBER, path), path.join("/")).toEqual({ "x-lh-actor": "ANALYST:anonymous" });
 });
 
-it("[TB-WEB-PRX-041] demoIdentity: segmenti vuoti, `.` o `..` → non è portale, nessun x-lh-member", () => {
-  // Il proxy demo non normalizza il percorso: `/v1/portal/../members` arriverebbe a un endpoint di gestione.
+it("[TB-WEB-PRX-041] demoIdentity: segmenti fuori da [A-Za-z0-9._~-], vuoti, `.` o `..` → non è portale, nessun x-lh-member", () => {
+  // Next decodifica i segmenti (`%2F`, `%2e%2e`) e `new URL()` normalizza `..` e `\`: `/v1/portal/../members` arriverebbe
+  // a un endpoint di gestione. Vale la stessa lista di segmenti del profilo enterprise (`safeSegments`).
   const odd = [
     ["v1", "portal", "..", "members", "MBR-000005"],
     ["v1", "portal", ".", "tiers"],
     ["v1", "portal", "", "tiers"],
     ["v1", "portal", "wallets", ""],
     ["v1", "portal", "wallets", "MBR-000005", ".."],
+    ["v1", "portal", "../members", "MBR-000009"], // `..%2Fmembers` decodificato da Next
+    ["v1", "portal", "%2e%2e", "members"], // doppia codifica
+    ["v1", "portal", ".%2E", "members"],
+    ["v1", "portal", "x\\..\\members"], // `x\..\members`: `new URL` normalizza il `\` in `/`
+    ["v1", "portal", "a;b"], // parametro di matrice
   ];
   for (const path of odd) expect(demoIdentity(MEMBER, path), path.join("/")).toEqual({ "x-lh-actor": "ANALYST:anonymous" });
 });

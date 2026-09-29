@@ -1,4 +1,5 @@
 import { isPortalPath } from "@/lib/auth/memberScope";
+import { safeSegments } from "@/lib/api/proxyPath";
 import { actorHeader, type Persona } from "@/lib/persona/cookie";
 import { demoMemberHeader } from "@/lib/persona/demoMember";
 
@@ -8,7 +9,8 @@ import { demoMemberHeader } from "@/lib/persona/demoMember";
 // - profilo demo: `x-lh-actor` dal cookie persona (identità simulata, invariata dalla Fase 1) e, solo sulle API del
 //   portale (`/v1/portal/**`), `x-lh-member` col membro attivo della persona (ADR-048, Q-555);
 // - profilo enterprise: `authorization: Bearer <access token>` dalla sessione del BFF (ADR-027). `x-lh-member` non
-//   esiste: il membro lo ricavano i servizi dal token (regole 6-bis e 18) e un servizio rifiuta l'header (400).
+//   esiste: il membro lo ricavano i servizi dal token (regole 6-bis e 18); su un `@MemberEndpoint`, o con un token di
+//   solo membro, un servizio lo rifiuterebbe con 400 MEMBER_FROM_TOKEN (docs/06 §3.4).
 
 /** Id di correlazione accettato dal browser: ULID, UUID o simili; altrimenti il proxy ne genera uno nuovo. */
 const CORRELATION_ID = /^[A-Za-z0-9-]{1,64}$/;
@@ -25,12 +27,17 @@ export type UpstreamIdentity = { "x-lh-actor": string; "x-lh-member"?: string } 
 /**
  * Identità del profilo demo (docs/07 §3, §4). `x-lh-member` viaggia SOLO su `/v1/portal/**` e solo se il membro attivo ha
  * la forma `MBR-nnnnnn` (`lib/persona/demoMember.ts`): senza cookie o con una persona da operatore vale il membro di
- * default, con un id malformato l'header manca e i servizi si comportano come prima. Un percorso con segmenti vuoti,
- * `.` o `..` non conta come portale: il proxy demo non lo normalizza, quindi il servizio potrebbe leggerlo altrove.
+ * default, con un id malformato l'header manca e i servizi si comportano come prima. Un percorso con segmenti fuori da
+ * `[A-Za-z0-9._~-]`, vuoti, `.` o `..` non conta come portale (`safeSegments`, la stessa lista del profilo enterprise):
+ * Next decodifica i segmenti (`%2F`, `%2e%2e`) e `new URL()` normalizza `..` e `\`, quindi il servizio potrebbe leggerli
+ * come un altro percorso.
+ *
+ * SPEC-GAP: Q-560 - con una persona BO il ripiego `MBR-000002` (Q-555) manda l'header anche a BO-17, che dovrebbe avere
+ * la vista generica (docs/06 §3.4, ADR-048 punto 6). Se Giuseppe conferma (A): `portal && persona?.kind !== "BO"`.
  */
 export function demoIdentity(persona: Persona | null, path: readonly string[]): UpstreamIdentity {
   const actor = { "x-lh-actor": actorHeader(persona) };
-  const portal = isPortalPath(path) && path.length > 2 && path.every((segment) => segment !== "" && segment !== "." && segment !== "..");
+  const portal = isPortalPath(path) && path.length > 2 && safeSegments(path);
   const member = portal ? demoMemberHeader(persona) : null;
   return member ? { ...actor, "x-lh-member": member } : actor;
 }

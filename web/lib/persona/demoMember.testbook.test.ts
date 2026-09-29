@@ -1,9 +1,11 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { expect, it } from "vitest";
 import type { Persona } from "./cookie";
 import { MEMBER_ID_PATTERN, demoMemberHeader, demoPortalMember, isMemberId } from "./demoMember";
 import { rows } from "@/test/testbook";
 
-// Testbook TB-WEB §PERS (PERS-036…046): membro attivo del profilo demo (docs/07 §4, docs/06 §3.4, ADR-048, Q-555).
+// Testbook TB-WEB §PERS (PERS-036…048): membro attivo del profilo demo (docs/07 §4, docs/06 §3.4, ADR-048, Q-555).
 // Lo stesso helper dà l'id che il layout del portale mostra e l'`X-LH-Member` del proxy: non possono discordare.
 
 it.each(rows([
@@ -38,4 +40,11 @@ it("[TB-WEB-PERS-047] forma valida: MBR- e sei cifre, come i contratti evento", 
   expect(MEMBER_ID_PATTERN.source).toBe("^MBR-[0-9]{6}$");
   for (const id of ["MBR-000002", "MBR-999999", "MBR-000000"]) expect(isMemberId(id)).toBe(true);
   for (const nope of [undefined, null, 2, {}, ["MBR-000002"]]) expect(isMemberId(nope)).toBe(false);
+});
+
+it("[TB-WEB-PERS-048] il layout del portale usa demoPortalMember e non ha un ripiego proprio (layout e proxy non discordano)", () => {
+  const layout = readFileSync(resolve(process.cwd(), "app/portal/layout.tsx"), "utf8");
+  expect(layout).toMatch(/import\s*\{[^}]*\bdemoPortalMember\b[^}]*\}\s*from\s*"@\/lib\/persona\/demoMember"/);
+  expect(layout).toContain("demoPortalMember(");
+  expect(layout).not.toContain("DEFAULT_MEMBER_ID");
 });
