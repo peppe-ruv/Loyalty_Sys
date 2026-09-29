@@ -79,7 +79,8 @@ class PersonalTextScrubberTest {
             "rewardCode|RWD-ZED|true", "action|UPDATE|true", "currency|PTS|true",
             "status|Chiesto da Ottavio|false", "reason|FRAUD_SUSPECTED|true", "reason|Rimborso chiesto da Ottavio|false",
             "reason|Ottavio|false", "subject|email:ottavio@example.test|false", "subject|member:MBR-1|false",
-            "note|MEMBER_REQUEST|true", "reason|TEST|true", "reason|GOODWILL|true", "note|3331234567|false", "reason|12345|false", "reason|Test del cassiere|false", "externalId|EXT-00042|false", "emailHash|abc123hash|false"})
+            "note|MEMBER_REQUEST|true", "reason|TEST|true", "reason|GOODWILL|true", "note|3331234567|false", "reason|12345|false", "reason|Test del cassiere|false", "externalId|EXT-00042|false", "emailHash|abc123hash|false",
+            "subjectRef|0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9|false"})
     @DisplayName("codici nei campi di codice e costanti: sicuri; testo libero, reason e subject: si ripuliscono")
     void safeValues(String key, String value, boolean safe) {
         assertThat(PersonalTextScrubber.isSafe(key, value)).isEqualTo(safe);
@@ -154,5 +155,26 @@ class PersonalTextScrubberTest {
         assertThat(out.path("emailHash").asString()).as("pseudonimo sostituito (Q-367)").isEqualTo("Membro anonimo");
         assertThat(out.path("subject").asString()).isEqualTo("external:Membro anonimo");
         assertThat(row.path("lines").get(0).path("label").asString()).as("originale intatto").contains("Zed");
+    }
+
+    @Test
+    @DisplayName("[Q-552] subjectRef: come emailHash, fuori da KEYS ma mai sicuro; sostituito se noto; l'attributo subject dell'envelope non si tocca")
+    void subjectRefHasTheEmailHashRegime() {
+        String ref = "0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9";
+        assertThat(PersonalData.KEYS).doesNotContain(PersonalData.SUBJECT_REF);
+        assertThat(PersonalData.SUBJECT_REF).isEqualTo("subjectRef");
+        // Non è in KEYS: redact non lo toglie (lo fa chi conserva i fatti, come per emailHash) e l'envelope resta intatto.
+        JsonNode fact = mapper.readTree("""
+                {"type":"io.loyaltyhub.fact.member.registered","subject":"member:MBR-000101",
+                 "data":{"memberId":"MBR-000101","subjectRef":"%s","status":"ACTIVE","firstName":"Ada"}}""".formatted(ref));
+        JsonNode redacted = PersonalData.redact(fact);
+        assertThat(redacted.path("data").path("subjectRef").asString()).isEqualTo(ref);
+        assertThat(redacted.path("data").has("firstName")).isFalse();
+        assertThat(redacted.path("subject").asString()).isEqualTo("member:MBR-000101");
+        // Se il servizio lo conosce come valore del membro, lo scrubber lo sostituisce (mai «sicuro»).
+        JsonNode scrubbed = PersonalTextScrubber.redactAndScrub(fact, List.of(ref, "Ada"));
+        assertThat(scrubbed.path("data").path("subjectRef").asString()).isEqualTo("Membro anonimo");
+        assertThat(scrubbed.path("subject").asString()).isEqualTo("member:MBR-000101");
+        assertThat(scrubbed.path("data").path("memberId").asString()).isEqualTo("MBR-000101");
     }
 }

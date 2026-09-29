@@ -50,6 +50,7 @@
               "operations/avvio-locale",
               "operations/deploy-costo-zero",
               "operations/installazione-enterprise",
+              "operations/osservabilita",
               "operations/troubleshooting"
             ]
           }

@@ -1,0 +1,18 @@
+# Prometheus del compose di riferimento (F2-OBS-01, M8.6a; ADR-012, ADR-036).
+# Riceve le metriche dell'hub in OTLP (--web.enable-otlp-receiver, /api/v1/otlp/v1/metrics): nessuno scrape, l'hub
+# spinge (SPEC-GAP: Q-520). Le regole SLO e gli allarmi sono il file del chart, montato in /etc/prometheus/rules.
+global:
+  evaluation_interval: 30s
+
+# Punti di nome e unità come li scrivono regole e dashboard: http_server_requests_seconds_count, ..._bucket, e i
+# contatori con un solo suffisso _total.
+otlp:
+  translation_strategy: UnderscoreEscapingWithSuffixes
+
+storage:
+  tsdb:
+    # I campioni OTLP di un intervallo possono arrivare fuori ordine tra repliche del collector.
+    out_of_order_time_window: 30m
+
+rule_files:
+  - /etc/prometheus/rules/*.json

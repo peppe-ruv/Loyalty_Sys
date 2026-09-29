@@ -1,0 +1,11 @@
+# Dashboard di Grafana (F2-OBS-01, M8.6a): la cartella con il JSON del chart (files/observability/dashboards), montata
+# in /etc/lh/dashboards; non modificabile dall'interfaccia (la fonte è il file nel repository).
+apiVersion: 1
+providers:
+  - name: loyaltyhub
+    folder: Loyalty Hub
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /etc/lh/dashboards

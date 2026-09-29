@@ -54,6 +54,9 @@ app.kubernetes.io/component: {{ .role }}
 {{- define "loyaltyhub.port.web" -}}3000{{- end -}}
 {{- define "loyaltyhub.port.idp" -}}8080{{- end -}}
 {{- define "loyaltyhub.port.idpManagement" -}}9000{{- end -}}
+{{/* Porte del collector OpenTelemetry (osservabilità, M8.6a): OTLP HTTP e sonda di salute. Le usano Service, NetworkPolicy, sonde e URL dell'hub. */}}
+{{- define "loyaltyhub.port.otlpHttp" -}}4318{{- end -}}
+{{- define "loyaltyhub.port.otelHealth" -}}13133{{- end -}}
 
 {{/* Immagine unica (ADR-037): repository e tag obbligatori, nessun nome inventato (finirebbe in ImagePullBackOff). */}}
 {{- define "loyaltyhub.image" -}}
@@ -217,6 +220,7 @@ topologySpreadConstraints:
 {{- end -}}
 {{- end -}}
 {{- if lt (int .Values.kafka.consumer.concurrency) 1 -}}{{- fail "kafka.consumer.concurrency deve essere almeno 1" -}}{{- end -}}
+{{- include "loyaltyhub.validate.observability" . -}}
 {{- end -}}
 
 {{/* ---------- Postgres ---------- */}}
@@ -446,4 +450,90 @@ client e segreti del BFF; una sola replica del web, senza PDB (Q-409, Q-419). */
 {{- fail "WEB_SINGLE_REPLICA: roles.web.pdb.enabled con una sola replica del web blocca lo svuotamento dei nodi (kubectl drain) senza proteggere nulla; nel profilo enterprise lasciarlo spento (Q-419)" -}}
 {{- end -}}
 {{- end -}}
+{{- end -}}
+
+{{/* ---------- Osservabilità (F2-OBS-01, M8.6a; ADR-012, ADR-036, ADR-044) ---------- */}}
+{{/* Nome del collector: il nome completo è accorciato perché il suffisso resti dentro i 63 caratteri di un'etichetta DNS. */}}
+{{- define "loyaltyhub.otelCollector.name" -}}
+{{- printf "%s-otel-collector" (include "loyaltyhub.fullname" . | trunc 47 | trimSuffix "-") -}}
+{{- end -}}
+
+{{/* Configurazione del collector (immagine core: ricevitore otlp, esportatore otlphttp, memory_limiter, batch, health_check).
+Solo metriche e solo il ricevitore HTTP: niente gRPC, niente esportatore di debug. Il compose di riferimento ha la stessa
+pipeline in deploy/compose/observability/otel-collector.yaml (scripts/check-helm.mjs verifica la destinazione). */}}
+{{- define "loyaltyhub.otelCollector.config" -}}
+{{- $p := .Values.observability.prometheus -}}
+extensions:
+  health_check:
+    endpoint: ${env:LH_POD_IP}:{{ include "loyaltyhub.port.otelHealth" . }}
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: ${env:LH_POD_IP}:{{ include "loyaltyhub.port.otlpHttp" . }}
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+    spike_limit_percentage: 20
+  batch: {}
+exporters:
+  otlphttp/prometheus:
+    endpoint: {{ $p.otlpEndpoint | quote }}
+    {{- if $p.caBundle.name }}
+    tls:
+      ca_file: /etc/lh/prometheus-ca/{{ $p.caBundle.key }}
+    {{- end }}
+    {{- if $p.bearerToken.name }}
+    headers:
+      Authorization: "Bearer ${env:LH_PROMETHEUS_TOKEN}"
+    {{- end }}
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/prometheus]
+{{- end -}}
+
+{{/* Verifiche dell'osservabilità: la destinazione delle metriche è una scelta esplicita di chi installa (in ogni profilo) e,
+in enterprise, cifrata o dentro il cluster (regola 22, ADR-044); il profilo demo non ha l'obbligo di cifratura. */}}
+{{- define "loyaltyhub.validate.observability" -}}
+{{- if .Values.observability.enabled -}}
+{{- $p := .Values.observability.prometheus -}}
+{{- $ep := $p.otlpEndpoint -}}
+{{- if not $ep -}}
+{{- fail "observability.prometheus.otlpEndpoint è obbligatorio con observability.enabled=true: URL del ricevitore OTLP del Prometheus di chi installa, senza /v1/metrics, es. http://prometheus-operated.monitoring.svc:9090/api/v1/otlp (nessuna destinazione di default: nessuna telemetria esce senza una scelta esplicita, ADR-044)" -}}
+{{- end -}}
+{{- if not (regexMatch "^https?://[^/?#@\\s]+(/[^?#\\s]*)?$" $ep) -}}
+{{- fail (printf "observability.prometheus.otlpEndpoint %q non è un URL http(s) valido: schema, host ed eventuale percorso, senza credenziali, query o frammento" $ep) -}}
+{{- end -}}
+{{- if regexMatch "/v1/metrics/?$" $ep -}}
+{{- fail (printf "observability.prometheus.otlpEndpoint %q: indicare l'URL senza /v1/metrics (il collector lo aggiunge), es. http://prometheus-operated.monitoring.svc:9090/api/v1/otlp" $ep) -}}
+{{- end -}}
+{{- if and (eq .Values.global.profile "enterprise") (hasPrefix "http://" $ep) (not $p.allowInsecure) (not (regexMatch "^http://[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?\\.svc(\\.cluster\\.local)?)?(:[0-9]+)?(/[^?#\\s]*)?$" $ep)) -}}
+{{- fail (printf "INSECURE_CONFIG: observability.prometheus.otlpEndpoint %q in http fuori dal cluster nel profilo enterprise: usare https, un Service del cluster (<nome> o <nome>.<namespace>.svc) oppure observability.prometheus.allowInsecure=true solo su una rete già cifrata (regola 22, Q-521)" $ep) -}}
+{{- end -}}
+{{- $c := .Values.observability.collector -}}
+{{- if and $c.pdb.enabled (lt (int $c.replicas) 2) -}}
+{{- fail "COLLECTOR_SINGLE_REPLICA: observability.collector.pdb.enabled con una sola replica del collector blocca lo svuotamento dei nodi (kubectl drain) senza proteggere nulla: usare observability.collector.replicas=2 (default) o spegnere observability.collector.pdb.enabled" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Env dell'hub con l'osservabilità accesa: metriche OTLP verso il collector del chart (hub.yml: LH_OTEL_*). */}}
+{{- define "loyaltyhub.hubOtelEnv" -}}
+- name: LH_OTEL_METRICS_ENABLED
+  value: "true"
+- name: LH_OTEL_METRICS_URL
+  value: {{ printf "http://%s:%s/v1/metrics" (include "loyaltyhub.otelCollector.name" .) (include "loyaltyhub.port.otlpHttp" .) | quote }}
+- name: LH_OTEL_METRICS_STEP
+  value: {{ .Values.observability.metricsStep | quote }}
+- name: LH_OTEL_SERVICE_NAMESPACE
+  value: {{ .Values.observability.serviceNamespace | quote }}
+- name: LH_OTEL_INSTANCE_ID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
 {{- end -}}

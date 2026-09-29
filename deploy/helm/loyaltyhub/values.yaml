@@ -320,8 +320,9 @@ kafka:
       keyB64: { name: "", key: key-b64 }
 
 # ---- Esposizione ----
-# Nessuna NetworkPolicy in questa versione: il traffico dentro il namespace non è filtrato finché M8.5 non porta la
-# network policy deny-by-default e l'mTLS di mesh (docs/18 §3.10). Chi installa ora può applicare le proprie.
+# Nessuna NetworkPolicy in questa versione, salvo quella del collector dell'osservabilità (Q-521): il traffico dentro il
+# namespace non è filtrato finché M8.5 non porta la network policy deny-by-default e l'mTLS di mesh (docs/18 §3.10). Chi
+# installa ora può applicare le proprie.
 ingress:
   enabled: true
   className: ""
@@ -343,3 +344,54 @@ gateway:
   parentRefs: []
   #  - name: lh-gateway
   #    namespace: gateway-system
+
+# ---- Osservabilità (F2-OBS-01, M8.6a; ADR-012, ADR-026, ADR-036, ADR-044) ----
+# Spenta di default. Accesa: l'hub invia le metriche in OTLP al collector OpenTelemetry di questo chart, che le inoltra al
+# ricevitore OTLP del Prometheus di chi installa; dashboard SLO come ConfigMap per il sidecar di Grafana; regole SLO come
+# PrometheusRule (facoltativa). Prometheus e Grafana sono PREREQUISITI, come gli operatori (deploy/README.md, Q-522).
+# Nessuna destinazione di default: nessuna telemetria esce senza un URL scelto da chi installa (ADR-044). Tracce e log
+# arrivano con M8.6b (Q-526).
+observability:
+  enabled: false
+  # Etichetta job in Prometheus = <serviceNamespace>/hub; deve iniziare con loyaltyhub (regole e dashboard selezionano
+  # job=~"loyaltyhub[^/]*/hub"); un valore per installazione se più installazioni condividono un Prometheus (Q-527).
+  serviceNamespace: loyaltyhub
+  metricsStep: 30s
+  collector:
+    replicas: 2
+    image:
+      repository: otel/opentelemetry-collector
+      tag: "0.161.0@sha256:b6d2b9a85b1029d05b5ad913150c1f014eed4ae99be81a1813ca5ade4a191913"
+      pullPolicy: IfNotPresent
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits: { cpu: "1", memory: 512Mi }
+    # Circa l'80 % del limite di memoria (runtime Go).
+    goMemLimit: 400MiB
+    pdb: { enabled: true, minAvailable: 1 }
+    # SPEC-GAP: Q-521 — il ricevitore OTLP non autentica: la NetworkPolicy ammette solo i Pod hub della release sulla 4318
+    # finché M8.5 non porta l'mTLS di mesh. Le sonde del kubelet arrivano dal nodo; se il CNI le blocca, spegnerla.
+    networkPolicy: { enabled: true }
+  prometheus:
+    # OBBLIGATORIO con enabled=true, senza /v1/metrics: es. http://prometheus-operated.monitoring.svc:9090/api/v1/otlp
+    # (Prometheus >= 3 con --web.enable-otlp-receiver). Nel profilo enterprise: https, oppure http solo verso un Service
+    # del cluster (<nome>, <nome>.<ns>.svc[.cluster.local]), altrimenti INSECURE_CONFIG salvo allowInsecure (regola 22).
+    otlpEndpoint: ""
+    allowInsecure: false
+    bearerToken: { name: "", key: token }
+    caBundle: { name: "", key: ca.crt }
+  grafana:
+    # Il sidecar dei dashboard di Grafana deve guardare il namespace della release (sidecar.dashboards.searchNamespace
+    # del chart di Grafana: di default vede solo il proprio), altrimenti il ConfigMap non viene caricato.
+    dashboards:
+      enabled: true
+      labels: { grafana_dashboard: "1" }
+      annotations: { grafana_folder: "Loyalty Hub" }
+  prometheusRule:
+    # Richiede i CRD del Prometheus Operator (monitoring.coreos.com/v1).
+    enabled: false
+    # Le etichette devono combaciare con il ruleSelector del tuo Prometheus: con kube-prometheus-stack
+    # (ruleSelectorNilUsesHelmValues=true) l'operatore carica solo le PrometheusRule con `release: <release dello stack>`,
+    # e senza quell'etichetta regole e allarmi vengono ignorati in silenzio.
+    # Es. --set observability.prometheusRule.labels.release=<release di kube-prometheus-stack>
+    labels: {}
