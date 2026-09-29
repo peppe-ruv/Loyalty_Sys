@@ -26,6 +26,14 @@ negli altri servizi, anonimizzazione, attributi personalizzati, segmenti. Serviz
 | `services/member-service` · `TestbookGovMemberIT` | integrazione (Spring, Postgres e Kafka embedded, profilo `demo`) | `member-status.csv`, `member-roles.csv`, `anonymize.csv`, `attributes-in-use.csv`, `segments.csv`, `referral.csv` | MST, MRL, ANO, ATU, SEG, REF |
 | `deploy/hub` · `TestbookGovHubIT` | integrazione tra servizi (hub consolidato, profili `demo, inproc`) | `hub-entities.csv`, `hub-approvals.csv`, `hub-matrix.csv`, `hub-effects.csv`, `hub-anonymization.csv` | ENT, APQ, MAT, EFF, ANX |
 
+**Scostamento dal progetto M8.10f (S1, §4), che elencava `TestbookGovActorTest#guard` per le nuove dichiarazioni.** Le tre
+modalità di `@MemberEndpoint` (`REQUIRED`, `OPTIONAL`, `REGISTRATION`) non stanno in `guard.csv`: il loro esito non dipende
+dal solo ruolo dell'attore ma dal chiamante con token (membro, operatore, misto, `MEMBER`+`SOURCE`), dalla lookup e dalla
+richiesta, e la classe `guard` costruisce l'interceptor demo senza filtro OIDC. La copertura è quindi in MBP
+(`TestbookGovMemberPrincipalTest`, §3.3), che esegue lo stesso interceptor con token RS256 veri. In `guard.csv` entra solo
+`@RequiresRole(..., members = true)` × 6 ruoli in demo (GRD-061…066, §3.2), dove l'attributo non cambia l'esito rispetto alla
+stessa lista senza `members`: lo cambia solo per il token di un membro, che è MBP.
+
 Ogni caso ha nome `[<ID>] <descrizione>`; una riga = un caso eseguito. Nei CSV i valori speciali sono scritti come
 `NULL` (assente), `EMPTY` (""), `SPACE`/`SPACES` (spazi), `TABNL` (tabulazione e a capo), `NBSP` (U+00A0), `LONG` (2000
 caratteri) e `«…»` (valore con spazi ai bordi conservati).
@@ -73,7 +81,7 @@ vuoto, così che ogni riga misuri una sola decisione.
 | R-31 | Contenuti: stesso ciclo di vita, pubblicazione diretta | docs/03 §3.6 · docs/06 §7 | ENT |
 | R-32 | Referral: ogni membro ha un codice di 8 caratteri `A-Z2-9` univoco; la registrazione con codice valido crea il legame (un solo invitante, non modificabile, non se stessi); codice inesistente ⇒ 422 `REFERRAL_CODE_INVALID`, invitante non ACTIVE ⇒ idem | F-REF-01 · docs/03 §2, §8 · member §3, §5 · Q-61 | REF-001…015 |
 | R-33 | Referral: alla **prima** azione qualificante dell'invitato (`purchase.completed`) due fatti `referral.completed` (REFEREE sull'invitato, REFERRER sull'invitante, chiavi = i due membri); nessun altro dopo | F-REF-02 · docs/03 §8 · member §5, §7 · EVT-FACT-08 | REF-016…023 |
-| R-34 | Il membro dal token (M8.10f, ADR-048): in `enterprise` un token di solo membro raggiunge solo gli handler `@MemberEndpoint` e le letture `@RequiresRole(members = true)` (403 `FORBIDDEN_ROLE` altrove); il membro viene solo dal token (`memberId` in query, campo form, corpo o `X-LH-Member` ⇒ 400 `MEMBER_FROM_TOKEN`, id nel percorso legacy ⇒ 403); un operatore, un token misto o `MEMBER`+`SOURCE` non agiscono mai come membro (403 `MEMBER_REQUIRED`, `OPTIONAL` vista generica); `sub` senza legame ⇒ 404 `MEMBER_NOT_REGISTERED` (member-service) o 409 `MEMBER_NOT_LINKED` con `Retry-After: 2`; attore `member:<id>` (prima `member:-`); in `demo` il membro è il `memberId` esplicito o `X-LH-Member` e gli errori restano quelli di oggi (due fonti diverse ⇒ 400 `MEMBER_MISMATCH`) | docs/06 §3, §3.2, §3.4 · Q-410, Q-553, Q-554, Q-555, Q-556 · ADR-048 | MBP-001…084 |
+| R-34 | Il membro dal token (M8.10f, ADR-048): in `enterprise` un token di solo membro raggiunge solo gli handler `@MemberEndpoint` e le letture `@RequiresRole(members = true)` (403 `FORBIDDEN_ROLE` altrove, `ANALYST` tra i ruoli di ogni `members = true`); il membro viene solo dal token (`memberId` in query, campo form, corpo o `X-LH-Member` ⇒ 400 `MEMBER_FROM_TOKEN`, id nel percorso legacy ⇒ 403); un operatore, un token misto o `MEMBER`+`SOURCE` non agiscono mai come membro (403 `MEMBER_REQUIRED`, `OPTIONAL` vista generica); `sub` senza legame ⇒ 404 `MEMBER_NOT_REGISTERED` (member-service) o 409 `MEMBER_NOT_LINKED` con `Retry-After: 2`; attore `member:<id>` (prima `member:-`); in `demo` il membro è il `memberId` esplicito o `X-LH-Member` e gli errori restano quelli di oggi (due fonti diverse ⇒ 400 `MEMBER_MISMATCH`); `memberId` vale in qualunque grafia e con i prefissi del binder di Spring (`!memberId`, `_memberId`); in demo solo un id `MBR-nnnnnn` diventa l'attore e l'MDC; `NONE` (operatore su `OPTIONAL`) non è mai il proprietario di un oggetto (`checkOwner` ⇒ 404) | docs/06 §3, §3.2, §3.4 · Q-410, Q-553, Q-554, Q-555, Q-556 · ADR-048 | MBP-001…087 |
 
 ## 2. Rami del codice mappati sulle regole
 
@@ -90,7 +98,7 @@ Percorsi relativi a `libs/lh-common/src/main/java/io/loyaltyhub/common/` e `serv
 | B-06 | `web/EndpointAccessInterceptor.java:75-85, 92-100` dichiarazione di metodo, poi di classe; `@PublicEndpoint` con motivo → passa; assente o motivo vuoto → 403 `ENDPOINT_NOT_DECLARED` | R-02 | GRD-001…005, GRD-026…040 |
 | B-07 | `web/EndpointAccessInterceptor.java:105` ADMIN passa sempre dove c'è `@RequiresRole` | R-02, R-03 | GRD (ADMIN) |
 | B-08 | `web/EndpointAccessInterceptor.java:109-114` annotazione vuota → tutti tranne ANALYST e SOURCE (ruolo di integrazione, Q-492) | R-02 | GRD-006…010, GRD-042 |
-| B-09 | `web/EndpointAccessInterceptor.java:116-119` ruolo nell'elenco, altrimenti 403 `FORBIDDEN_ROLE`; `SOURCE` passa solo dove è elencato | R-02, R-03 | GRD-011…025, GRD-043…060 |
+| B-09 | `web/EndpointAccessInterceptor.java:116-119` ruolo nell'elenco, altrimenti 403 `FORBIDDEN_ROLE`; `SOURCE` passa solo dove è elencato | R-02, R-03 | GRD-011…025, GRD-043…066 |
 | B-10 | `approval/GovernedTransitions.java:26-28` `trim` + maiuscole; sconosciuta/vuota/assente → 422 `INVALID_ACTION` | R-04 (codice e permissività senza specifica) | PRS |
 | B-11 | `approval/GovernedTransitions.java:35-38` decisione con ruolo ≠ approvatore (default LEGAL) e ≠ ADMIN → 403 | R-08 | ROL-006…015, ROL-041…050 |
 | B-12 | `approval/GovernedTransitions.java:40-41` altre azioni con ruolo ≠ ADMIN/MARKETING → 403 | R-09 | ROL-001…005, ROL-016…040, ROL-053…055 |
@@ -143,6 +151,14 @@ Percorsi relativi a `libs/lh-common/src/main/java/io/loyaltyhub/common/` e `serv
 | B-59 | `application/MemberService.java:331-343` codice vuoto ⇒ nessun legame; `trim` + maiuscole; inesistente o invitante non ACTIVE ⇒ 422 | R-32 (Q-61); normalizzazione senza specifica | REF-001…010 |
 | B-60 | `application/MemberService.java:353-361` codice di 8 caratteri univoco; 10 tentativi poi 409 `REFERRAL_CODE_EXHAUSTED` | R-32; l'esaurimento è senza specifica e non raggiungibile | REF-012, REF-013 |
 | B-61 | `application/ReferralService.java:68-82` solo il tipo qualificante; completamento condizionale (una volta); due fatti, anche con invitante non più ACTIVE | R-33; invitante non ACTIVE senza specifica | REF-016…023 |
+| B-62 | `web/MemberPrincipals.java` `bindToken`: `X-LH-Member` o un parametro `memberId` (query o campo form, in qualunque grafia e con i prefissi del binder `!`/`_`) ⇒ 400 `MEMBER_FROM_TOKEN`; `demoPathVariable` presente ⇒ 403 `MEMBER_FROM_TOKEN` | R-34 (Q-553) | MBP-006, 007, 014…022, 038…040, 085, 086 |
+| B-63 | `web/MemberPrincipals.java` `bindToken`: nessun token di solo membro (operatore, misto) ⇒ `REQUIRED` e `REGISTRATION` 403 `MEMBER_REQUIRED`, `OPTIONAL` principal `NONE` | R-34 (Q-554) | MBP-034…037, 042, 043, 057 |
+| B-64 | `web/MemberPrincipals.java` `bindToken`: `SubjectRef` e lookup del modulo; trovato ⇒ principal `TOKEN`, attore e MDC `member:<id>`; non trovato ⇒ 404 `MEMBER_NOT_REGISTERED` (autorevole) o 409 `MEMBER_NOT_LINKED` (`Retry-After: 2`), `OPTIONAL` `NONE`; `REGISTRATION` solo con la lookup autorevole, altrimenti 403 `ENDPOINT_NOT_DECLARED` | R-34 (Q-550, Q-553) | MBP-001…005, 030…033; lookup o chiave assenti: non raggiungibile con l'avvio protetto da `MemberEndpointGuard` (`MemberPrincipalsTest`) |
+| B-65 | `web/MemberPrincipals.java` `bindDemo`: `SOURCE` ⇒ 403; le fonti `X-LH-Member` (`MBR-nnnnnn`, altrimenti 400), `memberId` e percorso; due fonti diverse ⇒ 400 `MEMBER_MISMATCH`; solo un id `MBR-nnnnnn` diventa attore e MDC; il risolutore demo non gira su una richiesta con un token di membro (403 `ENDPOINT_NOT_DECLARED`) | R-34 (Q-555, regola 6-bis) | MBP-059…079, 087; il ramo del token: non raggiungibile con la configurazione di produzione (`MemberPrincipalsTest#demoNeverRunsOnATokenRequest`) |
+| B-66 | `web/EndpointAccessInterceptor.java` ramo del token di membro: solo `@MemberEndpoint` e `members = true`; `memberId` (qualunque grafia) o `X-LH-Member` ⇒ 400 prima del 403; altrove 403 `FORBIDDEN_ROLE`; dichiarazione combinata o assente ⇒ 403 `ENDPOINT_NOT_DECLARED` | R-34 (Q-410, Q-554) | MBP-008…013, 020, 021, 045, 046, 051…055, 058 |
+| B-67 | `web/MemberBodyAdvice.java` corpo con `memberId` non nullo, a qualunque profondità (record, bean, mappe, elenchi, `JsonNode`, fino a 4) ⇒ 400 `MEMBER_FROM_TOKEN` (solo `oidc`) | R-34 (Q-553) | MBP-023…028 |
+| B-68 | `web/MemberEndpointGuard.java` all'avvio: `@MemberEndpoint` sotto `/v1/portal/`, `demoPathVariable` solo su `@Deprecated`, `members = true` solo `GET` fuori da `/me` e con `ANALYST`; in `oidc` una lookup per modulo (autorevole per la registrazione) e la chiave di almeno 32 byte ⇒ `INSECURE_CONFIG` | R-34 (regola 22) | non raggiungibile da una richiesta: `MemberEndpointGuardTest`, `EndpointAccessRulesTest`, `IdentityGuardTest` (fuori dalle righe del testbook) |
+| B-69 | `web/MemberPrincipal.java` `checkOwner`, `merge`, `requireParam`: oggetto di un altro membro ⇒ 404 `NOT_FOUND`, `NONE` mai proprietario; `memberId` del corpo solo in demo (diverso ⇒ 400 `MEMBER_MISMATCH`); senza id in demo ⇒ 400 come oggi | R-34 (Q-553, Q-555) | MBP-029, 064…066, 076…079 |
 
 ## 3. Identità simulata e guardie di ruolo
 
@@ -175,7 +191,10 @@ risposta attuale è la più conservativa: ruolo sconosciuto ⇒ ANALYST, sola le
 ### 3.2 Guardia `@RequiresRole` e deny by default (`EndpointAccessInterceptor`)
 Domini: variante dell'annotazione (assente, vuota, un ruolo, due ruoli, solo ADMIN, sulla classe, `@PublicEndpoint` con
 motivo, `@PublicEndpoint` con motivo vuoto, e dal 2026-09-29 `@RequiresRole(SOURCE)` dell'ingresso delle fonti e i cinque ruoli
-delle letture aperte) × ruolo (6, con `SOURCE`, Q-492). Prodotto 10 × 6 = 60 ≤ 64 ⇒ **tabella completa**.
+delle letture aperte) × ruolo (6, con `SOURCE`, Q-492). Prodotto 10 × 6 = 60 ≤ 64 ⇒ **tabella completa**. Dal 2026-09-29
+(M8.10f, S1) l'undicesima variante, `@RequiresRole(..., members = true)` (lettura di programma aperta anche al token di un
+membro, Q-410), è una partizione a sé di 1 × 6 righe (GRD-061…066): in demo l'attributo non cambia l'esito rispetto alla
+lista senza `members` (GRD-055…060), lo cambia solo per il token di un membro (§3.3). Righe eseguite: 60 + 6 = 66.
 
 | ID | condizioni/valori | atteso (da spec) | rif. spec | test |
 |---|---|---|---|---|
@@ -239,6 +258,12 @@ delle letture aperte) × ruolo (6, con `SOURCE`, Q-492). Prodotto 10 × 6 = 60 �
 | TB-GOV-GRD-058 | `@RequiresRole` con i cinque ruoli (lettura aperta), attore CARE | passa | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
 | TB-GOV-GRD-059 | `@RequiresRole` con i cinque ruoli (lettura aperta), attore ANALYST | passa | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
 | TB-GOV-GRD-060 | `@RequiresRole` con i cinque ruoli (lettura aperta), attore SOURCE | 403 `FORBIDDEN_ROLE` | docs/06 §3.2, §3.3 (deny by default, `SOURCE`, Q-492) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-061 | `@RequiresRole` con i cinque ruoli e `members = true` (lettura aperta ai membri), attore ADMIN | passa | docs/06 §3.2, §3.4 · Q-410, Q-492 (deny by default, `SOURCE`) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-062 | `@RequiresRole` con i cinque ruoli e `members = true` (lettura aperta ai membri), attore MARKETING | passa | docs/06 §3.2, §3.4 · Q-410, Q-492 (deny by default, `SOURCE`) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-063 | `@RequiresRole` con i cinque ruoli e `members = true` (lettura aperta ai membri), attore LEGAL | passa | docs/06 §3.2, §3.4 · Q-410, Q-492 (deny by default, `SOURCE`) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-064 | `@RequiresRole` con i cinque ruoli e `members = true` (lettura aperta ai membri), attore CARE | passa | docs/06 §3.2, §3.4 · Q-410, Q-492 (deny by default, `SOURCE`) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-065 | `@RequiresRole` con i cinque ruoli e `members = true` (lettura aperta ai membri), attore ANALYST | passa | docs/06 §3.2, §3.4 · Q-410, Q-492 (deny by default, `SOURCE`) | `TestbookGovActorTest#guard` |
+| TB-GOV-GRD-066 | `@RequiresRole` con i cinque ruoli e `members = true` (lettura aperta ai membri), attore SOURCE | 403 `FORBIDDEN_ROLE` | docs/06 §3.2, §3.4 · Q-410, Q-492 (deny by default, `SOURCE`) | `TestbookGovActorTest#guard` |
 
 ### 3.3 Il membro dal token (`EndpointAccessInterceptor`, `MemberPrincipals`, MBP)
 Domini: chiamante (enterprise: token di un membro legato, di un membro non legato, di un operatore CARE e ADMIN, misto
@@ -246,7 +271,7 @@ Domini: chiamante (enterprise: token di un membro legato, di un membro non legat
 anonimo, operatore, `SOURCE`) × dichiarazione (`@MemberEndpoint` `REQUIRED`, `OPTIONAL`, `REGISTRATION`, percorso legacy con
 `demoPathVariable`, `@RequiresRole(members = true)`, `@RequiresRole` di backoffice e regola «scrittura», `@PublicEndpoint`, nessuna
 dichiarazione, `@MemberEndpoint` insieme a un'altra dichiarazione, sulla classe) × indicazione del membro nella richiesta (query
-in più grafie, campo form, header `X-LH-Member`, corpo semplice, annidato o libero, percorso) × esito della lookup (legato,
+in più grafie e con i prefissi del binder di Spring `!` e `_`, campo form, header `X-LH-Member`, corpo semplice, annidato o libero, percorso) × esito della lookup (legato,
 non legato in un servizio, non registrato in member-service). Strategia: una riga per ogni classe di ciascun dominio sul caso
 valido (guasto singolo), più le combinazioni che la specifica rende distinte (operatore su `OPTIONAL`, token misto,
 `SOURCE`). I codici di errore sono quelli di Q-553 (D6): la scelta è decisa (ADR-048), nessuna riga AMBIGUO. Gli id di
@@ -338,6 +363,9 @@ prova sono fittizi (`MBR-000101`, `MBR-000102`, demo `MBR-000003`); il `detail` 
 | TB-GOV-MBP-082 | demo, regola «scrittura» per ANALYST anonimo: 403 FORBIDDEN_ROLE come oggi. demo, ANALYST anonimo (nessun `X-LH-Actor`); `POST /v1/portal/write-rule` | 403 `FORBIDDEN_ROLE` | docs/06 §3, §3.2 · Q-555, CLAUDE.md regola 6-bis | `TestbookGovMemberPrincipalTest#principal` |
 | TB-GOV-MBP-083 | demo, regola «scrittura» per CARE: passa come oggi. demo, `X-LH-Actor: CARE:paolo.care`; `POST /v1/portal/write-rule` | 200 | docs/06 §3, §3.2 · Q-555, CLAUDE.md regola 6-bis | `TestbookGovMemberPrincipalTest#principal` |
 | TB-GOV-MBP-084 | demo, handler non dichiarato: 403 ENDPOINT_NOT_DECLARED. demo, `X-LH-Actor: ADMIN:marta.admin`; `GET /v1/portal/undeclared` | 403 `ENDPOINT_NOT_DECLARED` | docs/06 §3, §3.2 · Q-555, CLAUDE.md regola 6-bis | `TestbookGovMemberPrincipalTest#principal` |
+| TB-GOV-MBP-085 | memberId con il prefisso del binder (`!memberId`, valore di default del campo) in query: 400 `MEMBER_FROM_TOKEN`, mai un DTO con l'id di un altro. enterprise, token del membro A (legato), lookup di un servizio; `GET /v1/portal/bound?code=x&!memberId=MBR-000102`, handler con un DTO legato dalla richiesta (`memberId`, `code`) | 400 `MEMBER_FROM_TOKEN` | docs/06 §3.2, §3.4 · Q-410, Q-553 | `TestbookGovMemberPrincipalTest#principal` |
+| TB-GOV-MBP-086 | memberId con il prefisso del binder come campo form (`!memberId=`): 400 `MEMBER_FROM_TOKEN`. enterprise, token del membro A (legato), lookup di un servizio; `POST /v1/portal/write` con campo form `!memberId=MBR-000102` | 400 `MEMBER_FROM_TOKEN` | docs/06 §3.2, §3.4 · Q-410, Q-553 | `TestbookGovMemberPrincipalTest#principal` |
+| TB-GOV-MBP-087 | demo, memberId non della forma `MBR-nnnnnn`: non diventa l'attore né l'MDC, che restano `ANALYST:anonymous`. demo, ANALYST anonimo (nessun `X-LH-Actor`); `GET /v1/portal/required?memberId=x%0Ay` | 200 · `origin = DEMO`, `actor = ANALYST:anonymous`, `mdc = ANALYST:anonymous` | docs/06 §3, §3.2 · Q-555, Q-556, CLAUDE.md regola 6-bis e 20 | `TestbookGovMemberPrincipalTest#principal` |
 
 ## 4. Azioni del ciclo di vita (`GovernedTransitions.parse`)
 Domini: ogni valore dell'enum (8) + classi non valide (minuscolo, maiuscole miste, spazi, `ACTIVATE`, sconosciuta, quasi
@@ -1586,12 +1614,12 @@ Nessuna divergenza nelle aree di `lh-common` a logica pura (ACT, GRD, PRS, SMR, 
 | Misura | Valore |
 |---|---|
 | Regole inventariate | 34 (R-01…R-34) |
-| Rami del codice mappati | 61 (B-01…B-61); non raggiungibili senza concorrenza o per le API: B-30, esaurimento dei codici di B-60, `REFERRAL_SELF` |
+| Rami del codice mappati | 69 (B-01…B-69); non raggiungibili senza concorrenza o per le API: B-30, esaurimento dei codici di B-60, `REFERRAL_SELF`; B-68 e i rami di configurazione di B-64 e B-65 non passano da una richiesta: li provano `MemberEndpointGuardTest` e `MemberPrincipalsTest` |
 | Rami senza specifica | 18 (B-02, B-03, B-04, B-10, B-13, B-25, B-26, B-28, B-33, B-36, B-37, B-38, B-50, B-51, B-54, B-59, B-60, B-61) → righe AMBIGUO |
 | Regole senza codice | 0 (lo storico delle transizioni dei contenuti, R-13 per i contenuti, c'è da D-04) |
-| Righe | 1095 — ACT 17, GRD 60, MBP 84, PRS 16, SMR 56, SMN 10, SMF 56, ROL 60, CMT 14, OVR 22, POL 44, MST 41, MRL 80, ANO 47, ATV 70, ATD 29, ATU 14, CRT 118, CRV 27, SEG 30, REF 23, ENT 47, APQ 8, MAT 100, EFF 17, ANX 5 |
+| Righe | 1104 — ACT 17, GRD 66, MBP 87, PRS 16, SMR 56, SMN 10, SMF 56, ROL 60, CMT 14, OVR 22, POL 44, MST 41, MRL 80, ANO 47, ATV 70, ATD 29, ATU 14, CRT 118, CRV 27, SEG 30, REF 23, ENT 47, APQ 8, MAT 100, EFF 17, ANX 5 |
 | di cui AMBIGUO | 132 (§13; CRT-045…048, 051, 052, 055, 056 e CRV-025 decise da Q-215), registrate in `docs/15` (Q-298…Q-310 e domande già aperte) |
-| Tabelle complete | GRD 10 × 6; SMR e SMF 7 × 8; ROL 8 × 5 (+ 2 × 5, 1 × 5); OVR 2 × 2 × 5; POL campagna 2 × 2 × 7 e scheda 4 × 2; MST 4 × 8; MRL 13 × 6; ATV 4 × 16; CRT 14 × 4 e assente × 14; MAT 20 × 5; EFF 4 × 4 |
+| Tabelle complete | GRD 10 × 6 (+ 1 × 6); SMR e SMF 7 × 8; ROL 8 × 5 (+ 2 × 5, 1 × 5); OVR 2 × 2 × 5; POL campagna 2 × 2 × 7 e scheda 4 × 2; MST 4 × 8; MRL 13 × 6; ATV 4 × 16; CRT 14 × 4 e assente × 14; MAT 20 × 5; EFF 4 × 4 |
 | Riduzioni | stato × azione × ruolo × policy (560) → SMR + SMF (112) + SMN (10: le celle in cui la regola entra nel ramo, 46 identiche a SMR) + ROL (60), perché ruolo e stato sono controlli indipendenti e in sequenza, più 5 righe di precedenza; per tipo di oggetto (3 × 56) → 12 verifiche di cablaggio per tipo nell'hub (la logica è la stessa `GovernedTransitions`); policy spenta nell'hub → nessun contesto dedicato (stesso bean, tabelle SMF/ROL); tabella dei contenuti → TB-ENG; ACT, PRS, ANO, ATD, CRV, SEG → ogni classe non valida da sola sul caso valido (guasto singolo) |
 | Divergenze | 4 cause, 12 righe: D-01 (8), D-02 (2), D-03 (1, risolta da `main`), D-04 (1) → tutte risolte, 0 righe rosse |
 
@@ -1615,6 +1643,16 @@ Ogni classe Testbook ne rileva almeno una.
 | G-06 | lunghezza massima di un attributo testo 200 → 201 (member `MemberAttributes`) | `TestbookGovAttributesTest` | ATV-005 (STRING di 201 caratteri) |
 | G-07a | cambio di stato aperto a ogni ruolo di scrittura (`MembersController#changeStatus`: `@RequiresRole` senza ruoli) | `TestbookGovMemberIT` | MRL-002 (MARKETING), MRL-003 (LEGAL) |
 | G-07b | solo lo **sblocco** BLOCKED → ACTIVE ammesso senza CARE/ADMIN (guardia allargata + controllo in `MemberService#changeStatus` che salta BLOCKED → ACTIVE) | `TestbookGovMemberIT` | **nessuna** con le 229 righe di partenza (le righe di ruolo provavano solo il blocco) → aggiunte MRL-075…080 (§8.2); con il mutante: MRL-076 (MARKETING), MRL-077 (LEGAL); sul codice reale: 235 righe verdi |
+
+Estensione del 2026-09-29 (M8.10f, S1): tre mutazioni sul membro dal token (`libs/lh-common`, copia di lavoro isolata, file
+ripristinato dopo ciascuna; classi eseguite con `./mvnw -o -pl libs/lh-test-support,libs/lh-common -am test -Dtest=<Classe>`).
+Tutte rilevate (G-08a e G-08b da righe MBP, G-08c da un test fuori dalle righe).
+
+| # | Mutazione (file) | Classe eseguita | Righe diventate rosse |
+|---|---|---|---|
+| G-08a | un operatore su `REQUIRED` trattato come su `OPTIONAL`: principal `NONE` invece di 403 `MEMBER_REQUIRED` (`MemberPrincipals#bindToken`, condizione `kind != REGISTRATION`) | `TestbookGovMemberPrincipalTest` | MBP-034 (CARE), MBP-035 (ADMIN), MBP-042 (token misto), MBP-057 (`@MemberEndpoint` sulla classe); MBP-037 (registrazione) resta verde: la mutazione non la tocca |
+| G-08b | prefissi del binder non riconosciuti da `MemberPrincipals#isMemberIdName` (`!memberId` e `_memberId` non sono più `memberId`) | `TestbookGovMemberPrincipalTest` | MBP-085 (`?!memberId=` ⇒ 200 con il DTO di B invece di 400), MBP-086 (campo form `!memberId=`); fuori dal testbook a righe anche `MemberPrincipalTest#memberIdNames` e `MemberEndpointAccessTest` (3 casi) |
+| G-08c | `MemberPrincipal` e `MemberSubject` non più esclusi da springdoc (rimossa la riga `addRequestWrapperToIgnore` di `OpenApiConventions`) | `MemberOpenApiTest` | **nessuna riga MBP**: la classe MBP non osserva l'OpenAPI; rileva `MemberOpenApiTest#memberTypesAreNotDocumented` (il parametro compare nel contratto); la deriva sui contratti reali la misura anche `OpenApiExportIT` dell'hub (non rieseguito con la mutazione) |
 
 Lacuna trovata: la guardia `member.write` sul cambio di stato era provata solo nel verso ACTIVE → BLOCKED, quindi una
 guardia che dipendesse dalla transizione (sblocco libero) passava. Oracolo delle nuove righe: docs/08 §2

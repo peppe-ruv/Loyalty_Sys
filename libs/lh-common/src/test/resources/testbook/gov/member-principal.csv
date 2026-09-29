@@ -83,3 +83,6 @@ TB-GOV-MBP-081|demo, lettura di backoffice per ANALYST anonimo: come oggi|DEMO|-
 TB-GOV-MBP-082|demo, regola «scrittura» per ANALYST anonimo: 403 FORBIDDEN_ROLE come oggi|DEMO|-|-|POST|/v1/portal/write-rule|NONE|NONE|403:FORBIDDEN_ROLE|-
 TB-GOV-MBP-083|demo, regola «scrittura» per CARE: passa come oggi|DEMO|CARE:paolo.care|-|POST|/v1/portal/write-rule|NONE|NONE|200|-
 TB-GOV-MBP-084|demo, handler non dichiarato: 403 ENDPOINT_NOT_DECLARED|DEMO|ADMIN:marta.admin|-|GET|/v1/portal/undeclared|NONE|NONE|403:ENDPOINT_NOT_DECLARED|-
+TB-GOV-MBP-085|memberId con il prefisso del binder (!memberId, valore di default del campo) in query: 400 MEMBER_FROM_TOKEN, mai un DTO con l'id di un altro|OIDC|A|SERVICE|GET|/v1/portal/bound?code=x&!memberId=MBR-000102|NONE|NONE|400:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-086|memberId con il prefisso del binder come campo form (!memberId=): 400 MEMBER_FROM_TOKEN|OIDC|A|SERVICE|FORM|/v1/portal/write|NONE|!memberId=MBR-000102|400:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-087|demo, memberId non della forma MBR-nnnnnn: non diventa l'attore né l'MDC, che restano ANALYST:anonymous|DEMO|-|-|GET|/v1/portal/required?memberId=x%0Ay|NONE|NONE|200|origin=DEMO;actor=ANALYST:anonymous;mdc=ANALYST:anonymous

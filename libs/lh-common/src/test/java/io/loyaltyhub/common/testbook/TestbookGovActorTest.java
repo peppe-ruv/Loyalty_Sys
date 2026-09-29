@@ -83,6 +83,11 @@ class TestbookGovActorTest {
         public void read_all() {
         }
 
+        /** Lettura di programma aperta ai membri (M8.10f, Q-410): in demo {@code members = true} non cambia l'esito. */
+        @RequiresRole(value = {Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST}, members = true)
+        public void members_read() {
+        }
+
         @PublicEndpoint(reason = "sonda del testbook")
         public void open() {
         }
