@@ -5,7 +5,7 @@ Questa directory contiene la configurazione as-code dell'Identity Provider per i
 ## Contenuto
 
 - `realm.json`: export del realm `loyaltyhub` con client, ruoli, client scope (quelli standard di Keycloak 26 più `hub-audience` e `lh-roles-scope`), flussi e utenti senza password. I valori variabili sono segnaposto `${LH_*}` che Keycloak sostituisce con le variabili d'ambiente all'import.
-- Fonti di ingestion (Q-492): un client confidential `src-<codice>` per ogni fonte di `seed/sources.json` (`private_key_jwt`, solo service account, JWKS da `LH_SOURCE_<FONTE>_JWKS_URL`, nessun segreto) e l'utenza di servizio `service-account-src-<codice>` con il solo ruolo realm `SOURCE`, incluso nel claim `lh_roles`. Il ruolo `SOURCE` non è una persona: non lo riceve nessun utente demo. Per una fonte creata dopo l'installazione vedi `deploy/README.md` (Q-494).
+- Fonti di ingestion (Q-492): un client confidential `src-<codice>` per ogni fonte HTTP di `seed/sources.json`, non per le fonti `INTERNAL` (`internal`, `simulator`: non entrano da HTTP e non hanno chiavi da custodire) (`private_key_jwt`, solo service account, JWKS da `LH_SOURCE_<FONTE>_JWKS_URL`, nessun segreto) e l'utenza di servizio `service-account-src-<codice>` con il solo ruolo realm `SOURCE`, incluso nel claim `lh_roles`. Il ruolo `SOURCE` non è una persona: non lo riceve nessun utente demo. Per una fonte creata dopo l'installazione vedi `deploy/README.md` (Q-494).
 - `bootstrap.sh`: imposta le password temporanee degli operatori demo dopo l'avvio.
 - `test-idp/` (**solo prova**, F2-IAM-04): IdP OIDC secondario (`test-realm.json`), LDAP (`ldap-seed.ldif`), overlay del realm (`realm-test-overlay.json`), lo script che lo applica (`apply-overlay.sh`) e la verifica (`verify.sh`).
 
@@ -25,7 +25,7 @@ Il servizio `idp` del compose passa a Keycloak tutte le variabili usate come seg
 | `LH_WEB_URL` | no | `http://localhost:3000` | origine del BFF senza barra finale, la stessa data al web: redirect URI esatta `/api/auth/callback`, ritorno dopo il logout `/` e back-channel logout del client `web` |
 | `LH_CMS_URL` | no | `http://localhost:8055` | origine di Directus: redirect URI del client `cms` |
 | `LH_JOBS_JWKS_URL` | no | `http://localhost/jwks/lh-jobs.json` | JWKS del client `lh-jobs` (`private_key_jwt`) |
-| `LH_SOURCE_<FONTE>_JWKS_URL` | no | `http://localhost/jwks/<fonte>.json` | JWKS del client fonte `src-<fonte>` (`crm`, `app`, `ecommerce`, `billing`, `partner`, `internal`, `simulator`); la chiave pubblica della fonte si registra qui, all'installazione |
+| `LH_SOURCE_<FONTE>_JWKS_URL` | no | `http://localhost/jwks/<fonte>.json` | JWKS del client fonte `src-<fonte>` (`crm`, `app`, `ecommerce`, `billing`, `partner`); la chiave pubblica della fonte si registra qui, all'installazione |
 
 Keycloak valida gli URL all'import: un segnaposto non sostituito (es. `${LH_WEB_URL}/…`) fa fallire l'avvio con `Backchannel logout URL is not a valid URL` o `JWKS URL is not a valid URL`. I default JWKS sono segnaposto sintatticamente validi: finché non puntano al JWKS reale della fonte, l'autenticazione `private_key_jwt` di quel client fallisce (fail-closed).
 
@@ -48,6 +48,28 @@ docker compose -f deploy/docker-compose.yml --profile idp up -d idp
 ```
 
 Keycloak importa `realm.json` al primo avvio (`--import-realm`); se il realm esiste già l'import viene saltato.
+
+### Realm già importato prima di M8.2f (aggiornamento, ADR-038)
+
+Poiché l'import viene saltato, un realm creato prima di M8.2f **non ha** il ruolo `SOURCE` né i client `src-<codice>`: ha ancora i client `crm`, `app`, `ecommerce`, `billing`, `partner`, `internal` e `simulator` senza il ruolo, quindi ogni chiamata di ingestion in `enterprise` risponde `403` dopo l'aggiornamento del servizio. Un aggiornamento di realm è una migrazione da gestire (ADR-038): fai questi passi prima di aggiornare i servizi, con un amministratore del realm.
+
+1. **Prepara il file dell'import parziale** dal nuovo `realm.json` con `jq`: prendi il ruolo `SOURCE` (`roles.realm`), i client `src-*` e le utenze `service-account-src-*`, e sostituisci ogni segnaposto `${LH_SOURCE_<FONTE>_JWKS_URL}` con il JWKS reale della fonte (l'import parziale non sostituisce i segnaposto).
+
+   ```bash
+   # Ruolo SOURCE, client src-* e utenze di servizio, con ifResourceExists=SKIP (non tocca ciò che c'è già)
+   jq '{ifResourceExists: "SKIP",
+        roles: {realm: [.roles.realm[] | select(.name == "SOURCE")]},
+        clients: [.clients[] | select(.clientId | startswith("src-"))],
+        users: [.users[] | select(.username | startswith("service-account-src-"))]}' \
+      deploy/idp/realm.json > partial-import.json
+   ```
+
+2. **Importa** con `POST /admin/realms/loyaltyhub/partialImport` (token dell'amministratore, `Content-Type: application/json`).
+3. **Correggi `lh-jobs`**: nel client, in *Keys*, attiva *Use JWKS URL* (`use.jwks.url = true`); prima non poteva autenticarsi.
+4. **Aggiorna ogni sistema di fonte**: il suo `client_id` diventa `src-<codice>` (per esempio `src-ecommerce`) e il token deve avere l'audience `hub`.
+5. **Elimina i vecchi client** `crm`, `app`, `ecommerce`, `billing`, `partner`, `internal` e `simulator` quando tutte le fonti sono passate; non creare client `src-internal` né `src-simulator` (le fonti `INTERNAL` non entrano da HTTP).
+
+Nessuna versione rilasciata contiene `realm.json` prima di M8.2f: la procedura serve solo a chi ha costruito l'IdP da `main` nel frattempo.
 
 ### Inizializzazione password demo
 

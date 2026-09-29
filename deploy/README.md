@@ -213,7 +213,7 @@ Le fonti che inviano azioni a `ingestion` (`POST /v1/events`, `/v1/events/batch`
 utenze di integrazione con il ruolo `SOURCE`: client credentials con `private_key_jwt`, **un client per fonte**, con
 `client_id` = `src-<codice>` (il prefisso evita scontri con `web`, `widgets`, `cms`). Ingestion accetta un'azione solo
 se il suo `source` è quello del client (altrimenti `403 SOURCE_MISMATCH`). Il realm crea un client per ogni fonte del
-seed (`src-crm`, `src-app`, `src-ecommerce`, `src-billing`, `src-partner`, `src-internal`, `src-simulator`), ciascuno con
+seed che arrivano da HTTP (`src-crm`, `src-app`, `src-ecommerce`, `src-billing`, `src-partner`), ciascuno con
 l'utenza di servizio `service-account-src-<codice>` che ha il solo ruolo `SOURCE` e l'audience `hub`. **Nel repository
 non c'è nessuna chiave né segreto**: la chiave pubblica di ogni fonte si registra all'installazione, con l'URL del suo
 JWKS (`LH_SOURCE_<FONTE>_JWKS_URL`, in Helm `roles.idp.jwks.sources.<fonte>`). Finché l'URL è il segnaposto, il client

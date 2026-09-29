@@ -94,7 +94,10 @@ test('I client di tipo service-account usano private_key_jwt (client-jwt)', () =
 
 // Fonti di ingestion (Q-492, F2-SEC-07, F2-IAM-02, docs/18 §3.2 e §3.10): un client credentials con private_key_jwt per
 // fonte, `client_id` = `src-<codice>` del registro fonti (seed/sources.json), utenza di servizio con il solo ruolo SOURCE.
-const SEED_SOURCES = () => JSON.parse(fs.readFileSync(path.join(ROOT, 'seed/sources.json'), 'utf8')).map(s => s.code);
+// Solo le fonti che entrano da HTTP: le INTERNAL (ponte dei fatti, simulatore) non hanno client (minimo privilegio, review M8.2f S2).
+const ALL_SEED_SOURCES = () => JSON.parse(fs.readFileSync(path.join(ROOT, 'seed/sources.json'), 'utf8'));
+const SEED_SOURCES = () => ALL_SEED_SOURCES().filter(s => s.kind === 'HTTP').map(s => s.code);
+const INTERNAL_SOURCES = () => ALL_SEED_SOURCES().filter(s => s.kind === 'INTERNAL').map(s => s.code);
 const SOURCE_PREFIX = 'src-';
 
 test('Il prefisso dei client di fonte del realm è lo stesso del codice (ActorContext.SOURCE_CLIENT_PREFIX)', () => {
@@ -103,7 +106,7 @@ test('Il prefisso dei client di fonte del realm è lo stesso del codice (ActorCo
   assert.equal(prefix, SOURCE_PREFIX, 'ActorContext.SOURCE_CLIENT_PREFIX diverso dal prefisso dei client del realm');
 });
 
-test('Ogni fonte del seed ha un client src-<codice>: confidential, private_key_jwt, solo service account, senza segreto', () => {
+test('Ogni fonte HTTP del seed ha un client src-<codice>: confidential, private_key_jwt, solo service account, senza segreto', () => {
   const codes = SEED_SOURCES();
   assert.ok(codes.length > 0, 'seed/sources.json vuoto');
   for (const code of codes) {
@@ -132,8 +135,20 @@ test('Ogni fonte del seed ha un client src-<codice>: confidential, private_key_j
   }
 });
 
+test('Le fonti INTERNAL del seed (ponte dei fatti, simulatore) non hanno né client né utenza di servizio', () => {
+  const internal = INTERNAL_SOURCES();
+  assert.ok(internal.length > 0, 'nessuna fonte INTERNAL nel seed: il controllo non verifica nulla');
+  assert.ok(SEED_SOURCES().length > 0, 'nessuna fonte HTTP nel seed');
+  for (const code of internal) {
+    const id = `${SOURCE_PREFIX}${code}`;
+    assert.ok(!realm.clients.some(c => c.clientId === id), `Il client ${id} non deve esistere: la fonte ${code} è INTERNAL e non entra da HTTP`);
+    assert.ok(!(realm.users ?? []).some(u => u.serviceAccountClientId === id || u.username === `service-account-${id}`),
+      `L'utenza di servizio di ${id} non deve esistere`);
+  }
+});
+
 test('Nessun client di fonte senza prefisso o fuori dal registro fonti: src-<codice> ⇔ fonte del seed', () => {
-  const codes = new Set(SEED_SOURCES());
+  const codes = new Set(ALL_SEED_SOURCES().map(x => x.code));
   for (const c of realm.clients) {
     if (c.clientId.startsWith(SOURCE_PREFIX)) {
       assert.ok(codes.has(c.clientId.slice(SOURCE_PREFIX.length)), `Il client ${c.clientId} non corrisponde a nessuna fonte del seed`);
@@ -166,7 +181,18 @@ test('Il ruolo SOURCE è solo delle utenze di servizio dei client src-<codice>, 
   for (const r of realm.roles.realm) {
     assert.ok(!(r.composites?.realm ?? []).includes('SOURCE'), `Il ruolo ${r.name} non deve contenere SOURCE`);
   }
+  // Né tra i ruoli predefiniti: li avrebbe ogni utente del realm.
+  assert.ok(!(realm.defaultRole?.composites?.realm ?? []).includes('SOURCE'), 'SOURCE non deve essere nel ruolo predefinito del realm');
   assert.ok(!(realm.groups ?? []).length || !JSON.stringify(realm.groups).includes('SOURCE'), 'SOURCE non va assegnato a gruppi');
+});
+
+test('Ogni client con client-jwt e jwks.url ha use.jwks.url=true (senza, Keycloak cerca un certificato che non c\'è e il client non autentica)', () => {
+  for (const c of realm.clients ?? []) {
+    if (c.clientAuthenticatorType === 'client-jwt') {
+      assert.equal(c.attributes?.['use.jwks.url'], 'true', `${c.clientId}: use.jwks.url`);
+      assert.match(c.attributes?.['jwks.url'] ?? '', PLACEHOLDER, `${c.clientId}: jwks.url deve essere un segnaposto`);
+    }
+  }
 });
 
 test('Le redirect URI non contengono wildcard assolute come http://* o *', () => {

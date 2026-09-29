@@ -169,6 +169,13 @@ class SourceAuthOidcIT {
             assertThat(r.status).as(path + " " + r.text).isEqualTo(403);
             assertThat(r.body.path("code").asString()).as(path).isEqualTo("FORBIDDEN_ROLE");
         }
+        // Attuatori e api-docs (percorsi che l'interceptor degli endpoint non vede) sono chiusi dal filtro.
+        for (String path : List.of("/actuator/metrics", "/actuator/prometheus", "/v3/api-docs")) {
+            Reply r = get(path, token);
+            assertThat(r.status).as(path + " " + r.text).isEqualTo(403);
+            assertThat(r.body.path("code").asString()).as(path).isEqualTo("FORBIDDEN_ROLE");
+        }
+        assertThat(get("/actuator/health", null).status).isEqualTo(200);
         Reply fire = post("/v1/demo/simulator/fire", token, Map.of("type", "app.login.daily"));
         assertThat(fire.status).as(fire.text).isEqualTo(403);
         assertThat(get("/v1/sources", token("marta", "web", List.of("ADMIN"))).status).isEqualTo(200);

@@ -86,12 +86,12 @@ class OidcActorFilterTest {
     @Test
     @DisplayName("[Q-365] più ruoli: ADMIN vince; più ruoli operatore diversi o nessuno ⇒ sola lettura")
     void rolesFromToken() {
-        assertThat(ActorContext.fromToken(List.of("MARKETING", "ADMIN"), "a").role()).isEqualTo(Role.ADMIN);
-        assertThat(ActorContext.fromToken(List.of("LEGAL"), "a").role()).isEqualTo(Role.LEGAL);
-        assertThat(ActorContext.fromToken(List.of("MARKETING", "LEGAL"), "a").role()).isEqualTo(Role.ANALYST);
-        assertThat(ActorContext.fromToken(List.of("MEMBER"), "a").role()).isEqualTo(Role.ANALYST);
-        assertThat(ActorContext.fromToken(List.of("marketing"), "a").role()).isEqualTo(Role.ANALYST);
-        assertThat(ActorContext.fromToken(null, null)).isEqualTo(ActorContext.ANONYMOUS);
+        assertThat(ActorContext.fromToken(List.of("MARKETING", "ADMIN"), "a", null).role()).isEqualTo(Role.ADMIN);
+        assertThat(ActorContext.fromToken(List.of("LEGAL"), "a", null).role()).isEqualTo(Role.LEGAL);
+        assertThat(ActorContext.fromToken(List.of("MARKETING", "LEGAL"), "a", null).role()).isEqualTo(Role.ANALYST);
+        assertThat(ActorContext.fromToken(List.of("MEMBER"), "a", null).role()).isEqualTo(Role.ANALYST);
+        assertThat(ActorContext.fromToken(List.of("marketing"), "a", null).role()).isEqualTo(Role.ANALYST);
+        assertThat(ActorContext.fromToken(null, null, null)).isEqualTo(ActorContext.ANONYMOUS);
     }
 
     @Test
@@ -137,8 +137,34 @@ class OidcActorFilterTest {
                 .isEqualTo(new ActorContext(Role.SOURCE, "src-crm"));
         // Un client che non è di fonte ha il ruolo ma nessun codice fonte: il legame con la fonte non passa.
         assertThat(ActorContext.fromToken(List.of("SOURCE"), "x", "web").sourceCode()).isEmpty();
-        // Due argomenti: il nome è anche il client.
-        assertThat(ActorContext.fromToken(List.of("SOURCE"), "src-crm")).isEqualTo(new ActorContext(Role.SOURCE, "src-crm"));
+    }
+
+    @Test
+    @DisplayName("[Q-492] token di sola fonte: passa solo sui tre percorsi d'ingresso; attuatori, api-docs e ogni altro percorso 403")
+    void sourceReachesOnlyTheIngress() throws Exception {
+        String src = token(sourceClaims("service-account-src-crm", "src-crm", List.of("SOURCE")));
+        for (String path : List.of("/v1/events", "/v1/events/batch", "/v1/transactions")) {
+            assertThat(call(path, src, null).status).as(path).isEqualTo(200);
+        }
+        for (String path : List.of("/actuator/prometheus", "/actuator/metrics", "/actuator/env", "/v3/api-docs",
+                "/v1/campaigns", "/v1/portal/members/me/wallet", "/v1/events/", "/v1/events/x")) {
+            Result r = call(path, src, null);
+            assertThat(r.status).as(path).isEqualTo(403);
+            assertThat(r.response.getContentAsString()).contains("\"code\":\"FORBIDDEN_ROLE\"");
+            assertThat(r.actor.get()).as("la catena non è raggiunta: " + path).isNull();
+        }
+        // Le probe restano libere per tutti; un operatore non è toccato dalla guardia.
+        assertThat(call("/actuator/health", null, null).status).isEqualTo(200);
+        assertThat(call("/actuator/prometheus", token(claims("luca", List.of("ADMIN"), "hub", ISSUER, 300)), null).status)
+                .isEqualTo(200);
+    }
+
+    @Test
+    @DisplayName("[Q-492] MEMBER+SOURCE non sfugge al vincolo di portale: SOURCE non è un ruolo operatore")
+    void memberPlusSourceStaysMemberOnly() throws Exception {
+        String both = token(sourceClaims("service-account-src-crm", "src-crm", List.of("MEMBER", "SOURCE")));
+        assertThat(call("/v1/events", both, null).status).isEqualTo(403);
+        assertThat(call("/v1/campaigns", both, null).status).isEqualTo(403);
     }
 
     // ---- supporto ----

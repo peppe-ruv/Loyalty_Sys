@@ -117,7 +117,7 @@ spec:
                 secretKeyRef: { name: {{ required "roles.idp.clientSecrets.cms.name" $r.clientSecrets.cms.name }}, key: {{ $r.clientSecrets.cms.key }} }
             - name: LH_JOBS_JWKS_URL
               value: {{ default (printf $jwksDefault "lh-jobs") $r.jwks.jobs | quote }}
-            {{- range $src := list "crm" "app" "ecommerce" "billing" "partner" "internal" "simulator" }}
+            {{- range $src := list "crm" "app" "ecommerce" "billing" "partner" }}
             - name: LH_SOURCE_{{ upper $src }}_JWKS_URL
               value: {{ default (printf $jwksDefault $src) (index $r.jwks.sources $src) | quote }}
             {{- end }}

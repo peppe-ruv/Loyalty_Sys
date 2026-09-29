@@ -149,8 +149,6 @@ services:
       LH_SOURCE_ECOMMERCE_JWKS_URL: "${LH_SOURCE_ECOMMERCE_JWKS_URL:-http://localhost/jwks/ecommerce.json}"
       LH_SOURCE_BILLING_JWKS_URL: "${LH_SOURCE_BILLING_JWKS_URL:-http://localhost/jwks/billing.json}"
       LH_SOURCE_PARTNER_JWKS_URL: "${LH_SOURCE_PARTNER_JWKS_URL:-http://localhost/jwks/partner.json}"
-      LH_SOURCE_INTERNAL_JWKS_URL: "${LH_SOURCE_INTERNAL_JWKS_URL:-http://localhost/jwks/internal.json}"
-      LH_SOURCE_SIMULATOR_JWKS_URL: "${LH_SOURCE_SIMULATOR_JWKS_URL:-http://localhost/jwks/simulator.json}"
     volumes:
       # Solo il realm principale: l'overlay di prova si applica con deploy/idp/test-idp/apply-overlay.sh.
       - ./idp/realm.json:/opt/keycloak/data/import/realm.json:ro

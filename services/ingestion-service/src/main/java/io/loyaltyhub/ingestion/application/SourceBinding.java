@@ -4,6 +4,8 @@ import io.loyaltyhub.common.event.LhSource;
 import io.loyaltyhub.common.web.ActorContext;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.common.web.Role;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
 
 import static io.loyaltyhub.ingestion.domain.ImportParser.attribute;
@@ -18,9 +20,12 @@ import static io.loyaltyhub.ingestion.domain.ImportParser.attribute;
  *
  * <p>Il confronto è esatto sul codice (mai sul suffisso né senza distinguere maiuscole): una fonte con una forma
  * diversa da {@code urn:loyaltyhub:source:<codice>} (o dal codice breve delle transazioni) non coincide, come un client
- * senza prefisso {@code src-}. Il valore dichiarato non si riporta nel messaggio.
+ * senza prefisso {@code src-}. Il valore dichiarato non si riporta né nel messaggio né nel log (una riga WARN col solo
+ * client del token).
  */
 public final class SourceBinding {
+
+    private static final Logger log = LoggerFactory.getLogger(SourceBinding.class);
 
     static final String DETAIL = "La fonte dichiarata non corrisponde al client autenticato: un client di fonte"
             + " (src-<codice>) può inviare solo per la propria fonte.";
@@ -39,6 +44,8 @@ public final class SourceBinding {
         }
         String allowed = actor.sourceCode().orElse(null);
         if (allowed == null || !allowed.equals(codeOf(declaredSource))) {
+            // Traccia di sicurezza (regola 20, ASVS V7): solo il client del token verificato, mai il valore dichiarato.
+            log.warn("SOURCE_MISMATCH: il client {} ha dichiarato una fonte diversa dalla propria", actor.username());
             throw LhException.sourceMismatch(DETAIL);
         }
     }

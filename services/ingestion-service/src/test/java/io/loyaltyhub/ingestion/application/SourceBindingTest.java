@@ -3,7 +3,12 @@ package io.loyaltyhub.ingestion.application;
 import io.loyaltyhub.common.web.ActorContext;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.common.web.Role;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -86,5 +91,27 @@ class SourceBindingTest {
         assertThatCode(() -> SourceBinding.requireMatchAll(CRM, noSource)).doesNotThrowAnyException();
         assertThatCode(() -> SourceBinding.requireMatchAll(CRM, null)).doesNotThrowAnyException();
         assertThatCode(() -> SourceBinding.requireMatchAll(CRM, mapper.readTree("{\"source\":\"app\"}"))).doesNotThrowAnyException();
+    }
+
+    @Test
+    void aMismatchLeavesOneWarnWithTheClientOnly() {
+        Logger logger = (Logger) LoggerFactory.getLogger(SourceBinding.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            assertMismatch(() -> SourceBinding.requireMatch(CRM, "urn:loyaltyhub:source:evil-one"));
+            assertThat(appender.list).hasSize(1);
+            ILoggingEvent line = appender.list.get(0);
+            assertThat(line.getLevel()).isEqualTo(Level.WARN);
+            assertThat(line.getFormattedMessage()).contains("SOURCE_MISMATCH").contains("src-crm")
+                    .doesNotContain("evil-one");
+            // Nessun log quando il legame regge o quando l'attore non è una fonte.
+            SourceBinding.requireMatch(CRM, "crm");
+            SourceBinding.requireMatch(new ActorContext(Role.ADMIN, "marta"), "app");
+            assertThat(appender.list).hasSize(1);
+        } finally {
+            logger.detachAppender(appender);
+        }
     }
 }

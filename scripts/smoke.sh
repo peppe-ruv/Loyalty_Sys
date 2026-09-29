@@ -11,7 +11,8 @@
 # Identità (Q-492): l'ingresso delle azioni vuole il ruolo SOURCE e la fonte dichiarata deve essere quella del client
 # `src-<codice>`. Nel profilo demo (predefinito) lo smoke invia come la fonte `ecommerce` con
 # `X-LH-Actor: SOURCE:src-ecommerce`; SOURCE_CODE sceglie un'altra fonte. Con un access token del client
-# (`TOKEN=…`, profilo enterprise) invia `Authorization: Bearer` e non l'header demo.
+# (`TOKEN=…`, profilo enterprise) invia `Authorization: Bearer` e non l'header demo. In enterprise anche la lettura del
+# wallet vuole un token, e un token di fonte non la apre: `WALLET_TOKEN=…` è l'access token del membro (ruolo MEMBER).
 set -euo pipefail
 
 MEMBER="${MEMBER:-MBR-000003}"           # SILVER: 130 € → 162 PTS (×1,25)
@@ -21,6 +22,13 @@ BASE_INGESTION="${BASE_INGESTION:-http://localhost:8081}"
 BASE_WALLET="${BASE_WALLET:-http://localhost:8084}"
 SOURCE_CODE="${SOURCE_CODE:-ecommerce}"   # fonte dichiarata nell'evento e client src-<codice> che lo invia
 TOKEN="${TOKEN:-}"                         # access token del client src-<codice> (enterprise); vuoto = identità demo
+WALLET_TOKEN="${WALLET_TOKEN:-}"           # access token del membro per leggere il wallet (enterprise); vuoto = nessuno
+
+# Il codice finisce in un header e nel JSON dell'evento: solo la forma dei codici fonte (minuscole, cifre, trattini).
+if ! [[ "$SOURCE_CODE" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+  echo "✗ SOURCE_CODE non valido: usa minuscole, cifre e trattini (es. ecommerce)." >&2
+  exit 1
+fi
 
 if [ -n "$TOKEN" ]; then
   identity=(-H "Authorization: Bearer $TOKEN")
@@ -34,7 +42,11 @@ json_field() {
 }
 
 wallet_pts() {
-  curl -fsS --max-time 8 "$BASE_WALLET/v1/portal/wallets/$MEMBER" 2>/dev/null | json_field "balances.PTS.active"
+  local auth=()
+  if [ -n "$WALLET_TOKEN" ]; then
+    auth=(-H "Authorization: Bearer $WALLET_TOKEN")
+  fi
+  curl -fsS --max-time 8 "${auth[@]}" "$BASE_WALLET/v1/portal/wallets/$MEMBER" 2>/dev/null | json_field "balances.PTS.active"
 }
 
 echo "smoke: membro $MEMBER, azione purchase.completed ${AMOUNT}€"

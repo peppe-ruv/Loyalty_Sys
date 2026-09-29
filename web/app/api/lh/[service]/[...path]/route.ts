@@ -97,7 +97,7 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
   }
   // Profilo demo, Q-492: l'ingresso delle azioni accetta solo il ruolo SOURCE; il pannello demo del portale invia
   // «dalla fonte» che l'evento dichiara, con l'identità simulata `SOURCE:src-<codice>` (lib/api/demoSource.ts).
-  if (resolved.mode !== "enterprise") {
+  if (resolved.mode === "demo") {
     const source = demoSourceActor(service, req.method, path ?? [], typeof body === "string" ? body : undefined);
     if (source) headers.set("x-lh-actor", source);
   }

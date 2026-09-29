@@ -802,12 +802,24 @@ paths:
               $ref: "#/components/schemas/InboundEventRequest"
         required: true
       responses:
-        "200":
+        "202":
           content:
-            '*/*':
+            application/json:
               schema:
                 $ref: "#/components/schemas/IngestResult"
-          description: OK
+          description: "Esito dell'azione (un evento): status ACCEPTED, DUPLICATE o REJECTED (la fonte non ritenta su un rifiuto di business)"
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Errore di forma: corpo non valido, source non in forma URN"
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "FORBIDDEN_ROLE: serve il ruolo SOURCE (o ADMIN); SOURCE_MISMATCH: il source dichiarato è diverso dal client src-<codice>, nulla è salvato né pubblicato"
       summary: Ingest — events
       tags:
       - events
@@ -1344,12 +1356,24 @@ paths:
               $ref: "#/components/schemas/TransactionRequest"
         required: true
       responses:
-        "200":
+        "202":
           content:
-            '*/*':
+            application/json:
               schema:
                 $ref: "#/components/schemas/IngestResult"
-          description: OK
+          description: "Esito dell'azione (una transazione): status ACCEPTED, DUPLICATE o REJECTED (la fonte non ritenta su un rifiuto di business)"
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Errore di forma: source, orderId o memberRef mancanti, kind sconosciuto"
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "FORBIDDEN_ROLE: serve il ruolo SOURCE (o ADMIN); SOURCE_MISMATCH: il source dichiarato è diverso dal client src-<codice>, nulla è salvato né pubblicato"
       summary: Transaction — transactions
       tags:
       - transactions

@@ -10,11 +10,17 @@ import io.loyaltyhub.ingestion.application.IngestionService;
 import io.loyaltyhub.ingestion.application.SourceBinding;
 import io.loyaltyhub.ingestion.domain.EnvelopeLimits;
 import io.loyaltyhub.ingestion.domain.IngestResult;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Clock;
@@ -57,6 +63,16 @@ public class TransactionsController {
     @PostMapping("/transactions")
     // Q-492: ingresso delle fonti solo per il ruolo SOURCE (utenza di integrazione, client src-<codice>); ADMIN passa
     // per regola dell'interceptor. La fonte dichiarata deve coincidere con il client (SourceBinding).
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    @ApiResponses({
+            @ApiResponse(responseCode = "202", description = "Esito dell'azione (una transazione): status ACCEPTED, DUPLICATE o REJECTED (la fonte non ritenta su un rifiuto di business)",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = IngestResult.class))),
+            @ApiResponse(responseCode = "400", description = "Errore di forma: source, orderId o memberRef mancanti, kind sconosciuto",
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "403", description = "FORBIDDEN_ROLE: serve il ruolo SOURCE (o ADMIN); SOURCE_MISMATCH: il source"
+                    + " dichiarato è diverso dal client src-<codice>, nulla è salvato né pubblicato",
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    })
     @RequiresRole(Role.SOURCE)
     public ResponseEntity<IngestResult> transaction(@RequestBody TransactionRequest t) {
         requireForm(t);

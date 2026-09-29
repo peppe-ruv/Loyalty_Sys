@@ -40,11 +40,6 @@ public record ActorContext(Role role, String username) {
     /** Prefisso del client di una fonte: il client della fonte {@code <codice>} è {@code src-<codice>} (Q-492). */
     public static final String SOURCE_CLIENT_PREFIX = "src-";
 
-    /** Come {@link #fromToken(java.util.Collection, String, String)} con il client uguale al nome dell'attore. */
-    public static ActorContext fromToken(java.util.Collection<String> roles, String username) {
-        return fromToken(roles, username, username);
-    }
-
     /**
      * Attore da un access token verificato (profilo {@code enterprise}, ADR-027): i ruoli arrivano dal claim
      * {@code lh_roles}. {@code ADMIN} vale se presente; un solo ruolo operatore vale quel ruolo; più ruoli operatore
