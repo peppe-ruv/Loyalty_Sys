@@ -164,7 +164,7 @@
       "rules": [
         {
           "alert": "LoyaltyHubDlqMessages",
-          "expr": "sum by (job, errorCode) (increase(lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\"}[10m])) > 0",
+          "expr": "sum by (job, errorCode) (increase(lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\"}[10m])) > 0 or sum by (job, errorCode) (lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\"} unless lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\"} offset 10m) > 0",
           "labels": {
             "severity": "warning"
           },
@@ -175,7 +175,7 @@
         },
         {
           "alert": "LoyaltyHubMessageRejected",
-          "expr": "sum by (job, errorCode) (increase(lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\",errorCode=~\"SIGNATURE_INVALID|PRODUCER_NOT_ALLOWED\"}[5m])) > 0",
+          "expr": "sum by (job, errorCode) (increase(lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\",errorCode=~\"SIGNATURE_INVALID|PRODUCER_NOT_ALLOWED\"}[5m])) > 0 or sum by (job, errorCode) (lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\",errorCode=~\"SIGNATURE_INVALID|PRODUCER_NOT_ALLOWED\"} unless lh_events_dlq_total{job=~\"loyaltyhub[^/]*/hub\",errorCode=~\"SIGNATURE_INVALID|PRODUCER_NOT_ALLOWED\"} offset 5m) > 0",
           "labels": {
             "severity": "critical"
           },

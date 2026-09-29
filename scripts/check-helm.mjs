@@ -548,6 +548,10 @@ test('osservabilità: regole SLO e allarmi coprono portale, giocata e azione →
   for (const a of ['LoyaltyHubDlqMessages', 'LoyaltyHubMessageRejected', 'LoyaltyHubAuthFailureSpike', 'LoyaltyHubOutboxBacklog',
     'LoyaltyHubTelemetryAbsent']) assert.ok(named.has(a), a);
   assert.match(named.get('LoyaltyHubMessageRejected').expr, /SIGNATURE_INVALID\|PRODUCER_NOT_ALLOWED/);
+  // Un contatore Micrometer nasce alla prima occorrenza con valore 1: increase() da solo non la vede, quindi gli allarmi
+  // sui contatori DLQ contano anche le serie nate nella finestra (provato con promtool test rules).
+  assert.match(named.get('LoyaltyHubDlqMessages').expr, /increase\(.*\[10m\]\)\) > 0 or .* unless lh_events_dlq_total\{[^ ]+\} offset 10m\) > 0$/);
+  assert.match(named.get('LoyaltyHubMessageRejected').expr, /increase\(.*\[5m\]\)\) > 0 or .* unless lh_events_dlq_total\{[^ ]+\} offset 5m\) > 0$/);
   assert.match(named.get('LoyaltyHubAuthFailureSpike').expr, /status=~"401\|403"/);
   for (const r of allRules(rules).filter((x) => x.alert)) {
     assert.ok(r.annotations?.summary && r.annotations?.description, `annotazioni di ${r.alert}`);
