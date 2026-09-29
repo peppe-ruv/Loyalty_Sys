@@ -94,15 +94,16 @@ erDiagram
 
 ### Portale
 Il membro viene dal token (ADR-048, `docs/06 §3.4`): nessun `memberId` in percorso, query o corpo. Nel profilo `demo` (regola 6-bis) il membro è il `memberId` esplicito o l'header `X-LH-Member` messo dal BFF.
+
 | Metodo | Path | Note |
 |---|---|---|
-| POST | `/v1/portal/members` | **registrazione dal portale** (PT-16, F-MBR-06, Q-157; `@MemberEndpoint(REGISTRATION)`). Corpo `PortalRegistrationRequest {firstName, lastName, nickname, email, phone?, city?, consents?, referralCode?}`: nessun `memberId`, `externalId`, `status` né `channel` (ignorati). In `enterprise` una sola transazione crea `member` (id `MBR-######`, canale `PORTAL`, stato `ACTIVE`), `member_identity(iss, sub, subjectRef)` e `member.registered` con `subjectRef` (mai il `sub`); audit `CREATE` con attore `member:<nuovo id>`. Idempotente sul `sub`: `201` + `Location: /v1/portal/me/profile` la prima volta, poi `200` con lo stesso profilo e nessun secondo fatto; una corsa tra richieste dello stesso account si risolve rileggendo il legame (`200`). `409 EMAIL_TAKEN` se l'e-mail è di un altro membro (nessun collegamento per e-mail, Q-557); operatore o token misto `403 MEMBER_REQUIRED`. In `demo` (nessun token) crea un nuovo membro senza legame, come `POST /v1/members` |
+| POST | `/v1/portal/members` | **registrazione dal portale** (PT-16, F-MBR-06, Q-157; `@MemberEndpoint(REGISTRATION)`). Corpo `PortalRegistrationRequest {firstName, lastName, nickname, email, phone?, city?, consents?, referralCode?}`: nessun `memberId` (Q-573), `externalId`, `status` né `channel` (ignorati; `locale` rinviato, Q-574). In `enterprise` una sola transazione crea `member` (id `MBR-######`, canale `PORTAL`, stato `ACTIVE`), `member_identity(iss, sub, subjectRef)` e `member.registered` con `subjectRef` (mai il `sub`); audit `CREATE` con attore `member:<nuovo id>`. Idempotente sul `sub`: `201` + `Location: /v1/portal/me/profile` la prima volta, poi `200` con lo stesso profilo e nessun secondo fatto; una corsa tra richieste dello stesso account si risolve con un advisory lock su `subjectRef` e rileggendo il legame (`200`), senza violazione dell'indice unico. `409 EMAIL_TAKEN` se l'e-mail è di un altro membro (nessun collegamento per e-mail, Q-557); operatore o token misto `403 MEMBER_REQUIRED`. In `demo` (nessun token) crea un nuovo membro senza legame, come `POST /v1/members` |
 | GET | `/v1/portal/me/profile` | profilo + completezza (`{completed, missingFields[]}`) + `status` (`PortalProfileView`); `404 MEMBER_NOT_REGISTERED` se l'account non ha un membro (il portale porta alla registrazione) |
 | PATCH | `/v1/portal/me/profile` | solo campi di profilo e consensi (`PortalProfileRequest`); audit `UPDATE` con attore `member:<id>` (mai `preferred_username` né e-mail del token, regola 20) |
 | GET | `/v1/portal/me/referral` | `{code, shareUrl, invited[], completedCount}` |
 | GET | `/v1/portal/members/{id}` · PATCH `/v1/portal/members/{id}` · GET `/v1/portal/members/{id}/referral` | **legacy, `deprecated`**: l'id nel percorso vale solo in `demo` (regola 6-bis); in `enterprise` `403 MEMBER_FROM_TOKEN`. Non vengono rimossi (ADR-038) |
 
-Errori del membro dal token (Q-553): `memberId` in query o `X-LH-Member` `400 MEMBER_FROM_TOKEN` (anche se è il proprio), id nel percorso `403 MEMBER_FROM_TOKEN`, operatore o token misto `403 MEMBER_REQUIRED`; in `demo` due fonti diverse `400 MEMBER_MISMATCH`. Un `memberId` nel corpo che il contratto non prevede (`PortalProfileRequest`, `PortalRegistrationRequest`) non è mai letto: il membro è quello del token.
+Errori del membro dal token (Q-553): `memberId` in query o `X-LH-Member` `400 MEMBER_FROM_TOKEN` (anche se è il proprio), id nel percorso `403 MEMBER_FROM_TOKEN`, operatore o token misto `403 MEMBER_REQUIRED`; in `demo` due fonti diverse `400 MEMBER_MISMATCH`. **Scostamento (Q-573, `SPEC-GAP`):** `docs/06 §3.4` vuole `400 MEMBER_FROM_TOKEN` anche per un `memberId` nel corpo, ma `MemberBodyAdvice` vede solo l'oggetto deserializzato e `PortalProfileRequest` e `PortalRegistrationRequest` non hanno il campo: oggi il valore è scartato dal DTO (`200`/`201`) e il membro resta quello del token. La correzione è in lh-common (Q-573, alternativa B); finché non c'è, questa riga non è normativa. `locale` non è nel corpo di registrazione (Q-574, M8.4).
 
 ### Demo
 | GET | `/v1/demo/personas` | i membri in evidenza per il selettore: `{memberId, name, tier, story, avatarSeed, balancePts}` (saldo dalla proiezione, per le schede del Demo Hub, docs/07 §8) |
@@ -157,7 +158,9 @@ Riferimento: `docs/18`. Le righe qui sotto sono segnaposto dell'adozione (M8.0):
 
 - **Dati personali fuori dal bus** (ADR-032, M8.4): `member.registered`/`member.updated` in versione `:2` con soli dati non identificativi (`birthYear`, `province`, `locale`, attributi `pii:false`), doppia lettura `:1`/`:2` (Q-346); modulo `delivery` con adattatori SMTP/WEBHOOK, unico proprietario dei contatti; cifratura a colonna di `email` e `phone` (F2-SEC-04).
 - **Soprannomi per classifiche e vincitori** (Q-368, M8.4 parte 2d): senza `nickname` sul bus, gamification espone solo i `memberId` (`resolve=ids`) e il BFF, lato server, chiede i soprannomi con `POST /v1/members/nicknames` (§3). Il browser del portale non riceve mai gli id degli altri membri. L'endpoint segue le altre letture del servizio (`@RequiresRole` con tutti i ruoli, `ANALYST` compreso: deny by default, docs/06 §3.2); nel profilo `enterprise` lo chiama solo il BFF con la propria identità (M8.2/M8.10).
-- **Identità** (ADR-027, ADR-048, M8.2, M8.10f, F2-IAM-03): il legame tra il token OIDC e il membro sta nella tabella `member_identity(member_id, issuer, subject, subject_ref, linked_at)` con `UNIQUE(issuer, subject)` (§2, Q-551); `member.external_id` resta l'id del CRM e non è il `sub`. member-service è la fonte **autorevole** del legame (`MemberIdentityLookup`, senza cache): un account senza riga è `404 MEMBER_NOT_REGISTERED`, mentre gli altri servizi rispondono `409 MEMBER_NOT_LINKED` finché il fatto non è arrivato alla loro proiezione. La registrazione dal portale è `POST /v1/portal/members` (§3, idempotente su `(issuer, subject)`); il legame si cancella con l'anonimizzazione. Sul bus viaggia solo `subjectRef`, l'HMAC-SHA256 di `iss` e `sub` con `LH_SUBJECT_KEY` (campo opzionale di `member.registered`/`member.updated`, Q-552); `subject` è un dato personale e non lascia il servizio. Nel portale il membro viene solo da `MemberPrincipal` (`/v1/portal/me/profile`, `/v1/portal/me/referral`; `docs/06 §3.4`).
+- **Identità** (ADR-027, ADR-048, M8.2, M8.10f, F2-IAM-03): il legame tra il token OIDC e il membro sta nella tabella `member_identity(member_id, issuer, subject, subject_ref, linked_at)` con `UNIQUE(issuer, subject)` (§2, Q-551); `member.external_id` resta l'id del CRM e non è il `sub`. member-service è la fonte **autorevole** del legame (`MemberIdentityLookup`, senza cache): un account senza riga è `404 MEMBER_NOT_REGISTERED`, mentre gli altri servizi rispondono `409 MEMBER_NOT_LINKED` finché il fatto non è arrivato alla loro proiezione. La registrazione dal portale è `POST /v1/portal/members` (§3, idempotente su `(issuer, subject)`); il legame si cancella con l'anonimizzazione. Sul bus viaggia solo `subjectRef`, l'HMAC-SHA256 di `iss` e `sub` con `LH_SUBJECT_KEY` (campo opzionale di `member.registered`/`member.updated`, Q-552); `subject` è un dato personale e non lascia il servizio. Nel portale il membro viene solo da `MemberPrincipal` (`/v1/portal/me/profile`, `/v1/portal/me/referral`; `docs/06 §3.4`). `POST /v1/members` passa a `ADMIN` e `CARE` nell'ultima fetta di M8.10f (Q-157, Q-493).
+- **Attività del membro** (ADR-043, M8.12): tabella `member_activity_entry` (login da Keycloak, consensi, giocate, riscatti, azioni dal portale), in BO-03 (tab «Attività») e PT-18 «La mia attività»; lettura diretta da member-service (Q-356).
+- **Punteggi esterni** (ADR-045, M13.5): `attribute_definition.kind=SCORE` con validità; mai nel portale né in effetti negativi.
 
 ```mermaid
 sequenceDiagram
@@ -169,7 +172,8 @@ sequenceDiagram
   participant DB as schema member
   participant K as lh.facts.v1
   B->>M: GET /v1/portal/me/profile (Bearer)
-  M->>DB: subject_ref = HMAC(iss, sub)
+  M->>M: subjectRef = HMAC(iss, sub)
+  M->>DB: SELECT member_id WHERE subject_ref
   M-->>B: 404 MEMBER_NOT_REGISTERED
   B->>M: POST /v1/portal/members {nome, e-mail, consensi}
   M->>DB: tx: member + member_identity + outbox member.registered{subjectRef}
@@ -179,10 +183,6 @@ sequenceDiagram
   M-->>B: 200 stesso profilo, nessun secondo fatto
   Note over M,DB: anonimizzazione: member_identity cancellata nella stessa transazione
 ```
-
-`POST /v1/members` passa a `ADMIN` e `CARE` nell'ultima fetta di M8.10f (Q-157, Q-493).
-- **Attività del membro** (ADR-043, M8.12): tabella `member_activity_entry` (login da Keycloak, consensi, giocate, riscatti, azioni dal portale), in BO-03 (tab «Attività») e PT-18 «La mia attività»; lettura diretta da member-service (Q-356).
-- **Punteggi esterni** (ADR-045, M13.5): `attribute_definition.kind=SCORE` con validità; mai nel portale né in effetti negativi.
 
 **Classificazione `x-lh-class`** (`docs/18 §3.15`, F2-GRC-05; prima stesura M8.0, verificata e resa per colonna in M8.13). Tutto ciò che non è elencato è `INTERNAL`.
 - `PERSONAL`: `member.first_name`, `last_name`, `nickname`, `email`, `phone`, `birth_date`, `gender`, `city`, `consents`, `attributes` (se `pii:true`), `avatar_seed`; `member.external_id`.

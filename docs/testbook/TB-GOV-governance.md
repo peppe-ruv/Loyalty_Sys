@@ -891,9 +891,10 @@ Il membro dal token in member-service (M8.2, F2-IAM-03, F2-SEC-09, Q-157, Q-551�
 corpo (019…028), operatori, token misti e backoffice (029…033), anonimizzazione (034, 035). MID-036…050 nel profilo `demo`
 (regola 6-bis): registrazione senza token, `memberId` esplicito o `X-LH-Member`, percorsi legacy invariati, errori di
 oggi, attore `member:<id>`. Un caso per riga; ogni riga usa account nuovi (l'altro membro B è creato una volta).
-Un `memberId` nel **corpo** non è una riga: `PortalProfileRequest` e `PortalRegistrationRequest` non lo prevedono, quindi
-Jackson lo scarta prima di `MemberBodyAdvice` (che vede solo l'oggetto deserializzato) e il membro resta quello del token;
-lo prova `PortalMeOidcIT#patchWithAnotherMemberIsRejected`. Gli scenari a più passi (idempotenza con controllo
+Un `memberId` nel **corpo** non è una riga perché oggi non è rifiutato: `docs/06 §3.4` vuole `400 MEMBER_FROM_TOKEN`, ma
+`PortalProfileRequest` e `PortalRegistrationRequest` non hanno il campo, Jackson lo scarta prima di `MemberBodyAdvice` (che vede
+solo l'oggetto deserializzato) e il membro resta quello del token. È uno scostamento aperto (Q-573, `SPEC-GAP`, correzione in
+lh-common): `PortalMeOidcIT#patchWithAnotherMemberIsRejected` prova solo che l'id altrui non prevale, non il `400`. Gli scenari a più passi (idempotenza con controllo
 dell'outbox, corsa tra quattro richieste dello stesso account, pseudonimo `subjectRef` uguale all'HMAC atteso e sub
 assente dai fatti e dall'audit, anonimizzazione completa con nuova registrazione) sono in `PortalRegistrationOidcIT`,
 `PortalMeOidcIT` e `AnonymizationIT#anonymizeDeletesTheAccountLinkAndDropsSubjectRef` (fuori dal testbook: nome

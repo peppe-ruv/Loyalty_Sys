@@ -36,9 +36,14 @@ public class PortalMeController {
         return members.portalProfile(principal.requireParam());
     }
 
-    /** Modifica dei soli campi di profilo e consensi; l'audit ha attore {@code member:<id>} (Q-556). */
+    /**
+     * Modifica dei soli campi di profilo e consensi; l'audit ha attore {@code member:<id>} (Q-556).
+     * SPEC-GAP: Q-573 — un {@code memberId} nel corpo non dà {@code 400 MEMBER_FROM_TOKEN} (docs/06 §3.4): il DTO non
+     * ha il campo, Jackson lo scarta prima di {@code MemberBodyAdvice}; il membro resta quello del token.
+     */
     @PatchMapping("/profile")
     public PortalProfileView updateProfile(MemberPrincipal principal, @RequestBody PortalProfileRequest request) {
+        // SPEC-GAP: Q-573 (un memberId nel corpo è scartato dal DTO, non rifiutato)
         String id = principal.requireParam();
         members.update(id, request.toUpdate());
         return members.portalProfile(id);

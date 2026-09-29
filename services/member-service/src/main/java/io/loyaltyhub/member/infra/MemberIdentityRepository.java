@@ -33,6 +33,15 @@ public class MemberIdentityRepository {
                 .update();
     }
 
+    /**
+     * Blocca, fino alla fine della transazione, chi registra lo stesso account (advisory lock su {@code subject_ref}):
+     * la seconda richiesta attende, rilegge il legame e risponde senza provocare una violazione dell'indice unico (che
+     * porterebbe il {@code sub} nel {@code DETAIL} dell'errore del database, regola 20). Da chiamare in una transazione.
+     */
+    public void lockSubject(String subjectRef) {
+        jdbc.sql("SELECT pg_advisory_xact_lock(hashtext(?))").param(subjectRef).query((rs, n) -> 1).single();
+    }
+
     /** Membro legato all'account con questo pseudonimo (la lookup autorevole di {@code MemberSubjectLookup}). */
     public Optional<String> memberIdBySubjectRef(String subjectRef) {
         return jdbc.sql("SELECT member_id FROM member_identity WHERE subject_ref = ?").param(subjectRef)

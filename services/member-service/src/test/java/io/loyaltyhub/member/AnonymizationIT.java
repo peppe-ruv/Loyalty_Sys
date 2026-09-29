@@ -138,6 +138,11 @@ class AnonymizationIT {
         String id = send("POST", "/v1/members", "CARE:paolo.care", Map.of(
                 "firstName", "Livia", "lastName", "Tornatore", "email", "livia.tornatore@example.org"), 201)
                 .path("id").asString();
+        List<JsonNode> registered = new TopicReader(jdbc, mapper, "lh.facts.v1")
+                .published(List.of(), "member:" + id, "io.loyaltyhub.fact.member.registered");
+        assertThat(registered).hasSize(1);
+        assertThat(registered.get(0).path("data").has("subjectRef"))
+                .as("un membro creato dal backoffice non ha legame: subjectRef assente, non null").isFalse();
         String ref = "ab".repeat(32);
         jdbc.sql("INSERT INTO member_identity (member_id, issuer, subject, subject_ref) VALUES (?, ?, ?, ?)")
                 .params(id, "https://idp.example.test/realms/loyaltyhub", "sub-livia-riservato", ref).update();
@@ -153,7 +158,8 @@ class AnonymizationIT {
         List<JsonNode> after = updates(id);
         JsonNode last = after.get(after.size() - 1).path("data");
         assertThat(last.path("status").asString()).isEqualTo("ANONYMIZED");
-        assertThat(last.hasNonNull("subjectRef")).as("lo snapshot anonimizzato non porta il legame").isFalse();
+        assertThat(last.has("subjectRef")).as("lo snapshot anonimizzato omette subjectRef (assente = legame invariato, null = scollega)")
+                .isFalse();
         for (String topic : List.of("lh.facts.v1", "lh.audit.v1")) {
             for (ConsumerRecord<String, String> r : new TopicReader(jdbc, mapper, topic).records(List.of(), x -> true)) {
                 if (r.value().contains(id)) {

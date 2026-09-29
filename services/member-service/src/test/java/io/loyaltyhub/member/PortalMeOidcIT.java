@@ -135,7 +135,7 @@ class PortalMeOidcIT extends OidcPortalSupport {
         assertThat(jdbc.sql("SELECT city FROM member WHERE id IN (?, ?)").params(idA, idB).query(String.class).list())
                 .containsOnly("Modena");
 
-        // Nel corpo il campo non esiste nel contratto: ignorato, la modifica è del titolare e B non cambia.
+        // SPEC-GAP: Q-573 — nel corpo il campo non esiste nel contratto: ignorato (non 400 come vorrebbe docs/06 §3.4), la modifica è del titolare e B non cambia.
         Reply body = call("PATCH", "/v1/portal/me/profile", token, Map.of("memberId", idB, "city", "Torino"));
         assertThat(body.status()).as(body.text()).isEqualTo(200);
         assertThat(body.body().path("memberId").asString()).isEqualTo(idA);
@@ -209,7 +209,8 @@ class PortalMeOidcIT extends OidcPortalSupport {
         // Lo snapshot anonimizzato non porta più lo pseudonimo.
         List<JsonNode> updated = published(FACTS, "member:" + id, UPDATED);
         assertThat(updated.get(updated.size() - 1).path("data").path("status").asString()).isEqualTo("ANONYMIZED");
-        assertThat(updated.get(updated.size() - 1).path("data").hasNonNull("subjectRef")).isFalse();
+        assertThat(updated.get(updated.size() - 1).path("data").has("subjectRef"))
+                .as("subjectRef omesso, non null: assente = legame invariato, null = scollega").isFalse();
 
         // Lo stesso account si registra di nuovo: un nuovo membro, nuovo legame, nessun ritorno del vecchio.
         Reply again = call("POST", "/v1/portal/members", token, registration(sub));

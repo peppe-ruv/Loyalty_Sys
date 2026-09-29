@@ -112,7 +112,7 @@ class PortalRegistrationOidcIT extends OidcPortalSupport {
         assertThat(count("SELECT count(*) FROM member_identity WHERE subject = ?", sub)).isZero();
         assertThat(count("SELECT count(*) FROM member WHERE lower(email) = lower(?)", profileEmail(sub))).isZero();
 
-        // Nel corpo il campo non esiste nel contratto: è ignorato, il membro nuovo non è MBR-000001.
+        // SPEC-GAP: Q-573 — nel corpo il campo non esiste nel contratto: è ignorato (non 400, docs/06 §3.4), il membro nuovo non è MBR-000001.
         Reply r = call("POST", "/v1/portal/members", TOKENS.member(sub), body);
         assertThat(r.status()).as(r.text()).isEqualTo(201);
         assertThat(r.body().path("memberId").asString()).isNotEqualTo("MBR-000001").matches("MBR-\\d{6}");
@@ -180,6 +180,7 @@ class PortalRegistrationOidcIT extends OidcPortalSupport {
     @DisplayName("[M8.2] richieste concorrenti dello stesso account: un solo membro, un solo 201, un solo member.registered")
     void concurrentRegistrationsCreateOneMember() throws Exception {
         String sub = newSub();
+        ACTORS.clear();
         int threads = 4;
         CountDownLatch start = new CountDownLatch(1);
         ExecutorService pool = Executors.newFixedThreadPool(threads);
@@ -206,6 +207,15 @@ class PortalRegistrationOidcIT extends OidcPortalSupport {
             assertThat(count("SELECT count(*) FROM member WHERE lower(email) = lower(?)", profileEmail(sub))).isEqualTo(1);
             assertThat(count("SELECT count(*) FROM member_identity WHERE subject = ?", sub)).isEqualTo(1);
             assertThat(published(FACTS, "member:" + id, REGISTERED)).hasSize(1);
+            // Anche chi ha perso la corsa risponde con il membro esistente: l'attore (e l'MDC del log) non è mai un id annullato.
+            long deadline = System.currentTimeMillis() + 5_000;
+            while (ACTORS.stream().filter(a -> a.startsWith("POST /v1/portal/members -> ")).count() < threads
+                    && System.currentTimeMillis() < deadline) {
+                Thread.sleep(20);
+            }
+            List<String> actors = ACTORS.stream().filter(a -> a.startsWith("POST /v1/portal/members -> ")).toList();
+            assertThat(actors).hasSize(threads)
+                    .allMatch(a -> a.equals("POST /v1/portal/members -> holder=member:" + id + " mdc=member:" + id), actors.toString());
         } finally {
             pool.shutdownNow();
         }

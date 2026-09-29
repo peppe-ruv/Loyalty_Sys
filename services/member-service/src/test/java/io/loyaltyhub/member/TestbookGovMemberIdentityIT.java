@@ -40,11 +40,24 @@ class TestbookGovMemberIdentityIT extends OidcPortalSupport {
         String sub = newSub();
         String token = TOKENS.member(sub);
         switch (scenario) {
-            case "REG_NEW":
-                return status(call("POST", "/v1/portal/members", token, registration(sub)));
+            case "REG_NEW": {
+                Reply r = call("POST", "/v1/portal/members", token, registration(sub));
+                if (r.status() != 201) {
+                    return status(r);
+                }
+                String location = r.headers().getFirst("Location");
+                return "201:" + ("/v1/portal/me/profile".equals(location) ? "loc" : "NOLOC")
+                        + ":" + count("SELECT count(*) FROM member_identity WHERE subject_ref = ?", refOf(sub))
+                        + ":" + count("SELECT count(*) FROM member WHERE lower(email) = lower(?)", profileEmail(sub));
+            }
             case "REG_AGAIN": {
-                register(sub);
-                return status(call("POST", "/v1/portal/members", token, registration(sub)));
+                String first = register(sub);
+                Reply r = call("POST", "/v1/portal/members", token, registration(sub));
+                if (r.status() != 200) {
+                    return status(r);
+                }
+                return "200:" + (first.equals(r.body().path("memberId").asString()) ? "same" : "OTHER")
+                        + ":" + published(FACTS, "member:" + first, REGISTERED).size();
             }
             case "REG_IGNORED_FIELDS": {
                 Map<String, Object> body = new HashMap<>(registration(sub));

@@ -198,6 +198,17 @@ public class MemberService {
      * assegna il servizio; l'audit {@code CREATE} ha attore {@code member:<nuovo id>} (Q-556).
      */
     public PortalRegistration registerFromPortal(MemberSubject subject, PortalRegistrationRequest request) {
+        ActorContext previous = ActorHolder.get();
+        try {
+            return register(subject, request);
+        } catch (RuntimeException e) {
+            // La transazione è annullata: l'attore non deve puntare a un membro mai creato (log e audit della richiesta).
+            actAs(previous);
+            throw e;
+        }
+    }
+
+    private PortalRegistration register(MemberSubject subject, PortalRegistrationRequest request) {
         if (subject.isDemo()) {
             Member created = transaction.execute(tx -> insertMember(request.toCreate(), null, true));
             return new PortalRegistration(portalProfile(Objects.requireNonNull(created).id()), true);
@@ -206,29 +217,52 @@ public class MemberService {
             return new PortalRegistration(portalProfile(subject.linkedMemberId()), false);
         }
         try {
-            Member created = transaction.execute(tx -> insertMember(request.toCreate(), subject, true));
-            return new PortalRegistration(portalProfile(Objects.requireNonNull(created).id()), true);
+            Member created = transaction.execute(tx -> {
+                identities.lockSubject(subject.subjectRef());
+                if (identities.memberIdBySubjectRef(subject.subjectRef()).isPresent()) {
+                    return null; // un'altra richiesta dello stesso account ha vinto la corsa: nulla da inserire
+                }
+                return insertMember(request.toCreate(), subject, true);
+            });
+            if (created == null) {
+                return existingOrElse(subject, request, null);
+            }
+            return new PortalRegistration(portalProfile(created.id()), true);
         } catch (DuplicateKeyException e) {
-            return existingOrElse(subject, e);
+            return existingOrElse(subject, request, e);
         } catch (LhException e) {
             if (!"EMAIL_TAKEN".equals(e.code())) {
                 throw e;
             }
-            return existingOrElse(subject, e);
+            return existingOrElse(subject, request, e);
         }
     }
 
     /**
-     * Corsa tra due richieste dello stesso account: l'altra ha inserito membro e legame tra la lookup del token e il
-     * nostro inserimento (indice unico su {@code (issuer, subject)} o e-mail già usata da lei). La nostra transazione è
-     * annullata (nessun membro, nessun fatto): se il legame c'è ora si risponde col membro esistente ({@code 200}), altrimenti
-     * l'errore era vero (l'e-mail è di un altro membro).
+     * Corsa tra due richieste dello stesso account: la seconda attende il lock sull'account e trova il legame già
+     * scritto dalla prima (nessuna violazione dell'indice unico, il {@code sub} non finisce nel log del database). Se
+     * il legame c'è si risponde col membro esistente ({@code 200}). Altrimenti l'errore era vero: {@code 409 EMAIL_TAKEN}
+     * solo se l'e-mail è davvero di un altro membro; ogni altra violazione di unicità (codice amico, id) non è una
+     * e-mail occupata e riemerge com'è.
      */
-    private PortalRegistration existingOrElse(MemberSubject subject, RuntimeException original) {
+    private PortalRegistration existingOrElse(MemberSubject subject, PortalRegistrationRequest request,
+                                              RuntimeException original) {
         return identities.memberIdBySubjectRef(subject.subjectRef())
-                .map(id -> new PortalRegistration(portalProfile(id), false))
-                .orElseThrow(() -> original instanceof LhException lh ? lh
-                        : LhException.conflict("EMAIL_TAKEN", "E-mail già registrata"));
+                .map(id -> {
+                    actAs(ActorContext.member(id)); // l'attore è il membro esistente, non l'id annullato
+                    return new PortalRegistration(portalProfile(id), false);
+                })
+                .orElseThrow(() -> failure(request, original));
+    }
+
+    private RuntimeException failure(PortalRegistrationRequest request, RuntimeException original) {
+        if (original instanceof LhException) {
+            return original;
+        }
+        if (original != null && members.existsByEmail(request.email())) {
+            return LhException.conflict("EMAIL_TAKEN", "E-mail già registrata");
+        }
+        return original != null ? original : new IllegalStateException("Legame account-membro scomparso");
     }
 
     /**
@@ -247,9 +281,7 @@ public class MemberService {
 
         String id = members.nextId();
         if (actAsMember) {
-            ActorContext actor = ActorContext.member(id);
-            ActorHolder.set(actor);
-            MDC.put("actor", actor.asActorString());
+            actAs(ActorContext.member(id));
         }
         Instant now = clock.instant();
         String nickname = r.nickname() != null && !r.nickname().isBlank()
@@ -273,6 +305,12 @@ public class MemberService {
                 null, Map.of("firstName", orEmpty(m.firstName()), "lastName", orEmpty(m.lastName()),
                         "email", orEmpty(m.email()), "status", m.status().name(), "channel", orEmpty(m.channel())));
         return m;
+    }
+
+    /** Attore della richiesta corrente, per {@code ActorHolder} e per il log ({@code MDC actor}). */
+    private static void actAs(ActorContext actor) {
+        ActorHolder.set(actor);
+        MDC.put("actor", actor.asActorString());
     }
 
     @Transactional

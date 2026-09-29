@@ -35,6 +35,7 @@ public class PortalRegistrationController {
         this.service = service;
     }
 
+    /** SPEC-GAP: Q-573 — un {@code memberId} nel corpo è ignorato, non {@code 400 MEMBER_FROM_TOKEN}; vedi {@link PortalRegistrationRequest}. */
     @PostMapping
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Membro creato; Location: /v1/portal/me/profile",
@@ -43,6 +44,7 @@ public class PortalRegistrationController {
                     content = @Content(schema = @Schema(implementation = PortalProfileView.class)))})
     @MemberEndpoint(MemberEndpoint.Mode.REGISTRATION)
     public ResponseEntity<PortalProfileView> register(MemberSubject subject, @RequestBody PortalRegistrationRequest request) {
+        // SPEC-GAP: Q-573 (un memberId nel corpo è scartato dal DTO, non rifiutato)
         PortalRegistration result = service.registerFromPortal(subject, request);
         return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.OK)
                 .location(PROFILE)

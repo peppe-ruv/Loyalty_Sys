@@ -1,6 +1,6 @@
 id,descrizione,scenario,expected
-TB-GOV-MID-001,registrazione di un account nuovo (profilo enterprise),REG_NEW,201
-TB-GOV-MID-002,stesso account di nuovo: il membro esistente,REG_AGAIN,200
+TB-GOV-MID-001,registrazione di un account nuovo (profilo enterprise),REG_NEW,201:loc:1:1
+TB-GOV-MID-002,stesso account di nuovo: il membro esistente,REG_AGAIN,200:same:1
 TB-GOV-MID-003,externalId/status/channel nel corpo ignorati: canale PORTAL e stato ACTIVE del servizio,REG_IGNORED_FIELDS,201:PORTAL:ACTIVE:noext
 TB-GOV-MID-004,registrazione con memberId in query,REG_QUERY,400:MEMBER_FROM_TOKEN
 TB-GOV-MID-005,registrazione con X-LH-Member,REG_HEADER,400:MEMBER_FROM_TOKEN
