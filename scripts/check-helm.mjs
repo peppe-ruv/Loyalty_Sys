@@ -2,7 +2,7 @@
 // Verifica statica del chart Helm e dei compose (F2-DIST-02, F2-DIST-03, F2-EVT-04, M8.3; immagini condivise: Q-483;
 // osservabilità: F2-OBS-01, M8.6a).
 // Uso: node --test scripts/check-helm.mjs   (nessuna dipendenza; con `helm` nel PATH esegue anche lint e template).
-// In CI (CI=true) helm e kubeconform sono obbligatori: senza, la prova fallisce invece di passare senza verificare nulla.
+// In CI (CI=true) helm, kubeconform e promtool sono obbligatori: senza, la prova fallisce invece di passare senza verificare nulla.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -813,10 +813,14 @@ test('osservabilità: il chart rifiuta destinazioni mancanti, malformate o in ht
   obsRefuses(/otlpEndpoint è obbligatorio/, 'global.profile=demo', 'observability.prometheus.otlpEndpoint=');
 });
 
-// Le regole si provano anche con promtool (Prometheus 3): sintassi e casi di ci/slo-rules.test.yaml. Facoltativo: se non è
-// nel PATH la prova è saltata (il job `helm` di ci.yml non lo installa ancora: seguito, dopo lo sblocco di .github).
+// Le regole si provano anche con promtool (Prometheus 3): sintassi e casi di ci/slo-rules.test.yaml. In locale, senza
+// promtool nel PATH, la prova è saltata; in CI (CI=true) il job `helm` di ci.yml lo installa e la sua assenza fa fallire.
 const promtool = spawnSync('promtool', ['--version'], { encoding: 'utf8' });
 const hasPromtool = promtool.status === 0;
+
+test('promtool presente in CI', { skip: !inCi && 'solo in CI' }, () => {
+  assert.ok(hasPromtool, 'CI=true ma promtool non è nel PATH: installarlo nel job (step "promtool" del job helm in ci.yml)');
+});
 
 test('osservabilità: promtool accetta le regole e i casi di prova passano (buco di telemetria, prima occorrenza, per installazione)',
   { skip: !hasPromtool && 'promtool non installato' }, () => {

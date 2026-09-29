@@ -399,6 +399,9 @@ LH_OTEL_METRICS_ENABLED=true LH_GRAFANA_ADMIN_PASSWORD=… \
   docker compose -f deploy/compose/reference.yml --profile observability up -d
 ```
 
+`LH_OTEL_METRICS_ENABLED=true` ha senso solo insieme a `--profile observability`: senza il profilo il servizio `otelcol`
+non esiste, l'hub non risolve il nome e registra un avviso «Failed to publish metrics» ogni 30 secondi (innocuo, ma rumore).
+
 | Variabile (compose) | Default | Uso |
 |---|---|---|
 | `LH_OTEL_METRICS_ENABLED` | `false` | l'hub invia le metriche al servizio `otelcol` |
@@ -463,7 +466,7 @@ LH_IMAGE=ghcr.io/example/loyaltyhub:ci docker compose -f deploy/compose/referenc
 LH_IMAGE=ghcr.io/example/loyaltyhub:ci docker compose -f deploy/compose/reference.yml --profile observability config -q
 ```
 
-`check-helm` prova anche lo scenario con l'osservabilità accesa (`ci/observability-values.yaml`): risorse rese, rifiuti, regole e dashboard contro il codice, compose e `kubeconform` con gli schemi dei CRD (con `CI=true` anche `kubeconform` è obbligatorio). Con `promtool` (Prometheus 3) nel PATH esegue anche `promtool check rules` e `promtool test rules` sui casi di `ci/slo-rules.test.yaml` (buco di telemetria, prima occorrenza di un contatore, telemetria assente per installazione); il job `helm` non lo installa ancora, quindi in CI quella prova è saltata. In CI lo fa il job `helm` di `.github/workflows/ci.yml` (helm e kubeconform a versione fissa), solo quando cambiano
+`check-helm` prova anche lo scenario con l'osservabilità accesa (`ci/observability-values.yaml`): risorse rese, rifiuti, regole e dashboard contro il codice, compose e `kubeconform` con gli schemi dei CRD (con `CI=true` anche `kubeconform` e `promtool` sono obbligatori). Con `promtool` (Prometheus 3) nel PATH esegue anche `promtool check rules` e `promtool test rules` sui casi di `ci/slo-rules.test.yaml` (buco di telemetria, prima occorrenza di un contatore, telemetria assente per installazione). In CI lo fa il job `helm` di `.github/workflows/ci.yml` (helm, kubeconform e promtool a versione fissa; promtool è scaricato dal rilascio ufficiale e verificato con lo sha256, e la sua assenza fa fallire la prova), solo quando cambiano
 chart, compose, immagine, realm, lo smoke, la verifica o i workflow, e sempre su `main`.
 
 ### Installazione provata in CI (kind)
