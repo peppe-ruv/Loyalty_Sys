@@ -37,7 +37,7 @@ CREATE TABLE approval_history (
 ## 2. API REST
 
 - Base path `/v1`. JSON `camelCase`. Date RFC 3339 UTC. Enum in `UPPER_SNAKE`.
-- **Tre famiglie di endpoint** per servizio: gestione (`/v1/<risorsa>` — backoffice), portale (`/v1/portal/**` — sempre con `memberId` esplicito), demo (`/v1/demo/**` — solo profilo `demo`).
+- **Tre famiglie di endpoint** per servizio: gestione (`/v1/<risorsa>` — backoffice), portale (`/v1/portal/**` — nel profilo `demo` con `memberId` esplicito o l'header `X-LH-Member`; nel profilo `enterprise` il membro viene solo dal token, §3.4), demo (`/v1/demo/**` — solo profilo `demo`).
 - Elenchi: `?page=0&size=20&sort=campo,desc` + filtri come query param. Risposta:
   ```json
   { "items": [], "page": { "number": 0, "size": 20, "totalItems": 0, "totalPages": 0 } }
@@ -57,22 +57,28 @@ CREATE TABLE approval_history (
 | Stato | `type` suffix | Quando |
 |---|---|---|
 | 400 | `bad-request` | JSON malformato, parametri errati |
-| 403 | `forbidden-role` | il ruolo in `X-LH-Actor` non può eseguire l'azione |
+| 400 | `member-from-token` | in `oidc`, su un endpoint del portale: `memberId` in query, campo form o corpo (a qualunque profondità), oppure header `X-LH-Member`, anche se è l'id del titolare (`MEMBER_FROM_TOKEN`, §3.4) |
+| 400 | `member-mismatch` | nel profilo `demo`, due fonti del membro in disaccordo: `memberId` esplicito, `X-LH-Member`, variabile di percorso legacy (`MEMBER_MISMATCH`, §3.4) |
+| 403 | `forbidden-role` | il ruolo in `X-LH-Actor` (o nel token) non può eseguire l'azione; in `oidc` anche un token di solo membro su un handler che non è del portale del membro (§3.4) |
+| 403 | `member-from-token` | in `oidc`, l'id del membro nel percorso di un endpoint legacy (`/v1/portal/wallets/{memberId}`, `/v1/portal/members/{id}`): vale solo in `demo` (`MEMBER_FROM_TOKEN`, §3.4) |
+| 403 | `member-required` | operatore o token misto su una funzione del membro, `REQUIRED` o `REGISTRATION` (`MEMBER_REQUIRED`, §3.4) |
 | 403 | `source-mismatch` | una fonte autenticata (ruolo `SOURCE`) dichiara un `source` diverso dal proprio client `src-<codice>` (`SOURCE_MISMATCH`, §3.3): nulla è salvato né pubblicato |
-| 403 | `endpoint-not-declared` | l'endpoint non dichiara `@RequiresRole` né `@PublicEndpoint` (`ENDPOINT_NOT_DECLARED`, §3.2): errore del codice, rifiutato a tutti |
-| 404 | `not-found` | risorsa inesistente |
+| 403 | `endpoint-not-declared` | l'endpoint non dichiara `@RequiresRole`, `@PublicEndpoint` né `@MemberEndpoint`, oppure ne dichiara due incompatibili sullo stesso elemento (`ENDPOINT_NOT_DECLARED`, §3.2): errore del codice, rifiutato a tutti |
+| 404 | `not-found` | risorsa inesistente; nel portale anche un oggetto di un altro membro (`NOT_FOUND`, mai `403`: non rivela che esiste) |
+| 404 | `member-not-registered` | il `sub` del token non ha un legame in member-service (`MEMBER_NOT_REGISTERED`, §3.4) |
 | 409 | `conflict` | transizione non valida, codice duplicato, modifica non ammessa su oggetto `LIVE` |
+| 409 | `member-not-linked` | il `sub` del token non è ancora legato a un membro in questo servizio: il fatto `member.registered` non è arrivato (`MEMBER_NOT_LINKED`, §3.4). Porta `Retry-After: 2` |
 | 422 | `validation` | regola di business violata (`code` specifico, elencati nelle schede servizio) |
 | 503 | `dependency-unavailable` | DB/Kafka non raggiungibili |
 
-`detail` è in italiano e mostrabile all'utente; `code` è stabile e usato dal frontend.
+`detail` è in italiano e mostrabile all'utente; `code` è stabile e usato dal frontend. I codici `MEMBER_*` (ADR-048, Q-553) non ripetono mai l'id ricevuto nel `detail`; il suffisso di `type` è il `code` in minuscolo con i trattini, come per `source-mismatch` ed `endpoint-not-declared`. Sono decisi e diventano operativi con la fetta `lh-common` di M8.10f.
 
 ## 3. Identità simulata
 
 - Ruoli: cinque persone del backoffice (`ADMIN`, `MARKETING`, `LEGAL`, `CARE`, `ANALYST`) e un ruolo di integrazione, `SOURCE` (§3.3): l'utenza di servizio di una fonte di ingestion, mai una persona; il web non lo offre tra le persone.
 - Header `X-LH-Actor: <RUOLO>:<username>` (es. `MARKETING:luca.marketing`; per una fonte `SOURCE:<client-id>`, es. `SOURCE:src-crm`). Assente → `ANALYST:anonymous` (sola lettura). Vale solo la forma canonica (ruolo noto in maiuscolo, un solo `:`, username non vuoto e senza spazi ai bordi); ogni altra forma (ruolo sconosciuto o minuscolo, `LEGAL`, `CARE:`, `:paolo`, `ADMIN:a:b`…) vale `ANALYST` (Q-261, Q-298).
 - Controllo **minimo** lato servizio (annotazione `@RequiresRole`): scritture ⇒ ruolo operatore ≠ `ANALYST` (`SOURCE` non è mai incluso: arriva solo dove è elencato, §3.3); `APPROVE/REJECT` ⇒ ruolo della policy o `ADMIN`; rettifiche punti ⇒ `CARE`/`ADMIN`; `/v1/demo/**` ⇒ `ADMIN`, con tre eccezioni: simulatore e avvio degli scenari (`POST /v1/demo/simulator/fire`, `POST /v1/demo/scenarios/{code}/run`: tutti tranne `ANALYST`) e le letture `GET /v1/demo/personas`, `GET /v1/demo/scenarios`, `GET /v1/demo/scenario-runs/{id}`, aperte a tutti i ruoli come prima. Le letture aperte elencano tutti i ruoli, `ANALYST` compreso (§3.2).
-- Gli endpoint `/v1/portal/**` non richiedono header; l'attore è `member:<memberId>`.
+- Gli endpoint `/v1/portal/**` non richiedono `X-LH-Actor`. Nel profilo `demo` il membro è il `memberId` esplicito oppure l'header `X-LH-Member`, messo dal BFF dalla persona (Q-555), e l'attore è `member:<memberId>`; prima che il membro sia risolto vale `member:-`. Nel profilo `enterprise` il membro viene solo dal token (§3.4). L'attore del membro non porta mai il nome utente (regola 20): `ActorContext` ha un flag `member`, ruolo `ANALYST` (sola lettura), e `Role` non cambia (Q-556).
 - Ogni scrittura da backoffice pubblica un audit con l'attore.
 
 ### 3.1 Profilo `enterprise`: attore dal token (M8.2, ADR-027)
@@ -80,7 +86,7 @@ CREATE TABLE approval_history (
 - `loyaltyhub.identity.mode` (`LH_IDENTITY_MODE`): `header` (default, solo profilo `demo`) oppure `oidc`. Con `oidc` il filtro `OidcActorFilter` sostituisce `ActorFilter`: ogni richiesta porta `Authorization: Bearer`; il token è verificato con il JWKS dell'emittente (`LH_OIDC_ISSUER`, `LH_OIDC_JWKS_URI`, default Keycloak `<issuer>/protocol/openid-connect/certs`): firma, scadenza, `iss` esatto, `aud` che contiene `hub` (`LH_OIDC_AUDIENCE`). `X-LH-Actor` è ignorato.
 - Token assente o non valido ⇒ `401` `unauthorized` con `WWW-Authenticate: Bearer`, sempre lo stesso corpo (nessun indizio sul motivo). Liberi solo `/actuator/health/**` e `/actuator/info`.
 - Ruoli dal claim `lh_roles`: `ADMIN` vince; un solo ruolo operatore vale quel ruolo; più ruoli operatore diversi o nessuno ⇒ `ANALYST` (Q-365). Username da `preferred_username`, poi `azp`, poi `sub`. `SOURCE` non è un ruolo operatore e non ne aumenta i poteri: un token con `SOURCE` e nessun ruolo operatore vale `SOURCE` e l'attore prende il nome del client (`azp`, poi `client_id`), non lo username dell'utenza di servizio; con ruoli operatore valgono questi (§3.3).
-- Un token di solo `MEMBER` vale soltanto su `/v1/portal/**` (altrimenti `403`); il `sub` è disponibile come attributo della richiesta per `MemberPrincipal` (M8.10).
+- Un token di solo `MEMBER` vale soltanto su `/v1/portal/**` (altrimenti `403`) e, nel portale, soltanto sulle funzioni del membro e sulle letture con `members = true` (§3.4). L'attore è `member:-` (mai `preferred_username`, regola 20) finché il membro non è risolto e poi `member:<memberId>` (Q-556); `iss` e `sub` sono attributi della richiesta per `MemberPrincipal` e non si registrano. Un operatore o un token misto non agisce mai come membro (`MEMBER_REQUIRED`, Q-554: coerente con Q-365, mai l'unione dei poteri); `MEMBER` con `SOURCE` resta `403` sul portale.
 - Avvio: con il profilo `enterprise` e `mode` diverso da `oidc`, o `oidc` senza emittente, il servizio **non parte** (`INSECURE_CONFIG`, regola 22). L'autorizzazione resta `@RequiresRole`; niente catena di filtri di Spring Security (solo `spring-security-oauth2-jose` per decoder e validatori).
 
 ```mermaid
@@ -103,19 +109,21 @@ sequenceDiagram
   end
 ```
 
-### 3.2 Deny by default: `@RequiresRole` o `@PublicEndpoint` (M8.10, F2-SEC-09, ADR-042)
+### 3.2 Deny by default: `@RequiresRole`, `@PublicEndpoint` o `@MemberEndpoint` (M8.10, F2-SEC-09, ADR-042, ADR-048)
 
-Ogni endpoint dichiara chi può chiamarlo. Un endpoint senza dichiarazione è rifiutato a tutti, in ogni profilo: così un controller nuovo non nasce aperto per dimenticanza (CLAUDE.md regola 18).
+Ogni endpoint dichiara chi può chiamarlo. Un endpoint senza dichiarazione è rifiutato a tutti, in ogni profilo: così un controller nuovo non nasce aperto per dimenticanza (CLAUDE.md regola 18). Le dichiarazioni sono un elenco chiuso; con ADR-048 diventano tre, ma in codice oggi esistono solo `@RequiresRole` e `@PublicEndpoint`: `@MemberEndpoint` (§3.4) arriva con la fetta `lh-common` di M8.10f.
 
 - **Dichiara l'accesso su ogni metodo mappato** di un `@RestController`, sul metodo o sulla classe. La dichiarazione del metodo prevale su quella della classe.
   - `@RequiresRole(...)`: semantica di §3. `ADMIN` passa sempre; un elenco vuoto vale la regola «scrittura» (ogni ruolo operatore tranne `ANALYST` e `SOURCE`).
   - `@PublicEndpoint(reason = "…")`: nessun controllo di ruolo. Il motivo è obbligatorio e non vuoto; un motivo vuoto vale come endpoint non dichiarato.
   - Se lo stesso elemento porta entrambe, vince `@RequiresRole` e la regola ArchUnit fallisce.
+  - `@MemberEndpoint(REQUIRED | OPTIONAL | REGISTRATION)` (ADR-048, §3.4): il membro viene solo dal token e il controller riceve un `MemberPrincipal` (o un `MemberSubject` per la registrazione). Sullo stesso elemento non può convivere con `@RequiresRole` né con `@PublicEndpoint`: la combinazione è rifiutata (`403 ENDPOINT_NOT_DECLARED`) e la regola ArchUnit fallisce.
+  - `@RequiresRole(..., members = true)` (ADR-048): lettura di programma aperta anche al token di solo membro (tema, livelli, edizioni, categorie premio), senza parametri legati alla richiesta. Un token di solo membro su un handler `@RequiresRole` senza `members` riceve `403 FORBIDDEN_ROLE`; il filtro OIDC continua a limitarlo a `/v1/portal/**` (difesa in profondità).
 - **Le letture aperte elencano tutti i ruoli**: `@RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})`. Tutte le personas leggono tutto (docs/08 §2) e nel profilo `demo` una richiesta senza `X-LH-Actor` vale `ANALYST:anonymous`, quindi l'accesso della demo non cambia. Non usare `@PublicEndpoint` per una lettura: nel profilo `enterprise` la stessa annotazione chiede un token con uno di quei ruoli. I cinque ruoli non comprendono `SOURCE`: una fonte non legge nulla (§3.3). Le letture con un elenco più stretto restano tali: `GET /v1/demo/info` e `GET /v1/audit/verify` (`ADMIN`), `GET /v1/contests/{id}/instants` (`ADMIN`, `LEGAL`) e l'istogramma `GET /v1/contests/{id}/instants/histogram` (`ADMIN`, `MARKETING`, `LEGAL`).
 - **`@PublicEndpoint` toglie solo il controllo di ruolo.** Nel profilo `enterprise` il filtro OIDC chiede comunque un token valido (§3.1); aprire un endpoint senza token è un'altra decisione (Q-411). Oggi nessun endpoint di produzione usa `@PublicEndpoint` (nemmeno `GET /` dell'hub, che chiede un ruolo come le altre letture aperte): un nuovo `@PublicEndpoint` è un caso di *Fermati e chiedi* (CLAUDE.md §7) e richiede una Q o un'ADR in `docs/15`.
 - **Endpoint non dichiarato** ⇒ `403` `endpoint-not-declared`, `code` `ENDPOINT_NOT_DECLARED`, anche per `ADMIN`. Il log registra solo classe e metodo, mai percorso, parametri o attore.
 - **Fuori ambito**: i soli controller dei framework nei package `org.springframework.boot.`, `org.springframework.web.servlet.` e `org.springdoc.` (`/error` e `/v3/api-docs`), e gli endpoint di Actuator. Un controller in un altro package `org.springframework.*` (per esempio Spring Data REST) non è esentato. Nel profilo `enterprise` li protegge il filtro OIDC, tranne i probe. Il controllo gira sulla richiesta iniziale: un dispatch asincrono (`DispatcherType.ASYNC`) di una richiesta già autorizzata non si ricontrolla.
-- **Verifica di build.** `EndpointAccessRules` di `libs/lh-test-support` (ArchUnit) fallisce se un handler di un controller non ha la dichiarazione, se un `@PublicEndpoint` non ha motivo o se un elemento porta entrambe le annotazioni. Considera handler anche i metodi con mappatura ereditata da una superclasse (anche non controller) o dichiarata su un'interfaccia, e accetta solo `@RequiresRole` e `@PublicEndpoint`, come l'interceptor. Nell'hub `OpenApiExportIT` percorre inoltre tutti gli handler registrati e verifica che ciascuno risolva una dichiarazione valida con `EndpointAccessInterceptor.resolve`. Ogni modulo con controller la applica con `EndpointAccessArchTest`; nuovo modulo, nuovo test:
+- **Verifica di build.** `EndpointAccessRules` di `libs/lh-test-support` (ArchUnit) fallisce se un handler di un controller non ha la dichiarazione, se un `@PublicEndpoint` non ha motivo o se un elemento porta entrambe le annotazioni. Considera handler anche i metodi con mappatura ereditata da una superclasse (anche non controller) o dichiarata su un'interfaccia, e accetta solo `@RequiresRole` e `@PublicEndpoint`, come l'interceptor. Nell'hub `OpenApiExportIT` percorre inoltre tutti gli handler registrati e verifica che ciascuno risolva una dichiarazione valida con `EndpointAccessInterceptor.resolve`. Con ADR-048 la regola conta come dichiarazione anche `@MemberEndpoint` (l'elenco chiuso di tre lo fissa `EndpointAccessRulesTest`) e aggiunge: (1) `@MemberEndpoint` insieme a `@RequiresRole` o `@PublicEndpoint` sullo stesso elemento è una violazione; (2) un parametro `MemberPrincipal` o `MemberSubject` richiede `@MemberEndpoint`: `REQUIRED` e `OPTIONAL` vogliono esattamente un `MemberPrincipal`, `REGISTRATION` esattamente un `MemberSubject`, e l'handler deve usarlo; (3) un `@MemberEndpoint` non lega `memberId` (in qualunque grafia) né `X-LH-Member` con un `@RequestParam`, `@PathVariable`, `@RequestHeader` o `@CookieValue` dal nome esplicito; (4) `members = true` è ammesso solo su `GET` sotto `/v1/portal/` e mai sotto `/v1/portal/me`; (5) **regola del portale**: ogni handler sotto `/v1/portal/**` è `@MemberEndpoint` oppure `@RequiresRole(members = true)` senza parametri legati alla richiesta, compresi gli id di oggetti. La regola del portale si attiva per servizio con `EndpointAccessRules.checkPortal(pkg)` nell'`EndpointAccessArchTest` del servizio e diventa predefinita in `check()` quando tutti i servizi l'hanno adottata. Ogni modulo con controller la applica con `EndpointAccessArchTest`; nuovo modulo, nuovo test:
 
   ```java
   // Deny by default nel modulo wallet: fallisce la build se un endpoint non dichiara l'accesso
@@ -125,21 +133,24 @@ Ogni endpoint dichiara chi può chiamarlo. Un endpoint senza dichiarazione è ri
   }
   ```
 
-- **Nuove dichiarazioni.** `@RequiresRole` e `@PublicEndpoint` portano la marcatura documentale `@EndpointAccess`, che non decide nulla: interceptor e regola ArchUnit applicano lo stesso elenco esplicito. Una dichiarazione futura (per esempio il membro dal token per `/v1/portal/**`, Q-410) si aggiunge all'interceptor e alla regola nello stesso cambiamento: finché l'interceptor non la conosce, l'endpoint resta rifiutato.
+- **Controllo dei handler nell'hub.** ArchUnit può non vedere i nomi impliciti dei parametri (`@RequestParam String memberId` senza nome esplicito): li copre `OpenApiExportIT`, che a runtime (`-parameters`) verifica, per ogni controller con almeno un `@MemberEndpoint`, che nessun parametro risolto si chiami `memberId`, che `demoPathVariable` compaia solo su handler `@Deprecated` e che ogni `@MemberEndpoint` stia sotto `/v1/portal/`. Sul contratto generato verifica inoltre che nessuna operazione sotto `/v1/portal/me/**` abbia un parametro o una proprietà di corpo `memberId` (a qualunque profondità) e che, sotto `/v1/portal/**`, un parametro di percorso `memberId` o `id` e una proprietà di corpo `memberId` compaiano solo su operazioni o campi `deprecated`. Questo sposta una parte del controllo di `docs/18 §3.10` («portale con `memberId` da parametri») da ArchUnit a un test di build con lo stesso effetto (ADR-048).
+- **Nuove dichiarazioni.** `@RequiresRole`, `@PublicEndpoint` e (da M8.10f) `@MemberEndpoint` portano la marcatura documentale `@EndpointAccess`, che non decide nulla: interceptor e regola ArchUnit applicano lo stesso elenco esplicito, chiuso a tre (ADR-048, Q-410). Una dichiarazione futura si aggiunge all'interceptor e alla regola nello stesso cambiamento: finché l'interceptor non la conosce, l'endpoint resta rifiutato.
 
 ```mermaid
 flowchart TD
   accTitle: Deny by default sugli endpoint
-  accDescr: Per ogni richiesta a un controller del prodotto l'interceptor cerca la dichiarazione di accesso sul metodo e poi sulla classe; senza dichiarazione o con un motivo vuoto risponde 403 ENDPOINT_NOT_DECLARED; con RequiresRole controlla il ruolo dell'attore; con PublicEndpoint lascia passare.
+  accDescr: Per ogni richiesta a un controller del prodotto l'interceptor cerca la dichiarazione di accesso sul metodo e poi sulla classe; senza dichiarazione, con un motivo vuoto o con due dichiarazioni sullo stesso elemento risponde 403 ENDPOINT_NOT_DECLARED; con MemberEndpoint risolve il membro dal token e passa un MemberPrincipal al controller; con RequiresRole controlla il ruolo dell'attore, e un token di solo membro passa solo se l'elenco ammette i membri; con PublicEndpoint lascia passare.
   REQ[Richiesta con attore dal filtro] --> DECL{Dichiarazione sul metodo o sulla classe}
-  DECL -->|nessuna o motivo vuoto| DENY[403 ENDPOINT_NOT_DECLARED]
-  DECL -->|RequiresRole| ROLE{Ruolo ammesso o ADMIN}
+  DECL -->|nessuna, motivo vuoto o due dichiarazioni| DENY[403 ENDPOINT_NOT_DECLARED]
+  DECL -->|MemberEndpoint| MBR[Membro dal token: MemberPrincipal]
+  DECL -->|RequiresRole| ROLE{Ruolo ammesso o ADMIN, un membro solo con members}
   DECL -->|PublicEndpoint con motivo| CTRL[Controller]
+  MBR --> CTRL
   ROLE -->|sì| CTRL
   ROLE -->|no| FORB[403 FORBIDDEN_ROLE]
   classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
   classDef ext fill:#FFFFFF,stroke:#94A3B8,stroke-dasharray:4 2,color:#334155
-  class CTRL svc
+  class CTRL,MBR svc
   class REQ ext
 ```
 
@@ -153,6 +164,87 @@ Le fonti esterne non si autenticano con una chiave statica: sono utenze di integ
 - **Legame con la fonte.** Il `source` dichiarato da ogni evento (l'URN `urn:loyaltyhub:source:<codice>`) o dalla transazione deve coincidere con il codice del client dell'attore `SOURCE`, altrimenti `403 SOURCE_MISMATCH` prima di qualunque scrittura o pubblicazione. Il confronto è esatto sul codice. In un batch un solo elemento con un'altra fonte respinge l'intera richiesta; un elemento senza `source` resta un errore di forma dell'elemento (`INVALID`). `ADMIN` non è soggetto al controllo. Restano i controlli per fonte già esistenti (fonte abilitata, `allowedTypes`).
 - **Profilo `demo`.** Nessun login (regola 6): una fonte di prova invia `X-LH-Actor: SOURCE:src-<codice>`, per esempio `SOURCE:src-ecommerce` (lo fanno `scripts/smoke.sh` e il pannello demo del portale). Senza header o come `ANALYST` l'ingresso risponde `403`.
 - **Residuo.** Una fonte creata a runtime da BO-09 non ha ancora un client nel realm: si crea a mano (`deploy/README.md`, TOBE-009, Q-494).
+
+### 3.4 Membro dal token: `@MemberEndpoint`, `MemberPrincipal` e legame `sub` → `memberId` (M8.10f, F2-SEC-09, F2-IAM-03, ADR-048)
+
+Nel profilo `enterprise` un servizio del portale non riceve mai il `memberId` da parametri: lo ricava dal token (ADR-042, regola 18). **Stato:** decisa con ADR-048 (Q-550…Q-559); il codice arriva a fette di M8.10f, con `lh-common` per prima. Finché non c'è vale §3.1 (un token di solo `MEMBER` è `ANALYST` sul portale) e il portale `enterprise` non si espone a membri reali (Q-410). Il profilo `demo` non cambia (regola 6-bis).
+
+**Dichiarazione.** `@MemberEndpoint(value, demoPathVariable)` è la terza dichiarazione di accesso (§3.2) e passa al controller un `MemberPrincipal`, mai un `memberId` letto dalla richiesta.
+
+| Modo | Uso | Membro non risolto |
+|---|---|---|
+| `REQUIRED` | funzioni del membro: profilo, wallet, inbox, giocate, richieste premio | `oidc`: `404 MEMBER_NOT_REGISTERED` (member-service) o `409 MEMBER_NOT_LINKED` con `Retry-After: 2` (altri servizi); `demo`: la validazione di oggi (`400` se manca l'id) |
+| `OPTIONAL` | letture che si personalizzano (campagne, contenuti, catalogo): con il membro la vista personale, senza la vista generica | principal `NONE`, vista generica |
+| `REGISTRATION` | `POST /v1/portal/members`: parametro `MemberSubject` (`iss`, `sub`, `subjectRef`, membro già legato) | nessuna lookup obbligatoria: il legame lo crea il servizio |
+
+`demoPathVariable` è ammesso solo sui percorsi legacy deprecati (`/v1/portal/wallets/{memberId}`, `/v1/portal/members/{id}`): nomina la variabile di percorso con l'id, valida solo in `demo`. `MemberPrincipal(memberId, origin)` ha origine `TOKEN`, `DEMO` o `NONE` e quattro metodi: `idOrNull()`; `requireParam()` (in `demo` senza id: `400 BAD_REQUEST` «Parametro obbligatorio assente: memberId», identico a oggi); `merge(legacyBody)` (con `TOKEN` un `memberId` nel corpo dà `400`; con `DEMO` null o uguale dà l'id, diverso dà `400 MEMBER_MISMATCH`); `checkOwner(owner)` (principal presente e diverso dal proprietario dell'oggetto ⇒ `404 NOT_FOUND`).
+
+**Risoluzione** (`EndpointAccessInterceptor`, prima del controller):
+1. Un token di solo membro (mai `SOURCE`) ha attore `member:-` e porta `iss` e `sub` come attributi della richiesta, senza registrarli. Su un handler che non è `@MemberEndpoint` passa solo con `@RequiresRole(..., members = true)` o `@PublicEndpoint`; altrimenti `403 FORBIDDEN_ROLE` («Un membro può usare solo le funzioni del portale a lui dedicate»). Un `memberId` in qualunque grafia o `X-LH-Member` dà `400 MEMBER_FROM_TOKEN` già qui.
+2. Su un `@MemberEndpoint` in `oidc`, nell'ordine: header `X-LH-Member` o parametro `memberId` in qualunque grafia (query **o campo form**) ⇒ `400 MEMBER_FROM_TOKEN`; variabile `demoPathVariable` presente ⇒ `403 MEMBER_FROM_TOKEN`; nessun token di solo membro (operatore, token misto) ⇒ `403 MEMBER_REQUIRED` per `REQUIRED` e `REGISTRATION`, principal `NONE` per `OPTIONAL`; altrimenti `ref = HMAC(iss, sub)` e la lookup locale del modulo dà il `memberId` (attore e MDC diventano `member:<memberId>`). Il corpo si controlla a parte: un `memberId` non nullo, a qualunque profondità, dà `400 MEMBER_FROM_TOKEN`.
+3. Su un `@MemberEndpoint` in `header` (`demo`): un attore `SOURCE` ⇒ `403 FORBIDDEN_ROLE`; le fonti del membro sono l'header `X-LH-Member` (forma `MBR-nnnnnn`, altrimenti `400`), il parametro `memberId` e la variabile legacy; due fonti diverse ⇒ `400 MEMBER_MISMATCH`; con un id l'attore diventa `member:<id>`. L'interceptor non impone la presenza dell'id: la validazione resta dove è oggi, quindi le risposte demo non cambiano.
+4. Un membro `BLOCKED`, `SUSPENDED`, `INACTIVE` o `CLOSED` si risolve comunque e decidono le regole di dominio di oggi; solo `ANONYMIZED` cancella il legame.
+5. Un parametro `MemberPrincipal` senza `@MemberEndpoint`, o un handler dichiarato due volte, è rifiutato (`403 ENDPOINT_NOT_DECLARED`): fallisce chiuso.
+
+| Chiamante | Funzioni del membro `REQUIRED` | `OPTIONAL` | `members = true` (tema, livelli, edizioni, categorie premio) | Percorsi legacy con id | Letture di backoffice |
+|---|---|---|---|---|---|
+| `enterprise`, token di solo membro | sì, solo i propri dati | sì, personalizzate | sì | `403 MEMBER_FROM_TOKEN` | `403 FORBIDDEN_ROLE` |
+| `enterprise`, operatore o token misto | `403 MEMBER_REQUIRED` | vista generica | sì | `403` | per ruolo |
+| `enterprise`, `MEMBER` con `SOURCE` | `403` | `403` | `403` | `403` | `403` |
+| `enterprise`, senza token | `401` | `401` | `401` (il tema senza sessione è Q-411) | `401` | `401` |
+| `demo`, `ANALYST:anonymous` con `memberId` o `X-LH-Member` | come oggi, attore `member:<id>` | come oggi | sì | come oggi | sì |
+| `demo`, `SOURCE:*` | `403` | `403` | `403` | `403` | per elenco |
+
+**Da `sub` a `memberId`, senza chiamate sincrone e senza dati personali sul bus** (Q-550, Q-551, Q-552, ADR-032):
+- **Legame.** member-service è l'unico servizio che conosce il `sub`: la tabella `member_identity(member_id PK, issuer, subject, subject_ref UNIQUE, linked_at)` ha `UNIQUE(issuer, subject)`; `external_id` resta l'id del CRM. La registrazione dal portale inserisce `member` e `member_identity` e scrive `member.registered` in outbox nella stessa transazione, ed è idempotente su `(issuer, subject)` (`201` la prima volta, poi `200` col profilo esistente). L'anonimizzazione cancella il legame nella stessa transazione.
+- **Sul bus solo `subjectRef`** = HMAC-SHA256 esadecimale (64 caratteri) di `len(iss):iss len(sub):sub` con `LH_SUBJECT_KEY` (base64, almeno 32 byte; in `enterprise` una chiave assente o corta impedisce l'avvio, regola 22). Campo opzionale di `member.registered` e `member.updated` (`:1` e `:2`, `x-lh-pii: false`, `docs/05 §10`): assente = legame invariato, `null` = legame rimosso. Ogni `member.updated` rinfresca il legame nelle proiezioni, che così si riparano da sole.
+- **Proiezioni locali.** Ogni servizio del portale copia `subjectRef` in tre colonne additive della propria tabella snapshot (`subject_ref`, `subject_ref_at`, `subject_erased`, indice unico parziale su `subject_ref`) con una migrazione `expand`: wallet in `member_tier` (`MemberLifecycleHandler`, che gestisce anche `member.updated`, nella stessa transazione del wallet), reward in `reward_member_snapshot`, gamification in `gamification_member_snapshot`, engagement in `engagement_member_snapshot`, campaign in `member_snapshot`. La lookup (`MemberSubjectLookup`, una per modulo; nell'hub e con `LH_ROLE=all` vince il prefisso di package più lungo) è una `SELECT` costante su `subject_ref` con `NOT subject_erased`. In `lh-common` sta solo la decisione pura (`MemberSubjectRules`), senza SQL né nomi di tabelle altrui (regole 2 e 19).
+- **Regole di proiezione**, in ordine: (1) anonimizzazione ⇒ `subject_ref` a `NULL`, `subject_erased = true`, lapide definitiva; (2) `subjectRef` assente ⇒ nessun effetto (un member-service vecchio non slega nessuno durante un rilascio progressivo); (3) lapide, oppure istante dell'evento anteriore a `subject_ref_at` ⇒ nessun effetto (un replay non ri-lega); (4) `subjectRef: null` ⇒ slega; (5) riferimento già di un altro membro con istante più recente ⇒ nessun effetto; (6) altrimenti il riferimento passa a questo membro nella stessa transazione (a parità di istante decide l'id ULID) e si incrementa `lh_member_subject_relinked_total`. Vince il più recente, non «scarta entrambi»: dopo un'anonimizzazione la stessa persona può registrarsi di nuovo (Q-558) e i fatti dei due membri viaggiano su partizioni diverse, quindi il risultato converge da solo.
+- **Consistenza eventuale.** Finché il fatto non è arrivato il servizio risponde `409 MEMBER_NOT_LINKED` con `Retry-After: 2`; il web ritenta (join del portale, stato *degraded*).
+
+```mermaid
+sequenceDiagram
+  accTitle: Membro dal token senza chiamate sincrone tra servizi
+  accDescr: member-service lega iss e sub al nuovo membro in una transazione e pubblica solo il pseudonimo subjectRef; ogni servizio del portale lo proietta nella propria tabella snapshot e risolve il membro del token con un indice locale, rispondendo 409 finché il fatto non è arrivato.
+  autonumber
+  participant B as BFF (sessione del membro)
+  participant M as member-service
+  participant K as lh.facts.v1
+  participant W as wallet (come ogni servizio del portale)
+  B->>M: GET /v1/portal/me/profile (Bearer)
+  M-->>B: 404 MEMBER_NOT_REGISTERED
+  B->>M: POST /v1/portal/members {nome, consensi, referral}
+  M->>M: tx member + member_identity(iss, sub, subjectRef) + outbox
+  M-->>B: 201 PortalProfileView
+  M-)K: member.registered {memberId, subjectRef} senza sub
+  B->>W: GET /v1/portal/me/wallet
+  W-->>B: 409 MEMBER_NOT_LINKED con Retry-After 2
+  K-)W: member.registered crea wallet e member_tier.subject_ref nella stessa tx
+  B->>W: GET /v1/portal/me/wallet
+  W->>W: HMAC(iss, sub) e memberId dall'indice locale
+  W-->>B: 200 dati del solo titolare
+```
+
+**Forma delle API** (Q-410, alternativa A: additiva; ADR-048). I percorsi con query o corpo restano; il controller non lega più `memberId` (in `demo` lo legge l'interceptor) e il parametro esce dal contratto; i campi `memberId` dei DTO di richiesta restano con `deprecated: true` («solo profilo demo»). I percorsi con l'id nel percorso hanno un equivalente `/me`; i vecchi restano deprecati, validi solo in `demo` e mai rimossi. L'header `X-LH-Member` e le dichiarazioni di accesso non compaiono nell'OpenAPI: un meccanismo demo non si pubblica ai consumatori headless (regola 12).
+
+| Servizio | Handler `/v1/portal/…` | Dichiarazione | Note |
+|---|---|---|---|
+| campaign | `GET campaigns` | `OPTIONAL` | BO-17 legge `codes=` con la vista generica |
+| engagement | `GET content` | `OPTIONAL` | |
+| engagement | `GET inbox`, `inbox/unread-count`, `POST inbox/{id}/read`, `inbox/read-all`, `GET popups/next`, `POST popups/{id}/seen` | `REQUIRED` | messaggio o pop-up di un altro membro ⇒ `404` |
+| engagement | `GET theme` | `@RequiresRole(…, members = true)` | il web lo legge col bearer del membro (Q-411) |
+| gamification | `GET achievements`, `badges`, `contests`, `contests/{code}/plays`, `leaderboards`, `leaderboards/{code}`; `POST contests/{code}/play` | `REQUIRED` | `resolve=ids` ignorato per un principal da token (Q-559); `isMe` dal principal; `lhactor` `member:<id>` |
+| member | `GET` e `PATCH me/profile`, `GET me/referral` (legacy `members/{id}` e `members/{id}/referral`: `@Deprecated`, `demoPathVariable = "id"`) | `REQUIRED` | audit con attore `member:<id>`; `PortalProfileView` aggiunge `status` |
+| member | `POST members` (registrazione, Q-157) | `REGISTRATION` | `201` con `Location: /v1/portal/me/profile` la prima volta, poi `200`; il DTO `PortalRegistrationRequest` non ha `memberId`, `externalId`, `status` né `channel` (`PORTAL` lo imposta il server) |
+| reward | `GET catalog`, `rewards/{code}` | `OPTIONAL` | |
+| reward | `GET coupons`, `GET` e `POST redemptions`, `GET redemptions/{id}`, `POST redemptions/{id}/cancel` | `REQUIRED` | la proprietà si controlla sempre (`checkOwner`, `cancelByMember`): oggetto altrui ⇒ `404`; `lhactor` `member:<id>` |
+| reward | `GET reward-categories` (alias di `GET /v1/reward-categories`) | `members = true` | |
+| wallet | `GET me/wallet`, `me/wallet/activity` (legacy `wallets/{memberId}[/activity]`: `@Deprecated`, `demoPathVariable = "memberId"`) | `REQUIRED` | `/me/activity` resta riservato a PT-18 (M8.12) |
+| wallet | `GET tiers`; `GET editions` (alias di `GET /v1/editions`) | `members = true` | |
+
+`POST /v1/members` resta la creazione dal backoffice: `@RequiresRole({ADMIN, CARE})` nell'ultima fetta di M8.10f, dopo un rilascio del web migrato (Q-157, Q-493, docs/08 §2). `POST /v1/members/nicknames`, `GET /v1/demo/personas`, `POST /v1/events` e `GET /v1/stream/events` non cambiano (Q-411).
+
+**Compatibilità** (expand/contract, ADR-038, regola 14). Solo aggiunte: colonne nullable, una tabella, un campo evento opzionale, percorsi nuovi, parametri che escono dal contratto (`check-api` non segnala un parametro di query rimosso), `status` in `PortalProfileView`. Web vecchio con servizi nuovi: in `demo` percorsi e parametri legacy rispondono come prima. member-service nuovo con consumer vecchi: `subjectRef` è ignorato e quei servizi rispondono `409` (falliscono chiusi). member-service vecchio con consumer nuovi: «assente = invariato», nessuno viene slegato. L'unico restringimento è `POST /v1/members`.
 
 ## 4. Persistenza
 
@@ -277,7 +369,7 @@ Gli altri endpoint demo (job, istanti piantati, scenari) sono nelle schede dei s
 Convenzioni introdotte dalla Fase 2 (`docs/18 §3.10`, ADR-042); diventano vincolanti con la fetta citata. Nel profilo `demo` restano valide le convenzioni di §3 finché la fetta non le sostituisce.
 
 - **Deny by default: `@RequiresRole` o `@PublicEndpoint`** (M8.10, F2-SEC-09). **Attivo in ogni profilo** (§3.2): ogni metodo di un `@RestController` dichiara `@RequiresRole(...)` oppure `@PublicEndpoint(reason = "…")` con una motivazione leggibile; senza dichiarazione l'endpoint risponde `403 ENDPOINT_NOT_DECLARED` e un test ArchUnit fa fallire la build. Un nuovo `@PublicEndpoint` è un caso di *Fermati e chiedi* (`CLAUDE.md §7`).
-- **`MemberPrincipal` nel portale** (M8.2/M8.10). Le API `/v1/portal/*` ricavano il membro solo dal token (`MemberPrincipal`); `memberId` da path, query o corpo è ignorato o rifiutato (`400`), mai usato (difesa da BOLA). Le API di gestione controllano la proprietà dell'oggetto dove il ruolo non basta.
+- **`MemberPrincipal` nel portale** (M8.2/M8.10). Le API `/v1/portal/*` ricavano il membro solo dal token (`MemberPrincipal`, §3.4, ADR-048); in `enterprise` un `memberId` da query, corpo o header è rifiutato (`400 MEMBER_FROM_TOKEN`) e da percorso è rifiutato (`403`), mai usato (difesa da BOLA). Le API di gestione controllano la proprietà dell'oggetto dove il ruolo non basta.
 - **DTO espliciti.** I controller legano solo `record` DTO con Bean Validation, mai entità; `status`, `version`, `createdBy` e simili non sono legabili (niente *mass assignment*).
 - **SQL solo parametrico: `SqlWhere` / `SqlOrder`** (M8.10, F2-SEC-10). Solo `JdbcClient` con parametri; il testo SQL è costante oppure costruito dal builder comune di `lh-common`, che accetta colonne solo da enum/allowlist (filtri, ordinamenti, campi dei segmenti e degli attributi `jsonb`). Vietati `Statement`, `String.format`/`formatted` e concatenazione nel testo SQL; una regola Semgrep fallisce su `.sql(` con argomento non costante fuori dal builder.
 - **Limiti di input** (M8.10). Bean Validation su ogni DTO (lunghezze, pattern, enum, intervalli); limiti Jackson `StreamReadConstraints` (dimensione, profondità, lunghezza dei numeri); corpo massimo per endpoint; paginazione con tetto 100; `FAIL_ON_UNKNOWN_PROPERTIES` sulle scritture REST (non sugli eventi); nessuna deserializzazione polimorfica.
