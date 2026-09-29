@@ -1,12 +1,14 @@
 package io.loyaltyhub.engagement.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlOrder;
+import io.loyaltyhub.common.sql.SqlWhere;
 import io.loyaltyhub.engagement.domain.MessageTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,6 +19,28 @@ public class TemplateRepository {
     private static final String COLUMNS =
             "code, name, channel, title_tpl, body_tpl, icon, link_target, category, version, updated_at, updated_by";
 
+    /** Colonne ammesse nei filtri e nell'ordinamento di {@link #findAll} (regola 19, ADR-042). */
+    enum TemplateColumn implements SqlColumn {
+        CODE("code"), CATEGORY("category"), CHANNEL("channel");
+
+        private final String sql;
+
+        TemplateColumn(String sql) {
+            this.sql = sql;
+        }
+
+        @Override
+        public String sql() {
+            return sql;
+        }
+    }
+
+    /** Testo SQL costante dell'elenco: vi si accodano solo {@link SqlWhere#sql()} e {@link #LIST_ORDER}. */
+    private static final String LIST_SELECT = "SELECT " + COLUMNS + " FROM message_template";
+
+    /** Ordinamento costante dell'elenco, per codice come prima del builder. */
+    private static final String LIST_ORDER = SqlOrder.asc(TemplateColumn.CODE).sql();
+
     private final JdbcClient jdbc;
 
     public TemplateRepository(JdbcClient jdbc) {
@@ -24,18 +48,20 @@ public class TemplateRepository {
     }
 
     public List<MessageTemplate> findAll(String category, String channel) {
-        StringBuilder sql = new StringBuilder("SELECT " + COLUMNS + " FROM message_template WHERE 1 = 1");
-        List<Object> params = new ArrayList<>();
-        if (category != null && !category.isBlank()) {
-            sql.append(" AND category = ?");
-            params.add(category.trim().toUpperCase());
-        }
-        if (channel != null && !channel.isBlank()) {
-            sql.append(" AND channel = ?");
-            params.add(channel.trim().toUpperCase());
-        }
-        sql.append(" ORDER BY code");
-        return jdbc.sql(sql.toString()).params(params).query(TemplateRepository::map).list();
+        SqlWhere where = filters(category, channel);
+        return where.bind(jdbc.sql(LIST_SELECT + where.sql() + LIST_ORDER)).query(TemplateRepository::map).list();
+    }
+
+    /**
+     * Filtri facoltativi dell'elenco (regola 19, ADR-042): categoria e canale per uguaglianza, in maiuscolo; ogni
+     * valore diventa un parametro legato, mai testo SQL.
+     */
+    static SqlWhere filters(String category, String channel) {
+        return new SqlWhere()
+                .when(category != null && !category.isBlank(),
+                        w -> w.eq(TemplateColumn.CATEGORY, category.trim().toUpperCase()))
+                .when(channel != null && !channel.isBlank(),
+                        w -> w.eq(TemplateColumn.CHANNEL, channel.trim().toUpperCase()));
     }
 
     public Optional<MessageTemplate> find(String code) {
