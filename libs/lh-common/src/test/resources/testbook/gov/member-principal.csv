@@ -1,0 +1,88 @@
+id|descrizione|profilo|chiamante|lookup|metodo|percorso|header|corpo|esito|controlli
+TB-GOV-MBP-001|membro legato: REQUIRED risolve il proprio id; attore e MDC member:<id>|OIDC|A|SERVICE|GET|/v1/portal/required|NONE|NONE|200|member=MBR-000101;origin=TOKEN;actor=member:MBR-000101;mdc=member:MBR-000101
+TB-GOV-MBP-002|membro legato: OPTIONAL risolve il proprio id|OIDC|A|SERVICE|GET|/v1/portal/optional|NONE|NONE|200|member=MBR-000101;origin=TOKEN
+TB-GOV-MBP-003|membro B legato: vede B, mai A (il legame è per sub)|OIDC|B|SERVICE|GET|/v1/portal/required|NONE|NONE|200|member=MBR-000102
+TB-GOV-MBP-004|registrazione di un account già legato: il membro esistente|OIDC|A|AUTH|POST|/v1/portal/members|NONE|NONE|200|demo=false;linked=MBR-000101
+TB-GOV-MBP-005|registrazione di un account nuovo: nessun membro legato, attore member:-|OIDC|UNLINKED|AUTH|POST|/v1/portal/members|NONE|NONE|200|demo=false;linked=NULL;actor=member:-
+TB-GOV-MBP-006|id nel percorso (legacy), anche proprio: 403 MEMBER_FROM_TOKEN|OIDC|A|SERVICE|GET|/v1/portal/wallets/MBR-000101|NONE|NONE|403:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-007|id di un altro nel percorso (legacy): 403 MEMBER_FROM_TOKEN|OIDC|A|SERVICE|GET|/v1/portal/wallets/MBR-000102|NONE|NONE|403:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-008|lettura con members=true (tema, livelli): il token di un membro passa|OIDC|A|SERVICE|GET|/v1/portal/theme|NONE|NONE|200|-
+TB-GOV-MBP-009|@PublicEndpoint: il token di un membro passa|OIDC|A|SERVICE|GET|/v1/portal/public|NONE|NONE|200|-
+TB-GOV-MBP-010|lettura di backoffice senza members: 403 FORBIDDEN_ROLE|OIDC|A|SERVICE|GET|/v1/portal/backoffice-read|NONE|NONE|403:FORBIDDEN_ROLE|-
+TB-GOV-MBP-011|regola «scrittura» (@RequiresRole vuoto): 403 FORBIDDEN_ROLE|OIDC|A|SERVICE|POST|/v1/portal/write-rule|NONE|NONE|403:FORBIDDEN_ROLE|-
+TB-GOV-MBP-012|members=true con la regola «scrittura» (nessun ANALYST): 403 FORBIDDEN_ROLE|OIDC|A|SERVICE|GET|/v1/portal/members-write-rule|NONE|NONE|403:FORBIDDEN_ROLE|-
+TB-GOV-MBP-013|API di backoffice fuori dal portale: 403 FORBIDDEN_ROLE (filtro)|OIDC|A|SERVICE|GET|/v1/campaigns|NONE|NONE|403:FORBIDDEN_ROLE|-
+TB-GOV-MBP-014|memberId di un altro in query: 400 MEMBER_FROM_TOKEN|OIDC|A|SERVICE|GET|/v1/portal/required?memberId=MBR-000102|NONE|NONE|400:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-015|memberId proprio in query: 400 MEMBER_FROM_TOKEN|OIDC|A|SERVICE|GET|/v1/portal/required?memberId=MBR-000101|NONE|NONE|400:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-016|MEMBERID in maiuscolo: 400 MEMBER_FROM_TOKEN|OIDC|A|SERVICE|GET|/v1/portal/required?MEMBERID=MBR-000102|NONE|NONE|400:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-017|member_id con il trattino basso: 400 MEMBER_FROM_TOKEN|OIDC|A|SERVICE|GET|/v1/portal/required?member_id=MBR-000102|NONE|NONE|400:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-018|memberId vuoto in query: 400 MEMBER_FROM_TOKEN|OIDC|A|SERVICE|GET|/v1/portal/optional?memberId=|NONE|NONE|400:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-019|header X-LH-Member: 400 MEMBER_FROM_TOKEN|OIDC|A|SERVICE|GET|/v1/portal/required|X-LH-Member=MBR-000102|NONE|400:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-020|memberId in query su una lettura con members=true: 400 MEMBER_FROM_TOKEN|OIDC|A|SERVICE|GET|/v1/portal/theme?memberId=MBR-000102|NONE|NONE|400:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-021|memberId in query su un handler di backoffice: 400 prima del 403|OIDC|A|SERVICE|GET|/v1/portal/backoffice-read?memberId=MBR-000102|NONE|NONE|400:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-022|memberId come campo form: 400 MEMBER_FROM_TOKEN|OIDC|A|SERVICE|FORM|/v1/portal/write|NONE|memberId=MBR-000102|400:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-023|corpo con memberId di un altro: 400 MEMBER_FROM_TOKEN|OIDC|A|SERVICE|POST|/v1/portal/write|NONE|{"rewardCode":"RWD-1","memberId":"MBR-000102"}|400:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-024|corpo con memberId proprio: 400 MEMBER_FROM_TOKEN|OIDC|A|SERVICE|POST|/v1/portal/write|NONE|{"rewardCode":"RWD-1","memberId":"MBR-000101"}|400:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-025|corpo con memberId annidato: 400 MEMBER_FROM_TOKEN|OIDC|A|SERVICE|POST|/v1/portal/nested|NONE|{"rewardCode":"RWD-1","shipping":{"city":"Roma","memberId":"MBR-000102"}}|400:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-026|corpo libero (JsonNode) con MemberID in un elenco: 400 MEMBER_FROM_TOKEN|OIDC|A|SERVICE|POST|/v1/portal/tree|NONE|{"a":{"b":[{"MemberID":"MBR-000102"}]}}|400:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-027|corpo senza memberId: passa, il membro è quello del token|OIDC|A|SERVICE|POST|/v1/portal/write|NONE|{"rewardCode":"RWD-1"}|200|id=MBR-000101
+TB-GOV-MBP-028|corpo con memberId null: passa, il membro è quello del token|OIDC|A|SERVICE|POST|/v1/portal/write|NONE|{"rewardCode":"RWD-1","memberId":null}|200|id=MBR-000101
+TB-GOV-MBP-029|oggetto di un altro membro (checkOwner): 404 NOT_FOUND|OIDC|A|SERVICE|GET|/v1/portal/owned/x|NONE|NONE|404:NOT_FOUND|-
+TB-GOV-MBP-030|sub non ancora legato in un servizio non autorevole: 409 MEMBER_NOT_LINKED|OIDC|UNLINKED|SERVICE|GET|/v1/portal/required|NONE|NONE|409:MEMBER_NOT_LINKED|-
+TB-GOV-MBP-031|sub non registrato in member-service (autorevole): 404 MEMBER_NOT_REGISTERED|OIDC|UNLINKED|AUTH|GET|/v1/portal/required|NONE|NONE|404:MEMBER_NOT_REGISTERED|-
+TB-GOV-MBP-032|sub non legato su OPTIONAL: vista generica|OIDC|UNLINKED|SERVICE|GET|/v1/portal/optional|NONE|NONE|200|origin=NONE;member=NULL
+TB-GOV-MBP-033|registrazione in un servizio non autorevole: chiude, 403 ENDPOINT_NOT_DECLARED|OIDC|UNLINKED|SERVICE|POST|/v1/portal/members|NONE|NONE|403:ENDPOINT_NOT_DECLARED|-
+TB-GOV-MBP-034|operatore CARE su REQUIRED: 403 MEMBER_REQUIRED|OIDC|CARE|AUTH|GET|/v1/portal/required|NONE|NONE|403:MEMBER_REQUIRED|-
+TB-GOV-MBP-035|operatore ADMIN su REQUIRED: 403 MEMBER_REQUIRED (ADMIN non agisce come membro)|OIDC|ADMIN|AUTH|GET|/v1/portal/required|NONE|NONE|403:MEMBER_REQUIRED|-
+TB-GOV-MBP-036|operatore CARE su OPTIONAL: vista generica|OIDC|CARE|AUTH|GET|/v1/portal/optional|NONE|NONE|200|origin=NONE;member=NULL
+TB-GOV-MBP-037|operatore CARE sulla registrazione: 403 MEMBER_REQUIRED|OIDC|CARE|AUTH|POST|/v1/portal/members|NONE|NONE|403:MEMBER_REQUIRED|-
+TB-GOV-MBP-038|operatore CARE con memberId in query su REQUIRED: 400 MEMBER_FROM_TOKEN|OIDC|CARE|AUTH|GET|/v1/portal/required?memberId=MBR-000101|NONE|NONE|400:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-039|operatore CARE con memberId in query su OPTIONAL: 400 MEMBER_FROM_TOKEN|OIDC|CARE|AUTH|GET|/v1/portal/optional?memberId=MBR-000101|NONE|NONE|400:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-040|operatore CARE con id nel percorso: 403 MEMBER_FROM_TOKEN|OIDC|CARE|AUTH|GET|/v1/portal/wallets/MBR-000101|NONE|NONE|403:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-041|operatore CARE sulla lettura di backoffice: passa per ruolo|OIDC|CARE|AUTH|GET|/v1/portal/backoffice-read|NONE|NONE|200|-
+TB-GOV-MBP-042|token misto (MEMBER e CARE) su REQUIRED: vale l'operatore, 403 MEMBER_REQUIRED|OIDC|MIXED|AUTH|GET|/v1/portal/required|NONE|NONE|403:MEMBER_REQUIRED|-
+TB-GOV-MBP-043|token misto su OPTIONAL: vista generica|OIDC|MIXED|AUTH|GET|/v1/portal/optional|NONE|NONE|200|origin=NONE
+TB-GOV-MBP-044|token misto sulla lettura di backoffice: passa per ruolo|OIDC|MIXED|AUTH|GET|/v1/portal/backoffice-read|NONE|NONE|200|-
+TB-GOV-MBP-045|MEMBER e SOURCE su REQUIRED: 403 FORBIDDEN_ROLE|OIDC|MEMBER_SOURCE|AUTH|GET|/v1/portal/required|NONE|NONE|403:FORBIDDEN_ROLE|-
+TB-GOV-MBP-046|MEMBER e SOURCE su una lettura con members=true: 403 FORBIDDEN_ROLE|OIDC|MEMBER_SOURCE|AUTH|GET|/v1/portal/theme|NONE|NONE|403:FORBIDDEN_ROLE|-
+TB-GOV-MBP-047|senza token: 401 UNAUTHORIZED|OIDC|NONE|SERVICE|GET|/v1/portal/required|NONE|NONE|401:UNAUTHORIZED|-
+TB-GOV-MBP-048|token scaduto: 401 UNAUTHORIZED|OIDC|EXPIRED|SERVICE|GET|/v1/portal/required|NONE|NONE|401:UNAUTHORIZED|-
+TB-GOV-MBP-049|token firmato con un'altra chiave: 401 UNAUTHORIZED|OIDC|FOREIGN|SERVICE|GET|/v1/portal/required|NONE|NONE|401:UNAUTHORIZED|-
+TB-GOV-MBP-050|token con un'altra audience: 401 UNAUTHORIZED|OIDC|WRONG_AUDIENCE|SERVICE|GET|/v1/portal/required|NONE|NONE|401:UNAUTHORIZED|-
+TB-GOV-MBP-051|handler non dichiarato, token di un membro: 403 ENDPOINT_NOT_DECLARED|OIDC|A|SERVICE|GET|/v1/portal/undeclared|NONE|NONE|403:ENDPOINT_NOT_DECLARED|-
+TB-GOV-MBP-052|handler non dichiarato, ADMIN: 403 ENDPOINT_NOT_DECLARED|OIDC|ADMIN|SERVICE|GET|/v1/portal/undeclared|NONE|NONE|403:ENDPOINT_NOT_DECLARED|-
+TB-GOV-MBP-053|@MemberEndpoint con @RequiresRole: 403 ENDPOINT_NOT_DECLARED|OIDC|A|SERVICE|GET|/v1/portal/combined|NONE|NONE|403:ENDPOINT_NOT_DECLARED|-
+TB-GOV-MBP-054|@MemberEndpoint con @PublicEndpoint: 403 ENDPOINT_NOT_DECLARED|OIDC|ADMIN|SERVICE|GET|/v1/portal/combined-public|NONE|NONE|403:ENDPOINT_NOT_DECLARED|-
+TB-GOV-MBP-055|parametro MemberPrincipal senza @MemberEndpoint: il resolver chiude, 403 ENDPOINT_NOT_DECLARED|OIDC|ADMIN|SERVICE|GET|/v1/portal/principal-without-declaration|NONE|NONE|403:ENDPOINT_NOT_DECLARED|-
+TB-GOV-MBP-056|@MemberEndpoint sulla classe: vale per i metodi che non dichiarano altro|OIDC|A|SERVICE|GET|/v1/portal/class-level|NONE|NONE|200|member=MBR-000101
+TB-GOV-MBP-057|@MemberEndpoint sulla classe, operatore: 403 MEMBER_REQUIRED|OIDC|CARE|SERVICE|GET|/v1/portal/class-level|NONE|NONE|403:MEMBER_REQUIRED|-
+TB-GOV-MBP-058|@PublicEndpoint sul metodo prevale su @MemberEndpoint della classe|OIDC|A|SERVICE|GET|/v1/portal/class-level/open|NONE|NONE|200|-
+TB-GOV-MBP-059|demo, memberId esplicito: il membro come oggi, attore e MDC member:<id>|DEMO|-|-|GET|/v1/portal/required?memberId=MBR-000003|NONE|NONE|200|member=MBR-000003;origin=DEMO;actor=member:MBR-000003;mdc=member:MBR-000003
+TB-GOV-MBP-060|demo, header X-LH-Member: il membro della persona|DEMO|-|-|GET|/v1/portal/required|X-LH-Member=MBR-000003|NONE|200|member=MBR-000003;origin=DEMO
+TB-GOV-MBP-061|demo, OPTIONAL con memberId esplicito|DEMO|-|-|GET|/v1/portal/optional?memberId=MBR-000003|NONE|NONE|200|member=MBR-000003
+TB-GOV-MBP-062|demo, percorso legacy con l'id: il membro come oggi|DEMO|-|-|GET|/v1/portal/wallets/MBR-000003|NONE|NONE|200|member=MBR-000003;actor=member:MBR-000003
+TB-GOV-MBP-063|demo, un operatore con memberId esplicito: l'attore diventa il membro|DEMO|CARE:paolo.care|-|GET|/v1/portal/required?memberId=MBR-000003|NONE|NONE|200|actor=member:MBR-000003
+TB-GOV-MBP-064|demo, senza id l'interceptor non impone nulla: principal DEMO senza id|DEMO|-|-|GET|/v1/portal/required|NONE|NONE|200|origin=DEMO;member=NULL;actor=ANALYST:anonymous
+TB-GOV-MBP-065|demo, requireParam senza id: 400 BAD_REQUEST «Parametro obbligatorio assente: memberId»|DEMO|-|-|GET|/v1/portal/required-param|NONE|NONE|400:BAD_REQUEST|detail=Parametro obbligatorio assente: memberId
+TB-GOV-MBP-066|demo, requireParam con id esplicito|DEMO|-|-|GET|/v1/portal/required-param?memberId=MBR-000003|NONE|NONE|200|id=MBR-000003
+TB-GOV-MBP-067|demo, X-LH-Member malformato: 400 BAD_REQUEST|DEMO|-|-|GET|/v1/portal/required|X-LH-Member=MBR-1|NONE|400:BAD_REQUEST|-
+TB-GOV-MBP-068|demo, X-LH-Member in minuscolo: 400 BAD_REQUEST|DEMO|-|-|GET|/v1/portal/required|X-LH-Member=mbr-000003|NONE|400:BAD_REQUEST|-
+TB-GOV-MBP-069|demo, header e parametro diversi: 400 MEMBER_MISMATCH|DEMO|-|-|GET|/v1/portal/required?memberId=MBR-000004|X-LH-Member=MBR-000003|NONE|400:MEMBER_MISMATCH|-
+TB-GOV-MBP-070|demo, percorso e header diversi: 400 MEMBER_MISMATCH|DEMO|-|-|GET|/v1/portal/wallets/MBR-000004|X-LH-Member=MBR-000003|NONE|400:MEMBER_MISMATCH|-
+TB-GOV-MBP-071|demo, percorso, parametro e header uguali: passa|DEMO|-|-|GET|/v1/portal/wallets/MBR-000003?memberId=MBR-000003|X-LH-Member=MBR-000003|NONE|200|member=MBR-000003
+TB-GOV-MBP-072|demo, attore SOURCE su REQUIRED: 403 FORBIDDEN_ROLE|DEMO|SOURCE:src-crm|-|GET|/v1/portal/required?memberId=MBR-000003|NONE|NONE|403:FORBIDDEN_ROLE|-
+TB-GOV-MBP-073|demo, attore SOURCE su OPTIONAL: 403 FORBIDDEN_ROLE|DEMO|SOURCE:src-crm|-|GET|/v1/portal/optional|NONE|NONE|403:FORBIDDEN_ROLE|-
+TB-GOV-MBP-074|demo, attore SOURCE sulla registrazione: 403 FORBIDDEN_ROLE|DEMO|SOURCE:src-crm|-|POST|/v1/portal/members|NONE|NONE|403:FORBIDDEN_ROLE|-
+TB-GOV-MBP-075|demo, registrazione: MemberSubject demo, nessun account|DEMO|-|-|POST|/v1/portal/members|NONE|NONE|200|demo=true;ref=NULL;linked=NULL
+TB-GOV-MBP-076|demo, corpo con lo stesso memberId del parametro: passa|DEMO|-|-|POST|/v1/portal/write?memberId=MBR-000003|NONE|{"rewardCode":"RWD-1","memberId":"MBR-000003"}|200|id=MBR-000003
+TB-GOV-MBP-077|demo, corpo con un memberId diverso dal parametro: 400 MEMBER_MISMATCH|DEMO|-|-|POST|/v1/portal/write?memberId=MBR-000004|NONE|{"rewardCode":"RWD-1","memberId":"MBR-000003"}|400:MEMBER_MISMATCH|-
+TB-GOV-MBP-078|demo, memberId solo nel corpo: vale quello del corpo|DEMO|-|-|POST|/v1/portal/write|NONE|{"rewardCode":"RWD-1","memberId":"MBR-000003"}|200|id=MBR-000003
+TB-GOV-MBP-079|demo, memberId solo nell'header, corpo senza: il membro dell'header|DEMO|-|-|POST|/v1/portal/write|X-LH-Member=MBR-000003|{"rewardCode":"RWD-1"}|200|id=MBR-000003
+TB-GOV-MBP-080|demo, lettura con members=true: come oggi|DEMO|-|-|GET|/v1/portal/theme|NONE|NONE|200|-
+TB-GOV-MBP-081|demo, lettura di backoffice per ANALYST anonimo: come oggi|DEMO|-|-|GET|/v1/portal/backoffice-read|NONE|NONE|200|-
+TB-GOV-MBP-082|demo, regola «scrittura» per ANALYST anonimo: 403 FORBIDDEN_ROLE come oggi|DEMO|-|-|POST|/v1/portal/write-rule|NONE|NONE|403:FORBIDDEN_ROLE|-
+TB-GOV-MBP-083|demo, regola «scrittura» per CARE: passa come oggi|DEMO|CARE:paolo.care|-|POST|/v1/portal/write-rule|NONE|NONE|200|-
+TB-GOV-MBP-084|demo, handler non dichiarato: 403 ENDPOINT_NOT_DECLARED|DEMO|ADMIN:marta.admin|-|GET|/v1/portal/undeclared|NONE|NONE|403:ENDPOINT_NOT_DECLARED|-
+TB-GOV-MBP-085|memberId con il prefisso del binder (!memberId, valore di default del campo) in query: 400 MEMBER_FROM_TOKEN, mai un DTO con l'id di un altro|OIDC|A|SERVICE|GET|/v1/portal/bound?code=x&!memberId=MBR-000102|NONE|NONE|400:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-086|memberId con il prefisso del binder come campo form (!memberId=): 400 MEMBER_FROM_TOKEN|OIDC|A|SERVICE|FORM|/v1/portal/write|NONE|!memberId=MBR-000102|400:MEMBER_FROM_TOKEN|-
+TB-GOV-MBP-087|demo, memberId non della forma MBR-nnnnnn: non diventa l'attore né l'MDC, che restano ANALYST:anonymous|DEMO|-|-|GET|/v1/portal/required?memberId=x%0Ay|NONE|NONE|200|origin=DEMO;actor=ANALYST:anonymous;mdc=ANALYST:anonymous

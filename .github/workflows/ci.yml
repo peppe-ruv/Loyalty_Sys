@@ -213,9 +213,11 @@ jobs:
       - name: Repository Maven locale (POM per Trivy)
         # Trivy ricostruisce l'albero delle dipendenze dai POM di ~/.m2. Con la cache del job backend (stessa chiave) è già
         # tutto lì; se manca, lo risolve Maven (con i suoi tentativi), non Trivy: le richieste di Trivy a Maven Central
-        # prendono 429 dagli IP condivisi dei runner.
+        # prendono 429 dagli IP condivisi dei runner. test-compile e non dependency:resolve: nel reactor i moduli fratelli
+        # (lh-test-support, dipendenza di test di lh-common) non sono installati in ~/.m2 e solo una fase del ciclo li
+        # risolve dal reactor; così scarica anche le dipendenze di test e i plugin, senza eseguire test.
         if: ${{ !cancelled() && steps.java.outputs.cache-hit != 'true' }}
-        run: ./mvnw -B -q -ntp dependency:resolve
+        run: ./mvnw -B -q -ntp test-compile
       - name: Dipendenze (Trivy, Maven, pnpm, npm)
         if: ${{ !cancelled() }}
         # --offline-scan: nessuna richiesta a Maven Central durante la scansione, i POM vengono da ~/.m2 (passo sopra).
