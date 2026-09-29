@@ -33,8 +33,9 @@
 //     R16 multipleOf (introdotto → restrizione; cambiato → modifica; tolto → allargamento), uniqueItems
 //                                                          false → true restrizione; true → false allargamento
 //     R17 additionalProperties                             aperto → false: restrizione ("schema chiuso");
-//                                                          false → aperto: pii (campi non dichiarati, senza x-lh-pii, entrerebbero
-//                                                          nell'evento, ADR-032); schema da entrambi i lati: ricorsione; altro: modifica
+//                                                          false → aperto o → schema tipizzato: pii (campi non dichiarati, senza
+//                                                          x-lh-pii, entrerebbero nell'evento, ADR-032); schema da entrambi i lati:
+//                                                          ricorsione; altro: modifica
 //     R18 items                                            introdotto → restrizione; tolto → modifica; altrimenti ricorsione
 //     R19 x-lh-pii da true a false                         pii (false → true lo copre già il controllo PII di check-contracts)
 //     R20 annotazioni ignorate: title, description, $comment, examples, default, deprecated, readOnly, writeOnly,
@@ -206,6 +207,8 @@ function compareNode(base, cur, path, out) {
     add("restrizione", "schema chiuso");
   } else if (ba === false && openAdditional(ca)) {
     add("pii", "schema riaperto: campi non dichiarati, senza x-lh-pii, potrebbero entrare nell'evento (ADR-032)");
+  } else if (ba === false && isObj(ca)) {
+    add("pii", "schema riaperto con additionalProperties tipizzato: campi non dichiarati, senza x-lh-pii, potrebbero entrare nell'evento (ADR-032)");
   } else if (isObj(ba) && isObj(ca)) {
     compareNode(ba, ca, `${path}{}`, out);
   } else if (canon(ba) !== canon(ca)) {
