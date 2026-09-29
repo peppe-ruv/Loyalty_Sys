@@ -5,18 +5,14 @@ import io.loyaltyhub.common.event.LhEventTypes;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
-import tools.jackson.databind.node.StringNode;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Anonimizzazione di un membro (F-MBR-05, docs/03 §2, M7.5): regole condivise da tutti i servizi che tengono dati
@@ -26,7 +22,9 @@ import java.util.regex.Pattern;
  *       ({@code member.status.changed} con {@code newStatus}, oppure {@code member.registered/updated} con {@code status});</li>
  *   <li>{@link #redact}: copia di un JSON senza le chiavi personali ({@link #KEYS}), a ogni profondità;</li>
  *   <li>{@link #scrub}: sostituisce nel testo libero i valori personali già noti al servizio (nome, e-mail…) con
- *       {@link #PLACEHOLDER}.</li>
+ *       {@link #PLACEHOLDER}, solo come parole intere e in forma NFC ({@link PersonalTextScrubber}, Q-404);</li>
+ *   <li>{@link #redactAndScrub}, {@link #scrubAll}: lo stesso sui valori di un JSON, saltando i valori sicuri
+ *       (identificativi, istanti, envelope, stati e codici: {@link PersonalTextScrubber#isSafe}).</li>
  * </ul>
  */
 public final class PersonalData {
@@ -47,6 +45,12 @@ public final class PersonalData {
             "firstName", "lastName", "fullName", "nickname", "email", "emailLower", "phone", "mobile",
             "birthDate", "gender", "city", "address", "street", "zip", "postalCode", "externalId",
             "shipping", "attributes", "consents", "avatarSeed");
+
+    /**
+     * Pseudonimo dell'e-mail in {@code member.registered/updated:2} (Q-367): non è in {@link #KEYS} (Q-122), ma il suo
+     * valore non è mai sicuro per {@link PersonalTextScrubber} e si ripulisce come testo.
+     */
+    public static final String EMAIL_HASH = "emailHash";
 
     /** Lunghezza minima di un valore da cercare nel testo libero (evita di cancellare sillabe comuni). */
     static final int MIN_TOKEN = 3;
@@ -95,13 +99,16 @@ public final class PersonalData {
     }
 
     /**
-     * Valori personali da cercare nel testo libero: i valori non vuoti di {@code values}. Scarta i segnaposto e i
-     * valori troppo corti; ordinati dal più lungo (il nome completo si sostituisce prima delle sue parti).
+     * Valori personali da cercare nel testo libero: i valori non vuoti di {@code values}. Scarta i valori troppo corti
+     * e quelli che sono parole del segnaposto («Membro», «anonimo», «Membro anonimo», senza distinguere maiuscole: il
+     * segnaposto non cresce a ogni anonimizzazione, Q-404); ordinati dal più lungo (il nome completo si sostituisce
+     * prima delle sue parti).
      */
     public static List<String> tokens(Collection<String> values) {
         Set<String> out = new LinkedHashSet<>();
         for (String v : values) {
-            if (notBlank(v) && v.trim().length() >= MIN_TOKEN && !PLACEHOLDER.equalsIgnoreCase(v.trim())) {
+            if (notBlank(v) && v.trim().length() >= MIN_TOKEN
+                    && PersonalTextScrubber.found(PLACEHOLDER, List.of(v.trim())).isEmpty()) {
                 out.add(v.trim());
             }
         }
@@ -122,68 +129,31 @@ public final class PersonalData {
         return tokens(values);
     }
 
-    /** Sostituisce (senza distinguere maiuscole) ogni valore di {@code tokens} con {@link #PLACEHOLDER}. */
+    /**
+     * Sostituisce con {@link #PLACEHOLDER} ogni valore di {@code tokens} presente in {@code text} come parola intera,
+     * senza distinguere maiuscole e in forma NFC: «Ada» non tocca «Adamo», «Anon» non tocca {@code ANONYMIZED}
+     * (Q-404, {@link PersonalTextScrubber#scrub}). Valori nulli o vuoti si saltano; {@code null} resta {@code null}.
+     */
     public static String scrub(String text, Collection<String> tokens) {
-        if (text == null || tokens == null || tokens.isEmpty()) {
-            return text;
-        }
-        String out = text;
-        for (String t : tokens) {
-            if (t == null || t.isBlank()) {
-                continue;
-            }
-            Matcher m = Pattern.compile(Pattern.quote(t), Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE).matcher(out);
-            out = m.replaceAll(Matcher.quoteReplacement(PLACEHOLDER));
-        }
-        return out;
+        return PersonalTextScrubber.scrub(text, tokens);
     }
 
-    /** {@link #redact} più {@link #scrub} su ogni stringa rimasta (chiavi comprese nei valori, non nei nomi). */
+    /**
+     * {@link #redact} più {@link #scrub} su ogni stringa rimasta che non è un valore sicuro (identificativi, istanti,
+     * envelope, stati e codici nei campi di codice: {@link PersonalTextScrubber#isSafe}). Righe del membro.
+     */
     public static JsonNode redactAndScrub(JsonNode node, Collection<String> tokens) {
-        JsonNode copy = redact(node);
-        return copy == null ? null : scrubStrings(copy, tokens);
+        return PersonalTextScrubber.redactAndScrub(node, tokens);
     }
 
-    /** Copia di {@code node} con {@link #scrub} su ogni stringa, senza togliere chiavi (righe di altri membri o entità). */
+    /** Come {@link #redactAndScrub} senza togliere chiavi (righe di altri membri o entità). */
     public static JsonNode scrubAll(JsonNode node, Collection<String> tokens) {
-        return node == null ? null : scrubStrings(node.deepCopy(), tokens);
+        return PersonalTextScrubber.scrubAll(node, tokens);
     }
 
-    private static JsonNode scrubStrings(JsonNode node, Collection<String> tokens) {
-        if (node instanceof ObjectNode obj) {
-            List<String> names = new ArrayList<>();
-            obj.properties().forEach(e -> names.add(e.getKey()));
-            for (String name : names) {
-                obj.set(name, scrubStrings(obj.get(name), tokens));
-            }
-            return obj;
-        }
-        if (node instanceof ArrayNode arr) {
-            for (int i = 0; i < arr.size(); i++) {
-                arr.set(i, scrubStrings(arr.get(i), tokens));
-            }
-            return arr;
-        }
-        if (node != null && node.isString()) {
-            String s = node.asString();
-            String scrubbed = scrub(s, tokens);
-            return scrubbed.equals(s) ? node : StringNode.valueOf(scrubbed);
-        }
-        return node;
-    }
-
-    /** {@code true} se {@code text} contiene uno dei valori (senza distinguere maiuscole). */
+    /** {@code true} se {@code text} contiene uno dei valori come parola intera (senza distinguere maiuscole, NFC). */
     public static boolean containsAny(String text, Collection<String> tokens) {
-        if (text == null || tokens == null) {
-            return false;
-        }
-        String lower = text.toLowerCase(Locale.ROOT);
-        for (String t : tokens) {
-            if (t != null && !t.isBlank() && lower.contains(t.toLowerCase(Locale.ROOT))) {
-                return true;
-            }
-        }
-        return false;
+        return !PersonalTextScrubber.found(text, tokens).isEmpty();
     }
 
     private static boolean notBlank(String s) {

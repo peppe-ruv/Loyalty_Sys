@@ -1,6 +1,7 @@
 package io.loyaltyhub.insight.infra;
 
 import io.loyaltyhub.common.privacy.PersonalData;
+import io.loyaltyhub.common.privacy.PersonalTextScrubber;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import tools.jackson.databind.JsonNode;
@@ -26,8 +27,8 @@ import java.util.Set;
  *   <li>Sulle righe di altre entità sostituisce solo i valori inequivocabili (e-mail, nome completo, telefono, id
  *       esterno), mai il solo nome di battesimo (potrebbe essere di un altro membro).</li>
  * </ol>
- * La sostituzione è per parole intere e salta solo i valori sicuri ({@link PersonalTextScrubber}: identificativi, istanti,
- * codici): un soprannome «Anon» o «Active» non corrompe {@code ANONYMIZED} né uno stato, mentre i testi liberi come
+ * La sostituzione è per parole intere e salta solo i valori sicuri ({@link PersonalTextScrubber} di lh-common, la stessa
+ * regola di engagement e ingestion da Q-404: identificativi, istanti, codici): un soprannome «Anon» o «Active» non corrompe {@code ANONYMIZED} né uno stato, mentre i testi liberi come
  * {@code reason} e il {@code subject} {@code email:…} si ripuliscono. Ogni anonimizzazione prende per prima il blocco delle
  * anonimizzazioni ({@code audit_redaction_lock()}, V6): due anonimizzazioni concorrenti si mettono in fila invece di
  * bloccarsi a vicenda sulle stesse righe.
@@ -47,7 +48,7 @@ import java.util.Set;
 public class MemberRedactionRepository {
 
     /** Pseudonimo dell'e-mail in {@code member.registered/updated:2} (contracts/events/fact, Q-367). */
-    static final String EMAIL_HASH = "emailHash";
+    static final String EMAIL_HASH = PersonalData.EMAIL_HASH;
 
     private static final Set<String> TOKEN_KEYS =
             Set.of("firstName", "lastName", "nickname", "email", "phone", "externalId", EMAIL_HASH);
