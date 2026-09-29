@@ -1,4 +1,4 @@
-// contracts-compat.mjs — compatibilità dei contratti evento con l'ultimo tag `v*` (F2-EVT-01, ADR-028, M8.4c,
+// contracts-compat.mjs — compatibilità dei contratti evento con l'ultimo tag `v<numero>` (F2-EVT-01, ADR-028, M8.4c,
 // docs/18 §3.3). "Controllo di compatibilità additiva contro l'ultimo tag in CI; nessuno schema registry" (ADR-028).
 // Modulo di libreria usato da check-contracts.mjs, senza dipendenze npm (solo moduli integrati di Node).
 //
@@ -43,16 +43,30 @@
 //     R22 schema booleano che cambia                       modifica
 //   Riordinare `required`, `enum` o le chiavi di un oggetto non è mai un cambiamento.
 //
-// Filtro delle rotture ereditate (Q-542): una rottura già presente nel merge-base col ramo base (cioè già entrata su
-// `main` con una PR precedente, per esempio con la label "decisione") non blocca di nuovo le PR successive.
+// Confronto con il merge-base (Q-542). Oltre che con il tag, ogni schema si confronta con lo stesso file nel merge-base
+// col ramo base (`origin/$GITHUB_BASE_REF`, altrimenti `origin/main`), come fa check-api. Serve a tre cose:
+//   - una rottura già presente nel merge-base (entrata su `main` con una PR precedente, per esempio con la label
+//     "decisione") non blocca di nuovo: è elencata come ereditata (`=`), a meno che la PR non la cambi ancora;
+//   - una PR non può rompere ciò che è già su `main`, nemmeno se il tag non lo conosceva (proprietà o file aggiunti
+//     dopo il tag, o una parola chiave già cambiata su `main`): ogni rottura del merge-base con la PR blocca;
+//   - finché il tag non contiene `contracts/events/` (oggi `v0.6.0`, Q-540) il confronto con il merge-base è il solo
+//     attivo, con un avviso: il gate non resta inerte.
 // Con la label "decisione" sulla PR le rotture nuove sono riportate ma non bloccano (stessa regola di check-api).
 //
 // Limiti noti
 //   - una proprietà nuova che uno schema aperto già ammetteva non viene segnalata;
 //   - i sottoinsiemi di espressioni regolari non si calcolano: ogni cambio di `pattern` blocca;
 //   - `$ref` e i combinatori non si interpretano: ogni cambio blocca (R21);
-//   - il riferimento è il tag `v*` raggiungibile più vicino a HEAD; se non esiste, o non contiene
-//     `contracts/events/`, il confronto è saltato con un avviso (Q-540).
+//   - il riferimento è il tag `v<numero>` raggiungibile più vicino a HEAD (`v0.7.0`, `v1.2.3`…; un tag come
+//     `vendor-x` non conta, `v0.6.0-ux` sì); se non esiste, o non contiene `contracts/events/`, si confronta solo con
+//     il merge-base (Q-540), e se anche quello manca (clone superficiale, ramo base assente) il confronto è saltato;
+//   - senza merge-base le proprietà e i file aggiunti dopo il tag non sono protetti e le rotture già su `main` non si
+//     riconoscono: il confronto è solo col tag (Q-542);
+//   - una PR che ripristina il tag dopo una rottura accettata su `main` è a sua volta una restrizione rispetto a
+//     `main` e vuole la label "decisione";
+//   - R6 presuppone che la validazione in consumo (M8.10) tolleri i campi sconosciuti anche negli schemi chiusi
+//     (docs/05 §9): un consumer che validasse col proprio schema chiuso rifiuterebbe la proprietà nuova durante un
+//     aggiornamento progressivo (regola 14).
 //
 // Uso: node scripts/check-contracts.mjs [--baseline=<ref>] [--base=<ref>] [--pr-labels=a,b]
 import { execFileSync } from "node:child_process";
@@ -334,9 +348,9 @@ export function schemasAtRef(root, ref) {
   return files;
 }
 
-/** Il tag `v*` più vicino raggiungibile da HEAD, o null. */
+/** Il tag `v<numero>…` più vicino raggiungibile da HEAD, o null. Un tag come `vendor-x` non è un rilascio. */
 export function latestTag(root) {
-  return tryGit(root, ["describe", "--tags", "--abbrev=0", "--match", "v*", "HEAD"]) || null;
+  return tryGit(root, ["describe", "--tags", "--abbrev=0", "--match", "v[0-9]*", "HEAD"]) || null;
 }
 
 /** `--baseline=<ref>`, `--base=<ref>`, `--pr-labels=a,b`; il resto si ignora. */
@@ -353,12 +367,14 @@ export function parseArgs(argv) {
 // ================= esecuzione =================
 
 /**
- * Confronta gli schemi del working tree con l'ultimo tag `v*` (o con `baseline`). Non lancia mai.
- * status: skipped | ok | broken | accepted | error; exitCode: 0 | 1 | 2.
+ * Confronta gli schemi del working tree con l'ultimo tag `v<numero>` (o con `baseline`) e col merge-base col ramo base.
+ * Non lancia mai. status: skipped | ok | broken | accepted | error; exitCode: 0 | 1 | 2.
+ * code: "" | no-git | no-tag | empty-tag (saltato) | merge-base-only (il tag non c'è o non ha contratti, si confronta
+ * solo col merge-base, Q-540).
  */
 export function runCompat({ root, baseline, base, labels = [], env = process.env }) {
   const result = {
-    status: "skipped", exitCode: 0, code: "", baseline: null, baseRef: null, mergeBase: null, reason: "",
+    status: "skipped", exitCode: 0, code: "", baseline: null, baseRef: null, mergeBase: null, target: "", reason: "",
     compared: 0, added: [], widenings: [], inherited: [], blocking: [], notes: [],
   };
   const fail = (reason) => Object.assign(result, { status: "error", exitCode: 2, code: "error", reason });
@@ -367,57 +383,79 @@ export function runCompat({ root, baseline, base, labels = [], env = process.env
       return Object.assign(result, { code: "no-git", reason: "la cartella non è un repository git: confronto con l'ultimo tag saltato" });
     }
 
-    let ref = baseline;
-    if (ref === undefined) {
-      ref = latestTag(root);
-      if (!ref) {
-        return Object.assign(result, {
-          code: "no-tag",
-          reason: "nessun tag v* raggiungibile da HEAD, confronto saltato (in CI serve fetch-depth: 0; Q-540)",
-        });
-      }
-    }
-    const sha = resolveCommit(root, ref);
-    if (!sha) return fail(`riferimento --baseline non risolvibile: ${ref}`);
-    result.baseline = { ref, sha };
-
-    const baseFiles = schemasAtRef(root, sha);
-    if (baseFiles.size === 0) {
-      // SPEC-GAP: Q-540 — v0.6.0 è un tag storico del bundle UX, senza contracts/events/.
-      return Object.assign(result, { code: "empty-tag", reason: "il tag non contiene contracts/events/, confronto saltato (Q-540)" });
+    // Il tag (o --baseline): può non esistere o non avere contratti.
+    const ref = baseline ?? latestTag(root);
+    let tagFiles = new Map();
+    if (ref) {
+      const sha = resolveCommit(root, ref);
+      if (!sha) return fail(`riferimento --baseline non risolvibile: ${ref}`);
+      result.baseline = { ref, sha };
+      tagFiles = schemasAtRef(root, sha);
     }
 
-    const cmp = compareTrees(baseFiles, schemasOnDisk(root));
-    result.compared = cmp.compared;
-    result.added = cmp.added;
-    // SPEC-GAP: Q-541 — gli allargamenti di valore si segnalano ma non bloccano.
-    result.widenings = cmp.findings.filter((f) => !isBlocking(kindOf(f)));
-    const candidates = cmp.findings.filter((f) => isBlocking(kindOf(f)));
-
-    // SPEC-GAP: Q-542 — una rottura già presente nel merge-base col ramo base è entrata con una PR precedente.
+    // Il merge-base col ramo base (Q-542).
     result.baseRef = base ?? (env.GITHUB_BASE_REF ? `origin/${env.GITHUB_BASE_REF}` : "origin/main");
     const mb = typeof result.baseRef === "string" && !result.baseRef.startsWith("-") ? tryGit(root, ["merge-base", result.baseRef, "HEAD"]) : null;
-    if (mb) {
-      result.mergeBase = mb;
-      if (candidates.length > 0) {
-        const already = new Set(compareTrees(baseFiles, schemasAtRef(root, mb)).findings);
-        for (const finding of candidates) (already.has(finding) ? result.inherited : result.blocking).push(finding);
+    result.mergeBase = mb || null;
+    const mbFiles = mb ? schemasAtRef(root, mb) : new Map();
+    const current = schemasOnDisk(root);
+    // Le rotture nuove della PR rispetto al merge-base: bloccano anche se il tag non conosceva lo schema o la proprietà.
+    const own = compareTrees(mbFiles, current);
+    const ownBlocking = own.findings.filter((f) => isBlocking(kindOf(f)));
+
+    if (tagFiles.size > 0) {
+      const cmp = compareTrees(tagFiles, current);
+      result.compared = cmp.compared;
+      result.added = cmp.added;
+      // SPEC-GAP: Q-541 — gli allargamenti di valore si segnalano ma non bloccano.
+      result.widenings = cmp.findings.filter((f) => !isBlocking(kindOf(f)));
+      const candidates = cmp.findings.filter((f) => isBlocking(kindOf(f)));
+      result.target = result.baseline.ref;
+      if (mb) {
+        // SPEC-GAP: Q-542 — una rottura già presente nel merge-base è entrata con una PR precedente e non blocca di
+        // nuovo, se la PR non la cambia ancora (stesso testo tra le rotture proprie) e non ne aggiunge altre.
+        result.target = `${result.baseline.ref} e a ${result.baseRef}`;
+        const already = new Set(compareTrees(tagFiles, mbFiles).findings);
+        const ownSet = new Set(ownBlocking);
+        for (const finding of candidates) (already.has(finding) && !ownSet.has(finding) ? result.inherited : result.blocking).push(finding);
+        for (const finding of ownBlocking) if (!result.blocking.includes(finding)) result.blocking.push(finding);
+      } else {
+        result.notes.push(
+          `merge-base con ${result.baseRef} non trovato: le rotture già presenti sul ramo base non sono riconosciute e ` +
+          "le proprietà o i file aggiunti dopo il tag non sono protetti (Q-542)",
+        );
+        result.blocking = candidates;
       }
     } else {
-      result.notes.push(`merge-base con ${result.baseRef} non trovato: le rotture già presenti sul ramo base non sono riconosciute (Q-542)`);
-      result.blocking = candidates;
+      // SPEC-GAP: Q-540 — v0.6.0 è un tag storico del bundle UX, senza contracts/events/: finché non esiste un tag con i
+      // contratti si confronta con il merge-base col ramo base (stessa semantica di check-api).
+      const why = result.baseline
+        ? `il tag ${result.baseline.ref} non contiene contracts/events/`
+        : "nessun tag v<numero> raggiungibile da HEAD (in CI serve fetch-depth: 0)";
+      if (mbFiles.size === 0) {
+        return Object.assign(result, result.baseline
+          ? { code: "empty-tag", reason: "il tag non contiene contracts/events/, confronto saltato (Q-540)" }
+          : { code: "no-tag", reason: "nessun tag v<numero> raggiungibile da HEAD, confronto saltato (in CI serve fetch-depth: 0; Q-540)" });
+      }
+      result.code = "merge-base-only";
+      result.target = result.baseRef;
+      result.compared = own.compared;
+      result.added = own.added;
+      result.widenings = own.findings.filter((f) => !isBlocking(kindOf(f)));
+      result.blocking = ownBlocking;
+      result.notes.push(`${why}: confronto solo con il merge-base con ${result.baseRef} (Q-540)`);
     }
 
     if (result.blocking.length === 0) {
       result.status = "ok";
-      result.reason = `nessuna modifica incompatibile rispetto a ${ref}`;
+      result.reason = `nessuna modifica incompatibile rispetto a ${result.target}`;
     } else if (labels.includes("decisione")) {
       result.status = "accepted";
-      result.reason = `${result.blocking.length} modifiche incompatibili rispetto a ${ref}, accettate con la label "decisione"`;
+      result.reason = `${result.blocking.length} modifiche incompatibili rispetto a ${result.target}, accettate con la label "decisione"`;
     } else {
       result.status = "broken";
       result.exitCode = 1;
-      result.reason = `${result.blocking.length} modifiche incompatibili rispetto a ${ref}`;
+      result.reason = `${result.blocking.length} modifiche incompatibili rispetto a ${result.target}`;
     }
     return result;
   } catch (e) {
@@ -444,20 +482,26 @@ export function formatReport(result, { github = false } = {}) {
     return { out, err };
   }
 
-  const tag = result.baseline.ref;
-  const at = result.mergeBase ? `, merge-base con ${result.baseRef} ${short(result.mergeBase)}` : "";
-  out.push(`check-contracts: compatibilità con ${tag} (${short(result.baseline.sha)})${at}: ${result.compared} schemi confrontati, ${result.added.length} nuovi.`);
+  const mbOnly = result.code === "merge-base-only";
+  const target = result.target || result.baseline?.ref;
+  const at = result.mergeBase ? `merge-base con ${result.baseRef} ${short(result.mergeBase)}` : "";
+  const head = mbOnly
+    ? `compatibilità con ${result.baseRef} (${short(result.mergeBase)})`
+    : `compatibilità con ${result.baseline.ref} (${short(result.baseline.sha)})${at ? `, ${at}` : ""}`;
+  out.push(`check-contracts: ${head}: ${result.compared} schemi confrontati, ${result.added.length} nuovi.`);
   for (const note of result.notes) out.push(`  (${note})`);
+  // Con il solo merge-base il tag non ha contratti: in CI l'avviso è visibile nella pagina del job (Q-540).
+  if (github && mbOnly) out.push(`::${result.baseline ? "notice" : "warning"} title=check-contracts::${result.notes[0]}`);
   for (const file of result.added) out.push(`  + ${file}: schema nuovo`);
-  for (const finding of result.widenings) out.push(`  ⚠ ${finding} — allargamento, non blocca (Q-139, Q-541)`);
+  for (const finding of result.widenings) out.push(`  ⚠ ${finding} — non blocca (Q-139, Q-541)`);
   for (const finding of result.inherited) out.push(`  = ${finding} — già presente su ${result.baseRef}, non blocca (Q-542)`);
 
   if (result.status === "ok") {
-    out.push(`✓ check-contracts: nessuna modifica incompatibile rispetto a ${tag}.`);
+    out.push(`✓ check-contracts: nessuna modifica incompatibile rispetto a ${target}.`);
     return { out, err };
   }
   const n = result.blocking.length;
-  err.push(`✗ check-contracts: ${n} ${n === 1 ? "modifica incompatibile" : "modifiche incompatibili"} rispetto a ${tag}:`);
+  err.push(`✗ check-contracts: ${n} ${n === 1 ? "modifica incompatibile" : "modifiche incompatibili"} rispetto a ${target}:`);
   for (const finding of result.blocking) err.push(`    - ${finding}`);
   if (result.status === "accepted") {
     err.push('  (label "decisione" presente: segnalate ma non bloccanti)');

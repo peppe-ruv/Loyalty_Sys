@@ -2,7 +2,7 @@
 import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -408,16 +408,27 @@ test("T28: nessun tag (o nessun repository git) → confronto saltato, exit 0", 
   const result = run(dir);
   assert.equal(result.status, "skipped");
   assert.equal(result.exitCode, 0);
+  assert.equal(result.code, "no-tag");
   assert.equal(result.baseline, null);
-  assert.match(result.reason, /nessun tag v\*/);
+  assert.match(result.reason, /nessun tag v<numero>/);
   assert.equal(latestTag(dir), null);
 
+  // Una cartella fuori da ogni repository: GIT_CEILING_DIRECTORIES impedisce a git di risalire fino a un repository
+  // che contenga per caso la cartella temporanea.
   const plain = mkdtempSync(join(tmpdir(), "lh-contracts-compat-"));
   dirs.push(plain);
-  const skipped = run(plain);
-  if (skipped.status === "skipped") {
+  const ceiling = process.env.GIT_CEILING_DIRECTORIES;
+  process.env.GIT_CEILING_DIRECTORIES = tmpdir();
+  try {
+    const skipped = run(plain);
+    assert.notEqual(skipped.status, "error", dump(skipped));
+    assert.equal(skipped.status, "skipped", dump(skipped));
     assert.equal(skipped.exitCode, 0);
+    assert.equal(skipped.code, "no-git");
     assert.match(skipped.reason, /repository git/);
+  } finally {
+    if (ceiling === undefined) delete process.env.GIT_CEILING_DIRECTORIES;
+    else process.env.GIT_CEILING_DIRECTORIES = ceiling;
   }
 });
 
@@ -434,6 +445,48 @@ test("T29: tag su un commit senza contracts/events → saltato, exit 0 (Q-540)",
   assert.equal(result.baseline.ref, "v0.6.0");
   assert.match(result.reason, /il tag non contiene contracts\/events\//);
   assert.equal(schemasAtRef(dir, "v0.6.0").size, 0);
+});
+
+test("T29b: tag senza contratti (o nessun tag) → si confronta col merge-base, il gate non resta inerte (Q-540)", () => {
+  for (const withTag of [true, false]) {
+    const dir = repo();
+    writeFileSync(join(dir, "README.md"), "x\n");
+    commit(dir, "solo readme");
+    if (withTag) git(dir, "tag", "v0.6.0");
+    put(dir, NAME, schemaX());
+    commit(dir, "contratti su main");
+    git(dir, "checkout", "-q", "-b", "feature");
+    const label = withTag ? "tag v0.6.0" : "nessun tag";
+
+    // PR senza modifiche ai contratti (e main stesso): verde, ma il confronto c'è
+    const untouched = run(dir, { base: "main" });
+    assert.equal(untouched.status, "ok", `${label}: ${dump(untouched)}`);
+    assert.equal(untouched.code, "merge-base-only");
+    assert.equal(untouched.target, "main");
+    assert.equal(untouched.compared, 1);
+    assert.match(untouched.notes[0], withTag ? /il tag v0\.6\.0 non contiene contracts\/events\/: confronto solo con il merge-base con main \(Q-540\)/ : /nessun tag v<numero> raggiungibile/);
+
+    put(dir, NAME, schemaX(["a", "b", "c", "d"]));
+    put(dir, "fact/x.v2.schema.json", schemaX(["a"], { $id: "urn:loyaltyhub:schema:fact.x:2" }));
+    const additive = run(dir, { base: "main" });
+    assert.equal(additive.status, "ok", `${label}: ${dump(additive)}`);
+    assert.deepEqual(additive.added, ["fact/x.v2.schema.json"]);
+
+    put(dir, NAME, schemaX(["a", "b"]));
+    const removed = run(dir, { base: "main" });
+    assert.equal(removed.status, "broken", `${label}: ${dump(removed)}`);
+    assert.equal(removed.exitCode, 1);
+    assert.deepEqual(removed.blocking, [`${NAME}: (radice): proprietà «c» rimossa (rimozione)`]);
+    assert.equal(run(dir, { base: "main", labels: ["decisione"] }).status, "accepted");
+
+    const { out, err } = formatReport(removed, { github: true });
+    assert.ok(out[0].startsWith("check-contracts: compatibilità con main ("), out[0]);
+    assert.ok(out.some((l) => l.startsWith(withTag ? "::notice title=check-contracts::" : "::warning title=check-contracts::")), out.join("\n"));
+    assert.ok(err[0].startsWith("✗ check-contracts: 1 modifica incompatibile rispetto a main:"), err.join("\n"));
+
+    // senza ramo base non c'è nulla con cui confrontare: saltato come prima
+    assert.equal(run(dir, { base: "nope" }).status, "skipped");
+  }
 });
 
 test("T30: proprietà facoltativa e file nuovo rispetto al tag → ok, exit 0", () => {
@@ -506,6 +559,97 @@ test("T33: una rottura già su main non blocca di nuovo (Q-542); una nuova sì",
   assert.equal(viaEnv.mergeBase, null);
 });
 
+/** Schema con la proprietà «b» definita da `def` (oltre a «a», obbligatoria). */
+const withB = (def, extra = {}) =>
+  schemaX(["a"], { properties: { a: { type: "string", "x-lh-pii": false }, b: { "x-lh-pii": false, ...def } }, ...extra });
+/**
+ * Repo con `tag` nel tag v1.0.0, `onMain` su main (commit successivo, per esempio una rottura accettata con la label
+ * «decisione»), e `inPr` nel working tree del ramo `feature` (la PR).
+ */
+const prRepo = (tag, onMain, inPr) => {
+  const dir = repo();
+  put(dir, NAME, tag);
+  commit(dir, "contratti v1");
+  git(dir, "tag", "v1.0.0");
+  put(dir, NAME, onMain);
+  commit(dir, "già su main");
+  git(dir, "checkout", "-q", "-b", "feature");
+  if (inPr) put(dir, NAME, inPr);
+  return dir;
+};
+
+test("T33b (Q-542): un cambio diverso della stessa parola chiave già cambiata su main blocca", () => {
+  // I messaggi di pattern, enum introdotto, oneOf… non riportano i valori: il testo uguale non basta a dire «ereditata».
+  // [nome, tag, main, PR, testo atteso tra le rotture, rotture ereditate rimaste nella PR]
+  const scenarios = [
+    ["pattern", withB({ type: "string", pattern: "^[A-Z]{3}$" }), withB({ type: "string", pattern: "^[A-Z]{3,5}$" }), withB({ type: "string", pattern: "^[A-Z]$" }), "pattern cambiato", 0],
+    ["enum", withB({ type: "string" }), withB({ type: "string", enum: ["A", "B"] }), withB({ type: "string", enum: ["A"] }), "valore «B» tolto dall'enum", 1],
+    ["items", withB({ type: "array" }), withB({ type: "array", items: { type: "string" } }), withB({ type: "array", items: { type: "integer" } }), "tipo ristretto da string a integer", 1],
+    ["oneOf", withB({}), withB({ oneOf: [{ minLength: 1 }] }), withB({ oneOf: [{ minLength: 9 }] }), "parola chiave «oneOf» cambiata", 0],
+    ["additionalProperties", withB({ type: "object", additionalProperties: { type: "string" } }), withB({ type: "object", additionalProperties: 1 }), withB({ type: "object", additionalProperties: 2 }), "additionalProperties cambiato", 0],
+    ["schema booleano", withB({ properties: { c: false } }), withB({ properties: { c: { type: "string" } } }), withB({ properties: { c: { type: "integer" } } }), "tipo ristretto da string a integer", 1],
+  ];
+  for (const [name, tag, onMain, inPr, expected, inherited] of scenarios) {
+    // controllo: senza altre modifiche nella PR la rottura di main è ereditata
+    const same = run(prRepo(tag, onMain, null), { base: "main" });
+    assert.equal(same.status, "ok", `${name}: ${dump(same)}`);
+    assert.equal(same.inherited.length, 1, `${name}: ${dump(same)}`);
+    // la PR cambia ancora la stessa parola chiave: nuova rottura
+    const result = run(prRepo(tag, onMain, inPr), { base: "main" });
+    assert.equal(result.status, "broken", `${name}: ${dump(result)}`);
+    assert.equal(result.exitCode, 1, name);
+    assert.ok(result.blocking.some((f) => f.includes(expected)), `${name}: ${dump(result.blocking)}`);
+    assert.equal(result.inherited.length, inherited, `${name}: ${dump(result.inherited)}`);
+    // con la label «decisione» è una rottura accettata
+    assert.equal(run(prRepo(tag, onMain, inPr), { base: "main", labels: ["decisione"] }).exitCode, 0, name);
+  }
+});
+
+test("T33c (Q-542): una proprietà aggiunta su main dopo il tag e poi rotta dalla PR blocca", () => {
+  const tag = schemaX(["a"]);
+  const lot = { type: "object", required: ["id"], properties: { id: { type: "string", "x-lh-pii": false } }, "x-lh-pii": false };
+  const onMain = schemaX(["a"], { properties: { a: { type: "string", "x-lh-pii": false }, lot } });
+  // rispetto al tag non c'è nulla da confrontare: solo il merge-base la conosce
+  const retyped = run(prRepo(tag, onMain, schemaX(["a"], { properties: { a: { type: "string", "x-lh-pii": false }, lot: { ...lot, type: "integer" } } })), { base: "main" });
+  assert.equal(retyped.status, "broken", dump(retyped));
+  assert.equal(retyped.exitCode, 1);
+  assert.ok(retyped.blocking.some((f) => f.includes("lot: tipo ristretto da object a integer (restrizione)")), dump(retyped.blocking));
+  const removed = run(prRepo(tag, onMain, tag), { base: "main" });
+  assert.equal(removed.status, "broken", dump(removed));
+  assert.deepEqual(removed.blocking, [`${NAME}: (radice): proprietà «lot» rimossa (rimozione)`]);
+  // una proprietà facoltativa in più su main e nella PR non dà problemi
+  assert.equal(run(prRepo(tag, onMain, onMain), { base: "main" }).status, "ok");
+  // senza merge-base la protezione manca e lo dice
+  const noBase = run(prRepo(tag, onMain, tag), { base: "nope" });
+  assert.equal(noBase.status, "ok");
+  assert.match(noBase.notes[0], /le proprietà o i file aggiunti dopo il tag non sono protetti \(Q-542\)/);
+});
+
+test("T33d (Q-542): un file aggiunto su main dopo il tag è protetto quanto gli altri", () => {
+  const dir = taggedRepo();
+  put(dir, "fact/y.schema.json", schemaX(["a", "b"], { $id: "urn:loyaltyhub:schema:fact.y:1" }));
+  commit(dir, "fact.y su main");
+  git(dir, "checkout", "-q", "-b", "feature");
+  assert.equal(run(dir, { base: "main" }).status, "ok");
+  put(dir, "fact/y.schema.json", schemaX(["a"], { $id: "urn:loyaltyhub:schema:fact.y:1" }));
+  const removed = run(dir, { base: "main" });
+  assert.equal(removed.status, "broken", dump(removed));
+  assert.deepEqual(removed.blocking, ["fact/y.schema.json: (radice): proprietà «b» rimossa (rimozione)"]);
+  rmSync(join(dir, "contracts", "events", "fact", "y.schema.json"));
+  const gone = run(dir, { base: "main" });
+  assert.equal(gone.status, "broken", dump(gone));
+  assert.match(gone.blocking[0], /^fact\/y\.schema\.json: schema rimosso o rinominato/);
+});
+
+test("T33e (Q-542): tornare al tag dopo una rottura accettata su main è una restrizione rispetto a main", () => {
+  const tag = schemaX(["a", "b"]);
+  const onMain = schemaX(["a"], { required: [] }); // «b» rimossa e «a» non più obbligatoria (accettato)
+  const revert = run(prRepo(tag, onMain, tag), { base: "main" });
+  assert.equal(revert.status, "broken", dump(revert));
+  assert.ok(revert.blocking.some((f) => f.includes("campo «a» reso obbligatorio (restrizione)")), dump(revert.blocking));
+  assert.equal(run(prRepo(tag, onMain, tag), { base: "main", labels: ["decisione"] }).exitCode, 0);
+});
+
 test("T34: --baseline esplicito prevale sul tag; un riferimento inesistente è un errore (exit 2)", () => {
   const dir = repo();
   put(dir, NAME, schemaX(["a", "b", "c", "d"]));
@@ -536,10 +680,11 @@ test("T35: con più tag vince il più vicino a HEAD", () => {
   const result = run(dir);
   assert.equal(result.baseline.ref, "v1.1.0");
   assert.equal(result.status, "ok", dump(result));
-  // un tag non `v*` non conta
+  // un tag che non è `v<numero>` non conta
   put(dir, NAME, schemaX(["a"]));
   commit(dir, "1.2");
   git(dir, "tag", "release-x");
+  git(dir, "tag", "vendor-x"); // comincia per «v» ma non è un rilascio
   assert.equal(latestTag(dir), "v1.1.0");
 });
 
@@ -555,7 +700,8 @@ test("T36: solo allargamenti → exit 0 e segnalati (Q-541)", () => {
   assert.equal(result.widenings.length, 1);
   assert.match(result.widenings[0], /valore «Y» aggiunto all'enum/);
   const { out } = formatReport(result);
-  assert.ok(out.some((l) => l.startsWith("  ⚠ ") && l.includes("allargamento, non blocca (Q-139, Q-541)")), out.join("\n"));
+  assert.ok(out.some((l) => l.startsWith("  ⚠ ") && l.includes("(allargamento) — non blocca (Q-139, Q-541)")), out.join("\n"));
+  assert.ok(out.every((l) => !l.includes("allargamento, non blocca")), out.join("\n"));
   assert.ok(out.some((l) => l.startsWith("✓ check-contracts")));
 });
 
@@ -614,4 +760,60 @@ test("T40: formatReport — saltato con annotazioni GitHub", () => {
   const noGit = formatReport({ status: "skipped", code: "no-git", baseline: null, reason: "la cartella non è un repository git: confronto con l'ultimo tag saltato" }, { github: true });
   assert.ok(noGit.out.some((l) => l.startsWith("::warning title=check-contracts::") && l.includes("repository git")));
   assert.deepEqual(formatReport({ status: "error", reason: "boom" }).err, ["✗ check-contracts: boom"]);
+});
+
+// ================= cablaggio di check-contracts.mjs =================
+
+/** Esegue check-contracts.mjs di `scriptsDir`; ritorna { code, stdout, stderr }. */
+const cli = (scriptsDir, ...args) => {
+  const options = { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, GITHUB_ACTIONS: "" } };
+  try {
+    return { code: 0, stdout: execFileSync(process.execPath, [join(scriptsDir, "check-contracts.mjs"), ...args], options), stderr: "" };
+  } catch (e) {
+    return { code: e.status, stdout: String(e.stdout), stderr: String(e.stderr) };
+  }
+};
+
+test("T41: check-contracts.mjs sul repository stampa il confronto ed esce con 0", () => {
+  const result = cli(here, "--baseline=HEAD", "--base=HEAD");
+  assert.equal(result.code, 0, `${result.stdout}\n${result.stderr}`);
+  const line = result.stdout.split("\n").find((l) => l.startsWith("check-contracts: compatibilità con HEAD"));
+  assert.ok(line, result.stdout);
+  assert.match(line, /schemi confrontati, 0 nuovi\.$/);
+  assert.match(result.stdout, /✓ check-contracts: nessuna modifica incompatibile rispetto a HEAD e a HEAD\./);
+  assert.match(result.stdout, /check-contracts: \d+ esempi coerenti con gli schemi\./);
+  assert.ok(!result.stdout.includes("::notice") && !result.stdout.includes("::warning"), result.stdout);
+});
+
+test("T42: check-contracts.mjs esce con 1 su una rottura e con 2 su un riferimento inesistente", () => {
+  // copia degli script e dei contratti reali in un repository temporaneo: il cablaggio si prova senza toccare il vero
+  const dir = repo();
+  mkdirSync(join(dir, "scripts"));
+  for (const f of ["check-contracts.mjs", "contracts-compat.mjs"]) cpSync(join(here, f), join(dir, "scripts", f));
+  cpSync(join(here, "..", "contracts", "events"), join(dir, "contracts", "events"), { recursive: true });
+  commit(dir, "contratti");
+  git(dir, "tag", "v1.0.0");
+  const scripts = join(dir, "scripts");
+
+  const ok = cli(scripts);
+  assert.equal(ok.code, 0, `${ok.stdout}\n${ok.stderr}`);
+  assert.match(ok.stdout, /^check-contracts: compatibilità con v1\.0\.0 \(/m);
+
+  // una proprietà rimossa da uno schema reale
+  const rel = "fact/wallet.points.earned.schema.json";
+  const file = join(dir, "contracts", "events", rel);
+  const schema = JSON.parse(readFileSync(file, "utf8"));
+  const [victim] = Object.keys(schema.properties).filter((k) => !(schema.required ?? []).includes(k));
+  assert.ok(victim, "serve una proprietà facoltativa da rimuovere");
+  delete schema.properties[victim];
+  writeFileSync(file, `${JSON.stringify(schema, null, 2)}\n`);
+  const broken = cli(scripts);
+  assert.equal(broken.code, 1, `${broken.stdout}\n${broken.stderr}`);
+  assert.match(broken.stderr, new RegExp(`✗ check-contracts: 1 modifica incompatibile rispetto a v1\\.0\\.0:`));
+  assert.ok(broken.stderr.includes(`proprietà «${victim}» rimossa`), broken.stderr);
+  assert.equal(cli(scripts, "--pr-labels=decisione").code, 0);
+
+  const bad = cli(scripts, "--baseline=nope");
+  assert.equal(bad.code, 2, `${bad.stdout}\n${bad.stderr}`);
+  assert.match(bad.stderr, /✗ check-contracts: riferimento --baseline non risolvibile: nope/);
 });
