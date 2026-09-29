@@ -1,15 +1,39 @@
 package io.loyaltyhub.ingestion.infra;
 
+import io.loyaltyhub.common.sql.SqlColumn;
+import io.loyaltyhub.common.sql.SqlWhere;
 import io.loyaltyhub.ingestion.domain.InboundStatus;
 import io.loyaltyhub.ingestion.domain.RejectCode;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.Locale;
 
-/** Persistenza di {@code inbound_event} (docs/servizi/ingestion-service.md §2, §5). */
+/**
+ * Persistenza di {@code inbound_event} (docs/servizi/ingestion-service.md §2, §5). SQL costante oppure, per i filtri
+ * del monitor, una base costante con le condizioni di {@link SqlWhere} su colonne da enum (regola 19, ADR-042).
+ */
 @Repository
 public class InboundEventRepository {
+
+    /** Colonne ammesse nei filtri del monitor ({@link #search}, {@link #countByStatus}; regola 19, ADR-042). */
+    enum InboundColumn implements SqlColumn {
+        STATUS("status"), SOURCE_CODE("source_code"), TYPE_CODE("type_code"), MEMBER_ID("member_id"),
+        RECEIVED_AT("received_at"), EVENT_ID("event_id"), SUBJECT("subject"), CORRELATION_ID("correlation_id"),
+        REJECT_DETAIL("reject_detail");
+
+        private final String sql;
+
+        InboundColumn(String sql) {
+            this.sql = sql;
+        }
+
+        @Override
+        public String sql() {
+            return sql;
+        }
+    }
 
     private final JdbcClient jdbc;
 
@@ -33,6 +57,24 @@ public class InboundEventRepository {
             status, reject_code, reject_detail, correlation_id, origin, resolution, resolved_by, resolved_at
             """;
 
+    /** Base costante dell'elenco del monitor: vi si accodano solo {@link SqlWhere#sql()} e {@link #SEARCH_PAGE}. */
+    private static final String SEARCH_SELECT = "SELECT " + COLUMNS + "FROM inbound_event";
+
+    /** Ordinamento costante dell'elenco, più recenti prima come prima del builder, e limite legato. */
+    private static final String SEARCH_PAGE = " ORDER BY received_at DESC LIMIT :limit";
+
+    /** Base costante dei conteggi per esito: vi si accodano solo {@link SqlWhere#sql()} e {@link #COUNT_GROUP}. */
+    private static final String COUNT_SELECT = "SELECT status, count(*) AS n FROM inbound_event";
+
+    private static final String COUNT_GROUP = " GROUP BY status";
+
+    private static final String FIND_BY_ID = "SELECT " + COLUMNS + "FROM inbound_event WHERE id = ?";
+
+    private static final String FIND_STORED =
+            "SELECT " + COLUMNS + ", event_time, payload::text AS payload FROM inbound_event WHERE id = ?";
+
+    private static final String LOCK_STORED = FIND_STORED + " FOR UPDATE";
+
     /**
      * Filtri del monitor (docs/servizi/ingestion-service.md §3: {@code status, source, type, memberId, from, to, q}).
      * {@code from}/{@code to} delimitano {@code received_at} (estremi inclusi); {@code q} è un testo cercato senza
@@ -50,16 +92,10 @@ public class InboundEventRepository {
     }
 
     public java.util.List<InboundRow> search(String status, Filter filter, int limit) {
-        StringBuilder sql = new StringBuilder("SELECT " + COLUMNS + " FROM inbound_event WHERE 1 = 1\n");
-        java.util.List<Object> args = new java.util.ArrayList<>();
-        if (status != null && !status.isBlank()) {
-            sql.append(" AND status = ?");
-            args.add(status.trim().toUpperCase());
-        }
-        appendFilters(sql, args, filter);
-        sql.append(" ORDER BY received_at DESC LIMIT ?");
-        args.add(limit);
-        return jdbc.sql(sql.toString()).params(args).query(InboundEventRepository::mapRow).list();
+        SqlWhere where = filters(status, filter);
+        return where.bind(jdbc.sql(SEARCH_SELECT + where.sql() + SEARCH_PAGE))
+                .param("limit", limit)
+                .query(InboundEventRepository::mapRow).list();
     }
 
     /**
@@ -67,15 +103,12 @@ public class InboundEventRepository {
      * chiavi di {@link InboundStatus} ci sono sempre, in quell'ordine, anche a zero.
      */
     public java.util.Map<String, Long> countByStatus(Filter filter) {
-        StringBuilder sql = new StringBuilder("SELECT status, count(*) AS n FROM inbound_event WHERE 1 = 1\n");
-        java.util.List<Object> args = new java.util.ArrayList<>();
-        appendFilters(sql, args, filter);
-        sql.append(" GROUP BY status");
+        SqlWhere where = filters(null, filter);
         java.util.Map<String, Long> counts = new java.util.LinkedHashMap<>();
         for (InboundStatus s : InboundStatus.values()) {
             counts.put(s.name(), 0L);
         }
-        jdbc.sql(sql.toString()).params(args).query((rs, n) -> {
+        where.bind(jdbc.sql(COUNT_SELECT + where.sql() + COUNT_GROUP)).query((rs, n) -> {
             String status = rs.getString("status");
             if (counts.containsKey(status)) {
                 counts.put(status, rs.getLong("n"));
@@ -85,49 +118,44 @@ public class InboundEventRepository {
         return counts;
     }
 
-    private static void appendFilters(StringBuilder sql, java.util.List<Object> args, Filter f) {
-        if (f.source() != null && !f.source().isBlank()) {
-            sql.append(" AND source_code = ?");
-            args.add(f.source().trim());
-        }
-        if (f.type() != null && !f.type().isBlank()) {
-            sql.append(" AND type_code = ?");
-            args.add(f.type().trim());
-        }
-        if (f.memberId() != null && !f.memberId().isBlank()) {
-            sql.append(" AND member_id = ?");
-            args.add(f.memberId().trim());
-        }
-        if (f.from() != null) {
-            sql.append(" AND received_at >= ?");
-            args.add(java.sql.Timestamp.from(f.from()));
-        }
-        if (f.to() != null) {
-            sql.append(" AND received_at <= ?");
-            args.add(java.sql.Timestamp.from(f.to()));
-        }
-        if (f.q() != null && !f.q().isBlank()) {
-            String like = "%" + f.q().trim().toLowerCase(java.util.Locale.ROOT)
-                    .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
-            sql.append("""
-                     AND (lower(event_id) LIKE ? OR lower(subject) LIKE ? OR lower(coalesce(member_id, '')) LIKE ?
-                       OR lower(type_code) LIKE ? OR lower(source_code) LIKE ? OR lower(coalesce(correlation_id, '')) LIKE ?
-                       OR lower(coalesce(reject_detail, '')) LIKE ?)
-                    """);
-            for (int i = 0; i < 7; i++) {
-                args.add(like);
-            }
-        }
+    /**
+     * Filtri facoltativi del monitor, ignorati se assenti o vuoti (regola 19, ADR-042): esito per uguaglianza (ripulito
+     * e in maiuscolo), fonte, tipo e membro per uguaglianza (ripuliti), {@code from}/{@code to} inclusi su
+     * {@code received_at}; {@code q} è un testo letterale ({@code %}, {@code _} e {@code \} non sono caratteri jolly)
+     * cercato senza distinzione tra maiuscole e minuscole in id evento, soggetto, membro, tipo, fonte, correlazione e
+     * dettaglio del rifiuto. Colonne solo da {@link InboundColumn}; ogni valore è un parametro legato.
+     */
+    static SqlWhere filters(String status, Filter f) {
+        String text = present(f.q()) ? f.q().trim() : null;
+        return new SqlWhere()
+                .when(present(status), w -> w.eq(InboundColumn.STATUS, status.trim().toUpperCase(Locale.ROOT)))
+                .when(present(f.source()), w -> w.eq(InboundColumn.SOURCE_CODE, f.source().trim()))
+                .when(present(f.type()), w -> w.eq(InboundColumn.TYPE_CODE, f.type().trim()))
+                .when(present(f.memberId()), w -> w.eq(InboundColumn.MEMBER_ID, f.memberId().trim()))
+                .when(f.from() != null, w -> w.gte(InboundColumn.RECEIVED_AT, java.sql.Timestamp.from(f.from())))
+                .when(f.to() != null, w -> w.lte(InboundColumn.RECEIVED_AT, java.sql.Timestamp.from(f.to())))
+                .when(text != null, w -> w.anyOf(any -> any
+                        .ilike(InboundColumn.EVENT_ID, text)
+                        .ilike(InboundColumn.SUBJECT, text)
+                        .ilike(InboundColumn.MEMBER_ID, text)
+                        .ilike(InboundColumn.TYPE_CODE, text)
+                        .ilike(InboundColumn.SOURCE_CODE, text)
+                        .ilike(InboundColumn.CORRELATION_ID, text)
+                        .ilike(InboundColumn.REJECT_DETAIL, text)));
+    }
+
+    private static boolean present(String value) {
+        return value != null && !value.isBlank();
     }
 
     public java.util.Optional<InboundRow> findById(String id) {
-        return jdbc.sql("SELECT " + COLUMNS + " FROM inbound_event WHERE id = ?")
+        return jdbc.sql(FIND_BY_ID)
                 .param(id).query(InboundEventRepository::mapRow).optional();
     }
 
     /** Riga completa (payload e istante dell'evento) per il dettaglio. */
     public java.util.Optional<StoredInbound> findStored(String id) {
-        return jdbc.sql("SELECT " + COLUMNS + ", event_time, payload::text AS payload FROM inbound_event WHERE id = ?")
+        return jdbc.sql(FIND_STORED)
                 .param(id).query(InboundEventRepository::mapStored).optional();
     }
 
@@ -137,7 +165,7 @@ public class InboundEventRepository {
      * l'esito del primo — mai una doppia pubblicazione.
      */
     public java.util.Optional<StoredInbound> lockForResolution(String id) {
-        return jdbc.sql("SELECT " + COLUMNS + ", event_time, payload::text AS payload FROM inbound_event WHERE id = ? FOR UPDATE")
+        return jdbc.sql(LOCK_STORED)
                 .param(id).query(InboundEventRepository::mapStored).optional();
     }
 

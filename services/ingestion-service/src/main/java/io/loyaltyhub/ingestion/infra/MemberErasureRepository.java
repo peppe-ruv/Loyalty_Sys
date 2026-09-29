@@ -7,7 +7,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
-import java.util.ArrayList;
+import java.sql.Types;
 import java.util.List;
 import java.util.Locale;
 
@@ -20,6 +20,15 @@ import java.util.Locale;
  */
 @Repository
 public class MemberErasureRepository {
+
+    /**
+     * Righe del membro (regola 19, ADR-042): testo SQL costante, i subject {@code email:}/{@code external:} sono
+     * parametri legati e, se nulli, non corrispondono a nessuna riga ({@code lower(subject) = NULL} non è vero).
+     */
+    private static final String ROWS_OF_MEMBER = """
+            SELECT id, subject, payload::text AS payload, reject_detail FROM inbound_event
+            WHERE member_id = :memberId OR lower(subject) = :emailSubject OR lower(subject) = :externalSubject
+            """;
 
     private final JdbcClient jdbc;
     private final ObjectMapper mapper;
@@ -49,24 +58,15 @@ public class MemberErasureRepository {
                         """)
                 .params(memberId, PersonalData.ANONYMIZED).update();
 
-        List<String> subjects = new ArrayList<>();
-        if (keys.email() != null) {
-            subjects.add("email:" + keys.email().toLowerCase(Locale.ROOT));
-        }
-        if (keys.externalId() != null) {
-            subjects.add("external:" + keys.externalId().toLowerCase(Locale.ROOT));
-        }
+        // subject email:/external: in minuscolo come nella pipeline; null (nessun confronto) se manca la chiave
+        String emailSubject = keys.email() == null ? null : "email:" + keys.email().toLowerCase(Locale.ROOT);
+        String externalSubject = keys.externalId() == null ? null
+                : "external:" + keys.externalId().toLowerCase(Locale.ROOT);
         List<String> tokens = PersonalData.tokens(java.util.Arrays.asList(keys.email(), keys.externalId()));
-        StringBuilder where = new StringBuilder("member_id = ?");
-        List<Object> args = new ArrayList<>();
-        args.add(memberId);
-        for (String s : subjects) {
-            where.append(" OR lower(subject) = ?");
-            args.add(s);
-        }
-        List<Row> rows = jdbc.sql("SELECT id, subject, payload::text AS payload, reject_detail FROM inbound_event WHERE "
-                        + where)
-                .params(args)
+        List<Row> rows = jdbc.sql(ROWS_OF_MEMBER)
+                .param("memberId", memberId)
+                .param("emailSubject", emailSubject, Types.VARCHAR)
+                .param("externalSubject", externalSubject, Types.VARCHAR)
                 .query((rs, n) -> new Row(rs.getString("id"), rs.getString("subject"), rs.getString("payload"),
                         rs.getString("reject_detail")))
                 .list();

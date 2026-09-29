@@ -346,4 +346,38 @@ class ImportsIT extends ImportsItSupport {
         assertThat(get("/v1/imports?status=nope", 400).path("code").asString()).isEqualTo("BAD_REQUEST");
         assertThat(get("/v1/imports/NON-ESISTE", 404).path("code").asString()).isEqualTo("NOT_FOUND");
     }
+
+    /**
+     * Regola 19 (ADR-042): i filtri {@code status} e {@code outcome} passano da un'allowlist (gli enum degli stati e
+     * degli esiti) prima di diventare parametri legati; un valore fuori elenco, anche un tentativo di iniezione inviato
+     * davvero (variabile di template URI), è un problem RFC 9457 {@code 400} e non tocca le tabelle.
+     */
+    @Test
+    void filtersOutsideTheAllowlistAreRejectedAsProblems() {
+        String id = get("/v1/imports?size=1").path("items").get(0).path("id").asString();
+        long jobs = jdbc.sql("SELECT count(*) FROM import_job").query(Long.class).single();
+        long rows = jdbc.sql("SELECT count(*) FROM import_row").query(Long.class).single();
+        for (String value : List.of("x%' OR 1=1 --", "DONE' OR '1'='1", "status")) {
+            assertProblem(client().get().uri("/v1/imports?status={v}", value), value);
+            assertProblem(client().get().uri("/v1/imports/{id}/rows?outcome={v}", id, value), value);
+        }
+        assertThat(client().get().uri("/v1/imports?status={v}", " done ").retrieve().body(JsonNode.class)
+                .path("items").size()).as("valore ammesso, ripulito").isPositive();
+        assertThat(jdbc.sql("SELECT count(*) FROM import_job").query(Long.class).single()).isEqualTo(jobs);
+        assertThat(jdbc.sql("SELECT count(*) FROM import_row").query(Long.class).single()).isEqualTo(rows);
+    }
+
+    private void assertProblem(RestClient.RequestHeadersSpec<?> spec, String value) {
+        spec.exchange((req, res) -> {
+            String text = new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8);
+            assertThat(res.getStatusCode().value()).as(value + " → " + text).isEqualTo(400);
+            assertThat(res.getHeaders().getContentType()).as(value).isNotNull();
+            assertThat(res.getHeaders().getContentType().isCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                    .as(value + " → " + res.getHeaders().getContentType()).isTrue();
+            JsonNode problem = mapper.readTree(text);
+            assertThat(problem.path("code").asString()).isEqualTo("BAD_REQUEST");
+            assertThat(problem.path("status").asInt()).isEqualTo(400);
+            return null;
+        });
+    }
 }

@@ -6,6 +6,12 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
+/**
+ * Tipi azione (BO-09, docs/servizi/ingestion-service.md §2). Solo testo SQL costante (regola 19, ADR-042): codice,
+ * {@code data_schema} e {@code sample_data} sono parametri legati. I nomi dei campi di un tipo personalizzato e i loro
+ * percorsi ({@code GET /v1/event-types/{code}/fields}) si ricavano in Java dallo schema ({@code SchemaFields}) e non
+ * entrano mai in una query; il codice del tipo è comunque validato ({@code EventTypeService.CODE}, Q-439).
+ */
 @Repository
 public class EventTypeRepository {
 

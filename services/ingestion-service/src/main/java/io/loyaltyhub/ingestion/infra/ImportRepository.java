@@ -21,7 +21,7 @@ import java.util.function.Consumer;
 
 /**
  * Persistenza degli import file (tabelle {@code import_job} e {@code import_row}, F2-ING-02, BO-32). SQL costante o
- * composto da {@link SqlWhere} con colonne da enum (regola 19).
+ * base costante con le condizioni di {@link SqlWhere} su colonne da enum e ordinamento costante (regola 19, ADR-042).
  */
 @Repository
 public class ImportRepository {
@@ -61,6 +61,19 @@ public class ImportRepository {
             started_at, finished_at
             """;
 
+    /** Base costante dell'elenco dei lavori: vi si accodano solo {@link SqlWhere#sql()} e {@link #JOB_PAGE}. */
+    private static final String JOB_SELECT = "SELECT " + JOB_COLUMNS + "FROM import_job";
+
+    /** Ordinamento costante, più recenti prima con spareggio sull'id, e pagina legata. */
+    private static final String JOB_PAGE = " ORDER BY created_at DESC, id DESC LIMIT :limit OFFSET :offset";
+
+    /** Base costante del totale dei lavori: vi si accoda solo {@link SqlWhere#sql()}. */
+    private static final String JOB_COUNT = "SELECT count(*) FROM import_job";
+
+    private static final String JOB_BY_KEY = JOB_SELECT + " WHERE created_by = :createdBy AND idempotency_key = :key";
+
+    private static final String JOB_BY_ID = JOB_SELECT + " WHERE id = :id";
+
     private final JdbcClient jdbc;
 
     public ImportRepository(JdbcClient jdbc) {
@@ -91,27 +104,26 @@ public class ImportRepository {
 
     /** Lavoro dello stesso autore con questa {@code Idempotency-Key}. */
     public Optional<ImportJob> findByIdempotencyKey(String createdBy, String key) {
-        return jdbc.sql("SELECT " + JOB_COLUMNS + " FROM import_job WHERE created_by = :createdBy AND idempotency_key = :key")
+        return jdbc.sql(JOB_BY_KEY)
                 .param("createdBy", createdBy).param("key", key).query(ImportRepository::mapJob).optional();
     }
 
     public Optional<ImportJob> findById(String id) {
-        return jdbc.sql("SELECT " + JOB_COLUMNS + " FROM import_job WHERE id = :id")
+        return jdbc.sql(JOB_BY_ID)
                 .param("id", id).query(ImportRepository::mapJob).optional();
     }
 
     /** Pagina dei lavori, più recenti prima; {@code status} facoltativo. */
     public List<ImportJob> page(String status, int limit, int offset) {
         SqlWhere where = new SqlWhere().eqIfPresent(ImportColumn.STATUS, status);
-        return where.bind(jdbc.sql("SELECT " + JOB_COLUMNS + " FROM import_job" + where.sql()
-                        + " ORDER BY created_at DESC, id DESC LIMIT :limit OFFSET :offset"))
+        return where.bind(jdbc.sql(JOB_SELECT + where.sql() + JOB_PAGE))
                 .param("limit", limit).param("offset", offset)
                 .query(ImportRepository::mapJob).list();
     }
 
     public long count(String status) {
         SqlWhere where = new SqlWhere().eqIfPresent(ImportColumn.STATUS, status);
-        return where.bind(jdbc.sql("SELECT count(*) FROM import_job" + where.sql())).query(Long.class).single();
+        return where.bind(jdbc.sql(JOB_COUNT + where.sql())).query(Long.class).single();
     }
 
     /**
@@ -265,10 +277,18 @@ public class ImportRepository {
             FROM import_row r LEFT JOIN inbound_event e ON e.id = r.inbound_event_id
             """;
 
+    /** Ordinamento costante delle righe del rapporto: in ordine di riga (numero unico nel lavoro). */
+    private static final String ROW_ORDER = " ORDER BY r.row_number";
+
+    private static final String ROW_PAGE = ROW_ORDER + " LIMIT :limit OFFSET :offset";
+
+    /** Base costante del totale delle righe: vi si accoda solo {@link SqlWhere#sql()}. */
+    private static final String ROW_COUNT = "SELECT count(*) FROM import_row r";
+
     /** Righe non accettate del lavoro, in ordine di riga; {@code outcome} facoltativo. */
     public List<ImportRowResult> rows(String importId, String outcome, int limit, int offset) {
         SqlWhere where = rowFilter(importId, outcome);
-        return where.bind(jdbc.sql(ROW_SELECT + where.sql() + " ORDER BY r.row_number LIMIT :limit OFFSET :offset"))
+        return where.bind(jdbc.sql(ROW_SELECT + where.sql() + ROW_PAGE))
                 .param("limit", limit).param("offset", offset)
                 .query(ImportRepository::mapRow).list();
     }
@@ -277,12 +297,12 @@ public class ImportRepository {
     public void forEachRow(String importId, Consumer<ImportRowResult> action) {
         SqlWhere where = rowFilter(importId, null);
         RowCallbackHandler handler = rs -> action.accept(mapRow(rs, 0));
-        where.bind(jdbc.sql(ROW_SELECT + where.sql() + " ORDER BY r.row_number")).query(handler);
+        where.bind(jdbc.sql(ROW_SELECT + where.sql() + ROW_ORDER)).query(handler);
     }
 
     public long countRows(String importId, String outcome) {
         SqlWhere where = rowFilter(importId, outcome);
-        return where.bind(jdbc.sql("SELECT count(*) FROM import_row r" + where.sql())).query(Long.class).single();
+        return where.bind(jdbc.sql(ROW_COUNT + where.sql())).query(Long.class).single();
     }
 
     private static SqlWhere rowFilter(String importId, String outcome) {

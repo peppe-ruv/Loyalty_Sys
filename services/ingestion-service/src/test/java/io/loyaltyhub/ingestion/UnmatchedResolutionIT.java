@@ -304,7 +304,56 @@ class UnmatchedResolutionIT {
         assertThat(duplicates.body.get(0).path("rejectDetail").asString()).contains("stessa fonte");
     }
 
+    // ---------- SQL solo parametrico (regola 19, ADR-042) ----------
+
+    /**
+     * Via HTTP il valore di ogni filtro arriva al servizio così com'è (variabile di template URI, codificata una sola
+     * volta) e resta un dato: un tentativo di iniezione dà un elenco vuoto e conteggi a zero senza toccare la tabella.
+     */
+    @Test
+    void monitorFiltersTreatInjectionAsData() {
+        String sourceCode = "itsql" + SEQ.incrementAndGet();
+        sources.upsert(new Source(sourceCode, "Fonte SQL IT", "HTTP", true, List.of(), null));
+        String eventId = Ulid.next(Clock.systemUTC());
+        assertThat(postEvent(purchase(eventId, "external:NOPE-" + eventId, sourceCode)).path("status").asString())
+                .isEqualTo("UNMATCHED");
+        assertThat(monitor("q", eventId.toLowerCase(), sourceCode).size()).as("controllo: il template fa arrivare q")
+                .isEqualTo(1);
+
+        String injection = "x%' OR 1=1 --";
+        long before = jdbc.sql("SELECT count(*) FROM inbound_event").query(Long.class).single();
+        for (String param : List.of("status", "type", "memberId", "q")) {
+            assertThat(monitor(param, injection, sourceCode).size()).as(param).isZero();
+        }
+        for (String param : List.of("type", "memberId", "q")) {
+            assertThat(countsOf(monitorCounts(param, injection, sourceCode))).as(param).containsOnly(0L);
+        }
+        assertThat(monitor("source", injection, null).size()).as("source").isZero();
+        assertThat(jdbc.sql("SELECT count(*) FROM inbound_event").query(Long.class).single())
+                .as("nessun effetto sulla tabella").isEqualTo(before);
+    }
+
     // ---------- helper ----------
+
+    /** {@code GET /v1/inbound-events?source=…&<param>=<value>} con variabili di template (una sola codifica). */
+    private JsonNode monitor(String param, String value, String sourceCode) {
+        return templated("/v1/inbound-events", param, value, sourceCode);
+    }
+
+    private JsonNode monitorCounts(String param, String value, String sourceCode) {
+        return templated("/v1/inbound-events/counts", param, value, sourceCode);
+    }
+
+    private JsonNode templated(String path, String param, String value, String sourceCode) {
+        RestClient client = RestClient.create("http://localhost:" + port);
+        RestClient.RequestHeadersSpec<?> spec = sourceCode == null
+                ? client.get().uri(path + "?{param}={value}", param, value)
+                : client.get().uri(path + "?source={source}&{param}={value}", sourceCode, param, value);
+        Response r = spec.exchange((req, res) -> new Response(res.getStatusCode().value(),
+                mapper.readTree(res.getBody().readAllBytes())));
+        assertThat(r.status).as(param + " = " + value).isEqualTo(200);
+        return r.body;
+    }
 
     private JsonNode counts(String query) {
         Response r = call("GET", "/v1/inbound-events/counts" + query, null, null);
