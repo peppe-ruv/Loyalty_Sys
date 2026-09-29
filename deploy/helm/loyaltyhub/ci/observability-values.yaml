@@ -1,0 +1,8 @@
+# Valori di CI per lo scenario con osservabilità (check-helm, security-iac); non è un esempio d'installazione.
+# Si usa insieme a ci/lint-values.yaml: -f ci/lint-values.yaml -f ci/observability-values.yaml
+observability:
+  enabled: true
+  prometheus:
+    otlpEndpoint: http://prometheus-operated.monitoring.svc:9090/api/v1/otlp
+  prometheusRule:
+    enabled: true

@@ -59,6 +59,7 @@ flowchart TB
 - **Sicurezza**: Pod Security `restricted`, filesystem in sola lettura, nessun token del service account, nessun segreto nei valori: solo riferimenti a Secret esistenti. Nel profilo `enterprise` Kafka e Postgres esterni senza cifratura sono rifiutati, salvo deroga esplicita, e l'emittente OIDC e l'origine del web devono essere `https`.
 - **Scala**: HPA e PDB su `hub`, partizioni e concorrenza dei consumer configurabili. Nel profilo `enterprise` il web ha una sola replica, perché le sessioni del BFF stanno nella memoria del Pod: il chart rifiuta di più.
 - **Installazione**: il primo avvio di Kafka, Postgres e Keycloak richiede alcuni minuti; si installa con `helm install … --wait --timeout 15m`.
+- **Osservabilità**, spenta di default: collector OpenTelemetry, dashboard SLO e regole di allarme; Prometheus e Grafana sono prerequisiti. Vedi [Osservabilità: metriche, SLO e allarmi](/operations/osservabilita).
 
 ## Installazione provata in CI
 

@@ -1,0 +1,161 @@
+{{- /*
+Collector OpenTelemetry dell'osservabilità (F2-OBS-01, M8.6a; ADR-012, ADR-026, ADR-044; regola 8-bis): riceve le metriche
+OTLP dell'hub e le inoltra al ricevitore OTLP del Prometheus di chi installa (observability.prometheus.otlpEndpoint).
+Solo con observability.enabled. Il ricevitore non autentica: la NetworkPolicy ammette solo i Pod hub della release
+finché M8.5 non porta l'mTLS di mesh (SPEC-GAP: Q-521).
+*/ -}}
+{{- if .Values.observability.enabled }}
+{{- $o := .Values.observability }}
+{{- $c := $o.collector }}
+{{- $name := include "loyaltyhub.otelCollector.name" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "otel-collector") | nindent 4 }}
+data:
+  config.yaml: |-
+    {{- include "loyaltyhub.otelCollector.config" . | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "otel-collector") | nindent 4 }}
+spec:
+  replicas: {{ $c.replicas }}
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "loyaltyhub.selectorLabels" (dict "ctx" $ "role" "otel-collector") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "otel-collector") | nindent 8 }}
+      annotations:
+        # Un cambio di configurazione (destinazione, token, CA) riavvia il collector.
+        checksum/config: {{ include "loyaltyhub.otelCollector.config" . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "loyaltyhub.podCommon" (dict "ctx" $ "role" "otel-collector" "serviceAccount" false) | nindent 6 }}
+      containers:
+        - name: otel-collector
+          image: "{{ $c.image.repository }}:{{ $c.image.tag }}"
+          imagePullPolicy: {{ $c.image.pullPolicy }}
+          args:
+            - --config=/etc/otelcol/config.yaml
+          securityContext:
+            {{- include "loyaltyhub.containerSecurityContext" (dict "ctx" $) | nindent 12 }}
+          ports:
+            - name: otlp-http
+              containerPort: {{ include "loyaltyhub.port.otlpHttp" . }}
+            - name: health
+              containerPort: {{ include "loyaltyhub.port.otelHealth" . }}
+          env:
+            # Il ricevitore e la sonda ascoltano solo sull'IP del Pod (config.yaml).
+            - name: LH_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: GOMEMLIMIT
+              value: {{ $c.goMemLimit | quote }}
+            {{- if $o.prometheus.bearerToken.name }}
+            - name: LH_PROMETHEUS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $o.prometheus.bearerToken.name }}
+                  key: {{ $o.prometheus.bearerToken.key }}
+            {{- end }}
+          livenessProbe:
+            httpGet: { path: /, port: health }
+            periodSeconds: 20
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet: { path: /, port: health }
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml $c.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol
+              readOnly: true
+            {{- if $o.prometheus.caBundle.name }}
+            - name: prometheus-ca
+              mountPath: /etc/lh/prometheus-ca
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $name }}
+        {{- if $o.prometheus.caBundle.name }}
+        - name: prometheus-ca
+          configMap:
+            name: {{ $o.prometheus.caBundle.name }}
+            items:
+              - key: {{ $o.prometheus.caBundle.key }}
+                path: {{ $o.prometheus.caBundle.key }}
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "otel-collector") | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "loyaltyhub.selectorLabels" (dict "ctx" $ "role" "otel-collector") | nindent 4 }}
+  ports:
+    - name: otlp-http
+      port: {{ include "loyaltyhub.port.otlpHttp" . }}
+      targetPort: otlp-http
+{{- if $c.pdb.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "otel-collector") | nindent 4 }}
+spec:
+  minAvailable: {{ $c.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "loyaltyhub.selectorLabels" (dict "ctx" $ "role" "otel-collector") | nindent 6 }}
+{{- end }}
+{{- if $c.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "otel-collector") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "loyaltyhub.selectorLabels" (dict "ctx" $ "role" "otel-collector") | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "loyaltyhub.selectorLabels" (dict "ctx" $ "role" "hub") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ include "loyaltyhub.port.otlpHttp" . }}
+{{- end }}
+{{- end }}

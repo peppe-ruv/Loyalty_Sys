@@ -1,0 +1,26 @@
+{{- /*
+Dashboard SLO di Grafana (F2-OBS-01, M8.6a; ADR-036) come ConfigMap per il sidecar dei dashboard di Grafana (etichetta
+grafana_dashboard, cartella dall'annotazione grafana_folder). Il JSON è un file solo, condiviso con il compose di
+riferimento (files/observability/dashboards/). Solo con observability.enabled e grafana.dashboards.enabled.
+*/ -}}
+{{- if and .Values.observability.enabled .Values.observability.grafana.dashboards.enabled }}
+{{- $d := .Values.observability.grafana.dashboards }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "loyaltyhub.fullname" . }}-grafana-dashboards
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "observability") | nindent 4 }}
+    {{- with $d.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with $d.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  {{- range $path, $_ := .Files.Glob "files/observability/dashboards/*.json" }}
+  {{ base $path }}: |-
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+{{- end }}

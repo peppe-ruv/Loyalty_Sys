@@ -1,0 +1,29 @@
+# Collector OpenTelemetry del compose di riferimento (F2-OBS-01, M8.6a; ADR-012, ADR-044).
+# Stessa pipeline del chart (helper "loyaltyhub.otelCollector.config" in deploy/helm/loyaltyhub/templates/_helpers.tpl,
+# scripts/check-helm.mjs verifica la destinazione): solo metriche, ricevitore OTLP HTTP, esportazione OTLP verso il
+# ricevitore di Prometheus della stessa rete compose. Ascolta su tutte le interfacce del container, che nel compose non ha
+# porte pubblicate: lo raggiungono solo i servizi della rete (l'hub, come http://otelcol:4318).
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+    spike_limit_percentage: 20
+  batch: {}
+exporters:
+  otlphttp/prometheus:
+    endpoint: "http://prometheus:9090/api/v1/otlp"
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/prometheus]

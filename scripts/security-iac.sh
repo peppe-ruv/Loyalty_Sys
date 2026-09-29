@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Scansione IaC del job `security` (F2-SEC-03, ADR-042, ADR-044; docs/security/ci-security.md).
-# Trivy `config` su: chart Helm reso con `helm template` (gli stessi scenari del job `helm`), compose di riferimento e
+# Trivy `config` su: chart Helm reso con `helm template` (gli stessi scenari del job `helm`, più quello con l'osservabilità
+# accesa, ci/observability-values.yaml: collector, NetworkPolicy, PrometheusRule; M8.6a), compose di riferimento e
 # locale (controlli del progetto in .trivy/checks, perché Trivy non conosce Docker Compose) e Dockerfile dell'immagine
 # unica, più i Dockerfile di Fase 1 (deploy/hub e services/*: bloccanti solo se hanno `USER`, Q-504). Fallisce su HIGH e
 # CRITICAL, salvo le eccezioni con scadenza di .trivyignore.yaml e .trivy/ignore-policy.rego.
@@ -48,6 +49,9 @@ echo "::group::Chart Helm reso (helm template, valori di CI)"
   --set kafka.mode=external --set kafka.external.bootstrapServers=kafka.example.internal:9093 \
   --set kafka.external.sasl.username.name=lh-kafka --set kafka.external.sasl.password.name=lh-kafka \
   > "$OUT/external.yaml"
+# Osservabilità accesa (F2-OBS-01, M8.6a): il collector OpenTelemetry è un Pod in più, con la sua NetworkPolicy.
+"$HELM" template lh "$chart" --kube-version "$KUBE_VERSION" -f "$chart/ci/lint-values.yaml" \
+  -f "$chart/ci/observability-values.yaml" > "$OUT/observability.yaml"
 "$TRIVY" config "${common[@]}" --exit-code 1 --format table "$OUT"
 echo "::endgroup::"
 
