@@ -10,7 +10,7 @@ description: "E-F2-DIST Distribuzione: un'azienda installa e aggiorna il prodott
 
 **Attori**: installatore, ADMIN · **Feature**: F2-DIST-* · **Schermate**: HUB-02 · **Servizi**: tutti · **Testbook**: TB-DIST
 
-Questa epica ha 7 storie: 5 pronte secondo la Definition of Ready, 3 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+Questa epica ha 7 storie: 5 pronte secondo la Definition of Ready, 1 fatta secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
 
 <a id="us-f2-dist-01" />
 
@@ -18,7 +18,7 @@ Questa epica ha 7 storie: 5 pronte secondo la Definition of Ready, 3 fatte secon
 
 > *Come* chi installa il prodotto, *voglio* una sola immagine multi-arch che avvia il ruolo scelto con `LH_ROLE` e `LH_MODE`, *così che* appliance, compose e Kubernetes usino lo stesso artefatto.
 
-**DoR**: ✅ pronta · **DoD**: ✅ fatta
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2)
 
 **Contesto reale**: il team IT di un'azienda che valuta il programma demo «Club Aurora» avvia prima `LH_ROLE=hub` verso il Postgres e il Kafka del compose, poi separa `web` e `idp` in container distinti.
 
@@ -28,7 +28,7 @@ Questa epica ha 7 storie: 5 pronte secondo la Definition of Ready, 3 fatte secon
 
 **Criteri di accettazione**
 
-1. **Dato** l'immagine con `LH_MODE=external` verso Postgres e Kafka del compose, **quando** avvio i ruoli, **allora** sono tutti `UP`, le migrazioni sono applicate e lo smoke di Fase 1 è verde (docs/18 §6 M8).
+1. **Dato** l'immagine con `LH_MODE=external` verso Postgres e Kafka del compose, **quando** avvio i ruoli, **allora** sono tutti `UP`, le migrazioni sono applicate e lo smoke di Fase 1 è verde (docs/18 §6 M8, senza la parte «con login OIDC reale», che appartiene a [US-F2-IAM-03](/specifiche/backlog/e-f2-iam-identita#us-f2-iam-03)).
 2. **Dato** `LH_ROLE=hub` con una `PORT` ereditata dall'ambiente, **allora** l'hub risponde comunque su 8080 e lo smoke dell'immagine sulla PR è verde ([#84](https://github.com/peppe-ruv/Loyalty_Sys/pull/84)).
 3. **Dato** il container avviato, **allora** gira come utente non root, con filesystem in sola lettura e un healthcheck per ruolo (docs/18 §3.1, M8.1).
 4. **Dato** il servizio `web` del compose locale, **allora** parte dalla stessa immagine con `LH_ROLE=web` ([#122](https://github.com/peppe-ruv/Loyalty_Sys/pull/122)).
@@ -49,7 +49,7 @@ Questa epica ha 7 storie: 5 pronte secondo la Definition of Ready, 3 fatte secon
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ✅ | F2-DIST-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#52](https://github.com/peppe-ruv/Loyalty_Sys/pull/52), [#113](https://github.com/peppe-ruv/Loyalty_Sys/pull/113), [#120](https://github.com/peppe-ruv/Loyalty_Sys/pull/120), [#122](https://github.com/peppe-ruv/Loyalty_Sys/pull/122) |
-| D2 Criteri provati | ✅ | prove automatiche: [image.yml](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/.github/workflows/image.yml) |
+| D2 Criteri provati | ⬜ | prove automatiche: image.yml (nessun job citato esiste in questo workflow: non è una prova) |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
@@ -59,7 +59,7 @@ Questa epica ha 7 storie: 5 pronte secondo la Definition of Ready, 3 fatte secon
 
 > *Come* chi installa su Kubernetes, *voglio* un chart con un Deployment per ruolo e operatori di default per Postgres e Kafka, *così che* un'installazione parta con un comando e usi i servizi gestiti quando li ho.
 
-**DoR**: ✅ pronta · **DoD**: ✅ fatta
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2, D3)
 
 **Contesto reale**: l'azienda installa «Club Aurora» su un cluster di prova con Strimzi e CloudNativePG, poi in produzione imposta `postgres.mode=external` verso il database gestito.
 
@@ -73,7 +73,7 @@ Questa epica ha 7 storie: 5 pronte secondo la Definition of Ready, 3 fatte secon
 2. ✗ **Dato** un valore che chiede il ruolo `cms`, il ruolo `jobs` o la modalità `embedded`, **allora** il rendering del chart fallisce ([#95](https://github.com/peppe-ruv/Loyalty_Sys/pull/95)).
 3. ✗ **Dato** l'API Strimzi `v1beta2`, **allora** il chart la rifiuta ([#127](https://github.com/peppe-ruv/Loyalty_Sys/pull/127)).
 4. **Dato** ogni Pod del chart, **allora** ha sicurezza `restricted`, requests e limits e soli riferimenti a Secret esistenti, verificati da `check-helm` ([#95](https://github.com/peppe-ruv/Loyalty_Sys/pull/95)).
-5. **Dato** il profilo `enterprise`, **quando** installo su kind, **allora** pod `Ready` e smoke verde: residuo dichiarato (Q-491, TOBE-008).
+5. **Dato** il profilo `enterprise`, **quando** installo su kind, **allora** pod `Ready` e smoke verde: ⚠ residuo dichiarato (Q-491, TOBE-008).
 
 **Testbook**: TB-DIST (dominio senza righe) · prove automatiche: `scripts/check-helm.mjs`, `.github/workflows/ci.yml` (job `helm install (kind)`).
 
@@ -91,8 +91,8 @@ Questa epica ha 7 storie: 5 pronte secondo la Definition of Ready, 3 fatte secon
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ✅ | F2-DIST-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#95](https://github.com/peppe-ruv/Loyalty_Sys/pull/95), [#104](https://github.com/peppe-ruv/Loyalty_Sys/pull/104), [#127](https://github.com/peppe-ruv/Loyalty_Sys/pull/127) |
-| D2 Criteri provati | ✅ | prove automatiche: [check-helm.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/check-helm.mjs), [ci.yml](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/.github/workflows/ci.yml) |
-| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D2 Criteri provati | ⬜ | un criterio dichiara un residuo o una prova da fare: le prove citate non lo coprono; evidenza: prove automatiche: [check-helm.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/check-helm.mjs), [ci.yml](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/.github/workflows/ci.yml) (job helm install (kind)) |
+| D3 Nessuno scostamento aperto | ⬜ | 1 marcatore ⚠ (divergenza) |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
 <a id="us-f2-dist-03" />
@@ -210,7 +210,7 @@ Questa epica ha 7 storie: 5 pronte secondo la Definition of Ready, 3 fatte secon
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ⬜ | F2-DIST-05 (assente da docs/14) |
-| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
@@ -249,7 +249,7 @@ Questa epica ha 7 storie: 5 pronte secondo la Definition of Ready, 3 fatte secon
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ⬜ | F2-DIST-06 (assente da docs/14) |
-| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 

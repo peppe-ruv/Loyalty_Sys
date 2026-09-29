@@ -94,7 +94,7 @@
             "pages": [
               "specifiche/backlog",
               {
-                "group": "Fase 1",
+                "group": "Epiche di Fase 1",
                 "pages": [
                   "specifiche/backlog/e01-ingresso-eventi",
                   "specifiche/backlog/e02-membri-e-segmenti",
@@ -111,7 +111,7 @@
                 ]
               },
               {
-                "group": "Fase 2",
+                "group": "Epiche di Fase 2",
                 "pages": [
                   "specifiche/backlog/e-f2-dist-distribuzione",
                   "specifiche/backlog/e-f2-iam-identita",

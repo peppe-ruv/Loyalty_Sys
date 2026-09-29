@@ -1,17 +1,25 @@
 #!/usr/bin/env node
 // docs-sync — genera le pagine Mintlify delle specifiche dai file di docs/ (ADR-040, docs/18 §3.12).
-// Prima parte (M8.9b, F2-DOC-02): il backlog di docs/17 con Definition of Ready e Definition of Done calcolate.
+// Prima parte (M8.9b, F2-DOC-02): il backlog di docs/17 con Definition of Ready e Definition of Done.
+//
+// Le voci che dipendono solo dal testo della storia (R1–R4, D3) si calcolano a ogni esecuzione da docs/17. Le voci che
+// dipendono dalle evidenze del repository (R5–R8, D1, D2, D4) stanno in uno snapshot committato,
+// `specifiche/backlog/_status.json`, che si aggiorna con --refresh nella PR di stato cumulativa (ADR-047).
+// Le pagine sono quindi una funzione pura di docs/17, del generatore e dello snapshot: una PR di codice non le rompe.
 //
 // Uso:
-//   node scripts/docs-sync.mjs            # rigenera specifiche/backlog.mdx, specifiche/backlog/*.mdx e il gruppo
-//                                         # «Backlog» di docs.json
-//   node scripts/docs-sync.mjs --check    # esce ≠ 0 se le pagine committate differiscono da quelle generate
-//   node scripts/docs-sync.mjs --backlog  # come senza argomenti (unica sezione generata per ora)
+//   node scripts/docs-sync.mjs                # rigenera le pagine dallo snapshot esistente (nessuna evidenza letta)
+//   node scripts/docs-sync.mjs --backlog      # alias del precedente
+//   node scripts/docs-sync.mjs --check        # solo struttura (job guard): pagine, gruppo «Backlog» di docs.json e
+//                                             # copertura dello snapshot; non legge docs/14, docs/15, docs/16, testbook,
+//                                             # sorgenti dei test, seed né le intestazioni di docs/07–09 e docs/18
+//   node scripts/docs-sync.mjs --refresh      # rilegge le evidenze del repository, riscrive snapshot, pagine e docs.json
+//   node scripts/docs-sync.mjs --check-status # avviso: quante storie cambierebbero con --refresh (esce sempre 0)
 //
 // Nessuna dipendenza: solo moduli di Node, così gira anche nel job `guard` senza `npm ci`.
-// Le evidenze della DoD vengono da docs/14 (feature spuntate e PR), docs/16 e docs/testbook/ (righe TB-*), dai sorgenti
-// dei test (ID TB-* presenti) e dai file di prova citati nelle storie. Nessuna rete, nessun orologio: stesso input,
-// stesso output.
+// Le evidenze vengono da docs/14 (feature spuntate e PR), docs/16 e docs/testbook/ (righe TB-*), dai sorgenti dei test
+// (ID TB-* presenti), dai file di prova citati nelle storie e da .github/workflows/ (job e script invocati).
+// Nessuna rete, nessun orologio: stesso input, stesso output; il refresh registra lo SHA breve del commit di HEAD.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,6 +30,7 @@ const BLOB = `${REPO_URL}/blob/main/`;
 const SOURCE = 'docs/17-EPIC-E-STORIE.md';
 const OUT_INDEX = 'specifiche/backlog.mdx';
 const OUT_DIR = 'specifiche/backlog';
+export const SNAPSHOT = `${OUT_DIR}/_status.json`;
 const PAGE_BASE = '/specifiche/backlog';
 const HEADER = `{/* Generato da scripts/docs-sync.mjs a partire da ${SOURCE}: non modificare a mano. */}`;
 
@@ -312,6 +321,50 @@ function walk(root, rel, files) {
   }
 }
 
+/**
+ * I workflow di GitHub Actions: i job (id e `name:`) per file e gli script davvero invocati da una riga non commentata
+ * (`node scripts/x.mjs`, `bash scripts/y.sh`). Senza dipendenze: legge solo il livello dei job.
+ */
+export function parseWorkflows(files) {
+  const jobsByFile = new Map();
+  const runLines = [];
+  for (const [file, text] of files) {
+    const jobs = new Set();
+    let inJobs = false;
+    let cur = null;
+    let named = false;
+    for (const line of text.split('\n')) {
+      if (/^\s*#/.test(line)) continue;
+      runLines.push(line);
+      if (/^jobs:\s*$/.test(line)) { inJobs = true; continue; }
+      if (inJobs && /^\S/.test(line)) inJobs = false;
+      if (!inJobs) continue;
+      const id = line.match(/^ {2}([A-Za-z0-9_-]+):\s*(?:#.*)?$/);
+      if (id) { cur = id[1]; named = false; jobs.add(cur); continue; }
+      const nm = cur && !named && line.match(/^ {4}name:\s*(.+?)\s*$/);
+      if (nm) { jobs.add(nm[1].replace(/^(["'])(.*)\1$/, '$2')); named = true; }
+    }
+    jobsByFile.set(file, jobs);
+  }
+  const jobs = new Set([...jobsByFile.values()].flatMap((j) => [...j]));
+  const invoked = (p) => runLines.some((l) => {
+    const i = l.indexOf(p);
+    return i > 0 && /\b(?:node|bash|sh|npx|pnpm|python3?)\b/.test(l.slice(0, i));
+  });
+  return { jobsByFile, jobs, invoked };
+}
+
+function loadWorkflows(root) {
+  const dir = '.github/workflows';
+  const files = new Map();
+  if (fs.existsSync(path.join(root, dir))) {
+    for (const f of fs.readdirSync(path.join(root, dir)).sort()) {
+      if (/\.ya?ml$/.test(f)) files.set(`${dir}/${f}`, fs.readFileSync(path.join(root, dir, f), 'utf8'));
+    }
+  }
+  return parseWorkflows(files);
+}
+
 /** Legge dal repository tutto ciò che serve a valutare DoR e DoD. */
 export function loadContext(root) {
   const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
@@ -368,28 +421,40 @@ export function loadContext(root) {
       for (const m of last.matchAll(/\b([A-Z]{2,5})(?:-\d{3})?\b/g)) areas.add(m[1]);
       rules.push({ areas, stories: storyRefs(l), subjects: new Set([...featureRefs(l), ...screenRefs(l)]) });
     }
+    // Sezioni: dall'intestazione (## o ###) alla successiva. Conta l'intero corpo, «**Regola.**» compresa: le feature e
+    // le storie citate lì valgono per tutte le righe della sezione.
+    const sections = [];
     let h2 = '';
     let h3 = '';
+    let sec = null;
     for (const l of text) {
-      if (/^## /.test(l)) { h2 = l; h3 = ''; }
-      else if (/^### /.test(l)) h3 = l;
-      const m = l.match(/^\|\s*`?(TB-[A-Z0-9]{3}(?:-[A-Z]{2,5})?-\d{3,4})`?\s*\|/);
-      if (!m) continue;
-      const id = m[1];
-      const domain = id.slice(0, 6);
-      const area = (id.match(/^TB-[A-Z0-9]{3}-([A-Z]{2,5})-/) ?? [])[1];
-      tbDomainsDocumented.add(domain);
-      const row = {
-        id, domain, file: f,
-        stories: new Set([...storyRefs(l), ...storyRefs(h2), ...storyRefs(h3)]),
-        subjects: new Set([...featureRefs(l), ...screenRefs(l)]),
-      };
-      for (const r of rules) {
-        if (!r.areas.has('*') && !(area && r.areas.has(area))) continue;
-        for (const x of r.stories) row.stories.add(x);
-        for (const x of r.subjects) row.subjects.add(x);
+      if (/^## /.test(l)) { h2 = l; h3 = ''; sec = { h2, h3, body: [] }; sections.push(sec); }
+      else if (/^### /.test(l)) { h3 = l; sec = { h2, h3, body: [] }; sections.push(sec); }
+      if (sec) sec.body.push(l);
+    }
+    for (const sc of sections) {
+      const body = sc.body.join('\n');
+      const sectionStories = new Set([...storyRefs(sc.h2), ...storyRefs(sc.h3), ...storyRefs(body)]);
+      const sectionFeatures = featureRefs(body);
+      for (const l of sc.body) {
+        const m = l.match(/^\|\s*`?(TB-[A-Z0-9]{3}(?:-[A-Z]{2,5})?-\d{3,4})`?\s*\|/);
+        if (!m) continue;
+        const id = m[1];
+        const domain = id.slice(0, 6);
+        const area = (id.match(/^TB-[A-Z0-9]{3}-([A-Z]{2,5})-/) ?? [])[1];
+        tbDomainsDocumented.add(domain);
+        const row = {
+          id, domain, file: f,
+          stories: new Set([...storyRefs(l), ...sectionStories]),
+          subjects: new Set([...featureRefs(l), ...screenRefs(l), ...sectionFeatures]),
+        };
+        for (const r of rules) {
+          if (!r.areas.has('*') && !(area && r.areas.has(area))) continue;
+          for (const x of r.stories) row.stories.add(x);
+          for (const x of r.subjects) row.subjects.add(x);
+        }
+        rows.push(row);
       }
-      rows.push(row);
     }
   }
 
@@ -399,7 +464,7 @@ export function loadContext(root) {
   const dirs = ['services', 'libs', 'deploy', 'web', 'e2e'];
   let files = [];
   try {
-    files = execFileSync('git', ['ls-files', '-z', '--', ...dirs], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+    files = execFileSync('git', ['ls-files', '-z', '--', ...dirs], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] })
       .split('\0').filter(Boolean);
   } catch {
     for (const d of dirs) walk(root, d, files);
@@ -436,7 +501,7 @@ export function loadContext(root) {
     for (const s of screenRefs(m[1])) if (!screens.has(s)) screens.set(s, 'docs/18 §5');
   }
 
-  return { features, outOfScope, questions, rows, tbDomainsDocumented, executed, seedTokens, screens, exists };
+  return { features, outOfScope, questions, rows, tbDomainsDocumented, executed, seedTokens, screens, exists, ...loadWorkflows(root) };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -468,22 +533,34 @@ function storySubjects(story) {
   return { features: [...featureRefs(touch)], screens: [...screenRefs(touch)] };
 }
 
-/** Voci R1–R8 della Definition of Ready. */
-export function evaluateDoR(story, ctx) {
+const LABEL = {
+  R1: 'Forma della storia', R2: 'ID di specifica', R3: 'Criteri di accettazione', R4: 'Casi negativi',
+  R5: 'Dominio di testbook', R6: 'Dipendenze e domande', R7: 'Dati demo', R8: 'Stati dell\'interfaccia',
+  D1: 'Feature completate', D2: 'Criteri provati', D3: 'Nessuno scostamento aperto', D4: 'Controlli della fetta',
+};
+/** Le voci che dipendono dalle evidenze del repository: stanno nello snapshot. Le altre si calcolano dal testo. */
+export const EVIDENCE_DOR = ['R5', 'R6', 'R7', 'R8'];
+export const EVIDENCE_DOD = ['D1', 'D2', 'D4'];
+const item = (id, status, evidence) => ({ id, label: LABEL[id], status, evidence });
+
+/** I job citati nel campo *Testbook* («job `guard`»). */
+const citedJobs = (tb) => [...new Set([...String(tb).matchAll(/job `([^`]+)`/g)].map((m) => m[1]))];
+
+/** Voci R1–R4 della Definition of Ready: dipendono solo dal testo della storia. */
+export function textDoR(story) {
   const items = [];
-  const push = (id, label, status, evidence) => items.push({ id, label, status, evidence });
+  const push = (id, status, evidence) => items.push(item(id, status, evidence));
   const f = story.fields;
 
-  push('R1', 'Forma della storia',
+  push('R1',
     /\*Come\*[\s\S]*\*vogli(?:o|amo)\*[\s\S]*\*così che\*/i.test(story.sentence) ? OK : KO,
     /\*Come\*/i.test(story.sentence) ? 'frase *Come … voglio … così che …*' : 'manca la frase *Come … voglio … così che …*');
 
-  const SPEC_ID = /\b(?:F2?-[A-Z0-9]+-\d{2}|RNF-\d{2}|BO-\d{2}|PT-\d{2}|HUB-\d{2}|EVT-[A-Z]+-\d{2}|ADR-\d{3})\b|\bdocs\/\d{2} §\s?[\w.-]+/g;
   const fromTouch = [...new Set(`${f.Tocca ?? ''}`.match(SPEC_ID) ?? [])];
   const fromMatrix = [...new Set(`${story.matrix ?? ''}`.match(SPEC_ID) ?? [])].filter((x) => !fromTouch.includes(x));
-  if (fromTouch.length) push('R2', 'ID di specifica', OK, list(fromTouch));
-  else if (fromMatrix.length) push('R2', 'ID di specifica', OK, `${list(fromMatrix)} (dalla matrice di §6.1)`);
-  else push('R2', 'ID di specifica', KO, 'nessun ID nel campo *Tocca* né nella matrice di §6.1');
+  if (fromTouch.length) push('R2', OK, list(fromTouch));
+  else if (fromMatrix.length) push('R2', OK, `${list(fromMatrix)} (dalla matrice di §6.1)`);
+  else push('R2', KO, 'nessun ID nel campo *Tocca* né nella matrice di §6.1');
 
   const pending = /da scrivere con la fetta/i.test(`${f.Criteri ?? ''} ${story.criteria.join(' ')}`);
   const gwt = story.criteria.filter((c) => /\bDat[oaie]\b/i.test(c) && /\ballora\b/i.test(c));
@@ -493,31 +570,48 @@ export function evaluateDoR(story, ctx) {
   else if (pending) r3 = [KO, `${nn(gwt.length, 'criterio', 'criteri')} Dato/Quando/Allora, altri da scrivere con la fetta`];
   else if (!gwt.length) r3 = [KO, 'criteri senza la forma Dato/Quando/Allora'];
   else r3 = [OK, `${nn(gwt.length, 'criterio', 'criteri')} Dato/Quando/Allora`];
-  push('R3', 'Criteri di accettazione', ...r3);
+  push('R3', ...r3);
 
   const errs = errorPaths(story);
   const negatives = story.criteria.filter((c) => c.includes('✗')).length;
-  if (!errs.length) push('R4', 'Casi negativi', OK, negatives ? nn(negatives, 'criterio ✗', 'criteri ✗') : 'nessuna risposta d\'errore 4xx nella storia');
-  else push('R4', 'Casi negativi', negatives ? OK : KO,
+  if (!errs.length) push('R4', OK, negatives ? nn(negatives, 'criterio ✗', 'criteri ✗') : 'nessuna risposta d\'errore 4xx nella storia');
+  else push('R4', negatives ? OK : KO,
     negatives ? `${nn(negatives, 'criterio ✗', 'criteri ✗')} per ${list(errs, 4)}` : `risposte d'errore (${list(errs, 4)}) senza criterio ✗`);
+  return items;
+}
+
+const SPEC_ID = /\b(?:F2?-[A-Z0-9]+-\d{2}|RNF-\d{2}|BO-\d{2}|PT-\d{2}|HUB-\d{2}|EVT-[A-Z]+-\d{2}|ADR-\d{3})\b|\bdocs\/\d{2} §\s?[\w.-]+/g;
+
+/** Voci R5–R8 della Definition of Ready: dipendono dalle evidenze del repository. */
+export function evidenceDoR(story, ctx) {
+  const items = [];
+  const push = (id, status, evidence) => items.push(item(id, status, evidence));
+  const f = story.fields;
 
   const tb = `${f.Testbook ?? ''}`;
   const domains = [...tbDomains(tb)];
   const proposed = [...story.proposedDomains].filter((d) => !domains.includes(d));
-  const jobs = [...tb.matchAll(/job `([^`]+)`/g)].map((m) => m[1]);
+  // Un job citato conta solo se esiste in .github/workflows/*.yml (per id o per `name:`).
+  const jobsCited = citedJobs(tb);
+  const jobsOk = jobsCited.filter((j) => ctx.jobs?.has(j));
+  const jobsBad = jobsCited.filter((j) => !jobsOk.includes(j));
   const proofs = proofPaths(tb);
   const citing = [...new Set(ctx.rows.filter((r) => r.stories.has(story.id)).map((r) => r.domain))].sort();
-  if (domains.length || proposed.length || jobs.length || proofs.length || citing.length) {
+  if (domains.length || proposed.length || jobsOk.length || proofs.length || citing.length) {
     const parts = domains.map((d) => (ctx.tbDomainsDocumented.has(d) ? `${d} (con righe)` : `${d} (dominio senza righe)`));
     for (const d of proposed) parts.push(`${d} (proposto in §7${ctx.tbDomainsDocumented.has(d) ? ', con righe' : ''})`);
     for (const d of citing) if (!domains.includes(d) && !proposed.includes(d)) parts.push(`${d} (le sue righe citano la storia)`);
-    for (const j of jobs) parts.push(`job ${j}`);
+    for (const j of jobsOk) parts.push(`job ${j}`);
+    for (const j of jobsBad) parts.push(`job ${j} (assente da .github/workflows)`);
     if (proofs.length) parts.push(nn(proofs.length, 'prova automatica', 'prove automatiche'));
-    push('R5', 'Dominio di testbook', OK, list(parts, 4));
-  } else push('R5', 'Dominio di testbook', KO, tb ? 'nessun dominio TB né job di verifica' : 'campo *Testbook* assente');
+    push('R5', OK, list(parts, 4));
+  } else {
+    push('R5', KO, !tb ? 'campo *Testbook* assente'
+      : jobsBad.length ? `nessun dominio TB; job ${list(jobsBad, 3)} assente da .github/workflows` : 'nessun dominio TB né job di verifica');
+  }
 
   const qs = [...new Set([...story.raw.matchAll(Q_REF)].map((m) => `Q-${m[1]}`))].sort((x, y) => x.slice(2) - y.slice(2));
-  if (!qs.length) push('R6', 'Dipendenze e domande', OK, 'nessuna domanda citata');
+  if (!qs.length) push('R6', OK, 'nessuna domanda citata');
   else {
     const missing = qs.filter((q) => !ctx.questions.has(q));
     const open = qs.filter((q) => ctx.questions.get(q) === 'APERTA');
@@ -526,67 +620,95 @@ export function evaluateDoR(story, ctx) {
     if (closed) parts.push(nn(closed, 'decisa o superata', 'decise o superate'));
     if (open.length) parts.push(`${nn(open.length, 'aperta', 'aperte')} con default in uso (SPEC-GAP): ${list(open, 4)}`);
     if (missing.length) parts.push(`assenti da docs/15: ${list(missing, 4)}`);
-    push('R6', 'Dipendenze e domande', missing.length ? KO : OK, parts.join('; '));
+    push('R6', missing.length ? KO : OK, parts.join('; '));
   }
 
   const seedText = `${f['Contesto reale'] ?? ''} ${story.criteria.filter((c) => !c.includes('✗')).map(precondition).join(' ')}`;
   const seedIds = [...new Set(seedText.match(SEED_REF) ?? [])].sort();
-  if (!seedIds.length) push('R7', 'Dati demo', TBD, 'nessun ID di dati demo citato');
+  if (!seedIds.length) push('R7', TBD, 'nessun ID di dati demo citato');
   else {
     const missing = seedIds.filter((s) => !ctx.seedTokens.has(s));
-    push('R7', 'Dati demo', missing.length ? KO : OK,
+    push('R7', missing.length ? KO : OK,
       missing.length ? `assenti da seed/: ${list(missing, 4)}` : `in seed/: ${list(seedIds, 5)}`);
   }
 
   const { screens } = storySubjects(story);
-  if (!screens.length) push('R8', 'Stati dell\'interfaccia', OK, 'nessuna schermata');
+  if (!screens.length) push('R8', OK, 'nessuna schermata');
   else {
     const missing = screens.filter((s) => !ctx.screens.has(s));
-    push('R8', 'Stati dell\'interfaccia', missing.length ? KO : OK,
+    push('R8', missing.length ? KO : OK,
       missing.length ? `schermate non specificate: ${list(missing, 4)}` : `${list(screens, 5)} ${screens.length === 1 ? 'specificata' : 'specificate'}; stati di docs/07 §6`);
   }
   return items;
 }
 
+/** Voci R1–R8 della Definition of Ready, valutate su un contesto di evidenze. */
+export function evaluateDoR(story, ctx) {
+  return [...textDoR(story), ...evidenceDoR(story, ctx)];
+}
+
 const prLink = (n) => `[#${n}](${REPO_URL}/pull/${n})`;
 const blobLink = (p, label = p) => `[${label}](${BLOB}${p.split('/').map(encodeURIComponent).join('/')})`;
 
-/** Voci D1–D4 della Definition of Done. */
-export function evaluateDoD(story, ctx) {
+/** Una prova automatica citata nel campo *Testbook*: conta solo se esiste ed è davvero agganciata alla CI. */
+function checkProof(p, ctx, jobsOk) {
+  if (!ctx.exists(p)) return { p, ok: false, missing: true, note: 'file non trovato' };
+  if (p.startsWith('.github/workflows/')) {
+    // Un workflow da solo non prova nulla: serve un job citato che esista in quel file.
+    const paired = jobsOk.filter((j) => ctx.jobsByFile?.get(p)?.has(j));
+    return paired.length ? { p, ok: true, note: `job ${paired.join(', ')}` } : { p, ok: false, note: 'nessun job citato esiste in questo workflow: non è una prova' };
+  }
+  if (p.startsWith('scripts/')) {
+    return ctx.invoked?.(p) ? { p, ok: true } : { p, ok: false, note: 'nessun workflow lo invoca: non è una prova in CI' };
+  }
+  return { p, ok: true };
+}
+
+/** Un criterio che il testo stesso dichiara ancora scoperto («residuo dichiarato», «divergenza residua», «prova … da fare»). */
+const RESIDUAL = /residuo dichiarato|residuo aperto|divergenza residua|residuo \(?TOBE|prova[^.;)]*da fare/i;
+
+/** Voci D1, D2 e D4 della Definition of Done: dipendono dalle evidenze. D2 qui è la sola evidenza (senza i cancelli di testo). */
+export function evidenceDoD(story, ctx) {
   const items = [];
-  const push = (id, label, status, evidence) => items.push({ id, label, status, evidence });
+  const push = (id, status, evidence) => items.push(item(id, status, evidence));
   const { features, screens } = storySubjects(story);
 
-  // D1 — feature spuntate in docs/14.
+  // D1 — feature spuntate in docs/14; in Fase 2 anche il numero della pull request (DoD 11).
   const inScope = features.filter((x) => !ctx.outOfScope.has(x));
-  if (!inScope.length) push('D1', 'Feature completate', TBD, 'nessuna feature F- o F2- nella storia');
+  if (!inScope.length) push('D1', TBD, 'nessuna feature F- o F2- nella storia');
   else {
     const done = [];
     const notDone = [];
     const prs = new Set();
     for (const x of inScope) {
       const st = ctx.features.get(x);
-      if (st?.status === 'x') done.push(x);
+      if (st?.status === 'x' && story.phase === 2 && !st.prs.length) notDone.push(`${x} (spuntata senza numero di PR)`);
+      else if (st?.status === 'x') done.push(x);
       else notDone.push(`${x} ${!st ? '(assente da docs/14)' : st.status === '~' ? '(in corso)' : '(da fare)'}`);
       for (const n of st?.prs ?? []) prs.add(n);
     }
     const prText = prs.size ? `; PR ${list([...prs].sort((a, b) => a - b).map(prLink), 8)}` : '';
     const where = blobLink('docs/14-STATO-AVANZAMENTO.md', 'docs/14');
-    if (!notDone.length) push('D1', 'Feature completate', OK, `${list(done)} ${done.length === 1 ? 'spuntata' : 'spuntate'} in ${where}${prText}`);
-    else push('D1', 'Feature completate', KO, `${list(notDone, 4)}${done.length ? `; spuntate: ${list(done, 4)}` : ''}${prText}`);
+    if (!notDone.length) push('D1', OK, `${list(done)} ${done.length === 1 ? 'spuntata' : 'spuntate'} in ${where}${prText}`);
+    else push('D1', KO, `${list(notDone, 4)}${done.length ? `; spuntate: ${list(done, 4)}` : ''}${prText}`);
   }
 
-  // D2 — righe di testbook eseguite o prove automatiche.
-  const named = tbRowRefs(story.fields.Testbook ?? '');
+  // D2 — righe di testbook eseguite o prove automatiche agganciate alla CI.
+  const tb = story.fields.Testbook ?? '';
+  const named = tbRowRefs(tb);
   const direct = ctx.rows.filter((r) => r.stories.has(story.id) || named.has(r.id));
-  const domains = new Set([...tbDomains(story.fields.Testbook ?? ''), ...story.proposedDomains]);
+  const domains = new Set([...tbDomains(tb), ...story.proposedDomains]);
   const subjects = new Set([...features, ...screens]);
   const byFeature = ctx.rows.filter((r) => domains.has(r.domain) && !r.stories.has(story.id) && [...r.subjects].some((s) => subjects.has(s)));
   const run = (rs) => rs.filter((r) => ctx.executed.has(r.id));
   const directRun = run(direct);
   const featureRun = run(byFeature);
-  const proofs = proofPaths(story.fields.Testbook ?? '');
-  const proofsFound = proofs.filter((p) => ctx.exists(p));
+  const jobsCited = citedJobs(tb);
+  const jobsOk = jobsCited.filter((j) => ctx.jobs?.has(j));
+  const jobsBad = jobsCited.filter((j) => !jobsOk.includes(j));
+  const proofs = proofPaths(tb).map((p) => checkProof(p, ctx, jobsOk));
+  const proofsOk = proofs.filter((x) => x.ok);
+  const proofsMissing = proofs.filter((x) => x.missing);
   const parts = [];
   if (direct.length) parts.push(`${nn(direct.length, 'riga legata', 'righe legate')} alla storia, ${directRun.length} ${directRun.length === 1 ? 'eseguita' : 'eseguite'} dai test: ${list(directRun.length ? directRun.map((r) => r.id) : direct.map((r) => r.id), 4)}`);
   if (byFeature.length) {
@@ -594,35 +716,76 @@ export function evaluateDoD(story, ctx) {
     parts.push(`${nn(byFeature.length, 'riga', 'righe')} sulle feature o schermate della storia in ${doms}, ${featureRun.length} ${featureRun.length === 1 ? 'eseguita' : 'eseguite'}: ${list((featureRun.length ? featureRun : byFeature).map((r) => r.id), 3)}`);
   }
   if (proofs.length) {
-    parts.push(`prove automatiche: ${proofs.map((p) => (ctx.exists(p) ? blobLink(p, path.posix.basename(p)) : `${path.posix.basename(p)} (file non trovato)`)).join(', ')}`);
+    parts.push(`prove automatiche: ${proofs.map((x) => (x.ok ? `${blobLink(x.p, path.posix.basename(x.p))}${x.note ? ` (${x.note})` : ''}` : `${path.posix.basename(x.p)} (${x.note})`)).join(', ')}`);
   }
-  const d2ok = (directRun.length || featureRun.length || proofsFound.length) && proofsFound.length === proofs.length;
-  push('D2', 'Criteri provati', d2ok ? OK : KO, parts.length ? parts.join('; ') : 'nessuna riga di testbook né prova automatica');
+  if (jobsBad.length) parts.push(`job ${list(jobsBad, 3)}: assente da .github/workflows`);
+  const d2ok = (directRun.length || featureRun.length || proofsOk.length) && !proofsMissing.length;
+  push('D2', d2ok ? OK : KO, parts.length ? parts.join('; ') : 'nessuna riga di testbook né prova automatica');
 
-  // D3 — scostamenti aperti.
-  const blocked = (story.raw.match(/⛔/g) ?? []).length;
-  const warn = (story.raw.match(/⚠/g) ?? []).length;
-  if (!blocked && !warn) push('D3', 'Nessuno scostamento aperto', OK, 'nessun ⛔ né ⚠ nella storia');
-  else {
-    const p = [];
-    if (blocked) p.push(`${blocked} ${blocked === 1 ? 'marcatore' : 'marcatori'} ⛔ (regola senza codice)`);
-    if (warn) p.push(`${warn} ${warn === 1 ? 'marcatore' : 'marcatori'} ⚠ (divergenza)`);
-    push('D3', 'Nessuno scostamento aperto', KO, p.join(', '));
-  }
-
-  push('D4', 'Controlli della fetta', TBD, 'build, stati dell\'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request');
+  push('D4', TBD, 'build, stati dell\'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request');
   return items;
 }
 
-/** Stato sintetico di una storia. */
-export function evaluate(story, ctx) {
-  if (story.outOfScope) return { story, dor: [], dod: [], ready: 'na', done: 'na' };
-  const dor = evaluateDoR(story, ctx);
-  const dod = evaluateDoD(story, ctx);
+/** Perché D2 non può essere soddisfatta a prescindere dalle prove: criteri non pronti o residui dichiarati. */
+function d2Gates(story, r3) {
+  const gates = [];
+  if (r3.status === KO) gates.push('criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora');
+  if (story.criteria.some((c) => RESIDUAL.test(c))) gates.push('un criterio dichiara un residuo o una prova da fare: le prove citate non lo coprono');
+  return gates;
+}
+
+/** D3 — scostamenti aperti: dipende solo dal testo della storia. */
+export function textDoD(story) {
+  const blocked = (story.raw.match(/⛔/g) ?? []).length;
+  const warn = (story.raw.match(/⚠/g) ?? []).length;
+  if (!blocked && !warn) return item('D3', OK, 'nessun ⛔ né ⚠ nella storia');
+  const p = [];
+  if (blocked) p.push(`${blocked} ${blocked === 1 ? 'marcatore' : 'marcatori'} ⛔ (regola senza codice)`);
+  if (warn) p.push(`${warn} ${warn === 1 ? 'marcatore' : 'marcatori'} ⚠ (divergenza)`);
+  return item('D3', KO, p.join(', '));
+}
+
+/** Voci D1–D4: D3 e i cancelli di D2 dal testo della storia, D1, D2 e D4 dalle evidenze. */
+function assembleDoD(story, evidence, r3) {
+  const by = Object.fromEntries(evidence.map((i) => [i.id, i]));
+  const gates = d2Gates(story, r3);
+  const d2 = gates.length ? item('D2', KO, `${gates.join('; ')}; evidenza: ${by.D2.evidence}`) : by.D2;
+  return [by.D1, d2, textDoD(story), by.D4];
+}
+
+/** Voci D1–D4 della Definition of Done, valutate su un contesto di evidenze. */
+export function evaluateDoD(story, ctx) {
+  const r3 = textDoR(story).find((i) => i.id === 'R3');
+  return assembleDoD(story, evidenceDoD(story, ctx), r3);
+}
+
+/** Stato sintetico di una storia da DoR e DoD già assemblate. */
+function summarize(story, dor, dod) {
   const ready = dor.some((i) => i.status === KO) ? 'no' : 'yes';
   const core = dod.filter((i) => i.id !== 'D4');
   const done = core.some((i) => i.status === KO) ? 'no' : core.some((i) => i.status === TBD) ? 'tbd' : 'yes';
   return { story, dor, dod, ready, done };
+}
+
+/** Le voci basate sulle evidenze di una storia (la voce dello snapshot), o null se è fuori perimetro. */
+export function evidenceOf(story, ctx) {
+  if (story.outOfScope) return null;
+  return { dor: evidenceDoR(story, ctx), dod: evidenceDoD(story, ctx) };
+}
+
+/** Stato di una storia da evidenze appena lette (usato dal refresh e dai test). */
+export function evaluate(story, ctx) {
+  if (story.outOfScope) return { story, dor: [], dod: [], ready: 'na', done: 'na' };
+  return evaluateWith(story, evidenceOf(story, ctx));
+}
+
+/** Stato di una storia dalle voci basate sulle evidenze (di una lettura o dello snapshot) e dal suo testo. */
+export function evaluateWith(story, evidence) {
+  if (story.outOfScope) return { story, dor: [], dod: [], ready: 'na', done: 'na' };
+  const text = textDoR(story);
+  const dor = [...text, ...evidence.dor];
+  const dod = assembleDoD(story, evidence.dod, text.find((i) => i.id === 'R3'));
+  return summarize(story, dor, dod);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -645,7 +808,7 @@ function prose(text, storyIndex) {
         const target = storyIndex.get(id);
         return target ? `[${id}](${target})` : id;
       })
-      .replace(/(?<![\w/&#])#(\d{2,4})\b/g, (all, n) => prLink(n)));
+      .replace(/(?<![\w/&#])#(\d{1,4})\b/g, (all, n) => prLink(n)));
   return rewriteLinks(escapeMdx(linked));
 }
 
@@ -719,7 +882,7 @@ function renderEpic(epic, evs, storyIndex) {
     '',
     `**Attori**: ${prose(epic.actors, storyIndex)} · **Feature**: ${prose(epic.features, storyIndex)} · **Schermate**: ${prose(epic.screens, storyIndex)} · **Servizi**: ${prose(epic.services, storyIndex)} · **Testbook**: ${prose(epic.tb, storyIndex)}`,
     '',
-    `Questa epica ha ${c.total} ${c.total === 1 ? 'storia' : 'storie'}${c.out ? `, di cui ${c.out} fuori perimetro` : ''}: ${c.ready} pronte secondo la Definition of Ready, ${c.done} fatte secondo la Definition of Done${c.tbd ? `, ${c.tbd} da verificare` : ''}. Come si legge ogni voce è spiegato nell'[indice del backlog](${PAGE_BASE}#come-leggere-una-storia).`,
+    `Questa epica ha ${c.total} ${c.total === 1 ? 'storia' : 'storie'}${c.out ? `, di cui ${c.out} fuori perimetro` : ''}: ${c.ready} ${c.ready === 1 ? 'pronta' : 'pronte'} secondo la Definition of Ready, ${c.done} ${c.done === 1 ? 'fatta' : 'fatte'} secondo la Definition of Done${c.tbd ? `, ${c.tbd} da verificare` : ''}. Come si legge ogni voce è spiegato nell'[indice del backlog](${PAGE_BASE}#come-leggere-una-storia).`,
     '',
   ];
   for (const ev of evs) out.push(renderStory(ev, storyIndex));
@@ -779,7 +942,13 @@ function epicTable(epics, evsByEpic, storyIndex) {
   return { table: out.join('\n'), tot };
 }
 
-function renderIndex(model, evsByEpic, storyIndex) {
+/** «commit `abc1234` del 2026-09-29»: l'ultimo refresh delle evidenze. */
+function refreshLabel(snapshot) {
+  const sha = snapshot.refreshedAt ? `commit \`${snapshot.refreshedAt}\`` : 'commit non registrato';
+  return snapshot.refreshedDate ? `${sha} del ${snapshot.refreshedDate}` : sha;
+}
+
+function renderIndex(model, evsByEpic, storyIndex, snapshot) {
   const p1 = model.epics.filter((e) => e.phase === 1);
   const p2 = model.epics.filter((e) => e.phase === 2);
   const t1 = epicTable(p1, evsByEpic, storyIndex);
@@ -804,7 +973,7 @@ Il backlog raccoglie le epiche e le storie utente del Loyalty Hub, di Fase 1 (la
 Usa queste pagine per sapere, storia per storia, se è **pronta** per entrare in una fetta (Definition of Ready) e se è **fatta** (Definition of Done). Lo stato non lo scrive nessuno a mano: lo calcola \`scripts/docs-sync.mjs\` dal sorgente [\`docs/17-EPIC-E-STORIE.md\`](${BLOB}${SOURCE}) e dalle evidenze del repository.
 
 <Note>
-  Oggi il backlog ha ${c.total} storie: ${c.ready} pronte, ${c.done} fatte${c.tbd ? `, ${c.tbd} con la DoD da verificare` : ''} e ${c.out} fuori perimetro della PoC.
+  Oggi il backlog ha ${c.total} storie: ${c.ready} pronte, ${c.done} fatte${c.tbd ? `, ${c.tbd} con la DoD da verificare` : ''} e ${c.out} fuori perimetro della PoC. Le voci basate sulle evidenze del repository sono aggiornate all'ultimo refresh: ${refreshLabel(snapshot)}.
 </Note>
 
 ## Dall'epica alla storia fatta
@@ -847,24 +1016,38 @@ Gli esiti delle voci sono tre:
 
 ## Come si calcola lo stato
 
-\`scripts/docs-sync.mjs\` legge solo file del repository, senza rete:
+\`scripts/docs-sync.mjs\` legge solo file del repository, senza rete. Le voci sono di due tipi.
 
-- **DoR**: i campi della storia in \`docs/17\` (frase, *Tocca*, criteri, *Testbook*), la matrice di \`docs/17 §6.1\` e i domini proposti in \`docs/17 §7\`, le domande di \`docs/15\`, i token dei dati demo in \`seed/\`, le schermate specificate in \`docs/07\`, \`docs/08\`, \`docs/09\` e \`docs/18 §5\`.
-- **D1**: le righe \`[x]\` di \`docs/14\` per ogni \`F-\` e \`F2-\` della storia e i numeri delle pull request sulla stessa riga. Una feature della sezione «Fuori PoC» non conta.
-- **D2**: le righe \`TB-*\` di \`docs/16\` e \`docs/testbook/\` legate alla storia (la citano nella riga, nel titolo della sezione o nella regola dell'inventario che copre la loro area, oppure il campo *Testbook* le nomina) o, nel dominio della storia, alle sue feature e schermate. Il dominio viene dal campo *Testbook* o dalla proposta di \`docs/17 §7\`; le feature dal campo *Tocca* o dalla matrice di \`docs/17 §6.1\`. Una riga conta come eseguita se il suo ID compare nei sorgenti dei test (\`src/test/\`, \`*.test.ts\`, \`e2e/\`). In alternativa valgono i file di prova citati nel campo *Testbook*, se esistono.
+Quelle che dipendono solo dal testo della storia si calcolano a ogni generazione da \`docs/17\`:
+
+- **R1–R4**: la frase *Come … voglio … così che …*, gli ID di specifica nel campo *Tocca* (o nella matrice di \`docs/17 §6.1\`), i criteri *Dato/Quando/Allora* e i criteri negativi ✗.
 - **D3**: i marcatori ⛔ e ⚠ nel testo della storia.
 
-Per rigenerare le pagine dopo una modifica a \`docs/17\` o alle evidenze, esegui:
+Quelle che dipendono dalle evidenze del repository stanno in uno snapshot committato, \`specifiche/backlog/_status.json\`. Lo snapshot si aggiorna con \`--refresh\` nella pull request di stato cumulativa (\`docs(stato)\`, ADR-047), non a ogni pull request di codice:
+
+- **R5–R8**: il dominio di testbook e i job di verifica citati (un job conta solo se esiste in \`.github/workflows/\`), le domande di \`docs/15\`, i token dei dati demo in \`seed/\`, le schermate specificate in \`docs/07\`, \`docs/08\`, \`docs/09\` e \`docs/18 §5\`.
+- **D1**: le righe \`[x]\` di \`docs/14\` per ogni \`F-\` e \`F2-\` della storia e i numeri delle pull request sulla stessa riga. Una feature della sezione «Fuori PoC» non conta; in Fase 2 serve anche il numero della pull request.
+- **D2**: le righe \`TB-*\` di \`docs/16\` e \`docs/testbook/\` legate alla storia (la citano nella riga, nel titolo o nel testo della sezione, compresa la regola, o nella regola dell'inventario che copre la loro area, oppure il campo *Testbook* le nomina) o, nel dominio della storia, alle sue feature e schermate. Una riga conta come eseguita se il suo ID compare nei sorgenti dei test (\`src/test/\`, \`*.test.ts\`, \`e2e/\`). In alternativa valgono le prove citate nel campo *Testbook*: un file di test che esiste, uno script che un workflow invoca, un workflow insieme a un suo job che esiste. D2 non è mai soddisfatta se i criteri non sono pronti (R3) o se un criterio dichiara un residuo.
+
+Le pagine mostrano lo stato dell'ultimo refresh: ${refreshLabel(snapshot)}.
+
+Per aggiornare le pagine, esegui:
 
 \`\`\`bash
-# Rigenera le pagine del backlog e il gruppo «Backlog» di docs.json
+# Rigenera le pagine e il gruppo «Backlog» di docs.json dallo snapshot esistente
 node scripts/docs-sync.mjs
-# Verifica che le pagine committate siano aggiornate (lo esegue il job guard)
+# Rilegge le evidenze del repository e aggiorna snapshot, pagine e docs.json
+node scripts/docs-sync.mjs --refresh
+# Verifica solo la struttura, senza leggere le evidenze (lo esegue il job guard)
 node scripts/docs-sync.mjs --check
+# Avviso: quante storie cambierebbero con --refresh (esce sempre 0)
+node scripts/docs-sync.mjs --check-status
 \`\`\`
 
 ## Limiti noti
 
+- Lo stato basato sulle evidenze è quello dell'ultimo refresh: può essere più vecchio del repository finché la pull request di stato cumulativa non lo aggiorna.
+- Una storia può risultare con D2 non soddisfatta anche se è provata: il collegamento tra righe di testbook e storie passa dai riferimenti scritti (nella riga, nel titolo o nel testo della sezione, nella regola dell'inventario, nel campo *Testbook*). Una riga che non cita né la storia né una sua feature non la prova. In quel caso aggiungi il riferimento in \`docs/testbook/\` o cita le righe nel campo *Testbook*.
 - Una riga di testbook conta come eseguita quando il suo ID compare nei sorgenti dei test, non quando il test è verde: l'esito lo dà \`scripts/testbook.sh\` in CI.
 - Le righe trovate tramite le feature della storia provano la regola della feature, non necessariamente ogni criterio della storia.
 - Una riga eredita storie e feature dalle regole dell'inventario del suo testbook che coprono la sua area: è un collegamento per area, più largo di quello per singola riga.
@@ -885,19 +1068,29 @@ ${reasons('dod', 'D')}
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Generazione e navigazione.
+// Generazione, snapshot e navigazione.
 
-/** Aggiorna il gruppo «Backlog» della scheda «Specifiche tecniche» di docs.json. */
+/** Il gruppo «Backlog» della scheda «Specifiche tecniche» di docs.json. */
+export function backlogGroup(model) {
+  const pagesOf = (phase) => model.epics.filter((e) => e.phase === phase && e.stories.length).map((e) => `${OUT_DIR}/${epicSlug(e)}`);
+  return {
+    group: 'Backlog',
+    pages: ['specifiche/backlog', { group: 'Epiche di Fase 1', pages: pagesOf(1) }, { group: 'Epiche di Fase 2', pages: pagesOf(2) }],
+  };
+}
+
+function specTab(doc) {
+  const tab = doc.navigation?.tabs?.find((t) => t.tab === 'Specifiche tecniche');
+  if (!tab) throw new Error('docs.json: scheda «Specifiche tecniche» assente');
+  return tab;
+}
+
+/** Sostituisce solo il gruppo «Backlog» di docs.json e lascia il resto com'è (stessa formattazione a 2 spazi). */
 export function updateDocsJson(json, model) {
   const doc = JSON.parse(json);
-  const tab = doc.navigation.tabs.find((t) => t.tab === 'Specifiche tecniche');
-  if (!tab) throw new Error('docs.json: scheda «Specifiche tecniche» assente');
+  const tab = specTab(doc);
   for (const g of tab.groups) g.pages = g.pages.filter((p) => p !== 'specifiche/backlog');
-  const pagesOf = (phase) => model.epics.filter((e) => e.phase === phase && e.stories.length).map((e) => `${OUT_DIR}/${epicSlug(e)}`);
-  const group = {
-    group: 'Backlog',
-    pages: ['specifiche/backlog', { group: 'Fase 1', pages: pagesOf(1) }, { group: 'Fase 2', pages: pagesOf(2) }],
-  };
+  const group = backlogGroup(model);
   const i = tab.groups.findIndex((g) => g.group === 'Backlog');
   if (i >= 0) tab.groups[i] = group;
   else {
@@ -907,55 +1100,241 @@ export function updateDocsJson(json, model) {
   return `${JSON.stringify(doc, null, 2)}\n`;
 }
 
-/** Tutti i file generati: percorso → contenuto. */
-export function generate(root) {
-  const model = parseBacklog(fs.readFileSync(path.join(root, SOURCE), 'utf8'));
-  const ctx = loadContext(root);
+/** Il gruppo «Backlog» com'è in docs.json, o null. */
+export function readBacklogGroup(json) {
+  return specTab(JSON.parse(json)).groups.find((g) => g.group === 'Backlog') ?? null;
+}
+
+/** JSON con le chiavi ordinate: per confrontare due gruppi senza dipendere dall'ordine delle chiavi. */
+const canon = (x) => JSON.stringify(x, (k, v) => (v && typeof v === 'object' && !Array.isArray(v)
+  ? Object.fromEntries(Object.keys(v).sort().map((key) => [key, v[key]])) : v));
+
+// --- Snapshot delle evidenze -----------------------------------------------------------------------------------
+
+const allStories = (model) => model.epics.flatMap((e) => e.stories);
+const entryOf = (ev) => ({
+  dor: Object.fromEntries(ev.dor.map((i) => [i.id, { status: i.status, evidence: i.evidence }])),
+  dod: Object.fromEntries(ev.dod.map((i) => [i.id, { status: i.status, evidence: i.evidence }])),
+});
+const evidenceFromEntry = (entry) => ({
+  dor: EVIDENCE_DOR.map((id) => item(id, entry.dor[id].status, entry.dor[id].evidence)),
+  dod: EVIDENCE_DOD.map((id) => item(id, entry.dod[id].status, entry.dod[id].evidence)),
+});
+
+/** Le incoerenze tra le storie di docs/17 e lo snapshot: storie senza voce, voci senza storia, voci incomplete. */
+export function snapshotProblems(model, snap) {
+  const problems = [];
+  const known = new Set();
+  const valid = (x) => x && [OK, KO, TBD].includes(x.status) && typeof x.evidence === 'string';
+  for (const s of allStories(model)) {
+    known.add(s.id);
+    const entry = snap.stories?.[s.id];
+    if (!entry) problems.push(`${s.id}: storia in docs/17 senza voce nello snapshot`);
+    else if (!s.outOfScope && !(EVIDENCE_DOR.every((id) => valid(entry.dor?.[id])) && EVIDENCE_DOD.every((id) => valid(entry.dod?.[id])))) {
+      problems.push(`${s.id}: voce dello snapshot incompleta`);
+    }
+  }
+  for (const id of Object.keys(snap.stories ?? {})) if (!known.has(id)) problems.push(`${id}: voce nello snapshot per una storia che non è più in docs/17`);
+  return problems;
+}
+
+/** Lo stato di tutte le storie dallo snapshot (pura: nessuna evidenza letta). */
+function evaluateAll(model, snap) {
+  return new Map(model.epics.map((e) => [e.id, e.stories.map((s) => evaluateWith(s, s.outOfScope ? null : evidenceFromEntry(snap.stories[s.id])))]));
+}
+
+/** Snapshot completo: metadati, totali (derivati) e voci, con le chiavi in ordine stabile. */
+export function finalizeSnapshot(base, model) {
+  const stories = {};
+  for (const id of Object.keys(base.stories).sort()) stories[id] = base.stories[id];
+  const snap = { refreshedAt: base.refreshedAt ?? null, refreshedDate: base.refreshedDate ?? null, stories };
+  const c = counts([...evaluateAll(model, snap).values()].flat());
+  return {
+    generatedBy: 'node scripts/docs-sync.mjs --refresh',
+    refreshedAt: snap.refreshedAt,
+    refreshedDate: snap.refreshedDate,
+    totals: { stories: c.total, outOfScope: c.out, ready: c.ready, done: c.done, toVerify: c.tbd },
+    stories,
+  };
+}
+
+export const serializeSnapshot = (snap) => `${JSON.stringify(snap, null, 2)}\n`;
+
+/** Legge le evidenze del repository e ne ricava lo snapshot. */
+export function buildSnapshot(model, ctx, meta = {}) {
+  const stories = {};
+  for (const s of allStories(model)) {
+    const ev = evidenceOf(s, ctx);
+    stories[s.id] = ev ? entryOf(ev) : { outOfScope: true };
+  }
+  return finalizeSnapshot({ ...meta, stories }, model);
+}
+
+/** SHA breve e data del commit di HEAD: deterministici, a differenza di un orologio. */
+function gitMeta(root) {
+  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  try {
+    return { refreshedAt: git('rev-parse', '--short=7', 'HEAD'), refreshedDate: git('show', '-s', '--format=%cs', 'HEAD') };
+  } catch {
+    return { refreshedAt: null, refreshedDate: null };
+  }
+}
+
+// --- Pagine ----------------------------------------------------------------------------------------------------
+
+/** Le pagine del backlog: percorso → contenuto. Funzione pura di docs/17 (modello), del generatore e dello snapshot. */
+export function renderPages(model, snap) {
   const storyIndex = new Map();
   for (const e of model.epics) for (const s of e.stories) storyIndex.set(s.id, `${PAGE_BASE}/${epicSlug(e)}#${s.id.toLowerCase()}`);
-  const evsByEpic = new Map(model.epics.map((e) => [e.id, e.stories.map((s) => evaluate(s, ctx))]));
+  const evsByEpic = evaluateAll(model, snap);
   const files = new Map();
-  files.set(OUT_INDEX, renderIndex(model, evsByEpic, storyIndex));
+  files.set(OUT_INDEX, renderIndex(model, evsByEpic, storyIndex, snap));
   for (const e of model.epics) {
     if (!e.stories.length) continue;
     files.set(`${OUT_DIR}/${epicSlug(e)}.mdx`, renderEpic(e, evsByEpic.get(e.id), storyIndex));
   }
-  files.set('docs.json', updateDocsJson(fs.readFileSync(path.join(root, 'docs.json'), 'utf8'), model));
-  return { files, model, evsByEpic };
+  return { files, evsByEpic };
 }
+
+const readIf = (root, p) => (fs.existsSync(path.join(root, p)) ? fs.readFileSync(path.join(root, p), 'utf8') : null);
+const readModel = (root) => parseBacklog(fs.readFileSync(path.join(root, SOURCE), 'utf8'));
+const MSG_REFRESH = 'esegui node scripts/docs-sync.mjs --refresh (e committa il risultato)';
+
+function readSnapshot(root) {
+  const text = readIf(root, SNAPSHOT);
+  if (text === null) return { error: `${SNAPSHOT}: snapshot assente` };
+  try {
+    return { snap: JSON.parse(text), text };
+  } catch (e) {
+    return { error: `${SNAPSHOT}: JSON non valido (${e.message})` };
+  }
+}
+
+/** Le pagine generate oggi in specifiche/backlog/, per trovare quelle non più generate. */
+function existingPages(root) {
+  return fs.existsSync(path.join(root, OUT_DIR))
+    ? fs.readdirSync(path.join(root, OUT_DIR)).filter((f) => f.endsWith('.mdx')).sort().map((f) => `${OUT_DIR}/${f}`)
+    : [];
+}
+
+/**
+ * Verifica strutturale (job guard): ricalcola pagine e totali da docs/17 e dallo snapshot committato e li confronta con
+ * i file committati; di docs.json confronta solo il gruppo «Backlog». Non legge docs/14, docs/15, docs/16, il testbook,
+ * i sorgenti dei test, i seed né le intestazioni di docs/07–09 e docs/18. Restituisce l'elenco dei problemi.
+ */
+export function checkRoot(root) {
+  const problems = [];
+  const model = readModel(root);
+  const { snap, text, error } = readSnapshot(root);
+  if (error) return [error, MSG_REFRESH];
+  const structural = snapshotProblems(model, snap);
+  if (structural.length) return [...structural, MSG_REFRESH];
+
+  const { files } = renderPages(model, snap);
+  for (const [p, content] of files) {
+    const current = readIf(root, p);
+    if (current === null) problems.push(`${p}: pagina assente`);
+    else if (current !== content) problems.push(`${p}: diversa da quella generata`);
+  }
+  for (const o of existingPages(root)) if (!files.has(o)) problems.push(`${o}: pagina non più generata`);
+  if (text !== serializeSnapshot(finalizeSnapshot(snap, model))) problems.push(`${SNAPSHOT}: totali o formattazione diversi da quelli attesi`);
+
+  const docsJson = readIf(root, 'docs.json');
+  if (docsJson === null) problems.push('docs.json: assente');
+  else {
+    let group = null;
+    try {
+      group = readBacklogGroup(docsJson);
+    } catch (e) {
+      problems.push(`docs.json: ${e.message}`);
+    }
+    if (!group) problems.push('docs.json: gruppo «Backlog» assente');
+    else if (canon(group) !== canon(backlogGroup(model))) problems.push('docs.json: gruppo «Backlog» diverso da quello generato');
+  }
+  if (problems.length) problems.push('Rigenera con: node scripts/docs-sync.mjs (evidenze aggiornate: --refresh) e committa il risultato.');
+  return problems;
+}
+
+/** Scrive pagine, snapshot e gruppo «Backlog» di docs.json; toglie le pagine non più generate. */
+export function writeRoot(root, model, snap) {
+  const { files, evsByEpic } = renderPages(model, snap);
+  const all = new Map(files);
+  all.set(SNAPSHOT, serializeSnapshot(snap));
+  all.set('docs.json', updateDocsJson(fs.readFileSync(path.join(root, 'docs.json'), 'utf8'), model));
+  const changed = [];
+  for (const [p, content] of all) {
+    const abs = path.join(root, p);
+    if (readIf(root, p) === content) continue;
+    changed.push(p);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, content);
+  }
+  const removed = existingPages(root).filter((f) => !files.has(f));
+  for (const o of removed) fs.rmSync(path.join(root, o));
+  return { changed, removed, evsByEpic };
+}
+
+/** Le storie la cui voce dello snapshot cambia tra due snapshot. */
+export function changedStories(before, after) {
+  const ids = new Set([...Object.keys(before?.stories ?? {}), ...Object.keys(after.stories)]);
+  return [...ids].sort().filter((id) => JSON.stringify(before?.stories?.[id]) !== JSON.stringify(after.stories[id]));
+}
+
+const totalsText = (t) => `${t.stories} storie, ${t.ready} pronte, ${t.done} fatte, ${t.outOfScope} fuori perimetro`;
 
 function main(argv) {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-  const check = argv.includes('--check');
-  const { files, evsByEpic } = generate(root);
-  const stale = [];
-  const existing = fs.existsSync(path.join(root, OUT_DIR))
-    ? fs.readdirSync(path.join(root, OUT_DIR)).filter((f) => f.endsWith('.mdx')).map((f) => `${OUT_DIR}/${f}`)
-    : [];
-  const orphans = existing.filter((f) => !files.has(f));
-  for (const [p, content] of files) {
-    const abs = path.join(root, p);
-    const current = fs.existsSync(abs) ? fs.readFileSync(abs, 'utf8') : null;
-    if (current === content) continue;
-    stale.push(p);
-    if (!check) {
-      fs.mkdirSync(path.dirname(abs), { recursive: true });
-      fs.writeFileSync(abs, content);
-    }
+  const modes = ['--check', '--refresh', '--check-status'];
+  const known = [...modes, '--backlog'];
+  const bad = argv.filter((a) => !known.includes(a));
+  const chosen = argv.filter((a) => modes.includes(a));
+  if (bad.length || chosen.length > 1) {
+    console.error(`uso: node scripts/docs-sync.mjs [${known.join(' | ')}] (una sola modalità)${bad.length ? `; argomenti sconosciuti: ${bad.join(' ')}` : ''}`);
+    process.exit(2);
   }
-  if (!check) for (const o of orphans) fs.rmSync(path.join(root, o));
-  const c = counts([...evsByEpic.values()].flat());
-  if (check) {
-    if (stale.length || orphans.length) {
-      for (const p of stale) console.error(`✗ ${p}: diverso dal generato`);
-      for (const p of orphans) console.error(`✗ ${p}: pagina non più generata`);
-      console.error('Rigenera con: node scripts/docs-sync.mjs (e committa il risultato).');
+  const mode = chosen[0] ?? 'generate';
+
+  if (mode === '--check') {
+    const problems = checkRoot(root);
+    if (problems.length) {
+      for (const p of problems) console.error(problems.indexOf(p) === problems.length - 1 ? p : `✗ ${p}`);
       process.exit(1);
     }
-    console.log(`docs-sync: ok (${files.size} file verificati; ${c.total} storie, ${c.ready} pronte, ${c.done} fatte)`);
+    const { snap } = readSnapshot(root);
+    console.log(`docs-sync: ok (struttura verificata; ${totalsText(snap.totals)}; evidenze del ${snap.refreshedDate ?? '?'} al commit ${snap.refreshedAt ?? '?'})`);
     return;
   }
-  console.log(`docs-sync: ${stale.length} file scritti, ${orphans.length} rimossi; ${c.total} storie, ${c.ready} pronte, ${c.done} fatte, ${c.out} fuori perimetro`);
+
+  const model = readModel(root);
+  const existing = readSnapshot(root);
+
+  if (mode === '--check-status') {
+    const fresh = buildSnapshot(model, loadContext(root), {});
+    const diff = changedStories(existing.snap, fresh);
+    if (existing.error) console.warn(`avviso: ${existing.error}`);
+    console.log(`docs-sync --check-status: ${diff.length} ${diff.length === 1 ? 'storia cambierebbe' : 'storie cambierebbero'} con --refresh${diff.length ? ` (${diff.slice(0, 12).join(', ')}${diff.length > 12 ? ', …' : ''}); ${MSG_REFRESH.replace('esegui', 'aggiorna con')}` : ''}`);
+    return;
+  }
+
+  let snap;
+  if (mode === '--refresh') {
+    snap = buildSnapshot(model, loadContext(root), gitMeta(root));
+  } else {
+    if (existing.error) {
+      console.error(`✗ ${existing.error}; ${MSG_REFRESH}`);
+      process.exit(1);
+    }
+    const problems = snapshotProblems(model, existing.snap);
+    if (problems.length) {
+      for (const p of problems) console.error(`✗ ${p}`);
+      console.error(MSG_REFRESH);
+      process.exit(1);
+    }
+    snap = finalizeSnapshot(existing.snap, model);
+  }
+  const { changed, removed } = writeRoot(root, model, snap);
+  const moved = mode === '--refresh' ? changedStories(existing.snap, snap).length : 0;
+  console.log(`docs-sync: ${changed.length} file scritti, ${removed.length} rimossi; ${totalsText(snap.totals)}${mode === '--refresh' ? `; ${moved} voci dello snapshot cambiate` : ''}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) main(process.argv.slice(2));

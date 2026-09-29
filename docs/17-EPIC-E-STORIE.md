@@ -7,7 +7,7 @@ Catalogo di **tutte** le epic e le storie utente che si possono associare alle d
 - **Catena di tracciabilità**: `F-…` (docs/02) → **storia** `US-Enn-nn` → schermate `BO-/PT-/HUB-`, API, eventi `EVT-…` → **decisioni** (regola → rami, con codici d'errore) → **nodo della foresta** (§5, dal codice) → **riga di testbook** `TB-<DOM>-NNN`.
 - **Oracolo = la specifica** (come in docs/16): i criteri di accettazione derivano da docs/02–10, docs/servizi, docs/12 e dalle decisioni `Q-nn` di docs/15. La foresta (§5) nasce dal **codice** e serve a due cose: (a) rendere esaustivo l'elenco dei rami; (b) far emergere i **rami senza specifica** e le **regole non implementate**.
 - **Stato di copertura** (§6): `coperta` = esistono righe TB · `pianificata` = il dominio TB esiste ma le righe non sono scritte · `scoperta` = nessun dominio TB la coprirebbe · `fuori perimetro PoC` = feature P2 (docs/01 §4). La matrice di §6 è la fotografia della stesura, quando `docs/testbook/` non esisteva ancora; lo stato attuale di ogni storia (DoR e DoD con le evidenze, comprese le righe TB) lo calcola `scripts/docs-sync.mjs` secondo §4.0 e lo pubblica nelle pagine Mintlify del backlog.
-- **Pagine generate**: le pagine Mintlify `specifiche/backlog` (indice) e `specifiche/backlog/<epic>` (una per epic) derivano da questo file con `node scripts/docs-sync.mjs`; non si modificano a mano. Il job `guard` esegue `node scripts/docs-sync.mjs --check` e fallisce se le pagine committate non coincidono con quelle generate.
+- **Pagine generate**: le pagine Mintlify `specifiche/backlog` (indice) e `specifiche/backlog/<epic>` (una per epic) derivano da questo file e da uno snapshot delle evidenze con `node scripts/docs-sync.mjs`; non si modificano a mano. Il job `guard` esegue `node scripts/docs-sync.mjs --check` e fallisce se le pagine committate non coincidono con quelle generate da questo file e dallo snapshot (§4.0).
 - **Manutenzione**: nuova feature o nuova schermata → nuova storia (o criterio) qui; nuovo `LhException`, nuovo enum di esito, nuovo `@RequiresRole` o nuovo job → nuova riga in §5 (i comandi per rifare l'inventario sono in §5.0); nuove righe TB → aggiornare la colonna *Testbook* della storia e la matrice §6. Un ramo che resta senza storia va in §6.3.
 - Convenzioni: `Dato/Quando/Allora` = criterio di accettazione; «SPEC-GAP» = scelta registrata in docs/15; «⚠ divergenza» = il codice non segue la specifica (va in docs/16 §12 quando la riga TB esiste); «⛔ non implementata» = regola di specifica senza codice.
 
@@ -121,6 +121,10 @@ Ogni storia, di Fase 1 e di Fase 2, passa due cancelli. Una storia entra in una 
 
 Lo stato non si scrive a mano nelle storie: lo calcola `scripts/docs-sync.mjs` dai campi della storia e dalle evidenze del repository, voce per voce, e lo pubblica nelle pagine Mintlify del backlog. Una voce che lo script non sa verificare compare come «da verificare»: nella DoR non blocca la storia, nella DoD la lascia «da verificare» finché l'evidenza non c'è. Una storia *fuori perimetro PoC* non ha DoR né DoD.
 
+Le voci si dividono in due tipi. Quelle che dipendono solo dal testo della storia (R1–R4 e D3) si calcolano a ogni esecuzione da questo file. Quelle che dipendono dalle evidenze del repository (R5–R8, D1, D2, D4: docs/14, docs/15, il testbook, i sorgenti dei test, `seed/`, i workflow) stanno in uno snapshot committato, `specifiche/backlog/_status.json`. Lo snapshot si aggiorna con `node scripts/docs-sync.mjs --refresh` nella pull request di stato cumulativa (`docs(stato)`, ADR-047), non a ogni fetta: così `node scripts/docs-sync.mjs --check`, eseguito dal job `guard`, verifica solo la struttura (pagine, gruppo «Backlog» di `docs.json`, una voce di snapshot per ogni storia) e una pull request di codice non lo rompe. Chi aggiunge o toglie una storia in questo file esegue `--refresh`. Le pagine mostrano il commit e la data dell'ultimo refresh, che sono lo SHA breve di `HEAD` e la data di quel commit, non un orologio: l'output resta deterministico. `--check-status` (solo avviso) dice quante storie cambierebbero con un refresh.
+
+**Limiti noti.** Lo stato basato sulle evidenze è quello dell'ultimo refresh. D2 può dare un falso negativo: il collegamento tra righe di testbook e storie passa dai riferimenti scritti (nella riga, nel titolo o nel testo della sezione, compresa la «Regola», nell'inventario delle regole, nel campo *Testbook*); una riga che non cita né la storia né una sua feature non la prova, anche se la copre. Un job di CI o uno script citati come prova contano solo se esistono in `.github/workflows/` e, per uno script, se un workflow lo invoca.
+
 > **Nota:** la DoD di una storia non sostituisce la *Definizione di fatto* della fetta. La fetta resta responsabile dei controlli della sua pull request (voce D4); la storia raccoglie le evidenze che restano nel repository dopo il merge.
 
 **Definition of Ready** — la storia è pronta quando tutte le voci sono soddisfatte:
@@ -131,17 +135,17 @@ Lo stato non si scrive a mano nelle storie: lo calcola `scripts/docs-sync.mjs` d
 | R2 Specifica | almeno un riferimento di specifica nel campo *Tocca* o, per le storie di Fase 1, nella colonna *Feature* di §6.1: un ID `F-`, `F2-`, `RNF-`, `BO-`, `PT-`, `HUB-`, `EVT-`, `ADR-` o una sezione `docs/NN §n` | campi della storia, §6.1 |
 | R3 Criteri | almeno un criterio *Dato/Quando/Allora*; un criterio «da scrivere con la fetta» rende la storia non pronta | campi della storia |
 | R4 Negativi | se la storia prevede risposte d'errore HTTP 4xx (nelle *Decisioni* o nell'esito di un criterio), almeno un criterio negativo ✗ | campi della storia |
-| R5 Testbook | un dominio `TB-<DOM>` (docs/16 §2) o un job di verifica nel campo *Testbook*, un dominio proposto per la storia in §7, oppure righe `TB-*` che citano la storia; «scoperta» senza dominio non basta | campi della storia, §7, `docs/testbook/` |
+| R5 Testbook | un dominio `TB-<DOM>` (docs/16 §2) o un job di verifica esistente in `.github/workflows/` nel campo *Testbook*, un dominio proposto per la storia in §7, oppure righe `TB-*` che citano la storia; «scoperta» senza dominio non basta | campi della storia, §7, `docs/testbook/` |
 | R6 Dipendenze e domande | ogni `Q-nnn` citata esiste in docs/15 ed è decisa, superata o ha un default in uso (marcato `SPEC-GAP`) | docs/15 |
 | R7 Dati demo | gli ID dei dati demo citati nel *Contesto reale* e nelle precondizioni (*Dato …*) dei criteri positivi (`MBR-`, `CMP-`, `RWD-`, `SCN-`, `IW-`, …) esistono in `seed/`; se la storia non ne cita, la voce è da verificare | `seed/` |
-| R8 Stati dell'interfaccia | ogni schermata toccata (`BO-`, `PT-`, `HUB-`) è specificata in docs/08, docs/09 o docs/18 §5, dove valgono gli stati *loading / empty / error / degraded* di docs/07 §6 | docs/07–09, docs/18 |
+| R8 Stati dell'interfaccia | ogni schermata toccata (`BO-`, `PT-`, `HUB-`) è specificata in docs/07, docs/08, docs/09 o docs/18 §5, dove valgono gli stati *loading / empty / error / degraded* di docs/07 §6 | docs/07–09, docs/18 |
 
 **Definition of Done** — la storia è fatta quando le voci D1–D3 sono soddisfatte; D4 resta sulla pull request della fetta:
 
 | Voce | Cosa chiede | Come si verifica |
 |---|---|---|
 | D1 Feature completate | ogni `F-` e `F2-` della storia è spuntata `[x]` in docs/14 (DoD 1 e 4); per Fase 2 con il numero della pull request (DoD 11) | docs/14 |
-| D2 Criteri provati | righe `TB-*` legate alla storia (la citano nella riga, nel titolo della sezione o nella regola del testbook a cui appartengono, oppure il campo *Testbook* le nomina) o, nel dominio della storia, alle sue feature e schermate, eseguite da test automatici (ID presente nei sorgenti dei test); in alternativa le prove automatiche indicate nel campo *Testbook*, se i file esistono | docs/16, `docs/testbook/`, sorgenti dei test |
+| D2 Criteri provati | righe `TB-*` legate alla storia (la citano nella riga, nel titolo o nel testo della sezione, compresa la regola, o nella regola dell'inventario a cui appartengono, oppure il campo *Testbook* le nomina) o, nel dominio della storia, alle sue feature e schermate, eseguite da test automatici (ID presente nei sorgenti dei test); in alternativa le prove automatiche indicate nel campo *Testbook*: un file di test che esiste, uno script che un workflow invoca, un workflow insieme a un suo job che esiste. Non è soddisfatta se R3 non lo è o se un criterio dichiara un residuo o una prova da fare («residuo dichiarato», «prova … da fare») | docs/16, `docs/testbook/`, sorgenti dei test |
 | D3 Nessuno scostamento aperto | nessuna regola ⛔ non implementata e nessuna ⚠ divergenza nella storia (DoD 5) | campi della storia |
 | D4 Controlli della fetta | build e test verdi, `check-seed` (DoD 2); stati dell'interfaccia (DoD 3); OpenAPI e `check-contracts` (DoD 6); `registry:build` senza drift (DoD 7); axe sulla matrice `e2e-pr` (DoD 8); messaggi in due lingue da M11 (DoD 9); pagina Mintlify con diagramma e diagrammi di dati e stati aggiornati (DoD 10, 17-bis); voce di audit per ogni scrittura di configurazione (DoD 21) | da verificare sulla pull request della fetta |
 
@@ -1687,7 +1691,7 @@ Adozione M8.0 (`docs/18` Appendice B punto 9): una storia per ogni feature P0 de
 - **Tocca**: F2-DIST-01 · ADR-037 · docs/18 §3.1 · `deploy/image/` · M8.1.
 - **Decisioni**: `LH_ROLE` ∈ `all, hub, web, cms, idp, jobs` · `LH_SERVICES` vale col ruolo `hub` · `LH_MODE=embedded|external` · il profilo `demo` ospitato di Fase 1 è `LH_ROLE=hub LH_MODE=external LH_PROFILE=demo`, senza artefatti separati.
 - **Criteri**:
-  1. Dato l'immagine con `LH_MODE=external` verso Postgres e Kafka del compose, quando avvio i ruoli, allora sono tutti `UP`, le migrazioni sono applicate e lo smoke di Fase 1 è verde (docs/18 §6 M8).
+  1. Dato l'immagine con `LH_MODE=external` verso Postgres e Kafka del compose, quando avvio i ruoli, allora sono tutti `UP`, le migrazioni sono applicate e lo smoke di Fase 1 è verde (docs/18 §6 M8, senza la parte «con login OIDC reale», che appartiene a US-F2-IAM-03).
   2. Dato `LH_ROLE=hub` con una `PORT` ereditata dall'ambiente, allora l'hub risponde comunque su 8080 e lo smoke dell'immagine sulla PR è verde (#84).
   3. Dato il container avviato, allora gira come utente non root, con filesystem in sola lettura e un healthcheck per ruolo (docs/18 §3.1, M8.1).
   4. Dato il servizio `web` del compose locale, allora parte dalla stessa immagine con `LH_ROLE=web` (#122).
@@ -1703,7 +1707,7 @@ Adozione M8.0 (`docs/18` Appendice B punto 9): una storia per ogni feature P0 de
   2. ✗ Dato un valore che chiede il ruolo `cms`, il ruolo `jobs` o la modalità `embedded`, allora il rendering del chart fallisce (#95).
   3. ✗ Dato l'API Strimzi `v1beta2`, allora il chart la rifiuta (#127).
   4. Dato ogni Pod del chart, allora ha sicurezza `restricted`, requests e limits e soli riferimenti a Secret esistenti, verificati da `check-helm` (#95).
-  5. Dato il profilo `enterprise`, quando installo su kind, allora pod `Ready` e smoke verde: residuo dichiarato (Q-491, TOBE-008).
+  5. Dato il profilo `enterprise`, quando installo su kind, allora pod `Ready` e smoke verde: ⚠ residuo dichiarato (Q-491, TOBE-008).
 - **Testbook**: TB-DIST (dominio senza righe) · prove automatiche: `scripts/check-helm.mjs`, `.github/workflows/ci.yml` (job `helm install (kind)`).
 
 #### US-F2-DIST-03 · Compose di riferimento
@@ -1781,7 +1785,7 @@ Adozione M8.0 (`docs/18` Appendice B punto 9): una storia per ogni feature P0 de
   2. ✗ Dato un token scaduto, con firma errata o con `iss` o `aud` diversi, allora 401, identico per ogni caso (#51).
   3. ✗ Dato il profilo `enterprise` con identità da header o senza emittente, allora il servizio non parte (`INSECURE_CONFIG`, regola 22, #51).
   4. ✗ Dato un token con il solo ruolo `MEMBER`, quando chiama un'API fuori da `/v1/portal/**`, allora la richiesta non è autorizzata (#51).
-  5. ✗ Dato `luca.marketing` autenticato con Keycloak, quando prova a portare un concorso a `LIVE`, allora è rifiutato come in M7.1 (docs/18 §6 M8).
+  5. ✗ Dato `luca.marketing` autenticato con Keycloak, quando prova a portare un concorso a `LIVE`, allora è rifiutato come in M7.1 (docs/18 §6 M8); ⚠ prova end to end da fare (oggi il filtro è provato solo con token di test).
   6. Dato il profilo `demo`, allora il comportamento non cambia: `TestbookPltApiIT` verde (#51).
 - **Testbook**: TB-IAM (dominio senza righe) · prove automatiche: `libs/lh-common/src/test/java/io/loyaltyhub/common/web/OidcActorFilterTest.java`, `libs/lh-common/src/test/java/io/loyaltyhub/common/config/IdentityGuardTest.java`.
 
@@ -1792,7 +1796,7 @@ Adozione M8.0 (`docs/18` Appendice B punto 9): una storia per ogni feature P0 de
 - **Decisioni**: account Keycloak più record in member-service legato da `member.external_id = sub` · il `memberId` non arriva mai dai parametri della richiesta, solo dal token · l'accesso passa dal BFF (US-F2-SEC-06).
 - **Criteri**:
   1. Dato un membro non autenticato che apre il portale `enterprise`, allora è rediretto al login OIDC e torna al portale con la sessione del BFF (#99, #104).
-  2. ✗ Dato un membro autenticato, quando chiama `/v1/portal/*` con l'id di un altro membro, allora vede solo i propri dati (parametro ignorato o `400`) (docs/18 §6 M8).
+  2. ✗ Dato un membro autenticato, quando chiama `/v1/portal/*` con l'id di un altro membro, allora vede solo i propri dati (parametro ignorato o `400`, Q-410) (docs/18 §6 M8).
   3. Dato un nuovo membro che si registra da PT-16, allora nasce il record in member-service con `external_id = sub` (docs/18 §3.2, Q-410).
 - **Testbook**: TB-IAM (dominio senza righe) · prove automatiche: `web/lib/auth/oidc.test.ts`.
 
@@ -1816,7 +1820,7 @@ Adozione M8.0 (`docs/18` Appendice B punto 9): una storia per ogni feature P0 de
   2. ✗ Dato una richiesta non idempotente senza `X-LH-CSRF` valido o da un'altra origine, allora è rifiutata (#99).
   3. Dato un logout token back-channel verificato, allora la sessione nel BFF si chiude (#99).
   4. ✗ Dato il profilo `enterprise` con configurazione OIDC assente o insicura, allora il ruolo `web` non parte (`INSECURE_CONFIG`, #99).
-  5. Dato un access token scaduto, allora il BFF lo rinnova in modo trasparente, una sola volta per sessione (#99).
+  5. Dato un access token scaduto, allora il BFF lo rinnova in modo trasparente, con un solo rinnovo anche per più richieste parallele della stessa sessione (single-flight nella replica, Q-409) (#99).
   6. Passkey per i membri e MFA per gli operatori: criteri da scrivere con la fetta.
 - **Testbook**: TB-IAM (dominio senza righe) · prove automatiche: `web/lib/auth/sessionStore.test.ts`, `web/lib/auth/bff.modules.test.ts`, `web/app/api/lh/[service]/[...path]/route.bff.test.ts`.
 
@@ -1884,7 +1888,7 @@ Adozione M8.0 (`docs/18` Appendice B punto 9): una storia per ogni feature P0 de
 - **Decisioni**: ogni metodo di `@RestController` ha `@RequiresRole` oppure `@PublicEndpoint` con motivazione, verificato da ArchUnit · le API `/v1/portal/*` ricavano il membro da `MemberPrincipal`, mai da percorso, query o corpo · nessun *mass assignment*: solo record DTO espliciti, `status`, `version` e `createdBy` non legabili.
 - **Criteri**:
   1. ✗ Dato un endpoint senza `@RequiresRole` né `@PublicEndpoint`, allora la build è rossa (docs/18 §6 M8).
-  2. ✗ Dato una chiamata a `/v1/portal/*` con il token di un membro e l'id di un altro, allora risponde con i dati del solo titolare (parametro ignorato o `400`) (docs/18 §6 M8).
+  2. ✗ Dato una chiamata a `/v1/portal/*` con il token di un membro e l'id di un altro, allora risponde con i dati del solo titolare (parametro ignorato o `400`, Q-410) (docs/18 §6 M8).
   3. ✗ Dato un corpo che contiene `status`, `version` o `createdBy`, allora quei campi non sono legati (docs/18 §3.10 punto 3).
 - **Testbook**: TB-SEC (da scrivere con M8.10).
 

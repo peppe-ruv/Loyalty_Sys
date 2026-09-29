@@ -10,7 +10,7 @@ description: "E01 Ingresso eventi: ogni fatto del cliente diventa un'azione cano
 
 **Attori**: fonti, CARE, ADMIN, MARKETING · **Feature**: F-ING-01…10 · **Schermate**: BO-09, BO-26 · **Servizi**: ingestion · **Testbook**: TB-ING
 
-Questa epica ha 14 storie, di cui 1 fuori perimetro: 12 pronte secondo la Definition of Ready, 9 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+Questa epica ha 14 storie, di cui 1 fuori perimetro: 12 pronte secondo la Definition of Ready, 10 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
 
 <a id="us-e01-01" />
 
@@ -49,7 +49,7 @@ Questa epica ha 14 storie, di cui 1 fuori perimetro: 12 pronte secondo la Defini
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ✅ | F-ING-01, F-ING-03 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
-| D2 Criteri provati | ✅ | 2 righe legate alla storia, 2 eseguite dai test: TB-ING-MBR-036, TB-ING-ACC-005; 103 righe sulle feature o schermate della storia in TB-ING, 103 eseguite: TB-ING-PIP-001, TB-ING-PIP-002, TB-ING-PIP-003 e altri 100 |
+| D2 Criteri provati | ✅ | 49 righe legate alla storia, 49 eseguite dai test: TB-ING-MBR-001, TB-ING-MBR-002, TB-ING-MBR-003, TB-ING-MBR-004 e altri 45; 93 righe sulle feature o schermate della storia in TB-ING, 93 eseguite: TB-ING-FRM-001, TB-ING-FRM-002, TB-ING-FRM-003 e altri 90 |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
@@ -59,7 +59,7 @@ Questa epica ha 14 storie, di cui 1 fuori perimetro: 12 pronte secondo la Defini
 
 > *Come* integratore di una nuova fonte, *voglio* un 400 chiaro quando l'envelope è sbagliato, *così che* corregga l'integrazione prima di andare in produzione.
 
-**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2)
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
 
 **Contesto reale**: il partner dei sondaggi manda `time` come «24/09/2026» o dimentica `data`.
 
@@ -90,7 +90,7 @@ Questa epica ha 14 storie, di cui 1 fuori perimetro: 12 pronte secondo la Defini
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ✅ | F-ING-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
-| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D2 Criteri provati | ✅ | 29 righe sulle feature o schermate della storia in TB-ING, 29 eseguite: TB-ING-FRM-001, TB-ING-FRM-002, TB-ING-FRM-003 e altri 26 |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
@@ -132,7 +132,7 @@ Questa epica ha 14 storie, di cui 1 fuori perimetro: 12 pronte secondo la Defini
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ✅ | F-ING-01, F-ING-05, F-ING-06 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#108](https://github.com/peppe-ruv/Loyalty_Sys/pull/108), [#109](https://github.com/peppe-ruv/Loyalty_Sys/pull/109) |
-| D2 Criteri provati | ✅ | 4 righe legate alla storia, 4 eseguite dai test: TB-ING-TYP-010, TB-ING-TIM-003, TB-ING-TIM-005, TB-ING-TIM-012; 192 righe sulle feature o schermate della storia in TB-ING, 192 eseguite: TB-ING-PIP-001, TB-ING-PIP-002, TB-ING-PIP-003 e altri 189 |
+| D2 Criteri provati | ✅ | 88 righe legate alla storia, 88 eseguite dai test: TB-ING-PIP-001, TB-ING-PIP-002, TB-ING-PIP-003, TB-ING-PIP-004 e altri 84; 224 righe sulle feature o schermate della storia in TB-ING, 224 eseguite: TB-ING-FRM-001, TB-ING-FRM-002, TB-ING-FRM-003 e altri 221 |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
@@ -174,7 +174,7 @@ Questa epica ha 14 storie, di cui 1 fuori perimetro: 12 pronte secondo la Defini
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ✅ | F-ING-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
-| D2 Criteri provati | ✅ | 4 righe legate alla storia, 4 eseguite dai test: TB-ING-DUP-006, TB-ING-DUP-007, TB-ING-DUP-012, TB-ING-SCN-008; 63 righe sulle feature o schermate della storia in TB-ING, 63 eseguite: TB-ING-PIP-001, TB-ING-PIP-002, TB-ING-PIP-003 e altri 60 |
+| D2 Criteri provati | ✅ | 38 righe legate alla storia, 38 eseguite dai test: TB-ING-DUP-001, TB-ING-DUP-002, TB-ING-DUP-003, TB-ING-DUP-004 e altri 34; 135 righe sulle feature o schermate della storia in TB-ING, 135 eseguite: TB-ING-PIP-001, TB-ING-PIP-002, TB-ING-PIP-003 e altri 132 |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
@@ -216,7 +216,7 @@ Questa epica ha 14 storie, di cui 1 fuori perimetro: 12 pronte secondo la Defini
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ✅ | F-ING-03, F-ING-04, F-MBR-04 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
-| D2 Criteri provati | ✅ | 7 righe legate alla storia, 7 eseguite dai test: TB-ING-MBR-025, TB-ING-MBR-026, TB-ING-MBR-027, TB-ING-MBR-028 e altri 3; 201 righe sulle feature o schermate della storia in TB-ING, 201 eseguite: TB-ING-PIP-001, TB-ING-PIP-002, TB-ING-PIP-003 e altri 198 |
+| D2 Criteri provati | ✅ | 39 righe legate alla storia, 39 eseguite dai test: TB-ING-MBR-001, TB-ING-MBR-002, TB-ING-MBR-003, TB-ING-MBR-004 e altri 35; 205 righe sulle feature o schermate della storia in TB-ING, 205 eseguite: TB-ING-PIP-001, TB-ING-PIP-002, TB-ING-PIP-003 e altri 202 |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
@@ -259,7 +259,7 @@ Questa epica ha 14 storie, di cui 1 fuori perimetro: 12 pronte secondo la Defini
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ✅ | F-ING-04 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
-| D2 Criteri provati | ✅ | 11 righe legate alla storia, 11 eseguite dai test: TB-E2E-REG-001, TB-E2E-REG-002, TB-E2E-REG-003, TB-E2E-REG-004 e altri 7; 205 righe sulle feature o schermate della storia in TB-ING, 205 eseguite: TB-ING-PIP-001, TB-ING-PIP-002, TB-ING-PIP-003 e altri 202 |
+| D2 Criteri provati | ✅ | 69 righe legate alla storia, 69 eseguite dai test: TB-E2E-REG-001, TB-E2E-REG-002, TB-E2E-REG-003, TB-E2E-REG-004 e altri 65; 174 righe sulle feature o schermate della storia in TB-ING, 174 eseguite: TB-ING-PIP-001, TB-ING-PIP-002, TB-ING-PIP-003 e altri 171 |
 | D3 Nessuno scostamento aperto | ⬜ | 2 marcatori ⛔ (regola senza codice) |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
@@ -302,7 +302,7 @@ Questa epica ha 14 storie, di cui 1 fuori perimetro: 12 pronte secondo la Defini
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ✅ | F-ING-04, F-ING-09 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
-| D2 Criteri provati | ✅ | 5 righe legate alla storia, 5 eseguite dai test: TB-ING-RES-015, TB-ING-RES-025, TB-ING-RES-042, TB-ING-RES-046 e altri 1; 216 righe sulle feature o schermate della storia in TB-ING, TB-WEB, 216 eseguite: TB-ING-PIP-001, TB-ING-PIP-002, TB-ING-PIP-003 e altri 213 |
+| D2 Criteri provati | ✅ | 56 righe legate alla storia, 56 eseguite dai test: TB-ING-RES-001, TB-ING-RES-002, TB-ING-RES-003, TB-ING-RES-004 e altri 52; 202 righe sulle feature o schermate della storia in TB-ING, TB-WEB, 202 eseguite: TB-ING-PIP-001, TB-ING-PIP-002, TB-ING-PIP-003 e altri 199 |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
@@ -343,7 +343,7 @@ Questa epica ha 14 storie, di cui 1 fuori perimetro: 12 pronte secondo la Defini
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ✅ | F-ING-07 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
-| D2 Criteri provati | ✅ | 3 righe legate alla storia, 3 eseguite dai test: TB-ING-TXN-001, TB-ING-TXN-006, TB-ING-TXN-007; 25 righe sulle feature o schermate della storia in TB-ING, 25 eseguite: TB-ING-TXN-002, TB-ING-TXN-003, TB-ING-TXN-004 e altri 22 |
+| D2 Criteri provati | ✅ | 28 righe legate alla storia, 28 eseguite dai test: TB-ING-TXN-001, TB-ING-TXN-002, TB-ING-TXN-003, TB-ING-TXN-004 e altri 24 |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
@@ -464,7 +464,7 @@ Questa epica ha 14 storie, di cui 1 fuori perimetro: 12 pronte secondo la Defini
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ✅ | F-ING-05 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
-| D2 Criteri provati | ✅ | 2 righe legate alla storia, 2 eseguite dai test: TB-ING-FON-002, TB-ING-FON-004; 123 righe sulle feature o schermate della storia in TB-ING, 123 eseguite: TB-ING-PIP-001, TB-ING-PIP-002, TB-ING-PIP-003 e altri 120 |
+| D2 Criteri provati | ✅ | 4 righe legate alla storia, 4 eseguite dai test: TB-ING-FON-001, TB-ING-FON-002, TB-ING-FON-003, TB-ING-FON-004; 121 righe sulle feature o schermate della storia in TB-ING, 121 eseguite: TB-ING-PIP-001, TB-ING-PIP-002, TB-ING-PIP-003 e altri 118 |
 | D3 Nessuno scostamento aperto | ⬜ | 3 marcatori ⛔ (regola senza codice) |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
@@ -507,7 +507,7 @@ Questa epica ha 14 storie, di cui 1 fuori perimetro: 12 pronte secondo la Defini
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ✅ | F-ING-06 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#108](https://github.com/peppe-ruv/Loyalty_Sys/pull/108), [#109](https://github.com/peppe-ruv/Loyalty_Sys/pull/109) |
-| D2 Criteri provati | ✅ | 8 righe legate alla storia, 8 eseguite dai test: TB-ING-ETY-006, TB-ING-ETY-047, TB-ING-ETY-051, TB-ING-ETY-053 e altri 4; 83 righe sulle feature o schermate della storia in TB-ING, 83 eseguite: TB-ING-FON-002, TB-ING-TYP-009, TB-ING-RES-031 e altri 80 |
+| D2 Criteri provati | ✅ | 65 righe legate alla storia, 65 eseguite dai test: TB-ING-ETY-001, TB-ING-ETY-002, TB-ING-ETY-003, TB-ING-ETY-004 e altri 61; 87 righe sulle feature o schermate della storia in TB-ING, 87 eseguite: TB-ING-FON-002, TB-ING-TYP-001, TB-ING-TYP-002 e altri 84 |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
@@ -547,7 +547,7 @@ Questa epica ha 14 storie, di cui 1 fuori perimetro: 12 pronte secondo la Defini
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ✅ | F-ING-09 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md) |
-| D2 Criteri provati | ✅ | 70 righe sulle feature o schermate della storia in TB-ING, TB-WEB, 70 eseguite: TB-ING-MON-001, TB-ING-MON-002, TB-ING-MON-003 e altri 67 |
+| D2 Criteri provati | ✅ | 82 righe sulle feature o schermate della storia in TB-ING, TB-WEB, 82 eseguite: TB-ING-DUP-001, TB-ING-DUP-002, TB-ING-DUP-003 e altri 79 |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 

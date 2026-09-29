@@ -10,7 +10,7 @@ description: "E-F2-IAM Identità: persone e sistemi entrano con un'identità ver
 
 **Attori**: operatori, membro, fonti, widget · **Feature**: F2-IAM-*, F2-SEC-06/07 · **Schermate**: PT-16 · **Servizi**: member, web, `idp` · **Testbook**: TB-IAM
 
-Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 2 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 1 fatta secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
 
 <a id="us-f2-iam-01" />
 
@@ -57,7 +57,7 @@ Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 2 fatte secon
 
 > *Come* responsabile della sicurezza dell'adottante, *voglio* che ogni servizio verifichi il token e ricavi l'attore dai suoi claim, *così che* nel profilo `enterprise` nessuno possa dichiararsi un altro con un header.
 
-**DoR**: ✅ pronta · **DoD**: ✅ fatta
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D2, D3)
 
 **Contesto reale**: in `enterprise` Elena (LEGAL) apre la casella delle approvazioni; l'header `X-LH-Actor` che arriva con la richiesta non conta.
 
@@ -71,7 +71,7 @@ Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 2 fatte secon
 2. ✗ **Dato** un token scaduto, con firma errata o con `iss` o `aud` diversi, **allora** 401, identico per ogni caso ([#51](https://github.com/peppe-ruv/Loyalty_Sys/pull/51)).
 3. ✗ **Dato** il profilo `enterprise` con identità da header o senza emittente, **allora** il servizio non parte (`INSECURE_CONFIG`, regola 22, [#51](https://github.com/peppe-ruv/Loyalty_Sys/pull/51)).
 4. ✗ **Dato** un token con il solo ruolo `MEMBER`, **quando** chiama un'API fuori da `/v1/portal/**`, **allora** la richiesta non è autorizzata ([#51](https://github.com/peppe-ruv/Loyalty_Sys/pull/51)).
-5. ✗ **Dato** `luca.marketing` autenticato con Keycloak, **quando** prova a portare un concorso a `LIVE`, **allora** è rifiutato come in M7.1 (docs/18 §6 M8).
+5. ✗ **Dato** `luca.marketing` autenticato con Keycloak, **quando** prova a portare un concorso a `LIVE`, **allora** è rifiutato come in M7.1 (docs/18 §6 M8); ⚠ prova end to end da fare (oggi il filtro è provato solo con token di test).
 6. **Dato** il profilo `demo`, **allora** il comportamento non cambia: `TestbookPltApiIT` verde ([#51](https://github.com/peppe-ruv/Loyalty_Sys/pull/51)).
 
 **Testbook**: TB-IAM (dominio senza righe) · prove automatiche: `libs/lh-common/src/test/java/io/loyaltyhub/common/web/OidcActorFilterTest.java`, `libs/lh-common/src/test/java/io/loyaltyhub/common/config/IdentityGuardTest.java`.
@@ -90,8 +90,8 @@ Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 2 fatte secon
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ✅ | F2-IAM-02 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#51](https://github.com/peppe-ruv/Loyalty_Sys/pull/51) |
-| D2 Criteri provati | ✅ | prove automatiche: [OidcActorFilterTest.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/web/OidcActorFilterTest.java), [IdentityGuardTest.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/config/IdentityGuardTest.java) |
-| D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
+| D2 Criteri provati | ⬜ | un criterio dichiara un residuo o una prova da fare: le prove citate non lo coprono; evidenza: prove automatiche: [OidcActorFilterTest.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/web/OidcActorFilterTest.java), [IdentityGuardTest.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/config/IdentityGuardTest.java) |
+| D3 Nessuno scostamento aperto | ⬜ | 1 marcatore ⚠ (divergenza) |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
 <a id="us-f2-iam-03" />
@@ -111,7 +111,7 @@ Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 2 fatte secon
 **Criteri di accettazione**
 
 1. **Dato** un membro non autenticato che apre il portale `enterprise`, **allora** è rediretto al login OIDC e torna al portale con la sessione del BFF ([#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99), [#104](https://github.com/peppe-ruv/Loyalty_Sys/pull/104)).
-2. ✗ **Dato** un membro autenticato, **quando** chiama `/v1/portal/*` con l'id di un altro membro, **allora** vede solo i propri dati (parametro ignorato o `400`) (docs/18 §6 M8).
+2. ✗ **Dato** un membro autenticato, **quando** chiama `/v1/portal/*` con l'id di un altro membro, **allora** vede solo i propri dati (parametro ignorato o `400`, Q-410) (docs/18 §6 M8).
 3. **Dato** un nuovo membro che si registra da PT-16, **allora** nasce il record in member-service con `external_id = sub` (docs/18 §3.2, Q-410).
 
 **Testbook**: TB-IAM (dominio senza righe) · prove automatiche: `web/lib/auth/oidc.test.ts`.
@@ -179,7 +179,7 @@ Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 2 fatte secon
 
 > *Come* membro o operatore, *voglio* che il browser tenga solo un cookie di sessione e mai i token, *così che* uno script nella pagina non possa rubare il mio accesso.
 
-**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1)
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
 
 **Contesto reale**: Sara (ANALYST) apre il backoffice di «Club Aurora» nel profilo `enterprise`; il browser conserva solo `__Host-lh_session`.
 
@@ -193,7 +193,7 @@ Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 2 fatte secon
 2. ✗ **Dato** una richiesta non idempotente senza `X-LH-CSRF` valido o da un'altra origine, **allora** è rifiutata ([#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99)).
 3. **Dato** un logout token back-channel verificato, **allora** la sessione nel BFF si chiude ([#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99)).
 4. ✗ **Dato** il profilo `enterprise` con configurazione OIDC assente o insicura, **allora** il ruolo `web` non parte (`INSECURE_CONFIG`, [#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99)).
-5. **Dato** un access token scaduto, **allora** il BFF lo rinnova in modo trasparente, una sola volta per sessione ([#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99)).
+5. **Dato** un access token scaduto, **allora** il BFF lo rinnova in modo trasparente, con un solo rinnovo anche per più richieste parallele della stessa sessione (single-flight nella replica, Q-409) ([#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99)).
 6. Passkey per i membri e MFA per gli operatori: criteri da scrivere con la fetta.
 
 **Testbook**: TB-IAM (dominio senza righe) · prove automatiche: `web/lib/auth/sessionStore.test.ts`, `web/lib/auth/bff.modules.test.ts`, `web/app/api/lh/[service]/[...path]/route.bff.test.ts`.
@@ -212,7 +212,7 @@ Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 2 fatte secon
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ⬜ | F2-SEC-06 (in corso); PR [#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99), [#104](https://github.com/peppe-ruv/Loyalty_Sys/pull/104), [#111](https://github.com/peppe-ruv/Loyalty_Sys/pull/111) |
-| D2 Criteri provati | ✅ | prove automatiche: [sessionStore.test.ts](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/web/lib/auth/sessionStore.test.ts), [bff.modules.test.ts](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/web/lib/auth/bff.modules.test.ts), [route.bff.test.ts](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/web/app/api/lh/%5Bservice%5D/%5B...path%5D/route.bff.test.ts) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: prove automatiche: [sessionStore.test.ts](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/web/lib/auth/sessionStore.test.ts), [bff.modules.test.ts](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/web/lib/auth/bff.modules.test.ts), [route.bff.test.ts](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/web/app/api/lh/%5Bservice%5D/%5B...path%5D/route.bff.test.ts) |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
@@ -250,6 +250,6 @@ Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 2 fatte secon
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ⬜ | F2-SEC-07 (da fare) |
-| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

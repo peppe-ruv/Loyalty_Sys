@@ -127,7 +127,7 @@ Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 2 fatte secon
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ⬜ | F2-EVT-03 (da fare) |
-| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
@@ -137,7 +137,7 @@ Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 2 fatte secon
 
 > *Come* chi esercisce il prodotto, *voglio* scegliere partizioni, repliche, concorrenza e retention dei cinque topic, *così che* il programma scali senza topic nuovi.
 
-**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1)
+**DoR**: ⬜ non pronta (R3) · **DoD**: ⬜ non fatta (D1, D2)
 
 **Contesto reale**: con due milioni di membri, l'IT di «Club Aurora» porta i topic a 12 partizioni e alza la concorrenza dei consumer.
 
@@ -168,7 +168,7 @@ Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 2 fatte secon
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ⬜ | F2-EVT-04 (in corso); PR [#95](https://github.com/peppe-ruv/Loyalty_Sys/pull/95), [#105](https://github.com/peppe-ruv/Loyalty_Sys/pull/105) |
-| D2 Criteri provati | ✅ | prove automatiche: [TopicEvolutionIT.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/it/TopicEvolutionIT.java), [KafkaScalingSettingsTest.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/kafka/KafkaScalingSettingsTest.java) |
+| D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: prove automatiche: [TopicEvolutionIT.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/it/TopicEvolutionIT.java), [KafkaScalingSettingsTest.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/kafka/KafkaScalingSettingsTest.java) |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
