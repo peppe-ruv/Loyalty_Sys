@@ -62,7 +62,7 @@ flowchart TB
 
 ## Installazione provata in CI
 
-Il job `helm install (kind)` installa il chart su un cluster kind a ogni modifica di chart, compose, immagine o smoke. Il job è consultivo: non blocca il merge finché non si dimostra stabile. Usa il profilo `demo`, perché lo smoke non ha un token OIDC; il profilo `enterprise` resta da provare in un'installazione reale (Q-491).
+Il job `helm install (kind)` installa il chart su un cluster kind quando cambiano chart, compose, immagine, realm, smoke, la verifica del chart o i workflow, e sempre su `main`. Il job è consultivo: non blocca il merge finché non si dimostra stabile. Usa il profilo `demo`, perché lo smoke non ha un token OIDC; il profilo `enterprise` resta da provare in un'installazione reale (Q-491).
 
 ```mermaid
 flowchart LR

@@ -3,8 +3,8 @@ name: ci
 # Integrazione continua (docs/11 §10): l'arbitro del progetto.
 # ADR-047: una sola esecuzione per PR (niente doppio push + pull_request), job per area con filtro sui file
 # cambiati, backend diviso in gruppi paralleli. I controlli obbligatori del ruleset `main-protetto` restano
-# `backend (Java 25)`, `web (Next.js)`, `seed`, `contracts`, `guard`: un job saltato perché l'area non cambia
-# conta come superato.
+# `backend (Java 25)`, `web (Next.js)`, `seed`, `contracts`, `guard`, `helm (chart e compose)`: un job saltato perché
+# l'area non cambia conta come superato.
 on:
   push:
     branches: [main]
@@ -205,6 +205,8 @@ jobs:
         run: node --test scripts/check-helm.mjs
       - name: Manifest validi (default con gateway, servizi gestiti)
         run: |
+          # pipefail: un `helm template` fallito non deve passare perché kubeconform riceve un input vuoto.
+          set -euo pipefail
           chart=deploy/helm/loyaltyhub
           helm template lh "$chart" --kube-version "$KUBE_VERSION" -f "$chart/ci/lint-values.yaml" \
             --set gateway.enabled=true --set 'gateway.parentRefs[0].name=gw' \
@@ -236,7 +238,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.helm == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     env:
       HELM_VERSION: v3.18.4
       KIND_VERSION: v0.33.0
@@ -260,6 +262,10 @@ jobs:
       - uses: azure/setup-helm@v5
         with:
           version: ${{ env.HELM_VERSION }}
+      # Node per scripts/smoke.sh (legge il JSON senza jq).
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
       - uses: docker/setup-buildx-action@v4
       # Stessa build di .github/workflows/image.yml (solo amd64, nessun push); l'immagine finisce nel Docker del runner.
       - name: Immagine unica
@@ -270,6 +276,9 @@ jobs:
           platforms: linux/amd64
           push: false
           load: true
+          # Nessuna attestazione: `kind load docker-image` vuole un'immagine semplice, non un indice con attestazioni.
+          provenance: false
+          sbom: false
           tags: lh-image:ci
       - name: Cluster kind
         uses: helm/kind-action@v1.15.0
@@ -355,25 +364,28 @@ jobs:
           kubectl -n "$NS" create secret generic lh-idp-db --type=kubernetes.io/basic-auth \
             --from-literal=username=idp --from-literal=password="$(openssl rand -hex 24)"
       - name: helm install
+        timeout-minutes: 22
         run: |
           # Senza --wait: Helm attende il Job di migrazione (hook post-install, che aspetta il Secret di CloudNativePG);
           # Kafka, Postgres e Pod si attendono nei passi successivi, con messaggi più chiari.
           helm install "$RELEASE" deploy/helm/loyaltyhub -n "$NS" -f deploy/helm/loyaltyhub/ci/kind-values.yaml \
             --timeout 20m
       - name: Strimzi e CloudNativePG provisionati
+        timeout-minutes: 25
         run: |
-          kubectl -n "$NS" wait "kafka/$RELEASE-loyaltyhub-kafka" --for=condition=Ready --timeout=15m
-          kubectl -n "$NS" wait kafkatopic --all --for=condition=Ready --timeout=5m
-          kubectl -n "$NS" wait "cluster.postgresql.cnpg.io/$RELEASE-loyaltyhub-pg" --for=condition=Ready --timeout=10m
+          kubectl -n "$NS" wait "kafka/$RELEASE-loyaltyhub-kafka" --for=condition=Ready --timeout=12m
+          kubectl -n "$NS" wait kafkatopic --all --for=condition=Ready --timeout=3m
+          kubectl -n "$NS" wait "cluster.postgresql.cnpg.io/$RELEASE-loyaltyhub-pg" --for=condition=Ready --timeout=6m
           kubectl -n "$NS" wait "database.postgresql.cnpg.io/$RELEASE-loyaltyhub-pg-idp" \
-            --for=jsonpath='{.status.applied}'=true --timeout=5m
+            --for=jsonpath='{.status.applied}'=true --timeout=3m
           kubectl -n "$NS" get kafka,kafkanodepool,kafkatopic,cluster.postgresql.cnpg.io,database.postgresql.cnpg.io
       - name: Pod di tutti i ruoli Ready
+        timeout-minutes: 20
         run: |
           for role in hub web idp; do
             kubectl -n "$NS" rollout status "deployment/$RELEASE-loyaltyhub-$role" --timeout=15m
           done
-          kubectl -n "$NS" wait pod --for=condition=Ready --timeout=5m \
+          kubectl -n "$NS" wait pod --for=condition=Ready --timeout=3m \
             -l "app.kubernetes.io/instance=$RELEASE,app.kubernetes.io/component in (hub,web,idp)"
           kubectl -n "$NS" get pods -o wide
       - name: Smoke attraverso il gateway
@@ -386,13 +398,24 @@ jobs:
           mkdir -p "$RUNNER_TEMP/curl"
           echo 'connect-to = "api.example.org:80:127.0.0.1:8888"' > "$RUNNER_TEMP/curl/.curlrc"
           export CURL_HOME="$RUNNER_TEMP/curl"
+          ready=false
           for _ in $(seq 1 30); do
-            if curl -fsS -o /dev/null --max-time 5 http://api.example.org/v1/portal/wallets/MBR-000003; then break; fi
+            if curl -fsS -o /dev/null --max-time 5 http://api.example.org/v1/portal/wallets/MBR-000003; then
+              ready=true
+              break
+            fi
             sleep 2
           done
+          if [ "$ready" != true ]; then
+            echo "Il gateway non instrada /v1 verso l'hub dopo 30 tentativi"
+            cat "$RUNNER_TEMP/port-forward.log"
+            kubectl -n "$NS" get httproute -o yaml
+            exit 1
+          fi
           BASE_INGESTION=http://api.example.org BASE_WALLET=http://api.example.org DEADLINE_S=60 bash scripts/smoke.sh
+      # Anche con uno step scaduto o annullato (timeout-minutes dei passi lunghi, sotto quello del job).
       - name: Diagnostica
-        if: failure()
+        if: ${{ !success() }}
         run: |
           set +e
           kubectl get nodes -o wide
@@ -417,6 +440,8 @@ jobs:
           kubectl -n strimzi logs deployment/strimzi-cluster-operator --tail=300
           kubectl -n cnpg-system logs -l app.kubernetes.io/name=cloudnative-pg --tail=300 --prefix
           kubectl -n envoy-gateway-system logs deployment/envoy-gateway --tail=200
+          kubectl -n envoy-gateway-system logs -l gateway.envoyproxy.io/owning-gateway-name=lh-gateway --all-containers \
+            --tail=200 --prefix
           echo "::endgroup::"
           cat "$RUNNER_TEMP/port-forward.log"
 

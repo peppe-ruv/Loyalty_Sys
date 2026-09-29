@@ -351,7 +351,7 @@ LH_IMAGE=ghcr.io/example/loyaltyhub:ci docker compose -f deploy/compose/referenc
 ```
 
 In CI lo fa il job `helm` di `.github/workflows/ci.yml` (helm e kubeconform a versione fissa), solo quando cambiano
-chart, compose, immagine, realm, lo smoke o la verifica, e sempre su `main`.
+chart, compose, immagine, realm, lo smoke, la verifica o i workflow, e sempre su `main`.
 
 ### Installazione provata in CI (kind)
 
