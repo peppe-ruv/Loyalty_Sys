@@ -37,10 +37,16 @@ import java.util.Set;
  * cognome, soprannome ed e-mail e si ripuliscono come sempre; le copie {@code :2} non li hanno (i campi assenti si
  * saltano) e portano {@code emailHash}, che sulle righe del membro si toglie e sulle altre si sostituisce come
  * valore inequivocabile. {@code locale}, {@code birthYear} e {@code province} restano, come stato ed etichette.
+ * Da M8.10f (ADR-048, Q-552) {@code member.registered/updated} possono portare anche {@code subjectRef}, lo pseudonimo
+ * del legame account↔membro: sulle righe del membro si toglie a ogni livello come {@code emailHash}, mentre l'attributo
+ * {@code subject} dell'envelope ({@code member:<id>}) non si tocca mai. Non si sostituisce invece nel testo delle altre
+ * righe: dopo un'anonimizzazione la stessa persona può registrarsi di nuovo (Q-558) e il suo nuovo membro riceve lo
+ * stesso {@code subjectRef}, che un'altra anonimizzazione non deve corrompere.
  */
 // SPEC-GAP: Q-122 — PersonalData.KEYS (lh-common) non elenca emailHash di member.*:2 (Q-367): è uno pseudonimo
 // reversibile da chi ha LH_PSEUDONYM_KEY, quindi scelta conservativa, insight lo toglie in anonimizzazione come le
-// chiavi personali; birthYear, province e locale sono x-lh-pii:false (ADR-032) e restano.
+// chiavi personali; birthYear, province e locale sono x-lh-pii:false (ADR-032) e restano. Lo stesso regime vale per
+// subjectRef (Q-552), reversibile da chi ha LH_SUBJECT_KEY e il sub del token.
 // SPEC-GAP: Q-126 — docs/servizi/insight-service.md non dice come trattare le copie degli eventi di un membro
 // anonimizzato: scelta conservativa, si riscrivono le copie (non si maschera in lettura), una volta per fatto di
 // anonimizzazione ricevuto. Un evento del membro con dati personali che arrivasse dopo entrambi i fatti non sarebbe
@@ -50,6 +56,16 @@ public class MemberRedactionRepository {
 
     /** Pseudonimo dell'e-mail in {@code member.registered/updated:2} (contracts/events/fact, Q-367). */
     static final String EMAIL_HASH = PersonalData.EMAIL_HASH;
+
+    /**
+     * Pseudonimo del legame account↔membro in {@code member.registered/updated} (contracts/events/fact, Q-552, ADR-048).
+     * Stesso nome della costante omonima di lh-common introdotta da M8.10f-S1: qui è locale finché quella fetta non è
+     * su {@code main}.
+     */
+    static final String SUBJECT_REF = "subjectRef";
+
+    /** Pseudonimi che l'anonimizzazione toglie dalle righe del membro, a ogni livello. */
+    private static final Set<String> PSEUDONYM_KEYS = Set.of(EMAIL_HASH, SUBJECT_REF);
 
     private static final Set<String> TOKEN_KEYS =
             Set.of("firstName", "lastName", "nickname", "email", "phone", "externalId", EMAIL_HASH);
@@ -248,10 +264,13 @@ public class MemberRedactionRepository {
         return json(PersonalTextScrubber.scrubAll(node, tokens));
     }
 
-    /** Toglie {@link #EMAIL_HASH} a ogni livello (oggetti e array) dalla copia già ripulita; {@code null} resta tale. */
+    /**
+     * Toglie {@link #EMAIL_HASH} e {@link #SUBJECT_REF} a ogni livello (oggetti e array) dalla copia già ripulita;
+     * {@code null} resta tale. Toglie solo queste due chiavi: l'attributo {@code subject} dell'envelope non si tocca.
+     */
     static JsonNode stripPseudonyms(JsonNode node) {
         if (node instanceof ObjectNode obj) {
-            obj.remove(EMAIL_HASH);
+            PSEUDONYM_KEYS.forEach(obj::remove);
             for (Map.Entry<String, JsonNode> e : obj.properties()) {
                 stripPseudonyms(e.getValue());
             }

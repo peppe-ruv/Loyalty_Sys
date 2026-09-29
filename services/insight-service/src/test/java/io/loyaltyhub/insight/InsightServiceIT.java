@@ -283,12 +283,14 @@ class InsightServiceIT {
     /**
      * Doppia lettura {@code member.*:1}/{@code :2} (ADR-032, Q-346, docs/18 §3.4): la {@code :2} (senza nome, cognome,
      * soprannome, e-mail, data di nascita, città; con locale, birthYear, province, emailHash) si registra, conta nei
-     * nuovi membri come la {@code :1}, ha la stessa sintesi e all'anonimizzazione perde {@code emailHash}; la copia
+     * nuovi membri come la {@code :1}, ha la stessa sintesi e all'anonimizzazione perde {@code emailHash} e
+     * {@code subjectRef} (Q-552, ADR-048) senza che cambi il {@code subject} dell'envelope; la copia
      * {@code :1} perde le chiavi personali anche se l'anonimizzazione arriva come {@code member.updated:2}.
      */
     @Test
     void memberFactsV1AndV2AreStoredCountedSummarizedAndRedacted() {
         String hash = "21cebef191120423981adfc0ba20d56791dd828ae5fe4bf3c5ab840bcc9deacb";
+        String subjectRef = "9f2c4b7a1e0d3c5b8a6f4e2d1c0b9a8776655443322110ffeeddccbbaa998877";
         String day = "2031-01-15";
         Map<String, Object> v1 = new LinkedHashMap<>();
         v1.put("memberId", "MBR-000901");
@@ -303,6 +305,7 @@ class InsightServiceIT {
         Map<String, Object> v2 = new LinkedHashMap<>();
         v2.put("memberId", "MBR-000902");
         v2.put("emailHash", hash);
+        v2.put("subjectRef", subjectRef);
         v2.put("status", "ACTIVE");
         v2.put("channel", "APP");
         v2.put("locale", "it");
@@ -330,6 +333,7 @@ class InsightServiceIT {
         assertThat(membersNew).isEqualTo(2);
         JsonNode storedV2 = awaitEvent("EVT-M2-REG", d -> d.path("emailHash").asString("").equals(hash));
         assertThat(storedV2.path("province").asString()).isEqualTo("PV");
+        assertThat(storedV2.path("subjectRef").asString()).isEqualTo(subjectRef);
 
         // Anonimizzazione con member.updated:2 (status ANONYMIZED) per entrambi.
         Map<String, Object> anon1 = new LinkedHashMap<>();
@@ -340,6 +344,7 @@ class InsightServiceIT {
         anon2.put("status", "ANONYMIZED");
         anon2.put("birthYear", null);
         anon2.put("province", null);
+        anon2.put("subjectRef", null);
         publish("lh.facts.v1", memberEnv("EVT-M1-ANON", "updated", "MBR-000901", "COR-M12-ANON", 2, day, anon1));
         publish("lh.facts.v1", memberEnv("EVT-M2-ANON", "updated", "MBR-000902", "COR-M12-ANON", 2, day, anon2));
 
@@ -350,9 +355,16 @@ class InsightServiceIT {
         }
         assertThat(redactedV1.path("memberId").asString()).isEqualTo("MBR-000901");
         assertThat(redactedV1.toString()).doesNotContain("Ottavia", "Brunelli", "ottavia.brunelli");
-        // Copia :2: senza emailHash, restano i campi non personali; nessun errore di consumo.
+        // Copia :2: senza emailHash e senza subjectRef, restano i campi non personali; nessun errore di consumo.
         JsonNode redactedV2 = awaitEvent("EVT-M2-REG", d -> !d.has("emailHash"));
         assertThat(redactedV2.has("emailHash")).isFalse();
+        assertThat(redactedV2.has("subjectRef")).isFalse();
+        assertThat(redactedV2.toString()).doesNotContain(subjectRef);
+        // Il subject dell'envelope (member:<id>) resta com'è: l'anonimizzazione toglie solo i dati del membro.
+        assertThat(storedSubject("EVT-M2-REG")).isEqualTo("member:MBR-000902");
+        JsonNode redactedAnon = awaitEvent("EVT-M2-ANON", d -> !d.has("subjectRef"));
+        assertThat(redactedAnon.has("subjectRef")).isFalse();
+        assertThat(storedSubject("EVT-M2-ANON")).isEqualTo("member:MBR-000902");
         assertThat(redactedV2.path("province").asString()).isEqualTo("PV");
         assertThat(redactedV2.path("birthYear").asInt()).isEqualTo(1991);
         assertThat(redactedV2.path("locale").asString()).isEqualTo("it");
@@ -382,6 +394,14 @@ class InsightServiceIT {
         }
         assertThat(data).as("evento " + eventId + " registrato").isNotNull();
         return data;
+    }
+
+    /** Attributo {@code subject} dell'envelope conservato per {@code eventId}. */
+    private String storedSubject(String eventId) {
+        JsonNode detail = client().get().uri("/v1/events/" + eventId).exchange((req, res) ->
+                res.getStatusCode().value() == 200 ? new ObjectMapper().readTree(res.getBody()) : null);
+        assertThat(detail).as("evento " + eventId + " registrato").isNotNull();
+        return detail.path("payload").path("subject").asString();
     }
 
     /** Fatto {@code member.<name>} di member-service con {@code dataschema} alla versione {@code version}. */
