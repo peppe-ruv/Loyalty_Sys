@@ -14,7 +14,7 @@ come verificarlo e cosa manca ancora.
 |---|---|---|---|
 | SBOM CycloneDX dell'immagine | ogni PR che costruisce l'immagine; ogni tag `v*` (una per piattaforma) | artefatto del workflow (`image-sbom-e-scansione`, `sbom-e-scansione-<tag>`, 90 giorni); sui tag anche come attestazione nel registro | Trivy (`trivy image --format cyclonedx`) |
 | Rapporto di scansione completo (JSON) | come l'SBOM | stesso artefatto | Trivy |
-| Scansione bloccante | come l'SBOM | esito del job `build` (PR) o `release` (tag) | Trivy, HIGH e CRITICAL con correzione disponibile |
+| Scansione con gate | come l'SBOM | esito del job `build` (PR) o `release` (tag): sulle PR il job fallisce ma non è un controllo obbligatorio (Q-513); blocca il rilascio sui tag | Trivy, HIGH e CRITICAL con correzione disponibile |
 | Firma dell'immagine | solo tag `v*` | registro, accanto all'immagine; voce nel log di trasparenza di Sigstore | cosign, firma keyless con l'OIDC di GitHub |
 | Attestazione dell'SBOM | solo tag `v*` | registro, sul digest di ogni piattaforma | `cosign attest --type cyclonedx` |
 | Attestazione di provenienza della build | solo tag `v*` | registro e archivio delle attestazioni di GitHub, sul digest dell'indice | `actions/attest-build-provenance` |
@@ -25,12 +25,12 @@ e la scrittura su GHCR (`packages: write`) esistono solo nel job `release`, che 
 ```mermaid
 flowchart LR
   accTitle: Supply chain dell'immagine unica, dalla build alla verifica
-  accDescr: Sulle PR il job build costruisce l'immagine, genera l'SBOM CycloneDX, la scansiona con Trivy e si ferma se trova vulnerabilità HIGH o CRITICAL con correzione. Sui tag v* il job release costruisce multi-arch, pubblica con un tag provvisorio, scansiona ogni piattaforma, poi firma con cosign keyless, attesta SBOM e provenienza, applica i tag di rilascio e verifica da solo firma e attestazioni. Chi installa ripete la verifica con cosign verify prima di usare l'immagine.
+  accDescr: Sulle PR il job build costruisce l'immagine, genera l'SBOM CycloneDX, la scansiona con Trivy e fallisce se trova vulnerabilità HIGH o CRITICAL con correzione, ma il suo esito non è un controllo obbligatorio per il merge (Q-513). Sui tag v* il job release costruisce multi-arch, pubblica con un tag provvisorio, scansiona ogni piattaforma, poi firma con cosign keyless, attesta SBOM e provenienza, applica i tag di rilascio e verifica da solo firma e attestazioni. Chi installa ripete la verifica con cosign verify prima di usare l'immagine.
   subgraph PR["Pull request: job build"]
     B1[Build amd64] --> S1[SBOM CycloneDX]
     S1 --> V1{Trivy: HIGH o CRITICAL con correzione?}
     V1 -->|no| SM[Prova di avvio]
-    V1 -->|sì| F1[PR bloccata]
+    V1 -->|sì| F1[Job build in errore, non obbligatorio]
   end
   subgraph TAG["Tag v*: job release"]
     B2[Build multi-arch, tag provvisorio] --> S2[SBOM e scansione per piattaforma]
@@ -90,13 +90,14 @@ l'SBOM.
 
 | Manca | Perché | Dove si fa |
 |---|---|---|
-| VEX per le CVE note e non sfruttabili | oggi le eccezioni sono voci di Trivy con scadenza, non un documento VEX firmato e consegnato | M12.4, M12.6 (F2-GRC-08), TOBE-009 |
-| Provenienza SLSA livello 3 | l'attestazione di provenienza c'è; il livello 3 chiede un workflow riusabile isolato e la verifica delle sue garanzie | M12.6, TOBE-009 |
-| Pacchetto di rilascio con SBOM, VEX, provenienza, firme, rapporti e note di sicurezza pubblicato accanto all'immagine | oggi SBOM e rapporti sono artefatti del workflow (90 giorni), non allegati a una release | M12.4 (F2-DIST-08), TOBE-009 |
+| VEX per le CVE note e non sfruttabili | oggi le eccezioni sono voci di Trivy con scadenza, non un documento VEX firmato e consegnato | M12.4, M12.6 (F2-GRC-08), TOBE-010 |
+| Provenienza SLSA livello 3 | l'attestazione di provenienza c'è; il livello 3 chiede un workflow riusabile isolato e la verifica delle sue garanzie | M12.6, TOBE-010 |
+| Pacchetto di rilascio con SBOM, VEX, provenienza, firme, rapporti e note di sicurezza pubblicato accanto all'immagine | oggi SBOM e rapporti sono artefatti del workflow (90 giorni), non allegati a una release | M12.4 (F2-DIST-08), TOBE-010 |
 | Immagine per `main` (firma per ogni merge) | il workflow pubblica solo sui tag | Q-510 |
-| SBOM sull'indice multi-arch e verifica all'ammissione dell'attestazione per tag | l'SBOM descrive una piattaforma | Q-511, TOBE-009 |
+| Scansione dell'immagine come controllo obbligatorio del merge | `image.yml` è filtrato per percorso, quindi il job `build` non si può rendere obbligatorio così com'è: una PR che non tocca quei percorsi resterebbe in attesa | Q-513 |
+| SBOM sull'indice multi-arch e verifica all'ammissione dell'attestazione per tag | l'SBOM descrive una piattaforma | Q-511, TOBE-010 |
 | SBOM e scansione delle immagini di terze parti (Kafka, Postgres, Keycloak) | fuori dall'immagine unica; hanno le loro eccezioni (Q-481, Q-482) | job `security` di M8.11 |
-| Build riproducibile con i pacchetti Wolfi fissati | `apk add` prende la versione corrente a ogni build; SBOM e scansione dicono cosa è finito nell'immagine, ma la build non è riproducibile bit a bit | TOBE-009 |
+| Build riproducibile con i pacchetti Wolfi fissati | `apk add` prende la versione corrente a ogni build; SBOM e scansione dicono cosa è finito nell'immagine, ma la build non è riproducibile bit a bit | TOBE-010 |
 
 ## 6. Prova dello stato attuale
 

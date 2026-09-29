@@ -122,16 +122,16 @@ Ogni voce ha un identificativo `TOBE-nnn` e questi campi:
 | Quando farla | Con i journey di M9 (`e2e/`), che ottengono i token, o prima del primo rilascio del chart verso un'installazione reale. |
 | Riferimenti | Q-491, Q-490, ADR-026, ADR-027, F2-DIST-02, M8.3, M9 |
 
-### TOBE-009 — Pacchetto di rilascio dell'immagine: VEX, SLSA livello 3 e verifica all'ammissione
+### TOBE-010 — Pacchetto di rilascio dell'immagine: VEX, SLSA livello 3 e verifica all'ammissione
 
 | Campo | Contenuto |
 |---|---|
 | Cosa | Completare le evidenze di supply chain di ogni rilascio: documento VEX per le CVE note e non sfruttabili, provenienza SLSA livello 3, pacchetto pubblicato accanto all'immagine (SBOM, VEX, firme, rapporti, note di sicurezza) e verifica delle firme e dell'SBOM all'ammissione nel cluster. |
 | Perché non ora | La pipeline di rilascio (M12.4) e il pacchetto di conformità (M12.6) non esistono ancora. Il livello 3 chiede un workflow di build riusabile e isolato, con la verifica delle sue garanzie. Il VEX ha senso quando c'è un processo che decide, per ogni CVE, se è sfruttabile. L'SBOM è per piattaforma (Q-511), quindi la verifica per tag all'ammissione non lo trova. |
-| Workaround attivo | Su ogni tag `v*` (e su ogni PR che costruisce l'immagine) `image.yml` genera l'SBOM CycloneDX, scansiona con Trivy bloccando HIGH e CRITICAL con correzione, firma per digest con cosign keyless, attesta l'SBOM per piattaforma e la provenienza della build (`actions/attest-build-provenance`), e verifica da sé il risultato. Le CVE accettate sono voci con motivo, riferimento e scadenza entro 90 giorni in `deploy/image/.trivyignore.yaml`. Limite residuo: SBOM e rapporti sono artefatti del workflow per 90 giorni, non un pacchetto di rilascio; nessun VEX; nessuna verifica all'ammissione nel chart. |
+| Workaround attivo | Su ogni PR: SBOM, scansione e rapporto. Sui tag `v*` anche firma per digest, attestazioni e verifica. Le CVE accettate sono voci con motivo, riferimento e scadenza entro 90 giorni in `deploy/image/.trivyignore.yaml`. Limite residuo: SBOM e rapporti sono artefatti del workflow per 90 giorni, non un pacchetto di rilascio; nessun VEX; nessuna verifica all'ammissione nel chart. |
 | Già predisposto | Tutto è per digest, quindi il pacchetto si compone dagli stessi artefatti; il rapporto JSON di Trivy e l'SBOM sono già prodotti per piattaforma; `docs/security/supply-chain.md` e `deploy/README.md` («Verificare l'immagine») descrivono i comandi di verifica; l'identità del certificato è fissa (`image.yml` sul tag). |
 | Quando farla | Con la fetta M12.4 (pipeline di rilascio) per il pacchetto e il VEX, con M12.6 per SLSA livello 3, e prima della verifica all'ammissione opzionale del chart. |
-| Riferimenti | Q-510, Q-511, Q-512, ADR-038, ADR-044, F2-SEC-03, F2-DIST-08, F2-GRC-08, M8.5, M12.4, M12.6 |
+| Riferimenti | Q-510, Q-511, Q-512, Q-513, ADR-038, ADR-044, F2-SEC-03, F2-DIST-08, F2-GRC-08, M8.5, M12.4, M12.6 |
 
 ## Voci chiuse
 

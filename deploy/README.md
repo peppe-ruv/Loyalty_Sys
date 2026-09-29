@@ -386,25 +386,25 @@ sono in `docs/security/supply-chain.md`.
 
 ### Prerequisiti
 
-- [cosign](https://docs.sigstore.dev/cosign/) 2 o successivo (la pipeline usa la 3.1);
+- [cosign](https://docs.sigstore.dev/cosign/) 3.0 o successivo (la pipeline usa la 3.1.3, che scrive il nuovo formato di bundle Sigstore: la 2.x non lo verifica);
 - [GitHub CLI](https://cli.github.com/) (`gh`) per la provenienza;
 - `docker` con buildx e `jq`, per ricavare il digest di una piattaforma;
 - l'accesso in lettura all'immagine su GHCR (`docker login ghcr.io` se il pacchetto non è pubblico).
 
-Imposta tre variabili: sostituisci i segnaposto con i valori del repository che ha pubblicato l'immagine.
+Imposta cinque variabili: sostituisci i segnaposto con i valori del repository che ha pubblicato l'immagine.
 
 ```bash
 export IMAGE=ghcr.io/<owner>/loyaltyhub        # come in image.repository del chart o LH_IMAGE del compose
 export VERSION=v0.7.0                          # il tag da installare
 export REPO=<owner>/<repository>               # il repository GitHub del workflow, con le maiuscole di GitHub
 export ISSUER=https://token.actions.githubusercontent.com
-export IDENTITY_RE="^https://github\.com/${REPO}/\.github/workflows/image\.yml@refs/(tags/v.+|heads/main)$"
+export IDENTITY_RE="^https://github\.com/${REPO}/\.github/workflows/image\.yml@refs/tags/v.+$"
 ```
 
 ### Verifica la firma
 
 Esegui questo comando. Ha successo solo se l'immagine è firmata dal workflow `image.yml` di quel repository su un tag
-`v*` (o su `main`), senza chiavi da scambiare: l'identità è nel certificato di breve durata registrato nel log di
+`v*`, senza chiavi da scambiare: l'identità è nel certificato di breve durata registrato nel log di
 trasparenza di Sigstore.
 
 ```bash
@@ -431,7 +431,7 @@ DIGEST=$(docker buildx imagetools inspect --raw "$IMAGE:$VERSION" \
 cosign verify-attestation --type cyclonedx "$IMAGE@$DIGEST" \
   --certificate-identity-regexp "$IDENTITY_RE" \
   --certificate-oidc-issuer "$ISSUER" \
-  | jq -r '.payload | @base64d | fromjson | .predicate' > sbom-amd64.cdx.json
+  | head -n1 | jq -r '.payload | @base64d | fromjson | .predicate' > sbom-amd64.cdx.json
 ```
 
 In alternativa scarica l'SBOM dall'esecuzione del workflow, senza verificare la firma: apri l'esecuzione del tag nella
@@ -440,6 +440,8 @@ scheda *Actions* del repository e scarica l'artefatto `sbom-e-scansione-<tag>` (
 registro resta finché esiste l'immagine.
 
 ### Verifica la provenienza della build
+
+Questo comando controlla che la provenienza della build, firmata da GitHub, indichi il repository e il workflow attesi.
 
 ```bash
 # Verifica l'attestazione di provenienza (SLSA) firmata da GitHub per questo repository
@@ -455,4 +457,4 @@ gh attestation verify "oci://$IMAGE:$VERSION" --repo "$REPO"
 
 > **Nota:** `cosign verify-attestation` sul tag, cioè sull'indice, non trova l'SBOM: l'attestazione è sul digest della
 > piattaforma. Il chart non porta ancora la verifica delle firme all'ammissione (Kyverno, docs/18 §3.11):
-> per ora la verifica si fa come sopra, prima dell'installazione. Q-511 e TOBE-009 dicono cosa manca.
+> per ora la verifica si fa come sopra, prima dell'installazione. Q-511 e TOBE-010 dicono cosa manca.

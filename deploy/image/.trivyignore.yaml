@@ -7,7 +7,8 @@
 #     al pacchetto interessato quando l'id compare altrove;
 #   - `statement`: motivo, riferimento (Q-nnn in docs/15 o TOBE-nnn in docs/19) e condizione per toglierla;
 #   - `expired_at`: data di scadenza, al massimo 90 giorni da quando la voce e' scritta o rinnovata.
-#     Alla scadenza Trivy smette di ignorare la voce e la scansione torna a fallire: si corregge,
+#     Alla scadenza Trivy smette di ignorare la voce e la scansione torna a fallire (sulle PR il job fallisce ma
+#     non e' un controllo obbligatorio, Q-513; blocca il rilascio sui tag): si corregge,
 #     oppure si rinnova con una nuova decisione del proprietario (Q in docs/15), mai in silenzio.
 # Si accetta solo cio' che ha una correzione disponibile e non si puo' applicare subito; le vulnerabilita'
 # senza correzione (`--ignore-unfixed`) non vanno elencate. Le librerie di Keycloak (Q-482, TOBE-007) e

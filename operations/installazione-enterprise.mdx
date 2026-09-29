@@ -87,6 +87,26 @@ flowchart LR
 
 `deploy/compose/reference.yml` avvia Postgres, Kafka KRaft, le migrazioni, `hub`, `web` e `idp` con la stessa immagine. Non è HA: è il taglio per chi installa su Docker senza Kubernetes. I segreti arrivano dall'ambiente e un container a cui ne manca uno non parte. Keycloak usa un ruolo Postgres proprio; `web` e `idp` sono pubblicati solo su `127.0.0.1` perché parlano HTTP in chiaro: per altri accessi serve un reverse proxy con TLS (Q-392).
 
+## Verificare l'immagine
+
+Ogni immagine pubblicata con un tag `v*` è scansionata, firmata senza chiavi da custodire e accompagnata da un SBOM e da una provenienza della build. Prima di installarla verifica la firma con `cosign verify`, l'SBOM con `cosign verify-attestation` e la provenienza con `gh attestation verify`: i comandi, con l'identità del workflow da controllare, sono in [`deploy/README.md`](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/deploy/README.md). Serve cosign 3.0 o successivo. Il chart non verifica ancora le firme all'ammissione nel cluster: la verifica si fa prima dell'installazione.
+
+```mermaid
+flowchart LR
+  accTitle: Dalla build alla verifica dell'immagine
+  accDescr: Sul tag di rilascio il workflow costruisce l'immagine multi-arch e la pubblica con un tag provvisorio, la scansiona con Trivy, la firma con cosign per digest, attesta SBOM e provenienza, verifica firma e attestazioni, e solo dopo mette i tag latest e versione; chi installa ripete la verifica prima di usare l'immagine.
+  BLD[Build e push con tag provvisorio] --> SCN[Scansione Trivy]
+  SCN --> SGN[Firma cosign per digest]
+  SGN --> ATT[Attestazioni SBOM e provenienza]
+  ATT --> VWF[Verifica del workflow]
+  VWF --> TAG[Tag latest e versione]
+  TAG --> VER[Verifica di chi installa]
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef check fill:#ECFDF5,stroke:#059669,color:#064E3B
+  class BLD,SCN,SGN,ATT,TAG svc
+  class VWF,VER check
+```
+
 ## Crea i segreti del web
 
 Nel profilo `enterprise` il web fa il login OIDC come client confidential `web` e tiene le sessioni lato server (BFF, vedi [Autenticazione](/api/autenticazione)). Gli servono due segreti: il segreto del client `web`, lo stesso che riceve Keycloak, e una chiave di 32 byte casuali che cifra le sessioni. Se mancano o sono deboli, il web non parte (`INSECURE_CONFIG`). Per generarli ti serve `openssl`.
