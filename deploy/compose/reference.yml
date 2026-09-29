@@ -25,6 +25,13 @@
 # Ruolo idp: immagine ufficiale di Keycloak alla versione di deploy/docker-compose.yml finché l'immagine unica non
 # contiene Keycloak (SPEC-GAP: Q-374). Ruolo cms (Directus) con Redis e MinIO: arrivano con M10.2 (Q-374).
 # Per valutare con i dati fittizi senza reverse proxy: LH_PROFILE=demo LH_IDENTITY_MODE=header.
+#
+# Osservabilità (F2-OBS-01, M8.6a; profilo `observability`, spento di default): collector OpenTelemetry, Prometheus 3 e
+# Grafana con la dashboard SLO e le regole del chart (deploy/helm/loyaltyhub/files/observability, un solo file per i due).
+# Variabili: LH_OTEL_METRICS_ENABLED (true perché l'hub invii le metriche), LH_GRAFANA_ADMIN_PASSWORD (obbligatoria),
+# LH_GRAFANA_ADMIN_USER (default admin), LH_PROMETHEUS_RETENTION (default 31d: i riquadri a 30 giorni della dashboard
+# hanno bisogno di almeno 30 giorni di dati). Grafana su http://127.0.0.1:3001.
+#   LH_OTEL_METRICS_ENABLED=true LH_GRAFANA_ADMIN_PASSWORD=… docker compose -f deploy/compose/reference.yml --profile observability up -d
 name: loyaltyhub-reference
 
 # Guardia dei segreti obbligatori (POSIX sh, vale per l'immagine unica e per Keycloak). Il valore non viene stampato.
@@ -222,6 +229,10 @@ services:
       LH_OIDC_ISSUER: "${LH_IDP_PUBLIC_URL:-http://localhost:8180}/realms/loyaltyhub"
       LH_OIDC_JWKS_URI: "http://idp:8080/realms/loyaltyhub/protocol/openid-connect/certs"
       LH_OIDC_AUDIENCE: "hub"
+      # Osservabilità (F2-OBS-01, M8.6a): con il profilo observability e LH_OTEL_METRICS_ENABLED=true l'hub invia le metriche in OTLP al collector (servizio otelcol). Spento di default.
+      LH_OTEL_METRICS_ENABLED: "${LH_OTEL_METRICS_ENABLED:-false}"
+      LH_OTEL_METRICS_URL: "http://otelcol:4318/v1/metrics"
+      LH_OTEL_SERVICE_NAMESPACE: "${LH_OTEL_SERVICE_NAMESPACE:-loyaltyhub}"
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
       LH_REQUIRED_ENV: "DB_PASSWORD"
     # Stesso controllo dell'HEALTHCHECK dell'immagine (per ruolo), reso esplicito per i depends_on.
@@ -343,6 +354,91 @@ services:
     mem_limit: 1536m
     cpus: 2
 
+  # ---------- Osservabilità (profilo observability, F2-OBS-01, M8.6a; ADR-012, ADR-036) ----------
+  # Solo metriche: l'hub le invia in OTLP al collector, che le inoltra al ricevitore OTLP di Prometheus; Grafana legge da
+  # Prometheus. Nessuna porta di collector e Prometheus sull'host; nessuna telemetria esce dalla rete compose (ADR-044).
+  # Immagini con tag leggibile e digest, gli stessi del chart (values.yaml: observability.collector.image, verificato da
+  # scripts/check-helm.mjs). Nomi dei servizi senza trattino: scripts/check-helm.mjs li legge per nome.
+  otelcol:
+    <<: *lh-hardening
+    image: otel/opentelemetry-collector:0.161.0@sha256:b6d2b9a85b1029d05b5ad913150c1f014eed4ae99be81a1813ca5ade4a191913
+    profiles: ["observability"]
+    restart: unless-stopped
+    read_only: true
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./observability/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    environment:
+      GOMEMLIMIT: "200MiB"
+    # Nessun healthcheck: l'immagine non ha una shell. Lo stato si vede da `docker compose ps` e da Prometheus.
+    mem_limit: 256m
+    cpus: 0.5
+
+  prometheus:
+    <<: *lh-hardening
+    image: prom/prometheus:v3.13.3@sha256:6976aa8a60fec930796ce5772b8d12da7a318a5daa8d40d69c5c7819a05eeed7
+    profiles: ["observability"]
+    restart: unless-stopped
+    read_only: true
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - "--storage.tsdb.retention.time=${LH_PROMETHEUS_RETENTION:-31d}"
+      - --web.enable-otlp-receiver
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../helm/loyaltyhub/files/observability/slo-rules.json:/etc/prometheus/rules/slo-rules.json:ro
+      - lh-ref-prometheus:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9090/-/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    mem_limit: 1g
+    cpus: 1
+
+  # SPEC-GAP: Q-528 — Grafana con l'utente amministratore locale (password obbligatoria, niente accesso anonimo né
+  # registrazione, niente comunicazioni verso Grafana Labs); il login con OIDC arriva con M8.5. Solo su LH_BIND_ADDRESS.
+  grafana:
+    <<: *lh-hardening
+    image: grafana/grafana:13.2.3@sha256:b28bae15e219c998fb0e0424ed724930cc61b1f61fb404d47c862f9a23f9e572
+    profiles: ["observability"]
+    restart: unless-stopped
+    entrypoint: *lh-require-env
+    command: ["lh-require-env", "/run.sh"]
+    ports:
+      - "${LH_BIND_ADDRESS:-127.0.0.1}:3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: "${LH_GRAFANA_ADMIN_USER:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${LH_GRAFANA_ADMIN_PASSWORD:-}"
+      LH_REQUIRED_ENV: "GF_SECURITY_ADMIN_PASSWORD"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      # Niente scambi con grafana.com (verificato su conf/defaults.ini di Grafana 13.2.3): senza queste quattro Grafana
+      # scarica la chiave di firma dei plugin (all'avvio e ogni 10 giorni), interroga il catalogo dei plugin e lascia
+      # a chiunque pubblicare uno snapshot di una dashboard su snapshots.raintank.io, cioè le metriche di produzione.
+      GF_PLUGINS_PUBLIC_KEY_RETRIEVAL_DISABLED: "true"
+      GF_PLUGINS_PLUGIN_ADMIN_ENABLED: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../helm/loyaltyhub/files/observability/dashboards:/etc/lh/dashboards:ro
+      - lh-ref-grafana:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    mem_limit: 512m
+    cpus: 1
+
 volumes:
   lh-ref-postgres:
   lh-ref-kafka:
+  lh-ref-prometheus:
+  lh-ref-grafana:

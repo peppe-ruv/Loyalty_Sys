@@ -119,7 +119,7 @@ trivy fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --include-dev
 `scripts/security-iac.sh` fa quattro cose:
 
 1. **Prova i controlli del progetto.** Scansiona `.trivy/tests/compose-violazioni.yml`, che viola di proposito le regole, e fallisce se Trivy non le segnala tutte (6 volte `LH-DC-0001`, 5 volte `LH-DC-0002`); la stessa fixture contiene i casi che non devono segnalare (`127.0.0.1::8080`, `[::1]`, `host_ip: 127.0.0.1`). Un controllo che non segnala mai nulla è un controllo rotto.
-2. **Rende il chart** con `helm template` negli stessi tre scenari del job `helm` (valori di CI con gateway, valori di `kind`, servizi gestiti esterni) e lo scansiona.
+2. **Rende il chart** con `helm template` in quattro scenari (i tre del job `helm`: valori di CI con gateway, valori di `kind`, servizi gestiti esterni; e osservabilità accesa, `ci/observability-values.yaml`, con il collector OpenTelemetry, la sua NetworkPolicy e la PrometheusRule) e lo scansiona.
 3. **Scansiona `deploy/`**: compose di riferimento (`deploy/compose/reference.yml`), compose locale (`deploy/docker-compose.yml`) e `deploy/image/Dockerfile`. Resta fuori `deploy/helm` (già reso al punto 2); `deploy/hub` ha il passo 4.
 4. **Scansiona i Dockerfile di Fase 1** (`deploy/hub/Dockerfile` e `services/*/Dockerfile`), uno per cartella, in modo bloccante solo se hanno un'istruzione `USER` (vedi «Dockerfile di Fase 1»).
 

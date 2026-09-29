@@ -1,0 +1,154 @@
+# Prova delle regole di allarme con `promtool test rules` (F2-OBS-01, M8.6a; ADR-036, Q-527). Le regole sono quelle del chart
+# (files/observability/slo-rules.json), le stesse del compose. Da lanciare così, con promtool 3 o successivo:
+#   promtool test rules deploy/helm/loyaltyhub/ci/slo-rules.test.yaml
+# scripts/check-helm.mjs lo esegue quando promtool è nel PATH. Serie di prova: un'installazione `loyaltyhub/hub` con un solo
+# Pod, un minuto per campione; `_` è un campione mancante (buco di telemetria), `a+bxN` una progressione.
+rule_files:
+  - ../files/observability/slo-rules.json
+
+evaluation_interval: 1m
+
+tests:
+  # Un contatore nasce alla prima occorrenza con valore 1: increase() da solo non la vede (Q-527).
+  - name: DLQ, prima occorrenza di un codice d'errore mai visto
+    input_series:
+      - series: 'process_uptime_seconds{job="loyaltyhub/hub", instance="pod-1"}'
+        values: '3600+60x60'
+      - series: 'lh_events_dlq_total{job="loyaltyhub/hub", instance="pod-1", errorCode="SCHEMA_INVALID"}'
+        values: '_x30 1+0x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: LoyaltyHubDlqMessages
+        exp_alerts: []
+      - eval_time: 31m
+        alertname: LoyaltyHubDlqMessages
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: loyaltyhub/hub
+              errorCode: SCHEMA_INVALID
+            exp_annotations:
+              summary: "Messaggi in coda degli errori (DLQ) su loyaltyhub/hub"
+              description: "Codice d'errore SCHEMA_INVALID: 1 messaggi negli ultimi 10 minuti. Vedere il backoffice, sezione DLQ (BO-27)."
+      # Dopo la finestra il contatore non è più «nuovo» e non cresce: l'allarme rientra.
+      - eval_time: 45m
+        alertname: LoyaltyHubDlqMessages
+        exp_alerts: []
+
+  - name: DLQ, un contatore che cresce
+    input_series:
+      - series: 'process_uptime_seconds{job="loyaltyhub/hub", instance="pod-1"}'
+        values: '3600+60x60'
+      - series: 'lh_events_dlq_total{job="loyaltyhub/hub", instance="pod-1", errorCode="SCHEMA_INVALID"}'
+        values: '3+0x30 4+0x10 5+0x19'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: LoyaltyHubDlqMessages
+        exp_alerts: []
+      - eval_time: 32m
+        alertname: LoyaltyHubDlqMessages
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: loyaltyhub/hub
+              errorCode: SCHEMA_INVALID
+            exp_annotations:
+              summary: "Messaggi in coda degli errori (DLQ) su loyaltyhub/hub"
+              description: "Codice d'errore SCHEMA_INVALID: 1.1111111111111112 messaggi negli ultimi 10 minuti. Vedere il backoffice, sezione DLQ (BO-27)."
+
+  # Dopo un buco di telemetria più lungo della finestra (collector o Prometheus fermi, riavvio di Prometheus) i contatori
+  # vecchi riappaiono senza il campione a `offset`: senza il controllo sull'uptime dell'istanza riscatterebbe l'allarme.
+  - name: DLQ e firma non valida, nessun falso allarme dopo un buco di telemetria
+    input_series:
+      - series: 'process_uptime_seconds{job="loyaltyhub/hub", instance="pod-1"}'
+        values: '7200+60x20 _x20 9600+60x20'
+      - series: 'lh_events_dlq_total{job="loyaltyhub/hub", instance="pod-1", errorCode="SCHEMA_INVALID"}'
+        values: '3+0x20 _x20 3+0x20'
+      - series: 'lh_events_dlq_total{job="loyaltyhub/hub", instance="pod-1", errorCode="SIGNATURE_INVALID"}'
+        values: '2+0x20 _x20 2+0x20'
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: LoyaltyHubDlqMessages
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: LoyaltyHubMessageRejected
+        exp_alerts: []
+      - eval_time: 55m
+        alertname: LoyaltyHubDlqMessages
+        exp_alerts: []
+      - eval_time: 55m
+        alertname: LoyaltyHubMessageRejected
+        exp_alerts: []
+
+  # Un Pod appena avviato non ha il campione a `offset`, ma i suoi contatori sono nati dopo l'avvio: si contano.
+  - name: DLQ, un Pod nuovo con un contatore nato dopo l'avvio
+    input_series:
+      - series: 'process_uptime_seconds{job="loyaltyhub/hub", instance="pod-2"}'
+        values: '_x30 0+60x30'
+      - series: 'lh_events_dlq_total{job="loyaltyhub/hub", instance="pod-2", errorCode="SCHEMA_INVALID"}'
+        values: '_x30 _x3 1+0x27'
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: LoyaltyHubDlqMessages
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: loyaltyhub/hub
+              errorCode: SCHEMA_INVALID
+            exp_annotations:
+              summary: "Messaggi in coda degli errori (DLQ) su loyaltyhub/hub"
+              description: "Codice d'errore SCHEMA_INVALID: 1 messaggi negli ultimi 10 minuti. Vedere il backoffice, sezione DLQ (BO-27)."
+
+  - name: firma non valida, prima occorrenza critica
+    input_series:
+      - series: 'process_uptime_seconds{job="loyaltyhub/hub", instance="pod-1"}'
+        values: '3600+60x60'
+      - series: 'lh_events_dlq_total{job="loyaltyhub/hub", instance="pod-1", errorCode="SIGNATURE_INVALID"}'
+        values: '_x30 1+0x30'
+    alert_rule_test:
+      - eval_time: 31m
+        alertname: LoyaltyHubMessageRejected
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: loyaltyhub/hub
+              errorCode: SIGNATURE_INVALID
+            exp_annotations:
+              summary: "Evento rifiutato per firma o produttore (SIGNATURE_INVALID) su loyaltyhub/hub"
+              description: "Un evento con firma non valida o da un produttore non ammesso è finito in DLQ (1 negli ultimi 5 minuti): possibile tentativo di falsificazione sul bus (docs/18 §3.10 punto 11)."
+
+  # Con più installazioni sullo stesso Prometheus (un service.namespace ciascuna, Q-527) ne basta una muta per l'allarme,
+  # e vale il suo `job`: absent_over_time() da solo scatterebbe solo se tacessero tutte.
+  - name: telemetria assente, una sola installazione tra due
+    input_series:
+      - series: 'process_uptime_seconds{job="loyaltyhub/hub", instance="pod-1"}'
+        values: '0+60x90'
+      - series: 'process_uptime_seconds{job="loyaltyhub-prod/hub", instance="pod-9"}'
+        values: '0+60x30'
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: LoyaltyHubTelemetryAbsent
+        exp_alerts: []
+      - eval_time: 50m
+        alertname: LoyaltyHubTelemetryAbsent
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: loyaltyhub-prod/hub
+            exp_annotations:
+              summary: "Nessuna metrica dall'hub da 10 minuti su loyaltyhub-prod/hub"
+              description: "Prometheus non riceve più le metriche dell'hub di loyaltyhub-prod/hub: hub fermo, collector o ricevitore OTLP non raggiungibili, oppure osservabilità spenta. Dashboard e allarmi SLO sono ciechi. Con più installazioni sullo stesso Prometheus l'allarme è per installazione (job) e resta attivo per un'ora dall'ultima metrica ricevuta."
+
+  - name: telemetria assente, nessuna installazione
+    input_series:
+      - series: 'process_uptime_seconds{job="loyaltyhub/hub", instance="pod-1"}'
+        values: '0+60x20'
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: LoyaltyHubTelemetryAbsent
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Nessuna metrica dall'hub da 10 minuti"
+              description: "Prometheus non riceve più le metriche dell'hub di nessuna installazione: hub fermo, collector o ricevitore OTLP non raggiungibili, oppure osservabilità spenta. Dashboard e allarmi SLO sono ciechi. Con più installazioni sullo stesso Prometheus l'allarme è per installazione (job) e resta attivo per un'ora dall'ultima metrica ricevuta."

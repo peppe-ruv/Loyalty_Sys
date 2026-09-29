@@ -20,11 +20,18 @@ import io.loyaltyhub.common.outbox.OutboxCleanup;
 import io.loyaltyhub.common.outbox.OutboxRelay;
 import io.loyaltyhub.common.outbox.OutboxWriter;
 import io.loyaltyhub.common.time.BusinessCalendar;
+import io.loyaltyhub.common.identity.MemberSubjectLookup;
 import io.loyaltyhub.common.web.ActorFilter;
 import io.loyaltyhub.common.web.GlobalExceptionHandler;
 import io.loyaltyhub.common.web.EndpointAccessInterceptor;
+import io.loyaltyhub.common.web.IdentityMode;
+import io.loyaltyhub.common.web.MemberBodyAdvice;
+import io.loyaltyhub.common.web.MemberEndpointGuard;
+import io.loyaltyhub.common.web.MemberPrincipalArgumentResolver;
+import io.loyaltyhub.common.web.MemberPrincipals;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -35,8 +42,10 @@ import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 import java.time.Clock;
 import java.util.List;
@@ -252,12 +261,47 @@ public class LhCommonAutoConfiguration {
         return new io.loyaltyhub.common.web.OidcActorFilter(props.getService(), decoder, rolesClaim);
     }
 
+    /**
+     * Il membro dal token (Q-410, ADR-048): {@code oidc} lo risolve dal {@code sub} con la lookup del modulo, {@code demo}
+     * da {@code memberId} o {@code X-LH-Member}. Le lookup dei servizi si leggono alla prima richiesta; la chiave
+     * ({@code LH_SUBJECT_KEY}) si decodifica solo in {@code oidc} e, se è presente ma insicura, l'avvio fallisce.
+     */
     @Bean
-    public WebMvcConfigurer lhWebMvcConfigurer() {
+    @ConditionalOnMissingBean
+    public MemberPrincipals memberPrincipals(org.springframework.core.env.Environment env,
+                                             ObjectProvider<MemberSubjectLookup> lookups) {
+        IdentityMode mode = IdentityGuard.mode(env.getProperty("loyaltyhub.identity.mode", "header"));
+        byte[] key = mode == IdentityMode.OIDC ? IdentityGuard.subjectKey(env) : null;
+        return new MemberPrincipals(mode, key, () -> lookups.orderedStream().toList());
+    }
+
+    /** Rifiuta un {@code memberId} nel corpo di un handler del membro in {@code oidc} (Q-553, D6). */
+    @Bean
+    @ConditionalOnMissingBean
+    public MemberBodyAdvice memberBodyAdvice(MemberPrincipals principals) {
+        return new MemberBodyAdvice(principals.mode());
+    }
+
+    /** Verifica all'avvio la configurazione degli endpoint del membro (regola 22): {@code INSECURE_CONFIG} se insicura. */
+    @Bean
+    @ConditionalOnMissingBean
+    public MemberEndpointGuard memberEndpointGuard(ObjectProvider<RequestMappingHandlerMapping> mappings,
+                                                   MemberPrincipals principals,
+                                                   org.springframework.core.env.Environment env) {
+        return new MemberEndpointGuard(mappings, principals, env);
+    }
+
+    @Bean
+    public WebMvcConfigurer lhWebMvcConfigurer(ObjectProvider<MemberPrincipals> principals) {
         return new WebMvcConfigurer() {
             @Override
             public void addInterceptors(InterceptorRegistry registry) {
-                registry.addInterceptor(new EndpointAccessInterceptor());
+                registry.addInterceptor(new EndpointAccessInterceptor(principals.getObject()));
+            }
+
+            @Override
+            public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
+                resolvers.add(new MemberPrincipalArgumentResolver());
             }
         };
     }

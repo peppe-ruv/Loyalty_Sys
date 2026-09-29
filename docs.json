@@ -51,6 +51,7 @@
               "operations/deploy-costo-zero",
               "operations/installazione-enterprise",
               "operations/verifica-sicurezza",
+              "operations/osservabilita",
               "operations/troubleshooting"
             ]
           }

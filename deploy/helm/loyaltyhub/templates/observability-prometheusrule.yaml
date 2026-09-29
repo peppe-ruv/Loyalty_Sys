@@ -1,0 +1,18 @@
+{{- /*
+Regole SLO e allarmi (F2-OBS-01, M8.6a; ADR-036, docs/18 §3.10 punto 11) come PrometheusRule del Prometheus Operator.
+Le regole sono un file solo (files/observability/slo-rules.json), condiviso con il compose di riferimento: con un
+Prometheus senza operatore si caricano da lì. Solo con observability.enabled e prometheusRule.enabled (richiede i CRD).
+*/ -}}
+{{- if and .Values.observability.enabled .Values.observability.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "loyaltyhub.fullname" . }}-slo
+  labels:
+    {{- include "loyaltyhub.labels" (dict "ctx" $ "role" "observability") | nindent 4 }}
+    {{- with .Values.observability.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- .Files.Get "files/observability/slo-rules.json" | fromJson | toYaml | nindent 2 }}
+{{- end }}

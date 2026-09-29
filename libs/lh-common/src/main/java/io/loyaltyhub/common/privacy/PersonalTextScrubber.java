@@ -33,7 +33,7 @@ import java.util.regex.Pattern;
  *       {@code subject} ({@code email:<indirizzo>}, {@code external:<id>}). Nel testo libero resta intatto un valore
  *       che è per intero una parola in maiuscolo con almeno una lettera ({@code TEST}, {@code MEMBER_REQUEST},
  *       {@code GOODWILL}: {@link #isSafe}). Gli identificativi personali ({@code externalId}, {@link PersonalData#KEYS})
- *       e lo pseudonimo {@link PersonalData#EMAIL_HASH} non sono mai sicuri.</li>
+ *       e gli pseudonimi {@link PersonalData#EMAIL_HASH} e {@link PersonalData#SUBJECT_REF} non sono mai sicuri.</li>
  *   <li><strong>Un dato del membro per intero non è mai sicuro</strong> (revisione Q-404): un valore saltato come
  *       sicuro che coincide per intero con un valore del membro diventa comunque «Membro anonimo»
  *       ({@code "customerId":"CRM101"}, {@code "lhactor":"<e-mail>"}, {@code "level":"Ada"}). Il confronto non
@@ -323,7 +323,8 @@ public final class PersonalTextScrubber {
     }
 
     private static boolean personal(String key) {
-        return PersonalData.KEYS.contains(key) || PersonalData.EMAIL_HASH.equals(key);
+        return PersonalData.KEYS.contains(key) || PersonalData.EMAIL_HASH.equals(key)
+                || PersonalData.SUBJECT_REF.equals(key);
     }
 
     private static boolean hasSuffix(String key, List<String> suffixes) {

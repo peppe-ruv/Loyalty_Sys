@@ -1,0 +1,10 @@
+# Origine dati di Grafana (F2-OBS-01, M8.6a): il Prometheus del compose, in sola lettura dalla dashboard.
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

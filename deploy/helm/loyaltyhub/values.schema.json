@@ -423,6 +423,81 @@
         "host": { "type": "string" },
         "parentRefs": { "type": "array" }
       }
+    },
+    "observability": {
+      "type": "object",
+      "description": "Osservabilità (F2-OBS-01, M8.6a): collector OpenTelemetry, dashboard SLO e regole; spenta di default.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "serviceNamespace": {
+          "type": "string",
+          "pattern": "^loyaltyhub(-[a-z0-9]([-a-z0-9]*[a-z0-9])?)?$",
+          "description": "Prefisso loyaltyhub: regole e dashboard selezionano job=~\"loyaltyhub[^/]*/hub\" (Q-527)."
+        },
+        "metricsStep": { "type": "string", "pattern": "^[1-9][0-9]*(s|m)$" },
+        "collector": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "replicas": { "type": "integer", "minimum": 1 },
+            "image": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["repository", "tag"],
+              "properties": {
+                "repository": { "type": "string", "minLength": 1 },
+                "tag": { "type": "string", "minLength": 1 },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            },
+            "resources": { "$ref": "#/definitions/resources" },
+            "goMemLimit": { "type": "string", "pattern": "^[0-9]+(MiB|GiB)$" },
+            "pdb": { "$ref": "#/definitions/pdb" },
+            "networkPolicy": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": { "enabled": { "type": "boolean" } }
+            }
+          }
+        },
+        "prometheus": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "otlpEndpoint": {
+              "type": "string",
+              "description": "URL del ricevitore OTLP di Prometheus, senza /v1/metrics (verificato con messaggio in loyaltyhub.validate.observability)."
+            },
+            "allowInsecure": { "type": "boolean" },
+            "bearerToken": { "$ref": "#/definitions/secretRef" },
+            "caBundle": { "$ref": "#/definitions/configMapRef" }
+          }
+        },
+        "grafana": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dashboards": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "labels": { "type": "object", "additionalProperties": { "type": "string" } },
+                "annotations": { "type": "object", "additionalProperties": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "prometheusRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "labels": { "type": "object", "additionalProperties": { "type": "string" } }
+          }
+        }
+      }
     }
   }
 }

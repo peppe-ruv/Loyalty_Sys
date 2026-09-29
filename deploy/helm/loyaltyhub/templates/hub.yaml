@@ -66,6 +66,9 @@ spec:
             - name: LH_OIDC_AUDIENCE
               value: {{ .Values.oidc.audience | quote }}
             {{- end }}
+            {{- if .Values.observability.enabled }}
+            {{- include "loyaltyhub.hubOtelEnv" . | nindent 12 }}
+            {{- end }}
             {{- with $r.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
