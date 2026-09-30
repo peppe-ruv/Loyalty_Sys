@@ -782,11 +782,6 @@ paths:
       operationId: list_1
       parameters:
       - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
-      - in: query
         name: codes
         required: false
         schema:
