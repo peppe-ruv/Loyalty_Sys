@@ -509,9 +509,10 @@ Cosa applica, servizio per servizio (la voce «saltata» lascia la schermata *em
 | wallet | niente | valute, livelli (solo `PUT` su righe esistenti), edizioni (la `POST` crea sempre `PLANNED`) |
 | campaign | niente | campagne (approvazione) |
 
-Limite: senza valute, livelli, tipi azione di sistema e mappature nessuna API le crea in `enterprise`, quindi le
-schermate BO-07 e BO-09 restano vuote e il wallet non può registrare punti: è la domanda **Q-629** (APERTA), da
-decidere prima di contare sulla vetrina per mostrare l'accredito dei punti. Il ripristino periodico di Q-624 ripete
+Limite: oggi nessuna API crea in `enterprise` valute, livelli, tipi azione di sistema e mappature, quindi le
+schermate BO-07 e BO-09 restano vuote e il wallet non può registrare punti. **Q-629** è decisa (opzione B, 2026-09-30):
+questi dati di riferimento di sistema arriveranno con migrazioni Flyway nei servizi proprietari (wallet e ingestion),
+in ogni profilo; fino ad allora lo script li salta e li riporta nel piano. Il ripristino periodico di Q-624 ripete
 lo script dopo aver ricreato volumi e account operatore.
 
 ### Limiti noti (domande aperte)
