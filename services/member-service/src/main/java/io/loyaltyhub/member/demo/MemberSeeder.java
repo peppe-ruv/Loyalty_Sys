@@ -6,7 +6,7 @@ import tools.jackson.databind.node.ObjectNode;
 import io.loyaltyhub.common.demo.DemoResettable;
 import io.loyaltyhub.common.demo.SeedDates;
 import io.loyaltyhub.common.demo.SeedLoader;
-import io.loyaltyhub.common.ids.Codes;
+import io.loyaltyhub.common.demo.SeededCodes;
 import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.member.application.SegmentRefresher;
 import io.loyaltyhub.member.domain.Anonymization;
@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import io.loyaltyhub.common.ids.Codes;
 
 /**
  * Carica i 12 membri canonici (docs/10 §2, docs/servizi/member-service.md §6) da {@code seed/members.json}:
@@ -132,7 +131,7 @@ public class MemberSeeder implements ApplicationRunner, DemoResettable {
             Member member = new Member(
                     id, text(m.get("externalId")), text(m.get("firstName")), text(m.get("lastName")),
                     text(m.get("nickname")), text(m.get("email")), text(m.get("phone")), birthDate, null,
-                    text(m.get("city")), status, "IMPORT", registeredAt, generateDemoCode(8, rnd), text(m.get("referredBy")),
+                    text(m.get("city")), status, "IMPORT", registeredAt, SeededCodes.random(8, rnd), text(m.get("referredBy")),
                     null, consents, attributes, strings(m.get("labels")), avatarSeed, null, 0);
             // Profilo già completo nei seed (docs/10 §2: incompleti solo Anna ed Elisa): nessun fatto da riemettere.
             if (ProfileRules.missingFields(member).isEmpty()) {
@@ -226,16 +225,5 @@ public class MemberSeeder implements ApplicationRunner, DemoResettable {
 
     private static String text(JsonNode node) {
         return node == null || node.isNull() ? null : node.asString();
-    }
-
-    private static String generateDemoCode(int length, Random random) {
-        if (length <= 0) {
-            throw new IllegalArgumentException("length deve essere > 0");
-        }
-        char[] out = new char[length];
-        for (int i = 0; i < length; i++) {
-            out[i] = Codes.ALPHABET.charAt(random.nextInt(Codes.ALPHABET.length()));
-        }
-        return new String(out);
     }
 }
