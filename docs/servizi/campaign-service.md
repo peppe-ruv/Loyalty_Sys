@@ -102,7 +102,7 @@ erDiagram
 | POST | `/v1/campaigns/validate` | valida struttura di condizioni/effetti/limiti senza salvare → `{valid, errors[]}` |
 | POST | `/v1/campaigns/simulate` | `{action: {type, time?, source?, data}, memberId? , memberOverride?: {tier, segments, attributes}, campaignIds?: []}` → stessa forma di `evaluation_log.results` + totali per valuta. Con `campaignIds` include anche bozze |
 | GET | `/v1/campaigns/{id}/stats` | totali + serie giornaliera 30 giorni (da `evaluation_log`) |
-| GET | `/v1/evaluations` | filtri `memberId, actionId, outcome, from, to`; `limit` da 1 a 100 (predefinito 50): minore di 1 o non numerico → 400 `BAD_REQUEST`, oltre il massimo (`PageParams.MAX_SIZE`) si riduce al massimo (Q-532) |
+| GET | `/v1/evaluations` | filtri `memberId, actionId, outcome, from, to`, tutti facoltativi e in AND: `memberId` e `actionId` per uguaglianza esatta, `outcome` per uguaglianza (maiuscole indifferenti); `from` e `to` sono istanti ISO-8601 con offset (es. `2026-09-30T10:00:00Z`) e delimitano `evaluated_at` (non `action_time`) con intervallo semiaperto `[from, to)`, cioè `evaluated_at >= from` e `evaluated_at < to`; `from` successivo a `to`, o un valore non interpretabile (anche una data senza ora o senza offset), → 400 `BAD_REQUEST`; `from` = `to` è ammesso e dà una lista vuota (Q-625). Più recenti prima. `limit` da 1 a 100 (predefinito 50): minore di 1 o non numerico → 400 `BAD_REQUEST`, oltre il massimo (`PageParams.MAX_SIZE`) si riduce al massimo (Q-532) |
 | GET | `/v1/evaluations/{actionId}` | dettaglio completo |
 | GET | `/v1/approvals` | formato comune |
 | GET | `/v1/meta/condition-fields` | campi `member.*`, `context.*`, `history.*` con tipo e valori ammessi (i `data.*` arrivano da ingestion) |
