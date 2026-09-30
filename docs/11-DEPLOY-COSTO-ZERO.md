@@ -96,6 +96,8 @@ Attese oneste: **avvio a freddo 60–150 s** per servizio su 0,1 CPU; il Demo Hu
 **Conseguenza della sospensione** (RNF-06): un servizio addormentato non consuma. Al risveglio recupera dal proprio offset (retention 3 giorni). Per questo "Accendi la demo" sveglia **tutti** i servizi, e l'UI mostra "in elaborazione" finché il fatto non arriva.
 
 ## 7. `render.yaml` (Blueprint, alla radice)
+> **Nota.** Su `main` il file `render.yaml` non esiste: i servizi Render della demo sono stati creati con il connettore e le loro variabili sono elencate in §8. La decisione su documentazione e file è aperta: Q-623.
+
 ```yaml
 envVarGroups:
   - name: lh-shared
@@ -152,6 +154,8 @@ services:
 | `LH_SVC_INGESTION_URL` … `LH_SVC_INSIGHT_URL` (8) | **web** (server) | `https://lh-wallet.onrender.com`; locale `http://localhost:8084` |
 | `NEXT_PUBLIC_LH_INSIGHT_URL` | **web** (browser) | URL pubblico di insight per l'SSE |
 | `NEXT_PUBLIC_REPO_URL` | web | link nel Demo Hub |
+| `LH_HUB_ENTERPRISE_URL` | **web demo** (server) | origine `https` della vetrina enterprise (§17, ADR-049, F2-DIST-09), senza percorso. Letta solo lato server, senza `NEXT_PUBLIC_`: si cambia senza ricostruire. Vuota o assente (il caso normale, anche in locale) ⇒ il pulsante «Modalità Enterprise» di HUB-01 è nascosto, senza avvisi. Valorizzata ma non valida (non `https`, con percorso, non un URL) ⇒ pulsante nascosto e un avviso nel log del server |
+| `LH_HUB_DEMO_URL` | **web vetrina** (server), solo `enterprise` | origine `https` della demo, per il collegamento di ritorno in HUB-02 (§17, ADR-049); vuota ⇒ nessun collegamento |
 | `LH_INGESTION_URL` | **insight** | solo per *riprocessa* DLQ (M7) |
 | `LH_PROFILE` | **web** (server) | assente o `demo`: identità simulata (docs/07 §4), nessuna variabile OIDC; `enterprise`: login OIDC obbligatorio (docs/07 §4-bis); qualunque altro valore ⇒ il web non parte (`INSECURE_CONFIG`) |
 | `LH_OIDC_ISSUER` | **web** (server), solo `enterprise` | emittente OIDC, es. `https://idp.example.org/realms/loyaltyhub`; `https` obbligatorio (`http` solo verso `localhost`) |
@@ -245,3 +249,6 @@ Si genera una volta per installazione e si conserva nel secret manager di chi in
   ```
 
 **Rotazione: cambiare la chiave non ricollega nulla.** `subjectRef` è una funzione della chiave. Se la chiave cambia, ogni HMAC calcolato da un token diventa diverso da quello salvato in `member_identity` e nelle proiezioni dei servizi: nessun token si risolve più nel proprio membro (404 o 409 secondo la lookup) e nessun processo ricollega da solo i riferimenti vecchi a quelli nuovi, perché il `sub` non è nelle proiezioni degli altri servizi (member-service conserva `iss` e `sub` in `member_identity`: il ricalcolo è possibile solo lì, con il job futuro). La continuità di `subjectRef` si spezza per tutti i membri già registrati, anche se i `memberId`, i saldi e i dati restano intatti. Vale lo stesso per la perdita della chiave: equivale a una rotazione. Durante un rilascio progressivo con due chiavi diverse le repliche non concordano sul membro di uno stesso token. Il ricalcolo e la ripubblicazione dei `subjectRef` sono un job di member-service **non ancora disponibile** (fuori da M8.10f, Q-552): finché non esiste, la chiave si tratta come immutabile, con una copia di riserva nel secret manager, e un cambio è una migrazione pianificata (finestra di manutenzione, ricalcolo, ripubblicazione), non un'operazione di routine. A differenza della chiave delle sessioni del BFF (`LH_WEB_SESSION_KEY`), il cui cambio chiude solo le sessioni aperte, qui il danno è sui dati.
+
+## 17. Vetrina enterprise ospitata (Fase 2, F2-DIST-09, ADR-049)
+La demo di questo documento gira nel profilo `demo` e non cambia. Per far vedere online anche il profilo `enterprise` esiste, a parte, una **vetrina enterprise**: una seconda installazione separata, con database, bus, segreti, realm e sessioni propri, in `LH_PROFILE=enterprise` e `LH_MODE=external`, costruita con lo stesso compose di riferimento (§15) più un overlay con reverse proxy TLS, su un host Oracle Cloud Always Free A1 (Q-615, Q-616). Non è HA, usa solo dati fittizi (§11) e si azzera periodicamente (Q-624). Il Demo Hub non cambia il proprio profilo: HUB-01 mostra un pulsante verso la vetrina solo se `LH_HUB_ENTERPRISE_URL` (§8) è valorizzata, e HUB-02 della vetrina riporta alla demo con `LH_HUB_DEMO_URL`. I segreti della vetrina si generano sull'host e non stanno mai nel repository, nei log o nel browser (regola 20). Decisione, limiti e alternative scartate: ADR-049; domande aperte sui dettagli: Q-617…Q-624; piano delle fette: `docs/18` M8.14.
