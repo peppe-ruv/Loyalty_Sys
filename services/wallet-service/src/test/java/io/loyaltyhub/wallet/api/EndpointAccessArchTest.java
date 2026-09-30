@@ -11,6 +11,6 @@ class EndpointAccessArchTest {
 
     @Test
     void everyEndpointDeclaresAccess() {
-        EndpointAccessRules.check("io.loyaltyhub.wallet");
+        EndpointAccessRules.checkPortal("io.loyaltyhub.wallet");
     }
 }

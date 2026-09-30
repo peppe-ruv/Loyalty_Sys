@@ -1,0 +1,16 @@
+id,descrizione,scenario,expected
+TB-GOV-MID-036,demo: registrazione dal portale senza token crea un membro senza legame e con canale PORTAL,REG,201:nolink:PORTAL
+TB-GOV-MID-037,demo: audit della registrazione con attore member:<id>,REG_AUDIT,201:member:<id>
+TB-GOV-MID-038,demo: GET /me/profile con memberId esplicito,PROFILE_PARAM,200:MBR-000002
+TB-GOV-MID-039,demo: GET /me/profile con X-LH-Member,PROFILE_HEADER,200:MBR-000003
+TB-GOV-MID-040,demo: memberId ed X-LH-Member uguali,PROFILE_BOTH_SAME,200:MBR-000002
+TB-GOV-MID-041,demo: memberId ed X-LH-Member diversi,MISMATCH,400:MEMBER_MISMATCH
+TB-GOV-MID-042,demo: nessuna fonte del membro (400 come oggi),MISSING,400:BAD_REQUEST
+TB-GOV-MID-043,demo: X-LH-Member malformato,BAD_HEADER,400:BAD_REQUEST
+TB-GOV-MID-044,demo: GET /me/referral con X-LH-Member,REFERRAL_HEADER,200
+TB-GOV-MID-045,demo: percorso legacy /portal/members/{id},LEGACY_PROFILE,200:MBR-000002
+TB-GOV-MID-046,demo: percorso legacy del referral,LEGACY_REFERRAL,200
+TB-GOV-MID-047,demo: percorso legacy con X-LH-Member di un altro,LEGACY_MISMATCH,400:MEMBER_MISMATCH
+TB-GOV-MID-048,demo: percorso legacy con un membro inesistente (404 come oggi),LEGACY_UNKNOWN,404:NOT_FOUND
+TB-GOV-MID-049,demo: l'utenza SOURCE non usa il portale,SOURCE,403:FORBIDDEN_ROLE
+TB-GOV-MID-050,demo: PATCH /me/profile con X-LH-Member: audit con attore member:<id>,PATCH_AUDIT,200:1:member:<id>

@@ -727,6 +727,62 @@ paths:
       summary: Tier history
       tags:
       - tiers
+  /v1/portal/editions:
+    get:
+      operationId: editions
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/Edition"
+                type: array
+          description: OK
+      summary: Editions — portal wallets
+      tags:
+      - portal-wallets
+  /v1/portal/me/wallet:
+    get:
+      operationId: myWallet
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WalletView"
+          description: OK
+      summary: My wallet
+      tags:
+      - portal-me-wallet
+  /v1/portal/me/wallet/activity:
+    get:
+      operationId: myActivity
+      parameters:
+      - in: query
+        name: currency
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: size
+        required: false
+        schema:
+          default: 30
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+                type: array
+          description: OK
+      summary: My activity
+      tags:
+      - portal-me-wallet
   /v1/portal/tiers:
     get:
       operationId: tiers_1
@@ -744,9 +800,12 @@ paths:
       - portal-wallets
   /v1/portal/wallets/{memberId}:
     get:
+      deprecated: true
       operationId: wallet_1
       parameters:
-      - in: path
+      - deprecated: true
+        description: solo profilo demo
+        in: path
         name: memberId
         required: true
         schema:
@@ -763,13 +822,9 @@ paths:
       - portal-wallets
   /v1/portal/wallets/{memberId}/activity:
     get:
+      deprecated: true
       operationId: activity
       parameters:
-      - in: path
-        name: memberId
-        required: true
-        schema:
-          type: string
       - in: query
         name: currency
         required: false
@@ -782,6 +837,13 @@ paths:
           default: 30
           format: int32
           type: integer
+      - deprecated: true
+        description: solo profilo demo
+        in: path
+        name: memberId
+        required: true
+        schema:
+          type: string
       responses:
         "200":
           content:
