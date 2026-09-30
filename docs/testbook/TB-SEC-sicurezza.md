@@ -4,7 +4,7 @@ Dominio **sicurezza applicativa** del testbook funzionale (`docs/16 §10sexies`)
 
 - **Oracolo**: `docs/18 §3.10` punti 4 (iniezione SQL e accesso ai dati), 5 (validazione dell'input e degli output: template senza valutazione di espressioni, errori RFC 9457 senza stack trace né dettagli interni) e 12 (verifica continua: «sì su 5xx») · ADR-042 · `docs/06 §2` (errori) · `docs/12` M8 (accettazione: «payload di iniezione SQL dal fuzzing Schemathesis → nessun `5xx` né effetto») · OWASP ASVS 5.0 V1, V4, V16 (`docs/security/asvs.md`) · scelte registrate in `docs/15` (Q-530…Q-538). Mai «quello che il codice fa oggi».
 - **AMBIGUO**: la specifica tace e `docs/15` non registra una scelta → la riga asserisce il comportamento attuale, il test lo dichiara con `// TESTBOOK: ambiguo, vedi …` e la riga è elencata in una sezione dedicata. Nessuna riga di questo dominio è ambigua: le due righe con stato «qualsiasi» (TB-SEC-ERR-006 e TB-SEC-ERR-007) non lasciano indeterminata la specifica, ne asseriscono solo la parte che la specifica decide (R-03: nessuna fuga).
-- **Divergenza**: il test asserisce la specifica. Quando la correzione sta in codice fuori dalla fetta (`libs/lh-common/.../web/**` è riservato a M8.10f, o nei servizi) la riga porta `divergenza` = `Q-532` nel CSV e il test la **salta** (`Assumptions.abort`, esito «saltata» nel rapporto, mai «passata») finché non si corregge; l'elenco è in §6 e in `docs/16 §12` (Q-538).
+- **Divergenza**: il test asserisce la specifica. Quando la correzione sta in codice fuori dalla fetta la riga porta `divergenza` = `Q-532` nel CSV e il test la **salta** (`Assumptions.abort`, esito «saltata» nel rapporto, mai «passata») finché non si corregge; l'elenco è in §6 e in `docs/16 §12` (Q-538). **Nessuna riga è oggi in divergenza**: le cinque righe del byte NUL (004, 012, 020, 028, 052) sono state riattivate dalla correzione `fix-q532b-nul-paginazione` (§6).
 
 ## 0. Esecuzione
 
@@ -59,7 +59,7 @@ Bersagli: le quattro ricerche libere `q` (membri, campagne, premi, eventi di ins
 | TB-SEC-FUZ-001 | `GET /v1/members?q=` | `SQL_TAUTOLOGIA` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-002 | `GET /v1/members?q=` | `SQL_IMPILATA` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-003 | `GET /v1/members?q=` | `SQL_UNION` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
-| TB-SEC-FUZ-004 | `GET /v1/members?q=` | `NUL` | NO_5XX+INVARIATO — **divergenza Q-532** | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
+| TB-SEC-FUZ-004 | `GET /v1/members?q=` | `NUL` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-005 | `GET /v1/members?q=` | `LUNGO_10K` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-006 | `GET /v1/members?q=` | `TRAVERSAL` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-007 | `GET /v1/members?q=` | `CRLF` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
@@ -67,7 +67,7 @@ Bersagli: le quattro ricerche libere `q` (membri, campagne, premi, eventi di ins
 | TB-SEC-FUZ-009 | `GET /v1/campaigns?q=` | `SQL_TAUTOLOGIA` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-010 | `GET /v1/campaigns?q=` | `SQL_IMPILATA` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-011 | `GET /v1/campaigns?q=` | `SQL_UNION` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
-| TB-SEC-FUZ-012 | `GET /v1/campaigns?q=` | `NUL` | NO_5XX+INVARIATO — **divergenza Q-532** | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
+| TB-SEC-FUZ-012 | `GET /v1/campaigns?q=` | `NUL` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-013 | `GET /v1/campaigns?q=` | `LUNGO_10K` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-014 | `GET /v1/campaigns?q=` | `TRAVERSAL` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-015 | `GET /v1/campaigns?q=` | `CRLF` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
@@ -75,7 +75,7 @@ Bersagli: le quattro ricerche libere `q` (membri, campagne, premi, eventi di ins
 | TB-SEC-FUZ-017 | `GET /v1/rewards?q=` | `SQL_TAUTOLOGIA` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-018 | `GET /v1/rewards?q=` | `SQL_IMPILATA` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-019 | `GET /v1/rewards?q=` | `SQL_UNION` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
-| TB-SEC-FUZ-020 | `GET /v1/rewards?q=` | `NUL` | NO_5XX+INVARIATO — **divergenza Q-532** | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
+| TB-SEC-FUZ-020 | `GET /v1/rewards?q=` | `NUL` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-021 | `GET /v1/rewards?q=` | `LUNGO_10K` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-022 | `GET /v1/rewards?q=` | `TRAVERSAL` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-023 | `GET /v1/rewards?q=` | `CRLF` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
@@ -83,7 +83,7 @@ Bersagli: le quattro ricerche libere `q` (membri, campagne, premi, eventi di ins
 | TB-SEC-FUZ-025 | `GET /v1/events?q=` | `SQL_TAUTOLOGIA` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-026 | `GET /v1/events?q=` | `SQL_IMPILATA` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-027 | `GET /v1/events?q=` | `SQL_UNION` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
-| TB-SEC-FUZ-028 | `GET /v1/events?q=` | `NUL` | NO_5XX+INVARIATO — **divergenza Q-532** | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
+| TB-SEC-FUZ-028 | `GET /v1/events?q=` | `NUL` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-029 | `GET /v1/events?q=` | `LUNGO_10K` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-030 | `GET /v1/events?q=` | `TRAVERSAL` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
 | TB-SEC-FUZ-031 | `GET /v1/events?q=` | `CRLF` | NO_5XX+INVARIATO | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileReads` · `fuz.csv` |
@@ -107,7 +107,7 @@ Bersagli: le quattro ricerche libere `q` (membri, campagne, premi, eventi di ins
 | TB-SEC-FUZ-049 | `POST /v1/members` (`firstName`) | `SQL_TAUTOLOGIA` | NO_5XX | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileWrites` · `fuz.csv` |
 | TB-SEC-FUZ-050 | `POST /v1/members` (`firstName`) | `SQL_IMPILATA` | NO_5XX | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileWrites` · `fuz.csv` |
 | TB-SEC-FUZ-051 | `POST /v1/members` (`firstName`) | `SQL_UNION` | NO_5XX | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileWrites` · `fuz.csv` |
-| TB-SEC-FUZ-052 | `POST /v1/members` (`firstName`) | `NUL` | NO_5XX — **divergenza Q-532** | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileWrites` · `fuz.csv` |
+| TB-SEC-FUZ-052 | `POST /v1/members` (`firstName`) | `NUL` | NO_5XX | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileWrites` · `fuz.csv` |
 | TB-SEC-FUZ-053 | `POST /v1/members` (`firstName`) | `LUNGO_10K` | NO_5XX | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileWrites` · `fuz.csv` |
 | TB-SEC-FUZ-054 | `POST /v1/members` (`firstName`) | `TRAVERSAL` | NO_5XX | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileWrites` · `fuz.csv` |
 | TB-SEC-FUZ-055 | `POST /v1/members` (`firstName`) | `CRLF` | NO_5XX | R-01, R-02 · docs/18 §3.10 p.4, 5, 12 | `TestbookSecHubIT#hostileWrites` · `fuz.csv` |
@@ -123,7 +123,7 @@ Bersagli: le quattro ricerche libere `q` (membri, campagne, premi, eventi di ins
 
 ## 4. TB-SEC-ERR — errori senza fughe
 
-Errori di forma e di percorso su API vere: la risposta ha lo stato della specifica (`docs/06 §2`; 405 e 415 sono `bad-request`, Q-333) e nessun frammento della lista di R-03. Le righe 006 e 007 portano un byte NUL codificato (`%00`) in query e percorso: lo stato non è deciso dalla specifica (oggi 500 in query, per la divergenza di §6, e 400 nel percorso), e la riga asserisce solo la regola R-03.
+Errori di forma e di percorso su API vere: la risposta ha lo stato della specifica (`docs/06 §2`; 405 e 415 sono `bad-request`, Q-333) e nessun frammento della lista di R-03. Le righe 006 e 007 portano un byte NUL codificato (`%00`) in query e percorso: lo stato non è deciso dalla specifica (oggi è 400 in entrambi i casi: il filtro `NulRejectingFilter` rifiuta la query, il contenitore o il filtro il percorso), e la riga asserisce solo la regola R-03.
 
 | Riga | Richiesta | Atteso | Fonte | Test |
 |---|---|---|---|---|
@@ -156,15 +156,17 @@ Errori di forma e di percorso su API vere: la risposta ha lo stato della specifi
 
 Le righe con `divergenza` nel CSV hanno esito «saltata» finché la correzione non arriva. Ogni riga elenca la specifica, il comportamento osservato e la causa; il registro completo è `docs/16 §12`.
 
-| Riga | Specifica | Comportamento osservato | Causa | Esito |
-|---|---|---|---|---|
-| TB-SEC-FUZ-004 · D-1 | docs/18 §3.10 p.4, 5, 12: nessun 5xx | `GET /v1/members?q=` con un byte NUL: `500 INTERNAL_ERROR` (la risposta non rivela nulla, R-03 rispettata) | `PSQLException: invalid byte sequence for encoding "UTF8": 0x00` da `MemberRepository.search` (ILIKE con il testo di `q`); il byte NUL non è mai rifiutato prima del database | **saltata**, Q-532 |
-| TB-SEC-FUZ-012 · D-2 | docs/18 §3.10 p.4, 5, 12: nessun 5xx | `GET /v1/campaigns?q=` con un byte NUL: `500 INTERNAL_ERROR` (la risposta non rivela nulla, R-03 rispettata) | stessa causa, da `CampaignRepository.search`; il byte NUL non è mai rifiutato prima del database | **saltata**, Q-532 |
-| TB-SEC-FUZ-020 · D-3 | docs/18 §3.10 p.4, 5, 12: nessun 5xx | `GET /v1/rewards?q=` con un byte NUL: `500 INTERNAL_ERROR` (la risposta non rivela nulla, R-03 rispettata) | stessa causa, da `RewardRepository.search`; il byte NUL non è mai rifiutato prima del database | **saltata**, Q-532 |
-| TB-SEC-FUZ-028 · D-4 | docs/18 §3.10 p.4, 5, 12: nessun 5xx | `GET /v1/events?q=` con un byte NUL: `500 INTERNAL_ERROR` (la risposta non rivela nulla, R-03 rispettata) | stessa causa, da `EventStoreRepository.search` (`payload::text ILIKE`); il byte NUL non è mai rifiutato prima del database | **saltata**, Q-532 |
-| TB-SEC-FUZ-052 · D-5 | docs/18 §3.10 p.4, 5, 12: nessun 5xx | `POST /v1/members` (`firstName` con un byte NUL: `500 INTERNAL_ERROR` (la risposta non rivela nulla, R-03 rispettata) | stessa causa, dall'inserimento in `member.member`; il byte NUL non è mai rifiutato prima del database | **saltata**, Q-532 |
+**Nessuna riga è in divergenza.** Le cinque righe che il byte NUL (U+0000) faceva saltare (Q-532 causa (3)) sono state riattivate: la `divergenza` è stata tolta dal CSV e i test devono passare.
 
-Una sola causa spiega le cinque righe: il byte NUL (U+0000) arriva intatto a Postgres, che lo rifiuta. La correzione è un rifiuto con `400` (nel binding dei parametri o con un filtro di richiesta) e sta in codice condiviso o nei servizi, fuori dalla fetta. **Scelte registrate:** Q-532 (difetti trovati dal fuzzing, tra cui questi) e Q-538 (righe con divergenza: saltate, non tolte né lasciate rosse). Il fuzzing notturno trova la stessa causa su altre operazioni: sono nella baseline con scadenza (`.dast/schemathesis-baseline.json`, [dast.md](../security/dast.md)).
+| Riga | Specifica | Comportamento osservato (prima) | Causa | Esito |
+|---|---|---|---|---|
+| TB-SEC-FUZ-004 · D-1 | docs/18 §3.10 p.4, 5, 12: nessun 5xx | `GET /v1/members?q=` con un byte NUL: `500 INTERNAL_ERROR` | `PSQLException: invalid byte sequence for encoding "UTF8": 0x00` da `MemberRepository.search` (ILIKE con il testo di `q`) | **corretta**, riga attiva (Q-532) |
+| TB-SEC-FUZ-012 · D-2 | idem | `GET /v1/campaigns?q=` con un byte NUL: `500` | stessa causa, da `CampaignRepository.search` | **corretta**, riga attiva (Q-532) |
+| TB-SEC-FUZ-020 · D-3 | idem | `GET /v1/rewards?q=` con un byte NUL: `500` | stessa causa, da `RewardRepository.search` | **corretta**, riga attiva (Q-532) |
+| TB-SEC-FUZ-028 · D-4 | idem | `GET /v1/events?q=` con un byte NUL: `500` | stessa causa, da `EventStoreRepository.search` (`payload::text ILIKE`) | **corretta**, riga attiva (Q-532) |
+| TB-SEC-FUZ-052 · D-5 | idem | `POST /v1/members` (`firstName` con un byte NUL): `500` | stessa causa, dall'inserimento in `member.member` | **corretta**, riga attiva (Q-532) |
+
+Una sola causa spiegava le cinque righe: il byte NUL arrivava intatto a Postgres, che lo rifiuta. La correzione è un rifiuto con `400` **prima del database**, in codice condiviso (`libs/lh-common`): `NulRejectingFilter` sul percorso e sui nomi e valori dei parametri (le quattro ricerche `q`), `NulRejectingModule` sui valori e sulle chiavi del corpo JSON (`firstName`), solo leggendo una richiesta HTTP e non sull'ingresso eventi di `ingestion-service` (`@NulTolerantBody`: lì i NUL hanno un esito proprio, Q-371). La prova a livello di contenitore (Tomcat vero, query, nome di parametro, form, percorso, corpo JSON anche annidato e alberi liberi) è `NulRejectionTest` di `lh-common`; le cinque righe sono la prova sull'hub. **Scelte registrate:** Q-532 (difetti trovati dal fuzzing, tra cui questi) e Q-538 (righe con divergenza: saltate, non tolte né lasciate rosse; ora nessuna).
 
 ## 7. Verifica a mutazione
 
@@ -172,9 +174,9 @@ Mutazioni locali, **non committate**, ripristinate con `git checkout` subito dop
 
 | Mutazione | Codice mutato | Righe che diventano rosse |
 |---|---|---|
-| M1 — il dettaglio della risposta 500 riporta `ex.toString()` invece del messaggio generico | `GlobalExceptionHandler.onUnexpected` (`libs/lh-common`) | TB-SEC-ERR-006 (la `500` per il byte NUL mostra `org.springframework.dao.DataIntegrityViolationException` e il testo SQL) |
+| M1 — il dettaglio della risposta 500 riporta `ex.toString()` invece del messaggio generico | `GlobalExceptionHandler.onUnexpected` (`libs/lh-common`) | TB-SEC-ERR-006 (la `500` per il byte NUL mostrava `org.springframework.dao.DataIntegrityViolationException` e il testo SQL); dalla correzione del byte NUL (Q-532 (3)) nessun input di questo dominio produce più una `500`: la mutazione la rileva `UnexpectedErrorTest` di `lh-common` (unit test del dettaglio generico), non una riga del testbook |
 | M2 — la ricerca dei membri ignora il filtro se `q` contiene un apice: l'effetto di una tautologia SQL | `MemberRepository.filters` (`member-service`) | TB-SEC-FUZ-001, 002, 003 (l'elenco non è più vuoto: il filtro è stato allargato) |
 | M3 — l'anteprima dei template valuta `${7*7}` e scrive `49` | `TemplateEngine.render` (`engagement-service`) | TB-SEC-FUZ-048 (il risultato contiene `49`) |
-| M4 — la ricerca dei membri scrive nella risposta l'intestazione `X-Injected` quando c'è `q` | `MembersController.list` (`member-service`) | TB-SEC-FUZ-001, 002, 003, 006, 007, 008 (intestazione iniettata; la 004 è saltata e la 005 non arriva al controller: 400 di Tomcat per la riga di richiesta troppo lunga) |
+| M4 — la ricerca dei membri scrive nella risposta l'intestazione `X-Injected` quando c'è `q` | `MembersController.list` (`member-service`) | TB-SEC-FUZ-001, 002, 003, 006, 007, 008 (intestazione iniettata; la 004 non arriva al controller, il filtro del byte NUL la rifiuta con 400, e la 005 non arriva al controller: 400 di Tomcat per la riga di richiesta troppo lunga) |
 
 Le quattro mutazioni sono state rilevate; le altre righe (percorsi, template, creazione, ingresso) restano verdi con ogni mutazione. Il rilevamento di una lettura che scrive (R-02) è affidato all'impronta dello stato di `TestbookPltSupportIT#fingerprint`, la stessa dell'oracolo del reset demo (`TB-PLT-RST`), e non a una mutazione dedicata.
