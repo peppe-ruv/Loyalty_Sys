@@ -15,7 +15,10 @@ import tools.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Regole di notifica (docs/03 §9, docs/servizi/engagement-service.md §5; F-MSG-01): per un fatto del membro, ogni regola
@@ -43,17 +46,32 @@ public class NotificationService {
         if (memberId == null || LhEventTypes.Fact.MESSAGE_DELIVERED.equals(fact.type())) {
             return List.of();
         }
-        List<InboxMessage> out = new ArrayList<>();
+
+        List<NotificationRule> matchedRules = new ArrayList<>();
         for (NotificationRule rule : rules.findEnabledFor(MessageContexts.shortType(fact.type()))) {
-            if (!DataCondition.matches(rule.condition(), fact.data())) {
-                continue;
+            if (DataCondition.matches(rule.condition(), fact.data())) {
+                matchedRules.add(rule);
             }
-            Optional<MessageTemplate> template = templates.find(rule.templateCode());
-            if (template.isEmpty()) {
+        }
+
+        if (matchedRules.isEmpty()) {
+            return List.of();
+        }
+
+        // Una sola lettura per tutti i template delle regole corrispondenti (niente N+1). L'ordine di consegna resta
+        // quello di matchedRules; il merge è solo difensivo: code è chiave primaria, quindi non ci sono doppioni.
+        Set<String> templateCodes = matchedRules.stream().map(NotificationRule::templateCode).collect(Collectors.toSet());
+        Map<String, MessageTemplate> templateMap = templates.findByCodes(templateCodes).stream()
+                .collect(Collectors.toMap(MessageTemplate::code, Function.identity(), (a, b) -> a));
+
+        List<InboxMessage> out = new ArrayList<>();
+        for (NotificationRule rule : matchedRules) {
+            MessageTemplate template = templateMap.get(rule.templateCode());
+            if (template == null) {
                 log.warn("Regola {}: template {} inesistente, nessun messaggio", rule.code(), rule.templateCode());
                 continue;
             }
-            inbox.deliver(memberId, template.get(), fact.data(), fact, fact.id()).ifPresent(out::add);
+            inbox.deliver(memberId, template, fact.data(), fact, fact.id()).ifPresent(out::add);
         }
         return out;
     }

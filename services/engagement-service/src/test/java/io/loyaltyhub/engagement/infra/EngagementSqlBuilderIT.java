@@ -16,6 +16,7 @@ import org.springframework.jdbc.datasource.SimpleDriverDataSource;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -142,6 +143,19 @@ class EngagementSqlBuilderIT {
     }
 
     @Test
+    void templatesByCodesReadOnlyTheRequestedCodesWithOneQuery() {
+        assertThat(templates.findByCodes(Set.of("TPL-A", "TPL-C")).stream().map(MessageTemplate::code))
+                .containsExactlyInAnyOrder("TPL-A", "TPL-C");
+        assertThat(templates.findByCodes(Set.of("TPL-B")).stream().map(MessageTemplate::code)).containsExactly("TPL-B");
+        assertThat(templates.findByCodes(Set.of("TPL-A", "TPL-NONE")).stream().map(MessageTemplate::code))
+                .as("un codice sconosciuto è ignorato").containsExactly("TPL-A");
+        assertThat(templates.findByCodes(Set.of("TPL-NONE"))).isEmpty();
+        assertThat(templates.findByCodes(Set.of())).as("insieme vuoto = nessuna riga").isEmpty();
+        assertThat(templates.findByCodes(null)).isEmpty();
+        assertThat(templates.findByCodes(Set.of("tpl-a"))).as("codice esatto, senza normalizzazione").isEmpty();
+    }
+
+    @Test
     void ruleFiltersAloneAndCombined() {
         assertThat(ruleCodes(null, null)).containsExactly("NR-3", "NR-1", "NR-2");
         assertThat(ruleCodes(" wallet.points.earned ", null)).containsExactly("NR-1", "NR-2");
@@ -204,6 +218,9 @@ class EngagementSqlBuilderIT {
         assertThat(contents.findAll(null, null, null, "' OR '1'='1")).isEmpty();
         assertThat(templates.findAll(INJECTION, null)).isEmpty();
         assertThat(templates.findAll(null, "INAPP'; DELETE FROM message_template; --")).isEmpty();
+        assertThat(templates.findByCodes(Set.of(INJECTION))).isEmpty();
+        assertThat(templates.findByCodes(Set.of("TPL-A'); DELETE FROM message_template; --", "TPL-B' OR '1'='1")))
+                .isEmpty();
         assertThat(rules.findAll(INJECTION, null)).isEmpty();
         assertThat(rules.findAll(null, "TPL-A' OR '1'='1")).isEmpty();
         for (InboxRepository.Filter f : List.of(filter(INJECTION, null, null, null), filter(null, INJECTION, null, null),
