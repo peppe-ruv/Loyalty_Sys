@@ -287,7 +287,7 @@ abstract class PortalOidcScenarios {
     void unboundBodySpellingsNeverChangeTheMember() {
         String token = TOKENS.member(SUB_A);
         long redemptionsB = redemptionsOf(B);
-        // SPEC-GAP nota: MemberBodyAdvice vede solo l'oggetto già deserializzato (docs/06 §3.4); «MEMBER_ID» non è una
+        // SPEC-GAP: Q-573 — MemberBodyAdvice vede solo l'oggetto già deserializzato (docs/06 §3.4); «MEMBER_ID» non è una
         // componente di RedemptionRequest, quindi Jackson lo scarta prima e la richiesta riesce, ma il membro resta
         // quello del token: nessun BOLA. La correzione (rifiuto del corpo grezzo) sta in lh-common.
         Reply r = request(HttpMethod.POST, "/v1/portal/redemptions", token, null, MediaType.APPLICATION_JSON,

@@ -50,6 +50,8 @@ public class PortalRedemptionsController {
         if (r == null) {
             throw LhException.badRequest("corpo della richiesta mancante");
         }
+        // SPEC-GAP: Q-573 — a memberId spelling that RedemptionRequest does not bind (e.g. MEMBER_ID) is dropped by Jackson,
+        // not refused; the member still comes only from the token (merge + MemberBodyAdvice reject the bound field).
         String memberId = principal.merge(r.memberId());
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(redemptions.request(memberId, r.rewardCode(), r.shipping()));
     }
