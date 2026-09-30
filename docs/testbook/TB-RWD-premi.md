@@ -16,6 +16,9 @@ Dominio **TB-RWD** del testbook (`docs/16`, §6): catalogo premi a fasce, visibi
 | `TestbookRwdCatalogIT` | integrazione | CAT, EDT, BND, LCY-101…123, STK-022/023, AUD-001…006 | `reward-create.csv`, `category.csv`, `reward-edit.csv`, `stock-recalc.csv`, `bands.csv`, `lifecycle-api.csv` |
 | `TestbookRwdSagaIT` | integrazione | SAG, FUL, TMO, ROL-001…021, AUD-007/008 | `saga.csv`, `timeout.csv`, `roles-redemption.csv` |
 | `TestbookRwdCouponIT` | integrazione | CPN, EFF, ROL-030…049, AUD-009 | `coupon-lifecycle.csv`, `coupon-expiry.csv`, `pool-create.csv`, `pool-generate.csv`, `pool-import.csv`, `roles-coupon.csv` |
+| `TestbookRwdMemberSubjectIT` | integrazione (profilo `demo`, fatti `member.*` veri sul bus embedded; scenari di `MemberSubjectProjectionScenarios`, gli stessi di `RewardMemberSubjectProjectionIT`; contesto proprio, non `TestbookRwdBase`) | fatti costruiti dal test | MBP-001…016 |
+| `TestbookRwdMemberPrincipalIT` | integrazione (`identity.mode=oidc`, token RS256 veri di `OidcTestTokens`; scenari di `PortalOidcScenarios`, gli stessi di `RewardPortalOidcIT`; contesto proprio) | membri A, B, C legati da fatti veri; premi, pool e coupon creati con un token `ADMIN` | MBP-020…036 |
+| `TestbookRwdMemberPrincipalDemoIT` | integrazione (profilo `demo`, membri del seed; contesto proprio) | seed | MBP-040…048 |
 
 - Ogni riga CSV è **un** caso JUnit: `DynamicTest` con nome `[<ID>] <descrizione>` e sorgente la riga del CSV (`TestbookRwdCsv`); le righe di scenario (senza CSV) sono `DynamicTest` con lo stesso formato di nome. Un ID = un caso eseguito.
 - Le quattro classi `*IT` condividono **un solo contesto Spring** (`TestbookRwdBase`: stessa configurazione ⇒ contesto in cache), Postgres embedded e Kafka embedded come gli altri IT del modulo. Profilo `demo`; il timeout schedulato della saga è spento (lo si prova col job demo e `asOf`).
@@ -54,8 +57,10 @@ Dominio **TB-RWD** del testbook (`docs/16`, §6): catalogo premi a fasce, visibi
 | R-24 | Snapshot del membro dai fatti di member e tier (stato, livello, segmenti) | reward §2, §4 | SNP |
 | R-25 | Audit delle scritture (catalogo, fasce, pool, evasioni, annulli; ogni scrittura da backoffice) con l'attore; override ADMIN marcato | reward §4, docs/06 §3, docs/08 §2 | AUD |
 | R-26 | Statistiche: premi e richieste per stato, stock sotto soglia (< 10 %) | reward §3 stats, BO-10 | STK-022/023 |
-| R-27 | Portale: `memberId` esplicito; richiesta di un altro membro ⇒ 404; elenchi senza `memberId` ⇒ 400; il `correlationId` della richiesta HTTP diventa quello della saga | reward §3 portale, §5, docs/07 §3, CLAUDE.md §1.6 | FUL-024…028 |
+| R-27 | Portale in `demo`: `memberId` esplicito (o `X-LH-Member`, R-30); richiesta di un altro membro ⇒ 404; elenchi senza `memberId` ⇒ 400; il `correlationId` della richiesta HTTP diventa quello della saga | reward §3 portale, §5, docs/07 §3, CLAUDE.md §1.6 | FUL-024…028, MBP-040…048 |
 | R-28 | Errori RFC 9457: 400 per richieste malformate (JSON assente o errato) | docs/06 §2 | ORD-016…019, FUL-011/013 |
+| R-29 | Legame token↔membro (M8.10f, ADR-048): `member.registered/updated/status.changed` (`:1` e `:2`) con `subjectRef` legano il membro in `reward_member_snapshot` nella stessa transazione dello snapshot; assente = nessun effetto, `null` = slega, fatto più vecchio dell'ultimo aggiornamento o membro cancellato = nessun effetto, stesso pseudonimo su due membri = vince il più recente (parità: id maggiore), anonimizzazione = lapide definitiva che nessun replay ripristina | docs/06 §3.4 · docs/05 §5, §10 · Q-550, Q-552 · ADR-048 | MBP-001…016 |
+| R-30 | Portale con il membro dal token: catalogo e dettaglio `OPTIONAL` (un operatore ha la vista generica), coupon e richieste `REQUIRED`; in `enterprise` `memberId` in query/form/corpo/header ⇒ 400 `MEMBER_FROM_TOKEN`, operatore/misto su `REQUIRED` ⇒ 403 `MEMBER_REQUIRED`, `MEMBER`+`SOURCE` ⇒ 403, `sub` senza legame o anonimizzato ⇒ 409 `MEMBER_NOT_LINKED` con `Retry-After: 2`, richiesta di un altro membro ⇒ 404, token di membro fuori dal portale ⇒ 403 `FORBIDDEN_ROLE`; categorie (`/v1/portal/reward-categories`) aperte ai membri; le scritture portano l'attore `member:<id>`; in `demo` il membro è `memberId` o `X-LH-Member` e gli errori restano quelli di prima | docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-555, Q-556 · ADR-048 | MBP-020…048 |
 
 ## 2. Rami del codice → regola
 
@@ -138,7 +143,12 @@ Percorsi relativi a `services/reward-service/src/main/java/io/loyaltyhub/reward/
 | `messaging/CouponIssueHandler.java:42-57` | DLQ INVALID_EFFECT · idempotenza effectId (default id evento) · DLQ REWARD_NOT_FOUND · DLQ COUPON_POOL_MISSING · DLQ COUPON_POOL_EMPTY | R-17 (primi tre e default: **rami senza specifica**) | EFF-001…009 |
 | `messaging/MemberSnapshotHandler.java:40-69` | snapshot: stato, tier, segmenti, profilo | R-24 | SNP-001…007 |
 | `api/*Controller.java` `@RequiresRole` | guardie per ruolo | R-23 | ROL, CAT-030…035, EDT-032…035, BND-016…019, LCY |
-| `api/PortalRedemptionsController.java:39`, `:47`, `:56`; `api/PortalCouponsController.java:36` | portale: 400 corpo/memberId · 404 altro membro | R-27, R-28 | ORD-019, FUL-026/027, CPN-031 |
+| `api/PortalRedemptionsController.java` `request`/`list`/`get`/`cancel`, `api/PortalCouponsController.java` `coupons` | portale: 400 corpo/memberId (solo demo, messaggi di prima) · 404 altro membro · `MemberPrincipal.merge` del corpo deprecato | R-27, R-28, R-30 | ORD-019, FUL-026/027, CPN-031, MBP-040…048 |
+| `messaging/MemberSnapshotHandler.java` chiamata a `MemberSubjectProjection.apply` (registered/updated/status.changed) | legame `subjectRef` nella stessa transazione dello snapshot | R-29 (Q-550) | MBP-001…016 |
+| `application/MemberSubjectProjection.java` `apply`: `subjectRef` assente e nessuna anonimizzazione → nessun effetto; `LINK`/`UNLINK`/`ERASE` secondo `MemberSubjectRules` (rilettura con `FOR UPDATE`, sorpasso dell'altro detentore) | proiezione del legame | R-29 (Q-550) | MBP-001…016 |
+| `infra/RewardMemberSubjectLookup.java` legame assente → vuoto (non autorevole) ⇒ 409 `MEMBER_NOT_LINKED` | il membro del token | R-30 (Q-553) | MBP-014, 033, 034 |
+| `api/PortalCatalogController.java` `catalog`/`reward` `@MemberEndpoint(OPTIONAL)` · `categories` `members = true` | vista generica per un operatore; categorie aperte ai membri | R-30 | MBP-020, 021, 028, 029, 041, 048 |
+| `api/PortalRedemptionsController.java` `@MemberEndpoint` · `RedemptionService.request`/`cancelByMember` attore `member:<id>` | richiesta e annullo del titolare, attore senza dati personali | R-30 (Q-556) | MBP-027, 036, 045, 047 |
 | `api/RewardStatsController.java:45` | stock sotto il 10 % (esauriti compresi) | R-26 | STK-022 |
 | `lh-common …/web/GlobalExceptionHandler.java:66-67` | ogni eccezione non applicativa (anche corpo JSON assente) ⇒ 500 | R-28 | ORD-019, FUL-011, FUL-013 (**divergenza**) |
 
@@ -916,12 +926,79 @@ Conflitti tra fonti (registrati in `docs/15`, regola di precedenza applicata):
 
 | Voce | Valore |
 |---|---|
-| Regole inventariate | 28 (R-01…R-28) |
-| Rami del codice mappati | 78 voci della tabella §2 (ognuna raggruppa i rami di un punto di decisione) |
-| Righe di testbook | 567 (VIS 59 · ORD 19 · SNP 7 · STK 16 · CAT 41 · EDT 54 · BND 29 · LCY 119 · SAG 49 · FUL 30 · TMO 8 · ROL 41 · CPN 76 · EFF 9 · AUD 10) |
+| Regole inventariate | 30 (R-01…R-30) |
+| Rami del codice mappati | 83 voci della tabella §2 (ognuna raggruppa i rami di un punto di decisione) |
+| Righe di testbook | 609 (VIS 59 · ORD 19 · SNP 7 · STK 16 · CAT 41 · EDT 54 · BND 29 · LCY 119 · SAG 49 · FUL 30 · TMO 8 · ROL 41 · CPN 76 · EFF 9 · AUD 10 · MBP 42) |
 | Combinazioni ridotte | VIS: 864 combinazioni → 15 all-pairs + 27 classi da sole + 17 valori limite = 59; ORD: 2^6 combinazioni di condizioni vere → 15 coppie; LCY: 7 × 8 × 5 ruoli × 2 policy = 560 → 99 (tabella stato × azione col ruolo autorizzato + matrice ruoli dallo stato valido + policy spenta); ROL: tabella completa per azione (nessuna riduzione); SAG: 7 × 7 completa; CPN ciclo: 7 × 3 completa |
 | Rami senza specifica | 20 voci di §2 (marcate **ramo senza specifica**; le righe che li provano citano la domanda Q-R* di docs/15) |
 | Regole non implementate | 1 possibile: R-27 «il correlationId della richiesta HTTP diventa quello della saga» se si intende l'intestazione `X-Correlation-Id` del proxy (TB-RWD-FUL-028, Q-274) |
 | Righe su scelte da decidere | 67 (§19), 13 domande Q-273…Q-285 + 3 conflitti tra fonti Q-286…Q-288 in docs/15 |
 | Divergenze aperte | 3 (§18: TB-RWD-ORD-019, TB-RWD-FUL-011, TB-RWD-FUL-013 — stessa causa in lh-common); CPN-045/047 chiuse col fix di fine giornata |
 
+
+## 21. MBP — Il membro dal token e il legame `subjectRef` (M8.10f)
+
+**Regole**: R-29 (legame token↔membro), R-30 (portale con il membro solo dal token) — docs/06 §3.2, §3.4, docs/05 §5 e §10, Q-410, Q-550, Q-552, Q-553, Q-554, Q-555, Q-556, ADR-048. Fatti `member.*` veri sul bus embedded (`lh.facts.v1`, chiave `memberId`), stato letto da `reward_member_snapshot`; token OIDC veri firmati RS256 (`OidcTestTokens`), verificati da `OidcActorFilter` con gli stessi validatori dell'avvio, con `preferred_username` ed e-mail fittizi che non devono comparire mai in una risposta né in una scrittura. Membri e soggetti fittizi per classe concreta (`MBR-9…`); istanti fissi `T1 < T2 < T3 < T4`. Le classi hanno un contesto proprio (Postgres e Kafka embedded), diverso da quello di `TestbookRwdBase`: il profilo `oidc` e la chiave del pseudonimo non si mescolano con i casi in `demo`.
+
+**Strategia**: proiezione — un caso per esito della decisione di `MemberSubjectRules` (assente, `null`, valore, fatto vecchio, sorpasso, parità, lapide) e per versione dello schema (`:1`, `:2`); API — un caso per famiglia di chiamante (membro legato, operatore, misto, `MEMBER`+`SOURCE`, senza token, token non valido) e per fonte del membro non ammessa (query, campo form, corpo, header, percorso); ogni scrittura del membro (richiesta, annullo) si prova con l'attore e l'assenza di dati personali.
+
+### 21.1 Proiezione `subjectRef` → membro
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-RWD-MBP-001 | `member.registered:1` con `subjectRef` | membro legato; snapshot `ACTIVE` creato nella stessa transazione | docs/06 §3.4 · Q-550 | `MemberSubjectProjectionScenarios#registeredV1Links` |
+| TB-RWD-MBP-002 | `member.registered:2` con `subjectRef` | membro legato | docs/05 §5 · Q-552 | `MemberSubjectProjectionScenarios#registeredV2Links` |
+| TB-RWD-MBP-003 | `member.updated:1` e `:2` su membri registrati senza `subjectRef` | entrambi legati | docs/06 §3.4 · Q-550 | `MemberSubjectProjectionScenarios#updatedLinks` |
+| TB-RWD-MBP-004 | `subjectRef` assente in un `member.updated` e in un `member.registered` | nessun effetto: il membro già legato resta legato, l'altro non lo diventa | docs/06 §3.4 (rilascio progressivo) | `MemberSubjectProjectionScenarios#absentClaimHasNoEffect` |
+| TB-RWD-MBP-005 | `subjectRef` che non ha la forma di uno pseudonimo (non 64 esadecimali) | nessun legame | docs/05 §5 | `MemberSubjectProjectionScenarios#malformedClaimHasNoEffect` |
+| TB-RWD-MBP-006 | `subjectRef: null` | legame rimosso; `subject_ref_at` = istante del fatto | docs/05 §5 | `MemberSubjectProjectionScenarios#nullClaimUnlinks` |
+| TB-RWD-MBP-007 | fatto più vecchio dell'ultimo aggiornamento del legame (altro pseudonimo, poi `null`); poi un fatto più recente | il vecchio non ri-lega né slega; il più recente vale | docs/06 §3.4 | `MemberSubjectProjectionScenarios#staleFactHasNoEffect` |
+| TB-RWD-MBP-008 | stesso pseudonimo su due membri: il secondo più recente; replay del vecchio; poi un fatto ancora più recente del vecchio | vince il più recente, il replay non lo riprende, il sorpasso è contato in `lh_member_subject_relinked_total` | docs/06 §3.4 | `MemberSubjectProjectionScenarios#newerRelinkWinsAndOldReplayDoesNot` |
+| TB-RWD-MBP-009 | stesso pseudonimo, stesso istante, id `…13` e `…12` | vince l'id maggiore | docs/06 §3.4 | `MemberSubjectProjectionScenarios#tieBreaksOnTheMemberId` |
+| TB-RWD-MBP-010 | `member.status.changed` → `ANONYMIZED`, poi replay di `registered` e `updated` (istante successivo) con lo stesso pseudonimo | nessun legame, `subject_erased`, snapshot `ANONYMIZED`; la stessa persona che si registra come nuovo membro ottiene il legame | docs/06 §3.4 · docs/03 §2 | `MemberSubjectProjectionScenarios#anonymizationIsATombstone` |
+| TB-RWD-MBP-011 | `member.updated` con `status` `ANONYMIZED` | legame cancellato, lapide | docs/05 §5 | `MemberSubjectProjectionScenarios#anonymizedByUpdatedFact` |
+| TB-RWD-MBP-012 | lo stesso evento (stesso id) consegnato due volte | stesso stato, una sola riga | docs/06 §5 | `MemberSubjectProjectionScenarios#sameFactTwiceIsIdempotent` |
+| TB-RWD-MBP-013 | gestore dello snapshot chiamato in una transazione poi annullata | né riga né legame (partecipano alla transazione del chiamante) | docs/06 §5 | `MemberSubjectProjectionScenarios#snapshotAndLinkShareTheTransaction` |
+| TB-RWD-MBP-014 | pseudonimo mai visto | la lookup non trova il membro, non è autorevole, il suo package è `io.loyaltyhub.reward` | docs/06 §3.2 | `MemberSubjectProjectionScenarios#unknownRefIsNotLinked` |
+| TB-RWD-MBP-015 | fatto senza `time`: altro membro con lo stesso pseudonimo; poi altro pseudonimo sul detentore; poi un fatto datato prima | non sorpassa il detentore datato; `subject_ref_at` non si sposta; il fatto datato prima resta obsoleto | docs/06 §3.4 · Q-550 | `MemberSubjectProjectionScenarios#factWithoutTimeIsConservative` |
+| TB-RWD-MBP-016 | `tier.upgraded` dopo la registrazione col legame | il livello cambia, il legame e `subject_ref_at` no | docs/06 §3.4 | `MemberSubjectProjectionScenarios#tierAndSegmentFactsLeaveTheLinkAlone` |
+
+Righe eseguite due volte, da `RewardMemberSubjectProjectionIT` (ordinaria) e da `TestbookRwdMemberSubjectIT` (testbook).
+
+### 21.2 API del portale con il membro dal token (`enterprise`)
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-RWD-MBP-020 | token di A; catalogo, dettaglio, coupon, richieste, una richiesta propria, categorie (B ha altri dati) | 200 con i soli dati di A (limite per membro raggiunto solo per A; solo il coupon e le richieste di A); l'id di B, l'e-mail e lo username del token non compaiono; B vede i propri | docs/06 §3.4 · Q-410 | `PortalOidcScenarios#memberReadsOnlyOwnData` |
+| TB-RWD-MBP-021 | `/v1/portal/reward-categories` con il token di un membro e di un operatore; poi con `?memberId=` | stessa lista di `/v1/reward-categories`; con `memberId` 400 | docs/06 §3.2 · Q-410, Q-553 | `PortalOidcScenarios#categoriesAreOpenToMembers` |
+| TB-RWD-MBP-022 | `?memberId=B`, `?memberId=A`, `?MEMBERID=B`, `?member_id=B`, `?!memberId=B`, `?filter.memberId=B` su catalogo, dettaglio, coupon, richieste (elenco e una richiesta); annullo con `?memberId=` | 400 `MEMBER_FROM_TOKEN` (anche col proprio id); l'id ricevuto non è ripetuto; la richiesta di B resta `PENDING` | docs/06 §3.2 · Q-553 | `PortalOidcScenarios#memberIdInTheQueryIsRefused` |
+| TB-RWD-MBP-023 | `POST /v1/portal/redemptions` con campo form `memberId=B`, `memberId=A`, `MemberId=B` | 400 `MEMBER_FROM_TOKEN`; nessuna riga, nessun fatto `requested` | docs/06 §3.2 · Q-553 | `PortalOidcScenarios#memberIdAsFormFieldIsRefused` |
+| TB-RWD-MBP-024 | corpo con `memberId` B o A; `shipping` con `memberId` annidato (anche dentro un elenco) | 400 `MEMBER_FROM_TOKEN`; nessuna riga, nessun fatto | docs/06 §3.4 · Q-553 | `PortalOidcScenarios#memberIdInTheBodyIsRefused` |
+| TB-RWD-MBP-025 | corpo con la grafia `MEMBER_ID` (non una componente di `RedemptionRequest`) | scostamento noto (Q-573, `SPEC-GAP`): scartata da Jackson, la richiesta riesce ma è di A; nessuna riga per B | docs/06 §3.4 · Q-573 | `PortalOidcScenarios#unboundBodySpellingsNeverChangeTheMember` |
+| TB-RWD-MBP-026 | `X-LH-Member: B` e `X-LH-Member: A` su catalogo, coupon, richieste, una richiesta | 400 `MEMBER_FROM_TOKEN` | docs/06 §3.2 · Q-555 | `PortalOidcScenarios#demoMemberHeaderIsRefused` |
+| TB-RWD-MBP-027 | A legge e annulla la richiesta di B; richiesta inesistente; A annulla una propria `PENDING` | 404 `NOT_FOUND` uguale alla richiesta inesistente, la richiesta di B resta `PENDING` e senza attore di A; l'annullo del titolare dà 200 `CANCELLED` | docs/06 §3.2 · reward §3 (Q-283) | `PortalOidcScenarios#anotherMembersObjectsAreNotFound` |
+| TB-RWD-MBP-028 | token `CARE` su coupon, richieste, una richiesta, `POST` richiesta, annullo; poi su catalogo e dettaglio | 403 `MEMBER_REQUIRED`, nessuna riga creata e la richiesta di A resta `PENDING`; catalogo e dettaglio 200 in vista generica (nessun limite per membro raggiunto) | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#operatorIsNotAMember` |
+| TB-RWD-MBP-029 | token misto `MEMBER`+`CARE` | 403 `MEMBER_REQUIRED` sulle funzioni del membro; catalogo generico | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#mixedTokenIsNotAMember` |
+| TB-RWD-MBP-030 | token `MEMBER`+`SOURCE` su catalogo, dettaglio, coupon, richieste, categorie | 403 | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#memberPlusSourceIsForbidden` |
+| TB-RWD-MBP-031 | token di un membro su `/v1/rewards`, `/v1/redemptions[/{id}]`, `/v1/reward-categories`, `/v1/reward-bands`, `/v1/coupon-pools`, `/v1/stats/rewards`; `POST /v1/rewards`, `POST /v1/redemptions/{id}/fulfil` | 403 `FORBIDDEN_ROLE`, nessun dato, nessuna scrittura | docs/06 §3.2 · Q-410 | `PortalOidcScenarios#memberTokenCannotReachBackoffice` |
+| TB-RWD-MBP-032 | token di un membro con `X-LH-Actor: ADMIN:intruso` (backoffice) e `CARE:intruso` (portale) | l'header è ignorato: 403 `FORBIDDEN_ROLE`; sul portale il membro resta il titolare | ADR-027 | `PortalOidcScenarios#actorHeaderIsIgnored` |
+| TB-RWD-MBP-033 | `sub` non legato su coupon, richieste, `POST` richiesta e catalogo; poi arriva `member.registered` | 409 `MEMBER_NOT_LINKED` con `Retry-After: 2` sulle funzioni `REQUIRED`, catalogo 200 generico; poi 200 e una richiesta del nuovo membro | docs/06 §3.2 · Q-550, Q-553 | `PortalOidcScenarios#unlinkedSubjectGets409UntilTheFactArrives` |
+| TB-RWD-MBP-034 | C anonimizzato; replay di `registered` e `updated` più recente | 409 `MEMBER_NOT_LINKED`; il replay non ri-lega | docs/06 §3.4 · Q-550 | `PortalOidcScenarios#anonymizedMemberIsUnlinkedForGood` |
+| TB-RWD-MBP-035 | nessun token; token scaduto; firmato con un'altra chiave; audience o emittente sbagliati (catalogo, coupon, categorie) | 401 | ADR-027 | `PortalOidcScenarios#invalidTokensAreUnauthorized` |
+| TB-RWD-MBP-036 | richiesta e annullo del membro | attore `member:<id>` su `redemption.actor`, cronologia e `lhactor` dei fatti `requested` e `cancelled`; né username, né e-mail, né `sub` nelle scritture | docs/06 §3 · Q-556 | `PortalOidcScenarios#writesCarryTheMemberActorWithoutPii` |
+
+Righe eseguite due volte, da `RewardPortalOidcIT` (ordinaria) e da `TestbookRwdMemberPrincipalIT` (testbook).
+
+### 21.3 Profilo `demo` invariato
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-RWD-MBP-040 | `X-LH-Member: MBR-000004` su coupon, richieste, catalogo, contro `?memberId=` | stesso JSON; coupon e richieste non vuoti, tutte del membro | CLAUDE.md regola 6-bis · Q-555 | `TestbookRwdMemberPrincipalDemoIT#headerResolvesTheMember` |
+| TB-RWD-MBP-041 | catalogo senza membro, con `memberId=` vuoto, per un membro PLATINUM e per uno BASE | senza membro (o vuoto) la vista generica; il premio riservato a PLATINUM è bloccato per generico e BASE, aperto per PLATINUM; dettaglio 200/404 come prima | reward §3 · docs/03 §5 | `TestbookRwdMemberPrincipalDemoIT#catalogIsPersonalisedOnlyWithAMember` |
+| TB-RWD-MBP-042 | header `MBR-000004` e query `MBR-000003` | 400 `MEMBER_MISMATCH`, gli id non sono ripetuti nel detail | docs/06 §3.2 · Q-555 | `TestbookRwdMemberPrincipalDemoIT#differentSourcesAreAMismatch` |
+| TB-RWD-MBP-043 | coupon e richieste senza membro o con `memberId=` vuoto; annullo senza membro; `POST` senza membro | 400 «memberId è obbligatorio» (come oggi); `POST` 400 «memberId e rewardCode sono obbligatori» | reward §3 (Q-283) · docs/06 §3.4 | `TestbookRwdMemberPrincipalDemoIT#missingMemberKeepsTheOldErrors` |
+| TB-RWD-MBP-044 | `POST` con `memberId` nel corpo; con l'header; con header e corpo concordi; in disaccordo | 202 con il membro indicato; il disaccordo 400 `MEMBER_MISMATCH` e nessuna richiesta creata | CLAUDE.md regola 6-bis · Q-555 | `TestbookRwdMemberPrincipalDemoIT#redemptionSourcesInDemo` |
+| TB-RWD-MBP-045 | richiesta altrui letta con e senza membro; con un altro membro; annullo altrui; annullo del titolare | 200 senza membro o col titolare; 404 `NOT_FOUND` con un altro membro (query o header) e all'annullo altrui; l'annullo del titolare 200 `CANCELLED` | reward §3 (Q-283) | `TestbookRwdMemberPrincipalDemoIT#ownershipInDemo` |
+| TB-RWD-MBP-046 | `X-LH-Member` di forma non valida; attore `SOURCE:src-ecommerce` | 400; 403 su catalogo, coupon, richieste, categorie | docs/06 §3.1, §3.2 · Q-492, Q-555 | `TestbookRwdMemberPrincipalDemoIT#malformedHeaderAndSource` |
+| TB-RWD-MBP-047 | richiesta premio con l'header di un membro del seed | attore `member:MBR-000006` su `redemption.actor` e sul `lhactor` del fatto; nessuna riga del seed con `MEMBER:` | docs/05 · docs/06 §3 · Q-556 | `TestbookRwdMemberPrincipalDemoIT#writesCarryTheMemberActor` |
+| TB-RWD-MBP-048 | `/v1/portal/reward-categories` senza e con `X-LH-Member` | stessa lista di `/v1/reward-categories` | reward §3 (B4) | `TestbookRwdMemberPrincipalDemoIT#categoriesAlias` |

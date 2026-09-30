@@ -16,9 +16,9 @@ Non conosce i saldi: il controllo del saldo è del wallet. Il campo `reachable` 
 | `coupon` | `code` PK, `pool_id`, `status` (`AVAILABLE, ISSUED, USED, EXPIRED, VOID`), `member_id`, `reward_code`, `origin` (`REDEMPTION, CAMPAIGN`), `redemption_id`, `effect_id` UQ null, `issued_at`, `expires_at`, `used_at`, `voided_at`, `created_at` |
 | `redemption` | `id` (ULID), `member_id`, `reward_code`, `reward_name`, `points_cost`, `status` (`PENDING, CONFIRMED, FULFILLED, REJECTED, CANCELLED`), `reject_reason`, `needs_attention bool`, `coupon_code`, `fulfilment_note`, `shipping jsonb`, `correlation_id`, `requested_at`, `confirmed_at`, `closed_at`, `actor` |
 | `redemption_history` | `id`, `redemption_id` FK, `status`, `note`, `actor`, `at`: cronologia degli stati di una richiesta (`GET /v1/redemptions/{id}`) |
-| `reward_member_snapshot` | `member_id` PK, `status`, `tier_code`, `segments text[]`, `first_name`, `last_name`, `updated_at` (da fatti). Prefisso `reward_` per non collidere con `campaign.member_snapshot` nel search_path dell'hub (ADR-023) |
+| `reward_member_snapshot` | `member_id` PK, `status`, `tier_code`, `segments text[]`, `first_name`, `last_name`, `updated_at` (da fatti); proiezione del legame account↔membro (Q-550, ADR-048): `subject_ref` (pseudonimo HMAC di `iss`+`sub`, mai il `sub`), `subject_ref_at` (istante dell'ultimo aggiornamento del legame), `subject_erased` (lapide dell'anonimizzazione) · indice unico parziale su `subject_ref` (`V4`). Prefisso `reward_` per non collidere con `campaign.member_snapshot` nel search_path dell'hub (ADR-023) |
 
-Tracciato delle tabelle (docs/18 §3.12-bis, verificato sulle migrazioni `V1`–`V3`). Linee continue: vincolo `FOREIGN KEY` nella migrazione; tratteggiate: riferimento logico tenuto dal codice (richieste e coupon citano il premio per `code`, non per `id`). Delle tabelle comuni di lh-common (docs/06 §1) compare solo `approval_history`, che registra le transizioni dei premi (`entity_type = REWARD`, ciclo comune di docs/03 §3.6). Gli stati della richiesta e del coupon sono in docs/03 §5.
+Tracciato delle tabelle (docs/18 §3.12-bis, verificato sulle migrazioni `V1`–`V4`). Linee continue: vincolo `FOREIGN KEY` nella migrazione; tratteggiate: riferimento logico tenuto dal codice (richieste e coupon citano il premio per `code`, non per `id`). Delle tabelle comuni di lh-common (docs/06 §1) compare solo `approval_history`, che registra le transizioni dei premi (`entity_type = REWARD`, ciclo comune di docs/03 §3.6). Gli stati della richiesta e del coupon sono in docs/03 §5.
 
 ```mermaid
 erDiagram
@@ -75,6 +75,9 @@ erDiagram
     text member_id PK
     text status
     text tier_code
+    text subject_ref UK "pseudonimo del token, indice parziale"
+    timestamptz subject_ref_at
+    boolean subject_erased
   }
   reward_band ||--o{ reward : "prezzo"
   reward_category |o--o{ reward : "categoria"
@@ -109,14 +112,19 @@ erDiagram
 | GET | `/v1/rewards/stats` | top premi, richieste per stato, stock sotto soglia (< 10 %) |
 
 ### Portale
+Il membro viene solo dal token (Q-410, ADR-048, docs/06 §3.4): nessun endpoint lega più `memberId` da query, percorso o corpo. Lo risolve `EndpointAccessInterceptor` e lo consegna al controller come `MemberPrincipal`. In `enterprise` un `memberId` in query, campo form o corpo, o l'header `X-LH-Member`, dà `400 MEMBER_FROM_TOKEN` (anche se è il proprio); un operatore o un token misto su un endpoint `REQUIRED` dà `403 MEMBER_REQUIRED`, su uno `OPTIONAL` riceve la vista generica; un `sub` non ancora legato dà `409 MEMBER_NOT_LINKED` con `Retry-After: 2` (su un `OPTIONAL` la vista generica); una richiesta di un altro membro dà `404 NOT_FOUND`. In `demo` il membro è il `memberId` esplicito (query o campo deprecato del corpo) o l'header `X-LH-Member` messo dal BFF (regola 6-bis): gli errori restano quelli di prima e due fonti diverse danno `400 MEMBER_MISMATCH`. Il `memberId` esce dal contratto OpenAPI (resta, `deprecated`, nel solo corpo della richiesta premio).
+
 | Metodo | Path | Note |
 |---|---|---|
-| GET | `/v1/portal/catalog?memberId=` | `{bands[]: {code, name, pointsThreshold, rewards[]: {code, name, type, imageUrl, category, pointsCost, stockState (AVAILABLE/LOW/SOLD_OUT), lockedByTier?: {requiredTiers[]}, perMemberLimitReached}}}` — include i premi bloccati per tier (mostrati con lucchetto), esclude quelli fuori segmento |
-| GET | `/v1/portal/rewards/{code}?memberId=` | dettaglio + `terms` |
-| POST | `/v1/portal/redemptions` | `{memberId, rewardCode, shipping?}` → **202** `{redemptionId, status: PENDING, correlationId}` |
-| GET | `/v1/portal/redemptions?memberId=` · `/v1/portal/redemptions/{id}` | il portale interroga fino a stato finale o `CONFIRMED` |
-| POST | `/v1/portal/redemptions/{id}/cancel` | `?memberId=` obbligatorio (`400` se assente, `404` se la richiesta è di un altro membro; Q-283); solo `PENDING` |
-| GET | `/v1/portal/coupons?memberId=` | `{code, rewardName, status, issuedAt, expiresAt, origin}` |
+| GET | `/v1/portal/catalog` | `@MemberEndpoint(OPTIONAL)`. `{bands[]: {code, name, pointsThreshold, rewards[]: {code, name, type, imageUrl, category, pointsCost, stockState (AVAILABLE/LOW/SOLD_OUT), lockedByTier?: {requiredTiers[]}, perMemberLimitReached}}}` — include i premi bloccati per tier (mostrati con lucchetto), esclude quelli fuori segmento; senza membro (un operatore, BO-17) la vista generica: nessun livello, nessun segmento, nessun limite per membro |
+| GET | `/v1/portal/rewards/{code}` | `@MemberEndpoint(OPTIONAL)`. Dettaglio + `terms` |
+| GET | `/v1/portal/reward-categories` | alias di `GET /v1/reward-categories` per il portale (B4): uguale per tutti, aperto ai membri (`@RequiresRole(..., members = true)`) |
+| POST | `/v1/portal/redemptions` | `@MemberEndpoint(REQUIRED)`. `{rewardCode, shipping?}` → **202** `{redemptionId, status: PENDING, correlationId}`; il campo `memberId` del corpo è deprecato e vale solo in `demo` (in `enterprise` `400 MEMBER_FROM_TOKEN`); l'attore della richiesta è `member:<id>` (Q-556) |
+| GET | `/v1/portal/redemptions` · `/v1/portal/redemptions/{id}` | `@MemberEndpoint(REQUIRED)`. Le richieste del membro; il portale interroga fino a stato finale o `CONFIRMED`. La proprietà si controlla sempre in `enterprise` (`404` se la richiesta è di un altro membro); in `demo` solo se il chiamante indica un membro, come prima |
+| POST | `/v1/portal/redemptions/{id}/cancel` | `@MemberEndpoint(REQUIRED)`. `404` se la richiesta è di un altro membro (Q-283); solo `PENDING`; in `demo` `400` se manca il membro |
+| GET | `/v1/portal/coupons` | `@MemberEndpoint(REQUIRED)`. `{code, rewardName, status, issuedAt, expiresAt, origin}` |
+
+**Scostamento noto (Q-573, `SPEC-GAP`).** `MemberBodyAdvice` (lh-common) ispeziona solo l'oggetto già deserializzato: un `memberId` che `RedemptionRequest` lega (la componente `memberId`, o una chiave `memberId` dentro `shipping`, a qualunque profondità) dà `400 MEMBER_FROM_TOKEN`; una grafia che il DTO non conosce (`MEMBER_ID`) è scartata da Jackson e la richiesta riesce, ma il membro resta sempre quello del token (nessun BOLA). La correzione, con il rifiuto del corpo grezzo, sta in lh-common. Provato da TB-RWD-MBP-024/025.
 
 Errori di validazione immediata su `POST redemptions`: `422 REWARD_NOT_AVAILABLE`, `REWARD_SOLD_OUT`, `MEMBER_LIMIT_REACHED`, `MEMBER_NOT_ACTIVE`, `TIER_NOT_ELIGIBLE`, `SHIPPING_REQUIRED` (per `PHYSICAL`).
 
@@ -127,7 +135,7 @@ Errori di validazione immediata su `POST redemptions`: `422 REWARD_NOT_AVAILABLE
 | Direzione | Topic | Tipi |
 |---|---|---|
 | Consuma | `lh.effects.v1` | `coupon.issue` |
-| Consuma | `lh.facts.v1` | `wallet.points.spent`, `wallet.spend.rejected`, `member.registered/updated/status.changed`, `member.segment.entered/left`, `tier.upgraded/downgraded` |
+| Consuma | `lh.facts.v1` | `wallet.points.spent`, `wallet.spend.rejected`, `member.registered/updated/status.changed` (stato e, dal campo opzionale `subjectRef`, il legame token↔membro: §5), `member.segment.entered/left`, `tier.upgraded/downgraded` |
 | Produce | `lh.facts.v1` | `reward.redemption.requested/confirmed/fulfilled/rejected/cancelled`, `coupon.issued`, `coupon.used`, `reward.status.changed` |
 | Produce | `lh.audit.v1` | scritture su catalogo, fasce, pool, evasioni, annulli |
 
@@ -157,6 +165,8 @@ Dominio in `docs/03 §5`. Note implementative:
 - **Timeout**: job ogni minuto, `PENDING` da più di 10 min → `REJECTED (TIMEOUT)`, stock ripristinato. Se `wallet.points.spent` arriva dopo il timeout → emette `reward.redemption.cancelled` con `refund=true` (compensazione) e log `WARN`.
 - **Annullo** da `CONFIRMED`: stock ripristinato, eventuale coupon `VOID`, fatto `cancelled` con `refund=true` → il wallet rimborsa.
 - `coupon.issue` da campagna: idempotenza su `effect_id`; usa il pool del premio indicato; pool vuoto → DLQ `COUPON_POOL_EMPTY` (non ritentabile).
+- **Legame token↔membro** (Q-550, ADR-048, docs/06 §3.4): `member.registered`, `member.updated` (schemi `:1` e `:2`) e `member.status.changed` passano da `MemberSnapshotHandler`, che aggiorna lo snapshot e poi `MemberSubjectProjection`: applica il campo opzionale `subjectRef` a `reward_member_snapshot` con `MemberSubjectRules` di lh-common, nella stessa transazione dello snapshot e dell'inbox idempotente. Assente = nessun effetto (un member-service più vecchio non slega nessuno); `null` = slega; un fatto più vecchio di `subject_ref_at` o di un membro già cancellato non ri-lega; lo stesso pseudonimo su due membri va al più recente (a parità, all'id maggiore) e il sorpasso incrementa `lh_member_subject_relinked_total`; l'anonimizzazione (`member.status.changed`/`updated` con `ANONYMIZED`) azzera il legame e scrive la lapide `subject_erased`, che nessun replay ripristina. Un fatto senza `time` non vale «adesso»: non sorpassa un detentore datato e lascia `subject_ref_at` com'è (l'anonimizzazione vale comunque). Due membri che reclamano lo stesso pseudonimo da partizioni diverse convergono per ritentativo: il secondo commit viola l'indice unico `reward_member_subject_ref_uq`, il consumer ritenta e le regole si rivalutano con il detentore ormai visibile. `RewardMemberSubjectLookup` risolve il membro del token con l'indice locale (non autorevole: legame assente ⇒ `409 MEMBER_NOT_LINKED`, il fatto non è ancora arrivato). Nessuna chiamata sincrona, nessun dato personale sul bus.
+- **Attore del membro** (Q-556): le scritture del portale portano `member:<memberId>` (richiesta premio, annullo del membro, cronologia e `lhactor` dei fatti); mai un nome utente né un'e-mail. Il seed demo usa la stessa forma; le righe storiche con `MEMBER:<id>` restano e si presentano allo stesso modo.
 - Eventi consumati per richieste sconosciute → ignorati con log `WARN` (non DLQ).
 - Job giornaliero: coupon `ISSUED` scaduti → `EXPIRED`.
 
@@ -177,6 +187,7 @@ Dominio in `docs/03 §5`. Note implementative:
 Riferimento: `docs/18`. Le righe qui sotto sono segnaposto dell'adozione (M8.0): la fetta citata le rende normative aggiornando questa scheda.
 
 - **Cataloghi esterni** (ADR-045, M13.6): `fulfilment=EXTERNAL`, `reward_provider` con adattatori generici, saga riserva → spesa → conferma con rilascio e rimborso automatico, sincronizzazione in `DRAFT`, stato `DEGRADED`; nuovo fatto `reward.redemption.refunded`.
+- **Membro dal token** (M8.10f, ADR-048, Q-410, Q-550; F2-SEC-09): `V4__member_subject.sql` aggiunge a `reward_member_snapshot` il legame `subject_ref` (pseudonimo, mai il `sub`) con `subject_ref_at` e la lapide `subject_erased`; `MemberSubjectProjection` lo alimenta dai fatti di member; le API del portale non legano più `memberId` (`@MemberEndpoint`, `MemberPrincipal`) e i percorsi restano gli stessi. Sequenza completa in docs/06 §3.4. Testbook: TB-RWD-MBP (`docs/testbook/TB-RWD-premi.md` §21).
 - **Dati personali** (ADR-032, M8.4): `reward_member_snapshot.first_name`/`last_name` escono dagli snapshot; i contatti per la spedizione li inoltra member-service.
   - *Doppia lettura `:1`/`:2`* (Q-346, fino a M10; M8.4c): `member.registered/updated` in entrambe le versioni aggiornano solo stato (e livello e segmenti dai rispettivi fatti); `first_name`/`last_name` non si scrivono più da nessun evento (colonne deprecate, eliminate con il contract di M10; il seed demo le valorizza ancora).
   - *Anonimizzazione* (Q-369): oltre all'indirizzo di spedizione si svuotano per intero le note libere dell'operatore (`redemption.fulfilment_note`, `redemption_history.note`); stato, esito e importi restano. Non servono più i nomi dello snapshot per ripulire le note.

@@ -142,7 +142,7 @@ public class RedemptionService {
         data.put("rewardName", reward.name());
         data.put("currency", "PTS");
         data.put("pointsCost", cost);
-        String actor = "MEMBER:" + memberId;
+        String actor = "member:" + memberId; // Q-556: l'attore del membro è member:<id>, mai un nome utente né un'e-mail
         LhEvent<Map<String, Object>> requested = events.newRoot(LhEventTypes.Fact.REWARD_REDEMPTION_REQUESTED,
                 "member:" + memberId, data, LhSource.service("reward"), actor);
 
@@ -239,7 +239,7 @@ public class RedemptionService {
         Instant now = clock.instant();
         redemptions.close(r.id(), RedemptionStatus.CANCELLED, "MEMBER", now);
         rewards.releaseStock(r.rewardCode());
-        redemptions.addHistory(Ulid.next(clock), r.id(), RedemptionStatus.CANCELLED, "Annullata dal membro", "MEMBER:" + r.memberId(), now);
+        redemptions.addHistory(Ulid.next(clock), r.id(), RedemptionStatus.CANCELLED, "Annullata dal membro", "member:" + r.memberId(), now);
         outbox.write(events.childOf(requestedRef(r), LhEventTypes.Fact.REWARD_REDEMPTION_CANCELLED,
                 cancelledData(r, "MEMBER", false)));
         return view(r.id());
