@@ -24,6 +24,8 @@ negli altri servizi, anonimizzazione, attributi personalizzati, segmenti. Serviz
 | `services/member-service` · `TestbookGovSegmentCriteriaTest` | unit: `SegmentCriteria` | `criteria.csv`, `criteria-validation.csv` | CRT, CRV |
 | `services/member-service` · `TestbookGovAttributesTest` | unit: `MemberAttributes` | `attribute-values.csv`, `attribute-definitions.csv` | ATV, ATD |
 | `services/member-service` · `TestbookGovMemberIT` | integrazione (Spring, Postgres e Kafka embedded, profilo `demo`) | `member-status.csv`, `member-roles.csv`, `anonymize.csv`, `attributes-in-use.csv`, `segments.csv`, `referral.csv` | MST, MRL, ANO, ATU, SEG, REF |
+| `services/member-service` · `TestbookGovMemberIdentityIT` | integrazione (profilo `demo` con `identity.mode=oidc`, token RS256 veri, Postgres e Kafka embedded) | `member-identity.csv` | MID-001…035 |
+| `services/member-service` · `TestbookGovMemberIdentityDemoIT` | integrazione (profilo `demo`, Postgres e Kafka embedded) | `member-identity-demo.csv` | MID-036…050 |
 | `deploy/hub` · `TestbookGovHubIT` | integrazione tra servizi (hub consolidato, profili `demo, inproc`) | `hub-entities.csv`, `hub-approvals.csv`, `hub-matrix.csv`, `hub-effects.csv`, `hub-anonymization.csv` | ENT, APQ, MAT, EFF, ANX |
 
 **Scostamento dal progetto M8.10f (S1, §4), che elencava `TestbookGovActorTest#guard` per le nuove dichiarazioni.** Le tre
@@ -82,6 +84,7 @@ vuoto, così che ogni riga misuri una sola decisione.
 | R-32 | Referral: ogni membro ha un codice di 8 caratteri `A-Z2-9` univoco; la registrazione con codice valido crea il legame (un solo invitante, non modificabile, non se stessi); codice inesistente ⇒ 422 `REFERRAL_CODE_INVALID`, invitante non ACTIVE ⇒ idem | F-REF-01 · docs/03 §2, §8 · member §3, §5 · Q-61 | REF-001…015 |
 | R-33 | Referral: alla **prima** azione qualificante dell'invitato (`purchase.completed`) due fatti `referral.completed` (REFEREE sull'invitato, REFERRER sull'invitante, chiavi = i due membri); nessun altro dopo | F-REF-02 · docs/03 §8 · member §5, §7 · EVT-FACT-08 | REF-016…023 |
 | R-34 | Il membro dal token (M8.10f, ADR-048): in `enterprise` un token di solo membro raggiunge solo gli handler `@MemberEndpoint` e le letture `@RequiresRole(members = true)` (403 `FORBIDDEN_ROLE` altrove, `ANALYST` tra i ruoli di ogni `members = true`); il membro viene solo dal token (`memberId` in query, campo form, corpo o `X-LH-Member` ⇒ 400 `MEMBER_FROM_TOKEN`, id nel percorso legacy ⇒ 403); un operatore, un token misto o `MEMBER`+`SOURCE` non agiscono mai come membro (403 `MEMBER_REQUIRED`, `OPTIONAL` vista generica); `sub` senza legame ⇒ 404 `MEMBER_NOT_REGISTERED` (member-service) o 409 `MEMBER_NOT_LINKED` con `Retry-After: 2`; attore `member:<id>` (prima `member:-`); in `demo` il membro è il `memberId` esplicito o `X-LH-Member` e gli errori restano quelli di oggi (due fonti diverse ⇒ 400 `MEMBER_MISMATCH`); `memberId` vale in qualunque grafia e con i prefissi del binder di Spring (`!memberId`, `_memberId`); in demo solo un id `MBR-nnnnnn` diventa l'attore e l'MDC; `NONE` (operatore su `OPTIONAL`) non è mai il proprietario di un oggetto (`checkOwner` ⇒ 404) | docs/06 §3, §3.2, §3.4 · Q-410, Q-553, Q-554, Q-555, Q-556 · ADR-048 | MBP-001…087 |
+| R-35 | Registrazione dal portale e legame account↔membro (M8.2, ADR-048): `POST /v1/portal/members` (`@MemberEndpoint(REGISTRATION)`) crea membro e `member_identity` in una transazione, idempotente sul `sub` (201 poi 200, un solo `member.registered` con `subjectRef`, mai il `sub`); id, canale `PORTAL` e stato `ACTIVE` del servizio; `/v1/portal/me/profile` e `/me/referral` solo dal token (404 `MEMBER_NOT_REGISTERED` senza legame; `memberId` in query o `X-LH-Member` 400, id nel percorso legacy 403); l'anonimizzazione cancella il legame e una nuova registrazione crea un nuovo membro; in `demo` nessun token: `memberId` esplicito o `X-LH-Member`, attore `member:<id>` | member §3, §5, §8 · docs/06 §3.4 · Q-157, Q-551, Q-552, Q-558 · ADR-048 | MID-001…050 |
 
 ## 2. Rami del codice mappati sulle regole
 
@@ -159,6 +162,10 @@ Percorsi relativi a `libs/lh-common/src/main/java/io/loyaltyhub/common/` e `serv
 | B-67 | `web/MemberBodyAdvice.java` corpo con `memberId` non nullo, a qualunque profondità (record, bean, mappe, elenchi, `JsonNode`, fino a 4) ⇒ 400 `MEMBER_FROM_TOKEN` (solo `oidc`) | R-34 (Q-553) | MBP-023…028 |
 | B-68 | `web/MemberEndpointGuard.java` all'avvio: `@MemberEndpoint` sotto `/v1/portal/`, `demoPathVariable` solo su `@Deprecated`, `members = true` solo `GET` fuori da `/me` e con `ANALYST`; in `oidc` una lookup per modulo (autorevole per la registrazione) e la chiave di almeno 32 byte ⇒ `INSECURE_CONFIG` | R-34 (regola 22) | non raggiungibile da una richiesta: `MemberEndpointGuardTest`, `EndpointAccessRulesTest`, `IdentityGuardTest` (fuori dalle righe del testbook) |
 | B-69 | `web/MemberPrincipal.java` `checkOwner`, `merge`, `requireParam`: oggetto di un altro membro ⇒ 404 `NOT_FOUND`, `NONE` mai proprietario; `memberId` del corpo solo in demo (diverso ⇒ 400 `MEMBER_MISMATCH`); senza id in demo ⇒ 400 come oggi | R-34 (Q-553, Q-555) | MBP-029, 064…066, 076…079 |
+| B-70 | `application/MemberService.java` `registerFromPortal`: `demo` ⇒ nuovo membro senza legame; account già legato ⇒ 200 col profilo; nuovo ⇒ transazione (membro, `member_identity`, `member.registered{subjectRef}`, audit `CREATE` con attore `member:<id>`); corsa (`DuplicateKeyException` o `EMAIL_TAKEN` con legame ormai presente) ⇒ 200 col membro esistente | R-35 (Q-157, Q-551) | MID-001…003, 036, 037; la corsa in `PortalRegistrationOidcIT#concurrentRegistrationsCreateOneMember` |
+| B-71 | `application/MemberService.java` `anonymize` + `infra/MemberIdentityRepository.java`: `deleteByMemberId` nella stessa transazione, lo snapshot `member.updated` che segue senza `subjectRef` | R-35 (Q-558) | MID-034, 035; `AnonymizationIT` |
+| B-72 | `api/PortalMeController.java`, `api/PortalMembersController.java`, `api/ReferralController.java`: profilo, PATCH e referral dal `MemberPrincipal` (`requireParam`); i percorsi con l'id sono `@Deprecated` con `demoPathVariable = "id"` | R-35 (Q-410, Q-553) | MID-016…028, 038…048, 050 |
+| B-73 | `infra/MemberIdentityLookup.java`: lookup autorevole di `member_identity` per `subjectRef` (assente ⇒ 404 `MEMBER_NOT_REGISTERED`) | R-35 (Q-550, Q-553) | MID-016, 018, 034 |
 
 ## 3. Identità simulata e guardie di ruolo
 
@@ -876,6 +883,75 @@ registrata Q-157 (serve anche alla registrazione dal portale).
 | TB-GOV-MRL-078 | `POST /v1/members/{id}/status` da BLOCKED ad ACTIVE (sblocco, member.write), CARE | accettata (2xx) | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
 | TB-GOV-MRL-079 | `POST /v1/members/{id}/status` da BLOCKED ad ACTIVE (sblocco, member.write), ANALYST | 403 `FORBIDDEN_ROLE` | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
 | TB-GOV-MRL-080 | `POST /v1/members/{id}/status` da BLOCKED ad ACTIVE (sblocco, member.write), intestazione assente | 403 `FORBIDDEN_ROLE` | docs/08 §2 `member.write` · docs/06 §3 | `TestbookGovMemberIT#roles` |
+
+### 8.3 Identità e registrazione dal portale (MID)
+Il membro dal token in member-service (M8.2, F2-IAM-03, F2-SEC-09, Q-157, Q-551…Q-558, ADR-048). MID-001…035 nel profilo
+`enterprise` (`identity.mode=oidc`, token RS256 veri di `OidcTestTokens`, `LH_SUBJECT_KEY` di prova): registrazione
+(`POST /v1/portal/members`, 001…015), profilo e referral senza id (016…018), BOLA su query, header, percorso legacy e
+corpo (019…028), operatori, token misti e backoffice (029…033), anonimizzazione (034, 035). MID-036…050 nel profilo `demo`
+(regola 6-bis): registrazione senza token, `memberId` esplicito o `X-LH-Member`, percorsi legacy invariati, errori di
+oggi, attore `member:<id>`. Un caso per riga; ogni riga usa account nuovi (l'altro membro B è creato una volta).
+Un `memberId` nel **corpo** non è una riga perché oggi non è rifiutato: `docs/06 §3.4` vuole `400 MEMBER_FROM_TOKEN`, ma
+`PortalProfileRequest` e `PortalRegistrationRequest` non hanno il campo, Jackson lo scarta prima di `MemberBodyAdvice` (che vede
+solo l'oggetto deserializzato) e il membro resta quello del token. È uno scostamento aperto (Q-573, `SPEC-GAP`, correzione in
+lh-common): `PortalMeOidcIT#patchWithAnotherMemberIsRejected` prova solo che l'id altrui non prevale, non il `400`. Gli scenari a più passi (idempotenza con controllo
+dell'outbox, corsa tra quattro richieste dello stesso account, pseudonimo `subjectRef` uguale all'HMAC atteso e sub
+assente dai fatti e dall'audit, anonimizzazione completa con nuova registrazione) sono in `PortalRegistrationOidcIT`,
+`PortalMeOidcIT` e `AnonymizationIT#anonymizeDeletesTheAccountLinkAndDropsSubjectRef` (fuori dal testbook: nome
+senza prefisso `Testbook`).
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-GOV-MID-001 | registrazione di un account nuovo (profilo enterprise) | 201, `Location: /v1/portal/me/profile`, un membro e un legame | member §3 (Portale) e §8 · docs/06 §3.2, §3.4 · Q-157, Q-553, Q-554, Q-557 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-002 | stesso account di nuovo: il membro esistente | 200, lo stesso membro, nessun secondo `member.registered` | member §3 (Portale) e §8 · docs/06 §3.2, §3.4 · Q-157, Q-553, Q-554, Q-557 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-003 | externalId/status/channel nel corpo ignorati: canale PORTAL e stato ACTIVE del servizio | 201; canale `PORTAL`, stato `ACTIVE`, `external_id` assente (assegnati dal servizio) | member §3 (Portale) e §8 · docs/06 §3.2, §3.4 · Q-157, Q-553, Q-554, Q-557 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-004 | registrazione con memberId in query | 400 `MEMBER_FROM_TOKEN` | member §3 (Portale) e §8 · docs/06 §3.2, §3.4 · Q-157, Q-553, Q-554, Q-557 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-005 | registrazione con X-LH-Member | 400 `MEMBER_FROM_TOKEN` | member §3 (Portale) e §8 · docs/06 §3.2, §3.4 · Q-157, Q-553, Q-554, Q-557 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-006 | registrazione con il token di ADMIN | 403 `MEMBER_REQUIRED` | member §3 (Portale) e §8 · docs/06 §3.2, §3.4 · Q-157, Q-553, Q-554, Q-557 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-007 | registrazione con il token di CARE | 403 `MEMBER_REQUIRED` | member §3 (Portale) e §8 · docs/06 §3.2, §3.4 · Q-157, Q-553, Q-554, Q-557 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-008 | registrazione con un token misto MEMBER+CARE | 403 `MEMBER_REQUIRED` | member §3 (Portale) e §8 · docs/06 §3.2, §3.4 · Q-157, Q-553, Q-554, Q-557 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-009 | registrazione con un token MEMBER+SOURCE | 403 (`MEMBER`+`SOURCE` non registra: come oggi sul portale) | member §3 (Portale) e §8 · docs/06 §3.2, §3.4 · Q-157, Q-553, Q-554, Q-557 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-010 | registrazione senza token | 401 `UNAUTHORIZED` | member §3 (Portale) e §8 · docs/06 §3.2, §3.4 · Q-157, Q-553, Q-554, Q-557 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-011 | registrazione con token scaduto | 401 `UNAUTHORIZED` | member §3 (Portale) e §8 · docs/06 §3.2, §3.4 · Q-157, Q-553, Q-554, Q-557 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-012 | registrazione con token firmato da un'altra chiave | 401 `UNAUTHORIZED` | member §3 (Portale) e §8 · docs/06 §3.2, §3.4 · Q-157, Q-553, Q-554, Q-557 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-013 | registrazione senza e-mail | 400 `BAD_REQUEST` | member §3 (Portale) e §8 · docs/06 §3.2, §3.4 · Q-157, Q-553, Q-554, Q-557 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-014 | registrazione con l'e-mail di un altro membro | 409 `EMAIL_TAKEN` | member §3 (Portale) e §8 · docs/06 §3.2, §3.4 · Q-157, Q-553, Q-554, Q-557 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-015 | registrazione con un codice invito inesistente | 422 `REFERRAL_CODE_INVALID` | member §3 (Portale) e §8 · docs/06 §3.2, §3.4 · Q-157, Q-553, Q-554, Q-557 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-016 | GET /me/profile di un account registrato | 200, il profilo del titolare | member §3 (Portale) · docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-556 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-017 | GET /me/referral di un account registrato | 200 | member §3 (Portale) · docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-556 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-018 | GET /me/profile di un account non registrato | 404 `MEMBER_NOT_REGISTERED` | member §3 (Portale) · docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-556 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-019 | GET /me/profile con memberId di un altro in query | 400 `MEMBER_FROM_TOKEN` | member §3 (Portale) · docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-556 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-020 | GET /me/profile con il proprio memberId in query | 400 `MEMBER_FROM_TOKEN` | member §3 (Portale) · docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-556 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-021 | GET /me/profile con MEMBERID in maiuscolo | 400 `MEMBER_FROM_TOKEN` | member §3 (Portale) · docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-556 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-022 | GET /me/profile con X-LH-Member di un altro | 400 `MEMBER_FROM_TOKEN` | member §3 (Portale) · docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-556 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-023 | percorso legacy /portal/members/{id} con l'id di un altro | 403 `MEMBER_FROM_TOKEN` | member §3 (Portale) · docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-556 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-024 | percorso legacy /portal/members/{id} con il proprio id | 403 `MEMBER_FROM_TOKEN` | member §3 (Portale) · docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-556 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-025 | percorso legacy del referral con l'id di un altro | 403 `MEMBER_FROM_TOKEN` | member §3 (Portale) · docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-556 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-026 | PATCH legacy /portal/members/{id} con l'id di un altro | 403 `MEMBER_FROM_TOKEN` | member §3 (Portale) · docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-556 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-027 | PATCH /me/profile del titolare | 200, il profilo del titolare | member §3 (Portale) · docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-556 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-028 | PATCH /me/profile con memberId di un altro in query | 400 `MEMBER_FROM_TOKEN` | member §3 (Portale) · docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-556 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-029 | GET /me/profile con il token di ADMIN | 403 `MEMBER_REQUIRED` | member §3 (Portale) · docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-556 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-030 | GET /me/profile con un token misto MEMBER+CARE | 403 `MEMBER_REQUIRED` | member §3 (Portale) · docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-556 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-031 | token di un membro su GET /v1/members (backoffice) | 403 `FORBIDDEN_ROLE` | member §3 (Portale) · docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-556 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-032 | token di un membro su POST /v1/members (backoffice) | 403 `FORBIDDEN_ROLE` | member §3 (Portale) · docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-556 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-033 | GET /me/profile senza token | 401 `UNAUTHORIZED` | member §3 (Portale) · docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-556 · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-034 | GET /me/profile dopo l'anonimizzazione del membro | 404 `MEMBER_NOT_REGISTERED` | member §5 e §8 · docs/15 Q-551, Q-558 (D11) · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-035 | registrazione dello stesso account dopo l'anonimizzazione: un nuovo membro | 201, un nuovo membro con un nuovo id | member §5 e §8 · docs/15 Q-551, Q-558 (D11) · ADR-048 | `TestbookGovMemberIdentityIT#identity` |
+| TB-GOV-MID-036 | demo: registrazione dal portale senza token crea un membro senza legame e con canale PORTAL | 201, canale `PORTAL`, nessuna riga in `member_identity` | docs/06 §3.4 · regola 6-bis · Q-553, Q-555, Q-556 · ADR-048 | `TestbookGovMemberIdentityDemoIT#identity` |
+| TB-GOV-MID-037 | demo: audit della registrazione con attore member:<id> | 201; audit `CREATE` con `lhactor` = `member:<id del nuovo membro>` | docs/06 §3.4 · regola 6-bis · Q-553, Q-555, Q-556 · ADR-048 | `TestbookGovMemberIdentityDemoIT#identity` |
+| TB-GOV-MID-038 | demo: GET /me/profile con memberId esplicito | 200, profilo di `MBR-000002` | docs/06 §3.4 · regola 6-bis · Q-553, Q-555, Q-556 · ADR-048 | `TestbookGovMemberIdentityDemoIT#identity` |
+| TB-GOV-MID-039 | demo: GET /me/profile con X-LH-Member | 200, profilo di `MBR-000003` | docs/06 §3.4 · regola 6-bis · Q-553, Q-555, Q-556 · ADR-048 | `TestbookGovMemberIdentityDemoIT#identity` |
+| TB-GOV-MID-040 | demo: memberId ed X-LH-Member uguali | 200, profilo di `MBR-000002` | docs/06 §3.4 · regola 6-bis · Q-553, Q-555, Q-556 · ADR-048 | `TestbookGovMemberIdentityDemoIT#identity` |
+| TB-GOV-MID-041 | demo: memberId ed X-LH-Member diversi | 400 `MEMBER_MISMATCH` | docs/06 §3.4 · regola 6-bis · Q-553, Q-555, Q-556 · ADR-048 | `TestbookGovMemberIdentityDemoIT#identity` |
+| TB-GOV-MID-042 | demo: nessuna fonte del membro (400 come oggi) | 400 `BAD_REQUEST` | docs/06 §3.4 · regola 6-bis · Q-553, Q-555, Q-556 · ADR-048 | `TestbookGovMemberIdentityDemoIT#identity` |
+| TB-GOV-MID-043 | demo: X-LH-Member malformato | 400 `BAD_REQUEST` | docs/06 §3.4 · regola 6-bis · Q-553, Q-555, Q-556 · ADR-048 | `TestbookGovMemberIdentityDemoIT#identity` |
+| TB-GOV-MID-044 | demo: GET /me/referral con X-LH-Member | 200 | docs/06 §3.4 · regola 6-bis · Q-553, Q-555, Q-556 · ADR-048 | `TestbookGovMemberIdentityDemoIT#identity` |
+| TB-GOV-MID-045 | demo: percorso legacy /portal/members/{id} | 200, profilo di `MBR-000002` | docs/06 §3.4 · regola 6-bis · Q-553, Q-555, Q-556 · ADR-048 | `TestbookGovMemberIdentityDemoIT#identity` |
+| TB-GOV-MID-046 | demo: percorso legacy del referral | 200 | docs/06 §3.4 · regola 6-bis · Q-553, Q-555, Q-556 · ADR-048 | `TestbookGovMemberIdentityDemoIT#identity` |
+| TB-GOV-MID-047 | demo: percorso legacy con X-LH-Member di un altro | 400 `MEMBER_MISMATCH` | docs/06 §3.4 · regola 6-bis · Q-553, Q-555, Q-556 · ADR-048 | `TestbookGovMemberIdentityDemoIT#identity` |
+| TB-GOV-MID-048 | demo: percorso legacy con un membro inesistente (404 come oggi) | 404 `NOT_FOUND` | docs/06 §3.4 · regola 6-bis · Q-553, Q-555, Q-556 · ADR-048 | `TestbookGovMemberIdentityDemoIT#identity` |
+| TB-GOV-MID-049 | demo: l'utenza SOURCE non usa il portale | 403 `FORBIDDEN_ROLE` | docs/06 §3.4 · regola 6-bis · Q-553, Q-555, Q-556 · ADR-048 | `TestbookGovMemberIdentityDemoIT#identity` |
+| TB-GOV-MID-050 | demo: PATCH /me/profile con X-LH-Member: audit con attore member:<id> | 200; una voce `UPDATE` con `lhactor` = `member:<id>` | docs/06 §3.4 · regola 6-bis · Q-553, Q-555, Q-556 · ADR-048 | `TestbookGovMemberIdentityDemoIT#identity` |
 
 ## 9. Anonimizzazione (ANO)
 Domini: conferma (uguale all'id, con spazi, minuscola, altro id, vuota, assente, nessun corpo) × stato di partenza
@@ -1613,11 +1689,11 @@ Nessuna divergenza nelle aree di `lh-common` a logica pura (ACT, GRD, PRS, SMR, 
 
 | Misura | Valore |
 |---|---|
-| Regole inventariate | 34 (R-01…R-34) |
-| Rami del codice mappati | 69 (B-01…B-69); non raggiungibili senza concorrenza o per le API: B-30, esaurimento dei codici di B-60, `REFERRAL_SELF`; B-68 e i rami di configurazione di B-64 e B-65 non passano da una richiesta: li provano `MemberEndpointGuardTest` e `MemberPrincipalsTest` |
+| Regole inventariate | 35 (R-01…R-35) |
+| Rami del codice mappati | 73 (B-01…B-73); non raggiungibili senza concorrenza o per le API: B-30, esaurimento dei codici di B-60, `REFERRAL_SELF`; B-68 e i rami di configurazione di B-64 e B-65 non passano da una richiesta: li provano `MemberEndpointGuardTest` e `MemberPrincipalsTest` |
 | Rami senza specifica | 18 (B-02, B-03, B-04, B-10, B-13, B-25, B-26, B-28, B-33, B-36, B-37, B-38, B-50, B-51, B-54, B-59, B-60, B-61) → righe AMBIGUO |
 | Regole senza codice | 0 (lo storico delle transizioni dei contenuti, R-13 per i contenuti, c'è da D-04) |
-| Righe | 1104 — ACT 17, GRD 66, MBP 87, PRS 16, SMR 56, SMN 10, SMF 56, ROL 60, CMT 14, OVR 22, POL 44, MST 41, MRL 80, ANO 47, ATV 70, ATD 29, ATU 14, CRT 118, CRV 27, SEG 30, REF 23, ENT 47, APQ 8, MAT 100, EFF 17, ANX 5 |
+| Righe | 1154 — ACT 17, GRD 66, MBP 87, PRS 16, SMR 56, SMN 10, SMF 56, ROL 60, CMT 14, OVR 22, POL 44, MST 41, MRL 80, MID 50, ANO 47, ATV 70, ATD 29, ATU 14, CRT 118, CRV 27, SEG 30, REF 23, ENT 47, APQ 8, MAT 100, EFF 17, ANX 5 |
 | di cui AMBIGUO | 132 (§13; CRT-045…048, 051, 052, 055, 056 e CRV-025 decise da Q-215), registrate in `docs/15` (Q-298…Q-310 e domande già aperte) |
 | Tabelle complete | GRD 10 × 6 (+ 1 × 6); SMR e SMF 7 × 8; ROL 8 × 5 (+ 2 × 5, 1 × 5); OVR 2 × 2 × 5; POL campagna 2 × 2 × 7 e scheda 4 × 2; MST 4 × 8; MRL 13 × 6; ATV 4 × 16; CRT 14 × 4 e assente × 14; MAT 20 × 5; EFF 4 × 4 |
 | Riduzioni | stato × azione × ruolo × policy (560) → SMR + SMF (112) + SMN (10: le celle in cui la regola entra nel ramo, 46 identiche a SMR) + ROL (60), perché ruolo e stato sono controlli indipendenti e in sequenza, più 5 righe di precedenza; per tipo di oggetto (3 × 56) → 12 verifiche di cablaggio per tipo nell'hub (la logica è la stessa `GovernedTransitions`); policy spenta nell'hub → nessun contesto dedicato (stesso bean, tabelle SMF/ROL); tabella dei contenuti → TB-ENG; ACT, PRS, ANO, ATD, CRV, SEG → ogni classe non valida da sola sul caso valido (guasto singolo) |
