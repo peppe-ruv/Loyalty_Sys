@@ -16,6 +16,7 @@ import io.loyaltyhub.member.domain.MemberStatus;
 import io.loyaltyhub.member.domain.ProfileRules;
 import io.loyaltyhub.member.domain.Segment;
 import io.loyaltyhub.member.infra.AttributeDefinitionRepository;
+import io.loyaltyhub.member.infra.MemberIdentityRepository;
 import io.loyaltyhub.member.infra.MemberProjectionRepository;
 import io.loyaltyhub.member.infra.MemberRepository;
 import io.loyaltyhub.member.infra.MemberStatsRepository;
@@ -58,6 +59,7 @@ public class MemberSeeder implements ApplicationRunner, DemoResettable {
 
     private final SeedLoader seed;
     private final MemberRepository members;
+    private final MemberIdentityRepository identities;
     private final MemberProjectionRepository projections;
     private final MemberStatsRepository stats;
     private final SegmentRepository segments;
@@ -66,12 +68,14 @@ public class MemberSeeder implements ApplicationRunner, DemoResettable {
     private final Clock clock;
     private final Duration reannounceDelay;
 
-    public MemberSeeder(SeedLoader seed, MemberRepository members, MemberProjectionRepository projections,
+    public MemberSeeder(SeedLoader seed, MemberRepository members, MemberIdentityRepository identities,
+                        MemberProjectionRepository projections,
                         MemberStatsRepository stats, SegmentRepository segments, SegmentRefresher refresher,
                         AttributeDefinitionRepository attributeDefinitions, Clock clock,
                         @Value("${loyaltyhub.member.segments.reannounce-delay-ms:15000}") long reannounceDelayMs) {
         this.seed = seed;
         this.members = members;
+        this.identities = identities;
         this.projections = projections;
         this.stats = stats;
         this.segments = segments;
@@ -102,6 +106,7 @@ public class MemberSeeder implements ApplicationRunner, DemoResettable {
         attributeDefinitions.replaceAll(readDefinitions());
         stats.deleteAll();
         projections.deleteAll();
+        identities.deleteAll(); // i legami con gli account (M8.2) puntano ai membri
         members.deleteAll();
 
         Random rnd = new Random(20240101L); // seme fisso: codici invito riproducibili

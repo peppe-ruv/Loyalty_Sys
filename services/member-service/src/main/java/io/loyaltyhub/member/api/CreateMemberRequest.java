@@ -16,4 +16,7 @@ public record CreateMemberRequest(
         String referralCode,
         Consents consents
 ) {
+
+    /** Canale di una registrazione dal portale: lo imposta il servizio, mai il client (Q-157). */
+    public static final String PORTAL_CHANNEL = "PORTAL";
 }
