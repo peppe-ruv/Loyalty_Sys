@@ -15,6 +15,10 @@ on:
         description: "Importo dell'acquisto in euro"
         default: "20"
 
+# Minimo privilegio per il GITHUB_TOKEN: serve solo il checkout.
+permissions:
+  contents: read
+
 jobs:
   smoke:
     runs-on: ubuntu-latest
