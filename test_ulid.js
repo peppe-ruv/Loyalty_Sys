@@ -1,11 +1,8 @@
-// ULID minimale per il proxy (X-Correlation-Id quando assente, docs/07 §3).
-// Allineato all'alfabeto Crockford Base32 del backend (io.loyaltyhub.common.ids.Ulid).
-
 const ENCODING = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
-export function ulid(now: number = Date.now()): string {
+function ulid(now = Date.now()) {
   let time = now;
-  const timeChars: string[] = [];
+  const timeChars = [];
   for (let i = 9; i >= 0; i--) {
     timeChars[i] = ENCODING[time % 32];
     time = Math.floor(time / 32);
@@ -18,3 +15,5 @@ export function ulid(now: number = Date.now()): string {
   }
   return timeChars.join("") + rand;
 }
+
+console.log(ulid());
