@@ -25,6 +25,9 @@ duplica, creazione).
 | `TestbookCmpValidationTest` | unit, validazione del servizio | VAL | `validation.csv` |
 | `TestbookCmpLifecycleIT` | integrazione HTTP (Spring, EmbeddedKafka, Postgres Zonky) | LC, LCX, ROL, POL, EDT, VER, DUP, CRT | `lifecycle.csv`, `lifecycle-extra.csv`, `roles.csv`, `policy.csv`, `edit.csv`, `version-duplicate.csv` |
 | `TestbookCmpSimulationIT` | integrazione HTTP + Kafka | EQV, SIM | `equivalence.csv`, `simulation.csv` |
+| `TestbookCmpMemberSubjectIT` | integrazione (profilo `demo`, fatti veri sul bus embedded; scenari di `MemberSubjectProjectionScenarios`, gli stessi di `CampaignMemberSubjectProjectionIT`) | fatti costruiti dal test | MBP-001…015 |
+| `TestbookCmpMemberPrincipalIT` | integrazione (`identity.mode=oidc`, token RS256 veri di `OidcTestTokens`; scenari di `PortalOidcScenarios`, gli stessi di `CampaignPortalOidcIT`) | membri A, B, C legati da fatti veri | MBP-020…033 |
+| `TestbookCmpMemberPrincipalDemoIT` | integrazione (profilo `demo`, membri del seed in sola lettura) | — | MBP-040…047 |
 
 ```bash
 ./mvnw -q -pl services/campaign-service -am verify -Dtest='Testbook*Test' -Dit.test='Testbook*IT' \
@@ -80,6 +83,9 @@ verifica. Un contesto Spring per classe IT.
 | R-35 | Duplica in `DRAFT` con `<code>-COPY-n` | F-CMP-13 · docs/servizi §3 · docs/06 §2 | `application/CampaignAdminService.java:220-237` | DUP, POL-006 |
 | R-36 | Creazione in `DRAFT`, `code` univoco e nel formato; lettura con id o code nel path | docs/servizi §3 · docs/06 §2 | `application/CampaignAdminService.java:101-103, 143-169` · `infra/CampaignRepository.java:39-45` | CRT, LCX-009 |
 | R-37 | Doppia consegna della stessa azione: un solo insieme di effetti, contatori incrementati una volta | docs/servizi/campaign-service.md §7 | `lh-common inbox/IdempotentHandler` · `infra/EvaluationLogRepository.java:21-32` | SIM-019 |
+
+| R-38 | Legame token↔membro (M8.10f, ADR-048): `member.registered` e `member.updated` (`:1` e `:2`) con `subjectRef` legano il membro in `member_snapshot` nella stessa transazione dello snapshot; assente = nessun effetto, `null` = slega, fatto più vecchio dell'ultimo aggiornamento o membro cancellato = nessun effetto, stesso pseudonimo su due membri = vince il più recente (parità: id maggiore), anonimizzazione = lapide definitiva che nessun replay ripristina | docs/06 §3.4 · docs/05 §5, §10 · Q-550, Q-552 · ADR-048 | `application/MemberSubjectProjection.java` · `infra/MemberSubjectRepository.java` · `messaging/MemberSnapshotHandler.java` | MBP-001…015 |
+| R-39 | «Guadagna» del portale con il membro dal token (`GET /v1/portal/campaigns`, `@MemberEndpoint(OPTIONAL)`): in `enterprise` il pubblico è quello del token; `memberId` in query/`X-LH-Member` ⇒ 400 `MEMBER_FROM_TOKEN` (anche per un operatore e col proprio id); operatore, token misto e legame assente o anonimizzato ⇒ vista generica (mai un errore, BO-17 legge con `codes=`); `MEMBER`+`SOURCE` ⇒ 403; token di membro fuori dal portale ⇒ 403 `FORBIDDEN_ROLE`; senza token o token non valido ⇒ 401; in `demo` il membro è `memberId` o `X-LH-Member` e gli errori restano quelli di prima | docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-555, Q-560 · ADR-048 | `api/PortalCampaignsController.java` · `infra/CampaignMemberSubjectLookup.java` | MBP-020…047 |
 
 ## 2. Rami senza specifica e regole non implementate
 
@@ -911,12 +917,12 @@ consegna, cooldown).
 
 | Misura | Valore |
 |---|---|
-| Regole inventariate (§1) | 37, tutte con codice (R-20 realizzata; 3 regole senza codice elencate in §2) |
+| Regole inventariate (§1) | 39, tutte con codice (R-20 realizzata; 3 regole senza codice elencate in §2) |
 | Rami del codice mappati su una regola | 250 punti di decisione (`if`, `case`, ternari, contati con grep) nelle classi del perimetro: `CampaignEngine` 70, `ConditionEvaluator` 77, `PeriodKeys` 5, `CampaignAdminService` 73 (creazione, modifica, duplica, transizioni, policy, validazione, simulazione), macchina a stati comune 25 (`ApprovalStateMachine`, `GovernedTransitions`, `ApprovalPolicy.forCampaign`); ognuno è mappato su una regola di §1 o su un ramo senza specifica di §2 |
 | Rami senza specifica (§2) | 21 gruppi, provati come domande aperte `Q-Cn` |
 | Regole senza codice (§2) | 3 (3 tentativi prima di `NO_MEMBER`, incremento atomico, filtri/meta/portale); realizzate `cooldownMinutes`, `perMemberPoints`, fine automatica, `requiresLegal` nel corpo |
-| Righe del testbook | 638 |
-| Righe per area | TRG 11, STA 7, AUD 34, OPS 80, ARR 13, MEM 25, CTX 22, HIS 10, GRP 25, PTS 54, MUL 17, OEF 19, EID 5, LIM 36, SCH 23, EXC 14, ORD 2, VAL 38, LC 56, LCX 10, ROL 38, POL 11, EDT 31, VER 6, DUP 9, CRT 8, EQV 12, SIM 22 |
+| Righe del testbook | 675 |
+| Righe per area | TRG 11, STA 7, AUD 34, OPS 80, ARR 13, MEM 25, CTX 22, HIS 10, GRP 25, PTS 54, MUL 17, OEF 19, EID 5, LIM 36, SCH 23, EXC 14, ORD 2, VAL 38, LC 56, LCX 10, ROL 38, POL 11, EDT 31, VER 6, DUP 9, CRT 8, EQV 12, SIM 22, MBP 37 |
 | Righe con domanda aperta | 66 (`Q-210`…`Q-250` in docs/15; `Q-251` registra inoltre il motivo `NOT_LIVE` di SIM-006/007) |
 | Divergenze aperte | 0 (23 trovate e risolte, §14; D-18 per decisione registrata `Q-51`) |
 | Combinazioni ridotte | condizioni: 14 comparatori × 6 tipi = 84 → 80 righe OPS (vero/falso/assente/incompatibile per comparatore + limiti uno alla volta); ciclo di vita: 7 stati × 8 azioni × 7 attori × 3 policy = 1 176 → 56 (stato × azione) + 38 (operazione × ruolo) + 11 (policy); moltiplicatori: 17 righe di interazione invece del prodotto moltiplicatori × valute × stati × tetto; cumulabilità: 16 righe invece di gruppi × priorità × 7 stati × 7 stati. Tabelle complete: pubblico (27), stato × azione (56), operazione × ruolo (35) |
@@ -1010,3 +1016,67 @@ quando il comportamento attuale non lo è, la proposta (non realizzata).
 - **Q-251** · F-CMP-09 elenca il motivo `NOT_LIVE`, ma `docs/03 §3.5` (stesso livello di precedenza) considera candidate solo le `LIVE`, e la scheda servizio (livello 3) rimanda a §3.5 «senza deviazioni»: le campagne non `LIVE` non compaiono nei risultati (SIM-006, SIM-007). Da allineare F-CMP-09.
 - **Q-50** · `docs/12` M3 chiede `EXCLUSIVE_GROUP`; vale `EXCLUSIVE` (`Q-50`, già registrata).
 - `context.source` è l'URN completo della fonte (`urn:loyaltyhub:source:ecommerce`) nella valutazione reale e il valore passato dal chiamante nella simulazione; BO-06 parla di fonti brevi («da ecommerce o app»): da decidere (segnalato anche in docs/17 US-E03-06). Le righe CTX-001/002 e l'equivalenza EQV usano l'URN completo.
+
+## 16. Il membro dal token e il legame `subjectRef` (M8.10f)
+
+**Regole**: R-38 (legame token↔membro), R-39 («Guadagna» con il membro solo dal token) — docs/06 §3.2, §3.4, docs/05 §5 e §10, Q-410, Q-550, Q-552, Q-553, Q-554, Q-555, Q-560, ADR-048. Fatti `member.*` e `tier.upgraded` veri sul bus embedded (`lh.facts.v1`, chiave `memberId`), stato letto da `member_snapshot`; token OIDC veri firmati RS256 (`OidcTestTokens`), verificati da `OidcActorFilter` con gli stessi validatori dell'avvio, con `preferred_username` ed e-mail fittizi che non devono comparire mai in una risposta. Membri e soggetti fittizi per classe concreta (`MBR-94…`, `MBR-95…`, `MBR-96…`, `MBR-97…`); istanti fissi `T1 < T2 < T3 < T4`. Le classi sono nel package `io.loyaltyhub.campaign` (non in `testbook`): condividono gli scenari con le classi ordinarie.
+
+**Strategia**: proiezione — un caso per esito della decisione di `MemberSubjectRules` (assente, `null`, valore, fatto vecchio, sorpasso, parità, lapide, fatto senza `time`) e per versione dello schema (`:1`, `:2`); API — un caso per famiglia di chiamante (membro legato, operatore, misto, `MEMBER`+`SOURCE`, senza token, token non valido) e per fonte del membro non ammessa (query, header). Il pubblico dei membri si distingue con la campagna a pubblico `GOLD` del seed (`CMP-GOLD-PURCHASE-PLAY`): A e C salgono a `GOLD` con `tier.upgraded`, B resta `BASE`.
+
+**Scostamenti dalle attese generali del portale** (dichiarati, non difetti): (1) l'unico handler del portale di campaign è `OPTIONAL` (Q-554): un `sub` senza legame o un membro anonimizzato non danno `409 MEMBER_NOT_LINKED` ma la vista generica (MBP-030, 031); un token misto `MEMBER`+`operatore` dà la vista generica, non `403 MEMBER_REQUIRED` (MBP-026). (2) Il portale di campaign non ha scritture né percorsi con l'id del membro: un `memberId` in campo form o nel corpo non è raggiungibile (POST/PUT ⇒ 405 prima dell'interceptor, MBP-023; `SPEC-GAP: Q-573` non si applica) e non esiste un percorso legacy da rifiutare con 403.
+
+### 16.1 Proiezione `subjectRef` → membro
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-CMP-MBP-001 | `member.registered:1` con `subjectRef` | membro legato; lo snapshot `ACTIVE` nasce nella stessa transazione del legame | docs/06 §3.4 · Q-550 | `MemberSubjectProjectionScenarios#registeredV1LinksAndCreatesTheSnapshot` |
+| TB-CMP-MBP-002 | `member.registered:2` con `subjectRef` | membro legato | docs/05 §5 · Q-552 | `MemberSubjectProjectionScenarios#registeredV2Links` |
+| TB-CMP-MBP-003 | `member.updated:1` e `:2` su membri registrati senza `subjectRef` | entrambi legati | docs/06 §3.4 · Q-550 | `MemberSubjectProjectionScenarios#updatedLinks` |
+| TB-CMP-MBP-004 | `subjectRef` assente in un `member.updated` e in un `member.registered` | nessun effetto: il membro già legato resta legato, l'altro non lo diventa | docs/06 §3.4 (rilascio progressivo) | `MemberSubjectProjectionScenarios#absentClaimHasNoEffect` |
+| TB-CMP-MBP-005 | `subjectRef` che non ha la forma di uno pseudonimo (non 64 esadecimali) | nessun legame | docs/05 §5 | `MemberSubjectProjectionScenarios#malformedClaimHasNoEffect` |
+| TB-CMP-MBP-006 | `subjectRef: null` | legame rimosso; `subject_ref_at` = istante del fatto | docs/05 §5 | `MemberSubjectProjectionScenarios#nullClaimUnlinks` |
+| TB-CMP-MBP-007 | fatto più vecchio dell'ultimo aggiornamento del legame (altro pseudonimo, poi `null`); poi un fatto più recente | il vecchio non ri-lega né slega; il più recente vale | docs/06 §3.4 | `MemberSubjectProjectionScenarios#staleFactHasNoEffect` |
+| TB-CMP-MBP-008 | stesso pseudonimo su due membri: il secondo più recente; replay del vecchio; poi un fatto ancora più recente del vecchio | vince il più recente, il replay non lo riprende, il sorpasso è contato in `lh_member_subject_relinked_total` | docs/06 §3.4 | `MemberSubjectProjectionScenarios#newerRelinkWinsAndOldReplayDoesNot` |
+| TB-CMP-MBP-009 | stesso pseudonimo, stesso istante, id `…13` e `…12` | vince l'id maggiore | docs/06 §3.4 | `MemberSubjectProjectionScenarios#tieBreaksOnTheMemberId` |
+| TB-CMP-MBP-010 | `member.status.changed` → `ANONYMIZED`, poi replay di `registered` e `updated` (istante successivo) con lo stesso pseudonimo | nessun legame, `subject_erased`; la stessa persona che si registra come nuovo membro ottiene il legame | docs/06 §3.4 · docs/03 §2 | `MemberSubjectProjectionScenarios#anonymizationIsATombstone` |
+| TB-CMP-MBP-011 | `member.updated` con `status` `ANONYMIZED` | legame cancellato, lapide | docs/05 §5 | `MemberSubjectProjectionScenarios#anonymizedByUpdatedFact` |
+| TB-CMP-MBP-012 | lo stesso evento (stesso id) consegnato due volte | stesso stato, una sola riga | docs/06 §5 | `MemberSubjectProjectionScenarios#sameFactTwiceIsIdempotent` |
+| TB-CMP-MBP-013 | gestore del fatto chiamato in una transazione poi annullata | né snapshot né legame (partecipano alla transazione del chiamante) | docs/06 §5 | `MemberSubjectProjectionScenarios#snapshotAndLinkShareTheTransaction` |
+| TB-CMP-MBP-014 | pseudonimo mai visto | la lookup non trova il membro e non è autorevole | docs/06 §3.2 | `MemberSubjectProjectionScenarios#unknownRefIsNotLinked` |
+| TB-CMP-MBP-015 | fatto senza `time`: altro membro con lo stesso pseudonimo; poi altro pseudonimo sul detentore; poi un fatto datato prima | non sorpassa il detentore datato; `subject_ref_at` non si sposta; il fatto datato prima resta obsoleto | docs/06 §3.4 · Q-550 | `MemberSubjectProjectionScenarios#factWithoutTimeIsConservative` |
+
+Righe eseguite due volte, da `CampaignMemberSubjectProjectionIT` (ordinaria) e da `TestbookCmpMemberSubjectIT` (testbook).
+
+### 16.2 «Guadagna» del portale con il membro dal token (`enterprise`)
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-CMP-MBP-020 | token di A (`GOLD`) e di B (`BASE`); `GET /v1/portal/campaigns` | 200; A vede `CMP-GOLD-PURCHASE-PLAY` e `CMP-PURCHASE-BASE`, B solo la seconda; nessun id di membro, e-mail o username del token nelle risposte | docs/06 §3.4 · Q-410 | `PortalOidcScenarios#memberSeesOnlyTheAudienceOfTheToken` |
+| TB-CMP-MBP-021 | `codes=` con le due campagne referral (non elencate) e con la campagna `GOLD`, con il token di A e di B | le campagne per codice col pubblico del token: la `GOLD` solo ad A | docs/servizi/campaign-service.md §3 · PT-11 · Q-410 | `PortalOidcScenarios#codesAreResolvedForTheTokenMember` |
+| TB-CMP-MBP-022 | `?memberId=B`, `?memberId=A`, `?MEMBERID=B`, `?member_id=B`, `?!memberId=B`, `?filter.memberId=B`, anche con `codes=` | 400 `MEMBER_FROM_TOKEN` (anche col proprio id); l'id ricevuto non è ripetuto | docs/06 §3.2 · Q-553 | `PortalOidcScenarios#memberIdInTheQueryIsRefused` |
+| TB-CMP-MBP-023 | POST con campo form `memberId=B`, POST e PUT con corpo `{"memberId": B}` su `/v1/portal/campaigns` | 405 (nessuna scrittura del portale), nessun dato di B; `SPEC-GAP: Q-573` non si applica | docs/06 §3.2 · Q-553, Q-573 | `PortalOidcScenarios#memberIdInAWriteIsNeverASource` |
+| TB-CMP-MBP-024 | `X-LH-Member: B` e `X-LH-Member: A` | 400 `MEMBER_FROM_TOKEN` | docs/06 §3.2 · Q-555 | `PortalOidcScenarios#demoMemberHeaderIsRefused` |
+| TB-CMP-MBP-025 | token di un operatore `CARE`: elenco, `codes=` (BO-17), poi con `?memberId=` e con `X-LH-Member` | vista generica (senza la campagna `GOLD`), le campagne per codice; con `memberId` o header 400 `MEMBER_FROM_TOKEN` | docs/06 §3.4 · Q-554, Q-560 | `PortalOidcScenarios#operatorGetsTheGenericView` |
+| TB-CMP-MBP-026 | token misto `MEMBER`+`CARE` con il `sub` di A (`GOLD`) | vale come operatore: vista generica, mai il pubblico del membro | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#mixedTokenIsNotAMember` |
+| TB-CMP-MBP-027 | token `MEMBER`+`SOURCE` | 403 | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#memberPlusSourceIsForbidden` |
+| TB-CMP-MBP-028 | token di un membro su `/v1/campaigns`, `/{id}`, `/stats`, `/approval-history`, `/v1/evaluations` e sulle POST `validate`, `simulate`, creazione | 403 `FORBIDDEN_ROLE` | docs/06 §3.2 · Q-410 | `PortalOidcScenarios#memberTokenCannotReachBackofficeApis` |
+| TB-CMP-MBP-029 | token di un membro con `X-LH-Actor: ADMIN:intruso` | l'header è ignorato: 403 `FORBIDDEN_ROLE` | ADR-027 | `PortalOidcScenarios#actorHeaderIsIgnored` |
+| TB-CMP-MBP-030 | `sub` non legato; poi arrivano `member.registered` e `tier.upgraded` | 200 vista generica senza `Retry-After` (`OPTIONAL`); poi il pubblico del membro | docs/06 §3.2 · Q-550, Q-554 | `PortalOidcScenarios#unlinkedSubjectGetsTheGenericViewUntilTheFactArrives` |
+| TB-CMP-MBP-031 | C (`GOLD`) anonimizzato; replay di `registered` e `updated` più recente | vista generica; nessun legame né lapide violata | docs/06 §3.4 · Q-550 | `PortalOidcScenarios#anonymizedMemberIsUnlinkedForGood` |
+| TB-CMP-MBP-032 | nessun token; token scaduto; firmato con un'altra chiave; audience o emittente sbagliati | 401 | ADR-027 | `PortalOidcScenarios#invalidTokensAreUnauthorized` |
+| TB-CMP-MBP-033 | la lookup di campaign | non autorevole, modulo `io.loyaltyhub.campaign`, risolve A e non uno pseudonimo mai visto | docs/06 §3.2 | `PortalOidcScenarios#lookupIsNonAuthoritativeAndScoped` |
+
+Righe eseguite due volte, da `CampaignPortalOidcIT` (ordinaria) e da `TestbookCmpMemberPrincipalIT` (testbook).
+
+### 16.3 Profilo `demo` invariato
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-CMP-MBP-040 | `X-LH-Member` di un membro `GOLD` e di uno `SILVER` del seed | il `GOLD` vede `CMP-GOLD-PURCHASE-PLAY`, il `SILVER` no | CLAUDE.md regola 6-bis · Q-555 | `TestbookCmpMemberPrincipalDemoIT#headerResolvesTheMember` |
+| TB-CMP-MBP-041 | `?memberId=` esplicito (anche con lo stesso header) | 200, stesso JSON dell'header (smoke, hub, testbook) | CLAUDE.md regola 6-bis | `TestbookCmpMemberPrincipalDemoIT#explicitQueryMemberIsStillAccepted` |
+| TB-CMP-MBP-042 | nessun membro; `codes=` referral | vista generica (200), la campagna `GOLD` assente; le due campagne referral con `memberLimit` | docs/06 §3.4 · Q-560 | `TestbookCmpMemberPrincipalDemoIT#noMemberIsTheGenericView` |
+| TB-CMP-MBP-043 | header di un membro e `memberId` di un altro | 400 `MEMBER_MISMATCH`, gli id non sono ripetuti nel detail | docs/06 §3.2 · Q-555 | `TestbookCmpMemberPrincipalDemoIT#differentSourcesAreAMismatch` |
+| TB-CMP-MBP-044 | `X-LH-Member: non-un-membro` | 400 | docs/06 §3.2 · Q-555 | `TestbookCmpMemberPrincipalDemoIT#malformedHeaderIsABadRequest` |
+| TB-CMP-MBP-045 | attore `SOURCE:src-ecommerce` con header o con `memberId` | 403 | docs/06 §3.1 · Q-492 | `TestbookCmpMemberPrincipalDemoIT#sourceIsForbidden` |
+| TB-CMP-MBP-046 | `memberId` di un membro sconosciuto o di forma libera | 200 vista generica, come prima | docs/06 §3.4 | `TestbookCmpMemberPrincipalDemoIT#unknownMemberIsTheGenericView` |
+| TB-CMP-MBP-047 | ogni ruolo di lettura del backoffice con `codes=` e senza intestazione del membro | 200 con le due campagne referral (BO-17) | docs/08 BO-17 · Q-560 | `TestbookCmpMemberPrincipalDemoIT#backofficeReadsByCodesWithoutAMember` |

@@ -1,6 +1,7 @@
 package io.loyaltyhub.campaign.messaging;
 
 import tools.jackson.databind.JsonNode;
+import io.loyaltyhub.campaign.application.MemberSubjectProjection;
 import io.loyaltyhub.campaign.infra.MemberSnapshotRepository;
 import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhEventTypes.Fact;
@@ -14,15 +15,19 @@ import java.util.Set;
 
 /**
  * Mantiene {@code member_snapshot} dai fatti member, {@code member.segment.*} e tier (docs/servizi/campaign-service.md §4): il motore
- * non fa chiamate sincrone, valuta sullo snapshot locale. {@code registered}/{@code updated} portano lo snapshot completo.
+ * non fa chiamate sincrone, valuta sullo snapshot locale. {@code registered}/{@code updated} portano lo snapshot completo e,
+ * se c'è, il pseudonimo {@code subjectRef}: {@link MemberSubjectProjection} lo proietta nella stessa transazione, per
+ * risolvere il membro del token del portale (F2-SEC-09, ADR-048, Q-550).
  */
 @Component
 public class MemberSnapshotHandler implements EventHandler {
 
     private final MemberSnapshotRepository snapshots;
+    private final MemberSubjectProjection subjects;
 
-    public MemberSnapshotHandler(MemberSnapshotRepository snapshots) {
+    public MemberSnapshotHandler(MemberSnapshotRepository snapshots, MemberSubjectProjection subjects) {
         this.snapshots = snapshots;
+        this.subjects = subjects;
     }
 
     @Override
@@ -86,6 +91,8 @@ public class MemberSnapshotHandler implements EventHandler {
         if (PersonalData.isAnonymization(event)) {
             snapshots.erasePersonal(memberId);
         }
+        // Legame token↔membro (Q-550): stessa transazione dello snapshot (il gestore gira in IdempotentHandler).
+        subjects.apply(memberId, event);
     }
 
     private static String text(JsonNode d, String field, String def) {
