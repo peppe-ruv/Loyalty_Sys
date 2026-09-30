@@ -55,13 +55,14 @@ class NulRejectionTest {
         context = new AnnotationConfigServletWebServerApplicationContext();
         context.registerBean("tomcat", TomcatServletWebServerFactory.class, () -> new TomcatServletWebServerFactory(0));
         context.registerBean("dispatcherServlet", DispatcherServlet.class, () -> new DispatcherServlet());
-        context.registerBean("probe", Probe.class, Probe::new);
+        context.registerBean("probe", Probe.class, () -> new Probe(context.getBean(JsonMapper.class)));
         context.registerBean("tolerantClass", TolerantClass.class, TolerantClass::new);
         context.registerBean("advice", GlobalExceptionHandler.class, GlobalExceptionHandler::new);
         context.registerBean("identity", ActorFilter.class, () -> new ActorFilter("probe"));
         LhCommonAutoConfiguration wiring = new LhCommonAutoConfiguration();
         context.registerBean("nulFilter", NulRejectingFilter.class, () -> wiring.nulRejectingFilter(context));
         context.registerBean("lhNulRejectingModule", NulRejectingModule.class, wiring::lhNulRejectingModule);
+        context.registerBean("nulBodyScope", NulBodyScopeAdvice.class, wiring::nulBodyScopeAdvice);
         context.register(JacksonAutoConfiguration.class, Mvc.class);
         context.refresh();
         base = "http://localhost:" + context.getWebServer().getPort();
@@ -271,23 +272,54 @@ class NulRejectionTest {
     }
 
     @Test
-    @DisplayName("il JsonMapper di Spring Boot rifiuta il NUL solo dentro una richiesta: fuori (Kafka, seed, worker) come prima")
-    void bootMapperRejectsOnlyInsideARequest() {
+    @DisplayName("il parsing che un handler fa da sé di un testo ricevuto non è toccato: il NUL resta affare dell'handler (Q-371)")
+    void handlerOwnParsingIsNotRejected() throws IOException {
+        // come il file d'import JSON: il corpo arriva come testo (nessun modulo in gioco), l'handler lo legge col mapper
+        String array = "[{\"id\":\"a\\u0000b\"},{\"id\":\"ok\"}]";
+        Response tree = call("POST", base + "/v1/probe/own-parse", "text/plain", array);
+        assertThat(tree.status()).as(tree.body()).isEqualTo(200);
+        assertThat(tree.body()).contains("\"nul\":true").contains("\"elements\":2");
+        // streaming come ImportParser.readJsonArray: readValueAsTree su un parser del mapper, dentro la richiesta
+        Response streamed = call("POST", base + "/v1/probe/own-parse-stream", "text/plain", array);
+        assertThat(streamed.status()).as(streamed.body()).isEqualTo(200);
+        assertThat(streamed.body()).contains("\"elements\":2");
+        // un handler che legge il corpo JSON dal converter resta rifiutato, anche se poi rilegge un testo da sé
+        assertNulRejected(call("POST", base + "/v1/probe/body", "application/json", "{\"name\":\"a\\u0000b\"}"),
+                NulCharacters.BODY_MESSAGE);
+    }
+
+    @Test
+    @DisplayName("il rifiuto si spegne a corpo letto: il parsing dell'handler, dopo un corpo valido, non è rifiutato")
+    void scopeEndsWhenBodyIsRead() throws IOException {
+        Response r = call("POST", base + "/v1/probe/body-then-parse", "application/json", "{\"name\":\"ok\"}");
+        assertThat(r.status()).as(r.body()).isEqualTo(200);
+        assertThat(r.body()).contains("\"nul\":true");
+    }
+
+    @Test
+    @DisplayName("il JsonMapper di Spring Boot rifiuta il NUL solo mentre si legge il corpo: fuori (Kafka, seed, worker) come prima")
+    void bootMapperRejectsOnlyWhileReadingTheBody() {
         JsonMapper mapper = context.getBean(JsonMapper.class);
         String json = "{\"name\":\"a\\u0000b\",\"extra\":{\"k\\u0000\":\"v\"},\"tree\":{\"x\":\"\\u0000\"}}";
         // fuori da una richiesta: nessun rifiuto (le regole dei consumer e dei lavori sono le loro)
         assertThat(mapper.readValue(json, Body.class).name()).isEqualTo("a\0b");
         assertThat(mapper.readTree(json).path("name").asString()).isEqualTo("a\0b");
-        // dentro una richiesta: rifiuto con il dettaglio fisso
         var attributes = new org.springframework.web.context.request.ServletRequestAttributes(
                 new org.springframework.mock.web.MockHttpServletRequest("POST", "/v1/probe/body"));
         org.springframework.web.context.request.RequestContextHolder.setRequestAttributes(attributes);
         try {
+            // dentro una richiesta ma fuori dalla lettura del corpo: nessun rifiuto
+            assertThat(mapper.readValue(json, Body.class).name()).isEqualTo("a\0b");
+            assertThat(mapper.readTree(json).path("name").asString()).isEqualTo("a\0b");
+            // durante la lettura del corpo: rifiuto con il dettaglio fisso
+            NulScope.enter();
             org.assertj.core.api.Assertions.assertThatThrownBy(() -> mapper.readValue(json, Body.class))
                     .hasMessageContaining(NulCharacters.BODY_MESSAGE);
             org.assertj.core.api.Assertions.assertThatThrownBy(() -> mapper.readTree(json))
                     .isInstanceOf(Exception.class).hasMessageContaining(NulCharacters.BODY_MESSAGE);
             assertThat(mapper.readValue("{\"name\":\"ok\"}", Body.class).name()).isEqualTo("ok");
+            NulScope.exit();
+            assertThat(mapper.readValue(json, Body.class).name()).isEqualTo("a\0b");
         } finally {
             org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();
         }
@@ -391,6 +423,40 @@ class NulRejectionTest {
 
         static volatile int plainCalls;
         static volatile int itemCalls;
+
+        private final JsonMapper mapper;
+
+        Probe(JsonMapper mapper) {
+            this.mapper = mapper;
+        }
+
+        /** Come l'upload d'import: il testo arriva senza passare dal modulo, e lo legge l'handler col mapper. */
+        @PostMapping(value = "/v1/probe/own-parse", consumes = "text/plain")
+        public Map<String, Object> ownParse(@RequestBody String raw) {
+            JsonNode tree = mapper.readTree(raw);
+            return Map.of("nul", tree.get(0).path("id").asString().contains("\0"), "elements", tree.size());
+        }
+
+        /** Come {@code ImportParser.readJsonArray}: parser in streaming e {@code readValueAsTree} per elemento. */
+        @PostMapping(value = "/v1/probe/own-parse-stream", consumes = "text/plain")
+        public Map<String, Object> ownParseStream(@RequestBody String raw) {
+            int elements = 0;
+            try (tools.jackson.core.JsonParser p = mapper.createParser(raw)) {
+                p.nextToken();
+                for (tools.jackson.core.JsonToken t = p.nextToken(); t != tools.jackson.core.JsonToken.END_ARRAY;
+                     t = p.nextToken()) {
+                    p.readValueAsTree();
+                    elements++;
+                }
+            }
+            return Map.of("elements", elements);
+        }
+
+        @PostMapping("/v1/probe/body-then-parse")
+        public Map<String, Object> bodyThenParse(@RequestBody Body body) {
+            JsonNode tree = mapper.readTree("{\"id\":\"a\\u0000b\"}");
+            return Map.of("nul", tree.path("id").asString().contains("\0"));
+        }
 
         @GetMapping("/v1/probe/search")
         public Map<String, Object> search(@RequestParam(required = false) String q) {

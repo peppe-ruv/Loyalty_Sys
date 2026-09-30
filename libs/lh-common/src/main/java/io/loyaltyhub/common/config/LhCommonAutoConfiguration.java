@@ -29,6 +29,7 @@ import io.loyaltyhub.common.web.MemberBodyAdvice;
 import io.loyaltyhub.common.web.MemberEndpointGuard;
 import io.loyaltyhub.common.web.MemberPrincipalArgumentResolver;
 import io.loyaltyhub.common.web.MemberPrincipals;
+import io.loyaltyhub.common.web.NulBodyScopeAdvice;
 import io.loyaltyhub.common.web.NulRejectingFilter;
 import io.loyaltyhub.common.web.NulRejectingModule;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -250,6 +251,16 @@ public class LhCommonAutoConfiguration {
     @ConditionalOnMissingBean(name = "lhNulRejectingModule")
     public NulRejectingModule lhNulRejectingModule() {
         return new NulRejectingModule();
+    }
+
+    /**
+     * Limita il rifiuto del NUL nel JSON alla conversione del corpo della richiesta (Q-532 causa (3)): il parsing che un
+     * handler fa da sé di un testo ricevuto (il file d'import JSON, Q-371) non cambia.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public NulBodyScopeAdvice nulBodyScopeAdvice() {
+        return new NulBodyScopeAdvice();
     }
 
     /** Attore dall'header {@code X-LH-Actor}: solo con {@code loyaltyhub.identity.mode=header} (profilo demo). */

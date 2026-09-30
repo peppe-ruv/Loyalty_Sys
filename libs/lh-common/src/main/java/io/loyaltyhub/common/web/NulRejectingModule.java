@@ -30,8 +30,10 @@ import java.util.Map;
  * stringhe (per esempio {@code shipping} di una richiesta di premio, salvato in una colonna jsonb). È un bean di
  * {@code lh-common}: lo registra il {@code ObjectMapper} di Spring Boot, quindi vale per ogni servizio e per l'hub.
  *
- * <p><strong>Dove vale.</strong> Solo leggendo il corpo di una richiesta HTTP (vedi {@link NulScope}): consumer Kafka,
- * seed e worker dei lavori non cambiano. Un handler con una regola propria sui NUL lo dichiara con {@link NulTolerantBody}.
+ * <p><strong>Dove vale.</strong> Solo durante la conversione del corpo di una richiesta HTTP, cioè tra
+ * {@code beforeBodyRead} e {@code afterBodyRead} di {@link NulBodyScopeAdvice} (vedi {@link NulScope}): il parsing che un
+ * handler fa da sé di un testo ricevuto (il file d'import JSON, Q-371), i consumer Kafka, i seed e i worker dei lavori non
+ * cambiano. Un handler con una regola propria sui NUL sul corpo lo dichiara con {@link NulTolerantBody}.
  */
 public class NulRejectingModule extends SimpleModule {
 

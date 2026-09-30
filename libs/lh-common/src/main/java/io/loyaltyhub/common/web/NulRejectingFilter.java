@@ -29,6 +29,13 @@ import java.util.function.Supplier;
  * Un corpo {@code multipart} non si legge qui (Tomcat scaricherebbe i file in un filtro): di quelle richieste si
  * controllano solo la query e il percorso.
  *
+ * <p><strong>Limiti noti.</strong> Il filtro gira prima di {@code FormContentFilter} di Spring: di un corpo
+ * {@code x-www-form-urlencoded} si leggono solo quelli di {@code POST} (li decodifica Tomcat, nei limiti di
+ * {@code maxPostSize}); i corpi form di {@code PUT}, {@code PATCH} e {@code DELETE} non si controllano. Nessuna API del
+ * prodotto li usa (sono tutte JSON). Leggere i parametri di un {@code POST} form avviene inoltre prima dei filtri di
+ * {@code ingestion-service} sul corpo ({@code BatchBodyLimitFilter}, {@code IngressRateLimitFilter}, ordine di default):
+ * il loro corpo è JSON, che il filtro non legge, quindi non cambia nulla per loro.
+ *
  * <p><strong>Parametri illeggibili.</strong> Leggere la mappa dei parametri può lanciare {@link InvalidParameterException}
  * (parametro senza nome, codifica non valida: Q-532 causa (1)). Tomcat lancia una sola volta per richiesta, e dal secondo
  * {@code getParameter*} in poi restituisce una mappa parziale, senza un {@code memberId} che invece c'era: il filtro non
