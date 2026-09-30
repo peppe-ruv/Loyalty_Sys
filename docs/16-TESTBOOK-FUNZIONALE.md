@@ -227,10 +227,11 @@ carichi) e 7 di errori. Test: `deploy/hub/src/test/java/io/loyaltyhub/hub/Testbo
   interni.
 - **Non coperto, pianificato con M8.10 e M8.10f:** BOLA sul portale (`/v1/portal/**` è in rifacimento), *mass assignment*, firme
   del bus, limite per membro, `Idempotency-Key` e file caricati. BFLA, SSRF e limite per IP sono già in `TB-GOV`, `TB-ENG` e `TB-PLT`.
-- **Divergenze trovate (5 righe, 1 causa):** un byte NUL in `q` (membri, campagne, premi, eventi) o in `firstName` arriva a Postgres
-  e produce `500` (`PSQLException: invalid byte sequence for encoding "UTF8": 0x00`). La risposta non rivela nulla; è la regola «nessun
-  5xx» a non reggere. Non corrette in questa fetta (nessun codice di prodotto): le righe hanno `divergenza` = `Q-532` e sono
-  *saltate*, non tolte (Q-538); il registro è in §12.
+- **Divergenze trovate (5 righe, 1 causa), corrette:** un byte NUL in `q` (membri, campagne, premi, eventi) o in `firstName` arrivava a
+  Postgres e produceva `500` (`PSQLException: invalid byte sequence for encoding "UTF8": 0x00`). La risposta non rivelava nulla; era la
+  regola «nessun 5xx» a non reggere. Le righe avevano `divergenza` = `Q-532` ed erano *saltate*, non tolte (Q-538). La correzione
+  `fix-q532b-nul-paginazione` (`NulRejectingFilter` e `NulRejectingModule` in `lh-common`: `400` prima del database) le ha riattivate:
+  nessuna riga di `TB-SEC` è più in divergenza; il registro è in §12.
 - **Scelte registrate:** Q-532 (difetti trovati dal fuzzing e loro cause) e Q-538 (righe con divergenza saltate); il resto
   del workflow notturno in Q-530, Q-531, Q-533…Q-537.
 - **Verifica a mutazione:** 4 mutazioni locali (dettaglio dell'errore con `ex.toString()`, filtro dei membri allargato da un apice, template che valuta `${7*7}`, intestazione `X-Injected` nella risposta), tutte rilevate; dettaglio in `TB-SEC-sicurezza.md §7`.
@@ -245,8 +246,8 @@ carichi) e 7 di errori. Test: `deploy/hub/src/test/java/io/loyaltyhub/hub/Testbo
 
 | Riga | Specifica | Comportamento osservato | Causa (file:riga) | Esito |
 |---|---|---|---|---|
-| TB-SEC-FUZ-004 · D-1 | docs/18 §3.10 p.4, 5, 12: nessun 5xx a input ostili | `GET /v1/members?q=` con un byte NUL: `500 INTERNAL_ERROR` | `member-service` `MemberRepository.search` :206 (ILIKE con il testo di `q`); `PSQLException` `invalid byte sequence for encoding "UTF8": 0x00` | aperta, Q-532 (riga saltata, Q-538) |
-| TB-SEC-FUZ-012 · D-2 | idem | `GET /v1/campaigns?q=` con un byte NUL: `500` | `campaign-service` `CampaignRepository.search` :83; stessa `PSQLException` | aperta, Q-532 (riga saltata, Q-538) |
-| TB-SEC-FUZ-020 · D-3 | idem | `GET /v1/rewards?q=` con un byte NUL: `500` | `reward-service` `RewardRepository.search` :48; stessa `PSQLException` | aperta, Q-532 (riga saltata, Q-538) |
-| TB-SEC-FUZ-028 · D-4 | idem | `GET /v1/events?q=` con un byte NUL: `500` | `insight-service` `EventStoreRepository.search` :105 (`payload::text ILIKE`); stessa `PSQLException` | aperta, Q-532 (riga saltata, Q-538) |
-| TB-SEC-FUZ-052 · D-5 | idem | `POST /v1/members` con un byte NUL in `firstName`: `500` | `member-service` `MemberRepository` :61 (`INSERT INTO member`); stessa `PSQLException` | aperta, Q-532 (riga saltata, Q-538) |
+| TB-SEC-FUZ-004 · D-1 | docs/18 §3.10 p.4, 5, 12: nessun 5xx a input ostili | `GET /v1/members?q=` con un byte NUL: `500 INTERNAL_ERROR` | `member-service` `MemberRepository.search` :206 (ILIKE con il testo di `q`); `PSQLException` `invalid byte sequence for encoding "UTF8": 0x00` | corretta: `400` da `NulRejectingFilter` (`lh-common`), riga attiva, Q-532 |
+| TB-SEC-FUZ-012 · D-2 | idem | `GET /v1/campaigns?q=` con un byte NUL: `500` | `campaign-service` `CampaignRepository.search` :83; stessa `PSQLException` | corretta: idem, riga attiva, Q-532 |
+| TB-SEC-FUZ-020 · D-3 | idem | `GET /v1/rewards?q=` con un byte NUL: `500` | `reward-service` `RewardRepository.search` :48; stessa `PSQLException` | corretta: idem, riga attiva, Q-532 |
+| TB-SEC-FUZ-028 · D-4 | idem | `GET /v1/events?q=` con un byte NUL: `500` | `insight-service` `EventStoreRepository.search` :105 (`payload::text ILIKE`); stessa `PSQLException` | corretta: idem, riga attiva, Q-532 |
+| TB-SEC-FUZ-052 · D-5 | idem | `POST /v1/members` con un byte NUL in `firstName`: `500` | `member-service` `MemberRepository` :61 (`INSERT INTO member`); stessa `PSQLException` | corretta: `400` da `NulRejectingModule` (`lh-common`, corpo JSON), riga attiva, Q-532 |

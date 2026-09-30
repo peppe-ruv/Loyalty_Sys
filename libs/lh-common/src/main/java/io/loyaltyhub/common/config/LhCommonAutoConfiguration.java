@@ -29,6 +29,9 @@ import io.loyaltyhub.common.web.MemberBodyAdvice;
 import io.loyaltyhub.common.web.MemberEndpointGuard;
 import io.loyaltyhub.common.web.MemberPrincipalArgumentResolver;
 import io.loyaltyhub.common.web.MemberPrincipals;
+import io.loyaltyhub.common.web.NulBodyScopeAdvice;
+import io.loyaltyhub.common.web.NulRejectingFilter;
+import io.loyaltyhub.common.web.NulRejectingModule;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.springframework.beans.factory.ObjectProvider;
@@ -225,6 +228,39 @@ public class LhCommonAutoConfiguration {
         boolean inProcess = env.acceptsProfiles(org.springframework.core.env.Profiles.of("inproc"));
         return new LhKafkaHealthIndicator(inProcess,
                 new java.util.HashMap<>(kafkaAdmin.getConfigurationProperties()));
+    }
+
+    /**
+     * Il byte NUL non arriva mai al database (Q-532 causa (3), F2-SEC-12, ADR-042): {@code 400} su percorso, nomi e
+     * valori dei parametri. Gira dopo i filtri di identità e prima del binding; il resolver degli errori del contesto web
+     * si legge alla prima richiesta rifiutata.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public NulRejectingFilter nulRejectingFilter(org.springframework.beans.factory.BeanFactory beans) {
+        return new NulRejectingFilter(() -> beans.getBean("handlerExceptionResolver",
+                org.springframework.web.servlet.HandlerExceptionResolver.class));
+    }
+
+    /**
+     * Stesso rifiuto per il corpo JSON: valori e chiavi con un NUL → {@code 400}. Lo raccoglie l'{@code ObjectMapper} di
+     * Spring Boot (ogni {@code JacksonModule} è registrato), quindi vale per ogni servizio e per l'hub. Senza
+     * {@code ConditionalOnMissingBean} per tipo: {@code JacksonModule} è un tipo condiviso con i moduli di Boot.
+     */
+    @Bean
+    @ConditionalOnMissingBean(name = "lhNulRejectingModule")
+    public NulRejectingModule lhNulRejectingModule() {
+        return new NulRejectingModule();
+    }
+
+    /**
+     * Limita il rifiuto del NUL nel JSON alla conversione del corpo della richiesta (Q-532 causa (3)): il parsing che un
+     * handler fa da sé di un testo ricevuto (il file d'import JSON, Q-371) non cambia.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public NulBodyScopeAdvice nulBodyScopeAdvice() {
+        return new NulBodyScopeAdvice();
     }
 
     /** Attore dall'header {@code X-LH-Actor}: solo con {@code loyaltyhub.identity.mode=header} (profilo demo). */

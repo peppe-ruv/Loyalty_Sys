@@ -56,8 +56,37 @@ public class GlobalExceptionHandler {
         // Corpo assente, non JSON o con un valore del tipo sbagliato: errore di forma del client → 400, non 500
         // (docs/06 §2). Il dettaglio non riporta il messaggio del parser (può contenere il corpo ricevuto).
         log.debug("Corpo non leggibile su {}: {}", request != null ? request.getRequestURI() : "?", ex.getMessage());
+        // Un NUL nel corpo (Q-532 causa (3)) ha un dettaglio proprio; il testo è quello della costante, mai il valore.
+        String detail = hasNulCause(ex) ? NulCharacters.BODY_MESSAGE
+                : "Corpo della richiesta assente o non leggibile come JSON valido";
+        ProblemDetail pd = base(HttpStatus.BAD_REQUEST, "bad-request", title(HttpStatus.BAD_REQUEST), detail, request);
+        pd.setProperty("code", "BAD_REQUEST");
+        return ResponseEntity.badRequest().body(pd);
+    }
+
+    /** {@code true} se una causa della catena è il rifiuto di un NUL da parte di {@link NulRejectingModule}. */
+    private static boolean hasNulCause(Throwable ex) {
+        for (Throwable t = ex; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            // getOriginalMessage: il messaggio di Jackson aggiunge la posizione del parser e il testo ricevuto.
+            String message = t instanceof tools.jackson.core.JacksonException je ? je.getOriginalMessage() : null;
+            if (NulCharacters.BODY_MESSAGE.equals(message)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Istante o data in un parametro o in un corpo non in ISO-8601 (Q-532 causa (4), F2-SEC-12): per esempio {@code asOf}
+     * degli 8 job demo, letto come testo e convertito nel controller. È un parametro errato del client → 400, non 500
+     * (docs/06 §2). Il testo ricevuto non entra nella risposta (il messaggio di {@code DateTimeParseException} lo riporta).
+     */
+    @ExceptionHandler(java.time.format.DateTimeParseException.class)
+    public ResponseEntity<ProblemDetail> onUnparseableInstant(java.time.format.DateTimeParseException ex,
+                                                              HttpServletRequest request) {
+        log.debug("Istante o data non valido su {}", request != null ? request.getRequestURI() : "?");
         ProblemDetail pd = base(HttpStatus.BAD_REQUEST, "bad-request", title(HttpStatus.BAD_REQUEST),
-                "Corpo della richiesta assente o non leggibile come JSON valido", request);
+                "Istante o data non valido: atteso il formato ISO-8601", request);
         pd.setProperty("code", "BAD_REQUEST");
         return ResponseEntity.badRequest().body(pd);
     }
