@@ -1,14 +1,13 @@
 package io.loyaltyhub.reward.api;
 
 import io.loyaltyhub.common.web.LhException;
-import io.loyaltyhub.common.web.RequiresRole;
-import io.loyaltyhub.common.web.Role;
+import io.loyaltyhub.common.web.MemberEndpoint;
+import io.loyaltyhub.common.web.MemberPrincipal;
 import io.loyaltyhub.reward.application.CouponService;
 import io.loyaltyhub.reward.domain.CouponStatus;
 import io.loyaltyhub.reward.domain.Reward;
 import io.loyaltyhub.reward.infra.RewardRepository;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
@@ -16,7 +15,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/** {@code GET /v1/portal/coupons?memberId=} (docs/servizi/reward-service.md §3 "Portale"; PT-13). */
+/**
+ * {@code GET /v1/portal/coupons} (docs/servizi/reward-service.md §3 "Portale"; PT-13): i coupon del membro del token
+ * (Q-410, ADR-048). In {@code demo} il membro è {@code memberId} o {@code X-LH-Member}, e la sua assenza dà lo stesso
+ * {@code 400} di prima.
+ */
 @RestController
 public class PortalCouponsController {
 
@@ -33,10 +36,11 @@ public class PortalCouponsController {
     }
 
     @GetMapping("/v1/portal/coupons")
-    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
-    public List<PortalCoupon> coupons(@RequestParam(required = false) String memberId) {
+    @MemberEndpoint
+    public List<PortalCoupon> coupons(MemberPrincipal principal) {
+        String memberId = principal.idOrNull();
         if (memberId == null || memberId.isBlank()) {
-            throw LhException.badRequest("memberId è obbligatorio");
+            throw LhException.badRequest("memberId è obbligatorio"); // solo demo: in enterprise il membro c'è sempre
         }
         Map<String, String> names = rewards.findAll().stream()
                 .collect(Collectors.toMap(Reward::code, Reward::name, (a, b) -> a));

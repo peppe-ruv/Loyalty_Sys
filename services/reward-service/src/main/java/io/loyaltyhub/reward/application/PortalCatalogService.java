@@ -2,6 +2,7 @@ package io.loyaltyhub.reward.application;
 
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.reward.domain.Band;
+import io.loyaltyhub.reward.domain.Category;
 import io.loyaltyhub.reward.domain.MemberSnapshot;
 import io.loyaltyhub.reward.domain.Reward;
 import io.loyaltyhub.reward.domain.RewardStatus;
@@ -87,6 +88,11 @@ public class PortalCatalogService {
         return new PortalRewardDetail(r.code(), r.name(), r.description(), r.terms(), r.type(), r.imageUrl(),
                 r.categoryCode(), b.code(), b.pointsThreshold(), stockState(r), r.stockRemaining(), lock(r, member),
                 limitReached(r, memberId), r.perMemberLimit());
+    }
+
+    /** Categorie dei premi per il portale (B4): la stessa lista del backoffice, uguale per tutti i membri. */
+    public List<Category> categories() {
+        return catalog.categories();
     }
 
     /** {@code AVAILABLE}, {@code LOW} (sotto il 10 % del totale) o {@code SOLD_OUT}; illimitato = sempre disponibile. */
