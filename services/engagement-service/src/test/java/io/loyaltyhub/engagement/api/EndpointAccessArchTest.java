@@ -11,6 +11,6 @@ class EndpointAccessArchTest {
 
     @Test
     void everyEndpointDeclaresAccess() {
-        EndpointAccessRules.check("io.loyaltyhub.engagement");
+        EndpointAccessRules.checkPortal("io.loyaltyhub.engagement");
     }
 }

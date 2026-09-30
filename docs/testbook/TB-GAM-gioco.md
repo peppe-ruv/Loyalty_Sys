@@ -2,8 +2,8 @@
 
 Dominio **Gioco** del testbook (`docs/16` §7): concorsi instant win (giocata, crediti, istanti, premi, consegna, istante piantato, ciclo di vita con approvazione LEGAL, fine concorso), obiettivi, badge, classifiche, referral lato gioco. Servizio `gamification-service` (porta 8086, schema `gamification`).
 
-- **Fonti (oracolo)**, in ordine di precedenza (`CLAUDE.md` §6): contratti `contracts/events/fact/{contest.*,achievement.*,badge.awarded}` · `docs/servizi/gamification-service.md` (qui «gamification §n») · `docs/02` F-IW-01…08, F-ACH-01…03, F-LDB-01, F-REF-01…02 · `docs/03` §2 (membro), §3.3 (condizioni), §3.6 (ciclo di vita), §6 (instant win), §8 (obiettivi, badge, classifiche, referral) · `docs/06` §2, §3, §7 · `docs/08` §2, §3.3, BO-14…17 · `docs/09` PT-05, PT-06, PT-09, PT-10 · `docs/10` §6 · scelte registrate in `docs/15`: Q-56, Q-59, Q-60, Q-62, Q-112, Q-113, Q-159, Q-167, Q-261, Q-282. `docs/17` (storie e foresta delle decisioni) è stato usato solo come elenco dei rami, mai come oracolo.
-- **Esecuzione** (`docs/16` §1bis): ogni riga è un caso JUnit il cui nome inizia con `[ID]`. Classi unit (surefire): `TestbookGamInstantGeneratorTest`, `TestbookGamAchievementRulesTest` (package `domain`), `TestbookGamNicknameTest` (package `messaging`), `TestbookGamApprovalPolicyTest`. Classi d'integrazione (failsafe): `TestbookGamPlayIT`, `TestbookGamPrizeIT`, `TestbookGamLifecycleIT`, `TestbookGamContestIT`, `TestbookGamAchievementIT`, `TestbookGamLeaderboardIT`, `TestbookGamEffectIT`, tutte figlie di `TestbookGamBase` (un solo contesto Spring condiviso: EmbeddedKafka + Postgres Zonky, profilo `demo`). Dati guidati da CSV in `services/gamification-service/src/test/resources/testbook/gam/`.
+- **Fonti (oracolo)**, in ordine di precedenza (`CLAUDE.md` §6): contratti `contracts/events/fact/{contest.*,achievement.*,badge.awarded}` · `docs/servizi/gamification-service.md` (qui «gamification §n») · `docs/02` F-IW-01…08, F-ACH-01…03, F-LDB-01, F-REF-01…02 · `docs/03` §2 (membro), §3.3 (condizioni), §3.6 (ciclo di vita), §6 (instant win), §8 (obiettivi, badge, classifiche, referral) · `docs/06` §2, §3, §7 · `docs/08` §2, §3.3, BO-14…17 · `docs/09` PT-05, PT-06, PT-09, PT-10 · `docs/10` §6 · scelte registrate in `docs/15`: Q-56, Q-59, Q-60, Q-62, Q-112, Q-113, Q-159, Q-167, Q-261, Q-282; per §22 anche `docs/06` §3.2 e §3.4, `docs/05` §5 e §10, Q-410, Q-550, Q-552, Q-553, Q-554, Q-555, Q-556, Q-559, Q-573 e ADR-048. `docs/17` (storie e foresta delle decisioni) è stato usato solo come elenco dei rami, mai come oracolo.
+- **Esecuzione** (`docs/16` §1bis): ogni riga è un caso JUnit il cui nome inizia con `[ID]`. Classi unit (surefire): `TestbookGamInstantGeneratorTest`, `TestbookGamAchievementRulesTest` (package `domain`), `TestbookGamNicknameTest` (package `messaging`), `TestbookGamApprovalPolicyTest`. Classi d'integrazione (failsafe): `TestbookGamPlayIT`, `TestbookGamPrizeIT`, `TestbookGamLifecycleIT`, `TestbookGamContestIT`, `TestbookGamAchievementIT`, `TestbookGamLeaderboardIT`, `TestbookGamEffectIT`, tutte figlie di `TestbookGamBase` (un solo contesto Spring condiviso: EmbeddedKafka + Postgres Zonky, profilo `demo`); più, con contesti propri, `TestbookGamMemberSubjectIT` (scenari di `MemberSubjectProjectionScenarios`), `TestbookGamMemberPrincipalIT` (scenari di `PortalOidcScenarios`, `identity.mode=oidc`) e `TestbookGamMemberPrincipalDemoIT` (M8.10f, §22). Dati guidati da CSV in `services/gamification-service/src/test/resources/testbook/gam/`.
 - **Tempo**: l'orologio dell'applicazione nei test è fisso per ogni caso (`TestbookGamBase.TestbookClock`); adesso di riferimento `T0 = 2026-03-10T10:00:00Z` (11:00 a Roma) salvo dove la riga indica altri istanti. Ogni caso usa concorsi, codici e membri propri (mai lo stato mutabile dei seed); la sola lettura di un seed è la copia di `IW-AUTUNNO` in TB-GAM-INS-013 (criterio di gamification §7).
 - **Legenda**: **AMBIGUO** = la specifica tace e `docs/15` non registra una scelta: il test asserisce il comportamento attuale con il commento `// TESTBOOK: ambiguo, vedi <ID>`. **DIVERGENZA** = il codice non rispetta la specifica: il test asserisce la specifica e fallisce (registro in §21).
 - **Tempo di esecuzione misurato**: vedi §21.
@@ -61,6 +61,8 @@ Dominio **Gioco** del testbook (`docs/16` §7): concorsi instant win (giocata, c
 | R45 | Referral: legame alla registrazione (un solo invitante, non se stessi), completamento alla prima azione qualificante (member-service) | docs/03 §8, F-REF-01/02, member-service §5 | — (vedi §20) |
 | R46 | Pulizia di `achievement_progress` di periodi chiusi da più di 90 giorni | gamification §5 | — (regola non implementata) |
 | R47 | Job di fine concorso ogni 5 minuti (spento in demo, lanciato da BO-30) | gamification §5 | END (via endpoint demo) |
+| R48 | Legame token↔membro (M8.10f, ADR-048): `member.registered` e `member.updated` (`:1` e `:2`) con `subjectRef` legano il membro in `gamification_member_snapshot` nella stessa transazione dello snapshot; assente = nessun effetto, `null` = slega, fatto più vecchio dell'ultimo aggiornamento o membro cancellato = nessun effetto, stesso pseudonimo su due membri = vince il più recente (parità: id maggiore), anonimizzazione = lapide definitiva che nessun replay ripristina | docs/06 §3.4 · docs/05 §5, §10 · Q-550, Q-552 · ADR-048 | MBP-001…016 |
+| R49 | Portale del gioco con il membro dal token: `@MemberEndpoint` su achievements, badges, contests, play, plays, leaderboards; in `enterprise` `memberId` in query/form/corpo/header ⇒ 400 `MEMBER_FROM_TOKEN`, operatore/misto/`MEMBER`+`SOURCE` ⇒ 403, `sub` senza legame o anonimizzato ⇒ 409 `MEMBER_NOT_LINKED` con `Retry-After: 2`, token di membro fuori dal portale ⇒ 403 `FORBIDDEN_ROLE`, `resolve=ids` ignorato per un token, attore della giocata `member:<id>`; in `demo` il membro è `memberId` (query o corpo) o `X-LH-Member` e gli errori restano quelli di prima | docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-555, Q-556, Q-559 · ADR-048 | MBP-020…048 |
 
 ### 1.2 Rami del codice
 
@@ -146,6 +148,12 @@ Estratti da `services/gamification-service/src/main` (domain, application, api, 
 | `LeaderboardRepository.ranking` :83–95 | solo snapshot `ACTIVE`, `score > 0`, ordine `score desc, reached_at, member_id`, limite | R42 | LDB-011…022 |
 | `PortalLeaderboardsController` :50–65 | classifica non attiva → 404; nickname assente → «Socio Aurora»; `me` | R42 (404 e segnaposto: *rami senza specifica*) | LDB-020…022 |
 | `GamificationJobs.closeContests` :26–29 | cron ogni 5 minuti con `jobs.enabled` | R47 | — (lo stesso metodo è provato da END via endpoint demo) |
+| `MemberSnapshotHandler.handle` → `application/MemberSubjectProjection.apply` | `subjectRef` assente e nessuna anonimizzazione → nessun effetto | R48 (Q-550) | MBP-004, 005 |
+| `MemberSubjectProjection.apply` | `LINK`/`UNLINK`/`ERASE` secondo `MemberSubjectRules` (rilettura con `FOR UPDATE`, sorpasso dell'altro detentore) | R48 (Q-550) | MBP-001…003, 006…013, 015, 016 |
+| `infra/GamificationMemberSubjectLookup` | legame assente → vuoto (non autorevole) ⇒ 409 `MEMBER_NOT_LINKED` | R49 (Q-553) | MBP-014, 033, 034 |
+| `PortalAchievementsController`, `PortalContestsController`, `PortalLeaderboardsController` | `@MemberEndpoint` (`REQUIRED`) con `MemberPrincipal.requireParam()`/`merge()` | R49 | MBP-020…035, 040…046 |
+| `PortalLeaderboardsController.ids` | `resolve=ids` ignorato per `Origin.TOKEN`; valore diverso da `ids` → 400 | R49 (Q-559) | MBP-022, 047 |
+| `PlayService.play` :129 | attore del fatto `member:<id>` (prima `MEMBER:<id>`) | R49 (Q-556) | MBP-023, 045 |
 
 ## 2. Giocata: tabella decisionale (PLY)
 
@@ -1046,12 +1054,12 @@ Il referral è di **member-service** (gamification §1, docs/02 F-REF-01/02 «MB
 
 | Voce | Valore |
 |---|---|
-| Regole della specifica inventariate (§1.1) | 47 (R01…R47); con righe in questo testbook: 45 (R45 referral di member-service e R46 pulizia dei progressi senza righe, vedi §21.4) |
-| Rami del codice mappati (§1.2) | 78 nodi, di cui 19 con almeno un *ramo senza specifica*; i 5 in contrasto con la specifica (⚠) sono stati corretti (§21.5) |
-| Righe del testbook | 710 |
+| Regole della specifica inventariate (§1.1) | 49 (R01…R49); con righe in questo testbook: 47 (R45 referral di member-service e R46 pulizia dei progressi senza righe, vedi §21.4) |
+| Rami del codice mappati (§1.2) | 84 nodi, di cui 19 con almeno un *ramo senza specifica*; i 5 in contrasto con la specifica (⚠) sono stati corretti (§21.5) |
+| Righe del testbook | 751 |
 | Righe **AMBIGUO** (comportamento attuale, domanda registrata: Q-289…Q-297 di docs/15) | 56 |
 | Righe in **DIVERGENZA** | 16 alla prima esecuzione, 0 aperte: tutte risolte correggendo il codice (§21.5) |
-| Casi JUnit eseguiti | 710 (una riga = un caso) |
+| Casi JUnit eseguiti | 751 (una riga = un caso) |
 
 | Area | Righe | Area | Righe | Area | Righe |
 |---|---|---|---|---|---|
@@ -1064,6 +1072,7 @@ Il referral è di **member-service** (gamification §1, docs/02 F-REF-01/02 «MB
 | PRG | 34 | ACF | 35 | BDG | 14 |
 | LDB | 24 | LCF | 24 | GRT | 11 |
 | SNP | 5 | NCK | 5 | REF | 4 |
+| MBP | 41 | | | | |
 
 ### 21.2 Combinazioni ridotte
 
@@ -1168,3 +1177,68 @@ Le regole R45 (docs/17 §5: MBR-05 `resolveReferral` — codice vuoto, inesisten
 | `TestbookGamNicknameTest` | `MemberSnapshotHandler.nickname`: senza iniziale | NCK-002, NCK-003 |
 | `TestbookGamApprovalPolicyTest` | `ApprovalPolicy.forContest` (lh-common): nessuna approvazione | APR-001, APR-004 |
 
+## 22. Il membro dal token e il legame `subjectRef` (M8.10f)
+
+**Regole**: R48 (legame token↔membro), R49 (portale del gioco con il membro solo dal token) — docs/06 §3.2, §3.4, docs/05 §5 e §10, Q-410, Q-550, Q-552, Q-553, Q-554, Q-555, Q-556, Q-559, ADR-048. Fatti `member.*` veri sul bus embedded (`lh.facts.v1`, chiave `memberId`), stato letto da `gamification_member_snapshot`; token OIDC veri firmati RS256 (`OidcTestTokens`), verificati da `OidcActorFilter` con gli stessi validatori dell'avvio, con `preferred_username` ed e-mail fittizi che non devono comparire mai in una risposta né in un fatto. Membri e soggetti fittizi per classe concreta (`MBR-9…`); istanti fissi `T1 < T2 < T3 < T4` per la proiezione; concorso `IW-AUTUNNO` e classifica `LDB-MONTH-PTS` del seed per l'API.
+
+**Strategia**: proiezione — un caso per esito della decisione di `MemberSubjectRules` (assente, `null`, valore, fatto vecchio, sorpasso, parità, lapide) e per versione dello schema (`:1`, `:2`); API — un caso per famiglia di chiamante (membro legato, operatore, misto, `MEMBER`+`SOURCE`, senza token, token non valido) e per fonte del membro non ammessa (query in cinque grafie, campo form, corpo, header). Il gioco non ha percorsi con l'id del membro nel percorso (nessun percorso legacy da provare) né handler `OPTIONAL` (nessuna vista generica per un operatore).
+
+### 22.1 Proiezione `subjectRef` → membro
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-GAM-MBP-001 | `member.registered:1` con `subjectRef` | membro legato; snapshot `ACTIVE` nella stessa riga | docs/06 §3.4 · Q-550 | `MemberSubjectProjectionScenarios#registeredV1LinksAndCreatesTheSnapshot` |
+| TB-GAM-MBP-002 | `member.registered:2` con `subjectRef` | membro legato | docs/05 §5 · Q-552 | `MemberSubjectProjectionScenarios#registeredV2Links` |
+| TB-GAM-MBP-003 | `member.updated:1` e `:2` su membri registrati senza `subjectRef` | entrambi legati | docs/06 §3.4 · Q-550 | `MemberSubjectProjectionScenarios#updatedLinks` |
+| TB-GAM-MBP-004 | `subjectRef` assente in un `member.updated` e in un `member.registered` | nessun effetto: il membro già legato resta legato, l'altro non lo diventa | docs/06 §3.4 (rilascio progressivo) | `MemberSubjectProjectionScenarios#absentClaimHasNoEffect` |
+| TB-GAM-MBP-005 | `subjectRef` che non ha la forma di uno pseudonimo (non 64 esadecimali) | nessun legame | docs/05 §5 | `MemberSubjectProjectionScenarios#malformedClaimHasNoEffect` |
+| TB-GAM-MBP-006 | `subjectRef: null` | legame rimosso; `subject_ref_at` = istante del fatto | docs/05 §5 | `MemberSubjectProjectionScenarios#nullClaimUnlinks` |
+| TB-GAM-MBP-007 | fatto più vecchio dell'ultimo aggiornamento del legame (altro pseudonimo, poi `null`); poi un fatto più recente | il vecchio non ri-lega né slega; il più recente vale | docs/06 §3.4 | `MemberSubjectProjectionScenarios#staleFactHasNoEffect` |
+| TB-GAM-MBP-008 | stesso pseudonimo su due membri: il secondo più recente; replay del vecchio; poi un fatto ancora più recente del vecchio | vince il più recente, il replay non lo riprende, il sorpasso è contato in `lh_member_subject_relinked_total` | docs/06 §3.4 | `MemberSubjectProjectionScenarios#newerRelinkWinsAndOldReplayDoesNot` |
+| TB-GAM-MBP-009 | stesso pseudonimo, stesso istante, id `…13` e `…12` | vince l'id maggiore | docs/06 §3.4 | `MemberSubjectProjectionScenarios#tieBreaksOnTheMemberId` |
+| TB-GAM-MBP-010 | `member.status.changed` → `ANONYMIZED`, poi replay di `registered` e `updated` (istante successivo) con lo stesso pseudonimo | nessun legame, `subject_erased`; la stessa persona che si registra come nuovo membro ottiene il legame | docs/06 §3.4 · docs/03 §2 | `MemberSubjectProjectionScenarios#anonymizationIsATombstone` |
+| TB-GAM-MBP-011 | `member.updated` con `status` `ANONYMIZED` | legame cancellato, lapide | docs/05 §5 | `MemberSubjectProjectionScenarios#anonymizedByUpdatedFact` |
+| TB-GAM-MBP-012 | lo stesso evento (stesso id) consegnato due volte | stesso stato, una sola riga | docs/06 §5 | `MemberSubjectProjectionScenarios#sameFactTwiceIsIdempotent` |
+| TB-GAM-MBP-013 | gestore del fatto chiamato in una transazione poi annullata | né snapshot né legame (partecipano alla transazione del chiamante) | docs/06 §5 | `MemberSubjectProjectionScenarios#snapshotAndLinkShareTheTransaction` |
+| TB-GAM-MBP-014 | pseudonimo mai visto | la lookup non trova il membro e non è autorevole | docs/06 §3.2 | `MemberSubjectProjectionScenarios#unknownRefIsNotLinked` |
+| TB-GAM-MBP-015 | fatto senza `time`: altro membro con lo stesso pseudonimo; poi altro pseudonimo sul detentore; poi un fatto datato prima | non sorpassa il detentore datato; `subject_ref_at` non si sposta; il fatto datato prima resta obsoleto | docs/06 §3.4 · Q-550 | `MemberSubjectProjectionScenarios#factWithoutTimeIsConservative` |
+| TB-GAM-MBP-016 | `member.status.changed` → `BLOCKED` su un membro legato | il legame resta (il membro è risolto, decide il dominio); lo stato dello snapshot è `BLOCKED`; nessuna lapide | docs/06 §3.4 · docs/03 §2 | `MemberSubjectProjectionScenarios#plainStatusChangeKeepsTheLink` |
+
+Righe eseguite due volte, da `GamificationMemberSubjectProjectionIT` (ordinaria) e da `TestbookGamMemberSubjectIT` (testbook).
+
+### 22.2 API del portale con il membro dal token (`enterprise`)
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-GAM-MBP-020 | token di A; `GET /v1/portal/{achievements,badges,contests,contests/IW-AUTUNNO/plays,leaderboards,leaderboards/LDB-MONTH-PTS}` (B ha altri punteggi e un badge) | 200 con i soli dati di A (badge `BDG-FIRST` di B non è di A, `me.score` di A diverso da quello di B); l'id di B, l'e-mail e lo username del token non compaiono | docs/06 §3.4 · Q-410 | `PortalOidcScenarios#memberReadsOnlyOwnData` |
+| TB-GAM-MBP-021 | stessa classifica letta col token di A, di B e di D (senza punteggio) | `isMe` vero solo sulla voce del chiamante (voci riconosciute dal punteggio); `me` assente per D | docs/06 §3.4 · Q-410 | `PortalOidcScenarios#isMeComesFromThePrincipal` |
+| TB-GAM-MBP-022 | `resolve=ids` su `/leaderboards` e `/leaderboards/{code}` con un token; poi `resolve=nicknames` | 200 senza `memberId` né `MBR-…` (soprannome o segnaposto); `resolve=nicknames` 400 | docs/06 §3.4 · Q-559, Q-368 | `PortalOidcScenarios#resolveIdsIsIgnoredForATokenPrincipal` |
+| TB-GAM-MBP-023 | A gioca `IW-AUTUNNO` con corpo `{}`; seconda giocata; B gioca; storico di A | 200 sul conto di A (riga `play` di A); seconda giocata 422 `NO_PLAYS_AVAILABLE`; lo storico di A non contiene la giocata di B; il fatto `contest.played` ha `lhactor` = `member:<A>` (mai `MEMBER:`), senza username, e-mail né `sub` | docs/06 §3.1, §3.4 · Q-556 | `PortalOidcScenarios#playIsAttributedToTheTokenMember` |
+| TB-GAM-MBP-024 | `?memberId=B`, `?memberId=A`, `?MEMBERID=B`, `?member_id=B`, `?!memberId=B`, `?filter.memberId=B` su ogni lettura (6 percorsi); `resolve=ids&memberId=B` | 400 `MEMBER_FROM_TOKEN` (anche col proprio id); l'id ricevuto non è ripetuto | docs/06 §3.2 · Q-553 | `PortalOidcScenarios#memberIdInTheQueryIsRefused` |
+| TB-GAM-MBP-025 | `POST …/play` con campo form `memberId=B` o `=D`, e con corpo JSON `{"memberId": B}` o `{"memberId": D}` (D è il chiamante) | 400 `MEMBER_FROM_TOKEN`; nessuna riga `play`, nessuna riga in `outbox` | docs/06 §3.2 · Q-553 | `PortalOidcScenarios#memberIdInTheWriteIsRefused` |
+| TB-GAM-MBP-026 | **scostamento noto (Q-573, `SPEC-GAP`)**: corpo `{"member_id": B, "MEMBERID": B}` con il token di D | `MemberBodyAdvice` vede solo l'oggetto deserializzato: le grafie che il DTO non conosce sono scartate da Jackson, non rifiutate; il membro resta D (giocata di D o 422 di D), nessuna riga di B, l'id di B non compare | docs/06 §3.4 passo 2 · Q-573 | `PortalOidcScenarios#bodySpellingsTheDtoDiscardsNeverCarryAMember` |
+| TB-GAM-MBP-027 | `X-LH-Member: B` e `X-LH-Member: A` su una lettura e sulla giocata | 400 `MEMBER_FROM_TOKEN` | docs/06 §3.2 · Q-555 | `PortalOidcScenarios#demoMemberHeaderIsRefused` |
+| TB-GAM-MBP-028 | token di un operatore `CARE` su ogni lettura del portale e sulla giocata | 403 `MEMBER_REQUIRED`; nessuna giocata | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#operatorIsNotAMember` |
+| TB-GAM-MBP-029 | token misto `MEMBER`+`CARE` | 403 `MEMBER_REQUIRED` | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#mixedTokenIsNotAMember` |
+| TB-GAM-MBP-030 | token `MEMBER`+`SOURCE` su ogni lettura e sulla giocata | 403 | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#memberPlusSourceIsForbidden` |
+| TB-GAM-MBP-031 | token di un membro su `/v1/contests`, `…/winners`, `/v1/achievements`, `/v1/badges`, `/v1/leaderboards`, `…/ranking` | 403 `FORBIDDEN_ROLE` | docs/06 §3.2 · Q-410 | `PortalOidcScenarios#memberTokenCannotReachBackofficeReads` |
+| TB-GAM-MBP-032 | token di un membro con `X-LH-Actor: ADMIN:intruso` | l'header è ignorato: 403 sul backoffice, sul portale i dati del membro | ADR-027 | `PortalOidcScenarios#actorHeaderIsIgnored` |
+| TB-GAM-MBP-033 | `sub` non legato; poi arriva `member.registered` | 409 `MEMBER_NOT_LINKED` con `Retry-After: 2` (letture e giocata); poi 200 e la giocata è del nuovo membro | docs/06 §3.2 · Q-550, Q-553 | `PortalOidcScenarios#unlinkedSubjectGets409UntilTheFactArrives` |
+| TB-GAM-MBP-034 | C anonimizzato; replay di `registered` e `updated` più recente | 409 `MEMBER_NOT_LINKED` (letture e giocata); il replay non ri-lega | docs/06 §3.4 · Q-550 | `PortalOidcScenarios#anonymizedMemberIsUnlinkedForGood` |
+| TB-GAM-MBP-035 | nessun token; token scaduto; firmato con un'altra chiave; audience o emittente sbagliati (letture e giocata) | 401 | ADR-027 | `PortalOidcScenarios#invalidTokensAreUnauthorized` |
+
+Righe eseguite due volte, da `GamificationPortalOidcIT` (ordinaria) e da `TestbookGamMemberPrincipalIT` (testbook).
+
+### 22.3 Profilo `demo` invariato
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-GAM-MBP-040 | `X-LH-Member: MBR-000010` con `X-LH-Actor: ANALYST:anonymous` su tutte le letture del portale | 200 | CLAUDE.md regola 6-bis · Q-555 | `TestbookGamMemberPrincipalDemoIT#headerResolvesTheMember` |
+| TB-GAM-MBP-041 | `?memberId=MBR-000010` contro l'header sullo stesso percorso; header e query concordi | 200; lo stesso JSON | CLAUDE.md regola 6-bis | `TestbookGamMemberPrincipalDemoIT#explicitQueryMemberIsStillAccepted` |
+| TB-GAM-MBP-042 | header `MBR-000003` e query `MBR-000010` | 400 `MEMBER_MISMATCH`, gli id non sono ripetuti nel detail | docs/06 §3.2 · Q-555 | `TestbookGamMemberPrincipalDemoIT#differentSourcesAreAMismatch` |
+| TB-GAM-MBP-043 | letture senza membro | 400 «Parametro obbligatorio assente: memberId» (come prima) | docs/06 §3.4 | `TestbookGamMemberPrincipalDemoIT#missingMemberIsABadRequest` |
+| TB-GAM-MBP-044 | `X-LH-Member: non-un-membro`; attore `SOURCE:src-ecommerce` su ogni lettura | 400; 403 | docs/06 §3.2, §3.1 · Q-555, Q-492 | `TestbookGamMemberPrincipalDemoIT#malformedHeaderAndSource` |
+| TB-GAM-MBP-045 | giocata con corpo `{"memberId": …}`; header e corpo in disaccordo; solo header con corpo `{}` | 200; 400 `MEMBER_MISMATCH` senza giocate in più; 200 sul membro dell'header; attore del fatto `member:<id>` | CLAUDE.md regola 6-bis · Q-556 | `TestbookGamMemberPrincipalDemoIT#playAcceptsEveryDemoSource` |
+| TB-GAM-MBP-046 | giocata senza membro; concorso sconosciuto | 422 `MEMBER_REQUIRED`; 404 (come prima) | docs/06 §2 | `TestbookGamMemberPrincipalDemoIT#playWithoutMemberIsUnchanged` |
+| TB-GAM-MBP-047 | `resolve=ids` in demo; `resolve=nicknames` | voci con `memberId` senza soprannome (variante del BFF); senza parametro nessun `MBR-`; 400 | Q-368 | `TestbookGamMemberPrincipalDemoIT#resolveIdsStillWorksInDemo` |
+| TB-GAM-MBP-048 | letture di backoffice con `MARKETING:luca` e `ANALYST:sara` | 200: il backoffice non cambia | docs/06 §3 | `TestbookGamMemberPrincipalDemoIT#backofficeIsUnchanged` |

@@ -20,9 +20,9 @@ Non consegna i premi vinti: emette `contest.won`; la consegna avviene tramite po
 | `member_badge` | (`member_id`,`badge_code`) PK, `origin`, `awarded_at`, `effect_id` UQ null |
 | `leaderboard` | `id`, `code` UQ, `name`, `metric` (`PTS_EARNED, STS_EARNED, ACTION_COUNT`), `action_types text[]`, `period` (`MONTH, EDITION, ALL_TIME`), `top_n`, `status` |
 | `leaderboard_score` | (`leaderboard_id`,`period_key`,`member_id`) PK, `score`, `reached_at` · indice per ranking |
-| `gamification_member_snapshot` | `member_id` PK, `nickname`, `status`, `updated_at`. Prefisso `gamification_` per non collidere con `campaign.member_snapshot` nel search_path dell'hub (ADR-023) |
+| `gamification_member_snapshot` | `member_id` PK, `nickname`, `status`, `updated_at`; proiezione del legame account↔membro (Q-550, ADR-048): `subject_ref` (pseudonimo HMAC di `iss`+`sub`, mai il `sub`), `subject_ref_at` (istante dell'ultimo aggiornamento del legame), `subject_erased` (lapide dell'anonimizzazione) · indice unico parziale su `subject_ref` (`V3`). Prefisso `gamification_` per non collidere con `campaign.member_snapshot` nel search_path dell'hub (ADR-023) |
 
-Tracciato delle tabelle (docs/18 §3.12-bis, verificato sulle migrazioni `V1`–`V2`). Linee continue: vincolo `FOREIGN KEY` nella migrazione; tratteggiate: riferimento logico tenuto dal codice (`winning_instant.play_id`, `achievement.badge_code`, i `member_id`). Delle tabelle comuni di lh-common (docs/06 §1) compare solo `approval_history`, che registra le transizioni dei concorsi (`entity_type = CONTEST`); il ciclo di vita del concorso è quello comune di docs/03 §3.6, quello degli istanti vincenti è in docs/03 §6.
+Tracciato delle tabelle (docs/18 §3.12-bis, verificato sulle migrazioni `V1`–`V3`). Linee continue: vincolo `FOREIGN KEY` nella migrazione; tratteggiate: riferimento logico tenuto dal codice (`winning_instant.play_id`, `achievement.badge_code`, i `member_id`). Delle tabelle comuni di lh-common (docs/06 §1) compare solo `approval_history`, che registra le transizioni dei concorsi (`entity_type = CONTEST`); il ciclo di vita del concorso è quello comune di docs/03 §3.6, quello degli istanti vincenti è in docs/03 §6.
 
 ```mermaid
 erDiagram
@@ -97,6 +97,9 @@ erDiagram
   gamification_member_snapshot {
     text member_id PK
     text status
+    text subject_ref UK "pseudonimo del token, indice parziale"
+    timestamptz subject_ref_at
+    boolean subject_erased
   }
   contest ||--o{ prize : "premi in palio"
   contest ||--o{ winning_instant : "istanti"
@@ -131,14 +134,16 @@ erDiagram
 | GET | `/v1/approvals` | concorsi `IN_REVIEW` |
 
 ### Portale
+Il membro viene solo dal token (Q-410, ADR-048, docs/06 §3.4): ogni handler è `@MemberEndpoint` (modo `REQUIRED`) e riceve un `MemberPrincipal`, mai un `memberId` da query, percorso o corpo. In `enterprise`: `memberId` in query (in qualunque grafia, anche il proprio) o come campo form, oppure `X-LH-Member` ⇒ `400 MEMBER_FROM_TOKEN`; un `memberId` non nullo nel corpo della giocata ⇒ `400 MEMBER_FROM_TOKEN` (il DTO lo conserva, deprecato, proprio per poterlo rifiutare); un operatore o un token misto ⇒ `403 MEMBER_REQUIRED`; un `sub` non ancora legato (o di un membro anonimizzato) ⇒ `409 MEMBER_NOT_LINKED` con `Retry-After: 2`; un token di membro su qualunque altro handler ⇒ `403 FORBIDDEN_ROLE`. In `demo` il membro è il `memberId` esplicito (query o corpo) o l'header `X-LH-Member` messo dal BFF; due fonti diverse ⇒ `400 MEMBER_MISMATCH`, nessuna fonte ⇒ gli errori di prima (`400 «Parametro obbligatorio assente: memberId»` sulle letture, `422 MEMBER_REQUIRED` sulla giocata) (regola 6-bis). Il gioco non ha percorsi con l'id del membro nel percorso: nessun percorso legacy deprecato.
+
 | Metodo | Path | Note |
 |---|---|---|
-| GET | `/v1/portal/contests?memberId=` | concorsi `LIVE`: `{code, name, mechanic, endAt, playsAvailable, freePlayAvailable, prizes[] {code, name, type, imageUrl, wheelColor}}` — **mai** quantità residue né istanti |
-| POST | `/v1/portal/contests/{code}/play` | `{memberId}` → **200 sincrono** `{playId, outcome, prize?: {code, name, type, points?, rewardCode?}, playsAvailable, correlationId}` |
-| GET | `/v1/portal/contests/{code}/plays?memberId=` | storico giocate |
-| GET | `/v1/portal/achievements?memberId=` | `{code, name, description, icon, value, target, pct, periodKey, completedAt?, badge?}` |
-| GET | `/v1/portal/badges?memberId=` | ottenuti + da ottenere (in grigio) |
-| GET | `/v1/portal/leaderboards?memberId=` · `/v1/portal/leaderboards/{code}?memberId=` | `{top[] {rank, nickname, score, isMe}, me: {rank, score}}`; con `resolve=ids` (Q-368, solo per il BFF) ogni voce porta `memberId` al posto di `nickname`. Il BFF (`/api/lh`) chiede sempre questa variante, inserisce i soprannomi di member-service e al browser restituisce solo `{rank, nickname, score, isMe}` (`Giocatore <rank>` se member-service non risponde). Un valore di `resolve` diverso da `ids` → `400` |
+| GET | `/v1/portal/contests` | concorsi `LIVE`: `{code, name, mechanic, endAt, playsAvailable, freePlayAvailable, prizes[] {code, name, type, imageUrl, wheelColor}}` — **mai** quantità residue né istanti |
+| POST | `/v1/portal/contests/{code}/play` | corpo `{}` (`memberId` deprecato, solo demo) → **200 sincrono** `{playId, outcome, prize?: {code, name, type, points?, rewardCode?}, playsAvailable, correlationId}`; l'attore dei fatti `contest.played`/`contest.won` è `member:<id>` (Q-556), mai lo username o l'e-mail del token |
+| GET | `/v1/portal/contests/{code}/plays` | storico giocate del membro |
+| GET | `/v1/portal/achievements` | `{code, name, description, icon, value, target, pct, periodKey, completedAt?, badge?}` |
+| GET | `/v1/portal/badges` | ottenuti + da ottenere (in grigio) |
+| GET | `/v1/portal/leaderboards` · `/v1/portal/leaderboards/{code}` | `{top[] {rank, nickname, score, isMe}, me: {rank, score}}`, `isMe` e `me` dal principal. Con `resolve=ids` (Q-368, solo per il BFF **demo**) ogni voce porta `memberId` al posto di `nickname`: per un principal da token (`enterprise`) il parametro è **ignorato** (Q-559): il membro non riceve mai gli id degli altri, i soprannomi restano quelli dello snapshot o il segnaposto «Socio Aurora» finché Q-411 non dà al BFF un'identità di servizio. Il BFF (`/api/lh`) chiede in demo questa variante, inserisce i soprannomi di member-service e al browser restituisce solo `{rank, nickname, score, isMe}` (`Giocatore <rank>` se member-service non risponde). Un valore di `resolve` diverso da `ids` → `400` |
 
 Errori giocata: `422 CONTEST_NOT_LIVE`, `NO_PLAYS_AVAILABLE`, `DAILY_LIMIT_REACHED`, `MEMBER_NOT_ACTIVE`.
 
@@ -151,7 +156,7 @@ Errori giocata: `422 CONTEST_NOT_LIVE`, `NO_PLAYS_AVAILABLE`, `DAILY_LIMIT_REACH
 |---|---|---|
 | Consuma | `lh.actions.v1` | tutte (obiettivi, classifiche `ACTION_COUNT`) |
 | Consuma | `lh.effects.v1` | `plays.grant`, `badge.award` |
-| Consuma | `lh.facts.v1` | `member.registered/updated/status.changed`, `wallet.points.earned` |
+| Consuma | `lh.facts.v1` | `member.registered/updated/status.changed` (snapshot del membro e legame `subjectRef`, §5), `wallet.points.earned` |
 | Produce | `lh.facts.v1` | `contest.plays.granted`, `contest.played`, `contest.won`, `achievement.progressed`, `achievement.completed`, `badge.awarded`, `contest.status.changed` |
 | Produce | `lh.audit.v1` | scritture di configurazione, generazione istanti, istanti piantati, consegne |
 
@@ -184,6 +189,7 @@ Dominio in `docs/03 §6, §8`. Note implementative:
 - Classifiche `PTS_EARNED/STS_EARNED`: da `wallet.points.earned` (importo effettivo); membri non `ACTIVE` esclusi dal ranking.
 - Fine concorso (job ogni 5 min): `LIVE` con `end_at` passato → `ENDED`, istanti `OPEN` → `VOID`.
 - Pulizia: `achievement_progress` di periodi chiusi da più di 90 giorni.
+- **Legame token↔membro** (Q-550, ADR-048, docs/06 §3.4): `member.registered`, `member.updated` (schemi `:1` e `:2`) e `member.status.changed` passano da `MemberSnapshotHandler`, che aggiorna lo snapshot (§4) e, nella stessa transazione dell'inbox idempotente, chiama `MemberSubjectProjection`: il campo opzionale `subjectRef` si applica a `gamification_member_snapshot` con `MemberSubjectRules` di lh-common. Assente = nessun effetto (un member-service più vecchio non slega nessuno); `null` = slega; un fatto più vecchio di `subject_ref_at` o di un membro già cancellato non ri-lega; lo stesso pseudonimo su due membri va al più recente (a parità, all'id maggiore) e il sorpasso incrementa `lh_member_subject_relinked_total`; l'anonimizzazione (`member.status.changed`/`updated` con `ANONYMIZED`) azzera il legame e scrive la lapide `subject_erased`, che nessun replay ripristina. Un fatto senza `time` non vale «adesso»: non sorpassa un detentore datato e lascia `subject_ref_at` com'è (l'anonimizzazione vale comunque). Due membri che reclamano lo stesso pseudonimo da partizioni diverse convergono per ritentativo: il secondo commit viola l'indice unico `gamification_member_subject_ref_uq`, il consumer ritenta e le regole si rivalutano. `GamificationMemberSubjectLookup` risolve il membro del token con l'indice locale (non autorevole: legame assente ⇒ `409 MEMBER_NOT_LINKED`, il fatto non è ancora arrivato). Nessuna chiamata sincrona, nessun dato personale sul bus. Un membro `BLOCKED`, `SUSPENDED` o `INACTIVE` è risolto comunque: decidono le regole di dominio (`MEMBER_NOT_ACTIVE` alla giocata).
 
 ## 6. Seed
 `seed/contests.json` (con premi e **seme fisso**; gli istanti si rigenerano al reset con finestra relativa a oggi: `IW-AUTUNNO` da −20 a +40 giorni), `seed/achievements.json`, `seed/badges.json`, `seed/leaderboards.json`, `seed/gamification-history.json` (giocate di Matteo, vincitori di `IW-ESTATE`, progressi e badge, punteggi classifiche per tutti i membri attivi). Dettaglio in `docs/10 §6`.
@@ -202,6 +208,7 @@ Dominio in `docs/03 §6, §8`. Note implementative:
 Riferimento: `docs/18`. Le righe qui sotto sono segnaposto dell'adozione (M8.0): la fetta citata le rende normative aggiornando questa scheda.
 
 - **Missioni e serie** (ADR-045, M13.7): tabella `mission` con passi e finestra relativa al membro; estensioni `STREAK` (tolleranza, congelamento, `achievement.streak.at_risk`); fatti `mission.started/progressed/completed/expired` e azione interna `mission.completed` (con riga in `producers.yaml`); BO-38, PT-19; limiti Q-364.
+- **Membro dal token** (M8.10f, ADR-048, Q-410, Q-550, Q-553, Q-556, Q-559; F2-SEC-09): `V3__member_subject.sql` aggiunge a `gamification_member_snapshot` il legame `subject_ref` (pseudonimo, mai il `sub`) con `subject_ref_at` e la lapide `subject_erased`; `MemberSubjectProjection` lo alimenta da `member.registered`/`member.updated`; i sei handler del portale sono `@MemberEndpoint` (§3) e `resolve=ids` è ignorato per un principal da token; l'attore delle giocate è `member:<id>` (prima `MEMBER:<id>`, righe storiche restano). **Scostamento (Q-573, `SPEC-GAP`):** `MemberBodyAdvice` ispeziona solo l'oggetto già deserializzato: un `memberId` nel corpo della giocata è rifiutato (il DTO lo conserva), ma una grafia che il DTO non conosce (`member_id`) è scartata da Jackson e non rifiutata; il membro resta comunque quello del token. Sequenza completa in docs/06 §3.4. Testbook: TB-GAM-MBP (`docs/testbook/TB-GAM-gioco.md` §22).
 - **Dati personali** (ADR-032, M8.4): `gamification_member_snapshot.nickname` resta solo se non identificativo (nickname pseudonimo).
 - **Doppia lettura `member.*:1`/`:2`** (ADR-032, Q-346, M8.4 parte 2d): lo snapshot legge il soprannome solo da `:1` (`dataschema` che finisce con `:1` o assente); da `:2` legge solo `status`. Un campo assente non sovrascrive il valore salvato (un membro nuovo da `:2` resta senza soprannome), nessun errore su `:2`.
 - **Soprannomi risolti dal BFF** (Q-368, M8.4 parte 2d): classifiche del portale, ranking e vincitori (anche CSV) accettano `resolve=ids`; il BFF chiede i soprannomi a member-service (`POST /v1/members/nicknames`) e li inserisce lato server. Le risposte senza parametro restano quelle di sempre (compatibilità all'indietro); `gamification_member_snapshot.nickname` si svuoterà con il contract di M10.

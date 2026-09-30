@@ -2,13 +2,14 @@ package io.loyaltyhub.gamification.api;
 
 import io.loyaltyhub.common.approval.ApprovalStatus;
 import io.loyaltyhub.common.time.BusinessCalendar;
-import io.loyaltyhub.common.web.RequiresRole;
-import io.loyaltyhub.common.web.Role;
+import io.loyaltyhub.common.web.MemberEndpoint;
+import io.loyaltyhub.common.web.MemberPrincipal;
 import io.loyaltyhub.gamification.application.PlayService;
 import io.loyaltyhub.gamification.domain.Contest;
 import io.loyaltyhub.gamification.infra.ContestRepository;
 import io.loyaltyhub.gamification.infra.MemberSnapshotRepository;
 import io.loyaltyhub.gamification.infra.PlayRepository;
+import io.swagger.v3.oas.annotations.media.Schema;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,6 +27,10 @@ import java.util.List;
 /**
  * Portale: concorsi in corso, giocata sincrona, storico (docs/servizi/gamification-service.md §3 Portale; PT-05, PT-06).
  * Mai quantità residue né istanti: solo i premi in palio.
+ * <p>Il membro viene solo dal token (Q-410, ADR-048, docs/06 §3.4): nessun {@code memberId} in query o percorso; lo
+ * risolve {@code EndpointAccessInterceptor} e lo consegna come {@link MemberPrincipal}. Il campo {@code memberId} del
+ * corpo della giocata resta solo per il profilo {@code demo} (deprecato; in {@code enterprise} dà
+ * {@code 400 MEMBER_FROM_TOKEN}, anche se è il proprio) e la giocata è attribuita a {@code member:<id>} (Q-556).
  */
 @RestController
 @RequestMapping("/v1/portal/contests")
@@ -40,7 +45,9 @@ public class PortalContestsController {
                                 List<PortalPrize> prizes) {
     }
 
-    public record PlayRequest(String memberId) {
+    /** Corpo della giocata: vuoto ({@code {}}); {@code memberId} vale solo nel profilo {@code demo}. */
+    public record PlayRequest(
+            @Schema(deprecated = true, description = "solo profilo demo") String memberId) {
     }
 
     private final ContestRepository contests;
@@ -58,8 +65,9 @@ public class PortalContestsController {
 
     @GetMapping
     @Transactional(readOnly = true)
-    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
-    public List<PortalContest> live(@RequestParam String memberId) {
+    @MemberEndpoint
+    public List<PortalContest> live(MemberPrincipal principal) {
+        String memberId = principal.requireParam();
         Instant now = clock.instant();
         LocalDate today = LocalDate.ofInstant(now, BusinessCalendar.ZONE);
         boolean active = members.find(memberId).map(s -> "ACTIVE".equals(s.status())).orElse(false);
@@ -70,17 +78,19 @@ public class PortalContestsController {
     }
 
     @PostMapping("/{code}/play")
-    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
-    public PlayService.PlayResult play(@PathVariable String code, @RequestBody PlayRequest r) {
-        return playService.play(code, r == null ? null : r.memberId());
+    @MemberEndpoint
+    public PlayService.PlayResult play(@PathVariable String code, @RequestBody PlayRequest r, MemberPrincipal principal) {
+        // Il corpo legacy vale solo in demo: con un token, un memberId (anche il proprio) è già rifiutato (MEMBER_FROM_TOKEN).
+        // SPEC-GAP: Q-573 (grafie di memberId diverse dal campo del DTO scartate da Jackson, non rifiutate; il membro resta quello del token)
+        return playService.play(code, principal.merge(r == null ? null : r.memberId()));
     }
 
     @GetMapping("/{code}/plays")
     @Transactional(readOnly = true)
-    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
-    public List<PlayRepository.MemberPlay> plays(@PathVariable String code, @RequestParam String memberId,
+    @MemberEndpoint
+    public List<PlayRepository.MemberPlay> plays(@PathVariable String code, MemberPrincipal principal,
                                                  @RequestParam(defaultValue = "10") int limit) {
-        return playService.history(code, memberId, limit);
+        return playService.history(code, principal.requireParam(), limit);
     }
 
     private PortalContest view(Contest c, PlayService.Credits cr) {

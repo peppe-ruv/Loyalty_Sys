@@ -4,12 +4,12 @@ Dominio **engagement** del testbook funzionale (metodo e convenzioni in `docs/16
 
 - **Servizio:** `services/engagement-service`.
 - **Fonti (oracolo):** `docs/servizi/engagement-service.md` (§2 modello, §3 API, §4 eventi, §5 regole, §7 accettazione) · `docs/03` §3.3 (condizioni), §3.4 (`SEND_MESSAGE`), §3.6 (ciclo di vita), §9 (contenuti e messaggi) · `docs/02` `F-CNT-01…04`, `F-MSG-01/02`, `F-THM-01`, `F-WBH-01` · `docs/05` (fatti) · `docs/06` §2–§4 (API, errori, attore, lock) · `docs/07` §2 (formattazione it-IT, Europe/Rome) · `docs/08` §2 (permessi), BO-18, BO-19, BO-20, BO-23 · `docs/09` PT-12 · `docs/10` §7 · `docs/11` (anti-SSRF) · scelte registrate in `docs/15`: Q-66, Q-67, Q-68, Q-70, Q-71, Q-72, Q-73, Q-75, Q-79, Q-97…Q-103.
-- **Righe:** 804, di cui 132 marcate **AMBIGUO** (registrate in `docs/15`: Q-161 e Q-170…Q-185, §17.2) e 7 ex **DIVERGENZA**, risolte correggendo il codice secondo la specifica (§17.1).
+- **Righe:** 804 + 43 del membro dal token (§18, MBP), di cui 132 marcate **AMBIGUO** (registrate in `docs/15`: Q-161 e Q-170…Q-185, §17.2) e 7 ex **DIVERGENZA**, risolte correggendo il codice secondo la specifica (§17.1).
 
 ## 0. Come si legge e come si esegue
 
-- **ID** `TB-ENG-<AREA>-NNN`; ogni ID compare una sola volta come prima cella di una riga di tabella. Aree: `SEL` idoneità · `CAL` estremi del calendario · `AUD` pubblico · `EXT` estensioni del pubblico (Q-71) · `ORD` ordine e limiti · `POP` frequenza dei pop-up · `POPA` API dei pop-up · `PRV` anteprima e portale · `LIF` ciclo di vita · `END` fine automatica · `EDT` creazione e modifica · `EDL` modifica di un `LIVE` · `DUP` duplicazione · `ROL` ruoli · `AUDT` audit · `TPL` motore dei template · `TPV` sintassi dei template · `TAD` gestione dei template · `RND` anteprima renderizzata · `CND` condizioni · `RUL` regole di notifica · `RAD` gestione delle regole · `DDP` deduplica ed effetti · `SNP` snapshot del membro · `IBX` inbox · `CLN` pulizie · `THM` formato dei colori · `THA` tema via API · `WURL` URL dei webhook · `WPRF` profili e invio · `WSIG` firma · `WRTY` ritenti · `WSUB` sottoscrizioni · `WDLV` consegne e gestione · `WROL` ruoli dei webhook.
-- **Colonna "test":** classe (e metodo o file CSV). Classi unitarie in `src/test/java/io/loyaltyhub/engagement/domain/` (`TestbookEngContentSelectionTest`, `TestbookEngTemplateTest`, `TestbookEngConditionTest`, `TestbookEngThemeTest`, `TestbookEngWebhookTest`), d'integrazione in `src/test/java/io/loyaltyhub/engagement/` (`TestbookEngContentIT`, `TestbookEngMessagingIT`, `TestbookEngWebhookIT`, un contesto Spring per classe, EmbeddedKafka + Postgres embedded come gli altri `*IT` del modulo). Le tabelle sono in `src/test/resources/testbook/engagement/*.csv` (separatore TAB, prima colonna l'ID, seconda la descrizione).
+- **ID** `TB-ENG-<AREA>-NNN`; ogni ID compare una sola volta come prima cella di una riga di tabella. Aree: `SEL` idoneità · `CAL` estremi del calendario · `AUD` pubblico · `EXT` estensioni del pubblico (Q-71) · `ORD` ordine e limiti · `POP` frequenza dei pop-up · `POPA` API dei pop-up · `PRV` anteprima e portale · `LIF` ciclo di vita · `END` fine automatica · `EDT` creazione e modifica · `EDL` modifica di un `LIVE` · `DUP` duplicazione · `ROL` ruoli · `AUDT` audit · `TPL` motore dei template · `TPV` sintassi dei template · `TAD` gestione dei template · `RND` anteprima renderizzata · `CND` condizioni · `RUL` regole di notifica · `RAD` gestione delle regole · `DDP` deduplica ed effetti · `SNP` snapshot del membro · `IBX` inbox · `CLN` pulizie · `THM` formato dei colori · `THA` tema via API · `WURL` URL dei webhook · `WPRF` profili e invio · `WSIG` firma · `WRTY` ritenti · `WSUB` sottoscrizioni · `WDLV` consegne e gestione · `WROL` ruoli dei webhook · `MBP` membro dal token e legame `subjectRef` (M8.10f, §18).
+- **Colonna "test":** classe (e metodo o file CSV). Classi unitarie in `src/test/java/io/loyaltyhub/engagement/domain/` (`TestbookEngContentSelectionTest`, `TestbookEngTemplateTest`, `TestbookEngConditionTest`, `TestbookEngThemeTest`, `TestbookEngWebhookTest`), d'integrazione in `src/test/java/io/loyaltyhub/engagement/` (`TestbookEngContentIT`, `TestbookEngMessagingIT`, `TestbookEngWebhookIT`, `TestbookEngMemberSubjectIT`, `TestbookEngMemberPrincipalIT`, `TestbookEngMemberPrincipalDemoIT` (§18), un contesto Spring per classe, EmbeddedKafka + Postgres embedded come gli altri `*IT` del modulo). Le tabelle sono in `src/test/resources/testbook/engagement/*.csv` (separatore TAB, prima colonna l'ID, seconda la descrizione).
 - **Nome dei casi.** Le righe dei CSV sono casi `@ParameterizedTest(name = "[{0}] {1}", quoteTextArguments = false)` con `@CsvFileSource` (colonne lette con `TestbookRows.columns`); le righe singole sono metodi `@Test` con `@DisplayName("[<ID>] …")`. Nei rapporti XML il caso parametrizzato è `metodo(ArgumentsAccessor)[TB-ENG-…] …`, forma che `scripts/testbook-report.mjs` riconosce. Il `pom.xml` del modulo (che ridefinisce le risorse di test per i contratti) vi aggiunge `src/test/resources`.
 - **Esecuzione:** `./mvnw -q -pl services/engagement-service -am verify -Dtest='Testbook*' -Dit.test='Testbook*' -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false`, oppure `bash scripts/testbook.sh` (rapporto in `target/testbook/rapporto.md`).
 - **Dati e tempo.** Ogni riga crea i propri codici (`CNT-TB-n`, `MSG-TB-n`, `NR-TB-n`, `WH-TB-n`), membri nuovi (`MBR-9…`, `MBR-8…`, `MBR-7…`, inseriti nello snapshot locale o mai visti) ed eventi nuovi; i contenuti `LIVE` hanno un pubblico ristretto a un segmento proprio o sono chiusi a fine riga; i pop-up del seed sono archiviati all'avvio di `TestbookEngContentIT`. Unit: orologio fisso (`2026-09-24T10:00:00Z`) o istanti espliciti. `TestbookEngContentIT` sostituisce il `Clock` con uno a scostamento regolabile (mezzanotte di Roma); `TestbookEngWebhookIT` lancia i giri dello scheduler con l'istante voluto. Attese a polling con scadenza (20 s), niente pause fisse.
@@ -66,6 +66,8 @@ Dominio **engagement** del testbook funzionale (metodo e convenzioni in `docs/16
 | R45 | Snapshot locale del membro dai fatti `member.*`, `tier.*`, `member.segment.*` | engagement §4; docs/05 | `FactHandler.updateSnapshot` :53–96 | SNP |
 | R46 | `/v1/demo/**` solo ADMIN | docs/06 §3; Q-103 | `EngagementJobsController` | WDLV |
 | R47 | Anonimizzazione: il nome nei messaggi già in inbox diventa "Membro anonimo", i corpi delle consegne webhook sono ripuliti e rifirmati, lo snapshot perde il nome | docs/03 §2; Q-125; Q-70 | `FactHandler` :93; `MemberErasureRepository.erase` | SNP |
+| R48 | Legame token↔membro (M8.10f, ADR-048): `member.registered`, `member.updated` (`:1` e `:2`) e `member.status.changed` con `subjectRef` legano il membro in `engagement_member_snapshot` nella stessa transazione dello snapshot e dell'inbox idempotente; assente = nessun effetto, `null` = slega, fatto più vecchio dell'ultimo aggiornamento o membro cancellato = nessun effetto, stesso pseudonimo su due membri = vince il più recente (parità: id maggiore), anonimizzazione = lapide definitiva che nessun replay ripristina | docs/06 §3.4 · docs/05 §5, §10 · Q-550, Q-552 · ADR-048 | `MemberSubjectProjection.apply`; `MemberSubjectRepository`; `FactHandler.updateSnapshot` | MBP-001…015 |
+| R49 | Portale con il membro dal token: `content` (`OPTIONAL`), `inbox`, `unread-count`, `read`, `read-all`, `popups/next`, `popups/{id}/seen` (`@MemberEndpoint`) e `theme` (`members = true`); in `enterprise` `memberId` in query, form, corpo o header ⇒ 400 `MEMBER_FROM_TOKEN`, operatore/misto/`MEMBER`+`SOURCE` ⇒ 403, `sub` senza legame o anonimizzato ⇒ 409 `MEMBER_NOT_LINKED` con `Retry-After: 2`, un messaggio di un altro membro ⇒ 404, token di membro fuori dal portale ⇒ 403 `FORBIDDEN_ROLE`; in `demo` il membro è `memberId` (query o corpo deprecato) o `X-LH-Member` e gli errori restano quelli di prima | docs/06 §3.2, §3.4 · Q-410, Q-553, Q-554, Q-555 · ADR-048 | `PortalContentController`, `PortalInboxController`, `PortalPopupsController`, `ThemeController.portal`; `EngagementMemberSubjectLookup` | MBP-020…049 |
 
 ## 2. Rami del codice e regole
 
@@ -156,7 +158,7 @@ Ogni condizione, eccezione o uscita anticipata delle classi `domain`, `applicati
 | `InboxService` :152 `memberId` assente → `400` | R17 | IBX-010…013 |
 | `InboxService` :159 `size` 1…100 | R32 | IBX-016 |
 | `InboxRepository` :77 già letto non cambia `readAt` | senza spec | IBX-005 |
-| `PortalInboxController` :55 `memberId` nel corpo | senza spec | IBX-014 |
+| `PortalInboxController` `read`/`readAll` `principal.merge(body.memberId)`: `memberId` nel corpo (deprecato, solo demo) | senza spec (in `enterprise` R49) | IBX-014, MBP-025, MBP-042, MBP-050 |
 | `MessageContexts` :35–55 contesto `{data, member, event}` | R18 | DDP-013, RND-001 |
 | `MessageSendHandler` :43 effetto senza dati o membro → DLQ `INVALID_EFFECT` | senza spec | DDP-014 |
 | `MessageSendHandler` :48 template sconosciuto → DLQ `TEMPLATE_NOT_FOUND` | R28 (campaign §5) | DDP-010 |
@@ -217,6 +219,12 @@ Ogni condizione, eccezione o uscita anticipata delle classi `domain`, `applicati
 | `@RequiresRole` di `ContentsController` (creazione, modifica, transizioni, duplicazione), `MessageTemplatesController`, `NotificationRulesController`, `ThemeController` | R16 | ROL |
 | `@RequiresRole` di `WebhooksController` (creazione, modifica, eliminazione, prova, Riprova), `EngagementJobsController` | R43, R46 | WROL, WDLV-027 |
 | `PortalPopupsController` `204` | R07 | POPA-001 |
+| `FactHandler.updateSnapshot` `MemberSubjectProjection.apply` sui fatti `member.registered/updated/status.changed`, prima dell'erasure | R48 | MBP-001…015 |
+| `MemberSubjectProjection.apply` `subjectRef` assente e nessuna anonimizzazione → nessun effetto; `LINK`/`UNLINK`/`ERASE` secondo `MemberSubjectRules` (rilettura con `FOR UPDATE`, sorpasso dell'altro detentore) | R48 (Q-550) | MBP-001…013, MBP-015 |
+| `EngagementMemberSubjectLookup` legame assente → vuoto (non autorevole) ⇒ 409 `MEMBER_NOT_LINKED` (su `content`, `OPTIONAL`, vista generica) | R49 (Q-553) | MBP-014, MBP-034, MBP-035 |
+| `PortalContentController.content` `@MemberEndpoint(OPTIONAL)`: `NONE` (operatore) → `ContentService.portalGeneric` | R49 (Q-554) | MBP-029, MBP-030, MBP-034 |
+| `PortalInboxController`, `PortalPopupsController` `@MemberEndpoint` con `principal.idOrNull()` (validazione `400` del servizio invariata in demo) e `principal.merge` sui corpi | R49 (Q-590) | MBP-020…027, MBP-040…050 |
+| `ThemeController.portal` `members = true` | R49 | MBP-020, MBP-029, MBP-034 |
 | `ThemeController` `Cache-Control` 60 s | R35 | THA-016 |
 
 ## 3. Selezione dei contenuti (R01–R04)
@@ -1341,10 +1349,10 @@ Come si combinano livelli, segmenti e stati non è scritto: il codice richiede t
 
 | Voce | Valore |
 |---|---|
-| Regole inventariate (§1) | 47 (R01–R47) |
+| Regole inventariate (§1) | 49 (R01–R49) |
 | Regole non implementate | nessuna (R11 e R17 completate con la correzione delle divergenze, §17.4) |
-| Rami del codice mappati (§2) | 143 voci; 43 rami senza specifica; 7 rami non coperti da righe |
-| Righe del testbook | 804 (unit 395, integrazione 409) |
+| Rami del codice mappati (§2) | 149 voci; 43 rami senza specifica; 7 rami non coperti da righe |
+| Righe del testbook | 847 (unit 395, integrazione 452) |
 | Righe AMBIGUO | 132 |
 | Divergenze | nessuna aperta (7 righe, 3 cause, risolte: §17.1) |
 | Tabelle complete | SEL (60), AUD (27 + 9), POP (24), LIF (50), ROL (28), RUL (60), WSUB (8), WROL (7) |
@@ -1435,3 +1443,71 @@ Per ogni classe si è rotta temporaneamente una regola di produzione, eseguita l
 
 Nodi della foresta di docs/17 §5.8: ENG-01…04 → SEL, CAL, AUD, EXT, ORD, POP, POPA; ENG-05, ENG-25 → EDT, EDL; ENG-06, ENG-07 → LIF, END, AUDT; ENG-08 → DDP-006, WSUB-009, SNP; ENG-09, ENG-10 → RUL, DDP, IBX; ENG-11 → DDP-007…010, DDP-014; ENG-12, ENG-13 → TPL, TPV, TAD, RND; ENG-14 → RAD; ENG-15 → THM, THA; ENG-16 → IBX; ENG-17 → WURL, WPRF; ENG-18 → WDLV-018…023, WDLV-028…030; ENG-19 → WSUB (evento non di tipo fatto non raggiungibile); ENG-20 → WRTY, WDLV-001…008, WPRF-008, WPRF-009; ENG-21 → WDLV-009…014, WDLV-031; ENG-22 → WDLV-016, WDLV-017; ENG-23 → CLN (scheduler ogni 30 s non coperto); ENG-24 → ROL, WROL, RND-004.
 
+## 18. Il membro dal token e il legame `subjectRef` (M8.10f)
+
+**Regole**: R48 (legame token↔membro), R49 (portale con il membro solo dal token) — docs/06 §3.2, §3.4, docs/05 §5 e §10, Q-410, Q-550, Q-552, Q-553, Q-554, Q-555, ADR-048. Fatti `member.*` e `wallet.points.earned` veri sul bus embedded (`lh.facts.v1`, chiave `memberId`), stato letto da `engagement_member_snapshot` e dalle tabelle dell'inbox; token OIDC veri firmati RS256 (`OidcTestTokens`), verificati da `OidcActorFilter` con gli stessi validatori dell'avvio, con `preferred_username` ed e-mail fittizi che non devono comparire mai in una risposta né nell'attore. Membri e soggetti fittizi per classe concreta (`MBR-9…`); istanti fissi `T1 < T2 < T3 < T4`.
+
+**Strategia**: proiezione — un caso per esito della decisione di `MemberSubjectRules` (assente, `null`, valore, fatto vecchio, sorpasso, parità, lapide) e per versione dello schema (`:1`, `:2`); API — un caso per famiglia di chiamante (membro legato, operatore, misto, `MEMBER`+`SOURCE`, senza token, token non valido) e per fonte del membro non ammessa (query, campo form, corpo, header). Engagement non ha percorsi con l'id del membro: non ci sono percorsi legacy da chiudere con `403 MEMBER_FROM_TOKEN` (il caso vale per wallet, member, reward, gamification). Nessun oggetto di un altro membro è raggiungibile dai pop-up (il contenuto è uguale per tutti e la vista è del titolare): il caso `404` vale per i messaggi dell'inbox.
+
+### 18.1 Proiezione `subjectRef` → membro
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-ENG-MBP-001 | `member.registered:1` con `subjectRef` | membro legato; snapshot (stato `ACTIVE`) e legame nascono insieme | docs/06 §3.4 · Q-550 | `MemberSubjectProjectionScenarios#registeredV1LinksAndCreatesTheSnapshot` |
+| TB-ENG-MBP-002 | `member.registered:2` con `subjectRef` | membro legato | docs/05 §5 · Q-552 | `MemberSubjectProjectionScenarios#registeredV2Links` |
+| TB-ENG-MBP-003 | `member.updated:1` e `:2` su membri registrati senza `subjectRef` | entrambi legati | docs/06 §3.4 · Q-550 | `MemberSubjectProjectionScenarios#updatedLinks` |
+| TB-ENG-MBP-004 | `subjectRef` assente in un `member.updated` e in un `member.registered` | nessun effetto: il membro già legato resta legato, l'altro non lo diventa | docs/06 §3.4 (rilascio progressivo) | `MemberSubjectProjectionScenarios#absentClaimHasNoEffect` |
+| TB-ENG-MBP-005 | `subjectRef` che non ha la forma di uno pseudonimo (non 64 esadecimali) | nessun legame | docs/05 §5 | `MemberSubjectProjectionScenarios#malformedClaimHasNoEffect` |
+| TB-ENG-MBP-006 | `subjectRef: null` | legame rimosso; `subject_ref_at` = istante del fatto | docs/05 §5 | `MemberSubjectProjectionScenarios#nullClaimUnlinks` |
+| TB-ENG-MBP-007 | fatto più vecchio dell'ultimo aggiornamento del legame (altro pseudonimo, poi `null`); poi un fatto più recente | il vecchio non ri-lega né slega; il più recente vale | docs/06 §3.4 | `MemberSubjectProjectionScenarios#staleFactHasNoEffect` |
+| TB-ENG-MBP-008 | stesso pseudonimo su due membri: il secondo più recente; replay del vecchio; poi un fatto ancora più recente del vecchio | vince il più recente, il replay non lo riprende, il sorpasso è contato in `lh_member_subject_relinked_total` | docs/06 §3.4 | `MemberSubjectProjectionScenarios#newerRelinkWinsAndOldReplayDoesNot` |
+| TB-ENG-MBP-009 | stesso pseudonimo, stesso istante, id `…13` e `…12` | vince l'id maggiore | docs/06 §3.4 | `MemberSubjectProjectionScenarios#tieBreaksOnTheMemberId` |
+| TB-ENG-MBP-010 | `member.status.changed` → `ANONYMIZED`, poi replay di `registered` e `updated` (istante successivo) con lo stesso pseudonimo | nessun legame, `subject_erased`; la stessa persona che si registra come nuovo membro ottiene il legame | docs/06 §3.4 · docs/03 §2 | `MemberSubjectProjectionScenarios#anonymizationIsATombstone` |
+| TB-ENG-MBP-011 | `member.updated` con `status` `ANONYMIZED` | legame cancellato, lapide | docs/05 §5 | `MemberSubjectProjectionScenarios#anonymizedByUpdatedFact` |
+| TB-ENG-MBP-012 | lo stesso evento (stesso id) consegnato due volte | stesso stato, una sola riga | docs/06 §5 | `MemberSubjectProjectionScenarios#sameFactTwiceIsIdempotent` |
+| TB-ENG-MBP-013 | gestore del fatto chiamato in una transazione poi annullata | né snapshot né legame né messaggio di benvenuto (partecipano alla transazione del chiamante) | docs/06 §5 | `MemberSubjectProjectionScenarios#snapshotAndLinkShareTheTransaction` |
+| TB-ENG-MBP-014 | pseudonimo mai visto | la lookup non trova il membro, non è autorevole e il suo package è `io.loyaltyhub.engagement` | docs/06 §3.2 | `MemberSubjectProjectionScenarios#unknownRefIsNotLinked` |
+| TB-ENG-MBP-015 | fatto senza `time`: altro membro con lo stesso pseudonimo; poi altro pseudonimo sul detentore; poi un fatto datato prima | non sorpassa il detentore datato; `subject_ref_at` non si sposta; il fatto datato prima resta obsoleto | docs/06 §3.4 · Q-550 | `MemberSubjectProjectionScenarios#factWithoutTimeIsConservative` |
+
+Righe eseguite due volte, da `EngagementMemberSubjectProjectionIT` (ordinaria) e da `TestbookEngMemberSubjectIT` (testbook).
+
+### 18.2 Portale con il membro dal token (`enterprise`)
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-ENG-MBP-020 | token di A; `GET /v1/portal/inbox`, `/inbox/unread-count`, `/popups/next`, `/content`, `/theme` (B ha altri messaggi) | 200 con i soli dati di A (il messaggio da 111 punti, non quello da 222); l'id di B, l'e-mail e lo username del token non compaiono | docs/06 §3.4 · Q-410 | `PortalOidcScenarios#memberReadsOnlyOwnData` |
+| TB-ENG-MBP-021 | A: `POST /inbox/{id}/read` su un proprio messaggio; `POST /inbox/read-all`; corpo `{"memberId":null}` | 200; l'inbox di B non cambia; attore e MDC `member:<id>`, mai username o e-mail | docs/06 §3.3 · Q-556 | `PortalOidcScenarios#memberWritesItsOwnReads` |
+| TB-ENG-MBP-022 | `POST /inbox/{id}/read` con il token di A su un messaggio di B (e su un id inesistente) | 404 `NOT_FOUND`; il messaggio di B resta non letto; B lo legge con il proprio token | docs/06 §3.2 · Q-553 | `PortalOidcScenarios#anotherMembersMessageIsNotFound` |
+| TB-ENG-MBP-023 | `?memberId=B`, `?memberId=A`, `?MEMBERID=B`, `?member_id=B`, `?!memberId=B`, `?filter.memberId=B` su inbox e non letti; `?memberId=` su contenuti, pop-up e tema; e sulle scritture | 400 `MEMBER_FROM_TOKEN` (anche col proprio id); l'id ricevuto non è ripetuto; nessun messaggio letto | docs/06 §3.2 · Q-553 | `PortalOidcScenarios#memberIdInTheQueryIsRefused` |
+| TB-ENG-MBP-024 | POST `read-all` e `seen` con campo form `memberId=B`, `memberId=A`, `MEMBERID=B` | 400 `MEMBER_FROM_TOKEN` prima ancora di leggere il corpo; nessuna riga scritta | docs/06 §3.2 · Q-553 | `PortalOidcScenarios#memberIdAsFormFieldIsRefused` |
+| TB-ENG-MBP-025 | corpo `{"memberId":"B"}` e `{"memberId":"A"}` su `read-all`, `read` e `seen` | 400 `MEMBER_FROM_TOKEN` (`MemberBodyAdvice`: i DTO hanno il campo deprecato, nessuno scostamento Q-573); nessuna riga scritta, nessun fatto | docs/06 §3.4 · Q-553 | `PortalOidcScenarios#memberIdInTheBodyIsRefused` |
+| TB-ENG-MBP-026 | `X-LH-Member: B` e `X-LH-Member: A` su inbox, non letti, pop-up, contenuti, tema, `read-all` | 400 `MEMBER_FROM_TOKEN` | docs/06 §3.2 · Q-555 | `PortalOidcScenarios#demoMemberHeaderIsRefused` |
+| TB-ENG-MBP-027 | D: `POST /popups/POP-WELCOME/seen` con e senza corpo; su un contenuto che non è un pop-up | 204 e una sola vista di D; nessuna vista nuova di A e B; attore `member:<id>`; 404 sul non pop-up | docs/06 §3.4 · Q-556 | `PortalOidcScenarios#popupSeenBelongsToTheHolder` |
+| TB-ENG-MBP-028 | token di un operatore `CARE` su inbox, non letti, pop-up e sulle tre scritture | 403 `MEMBER_REQUIRED` | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#operatorIsNotAMember` |
+| TB-ENG-MBP-029 | `GET /v1/portal/content` e `/theme` con un operatore `CARE`, con A e con B; placement errato | A entra in `SEG-DIGITAL` (fatto vero); 200: la vista di A per `HOME_GRID` contiene `CNT-DIGITAL-THANKS`, quella dell'operatore (non vuota, senza id di membri), del token misto e di B no; il placement errato resta 400 | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#contentIsGenericForAnOperator` |
+| TB-ENG-MBP-030 | token misto `MEMBER`+`CARE` | vale come operatore: 403 `MEMBER_REQUIRED` sulle funzioni del membro, vista generica sui contenuti (senza `CNT-DIGITAL-THANKS`, con `CNT-FRIEND`) | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#mixedTokenIsNotAMember` |
+| TB-ENG-MBP-031 | token `MEMBER`+`SOURCE` su inbox, non letti, pop-up, contenuti, tema | 403 | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#memberPlusSourceIsForbidden` |
+| TB-ENG-MBP-032 | token di un membro su `/v1/messages`, `/v1/contents`, `/v1/contents/preview`, `/v1/message-templates`, `/v1/notification-rules`, `/v1/theme`, `/v1/webhooks` | 403 `FORBIDDEN_ROLE`, nessun messaggio di nessuno | docs/06 §3.2 · Q-410 | `PortalOidcScenarios#memberTokenCannotReachBackofficeReads` |
+| TB-ENG-MBP-033 | token di un membro con `X-LH-Actor: ADMIN:intruso` su `/v1/messages?memberId=B` | l'header è ignorato: 403 `FORBIDDEN_ROLE` | ADR-027 | `PortalOidcScenarios#actorHeaderIsIgnored` |
+| TB-ENG-MBP-034 | `sub` non ancora legato; poi arriva `member.registered` | 409 `MEMBER_NOT_LINKED` con `Retry-After: 2` su inbox, non letti, pop-up e `read-all`; 200 su contenuti (identici alla vista dell'operatore, senza contenuti per segmento) e tema; poi 200 col nuovo membro | docs/06 §3.2 · Q-550, Q-553 | `PortalOidcScenarios#unlinkedSubjectGets409UntilTheFactArrives` |
+| TB-ENG-MBP-035 | C anonimizzato; replay di `registered` e `updated` più recente | 409 `MEMBER_NOT_LINKED` con `Retry-After: 2`; il replay non ri-lega | docs/06 §3.4 · Q-550 | `PortalOidcScenarios#anonymizedMemberIsUnlinkedForGood` |
+| TB-ENG-MBP-036 | nessun token; token scaduto; firmato con un'altra chiave; audience o emittente sbagliati, su inbox, contenuti e tema | 401 | ADR-027 | `PortalOidcScenarios#invalidTokensAreUnauthorized` |
+| TB-ENG-MBP-037 | un nuovo messaggio per B; A legge tutto | i non letti di A sono 0 e quelli di B restano; il messaggio di B non compare nell'inbox di A | docs/06 §3.4 | `PortalOidcScenarios#unreadCountsAreSeparate` |
+
+Righe eseguite due volte, da `EngagementPortalOidcIT` (ordinaria) e da `TestbookEngMemberPrincipalIT` (testbook).
+
+### 18.3 Profilo `demo` invariato
+
+| ID | condizioni/valori | atteso (da spec) | rif. spec | test |
+|---|---|---|---|---|
+| TB-ENG-MBP-040 | `X-LH-Member: MBR-000002` con `X-LH-Actor: ANALYST:anonymous` su inbox, non letti, pop-up, contro `?memberId=` | stesso JSON (6 messaggi, 3 non letti) | CLAUDE.md regola 6-bis · Q-555 | `TestbookEngMemberPrincipalDemoIT#headerResolvesTheMember` |
+| TB-ENG-MBP-041 | contenuti `HOME_GRID` con l'header e con `?memberId=`; tema | stesso JSON; 200 | docs/06 §3.4 | `TestbookEngMemberPrincipalDemoIT#contentMatchesTheQueryForm` |
+| TB-ENG-MBP-042 | `read-all` e `seen` con `memberId` nel corpo (deprecato) | 200 e 204 come prima | docs/06 §3.4 | `TestbookEngMemberPrincipalDemoIT#bodyMemberIsStillAccepted` |
+| TB-ENG-MBP-043 | `read` e `read-all` con il solo header (il web migrato) | 200; il messaggio è letto, i non letti sono 0 | docs/06 §3.4 · Q-555 | `TestbookEngMemberPrincipalDemoIT#writesWithTheHeaderOnly` |
+| TB-ENG-MBP-044 | header e query diversi; header e corpo diversi; header e corpo uguali | 400 `MEMBER_MISMATCH`, gli id non sono ripetuti nel detail; uguali: 200 | docs/06 §3.2 · Q-555 | `TestbookEngMemberPrincipalDemoIT#differentSourcesAreAMismatch` |
+| TB-ENG-MBP-045 | nessun membro su inbox, non letti, `read-all`, pop-up, contenuti, `seen` | 400 con lo stesso testo di prima («Parametro memberId obbligatorio.», «memberId è obbligatorio») | docs/06 §3.4 | `TestbookEngMemberPrincipalDemoIT#missingMemberKeepsTheOldErrors` |
+| TB-ENG-MBP-046 | `X-LH-Member: non-un-membro` | 400 | docs/06 §3.2 · Q-555 | `TestbookEngMemberPrincipalDemoIT#malformedHeaderIsABadRequest` |
+| TB-ENG-MBP-047 | attore `SOURCE:src-ecommerce` su inbox, non letti, pop-up, contenuti, tema | 403 | docs/06 §3.1 · Q-492 | `TestbookEngMemberPrincipalDemoIT#sourceIsForbidden` |
+| TB-ENG-MBP-048 | `read` di un messaggio di un altro membro | 404 come prima; il messaggio dell'altro non cambia | docs/06 §2 | `TestbookEngMemberPrincipalDemoIT#anotherMembersMessageIsNotFound` |
+| TB-ENG-MBP-049 | `?memberId=` con `X-LH-Actor: ADMIN:demo` (smoke, hub) | 200: il `memberId` esplicito resta una fonte valida | CLAUDE.md regola 6-bis | `TestbookEngMemberPrincipalDemoIT#explicitMemberWithoutAnyHeaderStillWorks` |
+| TB-ENG-MBP-050 | `POST /inbox/read-all?memberId=` (query vuota) con `{"memberId":"MBR-…"}` nel corpo, senza header | 400 `MEMBER_MISMATCH`, l'id non è ripetuto nel detail (prima il ripiego sul corpo: scostamento noto e voluto, due fonti che non concordano) | docs/06 §3.2 · Q-555 | `TestbookEngMemberPrincipalDemoIT#blankQueryWithABodyMemberIsAMismatch` |

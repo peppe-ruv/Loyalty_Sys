@@ -185,9 +185,9 @@ public class RewardSeeder implements ApplicationRunner, DemoResettable {
             redemptions.seed(new Redemption(id, memberId, reward.code(), reward.name(), x.path("pointsCost").asLong(),
                     status, reason, x.path("needsAttention").asBoolean(false), couponCode, text(x, "note"),
                     x.hasNonNull("shipping") ? x.get("shipping").toString() : null, "SEED-" + id, requested,
-                    confirmed, closed, "MEMBER:" + memberId));
+                    confirmed, closed, "member:" + memberId));
             redemptions.addHistory(Ulid.next(clock), id, RedemptionStatus.PENDING,
-                    "Richiesta di " + x.path("pointsCost").asLong() + " PTS", "MEMBER:" + memberId, requested);
+                    "Richiesta di " + x.path("pointsCost").asLong() + " PTS", "member:" + memberId, requested);
             if (confirmed != null) {
                 redemptions.addHistory(Ulid.next(clock), id, RedemptionStatus.CONFIRMED,
                         "Punti spesi: " + x.path("pointsCost").asLong() + " PTS", "SYSTEM", confirmed);
@@ -203,7 +203,7 @@ public class RewardSeeder implements ApplicationRunner, DemoResettable {
                 case REJECTED -> redemptions.addHistory(Ulid.next(clock), id, status, "Respinta: " + reason, "SYSTEM", closed);
                 case CANCELLED -> redemptions.addHistory(Ulid.next(clock), id, status,
                         x.path("refund").asBoolean(false) ? "Annullata con rimborso: " + reason : "Annullata dal membro",
-                        x.path("refund").asBoolean(false) ? "CARE:paolo.care" : "MEMBER:" + memberId, closed);
+                        x.path("refund").asBoolean(false) ? "CARE:paolo.care" : "member:" + memberId, closed);
                 default -> { }
             }
         }
