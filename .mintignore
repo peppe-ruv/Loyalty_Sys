@@ -1,0 +1,10 @@
+docs/
+services/
+web/
+libs/
+seed/
+scripts/
+e2e/
+contracts/events/
+deploy/
+docs_v2/

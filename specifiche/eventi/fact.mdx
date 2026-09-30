@@ -1,0 +1,426 @@
+---
+title: "Eventi fact"
+description: "Schemi degli eventi della famiglia fact."
+---
+
+Questa pagina è generata automaticamente dagli schemi JSON in `contracts/events/fact/`.
+
+## achievement.completed
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `achievementCode` | string | Sì | No |
+| `achievementName` | string | Sì | No |
+| `periodKey` | string | Sì | No |
+
+## achievement.progressed
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `achievementCode` | string | Sì | No |
+| `periodKey` | string | Sì | No |
+| `value` | integer | Sì | No |
+| `target` | integer | Sì | No |
+
+## badge.awarded
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `badgeCode` | string | Sì | No |
+| `badgeName` | string | Sì | No |
+| `origin` | any | Sì | No |
+
+## campaign.evaluated
+
+Registro di valutazione di un'azione: campagne applicate ed effetti, campagne saltate con motivo.
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `actionId` | string | Sì | No |
+| `actionType` | string | Sì | No |
+| `matched` | array | Sì | No |
+| `skipped` | array | Sì | No |
+
+## campaign.status.changed
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `campaignCode` | string | Sì | No |
+| `name` | string | No | No |
+| `previousStatus` | string | No | No |
+| `newStatus` | string | Sì | No |
+
+## content.status.changed
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `contentId` | string | Sì | No |
+| `contentCode` | string | No | No |
+| `kind` | any | Sì | No |
+| `previousStatus` | any | No | No |
+| `newStatus` | any | Sì | No |
+
+## contest.played
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `contestCode` | string | Sì | No |
+| `playId` | string | Sì | No |
+| `outcome` | any | Sì | No |
+| `kind` | any | No | No |
+| `playsAvailable` | integer | No | No |
+
+## contest.plays.granted
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `contestCode` | string | Sì | No |
+| `count` | integer | Sì | No |
+| `effectId` | string | Sì | No |
+| `campaignCode` | string | No | No |
+
+## contest.status.changed
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `contestCode` | string | Sì | No |
+| `name` | string | No | No |
+| `previousStatus` | string | No | No |
+| `newStatus` | string | Sì | No |
+
+## contest.won
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `contestCode` | string | Sì | No |
+| `playId` | string | Sì | No |
+| `prizeCode` | string | Sì | No |
+| `prizeName` | string | Sì | No |
+| `prizeType` | any | Sì | No |
+| `points` | integer | No | No |
+| `rewardCode` | string | No | No |
+
+## coupon.issued
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `couponCode` | string | Sì | No |
+| `rewardCode` | string | Sì | No |
+| `expiresAt` | string | Sì | No |
+| `origin` | any | Sì | No |
+| `redemptionId` | string | No | No |
+
+## coupon.used
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `couponCode` | string | Sì | No |
+| `rewardCode` | string | No | No |
+
+## edition.closed
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `editionCode` | string | Sì | No |
+| `retained` | integer | Sì | No |
+| `downgraded` | integer | Sì | No |
+
+## member.birthday
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `age` | integer | No | No |
+
+## member.profile.completed
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `memberId` | string | No | No |
+
+## member.registered
+
+Snapshot completo del membro (nessun dato personale in chiaro fuori da qui; niente in log/metriche).
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `memberId` | string | Sì | No |
+| `firstName` | string | No | ⚠️ Sì |
+| `lastName` | string | No | ⚠️ Sì |
+| `nickname` | string | No | ⚠️ Sì |
+| `email` | string | No | ⚠️ Sì |
+| `externalId` | string | No | No |
+| `subjectRef` | string/null | No | No |
+| `status` | any | Sì | No |
+| `channel` | string | No | No |
+| `registeredAt` | string | No | No |
+| `birthDate` | string | No | ⚠️ Sì |
+| `city` | string | No | ⚠️ Sì |
+| `referralCode` | string | No | No |
+| `referredBy` | string/null | No | No |
+| `attributes` | object | No | ⚠️ Sì |
+| `labels` | array | No | No |
+
+## member.registered.v2
+
+Snapshot del membro senza dati identificativi: nome, cognome, soprannome, e-mail, data di nascita e città restano nel member-service. Età e territorio viaggiano come birthYear e province (Q-344).
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `memberId` | string | Sì | No |
+| `externalId` | string | No | No |
+| `emailHash` | string | No | No |
+| `subjectRef` | string/null | No | No |
+| `status` | any | Sì | No |
+| `channel` | string | No | No |
+| `registeredAt` | string | No | No |
+| `locale` | string | No | No |
+| `birthYear` | integer/null | No | No |
+| `province` | string/null | No | No |
+| `referralCode` | string | No | No |
+| `referredBy` | string/null | No | No |
+| `labels` | array | No | No |
+| `attributes` | object | No | No |
+
+## member.segment.entered
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `segmentCode` | string | Sì | No |
+| `segmentName` | string | No | No |
+
+## member.segment.left
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `segmentCode` | string | Sì | No |
+| `segmentName` | string | No | No |
+
+## member.status.changed
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `previousStatus` | any | Sì | No |
+| `newStatus` | any | Sì | No |
+| `reason` | string | No | No |
+
+## member.updated
+
+Snapshot completo del membro, come member.registered.
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `memberId` | string | Sì | No |
+| `firstName` | string | No | ⚠️ Sì |
+| `lastName` | string | No | ⚠️ Sì |
+| `nickname` | string | No | ⚠️ Sì |
+| `email` | string | No | ⚠️ Sì |
+| `externalId` | string | No | No |
+| `subjectRef` | string/null | No | No |
+| `status` | any | Sì | No |
+| `channel` | string | No | No |
+| `registeredAt` | string | No | No |
+| `birthDate` | string | No | ⚠️ Sì |
+| `city` | string | No | ⚠️ Sì |
+| `referralCode` | string | No | No |
+| `referredBy` | string/null | No | No |
+| `attributes` | object | No | ⚠️ Sì |
+| `labels` | array | No | No |
+
+## member.updated.v2
+
+Snapshot del membro dopo una modifica, senza dati identificativi: nome, cognome, soprannome, e-mail, data di nascita e città restano nel member-service. Età e territorio viaggiano come birthYear e province (Q-344).
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `memberId` | string | Sì | No |
+| `externalId` | string | No | No |
+| `emailHash` | string | No | No |
+| `subjectRef` | string/null | No | No |
+| `status` | any | Sì | No |
+| `channel` | string | No | No |
+| `registeredAt` | string | No | No |
+| `locale` | string | No | No |
+| `birthYear` | integer/null | No | No |
+| `province` | string/null | No | No |
+| `referralCode` | string | No | No |
+| `referredBy` | string/null | No | No |
+| `labels` | array | No | No |
+| `attributes` | object | No | No |
+
+## message.delivered
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `templateCode` | string | Sì | No |
+| `channel` | any | Sì | No |
+| `inboxMessageId` | string | Sì | No |
+| `category` | any | No | No |
+
+## referral.completed
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `role` | any | Sì | No |
+| `counterpartMemberId` | string | Sì | No |
+| `qualifyingActionId` | string | Sì | No |
+
+## reward.redemption.cancelled
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `redemptionId` | string | Sì | No |
+| `reason` | string | Sì | No |
+| `refund` | boolean | Sì | No |
+| `pointsCost` | integer | Sì | No |
+
+## reward.redemption.confirmed
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `redemptionId` | string | Sì | No |
+| `rewardCode` | string | Sì | No |
+| `rewardName` | string | Sì | No |
+| `pointsCost` | integer | Sì | No |
+
+## reward.redemption.fulfilled
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `redemptionId` | string | Sì | No |
+| `rewardCode` | string | Sì | No |
+| `couponCode` | string | No | No |
+| `note` | string | No | No |
+
+## reward.redemption.rejected
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `redemptionId` | string | Sì | No |
+| `reason` | string | Sì | No |
+
+## reward.redemption.requested
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `redemptionId` | string | Sì | No |
+| `rewardCode` | string | Sì | No |
+| `rewardName` | string | Sì | No |
+| `currency` | any | Sì | No |
+| `pointsCost` | integer | Sì | No |
+
+## reward.status.changed
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `rewardCode` | string | Sì | No |
+| `name` | string | No | No |
+| `previousStatus` | string | No | No |
+| `newStatus` | string | Sì | No |
+
+## tier.downgraded
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `previousTier` | string | Sì | No |
+| `newTier` | string | Sì | No |
+| `editionCode` | string | Sì | No |
+
+## tier.retained
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `tier` | string | Sì | No |
+| `editionCode` | string | Sì | No |
+
+## tier.upgraded
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `previousTier` | string | Sì | No |
+| `newTier` | string | Sì | No |
+| `periodSts` | integer | Sì | No |
+
+## wallet.points.adjusted
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `direction` | any | Sì | No |
+| `currency` | string | Sì | No |
+| `amount` | integer | Sì | No |
+| `reason` | string | Sì | No |
+| `note` | string | Sì | No |
+| `balanceAfter` | integer | Sì | No |
+
+## wallet.points.earned
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `ledgerEntryId` | string | Sì | No |
+| `effectId` | string | No | No |
+| `campaignCode` | string | No | No |
+| `currency` | any | Sì | No |
+| `baseAmount` | integer | No | No |
+| `tierCode` | string | No | No |
+| `tierMultiplier` | number | No | No |
+| `amount` | integer | Sì | No |
+| `balanceAfter` | integer | Sì | No |
+| `lotId` | string | No | No |
+| `availableAt` | string/null | No | No |
+| `expiresAt` | string/null | No | No |
+| `pending` | boolean | No | No |
+
+## wallet.points.expired
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `ledgerEntryId` | string | No | No |
+| `lotId` | string | No | No |
+| `currency` | any | Sì | No |
+| `amount` | integer | Sì | No |
+| `balanceAfter` | integer | Sì | No |
+
+## wallet.points.expiring
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `lotId` | string | No | No |
+| `currency` | any | Sì | No |
+| `amount` | integer | Sì | No |
+| `expiresAt` | string | Sì | No |
+
+## wallet.points.refunded
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `redemptionId` | string | Sì | No |
+| `amount` | integer | Sì | No |
+| `balanceAfter` | integer | Sì | No |
+
+## wallet.points.released
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `ledgerEntryId` | string | No | No |
+| `lotId` | string | No | No |
+| `currency` | any | Sì | No |
+| `amount` | integer | Sì | No |
+| `balanceAfter` | integer | Sì | No |
+
+## wallet.points.spent
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `ledgerEntryId` | string | Sì | No |
+| `currency` | any | Sì | No |
+| `amount` | integer | Sì | No |
+| `balanceAfter` | integer | Sì | No |
+| `redemptionId` | string | Sì | No |
+
+## wallet.spend.rejected
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `redemptionId` | string | Sì | No |
+| `reason` | any | Sì | No |
+| `requested` | integer | Sì | No |
+| `available` | integer | Sì | No |

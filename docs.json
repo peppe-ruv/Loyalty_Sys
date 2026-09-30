@@ -30,7 +30,8 @@
               "concetti/punti-e-tier",
               "concetti/premi-e-gioco",
               "concetti/eventi-kafka",
-              "concetti/glossario"
+              "concetti/glossario",
+              "concetti/governance"
             ]
           },
           {
@@ -73,7 +74,17 @@
             "group": "Architettura & convenzioni",
             "pages": [
               "specifiche/architettura",
-              "specifiche/eventi-e-topic",
+              {
+                "group": "Eventi e topic",
+                "pages": [
+                  "specifiche/eventi-e-topic",
+                  "specifiche/eventi/action",
+                  "specifiche/eventi/effect",
+                  "specifiche/eventi/fact",
+                  "specifiche/eventi/audit",
+                  "specifiche/eventi/dlq"
+                ]
+              },
               "specifiche/convenzioni-backend",
               "specifiche/frontend-fondamenta",
               "specifiche/frontend-backoffice",
@@ -132,7 +143,7 @@
         ]
       },
       {
-        "tab": "API Reference",
+        "tab": "Riferimento API",
         "groups": [
           {
             "group": "Panoramica",
@@ -143,16 +154,22 @@
             ]
           },
           {
-            "group": "Servizi",
+            "group": "Portale Membri",
             "pages": [
-              "api/ingestion",
-              "api/member",
-              "api/campaign",
-              "api/wallet",
-              "api/reward",
-              "api/gamification",
-              "api/engagement",
-              "api/insight"
+              "openapi: contracts/api/portal.openapi.yaml"
+            ]
+          },
+          {
+            "group": "Backoffice (Servizi)",
+            "pages": [
+              "openapi: contracts/api/ingestion-service.openapi.yaml",
+              "openapi: contracts/api/member-service.openapi.yaml",
+              "openapi: contracts/api/campaign-service.openapi.yaml",
+              "openapi: contracts/api/wallet-service.openapi.yaml",
+              "openapi: contracts/api/reward-service.openapi.yaml",
+              "openapi: contracts/api/gamification-service.openapi.yaml",
+              "openapi: contracts/api/engagement-service.openapi.yaml",
+              "openapi: contracts/api/insight-service.openapi.yaml"
             ]
           }
         ]

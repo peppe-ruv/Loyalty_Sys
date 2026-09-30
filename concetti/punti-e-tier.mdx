@@ -76,32 +76,39 @@ Il portale mostra:
 - Tier corrente, `STS` maturato nell'edizione, mancante al tier successivo, moltiplicatore.
 - Elenco movimenti con titolo leggibile, icona per tipo, indicazione di `pending` ed `expiresAt` dove pertinente.
 
+## Ciclo di vita: Lotto e Edizione
+
+### Stati del Lotto
+```mermaid
+stateDiagram-v2
+  accTitle: Stati del lotto punti
+  accDescr: Ciclo di vita di un lotto di punti
+
+  [*] --> PENDING
+  PENDING --> ACTIVE
+  ACTIVE --> EXHAUSTED: Consumo totale
+  ACTIVE --> EXPIRED: Scadenza valuta
+  EXHAUSTED --> [*]
+  EXPIRED --> [*]
+```
+Il lotto entra in stato `PENDING` quando accreditato ma non ancora spendibile. Passa in `ACTIVE` diventando parte del saldo del membro. Viene consumato fino allo stato `EXHAUSTED` oppure `EXPIRED` se scade.
+
+### Anno di edizione e discesa morbida
+```mermaid
+flowchart LR
+  accTitle: Edizione e Discesa Morbida
+  accDescr: Comportamento del tier a fine edizione
+  classDef default fill:#f9f9f9,stroke:#333,stroke-width:2px;
+
+  A[Tier Edizione Corrente] -->|Fine Edizione| B{Ricalcolo}
+  B -->|Punti mantenuti| C[Stesso Tier]
+  B -->|Punti insufficienti| D[Discesa Morbida -1 Tier]
+```
+Alla fine dell'anno di edizione, i `STS` vengono ricalcolati. Se i punti mantenuti nel periodo non bastano, il membro scende al massimo di un solo tier (discesa morbida) per mitigare l'impatto sull'utente, dopodiché la nuova edizione riparte.
+
 ## Stati dei lotti e dell'edizione
 
 I punti non sono un numero unico sul conto. Sono organizzati in lotti, ognuno con una vita propria. Anche l'edizione ha stati che determinano quando i punti scadono e quando il tier viene ricalcolato.
-
-### Lotti punti
-
-| Stato | Significato |
-| --- | --- |
-| `PENDING` | Accreditato ma non ancora spendibile (per esempio in attesa di conferma reso) |
-| `ACTIVE` | Spendibile, incluso nel saldo del membro |
-| `EXHAUSTED` | Consumato al 100% in richieste premio o rettifiche |
-| `EXPIRED` | Scaduto per policy di scadenza della valuta |
-
-Il consumo segue la regola **FIFO** (first in, first out): quando il membro spende punti, wallet preleva prima dai lotti `ACTIVE` più vecchi. Questo protegge i punti che stanno per scadere.
-
-### Edizione
-
-| Stato | Significato |
-| --- | --- |
-| `PLANNED` | Creata, con date e soglie tier definite, ma non ancora attiva |
-| `ACTIVE` | In corso: i nuovi accrediti `STS` puntano a questa edizione e il tier si calcola sui punti maturati qui |
-| `CLOSED` | Chiusa: il calcolo tier è definitivo, i `STS` vengono ricalcolati; i `PTS` residui restano spendibili fino a `redemptionGraceUntil` |
-
-<Warning>
-  Alla chiusura di un'edizione gli `STS` azzerati non sono recuperabili. Pianifica la chiusura con attenzione.
-</Warning>
 
 ## Prossimo passo
 

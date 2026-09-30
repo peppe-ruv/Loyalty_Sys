@@ -620,3 +620,34 @@ test('modalità predefinita e refresh: pagine pure di docs/17 e snapshot; le evi
     assert.deepEqual([...a], [...b]);
   });
 });
+
+test('renderEvents genera pagine con escape MDX', async () => {
+  const tmpDir = path.join(os.tmpdir(), `docs-sync-test-${Date.now()}`);
+  fs.mkdirSync(tmpDir);
+  const eventsDir = path.join(tmpDir, 'contracts/events/action');
+  fs.mkdirSync(eventsDir, { recursive: true });
+
+  const mockSchema = {
+    title: 'action.test',
+    description: 'Un test con <tag> e {var} e <!-- commento -->',
+    type: 'object',
+    required: ['id'],
+    properties: {
+      id: { type: 'string', 'x-lh-pii': false },
+      email: { type: 'string', 'x-lh-pii': true }
+    }
+  };
+  fs.writeFileSync(path.join(eventsDir, 'action.test.schema.json'), JSON.stringify(mockSchema));
+
+  const docsSync = await import('./docs-sync.mjs');
+  const files = docsSync.renderEvents(tmpDir);
+
+  const actionPage = files.get('specifiche/eventi/action.mdx');
+  assert.ok(actionPage);
+  assert.match(actionPage, /&lt;tag>/);
+  assert.match(actionPage, /\\\{var\\\}/);
+  assert.match(actionPage, /&lt;!-- commento -->/);
+  assert.match(actionPage, /⚠️ Sì/);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});

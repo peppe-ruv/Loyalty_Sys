@@ -1,0 +1,64 @@
+---
+title: "Eventi effect"
+description: "Schemi degli eventi della famiglia effect."
+---
+
+Questa pagina è generata automaticamente dagli schemi JSON in `contracts/events/effect/`.
+
+## badge.award
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `effectId` | string | Sì | No |
+| `campaignCode` | string | Sì | No |
+| `actionId` | string | Sì | No |
+| `actionType` | string | Sì | No |
+| `badgeCode` | string | Sì | No |
+
+## coupon.issue
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `effectId` | string | Sì | No |
+| `campaignCode` | string | Sì | No |
+| `actionId` | string | Sì | No |
+| `actionType` | string | Sì | No |
+| `rewardCode` | string | Sì | No |
+
+## message.send
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `effectId` | string | Sì | No |
+| `campaignCode` | string | Sì | No |
+| `actionId` | string | Sì | No |
+| `actionType` | string | Sì | No |
+| `templateCode` | string | Sì | No |
+| `params` | object | No | No |
+
+## plays.grant
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `effectId` | string | Sì | No |
+| `campaignCode` | string | Sì | No |
+| `actionId` | string | Sì | No |
+| `actionType` | string | Sì | No |
+| `contestCode` | string | Sì | No |
+| `count` | integer | Sì | No |
+
+## points.grant
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `effectId` | string | Sì | No |
+| `campaignCode` | string | Sì | No |
+| `actionId` | string | Sì | No |
+| `actionType` | string | Sì | No |
+| `currency` | any | Sì | No |
+| `baseAmount` | integer | Sì | No |
+| `campaignMultiplier` | number | Sì | No |
+| `amount` | integer | Sì | No |
+| `tierMultiplierApplies` | boolean | Sì | No |
+| `pendingDays` | integer | Sì | No |
+| `description` | string | No | No |

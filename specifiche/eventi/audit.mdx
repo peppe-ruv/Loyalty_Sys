@@ -1,0 +1,20 @@
+---
+title: "Eventi audit"
+description: "Schemi degli eventi della famiglia audit."
+---
+
+Questa pagina è generata automaticamente dagli schemi JSON in `contracts/events/audit/`.
+
+## entry
+
+Voce di audit; l'attore (lhactor) è obbligatorio a livello di envelope per gli audit.
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `service` | string | Sì | No |
+| `entityType` | string | Sì | No |
+| `entityId` | string | Sì | No |
+| `action` | any | Sì | No |
+| `summary` | string | Sì | No |
+| `before` | object/null | No | No |
+| `after` | object/null | No | No |

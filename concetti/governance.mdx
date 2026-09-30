@@ -1,0 +1,48 @@
+---
+title: "governance"
+sidebarTitle: "Governance"
+description: "Processi di approvazione, webhook e gestione della Dead Letter Queue (DLQ)."
+---
+
+Questa pagina descrive come Loyalty Hub garantisce la governance operativa dei dati. Ogni azione sensibile viene sottoposta a una **macchina delle approvazioni**; le notifiche verso l'esterno passano tramite **webhook**, e gli errori asincroni vengono instradati in una **Dead Letter Queue (DLQ)**.
+
+## Macchina delle approvazioni
+
+```mermaid
+stateDiagram-v2
+  accTitle: Governance oggetti
+  accDescr: Stati di approvazione per campagne, premi e concorsi
+
+  [*] --> DRAFT
+  DRAFT --> IN_REVIEW: Richiesta approvazione
+  IN_REVIEW --> APPROVED: Approvato
+  IN_REVIEW --> DRAFT: Rifiutato
+  APPROVED --> LIVE: Pubblicazione
+  LIVE --> PAUSED: Sospeso
+  PAUSED --> LIVE: Ripristinato
+  LIVE --> ENDED: Scadenza/Chiusura
+  ENDED --> ARCHIVED
+  ARCHIVED --> [*]
+```
+
+Gli oggetti di business critici (campagne, premi, concorsi) non vengono messi `LIVE` da una singola persona. Il ruolo `MARKETING` definisce i parametri e sposta lo stato in `IN_REVIEW`. Il ruolo `LEGAL` (o simile) esamina la configurazione e decide se promuoverla ad `APPROVED` oppure respingerla.
+
+## Webhook e DLQ
+
+Quando il sistema comunica verso l'esterno, garantisce affidabilità tramite tentativi multipli.
+
+```mermaid
+flowchart LR
+  accTitle: Webhook e DLQ
+  accDescr: Come i webhook gestiscono gli errori e instradano in DLQ
+  classDef default fill:#f9f9f9,stroke:#333,stroke-width:2px;
+
+  S[Servizio] -->|Trigger| W(Webhook Sender)
+  W -->|Tentativo HTTP| D{Successo?}
+  D -->|Sì| OK[Fine]
+  D -->|No| R{Retry superati?}
+  R -->|No| W
+  R -->|Sì| DLQ[Dead Letter Queue]
+```
+
+La `DLQ` è un registro centralizzato, gestito tipicamente da `insight-service`, che accumula i messaggi falliti assieme all'errore originario. Gli amministratori possono esaminare e ritentare o scartare l'operazione direttamente dal backoffice.

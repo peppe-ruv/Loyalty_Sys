@@ -1195,6 +1195,62 @@ function gitMeta(root) {
   }
 }
 
+
+
+// --- Eventi ----------------------------------------------------------------------------------------------------
+
+export function renderEvents(root) {
+  const eventsDir = path.join(root, 'contracts/events');
+  if (!fs.existsSync(eventsDir)) return new Map();
+
+  const files = new Map();
+  const families = ['action', 'effect', 'fact', 'audit', 'dlq'];
+
+  for (const family of families) {
+    const familyDir = path.join(eventsDir, family);
+    if (!fs.existsSync(familyDir)) continue;
+
+    const schemas = fs.readdirSync(familyDir).filter(f => f.endsWith('.schema.json')).sort();
+    if (schemas.length === 0) continue;
+
+    let textOut = `---
+title: "Eventi ${family}"
+description: "Schemi degli eventi della famiglia ${family}."
+---
+
+Questa pagina è generata automaticamente dagli schemi JSON in \`contracts/events/${family}/\`.
+
+`;
+
+    for (const schema of schemas) {
+      const schemaText = fs.readFileSync(path.join(familyDir, schema), 'utf8');
+      const data = JSON.parse(schemaText);
+      const name = schema.replace('.schema.json', '');
+      textOut += `## ${name}\n\n`;
+
+      if (data.description) {
+        let escapedDesc = data.description.replace(/</g, '&lt;').replace(/\{/g, '\\{').replace(/\}/g, '\\}');
+        escapedDesc = escapedDesc.replace(/<!--/g, '&lt;!--');
+        textOut += `${escapedDesc}\n\n`;
+      }
+
+      textOut += `| Campo | Tipo | Obbligatorio | PII |\n`;
+      textOut += `| --- | --- | --- | --- |\n`;
+
+      const required = new Set(data.required || []);
+      for (const [prop, def] of Object.entries(data.properties || {})) {
+        const type = Array.isArray(def.type) ? def.type.join('/') : (def.type || 'any');
+        const req = required.has(prop) ? 'Sì' : 'No';
+        const pii = def['x-lh-pii'] ? '⚠️ Sì' : 'No';
+        textOut += `| \`${prop}\` | ${type} | ${req} | ${pii} |\n`;
+      }
+      textOut += '\n';
+    }
+    files.set(`specifiche/eventi/${family}.mdx`, textOut);
+  }
+  return files;
+}
+
 // --- Pagine ----------------------------------------------------------------------------------------------------
 
 /** Le pagine del backlog: percorso → contenuto. Funzione pura di docs/17 (modello), del generatore e dello snapshot. */
@@ -1246,6 +1302,8 @@ export function checkRoot(root) {
   if (structural.length) return [...structural, MSG_REFRESH];
 
   const { files } = renderPages(model, snap);
+  const eventFiles = renderEvents(root);
+  for (const [k, v] of eventFiles) files.set(k, v);
   for (const [p, content] of files) {
     const current = readIf(root, p);
     if (current === null) problems.push(`${p}: pagina assente`);
@@ -1273,6 +1331,8 @@ export function checkRoot(root) {
 /** Scrive pagine, snapshot e gruppo «Backlog» di docs.json; toglie le pagine non più generate. */
 export function writeRoot(root, model, snap) {
   const { files, evsByEpic } = renderPages(model, snap);
+  const eventFiles = renderEvents(root);
+  for (const [k, v] of eventFiles) files.set(k, v);
   const all = new Map(files);
   all.set(SNAPSHOT, serializeSnapshot(snap));
   all.set('docs.json', updateDocsJson(fs.readFileSync(path.join(root, 'docs.json'), 'utf8'), model));

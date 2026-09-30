@@ -19,6 +19,8 @@ Loyalty Hub è progettato attorno a poche regole rigide. Questa pagina le enunci
 
 ```mermaid
 flowchart LR
+  accTitle: Diagramma architettura
+  accDescr: Panoramica componenti sistema
   subgraph Client
     EXT["Fonti esterne\n(crm, app, ecommerce, billing, partner)"]
     WEB["web: Next.js\n(hub, backoffice, portale)"]
@@ -53,6 +55,29 @@ flowchart LR
   TA & TE & TF & TU & TD --> INS
   Servizi --- PG
 ```
+
+## Profili Demo ed Enterprise
+
+```mermaid
+flowchart LR
+  accTitle: Profili di deploy
+  accDescr: Differenza tra demo ed enterprise
+  classDef default fill:#f9f9f9,stroke:#333,stroke-width:2px;
+
+  subgraph Demo
+    D1[1 replica Web]
+    D2["8 servizi backend (Vercel/Render)"]
+    D3[Auth header simulato]
+  end
+
+  subgraph Enterprise
+    E1[Ingress Gateway]
+    E2["N repliche Backend (Kubernetes)"]
+    E3[OIDC Keycloak]
+  end
+```
+
+Nel profilo **demo** (a costo zero), l'architettura è leggera, senza Identity Provider (le identità sono mock) ed eseguita su servizi PaaS gratuiti. Nel profilo **enterprise** abbiamo una distribuzione Kubernetes tramite Helm, ingress gateway, OIDC (Keycloak) e deployment scalabile.
 
 ## I confini in una tabella
 
@@ -100,4 +125,4 @@ Il progetto `web/` è un'applicazione Next.js unica che ospita:
 
 ## Prossimo passo
 
-Approfondisci i singoli servizi in [Servizi](reference/servizi) o i contratti eventi in [Eventi Kafka](reference/eventi-kafka).
+Approfondisci i singoli servizi in [Servizi](/specifiche/architettura) o i contratti eventi in [Eventi Kafka](/specifiche/eventi-e-topic).

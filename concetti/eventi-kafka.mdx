@@ -6,6 +6,29 @@ description: "Formato CloudEvents 1.0, cinque topic Kafka, estensioni lh*, chiav
 
 Il bus è il contratto pubblico tra i microservizi. Questa pagina definisce topic, envelope e regole di correlazione. Ciò che è scritto qui è vincolante per tutti i servizi.
 
+## Il mapping: dalla fonte al saldo
+
+```mermaid
+flowchart LR
+  accTitle: Mapping Fonte-Saldo
+  accDescr: Come un'azione dalla fonte diventa saldo
+  classDef default fill:#f9f9f9,stroke:#333,stroke-width:2px;
+
+  F(Fonte) --> |Azione Ammessa| A(Tipo di Azione)
+  A --> |Regola di business| C(Campagna)
+  C --> |Decisione| E(Effetto)
+  E --> |Accredito| S(Saldo)
+
+  %% Esempi del seed
+  F -.-> |es. ecommerce| F1[ecommerce]
+  A -.-> |es. acquisto concluso| A1[purchase.completed]
+  C -.-> |es. Benvenuto 100| C1[Campagna Welcome]
+  E -.-> |es. GRANT 100 PTS| E1[GRANT PTS]
+  S -.-> |es. 100 PTS| S1[Wallet PTS]
+```
+
+Il diagramma mostra come una `Fonte` invia un `Tipo di Azione` ammesso. Quest'azione viene valutata da una `Campagna` che genera un `Effetto`. L'effetto infine modifica il `Saldo` del membro.
+
 ## I cinque topic in un colpo d'occhio
 
 Loyalty Hub separa gli eventi in cinque topic Kafka. Ognuno ha un ruolo preciso, un tipo di produttore e un tipo di consumatore. Conoscere "chi scrive dove" ti aiuta a leggere i log e a diagnosticare i blocchi.
@@ -49,6 +72,29 @@ Loyalty Hub separa gli eventi in cinque topic Kafka. Ognuno ha un ruolo preciso,
 <Tip>
   Quando qualcosa non funziona, il percorso di indagine è sempre lo stesso: guarda l'action su `lh.actions.v1`, poi cerca il correlation ID nella evaluation log di campaign, poi controlla `lh.effects.v1`, poi `lh.facts.v1`. Se manca un effetto atteso, il problema è nel motore; se manca il fatto, è nel servizio consumatore.
 </Tip>
+
+## Il mapping: dalla fonte al saldo
+
+```mermaid
+flowchart LR
+  accTitle: Mapping Fonte-Saldo
+  accDescr: Come un'azione dalla fonte diventa saldo
+  classDef default fill:#f9f9f9,stroke:#333,stroke-width:2px;
+
+  F(Fonte) --> |Azione Ammessa| A(Tipo di Azione)
+  A --> |Regola di business| C(Campagna)
+  C --> |Decisione| E(Effetto)
+  E --> |Accredito| S(Saldo)
+
+  %% Esempi del seed
+  F -.-> |es. ecommerce| F1[ecommerce]
+  A -.-> |es. acquisto concluso| A1[purchase.completed]
+  C -.-> |es. Benvenuto 100| C1[Campagna Welcome]
+  E -.-> |es. GRANT 100 PTS| E1[GRANT PTS]
+  S -.-> |es. 100 PTS| S1[Wallet PTS]
+```
+
+Il diagramma mostra come una `Fonte` invia un `Tipo di Azione` ammesso. Quest'azione viene valutata da una `Campagna` che genera un `Effetto`. L'effetto infine modifica il `Saldo` del membro.
 
 ## I cinque topic
 
@@ -195,4 +241,4 @@ Il diagramma si legge dall'alto: il confronto è sempre col merge-base e, se esi
 
 ## Prossimo passo
 
-Per gli endpoint REST esposti dai servizi vai a [API](reference/api).
+Per gli endpoint REST esposti dai servizi vai a [API](/api/introduzione).

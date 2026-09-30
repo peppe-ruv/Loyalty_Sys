@@ -54,12 +54,74 @@ Il campo `type` del premio dice che cosa il membro riceve. Determina anche quali
   Il `type` è indipendente dalla fascia (`band`) che determina il costo in PTS. Un premio PHYSICAL può stare in qualunque fascia. Vedi il campo `fulfilment` in [Backoffice](/specifiche/frontend-backoffice#opzioni-di-configurazione-ricorrenti) per come si consegna.
 </Note>
 
+## Ciclo di vita per gli oggetti governati
+
+Gran parte degli oggetti complessi gestiti dal backoffice segue una macchina a stati comune per il processo di configurazione, approvazione e pubblicazione (governance). Le entità che usano questa macchina includono: Campagne, Premi (Reward) e Concorsi.
+
+```mermaid
+stateDiagram-v2
+  accTitle: Governance oggetti
+  accDescr: Stati di approvazione per campagne, premi e concorsi
+
+  [*] --> DRAFT
+  DRAFT --> IN_REVIEW: Richiesta approvazione
+  IN_REVIEW --> APPROVED: Approvato
+  IN_REVIEW --> DRAFT: Rifiutato
+  APPROVED --> LIVE: Pubblicazione
+  LIVE --> PAUSED: Sospeso
+  PAUSED --> LIVE: Ripristinato
+  LIVE --> ENDED: Scadenza/Chiusura
+  ENDED --> ARCHIVED
+  ARCHIVED --> [*]
+```
+Questo flusso separa le responsabilità tra `MARKETING` (che modella e pubblica) e `LEGAL`/`CARE` (che approva).
+
 ## Richieste premio con saga
+## Richieste premio con saga
+
+```mermaid
+sequenceDiagram
+  accTitle: Saga richiesta premio
+  accDescr: Sequenza di compensazione tra reward e wallet
+
+  participant R come Reward
+  participant W come Wallet
+
+  R->>W: Evento redemption.requested
+  alt Saldo Sufficiente
+    W->>R: Evento wallet.points.spent
+    Note over R: Richiesta CONFIRMED
+  else Saldo Insufficiente
+    W->>R: Evento wallet.spend.rejected
+    Note over R: Richiesta FAILED
+  end
+```
+Il diagramma mostra come una richiesta premio coinvolga wallet-service (per verificare i fondi e decurtarli) prima di confermare la `redemption` in reward-service.
+
+### Stati della richiesta premio
+
+```mermaid
+stateDiagram-v2
+  accTitle: Stati richiesta premio
+  accDescr: Evoluzione della redemption
+
+  [*] --> PENDING
+  PENDING --> CONFIRMED: Punti scalati
+  PENDING --> FAILED: Saldo KO
+  CONFIRMED --> FULFILLED: Consegna
+  CONFIRMED --> EXPIRED: Non ritirato
+  FULFILLED --> [*]
+  FAILED --> [*]
+  EXPIRED --> [*]
+```
+
 
 Una richiesta premio non è una scrittura semplice: coinvolge più servizi che devono restare consistenti. Loyalty Hub usa una **saga coreografata** su Kafka.
 
 ```mermaid
 sequenceDiagram
+  accTitle: Saga richieste premio
+  accDescr: Stati e servizi per un premio
   participant Portale
   participant RWD as reward-service
   participant WAL as wallet-service
@@ -79,6 +141,29 @@ Se il wallet non ha saldo sufficiente, la saga fallisce e il portale mostra un e
 Alcuni premi consegnano un **coupon** (codice sconto, buono digitale). I coupon vengono estratti da un **pool** caricato dal backoffice. Ogni coupon ha stato (`AVAILABLE`, `ASSIGNED`, `REDEEMED`, `EXPIRED`) e appartiene a un premio.
 
 > **Nota:** Se il pool si esaurisce, la richiesta premio fallisce con `COUPON_POOL_EMPTY`. Configura sempre una soglia di allarme in backoffice.
+
+## Instant win
+
+### Sequenza di giocata
+```mermaid
+sequenceDiagram
+  accTitle: Sequenza giocata Instant Win
+  accDescr: Esecuzione di una giocata dal portale
+
+  participant W come Web
+  participant G come Gamification
+  participant I come Ingestion
+
+  W->>G: POST /plays (richiesta giocata)
+  G->>G: Consuma ticket, verifica istante
+  alt Vincente
+    G->>I: Evento contest.won (Azione interna)
+    G-->>W: Esito WON
+  else Perdente
+    G-->>W: Esito LOST
+  end
+```
+Una volta vinto un concorso, l'evento `contest.won` torna come azione interna al ponte fatti-azioni, permettendo al motore di assegnare i premi associati in modo flessibile.
 
 ## Instant win
 

@@ -113,6 +113,38 @@ jobs:
 
   # Governance del repository (docs/18 §3.13, ADR-041): le ADR di docs/13 solo in aggiunta e gli ID di seed/
   # invariati senza la label "decisione". Gira solo sulle pull request; dopo aver aggiunto la label si rilancia il job.
+  docs:
+    name: docs
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Filtro file docs
+        id: filter
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          files=$(git diff --name-only "origin/$BASE_REF...HEAD")
+          doc='^(docs/|site/|api/|concetti/|guide/|operations/|specifiche/|getting-started/|docs_v2/|docs\.json$)|\.mdx?$'
+          if grep -Eq "$doc" <<< "$files"; then echo "docs=true" >> "$GITHUB_OUTPUT"; else echo "docs=false" >> "$GITHUB_OUTPUT"; fi
+      - name: Pagine generate allineate (docs-sync)
+        if: steps.filter.outputs.docs == 'true'
+        run: node --test scripts/docs-sync.test.mjs && node scripts/docs-sync.mjs --check
+      - name: Broken links
+        if: steps.filter.outputs.docs == 'true'
+        run: npx -y mint@4.2.952 broken-links
+      - name: Validità diagrammi Mermaid
+        if: steps.filter.outputs.docs == 'true'
+        run: node scripts/check-mermaid.mjs docs api concetti getting-started guide operations specifiche
+      - name: Frontmatter valido
+        if: steps.filter.outputs.docs == 'true'
+        run: node --test scripts/check-frontmatter.test.mjs && node scripts/check-frontmatter.mjs
+
   guard:
     name: guard
     if: github.event_name == 'pull_request'

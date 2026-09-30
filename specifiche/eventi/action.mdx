@@ -1,0 +1,146 @@
+---
+title: "Eventi action"
+description: "Schemi degli eventi della famiglia action."
+---
+
+Questa pagina è generata automaticamente dagli schemi JSON in `contracts/events/action/`.
+
+## achievement.completed
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `achievementCode` | string | Sì | No |
+| `achievementName` | string | No | No |
+| `periodKey` | string | Sì | No |
+
+## app.login.daily
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `platform` | any | No | No |
+
+## badge.awarded
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `badgeCode` | string | Sì | No |
+| `badgeName` | string | No | No |
+| `origin` | any | No | No |
+
+## directdebit.activated
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `contractId` | string | Sì | No |
+
+## ebill.activated
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `contractId` | string | Sì | No |
+
+## instantwin.won
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `contestCode` | string | Sì | No |
+| `playId` | string | No | No |
+| `prizeCode` | string | Sì | No |
+| `prizeName` | string | No | No |
+| `prizeType` | any | Sì | No |
+| `points` | integer | No | No |
+| `rewardCode` | string | No | No |
+
+## member.birthday
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `age` | integer | No | No |
+
+## member.profile.completed
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `memberId` | string | No | No |
+
+## member.registered
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `channel` | string | No | No |
+| `referred` | boolean | No | No |
+
+## newsletter.subscribed
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+
+## purchase.completed
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `orderId` | string | Sì | No |
+| `amount` | number | Sì | No |
+| `currency` | string | Sì | No |
+| `channel` | any | No | No |
+| `items` | array | No | No |
+
+## purchase.returned
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `orderId` | string | Sì | No |
+| `amount` | number | Sì | No |
+
+## quiz.completed
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `quizId` | string | Sì | No |
+| `correctAnswers` | integer | Sì | No |
+| `totalQuestions` | integer | Sì | No |
+
+## referral.completed
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `role` | any | Sì | No |
+| `counterpartMemberId` | string | Sì | No |
+| `qualifyingActionId` | string | No | No |
+
+## review.submitted
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `productId` | string | Sì | No |
+| `rating` | integer | Sì | No |
+
+## reward.redeemed
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `rewardCode` | string | Sì | No |
+| `pointsCost` | integer | Sì | No |
+| `redemptionId` | string | No | No |
+| `rewardName` | string | No | No |
+
+## selfreading.submitted
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `meterId` | string | Sì | No |
+| `reading` | number | Sì | No |
+
+## survey.completed
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `surveyId` | string | Sì | No |
+| `score` | integer | No | No |
+
+## tier.upgraded
+
+| Campo | Tipo | Obbligatorio | PII |
+| --- | --- | --- | --- |
+| `previousTier` | string | No | No |
+| `newTier` | string | Sì | No |

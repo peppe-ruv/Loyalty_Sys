@@ -20,6 +20,8 @@ Ogni cosa che accade è un **evento** su Kafka. Non c'è un orchestratore: i ser
 
 ```mermaid
 flowchart LR
+  accTitle: Flowchart concetti
+  accDescr: Il flusso da azione a punti
   SRC["Fonti esterne\n(crm, ecommerce, app)"] --> ING["ingestion"]
   ING -->|lh.actions.v1| CMP["campaign"]
   CMP -->|lh.effects.v1| WAL["wallet"]
@@ -47,7 +49,7 @@ Il ciclo è chiuso: le cose che accadono internamente (una vincita, un salto di 
     Fasce, coupon, richieste premio con saga, instant win, obiettivi, badge, classifiche.
   </Card>
 
-  <Card title="Architettura" icon="layer-group" href="reference/architettura">
+  <Card title="Architettura" icon="layer-group" href="/concetti/architettura">
     Confini dei microservizi, topic Kafka e principi di progetto.
   </Card>
 </CardGroup>
