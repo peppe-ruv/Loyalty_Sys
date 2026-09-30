@@ -134,6 +134,28 @@ class CouponIT {
         assertThat(page.path("page").path("totalItems").asLong()).isEqualTo(3002);
     }
 
+    /** In demo il seme resta (Q-614): codici del seed noti, stesso stato di partenza → stessi codici, seme nell'audit. */
+    @Test
+    void demoKeepsTheSeededCodesAndExposesTheSeed() {
+        // Codici del seed demo calcolati con l'algoritmo di prima di Q-614 (docs/10 §1.3).
+        assertThat(get("/v1/coupons/CAF-ATB2-DDFW").path("status").asString()).isEqualTo("AVAILABLE");
+        assertThat(get("/v1/coupons/CIN-Q597-AHHZ").path("poolCode").asString()).isEqualTo("POOL-CIN");
+        assertThat(get("/v1/coupons/SHP25-X8H6-96VH").path("poolCode").asString()).isEqualTo("POOL-SHP25");
+
+        String id = send("POST", "/v1/coupon-pools", "MARKETING:giulia",
+                Map.of("code", "POOL-IT-SEED", "name", "Pool con seme", "prefix", "ITS", "validityDays", 30), 201)
+                .path("id").asString();
+        JsonNode first = send("POST", "/v1/coupon-pools/" + id + "/generate", "MARKETING:giulia", Map.of("count", 20), 200);
+        assertThat(first.path("seed").isNumber()).as("in demo il seme è nella risposta").isTrue();
+        List<String> firstCodes = codes(id);
+        jdbc.sql("DELETE FROM coupon WHERE pool_id = ?").param(id).update();
+        JsonNode second = send("POST", "/v1/coupon-pools/" + id + "/generate", "MARKETING:giulia", Map.of("count", 20), 200);
+        assertThat(second.path("seed").asLong()).isEqualTo(first.path("seed").asLong());
+        assertThat(codes(id)).as("stesso seme, stessi codici").isEqualTo(firstCodes);
+        assertThat(jdbc.sql("SELECT count(*) FROM outbox WHERE topic = 'lh.audit.v1' AND msg_key = ? AND payload::text LIKE '%seed%'")
+                .param("COUPON_POOL:POOL-IT-SEED").query(Long.class).single()).isEqualTo(2L);
+    }
+
     @Test
     void couponIssueEffectIsIdempotentAndTheTillUsesItOnce() throws Exception {
         String effectId = "EFF-IT-" + System.nanoTime();
