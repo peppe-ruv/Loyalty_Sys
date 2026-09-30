@@ -9,7 +9,9 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
@@ -38,6 +40,9 @@ class DemoResetIT {
     @Value("${local.server.port}")
     private int port;
 
+    @Autowired
+    private JdbcClient jdbc;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         String base = PG.getJdbcUrl("postgres", "postgres");
@@ -50,6 +55,27 @@ class DemoResetIT {
     @AfterAll
     void tearDown() throws Exception {
         PG.close();
+    }
+
+    /**
+     * Q-629: la migrazione {@code V3__reference_data.sql} ha già inserito valute e livelli prima che il seeder parta; il
+     * seeder li riscrive con {@code upsert} e il reset cancella i livelli e li riscrive dal seed: mai violazioni di
+     * chiave e, dopo ogni passo, le righe di riferimento sono esattamente quelle di {@code seed/}.
+     */
+    @Test
+    void testReferenceDataSurvivesSeederAndReset() {
+        ReferenceDataSeedAssertions.assertMatchesSeed(jdbc); // migrazione + seeder all'avvio
+
+        // L'operatore cambia un livello e una policy, poi un livello extra: il reset riporta tutto al seed.
+        jdbc.sql("UPDATE tier SET threshold_sts = 1234 WHERE code = 'GOLD'").update();
+        jdbc.sql("UPDATE currency SET expiry_policy = '{\"type\":\"NEVER\"}'::jsonb WHERE code = 'PTS'").update();
+        jdbc.sql("INSERT INTO tier (code, name, rank, threshold_sts) VALUES ('DIAMOND', 'Diamond', 4, 9000)").update();
+
+        send("POST", "/v1/demo/reset", "ADMIN:marta", null, 200);
+        ReferenceDataSeedAssertions.assertMatchesSeed(jdbc);
+
+        send("POST", "/v1/demo/reset", "ADMIN:marta", null, 200); // il reset ripetuto non fallisce
+        ReferenceDataSeedAssertions.assertMatchesSeed(jdbc);
     }
 
     @Test

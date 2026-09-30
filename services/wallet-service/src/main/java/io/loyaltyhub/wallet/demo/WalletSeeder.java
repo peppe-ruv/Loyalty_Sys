@@ -43,6 +43,11 @@ import java.util.Map;
  * Carica valute, livelli, edizioni e i saldi iniziali dei wallet dai seed (docs/servizi/wallet-service.md §6).
  * Attivo col profilo {@code demo}, idempotente, ripetibile via {@code POST /v1/demo/reset}. Lotti e movimenti
  * storici arrivano con M3: qui i saldi sono impostati direttamente da {@code seed/wallets.json}.
+ * <p>
+ * Valute e livelli esistono già in ogni profilo: li inserisce {@code V3__reference_data.sql} (Q-629, opzione B). Il
+ * seeder li riscrive con {@code upsert} dagli stessi file seed, quindi non entra in conflitto con la migrazione e dopo
+ * un reset i riferimenti tornano esattamente al seed; {@code ReferenceDataIT} e {@code DemoResetIT} verificano che
+ * migrazione e seed non divergano. Le edizioni, i wallet e i membri restano solo della demo.
  */
 @Component
 @Profile("demo")
