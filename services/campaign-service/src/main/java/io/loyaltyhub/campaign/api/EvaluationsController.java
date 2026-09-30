@@ -2,6 +2,7 @@ package io.loyaltyhub.campaign.api;
 
 import io.loyaltyhub.campaign.infra.EvaluationLogRepository;
 import io.loyaltyhub.common.web.LhException;
+import io.loyaltyhub.common.web.PageParams;
 import io.loyaltyhub.common.web.RequiresRole;
 import io.loyaltyhub.common.web.Role;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,7 +30,20 @@ public class EvaluationsController {
             @RequestParam(required = false) String memberId,
             @RequestParam(required = false) String outcome,
             @RequestParam(defaultValue = "50") int limit) {
-        return log.search(memberId, outcome, Math.min(Math.max(limit, 1), 200));
+        return log.search(memberId, outcome, boundedLimit(limit));
+    }
+
+    /**
+     * SPEC-GAP: Q-532 (F2-SEC-12) — stessa regola di {@link PageParams#of}: un {@code limit} minore di 1 è un
+     * «parametro errato» (400 {@code BAD_REQUEST}, mai corretto in silenzio a 1); oltre {@link PageParams#MAX_SIZE}
+     * il valore è ridotto al massimo.
+     */
+    private static int boundedLimit(int limit) {
+        if (limit < 1) {
+            throw LhException.badRequest(
+                    "Parametro limit non valido (atteso tra 1 e " + PageParams.MAX_SIZE + "): " + limit);
+        }
+        return Math.min(limit, PageParams.MAX_SIZE);
     }
 
     @GetMapping("/{actionId}")

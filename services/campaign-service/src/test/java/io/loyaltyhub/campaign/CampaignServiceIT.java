@@ -183,6 +183,31 @@ class CampaignServiceIT {
      * del registro anche senza filtro per membro; rimosse alla fine.
      */
     @Test
+    void evaluationsLimitBelowOneIsBadRequestAndAboveMaxIsCapped() {
+        Instant t0 = Instant.parse("2099-02-01T00:00:00Z");
+        int rows = io.loyaltyhub.common.web.PageParams.MAX_SIZE + 5;
+        try {
+            for (int i = 0; i < rows; i++) {
+                logEvaluation(String.format("01EVLIM-%03d", i), "MBR-IT-LIM-1", "MATCHED", t0.plusSeconds(i));
+            }
+            // Q-532: limit < 1 è un parametro errato, non si corregge in silenzio a 1.
+            for (String bad : List.of("-1", "0", "-2147483648", "99999999999", "abc")) {
+                JsonNode problem = send("GET", "/v1/evaluations?memberId=MBR-IT-LIM-1&limit=" + bad, "ANALYST:sara", null, 400);
+                assertThat(problem.path("code").asString()).as("limit=" + bad).isEqualTo("BAD_REQUEST");
+            }
+            // Oltre il massimo la pagina si limita a PageParams.MAX_SIZE (come size negli elenchi {items, page}).
+            assertThat(send("GET", "/v1/evaluations?memberId=MBR-IT-LIM-1&limit=2147483647", "ANALYST:sara", null, 200).size())
+                    .isEqualTo(io.loyaltyhub.common.web.PageParams.MAX_SIZE);
+            assertThat(send("GET", "/v1/evaluations?memberId=MBR-IT-LIM-1&limit=" + (io.loyaltyhub.common.web.PageParams.MAX_SIZE + 1),
+                    "ANALYST:sara", null, 200).size()).isEqualTo(io.loyaltyhub.common.web.PageParams.MAX_SIZE);
+            assertThat(send("GET", "/v1/evaluations?memberId=MBR-IT-LIM-1&limit=1", "ANALYST:sara", null, 200).size()).isEqualTo(1);
+            assertThat(send("GET", "/v1/evaluations?memberId=MBR-IT-LIM-1", "ANALYST:sara", null, 200).size()).isEqualTo(50);
+        } finally {
+            jdbc.sql("DELETE FROM evaluation_log WHERE member_id = 'MBR-IT-LIM-1'").update();
+        }
+    }
+
+    @Test
     void evaluationLogSearchFiltersNewestFirstWithStableTieBreak() {
         Instant t0 = Instant.parse("2099-01-01T00:00:00Z");
         try {
