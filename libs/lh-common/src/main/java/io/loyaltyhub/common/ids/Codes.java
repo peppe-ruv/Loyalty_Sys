@@ -4,7 +4,7 @@ import java.security.SecureRandom;
 
 /**
  * Generatore di codici leggibili sull'alfabeto {@code A-Z2-9} (niente 0/1/O/I, meno ambiguità):
- * codici coupon, codici oggetto casuali. Con seme fisso per i dati demo (docs/10 §1.3).
+ * codici coupon, codici oggetto casuali.
  */
 public final class Codes {
 
@@ -16,19 +16,14 @@ public final class Codes {
     private Codes() {
     }
 
-    /** Codice casuale di {@code length} caratteri. */
+    /** Codice casuale sicuro di {@code length} caratteri. */
     public static String random(int length) {
-        return random(length, RANDOM);
-    }
-
-    /** Codice deterministico da un generatore seminato (reset demo riproducibile). */
-    public static String random(int length, java.util.Random random) {
         if (length <= 0) {
             throw new IllegalArgumentException("length deve essere > 0");
         }
         char[] out = new char[length];
         for (int i = 0; i < length; i++) {
-            out[i] = ALPHABET.charAt(random.nextInt(ALPHABET.length()));
+            out[i] = ALPHABET.charAt(RANDOM.nextInt(ALPHABET.length()));
         }
         return new String(out);
     }
