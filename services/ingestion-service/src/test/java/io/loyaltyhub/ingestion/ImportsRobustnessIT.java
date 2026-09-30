@@ -170,6 +170,30 @@ class ImportsRobustnessIT extends ImportsItSupport {
         assertThat(inboundCount("nul-id-ok")).isEqualTo(1);
     }
 
+    /**
+     * Il rifiuto generico del NUL nel corpo (Q-532 causa (3)) non tocca il parsing del file: un file {@code .json}
+     * (array di eventi) con un NUL in un elemento dà una riga {@code INVALID} e l'elemento successivo è elaborato, come
+     * prescrive «Formati» di {@code docs/servizi/ingestion-service.md} (Q-371); non un {@code 422} sull'intero file.
+     */
+    @Test
+    void nulInAJsonFileElementIsRecordedInvalidAndTheNextElementIsProcessed() {
+        String now = Instant.now().toString();
+        String json = "[" + login("json-nul" + NUL + "x", "member:MBR-000002", now, "IOS") + ","
+                + login("json-nul-ok", "member:MBR-000002", now, "IOS") + "]";
+        String id = upload("id-nul.json", "application/json", json, "app", ADMIN, null, 202).path("id").asString();
+
+        JsonNode job = awaitFinished(id).path("job");
+        assertThat(job.path("status").asString()).isEqualTo("DONE");
+        assertThat(job.path("rowsDone").asInt()).isEqualTo(2);
+        assertThat(job.path("counts").path("invalid").asInt()).isEqualTo(1);
+        assertThat(job.path("counts").path("accepted").asInt()).isEqualTo(1);
+
+        JsonNode row = get("/v1/imports/" + id + "/rows").path("items").get(0);
+        assertThat(row.path("outcome").asString()).isEqualTo("INVALID");
+        assertThat(row.path("detail").asString()).isEqualTo("id contiene il carattere NUL, non ammesso");
+        assertThat(inboundCount("json-nul-ok")).isEqualTo(1);
+    }
+
     @Test
     void batchNeverReturns500AfterPartialCommits() {
         List<Object> batch = new ArrayList<>();

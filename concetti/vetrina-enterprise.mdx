@@ -39,7 +39,7 @@ flowchart LR
 |---|---|---|
 | `web` | container sull'host, una replica | Le sessioni del BFF stanno in memoria: un riavvio le chiude e si rientra con l'SSO. |
 | `hub` | container sull'host, non esposto | Esegue le migrazioni all'avvio. |
-| `idp` | Keycloak con Postgres come database | Un realm da `deploy/idp/realm.json` più un overlay di vetrina. |
+| `idp` | Keycloak con Postgres come database | Un realm da `deploy/idp/realm.json` più un overlay di vetrina: registrazione chiusa, nessuna credenziale pubblicata e un client pubblico `lh-cli` (Device Authorization Grant, con consenso esplicito e ruoli limitati a quelli operatore) per la CLI dell'operatore (Q-626, decisa il 2026-09-30). L'OTP vale per gli account con `MFA_REQUIRED_ROLE` e lo script del realm fallisce per un operatore che non lo ha (Q-618, decisa il 2026-09-30). |
 | Postgres e Kafka | sull'host, nel compose | Database e broker **propri**, mai condivisi con la demo. |
 | Reverse proxy TLS | sull'host, porte 80 e 443 | Unico componente esposto; è la parte che distingue il compose della vetrina da quello di riferimento. |
 
@@ -66,8 +66,35 @@ L'hosting è un host Oracle Cloud Always Free A1, senza costo e senza sospension
 
 ## Accesso degli operatori
 
-Nessuna password è pubblicata: il primo visitatore la cambierebbe e legherebbe l'OTP al proprio telefono. La regola è che la MFA resta sempre richiesta. Il default proposto (Q-618, ancora aperta) è che gli account operatore siano **nominativi**, creati dal proprietario su richiesta, con password temporanea consegnata fuori banda.
+Nessuna password è pubblicata: il primo visitatore la cambierebbe e legherebbe l'OTP al proprio telefono. La regola è che la MFA resta sempre richiesta. La decisione (Q-618, 2026-09-30) è che gli account operatore siano **nominativi**, creati dal proprietario su richiesta, con password temporanea consegnata fuori banda.
+
+## Configurazione del programma
+
+In `enterprise` non c'è un seeder, quindi la vetrina parte vuota. La configurazione del programma arriva da `seed/` con `scripts/vetrina-programma.mjs`, che usa solo le API REST dei servizi e il token di un operatore nominativo (Q-617, decisa il 2026-09-30). Lo script crea tema e messaggi, categorie, fasce, pool di coupon e premi, attributi e segmenti dinamici, badge, obiettivi e classifiche. Non entrano membri, movimenti né altri dati personali. I premi nascono in `DRAFT` e lo script non approva né pubblica nulla. Valute, livelli, tipi di azione `SYSTEM` e mappature interne non hanno un'API di creazione: lo script li salta e li riporta nel piano, e arrivano con le migrazioni dei dati di riferimento (Q-629).
+
+```mermaid
+sequenceDiagram
+  accTitle: Configurazione del programma della vetrina
+  accDescr: L'operatore ottiene un token con il Device Authorization Grant e la MFA, lo script legge il seed e lo stato, crea con le API solo ciò che manca e verifica nell'audit una voce con l'attore del token per ogni scrittura.
+  actor O as Operatore
+  participant S as vetrina-programma.mjs
+  participant K as Keycloak (lh-cli)
+  participant A as API dei servizi
+  participant I as insight /v1/audit
+  O->>S: avvio con --base-url (predefinito --dry-run)
+  S->>K: Device Authorization Grant con PKCE
+  K-->>O: codice da confermare, login con MFA
+  K-->>S: token dell'operatore (mai stampato)
+  S->>A: GET dello stato attuale
+  A-->>S: entità già presenti
+  Note over S: piano = seed/ meno ciò che esiste
+  S->>A: POST solo per ciò che manca (con --apply)
+  A-->>I: voce di audit con l'attore del token
+  S->>I: GET /v1/audit
+  I-->>S: voci dal momento dell'avvio
+  Note over S: una scrittura senza voce dell'operatore = uscita 1
+```
 
 ## Decisione e domande aperte
 
-La decisione, le alternative scartate e i limiti dichiarati sono in [ADR-049](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/13-REGISTRO-DECISIONI.md). I dettagli attuativi (dati del programma, dominio e TLS, TLS verso bus e database, azzeramento) sono ancora domande aperte con un default indicato: Q-617…Q-624 in [Domande aperte](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/15-DOMANDE-APERTE.md). Per installare lo stesso profilo sulla propria infrastruttura vedi [Installazione enterprise](/operations/installazione-enterprise).
+La decisione, le alternative scartate e i limiti dichiarati sono in [ADR-049](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/13-REGISTRO-DECISIONI.md). Hosting, bus, dati del programma, accesso degli operatori, portale e client `lh-cli` sono decisi (Q-615…Q-619, Q-626, Q-629). Gli altri dettagli attuativi (dominio e TLS, TLS verso bus e database, tempo reale, azzeramento) sono ancora domande aperte con un default indicato: Q-620…Q-624 in [Domande aperte](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/15-DOMANDE-APERTE.md). Per installare lo stesso profilo sulla propria infrastruttura vedi [Installazione enterprise](/operations/installazione-enterprise).

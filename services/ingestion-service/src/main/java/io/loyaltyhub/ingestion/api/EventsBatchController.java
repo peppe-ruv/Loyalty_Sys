@@ -3,6 +3,7 @@ package io.loyaltyhub.ingestion.api;
 import io.loyaltyhub.common.web.ActorHolder;
 import io.loyaltyhub.common.web.GlobalExceptionHandler;
 import io.loyaltyhub.common.web.LhException;
+import io.loyaltyhub.common.web.NulTolerantBody;
 import io.loyaltyhub.common.web.RequiresRole;
 import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.ingestion.application.BatchIngestionService;
@@ -80,6 +81,9 @@ public class EventsBatchController {
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     // Q-492: ingresso delle fonti solo per il ruolo SOURCE (utenza di integrazione, client src-<codice>); ADMIN passa
     // per regola dell'interceptor. La fonte dichiarata deve coincidere con il client (SourceBinding).
+    // Q-371 (EnvelopeLimits): i NUL negli attributi e in data sono un esito proprio del servizio (INVALID per elemento nel
+    // batch, 400 col nome del campo per un evento): il rifiuto generico del corpo di lh-common (Q-532) non si applica.
+    @NulTolerantBody
     @RequiresRole(Role.SOURCE)
     public ResponseEntity<BatchIngestionService.BatchResult> ingestBatch(HttpEntity<JsonNode> request,
                                                                         HttpServletRequest http) {

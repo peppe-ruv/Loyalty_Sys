@@ -3,12 +3,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import http from 'node:http';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const REALM_PATH = path.join(ROOT, 'deploy/idp/realm.json');
 const OVERLAY_PATH = path.join(ROOT, 'deploy/idp/test-idp/realm-test-overlay.json');
 const APPLY_OVERLAY_PATH = path.join(ROOT, 'deploy/idp/test-idp/apply-overlay.sh');
+const VETRINA_OVERLAY_PATH = path.join(ROOT, 'deploy/idp/vetrina/realm-vetrina-overlay.json');
+const VETRINA_APPLY_PATH = path.join(ROOT, 'deploy/idp/vetrina/apply-overlay.sh');
+const BOOTSTRAP_PATH = path.join(ROOT, 'deploy/idp/bootstrap.sh');
 const COMPOSE_PATH = path.join(ROOT, 'deploy/docker-compose.yml');
 const PLACEHOLDER = /^\$\{[A-Z0-9_]+\}$/;
 const SECRET_KEYS = new Set(['secret', 'clientSecret', 'bindCredential']);
@@ -258,8 +263,8 @@ test('Ogni client scope referenziato è definito in clientScopes', () => {
   }
 });
 
-test('Nessun segreto letterale (secret, clientSecret, bindCredential) in realm.json e nell\'overlay di prova', () => {
-  for (const file of [REALM_PATH, OVERLAY_PATH]) {
+test('Nessun segreto letterale (secret, clientSecret, bindCredential) in realm.json e negli overlay (prova e vetrina)', () => {
+  for (const file of [REALM_PATH, OVERLAY_PATH, VETRINA_OVERLAY_PATH]) {
     const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
     for (const [where, value] of secretValues(doc)) {
       assert.ok(typeof value === 'string' && PLACEHOLDER.test(value),
@@ -377,4 +382,317 @@ test('Ogni client con service account ha la sua utenza nel file, con ruoli espli
       assert.ok(!account.realmRoles.includes(forbidden), `${c.clientId}: l'utenza di servizio non deve avere ${forbidden}`);
     }
   }
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Overlay di vetrina (F2-IAM-01, F2-IAM-03, ADR-048, ADR-049; Q-618, Q-619, Q-626: decise il 2026-09-30).
+// La vetrina enterprise ospitata (docs/18 M8.14, V2) applica questo overlay al realm già avviato con
+// deploy/idp/vetrina/apply-overlay.sh. Il realm base e l'overlay di prova restano invariati: qui si verifica che
+// l'overlay chiuda la registrazione, non porti credenziali né utenti, non tocchi MFA e UPDATE_PASSWORD degli
+// operatori e che l'unico client aggiunto (lh-cli, CLI dell'operatore) sia pubblico, solo Device Authorization Grant.
+// ---------------------------------------------------------------------------------------------------------------------
+const vetrina = () => JSON.parse(fs.readFileSync(VETRINA_OVERLAY_PATH, 'utf8'));
+const OVERLAY_META_KEYS = ['_comment', 'realm', 'clients', 'scopeMappings'];
+const OPERATOR_ROLES = ['ADMIN', 'MARKETING', 'LEGAL', 'CARE', 'ANALYST'];
+
+test('Overlay di vetrina: solo impostazioni del realm ammesse e registrazione chiusa (Q-619)', () => {
+  const o = vetrina();
+  assert.equal(o.realm, 'loyaltyhub');
+  assert.equal(o.registrationAllowed, false, 'registrationAllowed deve essere false nella vetrina: portale membri chiuso nel primo passo (Q-619)');
+  assert.equal(realm.registrationAllowed, true, 'il realm base resta invariato (registrazione aperta, Q-557): la chiude solo l\'overlay di vetrina');
+  // Nessun utente, ruolo, flusso, azione richiesta, broker, componente o SMTP: l'overlay non crea credenziali né allarga l'accesso.
+  const settings = Object.keys(o).filter(k => !OVERLAY_META_KEYS.includes(k));
+  assert.deepEqual(settings, ['registrationAllowed'], `l'overlay di vetrina ha chiavi non ammesse: ${settings.join(', ')}`);
+  for (const forbidden of ['users', 'roles', 'groups', 'authenticationFlows', 'browserFlow', 'requiredActions', 'identityProviders', 'components', 'smtpServer', 'verifyEmail', 'defaultRole']) {
+    assert.ok(!(forbidden in o), `l'overlay di vetrina non deve contenere ${forbidden}`);
+  }
+});
+
+test('Overlay di vetrina: nessuna credenziale, nessun segreto, nessun segnaposto, nessun utente di prova', () => {
+  const raw = fs.readFileSync(VETRINA_OVERLAY_PATH, 'utf8');
+  const o = JSON.parse(raw);
+  assert.ok(!raw.includes('${'), 'nessun segnaposto ${...}: l\'overlay non ha segreti da sostituire');
+  assert.ok(!('users' in o) && !JSON.stringify(o).includes('"credentials"'), 'nessun utente né credenziali');
+  assert.ok(!JSON.stringify(o).includes('testmember'), 'nessun utente di prova (testmember è dell\'overlay di prova)');
+  // Nessuna chiave segreta, nemmeno come segnaposto: il client pubblico non ha nulla da custodire.
+  assert.deepEqual(secretValues(o), [], 'nessuna chiave secret/clientSecret/bindCredential nell\'overlay di vetrina');
+  const walk = (n, at = '$') => {
+    if (Array.isArray(n)) n.forEach((v, i) => walk(v, `${at}[${i}]`));
+    else if (n && typeof n === 'object') {
+      for (const [k, v] of Object.entries(n)) {
+        assert.ok(!/^(password|credentials|clientSecret|secret|bindCredential|privateKey|jwks\.string|jwt\.credential\.certificate)$/i.test(k), `chiave sensibile ${at}.${k}`);
+        walk(v, `${at}.${k}`);
+      }
+    }
+  };
+  walk(o);
+});
+
+test('Overlay di vetrina: il solo client è lh-cli, pubblico, solo Device Authorization Grant, senza segreto né service account (Q-626)', () => {
+  const o = vetrina();
+  assert.deepEqual((o.clients ?? []).map(c => c.clientId), ['lh-cli'], 'l\'overlay di vetrina aggiunge solo lh-cli (non ridefinisce web né altri client)');
+  const c = o.clients[0];
+  assert.equal(c.enabled, true);
+  assert.equal(c.publicClient, true, 'lh-cli è un client pubblico: nessun segreto da custodire sul computer dell\'operatore');
+  assert.equal(c.bearerOnly, false);
+  assert.equal(c.attributes?.['oauth2.device.authorization.grant.enabled'], 'true', 'Device Authorization Grant attivo');
+  for (const k of ['standardFlowEnabled', 'implicitFlowEnabled', 'directAccessGrantsEnabled', 'serviceAccountsEnabled']) {
+    assert.equal(c[k], false, `lh-cli: ${k} deve essere false (nessun direct access grant, nessun service account: i ruoli arrivano solo dall'utente)`);
+  }
+  assert.ok(!('secret' in c) && !('clientAuthenticatorType' in c), 'lh-cli: nessun segreto né autenticazione di client');
+  assert.deepEqual(c.redirectUris, [], 'lh-cli: nessuna redirect URI');
+  assert.deepEqual(c.webOrigins ?? [], [], 'lh-cli: nessuna web origin');
+  assert.equal(c.attributes?.['pkce.code.challenge.method'], 'S256', 'PKCE S256');
+  // Token di breve durata: non oltre il realm (300 s) e sessione del client limitata.
+  assert.ok(Number(c.attributes?.['access.token.lifespan']) <= 300, 'access token di lh-cli oltre 300 secondi');
+  assert.ok(Number(c.attributes?.['oauth2.device.code.lifespan']) <= 600, 'codice del dispositivo di lh-cli troppo longevo');
+  assert.ok(Number(c.attributes?.['client.session.max.lifespan']) > 0 && Number(c.attributes?.['client.session.max.lifespan']) <= 3600, 'sessione massima di lh-cli: al più un\'ora');
+  assert.ok(Number(c.attributes?.['client.session.idle.timeout']) > 0 && Number(c.attributes?.['client.session.idle.timeout']) <= 900, 'inattività di lh-cli: al più 15 minuti');
+  // Nessun token offline (refresh senza scadenza): niente scope offline_access.
+  assert.deepEqual(c.optionalClientScopes ?? [], [], 'lh-cli: nessuno scope opzionale (offline_access darebbe token di lunga durata)');
+  assert.ok(!(c.defaultClientScopes ?? []).includes('offline_access'), 'lh-cli: offline_access non è tra gli scope predefiniti');
+  // I ruoli del token vengono solo dall'utente: audience hub e claim lh_roles come gli altri client, definiti nel realm base.
+  const defined = new Set(realm.clientScopes.map(s => s.name));
+  for (const scope of c.defaultClientScopes ?? []) assert.ok(defined.has(scope), `lh-cli: lo scope ${scope} non è definito in realm.json`);
+  for (const scope of ['hub-audience', 'lh-roles-scope']) assert.ok((c.defaultClientScopes ?? []).includes(scope), `lh-cli: manca lo scope ${scope}`);
+  assert.ok(!('authenticationFlowBindingOverrides' in c), 'lh-cli usa il flusso del realm (browser-mfa): nessuna deroga alla MFA');
+  // Scelta esplicita (Q-626): nel token solo i ruoli operatore dell'utente, non quelli tecnici (offline_access, uma_authorization, MEMBER).
+  assert.equal(c.fullScopeAllowed, false, 'lh-cli: fullScopeAllowed deve essere false (ruoli del token limitati a quelli operatore)');
+  assert.deepEqual(o.scopeMappings, [{ client: 'lh-cli', roles: OPERATOR_ROLES }], 'scopeMappings: lh-cli limitato ai soli ruoli operatore');
+  for (const role of o.scopeMappings[0].roles) assert.ok(realm.roles.realm.some(r => r.name === role), `scopeMappings: il ruolo ${role} non è definito in realm.json`);
+  // Rischio del Device Authorization Grant (RFC 8628 par. 5.4, phishing del codice): l'operatore deve vedere chi chiede l'accesso.
+  assert.equal(c.consentRequired, true, 'lh-cli: consentRequired deve essere true (schermata di consenso che nomina il client)');
+  assert.equal(realm.clients.filter(x => x.clientId === 'lh-cli').length, 0, 'lh-cli esiste solo nell\'overlay di vetrina, non nel realm base (né nell\'overlay di prova)');
+  const testOverlay = JSON.parse(fs.readFileSync(OVERLAY_PATH, 'utf8'));
+  assert.ok(!(testOverlay.clients ?? []).some(x => x.clientId === 'lh-cli'), 'lh-cli non va nell\'overlay di prova');
+  // Un solo client con device grant nell'intero realm base: nessun client di produzione lo attiva.
+  for (const x of realm.clients) {
+    assert.notEqual(x.attributes?.['oauth2.device.authorization.grant.enabled'], 'true', `${x.clientId}: il device grant è solo di lh-cli, nell'overlay di vetrina`);
+  }
+});
+
+test('Overlay di vetrina: il client web e le variabili LH_WEB_URL restano quelli del realm base (nessuna ridefinizione)', () => {
+  assert.ok(!vetrina().clients.some(c => c.clientId === 'web'), 'l\'overlay non ridefinisce il client web');
+  const web = realm.clients.find(c => c.clientId === 'web');
+  assert.ok(web.redirectUris.every(u => u.startsWith('${LH_WEB_URL}/')), 'redirect URI del client web da LH_WEB_URL');
+  assert.ok(String(web.attributes['post.logout.redirect.uris']).startsWith('${LH_WEB_URL}'), 'ritorno dal logout da LH_WEB_URL');
+  assert.equal(web.directAccessGrantsEnabled, false);
+  assert.ok(!(web.attributes?.['oauth2.device.authorization.grant.enabled'] === 'true'));
+});
+
+// Q-618 (decisa il 2026-09-30): account operatore nominativi creati a mano, nessuna password pubblicata. Gli utenti del
+// realm base non hanno credenziali e restano con UPDATE_PASSWORD e con il ruolo che attiva la MFA; il flusso browser
+// con MFA condizionale (conditional-user-role MFA_REQUIRED_ROLE → OTP) resta quello del realm; l'overlay non lo tocca.
+test('Operatori invariati (Q-618): senza credenziali, con UPDATE_PASSWORD e MFA_REQUIRED_ROLE, flusso browser-mfa del realm', () => {
+  const operators = (realm.users ?? []).filter(u => !u.serviceAccountClientId);
+  assert.ok(operators.length > 0, 'nessun operatore nel realm: il controllo non verifica nulla');
+  for (const u of operators) {
+    assert.ok(!u.credentials?.length, `${u.username}: nessuna credenziale nel realm`);
+    assert.ok((u.requiredActions ?? []).includes('UPDATE_PASSWORD'), `${u.username}: UPDATE_PASSWORD richiesta al primo accesso`);
+    assert.ok((u.realmRoles ?? []).includes('MFA_REQUIRED_ROLE'), `${u.username}: senza MFA_REQUIRED_ROLE non scatta la MFA`);
+  }
+  assert.equal(realm.browserFlow, 'browser-mfa');
+  const flow = realm.authenticationFlows.find(f => f.alias === 'mfa-conditional');
+  assert.ok(flow?.authenticationExecutions.some(e => e.authenticator === 'conditional-user-role' && e.requirement === 'REQUIRED'), 'mfa-conditional: condizione sul ruolo');
+  assert.ok(flow?.authenticationExecutions.some(e => e.authenticator === 'auth-otp-form' && e.requirement === 'REQUIRED'), 'mfa-conditional: OTP obbligatorio');
+  const cfg = (realm.authenticatorConfig ?? []).find(a => a.alias === 'mfa-role-config');
+  assert.ok(cfg && JSON.stringify(cfg.config).includes('MFA_REQUIRED_ROLE'), 'mfa-role-config deve riferirsi a MFA_REQUIRED_ROLE');
+});
+
+// L'overlay si applica con un PUT del realm (frammento) e un partialImport dei client: simulazione della semantica
+// di Keycloak sul realm.json senza un server, per provare che l'esito sia quello voluto e non tocchi altro.
+test('Applicazione simulata dell\'overlay a una copia del realm: registrazione chiusa, lh-cli aggiunto, il resto invariato', () => {
+  const o = vetrina();
+  const copy = structuredClone(realm);
+  const { _comment, realm: name, clients, scopeMappings, ...settings } = o;
+  assert.equal(name, copy.realm);
+  Object.assign(copy, settings);                                   // PUT /admin/realms/loyaltyhub (frammento)
+  for (const c of clients) {                                       // partialImport, ifResourceExists=OVERWRITE
+    const i = copy.clients.findIndex(x => x.clientId === c.clientId);
+    if (i >= 0) copy.clients[i] = c; else copy.clients.push(c);
+  }
+  assert.equal(copy.registrationAllowed, false);
+  assert.equal(scopeMappings.length, 1, 'gli scope mapping si applicano a parte (il partialImport non li porta)');
+  assert.equal(copy.clients.length, realm.clients.length + 1);
+  assert.deepEqual(copy.clients.filter(c => c.clientId !== 'lh-cli'), realm.clients, 'gli altri client restano identici');
+  assert.deepEqual(copy.users, realm.users, 'nessun utente aggiunto, tolto o cambiato');
+  assert.deepEqual(copy.authenticationFlows, realm.authenticationFlows);
+  assert.deepEqual(copy.requiredActions, realm.requiredActions);
+  assert.equal(copy.verifyEmail, false);
+  assert.ok(copy.smtpServer === undefined || Object.keys(copy.smtpServer).length === 0);
+  // Idempotenza: riapplicarlo non cambia nulla.
+  const again = structuredClone(copy);
+  for (const c of clients) again.clients[again.clients.findIndex(x => x.clientId === c.clientId)] = c;
+  assert.deepEqual(again, copy);
+  // Il client web resta con le URI da LH_WEB_URL (il test del client web sul realm base vale anche dopo l'overlay).
+  assert.deepEqual(copy.clients.find(c => c.clientId === 'web').redirectUris, [`\${LH_WEB_URL}/api/auth/callback`]);
+});
+
+test('apply-overlay.sh di vetrina: impostazioni ammesse uguali alle chiavi dell\'overlay, nessun segnaposto, nessun valore stampato', () => {
+  const sh = fs.readFileSync(VETRINA_APPLY_PATH, 'utf8');
+  const list = sh.match(/^REALM_SETTINGS=\(\n([\s\S]*?)^\)/m);
+  assert.ok(list, 'REALM_SETTINGS non trovato in vetrina/apply-overlay.sh');
+  const scriptKeys = list[1].split('\n').map(l => l.trim()).filter(Boolean).sort();
+  const overlayKeys = Object.keys(vetrina()).filter(k => !OVERLAY_META_KEYS.includes(k)).sort();
+  assert.deepEqual(scriptKeys, overlayKeys, 'REALM_SETTINGS di apply-overlay.sh e chiavi dell\'overlay devono coincidere');
+  assert.match(sh, /set -euo pipefail/);
+  // La password di amministrazione non sta mai in un argomento di processo né viene stampata.
+  assert.ok(!/-d\s+["']?password=/.test(sh) && !/--data(-urlencode)?\s+["']?password=/.test(sh), 'password di amministrazione sulla riga di comando');
+  for (const line of sh.split('\n')) {
+    if (/\b(echo|printf)\b/.test(line) && /\$\{?(ADMIN_PASSWORD|TOKEN)\b/.test(line)) {
+      assert.ok(/>>?\s*"\$WORK\/|\|\s*python3/.test(line), `riga che potrebbe stampare una credenziale: ${line.trim()}`);
+    }
+  }
+});
+
+// Regola 20 (ADR-049 decisione 6): bootstrap.sh non stampa le password su stdout; le scrive solo in un file 0600.
+test('bootstrap.sh: password solo in un file 0600 (umask 077), mai su stdout né come argomenti di processo (regola 20)', () => {
+  const sh = fs.readFileSync(BOOTSTRAP_PATH, 'utf8');
+  assert.match(sh, /^umask 077$/m, 'umask 077 prima di creare il file');
+  // File creato in modo atomico: mktemp (O_EXCL, 0600 con umask 077) nella stessa cartella e rename finale; nessuna scrittura
+  // diretta sul percorso finale (TOCTOU con un collegamento simbolico) e nessun file creato prima del token.
+  assert.match(sh, /CRED_TMP="\$\(mktemp "\$\{CRED_DIR\}\//, 'file temporaneo con mktemp nella cartella di destinazione');
+  assert.match(sh, /os\.replace\(sys\.argv\[1\],sys\.argv\[2\]\)' "\$CRED_TMP" "\$CRED_FILE"/, 'rename finale del file temporaneo');
+  assert.ok(!/(>>?|tee)\s*"\$CRED_FILE"/.test(sh) && !/chmod 600 "\$CRED_FILE"/.test(sh), 'mai scrivere direttamente sul percorso finale');
+  assert.ok(sh.indexOf('mktemp "${CRED_DIR}') > sh.indexOf('LH_IDP_BOOTSTRAP_OUT'), 'ordine');
+  assert.match(sh, /trap '[^']*rm -f "\$CRED_TMP"[^']*' EXIT/, 'il file temporaneo si cancella se lo script fallisce');
+  // Il nome utente di amministrazione è codificato come la password (un & o un = non rompe il corpo della richiesta).
+  assert.ok(!/username=%s/.test(sh) && /printf '%s' "\$ADMIN_USER" \| urlenc/.test(sh), 'nome utente non codificato');
+  assert.match(sh, /LH_IDP_BOOTSTRAP_OUT/, 'percorso configurabile');
+  assert.ok(!/--- Credenziali generate ---/.test(sh), 'la vecchia stampa delle credenziali non deve esistere');
+  assert.ok(!/-d\s+"\{\\"type\\"/.test(sh), 'la password non va nel corpo passato con -d (visibile in ps)');
+  assert.ok(!/-d\s+["']?password=/.test(sh), 'la password di amministrazione non va passata con -d');
+  const secret = /\$\{?(PASS_\w+|USERS\[|SUPPLIED\[|ADMIN_PASSWORD|PASSWORD|TOKEN|env_val|TEMP_PASS)/;
+  const lines = sh.split('\n');
+  lines.forEach((line, i) => {
+    if (/^\s*#/.test(line)) return;
+    if (/\b(echo|printf)\b/.test(line) && secret.test(line)) {
+      // Ammesso solo: scrittura nel file delle credenziali, o ingresso di una pipeline (stdin di python3).
+      const continued = /\\\s*$/.test(line) && /^\s*\|\s*python3\b/.test(lines[i + 1] ?? '');
+      assert.ok(/>>?\s*"\$(CRED_TMP|WORK\/[a-z]+)"/.test(line) || /\|\s*(python3|urlenc)\b/.test(line) || continued || /env_val/.test(line) && /printf '%s\\n'/.test(line),
+        `bootstrap.sh riga ${i + 1} potrebbe stampare una password: ${line.trim()}`);
+    }
+  });
+  // Il percorso di default sta in una cartella ignorata da git.
+  assert.match(sh, /\.secrets\/bootstrap-passwords\.txt/);
+  assert.match(fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8'), /^deploy\/idp\/\.secrets\/$/m, '.gitignore deve ignorare deploy/idp/.secrets/');
+});
+
+// apply-overlay.sh di vetrina: elenco dei ruoli operatore e del ruolo MFA uguali a quelli del realm (Q-618).
+test('apply-overlay.sh di vetrina: ruoli operatore e MFA_REQUIRED_ROLE coerenti con il realm, modalità --check-operators, nome utente codificato', () => {
+  const sh = fs.readFileSync(VETRINA_APPLY_PATH, 'utf8');
+  const ops = sh.match(/^OPERATOR_ROLES=\(([^)]*)\)/m);
+  assert.ok(ops, 'OPERATOR_ROLES non trovato');
+  assert.deepEqual(ops[1].trim().split(/\s+/), OPERATOR_ROLES);
+  assert.match(sh, /^MFA_ROLE="MFA_REQUIRED_ROLE"$/m);
+  assert.ok(realm.roles.realm.some(r => r.name === 'MFA_REQUIRED_ROLE'));
+  assert.match(sh, /--check-operators\) MODE="operators"/);
+  assert.ok(!/username=%s/.test(sh) && /printf '%s' "\$ADMIN_USER" \| urlenc/.test(sh), 'nome utente non codificato');
+  // Il PUT del realm rimanda la rappresentazione intera (GET + unione), non il solo frammento.
+  assert.match(sh, /--data-binary "@\$WORK\/realm-put\.json"/);
+  assert.ok(!/--data-binary "@\$WORK\/realm-settings\.json"/.test(sh), 'PUT parziale del realm');
+});
+
+// Keycloak simulato: prova apply-overlay.sh (applicazione, rilettura, verifica degli operatori) senza un server reale.
+// Regola 20: la password di amministrazione di prova e' un valore inventato del test, non un segreto.
+function mockKeycloak({ operators }) {
+  const state = {
+    realm: { realm: 'loyaltyhub', registrationAllowed: true, browserFlow: 'browser-mfa', bruteForceProtected: true, otpPolicyType: 'totp',
+      sslRequired: 'external', verifyEmail: false, passwordPolicy: 'length(12)' },
+    clients: [], scope: [], puts: 0, loginBody: '',
+  };
+  const roleUsers = (role) => operators.filter(u => (u.realmRoles ?? []).includes(role)).map(u => ({ id: `id-${u.username}`, username: u.username }))
+    .concat(role === 'ADMIN' ? [{ id: 'sa', username: 'service-account-x', serviceAccountClientId: 'x' }] : []);
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', d => { body += d; });
+    req.on('end', () => {
+      const url = new URL(req.url, 'http://x');
+      const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(obj === undefined ? '' : JSON.stringify(obj)); };
+      const p = url.pathname;
+      if (p === '/realms/master/protocol/openid-connect/token') { state.loginBody = body; return json(200, { access_token: 'mock-token' }); }
+      if (req.headers.authorization !== 'Bearer mock-token') return json(401, {});
+      const base = '/admin/realms/loyaltyhub';
+      if (p === base && req.method === 'GET') return json(200, state.realm);
+      if (p === base && req.method === 'PUT') { state.puts++; state.realm = JSON.parse(body); return json(204); }
+      if (p === `${base}/partialImport`) {
+        const b = JSON.parse(body);
+        state.clients = state.clients.filter(c => !b.clients.some(n => n.clientId === c.clientId));
+        for (const c of b.clients) state.clients.push({ id: `uuid-${c.clientId}`, ...c });
+        state.scope = [];
+        return json(200, { added: b.clients.length, overwritten: 0, skipped: 0, results: b.clients.map(c => ({ resourceType: 'CLIENT', resourceName: c.clientId, action: 'ADDED' })) });
+      }
+      if (p === `${base}/clients`) return json(200, state.clients.filter(c => c.clientId === url.searchParams.get('clientId')));
+      let m;
+      if ((m = p.match(/^\/admin\/realms\/loyaltyhub\/clients\/([^/]+)\/(optional-client-scopes|default-client-scopes|scope-mappings\/realm)$/))) {
+        const c = state.clients.find(x => x.id === m[1]);
+        if (!c) return json(404, {});
+        if (m[2] === 'optional-client-scopes') return json(200, (c.optionalClientScopes ?? []).map(name => ({ name })));
+        if (m[2] === 'default-client-scopes') return json(200, (c.defaultClientScopes ?? []).map(name => ({ name })));
+        if (req.method === 'POST') { state.scope = JSON.parse(body); return json(204); }
+        return json(200, state.scope);
+      }
+      if ((m = p.match(/^\/admin\/realms\/loyaltyhub\/roles\/([A-Z_]+)$/))) return json(200, { id: `role-${m[1]}`, name: m[1] });
+      if ((m = p.match(/^\/admin\/realms\/loyaltyhub\/roles\/([A-Z_]+)\/users$/))) {
+        const all = roleUsers(m[1]), first = Number(url.searchParams.get('first')), max = Number(url.searchParams.get('max'));
+        return json(200, all.slice(first, first + max));
+      }
+      return json(404, { path: p });
+    });
+  });
+  return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve({ server, state, url: `http://127.0.0.1:${server.address().port}` })));
+}
+
+function runApply(url, args, userName = 'admin') {
+  return new Promise(resolve => {
+    const env = { ...process.env, KEYCLOAK_URL: url, KC_BOOTSTRAP_ADMIN_USERNAME: userName, KC_BOOTSTRAP_ADMIN_PASSWORD: 'Test&Pass=1 x' };
+    const child = spawn('bash', [VETRINA_APPLY_PATH, ...args], { env });
+    let out = '', err = '';
+    child.stdout.on('data', d => { out += d; });
+    child.stderr.on('data', d => { err += d; });
+    child.on('close', code => resolve({ code, out, err }));
+  });
+}
+
+const haveTools = ['bash', 'curl', 'python3'].every(c => spawnSync('sh', ['-c', `command -v ${c}`]).status === 0);
+
+test('apply-overlay.sh di vetrina contro un Keycloak simulato: applica, rilegge, non cambia altro e rifiuta un operatore senza MFA_REQUIRED_ROLE (Q-618, Q-626)', { skip: !haveTools && 'servono bash, curl e python3' }, async () => {
+  const good = [
+    { username: 'mario.rossi', realmRoles: ['ADMIN', 'MFA_REQUIRED_ROLE'] },
+    { username: 'anna.verdi', realmRoles: ['ANALYST', 'MFA_REQUIRED_ROLE'] },
+  ];
+  // Molti operatori: prova la paginazione (200 per pagina) dell'elenco degli utenti di un ruolo.
+  const many = Array.from({ length: 450 }, (_, i) => ({ username: `op${i}`, realmRoles: ['CARE', 'MFA_REQUIRED_ROLE'] }));
+  const kc = await mockKeycloak({ operators: [...good, ...many] });
+  try {
+    const before = structuredClone(kc.state.realm);
+    const r = await runApply(kc.url, [], 'adm&in=x');
+    assert.equal(r.code, 0, `apply-overlay.sh è fallito: ${r.err}${r.out}`);
+    assert.equal(kc.state.realm.registrationAllowed, false);
+    assert.deepEqual({ ...kc.state.realm, registrationAllowed: true }, before, 'il PUT non cambia altre impostazioni del realm');
+    const c = kc.state.clients.find(x => x.clientId === 'lh-cli');
+    assert.ok(c && c.publicClient && c.consentRequired && c.fullScopeAllowed === false);
+    assert.deepEqual(kc.state.scope.map(x => x.name).sort(), [...OPERATOR_ROLES].sort());
+    assert.match(kc.state.loginBody, /username=adm%26in%3Dx&password=Test%26Pass%3D1%20x/, 'nome utente e password codificati');
+    assert.match(r.out, /453 account|452 account|operatori: \d+ account/);
+    assert.ok(!r.out.includes('Test&Pass') && !r.err.includes('Test&Pass') && !r.out.includes('mock-token'), 'nessuna credenziale in uscita');
+    // Idempotente.
+    assert.equal((await runApply(kc.url, [])).code, 0);
+    // Solo lettura: --check-operators non scrive.
+    const puts = kc.state.puts;
+    assert.equal((await runApply(kc.url, ['--check-operators'])).code, 0);
+    assert.equal(kc.state.puts, puts);
+  } finally { kc.server.close(); }
+
+  // Un ADMIN creato a mano senza MFA_REQUIRED_ROLE: lo script deve fallire e nominarlo (non le utenze di servizio).
+  const bad = await mockKeycloak({ operators: [...good, { username: 'luigi.bianchi', realmRoles: ['ADMIN'] }, { username: 'sara.care', realmRoles: ['CARE'] }] });
+  try {
+    for (const args of [[], ['--check-operators']]) {
+      const r = await runApply(bad.url, args);
+      assert.notEqual(r.code, 0, `${args.join(' ') || 'apply'}: doveva fallire`);
+      assert.match(r.err, /luigi\.bianchi/);
+      assert.match(r.err, /sara\.care/);
+      assert.ok(!/mario\.rossi|service-account-x/.test(r.err), 'elenca solo gli account senza MFA');
+    }
+  } finally { bad.server.close(); }
 });
