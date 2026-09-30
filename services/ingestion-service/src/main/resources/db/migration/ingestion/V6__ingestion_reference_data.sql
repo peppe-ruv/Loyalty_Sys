@@ -15,7 +15,7 @@
 -- del prodotto, che è lo stesso in ogni profilo.
 --
 -- Convivenza con la demo (DemoSeeder.resetToSeed): all'avvio e a ogni POST /v1/demo/reset il seeder cancella e
--- reinserisce le stesse righe con un upsert nella stessa transazione, quindi non ci sono violazioni di chiave e dopo
+-- reinserisce le stesse righe con un upsert (in transazione nel reset via API), quindi non ci sono violazioni di chiave e dopo
 -- il reset i dati ci sono ancora. DO NOTHING qui preserva le modifiche fatte da un operatore (name, description,
 -- enabled, icon dei SYSTEM; abilitazione delle mappature) su un database che ha già queste righe.
 --
