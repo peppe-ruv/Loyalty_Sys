@@ -1,12 +1,12 @@
 {
   "generatedBy": "node scripts/docs-sync.mjs --refresh",
-  "refreshedAt": "50c8415",
-  "refreshedDate": "2026-09-29",
+  "refreshedAt": "26c390e",
+  "refreshedDate": "2026-10-01",
   "totals": {
     "stories": 227,
     "outOfScope": 3,
-    "ready": 190,
-    "done": 130,
+    "ready": 192,
+    "done": 132,
     "toVerify": 4
   },
   "stories": {
@@ -647,7 +647,7 @@
       "dod": {
         "D1": {
           "status": "ok",
-          "evidence": "F-MBR-02, F-WAL-02, F-TIER-06, F-CMP-09 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md)"
+          "evidence": "F-MBR-02, F-WAL-02, F-TIER-06, F-CMP-09 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#176](https://github.com/peppe-ruv/Loyalty_Sys/pull/176), [#182](https://github.com/peppe-ruv/Loyalty_Sys/pull/182)"
         },
         "D2": {
           "status": "ok",
@@ -1024,7 +1024,7 @@
       "dod": {
         "D1": {
           "status": "ok",
-          "evidence": "F-CMP-06, F-CMP-09 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md)"
+          "evidence": "F-CMP-06, F-CMP-09 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#176](https://github.com/peppe-ruv/Loyalty_Sys/pull/176), [#182](https://github.com/peppe-ruv/Loyalty_Sys/pull/182)"
         },
         "D2": {
           "status": "ok",
@@ -1262,7 +1262,7 @@
       "dod": {
         "D1": {
           "status": "ok",
-          "evidence": "F-CMP-09 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md)"
+          "evidence": "F-CMP-09 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#176](https://github.com/peppe-ruv/Loyalty_Sys/pull/176), [#182](https://github.com/peppe-ruv/Loyalty_Sys/pull/182)"
         },
         "D2": {
           "status": "ko",
@@ -2455,7 +2455,7 @@
       "dod": {
         "D1": {
           "status": "ok",
-          "evidence": "F-CPN-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md)"
+          "evidence": "F-CPN-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#169](https://github.com/peppe-ruv/Loyalty_Sys/pull/169)"
         },
         "D2": {
           "status": "ok",
@@ -4563,7 +4563,7 @@
       "dod": {
         "D1": {
           "status": "ok",
-          "evidence": "F-MBR-06, F-REF-01 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md)"
+          "evidence": "F-MBR-06, F-REF-01 spuntate in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#155](https://github.com/peppe-ruv/Loyalty_Sys/pull/155)"
         },
         "D2": {
           "status": "ok",
@@ -4869,7 +4869,7 @@
       "dod": {
         "D1": {
           "status": "ok",
-          "evidence": "F-DEMO-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md)"
+          "evidence": "F-DEMO-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#178](https://github.com/peppe-ruv/Loyalty_Sys/pull/178)"
         },
         "D2": {
           "status": "ok",
@@ -5734,8 +5734,8 @@
     "US-F2-DOC-01": {
       "dor": {
         "R5": {
-          "status": "ko",
-          "evidence": "nessun dominio TB; job docs assente da .github/workflows"
+          "status": "ok",
+          "evidence": "job docs, 1 prova automatica"
         },
         "R6": {
           "status": "ok",
@@ -5753,11 +5753,11 @@
       "dod": {
         "D1": {
           "status": "ko",
-          "evidence": "F2-DOC-01 (in corso); PR [#98](https://github.com/peppe-ruv/Loyalty_Sys/pull/98), [#130](https://github.com/peppe-ruv/Loyalty_Sys/pull/130)"
+          "evidence": "F2-DOC-01 (in corso); PR [#98](https://github.com/peppe-ruv/Loyalty_Sys/pull/98), [#130](https://github.com/peppe-ruv/Loyalty_Sys/pull/130), [#161](https://github.com/peppe-ruv/Loyalty_Sys/pull/161)"
         },
         "D2": {
-          "status": "ko",
-          "evidence": "job docs: assente da .github/workflows"
+          "status": "ok",
+          "evidence": "prove automatiche: [check-frontmatter.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/check-frontmatter.mjs)"
         },
         "D4": {
           "status": "tbd",
@@ -5787,7 +5787,7 @@
       "dod": {
         "D1": {
           "status": "ko",
-          "evidence": "F2-DOC-02 (in corso); PR [#130](https://github.com/peppe-ruv/Loyalty_Sys/pull/130)"
+          "evidence": "F2-DOC-02 (in corso); PR [#130](https://github.com/peppe-ruv/Loyalty_Sys/pull/130), [#161](https://github.com/peppe-ruv/Loyalty_Sys/pull/161)"
         },
         "D2": {
           "status": "ok",
@@ -5803,7 +5803,7 @@
       "dor": {
         "R5": {
           "status": "ok",
-          "evidence": "job docs (assente da .github/workflows), 1 prova automatica"
+          "evidence": "job docs, 1 prova automatica"
         },
         "R6": {
           "status": "ok",
@@ -5821,11 +5821,11 @@
       "dod": {
         "D1": {
           "status": "ko",
-          "evidence": "F2-DOC-03 (in corso); PR [#54](https://github.com/peppe-ruv/Loyalty_Sys/pull/54)"
+          "evidence": "F2-DOC-03 (in corso); PR [#33](https://github.com/peppe-ruv/Loyalty_Sys/pull/33), [#54](https://github.com/peppe-ruv/Loyalty_Sys/pull/54), [#161](https://github.com/peppe-ruv/Loyalty_Sys/pull/161)"
         },
         "D2": {
-          "status": "ko",
-          "evidence": "prove automatiche: check-mermaid.mjs (nessun workflow lo invoca: non è una prova in CI); job docs: assente da .github/workflows"
+          "status": "ok",
+          "evidence": "prove automatiche: [check-mermaid.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/check-mermaid.mjs)"
         },
         "D4": {
           "status": "tbd",
@@ -5836,8 +5836,8 @@
     "US-F2-DOC-04": {
       "dor": {
         "R5": {
-          "status": "ko",
-          "evidence": "nessun dominio TB; job docs assente da .github/workflows"
+          "status": "ok",
+          "evidence": "job docs"
         },
         "R6": {
           "status": "ok",
@@ -5859,7 +5859,7 @@
         },
         "D2": {
           "status": "ko",
-          "evidence": "job docs: assente da .github/workflows"
+          "evidence": "nessuna riga di testbook né prova automatica"
         },
         "D4": {
           "status": "tbd",
@@ -5871,7 +5871,7 @@
       "dor": {
         "R5": {
           "status": "ok",
-          "evidence": "job docs (assente da .github/workflows), 1 prova automatica"
+          "evidence": "job docs, 1 prova automatica"
         },
         "R6": {
           "status": "ok",
@@ -5888,12 +5888,12 @@
       },
       "dod": {
         "D1": {
-          "status": "ko",
-          "evidence": "F2-DOC-05 (in corso); PR [#83](https://github.com/peppe-ruv/Loyalty_Sys/pull/83), [#87](https://github.com/peppe-ruv/Loyalty_Sys/pull/87)"
+          "status": "ok",
+          "evidence": "F2-DOC-05 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#83](https://github.com/peppe-ruv/Loyalty_Sys/pull/83), [#87](https://github.com/peppe-ruv/Loyalty_Sys/pull/87), [#161](https://github.com/peppe-ruv/Loyalty_Sys/pull/161)"
         },
         "D2": {
-          "status": "ko",
-          "evidence": "prove automatiche: check-mermaid.mjs (nessun workflow lo invoca: non è una prova in CI); job docs: assente da .github/workflows"
+          "status": "ok",
+          "evidence": "prove automatiche: [check-mermaid.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/check-mermaid.mjs)"
         },
         "D4": {
           "status": "tbd",
@@ -6007,7 +6007,7 @@
       "dor": {
         "R5": {
           "status": "ok",
-          "evidence": "TB-SEC (con righe), 1 prova automatica"
+          "evidence": "TB-SEC (con righe), 2 prove automatiche"
         },
         "R6": {
           "status": "ok",
@@ -6024,12 +6024,12 @@
       },
       "dod": {
         "D1": {
-          "status": "ko",
-          "evidence": "F2-EVT-01 (in corso); PR [#50](https://github.com/peppe-ruv/Loyalty_Sys/pull/50), [#143](https://github.com/peppe-ruv/Loyalty_Sys/pull/143)"
+          "status": "ok",
+          "evidence": "F2-EVT-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#50](https://github.com/peppe-ruv/Loyalty_Sys/pull/50), [#143](https://github.com/peppe-ruv/Loyalty_Sys/pull/143), [#171](https://github.com/peppe-ruv/Loyalty_Sys/pull/171), [#175](https://github.com/peppe-ruv/Loyalty_Sys/pull/175)"
         },
         "D2": {
           "status": "ok",
-          "evidence": "prove automatiche: [ContractsTest.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/contracts/ContractsTest.java)"
+          "evidence": "prove automatiche: [ContractsTest.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/contracts/ContractsTest.java), [contracts-compat.test.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/contracts-compat.test.mjs)"
         },
         "D4": {
           "status": "tbd",
@@ -6059,7 +6059,7 @@
       "dod": {
         "D1": {
           "status": "ko",
-          "evidence": "F2-EVT-02 (in corso); PR [#50](https://github.com/peppe-ruv/Loyalty_Sys/pull/50), [#53](https://github.com/peppe-ruv/Loyalty_Sys/pull/53), [#58](https://github.com/peppe-ruv/Loyalty_Sys/pull/58), [#59](https://github.com/peppe-ruv/Loyalty_Sys/pull/59), [#72](https://github.com/peppe-ruv/Loyalty_Sys/pull/72), [#78](https://github.com/peppe-ruv/Loyalty_Sys/pull/78), [#144](https://github.com/peppe-ruv/Loyalty_Sys/pull/144)"
+          "evidence": "F2-EVT-02 (in corso); PR [#50](https://github.com/peppe-ruv/Loyalty_Sys/pull/50), [#53](https://github.com/peppe-ruv/Loyalty_Sys/pull/53), [#58](https://github.com/peppe-ruv/Loyalty_Sys/pull/58), [#59](https://github.com/peppe-ruv/Loyalty_Sys/pull/59), [#72](https://github.com/peppe-ruv/Loyalty_Sys/pull/72), [#78](https://github.com/peppe-ruv/Loyalty_Sys/pull/78), [#144](https://github.com/peppe-ruv/Loyalty_Sys/pull/144), [#155](https://github.com/peppe-ruv/Loyalty_Sys/pull/155) e altri 5"
         },
         "D2": {
           "status": "ok",
@@ -6807,7 +6807,7 @@
       "dod": {
         "D1": {
           "status": "ok",
-          "evidence": "F2-IAM-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#57](https://github.com/peppe-ruv/Loyalty_Sys/pull/57), [#135](https://github.com/peppe-ruv/Loyalty_Sys/pull/135), [#139](https://github.com/peppe-ruv/Loyalty_Sys/pull/139), [#146](https://github.com/peppe-ruv/Loyalty_Sys/pull/146)"
+          "evidence": "F2-IAM-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#57](https://github.com/peppe-ruv/Loyalty_Sys/pull/57), [#135](https://github.com/peppe-ruv/Loyalty_Sys/pull/135), [#139](https://github.com/peppe-ruv/Loyalty_Sys/pull/139), [#146](https://github.com/peppe-ruv/Loyalty_Sys/pull/146), [#181](https://github.com/peppe-ruv/Loyalty_Sys/pull/181)"
         },
         "D2": {
           "status": "ok",
@@ -6875,7 +6875,7 @@
       "dod": {
         "D1": {
           "status": "ko",
-          "evidence": "F2-IAM-03 (in corso); PR [#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99), [#104](https://github.com/peppe-ruv/Loyalty_Sys/pull/104), [#138](https://github.com/peppe-ruv/Loyalty_Sys/pull/138), [#139](https://github.com/peppe-ruv/Loyalty_Sys/pull/139), [#146](https://github.com/peppe-ruv/Loyalty_Sys/pull/146)"
+          "evidence": "F2-IAM-03 (in corso); PR [#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99), [#104](https://github.com/peppe-ruv/Loyalty_Sys/pull/104), [#138](https://github.com/peppe-ruv/Loyalty_Sys/pull/138), [#139](https://github.com/peppe-ruv/Loyalty_Sys/pull/139), [#146](https://github.com/peppe-ruv/Loyalty_Sys/pull/146), [#155](https://github.com/peppe-ruv/Loyalty_Sys/pull/155), [#181](https://github.com/peppe-ruv/Loyalty_Sys/pull/181)"
         },
         "D2": {
           "status": "ok",
@@ -7011,7 +7011,7 @@
       "dod": {
         "D1": {
           "status": "ko",
-          "evidence": "F2-OBS-01 (in corso); PR [#142](https://github.com/peppe-ruv/Loyalty_Sys/pull/142)"
+          "evidence": "F2-OBS-01 (in corso); PR [#142](https://github.com/peppe-ruv/Loyalty_Sys/pull/142), [#170](https://github.com/peppe-ruv/Loyalty_Sys/pull/170)"
         },
         "D2": {
           "status": "ko",
@@ -7249,7 +7249,7 @@
       "dod": {
         "D1": {
           "status": "ko",
-          "evidence": "F2-SEC-03 (in corso); PR [#132](https://github.com/peppe-ruv/Loyalty_Sys/pull/132), [#133](https://github.com/peppe-ruv/Loyalty_Sys/pull/133), [#141](https://github.com/peppe-ruv/Loyalty_Sys/pull/141)"
+          "evidence": "F2-SEC-03 (in corso); PR [#132](https://github.com/peppe-ruv/Loyalty_Sys/pull/132), [#133](https://github.com/peppe-ruv/Loyalty_Sys/pull/133), [#141](https://github.com/peppe-ruv/Loyalty_Sys/pull/141), [#163](https://github.com/peppe-ruv/Loyalty_Sys/pull/163), [#168](https://github.com/peppe-ruv/Loyalty_Sys/pull/168), [#174](https://github.com/peppe-ruv/Loyalty_Sys/pull/174)"
         },
         "D2": {
           "status": "ko",
@@ -7419,7 +7419,7 @@
       "dod": {
         "D1": {
           "status": "ko",
-          "evidence": "F2-SEC-09 (in corso); PR [#131](https://github.com/peppe-ruv/Loyalty_Sys/pull/131), [#138](https://github.com/peppe-ruv/Loyalty_Sys/pull/138), [#140](https://github.com/peppe-ruv/Loyalty_Sys/pull/140), [#145](https://github.com/peppe-ruv/Loyalty_Sys/pull/145), [#148](https://github.com/peppe-ruv/Loyalty_Sys/pull/148), [#149](https://github.com/peppe-ruv/Loyalty_Sys/pull/149)"
+          "evidence": "F2-SEC-09 (in corso); PR [#131](https://github.com/peppe-ruv/Loyalty_Sys/pull/131), [#138](https://github.com/peppe-ruv/Loyalty_Sys/pull/138), [#140](https://github.com/peppe-ruv/Loyalty_Sys/pull/140), [#145](https://github.com/peppe-ruv/Loyalty_Sys/pull/145), [#148](https://github.com/peppe-ruv/Loyalty_Sys/pull/148), [#149](https://github.com/peppe-ruv/Loyalty_Sys/pull/149), [#155](https://github.com/peppe-ruv/Loyalty_Sys/pull/155), [#156](https://github.com/peppe-ruv/Loyalty_Sys/pull/156) e altri 4"
         },
         "D2": {
           "status": "ko",
@@ -7453,7 +7453,7 @@
       "dod": {
         "D1": {
           "status": "ko",
-          "evidence": "F2-SEC-10 (in corso); PR [#61](https://github.com/peppe-ruv/Loyalty_Sys/pull/61), [#89](https://github.com/peppe-ruv/Loyalty_Sys/pull/89), [#91](https://github.com/peppe-ruv/Loyalty_Sys/pull/91), [#93](https://github.com/peppe-ruv/Loyalty_Sys/pull/93), [#94](https://github.com/peppe-ruv/Loyalty_Sys/pull/94), [#125](https://github.com/peppe-ruv/Loyalty_Sys/pull/125), [#126](https://github.com/peppe-ruv/Loyalty_Sys/pull/126), [#128](https://github.com/peppe-ruv/Loyalty_Sys/pull/128) e altri 1"
+          "evidence": "F2-SEC-10 (in corso); PR [#61](https://github.com/peppe-ruv/Loyalty_Sys/pull/61), [#89](https://github.com/peppe-ruv/Loyalty_Sys/pull/89), [#91](https://github.com/peppe-ruv/Loyalty_Sys/pull/91), [#93](https://github.com/peppe-ruv/Loyalty_Sys/pull/93), [#94](https://github.com/peppe-ruv/Loyalty_Sys/pull/94), [#125](https://github.com/peppe-ruv/Loyalty_Sys/pull/125), [#126](https://github.com/peppe-ruv/Loyalty_Sys/pull/126), [#128](https://github.com/peppe-ruv/Loyalty_Sys/pull/128) e altri 5"
         },
         "D2": {
           "status": "ok",
@@ -7521,7 +7521,7 @@
       "dod": {
         "D1": {
           "status": "ko",
-          "evidence": "F2-SEC-12 (in corso); PR [#60](https://github.com/peppe-ruv/Loyalty_Sys/pull/60), [#131](https://github.com/peppe-ruv/Loyalty_Sys/pull/131), [#133](https://github.com/peppe-ruv/Loyalty_Sys/pull/133), [#147](https://github.com/peppe-ruv/Loyalty_Sys/pull/147), [#152](https://github.com/peppe-ruv/Loyalty_Sys/pull/152)"
+          "evidence": "F2-SEC-12 (in corso); PR [#60](https://github.com/peppe-ruv/Loyalty_Sys/pull/60), [#131](https://github.com/peppe-ruv/Loyalty_Sys/pull/131), [#133](https://github.com/peppe-ruv/Loyalty_Sys/pull/133), [#147](https://github.com/peppe-ruv/Loyalty_Sys/pull/147), [#152](https://github.com/peppe-ruv/Loyalty_Sys/pull/152), [#172](https://github.com/peppe-ruv/Loyalty_Sys/pull/172), [#173](https://github.com/peppe-ruv/Loyalty_Sys/pull/173), [#179](https://github.com/peppe-ruv/Loyalty_Sys/pull/179)"
         },
         "D2": {
           "status": "ko",
