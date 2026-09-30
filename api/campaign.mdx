@@ -151,9 +151,11 @@ Elenco valutazioni con filtri per spiegabilità.
 | Parametro | Descrizione |
 | --- | --- |
 | memberId | Filtra per membro. |
-| actionId | Filtra per singola azione. |
+| actionId | Filtra per singola azione (uguaglianza esatta). |
 | outcome | `MATCHED`, `NO_MATCH`, `NO_MEMBER`. |
-| from, to | Intervallo temporale ISO 8601. |
+| from, to | Istanti ISO 8601 con offset (es. `2026-09-30T10:00:00Z`). Intervallo semiaperto `[from, to)` sull'istante di valutazione (`evaluated_at`): `from` incluso, `to` escluso. `from` successivo a `to`, o un valore non interpretabile, dà `400 BAD_REQUEST`; `from` uguale a `to` dà una lista vuota. In query string il `+` di un offset va scritto `%2B`. |
+
+I filtri sono facoltativi e si combinano in AND; le valutazioni sono ordinate dalla più recente.
 
 ### GET /v1/evaluations/{actionId}
 

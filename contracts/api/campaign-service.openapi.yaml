@@ -735,7 +735,22 @@ paths:
         schema:
           type: string
       - in: query
+        name: actionId
+        required: false
+        schema:
+          type: string
+      - in: query
         name: outcome
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: to
         required: false
         schema:
           type: string

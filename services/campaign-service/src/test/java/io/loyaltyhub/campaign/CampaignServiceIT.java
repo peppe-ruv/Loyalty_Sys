@@ -224,22 +224,112 @@ class CampaignServiceIT {
             logEvaluation("01EVLOG-F", "MBR-IT-LOG-3", "MATCHED", t0.plusSeconds(180));
             logEvaluation("01EVLOG-E", "MBR-IT-LOG-3", "MATCHED", t0.plusSeconds(180));
 
-            assertThat(actionIds(evaluationLogRepository.search("MBR-IT-LOG-1", "MATCHED", 10)))
+            assertThat(actionIds(evaluationLogRepository.search(filter("MBR-IT-LOG-1", "MATCHED"), 10)))
                     .containsExactly("01EVLOG-A");
-            assertThat(actionIds(evaluationLogRepository.search("MBR-IT-LOG-1", " matched ", 10)))
+            assertThat(actionIds(evaluationLogRepository.search(filter("MBR-IT-LOG-1", " matched "), 10)))
                     .containsExactly("01EVLOG-A");
-            assertThat(actionIds(evaluationLogRepository.search("MBR-IT-LOG-1", null, 10)))
+            assertThat(actionIds(evaluationLogRepository.search(filter("MBR-IT-LOG-1", null), 10)))
                     .containsExactly("01EVLOG-B", "01EVLOG-A");
-            assertThat(actionIds(evaluationLogRepository.search("MBR-IT-LOG-1", "", 1)))
+            assertThat(actionIds(evaluationLogRepository.search(filter("MBR-IT-LOG-1", ""), 1)))
                     .containsExactly("01EVLOG-B");
-            assertThat(actionIds(evaluationLogRepository.search(null, "no_match", 1)))
+            assertThat(actionIds(evaluationLogRepository.search(filter(null, "no_match"), 1)))
                     .containsExactly("01EVLOG-B");
-            assertThat(actionIds(evaluationLogRepository.search(null, "MATCHED", 4)))
+            assertThat(actionIds(evaluationLogRepository.search(filter(null, "MATCHED"), 4)))
                     .containsExactly("01EVLOG-E", "01EVLOG-F", "01EVLOG-C", "01EVLOG-A");
-            assertThat(actionIds(evaluationLogRepository.search("MBR-IT-LOG-3", null, 1)))
+            assertThat(actionIds(evaluationLogRepository.search(filter("MBR-IT-LOG-3", null), 1)))
                     .containsExactly("01EVLOG-E");
         } finally {
             jdbc.sql("DELETE FROM evaluation_log WHERE member_id LIKE 'MBR-IT-LOG-%'").update();
+        }
+    }
+
+    /**
+     * Q-625: filtri {@code actionId}, {@code from} e {@code to} di {@code GET /v1/evaluations}. Righe proprie (azioni
+     * {@code 01EVFLT-*}, membri {@code MBR-IT-FLT-*}) con {@code evaluated_at} nel 2099-03, rimosse alla fine.
+     * {@code actionId} è un'uguaglianza esatta; {@code [from, to)} include {@code from} ed esclude {@code to};
+     * {@code from == to} dà lista vuota; {@code from} dopo {@code to} o un istante non interpretabile (anche senza
+     * offset o solo data) dà 400 {@code BAD_REQUEST}; un valore vuoto non filtra; i filtri si compongono in AND.
+     */
+    @Test
+    void evaluationsFiltersByActionIdAndHalfOpenTimeRange() {
+        Instant t0 = Instant.parse("2099-03-01T00:00:00Z");
+        String m1 = "MBR-IT-FLT-1";
+        try {
+            logEvaluation("01EVFLT-A", m1, "MATCHED", t0);
+            logEvaluation("01EVFLT-B", m1, "NO_MATCH", t0.plusSeconds(60));
+            logEvaluation("01EVFLT-C", "MBR-IT-FLT-2", "MATCHED", t0.plusSeconds(120));
+            logEvaluation("01EVFLT-D", m1, "MATCHED", t0.plusSeconds(180));
+            String t60 = "2099-03-01T00:01:00Z";
+            String t120 = "2099-03-01T00:02:00Z";
+            String t180 = "2099-03-01T00:03:00Z";
+            String t240 = "2099-03-01T00:04:00Z";
+
+            // Senza filtri nuovi il comportamento è quello di prima: membro, più recenti prima.
+            assertThat(evaluationIds(200, "/v1/evaluations?memberId={m}", m1))
+                    .containsExactly("01EVFLT-D", "01EVFLT-B", "01EVFLT-A");
+            assertThat(evaluationIds(200, "/v1/evaluations?memberId={m}&outcome={o}", m1, "matched"))
+                    .containsExactly("01EVFLT-D", "01EVFLT-A");
+
+            // actionId: uguaglianza esatta (niente maiuscole/minuscole, niente prefissi o jolly).
+            assertThat(evaluationIds(200, "/v1/evaluations?actionId={a}", "01EVFLT-B")).containsExactly("01EVFLT-B");
+            assertThat(evaluationIds(200, "/v1/evaluations?actionId={a}", "01evflt-b")).isEmpty();
+            assertThat(evaluationIds(200, "/v1/evaluations?actionId={a}", "01EVFLT-%")).isEmpty();
+            assertThat(evaluationIds(200, "/v1/evaluations?actionId={a}", "01EVFLT-B' OR '1'='1")).isEmpty();
+
+            // [from, to): from incluso, to escluso.
+            assertThat(evaluationIds(200, "/v1/evaluations?from={f}&to={t}", t0.toString(), t240))
+                    .containsExactly("01EVFLT-D", "01EVFLT-C", "01EVFLT-B", "01EVFLT-A");
+            assertThat(evaluationIds(200, "/v1/evaluations?from={f}&to={t}", t0.toString(), t180))
+                    .containsExactly("01EVFLT-C", "01EVFLT-B", "01EVFLT-A");
+            assertThat(evaluationIds(200, "/v1/evaluations?from={f}&to={t}", t60, t120)).containsExactly("01EVFLT-B");
+            assertThat(evaluationIds(200, "/v1/evaluations?from={f}&to={t}", t60, t180))
+                    .containsExactly("01EVFLT-C", "01EVFLT-B");
+            // Solo from o solo to (con il membro per isolare le righe di prova dal resto del registro).
+            assertThat(evaluationIds(200, "/v1/evaluations?memberId={m}&from={f}", m1, t60))
+                    .containsExactly("01EVFLT-D", "01EVFLT-B");
+            assertThat(evaluationIds(200, "/v1/evaluations?memberId={m}&to={t}", m1, t60)).containsExactly("01EVFLT-A");
+            // from == to: intervallo vuoto ma valido.
+            assertThat(evaluationIds(200, "/v1/evaluations?from={f}&to={t}", t60, t60)).isEmpty();
+            // Offset diverso da Z: lo stesso istante.
+            assertThat(evaluationIds(200, "/v1/evaluations?from={f}&to={t}", "2099-03-01T02:01:00+02:00", t120))
+                    .containsExactly("01EVFLT-B");
+            assertThat(evaluationIds(200, "/v1/evaluations?from={f}&to={t}", "2099-02-28T16:01:00-08:00", t120))
+                    .containsExactly("01EVFLT-B");
+
+            // Composizione in AND con memberId, outcome, actionId e limit.
+            assertThat(evaluationIds(200, "/v1/evaluations?memberId={m}&outcome={o}&from={f}&to={t}",
+                    m1, "MATCHED", t0.toString(), t240)).containsExactly("01EVFLT-D", "01EVFLT-A");
+            assertThat(evaluationIds(200, "/v1/evaluations?memberId={m}&from={f}&to={t}", m1, t60, t180))
+                    .containsExactly("01EVFLT-B");
+            assertThat(evaluationIds(200, "/v1/evaluations?actionId={a}&from={f}&to={t}", "01EVFLT-C", t60, t180))
+                    .containsExactly("01EVFLT-C");
+            assertThat(evaluationIds(200, "/v1/evaluations?actionId={a}&from={f}&to={t}", "01EVFLT-C", t0.toString(), t120))
+                    .isEmpty();
+            assertThat(evaluationIds(200, "/v1/evaluations?actionId={a}&memberId={m}", "01EVFLT-C", m1)).isEmpty();
+            assertThat(evaluationIds(200, "/v1/evaluations?actionId={a}&outcome={o}", "01EVFLT-C", "NO_MATCH")).isEmpty();
+            assertThat(evaluationIds(200, "/v1/evaluations?from={f}&to={t}&limit=2", t0.toString(), t240))
+                    .containsExactly("01EVFLT-D", "01EVFLT-C");
+
+            // Valori vuoti: nessun filtro, come memberId e outcome.
+            assertThat(evaluationIds(200, "/v1/evaluations?memberId={m}&actionId=&from=&to=", m1))
+                    .containsExactly("01EVFLT-D", "01EVFLT-B", "01EVFLT-A");
+
+            // 400 BAD_REQUEST (RFC 9457): from dopo to, istante non interpretabile, senza offset o solo data.
+            for (String[] bad : new String[][]{
+                    {t120, t60}, {t240, t0.toString()}, {"ieri", t60}, {t60, "domani"}, {"2099-03-01", t120},
+                    {"2099-03-01T00:01:00", t120}, {t60, "2099-03-01T00:02:00"}, {"1772323260", t120}}) {
+                JsonNode problem = evaluations(400, "/v1/evaluations?from={f}&to={t}", bad[0], bad[1]);
+                assertThat(problem.path("code").asString()).as(bad[0] + " .. " + bad[1]).isEqualTo("BAD_REQUEST");
+            }
+            assertThat(evaluations(400, "/v1/evaluations?from={f}", "non-un-istante").path("code").asString())
+                    .isEqualTo("BAD_REQUEST");
+            assertThat(evaluations(400, "/v1/evaluations?to={t}", "non-un-istante").path("code").asString())
+                    .isEqualTo("BAD_REQUEST");
+            // Il limit della Q-532 resta validato insieme ai nuovi filtri.
+            assertThat(evaluations(400, "/v1/evaluations?from={f}&limit=0", t0.toString()).path("code").asString())
+                    .isEqualTo("BAD_REQUEST");
+        } finally {
+            jdbc.sql("DELETE FROM evaluation_log WHERE action_id LIKE '01EVFLT-%'").update();
         }
     }
 
@@ -849,6 +939,27 @@ class CampaignServiceIT {
 
     private long campaignCount() {
         return jdbc.sql("SELECT count(*) FROM campaign").query(Long.class).single();
+    }
+
+    /** GET del registro valutazioni come analista; {@code template} ha segnaposto {@code {x}} codificati dal client. */
+    private JsonNode evaluations(int expected, String template, Object... vars) {
+        return client().get().uri(template, vars).header("X-LH-Actor", "ANALYST:sara").exchange((req, res) -> {
+            String text = new String(res.getBody().readAllBytes());
+            assertThat(res.getStatusCode().value()).as(template + " " + List.of(vars) + " → " + text).isEqualTo(expected);
+            return mapper.readTree(text);
+        });
+    }
+
+    private List<String> evaluationIds(int expected, String template, Object... vars) {
+        List<String> ids = new ArrayList<>();
+        for (JsonNode row : evaluations(expected, template, vars)) {
+            ids.add(row.path("actionId").asString());
+        }
+        return ids;
+    }
+
+    private static EvaluationLogRepository.Filter filter(String memberId, String outcome) {
+        return new EvaluationLogRepository.Filter(memberId, outcome, null, null, null);
     }
 
     /** Valutazione di prova scritta dal repository, con {@code evaluated_at} fissato per un ordine deterministico. */

@@ -6,6 +6,7 @@ import io.loyaltyhub.common.sql.SqlWhere;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -70,15 +71,27 @@ public class EvaluationLogRepository {
             """;
 
     /**
-     * Valutazioni più recenti prima ({@code GET /v1/evaluations}, docs §3). Filtri facoltativi, ignorati se assenti o
-     * vuoti: membro per uguaglianza, esito per uguaglianza (ripulito e in maiuscolo). A parità di {@code evaluated_at}
-     * vale {@code action_id} crescente, così {@code limit} taglia sempre le stesse righe; parametri e forma della
-     * risposta non cambiano.
+     * Filtri facoltativi del registro (docs/servizi/campaign-service.md §3, Q-625): {@code memberId}, {@code outcome} e
+     * {@code actionId} per uguaglianza, {@code from}/{@code to} sull'intervallo semiaperto
+     * {@code [from, to)} di {@code evaluated_at}. Un valore {@code null} (o un testo vuoto) non restringe nulla.
      */
-    public List<EvaluationRow> search(String memberId, String outcome, int limit) {
+    public record Filter(String memberId, String outcome, String actionId, Instant from, Instant to) {
+    }
+
+    /**
+     * Valutazioni più recenti prima ({@code GET /v1/evaluations}, docs §3). Filtri facoltativi, ignorati se assenti o
+     * vuoti: membro e azione per uguaglianza esatta, esito per uguaglianza (ripulito e in maiuscolo), {@code from}
+     * incluso e {@code to} escluso su {@code evaluated_at} (Q-625: l'indice {@code evaluation_log_evaluated} coincide
+     * con l'ordinamento). A parità di {@code evaluated_at} vale {@code action_id} crescente, così {@code limit} taglia
+     * sempre le stesse righe. Colonne solo da {@link EvaluationLogColumn}, ogni valore è un parametro legato.
+     */
+    public List<EvaluationRow> search(Filter f, int limit) {
         SqlWhere where = new SqlWhere()
-                .when(present(memberId), w -> w.eq(EvaluationLogColumn.MEMBER_ID, memberId))
-                .when(present(outcome), w -> w.eq(EvaluationLogColumn.OUTCOME, outcome.trim().toUpperCase()));
+                .when(present(f.memberId()), w -> w.eq(EvaluationLogColumn.MEMBER_ID, f.memberId()))
+                .when(present(f.outcome()), w -> w.eq(EvaluationLogColumn.OUTCOME, f.outcome().trim().toUpperCase()))
+                .when(present(f.actionId()), w -> w.eq(EvaluationLogColumn.ACTION_ID, f.actionId()))
+                .when(f.from() != null, w -> w.gte(EvaluationLogColumn.EVALUATED_AT, Timestamp.from(f.from())))
+                .when(f.to() != null, w -> w.lt(EvaluationLogColumn.EVALUATED_AT, Timestamp.from(f.to())));
         return where.bind(jdbc.sql(SEARCH + where.sql() + searchOrder().sql() + " LIMIT :limit"))
                 .param("limit", limit)
                 .query((rs, n) -> new EvaluationRow(
