@@ -6,7 +6,7 @@ import tools.jackson.databind.node.ObjectNode;
 import io.loyaltyhub.common.demo.DemoResettable;
 import io.loyaltyhub.common.demo.SeedDates;
 import io.loyaltyhub.common.demo.SeedLoader;
-import io.loyaltyhub.common.ids.Codes;
+import io.loyaltyhub.common.demo.SeededCodes;
 import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.member.application.SegmentRefresher;
 import io.loyaltyhub.member.domain.Anonymization;
@@ -131,7 +131,7 @@ public class MemberSeeder implements ApplicationRunner, DemoResettable {
             Member member = new Member(
                     id, text(m.get("externalId")), text(m.get("firstName")), text(m.get("lastName")),
                     text(m.get("nickname")), text(m.get("email")), text(m.get("phone")), birthDate, null,
-                    text(m.get("city")), status, "IMPORT", registeredAt, Codes.random(8, rnd), text(m.get("referredBy")),
+                    text(m.get("city")), status, "IMPORT", registeredAt, SeededCodes.random(8, rnd), text(m.get("referredBy")),
                     null, consents, attributes, strings(m.get("labels")), avatarSeed, null, 0);
             // Profilo già completo nei seed (docs/10 §2: incompleti solo Anna ed Elisa): nessun fatto da riemettere.
             if (ProfileRules.missingFields(member).isEmpty()) {
