@@ -107,6 +107,28 @@ class AchievementIT {
         assertThat(byCode(get("/v1/badges"), "BDG-FIRST").path("holders").asLong()).isEqualTo(8);
     }
 
+    /**
+     * PT-09, F-ACH-02: un obiettivo non ripetibile completato in un periodo precedente, senza riga nel periodo corrente,
+     * mostra il completamento (pct 100, {@code periodKey} del periodo in cui è avvenuto); lo stesso obiettivo per un
+     * membro senza progressi resta a zero nel periodo corrente.
+     */
+    @Test
+    void nonRepeatableCompletedInPastPeriodStaysCompleted() {
+        String achievementId = jdbc.sql("SELECT id FROM achievement WHERE code = 'ACH-BIG-SPENDER'").query(String.class).single();
+        jdbc.sql("""
+                INSERT INTO achievement_progress (achievement_id, member_id, period_key, value, completed_at)
+                VALUES (?, 'MBR-IT-PAST', 'ED-1999', 1000, '1999-06-01T10:00:00Z')
+                """).param(achievementId).update();
+        JsonNode done = achievement("MBR-IT-PAST", "ACH-BIG-SPENDER");
+        assertThat(done.path("completedAt").asString()).isNotBlank();
+        assertThat(done.path("pct").asInt()).isEqualTo(100);
+        assertThat(done.path("periodKey").asString()).isEqualTo("ED-1999");
+        JsonNode none = achievement("MBR-IT-NONE", "ACH-BIG-SPENDER");
+        assertThat(none.path("completedAt").asString("")).isBlank();
+        assertThat(none.path("pct").asInt()).isZero();
+        assertThat(none.path("periodKey").asString()).isNotEqualTo("ED-1999");
+    }
+
     @Test
     void threePurchasesInAMonthCompleteOnceAndTheFourthDoesNotReemit() throws Exception {
         for (int i = 1; i <= 4; i++) {
