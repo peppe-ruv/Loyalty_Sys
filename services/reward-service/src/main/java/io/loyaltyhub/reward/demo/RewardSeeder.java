@@ -9,6 +9,7 @@ import io.loyaltyhub.common.demo.DemoResettable;
 import io.loyaltyhub.common.demo.SeedDates;
 import io.loyaltyhub.common.demo.SeedLoader;
 import io.loyaltyhub.common.ids.Ulid;
+import io.loyaltyhub.reward.application.CouponCodePolicy;
 import io.loyaltyhub.reward.application.CouponService;
 import io.loyaltyhub.reward.domain.Band;
 import io.loyaltyhub.reward.domain.Category;
@@ -54,12 +55,14 @@ public class RewardSeeder implements ApplicationRunner, DemoResettable {
     private final MemberSnapshotRepository members;
     private final CouponRepository coupons;
     private final CouponService couponService;
+    private final CouponCodePolicy codePolicy;
     private final ApprovalHistoryStore approvalHistory;
     private final Clock clock;
 
     public RewardSeeder(SeedLoader seed, CatalogRepository catalog, RewardRepository rewards,
                         RedemptionRepository redemptions, MemberSnapshotRepository members, CouponRepository coupons,
-                        CouponService couponService, ApprovalHistoryStore approvalHistory, Clock clock) {
+                        CouponService couponService, CouponCodePolicy codePolicy, ApprovalHistoryStore approvalHistory,
+                        Clock clock) {
         this.seed = seed;
         this.catalog = catalog;
         this.rewards = rewards;
@@ -67,6 +70,7 @@ public class RewardSeeder implements ApplicationRunner, DemoResettable {
         this.members = members;
         this.coupons = coupons;
         this.couponService = couponService;
+        this.codePolicy = codePolicy;
         this.approvalHistory = approvalHistory;
         this.clock = clock;
     }
@@ -99,13 +103,13 @@ public class RewardSeeder implements ApplicationRunner, DemoResettable {
             catalog.upsertBand(new Band(b.path("code").asString(), b.path("name").asString(),
                     b.path("pointsThreshold").asLong(), text(b, "color"), b.path("sortOrder").asInt(0)));
         }
-        // Pool coupon: seme stabile dal codice → stessi codici a ogni reset (docs/10 §1); lo storico consumato
+        // Pool coupon: in demo seme stabile dal codice → stessi codici a ogni reset (docs/10 §1.3, Q-614); lo storico consumato
         // prima della demo è marcato USED.
         Map<String, String> poolIds = new HashMap<>();
         for (JsonNode p : seed.readTree("coupon-pools.json")) {
             String code = p.path("code").asString();
             CouponPool pool = new CouponPool(Ulid.next(clock), code, p.path("name").asString(), p.path("prefix").asString(),
-                    p.path("validityDays").asInt(90), CouponService.seedFor(code), null);
+                    p.path("validityDays").asInt(90), codePolicy.poolSeed(code), null);
             coupons.insertPool(pool);
             poolIds.put(code, pool.id());
             int size = p.path("size").asInt(0);
