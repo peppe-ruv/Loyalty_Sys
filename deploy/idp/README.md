@@ -7,7 +7,8 @@ Questa directory contiene la configurazione as-code dell'Identity Provider per i
 - `realm.json`: export del realm `loyaltyhub` con client, ruoli, client scope (quelli standard di Keycloak 26 più `hub-audience` e `lh-roles-scope`), flussi e utenti senza password. I valori variabili sono segnaposto `${LH_*}` che Keycloak sostituisce con le variabili d'ambiente all'import.
 - Fonti di ingestion (Q-492): un client confidential `src-<codice>` per ogni fonte HTTP di `seed/sources.json`, non per le fonti `INTERNAL` (`internal`, `simulator`: non entrano da HTTP e non hanno chiavi da custodire) (`private_key_jwt`, solo service account, JWKS da `LH_SOURCE_<FONTE>_JWKS_URL`, nessun segreto) e l'utenza di servizio `service-account-src-<codice>` con il solo ruolo realm `SOURCE`, incluso nel claim `lh_roles`. Il ruolo `SOURCE` non è una persona: non lo riceve nessun utente demo. Per una fonte creata dopo l'installazione vedi `deploy/README.md` (Q-494).
 - Auto-registrazione dei membri (Q-557, ADR-048): `registrationAllowed: true`, `verifyEmail: false` dichiarato, nessun `smtpServer`, ruolo `MEMBER` nel composito del ruolo predefinito `default-roles-loyaltyhub`. L'utenza di servizio del client `lh-jobs` è dichiarata con `realmRoles: []` perché non erediti `MEMBER`. Vedi «Auto-registrazione dei membri».
-- `bootstrap.sh`: imposta le password temporanee degli operatori demo dopo l'avvio.
+- `bootstrap.sh`: imposta le password temporanee dei cinque operatori demo dopo l'avvio. Le password generate vanno solo in un file `0600`, mai su stdout (regola 20); vedi «Inizializzazione password demo».
+- `vetrina/` (**solo vetrina enterprise**, F2-DIST-09, ADR-049): overlay del realm che chiude la registrazione e aggiunge il client `lh-cli` per la CLI dell'operatore (`realm-vetrina-overlay.json`) e lo script che lo applica (`apply-overlay.sh`). Vedi «Vetrina enterprise».
 - `test-idp/` (**solo prova**, F2-IAM-04, F2-IAM-03): IdP OIDC secondario (`test-realm.json`), LDAP (`ldap-seed.ldif`), overlay del realm con il broker, il client di prova `lh-ldap-test` e il membro di prova `testmember` (`realm-test-overlay.json`), lo script che lo applica (`apply-overlay.sh`) e la verifica non interattiva della federazione e dei ruoli nei token (`verify.sh`).
 
 > Perché i client scope standard sono nel file: se un export contiene l'array `clientScopes`, Keycloak **non** crea i propri scope predefiniti (`profile`, `email`, `roles`, `basic`…). Senza di essi i token non avrebbero `preferred_username`, che `OidcActorFilter` di `libs/lh-common` usa come attore. `scripts/check-realm.mjs` verifica che ogni scope referenziato sia definito.
@@ -121,6 +122,35 @@ KC_BOOTSTRAP_ADMIN_PASSWORD="$LH_IDP_ADMIN_PASSWORD" ./deploy/idp/bootstrap.sh
 
 Lo script imposta una password temporanea (da `TEMP_PASS_*` o generata) ai 5 utenti demo `marta.admin`, `luca.marketing`, `elena.legal`, `paolo.care`, `sara.analyst`; Keycloak chiede di cambiarla al primo accesso.
 
+**Le password non compaiono mai su stdout** (regola 20, ADR-049 decisione 6). Quelle generate si scrivono in un file con permessi `0600` (`umask 077` prima della creazione; il file, se esiste già con permessi più larghi, viene riportato a `0600`; un collegamento simbolico è rifiutato) e lo script stampa solo il percorso. Le password fornite con `TEMP_PASS_*` non vengono riscritte nel file. Anche verso Keycloak le password passano da `stdin` e da file `0600`, non come argomenti di un processo.
+
+| Variabile | Default | Uso |
+|---|---|---|
+| `LH_IDP_BOOTSTRAP_OUT` | `deploy/idp/.secrets/bootstrap-passwords.txt` | percorso del file delle credenziali generate; la cartella di default è ignorata da git (`.gitignore`) e, se nuova, è creata `0700` |
+
+Consegna le password fuori banda e cancella il file. Nella vetrina enterprise non si esegue per pubblicare credenziali: gli account operatore sono nominativi (Q-618, default proposto, APERTA; vedi sotto).
+
+## Vetrina enterprise (F2-DIST-09, ADR-049)
+
+La vetrina è una seconda installazione ospitata in `LH_PROFILE=enterprise` (`docs/11 §17`, `concetti/vetrina-enterprise.mdx`). Usa lo stesso `realm.json` e applica, a realm avviato, l'overlay `vetrina/realm-vetrina-overlay.json` (`--import-realm` salta un realm già esistente): il realm base e l'overlay di prova (`test-idp/`) non cambiano.
+
+```bash
+KC_BOOTSTRAP_ADMIN_PASSWORD="$LH_IDP_ADMIN_PASSWORD" KEYCLOAK_URL=https://idp.example.org ./deploy/idp/vetrina/apply-overlay.sh
+./deploy/idp/vetrina/apply-overlay.sh --check   # solo validazione, senza rete
+```
+
+Lo script (idempotente) fa un `PUT` del frammento di impostazioni del realm (il `partialImport` non le tocca) e un `partialImport` con `OVERWRITE` dei client, poi rilegge il realm e **si ferma con errore** se il risultato non è quello atteso. Non ha segnaposto, non crea utenti, non tocca i flussi di autenticazione né le azioni richieste, e non stampa credenziali.
+
+| Cosa | Valore | Perché |
+|---|---|---|
+| `registrationAllowed` | `false` | portale membri chiuso nel primo passo (Q-619, default proposto, APERTA): la registrazione aperta senza verifica dell'e-mail raccoglierebbe dati personali reali |
+| Utenti e credenziali | nessuno | nessuna password pubblicata; gli account operatore sono nominativi, creati a mano dal proprietario con password temporanea consegnata fuori banda (Q-618, default proposto, APERTA) |
+| MFA e `UPDATE_PASSWORD` degli operatori | invariati | `browser-mfa` con `MFA_REQUIRED_ROLE` e `UPDATE_PASSWORD` restano quelli del realm base |
+| Client `web` | non ridefinito | redirect URI, ritorno dal logout, back-channel logout e web origins restano quelli di `realm.json`, costruiti da `LH_WEB_URL` (https sulla vetrina) |
+| Client `lh-cli` | pubblico, solo Device Authorization Grant | serve alla CLI dell'operatore per ottenere un token con MFA senza gestire password (default proposto, Q-626 APERTA) |
+
+`lh-cli`: Device Authorization Grant (RFC 8628) con PKCE `S256`; nessun direct access grant, nessun service account, nessun segreto, nessuna redirect URI, nessuno scope `offline_access`; access token di 5 minuti, sessione del client al più un'ora (15 minuti di inattività), codice del dispositivo di 5 minuti. L'utente si autentica nel browser con il flusso del realm, quindi con password e MFA; i ruoli del token sono solo quelli dell'utente e l'audience è `hub` come per `web`. Il client esiste solo nell'overlay di vetrina. La CLI deve inviare `code_challenge` e `code_verifier`; l'applicazione di `pkce.code.challenge.method` al Device Authorization Grant è da verificare con un Keycloak reale (Q-626).
+
 ## Auto-registrazione dei membri (Q-557, F2-IAM-03)
 
 Il realm è aperto alla registrazione: la pagina di login mostra «Registrati» e il flusso `registration` predefinito di Keycloak (nome utente, e-mail, nome, cognome, password) crea l'account e riporta al client `web` già autenticato. Chi si registra riceve il solo ruolo `MEMBER` (più quelli tecnici di Keycloak) e con quel token può usare soltanto le funzioni del portale. Il legame tra l'account e il membro (`member_identity`) lo crea la registrazione dal portale, non l'IdP (ADR-048).
@@ -210,7 +240,7 @@ I controlli `member` e `sources` fanno fallire con un messaggio esplicito (e usc
 node --test scripts/check-realm.mjs
 ```
 
-Controlla ruoli (compreso `SOURCE`), un client `src-<codice>` per ogni fonte del seed con impostazioni e utenza di servizio (solo `SOURCE`), assenza di segreti letterali (`secret`, `clientSecret`, `bindCredential`) in `realm.json` e nell'overlay, redirect URI senza wildcard assolute, URI del client `web` uguali ai percorsi del BFF (callback, ritorno dopo il logout, back-channel logout), durata dell'access token, `private_key_jwt` per i service account, che ogni client scope referenziato sia definito, che ogni segnaposto `${LH_*}` di `realm.json` sia passato al servizio `idp` del compose, la registrazione aperta senza verifica dell'e-mail né `smtpServer` (Q-557), `MEMBER` come solo composito del ruolo predefinito (con `defaultRole` che lo nomina e nessun `SOURCE`, operatore o MFA tra i predefiniti) e un'utenza dichiarata, con ruoli espliciti e senza ruolo predefinito, per ogni client con service account. Verifica anche l'overlay di prova: che ogni credenziale sia un segnaposto (compresa la password di `testmember`), che il membro di prova abbia il solo ruolo predefinito e l'e-mail non verificata e che i segnaposto dell'overlay coincidano con `OVERLAY_VARS` di `apply-overlay.sh`. La copia del realm nel chart è verificata da `scripts/check-helm.mjs`. Gira nel job `seed` della CI. `verify.sh` non gira in CI: ha bisogno di un Keycloak avviato con l'overlay (e dell'LDAP di prova per `ldap`).
+Controlla ruoli (compreso `SOURCE`), un client `src-<codice>` per ogni fonte del seed con impostazioni e utenza di servizio (solo `SOURCE`), assenza di segreti letterali (`secret`, `clientSecret`, `bindCredential`) in `realm.json` e nell'overlay, redirect URI senza wildcard assolute, URI del client `web` uguali ai percorsi del BFF (callback, ritorno dopo il logout, back-channel logout), durata dell'access token, `private_key_jwt` per i service account, che ogni client scope referenziato sia definito, che ogni segnaposto `${LH_*}` di `realm.json` sia passato al servizio `idp` del compose, la registrazione aperta senza verifica dell'e-mail né `smtpServer` (Q-557), `MEMBER` come solo composito del ruolo predefinito (con `defaultRole` che lo nomina e nessun `SOURCE`, operatore o MFA tra i predefiniti) e un'utenza dichiarata, con ruoli espliciti e senza ruolo predefinito, per ogni client con service account. Verifica anche l'overlay di prova: che ogni credenziale sia un segnaposto (compresa la password di `testmember`), che il membro di prova abbia il solo ruolo predefinito e l'e-mail non verificata e che i segnaposto dell'overlay coincidano con `OVERLAY_VARS` di `apply-overlay.sh`. E l'overlay di vetrina: `registrationAllowed: false`, nessun utente, credenziale, segreto o segnaposto, il solo client `lh-cli` pubblico con Device Authorization Grant e senza direct access grant, service account, redirect URI né `offline_access`, il client `web` non ridefinito, operatori del realm base con `UPDATE_PASSWORD` e `MFA_REQUIRED_ROLE`, l'applicazione simulata dell'overlay a una copia del realm, la coerenza di `REALM_SETTINGS` di `vetrina/apply-overlay.sh` con le chiavi dell'overlay e che `bootstrap.sh` scriva le password solo in un file `0600` e mai su stdout. La copia del realm nel chart è verificata da `scripts/check-helm.mjs`. Gira nel job `seed` della CI. `verify.sh` non gira in CI: ha bisogno di un Keycloak avviato con l'overlay (e dell'LDAP di prova per `ldap`).
 
 ## Diagrammi
 

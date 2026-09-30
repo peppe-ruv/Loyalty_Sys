@@ -1,0 +1,43 @@
+{
+  "_comment": "VETRINA ENTERPRISE (F2-IAM-01, F2-IAM-03, ADR-048, ADR-049). Non viene importato da --import-realm: lo applica deploy/idp/vetrina/apply-overlay.sh sul realm loyaltyhub gia' avviato (PUT del realm per le impostazioni, partialImport per i client). Nessun segnaposto, nessun segreto, nessuna credenziale e nessun utente: gli account operatore sono nominativi e si creano a mano (Q-618, default proposto, APERTA), con UPDATE_PASSWORD e MFA del realm base invariati. Il client web non si ridefinisce qui: le sue redirect URI e le web origins restano quelle di realm.json, costruite da LH_WEB_URL. registrationAllowed false: portale membri chiuso nel primo passo (Q-619, default proposto, APERTA). Il client lh-cli (Device Authorization Grant per la CLI dell'operatore) e' il default proposto di Q-626, APERTA.",
+  "realm": "loyaltyhub",
+  "registrationAllowed": false,
+  "clients": [
+    {
+      "clientId": "lh-cli",
+      "name": "CLI operatore (vetrina, Device Authorization Grant)",
+      "description": "Client pubblico per la sola CLI dell'operatore della vetrina: Device Authorization Grant (RFC 8628) con PKCE S256. L'operatore si autentica nel browser con il flusso del realm (password e MFA); nessun direct access grant, nessun service account, nessun segreto, nessuna redirect URI. I ruoli del token sono solo quelli dell'utente. Default proposto, Q-626 APERTA.",
+      "enabled": true,
+      "publicClient": true,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "protocol": "openid-connect",
+      "attributes": {
+        "oauth2.device.authorization.grant.enabled": "true",
+        "oauth2.device.code.lifespan": "300",
+        "oauth2.device.polling.interval": "5",
+        "pkce.code.challenge.method": "S256",
+        "access.token.lifespan": "300",
+        "client.session.idle.timeout": "900",
+        "client.session.max.lifespan": "3600"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "email",
+        "roles",
+        "acr",
+        "hub-audience",
+        "lh-roles-scope"
+      ],
+      "optionalClientScopes": []
+    }
+  ]
+}

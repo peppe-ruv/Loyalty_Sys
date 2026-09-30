@@ -39,7 +39,7 @@ flowchart LR
 |---|---|---|
 | `web` | container sull'host, una replica | Le sessioni del BFF stanno in memoria: un riavvio le chiude e si rientra con l'SSO. |
 | `hub` | container sull'host, non esposto | Esegue le migrazioni all'avvio. |
-| `idp` | Keycloak con Postgres come database | Un realm da `deploy/idp/realm.json` più un overlay di vetrina. |
+| `idp` | Keycloak con Postgres come database | Un realm da `deploy/idp/realm.json` più un overlay di vetrina: registrazione chiusa, nessuna credenziale pubblicata e un client pubblico `lh-cli` (Device Authorization Grant, con MFA) per la CLI dell'operatore (default proposto, Q-626 aperta). |
 | Postgres e Kafka | sull'host, nel compose | Database e broker **propri**, mai condivisi con la demo. |
 | Reverse proxy TLS | sull'host, porte 80 e 443 | Unico componente esposto; è la parte che distingue il compose della vetrina da quello di riferimento. |
 

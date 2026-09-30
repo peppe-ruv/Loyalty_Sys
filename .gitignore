@@ -16,6 +16,8 @@ out/
 .env
 .env.*
 !.env.example
+# Password temporanee generate da deploy/idp/bootstrap.sh (regola 20): file 0600, mai committati
+deploy/idp/.secrets/
 
 # --- IDE / OS ---
 .idea/
