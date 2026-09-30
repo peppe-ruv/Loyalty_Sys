@@ -131,18 +131,31 @@ public class ContentService {
     /**
      * Portale: i contenuti che il membro vede adesso nel posizionamento, già ordinati e limitati. Per {@code WIN}
      * {@code prizeCode} filtra la card del premio vinto. Come ogni endpoint del portale richiede un {@code memberId}
-     * esplicito (docs/06 §2): senza, {@code 400}.
+     * (docs/06 §2, dal token o, in demo, da {@code memberId}/{@code X-LH-Member}): senza, {@code 400}.
      */
     public List<ContentDisplay> portal(String memberId, String placement, String prizeCode) {
         if (memberId == null || memberId.isBlank()) {
             throw LhException.badRequest("memberId è obbligatorio");
         }
+        return portalFor(viewer(memberId), placement, prizeCode);
+    }
+
+    /**
+     * Vista generica del portale (Q-410, Q-554, ADR-048): i contenuti per un visitatore senza membro, cioè quelli con
+     * pubblico «tutti». La ottiene un operatore che legge {@code GET /v1/portal/content} (anteprima del backoffice,
+     * BO-17): un operatore non agisce mai come un membro, né vede i contenuti per livello o segmento di uno.
+     */
+    public List<ContentDisplay> portalGeneric(String placement, String prizeCode) {
+        return portalFor(Viewer.UNKNOWN, placement, prizeCode);
+    }
+
+    private List<ContentDisplay> portalFor(Viewer viewer, String placement, String prizeCode) {
         String p = placementOrThrow(placement);
         List<ContentItem> candidates = contents.findByPlacement(p);
         if ("WIN".equals(p) && prizeCode != null && !prizeCode.isBlank()) {
             candidates = candidates.stream().filter(c -> prizeCode.trim().equalsIgnoreCase(c.linkCode())).toList();
         }
-        return ContentSelection.select(candidates, viewer(memberId), clock.instant(), ContentSelection.LIMITS.get(p))
+        return ContentSelection.select(candidates, viewer, clock.instant(), ContentSelection.LIMITS.get(p))
                 .shown().stream().map(ContentDisplay::of).toList();
     }
 

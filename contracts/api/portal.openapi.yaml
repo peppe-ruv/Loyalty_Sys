@@ -280,6 +280,8 @@ components:
     MemberRequest:
       properties:
         memberId:
+          deprecated: true
+          description: solo profilo demo
           type: string
       type: object
     NextTier:
@@ -881,6 +883,8 @@ components:
         dismissed:
           type: boolean
         memberId:
+          deprecated: true
+          description: solo profilo demo
           type: string
       type: object
     Theme:
@@ -1037,11 +1041,6 @@ paths:
       operationId: content
       parameters:
       - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
-      - in: query
         name: placement
         required: false
         schema:
@@ -1166,11 +1165,6 @@ paths:
       operationId: inbox
       parameters:
       - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
-      - in: query
         name: page
         required: false
         schema:
@@ -1197,12 +1191,6 @@ paths:
   /v1/portal/inbox/read-all:
     post:
       operationId: readAll
-      parameters:
-      - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
       requestBody:
         content:
           application/json:
@@ -1221,12 +1209,6 @@ paths:
   /v1/portal/inbox/unread-count:
     get:
       operationId: unreadCount
-      parameters:
-      - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
       responses:
         "200":
           content:
@@ -1244,11 +1226,6 @@ paths:
       - in: path
         name: id
         required: true
-        schema:
-          type: string
-      - in: query
-        name: memberId
-        required: false
         schema:
           type: string
       requestBody:
@@ -1489,12 +1466,6 @@ paths:
   /v1/portal/popups/next:
     get:
       operationId: next
-      parameters:
-      - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
       responses:
         "200":
           content:
