@@ -20,8 +20,8 @@ Ogni cosa che accade è un **evento** su Kafka. Non c'è un orchestratore: i ser
 
 ```mermaid
 flowchart LR
-  accTitle: Flowchart concetti
-  accDescr: Il flusso da azione a punti
+  accTitle: Il flusso da azione a punti, premi e fatti
+  accDescr: Le fonti esterne inviano azioni a ingestion, che le pubblica su lh.actions.v1; campaign le valuta e produce effetti su lh.effects.v1 per wallet, reward, gamification ed engagement; wallet e gamification pubblicano fatti su lh.facts.v1 che ingestion riporta come azioni interne.
   SRC["Fonti esterne\n(crm, ecommerce, app)"] --> ING["ingestion"]
   ING -->|lh.actions.v1| CMP["campaign"]
   CMP -->|lh.effects.v1| WAL["wallet"]

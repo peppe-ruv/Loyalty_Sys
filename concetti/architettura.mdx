@@ -19,8 +19,8 @@ Loyalty Hub è progettato attorno a poche regole rigide. Questa pagina le enunci
 
 ```mermaid
 flowchart LR
-  accTitle: Diagramma architettura
-  accDescr: Panoramica componenti sistema
+  accTitle: Architettura: servizi, topic Kafka e database
+  accDescr: Le fonti esterne inviano azioni a ingestion e il web usa le API REST dei servizi; ingestion pubblica su lh.actions.v1, campaign produce gli effetti su lh.effects.v1, i servizi applicano gli effetti e pubblicano fatti su lh.facts.v1; tutti scrivono audit; insight legge tutti i topic; ogni servizio ha il proprio schema nello stesso database Postgres.
   subgraph Client
     EXT["Fonti esterne\n(crm, app, ecommerce, billing, partner)"]
     WEB["web: Next.js\n(hub, backoffice, portale)"]
@@ -60,21 +60,24 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  accTitle: Profili di deploy
-  accDescr: Differenza tra demo ed enterprise
-  classDef default fill:#f9f9f9,stroke:#333,stroke-width:2px;
-
-  subgraph Demo
-    D1[1 replica Web]
-    D2["8 servizi backend (Vercel/Render)"]
-    D3[Auth header simulato]
+  accTitle: Profili demo ed enterprise a confronto
+  accDescr: Nel profilo demo il web Next.js parla con l'hub consolidato che ospita gli otto servizi in un solo processo, con Kafka e Postgres gratuiti e l'identità simulata dall'intestazione X-LH-Actor. Nel profilo enterprise un gateway con Ingress instrada verso l'immagine unica a ruoli distribuita con Helm, con Kafka gestito da Strimzi, Postgres gestito da CloudNativePG e login OIDC con Keycloak.
+  subgraph Demo["Profilo demo"]
+    D1["web (Next.js)"] --> D2["hub: gli 8 servizi in un processo"]
+    D2 --> D3[("Kafka e Postgres gratuiti")]
+    D4["identità simulata (X-LH-Actor)"] -.-> D1
   end
-
-  subgraph Enterprise
-    E1[Ingress Gateway]
-    E2["N repliche Backend (Kubernetes)"]
-    E3[OIDC Keycloak]
+  subgraph Enterprise["Profilo enterprise"]
+    E1["gateway e Ingress"] --> E2["immagine unica a ruoli (Helm)"]
+    E2 --> E3[("Strimzi e CloudNativePG")]
+    E4["OIDC (Keycloak)"] -.-> E1
   end
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef store fill:#F1F5F9,stroke:#475569,color:#0F172A
+  classDef ext fill:#FFFFFF,stroke:#94A3B8,stroke-dasharray:4 2,color:#334155
+  class D1,D2,E1,E2 svc
+  class D3,E3 store
+  class D4,E4 ext
 ```
 
 Nel profilo **demo** (a costo zero), l'architettura è leggera, senza Identity Provider (le identità sono mock) ed eseguita su servizi PaaS gratuiti. Nel profilo **enterprise** abbiamo una distribuzione Kubernetes tramite Helm, ingress gateway, OIDC (Keycloak) e deployment scalabile.

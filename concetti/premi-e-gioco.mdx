@@ -54,116 +54,62 @@ Il campo `type` del premio dice che cosa il membro riceve. Determina anche quali
   Il `type` è indipendente dalla fascia (`band`) che determina il costo in PTS. Un premio PHYSICAL può stare in qualunque fascia. Vedi il campo `fulfilment` in [Backoffice](/specifiche/frontend-backoffice#opzioni-di-configurazione-ricorrenti) per come si consegna.
 </Note>
 
-## Ciclo di vita per gli oggetti governati
+## Ciclo di vita degli oggetti governati
 
-Gran parte degli oggetti complessi gestiti dal backoffice segue una macchina a stati comune per il processo di configurazione, approvazione e pubblicazione (governance). Le entità che usano questa macchina includono: Campagne, Premi (Reward) e Concorsi.
-
-```mermaid
-stateDiagram-v2
-  accTitle: Governance oggetti
-  accDescr: Stati di approvazione per campagne, premi e concorsi
-
-  [*] --> DRAFT
-  DRAFT --> IN_REVIEW: Richiesta approvazione
-  IN_REVIEW --> APPROVED: Approvato
-  IN_REVIEW --> DRAFT: Rifiutato
-  APPROVED --> LIVE: Pubblicazione
-  LIVE --> PAUSED: Sospeso
-  PAUSED --> LIVE: Ripristinato
-  LIVE --> ENDED: Scadenza/Chiusura
-  ENDED --> ARCHIVED
-  ARCHIVED --> [*]
-```
-Questo flusso separa le responsabilità tra `MARKETING` (che modella e pubblica) e `LEGAL`/`CARE` (che approva).
+Campagne, premi, concorsi e contenuti seguono la stessa macchina a stati: bozza, revisione, approvazione, pubblicazione, pausa, chiusura e archiviazione. Il diagramma di riferimento è nella pagina [Governance](/concetti/governance#ciclo-di-vita-degli-oggetti-governati); qui trovi solo i cicli di vita propri dei premi e del gioco.
 
 ## Richieste premio con saga
-## Richieste premio con saga
+
+Una richiesta premio non è una scrittura semplice: coinvolge più servizi che devono restare consistenti. Loyalty Hub usa una **saga coreografata** su Kafka: reward prenota lo stock e pubblica la richiesta, wallet spende i punti o rifiuta, reward conferma o rifiuta e ripristina lo stock. Il portale riceve subito `202` con lo stato `PENDING` e interroga la richiesta finché non è confermata o rifiutata.
 
 ```mermaid
 sequenceDiagram
-  accTitle: Saga richiesta premio
-  accDescr: Sequenza di compensazione tra reward e wallet
-
-  participant R come Reward
-  participant W come Wallet
-
-  R->>W: Evento redemption.requested
-  alt Saldo Sufficiente
-    W->>R: Evento wallet.points.spent
-    Note over R: Richiesta CONFIRMED
-  else Saldo Insufficiente
-    W->>R: Evento wallet.spend.rejected
-    Note over R: Richiesta FAILED
+  accTitle: Richiesta premio con saga coreografata
+  accDescr: Il portale chiede un premio a reward, che prenota lo stock e pubblica la richiesta; wallet spende i punti in ordine FIFO o rifiuta per saldo insufficiente; se non risponde entro 10 minuti reward rifiuta per timeout; reward conferma o rifiuta e ripristina lo stock, mentre il portale interroga lo stato.
+  participant P as Portale
+  participant RWD as reward-service
+  participant K as Kafka
+  participant WAL as wallet-service
+  P->>RWD: POST /v1/portal/redemptions
+  RWD->>RWD: valida, prenota stock, stato PENDING
+  RWD->>K: fact reward.redemption.requested
+  RWD-->>P: 202 {redemptionId, status PENDING}
+  K->>WAL: fatto
+  alt saldo sufficiente
+    WAL->>K: fact wallet.points.spent (spesa FIFO)
+    K->>RWD: fatto: CONFIRMED, poi coupon e FULFILLED
+  else saldo insufficiente
+    WAL->>K: fact wallet.spend.rejected
+    K->>RWD: fatto: REJECTED, stock ripristinato
+  else nessuna risposta entro 10 minuti
+    RWD->>RWD: job di timeout: REJECTED, stock ripristinato
   end
+  P->>RWD: GET /v1/portal/redemptions/{id}
 ```
-Il diagramma mostra come una richiesta premio coinvolga wallet-service (per verificare i fondi e decurtarli) prima di confermare la `redemption` in reward-service.
+
+Se `wallet.points.spent` arriva dopo il timeout, reward pubblica `reward.redemption.cancelled` con rimborso: i punti tornano al membro.
 
 ### Stati della richiesta premio
 
 ```mermaid
 stateDiagram-v2
-  accTitle: Stati richiesta premio
-  accDescr: Evoluzione della redemption
-
-  [*] --> PENDING
-  PENDING --> CONFIRMED: Punti scalati
-  PENDING --> FAILED: Saldo KO
-  CONFIRMED --> FULFILLED: Consegna
-  CONFIRMED --> EXPIRED: Non ritirato
-  FULFILLED --> [*]
-  FAILED --> [*]
-  EXPIRED --> [*]
+  accTitle: Ciclo di vita di una richiesta premio
+  accDescr: Una richiesta premio nasce in attesa con lo stock prenotato; diventa confermata quando il wallet spende i punti, poi evasa; è rifiutata per saldo insufficiente o timeout; si annulla dal membro in attesa o da CARE con rimborso dopo la conferma.
+  [*] --> PENDING: richiesta (stock prenotato)
+  PENDING --> CONFIRMED: wallet.points.spent
+  PENDING --> REJECTED: wallet.spend.rejected / timeout 10 min
+  CONFIRMED --> FULFILLED: coupon emesso (auto) o evasione manuale
+  CONFIRMED --> CANCELLED: annullo CARE/ADMIN (rimborso)
+  PENDING --> CANCELLED: annullo membro
 ```
 
-
-Una richiesta premio non è una scrittura semplice: coinvolge più servizi che devono restare consistenti. Loyalty Hub usa una **saga coreografata** su Kafka.
-
-```mermaid
-sequenceDiagram
-  accTitle: Saga richieste premio
-  accDescr: Stati e servizi per un premio
-  participant Portale
-  participant RWD as reward-service
-  participant WAL as wallet-service
-  Portale->>RWD: POST /v1/redemptions
-  RWD->>WAL: fact "redemption.reserved"
-  WAL->>WAL: prenota lotti FIFO
-  WAL->>RWD: fact "wallet.points.reserved"
-  RWD->>RWD: conferma e assegna coupon
-  RWD->>WAL: fact "redemption.confirmed"
-  WAL->>WAL: consolida il debito
-```
-
-Se il wallet non ha saldo sufficiente, la saga fallisce e il portale mostra un errore leggibile.
+Alla richiesta si validano subito premio visibile, disponibilità, limite per membro e stato del membro: in caso di errore non parte nessun evento. Il controllo del saldo è del wallet. `REJECTED` e `CANCELLED` ripristinano lo stock.
 
 ## Coupon
 
-Alcuni premi consegnano un **coupon** (codice sconto, buono digitale). I coupon vengono estratti da un **pool** caricato dal backoffice. Ogni coupon ha stato (`AVAILABLE`, `ASSIGNED`, `REDEEMED`, `EXPIRED`) e appartiene a un premio.
+Alcuni premi consegnano un **coupon** (codice sconto, buono digitale). I coupon vengono estratti da un **pool** caricato dal backoffice. Ogni coupon ha uno stato (`AVAILABLE`, `ISSUED`, `USED`, `EXPIRED`, `VOID`) e appartiene a un premio.
 
-> **Nota:** Se il pool si esaurisce, la richiesta premio fallisce con `COUPON_POOL_EMPTY`. Configura sempre una soglia di allarme in backoffice.
-
-## Instant win
-
-### Sequenza di giocata
-```mermaid
-sequenceDiagram
-  accTitle: Sequenza giocata Instant Win
-  accDescr: Esecuzione di una giocata dal portale
-
-  participant W come Web
-  participant G come Gamification
-  participant I come Ingestion
-
-  W->>G: POST /plays (richiesta giocata)
-  G->>G: Consuma ticket, verifica istante
-  alt Vincente
-    G->>I: Evento contest.won (Azione interna)
-    G-->>W: Esito WON
-  else Perdente
-    G-->>W: Esito LOST
-  end
-```
-Una volta vinto un concorso, l'evento `contest.won` torna come azione interna al ponte fatti-azioni, permettendo al motore di assegnare i premi associati in modo flessibile.
+> **Nota:** Se il pool si esaurisce al momento dell'emissione, la richiesta premio resta `CONFIRMED` con il segnale `needsAttention` e un operatore la evade a mano; l'effetto `coupon.issue` di una campagna finisce invece in DLQ con `COUPON_POOL_EMPTY`. Configura sempre una soglia di allarme in backoffice.
 
 ## Instant win
 
@@ -171,7 +117,41 @@ Un concorso instant win offre giocate immediate con esito prefissato. Il modello
 
 - **Istanti vincenti pre-generati**: alla creazione del concorso il sistema calcola in anticipo N istanti in cui la giocata sarà vincente.
 - **Giocate consumate una a una**: il membro guadagna giocate da campagne o azioni.
-- **Vincita = azione interna**: se la giocata cade in un istante vincente, si crea un'azione `contest.won` che rientra dal ponte interno e attiva le campagne che consegnano il premio (di solito una campagna di sistema).
+- **Vincita = azione interna**: se la giocata cade in un istante vincente, gamification pubblica il fatto `contest.won`; il ponte interno lo ripubblica come azione `instantwin.won` e attiva le campagne che consegnano il premio (di solito una campagna di sistema).
+
+### Sequenza di giocata
+
+La giocata è sincrona: il portale riceve subito l'esito. La consegna del premio è asincrona e passa dal ponte interno.
+
+```mermaid
+sequenceDiagram
+  accTitle: Giocata instant win
+  accDescr: Il portale chiede una giocata a gamification, che in una transazione verifica concorso e crediti e tenta il claim del primo istante aperto già passato; risponde subito con l'esito; se vinta, il fatto contest.won passa dal ponte di ingestion e diventa un'azione che le campagne di sistema trasformano in punti o coupon.
+  participant P as Portale
+  participant GAM as gamification-service
+  participant K as Kafka
+  participant ING as ingestion-service
+  participant CMP as campaign-service
+  participant WAL as wallet-service
+  participant RWD as reward-service
+  P->>GAM: POST /v1/portal/contests/{code}/play
+  GAM->>GAM: concorso LIVE, crediti, claim FOR UPDATE SKIP LOCKED
+  GAM->>K: fact contest.played (e contest.won se vinta)
+  GAM-->>P: esito immediato WIN o LOSE
+  alt giocata vinta
+    K->>ING: fact contest.won (ponte interno)
+    ING->>K: action instantwin.won
+    K->>CMP: azione
+    CMP->>CMP: CMP-IW-PRIZE-POINTS o CMP-IW-PRIZE-COUPON
+    alt premio a punti
+      CMP->>K: effect points.grant
+      K->>WAL: lotto e movimento
+    else premio coupon
+      CMP->>K: effect coupon.issue
+      K->>RWD: coupon ISSUED
+    end
+  end
+```
 
 La logica di vincita è identica per tutti i concorsi. Quello che cambia è la **meccanica**, cioè l'esperienza che il membro vede nel portale (PT-06) e la metafora usata nel backoffice (BO-14). Il valore della meccanica è dato: né un identificativo tecnico né un contratto evento.
 
@@ -207,6 +187,22 @@ La logica di vincita è identica per tutti i concorsi. Quello che cambia è la *
 </Note>
 
 Il ruolo LEGAL vede in backoffice l'elenco degli istanti vincenti e i vincitori indipendentemente dalla meccanica scelta.
+
+### Stati degli istanti vincenti
+
+Il concorso segue il ciclo comune degli oggetti governati; gli istanti vincenti hanno un ciclo di vita proprio.
+
+```mermaid
+stateDiagram-v2
+  accTitle: Ciclo di vita di un istante vincente
+  accDescr: Gli istanti nascono aperti dalla pre-generazione o piantati; una giocata dopo l'istante lo reclama; alla fine del concorso gli istanti ancora aperti diventano nulli; rigenerare, ammesso solo prima della pubblicazione, cancella gli istanti e li ricrea.
+  [*] --> OPEN: pre-generazione con seme o istante piantato
+  OPEN --> CLAIMED: giocata con instantAt passato, claim SKIP LOCKED
+  OPEN --> VOID: fine concorso
+  OPEN --> [*]: rigenerazione, solo DRAFT, IN_REVIEW o APPROVED
+  CLAIMED --> [*]
+  VOID --> [*]
+```
 
 ## Obiettivi e badge
 
@@ -250,20 +246,21 @@ Ogni oggetto del catalogo e del gioco attraversa una sequenza di stati. Conoscer
   <Accordion title="Richiesta premio / redemption">
     | Stato | Significato | Come si arriva | Come si esce |
     | --- | --- | --- | --- |
-    | `PENDING` | In attesa della saga wallet | Dopo `POST /redemptions` | `wallet.points.spent` → `CONFIRMED`; saldo insufficiente → `FAILED` |
-    | `CONFIRMED` | Punti scalati, richiesta accettata | Evento `wallet.points.spent` | `AUTO_COUPON` o `INSTANT`: automatico → `FULFILLED`; `MANUAL`: attende BO-13 |
+    | `PENDING` | In attesa della saga wallet, stock prenotato | Dopo `POST /v1/portal/redemptions` | `wallet.points.spent` → `CONFIRMED`; `wallet.spend.rejected` o timeout di 10 minuti → `REJECTED`; annullo del membro → `CANCELLED` |
+    | `CONFIRMED` | Punti spesi, richiesta accettata | Fatto `wallet.points.spent` | `AUTO_COUPON` o `INSTANT`: automatico → `FULFILLED`; `MANUAL`: attende BO-13; annullo CARE o ADMIN con rimborso → `CANCELLED` |
     | `FULFILLED` | Premio consegnato al membro | Sistema o CARE (BO-13) | terminale |
-    | `FAILED` | Richiesta rifiutata | Saldo insufficiente o pool vuoto | terminale, con evento `.failed` |
-    | `EXPIRED` | Scaduta senza ritiro | Job schedulato | terminale |
+    | `REJECTED` | Richiesta rifiutata | Saldo insufficiente o timeout | terminale, stock ripristinato |
+    | `CANCELLED` | Richiesta annullata | Membro (da `PENDING`) o CARE/ADMIN (da `CONFIRMED`, con rimborso) | terminale, stock ripristinato |
   </Accordion>
 
   <Accordion title="Coupon (coupon.status)">
     | Stato | Significato |
     | --- | --- |
-    | `AVAILABLE` | In pool, pronto per essere assegnato |
-    | `ASSIGNED` | Assegnato a un membro specifico |
-    | `REDEEMED` | Utilizzato dal membro presso il merchant |
-    | `EXPIRED` | Scaduto senza essere utilizzato |
+    | `AVAILABLE` | In pool, pronto per essere emesso |
+    | `ISSUED` | Emesso a un membro specifico |
+    | `USED` | Utilizzato dal membro presso il merchant |
+    | `EXPIRED` | Emesso ma scaduto senza essere utilizzato |
+    | `VOID` | Annullato o ritirato |
   </Accordion>
 
   <Accordion title="Lotto punti (points_lot.status)">

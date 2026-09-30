@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// docs-sync — genera le pagine Mintlify delle specifiche dai file di docs/ (ADR-040, docs/18 §3.12).
+// docs-sync — genera le pagine Mintlify delle specifiche dai file di docs/ e di contracts/events/ (ADR-040, docs/18 §3.12).
 // Prima parte (M8.9b, F2-DOC-02): il backlog di docs/17 con Definition of Ready e Definition of Done.
+// Seconda parte (M8.9c, F2-DOC-01): le pagine degli eventi (specifiche/eventi/*.mdx), una per famiglia, dagli schemi
+// JSON di contracts/events/ (type, versioni, campi, x-lh-pii); la famiglia dlq non ha schemi e ha una pagina fissa.
 //
 // Le voci che dipendono solo dal testo della storia (R1–R4, D3) si calcolano a ogni esecuzione da docs/17. Le voci che
 // dipendono dalle evidenze del repository (R5–R8, D1, D2, D4) stanno in uno snapshot committato,
@@ -11,8 +13,9 @@
 //   node scripts/docs-sync.mjs                # rigenera le pagine dallo snapshot esistente (nessuna evidenza letta)
 //   node scripts/docs-sync.mjs --backlog      # alias del precedente
 //   node scripts/docs-sync.mjs --check        # solo struttura (job guard): pagine, gruppo «Backlog» di docs.json e
-//                                             # copertura dello snapshot; non legge docs/14, docs/15, docs/16, testbook,
-//                                             # sorgenti dei test, seed né le intestazioni di docs/07–09 e docs/18
+//                                             # copertura dello snapshot e pagine degli
+//                                             # eventi da contracts/events/; non legge docs/14, docs/15, docs/16,
+//                                             # testbook, sorgenti dei test, seed né le intestazioni di docs/07–09 e docs/18
 //   node scripts/docs-sync.mjs --refresh      # rilegge le evidenze del repository, riscrive snapshot, pagine e docs.json
 //   node scripts/docs-sync.mjs --check-status # avviso: quante storie cambierebbero con --refresh (esce sempre 0)
 //
@@ -1195,60 +1198,191 @@ function gitMeta(root) {
   }
 }
 
-
-
 // --- Eventi ----------------------------------------------------------------------------------------------------
 
-export function renderEvents(root) {
-  const eventsDir = path.join(root, 'contracts/events');
-  if (!fs.existsSync(eventsDir)) return new Map();
+const EVENTS_DIR = 'contracts/events';
+const EVENTS_OUT = 'specifiche/eventi';
+const EVENT_FAMILIES = ['action', 'effect', 'fact', 'audit', 'dlq'];
+const EVENTS_HEADER = `{/* Generato da scripts/docs-sync.mjs a partire da ${EVENTS_DIR}/: non modificare a mano. */}`;
+const EVENT_TYPE_PREFIX = 'io.loyaltyhub.';
+const SCHEMA_ID = /^urn:loyaltyhub:schema:(.+):(\d+)$/;
 
-  const files = new Map();
-  const families = ['action', 'effect', 'fact', 'audit', 'dlq'];
+/** Segue un `$ref` locale (`#/...`) e unisce `allOf`: nodo con `properties`, `required` e i campi propri. */
+function resolveNode(node, rootSchema, depth = 0) {
+  if (!node || typeof node !== 'object' || depth > 8) return node ?? {};
+  let out = { ...node };
+  if (typeof out.$ref === 'string' && out.$ref.startsWith('#/')) {
+    let target = rootSchema;
+    for (const seg of out.$ref.slice(2).split('/')) target = target?.[seg.replace(/~1/g, '/').replace(/~0/g, '~')];
+    const { $ref, ...rest } = out;
+    out = { ...resolveNode(target, rootSchema, depth + 1), ...rest };
+  }
+  if (Array.isArray(out.allOf)) {
+    const { allOf, ...rest } = out;
+    out = allOf.reduce((acc, part) => {
+      const p = resolveNode(part, rootSchema, depth + 1);
+      return {
+        ...acc,
+        ...p,
+        properties: { ...acc.properties, ...p.properties },
+        required: [...(acc.required ?? []), ...(p.required ?? [])],
+      };
+    }, rest);
+  }
+  return out;
+}
 
-  for (const family of families) {
-    const familyDir = path.join(eventsDir, family);
-    if (!fs.existsSync(familyDir)) continue;
+/** Il tipo di un campo come testo semplice: enum e const come valori separati da `/`. */
+function fieldType(def, rootSchema) {
+  const node = resolveNode(def, rootSchema);
+  if (Array.isArray(node.enum)) return node.enum.map((v) => JSON.stringify(v).replace(/^"|"$/g, '')).join('/');
+  if ('const' in node) return `${JSON.stringify(node.const).replace(/^"|"$/g, '')} (fisso)`;
+  const variants = node.oneOf ?? node.anyOf;
+  if (Array.isArray(variants)) return variants.map((v) => fieldType(v, rootSchema)).join('/');
+  const types = Array.isArray(node.type) ? node.type : node.type ? [node.type] : [];
+  const shown = types.map((t) => {
+    if (t !== 'array') return t;
+    const items = resolveNode(node.items, rootSchema);
+    return items.type && items.type !== 'object' && !items.properties ? `array<${Array.isArray(items.type) ? items.type.join('/') : items.type}>` : 'array';
+  });
+  return shown.length ? shown.join('/') : 'any';
+}
 
-    const schemas = fs.readdirSync(familyDir).filter(f => f.endsWith('.schema.json')).sort();
-    if (schemas.length === 0) continue;
+/** Le righe della tabella dei campi, con visita ricorsiva di oggetti e array (`items[].sku`). */
+function fieldRows(node, rootSchema, prefix = '', depth = 0) {
+  const rows = [];
+  if (depth > 6) return rows;
+  const resolved = resolveNode(node, rootSchema);
+  const required = new Set(resolved.required ?? []);
+  for (const [name, rawDef] of Object.entries(resolved.properties ?? {})) {
+    const def = resolveNode(rawDef, rootSchema);
+    const pathName = `${prefix}${name}`;
+    rows.push({
+      path: pathName,
+      type: fieldType(def, rootSchema),
+      required: required.has(name),
+      pii: def['x-lh-pii'] === true,
+      description: typeof def.description === 'string' ? def.description : '',
+    });
+    const items = def.items ? resolveNode(def.items, rootSchema) : null;
+    if (items?.properties) rows.push(...fieldRows(items, rootSchema, `${pathName}[].`, depth + 1));
+    if (def.properties) rows.push(...fieldRows(def, rootSchema, `${pathName}.`, depth + 1));
+  }
+  return rows;
+}
 
-    let textOut = `---
-title: "Eventi ${family}"
-description: "Schemi degli eventi della famiglia ${family}."
+/** Type e versione di uno schema: da `$id` (`urn:loyaltyhub:schema:<famiglia>.<nome>:<n>`), altrimenti dal nome del file. */
+function schemaIdentity(data, family, file) {
+  const m = typeof data.$id === 'string' ? data.$id.match(SCHEMA_ID) : null;
+  if (m) return { type: m[1], version: Number(m[2]) };
+  const base = file.replace(/\.schema\.json$/, '');
+  const v = base.match(/^(.*)\.v(\d+)$/);
+  return { type: `${family}.${v ? v[1] : base}`, version: v ? Number(v[2]) : 1 };
+}
+
+/** Il riferimento di specifica tra parentesi alla fine del titolo dello schema (per esempio `EVT-FACT-01, docs/05 §5`). */
+function specRef(title) {
+  const m = typeof title === 'string' ? title.match(/\(([^()]*)\)\s*$/) : null;
+  return m ? m[1] : '';
+}
+
+function renderSchemaSection(family, file, data) {
+  const { type, version } = schemaIdentity(data, family, file);
+  let out = `## \`${EVENT_TYPE_PREFIX}${type}\` · versione ${version}\n\n`;
+  const ref = specRef(data.title);
+  if (ref) out += `${escapeMdx(`Specifica: ${ref}.`)}\n\n`;
+  const superseded = typeof data['x-lh-superseded-by'] === 'string' ? data['x-lh-superseded-by'].match(SCHEMA_ID) : null;
+  if (superseded) out += `Versione superata: la versione corrente è la ${superseded[2]}.\n\n`;
+  if (data.description) out += `${escapeMdx(data.description)}\n\n`;
+  out += '| Campo | Tipo | Obbligatorio | PII | Descrizione |\n| --- | --- | --- | --- | --- |\n';
+  for (const r of fieldRows(data, data)) {
+    const cells = [
+      escapeMdx(`\`${r.path}\``, { cell: true }),
+      escapeMdx(r.type, { cell: true }),
+      r.required ? 'sì' : 'no',
+      r.pii ? '**sì**' : 'no',
+      escapeMdx(r.description, { cell: true }),
+    ];
+    out += `| ${cells.join(' | ')} |\n`;
+  }
+  return out;
+}
+
+const DLQ_PAGE = `---
+title: "Eventi dlq"
+description: "Il topic lh.dlq.v1: header di diagnosi, ritentativi e codici di errore."
 ---
 
-Questa pagina è generata automaticamente dagli schemi JSON in \`contracts/events/${family}/\`.
+${EVENTS_HEADER}
 
+La famiglia \`dlq\` non ha schemi JSON in \`${EVENTS_DIR}/\`: il topic \`lh.dlq.v1\` riceve il messaggio originale che un consumer non ha potuto elaborare, con gli header di diagnosi descritti in [Architettura](/specifiche/architettura). Le altre famiglie sono in [Eventi e topic](/specifiche/eventi-e-topic).
+
+## Header di diagnosi
+
+| Header | Contenuto |
+| --- | --- |
+| \`lh-original-topic\` | il topic da cui arriva il messaggio |
+| \`lh-consumer\` | il consumer che non ha potuto elaborarlo |
+| \`lh-error-class\` | la classe dell'errore |
+| \`lh-error-message\` | il messaggio dell'errore |
+| \`lh-attempts\` | i tentativi fatti |
+
+## Ritentativi
+
+Un errore ritentabile si riprova 3 volte con attese di 1 s, 5 s e 15 s. Gli errori non ritentabili (validazione, deserializzazione) vanno subito in DLQ.
+
+## Codici di errore
+
+| Codice | Quando |
+| --- | --- |
+| \`LOOP_GUARD\` | \`lhhop\` maggiore di 3: la catena di azioni generate dal ponte interno è troppo lunga |
+| \`PRODUCER_NOT_ALLOWED\` | il messaggio è stato pubblicato da un modulo non ammesso per quel \`type\` in \`${EVENTS_DIR}/producers.yaml\` |
+| \`SIGNATURE_INVALID\` | la firma del messaggio non è valida |
 `;
 
-    for (const schema of schemas) {
-      const schemaText = fs.readFileSync(path.join(familyDir, schema), 'utf8');
-      const data = JSON.parse(schemaText);
-      const name = schema.replace('.schema.json', '');
-      textOut += `## ${name}\n\n`;
+/**
+ * Le pagine degli eventi: una per famiglia (action, effect, fact, audit, dlq) da `contracts/events/`, con i `type`, le
+ * versioni e i campi (`x-lh-pii` evidenziato). Funzione pura degli schemi e del generatore: percorso → contenuto.
+ * Ogni testo preso dagli schemi passa da `escapeMdx`, quindi non può rompere la compilazione MDX.
+ */
+export function renderEvents(root) {
+  const eventsDir = path.join(root, EVENTS_DIR);
+  const files = new Map();
+  if (!fs.existsSync(eventsDir)) return files;
 
-      if (data.description) {
-        let escapedDesc = data.description.replace(/\\/g, "\\\\").replace(/</g, "&lt;").replace(/\{/g, "\\{").replace(/\}/g, "\\}");
-        escapedDesc = escapedDesc.replace(/<!--/g, '&lt;!--');
-        textOut += `${escapedDesc}\n\n`;
-      }
-
-      textOut += `| Campo | Tipo | Obbligatorio | PII |\n`;
-      textOut += `| --- | --- | --- | --- |\n`;
-
-      const required = new Set(data.required || []);
-      for (const [prop, def] of Object.entries(data.properties || {})) {
-        const type = Array.isArray(def.type) ? def.type.join('/') : (def.type || 'any');
-        const req = required.has(prop) ? 'Sì' : 'No';
-        const pii = def['x-lh-pii'] ? '⚠️ Sì' : 'No';
-        textOut += `| \`${prop}\` | ${type} | ${req} | ${pii} |\n`;
-      }
-      textOut += '\n';
+  for (const family of EVENT_FAMILIES) {
+    const familyDir = path.join(eventsDir, family);
+    const names = fs.existsSync(familyDir) ? fs.readdirSync(familyDir).filter((f) => f.endsWith('.schema.json')) : [];
+    if (names.length === 0) {
+      if (family === 'dlq') files.set(`${EVENTS_OUT}/dlq.mdx`, DLQ_PAGE);
+      continue;
     }
-    files.set(`specifiche/eventi/${family}.mdx`, textOut);
+    const schemas = names.map((file) => {
+      const data = JSON.parse(fs.readFileSync(path.join(familyDir, file), 'utf8'));
+      return { file, data, ...schemaIdentity(data, family, file) };
+    });
+    schemas.sort((a, b) => (a.type < b.type ? -1 : a.type > b.type ? 1 : a.version - b.version));
+
+    const sections = schemas.map((s) => renderSchemaSection(family, s.file, s.data));
+    const intro =
+      `Questa pagina è generata dagli schemi JSON in \`${EVENTS_DIR}/${family}/\`. ` +
+      'Un campo con PII **sì** non può comparire in un evento pubblicato (ADR-032). ' +
+      'Il formato dei messaggi e i topic sono in [Eventi e topic](/specifiche/eventi-e-topic).';
+    const page = [
+      `---\ntitle: "Eventi ${family}"\ndescription: "Schemi degli eventi della famiglia ${family}: type, versioni e campi."\n---`,
+      EVENTS_HEADER,
+      intro,
+      ...sections.map((s) => s.trimEnd()),
+    ].join('\n\n');
+    files.set(`${EVENTS_OUT}/${family}.mdx`, `${page}\n`);
   }
   return files;
+}
+
+/** Le pagine specifiche/eventi/*.mdx oggi presenti, per trovare quelle non più generate. */
+function existingEventPages(root) {
+  const dir = path.join(root, EVENTS_OUT);
+  return fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.mdx')).sort().map((f) => `${EVENTS_OUT}/${f}`) : [];
 }
 
 // --- Pagine ----------------------------------------------------------------------------------------------------
@@ -1289,8 +1423,8 @@ function existingPages(root) {
 }
 
 /**
- * Verifica strutturale (job guard): ricalcola pagine e totali da docs/17 e dallo snapshot committato e li confronta con
- * i file committati; di docs.json confronta solo il gruppo «Backlog». Non legge docs/14, docs/15, docs/16, il testbook,
+ * Verifica strutturale (job guard): ricalcola pagine e totali da docs/17 e dallo snapshot committato, e le pagine degli
+ * eventi dagli schemi di contracts/events/, e li confronta con i file committati (segnala anche le pagine non più generate); di docs.json confronta solo il gruppo «Backlog». Non legge docs/14, docs/15, docs/16, il testbook,
  * i sorgenti dei test, i seed né le intestazioni di docs/07–09 e docs/18. Restituisce l'elenco dei problemi.
  */
 export function checkRoot(root) {
@@ -1309,7 +1443,7 @@ export function checkRoot(root) {
     if (current === null) problems.push(`${p}: pagina assente`);
     else if (current !== content) problems.push(`${p}: diversa da quella generata`);
   }
-  for (const o of existingPages(root)) if (!files.has(o)) problems.push(`${o}: pagina non più generata`);
+  for (const o of [...existingPages(root), ...existingEventPages(root)]) if (!files.has(o)) problems.push(`${o}: pagina non più generata`);
   if (text !== serializeSnapshot(finalizeSnapshot(snap, model))) problems.push(`${SNAPSHOT}: totali o formattazione diversi da quelli attesi`);
 
   const docsJson = readIf(root, 'docs.json');
@@ -1344,7 +1478,7 @@ export function writeRoot(root, model, snap) {
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     fs.writeFileSync(abs, content);
   }
-  const removed = existingPages(root).filter((f) => !files.has(f));
+  const removed = [...existingPages(root), ...existingEventPages(root)].filter((f) => !files.has(f));
   for (const o of removed) fs.rmSync(path.join(root, o));
   return { changed, removed, evsByEpic };
 }

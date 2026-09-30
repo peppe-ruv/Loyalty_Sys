@@ -1,426 +1,513 @@
 ---
 title: "Eventi fact"
-description: "Schemi degli eventi della famiglia fact."
+description: "Schemi degli eventi della famiglia fact: type, versioni e campi."
 ---
 
-Questa pagina è generata automaticamente dagli schemi JSON in `contracts/events/fact/`.
+{/* Generato da scripts/docs-sync.mjs a partire da contracts/events/: non modificare a mano. */}
 
-## achievement.completed
+Questa pagina è generata dagli schemi JSON in `contracts/events/fact/`. Un campo con PII **sì** non può comparire in un evento pubblicato (ADR-032). Il formato dei messaggi e i topic sono in [Eventi e topic](/specifiche/eventi-e-topic).
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `achievementCode` | string | Sì | No |
-| `achievementName` | string | Sì | No |
-| `periodKey` | string | Sì | No |
+## `io.loyaltyhub.fact.achievement.completed` · versione 1
 
-## achievement.progressed
+Specifica: EVT-FACT-54, docs/03 §8.
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `achievementCode` | string | Sì | No |
-| `periodKey` | string | Sì | No |
-| `value` | integer | Sì | No |
-| `target` | integer | Sì | No |
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `achievementCode` | string | sì | no |  |
+| `achievementName` | string | sì | no |  |
+| `periodKey` | string | sì | no |  |
 
-## badge.awarded
+## `io.loyaltyhub.fact.achievement.progressed` · versione 1
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `badgeCode` | string | Sì | No |
-| `badgeName` | string | Sì | No |
-| `origin` | any | Sì | No |
+Specifica: EVT-FACT-53, docs/03 §8.
 
-## campaign.evaluated
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `achievementCode` | string | sì | no |  |
+| `periodKey` | string | sì | no |  |
+| `value` | integer | sì | no |  |
+| `target` | integer | sì | no |  |
+
+## `io.loyaltyhub.fact.badge.awarded` · versione 1
+
+Specifica: EVT-FACT-55, F-ACH-03.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `badgeCode` | string | sì | no |  |
+| `badgeName` | string | sì | no |  |
+| `origin` | ACHIEVEMENT/CAMPAIGN | sì | no |  |
+
+## `io.loyaltyhub.fact.campaign.evaluated` · versione 1
+
+Specifica: EVT-FACT-10, docs/05 §5.
 
 Registro di valutazione di un'azione: campagne applicate ed effetti, campagne saltate con motivo.
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `actionId` | string | Sì | No |
-| `actionType` | string | Sì | No |
-| `matched` | array | Sì | No |
-| `skipped` | array | Sì | No |
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `actionId` | string | sì | no |  |
+| `actionType` | string | sì | no |  |
+| `matched` | array | sì | no |  |
+| `matched[].campaignCode` | string | sì | no |  |
+| `matched[].effects` | array | sì | no |  |
+| `matched[].effects[].type` | string | sì | no |  |
+| `matched[].effects[].currency` | PTS/STS | no | no |  |
+| `matched[].effects[].amount` | integer | no | no |  |
+| `skipped` | array | sì | no |  |
+| `skipped[].campaignCode` | string | sì | no |  |
+| `skipped[].reason` | string | sì | no |  |
 
-## campaign.status.changed
+## `io.loyaltyhub.fact.campaign.status.changed` · versione 1
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `campaignCode` | string | Sì | No |
-| `name` | string | No | No |
-| `previousStatus` | string | No | No |
-| `newStatus` | string | Sì | No |
+Specifica: EVT-FACT-11, docs/05 §5.
 
-## content.status.changed
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `campaignCode` | string | sì | no |  |
+| `name` | string | no | no |  |
+| `previousStatus` | string | no | no |  |
+| `newStatus` | string | sì | no |  |
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `contentId` | string | Sì | No |
-| `contentCode` | string | No | No |
-| `kind` | any | Sì | No |
-| `previousStatus` | any | No | No |
-| `newStatus` | any | Sì | No |
+## `io.loyaltyhub.fact.content.status.changed` · versione 1
 
-## contest.played
+Specifica: EVT-FACT-61, F-CNT-01.
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `contestCode` | string | Sì | No |
-| `playId` | string | Sì | No |
-| `outcome` | any | Sì | No |
-| `kind` | any | No | No |
-| `playsAvailable` | integer | No | No |
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `contentId` | string | sì | no |  |
+| `contentCode` | string | no | no |  |
+| `kind` | CARD/POPUP/BANNER | sì | no |  |
+| `previousStatus` | DRAFT/LIVE/PAUSED/ENDED/ARCHIVED | no | no |  |
+| `newStatus` | DRAFT/LIVE/PAUSED/ENDED/ARCHIVED | sì | no |  |
 
-## contest.plays.granted
+## `io.loyaltyhub.fact.contest.played` · versione 1
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `contestCode` | string | Sì | No |
-| `count` | integer | Sì | No |
-| `effectId` | string | Sì | No |
-| `campaignCode` | string | No | No |
+Specifica: EVT-FACT-51, docs/servizi/gamification-service.md §4.
 
-## contest.status.changed
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `contestCode` | string | sì | no |  |
+| `playId` | string | sì | no |  |
+| `outcome` | WIN/LOSE | sì | no |  |
+| `kind` | FREE_DAILY/CREDIT | no | no |  |
+| `playsAvailable` | integer | no | no |  |
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `contestCode` | string | Sì | No |
-| `name` | string | No | No |
-| `previousStatus` | string | No | No |
-| `newStatus` | string | Sì | No |
+## `io.loyaltyhub.fact.contest.plays.granted` · versione 1
 
-## contest.won
+Specifica: EVT-FACT-50, docs/servizi/gamification-service.md §4.
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `contestCode` | string | Sì | No |
-| `playId` | string | Sì | No |
-| `prizeCode` | string | Sì | No |
-| `prizeName` | string | Sì | No |
-| `prizeType` | any | Sì | No |
-| `points` | integer | No | No |
-| `rewardCode` | string | No | No |
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `contestCode` | string | sì | no |  |
+| `count` | integer | sì | no |  |
+| `effectId` | string | sì | no |  |
+| `campaignCode` | string | no | no |  |
 
-## coupon.issued
+## `io.loyaltyhub.fact.contest.status.changed` · versione 1
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `couponCode` | string | Sì | No |
-| `rewardCode` | string | Sì | No |
-| `expiresAt` | string | Sì | No |
-| `origin` | any | Sì | No |
-| `redemptionId` | string | No | No |
+Specifica: docs/servizi/gamification-service.md §4, ciclo di vita concorso.
 
-## coupon.used
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `contestCode` | string | sì | no |  |
+| `name` | string | no | no |  |
+| `previousStatus` | string | no | no |  |
+| `newStatus` | string | sì | no |  |
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `couponCode` | string | Sì | No |
-| `rewardCode` | string | No | No |
+## `io.loyaltyhub.fact.contest.won` · versione 1
 
-## edition.closed
+Specifica: EVT-FACT-52, docs/03 §6.
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `editionCode` | string | Sì | No |
-| `retained` | integer | Sì | No |
-| `downgraded` | integer | Sì | No |
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `contestCode` | string | sì | no |  |
+| `playId` | string | sì | no |  |
+| `prizeCode` | string | sì | no |  |
+| `prizeName` | string | sì | no |  |
+| `prizeType` | POINTS/COUPON/PHYSICAL | sì | no |  |
+| `points` | integer | no | no |  |
+| `rewardCode` | string | no | no |  |
 
-## member.birthday
+## `io.loyaltyhub.fact.coupon.issued` · versione 1
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `age` | integer | No | No |
+Specifica: EVT-FACT-45, docs/05 §5.
 
-## member.profile.completed
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `couponCode` | string | sì | no |  |
+| `rewardCode` | string | sì | no |  |
+| `expiresAt` | string | sì | no |  |
+| `origin` | REDEMPTION/CAMPAIGN | sì | no |  |
+| `redemptionId` | string | no | no |  |
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `memberId` | string | No | No |
+## `io.loyaltyhub.fact.coupon.used` · versione 1
 
-## member.registered
+Specifica: EVT-FACT-46, docs/05 §5.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `couponCode` | string | sì | no |  |
+| `rewardCode` | string | no | no |  |
+
+## `io.loyaltyhub.fact.edition.closed` · versione 1
+
+Specifica: EVT-FACT-31, docs/05 §5.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `editionCode` | string | sì | no |  |
+| `retained` | integer | sì | no |  |
+| `downgraded` | integer | sì | no |  |
+
+## `io.loyaltyhub.fact.member.birthday` · versione 1
+
+Specifica: EVT-FACT-05, docs/05 §5; P2, nessun produttore nel PoC.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `age` | integer | no | no |  |
+
+## `io.loyaltyhub.fact.member.profile.completed` · versione 1
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `memberId` | string | no | no |  |
+
+## `io.loyaltyhub.fact.member.registered` · versione 1
+
+Specifica: EVT-FACT-01, docs/05 §5.
+
+Versione superata: la versione corrente è la 2.
 
 Snapshot completo del membro (nessun dato personale in chiaro fuori da qui; niente in log/metriche).
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `memberId` | string | Sì | No |
-| `firstName` | string | No | ⚠️ Sì |
-| `lastName` | string | No | ⚠️ Sì |
-| `nickname` | string | No | ⚠️ Sì |
-| `email` | string | No | ⚠️ Sì |
-| `externalId` | string | No | No |
-| `subjectRef` | string/null | No | No |
-| `status` | any | Sì | No |
-| `channel` | string | No | No |
-| `registeredAt` | string | No | No |
-| `birthDate` | string | No | ⚠️ Sì |
-| `city` | string | No | ⚠️ Sì |
-| `referralCode` | string | No | No |
-| `referredBy` | string/null | No | No |
-| `attributes` | object | No | ⚠️ Sì |
-| `labels` | array | No | No |
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `memberId` | string | sì | no |  |
+| `firstName` | string | no | **sì** |  |
+| `lastName` | string | no | **sì** |  |
+| `nickname` | string | no | **sì** |  |
+| `email` | string | no | **sì** |  |
+| `externalId` | string | no | no |  |
+| `subjectRef` | string/null | no | no | HMAC-SHA256 esadecimale di (iss, sub) del token con la chiave LH_SUBJECT_KEY: lega l'account al membro senza il sub sul bus (Q-552, ADR-048). Opzionale: assente = legame invariato; null = legame rimosso. Pseudonimo, non reversibile senza la chiave. |
+| `status` | ACTIVE/INACTIVE/SUSPENDED/BLOCKED/CLOSED/ANONYMIZED | sì | no |  |
+| `channel` | string | no | no |  |
+| `registeredAt` | string | no | no |  |
+| `birthDate` | string | no | **sì** |  |
+| `city` | string | no | **sì** |  |
+| `referralCode` | string | no | no |  |
+| `referredBy` | string/null | no | no |  |
+| `attributes` | object | no | **sì** |  |
+| `labels` | array&lt;string> | no | no |  |
 
-## member.registered.v2
+## `io.loyaltyhub.fact.member.registered` · versione 2
+
+Specifica: EVT-FACT-01, docs/05 §5 e §10, ADR-032.
 
 Snapshot del membro senza dati identificativi: nome, cognome, soprannome, e-mail, data di nascita e città restano nel member-service. Età e territorio viaggiano come birthYear e province (Q-344).
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `memberId` | string | Sì | No |
-| `externalId` | string | No | No |
-| `emailHash` | string | No | No |
-| `subjectRef` | string/null | No | No |
-| `status` | any | Sì | No |
-| `channel` | string | No | No |
-| `registeredAt` | string | No | No |
-| `locale` | string | No | No |
-| `birthYear` | integer/null | No | No |
-| `province` | string/null | No | No |
-| `referralCode` | string | No | No |
-| `referredBy` | string/null | No | No |
-| `labels` | array | No | No |
-| `attributes` | object | No | No |
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `memberId` | string | sì | no |  |
+| `externalId` | string | no | no |  |
+| `emailHash` | string | no | no | HMAC-SHA256 esadecimale dell'e-mail in minuscolo con la chiave LH_PSEUDONYM_KEY, nota solo a member e ingestion: serve a risolvere i soggetti email: in ingresso senza l'e-mail sul bus (Q-367). Pseudonimo, non reversibile senza la chiave. |
+| `subjectRef` | string/null | no | no | HMAC-SHA256 esadecimale di (iss, sub) del token con la chiave LH_SUBJECT_KEY: lega l'account al membro senza il sub sul bus (Q-552, ADR-048). Opzionale: assente = legame invariato; null = legame rimosso. Pseudonimo, non reversibile senza la chiave. |
+| `status` | ACTIVE/INACTIVE/SUSPENDED/BLOCKED/CLOSED/ANONYMIZED | sì | no |  |
+| `channel` | string | no | no |  |
+| `registeredAt` | string | no | no |  |
+| `locale` | string | no | no |  |
+| `birthYear` | integer/null | no | no |  |
+| `province` | string/null | no | no |  |
+| `referralCode` | string | no | no |  |
+| `referredBy` | string/null | no | no |  |
+| `labels` | array&lt;string> | no | no |  |
+| `attributes` | object | no | no | Solo gli attributi con attribute_definition.pii = false. |
 
-## member.segment.entered
+## `io.loyaltyhub.fact.member.segment.entered` · versione 1
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `segmentCode` | string | Sì | No |
-| `segmentName` | string | No | No |
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `segmentCode` | string | sì | no |  |
+| `segmentName` | string | no | no |  |
 
-## member.segment.left
+## `io.loyaltyhub.fact.member.segment.left` · versione 1
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `segmentCode` | string | Sì | No |
-| `segmentName` | string | No | No |
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `segmentCode` | string | sì | no |  |
+| `segmentName` | string | no | no |  |
 
-## member.status.changed
+## `io.loyaltyhub.fact.member.status.changed` · versione 1
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `previousStatus` | any | Sì | No |
-| `newStatus` | any | Sì | No |
-| `reason` | string | No | No |
+Specifica: EVT-FACT-03, docs/05 §5.
 
-## member.updated
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `previousStatus` | ACTIVE/INACTIVE/SUSPENDED/BLOCKED/CLOSED/ANONYMIZED | sì | no |  |
+| `newStatus` | ACTIVE/INACTIVE/SUSPENDED/BLOCKED/CLOSED/ANONYMIZED | sì | no |  |
+| `reason` | string | no | no |  |
+
+## `io.loyaltyhub.fact.member.updated` · versione 1
+
+Specifica: EVT-FACT-02, docs/05 §5.
+
+Versione superata: la versione corrente è la 2.
 
 Snapshot completo del membro, come member.registered.
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `memberId` | string | Sì | No |
-| `firstName` | string | No | ⚠️ Sì |
-| `lastName` | string | No | ⚠️ Sì |
-| `nickname` | string | No | ⚠️ Sì |
-| `email` | string | No | ⚠️ Sì |
-| `externalId` | string | No | No |
-| `subjectRef` | string/null | No | No |
-| `status` | any | Sì | No |
-| `channel` | string | No | No |
-| `registeredAt` | string | No | No |
-| `birthDate` | string | No | ⚠️ Sì |
-| `city` | string | No | ⚠️ Sì |
-| `referralCode` | string | No | No |
-| `referredBy` | string/null | No | No |
-| `attributes` | object | No | ⚠️ Sì |
-| `labels` | array | No | No |
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `memberId` | string | sì | no |  |
+| `firstName` | string | no | **sì** |  |
+| `lastName` | string | no | **sì** |  |
+| `nickname` | string | no | **sì** |  |
+| `email` | string | no | **sì** |  |
+| `externalId` | string | no | no |  |
+| `subjectRef` | string/null | no | no | HMAC-SHA256 esadecimale di (iss, sub) del token con la chiave LH_SUBJECT_KEY: lega l'account al membro senza il sub sul bus (Q-552, ADR-048). Opzionale: assente = legame invariato; null = legame rimosso. Pseudonimo, non reversibile senza la chiave. |
+| `status` | ACTIVE/INACTIVE/SUSPENDED/BLOCKED/CLOSED/ANONYMIZED | sì | no |  |
+| `channel` | string | no | no |  |
+| `registeredAt` | string | no | no |  |
+| `birthDate` | string | no | **sì** |  |
+| `city` | string | no | **sì** |  |
+| `referralCode` | string | no | no |  |
+| `referredBy` | string/null | no | no |  |
+| `attributes` | object | no | **sì** |  |
+| `labels` | array&lt;string> | no | no |  |
 
-## member.updated.v2
+## `io.loyaltyhub.fact.member.updated` · versione 2
+
+Specifica: EVT-FACT-02, docs/05 §5 e §10, ADR-032.
 
 Snapshot del membro dopo una modifica, senza dati identificativi: nome, cognome, soprannome, e-mail, data di nascita e città restano nel member-service. Età e territorio viaggiano come birthYear e province (Q-344).
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `memberId` | string | Sì | No |
-| `externalId` | string | No | No |
-| `emailHash` | string | No | No |
-| `subjectRef` | string/null | No | No |
-| `status` | any | Sì | No |
-| `channel` | string | No | No |
-| `registeredAt` | string | No | No |
-| `locale` | string | No | No |
-| `birthYear` | integer/null | No | No |
-| `province` | string/null | No | No |
-| `referralCode` | string | No | No |
-| `referredBy` | string/null | No | No |
-| `labels` | array | No | No |
-| `attributes` | object | No | No |
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `memberId` | string | sì | no |  |
+| `externalId` | string | no | no |  |
+| `emailHash` | string | no | no | HMAC-SHA256 esadecimale dell'e-mail in minuscolo con la chiave LH_PSEUDONYM_KEY, nota solo a member e ingestion: serve a risolvere i soggetti email: in ingresso senza l'e-mail sul bus (Q-367). Pseudonimo, non reversibile senza la chiave. |
+| `subjectRef` | string/null | no | no | HMAC-SHA256 esadecimale di (iss, sub) del token con la chiave LH_SUBJECT_KEY: lega l'account al membro senza il sub sul bus (Q-552, ADR-048). Opzionale: assente = legame invariato; null = legame rimosso. Pseudonimo, non reversibile senza la chiave. |
+| `status` | ACTIVE/INACTIVE/SUSPENDED/BLOCKED/CLOSED/ANONYMIZED | sì | no |  |
+| `channel` | string | no | no |  |
+| `registeredAt` | string | no | no |  |
+| `locale` | string | no | no |  |
+| `birthYear` | integer/null | no | no |  |
+| `province` | string/null | no | no |  |
+| `referralCode` | string | no | no |  |
+| `referredBy` | string/null | no | no |  |
+| `labels` | array&lt;string> | no | no |  |
+| `attributes` | object | no | no | Solo gli attributi con attribute_definition.pii = false. |
 
-## message.delivered
+## `io.loyaltyhub.fact.message.delivered` · versione 1
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `templateCode` | string | Sì | No |
-| `channel` | any | Sì | No |
-| `inboxMessageId` | string | Sì | No |
-| `category` | any | No | No |
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `templateCode` | string | sì | no |  |
+| `channel` | INAPP/EMAIL_FAKE | sì | no |  |
+| `inboxMessageId` | string | sì | no |  |
+| `category` | POINTS/TIER/REWARD/GAME/PROGRAM | no | no |  |
 
-## referral.completed
+## `io.loyaltyhub.fact.referral.completed` · versione 1
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `role` | any | Sì | No |
-| `counterpartMemberId` | string | Sì | No |
-| `qualifyingActionId` | string | Sì | No |
+Specifica: EVT-FACT-08, F-REF-02.
 
-## reward.redemption.cancelled
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `role` | REFERRER/REFEREE | sì | no |  |
+| `counterpartMemberId` | string | sì | no |  |
+| `qualifyingActionId` | string | sì | no |  |
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `redemptionId` | string | Sì | No |
-| `reason` | string | Sì | No |
-| `refund` | boolean | Sì | No |
-| `pointsCost` | integer | Sì | No |
+## `io.loyaltyhub.fact.reward.redemption.cancelled` · versione 1
 
-## reward.redemption.confirmed
+Specifica: EVT-FACT-44, docs/05 §5.
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `redemptionId` | string | Sì | No |
-| `rewardCode` | string | Sì | No |
-| `rewardName` | string | Sì | No |
-| `pointsCost` | integer | Sì | No |
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `redemptionId` | string | sì | no |  |
+| `reason` | string | sì | no |  |
+| `refund` | boolean | sì | no |  |
+| `pointsCost` | integer | sì | no |  |
 
-## reward.redemption.fulfilled
+## `io.loyaltyhub.fact.reward.redemption.confirmed` · versione 1
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `redemptionId` | string | Sì | No |
-| `rewardCode` | string | Sì | No |
-| `couponCode` | string | No | No |
-| `note` | string | No | No |
+Specifica: EVT-FACT-41, docs/05 §5.
 
-## reward.redemption.rejected
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `redemptionId` | string | sì | no |  |
+| `rewardCode` | string | sì | no |  |
+| `rewardName` | string | sì | no |  |
+| `pointsCost` | integer | sì | no |  |
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `redemptionId` | string | Sì | No |
-| `reason` | string | Sì | No |
+## `io.loyaltyhub.fact.reward.redemption.fulfilled` · versione 1
 
-## reward.redemption.requested
+Specifica: EVT-FACT-42, docs/05 §5.
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `redemptionId` | string | Sì | No |
-| `rewardCode` | string | Sì | No |
-| `rewardName` | string | Sì | No |
-| `currency` | any | Sì | No |
-| `pointsCost` | integer | Sì | No |
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `redemptionId` | string | sì | no |  |
+| `rewardCode` | string | sì | no |  |
+| `couponCode` | string | no | no |  |
+| `note` | string | no | no |  |
 
-## reward.status.changed
+## `io.loyaltyhub.fact.reward.redemption.rejected` · versione 1
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `rewardCode` | string | Sì | No |
-| `name` | string | No | No |
-| `previousStatus` | string | No | No |
-| `newStatus` | string | Sì | No |
+Specifica: EVT-FACT-43, docs/05 §5.
 
-## tier.downgraded
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `redemptionId` | string | sì | no |  |
+| `reason` | string | sì | no |  |
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `previousTier` | string | Sì | No |
-| `newTier` | string | Sì | No |
-| `editionCode` | string | Sì | No |
+## `io.loyaltyhub.fact.reward.redemption.requested` · versione 1
 
-## tier.retained
+Specifica: EVT-FACT-40, docs/05 §5.
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `tier` | string | Sì | No |
-| `editionCode` | string | Sì | No |
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `redemptionId` | string | sì | no |  |
+| `rewardCode` | string | sì | no |  |
+| `rewardName` | string | sì | no |  |
+| `currency` | PTS (fisso) | sì | no |  |
+| `pointsCost` | integer | sì | no |  |
 
-## tier.upgraded
+## `io.loyaltyhub.fact.reward.status.changed` · versione 1
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `previousTier` | string | Sì | No |
-| `newTier` | string | Sì | No |
-| `periodSts` | integer | Sì | No |
+Specifica: docs/servizi/reward-service.md §4, ciclo di vita premio.
 
-## wallet.points.adjusted
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `rewardCode` | string | sì | no |  |
+| `name` | string | no | no |  |
+| `previousStatus` | string | no | no |  |
+| `newStatus` | string | sì | no |  |
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `direction` | any | Sì | No |
-| `currency` | string | Sì | No |
-| `amount` | integer | Sì | No |
-| `reason` | string | Sì | No |
-| `note` | string | Sì | No |
-| `balanceAfter` | integer | Sì | No |
+## `io.loyaltyhub.fact.tier.downgraded` · versione 1
 
-## wallet.points.earned
+Specifica: EVT-FACT-29, docs/05 §5.
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `ledgerEntryId` | string | Sì | No |
-| `effectId` | string | No | No |
-| `campaignCode` | string | No | No |
-| `currency` | any | Sì | No |
-| `baseAmount` | integer | No | No |
-| `tierCode` | string | No | No |
-| `tierMultiplier` | number | No | No |
-| `amount` | integer | Sì | No |
-| `balanceAfter` | integer | Sì | No |
-| `lotId` | string | No | No |
-| `availableAt` | string/null | No | No |
-| `expiresAt` | string/null | No | No |
-| `pending` | boolean | No | No |
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `previousTier` | string | sì | no |  |
+| `newTier` | string | sì | no |  |
+| `editionCode` | string | sì | no |  |
 
-## wallet.points.expired
+## `io.loyaltyhub.fact.tier.retained` · versione 1
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `ledgerEntryId` | string | No | No |
-| `lotId` | string | No | No |
-| `currency` | any | Sì | No |
-| `amount` | integer | Sì | No |
-| `balanceAfter` | integer | Sì | No |
+Specifica: EVT-FACT-30, docs/05 §5.
 
-## wallet.points.expiring
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `tier` | string | sì | no |  |
+| `editionCode` | string | sì | no |  |
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `lotId` | string | No | No |
-| `currency` | any | Sì | No |
-| `amount` | integer | Sì | No |
-| `expiresAt` | string | Sì | No |
+## `io.loyaltyhub.fact.tier.upgraded` · versione 1
 
-## wallet.points.refunded
+Specifica: EVT-FACT-28, docs/05 §5.
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `redemptionId` | string | Sì | No |
-| `amount` | integer | Sì | No |
-| `balanceAfter` | integer | Sì | No |
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `previousTier` | string | sì | no |  |
+| `newTier` | string | sì | no |  |
+| `periodSts` | integer | sì | no |  |
 
-## wallet.points.released
+## `io.loyaltyhub.fact.wallet.points.adjusted` · versione 1
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `ledgerEntryId` | string | No | No |
-| `lotId` | string | No | No |
-| `currency` | any | Sì | No |
-| `amount` | integer | Sì | No |
-| `balanceAfter` | integer | Sì | No |
+Specifica: EVT-FACT-26.
 
-## wallet.points.spent
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `direction` | CREDIT/DEBIT | sì | no |  |
+| `currency` | string | sì | no |  |
+| `amount` | integer | sì | no |  |
+| `reason` | string | sì | no |  |
+| `note` | string | sì | no |  |
+| `balanceAfter` | integer | sì | no |  |
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `ledgerEntryId` | string | Sì | No |
-| `currency` | any | Sì | No |
-| `amount` | integer | Sì | No |
-| `balanceAfter` | integer | Sì | No |
-| `redemptionId` | string | Sì | No |
+## `io.loyaltyhub.fact.wallet.points.earned` · versione 1
 
-## wallet.spend.rejected
+Specifica: EVT-FACT-20, docs/05 §2, §5.
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `redemptionId` | string | Sì | No |
-| `reason` | any | Sì | No |
-| `requested` | integer | Sì | No |
-| `available` | integer | Sì | No |
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `ledgerEntryId` | string | sì | no |  |
+| `effectId` | string | no | no |  |
+| `campaignCode` | string | no | no |  |
+| `currency` | PTS/STS | sì | no |  |
+| `baseAmount` | integer | no | no |  |
+| `tierCode` | string | no | no |  |
+| `tierMultiplier` | number | no | no |  |
+| `amount` | integer | sì | no |  |
+| `balanceAfter` | integer | sì | no |  |
+| `lotId` | string | no | no |  |
+| `availableAt` | string/null | no | no |  |
+| `expiresAt` | string/null | no | no |  |
+| `pending` | boolean | no | no |  |
+
+## `io.loyaltyhub.fact.wallet.points.expired` · versione 1
+
+Specifica: EVT-FACT-24, docs/05 §5.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `ledgerEntryId` | string | no | no |  |
+| `lotId` | string | no | no |  |
+| `currency` | PTS/STS | sì | no |  |
+| `amount` | integer | sì | no |  |
+| `balanceAfter` | integer | sì | no |  |
+
+## `io.loyaltyhub.fact.wallet.points.expiring` · versione 1
+
+Specifica: EVT-FACT-25, docs/05 §5.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `lotId` | string | no | no |  |
+| `currency` | PTS/STS | sì | no |  |
+| `amount` | integer | sì | no |  |
+| `expiresAt` | string | sì | no |  |
+
+## `io.loyaltyhub.fact.wallet.points.refunded` · versione 1
+
+Specifica: EVT-FACT-23, docs/05 §5.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `redemptionId` | string | sì | no |  |
+| `amount` | integer | sì | no |  |
+| `balanceAfter` | integer | sì | no |  |
+
+## `io.loyaltyhub.fact.wallet.points.released` · versione 1
+
+Specifica: EVT-FACT-27, docs/05 §5.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `ledgerEntryId` | string | no | no |  |
+| `lotId` | string | no | no |  |
+| `currency` | PTS/STS | sì | no |  |
+| `amount` | integer | sì | no |  |
+| `balanceAfter` | integer | sì | no |  |
+
+## `io.loyaltyhub.fact.wallet.points.spent` · versione 1
+
+Specifica: EVT-FACT-21, docs/05 §5.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `ledgerEntryId` | string | sì | no |  |
+| `currency` | PTS (fisso) | sì | no |  |
+| `amount` | integer | sì | no |  |
+| `balanceAfter` | integer | sì | no |  |
+| `redemptionId` | string | sì | no |  |
+
+## `io.loyaltyhub.fact.wallet.spend.rejected` · versione 1
+
+Specifica: EVT-FACT-22, docs/05 §5.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `redemptionId` | string | sì | no |  |
+| `reason` | INSUFFICIENT_BALANCE/MEMBER_NOT_ACTIVE | sì | no |  |
+| `requested` | integer | sì | no |  |
+| `available` | integer | sì | no |  |

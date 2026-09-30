@@ -3,7 +3,7 @@ name: ci
 # Integrazione continua (docs/11 §10): l'arbitro del progetto.
 # ADR-047: una sola esecuzione per PR (niente doppio push + pull_request), job per area con filtro sui file
 # cambiati, backend diviso in gruppi paralleli. I controlli obbligatori del ruleset `main-protetto` restano
-# `backend (Java 25)`, `web (Next.js)`, `seed`, `contracts`, `guard`, `helm (chart e compose)`: un job saltato perché
+# `backend (Java 25)`, `web (Next.js)`, `seed`, `contracts`, `guard`, `helm (chart e compose)`, `docs` (M8.9): un job saltato perché
 # l'area non cambia conta come superato.
 # Il job `security` (M8.11b) gira sempre ed è consultivo: non è tra i controlli obbligatori finché non si dimostra stabile.
 on:
@@ -29,6 +29,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       web: ${{ steps.filter.outputs.web }}
       helm: ${{ steps.filter.outputs.helm }}
+      docs: ${{ steps.filter.outputs.docs }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -40,13 +41,13 @@ jobs:
         run: |
           if [ "$EVENT" != "pull_request" ]; then
             echo "backend=true" >> "$GITHUB_OUTPUT"; echo "web=true" >> "$GITHUB_OUTPUT"
-            echo "helm=true" >> "$GITHUB_OUTPUT"; exit 0
+            echo "helm=true" >> "$GITHUB_OUTPUT"; echo "docs=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
           files=$(git diff --name-only "origin/$BASE_REF...HEAD")
           printf '%s\n' "$files"
           # Backend: tutto tranne documentazione (docs/, sito Mintlify, .md/.mdx) e il frontend
           # (seed/ e contracts/ li leggono i test Java). Niente `grep -q` in pipeline: con pipefail darebbe falsi negativi.
-          doc='^(docs/|site/|api/|concetti/|guide/|operations/|specifiche/|getting-started/|docs_v2/|docs\.json$)|\.mdx?$'
+          doc='^(docs/|site/|api/|concetti/|guide/|operations/|specifiche/|getting-started/|docs\.json$)|\.mdx?$'
           code=$(grep -Ev "$doc" <<< "$files" | grep -Ev '^web/' || true)
           if [ -n "$code" ]; then backend=true; else backend=false; fi
           # Il workflow stesso fa girare tutto.
@@ -57,10 +58,14 @@ jobs:
           # (porte ed entrypoint), realm copiato nel chart, la verifica stessa e il workflow. Anche lo smoke, che il job
           # `helm install (kind)` esegue attraverso il gateway.
           if grep -Eq '^(deploy/helm/|deploy/compose/|deploy/docker-compose\.yml$|deploy/image/|deploy/idp/realm\.json$|scripts/check-helm\.mjs$|scripts/smoke\.sh$|\.github/workflows/)' <<< "$files"; then helm=true; else helm=false; fi
+          # Documentazione (M8.9, ADR-040): pagine Mintlify e loro configurazione, sorgenti delle pagine generate
+          # (schemi evento, OpenAPI), generatore e verifiche, .mintignore e il workflow stesso.
+          if grep -Eq '^(docs/|site/|api/|concetti/|guide/|operations/|specifiche/|getting-started/|index\.mdx$|docs\.json$|\.mintignore$|contracts/(events|api)/|scripts/(docs-sync|check-mermaid|check-frontmatter)|scripts/package(-lock)?\.json$|\.github/workflows/)' <<< "$files"; then docs=true; else docs=false; fi
           echo "backend=$backend" >> "$GITHUB_OUTPUT"
           echo "web=$web" >> "$GITHUB_OUTPUT"
           echo "helm=$helm" >> "$GITHUB_OUTPUT"
-          echo "backend=$backend web=$web helm=$helm"
+          echo "docs=$docs" >> "$GITHUB_OUTPUT"
+          echo "backend=$backend web=$web helm=$helm docs=$docs"
 
   # Backend in gruppi paralleli: ognuno installa i moduli a monte senza test e verifica solo i propri.
   # I test usano Kafka in-JVM (EmbeddedKafka) e Postgres in-process (Zonky): niente Docker (Q-40).
@@ -113,38 +118,6 @@ jobs:
 
   # Governance del repository (docs/18 §3.13, ADR-041): le ADR di docs/13 solo in aggiunta e gli ID di seed/
   # invariati senza la label "decisione". Gira solo sulle pull request; dopo aver aggiunto la label si rilancia il job.
-  docs:
-    name: docs
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "22"
-      - name: Filtro file docs
-        id: filter
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          files=$(git diff --name-only "origin/$BASE_REF...HEAD")
-          doc='^(docs/|site/|api/|concetti/|guide/|operations/|specifiche/|getting-started/|docs_v2/|docs\.json$)|\.mdx?$'
-          if grep -Eq "$doc" <<< "$files"; then echo "docs=true" >> "$GITHUB_OUTPUT"; else echo "docs=false" >> "$GITHUB_OUTPUT"; fi
-      - name: Pagine generate allineate (docs-sync)
-        if: steps.filter.outputs.docs == 'true'
-        run: node --test scripts/docs-sync.test.mjs && node scripts/docs-sync.mjs --check
-      - name: Broken links
-        if: steps.filter.outputs.docs == 'true'
-        run: npx -y mint@4.2.952 broken-links
-      - name: Validità diagrammi Mermaid
-        if: steps.filter.outputs.docs == 'true'
-        run: node scripts/check-mermaid.mjs docs api concetti getting-started guide operations specifiche
-      - name: Frontmatter valido
-        if: steps.filter.outputs.docs == 'true'
-        run: node --test scripts/check-frontmatter.test.mjs && node scripts/check-frontmatter.mjs
-
   guard:
     name: guard
     if: github.event_name == 'pull_request'
@@ -172,6 +145,36 @@ jobs:
       - name: Evidenze del backlog da aggiornare (avviso)
         continue-on-error: true
         run: node scripts/docs-sync.mjs --check-status
+
+  # Documentazione Mintlify (F2-DOC-01, F2-DOC-02, F2-DOC-03; ADR-040; docs/18 §3.12): pagine generate allineate
+  # (docs-sync --check), link interni (mint broken-links, versione fissata), diagrammi Mermaid validi con accTitle e
+  # accDescr (check-mermaid) e frontmatter con title e description. Il filtro sui file sta nel job `changes`: se la PR
+  # non tocca la documentazione il job è saltato e conta come superato. `.mintignore` tiene fuori dal sito i sorgenti;
+  # mint segnala comunque, senza fallire, di aver letto i template Helm quando cerca file OpenAPI.
+  docs:
+    name: docs
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      # mermaid e jsdom sono devDependencies di scripts/ (check-mermaid.mjs).
+      - name: Dipendenze degli script
+        run: npm --prefix scripts ci
+      - name: Pagine generate allineate (docs-sync)
+        run: node --test scripts/docs-sync.test.mjs && node scripts/docs-sync.mjs --check
+      - name: Broken links
+        run: npx -y mint@4.2.952 broken-links
+      - name: Validità diagrammi Mermaid
+        run: node scripts/check-mermaid.mjs docs api concetti getting-started guide operations specifiche
+      - name: Frontmatter valido
+        run: node --test scripts/check-frontmatter.test.mjs && node scripts/check-frontmatter.mjs
 
   # Sicurezza (F2-SEC-10, F2-SEC-12, F2-SEC-03; ADR-042, ADR-044; docs/security/ci-security.md). Gira a ogni PR e su main,
   # senza filtro sui file: la sicurezza è trasversale. Quattro controlli, tutti con versioni fissate e senza servizi

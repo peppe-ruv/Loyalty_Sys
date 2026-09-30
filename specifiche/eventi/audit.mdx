@@ -1,20 +1,24 @@
 ---
 title: "Eventi audit"
-description: "Schemi degli eventi della famiglia audit."
+description: "Schemi degli eventi della famiglia audit: type, versioni e campi."
 ---
 
-Questa pagina è generata automaticamente dagli schemi JSON in `contracts/events/audit/`.
+{/* Generato da scripts/docs-sync.mjs a partire da contracts/events/: non modificare a mano. */}
 
-## entry
+Questa pagina è generata dagli schemi JSON in `contracts/events/audit/`. Un campo con PII **sì** non può comparire in un evento pubblicato (ADR-032). Il formato dei messaggi e i topic sono in [Eventi e topic](/specifiche/eventi-e-topic).
+
+## `io.loyaltyhub.audit.entry` · versione 1
+
+Specifica: docs/05 §6.
 
 Voce di audit; l'attore (lhactor) è obbligatorio a livello di envelope per gli audit.
 
-| Campo | Tipo | Obbligatorio | PII |
-| --- | --- | --- | --- |
-| `service` | string | Sì | No |
-| `entityType` | string | Sì | No |
-| `entityId` | string | Sì | No |
-| `action` | any | Sì | No |
-| `summary` | string | Sì | No |
-| `before` | object/null | No | No |
-| `after` | object/null | No | No |
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `service` | string | sì | no |  |
+| `entityType` | string | sì | no |  |
+| `entityId` | string | sì | no |  |
+| `action` | CREATE/UPDATE/DELETE/TRANSITION/ADJUST/JOB/RESET | sì | no |  |
+| `summary` | string | sì | no |  |
+| `before` | object/null | no | no |  |
+| `after` | object/null | no | no |  |

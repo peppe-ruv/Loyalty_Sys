@@ -7,4 +7,10 @@ scripts/
 e2e/
 contracts/events/
 deploy/
-docs_v2/
+README.md
+CLAUDE.md
+AGENTS.md
+SECURITY.md
+COME-PARTIRE.md
+contracts/api/README.md
+.github/

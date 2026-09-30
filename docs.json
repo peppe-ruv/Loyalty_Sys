@@ -154,23 +154,97 @@
             ]
           },
           {
-            "group": "Portale Membri",
+            "group": "Servizi",
             "pages": [
-              "openapi: contracts/api/portal.openapi.yaml"
+              {
+                "group": "Ingestion",
+                "pages": [
+                  "api/ingestion",
+                  {
+                    "group": "Endpoint",
+                    "openapi": "contracts/api/ingestion-service.openapi.yaml"
+                  }
+                ]
+              },
+              {
+                "group": "Member",
+                "pages": [
+                  "api/member",
+                  {
+                    "group": "Endpoint",
+                    "openapi": "contracts/api/member-service.openapi.yaml"
+                  }
+                ]
+              },
+              {
+                "group": "Campaign",
+                "pages": [
+                  "api/campaign",
+                  {
+                    "group": "Endpoint",
+                    "openapi": "contracts/api/campaign-service.openapi.yaml"
+                  }
+                ]
+              },
+              {
+                "group": "Wallet",
+                "pages": [
+                  "api/wallet",
+                  {
+                    "group": "Endpoint",
+                    "openapi": "contracts/api/wallet-service.openapi.yaml"
+                  }
+                ]
+              },
+              {
+                "group": "Reward",
+                "pages": [
+                  "api/reward",
+                  {
+                    "group": "Endpoint",
+                    "openapi": "contracts/api/reward-service.openapi.yaml"
+                  }
+                ]
+              },
+              {
+                "group": "Gamification",
+                "pages": [
+                  "api/gamification",
+                  {
+                    "group": "Endpoint",
+                    "openapi": "contracts/api/gamification-service.openapi.yaml"
+                  }
+                ]
+              },
+              {
+                "group": "Engagement",
+                "pages": [
+                  "api/engagement",
+                  {
+                    "group": "Endpoint",
+                    "openapi": "contracts/api/engagement-service.openapi.yaml"
+                  }
+                ]
+              },
+              {
+                "group": "Insight",
+                "pages": [
+                  "api/insight",
+                  {
+                    "group": "Endpoint",
+                    "openapi": "contracts/api/insight-service.openapi.yaml"
+                  }
+                ]
+              }
             ]
           },
           {
-            "group": "Backoffice (Servizi)",
-            "pages": [
-              "openapi: contracts/api/ingestion-service.openapi.yaml",
-              "openapi: contracts/api/member-service.openapi.yaml",
-              "openapi: contracts/api/campaign-service.openapi.yaml",
-              "openapi: contracts/api/wallet-service.openapi.yaml",
-              "openapi: contracts/api/reward-service.openapi.yaml",
-              "openapi: contracts/api/gamification-service.openapi.yaml",
-              "openapi: contracts/api/engagement-service.openapi.yaml",
-              "openapi: contracts/api/insight-service.openapi.yaml"
-            ]
+            "group": "Portale membri",
+            "openapi": "contracts/api/portal.openapi.yaml"
+          },
+          {
+            "group": "Piattaforma",
+            "openapi": "contracts/api/platform.openapi.yaml"
           }
         ]
       }

@@ -1,16 +1,17 @@
 // Test di scripts/docs-sync.mjs (M8.9b, F2-DOC-02): parser del backlog, escape MDX, link, DoR e DoD su una fixture,
-// snapshot delle evidenze e verifica strutturale (--check) su un repository temporaneo.
+// snapshot delle evidenze e verifica strutturale (--check) su un repository temporaneo; pagine degli eventi (M8.9c).
 // Uso: node --test scripts/docs-sync.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   storyRefs, featureRefs, screenRefs, tbDomains, tbRowRefs, proofPaths, escapeMdx, rewriteLinks,
   parseStory, parseBacklog, evaluateDoR, evaluateDoD, evaluate, epicSlug, updateDocsJson, parseWorkflows, loadContext,
   backlogGroup, readBacklogGroup, buildSnapshot, finalizeSnapshot, serializeSnapshot, snapshotProblems, renderPages,
-  checkRoot, writeRoot, changedStories, SNAPSHOT,
+  checkRoot, writeRoot, changedStories, SNAPSHOT, renderEvents,
 } from './docs-sync.mjs';
 
 const FIXTURE = `# 17 — Epic
@@ -621,33 +622,132 @@ test('modalità predefinita e refresh: pagine pure di docs/17 e snapshot; le evi
   });
 });
 
-test('renderEvents genera pagine con escape MDX', async () => {
-  const tmpDir = path.join(os.tmpdir(), `docs-sync-test-${Date.now()}`);
-  fs.mkdirSync(tmpDir);
-  const eventsDir = path.join(tmpDir, 'contracts/events/action');
-  fs.mkdirSync(eventsDir, { recursive: true });
+// --- Pagine degli eventi (M8.9c, F2-DOC-01) -------------------------------------------------------------------------
 
-  const mockSchema = {
-    title: 'action.test',
-    description: 'Un test con <tag> e {var} e <!-- commento -->',
-    type: 'object',
-    required: ['id'],
-    properties: {
-      id: { type: 'string', 'x-lh-pii': false },
-      email: { type: 'string', 'x-lh-pii': true }
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+/** Un repository temporaneo con schemi eventi ({famiglia: {file: schema}}), sempre ripulito, anche se un assert fallisce. */
+function withEvents(schemas, fn) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-sync-ev-'));
+  try {
+    for (const [family, byFile] of Object.entries(schemas)) {
+      const dir = path.join(root, 'contracts/events', family);
+      fs.mkdirSync(dir, { recursive: true });
+      for (const [file, schema] of Object.entries(byFile)) fs.writeFileSync(path.join(dir, file), JSON.stringify(schema));
     }
+    return fn(root);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+const NASTY = 'Un <tag> e {var}, <!-- commento -->, a\\{b, x|y, `{x}` e `a|b`';
+const evSchema = () => ({
+  $id: 'urn:loyaltyhub:schema:action.test:1',
+  title: 'action.test — data (EVT-ACT-99, docs/05 §3)',
+  description: NASTY,
+  type: 'object',
+  required: ['id', 'items'],
+  properties: {
+    id: { type: 'string', 'x-lh-pii': false },
+    email: { type: 'string', 'x-lh-pii': true, description: NASTY },
+    status: { enum: ['A', 'B|C'], 'x-lh-pii': false },
+    currency: { const: 'PTS', 'x-lh-pii': false },
+    labels: { type: 'array', items: { type: 'string' } },
+    items: {
+      type: 'array',
+      items: { type: 'object', required: ['sku'], properties: { sku: { type: 'string' }, owner: { type: 'string', 'x-lh-pii': true } } },
+    },
+  },
+});
+const eventPage = (schemas, family = 'action') => withEvents(schemas, (root) => renderEvents(root).get(`specifiche/eventi/${family}.mdx`));
+
+test('renderEvents: ogni testo degli schemi passa da escapeMdx, senza doppio escape', () => {
+  const page = eventPage({ action: { 'test.schema.json': evSchema() } });
+  assert.ok(page);
+  // Descrizione dello schema: esattamente il risultato di escapeMdx (barra rovesciata per prima, un solo passaggio).
+  assert.ok(page.includes(`\n${escapeMdx(NASTY)}\n`));
+  assert.ok(page.includes('a\\\\\\{b'), 'a\\{b diventa due barre e una graffa escapata');
+  assert.ok(!page.includes('&amp;'), 'nessun doppio escape');
+  assert.ok(!page.includes('<!--') && !page.includes('<tag>'), 'nessun < grezzo fuori dal codice inline');
+  // Descrizione di un campo, in cella: | escapato, codice inline intatto.
+  assert.ok(page.includes(`| ${escapeMdx(NASTY, { cell: true })} |`));
+  assert.ok(page.includes('A/B\\|C'), 'i valori enum sono separati da / con | escapato');
+});
+
+test('renderEvents: type e versione da $id, enum/const, campi annidati e PII', () => {
+  const page = eventPage({ action: { 'test.schema.json': evSchema() } });
+  assert.match(page, /^## `io\.loyaltyhub\.action\.test` · versione 1$/m);
+  assert.match(page, /^Specifica: EVT-ACT-99, docs\/05 §3\.$/m);
+  assert.match(page, /\| `currency` \| PTS \(fisso\) \| no \| no \|/);
+  assert.match(page, /\| `labels` \| array&lt;string> \| no \| no \|/);
+  assert.match(page, /\| `items\[\]\.sku` \| string \| sì \| no \|/);
+  assert.match(page, /\| `items\[\]\.owner` \| string \| no \| \*\*sì\*\* \|/, 'PII annidata evidenziata');
+  assert.match(page, /\| `email` \| string \| no \| \*\*sì\*\* \|/);
+  assert.doesNotMatch(page, /⚠/, 'niente emoji');
+});
+
+test('renderEvents: $ref locali, allOf, versioni e schemi superati; ordine deterministico', () => {
+  const v1 = { $id: 'urn:loyaltyhub:schema:fact.x.y:1', 'x-lh-superseded-by': 'urn:loyaltyhub:schema:fact.x.y:2', type: 'object', properties: { a: { type: 'string' } } };
+  const v2 = {
+    $id: 'urn:loyaltyhub:schema:fact.x.y:2',
+    type: 'object',
+    $defs: { money: { type: 'object', required: ['amount'], properties: { amount: { type: 'integer' } } } },
+    allOf: [{ properties: { b: { type: 'string' } }, required: ['b'] }],
+    properties: { price: { $ref: '#/$defs/money' } },
   };
-  fs.writeFileSync(path.join(eventsDir, 'action.test.schema.json'), JSON.stringify(mockSchema));
+  const a = eventPage({ fact: { 'y.v2.schema.json': v2, 'y.schema.json': v1 } }, 'fact');
+  const b = eventPage({ fact: { 'y.schema.json': v1, 'y.v2.schema.json': v2 } }, 'fact');
+  assert.equal(a, b, 'stesso risultato a prescindere dall\'ordine di creazione dei file');
+  assert.ok(a.indexOf('· versione 1') < a.indexOf('· versione 2'));
+  assert.match(a, /Versione superata: la versione corrente è la 2\./);
+  assert.match(a, /\| `price\.amount` \| integer \| sì \| no \|/);
+  assert.match(a, /\| `b` \| string \| sì \| no \|/);
+});
 
-  const docsSync = await import('./docs-sync.mjs');
-  const files = docsSync.renderEvents(tmpDir);
+test('renderEvents: una pagina per famiglia con schemi, un solo \\n finale, dlq fissa, niente senza contracts/events', () => {
+  withEvents({ action: { 'test.schema.json': evSchema() }, effect: {} }, (root) => {
+    const files = renderEvents(root);
+    assert.deepEqual([...files.keys()], ['specifiche/eventi/action.mdx', 'specifiche/eventi/dlq.mdx']);
+    for (const page of files.values()) {
+      assert.ok(page.endsWith('\n') && !page.endsWith('\n\n'), 'un solo a capo finale');
+      assert.doesNotMatch(page, /[ \t]+$/m, 'nessuno spazio finale');
+    }
+    assert.match(files.get('specifiche/eventi/dlq.mdx'), /lh-original-topic/);
+    assert.deepEqual([...renderEvents(root)], [...files], 'due esecuzioni producono le stesse pagine');
+  });
+  const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-sync-ev-'));
+  try {
+    assert.equal(renderEvents(empty).size, 0);
+  } finally {
+    fs.rmSync(empty, { recursive: true, force: true });
+  }
+});
 
-  const actionPage = files.get('specifiche/eventi/action.mdx');
-  assert.ok(actionPage);
-  assert.match(actionPage, /&lt;tag>/);
-  assert.match(actionPage, /\\\{var\\\}/);
-  assert.match(actionPage, /&lt;!-- commento -->/);
-  assert.match(actionPage, /⚠️ Sì/);
+test('eventi: le pagine committate coincidono con quelle generate da contracts/events/', () => {
+  const files = renderEvents(REPO_ROOT);
+  assert.deepEqual([...files.keys()], ['specifiche/eventi/action.mdx', 'specifiche/eventi/effect.mdx', 'specifiche/eventi/fact.mdx', 'specifiche/eventi/audit.mdx', 'specifiche/eventi/dlq.mdx']);
+  for (const [p, content] of files) assert.equal(fs.readFileSync(path.join(REPO_ROOT, p), 'utf8'), content, p);
+  assert.deepEqual([...renderEvents(REPO_ROOT)], [...files], 'deterministico');
+});
 
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+test('eventi: una pagina non più generata è segnalata dal check e tolta dalla scrittura', () => {
+  withRepo((root) => {
+    fs.mkdirSync(path.join(root, 'contracts/events/action'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'contracts/events/action/test.schema.json'), JSON.stringify(evSchema()));
+    const model = parseBacklog(read17(root));
+    const snap = JSON.parse(fs.readFileSync(path.join(root, SNAPSHOT), 'utf8'));
+    writeRoot(root, model, finalizeSnapshot(snap, model));
+    assert.deepEqual(checkRoot(root), []);
+    fs.writeFileSync(path.join(root, 'specifiche/eventi/vecchia.mdx'), '---\ntitle: x\n---\n');
+    assert.ok(checkRoot(root).some((p) => p.startsWith('specifiche/eventi/vecchia.mdx: pagina non più generata')));
+    const out = writeRoot(root, model, finalizeSnapshot(snap, model));
+    assert.deepEqual(out.removed, ['specifiche/eventi/vecchia.mdx']);
+    assert.deepEqual(checkRoot(root), []);
+  });
+});
+
+test('MDX compila sulle pagine eventi reali e sui testi ostili', { skip: noMdx }, async () => {
+  for (const page of renderEvents(REPO_ROOT).values()) await mdx.compile(page, { remarkPlugins: [mdx.gfm] });
+  await mdx.compile(eventPage({ action: { 'test.schema.json': evSchema() } }), { remarkPlugins: [mdx.gfm] });
 });
