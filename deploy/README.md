@@ -451,8 +451,8 @@ produce `SIGNATURE_INVALID` né `PRODUCER_NOT_ALLOWED`), picchi di 401 e 403, ar
 
 ### Vetrina enterprise: configurazione di programma da seed (F2-DIST-09, F2-DIST-06, ADR-049, Q-617)
 
-In `enterprise` non esiste un seeder e `/v1/demo/**` non esiste: una vetrina appena installata è vuota. Il **default
-proposto** (Q-617, **APERTA**) è uno script che applica la sola *configurazione di programma* di `seed/` con le API REST
+In `enterprise` non esiste un seeder e `/v1/demo/**` non esiste: una vetrina appena installata è vuota. La scelta
+decisa (Q-617, 2026-09-30) è uno script che applica la sola *configurazione di programma* di `seed/` con le API REST
 del backoffice e il token di un operatore ADMIN, così ogni scrittura lascia una voce di audit con l'attore reale
 (regola 21): `scripts/vetrina-programma.mjs`, senza dipendenze oltre a Node 22. Non tocca mai membri `MBR-*`, movimenti,
 lotti, vincite, coupon generati né dati personali (regola 9, `docs/11 §11`).

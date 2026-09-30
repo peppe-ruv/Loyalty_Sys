@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Configurazione di programma da seed/ a un'installazione enterprise, tramite le API REST dei servizi con il token
-// di un operatore ADMIN (F2-DIST-09, F2-DIST-06, ADR-049, M8.14d; Q-617: default proposto, APERTA).
+// di un operatore ADMIN (F2-DIST-09, F2-DIST-06, ADR-049, M8.14d; Q-617 decisa il 2026-09-30).
 //
 // Nel profilo `enterprise` non esiste un seeder (docs/18 §3.15) e `/v1/demo/**` non esiste: la vetrina parte vuota.
 // Questo script legge SOLO la configurazione del programma (docs/10) e la applica con le API che già esistono:
@@ -140,7 +140,7 @@ function camel(flag) {
 export const HELP = `Uso: node scripts/vetrina-programma.mjs [opzioni]
 
 Applica la configurazione di programma di seed/ a un'installazione enterprise con le API del backoffice
-(F2-DIST-09, ADR-049, Q-617 default proposto, APERTA). Predefinito: --dry-run (mostra il piano).
+(F2-DIST-09, ADR-049, Q-617 decisa il 2026-09-30). Predefinito: --dry-run (mostra il piano).
 
   --base-url <url>         URL dell'hub (tutti i servizi); in alternativa LH_BASE_URL, o LH_SVC_<SERVIZIO>_URL per servizio
   --svc-url <servizio>=<url>  URL di un solo servizio (ripetibile): ${SERVICES.join(', ')}
@@ -814,7 +814,7 @@ function printPlan(log, plan, { apply, offline, verify }) {
 function printNotIncluded(log) {
   log.out('Non incluso per scelta:');
   for (const [what, why] of NOT_INCLUDED) log.out(`  - ${what}: ${why}`);
-  log.out('I premi creati restano in DRAFT: lo script non approva né pubblica (regola 22). Q-617: default proposto, APERTA.');
+  log.out('I premi creati restano in DRAFT: lo script non approva né pubblica (regola 22). Q-617 decisa il 2026-09-30.');
 }
 
 // ---------------------------------------------------------------------------------------------------------------

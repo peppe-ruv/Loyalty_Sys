@@ -1,4 +1,4 @@
-// Test di scripts/vetrina-programma.mjs (F2-DIST-09, ADR-049, Q-617 default proposto, APERTA): node --test, con un hub
+// Test di scripts/vetrina-programma.mjs (F2-DIST-09, ADR-049, Q-617 decisa il 2026-09-30): node --test, con un hub
 // finto in memoria. Nessuna rete. Copre: piano dal seed reale, idempotenza, esclusione dei dati dei membri, dry-run senza
 // scritture, token mai stampato, rifiuto di http non locale, permessi del file del token, device flow, verifica
 // dell'audit (regola 21) con uscita diversa da zero.
@@ -152,7 +152,7 @@ test('dry-run predefinito: piano dal seed reale, zero scritture, uscita 0', asyn
   assert.match(out, /dry-run: nessuna scrittura/i);
   assert.match(out, /\[reward\] reward-categories: 5 da creare/);
   assert.match(out, /\[reward\] rewards: 14 da creare/);
-  assert.match(out, /Q-617: default proposto, APERTA/);
+  assert.match(out, /Q-617 decisa il 2026-09-30/);
 });
 
 test('--offline: nessuna richiesta di rete e nessun token', async () => {
