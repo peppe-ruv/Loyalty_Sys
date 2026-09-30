@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -64,7 +65,12 @@ public class TemplateRepository {
                         w -> w.eq(TemplateColumn.CHANNEL, channel.trim().toUpperCase()));
     }
 
-    public List<MessageTemplate> findByCodes(java.util.Set<String> codes) {
+    /**
+     * Template per codice esatto (chiave esterna di {@code notification_rule.template_code}, senza la normalizzazione
+     * di {@link #find}): un parametro legato per codice tramite {@link SqlWhere#in} (regola 19, ADR-042); insieme
+     * vuoto o assente = lista vuota, senza interrogare il database.
+     */
+    public List<MessageTemplate> findByCodes(Collection<String> codes) {
         if (codes == null || codes.isEmpty()) {
             return List.of();
         }

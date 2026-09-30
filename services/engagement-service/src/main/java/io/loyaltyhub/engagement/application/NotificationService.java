@@ -17,8 +17,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.Optional;
 
 /**
  * Regole di notifica (docs/03 §9, docs/servizi/engagement-service.md §5; F-MSG-01): per un fatto del membro, ogni regola
@@ -58,9 +58,11 @@ public class NotificationService {
             return List.of();
         }
 
+        // Una sola lettura per tutti i template delle regole corrispondenti (niente N+1). L'ordine di consegna resta
+        // quello di matchedRules; il merge è solo difensivo: code è chiave primaria, quindi non ci sono doppioni.
         Set<String> templateCodes = matchedRules.stream().map(NotificationRule::templateCode).collect(Collectors.toSet());
         Map<String, MessageTemplate> templateMap = templates.findByCodes(templateCodes).stream()
-                .collect(Collectors.toMap(MessageTemplate::code, t -> t));
+                .collect(Collectors.toMap(MessageTemplate::code, Function.identity(), (a, b) -> a));
 
         List<InboxMessage> out = new ArrayList<>();
         for (NotificationRule rule : matchedRules) {
