@@ -253,6 +253,10 @@ test("T17 (R17): additionalProperties — chiuso, riaperto (ADR-032), ricorsione
   // invariato: false → false, assente → true
   assert.deepEqual(schemaChanges(CLOSED, clone(CLOSED)), []);
   assert.deepEqual(changes((s) => { delete s.additionalProperties; }), []);
+  // false → schema tipizzato: stessa riapertura, stesso richiamo ad ADR-032
+  const reopenedTyped = schemaChanges(CLOSED, mut((s) => { s.additionalProperties = { type: "string" }; }, CLOSED));
+  only(reopenedTyped, "pii", "schema riaperto con additionalProperties tipizzato", "(radice)");
+  assert.ok(reopenedTyped[0].message.includes("ADR-032"));
   // ricorsione nello schema di additionalProperties
   only(changes((s) => { s.properties.attributes.additionalProperties.type = ["string", "null"]; }), "modifica", "tipo allargato", "attributes{}");
   const strict = changes((s) => { s.properties.attributes.additionalProperties["x-lh-pii"] = false; delete s.properties.attributes.additionalProperties.type; });
