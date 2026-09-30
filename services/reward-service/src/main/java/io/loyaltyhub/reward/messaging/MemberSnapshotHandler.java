@@ -5,6 +5,7 @@ import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhEventTypes;
 import io.loyaltyhub.common.inbox.EventHandler;
 import io.loyaltyhub.common.privacy.PersonalData;
+import io.loyaltyhub.reward.application.MemberSubjectProjection;
 import io.loyaltyhub.reward.infra.MemberSnapshotRepository;
 import io.loyaltyhub.reward.infra.RedemptionErasureRepository;
 import org.springframework.stereotype.Component;
@@ -15,16 +16,21 @@ import java.util.Set;
 /**
  * Snapshot del membro per la visibilità dei premi (docs/servizi/reward-service.md §4): stato e nome dai fatti di
  * member, livello da {@code tier.upgraded}/{@code tier.downgraded}, segmenti da {@code member.segment.entered/left} (M6.6).
+ * Dai fatti {@code member.registered/updated/status.changed} proietta anche il legame {@code subjectRef → membro} nella
+ * stessa transazione dello snapshot (F2-SEC-09, ADR-048, Q-550).
  */
 @Component
 public class MemberSnapshotHandler implements EventHandler {
 
     private final MemberSnapshotRepository members;
     private final RedemptionErasureRepository redemptions;
+    private final MemberSubjectProjection subjects;
 
-    public MemberSnapshotHandler(MemberSnapshotRepository members, RedemptionErasureRepository redemptions) {
+    public MemberSnapshotHandler(MemberSnapshotRepository members, RedemptionErasureRepository redemptions,
+                                 MemberSubjectProjection subjects) {
         this.members = members;
         this.redemptions = redemptions;
+        this.subjects = subjects;
     }
 
     @Override
@@ -78,6 +84,13 @@ public class MemberSnapshotHandler implements EventHandler {
         if (PersonalData.isAnonymization(event)) {
             redemptions.erase(memberId);
             members.erasePersonal(memberId);
+        }
+        // Legame token↔membro (Q-550): solo i fatti di member-service portano subjectRef; stessa transazione dello snapshot.
+        switch (event.type()) {
+            case LhEventTypes.Fact.MEMBER_REGISTERED, LhEventTypes.Fact.MEMBER_UPDATED,
+                    LhEventTypes.Fact.MEMBER_STATUS_CHANGED -> subjects.apply(memberId, event);
+            default -> {
+            }
         }
     }
 }

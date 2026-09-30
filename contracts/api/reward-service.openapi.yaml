@@ -460,6 +460,8 @@ components:
     RedemptionRequest:
       properties:
         memberId:
+          deprecated: true
+          description: solo profilo demo; in enterprise il membro è quello del token
           type: string
         rewardCode:
           type: string
@@ -938,12 +940,6 @@ paths:
   /v1/portal/catalog:
     get:
       operationId: catalog
-      parameters:
-      - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
       responses:
         "200":
           content:
@@ -957,12 +953,6 @@ paths:
   /v1/portal/coupons:
     get:
       operationId: coupons
-      parameters:
-      - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
       responses:
         "200":
           content:
@@ -978,12 +968,6 @@ paths:
   /v1/portal/redemptions:
     get:
       operationId: list
-      parameters:
-      - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
       responses:
         "200":
           content:
@@ -1023,11 +1007,6 @@ paths:
         required: true
         schema:
           type: string
-      - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
       responses:
         "200":
           content:
@@ -1047,11 +1026,6 @@ paths:
         required: true
         schema:
           type: string
-      - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
       responses:
         "200":
           content:
@@ -1062,6 +1036,21 @@ paths:
       summary: Cancel — portal redemptions
       tags:
       - portal-redemptions
+  /v1/portal/reward-categories:
+    get:
+      operationId: categories_1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/Category"
+                type: array
+          description: OK
+      summary: Categories — portal catalog
+      tags:
+      - portal-catalog
   /v1/portal/rewards/{code}:
     get:
       operationId: reward_1
@@ -1069,11 +1058,6 @@ paths:
       - in: path
         name: code
         required: true
-        schema:
-          type: string
-      - in: query
-        name: memberId
-        required: false
         schema:
           type: string
       responses:
