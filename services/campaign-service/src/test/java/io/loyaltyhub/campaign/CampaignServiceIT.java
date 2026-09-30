@@ -7,6 +7,7 @@ import io.loyaltyhub.campaign.infra.CampaignRepository;
 import io.loyaltyhub.campaign.infra.EvaluationLogRepository;
 import io.loyaltyhub.campaign.infra.EvaluationLogRepository.EvaluationRow;
 import io.loyaltyhub.common.event.JsonSchemaValidator;
+import io.loyaltyhub.common.web.PageParams;
 import io.loyaltyhub.testsupport.ListenerGroups;
 import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
@@ -178,14 +179,14 @@ class CampaignServiceIT {
     }
 
     /**
-     * Registro valutazioni sul builder: filtri per membro ed esito, più recenti prima, a parità di istante
-     * {@code action_id} crescente. Righe proprie con {@code evaluated_at} fissato nel futuro, così sono le più recenti
-     * del registro anche senza filtro per membro; rimosse alla fine.
+     * Q-532: {@code limit} del registro valutazioni. Righe proprie per MBR-IT-LIM-1 datate 2099-02-01;
+     * {@code limit} minore di 1, in overflow di int o non numerico dà 400 {@code BAD_REQUEST}; oltre
+     * {@code PageParams.MAX_SIZE} la lista si limita al massimo; righe rimosse alla fine.
      */
     @Test
     void evaluationsLimitBelowOneIsBadRequestAndAboveMaxIsCapped() {
         Instant t0 = Instant.parse("2099-02-01T00:00:00Z");
-        int rows = io.loyaltyhub.common.web.PageParams.MAX_SIZE + 5;
+        int rows = PageParams.MAX_SIZE + 5;
         try {
             for (int i = 0; i < rows; i++) {
                 logEvaluation(String.format("01EVLIM-%03d", i), "MBR-IT-LIM-1", "MATCHED", t0.plusSeconds(i));
@@ -197,9 +198,9 @@ class CampaignServiceIT {
             }
             // Oltre il massimo la pagina si limita a PageParams.MAX_SIZE (come size negli elenchi {items, page}).
             assertThat(send("GET", "/v1/evaluations?memberId=MBR-IT-LIM-1&limit=2147483647", "ANALYST:sara", null, 200).size())
-                    .isEqualTo(io.loyaltyhub.common.web.PageParams.MAX_SIZE);
-            assertThat(send("GET", "/v1/evaluations?memberId=MBR-IT-LIM-1&limit=" + (io.loyaltyhub.common.web.PageParams.MAX_SIZE + 1),
-                    "ANALYST:sara", null, 200).size()).isEqualTo(io.loyaltyhub.common.web.PageParams.MAX_SIZE);
+                    .isEqualTo(PageParams.MAX_SIZE);
+            assertThat(send("GET", "/v1/evaluations?memberId=MBR-IT-LIM-1&limit=" + (PageParams.MAX_SIZE + 1),
+                    "ANALYST:sara", null, 200).size()).isEqualTo(PageParams.MAX_SIZE);
             assertThat(send("GET", "/v1/evaluations?memberId=MBR-IT-LIM-1&limit=1", "ANALYST:sara", null, 200).size()).isEqualTo(1);
             assertThat(send("GET", "/v1/evaluations?memberId=MBR-IT-LIM-1", "ANALYST:sara", null, 200).size()).isEqualTo(50);
         } finally {
@@ -207,6 +208,11 @@ class CampaignServiceIT {
         }
     }
 
+    /**
+     * Registro valutazioni sul builder: filtri per membro ed esito, più recenti prima, a parità di istante
+     * {@code action_id} crescente. Righe proprie con {@code evaluated_at} fissato nel futuro, così sono le più recenti
+     * del registro anche senza filtro per membro; rimosse alla fine.
+     */
     @Test
     void evaluationLogSearchFiltersNewestFirstWithStableTieBreak() {
         Instant t0 = Instant.parse("2099-01-01T00:00:00Z");
