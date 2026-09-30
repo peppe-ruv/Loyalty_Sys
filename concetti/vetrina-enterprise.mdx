@@ -39,7 +39,7 @@ flowchart LR
 |---|---|---|
 | `web` | container sull'host, una replica | Le sessioni del BFF stanno in memoria: un riavvio le chiude e si rientra con l'SSO. |
 | `hub` | container sull'host, non esposto | Esegue le migrazioni all'avvio. |
-| `idp` | Keycloak con Postgres come database | Un realm da `deploy/idp/realm.json` più un overlay di vetrina: registrazione chiusa, nessuna credenziale pubblicata e un client pubblico `lh-cli` (Device Authorization Grant, con consenso esplicito e ruoli limitati a quelli operatore) per la CLI dell'operatore (default proposto, Q-626 aperta). L'OTP vale per gli account con `MFA_REQUIRED_ROLE` e lo script del realm fallisce per un operatore che non lo ha (Q-618, default proposto, aperta). |
+| `idp` | Keycloak con Postgres come database | Un realm da `deploy/idp/realm.json` più un overlay di vetrina: registrazione chiusa, nessuna credenziale pubblicata e un client pubblico `lh-cli` (Device Authorization Grant, con consenso esplicito e ruoli limitati a quelli operatore) per la CLI dell'operatore (Q-626, decisa il 2026-09-30). L'OTP vale per gli account con `MFA_REQUIRED_ROLE` e lo script del realm fallisce per un operatore che non lo ha (Q-618, decisa il 2026-09-30). |
 | Postgres e Kafka | sull'host, nel compose | Database e broker **propri**, mai condivisi con la demo. |
 | Reverse proxy TLS | sull'host, porte 80 e 443 | Unico componente esposto; è la parte che distingue il compose della vetrina da quello di riferimento. |
 
@@ -66,7 +66,7 @@ L'hosting è un host Oracle Cloud Always Free A1, senza costo e senza sospension
 
 ## Accesso degli operatori
 
-Nessuna password è pubblicata: il primo visitatore la cambierebbe e legherebbe l'OTP al proprio telefono. La regola è che la MFA resta sempre richiesta. Il default proposto (Q-618, ancora aperta) è che gli account operatore siano **nominativi**, creati dal proprietario su richiesta, con password temporanea consegnata fuori banda.
+Nessuna password è pubblicata: il primo visitatore la cambierebbe e legherebbe l'OTP al proprio telefono. La regola è che la MFA resta sempre richiesta. La decisione (Q-618, 2026-09-30) è che gli account operatore siano **nominativi**, creati dal proprietario su richiesta, con password temporanea consegnata fuori banda.
 
 ## Decisione e domande aperte
 

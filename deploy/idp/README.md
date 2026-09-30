@@ -128,7 +128,7 @@ Lo script imposta una password temporanea (da `TEMP_PASS_*` o generata) ai 5 ute
 |---|---|---|
 | `LH_IDP_BOOTSTRAP_OUT` | `deploy/idp/.secrets/bootstrap-passwords.txt` | percorso del file delle credenziali generate; la cartella di default è ignorata da git (`.gitignore`) e, se nuova, è creata `0700` |
 
-Consegna le password fuori banda e cancella il file. Nella vetrina enterprise non si esegue per pubblicare credenziali: gli account operatore sono nominativi (Q-618, default proposto, APERTA; vedi sotto).
+Consegna le password fuori banda e cancella il file. Nella vetrina enterprise non si esegue per pubblicare credenziali: gli account operatore sono nominativi (Q-618, decisa il 2026-09-30; vedi sotto).
 
 ## Vetrina enterprise (F2-DIST-09, ADR-049)
 
@@ -144,17 +144,17 @@ Lo script (idempotente) legge il realm, unisce il frammento di impostazioni dell
 
 | Cosa | Valore | Perché |
 |---|---|---|
-| `registrationAllowed` | `false` | portale membri chiuso nel primo passo (Q-619, default proposto, APERTA): la registrazione aperta senza verifica dell'e-mail raccoglierebbe dati personali reali |
-| Utenti e credenziali | nessuno | nessuna password pubblicata; gli account operatore sono nominativi, creati a mano dal proprietario con password temporanea consegnata fuori banda (Q-618, default proposto, APERTA) |
-| MFA e `UPDATE_PASSWORD` degli operatori | invariati, e verificati | `browser-mfa` resta quello del realm base; l'OTP scatta solo per chi ha `MFA_REQUIRED_ROLE`, quindi lo script fallisce se un utente con un ruolo operatore non lo ha (default proposto, Q-618 APERTA; procedura sotto) |
+| `registrationAllowed` | `false` | portale membri chiuso nel primo passo (Q-619, decisa il 2026-09-30): la registrazione aperta senza verifica dell'e-mail raccoglierebbe dati personali reali |
+| Utenti e credenziali | nessuno | nessuna password pubblicata; gli account operatore sono nominativi, creati a mano dal proprietario con password temporanea consegnata fuori banda (Q-618, decisa il 2026-09-30) |
+| MFA e `UPDATE_PASSWORD` degli operatori | invariati, e verificati | `browser-mfa` resta quello del realm base; l'OTP scatta solo per chi ha `MFA_REQUIRED_ROLE`, quindi lo script fallisce se un utente con un ruolo operatore non lo ha (Q-618 decisa il 2026-09-30; procedura sotto) |
 | Client `web` | non ridefinito | redirect URI, ritorno dal logout, back-channel logout e web origins restano quelli di `realm.json`, costruiti da `LH_WEB_URL` (https sulla vetrina) |
-| Client `lh-cli` | pubblico, solo Device Authorization Grant, consenso obbligatorio, ruoli limitati a quelli operatore | serve alla CLI dell'operatore per ottenere un token con MFA senza gestire password (default proposto, Q-626 APERTA) |
+| Client `lh-cli` | pubblico, solo Device Authorization Grant, consenso obbligatorio, ruoli limitati a quelli operatore | serve alla CLI dell'operatore per ottenere un token con MFA senza gestire password (Q-626 decisa il 2026-09-30) |
 
 `lh-cli`: Device Authorization Grant (RFC 8628) con PKCE `S256`; nessun direct access grant, nessun service account, nessun segreto, nessuna redirect URI, nessuno scope `offline_access`; access token di 5 minuti, sessione del client al più un'ora (15 minuti di inattività), codice del dispositivo di 5 minuti. L'utente si autentica nel browser con il flusso del realm, quindi con password e MFA, e poi vede una **schermata di consenso che nomina il client** (`consentRequired`); l'audience è `hub` come per `web`. Il token porta solo i ruoli operatore dell'utente (`fullScopeAllowed` false e scope mapping limitato a `ADMIN`, `MARKETING`, `LEGAL`, `CARE`, `ANALYST`: niente ruoli tecnici come `offline_access` o `MEMBER`). Il client esiste solo nell'overlay di vetrina. La CLI deve inviare `code_challenge` e `code_verifier`; l'applicazione di `pkce.code.challenge.method` al Device Authorization Grant è da verificare con un Keycloak reale (Q-626).
 
 **Approva solo codici che hai avviato tu.** Il Device Authorization Grant ha un rischio noto (RFC 8628 §5.4): chiunque può avviare il flusso sul client pubblico `lh-cli` e convincere un operatore a digitare il codice nella pagina `/device` della vetrina, ottenendo un token con i suoi ruoli. Mitigazioni: il codice scade in 5 minuti, la schermata di consenso nomina il client e il token dura 5 minuti; l'operatore deve approvare solo codici mostrati dalla **sua** CLI, nel momento in cui li ha richiesti, e rifiutare qualunque codice ricevuto da altri (messaggio, e-mail, telefonata).
 
-### Creare un account operatore nominativo (Q-618, default proposto, APERTA)
+### Creare un account operatore nominativo (Q-618, decisa il 2026-09-30)
 
 Gli account operatore non si pubblicano e non si importano: li crea a mano il proprietario, su richiesta, dalla console di Keycloak (realm `loyaltyhub`). **L'OTP scatta solo con `MFA_REQUIRED_ROLE`**: `mfa-conditional` usa `conditional-user-role` e nessun ruolo operatore lo include né i servizi controllano `acr`/`amr`. Un utente con il solo `ADMIN` è un amministratore senza MFA, nel backoffice e con `lh-cli`.
 
@@ -162,7 +162,7 @@ Gli account operatore non si pubblicano e non si importano: li crea a mano il pr
 2. *Credentials → Set password*: password temporanea (*Temporary* acceso), generata e consegnata **fuori banda** (mai in chiaro in un repository, una chat di gruppo o una pagina).
 3. *Role mapping → Assign role*: **uno** tra `ADMIN`, `MARKETING`, `LEGAL`, `CARE`, `ANALYST` **e** `MFA_REQUIRED_ROLE`, direttamente sull'utente (non tramite gruppi o ruoli compositi: la verifica guarda le assegnazioni dirette).
 4. Nessuna esenzione dalla MFA: niente deroghe al flusso di autenticazione dell'utente o del client, niente rimozione di `MFA_REQUIRED_ROLE`.
-5. Rilancia `./deploy/idp/vetrina/apply-overlay.sh --check-operators` (con la password di amministrazione di Keycloak): esce con errore e l'elenco degli utenti se un account operatore non ha `MFA_REQUIRED_ROLE`. Va rieseguito dopo **ogni** account creato; anche l'applicazione dell'overlay lo fa in coda. La scelta (verifica a script invece di `MFA_REQUIRED_ROLE` come ruolo composito dei ruoli operatore) è il default proposto in Q-618 e Q-626.
+5. Rilancia `./deploy/idp/vetrina/apply-overlay.sh --check-operators` (con la password di amministrazione di Keycloak): esce con errore e l'elenco degli utenti se un account operatore non ha `MFA_REQUIRED_ROLE`. Va rieseguito dopo **ogni** account creato; anche l'applicazione dell'overlay lo fa in coda. La scelta (verifica a script invece di `MFA_REQUIRED_ROLE` come ruolo composito dei ruoli operatore) è la scelta decisa in Q-618 e Q-626 (2026-09-30).
 
 ## Auto-registrazione dei membri (Q-557, F2-IAM-03)
 

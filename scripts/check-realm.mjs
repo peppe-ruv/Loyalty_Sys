@@ -385,7 +385,7 @@ test('Ogni client con service account ha la sua utenza nel file, con ruoli espli
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Overlay di vetrina (F2-IAM-01, F2-IAM-03, ADR-048, ADR-049; Q-618, Q-619, Q-626: default proposti, APERTE).
+// Overlay di vetrina (F2-IAM-01, F2-IAM-03, ADR-048, ADR-049; Q-618, Q-619, Q-626: decise il 2026-09-30).
 // La vetrina enterprise ospitata (docs/18 M8.14, V2) applica questo overlay al realm già avviato con
 // deploy/idp/vetrina/apply-overlay.sh. Il realm base e l'overlay di prova restano invariati: qui si verifica che
 // l'overlay chiuda la registrazione, non porti credenziali né utenti, non tocchi MFA e UPDATE_PASSWORD degli
@@ -395,7 +395,7 @@ const vetrina = () => JSON.parse(fs.readFileSync(VETRINA_OVERLAY_PATH, 'utf8'));
 const OVERLAY_META_KEYS = ['_comment', 'realm', 'clients', 'scopeMappings'];
 const OPERATOR_ROLES = ['ADMIN', 'MARKETING', 'LEGAL', 'CARE', 'ANALYST'];
 
-test('Overlay di vetrina: solo impostazioni del realm ammesse e registrazione chiusa (Q-619, default proposto)', () => {
+test('Overlay di vetrina: solo impostazioni del realm ammesse e registrazione chiusa (Q-619)', () => {
   const o = vetrina();
   assert.equal(o.realm, 'loyaltyhub');
   assert.equal(o.registrationAllowed, false, 'registrationAllowed deve essere false nella vetrina: portale membri chiuso nel primo passo (Q-619)');
@@ -428,7 +428,7 @@ test('Overlay di vetrina: nessuna credenziale, nessun segreto, nessun segnaposto
   walk(o);
 });
 
-test('Overlay di vetrina: il solo client è lh-cli, pubblico, solo Device Authorization Grant, senza segreto né service account (Q-626, default proposto)', () => {
+test('Overlay di vetrina: il solo client è lh-cli, pubblico, solo Device Authorization Grant, senza segreto né service account (Q-626)', () => {
   const o = vetrina();
   assert.deepEqual((o.clients ?? []).map(c => c.clientId), ['lh-cli'], 'l\'overlay di vetrina aggiunge solo lh-cli (non ridefinisce web né altri client)');
   const c = o.clients[0];
@@ -480,7 +480,7 @@ test('Overlay di vetrina: il client web e le variabili LH_WEB_URL restano quelli
   assert.ok(!(web.attributes?.['oauth2.device.authorization.grant.enabled'] === 'true'));
 });
 
-// Q-618 (default proposto): account operatore nominativi creati a mano, nessuna password pubblicata. Gli utenti del
+// Q-618 (decisa il 2026-09-30): account operatore nominativi creati a mano, nessuna password pubblicata. Gli utenti del
 // realm base non hanno credenziali e restano con UPDATE_PASSWORD e con il ruolo che attiva la MFA; il flusso browser
 // con MFA condizionale (conditional-user-role MFA_REQUIRED_ROLE → OTP) resta quello del realm; l'overlay non lo tocca.
 test('Operatori invariati (Q-618): senza credenziali, con UPDATE_PASSWORD e MFA_REQUIRED_ROLE, flusso browser-mfa del realm', () => {
@@ -578,7 +578,7 @@ test('bootstrap.sh: password solo in un file 0600 (umask 077), mai su stdout né
   assert.match(fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8'), /^deploy\/idp\/\.secrets\/$/m, '.gitignore deve ignorare deploy/idp/.secrets/');
 });
 
-// apply-overlay.sh di vetrina: elenco dei ruoli operatore e del ruolo MFA uguali a quelli del realm (Q-618, default proposto).
+// apply-overlay.sh di vetrina: elenco dei ruoli operatore e del ruolo MFA uguali a quelli del realm (Q-618).
 test('apply-overlay.sh di vetrina: ruoli operatore e MFA_REQUIRED_ROLE coerenti con il realm, modalità --check-operators, nome utente codificato', () => {
   const sh = fs.readFileSync(VETRINA_APPLY_PATH, 'utf8');
   const ops = sh.match(/^OPERATOR_ROLES=\(([^)]*)\)/m);

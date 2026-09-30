@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# VETRINA ENTERPRISE (F2-IAM-01, F2-IAM-03, ADR-049; Q-618, Q-619 e Q-626, default proposti, APERTE).
+# VETRINA ENTERPRISE (F2-IAM-01, F2-IAM-03, ADR-049; Q-618, Q-619 e Q-626, decise il 2026-09-30).
 # Applica realm-vetrina-overlay.json al realm `loyaltyhub` gia' avviato, con lo stesso meccanismo di
 # test-idp/apply-overlay.sh ma senza segnaposto ne' credenziali:
 #   - impostazioni del realm (oggi solo `registrationAllowed: false`): lettura del realm, unione con il frammento
@@ -12,7 +12,7 @@
 # `--import-realm` salta un realm gia' esistente, quindi l'overlay non si applicherebbe da solo. Lo script e'
 # idempotente, non crea utenti, non tocca flussi di autenticazione, azioni richieste (UPDATE_PASSWORD) e MFA,
 # e non stampa mai credenziali. Alla fine rilegge il realm e il client e FALLISCE se il risultato non e' quello
-# atteso, e verifica che ogni account operatore abbia MFA_REQUIRED_ROLE (Q-618, default proposto, APERTA): e' il
+# atteso, e verifica che ogni account operatore abbia MFA_REQUIRED_ROLE (Q-618, decisa il 2026-09-30): e' il
 # solo ruolo che fa scattare l'OTP nel flusso browser-mfa, quindi un operatore senza sarebbe un ADMIN senza MFA.
 #
 # Uso:
@@ -154,7 +154,7 @@ print(len(page))' "$WORK/page.json" "$out")"
   done
 }
 
-# Q-618 (default proposto, APERTA): ogni account operatore deve avere MFA_REQUIRED_ROLE, il solo ruolo che fa
+# Q-618 (decisa il 2026-09-30): ogni account operatore deve avere MFA_REQUIRED_ROLE, il solo ruolo che fa
 # scattare l'OTP (mfa-conditional usa conditional-user-role). Senza, l'account e' un operatore senza MFA, sia
 # nel backoffice sia con lh-cli. Fallisce elencando gli account da correggere.
 check_operators() {
@@ -178,7 +178,7 @@ PY
 }
 
 if [ "$MODE" = "operators" ]; then
-  echo "Verifica della MFA degli account operatore (Q-618, default proposto, APERTA)..."
+  echo "Verifica della MFA degli account operatore (Q-618, decisa il 2026-09-30)..."
   check_operators
   exit 0
 fi
@@ -285,7 +285,7 @@ if errors:
 print("  verifica: registrationAllowed=false, browserFlow=browser-mfa, lh-cli pubblico, consenso obbligatorio, solo device grant, ruoli operatore soli, nessuno scope opzionale")
 PY
 
-# 6. MFA degli account operatore gia' presenti (Q-618, default proposto, APERTA).
+# 6. MFA degli account operatore gia' presenti (Q-618, decisa il 2026-09-30).
 echo "Verifica della MFA degli account operatore..."
 check_operators
 
