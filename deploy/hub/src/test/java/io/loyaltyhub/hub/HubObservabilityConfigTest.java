@@ -4,13 +4,18 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.registry.otlp.AggregationTemporality;
 import io.micrometer.registry.otlp.OtlpConfig;
 import io.micrometer.registry.otlp.OtlpMeterRegistry;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.EnvironmentPostProcessor;
+import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.env.YamlPropertySourceLoader;
+import org.springframework.boot.logging.DeferredLogFactory;
+import org.springframework.boot.logging.DeferredLogs;
 import org.springframework.boot.micrometer.metrics.autoconfigure.CompositeMeterRegistryAutoConfiguration;
 import org.springframework.boot.micrometer.metrics.autoconfigure.MetricsAutoConfiguration;
 import org.springframework.boot.micrometer.metrics.autoconfigure.export.otlp.OtlpMetricsExportAutoConfiguration;
@@ -19,13 +24,20 @@ import org.springframework.boot.opentelemetry.autoconfigure.OpenTelemetrySdkAuto
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.ConfigurableEnvironment;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.PropertySource;
+import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.io.ClassPathResource;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,7 +54,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       {@code LhMetrics} (registrate sul {@code SimpleMeterRegistry} di lh-common) arrivano anche in OTLP;</li>
  *   <li>i bucket delle soglie SLO (500 ms e 5 s) sono presenti sulle richieste HTTP del server;</li>
  *   <li>le variabili {@code OTEL_*} standard non comandano l'hub: {@code management.opentelemetry
- *       .map-environment-variables=false} e {@code service.name} fissato a {@code hub} (ADR-044, regola 22, Q-520).</li>
+ *       .map-environment-variables=false} e {@code service.name} fissato a {@code hub} (ADR-044, regola 22, Q-520);
+ *       la prova è comportamentale: si esegue l'{@code EnvironmentPostProcessor} di Boot con variabili {@code OTEL_*}
+ *       ostili e si controlla che nulla cambi, con un controllo negativo che mostra che senza l'interruttore le
+ *       stesse variabili invece comanderebbero.</li>
  * </ul>
  * L'invio reale a un ricevitore è in {@code HubOtlpMetricsIT}.
  */
@@ -163,6 +178,89 @@ class HubObservabilityConfigTest {
                         .as("temporalità cumulativa")
                         .isEqualTo("cumulative");
             });
+        }
+    }
+
+    /**
+     * Variabili {@code OTEL_*} ostili, come quelle che un webhook di piattaforma o l'OpenTelemetry Operator possono
+     * iniettare: accenderebbero l'invio, lo punterebbero altrove, cambierebbero il {@code job} e la temporalità.
+     */
+    private static final Map<String, String> HOSTILE_OTEL_ENVIRONMENT = Map.of(
+            "OTEL_METRICS_EXPORTER", "otlp",
+            "OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector.vendor.example:4318",
+            "OTEL_SERVICE_NAME", "other",
+            "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", "delta");
+
+    @Test
+    void hostileOpenTelemetryEnvironmentVariablesAreIgnoredWhenExportIsOff() {
+        runner.withInitializer(context -> applyOpenTelemetryEnvironmentPostProcessor(context.getEnvironment()))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).doesNotHaveBean(OtlpMeterRegistry.class);
+                    assertThat(context.getBeanNamesForType(OpenTelemetry.class)).containsExactly(DISABLED_SDK_BEAN);
+                    assertThat(context.getEnvironment().getProperty("management.otlp.metrics.export.enabled", Boolean.class))
+                            .as("nessun OTEL_* accende l'invio")
+                            .isFalse();
+                });
+    }
+
+    @Test
+    void hostileOpenTelemetryEnvironmentVariablesDoNotChangeUrlServiceNameOrTemporalityWhenExportIsOn() {
+        runner.withPropertyValues("LH_OTEL_METRICS_ENABLED=true", CLOSED_LOOPBACK_URL)
+                .withInitializer(context -> applyOpenTelemetryEnvironmentPostProcessor(context.getEnvironment()))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getBeansOfType(OtlpMeterRegistry.class)).hasSize(1);
+                    OtlpConfig config = context.getBean(OtlpConfig.class);
+                    assertThat(config.url()).isEqualTo(CLOSED_LOOPBACK_URL_VALUE);
+                    assertThat(config.resourceAttributes()).containsEntry("service.name", "hub");
+                    assertThat(config.aggregationTemporality()).isEqualTo(AggregationTemporality.CUMULATIVE);
+                });
+    }
+
+    /**
+     * Controllo negativo: la prova sopra non è vuota. Con l'interruttore acceso (il default di Boot) lo stesso
+     * post-processore mappa le stesse variabili sopra {@code hub.yml}; solo l'ambiente, nessun contesto né rete.
+     */
+    @Test
+    void controlWithMappingEnabledTheSameVariablesWouldTakeOver() {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(hubYmlFirstDocument());
+        environment.getPropertySources().addFirst(new MapPropertySource("control",
+                Map.of("management.opentelemetry.map-environment-variables", "true")));
+
+        applyOpenTelemetryEnvironmentPostProcessor(environment);
+
+        assertThat(environment.getProperty("management.otlp.metrics.export.enabled", Boolean.class)).isTrue();
+        assertThat(environment.getProperty("management.otlp.metrics.export.url"))
+                .startsWith("http://collector.vendor.example:4318");
+        assertThat(environment.getProperty("management.otlp.metrics.export.aggregation-temporality"))
+                .isEqualToIgnoringCase("delta");
+        // OTEL_SERVICE_NAME non è mappato da questo post-processore in Boot 4.1.1: service.name resta fissato a `hub`
+        // in hub.yml come difesa se una versione futura lo mappasse (verificato sul contesto nei test sopra).
+    }
+
+    /**
+     * Esegue il post-processore di Boot che mappa le {@code OTEL_*} (un {@code ApplicationContextRunner} non lo
+     * esegue, e legge {@code System.getenv}, che un test non può modificare): si costruisce con l'accesso alle
+     * variabili di Boot su una mappa. Riflessione su tipi non pubblici di Boot 4.1: se cambiano, il test fallisce e va
+     * riscritto, senza lasciare la protezione priva di prova.
+     */
+    private static void applyOpenTelemetryEnvironmentPostProcessor(ConfigurableEnvironment environment) {
+        try {
+            String pkg = "org.springframework.boot.opentelemetry.autoconfigure.";
+            Class<?> variables = Class.forName(pkg + "OpenTelemetryEnvironmentVariables");
+            Class<?> processorType = Class.forName(pkg + "OpenTelemetryEnvironmentVariableEnvironmentPostProcessor");
+            DeferredLogFactory logs = new DeferredLogs();
+            Method forMap = variables.getDeclaredMethod("forMap", DeferredLogFactory.class, Map.class);
+            forMap.setAccessible(true);
+            Object lookup = forMap.invoke(null, logs, new LinkedHashMap<>(HOSTILE_OTEL_ENVIRONMENT));
+            Constructor<?> constructor = processorType.getDeclaredConstructor(DeferredLogFactory.class, variables);
+            constructor.setAccessible(true);
+            ((EnvironmentPostProcessor) constructor.newInstance(logs, lookup))
+                    .postProcessEnvironment(environment, new SpringApplication());
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("post-processore OTEL_* di Boot non raggiungibile: aggiornare il test", e);
         }
     }
 
