@@ -2061,8 +2061,8 @@ Adozione M8.0 (`docs/18` Appendice B punto 9): una storia per ogni feature P0 de
 - **Criteri**:
   1. Dato ogni schema di `contracts/events/`, allora ogni campo dichiara `x-lh-pii` (#50).
   2. ✗ Dato un evento pubblicato con un campo `pii:true`, allora il test di contratto fallisce (docs/18 §6 M8, #50).
-  3. ✗ Dato uno schema che rimuove, rinomina o restringe un campo rispetto all'ultimo tag, allora `check-contracts` fallisce (docs/18 §3.3).
-- **Testbook**: TB-SEC (dominio senza righe) · prove automatiche: `libs/lh-common/src/test/java/io/loyaltyhub/common/contracts/ContractsTest.java`.
+  3. ✗ Dato uno schema che rimuove, rinomina o restringe un campo rispetto all'ultimo tag, allora `check-contracts` fallisce (docs/18 §3.3, #143, #171, tag `v0.7.0`).
+- **Testbook**: TB-SEC (dominio senza righe) · prove automatiche: `libs/lh-common/src/test/java/io/loyaltyhub/common/contracts/ContractsTest.java`, `scripts/contracts-compat.test.mjs`.
 
 #### US-F2-EVT-02 · Fatti del membro senza dati personali
 *Come* DPO dell'adottante, *voglio* che i fatti del membro viaggino senza nome, e-mail e data di nascita e che i consumer leggano entrambe le versioni durante il passaggio, *così che* si migri senza fermo.
@@ -2334,9 +2334,9 @@ Adozione M8.0 (`docs/18` Appendice B punto 9): una storia per ogni feature P0 de
 - **Decisioni**: GitBook (`gitbook-docs.yaml`, `docs/SUMMARY.md`) e `docs_v2/` dismessi · pagine e `docs.json` in `site/` · guida di stile `AGENTS.md` (#98).
 - **Criteri**:
   1. Dato il sito pubblicato da `main`, allora mostra Specifiche, Eventi e Riferimento API generati (docs/18 §6 M8).
-  2. Dato il repository, allora non contiene più `gitbook-docs.yaml`, `docs/SUMMARY.md` né `docs_v2/` (docs/18 §3.12).
-  3. Dato ogni pagina del sito, allora il frontmatter ha `title` e `description` (docs/18 §3.12).
-- **Testbook**: job `docs` (da creare con M8.9).
+  2. Dato il repository, allora non contiene più `gitbook-docs.yaml`, `docs/SUMMARY.md` né `docs_v2/` (docs/18 §3.12, #161).
+  3. Dato ogni pagina del sito, allora il frontmatter ha `title` e `description` (docs/18 §3.12, #161).
+- **Testbook**: job `docs` · prove automatiche: `scripts/check-frontmatter.mjs`.
 
 #### US-F2-DOC-02 · Specifiche generate con `docs-sync`
 *Come* lettore della documentazione, *voglio* che le pagine delle specifiche, degli eventi e dell'API derivino dai file sorgente, *così che* il sito non resti indietro rispetto al codice.
@@ -2355,7 +2355,7 @@ Adozione M8.0 (`docs/18` Appendice B punto 9): una storia per ogni feature P0 de
 - **Tocca**: F2-DOC-03 · ADR-040 · docs/18 §3.12 · `scripts/check-mermaid.mjs` · M8.9 · regola 17.
 - **Decisioni**: catalogo minimo dei diagrammi di docs/18 §3.12 · ogni diagramma con `accTitle` e `accDescr`, al più circa 15 nodi, palette `classDef` standard · niente immagini di diagrammi.
 - **Criteri**:
-  1. ✗ Dato un blocco Mermaid con sintassi non valida o senza `accTitle` e `accDescr`, allora `check-mermaid` fallisce (docs/18 §3.12).
+  1. Dato un blocco Mermaid con sintassi non valida o senza `accTitle` e `accDescr`, allora `check-mermaid` fallisce (docs/18 §3.12, #54, #161).
   2. Dato ogni pagina del catalogo minimo, allora ha il suo diagramma (docs/18 §6 M8).
 - **Testbook**: job `docs` · prove automatiche: `scripts/check-mermaid.mjs`.
 
@@ -2376,7 +2376,7 @@ Adozione M8.0 (`docs/18` Appendice B punto 9): una storia per ogni feature P0 de
 - **Criteri**:
   1. Dato ogni scheda di `docs/servizi/`, allora ha un `erDiagram` delle proprie tabelle (#83, #87).
   2. Dato ogni entità con un ciclo di vita dichiarato, allora ha un `stateDiagram-v2` (#83).
-  3. Dato la pagina degli eventi, allora ha il diagramma dalla fonte al saldo (docs/18 §3.12-bis).
+  3. Dato la pagina degli eventi, allora ha il diagramma dalla fonte al saldo (docs/18 §3.12-bis, #161).
 - **Testbook**: job `docs` · prove automatiche: `scripts/check-mermaid.mjs`.
 
 ## 5. Foresta delle decisioni

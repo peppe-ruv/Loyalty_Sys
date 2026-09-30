@@ -10,7 +10,7 @@ description: "E-F2-EVT Eventi e ingresso: nessun dato personale sul bus; ingress
 
 **Attori**: sistema, fonti, CARE · **Feature**: F2-EVT-*, F2-ING-* · **Schermate**: BO-19, BO-32 · **Servizi**: member, ingestion, tutti · **Testbook**: TB-ING, TB-SEC
 
-Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 2 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 3 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
 
 <a id="us-f2-evt-01" />
 
@@ -18,7 +18,7 @@ Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 2 fatte secon
 
 > *Come* DPO dell'adottante, *voglio* che ogni campo degli eventi dichiari se è personale e che un test ne impedisca la pubblicazione, *così che* il bus e la sua retention lunga non diventino un archivio di dati personali.
 
-**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1)
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
 
 **Contesto reale**: uno sviluppatore aggiunge per errore l'e-mail di Marco a un fatto di «Club Aurora»; la build fallisce.
 
@@ -30,9 +30,9 @@ Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 2 fatte secon
 
 1. **Dato** ogni schema di `contracts/events/`, **allora** ogni campo dichiara `x-lh-pii` ([#50](https://github.com/peppe-ruv/Loyalty_Sys/pull/50)).
 2. ✗ **Dato** un evento pubblicato con un campo `pii:true`, **allora** il test di contratto fallisce (docs/18 §6 M8, [#50](https://github.com/peppe-ruv/Loyalty_Sys/pull/50)).
-3. ✗ **Dato** uno schema che rimuove, rinomina o restringe un campo rispetto all'ultimo tag, **allora** `check-contracts` fallisce (docs/18 §3.3).
+3. ✗ **Dato** uno schema che rimuove, rinomina o restringe un campo rispetto all'ultimo tag, **allora** `check-contracts` fallisce (docs/18 §3.3, [#143](https://github.com/peppe-ruv/Loyalty_Sys/pull/143), [#171](https://github.com/peppe-ruv/Loyalty_Sys/pull/171), tag `v0.7.0`).
 
-**Testbook**: TB-SEC (dominio senza righe) · prove automatiche: `libs/lh-common/src/test/java/io/loyaltyhub/common/contracts/ContractsTest.java`.
+**Testbook**: TB-SEC (dominio senza righe) · prove automatiche: `libs/lh-common/src/test/java/io/loyaltyhub/common/contracts/ContractsTest.java`, `scripts/contracts-compat.test.mjs`.
 
 | Definition of Ready | Esito | Evidenza |
 |---|---|---|
@@ -40,15 +40,15 @@ Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 2 fatte secon
 | R2 ID di specifica | ✅ | F2-EVT-01, ADR-032, docs/18 §3.3 |
 | R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
 | R4 Casi negativi | ✅ | 2 criteri ✗ |
-| R5 Dominio di testbook | ✅ | TB-SEC (con righe), 1 prova automatica |
+| R5 Dominio di testbook | ✅ | TB-SEC (con righe), 2 prove automatiche |
 | R6 Dipendenze e domande | ✅ | nessuna domanda citata |
 | R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
 | R8 Stati dell'interfaccia | ✅ | nessuna schermata |
 
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
-| D1 Feature completate | ⬜ | F2-EVT-01 (in corso); PR [#50](https://github.com/peppe-ruv/Loyalty_Sys/pull/50), [#143](https://github.com/peppe-ruv/Loyalty_Sys/pull/143) |
-| D2 Criteri provati | ✅ | prove automatiche: [ContractsTest.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/contracts/ContractsTest.java) |
+| D1 Feature completate | ✅ | F2-EVT-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#50](https://github.com/peppe-ruv/Loyalty_Sys/pull/50), [#143](https://github.com/peppe-ruv/Loyalty_Sys/pull/143), [#171](https://github.com/peppe-ruv/Loyalty_Sys/pull/171), [#175](https://github.com/peppe-ruv/Loyalty_Sys/pull/175) |
+| D2 Criteri provati | ✅ | prove automatiche: [ContractsTest.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/contracts/ContractsTest.java), [contracts-compat.test.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/contracts-compat.test.mjs) |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
@@ -88,7 +88,7 @@ Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 2 fatte secon
 
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
-| D1 Feature completate | ⬜ | F2-EVT-02 (in corso); PR [#50](https://github.com/peppe-ruv/Loyalty_Sys/pull/50), [#53](https://github.com/peppe-ruv/Loyalty_Sys/pull/53), [#58](https://github.com/peppe-ruv/Loyalty_Sys/pull/58), [#59](https://github.com/peppe-ruv/Loyalty_Sys/pull/59), [#72](https://github.com/peppe-ruv/Loyalty_Sys/pull/72), [#78](https://github.com/peppe-ruv/Loyalty_Sys/pull/78), [#144](https://github.com/peppe-ruv/Loyalty_Sys/pull/144) |
+| D1 Feature completate | ⬜ | F2-EVT-02 (in corso); PR [#50](https://github.com/peppe-ruv/Loyalty_Sys/pull/50), [#53](https://github.com/peppe-ruv/Loyalty_Sys/pull/53), [#58](https://github.com/peppe-ruv/Loyalty_Sys/pull/58), [#59](https://github.com/peppe-ruv/Loyalty_Sys/pull/59), [#72](https://github.com/peppe-ruv/Loyalty_Sys/pull/72), [#78](https://github.com/peppe-ruv/Loyalty_Sys/pull/78), [#144](https://github.com/peppe-ruv/Loyalty_Sys/pull/144), [#155](https://github.com/peppe-ruv/Loyalty_Sys/pull/155) e altri 5 |
 | D2 Criteri provati | ✅ | prove automatiche: [ContractsTest.java](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/libs/lh-common/src/test/java/io/loyaltyhub/common/contracts/ContractsTest.java) |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

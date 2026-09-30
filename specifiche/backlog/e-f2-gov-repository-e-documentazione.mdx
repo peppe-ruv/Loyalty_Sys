@@ -10,7 +10,7 @@ description: "E-F2-GOV Repository e documentazione: main sempre verde e rilascia
 
 **Attori**: proprietario, agenti · **Feature**: F2-GOV-*, F2-DOC-* · **Schermate**: — · **Servizi**: — · **Testbook**: guard, docs
 
-Questa epica ha 7 storie: 4 pronte secondo la Definition of Ready, 1 fatta secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
+Questa epica ha 7 storie: 6 pronte secondo la Definition of Ready, 2 fatte secondo la Definition of Done. Come si legge ogni voce è spiegato nell'[indice del backlog](/specifiche/backlog#come-leggere-una-storia).
 
 <a id="us-f2-gov-01" />
 
@@ -98,7 +98,7 @@ Questa epica ha 7 storie: 4 pronte secondo la Definition of Ready, 1 fatta secon
 
 > *Come* lettore della documentazione, *voglio* un solo sito con tutte le pagine, *così che* non trovi copie diverse della stessa informazione.
 
-**DoR**: ⬜ non pronta (R5) · **DoD**: ⬜ non fatta (D1, D2)
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1)
 
 **Contesto reale**: un nuovo sviluppatore cerca come si installa «Club Aurora» e trova una sola pagina, su Mintlify.
 
@@ -109,10 +109,10 @@ Questa epica ha 7 storie: 4 pronte secondo la Definition of Ready, 1 fatta secon
 **Criteri di accettazione**
 
 1. **Dato** il sito pubblicato da `main`, **allora** mostra Specifiche, Eventi e Riferimento API generati (docs/18 §6 M8).
-2. **Dato** il repository, **allora** non contiene più `gitbook-docs.yaml`, `docs/SUMMARY.md` né `docs_v2/` (docs/18 §3.12).
-3. **Dato** ogni pagina del sito, **allora** il frontmatter ha `title` e `description` (docs/18 §3.12).
+2. **Dato** il repository, **allora** non contiene più `gitbook-docs.yaml`, `docs/SUMMARY.md` né `docs_v2/` (docs/18 §3.12, [#161](https://github.com/peppe-ruv/Loyalty_Sys/pull/161)).
+3. **Dato** ogni pagina del sito, **allora** il frontmatter ha `title` e `description` (docs/18 §3.12, [#161](https://github.com/peppe-ruv/Loyalty_Sys/pull/161)).
 
-**Testbook**: job `docs` (da creare con M8.9).
+**Testbook**: job `docs` · prove automatiche: `scripts/check-frontmatter.mjs`.
 
 | Definition of Ready | Esito | Evidenza |
 |---|---|---|
@@ -120,15 +120,15 @@ Questa epica ha 7 storie: 4 pronte secondo la Definition of Ready, 1 fatta secon
 | R2 ID di specifica | ✅ | F2-DOC-01, ADR-040, docs/18 §3.12 |
 | R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
 | R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
-| R5 Dominio di testbook | ⬜ | nessun dominio TB; job docs assente da .github/workflows |
+| R5 Dominio di testbook | ✅ | job docs, 1 prova automatica |
 | R6 Dipendenze e domande | ✅ | nessuna domanda citata |
 | R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
 | R8 Stati dell'interfaccia | ✅ | nessuna schermata |
 
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
-| D1 Feature completate | ⬜ | F2-DOC-01 (in corso); PR [#98](https://github.com/peppe-ruv/Loyalty_Sys/pull/98), [#130](https://github.com/peppe-ruv/Loyalty_Sys/pull/130) |
-| D2 Criteri provati | ⬜ | job docs: assente da .github/workflows |
+| D1 Feature completate | ⬜ | F2-DOC-01 (in corso); PR [#98](https://github.com/peppe-ruv/Loyalty_Sys/pull/98), [#130](https://github.com/peppe-ruv/Loyalty_Sys/pull/130), [#161](https://github.com/peppe-ruv/Loyalty_Sys/pull/161) |
+| D2 Criteri provati | ✅ | prove automatiche: [check-frontmatter.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/check-frontmatter.mjs) |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
@@ -167,7 +167,7 @@ Questa epica ha 7 storie: 4 pronte secondo la Definition of Ready, 1 fatta secon
 
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
-| D1 Feature completate | ⬜ | F2-DOC-02 (in corso); PR [#130](https://github.com/peppe-ruv/Loyalty_Sys/pull/130) |
+| D1 Feature completate | ⬜ | F2-DOC-02 (in corso); PR [#130](https://github.com/peppe-ruv/Loyalty_Sys/pull/130), [#161](https://github.com/peppe-ruv/Loyalty_Sys/pull/161) |
 | D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: prove automatiche: [docs-sync.test.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/docs-sync.test.mjs) |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
@@ -178,7 +178,7 @@ Questa epica ha 7 storie: 4 pronte secondo la Definition of Ready, 1 fatta secon
 
 > *Come* lettore della documentazione, *voglio* che ogni concetto abbia un diagramma valido e accessibile, *così che* capisca un flusso senza ricostruirlo dalla prosa.
 
-**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1)
 
 **Contesto reale**: un nuovo sviluppatore legge la pagina dei premi e trova la sequenza della saga di riscatto.
 
@@ -188,7 +188,7 @@ Questa epica ha 7 storie: 4 pronte secondo la Definition of Ready, 1 fatta secon
 
 **Criteri di accettazione**
 
-1. ✗ **Dato** un blocco Mermaid con sintassi non valida o senza `accTitle` e `accDescr`, **allora** `check-mermaid` fallisce (docs/18 §3.12).
+1. **Dato** un blocco Mermaid con sintassi non valida o senza `accTitle` e `accDescr`, **allora** `check-mermaid` fallisce (docs/18 §3.12, [#54](https://github.com/peppe-ruv/Loyalty_Sys/pull/54), [#161](https://github.com/peppe-ruv/Loyalty_Sys/pull/161)).
 2. **Dato** ogni pagina del catalogo minimo, **allora** ha il suo diagramma (docs/18 §6 M8).
 
 **Testbook**: job `docs` · prove automatiche: `scripts/check-mermaid.mjs`.
@@ -198,16 +198,16 @@ Questa epica ha 7 storie: 4 pronte secondo la Definition of Ready, 1 fatta secon
 | R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
 | R2 ID di specifica | ✅ | F2-DOC-03, ADR-040, docs/18 §3.12 |
 | R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
-| R4 Casi negativi | ✅ | 1 criterio ✗ |
-| R5 Dominio di testbook | ✅ | job docs (assente da .github/workflows), 1 prova automatica |
+| R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
+| R5 Dominio di testbook | ✅ | job docs, 1 prova automatica |
 | R6 Dipendenze e domande | ✅ | nessuna domanda citata |
 | R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
 | R8 Stati dell'interfaccia | ✅ | nessuna schermata |
 
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
-| D1 Feature completate | ⬜ | F2-DOC-03 (in corso); PR [#54](https://github.com/peppe-ruv/Loyalty_Sys/pull/54) |
-| D2 Criteri provati | ⬜ | prove automatiche: check-mermaid.mjs (nessun workflow lo invoca: non è una prova in CI); job docs: assente da .github/workflows |
+| D1 Feature completate | ⬜ | F2-DOC-03 (in corso); PR [#33](https://github.com/peppe-ruv/Loyalty_Sys/pull/33), [#54](https://github.com/peppe-ruv/Loyalty_Sys/pull/54), [#161](https://github.com/peppe-ruv/Loyalty_Sys/pull/161) |
+| D2 Criteri provati | ✅ | prove automatiche: [check-mermaid.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/check-mermaid.mjs) |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
@@ -217,7 +217,7 @@ Questa epica ha 7 storie: 4 pronte secondo la Definition of Ready, 1 fatta secon
 
 > *Come* lettore di lingua inglese, *voglio* le sezioni principali del sito in inglese, *così che* valuti e installi il prodotto.
 
-**DoR**: ⬜ non pronta (R5) · **DoD**: ⬜ non fatta (D1, D2)
+**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
 
 **Contesto reale**: un'azienda estera valuta «Club Aurora» e legge in inglese l'introduzione e le guide.
 
@@ -237,7 +237,7 @@ Questa epica ha 7 storie: 4 pronte secondo la Definition of Ready, 1 fatta secon
 | R2 ID di specifica | ✅ | F2-DOC-04, ADR-033, ADR-040, docs/18 §3.12 |
 | R3 Criteri di accettazione | ✅ | 1 criterio Dato/Quando/Allora |
 | R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
-| R5 Dominio di testbook | ⬜ | nessun dominio TB; job docs assente da .github/workflows |
+| R5 Dominio di testbook | ✅ | job docs |
 | R6 Dipendenze e domande | ✅ | nessuna domanda citata |
 | R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
 | R8 Stati dell'interfaccia | ✅ | nessuna schermata |
@@ -245,7 +245,7 @@ Questa epica ha 7 storie: 4 pronte secondo la Definition of Ready, 1 fatta secon
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
 | D1 Feature completate | ⬜ | F2-DOC-04 (assente da docs/14) |
-| D2 Criteri provati | ⬜ | job docs: assente da .github/workflows |
+| D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
 
@@ -255,7 +255,7 @@ Questa epica ha 7 storie: 4 pronte secondo la Definition of Ready, 1 fatta secon
 
 > *Come* nuovo sviluppatore, *voglio* un `erDiagram` per ogni scheda servizio, un diagramma di stato per ogni ciclo di vita e il percorso dalla fonte al saldo, *così che* non debba ricostruire a mente lo schema e il flusso.
 
-**DoR**: ✅ pronta · **DoD**: ⬜ non fatta (D1, D2)
+**DoR**: ✅ pronta · **DoD**: ✅ fatta
 
 **Contesto reale**: arriva un evento dalla fonte `ecommerce` per Marco; il diagramma mostra fonte, tipo ammesso, campagna, effetto e saldo.
 
@@ -267,7 +267,7 @@ Questa epica ha 7 storie: 4 pronte secondo la Definition of Ready, 1 fatta secon
 
 1. **Dato** ogni scheda di `docs/servizi/`, **allora** ha un `erDiagram` delle proprie tabelle ([#83](https://github.com/peppe-ruv/Loyalty_Sys/pull/83), [#87](https://github.com/peppe-ruv/Loyalty_Sys/pull/87)).
 2. **Dato** ogni entità con un ciclo di vita dichiarato, **allora** ha un `stateDiagram-v2` ([#83](https://github.com/peppe-ruv/Loyalty_Sys/pull/83)).
-3. **Dato** la pagina degli eventi, **allora** ha il diagramma dalla fonte al saldo (docs/18 §3.12-bis).
+3. **Dato** la pagina degli eventi, **allora** ha il diagramma dalla fonte al saldo (docs/18 §3.12-bis, [#161](https://github.com/peppe-ruv/Loyalty_Sys/pull/161)).
 
 **Testbook**: job `docs` · prove automatiche: `scripts/check-mermaid.mjs`.
 
@@ -277,14 +277,14 @@ Questa epica ha 7 storie: 4 pronte secondo la Definition of Ready, 1 fatta secon
 | R2 ID di specifica | ✅ | F2-DOC-05, ADR-040, docs/18 §3.12-bis |
 | R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
 | R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
-| R5 Dominio di testbook | ✅ | job docs (assente da .github/workflows), 1 prova automatica |
+| R5 Dominio di testbook | ✅ | job docs, 1 prova automatica |
 | R6 Dipendenze e domande | ✅ | nessuna domanda citata |
 | R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
 | R8 Stati dell'interfaccia | ✅ | nessuna schermata |
 
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
-| D1 Feature completate | ⬜ | F2-DOC-05 (in corso); PR [#83](https://github.com/peppe-ruv/Loyalty_Sys/pull/83), [#87](https://github.com/peppe-ruv/Loyalty_Sys/pull/87) |
-| D2 Criteri provati | ⬜ | prove automatiche: check-mermaid.mjs (nessun workflow lo invoca: non è una prova in CI); job docs: assente da .github/workflows |
+| D1 Feature completate | ✅ | F2-DOC-05 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#83](https://github.com/peppe-ruv/Loyalty_Sys/pull/83), [#87](https://github.com/peppe-ruv/Loyalty_Sys/pull/87), [#161](https://github.com/peppe-ruv/Loyalty_Sys/pull/161) |
+| D2 Criteri provati | ✅ | prove automatiche: [check-mermaid.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/check-mermaid.mjs) |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
