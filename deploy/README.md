@@ -473,18 +473,27 @@ node scripts/vetrina-programma.mjs --base-url https://hub.example.org --token-fi
 ```
 
 - **Raggiungere l'hub.** L'hub non è esposto dal reverse proxy: lo script parla con i servizi (un solo URL con
-  `--base-url`, oppure `LH_SVC_<SERVIZIO>_URL` come il web, oppure `--svc-url servizio=url`) da un punto che li
-  raggiunge. Solo `https`; `http` solo con `--allow-http` e solo verso `localhost`, `127.0.0.1` o `::1`.
+  `--base-url` o `LH_BASE_URL`, oppure `LH_SVC_<SERVIZIO>_URL` come il web, oppure `--svc-url servizio=url`; la
+  precedenza è `--svc-url`, `LH_SVC_<SERVIZIO>_URL`, `--base-url`, `LH_BASE_URL`) da un punto che li raggiunge. Solo `https`; `http` solo con `--allow-http` e solo verso `localhost`, `127.0.0.1` o `::1`.
 - **Token.** Da file `0600` (`--token-file` o `LH_OPERATOR_TOKEN_FILE`; file regolare, del proprietario, non un
   collegamento) oppure, senza file, dal *Device Authorization Grant* (RFC 8628) contro l'emittente:
   `--issuer https://idp.example.org/realms/loyaltyhub` (client `lh-cli`, da proporre nel realm di vetrina, Q-626):
   lo script mostra indirizzo e codice da confermare nel browser e tiene il token solo in memoria. Il token non si
   passa da argomento né da variabile d'ambiente, non si stampa e non entra in URL o log; i redirect non si seguono.
 - **Idempotente.** Legge prima e crea solo ciò che manca; ciò che esiste non si modifica (se diverge dal seed lo
-  segnala). Una seconda esecuzione non scrive nulla e non verifica nulla.
-- **Audit (regola 21).** Dopo `--apply` legge `GET /v1/audit` (insight) e, per ogni scrittura, cerca una voce dello
-  stesso tipo e identificativo con un attore che non sia `demo`, `system` o anonimo. L'audit viaggia sul bus: attende
-  fino a `--audit-timeout` secondi (predefinito 60). Una voce mancante è un errore.
+  segnala). Una seconda esecuzione non scrive nulla e **non verifica nulla**: se la prima è finita con audit mancante
+  (uscita 1), la seconda esce 0 ma lo dice (`NON sostituisce la verifica`); per verificare usa `--verify-audit`.
+  I segmenti che usano un attributo personalizzato dipendono dalla `PUT` degli attributi: se questa fallisce sono
+  saltati e riportati come «saltate per dipendenza», non tentati.
+- **Audit (regola 21).** Dopo `--apply` legge `GET /v1/audit` (insight) filtrando per tipo di entità (`entityType`,
+  una lettura per tipo) e, per ogni scrittura, cerca una voce dello stesso tipo e identificativo il cui attore sia
+  l'operatore del token: nome letto dal payload del JWT (senza verificarne la firma, ha solo questo scopo) con la
+  stessa precedenza dei servizi (`preferred_username`, `azp`, `client_id`, `sub`). La voce di un altro operatore sulla
+  stessa entità non vale; `demo`, `system` e anonimo nemmeno. Con un token opaco (non JWT) non si può sapere chi
+  aspettarsi: si accetta ogni attore reale e l'uscita lo dichiara. L'audit viaggia sul bus: attende fino a
+  `--audit-timeout` secondi (predefinito 60). Una voce mancante è un errore. L'esecuzione stampa
+  `Inizio esecuzione: <istante>`; se l'audit risulta mancante, rilancia la sola verifica, senza scrivere, con
+  `--verify-audit --since <istante>` (legge le entità già presenti e uguali al seed, finestra da `--since` meno 2 minuti).
 - **Uscita.** `0` ok · `1` lettura, scrittura o audit falliti · `2` uso o configurazione non validi (nessuna richiesta
   partita).
 

@@ -9,7 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  assertAllowedRequest, isRealActor, main, makeLogger, parseArgs, readTokenFile, resolveSeedDate, UsageError, validateBaseUrl,
+  assertAllowedRequest, criteriaAttributeKeys, isRealActor, main, makeLogger, parseArgs, readTokenFile, resolveSeedDate, tokenIdentity, UsageError, validateBaseUrl,
 } from './vetrina-programma.mjs';
 
 const SEED_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'seed');
@@ -35,10 +35,14 @@ const COLLECTIONS = {
   '/v1/internal-mappings': ['internal-mappings', null],
 };
 
+/** JWT di prova (firma finta): lo script ne legge solo il payload per sapere chi è l'operatore. */
+const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+const jwt = (payload) => `${b64({ alg: 'none', typ: 'JWT' })}.${b64(payload)}.c2lnbmF0dXJl`;
+
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 /** Hub finto: GET elenco, POST creazione (409 se esiste), PUT tema e attributi, GET audit; ricorda ogni chiamata. */
-function makeHub({ token = TOKEN, actor = 'operatore.prova', audit = 'ok', failOn = null, echoToken = false, preload = {} } = {}) {
+function makeHub({ token = TOKEN, actor = 'operatore.prova', audit = 'ok', failOn = null, echoToken = false, preload = {}, pageCap = 100, hidden = {} } = {}) {
   const state = {
     calls: [], audit: [], attrs: [], theme: { programName: 'Club Aurora', tagline: 'Il programma fedeltà che premia ogni gesto', logoUrl: null,
       colors: { primary: '#1FB98F', secondary: '#7A5CFA', coin: '#FFB547', night: '#0E1B2C', bg: '#F3F7F9' }, heroTitle: 'Ogni gesto conta',
@@ -46,11 +50,12 @@ function makeHub({ token = TOKEN, actor = 'operatore.prova', audit = 'ok', failO
     data: Object.fromEntries(Object.values(COLLECTIONS).map(([name]) => [name, []])),
   };
   for (const [name, rows] of Object.entries(preload)) state.data[name] = rows;
-  const record = (entityType, entityId, action) => {
-    if (audit === 'none') return;
+  const push = (entityType, entityId, action) => {
     state.audit.push({ id: `A${state.audit.length}`, at: new Date(NOW).toISOString(), entityType, entityId, action,
       actorName: audit === 'demo' ? 'demo' : actor, actorRole: audit === 'demo' ? 'SYSTEM' : 'ADMIN' });
   };
+  /** Con audit:'none' il bus non consegna nulla; `push` permette al test di simulare il recupero. */
+  const record = (...args) => { if (audit !== 'none') push(...args); };
   async function fetch(input, init = {}) {
     const url = new URL(input);
     const method = init.method ?? 'GET';
@@ -62,10 +67,15 @@ function makeHub({ token = TOKEN, actor = 'operatore.prova', audit = 'ok', failO
       return json(422, { code: 'VALIDATION', detail: echoToken ? `rifiutato, header Authorization: Bearer ${token}` : 'non valido' });
     }
     if (p === '/v1/audit') {
+      // come AuditController: filtri per uguaglianza esatta su entityType/entityId/actor, `from` su at, più recente per prima
       const page = Number(url.searchParams.get('page') ?? 0);
-      const size = Number(url.searchParams.get('size') ?? 100);
-      const items = state.audit.slice(page * size, page * size + size);
-      return json(200, { items, page: { number: page, size, totalItems: state.audit.length, totalPages: Math.ceil(state.audit.length / size) } });
+      const size = Math.min(Number(url.searchParams.get('size') ?? 100), pageCap);
+      const q = (k) => url.searchParams.get(k);
+      const all = state.audit.filter((r) => (!q('entityType') || r.entityType === q('entityType'))
+        && (!q('entityId') || r.entityId === q('entityId')) && (!q('actor') || r.actorName === q('actor'))
+        && (!q('from') || Date.parse(r.at) >= Date.parse(q('from')))).reverse();
+      const items = all.slice(page * size, page * size + size);
+      return json(200, { items, page: { number: page, size, totalItems: all.length, totalPages: Math.ceil(all.length / size) } });
     }
     if (p === '/v1/theme') {
       if (method === 'GET') return json(200, state.theme);
@@ -83,8 +93,13 @@ function makeHub({ token = TOKEN, actor = 'operatore.prova', audit = 'ok', failO
     if (!col) return json(404, { code: 'NOT_FOUND' });
     const [name, type] = col;
     if (method === 'GET') {
-      if (p === '/v1/segments') return json(200, { items: state.data[name], page: { number: 0, size: 100, totalItems: state.data[name].length, totalPages: 1 } });
-      return json(200, state.data[name]);
+      const visible = state.data[name].filter((x) => !(hidden[name] ?? []).includes(x.code));
+      if (p === '/v1/segments') {
+        const page = Number(url.searchParams.get('page') ?? 0);
+        const size = Math.min(Number(url.searchParams.get('size') ?? 100), pageCap);
+        return json(200, { items: visible.slice(page * size, page * size + size), page: { number: page, size, totalItems: visible.length, totalPages: Math.ceil(visible.length / size) } });
+      }
+      return json(200, visible);
     }
     if (method !== 'POST' || !type) return json(405, { code: 'METHOD_NOT_ALLOWED' });
     if (state.data[name].some((x) => x.code === body.code)) return json(409, { code: 'CODE_TAKEN' });
@@ -101,7 +116,7 @@ function makeHub({ token = TOKEN, actor = 'operatore.prova', audit = 'ok', failO
     record(type, body.code, 'CREATE');
     return json(201, row);
   }
-  return { fetch, state, writes: () => state.calls.filter((c) => c.method !== 'GET') };
+  return { fetch, state, push, writes: () => state.calls.filter((c) => c.method !== 'GET') };
 }
 
 function tmpTokenFile(mode = 0o600, content = `${TOKEN}\n`) {
@@ -427,4 +442,176 @@ test('il logger toglie i segreti noti e qualunque JWT', () => {
   assert.equal(out.includes('SENTINEL-secret-0000'), false);
   assert.equal(out.includes('eyJ'), false);
   assert.equal(/Bearer abc/.test(out), false);
+});
+
+test('regola 21: l\'attore deve essere l\'operatore del token; quello di un altro operatore non vale', async () => {
+  const token = jwt({ preferred_username: 'giuseppe.operatore', sub: 'uuid-1' });
+  assert.equal(tokenIdentity(token), 'giuseppe.operatore');
+  assert.equal(tokenIdentity(jwt({ azp: 'lh-cli', sub: 'x' })), 'lh-cli');
+  assert.equal(tokenIdentity(jwt({ sub: 'solo-sub' })), 'solo-sub');
+  assert.equal(tokenIdentity(TOKEN), null, 'token opaco: nessuna identità');
+  assert.equal(tokenIdentity('a.!!!.c'), null);
+  const file = tmpTokenFile(0o600, `${token}\n`);
+
+  const same = makeHub({ token, actor: 'giuseppe.operatore' });
+  const ok = await run(common(file, ['--apply']), { hub: same, file });
+  assert.equal(ok.code, 0, ok.err);
+  assert.match(ok.out, /attore = operatore del token/);
+  assert.equal((ok.out + ok.err).includes(token), false, 'il JWT non si stampa');
+
+  const other = makeHub({ token, actor: 'altro.operatore' });
+  const ko = await run(common(file, ['--apply']), { hub: other, file });
+  assert.equal(ko.code, 1);
+  assert.match(ko.err, /voce di audit di un altro attore/);
+  assert.match(ko.out, /Audit \(regola 21\): 0\//);
+
+  // token opaco: si accetta ogni attore reale e lo si dichiara
+  const opaque = await run(common(tmpTokenFile()), { hub: makeHub() });
+  assert.equal(opaque.code, 0);
+  const opaqueApply = await run(common(tmpTokenFile(), ['--apply']), { hub: makeHub() });
+  assert.match(opaqueApply.out, /opaco/);
+});
+
+test('l\'audit si legge per tipo di entità (filtro entityType) e attraverso più pagine', async () => {
+  const hub = makeHub({ pageCap: 5 });
+  const file = tmpTokenFile();
+  const r = await run(common(file, ['--apply']), { hub, file });
+  assert.equal(r.code, 0, r.err + r.out);
+  const auditCalls = hub.state.calls.filter((c) => c.path === '/v1/audit');
+  assert.ok(auditCalls.length > 0 && auditCalls.every((c) => new URL(c.url).searchParams.has('entityType')), 'ogni lettura filtra per entityType');
+  const rewardPages = auditCalls.filter((c) => new URL(c.url).searchParams.get('entityType') === 'REWARD').map((c) => c.url);
+  assert.ok(rewardPages.length >= 3, `14 premi con pagine da 5 ⇒ almeno 3 pagine, trovate ${rewardPages.length}`);
+  assert.match(r.out, /Audit \(regola 21\): (\d+)\/\1 scritture/);
+});
+
+test('segmenti su più pagine: la seconda esecuzione non duplica né scrive', async () => {
+  const hub = makeHub({ pageCap: 2 });
+  const file = tmpTokenFile();
+  assert.equal((await run(common(file, ['--apply']), { hub, file })).code, 0);
+  const before = hub.writes().length;
+  const second = await run(common(file, ['--apply']), { hub, file });
+  assert.equal(second.code, 0, second.err);
+  assert.equal(hub.writes().length, before);
+  assert.equal(hub.state.data.segments.length, 4);
+  assert.ok(hub.state.calls.filter((c) => c.path === '/v1/segments' && c.method === 'GET').length >= 3, 'letto a pagine da 2');
+});
+
+test('409 durante --apply: già presente, nessuna voce di audit attesa, uscita 0', async () => {
+  // CASA esiste ma l'elenco non la mostra: la POST risponde 409 (creata nel frattempo da un\'altra esecuzione)
+  const hub = makeHub({ preload: { 'reward-categories': [{ code: 'CASA', name: 'Casa' }] }, hidden: { 'reward-categories': ['CASA'] } });
+  const file = tmpTokenFile();
+  const r = await run(common(file, ['--apply']), { hub, file });
+  assert.equal(r.code, 0, r.err + r.out);
+  assert.match(r.out, /1 già presenti \(409\)/);
+  assert.equal(hub.state.audit.some((a) => a.entityType === 'REWARD_CATEGORY' && a.entityId === 'CASA'), false, 'nessuna scrittura nostra, nessuna voce');
+  assert.match(r.out, /Audit \(regola 21\): (\d+)\/\1 scritture/);
+});
+
+test('device flow: access_denied, expired_token e scadenza ⇒ uscita 2, senza token né richieste ai servizi', async () => {
+  const idp = 'https://idp.example.org/realms/loyaltyhub';
+  for (const error of ['access_denied', 'expired_token']) {
+    const serviceCalls = [];
+    const fetch = async (url) => {
+      if (!String(url).startsWith('https://idp.example.org')) { serviceCalls.push(String(url)); return json(200, []); }
+      if (String(url).endsWith('/.well-known/openid-configuration')) {
+        return json(200, { device_authorization_endpoint: `${idp}/auth/device`, token_endpoint: `${idp}/token` });
+      }
+      if (String(url).endsWith('/auth/device')) return json(200, { device_code: 'DEVCODE-SENTINEL-0000', user_code: 'WXYZ-1234', verification_uri: `${idp}/device`, interval: 1, expires_in: 60 });
+      return json(400, { error });
+    };
+    const r = await run(['--base-url', BASE, '--issuer', idp], { fetch });
+    assert.equal(r.code, 2, `${error}: ${r.err}`);
+    assert.match(r.err, new RegExp(`device flow non riuscito \\(${error}\\)`));
+    assert.deepEqual(serviceCalls, []);
+    assert.equal((r.out + r.err).includes('DEVCODE-SENTINEL-0000'), false);
+  }
+  // l'utente non conferma mai: si esce alla scadenza
+  let polls = 0;
+  const pending = async (url) => {
+    if (String(url).endsWith('/.well-known/openid-configuration')) return json(200, { device_authorization_endpoint: `${idp}/auth/device`, token_endpoint: `${idp}/token` });
+    if (String(url).endsWith('/auth/device')) return json(200, { device_code: 'DEVCODE-SENTINEL-0000', user_code: 'WXYZ-1234', verification_uri: `${idp}/device`, interval: 5, expires_in: 40 });
+    polls++;
+    return json(400, { error: 'authorization_pending' });
+  };
+  const timeout = await run(['--base-url', BASE, '--issuer', idp], { fetch: pending });
+  assert.equal(timeout.code, 2);
+  assert.match(timeout.err, /scaduto/);
+  assert.ok(polls > 0 && polls < 20);
+});
+
+test('--verify-audit: dopo un --apply con audit mancante la seconda esecuzione lo dice e la verifica successiva lo prova', async () => {
+  const hub = makeHub({ audit: 'none' });
+  const file = tmpTokenFile();
+  const first = await run(common(file, ['--apply']), { hub, file });
+  assert.equal(first.code, 1);
+  const started = /Inizio esecuzione: (\S+) \(per ripetere la sola verifica dell'audit: --verify-audit --since \1\)/.exec(first.out);
+  assert.ok(started, 'l\'esecuzione stampa l\'istante da usare con --since');
+
+  // la seconda esecuzione trova tutto presente, non scrive, esce 0 ma avverte che NON vale come verifica
+  const second = await run(common(file, ['--apply']), { hub, file });
+  assert.equal(second.code, 0);
+  assert.match(second.out, /NON sostituisce la verifica/);
+  assert.match(second.out, /--verify-audit --since/);
+
+  // la verifica dedicata fallisce finché l'audit manca...
+  const since = ['--verify-audit', '--since', started[1]];
+  const stillMissing = await run(common(file, since), { hub, file });
+  assert.equal(stillMissing.code, 1);
+  assert.match(stillMissing.err, /voce di audit mancante/);
+  const writesBefore = hub.writes().length;
+  assert.equal(writesBefore, first.out.match(/Scritture: (\d+) create/)[1] * 1, 'nessuna scrittura oltre a quelle del primo --apply');
+
+  // ...e riesce quando il bus recupera
+  for (const [, [name, type]] of Object.entries(COLLECTIONS)) {
+    if (type) for (const row of hub.state.data[name]) hub.push(type, row.code, 'CREATE');
+  }
+  hub.push('attribute_definition', 'all', 'UPDATE');
+  const recovered = await run(common(file, since), { hub, file });
+  assert.equal(recovered.code, 0, recovered.err + recovered.out);
+  assert.match(recovered.out, /Audit \(regola 21\): (\d+)\/\1 scritture/);
+  assert.equal(hub.writes().length, writesBefore, '--verify-audit non scrive');
+});
+
+test('--verify-audit: opzioni incompatibili e voci ancora da creare', async () => {
+  assert.throws(() => parseArgs(['--verify-audit']), /--since/);
+  assert.throws(() => parseArgs(['--since', '2026-09-30T00:00:00Z']), /solo con --verify-audit/);
+  assert.throws(() => parseArgs(['--verify-audit', '--since', 'ieri']), /ISO 8601/);
+  assert.throws(() => parseArgs(['--verify-audit', '--since', '2026-09-30T00:00:00Z', '--apply']), /non si combina/);
+  assert.throws(() => parseArgs(['--verify-audit', '--since', '2026-09-30T00:00:00Z', '--offline']), /non si combina/);
+  const file = tmpTokenFile();
+  const hub = makeHub();
+  const r = await run(common(file, ['--verify-audit', '--since', '2026-09-30T11:00:00Z']), { hub, file });
+  assert.equal(r.code, 1);
+  assert.match(r.err, /ancora da creare/);
+  assert.deepEqual(hub.writes(), []);
+});
+
+test('segmenti con criteri su un attributo personalizzato: se la PUT degli attributi fallisce sono saltati per dipendenza', async () => {
+  assert.deepEqual(criteriaAttributeKeys({ op: 'all', rules: [{ field: 'member.city', cmp: 'eq', value: 'x' }, { field: 'member.status', cmp: 'eq', value: 'ACTIVE' },
+    { op: 'any', rules: [{ field: 'member.householdSize', cmp: 'gt', value: 1 }] }] }, [{ key: 'city' }, { key: 'householdSize' }]), ['city', 'householdSize']);
+  assert.deepEqual(criteriaAttributeKeys(null, [{ key: 'city' }]), []);
+  const hub = makeHub({ failOn: { method: 'PUT', path: '/v1/attribute-definitions' } });
+  const file = tmpTokenFile();
+  const r = await run(common(file, ['--apply']), { hub, file });
+  assert.equal(r.code, 1);
+  assert.ok(!hub.state.calls.some((c) => c.method === 'POST' && c.path === '/v1/segments' && c.body.code === 'SEG-TORINO'), 'SEG-TORINO non si tenta nemmeno');
+  assert.deepEqual(hub.state.data.segments.map((x) => x.code).sort(), ['SEG-AT-RISK', 'SEG-DIGITAL', 'SEG-NOT-EBILL']);
+  assert.match(r.out, /1 saltate per dipendenza/);
+  // nel piano iniziale senza lettura dello stato degli attributi (errore di GET) il segmento è saltato con il motivo
+  const noAttrs = makeHub();
+  const base = noAttrs.fetch;
+  const fetch = async (url, init) => (new URL(url).pathname === '/v1/attribute-definitions' && (init?.method ?? 'GET') === 'GET' ? json(500, { code: 'BOOM' }) : base(url, init));
+  const dry = await run(common(file), { fetch });
+  assert.equal(dry.code, 1);
+  assert.match(dry.out, /dipendenza non disponibile: attribute-definitions:city/);
+});
+
+test('file del token: una cartella non vale e LH_BASE_URL è un\'alternativa a --base-url', async () => {
+  assert.throws(() => readTokenFile(os.tmpdir()), /file regolare/);
+  const file = tmpTokenFile();
+  const r = await run(['--token-file', file], { env: { LH_BASE_URL: BASE }, file });
+  assert.equal(r.code, 0, r.err);
+  const cli = await run(['--token-file', file, '--base-url', 'https://altro.example.org'], { env: { LH_BASE_URL: BASE }, file });
+  assert.equal(cli.code, 0);
+  assert.ok(cli.hub.state.calls.every((c) => c.url.startsWith('https://altro.example.org')), '--base-url prevale su LH_BASE_URL');
 });
