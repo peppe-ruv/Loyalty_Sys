@@ -1,0 +1,16 @@
+docs/
+services/
+web/
+libs/
+seed/
+scripts/
+e2e/
+contracts/events/
+deploy/
+README.md
+CLAUDE.md
+AGENTS.md
+SECURITY.md
+COME-PARTIRE.md
+contracts/api/README.md
+.github/

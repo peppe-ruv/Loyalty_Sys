@@ -6,6 +6,9 @@ name: demo-status
 on:
   workflow_dispatch:
 
+# Nessun permesso per il GITHUB_TOKEN: il job fa solo richieste HTTP alla demo, senza checkout.
+permissions: {}
+
 jobs:
   status:
     runs-on: ubuntu-latest
