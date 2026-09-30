@@ -14,9 +14,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -65,20 +65,26 @@ public class PortalAchievementsController {
         Map<String, BadgeRepository.Badge> badgeByCode = badges.findAll().stream()
                 .collect(Collectors.toMap(BadgeRepository.Badge::code, Function.identity()));
         List<AchievementRepository.ProgressRow> rows = achievements.memberProgress(memberId);
+        Map<String, Map<String, AchievementRepository.ProgressRow>> rowByAchAndPeriod = new HashMap<>();
+        Map<String, AchievementRepository.ProgressRow> doneByAch = new HashMap<>();
+        for (AchievementRepository.ProgressRow r : rows) {
+            rowByAchAndPeriod.computeIfAbsent(r.achievementId(), k -> new HashMap<>()).putIfAbsent(r.periodKey(), r);
+            if (r.completedAt() != null) {
+                doneByAch.putIfAbsent(r.achievementId(), r);
+            }
+        }
         return achievements.findAll().stream()
                 .filter(a -> "ACTIVE".equals(a.status()))
                 .map(a -> {
                     String key = AchievementRules.periodKey(a.period(), now);
-                    Optional<AchievementRepository.ProgressRow> row = rows.stream()
-                            .filter(r -> r.achievementId().equals(a.id()) && r.periodKey().equals(key)).findFirst();
+                    AchievementRepository.ProgressRow row = rowByAchAndPeriod.getOrDefault(a.id(), Map.of()).get(key);
                     if (!a.repeatable()) {
-                        Optional<AchievementRepository.ProgressRow> done = rows.stream()
-                                .filter(r -> r.achievementId().equals(a.id()) && r.completedAt() != null).findFirst();
-                        if (done.isPresent()) {
+                        AchievementRepository.ProgressRow done = doneByAch.get(a.id());
+                        if (done != null) {
                             row = done;
                         }
                     }
-                    return view(a, row.orElse(null), key, badgeByCode.get(a.badgeCode()));
+                    return view(a, row, key, badgeByCode.get(a.badgeCode()));
                 })
                 .sorted(Comparator.comparing((PortalAchievement p) -> p.completedAt() != null).thenComparing(p -> -p.pct()))
                 .toList();
