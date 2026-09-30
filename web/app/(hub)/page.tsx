@@ -21,7 +21,7 @@ export default function DemoHubPage() {
             <h1 className="text-3xl font-bold tracking-tight">{it.app.name}</h1>
             <p className="mt-2 max-w-2xl text-[var(--color-bo-ink-2)]">{it.app.pitch}</p>
           </div>
-          <div className="flex shrink-0 flex-wrap items-start gap-3">
+          <div className="flex min-w-0 flex-wrap items-start gap-3">
             <EnterpriseShowcaseLink />
             <a
               href={REPO_URL}

@@ -60,6 +60,14 @@ describe("hub/links — vetrina Enterprise (HUB-01, F2-DIST-09, ADR-049)", () =>
     ["https://user@showcase.example.org", "credenziali"],
     ["showcase.example.org", "non_url"],
     ["https://", "non_url"],
+    ["https:showcase.example.org", "non_url"],
+    ["https://@showcase.example.org", "credenziali"],
+    ["https://:@showcase.example.org", "credenziali"],
+    ["https://showcase.example.org\\", "non_url"],
+    ["https://showcase.example.org/./", "percorso"],
+    ["https://showcase.example.org/%2e", "percorso"],
+    ["https://show\ncase.example.org", "non_url"],
+    ["https://show case.example.org", "non_url"],
   ])("valore non valido %s ⇒ null (%s)", async (raw, problem) => {
     // L'avviso è uno per processo: ogni caso parte da un modulo nuovo.
     vi.resetModules();

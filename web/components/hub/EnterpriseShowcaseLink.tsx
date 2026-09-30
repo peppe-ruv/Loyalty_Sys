@@ -14,18 +14,18 @@ export function EnterpriseShowcaseLink({ env = process.env }: { env?: Readonly<R
   const url = enterpriseShowcaseUrl(env);
   if (url === null) return null;
   return (
-    <div className="max-w-56">
+    <div>
       <a
         href={url}
         rel="noopener"
         aria-describedby={NOTE_ID}
-        className="inline-flex items-center gap-2 rounded-md bg-[var(--color-bo-accent)] px-3 py-2 text-sm font-medium text-white hover:opacity-90"
+        className="inline-flex items-center gap-2 whitespace-nowrap rounded-md bg-[var(--color-bo-accent)] px-3 py-2 text-sm font-medium text-white hover:opacity-90"
       >
         {it.hub.enterpriseCta}{" "}
         <ArrowUpRight className="h-4 w-4" aria-hidden />
         <span className="sr-only">{it.hub.enterpriseExternal}</span>
       </a>
-      <p id={NOTE_ID} className="mt-1 text-xs text-[var(--color-bo-ink-2)]">
+      <p id={NOTE_ID} className="mt-1 max-w-56 text-xs text-[var(--color-bo-ink-2)]">
         {it.hub.enterpriseNote}
       </p>
     </div>
