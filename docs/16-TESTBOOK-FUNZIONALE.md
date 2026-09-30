@@ -68,8 +68,8 @@ Documento completo: [`docs/testbook/TB-ING-ingresso.md`](testbook/TB-ING-ingress
 - **Verifica a mutazione:** 8 mutazioni, tutte rilevate (tabella in §4 del documento).
 
 ## 4. TB-CMP — Campagne
-Documento completo: [`docs/testbook/TB-CMP-campagne.md`](testbook/TB-CMP-campagne.md) — 37 regole, 250 punti di decisione,
-**638 righe**. Test: `services/campaign-service/src/test/java/io/loyaltyhub/campaign/testbook/` (5 classi unitarie sul motore
+Documento completo: [`docs/testbook/TB-CMP-campagne.md`](testbook/TB-CMP-campagne.md) — 39 regole, 250 punti di decisione,
+**676 righe**. Test: `services/campaign-service/src/test/java/io/loyaltyhub/campaign/testbook/` (5 classi unitarie sul motore
 puro, `TestbookCmpLifecycleIT`, `TestbookCmpSimulationIT`), dati in `testbook/cmp/*.csv`.
 
 - **Tabelle complete:** pubblico (27), stato × azione del ciclo di vita (56), operazione × ruolo (35); riduzioni dichiarate

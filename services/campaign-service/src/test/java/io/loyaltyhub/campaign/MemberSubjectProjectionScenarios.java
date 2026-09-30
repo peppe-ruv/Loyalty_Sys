@@ -292,18 +292,18 @@ abstract class MemberSubjectProjectionScenarios {
     @Test
     @DisplayName("[TB-CMP-MBP-015] un fatto senza time non vale «adesso»: non sorpassa un detentore datato e non sposta subject_ref_at")
     void factWithoutTimeIsConservative() {
-        publish(MemberFactsSupport.registered(id(15), ref("notime"), T2, 2));
+        publish(MemberFactsSupport.registered(id(19), ref("notime"), T2, 2));
         // altro membro, stesso pseudonimo, senza time: non toglie il legame al detentore con tempo
-        publish(MemberFactsSupport.registered(id(16), ref("notime"), null, 2));
-        assertThat(lookup.memberId(ref("notime"))).contains(id(15));
-        assertThat(subjectRef(id(16))).isNull();
-        assertThat(refAt(id(16))).isNull();
+        publish(MemberFactsSupport.registered(id(20), ref("notime"), null, 2));
+        assertThat(lookup.memberId(ref("notime"))).contains(id(19));
+        assertThat(subjectRef(id(20))).isNull();
+        assertThat(refAt(id(20))).isNull();
         // senza time nemmeno un altro pseudonimo sposta subject_ref_at del membro già legato
-        publish(MemberFactsSupport.updated(id(15), ref("notime-2"), null, 2));
-        assertThat(lookup.memberId(ref("notime-2"))).contains(id(15));
-        assertThat(refAt(id(15))).isEqualTo(Instant.parse(T2));
+        publish(MemberFactsSupport.updated(id(19), ref("notime-2"), null, 2));
+        assertThat(lookup.memberId(ref("notime-2"))).contains(id(19));
+        assertThat(refAt(id(19))).isEqualTo(Instant.parse(T2));
         // e un fatto datato prima di quel tempo resta obsoleto
-        publish(MemberFactsSupport.updated(id(15), ref("notime-3"), T1, 2));
+        publish(MemberFactsSupport.updated(id(19), ref("notime-3"), T1, 2));
         assertThat(lookup.memberId(ref("notime-3"))).isEmpty();
     }
 

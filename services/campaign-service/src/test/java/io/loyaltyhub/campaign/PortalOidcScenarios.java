@@ -186,7 +186,7 @@ abstract class PortalOidcScenarios {
     @Test
     @DisplayName("[TB-CMP-MBP-023] il portale di campaign non ha scritture: un memberId in campo form o nel corpo non è mai una fonte (405)")
     void memberIdInAWriteIsNeverASource() {
-        // SPEC-GAP: Q-573 non si applica: nessun handler del portale di campaign legge un corpo o un form, quindi il ramo «memberId nel
+        // Q-573 non si applica: nessun handler del portale di campaign legge un corpo o un form, quindi il ramo «memberId nel
         // corpo ⇒ 400 MEMBER_FROM_TOKEN» di MemberBodyAdvice (che vede solo DTO già deserializzati) non è raggiungibile qui: la
         // richiesta è respinta con 405 prima dell'interceptor. Lo copre EndpointAccessInterceptorTest di lh-common.
         String token = TOKENS.member(SUB_A);
@@ -243,6 +243,16 @@ abstract class PortalOidcScenarios {
     void memberPlusSourceIsForbidden() {
         Reply r = get(PATH, TOKENS.memberSource(SUB_A, "src-ecommerce"));
         assertThat(r.status).as(r.text).isEqualTo(403);
+        assertThat(r.text).doesNotContain(GOLD);
+    }
+
+    @Test
+    @DisplayName("[TB-CMP-MBP-034] token di sola SOURCE (senza MEMBER): 403 FORBIDDEN_ROLE sul portale, mai la vista generica")
+    void pureSourceTokenIsForbidden() {
+        String token = TOKENS.custom(TOKENS.base("src-ecommerce", 300).claim("lh_roles", List.of("SOURCE")).claim("azp", "src-ecommerce").build());
+        Reply r = get(PATH, token);
+        assertThat(r.status).as(r.text).isEqualTo(403);
+        assertThat(r.body.path("code").asString()).isEqualTo("FORBIDDEN_ROLE");
         assertThat(r.text).doesNotContain(GOLD);
     }
 
