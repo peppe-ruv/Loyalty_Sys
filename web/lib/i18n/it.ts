@@ -34,6 +34,9 @@ export const it = {
     openConsole: "Apri la Console demo",
     enterError: "Non è stato possibile impostare la persona. Riprova.",
     pathTitle: "Percorso consigliato",
+    enterpriseCta: "Prova la modalità Enterprise",
+    enterpriseNote: "istanza separata · login reale · dati fittizi · non HA",
+    enterpriseExternal: "(porta a un altro sito)",
   },
   states: {
     UP: "Attivo",
