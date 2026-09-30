@@ -100,6 +100,9 @@ class AchievementIT {
         JsonNode anna = get("/v1/portal/badges?memberId=MBR-000001");
         anna.forEach(b -> assertThat(b.path("awardedAt").isNull() || b.path("awardedAt").isMissingNode()).isTrue());
         assertThat(anna.get(0).path("unlockHint").asString()).startsWith("Completa «");
+        anna.forEach(b -> assertThat(b.path("unlockHint").asString())
+                .as("hint di sblocco di %s", b.path("code").asString())
+                .matches("Completa «.+»|Arriva con le promozioni speciali"));
 
         JsonNode first = byCode(get("/v1/achievements"), "ACH-FIRST-PURCHASE");
         assertThat(first.path("completions").asLong()).isEqualTo(8);

@@ -38,22 +38,23 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
   const resolved = resolveBff();
   if (resolved.mode === "error") return resolved.response;
 
-  let target: URL;
+  // Percorso a valle identico a quello chiesto, in ENTRAMBI i profili: niente `..`, `%2F`, `;` o segmenti vuoti
+  // (lib/api/proxyPath.ts, ADR-042). Next decodifica i segmenti e `new URL()` normalizza `..`: senza questo controllo
+  // il profilo demo inoltrerebbe un percorso diverso da quello su cui ha deciso identità e intestazioni.
+  const target = upstreamUrl(serviceBaseUrl(service), path ?? []);
+  if (!target) return problem(400, "INVALID_PATH", "Percorso non valido", "L'indirizzo della richiesta contiene caratteri non ammessi.");
+
   let identity: UpstreamIdentity;
   // API del portale in enterprise: nessun memberId scelto dal browser (query e percorso in authorizeProxy, corpo sotto).
   let memberFromToken = false;
   if (resolved.mode === "enterprise") {
-    // Percorso a valle identico a quello chiesto: niente `..`, `%2F`, `;` o segmenti vuoti (lib/api/proxyPath.ts).
-    const safe = upstreamUrl(serviceBaseUrl(service), path ?? []);
-    if (!safe) return problem(400, "INVALID_PATH", "Percorso non valido", "L'indirizzo della richiesta contiene caratteri non ammessi.");
-    target = safe;
     const auth = await authorizeProxy(req, path ?? [], resolved.bff);
     if (!auth.ok) return auth.response;
     identity = { authorization: auth.authorization };
     memberFromToken = auth.portal;
   } else {
-    target = new URL(`${serviceBaseUrl(service)}/${(path ?? []).join("/")}`);
     // `x-lh-actor` dalla persona e, solo su `/v1/portal/**`, `x-lh-member` col membro attivo (Q-555, lib/api/proxyHeaders.ts).
+    // Il percorso è già validato sopra: i segmenti sono quelli esatti del percorso a valle (nessuna normalizzazione).
     identity = demoIdentity(parsePersona((await cookies()).get(PERSONA_COOKIE)?.value), path ?? []);
   }
   target.search = req.nextUrl.search;

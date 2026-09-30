@@ -194,16 +194,16 @@ describe("profilo demo", () => {
     expect(sent().has("x-lh-member")).toBe(false);
   });
 
-  it("[TB-WEB-PRX-044] percorso che esce dal portale con un segmento decodificato (`..%2Fmembers`) → nessun X-LH-Member", async () => {
+  it("[TB-WEB-PRX-044] percorso che esce dal portale con un segmento decodificato (`..%2Fmembers`) → 400 INVALID_PATH, nessuna chiamata a valle (quindi nessun X-LH-Member)", async () => {
     personaCookie = enc({ kind: "MEMBER", memberId: "MBR-000005" });
     const path = ["v1", "portal", "../members", "MBR-000009"]; // Next decodifica `..%2Fmembers` in un solo segmento
-    await GET(
+    const res = await GET(
       new NextRequest("http://web.test/api/lh/member/v1/portal/..%2Fmembers/MBR-000009", { headers: { "x-lh-member": "MBR-000009" } }),
       ctx("member", path),
     );
-    expect(seen).toHaveLength(1);
-    expect(sent().has("x-lh-member")).toBe(false);
-    expect(sent().get("x-lh-actor")).toBe("ANALYST:anonymous");
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe("INVALID_PATH");
+    expect(seen).toHaveLength(0);
   });
 
   it("[TB-WEB-PRX-032] soprannomi: gamification riceve X-LH-Member, la chiamata del proxy a member-service no", async () => {

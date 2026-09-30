@@ -2,6 +2,7 @@ package io.loyaltyhub.reward;
 
 import io.loyaltyhub.reward.TestbookRwdCsv.Row;
 import io.loyaltyhub.reward.application.CouponService;
+import io.loyaltyhub.reward.application.SeededCouponCodePolicy;
 import io.loyaltyhub.reward.domain.CouponCodes;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
@@ -211,7 +212,7 @@ class TestbookRwdCouponIT extends TestbookRwdBase {
                 String prefix = pool.path("prefix").asString();
                 assertThat(codes).allSatisfy(c -> assertThat(c).matches(prefix + "-[A-Z2-9]{4}-[A-Z2-9]{4}"));
                 if ("SEED5".equals(count)) {
-                    CouponCodes generator = new CouponCodes(prefix, CouponCodes.batchSeed(CouponService.seedFor(pool.path("code").asString()), 0));
+                    CouponCodes generator = CouponCodes.seeded(prefix, CouponCodes.batchSeed(SeededCouponCodePolicy.seedFor(pool.path("code").asString()), 0));
                     Set<String> expected = new HashSet<>();
                     for (int k = 0; k < 5; k++) {
                         expected.add(generator.next());

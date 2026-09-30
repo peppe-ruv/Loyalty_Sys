@@ -253,6 +253,10 @@ test("T17 (R17): additionalProperties — chiuso, riaperto (ADR-032), ricorsione
   // invariato: false → false, assente → true
   assert.deepEqual(schemaChanges(CLOSED, clone(CLOSED)), []);
   assert.deepEqual(changes((s) => { delete s.additionalProperties; }), []);
+  // false → schema tipizzato: stessa riapertura, stesso richiamo ad ADR-032
+  const reopenedTyped = schemaChanges(CLOSED, mut((s) => { s.additionalProperties = { type: "string" }; }, CLOSED));
+  only(reopenedTyped, "pii", "schema riaperto con additionalProperties tipizzato", "(radice)");
+  assert.ok(reopenedTyped[0].message.includes("ADR-032"));
   // ricorsione nello schema di additionalProperties
   only(changes((s) => { s.properties.attributes.additionalProperties.type = ["string", "null"]; }), "modifica", "tipo allargato", "attributes{}");
   const strict = changes((s) => { s.properties.attributes.additionalProperties["x-lh-pii"] = false; delete s.properties.attributes.additionalProperties.type; });
@@ -360,10 +364,13 @@ test("T27: formato dei finding `file: percorso: messaggio (kind)`", () => {
 
 const dirs = [];
 after(() => {
-  for (const d of dirs) rmSync(d, { recursive: true, force: true });
+  // maxRetries: se un processo git sta ancora chiudendo, rmdir di .git dà ENOTEMPTY; si riprova invece di fallire.
+  for (const d of dirs) rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
+// gc.auto=0 e maintenance.auto=false: nessuna manutenzione automatica in background (da git 2.46 staccata
+// dal processo) che scriva in .git mentre l'hook after lo cancella.
 const git = (dir, ...args) =>
-  execFileSync("git", ["-C", dir, "-c", "user.name=lh-test", "-c", "user.email=lh-test@example.invalid", "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false", ...args], {
+  execFileSync("git", ["-C", dir, "-c", "user.name=lh-test", "-c", "user.email=lh-test@example.invalid", "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false", "-c", "gc.auto=0", "-c", "maintenance.auto=false", ...args], {
     encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
   }).trim();
 const repo = () => {

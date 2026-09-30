@@ -97,12 +97,14 @@ public class PortalAchievementsController {
         String memberId = principal.requireParam();
         Map<String, BadgeRepository.MemberBadge> owned = badges.memberBadges(memberId).stream()
                 .collect(Collectors.toMap(BadgeRepository.MemberBadge::badgeCode, Function.identity()));
-        List<Achievement> all = achievements.findAll();
+        Map<String, Achievement> activeAchievementsByBadge = achievements.findAll().stream()
+                .filter(a -> "ACTIVE".equals(a.status()) && a.badgeCode() != null)
+                .collect(Collectors.toMap(Achievement::badgeCode, Function.identity(), (existing, replacement) -> existing));
         return badges.findAll().stream()
                 .map(b -> {
                     BadgeRepository.MemberBadge mine = owned.get(b.code());
-                    String hint = all.stream().filter(a -> b.code().equals(a.badgeCode()) && "ACTIVE".equals(a.status()))
-                            .map(a -> "Completa «" + a.name() + "»").findFirst().orElse("Arriva con le promozioni speciali");
+                    Achievement a = activeAchievementsByBadge.get(b.code());
+                    String hint = a != null ? "Completa «" + a.name() + "»" : "Arriva con le promozioni speciali";
                     return new PortalBadge(b.code(), b.name(), b.description(), b.icon(), b.color(),
                             mine == null ? null : mine.awardedAt(), mine == null ? null : mine.origin(), hint);
                 })

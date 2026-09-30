@@ -1,10 +1,10 @@
-// Percorso inoltrato dal proxy /api/lh nel profilo enterprise (ADR-042, docs/07 §4-bis). Il percorso deciso dal browser
+// Percorso inoltrato dal proxy /api/lh in entrambi i profili (ADR-042, docs/07 §4-bis). Il percorso deciso dal browser
 // non deve poter diventare un altro percorso a valle: Next decodifica i segmenti (`%2F` → `/`, `%2e%2e` → `..`),
 // `new URL()` normalizza `..` e Spring ignora i parametri di matrice (`wallets;x` ≡ `wallets`). Quindi:
 // - ogni segmento ammette solo caratteri non riservati RFC 3986 `[A-Za-z0-9._~-]`, e non può essere vuoto, `.` o `..`;
 // - l'URL a valle si costruisce codificando ogni segmento e si verifica che il percorso finale sia esattamente quello
 //   atteso (nessuna normalizzazione avvenuta).
-// Il profilo demo non passa di qui (comportamento invariato).
+// Vale anche nel profilo demo (F2-SEC-03): il percorso validato è quello su cui si decidono identità e intestazioni.
 
 const SEGMENT = /^[A-Za-z0-9._~-]+$/;
 
