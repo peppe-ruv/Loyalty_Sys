@@ -1,15 +1,13 @@
 #!/usr/bin/env node
-// check-seed.mjs — coerenza dei dati demo (docs/10 §11). Scheletro M0.7: valida JSON, espressioni di
-// data (§1 grammatica) e stringhe vietate. Le regole di coerenza incrociata (saldi = lotti, riferimenti
-// esistenti, ecc.) e la validazione contro seed/_schemas/ si aggiungono quando i seed nascono (M1+).
+// check-seed.mjs — coerenza dei dati demo (docs/10 §11). Valida JSON, espressioni di data (§1 grammatica),
+// stringhe vietate e, per ogni seed/<file>.json con uno seed/_schemas/<file>.schema.json, la conformità a quello
+// schema JSON Schema 2020-12 (§11 regola 1, logica in seed-schema.mjs; ajv si carica solo se c'è uno schema).
+// Le regole di coerenza incrociata (saldi = lotti, riferimenti esistenti, ecc.) sono qui sotto.
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import Ajv from "ajv";
-import addFormats from "ajv-formats";
 import { dirname, join, resolve } from "node:path";
+import { createSeedValidator } from "./seed-schema.mjs";
 
-const ajv = new Ajv({ allErrors: true });
-addFormats(ajv);
 const here = dirname(fileURLToPath(import.meta.url));
 const seedDir = resolve(here, "..", "seed");
 
@@ -57,6 +55,28 @@ if (files.length === 0) {
   process.exit(0);
 }
 
+// Schemi dei seed (docs/10 §11 regola 1): uno <file>.schema.json per ogni <file>.json, letti una volta sola.
+const schemasDir = join(seedDir, "_schemas");
+const schemas = {};
+if (existsSync(schemasDir)) {
+  for (const f of readdirSync(schemasDir).filter((n) => n.endsWith(".schema.json"))) {
+    try {
+      schemas[f] = JSON.parse(readFileSync(join(schemasDir, f), "utf8"));
+    } catch (e) {
+      errors.push(`_schemas/${f}: schema non valido — ${e.message}`);
+    }
+  }
+}
+let validator = null;
+if (Object.keys(schemas).length > 0) {
+  try {
+    validator = await createSeedValidator(schemas);
+  } catch (e) {
+    console.error(`check-seed: ${e.message}`);
+    process.exit(1);
+  }
+}
+
 for (const file of files) {
   const full = join(seedDir, file);
   let data;
@@ -67,26 +87,12 @@ for (const file of files) {
     continue;
   }
   walk(data, "", (v, p) => checkString(file, v, p));
-  const schema = join(seedDir, "_schemas", `${file.replace(/\.json$/, "")}.schema.json`);
-  if (existsSync(schema)) {
-    let schemaObj;
+  const schemaName = `${file.replace(/\.json$/, "")}.schema.json`;
+  if (validator && schemaName in schemas) {
     try {
-      schemaObj = JSON.parse(readFileSync(schema, "utf8"));
+      for (const problem of validator.validate(schemaName, data)) errors.push(`${file}: errore schema — ${problem}`);
     } catch (e) {
-      errors.push(`_schemas/${file}: schema non valido — ${e.message}`);
-    }
-    if (schemaObj) {
-      try {
-        const validate = ajv.compile(schemaObj);
-        const valid = validate(data);
-        if (!valid) {
-          for (const err of validate.errors) {
-            errors.push(`${file}: errore schema — ${err.instancePath} ${err.message}`);
-          }
-        }
-      } catch (e) {
-        errors.push(`_schemas/${file}: errore di compilazione schema — ${e.message}`);
-      }
+      errors.push(`_schemas/${schemaName}: errore di compilazione schema — ${e.message}`);
     }
   }
 }

@@ -18,7 +18,7 @@ Il PoC non ha login: **sono i dati a raccontare il prodotto**. Questo documento 
    Le edizioni sono gli anni solari: l'edizione `ACTIVE` è sempre quella che contiene oggi (`@soy`…`@eoy`); codici `E<anno>` calcolati.
 3. **Reset idempotente**: `POST /v1/demo/reset` riporta ogni servizio esattamente a questo stato; semi fissi per tutto ciò che è casuale (codici coupon, istanti vincenti, storico sintetico).
 4. **Nessun seed senza lettore**: ogni riga di questo documento deve essere visibile in almeno una schermata (colonna "Dove si vede").
-5. **Verifica automatica**: `node scripts/check-seed.mjs` (in CI) applica le regole del §11.
+5. **Verifica automatica**: `node scripts/check-seed.mjs` (in CI) applica le regole del §11 (senza schemi in `seed/_schemas/` non servono dipendenze; con gli schemi serve `npm --prefix scripts ci --omit=dev`).
 
 | File | Proprietario | Letto anche da |
 |---|---|---|
@@ -218,7 +218,7 @@ Generatore con seme fisso per 90 giorni di `metric_daily` (`synthetic=true`): ba
 `web/public/demo/rewards/*.webp` (14), `contents/*.webp` (8), `contests/*.webp` (3), `badges/*.svg` (6), `logo-aurora.svg`. In M0–M3 bastano **segnaposto generati** (SVG con gradiente del tema + icona `lucide` + nome): script `scripts/gen-placeholders.mjs`. Nessuna immagine da banche dati con licenze restrittive, nessun marchio reale.
 
 ## 11. Regole di `check-seed.mjs`
-1. JSON validi e conformi agli schemi in `seed/_schemas/`.
+1. JSON validi e conformi agli schemi in `seed/_schemas/` (JSON Schema 2020-12 come docs/05 §9; `format` asserito, annotazioni `x-lh-*` ammesse).
 2. Ogni `memberId`, `campaignCode`, `rewardCode`, `contestCode`, `badgeCode`, `segmentCode`, `templateCode`, `tier`, tipo azione citato **esiste** nel file proprietario.
 3. `wallets.json`: Σ lotti attivi = saldo; tier coerente con `periodSts` **o** con lo storico livelli (Stefano); esattamente 4 membri GOLD+PLATINUM.
 4. `campaigns.json`: condizioni su `data.*` compatibili con lo schema del tipo azione trigger; effetti che puntano a concorsi/premi/template esistenti.
