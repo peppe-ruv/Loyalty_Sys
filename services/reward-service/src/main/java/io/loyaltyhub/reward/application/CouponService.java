@@ -1,5 +1,6 @@
 package io.loyaltyhub.reward.application;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.loyaltyhub.common.audit.AuditEntry;
 import io.loyaltyhub.common.audit.AuditPublisher;
 import io.loyaltyhub.common.event.LhEvent;
@@ -53,7 +54,8 @@ public class CouponService {
                            Map<CouponStatus, Long> counts, long total, List<RewardRef> rewards) {
     }
 
-    public record GenerateResult(int generated, long seed, long available) {
+    /** {@code seed} c'è solo in demo (codici riproducibili); fuori dalla demo non esiste e non si serializza (Q-614). */
+    public record GenerateResult(int generated, @JsonInclude(JsonInclude.Include.NON_NULL) Long seed, long available) {
     }
 
     public record ImportResult(int imported, List<String> skipped, long available) {
@@ -72,15 +74,17 @@ public class CouponService {
     private final LhEventFactory events;
     private final OutboxWriter outbox;
     private final Clock clock;
+    private final CouponCodePolicy codePolicy;
 
     public CouponService(CouponRepository coupons, RewardRepository rewards, AuditPublisher audit,
-                         LhEventFactory events, OutboxWriter outbox, Clock clock) {
+                         LhEventFactory events, OutboxWriter outbox, Clock clock, CouponCodePolicy codePolicy) {
         this.coupons = coupons;
         this.rewards = rewards;
         this.audit = audit;
         this.events = events;
         this.outbox = outbox;
         this.clock = clock;
+        this.codePolicy = codePolicy;
     }
 
     // ---------- pool ----------
@@ -114,25 +118,17 @@ public class CouponService {
         if (coupons.pool(code).isPresent()) {
             throw LhException.conflict("CODE_TAKEN", "Pool già esistente: " + code);
         }
-        CouponPool p = new CouponPool(Ulid.next(clock), code, r.name().trim(), prefix, validity, seedFor(code), null);
+        CouponPool p = new CouponPool(Ulid.next(clock), code, r.name().trim(), prefix, validity, codePolicy.poolSeed(code), null);
         coupons.insertPool(p);
         audit.record("COUPON_POOL", code, AuditEntry.Action.CREATE, "Creato pool coupon " + p.name() + " (" + prefix + ")",
                 null, Map.of("prefix", prefix, "validityDays", validity));
         return pool(p.id());
     }
 
-    /** Seme stabile di un pool: dipende solo dal codice, così un pool ricreato genera gli stessi codici. */
-    public static long seedFor(String poolCode) {
-        long h = 1125899906842597L;
-        for (char c : poolCode.toCharArray()) {
-            h = 31 * h + c;
-        }
-        return h;
-    }
-
     /**
-     * Genera {@code count} codici nuovi ({@code ≤ 5000}). Il seme della generazione deriva da quello del pool e dal
-     * numero di codici già presenti: stesso stato di partenza, stessi codici. Il pool è bloccato per la durata.
+     * Genera {@code count} codici nuovi ({@code ≤ 5000}) con la {@link CouponCodePolicy} del profilo: in demo il seme
+     * deriva da quello del pool e dal numero di codici già presenti (stesso stato di partenza, stessi codici); fuori
+     * dalla demo i codici sono imprevedibili e nessun seme esiste (Q-614). Il pool è bloccato per la durata.
      */
     @Transactional
     public GenerateResult generate(String poolId, int count, boolean audited) {
@@ -140,8 +136,9 @@ public class CouponService {
             throw LhException.validation("COUPON_COUNT_INVALID", "Si generano da 1 a " + CouponCodes.MAX_GENERATE + " codici per volta.");
         }
         CouponPool p = coupons.lockPool(requirePool(poolId).id()).orElseThrow();
-        long seed = CouponCodes.batchSeed(p.seed(), coupons.countInPool(p.id()));
-        CouponCodes generator = new CouponCodes(p.prefix(), seed);
+        CouponCodePolicy.Generation generation = codePolicy.start(p, coupons.countInPool(p.id()));
+        CouponCodes generator = generation.codes();
+        Long seed = generation.seed();
         int generated = 0;
         // Le collisioni (con codici già esistenti) sono rarissime: si ripete finché non si arriva al numero chiesto.
         for (int round = 0; generated < count && round < 10; round++) {
@@ -152,8 +149,13 @@ public class CouponService {
             generated += coupons.insertAvailable(p.id(), batch).size();
         }
         if (audited) {
+            Map<String, Object> after = new LinkedHashMap<>();
+            after.put("generated", generated);
+            if (seed != null) { // solo in demo: fuori dalla demo nessun seme esiste né si scrive (Q-614)
+                after.put("seed", seed);
+            }
             audit.record("COUPON_POOL", p.code(), AuditEntry.Action.UPDATE, "Generati " + generated + " codici nel pool " + p.code(),
-                    null, Map.of("generated", generated, "seed", seed));
+                    null, after);
         }
         return new GenerateResult(generated, seed, coupons.countAvailable(p.id()));
     }

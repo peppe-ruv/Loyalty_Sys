@@ -30,7 +30,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Le metriche arrivano davvero in OTLP (M8.6a, F2-OBS-01, ADR-012, Q-520). L'hub parte completo (profilo
  * {@code demo,inproc}, Postgres incorporato) con {@code LH_OTEL_METRICS_ENABLED=true} e passo di 1 s; un ricevitore
  * OTLP finto (HTTP su porta effimera di loopback) conserva i corpi ricevuti. Si verifica che il primo giro dei dati
- * contenga sia le metriche HTTP del server sia quella custom di {@link LhMetrics} e gli attributi della risorsa, e
+ * contenga le metriche HTTP del server, quella custom di {@link LhMetrics}, lo SLI azione → punti di insight
+ * ({@code lh_action_to_points_seconds}) e gli attributi della risorsa, e
  * che il formato sia protobuf. Prova, con l'applicazione vera, che {@code lh_*} (registrate sul
  * {@code SimpleMeterRegistry} di lh-common) non restano fuori da OTLP: lo stesso ordine dei bean del deploy reale.
  */
@@ -84,7 +85,10 @@ class HubOtlpMetricsIT {
         assertThat(health).contains("UP");
         context.getBean(LhMetrics.class).eventConsumed("io.loyaltyhub.test.otlp");
 
-        List<String> expected = List.of("http.server.requests", "lh_events_consumed_total", "service.namespace", "loyaltyhub");
+        // lh_action_to_points_seconds è lo SLI azione → punti di insight (ActionToPointsSli): registrato all'avvio sul
+        // MeterRegistry iniettato, arriva in OTLP anche senza traffico (il registro esporta a ogni passo i contatori a zero).
+        List<String> expected = List.of("http.server.requests", "lh_events_consumed_total", "lh_action_to_points_seconds",
+                "service.namespace", "loyaltyhub");
         long deadline = System.currentTimeMillis() + 20_000;
         boolean found = false;
         while (System.currentTimeMillis() < deadline && !found) {

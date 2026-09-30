@@ -1,12 +1,15 @@
 package io.loyaltyhub.reward.domain;
 
+import java.security.SecureRandom;
 import java.util.SplittableRandom;
+import java.util.random.RandomGenerator;
 import java.util.regex.Pattern;
 
 /**
  * Codici coupon {@code PREFIX-XXXX-XXXX} (docs/servizi/reward-service.md §3). Alfabeto senza caratteri ambigui
- * (niente 0/O, 1/I/L) perché il codice si legge alla cassa. La sequenza dipende solo dal seme: stesso seme, stessi
- * codici (reset demo ripetibile, docs/10 §1).
+ * (niente 0/O, 1/I/L) perché il codice si legge alla cassa. La sorgente casuale la sceglie il chiamante: fuori dalla
+ * demo {@link #secure(String)} ({@link SecureRandom}, codici imprevedibili, Q-614, ADR-044); nel solo profilo demo
+ * {@link #seeded(String, long)}, dove stesso seme significa stessi codici (reset ripetibile, docs/10 §1.3).
  */
 public final class CouponCodes {
 
@@ -15,12 +18,22 @@ public final class CouponCodes {
     private static final Pattern PREFIX = Pattern.compile("^[A-Z0-9]{2,10}$");
     private static final Pattern CODE = Pattern.compile("^[A-Z0-9][A-Z0-9-]{3,39}$");
 
-    private final SplittableRandom random;
+    private final RandomGenerator random;
     private final String prefix;
 
-    public CouponCodes(String prefix, long seed) {
+    public CouponCodes(String prefix, RandomGenerator random) {
         this.prefix = prefix;
-        this.random = new SplittableRandom(seed);
+        this.random = random;
+    }
+
+    /** Codici imprevedibili ({@link SecureRandom}): l'unica scelta ammessa fuori dal profilo demo (Q-614). */
+    public static CouponCodes secure(String prefix) {
+        return new CouponCodes(prefix, new SecureRandom());
+    }
+
+    /** Codici riproducibili dal seme: SOLO per i dati demo (docs/10 §1.3); mai fuori dalla demo (Q-614). */
+    public static CouponCodes seeded(String prefix, long seed) {
+        return new CouponCodes(prefix, new SplittableRandom(seed));
     }
 
     public String next() {
