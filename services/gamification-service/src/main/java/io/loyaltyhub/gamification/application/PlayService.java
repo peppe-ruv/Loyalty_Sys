@@ -8,6 +8,7 @@ import io.loyaltyhub.common.event.LhSource;
 import io.loyaltyhub.common.ids.Ulid;
 import io.loyaltyhub.common.outbox.OutboxWriter;
 import io.loyaltyhub.common.time.BusinessCalendar;
+import io.loyaltyhub.common.web.ActorContext;
 import io.loyaltyhub.common.web.LhException;
 import io.loyaltyhub.gamification.domain.Contest;
 import io.loyaltyhub.gamification.domain.Prize;
@@ -126,7 +127,7 @@ public class PlayService {
         played.put("kind", kind);
         played.put("playsAvailable", remaining);
         LhEvent<Map<String, Object>> playedEvent = events.newRoot(LhEventTypes.Fact.CONTEST_PLAYED, "member:" + memberId, played,
-                LhSource.service("gamification"), "MEMBER:" + memberId);
+                LhSource.service("gamification"), ActorContext.member(memberId).asActorString()); // member:<id> (Q-556)
         plays.insert(new PlayRepository.NewPlay(playId, c.id(), memberId, kind, outcome, prize.map(Prize::id).orElse(null), now,
                 today, playedEvent.lhcorrelationid(), prize.filter(p -> "PHYSICAL".equals(p.type())).isPresent() ? "PENDING" : "NA"));
         outbox.write(playedEvent);
