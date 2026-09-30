@@ -46,7 +46,7 @@ Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 1 fatta secon
 
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
-| D1 Feature completate | ✅ | F2-IAM-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#57](https://github.com/peppe-ruv/Loyalty_Sys/pull/57), [#135](https://github.com/peppe-ruv/Loyalty_Sys/pull/135) |
+| D1 Feature completate | ✅ | F2-IAM-01 spuntata in [docs/14](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/14-STATO-AVANZAMENTO.md); PR [#57](https://github.com/peppe-ruv/Loyalty_Sys/pull/57), [#135](https://github.com/peppe-ruv/Loyalty_Sys/pull/135), [#139](https://github.com/peppe-ruv/Loyalty_Sys/pull/139), [#146](https://github.com/peppe-ruv/Loyalty_Sys/pull/146) |
 | D2 Criteri provati | ✅ | prove automatiche: [check-realm.mjs](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/scripts/check-realm.mjs) |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
@@ -104,32 +104,32 @@ Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 1 fatta secon
 
 **Contesto reale**: Marco apre dal telefono il portale di «Club Aurora», accede con la passkey e vede solo il proprio saldo.
 
-**Tocca**: F2-IAM-03 · ADR-027, ADR-042 · docs/18 §3.2, §3.10 punto 3 · PT-16 · M8.2 · Q-410.
+**Tocca**: F2-IAM-03 · ADR-027, ADR-042, ADR-048 · docs/18 §3.2, §3.10 punto 3 · PT-16 · M8.2 · Q-410, Q-551.
 
-**Decisioni**: account Keycloak più record in member-service legato da `member.external_id = sub` · il `memberId` non arriva mai dai parametri della richiesta, solo dal token · l'accesso passa dal BFF ([US-F2-SEC-06](/specifiche/backlog/e-f2-iam-identita#us-f2-sec-06)).
+**Decisioni**: account Keycloak più record in member-service legato dal token con la tabella `member_identity` (`issuer`, `subject`), mentre `external_id` resta l'id del CRM (ADR-048, Q-551) · registrazione aperta senza verifica dell'e-mail (Q-557) · il `memberId` non arriva mai dai parametri della richiesta, solo dal token · l'accesso passa dal BFF ([US-F2-SEC-06](/specifiche/backlog/e-f2-iam-identita#us-f2-sec-06)).
 
 **Criteri di accettazione**
 
 1. **Dato** un membro non autenticato che apre il portale `enterprise`, **allora** è rediretto al login OIDC e torna al portale con la sessione del BFF ([#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99), [#104](https://github.com/peppe-ruv/Loyalty_Sys/pull/104)).
-2. ✗ **Dato** un membro autenticato, **quando** chiama `/v1/portal/*` con l'id di un altro membro, **allora** vede solo i propri dati (parametro ignorato o `400`, Q-410) (docs/18 §6 M8).
-3. **Dato** un nuovo membro che si registra da PT-16, **allora** nasce il record in member-service con `external_id = sub` (docs/18 §3.2, Q-410).
+2. ✗ **Dato** un membro autenticato, **quando** chiama `/v1/portal/*` con l'id di un altro membro, **allora** non vede i dati dell'altro: `400 MEMBER_FROM_TOKEN` per query, corpo o header, `403` per il percorso, `404` per un oggetto altrui (Q-553, Q-410) (docs/18 §6 M8).
+3. **Dato** un nuovo membro che si registra da PT-16, **allora** nasce il record in member-service, legato a `(iss, sub)` in `member_identity`, e un solo fatto `member.registered` con `subjectRef` e senza `sub` (docs/18 §3.2, Q-410, Q-551, Q-552).
 
 **Testbook**: TB-IAM (dominio senza righe) · prove automatiche: `web/lib/auth/oidc.test.ts`.
 
 | Definition of Ready | Esito | Evidenza |
 |---|---|---|
 | R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
-| R2 ID di specifica | ✅ | F2-IAM-03, ADR-027, ADR-042, docs/18 §3.2, PT-16 |
+| R2 ID di specifica | ✅ | F2-IAM-03, ADR-027, ADR-042, ADR-048, docs/18 §3.2, PT-16 |
 | R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
-| R4 Casi negativi | ✅ | 1 criterio ✗ per 400, 410 |
+| R4 Casi negativi | ✅ | 1 criterio ✗ per 400, 403, 404, 410 |
 | R5 Dominio di testbook | ✅ | TB-IAM (dominio senza righe), 1 prova automatica |
-| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-410 |
+| R6 Dipendenze e domande | ✅ | 5 decise o superate |
 | R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
 | R8 Stati dell'interfaccia | ✅ | PT-16 specificata; stati di docs/07 §6 |
 
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
-| D1 Feature completate | ⬜ | F2-IAM-03 (in corso); PR [#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99), [#104](https://github.com/peppe-ruv/Loyalty_Sys/pull/104) |
+| D1 Feature completate | ⬜ | F2-IAM-03 (in corso); PR [#99](https://github.com/peppe-ruv/Loyalty_Sys/pull/99), [#104](https://github.com/peppe-ruv/Loyalty_Sys/pull/104), [#138](https://github.com/peppe-ruv/Loyalty_Sys/pull/138), [#139](https://github.com/peppe-ruv/Loyalty_Sys/pull/139), [#146](https://github.com/peppe-ruv/Loyalty_Sys/pull/146) |
 | D2 Criteri provati | ✅ | prove automatiche: [oidc.test.ts](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/web/lib/auth/oidc.test.ts) |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
@@ -249,7 +249,7 @@ Questa epica ha 6 storie: 4 pronte secondo la Definition of Ready, 1 fatta secon
 
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
-| D1 Feature completate | ⬜ | F2-SEC-07 (in corso); PR [#135](https://github.com/peppe-ruv/Loyalty_Sys/pull/135) |
+| D1 Feature completate | ⬜ | F2-SEC-07 (in corso); PR [#135](https://github.com/peppe-ruv/Loyalty_Sys/pull/135), [#146](https://github.com/peppe-ruv/Loyalty_Sys/pull/146) |
 | D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |

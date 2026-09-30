@@ -39,7 +39,7 @@ Questa epica ha 12 storie: 6 pronte secondo la Definition of Ready, 0 fatte seco
 | R2 ID di specifica | ✅ | F2-SEC-01, ADR-042, docs/18 §3.10 |
 | R3 Criteri di accettazione | ⬜ | 1 criterio Dato/Quando/Allora, altri da scrivere con la fetta |
 | R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
-| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R5 Dominio di testbook | ✅ | TB-SEC (con righe) |
 | R6 Dipendenze e domande | ✅ | nessuna domanda citata |
 | R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
 | R8 Stati dell'interfaccia | ✅ | nessuna schermata |
@@ -77,7 +77,7 @@ Questa epica ha 12 storie: 6 pronte secondo la Definition of Ready, 0 fatte seco
 | R2 ID di specifica | ✅ | F2-SEC-02, ADR-042, docs/18 §3.10 |
 | R3 Criteri di accettazione | ⬜ | criteri da scrivere con la fetta |
 | R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
-| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R5 Dominio di testbook | ✅ | TB-SEC (con righe) |
 | R6 Dipendenze e domande | ✅ | nessuna domanda citata |
 | R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
 | R8 Stati dell'interfaccia | ✅ | nessuna schermata |
@@ -116,14 +116,14 @@ Questa epica ha 12 storie: 6 pronte secondo la Definition of Ready, 0 fatte seco
 | R2 ID di specifica | ✅ | F2-SEC-03, ADR-038, ADR-042, docs/18 §3.10 |
 | R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
 | R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
-| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R5 Dominio di testbook | ✅ | TB-SEC (con righe) |
 | R6 Dipendenze e domande | ✅ | nessuna domanda citata |
 | R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
 | R8 Stati dell'interfaccia | ✅ | nessuna schermata |
 
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
-| D1 Feature completate | ⬜ | F2-SEC-03 (in corso); PR [#132](https://github.com/peppe-ruv/Loyalty_Sys/pull/132), [#133](https://github.com/peppe-ruv/Loyalty_Sys/pull/133) |
+| D1 Feature completate | ⬜ | F2-SEC-03 (in corso); PR [#132](https://github.com/peppe-ruv/Loyalty_Sys/pull/132), [#133](https://github.com/peppe-ruv/Loyalty_Sys/pull/133), [#141](https://github.com/peppe-ruv/Loyalty_Sys/pull/141) |
 | D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
@@ -154,7 +154,7 @@ Questa epica ha 12 storie: 6 pronte secondo la Definition of Ready, 0 fatte seco
 | R2 ID di specifica | ✅ | F2-SEC-04, ADR-032, ADR-042, docs/18 §3.4 |
 | R3 Criteri di accettazione | ⬜ | criteri da scrivere con la fetta |
 | R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
-| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R5 Dominio di testbook | ✅ | TB-SEC (con righe) |
 | R6 Dipendenze e domande | ✅ | nessuna domanda citata |
 | R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
 | R8 Stati dell'interfaccia | ✅ | nessuna schermata |
@@ -194,7 +194,7 @@ Questa epica ha 12 storie: 6 pronte secondo la Definition of Ready, 0 fatte seco
 | R2 ID di specifica | ✅ | F2-SEC-08, ADR-042, docs/18 §3.10 |
 | R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
 | R4 Casi negativi | ✅ | 2 criteri ✗ |
-| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R5 Dominio di testbook | ✅ | TB-SEC (con righe) |
 | R6 Dipendenze e domande | ✅ | nessuna domanda citata |
 | R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
 | R8 Stati dell'interfaccia | ✅ | nessuna schermata |
@@ -216,14 +216,14 @@ Questa epica ha 12 storie: 6 pronte secondo la Definition of Ready, 0 fatte seco
 
 **Contesto reale**: in `enterprise` Marco chiama l'API del saldo con l'id di Giulia (MBR-000003).
 
-**Tocca**: F2-SEC-09 · ADR-042 · docs/18 §3.10 punto 3 · `@RequiresRole`, `@PublicEndpoint`, `MemberPrincipal` · M8.10 · regola 18.
+**Tocca**: F2-SEC-09 · ADR-042, ADR-048 · docs/18 §3.10 punto 3 · `@RequiresRole`, `@PublicEndpoint`, `@MemberEndpoint`, `MemberPrincipal` · M8.10 · regola 18 · Q-553.
 
-**Decisioni**: ogni metodo di `@RestController` ha `@RequiresRole` oppure `@PublicEndpoint` con motivazione, verificato da ArchUnit · le API `/v1/portal/*` ricavano il membro da `MemberPrincipal`, mai da percorso, query o corpo · nessun *mass assignment*: solo record DTO espliciti, `status`, `version` e `createdBy` non legabili.
+**Decisioni**: ogni metodo di `@RestController` ha `@RequiresRole`, `@PublicEndpoint` con motivazione oppure `@MemberEndpoint` (elenco chiuso di tre, ADR-048), verificato da ArchUnit · le API `/v1/portal/*` ricavano il membro da `MemberPrincipal`, mai da percorso, query o corpo; i parametri legati, anche impliciti, e il contratto generato li controlla l'hub (`OpenApiExportIT`) · nessun *mass assignment*: solo record DTO espliciti, `status`, `version` e `createdBy` non legabili.
 
 **Criteri di accettazione**
 
 1. ✗ **Dato** un endpoint senza `@RequiresRole` né `@PublicEndpoint`, **allora** la build è rossa (docs/18 §6 M8).
-2. ✗ **Dato** una chiamata a `/v1/portal/*` con il token di un membro e l'id di un altro, **allora** risponde con i dati del solo titolare (parametro ignorato o `400`, Q-410) (docs/18 §6 M8).
+2. ✗ **Dato** una chiamata a `/v1/portal/*` con il token di un membro e l'id di un altro, **allora** risponde `400 MEMBER_FROM_TOKEN` (query, corpo o header), `403` (percorso) o, per un oggetto altrui, `404`; senza alcun id, i dati del solo titolare (Q-553, Q-410) (docs/18 §6 M8).
 3. ✗ **Dato** un corpo che contiene `status`, `version` o `createdBy`, **allora** quei campi non sono legati (docs/18 §3.10 punto 3).
 
 **Testbook**: TB-SEC (da scrivere con M8.10).
@@ -231,17 +231,17 @@ Questa epica ha 12 storie: 6 pronte secondo la Definition of Ready, 0 fatte seco
 | Definition of Ready | Esito | Evidenza |
 |---|---|---|
 | R1 Forma della storia | ✅ | frase *Come … voglio … così che …* |
-| R2 ID di specifica | ✅ | F2-SEC-09, ADR-042, docs/18 §3.10 |
+| R2 ID di specifica | ✅ | F2-SEC-09, ADR-042, ADR-048, docs/18 §3.10 |
 | R3 Criteri di accettazione | ✅ | 3 criteri Dato/Quando/Allora |
-| R4 Casi negativi | ✅ | 3 criteri ✗ per 400, 410 |
-| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
-| R6 Dipendenze e domande | ✅ | 1 aperta con default in uso (SPEC-GAP): Q-410 |
+| R4 Casi negativi | ✅ | 3 criteri ✗ per 400, 403, 404, 410 |
+| R5 Dominio di testbook | ✅ | TB-SEC (con righe) |
+| R6 Dipendenze e domande | ✅ | 2 decise o superate |
 | R7 Dati demo | ✅ | in seed/: MBR-000003 |
 | R8 Stati dell'interfaccia | ✅ | nessuna schermata |
 
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
-| D1 Feature completate | ⬜ | F2-SEC-09 (in corso); PR [#131](https://github.com/peppe-ruv/Loyalty_Sys/pull/131) |
+| D1 Feature completate | ⬜ | F2-SEC-09 (in corso); PR [#131](https://github.com/peppe-ruv/Loyalty_Sys/pull/131), [#138](https://github.com/peppe-ruv/Loyalty_Sys/pull/138), [#140](https://github.com/peppe-ruv/Loyalty_Sys/pull/140), [#145](https://github.com/peppe-ruv/Loyalty_Sys/pull/145), [#148](https://github.com/peppe-ruv/Loyalty_Sys/pull/148), [#149](https://github.com/peppe-ruv/Loyalty_Sys/pull/149) |
 | D2 Criteri provati | ⬜ | nessuna riga di testbook né prova automatica |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
@@ -274,7 +274,7 @@ Questa epica ha 12 storie: 6 pronte secondo la Definition of Ready, 0 fatte seco
 | R2 ID di specifica | ✅ | F2-SEC-10, ADR-042, docs/18 §3.10 |
 | R3 Criteri di accettazione | ⬜ | 2 criteri Dato/Quando/Allora, altri da scrivere con la fetta |
 | R4 Casi negativi | ✅ | 1 criterio ✗ |
-| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe), 1 prova automatica |
+| R5 Dominio di testbook | ✅ | TB-SEC (con righe), 1 prova automatica |
 | R6 Dipendenze e domande | ✅ | nessuna domanda citata |
 | R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
 | R8 Stati dell'interfaccia | ✅ | nessuna schermata |
@@ -314,7 +314,7 @@ Questa epica ha 12 storie: 6 pronte secondo la Definition of Ready, 0 fatte seco
 | R2 ID di specifica | ✅ | F2-SEC-11, ADR-042, docs/18 §3.10 |
 | R3 Criteri di accettazione | ⬜ | 2 criteri Dato/Quando/Allora, altri da scrivere con la fetta |
 | R4 Casi negativi | ✅ | 1 criterio ✗ |
-| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R5 Dominio di testbook | ✅ | TB-SEC (con righe) |
 | R6 Dipendenze e domande | ✅ | nessuna domanda citata |
 | R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
 | R8 Stati dell'interfaccia | ✅ | nessuna schermata |
@@ -354,14 +354,14 @@ Questa epica ha 12 storie: 6 pronte secondo la Definition of Ready, 0 fatte seco
 | R2 ID di specifica | ✅ | F2-SEC-12, ADR-042, docs/18 §3.10 |
 | R3 Criteri di accettazione | ⬜ | 2 criteri Dato/Quando/Allora, altri da scrivere con la fetta |
 | R4 Casi negativi | ✅ | 1 criterio ✗ |
-| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R5 Dominio di testbook | ✅ | TB-SEC (con righe) |
 | R6 Dipendenze e domande | ✅ | nessuna domanda citata |
 | R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
 | R8 Stati dell'interfaccia | ✅ | nessuna schermata |
 
 | Definition of Done | Esito | Evidenza |
 |---|---|---|
-| D1 Feature completate | ⬜ | F2-SEC-12 (in corso); PR [#60](https://github.com/peppe-ruv/Loyalty_Sys/pull/60), [#131](https://github.com/peppe-ruv/Loyalty_Sys/pull/131), [#133](https://github.com/peppe-ruv/Loyalty_Sys/pull/133) |
+| D1 Feature completate | ⬜ | F2-SEC-12 (in corso); PR [#60](https://github.com/peppe-ruv/Loyalty_Sys/pull/60), [#131](https://github.com/peppe-ruv/Loyalty_Sys/pull/131), [#133](https://github.com/peppe-ruv/Loyalty_Sys/pull/133), [#147](https://github.com/peppe-ruv/Loyalty_Sys/pull/147), [#152](https://github.com/peppe-ruv/Loyalty_Sys/pull/152) |
 | D2 Criteri provati | ⬜ | criteri non pronti (R3): nessuna prova conta finché non sono tutti Dato/Quando/Allora; evidenza: nessuna riga di testbook né prova automatica |
 | D3 Nessuno scostamento aperto | ✅ | nessun ⛔ né ⚠ nella storia |
 | D4 Controlli della fetta | 🔎 da verificare | build, stati dell'interfaccia, OpenAPI, registry, axe, lingue, diagrammi, audit: sulla pull request |
@@ -393,7 +393,7 @@ Questa epica ha 12 storie: 6 pronte secondo la Definition of Ready, 0 fatte seco
 | R2 ID di specifica | ✅ | F2-SEC-13, ADR-043, docs/18 §3.14 |
 | R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
 | R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
-| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R5 Dominio di testbook | ✅ | TB-SEC (con righe) |
 | R6 Dipendenze e domande | ✅ | nessuna domanda citata |
 | R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
 | R8 Stati dell'interfaccia | ✅ | nessuna schermata |
@@ -417,7 +417,7 @@ Questa epica ha 12 storie: 6 pronte secondo la Definition of Ready, 0 fatte seco
 
 **Tocca**: F2-SEC-14 · ADR-043 · docs/18 §3.14 punto 2 · M8.12 · regola 21.
 
-**Decisioni**: event listener SPI che chiama `POST /v1/audit/external` · eventi utente legati al membro con `external_id = sub`; admin events con `service=idp` e nessun dato del membro · solo eventi di cambiamento: creazione e cancellazione di utenti, cambio di ruolo, reset della password, abilitazione MFA, blocco dell'account.
+**Decisioni**: event listener SPI che chiama `POST /v1/audit/external` · eventi utente legati al membro tramite `member_identity` (`issuer`, `subject`, ADR-048); admin events con `service=idp` e nessun dato del membro · solo eventi di cambiamento: creazione e cancellazione di utenti, cambio di ruolo, reset della password, abilitazione MFA, blocco dell'account.
 
 **Criteri di accettazione**
 
@@ -432,7 +432,7 @@ Questa epica ha 12 storie: 6 pronte secondo la Definition of Ready, 0 fatte seco
 | R2 ID di specifica | ✅ | F2-SEC-14, ADR-043, docs/18 §3.14 |
 | R3 Criteri di accettazione | ✅ | 2 criteri Dato/Quando/Allora |
 | R4 Casi negativi | ✅ | nessuna risposta d'errore 4xx nella storia |
-| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe) |
+| R5 Dominio di testbook | ✅ | TB-SEC (con righe) |
 | R6 Dipendenze e domande | ✅ | nessuna domanda citata |
 | R7 Dati demo | 🔎 da verificare | nessun ID di dati demo citato |
 | R8 Stati dell'interfaccia | ✅ | nessuna schermata |
@@ -473,7 +473,7 @@ Questa epica ha 12 storie: 6 pronte secondo la Definition of Ready, 0 fatte seco
 | R2 ID di specifica | ✅ | F2-SEC-15, ADR-043, docs/18 §3.14, PT-18, BO-03 |
 | R3 Criteri di accettazione | ✅ | 4 criteri Dato/Quando/Allora |
 | R4 Casi negativi | ✅ | 1 criterio ✗ |
-| R5 Dominio di testbook | ✅ | TB-SEC (dominio senza righe), 1 prova automatica |
+| R5 Dominio di testbook | ✅ | TB-SEC (con righe), 1 prova automatica |
 | R6 Dipendenze e domande | ✅ | nessuna domanda citata |
 | R7 Dati demo | ✅ | in seed/: MBR-000011 |
 | R8 Stati dell'interfaccia | ✅ | PT-18, BO-03 specificate; stati di docs/07 §6 |
