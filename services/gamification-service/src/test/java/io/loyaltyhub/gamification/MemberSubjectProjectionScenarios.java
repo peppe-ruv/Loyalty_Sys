@@ -254,14 +254,20 @@ abstract class MemberSubjectProjectionScenarios {
     @DisplayName("[TB-GAM-MBP-012] lo stesso fatto due volte: stesso stato (consumer idempotente)")
     void sameFactTwiceIsIdempotent() {
         String ref = ref("idem");
-        publish(MemberFactsSupport.registeredAs("EV-IDEM-" + idBase(), id(17), ref, T1, 2));
-        long rows = jdbc.sql("SELECT count(*) FROM gamification_member_snapshot WHERE member_id = ?").param(id(17)).query(Long.class).single();
-        // rigioco lo stesso evento (stesso id): il processed_event lo scarta
-        publish(MemberFactsSupport.registeredAs("EV-IDEM-" + idBase(), id(17), ref, T1, 2));
-
+        String eventId = "EV-IDEM-" + idBase();
+        publish(MemberFactsSupport.registeredAs(eventId, id(17), ref, T1, 2));
         assertThat(lookup.memberId(ref)).contains(id(17));
-        assertThat(jdbc.sql("SELECT count(*) FROM gamification_member_snapshot WHERE member_id = ?").param(id(17)).query(Long.class).single())
-                .isEqualTo(rows);
+        // un fatto successivo scollega il membro...
+        publish(MemberFactsSupport.updated(id(17), null, T2, 2));
+        assertThat(lookup.memberId(ref)).isEmpty();
+        // ...e la riconsegna dell'evento originale (stesso id) è scartata da processed_event: il legame non rinasce
+        publish(MemberFactsSupport.registeredAs(eventId, id(17), ref, T1, 2));
+
+        assertThat(lookup.memberId(ref)).isEmpty();
+        assertThat(subjectRef(id(17))).isNull();
+        assertThat(refAt(id(17))).isEqualTo(Instant.parse(T2));
+        assertThat(jdbc.sql("SELECT count(*) FROM processed_event WHERE event_id = ?").param(eventId).query(Long.class).single())
+                .isEqualTo(1L);
     }
 
     @Test

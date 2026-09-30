@@ -81,6 +81,7 @@ public class PortalContestsController {
     @MemberEndpoint
     public PlayService.PlayResult play(@PathVariable String code, @RequestBody PlayRequest r, MemberPrincipal principal) {
         // Il corpo legacy vale solo in demo: con un token, un memberId (anche il proprio) è già rifiutato (MEMBER_FROM_TOKEN).
+        // SPEC-GAP: Q-573 (grafie di memberId diverse dal campo del DTO scartate da Jackson, non rifiutate; il membro resta quello del token)
         return playService.play(code, principal.merge(r == null ? null : r.memberId()));
     }
 

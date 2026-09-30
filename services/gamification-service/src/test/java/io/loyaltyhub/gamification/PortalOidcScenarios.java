@@ -314,15 +314,13 @@ abstract class PortalOidcScenarios {
         // MemberBodyAdvice vede solo l'oggetto già deserializzato: {"member_id": B} è scartato da Jackson e non rifiutato.
         // Il membro resta quello del token (SPEC-GAP: Q-573): la giocata è di D, mai di B, e nessuna riga è di B.
         String path = "/v1/portal/contests/" + CONTEST + "/play";
-        long playsOfB = count("SELECT count(*) FROM play WHERE member_id = '" + B + "'");
+        long playsOfB = playsOf(B);
         Reply r = post(path, TOKENS.member(SUB_D), Map.of("member_id", B, "MEMBERID", B));
-        assertThat(r.status).as(r.text).isIn(200, 422);
+        assertThat(r.status).as(r.text).isEqualTo(200);
         assertThat(r.text).doesNotContain(B);
-        if (r.status == 200) {
-            assertThat(jdbc.sql("SELECT member_id FROM play WHERE id = ?").param(r.body.path("playId").asString())
-                    .query(String.class).single()).isEqualTo(D);
-        }
-        assertThat(count("SELECT count(*) FROM play WHERE member_id = '" + B + "'")).isEqualTo(playsOfB);
+        assertThat(jdbc.sql("SELECT member_id FROM play WHERE id = ?").param(r.body.path("playId").asString())
+                .query(String.class).single()).isEqualTo(D);
+        assertThat(playsOf(B)).isEqualTo(playsOfB);
     }
 
     @Test
@@ -475,6 +473,10 @@ abstract class PortalOidcScenarios {
             }
         }
         throw new AssertionError("badge assente: " + code);
+    }
+
+    private long playsOf(String memberId) {
+        return jdbc.sql("SELECT count(*) FROM play WHERE member_id = ?").param(memberId).query(Long.class).single();
     }
 
     private long count(String sql) {
