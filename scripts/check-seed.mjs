@@ -4,8 +4,12 @@
 // esistenti, ecc.) e la validazione contro seed/_schemas/ si aggiungono quando i seed nascono (M1+).
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import Ajv from "ajv";
+import addFormats from "ajv-formats";
 import { dirname, join, resolve } from "node:path";
 
+const ajv = new Ajv({ allErrors: true });
+addFormats(ajv);
 const here = dirname(fileURLToPath(import.meta.url));
 const seedDir = resolve(here, "..", "seed");
 
@@ -65,12 +69,25 @@ for (const file of files) {
   walk(data, "", (v, p) => checkString(file, v, p));
   const schema = join(seedDir, "_schemas", `${file.replace(/\.json$/, "")}.schema.json`);
   if (existsSync(schema)) {
+    let schemaObj;
     try {
-      JSON.parse(readFileSync(schema, "utf8"));
+      schemaObj = JSON.parse(readFileSync(schema, "utf8"));
     } catch (e) {
       errors.push(`_schemas/${file}: schema non valido — ${e.message}`);
     }
-    // TODO(M1): validazione completa dei seed contro lo schema (ajv).
+    if (schemaObj) {
+      try {
+        const validate = ajv.compile(schemaObj);
+        const valid = validate(data);
+        if (!valid) {
+          for (const err of validate.errors) {
+            errors.push(`${file}: errore schema — ${err.instancePath} ${err.message}`);
+          }
+        }
+      } catch (e) {
+        errors.push(`_schemas/${file}: errore di compilazione schema — ${e.message}`);
+      }
+    }
   }
 }
 
