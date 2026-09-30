@@ -75,7 +75,9 @@ for (const id of all) {
   }
   byDomain.set(dom, d);
 }
-const esc = (s) => String(s ?? "").replace(/\|/g, "\\|");
+// Cella di tabella Markdown: prima la barra rovesciata (altrimenti "\|" nel testo romperebbe la cella), poi "|";
+// gli a capo diventano spazi perché una cella sta su una sola riga.
+const esc = (s) => String(s ?? "").replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 let md = `# Rapporto del testbook funzionale\n\nGenerato il ${new Date().toISOString()} da \`scripts/testbook.sh\`. Righe documentate: ${documented.size}; casi eseguiti: ${results.size}.\n\n`;
 md += "| Dominio | Righe | OK | Fallite | Saltate | Non eseguite | Test senza riga |\n|---|---|---|---|---|---|---|\n";
 for (const [dom, d] of [...byDomain].sort()) md += `| TB-${dom} | ${d.righe} | ${d.ok} | ${d.fallite} | ${d.saltate} | ${d.nonEseguite} | ${d.senzaDoc} |\n`;
