@@ -312,8 +312,8 @@ jobs:
 
   # Chart Helm e compose, di riferimento e locale (F2-DIST-02/03, M8.3, Q-483). Controllo obbligatorio del ruleset
   # (scripts/setup-branch-protection.sh): gira quando cambiano chart, compose, immagine o la verifica, e sempre su main;
-  # saltato conta come superato. helm e kubeconform a versione fissa;
-  # con CI=true scripts/check-helm.mjs fallisce se helm manca (nessuna prova saltata che conta come superata).
+  # saltato conta come superato. helm, kubeconform e promtool a versione fissa;
+  # con CI=true scripts/check-helm.mjs fallisce se helm, kubeconform o promtool mancano (nessuna prova saltata che conta come superata).
   helm:
     name: helm (chart e compose)
     needs: changes
@@ -322,6 +322,9 @@ jobs:
     env:
       HELM_VERSION: v3.18.4
       KUBECONFORM_VERSION: v0.7.0
+      # promtool (regole SLO e allarmi, M8.6a): binario ufficiale a versione fissa, verificato con lo sha256 del rilascio.
+      PROMETHEUS_VERSION: 3.13.3
+      PROMETHEUS_SHA256: b349c732d8a853e657d0e7ae1bbad4d11b586615fb65fdc59d896b9f869c001e
       KUBE_VERSION: 1.31.0
       # Schemi dei CRD (Strimzi, CloudNativePG, Gateway API) a un commit fisso del catalogo.
       CRD_SCHEMAS: https://raw.githubusercontent.com/datreeio/CRDs-catalog/ad3b08c5045129d7bb1eeffd8e61719b2c8dd1e2/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json
@@ -342,6 +345,15 @@ jobs:
         run: |
           go install "github.com/yannh/kubeconform/cmd/kubeconform@${KUBECONFORM_VERSION}"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      # Il rilascio non è firmato: lo sha256 fissato sopra è l'unica garanzia sul binario, quindi il confronto blocca il job.
+      - name: promtool
+        run: |
+          set -euo pipefail
+          base="prometheus-${PROMETHEUS_VERSION}.linux-amd64"
+          curl -sSLfo /tmp/prom.tgz "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/${base}.tar.gz"
+          echo "${PROMETHEUS_SHA256}  /tmp/prom.tgz" | sha256sum -c
+          tar xzf /tmp/prom.tgz -C /tmp "${base}/promtool"
+          sudo install "/tmp/${base}/promtool" /usr/local/bin/
       - name: Verifiche statiche, helm lint e scenari di helm template
         run: node --test scripts/check-helm.mjs
       - name: Manifest validi (default con gateway, servizi gestiti)
