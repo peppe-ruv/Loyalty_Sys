@@ -1,5 +1,7 @@
 package io.loyaltyhub.member.api;
 
+import io.loyaltyhub.common.web.MemberEndpoint;
+import io.loyaltyhub.common.web.MemberPrincipal;
 import io.loyaltyhub.common.web.RequiresRole;
 import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.member.api.ReferralViews.Overview;
@@ -34,9 +36,16 @@ public class ReferralController {
         return service.referralsOf(id);
     }
 
+    /**
+     * PT-11 con l'id nel percorso: <strong>percorso legacy, deprecato</strong>, valido solo nel profilo {@code demo};
+     * il portale usa {@code GET /v1/portal/me/referral} ({@link PortalMeController}, ADR-048).
+     *
+     * @deprecated usa {@code GET /v1/portal/me/referral}
+     */
+    @Deprecated
     @GetMapping("/v1/portal/members/{id}/referral")
-    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
-    public PortalReferral portal(@PathVariable String id) {
-        return service.portal(id);
+    @MemberEndpoint(demoPathVariable = "id")
+    public PortalReferral portal(@PathVariable String id, MemberPrincipal principal) {
+        return service.portal(principal.requireParam());
     }
 }

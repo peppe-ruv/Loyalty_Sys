@@ -639,6 +639,8 @@ components:
           type: string
         referralCode:
           type: string
+        status:
+          type: string
         version:
           format: int64
           type: integer
@@ -657,6 +659,25 @@ components:
         qualifyingActionType:
           type: string
         shareUrl:
+          type: string
+      type: object
+    PortalRegistrationRequest:
+      properties:
+        city:
+          type: string
+        consents:
+          $ref: "#/components/schemas/Consents"
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        nickname:
+          type: string
+        phone:
+          type: string
+        referralCode:
           type: string
       type: object
     PortalReward:
@@ -1319,6 +1340,50 @@ paths:
       summary: One — portal leaderboards
       tags:
       - portal-leaderboards
+  /v1/portal/me/profile:
+    get:
+      operationId: profile
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PortalProfileView"
+          description: OK
+      summary: Profile — portal me
+      tags:
+      - portal-me
+    patch:
+      operationId: updateProfile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortalProfileRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PortalProfileView"
+          description: OK
+      summary: Update profile
+      tags:
+      - portal-me
+  /v1/portal/me/referral:
+    get:
+      operationId: referral
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PortalReferral"
+          description: OK
+      summary: Referral — portal me
+      tags:
+      - portal-me
   /v1/portal/me/wallet:
     get:
       operationId: myWallet
@@ -1360,8 +1425,34 @@ paths:
       summary: My activity
       tags:
       - portal-me-wallet
+  /v1/portal/members:
+    post:
+      operationId: register
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortalRegistrationRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PortalProfileView"
+          description: "L'account era già registrato: il profilo esistente"
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PortalProfileView"
+          description: "Membro creato; Location: /v1/portal/me/profile"
+      summary: Register — portal registration
+      tags:
+      - portal-registration
   /v1/portal/members/{id}:
     get:
+      deprecated: true
       operationId: get_1
       parameters:
       - in: path
@@ -1380,6 +1471,7 @@ paths:
       tags:
       - portal-members
     patch:
+      deprecated: true
       operationId: update_1
       parameters:
       - in: path
@@ -1405,6 +1497,7 @@ paths:
       - portal-members
   /v1/portal/members/{id}/referral:
     get:
+      deprecated: true
       operationId: portal
       parameters:
       - in: path
