@@ -182,7 +182,7 @@ Limiti di memoria nel compose (`mem_limit: 512m`, `cpus: 0.5`) per scoprire pres
 |---|---|
 | `backend` | Temurin 25 · cache Maven · `./mvnw -B verify` (Testcontainers: Kafka + Postgres) |
 | `web` | pnpm · `pnpm lint && pnpm typecheck && pnpm test && pnpm build` |
-| `seed` | `node scripts/check-seed.mjs` |
+| `seed` | `npm --prefix scripts ci --omit=dev` · `node --test scripts/check-seed.test.mjs` · `node scripts/check-seed.mjs` (validazione JSON Schema 2020-12 dei seed con ajv, docs/10 §11) |
 | `contracts` | valida `contracts/examples/*` contro gli schemi |
 | `docker` (solo su `main`, path-filter) | build delle immagini toccate (senza push, salvo piano B) |
 | `e2e` (manuale, `workflow_dispatch`) | `docker compose --profile all up` + Playwright + `smoke.sh` |
