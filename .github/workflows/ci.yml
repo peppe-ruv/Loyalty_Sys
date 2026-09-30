@@ -306,6 +306,8 @@ jobs:
       - run: npm --prefix scripts ci --omit=dev
       - run: node --test scripts/check-seed.test.mjs
       - run: node scripts/check-seed.mjs
+      # Configurazione di programma della vetrina enterprise da seed/ via API (F2-DIST-09, ADR-049, Q-617): hub finto, senza rete.
+      - run: node --test scripts/vetrina-programma.test.mjs
       # Realm Keycloak as code (F2-IAM-01, ADR-027): scope referenziati definiti, nessun segreto letterale,
       # segnaposto passati al servizio idp del compose.
       - run: node --test scripts/check-realm.mjs
