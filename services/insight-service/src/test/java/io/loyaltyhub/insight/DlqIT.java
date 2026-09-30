@@ -179,6 +179,27 @@ class DlqIT {
         assertThat(none.path("items").size()).isZero();
     }
 
+    /** Q-532: {@code page} e {@code limit} enormi non fanno overflow dell'offset (prima 500 di Postgres): 400 RFC 9457. */
+    @Test
+    void hugePageAndLimitAreRejectedWithBadRequestOnAuditDlqAndTraces() {
+        for (String path : new String[]{
+                "/v1/audit?page=2147483647&limit=2147483647",
+                "/v1/dlq?page=2147483647&limit=2147483647",
+                "/v1/dlq?page=2147483647&size=2147483647",
+                "/v1/traces?page=2147483647&limit=2147483647"}) {
+            ResponseEntity<JsonNode> res = client().get().uri(path).header("X-LH-Actor", ADMIN).retrieve()
+                    .onStatus(HttpStatusCode::isError, (req, r) -> {
+                    }).toEntity(JsonNode.class);
+            assertThat(res.getStatusCode().value()).as(path).isEqualTo(400);
+            assertThat(res.getBody().path("code").asString()).as(path).isEqualTo("BAD_REQUEST");
+        }
+        // L'ultima pagina che entra in un int resta una risposta valida (vuota).
+        ResponseEntity<JsonNode> last = client().get().uri("/v1/dlq?page=21474836&size=100")
+                .header("X-LH-Actor", ADMIN).retrieve().toEntity(JsonNode.class);
+        assertThat(last.getStatusCode().value()).isEqualTo(200);
+        assertThat(last.getBody().path("items").size()).isZero();
+    }
+
     @Test
     void discardNeedsAdminAndANoteAndIsAudited() {
         publish("lh.dlq.v1", envelope("EVT-DSC-1", "io.loyaltyhub.fact.tier.upgraded",
