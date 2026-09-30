@@ -154,7 +154,7 @@ services:
 | `LH_SVC_INGESTION_URL` … `LH_SVC_INSIGHT_URL` (8) | **web** (server) | `https://lh-wallet.onrender.com`; locale `http://localhost:8084` |
 | `NEXT_PUBLIC_LH_INSIGHT_URL` | **web** (browser) | URL pubblico di insight per l'SSE |
 | `NEXT_PUBLIC_REPO_URL` | web | link nel Demo Hub |
-| `LH_HUB_ENTERPRISE_URL` | **web demo** (server) | origine `https` della vetrina enterprise (§17, ADR-049, F2-DIST-09), senza percorso. Letta solo lato server, senza `NEXT_PUBLIC_`: si cambia senza ricostruire. Vuota, assente o non valida ⇒ il pulsante «Modalità Enterprise» di HUB-01 è nascosto e il web scrive un avviso nel log del server |
+| `LH_HUB_ENTERPRISE_URL` | **web demo** (server) | origine `https` della vetrina enterprise (§17, ADR-049, F2-DIST-09), senza percorso. Letta solo lato server, senza `NEXT_PUBLIC_`: si cambia senza ricostruire. Vuota o assente (il caso normale, anche in locale) ⇒ il pulsante «Modalità Enterprise» di HUB-01 è nascosto, senza avvisi. Valorizzata ma non valida (non `https`, con percorso, non un URL) ⇒ pulsante nascosto e un avviso nel log del server |
 | `LH_HUB_DEMO_URL` | **web vetrina** (server), solo `enterprise` | origine `https` della demo, per il collegamento di ritorno in HUB-02 (§17, ADR-049); vuota ⇒ nessun collegamento |
 | `LH_INGESTION_URL` | **insight** | solo per *riprocessa* DLQ (M7) |
 | `LH_PROFILE` | **web** (server) | assente o `demo`: identità simulata (docs/07 §4), nessuna variabile OIDC; `enterprise`: login OIDC obbligatorio (docs/07 §4-bis); qualunque altro valore ⇒ il web non parte (`INSECURE_CONFIG`) |

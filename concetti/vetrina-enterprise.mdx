@@ -59,14 +59,15 @@ L'hosting è un host Oracle Cloud Always Free A1, senza costo e senza sospension
 - **Dati reali**: solo dati fittizi, nessun backup e nessuna garanzia di conservazione. La vetrina si azzera periodicamente e lo dice nel banner di HUB-02 (Q-624).
 - **Persone demo**: al posto del selettore di persona c'è il login, e i membri `MBR-*` del seed non esistono in questa istanza.
 - **Portale membri**: nel primo passo è chiuso, con la registrazione disattivata (Q-619).
-- **Scenari che accreditano punti**: in `enterprise` l'ingresso degli eventi accetta solo fonti con `private_key_jwt`, e le fonti di prova non hanno chiavi pubblicate.
+- **Scenari che accreditano punti**: in `enterprise` l'ingresso degli eventi accetta solo il ruolo `SOURCE` (un client `private_key_jwt` per fonte) o un `ADMIN`; le fonti di prova non hanno chiavi pubblicate e gli scenari demo (`/v1/demo/**`) non esistono in questa istanza.
 - **Tempo reale in BO-24**: la schermata resta in stato *degraded* finché non c'è un proxy per gli eventi in tempo reale (Q-622).
 - **Assistente e CMS**: spenti o non installati in questa istanza.
+- **Disponibilità garantita**: dipende dal piano gratuito del fornitore, che ha capacità limitata e può recuperare un'istanza rimasta inattiva.
 
 ## Accesso degli operatori
 
-Nessuna password è pubblicata: il primo visitatore la cambierebbe e legherebbe l'OTP al proprio telefono. Gli account operatore sono **nominativi**, creati dal proprietario su richiesta, con password temporanea consegnata fuori banda e MFA sempre richiesta (Q-618).
+Nessuna password è pubblicata: il primo visitatore la cambierebbe e legherebbe l'OTP al proprio telefono. La regola è che la MFA resta sempre richiesta. Il default proposto (Q-618, ancora aperta) è che gli account operatore siano **nominativi**, creati dal proprietario su richiesta, con password temporanea consegnata fuori banda.
 
 ## Decisione e domande aperte
 
-La decisione, le alternative scartate e i limiti dichiarati sono in [ADR-049](/specifiche/registro-decisioni). I dettagli attuativi (dati del programma, dominio e TLS, TLS verso bus e database, azzeramento) sono ancora domande aperte con un default indicato: Q-617…Q-624 in [Domande aperte](/specifiche/domande-aperte). Per installare lo stesso profilo sulla propria infrastruttura vedi [Installazione enterprise](/operations/installazione-enterprise).
+La decisione, le alternative scartate e i limiti dichiarati sono in [ADR-049](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/13-REGISTRO-DECISIONI.md). I dettagli attuativi (dati del programma, dominio e TLS, TLS verso bus e database, azzeramento) sono ancora domande aperte con un default indicato: Q-617…Q-624 in [Domande aperte](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/15-DOMANDE-APERTE.md). Per installare lo stesso profilo sulla propria infrastruttura vedi [Installazione enterprise](/operations/installazione-enterprise).
