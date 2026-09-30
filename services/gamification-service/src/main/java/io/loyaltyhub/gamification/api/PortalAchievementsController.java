@@ -1,7 +1,7 @@
 package io.loyaltyhub.gamification.api;
 
-import io.loyaltyhub.common.web.RequiresRole;
-import io.loyaltyhub.common.web.Role;
+import io.loyaltyhub.common.web.MemberEndpoint;
+import io.loyaltyhub.common.web.MemberPrincipal;
 import io.loyaltyhub.gamification.domain.Achievement;
 import io.loyaltyhub.gamification.domain.AchievementRules;
 import io.loyaltyhub.gamification.infra.AchievementRepository;
@@ -9,7 +9,6 @@ import io.loyaltyhub.gamification.infra.BadgeRepository;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Clock;
@@ -21,7 +20,12 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/** Portale: obiettivi con progresso e badge ottenuti / da ottenere (docs/servizi/gamification-service.md §3; PT-09). */
+/**
+ * Portale: obiettivi con progresso e badge ottenuti / da ottenere (docs/servizi/gamification-service.md §3; PT-09).
+ * Il membro viene solo dal token (Q-410, ADR-048, docs/06 §3.4): nessun {@code memberId} in query, percorso o corpo; lo
+ * risolve {@code EndpointAccessInterceptor} (token in {@code enterprise}, {@code memberId}/{@code X-LH-Member} in
+ * {@code demo}) e lo consegna come {@link MemberPrincipal}.
+ */
 @RestController
 @RequestMapping("/v1/portal")
 public class PortalAchievementsController {
@@ -54,8 +58,9 @@ public class PortalAchievementsController {
      */
     @GetMapping("/achievements")
     @Transactional(readOnly = true)
-    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
-    public List<PortalAchievement> achievements(@RequestParam String memberId) {
+    @MemberEndpoint
+    public List<PortalAchievement> achievements(MemberPrincipal principal) {
+        String memberId = principal.requireParam();
         Instant now = clock.instant();
         Map<String, BadgeRepository.Badge> badgeByCode = badges.findAll().stream()
                 .collect(Collectors.toMap(BadgeRepository.Badge::code, Function.identity()));
@@ -81,8 +86,9 @@ public class PortalAchievementsController {
 
     @GetMapping("/badges")
     @Transactional(readOnly = true)
-    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
-    public List<PortalBadge> badges(@RequestParam String memberId) {
+    @MemberEndpoint
+    public List<PortalBadge> badges(MemberPrincipal principal) {
+        String memberId = principal.requireParam();
         Map<String, BadgeRepository.MemberBadge> owned = badges.memberBadges(memberId).stream()
                 .collect(Collectors.toMap(BadgeRepository.MemberBadge::badgeCode, Function.identity()));
         List<Achievement> all = achievements.findAll();
