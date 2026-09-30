@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  * docs/06 §3.4): nessun {@code memberId} in query; in {@code demo} lo legge l'interceptor ({@code memberId} o
  * {@code X-LH-Member}) e il campo {@code memberId} del corpo di {@code seen} è deprecato. La vista è sempre del membro
  * del principal: il pop-up è uguale per tutti, non c'è l'oggetto di un altro membro da toccare.
+ * SPEC-GAP: Q-590 — docs/06 §3.4 dice «messaggio o pop-up di un altro membro ⇒ 404»; per il pop-up non c'è un altro membro da negare.
  */
 @RestController
 @RequestMapping("/v1/portal/popups")

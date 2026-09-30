@@ -69,6 +69,12 @@ final class MemberFactsSupport {
                 "urn:loyaltyhub:schema:fact." + type + ":" + schemaVersion));
     }
 
+    /** {@code member.segment.entered}: il segmento entra nello snapshot del membro (che cambia i contenuti a lui destinati). */
+    static RecordMetadata segmentEntered(String memberId, String segmentCode) {
+        return send(FACTS, memberId, envelope("EV-" + UUID.randomUUID(), PREFIX + "member.segment.entered", memberId,
+                Instant.now().toString(), Map.of("memberId", memberId, "segmentCode", segmentCode), null));
+    }
+
     /** Fatto {@code wallet.points.earned} di {@code amount} PTS: la regola NR-POINTS-EARNED lo rende in un messaggio dell'inbox. */
     static RecordMetadata pointsEarned(String memberId, String eventId, long amount) {
         Map<String, Object> data = Map.of("ledgerEntryId", "LED-" + eventId, "effectId", "EFF-" + eventId,

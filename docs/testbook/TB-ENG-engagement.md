@@ -158,7 +158,7 @@ Ogni condizione, eccezione o uscita anticipata delle classi `domain`, `applicati
 | `InboxService` :152 `memberId` assente → `400` | R17 | IBX-010…013 |
 | `InboxService` :159 `size` 1…100 | R32 | IBX-016 |
 | `InboxRepository` :77 già letto non cambia `readAt` | senza spec | IBX-005 |
-| `PortalInboxController` `read`/`readAll` `principal.merge(body.memberId)`: `memberId` nel corpo (deprecato, solo demo) | senza spec (in `enterprise` R49) | IBX-014, MBP-025, MBP-042 |
+| `PortalInboxController` `read`/`readAll` `principal.merge(body.memberId)`: `memberId` nel corpo (deprecato, solo demo) | senza spec (in `enterprise` R49) | IBX-014, MBP-025, MBP-042, MBP-050 |
 | `MessageContexts` :35–55 contesto `{data, member, event}` | R18 | DDP-013, RND-001 |
 | `MessageSendHandler` :43 effetto senza dati o membro → DLQ `INVALID_EFFECT` | senza spec | DDP-014 |
 | `MessageSendHandler` :48 template sconosciuto → DLQ `TEMPLATE_NOT_FOUND` | R28 (campaign §5) | DDP-010 |
@@ -223,7 +223,7 @@ Ogni condizione, eccezione o uscita anticipata delle classi `domain`, `applicati
 | `MemberSubjectProjection.apply` `subjectRef` assente e nessuna anonimizzazione → nessun effetto; `LINK`/`UNLINK`/`ERASE` secondo `MemberSubjectRules` (rilettura con `FOR UPDATE`, sorpasso dell'altro detentore) | R48 (Q-550) | MBP-001…013, MBP-015 |
 | `EngagementMemberSubjectLookup` legame assente → vuoto (non autorevole) ⇒ 409 `MEMBER_NOT_LINKED` (su `content`, `OPTIONAL`, vista generica) | R49 (Q-553) | MBP-014, MBP-034, MBP-035 |
 | `PortalContentController.content` `@MemberEndpoint(OPTIONAL)`: `NONE` (operatore) → `ContentService.portalGeneric` | R49 (Q-554) | MBP-029, MBP-030, MBP-034 |
-| `PortalInboxController`, `PortalPopupsController` `@MemberEndpoint` con `principal.idOrNull()` (validazione `400` del servizio invariata in demo) e `principal.merge` sui corpi | R49 | MBP-020…027, MBP-040…049 |
+| `PortalInboxController`, `PortalPopupsController` `@MemberEndpoint` con `principal.idOrNull()` (validazione `400` del servizio invariata in demo) e `principal.merge` sui corpi | R49 (Q-590) | MBP-020…027, MBP-040…050 |
 | `ThemeController.portal` `members = true` | R49 | MBP-020, MBP-029, MBP-034 |
 | `ThemeController` `Cache-Control` 60 s | R35 | THA-016 |
 
@@ -1484,12 +1484,12 @@ Righe eseguite due volte, da `EngagementMemberSubjectProjectionIT` (ordinaria) e
 | TB-ENG-MBP-026 | `X-LH-Member: B` e `X-LH-Member: A` su inbox, non letti, pop-up, contenuti, tema, `read-all` | 400 `MEMBER_FROM_TOKEN` | docs/06 §3.2 · Q-555 | `PortalOidcScenarios#demoMemberHeaderIsRefused` |
 | TB-ENG-MBP-027 | D: `POST /popups/POP-WELCOME/seen` con e senza corpo; su un contenuto che non è un pop-up | 204 e una sola vista di D; nessuna vista nuova di A e B; attore `member:<id>`; 404 sul non pop-up | docs/06 §3.4 · Q-556 | `PortalOidcScenarios#popupSeenBelongsToTheHolder` |
 | TB-ENG-MBP-028 | token di un operatore `CARE` su inbox, non letti, pop-up e sulle tre scritture | 403 `MEMBER_REQUIRED` | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#operatorIsNotAMember` |
-| TB-ENG-MBP-029 | `GET /v1/portal/content` e `/theme` con un operatore `CARE`, con A e con B; placement errato | 200: vista generica per l'operatore (non vuota), quella del membro per A; il placement errato resta 400 | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#contentIsGenericForAnOperator` |
-| TB-ENG-MBP-030 | token misto `MEMBER`+`CARE` | vale come operatore: 403 `MEMBER_REQUIRED` sulle funzioni del membro, vista generica sui contenuti | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#mixedTokenIsNotAMember` |
+| TB-ENG-MBP-029 | `GET /v1/portal/content` e `/theme` con un operatore `CARE`, con A e con B; placement errato | A entra in `SEG-DIGITAL` (fatto vero); 200: la vista di A per `HOME_GRID` contiene `CNT-DIGITAL-THANKS`, quella dell'operatore (non vuota, senza id di membri), del token misto e di B no; il placement errato resta 400 | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#contentIsGenericForAnOperator` |
+| TB-ENG-MBP-030 | token misto `MEMBER`+`CARE` | vale come operatore: 403 `MEMBER_REQUIRED` sulle funzioni del membro, vista generica sui contenuti (senza `CNT-DIGITAL-THANKS`, con `CNT-FRIEND`) | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#mixedTokenIsNotAMember` |
 | TB-ENG-MBP-031 | token `MEMBER`+`SOURCE` su inbox, non letti, pop-up, contenuti, tema | 403 | docs/06 §3.2 · Q-554 | `PortalOidcScenarios#memberPlusSourceIsForbidden` |
 | TB-ENG-MBP-032 | token di un membro su `/v1/messages`, `/v1/contents`, `/v1/contents/preview`, `/v1/message-templates`, `/v1/notification-rules`, `/v1/theme`, `/v1/webhooks` | 403 `FORBIDDEN_ROLE`, nessun messaggio di nessuno | docs/06 §3.2 · Q-410 | `PortalOidcScenarios#memberTokenCannotReachBackofficeReads` |
 | TB-ENG-MBP-033 | token di un membro con `X-LH-Actor: ADMIN:intruso` su `/v1/messages?memberId=B` | l'header è ignorato: 403 `FORBIDDEN_ROLE` | ADR-027 | `PortalOidcScenarios#actorHeaderIsIgnored` |
-| TB-ENG-MBP-034 | `sub` non ancora legato; poi arriva `member.registered` | 409 `MEMBER_NOT_LINKED` con `Retry-After: 2` su inbox, non letti, pop-up e `read-all`; 200 generico su contenuti e tema; poi 200 col nuovo membro | docs/06 §3.2 · Q-550, Q-553 | `PortalOidcScenarios#unlinkedSubjectGets409UntilTheFactArrives` |
+| TB-ENG-MBP-034 | `sub` non ancora legato; poi arriva `member.registered` | 409 `MEMBER_NOT_LINKED` con `Retry-After: 2` su inbox, non letti, pop-up e `read-all`; 200 su contenuti (identici alla vista dell'operatore, senza contenuti per segmento) e tema; poi 200 col nuovo membro | docs/06 §3.2 · Q-550, Q-553 | `PortalOidcScenarios#unlinkedSubjectGets409UntilTheFactArrives` |
 | TB-ENG-MBP-035 | C anonimizzato; replay di `registered` e `updated` più recente | 409 `MEMBER_NOT_LINKED` con `Retry-After: 2`; il replay non ri-lega | docs/06 §3.4 · Q-550 | `PortalOidcScenarios#anonymizedMemberIsUnlinkedForGood` |
 | TB-ENG-MBP-036 | nessun token; token scaduto; firmato con un'altra chiave; audience o emittente sbagliati, su inbox, contenuti e tema | 401 | ADR-027 | `PortalOidcScenarios#invalidTokensAreUnauthorized` |
 | TB-ENG-MBP-037 | un nuovo messaggio per B; A legge tutto | i non letti di A sono 0 e quelli di B restano; il messaggio di B non compare nell'inbox di A | docs/06 §3.4 | `PortalOidcScenarios#unreadCountsAreSeparate` |
@@ -1510,3 +1510,4 @@ Righe eseguite due volte, da `EngagementPortalOidcIT` (ordinaria) e da `Testbook
 | TB-ENG-MBP-047 | attore `SOURCE:src-ecommerce` su inbox, non letti, pop-up, contenuti, tema | 403 | docs/06 §3.1 · Q-492 | `TestbookEngMemberPrincipalDemoIT#sourceIsForbidden` |
 | TB-ENG-MBP-048 | `read` di un messaggio di un altro membro | 404 come prima; il messaggio dell'altro non cambia | docs/06 §2 | `TestbookEngMemberPrincipalDemoIT#anotherMembersMessageIsNotFound` |
 | TB-ENG-MBP-049 | `?memberId=` con `X-LH-Actor: ADMIN:demo` (smoke, hub) | 200: il `memberId` esplicito resta una fonte valida | CLAUDE.md regola 6-bis | `TestbookEngMemberPrincipalDemoIT#explicitMemberWithoutAnyHeaderStillWorks` |
+| TB-ENG-MBP-050 | `POST /inbox/read-all?memberId=` (query vuota) con `{"memberId":"MBR-…"}` nel corpo, senza header | 400 `MEMBER_MISMATCH`, l'id non è ripetuto nel detail (prima il ripiego sul corpo: scostamento noto e voluto, due fonti che non concordano) | docs/06 §3.2 · Q-555 | `TestbookEngMemberPrincipalDemoIT#blankQueryWithABodyMemberIsAMismatch` |

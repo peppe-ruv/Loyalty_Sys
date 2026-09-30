@@ -201,6 +201,16 @@ class TestbookEngMemberPrincipalDemoIT {
         assertThat(r.body.path("memberId").asString()).isEqualTo(MEMBER);
     }
 
+    @Test
+    @DisplayName("[TB-ENG-MBP-050] demo: memberId in query vuoto e memberId nel corpo ⇒ 400 MEMBER_MISMATCH (non più il ripiego sul corpo)")
+    void blankQueryWithABodyMemberIsAMismatch() {
+        Reply r = call(HttpMethod.POST, "/v1/portal/inbox/read-all?memberId=", PERSONA, null, MediaType.APPLICATION_JSON,
+                "{\"memberId\":\"" + MEMBER + "\"}");
+        assertThat(r.status).as(r.text).isEqualTo(400);
+        assertThat(r.body.path("code").asString()).isEqualTo("MEMBER_MISMATCH");
+        assertThat(r.body.path("detail").asString()).doesNotContain(MEMBER);
+    }
+
     // ---------- supporto ----------
 
     private record Reply(int status, String text, JsonNode body) {

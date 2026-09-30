@@ -223,7 +223,9 @@ abstract class PortalOidcScenarios {
 
         assertThat(ACTORS).anyMatch(a -> a.equals("POST /v1/portal/inbox/" + unreadId + "/read -> holder=member:" + A + " mdc=member:" + A));
         assertThat(ACTORS).anyMatch(a -> a.equals("POST /v1/portal/inbox/read-all -> holder=member:" + A + " mdc=member:" + A));
-        assertThat(ACTORS).noneMatch(a -> a.contains(OidcTestTokens.usernameOf(SUB_A)) || a.contains(OidcTestTokens.emailOf(SUB_A)));
+        // il token misto è un operatore (CARE:<username>): vale solo per le azioni compiute come membro
+        assertThat(ACTORS).noneMatch(a -> a.contains("holder=member:")
+                && (a.contains(OidcTestTokens.usernameOf(SUB_A)) || a.contains(OidcTestTokens.emailOf(SUB_A))));
     }
 
     @Test
@@ -360,7 +362,9 @@ abstract class PortalOidcScenarios {
         assertThat(popupViews(A)).as("nessuna vista di A").isEqualTo(popupsA);
         assertThat(popupViews(B)).as("nessuna vista di B").isEqualTo(popupsB);
         assertThat(ACTORS).anyMatch(a -> a.equals("POST /v1/portal/popups/POP-WELCOME/seen -> holder=member:" + D + " mdc=member:" + D));
-        assertThat(ACTORS).noneMatch(a -> a.contains(OidcTestTokens.usernameOf(SUB_D)) || a.contains(OidcTestTokens.emailOf(SUB_D)));
+        // il token misto è un operatore (CARE:<username>): vale solo per le azioni compiute come membro
+        assertThat(ACTORS).noneMatch(a -> a.contains("holder=member:")
+                && (a.contains(OidcTestTokens.usernameOf(SUB_D)) || a.contains(OidcTestTokens.emailOf(SUB_D))));
 
         // senza corpo vale lo stesso (vista non chiusa, stesso giorno: idempotente); un contenuto che non è un pop-up non esiste come tale
         assertThat(request(HttpMethod.POST, "/v1/portal/popups/POP-WELCOME/seen", token, null, null, null).status).isEqualTo(204);
@@ -392,13 +396,22 @@ abstract class PortalOidcScenarios {
     @Test
     @DisplayName("[TB-ENG-MBP-029] contenuti (OPTIONAL): un operatore CARE ha la vista generica, il membro la propria; il tema è per tutti")
     void contentIsGenericForAnOperator() {
-        Reply generic = get("/v1/portal/content?placement=HOME_GRID", TOKENS.operator("carla", "CARE"));
+        // A entra nel segmento SEG-DIGITAL: CNT-DIGITAL-THANKS (HOME_GRID) è per lui e per nessun altro
+        awaitCommitted(MemberFactsSupport.segmentEntered(A, "SEG-DIGITAL"));
+        String grid = "/v1/portal/content?placement=HOME_GRID";
+        Reply generic = get(grid, TOKENS.operator("carla", "CARE"));
         assertThat(generic.status).as(generic.text).isEqualTo(200);
         assertThat(generic.body.isArray()).isTrue();
         assertThat(generic.body.size()).isPositive();
         assertThat(generic.text).doesNotContain(A).doesNotContain(B);
-        Reply own = get("/v1/portal/content?placement=HOME_GRID", TOKENS.member(SUB_A));
+        Reply own = get(grid, TOKENS.member(SUB_A));
         assertThat(own.status).as(own.text).isEqualTo(200);
+        // la vista del membro è personalizzata, quella dell'operatore no: né per il token semplice né per il misto
+        assertThat(contentCodes(own.body)).contains("CNT-DIGITAL-THANKS");
+        assertThat(contentCodes(generic.body)).doesNotContain("CNT-DIGITAL-THANKS").contains("CNT-FRIEND");
+        assertThat(contentCodes(get(grid, TOKENS.mixed(SUB_A, "CARE")).body)).isEqualTo(contentCodes(generic.body));
+        // B non è in quel segmento: vede la propria vista, senza quel contenuto
+        assertThat(contentCodes(get(grid, TOKENS.member(SUB_B)).body)).doesNotContain("CNT-DIGITAL-THANKS");
         assertThat(get("/v1/portal/theme", TOKENS.operator("carla", "CARE")).status).isEqualTo(200);
         assertThat(get("/v1/portal/theme", TOKENS.member(SUB_B)).status).isEqualTo(200);
         // un placement sbagliato resta un 400 di dominio, per il membro come per l'operatore
@@ -414,7 +427,9 @@ abstract class PortalOidcScenarios {
         assertThat(r.body.path("code").asString()).isEqualTo("MEMBER_REQUIRED");
         assertThat(r.text).doesNotContain(A);
         assertThat(request(HttpMethod.POST, "/v1/portal/inbox/read-all", token, null, null, null).status).isEqualTo(403);
-        assertThat(get("/v1/portal/content?placement=HOME_GRID", token).status).isEqualTo(200);
+        Reply content = get("/v1/portal/content?placement=HOME_GRID", token);
+        assertThat(content.status).as(content.text).isEqualTo(200);
+        assertThat(contentCodes(content.body)).doesNotContain("CNT-DIGITAL-THANKS").contains("CNT-FRIEND");
     }
 
     @Test
@@ -463,7 +478,10 @@ abstract class PortalOidcScenarios {
         }
         assertThat(request(HttpMethod.POST, "/v1/portal/inbox/read-all", token, null, null, null).status).isEqualTo(409);
         // contenuti (OPTIONAL) e tema non richiedono il membro: la vista generica c'è subito
-        assertThat(get("/v1/portal/content?placement=HOME_GRID", token).status).isEqualTo(200);
+        Reply unlinkedView = get("/v1/portal/content?placement=HOME_GRID", token);
+        assertThat(unlinkedView.status).as(unlinkedView.text).isEqualTo(200);
+        assertThat(contentCodes(unlinkedView.body)).isEqualTo(contentCodes(get("/v1/portal/content?placement=HOME_GRID",
+                TOKENS.operator("carla", "CARE")).body)).doesNotContain("CNT-DIGITAL-THANKS").contains("CNT-FRIEND");
         assertThat(get("/v1/portal/theme", token).status).isEqualTo(200);
 
         String member = String.format("MBR-%06d", idBase() + 4);
@@ -564,6 +582,14 @@ abstract class PortalOidcScenarios {
         List<String> out = new ArrayList<>();
         for (JsonNode m : page.path("items")) {
             out.add(m.path("title").asString());
+        }
+        return out;
+    }
+
+    private static List<String> contentCodes(JsonNode view) {
+        List<String> out = new ArrayList<>();
+        for (JsonNode c : view) {
+            out.add(c.path("code").asString());
         }
         return out;
     }
