@@ -54,7 +54,8 @@ beforeEach(() => {
     vi.fn(async (url: URL | string, init: RequestInit) => {
       const u = String(url);
       seen.push({ url: u, init });
-      if (u.startsWith("http://member.test/v1/members/nicknames")) {
+      const target = new URL(u);
+      if (target.origin === "http://member.test" && target.pathname === "/v1/members/nicknames") {
         return Response.json({ items: [{ memberId: "MBR-000005", nickname: "fra_r" }] });
       }
       if (u.includes("/v1/portal/leaderboards")) return Response.json(BOARD);

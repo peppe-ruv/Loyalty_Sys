@@ -8,6 +8,10 @@ on:
   schedule:
     - cron: "30 2 * * *"
 
+# Minimo privilegio per il GITHUB_TOKEN: il job legge il codice e basta (l'artefatto usa il token di runtime).
+permissions:
+  contents: read
+
 concurrency:
   group: testbook
   cancel-in-progress: true

@@ -6,7 +6,7 @@ description: "API reference del campaign-service (port 8083). Motore regole che 
 
 Il Campaign Service è il **motore regole** di Loyalty Hub. Consuma ogni azione in arrivo da `lh.actions.v1`, la valuta contro le campagne attive e decide quali effetti pubblicare su `lh.effects.v1`. Tiene i contatori dei limiti, i budget e il registro delle valutazioni con la spiegazione riga per riga (spiegabilità). Non applica gli effetti e non conosce i saldi.
 
-Per capire come funziona il motore end-to-end, leggi [Motore regole](/concetti/motore-regole) e [Campagne](/concetti/campagne).
+Per capire come funziona il motore end-to-end, leggi [Azioni e campagne](/concetti/azioni-e-campagne).
 
 ## Base URL
 
@@ -301,7 +301,7 @@ L'esistenza dei codici referenziati (premio, badge, template) non è verificabil
     Il servizio che applica gli effetti `GRANT` decisi da campaign.
   </Card>
 
-  <Card title="Motore regole" icon="cogs" href="/concetti/motore-regole">
+  <Card title="Motore regole" icon="cogs" href="/concetti/azioni-e-campagne">
     Come si costruisce una campagna passo passo.
   </Card>
 
