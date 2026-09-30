@@ -1,9 +1,10 @@
 package io.loyaltyhub.engagement.api;
 
+import io.loyaltyhub.common.web.MemberEndpoint;
+import io.loyaltyhub.common.web.MemberPrincipal;
 import io.loyaltyhub.common.web.PageResponse;
-import io.loyaltyhub.common.web.RequiresRole;
-import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.engagement.application.InboxService;
+import io.swagger.v3.oas.annotations.media.Schema;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,13 +15,16 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Inbox del portale (docs/servizi/engagement-service.md §3; PT-12 e campanella, F-MSG-01). Solo canale {@code INAPP}.
- * {@code memberId} esplicito (docs/06 §2): in query o, per le scritture, anche nel corpo {@code {memberId}}.
+ * Il membro viene solo dal token (Q-410, ADR-048, docs/06 §3.4): nessun {@code memberId} in query. In {@code demo} lo
+ * legge l'interceptor ({@code memberId} o {@code X-LH-Member}); il campo {@code memberId} del corpo delle scritture è
+ * deprecato, valido solo in demo. Un messaggio di un altro membro dà {@code 404}.
  */
 @RestController
 @RequestMapping("/v1/portal/inbox")
 public class PortalInboxController {
 
-    public record MemberRequest(String memberId) {
+    /** Corpo (facoltativo) delle scritture: {@code memberId} è deprecato e vale solo nel profilo demo (Q-553). */
+    public record MemberRequest(@Schema(deprecated = true, description = "solo profilo demo") String memberId) {
     }
 
     private final InboxService inbox;
@@ -30,34 +34,29 @@ public class PortalInboxController {
     }
 
     @GetMapping
-    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
-    public PageResponse<InboxService.PortalMessage> inbox(@RequestParam(required = false) String memberId,
+    @MemberEndpoint
+    public PageResponse<InboxService.PortalMessage> inbox(MemberPrincipal principal,
                                                           @RequestParam(defaultValue = "0") int page,
                                                           @RequestParam(defaultValue = "20") int size) {
-        return inbox.portalInbox(memberId, page, size);
+        return inbox.portalInbox(principal.idOrNull(), page, size);
     }
 
     @GetMapping("/unread-count")
-    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
-    public InboxService.UnreadCount unreadCount(@RequestParam(required = false) String memberId) {
-        return inbox.unread(memberId);
+    @MemberEndpoint
+    public InboxService.UnreadCount unreadCount(MemberPrincipal principal) {
+        return inbox.unread(principal.idOrNull());
     }
 
     @PostMapping("/{id}/read")
-    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
-    public InboxService.PortalMessage read(@PathVariable String id, @RequestParam(required = false) String memberId,
+    @MemberEndpoint
+    public InboxService.PortalMessage read(@PathVariable String id, MemberPrincipal principal,
                                            @RequestBody(required = false) MemberRequest body) {
-        return inbox.markRead(id, member(memberId, body));
+        return inbox.markRead(id, principal.merge(body == null ? null : body.memberId()));
     }
 
     @PostMapping("/read-all")
-    @RequiresRole({Role.ADMIN, Role.MARKETING, Role.LEGAL, Role.CARE, Role.ANALYST})
-    public InboxService.ReadAllOutcome readAll(@RequestParam(required = false) String memberId,
-                                               @RequestBody(required = false) MemberRequest body) {
-        return inbox.markAllRead(member(memberId, body));
-    }
-
-    private static String member(String param, MemberRequest body) {
-        return param != null && !param.isBlank() ? param : body == null ? null : body.memberId();
+    @MemberEndpoint
+    public InboxService.ReadAllOutcome readAll(MemberPrincipal principal, @RequestBody(required = false) MemberRequest body) {
+        return inbox.markAllRead(principal.merge(body == null ? null : body.memberId()));
     }
 }

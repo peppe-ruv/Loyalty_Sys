@@ -17,9 +17,9 @@ Non invia email/SMS/push reali: il canale `EMAIL_FAKE` produce solo un'anteprima
 | `theme` | `id` = `default`, `program_name`, `tagline`, `logo_url`, `colors jsonb` (`{primary, secondary, coin, night, bg}`), `hero_title`, `hero_subtitle`, `font_display`, `currency_names jsonb` (nomi delle valute nel portale, Q-79), `updated_at` |
 | `webhook` | `id`, `code` UQ (SPEC-GAP Q-97), `name`, `url`, `secret`, `fact_types text[]`, `enabled`, `created_by` |
 | `webhook_delivery` | `id`, `webhook_id`, `event_id`, `fact_type`, `attempt`, `status` (`PENDING, OK, FAILED, GAVE_UP`), `http_status`, `response_excerpt`, `next_attempt_at`, `created_at` · UQ (`webhook_id`,`event_id`); in più (SPEC-GAP Q-97) `member_id`, `test`, `payload`, `signature`, `error`, `duration_ms`, `last_attempt_at`, `claimed_until` |
-| `engagement_member_snapshot` | `member_id` PK, `first_name`, `status`, `tier_code`, `segments text[]`, `registered_at` (V3, Q-71), `updated_at`. Prefisso `engagement_` per non collidere con `campaign.member_snapshot` nel search_path dell'hub (ADR-023) |
+| `engagement_member_snapshot` | `member_id` PK, `first_name`, `status`, `tier_code`, `segments text[]`, `registered_at` (V3, Q-71), `updated_at`; proiezione del legame account↔membro (Q-550, ADR-048): `subject_ref` (pseudonimo HMAC di `iss`+`sub`, mai il `sub`), `subject_ref_at` (istante dell'ultimo aggiornamento del legame), `subject_erased` (lapide dell'anonimizzazione) · indice unico parziale su `subject_ref` (`V6`). Prefisso `engagement_` per non collidere con `campaign.member_snapshot` nel search_path dell'hub (ADR-023) |
 
-Tracciato delle tabelle (docs/18 §3.12-bis, verificato sulle migrazioni `V1`–`V5`). Linee continue: vincolo `FOREIGN KEY` nella migrazione (`notification_rule.template_code`, `webhook_delivery.webhook_id`); tratteggiate: riferimento logico tenuto dal codice. Delle tabelle comuni di lh-common (docs/06 §1) compare solo `approval_history`, che registra le transizioni dei contenuti (`entity_type = CONTENT`, ciclo comune di docs/03 §3.6). `theme` è una riga sola (`default`) senza relazioni.
+Tracciato delle tabelle (docs/18 §3.12-bis, verificato sulle migrazioni `V1`–`V6`). Linee continue: vincolo `FOREIGN KEY` nella migrazione (`notification_rule.template_code`, `webhook_delivery.webhook_id`); tratteggiate: riferimento logico tenuto dal codice. Delle tabelle comuni di lh-common (docs/06 §1) compare solo `approval_history`, che registra le transizioni dei contenuti (`entity_type = CONTENT`, ciclo comune di docs/03 §3.6). `theme` è una riga sola (`default`) senza relazioni.
 
 ```mermaid
 erDiagram
@@ -72,6 +72,9 @@ erDiagram
     text member_id PK
     text status
     text tier_code
+    text subject_ref UK "pseudonimo del token, indice parziale"
+    timestamptz subject_ref_at
+    boolean subject_erased
   }
   theme {
     text id PK "default"
@@ -101,20 +104,22 @@ erDiagram
 | GET/POST/PUT/DELETE | `/v1/webhooks` · GET `/v1/webhooks/{id}/deliveries` · POST `/v1/webhooks/{id}/test` · POST `/v1/webhook-deliveries/{id}/retry` | il `secret` si legge solo alla creazione |
 
 ### Portale
+Il membro viene solo dal token (Q-410, ADR-048, docs/06 §3.4): in `enterprise` un `memberId` in query, campo form, corpo o header `X-LH-Member` dà `400 MEMBER_FROM_TOKEN` (anche se è il proprio), un operatore o un token misto `403 MEMBER_REQUIRED` sulle funzioni `REQUIRED`, un `sub` non ancora legato (o anonimizzato) `409 MEMBER_NOT_LINKED` con `Retry-After: 2`, un token di membro sulle API di backoffice `403 FORBIDDEN_ROLE`. In `demo` il membro è il `memberId` in query (o, deprecato, nel corpo) oppure l'header `X-LH-Member` messo dal BFF (regola 6-bis); due fonti diverse `400 MEMBER_MISMATCH`; gli errori senza membro restano quelli di prima. Nessun percorso del portale di engagement porta l'id del membro: non ci sono percorsi legacy da deprecare, e i parametri `memberId` escono dal contratto OpenAPI.
+
 | Metodo | Path | Note |
 |---|---|---|
-| GET | `/v1/portal/content?memberId=&placement=` | elenco ordinato; per `WIN` aggiungere `&prizeCode=` |
-| GET | `/v1/portal/popups/next?memberId=` | `204` se nessuno |
-| POST | `/v1/portal/popups/{id}/seen` | `{memberId, dismissed}` |
-| GET | `/v1/portal/inbox?memberId=&page=` · GET `/v1/portal/inbox/unread-count?memberId=` | |
-| POST | `/v1/portal/inbox/{id}/read` · POST `/v1/portal/inbox/read-all` | |
-| GET | `/v1/portal/theme` | cache 60 s |
+| GET | `/v1/portal/content?placement=` | elenco ordinato; per `WIN` aggiungere `&prizeCode=`; `@MemberEndpoint(OPTIONAL)`: il membro del token, oppure (un operatore, BO-17) la vista generica, cioè come un visitatore sconosciuto (contenuti con pubblico «tutti») |
+| GET | `/v1/portal/popups/next` | `204` se nessuno; `@MemberEndpoint` |
+| POST | `/v1/portal/popups/{id}/seen` | corpo facoltativo `{dismissed, memberId?}`: `memberId` è **deprecato**, solo profilo demo (in `enterprise` `400`); la vista è del solo membro del token; `@MemberEndpoint` |
+| GET | `/v1/portal/inbox?page=&size=` · GET `/v1/portal/inbox/unread-count` | l'inbox e i non letti del solo membro del token; `@MemberEndpoint` |
+| POST | `/v1/portal/inbox/{id}/read` · POST `/v1/portal/inbox/read-all` | corpo facoltativo `{memberId?}` **deprecato**, solo demo; `read` di un messaggio di un altro membro `404 NOT_FOUND` (la query è per membro: l'esistenza non si rivela); `@MemberEndpoint` |
+| GET | `/v1/portal/theme` | cache 60 s; aperto ai membri (`@RequiresRole(..., members = true)`), uguale per tutti |
 
 ## 4. Eventi
 | Direzione | Topic | Tipi |
 |---|---|---|
 | Consuma | `lh.effects.v1` | `message.send` |
-| Consuma | `lh.facts.v1` | tutti (regole di notifica, webhook); `member.*`, `tier.*`, `member.segment.*` anche per lo snapshot |
+| Consuma | `lh.facts.v1` | tutti (regole di notifica, webhook); `member.*`, `tier.*`, `member.segment.*` anche per lo snapshot; `member.registered`, `member.updated` e `member.status.changed` anche per il legame `subjectRef` (vedi §5) |
 | Produce | `lh.facts.v1` | `message.delivered`, `content.status.changed` |
 | Produce | `lh.audit.v1` | scritture su contenuti, template, regole, tema, webhook |
 
@@ -162,6 +167,7 @@ stateDiagram-v2
   OK --> [*]
 ```
 
+- **Legame token↔membro** (Q-550, ADR-048, docs/06 §3.4): `member.registered` e `member.updated` (schemi `:1` e `:2`) portano il campo opzionale `subjectRef`; `MemberSubjectProjection` lo applica a `engagement_member_snapshot` con `MemberSubjectRules` di lh-common, nella stessa transazione dello snapshot e dell'inbox idempotente (`FactHandler`, dopo l'aggiornamento dello snapshot e prima dell'erasure). Assente = nessun effetto (un member-service più vecchio non slega nessuno); `null` = slega; un fatto più vecchio di `subject_ref_at` o di un membro già cancellato non ri-lega; lo stesso pseudonimo su due membri va al più recente (a parità, all'id maggiore) e il sorpasso incrementa `lh_member_subject_relinked_total`; l'anonimizzazione (`member.status.changed`/`updated` con `ANONYMIZED`) azzera il legame e scrive la lapide `subject_erased`, che nessun replay ripristina. Un fatto senza `time` non vale «adesso»: non sorpassa un detentore datato e lascia `subject_ref_at` com'è. La lookup del token (`EngagementMemberSubjectLookup`) legge solo questa proiezione e non è autorevole: un legame assente è `409 MEMBER_NOT_LINKED` con `Retry-After: 2` («il fatto non è ancora arrivato»), non «non registrato». Su `content` (`OPTIONAL`) un `sub` non legato dà la vista generica, non un errore. Nessuna chiamata sincrona (regola 3), nessun dato personale: solo lo pseudonimo.
 - `popups/next`: primo per priorità che passa pubblico, calendario e frequenza; la registrazione della vista avviene con `seen` (non alla lettura) così un errore di rendering non consuma il pop-up.
 - `ENDED` automatico dei contenuti con `end_at` passato (job ogni 10 min).
 - Pulizia: `inbox_message` > 180 giorni, `webhook_delivery` > 14 giorni, `popup_view` > 90 giorni.
@@ -183,9 +189,10 @@ Regole seed minime: `wallet.points.earned → MSG-POINTS-EARNED`; `wallet.points
 Riferimento: `docs/18`. Le righe qui sotto sono segnaposto dell'adozione (M8.0): la fetta citata le rende normative aggiornando questa scheda.
 
 - **Rinomina in `experience-service`** (ADR-031, M10.3): schema `engagement → experience` con doppia lettura dei consumer group; composizione versionata (notify-and-pull da Directus, validatore, rollback, `block_reference`), `GET /v1/portal/pages/{slug}`; nuova scheda `docs/servizi/experience-service.md`.
+- **Membro dal token** (M8.10f, ADR-048, Q-410, Q-550; F2-SEC-09): `V6__member_subject.sql` aggiunge a `engagement_member_snapshot` il legame `subject_ref` (pseudonimo, mai il `sub`) con `subject_ref_at` e la lapide `subject_erased`; `MemberSubjectProjection` lo alimenta da `member.registered`/`member.updated`/`member.status.changed`; le API del portale (`content`, `inbox`, `popups`) usano `@MemberEndpoint` e non hanno più `memberId` in query; i campi `memberId` dei corpi sono deprecati e validi solo in `demo`. Sequenza completa in docs/06 §3.4. Testbook: TB-ENG-MBP (`docs/testbook/TB-ENG-engagement.md` §18).
 - **Bridge audit del CMS** (ADR-043, M8.12): `POST /v1/audit/external` (HMAC come `/v1/cms/notify`) verso `audit_entry`.
 - **Dati personali** (ADR-032, M8.4): `engagement_member_snapshot.first_name` esce dagli snapshot; i segnaposto con il nome si risolvono nel BFF a lettura.
-- **Doppia lettura `member.*:1`/`:2`** (ADR-032, `docs/18 §3.4`, Q-346; M8.4e, in vigore): `member.registered` e `member.updated` si leggono in entrambe le versioni, scelte dal suffisso di `dataschema` (assente = `:1`). Dalla `:1` si prende ancora `firstName`; dalla `:2` mai (nemmeno se comparisse). Un campo assente nella versione ricevuta non sovrascrive il valore noto: `first_name`, `status` e `registered_at` di `engagement_member_snapshot` si aggiornano con `COALESCE` (riga nuova senza stato → `ACTIVE`). `locale`, `birthYear`, `province` ed `emailHash` della `:2` non si conservano: in engagement non hanno lettore e nessuna colonna nuova è stata aggiunta. Rendering invariato: `{{member.firstName}}` usa il nome ricevuto da un `:1`; per un membro visto solo in `:2` il segnaposto si rende come ogni valore assente (stringa vuota, segnalato in `missing` nell'anteprima) finché il BFF non lo risolverà a lettura. Anonimizzazione invariata. La finestra dura fino a M10 (Q-346), poi la lettura `:1` si rimuove.
+- **Doppia lettura `member.*:1`/`:2`** (ADR-032, `docs/18 §3.4`, Q-346; M8.4e, in vigore): `member.registered` e `member.updated` si leggono in entrambe le versioni, scelte dal suffisso di `dataschema` (assente = `:1`). Dalla `:1` si prende ancora `firstName`; dalla `:2` mai (nemmeno se comparisse). Un campo assente nella versione ricevuta non sovrascrive il valore noto: `first_name`, `status` e `registered_at` di `engagement_member_snapshot` si aggiornano con `COALESCE` (riga nuova senza stato → `ACTIVE`). `locale`, `birthYear`, `province` ed `emailHash` della `:2` non si conservano: in engagement non hanno lettore e non si aggiunge nessuna colonna per loro (le colonne di `V6` sono solo del legame `subjectRef`). Rendering invariato: `{{member.firstName}}` usa il nome ricevuto da un `:1`; per un membro visto solo in `:2` il segnaposto si rende come ogni valore assente (stringa vuota, segnalato in `missing` nell'anteprima) finché il BFF non lo risolverà a lettura. Anonimizzazione invariata. La finestra dura fino a M10 (Q-346), poi la lettura `:1` si rimuove.
 
 **Classificazione `x-lh-class`** (`docs/18 §3.15`, F2-GRC-05; prima stesura M8.0, verificata e resa per colonna in M8.13). Tutto ciò che non è elencato è `INTERNAL`.
 - `PERSONAL`: `engagement_member_snapshot.first_name` (fino a M8.4), `inbox_message.title`/`body` (possono contenere il nome), `popup_view.member_id` con date.

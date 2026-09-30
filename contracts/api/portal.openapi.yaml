@@ -54,6 +54,18 @@ components:
           format: int64
           type: integer
       type: object
+    Category:
+      properties:
+        code:
+          type: string
+        icon:
+          type: string
+        name:
+          type: string
+        sortOrder:
+          format: int32
+          type: integer
+      type: object
     Completeness:
       properties:
         completed:
@@ -93,6 +105,24 @@ components:
         style:
           $ref: "#/components/schemas/JsonNode"
         title:
+          type: string
+      type: object
+    Edition:
+      properties:
+        code:
+          type: string
+        endDate:
+          format: date
+          type: string
+        name:
+          type: string
+        redemptionGraceUntil:
+          format: date
+          type: string
+        startDate:
+          format: date
+          type: string
+        status:
           type: string
       type: object
     Entry:
@@ -250,6 +280,8 @@ components:
     MemberRequest:
       properties:
         memberId:
+          deprecated: true
+          description: solo profilo demo
           type: string
       type: object
     NextTier:
@@ -290,6 +322,8 @@ components:
     PlayRequest:
       properties:
         memberId:
+          deprecated: true
+          description: solo profilo demo
           type: string
       type: object
     PlayResult:
@@ -774,6 +808,8 @@ components:
     RedemptionRequest:
       properties:
         memberId:
+          deprecated: true
+          description: solo profilo demo; in enterprise il membro è quello del token
           type: string
         rewardCode:
           type: string
@@ -847,6 +883,8 @@ components:
         dismissed:
           type: boolean
         memberId:
+          deprecated: true
+          description: solo profilo demo
           type: string
       type: object
     Theme:
@@ -930,12 +968,6 @@ paths:
   /v1/portal/achievements:
     get:
       operationId: achievements
-      parameters:
-      - in: query
-        name: memberId
-        required: true
-        schema:
-          type: string
       responses:
         "200":
           content:
@@ -951,12 +983,6 @@ paths:
   /v1/portal/badges:
     get:
       operationId: badges_1
-      parameters:
-      - in: query
-        name: memberId
-        required: true
-        schema:
-          type: string
       responses:
         "200":
           content:
@@ -973,11 +999,6 @@ paths:
     get:
       operationId: list_1
       parameters:
-      - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
       - in: query
         name: codes
         required: false
@@ -1000,12 +1021,6 @@ paths:
   /v1/portal/catalog:
     get:
       operationId: catalog
-      parameters:
-      - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
       responses:
         "200":
           content:
@@ -1020,11 +1035,6 @@ paths:
     get:
       operationId: content
       parameters:
-      - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
       - in: query
         name: placement
         required: false
@@ -1050,12 +1060,6 @@ paths:
   /v1/portal/contests:
     get:
       operationId: live
-      parameters:
-      - in: query
-        name: memberId
-        required: true
-        schema:
-          type: string
       responses:
         "200":
           content:
@@ -1103,11 +1107,6 @@ paths:
         schema:
           type: string
       - in: query
-        name: memberId
-        required: true
-        schema:
-          type: string
-      - in: query
         name: limit
         required: false
         schema:
@@ -1129,12 +1128,6 @@ paths:
   /v1/portal/coupons:
     get:
       operationId: coupons
-      parameters:
-      - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
       responses:
         "200":
           content:
@@ -1147,15 +1140,25 @@ paths:
       summary: Coupons — portal coupons
       tags:
       - portal-coupons
+  /v1/portal/editions:
+    get:
+      operationId: editions
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/Edition"
+                type: array
+          description: OK
+      summary: Editions — portal wallets
+      tags:
+      - portal-wallets
   /v1/portal/inbox:
     get:
       operationId: inbox
       parameters:
-      - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
       - in: query
         name: page
         required: false
@@ -1183,12 +1186,6 @@ paths:
   /v1/portal/inbox/read-all:
     post:
       operationId: readAll
-      parameters:
-      - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
       requestBody:
         content:
           application/json:
@@ -1207,12 +1204,6 @@ paths:
   /v1/portal/inbox/unread-count:
     get:
       operationId: unreadCount
-      parameters:
-      - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
       responses:
         "200":
           content:
@@ -1230,11 +1221,6 @@ paths:
       - in: path
         name: id
         required: true
-        schema:
-          type: string
-      - in: query
-        name: memberId
-        required: false
         schema:
           type: string
       requestBody:
@@ -1256,11 +1242,6 @@ paths:
     get:
       operationId: list_3
       parameters:
-      - in: query
-        name: memberId
-        required: true
-        schema:
-          type: string
       - in: query
         name: resolve
         required: false
@@ -1284,11 +1265,6 @@ paths:
       parameters:
       - in: path
         name: code
-        required: true
-        schema:
-          type: string
-      - in: query
-        name: memberId
         required: true
         schema:
           type: string
@@ -1351,6 +1327,47 @@ paths:
       summary: Referral — portal me
       tags:
       - portal-me
+  /v1/portal/me/wallet:
+    get:
+      operationId: myWallet
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WalletView"
+          description: OK
+      summary: My wallet
+      tags:
+      - portal-me-wallet
+  /v1/portal/me/wallet/activity:
+    get:
+      operationId: myActivity
+      parameters:
+      - in: query
+        name: currency
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: size
+        required: false
+        schema:
+          default: 30
+          format: int32
+          type: integer
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+                type: array
+          description: OK
+      summary: My activity
+      tags:
+      - portal-me-wallet
   /v1/portal/members:
     post:
       operationId: register
@@ -1444,12 +1461,6 @@ paths:
   /v1/portal/popups/next:
     get:
       operationId: next
-      parameters:
-      - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
       responses:
         "200":
           content:
@@ -1483,12 +1494,6 @@ paths:
   /v1/portal/redemptions:
     get:
       operationId: list
-      parameters:
-      - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
       responses:
         "200":
           content:
@@ -1528,11 +1533,6 @@ paths:
         required: true
         schema:
           type: string
-      - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
       responses:
         "200":
           content:
@@ -1552,11 +1552,6 @@ paths:
         required: true
         schema:
           type: string
-      - in: query
-        name: memberId
-        required: false
-        schema:
-          type: string
       responses:
         "200":
           content:
@@ -1567,6 +1562,21 @@ paths:
       summary: Cancel — portal redemptions
       tags:
       - portal-redemptions
+  /v1/portal/reward-categories:
+    get:
+      operationId: categories_1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/Category"
+                type: array
+          description: OK
+      summary: Categories — portal catalog
+      tags:
+      - portal-catalog
   /v1/portal/rewards/{code}:
     get:
       operationId: reward_1
@@ -1574,11 +1584,6 @@ paths:
       - in: path
         name: code
         required: true
-        schema:
-          type: string
-      - in: query
-        name: memberId
-        required: false
         schema:
           type: string
       responses:
@@ -1621,9 +1626,12 @@ paths:
       - portal-wallets
   /v1/portal/wallets/{memberId}:
     get:
+      deprecated: true
       operationId: wallet_1
       parameters:
-      - in: path
+      - deprecated: true
+        description: solo profilo demo
+        in: path
         name: memberId
         required: true
         schema:
@@ -1640,13 +1648,9 @@ paths:
       - portal-wallets
   /v1/portal/wallets/{memberId}/activity:
     get:
+      deprecated: true
       operationId: activity
       parameters:
-      - in: path
-        name: memberId
-        required: true
-        schema:
-          type: string
       - in: query
         name: currency
         required: false
@@ -1659,6 +1663,13 @@ paths:
           default: 30
           format: int32
           type: integer
+      - deprecated: true
+        description: solo profilo demo
+        in: path
+        name: memberId
+        required: true
+        schema:
+          type: string
       responses:
         "200":
           content:

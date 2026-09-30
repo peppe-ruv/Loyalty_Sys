@@ -3,6 +3,7 @@ package io.loyaltyhub.engagement.messaging;
 import io.loyaltyhub.common.event.LhEvent;
 import io.loyaltyhub.common.event.LhEventTypes;
 import io.loyaltyhub.common.inbox.EventHandler;
+import io.loyaltyhub.engagement.application.MemberSubjectProjection;
 import io.loyaltyhub.engagement.application.NotificationService;
 import io.loyaltyhub.engagement.application.WebhookService;
 import io.loyaltyhub.common.privacy.PersonalData;
@@ -18,6 +19,8 @@ import java.util.Set;
  * {@code tier.*}, {@code member.segment.*}), poi le regole di notifica (F-MSG-01), infine l'abbinamento ai webhook
  * (F-WBH-01: solo righe {@code webhook_delivery} nella stessa transazione; l'HTTP parte dallo scheduler). L'ordine
  * conta: il messaggio di benvenuto di {@code member.registered} trova già il nome per {@code {{member.firstName}}}.
+ * Sui fatti {@code member.registered/updated/status.changed} lo snapshot porta anche il legame {@code subjectRef → membro}
+ * ({@link MemberSubjectProjection}, F2-SEC-09, ADR-048, Q-550), nella stessa transazione.
  * {@code member.registered/updated} si leggono in versione {@code :1} e {@code :2} ({@link MemberProfileFact}, ADR-032).
  */
 @Component
@@ -27,10 +30,12 @@ public class FactHandler implements EventHandler {
     private final NotificationService notifications;
     private final WebhookService webhooks;
     private final MemberErasureRepository erasure;
+    private final MemberSubjectProjection subjects;
 
     public FactHandler(MemberSnapshotRepository members, NotificationService notifications, WebhookService webhooks,
-                       MemberErasureRepository erasure) {
+                       MemberErasureRepository erasure, MemberSubjectProjection subjects) {
         this.erasure = erasure;
+        this.subjects = subjects;
         this.members = members;
         this.notifications = notifications;
         this.webhooks = webhooks;
@@ -49,6 +54,12 @@ public class FactHandler implements EventHandler {
         updateSnapshot(event);
         notifications.apply(event);
         webhooks.enqueue(event);
+    }
+
+    /** I fatti di member-service che portano il legame {@code subjectRef} o la sua cancellazione. */
+    private static boolean isMemberFact(String type) {
+        return LhEventTypes.Fact.MEMBER_REGISTERED.equals(type) || LhEventTypes.Fact.MEMBER_UPDATED.equals(type)
+                || LhEventTypes.Fact.MEMBER_STATUS_CHANGED.equals(type);
     }
 
     private void updateSnapshot(LhEvent<JsonNode> event) {
@@ -91,6 +102,10 @@ public class FactHandler implements EventHandler {
             default -> {
                 // nessun effetto sullo snapshot
             }
+        }
+        // Legame token↔membro (F2-SEC-09, ADR-048, Q-550): nella stessa transazione dello snapshot, prima dell'erasure.
+        if (isMemberFact(event.type())) {
+            subjects.apply(memberId, event);
         }
         // Anonimizzazione (F-MBR-05, M7.5): dopo l'aggiornamento (che conserva il nome noto, usato per ripulire i testi).
         if (PersonalData.isAnonymization(event)) {

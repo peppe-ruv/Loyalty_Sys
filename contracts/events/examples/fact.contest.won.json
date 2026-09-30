@@ -11,7 +11,7 @@
   "lhcorrelationid": "01J8ZP0A1B2C3D4E5F6G7H8J9K",
   "lhcausationid": "01J8ZP3A4B5C6D7E8F9G0H1J2K",
   "lhhop": 1,
-  "lhactor": "MEMBER:MBR-000011",
+  "lhactor": "member:MBR-000011",
   "data": {
     "contestCode": "IW-AUTUNNO",
     "playId": "01J8ZP3A4B5C6D7E8F9G0H1J2K",
