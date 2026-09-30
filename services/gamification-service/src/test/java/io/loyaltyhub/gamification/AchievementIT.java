@@ -1,5 +1,7 @@
 package io.loyaltyhub.gamification;
 
+import io.loyaltyhub.common.demo.SeedDates;
+import io.loyaltyhub.gamification.domain.AchievementRules;
 import io.loyaltyhub.testsupport.ListenerGroups;
 import io.loyaltyhub.testsupport.TopicReader;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
@@ -26,6 +28,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -92,7 +95,12 @@ class AchievementIT {
         JsonNode matteo = achievement("MBR-000010", "ACH-STREAK-7");
         assertThat(matteo.path("value").asLong()).isEqualTo(5);
         assertThat(matteo.path("target").asLong()).isEqualTo(7);
-        assertThat(achievement("MBR-000003", "ACH-3-PURCHASES-MONTH").path("value").asLong()).isEqualTo(2);
+        // Il seed mette il tris di Giulia (2/3) all'ultimo giorno feriale (@lastWeekday, docs/10): nei primi giorni del
+        // mese quel giorno cade nel mese precedente (Europe/Rome) e il portale mostra il mese in corso, cioè 0.
+        Instant seededAt = SeedDates.resolve("@lastWeekdayT10:30", Clock.systemUTC());
+        long trisThisMonth = AchievementRules.periodKey("MONTH", seededAt)
+                .equals(AchievementRules.periodKey("MONTH", Instant.now())) ? 2 : 0;
+        assertThat(achievement("MBR-000003", "ACH-3-PURCHASES-MONTH").path("value").asLong()).isEqualTo(trisThisMonth);
 
         JsonNode francesca = get("/v1/portal/badges?memberId=MBR-000005");
         assertThat(francesca.size()).isEqualTo(6);
