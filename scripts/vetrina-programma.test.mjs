@@ -16,6 +16,8 @@ const SEED_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const TOKEN = 'SENTINEL-SENTINEL-SENTINEL-0000';
 const NOW = Date.parse('2026-09-30T12:00:00Z');
 const BASE = 'https://hub.example.org';
+/** Origine (schema, host, porta) di un URL: i confronti per prefisso accetterebbero anche `https://idp.example.org.altro`. */
+const originOf = (u) => new URL(String(u)).origin;
 
 const COLLECTIONS = {
   '/v1/event-types': ['event-types', 'event_type'],
@@ -371,7 +373,7 @@ test('device flow: il token resta in memoria, il codice utente si mostra, il tok
   let polls = 0;
   const idp = 'https://idp.example.org/realms/loyaltyhub';
   const fetch = async (url, init = {}) => {
-    if (!String(url).startsWith('https://idp.example.org')) return hub.fetch(url, init);
+    if (originOf(url) !== 'https://idp.example.org') return hub.fetch(url, init);
     idpCalls.push({ url: String(url), method: init.method ?? 'GET', body: init.body });
     if (String(url).endsWith('/.well-known/openid-configuration')) {
       return json(200, { device_authorization_endpoint: `${idp}/protocol/openid-connect/auth/device`, token_endpoint: `${idp}/protocol/openid-connect/token` });
@@ -405,7 +407,7 @@ test('device flow: endpoint di un\'altra origine o http remoto sono rifiutati', 
   const r = await run(['--base-url', BASE, '--issuer', idp], { fetch });
   assert.equal(r.code, 2);
   assert.match(r.err, /origine diversa/);
-  assert.ok(seen.every((u) => u.startsWith('https://idp.example.org')));
+  assert.ok(seen.every((u) => originOf(u) === 'https://idp.example.org'));
   const http = await run(['--base-url', BASE, '--issuer', 'http://idp.example.org/realms/x', '--allow-http'], { fetch });
   assert.equal(http.code, 2);
 });
@@ -512,7 +514,7 @@ test('device flow: access_denied, expired_token e scadenza ⇒ uscita 2, senza t
   for (const error of ['access_denied', 'expired_token']) {
     const serviceCalls = [];
     const fetch = async (url) => {
-      if (!String(url).startsWith('https://idp.example.org')) { serviceCalls.push(String(url)); return json(200, []); }
+      if (originOf(url) !== 'https://idp.example.org') { serviceCalls.push(String(url)); return json(200, []); }
       if (String(url).endsWith('/.well-known/openid-configuration')) {
         return json(200, { device_authorization_endpoint: `${idp}/auth/device`, token_endpoint: `${idp}/token` });
       }
@@ -613,5 +615,5 @@ test('file del token: una cartella non vale e LH_BASE_URL è un\'alternativa a -
   assert.equal(r.code, 0, r.err);
   const cli = await run(['--token-file', file, '--base-url', 'https://altro.example.org'], { env: { LH_BASE_URL: BASE }, file });
   assert.equal(cli.code, 0);
-  assert.ok(cli.hub.state.calls.every((c) => c.url.startsWith('https://altro.example.org')), '--base-url prevale su LH_BASE_URL');
+  assert.ok(cli.hub.state.calls.every((c) => originOf(c.url) === 'https://altro.example.org'), '--base-url prevale su LH_BASE_URL');
 });
