@@ -1,0 +1,188 @@
+---
+title: "Eventi action"
+description: "Schemi degli eventi della famiglia action: type, versioni e campi."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da contracts/events/: non modificare a mano. */}
+
+Questa pagina è generata dagli schemi JSON in `contracts/events/action/`. Un campo con PII **sì** non può comparire in un evento pubblicato (ADR-032). Il formato dei messaggi e i topic sono in [Eventi e topic](/specifiche/eventi-e-topic).
+
+## `io.loyaltyhub.action.achievement.completed` · versione 1
+
+Specifica: EVT-ACT-25, interna dal ponte su fact.achievement.completed.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `achievementCode` | string | sì | no |  |
+| `achievementName` | string | no | no |  |
+| `periodKey` | string | sì | no |  |
+
+## `io.loyaltyhub.action.app.login.daily` · versione 1
+
+Specifica: EVT-ACT-06, docs/05 §3.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `platform` | IOS/ANDROID/WEB | no | no |  |
+
+## `io.loyaltyhub.action.badge.awarded` · versione 1
+
+Specifica: EVT-ACT-26, interna dal ponte su fact.badge.awarded.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `badgeCode` | string | sì | no |  |
+| `badgeName` | string | no | no |  |
+| `origin` | ACHIEVEMENT/CAMPAIGN | no | no |  |
+
+## `io.loyaltyhub.action.directdebit.activated` · versione 1
+
+Specifica: EVT-ACT-04, docs/05 §3, fonte billing.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `contractId` | string | sì | no |  |
+
+## `io.loyaltyhub.action.ebill.activated` · versione 1
+
+Specifica: EVT-ACT-03, docs/05 §3, fonte billing.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `contractId` | string | sì | no |  |
+
+## `io.loyaltyhub.action.instantwin.won` · versione 1
+
+Specifica: EVT-ACT-24, interna dal ponte su fact.contest.won; docs/03 §6.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `contestCode` | string | sì | no |  |
+| `playId` | string | no | no |  |
+| `prizeCode` | string | sì | no |  |
+| `prizeName` | string | no | no |  |
+| `prizeType` | POINTS/COUPON/PHYSICAL | sì | no |  |
+| `points` | integer | no | no |  |
+| `rewardCode` | string | no | no |  |
+
+## `io.loyaltyhub.action.member.birthday` · versione 1
+
+Specifica: EVT-ACT-22, docs/05 §3, interna dal ponte su fact.member.birthday.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `age` | integer | no | no |  |
+
+## `io.loyaltyhub.action.member.profile.completed` · versione 1
+
+Specifica: EVT-ACT-21, interna dal ponte su fact.member.profile.completed.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `memberId` | string | no | no |  |
+
+## `io.loyaltyhub.action.member.registered` · versione 1
+
+Specifica: EVT-ACT-20, docs/05 §3, interna dal ponte su fact.member.registered.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `channel` | string | no | no |  |
+| `referred` | boolean | no | no |  |
+
+## `io.loyaltyhub.action.newsletter.subscribed` · versione 1
+
+Specifica: EVT-ACT-10, docs/05 §3, fonte crm.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+
+## `io.loyaltyhub.action.purchase.completed` · versione 1
+
+Specifica: EVT-ACT-01, docs/05 §3.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `orderId` | string | sì | no |  |
+| `amount` | number | sì | no |  |
+| `currency` | string | sì | no |  |
+| `channel` | ONLINE/STORE/APP | no | no |  |
+| `items` | array | no | no |  |
+| `items[].sku` | string | no | no |  |
+| `items[].category` | string | no | no |  |
+| `items[].quantity` | integer | no | no |  |
+| `items[].unitPrice` | number | no | no |  |
+
+## `io.loyaltyhub.action.purchase.returned` · versione 1
+
+Specifica: EVT-ACT-02, docs/05 §3, fonte ecommerce.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `orderId` | string | sì | no |  |
+| `amount` | number | sì | no |  |
+
+## `io.loyaltyhub.action.quiz.completed` · versione 1
+
+Specifica: EVT-ACT-08, docs/05 §3, fonte partner.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `quizId` | string | sì | no |  |
+| `correctAnswers` | integer | sì | no |  |
+| `totalQuestions` | integer | sì | no |  |
+
+## `io.loyaltyhub.action.referral.completed` · versione 1
+
+Specifica: EVT-ACT-27, interna dal ponte su fact.referral.completed.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `role` | REFERRER/REFEREE | sì | no |  |
+| `counterpartMemberId` | string | sì | no |  |
+| `qualifyingActionId` | string | no | no |  |
+
+## `io.loyaltyhub.action.review.submitted` · versione 1
+
+Specifica: EVT-ACT-09, docs/05 §3, fonte ecommerce.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `productId` | string | sì | no |  |
+| `rating` | integer | sì | no |  |
+
+## `io.loyaltyhub.action.reward.redeemed` · versione 1
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `rewardCode` | string | sì | no |  |
+| `pointsCost` | integer | sì | no |  |
+| `redemptionId` | string | no | no |  |
+| `rewardName` | string | no | no |  |
+
+## `io.loyaltyhub.action.selfreading.submitted` · versione 1
+
+Specifica: EVT-ACT-05, docs/05 §3, fonte app.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `meterId` | string | sì | no |  |
+| `reading` | number | sì | no |  |
+
+## `io.loyaltyhub.action.survey.completed` · versione 1
+
+Specifica: EVT-ACT-07, docs/05 §3, fonte partner.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `surveyId` | string | sì | no |  |
+| `score` | integer | no | no |  |
+
+## `io.loyaltyhub.action.tier.upgraded` · versione 1
+
+Specifica: EVT-ACT-23, docs/05 §3, interna dal ponte su fact.tier.upgraded.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `previousTier` | string | no | no |  |
+| `newTier` | string | sì | no |  |

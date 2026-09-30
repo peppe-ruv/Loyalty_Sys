@@ -1,0 +1,76 @@
+---
+title: "Eventi effect"
+description: "Schemi degli eventi della famiglia effect: type, versioni e campi."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da contracts/events/: non modificare a mano. */}
+
+Questa pagina è generata dagli schemi JSON in `contracts/events/effect/`. Un campo con PII **sì** non può comparire in un evento pubblicato (ADR-032). Il formato dei messaggi e i topic sono in [Eventi e topic](/specifiche/eventi-e-topic).
+
+## `io.loyaltyhub.effect.badge.award` · versione 1
+
+Specifica: EVT-EFF-04, docs/05 §4.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `effectId` | string | sì | no |  |
+| `campaignCode` | string | sì | no |  |
+| `actionId` | string | sì | no |  |
+| `actionType` | string | sì | no |  |
+| `badgeCode` | string | sì | no |  |
+
+## `io.loyaltyhub.effect.coupon.issue` · versione 1
+
+Specifica: EVT-EFF-03, docs/05 §4.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `effectId` | string | sì | no |  |
+| `campaignCode` | string | sì | no |  |
+| `actionId` | string | sì | no |  |
+| `actionType` | string | sì | no |  |
+| `rewardCode` | string | sì | no |  |
+
+## `io.loyaltyhub.effect.message.send` · versione 1
+
+Specifica: EVT-EFF-05, docs/05 §4.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `effectId` | string | sì | no |  |
+| `campaignCode` | string | sì | no |  |
+| `actionId` | string | sì | no |  |
+| `actionType` | string | sì | no |  |
+| `templateCode` | string | sì | no |  |
+| `params` | object | no | no | Valori aggiuntivi per i segnaposto \{\{data.*\}\} del template (docs/03 §3.4, SEND_MESSAGE). |
+
+## `io.loyaltyhub.effect.plays.grant` · versione 1
+
+Specifica: EVT-EFF-02, docs/05 §4.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `effectId` | string | sì | no |  |
+| `campaignCode` | string | sì | no |  |
+| `actionId` | string | sì | no |  |
+| `actionType` | string | sì | no |  |
+| `contestCode` | string | sì | no |  |
+| `count` | integer | sì | no |  |
+
+## `io.loyaltyhub.effect.points.grant` · versione 1
+
+Specifica: EVT-EFF-01, docs/05 §4.
+
+| Campo | Tipo | Obbligatorio | PII | Descrizione |
+| --- | --- | --- | --- | --- |
+| `effectId` | string | sì | no |  |
+| `campaignCode` | string | sì | no |  |
+| `actionId` | string | sì | no |  |
+| `actionType` | string | sì | no |  |
+| `currency` | PTS/STS | sì | no |  |
+| `baseAmount` | integer | sì | no |  |
+| `campaignMultiplier` | number | sì | no |  |
+| `amount` | integer | sì | no |  |
+| `tierMultiplierApplies` | boolean | sì | no |  |
+| `pendingDays` | integer | sì | no |  |
+| `description` | string | no | no |  |

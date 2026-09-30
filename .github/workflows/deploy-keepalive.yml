@@ -19,6 +19,9 @@ on:
       - "pom.xml"
   workflow_dispatch:
 
+# Nessun permesso per il GITHUB_TOKEN: il job fa solo richieste HTTP all'hub, senza checkout.
+permissions: {}
+
 concurrency:
   group: deploy-keepalive
   cancel-in-progress: true
