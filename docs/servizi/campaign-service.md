@@ -102,7 +102,7 @@ erDiagram
 | POST | `/v1/campaigns/validate` | valida struttura di condizioni/effetti/limiti senza salvare → `{valid, errors[]}` |
 | POST | `/v1/campaigns/simulate` | `{action: {type, time?, source?, data}, memberId? , memberOverride?: {tier, segments, attributes}, campaignIds?: []}` → stessa forma di `evaluation_log.results` + totali per valuta. Con `campaignIds` include anche bozze |
 | GET | `/v1/campaigns/{id}/stats` | totali + serie giornaliera 30 giorni (da `evaluation_log`) |
-| GET | `/v1/evaluations` | filtri `memberId, actionId, outcome, from, to` |
+| GET | `/v1/evaluations` | filtri `memberId, actionId, outcome, from, to`; `limit` da 1 a 100 (predefinito 50): minore di 1 o non numerico → 400 `BAD_REQUEST`, oltre il massimo (`PageParams.MAX_SIZE`) si riduce al massimo (Q-532) |
 | GET | `/v1/evaluations/{actionId}` | dettaglio completo |
 | GET | `/v1/approvals` | formato comune |
 | GET | `/v1/meta/condition-fields` | campi `member.*`, `context.*`, `history.*` con tipo e valori ammessi (i `data.*` arrivano da ingestion) |
