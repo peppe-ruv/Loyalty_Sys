@@ -56,7 +56,7 @@ CREATE TABLE approval_history (
 ```
 | Stato | `type` suffix | Quando |
 |---|---|---|
-| 400 | `bad-request` | JSON malformato, parametri errati |
+| 400 | `bad-request` | JSON malformato, parametri errati; carattere NUL (`U+0000`) nel percorso, in un parametro o in un valore o chiave del corpo JSON (mai al database: Q-532); `page` tale che `page × size` supera `Integer.MAX_VALUE`; istante o data non ISO-8601 |
 | 400 | `member-from-token` | in `oidc`, su un endpoint del portale: `memberId` in query, campo form o corpo (a qualunque profondità), oppure header `X-LH-Member`, anche se è l'id del titolare (`MEMBER_FROM_TOKEN`, §3.4) |
 | 400 | `member-mismatch` | nel profilo `demo`, due fonti del membro in disaccordo: `memberId` esplicito, `X-LH-Member`, variabile di percorso legacy (`MEMBER_MISMATCH`, §3.4) |
 | 403 | `forbidden-role` | il ruolo in `X-LH-Actor` (o nel token) non può eseguire l'azione; in `oidc` anche un token di solo membro su un handler che non è del portale del membro (§3.4) |

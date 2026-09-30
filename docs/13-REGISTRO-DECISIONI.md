@@ -374,3 +374,4 @@ Il bus preserva le proprietà che contano: **fan-out per topic** (un gruppo cons
 - Credenziali operatore pubbliche o MFA esentata (contro docs/18 §3.15 e la regola 22).
 - Seed di vetrina nel profilo `enterprise` (contro docs/18 §3.15).
 - Piani a pagamento (Koyeb, Fly.io; regola 8: resta come riserva con un'ADR di deroga).
+**Decisioni successive (Giuseppe, 2026-09-30).** Q-617, Q-618, Q-619 e Q-626 decise con il default proposto: configurazione di programma da `seed/` via API con token di operatore (Q-617), account operatore nominativi con `MFA_REQUIRED_ROLE` verificato da `deploy/idp/vetrina/apply-overlay.sh` (Q-618), registrazione chiusa nel primo passo (Q-619), client pubblico `lh-cli` con solo Device Authorization Grant nell'overlay di vetrina (Q-626). Le decisioni 5 e 6 valgono quindi come decise; restano aperte Q-620…Q-624.

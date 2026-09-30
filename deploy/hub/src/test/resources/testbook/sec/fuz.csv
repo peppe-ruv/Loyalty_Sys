@@ -2,7 +2,7 @@ id,descrizione,bersaglio,carico,atteso,divergenza
 TB-SEC-FUZ-001,GET /v1/members?q= con tautologia SQL,members-q,SQL_TAUTOLOGIA,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-002,GET /v1/members?q= con istruzione SQL impilata,members-q,SQL_IMPILATA,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-003,GET /v1/members?q= con UNION SELECT,members-q,SQL_UNION,NO_5XX+INVARIATO,-
-TB-SEC-FUZ-004,GET /v1/members?q= con byte NUL,members-q,NUL,NO_5XX+INVARIATO,Q-532
+TB-SEC-FUZ-004,GET /v1/members?q= con byte NUL,members-q,NUL,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-005,GET /v1/members?q= con 10 000 caratteri,members-q,LUNGO_10K,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-006,GET /v1/members?q= con path traversal,members-q,TRAVERSAL,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-007,GET /v1/members?q= con CRLF e intestazione iniettata,members-q,CRLF,NO_5XX+INVARIATO,-
@@ -10,7 +10,7 @@ TB-SEC-FUZ-008,GET /v1/members?q= con espressioni di template,members-q,ESPRESSI
 TB-SEC-FUZ-009,GET /v1/campaigns?q= con tautologia SQL,campaigns-q,SQL_TAUTOLOGIA,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-010,GET /v1/campaigns?q= con istruzione SQL impilata,campaigns-q,SQL_IMPILATA,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-011,GET /v1/campaigns?q= con UNION SELECT,campaigns-q,SQL_UNION,NO_5XX+INVARIATO,-
-TB-SEC-FUZ-012,GET /v1/campaigns?q= con byte NUL,campaigns-q,NUL,NO_5XX+INVARIATO,Q-532
+TB-SEC-FUZ-012,GET /v1/campaigns?q= con byte NUL,campaigns-q,NUL,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-013,GET /v1/campaigns?q= con 10 000 caratteri,campaigns-q,LUNGO_10K,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-014,GET /v1/campaigns?q= con path traversal,campaigns-q,TRAVERSAL,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-015,GET /v1/campaigns?q= con CRLF e intestazione iniettata,campaigns-q,CRLF,NO_5XX+INVARIATO,-
@@ -18,7 +18,7 @@ TB-SEC-FUZ-016,GET /v1/campaigns?q= con espressioni di template,campaigns-q,ESPR
 TB-SEC-FUZ-017,GET /v1/rewards?q= con tautologia SQL,rewards-q,SQL_TAUTOLOGIA,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-018,GET /v1/rewards?q= con istruzione SQL impilata,rewards-q,SQL_IMPILATA,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-019,GET /v1/rewards?q= con UNION SELECT,rewards-q,SQL_UNION,NO_5XX+INVARIATO,-
-TB-SEC-FUZ-020,GET /v1/rewards?q= con byte NUL,rewards-q,NUL,NO_5XX+INVARIATO,Q-532
+TB-SEC-FUZ-020,GET /v1/rewards?q= con byte NUL,rewards-q,NUL,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-021,GET /v1/rewards?q= con 10 000 caratteri,rewards-q,LUNGO_10K,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-022,GET /v1/rewards?q= con path traversal,rewards-q,TRAVERSAL,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-023,GET /v1/rewards?q= con CRLF e intestazione iniettata,rewards-q,CRLF,NO_5XX+INVARIATO,-
@@ -26,7 +26,7 @@ TB-SEC-FUZ-024,GET /v1/rewards?q= con espressioni di template,rewards-q,ESPRESSI
 TB-SEC-FUZ-025,GET /v1/events?q= con tautologia SQL,events-q,SQL_TAUTOLOGIA,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-026,GET /v1/events?q= con istruzione SQL impilata,events-q,SQL_IMPILATA,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-027,GET /v1/events?q= con UNION SELECT,events-q,SQL_UNION,NO_5XX+INVARIATO,-
-TB-SEC-FUZ-028,GET /v1/events?q= con byte NUL,events-q,NUL,NO_5XX+INVARIATO,Q-532
+TB-SEC-FUZ-028,GET /v1/events?q= con byte NUL,events-q,NUL,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-029,GET /v1/events?q= con 10 000 caratteri,events-q,LUNGO_10K,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-030,GET /v1/events?q= con path traversal,events-q,TRAVERSAL,NO_5XX+INVARIATO,-
 TB-SEC-FUZ-031,GET /v1/events?q= con CRLF e intestazione iniettata,events-q,CRLF,NO_5XX+INVARIATO,-
@@ -50,7 +50,7 @@ TB-SEC-FUZ-048,POST /v1/message-templates/MSG-POINTS-EARNED/render con espressio
 TB-SEC-FUZ-049,POST /v1/members (firstName) con tautologia SQL,member-create,SQL_TAUTOLOGIA,NO_5XX,-
 TB-SEC-FUZ-050,POST /v1/members (firstName) con istruzione SQL impilata,member-create,SQL_IMPILATA,NO_5XX,-
 TB-SEC-FUZ-051,POST /v1/members (firstName) con UNION SELECT,member-create,SQL_UNION,NO_5XX,-
-TB-SEC-FUZ-052,POST /v1/members (firstName) con byte NUL,member-create,NUL,NO_5XX,Q-532
+TB-SEC-FUZ-052,POST /v1/members (firstName) con byte NUL,member-create,NUL,NO_5XX,-
 TB-SEC-FUZ-053,POST /v1/members (firstName) con 10 000 caratteri,member-create,LUNGO_10K,NO_5XX,-
 TB-SEC-FUZ-054,POST /v1/members (firstName) con path traversal,member-create,TRAVERSAL,NO_5XX,-
 TB-SEC-FUZ-055,POST /v1/members (firstName) con CRLF e intestazione iniettata,member-create,CRLF,NO_5XX,-

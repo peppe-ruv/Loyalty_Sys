@@ -2,6 +2,7 @@ package io.loyaltyhub.ingestion.api;
 
 import io.loyaltyhub.common.web.ActorHolder;
 import io.loyaltyhub.common.web.LhException;
+import io.loyaltyhub.common.web.NulTolerantBody;
 import io.loyaltyhub.common.web.RequiresRole;
 import io.loyaltyhub.common.web.Role;
 import io.loyaltyhub.ingestion.application.ActionReplayService;
@@ -63,6 +64,9 @@ public class EventsController {
                     + " dichiarato è diverso dal client src-<codice>, nulla è salvato né pubblicato",
                     content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     })
+    // Q-371 (EnvelopeLimits): i NUL negli attributi e in data sono un esito proprio del servizio (INVALID per elemento nel
+    // batch, 400 col nome del campo per un evento): il rifiuto generico del corpo di lh-common (Q-532) non si applica.
+    @NulTolerantBody
     @RequiresRole(Role.SOURCE)
     public ResponseEntity<IngestResult> ingest(@RequestBody InboundEventRequest request,
                                                @RequestHeader(value = REPROCESS_HEADER, required = false) String reprocess) {
