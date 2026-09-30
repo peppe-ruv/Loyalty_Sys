@@ -1229,7 +1229,7 @@ Questa pagina è generata automaticamente dagli schemi JSON in \`contracts/event
       textOut += `## ${name}\n\n`;
 
       if (data.description) {
-        let escapedDesc = data.description.replace(/</g, '&lt;').replace(/\{/g, '\\{').replace(/\}/g, '\\}');
+        let escapedDesc = data.description.replace(/\\/g, "\\\\").replace(/</g, "&lt;").replace(/\{/g, "\\{").replace(/\}/g, "\\}");
         escapedDesc = escapedDesc.replace(/<!--/g, '&lt;!--');
         textOut += `${escapedDesc}\n\n`;
       }
