@@ -89,7 +89,21 @@ I punti non sono un numero unico sul conto. Sono organizzati in lotti, ognuno co
 | `EXHAUSTED` | Consumato al 100% in richieste premio o rettifiche |
 | `EXPIRED` | Scaduto per policy di scadenza della valuta |
 
-Il consumo segue la regola **FIFO** (first in, first out): quando il membro spende punti, wallet preleva prima dai lotti `ACTIVE` più vecchi. Questo protegge i punti che stanno per scadere.
+Il consumo segue la regola **FIFO** (first in, first out): quando il membro spende punti, wallet preleva prima dai lotti `ACTIVE` più vecchi. Questo protegge i punti che stanno per scadere. Un rimborso non riapre i lotti consumati: ne crea uno nuovo.
+
+```mermaid
+stateDiagram-v2
+  accTitle: Ciclo di vita di un lotto punti
+  accDescr: Un lotto nasce in attesa se l'effetto prevede giorni di attesa, altrimenti attivo; il job di rilascio lo rende attivo; le spese FIFO e gli addebiti lo consumano fino a esaurirlo; il job di scadenza porta a scaduto un lotto attivo con residuo.
+  [*] --> PENDING: accredito con pendingDays maggiore di 0
+  [*] --> ACTIVE: accredito, rettifica a credito o rimborso
+  PENDING --> ACTIVE: job di rilascio, availableAt raggiunto
+  ACTIVE --> ACTIVE: spesa o addebito parziale
+  ACTIVE --> EXHAUSTED: remaining a 0
+  ACTIVE --> EXPIRED: job di scadenza, expiresAt raggiunto
+  EXHAUSTED --> [*]
+  EXPIRED --> [*]
+```
 
 ### Edizione
 
@@ -99,9 +113,43 @@ Il consumo segue la regola **FIFO** (first in, first out): quando il membro spen
 | `ACTIVE` | In corso: i nuovi accrediti `STS` puntano a questa edizione e il tier si calcola sui punti maturati qui |
 | `CLOSED` | Chiusa: il calcolo tier è definitivo, i `STS` vengono ricalcolati; i `PTS` residui restano spendibili fino a `redemptionGraceUntil` |
 
+Ce n'è una sola `ACTIVE` alla volta.
+
+```mermaid
+stateDiagram-v2
+  accTitle: Ciclo di vita di un'edizione
+  accDescr: Un'edizione nasce pianificata, diventa attiva quando si chiude la precedente e viene chiusa dal job annuale o dal comando demo; ce n'è una sola attiva alla volta.
+  [*] --> PLANNED
+  PLANNED --> ACTIVE: chiusura della precedente, la PLANNED con inizio più vicino
+  ACTIVE --> CLOSED: chiusura edizione, job annuale o comando demo
+  CLOSED --> [*]
+```
+
 <Warning>
   Alla chiusura di un'edizione gli `STS` azzerati non sono recuperabili. Pianifica la chiusura con attenzione.
 </Warning>
+
+### Chiusura dell'edizione e discesa morbida
+
+Alla chiusura, per ogni membro `ACTIVE`, il nuovo tier è il più alto tra quello guadagnato con gli `STS` dell'edizione e quello un gradino sotto l'attuale. La salita non avviene mai in chiusura: è già immediata durante l'anno.
+
+```mermaid
+flowchart TB
+  accTitle: Chiusura dell'edizione con discesa morbida
+  accDescr: Alla chiusura si calcola il tier guadagnato con i punti status dell'edizione e il pavimento, un gradino sotto il tier attuale; il nuovo tier è il più alto dei due; se coincide con l'attuale il livello è mantenuto, altrimenti scende; i punti status ripartono da zero.
+  START["Membro ACTIVE, edizione che si chiude"] --> EARNED["earned: tier più alto con soglia al massimo pari a periodSts"]
+  START --> FLOOR["floor: rank attuale meno 1, minimo BASE"]
+  EARNED --> NEW["nuovo tier: il più alto tra earned e floor"]
+  FLOOR --> NEW
+  NEW -->|"uguale all'attuale"| RET["tier.retained"]
+  NEW -->|"più basso"| DOWN["tier.downgraded"]
+  RET --> RESET["periodSts a 0"]
+  DOWN --> RESET
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef topic fill:#FEF3C7,stroke:#D97706,color:#78350F
+  class START,EARNED,FLOOR,NEW,RESET svc
+  class RET,DOWN topic
+```
 
 ## Prossimo passo
 

@@ -35,7 +35,7 @@ beforeEach(() => {
     vi.fn(async (url: URL | string, init: RequestInit) => {
       const u = String(url);
       calls.push(u);
-      if (u.startsWith("http://member.test")) {
+      if (new URL(u).origin === "http://member.test") {
         if (!memberUp) throw new TypeError("fetch failed");
         const ids = (JSON.parse(String(init.body)) as { memberIds: string[] }).memberIds;
         const nick: Record<string, string> = { "MBR-000005": "fra_r", "MBR-000002": "marco_b", "MBR-000010": "matt_r" };

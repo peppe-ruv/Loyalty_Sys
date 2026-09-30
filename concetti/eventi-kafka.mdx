@@ -6,6 +6,33 @@ description: "Formato CloudEvents 1.0, cinque topic Kafka, estensioni lh*, chiav
 
 Il bus è il contratto pubblico tra i microservizi. Questa pagina definisce topic, envelope e regole di correlazione. Ciò che è scritto qui è vincolante per tutti i servizi.
 
+## Dalla fonte al saldo
+
+Ogni fonte è abilitata solo per certi tipi di azione (`allowed_types`). Se il tipo è ammesso, l'azione viene accettata, pubblicata su `lh.actions.v1` e valutata dalle campagne `LIVE` che la richiamano. Ogni regola verificata produce un effetto, che il servizio competente applica. Gli esempi vengono dai dati demo del Club Aurora.
+
+```mermaid
+flowchart LR
+  accTitle: Dalla fonte di ingresso al saldo del membro
+  accDescr: La fonte ecommerce può inviare purchase.completed; l'azione accettata è valutata dalla campagna CMP-PURCHASE-BASE, che produce due effetti points.grant, uno in PTS e uno in STS, un punto per euro speso. La fonte billing può inviare ebill.activated, valutata dalla campagna CMP-EBILL, che produce 300 PTS e 150 STS. Il wallet applica gli effetti creando nuovi lotti e aggiornando il saldo.
+  SRC1["Fonte ecommerce: purchase.completed ammesso"] -->|"POST /v1/events"| ACT1["Azione accettata: inbound_event ACCEPTED"]
+  ACT1 -->|"lh.actions.v1"| CMP1["CMP-PURCHASE-BASE: data.amount almeno 1"]
+  CMP1 -->|"regola verificata"| EFF1["points.grant: 1 PTS e 1 STS per euro"]
+  SRC2["Fonte billing: ebill.activated ammesso"] -->|"POST /v1/events"| ACT2["Azione accettata: inbound_event ACCEPTED"]
+  ACT2 -->|"lh.actions.v1"| CMP2["CMP-EBILL"]
+  CMP2 -->|"regola verificata"| EFF2["points.grant: 300 PTS e 150 STS"]
+  EFF1 -->|"lh.effects.v1"| WAL["wallet: nuovi lotti, saldo aggiornato"]
+  EFF2 -->|"lh.effects.v1"| WAL
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef store fill:#F1F5F9,stroke:#475569,color:#0F172A
+  classDef topic fill:#FEF3C7,stroke:#D97706,color:#78350F
+  classDef ext fill:#FFFFFF,stroke:#94A3B8,stroke-dasharray:4 2,color:#334155
+  class ACT1,ACT2,CMP1,CMP2,EFF1,EFF2 svc
+  class WAL store
+  class SRC1,SRC2 ext
+```
+
+Un tipo non ammesso per la fonte viene rifiutato con `TYPE_NOT_ALLOWED` e non arriva mai alle campagne. I campi di ogni tipo di azione sono nella pagina [Eventi action](/specifiche/eventi/action).
+
 ## I cinque topic in un colpo d'occhio
 
 Loyalty Hub separa gli eventi in cinque topic Kafka. Ognuno ha un ruolo preciso, un tipo di produttore e un tipo di consumatore. Conoscere "chi scrive dove" ti aiuta a leggere i log e a diagnosticare i blocchi.
@@ -32,6 +59,32 @@ Loyalty Hub separa gli eventi in cinque topic Kafka. Ognuno ha un ruolo preciso,
   </Card>
 </CardGroup>
 
+Le cinque famiglie in un colpo d'occhio: un'azione diventa effetti, gli effetti diventano fatti, alcuni fatti rientrano come azioni dal ponte interno; audit e DLQ raccolgono da tutti e finiscono in insight.
+
+```mermaid
+flowchart LR
+  accTitle: Le cinque famiglie di eventi
+  accDescr: Le fonti producono azioni tramite ingestion; campaign le trasforma in effetti; i servizi che applicano gli effetti producono fatti; il ponte di ingestion riporta alcuni fatti come azioni interne; tutti i servizi scrivono audit e mandano in DLQ i messaggi non elaborabili; insight legge tutte le famiglie.
+  SRC["Fonti esterne"] --> ING["ingestion"]
+  ING --> TA(["action: lh.actions.v1"])
+  TA --> CMP["campaign"]
+  CMP --> TE(["effect: lh.effects.v1"])
+  TE --> APP["wallet, reward, gamification, engagement"]
+  APP --> TF(["fact: lh.facts.v1"])
+  TF -.->|"ponte interno"| ING
+  ALL["tutti i servizi"] --> TU(["audit: lh.audit.v1"])
+  ALL -.->|"errori non elaborabili"| TD(["dlq: lh.dlq.v1"])
+  TA & TE & TF & TU & TD --> INS["insight"]
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef topic fill:#FEF3C7,stroke:#D97706,color:#78350F
+  classDef ext fill:#FFFFFF,stroke:#94A3B8,stroke-dasharray:4 2,color:#334155
+  class ING,CMP,APP,ALL,INS svc
+  class TA,TE,TF,TU,TD topic
+  class SRC ext
+```
+
+I campi di ogni tipo di evento sono nelle pagine generate dagli schemi: [action](/specifiche/eventi/action), [effect](/specifiche/eventi/effect), [fact](/specifiche/eventi/fact), [audit](/specifiche/eventi/audit) e [dlq](/specifiche/eventi/dlq).
+
 ### Un flusso concreto
 
 > Marta compra un caffè da 4 €. Il POS chiama ingestion.
@@ -40,7 +93,30 @@ Loyalty Hub separa gli eventi in cinque topic Kafka. Ognuno ha un ruolo preciso,
 > 2. `campaign` la legge, valuta le regole LIVE, produce due effetti su `lh.effects.v1`: un `GRANT` PTS 4 e un `GRANT` STS 4.
 > 3. `wallet` legge gli effetti, aggiorna il saldo, pubblica su `lh.facts.v1` due `wallet.points.earned`.
 > 4. `campaign` legge il fatto e aggiorna il suo `campaign_totals.points_granted` (spiegabilità).
-> 5. Se il tier di Marta cambia, `wallet` pubblica anche `tier.changed`; `engagement` invia una notifica (che a sua volta produce un audit su `lh.audit.v1`).
+> 5. Se il tier di Marta cambia, `wallet` pubblica anche `tier.upgraded` o `tier.downgraded`; `engagement` invia una notifica (che a sua volta produce un audit su `lh.audit.v1`).
+
+Ogni servizio scrive l'evento in una tabella `outbox` nella stessa transazione del cambiamento di stato e un relay lo pubblica; ogni consumer registra `processed_event`, applica la logica e scrive i propri eventi in outbox in un'unica transazione.
+
+```mermaid
+sequenceDiagram
+  accTitle: Da ingestion a wallet passando per l'outbox
+  accDescr: Ingestion salva l'evento in ingresso e l'azione in outbox nella stessa transazione e il relay la pubblica; campaign la consuma in modo idempotente, valuta e scrive effetti e fatto di valutazione in outbox; wallet consuma l'effetto, crea lotto e movimento e scrive il fatto punti accreditati in outbox.
+  participant S as Fonte
+  participant ING as ingestion
+  participant K as Kafka
+  participant CMP as campaign
+  participant WAL as wallet
+  S->>ING: POST /v1/events
+  Note over ING: una transazione: inbound_event ACCEPTED e outbox
+  ING-->>S: 202 ACCEPTED
+  ING->>K: relay outbox: action su lh.actions.v1
+  K->>CMP: azione
+  Note over CMP: una transazione: processed_event, contatori, evaluation_log, outbox
+  CMP->>K: relay: effect.points.grant e fact.campaign.evaluated
+  K->>WAL: effetto
+  Note over WAL: una transazione: processed_event, ledger_entry, points_lot, outbox
+  WAL->>K: relay: fact.wallet.points.earned
+```
 
 <Note>
   Le chiavi (`memberId` di default) determinano l'ordine dentro una partizione. Kafka NON garantisce ordine tra partizioni diverse. Vedi [Eventi e topic](/specifiche/eventi-e-topic) per il contratto completo.
@@ -195,4 +271,4 @@ Il diagramma si legge dall'alto: il confronto è sempre col merge-base e, se esi
 
 ## Prossimo passo
 
-Per gli endpoint REST esposti dai servizi vai a [API](reference/api).
+Per gli endpoint REST esposti dai servizi vai a [API](/api/introduzione).

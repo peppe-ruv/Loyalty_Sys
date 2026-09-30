@@ -139,4 +139,4 @@ Un messaggio in `lh.dlq.v1` significa che le retry in-process non sono riuscite 
 - **Log del servizio:** ogni microservizio scrive su stdout in formato JSON strutturato con `correlationId`.
 - **Tracciato end-to-end:** in `insight-service`, `GET /v1/traces/{correlationId}` restituisce l'intera catena azione → effetti → fatti.
 - **Audit:** ogni scrittura dal backoffice è tracciata in `lh.audit.v1` con attore, entità e diff.
-- **Specifiche originali:** in [Specifiche principali](/docs/README) trovi la fonte di verità sulle regole di dominio.
+- **Specifiche originali:** in [Specifiche principali](/specifiche/panoramica) trovi la fonte di verità sulle regole di dominio.
