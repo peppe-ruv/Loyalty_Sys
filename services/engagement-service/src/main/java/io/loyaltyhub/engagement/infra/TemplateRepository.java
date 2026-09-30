@@ -64,6 +64,17 @@ public class TemplateRepository {
                         w -> w.eq(TemplateColumn.CHANNEL, channel.trim().toUpperCase()));
     }
 
+    public List<MessageTemplate> findByCodes(java.util.Set<String> codes) {
+        if (codes == null || codes.isEmpty()) {
+            return List.of();
+        }
+        // Avoid hitting 32767 parameter limit by batching or just using IN. For our usecase, IN clause is fine.
+        String inSql = String.join(", ", java.util.Collections.nCopies(codes.size(), "?"));
+        return jdbc.sql("SELECT " + COLUMNS + " FROM message_template WHERE code IN (" + inSql + ")")
+                .params(codes.toArray())
+                .query(TemplateRepository::map).list();
+    }
+
     public Optional<MessageTemplate> find(String code) {
         if (code == null) {
             return Optional.empty();
