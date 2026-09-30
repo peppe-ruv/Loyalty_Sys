@@ -5,7 +5,8 @@
 # ed eseguire questo script dopo l'avvio di Keycloak.
 #
 # Le password generate NON vengono mai stampate su stdout ne' nei log: vanno in un file con permessi 0600
-# (umask 077 prima della creazione) e lo script stampa solo il percorso. Le password fornite da TEMP_PASS_*
+# (creato in modo atomico con umask 077, poi rinominato a fine lavoro) e lo script stampa solo il percorso.
+# Se lo script fallisce a meta', il file non viene creato: rilanciarlo reimposta tutte le password. Le password fornite da TEMP_PASS_*
 # non vengono riscritte nel file. Anche verso Keycloak le password passano da stdin e da file 0600, mai come
 # argomenti di un processo.
 #   LH_IDP_BOOTSTRAP_OUT   percorso del file delle credenziali generate
@@ -28,25 +29,35 @@ command -v python3 >/dev/null || { echo "Errore: serve python3." >&2; exit 1; }
 command -v curl >/dev/null || { echo "Errore: serve curl." >&2; exit 1; }
 command -v openssl >/dev/null || { echo "Errore: serve openssl." >&2; exit 1; }
 
-WORK="$(mktemp -d)"
-chmod 700 "$WORK"
-trap 'rm -rf "$WORK"' EXIT
-
-# File delle credenziali: crea la cartella (0700 se nuova), rifiuta un collegamento simbolico, crea il file
-# vuoto con umask 077 e forza 0600 anche se esisteva gia' con permessi piu' larghi.
+# Il file delle credenziali si crea in modo atomico: si scrive in un file temporaneo nella stessa cartella
+# (mktemp lo crea con O_EXCL e, con umask 077, 0600, senza seguire collegamenti simbolici) e solo a fine lavoro,
+# con tutte le password impostate, lo si rinomina sul percorso finale con rename(2), che sostituisce un eventuale
+# collegamento simbolico invece di seguirlo. Nessun file con la sola intestazione resta se l'autenticazione fallisce.
 CRED_DIR="$(dirname "$CRED_FILE")"
-mkdir -p -m 700 "$CRED_DIR"
-if [ -L "$CRED_FILE" ]; then
-  echo "Errore: ${CRED_FILE} e' un collegamento simbolico." >&2
+if [ -L "$CRED_DIR" ]; then
+  echo "Errore: ${CRED_DIR} e' un collegamento simbolico." >&2
   exit 1
 fi
-: > "$CRED_FILE"
-chmod 600 "$CRED_FILE"
-printf '# Password temporanee generate da bootstrap.sh (UPDATE_PASSWORD al primo accesso). Consegnare fuori banda e cancellare.\n' >> "$CRED_FILE"
+mkdir -p -m 700 "$CRED_DIR"
+if [ -L "$CRED_FILE" ] || [ -d "$CRED_FILE" ]; then
+  echo "Errore: ${CRED_FILE} e' un collegamento simbolico o una cartella." >&2
+  exit 1
+fi
+CRED_TMP="$(mktemp "${CRED_DIR}/.bootstrap-passwords.XXXXXX")"
+
+WORK="$(mktemp -d)"
+chmod 700 "$WORK"
+trap 'rm -rf "$WORK"; rm -f "$CRED_TMP"' EXIT
+printf '# Password temporanee generate da bootstrap.sh (UPDATE_PASSWORD al primo accesso). Consegnare fuori banda e cancellare.\n' >> "$CRED_TMP"
+
+# Codifica per application/x-www-form-urlencoded: legge da stdin, scrive su stdout (nome utente e password).
+urlenc() { python3 -c 'import sys,urllib.parse;sys.stdout.write(urllib.parse.quote(sys.stdin.read(),safe=""))'; }
 
 echo "Ottengo l'access token di amministrazione..."
-printf 'client_id=admin-cli&grant_type=password&username=%s&password=' "$ADMIN_USER" > "$WORK/login"
-printf '%s' "$ADMIN_PASSWORD" | python3 -c 'import sys,urllib.parse;sys.stdout.write(urllib.parse.quote(sys.stdin.read(),safe=""))' >> "$WORK/login"
+printf 'client_id=admin-cli&grant_type=password&username=' > "$WORK/login"
+printf '%s' "$ADMIN_USER" | urlenc >> "$WORK/login"
+printf '&password=' >> "$WORK/login"
+printf '%s' "$ADMIN_PASSWORD" | urlenc >> "$WORK/login"
 TOKEN="$(curl -s -f -X POST "${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token" \
   -H "Content-Type: application/x-www-form-urlencoded" --data-binary "@$WORK/login" \
   | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')" || {
@@ -106,15 +117,18 @@ for USERNAME in "${!USERS[@]}"; do
             exit 1
         }
         if [ -n "${SUPPLIED[$USERNAME]}" ]; then
-            printf '%s: (fornita da TEMP_PASS_*, non registrata qui)\n' "$USERNAME" >> "$CRED_FILE"
+            printf '%s: (fornita da TEMP_PASS_*, non registrata qui)\n' "$USERNAME" >> "$CRED_TMP"
         else
-            printf '%s: %s\n' "$USERNAME" "${USERS[$USERNAME]}" >> "$CRED_FILE"
+            printf '%s: %s\n' "$USERNAME" "${USERS[$USERNAME]}" >> "$CRED_TMP"
         fi
         echo "Password impostata con successo per $USERNAME (azione UPDATE_PASSWORD richiesta al primo login)."
     else
         echo "Attenzione: Utente $USERNAME non trovato nel realm." >&2
     fi
 done
+
+# Tutte le password sono impostate: il file temporaneo diventa il file delle credenziali (rename atomico, 0600).
+python3 -c 'import os,sys;os.replace(sys.argv[1],sys.argv[2])' "$CRED_TMP" "$CRED_FILE"
 
 echo "Bootstrap delle password completato."
 echo "Password temporanee generate scritte in: ${CRED_FILE} (permessi 0600). Consegnarle fuori banda e cancellare il file."
