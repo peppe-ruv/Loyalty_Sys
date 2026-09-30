@@ -1,0 +1,30 @@
+---
+title: "Eventi dlq"
+description: "Il topic lh.dlq.v1: header di diagnosi, ritentativi e codici di errore."
+---
+
+{/* Generato da scripts/docs-sync.mjs a partire da contracts/events/: non modificare a mano. */}
+
+La famiglia `dlq` non ha schemi JSON in `contracts/events/`: il topic `lh.dlq.v1` riceve il messaggio originale che un consumer non ha potuto elaborare, con gli header di diagnosi descritti in [Architettura](/specifiche/architettura). Le altre famiglie sono in [Eventi e topic](/specifiche/eventi-e-topic).
+
+## Header di diagnosi
+
+| Header | Contenuto |
+| --- | --- |
+| `lh-original-topic` | il topic da cui arriva il messaggio |
+| `lh-consumer` | il consumer che non ha potuto elaborarlo |
+| `lh-error-class` | la classe dell'errore |
+| `lh-error-message` | il messaggio dell'errore |
+| `lh-attempts` | i tentativi fatti |
+
+## Ritentativi
+
+Un errore ritentabile si riprova 3 volte con attese di 1 s, 5 s e 15 s. Gli errori non ritentabili (validazione, deserializzazione) vanno subito in DLQ.
+
+## Codici di errore
+
+| Codice | Quando |
+| --- | --- |
+| `LOOP_GUARD` | `lhhop` maggiore di 3: la catena di azioni generate dal ponte interno è troppo lunga |
+| `PRODUCER_NOT_ALLOWED` | il messaggio è stato pubblicato da un modulo non ammesso per quel `type` in `contracts/events/producers.yaml` |
+| `SIGNATURE_INVALID` | la firma del messaggio non è valida |
