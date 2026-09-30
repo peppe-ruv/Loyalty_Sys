@@ -364,10 +364,13 @@ test("T27: formato dei finding `file: percorso: messaggio (kind)`", () => {
 
 const dirs = [];
 after(() => {
-  for (const d of dirs) rmSync(d, { recursive: true, force: true });
+  // maxRetries: se un processo git sta ancora chiudendo, rmdir di .git dà ENOTEMPTY; si riprova invece di fallire.
+  for (const d of dirs) rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
+// gc.auto=0 e maintenance.auto=false: nessuna manutenzione automatica in background (da git 2.46 staccata
+// dal processo) che scriva in .git mentre l'hook after lo cancella.
 const git = (dir, ...args) =>
-  execFileSync("git", ["-C", dir, "-c", "user.name=lh-test", "-c", "user.email=lh-test@example.invalid", "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false", ...args], {
+  execFileSync("git", ["-C", dir, "-c", "user.name=lh-test", "-c", "user.email=lh-test@example.invalid", "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false", "-c", "gc.auto=0", "-c", "maintenance.auto=false", ...args], {
     encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
   }).trim();
 const repo = () => {
