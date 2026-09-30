@@ -1,5 +1,7 @@
-// ULID minimale per il proxy (X-Correlation-Id quando assente, docs/07 §3).
-// Allineato all'alfabeto Crockford Base32 del backend (io.loyaltyhub.common.ids.Ulid).
+// ULID minimale per il proxy (X-Correlation-Id, docs/07 §3) e per gli id degli eventi
+// del pannello demo del portale (deduplica su source+id, docs/05 §2).
+// 80 bit casuali da crypto.getRandomValues, come io.loyaltyhub.common.ids.Ulid (SecureRandom);
+// alfabeto Crockford Base32 allineato al backend.
 
 const ENCODING = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
