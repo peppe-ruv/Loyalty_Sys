@@ -58,7 +58,7 @@ Loyalty Hub è progettato per una demo pubblica che, da spenta, costa zero. Ques
     </Note>
   </Step>
   <Step title="Deploy su Render">
-    Crea Blueprint dal `render.yaml`. Configura il gruppo variabili `lh-shared` con i valori dei passi precedenti. Deploya prima i servizi del core loop (`ingestion`, `member`, `campaign`, `wallet`), poi gli altri.
+    Crea i servizi dal pannello Render o con il connettore, con la configurazione di riferimento di `docs/11 §7` (il repository non ha un `render.yaml`, Q-623). Configura il gruppo variabili `lh-shared` con i valori dei passi precedenti. Deploya prima i servizi del core loop (`ingestion`, `member`, `campaign`, `wallet`), poi gli altri.
   </Step>
   <Step title="Deploy su Vercel">
     Crea un nuovo progetto con root `web/`. Aggiungi le variabili ambiente con gli URL `<servizio>.onrender.com`. Aggiorna `LH_CORS_ALLOWED_ORIGINS` di `insight-service` con l'URL Vercel finale e ridistribuisci `insight`.

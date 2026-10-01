@@ -56,7 +56,7 @@ L'hosting è un host Oracle Cloud Always Free A1, senza costo e senza sospension
 ## Cosa non si ottiene
 
 - **Alta disponibilità**: un solo host, un broker, un Postgres e una replica del web. Gli obiettivi di livello del servizio di ADR-036 non valgono per la vetrina.
-- **Dati reali**: solo dati fittizi, nessun backup e nessuna garanzia di conservazione. La vetrina si azzera periodicamente e lo dice nel banner di HUB-02 (Q-624).
+- **Dati reali**: solo dati fittizi, nessun backup e nessuna garanzia di conservazione. La vetrina si azzera ogni settimana e lo dice nel banner di HUB-02 (Q-624).
 - **Persone demo**: al posto del selettore di persona c'è il login, e i membri `MBR-*` del seed non esistono in questa istanza.
 - **Portale membri**: nel primo passo è chiuso, con la registrazione disattivata (Q-619).
 - **Scenari che accreditano punti**: in `enterprise` l'ingresso degli eventi accetta solo il ruolo `SOURCE` (un client `private_key_jwt` per fonte) o un `ADMIN`; le fonti di prova non hanno chiavi pubblicate e gli scenari demo (`/v1/demo/**`) non esistono in questa istanza.
@@ -95,6 +95,6 @@ sequenceDiagram
   Note over S: una scrittura senza voce dell'operatore = uscita 1
 ```
 
-## Decisione e domande aperte
+## Decisione
 
-La decisione, le alternative scartate e i limiti dichiarati sono in [ADR-049](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/13-REGISTRO-DECISIONI.md). Hosting, bus, dati del programma, accesso degli operatori, portale e client `lh-cli` sono decisi (Q-615…Q-619, Q-626, Q-629). Gli altri dettagli attuativi (dominio e TLS, TLS verso bus e database, tempo reale, azzeramento) sono ancora domande aperte con un default indicato: Q-620…Q-624 in [Domande aperte](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/15-DOMANDE-APERTE.md). Per installare lo stesso profilo sulla propria infrastruttura vedi [Installazione enterprise](/operations/installazione-enterprise).
+La decisione, le alternative scartate e i limiti dichiarati sono in [ADR-049](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/13-REGISTRO-DECISIONI.md). Hosting, bus, dati del programma, accesso degli operatori, portale e client `lh-cli` sono decisi (Q-615…Q-619, Q-626, Q-629); dominio e TLS, TLS verso bus e database, tempo reale, `render.yaml` e azzeramento sono decisi con il default proposto (Q-620…Q-624, il 2026-10-01). Il dettaglio è in [Domande aperte](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/15-DOMANDE-APERTE.md). Per installare lo stesso profilo sulla propria infrastruttura vedi [Installazione enterprise](/operations/installazione-enterprise).
