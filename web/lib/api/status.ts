@@ -89,3 +89,30 @@ export function infraFromHealth(body: unknown): { kafka: ServiceState; db: Servi
   const toState = (name: string): ServiceState => (components[name]?.status === "UP" ? "UP" : "DOWN");
   return { kafka: toState("kafka"), db: toState("db") };
 }
+
+/** Ultimo stato letto di Kafka e Postgres, con l'istante della lettura (ms). */
+export interface InfraReading {
+  at: number;
+  kafka: ServiceState;
+  db: ServiceState;
+}
+
+/** Per quanto un'ultima lettura riuscita sostituisce una sonda scaduta (HUB-01 interroga ogni 8 s, la console ogni 15 s). */
+export const INFRA_STALE_MS = 60_000;
+
+/**
+ * Stato di Kafka e Postgres quando la sonda di `/actuator/health` di ingestion non ha risposto in tempo.
+ * `/actuator/health` esegue i controlli di database e broker ed è più lento di `/liveness`: con ingestion sveglio, una
+ * sonda scaduta non significa che Kafka e Postgres dormano. Se ingestion è UP e c'è una lettura recente, vale quella;
+ * altrimenti resta `SLEEPING` come prima (ingestion irraggiungibile: stato di Kafka e DB ignoto).
+ */
+export function infraOnProbeFailure(
+  ingestionState: ServiceState,
+  last: InfraReading | null,
+  now: number,
+): { kafka: ServiceState; db: ServiceState } {
+  if (ingestionState === "UP" && last && now - last.at <= INFRA_STALE_MS) {
+    return { kafka: last.kafka, db: last.db };
+  }
+  return { kafka: "SLEEPING", db: "SLEEPING" };
+}
