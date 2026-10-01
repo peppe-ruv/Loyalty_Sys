@@ -54,10 +54,10 @@ jobs:
           if grep -q '^\.github/workflows/' <<< "$files"; then backend=true; fi
           # Web: i test leggono anche i contratti evento (lib/messages/facts.test.ts).
           if grep -Eq '^(web/|contracts/events/|\.github/workflows/)' <<< "$files"; then web=true; else web=false; fi
-          # Chart Helm e compose (M8.3): chart, compose di riferimento e locale (immagini condivise, Q-483), immagine
+          # Chart Helm e compose (M8.3): chart, compose di riferimento (con l'overlay di vetrina, M8.14c) e locale (immagini condivise, Q-483), immagine
           # (porte ed entrypoint), realm copiato nel chart, la verifica stessa e il workflow. Anche lo smoke, che il job
           # `helm install (kind)` esegue attraverso il gateway.
-          if grep -Eq '^(deploy/helm/|deploy/compose/|deploy/docker-compose\.yml$|deploy/image/|deploy/idp/realm\.json$|scripts/check-helm\.mjs$|scripts/smoke\.sh$|\.github/workflows/)' <<< "$files"; then helm=true; else helm=false; fi
+          if grep -Eq '^(deploy/helm/|deploy/compose/|deploy/vetrina/|deploy/docker-compose\.yml$|deploy/image/|deploy/idp/realm\.json$|scripts/check-helm\.mjs$|scripts/smoke\.sh$|\.github/workflows/)' <<< "$files"; then helm=true; else helm=false; fi
           # Documentazione (M8.9, ADR-040): pagine Mintlify e loro configurazione, sorgenti delle pagine generate
           # (schemi evento, OpenAPI), generatore e verifiche, .mintignore e il workflow stesso.
           if grep -Eq '^(docs/|site/|api/|concetti/|guide/|operations/|specifiche/|getting-started/|index\.mdx$|docs\.json$|\.mintignore$|contracts/(events|api)/|scripts/(docs-sync|check-mermaid|check-frontmatter)|scripts/package(-lock)?\.json$|\.github/workflows/)' <<< "$files"; then docs=true; else docs=false; fi
@@ -308,6 +308,10 @@ jobs:
       - run: node scripts/check-seed.mjs
       # Configurazione di programma della vetrina enterprise da seed/ via API (F2-DIST-09, ADR-049, Q-617): hub finto, senza rete.
       - run: node --test scripts/vetrina-programma.test.mjs
+      # Overlay di vetrina del compose di riferimento (F2-DIST-03, F2-DIST-09, ADR-049, M8.14c): segreti solo da file,
+      # TLS verso bus e database, porte, vetrina.sh (provisioning in una cartella temporanea) e operatori.py contro un
+      # Keycloak simulato. Il compose unito si prova con il docker compose del runner.
+      - run: node --test scripts/check-vetrina.mjs
       # Realm Keycloak as code (F2-IAM-01, ADR-027): scope referenziati definiti, nessun segreto letterale,
       # segnaposto passati al servizio idp del compose.
       - run: node --test scripts/check-realm.mjs
@@ -378,6 +382,12 @@ jobs:
             | kubeconform -strict -summary -kubernetes-version "$KUBE_VERSION" -schema-location default -
       - name: Compose di riferimento valido
         run: LH_IMAGE=ghcr.io/example/loyaltyhub:ci docker compose -f deploy/compose/reference.yml config -q
+      - name: Compose di riferimento con l'overlay di vetrina valido (M8.14c)
+        run: >-
+          LH_IMAGE=ghcr.io/example/loyaltyhub:ci LH_VETRINA_DIR=/etc/loyaltyhub-vetrina
+          LH_VETRINA_WEB_HOST=web-vetrina.example.org LH_VETRINA_IDP_HOST=idp-vetrina.example.org
+          LH_VETRINA_PUBLIC_ADDRESS=10.0.0.10
+          docker compose -f deploy/compose/reference.yml -f deploy/vetrina/compose.vetrina.yml config -q
       - name: Compose locale valido (tutti i profili)
         run: docker compose -f deploy/docker-compose.yml --profile all --profile idp --profile idp-test config -q
 
