@@ -91,3 +91,53 @@ describe("hub/links — vetrina Enterprise (HUB-01, F2-DIST-09, ADR-049)", () =>
     expect(msg).not.toContain("showcase.example.org");
   });
 });
+
+describe("hub/links — ritorno alla demo da HUB-02 (ADR-049, F2-DIST-09)", () => {
+  const env = (v?: string) => ({ LH_HUB_DEMO_URL: v });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.resetModules();
+  });
+
+  it("vuota o assente ⇒ nessun collegamento e nessun avviso", async () => {
+    const fresh = await import("./links");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(fresh.demoHubUrl({})).toBeNull();
+    expect(fresh.demoHubUrl(env(""))).toBeNull();
+    expect(fresh.demoHubUrl(env("   "))).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("un'origine https valida è normalizzata", async () => {
+    const fresh = await import("./links");
+    expect(fresh.demoHubUrl(env(" https://Demo.Example.org/ "))).toBe("https://demo.example.org");
+    expect(fresh.demoHubUrl(env("https://demo.example.org:443"))).toBe("https://demo.example.org");
+  });
+
+  it("non legge LH_HUB_ENTERPRISE_URL e viceversa", async () => {
+    const fresh = await import("./links");
+    expect(fresh.demoHubUrl({ LH_HUB_ENTERPRISE_URL: "https://showcase.example.org" })).toBeNull();
+    expect(fresh.enterpriseShowcaseUrl({ LH_HUB_DEMO_URL: "https://demo.example.org" })).toBeNull();
+  });
+
+  it.each([
+    ["http://demo.example.org", "schema"],
+    ["https://demo.example.org/hub", "percorso"],
+    ["https://demo.example.org/?x=1", "query_o_fragment"],
+    ["https://bob:s3cret-pw@demo.example.org", "credenziali"],
+    ["demo.example.org", "non_url"],
+  ])("valore non valido %s ⇒ null, un solo avviso con il motivo (%s) e mai il valore", async (raw, problem) => {
+    const fresh = await import("./links");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(fresh.demoHubUrl(env(raw))).toBeNull();
+    expect(fresh.demoHubUrl(env(raw))).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(1);
+    const msg = String(warn.mock.calls[0][0]);
+    expect(msg).toContain(`(${problem})`);
+    expect(msg).toContain("LH_HUB_DEMO_URL");
+    expect(msg).not.toContain("demo.example.org");
+    expect(msg).not.toContain("s3cret-pw");
+    expect(msg).not.toContain("bob");
+  });
+});

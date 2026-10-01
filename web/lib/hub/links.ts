@@ -59,6 +59,28 @@ export function enterpriseShowcaseUrl(env: Readonly<Record<string, string | unde
   return null;
 }
 
+let demoUrlWarned = false;
+
+/**
+ * Origine della demo per il collegamento di ritorno di HUB-02 (ADR-049, F2-DIST-09) da `LH_HUB_DEMO_URL`, SOLO lato
+ * server (mai `NEXT_PUBLIC_`), con la stessa validazione di `LH_HUB_ENTERPRISE_URL`. Vuota o assente ⇒ `null` in
+ * silenzio (nessun collegamento). Valorizzata ma non valida ⇒ `null` e un solo `console.warn` per processo con il
+ * motivo, mai con il valore. Funzione pura rispetto all'`env` ricevuto.
+ */
+export function demoHubUrl(env: Readonly<Record<string, string | undefined>>): string | null {
+  const raw = (env.LH_HUB_DEMO_URL ?? "").trim();
+  if (raw === "") return null;
+  const parsed = parseHttpsOrigin(raw);
+  if ("origin" in parsed) return parsed.origin;
+  if (!demoUrlWarned) {
+    demoUrlWarned = true;
+    console.warn(
+      `LH_HUB_DEMO_URL ignorata (${parsed.problem}): serve un'origine https senza credenziali, percorso, query o fragment. Il collegamento di ritorno alla demo resta nascosto.`,
+    );
+  }
+  return null;
+}
+
 export interface PathStep {
   screen: string;
   title: string;
