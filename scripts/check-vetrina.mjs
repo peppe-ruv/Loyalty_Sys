@@ -1,0 +1,517 @@
+#!/usr/bin/env node
+// Verifiche dell'overlay di vetrina del compose di riferimento (F2-DIST-03, F2-DIST-09, ADR-049, M8.14 V3;
+// Q-616, Q-620, Q-621, Q-624). Uso: node --test scripts/check-vetrina.mjs (job `seed` della CI).
+//
+// - statiche: overlay, Caddyfile, pg_hba, timer; nessun segreto in chiaro, TLS verso bus e database, porte;
+// - compose unito (solo se c'è `docker compose`): limiti di memoria, porte pubblicate, ambiente dei servizi;
+// - entrypoint dell'overlay eseguito con sh: segreti solo da file, guardie TLS, nessun valore stampato;
+// - vetrina.sh: configurazione, provisioning in una cartella temporanea (permessi, idempotenza, certificati);
+// - operatori.py contro un Keycloak simulato: ruolo e MFA_REQUIRED_ROLE, password solo nel file 0600.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import http from 'node:http';
+import { spawn, spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import YAML from 'yaml';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const DIR = path.join(ROOT, 'deploy/vetrina');
+const OVERLAY = path.join(DIR, 'compose.vetrina.yml');
+const REFERENCE = path.join(ROOT, 'deploy/compose/reference.yml');
+const VETRINA_SH = path.join(DIR, 'vetrina.sh');
+const OPERATORI = path.join(DIR, 'operatori.py');
+const read = (p) => fs.readFileSync(p, 'utf8');
+const overlay = YAML.parse(read(OVERLAY));
+const has = (cmd) => spawnSync('sh', ['-c', `command -v ${cmd}`]).status === 0;
+const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'lh-vetrina-'));
+
+// Segreti generati da vetrina.sh (array SECRETS, nome:forma).
+function shellArray(name) {
+  const m = read(VETRINA_SH).match(new RegExp(`^${name}=\\(([^)]*)\\)`, 'm'));
+  assert.ok(m, `${name} non trovato in vetrina.sh`);
+  return m[1].split(/\s+/).filter(Boolean);
+}
+const SECRET_FILES = shellArray('SECRETS').map((e) => e.split(':')[0]);
+
+const EXAMPLE_ENV = {
+  LH_IMAGE: 'ghcr.io/example/loyaltyhub:ci',
+  LH_VETRINA_DIR: '/etc/loyaltyhub-vetrina',
+  LH_VETRINA_WEB_HOST: 'web-vetrina.example.org',
+  LH_VETRINA_IDP_HOST: 'idp-vetrina.example.org',
+  LH_VETRINA_PUBLIC_ADDRESS: '10.0.0.10',
+};
+
+// ---------------------------------------------------------------------------------------------------------------
+// Statiche
+
+test('overlay: progetto separato dalla demo e dal riferimento, proxy dichiarato con digest e porte sull\'indirizzo dell\'host', () => {
+  assert.equal(overlay.name, 'loyaltyhub-vetrina');
+  const proxy = overlay.services.proxy;
+  assert.match(proxy.image, /^caddy:\d+\.\d+\.\d+-alpine@sha256:[0-9a-f]{64}$/, 'proxy con tag e digest');
+  assert.deepEqual(proxy.ports, [
+    '${LH_VETRINA_PUBLIC_ADDRESS:?LH_VETRINA_PUBLIC_ADDRESS obbligatoria, indirizzo privato dell\'host}:80:80',
+    '${LH_VETRINA_PUBLIC_ADDRESS:?LH_VETRINA_PUBLIC_ADDRESS obbligatoria, indirizzo privato dell\'host}:443:443',
+  ]);
+  assert.equal(proxy.read_only, true);
+  assert.deepEqual(proxy.cap_drop, ['ALL']);
+  assert.deepEqual(proxy.cap_add, ['NET_BIND_SERVICE']);
+  assert.ok(proxy.security_opt.includes('no-new-privileges:true'));
+  assert.ok(proxy.mem_limit, 'limite di memoria del proxy');
+  assert.equal(proxy.user, undefined, 'nessun utente root esplicito (LH-DC-0001)');
+  assert.deepEqual(proxy.networks.default.aliases, [
+    '${LH_VETRINA_WEB_HOST:?LH_VETRINA_WEB_HOST obbligatoria}',
+    '${LH_VETRINA_IDP_HOST:?LH_VETRINA_IDP_HOST obbligatoria}',
+  ], 'i nomi pubblici risolvono al proxy anche dentro la rete compose (Q-420)');
+  // Solo l'hub ha in più una porta, e solo su loopback.
+  assert.deepEqual(overlay.services.hub.ports, ['127.0.0.1:8080:8080']);
+  for (const [name, svc] of Object.entries(overlay.services)) {
+    if (name !== 'proxy' && name !== 'hub') assert.equal(svc.ports, undefined, `${name} non pubblica porte nell'overlay`);
+  }
+});
+
+test('overlay: ogni segreto arriva da un file di /run/secrets, la variabile in chiaro è vuota (regola 20)', () => {
+  const declared = new Set(Object.keys(overlay.secrets));
+  for (const [name, svc] of Object.entries(overlay.services)) {
+    const env = svc.environment ?? {};
+    const mounted = new Set(svc.secrets ?? []);
+    for (const s of mounted) assert.ok(declared.has(s), `${name}: secret ${s} non dichiarato`);
+    for (const [k, v] of Object.entries(env)) {
+      if (k.endsWith('_FILE')) {
+        const base = k.slice(0, -5);
+        assert.equal(env[base], '', `${name}: ${base} deve essere vuota accanto a ${k}`);
+        const m = String(v).match(/^\/run\/secrets\/([a-z0-9_]+)$/);
+        assert.ok(m, `${name}: ${k} deve puntare a /run/secrets/<nome>`);
+        assert.ok(mounted.has(m[1]), `${name}: ${k} punta a un secret non montato (${m[1]})`);
+      } else if (/(PASSWORD|SECRET|SESSION_KEY|SUBJECT_KEY|_B64)$/.test(k)) {
+        assert.equal(v, '', `${name}: ${k} in chiaro nell'overlay`);
+        assert.ok(env[`${k}_FILE`], `${name}: ${k} senza ${k}_FILE`);
+      }
+    }
+    if (env.LH_SECRET_FILE_ENV !== undefined) {
+      const listed = env.LH_SECRET_FILE_ENV.split(/\s+/).sort();
+      const files = Object.keys(env).filter((k) => k.endsWith('_FILE')).map((k) => k.slice(0, -5)).sort();
+      assert.deepEqual(listed, files, `${name}: LH_SECRET_FILE_ENV deve elencare tutte e sole le variabili con _FILE`);
+      assert.equal(svc.entrypoint?.[2], overlay['x-lh-vetrina-env'][2], `${name}: entrypoint dell'overlay`);
+    }
+  }
+  // Stesso elenco di segreti in vetrina.sh e nell'overlay; i file sono nelle cartelle generate da provision.
+  const files = Object.values(overlay.secrets).map((s) => s.file);
+  for (const f of SECRET_FILES) {
+    assert.ok(files.includes(`\${LH_VETRINA_DIR:?LH_VETRINA_DIR obbligatoria}/secrets/${f}`), `secret ${f} di vetrina.sh assente nell'overlay`);
+  }
+  for (const f of files) {
+    assert.match(f, /^\$\{LH_VETRINA_DIR:\?LH_VETRINA_DIR obbligatoria\}\/(secrets|tls)\//);
+    const rel = f.split('}/')[1];
+    if (rel.startsWith('secrets/')) assert.ok(SECRET_FILES.includes(rel.slice(8)), `${rel} non generato da vetrina.sh`);
+    assert.doesNotMatch(rel, /ca\.key|^ca\//, 'la chiave della CA non entra mai in un container');
+  }
+});
+
+test('overlay: TLS verso database e bus, profilo enterprise fisso, nessuna telemetria (Q-621, ADR-044)', () => {
+  const s = overlay.services;
+  for (const [svc, key] of [['migrate', 'DB_URL'], ['hub', 'DB_URL'], ['idp', 'KC_DB_URL']]) {
+    assert.match(s[svc].environment[key], /^jdbc:postgresql:\/\/postgres:5432\/[a-z]+\?sslmode=verify-full&sslrootcert=\/run\/secrets\/lh_tls_ca$/);
+    assert.equal(s[svc].environment.LH_VETRINA_REQUIRE_DB_TLS, key, `${svc}: guardia TLS sul database`);
+    assert.ok(s[svc].secrets.includes('lh_tls_ca'));
+  }
+  assert.equal(s.hub.environment.KAFKA_SECURITY, 'SSL_PEM');
+  assert.equal(s.hub.environment.LH_VETRINA_REQUIRE_KAFKA_TLS, 'true');
+  assert.equal(s.hub.environment.LH_PROFILE, 'enterprise');
+  assert.equal(s.hub.environment.LH_IDENTITY_MODE, 'oidc');
+  assert.equal(s.hub.environment.LH_OTEL_METRICS_ENABLED, 'false');
+  assert.equal(s.web.environment.LH_PROFILE, 'enterprise');
+  assert.match(s.hub.environment.LH_OIDC_JWKS_URI, /^https:\/\//, 'JWKS via proxy in https, non in chiaro');
+  const k = s.kafka.environment;
+  assert.equal(k.KAFKA_LISTENER_SECURITY_PROTOCOL_MAP, 'CONTROLLER:PLAINTEXT,BROKER:SSL');
+  assert.equal(k.KAFKA_LISTENERS, 'BROKER://0.0.0.0:9092,CONTROLLER://127.0.0.1:9093', 'controller in chiaro solo su loopback');
+  assert.equal(k.KAFKA_ADVERTISED_LISTENERS, 'BROKER://kafka:9092');
+  assert.doesNotMatch(k.KAFKA_ADVERTISED_LISTENERS, /SSL:\/\//, 'il nome SSL:// attiva il ramo JKS dell\'immagine');
+  assert.equal(k.KAFKA_INTER_BROKER_LISTENER_NAME, 'BROKER');
+  assert.equal(k.KAFKA_SSL_CLIENT_AUTH, 'required');
+  assert.equal(k.KAFKA_SSL_KEYSTORE_TYPE, 'PEM');
+  assert.equal(k.KAFKA_SSL_TRUSTSTORE_TYPE, 'PEM');
+  const pg = s.postgres.command.join(' ');
+  for (const opt of ['ssl=on', 'ssl_cert_file=/run/secrets/lh_pg_tls_cert', 'ssl_key_file=/run/secrets/lh_pg_tls_key', 'hba_file=/etc/lh/pg_hba.conf']) {
+    assert.ok(pg.includes(opt), `postgres: -c ${opt}`);
+  }
+  const client = read(path.join(DIR, 'kafka/client-ssl.properties'));
+  assert.match(client, /^security\.protocol=SSL$/m);
+  assert.match(s.kafka.healthcheck.test[1], /--command-config \/etc\/lh\/kafka-client-ssl\.properties/);
+});
+
+test('pg_hba: dalla rete solo TLS, connessioni in chiaro rifiutate', () => {
+  const rules = read(path.join(DIR, 'postgres/pg_hba.conf')).split('\n').filter((l) => l.trim() && !l.startsWith('#')).map((l) => l.trim().split(/\s+/));
+  for (const r of rules) {
+    assert.ok(['local', 'hostssl', 'hostnossl'].includes(r[0]), `regola non ammessa: ${r.join(' ')}`);
+    if (r[0] === 'hostssl') assert.equal(r.at(-1), 'scram-sha-256');
+    if (r[0] === 'hostnossl') assert.equal(r.at(-1), 'reject');
+  }
+  assert.ok(rules.some((r) => r[0] === 'hostnossl' && r[3] === '0.0.0.0/0'));
+  assert.ok(rules.some((r) => r[0] === 'hostnossl' && r[3] === '::/0'));
+});
+
+test('Caddyfile: API di amministrazione spenta, Keycloak esposto solo per il realm loyaltyhub e le risorse', () => {
+  const c = read(path.join(DIR, 'caddy/Caddyfile'));
+  assert.match(c, /^\s*admin off$/m);
+  assert.match(c, /^\{\$LH_VETRINA_WEB_HOST\} \{[\s\S]*?reverse_proxy web:3000/m);
+  const idp = c.split('{$LH_VETRINA_IDP_HOST} {')[1];
+  assert.ok(idp, 'blocco del nome idp');
+  assert.match(idp, /@realm path \/realms\/loyaltyhub \/realms\/loyaltyhub\/\* \/resources\/\*/);
+  assert.match(idp, /handle @realm \{\s*reverse_proxy idp:8080\s*\}/);
+  assert.match(idp, /handle \{\s*respond 404\s*\}/);
+  assert.equal((c.match(/reverse_proxy/g) ?? []).length, 2, 'solo web e idp dietro il proxy');
+  assert.doesNotMatch(c.replace(/^\s*#.*$/gm, ''), /\/admin|realms\/master/);
+});
+
+test('timer: azzeramento settimanale con vetrina.sh reset (Q-624)', () => {
+  const timer = read(path.join(DIR, 'systemd/loyaltyhub-vetrina-reset.timer'));
+  assert.match(timer, /^OnCalendar=Mon \*-\*-\* 03:00:00 UTC$/m);
+  assert.match(timer, /^Persistent=true$/m);
+  const svc = read(path.join(DIR, 'systemd/loyaltyhub-vetrina-reset.service'));
+  assert.match(svc, /^ExecStart=\/opt\/loyaltyhub\/deploy\/vetrina\/vetrina\.sh reset$/m);
+  assert.match(svc, /^Type=oneshot$/m);
+  // Azzeramento: solo i volumi di Postgres e Kafka, mai quelli del proxy (certificati ACME).
+  assert.deepEqual(shellArray('RESET_VOLUMES'), ['lh-ref-postgres', 'lh-ref-kafka']);
+});
+
+test('script: sintassi di vetrina.sh e operatori.py', () => {
+  assert.equal(spawnSync('bash', ['-n', VETRINA_SH]).status, 0);
+  if (has('python3')) {
+    const r = spawnSync('python3', ['-c', 'import ast,sys; ast.parse(open(sys.argv[1]).read())', OPERATORI]);
+    assert.equal(r.status, 0, String(r.stderr));
+  }
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Compose unito
+
+const haveCompose = has('docker') && spawnSync('docker', ['compose', 'version']).status === 0;
+
+function composeConfig(env) {
+  return spawnSync('docker', ['compose', '-f', REFERENCE, '-f', OVERLAY, 'config', '--format', 'json'], {
+    env: { PATH: process.env.PATH, HOME: process.env.HOME ?? os.tmpdir(), ...env }, encoding: 'utf8',
+  });
+}
+
+test('compose unito: limiti di memoria per ogni container, porte solo su loopback salvo il proxy', { skip: !haveCompose && 'docker compose assente' }, () => {
+  const r = composeConfig(EXAMPLE_ENV);
+  assert.equal(r.status, 0, r.stderr);
+  const cfg = JSON.parse(r.stdout);
+  assert.equal(cfg.name, 'loyaltyhub-vetrina');
+  const names = Object.keys(cfg.services).sort();
+  assert.deepEqual(names, ['hub', 'idp', 'kafka', 'migrate', 'postgres', 'proxy', 'web'], 'nessun servizio di osservabilità né altri');
+  for (const [name, svc] of Object.entries(cfg.services)) {
+    assert.ok(svc.mem_limit, `${name}: limite di memoria`);
+    for (const p of svc.ports ?? []) {
+      if (name === 'proxy') {
+        assert.equal(p.host_ip, '10.0.0.10');
+        assert.ok(['80', '443'].includes(String(p.published)));
+      } else {
+        assert.equal(p.host_ip, '127.0.0.1', `${name}: porta ${p.published} solo su loopback`);
+      }
+    }
+  }
+  assert.equal(cfg.services.hub.environment.LH_OIDC_ISSUER, 'https://idp-vetrina.example.org/realms/loyaltyhub');
+  assert.equal(cfg.services.web.environment.LH_WEB_URL, 'https://web-vetrina.example.org');
+  assert.equal(cfg.services.idp.environment.KC_HOSTNAME, 'https://idp-vetrina.example.org');
+  assert.equal(cfg.secrets.lh_db_password.file, '/etc/loyaltyhub-vetrina/secrets/db-password');
+  // Anche con le variabili di segreto del riferimento esportate, nel compose unito restano vuote.
+  const leaked = composeConfig({ ...EXAMPLE_ENV, LH_DB_PASSWORD: 'non-deve-entrare', LH_SUBJECT_KEY: 'non-deve-entrare' });
+  assert.equal(leaked.status, 0, leaked.stderr);
+  // Solo i servizi contano: l'estensione x-lh-db-env del riferimento resta un frammento non usato dall'overlay.
+  assert.doesNotMatch(JSON.stringify(JSON.parse(leaked.stdout).services), /non-deve-entrare/);
+});
+
+test('compose unito: senza indirizzo, nomi o cartella dei segreti non si avvia', { skip: !haveCompose && 'docker compose assente' }, () => {
+  for (const missing of ['LH_VETRINA_PUBLIC_ADDRESS', 'LH_VETRINA_IDP_HOST', 'LH_VETRINA_DIR']) {
+    const env = { ...EXAMPLE_ENV };
+    delete env[missing];
+    const r = composeConfig(env);
+    assert.notEqual(r.status, 0, `${missing} assente: config deve fallire`);
+    assert.match(r.stderr, new RegExp(missing));
+  }
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Entrypoint dell'overlay (segreti da file e guardie TLS)
+
+const ENTRYPOINT = overlay['x-lh-vetrina-env'][2].replaceAll('$$', '$');
+
+function runEntrypoint(env, cmd = ['sh', '-c', 'env']) {
+  return spawnSync('sh', ['-c', ENTRYPOINT, 'lh-require-env', ...cmd], {
+    env: { PATH: process.env.PATH, ...env }, encoding: 'utf8',
+  });
+}
+
+test('entrypoint: legge i segreti dai file, toglie <VAR>_FILE e non stampa i valori', () => {
+  const d = tmp();
+  fs.writeFileSync(path.join(d, 'pw'), 'valore-segreto-1\n', { mode: 0o600 });
+  fs.writeFileSync(path.join(d, 'b64'), 'QUJD', { mode: 0o600 }); // senza a capo finale
+  const ok = runEntrypoint({ DB_PASSWORD: '', DB_PASSWORD_FILE: path.join(d, 'pw'), K_B64_FILE: path.join(d, 'b64'), LH_SECRET_FILE_ENV: 'DB_PASSWORD K_B64', LH_REQUIRED_ENV: 'DB_PASSWORD' });
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.match(ok.stdout, /^DB_PASSWORD=valore-segreto-1$/m);
+  assert.match(ok.stdout, /^K_B64=QUJD$/m);
+  assert.doesNotMatch(ok.stdout, /DB_PASSWORD_FILE|K_B64_FILE/);
+  // Variabile in chiaro piena: errore, senza il valore nel messaggio.
+  const plain = runEntrypoint({ DB_PASSWORD: 'valore-in-chiaro', DB_PASSWORD_FILE: path.join(d, 'pw'), LH_SECRET_FILE_ENV: 'DB_PASSWORD' });
+  assert.equal(plain.status, 1);
+  assert.match(plain.stderr, /Segreto in chiaro nell'ambiente: DB_PASSWORD/);
+  assert.doesNotMatch(plain.stderr + plain.stdout, /valore-in-chiaro|valore-segreto-1/);
+  // File mancante o vuoto: errore.
+  const missing = runEntrypoint({ DB_PASSWORD_FILE: path.join(d, 'assente'), LH_SECRET_FILE_ENV: 'DB_PASSWORD' });
+  assert.equal(missing.status, 1);
+  assert.match(missing.stderr, /File del segreto mancante o non leggibile: DB_PASSWORD_FILE/);
+  fs.writeFileSync(path.join(d, 'vuoto'), '', { mode: 0o600 });
+  const empty = runEntrypoint({ DB_PASSWORD_FILE: path.join(d, 'vuoto'), LH_SECRET_FILE_ENV: 'DB_PASSWORD' });
+  assert.equal(empty.status, 1);
+  assert.match(empty.stderr, /File del segreto vuoto: DB_PASSWORD_FILE/);
+});
+
+test('entrypoint: database senza verify-full o Kafka non SSL_PEM fermano il container (INSECURE_CONFIG, Q-621)', () => {
+  const tlsUrl = 'jdbc:postgresql://postgres:5432/loyaltyhub?sslmode=verify-full&sslrootcert=/run/secrets/lh_tls_ca';
+  const ok = runEntrypoint({ DB_URL: tlsUrl, LH_VETRINA_REQUIRE_DB_TLS: 'DB_URL', KAFKA_SECURITY: 'SSL_PEM', LH_VETRINA_REQUIRE_KAFKA_TLS: 'true' }, ['true']);
+  assert.equal(ok.status, 0, ok.stderr);
+  for (const url of ['jdbc:postgresql://postgres:5432/loyaltyhub', 'jdbc:postgresql://postgres:5432/loyaltyhub?sslmode=require', 'jdbc:postgresql://postgres:5432/loyaltyhub?sslmode=disable']) {
+    const r = runEntrypoint({ DB_URL: url, LH_VETRINA_REQUIRE_DB_TLS: 'DB_URL' }, ['true']);
+    assert.equal(r.status, 1, url);
+    assert.match(r.stderr, /INSECURE_CONFIG: DB_URL senza sslmode=verify-full/);
+  }
+  const kafka = runEntrypoint({ KAFKA_SECURITY: 'PLAINTEXT', LH_VETRINA_REQUIRE_KAFKA_TLS: 'true' }, ['true']);
+  assert.equal(kafka.status, 1);
+  assert.match(kafka.stderr, /INSECURE_CONFIG: KAFKA_SECURITY deve essere SSL_PEM/);
+  const required = runEntrypoint({ LH_REQUIRED_ENV: 'DB_PASSWORD' }, ['true']);
+  assert.equal(required.status, 1);
+  assert.match(required.stderr, /Variabile obbligatoria mancante: DB_PASSWORD/);
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// vetrina.sh
+
+function writeConfig(dir, extra = '') {
+  const cfg = path.join(dir, 'vetrina.env');
+  const lines = Object.entries({ ...EXAMPLE_ENV, LH_VETRINA_DIR: path.join(dir, 'host') }).map(([k, v]) => `${k}=${v}`);
+  fs.writeFileSync(cfg, `# prova\n${lines.join('\n')}\n${extra}`, { mode: 0o600 });
+  return cfg;
+}
+
+function vetrina(args, cfg, env = {}) {
+  return spawnSync('bash', [VETRINA_SH, ...args], {
+    env: { PATH: process.env.PATH, HOME: process.env.HOME ?? os.tmpdir(), LH_VETRINA_CONFIG: cfg, LH_VETRINA_TEST_NO_CHOWN: '1', ...env },
+    encoding: 'utf8',
+  });
+}
+
+test('vetrina.sh: configurazione rifiutata (uscita 2) con chiavi ignote, bind non loopback, nomi o indirizzi non validi', () => {
+  const d = tmp();
+  const cases = [
+    ['LH_DB_PASSWORD=x\n', /chiave non ammessa: LH_DB_PASSWORD/],
+    ['LH_BIND_ADDRESS=0.0.0.0\n', /LH_BIND_ADDRESS deve essere 127\.0\.0\.1/],
+    ['LH_VETRINA_PUBLIC_ADDRESS=0.0.0.0\n', /non può essere 0\.0\.0\.0/],
+    ['LH_VETRINA_WEB_HOST=https://web.example.org\n', /LH_VETRINA_WEB_HOST non è un nome DNS valido/],
+    ['LH_VETRINA_IDP_HOST=web-vetrina.example.org\n', /devono essere diversi/],
+    ['LH_HUB_DEMO_URL=http://demo.example.org\n', /LH_HUB_DEMO_URL deve essere un'origine https/],
+  ];
+  for (const [extra, msg] of cases) {
+    const r = vetrina(['provision'], writeConfig(d, extra));
+    assert.equal(r.status, 2, `${extra.trim()}: ${r.stderr}`);
+    assert.match(r.stderr, msg);
+  }
+  const cfg = writeConfig(d);
+  fs.chmodSync(cfg, 0o666);
+  const loose = vetrina(['provision'], cfg);
+  assert.equal(loose.status, 2);
+  assert.match(loose.stderr, /scrivibile dal gruppo o da altri/);
+  const unknown = vetrina(['boh'], writeConfig(d));
+  assert.equal(unknown.status, 2);
+});
+
+test('vetrina.sh provision: segreti 0600 mai stampati, CA e certificati validi, idempotente', { skip: !has('openssl') && 'openssl assente' }, () => {
+  const d = tmp();
+  const cfg = writeConfig(d);
+  const host = path.join(d, 'host');
+  const first = vetrina(['provision'], cfg);
+  assert.equal(first.status, 0, first.stderr);
+  const snapshot = {};
+  for (const sub of ['secrets', 'tls', 'ca']) {
+    assert.equal((fs.statSync(path.join(host, sub)).mode & 0o777).toString(8), '700', `${sub}: cartella 0700`);
+    for (const f of fs.readdirSync(path.join(host, sub))) {
+      const p = path.join(host, sub, f);
+      snapshot[`${sub}/${f}`] = read(p);
+      const mode = (fs.statSync(p).mode & 0o777).toString(8);
+      if (sub === 'tls' && f.endsWith('.crt')) assert.equal(mode, '644', `${sub}/${f}`);
+      else assert.equal(mode, '600', `${sub}/${f}`);
+    }
+  }
+  for (const f of SECRET_FILES) assert.ok(snapshot[`secrets/${f}`]?.trim(), `secrets/${f} generato`);
+  assert.ok(!('tls/ca.key' in snapshot), 'la chiave della CA resta in ca/');
+  // Nessun valore su stdout o stderr.
+  const out = first.stdout + first.stderr;
+  for (const [name, value] of Object.entries(snapshot)) {
+    if (name.endsWith('.crt')) continue;
+    for (const line of value.split('\n').filter((l) => l.length >= 16 && !l.startsWith('-----'))) {
+      assert.ok(!out.includes(line), `${name}: valore stampato`);
+    }
+  }
+  // Forme: password url-safe di 32 caratteri, chiavi di 32 byte in base64.
+  assert.match(snapshot['secrets/db-password'].trim(), /^[A-Za-z0-9_-]{32}$/);
+  assert.equal(Buffer.from(snapshot['secrets/subject-key'].trim(), 'base64').length, 32);
+  assert.equal(Buffer.from(snapshot['secrets/web-session-key'].trim(), 'base64').length, 32);
+  assert.notEqual(snapshot['secrets/db-password'], snapshot['secrets/idp-db-password']);
+  // Certificati: firmati dalla CA locale, nome giusto, uso giusto; chiavi PKCS#8 (Kafka PEM).
+  const ca = path.join(host, 'tls/ca.crt');
+  for (const [leaf, san, eku] of [['postgres', 'DNS:postgres', /TLS Web Server Authentication/], ['kafka', 'DNS:kafka', /Server Authentication, TLS Web Client Authentication/], ['hub-kafka-client', 'DNS:hub', /TLS Web Client Authentication/]]) {
+    const crt = path.join(host, `tls/${leaf}.crt`);
+    assert.equal(spawnSync('openssl', ['verify', '-CAfile', ca, crt]).status, 0, `${leaf}: verifica con la CA`);
+    const text = spawnSync('openssl', ['x509', '-in', crt, '-noout', '-text'], { encoding: 'utf8' }).stdout;
+    assert.ok(text.includes(san), `${leaf}: ${san}`);
+    assert.match(text, eku);
+    assert.match(snapshot[`tls/${leaf}.key`], /^-----BEGIN PRIVATE KEY-----/);
+  }
+  assert.match(snapshot['tls/kafka-keystore.pem'], /^-----BEGIN PRIVATE KEY-----[\s\S]*-----BEGIN CERTIFICATE-----/);
+  assert.equal(Buffer.from(snapshot['tls/kafka-client-cert.b64'], 'base64').toString(), snapshot['tls/hub-kafka-client.crt']);
+  assert.equal(Buffer.from(snapshot['tls/kafka-client-key.b64'], 'base64').toString(), snapshot['tls/hub-kafka-client.key']);
+  assert.equal(Buffer.from(snapshot['tls/kafka-client-ca.b64'], 'base64').toString(), snapshot['tls/ca.crt']);
+  // Seconda esecuzione: nulla cambia.
+  const second = vetrina(['provision'], cfg);
+  assert.equal(second.status, 0, second.stderr);
+  assert.doesNotMatch(second.stdout, /generato|emesso|generata/);
+  for (const [name, value] of Object.entries(snapshot)) assert.equal(read(path.join(host, name)), value, `${name} riscritto`);
+  // Un certificato cancellato si riemette senza toccare segreti e CA.
+  fs.rmSync(path.join(host, 'tls/postgres.crt'));
+  const third = vetrina(['provision'], cfg);
+  assert.equal(third.status, 0, third.stderr);
+  assert.match(third.stdout, /emesso: tls\/postgres\.crt/);
+  assert.equal(read(path.join(host, 'ca/ca.key')), snapshot['ca/ca.key']);
+  assert.equal(read(path.join(host, 'secrets/subject-key')), snapshot['secrets/subject-key']);
+  // Preflight: un segreto con permessi larghi o nell'ambiente fa fallire, senza stampare il valore.
+  const arch = spawnSync('uname', ['-m'], { encoding: 'utf8' }).stdout.trim();
+  const leakedEnv = vetrina(['preflight', '--offline'], cfg, { LH_VETRINA_EXPECTED_ARCH: arch, LH_SUBJECT_KEY: 'valore-in-chiaro' });
+  assert.equal(leakedEnv.status, 1);
+  assert.match(leakedEnv.stderr, /segreti nell'ambiente \(LH_SUBJECT_KEY\)/);
+  assert.doesNotMatch(leakedEnv.stderr + leakedEnv.stdout, /valore-in-chiaro/);
+  fs.chmodSync(path.join(host, 'secrets/db-password'), 0o644);
+  const loose = vetrina(['preflight', '--offline'], cfg, { LH_VETRINA_EXPECTED_ARCH: arch });
+  assert.equal(loose.status, 1);
+  assert.match(loose.stderr, /permessi 644 invece di 600: .*secrets\/db-password/);
+  fs.chmodSync(path.join(host, 'secrets/db-password'), 0o600);
+  const wrongArch = vetrina(['preflight', '--offline'], cfg, { LH_VETRINA_EXPECTED_ARCH: 'aarch64-finto' });
+  assert.equal(wrongArch.status, 1);
+  assert.match(wrongArch.stderr, /architettura dell'host .*attesa aarch64-finto/);
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// operatori.py contro un Keycloak simulato
+
+function fakeKeycloak() {
+  const state = { users: [], mappings: {}, passwords: {}, adminLogins: 0 };
+  const roles = Object.fromEntries(['MFA_REQUIRED_ROLE', 'ADMIN', 'MARKETING', 'LEGAL', 'CARE', 'ANALYST'].map((n, i) => [n, { id: `r${i}`, name: n }]));
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      const url = new URL(req.url, 'http://x');
+      const send = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(obj === undefined ? '' : JSON.stringify(obj)); };
+      if (req.method === 'POST' && url.pathname === '/realms/master/protocol/openid-connect/token') {
+        const form = new URLSearchParams(body);
+        if (form.get('password') !== 'pw-admin-di-prova' || form.get('client_id') !== 'admin-cli') return send(401, {});
+        state.adminLogins++;
+        return send(200, { access_token: 'tok' });
+      }
+      if (req.headers.authorization !== 'Bearer tok') return send(401, {});
+      const base = '/admin/realms/loyaltyhub';
+      let m;
+      if (req.method === 'GET' && (m = url.pathname.match(`^${base}/roles/([A-Z_]+)$`))) return roles[m[1]] ? send(200, roles[m[1]]) : send(404, {});
+      if (req.method === 'GET' && url.pathname === `${base}/users`) return send(200, state.users.filter((u) => u.username === url.searchParams.get('username')));
+      if (req.method === 'POST' && url.pathname === `${base}/users`) {
+        const u = JSON.parse(body);
+        state.users.push({ ...u, id: `u${state.users.length}` });
+        return send(201);
+      }
+      if (req.method === 'PUT' && (m = url.pathname.match(`^${base}/users/(u\\d+)/reset-password$`))) {
+        const p = JSON.parse(body);
+        state.passwords[m[1]] = p;
+        return send(204);
+      }
+      if (req.method === 'POST' && (m = url.pathname.match(`^${base}/users/(u\\d+)/role-mappings/realm$`))) {
+        state.mappings[m[1]] = JSON.parse(body).map((r) => r.name);
+        return send(204);
+      }
+      return send(404, {});
+    });
+  });
+  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({ server, state, url: `http://127.0.0.1:${server.address().port}` })));
+}
+
+function runOperatori(args) {
+  return new Promise((resolve) => {
+    const p = spawn('python3', [OPERATORI, ...args], { env: { PATH: process.env.PATH } });
+    let stdout = '';
+    let stderr = '';
+    p.stdout.on('data', (c) => { stdout += c; });
+    p.stderr.on('data', (c) => { stderr += c; });
+    p.on('close', (status) => resolve({ status, stdout, stderr }));
+  });
+}
+
+test('operatori.py: account nominativi con ruolo e MFA_REQUIRED_ROLE, password solo nel file 0600, idempotente (Q-618)', { skip: !has('python3') && 'python3 assente' }, async () => {
+  const kc = await fakeKeycloak();
+  try {
+    const d = tmp();
+    const pwFile = path.join(d, 'admin');
+    fs.writeFileSync(pwFile, 'pw-admin-di-prova\n', { mode: 0o600 });
+    const list = path.join(d, 'operators.list');
+    fs.writeFileSync(list, '# elenco\nanna.admin ADMIN anna.admin@example.org\nbruno.care CARE bruno.care@example.org\n', { mode: 0o600 });
+    const out = path.join(d, 'operator-passwords.txt');
+    const args = ['--keycloak', kc.url, '--admin-password-file', pwFile, '--list', list, '--out', out];
+    const r = await runOperatori(args);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(kc.state.users.length, 2);
+    for (const u of kc.state.users) {
+      assert.deepEqual(u.requiredActions, ['UPDATE_PASSWORD', 'CONFIGURE_TOTP']);
+      assert.equal(u.enabled, true);
+      assert.equal(u.emailVerified, false);
+      assert.equal(kc.state.passwords[u.id].temporary, true);
+    }
+    assert.deepEqual(kc.state.mappings.u0, ['ADMIN', 'MFA_REQUIRED_ROLE']);
+    assert.deepEqual(kc.state.mappings.u1, ['CARE', 'MFA_REQUIRED_ROLE']);
+    assert.equal((fs.statSync(out).mode & 0o777).toString(8), '600');
+    const written = read(out);
+    for (const u of kc.state.users) {
+      const pw = kc.state.passwords[u.id].value;
+      assert.ok(pw.length >= 20);
+      assert.ok(written.includes(`${u.username}: ${pw}`));
+      assert.ok(!(r.stdout + r.stderr).includes(pw), 'password temporanea stampata');
+    }
+    assert.ok(!(r.stdout + r.stderr).includes('pw-admin-di-prova'));
+    // Seconda esecuzione: utenti presenti, nulla cambia e il file non si riscrive.
+    const before = written;
+    const again = await runOperatori(args);
+    assert.equal(again.status, 0, again.stderr);
+    assert.match(again.stdout, /presente: anna\.admin \(non modificato\)/);
+    assert.equal(kc.state.users.length, 2);
+    assert.equal(read(out), before);
+    // Rifiuti: http non loopback, elenco leggibile da altri, ruolo non operatore, admin password con permessi larghi.
+    const remote = await runOperatori(['--keycloak', 'http://idp.example.org', '--admin-password-file', pwFile, '--list', list, '--out', out]);
+    assert.equal(remote.status, 2);
+    assert.match(remote.stderr, /serve https/);
+    fs.chmodSync(list, 0o644);
+    const looseList = await runOperatori(args);
+    assert.equal(looseList.status, 2);
+    assert.match(looseList.stderr, /permessi 0600/);
+    fs.writeFileSync(list, 'carlo SOURCE carlo@example.org\n', { mode: 0o600 });
+    fs.chmodSync(list, 0o600);
+    const badRole = await runOperatori(args);
+    assert.equal(badRole.status, 2);
+    assert.match(badRole.stderr, /ruolo non ammesso SOURCE/);
+    fs.writeFileSync(list, 'anna.admin ADMIN anna.admin@example.org\n', { mode: 0o600 });
+    fs.chmodSync(pwFile, 0o644);
+    const loosePw = await runOperatori(args);
+    assert.equal(loosePw.status, 2);
+    assert.match(loosePw.stderr, /permessi troppo larghi/);
+  } finally {
+    kc.server.close();
+  }
+});
