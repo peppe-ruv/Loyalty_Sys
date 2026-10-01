@@ -53,6 +53,7 @@ Formato compatto: **Contesto → Decisione → Conseguenze → Alternative scart
 | 047 | Flusso di integrazione: CI per aree, auto-merge, stato cumulativo | ACCETTATA |
 | 048 | Membro dal token: `MemberPrincipal`, legame in `member_identity`, pseudonimo `subjectRef` sul bus, proiezioni locali, `/v1/portal/me` | ACCETTATA |
 | 049 | Vetrina enterprise ospitata: seconda istanza separata raggiunta dal Demo Hub | ACCETTATA |
+| 050 | Vetrina enterprise su GitHub Codespaces, accesa su richiesta (supera ADR-049 decisione 2) | ACCETTATA |
 
 ---
 
@@ -377,3 +378,34 @@ Il bus preserva le proprietà che contano: **fan-out per topic** (un gruppo cons
 **Decisioni successive (Giuseppe, 2026-09-30).** Q-617, Q-618, Q-619 e Q-626 decise con il default proposto: configurazione di programma da `seed/` via API con token di operatore (Q-617), account operatore nominativi con `MFA_REQUIRED_ROLE` verificato da `deploy/idp/vetrina/apply-overlay.sh` (Q-618), registrazione chiusa nel primo passo (Q-619), client pubblico `lh-cli` con solo Device Authorization Grant nell'overlay di vetrina (Q-626). Le decisioni 5 e 6 valgono quindi come decise; restano aperte Q-620…Q-624.
 
 **Decisioni successive (Giuseppe, 2026-10-01).** Q-620…Q-624 decise con il default proposto: sottodominio gratuito di un servizio DNS con certificati ACME del reverse proxy per `web` e `idp` (Q-620); CA locale generata sull'host, Kafka `SSL_PEM` e Postgres `sslmode=require`, senza eccezioni di vetrina alla regola 22 (Q-621); BO-24 in stato *degraded* nel primo passo e proxy SSE nel BFF in una fetta successiva (Q-622); nessun `render.yaml`, documentazione corretta sui servizi Render gestiti dal pannello (Q-623); azzeramento settimanale pianificato sull'host senza backup, annunciato nel banner di HUB-02 (Q-624). Le decisioni 4 e 7 valgono quindi come decise; le domande di ADR-049 sono tutte chiuse.
+
+**Superata in parte da ADR-050 (decisione 2, hosting).** Le decisioni 1, 3–7 restano valide.
+
+### ADR-050 — Vetrina enterprise su GitHub Codespaces, accesa su richiesta
+**Stato.** ACCETTATA il 2026-10-01 (Giuseppe) per l'hosting; i dettagli di attuazione restano nelle Q-660…Q-663 con un default proposto. **Supera ADR-049 decisione 2** (host Oracle Cloud Always Free A1, Q-615 = A); le decisioni 1 e 3–7 di ADR-049 restano valide.
+**Contesto.** Il 2026-10-01 il proprietario ha rinunciato all'host Oracle Cloud A1: nel suo account l'istanza non risultava utilizzabile a costo zero, e la regola 8 non ammette costi senza un'ADR di deroga. Le altre strade gratuite note non reggono lo stack della vetrina (circa 6,3 GB a regime: hub 2 GB, Keycloak 1,5 GB, Postgres e Kafka 1 GB ciascuno, web 768 MB): Render e Vercel gratuiti sono a 512 MB (scartati in ADR-049), Aiven offre solo servizi di dati e il suo Kafka gratuito della demo non si condivide (Q-616), un runner di GitHub Actions vive al massimo 6 ore e non ha un URL pubblico senza un tunnel. GitHub Codespaces, incluso nell'account personale gratuito, offre macchine da 8 o 16 GB, Docker al loro interno, inoltro delle porte in https su `*.app.github.dev` con visibilità pubblica senza autenticazione, e blocca l'uso a fine quota se l'account non ha un metodo di pagamento ([fatturazione](https://docs.github.com/en/billing/concepts/product-billing/github-codespaces), [inoltro delle porte](https://docs.github.com/en/codespaces/developing-in-a-codespace/forwarding-ports-in-your-codespace)). Il proprietario non vuole dare comandi dal proprio PC: un codespace si crea e si avvia dal browser.
+**Decisione.**
+1. **Hosting a richiesta.** La vetrina gira in un GitHub Codespace del repository, creato da una configurazione dev container dedicata, con lo stesso compose di riferimento e lo stesso overlay di vetrina (`deploy/vetrina/`), in `LH_PROFILE=enterprise`, `LH_MODE=external`. Non è sempre accesa: il proprietario la avvia dal browser prima di una demo e si ferma da sola dopo il periodo di inattività del codespace. Macchina e quota: Q-660.
+2. **Esposizione.** Il TLS pubblico è quello dell'inoltro delle porte di GitHub, con due porte pubbliche per `web` e `idp`; il reverse proxy con certificati ACME e il sottodominio DNS di Q-620 non servono nel codespace. Gli URL https restano identici per browser e container (Q-392, Q-420). Dettagli: Q-661.
+3. **Bus e database invariati.** Broker Kafka KRaft e Postgres propri nel compose (Q-616), TLS con la CA locale generata nel codespace (Q-621): nessuna eccezione di vetrina alla regola 22.
+4. **Pulsante.** HUB-01 continua a mostrare il collegamento solo con `LH_HUB_ENTERPRISE_URL` valorizzata; l'URL resta stabile finché il codespace esiste. Come si comporta quando la vetrina è spenta: Q-662.
+5. **Azzeramento.** Ogni codespace nuovo parte vuoto; fermare e riavviare conserva i dati. Il timer settimanale dell'host non si applica a un codespace fermo: Q-663.
+6. **Costo zero verificabile.** L'account che ospita il codespace non ha metodi di pagamento per Codespaces oppure ha un budget a 0 per Codespaces, così l'uso si blocca a fine quota invece di generare addebiti.
+
+**Integra e non supera** ADR-049 (decisioni 1, 3–7), ADR-026, ADR-037. Resta la regola 8: nessun costo.
+**Conseguenze.**
+- + Costo zero senza carta di credito, senza capacità da conquistare e senza recupero dell'istanza da parte del fornitore.
+- + Nessun comando dal PC del proprietario: creazione, avvio e arresto dal browser.
+- + Nessun nuovo fornitore oltre GitHub, già usato per repository, CI e immagini; nessun nuovo componente: l'inoltro delle porte di GitHub sostituisce il reverse proxy.
+- + Stessa immagine, stesso compose e stesso overlay della vetrina: resta una prova d'installazione.
+- − Non sempre accesa: la quota gratuita copre decine di ore al mese, non un servizio 24/7 (TOBE-012); l'indisponibilità fuori demo va dichiarata in HUB-01 e HUB-02.
+- − Un codespace è pensato per lo sviluppo: la vetrina lo usa solo per demo a richiesta, non come servizio pubblicato in modo permanente.
+- − Architettura amd64 nel codespace: il controllo arm64 di `vetrina.sh preflight` va reso dipendente dall'host (fetta V7).
+- − Lo smoke pianificato contro la vetrina (V6) trova la vetrina spenta per la maggior parte del tempo e va eseguito solo a vetrina accesa.
+- − Gli URL dipendono dal nome del codespace: un codespace nuovo cambia `LH_HUB_ENTERPRISE_URL`.
+**Scartate.**
+- Oracle Cloud Always Free A1 (ADR-049 decisione 2): non utilizzabile a costo zero dall'account del proprietario.
+- VPS a pagamento sempre acceso: rompe la regola 8; resta la condizione di attivazione di TOBE-012, con un'ADR di deroga.
+- Vetrina effimera in un job di GitHub Actions: massimo 6 ore per job, nessun URL pubblico senza un tunnel (componente e destinazione di rete nuovi).
+- Riserva B di ADR-049 (Keycloak su Cloud Run, DB su Neon, hub e web su Render): tre fornitori, bus da ripensare con un'ADR, hub in `enterprise` oltre i 512 MB di Render.
+- Aiven come host: offre solo servizi di dati, non esegue hub, web e Keycloak.
