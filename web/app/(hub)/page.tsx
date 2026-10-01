@@ -2,17 +2,29 @@ import Link from "next/link";
 import { ArrowRight, Github } from "lucide-react";
 import { Entrances } from "@/components/hub/Entrances";
 import { EnterpriseShowcaseLink } from "@/components/hub/EnterpriseShowcaseLink";
+import { EnterpriseHub } from "@/components/hub/EnterpriseHub";
 import { StatusPanel } from "@/components/hub/StatusPanel";
-import { REPO_URL, RECOMMENDED_PATH } from "@/lib/hub/links";
+import { isEnterprise } from "@/lib/auth/config";
+import { getViewer } from "@/lib/auth/viewer";
+import { demoHubUrl, REPO_URL, RECOMMENDED_PATH } from "@/lib/hub/links";
 import { it } from "@/lib/i18n/it";
 
 // HUB-01 — Demo Hub (docs/07 §8). Feature: F-DEMO-01, F-DEMO-07 (keep-alive nel layout del gruppo).
 // Chiama: /api/demo/status, /api/demo/wake, /api/persona, member GET /v1/demo/personas.
 // F2-DIST-09, ADR-049: il pulsante verso la vetrina Enterprise legge LH_HUB_ENTERPRISE_URL a runtime, quindi la pagina
 // non può essere prerenderizzata al build (altrimenti il valore resterebbe quello del build).
+// HUB-02 (ADR-049, M8.14 V5): nel profilo enterprise la stessa pagina rende il Demo Hub enterprise, letto a runtime.
 export const dynamic = "force-dynamic";
 
+async function EnterpriseHubPage() {
+  // Utente della sessione del BFF, se c'è: solo nome e username arrivano alla pagina, mai token (regola 20).
+  const viewer = await getViewer();
+  const user = viewer.mode === "enterprise" ? viewer.user : null;
+  return <EnterpriseHub demoUrl={demoHubUrl(process.env)} user={user} />;
+}
+
 export default function DemoHubPage() {
+  if (isEnterprise()) return <EnterpriseHubPage />;
   return (
     <div className="mx-auto min-h-dvh max-w-5xl px-4 pb-24 pt-10">
       <header className="mb-8">
