@@ -193,11 +193,29 @@ run() {
 logs() {
   set +e
   compose ps -a
+  # Stato dei componenti della salute dell'hub (solo nome, stato ed eventuale classe d'errore, nessun dettaglio).
+  echo "::group::salute hub"
+  curl -sS --max-time 10 "$HUB_URL/actuator/health" | python3 -c '
+import json, sys
+try:
+    h = json.load(sys.stdin)
+except ValueError:
+    sys.exit("risposta non JSON")
+print("status", h.get("status"))
+for name, c in sorted((h.get("components") or {}).items()):
+    print(" ", name, c.get("status"), (c.get("details") or {}).get("error", ""))
+'
+  docker inspect -f '{{range .State.Health.Log}}{{.ExitCode}} {{.Output}}{{end}}' "$(compose ps -a -q hub)" | tail -n 20
+  echo "::endgroup::"
   for svc in proxy web hub migrate idp ldap kafka postgres; do
     echo "::group::log $svc"
     compose logs --no-color --tail=300 "$svc"
     echo "::endgroup::"
   done
+  # Avvisi ed errori dell'hub su tutto il log, non solo sulle ultime righe (i consumer Kafka le riempiono).
+  echo "::group::hub WARN/ERROR"
+  compose logs --no-color hub | grep -E ' (WARN|ERROR) |Started |APPLICATION FAILED' | tail -n 120
+  echo "::endgroup::"
 }
 
 down() {
