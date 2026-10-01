@@ -39,7 +39,7 @@ Piattaforma loyalty **open source ed event-driven**: microservizi Spring Boot + 
 ## 3. Struttura del repo
 
 ```
-CLAUDE.md  README.md  LICENSE  pom.xml (parent)  render.yaml
+CLAUDE.md  README.md  LICENSE  pom.xml (parent)
 docs/                  specifiche (fonte di verità)
 contracts/events/      JSON Schema degli eventi + examples/
 seed/                  dati demo canonici (JSON), letti dai servizi
