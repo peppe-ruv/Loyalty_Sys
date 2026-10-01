@@ -1,0 +1,51 @@
+name: smoke-vetrina
+
+# Smoke pianificato contro la vetrina enterprise ospitata (F2-QA-04, F2-DIST-09, ADR-049, M8.14 V6; criterio di
+# M8.14: «lo smoke pianificato contro la vetrina, senza credenziali, verifica health, discovery OIDC e HUB-02
+# raggiungibile»). Solo GET e nessuna credenziale né segreto: health del web, HUB-02 con banner e tessere attive,
+# login avviato dal BFF verso il realm `loyaltyhub`, discovery OIDC e JWKS, registrazione chiusa (Q-619), console
+# /admin e realm master non esposti, API del BFF chiuse senza sessione (scripts/smoke-enterprise.mjs vetrina).
+#
+# Indirizzo: variabile del repository LH_VETRINA_URL (Settings → Secrets and variables → Actions → Variables), l'origine
+# https del web della vetrina, la stessa di LH_HUB_ENTERPRISE_URL della demo. Vuota = vetrina non ancora online: il
+# job lo dice con un avviso ed esce verde, senza richieste. L'IdP si ricava dal redirect del login.
+# Costo zero: un minuto di Actions ogni sei ore.
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/smoke-vetrina.yml"
+      - "scripts/smoke-enterprise.mjs"
+      - "scripts/smoke-enterprise.test.mjs"
+
+# Nessuna scrittura: serve solo il checkout.
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-vetrina-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: smoke vetrina (senza credenziali)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      LH_VETRINA_URL: ${{ vars.LH_VETRINA_URL }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Test dello smoke
+        run: node --test scripts/smoke-enterprise.test.mjs
+      - name: Smoke contro la vetrina
+        run: |
+          if [ -z "${LH_VETRINA_URL}" ]; then
+            echo "::notice title=Vetrina non configurata::La variabile del repository LH_VETRINA_URL è vuota: la vetrina non è ancora online, smoke saltato (ADR-049, M8.14)."
+            exit 0
+          fi
+          node scripts/smoke-enterprise.mjs vetrina --web "${LH_VETRINA_URL}"

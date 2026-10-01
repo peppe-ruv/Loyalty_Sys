@@ -157,6 +157,18 @@ curl -s -o /dev/null -w '%{http_code}\n' https://idp-vetrina.example.org/admin/
 curl -fsS -o /dev/null -w '%{http_code}\n' https://web-vetrina.example.org/
 ```
 
+### Smoke pianificato
+
+Il workflow `.github/workflows/smoke-vetrina.yml` (M8.14 V6) controlla la vetrina ogni sei ore, senza credenziali e solo con richieste `GET`: health del web, HUB-02 con banner e tessere attive, login avviato dal BFF verso il realm `loyaltyhub`, discovery OIDC e JWKS, registrazione chiusa (Q-619), console `/admin` e realm `master` in `404`, API del BFF chiuse senza sessione. La health di hub, Postgres e Kafka si legge dalle tessere di HUB-02, perché il proxy non espone altro (Q-650).
+
+Quando la vetrina è online, imposta la variabile del repository `LH_VETRINA_URL` (*Settings → Secrets and variables → Actions → Variables*) con l'origine https del web, per esempio `https://web-vetrina.example.org`. Finché è vuota il workflow esce verde con un avviso. La stessa prova si lancia a mano da qualunque macchina con Node 22:
+
+```bash
+node scripts/smoke-enterprise.mjs vetrina --web https://web-vetrina.example.org
+```
+
+Il login reale di un operatore con OTP e la voce di audit con l'attore reale li prova invece il job `smoke enterprise (compose, OIDC)` di `ci.yml`, sul compose di riferimento con l'overlay di test del realm, a ogni pull request che tocca il codice.
+
 ## Esercizio
 
 ### Usare la console di Keycloak

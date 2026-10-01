@@ -114,6 +114,31 @@ sequenceDiagram
   Note over S: una scrittura senza voce dell'operatore = uscita 1
 ```
 
+## Verifiche automatiche
+
+Due prove tengono d'occhio il profilo `enterprise`, una prima del rilascio e una sulla vetrina accesa (M8.14, F2-QA-04).
+
+- **Prima del merge.** Il job `smoke enterprise (compose, OIDC)` di `ci.yml` avvia il compose di riferimento con l'immagine della pull request e l'overlay di test del realm. Un operatore fa un login vero dal backoffice: password temporanea cambiata, OTP configurato e codice inserito, senza scorciatoie sui client di produzione. Poi scrive una configurazione e il job cerca la voce in `GET /v1/audit` con l'attore reale. Prova anche i rifiuti: `401` senza token, `403` senza token CSRF, `404 PERSONA_DISABLED` sul selettore di persona. Segreti e certificati di prova nascono nel job e non compaiono nei log.
+- **Sulla vetrina.** Il workflow `smoke-vetrina.yml` gira ogni sei ore, senza credenziali e solo in lettura. Controlla la health, HUB-02 con le tessere attive, la discovery OIDC del realm `loyaltyhub`, la registrazione chiusa e che console e realm `master` non siano esposti. La health di hub, database e bus arriva dalle tessere di HUB-02, perché il proxy non espone altro (Q-650). Finché la variabile `LH_VETRINA_URL` del repository è vuota, il workflow si ferma con un avviso.
+
+```mermaid
+flowchart LR
+  accTitle: Verifiche automatiche del profilo enterprise
+  accDescr: Il job di CI avvia il compose di riferimento in profilo enterprise con l'overlay di test del realm ed esegue un login reale con OTP, una scrittura di configurazione e la verifica della voce di audit. Il workflow pianificato interroga la vetrina senza credenziali e solo in lettura: health, HUB-02, discovery OIDC, registrazione chiusa e superfici non esposte.
+  subgraph CI[Pull request: job smoke enterprise]
+    I[Immagine del commit] --> C[Compose di riferimento<br/>LH_PROFILE=enterprise]
+    C --> R[Overlay di test del realm<br/>e proxy TLS di prova]
+    R --> L[Login reale dal BFF<br/>PKCE, password e OTP]
+    L --> W[Scrittura di configurazione<br/>con CSRF]
+    W --> A[Voce in GET /v1/audit<br/>con l'attore reale]
+  end
+  subgraph SV[Ogni sei ore: smoke-vetrina]
+    V[LH_VETRINA_URL] --> H[Health e HUB-02]
+    H --> D[Discovery OIDC e JWKS]
+    D --> X[Registrazione chiusa,<br/>console e master in 404]
+  end
+```
+
 ## Decisione
 
 La decisione, le alternative scartate e i limiti dichiarati sono in [ADR-049](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/13-REGISTRO-DECISIONI.md). Hosting, bus, dati del programma, accesso degli operatori, portale e client `lh-cli` sono decisi (Q-615…Q-619, Q-626, Q-629); dominio e TLS, TLS verso bus e database, tempo reale, `render.yaml` e azzeramento sono decisi con il default proposto (Q-620…Q-624, il 2026-10-01). Il dettaglio è in [Domande aperte](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/15-DOMANDE-APERTE.md). Per installare lo stesso profilo sulla propria infrastruttura vedi [Installazione enterprise](/operations/installazione-enterprise).

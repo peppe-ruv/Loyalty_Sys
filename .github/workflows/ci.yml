@@ -312,6 +312,9 @@ jobs:
       # TLS verso bus e database, porte, vetrina.sh (provisioning in una cartella temporanea) e operatori.py contro un
       # Keycloak simulato. Il compose unito si prova con il docker compose del runner.
       - run: node --test scripts/check-vetrina.mjs
+      # Smoke enterprise (F2-QA-04, ADR-049, M8.14 V6): login con cambio password e OTP, CSRF, audit e modo vetrina
+      # contro un BFF, un Keycloak e un hub finti; nessuna rete fuori da loopback.
+      - run: node --test scripts/smoke-enterprise.test.mjs
       # Realm Keycloak as code (F2-IAM-01, ADR-027): scope referenziati definiti, nessun segreto letterale,
       # segnaposto passati al servizio idp del compose.
       - run: node --test scripts/check-realm.mjs
@@ -388,6 +391,10 @@ jobs:
           LH_VETRINA_WEB_HOST=web-vetrina.example.org LH_VETRINA_IDP_HOST=idp-vetrina.example.org
           LH_VETRINA_PUBLIC_ADDRESS=10.0.0.10
           docker compose -f deploy/compose/reference.yml -f deploy/vetrina/compose.vetrina.yml config -q
+      - name: Compose di riferimento con l'overlay dello smoke enterprise valido (M8.14 V6)
+        run: >-
+          LH_IMAGE=ghcr.io/example/loyaltyhub:ci LH_CI_UID=1001 LH_CI_GID=1001 LH_CI_TLS_DIR=/tmp/lh-smoke-enterprise/tls
+          docker compose -f deploy/compose/reference.yml -f deploy/compose/ci/smoke-enterprise.yml config -q
       - name: Compose locale valido (tutti i profili)
         run: docker compose -f deploy/docker-compose.yml --profile all --profile idp --profile idp-test config -q
 
@@ -609,6 +616,60 @@ jobs:
             --tail=200 --prefix
           echo "::endgroup::"
           cat "$RUNNER_TEMP/port-forward.log"
+
+  # Smoke enterprise con login OIDC reale (F2-QA-04, M8.2, ADR-049, M8.14 V6; criterio di M8.14: «il job CI sul compose
+  # con l'overlay di test del realm esegue un login OIDC reale di un operatore, una scrittura di configurazione che
+  # lascia una voce in GET /v1/audit con l'attore reale, 401 senza token e 404 PERSONA_DISABLED su POST /api/persona»).
+  # Compose di riferimento in profilo enterprise con l'immagine di questo commit, l'overlay di CI
+  # (deploy/compose/ci/smoke-enterprise.yml: proxy TLS con una CA di prova, LDAP di prova) e l'overlay di test del
+  # realm; scripts/smoke-enterprise.sh genera segreti e certificati nel job (file 0600, mascherati, mai stampati) e
+  # scripts/smoke-enterprise.mjs fa il login dal client `web` di produzione con PKCE, cambio della password
+  # temporanea e OTP (nessun direct access grant). Controllo consultivo: NON è nel ruleset
+  # (scripts/setup-branch-protection.sh) finché non si dimostra stabile, come `helm install (kind)`.
+  smoke-enterprise:
+    name: smoke enterprise (compose, OIDC)
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.helm == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Spazio su disco
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - uses: docker/setup-buildx-action@v4
+      # Stessa build di .github/workflows/image.yml (solo amd64, nessun push); l'immagine finisce nel Docker del runner.
+      - name: Immagine unica
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/image/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          provenance: false
+          sbom: false
+          tags: lh-image:ci
+      # Il proxy di prova serve web.lh.test e idp.lh.test su 127.0.0.1:8443: gli stessi URL https per il runner e per
+      # i container (alias di rete del proxy), come nella vetrina (Q-420).
+      - name: Nomi del proxy di prova
+        run: echo "127.0.0.1 web.lh.test idp.lh.test" | sudo tee -a /etc/hosts
+      - name: Compose enterprise con l'overlay di test del realm
+        timeout-minutes: 25
+        run: bash scripts/smoke-enterprise.sh up
+      - name: Smoke enterprise con login OIDC reale
+        timeout-minutes: 10
+        run: bash scripts/smoke-enterprise.sh run
+      - name: Diagnostica
+        if: ${{ !success() }}
+        run: bash scripts/smoke-enterprise.sh logs
+      - name: Smonta
+        if: always()
+        run: bash scripts/smoke-enterprise.sh down
 
   contracts:
     name: contracts
