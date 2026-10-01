@@ -19,7 +19,7 @@ Non decide *quanti* punti dare (lo fa il motore); applica solo il moltiplicatore
 | `tier_history` | `id`, `member_id`, `from_tier`, `to_tier`, `kind` (`UPGRADE, DOWNGRADE, RETAIN, INITIAL`), `edition_code`, `at` |
 | `edition` | `code` PK, `name`, `start_date`, `end_date`, `redemption_grace_until`, `status` |
 
-Tracciato delle tabelle (docs/18 §3.12-bis, verificato sulle migrazioni `V1` e `V2`). L'unico vincolo `FOREIGN KEY` è `wallet.currency` verso `currency` (linea continua); il resto sono riferimenti logici tenuti dal codice (tratteggiati). I movimenti e i lotti di un membro si legano al wallet per la coppia (`member_id`, `currency`). Le tabelle comuni di lh-common (docs/06 §1) esistono nello schema ma wallet non usa `approval_history`. Gli stati del lotto e dell'edizione sono in docs/03 §4.2 e §4.4.
+Tracciato delle tabelle (docs/18 §3.12-bis, verificato sulle migrazioni `V1` e `V2`; `V3` aggiunge solo righe di riferimento, nessuna tabella né colonna). L'unico vincolo `FOREIGN KEY` è `wallet.currency` verso `currency` (linea continua); il resto sono riferimenti logici tenuti dal codice (tratteggiati). I movimenti e i lotti di un membro si legano al wallet per la coppia (`member_id`, `currency`). Le tabelle comuni di lh-common (docs/06 §1) esistono nello schema ma wallet non usa `approval_history`. Gli stati del lotto e dell'edizione sono in docs/03 §4.2 e §4.4.
 
 ```mermaid
 erDiagram
@@ -84,6 +84,8 @@ erDiagram
   tier ||..o{ tier_history : "livello raggiunto"
   edition |o..o{ tier_history : "chiusura"
 ```
+
+**Dati di riferimento di sistema** (`V3__reference_data.sql`, Q-629 opzione B, ADR-049, F-WAL-01, F-TIER-01). In **ogni profilo**, `demo` ed `enterprise`, la migrazione inserisce le valute `PTS` (spendibile, `ROLLING_MONTHS` 12) e `STS` (non spendibile, `EDITION`) e la scala dei livelli di base `BASE` (0), `SILVER` (1 000), `GOLD` (3 000), `PLATINUM` (7 000) con moltiplicatori, vantaggi, colore e icona di `seed/currencies.json` e `seed/tiers.json`. Sono parte del prodotto, non dati fittizi né membri: in `enterprise` nessun seeder e nessuna API crea valute o livelli (le `PUT` agiscono solo su righe esistenti e `wallet.currency` ha una chiave esterna verso `currency`), quindi senza queste righe nessun evento potrebbe accreditare punti. Solo inserimenti `ON CONFLICT (code) DO NOTHING` (expand, ADR-038): una riga già presente, anche modificata da un operatore, non si tocca. Il divieto di docs/18 §3.15 (il profilo `demo` rifiuta un DB con membri non di seed) e quello di ADR-049 §5 (nessun membro `MBR-*` né `/v1/demo` in `enterprise`) riguardano membri e dati di vetrina, non questi riferimenti. Le **edizioni** non ne fanno parte: sono scelte del programma (BO-08) e in `enterprise` nascono solo dalla `POST /v1/editions`. Coerenza con la demo: il `WalletSeeder` riscrive valute e livelli con `upsert` sulle stesse chiavi e il reset della demo cancella i livelli e li riscrive dal seed (le valute non si cancellano), quindi migrazione, seeder e reset convivono senza violazioni di chiave e i riferimenti restano dopo ogni reset; `ReferenceDataIT` (senza profilo) e `DemoResetIT` falliscono se la migrazione diverge da `seed/`.
 
 ## 3. API
 ### Gestione
@@ -151,7 +153,7 @@ Tutte in `docs/03 §4`. Note implementative:
 - `keepWarning`: valorizzato da ottobre (a dicembre, mesi in `Europe/Rome`) se `periodSts` < soglia del tier attuale: `{tier, missing}` con `missing` = soglia − `periodSts`; mai per un tier con soglia 0.
 
 ## 6. Seed
-`seed/tiers.json`, `seed/currencies.json`, `seed/editions.json` (2025 `CLOSED`, 2026 `ACTIVE`, 2027 `PLANNED`), `seed/wallets.json` (saldi, `periodSts`, lotti con date **relative a oggi**, 8–25 movimenti storici per membro). Il seeder verifica l'invariante: Σ lotti attivi = saldo.
+`seed/tiers.json`, `seed/currencies.json`, `seed/editions.json` (2025 `CLOSED`, 2026 `ACTIVE`, 2027 `PLANNED`), `seed/wallets.json` (saldi, `periodSts`, lotti con date **relative a oggi**, 8–25 movimenti storici per membro). Il seeder verifica l'invariante: Σ lotti attivi = saldo. Valute e livelli di `seed/` sono anche nella migrazione `V3` (dati di riferimento di sistema, §2): il seeder li riscrive con `upsert`, edizioni, wallet e movimenti restano solo del profilo `demo`. **Regola di manutenzione (Q-629):** i valori di riferimento di `seed/currencies.json` e `seed/tiers.json` sono fissati da `V3`, che non si modifica (checksum Flyway) e che `ReferenceDataIT` confronta con `seed/`. Cambiare una valuta o una soglia, un vantaggio, un moltiplicatore di livello richiede una nuova migrazione expand (`V4` o successive) insieme al ritocco di `seed/` e deve dichiarare se tocca le righe esistenti: `ON CONFLICT DO NOTHING` non aggiorna le installazioni già avviate, mentre un `UPDATE` sovrascriverebbe le modifiche fatte da un operatore; la scelta è una decisione da registrare, non un refactor.
 
 ## 7. Accettazione minima
 - Effetto `PTS` 130 con `tierMultiplierApplies` per membro `SILVER` → movimento `EARN` 162, `metadata.baseAmount=130`, lotto con scadenza a fine mese +12.
