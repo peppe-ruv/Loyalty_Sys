@@ -1,0 +1,208 @@
+# Vetrina enterprise: runbook dell'host Oracle Cloud A1
+
+Questa cartella installa e mantiene la **vetrina enterprise** (F2-DIST-09, ADR-049): una seconda installazione di Loyalty Hub in `LH_PROFILE=enterprise`, separata dalla demo, su un host Oracle Cloud Always Free A1 (Q-615). Usa il compose di riferimento (`deploy/compose/reference.yml`, F2-DIST-03) più l'overlay di questa cartella.
+
+La vetrina serve a far vedere online login reale, MFA e audit con l'attore del token. Non è ad alta disponibilità, contiene solo dati fittizi e si azzera ogni settimana, senza backup (Q-624). Il contesto per chi legge la documentazione è nella pagina «Vetrina enterprise» del sito (`concetti/vetrina-enterprise.mdx`).
+
+## Cosa c'è nella cartella
+
+| File | A cosa serve |
+|---|---|
+| `compose.vetrina.yml` | Overlay del compose di riferimento: reverse proxy TLS, TLS verso Kafka e Postgres, segreti da file, profilo fisso. |
+| `caddy/Caddyfile` | Reverse proxy con certificati ACME per i due nomi `web` e `idp` (Q-620). |
+| `postgres/pg_hba.conf` | Postgres accetta dalla rete solo connessioni TLS (Q-621). |
+| `kafka/client-ssl.properties` | Client TLS del controllo di salute di Kafka. |
+| `vetrina.sh` | Comandi dell'host: `provision`, `preflight`, `up`, `down`, `reset`, `operators`, `programma`, `compose`. |
+| `operatori.py` | Crea gli account operatore nominativi con MFA (Q-618) a ogni azzeramento. |
+| `vetrina.env.example` | Modello della configurazione dell'host, senza segreti. |
+| `systemd/` | Servizio e timer dell'azzeramento settimanale. |
+
+## Come è fatta l'istanza
+
+- **Un solo componente nuovo: il reverse proxy** (Caddy, regola 8-bis, ADR-049). Ottiene da solo i certificati ACME per `LH_VETRINA_WEB_HOST` e `LH_VETRINA_IDP_HOST` ed è l'unico servizio con porte raggiungibili da fuori: 80 e 443, pubblicate sull'indirizzo privato dell'istanza (`LH_VETRINA_PUBLIC_ADDRESS`), mai su `0.0.0.0`.
+- **Web e Keycloak solo su `127.0.0.1`** (`LH_BIND_ADDRESS=127.0.0.1`). L'hub è su `127.0.0.1:8080` solo per lo script del programma. Postgres e Kafka restano sulla rete interna.
+- **Keycloak dal proxy solo per il realm `loyaltyhub`.** La console `/admin` e il realm `master` rispondono `404` da fuori: si usano da `127.0.0.1:8180` con un tunnel SSH.
+- **TLS verso bus e database con una CA locale** generata sull'host (Q-621). Kafka ha un listener SSL con certificato del client obbligatorio (l'hub usa `KAFKA_SECURITY=SSL_PEM`). Postgres rifiuta le connessioni in chiaro e hub, migrazioni e Keycloak si collegano con `sslmode=verify-full`, che controlla anche CA e nome. Se un URL del database perde `verify-full` o Kafka non è `SSL_PEM`, il container si ferma con `INSECURE_CONFIG`.
+- **Segreti solo da file** (regola 20). Ogni segreto arriva al container come `<VAR>_FILE` da `/run/secrets`. La variabile in chiaro è forzata a vuoto, e il container si ferma se la trova piena.
+- **Limiti di memoria per ogni container**, per circa 6,5 GB in tutto sui 12 GB dell'host: Postgres 1 GB, Kafka 1 GB (heap 512 MB), hub 2 GB, web 768 MB, Keycloak 1,5 GB, proxy 128 MB.
+
+## Prerequisiti
+
+- Un account Oracle Cloud con un'istanza **Ampere A1** (arm64) del piano Always Free: 2 OCPU e 12 GB, Ubuntu 24.04 o Oracle Linux 9 per arm64, almeno 50 GB di disco.
+- Due nomi DNS su un sottodominio gratuito di un servizio DNS (Q-620), entrambi con un record A verso l'IP pubblico dell'istanza.
+- L'immagine unica pubblicata per `linux/arm64` (pipeline `image.yml` sui tag `v*`).
+- Sull'host: Docker Engine con il plugin compose, `python3`, `openssl`, `curl`, `flock` e Node.js 22 (solo per il passo del programma).
+
+## Primi passi
+
+### 1. Verifica l'architettura
+
+```bash
+# Deve stampare aarch64: Oracle Cloud A1 è arm64
+uname -m
+```
+
+`vetrina.sh preflight` ripete il controllo e verifica anche che **ogni immagine** del compose abbia una variante `linux/arm64` nel registro.
+
+### 2. Apri la rete
+
+1. Nella *Security List* (o nel *Network Security Group*) della subnet consenti in ingresso TCP 80 e 443 da ovunque e TCP 22 solo dal tuo indirizzo.
+2. Apri le stesse porte nel firewall dell'host. Le immagini Ubuntu di Oracle Cloud bloccano tutto tranne la 22 con `iptables`:
+
+   ```bash
+   # Ubuntu: regole prima del rifiuto finale, poi salvate per il riavvio
+   sudo iptables -I INPUT 5 -p tcp --dport 80 -m state --state NEW -j ACCEPT
+   sudo iptables -I INPUT 5 -p tcp --dport 443 -m state --state NEW -j ACCEPT
+   sudo netfilter-persistent save
+   # Oracle Linux
+   sudo firewall-cmd --permanent --add-service=http --add-service=https && sudo firewall-cmd --reload
+   ```
+
+3. Annota l'**indirizzo privato** dell'istanza (`ip -4 addr`): va in `LH_VETRINA_PUBLIC_ADDRESS`.
+
+### 3. Installa i programmi e il repository
+
+```bash
+# Repository al tag della release che vuoi mostrare
+sudo git clone --branch v0.0.0 https://github.com/<owner>/Loyalty_Sys.git /opt/loyaltyhub
+```
+
+Installa Docker Engine con il plugin compose dalla documentazione ufficiale di Docker per la tua distribuzione arm64, poi `python3`, `openssl`, `curl` e Node.js 22.
+
+### 4. Scrivi la configurazione
+
+```bash
+sudo install -d -m 700 /etc/loyaltyhub-vetrina
+sudo install -m 600 /opt/loyaltyhub/deploy/vetrina/vetrina.env.example /etc/loyaltyhub-vetrina/vetrina.env
+# Modifica immagine, nomi DNS, indirizzo privato e LH_HUB_DEMO_URL
+sudoedit /etc/loyaltyhub-vetrina/vetrina.env
+```
+
+Aggiungi i due nomi al file `/etc/hosts` dell'host, verso l'indirizzo privato. Così gli script sull'host (programma e verifiche) raggiungono il proxy senza uscire e rientrare dall'IP pubblico:
+
+```bash
+# Esempio con l'indirizzo privato 10.0.0.10
+echo "10.0.0.10 web-vetrina.example.org idp-vetrina.example.org" | sudo tee -a /etc/hosts
+```
+
+Dentro la rete compose non serve: il proxy ha i due nomi come alias di rete.
+
+### 5. Genera segreti e certificati, poi avvia
+
+```bash
+cd /opt/loyaltyhub
+# Segreti, CA locale e certificati in /etc/loyaltyhub-vetrina (file 0600, nessun valore stampato)
+sudo deploy/vetrina/vetrina.sh provision
+# Controlli: architettura, immagini arm64, permessi, certificati, nessun segreto nell'ambiente
+sudo deploy/vetrina/vetrina.sh preflight
+# Primo avvio completo: compose, realm con l'overlay di vetrina e account operatore
+sudo deploy/vetrina/vetrina.sh reset
+```
+
+Il primo avvio di Keycloak e di Kafka richiede alcuni minuti. Il proxy ottiene i certificati appena i nomi DNS puntano all'istanza e le porte 80 e 443 sono aperte.
+
+### 6. Crea gli account operatore
+
+Gli account sono nominativi, con password temporanea consegnata fuori banda e MFA obbligatoria (Q-618). Scrivi l'elenco, una riga per account:
+
+```bash
+sudo install -m 600 /dev/null /etc/loyaltyhub-vetrina/operators.list
+sudoedit /etc/loyaltyhub-vetrina/operators.list
+# Formato: <nome utente> <RUOLO> <e-mail>, per esempio
+#   anna.admin ADMIN anna.admin@example.org
+sudo deploy/vetrina/vetrina.sh operators
+```
+
+Il comando crea solo gli account che mancano, con il ruolo indicato e `MFA_REQUIRED_ROLE`, e poi esegue `apply-overlay.sh --check-operators`. Le password temporanee vanno solo in `/etc/loyaltyhub-vetrina/operator-passwords.txt` (permessi `0600`): consegnale fuori banda e cancella il file. Al primo accesso l'operatore sceglie la password e configura l'OTP.
+
+### 7. Applica la configurazione del programma
+
+```bash
+deploy/vetrina/vetrina.sh programma
+```
+
+Lo script `scripts/vetrina-programma.mjs` mostra un indirizzo e un codice: aprili nel browser, entra con il **tuo** account `ADMIN` (password e OTP) e approva il client `lh-cli`. Approva solo codici che hai avviato tu (Q-626). Lo script crea solo ciò che manca e verifica nell'audit una voce con il tuo nome per ogni scrittura.
+
+### 8. Pianifica l'azzeramento settimanale
+
+```bash
+sudo cp deploy/vetrina/systemd/loyaltyhub-vetrina-reset.* /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now loyaltyhub-vetrina-reset.timer
+# Prossima esecuzione
+systemctl list-timers loyaltyhub-vetrina-reset.timer
+```
+
+Ogni lunedì alle 03:00 UTC il timer esegue `vetrina.sh reset`:
+
+1. rinnova i certificati interni che scadono entro 30 giorni;
+2. ripete i controlli preliminari;
+3. ferma lo stack e ricrea i volumi di Postgres e Kafka (nessun backup, Q-624);
+4. riavvia lo stack: Keycloak reimporta il realm da `deploy/idp/realm.json`;
+5. applica l'overlay del realm (`deploy/idp/vetrina/apply-overlay.sh`);
+6. ricrea gli account operatore da `operators.list`, con nuove password temporanee.
+
+Il passo 7 (programma) resta da fare a mano dopo ogni azzeramento: chiede l'approvazione di un operatore con MFA (Q-626) e il timer non può darla (Q-630). Fino ad allora le schermate del programma restano vuote.
+
+## Verifica
+
+```bash
+# Stato dei container (tutti healthy, il proxy running)
+sudo deploy/vetrina/vetrina.sh compose ps
+# Discovery OIDC raggiungibile con un certificato valido
+curl -fsS https://idp-vetrina.example.org/realms/loyaltyhub/.well-known/openid-configuration >/dev/null && echo ok
+# La console di amministrazione non è esposta: atteso 404
+curl -s -o /dev/null -w '%{http_code}\n' https://idp-vetrina.example.org/admin/
+# HUB-02 della vetrina
+curl -fsS -o /dev/null -w '%{http_code}\n' https://web-vetrina.example.org/
+```
+
+## Esercizio
+
+### Usare la console di Keycloak
+
+La console non passa dal proxy. Apri un tunnel SSH e usa `http://127.0.0.1:8180/admin/` nel browser:
+
+```bash
+ssh -L 8180:127.0.0.1:8180 ubuntu@<ip-pubblico>
+```
+
+La password di amministrazione è nel file `/etc/loyaltyhub-vetrina/secrets/idp-admin-password`: leggila sull'host solo quando serve, senza copiarla altrove.
+
+### Aggiornare l'immagine
+
+Cambia `LH_IMAGE` in `/etc/loyaltyhub-vetrina/vetrina.env` e rilancia `sudo deploy/vetrina/vetrina.sh up`. Le migrazioni sono expand/contract (ADR-038), quindi non serve un azzeramento.
+
+### Segreti e certificati
+
+`vetrina.sh provision` genera ogni file una sola volta e non lo riscrive. Non stampa mai un valore, solo nomi e percorsi.
+
+| File in `$LH_VETRINA_DIR` | Contenuto | Proprietario e permessi | Lo legge |
+|---|---|---|---|
+| `secrets/db-password` | password del ruolo `loyaltyhub` | 1000, `0600` | Postgres, migrazioni, hub |
+| `secrets/idp-db-password` | password del ruolo `idp` | 1000, `0600` | Postgres, Keycloak |
+| `secrets/idp-admin-password` | amministratore iniziale di Keycloak | 1000, `0600` | Keycloak, `vetrina.sh` |
+| `secrets/web-client-secret`, `widgets-client-secret`, `cms-client-secret` | segreti dei client del realm | 1000, `0600` | Keycloak, web |
+| `secrets/web-session-key` | chiave delle sessioni del BFF | 1000, `0600` | web |
+| `secrets/subject-key` | `LH_SUBJECT_KEY`, **immutabile** (docs/11 §16) | 1000, `0600` | hub |
+| `ca/ca.key`, `ca/ca.crt` | CA locale | root, `0600` | solo `vetrina.sh` sull'host |
+| `tls/ca.crt` | certificato della CA, pubblico | root, `0644` | hub, Keycloak, Kafka |
+| `tls/postgres.key`, `tls/postgres.crt` | certificato del server Postgres | 999, `0600` (chiave) | Postgres |
+| `tls/kafka-keystore.pem` | chiave e certificato del broker | 1000, `0600` | Kafka |
+| `tls/kafka-client-*.b64` | CA, certificato e chiave dell'hub verso Kafka | 1000, `0600` | hub |
+
+L'uid 1000 è l'utente dei container dell'immagine unica, di Keycloak e di Kafka; il 999 è l'utente `postgres` dell'immagine di Postgres. Sull'host lo stesso uid può essere l'utente di accesso (`ubuntu` o `opc`), che ha già i privilegi di amministratore.
+
+I certificati interni durano 397 giorni e l'azzeramento li rinnova quando ne mancano meno di 30. Per cambiare la CA, cancella `ca/` e rilancia `provision`: riemette tutti i certificati. Non cancellare mai `secrets/subject-key` fuori da un azzeramento: cambiare la chiave scollega i token dai membri (docs/11 §16).
+
+> **Nota:** l'elenco dei segreti è lo stesso in `vetrina.sh` (`SECRETS`) e in `compose.vetrina.yml` (`secrets:`); `scripts/check-vetrina.mjs` verifica che coincidano.
+
+## Limiti noti
+
+- **Non è HA.** Un host, un broker, un Postgres e una replica del web; gli obiettivi di ADR-036 non valgono.
+- **Azzeramento non del tutto automatico** (Q-630): il programma si riapplica a mano con `vetrina.sh programma`.
+- **HTTP in chiaro dentro la rete compose** tra proxy, web, Keycloak e hub, sullo stesso host (TOBE-011). Bus e database sono in TLS.
+- **Guardia TLS nel container, non nell'hub** (Q-631): la rifiuta l'entrypoint dell'overlay, non ancora il codice dell'hub.
+- **Tempo reale in BO-24** in stato *degraded* finché non arriva il proxy SSE nel BFF (Q-622).
+- **Piano gratuito del fornitore**: capacità A1 limitata, istanze inattive recuperabili e risorse riducibili senza preavviso (ADR-049).
+- **Limiti di emissione ACME**: i certificati del proxy stanno nel volume `lh-vetrina-caddy-data`, che l'azzeramento non tocca. Non cancellarlo a ogni prova.

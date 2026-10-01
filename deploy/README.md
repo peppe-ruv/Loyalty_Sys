@@ -449,6 +449,23 @@ produce `SIGNATURE_INVALID` né `PRODUCER_NOT_ALLOWED`), picchi di 401 e 403, ar
 (per installazione, se più ne condividono un Prometheus). RPO 15 min e RTO 1 h non si misurano dall'applicazione: li prova il ripristino
 (M15.2, Q-525).
 
+### Vetrina enterprise: overlay del compose di riferimento (F2-DIST-03, F2-DIST-09, ADR-049, M8.14c)
+
+La vetrina enterprise ospitata (`docs/11 §17`) usa questo compose con l'overlay `deploy/vetrina/compose.vetrina.yml`,
+sempre attraverso `deploy/vetrina/vetrina.sh`. L'overlay aggiunge il reverse proxy con certificati ACME per due nomi
+(Q-620, unico componente nuovo e unico esposto), TLS verso Kafka e Postgres con una CA locale generata sull'host (Q-621),
+segreti solo da `<VAR>_FILE` con file `0600` (regola 20) e il profilo `enterprise` fisso. Il runbook per Oracle Cloud A1,
+con verifica arm64, provisioning, azzeramento settimanale (Q-624) e limiti noti, è in `deploy/vetrina/README.md`.
+
+```bash
+# Sull'host della vetrina, con la configurazione in /etc/loyaltyhub-vetrina/vetrina.env
+sudo deploy/vetrina/vetrina.sh provision   # segreti, CA locale e certificati (nessun valore stampato)
+sudo deploy/vetrina/vetrina.sh preflight   # arm64, permessi, certificati, compose valido
+sudo deploy/vetrina/vetrina.sh reset       # primo avvio o azzeramento: stack, realm, overlay, operatori
+```
+
+Verifica: `node --test scripts/check-vetrina.mjs` (job `seed`).
+
 ### Vetrina enterprise: configurazione di programma da seed (F2-DIST-09, F2-DIST-06, ADR-049, Q-617)
 
 In `enterprise` non esiste un seeder e `/v1/demo/**` non esiste: una vetrina appena installata è vuota. La scelta
@@ -474,7 +491,7 @@ node scripts/vetrina-programma.mjs --base-url https://hub.example.org --token-fi
 
 - **Raggiungere l'hub.** L'hub non è esposto dal reverse proxy: lo script parla con i servizi (un solo URL con
   `--base-url` o `LH_BASE_URL`, oppure `LH_SVC_<SERVIZIO>_URL` come il web, oppure `--svc-url servizio=url`; la
-  precedenza è `--svc-url`, `LH_SVC_<SERVIZIO>_URL`, `--base-url`, `LH_BASE_URL`) da un punto che li raggiunge. Solo `https`; `http` solo con `--allow-http` e solo verso `localhost`, `127.0.0.1` o `::1`.
+  precedenza è `--svc-url`, `LH_SVC_<SERVIZIO>_URL`, `--base-url`, `LH_BASE_URL`) da un punto che li raggiunge. Solo `https`; `http` solo con `--allow-http` e solo verso `localhost`, `127.0.0.1` o `::1`. Sulla vetrina l'overlay pubblica l'hub solo su `127.0.0.1:8080` dell'host e `deploy/vetrina/vetrina.sh programma` avvia lo script con `--base-url http://127.0.0.1:8080 --allow-http` e il Device Authorization Grant.
 - **Token.** Da file `0600` (`--token-file` o `LH_OPERATOR_TOKEN_FILE`; file regolare, del proprietario, non un
   collegamento) oppure, senza file, dal *Device Authorization Grant* (RFC 8628) contro l'emittente:
   `--issuer https://idp.example.org/realms/loyaltyhub` (client `lh-cli`, da proporre nel realm di vetrina, Q-626):

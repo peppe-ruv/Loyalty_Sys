@@ -144,6 +144,17 @@ Ogni voce ha un identificativo `TOBE-nnn` e questi campi:
 | Quando farla | Con la fetta M12.4 (pipeline di rilascio) per il pacchetto e il VEX, con M12.6 per SLSA livello 3, e prima della verifica all'ammissione opzionale del chart. |
 | Riferimenti | Q-510, Q-511, Q-512, Q-513, ADR-038, ADR-044, F2-SEC-03, F2-DIST-08, F2-GRC-08, M8.5, M12.4, M12.6 |
 
+### TOBE-011 — TLS anche sulla rete interna della vetrina enterprise
+
+| Campo | Contenuto |
+|---|---|
+| Cosa | Cifrare e autenticare anche il traffico HTTP dentro la rete compose della vetrina: proxy → `web` e `idp`, `web` → `hub` (con il Bearer dell'operatore), Keycloak → back-channel logout. |
+| Perché non ora | Servirebbe TLS fino ai container (certificati per `web`, `hub` e Keycloak, o una mesh con mTLS): è il lavoro di M8.5 per tutti i tagli, e un sidecar per servizio non entra nei limiti della vetrina senza un componente nuovo (regola 8-bis). |
+| Workaround attivo | Overlay `deploy/vetrina/compose.vetrina.yml` (fetta M8.14c): dall'esterno passa solo il proxy TLS con certificati ACME; bus e database sono in TLS con la CA locale (Kafka con certificato del client, Postgres `verify-full`, Q-621); il JWKS dell'hub e le chiamate del web all'emittente passano dal proxy in https grazie agli alias di rete; web e Keycloak ascoltano sull'host solo su `127.0.0.1`. Tutto sta su un solo host, in una rete bridge senza altri container. Il limite residuo: chi ottiene accesso alla rete compose dell'host (root sull'host o un container compromesso nella stessa rete) legge in chiaro le richieste HTTP interne, compresi i token degli operatori. |
+| Già predisposto | La CA locale e il provisioning dei certificati di `vetrina.sh provision` emettono già certificati per nome di servizio; aggiungere `web`, `hub` e `idp` è una riga per certificato. Il proxy parla già con i servizi per nome. |
+| Quando farla | Con M8.5 (mTLS di mesh e principal per modulo), o prima di ospitare nella vetrina altri container non nostri. |
+| Riferimenti | Q-392, Q-420, Q-621, ADR-049, ADR-042, F2-DIST-09, M8.5, M8.14 |
+
 ## Voci chiuse
 
 Nessuna.
