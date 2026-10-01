@@ -26,7 +26,11 @@ services:
     # root il processo non la ottiene comunque.
     user: "${LH_CI_UID:?LH_CI_UID obbligatoria}:${LH_CI_GID:?LH_CI_GID obbligatoria}"
     read_only: true
-    tmpfs: ["/tmp", "/data", "/config"]
+    # tmpfs dell'utente del runner: Caddy vi crea la CA locale (/data/caddy) anche se usa il certificato di prova.
+    tmpfs:
+      - /tmp
+      - "/data:uid=${LH_CI_UID},gid=${LH_CI_GID}"
+      - "/config:uid=${LH_CI_UID},gid=${LH_CI_GID}"
     security_opt:
       - no-new-privileges:true
     cap_drop:
