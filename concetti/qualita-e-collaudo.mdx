@@ -67,6 +67,24 @@ flowchart LR
 Ogni esecuzione generativa stampa il seme. Per riprodurre un fallimento, rilancia il test con lo stesso seme.
 </Tip>
 
+## La demo pubblica ogni notte
+
+Playwright verifica il profilo `enterprise` nelle pull request. La demo pubblica, nel profilo `demo` con le persone simulate, la verifica Cypress ogni notte e a richiesta, con le corse registrate su Cypress Cloud (ADR-054). Così puoi rivedere ogni test dal browser, passo per passo, senza terminale.
+
+```mermaid
+flowchart LR
+  accTitle: Due strumenti per due profili
+  accDescr: Nelle pull request Playwright verifica lo stack enterprise di CI. Ogni notte e a richiesta Cypress verifica la demo pubblica su Vercel con le persone simulate e registra la corsa su Cypress Cloud se il segreto della record key è presente.
+  PR[Pull request] --> PW[Playwright<br/>profilo enterprise in CI]
+  NOTTE[Ogni notte o a richiesta] --> CY[Cypress<br/>demo pubblica su Vercel]
+  CY -->|record key presente| CC[Cypress Cloud<br/>Test Replay e storico]
+  CY -->|record key assente| GA[Esito solo in Actions]
+```
+
+<Note>
+Il piano gratuito di Cypress Cloud limita i risultati registrati ogni mese. Oltre il limite le corse continuano, senza registrazione.
+</Note>
+
 ## Cosa vede ogni livello
 
 | Livello | Dove gira | Cosa vede | Esito |
