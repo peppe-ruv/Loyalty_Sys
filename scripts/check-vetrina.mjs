@@ -530,6 +530,7 @@ const CODESPACE_ENV = {
   ...EXAMPLE_ENV,
   LH_VETRINA_WEB_HOST: 'prova-vetrina-8000.app.github.dev',
   LH_VETRINA_IDP_HOST: 'prova-vetrina-8001.app.github.dev',
+  LH_VETRINA_ADMIN_HOST: 'prova-vetrina-8180.app.github.dev',
   LH_VETRINA_PUBLIC_ADDRESS: '127.0.0.1',
 };
 
@@ -577,7 +578,9 @@ test('compose unito nel codespace: proxy HTTP su 127.0.0.1:8000 e 8001, nessun a
   assert.deepEqual(Object.keys(cfg.services).sort(), ['hub', 'idp', 'kafka', 'migrate', 'postgres', 'proxy', 'web']);
   const proxy = cfg.services.proxy;
   assert.deepEqual(proxy.ports.map((p) => `${p.host_ip}:${p.published}:${p.target}`), ['127.0.0.1:8000:8000', '127.0.0.1:8001:8001']);
-  assert.ok(!proxy.cap_add || proxy.cap_add.length === 0, 'nessuna capability: porte non privilegiate');
+  // Porte non privilegiate, ma NET_BIND_SERVICE resta nell'insieme limite: senza, il binario caddy (file capability) non parte.
+  assert.deepEqual(proxy.cap_add, ['NET_BIND_SERVICE']);
+  assert.deepEqual(proxy.cap_drop, ['ALL']);
   assert.deepEqual(proxy.networks.default ?? {}, {}, 'nessun alias: i nomi pubblici puntano all\'inoltro di GitHub');
   assert.ok(proxy.volumes.some((v) => v.source.endsWith('/caddy/Caddyfile.codespace') && v.target === '/etc/caddy/Caddyfile'));
   for (const [name, svc] of Object.entries(cfg.services)) {
@@ -587,6 +590,9 @@ test('compose unito nel codespace: proxy HTTP su 127.0.0.1:8000 e 8001, nessun a
   assert.equal(cfg.services.hub.environment.LH_OIDC_ISSUER, 'https://prova-vetrina-8001.app.github.dev/realms/loyaltyhub');
   assert.equal(cfg.services.web.environment.LH_WEB_URL, 'https://prova-vetrina-8000.app.github.dev');
   assert.equal(cfg.services.idp.environment.KC_HOSTNAME, 'https://prova-vetrina-8001.app.github.dev');
+  // Console sull'inoltro privato della porta 8180 (solo il proprietario), non su 127.0.0.1 come sull'host fisso.
+  assert.equal(cfg.services.idp.environment.KC_HOSTNAME_ADMIN, 'https://prova-vetrina-8180.app.github.dev');
+  assert.deepEqual(cfg.services.idp.ports.map((p) => `${p.host_ip}:${p.published}`), ['127.0.0.1:8180']);
   // TLS verso bus e database invariato.
   assert.equal(cfg.services.hub.environment.KAFKA_SECURITY, 'SSL_PEM');
   assert.match(cfg.services.hub.environment.DB_URL, /sslmode=verify-full/);
@@ -604,6 +610,8 @@ test('vetrina.sh in modalità codespace: configurazione rifiutata se il proxy es
     [{ ...CODESPACE_ENV, LH_VETRINA_PUBLIC_ADDRESS: '10.0.0.10' }, /deve essere 127\.0\.0\.1 nel codespace/],
     [{ ...CODESPACE_ENV, LH_VETRINA_WEB_HOST: 'web-vetrina.example.org' }, /LH_VETRINA_WEB_HOST nel codespace/],
     [{ ...CODESPACE_ENV, LH_VETRINA_IDP_HOST: 'prova-vetrina-8443.app.github.dev' }, /LH_VETRINA_IDP_HOST nel codespace/],
+    [{ ...CODESPACE_ENV, LH_VETRINA_ADMIN_HOST: '' }, /LH_VETRINA_ADMIN_HOST nel codespace/],
+    [{ ...CODESPACE_ENV, LH_VETRINA_ADMIN_HOST: 'prova-vetrina-8001.app.github.dev' }, /LH_VETRINA_ADMIN_HOST nel codespace/],
     [{ ...CODESPACE_ENV, LH_VETRINA_MODE: 'cloud' }, /LH_VETRINA_MODE deve essere host o codespace/],
   ];
   for (const [env, msg] of cases) {
@@ -641,6 +649,7 @@ test('vetrina.sh codespace: configurazione dall\'ambiente, segreti generati, ele
   assert.match(conf, /^LH_IMAGE=ghcr\.io\/example\/loyaltyhub:v1\.2\.3$/m);
   assert.match(conf, /^LH_VETRINA_WEB_HOST=prova-vetrina-x5g7-8000\.app\.github\.dev$/m);
   assert.match(conf, /^LH_VETRINA_IDP_HOST=prova-vetrina-x5g7-8001\.app\.github\.dev$/m);
+  assert.match(conf, /^LH_VETRINA_ADMIN_HOST=prova-vetrina-x5g7-8180\.app\.github\.dev$/m);
   assert.match(conf, /^LH_VETRINA_PUBLIC_ADDRESS=127\.0\.0\.1$/m);
   assert.match(conf, new RegExp(`^LH_VETRINA_DIR=${path.join(d, 'cs').replaceAll('/', '\\/')}$`, 'm'));
   for (const s of SECRET_FILES) assert.equal(fs.statSync(path.join(d, 'cs', 'secrets', s)).mode & 0o777, 0o600, s);

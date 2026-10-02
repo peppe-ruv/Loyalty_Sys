@@ -60,7 +60,7 @@ Fermare e riaccendere il codespace conserva dati e account. Un codespace nuovo p
 
 - **Ingresso.** Niente IP pubblico né certificati ACME: il TLS lo termina l'inoltro delle porte di GitHub. Il proxy Caddy resta, in HTTP su `127.0.0.1:8000` (web) e `127.0.0.1:8001` (Keycloak), per tenere fuori la console `/admin` e il realm `master` e per le intestazioni di sicurezza.
 - **Emittente OIDC.** Web e hub chiamano Keycloak con lo stesso indirizzo pubblico del browser, passando dall'inoltro di GitHub (Q-420): per questo la porta 8001 deve essere pubblica.
-- **Console di Keycloak.** È su `127.0.0.1:8180` del codespace, con un inoltro privato che vede solo il proprietario: aprila da VS Code o con `gh codespace ports forward 8180:8180`.
+- **Console di Keycloak.** Si apre dal browser, senza comandi sul tuo PC: nel codespace, scheda *Porte*, riga 8180 «Keycloak con console /admin (resta privata)», icona del globo, poi `/admin/`. L'indirizzo è `https://<nome>-8180.<dominio di inoltro>/admin/` e `vetrina.sh codespace` lo stampa all'avvio. La porta resta **privata**: GitHub la apre solo al proprietario del codespace, dopo il suo login; poi Keycloak chiede l'utente `admin` e la password di `/workspaces/.loyaltyhub-vetrina/secrets/idp-admin-password` (leggila con `sudo cat`). Non renderla pubblica: dal proxy pubblico (porta 8001) `/admin` e il realm `master` restano `404`.
 - **Architettura.** Il codespace è amd64: `preflight` controlla le immagini per l'architettura dell'host, non più solo arm64.
 - **Azzeramento.** Niente timer settimanale (non gira a codespace fermo): vale Q-663.
 

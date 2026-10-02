@@ -45,7 +45,8 @@ CONTAINER_UID=1000
 POSTGRES_UID=999
 
 # Chiavi ammesse nel file di configurazione (nessun segreto).
-CONFIG_KEYS=(LH_VETRINA_MODE LH_IMAGE LH_VETRINA_DIR LH_VETRINA_WEB_HOST LH_VETRINA_IDP_HOST LH_VETRINA_PUBLIC_ADDRESS LH_HUB_DEMO_URL LH_BIND_ADDRESS)
+CONFIG_KEYS=(LH_VETRINA_MODE LH_IMAGE LH_VETRINA_DIR LH_VETRINA_WEB_HOST LH_VETRINA_IDP_HOST LH_VETRINA_PUBLIC_ADDRESS LH_HUB_DEMO_URL LH_BIND_ADDRESS
+            LH_VETRINA_ADMIN_HOST)
 # Segreti generati sull'host: nome del file e forma (password = 32 caratteri url-safe; key = 32 byte in base64).
 SECRETS=(db-password:password idp-db-password:password idp-admin-password:password web-client-secret:password
          widgets-client-secret:password cms-client-secret:password web-session-key:key subject-key:key)
@@ -55,6 +56,8 @@ SECRET_ENV=(LH_DB_PASSWORD LH_IDP_DB_PASSWORD LH_IDP_ADMIN_PASSWORD LH_WEB_CLIEN
 # Porte del proxy nel codespace (Q-661): HTTP in chiaro su loopback, l'inoltro di GitHub le pubblica in https.
 CODESPACE_WEB_PORT=8000
 CODESPACE_IDP_PORT=8001
+# Console di Keycloak nel codespace: porta 8180 con inoltro privato (solo il proprietario, accesso con GitHub).
+CODESPACE_ADMIN_PORT=8180
 # Volumi azzerati ogni settimana (Q-624). I volumi del proxy (certificati ACME) restano.
 RESET_VOLUMES=(lh-ref-postgres lh-ref-kafka)
 # Validità dei certificati: CA 10 anni, foglie 397 giorni, rinnovo quando ne mancano meno di 30.
@@ -116,6 +119,8 @@ validate_config() {
     [ "$LH_VETRINA_PUBLIC_ADDRESS" = 127.0.0.1 ] || usage_error "LH_VETRINA_PUBLIC_ADDRESS deve essere 127.0.0.1 nel codespace"
     [[ "$LH_VETRINA_WEB_HOST" == *"-$CODESPACE_WEB_PORT."* ]] || usage_error "LH_VETRINA_WEB_HOST nel codespace è <nome>-$CODESPACE_WEB_PORT.<dominio di inoltro>"
     [[ "$LH_VETRINA_IDP_HOST" == *"-$CODESPACE_IDP_PORT."* ]] || usage_error "LH_VETRINA_IDP_HOST nel codespace è <nome>-$CODESPACE_IDP_PORT.<dominio di inoltro>"
+    [[ "${LH_VETRINA_ADMIN_HOST:-}" =~ $host_re ]] && [[ "$LH_VETRINA_ADMIN_HOST" == *"-$CODESPACE_ADMIN_PORT."* ]] \
+      || usage_error "LH_VETRINA_ADMIN_HOST nel codespace è <nome>-$CODESPACE_ADMIN_PORT.<dominio di inoltro> (console di Keycloak)"
   else
     case "$LH_VETRINA_PUBLIC_ADDRESS" in
       0.0.0.0|127.*) usage_error "LH_VETRINA_PUBLIC_ADDRESS non può essere 0.0.0.0 né loopback: indica l'indirizzo dell'interfaccia dell'host" ;;
@@ -309,7 +314,7 @@ archs = set()
 for it in items:
     plat = (it.get("Descriptor") or {}).get("platform") or {}
     archs.add(plat.get("architecture"))
-    for m in (it.get("Raw") or {}).get("manifests", []) or []:
+    for m in ((lambda r: r if isinstance(r, dict) else {})(it.get("Raw"))).get("manifests", []) or []:
         archs.add((m.get("platform") or {}).get("architecture"))
 sys.exit(0 if os.environ["LH_WANT_ARCH"] in archs else 1)'; then
       info "$want: $img"
@@ -430,6 +435,7 @@ cmd_codespace() {
     echo "LH_VETRINA_DIR=$dir"
     echo "LH_VETRINA_WEB_HOST=$name-$CODESPACE_WEB_PORT.$domain"
     echo "LH_VETRINA_IDP_HOST=$name-$CODESPACE_IDP_PORT.$domain"
+    echo "LH_VETRINA_ADMIN_HOST=$name-$CODESPACE_ADMIN_PORT.$domain"
     echo "LH_VETRINA_PUBLIC_ADDRESS=127.0.0.1"
     echo "LH_HUB_DEMO_URL=${LH_HUB_DEMO_URL:-}"
     echo "LH_BIND_ADDRESS=127.0.0.1"
@@ -456,6 +462,7 @@ cmd_codespace() {
   fi
   cmd_operators
   info "web: https://$LH_VETRINA_WEB_HOST · Keycloak: https://$LH_VETRINA_IDP_HOST (porte $CODESPACE_WEB_PORT e $CODESPACE_IDP_PORT pubbliche, Q-661)"
+  info "console di Keycloak: https://$LH_VETRINA_ADMIN_HOST/admin/ (porta $CODESPACE_ADMIN_PORT privata: solo il proprietario del codespace; utente admin, password in $LH_VETRINA_DIR/secrets/idp-admin-password)"
   info "passo interattivo rimasto, se il programma è vuoto: vetrina.sh programma (Q-630)"
 }
 
