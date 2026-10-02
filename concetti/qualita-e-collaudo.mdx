@@ -13,7 +13,7 @@ Il livello 1 è un cancello: se è rosso la release non parte. Il collaudo del l
 ## Perché tre livelli
 
 - **Playwright in CI** ripete sempre gli stessi percorsi nello stesso modo. Protegge da ciò che è già noto, ma non trova ciò che nessuno ha scritto.
-- **Un agente nel browser**, come Claude in Chrome, usa la vetrina come una persona: legge i testi, prova i flussi, nota gli errori in console e le richieste fallite. Trova difetti nuovi, ma due esecuzioni non sono mai identiche e non può fare da cancello.
+- **Un agente nel browser**, una sessione cloud di Claude con un browser senza interfaccia o Claude in Chrome, usa la vetrina come una persona: legge i testi, prova i flussi, nota gli errori in console e le richieste fallite. Trova difetti nuovi, ma due esecuzioni non sono mai identiche e non può fare da cancello.
 - **I log dei servizi** stanno nei container, che il browser non vede. Servono per collegare un errore visto sullo schermo alla sua causa.
 
 ## Il flusso di una major release
@@ -43,7 +43,7 @@ flowchart TD
 | Livello | Dove gira | Cosa vede | Esito |
 | --- | --- | --- | --- |
 | 1. Playwright | GitHub Actions, compose `enterprise` | pagine, invarianti, accessibilità | verde o rosso, blocca il merge |
-| 2. Agente nel browser | Chrome del proprietario, vetrina | DOM, console, rete, screenshot | rapporto consultivo |
+| 2. Agente nel browser | sessione cloud di Claude con Chromium, oppure Claude in Chrome; vetrina | DOM, console, rete, screenshot | rapporto consultivo |
 | 3. Log dei servizi | GitHub Actions, compose `enterprise` | log di hub, web, Keycloak, Kafka, Postgres | artefatto del workflow |
 
 <Warning>
